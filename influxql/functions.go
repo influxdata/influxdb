@@ -312,7 +312,7 @@ func (r *IntegerMovingAverageReducer) Emit() []FloatPoint {
 
 // FloatIntegralReducer calculates the integral of the aggregated points.
 type FloatIntegralReducer struct {
-	minValue      float64
+	current       float64
 	prev          FloatPoint
 	curr          FloatPoint
 }
@@ -320,7 +320,7 @@ type FloatIntegralReducer struct {
 // NewFloatIntegralReducer creates a new FloatIntegralReducer.
 func NewFloatIntegralReducer() *FloatIntegralReducer {
 	return &FloatIntegralReducer{
-		minValue:      float64(0),
+		current:       float64(0),
 		prev:          FloatPoint{Nil: true},
 		curr:          FloatPoint{Nil: true},
 	}
@@ -335,15 +335,15 @@ func (r *FloatIntegralReducer) AggregateFloat(p *FloatPoint) {
 // Emit emits the derivative of the reducer at the current point.
 func (r *FloatIntegralReducer) Emit() []FloatPoint {
 	if !r.prev.Nil {
-		return []FloatPoint{{Time: r.curr.Time, Value: r.curr.Value - r.minValue}}
+		r.current += (r.curr.Value - r.prev.Value)
+		return []FloatPoint{{Time: r.curr.Time, Value: r.current}}
 	}
-	r.minValue = r.curr.Value
-	return []FloatPoint{{Time: r.curr.Time, Value: float64(0)}}
+	return []FloatPoint{{Time: r.curr.Time, Value: r.current}}
 }
 
 // IntegerIntegralReducer calculates the integral of the aggregated points.
 type IntegerIntegralReducer struct {
-	minValue      int64
+	current       float64
 	prev          IntegerPoint
 	curr          IntegerPoint
 }
@@ -351,7 +351,7 @@ type IntegerIntegralReducer struct {
 // NewIntegerIntegralReducer creates a new IntegerIntegralReducer.
 func NewIntegerIntegralReducer() *IntegerIntegralReducer {
 	return &IntegerIntegralReducer{
-		minValue:      int64(0),
+		current:       float64(0),
 		prev:          IntegerPoint{Nil: true},
 		curr:          IntegerPoint{Nil: true},
 	}
@@ -366,8 +366,8 @@ func (r *IntegerIntegralReducer) AggregateInteger(p *IntegerPoint) {
 // Emit emits the derivative of the reducer at the current point.
 func (r *IntegerIntegralReducer) Emit() []FloatPoint {
 	if !r.prev.Nil {
-		return []FloatPoint{{Time: r.curr.Time, Value: float64(r.curr.Value) - float64(r.minValue)}}
+		r.current += (float64(r.curr.Value) - float64(r.prev.Value))
+		return []FloatPoint{{Time: r.curr.Time, Value: r.current}}
 	}
-	r.minValue = r.curr.Value
-	return []FloatPoint{{Time: r.curr.Time, Value: float64(0)}}
+	return []FloatPoint{{Time: r.curr.Time, Value: r.current}}
 }
