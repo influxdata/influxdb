@@ -104,6 +104,10 @@ func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool, rowLimit
 			"GET", "/query", true, true, h.serveQuery,
 		},
 		Route{
+			"query", // Query serving route.
+			"POST", "/query", true, true, h.serveQuery,
+		},
+		Route{
 			"write-options", // Satisfy CORS checks.
 			"OPTIONS", "/write", true, true, h.serveOptions,
 		},
@@ -243,19 +247,18 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 		h.statMap.Add(statQueryRequestDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
 
-	q := r.URL.Query()
-	pretty := q.Get("pretty") == "true"
+	pretty := r.FormValue("pretty") == "true"
 
-	qp := strings.TrimSpace(q.Get("q"))
+	qp := strings.TrimSpace(r.FormValue("q"))
 	if qp == "" {
 		httpError(w, `missing required parameter "q"`, pretty, http.StatusBadRequest)
 		return
 	}
 
-	epoch := strings.TrimSpace(q.Get("epoch"))
+	epoch := strings.TrimSpace(r.FormValue("epoch"))
 
 	p := influxql.NewParser(strings.NewReader(qp))
-	db := q.Get("db")
+	db := r.FormValue("db")
 
 	// Sanitize the request query params so it doesn't show up in the response logger.
 	// Do this before anything else so a parsing error doesn't leak passwords.
@@ -280,10 +283,10 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	}
 
 	// Parse chunk size. Use default if not provided or unparsable.
-	chunked := (q.Get("chunked") == "true")
+	chunked := (r.FormValue("chunked") == "true")
 	chunkSize := DefaultChunkSize
 	if chunked {
-		if n, err := strconv.ParseInt(q.Get("chunk_size"), 10, 64); err == nil && int(n) > 0 {
+		if n, err := strconv.ParseInt(r.FormValue("chunk_size"), 10, 64); err == nil && int(n) > 0 {
 			chunkSize = int(n)
 		}
 	}
@@ -314,7 +317,8 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	// Execute query.
 	w.Header().Add("Connection", "close")
 	w.Header().Add("content-type", "application/json")
-	results := h.QueryExecutor.ExecuteQuery(query, db, chunkSize, closing)
+	readonly := r.Method == "GET" || r.Method == "HEAD"
+	results := h.QueryExecutor.ExecuteQuery(query, db, chunkSize, readonly, closing)
 
 	// if we're not chunking, this will be the in memory buffer for all results before sending to client
 	resp := Response{Results: make([]*influxql.Result, 0)}

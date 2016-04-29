@@ -48,10 +48,19 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *influ
 	var err error
 	switch stmt := stmt.(type) {
 	case *influxql.AlterRetentionPolicyStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeAlterRetentionPolicyStatement(stmt)
 	case *influxql.CreateContinuousQueryStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeCreateContinuousQueryStatement(stmt)
 	case *influxql.CreateDatabaseStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		if stmt.IfNotExists {
 			ctx.Log.Println("WARNING: IF NOT EXISTS is deprecated as of v0.13.0 and will be removed in v1.0")
 			messages = append(messages, &influxql.Message{
@@ -61,36 +70,81 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *influ
 		}
 		err = e.executeCreateDatabaseStatement(stmt)
 	case *influxql.CreateRetentionPolicyStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeCreateRetentionPolicyStatement(stmt)
 	case *influxql.CreateSubscriptionStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeCreateSubscriptionStatement(stmt)
 	case *influxql.CreateUserStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeCreateUserStatement(stmt)
 	case *influxql.DeleteSeriesStatement:
 		err = e.executeDeleteSeriesStatement(stmt, ctx.Database)
 	case *influxql.DropContinuousQueryStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeDropContinuousQueryStatement(stmt)
 	case *influxql.DropDatabaseStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeDropDatabaseStatement(stmt)
 	case *influxql.DropMeasurementStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeDropMeasurementStatement(stmt, ctx.Database)
 	case *influxql.DropSeriesStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeDropSeriesStatement(stmt, ctx.Database)
 	case *influxql.DropRetentionPolicyStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeDropRetentionPolicyStatement(stmt)
 	case *influxql.DropShardStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeDropShardStatement(stmt)
 	case *influxql.DropSubscriptionStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeDropSubscriptionStatement(stmt)
 	case *influxql.DropUserStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeDropUserStatement(stmt)
 	case *influxql.GrantStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeGrantStatement(stmt)
 	case *influxql.GrantAdminStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeGrantAdminStatement(stmt)
 	case *influxql.RevokeStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeRevokeStatement(stmt)
 	case *influxql.RevokeAdminStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeRevokeAdminStatement(stmt)
 	case *influxql.ShowContinuousQueriesStatement:
 		rows, err = e.executeShowContinuousQueriesStatement(stmt)
@@ -113,6 +167,9 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *influ
 	case *influxql.ShowUsersStatement:
 		rows, err = e.executeShowUsersStatement(stmt)
 	case *influxql.SetPasswordUserStatement:
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
 		err = e.executeSetPasswordUserStatement(stmt)
 	default:
 		return influxql.ErrInvalidQuery
@@ -423,11 +480,6 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 			break
 		}
 
-		result := &influxql.Result{
-			StatementID: ctx.StatementID,
-			Series:      []*models.Row{row},
-		}
-
 		// Write points back into system for INTO statements.
 		if stmt.Target != nil {
 			if err := e.writeInto(stmt, row); err != nil {
@@ -435,6 +487,11 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 			}
 			writeN += int64(len(row.Values))
 			continue
+		}
+
+		result := &influxql.Result{
+			StatementID: ctx.StatementID,
+			Series:      []*models.Row{row},
 		}
 
 		// Send results or exit if closing.
@@ -449,8 +506,14 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 
 	// Emit write count if an INTO statement.
 	if stmt.Target != nil {
+		var messages []*influxql.Message
+		if ctx.ReadOnly {
+			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
+		}
+
 		ctx.Results <- &influxql.Result{
 			StatementID: ctx.StatementID,
+			Messages:    messages,
 			Series: []*models.Row{{
 				Name:    "result",
 				Columns: []string{"time", "written"},

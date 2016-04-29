@@ -181,7 +181,7 @@ func (c *Client) Query(q Query) (*Response, error) {
 	}
 	u.RawQuery = values.Encode()
 
-	req, err := http.NewRequest("GET", u.String(), nil)
+	req, err := http.NewRequest("POST", u.String(), nil)
 	if err != nil {
 		return nil, err
 	}

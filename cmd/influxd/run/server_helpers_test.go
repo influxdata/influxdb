@@ -143,7 +143,7 @@ func (s *Server) QueryWithParams(query string, values url.Values) (results strin
 		v, _ = url.ParseQuery(values.Encode())
 	}
 	v.Set("q", query)
-	return s.HTTPGet(s.URL() + "/query?" + v.Encode())
+	return s.HTTPPost(s.URL()+"/query?"+v.Encode(), nil)
 }
 
 // MustQueryWithParams executes a query against the server and returns the results.
