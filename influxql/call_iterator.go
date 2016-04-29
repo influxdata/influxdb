@@ -137,6 +137,12 @@ func newMinIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 			return fn, fn
 		}
 		return &integerReduceIntegerIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
+	case BooleanIterator:
+		createFn := func() (BooleanPointAggregator, BooleanPointEmitter) {
+			fn := NewBooleanFuncReducer(BooleanMinReduce)
+			return fn, fn
+		}
+		return &booleanReduceBooleanIterator{input: newBufBooleanIterator(input), opt: opt, create: createFn}, nil
 	default:
 		return nil, fmt.Errorf("unsupported min iterator type: %T", input)
 	}
@@ -158,6 +164,14 @@ func IntegerMinReduce(prev, curr *IntegerPoint) (int64, int64, []interface{}) {
 	return prev.Time, prev.Value, prev.Aux
 }
 
+// BooleanMinReduce returns the minimum value between prev & curr.
+func BooleanMinReduce(prev, curr *BooleanPoint) (int64, bool, []interface{}) {
+	if prev == nil || (curr.Value != prev.Value && !curr.Value) || (curr.Value == prev.Value && curr.Time < prev.Time) {
+		return curr.Time, curr.Value, curr.Aux
+	}
+	return prev.Time, prev.Value, prev.Aux
+}
+
 // newMaxIterator returns an iterator for operating on a max() call.
 func newMaxIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
@@ -173,6 +187,12 @@ func newMaxIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 			return fn, fn
 		}
 		return &integerReduceIntegerIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
+	case BooleanIterator:
+		createFn := func() (BooleanPointAggregator, BooleanPointEmitter) {
+			fn := NewBooleanFuncReducer(BooleanMaxReduce)
+			return fn, fn
+		}
+		return &booleanReduceBooleanIterator{input: newBufBooleanIterator(input), opt: opt, create: createFn}, nil
 	default:
 		return nil, fmt.Errorf("unsupported max iterator type: %T", input)
 	}
@@ -189,6 +209,14 @@ func FloatMaxReduce(prev, curr *FloatPoint) (int64, float64, []interface{}) {
 // IntegerMaxReduce returns the maximum value between prev & curr.
 func IntegerMaxReduce(prev, curr *IntegerPoint) (int64, int64, []interface{}) {
 	if prev == nil || curr.Value > prev.Value || (curr.Value == prev.Value && curr.Time < prev.Time) {
+		return curr.Time, curr.Value, curr.Aux
+	}
+	return prev.Time, prev.Value, prev.Aux
+}
+
+// BooleanMaxReduce returns the minimum value between prev & curr.
+func BooleanMaxReduce(prev, curr *BooleanPoint) (int64, bool, []interface{}) {
+	if prev == nil || (curr.Value != prev.Value && curr.Value) || (curr.Value == prev.Value && curr.Time < prev.Time) {
 		return curr.Time, curr.Value, curr.Aux
 	}
 	return prev.Time, prev.Value, prev.Aux

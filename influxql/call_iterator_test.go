@@ -211,6 +211,38 @@ func TestCallIterator_Min_Integer(t *testing.T) {
 	}
 }
 
+// Ensure that a boolean iterator can be created for a min() call.
+func TestCallIterator_Min_Boolean(t *testing.T) {
+	itr, _ := influxql.NewCallIterator(
+		&BooleanIterator{Points: []influxql.BooleanPoint{
+			{Time: 0, Value: true, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: false, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 2, Value: false, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: true, Tags: ParseTags("region=us-west,host=hostA")},
+
+			{Time: 5, Value: false, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 23, Value: true, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		influxql.IteratorOptions{
+			Expr:       MustParseExpr(`min("value")`),
+			Dimensions: []string{"host"},
+			Interval:   influxql.Interval{Duration: 5 * time.Nanosecond},
+		},
+	)
+
+	if a, err := Iterators([]influxql.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]influxql.Point{
+		{&influxql.BooleanPoint{Time: 2, Value: false, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&influxql.BooleanPoint{Time: 1, Value: false, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.BooleanPoint{Time: 5, Value: false, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&influxql.BooleanPoint{Time: 23, Value: true, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
 // Ensure that a float iterator can be created for a max() call.
 func TestCallIterator_Max_Float(t *testing.T) {
 	itr, _ := influxql.NewCallIterator(
@@ -270,6 +302,38 @@ func TestCallIterator_Max_Integer(t *testing.T) {
 		{&influxql.IntegerPoint{Time: 1, Value: 11, Tags: ParseTags("host=hostB"), Aggregated: 1}},
 		{&influxql.IntegerPoint{Time: 5, Value: 20, Tags: ParseTags("host=hostA"), Aggregated: 1}},
 		{&influxql.IntegerPoint{Time: 23, Value: 8, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+// Ensure that a boolean iterator can be created for a max() call.
+func TestCallIterator_Max_Boolean(t *testing.T) {
+	itr, _ := influxql.NewCallIterator(
+		&BooleanIterator{Points: []influxql.BooleanPoint{
+			{Time: 0, Value: true, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: false, Tags: ParseTags("region=us-west,host=hostB")},
+			{Time: 2, Value: false, Tags: ParseTags("region=us-east,host=hostA")},
+			{Time: 1, Value: true, Tags: ParseTags("region=us-west,host=hostA")},
+
+			{Time: 5, Value: false, Tags: ParseTags("region=us-east,host=hostA")},
+
+			{Time: 23, Value: true, Tags: ParseTags("region=us-west,host=hostB")},
+		}},
+		influxql.IteratorOptions{
+			Expr:       MustParseExpr(`max("value")`),
+			Dimensions: []string{"host"},
+			Interval:   influxql.Interval{Duration: 5 * time.Nanosecond},
+		},
+	)
+
+	if a, err := Iterators([]influxql.Iterator{itr}).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]influxql.Point{
+		{&influxql.BooleanPoint{Time: 0, Value: true, Tags: ParseTags("host=hostA"), Aggregated: 3}},
+		{&influxql.BooleanPoint{Time: 1, Value: false, Tags: ParseTags("host=hostB"), Aggregated: 1}},
+		{&influxql.BooleanPoint{Time: 5, Value: false, Tags: ParseTags("host=hostA"), Aggregated: 1}},
+		{&influxql.BooleanPoint{Time: 23, Value: true, Tags: ParseTags("host=hostB"), Aggregated: 1}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}
