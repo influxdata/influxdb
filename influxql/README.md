@@ -358,10 +358,10 @@ CREATE USER jdoe WITH PASSWORD '1337password';
 CREATE USER jdoe WITH PASSWORD '1337password' WITH ALL PRIVILEGES;
 ```
 
-### DELETE SERIES
+### DELETE
 
 ```
-delete_series_stmt = "DELETE SERIES" ( from_clause | where_clause | from_clause where_clause ) .
+delete_stmt = "DELETE" ( from_clause | where_clause | from_clause where_clause ) .
 ```
 
 #### Example:
