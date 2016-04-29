@@ -1031,7 +1031,7 @@ func newMovingAverageIterator(input Iterator, n int, opt IteratorOptions) (Itera
 	}
 }
 
-// newDerivativeIterator returns an iterator for operating on a derivative() call.
+// newIntegralIterator returns an iterator for operating on a integral() call.
 func newIntegralIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
