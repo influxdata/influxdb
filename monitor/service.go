@@ -86,6 +86,7 @@ func New(c Config) *Monitor {
 // for identification purpose.
 func (m *Monitor) Open() error {
 	m.Logger.Printf("Starting monitor system")
+	m.done = make(chan struct{})
 
 	// Self-register various stats and diagnostics.
 	m.RegisterDiagnosticsClient("build", &build{
@@ -100,7 +101,6 @@ func (m *Monitor) Open() error {
 
 	// If enabled, record stats in a InfluxDB system.
 	if m.storeEnabled {
-
 		// Start periodic writes to system.
 		m.wg.Add(1)
 		go m.storeStatistics()
@@ -113,8 +113,13 @@ func (m *Monitor) Open() error {
 func (m *Monitor) Close() {
 	m.Logger.Println("shutting down monitor system")
 	close(m.done)
+
 	m.wg.Wait()
 	m.done = nil
+	m.DeregisterDiagnosticsClient("build")
+	m.DeregisterDiagnosticsClient("runtime")
+	m.DeregisterDiagnosticsClient("network")
+	m.DeregisterDiagnosticsClient("system")
 }
 
 // SetLogOutput sets the writer to which all logs are written. It must not be
