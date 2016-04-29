@@ -51,6 +51,7 @@
 - [#6468](https://github.com/influxdata/influxdb/issues/6468): Panic with truncated wal segments
 - [#6480](https://github.com/influxdata/influxdb/issues/6480): Fix SHOW statements' rewriting bug
 - [#6505](https://github.com/influxdata/influxdb/issues/6505): Add regex literal to InfluxQL spec for FROM clause.
+- [#5890](https://github.com/influxdata/influxdb/issues/5890): Return the time with a selector when there is no group by interval.
 
 ## v0.12.2 [2016-04-20]
 
