@@ -116,6 +116,8 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) (
 			switch expr := expr.(type) {
 			case *VarRef:
 				itrs[i] = aitr.Iterator(expr.Val)
+			case *TagRef:
+				itrs[i] = aitr.Iterator("@" + expr.Val)
 			case *BinaryExpr:
 				itr, err := buildExprIterator(expr, aitr, opt)
 				if err != nil {

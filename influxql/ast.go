@@ -2847,6 +2847,8 @@ func (f *Field) Name() string {
 	case *ParenExpr:
 		f := Field{Expr: expr.Expr}
 		return f.Name()
+	case *TagRef:
+		return expr.Val
 	case *VarRef:
 		return expr.Val
 	}
@@ -3315,6 +3317,8 @@ func CloneExpr(expr Expr) Expr {
 		return &RegexLiteral{Val: expr.Val}
 	case *StringLiteral:
 		return &StringLiteral{Val: expr.Val}
+	case *TagRef:
+		return &TagRef{Val: expr.Val}
 	case *TimeLiteral:
 		return &TimeLiteral{Val: expr.Val}
 	case *VarRef:
