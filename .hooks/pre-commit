@@ -16,9 +16,9 @@ exit 0
 
 # Ensure FIXME lines are removed before commit.
 fixme_lines=$(git diff --cached | grep ^+ | grep -v pre-commit | grep FIXME | sed 's_^+\s*__g')
-if [ "$todo_lines" != "" ]; then
+if [ "$fixme_lines" != "" ]; then
     echo "Please remove the following lines:"
-    echo -e "$todo_lines"
+    echo -e "$fixme_lines"
     exit 1
 fi
 
