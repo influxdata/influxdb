@@ -127,13 +127,42 @@ func (b *BlockIterator) Next() bool {
 		}
 	}
 
-	if b.n-b.i > 0 {
+	for b.n-b.i > 0 {
 		b.key, b.entries = b.r.Key(b.i)
 		b.i++
-		return true
+
+		// The index blocks might have tombstone entries and could be fully deleted, filter them out
+		b.entries = b.filterTombstones(b.r.TombstoneRange(b.key), b.entries)
+
+		if len(b.entries) > 0 {
+			return true
+		}
 	}
 
 	return false
+}
+
+func (b *BlockIterator) filterTombstones(tombstones []TimeRange, entries []IndexEntry) []IndexEntry {
+	for _, t := range tombstones {
+		entries = b.filterEntries(entries, t.Min, t.Max)
+	}
+	return entries
+}
+
+func (b *BlockIterator) filterEntries(entries []IndexEntry, min, max int64) []IndexEntry {
+	var i int
+	for j := 0; j < len(entries); j++ {
+		// filter this block if a tombstone entry exists that fully spans the range
+		// of time of points in the block
+		if entries[j].MinTime >= min && entries[j].MaxTime <= max {
+			continue
+		}
+
+		entries[i] = entries[j]
+		i++
+	}
+
+	return entries[:i]
 }
 
 func (b *BlockIterator) Read() (string, int64, int64, uint32, []byte, error) {

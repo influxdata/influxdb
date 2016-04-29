@@ -531,7 +531,7 @@ func (s *Store) ShardRelativePath(id uint64) (string, error) {
 }
 
 // DeleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys
-func (s *Store) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr, dropMeta bool) error {
+func (s *Store) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error {
 	// Expand regex expressions in the FROM clause.
 	a, err := s.ExpandSources(sources)
 	if err != nil {
@@ -596,16 +596,12 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 		return err
 	}
 
-	// remove them from the index
-	if dropMeta {
-		db.DropSeries(seriesKeys)
-	}
-
 	return nil
 }
 
 func (s *Store) deleteSeries(database string, seriesKeys []string, min, max int64) error {
-	if _, ok := s.databaseIndexes[database]; !ok {
+	db := s.databaseIndexes[database]
+	if db == nil {
 		return influxql.ErrDatabaseNotFound(database)
 	}
 
@@ -616,7 +612,21 @@ func (s *Store) deleteSeries(database string, seriesKeys []string, min, max int6
 		if err := sh.DeleteSeriesRange(seriesKeys, min, max); err != nil {
 			return err
 		}
+
+		// The keys we passed in may be fully deleted from the shard, if so,
+		// we need to remove the shard from all the meta data indexes
+		existing, err := sh.ContainsSeries(seriesKeys)
+		if err != nil {
+			return err
+		}
+
+		for k, exists := range existing {
+			if !exists {
+				db.UnassignShard(k, sh.id)
+			}
+		}
 	}
+
 	return nil
 }
 

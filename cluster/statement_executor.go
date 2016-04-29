@@ -210,7 +210,7 @@ func (e *StatementExecutor) executeDeleteSeriesStatement(stmt *influxql.DeleteSe
 	stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: time.Now().UTC()})
 
 	// Locally delete the series.
-	return e.TSDBStore.DeleteSeries(database, stmt.Sources, stmt.Condition, false)
+	return e.TSDBStore.DeleteSeries(database, stmt.Sources, stmt.Condition)
 }
 
 func (e *StatementExecutor) executeDropContinuousQueryStatement(q *influxql.DropContinuousQueryStatement) error {
@@ -254,7 +254,7 @@ func (e *StatementExecutor) executeDropSeriesStatement(stmt *influxql.DropSeries
 	}
 
 	// Locally drop the series.
-	return e.TSDBStore.DeleteSeries(database, stmt.Sources, stmt.Condition, true)
+	return e.TSDBStore.DeleteSeries(database, stmt.Sources, stmt.Condition)
 }
 
 func (e *StatementExecutor) executeDropShardStatement(stmt *influxql.DropShardStatement) error {
@@ -831,7 +831,7 @@ type TSDBStore interface {
 	DeleteDatabase(name string) error
 	DeleteMeasurement(database, name string) error
 	DeleteRetentionPolicy(database, name string) error
-	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr, dropMeta bool) error
+	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShard(id uint64) error
 	IteratorCreator(shards []meta.ShardInfo) (influxql.IteratorCreator, error)
 }

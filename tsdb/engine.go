@@ -34,6 +34,7 @@ type Engine interface {
 	CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
 	SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error)
 	WritePoints(points []models.Point) error
+	ContainsSeries(keys []string) (map[string]bool, error)
 	DeleteSeries(keys []string) error
 	DeleteSeriesRange(keys []string, min, max int64) error
 	DeleteMeasurement(name string, seriesKeys []string) error
