@@ -30,10 +30,8 @@ func TestMetaClient_CreateDatabaseOnly(t *testing.T) {
 		t.Fatalf("database name mismatch.  exp: db0, got %s", db.Name)
 	}
 
-	db, err := c.Database("db0")
-	if err != nil {
-		t.Fatal(err)
-	} else if db == nil {
+	db := c.Database("db0")
+	if db == nil {
 		t.Fatal("database not found")
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
@@ -61,10 +59,8 @@ func TestMetaClient_CreateDatabaseIfNotExists(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db, err := c.Database("db0")
-	if err != nil {
-		t.Fatal(err)
-	} else if db == nil {
+	db := c.Database("db0")
+	if db == nil {
 		t.Fatal("database not found")
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
@@ -92,19 +88,15 @@ func TestMetaClient_CreateDatabaseWithRetentionPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db, err := c.Database("db0")
-	if err != nil {
-		t.Fatal(err)
-	} else if db == nil {
+	db := c.Database("db0")
+	if db == nil {
 		t.Fatal("database not found")
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
 
 	rp := db.RetentionPolicy("rp0")
-	if err != nil {
-		t.Fatal(err)
-	} else if rp.Name != "rp0" {
+	if rp.Name != "rp0" {
 		t.Fatalf("rp name wrong: %s", rp.Name)
 	} else if rp.Duration != time.Hour {
 		t.Fatalf("rp duration wrong: %v", rp.Duration)
@@ -166,7 +158,7 @@ func TestMetaClient_Databases(t *testing.T) {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
 
-	dbs, err := c.Databases()
+	dbs := c.Databases()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,10 +182,8 @@ func TestMetaClient_DropDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db, err := c.Database("db0")
-	if err != nil {
-		t.Fatal(err)
-	} else if db == nil {
+	db := c.Database("db0")
+	if db == nil {
 		t.Fatalf("database not found")
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
@@ -203,7 +193,7 @@ func TestMetaClient_DropDatabase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if db, _ = c.Database("db0"); db != nil {
+	if db = c.Database("db0"); db != nil {
 		t.Fatalf("expected database to not return: %v", db)
 	}
 
@@ -224,10 +214,8 @@ func TestMetaClient_CreateRetentionPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db, err := c.Database("db0")
-	if err != nil {
-		t.Fatal(err)
-	} else if db == nil {
+	db := c.Database("db0")
+	if db == nil {
 		t.Fatal("database not found")
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
@@ -306,10 +294,8 @@ func TestMetaClient_SetDefaultRetentionPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db, err := c.Database("db0")
-	if err != nil {
-		t.Fatal(err)
-	} else if db == nil {
+	db := c.Database("db0")
+	if db == nil {
 		t.Fatal("datbase not found")
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
@@ -343,10 +329,8 @@ func TestMetaClient_DropRetentionPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db, err := c.Database("db0")
-	if err != nil {
-		t.Fatal(err)
-	} else if db == nil {
+	db := c.Database("db0")
+	if db == nil {
 		t.Fatal("database not found")
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
@@ -503,10 +487,8 @@ func TestMetaClient_CreateUser(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	db, err := c.Database("db0")
-	if err != nil {
-		t.Fatal(err)
-	} else if db.Name != "db0" {
+	db := c.Database("db0")
+	if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
 	}
 
@@ -567,10 +549,8 @@ func TestMetaClient_ContinuousQueries(t *testing.T) {
 	if _, err := c.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	}
-	db, err := c.Database("db0")
-	if err != nil {
-		t.Fatal(err)
-	} else if db == nil {
+	db := c.Database("db0")
+	if db == nil {
 		t.Fatalf("database not found")
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)
@@ -620,10 +600,8 @@ func TestMetaClient_Subscriptions_Create(t *testing.T) {
 	if _, err := c.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	}
-	db, err := c.Database("db0")
-	if err != nil {
-		t.Fatal(err)
-	} else if db == nil {
+	db := c.Database("db0")
+	if db == nil {
 		t.Fatal("database not found")
 	} else if db.Name != "db0" {
 		t.Fatalf("db name wrong: %s", db.Name)

@@ -257,9 +257,7 @@ func (e *StatementExecutor) executeCreateUserStatement(q *influxql.CreateUserSta
 }
 
 func (e *StatementExecutor) executeDeleteSeriesStatement(stmt *influxql.DeleteSeriesStatement, database string) error {
-	if dbi, err := e.MetaClient.Database(database); err != nil {
-		return err
-	} else if dbi == nil {
+	if dbi := e.MetaClient.Database(database); dbi == nil {
 		return influxql.ErrDatabaseNotFound(database)
 	}
 
@@ -288,9 +286,7 @@ func (e *StatementExecutor) executeDropDatabaseStatement(stmt *influxql.DropData
 }
 
 func (e *StatementExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string) error {
-	if dbi, err := e.MetaClient.Database(database); err != nil {
-		return err
-	} else if dbi == nil {
+	if dbi := e.MetaClient.Database(database); dbi == nil {
 		return influxql.ErrDatabaseNotFound(database)
 	}
 
@@ -299,9 +295,7 @@ func (e *StatementExecutor) executeDropMeasurementStatement(stmt *influxql.DropM
 }
 
 func (e *StatementExecutor) executeDropSeriesStatement(stmt *influxql.DropSeriesStatement, database string) error {
-	if dbi, err := e.MetaClient.Database(database); err != nil {
-		return err
-	} else if dbi == nil {
+	if dbi := e.MetaClient.Database(database); dbi == nil {
 		return influxql.ErrDatabaseNotFound(database)
 	}
 
@@ -545,10 +539,7 @@ func (e *StatementExecutor) iteratorCreator(stmt *influxql.SelectStatement, opt 
 }
 
 func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement) (models.Rows, error) {
-	dis, err := e.MetaClient.Databases()
-	if err != nil {
-		return nil, err
-	}
+	dis := e.MetaClient.Databases()
 
 	rows := []*models.Row{}
 	for _, di := range dis {
@@ -562,10 +553,7 @@ func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql
 }
 
 func (e *StatementExecutor) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatement) (models.Rows, error) {
-	dis, err := e.MetaClient.Databases()
-	if err != nil {
-		return nil, err
-	}
+	dis := e.MetaClient.Databases()
 
 	row := &models.Row{Name: "databases", Columns: []string{"name"}}
 	for _, di := range dis {
@@ -616,10 +604,8 @@ func (e *StatementExecutor) executeShowGrantsForUserStatement(q *influxql.ShowGr
 }
 
 func (e *StatementExecutor) executeShowRetentionPoliciesStatement(q *influxql.ShowRetentionPoliciesStatement) (models.Rows, error) {
-	di, err := e.MetaClient.Database(q.Database)
-	if err != nil {
-		return nil, err
-	} else if di == nil {
+	di := e.MetaClient.Database(q.Database)
+	if di == nil {
 		return nil, influxdb.ErrDatabaseNotFound(q.Database)
 	}
 
@@ -631,10 +617,7 @@ func (e *StatementExecutor) executeShowRetentionPoliciesStatement(q *influxql.Sh
 }
 
 func (e *StatementExecutor) executeShowShardsStatement(stmt *influxql.ShowShardsStatement) (models.Rows, error) {
-	dis, err := e.MetaClient.Databases()
-	if err != nil {
-		return nil, err
-	}
+	dis := e.MetaClient.Databases()
 
 	rows := []*models.Row{}
 	for _, di := range dis {
@@ -672,10 +655,7 @@ func (e *StatementExecutor) executeShowShardsStatement(stmt *influxql.ShowShards
 }
 
 func (e *StatementExecutor) executeShowShardGroupsStatement(stmt *influxql.ShowShardGroupsStatement) (models.Rows, error) {
-	dis, err := e.MetaClient.Databases()
-	if err != nil {
-		return nil, err
-	}
+	dis := e.MetaClient.Databases()
 
 	row := &models.Row{Columns: []string{"id", "database", "retention_policy", "start_time", "end_time", "expiry_time"}, Name: "shard groups"}
 	for _, di := range dis {
@@ -727,10 +707,7 @@ func (e *StatementExecutor) executeShowStatsStatement(stmt *influxql.ShowStatsSt
 }
 
 func (e *StatementExecutor) executeShowSubscriptionsStatement(stmt *influxql.ShowSubscriptionsStatement) (models.Rows, error) {
-	dis, err := e.MetaClient.Databases()
-	if err != nil {
-		return nil, err
-	}
+	dis := e.MetaClient.Databases()
 
 	rows := []*models.Row{}
 	for _, di := range dis {
@@ -861,10 +838,8 @@ func (e *StatementExecutor) normalizeMeasurement(m *influxql.Measurement, defaul
 	}
 
 	// Find database.
-	di, err := e.MetaClient.Database(m.Database)
-	if err != nil {
-		return err
-	} else if di == nil {
+	di := e.MetaClient.Database(m.Database)
+	if di == nil {
 		return influxdb.ErrDatabaseNotFound(m.Database)
 	}
 

@@ -40,7 +40,7 @@ type subEntry struct {
 type Service struct {
 	subs       map[subEntry]PointsWriter
 	MetaClient interface {
-		Databases() ([]meta.DatabaseInfo, error)
+		Databases() []meta.DatabaseInfo
 		WaitForDataChanged() chan struct{}
 	}
 	NewPointsWriter func(u url.URL) (PointsWriter, error)
@@ -138,10 +138,7 @@ func (s *Service) waitForMetaUpdates() {
 
 // Update will start new and stop deleted subscriptions.
 func (s *Service) Update() error {
-	dbis, err := s.MetaClient.Databases()
-	if err != nil {
-		return err
-	}
+	dbis := s.MetaClient.Databases()
 	allEntries := make(map[subEntry]bool, 0)
 	// Add in new subscriptions
 	for _, dbi := range dbis {

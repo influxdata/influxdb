@@ -11,11 +11,11 @@ import (
 )
 
 type MetaClient struct {
-	DatabasesFn          func() ([]meta.DatabaseInfo, error)
+	DatabasesFn          func() []meta.DatabaseInfo
 	WaitForDataChangedFn func() chan struct{}
 }
 
-func (m MetaClient) Databases() ([]meta.DatabaseInfo, error) {
+func (m MetaClient) Databases() []meta.DatabaseInfo {
 	return m.DatabasesFn()
 }
 
@@ -37,7 +37,7 @@ func TestService_IgnoreNonMatch(t *testing.T) {
 	ms.WaitForDataChangedFn = func() chan struct{} {
 		return dataChanged
 	}
-	ms.DatabasesFn = func() ([]meta.DatabaseInfo, error) {
+	ms.DatabasesFn = func() []meta.DatabaseInfo {
 		return []meta.DatabaseInfo{
 			{
 				Name: "db0",
@@ -50,7 +50,7 @@ func TestService_IgnoreNonMatch(t *testing.T) {
 					},
 				},
 			},
-		}, nil
+		}
 	}
 
 	prs := make(chan *cluster.WritePointsRequest, 2)
@@ -112,7 +112,7 @@ func TestService_ModeALL(t *testing.T) {
 	ms.WaitForDataChangedFn = func() chan struct{} {
 		return dataChanged
 	}
-	ms.DatabasesFn = func() ([]meta.DatabaseInfo, error) {
+	ms.DatabasesFn = func() []meta.DatabaseInfo {
 		return []meta.DatabaseInfo{
 			{
 				Name: "db0",
@@ -125,7 +125,7 @@ func TestService_ModeALL(t *testing.T) {
 					},
 				},
 			},
-		}, nil
+		}
 	}
 
 	prs := make(chan *cluster.WritePointsRequest, 2)
@@ -190,7 +190,7 @@ func TestService_ModeANY(t *testing.T) {
 	ms.WaitForDataChangedFn = func() chan struct{} {
 		return dataChanged
 	}
-	ms.DatabasesFn = func() ([]meta.DatabaseInfo, error) {
+	ms.DatabasesFn = func() []meta.DatabaseInfo {
 		return []meta.DatabaseInfo{
 			{
 				Name: "db0",
@@ -203,7 +203,7 @@ func TestService_ModeANY(t *testing.T) {
 					},
 				},
 			},
-		}, nil
+		}
 	}
 
 	prs := make(chan *cluster.WritePointsRequest, 2)
@@ -272,7 +272,7 @@ func TestService_Multiple(t *testing.T) {
 	ms.WaitForDataChangedFn = func() chan struct{} {
 		return dataChanged
 	}
-	ms.DatabasesFn = func() ([]meta.DatabaseInfo, error) {
+	ms.DatabasesFn = func() []meta.DatabaseInfo {
 		return []meta.DatabaseInfo{
 			{
 				Name: "db0",
@@ -291,7 +291,7 @@ func TestService_Multiple(t *testing.T) {
 					},
 				},
 			},
-		}, nil
+		}
 	}
 
 	prs := make(chan *cluster.WritePointsRequest, 4)
@@ -391,9 +391,9 @@ func TestService_WaitForDataChanged(t *testing.T) {
 		return dataChanged
 	}
 	calls := make(chan bool, 2)
-	ms.DatabasesFn = func() ([]meta.DatabaseInfo, error) {
+	ms.DatabasesFn = func() []meta.DatabaseInfo {
 		calls <- true
-		return nil, nil
+		return nil
 	}
 
 	s := subscriber.NewService(subscriber.NewConfig())

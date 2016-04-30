@@ -37,7 +37,7 @@ type Service struct {
 
 	MetaClient interface {
 		encoding.BinaryMarshaler
-		Database(name string) (*meta.DatabaseInfo, error)
+		Database(name string) *meta.DatabaseInfo
 	}
 
 	TSDBStore *tsdb.Store
@@ -176,10 +176,7 @@ func (s *Service) writeMetaStore(conn net.Conn) error {
 // this server into the connection
 func (s *Service) writeDatabaseInfo(conn net.Conn, database string) error {
 	res := Response{}
-	db, err := s.MetaClient.Database(database)
-	if err != nil {
-		return err
-	}
+	db := s.MetaClient.Database(database)
 	if db == nil {
 		return influxdb.ErrDatabaseNotFound(database)
 	}
@@ -213,10 +210,7 @@ func (s *Service) writeDatabaseInfo(conn net.Conn, database string) error {
 // this server into the connection
 func (s *Service) writeRetentionPolicyInfo(conn net.Conn, database, retentionPolicy string) error {
 	res := Response{}
-	db, err := s.MetaClient.Database(database)
-	if err != nil {
-		return err
-	}
+	db := s.MetaClient.Database(database)
 	if db == nil {
 		return influxdb.ErrDatabaseNotFound(database)
 	}

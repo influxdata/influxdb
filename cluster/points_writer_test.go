@@ -212,8 +212,8 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		}
 
 		ms := NewPointsWriterMetaClient()
-		ms.DatabaseFn = func(database string) (*meta.DatabaseInfo, error) {
-			return nil, nil
+		ms.DatabaseFn = func(database string) *meta.DatabaseInfo {
+			return nil
 		}
 		ms.NodeIDFn = func() uint64 { return 1 }
 
@@ -314,7 +314,7 @@ type PointsWriterMetaClient struct {
 	NodeIDFn                      func() uint64
 	RetentionPolicyFn             func(database, name string) (*meta.RetentionPolicyInfo, error)
 	CreateShardGroupIfNotExistsFn func(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
-	DatabaseFn                    func(database string) (*meta.DatabaseInfo, error)
+	DatabaseFn                    func(database string) *meta.DatabaseInfo
 	ShardOwnerFn                  func(shardID uint64) (string, string, *meta.ShardGroupInfo)
 }
 
@@ -328,7 +328,7 @@ func (m PointsWriterMetaClient) CreateShardGroup(database, policy string, timest
 	return m.CreateShardGroupIfNotExistsFn(database, policy, timestamp)
 }
 
-func (m PointsWriterMetaClient) Database(database string) (*meta.DatabaseInfo, error) {
+func (m PointsWriterMetaClient) Database(database string) *meta.DatabaseInfo {
 	return m.DatabaseFn(database)
 }
 

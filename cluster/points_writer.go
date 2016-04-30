@@ -52,7 +52,7 @@ type PointsWriter struct {
 	Node *influxdb.Node
 
 	MetaClient interface {
-		Database(name string) (di *meta.DatabaseInfo, err error)
+		Database(name string) (di *meta.DatabaseInfo)
 		RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 		CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 		ShardOwner(shardID uint64) (string, string, *meta.ShardGroupInfo)
@@ -197,10 +197,8 @@ func (w *PointsWriter) WritePoints(database, retentionPolicy string, consistency
 	w.statMap.Add(statPointWriteReq, int64(len(points)))
 
 	if retentionPolicy == "" {
-		db, err := w.MetaClient.Database(database)
-		if err != nil {
-			return err
-		} else if db == nil {
+		db := w.MetaClient.Database(database)
+		if db == nil {
 			return influxdb.ErrDatabaseNotFound(database)
 		}
 		retentionPolicy = db.DefaultRetentionPolicy
