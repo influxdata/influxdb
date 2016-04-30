@@ -129,7 +129,24 @@ func main() {
 			fmt.Printf("%v", err)
 			os.Exit(1)
 		}
-		cmdVerify(path)
+		cmdDump(path)
+	case "dump":
+		var path string
+		fs := flag.NewFlagSet("dump", flag.ExitOnError)
+		fs.StringVar(&path, "dir", os.Getenv("HOME")+"/.influxdb", "Root storage path. [$HOME/.influxdb]")
+
+		fs.Usage = func() {
+			println("Usage: influx_inspect dump [options]\n\n   dumps TSM files into InfluxDB line protocol format")
+			println()
+			println("Options:")
+			fs.PrintDefaults()
+		}
+
+		if err := fs.Parse(flag.Args()[1:]); err != nil {
+			fmt.Printf("%v", err)
+			os.Exit(1)
+		}
+		cmdDump(path)
 	default:
 		flag.Usage()
 		os.Exit(1)
