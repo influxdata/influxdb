@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/escape"
 	internal "github.com/influxdata/influxdb/tsdb/internal"
 
@@ -1818,9 +1818,7 @@ func (s stringSet) intersect(o stringSet) stringSet {
 // MeasurementFromSeriesKey returns the name of the measurement from a key that
 // contains a measurement name.
 func MeasurementFromSeriesKey(key string) string {
-	idx := strings.Index(key, ",")
-	if idx == -1 {
-		return key
-	}
-	return key[:idx]
+	// Ignoring the error because the func returns "missing fields"
+	k, _, _ := models.ParseKey(key)
+	return escape.UnescapeString(k)
 }

@@ -53,6 +53,7 @@
 - [#6480](https://github.com/influxdata/influxdb/issues/6480): Fix SHOW statements' rewriting bug
 - [#6505](https://github.com/influxdata/influxdb/issues/6505): Add regex literal to InfluxQL spec for FROM clause.
 - [#5890](https://github.com/influxdata/influxdb/issues/5890): Return the time with a selector when there is no group by interval.
+- [#6496](https://github.com/influxdata/influxdb/issues/6496): Fix parsing escaped series key when loading database index
 
 ## v0.12.2 [2016-04-20]
 
