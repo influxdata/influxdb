@@ -55,6 +55,36 @@ func TestTombstoner_Add(t *testing.T) {
 	}
 }
 
+func TestTombstoner_Add_Empty(t *testing.T) {
+	dir := MustTempDir()
+	defer func() { os.RemoveAll(dir) }()
+
+	f := MustTempFile(dir)
+	ts := &tsm1.Tombstoner{Path: f.Name()}
+
+	entries, err := ts.ReadAll()
+	if err != nil {
+		fatal(t, "ReadAll", err)
+	}
+
+	if got, exp := len(entries), 0; got != exp {
+		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
+	}
+
+	ts.Add([]string{})
+
+	// Use a new Tombstoner to verify values are persisted
+	ts = &tsm1.Tombstoner{Path: f.Name()}
+	entries, err = ts.ReadAll()
+	if err != nil {
+		fatal(t, "ReadAll", err)
+	}
+
+	if got, exp := len(entries), 0; got != exp {
+		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func TestTombstoner_Delete(t *testing.T) {
 	dir := MustTempDir()
 	defer func() { os.RemoveAll(dir) }()

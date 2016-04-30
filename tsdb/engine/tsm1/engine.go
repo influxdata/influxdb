@@ -401,6 +401,10 @@ func (e *Engine) DeleteSeries(seriesKeys []string) error {
 
 // DeleteSeriesRange removes the values between min and max (inclusive) from all series.
 func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
+	if len(seriesKeys) == 0 {
+		return nil
+	}
+
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 

@@ -36,6 +36,10 @@ func (t *Tombstoner) Add(keys []string) error {
 
 // AddRange adds all keys to the tombstone specifying only the data between min and max to be removed.
 func (t *Tombstoner) AddRange(keys []string, min, max int64) error {
+	if len(keys) == 0 {
+		return nil
+	}
+
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
