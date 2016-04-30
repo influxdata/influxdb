@@ -217,20 +217,22 @@ func (t *Tombstoner) readTombstoneV2(f *os.File) ([]Tombstone, error) {
 	if _, err := f.Seek(4, os.SEEK_SET); err != nil {
 		return nil, err
 	}
+	n := int64(4)
 
 	fi, err := f.Stat()
 	if err != nil {
 		return nil, err
 	}
+	size := fi.Size()
 
 	tombstones := []Tombstone{}
 	var (
-		n, min, max int64
-		key         string
+		min, max int64
+		key      string
 	)
 	b := make([]byte, 4096)
 	for {
-		if n >= fi.Size() {
+		if n >= size {
 			return tombstones, nil
 		}
 
@@ -243,7 +245,6 @@ func (t *Tombstoner) readTombstoneV2(f *os.File) ([]Tombstone, error) {
 		if keyLen > len(b) {
 			b = make([]byte, keyLen)
 		}
-		n += 4
 
 		if _, err := f.Read(b[:keyLen]); err != nil {
 			return nil, err
