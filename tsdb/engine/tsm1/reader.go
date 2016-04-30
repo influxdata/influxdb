@@ -670,8 +670,20 @@ func (d *indirectIndex) DeleteRange(keys []string, minTime, maxTime int64) {
 
 		// Is the range passed in outside the time range for this key?
 		entries := d.Entries(k)
+
+		// If multiple tombstones are saved for the same key
+		if len(entries) == 0 {
+			continue
+		}
+
 		min, max := entries[0].MinTime, entries[len(entries)-1].MaxTime
 		if minTime > max || maxTime < min {
+			continue
+		}
+
+		// Is the range passed in cover every value for the key?
+		if minTime <= min && maxTime >= max {
+			d.Delete(keys)
 			continue
 		}
 
