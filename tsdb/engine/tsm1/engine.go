@@ -206,11 +206,9 @@ func (e *Engine) SetLogOutput(w io.Writer) {
 }
 
 // LoadMetadataIndex loads the shard metadata into memory.
-func (e *Engine) LoadMetadataIndex(sh *tsdb.Shard, index *tsdb.DatabaseIndex) error {
+func (e *Engine) LoadMetadataIndex(shardID uint64, index *tsdb.DatabaseIndex) error {
 	// Save reference to index for iterator creation.
 	e.index = index
-
-	start := time.Now()
 
 	if err := e.FileStore.WalkKeys(func(key string, typ byte) error {
 		fieldType, err := tsmFieldTypeToInfluxQLDataType(typ)
@@ -218,7 +216,7 @@ func (e *Engine) LoadMetadataIndex(sh *tsdb.Shard, index *tsdb.DatabaseIndex) er
 			return err
 		}
 
-		if err := e.addToIndexFromKey(key, fieldType, index); err != nil {
+		if err := e.addToIndexFromKey(shardID, key, fieldType, index); err != nil {
 			return err
 		}
 		return nil
@@ -238,15 +236,11 @@ func (e *Engine) LoadMetadataIndex(sh *tsdb.Shard, index *tsdb.DatabaseIndex) er
 			continue
 		}
 
-		if err := e.addToIndexFromKey(key, fieldType, index); err != nil {
+		if err := e.addToIndexFromKey(shardID, key, fieldType, index); err != nil {
 			return err
 		}
 	}
 
-	// sh may be nil in tests
-	if sh != nil {
-		e.logger.Printf("%s database index loaded in %s", sh.Path(), time.Now().Sub(start))
-	}
 	return nil
 }
 
@@ -315,7 +309,7 @@ func (e *Engine) writeFileToBackup(f FileStat, shardRelativePath string, tw *tar
 
 // addToIndexFromKey will pull the measurement name, series key, and field name from a composite key and add it to the
 // database index and measurement fields
-func (e *Engine) addToIndexFromKey(key string, fieldType influxql.DataType, index *tsdb.DatabaseIndex) error {
+func (e *Engine) addToIndexFromKey(shardID uint64, key string, fieldType influxql.DataType, index *tsdb.DatabaseIndex) error {
 	seriesKey, field := seriesAndFieldFromCompositeKey(key)
 	measurement := tsdb.MeasurementFromSeriesKey(seriesKey)
 
@@ -339,6 +333,7 @@ func (e *Engine) addToIndexFromKey(key string, fieldType influxql.DataType, inde
 	s := tsdb.NewSeries(seriesKey, tags)
 	s.InitializeShards()
 	index.CreateSeriesIndexIfNotExists(measurement, s)
+	s.AssignShard(shardID)
 
 	return nil
 }
