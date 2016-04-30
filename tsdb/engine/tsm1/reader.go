@@ -201,9 +201,25 @@ func (t *TSMReader) applyTombstones() error {
 		return fmt.Errorf("init: read tombstones: %v", err)
 	}
 
-	// Update our index
-	for _, ts := range tombstones {
-		t.index.DeleteRange([]string{ts.Key}, ts.Min, ts.Max)
+	if len(tombstones) == 0 {
+		return nil
+	}
+
+	var cur, prev Tombstone
+	cur = tombstones[0]
+	batch := []string{cur.Key}
+	for i := 1; i < len(tombstones); i++ {
+		cur = tombstones[i]
+		prev = tombstones[i-1]
+		if prev.Min != cur.Min || prev.Max != cur.Max {
+			t.index.DeleteRange(batch, prev.Min, prev.Max)
+			batch = batch[:0]
+		}
+		batch = append(batch, cur.Key)
+	}
+
+	if len(batch) > 0 {
+		t.index.DeleteRange(batch, cur.Min, cur.Max)
 	}
 	return nil
 }
