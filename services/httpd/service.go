@@ -134,7 +134,7 @@ func (s *Service) Close() error {
 // SetLogOutput sets the writer to which all logs are written. It must not be
 // called after Open is called.
 func (s *Service) SetLogOutput(w io.Writer) {
-	l := log.New(w, "[httpd]", log.LstdFlags)
+	l := log.New(w, "[httpd] ", log.LstdFlags)
 	s.Logger = l
 	s.Handler.Logger = l
 }
