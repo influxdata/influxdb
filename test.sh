@@ -76,6 +76,8 @@ function run_test_docker {
          -e "INFLUXDB_DATA_ENGINE=$INFLUXDB_DATA_ENGINE" \
          -e "GORACE=$GORACE" \
          -e "GO_CHECKOUT=$GO_CHECKOUT" \
+	 -e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" \
+	 -e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" \
          "$imagename" \
          "--parallel=$PARALLELISM" \
          "--timeout=$TIMEOUT" \
@@ -131,30 +133,31 @@ fi
 case $ENVIRONMENT_INDEX in
     0)
         # 64 bit tests
-        run_test_docker Dockerfile_build_ubuntu64 test_64bit --debug --generate --test
+	# Static builds will be uploaded to S3 upon test completion
+        run_test_docker Dockerfile_build_ubuntu64 test_64bit --generate --test --upload --package
         rc=$?
         ;;
     1)
         # 64 bit tsm tests
         INFLUXDB_DATA_ENGINE="tsm1"
-        run_test_docker Dockerfile_build_ubuntu64 test_64bit_tsm --debug --generate --test
+        run_test_docker Dockerfile_build_ubuntu64 test_64bit_tsm --generate --test
         rc=$?
         ;;
     2)
         # 64 bit race tests
         GORACE="halt_on_error=1"
-        run_test_docker Dockerfile_build_ubuntu64 test_64bit_race --debug --generate --test --race
+        run_test_docker Dockerfile_build_ubuntu64 test_64bit_race --generate --test --race
         rc=$?
         ;;
     3)
         # 32 bit tests
-        run_test_docker Dockerfile_build_ubuntu32 test_32bit --debug --generate --test
+        run_test_docker Dockerfile_build_ubuntu32 test_32bit --generate --test --arch=i386
         rc=$?
         ;;
     4)
         # 64 bit tests on golang go1.6
         GO_CHECKOUT=go1.6
-        run_test_docker Dockerfile_build_ubuntu64_git test_64bit_go1.6 --debug --generate --test --no-vet
+        run_test_docker Dockerfile_build_ubuntu64_git test_64bit_go1.6 --generate --test --no-vet
         rc=$?
         ;;
     "save")
@@ -216,4 +219,3 @@ case $ENVIRONMENT_INDEX in
 esac
 
 exit $rc
-
