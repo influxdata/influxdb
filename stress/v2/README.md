@@ -19,6 +19,13 @@ By default the test outputs a human readable report to `STDOUT` and records test
 To set state variables for the test such as the address of the Influx node use the following syntax:
 
 ```
+# Pipe delineated list of addresses. For cluster: [192.168.0.10:8086|192.168.0.2:8086|192.168.0.3:8086]
+# Queries currently hit only the first node in a list. Writes are round robin.
+SET Addresses [localhost:8086]
+
+# Influx instance to store results
+SET ResultsAddress [localhost:8086]
+
 # Database to target for queries and writes. Works like the InfluxCLI USE
 SET Database [thing2]
 
@@ -31,10 +38,6 @@ SET StartDate [2016-01-01]
 # Size of batches to send to InfluxDB
 SET BatchSize [5000]
 
-# Pipe delineated list of addresses. For cluster: [192.168.0.10:8086|192.168.0.2:8086|192.168.0.3:8086]
-# Queries currently hit only the first node in a list. Writes are round robin.
-SET Addresses [localhost:8086]
-
 # Time to wait between sending batches
 SET WriteInterval [0s]
 
@@ -46,9 +49,6 @@ SET WriteConcurrency [15]
 
 # Number of concurrent readers
 SET QueryConcurrency [5]
-
-# Influx instance to store results
-SET ResultsAddress [localhost:8086]
 ```
 
 The values in the example are also the defaults.
