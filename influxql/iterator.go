@@ -721,6 +721,11 @@ func newIteratorOptionsStmt(stmt *SelectStatement, sopt *SelectOptions) (opt Ite
 	// Set duration to zero if a negative interval has been used.
 	if interval < 0 {
 		interval = 0
+	} else if interval > 0 {
+		opt.Interval.Offset, err = stmt.GroupByOffset(&opt)
+		if err != nil {
+			return opt, err
+		}
 	}
 	opt.Interval.Duration = interval
 

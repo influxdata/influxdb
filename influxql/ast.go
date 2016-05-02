@@ -1335,18 +1335,32 @@ func (s *SelectStatement) validateDimensions() error {
 	for _, dim := range s.Dimensions {
 		switch expr := dim.Expr.(type) {
 		case *Call:
-			// Ensure the call is time() and it only has one duration argument.
+			// Ensure the call is time() and it has one or two duration arguments.
 			// If we already have a duration
 			if expr.Name != "time" {
 				return errors.New("only time() calls allowed in dimensions")
-			} else if len(expr.Args) != 1 {
-				return errors.New("time dimension expected one argument")
+			} else if got := len(expr.Args); got < 1 || got > 2 {
+				return errors.New("time dimension expected 1 or 2 arguments")
 			} else if lit, ok := expr.Args[0].(*DurationLiteral); !ok {
-				return errors.New("time dimension must have one duration argument")
+				return errors.New("time dimension must have duration argument")
 			} else if dur != 0 {
 				return errors.New("multiple time dimensions not allowed")
 			} else {
 				dur = lit.Val
+				if len(expr.Args) == 2 {
+					switch lit := expr.Args[1].(type) {
+					case *DurationLiteral:
+						// noop
+					case *Call:
+						if lit.Name != "now" {
+							return errors.New("time dimension offset function must be now()")
+						} else if len(lit.Args) != 0 {
+							return errors.New("time dimension offset now() function requires no arguments")
+						}
+					default:
+						return errors.New("time dimension offset must be duration or now()")
+					}
+				}
 			}
 		case *VarRef:
 			if strings.ToLower(expr.Val) == "time" {
@@ -1654,17 +1668,47 @@ func (s *SelectStatement) GroupByInterval() (time.Duration, error) {
 	for _, d := range s.Dimensions {
 		if call, ok := d.Expr.(*Call); ok && call.Name == "time" {
 			// Make sure there is exactly one argument.
-			if len(call.Args) != 1 {
-				return 0, errors.New("time dimension expected one argument")
+			if got := len(call.Args); got < 1 || got > 2 {
+				return 0, errors.New("time dimension expected 1 or 2 arguments")
 			}
 
 			// Ensure the argument is a duration.
 			lit, ok := call.Args[0].(*DurationLiteral)
 			if !ok {
-				return 0, errors.New("time dimension must have one duration argument")
+				return 0, errors.New("time dimension must have duration argument")
 			}
 			s.groupByInterval = lit.Val
 			return lit.Val, nil
+		}
+	}
+	return 0, nil
+}
+
+// GroupByOffset extracts the time interval offset, if specified.
+func (s *SelectStatement) GroupByOffset(opt *IteratorOptions) (time.Duration, error) {
+	interval, err := s.GroupByInterval()
+	if err != nil {
+		return 0, err
+	}
+
+	// Ignore if there are no dimensions.
+	if len(s.Dimensions) == 0 {
+		return 0, nil
+	}
+
+	for _, d := range s.Dimensions {
+		if call, ok := d.Expr.(*Call); ok && call.Name == "time" {
+			if len(call.Args) == 2 {
+				switch expr := call.Args[1].(type) {
+				case *DurationLiteral:
+					return expr.Val % interval, nil
+				case *TimeLiteral:
+					return expr.Val.Sub(expr.Val.Truncate(interval)), nil
+				default:
+					return 0, fmt.Errorf("invalid time dimension offset: %s", expr)
+				}
+			}
+			return 0, nil
 		}
 	}
 	return 0, nil
