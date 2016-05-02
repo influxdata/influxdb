@@ -22,6 +22,7 @@
 - [#6484](https://github.com/influxdata/influxdb/pull/6484): Query language support for DELETE
 - [#6290](https://github.com/influxdata/influxdb/issues/6290): Add POST /query endpoint and warning messages for using GET with write operations.
 - [#6494](https://github.com/influxdata/influxdb/issues/6494): Support booleans for min() and max().
+- [#2074](https://github.com/influxdata/influxdb/issues/2074): Support offset argument in the GROUP BY time(...) call.
 
 ### Bugfixes
 

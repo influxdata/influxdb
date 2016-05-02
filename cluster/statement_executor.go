@@ -379,7 +379,13 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 	opt := influxql.SelectOptions{InterruptCh: ctx.InterruptCh}
 
 	// Replace instances of "now()" with the current time, and check the resultant times.
-	stmt.Condition = influxql.Reduce(stmt.Condition, &influxql.NowValuer{Now: now})
+	nowValuer := influxql.NowValuer{Now: now}
+	stmt.Condition = influxql.Reduce(stmt.Condition, &nowValuer)
+	// Replace instances of "now()" with the current time in the dimensions.
+	for _, d := range stmt.Dimensions {
+		d.Expr = influxql.Reduce(d.Expr, &nowValuer)
+	}
+
 	var err error
 	opt.MinTime, opt.MaxTime, err = influxql.TimeRange(stmt.Condition)
 	if err != nil {
