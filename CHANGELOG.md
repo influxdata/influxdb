@@ -1,5 +1,9 @@
 ## v0.13.0 [unreleased]
 
+### Release Notes
+
+With this release InfluxDB is moving to Go v1.6.
+
 ### Features
 
 - [#6213](https://github.com/influxdata/influxdb/pull/6213): Make logging output location more programmatically configurable.
@@ -24,6 +28,7 @@
 - [#6494](https://github.com/influxdata/influxdb/issues/6494): Support booleans for min() and max().
 - [#2074](https://github.com/influxdata/influxdb/issues/2074): Support offset argument in the GROUP BY time(...) call.
 - [#6533](https://github.com/influxdata/influxdb/issues/6533): Optimize SHOW SERIES
+- [#6534](https://github.com/influxdata/influxdb/pull/6534): Move to Go v1.6.2 (over Go v1.4.3)
 
 ### Bugfixes
 
