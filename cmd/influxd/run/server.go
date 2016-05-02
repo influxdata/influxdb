@@ -390,11 +390,7 @@ func (s *Server) startServerReporting() {
 
 // reportServer reports anonymous statistics about the system.
 func (s *Server) reportServer() {
-	dis, err := s.MetaClient.Databases()
-	if err != nil {
-		s.Logger.Printf("failed to retrieve databases for reporting: %s", err.Error())
-		return
-	}
+	dis := s.MetaClient.Databases()
 	numDatabases := len(dis)
 
 	numMeasurements := 0
@@ -415,11 +411,6 @@ func (s *Server) reportServer() {
 	}
 
 	clusterID := s.MetaClient.ClusterID()
-	if err != nil {
-		s.Logger.Printf("failed to retrieve cluster ID for reporting: %s", err.Error())
-		return
-	}
-
 	cl := client.New("")
 	usage := client.Usage{
 		Product: "influxdb",

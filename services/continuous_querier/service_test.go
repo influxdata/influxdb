@@ -100,10 +100,7 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 	mc.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db RESAMPLE EVERY 10s FOR 2m BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(1m) END`)
 	s.MetaClient = mc
 
-	db, err := s.MetaClient.Database("db")
-	if err != nil {
-		t.Fatal(err)
-	}
+	db := s.MetaClient.Database("db")
 
 	cq, err := NewContinuousQuery(db.Name, &db.ContinuousQueries[0])
 	if err != nil {
@@ -294,7 +291,7 @@ func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 			return errUnexpected
 		},
 	}
-	dbis, _ := s.MetaClient.Databases()
+	dbis := s.MetaClient.Databases()
 	dbi := dbis[0]
 	cqi := dbi.ContinuousQueries[0]
 
@@ -328,7 +325,7 @@ func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 		},
 	}
 
-	dbis, _ := s.MetaClient.Databases()
+	dbis := s.MetaClient.Databases()
 	dbi := dbis[0]
 	cqi := dbi.ContinuousQueries[0]
 
@@ -399,29 +396,29 @@ func (ms *MetaClient) AcquireLease(name string) (l *meta.Lease, err error) {
 }
 
 // Databases returns a list of database info about each database in the cluster.
-func (ms *MetaClient) Databases() ([]meta.DatabaseInfo, error) {
+func (ms *MetaClient) Databases() []meta.DatabaseInfo {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
-	return ms.DatabaseInfos, ms.Err
+	return ms.DatabaseInfos
 }
 
 // Database returns a single database by name.
-func (ms *MetaClient) Database(name string) (*meta.DatabaseInfo, error) {
+func (ms *MetaClient) Database(name string) *meta.DatabaseInfo {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
 	return ms.database(name)
 }
 
-func (ms *MetaClient) database(name string) (*meta.DatabaseInfo, error) {
+func (ms *MetaClient) database(name string) *meta.DatabaseInfo {
 	if ms.Err != nil {
-		return nil, ms.Err
+		return nil
 	}
 	for i := range ms.DatabaseInfos {
 		if ms.DatabaseInfos[i].Name == name {
-			return &ms.DatabaseInfos[i], nil
+			return &ms.DatabaseInfos[i]
 		}
 	}
-	return nil, fmt.Errorf("database not found: %s", name)
+	return nil
 }
 
 // CreateDatabase adds a new database to the meta store.
@@ -456,10 +453,8 @@ func (ms *MetaClient) CreateContinuousQuery(database, name, query string) error 
 		return ms.Err
 	}
 
-	dbi, err := ms.database(database)
-	if err != nil {
-		return err
-	} else if dbi == nil {
+	dbi := ms.database(database)
+	if dbi == nil {
 		return fmt.Errorf("database not found: %s", database)
 	}
 

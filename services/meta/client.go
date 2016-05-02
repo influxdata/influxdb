@@ -151,31 +151,31 @@ func (c *Client) ClusterID() uint64 {
 }
 
 // Database returns info for the requested database.
-func (c *Client) Database(name string) (*DatabaseInfo, error) {
+func (c *Client) Database(name string) *DatabaseInfo {
 	c.mu.RLock()
 	data := c.cacheData.Clone()
 	c.mu.RUnlock()
 
 	for _, d := range data.Databases {
 		if d.Name == name {
-			return &d, nil
+			return &d
 		}
 	}
 
-	return nil, influxdb.ErrDatabaseNotFound(name)
+	return nil
 }
 
 // Databases returns a list of all database infos.
-func (c *Client) Databases() ([]DatabaseInfo, error) {
+func (c *Client) Databases() []DatabaseInfo {
 	c.mu.RLock()
 	data := c.cacheData.Clone()
 	c.mu.RUnlock()
 
 	dbs := data.Databases
 	if dbs == nil {
-		return []DatabaseInfo{}, nil
+		return []DatabaseInfo{}
 	}
-	return dbs, nil
+	return dbs
 }
 
 // CreateDatabase creates a database or returns it if it already exists

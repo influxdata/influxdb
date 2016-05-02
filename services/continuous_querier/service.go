@@ -39,8 +39,8 @@ type ContinuousQuerier interface {
 // metaClient is an internal interface to make testing easier.
 type metaClient interface {
 	AcquireLease(name string) (l *meta.Lease, err error)
-	Databases() ([]meta.DatabaseInfo, error)
-	Database(name string) (*meta.DatabaseInfo, error)
+	Databases() []meta.DatabaseInfo
+	Database(name string) *meta.DatabaseInfo
 }
 
 // RunRequest is a request to run one or more CQs.
@@ -140,20 +140,14 @@ func (s *Service) Run(database, name string, t time.Time) error {
 
 	if database != "" {
 		// Find the requested database.
-		db, err := s.MetaClient.Database(database)
-		if err != nil {
-			return err
-		} else if db == nil {
+		db := s.MetaClient.Database(database)
+		if db == nil {
 			return influxql.ErrDatabaseNotFound(database)
 		}
 		dbs = append(dbs, *db)
 	} else {
 		// Get all databases.
-		var err error
-		dbs, err = s.MetaClient.Databases()
-		if err != nil {
-			return err
-		}
+		dbs = s.MetaClient.Databases()
 	}
 
 	// Loop through databases.
@@ -209,11 +203,7 @@ func (s *Service) backgroundLoop() {
 // hasContinuousQueries returns true if any CQs exist.
 func (s *Service) hasContinuousQueries() bool {
 	// Get list of all databases.
-	dbs, err := s.MetaClient.Databases()
-	if err != nil {
-		s.Logger.Println("error getting databases")
-		return false
-	}
+	dbs := s.MetaClient.Databases()
 	// Loop through all databases executing CQs.
 	for _, db := range dbs {
 		if len(db.ContinuousQueries) > 0 {
@@ -226,11 +216,7 @@ func (s *Service) hasContinuousQueries() bool {
 // runContinuousQueries gets CQs from the meta store and runs them.
 func (s *Service) runContinuousQueries(req *RunRequest) {
 	// Get list of all databases.
-	dbs, err := s.MetaClient.Databases()
-	if err != nil {
-		s.Logger.Println("error getting databases")
-		return
-	}
+	dbs := s.MetaClient.Databases()
 	// Loop through all databases executing CQs.
 	for _, db := range dbs {
 		// TODO: distribute across nodes

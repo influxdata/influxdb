@@ -15,8 +15,8 @@ type MetaClient struct {
 	CreateRetentionPolicyFn             func(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
 	CreateSubscriptionFn                func(database, rp, name, mode string, destinations []string) error
 	CreateUserFn                        func(name, password string, admin bool) (*meta.UserInfo, error)
-	DatabaseFn                          func(name string) (*meta.DatabaseInfo, error)
-	DatabasesFn                         func() ([]meta.DatabaseInfo, error)
+	DatabaseFn                          func(name string) *meta.DatabaseInfo
+	DatabasesFn                         func() []meta.DatabaseInfo
 	DataNodeFn                          func(id uint64) (*meta.NodeInfo, error)
 	DataNodesFn                         func() ([]meta.NodeInfo, error)
 	DeleteDataNodeFn                    func(id uint64) error
@@ -67,11 +67,11 @@ func (c *MetaClient) CreateUser(name, password string, admin bool) (*meta.UserIn
 	return c.CreateUserFn(name, password, admin)
 }
 
-func (c *MetaClient) Database(name string) (*meta.DatabaseInfo, error) {
+func (c *MetaClient) Database(name string) *meta.DatabaseInfo {
 	return c.DatabaseFn(name)
 }
 
-func (c *MetaClient) Databases() ([]meta.DatabaseInfo, error) {
+func (c *MetaClient) Databases() []meta.DatabaseInfo {
 	return c.DatabasesFn()
 }
 
@@ -156,9 +156,9 @@ func (c *MetaClient) Users() []meta.UserInfo {
 }
 
 // DefaultMetaClientDatabaseFn returns a single database (db0) with a retention policy.
-func DefaultMetaClientDatabaseFn(name string) (*meta.DatabaseInfo, error) {
+func DefaultMetaClientDatabaseFn(name string) *meta.DatabaseInfo {
 	return &meta.DatabaseInfo{
 		Name: DefaultDatabase,
 		DefaultRetentionPolicy: DefaultRetentionPolicy,
-	}, nil
+	}
 }

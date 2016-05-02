@@ -15,8 +15,8 @@ type MetaClient interface {
 	CreateRetentionPolicy(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
 	CreateSubscription(database, rp, name, mode string, destinations []string) error
 	CreateUser(name, password string, admin bool) (*meta.UserInfo, error)
-	Database(name string) (*meta.DatabaseInfo, error)
-	Databases() ([]meta.DatabaseInfo, error)
+	Database(name string) *meta.DatabaseInfo
+	Databases() []meta.DatabaseInfo
 	DropShard(id uint64) error
 	DropContinuousQuery(database, name string) error
 	DropDatabase(name string) error

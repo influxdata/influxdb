@@ -300,7 +300,7 @@ func NewHandler(requireAuthentication bool) *Handler {
 // HandlerMetaStore is a mock implementation of Handler.MetaClient.
 type HandlerMetaStore struct {
 	PingFn         func(d time.Duration) error
-	DatabaseFn     func(name string) (*meta.DatabaseInfo, error)
+	DatabaseFn     func(name string) *meta.DatabaseInfo
 	AuthenticateFn func(username, password string) (ui *meta.UserInfo, err error)
 	UsersFn        func() []meta.UserInfo
 }
@@ -313,7 +313,7 @@ func (s *HandlerMetaStore) Ping(b bool) error {
 	return s.Ping(b)
 }
 
-func (s *HandlerMetaStore) Database(name string) (*meta.DatabaseInfo, error) {
+func (s *HandlerMetaStore) Database(name string) *meta.DatabaseInfo {
 	return s.DatabaseFn(name)
 }
 
