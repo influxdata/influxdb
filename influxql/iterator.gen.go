@@ -308,6 +308,7 @@ type floatSortedMergeIterator struct {
 	opt    IteratorOptions
 	heap   floatSortedMergeHeap
 	init   bool
+	point  FloatPoint
 }
 
 // newFloatSortedMergeIterator returns an instance of floatSortedMergeIterator.
@@ -375,6 +376,8 @@ func (itr *floatSortedMergeIterator) pop() (*FloatPoint, error) {
 	item := heap.Pop(&itr.heap).(*floatSortedMergeHeapItem)
 	if item.err != nil {
 		return nil, item.err
+	} else if item.point == nil {
+		return nil, nil
 	}
 
 	// Copy the point for return.
@@ -2254,6 +2257,7 @@ type integerSortedMergeIterator struct {
 	opt    IteratorOptions
 	heap   integerSortedMergeHeap
 	init   bool
+	point  IntegerPoint
 }
 
 // newIntegerSortedMergeIterator returns an instance of integerSortedMergeIterator.
@@ -2321,6 +2325,8 @@ func (itr *integerSortedMergeIterator) pop() (*IntegerPoint, error) {
 	item := heap.Pop(&itr.heap).(*integerSortedMergeHeapItem)
 	if item.err != nil {
 		return nil, item.err
+	} else if item.point == nil {
+		return nil, nil
 	}
 
 	// Copy the point for return.
@@ -4197,6 +4203,7 @@ type stringSortedMergeIterator struct {
 	opt    IteratorOptions
 	heap   stringSortedMergeHeap
 	init   bool
+	point  StringPoint
 }
 
 // newStringSortedMergeIterator returns an instance of stringSortedMergeIterator.
@@ -4264,6 +4271,8 @@ func (itr *stringSortedMergeIterator) pop() (*StringPoint, error) {
 	item := heap.Pop(&itr.heap).(*stringSortedMergeHeapItem)
 	if item.err != nil {
 		return nil, item.err
+	} else if item.point == nil {
+		return nil, nil
 	}
 
 	// Copy the point for return.
@@ -6140,6 +6149,7 @@ type booleanSortedMergeIterator struct {
 	opt    IteratorOptions
 	heap   booleanSortedMergeHeap
 	init   bool
+	point  BooleanPoint
 }
 
 // newBooleanSortedMergeIterator returns an instance of booleanSortedMergeIterator.
@@ -6207,6 +6217,8 @@ func (itr *booleanSortedMergeIterator) pop() (*BooleanPoint, error) {
 	item := heap.Pop(&itr.heap).(*booleanSortedMergeHeapItem)
 	if item.err != nil {
 		return nil, item.err
+	} else if item.point == nil {
+		return nil, nil
 	}
 
 	// Copy the point for return.

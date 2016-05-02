@@ -102,7 +102,12 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) (
 
 	// Filter out duplicate rows, if required.
 	if opt.Dedupe {
-		input = NewDedupeIterator(input)
+		// If there is no group by and it's a single field then fast dedupe.
+		if itr, ok := input.(FloatIterator); ok && len(fields) == 1 && len(opt.Dimensions) == 0 {
+			input = newFloatFastDedupeIterator(itr)
+		} else {
+			input = NewDedupeIterator(input)
+		}
 	}
 
 	// Apply limit & offset.

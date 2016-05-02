@@ -1171,6 +1171,55 @@ func decodeIteratorStats(pb *internal.IteratorStats) IteratorStats {
 	}
 }
 
+// floatFastDedupeIterator outputs unique points where the point has a single aux field.
+type floatFastDedupeIterator struct {
+	input FloatIterator
+	m     map[fastDedupeKey]struct{} // lookup of points already sent
+}
+
+// newFloatFastDedupeIterator returns a new instance of floatFastDedupeIterator.
+func newFloatFastDedupeIterator(input FloatIterator) *floatFastDedupeIterator {
+	return &floatFastDedupeIterator{
+		input: input,
+		m:     make(map[fastDedupeKey]struct{}),
+	}
+}
+
+// Stats returns stats from the input iterator.
+func (itr *floatFastDedupeIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *floatFastDedupeIterator) Close() error { return itr.input.Close() }
+
+// Next returns the next unique point from the input iterator.
+func (itr *floatFastDedupeIterator) Next() (*FloatPoint, error) {
+	for {
+		// Read next point.
+		// Skip if there are not any aux fields.
+		p, err := itr.input.Next()
+		if p == nil || err != nil {
+			return nil, err
+		} else if len(p.Aux) == 0 {
+			continue
+		}
+
+		// If the point has already been output then move to the next point.
+		key := fastDedupeKey{p.Name, p.Aux[0]}
+		if _, ok := itr.m[key]; ok {
+			continue
+		}
+
+		// Otherwise mark it as emitted and return point.
+		itr.m[key] = struct{}{}
+		return p, nil
+	}
+}
+
+type fastDedupeKey struct {
+	name  string
+	value interface{}
+}
+
 type reverseStringSlice []string
 
 func (p reverseStringSlice) Len() int           { return len(p) }
