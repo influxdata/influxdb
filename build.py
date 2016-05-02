@@ -668,17 +668,31 @@ def package(build_output, version, nightly=False, rc=None, iteration=1, static=F
                                                                  platform,
                                                                  package_arch)
                         else:
-                            if static or "static_" in arch:
-                                name = '{}-{}-static_{}_{}'.format(name,
+                            if rc is not None or 'rc' in package_iteration or 'beta' not in package_iteration:
+                                # If RC or beta, include iteration in package output
+                                if static or "static_" in arch:
+                                    name = '{}-{}-static_{}_{}'.format(name,
+                                                                       package_version,
+                                                                       platform,
+                                                                       package_arch)
+                                else:
+                                    name = '{}-{}_{}_{}'.format(name,
+                                                                package_version,
+                                                                platform,
+                                                                package_arch)
+                            else:
+                                if static or "static_" in arch:
+                                    name = '{}-{}-{}-static_{}_{}'.format(name,
+                                                                          package_version,
+                                                                          package_iteration,
+                                                                          platform,
+                                                                          package_arch)
+                                else:
+                                    name = '{}-{}-{}_{}_{}'.format(name,
                                                                    package_version,
+                                                                   package_iteration,
                                                                    platform,
                                                                    package_arch)
-                            else:
-                                name = '{}-{}_{}_{}'.format(name,
-                                                            package_version,
-                                                            platform,
-                                                            package_arch)
-
                         current_location = os.path.join(os.getcwd(), current_location)
                         if package_type == 'tar':
                             tar_command = "cd {} && tar -cvzf {}.tar.gz ./*".format(build_root, name)
@@ -720,13 +734,14 @@ def package(build_output, version, nightly=False, rc=None, iteration=1, static=F
                                 os.rename(outfile, new_outfile)
                                 outfile = new_outfile
                             else:
-                                # Strip iteration from package name
-                                if package_type == 'rpm':
-                                    # rpm's convert any dashes to underscores
-                                    package_version = package_version.replace("-", "_")
-                                new_outfile = outfile.replace("{}-{}".format(package_version, package_iteration), package_version)
-                                os.rename(outfile, new_outfile)
-                                outfile = new_outfile
+                                if rc is None and 'rc' not in package_iteration and 'beta' not in package_iteration:
+                                    # Strip iteration from package name (if there is no RC or beta)
+                                    if package_type == 'rpm':
+                                        # rpm's convert any dashes to underscores
+                                        package_version = package_version.replace("-", "_")
+                                    new_outfile = outfile.replace("{}-{}".format(package_version, package_iteration), package_version)
+                                    os.rename(outfile, new_outfile)
+                                    outfile = new_outfile
                             outfiles.append(os.path.join(os.getcwd(), outfile))
         logging.debug("Produced package files: {}".format(outfiles))
         return outfiles
@@ -916,8 +931,8 @@ if __name__ == '__main__':
                         help='Release Candidate (RC) version to apply to build output')
     parser.add_argument('--iteration',
                         metavar='<package iteration>',
-                        type=int,
-                        default=1,
+                        type=str,
+                        default="1",
                         help='Package iteration to apply to build output (defaults to 1)')
     parser.add_argument('--stats',
                         action='store_true',
