@@ -370,11 +370,8 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string) er
 	// Sync to disk & close.
 	if err := f.Sync(); err != nil {
 		return err
-	} else if err := f.Close(); err != nil {
-		return err
 	}
-
-	return nil
+	return f.Close()
 }
 
 // addToIndexFromKey will pull the measurement name, series key, and field name from a composite key and add it to the

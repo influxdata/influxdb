@@ -558,11 +558,7 @@ func (s *Shard) Restore(r io.Reader, basePath string) error {
 	}
 
 	// Reopen engine.
-	if err := s.Open(); err != nil {
-		return err
-	}
-
-	return nil
+	return s.Open()
 }
 
 // Shards represents a sortable list of shards.
