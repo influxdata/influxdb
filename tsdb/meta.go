@@ -1807,14 +1807,13 @@ func (s stringSet) intersect(o stringSet) stringSet {
 func filter(a []uint64, v uint64) []uint64 {
 	// binary search for v
 	i := sort.Search(len(a), func(i int) bool { return a[i] >= v })
-	if i < len(a) && a[i] == v {
-		// we found it, so shift the right half down one, overwriting v's
-		// position.
-		copy(a[i:], a[i+1:])
-		return a[:len(a)-1]
-	} else {
+	if i >= len(a) || a[i] != v {
 		return a
 	}
+
+	// we found it, so shift the right half down one, overwriting v's position.
+	copy(a[i:], a[i+1:])
+	return a[:len(a)-1]
 }
 
 // MeasurementFromSeriesKey returns the name of the measurement from a key that
