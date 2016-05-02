@@ -127,12 +127,9 @@ func (b *BlockIterator) Next() bool {
 		}
 	}
 
-	for b.n-b.i > 0 {
+	if b.n-b.i > 0 {
 		b.key, b.entries = b.r.Key(b.i)
 		b.i++
-
-		// The index blocks might have tombstone entries and could be fully deleted, filter them out
-		b.entries = b.filterTombstones(b.r.TombstoneRange(b.key), b.entries)
 
 		if len(b.entries) > 0 {
 			return true
@@ -140,29 +137,6 @@ func (b *BlockIterator) Next() bool {
 	}
 
 	return false
-}
-
-func (b *BlockIterator) filterTombstones(tombstones []TimeRange, entries []IndexEntry) []IndexEntry {
-	for _, t := range tombstones {
-		entries = b.filterEntries(entries, t.Min, t.Max)
-	}
-	return entries
-}
-
-func (b *BlockIterator) filterEntries(entries []IndexEntry, min, max int64) []IndexEntry {
-	var i int
-	for j := 0; j < len(entries); j++ {
-		// filter this block if a tombstone entry exists that fully spans the range
-		// of time of points in the block
-		if entries[j].MinTime >= min && entries[j].MaxTime <= max {
-			continue
-		}
-
-		entries[i] = entries[j]
-		i++
-	}
-
-	return entries[:i]
 }
 
 func (b *BlockIterator) Read() (string, int64, int64, uint32, []byte, error) {
@@ -227,9 +201,25 @@ func (t *TSMReader) applyTombstones() error {
 		return fmt.Errorf("init: read tombstones: %v", err)
 	}
 
-	// Update our index
-	for _, ts := range tombstones {
-		t.index.DeleteRange([]string{ts.Key}, ts.Min, ts.Max)
+	if len(tombstones) == 0 {
+		return nil
+	}
+
+	var cur, prev Tombstone
+	cur = tombstones[0]
+	batch := []string{cur.Key}
+	for i := 1; i < len(tombstones); i++ {
+		cur = tombstones[i]
+		prev = tombstones[i-1]
+		if prev.Min != cur.Min || prev.Max != cur.Max {
+			t.index.DeleteRange(batch, prev.Min, prev.Max)
+			batch = batch[:0]
+		}
+		batch = append(batch, cur.Key)
+	}
+
+	if len(batch) > 0 {
+		t.index.DeleteRange(batch, cur.Min, cur.Max)
 	}
 	return nil
 }
@@ -680,8 +670,20 @@ func (d *indirectIndex) DeleteRange(keys []string, minTime, maxTime int64) {
 
 		// Is the range passed in outside the time range for this key?
 		entries := d.Entries(k)
+
+		// If multiple tombstones are saved for the same key
+		if len(entries) == 0 {
+			continue
+		}
+
 		min, max := entries[0].MinTime, entries[len(entries)-1].MaxTime
 		if minTime > max || maxTime < min {
+			continue
+		}
+
+		// Is the range passed in cover every value for the key?
+		if minTime <= min && maxTime >= max {
+			d.Delete(keys)
 			continue
 		}
 

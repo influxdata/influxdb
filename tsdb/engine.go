@@ -29,7 +29,7 @@ type Engine interface {
 	Close() error
 
 	SetLogOutput(io.Writer)
-	LoadMetadataIndex(shard *Shard, index *DatabaseIndex) error
+	LoadMetadataIndex(shardID uint64, index *DatabaseIndex) error
 
 	CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
 	SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error)

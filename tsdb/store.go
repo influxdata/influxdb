@@ -67,7 +67,7 @@ func NewStore(path string) *Store {
 // SetLogOutput sets the writer to which all logs are written. It must not be
 // called after Open is called.
 func (s *Store) SetLogOutput(w io.Writer) {
-	s.Logger = log.New(w, "[store]", log.LstdFlags)
+	s.Logger = log.New(w, "[store] ", log.LstdFlags)
 	s.logOutput = w
 	for _, s := range s.shards {
 		s.SetLogOutput(w)

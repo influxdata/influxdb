@@ -37,7 +37,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 
 	// Load metadata index.
 	index := tsdb.NewDatabaseIndex("db")
-	if err := e.LoadMetadataIndex(nil, index); err != nil {
+	if err := e.LoadMetadataIndex(1, index); err != nil {
 		t.Fatal(err)
 	}
 
@@ -60,7 +60,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 
 	// Load metadata index.
 	index = tsdb.NewDatabaseIndex("db")
-	if err := e.LoadMetadataIndex(nil, index); err != nil {
+	if err := e.LoadMetadataIndex(1, index); err != nil {
 		t.Fatal(err)
 	}
 
@@ -85,7 +85,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 
 	// Load metadata index.
 	index = tsdb.NewDatabaseIndex("db")
-	if err := e.LoadMetadataIndex(nil, index); err != nil {
+	if err := e.LoadMetadataIndex(1, index); err != nil {
 		t.Fatal(err)
 	}
 
@@ -693,7 +693,7 @@ func MustOpenEngine() *Engine {
 	if err := e.Open(); err != nil {
 		panic(err)
 	}
-	if err := e.LoadMetadataIndex(nil, tsdb.NewDatabaseIndex("db")); err != nil {
+	if err := e.LoadMetadataIndex(1, tsdb.NewDatabaseIndex("db")); err != nil {
 		panic(err)
 	}
 	return e

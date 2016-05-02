@@ -7,11 +7,13 @@ import (
 	"expvar"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"os"
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb"
@@ -88,6 +90,8 @@ type Shard struct {
 	// expvar-based stats.
 	statMap *expvar.Map
 
+	logger *log.Logger
+
 	// The writer used by the logger.
 	LogOutput io.Writer
 }
@@ -106,7 +110,7 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 	}
 	statMap := influxdb.NewStatistics(key, "shard", tags)
 
-	return &Shard{
+	s := &Shard{
 		index:   index,
 		id:      id,
 		path:    path,
@@ -119,12 +123,15 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 		statMap:   statMap,
 		LogOutput: os.Stderr,
 	}
+	s.SetLogOutput(os.Stderr)
+	return s
 }
 
 // SetLogOutput sets the writer to which log output will be written. It must
 // not be called after the Open method has been called.
 func (s *Shard) SetLogOutput(w io.Writer) {
 	s.LogOutput = w
+	s.logger = log.New(w, "[shard] ", log.LstdFlags)
 	if !s.closed() {
 		s.engine.SetLogOutput(w)
 	}
@@ -160,9 +167,11 @@ func (s *Shard) Open() error {
 		}
 
 		// Load metadata index.
-		if err := s.engine.LoadMetadataIndex(s, s.index); err != nil {
+		start := time.Now()
+		if err := s.engine.LoadMetadataIndex(s.id, s.index); err != nil {
 			return err
 		}
+		s.logger.Printf("%s database index loaded in %s", s.path, time.Now().Sub(start))
 
 		return nil
 	}(); err != nil {
