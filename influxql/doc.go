@@ -16,11 +16,6 @@ You can also add a a conditional expression to limit the results of the query:
 
 	SELECT value FROM cpu_load WHERE host = 'influxdb.com'
 
-Two or more series can be combined into a single query and executed together:
-
-	SELECT cpu0.value + cpu1.value
-	FROM cpu_load AS cpu0 INNER JOIN cpu_load cpu1 ON cpu0.host = cpu1.host
-
 Limits and ordering can be set on selection queries as well:
 
 	SELECT value FROM cpu_load LIMIT 100 ORDER DESC;
