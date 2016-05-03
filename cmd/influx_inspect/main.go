@@ -130,6 +130,23 @@ func main() {
 			os.Exit(1)
 		}
 		cmdVerify(path)
+	case "export":
+		var path string
+		fs := flag.NewFlagSet("export", flag.ExitOnError)
+		fs.StringVar(&path, "dir", os.Getenv("HOME")+"/.influxdb", "Root storage path. [$HOME/.influxdb]")
+
+		fs.Usage = func() {
+			println("Usage: influx_inspect export [options]\n\n   exports TSM files into InfluxDB line protocol format")
+			println()
+			println("Options:")
+			fs.PrintDefaults()
+		}
+
+		if err := fs.Parse(flag.Args()[1:]); err != nil {
+			fmt.Printf("%v", err)
+			os.Exit(1)
+		}
+		cmdExport(path)
 	default:
 		flag.Usage()
 		os.Exit(1)
