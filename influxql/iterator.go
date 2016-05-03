@@ -118,7 +118,7 @@ func (a Iterators) cast() interface{} {
 func NewMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 	inputs = Iterators(inputs).filterNonNil()
 	if len(inputs) == 0 {
-		return &nilFloatIterator{}
+		return nil
 	}
 
 	// Aggregate functions can use a more relaxed sorting so that points
@@ -145,7 +145,7 @@ func NewMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 func NewSortedMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 	inputs = Iterators(inputs).filterNonNil()
 	if len(inputs) == 0 {
-		return &nilFloatIterator{}
+		return nil
 	}
 
 	switch inputs := Iterators(inputs).cast().(type) {
@@ -535,26 +535,29 @@ func (a IteratorCreators) CreateIterator(opt IteratorOptions) (Iterator, error) 
 	// Merge into a single iterator.
 	if opt.MergeSorted() {
 		itr := NewSortedMergeIterator(itrs, opt)
-		if opt.InterruptCh != nil {
+		if itr != nil && opt.InterruptCh != nil {
 			itr = NewInterruptIterator(itr, opt.InterruptCh)
 		}
 		return itr, nil
 	}
 
 	itr := NewMergeIterator(itrs, opt)
-	if opt.Expr != nil {
-		if expr, ok := opt.Expr.(*Call); ok && expr.Name == "count" {
-			opt.Expr = &Call{
-				Name: "sum",
-				Args: expr.Args,
+	if itr != nil {
+		if opt.Expr != nil {
+			if expr, ok := opt.Expr.(*Call); ok && expr.Name == "count" {
+				opt.Expr = &Call{
+					Name: "sum",
+					Args: expr.Args,
+				}
 			}
 		}
-	}
 
-	if opt.InterruptCh != nil {
-		itr = NewInterruptIterator(itr, opt.InterruptCh)
+		if opt.InterruptCh != nil {
+			itr = NewInterruptIterator(itr, opt.InterruptCh)
+		}
+		return NewCallIterator(itr, opt)
 	}
-	return NewCallIterator(itr, opt)
+	return nil, nil
 }
 
 // FieldDimensions returns unique fields and dimensions from multiple iterator creators.
