@@ -412,6 +412,7 @@ func (d *DatabaseIndex) Measurements() Measurements {
 		measurements = append(measurements, m)
 	}
 	d.mu.RUnlock()
+
 	return measurements
 }
 
@@ -519,6 +520,16 @@ func (m *Measurement) SeriesByID(id uint64) *Series {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.seriesByID[id]
+}
+
+// AppendSeriesKeysByID appends keys for a list of series ids to a buffer.
+func (m *Measurement) AppendSeriesKeysByID(dst []string, ids []uint64) []string {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, id := range ids {
+		dst = append(dst, m.seriesByID[id].Key)
+	}
+	return dst
 }
 
 // SeriesKeys returns the keys of every series in this measurement

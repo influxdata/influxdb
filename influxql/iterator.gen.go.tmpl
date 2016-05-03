@@ -307,6 +307,7 @@ type {{$k.name}}SortedMergeIterator struct {
 	opt    IteratorOptions
 	heap   {{$k.name}}SortedMergeHeap
 	init   bool
+	point  {{$k.Name}}Point
 }
 
 // new{{$k.Name}}SortedMergeIterator returns an instance of {{$k.name}}SortedMergeIterator.
@@ -374,6 +375,8 @@ func (itr *{{$k.name}}SortedMergeIterator) pop() (*{{$k.Name}}Point, error) {
 	item := heap.Pop(&itr.heap).(*{{$k.name}}SortedMergeHeapItem)
 	if item.err != nil {
 		return nil, item.err
+	} else if item.point == nil {
+		return nil, nil
 	}
 
 	// Copy the point for return.
