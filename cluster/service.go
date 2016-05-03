@@ -55,6 +55,9 @@ const (
 
 	seriesKeysRequestMessage
 	seriesKeysResponseMessage
+
+	remoteMonitorRequestMessage
+	remoteMonitorResponseMessage
 )
 
 // Service processes data received over raw TCP connections.
@@ -209,6 +212,9 @@ func (s *Service) handleConn(conn net.Conn) {
 		case seriesKeysRequestMessage:
 			s.statMap.Add(seriesKeysReq, 1)
 			s.processSeriesKeysRequest(conn)
+			return
+		case remoteMonitorRequestMessage:
+			s.processRemoteMonitorRequest(conn)
 			return
 		default:
 			s.Logger.Printf("cluster service message type not found: %d", typ)
@@ -488,6 +494,24 @@ func (s *Service) processSeriesKeysRequest(conn net.Conn) {
 	}); err != nil {
 		s.Logger.Printf("error writing SeriesKeys response: %s", err)
 		return
+	}
+}
+
+func (s *Service) processRemoteMonitorRequest(conn net.Conn) {
+	// Unmarshal the request.
+	var req RemoteMonitorRequest
+	if err := DecodeLV(conn, &req); err != nil {
+		s.Logger.Printf("error reading RemoteMonitor request: %s", err)
+		EncodeTLV(conn, remoteMonitorResponseMessage, &RemoteMonitorResponse{Err: err})
+		return
+	}
+
+	// Process the request
+	var err error
+
+	// Encode response.
+	if e := EncodeTLV(conn, remoteMonitorResponseMessage, &RemoteMonitorResponse{Err: err}); e != nil {
+		s.Logger.Printf("error writing RemoteMonitor response: %v", e)
 	}
 }
 
