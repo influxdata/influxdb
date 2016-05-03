@@ -348,7 +348,7 @@ func (c *{{.name}}AscendingCursor) next{{.Name}}() (int64, {{.Type}}) {
 	if ckey == tkey {
 		c.nextCache()
 		c.nextTSM()
-		return tkey, tvalue
+		return ckey, cvalue
 	}
 
 	// Buffered cache key precedes that in TSM file.
@@ -460,7 +460,7 @@ func (c *{{.name}}DescendingCursor) next{{.Name}}() (int64, {{.Type}}) {
 	if ckey == tkey {
 		c.nextCache()
 		c.nextTSM()
-		return tkey, tvalue
+		return ckey, cvalue
 	}
 
 	// Buffered cache key precedes that in TSM file.
