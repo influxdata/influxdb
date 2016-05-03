@@ -63,13 +63,26 @@ func cmdExport(path string) {
 		fmt.Println("Writing", reader.KeyCount(), "series to", filename)
 
 		for i := 0; i < reader.KeyCount(); i++ {
-			key, _ := reader.KeyAt(i)
+			var pairs string
+			key, typ := reader.KeyAt(i)
 			values, _ := reader.ReadAll(key)
 			split := strings.Split(key, "#!~#")
 			measurement, field := split[0], split[1]
 
 			for _, value := range values {
-				pairs := field + "=" + fmt.Sprintf("%v", value.Value())
+				switch typ {
+				case tsm1.BlockFloat64:
+					pairs = field + "=" + fmt.Sprintf("%v", value.Value())
+				case tsm1.BlockInteger:
+					pairs = field + "=" + fmt.Sprintf("%vi", value.Value())
+				case tsm1.BlockBoolean:
+					pairs = field + "=" + fmt.Sprintf("%v", value.Value())
+				case tsm1.BlockString:
+					pairs = field + "=" + fmt.Sprintf("\"%v\"", value.Value())
+				default:
+					pairs = field + "=" + fmt.Sprintf("%v", value.Value())
+				}
+
 				fmt.Fprintln(w, measurement, pairs, value.UnixNano())
 			}
 
