@@ -40,7 +40,12 @@ func Select(stmt *SelectStatement, ic IteratorCreator, sopt *SelectOptions) ([]I
 	// Determine auxiliary fields to be selected.
 	opt.Aux = make([]string, 0, len(info.refs))
 	for ref := range info.refs {
-		opt.Aux = append(opt.Aux, ref.Val)
+		switch ref := ref.(type) {
+		case *VarRef:
+			opt.Aux = append(opt.Aux, ref.Val)
+		case *TagRef:
+			opt.Aux = append(opt.Aux, ref.Value())
+		}
 	}
 	sort.Strings(opt.Aux)
 
@@ -134,6 +139,8 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) (
 			switch expr := expr.(type) {
 			case *VarRef:
 				itrs[i] = aitr.Iterator(expr.Val)
+			case *TagRef:
+				itrs[i] = aitr.Iterator("@" + expr.Val)
 			case *BinaryExpr:
 				itr, err := buildExprIterator(expr, aitr, opt, false)
 				if err != nil {

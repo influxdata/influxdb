@@ -2329,6 +2329,8 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 
 		// Parse it as a VarRef.
 		return p.parseVarRef()
+	case TAGREF:
+		return &TagRef{Val: lit}, nil
 	case DISTINCT:
 		// If the next immediate token is a left parentheses, parse as function call.
 		// Otherwise parse as a Distinct expression.
