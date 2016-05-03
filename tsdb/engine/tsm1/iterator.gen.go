@@ -352,7 +352,7 @@ func (c *floatAscendingCursor) nextFloat() (int64, float64) {
 	if ckey == tkey {
 		c.nextCache()
 		c.nextTSM()
-		return tkey, tvalue
+		return ckey, cvalue
 	}
 
 	// Buffered cache key precedes that in TSM file.
@@ -464,7 +464,7 @@ func (c *floatDescendingCursor) nextFloat() (int64, float64) {
 	if ckey == tkey {
 		c.nextCache()
 		c.nextTSM()
-		return tkey, tvalue
+		return ckey, cvalue
 	}
 
 	// Buffered cache key precedes that in TSM file.
@@ -762,7 +762,7 @@ func (c *integerAscendingCursor) nextInteger() (int64, int64) {
 	if ckey == tkey {
 		c.nextCache()
 		c.nextTSM()
-		return tkey, tvalue
+		return ckey, cvalue
 	}
 
 	// Buffered cache key precedes that in TSM file.
@@ -874,7 +874,7 @@ func (c *integerDescendingCursor) nextInteger() (int64, int64) {
 	if ckey == tkey {
 		c.nextCache()
 		c.nextTSM()
-		return tkey, tvalue
+		return ckey, cvalue
 	}
 
 	// Buffered cache key precedes that in TSM file.
@@ -1172,7 +1172,7 @@ func (c *stringAscendingCursor) nextString() (int64, string) {
 	if ckey == tkey {
 		c.nextCache()
 		c.nextTSM()
-		return tkey, tvalue
+		return ckey, cvalue
 	}
 
 	// Buffered cache key precedes that in TSM file.
@@ -1284,7 +1284,7 @@ func (c *stringDescendingCursor) nextString() (int64, string) {
 	if ckey == tkey {
 		c.nextCache()
 		c.nextTSM()
-		return tkey, tvalue
+		return ckey, cvalue
 	}
 
 	// Buffered cache key precedes that in TSM file.
@@ -1582,7 +1582,7 @@ func (c *booleanAscendingCursor) nextBoolean() (int64, bool) {
 	if ckey == tkey {
 		c.nextCache()
 		c.nextTSM()
-		return tkey, tvalue
+		return ckey, cvalue
 	}
 
 	// Buffered cache key precedes that in TSM file.
@@ -1694,7 +1694,7 @@ func (c *booleanDescendingCursor) nextBoolean() (int64, bool) {
 	if ckey == tkey {
 		c.nextCache()
 		c.nextTSM()
-		return tkey, tvalue
+		return ckey, cvalue
 	}
 
 	// Buffered cache key precedes that in TSM file.
