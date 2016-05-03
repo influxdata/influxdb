@@ -2,7 +2,6 @@ package monitor // import "github.com/influxdata/influxdb/monitor"
 
 import (
 	"expvar"
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -34,19 +33,21 @@ type Monitor struct {
 	Branch    string
 	BuildTime string
 
-	wg   sync.WaitGroup
-	done chan struct{}
-	mu   sync.Mutex
+	wg sync.WaitGroup
 
+	mu                sync.Mutex
 	diagRegistrations map[string]diagnostics.Client
+	clusterID         string
+	nodeAddr          string
+	done              chan struct{}
+	storeCreated      bool
+	storeEnabled      bool
+	storeAddress      string
 
-	storeCreated           bool
-	storeEnabled           bool
 	storeDatabase          string
 	storeRetentionPolicy   string
 	storeRetentionDuration time.Duration
 	storeReplicationFactor int
-	storeAddress           string
 	storeInterval          time.Duration
 
 	MetaClient interface {
@@ -56,8 +57,6 @@ type Monitor struct {
 		SetDefaultRetentionPolicy(database, name string) error
 		DropRetentionPolicy(database, name string) error
 	}
-
-	NodeID uint64
 
 	// Writer for pushing stats back into the database.
 	// This causes a circular dependency if it depends on cluster directly so it
@@ -86,7 +85,6 @@ func New(c Config) *Monitor {
 // for identification purpose.
 func (m *Monitor) Open() error {
 	m.Logger.Printf("Starting monitor system")
-	m.done = make(chan struct{})
 
 	// Self-register various stats and diagnostics.
 	m.RegisterDiagnosticsClient("build", &build{
@@ -98,6 +96,10 @@ func (m *Monitor) Open() error {
 	m.RegisterDiagnosticsClient("runtime", &goRuntime{})
 	m.RegisterDiagnosticsClient("network", &network{})
 	m.RegisterDiagnosticsClient("system", &system{})
+
+	m.mu.Lock()
+	m.done = make(chan struct{})
+	m.mu.Unlock()
 
 	// If enabled, record stats in a InfluxDB system.
 	if m.storeEnabled {
@@ -112,10 +114,16 @@ func (m *Monitor) Open() error {
 // Close closes the monitor system.
 func (m *Monitor) Close() {
 	m.Logger.Println("shutting down monitor system")
+	m.mu.Lock()
 	close(m.done)
+	m.mu.Unlock()
 
 	m.wg.Wait()
+
+	m.mu.Lock()
 	m.done = nil
+	m.mu.Unlock()
+
 	m.DeregisterDiagnosticsClient("build")
 	m.DeregisterDiagnosticsClient("runtime")
 	m.DeregisterDiagnosticsClient("network")
@@ -316,20 +324,28 @@ func (m *Monitor) storeStatistics() {
 	m.Logger.Printf("Storing statistics in database '%s' retention policy '%s', at interval %s",
 		m.storeDatabase, m.storeRetentionPolicy, m.storeInterval)
 
-	// Get cluster-level metadata. Nothing different is going to happen if errors occur.
-	clusterID := m.MetaClient.ClusterID()
 	hostname, _ := os.Hostname()
 	clusterTags := map[string]string{
-		"clusterID": fmt.Sprintf("%d", clusterID),
-		"nodeID":    fmt.Sprintf("%d", m.NodeID),
-		"hostname":  hostname,
+		"hostname": hostname,
+	}
+
+	m.mu.Lock()
+	if m.clusterID != "" {
+		clusterTags["clusterID"] = m.clusterID
+	}
+
+	if m.nodeAddr != "" {
+		clusterTags["nodeAddr"] = m.nodeAddr
 	}
 
 	tick := time.NewTicker(m.storeInterval)
+	m.mu.Unlock()
+
 	defer tick.Stop()
 	for {
 		select {
 		case <-tick.C:
+			m.mu.Lock()
 			m.createInternalStorage()
 
 			stats, err := m.Statistics(clusterTags)
@@ -351,11 +367,11 @@ func (m *Monitor) storeStatistics() {
 			if err := m.PointsWriter.WritePoints(m.storeDatabase, m.storeRetentionPolicy, points); err != nil {
 				m.Logger.Printf("failed to store statistics: %s", err)
 			}
+			m.mu.Unlock()
 		case <-m.done:
 			m.Logger.Printf("terminating storage of statistics")
 			return
 		}
-
 	}
 }
 
