@@ -19,6 +19,10 @@ import (
 	"github.com/influxdata/influxdb/services/udp"
 )
 
+func (s *Server) appendMonitorService() {
+	s.Services = append(s.Services, s.Monitor)
+}
+
 func (s *Server) appendRetentionPolicyService(c retention.Config) {
 	if !c.Enabled {
 		return

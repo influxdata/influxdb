@@ -112,7 +112,7 @@ func (m *Monitor) Open() error {
 }
 
 // Close closes the monitor system.
-func (m *Monitor) Close() {
+func (m *Monitor) Close() error {
 	m.Logger.Println("shutting down monitor system")
 	m.mu.Lock()
 	close(m.done)
@@ -128,6 +128,7 @@ func (m *Monitor) Close() {
 	m.DeregisterDiagnosticsClient("runtime")
 	m.DeregisterDiagnosticsClient("network")
 	m.DeregisterDiagnosticsClient("system")
+	return nil
 }
 
 // SetLogOutput sets the writer to which all logs are written. It must not be

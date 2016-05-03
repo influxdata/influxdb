@@ -248,6 +248,7 @@ func (s *Server) Open() error {
 	go mux.Serve(ln)
 
 	// Append services.
+	s.appendMonitorService()
 	s.appendClusterService(s.config.Cluster)
 	s.appendPrecreatorService(s.config.Precreator)
 	s.appendSnapshotterService()
@@ -312,11 +313,6 @@ func (s *Server) Open() error {
 		return fmt.Errorf("open points writer: %s", err)
 	}
 
-	// Open the monitor service
-	if err := s.Monitor.Open(); err != nil {
-		return fmt.Errorf("open monitor: %v", err)
-	}
-
 	for _, service := range s.Services {
 		if err := service.Open(); err != nil {
 			return fmt.Errorf("open service: %s", err)
@@ -344,10 +340,6 @@ func (s *Server) Close() error {
 	// and prevent new requests from being accepted.
 	for _, service := range s.Services {
 		service.Close()
-	}
-
-	if s.Monitor != nil {
-		s.Monitor.Close()
 	}
 
 	if s.PointsWriter != nil {
