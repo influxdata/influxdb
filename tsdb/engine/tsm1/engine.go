@@ -749,18 +749,22 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 		}
 
 		input := influxql.NewMergeIterator(inputs, opt)
-		if opt.InterruptCh != nil {
-			input = influxql.NewInterruptIterator(input, opt.InterruptCh)
+		if input != nil {
+			if opt.InterruptCh != nil {
+				input = influxql.NewInterruptIterator(input, opt.InterruptCh)
+			}
+			return influxql.NewCallIterator(input, opt)
 		}
-		return influxql.NewCallIterator(input, opt)
+		return nil, nil
 	}
 
 	itrs, err := e.createVarRefIterator(opt)
 	if err != nil {
 		return nil, err
 	}
+
 	itr := influxql.NewSortedMergeIterator(itrs, opt)
-	if opt.InterruptCh != nil {
+	if itr != nil && opt.InterruptCh != nil {
 		itr = influxql.NewInterruptIterator(itr, opt.InterruptCh)
 	}
 	return itr, nil

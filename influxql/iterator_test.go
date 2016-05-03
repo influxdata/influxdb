@@ -209,13 +209,10 @@ func TestMergeIterator_Boolean(t *testing.T) {
 }
 
 func TestMergeIterator_Nil(t *testing.T) {
-	itr := influxql.NewMergeIterator([]influxql.Iterator{nil}, influxql.IteratorOptions{}).(influxql.FloatIterator)
-	if p, err := itr.Next(); p != nil {
-		t.Fatalf("unexpected point: %#v", p)
-	} else if err != nil {
-		t.Fatalf("unexpected error: %#v", err)
+	itr := influxql.NewMergeIterator([]influxql.Iterator{nil}, influxql.IteratorOptions{})
+	if itr != nil {
+		t.Fatalf("unexpected iterator: %#v", itr)
 	}
-	itr.Close()
 }
 
 func TestMergeIterator_Cast_Float(t *testing.T) {
@@ -460,13 +457,10 @@ func TestSortedMergeIterator_Boolean(t *testing.T) {
 }
 
 func TestSortedMergeIterator_Nil(t *testing.T) {
-	itr := influxql.NewSortedMergeIterator([]influxql.Iterator{nil}, influxql.IteratorOptions{}).(influxql.FloatIterator)
-	if p, err := itr.Next(); p != nil {
-		t.Fatalf("unexpected point: %#v", p)
-	} else if err != nil {
-		t.Fatalf("unexpected error: %#v", err)
+	itr := influxql.NewSortedMergeIterator([]influxql.Iterator{nil}, influxql.IteratorOptions{})
+	if itr != nil {
+		t.Fatalf("unexpected iterator: %#v", itr)
 	}
-	itr.Close()
 }
 
 func TestSortedMergeIterator_Cast_Float(t *testing.T) {
