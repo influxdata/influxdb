@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
-func cmdDump(path string) {
+func cmdExport(path string) {
 	dataPath := filepath.Join(path, "data")
 
 	// No need to do this in a loop
