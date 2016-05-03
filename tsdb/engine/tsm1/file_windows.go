@@ -1,5 +1,3 @@
-// builde +windows
-
 package tsm1
 
 import "os"
