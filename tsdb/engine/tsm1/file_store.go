@@ -527,8 +527,8 @@ func (f *FileStore) BlockCount(path string, idx int) int {
 // locations returns the files and index blocks for a key and time.  ascending indicates
 // whether the key will be scan in ascending time order or descenging time order.
 // This function assumes the read-lock has been taken.
-func (f *FileStore) locations(key string, t int64, ascending bool) []location {
-	var locations []location
+func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
+	var locations []*location
 
 	filesSnapshot := make([]TSMFile, len(f.files))
 	for i := range f.files {
@@ -578,9 +578,11 @@ func (f *FileStore) locations(key string, t int64, ascending bool) []location {
 			}
 
 			// Otherwise, add this file and block location
-			locations = append(locations, location{
-				r:     fd,
-				entry: ie,
+			locations = append(locations, &location{
+				r:       fd,
+				entry:   ie,
+				readMin: math.MaxInt64,
+				readMax: math.MinInt64,
 			})
 		}
 	}
@@ -613,12 +615,12 @@ type KeyCursor struct {
 	fs  *FileStore
 
 	// seeks is all the file locations that we need to return during iteration.
-	seeks []location
+	seeks []*location
 
 	// current is the set of blocks possibly containing the next set of points.
 	// Normally this is just one entry, but there may be multiple if points have
 	// been overwritten.
-	current []location
+	current []*location
 	buf     []Value
 
 	// pos is the index within seeks.  Based on ascending, it will increment or
@@ -637,8 +639,33 @@ type location struct {
 	r     TSMFile
 	entry IndexEntry
 
-	// Has this location been read before
-	read bool
+	readMin, readMax int64
+}
+
+func (l *location) read() bool {
+	return l.readMin <= l.entry.MinTime && l.readMax >= l.entry.MaxTime
+}
+
+func (l *location) markRead(min, max int64) {
+	if min < l.readMin {
+		l.readMin = min
+	}
+
+	if max > l.readMax {
+		l.readMax = max
+	}
+}
+
+type locations []*location
+
+// Sort methods
+func (a locations) Len() int      { return len(a) }
+func (a locations) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a locations) Less(i, j int) bool {
+	if a[i].entry.MaxTime == a[j].entry.MaxTime {
+		return a[i].r.Path() < a[j].r.Path()
+	}
+	return a[i].entry.MaxTime < a[j].entry.MaxTime
 }
 
 // newKeyCursor returns a new instance of KeyCursor.
@@ -651,6 +678,11 @@ func newKeyCursor(fs *FileStore, key string, t int64, ascending bool) *KeyCursor
 		ascending: ascending,
 	}
 	c.duplicates = c.hasOverlappingBlocks()
+
+	if !ascending {
+		sort.Sort(locations(c.seeks))
+	}
+
 	c.seek(t)
 	return c
 }
@@ -748,14 +780,14 @@ func (c *KeyCursor) nextAscending() {
 		c.pos++
 		if c.pos >= len(c.seeks) {
 			return
-		} else if !c.seeks[c.pos].read {
+		} else if !c.seeks[c.pos].read() {
 			break
 		}
 	}
 
 	// Append the first matching block
 	if len(c.current) == 0 {
-		c.current = append(c.current, location{})
+		c.current = append(c.current, &location{})
 	} else {
 		c.current = c.current[:1]
 	}
@@ -769,7 +801,7 @@ func (c *KeyCursor) nextAscending() {
 	// If we have ovelapping blocks, append all their values so we can dedup
 	first := c.seeks[c.pos]
 	for i := c.pos + 1; i < len(c.seeks); i++ {
-		if c.seeks[i].read {
+		if c.seeks[i].read() {
 			continue
 		}
 
@@ -784,14 +816,14 @@ func (c *KeyCursor) nextDescending() {
 		c.pos--
 		if c.pos < 0 {
 			return
-		} else if !c.seeks[c.pos].read {
+		} else if !c.seeks[c.pos].read() {
 			break
 		}
 	}
 
 	// Append the first matching block
 	if len(c.current) == 0 {
-		c.current = make([]location, 1)
+		c.current = make([]*location, 1)
 	} else {
 		c.current = c.current[:1]
 	}
@@ -805,7 +837,7 @@ func (c *KeyCursor) nextDescending() {
 	// If we have ovelapping blocks, append all their values so we can dedup
 	first := c.seeks[c.pos]
 	for i := c.pos; i >= 0; i-- {
-		if c.seeks[i].read {
+		if c.seeks[i].read() {
 			continue
 		}
 		if c.seeks[i].entry.MaxTime >= first.entry.MinTime {
@@ -815,23 +847,32 @@ func (c *KeyCursor) nextDescending() {
 }
 
 // ReadFloatBlock reads the next block as a set of float values.
-func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, fdec *FloatDecoder, buf *[]FloatValue) ([]FloatValue, error) {
+func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[]FloatValue) ([]FloatValue, error) {
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
 	}
 
 	// First block is the oldest block containing the points we're search for.
-	first := &c.current[0]
+	first := c.current[0]
 	*buf = (*buf)[:0]
-	values, err := first.r.ReadFloatBlockAt(&first.entry, tdec, fdec, buf)
-	first.read = true
+	values, err := first.r.ReadFloatBlockAt(&first.entry, tdec, vdec, buf)
 
+	// Remove values we already read
+	values = FloatValues(values).Exclude(first.readMin, first.readMax)
+
+	// Record the range of values we're using
+	if len(values) > 0 {
+		first.markRead(values[0].UnixNano(), values[len(values)-1].UnixNano())
+	}
+
+	// Remove any tombstones
 	tombstones := first.r.TombstoneRange(c.key)
+	values = c.filterFloatValues(tombstones, values)
 
 	// Only one block with this key and time range so return it
 	if len(c.current) == 1 {
-		return c.filterFloatValues(tombstones, values), err
+		return values, nil
 	}
 
 	// Otherwise, search the remaining blocks that overlap and append their values so we can
@@ -839,31 +880,54 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, fdec *FloatDecoder, buf *[
 	for i := 1; i < len(c.current); i++ {
 		cur := c.current[i]
 		tombstones := cur.r.TombstoneRange(c.key)
+		// Skip this block if it doesn't contain points we looking for or they have already been read
+		if !cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) || cur.read() {
+			continue
+		}
 
-		if c.ascending && !cur.read {
-			cur.read = true
-			c.pos++
-
+		if c.ascending {
 			var a []FloatValue
-			v, err := cur.r.ReadFloatBlockAt(&cur.entry, tdec, fdec, &a)
+			v, err := cur.r.ReadFloatBlockAt(&cur.entry, tdec, vdec, &a)
 			if err != nil {
 				return nil, err
 			}
-			values = append(values, c.filterFloatValues(tombstones, v)...)
-		} else if !c.ascending && !cur.read {
-			cur.read = true
-			c.pos--
+			// Remove any tombstoned values
+			v = c.filterFloatValues(tombstones, v)
 
+			if len(v) > 0 {
+				v = FloatValues(v).Include(first.entry.MinTime, first.entry.MaxTime)
+
+				if len(v) > 0 {
+					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
+				}
+				// Merge the new values with the existing, but only include the values with the range
+				// of the first block we are decoding
+				values = FloatValues(values).Merge(v)
+			}
+
+		} else {
 			var a []FloatValue
-			v, err := cur.r.ReadFloatBlockAt(&cur.entry, tdec, fdec, &a)
+			v, err := cur.r.ReadFloatBlockAt(&cur.entry, tdec, vdec, &a)
 			if err != nil {
 				return nil, err
 			}
-			values = append(c.filterFloatValues(tombstones, v), values...)
+			// Remove any tombstoned values
+			v = c.filterFloatValues(tombstones, v)
+
+			// If the block we decoded should have all of it's values included, mark it as read so we
+			// don't use it again.
+			if len(v) > 0 {
+				v = FloatValues(v).Include(first.entry.MinTime, first.entry.MaxTime)
+
+				if len(v) > 0 {
+					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
+				}
+				values = FloatValues(v).Merge(values)
+			}
 		}
 	}
 
-	return FloatValues(values).Deduplicate(), err
+	return values, err
 }
 
 // ReadIntegerBlock reads the next block as a set of integer values.
@@ -874,48 +938,80 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 	}
 
 	// First block is the oldest block containing the points we're search for.
-	first := &c.current[0]
+	first := c.current[0]
 	*buf = (*buf)[:0]
 	values, err := first.r.ReadIntegerBlockAt(&first.entry, tdec, vdec, buf)
-	first.read = true
 
+	// Remove values we already read
+	values = IntegerValues(values).Exclude(first.readMin, first.readMax)
+
+	// Record the range of values we're using
+	if len(values) > 0 {
+		first.markRead(values[0].UnixNano(), values[len(values)-1].UnixNano())
+	}
+
+	// Remove any tombstones
 	tombstones := first.r.TombstoneRange(c.key)
+	values = c.filterIntegerValues(tombstones, values)
 
 	// Only one block with this key and time range so return it
 	if len(c.current) == 1 {
-		return c.filterIntegerValues(tombstones, values), err
+		return values, nil
 	}
 
 	// Otherwise, search the remaining blocks that overlap and append their values so we can
 	// dedup them.
 	for i := 1; i < len(c.current); i++ {
 		cur := c.current[i]
-		tombstones = cur.r.TombstoneRange(c.key)
+		tombstones := cur.r.TombstoneRange(c.key)
+		// Skip this block if it doesn't contain points we looking for or they have already been read
+		if !cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) || cur.read() {
+			continue
+		}
 
-		if c.ascending && !cur.read {
-			cur.read = true
-			c.pos++
-
+		if c.ascending {
 			var a []IntegerValue
 			v, err := cur.r.ReadIntegerBlockAt(&cur.entry, tdec, vdec, &a)
 			if err != nil {
 				return nil, err
 			}
-			values = append(values, c.filterIntegerValues(tombstones, v)...)
-		} else if !c.ascending && !cur.read {
-			cur.read = true
-			c.pos--
+			// Remove any tombstoned values
+			v = c.filterIntegerValues(tombstones, v)
 
+			if len(v) > 0 {
+				v = IntegerValues(v).Include(first.entry.MinTime, first.entry.MaxTime)
+
+				if len(v) > 0 {
+					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
+				}
+				// Merge the new values with the existing, but only include the values with the range
+				// of the first block we are decoding
+				values = IntegerValues(values).Merge(v)
+			}
+
+		} else {
 			var a []IntegerValue
 			v, err := cur.r.ReadIntegerBlockAt(&cur.entry, tdec, vdec, &a)
 			if err != nil {
 				return nil, err
 			}
-			values = append(c.filterIntegerValues(tombstones, v), values...)
+			// Remove any tombstoned values
+			v = c.filterIntegerValues(tombstones, v)
+
+			// If the block we decoded should have all of it's values included, mark it as read so we
+			// don't use it again.
+			if len(v) > 0 {
+				v = IntegerValues(v).Include(first.entry.MinTime, first.entry.MaxTime)
+
+				if len(v) > 0 {
+					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
+				}
+				values = IntegerValues(v).Merge(values)
+			}
 		}
 	}
 
-	return IntegerValues(values).Deduplicate(), err
+	return values, err
 }
 
 // ReadStringBlock reads the next block as a set of string values.
@@ -926,46 +1022,80 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 	}
 
 	// First block is the oldest block containing the points we're search for.
-	first := &c.current[0]
+	first := c.current[0]
 	*buf = (*buf)[:0]
 	values, err := first.r.ReadStringBlockAt(&first.entry, tdec, vdec, buf)
-	first.read = true
 
+	// Remove values we already read
+	values = StringValues(values).Exclude(first.readMin, first.readMax)
+
+	// Record the range of values we're using
+	if len(values) > 0 {
+		first.markRead(values[0].UnixNano(), values[len(values)-1].UnixNano())
+	}
+
+	// Remove any tombstones
 	tombstones := first.r.TombstoneRange(c.key)
+	values = c.filterStringValues(tombstones, values)
 
 	// Only one block with this key and time range so return it
 	if len(c.current) == 1 {
-		return c.filterStringValues(tombstones, values), err
+		return values, nil
 	}
 
 	// Otherwise, search the remaining blocks that overlap and append their values so we can
 	// dedup them.
 	for i := 1; i < len(c.current); i++ {
 		cur := c.current[i]
-		tombstones = cur.r.TombstoneRange(c.key)
-		if c.ascending && !cur.read {
-			cur.read = true
-			c.pos++
-			var a []StringValue
-			v, err := cur.r.ReadStringBlockAt(&cur.entry, tdec, vdec, &a)
-			if err != nil {
-				return nil, err
-			}
-			values = append(values, c.filterStringValues(tombstones, v)...)
-		} else if !c.ascending && !cur.read {
-			cur.read = true
-			c.pos--
+		tombstones := cur.r.TombstoneRange(c.key)
+		// Skip this block if it doesn't contain points we looking for or they have already been read
+		if !cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) || cur.read() {
+			continue
+		}
 
+		if c.ascending {
 			var a []StringValue
 			v, err := cur.r.ReadStringBlockAt(&cur.entry, tdec, vdec, &a)
 			if err != nil {
 				return nil, err
 			}
-			values = append(c.filterStringValues(tombstones, v), values...)
+			// Remove any tombstoned values
+			v = c.filterStringValues(tombstones, v)
+
+			if len(v) > 0 {
+				v = StringValues(v).Include(first.entry.MinTime, first.entry.MaxTime)
+
+				if len(v) > 0 {
+					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
+				}
+				// Merge the new values with the existing, but only include the values with the range
+				// of the first block we are decoding
+				values = StringValues(values).Merge(v)
+			}
+
+		} else {
+			var a []StringValue
+			v, err := cur.r.ReadStringBlockAt(&cur.entry, tdec, vdec, &a)
+			if err != nil {
+				return nil, err
+			}
+			// Remove any tombstoned values
+			v = c.filterStringValues(tombstones, v)
+
+			// If the block we decoded should have all of it's values included, mark it as read so we
+			// don't use it again.
+			if len(v) > 0 {
+				v = StringValues(v).Include(first.entry.MinTime, first.entry.MaxTime)
+
+				if len(v) > 0 {
+					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
+				}
+				values = StringValues(v).Merge(values)
+			}
 		}
 	}
 
-	return StringValues(values).Deduplicate(), err
+	return values, err
 }
 
 // ReadBooleanBlock reads the next block as a set of boolean values.
@@ -976,73 +1106,106 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 	}
 
 	// First block is the oldest block containing the points we're search for.
-	first := &c.current[0]
+	first := c.current[0]
 	*buf = (*buf)[:0]
 	values, err := first.r.ReadBooleanBlockAt(&first.entry, tdec, vdec, buf)
-	first.read = true
 
+	// Remove values we already read
+	values = BooleanValues(values).Exclude(first.readMin, first.readMax)
+
+	// Record the range of values we're using
+	if len(values) > 0 {
+		first.markRead(values[0].UnixNano(), values[len(values)-1].UnixNano())
+	}
+
+	// Remove any tombstones
 	tombstones := first.r.TombstoneRange(c.key)
+	values = c.filterBooleanValues(tombstones, values)
 
 	// Only one block with this key and time range so return it
 	if len(c.current) == 1 {
-		return c.filterBooleanValues(tombstones, values), err
+		return values, nil
 	}
 
 	// Otherwise, search the remaining blocks that overlap and append their values so we can
 	// dedup them.
 	for i := 1; i < len(c.current); i++ {
 		cur := c.current[i]
-		tombstones = cur.r.TombstoneRange(c.key)
-		if c.ascending && !cur.read {
-			cur.read = true
-			c.pos++
+		tombstones := cur.r.TombstoneRange(c.key)
+		// Skip this block if it doesn't contain points we looking for or they have already been read
+		if !cur.entry.OverlapsTimeRange(first.entry.MinTime, first.entry.MaxTime) || cur.read() {
+			continue
+		}
 
+		if c.ascending {
 			var a []BooleanValue
 			v, err := cur.r.ReadBooleanBlockAt(&cur.entry, tdec, vdec, &a)
 			if err != nil {
 				return nil, err
 			}
-			values = append(values, c.filterBooleanValues(tombstones, v)...)
-		} else if !c.ascending && !cur.read {
-			cur.read = true
-			c.pos--
+			// Remove any tombstoned values
+			v = c.filterBooleanValues(tombstones, v)
 
+			if len(v) > 0 {
+				v = BooleanValues(v).Include(first.entry.MinTime, first.entry.MaxTime)
+
+				if len(v) > 0 {
+					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
+				}
+				// Merge the new values with the existing, but only include the values with the range
+				// of the first block we are decoding
+				values = BooleanValues(values).Merge(v)
+			}
+
+		} else {
 			var a []BooleanValue
 			v, err := cur.r.ReadBooleanBlockAt(&cur.entry, tdec, vdec, &a)
 			if err != nil {
 				return nil, err
 			}
-			values = append(c.filterBooleanValues(tombstones, v), values...)
+			// Remove any tombstoned values
+			v = c.filterBooleanValues(tombstones, v)
+
+			// If the block we decoded should have all of it's values included, mark it as read so we
+			// don't use it again.
+			if len(v) > 0 {
+				v = BooleanValues(v).Include(first.entry.MinTime, first.entry.MaxTime)
+
+				if len(v) > 0 {
+					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
+				}
+				values = BooleanValues(v).Merge(values)
+			}
 		}
 	}
 
-	return BooleanValues(values).Deduplicate(), err
+	return values, err
 }
 
 func (c *KeyCursor) filterFloatValues(tombstones []TimeRange, values FloatValues) FloatValues {
 	for _, t := range tombstones {
-		values = values.Filter(t.Min, t.Max)
+		values = values.Exclude(t.Min, t.Max)
 	}
 	return values
 }
 
 func (c *KeyCursor) filterIntegerValues(tombstones []TimeRange, values IntegerValues) IntegerValues {
 	for _, t := range tombstones {
-		values = values.Filter(t.Min, t.Max)
+		values = values.Exclude(t.Min, t.Max)
 	}
 	return values
 }
 
 func (c *KeyCursor) filterStringValues(tombstones []TimeRange, values StringValues) StringValues {
 	for _, t := range tombstones {
-		values = values.Filter(t.Min, t.Max)
+		values = values.Exclude(t.Min, t.Max)
 	}
 	return values
 }
 
 func (c *KeyCursor) filterBooleanValues(tombstones []TimeRange, values BooleanValues) BooleanValues {
 	for _, t := range tombstones {
-		values = values.Filter(t.Min, t.Max)
+		values = values.Exclude(t.Min, t.Max)
 	}
 	return values
 }

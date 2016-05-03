@@ -1024,7 +1024,7 @@ func (m *mmapAccessor) readAll(key string) ([]Value, error) {
 
 		// Filter out any values that were deleted
 		for _, t := range tombstones {
-			temp = Values(temp).Filter(t.Min, t.Max)
+			temp = Values(temp).Exclude(t.Min, t.Max)
 		}
 
 		values = append(values, temp...)

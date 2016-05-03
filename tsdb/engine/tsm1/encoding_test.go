@@ -256,6 +256,655 @@ func TestEncoding_Count(t *testing.T) {
 	}
 }
 
+func TestValues_MergeFloat(t *testing.T) {
+	tests := []struct {
+		a, b, exp []tsm1.Value
+	}{
+
+		{ // empty a
+			a: []tsm1.Value{},
+
+			b: []tsm1.Value{
+				tsm1.NewValue(1, 1.2),
+				tsm1.NewValue(2, 2.2),
+			},
+			exp: []tsm1.Value{
+				tsm1.NewValue(1, 1.2),
+				tsm1.NewValue(2, 2.2),
+			},
+		},
+		{ // empty b
+			a: []tsm1.Value{
+				tsm1.NewValue(1, 1.1),
+				tsm1.NewValue(2, 2.1),
+			},
+
+			b: []tsm1.Value{},
+			exp: []tsm1.Value{
+				tsm1.NewValue(1, 1.1),
+				tsm1.NewValue(2, 2.1),
+			},
+		},
+		{
+			a: []tsm1.Value{
+				tsm1.NewValue(1, 1.1),
+			},
+			b: []tsm1.Value{
+				tsm1.NewValue(0, 0.0),
+				tsm1.NewValue(1, 1.2), // overwrites a
+				tsm1.NewValue(2, 2.2),
+				tsm1.NewValue(3, 3.2),
+				tsm1.NewValue(4, 4.2),
+			},
+			exp: []tsm1.Value{
+				tsm1.NewValue(0, 0.0),
+				tsm1.NewValue(1, 1.2),
+				tsm1.NewValue(2, 2.2),
+				tsm1.NewValue(3, 3.2),
+				tsm1.NewValue(4, 4.2),
+			},
+		},
+		{
+			a: []tsm1.Value{
+				tsm1.NewValue(1, 1.1),
+				tsm1.NewValue(2, 2.1),
+				tsm1.NewValue(3, 3.1),
+				tsm1.NewValue(4, 4.1),
+			},
+
+			b: []tsm1.Value{
+				tsm1.NewValue(1, 1.2), // overwrites a
+				tsm1.NewValue(2, 2.2), // overwrites a
+			},
+			exp: []tsm1.Value{
+				tsm1.NewValue(1, 1.2),
+				tsm1.NewValue(2, 2.2),
+				tsm1.NewValue(3, 3.1),
+				tsm1.NewValue(4, 4.1),
+			},
+		},
+		{
+			a: []tsm1.Value{
+				tsm1.NewValue(1, 1.1),
+				tsm1.NewValue(2, 2.1),
+				tsm1.NewValue(3, 3.1),
+				tsm1.NewValue(4, 4.1),
+			},
+
+			b: []tsm1.Value{
+				tsm1.NewValue(1, 1.2), // overwrites a
+				tsm1.NewValue(2, 2.2), // overwrites a
+				tsm1.NewValue(3, 3.2),
+				tsm1.NewValue(4, 4.2),
+			},
+			exp: []tsm1.Value{
+				tsm1.NewValue(1, 1.2),
+				tsm1.NewValue(2, 2.2),
+				tsm1.NewValue(3, 3.2),
+				tsm1.NewValue(4, 4.2),
+			},
+		},
+		{
+			a: []tsm1.Value{
+				tsm1.NewValue(0, 0.0),
+				tsm1.NewValue(1, 1.1),
+				tsm1.NewValue(2, 2.1),
+				tsm1.NewValue(3, 3.1),
+				tsm1.NewValue(4, 4.1),
+			},
+			b: []tsm1.Value{
+				tsm1.NewValue(0, 0.0),
+				tsm1.NewValue(2, 2.2),
+				tsm1.NewValue(4, 4.2),
+			},
+			exp: []tsm1.Value{
+				tsm1.NewValue(0, 0.0),
+				tsm1.NewValue(1, 1.1),
+				tsm1.NewValue(2, 2.2),
+				tsm1.NewValue(3, 3.1),
+				tsm1.NewValue(4, 4.2),
+			},
+		},
+	}
+
+	for i, test := range tests {
+		got := tsm1.Values(test.a).Merge(test.b)
+
+		if exp, got := len(test.exp), len(got); exp != got {
+			t.Fatalf("test(%d): value length mismatch: exp %v, got %v", i, exp, got)
+		}
+
+		for i := range test.exp {
+			if exp, got := test.exp[i].String(), got[i].String(); exp != got {
+				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
+			}
+		}
+	}
+}
+
+func TestIntegerValues_Merge(t *testing.T) {
+	integerValue := func(t int64, f int64) tsm1.IntegerValue {
+		return *(tsm1.NewValue(t, f).(*tsm1.IntegerValue))
+	}
+
+	tests := []struct {
+		a, b, exp []tsm1.IntegerValue
+	}{
+
+		{ // empty a
+			a: []tsm1.IntegerValue{},
+
+			b: []tsm1.IntegerValue{
+				integerValue(1, 10),
+				integerValue(2, 20),
+			},
+			exp: []tsm1.IntegerValue{
+				integerValue(1, 10),
+				integerValue(2, 20),
+			},
+		},
+		{ // empty b
+			a: []tsm1.IntegerValue{
+				integerValue(1, 1),
+				integerValue(2, 2),
+			},
+
+			b: []tsm1.IntegerValue{},
+			exp: []tsm1.IntegerValue{
+				integerValue(1, 1),
+				integerValue(2, 2),
+			},
+		},
+		{
+			a: []tsm1.IntegerValue{
+				integerValue(1, 1),
+			},
+			b: []tsm1.IntegerValue{
+				integerValue(0, 0),
+				integerValue(1, 10), // overwrites a
+				integerValue(2, 20),
+				integerValue(3, 30),
+				integerValue(4, 40),
+			},
+			exp: []tsm1.IntegerValue{
+				integerValue(0, 0),
+				integerValue(1, 10),
+				integerValue(2, 20),
+				integerValue(3, 30),
+				integerValue(4, 40),
+			},
+		},
+		{
+			a: []tsm1.IntegerValue{
+				integerValue(1, 1),
+				integerValue(2, 2),
+				integerValue(3, 3),
+				integerValue(4, 4),
+			},
+
+			b: []tsm1.IntegerValue{
+				integerValue(1, 10), // overwrites a
+				integerValue(2, 20), // overwrites a
+			},
+			exp: []tsm1.IntegerValue{
+				integerValue(1, 10),
+				integerValue(2, 20),
+				integerValue(3, 3),
+				integerValue(4, 4),
+			},
+		},
+		{
+			a: []tsm1.IntegerValue{
+				integerValue(1, 1),
+				integerValue(2, 2),
+				integerValue(3, 3),
+				integerValue(4, 4),
+			},
+
+			b: []tsm1.IntegerValue{
+				integerValue(1, 10), // overwrites a
+				integerValue(2, 20), // overwrites a
+				integerValue(3, 30),
+				integerValue(4, 40),
+			},
+			exp: []tsm1.IntegerValue{
+				integerValue(1, 10),
+				integerValue(2, 20),
+				integerValue(3, 30),
+				integerValue(4, 40),
+			},
+		},
+		{
+			a: []tsm1.IntegerValue{
+				integerValue(0, 0),
+				integerValue(1, 1),
+				integerValue(2, 2),
+				integerValue(3, 3),
+				integerValue(4, 4),
+			},
+			b: []tsm1.IntegerValue{
+				integerValue(0, 0),
+				integerValue(2, 20),
+				integerValue(4, 40),
+			},
+			exp: []tsm1.IntegerValue{
+				integerValue(0, 0.0),
+				integerValue(1, 1),
+				integerValue(2, 20),
+				integerValue(3, 3),
+				integerValue(4, 40),
+			},
+		},
+	}
+
+	for i, test := range tests {
+		if i != 2 {
+			continue
+		}
+
+		got := tsm1.IntegerValues(test.a).Merge(test.b)
+		if exp, got := len(test.exp), len(got); exp != got {
+			t.Fatalf("test(%d): value length mismatch: exp %v, got %v", i, exp, got)
+		}
+
+		for i := range test.exp {
+			if exp, got := test.exp[i].String(), got[i].String(); exp != got {
+				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
+			}
+		}
+	}
+}
+
+func TestFloatValues_Merge(t *testing.T) {
+	floatValue := func(t int64, f float64) tsm1.FloatValue {
+		return *(tsm1.NewValue(t, f).(*tsm1.FloatValue))
+	}
+
+	tests := []struct {
+		a, b, exp []tsm1.FloatValue
+	}{
+
+		{ // empty a
+			a: []tsm1.FloatValue{},
+
+			b: []tsm1.FloatValue{
+				floatValue(1, 1.2),
+				floatValue(2, 2.2),
+			},
+			exp: []tsm1.FloatValue{
+				floatValue(1, 1.2),
+				floatValue(2, 2.2),
+			},
+		},
+		{ // empty b
+			a: []tsm1.FloatValue{
+				floatValue(1, 1.1),
+				floatValue(2, 2.1),
+			},
+
+			b: []tsm1.FloatValue{},
+			exp: []tsm1.FloatValue{
+				floatValue(1, 1.1),
+				floatValue(2, 2.1),
+			},
+		},
+		{
+			a: []tsm1.FloatValue{
+				floatValue(1, 1.1),
+			},
+			b: []tsm1.FloatValue{
+				floatValue(0, 0.0),
+				floatValue(1, 1.2), // overwrites a
+				floatValue(2, 2.2),
+				floatValue(3, 3.2),
+				floatValue(4, 4.2),
+			},
+			exp: []tsm1.FloatValue{
+				floatValue(0, 0.0),
+				floatValue(1, 1.2),
+				floatValue(2, 2.2),
+				floatValue(3, 3.2),
+				floatValue(4, 4.2),
+			},
+		},
+		{
+			a: []tsm1.FloatValue{
+				floatValue(1, 1.1),
+				floatValue(2, 2.1),
+				floatValue(3, 3.1),
+				floatValue(4, 4.1),
+			},
+
+			b: []tsm1.FloatValue{
+				floatValue(1, 1.2), // overwrites a
+				floatValue(2, 2.2), // overwrites a
+			},
+			exp: []tsm1.FloatValue{
+				floatValue(1, 1.2),
+				floatValue(2, 2.2),
+				floatValue(3, 3.1),
+				floatValue(4, 4.1),
+			},
+		},
+		{
+			a: []tsm1.FloatValue{
+				floatValue(1, 1.1),
+				floatValue(2, 2.1),
+				floatValue(3, 3.1),
+				floatValue(4, 4.1),
+			},
+
+			b: []tsm1.FloatValue{
+				floatValue(1, 1.2), // overwrites a
+				floatValue(2, 2.2), // overwrites a
+				floatValue(3, 3.2),
+				floatValue(4, 4.2),
+			},
+			exp: []tsm1.FloatValue{
+				floatValue(1, 1.2),
+				floatValue(2, 2.2),
+				floatValue(3, 3.2),
+				floatValue(4, 4.2),
+			},
+		},
+		{
+			a: []tsm1.FloatValue{
+				floatValue(0, 0.0),
+				floatValue(1, 1.1),
+				floatValue(2, 2.1),
+				floatValue(3, 3.1),
+				floatValue(4, 4.1),
+			},
+			b: []tsm1.FloatValue{
+				floatValue(0, 0.0),
+				floatValue(2, 2.2),
+				floatValue(4, 4.2),
+			},
+			exp: []tsm1.FloatValue{
+				floatValue(0, 0.0),
+				floatValue(1, 1.1),
+				floatValue(2, 2.2),
+				floatValue(3, 3.1),
+				floatValue(4, 4.2),
+			},
+		},
+	}
+
+	for i, test := range tests {
+		got := tsm1.FloatValues(test.a).Merge(test.b)
+		if exp, got := len(test.exp), len(got); exp != got {
+			t.Fatalf("test(%d): value length mismatch: exp %v, got %v", i, exp, got)
+		}
+
+		for i := range test.exp {
+			if exp, got := test.exp[i].String(), got[i].String(); exp != got {
+				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
+			}
+		}
+	}
+}
+
+func TestBooleanValues_Merge(t *testing.T) {
+	booleanValue := func(t int64, f bool) tsm1.BooleanValue {
+		return *(tsm1.NewValue(t, f).(*tsm1.BooleanValue))
+	}
+
+	tests := []struct {
+		a, b, exp []tsm1.BooleanValue
+	}{
+
+		{ // empty a
+			a: []tsm1.BooleanValue{},
+
+			b: []tsm1.BooleanValue{
+				booleanValue(1, true),
+				booleanValue(2, true),
+			},
+			exp: []tsm1.BooleanValue{
+				booleanValue(1, true),
+				booleanValue(2, true),
+			},
+		},
+		{ // empty b
+			a: []tsm1.BooleanValue{
+				booleanValue(1, true),
+				booleanValue(2, true),
+			},
+
+			b: []tsm1.BooleanValue{},
+			exp: []tsm1.BooleanValue{
+				booleanValue(1, true),
+				booleanValue(2, true),
+			},
+		},
+		{
+			a: []tsm1.BooleanValue{
+				booleanValue(1, true),
+			},
+			b: []tsm1.BooleanValue{
+				booleanValue(0, false),
+				booleanValue(1, false), // overwrites a
+				booleanValue(2, false),
+				booleanValue(3, false),
+				booleanValue(4, false),
+			},
+			exp: []tsm1.BooleanValue{
+				booleanValue(0, false),
+				booleanValue(1, false),
+				booleanValue(2, false),
+				booleanValue(3, false),
+				booleanValue(4, false),
+			},
+		},
+		{
+			a: []tsm1.BooleanValue{
+				booleanValue(1, true),
+				booleanValue(2, true),
+				booleanValue(3, true),
+				booleanValue(4, true),
+			},
+
+			b: []tsm1.BooleanValue{
+				booleanValue(1, false), // overwrites a
+				booleanValue(2, false), // overwrites a
+			},
+			exp: []tsm1.BooleanValue{
+				booleanValue(1, false), // overwrites a
+				booleanValue(2, false), // overwrites a
+				booleanValue(3, true),
+				booleanValue(4, true),
+			},
+		},
+		{
+			a: []tsm1.BooleanValue{
+				booleanValue(1, true),
+				booleanValue(2, true),
+				booleanValue(3, true),
+				booleanValue(4, true),
+			},
+
+			b: []tsm1.BooleanValue{
+				booleanValue(1, false), // overwrites a
+				booleanValue(2, false), // overwrites a
+				booleanValue(3, false),
+				booleanValue(4, false),
+			},
+			exp: []tsm1.BooleanValue{
+				booleanValue(1, false),
+				booleanValue(2, false),
+				booleanValue(3, false),
+				booleanValue(4, false),
+			},
+		},
+		{
+			a: []tsm1.BooleanValue{
+				booleanValue(0, true),
+				booleanValue(1, true),
+				booleanValue(2, true),
+				booleanValue(3, true),
+				booleanValue(4, true),
+			},
+			b: []tsm1.BooleanValue{
+				booleanValue(0, false),
+				booleanValue(2, false),
+				booleanValue(4, false),
+			},
+			exp: []tsm1.BooleanValue{
+				booleanValue(0, false),
+				booleanValue(1, true),
+				booleanValue(2, false),
+				booleanValue(3, true),
+				booleanValue(4, false),
+			},
+		},
+	}
+
+	for i, test := range tests {
+		got := tsm1.BooleanValues(test.a).Merge(test.b)
+		if exp, got := len(test.exp), len(got); exp != got {
+			t.Fatalf("test(%d): value length mismatch: exp %v, got %v", i, exp, got)
+		}
+
+		for i := range test.exp {
+			if exp, got := test.exp[i].String(), got[i].String(); exp != got {
+				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
+			}
+		}
+	}
+}
+
+func TestStringValues_Merge(t *testing.T) {
+	stringValue := func(t int64, f string) tsm1.StringValue {
+		return *(tsm1.NewValue(t, f).(*tsm1.StringValue))
+	}
+
+	tests := []struct {
+		a, b, exp []tsm1.StringValue
+	}{
+
+		{ // empty a
+			a: []tsm1.StringValue{},
+
+			b: []tsm1.StringValue{
+				stringValue(1, "10"),
+				stringValue(2, "20"),
+			},
+			exp: []tsm1.StringValue{
+				stringValue(1, "10"),
+				stringValue(2, "20"),
+			},
+		},
+		{ // empty b
+			a: []tsm1.StringValue{
+				stringValue(1, "1"),
+				stringValue(2, "2"),
+			},
+
+			b: []tsm1.StringValue{},
+			exp: []tsm1.StringValue{
+				stringValue(1, "1"),
+				stringValue(2, "2"),
+			},
+		},
+		{
+			a: []tsm1.StringValue{
+				stringValue(1, "1"),
+			},
+			b: []tsm1.StringValue{
+				stringValue(0, "0"),
+				stringValue(1, "10"), // overwrites a
+				stringValue(2, "20"),
+				stringValue(3, "30"),
+				stringValue(4, "40"),
+			},
+			exp: []tsm1.StringValue{
+				stringValue(0, "0"),
+				stringValue(1, "10"),
+				stringValue(2, "20"),
+				stringValue(3, "30"),
+				stringValue(4, "40"),
+			},
+		},
+		{
+			a: []tsm1.StringValue{
+				stringValue(1, "1"),
+				stringValue(2, "2"),
+				stringValue(3, "3"),
+				stringValue(4, "4"),
+			},
+
+			b: []tsm1.StringValue{
+				stringValue(1, "10"), // overwrites a
+				stringValue(2, "20"), // overwrites a
+			},
+			exp: []tsm1.StringValue{
+				stringValue(1, "10"),
+				stringValue(2, "20"),
+				stringValue(3, "3"),
+				stringValue(4, "4"),
+			},
+		},
+		{
+			a: []tsm1.StringValue{
+				stringValue(1, "1"),
+				stringValue(2, "2"),
+				stringValue(3, "3"),
+				stringValue(4, "4"),
+			},
+
+			b: []tsm1.StringValue{
+				stringValue(1, "10"), // overwrites a
+				stringValue(2, "20"), // overwrites a
+				stringValue(3, "30"),
+				stringValue(4, "40"),
+			},
+			exp: []tsm1.StringValue{
+				stringValue(1, "10"),
+				stringValue(2, "20"),
+				stringValue(3, "30"),
+				stringValue(4, "40"),
+			},
+		},
+		{
+			a: []tsm1.StringValue{
+				stringValue(0, "0"),
+				stringValue(1, "1"),
+				stringValue(2, "2"),
+				stringValue(3, "3"),
+				stringValue(4, "4"),
+			},
+			b: []tsm1.StringValue{
+				stringValue(0, "0"),
+				stringValue(2, "20"),
+				stringValue(4, "40"),
+			},
+			exp: []tsm1.StringValue{
+				stringValue(0, "0.0"),
+				stringValue(1, "1"),
+				stringValue(2, "20"),
+				stringValue(3, "3"),
+				stringValue(4, "40"),
+			},
+		},
+	}
+
+	for i, test := range tests {
+		if i != 2 {
+			continue
+		}
+
+		got := tsm1.StringValues(test.a).Merge(test.b)
+		if exp, got := len(test.exp), len(got); exp != got {
+			t.Fatalf("test(%d): value length mismatch: exp %v, got %v", i, exp, got)
+		}
+
+		for i := range test.exp {
+			if exp, got := test.exp[i].String(), got[i].String(); exp != got {
+				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
+			}
+		}
+	}
+}
 func getTimes(n, step int, precision time.Duration) []int64 {
 	t := time.Now().Round(precision).UnixNano()
 	a := make([]int64, n)
