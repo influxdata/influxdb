@@ -139,8 +139,8 @@ func TestClient_Ping(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
 	}
-	if d == 0 {
-		t.Fatalf("expected a duration greater than zero.  actual %v", d)
+	if d.Nanoseconds() == 0 {
+		t.Fatalf("expected a duration greater than zero.  actual %v", d.Nanoseconds())
 	}
 	if version != "x.x" {
 		t.Fatalf("unexpected version.  expected %s,  actual %v", "x.x", version)
@@ -549,6 +549,7 @@ func TestEpochToTime(t *testing.T) {
 
 func emptyTestServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(50 * time.Millisecond)
 		w.Header().Set("X-Influxdb-Version", "x.x")
 		return
 	}))

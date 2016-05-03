@@ -388,6 +388,7 @@ var basicQC = &BasicQueryClient{
 
 func TestBasicQueryClient_Query(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(50 * time.Millisecond)
 		w.Header().Set("X-Influxdb-Version", "x.x")
 		var data client.Response
 		w.WriteHeader(http.StatusOK)
@@ -413,8 +414,8 @@ func TestBasicQueryClient_Query(t *testing.T) {
 	}
 
 	elapsed := r.Timer.Elapsed()
-	if elapsed == time.Duration(0) {
-		t.Errorf("Expected %v to not be 0", elapsed)
+	if elapsed.Nanoseconds() == 0 {
+		t.Errorf("Expected %v to not be 0", elapsed.Nanoseconds())
 	}
 
 }
