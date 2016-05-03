@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/influxdata/influxdb/monitor"
+
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/tsdb"
@@ -70,6 +72,7 @@ type Service struct {
 	Listener net.Listener
 
 	TSDBStore TSDBStore
+	Monitor   *monitor.Monitor
 
 	Logger  *log.Logger
 	statMap *expvar.Map
@@ -214,8 +217,16 @@ func (s *Service) handleConn(conn net.Conn) {
 			s.processSeriesKeysRequest(conn)
 			return
 		case remoteMonitorRequestMessage:
-			s.processRemoteMonitorRequest(conn)
-			return
+			buf, err := ReadLV(conn)
+			if err != nil {
+				s.Logger.Printf("unable to read length-value: %s", err)
+				return
+			}
+
+			if err = s.processRemoteMonitorRequest(buf); err != nil {
+				s.Logger.Printf("process write shard error: %s", err)
+			}
+			s.writeRemoteMonitorResponse(conn, err)
 		default:
 			s.Logger.Printf("cluster service message type not found: %d", typ)
 		}
@@ -497,21 +508,44 @@ func (s *Service) processSeriesKeysRequest(conn net.Conn) {
 	}
 }
 
-func (s *Service) processRemoteMonitorRequest(conn net.Conn) {
+func (s *Service) processRemoteMonitorRequest(buf []byte) error {
 	// Unmarshal the request.
 	var req RemoteMonitorRequest
-	if err := DecodeLV(conn, &req); err != nil {
-		s.Logger.Printf("error reading RemoteMonitor request: %s", err)
-		EncodeTLV(conn, remoteMonitorResponseMessage, &RemoteMonitorResponse{Err: err})
-		return
+	if err := req.UnmarshalBinary(buf); err != nil {
+		return err
 	}
 
 	// Process the request
-	var err error
+	var remoteAddr string
+	if len(req.pb.GetRemoteAddrs()) > 0 {
+		remoteAddr = req.pb.GetRemoteAddrs()[0]
+	}
+	return s.Monitor.SetRemoteWriter(monitor.RemoteWriterConfig{
+		RemoteAddr: remoteAddr,
+		NodeID:     req.pb.GetNodeID(),
+		Username:   req.pb.GetUsername(),
+		Password:   req.pb.GetPassword(),
+		ClusterID:  req.pb.GetClusterID(),
+	})
+}
 
-	// Encode response.
-	if e := EncodeTLV(conn, remoteMonitorResponseMessage, &RemoteMonitorResponse{Err: err}); e != nil {
-		s.Logger.Printf("error writing RemoteMonitor response: %v", e)
+func (s *Service) writeRemoteMonitorResponse(w io.Writer, e error) {
+	// Build response.
+	var resp RemoteMonitorResponse
+	if e != nil {
+		resp.Err = e
+	}
+
+	// Marshal response to binary.
+	buf, err := resp.MarshalBinary()
+	if err != nil {
+		s.Logger.Printf("error marshalling remote monitor response: %s", err)
+		return
+	}
+
+	// Write to connection.
+	if err := WriteTLV(w, remoteMonitorResponseMessage, buf); err != nil {
+		s.Logger.Printf("write remote monitor response error: %s", err)
 	}
 }
 

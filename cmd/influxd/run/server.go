@@ -202,6 +202,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 func (s *Server) appendClusterService(c cluster.Config) {
 	srv := cluster.NewService(c)
 	srv.TSDBStore = cluster.LocalTSDBStore{Store: s.TSDBStore}
+	srv.Monitor = s.Monitor
 	s.Services = append(s.Services, srv)
 	s.ClusterService = srv
 }

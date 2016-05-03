@@ -498,6 +498,26 @@ type RemoteMonitorRequest struct {
 	pb internal.RemoteMonitorRequest
 }
 
+func (m *RemoteMonitorRequest) SetRemoteAddrs(s []string) {
+	m.pb.RemoteAddrs = s
+}
+
+func (m *RemoteMonitorRequest) SetNodeID(s string) {
+	m.pb.NodeID = &s
+}
+
+func (m *RemoteMonitorRequest) SetUsername(s string) {
+	m.pb.Username = &s
+}
+
+func (m *RemoteMonitorRequest) SetPassword(s string) {
+	m.pb.Password = &s
+}
+
+func (m *RemoteMonitorRequest) SetClusterID(v uint64) {
+	m.pb.ClusterID = &v
+}
+
 // MarshalBinary encodes the object to a binary format.
 func (r *RemoteMonitorRequest) MarshalBinary() ([]byte, error) {
 	return proto.Marshal(&r.pb)
