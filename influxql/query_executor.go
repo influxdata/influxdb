@@ -161,28 +161,14 @@ func (e *QueryExecutor) SetLogOutput(w io.Writer) {
 }
 
 // ExecuteQuery executes each statement within a query.
-func (e *QueryExecutor) ExecuteQuery(query *Query, database string, chunkSize int, readonly bool, closing chan struct{}) <-chan *Result {
-	results := make(chan *Result)
-	go e.executeQuery(query, database, chunkSize, readonly, closing, results)
-	return results
-}
-
-func (e *QueryExecutor) executeQuery(query *Query, database string, chunkSize int, readonly bool, closing <-chan struct{}, results chan *Result) {
-	defer close(results)
-	defer e.recover(query, results)
-
-	e.statMap.Add(statQueriesActive, 1)
-	defer func(start time.Time) {
-		e.statMap.Add(statQueriesActive, -1)
-		e.statMap.Add(statQueryExecutionDuration, time.Since(start).Nanoseconds())
-	}(time.Now())
-
+func (e *QueryExecutor) ExecuteQuery(query *Query, database string, chunkSize int, readonly bool, closing chan struct{}) (uint64, <-chan *Result) {
+	results := make(chan *Result, 1)
 	qid, task, err := e.attachQuery(query, database, closing)
 	if err != nil {
 		results <- &Result{Err: err}
-		return
+		close(results)
+		return 0, results
 	}
-	defer e.killQuery(qid)
 
 	// Setup the execution context that will be used when executing statements.
 	ctx := ExecutionContext{
@@ -196,6 +182,21 @@ func (e *QueryExecutor) executeQuery(query *Query, database string, chunkSize in
 		InterruptCh: task.closing,
 	}
 
+	go e.executeQuery(query, ctx, results)
+	return qid, results
+}
+
+func (e *QueryExecutor) executeQuery(query *Query, ctx ExecutionContext, results chan *Result) {
+	defer close(results)
+	defer e.recover(query, results)
+	defer e.killQuery(ctx.QueryID)
+
+	e.statMap.Add(statQueriesActive, 1)
+	defer func(start time.Time) {
+		e.statMap.Add(statQueriesActive, -1)
+		e.statMap.Add(statQueryExecutionDuration, time.Since(start).Nanoseconds())
+	}(time.Now())
+
 	var i int
 loop:
 	for ; i < len(query.Statements); i++ {
@@ -203,7 +204,7 @@ loop:
 		stmt := query.Statements[i]
 
 		// If a default database wasn't passed in by the caller, check the statement.
-		defaultDB := database
+		defaultDB := ctx.Database
 		if defaultDB == "" {
 			if s, ok := stmt.(HasDefaultDatabase); ok {
 				defaultDB = s.DefaultDatabase()
@@ -267,7 +268,7 @@ loop:
 		if err == ErrQueryInterrupted {
 			// Query was interrupted so retrieve the real interrupt error from
 			// the query task if there is one.
-			if qerr := task.Error(); qerr != nil {
+			if qerr := ctx.Query.Error(); qerr != nil {
 				err = qerr
 			}
 		}

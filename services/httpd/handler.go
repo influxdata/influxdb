@@ -318,7 +318,10 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	w.Header().Add("Connection", "close")
 	w.Header().Add("content-type", "application/json")
 	readonly := r.Method == "GET" || r.Method == "HEAD"
-	results := h.QueryExecutor.ExecuteQuery(query, db, chunkSize, readonly, closing)
+	qid, results := h.QueryExecutor.ExecuteQuery(query, db, chunkSize, readonly, closing)
+	if qid != 0 {
+		w.Header().Add("InfluxDB-Query-ID", strconv.FormatUint(qid, 10))
+	}
 
 	// if we're not chunking, this will be the in memory buffer for all results before sending to client
 	resp := Response{Results: make([]*influxql.Result, 0)}
