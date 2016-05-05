@@ -746,16 +746,24 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 		inputs, err := e.createVarRefIterator(refOpt)
 		if err != nil {
 			return nil, err
+		} else if len(inputs) == 0 {
+			return nil, nil
 		}
 
-		input := influxql.NewMergeIterator(inputs, opt)
-		if input != nil {
+		// Wrap each series in a call iterator.
+		for i, input := range inputs {
 			if opt.InterruptCh != nil {
 				input = influxql.NewInterruptIterator(input, opt.InterruptCh)
 			}
-			return influxql.NewCallIterator(input, opt)
+
+			itr, err := influxql.NewCallIterator(input, opt)
+			if err != nil {
+				return nil, err
+			}
+			inputs[i] = itr
 		}
-		return nil, nil
+
+		return influxql.NewMergeIterator(inputs, opt), nil
 	}
 
 	itrs, err := e.createVarRefIterator(opt)

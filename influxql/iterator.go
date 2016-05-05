@@ -117,8 +117,10 @@ func (a Iterators) cast() interface{} {
 // interval.
 func NewMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 	inputs = Iterators(inputs).filterNonNil()
-	if len(inputs) == 0 {
+	if n := len(inputs); n == 0 {
 		return nil
+	} else if n == 1 {
+		return inputs[0]
 	}
 
 	// Aggregate functions can use a more relaxed sorting so that points
