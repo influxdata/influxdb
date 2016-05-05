@@ -807,7 +807,7 @@ func (k *tsmKeyIterator) combine(dedup bool) blocks {
 
 			// Apply each tombstone to the block
 			for _, ts := range k.blocks[i].tombstones {
-				v = Values(v).Filter(ts.Min, ts.Max)
+				v = Values(v).Exclude(ts.Min, ts.Max)
 			}
 			decoded = append(decoded, v...)
 

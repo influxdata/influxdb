@@ -92,7 +92,7 @@ func (e *entry) count() int {
 // filter removes all values between min and max inclusive
 func (e *entry) filter(min, max int64) {
 	e.mu.Lock()
-	e.values = e.values.Filter(min, max)
+	e.values = e.values.Exclude(min, max)
 	e.mu.Unlock()
 }
 

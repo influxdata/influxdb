@@ -86,10 +86,58 @@ func (a Values) Size() int {
 	return sz
 }
 
-func (a Values) Filter(min, max int64) Values {
+// Merge overlays b to top of a.  If two values conflict with
+// the same timestamp, b is used.  Both a and b must be sorted
+// in ascending order.
+func (a Values) Merge(b Values) Values {
+	if len(a) == 0 {
+		return b
+	}
+
+	if len(b) == 0 {
+		return a
+	}
+
+	var i, j int
+	for ; i < len(a) && j < len(b); i++ {
+		av, bv := a[i].UnixNano(), b[j].UnixNano()
+		if av > bv {
+			a[i], b[j] = b[j], a[i]
+		} else if av == bv {
+			a[i] = b[j]
+			j++
+		}
+	}
+
+	if i >= len(a) {
+		if j+1 < len(b) && b[j].UnixNano() == b[j+1].UnixNano() {
+			j++
+		}
+		return append(a, b[j:]...)
+	}
+
+	return a
+}
+
+//  Exclude returns the subset of values not in [min, max]
+func (a Values) Exclude(min, max int64) Values {
 	var i int
 	for j := 0; j < len(a); j++ {
 		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
+			continue
+		}
+
+		a[i] = a[j]
+		i++
+	}
+	return a[:i]
+}
+
+// Include returns the subset values between min and max inclusive.
+func (a Values) Include(min, max int64) Values {
+	var i int
+	for j := 0; j < len(a); j++ {
+		if a[j].UnixNano() < min || a[j].UnixNano() > max {
 			continue
 		}
 
@@ -367,10 +415,58 @@ func (a FloatValues) Deduplicate() FloatValues {
 	return other
 }
 
-func (a FloatValues) Filter(min, max int64) FloatValues {
+// Merge overlays b to top of a.  If two values conflict with
+// the same timestamp, b is used.  Both a and b must be sorted
+// in ascending order.
+func (a FloatValues) Merge(b FloatValues) FloatValues {
+	if len(a) == 0 {
+		return b
+	}
+
+	if len(b) == 0 {
+		return a
+	}
+
+	var i, j int
+	for ; i < len(a) && j < len(b); i++ {
+		av, bv := a[i].UnixNano(), b[j].UnixNano()
+		if av > bv {
+			a[i], b[j] = b[j], a[i]
+		} else if av == bv {
+			a[i] = b[j]
+			j++
+		}
+	}
+
+	if i >= len(a) {
+		if j+1 < len(b) && b[j].UnixNano() == b[j+1].UnixNano() {
+			j++
+		}
+		return append(a, b[j:]...)
+	}
+
+	return a
+}
+
+//  Exclude returns the subset of values not in [min, max]
+func (a FloatValues) Exclude(min, max int64) FloatValues {
 	var i int
 	for j := 0; j < len(a); j++ {
 		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
+			continue
+		}
+
+		a[i] = a[j]
+		i++
+	}
+	return a[:i]
+}
+
+// Include returns the subset values between min and max inclusive.
+func (a FloatValues) Include(min, max int64) FloatValues {
+	var i int
+	for j := 0; j < len(a); j++ {
+		if a[j].UnixNano() < min || a[j].UnixNano() > max {
 			continue
 		}
 
@@ -504,7 +600,8 @@ func (a BooleanValues) Deduplicate() BooleanValues {
 	return other
 }
 
-func (a BooleanValues) Filter(min, max int64) BooleanValues {
+//  Exclude returns the subset of values not in [min, max]
+func (a BooleanValues) Exclude(min, max int64) BooleanValues {
 	var i int
 	for j := 0; j < len(a); j++ {
 		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
@@ -515,6 +612,53 @@ func (a BooleanValues) Filter(min, max int64) BooleanValues {
 		i++
 	}
 	return a[:i]
+}
+
+// Include returns the subset values between min and max inclusive.
+func (a BooleanValues) Include(min, max int64) BooleanValues {
+	var i int
+	for j := 0; j < len(a); j++ {
+		if a[j].UnixNano() < min || a[j].UnixNano() > max {
+			continue
+		}
+
+		a[i] = a[j]
+		i++
+	}
+	return a[:i]
+}
+
+// Merge overlays b to top of a.  If two values conflict with
+// the same timestamp, b is used.  Both a and b must be sorted
+// in ascending order.
+func (a BooleanValues) Merge(b BooleanValues) BooleanValues {
+	if len(a) == 0 {
+		return b
+	}
+
+	if len(b) == 0 {
+		return a
+	}
+
+	var i, j int
+	for ; i < len(a) && j < len(b); i++ {
+		av, bv := a[i].UnixNano(), b[j].UnixNano()
+		if av > bv {
+			a[i], b[j] = b[j], a[i]
+		} else if av == bv {
+			a[i] = b[j]
+			j++
+		}
+	}
+
+	if i >= len(a) {
+		if j+1 < len(b) && b[j].UnixNano() == b[j+1].UnixNano() {
+			j++
+		}
+		return append(a, b[j:]...)
+	}
+
+	return a
 }
 
 // Sort methods
@@ -629,7 +773,8 @@ func (a IntegerValues) Deduplicate() IntegerValues {
 	return other
 }
 
-func (a IntegerValues) Filter(min, max int64) IntegerValues {
+//  Exclude returns the subset of values not in [min, max]
+func (a IntegerValues) Exclude(min, max int64) IntegerValues {
 	var i int
 	for j := 0; j < len(a); j++ {
 		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
@@ -640,6 +785,53 @@ func (a IntegerValues) Filter(min, max int64) IntegerValues {
 		i++
 	}
 	return a[:i]
+}
+
+// Include returns the subset values between min and max inclusive.
+func (a IntegerValues) Include(min, max int64) IntegerValues {
+	var i int
+	for j := 0; j < len(a); j++ {
+		if a[j].UnixNano() < min || a[j].UnixNano() > max {
+			continue
+		}
+
+		a[i] = a[j]
+		i++
+	}
+	return a[:i]
+}
+
+// Merge overlays b to top of a.  If two values conflict with
+// the same timestamp, b is used.  Both a and b must be sorted
+// in ascending order.
+func (a IntegerValues) Merge(b IntegerValues) IntegerValues {
+	if len(a) == 0 {
+		return b
+	}
+
+	if len(b) == 0 {
+		return a
+	}
+
+	var i, j int
+	for ; i < len(a) && j < len(b); i++ {
+		av, bv := a[i].UnixNano(), b[j].UnixNano()
+		if av > bv {
+			a[i], b[j] = b[j], a[i]
+		} else if av == bv {
+			a[i] = b[j]
+			j++
+		}
+	}
+
+	if i >= len(a) {
+		if j+1 < len(b) && b[j].UnixNano() == b[j+1].UnixNano() {
+			j++
+		}
+		return append(a, b[j:]...)
+	}
+
+	return a
 }
 
 // Sort methods
@@ -756,7 +948,8 @@ func (a StringValues) Deduplicate() StringValues {
 	return other
 }
 
-func (a StringValues) Filter(min, max int64) StringValues {
+//  Exclude returns the subset of values not in [min, max]
+func (a StringValues) Exclude(min, max int64) StringValues {
 	var i int
 	for j := 0; j < len(a); j++ {
 		if a[j].UnixNano() >= min && a[j].UnixNano() <= max {
@@ -767,6 +960,53 @@ func (a StringValues) Filter(min, max int64) StringValues {
 		i++
 	}
 	return a[:i]
+}
+
+// Include returns the subset values between min and max inclusive.
+func (a StringValues) Include(min, max int64) StringValues {
+	var i int
+	for j := 0; j < len(a); j++ {
+		if a[j].UnixNano() < min || a[j].UnixNano() > max {
+			continue
+		}
+
+		a[i] = a[j]
+		i++
+	}
+	return a[:i]
+}
+
+// Merge overlays b to top of a.  If two values conflict with
+// the same timestamp, b is used.  Both a and b must be sorted
+// in ascending order.
+func (a StringValues) Merge(b StringValues) StringValues {
+	if len(a) == 0 {
+		return b
+	}
+
+	if len(b) == 0 {
+		return a
+	}
+
+	var i, j int
+	for ; i < len(a) && j < len(b); i++ {
+		av, bv := a[i].UnixNano(), b[j].UnixNano()
+		if av > bv {
+			a[i], b[j] = b[j], a[i]
+		} else if av == bv {
+			a[i] = b[j]
+			j++
+		}
+	}
+
+	if i >= len(a) {
+		if j+1 < len(b) && b[j].UnixNano() == b[j+1].UnixNano() {
+			j++
+		}
+		return append(a, b[j:]...)
+	}
+
+	return a
 }
 
 // Sort methods
