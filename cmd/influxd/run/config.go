@@ -126,6 +126,10 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := c.Monitor.Validate(); err != nil {
+		return err
+	}
+
 	for _, g := range c.GraphiteInputs {
 		if err := g.Validate(); err != nil {
 			return fmt.Errorf("invalid graphite config: %v", err)

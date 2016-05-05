@@ -69,3 +69,15 @@ message ExpandSourcesResponse {
     required bytes  Sources  = 1;
     optional string Err      = 2;
 }
+
+message RemoteMonitorRequest {
+    repeated string RemoteAddrs = 1;
+    required string NodeID      = 2;
+    required string Username    = 3;
+    required string Password    = 4;
+    required uint64 ClusterID   = 5;
+}
+
+message RemoteMonitorResponse {
+    optional string Err = 1;
+}

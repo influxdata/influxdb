@@ -22,6 +22,8 @@ It has these top-level messages:
 	SeriesKeysResponse
 	ExpandSourcesRequest
 	ExpandSourcesResponse
+	RemoteMonitorRequest
+	RemoteMonitorResponse
 */
 package cluster
 
@@ -34,6 +36,10 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the proto package it is being compiled against.
+const _ = proto.GoGoProtoPackageIsVersion1
+
 type WriteShardRequest struct {
 	ShardID          *uint64  `protobuf:"varint,1,req,name=ShardID" json:"ShardID,omitempty"`
 	Points           [][]byte `protobuf:"bytes,2,rep,name=Points" json:"Points,omitempty"`
@@ -42,9 +48,10 @@ type WriteShardRequest struct {
 	XXX_unrecognized []byte   `json:"-"`
 }
 
-func (m *WriteShardRequest) Reset()         { *m = WriteShardRequest{} }
-func (m *WriteShardRequest) String() string { return proto.CompactTextString(m) }
-func (*WriteShardRequest) ProtoMessage()    {}
+func (m *WriteShardRequest) Reset()                    { *m = WriteShardRequest{} }
+func (m *WriteShardRequest) String() string            { return proto.CompactTextString(m) }
+func (*WriteShardRequest) ProtoMessage()               {}
+func (*WriteShardRequest) Descriptor() ([]byte, []int) { return fileDescriptorData, []int{0} }
 
 func (m *WriteShardRequest) GetShardID() uint64 {
 	if m != nil && m.ShardID != nil {
@@ -80,9 +87,10 @@ type WriteShardResponse struct {
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *WriteShardResponse) Reset()         { *m = WriteShardResponse{} }
-func (m *WriteShardResponse) String() string { return proto.CompactTextString(m) }
-func (*WriteShardResponse) ProtoMessage()    {}
+func (m *WriteShardResponse) Reset()                    { *m = WriteShardResponse{} }
+func (m *WriteShardResponse) String() string            { return proto.CompactTextString(m) }
+func (*WriteShardResponse) ProtoMessage()               {}
+func (*WriteShardResponse) Descriptor() ([]byte, []int) { return fileDescriptorData, []int{1} }
 
 func (m *WriteShardResponse) GetCode() int32 {
 	if m != nil && m.Code != nil {
@@ -104,9 +112,10 @@ type ExecuteStatementRequest struct {
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *ExecuteStatementRequest) Reset()         { *m = ExecuteStatementRequest{} }
-func (m *ExecuteStatementRequest) String() string { return proto.CompactTextString(m) }
-func (*ExecuteStatementRequest) ProtoMessage()    {}
+func (m *ExecuteStatementRequest) Reset()                    { *m = ExecuteStatementRequest{} }
+func (m *ExecuteStatementRequest) String() string            { return proto.CompactTextString(m) }
+func (*ExecuteStatementRequest) ProtoMessage()               {}
+func (*ExecuteStatementRequest) Descriptor() ([]byte, []int) { return fileDescriptorData, []int{2} }
 
 func (m *ExecuteStatementRequest) GetStatement() string {
 	if m != nil && m.Statement != nil {
@@ -128,9 +137,10 @@ type ExecuteStatementResponse struct {
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *ExecuteStatementResponse) Reset()         { *m = ExecuteStatementResponse{} }
-func (m *ExecuteStatementResponse) String() string { return proto.CompactTextString(m) }
-func (*ExecuteStatementResponse) ProtoMessage()    {}
+func (m *ExecuteStatementResponse) Reset()                    { *m = ExecuteStatementResponse{} }
+func (m *ExecuteStatementResponse) String() string            { return proto.CompactTextString(m) }
+func (*ExecuteStatementResponse) ProtoMessage()               {}
+func (*ExecuteStatementResponse) Descriptor() ([]byte, []int) { return fileDescriptorData, []int{3} }
 
 func (m *ExecuteStatementResponse) GetCode() int32 {
 	if m != nil && m.Code != nil {
@@ -152,9 +162,10 @@ type CreateIteratorRequest struct {
 	XXX_unrecognized []byte   `json:"-"`
 }
 
-func (m *CreateIteratorRequest) Reset()         { *m = CreateIteratorRequest{} }
-func (m *CreateIteratorRequest) String() string { return proto.CompactTextString(m) }
-func (*CreateIteratorRequest) ProtoMessage()    {}
+func (m *CreateIteratorRequest) Reset()                    { *m = CreateIteratorRequest{} }
+func (m *CreateIteratorRequest) String() string            { return proto.CompactTextString(m) }
+func (*CreateIteratorRequest) ProtoMessage()               {}
+func (*CreateIteratorRequest) Descriptor() ([]byte, []int) { return fileDescriptorData, []int{4} }
 
 func (m *CreateIteratorRequest) GetShardIDs() []uint64 {
 	if m != nil {
@@ -177,9 +188,10 @@ type CreateIteratorResponse struct {
 	XXX_unrecognized []byte         `json:"-"`
 }
 
-func (m *CreateIteratorResponse) Reset()         { *m = CreateIteratorResponse{} }
-func (m *CreateIteratorResponse) String() string { return proto.CompactTextString(m) }
-func (*CreateIteratorResponse) ProtoMessage()    {}
+func (m *CreateIteratorResponse) Reset()                    { *m = CreateIteratorResponse{} }
+func (m *CreateIteratorResponse) String() string            { return proto.CompactTextString(m) }
+func (*CreateIteratorResponse) ProtoMessage()               {}
+func (*CreateIteratorResponse) Descriptor() ([]byte, []int) { return fileDescriptorData, []int{5} }
 
 func (m *CreateIteratorResponse) GetErr() string {
 	if m != nil && m.Err != nil {
@@ -208,9 +220,10 @@ type IteratorStats struct {
 	XXX_unrecognized []byte `json:"-"`
 }
 
-func (m *IteratorStats) Reset()         { *m = IteratorStats{} }
-func (m *IteratorStats) String() string { return proto.CompactTextString(m) }
-func (*IteratorStats) ProtoMessage()    {}
+func (m *IteratorStats) Reset()                    { *m = IteratorStats{} }
+func (m *IteratorStats) String() string            { return proto.CompactTextString(m) }
+func (*IteratorStats) ProtoMessage()               {}
+func (*IteratorStats) Descriptor() ([]byte, []int) { return fileDescriptorData, []int{6} }
 
 func (m *IteratorStats) GetSeriesN() int64 {
 	if m != nil && m.SeriesN != nil {
@@ -232,9 +245,10 @@ type FieldDimensionsRequest struct {
 	XXX_unrecognized []byte   `json:"-"`
 }
 
-func (m *FieldDimensionsRequest) Reset()         { *m = FieldDimensionsRequest{} }
-func (m *FieldDimensionsRequest) String() string { return proto.CompactTextString(m) }
-func (*FieldDimensionsRequest) ProtoMessage()    {}
+func (m *FieldDimensionsRequest) Reset()                    { *m = FieldDimensionsRequest{} }
+func (m *FieldDimensionsRequest) String() string            { return proto.CompactTextString(m) }
+func (*FieldDimensionsRequest) ProtoMessage()               {}
+func (*FieldDimensionsRequest) Descriptor() ([]byte, []int) { return fileDescriptorData, []int{7} }
 
 func (m *FieldDimensionsRequest) GetShardIDs() []uint64 {
 	if m != nil {
@@ -257,9 +271,10 @@ type FieldDimensionsResponse struct {
 	XXX_unrecognized []byte   `json:"-"`
 }
 
-func (m *FieldDimensionsResponse) Reset()         { *m = FieldDimensionsResponse{} }
-func (m *FieldDimensionsResponse) String() string { return proto.CompactTextString(m) }
-func (*FieldDimensionsResponse) ProtoMessage()    {}
+func (m *FieldDimensionsResponse) Reset()                    { *m = FieldDimensionsResponse{} }
+func (m *FieldDimensionsResponse) String() string            { return proto.CompactTextString(m) }
+func (*FieldDimensionsResponse) ProtoMessage()               {}
+func (*FieldDimensionsResponse) Descriptor() ([]byte, []int) { return fileDescriptorData, []int{8} }
 
 func (m *FieldDimensionsResponse) GetFields() []string {
 	if m != nil {
@@ -288,9 +303,10 @@ type SeriesKeysRequest struct {
 	XXX_unrecognized []byte   `json:"-"`
 }
 
-func (m *SeriesKeysRequest) Reset()         { *m = SeriesKeysRequest{} }
-func (m *SeriesKeysRequest) String() string { return proto.CompactTextString(m) }
-func (*SeriesKeysRequest) ProtoMessage()    {}
+func (m *SeriesKeysRequest) Reset()                    { *m = SeriesKeysRequest{} }
+func (m *SeriesKeysRequest) String() string            { return proto.CompactTextString(m) }
+func (*SeriesKeysRequest) ProtoMessage()               {}
+func (*SeriesKeysRequest) Descriptor() ([]byte, []int) { return fileDescriptorData, []int{9} }
 
 func (m *SeriesKeysRequest) GetShardIDs() []uint64 {
 	if m != nil {
@@ -312,9 +328,10 @@ type SeriesKeysResponse struct {
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *SeriesKeysResponse) Reset()         { *m = SeriesKeysResponse{} }
-func (m *SeriesKeysResponse) String() string { return proto.CompactTextString(m) }
-func (*SeriesKeysResponse) ProtoMessage()    {}
+func (m *SeriesKeysResponse) Reset()                    { *m = SeriesKeysResponse{} }
+func (m *SeriesKeysResponse) String() string            { return proto.CompactTextString(m) }
+func (*SeriesKeysResponse) ProtoMessage()               {}
+func (*SeriesKeysResponse) Descriptor() ([]byte, []int) { return fileDescriptorData, []int{10} }
 
 func (m *SeriesKeysResponse) GetSeriesList() []byte {
 	if m != nil {
@@ -336,9 +353,10 @@ type ExpandSourcesRequest struct {
 	XXX_unrecognized []byte   `json:"-"`
 }
 
-func (m *ExpandSourcesRequest) Reset()         { *m = ExpandSourcesRequest{} }
-func (m *ExpandSourcesRequest) String() string { return proto.CompactTextString(m) }
-func (*ExpandSourcesRequest) ProtoMessage()    {}
+func (m *ExpandSourcesRequest) Reset()                    { *m = ExpandSourcesRequest{} }
+func (m *ExpandSourcesRequest) String() string            { return proto.CompactTextString(m) }
+func (*ExpandSourcesRequest) ProtoMessage()               {}
+func (*ExpandSourcesRequest) Descriptor() ([]byte, []int) { return fileDescriptorData, []int{11} }
 
 func (m *ExpandSourcesRequest) GetShardIDs() []uint64 {
 	if m != nil {
@@ -360,9 +378,10 @@ type ExpandSourcesResponse struct {
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *ExpandSourcesResponse) Reset()         { *m = ExpandSourcesResponse{} }
-func (m *ExpandSourcesResponse) String() string { return proto.CompactTextString(m) }
-func (*ExpandSourcesResponse) ProtoMessage()    {}
+func (m *ExpandSourcesResponse) Reset()                    { *m = ExpandSourcesResponse{} }
+func (m *ExpandSourcesResponse) String() string            { return proto.CompactTextString(m) }
+func (*ExpandSourcesResponse) ProtoMessage()               {}
+func (*ExpandSourcesResponse) Descriptor() ([]byte, []int) { return fileDescriptorData, []int{12} }
 
 func (m *ExpandSourcesResponse) GetSources() []byte {
 	if m != nil {
@@ -372,6 +391,72 @@ func (m *ExpandSourcesResponse) GetSources() []byte {
 }
 
 func (m *ExpandSourcesResponse) GetErr() string {
+	if m != nil && m.Err != nil {
+		return *m.Err
+	}
+	return ""
+}
+
+type RemoteMonitorRequest struct {
+	RemoteAddrs      []string `protobuf:"bytes,1,rep,name=RemoteAddrs" json:"RemoteAddrs,omitempty"`
+	NodeID           *string  `protobuf:"bytes,2,req,name=NodeID" json:"NodeID,omitempty"`
+	Username         *string  `protobuf:"bytes,3,req,name=Username" json:"Username,omitempty"`
+	Password         *string  `protobuf:"bytes,4,req,name=Password" json:"Password,omitempty"`
+	ClusterID        *uint64  `protobuf:"varint,5,req,name=ClusterID" json:"ClusterID,omitempty"`
+	XXX_unrecognized []byte   `json:"-"`
+}
+
+func (m *RemoteMonitorRequest) Reset()                    { *m = RemoteMonitorRequest{} }
+func (m *RemoteMonitorRequest) String() string            { return proto.CompactTextString(m) }
+func (*RemoteMonitorRequest) ProtoMessage()               {}
+func (*RemoteMonitorRequest) Descriptor() ([]byte, []int) { return fileDescriptorData, []int{13} }
+
+func (m *RemoteMonitorRequest) GetRemoteAddrs() []string {
+	if m != nil {
+		return m.RemoteAddrs
+	}
+	return nil
+}
+
+func (m *RemoteMonitorRequest) GetNodeID() string {
+	if m != nil && m.NodeID != nil {
+		return *m.NodeID
+	}
+	return ""
+}
+
+func (m *RemoteMonitorRequest) GetUsername() string {
+	if m != nil && m.Username != nil {
+		return *m.Username
+	}
+	return ""
+}
+
+func (m *RemoteMonitorRequest) GetPassword() string {
+	if m != nil && m.Password != nil {
+		return *m.Password
+	}
+	return ""
+}
+
+func (m *RemoteMonitorRequest) GetClusterID() uint64 {
+	if m != nil && m.ClusterID != nil {
+		return *m.ClusterID
+	}
+	return 0
+}
+
+type RemoteMonitorResponse struct {
+	Err              *string `protobuf:"bytes,1,opt,name=Err" json:"Err,omitempty"`
+	XXX_unrecognized []byte  `json:"-"`
+}
+
+func (m *RemoteMonitorResponse) Reset()                    { *m = RemoteMonitorResponse{} }
+func (m *RemoteMonitorResponse) String() string            { return proto.CompactTextString(m) }
+func (*RemoteMonitorResponse) ProtoMessage()               {}
+func (*RemoteMonitorResponse) Descriptor() ([]byte, []int) { return fileDescriptorData, []int{14} }
+
+func (m *RemoteMonitorResponse) GetErr() string {
 	if m != nil && m.Err != nil {
 		return *m.Err
 	}
@@ -392,4 +477,41 @@ func init() {
 	proto.RegisterType((*SeriesKeysResponse)(nil), "cluster.SeriesKeysResponse")
 	proto.RegisterType((*ExpandSourcesRequest)(nil), "cluster.ExpandSourcesRequest")
 	proto.RegisterType((*ExpandSourcesResponse)(nil), "cluster.ExpandSourcesResponse")
+	proto.RegisterType((*RemoteMonitorRequest)(nil), "cluster.RemoteMonitorRequest")
+	proto.RegisterType((*RemoteMonitorResponse)(nil), "cluster.RemoteMonitorResponse")
+}
+
+var fileDescriptorData = []byte{
+	// 486 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x94, 0x53, 0x61, 0x6b, 0x13, 0x41,
+	0x10, 0xa5, 0xb9, 0xc4, 0x7a, 0x93, 0x68, 0xcd, 0xb6, 0x49, 0xee, 0x63, 0x38, 0x14, 0xf2, 0x29,
+	0x4a, 0xa5, 0x42, 0x11, 0x04, 0x49, 0x22, 0x54, 0x6d, 0x0c, 0x51, 0x11, 0xfc, 0x22, 0x6b, 0x6e,
+	0xd0, 0x85, 0xe4, 0xf6, 0xdc, 0xd9, 0x60, 0xf3, 0xef, 0x9d, 0xdd, 0xdb, 0xab, 0x69, 0xaa, 0x90,
+	0x7e, 0xbc, 0xb9, 0x7d, 0xf3, 0xe6, 0xbd, 0x79, 0x03, 0xc7, 0x2a, 0xb7, 0x68, 0x72, 0xb9, 0x7c,
+	0x9a, 0x49, 0x2b, 0x87, 0x85, 0xd1, 0x56, 0x8b, 0xc3, 0xc5, 0x72, 0x4d, 0x5c, 0x4e, 0xbf, 0x41,
+	0xfb, 0x8b, 0x51, 0x16, 0x3f, 0xfe, 0x94, 0x26, 0x9b, 0xe3, 0xaf, 0x35, 0x92, 0x15, 0x47, 0x70,
+	0xe8, 0xbf, 0x2f, 0xc6, 0xc9, 0x41, 0xbf, 0x36, 0xa8, 0x8b, 0x87, 0x70, 0x6f, 0xa6, 0xb9, 0x0f,
+	0x25, 0xb5, 0x7e, 0x34, 0x68, 0x89, 0x47, 0x70, 0x7f, 0xcc, 0xcd, 0xbe, 0x4b, 0xc2, 0x24, 0xea,
+	0x1f, 0x0c, 0x62, 0xd1, 0x83, 0xa3, 0x39, 0x5a, 0xcc, 0xad, 0xd2, 0xf9, 0x4c, 0x2f, 0xd5, 0x62,
+	0x93, 0xd4, 0xdd, 0x8f, 0xf4, 0x39, 0x88, 0x6d, 0x02, 0x2a, 0x74, 0x4e, 0x28, 0x5a, 0x50, 0x1f,
+	0xe9, 0x0c, 0x7d, 0xfb, 0x86, 0xe3, 0xbb, 0x44, 0x22, 0xf9, 0x03, 0xb9, 0xbf, 0x03, 0xbd, 0x82,
+	0xde, 0xe4, 0x0a, 0x17, 0x6b, 0x86, 0x59, 0x69, 0x71, 0xc5, 0x7d, 0xab, 0xd9, 0xda, 0x10, 0x5f,
+	0xd7, 0x3c, 0x3c, 0xbe, 0x31, 0x4d, 0xcd, 0x55, 0xd2, 0x73, 0x48, 0x6e, 0xe3, 0xf7, 0xa3, 0x7e,
+	0x01, 0x9d, 0x91, 0x41, 0x06, 0x5d, 0xb0, 0x3d, 0xd2, 0x6a, 0x53, 0x11, 0x33, 0x4b, 0x30, 0x85,
+	0x18, 0x1b, 0xb1, 0x2b, 0x4d, 0x88, 0x3e, 0x14, 0xd6, 0x53, 0xb6, 0xd2, 0xaf, 0xd0, 0xdd, 0xc5,
+	0x05, 0x42, 0x7e, 0x36, 0x31, 0x86, 0x31, 0xce, 0x27, 0x66, 0xff, 0xb4, 0x29, 0xca, 0x39, 0x1b,
+	0xe2, 0x09, 0x34, 0xdc, 0x80, 0xe4, 0x4d, 0x6c, 0x9e, 0x76, 0x87, 0x61, 0x2d, 0xc3, 0xaa, 0x89,
+	0xff, 0x9b, 0x3e, 0x83, 0x07, 0x37, 0x0a, 0x7e, 0x41, 0x68, 0x14, 0xd2, 0xd4, 0xb7, 0x8d, 0xae,
+	0x17, 0x34, 0xf5, 0x2a, 0xa2, 0xf4, 0x25, 0x74, 0xdf, 0x28, 0x5c, 0x66, 0x63, 0xc5, 0xda, 0x89,
+	0x77, 0x42, 0xff, 0x97, 0xe1, 0x9a, 0xe9, 0xb5, 0x59, 0x20, 0x05, 0x29, 0x6f, 0xa1, 0x77, 0x0b,
+	0x1c, 0xb4, 0x30, 0x8f, 0xff, 0x55, 0x62, 0x63, 0x21, 0x00, 0xfe, 0xbe, 0xf2, 0xe1, 0x88, 0x2b,
+	0xbd, 0x3e, 0x17, 0xe9, 0x29, 0xb4, 0xcb, 0x49, 0xdf, 0xe1, 0x86, 0xf6, 0xb4, 0xf2, 0x0c, 0xc4,
+	0x36, 0x26, 0x50, 0x33, 0x55, 0x59, 0x7d, 0xaf, 0xc8, 0x7a, 0xd9, 0xad, 0x8a, 0xaa, 0xdc, 0xdc,
+	0x39, 0x9c, 0x4c, 0xae, 0x0a, 0x99, 0x67, 0x41, 0xcd, 0x1d, 0x14, 0x9f, 0x41, 0x67, 0x07, 0x1a,
+	0x48, 0xb7, 0x5e, 0xba, 0xbc, 0xec, 0x30, 0x1a, 0x38, 0x99, 0xe3, 0x4a, 0x5b, 0xbc, 0xd4, 0xb9,
+	0xda, 0x8a, 0xca, 0x31, 0x34, 0xcb, 0xfa, 0xeb, 0x2c, 0x33, 0x95, 0x55, 0x6c, 0xdd, 0x94, 0x73,
+	0xc7, 0x37, 0x55, 0xab, 0x52, 0xfb, 0x99, 0xdc, 0x61, 0xae, 0xdc, 0x0d, 0x85, 0xca, 0x4c, 0x12,
+	0xfd, 0xd6, 0x26, 0xe3, 0xe3, 0x71, 0x15, 0x0e, 0xfb, 0xa8, 0x4c, 0x04, 0xc3, 0x1a, 0xee, 0x14,
+	0xd3, 0xc7, 0xd0, 0xd9, 0xe1, 0xfc, 0x47, 0xcc, 0xfe, 0x04, 0x00, 0x00, 0xff, 0xff, 0x76, 0x81,
+	0x9b, 0x7c, 0xf5, 0x03, 0x00, 0x00,
 }

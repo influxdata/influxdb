@@ -202,6 +202,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 func (s *Server) appendClusterService(c cluster.Config) {
 	srv := cluster.NewService(c)
 	srv.TSDBStore = cluster.LocalTSDBStore{Store: s.TSDBStore}
+	srv.Monitor = s.Monitor
 	s.Services = append(s.Services, srv)
 	s.ClusterService = srv
 }
@@ -248,6 +249,7 @@ func (s *Server) Open() error {
 	go mux.Serve(ln)
 
 	// Append services.
+	s.appendMonitorService()
 	s.appendClusterService(s.config.Cluster)
 	s.appendPrecreatorService(s.config.Precreator)
 	s.appendSnapshotterService()
@@ -312,11 +314,6 @@ func (s *Server) Open() error {
 		return fmt.Errorf("open points writer: %s", err)
 	}
 
-	// Open the monitor service
-	if err := s.Monitor.Open(); err != nil {
-		return fmt.Errorf("open monitor: %v", err)
-	}
-
 	for _, service := range s.Services {
 		if err := service.Open(); err != nil {
 			return fmt.Errorf("open service: %s", err)
@@ -344,10 +341,6 @@ func (s *Server) Close() error {
 	// and prevent new requests from being accepted.
 	for _, service := range s.Services {
 		service.Close()
-	}
-
-	if s.Monitor != nil {
-		s.Monitor.Close()
 	}
 
 	if s.PointsWriter != nil {

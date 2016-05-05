@@ -34,30 +34,28 @@ type Monitor struct {
 	Branch    string
 	BuildTime string
 
-	wg   sync.WaitGroup
-	done chan struct{}
-	mu   sync.Mutex
+	wg sync.WaitGroup
 
+	mu                sync.Mutex
+	globalTags        map[string]string
 	diagRegistrations map[string]diagnostics.Client
+	done              chan struct{}
+	storeCreated      bool
+	storeEnabled      bool
+	storeAddress      string
 
-	storeCreated           bool
-	storeEnabled           bool
 	storeDatabase          string
 	storeRetentionPolicy   string
 	storeRetentionDuration time.Duration
 	storeReplicationFactor int
-	storeAddress           string
 	storeInterval          time.Duration
 
 	MetaClient interface {
-		ClusterID() uint64
 		CreateDatabase(name string) (*meta.DatabaseInfo, error)
 		CreateRetentionPolicy(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
 		SetDefaultRetentionPolicy(database, name string) error
 		DropRetentionPolicy(database, name string) error
 	}
-
-	NodeID uint64
 
 	// Writer for pushing stats back into the database.
 	// This causes a circular dependency if it depends on cluster directly so it
@@ -72,7 +70,7 @@ type Monitor struct {
 // New returns a new instance of the monitor system.
 func New(c Config) *Monitor {
 	return &Monitor{
-		done:                 make(chan struct{}),
+		globalTags:           make(map[string]string),
 		diagRegistrations:    make(map[string]diagnostics.Client),
 		storeEnabled:         c.StoreEnabled,
 		storeDatabase:        c.StoreDatabase,
@@ -82,11 +80,21 @@ func New(c Config) *Monitor {
 	}
 }
 
+func (m *Monitor) open() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.done != nil
+}
+
 // Open opens the monitoring system, using the given clusterID, node ID, and hostname
 // for identification purpose.
 func (m *Monitor) Open() error {
+	if m.open() {
+		m.Logger.Println("Monitor is already open")
+		return nil
+	}
+
 	m.Logger.Printf("Starting monitor system")
-	m.done = make(chan struct{})
 
 	// Self-register various stats and diagnostics.
 	m.RegisterDiagnosticsClient("build", &build{
@@ -99,6 +107,10 @@ func (m *Monitor) Open() error {
 	m.RegisterDiagnosticsClient("network", &network{})
 	m.RegisterDiagnosticsClient("system", &system{})
 
+	m.mu.Lock()
+	m.done = make(chan struct{})
+	m.mu.Unlock()
+
 	// If enabled, record stats in a InfluxDB system.
 	if m.storeEnabled {
 		// Start periodic writes to system.
@@ -110,16 +122,71 @@ func (m *Monitor) Open() error {
 }
 
 // Close closes the monitor system.
-func (m *Monitor) Close() {
+func (m *Monitor) Close() error {
+	if !m.open() {
+		m.Logger.Println("Monitor is already closed.")
+		return nil
+	}
+
 	m.Logger.Println("shutting down monitor system")
+	m.mu.Lock()
 	close(m.done)
+	m.mu.Unlock()
 
 	m.wg.Wait()
+
+	m.mu.Lock()
 	m.done = nil
+	m.mu.Unlock()
+
 	m.DeregisterDiagnosticsClient("build")
 	m.DeregisterDiagnosticsClient("runtime")
 	m.DeregisterDiagnosticsClient("network")
 	m.DeregisterDiagnosticsClient("system")
+	return nil
+}
+
+// SetGlobalTag can be used to set tags that will appear on all points
+// written by the Monitor.
+func (m *Monitor) SetGlobalTag(key string, value interface{}) {
+	m.mu.Lock()
+	m.globalTags[key] = fmt.Sprintf("%v", value)
+	m.mu.Unlock()
+}
+
+// RemoteWriterConfig represents the configuration of a remote writer
+type RemoteWriterConfig struct {
+	RemoteAddr string
+	NodeID     string
+	Username   string
+	Password   string
+	ClusterID  uint64
+}
+
+// SetRemoteWriter can be used via and RPC call to set a remote location
+// for writing monitoring information.
+func (m *Monitor) SetRemoteWriter(c RemoteWriterConfig) error {
+	// Ignore the monitor's config settings.
+	m.mu.Lock()
+	m.storeEnabled = true
+	m.storeInterval = DefaultStoreInterval
+	m.storeDatabase = DefaultStoreDatabase
+	m.mu.Unlock()
+
+	m.Logger.Printf("Setting monitor to write remotely via %s", c.RemoteAddr)
+	clt, err := newRemotePointsWriter(c.RemoteAddr, c.Username, c.Password)
+	if err != nil {
+		return err
+	}
+
+	m.SetGlobalTag("nodeID", c.NodeID)
+	m.SetGlobalTag("clusterID", c.ClusterID)
+
+	m.mu.Lock()
+	m.PointsWriter = clt
+	m.mu.Unlock()
+	// Subsequent calls to an already open Monitor are just a no-op.
+	return m.Open()
 }
 
 // SetLogOutput sets the writer to which all logs are written. It must not be
@@ -316,46 +383,47 @@ func (m *Monitor) storeStatistics() {
 	m.Logger.Printf("Storing statistics in database '%s' retention policy '%s', at interval %s",
 		m.storeDatabase, m.storeRetentionPolicy, m.storeInterval)
 
-	// Get cluster-level metadata. Nothing different is going to happen if errors occur.
-	clusterID := m.MetaClient.ClusterID()
 	hostname, _ := os.Hostname()
-	clusterTags := map[string]string{
-		"clusterID": fmt.Sprintf("%d", clusterID),
-		"nodeID":    fmt.Sprintf("%d", m.NodeID),
-		"hostname":  hostname,
-	}
+	m.SetGlobalTag("hostname", hostname)
 
+	m.mu.Lock()
 	tick := time.NewTicker(m.storeInterval)
+	m.mu.Unlock()
+
 	defer tick.Stop()
 	for {
 		select {
 		case <-tick.C:
-			m.createInternalStorage()
+			func() {
+				m.mu.Lock()
+				defer m.mu.Unlock()
 
-			stats, err := m.Statistics(clusterTags)
-			if err != nil {
-				m.Logger.Printf("failed to retrieve registered statistics: %s", err)
-				continue
-			}
+				m.createInternalStorage()
 
-			points := make(models.Points, 0, len(stats))
-			for _, s := range stats {
-				pt, err := models.NewPoint(s.Name, s.Tags, s.Values, time.Now().Truncate(time.Second))
+				stats, err := m.Statistics(m.globalTags)
 				if err != nil {
-					m.Logger.Printf("Dropping point %v: %v", s.Name, err)
-					continue
+					m.Logger.Printf("failed to retrieve registered statistics: %s", err)
+					return
 				}
-				points = append(points, pt)
-			}
 
-			if err := m.PointsWriter.WritePoints(m.storeDatabase, m.storeRetentionPolicy, points); err != nil {
-				m.Logger.Printf("failed to store statistics: %s", err)
-			}
+				points := make(models.Points, 0, len(stats))
+				for _, s := range stats {
+					pt, err := models.NewPoint(s.Name, s.Tags, s.Values, time.Now().Truncate(time.Second))
+					if err != nil {
+						m.Logger.Printf("Dropping point %v: %v", s.Name, err)
+						return
+					}
+					points = append(points, pt)
+				}
+
+				if err := m.PointsWriter.WritePoints(m.storeDatabase, m.storeRetentionPolicy, points); err != nil {
+					m.Logger.Printf("failed to store statistics: %s", err)
+				}
+			}()
 		case <-m.done:
 			m.Logger.Printf("terminating storage of statistics")
 			return
 		}
-
 	}
 }
 

@@ -491,3 +491,68 @@ func (r *ExpandSourcesResponse) UnmarshalBinary(data []byte) error {
 	}
 	return nil
 }
+
+// RemoteMonitorRequest represents a request to configure a
+// monitor.Monitor to write to a remote database.
+type RemoteMonitorRequest struct {
+	pb internal.RemoteMonitorRequest
+}
+
+func (m *RemoteMonitorRequest) SetRemoteAddrs(s []string) {
+	m.pb.RemoteAddrs = s
+}
+
+func (m *RemoteMonitorRequest) SetNodeID(s string) {
+	m.pb.NodeID = &s
+}
+
+func (m *RemoteMonitorRequest) SetUsername(s string) {
+	m.pb.Username = &s
+}
+
+func (m *RemoteMonitorRequest) SetPassword(s string) {
+	m.pb.Password = &s
+}
+
+func (m *RemoteMonitorRequest) SetClusterID(v uint64) {
+	m.pb.ClusterID = &v
+}
+
+// MarshalBinary encodes the object to a binary format.
+func (r *RemoteMonitorRequest) MarshalBinary() ([]byte, error) {
+	return proto.Marshal(&r.pb)
+}
+
+// UnmarshalBinary populates WritePointRequest from a binary format.
+func (r *RemoteMonitorRequest) UnmarshalBinary(buf []byte) error {
+	if err := proto.Unmarshal(buf, &r.pb); err != nil {
+		return err
+	}
+	return nil
+}
+
+// RemoteMonitorResponse represents a response from source expansion.
+type RemoteMonitorResponse struct {
+	Err error
+}
+
+// MarshalBinary encodes r to a binary format.
+func (r *RemoteMonitorResponse) MarshalBinary() ([]byte, error) {
+	var pb internal.RemoteMonitorResponse
+	if r.Err != nil {
+		pb.Err = proto.String(r.Err.Error())
+	}
+	return proto.Marshal(&pb)
+}
+
+// UnmarshalBinary decodes data into r.
+func (r *RemoteMonitorResponse) UnmarshalBinary(data []byte) error {
+	var pb internal.RemoteMonitorResponse
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+	if pb.Err != nil {
+		r.Err = errors.New(pb.GetErr())
+	}
+	return nil
+}

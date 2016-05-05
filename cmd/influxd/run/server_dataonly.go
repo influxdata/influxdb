@@ -14,34 +14,14 @@ import (
 	"github.com/influxdata/influxdb/services/udp"
 )
 
-func (s *Server) appendRetentionPolicyService(c retention.Config) {
-}
-
-func (s *Server) appendAdminService(c admin.Config) {
-}
-
-func (s *Server) appendHTTPDService(c httpd.Config) {
-}
-
-func (s *Server) appendCollectdService(c collectd.Config) {
-}
-
-func (s *Server) appendOpenTSDBService(c opentsdb.Config) error {
-	return nil
-}
-
-func (s *Server) appendGraphiteService(c graphite.Config) error {
-	return nil
-}
-
-func (s *Server) appendPrecreatorService(c precreator.Config) error {
-	return nil
-}
-
-func (s *Server) appendUDPService(c udp.Config) {
-}
-
-func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
-}
-
-func raftDBExists(dir string) error { return nil }
+func (s *Server) appendAdminService(c admin.Config)                        {}
+func (s *Server) appendCollectdService(c collectd.Config)                  {}
+func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {}
+func (s *Server) appendGraphiteService(c graphite.Config) error            { return nil }
+func (s *Server) appendMonitorService()                                    {}
+func (s *Server) appendHTTPDService(c httpd.Config)                        {}
+func (s *Server) appendOpenTSDBService(c opentsdb.Config) error            { return nil }
+func (s *Server) appendPrecreatorService(c precreator.Config) error        { return nil }
+func (s *Server) appendRetentionPolicyService(c retention.Config)          {}
+func (s *Server) appendUDPService(c udp.Config)                            {}
+func raftDBExists(dir string) error                                        { return nil }
