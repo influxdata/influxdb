@@ -576,7 +576,7 @@ func (c *client) Query(q Query) (*Response, error) {
 	}
 	// If we got a valid decode error, send that back
 	if decErr != nil {
-		return nil, decErr
+		return nil, fmt.Errorf("unable to decode json: received status code %d err: %s", resp.StatusCode, decErr)
 	}
 	// If we don't have an error in our json response, and didn't get statusOK
 	// then send back an error
