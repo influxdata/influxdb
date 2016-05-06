@@ -139,6 +139,41 @@ func NewMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 	}
 }
 
+// NewParallelMergeIterator returns an iterator that breaks input iterators
+// into groups and processes them in parallel.
+func NewParallelMergeIterator(inputs []Iterator, opt IteratorOptions, parallelism int) Iterator {
+	inputs = Iterators(inputs).filterNonNil()
+	if len(inputs) == 0 {
+		return nil
+	} else if len(inputs) == 1 {
+		return inputs[0]
+	}
+
+	// Limit parallelism to the number of inputs.
+	if len(inputs) < parallelism {
+		parallelism = len(inputs)
+	}
+
+	// Determine the number of inputs per output iterator.
+	n := len(inputs) / parallelism
+
+	// Group iterators together.
+	outputs := make([]Iterator, parallelism)
+	for i := range outputs {
+		var slice []Iterator
+		if i < len(outputs)-1 {
+			slice = inputs[i*n : (i+1)*n]
+		} else {
+			slice = inputs[i*n:]
+		}
+
+		outputs[i] = newParallelIterator(NewMergeIterator(slice, opt))
+	}
+
+	// Merge all groups together.
+	return NewMergeIterator(outputs, opt)
+}
+
 // NewSortedMergeIterator returns an iterator to merge itrs into one.
 // Inputs must either be sorted merge iterators or only contain a single
 // name/tag in sorted order. The iterator will output all points by name/tag,
@@ -161,6 +196,26 @@ func NewSortedMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 		return newBooleanSortedMergeIterator(inputs, opt)
 	default:
 		panic(fmt.Sprintf("unsupported sorted merge iterator type: %T", inputs))
+	}
+}
+
+// newParallelIterator returns an iterator that runs in a separate goroutine.
+func newParallelIterator(input Iterator) Iterator {
+	if input == nil {
+		return nil
+	}
+
+	switch itr := input.(type) {
+	case FloatIterator:
+		return newFloatParallelIterator(itr)
+	case IntegerIterator:
+		return newIntegerParallelIterator(itr)
+	case StringIterator:
+		return newStringParallelIterator(itr)
+	case BooleanIterator:
+		return newBooleanParallelIterator(itr)
+	default:
+		panic(fmt.Sprintf("unsupported parallel iterator type: %T", itr))
 	}
 }
 

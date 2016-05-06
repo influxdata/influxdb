@@ -300,7 +300,6 @@ type {{$k.name}}MergeHeapItem struct {
 	err error
 }
 
-
 // {{$k.name}}SortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
 type {{$k.name}}SortedMergeIterator struct {
 	inputs []{{$k.Name}}Iterator
@@ -432,6 +431,65 @@ type {{$k.name}}SortedMergeHeapItem struct {
 	err       error
 	itr       {{$k.Name}}Iterator
 	ascending bool
+}
+
+// {{$k.name}}ParallelIterator represents an iterator that pulls data in a separate goroutine.
+type {{$k.name}}ParallelIterator struct {
+	input   {{$k.Name}}Iterator
+	ch      chan {{$k.name}}PointError
+	
+	once    sync.Once
+	closing chan struct{}
+}
+
+// new{{$k.Name}}ParallelIterator returns a new instance of {{$k.name}}ParallelIterator.
+func new{{$k.Name}}ParallelIterator(input {{$k.Name}}Iterator) *{{$k.name}}ParallelIterator {
+	itr := &{{$k.name}}ParallelIterator{
+		input:   input,
+		ch:      make(chan {{$k.name}}PointError, 1),
+		closing: make(chan struct{}), 
+	}
+	go itr.monitor()
+	return itr
+}
+
+// Stats returns stats from the underlying iterator.
+func (itr *{{$k.name}}ParallelIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the underlying iterators.
+func (itr *{{$k.name}}ParallelIterator) Close() error {
+	itr.once.Do(func() { close(itr.closing) })
+	return itr.input.Close() 
+}
+
+// Next returns the next point from the iterator.
+func (itr *{{$k.name}}ParallelIterator) Next() (*{{$k.Name}}Point, error) {
+	v, ok := <-itr.ch
+	if !ok {
+		return nil, io.EOF
+	}
+	return v.point, v.err
+}
+
+// monitor runs in a separate goroutine and actively pulls the next point.
+func (itr *{{$k.name}}ParallelIterator) monitor()  {
+	defer close(itr.ch)
+
+	for {
+		// Read next point.
+		p, err := itr.input.Next()
+		
+		select {
+		case <-itr.closing:
+			return
+		case itr.ch <- {{$k.name}}PointError{point: p, err: err}:
+		}
+	}
+}
+
+type {{$k.name}}PointError struct {
+	point *{{$k.Name}}Point
+	err   error
 }
 
 // {{$k.name}}LimitIterator represents an iterator that limits points per group.

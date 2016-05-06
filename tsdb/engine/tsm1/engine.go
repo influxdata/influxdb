@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -763,7 +764,7 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 			inputs[i] = itr
 		}
 
-		return influxql.NewMergeIterator(inputs, opt), nil
+		return influxql.NewParallelMergeIterator(inputs, opt, runtime.GOMAXPROCS(0)), nil
 	}
 
 	itrs, err := e.createVarRefIterator(opt)
