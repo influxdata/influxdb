@@ -247,26 +247,8 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapFloat(t *testing.T) {
 
 	exp = []tsm1.Value{
 		data[1].values[0],
-	}
-
-	if got, exp := len(values), len(exp); got != exp {
-		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
-	}
-
-	for i, v := range exp {
-		if got, exp := values[i].Value(), v.Value(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
-		}
-	}
-
-	c.Next()
-	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
-	if err != nil {
-		t.Fatalf("unexpected error reading values: %v", err)
-	}
-
-	exp = []tsm1.Value{
 		data[2].values[0],
+		data[3].values[1],
 	}
 
 	if got, exp := len(values), len(exp); got != exp {
@@ -332,26 +314,8 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapInteger(t *testing.T) {
 
 	exp = []tsm1.Value{
 		data[1].values[0],
-	}
-
-	if got, exp := len(values), len(exp); got != exp {
-		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
-	}
-
-	for i, v := range exp {
-		if got, exp := values[i].Value(), v.Value(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
-		}
-	}
-
-	c.Next()
-	values, err = c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
-	if err != nil {
-		t.Fatalf("unexpected error reading values: %v", err)
-	}
-
-	exp = []tsm1.Value{
 		data[2].values[0],
+		data[3].values[1],
 	}
 
 	if got, exp := len(values), len(exp); got != exp {
@@ -417,26 +381,8 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapBoolean(t *testing.T) {
 
 	exp = []tsm1.Value{
 		data[1].values[0],
-	}
-
-	if got, exp := len(values), len(exp); got != exp {
-		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
-	}
-
-	for i, v := range exp {
-		if got, exp := values[i].Value(), v.Value(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
-		}
-	}
-
-	c.Next()
-	values, err = c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
-	if err != nil {
-		t.Fatalf("unexpected error reading values: %v", err)
-	}
-
-	exp = []tsm1.Value{
 		data[2].values[0],
+		data[3].values[1],
 	}
 
 	if got, exp := len(values), len(exp); got != exp {
@@ -502,26 +448,8 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapString(t *testing.T) {
 
 	exp = []tsm1.Value{
 		data[1].values[0],
-	}
-
-	if got, exp := len(values), len(exp); got != exp {
-		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
-	}
-
-	for i, v := range exp {
-		if got, exp := values[i].Value(), v.Value(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
-		}
-	}
-
-	c.Next()
-	values, err = c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
-	if err != nil {
-		t.Fatalf("unexpected error reading values: %v", err)
-	}
-
-	exp = []tsm1.Value{
 		data[2].values[0],
+		data[3].values[1],
 	}
 
 	if got, exp := len(values), len(exp); got != exp {
