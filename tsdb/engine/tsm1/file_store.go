@@ -656,16 +656,28 @@ func (l *location) markRead(min, max int64) {
 	}
 }
 
-type locations []*location
+type descLocations []*location
 
 // Sort methods
-func (a locations) Len() int      { return len(a) }
-func (a locations) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a locations) Less(i, j int) bool {
+func (a descLocations) Len() int      { return len(a) }
+func (a descLocations) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a descLocations) Less(i, j int) bool {
 	if a[i].entry.MaxTime == a[j].entry.MaxTime {
 		return a[i].r.Path() < a[j].r.Path()
 	}
 	return a[i].entry.MaxTime < a[j].entry.MaxTime
+}
+
+type ascLocations []*location
+
+// Sort methods
+func (a ascLocations) Len() int      { return len(a) }
+func (a ascLocations) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ascLocations) Less(i, j int) bool {
+	if a[i].entry.MinTime == a[j].entry.MinTime {
+		return a[i].r.Path() < a[j].r.Path()
+	}
+	return a[i].entry.MinTime < a[j].entry.MinTime
 }
 
 // newKeyCursor returns a new instance of KeyCursor.
@@ -679,8 +691,10 @@ func newKeyCursor(fs *FileStore, key string, t int64, ascending bool) *KeyCursor
 	}
 	c.duplicates = c.hasOverlappingBlocks()
 
-	if !ascending {
-		sort.Sort(locations(c.seeks))
+	if ascending {
+		sort.Sort(ascLocations(c.seeks))
+	} else {
+		sort.Sort(descLocations(c.seeks))
 	}
 
 	c.seek(t)

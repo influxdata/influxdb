@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -86,6 +87,18 @@ func (a Values) Size() int {
 	return sz
 }
 
+func (a Values) assertOrdered() {
+	if len(a) <= 1 {
+		return
+	}
+	for i := 1; i < len(a); i++ {
+		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
+			spew.Dump(a)
+			panic(fmt.Sprintf("not ordered: %d %d >= %d", i, av, ab))
+		}
+	}
+}
+
 // Merge overlays b to top of a.  If two values conflict with
 // the same timestamp, b is used.  Both a and b must be sorted
 // in ascending order.
@@ -108,6 +121,8 @@ func (a Values) Merge(b Values) Values {
 			j++
 		}
 	}
+
+	sort.Sort(b[j:])
 
 	if i >= len(a) {
 		if j+1 < len(b) && b[j].UnixNano() == b[j+1].UnixNano() {

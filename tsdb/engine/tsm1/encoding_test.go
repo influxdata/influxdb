@@ -365,10 +365,32 @@ func TestValues_MergeFloat(t *testing.T) {
 				tsm1.NewValue(4, 4.2),
 			},
 		},
+
+		{
+			a: []tsm1.Value{
+				tsm1.NewValue(1462498658242869207, 0.0),
+				tsm1.NewValue(1462498658288956853, 1.1),
+			},
+			b: []tsm1.Value{
+				tsm1.NewValue(1462498658242870810, 0.0),
+				tsm1.NewValue(1462498658262911238, 2.2),
+				tsm1.NewValue(1462498658282415038, 4.2),
+				tsm1.NewValue(1462498658282417760, 4.2),
+			},
+			exp: []tsm1.Value{
+				tsm1.NewValue(1462498658242869207, 0.0),
+				tsm1.NewValue(1462498658242870810, 0.0),
+				tsm1.NewValue(1462498658262911238, 2.2),
+				tsm1.NewValue(1462498658282415038, 4.2),
+				tsm1.NewValue(1462498658282417760, 4.2),
+				tsm1.NewValue(1462498658288956853, 1.1),
+			},
+		},
 	}
 
 	for i, test := range tests {
 		got := tsm1.Values(test.a).Merge(test.b)
+		spew.Dump(got)
 
 		if exp, got := len(test.exp), len(got); exp != got {
 			t.Fatalf("test(%d): value length mismatch: exp %v, got %v", i, exp, got)
