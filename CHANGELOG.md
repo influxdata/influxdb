@@ -64,6 +64,7 @@ With this release InfluxDB is moving to Go v1.6.
 - [#6496](https://github.com/influxdata/influxdb/issues/6496): Fix parsing escaped series key when loading database index
 - [#6495](https://github.com/influxdata/influxdb/issues/6495): Fix aggregate returns when data is missing from some shards.
 - [#6439](https://github.com/influxdata/influxdb/issues/6439): Overwriting points returning old values
+- [#6261](https://github.com/influxdata/influxdb/issues/6261): High CPU usage and slow query with DISTINCT
 
 ## v0.12.2 [2016-04-20]
 
