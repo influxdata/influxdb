@@ -4,6 +4,7 @@ import (
 	"expvar"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"math"
 	"os"
@@ -20,7 +21,7 @@ import (
 
 type TSMFile interface {
 	// Path returns the underlying file path for the TSMFile.  If the file
-	// has not be written or loaded from disk, the zero value is returne.
+	// has not be written or loaded from disk, the zero value is returned.
 	Path() string
 
 	// Read returns all the values in the block where time t resides
@@ -113,6 +114,8 @@ type FileStore struct {
 	traceLogging bool
 
 	statMap *expvar.Map
+
+	currentTempDirID int
 }
 
 type FileStat struct {
@@ -292,6 +295,24 @@ func (f *FileStore) Open() error {
 	// Not loading files from disk so nothing to do
 	if f.dir == "" {
 		return nil
+	}
+
+	// find the current max ID for temp directories
+	tmpfiles, err := ioutil.ReadDir(f.dir)
+	if err != nil {
+		return err
+	}
+	for _, fi := range tmpfiles {
+		if fi.IsDir() && strings.HasSuffix(fi.Name(), ".tmp") {
+			ss := strings.Split(filepath.Base(fi.Name()), ".")
+			if len(ss) == 2 {
+				if i, err := strconv.Atoi(ss[0]); err != nil {
+					if i > f.currentTempDirID {
+						f.currentTempDirID = i
+					}
+				}
+			}
+		}
 	}
 
 	files, err := filepath.Glob(filepath.Join(f.dir, fmt.Sprintf("*.%s", TSMFileExtension)))
@@ -587,6 +608,43 @@ func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
 		}
 	}
 	return locations
+}
+
+// CreateSnapshot will create hardlinks for all tsm and tombstone files
+// in the path provided
+func (f *FileStore) CreateSnapshot() (string, error) {
+	files := f.Files()
+
+	f.mu.Lock()
+	f.currentTempDirID += 1
+	f.mu.Unlock()
+
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	// get a tmp directory name
+	tmpPath := fmt.Sprintf("%s/%d.tmp", f.dir, f.currentTempDirID)
+	err := os.Mkdir(tmpPath, 0777)
+	if err != nil {
+		return "", nil
+	}
+
+	for _, tsmf := range files {
+		newpath := filepath.Join(tmpPath, filepath.Base(tsmf.Path()))
+		if err := os.Link(tsmf.Path(), newpath); err != nil {
+			return "", fmt.Errorf("error creating tsm hard link: %q", err)
+		}
+		// Check for tombstones and link those as well
+		for _, tf := range tsmf.TombstoneFiles() {
+			tfpath := filepath.Join(f.dir, tf.Path)
+			newpath := filepath.Join(tmpPath, filepath.Base(tf.Path))
+			if err := os.Link(tfpath, newpath); err != nil {
+				return "", fmt.Errorf("error creating tombstone hard link: %q", err)
+			}
+		}
+	}
+
+	return tmpPath, nil
 }
 
 // ParseTSMFileName parses the generation and sequence from a TSM file name.

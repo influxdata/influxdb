@@ -31,7 +31,8 @@ With this release InfluxDB is moving to Go v1.6.
 - [#6534](https://github.com/influxdata/influxdb/pull/6534): Move to Go v1.6.2 (over Go v1.4.3)
 - [#6522](https://github.com/influxdata/influxdb/pull/6522): Dump TSM files to line protocol
 - [#6585](https://github.com/influxdata/influxdb/pull/6585): Parallelize iterators
-- [#6502](https://github.com/influxdata/influxdb/pull/6502): Add ability to copy shard via rpc calls.  Remove deprecated copier service..
+- [#6502](https://github.com/influxdata/influxdb/pull/6502): Add ability to copy shard via rpc calls.  Remove deprecated copier service.
+- [#6593](https://github.com/influxdata/influxdb/pull/6593): Add ability to create snapshots of shards.
 
 ### Bugfixes
 
