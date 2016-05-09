@@ -1126,7 +1126,7 @@ func NewTagValuesIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Ite
 			switch e.Op {
 			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || tag.Val == "name" || strings.HasPrefix(tag.Val, "_") {
+				if !ok || strings.HasPrefix(tag.Val, "_") {
 					return nil
 				}
 			}
