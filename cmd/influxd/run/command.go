@@ -200,7 +200,7 @@ func (cmd *Command) ParseConfig(path string) (*Config, error) {
 	log.Printf("Using configuration at: %s\n", path)
 
 	config := NewConfig()
-	if err := config.FromToml(path); err != nil {
+	if err := config.FromTomlFile(path); err != nil {
 		return nil, err
 	}
 
