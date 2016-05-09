@@ -111,26 +111,45 @@ func (a Values) Merge(b Values) Values {
 		return a
 	}
 
-	var i, j int
-	for ; i < len(a) && j < len(b); i++ {
-		av, bv := a[i].UnixNano(), b[j].UnixNano()
+	for i := 0; i < len(a) && len(b) > 0; i++ {
+		av, bv := a[i].UnixNano(), b[0].UnixNano()
+		// Value in a is greater than B, we need to merge
 		if av > bv {
-			a[i], b[j] = b[j], a[i]
+			// Save value in a
+			temp := a[i]
+
+			// Overwrite a with b
+			a[i] = b[0]
+
+			// Slide all values of b down 1
+			copy(b, b[1:])
+			b = b[:len(b)-1]
+
+			// See where value we save from a should be inserted in b to keep b sorted
+			k := sort.Search(len(b), func(i int) bool { return b[i].UnixNano() >= temp.UnixNano() })
+
+			if k == len(b) {
+				// Last position?
+				b = append(b, temp)
+			} else if b[k].UnixNano() != temp.UnixNano() {
+				// Save the last element, since it will get overwritten
+				last := b[len(b)-1]
+				// Somewhere in the middle of b, insert it only if it's not a duplicate
+				copy(b[k+1:], b[k:])
+				// Add the last vale to the end
+				b = append(b, last)
+				b[k] = temp
+			}
 		} else if av == bv {
-			a[i] = b[j]
-			j++
+			// Value in a an b are the same, use b
+			a[i] = b[0]
+			b = b[1:]
 		}
 	}
 
-	sort.Sort(b[j:])
-
-	if i >= len(a) {
-		if j+1 < len(b) && b[j].UnixNano() == b[j+1].UnixNano() {
-			j++
-		}
-		return append(a, b[j:]...)
+	if len(b) > 0 {
+		return append(a, b...)
 	}
-
 	return a
 }
 
@@ -442,24 +461,45 @@ func (a FloatValues) Merge(b FloatValues) FloatValues {
 		return a
 	}
 
-	var i, j int
-	for ; i < len(a) && j < len(b); i++ {
-		av, bv := a[i].UnixNano(), b[j].UnixNano()
+	for i := 0; i < len(a) && len(b) > 0; i++ {
+		av, bv := a[i].UnixNano(), b[0].UnixNano()
+		// Value in a is greater than B, we need to merge
 		if av > bv {
-			a[i], b[j] = b[j], a[i]
+			// Save value in a
+			temp := a[i]
+
+			// Overwrite a with b
+			a[i] = b[0]
+
+			// Slide all values of b down 1
+			copy(b, b[1:])
+			b = b[:len(b)-1]
+
+			// See where value we save from a should be inserted in b to keep b sorted
+			k := sort.Search(len(b), func(i int) bool { return b[i].UnixNano() >= temp.UnixNano() })
+
+			if k == len(b) {
+				// Last position?
+				b = append(b, temp)
+			} else if b[k].UnixNano() != temp.UnixNano() {
+				// Save the last element, since it will get overwritten
+				last := b[len(b)-1]
+				// Somewhere in the middle of b, insert it only if it's not a duplicate
+				copy(b[k+1:], b[k:])
+				// Add the last vale to the end
+				b = append(b, last)
+				b[k] = temp
+			}
 		} else if av == bv {
-			a[i] = b[j]
-			j++
+			// Value in a an b are the same, use b
+			a[i] = b[0]
+			b = b[1:]
 		}
 	}
 
-	if i >= len(a) {
-		if j+1 < len(b) && b[j].UnixNano() == b[j+1].UnixNano() {
-			j++
-		}
-		return append(a, b[j:]...)
+	if len(b) > 0 {
+		return append(a, b...)
 	}
-
 	return a
 }
 
@@ -655,24 +695,45 @@ func (a BooleanValues) Merge(b BooleanValues) BooleanValues {
 		return a
 	}
 
-	var i, j int
-	for ; i < len(a) && j < len(b); i++ {
-		av, bv := a[i].UnixNano(), b[j].UnixNano()
+	for i := 0; i < len(a) && len(b) > 0; i++ {
+		av, bv := a[i].UnixNano(), b[0].UnixNano()
+		// Value in a is greater than B, we need to merge
 		if av > bv {
-			a[i], b[j] = b[j], a[i]
+			// Save value in a
+			temp := a[i]
+
+			// Overwrite a with b
+			a[i] = b[0]
+
+			// Slide all values of b down 1
+			copy(b, b[1:])
+			b = b[:len(b)-1]
+
+			// See where value we save from a should be inserted in b to keep b sorted
+			k := sort.Search(len(b), func(i int) bool { return b[i].UnixNano() >= temp.UnixNano() })
+
+			if k == len(b) {
+				// Last position?
+				b = append(b, temp)
+			} else if b[k].UnixNano() != temp.UnixNano() {
+				// Save the last element, since it will get overwritten
+				last := b[len(b)-1]
+				// Somewhere in the middle of b, insert it only if it's not a duplicate
+				copy(b[k+1:], b[k:])
+				// Add the last vale to the end
+				b = append(b, last)
+				b[k] = temp
+			}
 		} else if av == bv {
-			a[i] = b[j]
-			j++
+			// Value in a an b are the same, use b
+			a[i] = b[0]
+			b = b[1:]
 		}
 	}
 
-	if i >= len(a) {
-		if j+1 < len(b) && b[j].UnixNano() == b[j+1].UnixNano() {
-			j++
-		}
-		return append(a, b[j:]...)
+	if len(b) > 0 {
+		return append(a, b...)
 	}
-
 	return a
 }
 
@@ -828,24 +889,45 @@ func (a IntegerValues) Merge(b IntegerValues) IntegerValues {
 		return a
 	}
 
-	var i, j int
-	for ; i < len(a) && j < len(b); i++ {
-		av, bv := a[i].UnixNano(), b[j].UnixNano()
+	for i := 0; i < len(a) && len(b) > 0; i++ {
+		av, bv := a[i].UnixNano(), b[0].UnixNano()
+		// Value in a is greater than B, we need to merge
 		if av > bv {
-			a[i], b[j] = b[j], a[i]
+			// Save value in a
+			temp := a[i]
+
+			// Overwrite a with b
+			a[i] = b[0]
+
+			// Slide all values of b down 1
+			copy(b, b[1:])
+			b = b[:len(b)-1]
+
+			// See where value we save from a should be inserted in b to keep b sorted
+			k := sort.Search(len(b), func(i int) bool { return b[i].UnixNano() >= temp.UnixNano() })
+
+			if k == len(b) {
+				// Last position?
+				b = append(b, temp)
+			} else if b[k].UnixNano() != temp.UnixNano() {
+				// Save the last element, since it will get overwritten
+				last := b[len(b)-1]
+				// Somewhere in the middle of b, insert it only if it's not a duplicate
+				copy(b[k+1:], b[k:])
+				// Add the last vale to the end
+				b = append(b, last)
+				b[k] = temp
+			}
 		} else if av == bv {
-			a[i] = b[j]
-			j++
+			// Value in a an b are the same, use b
+			a[i] = b[0]
+			b = b[1:]
 		}
 	}
 
-	if i >= len(a) {
-		if j+1 < len(b) && b[j].UnixNano() == b[j+1].UnixNano() {
-			j++
-		}
-		return append(a, b[j:]...)
+	if len(b) > 0 {
+		return append(a, b...)
 	}
-
 	return a
 }
 
@@ -1003,24 +1085,45 @@ func (a StringValues) Merge(b StringValues) StringValues {
 		return a
 	}
 
-	var i, j int
-	for ; i < len(a) && j < len(b); i++ {
-		av, bv := a[i].UnixNano(), b[j].UnixNano()
+	for i := 0; i < len(a) && len(b) > 0; i++ {
+		av, bv := a[i].UnixNano(), b[0].UnixNano()
+		// Value in a is greater than B, we need to merge
 		if av > bv {
-			a[i], b[j] = b[j], a[i]
+			// Save value in a
+			temp := a[i]
+
+			// Overwrite a with b
+			a[i] = b[0]
+
+			// Slide all values of b down 1
+			copy(b, b[1:])
+			b = b[:len(b)-1]
+
+			// See where value we save from a should be inserted in b to keep b sorted
+			k := sort.Search(len(b), func(i int) bool { return b[i].UnixNano() >= temp.UnixNano() })
+
+			if k == len(b) {
+				// Last position?
+				b = append(b, temp)
+			} else if b[k].UnixNano() != temp.UnixNano() {
+				// Save the last element, since it will get overwritten
+				last := b[len(b)-1]
+				// Somewhere in the middle of b, insert it only if it's not a duplicate
+				copy(b[k+1:], b[k:])
+				// Add the last vale to the end
+				b = append(b, last)
+				b[k] = temp
+			}
 		} else if av == bv {
-			a[i] = b[j]
-			j++
+			// Value in a an b are the same, use b
+			a[i] = b[0]
+			b = b[1:]
 		}
 	}
 
-	if i >= len(a) {
-		if j+1 < len(b) && b[j].UnixNano() == b[j+1].UnixNano() {
-			j++
-		}
-		return append(a, b[j:]...)
+	if len(b) > 0 {
+		return append(a, b...)
 	}
-
 	return a
 }
 

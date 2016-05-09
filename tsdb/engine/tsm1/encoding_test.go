@@ -386,6 +386,70 @@ func TestValues_MergeFloat(t *testing.T) {
 				tsm1.NewValue(1462498658288956853, 1.1),
 			},
 		},
+		{
+			a: []tsm1.Value{
+				tsm1.NewValue(4, 4.0),
+				tsm1.NewValue(5, 5.0),
+				tsm1.NewValue(6, 6.0),
+			},
+			b: []tsm1.Value{
+				tsm1.NewValue(1, 1.0),
+				tsm1.NewValue(2, 2.0),
+				tsm1.NewValue(3, 3.0),
+			},
+			exp: []tsm1.Value{
+				tsm1.NewValue(1, 1.0),
+				tsm1.NewValue(2, 2.0),
+				tsm1.NewValue(3, 3.0),
+				tsm1.NewValue(4, 4.0),
+				tsm1.NewValue(5, 5.0),
+				tsm1.NewValue(6, 6.0),
+			},
+		},
+		{
+			a: []tsm1.Value{
+				tsm1.NewValue(5, 5.0),
+				tsm1.NewValue(6, 6.0),
+			},
+			b: []tsm1.Value{
+				tsm1.NewValue(1, 1.0),
+				tsm1.NewValue(2, 2.0),
+				tsm1.NewValue(3, 3.0),
+				tsm1.NewValue(4, 4.0),
+				tsm1.NewValue(7, 7.0),
+				tsm1.NewValue(8, 8.0),
+			},
+			exp: []tsm1.Value{
+				tsm1.NewValue(1, 1.0),
+				tsm1.NewValue(2, 2.0),
+				tsm1.NewValue(3, 3.0),
+				tsm1.NewValue(4, 4.0),
+				tsm1.NewValue(5, 5.0),
+				tsm1.NewValue(6, 6.0),
+				tsm1.NewValue(7, 7.0),
+				tsm1.NewValue(8, 8.0),
+			},
+		},
+		{
+			a: []tsm1.Value{
+				tsm1.NewValue(1, 1.0),
+				tsm1.NewValue(2, 2.0),
+				tsm1.NewValue(3, 3.0),
+			},
+			b: []tsm1.Value{
+				tsm1.NewValue(4, 4.0),
+				tsm1.NewValue(5, 5.0),
+				tsm1.NewValue(6, 6.0),
+			},
+			exp: []tsm1.Value{
+				tsm1.NewValue(1, 1.0),
+				tsm1.NewValue(2, 2.0),
+				tsm1.NewValue(3, 3.0),
+				tsm1.NewValue(4, 4.0),
+				tsm1.NewValue(5, 5.0),
+				tsm1.NewValue(6, 6.0),
+			},
+		},
 	}
 
 	for i, test := range tests {
