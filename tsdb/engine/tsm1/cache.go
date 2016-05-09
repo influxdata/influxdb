@@ -207,7 +207,7 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 		c.entry(k).add(v)
 	}
 	c.mu.Lock()
-	c.size = newSize
+	c.size += uint64(totalSz)
 	c.mu.Unlock()
 
 	// Update the memory size stat
