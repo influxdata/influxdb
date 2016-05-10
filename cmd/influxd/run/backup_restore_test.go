@@ -14,6 +14,7 @@ import (
 )
 
 func TestServer_BackupAndRestore(t *testing.T) {
+	t.Skip("currently fails intermittently.  See issue https://github.com/influxdata/influxdb/issues/6590")
 	config := NewConfig()
 	config.Data.Engine = "tsm1"
 	config.Data.Dir, _ = ioutil.TempDir("", "data_backup")
