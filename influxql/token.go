@@ -83,7 +83,6 @@ const (
 	EXPLAIN
 	FIELD
 	FOR
-	FORCE
 	FROM
 	GRANT
 	GRANTS
@@ -92,7 +91,6 @@ const (
 	IF
 	IN
 	INF
-	INNER
 	INSERT
 	INTO
 	KEY
@@ -203,7 +201,6 @@ var tokens = [...]string{
 	EXPLAIN:       "EXPLAIN",
 	FIELD:         "FIELD",
 	FOR:           "FOR",
-	FORCE:         "FORCE",
 	FROM:          "FROM",
 	GRANT:         "GRANT",
 	GRANTS:        "GRANTS",
@@ -212,7 +209,6 @@ var tokens = [...]string{
 	IF:            "IF",
 	IN:            "IN",
 	INF:           "INF",
-	INNER:         "INNER",
 	INSERT:        "INSERT",
 	INTO:          "INTO",
 	KEY:           "KEY",
