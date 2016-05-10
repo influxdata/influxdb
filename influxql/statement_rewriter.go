@@ -24,6 +24,7 @@ func rewriteShowFieldKeysStatement(stmt *ShowFieldKeysStatement) (Statement, err
 	return &SelectStatement{
 		Fields: Fields([]*Field{
 			{Expr: &VarRef{Val: "fieldKey"}},
+			{Expr: &VarRef{Val: "fieldType"}},
 		}),
 		Sources:    rewriteSources(stmt.Sources, "_fieldKeys"),
 		Condition:  rewriteSourcesCondition(stmt.Sources, nil),
