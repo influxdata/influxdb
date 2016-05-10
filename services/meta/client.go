@@ -694,11 +694,19 @@ func (c *Client) DropShard(id uint64) error {
 
 // CreateShardGroup creates a shard group on a database and policy for a given timestamp.
 func (c *Client) CreateShardGroup(database, policy string, timestamp time.Time) (*ShardGroupInfo, error) {
+	// Check under a read-lock
+	c.mu.RLock()
+	if sg, _ := c.cacheData.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
+		c.mu.RUnlock()
+		return sg, nil
+	}
+	c.mu.RUnlock()
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	// Check again under the write lock
 	data := c.cacheData.Clone()
-
 	if sg, _ := data.ShardGroupByTimestamp(database, policy, timestamp); sg != nil {
 		return sg, nil
 	}
