@@ -1290,3 +1290,20 @@ func BenchmarkValues_Deduplicate(b *testing.B) {
 		tsm1.Values(values).Deduplicate()
 	}
 }
+
+func BenchmarkValues_Merge(b *testing.B) {
+	valueCount := 1000
+	times := getTimes(valueCount, 60, time.Second)
+	a := make([]tsm1.Value, len(times))
+	c := make([]tsm1.Value, len(times))
+
+	for i, t := range times {
+		a[i] = tsm1.NewValue(t, float64(i))
+		c[i] = tsm1.NewValue(t+1, float64(i))
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		tsm1.Values(a).Merge(c)
+	}
+}
