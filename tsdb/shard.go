@@ -944,12 +944,76 @@ func (ic *shardIteratorCreator) ExpandSources(sources influxql.Sources) (influxq
 }
 
 func NewFieldKeysIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	fn := func(m *Measurement) []string {
-		keys := m.FieldNames()
-		sort.Strings(keys)
-		return keys
+	itr := &fieldKeysIterator{sh: sh}
+
+	// Retrieve measurements from shard. Filter if condition specified.
+	if opt.Condition == nil {
+		itr.mms = sh.index.Measurements()
+	} else {
+		mms, _, err := sh.index.measurementsByExpr(opt.Condition)
+		if err != nil {
+			return nil, err
+		}
+		itr.mms = mms
 	}
-	return newMeasurementKeysIterator(sh, fn, opt)
+
+	// Sort measurements by name.
+	sort.Sort(itr.mms)
+
+	return itr, nil
+}
+
+// fieldKeysIterator iterates over measurements and gets field keys from each measurement.
+type fieldKeysIterator struct {
+	sh  *Shard
+	mms Measurements // remaining measurements
+	buf struct {
+		mm     *Measurement // current measurement
+		fields []*Field     // current measurement's fields
+	}
+}
+
+// Stats returns stats about the points processed.
+func (itr *fieldKeysIterator) Stats() influxql.IteratorStats { return influxql.IteratorStats{} }
+
+// Close closes the iterator.
+func (itr *fieldKeysIterator) Close() error { return nil }
+
+// Next emits the next tag key name.
+func (itr *fieldKeysIterator) Next() (*influxql.FloatPoint, error) {
+	for {
+		// If there are no more keys then move to the next measurements.
+		if len(itr.buf.fields) == 0 {
+			if len(itr.mms) == 0 {
+				return nil, nil
+			}
+
+			itr.buf.mm = itr.mms[0]
+			keys := itr.buf.mm.FieldNames()
+			if len(keys) > 0 {
+				// Sort the keys in alphabetical order.
+				sort.Strings(keys)
+				// Retrieve the field for each key.
+				mf := itr.sh.engine.MeasurementFields(itr.buf.mm.Name)
+				itr.buf.fields = make([]*Field, len(keys))
+				for i, name := range keys {
+					itr.buf.fields[i] = mf.Field(name)
+				}
+			}
+			itr.mms = itr.mms[1:]
+			continue
+		}
+
+		// Return next key.
+		field := itr.buf.fields[0]
+		p := &influxql.FloatPoint{
+			Name: itr.buf.mm.Name,
+			Aux:  []interface{}{field.Name, field.Type.String()},
+		}
+		itr.buf.fields = itr.buf.fields[1:]
+
+		return p, nil
+	}
 }
 
 // MeasurementIterator represents a string iterator that emits all measurement names in a shard.

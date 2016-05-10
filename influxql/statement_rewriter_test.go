@@ -13,23 +13,23 @@ func TestRewriteStatement(t *testing.T) {
 	}{
 		{
 			stmt: `SHOW FIELD KEYS`,
-			s:    `SELECT fieldKey FROM _fieldKeys`,
+			s:    `SELECT fieldKey, fieldType FROM _fieldKeys`,
 		},
 		{
 			stmt: `SHOW FIELD KEYS FROM cpu`,
-			s:    `SELECT fieldKey FROM _fieldKeys WHERE _name = 'cpu'`,
+			s:    `SELECT fieldKey, fieldType FROM _fieldKeys WHERE _name = 'cpu'`,
 		},
 		{
 			stmt: `SHOW FIELD KEYS FROM /c.*/`,
-			s:    `SELECT fieldKey FROM _fieldKeys WHERE _name =~ /c.*/`,
+			s:    `SELECT fieldKey, fieldType FROM _fieldKeys WHERE _name =~ /c.*/`,
 		},
 		{
 			stmt: `SHOW FIELD KEYS FROM mydb.myrp2.cpu`,
-			s:    `SELECT fieldKey FROM mydb.myrp2._fieldKeys WHERE _name = 'cpu'`,
+			s:    `SELECT fieldKey, fieldType FROM mydb.myrp2._fieldKeys WHERE _name = 'cpu'`,
 		},
 		{
 			stmt: `SHOW FIELD KEYS FROM mydb.myrp2./c.*/`,
-			s:    `SELECT fieldKey FROM mydb.myrp2._fieldKeys WHERE _name =~ /c.*/`,
+			s:    `SELECT fieldKey, fieldType FROM mydb.myrp2._fieldKeys WHERE _name =~ /c.*/`,
 		},
 		{
 			stmt: `SHOW MEASUREMENTS`,

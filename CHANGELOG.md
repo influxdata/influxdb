@@ -1,3 +1,9 @@
+## v1.0.0 [unreleased]
+
+### Features
+
+- [#3541](https://github.com/influxdata/influxdb/issues/3451): Update SHOW FIELD KEYS to return the field type with the field key.
+
 ## v0.13.0 [unreleased]
 
 ### Release Notes
