@@ -81,3 +81,24 @@ message RemoteMonitorRequest {
 message RemoteMonitorResponse {
     optional string Err = 1;
 }
+
+message BackupShardRequest {
+    required uint64 ShardID = 1;
+    optional int64  Since   = 2;
+}
+
+message BackupShardResponse {
+    optional string Err = 2;
+}
+
+message CopyShardRequest {
+    required string Host     = 1;
+    required string Database = 2;
+    required string Policy   = 3;
+    required uint64 ShardID  = 4;
+    optional int64  Since    = 5;
+}
+
+message CopyShardResponse {
+    optional string Err = 2;
+}

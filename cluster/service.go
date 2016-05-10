@@ -12,6 +12,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb/monitor"
 
@@ -40,6 +41,15 @@ const (
 
 	seriesKeysReq  = "seriesKeysReq"
 	seriesKeysResp = "seriesKeysResp"
+
+	expandSourcesReq                  = "expandSourcesReq"
+	expandSourcesReqexpandSourcesResp = "expandSourcesResp"
+
+	backupShardReq                = "backupShardReq"
+	backupShardReqbackupShardResp = "backupShardResp"
+
+	copyShardReq  = "copyShardReq"
+	copyShardResp = "copyShardResp"
 )
 
 const (
@@ -60,7 +70,19 @@ const (
 
 	remoteMonitorRequestMessage
 	remoteMonitorResponseMessage
+
+	expandSourcesRequestMessage
+	expandSourcesResponseMessage
+
+	backupShardRequestMessage
+	backupShardResponseMessage
+
+	copyShardRequestMessage
+	copyShardResponseMessage
 )
+
+// BackupTimeout is the time before a connection times out when performing a backup.
+const BackupTimeout = 30 * time.Second
 
 // Service processes data received over raw TCP connections.
 type Service struct {
@@ -227,6 +249,18 @@ func (s *Service) handleConn(conn net.Conn) {
 				s.Logger.Printf("process write shard error: %s", err)
 			}
 			s.writeRemoteMonitorResponse(conn, err)
+		case expandSourcesRequestMessage:
+			s.statMap.Add(expandSourcesReq, 1)
+			s.processExpandSourcesRequest(conn)
+			return
+		case backupShardRequestMessage:
+			s.statMap.Add(backupShardReq, 1)
+			s.processBackupShardRequest(conn)
+			return
+		case copyShardRequestMessage:
+			s.statMap.Add(copyShardReq, 1)
+			s.processCopyShardRequest(conn)
+			return
 		default:
 			s.Logger.Printf("cluster service message type not found: %d", typ)
 		}
@@ -547,6 +581,139 @@ func (s *Service) writeRemoteMonitorResponse(w io.Writer, e error) {
 	if err := WriteTLV(w, remoteMonitorResponseMessage, buf); err != nil {
 		s.Logger.Printf("write remote monitor response error: %s", err)
 	}
+}
+
+func (s *Service) processExpandSourcesRequest(conn net.Conn) {
+	var sources influxql.Sources
+	if err := func() error {
+		// Parse request.
+		var req ExpandSourcesRequest
+		if err := DecodeLV(conn, &req); err != nil {
+			return err
+		}
+
+		// Collect iterator creators for each shard.
+		ics := make([]influxql.IteratorCreator, 0, len(req.ShardIDs))
+		for _, shardID := range req.ShardIDs {
+			ic := s.TSDBStore.ShardIteratorCreator(shardID)
+			if ic == nil {
+				return nil
+			}
+			ics = append(ics, ic)
+		}
+
+		// Expand sources from all shards.
+		a, err := influxql.IteratorCreators(ics).ExpandSources(req.Sources)
+		if err != nil {
+			return err
+		}
+		sources = a
+
+		return nil
+	}(); err != nil {
+		s.Logger.Printf("error reading ExpandSources request: %s", err)
+		EncodeTLV(conn, expandSourcesResponseMessage, &ExpandSourcesResponse{Err: err})
+		return
+	}
+
+	// Encode success response.
+	if err := EncodeTLV(conn, expandSourcesResponseMessage, &ExpandSourcesResponse{
+		Sources: sources,
+	}); err != nil {
+		s.Logger.Printf("error writing ExpandSources response: %s", err)
+		return
+	}
+}
+
+func (s *Service) processBackupShardRequest(conn net.Conn) {
+	if err := func() error {
+		// Parse request.
+		var req BackupShardRequest
+		if err := DecodeLV(conn, &req); err != nil {
+			return err
+		}
+
+		// Backup from local shard to the connection.
+		if err := s.TSDBStore.BackupShard(req.ShardID, req.Since, conn); err != nil {
+			return err
+		}
+
+		return nil
+	}(); err != nil {
+		s.Logger.Printf("error processing BackupShardRequest: %s", err)
+		return
+	}
+}
+
+func (s *Service) processCopyShardRequest(conn net.Conn) {
+	if err := func() error {
+		// Parse request.
+		var req CopyShardRequest
+		if err := DecodeLV(conn, &req); err != nil {
+			return err
+		}
+
+		// Begin streaming backup from remote server.
+		r, err := s.backupRemoteShard(req.Host, req.ShardID, req.Since)
+		if err != nil {
+			return err
+		}
+		defer r.Close()
+
+		// Create shard if it doesn't exist.
+		if err := s.TSDBStore.CreateShard(req.Database, req.Policy, req.ShardID); err != nil {
+			return err
+		}
+
+		// Restore to local shard.
+		if err := s.TSDBStore.RestoreShard(req.ShardID, r); err != nil {
+			return err
+		}
+
+		return nil
+	}(); err != nil {
+		s.Logger.Printf("error reading CopyShard request: %s", err)
+		EncodeTLV(conn, copyShardResponseMessage, &CopyShardResponse{Err: err})
+		return
+	}
+
+	// Encode success response.
+	if err := EncodeTLV(conn, copyShardResponseMessage, &CopyShardResponse{}); err != nil {
+		s.Logger.Printf("error writing CopyShard response: %s", err)
+		return
+	}
+}
+
+// backupRemoteShard connects to a cluster service on a remote host and streams a shard.
+func (s *Service) backupRemoteShard(host string, shardID uint64, since time.Time) (io.ReadCloser, error) {
+	conn, err := net.Dial("tcp", host)
+	if err != nil {
+		return nil, err
+	}
+	conn.SetDeadline(time.Now().Add(BackupTimeout))
+
+	if err := func() error {
+		// Write the cluster multiplexing header byte
+		if _, err := conn.Write([]byte{MuxHeader}); err != nil {
+			return err
+		}
+
+		// Write backup request.
+		if err := EncodeTLV(conn, backupShardResponseMessage, &BackupShardRequest{
+			ShardID: shardID,
+			Since:   since,
+		}); err != nil {
+			return fmt.Errorf("error writing BackupShardRequest: %s", err)
+		}
+
+		return nil
+	}(); err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	// Return the connection which will stream the rest of the backup.
+	return conn, nil
 }
 
 // ReadTLV reads a type-length-value record from r.

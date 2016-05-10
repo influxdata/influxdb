@@ -207,6 +207,9 @@ type TSDBStore struct {
 	CreateShardFn  func(database, policy string, shardID uint64) error
 	WriteToShardFn func(shardID uint64, points []models.Point) error
 
+	RestoreShardFn func(id uint64, r io.Reader) error
+	BackupShardFn  func(id uint64, since time.Time, w io.Writer) error
+
 	DeleteDatabaseFn        func(name string) error
 	DeleteMeasurementFn     func(database, name string) error
 	DeleteRetentionPolicyFn func(database, name string) error
@@ -224,6 +227,14 @@ func (s *TSDBStore) CreateShard(database, policy string, shardID uint64) error {
 
 func (s *TSDBStore) WriteToShard(shardID uint64, points []models.Point) error {
 	return s.WriteToShardFn(shardID, points)
+}
+
+func (s *TSDBStore) RestoreShard(id uint64, r io.Reader) error {
+	return s.RestoreShardFn(id, r)
+}
+
+func (s *TSDBStore) BackupShard(id uint64, since time.Time, w io.Writer) error {
+	return s.BackupShardFn(id, since, w)
 }
 
 func (s *TSDBStore) DeleteDatabase(name string) error {

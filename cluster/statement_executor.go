@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strconv"
 	"time"
@@ -872,12 +873,16 @@ type TSDBStore interface {
 	CreateShard(database, policy string, shardID uint64) error
 	WriteToShard(shardID uint64, points []models.Point) error
 
+	RestoreShard(id uint64, r io.Reader) error
+	BackupShard(id uint64, since time.Time, w io.Writer) error
+
 	DeleteDatabase(name string) error
 	DeleteMeasurement(database, name string) error
 	DeleteRetentionPolicy(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShard(id uint64) error
 	IteratorCreator(shards []meta.ShardInfo) (influxql.IteratorCreator, error)
+	ShardIteratorCreator(id uint64) influxql.IteratorCreator
 }
 
 type LocalTSDBStore struct {
