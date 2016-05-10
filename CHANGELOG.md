@@ -30,6 +30,7 @@ With this release InfluxDB is moving to Go v1.6.
 - [#6533](https://github.com/influxdata/influxdb/issues/6533): Optimize SHOW SERIES
 - [#6534](https://github.com/influxdata/influxdb/pull/6534): Move to Go v1.6.2 (over Go v1.4.3)
 - [#6522](https://github.com/influxdata/influxdb/pull/6522): Dump TSM files to line protocol
+- [#6585](https://github.com/influxdata/influxdb/pull/6585): Parallelize iterators
 
 ### Bugfixes
 

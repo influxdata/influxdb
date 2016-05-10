@@ -435,6 +435,65 @@ type floatSortedMergeHeapItem struct {
 	ascending bool
 }
 
+// floatParallelIterator represents an iterator that pulls data in a separate goroutine.
+type floatParallelIterator struct {
+	input FloatIterator
+	ch    chan floatPointError
+
+	once    sync.Once
+	closing chan struct{}
+}
+
+// newFloatParallelIterator returns a new instance of floatParallelIterator.
+func newFloatParallelIterator(input FloatIterator) *floatParallelIterator {
+	itr := &floatParallelIterator{
+		input:   input,
+		ch:      make(chan floatPointError, 1),
+		closing: make(chan struct{}),
+	}
+	go itr.monitor()
+	return itr
+}
+
+// Stats returns stats from the underlying iterator.
+func (itr *floatParallelIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the underlying iterators.
+func (itr *floatParallelIterator) Close() error {
+	itr.once.Do(func() { close(itr.closing) })
+	return itr.input.Close()
+}
+
+// Next returns the next point from the iterator.
+func (itr *floatParallelIterator) Next() (*FloatPoint, error) {
+	v, ok := <-itr.ch
+	if !ok {
+		return nil, io.EOF
+	}
+	return v.point, v.err
+}
+
+// monitor runs in a separate goroutine and actively pulls the next point.
+func (itr *floatParallelIterator) monitor() {
+	defer close(itr.ch)
+
+	for {
+		// Read next point.
+		p, err := itr.input.Next()
+
+		select {
+		case <-itr.closing:
+			return
+		case itr.ch <- floatPointError{point: p, err: err}:
+		}
+	}
+}
+
+type floatPointError struct {
+	point *FloatPoint
+	err   error
+}
+
 // floatLimitIterator represents an iterator that limits points per group.
 type floatLimitIterator struct {
 	input FloatIterator
@@ -2384,6 +2443,65 @@ type integerSortedMergeHeapItem struct {
 	ascending bool
 }
 
+// integerParallelIterator represents an iterator that pulls data in a separate goroutine.
+type integerParallelIterator struct {
+	input IntegerIterator
+	ch    chan integerPointError
+
+	once    sync.Once
+	closing chan struct{}
+}
+
+// newIntegerParallelIterator returns a new instance of integerParallelIterator.
+func newIntegerParallelIterator(input IntegerIterator) *integerParallelIterator {
+	itr := &integerParallelIterator{
+		input:   input,
+		ch:      make(chan integerPointError, 1),
+		closing: make(chan struct{}),
+	}
+	go itr.monitor()
+	return itr
+}
+
+// Stats returns stats from the underlying iterator.
+func (itr *integerParallelIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the underlying iterators.
+func (itr *integerParallelIterator) Close() error {
+	itr.once.Do(func() { close(itr.closing) })
+	return itr.input.Close()
+}
+
+// Next returns the next point from the iterator.
+func (itr *integerParallelIterator) Next() (*IntegerPoint, error) {
+	v, ok := <-itr.ch
+	if !ok {
+		return nil, io.EOF
+	}
+	return v.point, v.err
+}
+
+// monitor runs in a separate goroutine and actively pulls the next point.
+func (itr *integerParallelIterator) monitor() {
+	defer close(itr.ch)
+
+	for {
+		// Read next point.
+		p, err := itr.input.Next()
+
+		select {
+		case <-itr.closing:
+			return
+		case itr.ch <- integerPointError{point: p, err: err}:
+		}
+	}
+}
+
+type integerPointError struct {
+	point *IntegerPoint
+	err   error
+}
+
 // integerLimitIterator represents an iterator that limits points per group.
 type integerLimitIterator struct {
 	input IntegerIterator
@@ -4330,6 +4448,65 @@ type stringSortedMergeHeapItem struct {
 	ascending bool
 }
 
+// stringParallelIterator represents an iterator that pulls data in a separate goroutine.
+type stringParallelIterator struct {
+	input StringIterator
+	ch    chan stringPointError
+
+	once    sync.Once
+	closing chan struct{}
+}
+
+// newStringParallelIterator returns a new instance of stringParallelIterator.
+func newStringParallelIterator(input StringIterator) *stringParallelIterator {
+	itr := &stringParallelIterator{
+		input:   input,
+		ch:      make(chan stringPointError, 1),
+		closing: make(chan struct{}),
+	}
+	go itr.monitor()
+	return itr
+}
+
+// Stats returns stats from the underlying iterator.
+func (itr *stringParallelIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the underlying iterators.
+func (itr *stringParallelIterator) Close() error {
+	itr.once.Do(func() { close(itr.closing) })
+	return itr.input.Close()
+}
+
+// Next returns the next point from the iterator.
+func (itr *stringParallelIterator) Next() (*StringPoint, error) {
+	v, ok := <-itr.ch
+	if !ok {
+		return nil, io.EOF
+	}
+	return v.point, v.err
+}
+
+// monitor runs in a separate goroutine and actively pulls the next point.
+func (itr *stringParallelIterator) monitor() {
+	defer close(itr.ch)
+
+	for {
+		// Read next point.
+		p, err := itr.input.Next()
+
+		select {
+		case <-itr.closing:
+			return
+		case itr.ch <- stringPointError{point: p, err: err}:
+		}
+	}
+}
+
+type stringPointError struct {
+	point *StringPoint
+	err   error
+}
+
 // stringLimitIterator represents an iterator that limits points per group.
 type stringLimitIterator struct {
 	input StringIterator
@@ -6274,6 +6451,65 @@ type booleanSortedMergeHeapItem struct {
 	err       error
 	itr       BooleanIterator
 	ascending bool
+}
+
+// booleanParallelIterator represents an iterator that pulls data in a separate goroutine.
+type booleanParallelIterator struct {
+	input BooleanIterator
+	ch    chan booleanPointError
+
+	once    sync.Once
+	closing chan struct{}
+}
+
+// newBooleanParallelIterator returns a new instance of booleanParallelIterator.
+func newBooleanParallelIterator(input BooleanIterator) *booleanParallelIterator {
+	itr := &booleanParallelIterator{
+		input:   input,
+		ch:      make(chan booleanPointError, 1),
+		closing: make(chan struct{}),
+	}
+	go itr.monitor()
+	return itr
+}
+
+// Stats returns stats from the underlying iterator.
+func (itr *booleanParallelIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the underlying iterators.
+func (itr *booleanParallelIterator) Close() error {
+	itr.once.Do(func() { close(itr.closing) })
+	return itr.input.Close()
+}
+
+// Next returns the next point from the iterator.
+func (itr *booleanParallelIterator) Next() (*BooleanPoint, error) {
+	v, ok := <-itr.ch
+	if !ok {
+		return nil, io.EOF
+	}
+	return v.point, v.err
+}
+
+// monitor runs in a separate goroutine and actively pulls the next point.
+func (itr *booleanParallelIterator) monitor() {
+	defer close(itr.ch)
+
+	for {
+		// Read next point.
+		p, err := itr.input.Next()
+
+		select {
+		case <-itr.closing:
+			return
+		case itr.ch <- booleanPointError{point: p, err: err}:
+		}
+	}
+}
+
+type booleanPointError struct {
+	point *BooleanPoint
+	err   error
 }
 
 // booleanLimitIterator represents an iterator that limits points per group.
