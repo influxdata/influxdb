@@ -308,6 +308,17 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64) er
 	return nil
 }
 
+// CreateShardSnapShot will create a hard link to the underlying shard and return a path
+// The caller is responsible for cleaning up (removing) the file path returned
+func (s *Store) CreateShardSnapshot(id uint64) (string, error) {
+	sh := s.Shard(id)
+	if sh == nil {
+		return "", ErrShardNotFound
+	}
+
+	return sh.CreateSnapshot()
+}
+
 // DeleteShard removes a shard from disk.
 func (s *Store) DeleteShard(shardID uint64) error {
 	s.mu.Lock()

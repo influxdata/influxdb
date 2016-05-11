@@ -137,6 +137,29 @@ func TestStore_DeleteShard(t *testing.T) {
 	}
 }
 
+// Ensure the store can create a snapshot to a shard.
+func TestStore_CreateShardSnapShot(t *testing.T) {
+	s := MustOpenStore()
+	defer s.Close()
+
+	// Create a new shard and verify that it exists.
+	if err := s.CreateShard("db0", "rp0", 1); err != nil {
+		t.Fatal(err)
+	} else if sh := s.Shard(1); sh == nil {
+		t.Fatalf("expected shard")
+	} else if di := s.DatabaseIndex("db0"); di == nil {
+		t.Errorf("expected database index")
+	}
+
+	dir, e := s.CreateShardSnapshot(1)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if dir == "" {
+		t.Fatal("empty directory name")
+	}
+}
+
 // Ensure the store reports an error when it can't open a database directory.
 func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
 	s := NewStore()

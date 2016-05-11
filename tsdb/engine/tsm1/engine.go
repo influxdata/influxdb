@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"math"
 	"os"
@@ -578,6 +579,19 @@ func (e *Engine) WriteSnapshot() error {
 	return e.writeSnapshotAndCommit(closedFiles, snapshot, compactor)
 }
 
+// CreateSnapshot will create a temp directory that holds
+// temporary hardlinks to the underylyng shard files
+func (e *Engine) CreateSnapshot() (string, error) {
+	if err := e.WriteSnapshot(); err != nil {
+		return "", nil
+	}
+
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	return e.FileStore.CreateSnapshot()
+}
+
 // writeSnapshotAndCommit will write the passed cache to a new TSM file and remove the closed WAL segments
 func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache, compactor *Compactor) (err error) {
 
@@ -797,6 +811,20 @@ func (e *Engine) cleanup() error {
 			return fmt.Errorf("error removing temp compaction files: %v", err)
 		}
 	}
+
+	allfiles, err := ioutil.ReadDir(e.path)
+	if err != nil {
+		return err
+	}
+	for _, f := range allfiles {
+		// Check to see if there are any `.tmp` directories that were left over from failed shard snapshots
+		if f.IsDir() && strings.HasSuffix(f.Name(), ".tmp") {
+			if err := os.Remove(f.Name()); err != nil {
+				return fmt.Errorf("error removing tmp snapshot directory %q: %s", f.Name(), err)
+			}
+		}
+	}
+
 	return nil
 }
 

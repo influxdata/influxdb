@@ -561,6 +561,14 @@ func (s *Shard) Restore(r io.Reader, basePath string) error {
 	return s.Open()
 }
 
+// CreateSnapshot will return a path to a temp directory
+// containing hard links to the underlying shard files
+func (s *Shard) CreateSnapshot() (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.engine.CreateSnapshot()
+}
+
 // Shards represents a sortable list of shards.
 type Shards []*Shard
 

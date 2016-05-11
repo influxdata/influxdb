@@ -1538,7 +1538,60 @@ func TestFileStore_Stats(t *testing.T) {
 	if got, exp := len(stats), 3; got != exp {
 		t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
 	}
+}
 
+func TestFileStore_CreateSnapshot(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 3.0)}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	// Create a tombstone
+	if err := fs.DeleteRange([]string{"cpu"}, 1, 1); err != nil {
+		t.Fatalf("unexpected error delete range: %v", err)
+	}
+
+	s, e := fs.CreateSnapshot()
+	if e != nil {
+		t.Fatal(e)
+	}
+	t.Logf("temp file for hard links: %q", s)
+
+	tfs, e := ioutil.ReadDir(s)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if len(tfs) == 0 {
+		t.Fatal("no files found")
+	}
+
+	for _, f := range fs.Files() {
+		p := filepath.Join(s, filepath.Base(f.Path()))
+		t.Logf("checking for existence of hard link %q", p)
+		if _, err := os.Stat(p); os.IsNotExist(err) {
+			t.Fatalf("unable to find file %q", p)
+		}
+		for _, tf := range f.TombstoneFiles() {
+			p := filepath.Join(s, filepath.Base(tf.Path))
+			t.Logf("checking for existence of hard link %q", p)
+			if _, err := os.Stat(p); os.IsNotExist(err) {
+				t.Fatalf("unable to find file %q", p)
+			}
+		}
+	}
 }
 
 func newFileDir(dir string, values ...keyValues) ([]string, error) {
