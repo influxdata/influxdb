@@ -1,4 +1,4 @@
-package cluster_test
+package coordinator_test
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
@@ -159,13 +159,13 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 	}
 }
 
-// QueryExecutor is a test wrapper for cluster.QueryExecutor.
+// QueryExecutor is a test wrapper for coordinator.QueryExecutor.
 type QueryExecutor struct {
 	*influxql.QueryExecutor
 
 	MetaClient        MetaClient
 	TSDBStore         TSDBStore
-	StatementExecutor *cluster.StatementExecutor
+	StatementExecutor *coordinator.StatementExecutor
 	LogOutput         bytes.Buffer
 }
 
@@ -175,7 +175,7 @@ func NewQueryExecutor() *QueryExecutor {
 	e := &QueryExecutor{
 		QueryExecutor: influxql.NewQueryExecutor(),
 	}
-	e.StatementExecutor = &cluster.StatementExecutor{
+	e.StatementExecutor = &coordinator.StatementExecutor{
 		MetaClient: &e.MetaClient,
 		TSDBStore:  &e.TSDBStore,
 	}
@@ -202,7 +202,7 @@ func (e *QueryExecutor) ExecuteQuery(query, database string, chunkSize int) <-ch
 	return e.QueryExecutor.ExecuteQuery(MustParseQuery(query), database, chunkSize, false, make(chan struct{}))
 }
 
-// TSDBStore is a mockable implementation of cluster.TSDBStore.
+// TSDBStore is a mockable implementation of coordinator.TSDBStore.
 type TSDBStore struct {
 	CreateShardFn  func(database, policy string, shardID uint64) error
 	WriteToShardFn func(shardID uint64, points []models.Point) error

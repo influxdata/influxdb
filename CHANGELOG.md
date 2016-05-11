@@ -1,8 +1,16 @@
 ## v1.0.0 [unreleased]
 
+### Release Notes
+
+* Config option `[cluster]` has been replaced with `[coordinator]`
+
 ### Features
 
 - [#3541](https://github.com/influxdata/influxdb/issues/3451): Update SHOW FIELD KEYS to return the field type with the field key.
+
+### Bugfixes
+
+- [#6604](https://github.com/influxdata/influxdb/pull/6604): Remove old cluster code
 
 ## v0.13.0 [unreleased]
 

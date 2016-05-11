@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
@@ -395,7 +395,7 @@ func (ms *MetaClient) AcquireLease(name string) (l *meta.Lease, err error) {
 	return nil, meta.ErrServiceUnavailable
 }
 
-// Databases returns a list of database info about each database in the cluster.
+// Databases returns a list of database info about each database in the coordinator.
 func (ms *MetaClient) Databases() []meta.DatabaseInfo {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
@@ -506,7 +506,7 @@ func NewQueryExecutor(t *testing.T) *QueryExecutor {
 
 // PointsWriter is a mock points writer.
 type PointsWriter struct {
-	WritePointsFn   func(p *cluster.WritePointsRequest) error
+	WritePointsFn   func(p *coordinator.WritePointsRequest) error
 	Err             error
 	PointsPerSecond int
 	t               *testing.T
@@ -521,7 +521,7 @@ func NewPointsWriter(t *testing.T) *PointsWriter {
 }
 
 // WritePoints mocks writing points.
-func (pw *PointsWriter) WritePoints(p *cluster.WritePointsRequest) error {
+func (pw *PointsWriter) WritePoints(p *coordinator.WritePointsRequest) error {
 	// If the test set a callback, call it.
 	if pw.WritePointsFn != nil {
 		if err := pw.WritePointsFn(p); err != nil {

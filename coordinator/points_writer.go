@@ -1,4 +1,4 @@
-package cluster
+package coordinator
 
 import (
 	"errors"
@@ -77,6 +77,24 @@ type PointsWriter struct {
 	subPoints chan<- *WritePointsRequest
 
 	statMap *expvar.Map
+}
+
+// WritePointsRequest represents a request to write point data to the cluster
+type WritePointsRequest struct {
+	Database        string
+	RetentionPolicy string
+	Points          []models.Point
+}
+
+// AddPoint adds a point to the WritePointRequest with field key 'value'
+func (w *WritePointsRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
+	pt, err := models.NewPoint(
+		name, tags, map[string]interface{}{"value": value}, timestamp,
+	)
+	if err != nil {
+		return
+	}
+	w.Points = append(w.Points, pt)
 }
 
 // NewPointsWriter returns a new instance of PointsWriter for a node.
@@ -234,10 +252,16 @@ func (w *PointsWriter) WritePoints(database, retentionPolicy string, consistency
 		w.statMap.Add(statSubWriteDrop, 1)
 	}
 
+	timeout := time.NewTimer(w.WriteTimeout)
+	defer timeout.Stop()
 	for range shardMappings.Points {
 		select {
 		case <-w.closing:
 			return ErrWriteFailed
+		case <-timeout.C:
+			w.statMap.Add(statWriteTimeout, 1)
+			// return timeout error to caller
+			return ErrTimeout
 		case err := <-ch:
 			if err != nil {
 				return err

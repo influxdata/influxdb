@@ -252,6 +252,9 @@ bind-address = ":1000"
 
 [opentsdb]
 bind-address = ":2000"
+
+[cluster]
+max-select-point = 100
 `); err != nil {
 		t.Fatal(err)
 	}
@@ -261,5 +264,8 @@ bind-address = ":2000"
 		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[0].BindAddress)
 	} else if c.OpenTSDBInputs[0].BindAddress != ":2000" {
 		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[0].BindAddress)
+	} else if c.Coordinator.MaxSelectPointN != 100 {
+		t.Fatalf("unexpected coordinator max select points: %s", c.Coordinator.MaxSelectPointN)
+
 	}
 }

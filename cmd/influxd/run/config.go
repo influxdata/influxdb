@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/admin"
 	"github.com/influxdata/influxdb/services/collectd"
@@ -41,11 +41,11 @@ const (
 
 // Config represents the configuration format for the influxd binary.
 type Config struct {
-	Meta       *meta.Config      `toml:"meta"`
-	Data       tsdb.Config       `toml:"data"`
-	Cluster    cluster.Config    `toml:"cluster"`
-	Retention  retention.Config  `toml:"retention"`
-	Precreator precreator.Config `toml:"shard-precreation"`
+	Meta        *meta.Config       `toml:"meta"`
+	Data        tsdb.Config        `toml:"data"`
+	Coordinator coordinator.Config `toml:"coordinator"`
+	Retention   retention.Config   `toml:"retention"`
+	Precreator  precreator.Config  `toml:"shard-precreation"`
 
 	Admin          admin.Config      `toml:"admin"`
 	Monitor        monitor.Config    `toml:"monitor"`
@@ -76,7 +76,7 @@ func NewConfig() *Config {
 	c := &Config{}
 	c.Meta = meta.NewConfig()
 	c.Data = tsdb.NewConfig()
-	c.Cluster = cluster.NewConfig()
+	c.Coordinator = coordinator.NewConfig()
 	c.Precreator = precreator.NewConfig()
 
 	c.Admin = admin.NewConfig()
@@ -140,6 +140,16 @@ func (c *Config) FromToml(input string) error {
 		log.Printf("deprecated config option %s replaced with %s; %s will not be supported in a future release\n", in, out, in)
 		return out
 	})
+
+	// Replace deprecated [cluster] with [coordinator]
+	re = regexp.MustCompile(`(?m)^\s*\[(cluster)\]`)
+	input = re.ReplaceAllStringFunc(input, func(in string) string {
+		in = strings.TrimSpace(in)
+		out := "[coordinator]"
+		log.Printf("deprecated config option %s replaced with %s; %s will not be supported in a future release\n", in, out, in)
+		return out
+	})
+
 	_, err := toml.Decode(input, c)
 	return err
 }
