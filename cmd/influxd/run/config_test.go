@@ -12,7 +12,7 @@ import (
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
 	var c run.Config
-	if _, err := toml.Decode(`
+	if err := c.FromToml(`
 join = "foo:123,bar:456"
 
 [meta]
@@ -61,7 +61,7 @@ enabled = true
 
 [continuous_queries]
 enabled = true
-`, &c); err != nil {
+`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -240,5 +240,26 @@ enabled = false
 
 	if err := c.Validate(); err == nil {
 		t.Fatalf("got nil, expected error")
+	}
+}
+
+func TestConfig_DeprecatedOptions(t *testing.T) {
+	// Parse configuration.
+	var c run.Config
+	if err := c.FromToml(`
+[collectd]
+bind-address = ":1000"
+
+[opentsdb]
+bind-address = ":2000"
+`); err != nil {
+		t.Fatal(err)
+	}
+
+	// Validate configuration.
+	if c.CollectdInputs[0].BindAddress != ":1000" {
+		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[0].BindAddress)
+	} else if c.OpenTSDBInputs[0].BindAddress != ":2000" {
+		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[0].BindAddress)
 	}
 }

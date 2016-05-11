@@ -2,14 +2,18 @@ package run
 
 import (
 	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
 	"os/user"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/cluster"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/admin"
@@ -114,6 +118,30 @@ func NewDemoConfig() (*Config, error) {
 	c.Admin.Enabled = true
 
 	return c, nil
+}
+
+// FromTomlFile loads the config from a TOML file.
+func (c *Config) FromTomlFile(fpath string) error {
+	bs, err := ioutil.ReadFile(fpath)
+	if err != nil {
+		return err
+	}
+	return c.FromToml(string(bs))
+}
+
+// FromToml loads the config from TOML.
+func (c *Config) FromToml(input string) error {
+	// Replace collectd and opentsdb sections in the old format with the new.
+	// TODO(jsternberg): Remove for 1.0.
+	re := regexp.MustCompile(`(?m)^\s*\[(collectd|opentsdb)\]`)
+	input = re.ReplaceAllStringFunc(input, func(in string) string {
+		in = strings.TrimSpace(in)
+		out := "[" + in + "]"
+		log.Printf("deprecated config option %s replaced with %s; %s will not be supported in a future release\n", in, out, in)
+		return out
+	})
+	_, err := toml.Decode(input, c)
+	return err
 }
 
 // Validate returns an error if the config is invalid.

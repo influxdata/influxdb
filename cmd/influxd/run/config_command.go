@@ -66,7 +66,7 @@ func (cmd *PrintConfigCommand) parseConfig(path string) (*Config, error) {
 	}
 
 	config := NewConfig()
-	if _, err := toml.DecodeFile(path, &config); err != nil {
+	if err := config.FromTomlFile(path); err != nil {
 		return nil, err
 	}
 	return config, nil
