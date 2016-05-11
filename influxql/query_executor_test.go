@@ -39,7 +39,11 @@ func TestQueryExecutor_AttachQuery(t *testing.T) {
 		},
 	}
 
-	discardOutput(e.ExecuteQuery(q, "mydb", 100, false, nil))
+	qid, results := e.ExecuteQuery(q, "mydb", 100, false, nil)
+	if qid != 1 {
+		t.Errorf("incorrect query id: exp=1 got=%d", qid)
+	}
+	discardOutput(results)
 }
 
 func TestQueryExecutor_KillQuery(t *testing.T) {
@@ -48,12 +52,9 @@ func TestQueryExecutor_KillQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	qid := make(chan uint64)
-
 	e := influxql.NewQueryExecutor()
 	e.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
-			qid <- ctx.QueryID
 			select {
 			case <-ctx.InterruptCh:
 				return influxql.ErrQueryInterrupted
@@ -64,12 +65,13 @@ func TestQueryExecutor_KillQuery(t *testing.T) {
 		},
 	}
 
-	results := e.ExecuteQuery(q, "mydb", 100, false, nil)
-	q, err = influxql.ParseQuery(fmt.Sprintf("KILL QUERY %d", <-qid))
+	qid, results := e.ExecuteQuery(q, "mydb", 100, false, nil)
+	q, err = influxql.ParseQuery(fmt.Sprintf("KILL QUERY %d", qid))
 	if err != nil {
 		t.Fatal(err)
 	}
-	discardOutput(e.ExecuteQuery(q, "mydb", 100, false, nil))
+	_, kill := e.ExecuteQuery(q, "mydb", 100, false, nil)
+	discardOutput(kill)
 
 	result := <-results
 	if result.Err != influxql.ErrQueryInterrupted {
@@ -97,7 +99,7 @@ func TestQueryExecutor_Interrupt(t *testing.T) {
 	}
 
 	closing := make(chan struct{})
-	results := e.ExecuteQuery(q, "mydb", 100, false, closing)
+	_, results := e.ExecuteQuery(q, "mydb", 100, false, closing)
 	close(closing)
 	result := <-results
 	if result.Err != influxql.ErrQueryInterrupted {
@@ -124,7 +126,7 @@ func TestQueryExecutor_ShowQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	results := e.ExecuteQuery(q, "", 100, false, nil)
+	_, results := e.ExecuteQuery(q, "", 100, false, nil)
 	result := <-results
 	if len(result.Series) != 1 {
 		t.Errorf("expected %d rows, got %d", 1, len(result.Series))
@@ -154,7 +156,7 @@ func TestQueryExecutor_Limit_Timeout(t *testing.T) {
 	}
 	e.QueryTimeout = time.Nanosecond
 
-	results := e.ExecuteQuery(q, "mydb", 100, false, nil)
+	_, results := e.ExecuteQuery(q, "mydb", 100, false, nil)
 	result := <-results
 	if result.Err != influxql.ErrQueryTimeoutReached {
 		t.Errorf("unexpected error: %s", result.Err)
@@ -167,12 +169,13 @@ func TestQueryExecutor_Limit_ConcurrentQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	qid := make(chan uint64)
+	// Create a channel so the statement executor can signal if it ran.
+	ch := make(chan struct{})
 
 	e := influxql.NewQueryExecutor()
 	e.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
-			qid <- ctx.QueryID
+			ch <- struct{}{}
 			<-ctx.InterruptCh
 			return influxql.ErrQueryInterrupted
 		},
@@ -181,11 +184,12 @@ func TestQueryExecutor_Limit_ConcurrentQueries(t *testing.T) {
 	defer e.Close()
 
 	// Start first query and wait for it to be executing.
-	go discardOutput(e.ExecuteQuery(q, "mydb", 100, false, nil))
-	<-qid
+	_, results := e.ExecuteQuery(q, "mydb", 100, false, nil)
+	go discardOutput(results)
+	<-ch
 
 	// Start second query and expect for it to fail.
-	results := e.ExecuteQuery(q, "mydb", 100, false, nil)
+	_, results = e.ExecuteQuery(q, "mydb", 100, false, nil)
 
 	select {
 	case result := <-results:
@@ -195,7 +199,7 @@ func TestQueryExecutor_Limit_ConcurrentQueries(t *testing.T) {
 		if result.Err != influxql.ErrMaxConcurrentQueriesReached {
 			t.Errorf("unexpected error: %s", result.Err)
 		}
-	case <-qid:
+	case <-ch:
 		t.Errorf("unexpected statement execution for the second query")
 	}
 }
@@ -219,7 +223,7 @@ func TestQueryExecutor_Close(t *testing.T) {
 		},
 	}
 
-	results := e.ExecuteQuery(q, "mydb", 100, false, nil)
+	_, results := e.ExecuteQuery(q, "mydb", 100, false, nil)
 	go func(results <-chan *influxql.Result) {
 		result := <-results
 		if result.Err != influxql.ErrQueryEngineShutdown {
@@ -240,7 +244,7 @@ func TestQueryExecutor_Close(t *testing.T) {
 		t.Error("closing the query manager did not kill the query after 100 milliseconds")
 	}
 
-	results = e.ExecuteQuery(q, "mydb", 100, false, nil)
+	_, results = e.ExecuteQuery(q, "mydb", 100, false, nil)
 	result := <-results
 	if len(result.Series) != 0 {
 		t.Errorf("expected %d rows, got %d", 0, len(result.Series))
@@ -263,7 +267,7 @@ func TestQueryExecutor_Panic(t *testing.T) {
 		},
 	}
 
-	results := e.ExecuteQuery(q, "mydb", 100, false, nil)
+	_, results := e.ExecuteQuery(q, "mydb", 100, false, nil)
 	result := <-results
 	if len(result.Series) != 0 {
 		t.Errorf("expected %d rows, got %d", 0, len(result.Series))
