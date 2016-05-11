@@ -252,10 +252,16 @@ func (w *PointsWriter) WritePoints(database, retentionPolicy string, consistency
 		w.statMap.Add(statSubWriteDrop, 1)
 	}
 
+	timeout := time.NewTimer(w.WriteTimeout)
+	defer timeout.Stop()
 	for range shardMappings.Points {
 		select {
 		case <-w.closing:
 			return ErrWriteFailed
+		case <-timeout.C:
+			w.statMap.Add(statWriteTimeout, 1)
+			// return timeout error to caller
+			return ErrTimeout
 		case err := <-ch:
 			if err != nil {
 				return err
