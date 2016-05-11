@@ -140,6 +140,16 @@ func (c *Config) FromToml(input string) error {
 		log.Printf("deprecated config option %s replaced with %s; %s will not be supported in a future release\n", in, out, in)
 		return out
 	})
+
+	// Replace deprecated [cluster] with [coordinator]
+	re = regexp.MustCompile(`(?m)^\s*\[(cluster)\]`)
+	input = re.ReplaceAllStringFunc(input, func(in string) string {
+		in = strings.TrimSpace(in)
+		out := "[coordinator]"
+		log.Printf("deprecated config option %s replaced with %s; %s will not be supported in a future release\n", in, out, in)
+		return out
+	})
+
 	_, err := toml.Decode(input, c)
 	return err
 }
