@@ -79,6 +79,24 @@ type PointsWriter struct {
 	statMap *expvar.Map
 }
 
+// WritePointsRequest represents a request to write point data to the cluster
+type WritePointsRequest struct {
+	Database        string
+	RetentionPolicy string
+	Points          []models.Point
+}
+
+// AddPoint adds a point to the WritePointRequest with field key 'value'
+func (w *WritePointsRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
+	pt, err := models.NewPoint(
+		name, tags, map[string]interface{}{"value": value}, timestamp,
+	)
+	if err != nil {
+		return
+	}
+	w.Points = append(w.Points, pt)
+}
+
 // NewPointsWriter returns a new instance of PointsWriter for a node.
 func NewPointsWriter() *PointsWriter {
 	return &PointsWriter{

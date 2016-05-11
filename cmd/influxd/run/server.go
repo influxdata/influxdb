@@ -64,7 +64,6 @@ type Server struct {
 	Services []Service
 
 	// These references are required for the tcp muxer.
-	ClusterService     *cluster.Service
 	SnapshotterService *snapshotter.Service
 
 	Monitor *monitor.Monitor
@@ -197,14 +196,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	return s, nil
 }
 
-func (s *Server) appendClusterService(c cluster.Config) {
-	srv := cluster.NewService(c)
-	srv.TSDBStore = cluster.LocalTSDBStore{Store: s.TSDBStore}
-	srv.Monitor = s.Monitor
-	s.Services = append(s.Services, srv)
-	s.ClusterService = srv
-}
-
 func (s *Server) appendSnapshotterService() {
 	srv := snapshotter.NewService()
 	srv.TSDBStore = s.TSDBStore
@@ -241,7 +232,6 @@ func (s *Server) Open() error {
 
 	// Append services.
 	s.appendMonitorService()
-	s.appendClusterService(s.config.Cluster)
 	s.appendPrecreatorService(s.config.Precreator)
 	s.appendSnapshotterService()
 	s.appendAdminService(s.config.Admin)
@@ -270,7 +260,6 @@ func (s *Server) Open() error {
 	s.PointsWriter.MetaClient = s.MetaClient
 	s.Monitor.MetaClient = s.MetaClient
 
-	s.ClusterService.Listener = mux.Listen(cluster.MuxHeader)
 	s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
 
 	// Configure logging for all services and clients.
@@ -283,7 +272,6 @@ func (s *Server) Open() error {
 	for _, svc := range s.Services {
 		svc.SetLogOutput(w)
 	}
-	s.ClusterService.SetLogOutput(w)
 	s.SnapshotterService.SetLogOutput(w)
 	s.Monitor.SetLogOutput(w)
 
