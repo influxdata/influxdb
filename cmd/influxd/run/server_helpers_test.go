@@ -230,8 +230,8 @@ func NewConfig() *run.Config {
 	c := run.NewConfig()
 	c.BindAddress = "127.0.0.1:0"
 	c.ReportingDisabled = true
-	c.Cluster.ShardWriterTimeout = toml.Duration(30 * time.Second)
-	c.Cluster.WriteTimeout = toml.Duration(30 * time.Second)
+	c.Coordinator.ShardWriterTimeout = toml.Duration(30 * time.Second)
+	c.Coordinator.WriteTimeout = toml.Duration(30 * time.Second)
 	c.Meta.Dir = MustTempFile()
 
 	if !testing.Verbose() {

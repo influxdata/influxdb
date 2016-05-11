@@ -1,16 +1,16 @@
-package cluster_test
+package coordinator_test
 
 import (
 	"testing"
 	"time"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/coordinator"
 )
 
 func TestConfig_Parse(t *testing.T) {
 	// Parse configuration.
-	var c cluster.Config
+	var c coordinator.Config
 	if _, err := toml.Decode(`
 shard-writer-timeout = "10s"
 write-timeout = "20s"

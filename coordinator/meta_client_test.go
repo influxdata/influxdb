@@ -1,4 +1,4 @@
-package cluster_test
+package coordinator_test
 
 import (
 	"time"

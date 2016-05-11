@@ -1,4 +1,4 @@
-package cluster_test
+package coordinator_test
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 )
@@ -30,15 +30,15 @@ func TestPointsWriter_MapShards_One(t *testing.T) {
 		return &rp.ShardGroups[0], nil
 	}
 
-	c := cluster.PointsWriter{MetaClient: ms}
-	pr := &cluster.WritePointsRequest{
+	c := coordinator.PointsWriter{MetaClient: ms}
+	pr := &coordinator.WritePointsRequest{
 		Database:        "mydb",
 		RetentionPolicy: "myrp",
 	}
 	pr.AddPoint("cpu", 1.0, time.Now(), nil)
 
 	var (
-		shardMappings *cluster.ShardMapping
+		shardMappings *coordinator.ShardMapping
 		err           error
 	)
 	if shardMappings, err = c.MapShards(pr); err != nil {
@@ -79,8 +79,8 @@ func TestPointsWriter_MapShards_Multiple(t *testing.T) {
 		panic("should not get here")
 	}
 
-	c := cluster.PointsWriter{MetaClient: ms}
-	pr := &cluster.WritePointsRequest{
+	c := coordinator.PointsWriter{MetaClient: ms}
+	pr := &coordinator.WritePointsRequest{
 		Database:        "mydb",
 		RetentionPolicy: "myrp",
 	}
@@ -92,7 +92,7 @@ func TestPointsWriter_MapShards_Multiple(t *testing.T) {
 	pr.AddPoint("cpu", 3.0, time.Unix(0, 0).Add(time.Hour+time.Second), nil)
 
 	var (
-		shardMappings *cluster.ShardMapping
+		shardMappings *coordinator.ShardMapping
 		err           error
 	)
 	if shardMappings, err = c.MapShards(pr); err != nil {
@@ -150,7 +150,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 
 	for _, test := range tests {
 
-		pr := &cluster.WritePointsRequest{
+		pr := &coordinator.WritePointsRequest{
 			Database:        test.database,
 			RetentionPolicy: test.retentionPolicy,
 		}
@@ -163,7 +163,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 
 		// copy to prevent data race
 		theTest := test
-		sm := cluster.NewShardMapping()
+		sm := coordinator.NewShardMapping()
 		sm.MapPoint(
 			&meta.ShardInfo{ID: uint64(1), Owners: []meta.ShardOwner{
 				{NodeID: 1},
@@ -186,7 +186,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 			}},
 			pr.Points[2])
 
-		// Local cluster.Node ShardWriter
+		// Local coordinator.Node ShardWriter
 		// lock on the write increment since these functions get called in parallel
 		var mu sync.Mutex
 		sw := &fakeShardWriter{
@@ -217,13 +217,13 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		}
 		ms.NodeIDFn = func() uint64 { return 1 }
 
-		subPoints := make(chan *cluster.WritePointsRequest, 1)
+		subPoints := make(chan *coordinator.WritePointsRequest, 1)
 		sub := Subscriber{}
-		sub.PointsFn = func() chan<- *cluster.WritePointsRequest {
+		sub.PointsFn = func() chan<- *coordinator.WritePointsRequest {
 			return subPoints
 		}
 
-		c := cluster.NewPointsWriter()
+		c := coordinator.NewPointsWriter()
 		c.MetaClient = ms
 		c.ShardWriter = sw
 		c.TSDBStore = store
@@ -337,10 +337,10 @@ func (m PointsWriterMetaClient) ShardOwner(shardID uint64) (string, string, *met
 }
 
 type Subscriber struct {
-	PointsFn func() chan<- *cluster.WritePointsRequest
+	PointsFn func() chan<- *coordinator.WritePointsRequest
 }
 
-func (s Subscriber) Points() chan<- *cluster.WritePointsRequest {
+func (s Subscriber) Points() chan<- *coordinator.WritePointsRequest {
 	return s.PointsFn()
 }
 

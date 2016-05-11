@@ -33,7 +33,7 @@ func TestSize_UnmarshalText_GB(t *testing.T) {
 
 func TestConfig_Encode(t *testing.T) {
 	var c run.Config
-	c.Cluster.WriteTimeout = itoml.Duration(time.Minute)
+	c.Coordinator.WriteTimeout = itoml.Duration(time.Minute)
 	buf := new(bytes.Buffer)
 	if err := toml.NewEncoder(buf).Encode(&c); err != nil {
 		t.Fatal("Failed to encode: ", err)

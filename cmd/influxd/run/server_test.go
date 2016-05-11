@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/models"
 )
 
@@ -6097,7 +6097,7 @@ func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
 			case <-done:
 				return
 			default:
-				wpr := &cluster.WritePointsRequest{
+				wpr := &coordinator.WritePointsRequest{
 					Database:        "db0",
 					RetentionPolicy: "rp0",
 				}

@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/cluster"
+	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
@@ -58,7 +58,7 @@ type Server struct {
 
 	TSDBStore     *tsdb.Store
 	QueryExecutor *influxql.QueryExecutor
-	PointsWriter  *cluster.PointsWriter
+	PointsWriter  *coordinator.PointsWriter
 	Subscriber    *subscriber.Service
 
 	Services []Service
@@ -164,25 +164,25 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.Subscriber = subscriber.NewService(c.Subscriber)
 
 	// Initialize points writer.
-	s.PointsWriter = cluster.NewPointsWriter()
-	s.PointsWriter.WriteTimeout = time.Duration(c.Cluster.WriteTimeout)
+	s.PointsWriter = coordinator.NewPointsWriter()
+	s.PointsWriter.WriteTimeout = time.Duration(c.Coordinator.WriteTimeout)
 	s.PointsWriter.TSDBStore = s.TSDBStore
 	s.PointsWriter.Subscriber = s.Subscriber
 
 	// Initialize query executor.
 	s.QueryExecutor = influxql.NewQueryExecutor()
-	s.QueryExecutor.StatementExecutor = &cluster.StatementExecutor{
+	s.QueryExecutor.StatementExecutor = &coordinator.StatementExecutor{
 		MetaClient:        s.MetaClient,
-		TSDBStore:         cluster.LocalTSDBStore{Store: s.TSDBStore},
+		TSDBStore:         coordinator.LocalTSDBStore{Store: s.TSDBStore},
 		Monitor:           s.Monitor,
 		PointsWriter:      s.PointsWriter,
-		MaxSelectPointN:   c.Cluster.MaxSelectPointN,
-		MaxSelectSeriesN:  c.Cluster.MaxSelectSeriesN,
-		MaxSelectBucketsN: c.Cluster.MaxSelectBucketsN,
+		MaxSelectPointN:   c.Coordinator.MaxSelectPointN,
+		MaxSelectSeriesN:  c.Coordinator.MaxSelectSeriesN,
+		MaxSelectBucketsN: c.Coordinator.MaxSelectBucketsN,
 	}
-	s.QueryExecutor.QueryTimeout = time.Duration(c.Cluster.QueryTimeout)
-	s.QueryExecutor.LogQueriesAfter = time.Duration(c.Cluster.LogQueriesAfter)
-	s.QueryExecutor.MaxConcurrentQueries = c.Cluster.MaxConcurrentQueries
+	s.QueryExecutor.QueryTimeout = time.Duration(c.Coordinator.QueryTimeout)
+	s.QueryExecutor.LogQueriesAfter = time.Duration(c.Coordinator.LogQueriesAfter)
+	s.QueryExecutor.MaxConcurrentQueries = c.Coordinator.MaxConcurrentQueries
 	if c.Data.QueryLogEnabled {
 		s.QueryExecutor.Logger = log.New(os.Stderr, "[query] ", log.LstdFlags)
 	}
@@ -490,12 +490,12 @@ type tcpaddr struct{ host string }
 func (a *tcpaddr) Network() string { return "tcp" }
 func (a *tcpaddr) String() string  { return a.host }
 
-// monitorPointsWriter is a wrapper around `cluster.PointsWriter` that helps
+// monitorPointsWriter is a wrapper around `coordinator.PointsWriter` that helps
 // to prevent a circular dependency between the `cluster` and `monitor` packages.
-type monitorPointsWriter cluster.PointsWriter
+type monitorPointsWriter coordinator.PointsWriter
 
 func (pw *monitorPointsWriter) WritePoints(database, retentionPolicy string, points models.Points) error {
-	return (*cluster.PointsWriter)(pw).WritePoints(database, retentionPolicy, models.ConsistencyLevelAny, points)
+	return (*coordinator.PointsWriter)(pw).WritePoints(database, retentionPolicy, models.ConsistencyLevelAny, points)
 }
 
 func (s *Server) remoteAddr(addr string) string {
