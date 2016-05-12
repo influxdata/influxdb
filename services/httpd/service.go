@@ -40,6 +40,7 @@ type Service struct {
 	addr  string
 	https bool
 	cert  string
+	limit int
 	err   chan error
 
 	Handler *Handler
@@ -60,6 +61,7 @@ func NewService(c Config) *Service {
 		addr:    c.BindAddress,
 		https:   c.HTTPSEnabled,
 		cert:    c.HTTPSCertificate,
+		limit:   c.MaxConnectionLimit,
 		err:     make(chan error),
 		Handler: NewHandler(c, statMap),
 		Logger:  log.New(os.Stderr, "[httpd] ", log.LstdFlags),
@@ -97,6 +99,11 @@ func (s *Service) Open() error {
 
 		s.Logger.Println("Listening on HTTP:", listener.Addr().String())
 		s.ln = listener
+	}
+
+	// Enforce a connection limit if one has been given.
+	if s.limit > 0 {
+		s.ln = LimitListener(s.ln, s.limit)
 	}
 
 	// wait for the listeners to start
