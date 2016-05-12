@@ -233,6 +233,10 @@ func (d *DatabaseIndex) TagsForSeries(key string) map[string]string {
 // is true) against when there are no measurements because the expression
 // wasn't evaluated (when the bool is false).
 func (d *DatabaseIndex) measurementsByExpr(expr influxql.Expr) (Measurements, bool, error) {
+	if expr == nil {
+		return nil, false, nil
+	}
+
 	switch e := expr.(type) {
 	case *influxql.BinaryExpr:
 		switch e.Op {
@@ -360,7 +364,7 @@ func (d *DatabaseIndex) measurementsByTagFilters(filters []*TagFilter) Measureme
 					tagMatch = true
 				}
 			} else {
-				// Else, the operator is regex and we have to check all tag
+				// Else, the operator is a regex and we have to check all tag
 				// values against the regular expression.
 				for tagVal := range tagVals {
 					if f.Regex.MatchString(tagVal) {
