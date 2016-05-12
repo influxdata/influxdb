@@ -4,6 +4,7 @@ github.com/armon/go-metrics 345426c77237ece5dab0e1605c3e4b35c3f54757
 github.com/bmizerany/pat b8a35001b773c267eb260a691f4e5499a3531600
 github.com/boltdb/bolt 2f846c3551b76d7710f159be840d66c3d064abbe
 github.com/davecgh/go-spew fc32781af5e85e548d3f1abaf0fa3dbe8a72495c
+github.com/dgrijalva/jwt-go a2c85815a77d0f951e33ba4db5ae93629a1530af
 github.com/dgryski/go-bits 86c69b3c986f9d40065df5bd8f765796549eef2e
 github.com/dgryski/go-bitstream 27cd5973303fde7d914860be1ea4b927a6be0c92
 github.com/gogo/protobuf 74b6e9deaff6ba6da1389ec97351d337f0d08b06
