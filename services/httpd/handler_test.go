@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -153,7 +154,7 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if w.Body.String() != `{"error":"token is expired by 1s"}` {
+	} else if !strings.Contains(w.Body.String(), `{"error":"token is expired`) {
 		t.Fatalf("unexpected body: %s", w.Body.String())
 	}
 
@@ -165,12 +166,11 @@ func TestHandler_Query_Auth(t *testing.T) {
 		t.Fatal(err)
 	}
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", signedToken))
-
 	w = httptest.NewRecorder()
 	h.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
+	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if w.Body.String() != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
+	} else if w.Body.String() != `{"error":"token expiration required"}` {
 		t.Fatalf("unexpected body: %s", w.Body.String())
 	}
 }

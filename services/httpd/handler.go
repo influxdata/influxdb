@@ -726,6 +726,12 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, *meta.UserInfo)
 					return
 				}
 
+				// Make sure an expiration was set on the token.
+				if exp, ok := token.Claims["exp"].(float64); !ok || exp <= 0.0 {
+					httpError(w, "token expiration required", false, http.StatusUnauthorized)
+					return
+				}
+
 				// Get the username from the token.
 				username, ok := token.Claims["username"].(string)
 				if !ok {
