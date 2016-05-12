@@ -937,9 +937,6 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions) ([]influxql.
 	if err := func() error {
 		mms := tsdb.Measurements(e.index.MeasurementsByName(influxql.Sources(opt.Sources).Names()))
 
-		// Retrieve the maximum number of fields (without time).
-		conditionFields := make([]string, len(influxql.ExprNames(opt.Condition)))
-
 		for _, mm := range mms {
 			// Determine tagsets for this measurement based on dimensions and filters.
 			tagSets, err := mm.TagSets(opt.Dimensions, opt.Condition)
@@ -951,24 +948,9 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions) ([]influxql.
 			tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
 
 			for _, t := range tagSets {
-				inputs := make([]influxql.Iterator, 0, len(t.SeriesKeys))
-				for i, seriesKey := range t.SeriesKeys {
-					fields := 0
-					if t.Filters[i] != nil {
-						// Retrieve non-time fields from this series filter and filter out tags.
-						for _, f := range influxql.ExprNames(t.Filters[i]) {
-							conditionFields[fields] = f
-							fields++
-						}
-					}
-
-					input, err := e.createVarRefSeriesIterator(ref, mm, seriesKey, t, t.Filters[i], conditionFields[:fields], opt)
-					if err != nil {
-						return err
-					} else if input == nil {
-						continue
-					}
-					inputs = append(inputs, input)
+				inputs, err := e.createTagSetIterators(ref, mm, t, opt)
+				if err != nil {
+					return err
 				}
 
 				if len(inputs) > 0 && (opt.Limit > 0 || opt.Offset > 0) {
@@ -990,6 +972,100 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions) ([]influxql.
 		return nil, err
 	}
 
+	return itrs, nil
+}
+
+// createTagSetIterators creates a set of iterators for a tagset.
+func (e *Engine) createTagSetIterators(ref *influxql.VarRef, mm *tsdb.Measurement, t *influxql.TagSet, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
+	// Set parallelism by number of logical cpus.
+	parallelism := runtime.GOMAXPROCS(0)
+	if parallelism > len(t.SeriesKeys) {
+		parallelism = len(t.SeriesKeys)
+	}
+
+	// Create series key groupings w/ return error.
+	groups := make([]struct {
+		keys    []string
+		filters []influxql.Expr
+		itrs    []influxql.Iterator
+		err     error
+	}, parallelism)
+
+	// Group series keys.
+	n := len(t.SeriesKeys) / parallelism
+	for i := 0; i < parallelism; i++ {
+		group := &groups[i]
+
+		if i < parallelism-1 {
+			group.keys = t.SeriesKeys[i*n : (i+1)*n]
+			group.filters = t.Filters[i*n : (i+1)*n]
+		} else {
+			group.keys = t.SeriesKeys[i*n:]
+			group.filters = t.Filters[i*n:]
+		}
+
+		group.itrs = make([]influxql.Iterator, 0, len(group.keys))
+	}
+
+	// Read series groups in parallel.
+	var wg sync.WaitGroup
+	for i := range groups {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			groups[i].itrs, groups[i].err = e.createTagSetGroupIterators(ref, mm, groups[i].keys, t, groups[i].filters, opt)
+		}(i)
+	}
+	wg.Wait()
+
+	// Determine total number of iterators so we can allocate only once.
+	var itrN int
+	for _, group := range groups {
+		itrN += len(group.itrs)
+	}
+
+	// Combine all iterators together and check for errors.
+	var err error
+	itrs := make([]influxql.Iterator, 0, itrN)
+	for _, group := range groups {
+		if group.err != nil {
+			err = group.err
+		}
+		itrs = append(itrs, group.itrs...)
+	}
+
+	// If an error occurred, make sure we close all created iterators.
+	if err != nil {
+		influxql.Iterators(itrs).Close()
+		return nil, err
+	}
+
+	return itrs, nil
+}
+
+// createTagSetGroupIterators creates a set of iterators for a subset of a tagset's series.
+func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, mm *tsdb.Measurement, seriesKeys []string, t *influxql.TagSet, filters []influxql.Expr, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
+	conditionFields := make([]string, len(influxql.ExprNames(opt.Condition)))
+
+	itrs := make([]influxql.Iterator, 0, len(seriesKeys))
+	for i, seriesKey := range seriesKeys {
+		fields := 0
+		if filters[i] != nil {
+			// Retrieve non-time fields from this series filter and filter out tags.
+			for _, f := range influxql.ExprNames(filters[i]) {
+				conditionFields[fields] = f
+				fields++
+			}
+		}
+
+		itr, err := e.createVarRefSeriesIterator(ref, mm, seriesKey, t, filters[i], conditionFields[:fields], opt)
+		if err != nil {
+			return itrs, err
+		} else if itr == nil {
+			continue
+		}
+		itrs = append(itrs, itr)
+	}
 	return itrs, nil
 }
 
