@@ -532,7 +532,7 @@ func MustJWTToken(username, secret string, expired bool) (*jwt.Token, string) {
 	if expired {
 		token.Claims["exp"] = time.Now().Add(-time.Second).Unix()
 	} else {
-		token.Claims["exp"] = time.Now().Add(time.Second * 10).Unix()
+		token.Claims["exp"] = time.Now().Add(time.Minute * 10).Unix()
 	}
 	signed, err := token.SignedString([]byte(secret))
 	if err != nil {
