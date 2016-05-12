@@ -57,18 +57,12 @@ func NewService(c Config) *Service {
 	statMap := influxdb.NewStatistics(key, "httpd", tags)
 
 	s := &Service{
-		addr:  c.BindAddress,
-		https: c.HTTPSEnabled,
-		cert:  c.HTTPSCertificate,
-		err:   make(chan error),
-		Handler: NewHandler(
-			c.AuthEnabled,
-			c.LogEnabled,
-			c.WriteTracing,
-			c.MaxRowLimit,
-			statMap,
-		),
-		Logger: log.New(os.Stderr, "[httpd] ", log.LstdFlags),
+		addr:    c.BindAddress,
+		https:   c.HTTPSEnabled,
+		cert:    c.HTTPSCertificate,
+		err:     make(chan error),
+		Handler: NewHandler(c, statMap),
+		Logger:  log.New(os.Stderr, "[httpd] ", log.LstdFlags),
 	}
 	s.Handler.Logger = s.Logger
 	return s
@@ -77,7 +71,7 @@ func NewService(c Config) *Service {
 // Open starts the service
 func (s *Service) Open() error {
 	s.Logger.Println("Starting HTTP service")
-	s.Logger.Println("Authentication enabled:", s.Handler.requireAuthentication)
+	s.Logger.Println("Authentication enabled:", s.Handler.Config.AuthEnabled)
 
 	// Open listener.
 	if s.https {

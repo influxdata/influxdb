@@ -14,6 +14,7 @@ type Config struct {
 	HTTPSEnabled     bool   `toml:"https-enabled"`
 	HTTPSCertificate string `toml:"https-certificate"`
 	MaxRowLimit      int    `toml:"max-row-limit"`
+	SharedSecret     string `toml:"shared-secret"`
 }
 
 // NewConfig returns a new Config with default settings.

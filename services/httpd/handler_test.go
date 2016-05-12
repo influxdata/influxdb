@@ -3,6 +3,7 @@ package httpd_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dgrijalva/jwt-go"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -35,6 +37,139 @@ func TestHandler_Query(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
+	} else if w.Body.String() != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", w.Body.String())
+	}
+}
+
+// Test query with user authentication.
+func TestHandler_Query_Auth(t *testing.T) {
+	// Create the handler to be tested.
+	h := NewHandler(true)
+
+	// Set mock meta client functions for the handler to use.
+	h.MetaClient.UsersFn = func() []meta.UserInfo {
+		return []meta.UserInfo{
+			{
+				Name:       "user1",
+				Hash:       "abcd",
+				Admin:      true,
+				Privileges: make(map[string]influxql.Privilege),
+			},
+		}
+	}
+
+	h.MetaClient.UserFn = func(username string) (*meta.UserInfo, error) {
+		if username != "user1" {
+			return nil, meta.ErrUserNotFound
+		}
+		return &meta.UserInfo{
+			Name:  "user1",
+			Hash:  "abcd",
+			Admin: true,
+		}, nil
+	}
+
+	h.MetaClient.AuthenticateFn = func(u, p string) (*meta.UserInfo, error) {
+		if u != "user1" {
+			return nil, fmt.Errorf("unexpected user: exp: user1, got: %s", u)
+		} else if p != "abcd" {
+			return nil, fmt.Errorf("unexpected password: exp: abcd, got: %s", p)
+		}
+		return h.MetaClient.User(u)
+	}
+
+	// Set mock query authorizer for handler to use.
+	h.QueryAuthorizer.AuthorizeQueryFn = func(u *meta.UserInfo, query *influxql.Query, database string) error {
+		return nil
+	}
+
+	// Set mock statement executor for handler to use.
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		if stmt.String() != `SELECT * FROM bar` {
+			t.Fatalf("unexpected query: %s", stmt.String())
+		} else if ctx.Database != `foo` {
+			t.Fatalf("unexpected db: %s", ctx.Database)
+		}
+		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+		ctx.Results <- &influxql.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		return nil
+	}
+
+	// Test the handler with valid user and password in the URL parameters.
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u=user1&p=abcd&db=foo&q=SELECT+*+FROM+bar", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
+	} else if w.Body.String() != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", w.Body.String())
+	}
+
+	// Test the handler with valid JWT bearer token.
+	req := MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil)
+	// Create a signed JWT token string and add it to the request header.
+	_, signedToken := MustJWTToken("user1", h.Config.SharedSecret, false)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", signedToken))
+
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
+	} else if w.Body.String() != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", w.Body.String())
+	}
+
+	// Test the handler with JWT token signed with invalid key.
+	req = MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil)
+	// Create a signed JWT token string and add it to the request header.
+	_, signedToken = MustJWTToken("user1", "invalid key", false)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", signedToken))
+
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
+	} else if w.Body.String() != `{"error":"signature is invalid"}` {
+		t.Fatalf("unexpected body: %s", w.Body.String())
+	}
+
+	// Test handler with valid JWT token carrying non-existant user.
+	_, signedToken = MustJWTToken("bad_user", h.Config.SharedSecret, false)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", signedToken))
+
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
+	} else if w.Body.String() != `{"error":"user not found"}` {
+		t.Fatalf("unexpected body: %s", w.Body.String())
+	}
+
+	// Test handler with expired JWT token.
+	_, signedToken = MustJWTToken("user1", h.Config.SharedSecret, true)
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", signedToken))
+
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
+	} else if w.Body.String() != `{"error":"token is expired by 1s"}` {
+		t.Fatalf("unexpected body: %s", w.Body.String())
+	}
+
+	// Test handler with JWT token that has no expiration set.
+	token, _ := MustJWTToken("user1", h.Config.SharedSecret, false)
+	delete(token.Claims, "exp")
+	signedToken, err := token.SignedString([]byte(h.Config.SharedSecret))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", signedToken))
+
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
 	} else if w.Body.String() != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
 		t.Fatalf("unexpected body: %s", w.Body.String())
 	}
@@ -282,17 +417,24 @@ type Handler struct {
 	*httpd.Handler
 	MetaClient        HandlerMetaStore
 	StatementExecutor HandlerStatementExecutor
+	QueryAuthorizer   HandlerQueryAuthorizer
 }
 
 // NewHandler returns a new instance of Handler.
 func NewHandler(requireAuthentication bool) *Handler {
 	statMap := influxdb.NewStatistics("httpd", "httpd", nil)
+
+	config := httpd.NewConfig()
+	config.AuthEnabled = requireAuthentication
+	config.SharedSecret = "super secret key"
+
 	h := &Handler{
-		Handler: httpd.NewHandler(requireAuthentication, true, false, 0, statMap),
+		Handler: httpd.NewHandler(config, statMap),
 	}
 	h.Handler.MetaClient = &h.MetaClient
 	h.Handler.QueryExecutor = influxql.NewQueryExecutor()
 	h.Handler.QueryExecutor.StatementExecutor = &h.StatementExecutor
+	h.Handler.QueryAuthorizer = &h.QueryAuthorizer
 	h.Handler.Version = "0.0.0"
 	return h
 }
@@ -303,6 +445,7 @@ type HandlerMetaStore struct {
 	DatabaseFn     func(name string) *meta.DatabaseInfo
 	AuthenticateFn func(username, password string) (ui *meta.UserInfo, err error)
 	UsersFn        func() []meta.UserInfo
+	UserFn         func(username string) (*meta.UserInfo, error)
 }
 
 func (s *HandlerMetaStore) Ping(b bool) error {
@@ -325,6 +468,10 @@ func (s *HandlerMetaStore) Users() []meta.UserInfo {
 	return s.UsersFn()
 }
 
+func (s *HandlerMetaStore) User(username string) (*meta.UserInfo, error) {
+	return s.UserFn(username)
+}
+
 // HandlerStatementExecutor is a mock implementation of Handler.StatementExecutor.
 type HandlerStatementExecutor struct {
 	ExecuteStatementFn func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error
@@ -336,6 +483,15 @@ func (e *HandlerStatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx
 
 func (e *HandlerStatementExecutor) NormalizeStatement(stmt influxql.Statement, database string) error {
 	return nil
+}
+
+// HandlerQueryAuthorizer is a mock implementation of Handler.QueryAuthorizer.
+type HandlerQueryAuthorizer struct {
+	AuthorizeQueryFn func(u *meta.UserInfo, query *influxql.Query, database string) error
+}
+
+func (a *HandlerQueryAuthorizer) AuthorizeQuery(u *meta.UserInfo, query *influxql.Query, database string) error {
+	return a.AuthorizeQueryFn(u, query, database)
 }
 
 // MustNewRequest returns a new HTTP request. Panic on error.
@@ -367,4 +523,20 @@ func NewResultChan(results ...*influxql.Result) <-chan *influxql.Result {
 	}
 	close(ch)
 	return ch
+}
+
+// MustJWTToken returns a new JWT token and signed string or panics trying.
+func MustJWTToken(username, secret string, expired bool) (*jwt.Token, string) {
+	token := jwt.New(jwt.GetSigningMethod("HS512"))
+	token.Claims["username"] = username
+	if expired {
+		token.Claims["exp"] = time.Now().Add(-time.Second).Unix()
+	} else {
+		token.Claims["exp"] = time.Now().Add(time.Second * 10).Unix()
+	}
+	signed, err := token.SignedString([]byte(secret))
+	if err != nil {
+		panic(err)
+	}
+	return token, signed
 }

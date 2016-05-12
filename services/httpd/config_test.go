@@ -46,7 +46,7 @@ https-certificate = "/dev/null"
 func TestConfig_WriteTracing(t *testing.T) {
 	c := httpd.Config{WriteTracing: true}
 	s := httpd.NewService(c)
-	if !s.Handler.WriteTrace {
+	if !s.Handler.Config.WriteTracing {
 		t.Fatalf("write tracing was not set")
 	}
 }

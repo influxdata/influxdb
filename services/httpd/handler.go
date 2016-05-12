@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/bmizerany/pat"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -31,6 +32,13 @@ const (
 	//
 	// This has no relation to the number of bytes that are returned.
 	DefaultChunkSize = 10000
+)
+
+type AuthenticationMethod int
+
+const (
+	UserAuthentication AuthenticationMethod = iota
+	BearerAuthentication
 )
 
 // TODO: Standard response headers (see: HeaderHandler)
@@ -49,14 +57,14 @@ type Route struct {
 
 // Handler represents an HTTP handler for the InfluxDB server.
 type Handler struct {
-	mux                   *pat.PatternServeMux
-	requireAuthentication bool
-	Version               string
+	mux     *pat.PatternServeMux
+	Version string
 
 	MetaClient interface {
 		Database(name string) *meta.DatabaseInfo
 		Authenticate(username, password string) (ui *meta.UserInfo, err error)
 		Users() []meta.UserInfo
+		User(username string) (*meta.UserInfo, error)
 	}
 
 	QueryAuthorizer interface {
@@ -75,23 +83,18 @@ type Handler struct {
 
 	ContinuousQuerier continuous_querier.ContinuousQuerier
 
-	Logger         *log.Logger
-	loggingEnabled bool // Log every HTTP access.
-	WriteTrace     bool // Detailed logging of write path
-	rowLimit       int
-	statMap        *expvar.Map
+	Config  *Config
+	Logger  *log.Logger
+	statMap *expvar.Map
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(requireAuthentication, loggingEnabled, writeTrace bool, rowLimit int, statMap *expvar.Map) *Handler {
+func NewHandler(c Config, statMap *expvar.Map) *Handler {
 	h := &Handler{
-		mux: pat.New(),
-		requireAuthentication: requireAuthentication,
-		Logger:                log.New(os.Stderr, "[http] ", log.LstdFlags),
-		loggingEnabled:        loggingEnabled,
-		WriteTrace:            writeTrace,
-		rowLimit:              rowLimit,
-		statMap:               statMap,
+		mux:     pat.New(),
+		Config:  &c,
+		Logger:  log.New(os.Stderr, "[http] ", log.LstdFlags),
+		statMap: statMap,
 	}
 
 	h.AddRoutes([]Route{
@@ -148,7 +151,7 @@ func (h *Handler) AddRoutes(routes ...Route) {
 
 		// If it's a handler func that requires authorization, wrap it in authorization
 		if hf, ok := r.HandlerFunc.(func(http.ResponseWriter, *http.Request, *meta.UserInfo)); ok {
-			handler = authenticate(hf, h, h.requireAuthentication)
+			handler = authenticate(hf, h, h.Config.AuthEnabled)
 		}
 		// This is a normal handler signature and does not require authorization
 		if hf, ok := r.HandlerFunc.(func(http.ResponseWriter, *http.Request)); ok {
@@ -161,7 +164,7 @@ func (h *Handler) AddRoutes(routes ...Route) {
 		handler = versionHeader(handler, h)
 		handler = cors(handler)
 		handler = requestID(handler)
-		if h.loggingEnabled && r.LoggingEnabled {
+		if h.Config.LogEnabled && r.LoggingEnabled {
 			handler = h.logging(handler, r.Name)
 		}
 		handler = h.recovery(handler, r.Name) // make sure recovery is always last
@@ -272,7 +275,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	}
 
 	// Check authorization.
-	if h.requireAuthentication {
+	if h.Config.AuthEnabled {
 		if err := h.QueryAuthorizer.AuthorizeQuery(user, query, db); err != nil {
 			if err, ok := err.(meta.ErrAuthorize); ok {
 				h.Logger.Printf("unauthorized request | user: %q | query: %q | database %q\n", err.User, err.Query.String(), err.Database)
@@ -357,7 +360,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 		// If you want to return more than the default chunk size, then use chunking
 		// to process multiple blobs.
 		rows += len(r.Series)
-		if h.rowLimit > 0 && rows > h.rowLimit {
+		if h.Config.MaxRowLimit > 0 && rows > h.Config.MaxRowLimit {
 			break
 		}
 
@@ -424,12 +427,12 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 		return
 	}
 
-	if h.requireAuthentication && user == nil {
+	if h.Config.AuthEnabled && user == nil {
 		resultError(w, influxql.Result{Err: fmt.Errorf("user is required to write to database %q", database)}, http.StatusUnauthorized)
 		return
 	}
 
-	if h.requireAuthentication {
+	if h.Config.AuthEnabled {
 		if err := h.WriteAuthorizer.AuthorizeWrite(user.Name, database); err != nil {
 			resultError(w, influxql.Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", user.Name, database)}, http.StatusUnauthorized)
 			return
@@ -460,7 +463,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 
 	_, err := buf.ReadFrom(body)
 	if err != nil {
-		if h.WriteTrace {
+		if h.Config.WriteTracing {
 			h.Logger.Print("write handler unable to read bytes from request body")
 		}
 		resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
@@ -468,7 +471,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 	}
 	h.statMap.Add(statWriteRequestBytesReceived, int64(buf.Len()))
 
-	if h.WriteTrace {
+	if h.Config.WriteTracing {
 		h.Logger.Printf("write body received by handler: %s", buf.Bytes())
 	}
 
@@ -615,21 +618,53 @@ func resultError(w http.ResponseWriter, result influxql.Result, code int) {
 
 // Filters and filter helpers
 
-// parseCredentials returns the username and password encoded in
-// a request. The credentials may be present as URL query params, or as
-// a Basic Authentication header.
-// as params: http://127.0.0.1/query?u=username&p=password
-// as basic auth: http://username:password@127.0.0.1
-func parseCredentials(r *http.Request) (string, string, error) {
+type credentials struct {
+	Method   AuthenticationMethod
+	Username string
+	Password string
+	Token    string
+}
+
+// parseCredentials parses a request and returns the authentication credentials.
+// The credentials may be present as URL query params, or as a Basic
+// Authentication header.
+// As params: http://127.0.0.1/query?u=username&p=password
+// As basic auth: http://username:password@127.0.0.1
+// As Bearer token in Authorization header: Bearer <JWT_TOKEN_BLOB>
+func parseCredentials(r *http.Request) (*credentials, error) {
 	q := r.URL.Query()
 
+	// Check for the HTTP Authorization header.
+	if s := r.Header.Get("Authorization"); s != "" {
+		// Check for Bearer token.
+		strs := strings.Split(s, " ")
+		if len(strs) == 2 && strs[0] == "Bearer" {
+			return &credentials{
+				Method: BearerAuthentication,
+				Token:  strs[1],
+			}, nil
+		}
+
+		// Check for basic auth.
+		if u, p, ok := r.BasicAuth(); ok {
+			return &credentials{
+				Method:   UserAuthentication,
+				Username: u,
+				Password: p,
+			}, nil
+		}
+	}
+
+	// Check for username and password in URL params.
 	if u, p := q.Get("u"), q.Get("p"); u != "" && p != "" {
-		return u, p, nil
+		return &credentials{
+			Method:   UserAuthentication,
+			Username: u,
+			Password: p,
+		}, nil
 	}
-	if u, p, ok := r.BasicAuth(); ok {
-		return u, p, nil
-	}
-	return "", "", fmt.Errorf("unable to parse Basic Auth credentials")
+
+	return nil, fmt.Errorf("unable to parse Basic Auth credentials")
 }
 
 // authenticate wraps a handler and ensures that if user credentials are passed in
@@ -651,24 +686,68 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, *meta.UserInfo)
 
 		// TODO corylanou: never allow this in the future without users
 		if requireAuthentication && len(uis) > 0 {
-			username, password, err := parseCredentials(r)
+			creds, err := parseCredentials(r)
 			if err != nil {
 				h.statMap.Add(statAuthFail, 1)
 				httpError(w, err.Error(), false, http.StatusUnauthorized)
-				return
-			}
-			if username == "" {
-				h.statMap.Add(statAuthFail, 1)
-				httpError(w, "username required", false, http.StatusUnauthorized)
 				return
 			}
 
-			user, err = h.MetaClient.Authenticate(username, password)
-			if err != nil {
-				h.statMap.Add(statAuthFail, 1)
-				httpError(w, err.Error(), false, http.StatusUnauthorized)
-				return
+			switch creds.Method {
+			case UserAuthentication:
+				if creds.Username == "" {
+					h.statMap.Add(statAuthFail, 1)
+					httpError(w, "username required", false, http.StatusUnauthorized)
+					return
+				}
+
+				user, err = h.MetaClient.Authenticate(creds.Username, creds.Password)
+				if err != nil {
+					h.statMap.Add(statAuthFail, 1)
+					httpError(w, err.Error(), false, http.StatusUnauthorized)
+					return
+				}
+			case BearerAuthentication:
+				keyLookupFn := func(token *jwt.Token) (interface{}, error) {
+					// Check for expected signing method.
+					if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+						return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+					}
+					return []byte(h.Config.SharedSecret), nil
+				}
+
+				// Parse and validate the token.
+				token, err := jwt.Parse(creds.Token, keyLookupFn)
+				if err != nil {
+					httpError(w, err.Error(), false, http.StatusUnauthorized)
+					return
+				} else if !token.Valid {
+					httpError(w, "invalid token", false, http.StatusUnauthorized)
+					return
+				}
+
+				// Get the username from the token.
+				username, ok := token.Claims["username"].(string)
+				if !ok {
+					httpError(w, "username in token must be a string", false, http.StatusUnauthorized)
+					return
+				} else if username == "" {
+					httpError(w, "token must contain a username", false, http.StatusUnauthorized)
+					return
+				}
+
+				// Lookup user in the metastore.
+				if user, err = h.MetaClient.User(username); err != nil {
+					httpError(w, err.Error(), false, http.StatusUnauthorized)
+					return
+				} else if user == nil {
+					httpError(w, meta.ErrUserNotFound.Error(), false, http.StatusUnauthorized)
+					return
+				}
+			default:
+				httpError(w, "unsupported authentication", false, http.StatusUnauthorized)
 			}
+
 		}
 		inner(w, r, user)
 	})
