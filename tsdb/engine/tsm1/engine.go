@@ -379,6 +379,12 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string) er
 // database index and measurement fields
 func (e *Engine) addToIndexFromKey(shardID uint64, key string, fieldType influxql.DataType, index *tsdb.DatabaseIndex) error {
 	seriesKey, field := seriesAndFieldFromCompositeKey(key)
+	// Have we already indexed this series?
+	ss := index.Series(seriesKey)
+	if ss != nil {
+		return nil
+	}
+
 	measurement := tsdb.MeasurementFromSeriesKey(seriesKey)
 
 	m := index.CreateMeasurementIndexIfNotExists(measurement)
@@ -1230,9 +1236,10 @@ func tsmFieldTypeToInfluxQLDataType(typ byte) (influxql.DataType, error) {
 }
 
 func seriesAndFieldFromCompositeKey(key string) (string, string) {
-	parts := strings.Split(key, keyFieldSeparator)
-	if len(parts) != 0 {
-		return parts[0], strings.Join(parts[1:], keyFieldSeparator)
+	sep := strings.Index(key, keyFieldSeparator)
+	if sep == -1 {
+		// No field???
+		return key, ""
 	}
-	return parts[0], parts[1]
+	return key[:sep], key[sep+len(keyFieldSeparator):]
 }

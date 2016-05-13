@@ -14,6 +14,7 @@
 ### Bugfixes
 
 - [#6604](https://github.com/influxdata/influxdb/pull/6604): Remove old cluster code
+- [#6618](https://github.com/influxdata/influxdb/pull/6618): Optimize shard loading
 
 ## v0.13.0 [2016-05-12]
 
