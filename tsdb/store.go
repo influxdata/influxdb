@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -131,7 +132,7 @@ func (s *Store) loadShards() error {
 		err error
 	}
 
-	throttle := newthrottle(4)
+	throttle := newthrottle(runtime.GOMAXPROCS(0))
 
 	resC := make(chan *res)
 	var n int
