@@ -362,19 +362,40 @@ func (s *Store) ShardIteratorCreator(id uint64) influxql.IteratorCreator {
 
 // DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
 func (s *Store) DeleteDatabase(name string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	type resp struct {
+		shardID uint64
+		err     error
+	}
 
+	s.mu.RLock()
+	responses := make(chan resp, len(s.shards))
+	var wg sync.WaitGroup
 	// Close and delete all shards on the database.
 	for shardID, sh := range s.shards {
 		if sh.database == name {
-			// Delete the shard from disk.
-			if err := s.deleteShard(shardID); err != nil {
-				return err
-			}
+			wg.Add(1)
+			go func(shardID uint64) {
+				defer wg.Done()
+				err := sh.Close()
+				responses <- resp{shardID, err}
+			}(shardID)
 		}
 	}
+	s.mu.RUnlock()
+	wg.Wait()
+	close(responses)
 
+	for r := range responses {
+		if r.err != nil {
+			return r.err
+		}
+		s.mu.Lock()
+		delete(s.shards, r.shardID)
+		s.mu.Unlock()
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if err := os.RemoveAll(filepath.Join(s.path, name)); err != nil {
 		return err
 	}

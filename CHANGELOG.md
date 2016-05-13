@@ -9,6 +9,7 @@
 - [#3541](https://github.com/influxdata/influxdb/issues/3451): Update SHOW FIELD KEYS to return the field type with the field key.
 - [#6609](https://github.com/influxdata/influxdb/pull/6609): Add support for JWT token authentication.
 - [#6559](https://github.com/influxdata/influxdb/issues/6559): Teach the http service how to enforce connection limits.
+- [#6623](https://github.com/influxdata/influxdb/pull/6623): Speed up drop database
 
 ### Bugfixes
 
