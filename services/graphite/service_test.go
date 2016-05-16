@@ -176,6 +176,23 @@ func (d *DatabaseCreator) CreateDatabase(name string) (*meta.DatabaseInfo, error
 	return nil, nil
 }
 
+func (d *DatabaseCreator) CreateRetentionPolicy(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error) {
+	return nil, nil
+}
+
+func (d *DatabaseCreator) CreateDatabaseWithRetentionPolicy(name string, rpi *meta.RetentionPolicyInfo) (*meta.DatabaseInfo, error) {
+	d.Created = true
+	return nil, nil
+}
+
+func (d *DatabaseCreator) Database(name string) *meta.DatabaseInfo {
+	return nil
+}
+
+func (d *DatabaseCreator) RetentionPolicy(database, name string) (*meta.RetentionPolicyInfo, error) {
+	return nil, nil
+}
+
 // Test Helpers
 func errstr(err error) string {
 	if err != nil {

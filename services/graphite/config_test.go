@@ -14,6 +14,7 @@ func TestConfig_Parse(t *testing.T) {
 	if _, err := toml.Decode(`
 bind-address = ":8080"
 database = "mydb"
+retention-policy = "myrp"
 enabled = true
 protocol = "tcp"
 batch-size=100
@@ -31,6 +32,8 @@ tags=["region=us-east"]
 		t.Fatalf("unexpected bind address: %s", c.BindAddress)
 	} else if c.Database != "mydb" {
 		t.Fatalf("unexpected database selected: %s", c.Database)
+	} else if c.RetentionPolicy != "myrp" {
+		t.Fatalf("unexpected retention policy selected: %s", c.RetentionPolicy)
 	} else if c.Enabled != true {
 		t.Fatalf("unexpected graphite enabled: %v", c.Enabled)
 	} else if c.Protocol != "tcp" {
