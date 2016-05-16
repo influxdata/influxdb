@@ -1205,7 +1205,22 @@ func NewTagValuesIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Ite
 		return nil, errors.New("a condition is required")
 	}
 
-	mms, ok, err := sh.index.measurementsByExpr(opt.Condition)
+	measurementExpr := influxql.CloneExpr(opt.Condition)
+	measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				if !ok || tag.Val != "_name" {
+					return nil
+				}
+			}
+		}
+		return e
+	}), nil)
+
+	mms, ok, err := sh.index.measurementsByExpr(measurementExpr)
 	if err != nil {
 		return nil, err
 	} else if !ok {
@@ -1213,8 +1228,13 @@ func NewTagValuesIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Ite
 		sort.Sort(mms)
 	}
 
+	// If there are no measurements, return immediately.
+	if len(mms) == 0 {
+		return &tagValuesIterator{}, nil
+	}
+
 	filterExpr := influxql.CloneExpr(opt.Condition)
-	filterExpr = influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
+	filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
 		switch e := e.(type) {
 		case *influxql.BinaryExpr:
 			switch e.Op {
@@ -1226,7 +1246,7 @@ func NewTagValuesIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Ite
 			}
 		}
 		return e
-	})
+	}), nil)
 
 	var series []*Series
 	keys := newStringSet()

@@ -16,6 +16,7 @@
 - [#6604](https://github.com/influxdata/influxdb/pull/6604): Remove old cluster code
 - [#6618](https://github.com/influxdata/influxdb/pull/6618): Optimize shard loading
 - [#6629](https://github.com/influxdata/influxdb/issues/6629): query-log-enabled in config not ignored anymore.
+- [#6607](https://github.com/influxdata/influxdb/issues/6607): SHOW TAG VALUES accepts != and !~ in WHERE clause.
 
 ## v0.13.0 [2016-05-12]
 
