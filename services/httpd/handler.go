@@ -333,7 +333,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	// Execute query.
 	w.Header().Add("Connection", "close")
 	w.Header().Add("Content-Type", "application/json")
-	readonly := r.Method == "GET" || r.Method == "HEAD"
+	readonly := r.Method == "GET"
 	results := h.QueryExecutor.ExecuteQuery(query, db, chunkSize, readonly, closing)
 
 	// if we're not chunking, this will be the in memory buffer for all results before sending to client
