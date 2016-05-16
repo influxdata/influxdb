@@ -15,6 +15,7 @@
 
 - [#6604](https://github.com/influxdata/influxdb/pull/6604): Remove old cluster code
 - [#6618](https://github.com/influxdata/influxdb/pull/6618): Optimize shard loading
+- [#6629](https://github.com/influxdata/influxdb/issues/6629): query-log-enabled in config not ignored anymore.
 
 ## v0.13.0 [2016-05-12]
 

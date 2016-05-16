@@ -183,9 +183,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.QueryExecutor.QueryTimeout = time.Duration(c.Coordinator.QueryTimeout)
 	s.QueryExecutor.LogQueriesAfter = time.Duration(c.Coordinator.LogQueriesAfter)
 	s.QueryExecutor.MaxConcurrentQueries = c.Coordinator.MaxConcurrentQueries
-	if c.Data.QueryLogEnabled {
-		s.QueryExecutor.Logger = log.New(os.Stderr, "[query] ", log.LstdFlags)
-	}
 
 	// Initialize the monitor
 	s.Monitor.Version = s.buildInfo.Version
@@ -266,7 +263,9 @@ func (s *Server) Open() error {
 	w := s.logOutput
 	s.MetaClient.SetLogOutput(w)
 	s.TSDBStore.SetLogOutput(w)
-	s.QueryExecutor.SetLogOutput(w)
+	if s.config.Data.QueryLogEnabled {
+		s.QueryExecutor.SetLogOutput(w)
+	}
 	s.PointsWriter.SetLogOutput(w)
 	s.Subscriber.SetLogOutput(w)
 	for _, svc := range s.Services {
