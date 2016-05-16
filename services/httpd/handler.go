@@ -34,18 +34,18 @@ const (
 	DefaultChunkSize = 10000
 )
 
+// AuthenticationMethod defines the type of authentication used.
 type AuthenticationMethod int
 
+// Supported authentication methods.
 const (
 	UserAuthentication AuthenticationMethod = iota
 	BearerAuthentication
 )
 
-// TODO: Standard response headers (see: HeaderHandler)
-// TODO: Compression (see: CompressionHeaderHandler)
-
 // TODO: Check HTTP response codes: 400, 401, 403, 409.
 
+// Route specifies how to handle a HTTP verb for a given endpoint.
 type Route struct {
 	Name           string
 	Method         string
@@ -144,16 +144,17 @@ func NewHandler(c Config, statMap *expvar.Map) *Handler {
 	return h
 }
 
-// SetRoutes sets the provided routes on the handler.
+// AddRoutes sets the provided routes on the handler.
 func (h *Handler) AddRoutes(routes ...Route) {
 	for _, r := range routes {
 		var handler http.Handler
 
-		// If it's a handler func that requires authorization, wrap it in authorization
+		// If it's a handler func that requires authorization, wrap it in authentication
 		if hf, ok := r.HandlerFunc.(func(http.ResponseWriter, *http.Request, *meta.UserInfo)); ok {
 			handler = authenticate(hf, h, h.Config.AuthEnabled)
 		}
-		// This is a normal handler signature and does not require authorization
+
+		// This is a normal handler signature and does not require authentication
 		if hf, ok := r.HandlerFunc.(func(http.ResponseWriter, *http.Request)); ok {
 			handler = http.HandlerFunc(hf)
 		}
@@ -290,7 +291,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	if h.Config.AuthEnabled {
 		if err := h.QueryAuthorizer.AuthorizeQuery(user, query, db); err != nil {
 			if err, ok := err.(meta.ErrAuthorize); ok {
-				h.Logger.Printf("unauthorized request | user: %q | query: %q | database %q\n", err.User, err.Query.String(), err.Database)
+				h.Logger.Printf("Unauthorized request | user: %q | query: %q | database %q\n", err.User, err.Query.String(), err.Database)
 			}
 			h.httpError(w, "error authorizing query: "+err.Error(), pretty, http.StatusUnauthorized)
 			return
@@ -331,7 +332,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 
 	// Execute query.
 	w.Header().Add("Connection", "close")
-	w.Header().Add("content-type", "application/json")
+	w.Header().Add("Content-Type", "application/json")
 	readonly := r.Method == "GET" || r.Method == "HEAD"
 	results := h.QueryExecutor.ExecuteQuery(query, db, chunkSize, readonly, closing)
 
@@ -455,7 +456,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 
 	// Handle gzip decoding of the body
 	body := r.Body
-	if r.Header.Get("Content-encoding") == "gzip" {
+	if r.Header.Get("Content-Encoding") == "gzip" {
 		b, err := gzip.NewReader(r.Body)
 		if err != nil {
 			h.resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
@@ -478,7 +479,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 	_, err := buf.ReadFrom(body)
 	if err != nil {
 		if h.Config.WriteTracing {
-			h.Logger.Print("write handler unable to read bytes from request body")
+			h.Logger.Print("Write handler unable to read bytes from request body")
 		}
 		h.resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
 		return
@@ -486,7 +487,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 	h.statMap.Add(statWriteRequestBytesReceived, int64(buf.Len()))
 
 	if h.Config.WriteTracing {
-		h.Logger.Printf("write body received by handler: %s", buf.Bytes())
+		h.Logger.Printf("Write body received by handler: %s", buf.Bytes())
 	}
 
 	points, parseError := models.ParsePointsWithPrecision(buf.Bytes(), time.Now().UTC(), r.URL.Query().Get("precision"))
@@ -611,9 +612,8 @@ func serveExpvar(w http.ResponseWriter, r *http.Request) {
 
 // h.httpError writes an error to the client in a standard format.
 func (h *Handler) httpError(w http.ResponseWriter, error string, pretty bool, code int) {
-	w.Header().Add("content-type", "application/json")
+	w.Header().Add("Content-Type", "application/json")
 	h.writeHeader(w, code)
-
 	response := Response{Err: errors.New(error)}
 	var b []byte
 	if pretty {
@@ -625,7 +625,7 @@ func (h *Handler) httpError(w http.ResponseWriter, error string, pretty bool, co
 }
 
 func (h *Handler) resultError(w http.ResponseWriter, result influxql.Result, code int) {
-	w.Header().Add("content-type", "application/json")
+	w.Header().Add("Content-Type", "application/json")
 	h.writeHeader(w, code)
 	_ = json.NewEncoder(w).Encode(&result)
 }
