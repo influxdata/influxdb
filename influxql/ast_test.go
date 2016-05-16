@@ -44,6 +44,7 @@ func TestDataType_String(t *testing.T) {
 		{influxql.String, "string"},
 		{influxql.Time, "time"},
 		{influxql.Duration, "duration"},
+		{influxql.Tag, "tag"},
 		{influxql.Unknown, "unknown"},
 	} {
 		if v := tt.typ.String(); tt.v != v {
@@ -334,8 +335,8 @@ func TestSelectStatement_HasWildcard(t *testing.T) {
 	}
 }
 
-// Test SELECT statement wildcard rewrite.
-func TestSelectStatement_RewriteWildcards(t *testing.T) {
+// Test SELECT statement field rewrite.
+func TestSelectStatement_RewriteFields(t *testing.T) {
 	var tests = []struct {
 		stmt    string
 		rewrite string
@@ -349,7 +350,7 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 		// Query wildcard
 		{
 			stmt:    `SELECT * FROM cpu`,
-			rewrite: `SELECT host, region, value1, value2 FROM cpu`,
+			rewrite: `SELECT host::tag, region::tag, value1::float, value2::integer FROM cpu`,
 		},
 
 		// Parser fundamentally prohibits multiple query sources
@@ -357,19 +358,19 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 		// Query wildcard with explicit
 		{
 			stmt:    `SELECT *,value1 FROM cpu`,
-			rewrite: `SELECT host, region, value1, value2, value1 FROM cpu`,
+			rewrite: `SELECT host::tag, region::tag, value1::float, value2::integer, value1::float FROM cpu`,
 		},
 
 		// Query multiple wildcards
 		{
 			stmt:    `SELECT *,* FROM cpu`,
-			rewrite: `SELECT host, region, value1, value2, host, region, value1, value2 FROM cpu`,
+			rewrite: `SELECT host::tag, region::tag, value1::float, value2::integer, host::tag, region::tag, value1::float, value2::integer FROM cpu`,
 		},
 
 		// Query wildcards with group by
 		{
 			stmt:    `SELECT * FROM cpu GROUP BY host`,
-			rewrite: `SELECT region, value1, value2 FROM cpu GROUP BY host`,
+			rewrite: `SELECT region::tag, value1::float, value2::integer FROM cpu GROUP BY host`,
 		},
 
 		// No GROUP BY wildcards
@@ -396,7 +397,7 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 			rewrite: `SELECT mean(value) FROM cpu WHERE time < now() GROUP BY host, region, time(1m)`,
 		},
 
-		// GROUP BY wildarde with fill
+		// GROUP BY wildcard with fill
 		{
 			stmt:    `SELECT mean(value) FROM cpu where time < now() GROUP BY *,time(1m) fill(0)`,
 			rewrite: `SELECT mean(value) FROM cpu WHERE time < now() GROUP BY host, region, time(1m) fill(0)`,
@@ -417,7 +418,7 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 		// Combo
 		{
 			stmt:    `SELECT * FROM cpu GROUP BY *`,
-			rewrite: `SELECT value1, value2 FROM cpu GROUP BY host, region`,
+			rewrite: `SELECT value1::float, value2::integer FROM cpu GROUP BY host, region`,
 		},
 	}
 
@@ -429,14 +430,14 @@ func TestSelectStatement_RewriteWildcards(t *testing.T) {
 		}
 
 		var ic IteratorCreator
-		ic.FieldDimensionsFn = func(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
-			fields = map[string]struct{}{"value1": struct{}{}, "value2": struct{}{}}
+		ic.FieldDimensionsFn = func(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+			fields = map[string]influxql.DataType{"value1": influxql.Float, "value2": influxql.Integer}
 			dimensions = map[string]struct{}{"host": struct{}{}, "region": struct{}{}}
 			return
 		}
 
 		// Rewrite statement.
-		rw, err := stmt.(*influxql.SelectStatement).RewriteWildcards(&ic)
+		rw, err := stmt.(*influxql.SelectStatement).RewriteFields(&ic)
 		if err != nil {
 			t.Errorf("%d. %q: error: %s", i, tt.stmt, err)
 		} else if rw == nil {

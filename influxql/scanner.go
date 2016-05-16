@@ -95,6 +95,10 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 	case ';':
 		return SEMICOLON, pos, ""
 	case ':':
+		if ch1, _ := s.r.read(); ch1 == ':' {
+			return DOUBLECOLON, pos, ""
+		}
+		s.r.unread()
 		return COLON, pos, ""
 	}
 

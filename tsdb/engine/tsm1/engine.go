@@ -879,62 +879,6 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 	return itr, nil
 }
 
-func (e *Engine) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
-	seriesList := influxql.SeriesList{}
-	mms := tsdb.Measurements(e.index.MeasurementsByName(influxql.Sources(opt.Sources).Names()))
-	for _, mm := range mms {
-		// Determine tagsets for this measurement based on dimensions and filters.
-		tagSets, err := mm.TagSets(opt.Dimensions, opt.Condition)
-		if err != nil {
-			return nil, err
-		}
-
-		// Calculate tag sets and apply SLIMIT/SOFFSET.
-		tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
-		for _, t := range tagSets {
-			series := influxql.Series{
-				Name: mm.Name,
-				Tags: influxql.NewTags(t.Tags),
-				Aux:  make([]influxql.DataType, len(opt.Aux)),
-			}
-
-			// Determine the aux field types.
-			for _, seriesKey := range t.SeriesKeys {
-				tags := influxql.NewTags(e.index.TagsForSeries(seriesKey))
-				for i, field := range opt.Aux {
-					typ := func() influxql.DataType {
-						mf := e.measurementFields[mm.Name]
-						if mf == nil {
-							return influxql.Unknown
-						}
-
-						f := mf.Field(field)
-						if f == nil {
-							return influxql.Unknown
-						}
-						return f.Type
-					}()
-
-					if typ == influxql.Unknown {
-						if v := tags.Value(field); v != "" {
-							// All tags are strings.
-							typ = influxql.String
-						}
-					}
-
-					if typ != influxql.Unknown {
-						if series.Aux[i] == influxql.Unknown || typ < series.Aux[i] {
-							series.Aux[i] = typ
-						}
-					}
-				}
-			}
-			seriesList = append(seriesList, series)
-		}
-	}
-	return seriesList, nil
-}
-
 // createVarRefIterator creates an iterator for a variable reference.
 func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
 	ref, _ := opt.Expr.(*influxql.VarRef)
@@ -1051,7 +995,7 @@ func (e *Engine) createTagSetIterators(ref *influxql.VarRef, mm *tsdb.Measuremen
 
 // createTagSetGroupIterators creates a set of iterators for a subset of a tagset's series.
 func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, mm *tsdb.Measurement, seriesKeys []string, t *influxql.TagSet, filters []influxql.Expr, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
-	conditionFields := make([]string, len(influxql.ExprNames(opt.Condition)))
+	conditionFields := make([]influxql.VarRef, len(influxql.ExprNames(opt.Condition)))
 
 	itrs := make([]influxql.Iterator, 0, len(seriesKeys))
 	for i, seriesKey := range seriesKeys {
@@ -1076,7 +1020,7 @@ func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, mm *tsdb.Measu
 }
 
 // createVarRefSeriesIterator creates an iterator for a variable reference for a series.
-func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measurement, seriesKey string, t *influxql.TagSet, filter influxql.Expr, conditionFields []string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measurement, seriesKey string, t *influxql.TagSet, filter influxql.Expr, conditionFields []influxql.VarRef, opt influxql.IteratorOptions) (influxql.Iterator, error) {
 	tags := influxql.NewTags(e.index.TagsForSeries(seriesKey))
 
 	// Create options specific for this series.
@@ -1088,17 +1032,35 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 	var aux []cursorAt
 	if len(opt.Aux) > 0 {
 		aux = make([]cursorAt, len(opt.Aux))
-		for i := range aux {
-			// Create cursor from field.
-			cur := e.buildCursor(mm.Name, seriesKey, opt.Aux[i], opt)
-			if cur != nil {
-				aux[i] = newBufCursor(cur, opt.Ascending)
-				continue
+		for i, ref := range opt.Aux {
+			// Create cursor from field if a tag wasn't requested.
+			if ref.Type != influxql.Tag {
+				cur := e.buildCursor(mm.Name, seriesKey, &ref, opt)
+				if cur != nil {
+					aux[i] = newBufCursor(cur, opt.Ascending)
+					continue
+				}
+
+				// If a field was requested, use a nil cursor of the requested type.
+				switch ref.Type {
+				case influxql.Float, influxql.AnyField:
+					aux[i] = &floatNilLiteralCursor{}
+					continue
+				case influxql.Integer:
+					aux[i] = &integerNilLiteralCursor{}
+					continue
+				case influxql.String:
+					aux[i] = &stringNilLiteralCursor{}
+					continue
+				case influxql.Boolean:
+					aux[i] = &booleanNilLiteralCursor{}
+					continue
+				}
 			}
 
 			// If field doesn't exist, use the tag value.
-			// However, if the tag value is blank then return a null.
-			if v := tags.Value(opt.Aux[i]); v == "" {
+			if v := tags.Value(ref.Val); v == "" {
+				// However, if the tag value is blank then return a null.
 				aux[i] = &stringNilLiteralCursor{}
 			} else {
 				aux[i] = &stringLiteralCursor{value: v}
@@ -1111,33 +1073,53 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 	var conds []cursorAt
 	if len(conditionFields) > 0 {
 		conds = make([]cursorAt, len(conditionFields))
-		for i := range conds {
-			cur := e.buildCursor(mm.Name, seriesKey, conditionFields[i], opt)
-			if cur != nil {
-				conds[i] = newBufCursor(cur, opt.Ascending)
-				continue
+		for i, ref := range conditionFields {
+			// Create cursor from field if a tag wasn't requested.
+			if ref.Type != influxql.Tag {
+				cur := e.buildCursor(mm.Name, seriesKey, &ref, opt)
+				if cur != nil {
+					conds[i] = newBufCursor(cur, opt.Ascending)
+					continue
+				}
+
+				// If a field was requested, use a nil cursor of the requested type.
+				switch ref.Type {
+				case influxql.Float, influxql.AnyField:
+					aux[i] = &floatNilLiteralCursor{}
+					continue
+				case influxql.Integer:
+					aux[i] = &integerNilLiteralCursor{}
+					continue
+				case influxql.String:
+					aux[i] = &stringNilLiteralCursor{}
+					continue
+				case influxql.Boolean:
+					aux[i] = &booleanNilLiteralCursor{}
+					continue
+				}
 			}
 
 			// If field doesn't exist, use the tag value.
-			// However, if the tag value is blank then return a null.
-			if v := tags.Value(conditionFields[i]); v == "" {
+			if v := tags.Value(ref.Val); v == "" {
+				// However, if the tag value is blank then return a null.
 				conds[i] = &stringNilLiteralCursor{}
 			} else {
 				conds[i] = &stringLiteralCursor{value: v}
 			}
 		}
 	}
+	condNames := influxql.VarRefs(conditionFields).Strings()
 
 	// Limit tags to only the dimensions selected.
 	tags = tags.Subset(opt.Dimensions)
 
 	// If it's only auxiliary fields then it doesn't matter what type of iterator we use.
 	if ref == nil {
-		return newFloatIterator(mm.Name, tags, itrOpt, nil, aux, conds, conditionFields), nil
+		return newFloatIterator(mm.Name, tags, itrOpt, nil, aux, conds, condNames), nil
 	}
 
 	// Build main cursor.
-	cur := e.buildCursor(mm.Name, seriesKey, ref.Val, opt)
+	cur := e.buildCursor(mm.Name, seriesKey, ref, opt)
 
 	// If the field doesn't exist then don't build an iterator.
 	if cur == nil {
@@ -1146,20 +1128,20 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 
 	switch cur := cur.(type) {
 	case floatCursor:
-		return newFloatIterator(mm.Name, tags, itrOpt, cur, aux, conds, conditionFields), nil
+		return newFloatIterator(mm.Name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case integerCursor:
-		return newIntegerIterator(mm.Name, tags, itrOpt, cur, aux, conds, conditionFields), nil
+		return newIntegerIterator(mm.Name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case stringCursor:
-		return newStringIterator(mm.Name, tags, itrOpt, cur, aux, conds, conditionFields), nil
+		return newStringIterator(mm.Name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case booleanCursor:
-		return newBooleanIterator(mm.Name, tags, itrOpt, cur, aux, conds, conditionFields), nil
+		return newBooleanIterator(mm.Name, tags, itrOpt, cur, aux, conds, condNames), nil
 	default:
 		panic("unreachable")
 	}
 }
 
 // buildCursor creates an untyped cursor for a field.
-func (e *Engine) buildCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) cursor {
+func (e *Engine) buildCursor(measurement, seriesKey string, ref *influxql.VarRef, opt influxql.IteratorOptions) cursor {
 	// Look up fields for measurement.
 	mf := e.measurementFields[measurement]
 	if mf == nil {
@@ -1167,21 +1149,41 @@ func (e *Engine) buildCursor(measurement, seriesKey, field string, opt influxql.
 	}
 
 	// Find individual field.
-	f := mf.Field(field)
+	f := mf.Field(ref.Val)
 	if f == nil {
+		return nil
+	}
+
+	// Check if we need to perform a cast. Performing a cast in the
+	// engine (if it is possible) is much more efficient than an automatic cast.
+	if ref.Type != influxql.Unknown && ref.Type != influxql.AnyField && ref.Type != f.Type {
+		switch ref.Type {
+		case influxql.Float:
+			switch f.Type {
+			case influxql.Integer:
+				cur := e.buildIntegerCursor(measurement, seriesKey, ref.Val, opt)
+				return &floatCastIntegerCursor{cursor: cur}
+			}
+		case influxql.Integer:
+			switch f.Type {
+			case influxql.Float:
+				cur := e.buildFloatCursor(measurement, seriesKey, ref.Val, opt)
+				return &integerCastFloatCursor{cursor: cur}
+			}
+		}
 		return nil
 	}
 
 	// Return appropriate cursor based on type.
 	switch f.Type {
 	case influxql.Float:
-		return e.buildFloatCursor(measurement, seriesKey, field, opt)
+		return e.buildFloatCursor(measurement, seriesKey, ref.Val, opt)
 	case influxql.Integer:
-		return e.buildIntegerCursor(measurement, seriesKey, field, opt)
+		return e.buildIntegerCursor(measurement, seriesKey, ref.Val, opt)
 	case influxql.String:
-		return e.buildStringCursor(measurement, seriesKey, field, opt)
+		return e.buildStringCursor(measurement, seriesKey, ref.Val, opt)
 	case influxql.Boolean:
-		return e.buildBooleanCursor(measurement, seriesKey, field, opt)
+		return e.buildBooleanCursor(measurement, seriesKey, ref.Val, opt)
 	default:
 		panic("unreachable")
 	}

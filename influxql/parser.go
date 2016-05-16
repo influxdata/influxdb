@@ -2234,7 +2234,35 @@ func (p *Parser) parseVarRef() (*VarRef, error) {
 		return nil, err
 	}
 
-	vr := &VarRef{Val: strings.Join(segments, ".")}
+	var dtype DataType
+	if tok, _, _ := p.scan(); tok == DOUBLECOLON {
+		tok, pos, lit := p.scan()
+		switch tok {
+		case IDENT:
+			switch strings.ToLower(lit) {
+			case "float":
+				dtype = Float
+			case "integer":
+				dtype = Integer
+			case "string":
+				dtype = String
+			case "boolean":
+				dtype = Boolean
+			default:
+				return nil, newParseError(tokstr(tok, lit), []string{"float", "integer", "string", "boolean", "field", "tag"}, pos)
+			}
+		case FIELD:
+			dtype = AnyField
+		case TAG:
+			dtype = Tag
+		default:
+			return nil, newParseError(tokstr(tok, lit), []string{"float", "integer", "string", "boolean", "field", "tag"}, pos)
+		}
+	} else {
+		p.unscan()
+	}
+
+	vr := &VarRef{Val: strings.Join(segments, "."), Type: dtype}
 
 	return vr, nil
 }
@@ -2383,7 +2411,19 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 		v, _ := ParseDuration(lit)
 		return &DurationLiteral{Val: v}, nil
 	case MUL:
-		return &Wildcard{}, nil
+		wc := &Wildcard{}
+		if tok, _, _ := p.scan(); tok == DOUBLECOLON {
+			tok, pos, lit := p.scan()
+			switch tok {
+			case FIELD, TAG:
+				wc.Type = tok
+			default:
+				return nil, newParseError(tokstr(tok, lit), []string{"field", "tag"}, pos)
+			}
+		} else {
+			p.unscan()
+		}
+		return wc, nil
 	case REGEX:
 		re, err := regexp.Compile(lit)
 		if err != nil {

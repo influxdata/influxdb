@@ -276,10 +276,10 @@ func (itr *FloatCursorIterator) Next() *influxql.FloatPoint {
 			}
 
 			// Read all auxilary fields.
-			for i, name := range itr.opt.Aux {
-				if v, ok := m[name]; ok {
+			for i, ref := range itr.opt.Aux {
+				if v, ok := m[ref.Val]; ok {
 					itr.point.Aux[i] = v
-				} else if s, ok := tags[name]; ok {
+				} else if s, ok := tags[ref.Val]; ok {
 					itr.point.Aux[i] = s
 				} else {
 					itr.point.Aux[i] = nil
@@ -306,8 +306,8 @@ func (itr *FloatCursorIterator) Next() *influxql.FloatPoint {
 		}
 
 		// Read all auxilary fields.
-		for i, name := range itr.opt.Aux {
-			if tagValue, ok := tags[name]; ok {
+		for i, ref := range itr.opt.Aux {
+			if tagValue, ok := tags[ref.Val]; ok {
 				itr.point.Aux[i] = tagValue
 			} else {
 				itr.point.Aux[i] = value

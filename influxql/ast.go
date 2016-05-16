@@ -32,6 +32,10 @@ const (
 	Time = 5
 	// Duration means the data type is a duration of time.
 	Duration = 6
+	// Tag means the data type is a tag.
+	Tag = 7
+	// AnyField means the data type is any field.
+	AnyField = 8
 )
 
 // InspectDataType returns the data type of a given value.
@@ -76,6 +80,10 @@ func (d DataType) String() string {
 		return "time"
 	case Duration:
 		return "duration"
+	case Tag:
+		return "tag"
+	case AnyField:
+		return "field"
 	}
 	return "unknown"
 }
@@ -1012,21 +1020,41 @@ func cloneSource(s Source) Source {
 	}
 }
 
-// RewriteWildcards returns the re-written form of the select statement. Any wildcard query
+// RewriteFields returns the re-written form of the select statement. Any wildcard query
 // fields are replaced with the supplied fields, and any wildcard GROUP BY fields are replaced
-// with the supplied dimensions.
-func (s *SelectStatement) RewriteWildcards(ic IteratorCreator) (*SelectStatement, error) {
+// with the supplied dimensions. Any fields with no type specifier are rewritten with the
+// appropriate type.
+func (s *SelectStatement) RewriteFields(ic IteratorCreator) (*SelectStatement, error) {
+	// Retrieve a list of unique field and dimensions.
+	fieldSet, dimensionSet, err := ic.FieldDimensions(s.Sources)
+	if err != nil {
+		return s, err
+	}
+
+	// Rewrite all variable references in the fields with their types if one
+	// hasn't been specified.
+	rewrite := func(n Node) {
+		ref, ok := n.(*VarRef)
+		if !ok || (ref.Type != Unknown && ref.Type != AnyField) {
+			return
+		}
+
+		if typ, ok := fieldSet[ref.Val]; ok {
+			ref.Type = typ
+		} else if ref.Type != AnyField {
+			if _, ok := dimensionSet[ref.Val]; ok {
+				ref.Type = Tag
+			}
+		}
+	}
+	WalkFunc(s.Fields, rewrite)
+	WalkFunc(s.Condition, rewrite)
+
 	// Ignore if there are no wildcards.
 	hasFieldWildcard := s.HasFieldWildcard()
 	hasDimensionWildcard := s.HasDimensionWildcard()
 	if !hasFieldWildcard && !hasDimensionWildcard {
 		return s, nil
-	}
-
-	// Retrieve a list of unique field and dimensions.
-	fieldSet, dimensionSet, err := ic.FieldDimensions(s.Sources)
-	if err != nil {
-		return s, err
 	}
 
 	// If there are no dimension wildcards then merge dimensions to fields.
@@ -1040,13 +1068,23 @@ func (s *SelectStatement) RewriteWildcards(ic IteratorCreator) (*SelectStatement
 				}
 			}
 		}
-
-		for k := range dimensionSet {
-			fieldSet[k] = struct{}{}
-		}
-		dimensionSet = nil
 	}
-	fields := stringSetSlice(fieldSet)
+
+	// Sort the field and dimension names for wildcard expansion.
+	var fields []VarRef
+	if len(fieldSet) > 0 {
+		fields = make([]VarRef, 0, len(fieldSet))
+		for name, typ := range fieldSet {
+			fields = append(fields, VarRef{Val: name, Type: typ})
+		}
+		if !hasDimensionWildcard {
+			for name := range dimensionSet {
+				fields = append(fields, VarRef{Val: name, Type: Tag})
+			}
+			dimensionSet = nil
+		}
+		sort.Sort(VarRefs(fields))
+	}
 	dimensions := stringSetSlice(dimensionSet)
 
 	other := s.Clone()
@@ -1056,10 +1094,15 @@ func (s *SelectStatement) RewriteWildcards(ic IteratorCreator) (*SelectStatement
 		// Allocate a slice assuming there is exactly one wildcard for efficiency.
 		rwFields := make(Fields, 0, len(s.Fields)+len(fields)-1)
 		for _, f := range s.Fields {
-			switch f.Expr.(type) {
+			switch expr := f.Expr.(type) {
 			case *Wildcard:
-				for _, name := range fields {
-					rwFields = append(rwFields, &Field{Expr: &VarRef{Val: name}})
+				for _, ref := range fields {
+					if expr.Type == FIELD && ref.Type == Tag {
+						continue
+					} else if expr.Type == TAG && ref.Type != Tag {
+						continue
+					}
+					rwFields = append(rwFields, &Field{Expr: &VarRef{Val: ref.Val, Type: ref.Type}})
 				}
 			default:
 				rwFields = append(rwFields, f)
@@ -1874,15 +1917,13 @@ func walkNames(exp Expr) []string {
 	case *VarRef:
 		return []string{expr.Val}
 	case *Call:
-		if len(expr.Args) == 0 {
-			return nil
+		var a []string
+		for _, expr := range expr.Args {
+			if ref, ok := expr.(*VarRef); ok {
+				a = append(a, ref.Val)
+			}
 		}
-		lit, ok := expr.Args[0].(*VarRef)
-		if !ok {
-			return nil
-		}
-
-		return []string{lit.Val}
+		return a
 	case *BinaryExpr:
 		var ret []string
 		ret = append(ret, walkNames(expr.LHS)...)
@@ -1895,21 +1936,46 @@ func walkNames(exp Expr) []string {
 	return nil
 }
 
-// ExprNames returns a list of non-"time" field names from an expression.
-func ExprNames(expr Expr) []string {
-	m := make(map[string]struct{})
-	for _, name := range walkNames(expr) {
-		if name == "time" {
-			continue
+// walkRefs will walk the Expr and return the database fields
+func walkRefs(exp Expr) []VarRef {
+	switch expr := exp.(type) {
+	case *VarRef:
+		return []VarRef{*expr}
+	case *Call:
+		var a []VarRef
+		for _, expr := range expr.Args {
+			if ref, ok := expr.(*VarRef); ok {
+				a = append(a, *ref)
+			}
 		}
-		m[name] = struct{}{}
+		return a
+	case *BinaryExpr:
+		var ret []VarRef
+		ret = append(ret, walkRefs(expr.LHS)...)
+		ret = append(ret, walkRefs(expr.RHS)...)
+		return ret
+	case *ParenExpr:
+		return walkRefs(expr.Expr)
 	}
 
-	a := make([]string, 0, len(m))
+	return nil
+}
+
+// ExprNames returns a list of non-"time" field names from an expression.
+func ExprNames(expr Expr) []VarRef {
+	m := make(map[VarRef]struct{})
+	for _, ref := range walkRefs(expr) {
+		if ref.Val == "time" {
+			continue
+		}
+		m[ref] = struct{}{}
+	}
+
+	a := make([]VarRef, 0, len(m))
 	for k := range m {
 		a = append(a, k)
 	}
-	sort.Strings(a)
+	sort.Sort(VarRefs(a))
 
 	return a
 }
@@ -2957,12 +3023,36 @@ func decodeMeasurement(pb *internal.Measurement) (*Measurement, error) {
 
 // VarRef represents a reference to a variable.
 type VarRef struct {
-	Val string
+	Val  string
+	Type DataType
 }
 
 // String returns a string representation of the variable reference.
 func (r *VarRef) String() string {
-	return QuoteIdent(r.Val)
+	buf := bytes.NewBufferString(QuoteIdent(r.Val))
+	if r.Type != Unknown {
+		buf.WriteString("::")
+		buf.WriteString(r.Type.String())
+	}
+	return buf.String()
+}
+
+type VarRefs []VarRef
+
+func (a VarRefs) Len() int { return len(a) }
+func (a VarRefs) Less(i, j int) bool {
+	if a[i].Val != a[j].Val {
+		return a[i].Val < a[j].Val
+	}
+	return a[i].Type < a[j].Type
+}
+func (a VarRefs) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a VarRefs) Strings() []string {
+	s := make([]string, len(a))
+	for i, ref := range a {
+		s[i] = ref.Val
+	}
+	return s
 }
 
 // Call represents a function call.
@@ -3238,10 +3328,21 @@ func CloneRegexLiteral(r *RegexLiteral) *RegexLiteral {
 }
 
 // Wildcard represents a wild card expression.
-type Wildcard struct{}
+type Wildcard struct {
+	Type Token
+}
 
 // String returns a string representation of the wildcard.
-func (e *Wildcard) String() string { return "*" }
+func (e *Wildcard) String() string {
+	switch e.Type {
+	case FIELD:
+		return "*::field"
+	case TAG:
+		return "*::tag"
+	default:
+		return "*"
+	}
+}
 
 // CloneExpr returns a deep copy of the expression.
 func CloneExpr(expr Expr) Expr {
@@ -3276,7 +3377,7 @@ func CloneExpr(expr Expr) Expr {
 	case *TimeLiteral:
 		return &TimeLiteral{Val: expr.Val}
 	case *VarRef:
-		return &VarRef{Val: expr.Val}
+		return &VarRef{Val: expr.Val, Type: expr.Type}
 	case *Wildcard:
 		return &Wildcard{}
 	}
@@ -4180,14 +4281,14 @@ func reduceParenExpr(expr *ParenExpr, valuer Valuer) Expr {
 func reduceVarRef(expr *VarRef, valuer Valuer) Expr {
 	// Ignore if there is no valuer.
 	if valuer == nil {
-		return &VarRef{Val: expr.Val}
+		return &VarRef{Val: expr.Val, Type: expr.Type}
 	}
 
 	// Retrieve the value of the ref.
 	// Ignore if the value doesn't exist.
 	v, ok := valuer.Value(expr.Val)
 	if !ok {
-		return &VarRef{Val: expr.Val}
+		return &VarRef{Val: expr.Val, Type: expr.Type}
 	}
 
 	// Return the value as a literal.

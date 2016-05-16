@@ -49,12 +49,13 @@ const (
 	GTE      // >=
 	operatorEnd
 
-	LPAREN    // (
-	RPAREN    // )
-	COMMA     // ,
-	COLON     // :
-	SEMICOLON // ;
-	DOT       // .
+	LPAREN      // (
+	RPAREN      // )
+	COMMA       // ,
+	COLON       // :
+	DOUBLECOLON // ::
+	SEMICOLON   // ;
+	DOT         // .
 
 	keywordBeg
 	// ALL and the following are InfluxQL Keywords
@@ -169,12 +170,13 @@ var tokens = [...]string{
 	GT:       ">",
 	GTE:      ">=",
 
-	LPAREN:    "(",
-	RPAREN:    ")",
-	COMMA:     ",",
-	COLON:     ":",
-	SEMICOLON: ";",
-	DOT:       ".",
+	LPAREN:      "(",
+	RPAREN:      ")",
+	COMMA:       ",",
+	COLON:       ":",
+	DOUBLECOLON: "::",
+	SEMICOLON:   ";",
+	DOT:         ".",
 
 	ALL:           "ALL",
 	ALTER:         "ALTER",

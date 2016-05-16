@@ -20,3 +20,25 @@ func newLimitIterator(input influxql.Iterator, opt influxql.IteratorOptions) inf
 		panic(fmt.Sprintf("unsupported limit iterator type: %T", input))
 	}
 }
+
+type floatCastIntegerCursor struct {
+	cursor integerCursor
+}
+
+func (c *floatCastIntegerCursor) next() (t int64, v interface{}) { return c.nextFloat() }
+
+func (c *floatCastIntegerCursor) nextFloat() (int64, float64) {
+	t, v := c.cursor.nextInteger()
+	return t, float64(v)
+}
+
+type integerCastFloatCursor struct {
+	cursor floatCursor
+}
+
+func (c *integerCastFloatCursor) next() (t int64, v interface{}) { return c.nextInteger() }
+
+func (c *integerCastFloatCursor) nextInteger() (int64, int64) {
+	t, v := c.cursor.nextFloat()
+	return t, int64(v)
+}

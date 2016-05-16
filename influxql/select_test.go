@@ -489,7 +489,7 @@ func TestSelect_Top_Tags_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, host, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value::float, host::tag, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -537,7 +537,7 @@ func TestSelect_Top_Tags_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, host, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value::integer, host::tag, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -585,7 +585,7 @@ func TestSelect_Top_GroupByTags_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, host, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value::float, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -629,7 +629,7 @@ func TestSelect_Top_GroupByTags_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value, host, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT top(value::integer, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -673,7 +673,7 @@ func TestSelect_Bottom_NoTags_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic, nil)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value::float, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -711,7 +711,7 @@ func TestSelect_Bottom_NoTags_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic, nil)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value::integer, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s), host fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -749,7 +749,7 @@ func TestSelect_Bottom_Tags_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, host, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value::float, host::tag, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -797,7 +797,7 @@ func TestSelect_Bottom_Tags_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, host, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value::integer, host::tag, 2) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -845,7 +845,7 @@ func TestSelect_Bottom_GroupByTags_Float(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, host, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value::float, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -889,7 +889,7 @@ func TestSelect_Bottom_GroupByTags_Integer(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value, host, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT bottom(value::float, host::tag, 1) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY region, time(30s) fill(none)`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -1267,7 +1267,7 @@ func TestSelect_Raw(t *testing.T) {
 	// Mock two iterators -- one for each value in the query.
 	var ic IteratorCreator
 	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-		if !reflect.DeepEqual(opt.Aux, []string{"v1", "v2"}) {
+		if !reflect.DeepEqual(opt.Aux, []influxql.VarRef{{Val: "v1", Type: influxql.Float}, {Val: "v2", Type: influxql.Float}}) {
 			t.Fatalf("unexpected options: %s", spew.Sdump(opt.Expr))
 
 		}
@@ -1279,7 +1279,7 @@ func TestSelect_Raw(t *testing.T) {
 	}
 
 	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT v1, v2 FROM cpu`), &ic, nil)
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT v1::float, v2::float FROM cpu`), &ic, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -1318,6 +1318,9 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			{Name: "cpu", Time: 5 * Second, Value: 10, Aux: makeAuxFields(10)},
 			{Name: "cpu", Time: 9 * Second, Value: 19, Aux: makeAuxFields(19)},
 		}}, nil
+	}
+	ic.FieldDimensionsFn = func(sources influxql.Sources) (map[string]influxql.DataType, map[string]struct{}, error) {
+		return map[string]influxql.DataType{"value": influxql.Float}, nil, nil
 	}
 
 	for _, test := range []struct {
@@ -1506,7 +1509,12 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			},
 		},
 	} {
-		itrs, err := influxql.Select(MustParseSelectStatement(test.Statement), &ic, nil)
+		stmt, err := MustParseSelectStatement(test.Statement).RewriteFields(&ic)
+		if err != nil {
+			t.Errorf("%s: rewrite error: %s", test.Name, err)
+		}
+
+		itrs, err := influxql.Select(stmt, &ic, nil)
 		if err != nil {
 			t.Errorf("%s: parse error: %s", test.Name, err)
 		} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -1533,6 +1541,9 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			{Name: "cpu", Time: 5 * Second, Value: 10, Aux: makeAuxFields(10)},
 			{Name: "cpu", Time: 9 * Second, Value: 19, Aux: makeAuxFields(19)},
 		}}, nil
+	}
+	ic.FieldDimensionsFn = func(sources influxql.Sources) (map[string]influxql.DataType, map[string]struct{}, error) {
+		return map[string]influxql.DataType{"value": influxql.Integer}, nil, nil
 	}
 
 	for _, test := range []struct {
@@ -1721,7 +1732,12 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			},
 		},
 	} {
-		itrs, err := influxql.Select(MustParseSelectStatement(test.Statement), &ic, nil)
+		stmt, err := MustParseSelectStatement(test.Statement).RewriteFields(&ic)
+		if err != nil {
+			t.Errorf("%s: rewrite error: %s", test.Name, err)
+		}
+
+		itrs, err := influxql.Select(stmt, &ic, nil)
 		if err != nil {
 			t.Errorf("%s: parse error: %s", test.Name, err)
 		} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -1741,6 +1757,12 @@ func TestSelect_BinaryExpr_Mixed(t *testing.T) {
 			{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{float64(10), int64(15)}},
 			{Name: "cpu", Time: 9 * Second, Value: 19, Aux: []interface{}{float64(19), int64(5)}},
 		}}, nil
+	}
+	ic.FieldDimensionsFn = func(sources influxql.Sources) (map[string]influxql.DataType, map[string]struct{}, error) {
+		return map[string]influxql.DataType{
+			"total": influxql.Float,
+			"value": influxql.Integer,
+		}, nil, nil
 	}
 
 	for _, test := range []struct {
@@ -1785,7 +1807,12 @@ func TestSelect_BinaryExpr_Mixed(t *testing.T) {
 			},
 		},
 	} {
-		itrs, err := influxql.Select(MustParseSelectStatement(test.Statement), &ic, nil)
+		stmt, err := MustParseSelectStatement(test.Statement).RewriteFields(&ic)
+		if err != nil {
+			t.Errorf("%s: rewrite error: %s", test.Name, err)
+		}
+
+		itrs, err := influxql.Select(stmt, &ic, nil)
 		if err != nil {
 			t.Errorf("%s: parse error: %s", test.Name, err)
 		} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -1805,8 +1832,14 @@ func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 		return &FloatIterator{Points: []influxql.FloatPoint{
 			{Name: "cpu", Time: 0 * Second, Value: 20, Aux: []interface{}{float64(20), nil}},
 			{Name: "cpu", Time: 5 * Second, Value: 10, Aux: []interface{}{float64(10), float64(15)}},
-			{Name: "cpu", Time: 9 * Second, Value: 19, Aux: []interface{}{nil, int64(5)}},
+			{Name: "cpu", Time: 9 * Second, Value: 19, Aux: []interface{}{nil, float64(5)}},
 		}}, nil
+	}
+	ic.FieldDimensionsFn = func(sources influxql.Sources) (map[string]influxql.DataType, map[string]struct{}, error) {
+		return map[string]influxql.DataType{
+			"total": influxql.Float,
+			"value": influxql.Float,
+		}, nil, nil
 	}
 
 	for _, test := range []struct {
@@ -1851,7 +1884,12 @@ func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 			},
 		},
 	} {
-		itrs, err := influxql.Select(MustParseSelectStatement(test.Statement), &ic, nil)
+		stmt, err := MustParseSelectStatement(test.Statement).RewriteFields(&ic)
+		if err != nil {
+			t.Errorf("%s: rewrite error: %s", test.Name, err)
+		}
+
+		itrs, err := influxql.Select(stmt, &ic, nil)
 		if err != nil {
 			t.Errorf("%s: parse error: %s", test.Name, err)
 		} else if a, err := Iterators(itrs).ReadAll(); err != nil {
@@ -2313,7 +2351,7 @@ func NewRawBenchmarkIteratorCreator(pointN int) *IteratorCreator {
 		}
 
 		for i := range opt.Aux {
-			switch opt.Aux[i] {
+			switch opt.Aux[i].Val {
 			case "fval":
 				p.Aux[i] = float64(100)
 			default:
