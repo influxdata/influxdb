@@ -1,4 +1,4 @@
-# InfluxDB [![Circle CI](https://circleci.com/gh/influxdata/influxdb/tree/master.svg?style=svg)](https://circleci.com/gh/influxdata/influxdb/tree/master) [![Go Report Card](https://goreportcard.com/badge/github.com/influxdata/influxdb)](https://goreportcard.com/report/github.com/influxdata/influxdb)
+# InfluxDB [![Circle CI](https://circleci.com/gh/influxdata/influxdb/tree/master.svg?style=svg)](https://circleci.com/gh/influxdata/influxdb/tree/master) [![Go Report Card](https://goreportcard.com/badge/github.com/influxdata/influxdb)](https://goreportcard.com/report/github.com/influxdata/influxdb) [![Docker pulls](https://img.shields.io/docker/pulls/library/influxdb.svg)](https://hub.docker.com/_/influxdb/)
 
 ## An Open-Source Time Series Database
 
