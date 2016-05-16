@@ -205,12 +205,6 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 			},
 		}
 
-		hh := &fakeShardWriter{
-			ShardWriteFn: func(shardID, nodeID uint64, points []models.Point) error {
-				return nil
-			},
-		}
-
 		ms := NewPointsWriterMetaClient()
 		ms.DatabaseFn = func(database string) *meta.DatabaseInfo {
 			return nil
@@ -227,7 +221,6 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		c.MetaClient = ms
 		c.ShardWriter = sw
 		c.TSDBStore = store
-		c.HintedHandoff = hh
 		c.Subscriber = sub
 		c.Node = &influxdb.Node{ID: 1}
 
