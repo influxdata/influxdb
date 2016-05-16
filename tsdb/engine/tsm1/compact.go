@@ -508,7 +508,7 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 
 		// We've hit the max file limit and there is more to write.  Create a new file
 		// and continue.
-		if err == errMaxFileExceeded {
+		if err == errMaxFileExceeded || err == ErrMaxBlocksExceeded {
 			files = append(files, fileName)
 			continue
 		} else if err == ErrNoValues {
@@ -573,7 +573,16 @@ func (c *Compactor) write(path string, iter KeyIterator) (err error) {
 		}
 
 		// Write the key and value
-		if err := w.WriteBlock(key, minTime, maxTime, block); err != nil {
+		err = w.WriteBlock(key, minTime, maxTime, block)
+		if err == ErrMaxBlocksExceeded {
+			if err := w.WriteIndex(); err != nil {
+				return err
+			}
+
+			return ErrMaxBlocksExceeded
+		}
+
+		if err != nil {
 			return err
 		}
 

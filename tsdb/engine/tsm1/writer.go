@@ -102,6 +102,7 @@ var (
 	ErrNoValues             = fmt.Errorf("no values written")
 	ErrTSMClosed            = fmt.Errorf("tsm file closed")
 	ErrMaxKeyLengthExceeded = fmt.Errorf("max key length exceeded")
+	ErrMaxBlocksExceeded    = fmt.Errorf("max blocks exceeded")
 )
 
 // TSMWriter writes TSM formatted key and values.
@@ -471,6 +472,9 @@ func (t *tsmWriter) Write(key string, values Values) error {
 	return nil
 }
 
+// WriteBlock writes block for the given key and time range to the TSM file.  If the write
+// exceeds max entries for a given key, ErrMaxBlocksExceeded is returned.  This indicates
+// that the index is now full for this key and no future writes to this key will succeed.
 func (t *tsmWriter) WriteBlock(key string, minTime, maxTime int64, block []byte) error {
 	// Nothing to write
 	if len(block) == 0 {
@@ -508,6 +512,10 @@ func (t *tsmWriter) WriteBlock(key string, minTime, maxTime int64, block []byte)
 
 	// Increment file position pointer (checksum + block len)
 	t.n += int64(n)
+
+	if len(t.index.Entries(key)) >= maxIndexEntries {
+		return ErrMaxBlocksExceeded
+	}
 
 	return nil
 }
