@@ -35,7 +35,6 @@ type Engine interface {
 	Restore(r io.Reader, basePath string) error
 
 	CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
-	SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error)
 	WritePoints(points []models.Point) error
 	ContainsSeries(keys []string) (map[string]bool, error)
 	DeleteSeries(keys []string) error

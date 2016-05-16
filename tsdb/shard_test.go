@@ -219,7 +219,7 @@ cpu,host=serverB,region=uswest value=25  0
 	// Create iterator.
 	itr, err := sh.CreateIterator(influxql.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
-		Aux:        []string{"val2"},
+		Aux:        []influxql.VarRef{{Val: "val2"}},
 		Dimensions: []string{"host"},
 		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 		Ascending:  true,
@@ -295,7 +295,7 @@ cpu,host=serverB,region=uswest value=25  0
 	// Create iterator.
 	itr, err := sh.CreateIterator(influxql.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
-		Aux:        []string{"val2"},
+		Aux:        []influxql.VarRef{{Val: "val2"}},
 		Dimensions: []string{"host"},
 		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 		Ascending:  false,

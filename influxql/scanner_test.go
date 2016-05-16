@@ -57,6 +57,8 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `.`, tok: influxql.DOT},
 		{s: `=~`, tok: influxql.EQREGEX},
 		{s: `!~`, tok: influxql.NEQREGEX},
+		{s: `:`, tok: influxql.COLON},
+		{s: `::`, tok: influxql.DOUBLECOLON},
 
 		// Identifiers
 		{s: `foo`, tok: influxql.IDENT, lit: `foo`},

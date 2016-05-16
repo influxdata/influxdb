@@ -27,6 +27,7 @@ message Aux {
 message IteratorOptions {
     optional string      Expr       = 1;
     repeated string      Aux        = 2;
+    repeated VarRef      Fields     = 17;
     repeated Measurement Sources    = 3;
     optional Interval    Interval   = 4;
     repeated string      Dimensions = 5;
@@ -73,4 +74,9 @@ message Series {
 
 message SeriesList {
     repeated Series Items = 1;
+}
+
+message VarRef {
+    required string Val  = 1;
+    optional int32  Type = 2;
 }

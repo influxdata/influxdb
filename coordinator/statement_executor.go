@@ -416,7 +416,7 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 	}
 
 	// Rewrite wildcards, if any exist.
-	tmp, err := stmt.RewriteWildcards(ic)
+	tmp, err := stmt.RewriteFields(ic)
 	if err != nil {
 		return err
 	}

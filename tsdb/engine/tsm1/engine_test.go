@@ -450,7 +450,7 @@ func TestEngine_CreateIterator_Aux(t *testing.T) {
 
 	itr, err := e.CreateIterator(influxql.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
-		Aux:        []string{"F"},
+		Aux:        []influxql.VarRef{{Val: "F"}},
 		Dimensions: []string{"host"},
 		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
 		StartTime:  influxql.MinTime,

@@ -254,7 +254,7 @@ func TestFloatCursorIterator_MultipleValues(t *testing.T) {
 	}, true)
 
 	opt := influxql.IteratorOptions{
-		Expr: &influxql.VarRef{Val: "val1"}, Aux: []string{"val1", "val2"},
+		Expr: &influxql.VarRef{Val: "val1"}, Aux: []influxql.VarRef{{Val: "val1"}, {Val: "val2"}},
 		Ascending: true,
 		StartTime: influxql.MinTime,
 		EndTime:   influxql.MaxTime,
@@ -293,7 +293,7 @@ func TestFloatCursorIterator_Aux_SingleValue(t *testing.T) {
 	}, true)
 
 	opt := influxql.IteratorOptions{
-		Aux:       []string{"val1"},
+		Aux:       []influxql.VarRef{{Val: "val1"}},
 		Ascending: true,
 		StartTime: influxql.MinTime,
 		EndTime:   influxql.MaxTime,
@@ -332,7 +332,7 @@ func TestFloatCursorIterator_Aux_MultipleValues(t *testing.T) {
 	}, true)
 
 	opt := influxql.IteratorOptions{
-		Aux:       []string{"val1", "val2"},
+		Aux:       []influxql.VarRef{{Val: "val1"}, {Val: "val2"}},
 		Ascending: true,
 		StartTime: influxql.MinTime,
 		EndTime:   influxql.MaxTime,

@@ -312,7 +312,7 @@ type AuxIterator interface {
 	IteratorCreator
 
 	// Auxilary iterator
-	Iterator(name string) Iterator
+	Iterator(name string, typ DataType) Iterator
 
 	// Start starts writing to the created iterators.
 	Start()
@@ -323,16 +323,16 @@ type AuxIterator interface {
 }
 
 // NewAuxIterator returns a new instance of AuxIterator.
-func NewAuxIterator(input Iterator, seriesKeys SeriesList, opt IteratorOptions) AuxIterator {
+func NewAuxIterator(input Iterator, opt IteratorOptions) AuxIterator {
 	switch input := input.(type) {
 	case FloatIterator:
-		return newFloatAuxIterator(input, seriesKeys, opt)
+		return newFloatAuxIterator(input, opt)
 	case IntegerIterator:
-		return newIntegerAuxIterator(input, seriesKeys, opt)
+		return newIntegerAuxIterator(input, opt)
 	case StringIterator:
-		return newStringAuxIterator(input, seriesKeys, opt)
+		return newStringAuxIterator(input, opt)
 	case BooleanIterator:
-		return newBooleanAuxIterator(input, seriesKeys, opt)
+		return newBooleanAuxIterator(input, opt)
 	default:
 		panic(fmt.Sprintf("unsupported aux iterator type: %T", input))
 	}
@@ -364,20 +364,10 @@ func (f *auxIteratorField) close() {
 type auxIteratorFields []*auxIteratorField
 
 // newAuxIteratorFields returns a new instance of auxIteratorFields from a list of field names.
-func newAuxIteratorFields(seriesKeys SeriesList, opt IteratorOptions) auxIteratorFields {
+func newAuxIteratorFields(opt IteratorOptions) auxIteratorFields {
 	fields := make(auxIteratorFields, len(opt.Aux))
-	for i, name := range opt.Aux {
-		fields[i] = &auxIteratorField{name: name, opt: opt}
-		for _, s := range seriesKeys {
-			aux := s.Aux[i]
-			if aux == Unknown {
-				continue
-			}
-
-			if fields[i].typ == Unknown || aux < fields[i].typ {
-				fields[i].typ = aux
-			}
-		}
+	for i, ref := range opt.Aux {
+		fields[i] = &auxIteratorField{name: ref.Val, typ: ref.Type, opt: opt}
 	}
 	return fields
 }
@@ -389,11 +379,11 @@ func (a auxIteratorFields) close() {
 }
 
 // iterator creates a new iterator for a named auxilary field.
-func (a auxIteratorFields) iterator(name string) Iterator {
+func (a auxIteratorFields) iterator(name string, typ DataType) Iterator {
 	for _, f := range a {
 		// Skip field if it's name doesn't match.
 		// Exit if no points were received by the iterator.
-		if f.name != name {
+		if f.name != name || (typ != Unknown && f.typ != typ) {
 			continue
 		}
 
@@ -407,7 +397,7 @@ func (a auxIteratorFields) iterator(name string) Iterator {
 			itr := &integerChanIterator{cond: sync.NewCond(&sync.Mutex{})}
 			f.append(itr)
 			return itr
-		case String:
+		case String, Tag:
 			itr := &stringChanIterator{cond: sync.NewCond(&sync.Mutex{})}
 			f.append(itr)
 			return itr
@@ -548,10 +538,7 @@ type IteratorCreator interface {
 	CreateIterator(opt IteratorOptions) (Iterator, error)
 
 	// Returns the unique fields and dimensions across a list of sources.
-	FieldDimensions(sources Sources) (fields, dimensions map[string]struct{}, err error)
-
-	// Returns the series keys that will be returned by this iterator.
-	SeriesKeys(opt IteratorOptions) (SeriesList, error)
+	FieldDimensions(sources Sources) (fields map[string]DataType, dimensions map[string]struct{}, err error)
 
 	// Expands regex sources to all matching sources.
 	ExpandSources(sources Sources) (Sources, error)
@@ -618,8 +605,8 @@ func (a IteratorCreators) CreateIterator(opt IteratorOptions) (Iterator, error) 
 }
 
 // FieldDimensions returns unique fields and dimensions from multiple iterator creators.
-func (a IteratorCreators) FieldDimensions(sources Sources) (fields, dimensions map[string]struct{}, err error) {
-	fields = make(map[string]struct{})
+func (a IteratorCreators) FieldDimensions(sources Sources) (fields map[string]DataType, dimensions map[string]struct{}, err error) {
+	fields = make(map[string]DataType)
 	dimensions = make(map[string]struct{})
 
 	for _, ic := range a {
@@ -627,43 +614,16 @@ func (a IteratorCreators) FieldDimensions(sources Sources) (fields, dimensions m
 		if err != nil {
 			return nil, nil, err
 		}
-		for k := range f {
-			fields[k] = struct{}{}
+		for k, typ := range f {
+			if _, ok := fields[k]; typ != Unknown && (!ok || typ < fields[k]) {
+				fields[k] = typ
+			}
 		}
 		for k := range d {
 			dimensions[k] = struct{}{}
 		}
 	}
 	return
-}
-
-// SeriesKeys returns a list of series in all iterator creators in a.
-// If a series exists in multiple creators in a, all instances will be combined
-// into a single Series by calling Combine on it.
-func (a IteratorCreators) SeriesKeys(opt IteratorOptions) (SeriesList, error) {
-	seriesMap := make(map[string]Series)
-	for _, ic := range a {
-		series, err := ic.SeriesKeys(opt)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, s := range series {
-			cur, ok := seriesMap[s.ID()]
-			if ok {
-				cur.Combine(&s)
-			} else {
-				seriesMap[s.ID()] = s
-			}
-		}
-	}
-
-	seriesList := make([]Series, 0, len(seriesMap))
-	for _, s := range seriesMap {
-		seriesList = append(seriesList, s)
-	}
-	sort.Sort(SeriesList(seriesList))
-	return SeriesList(seriesList), nil
 }
 
 // ExpandSources expands sources across all iterator creators and returns a unique result.
@@ -709,7 +669,7 @@ type IteratorOptions struct {
 	Expr Expr
 
 	// Auxilary tags or values to also retrieve for the point.
-	Aux []string
+	Aux []VarRef
 
 	// Data sources from which to retrieve data.
 	Sources []Source
@@ -902,7 +862,6 @@ func (opt *IteratorOptions) UnmarshalBinary(buf []byte) error {
 
 func encodeIteratorOptions(opt *IteratorOptions) *internal.IteratorOptions {
 	pb := &internal.IteratorOptions{
-		Aux:        opt.Aux,
 		Interval:   encodeInterval(opt.Interval),
 		Dimensions: opt.Dimensions,
 		Fill:       proto.Int32(int32(opt.Fill)),
@@ -919,6 +878,14 @@ func encodeIteratorOptions(opt *IteratorOptions) *internal.IteratorOptions {
 	// Set expression, if set.
 	if opt.Expr != nil {
 		pb.Expr = proto.String(opt.Expr.String())
+	}
+
+	// Convert and encode aux fields as variable references.
+	pb.Fields = make([]*internal.VarRef, len(opt.Aux))
+	pb.Aux = make([]string, len(opt.Aux))
+	for i, ref := range opt.Aux {
+		pb.Fields[i] = encodeVarRef(ref)
+		pb.Aux[i] = ref.Val
 	}
 
 	// Convert and encode sources to measurements.
@@ -944,7 +911,6 @@ func encodeIteratorOptions(opt *IteratorOptions) *internal.IteratorOptions {
 
 func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, error) {
 	opt := &IteratorOptions{
-		Aux:        pb.GetAux(),
 		Interval:   decodeInterval(pb.GetInterval()),
 		Dimensions: pb.GetDimensions(),
 		Fill:       FillOption(pb.GetFill()),
@@ -968,7 +934,20 @@ func decodeIteratorOptions(pb *internal.IteratorOptions) (*IteratorOptions, erro
 		opt.Expr = expr
 	}
 
-	// Convert and encode sources to measurements.
+	// Convert and decode variable references.
+	if fields := pb.GetFields(); fields != nil {
+		opt.Aux = make([]VarRef, len(fields))
+		for i, ref := range fields {
+			opt.Aux[i] = decodeVarRef(ref)
+		}
+	} else {
+		opt.Aux = make([]VarRef, len(pb.GetAux()))
+		for i, name := range pb.GetAux() {
+			opt.Aux[i] = VarRef{Val: name}
+		}
+	}
+
+	// Convert and dencode sources to measurements.
 	sources := make([]Source, len(pb.GetSources()))
 	for i, source := range pb.GetSources() {
 		mm, err := decodeMeasurement(source)
@@ -1143,6 +1122,20 @@ func decodeInterval(pb *internal.Interval) Interval {
 	return Interval{
 		Duration: time.Duration(pb.GetDuration()),
 		Offset:   time.Duration(pb.GetOffset()),
+	}
+}
+
+func encodeVarRef(ref VarRef) *internal.VarRef {
+	return &internal.VarRef{
+		Val:  proto.String(ref.Val),
+		Type: proto.Int32(int32(ref.Type)),
+	}
+}
+
+func decodeVarRef(pb *internal.VarRef) VarRef {
+	return VarRef{
+		Val:  pb.GetVal(),
+		Type: DataType(pb.GetType()),
 	}
 }
 

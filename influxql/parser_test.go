@@ -773,6 +773,53 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT casts
+		{
+			s: `SELECT field1::float, field2::integer, field3::string, field4::boolean, field5::field, tag1::tag FROM cpu`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{
+					{
+						Expr: &influxql.VarRef{
+							Val:  "field1",
+							Type: influxql.Float,
+						},
+					},
+					{
+						Expr: &influxql.VarRef{
+							Val:  "field2",
+							Type: influxql.Integer,
+						},
+					},
+					{
+						Expr: &influxql.VarRef{
+							Val:  "field3",
+							Type: influxql.String,
+						},
+					},
+					{
+						Expr: &influxql.VarRef{
+							Val:  "field4",
+							Type: influxql.Boolean,
+						},
+					},
+					{
+						Expr: &influxql.VarRef{
+							Val:  "field5",
+							Type: influxql.AnyField,
+						},
+					},
+					{
+						Expr: &influxql.VarRef{
+							Val:  "tag1",
+							Type: influxql.Tag,
+						},
+					},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+			},
+		},
+
 		// See issues https://github.com/influxdata/influxdb/issues/1647
 		// and https://github.com/influxdata/influxdb/issues/4404
 		// DELETE statement

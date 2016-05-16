@@ -48,13 +48,8 @@ func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
 				{Name: "cpu", Time: int64(1 * time.Second), Aux: []interface{}{float64(200)}},
 			}}, nil
 		}
-		ic.FieldDimensionsFn = func(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
-			return map[string]struct{}{"value": struct{}{}}, nil, nil
-		}
-		ic.SeriesKeysFn = func(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
-			return influxql.SeriesList{
-				{Name: "cpu", Aux: []influxql.DataType{influxql.Float}},
-			}, nil
+		ic.FieldDimensionsFn = func(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+			return map[string]influxql.DataType{"value": influxql.Float}, nil, nil
 		}
 		return &ic
 	}
@@ -99,13 +94,8 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectSeriesN(t *testing.T) {
 			stats:  influxql.IteratorStats{SeriesN: 2},
 		}, nil
 	}
-	ic.FieldDimensionsFn = func(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
-		return map[string]struct{}{"value": struct{}{}}, nil, nil
-	}
-	ic.SeriesKeysFn = func(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
-		return influxql.SeriesList{
-			{Name: "cpu", Aux: []influxql.DataType{influxql.Float}},
-		}, nil
+	ic.FieldDimensionsFn = func(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+		return map[string]influxql.DataType{"value": influxql.Float}, nil, nil
 	}
 	e.TSDBStore.ShardIteratorCreatorFn = func(id uint64) influxql.IteratorCreator { return &ic }
 
@@ -138,13 +128,8 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 			Points: []influxql.FloatPoint{{Name: "cpu", Time: int64(0 * time.Second), Aux: []interface{}{float64(100)}}},
 		}, nil
 	}
-	ic.FieldDimensionsFn = func(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
-		return map[string]struct{}{"value": struct{}{}}, nil, nil
-	}
-	ic.SeriesKeysFn = func(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
-		return influxql.SeriesList{
-			{Name: "cpu", Aux: []influxql.DataType{influxql.Float}},
-		}, nil
+	ic.FieldDimensionsFn = func(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+		return map[string]influxql.DataType{"value": influxql.Float}, nil, nil
 	}
 	e.TSDBStore.ShardIteratorCreatorFn = func(id uint64) influxql.IteratorCreator { return &ic }
 
@@ -303,8 +288,7 @@ func ReadAllResults(c <-chan *influxql.Result) []*influxql.Result {
 // IteratorCreator is a mockable implementation of IteratorCreator.
 type IteratorCreator struct {
 	CreateIteratorFn  func(opt influxql.IteratorOptions) (influxql.Iterator, error)
-	FieldDimensionsFn func(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error)
-	SeriesKeysFn      func(opt influxql.IteratorOptions) (influxql.SeriesList, error)
+	FieldDimensionsFn func(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
 	ExpandSourcesFn   func(sources influxql.Sources) (influxql.Sources, error)
 }
 
@@ -312,12 +296,8 @@ func (ic *IteratorCreator) CreateIterator(opt influxql.IteratorOptions) (influxq
 	return ic.CreateIteratorFn(opt)
 }
 
-func (ic *IteratorCreator) FieldDimensions(sources influxql.Sources) (fields, dimensions map[string]struct{}, err error) {
+func (ic *IteratorCreator) FieldDimensions(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
 	return ic.FieldDimensionsFn(sources)
-}
-
-func (ic *IteratorCreator) SeriesKeys(opt influxql.IteratorOptions) (influxql.SeriesList, error) {
-	return ic.SeriesKeysFn(opt)
 }
 
 func (ic *IteratorCreator) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
