@@ -100,7 +100,7 @@ func NewHandler(c Config, statMap *expvar.Map) *Handler {
 	h.AddRoutes([]Route{
 		Route{
 			"query-options", // Satisfy CORS checks.
-			"OPTIONS", "/query", true, true, h.serveOptions,
+			"OPTIONS", "/query", false, true, h.serveOptions,
 		},
 		Route{
 			"query", // Query serving route.
@@ -112,7 +112,7 @@ func NewHandler(c Config, statMap *expvar.Map) *Handler {
 		},
 		Route{
 			"write-options", // Satisfy CORS checks.
-			"OPTIONS", "/write", true, true, h.serveOptions,
+			"OPTIONS", "/write", false, true, h.serveOptions,
 		},
 		Route{
 			"write", // Data-ingest route.
@@ -120,19 +120,19 @@ func NewHandler(c Config, statMap *expvar.Map) *Handler {
 		},
 		Route{ // Ping
 			"ping",
-			"GET", "/ping", true, true, h.servePing,
+			"GET", "/ping", false, true, h.servePing,
 		},
 		Route{ // Ping
 			"ping-head",
-			"HEAD", "/ping", true, true, h.servePing,
+			"HEAD", "/ping", false, true, h.servePing,
 		},
 		Route{ // Ping w/ status
 			"status",
-			"GET", "/status", true, true, h.serveStatus,
+			"GET", "/status", false, true, h.serveStatus,
 		},
 		Route{ // Ping w/ status
 			"status-head",
-			"HEAD", "/status", true, true, h.serveStatus,
+			"HEAD", "/status", false, true, h.serveStatus,
 		},
 		// TODO: (corylanou) remove this and associated code
 		Route{ // Tell data node to run CQs that should be run
@@ -787,6 +787,17 @@ type gzipResponseWriter struct {
 	http.ResponseWriter
 }
 
+// WriteHeader sets the provided code as the response status. If the
+// specified status is 204 No Content, then the Content-Encoding header
+// is removed from the response, to prevent clients expecting gzipped
+// encoded bodies from trying to deflate an empty response.
+func (w gzipResponseWriter) WriteHeader(code int) {
+	if code != http.StatusNoContent {
+		w.Header().Set("Content-Encoding", "gzip")
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
 func (w gzipResponseWriter) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
@@ -806,7 +817,6 @@ func gzipFilter(inner http.Handler) http.Handler {
 			inner.ServeHTTP(w, r)
 			return
 		}
-		w.Header().Set("Content-Encoding", "gzip")
 		gz := gzip.NewWriter(w)
 		defer gz.Close()
 		gzw := gzipResponseWriter{Writer: gz, ResponseWriter: w}
