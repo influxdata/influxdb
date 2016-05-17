@@ -375,11 +375,12 @@ func (s *Store) DeleteDatabase(name string) error {
 	for shardID, sh := range s.shards {
 		if sh.database == name {
 			wg.Add(1)
-			go func(shardID uint64) {
+			shardID, sh := shardID, sh // scoped copies of loop variables
+			go func() {
 				defer wg.Done()
 				err := sh.Close()
 				responses <- resp{shardID, err}
-			}(shardID)
+			}()
 		}
 	}
 	s.mu.RUnlock()
