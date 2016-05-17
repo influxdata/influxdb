@@ -19,6 +19,7 @@
 - [#6629](https://github.com/influxdata/influxdb/issues/6629): query-log-enabled in config not ignored anymore.
 - [#6607](https://github.com/influxdata/influxdb/issues/6607): SHOW TAG VALUES accepts != and !~ in WHERE clause.
 - [#6649](https://github.com/influxdata/influxdb/issues/6649): Make sure admin exists before authenticating query.
+- [#6644](https://github.com/influxdata/influxdb/issues/6644): Print the query executor's stack trace on a panic to the log.
 
 ## v0.13.0 [2016-05-12]
 
