@@ -1,6 +1,7 @@
 package subscriber // import "github.com/influxdata/influxdb/services/subscriber"
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"io"
@@ -38,13 +39,13 @@ type subEntry struct {
 // to defined third party destinations.
 // Subscriptions are defined per database and retention policy.
 type Service struct {
-	subs       map[subEntry]PointsWriter
 	MetaClient interface {
 		Databases() []meta.DatabaseInfo
 		WaitForDataChanged() chan struct{}
 	}
 	NewPointsWriter func(u url.URL) (PointsWriter, error)
 	Logger          *log.Logger
+	update          chan struct{}
 	statMap         *expvar.Map
 	points          chan *coordinator.WritePointsRequest
 	wg              sync.WaitGroup
@@ -56,13 +57,11 @@ type Service struct {
 // NewService returns a subscriber service with given settings
 func NewService(c Config) *Service {
 	return &Service{
-		subs:            make(map[subEntry]PointsWriter),
 		NewPointsWriter: newPointsWriter,
 		Logger:          log.New(os.Stderr, "[subscriber] ", log.LstdFlags),
 		statMap:         influxdb.NewStatistics("subscriber", "subscriber", nil),
-		points:          make(chan *coordinator.WritePointsRequest),
+		points:          make(chan *coordinator.WritePointsRequest, 100),
 		closed:          true,
-		closing:         make(chan struct{}),
 	}
 }
 
@@ -70,21 +69,17 @@ func NewService(c Config) *Service {
 func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	s.closing = make(chan struct{})
-
 	if s.MetaClient == nil {
-		panic("no meta store")
+		return errors.New("no meta store")
 	}
 
 	s.closed = false
 
-	// Perform initial update
-	s.Update()
+	s.closing = make(chan struct{})
+	s.update = make(chan struct{})
 
-	s.wg.Add(1)
-	go s.writePoints()
-	// Do not wait for this goroutine since it block until a meta change occurs.
+	s.wg.Add(2)
+	go s.run()
 	go s.waitForMetaUpdates()
 
 	s.Logger.Println("opened service")
@@ -95,14 +90,10 @@ func (s *Service) Open() error {
 func (s *Service) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	close(s.points)
 	s.closed = true
-	select {
-	case <-s.closing:
-		// do nothing
-	default:
-		close(s.closing)
-	}
+
+	close(s.points)
+	close(s.closing)
 
 	s.wg.Wait()
 	s.Logger.Println("closed service")
@@ -116,61 +107,30 @@ func (s *Service) SetLogOutput(w io.Writer) {
 }
 
 func (s *Service) waitForMetaUpdates() {
+	defer s.wg.Done()
 	for {
 		ch := s.MetaClient.WaitForDataChanged()
 		select {
 		case <-ch:
-			//Check that we haven't been closed before performing update.
-			s.mu.Lock()
-			if s.closed {
-				s.mu.Unlock()
-				s.Logger.Println("service closed not updating")
-				return
+			err := s.Update()
+			if err != nil {
+				s.Logger.Println("error updating subscriptions:", err)
 			}
-			s.mu.Unlock()
-			s.Update()
 		case <-s.closing:
 			return
 		}
 	}
-
 }
 
 // Update will start new and stop deleted subscriptions.
 func (s *Service) Update() error {
-	dbis := s.MetaClient.Databases()
-	allEntries := make(map[subEntry]bool, 0)
-	// Add in new subscriptions
-	for _, dbi := range dbis {
-		for _, rpi := range dbi.RetentionPolicies {
-			for _, si := range rpi.Subscriptions {
-				se := subEntry{
-					db:   dbi.Name,
-					rp:   rpi.Name,
-					name: si.Name,
-				}
-				allEntries[se] = true
-				if _, ok := s.subs[se]; ok {
-					continue
-				}
-				sub, err := s.createSubscription(se, si.Mode, si.Destinations)
-				if err != nil {
-					return err
-				}
-				s.subs[se] = sub
-			}
-		}
+	// signal update
+	select {
+	case s.update <- struct{}{}:
+		return nil
+	case <-s.closing:
+		return errors.New("service closed cannot update")
 	}
-
-	// Remove deleted subs
-	for se := range s.subs {
-		if !allEntries[se] {
-			delete(s.subs, se)
-			s.Logger.Println("deleted old subscription for", se.db, se.rp)
-		}
-	}
-
-	return nil
 }
 
 func (s *Service) createSubscription(se subEntry, mode string, destinations []string) (PointsWriter, error) {
@@ -219,20 +179,68 @@ func (s *Service) Points() chan<- *coordinator.WritePointsRequest {
 }
 
 // read points off chan and write them
-func (s *Service) writePoints() {
+func (s *Service) run() {
 	defer s.wg.Done()
-	for p := range s.points {
-		for se, sub := range s.subs {
-			if p.Database == se.db && p.RetentionPolicy == se.rp {
-				err := sub.WritePoints(p)
-				if err != nil {
-					s.Logger.Println(err)
-					s.statMap.Add(statWriteFailures, 1)
+	subs := make(map[subEntry]PointsWriter)
+	// Perform initial update
+	s.updateSubs(subs)
+	for {
+		select {
+		case <-s.update:
+			s.updateSubs(subs)
+		case p, ok := <-s.points:
+			if !ok {
+				return
+			}
+			for se, sub := range subs {
+				if p.Database == se.db && p.RetentionPolicy == se.rp {
+					err := sub.WritePoints(p)
+					if err != nil {
+						s.Logger.Println(err)
+						s.statMap.Add(statWriteFailures, 1)
+					}
 				}
 			}
+			s.statMap.Add(statPointsWritten, int64(len(p.Points)))
 		}
-		s.statMap.Add(statPointsWritten, int64(len(p.Points)))
 	}
+}
+
+func (s *Service) updateSubs(subs map[subEntry]PointsWriter) error {
+	dbis := s.MetaClient.Databases()
+	allEntries := make(map[subEntry]bool, 0)
+	// Add in new subscriptions
+	for _, dbi := range dbis {
+		for _, rpi := range dbi.RetentionPolicies {
+			for _, si := range rpi.Subscriptions {
+				se := subEntry{
+					db:   dbi.Name,
+					rp:   rpi.Name,
+					name: si.Name,
+				}
+				allEntries[se] = true
+				if _, ok := subs[se]; ok {
+					continue
+				}
+				sub, err := s.createSubscription(se, si.Mode, si.Destinations)
+				if err != nil {
+					return err
+				}
+				subs[se] = sub
+				s.Logger.Println("added new subscription for", se.db, se.rp)
+			}
+		}
+	}
+
+	// Remove deleted subs
+	for se := range subs {
+		if !allEntries[se] {
+			delete(subs, se)
+			s.Logger.Println("deleted old subscription for", se.db, se.rp)
+		}
+	}
+
+	return nil
 }
 
 // BalanceMode sets what balance mode to use on a subscription.
@@ -281,6 +289,8 @@ func newPointsWriter(u url.URL) (PointsWriter, error) {
 	switch u.Scheme {
 	case "udp":
 		return NewUDP(u.Host), nil
+	case "http", "https":
+		return NewHTTP(u.Host)
 	default:
 		return nil, fmt.Errorf("unknown destination scheme %s", u.Scheme)
 	}
