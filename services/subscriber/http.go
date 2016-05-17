@@ -1,6 +1,8 @@
 package subscriber
 
 import (
+	"time"
+
 	"github.com/influxdata/influxdb/client/v2"
 	"github.com/influxdata/influxdb/coordinator"
 )
@@ -13,7 +15,8 @@ type HTTP struct {
 // NewHTTP returns a new HTTP points writer with default options.
 func NewHTTP(addr string) (*HTTP, error) {
 	conf := client.HTTPConfig{
-		Addr: addr,
+		Addr:    addr,
+		Timeout: 30 * time.Second,
 	}
 	c, err := client.NewHTTPClient(conf)
 	if err != nil {

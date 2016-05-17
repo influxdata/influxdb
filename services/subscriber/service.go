@@ -165,7 +165,6 @@ func (s *Service) createSubscription(se subEntry, mode string, destinations []st
 		key := strings.Join([]string{"subscriber", se.db, se.rp, se.name, dest}, ":")
 		statMaps[i] = influxdb.NewStatistics(key, "subscriber", tags)
 	}
-	s.Logger.Println("created new subscription for", se.db, se.rp)
 	return &balancewriter{
 		bm:       bm,
 		writers:  writers,
@@ -187,7 +186,10 @@ func (s *Service) run() {
 	for {
 		select {
 		case <-s.update:
-			s.updateSubs(subs)
+			err := s.updateSubs(subs)
+			if err != nil {
+				s.Logger.Println("failed to update subscriptions:", err)
+			}
 		case p, ok := <-s.points:
 			if !ok {
 				return
@@ -290,7 +292,7 @@ func newPointsWriter(u url.URL) (PointsWriter, error) {
 	case "udp":
 		return NewUDP(u.Host), nil
 	case "http", "https":
-		return NewHTTP(u.Host)
+		return NewHTTP(u.String())
 	default:
 		return nil, fmt.Errorf("unknown destination scheme %s", u.Scheme)
 	}
