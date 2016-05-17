@@ -133,7 +133,7 @@ fi
 case $ENVIRONMENT_INDEX in
     0)
         # 64 bit tests
-	# Static builds will be uploaded to S3 upon test completion
+	    # Static builds will be uploaded to S3 upon test completion
         run_test_docker Dockerfile_build_ubuntu64 test_64bit --generate --test
         rc=$?
         ;;
