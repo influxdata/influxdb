@@ -1143,7 +1143,10 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 // buildCursor creates an untyped cursor for a field.
 func (e *Engine) buildCursor(measurement, seriesKey string, ref *influxql.VarRef, opt influxql.IteratorOptions) cursor {
 	// Look up fields for measurement.
+	e.mu.RLock()
 	mf := e.measurementFields[measurement]
+	e.mu.RUnlock()
+
 	if mf == nil {
 		return nil
 	}
