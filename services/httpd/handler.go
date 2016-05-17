@@ -684,8 +684,17 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, *meta.UserInfo)
 		// Retrieve user list.
 		uis := h.MetaClient.Users()
 
+		// See if admin user exists.
+		adminExists := false
+		for i := range uis {
+			if uis[i].Admin {
+				adminExists = true
+				break
+			}
+		}
+
 		// TODO corylanou: never allow this in the future without users
-		if requireAuthentication && len(uis) > 0 {
+		if requireAuthentication && adminExists {
 			creds, err := parseCredentials(r)
 			if err != nil {
 				h.statMap.Add(statAuthFail, 1)
@@ -704,7 +713,7 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, *meta.UserInfo)
 				user, err = h.MetaClient.Authenticate(creds.Username, creds.Password)
 				if err != nil {
 					h.statMap.Add(statAuthFail, 1)
-					httpError(w, err.Error(), false, http.StatusUnauthorized)
+					httpError(w, "authorization failed", false, http.StatusUnauthorized)
 					return
 				}
 			case BearerAuthentication:
