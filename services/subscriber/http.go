@@ -13,10 +13,10 @@ type HTTP struct {
 }
 
 // NewHTTP returns a new HTTP points writer with default options.
-func NewHTTP(addr string) (*HTTP, error) {
+func NewHTTP(addr string, timeout time.Duration) (*HTTP, error) {
 	conf := client.HTTPConfig{
 		Addr:    addr,
-		Timeout: 30 * time.Second,
+		Timeout: timeout,
 	}
 	c, err := client.NewHTTPClient(conf)
 	if err != nil {

@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/coordinator"
@@ -52,17 +53,20 @@ type Service struct {
 	closed          bool
 	closing         chan struct{}
 	mu              sync.Mutex
+	conf            Config
 }
 
 // NewService returns a subscriber service with given settings
 func NewService(c Config) *Service {
-	return &Service{
-		NewPointsWriter: newPointsWriter,
-		Logger:          log.New(os.Stderr, "[subscriber] ", log.LstdFlags),
-		statMap:         influxdb.NewStatistics("subscriber", "subscriber", nil),
-		points:          make(chan *coordinator.WritePointsRequest, 100),
-		closed:          true,
+	s := &Service{
+		Logger:  log.New(os.Stderr, "[subscriber] ", log.LstdFlags),
+		statMap: influxdb.NewStatistics("subscriber", "subscriber", nil),
+		points:  make(chan *coordinator.WritePointsRequest, 100),
+		closed:  true,
+		conf:    c,
 	}
+	s.NewPointsWriter = s.newPointsWriter
+	return s
 }
 
 // Open starts the subscription service.
@@ -245,6 +249,18 @@ func (s *Service) updateSubs(subs map[subEntry]PointsWriter) error {
 	return nil
 }
 
+// Creates a PointsWriter from the given URL
+func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
+	switch u.Scheme {
+	case "udp":
+		return NewUDP(u.Host), nil
+	case "http", "https":
+		return NewHTTP(u.String(), time.Duration(s.conf.HTTPTimeout))
+	default:
+		return nil, fmt.Errorf("unknown destination scheme %s", u.Scheme)
+	}
+}
+
 // BalanceMode sets what balance mode to use on a subscription.
 // valid options are currently ALL or ANY
 type BalanceMode int
@@ -284,16 +300,4 @@ func (b *balancewriter) WritePoints(p *coordinator.WritePointsRequest) error {
 		}
 	}
 	return lastErr
-}
-
-// Creates a PointsWriter from the given URL
-func newPointsWriter(u url.URL) (PointsWriter, error) {
-	switch u.Scheme {
-	case "udp":
-		return NewUDP(u.Host), nil
-	case "http", "https":
-		return NewHTTP(u.String())
-	default:
-		return nil, fmt.Errorf("unknown destination scheme %s", u.Scheme)
-	}
 }
