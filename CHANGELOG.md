@@ -16,6 +16,7 @@
 - [#2926](https://github.com/influxdata/influxdb/issues/2926): Support bound parameters in the parser.
 - [#1310](https://github.com/influxdata/influxdb/issues/1310): Add https-private-key option to httpd config.
 - [#6621](https://github.com/influxdata/influxdb/pull/6621): Add Holt-Winter forecasting function.
+- [#6655](https://github.com/influxdata/influxdb/issues/6655): Add HTTP(s) based subscriptions.
 
 ### Bugfixes
 
