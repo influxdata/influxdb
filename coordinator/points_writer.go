@@ -67,10 +67,6 @@ type PointsWriter struct {
 		WriteShard(shardID, ownerID uint64, points []models.Point) error
 	}
 
-	HintedHandoff interface {
-		WriteShard(shardID, ownerID uint64, points []models.Point) error
-	}
-
 	Subscriber interface {
 		Points() chan<- *WritePointsRequest
 	}
