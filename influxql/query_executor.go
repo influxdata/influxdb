@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -294,6 +295,7 @@ loop:
 
 func (e *QueryExecutor) recover(query *Query, results chan *Result) {
 	if err := recover(); err != nil {
+		e.Logger.Printf("%s [panic:%s]\n%s", query.String(), err, string(debug.Stack()))
 		results <- &Result{
 			StatementID: -1,
 			Err:         fmt.Errorf("%s [panic:%s]", query.String(), err),
