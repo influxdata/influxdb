@@ -565,7 +565,8 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 // Ensures that a compaction will properly rollover to a new file when the
 // max keys per blocks is exceeded
 func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
-	if testing.Short() {
+	// This test creates a lot of data and causes timeout failures for these envs
+	if testing.Short() || os.Getenv("CIRCLECI") != "" || os.Getenv("APPVEYOR") != "" || os.Getenv("GORACE") != "" {
 		t.Skip("Skipping max keys compaction test")
 	}
 	dir := MustTempDir()
@@ -578,7 +579,7 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 	for i := 0; i < 65535; i++ {
 		values = values[:0]
 		for j := 0; j < 1000; j++ {
-			values = append(values, tsm1.NewValue(int64(i*1000+j), float64(j)))
+			values = append(values, tsm1.NewValue(int64(i*1000+j), int64(1)))
 		}
 		if err := f1.Write("cpu,host=A#!~#value", values); err != nil {
 			t.Fatalf("write tsm f1: %v", err)
@@ -595,7 +596,7 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 	values = values[:0]
 	f2, f2Name := MustTSMWriter(dir, 2)
 	for j := lastTimeStamp; j < lastTimeStamp+1000; j++ {
-		values = append(values, tsm1.NewValue(int64(j), float64(j)))
+		values = append(values, tsm1.NewValue(int64(j), int64(1)))
 	}
 	if err := f2.Write("cpu,host=A#!~#value", values); err != nil {
 		t.Fatalf("write tsm f1: %v", err)
@@ -682,58 +683,6 @@ func TestTSMKeyIterator_Single(t *testing.T) {
 			readValues = true
 			assertValueEqual(t, v, v1)
 		}
-	}
-
-	if !readValues {
-		t.Fatalf("failed to read any values")
-	}
-}
-
-// Tests that a single TSM file can be read and iterated over
-func TestTSMKeyIterator_Chunked(t *testing.T) {
-	t.Skip("fixme")
-	dir := MustTempDir()
-	defer os.RemoveAll(dir)
-
-	v0 := tsm1.NewValue(1, 1.1)
-	v1 := tsm1.NewValue(2, 2.1)
-	writes := map[string][]tsm1.Value{
-		"cpu,host=A#!~#value": []tsm1.Value{v0, v1},
-	}
-
-	r := MustTSMReader(dir, 1, writes)
-
-	iter, err := tsm1.NewTSMKeyIterator(1, false, r)
-	if err != nil {
-		t.Fatalf("unexpected error creating WALKeyIterator: %v", err)
-	}
-
-	var readValues bool
-	var chunk int
-	for iter.Next() {
-		key, _, _, block, err := iter.Read()
-		if err != nil {
-			t.Fatalf("unexpected error read: %v", err)
-		}
-
-		values, err := tsm1.DecodeBlock(block, nil)
-		if err != nil {
-			t.Fatalf("unexpected error decode: %v", err)
-		}
-
-		if got, exp := key, "cpu,host=A#!~#value"; got != exp {
-			t.Fatalf("key mismatch: got %v, exp %v", got, exp)
-		}
-
-		if got, exp := len(values), len(writes); got != exp {
-			t.Fatalf("values length mismatch: got %v, exp %v", got, exp)
-		}
-
-		for _, v := range values {
-			readValues = true
-			assertValueEqual(t, v, writes["cpu,host=A#!~#value"][chunk])
-		}
-		chunk++
 	}
 
 	if !readValues {
