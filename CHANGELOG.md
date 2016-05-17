@@ -26,6 +26,10 @@
 - [#6663](https://github.com/influxdata/influxdb/issues/6663): Fixing panic in SHOW FIELD KEYS.
 - [#6624](https://github.com/influxdata/influxdb/issues/6624): Ensure clients requesting gzip encoded bodies don't receive empty body
 
+- [#6652](https://github.com/influxdata/influxdb/issues/6652): Fix panic: interface conversion: tsm1.Value is *tsm1.StringValue, not *tsm1.FloatValue
+- [#6406](https://github.com/influxdata/influxdb/issues/6406): Max index entries exceeded
+- [#6557](https://github.com/influxdata/influxdb/issues/6557): Overwriting points on large series can cause memory spikes during compactions
+
 ## v0.13.0 [2016-05-12]
 
 ### Release Notes
