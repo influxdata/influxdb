@@ -424,7 +424,9 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 // serveWrite receives incoming series data in line protocol format and writes it to the database.
 func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.UserInfo) {
 	h.statMap.Add(statWriteRequest, 1)
+	h.statMap.Add(statWriteRequestsActive, 1)
 	defer func(start time.Time) {
+		h.statMap.Add(statWriteRequestsActive, -1)
 		h.statMap.Add(statWriteRequestDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
 

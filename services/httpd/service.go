@@ -32,6 +32,7 @@ const (
 	statQueryRequestDuration         = "queryReqDurationNs" // Number of (wall-time) nanoseconds spent inside query requests
 	statWriteRequestDuration         = "writeReqDurationNs" // Number of (wall-time) nanoseconds spent inside write requests
 	statRequestsActive               = "reqActive"          // Number of currently active requests
+	statWriteRequestsActive          = "writeReqActive"     // Number of currently active write requests
 	statClientError                  = "clientError"        // Number of HTTP responses due to client error
 	statServerError                  = "serverError"        // Number of HTTP responses due to server error
 )
