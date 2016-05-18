@@ -14,6 +14,7 @@
 - [#6654](https://github.com/influxdata/influxdb/pull/6654): Add new HTTP statistics to monitoring
 - [#6664](https://github.com/influxdata/influxdb/pull/6664): Adds monitoring statistic for on-disk shard size.
 - [#2926](https://github.com/influxdata/influxdb/issues/2926): Support bound parameters in the parser.
+- [#1310](https://github.com/influxdata/influxdb/issues/1310): Add https-private-key option to httpd config.
 
 ### Bugfixes
 

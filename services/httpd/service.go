@@ -43,6 +43,7 @@ type Service struct {
 	addr  string
 	https bool
 	cert  string
+	key   string
 	limit int
 	err   chan error
 
@@ -64,10 +65,14 @@ func NewService(c Config) *Service {
 		addr:    c.BindAddress,
 		https:   c.HTTPSEnabled,
 		cert:    c.HTTPSCertificate,
+		key:     c.HTTPSPrivateKey,
 		limit:   c.MaxConnectionLimit,
 		err:     make(chan error),
 		Handler: NewHandler(c, statMap),
 		Logger:  log.New(os.Stderr, "[httpd] ", log.LstdFlags),
+	}
+	if s.key == "" {
+		s.key = s.cert
 	}
 	s.Handler.Logger = s.Logger
 	return s
@@ -80,7 +85,7 @@ func (s *Service) Open() error {
 
 	// Open listener.
 	if s.https {
-		cert, err := tls.LoadX509KeyPair(s.cert, s.cert)
+		cert, err := tls.LoadX509KeyPair(s.cert, s.key)
 		if err != nil {
 			return err
 		}

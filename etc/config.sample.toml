@@ -168,6 +168,8 @@ reporting-disabled = false
   pprof-enabled = false
   https-enabled = false
   https-certificate = "/etc/ssl/influxdb.pem"
+  ### Use a separate private key location.
+  # https-private-key = ""
   max-row-limit = 10000
 
 ###
