@@ -22,7 +22,6 @@
 - github.com/rakyll/statik [APACHE LICENSE](https://github.com/rakyll/statik/blob/master/LICENSE)
 - glyphicons [LICENSE](http://glyphicons.com/license/)
 - golang.org/x/crypto [BSD LICENSE](https://github.com/golang/crypto/blob/master/LICENSE)
-- golang.org/x/tools [BSD LICENSE](https://github.com/golang/tools/blob/master/LICENSE)
 - gopkg.in/fatih/pool.v2 [MIT LICENSE](https://github.com/fatih/pool/blob/v2.0.0/LICENSE)
 - jquery 2.1.4 [MIT LICENSE](https://github.com/jquery/jquery/blob/master/LICENSE.txt)
 - react 0.13.3 [BSD LICENSE](https://github.com/facebook/react/blob/master/LICENSE)

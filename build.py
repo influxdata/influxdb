@@ -192,7 +192,7 @@ def run_tests(race, parallel, timeout, no_vet):
         return False
     if not no_vet:
         logging.info("Installing 'go vet' tool...")
-        run("go install golang.org/x/tools/cmd/vet")
+        run("go get -u golang.org/x/tools/cmd/...")
         out = run(go_vet_command)
         if len(out) > 0:
             logging.error("Go vet failed. Please run 'go vet ./...' and fix any errors.")
