@@ -486,13 +486,10 @@ func (s *Shard) FieldDimensions(sources influxql.Sources) (fields map[string]inf
 			}
 
 			// Append fields and dimensions.
-			fieldNames := mm.FieldNames()
-			if len(fieldNames) > 0 {
-				mf := s.engine.MeasurementFields(m.Name)
-				for _, name := range fieldNames {
-					if f := mf.Field(name); f != nil {
-						fields[name] = f.Type
-					}
+			mf := s.engine.MeasurementFields(m.Name)
+			if mf != nil {
+				for name, typ := range mf.FieldSet() {
+					fields[name] = typ
 				}
 			}
 			for _, key := range mm.TagKeys() {
@@ -997,7 +994,7 @@ type fieldKeysIterator struct {
 	mms Measurements // remaining measurements
 	buf struct {
 		mm     *Measurement // current measurement
-		fields []*Field     // current measurement's fields
+		fields []Field      // current measurement's fields
 	}
 }
 
@@ -1017,15 +1014,23 @@ func (itr *fieldKeysIterator) Next() (*influxql.FloatPoint, error) {
 			}
 
 			itr.buf.mm = itr.mms[0]
-			keys := itr.buf.mm.FieldNames()
-			if len(keys) > 0 {
-				// Sort the keys in alphabetical order.
+			mf := itr.sh.engine.MeasurementFields(itr.buf.mm.Name)
+			if mf != nil {
+				fset := mf.FieldSet()
+				if len(fset) == 0 {
+					itr.mms = itr.mms[1:]
+					continue
+				}
+
+				keys := make([]string, 0, len(fset))
+				for k := range fset {
+					keys = append(keys, k)
+				}
 				sort.Strings(keys)
-				// Retrieve the field for each key.
-				mf := itr.sh.engine.MeasurementFields(itr.buf.mm.Name)
-				itr.buf.fields = make([]*Field, len(keys))
+
+				itr.buf.fields = make([]Field, len(keys))
 				for i, name := range keys {
-					itr.buf.fields[i] = mf.Field(name)
+					itr.buf.fields[i] = Field{Name: name, Type: fset[name]}
 				}
 			}
 			itr.mms = itr.mms[1:]
