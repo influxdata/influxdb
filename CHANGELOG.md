@@ -13,7 +13,6 @@
 - [#6519](https://github.com/influxdata/influxdb/issues/6519): Support cast syntax for selecting a specific type.
 - [#6654](https://github.com/influxdata/influxdb/pull/6654): Add new HTTP statistics to monitoring
 
-
 ### Bugfixes
 
 - [#6604](https://github.com/influxdata/influxdb/pull/6604): Remove old cluster code
@@ -24,7 +23,7 @@
 - [#6644](https://github.com/influxdata/influxdb/issues/6644): Print the query executor's stack trace on a panic to the log.
 - [#6650](https://github.com/influxdata/influxdb/issues/6650): Data race when dropping a database immediately after writing to it
 - [#6235](https://github.com/influxdata/influxdb/issues/6235): Fix measurement field panic in tsm1 engine.
-
+- [#6663](https://github.com/influxdata/influxdb/issues/6663): Fixing panic in SHOW FIELD KEYS.
 
 ## v0.13.0 [2016-05-12]
 
