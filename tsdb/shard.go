@@ -592,7 +592,7 @@ func (a Shards) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 type MeasurementFields struct {
 	mu sync.RWMutex
 
-	fields map[string]*Field `json:"fields"`
+	fields map[string]*Field
 	Codec  *FieldCodec
 }
 

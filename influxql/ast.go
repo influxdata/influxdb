@@ -1583,7 +1583,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 							if fc.Name != "distinct" || expr.Name != "count" {
 								return fmt.Errorf("expected field argument in %s()", c.Name)
 							} else if exp, got := 1, len(fc.Args); got != exp {
-								return fmt.Errorf("count(distinct <field>) can only have one argument", fc.Name, exp, got)
+								return fmt.Errorf("count(distinct %s) can only have %d argument(s), got %d", fc.Name, exp, got)
 							} else if _, ok := fc.Args[0].(*VarRef); !ok {
 								return fmt.Errorf("expected field argument in distinct()")
 							}

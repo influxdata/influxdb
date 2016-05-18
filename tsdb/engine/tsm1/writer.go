@@ -153,7 +153,7 @@ type IndexWriter interface {
 	MarshalBinary() ([]byte, error)
 
 	// WriteTo writes the index contents to a writer
-	WriteTo(w io.Writer) error
+	WriteTo(w io.Writer) (int64, error)
 }
 
 // IndexEntry is the index information for a given block in a TSM file.
@@ -305,7 +305,7 @@ func (d *directIndex) addEntries(key string, entries *indexEntries) {
 	existing.entries = append(existing.entries, entries.entries...)
 }
 
-func (d *directIndex) WriteTo(w io.Writer) error {
+func (d *directIndex) WriteTo(w io.Writer) (int64, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -316,16 +316,19 @@ func (d *directIndex) WriteTo(w io.Writer) error {
 	}
 	sort.Strings(keys)
 
-	var buf [5]byte
-	var err error
+	var (
+		n   int
+		err error
+		buf [5]byte
+		N   int64
+	)
 
 	// For each key, individual entries are sorted by time
 	for _, key := range keys {
 		entries := d.blocks[key]
 
 		if entries.Len() > maxIndexEntries {
-			return fmt.Errorf("key '%s' exceeds max index entries: %d > %d",
-				key, entries.Len(), maxIndexEntries)
+			return N, fmt.Errorf("key '%s' exceeds max index entries: %d > %d", key, entries.Len(), maxIndexEntries)
 		}
 		sort.Sort(entries)
 
@@ -334,30 +337,36 @@ func (d *directIndex) WriteTo(w io.Writer) error {
 		binary.BigEndian.PutUint16(buf[3:5], uint16(entries.Len()))
 
 		// Append the key length and key
-		if _, err = w.Write(buf[0:2]); err != nil {
-			return fmt.Errorf("write: writer key length error: %v", err)
+		if n, err = w.Write(buf[0:2]); err != nil {
+			return int64(n) + N, fmt.Errorf("write: writer key length error: %v", err)
 		}
+		N += int64(n)
 
-		if _, err = io.WriteString(w, key); err != nil {
-			return fmt.Errorf("write: writer key error: %v", err)
+		if n, err = io.WriteString(w, key); err != nil {
+			return int64(n) + N, fmt.Errorf("write: writer key error: %v", err)
 		}
+		N += int64(n)
 
 		// Append the block type and count
-		if _, err = w.Write(buf[2:5]); err != nil {
-			return fmt.Errorf("write: writer block type and count error: %v", err)
+		if n, err = w.Write(buf[2:5]); err != nil {
+			return int64(n) + N, fmt.Errorf("write: writer block type and count error: %v", err)
 		}
+		N += int64(n)
 
 		// Append each index entry for all blocks for this key
-		if _, err = entries.WriteTo(w); err != nil {
-			return fmt.Errorf("write: writer entries error: %v", err)
+		var n64 int64
+		if n64, err = entries.WriteTo(w); err != nil {
+			return n64 + N, fmt.Errorf("write: writer entries error: %v", err)
 		}
+		N += n64
+
 	}
-	return nil
+	return N, nil
 }
 
 func (d *directIndex) MarshalBinary() ([]byte, error) {
 	var b bytes.Buffer
-	if err := d.WriteTo(&b); err != nil {
+	if _, err := d.WriteTo(&b); err != nil {
 		return nil, err
 	}
 	return b.Bytes(), nil
@@ -522,7 +531,7 @@ func (t *tsmWriter) WriteIndex() error {
 	}
 
 	// Write the index
-	if err := t.index.WriteTo(t.w); err != nil {
+	if _, err := t.index.WriteTo(t.w); err != nil {
 		return err
 	}
 
