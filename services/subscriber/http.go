@@ -31,8 +31,8 @@ func (h *HTTP) WritePoints(p *coordinator.WritePointsRequest) (err error) {
 		Database:        p.Database,
 		RetentionPolicy: p.RetentionPolicy,
 	})
-	for _, p := range p.Points {
-		bp.AddPoint(client.NewPointFrom(p))
+	for _, pt := range p.Points {
+		bp.AddPoint(client.NewPointFrom(pt))
 	}
 	err = h.c.Write(bp)
 	return
