@@ -23,6 +23,10 @@ import (
 	internal "github.com/influxdata/influxdb/tsdb/internal"
 )
 
+// monitorStatInterval is the interval at which the shard is inspected
+// for the purpose of determining certain monitoring statistics.
+const monitorStatInterval = 30 * time.Second
+
 const (
 	statWriteReq        = "writeReq"
 	statSeriesCreate    = "seriesCreate"
@@ -228,9 +232,9 @@ func (s *Shard) closed() bool {
 // DiskSize returns the size on disk of this shard
 func (s *Shard) DiskSize() (int64, error) {
 	var size int64
-	err := filepath.Walk(s.path, func(_ string, info os.FileInfo, err error) error {
-		if !info.IsDir() {
-			size += info.Size()
+	err := filepath.Walk(s.path, func(_ string, fi os.FileInfo, err error) error {
+		if !fi.IsDir() {
+			size += fi.Size()
 		}
 		return err
 	})
@@ -238,9 +242,9 @@ func (s *Shard) DiskSize() (int64, error) {
 		return 0, err
 	}
 
-	err = filepath.Walk(s.walPath, func(_ string, info os.FileInfo, err error) error {
-		if !info.IsDir() {
-			size += info.Size()
+	err = filepath.Walk(s.walPath, func(_ string, fi os.FileInfo, err error) error {
+		if !fi.IsDir() {
+			size += fi.Size()
 		}
 		return err
 	})
@@ -606,7 +610,7 @@ func (s *Shard) CreateSnapshot() (string, error) {
 }
 
 func (s *Shard) monitorSize() {
-	t := time.NewTicker(10 * time.Second)
+	t := time.NewTicker(monitorStatInterval)
 	defer t.Stop()
 	for {
 		select {
@@ -615,7 +619,7 @@ func (s *Shard) monitorSize() {
 		case <-t.C:
 			size, err := s.DiskSize()
 			if err != nil {
-				s.logger.Printf("error collecting shard size: %v", err)
+				s.logger.Printf("Error collecting shard size: %v", err)
 				continue
 			}
 			sizeStat := new(expvar.Int)
