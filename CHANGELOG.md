@@ -23,6 +23,8 @@
 - [#6649](https://github.com/influxdata/influxdb/issues/6649): Make sure admin exists before authenticating query.
 - [#6644](https://github.com/influxdata/influxdb/issues/6644): Print the query executor's stack trace on a panic to the log.
 - [#6650](https://github.com/influxdata/influxdb/issues/6650): Data race when dropping a database immediately after writing to it
+- [#6235](https://github.com/influxdata/influxdb/issues/6235): Fix measurement field panic in tsm1 engine.
+
 
 ## v0.13.0 [2016-05-12]
 
