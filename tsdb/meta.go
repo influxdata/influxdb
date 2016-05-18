@@ -105,6 +105,19 @@ func (d *DatabaseIndex) MeasurementSeriesCounts() (nMeasurements int, nSeries in
 	return
 }
 
+// SeriesShardN returns the series count for a shard.
+func (d *DatabaseIndex) SeriesShardN(shardID uint64) int {
+	var n int
+	d.mu.RLock()
+	for _, s := range d.series {
+		if s.Assigned(shardID) {
+			n++
+		}
+	}
+	d.mu.RUnlock()
+	return n
+}
+
 // CreateSeriesIndexIfNotExists adds the series for the given measurement to the index and sets its ID or returns the existing series object
 func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, series *Series) *Series {
 	d.mu.RLock()
@@ -192,6 +205,7 @@ func (d *DatabaseIndex) UnassignShard(k string, shardID uint64) {
 				if !ss.measurement.HasSeries() {
 					d.mu.Lock()
 					d.dropMeasurement(ss.measurement.Name)
+					d.statMap.Add(statDatabaseMeasurements, int64(-1))
 					d.mu.Unlock()
 				}
 

@@ -171,6 +171,10 @@ func (s *Shard) Open() error {
 		if err := s.engine.LoadMetadataIndex(s.id, s.index); err != nil {
 			return err
 		}
+
+		count := s.index.SeriesShardN(s.id)
+		s.statMap.Add(statSeriesCreate, int64(count))
+
 		s.logger.Printf("%s database index loaded in %s", s.path, time.Now().Sub(start))
 
 		return nil
