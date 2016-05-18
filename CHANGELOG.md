@@ -24,6 +24,7 @@
 - [#6650](https://github.com/influxdata/influxdb/issues/6650): Data race when dropping a database immediately after writing to it
 - [#6235](https://github.com/influxdata/influxdb/issues/6235): Fix measurement field panic in tsm1 engine.
 - [#6663](https://github.com/influxdata/influxdb/issues/6663): Fixing panic in SHOW FIELD KEYS.
+- [#6624](https://github.com/influxdata/influxdb/issues/6624): Ensure clients requesting gzip encoded bodies don't receive empty body
 
 ## v0.13.0 [2016-05-12]
 
