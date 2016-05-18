@@ -379,12 +379,6 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string) er
 // database index and measurement fields
 func (e *Engine) addToIndexFromKey(shardID uint64, key string, fieldType influxql.DataType, index *tsdb.DatabaseIndex) error {
 	seriesKey, field := seriesAndFieldFromCompositeKey(key)
-	// Have we already indexed this series?
-	ss := index.Series(seriesKey)
-	if ss != nil {
-		return nil
-	}
-
 	measurement := tsdb.MeasurementFromSeriesKey(seriesKey)
 
 	m := index.CreateMeasurementIndexIfNotExists(measurement)
@@ -398,6 +392,14 @@ func (e *Engine) addToIndexFromKey(shardID uint64, key string, fieldType influxq
 
 	if err := mf.CreateFieldIfNotExists(field, fieldType, false); err != nil {
 		return err
+	}
+
+	// Have we already indexed this series?
+	ss := index.Series(seriesKey)
+	if ss != nil {
+		// Add this shard to the existing series
+		ss.AssignShard(shardID)
+		return nil
 	}
 
 	// ignore error because ParseKey returns "missing fields" and we don't have

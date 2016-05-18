@@ -6,10 +6,8 @@
 # Usage: ./test.sh <environment_index>
 # Corresponding environments for environment_index:
 #      0: normal 64bit tests
-#      1: tsm 64bit tests
-#      2: race enabled 64bit tests
+#      1: race enabled 64bit tests
 #      3: normal 32bit tests
-#      4: normal 64bit tests against Go 1.6
 #      save: build the docker images and save them to DOCKER_SAVE_DIR. Do not run tests.
 #      count: print the number of test environments
 #      *: to run all tests in parallel containers
@@ -29,13 +27,13 @@ DOCKER_SAVE_DIR=${DOCKER_SAVE_DIR-$HOME/docker}
 # Set default parallelism
 PARALLELISM=${PARALLELISM-1}
 # Set default timeout
-TIMEOUT=${TIMEOUT-480s}
+TIMEOUT=${TIMEOUT-960s}
 
 # Default to deleteing the container
 DOCKER_RM=${DOCKER_RM-true}
 
 # Update this value if you add a new test environment.
-ENV_COUNT=5
+ENV_COUNT=3
 
 # Default return code 0
 rc=0
@@ -133,31 +131,19 @@ fi
 case $ENVIRONMENT_INDEX in
     0)
         # 64 bit tests
-	# Static builds will be uploaded to S3 upon test completion
+	    # Static builds will be uploaded to S3 upon test completion
         run_test_docker Dockerfile_build_ubuntu64 test_64bit --generate --test
         rc=$?
         ;;
     1)
-        # 64 bit tsm tests
-        INFLUXDB_DATA_ENGINE="tsm1"
-        run_test_docker Dockerfile_build_ubuntu64 test_64bit_tsm --generate --test
-        rc=$?
-        ;;
-    2)
         # 64 bit race tests
         GORACE="halt_on_error=1"
         run_test_docker Dockerfile_build_ubuntu64 test_64bit_race --generate --test --race
         rc=$?
         ;;
-    3)
+    2)
         # 32 bit tests
         run_test_docker Dockerfile_build_ubuntu32 test_32bit --generate --test --arch=i386
-        rc=$?
-        ;;
-    4)
-        # 64 bit tests on golang go1.6
-        GO_CHECKOUT=go1.6
-        run_test_docker Dockerfile_build_ubuntu64_git test_64bit_go1.6 --generate --test --no-vet
         rc=$?
         ;;
     "save")
