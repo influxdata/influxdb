@@ -687,8 +687,8 @@ func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 
 // IteratorCreators returns a set of all local shards as iterator creators.
 func (s *Store) IteratorCreators() influxql.IteratorCreators {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	a := make(influxql.IteratorCreators, 0, len(s.shards))
 	for _, sh := range s.shards {
