@@ -10,6 +10,7 @@ import (
 	"log"
 	"math"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -22,6 +23,10 @@ import (
 	internal "github.com/influxdata/influxdb/tsdb/internal"
 )
 
+// monitorStatInterval is the interval at which the shard is inspected
+// for the purpose of determining certain monitoring statistics.
+const monitorStatInterval = 30 * time.Second
+
 const (
 	statWriteReq        = "writeReq"
 	statSeriesCreate    = "seriesCreate"
@@ -29,6 +34,7 @@ const (
 	statWritePointsFail = "writePointsFail"
 	statWritePointsOK   = "writePointsOk"
 	statWriteBytes      = "writeBytes"
+	statDiskBytes       = "diskBytes"
 )
 
 var (
@@ -84,8 +90,9 @@ type Shard struct {
 
 	options EngineOptions
 
-	mu     sync.RWMutex
-	engine Engine
+	mu      sync.RWMutex
+	engine  Engine
+	closing chan struct{}
 
 	// expvar-based stats.
 	statMap *expvar.Map
@@ -116,6 +123,7 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 		path:    path,
 		walPath: walPath,
 		options: options,
+		closing: make(chan struct{}),
 
 		database:        db,
 		retentionPolicy: rp,
@@ -173,6 +181,8 @@ func (s *Shard) Open() error {
 		}
 		s.logger.Printf("%s database index loaded in %s", s.path, time.Now().Sub(start))
 
+		go s.monitorSize()
+
 		return nil
 	}(); err != nil {
 		s.close()
@@ -192,6 +202,13 @@ func (s *Shard) Close() error {
 func (s *Shard) close() error {
 	if s.engine == nil {
 		return nil
+	}
+
+	// Close the closing channel at most once.
+	select {
+	case <-s.closing:
+	default:
+		close(s.closing)
 	}
 
 	// Don't leak our shard ID and series keys in the index
@@ -214,11 +231,25 @@ func (s *Shard) closed() bool {
 
 // DiskSize returns the size on disk of this shard
 func (s *Shard) DiskSize() (int64, error) {
-	stats, err := os.Stat(s.path)
+	var size int64
+	err := filepath.Walk(s.path, func(_ string, fi os.FileInfo, err error) error {
+		if !fi.IsDir() {
+			size += fi.Size()
+		}
+		return err
+	})
 	if err != nil {
 		return 0, err
 	}
-	return stats.Size(), nil
+
+	err = filepath.Walk(s.walPath, func(_ string, fi os.FileInfo, err error) error {
+		if !fi.IsDir() {
+			size += fi.Size()
+		}
+		return err
+	})
+
+	return size, err
 }
 
 // FieldCodec returns the field encoding for a measurement.
@@ -576,6 +607,26 @@ func (s *Shard) CreateSnapshot() (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.engine.CreateSnapshot()
+}
+
+func (s *Shard) monitorSize() {
+	t := time.NewTicker(monitorStatInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-s.closing:
+			return
+		case <-t.C:
+			size, err := s.DiskSize()
+			if err != nil {
+				s.logger.Printf("Error collecting shard size: %v", err)
+				continue
+			}
+			sizeStat := new(expvar.Int)
+			sizeStat.Set(size)
+			s.statMap.Set(statDiskBytes, sizeStat)
+		}
+	}
 }
 
 // Shards represents a sortable list of shards.
