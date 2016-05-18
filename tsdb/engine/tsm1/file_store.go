@@ -966,6 +966,9 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[
 			// Remove any tombstoned values
 			v = c.filterFloatValues(tombstones, v)
 
+			// Remove values we already read
+			v = FloatValues(v).Exclude(cur.readMin, cur.readMax)
+
 			if len(v) > 0 {
 				v = FloatValues(v).Include(first.entry.MinTime, first.entry.MaxTime)
 
@@ -985,6 +988,9 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[
 			}
 			// Remove any tombstoned values
 			v = c.filterFloatValues(tombstones, v)
+
+			// Remove values we already read
+			v = FloatValues(v).Exclude(cur.readMin, cur.readMax)
 
 			// If the block we decoded should have all of it's values included, mark it as read so we
 			// don't use it again.
@@ -1050,6 +1056,9 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 			// Remove any tombstoned values
 			v = c.filterIntegerValues(tombstones, v)
 
+			// Remove values we already read
+			v = IntegerValues(v).Exclude(cur.readMin, cur.readMax)
+
 			if len(v) > 0 {
 				v = IntegerValues(v).Include(first.entry.MinTime, first.entry.MaxTime)
 
@@ -1069,6 +1078,9 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 			}
 			// Remove any tombstoned values
 			v = c.filterIntegerValues(tombstones, v)
+
+			// Remove values we already read
+			v = IntegerValues(v).Exclude(cur.readMin, cur.readMax)
 
 			// If the block we decoded should have all of it's values included, mark it as read so we
 			// don't use it again.
@@ -1134,6 +1146,9 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 			// Remove any tombstoned values
 			v = c.filterStringValues(tombstones, v)
 
+			// Remove values we already read
+			v = StringValues(v).Exclude(cur.readMin, cur.readMax)
+
 			if len(v) > 0 {
 				v = StringValues(v).Include(first.entry.MinTime, first.entry.MaxTime)
 
@@ -1153,6 +1168,9 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 			}
 			// Remove any tombstoned values
 			v = c.filterStringValues(tombstones, v)
+
+			// Remove values we already read
+			v = StringValues(v).Exclude(cur.readMin, cur.readMax)
 
 			// If the block we decoded should have all of it's values included, mark it as read so we
 			// don't use it again.
@@ -1218,6 +1236,9 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 			// Remove any tombstoned values
 			v = c.filterBooleanValues(tombstones, v)
 
+			// Remove values we already read
+			v = BooleanValues(v).Exclude(cur.readMin, cur.readMax)
+
 			if len(v) > 0 {
 				v = BooleanValues(v).Include(first.entry.MinTime, first.entry.MaxTime)
 
@@ -1237,6 +1258,9 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 			}
 			// Remove any tombstoned values
 			v = c.filterBooleanValues(tombstones, v)
+
+			// Remove values we already read
+			v = BooleanValues(v).Exclude(cur.readMin, cur.readMax)
 
 			// If the block we decoded should have all of it's values included, mark it as read so we
 			// don't use it again.
