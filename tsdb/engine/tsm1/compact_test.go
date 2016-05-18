@@ -566,7 +566,7 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 // max keys per blocks is exceeded
 func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 	// This test creates a lot of data and causes timeout failures for these envs
-	if testing.Short() || os.Getenv("CIRCLECI") != "" || os.Getenv("APPVEYOR") != "" || os.Getenv("GORACE") != "" {
+	if testing.Short() || os.Getenv("CI") != "" || os.Getenv("GORACE") != "" {
 		t.Skip("Skipping max keys compaction test")
 	}
 	dir := MustTempDir()

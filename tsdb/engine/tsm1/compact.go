@@ -573,16 +573,12 @@ func (c *Compactor) write(path string, iter KeyIterator) (err error) {
 		}
 
 		// Write the key and value
-		err = w.WriteBlock(key, minTime, maxTime, block)
-		if err == ErrMaxBlocksExceeded {
+		if err := w.WriteBlock(key, minTime, maxTime, block); err == ErrMaxBlocksExceeded {
 			if err := w.WriteIndex(); err != nil {
 				return err
 			}
-
-			return ErrMaxBlocksExceeded
-		}
-
-		if err != nil {
+			return err
+		} else if err != nil {
 			return err
 		}
 
@@ -888,7 +884,7 @@ func (k *tsmKeyIterator) combine(dedup bool) blocks {
 				// Filter out only the values for overlapping block
 				v = Values(v).Include(first.minTime, first.maxTime)
 				if len(v) > 0 {
-					// Recoder that we read a subset of the block
+					// Record that we read a subset of the block
 					k.blocks[i].markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
 				}
 
