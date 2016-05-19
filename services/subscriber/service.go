@@ -55,21 +55,24 @@ type Service struct {
 	mu              sync.Mutex
 	conf            Config
 
-	failures *expvar.Int
+	failures      *expvar.Int
+	pointsWritten *expvar.Int
 }
 
 // NewService returns a subscriber service with given settings
 func NewService(c Config) *Service {
 	s := &Service{
-		Logger:   log.New(os.Stderr, "[subscriber] ", log.LstdFlags),
-		statMap:  influxdb.NewStatistics("subscriber", "subscriber", nil),
-		points:   make(chan *coordinator.WritePointsRequest, 100),
-		closed:   true,
-		conf:     c,
-		failures: &expvar.Int{},
+		Logger:        log.New(os.Stderr, "[subscriber] ", log.LstdFlags),
+		statMap:       influxdb.NewStatistics("subscriber", "subscriber", nil),
+		points:        make(chan *coordinator.WritePointsRequest, 100),
+		closed:        true,
+		conf:          c,
+		failures:      &expvar.Int{},
+		pointsWritten: &expvar.Int{},
 	}
 	s.NewPointsWriter = s.newPointsWriter
 	s.statMap.Set(statWriteFailures, s.failures)
+	s.statMap.Set(statPointsWritten, s.pointsWritten)
 	return s
 }
 
@@ -216,10 +219,13 @@ func (s *Service) run() {
 			}
 			for se, cw := range subs {
 				if p.Database == se.db && p.RetentionPolicy == se.rp {
-					cw.writeRequests <- p
+					select {
+					case cw.writeRequests <- p:
+					default:
+						s.failures.Add(1)
+					}
 				}
 			}
-			s.statMap.Add(statPointsWritten, int64(len(p.Points)))
 		}
 	}
 }
@@ -245,9 +251,10 @@ func (s *Service) updateSubs(subs map[subEntry]chanWriter, wg *sync.WaitGroup) e
 					return err
 				}
 				cw := chanWriter{
-					writeRequests: make(chan *coordinator.WritePointsRequest),
+					writeRequests: make(chan *coordinator.WritePointsRequest, 100),
 					pw:            sub,
 					failures:      s.failures,
+					pointsWritten: s.pointsWritten,
 					logger:        s.Logger,
 				}
 				wg.Add(1)
@@ -292,6 +299,7 @@ func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
 type chanWriter struct {
 	writeRequests chan *coordinator.WritePointsRequest
 	pw            PointsWriter
+	pointsWritten *expvar.Int
 	failures      *expvar.Int
 	logger        *log.Logger
 }
@@ -307,6 +315,8 @@ func (c chanWriter) Run() {
 		if err != nil {
 			c.logger.Println(err)
 			c.failures.Add(1)
+		} else {
+			c.pointsWritten.Add(int64(len(wr.Points)))
 		}
 	}
 }
