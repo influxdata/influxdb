@@ -48,7 +48,7 @@ VENDOR = "InfluxData"
 DESCRIPTION = "Distributed time-series database."
 
 prereqs = [ 'git', 'go' ]
-go_vet_command = "go tool vet ./"
+go_vet_command = "go tool vet -example=false ./"
 optional_prereqs = [ 'fpm', 'rpmbuild', 'gpg' ]
 
 fpm_common_args = "-f -s dir --log error \
@@ -191,8 +191,7 @@ def run_tests(race, parallel, timeout, no_vet):
         logging.error("{}".format(out))
         return False
     if not no_vet:
-        logging.info("Installing 'go vet' tool...")
-        run("go get -u golang.org/x/tools/cmd/...")
+        logging.info("Running 'go vet'...")
         out = run(go_vet_command)
         if len(out) > 0:
             logging.error("Go vet failed. Please run 'go vet ./...' and fix any errors.")
