@@ -33,6 +33,7 @@
 - [#6557](https://github.com/influxdata/influxdb/issues/6557): Overwriting points on large series can cause memory spikes during compactions
 - [#6611](https://github.com/influxdata/influxdb/issues/6611): Queries slow down hundreds times after overwriting points
 - [#6641](https://github.com/influxdata/influxdb/issues/6641): Fix read tombstones: EOF
+- [#6661](https://github.com/influxdata/influxdb/issues/6661): Disable limit optimization when using an aggregate.
 
 ## v0.13.0 [2016-05-12]
 
