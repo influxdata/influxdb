@@ -846,7 +846,7 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 	if call, ok := opt.Expr.(*influxql.Call); ok {
 		refOpt := opt
 		refOpt.Expr = call.Args[0].(*influxql.VarRef)
-		inputs, err := e.createVarRefIterator(refOpt)
+		inputs, err := e.createVarRefIterator(refOpt, true)
 		if err != nil {
 			return nil, err
 		} else if len(inputs) == 0 {
@@ -869,7 +869,7 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 		return influxql.NewParallelMergeIterator(inputs, opt, runtime.GOMAXPROCS(0)), nil
 	}
 
-	itrs, err := e.createVarRefIterator(opt)
+	itrs, err := e.createVarRefIterator(opt, false)
 	if err != nil {
 		return nil, err
 	}
@@ -882,7 +882,9 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 }
 
 // createVarRefIterator creates an iterator for a variable reference.
-func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
+// The aggregate argument determines this is being created for an aggregate.
+// If this is an aggregate, the limit optimization is disabled temporarily. See #6661.
+func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions, aggregate bool) ([]influxql.Iterator, error) {
 	ref, _ := opt.Expr.(*influxql.VarRef)
 
 	var itrs []influxql.Iterator
@@ -905,14 +907,8 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions) ([]influxql.
 					return err
 				}
 
-				if len(inputs) > 0 && (opt.Limit > 0 || opt.Offset > 0) {
-					var itr influxql.Iterator
-					if opt.MergeSorted() {
-						itr = influxql.NewSortedMergeIterator(inputs, opt)
-					} else {
-						itr = influxql.NewMergeIterator(inputs, opt)
-					}
-					itrs = append(itrs, newLimitIterator(itr, opt))
+				if !aggregate && len(inputs) > 0 && (opt.Limit > 0 || opt.Offset > 0) {
+					itrs = append(itrs, newLimitIterator(influxql.NewSortedMergeIterator(inputs, opt), opt))
 				} else {
 					itrs = append(itrs, inputs...)
 				}
