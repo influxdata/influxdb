@@ -586,6 +586,47 @@ func TestParsePointScientificIntInvalid(t *testing.T) {
 	}
 }
 
+func TestParsePointWhitespace(t *testing.T) {
+	examples := []string{
+		`cpu    value=1.0 1257894000000000000`,
+		`cpu value=1.0     1257894000000000000`,
+		`cpu      value=1.0     1257894000000000000`,
+		`cpu value=1.0 1257894000000000000   `,
+		`cpu value=1.0 1257894000000000000
+`,
+		`cpu   value=1.0 1257894000000000000
+`,
+	}
+
+	expPoint := NewTestPoint("cpu", models.Tags{}, models.Fields{"value": 1.0}, time.Unix(0, 1257894000000000000))
+	for i, example := range examples {
+		pts, err := models.ParsePoints([]byte(example))
+		if err != nil {
+			t.Fatalf(`[Example %d] ParsePoints("%s") error. got %v, exp nil`, i, example, err)
+		}
+
+		if got, exp := len(pts), 1; got != exp {
+			t.Fatalf("[Example %d] got %d points, expected %d", i, got, exp)
+		}
+
+		if got, exp := pts[0].Name(), expPoint.Name(); got != exp {
+			t.Fatalf("[Example %d] got %d measurement, expected %d", i, got, exp)
+		}
+
+		if got, exp := len(pts[0].Fields()), len(expPoint.Fields()); got != exp {
+			t.Fatalf("[Example %d] got %d fields, expected %d", i, got, exp)
+		}
+
+		if got, exp := pts[0].Fields()["value"], expPoint.Fields()["value"]; got != exp {
+			t.Fatalf(`[Example %d] got %v for field "value", expected %v`, i, got, exp)
+		}
+
+		if got, exp := pts[0].Time().UnixNano(), expPoint.Time().UnixNano(); got != exp {
+			t.Fatalf(`[Example %d] got %d time, expected %d`, i, got, exp)
+		}
+	}
+}
+
 func TestParsePointUnescape(t *testing.T) {
 	// commas in measurement name
 	test(t, `foo\,bar value=1i`,
@@ -1171,29 +1212,21 @@ func TestParsePointMinTimestamp(t *testing.T) {
 }
 
 func TestParsePointInvalidTimestamp(t *testing.T) {
-	_, err := models.ParsePointsString("cpu value=1 9223372036854775808")
-	if err == nil {
-		t.Fatalf("ParsePoints failed: %v", err)
+	examples := []string{
+		"cpu value=1 9223372036854775808",
+		"cpu value=1 -92233720368547758078",
+		"cpu value=1 -",
+		"cpu value=1 -/",
+		"cpu value=1 -1?",
+		"cpu value=1 1-",
+		"cpu value=1 9223372036854775807 12",
 	}
-	_, err = models.ParsePointsString("cpu value=1 -92233720368547758078")
-	if err == nil {
-		t.Fatalf("ParsePoints failed: %v", err)
-	}
-	_, err = models.ParsePointsString("cpu value=1 -")
-	if err == nil {
-		t.Fatalf("ParsePoints failed: %v", err)
-	}
-	_, err = models.ParsePointsString("cpu value=1 -/")
-	if err == nil {
-		t.Fatalf("ParsePoints failed: %v", err)
-	}
-	_, err = models.ParsePointsString("cpu value=1 -1?")
-	if err == nil {
-		t.Fatalf("ParsePoints failed: %v", err)
-	}
-	_, err = models.ParsePointsString("cpu value=1 1-")
-	if err == nil {
-		t.Fatalf("ParsePoints failed: %v", err)
+
+	for i, example := range examples {
+		_, err := models.ParsePointsString(example)
+		if err == nil {
+			t.Fatalf("[Example %d] ParsePoints failed: %v", i, err)
+		}
 	}
 }
 
