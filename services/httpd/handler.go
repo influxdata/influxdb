@@ -280,6 +280,36 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	// Do this before anything else so a parsing error doesn't leak passwords.
 	sanitize(r)
 
+	// Parse the parameters
+	rawParams := r.FormValue("params")
+	if rawParams != "" {
+		var params map[string]interface{}
+		decoder := json.NewDecoder(strings.NewReader(rawParams))
+		decoder.UseNumber()
+		if err := decoder.Decode(&params); err != nil {
+			h.httpError(w, "error parsing query parameters: "+err.Error(), pretty, http.StatusBadRequest)
+			return
+		}
+
+		// Convert json.Number into int64 and float64 values
+		for k, v := range params {
+			if v, ok := v.(json.Number); ok {
+				var err error
+				if strings.Contains(string(v), ".") {
+					params[k], err = v.Float64()
+				} else {
+					params[k], err = v.Int64()
+				}
+
+				if err != nil {
+					h.httpError(w, "error parsing json value: "+err.Error(), pretty, http.StatusBadRequest)
+					return
+				}
+			}
+		}
+		p.SetParams(params)
+	}
+
 	// Parse query from query string.
 	query, err := p.ParseQuery()
 	if err != nil {
