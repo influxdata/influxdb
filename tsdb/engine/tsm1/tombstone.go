@@ -161,7 +161,10 @@ func (t *Tombstoner) readTombstone() ([]Tombstone, error) {
 		var b [4]byte
 		_, err := f.Read(b[:])
 		if err != nil {
-			return nil, err
+			// Might be a zero length file which should not exist, but
+			// an old bug allowed them to occur.  Treat it as an empty
+			// v1 tombstone file so we don't abort loading the TSM file.
+			return t.readTombstoneV1(f)
 		}
 
 		if _, err := f.Seek(0, os.SEEK_SET); err != nil {
@@ -171,7 +174,6 @@ func (t *Tombstoner) readTombstone() ([]Tombstone, error) {
 		if binary.BigEndian.Uint32(b[:]) == v2header {
 			return t.readTombstoneV2(f)
 		}
-
 		return t.readTombstoneV1(f)
 	}
 	return nil, nil

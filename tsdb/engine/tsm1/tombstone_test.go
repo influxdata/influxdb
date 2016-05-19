@@ -173,3 +173,31 @@ func TestTombstoner_ReadV1(t *testing.T) {
 		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
 	}
 }
+
+func TestTombstoner_ReadEmptyV1(t *testing.T) {
+	dir := MustTempDir()
+	defer func() { os.RemoveAll(dir) }()
+
+	f := MustTempFile(dir)
+	f.Close()
+
+	if err := os.Rename(f.Name(), f.Name()+".tombstone"); err != nil {
+		t.Fatalf("rename tombstone failed: %v", err)
+	}
+
+	ts := &tsm1.Tombstoner{Path: f.Name()}
+
+	entries, err := ts.ReadAll()
+	if err != nil {
+		fatal(t, "ReadAll", err)
+	}
+
+	entries, err = ts.ReadAll()
+	if err != nil {
+		fatal(t, "ReadAll", err)
+	}
+
+	if got, exp := len(entries), 0; got != exp {
+		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
+	}
+}
