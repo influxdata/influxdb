@@ -1195,19 +1195,19 @@ func TestParsePointMaxTimestamp(t *testing.T) {
 			models.Fields{
 				"value": 1.0,
 			},
-			time.Unix(0, int64(1<<63-1))),
+			time.Unix(0, models.MaxNanoTime)),
 	)
 }
 
 func TestParsePointMinTimestamp(t *testing.T) {
-	test(t, `cpu value=1 -9223372036854775807`,
+	test(t, `cpu value=1 -9223372036854775808`,
 		NewTestPoint(
 			"cpu",
 			models.Tags{},
 			models.Fields{
 				"value": 1.0,
 			},
-			time.Unix(0, -int64(1<<63-1))),
+			time.Unix(0, models.MinNanoTime)),
 	)
 }
 

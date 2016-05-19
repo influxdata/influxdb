@@ -425,7 +425,7 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 		// to the maximum possible value, to ensure that data where all points
 		// are in the future are returned.
 		if influxql.Sources(stmt.Sources).HasSystemSource() {
-			opt.MaxTime = time.Unix(0, models.MaxNanoTime.UnixNano())
+			opt.MaxTime = time.Unix(0, influxql.MaxTime).UTC()
 		} else {
 			opt.MaxTime = now
 		}

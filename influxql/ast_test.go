@@ -742,7 +742,7 @@ func TestTimeRange(t *testing.T) {
 
 		// Invalid time expressions.
 		{expr: `time > "2000-01-01 00:00:00"`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`, err: `invalid operation: time and *influxql.VarRef are not compatible`},
-		{expr: `time > '2262-04-11 13:47:17'`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`, err: `time 2262-04-11T13:47:17Z overflows time literal`},
+		{expr: `time > '2262-04-11 23:47:17'`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`, err: `time 2262-04-11T23:47:17Z overflows time literal`},
 		{expr: `time > '1677-09-20 19:12:43'`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`, err: `time 1677-09-20T19:12:43Z underflows time literal`},
 	} {
 		// Extract time range.
