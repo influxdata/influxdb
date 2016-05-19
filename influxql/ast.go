@@ -1604,6 +1604,29 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 				if err := s.validPercentileAggr(expr); err != nil {
 					return err
 				}
+			case "holt_winters", "holt_winters_with_fit":
+				if exp, got := 3, len(expr.Args); got != exp {
+					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
+				}
+				// Validate that if they have grouping by time, they need a sub-call like min/max, etc.
+				groupByInterval, err := s.GroupByInterval()
+				if err != nil {
+					return fmt.Errorf("invalid group interval: %v", err)
+				}
+
+				if _, ok := expr.Args[0].(*Call); ok && groupByInterval == 0 {
+					return fmt.Errorf("%s aggregate requires a GROUP BY interval", expr.Name)
+				} else if !ok {
+					return fmt.Errorf("must use aggregate function with %s", expr.Name)
+				}
+				if arg, ok := expr.Args[1].(*IntegerLiteral); !ok {
+					return fmt.Errorf("expected integer argument as second arg in %s", expr.Name)
+				} else if arg.Val <= 0 {
+					return fmt.Errorf("second arg to %s must be greater than 0, got %d", expr.Name, arg.Val)
+				}
+				if _, ok := expr.Args[2].(*IntegerLiteral); !ok {
+					return fmt.Errorf("expected integer argument as third arg in %s", expr.Name)
+				}
 			default:
 				if err := s.validSelectWithAggregate(); err != nil {
 					return err

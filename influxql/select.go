@@ -243,6 +243,23 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions, selec
 				return nil, err
 			}
 			return NewIntervalIterator(input, opt), nil
+		case "holt_winters", "holt_winters_with_fit":
+			input, err := buildExprIterator(expr.Args[0], ic, opt, selector)
+			if err != nil {
+				return nil, err
+			}
+			h := expr.Args[1].(*IntegerLiteral)
+			m := expr.Args[2].(*IntegerLiteral)
+
+			includeFitData := "holt_winters_with_fit" == expr.Name
+
+			interval := opt.Interval.Duration
+			// Redifine interval to be unbounded to capture all aggregate results
+			opt.StartTime = MinTime
+			opt.EndTime = MaxTime
+			opt.Interval = Interval{}
+
+			return newHoltWintersIterator(input, opt, int(h.Val), int(m.Val), includeFitData, interval)
 		case "derivative", "non_negative_derivative", "difference", "moving_average", "elapsed":
 			if !opt.Interval.IsZero() {
 				if opt.Ascending {

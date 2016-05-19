@@ -2273,6 +2273,41 @@ func TestSelect_MovingAverage_Integer(t *testing.T) {
 	}
 }
 
+func TestSelect_HoltWinters_GroupBy_Agg(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return influxql.NewCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
+			{Name: "cpu", Time: 10 * Second, Value: 4},
+			{Name: "cpu", Time: 11 * Second, Value: 6},
+
+			{Name: "cpu", Time: 12 * Second, Value: 9},
+			{Name: "cpu", Time: 13 * Second, Value: 11},
+
+			{Name: "cpu", Time: 14 * Second, Value: 5},
+			{Name: "cpu", Time: 15 * Second, Value: 7},
+
+			{Name: "cpu", Time: 16 * Second, Value: 10},
+			{Name: "cpu", Time: 17 * Second, Value: 12},
+
+			{Name: "cpu", Time: 18 * Second, Value: 6},
+			{Name: "cpu", Time: 19 * Second, Value: 8},
+		}}, opt)
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT holt_winters(mean(value), 2, 2) FROM cpu WHERE time >= '1970-01-01T00:00:10Z' AND time < '1970-01-01T00:00:20Z' GROUP BY time(2s)`), &ic, nil)
+	if err != nil {
+		t.Fatal(err)
+	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]influxql.Point{
+		{&influxql.FloatPoint{Name: "cpu", Time: 20 * Second, Value: 11.136685559138241}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 22 * Second, Value: 7.507280682335967}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
 func TestSelect_UnsupportedCall(t *testing.T) {
 	var ic IteratorCreator
 	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
