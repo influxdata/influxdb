@@ -1,3 +1,9 @@
+## v0.13.1 [unreleased]
+
+### Bugfixes
+
+- [#6661](https://github.com/influxdata/influxdb/issues/6661): Disable limit optimization when using an aggregate.
+
 ## v0.13.0 [2016-05-12]
 
 ### Release Notes
