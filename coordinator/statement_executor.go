@@ -388,7 +388,15 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 	}
 
 	if opt.MaxTime.IsZero() {
-		opt.MaxTime = now
+		// In the case that we're executing a meta query where the user cannot
+		// specify a time condition, then we expand the default max time
+		// to the maximum possible value, to ensure that data where all points
+		// are in the future are returned.
+		if influxql.Sources(stmt.Sources).HasSystemSource() {
+			opt.MaxTime = time.Unix(0, models.MaxNanoTime.UnixNano())
+		} else {
+			opt.MaxTime = now
+		}
 	}
 	if opt.MinTime.IsZero() {
 		opt.MinTime = time.Unix(0, 0)
