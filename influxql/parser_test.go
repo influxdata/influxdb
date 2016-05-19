@@ -64,10 +64,11 @@ func TestParser_ParseStatement(t *testing.T) {
 	now := time.Now()
 
 	var tests = []struct {
-		skip bool
-		s    string
-		stmt influxql.Statement
-		err  string
+		skip   bool
+		s      string
+		params map[string]interface{}
+		stmt   influxql.Statement
+		err    string
 	}{
 		// SELECT * statement
 		{
@@ -817,6 +818,25 @@ func TestParser_ParseStatement(t *testing.T) {
 					},
 				},
 				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+			},
+		},
+
+		// SELECT statement with a bound parameter
+		{
+			s: `SELECT value FROM cpu WHERE value > $value`,
+			params: map[string]interface{}{
+				"value": int64(2),
+			},
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{{
+					Expr: &influxql.VarRef{Val: "value"}}},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.GT,
+					LHS: &influxql.VarRef{Val: "value"},
+					RHS: &influxql.IntegerLiteral{Val: 2},
+				},
 			},
 		},
 
@@ -2199,7 +2219,11 @@ func TestParser_ParseStatement(t *testing.T) {
 		if tt.skip {
 			continue
 		}
-		stmt, err := influxql.NewParser(strings.NewReader(tt.s)).ParseStatement()
+		p := influxql.NewParser(strings.NewReader(tt.s))
+		if tt.params != nil {
+			p.SetParams(tt.params)
+		}
+		stmt, err := p.ParseStatement()
 
 		// We are memoizing a field so for testing we need to...
 		if s, ok := tt.stmt.(*influxql.SelectStatement); ok {

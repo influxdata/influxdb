@@ -23,12 +23,17 @@ const (
 
 // Parser represents an InfluxQL parser.
 type Parser struct {
-	s *bufScanner
+	s      *bufScanner
+	params map[string]interface{}
 }
 
 // NewParser returns a new instance of Parser.
 func NewParser(r io.Reader) *Parser {
 	return &Parser{s: newBufScanner(r)}
+}
+
+func (p *Parser) SetParams(params map[string]interface{}) {
+	p.params = params
 }
 
 // ParseQuery parses a query string and returns its AST representation.
@@ -2430,6 +2435,24 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 			return nil, &ParseError{Message: err.Error(), Pos: pos}
 		}
 		return &RegexLiteral{Val: re}, nil
+	case BOUNDPARAM:
+		v, ok := p.params[lit]
+		if !ok {
+			return nil, fmt.Errorf("missing parameter: %s", lit)
+		}
+
+		switch v := v.(type) {
+		case float64:
+			return &NumberLiteral{Val: v}, nil
+		case int64:
+			return &IntegerLiteral{Val: v}, nil
+		case string:
+			return &StringLiteral{Val: v}, nil
+		case bool:
+			return &BooleanLiteral{Val: v}, nil
+		default:
+			return nil, fmt.Errorf("unable to bind parameter with type %T", v)
+		}
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string", "number", "bool"}, pos)
 	}
