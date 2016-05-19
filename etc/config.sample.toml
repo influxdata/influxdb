@@ -173,6 +173,18 @@ reporting-disabled = false
   max-row-limit = 10000
 
 ###
+### [subsciber]
+###
+### Controls the subscriptions, which can be used to fork a copy of all data
+### received by the InfluxDB host.
+###
+
+[subsciber]
+  enabled = true
+  http-timeout = "30s"
+
+
+###
 ### [[graphite]]
 ###
 ### Controls one or many listeners for Graphite data.
