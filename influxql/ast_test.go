@@ -1284,3 +1284,60 @@ func mustParseTime(s string) time.Time {
 	}
 	return t
 }
+
+func TestSelectStatement_HasIntegral(t *testing.T) {
+	var tests = []struct {
+		stmt     string
+		integral bool
+	}{
+		// No integral
+		{
+			stmt:     `SELECT value FROM cpu`,
+			integral: false,
+		},
+
+		// Query integral
+		{
+			stmt:     `SELECT integral(value) FROM cpu`,
+			integral: true,
+		},
+
+		// No GROUP BY time only
+		{
+			stmt:     `SELECT mean(value) FROM cpu where time < now() GROUP BY time(5ms)`,
+			integral: false,
+		},
+
+		// No GROUP BY integral, time only
+		{
+			stmt:     `SELECT integral(mean(value)) FROM cpu where time < now() GROUP BY time(5ms)`,
+			integral: true,
+		},
+
+		{
+			stmt:     `SELECT value FROM cpu`,
+			integral: false,
+		},
+
+		// Invalid integral function name
+		{
+			stmt:     `SELECT typoIntegral(value) FROM cpu where time < now()`,
+			integral: false,
+		},
+	}
+
+	for i, tt := range tests {
+		// Parse statement.
+		t.Logf("index: %d, statement: %s", i, tt.stmt)
+		stmt, err := influxql.NewParser(strings.NewReader(tt.stmt)).ParseStatement()
+		if err != nil {
+			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
+		}
+
+		// Test derivative detection.
+		if d := stmt.(*influxql.SelectStatement).HasIntegral(); tt.integral != d {
+			t.Errorf("%d. %q: unexpected integral detection:\n\nexp=%v\n\ngot=%v\n\n", i, tt.stmt, tt.integral, d)
+			continue
+		}
+	}
+}

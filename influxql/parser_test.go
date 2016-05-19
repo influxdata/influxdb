@@ -229,6 +229,18 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// integral
+		{
+			s: `SELECT integral(field1) FROM myseries;`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "integral", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}}}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+			},
+		},
+
 		// difference
 		{
 			s: `SELECT difference(field1) FROM myseries;`,

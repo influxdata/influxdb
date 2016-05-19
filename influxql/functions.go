@@ -309,3 +309,65 @@ func (r *IntegerMovingAverageReducer) Emit() []FloatPoint {
 		},
 	}
 }
+
+// FloatIntegralReducer calculates the integral of the aggregated points.
+type FloatIntegralReducer struct {
+	current float64
+	prev    FloatPoint
+	curr    FloatPoint
+}
+
+// NewFloatIntegralReducer creates a new FloatIntegralReducer.
+func NewFloatIntegralReducer() *FloatIntegralReducer {
+	return &FloatIntegralReducer{
+		current: float64(0),
+		prev:    FloatPoint{Nil: true},
+		curr:    FloatPoint{Nil: true},
+	}
+}
+
+// AggregateFloat aggregates a point into the reducer and updates the current window.
+func (r *FloatIntegralReducer) AggregateFloat(p *FloatPoint) {
+	r.prev = r.curr
+	r.curr = *p
+}
+
+// Emit emits the derivative of the reducer at the current point.
+func (r *FloatIntegralReducer) Emit() []FloatPoint {
+	if !r.prev.Nil {
+		r.current += (r.curr.Value - r.prev.Value)
+		return []FloatPoint{{Time: r.curr.Time, Value: r.current}}
+	}
+	return []FloatPoint{{Time: r.curr.Time, Value: r.current}}
+}
+
+// IntegerIntegralReducer calculates the integral of the aggregated points.
+type IntegerIntegralReducer struct {
+	current float64
+	prev    IntegerPoint
+	curr    IntegerPoint
+}
+
+// NewIntegerIntegralReducer creates a new IntegerIntegralReducer.
+func NewIntegerIntegralReducer() *IntegerIntegralReducer {
+	return &IntegerIntegralReducer{
+		current: float64(0),
+		prev:    IntegerPoint{Nil: true},
+		curr:    IntegerPoint{Nil: true},
+	}
+}
+
+// AggregateInteger aggregates a point into the reducer and updates the current window.
+func (r *IntegerIntegralReducer) AggregateInteger(p *IntegerPoint) {
+	r.prev = r.curr
+	r.curr = *p
+}
+
+// Emit emits the derivative of the reducer at the current point.
+func (r *IntegerIntegralReducer) Emit() []FloatPoint {
+	if !r.prev.Nil {
+		r.current += (float64(r.curr.Value) - float64(r.prev.Value))
+		return []FloatPoint{{Time: r.curr.Time, Value: r.current}}
+	}
+	return []FloatPoint{{Time: r.curr.Time, Value: r.current}}
+}

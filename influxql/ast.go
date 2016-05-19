@@ -1514,7 +1514,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	for _, f := range s.Fields {
 		for _, expr := range walkFunctionCalls(f.Expr) {
 			switch expr.Name {
-			case "derivative", "non_negative_derivative", "difference", "moving_average", "elapsed":
+			case "derivative", "non_negative_derivative", "difference", "moving_average", "elapsed", "integral":
 				if err := s.validSelectWithAggregate(); err != nil {
 					return err
 				}
@@ -1549,6 +1549,10 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 						return fmt.Errorf("moving_average window must be greater than 1, got %d", lit.Val)
 					} else if int64(int(lit.Val)) != lit.Val {
 						return fmt.Errorf("moving_average window too large, got %d", lit.Val)
+					}
+				case "integral":
+					if got := len(expr.Args); got != 1 {
+						return fmt.Errorf("invalid number of arguments for integral, expected 1, got %d", got)
 					}
 				}
 				// Validate that if they have grouping by time, they need a sub-call like min/max, etc.
@@ -4347,4 +4351,15 @@ func (v *containsVarRefVisitor) Visit(n Node) Visitor {
 		v.contains = true
 	}
 	return v
+}
+
+// HasIntegral returns true if one of the function calls in the statement is a
+// derivative aggregate
+func (s *SelectStatement) HasIntegral() bool {
+	for _, f := range s.FunctionCalls() {
+		if f.Name == "integral" {
+			return true
+		}
+	}
+	return false
 }
