@@ -5238,7 +5238,7 @@ func TestServer_Query_ShowQueries_Future(t *testing.T) {
 	}
 
 	writes := []string{
-		fmt.Sprintf(`cpu,host=server01 value=100 %d`, models.MaxNanoTime.UnixNano()),
+		fmt.Sprintf(`cpu,host=server01 value=100 %d`, models.MaxNanoTime),
 	}
 
 	test := NewTest("db0", "rp0")
