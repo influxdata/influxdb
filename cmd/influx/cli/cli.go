@@ -509,7 +509,7 @@ func (c *CommandLine) Insert(stmt string) error {
 		},
 		Database:         c.Database,
 		RetentionPolicy:  c.RetentionPolicy,
-		Precision:        "n",
+		Precision:        c.Precision,
 		WriteConsistency: c.WriteConsistency,
 	})
 	if err != nil {

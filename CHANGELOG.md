@@ -35,6 +35,7 @@
 - [#6611](https://github.com/influxdata/influxdb/issues/6611): Queries slow down hundreds times after overwriting points
 - [#6641](https://github.com/influxdata/influxdb/issues/6641): Fix read tombstones: EOF
 - [#6661](https://github.com/influxdata/influxdb/issues/6661): Disable limit optimization when using an aggregate.
+- [#6676](https://github.com/influxdata/influxdb/issues/6676): Ensures client sends correct precision when inserting points.
 
 ## v0.13.0 [2016-05-12]
 
