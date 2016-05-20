@@ -237,6 +237,10 @@ func (s *Shard) closed() bool {
 func (s *Shard) DiskSize() (int64, error) {
 	var size int64
 	err := filepath.Walk(s.path, func(_ string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
 		if !fi.IsDir() {
 			size += fi.Size()
 		}
@@ -247,6 +251,10 @@ func (s *Shard) DiskSize() (int64, error) {
 	}
 
 	err = filepath.Walk(s.walPath, func(_ string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
 		if !fi.IsDir() {
 			size += fi.Size()
 		}
