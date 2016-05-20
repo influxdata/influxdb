@@ -5616,7 +5616,6 @@ func TestServer_Query_ShowFieldKeys(t *testing.T) {
 }
 
 func TestServer_ContinuousQuery(t *testing.T) {
-	t.Skip()
 	t.Parallel()
 	s := OpenServer(NewConfig())
 	defer s.Close()
@@ -5699,7 +5698,7 @@ func TestServer_ContinuousQuery(t *testing.T) {
 		&Query{
 			name:    `show continuous queries`,
 			command: `SHOW CONTINUOUS QUERIES`,
-			exp:     `{"results":[{"series":[{"name":"db0","columns":["name","query"],"values":[["cq1","CREATE CONTINUOUS QUERY cq1 ON db0 BEGIN SELECT count(value) INTO \"db0\".\"rp1\".:MEASUREMENT FROM \"db0\".\"rp0\"./[cg]pu/ GROUP BY time(5s) END"],["cq2","CREATE CONTINUOUS QUERY cq2 ON db0 BEGIN SELECT count(value) INTO \"db0\".\"rp2\".:MEASUREMENT FROM \"db0\".\"rp0\"./[cg]pu/ GROUP BY time(5s), * END"]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"db0","columns":["name","query"],"values":[["cq1","CREATE CONTINUOUS QUERY cq1 ON db0 BEGIN SELECT count(value) INTO db0.rp1.:MEASUREMENT FROM db0.rp0./[cg]pu/ GROUP BY time(5s) END"],["cq2","CREATE CONTINUOUS QUERY cq2 ON db0 BEGIN SELECT count(value) INTO db0.rp2.:MEASUREMENT FROM db0.rp0./[cg]pu/ GROUP BY time(5s), * END"]]}]}]}`,
 		},
 	}...)
 
@@ -5713,12 +5712,13 @@ func TestServer_ContinuousQuery(t *testing.T) {
 	}
 
 	// Wait for CQs to run. TODO: fix this ugly hack
-	time.Sleep(time.Second * 5)
+	//time.Sleep(time.Second * 5)
 
 	// Setup tests to check the CQ results.
 	test2 := NewTest("db0", "rp1")
 	test2.addQueries([]*Query{
 		&Query{
+			skip:    true,
 			name:    "check results of cq1",
 			command: `SELECT * FROM "rp1"./[cg]pu/`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","count","host","region","value"],"values":[["` + interval2.UTC().Format(time.RFC3339Nano) + `",3,null,null,null]]},{"name":"gpu","columns":["time","count","host","region","value"],"values":[["` + interval1.UTC().Format(time.RFC3339Nano) + `",2,null,null,null],["` + interval0.UTC().Format(time.RFC3339Nano) + `",1,null,null,null]]}]}]}`,

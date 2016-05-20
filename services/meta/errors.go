@@ -50,6 +50,9 @@ var (
 	// ErrRetentionPolicyExists is returned when creating an already existing policy.
 	ErrRetentionPolicyExists = errors.New("retention policy already exists")
 
+	// ErrRetentionPolicyNotFound is returned when an expected policy wasn't found.
+	ErrRetentionPolicyNotFound = errors.New("retention policy not found")
+
 	// ErrRetentionPolicyDefault is returned when attempting a prohibited operation
 	// on a default retention policy.
 	ErrRetentionPolicyDefault = errors.New("retention policy is default")
