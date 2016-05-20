@@ -211,6 +211,31 @@ func (e *StatementExecutor) executeAlterRetentionPolicyStatement(stmt *influxql.
 }
 
 func (e *StatementExecutor) executeCreateContinuousQueryStatement(q *influxql.CreateContinuousQueryStatement) error {
+	// Verify that retention policies exist.
+	var err error
+	verifyRPFn := func(n influxql.Node) {
+		if err != nil {
+			return
+		}
+		switch m := n.(type) {
+		case *influxql.Measurement:
+			var rp *meta.RetentionPolicyInfo
+			if rp, err = e.MetaClient.RetentionPolicy(m.Database, m.RetentionPolicy); err != nil {
+				return
+			} else if rp == nil {
+				err = fmt.Errorf("%s: %s.%s", meta.ErrRetentionPolicyNotFound, m.Database, m.RetentionPolicy)
+			}
+		default:
+			return
+		}
+	}
+
+	influxql.WalkFunc(q, verifyRPFn)
+
+	if err != nil {
+		return err
+	}
+
 	return e.MetaClient.CreateContinuousQuery(q.Database, q.Name, q.String())
 }
 

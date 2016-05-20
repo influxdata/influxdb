@@ -37,6 +37,7 @@
 - [#6641](https://github.com/influxdata/influxdb/issues/6641): Fix read tombstones: EOF
 - [#6661](https://github.com/influxdata/influxdb/issues/6661): Disable limit optimization when using an aggregate.
 - [#6676](https://github.com/influxdata/influxdb/issues/6676): Ensures client sends correct precision when inserting points.
+- [#2048](https://github.com/influxdata/influxdb/issues/2048): Check that retention policies exist before creating CQ
 
 ## v0.13.0 [2016-05-12]
 
