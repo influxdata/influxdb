@@ -19,5 +19,4 @@ github.com/paulbellamy/ratecounter 5a11f585a31379765c190c033b6ad39956584447
 github.com/peterh/liner 82a939e738b0ee23e84ec7a12d8e216f4d95c53f
 github.com/rakyll/statik 274df120e9065bdd08eb1120e0375e3dc1ae8465
 golang.org/x/crypto 1f22c0103821b9390939b6776727195525381532
-golang.org/x/tools 8b178a93c1f5b5c8f4e36cd6bd64e0d5bf0ee180
 gopkg.in/fatih/pool.v2 cba550ebf9bce999a02e963296d4bc7a486cb715

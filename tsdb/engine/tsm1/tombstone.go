@@ -273,7 +273,6 @@ func (t *Tombstoner) readTombstoneV2(f *os.File) ([]Tombstone, error) {
 			Max: max,
 		})
 	}
-	return tombstones, nil
 }
 
 func (t *Tombstoner) tombstonePath() string {

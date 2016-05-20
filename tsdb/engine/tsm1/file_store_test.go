@@ -42,7 +42,7 @@ func TestFileStore_Read(t *testing.T) {
 
 	for i, v := range exp.values {
 		if got, exp := values[i].Value(), v.Value(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, got, exp)
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
 		}
 	}
 }
@@ -81,7 +81,7 @@ func TestFileStore_SeekToAsc_FromStart(t *testing.T) {
 
 	for i, v := range exp.values {
 		if got, exp := values[i].Value(), v.Value(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, got, exp)
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
 		}
 	}
 }
@@ -498,7 +498,7 @@ func TestFileStore_SeekToAsc_Middle(t *testing.T) {
 
 	for i, v := range exp.values {
 		if got, exp := values[i].Value(), v.Value(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, got, exp)
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
 		}
 	}
 }
@@ -536,7 +536,7 @@ func TestFileStore_SeekToAsc_End(t *testing.T) {
 
 	for i, v := range exp.values {
 		if got, exp := values[i].Value(), v.Value(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, got, exp)
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
 		}
 	}
 }
@@ -574,7 +574,7 @@ func TestFileStore_SeekToDesc_FromStart(t *testing.T) {
 
 	for i, v := range exp.values {
 		if got, exp := values[i].Value(), v.Value(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, got, exp)
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
 		}
 	}
 }
@@ -1102,7 +1102,7 @@ func TestFileStore_SeekToDesc_Middle(t *testing.T) {
 
 	for i, v := range exp.values {
 		if got, exp := values[i].Value(), v.Value(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, got, exp)
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
 		}
 	}
 }
@@ -1140,7 +1140,7 @@ func TestFileStore_SeekToDesc_End(t *testing.T) {
 
 	for i, v := range exp.values {
 		if got, exp := values[i].Value(), v.Value(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %d", i, got, exp)
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
 		}
 	}
 }
@@ -1183,7 +1183,7 @@ func TestKeyCursor_TombstoneRange(t *testing.T) {
 		}
 
 		if got, exp := values[0].String(), exp.values[0].String(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %d", 0, got, exp)
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", 0, got, exp)
 		}
 		c.Next()
 	}
@@ -1228,7 +1228,7 @@ func TestKeyCursor_TombstoneRange_PartialFloat(t *testing.T) {
 		}
 
 		if got, exp := values[i].String(), exp.String(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %d", 0, got, exp)
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", 0, got, exp)
 		}
 	}
 }
@@ -1272,7 +1272,7 @@ func TestKeyCursor_TombstoneRange_PartialInteger(t *testing.T) {
 		}
 
 		if got, exp := values[i].String(), exp.String(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %d", 0, got, exp)
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", 0, got, exp)
 		}
 	}
 }
@@ -1316,7 +1316,7 @@ func TestKeyCursor_TombstoneRange_PartialString(t *testing.T) {
 		}
 
 		if got, exp := values[i].String(), exp.String(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %d", 0, got, exp)
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", 0, got, exp)
 		}
 	}
 }
@@ -1360,7 +1360,7 @@ func TestKeyCursor_TombstoneRange_PartialBoolean(t *testing.T) {
 		}
 
 		if got, exp := values[i].String(), exp.String(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %d", 0, got, exp)
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", 0, got, exp)
 		}
 	}
 }
