@@ -1,3 +1,11 @@
+## v0.13.1 [unreleased]
+
+### Bugfixes
+
+- [#6661](https://github.com/influxdata/influxdb/issues/6661): Disable limit optimization when using an aggregate.
+- [#6627](https://github.com/influxdata/influxdb/pull/6627): Fix possible deadlock when queries and delete series run concurrently.
+- [#6235](https://github.com/influxdata/influxdb/issues/6235): Fix measurement field panic in tsm1 engine.
+
 ## v0.13.0 [2016-05-12]
 
 ### Release Notes
