@@ -1040,6 +1040,10 @@ func escapeTag(in []byte) []byte {
 }
 
 func unescapeTag(in []byte) []byte {
+	if bytes.IndexByte(in, '\\') == -1 {
+		return in
+	}
+
 	for b, esc := range tagEscapeCodes {
 		if bytes.IndexByte(in, b) != -1 {
 			in = bytes.Replace(in, esc, []byte{b}, -1)
@@ -1216,7 +1220,8 @@ func (p *point) Tags() Tags {
 }
 
 func parseTags(buf []byte) Tags {
-	tags := map[string]string{}
+	tags := make(map[string]string, bytes.Count(buf, []byte(",")))
+	hasEscape := bytes.IndexByte(buf, '\\') != -1
 
 	if len(buf) != 0 {
 		pos, name := scanTo(buf, 0, ',')
@@ -1239,7 +1244,11 @@ func parseTags(buf []byte) Tags {
 				continue
 			}
 
-			tags[string(unescapeTag(key))] = string(unescapeTag(value))
+			if hasEscape {
+				tags[string(unescapeTag(key))] = string(unescapeTag(value))
+			} else {
+				tags[string(key)] = string(value)
+			}
 
 			i++
 		}
