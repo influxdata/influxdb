@@ -478,7 +478,6 @@ def build(version=None,
 
     logging.info("Using version '{}' for build.".format(version))
 
-    tmp_build_dir = create_temp_dir()
     for target, path in targets.items():
         logging.info("Building target: {}".format(target))
         build_command = ""
