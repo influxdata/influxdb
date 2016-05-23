@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
@@ -51,10 +50,8 @@ type Monitor struct {
 	storeInterval          time.Duration
 
 	MetaClient interface {
-		CreateDatabase(name string) (*meta.DatabaseInfo, error)
-		CreateRetentionPolicy(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
-		SetDefaultRetentionPolicy(database, name string) error
-		DropRetentionPolicy(database, name string) error
+		CreateDatabaseWithRetentionPolicy(name string, rpi *meta.RetentionPolicyInfo) (*meta.DatabaseInfo, error)
+		Database(name string) *meta.DatabaseInfo
 	}
 
 	// Writer for pushing stats back into the database.
@@ -346,31 +343,16 @@ func (m *Monitor) createInternalStorage() {
 		return
 	}
 
-	if _, err := m.MetaClient.CreateDatabase(m.storeDatabase); err != nil {
-		m.Logger.Printf("failed to create database '%s', failed to create storage: %s",
-			m.storeDatabase, err.Error())
-		return
-	}
+	if di := m.MetaClient.Database(m.storeDatabase); di == nil {
+		rpi := meta.NewRetentionPolicyInfo(MonitorRetentionPolicy)
+		rpi.Duration = MonitorRetentionPolicyDuration
+		rpi.ReplicaN = 1
 
-	rpi := meta.NewRetentionPolicyInfo(MonitorRetentionPolicy)
-	rpi.Duration = MonitorRetentionPolicyDuration
-	rpi.ReplicaN = 1
-	if _, err := m.MetaClient.CreateRetentionPolicy(m.storeDatabase, rpi); err != nil {
-		m.Logger.Printf("failed to create retention policy '%s', failed to create internal storage: %s",
-			rpi.Name, err.Error())
-		return
-	}
-
-	if err := m.MetaClient.SetDefaultRetentionPolicy(m.storeDatabase, rpi.Name); err != nil {
-		m.Logger.Printf("failed to set default retention policy on '%s', failed to create internal storage: %s",
-			m.storeDatabase, err.Error())
-		return
-	}
-
-	err := m.MetaClient.DropRetentionPolicy(m.storeDatabase, "default")
-	if err != nil && err.Error() != influxdb.ErrRetentionPolicyNotFound("default").Error() {
-		m.Logger.Printf("failed to delete retention policy 'default', failed to created internal storage: %s", err.Error())
-		return
+		if _, err := m.MetaClient.CreateDatabaseWithRetentionPolicy(m.storeDatabase, rpi); err != nil {
+			m.Logger.Printf("failed to create database '%s', failed to create storage: %s",
+				m.storeDatabase, err.Error())
+			return
+		}
 	}
 
 	// Mark storage creation complete.

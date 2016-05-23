@@ -464,7 +464,7 @@ func init() {
 			&Query{
 				name:    "show retention policies should return auto-created policy",
 				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"series":[{"columns":["name","duration","shardGroupDuration","replicaN","default"],"values":[["default","0","168h0m0s",1,true]]}]}]}`,
+				exp:     `{"results":[{"series":[{"columns":["name","duration","shardGroupDuration","replicaN","default"],"values":[["autogen","0","168h0m0s",1,true]]}]}]}`,
 			},
 		},
 	}

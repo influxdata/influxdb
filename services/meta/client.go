@@ -76,6 +76,7 @@ func NewClient(config *Config) *Client {
 		cacheData: &Data{
 			ClusterID: uint64(uint64(rand.Int63())),
 			Index:     1,
+			DefaultRetentionPolicyName: config.DefaultRetentionPolicyName,
 		},
 		closing:             make(chan struct{}),
 		changed:             make(chan struct{}),
@@ -196,12 +197,11 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 	// create default retention policy
 	if c.retentionAutoCreate {
 		if err := data.CreateRetentionPolicy(name, &RetentionPolicyInfo{
-			Name:     "default",
 			ReplicaN: 1,
 		}); err != nil {
 			return nil, err
 		}
-		if err := data.SetDefaultRetentionPolicy(name, "default"); err != nil {
+		if err := data.SetDefaultRetentionPolicy(name, ""); err != nil {
 			return nil, err
 		}
 	}
