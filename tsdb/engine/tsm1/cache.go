@@ -7,7 +7,6 @@ import (
 	"log"
 	"math"
 	"os"
-	"sort"
 	"sync"
 	"time"
 
@@ -311,7 +310,6 @@ func (c *Cache) Keys() []string {
 	for k, _ := range c.store {
 		a = append(a, k)
 	}
-	sort.Strings(a)
 	return a
 }
 

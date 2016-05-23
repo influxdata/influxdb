@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/golang/snappy"
@@ -47,7 +48,9 @@ func TestCache_CacheWrite(t *testing.T) {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
 	}
 
-	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+	keys := c.Keys()
+	sort.Strings(keys)
+	if exp := []string{"bar", "foo"}; !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 }
@@ -68,7 +71,9 @@ func TestCache_CacheWriteMulti(t *testing.T) {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
 	}
 
-	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+	keys := c.Keys()
+	sort.Strings(keys)
+	if exp := []string{"bar", "foo"}; !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 }
@@ -89,13 +94,17 @@ func TestCache_Cache_DeleteRange(t *testing.T) {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
 	}
 
-	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+	keys := c.Keys()
+	sort.Strings(keys)
+	if exp := []string{"bar", "foo"}; !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
 	c.DeleteRange([]string{"bar"}, 2, math.MaxInt64)
 
-	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+	keys = c.Keys()
+	sort.Strings(keys)
+	if exp := []string{"bar", "foo"}; !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
@@ -162,7 +171,9 @@ func TestCache_Cache_Delete(t *testing.T) {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
 	}
 
-	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+	keys := c.Keys()
+	sort.Strings(keys)
+	if exp := []string{"bar", "foo"}; !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
