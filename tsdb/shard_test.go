@@ -221,10 +221,14 @@ cpu,host=serverB,region=uswest value=25  0
 		Expr:       influxql.MustParseExpr(`value`),
 		Aux:        []influxql.VarRef{{Val: "val2"}},
 		Dimensions: []string{"host"},
-		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
-		Ascending:  true,
-		StartTime:  influxql.MinTime,
-		EndTime:    influxql.MaxTime,
+		Sources: []influxql.Source{&influxql.Measurement{
+			Name:            "cpu",
+			Database:        "db0",
+			RetentionPolicy: "rp0",
+		}},
+		Ascending: true,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -297,10 +301,14 @@ cpu,host=serverB,region=uswest value=25  0
 		Expr:       influxql.MustParseExpr(`value`),
 		Aux:        []influxql.VarRef{{Val: "val2"}},
 		Dimensions: []string{"host"},
-		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
-		Ascending:  false,
-		StartTime:  influxql.MinTime,
-		EndTime:    influxql.MaxTime,
+		Sources: []influxql.Source{&influxql.Measurement{
+			Name:            "cpu",
+			Database:        "db0",
+			RetentionPolicy: "rp0",
+		}},
+		Ascending: false,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -494,8 +502,8 @@ func NewShard() *Shard {
 	return &Shard{
 		Shard: tsdb.NewShard(0,
 			tsdb.NewDatabaseIndex("db"),
-			filepath.Join(path, "data"),
-			filepath.Join(path, "wal"),
+			filepath.Join(path, "data", "db0", "rp0", "1"),
+			filepath.Join(path, "wal", "db0", "rp0", "1"),
 			opt,
 		),
 		path: path,
