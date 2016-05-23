@@ -1215,6 +1215,33 @@ func TestSelect_ColumnNames(t *testing.T) {
 	}
 }
 
+func TestSelect_Privileges(t *testing.T) {
+	stmt := &influxql.SelectStatement{
+		Target: &influxql.Target{
+			Measurement: &influxql.Measurement{Database: "db2"},
+		},
+		Sources: []influxql.Source{
+			&influxql.Measurement{Database: "db0"},
+			&influxql.Measurement{Database: "db1"},
+		},
+	}
+
+	exp := influxql.ExecutionPrivileges{
+		influxql.ExecutionPrivilege{Name: "db0", Privilege: influxql.ReadPrivilege},
+		influxql.ExecutionPrivilege{Name: "db1", Privilege: influxql.ReadPrivilege},
+		influxql.ExecutionPrivilege{Name: "db2", Privilege: influxql.WritePrivilege},
+	}
+
+	got, err := stmt.RequiredPrivileges()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(exp, got) {
+		t.Errorf("exp: %v, got: %v", exp, got)
+	}
+}
+
 func TestSources_Names(t *testing.T) {
 	sources := influxql.Sources([]influxql.Source{
 		&influxql.Measurement{

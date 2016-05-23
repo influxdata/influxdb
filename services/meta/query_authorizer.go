@@ -54,7 +54,10 @@ func (a *QueryAuthorizer) AuthorizeQuery(u *UserInfo, query *influxql.Query, dat
 	// Check each statement in the query.
 	for _, stmt := range query.Statements {
 		// Get the privileges required to execute the statement.
-		privs := stmt.RequiredPrivileges()
+		privs, err := stmt.RequiredPrivileges()
+		if err != nil {
+			return err
+		}
 
 		// Make sure the user has the privileges required to execute
 		// each statement.
