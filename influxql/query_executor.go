@@ -295,7 +295,7 @@ loop:
 
 func (e *QueryExecutor) recover(query *Query, results chan *Result) {
 	if err := recover(); err != nil {
-		e.Logger.Printf("%s [panic:%s]\n%s", query.String(), err, string(debug.Stack()))
+		e.Logger.Printf("%s [panic:%s] %s", query.String(), err, debug.Stack())
 		results <- &Result{
 			StatementID: -1,
 			Err:         fmt.Errorf("%s [panic:%s]", query.String(), err),

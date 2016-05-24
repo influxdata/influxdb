@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -929,7 +930,7 @@ func (h *Handler) recovery(inner http.Handler, name string) http.Handler {
 		defer func() {
 			if err := recover(); err != nil {
 				logLine := buildLogLine(l, r, start)
-				logLine = fmt.Sprintf(`%s [panic:%s]`, logLine, err)
+				logLine = fmt.Sprintf("%s [panic:%s] %s", logLine, err, debug.Stack())
 				h.Logger.Println(logLine)
 			}
 		}()
