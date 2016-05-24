@@ -19,6 +19,7 @@
 - [#6655](https://github.com/influxdata/influxdb/issues/6655): Add HTTP(s) based subscriptions.
 - [#5906](https://github.com/influxdata/influxdb/issues/5906): Dynamically update the documentation link in the admin UI.
 - [#6686](https://github.com/influxdata/influxdb/pull/6686): Optimize timestamp run-length decoding
+- [#6713](https://github.com/influxdata/influxdb/pull/6713): Reduce allocations during query parsing.
 
 ### Bugfixes
 
