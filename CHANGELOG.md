@@ -42,6 +42,7 @@
 - [#6676](https://github.com/influxdata/influxdb/issues/6676): Ensures client sends correct precision when inserting points.
 - [#2048](https://github.com/influxdata/influxdb/issues/2048): Check that retention policies exist before creating CQ
 - [#6702](https://github.com/influxdata/influxdb/issues/6702): Fix SELECT statement required privileges.
+- [#6701](https://github.com/influxdata/influxdb/issues/6701): Filter out sources that do not match the shard database/retention policy.
 
 ## v0.13.0 [2016-05-12]
 

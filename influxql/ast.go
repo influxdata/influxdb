@@ -311,6 +311,20 @@ func (a Sources) Names() []string {
 	return names
 }
 
+// Filter returns a list of source names filtered by the database/retention policy.
+func (a Sources) Filter(database, retentionPolicy string) []Source {
+	sources := make([]Source, 0, len(a))
+	for _, s := range a {
+		switch s := s.(type) {
+		case *Measurement:
+			if s.Database == database && s.RetentionPolicy == retentionPolicy {
+				sources = append(sources, s)
+			}
+		}
+	}
+	return sources
+}
+
 // HasSystemSource returns true if any of the sources are internal, system sources.
 func (a Sources) HasSystemSource() bool {
 	for _, s := range a {

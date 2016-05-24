@@ -457,6 +457,7 @@ func (s *Shard) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator,
 	if influxql.Sources(opt.Sources).HasSystemSource() {
 		return s.createSystemIterator(opt)
 	}
+	opt.Sources = influxql.Sources(opt.Sources).Filter(s.database, s.retentionPolicy)
 	return s.engine.CreateIterator(opt)
 }
 

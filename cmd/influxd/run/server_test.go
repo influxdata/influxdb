@@ -6094,6 +6094,61 @@ func TestServer_Query_IntoTarget(t *testing.T) {
 	}
 }
 
+// This test ensures that data is not duplicated with measurements
+// of the same name.
+func TestServer_Query_DuplicateMeasurements(t *testing.T) {
+	t.Parallel()
+	s := OpenDefaultServer(NewConfig())
+	defer s.Close()
+
+	// Create a second database.
+	if err := s.CreateDatabaseAndRetentionPolicy("db1", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaClient.SetDefaultRetentionPolicy("db1", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf(`cpu value=1 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano())},
+	}
+
+	if err := test.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+
+	test = NewTest("db1", "rp0")
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf(`cpu value=2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano())},
+	}
+
+	if err := test.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "select from both databases",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value FROM db0.rp0.cpu, db1.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",1],["2000-01-01T00:00:10Z",2]]}]}]}`,
+		},
+	}...)
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 // This test reproduced a data race with closing the
 // Subscriber points channel while writes were in-flight in the PointsWriter.
 func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {

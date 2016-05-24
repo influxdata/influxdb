@@ -250,10 +250,14 @@ func TestShards_CreateIterator(t *testing.T) {
 	itr, err := ics.CreateIterator(influxql.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Dimensions: []string{"host"},
-		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
-		Ascending:  true,
-		StartTime:  influxql.MinTime,
-		EndTime:    influxql.MaxTime,
+		Sources: []influxql.Source{&influxql.Measurement{
+			Name:            "cpu",
+			Database:        "db0",
+			RetentionPolicy: "rp0",
+		}},
+		Ascending: true,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -329,8 +333,12 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 
 	// Read data from
 	itr, err := s1.Shard(100).CreateIterator(influxql.IteratorOptions{
-		Expr:      influxql.MustParseExpr(`value`),
-		Sources:   []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Expr: influxql.MustParseExpr(`value`),
+		Sources: []influxql.Source{&influxql.Measurement{
+			Name:            "cpu",
+			Database:        "db0",
+			RetentionPolicy: "rp0",
+		}},
 		Ascending: true,
 		StartTime: influxql.MinTime,
 		EndTime:   influxql.MaxTime,
