@@ -2365,7 +2365,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `ALTER RETENTION`, err: `found EOF, expected POLICY at line 1, char 17`},
 		{s: `ALTER RETENTION POLICY`, err: `found EOF, expected identifier at line 1, char 24`},
 		{s: `ALTER RETENTION POLICY policy1`, err: `found EOF, expected ON at line 1, char 32`}, {s: `ALTER RETENTION POLICY policy1 ON`, err: `found EOF, expected identifier at line 1, char 35`},
-		{s: `ALTER RETENTION POLICY policy1 ON testdb`, err: `found EOF, expected DURATION, RETENTION, SHARD, DEFAULT at line 1, char 42`},
+		{s: `ALTER RETENTION POLICY policy1 ON testdb`, err: `found EOF, expected DURATION, REPLICATION, SHARD, DEFAULT at line 1, char 42`},
 		{s: `SET`, err: `found EOF, expected PASSWORD at line 1, char 5`},
 		{s: `SET PASSWORD`, err: `found EOF, expected FOR at line 1, char 14`},
 		{s: `SET PASSWORD something`, err: `found something, expected FOR at line 1, char 14`},
