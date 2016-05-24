@@ -232,28 +232,14 @@ func (c *Cache) Snapshot() (*Cache, error) {
 	// If no snapshot exists, create a new one, otherwise update the existing snapshot
 	if c.snapshot == nil {
 		c.snapshot = &Cache{
-			store: make(map[string]*entry),
+			store: c.store,
 		}
-	}
-
-	// Append the current cache values to the snapshot
-	for k, e := range c.store {
-		e.mu.RLock()
-		if _, ok := c.snapshot.store[k]; ok {
-			c.snapshot.store[k].add(e.values)
-		} else {
-			c.snapshot.store[k] = e
-		}
-		c.snapshotSize += uint64(Values(e.values).Size())
-		if e.needSort {
-			c.snapshot.store[k].needSort = true
-		}
-		e.mu.RUnlock()
 	}
 
 	snapshotSize := c.size // record the number of bytes written into a snapshot
 
 	// Reset the cache
+	c.snapshotSize = c.size
 	c.store = make(map[string]*entry)
 	c.size = 0
 	c.lastSnapshot = time.Now()
