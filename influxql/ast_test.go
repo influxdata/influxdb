@@ -10,6 +10,14 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 )
 
+func BenchmarkQuery_String(b *testing.B) {
+	p := influxql.NewParser(strings.NewReader(`SELECT foo AS zoo, a AS b FROM bar WHERE value > 10 AND q = 'hello'`))
+	q, _ := p.ParseStatement()
+	for i := 0; i < b.N; i++ {
+		_ = q.String()
+	}
+}
+
 // Ensure a value's data type can be retrieved.
 func TestInspectDataType(t *testing.T) {
 	for i, tt := range []struct {

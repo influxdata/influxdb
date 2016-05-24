@@ -2680,15 +2680,18 @@ func (p *Parser) parseTokenMaybe(expected Token) bool {
 	return true
 }
 
+var (
+	qsReplacer = strings.NewReplacer("\n", `\n`, `\`, `\\`, `'`, `\'`)
+	qiReplacer = strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`)
+)
+
 // QuoteString returns a quoted string.
 func QuoteString(s string) string {
-	return `'` + strings.NewReplacer("\n", `\n`, `\`, `\\`, `'`, `\'`).Replace(s) + `'`
+	return `'` + qsReplacer.Replace(s) + `'`
 }
 
 // QuoteIdent returns a quoted identifier from multiple bare identifiers.
 func QuoteIdent(segments ...string) string {
-	r := strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`)
-
 	var buf bytes.Buffer
 	for i, segment := range segments {
 		needQuote := IdentNeedsQuotes(segment) ||
@@ -2698,7 +2701,7 @@ func QuoteIdent(segments ...string) string {
 			_ = buf.WriteByte('"')
 		}
 
-		_, _ = buf.WriteString(r.Replace(segment))
+		_, _ = buf.WriteString(qiReplacer.Replace(segment))
 
 		if needQuote {
 			_ = buf.WriteByte('"')
