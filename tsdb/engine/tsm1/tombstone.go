@@ -155,28 +155,30 @@ func (t *Tombstoner) writeTombstone(tombstones []Tombstone) error {
 
 func (t *Tombstoner) readTombstone() ([]Tombstone, error) {
 	f, err := os.Open(t.tombstonePath())
+	if os.IsNotExist(err) {
+		return nil, nil
+	} else if err != nil {
+		return nil, err
+	}
 	defer f.Close()
 
-	if !os.IsNotExist(err) {
-		var b [4]byte
-		_, err := f.Read(b[:])
-		if err != nil {
-			// Might be a zero length file which should not exist, but
-			// an old bug allowed them to occur.  Treat it as an empty
-			// v1 tombstone file so we don't abort loading the TSM file.
-			return t.readTombstoneV1(f)
-		}
-
-		if _, err := f.Seek(0, os.SEEK_SET); err != nil {
-			return nil, err
-		}
-
-		if binary.BigEndian.Uint32(b[:]) == v2header {
-			return t.readTombstoneV2(f)
-		}
+	var b [4]byte
+	_, err = f.Read(b[:])
+	if err != nil {
+		// Might be a zero length file which should not exist, but
+		// an old bug allowed them to occur.  Treat it as an empty
+		// v1 tombstone file so we don't abort loading the TSM file.
 		return t.readTombstoneV1(f)
 	}
-	return nil, nil
+
+	if _, err := f.Seek(0, os.SEEK_SET); err != nil {
+		return nil, err
+	}
+
+	if binary.BigEndian.Uint32(b[:]) == v2header {
+		return t.readTombstoneV2(f)
+	}
+	return t.readTombstoneV1(f)
 }
 
 // readTombstoneV1 reads the first version of tombstone files that were not
