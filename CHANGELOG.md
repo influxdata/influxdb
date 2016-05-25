@@ -3,6 +3,7 @@
 ### Release Notes
 
 * Config option `[cluster]` has been replaced with `[coordinator]`
+* Support for config options `[collectd]` and `[opentsdb]` has been removed; use `[[collectd]]` and `[[opentsdb]]` instead
 
 ### Features
 

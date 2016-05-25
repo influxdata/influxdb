@@ -21,7 +21,7 @@ dir = "/tmp/meta"
 [data]
 dir = "/tmp/data"
 
-[cluster]
+[coordinator]
 
 [admin]
 bind-address = ":8083"
@@ -112,7 +112,7 @@ dir = "/tmp/meta"
 [data]
 dir = "/tmp/data"
 
-[cluster]
+[coordinator]
 
 [admin]
 bind-address = ":8083"
@@ -247,12 +247,6 @@ func TestConfig_DeprecatedOptions(t *testing.T) {
 	// Parse configuration.
 	var c run.Config
 	if err := c.FromToml(`
-[collectd]
-bind-address = ":1000"
-
-[opentsdb]
-bind-address = ":2000"
-
 [cluster]
 max-select-point = 100
 `); err != nil {
@@ -260,11 +254,7 @@ max-select-point = 100
 	}
 
 	// Validate configuration.
-	if c.CollectdInputs[0].BindAddress != ":1000" {
-		t.Fatalf("unexpected collectd bind address: %s", c.CollectdInputs[0].BindAddress)
-	} else if c.OpenTSDBInputs[0].BindAddress != ":2000" {
-		t.Fatalf("unexpected opentsdb bind address: %s", c.OpenTSDBInputs[0].BindAddress)
-	} else if c.Coordinator.MaxSelectPointN != 100 {
+	if c.Coordinator.MaxSelectPointN != 100 {
 		t.Fatalf("unexpected coordinator max select points: %d", c.Coordinator.MaxSelectPointN)
 
 	}
