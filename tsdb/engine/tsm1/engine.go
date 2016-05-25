@@ -20,6 +20,8 @@ import (
 )
 
 //go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl
+//go:generate tmpl -data=@file_store.gen.go.tmpldata file_store.gen.go.tmpl
+//go:generate tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
 
 func init() {
 	tsdb.RegisterEngine("tsm1", NewEngine)

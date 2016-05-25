@@ -206,7 +206,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapFloat(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 0.0), tsm1.NewValue(1, 1.0)}},
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 2.0)}},
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(3, 3.0)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 4.0), tsm1.NewValue(7, 7.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 4.0), tsm1.NewValue(2, 7.0)}},
 	}
 
 	files, err := newFiles(dir, data...)
@@ -227,6 +227,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapFloat(t *testing.T) {
 	exp := []tsm1.Value{
 		data[3].values[0],
 		data[0].values[1],
+		data[3].values[1],
 	}
 
 	if got, exp := len(values), len(exp); got != exp {
@@ -246,9 +247,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapFloat(t *testing.T) {
 	}
 
 	exp = []tsm1.Value{
-		data[1].values[0],
 		data[2].values[0],
-		data[3].values[1],
 	}
 
 	if got, exp := len(values), len(exp); got != exp {
@@ -274,7 +273,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapInteger(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, int64(0)), tsm1.NewValue(1, int64(1))}},
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, int64(2))}},
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(3, int64(3))}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, int64(4)), tsm1.NewValue(7, int64(7))}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, int64(4)), tsm1.NewValue(2, int64(7))}},
 	}
 
 	files, err := newFiles(dir, data...)
@@ -295,6 +294,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapInteger(t *testing.T) {
 	exp := []tsm1.Value{
 		data[3].values[0],
 		data[0].values[1],
+		data[3].values[1],
 	}
 	if got, exp := len(values), len(exp); got != exp {
 		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
@@ -313,9 +313,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapInteger(t *testing.T) {
 	}
 
 	exp = []tsm1.Value{
-		data[1].values[0],
 		data[2].values[0],
-		data[3].values[1],
 	}
 
 	if got, exp := len(values), len(exp); got != exp {
@@ -341,7 +339,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapBoolean(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, true), tsm1.NewValue(1, false)}},
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, true)}},
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(3, true)}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, false), tsm1.NewValue(7, true)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, false), tsm1.NewValue(2, true)}},
 	}
 
 	files, err := newFiles(dir, data...)
@@ -362,6 +360,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapBoolean(t *testing.T) {
 	exp := []tsm1.Value{
 		data[3].values[0],
 		data[0].values[1],
+		data[3].values[1],
 	}
 	if got, exp := len(values), len(exp); got != exp {
 		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
@@ -380,9 +379,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapBoolean(t *testing.T) {
 	}
 
 	exp = []tsm1.Value{
-		data[1].values[0],
 		data[2].values[0],
-		data[3].values[1],
 	}
 
 	if got, exp := len(values), len(exp); got != exp {
@@ -408,7 +405,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapString(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, "zero"), tsm1.NewValue(1, "one")}},
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, "two")}},
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(3, "three")}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, "four"), tsm1.NewValue(7, "seven")}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, "four"), tsm1.NewValue(2, "seven")}},
 	}
 
 	files, err := newFiles(dir, data...)
@@ -429,6 +426,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapString(t *testing.T) {
 	exp := []tsm1.Value{
 		data[3].values[0],
 		data[0].values[1],
+		data[3].values[1],
 	}
 	if got, exp := len(values), len(exp); got != exp {
 		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
@@ -447,9 +445,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapString(t *testing.T) {
 	}
 
 	exp = []tsm1.Value{
-		data[1].values[0],
 		data[2].values[0],
-		data[3].values[1],
 	}
 
 	if got, exp := len(values), len(exp); got != exp {
@@ -784,7 +780,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapInteger(t *testing.T) {
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(8, int64(0)), tsm1.NewValue(9, int64(1))}},
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, int64(2))}},
 		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(3, int64(3))}},
-		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(3, int64(4)), tsm1.NewValue(7, int64(7))}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(3, int64(4)), tsm1.NewValue(10, int64(7))}},
 	}
 
 	files, err := newFiles(dir, data...)
@@ -804,6 +800,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapInteger(t *testing.T) {
 	exp := []tsm1.Value{
 		data[0].values[0],
 		data[0].values[1],
+		data[3].values[1],
 	}
 
 	if got, exp := len(values), len(exp); got != exp {
@@ -825,7 +822,6 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapInteger(t *testing.T) {
 
 	exp = []tsm1.Value{
 		data[3].values[0],
-		data[3].values[1],
 	}
 
 	if got, exp := len(values), len(exp); got != exp {
