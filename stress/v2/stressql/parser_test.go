@@ -1,18 +1,10 @@
 package stressql
 
-import (
-	"fmt"
-	"os"
-	"testing"
-)
+import "testing"
 
 // Pulls the default configFile and makes sure it parses
 func TestParseStatements(t *testing.T) {
-	gopath := os.Getenv("GOPATH")
-	if gopath == "" {
-		t.Error("$GOPATH not set")
-	}
-	stmts, err := ParseStatements(fmt.Sprintf("%v/src/github.com/influxdata/influxdb/stress/v2/file.iql", gopath))
+	stmts, err := ParseStatements("../file.iql")
 	if err != nil {
 		t.Error(err)
 	}
