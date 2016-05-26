@@ -38,6 +38,11 @@ const (
 	AnyField = 8
 )
 
+var (
+	// Invalid timestamp string used to compare against time field
+	ErrInvalidTime = errors.New("invalid timestamp string")
+)
+
 // InspectDataType returns the data type of a given value.
 func InspectDataType(v interface{}) DataType {
 	switch v.(type) {
@@ -3566,6 +3571,27 @@ func TimeRangeAsEpochNano(expr Expr) (min, max int64, err error) {
 // Returns zero time if the expression is not a time expression.
 func timeExprValue(ref Expr, lit Expr) (t time.Time, err error) {
 	if ref, ok := ref.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
+		// If literal looks like a date time then parse it as a time literal.
+		if strlit, ok := lit.(*StringLiteral); ok {
+			if isDateTimeString(strlit.Val) {
+				t, err := time.Parse(DateTimeFormat, strlit.Val)
+				if err != nil {
+					// try to parse it as an RFCNano time
+					t, err = time.Parse(time.RFC3339Nano, strlit.Val)
+					if err != nil {
+						return time.Time{}, ErrInvalidTime
+					}
+				}
+				lit = &TimeLiteral{Val: t}
+			} else if isDateString(strlit.Val) {
+				t, err := time.Parse(DateFormat, strlit.Val)
+				if err != nil {
+					return time.Time{}, ErrInvalidTime
+				}
+				lit = &TimeLiteral{Val: t}
+			}
+		}
+
 		switch lit := lit.(type) {
 		case *TimeLiteral:
 			if lit.Val.After(time.Unix(0, MaxTime)) {
