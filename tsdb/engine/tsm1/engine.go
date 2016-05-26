@@ -38,17 +38,16 @@ const (
 
 // Engine represents a storage engine with compressed blocks.
 type Engine struct {
-	mu   sync.RWMutex
-	done chan struct{}
-	wg   sync.WaitGroup
+	mu                sync.RWMutex
+	done              chan struct{}
+	index             *tsdb.DatabaseIndex // TODO(benbjohnson): needs to be moved entirely into engine.
+	measurementFields map[string]*tsdb.MeasurementFields
+
+	wg sync.WaitGroup
 
 	path      string
 	logger    *log.Logger
 	logOutput io.Writer
-
-	// TODO(benbjohnson): Index needs to be moved entirely into engine.
-	index             *tsdb.DatabaseIndex
-	measurementFields map[string]*tsdb.MeasurementFields
 
 	WAL            *WAL
 	Cache          *Cache
