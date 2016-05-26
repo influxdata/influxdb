@@ -42,6 +42,7 @@ type Engine struct {
 	done              chan struct{}
 	index             *tsdb.DatabaseIndex // TODO(benbjohnson): needs to be moved entirely into engine.
 	measurementFields map[string]*tsdb.MeasurementFields
+	maxValueTime      int64 // Maximum timestamp for any value under storage.
 
 	wg sync.WaitGroup
 
