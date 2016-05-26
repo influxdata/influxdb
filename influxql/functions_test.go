@@ -3,6 +3,7 @@ package influxql_test
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/influxql"
 )
@@ -304,6 +305,71 @@ func TestHoltWinters_USPopulation_Missing(t *testing.T) {
 		{Time: 27, Value: 554.748233097815},
 		{Time: 28, Value: 625.8639535249647},
 		{Time: 29, Value: 705.6024924601211},
+	}
+
+	if exp, got := len(forecasted), len(points); exp != got {
+		t.Fatalf("unexpected number of points emitted: got %d exp %d", got, exp)
+	}
+	for i := range forecasted {
+		if exp, got := forecasted[i].Time, points[i].Time; got != exp {
+			t.Errorf("unexpected time on points[%d] got %v exp %v", i, got, exp)
+		}
+		if exp, got := forecasted[i].Value, points[i].Value; !almostEqual(got, exp) {
+			t.Errorf("unexpected value on points[%d] got %v exp %v", i, got, exp)
+		}
+	}
+}
+func TestHoltWinters_RoundTime(t *testing.T) {
+	maxTime := time.Unix(0, influxql.MaxTime).Round(time.Second).UnixNano()
+	data := []influxql.FloatPoint{
+		{Time: maxTime - int64(5*time.Second+50*time.Millisecond), Value: 1},
+		{Time: maxTime - int64(4*time.Second+103*time.Millisecond), Value: 10},
+		{Time: maxTime - int64(3*time.Second+223*time.Millisecond), Value: 2},
+		{Time: maxTime - int64(2*time.Second+481*time.Millisecond), Value: 11},
+	}
+	hw := influxql.NewFloatHoltWintersReducer(2, 2, true, time.Second)
+	for _, p := range data {
+		hw.AggregateFloat(&p)
+	}
+	points := hw.Emit()
+
+	forecasted := []influxql.FloatPoint{
+		{Time: maxTime - int64(5*time.Second), Value: 1},
+		{Time: maxTime - int64(4*time.Second), Value: 10.499068390422073},
+		{Time: maxTime - int64(3*time.Second), Value: 2.002458220927272},
+		{Time: maxTime - int64(2*time.Second), Value: 10.499826428426315},
+		{Time: maxTime - int64(1*time.Second), Value: 2.898110014107811},
+		{Time: maxTime - int64(0*time.Second), Value: 10.499786614238138},
+	}
+
+	if exp, got := len(forecasted), len(points); exp != got {
+		t.Fatalf("unexpected number of points emitted: got %d exp %d", got, exp)
+	}
+	for i := range forecasted {
+		if exp, got := forecasted[i].Time, points[i].Time; got != exp {
+			t.Errorf("unexpected time on points[%d] got %v exp %v", i, got, exp)
+		}
+		if exp, got := forecasted[i].Value, points[i].Value; !almostEqual(got, exp) {
+			t.Errorf("unexpected value on points[%d] got %v exp %v", i, got, exp)
+		}
+	}
+}
+
+func TestHoltWinters_MaxTime(t *testing.T) {
+	data := []influxql.FloatPoint{
+		{Time: influxql.MaxTime - 1, Value: 1},
+		{Time: influxql.MaxTime, Value: 2},
+	}
+	hw := influxql.NewFloatHoltWintersReducer(1, 0, true, 1)
+	for _, p := range data {
+		hw.AggregateFloat(&p)
+	}
+	points := hw.Emit()
+
+	forecasted := []influxql.FloatPoint{
+		{Time: influxql.MaxTime - 1, Value: 1},
+		{Time: influxql.MaxTime, Value: 2.0058478778784132},
+		{Time: influxql.MaxTime + 1, Value: 3.9399400964478106},
 	}
 
 	if exp, got := len(forecasted), len(points); exp != got {
