@@ -161,7 +161,7 @@ function start() {
 
     log_success_msg "Starting the process" "$NAME"
     if which start-stop-daemon > /dev/null 2>&1; then
-        start-stop-daemon --chuid $GROUP:$USER --start --quiet --pidfile $PIDFILE --exec $DAEMON -- -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
+        start-stop-daemon --background --chuid $GROUP:$USER --start --quiet --pidfile $PIDFILE --exec $DAEMON -- -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
     else
         su -s /bin/sh -c "nohup $DAEMON -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &" $USER
     fi
