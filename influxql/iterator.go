@@ -22,7 +22,7 @@ const (
 	MinTime = int64(0)
 
 	// MaxTime is used as the maximum time value when computing an unbounded range.
-	// This time is Jan 1, 2050 at midnight UTC.
+	// This time is 2262-04-11 23:47:16.854775806 +0000 UTC
 	MaxTime = models.MaxNanoTime - 1
 )
 
