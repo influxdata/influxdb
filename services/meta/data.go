@@ -11,6 +11,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/models"
 	internal "github.com/influxdata/influxdb/services/meta/internal"
 )
 
@@ -371,6 +372,9 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 	sgi.ID = data.MaxShardGroupID
 	sgi.StartTime = timestamp.Truncate(rpi.ShardGroupDuration).UTC()
 	sgi.EndTime = sgi.StartTime.Add(rpi.ShardGroupDuration).UTC()
+	if sgi.EndTime.After(models.MaxNanoTime) {
+		sgi.EndTime = models.MaxNanoTime
+	}
 
 	data.MaxShardID++
 	sgi.Shards = []ShardInfo{

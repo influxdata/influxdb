@@ -6149,6 +6149,50 @@ func TestServer_Query_DuplicateMeasurements(t *testing.T) {
 	}
 }
 
+func TestServer_Query_LargeTimestamp(t *testing.T) {
+	t.Parallel()
+	s := OpenDefaultServer(NewConfig())
+	defer s.Close()
+
+	writes := []string{
+		fmt.Sprintf(`cpu value=100 %d`, models.MaxNanoTime.UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+	test.addQueries([]*Query{
+		&Query{
+			name:    `select value at max nano time`,
+			params:  url.Values{"db": []string{"db0"}},
+			command: fmt.Sprintf(`SELECT value FROM cpu WHERE time <= %d`, models.MaxNanoTime.UnixNano()),
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["` + models.MaxNanoTime.Format(time.RFC3339Nano) + `",100]]}]}]}`,
+		},
+	}...)
+
+	if err := test.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+
+	// Open a new server with the same configuration file.
+	// This is to ensure the meta data was marshaled correctly.
+	s2 := OpenServer(s.Config)
+	defer s2.Close()
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 // This test reproduced a data race with closing the
 // Subscriber points channel while writes were in-flight in the PointsWriter.
 func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
