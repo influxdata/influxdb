@@ -52,6 +52,7 @@
 - [#6727](https://github.com/influxdata/influxdb/issues/6727): queries with strings that look like dates end up with date types, not string types
 - [#6250](https://github.com/influxdata/influxdb/issues/6250): Slow startup time
 - [#6753](https://github.com/influxdata/influxdb/issues/6753): Prevent panic if there are no values.
+- [#6685](https://github.com/influxdata/influxdb/issues/6685): Batch SELECT INTO / CQ writes
 
 ## v0.13.0 [2016-05-12]
 
