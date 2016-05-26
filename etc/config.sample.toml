@@ -87,20 +87,19 @@ reporting-disabled = false
   # max-points-per-block = 1000
 
 ###
-### [cluster]
+### [coordinator]
 ###
-### Controls non-Raft cluster behavior, which generally includes how data is
-### shared across shards.
+### Controls the clustering service configuration.
 ###
 
-[cluster]
-  shard-writer-timeout = "5s" # The time within which a remote shard must respond to a write request.
-  write-timeout = "10s" # The time within which a write request must complete on the cluster.
-  max-concurrent-queries = 0 # The maximum number of concurrent queries that can run. 0 to disable.
-  query-timeout = "0s" # The time within a query must complete before being killed automatically. 0s to disable.
-  max-select-point = 0 # The maximum number of points to scan in a query. 0 to disable.
-  max-select-series = 0 # The maximum number of series to select in a query. 0 to disable.
-  max-select-buckets = 0 # The maximum number of buckets to select in an aggregate query. 0 to disable.
+[coordinator]
+  write-timeout = "10s"
+  max-concurrent-queries = 0
+  query-timeout = "0"
+  log-queries-after = "0"
+  max-select-point = 0
+  max-select-series = 0
+  max-select-buckets = 0
 
 ###
 ### [retention]
