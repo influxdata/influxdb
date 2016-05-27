@@ -573,6 +573,39 @@ func BenchmarkEngine_CreateIterator_Limit_1M(b *testing.B) {
 	benchmarkEngineCreateIteratorLimit(b, 1000000)
 }
 
+func BenchmarkEngine_WritePoints_10(b *testing.B) {
+	benchmarkEngine_WritePoints(b, 10)
+}
+func BenchmarkEngine_WritePoints_100(b *testing.B) {
+	benchmarkEngine_WritePoints(b, 100)
+}
+func BenchmarkEngine_WritePoints_1000(b *testing.B) {
+	benchmarkEngine_WritePoints(b, 1000)
+}
+
+func benchmarkEngine_WritePoints(b *testing.B, batchSize int) {
+	e := MustOpenEngine()
+	defer e.Close()
+
+	e.Index().CreateMeasurementIndexIfNotExists("cpu")
+	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
+
+	p := MustParsePointString("cpu value=1.2")
+	pp := make([]models.Point, 0, batchSize)
+	for i := 0; i < batchSize; i++ {
+		pp = append(pp, p)
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		err := e.WritePoints(pp)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 func benchmarkEngineCreateIteratorLimit(b *testing.B, pointN int) {
 	benchmarkIterator(b, influxql.IteratorOptions{
 		Expr:       influxql.MustParseExpr("value"),
