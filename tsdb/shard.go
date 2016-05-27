@@ -54,6 +54,10 @@ var (
 	// ErrEngineClosed is returned when a caller attempts indirectly to
 	// access the shard's underlying engine.
 	ErrEngineClosed = errors.New("engine is closed")
+
+	// ErrShardDisabled is returned when a the shard is not available for
+	// queries or writes.
+	ErrShardDisabled = errors.New("shard is disabled")
 )
 
 // A ShardError implements the error interface, and contains extra
@@ -93,6 +97,7 @@ type Shard struct {
 	mu      sync.RWMutex
 	engine  Engine
 	closing chan struct{}
+	enabled bool
 
 	// expvar-based stats.
 	statMap *expvar.Map
@@ -140,9 +145,20 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 func (s *Shard) SetLogOutput(w io.Writer) {
 	s.LogOutput = w
 	s.logger = log.New(w, "[shard] ", log.LstdFlags)
-	if !s.closed() {
+	if err := s.ready(); err == nil {
 		s.engine.SetLogOutput(w)
 	}
+}
+
+// SetEnabled enables the shard for queries and write.  When disabled, all
+// writes and queries return an error and compactions are stopped for the shard.
+func (s *Shard) SetEnabled(enabled bool) {
+	s.mu.Lock()
+	// Prevent writes and queries
+	s.enabled = enabled
+	// Disable background compactions and snapshotting
+	s.engine.SetEnabled(enabled)
+	s.mu.Unlock()
 }
 
 // Path returns the path set on the shard when it was created.
@@ -173,6 +189,9 @@ func (s *Shard) Open() error {
 			return err
 		}
 
+		// Disable compactions while loading the index
+		e.SetEnabled(false)
+
 		// Load metadata index.
 		start := time.Now()
 		if err := e.LoadMetadataIndex(s.id, s.index); err != nil {
@@ -193,6 +212,9 @@ func (s *Shard) Open() error {
 		s.close()
 		return NewShardError(s.id, err)
 	}
+
+	// enable writes, queries and compactions
+	s.SetEnabled(true)
 
 	return nil
 }
@@ -226,12 +248,19 @@ func (s *Shard) close() error {
 	return err
 }
 
-// closed determines if the Shard is closed.
-func (s *Shard) closed() bool {
+// ready determines if the Shard is ready for queries or writes.
+// It returns nil if ready, otherwise ErrShardClosed or ErrShardDiabled
+func (s *Shard) ready() error {
+	var err error
+
 	s.mu.RLock()
-	closed := s.engine == nil
+	if s.engine == nil {
+		err = ErrEngineClosed
+	} else if !s.enabled {
+		err = ErrShardDisabled
+	}
 	s.mu.RUnlock()
-	return closed
+	return err
 }
 
 // DiskSize returns the size on disk of this shard
@@ -290,8 +319,8 @@ type SeriesCreate struct {
 
 // WritePoints will write the raw data points and any new metadata to the index in the shard
 func (s *Shard) WritePoints(points []models.Point) error {
-	if s.closed() {
-		return ErrEngineClosed
+	if err := s.ready(); err != nil {
+		return err
 	}
 
 	s.mu.RLock()
@@ -321,8 +350,8 @@ func (s *Shard) WritePoints(points []models.Point) error {
 }
 
 func (s *Shard) ContainsSeries(seriesKeys []string) (map[string]bool, error) {
-	if s.closed() {
-		return nil, ErrEngineClosed
+	if err := s.ready(); err != nil {
+		return nil, err
 	}
 
 	return s.engine.ContainsSeries(seriesKeys)
@@ -330,8 +359,8 @@ func (s *Shard) ContainsSeries(seriesKeys []string) (map[string]bool, error) {
 
 // DeleteSeries deletes a list of series.
 func (s *Shard) DeleteSeries(seriesKeys []string) error {
-	if s.closed() {
-		return ErrEngineClosed
+	if err := s.ready(); err != nil {
+		return err
 	}
 	if err := s.engine.DeleteSeries(seriesKeys); err != nil {
 		return err
@@ -341,9 +370,10 @@ func (s *Shard) DeleteSeries(seriesKeys []string) error {
 
 // DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
 func (s *Shard) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
-	if s.closed() {
-		return ErrEngineClosed
+	if err := s.ready(); err != nil {
+		return err
 	}
+
 	if err := s.engine.DeleteSeriesRange(seriesKeys, min, max); err != nil {
 		return err
 	}
@@ -353,8 +383,8 @@ func (s *Shard) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 
 // DeleteMeasurement deletes a measurement and all underlying series.
 func (s *Shard) DeleteMeasurement(name string, seriesKeys []string) error {
-	if s.closed() {
-		return ErrEngineClosed
+	if err := s.ready(); err != nil {
+		return err
 	}
 
 	if err := s.engine.DeleteMeasurement(name, seriesKeys); err != nil {
@@ -433,16 +463,16 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 
 // SeriesCount returns the number of series buckets on the shard.
 func (s *Shard) SeriesCount() (int, error) {
-	if s.closed() {
-		return 0, ErrEngineClosed
+	if err := s.ready(); err != nil {
+		return 0, err
 	}
 	return s.engine.SeriesCount()
 }
 
 // WriteTo writes the shard's data to w.
 func (s *Shard) WriteTo(w io.Writer) (int64, error) {
-	if s.closed() {
-		return 0, ErrEngineClosed
+	if err := s.ready(); err != nil {
+		return 0, err
 	}
 	n, err := s.engine.WriteTo(w)
 	s.statMap.Add(statWriteBytes, int64(n))
@@ -451,8 +481,8 @@ func (s *Shard) WriteTo(w io.Writer) (int64, error) {
 
 // CreateIterator returns an iterator for the data in the shard.
 func (s *Shard) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	if s.closed() {
-		return nil, ErrEngineClosed
+	if err := s.ready(); err != nil {
+		return nil, err
 	}
 
 	if influxql.Sources(opt.Sources).HasSystemSource() {

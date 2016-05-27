@@ -320,6 +320,16 @@ func (s *Store) CreateShardSnapshot(id uint64) (string, error) {
 	return sh.CreateSnapshot()
 }
 
+// SetShardEnabled enables or disables a shard for read and writes
+func (s *Store) SetShardEnabled(shardID uint64, enabled bool) error {
+	sh := s.Shard(shardID)
+	if sh == nil {
+		return ErrShardNotFound
+	}
+	sh.SetEnabled(enabled)
+	return nil
+}
+
 // DeleteShard removes a shard from disk.
 func (s *Store) DeleteShard(shardID uint64) error {
 	s.mu.Lock()

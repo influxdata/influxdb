@@ -43,6 +43,7 @@ type Engine interface {
 	SeriesCount() (n int, err error)
 	MeasurementFields(measurement string) *MeasurementFields
 	CreateSnapshot() (string, error)
+	SetEnabled(enabled bool)
 
 	// Format will return the format for the engine
 	Format() EngineFormat
