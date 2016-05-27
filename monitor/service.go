@@ -164,8 +164,7 @@ type RemoteWriterConfig struct {
 	ClusterID  uint64
 }
 
-// SetPointsWriter can be used to set a remote location for writing monitoring
-// information. This will use the default interval and database.
+// SetPointsWriter can be used to set a writer for the monitoring points.
 func (m *Monitor) SetPointsWriter(pw PointsWriter) error {
 	m.mu.Lock()
 	if !m.storeEnabled {
