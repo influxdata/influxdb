@@ -6239,7 +6239,7 @@ func TestServer_Query_LargeTimestamp(t *testing.T) {
 			name:    `select value at max nano time`,
 			params:  url.Values{"db": []string{"db0"}},
 			command: fmt.Sprintf(`SELECT value FROM cpu WHERE time <= %d`, models.MaxNanoTime),
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["` + time.Unix(0, models.MaxNanoTime).Format(time.RFC3339Nano) + `",100]]}]}]}`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["` + time.Unix(0, models.MaxNanoTime).UTC().Format(time.RFC3339Nano) + `",100]]}]}]}`,
 		},
 	}...)
 
