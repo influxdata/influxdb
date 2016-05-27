@@ -48,6 +48,7 @@
 - [#6693](https://github.com/influxdata/influxdb/pull/6693): Truncate the shard group end time if it exceeds MaxNanoTime.
 - [#6672](https://github.com/influxdata/influxdb/issues/6672): Accept points with trailing whitespace.
 - [#6599](https://github.com/influxdata/influxdb/issues/6599): Ensure that future points considered in SHOW queries.
+- [#6720](https://github.com/influxdata/influxdb/issues/6720): Concurrent map read write panic. Thanks @arussellsaw
 
 ## v0.13.0 [2016-05-12]
 

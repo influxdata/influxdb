@@ -164,24 +164,25 @@ func (s *Shard) Open() error {
 		if err != nil {
 			return err
 		}
-		s.engine = e
 
 		// Set log output on the engine.
-		s.engine.SetLogOutput(s.LogOutput)
+		e.SetLogOutput(s.LogOutput)
 
 		// Open engine.
-		if err := s.engine.Open(); err != nil {
+		if err := e.Open(); err != nil {
 			return err
 		}
 
 		// Load metadata index.
 		start := time.Now()
-		if err := s.engine.LoadMetadataIndex(s.id, s.index); err != nil {
+		if err := e.LoadMetadataIndex(s.id, s.index); err != nil {
 			return err
 		}
 
 		count := s.index.SeriesShardN(s.id)
 		s.statMap.Add(statSeriesCreate, int64(count))
+
+		s.engine = e
 
 		s.logger.Printf("%s database index loaded in %s", s.path, time.Now().Sub(start))
 
