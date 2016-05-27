@@ -256,31 +256,42 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index *tsdb.DatabaseIndex) er
 // backup is running. For shards that are still acively getting writes, this
 // could cause the WAL to backup, increasing memory usage and evenutally rejecting writes.
 func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
-	if err := e.WriteSnapshot(); err != nil {
+	path, err := e.CreateSnapshot()
+	if err != nil {
 		return err
 	}
-	e.FileStore.mu.RLock()
-	defer e.FileStore.mu.RUnlock()
 
-	var files []FileStat
+	// Remove the temporary snapshot dir
+	defer os.RemoveAll(path)
 
+	snapDir, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer snapDir.Close()
+
+	snapshotFiles, err := snapDir.Readdir(0)
+	if err != nil {
+		return err
+	}
+
+	var files []os.FileInfo
 	// grab all the files and tombstones that have a modified time after since
-	for _, f := range e.FileStore.files {
-		if stat := f.Stats(); stat.LastModified > since.UnixNano() {
-			files = append(files, f.Stats())
+	for _, f := range snapshotFiles {
+		if f.ModTime().UnixNano() > since.UnixNano() {
+			files = append(files, f)
 		}
-		for _, t := range f.TombstoneFiles() {
-			if t.LastModified > since.UnixNano() {
-				files = append(files, f.Stats())
-			}
-		}
+	}
+
+	if len(files) == 0 {
+		return nil
 	}
 
 	tw := tar.NewWriter(w)
 	defer tw.Close()
 
 	for _, f := range files {
-		if err := e.writeFileToBackup(f, basePath, tw); err != nil {
+		if err := e.writeFileToBackup(f, basePath, filepath.Join(path, f.Name()), tw); err != nil {
 			return err
 		}
 	}
@@ -290,16 +301,17 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 
 // writeFileToBackup will copy the file into the tar archive. Files will use the shardRelativePath
 // in their names. This should be the <db>/<retention policy>/<id> part of the path
-func (e *Engine) writeFileToBackup(f FileStat, shardRelativePath string, tw *tar.Writer) error {
+func (e *Engine) writeFileToBackup(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error {
 	h := &tar.Header{
-		Name:    filepath.Join(shardRelativePath, filepath.Base(f.Path)),
-		ModTime: time.Unix(0, f.LastModified),
-		Size:    int64(f.Size),
+		Name:    filepath.Join(shardRelativePath, f.Name()),
+		ModTime: f.ModTime(),
+		Size:    f.Size(),
+		Mode:    int64(f.Mode()),
 	}
 	if err := tw.WriteHeader(h); err != nil {
 		return err
 	}
-	fr, err := os.Open(f.Path)
+	fr, err := os.Open(fullPath)
 	if err != nil {
 		return err
 	}
@@ -811,27 +823,28 @@ func (e *Engine) reloadCache() error {
 }
 
 func (e *Engine) cleanup() error {
+	allfiles, err := ioutil.ReadDir(e.path)
+	if err != nil {
+		return err
+	}
+
+	for _, f := range allfiles {
+		// Check to see if there are any `.tmp` directories that were left over from failed shard snapshots
+		if f.IsDir() && strings.HasSuffix(f.Name(), ".tmp") {
+			if err := os.RemoveAll(filepath.Join(e.path, f.Name())); err != nil {
+				return fmt.Errorf("error removing tmp snapshot directory %q: %s", f.Name(), err)
+			}
+		}
+	}
+
 	files, err := filepath.Glob(filepath.Join(e.path, fmt.Sprintf("*.%s", CompactionTempExtension)))
 	if err != nil {
-		return fmt.Errorf("error getting compaction checkpoints: %s", err.Error())
+		return fmt.Errorf("error getting compaction temp files: %s", err.Error())
 	}
 
 	for _, f := range files {
 		if err := os.Remove(f); err != nil {
 			return fmt.Errorf("error removing temp compaction files: %v", err)
-		}
-	}
-
-	allfiles, err := ioutil.ReadDir(e.path)
-	if err != nil {
-		return err
-	}
-	for _, f := range allfiles {
-		// Check to see if there are any `.tmp` directories that were left over from failed shard snapshots
-		if f.IsDir() && strings.HasSuffix(f.Name(), ".tmp") {
-			if err := os.Remove(f.Name()); err != nil {
-				return fmt.Errorf("error removing tmp snapshot directory %q: %s", f.Name(), err)
-			}
 		}
 	}
 

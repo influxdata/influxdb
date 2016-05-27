@@ -273,6 +273,16 @@ func (cmd *Command) downloadAndVerify(req *snapshotter.Request, path string, val
 		}
 	}
 
+	f, err := os.Stat(tmppath)
+	if err != nil {
+		return err
+	}
+
+	// There was nothing downloaded, don't create an empty backup file.
+	if f.Size() == 0 {
+		return os.Remove(tmppath)
+	}
+
 	// Rename temporary file to final path.
 	if err := os.Rename(tmppath, path); err != nil {
 		return fmt.Errorf("rename: %s", err)
