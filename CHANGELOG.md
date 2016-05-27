@@ -34,7 +34,7 @@
 - [#6235](https://github.com/influxdata/influxdb/issues/6235): Fix measurement field panic in tsm1 engine.
 - [#6663](https://github.com/influxdata/influxdb/issues/6663): Fixing panic in SHOW FIELD KEYS.
 - [#6624](https://github.com/influxdata/influxdb/issues/6624): Ensure clients requesting gzip encoded bodies don't receive empty body
-- [#6652](https://github.com/influxdata/influxdb/issues/6652): Fix panic: interface conversion: tsm1.Value is *tsm1.StringValue, not *tsm1.FloatValue
+- [#6652](https://github.com/influxdata/influxdb/issues/6652): Fix panic: interface conversion: tsm1.Value is \*tsm1.StringValue, not \*tsm1.FloatValue
 - [#6406](https://github.com/influxdata/influxdb/issues/6406): Max index entries exceeded
 - [#6557](https://github.com/influxdata/influxdb/issues/6557): Overwriting points on large series can cause memory spikes during compactions
 - [#6611](https://github.com/influxdata/influxdb/issues/6611): Queries slow down hundreds times after overwriting points
@@ -49,6 +49,7 @@
 - [#6672](https://github.com/influxdata/influxdb/issues/6672): Accept points with trailing whitespace.
 - [#6599](https://github.com/influxdata/influxdb/issues/6599): Ensure that future points considered in SHOW queries.
 - [#6720](https://github.com/influxdata/influxdb/issues/6720): Concurrent map read write panic. Thanks @arussellsaw
+- [#6727](https://github.com/influxdata/influxdb/issues/6727): queries with strings that look like dates end up with date types, not string types
 
 ## v0.13.0 [2016-05-12]
 

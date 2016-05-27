@@ -138,7 +138,7 @@ func TestParser_ParseStatement(t *testing.T) {
 					RHS: &influxql.BinaryExpr{
 						Op:  influxql.GT,
 						LHS: &influxql.VarRef{Val: "time"},
-						RHS: &influxql.TimeLiteral{Val: now.UTC()},
+						RHS: &influxql.StringLiteral{Val: now.UTC().Format(time.RFC3339Nano)},
 					},
 				},
 				Dimensions: []*influxql.Dimension{{Expr: &influxql.Call{Name: "time", Args: []influxql.Expr{&influxql.DurationLiteral{Val: 10 * time.Hour}}}}},
@@ -193,7 +193,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.GT,
 					LHS: &influxql.VarRef{Val: "time"},
-					RHS: &influxql.TimeLiteral{Val: now.UTC()},
+					RHS: &influxql.StringLiteral{Val: now.UTC().Format(time.RFC3339Nano)},
 				},
 			},
 		},
@@ -274,7 +274,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.GT,
 					LHS: &influxql.VarRef{Val: "time"},
-					RHS: &influxql.TimeLiteral{Val: now.UTC()},
+					RHS: &influxql.StringLiteral{Val: now.UTC().Format(time.RFC3339Nano)},
 				},
 			},
 		},
@@ -325,7 +325,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.GT,
 					LHS: &influxql.VarRef{Val: "time"},
-					RHS: &influxql.TimeLiteral{Val: now.UTC()},
+					RHS: &influxql.StringLiteral{Val: now.UTC().Format(time.RFC3339Nano)},
 				},
 			},
 		},
@@ -363,7 +363,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.GT,
 					LHS: &influxql.VarRef{Val: "time"},
-					RHS: &influxql.TimeLiteral{Val: now.UTC()},
+					RHS: &influxql.StringLiteral{Val: now.UTC().Format(time.RFC3339Nano)},
 				},
 			},
 		},
@@ -400,7 +400,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.GT,
 					LHS: &influxql.VarRef{Val: "time"},
-					RHS: &influxql.TimeLiteral{Val: now.UTC()},
+					RHS: &influxql.StringLiteral{Val: now.UTC().Format(time.RFC3339Nano)},
 				},
 			},
 		},
@@ -439,7 +439,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.GT,
 					LHS: &influxql.VarRef{Val: "time"},
-					RHS: &influxql.TimeLiteral{Val: now.UTC()},
+					RHS: &influxql.StringLiteral{Val: now.UTC().Format(time.RFC3339Nano)},
 				},
 			},
 		},
@@ -479,7 +479,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.GT,
 					LHS: &influxql.VarRef{Val: "time"},
-					RHS: &influxql.TimeLiteral{Val: now.UTC()},
+					RHS: &influxql.StringLiteral{Val: now.UTC().Format(time.RFC3339Nano)},
 				},
 			},
 		},
@@ -695,7 +695,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.GT,
 					LHS: &influxql.VarRef{Val: "time"},
-					RHS: &influxql.TimeLiteral{Val: now.UTC()},
+					RHS: &influxql.StringLiteral{Val: now.UTC().Format(time.RFC3339Nano)},
 				},
 			},
 		},
@@ -882,7 +882,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.LT,
 					LHS: &influxql.VarRef{Val: "time"},
-					RHS: &influxql.TimeLiteral{Val: now.UTC()},
+					RHS: &influxql.StringLiteral{Val: now.UTC().Format(time.RFC3339Nano)},
 				},
 				Dimensions: []*influxql.Dimension{{Expr: &influxql.Call{Name: "time", Args: []influxql.Expr{&influxql.DurationLiteral{Val: 5 * time.Minute}}}}},
 				Fill:       influxql.NumberFill,
@@ -902,7 +902,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.LT,
 					LHS: &influxql.VarRef{Val: "time"},
-					RHS: &influxql.TimeLiteral{Val: now.UTC()},
+					RHS: &influxql.StringLiteral{Val: now.UTC().Format(time.RFC3339Nano)},
 				},
 				Dimensions: []*influxql.Dimension{{Expr: &influxql.Call{Name: "time", Args: []influxql.Expr{&influxql.DurationLiteral{Val: 5 * time.Minute}}}}},
 				Fill:       influxql.NoFill,
@@ -921,7 +921,7 @@ func TestParser_ParseStatement(t *testing.T) {
 				Condition: &influxql.BinaryExpr{
 					Op:  influxql.LT,
 					LHS: &influxql.VarRef{Val: "time"},
-					RHS: &influxql.TimeLiteral{Val: now.UTC()},
+					RHS: &influxql.StringLiteral{Val: now.UTC().Format(time.RFC3339Nano)},
 				},
 				Dimensions: []*influxql.Dimension{{Expr: &influxql.Call{Name: "time", Args: []influxql.Expr{&influxql.DurationLiteral{Val: 5 * time.Minute}}}}},
 				Fill:       influxql.PreviousFill,
@@ -2418,11 +2418,8 @@ func TestParser_ParseExpr(t *testing.T) {
 		{s: `true`, expr: &influxql.BooleanLiteral{Val: true}},
 		{s: `false`, expr: &influxql.BooleanLiteral{Val: false}},
 		{s: `my_ident`, expr: &influxql.VarRef{Val: "my_ident"}},
-		{s: `'2000-01-01 00:00:00'`, expr: &influxql.TimeLiteral{Val: mustParseTime("2000-01-01T00:00:00Z")}},
-		{s: `'2000-01-01 00:00:00.232'`, expr: &influxql.TimeLiteral{Val: mustParseTime("2000-01-01T00:00:00.232Z")}},
-		{s: `'2000-01-32 00:00:00'`, err: `unable to parse datetime at line 1, char 1`},
-		{s: `'2000-01-01'`, expr: &influxql.TimeLiteral{Val: mustParseTime("2000-01-01T00:00:00Z")}},
-		{s: `'2000-01-99'`, err: `unable to parse date at line 1, char 1`},
+		{s: `'2000-01-01 00:00:00'`, expr: &influxql.StringLiteral{Val: "2000-01-01 00:00:00"}},
+		{s: `'2000-01-01'`, expr: &influxql.StringLiteral{Val: "2000-01-01"}},
 
 		// Simple binary expression
 		{

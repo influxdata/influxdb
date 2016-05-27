@@ -2378,25 +2378,6 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 
 		return nil, newParseError(tokstr(tok0, lit), []string{"(", "identifier"}, pos)
 	case STRING:
-		// If literal looks like a date time then parse it as a time literal.
-		if isDateTimeString(lit) {
-			t, err := time.Parse(DateTimeFormat, lit)
-			if err != nil {
-				// try to parse it as an RFCNano time
-				t, err := time.Parse(time.RFC3339Nano, lit)
-				if err != nil {
-					return nil, &ParseError{Message: "unable to parse datetime", Pos: pos}
-				}
-				return &TimeLiteral{Val: t}, nil
-			}
-			return &TimeLiteral{Val: t}, nil
-		} else if isDateString(lit) {
-			t, err := time.Parse(DateFormat, lit)
-			if err != nil {
-				return nil, &ParseError{Message: "unable to parse date", Pos: pos}
-			}
-			return &TimeLiteral{Val: t}, nil
-		}
 		return &StringLiteral{Val: lit}, nil
 	case NUMBER:
 		v, err := strconv.ParseFloat(lit, 64)
