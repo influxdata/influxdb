@@ -50,6 +50,7 @@
 - [#6599](https://github.com/influxdata/influxdb/issues/6599): Ensure that future points considered in SHOW queries.
 - [#6720](https://github.com/influxdata/influxdb/issues/6720): Concurrent map read write panic. Thanks @arussellsaw
 - [#6727](https://github.com/influxdata/influxdb/issues/6727): queries with strings that look like dates end up with date types, not string types
+- [#6250](https://github.com/influxdata/influxdb/issues/6250): Slow startup time
 
 ## v0.13.0 [2016-05-12]
 

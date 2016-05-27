@@ -133,14 +133,13 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 	m := d.CreateMeasurementIndexIfNotExists(measurementName)
 
 	d.mu.Lock()
-	defer d.mu.Unlock()
-
 	// set the in memory ID for query processing on this shard
 	series.id = d.lastID + 1
 	d.lastID++
 
 	series.measurement = m
 	d.series[series.Key] = series
+	d.mu.Unlock()
 
 	m.AddSeries(series)
 
@@ -502,8 +501,7 @@ type Measurement struct {
 	fieldNames map[string]struct{}
 
 	// in-memory index fields
-	seriesByID          map[uint64]*Series // lookup table for series by their id
-	measurement         *Measurement
+	seriesByID          map[uint64]*Series              // lookup table for series by their id
 	seriesByTagKeyValue map[string]map[string]SeriesIDs // map from tag key to value to sorted set of series ids
 	seriesIDs           SeriesIDs                       // sorted list of series IDs in this measurement
 }
@@ -516,7 +514,7 @@ func NewMeasurement(name string) *Measurement {
 
 		seriesByID:          make(map[uint64]*Series),
 		seriesByTagKeyValue: make(map[string]map[string]SeriesIDs),
-		seriesIDs:           make(SeriesIDs, 0),
+		seriesIDs:           make(SeriesIDs, 0, 1),
 	}
 }
 
@@ -591,12 +589,20 @@ func (m *Measurement) HasSeries() bool {
 
 // AddSeries will add a series to the measurementIndex. Returns false if already present
 func (m *Measurement) AddSeries(s *Series) bool {
+	m.mu.RLock()
+	if _, ok := m.seriesByID[s.id]; ok {
+		m.mu.RUnlock()
+		return false
+	}
+	m.mu.RUnlock()
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	if _, ok := m.seriesByID[s.id]; ok {
 		return false
 	}
+
 	m.seriesByID[s.id] = s
 	m.seriesIDs = append(m.seriesIDs, s.id)
 

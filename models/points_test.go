@@ -112,6 +112,13 @@ func BenchmarkParsePointsTagsUnSorted10(b *testing.B) {
 	}
 }
 
+func BenchmarkParseKey(b *testing.B) {
+	line := `cpu,region=us-west,host=serverA,env=prod,target=servers,zone=1c,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5`
+	for i := 0; i < b.N; i++ {
+		models.ParseKey(line)
+	}
+}
+
 // TestPoint wraps a models.Point but also makes available the raw
 // arguments to the Point.
 //
