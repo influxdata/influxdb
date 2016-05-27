@@ -5225,6 +5225,78 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 	}
 }
 
+func TestServer_Query_ShowQueries_Future(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu,host=server01 value=100 %d`, models.MaxNanoTime),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    `show measurements`,
+			command: "SHOW MEASUREMENTS",
+			exp:     `{"results":[{"series":[{"name":"measurements","columns":["name"],"values":[["cpu"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show series`,
+			command: "SHOW SERIES",
+			exp:     `{"results":[{"series":[{"columns":["key"],"values":[["cpu,host=server01"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show tag keys`,
+			command: "SHOW TAG KEYS FROM cpu",
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show tag values`,
+			command: "SHOW TAG VALUES WITH KEY = \"host\"",
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["key","value"],"values":[["host","server01"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show field keys`,
+			command: "SHOW FIELD KEYS",
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["fieldKey","fieldType"],"values":[["value","float"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 func TestServer_Query_ShowSeries(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())
@@ -6155,7 +6227,7 @@ func TestServer_Query_LargeTimestamp(t *testing.T) {
 	defer s.Close()
 
 	writes := []string{
-		fmt.Sprintf(`cpu value=100 %d`, models.MaxNanoTime.UnixNano()),
+		fmt.Sprintf(`cpu value=100 %d`, models.MaxNanoTime),
 	}
 
 	test := NewTest("db0", "rp0")
@@ -6166,8 +6238,8 @@ func TestServer_Query_LargeTimestamp(t *testing.T) {
 		&Query{
 			name:    `select value at max nano time`,
 			params:  url.Values{"db": []string{"db0"}},
-			command: fmt.Sprintf(`SELECT value FROM cpu WHERE time <= %d`, models.MaxNanoTime.UnixNano()),
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["` + models.MaxNanoTime.Format(time.RFC3339Nano) + `",100]]}]}]}`,
+			command: fmt.Sprintf(`SELECT value FROM cpu WHERE time <= %d`, models.MaxNanoTime),
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["` + time.Unix(0, models.MaxNanoTime).Format(time.RFC3339Nano) + `",100]]}]}]}`,
 		},
 	}...)
 

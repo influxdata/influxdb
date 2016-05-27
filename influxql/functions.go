@@ -339,6 +339,8 @@ type FloatHoltWintersReducer struct {
 
 	// Interval between points
 	interval int64
+	// interval / 2 -- used to perform rounding
+	halfInterval int64
 
 	// Whether to include all data or only future values
 	includeFitData bool
@@ -376,6 +378,7 @@ func NewFloatHoltWintersReducer(h, m int, includeFitData bool, interval time.Dur
 		seasonal:       seasonal,
 		includeFitData: includeFitData,
 		interval:       int64(interval),
+		halfInterval:   int64(interval) / 2,
 		optim:          neldermead.New(),
 		epsilon:        defaultEpsilon,
 	}
@@ -399,7 +402,15 @@ func (r *FloatHoltWintersReducer) AggregateInteger(p *IntegerPoint) {
 }
 
 func (r *FloatHoltWintersReducer) roundTime(t int64) int64 {
-	return r.interval * ((t + r.interval/2) / r.interval)
+	// Overflow safe round function
+	remainder := t % r.interval
+	if remainder > r.halfInterval {
+		// Round up
+		return (t/r.interval + 1) * r.interval
+	} else {
+		// Round down
+		return (t / r.interval) * r.interval
+	}
 }
 
 func (r *FloatHoltWintersReducer) Emit() []FloatPoint {

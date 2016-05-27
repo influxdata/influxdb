@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/models"
+
 	"github.com/gogo/protobuf/proto"
 	internal "github.com/influxdata/influxdb/influxql/internal"
 )
@@ -20,8 +22,8 @@ const (
 	MinTime = int64(0)
 
 	// MaxTime is used as the maximum time value when computing an unbounded range.
-	// This time is Jan 1, 2050 at midnight UTC.
-	MaxTime = int64(2524608000000000000)
+	// This time is 2262-04-11 23:47:16.854775806 +0000 UTC
+	MaxTime = models.MaxNanoTime - 1
 )
 
 // Iterator represents a generic interface for all Iterators.
