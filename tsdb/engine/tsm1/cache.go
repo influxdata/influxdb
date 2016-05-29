@@ -458,11 +458,11 @@ func (c *Cache) entry(key string) *entry {
 	// low-contention path: entry exists, no write operations needed:
 	c.mu.RLock()
 	e, ok := c.store[key]
+	c.mu.RUnlock()
+
 	if ok {
-		c.mu.RUnlock()
 		return e
 	}
-	c.mu.RUnlock()
 
 	// high-contention path: entry doesn't exist (probably), create a new
 	// one after checking again:
@@ -473,7 +473,9 @@ func (c *Cache) entry(key string) *entry {
 		e = newEntry()
 		c.store[key] = e
 	}
+
 	c.mu.Unlock()
+
 	return e
 }
 
