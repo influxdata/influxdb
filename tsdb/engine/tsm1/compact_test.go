@@ -39,6 +39,17 @@ func TestCompactor_Snapshot(t *testing.T) {
 	}
 
 	files, err := compactor.WriteSnapshot(c)
+	if err == nil {
+		t.Fatalf("expected error writing snapshot: %v", err)
+	}
+	if len(files) > 0 {
+		t.Fatalf("no files should be compacted: got %v", len(files))
+
+	}
+
+	compactor.Open()
+
+	files, err = compactor.WriteSnapshot(c)
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
@@ -111,6 +122,17 @@ func TestCompactor_CompactFull(t *testing.T) {
 	}
 
 	files, err := compactor.CompactFull([]string{f1, f2, f3})
+	if err == nil {
+		t.Fatalf("expected error writing snapshot: %v", err)
+	}
+	if len(files) > 0 {
+		t.Fatalf("no files should be compacted: got %v", len(files))
+
+	}
+
+	compactor.Open()
+
+	files, err = compactor.CompactFull([]string{f1, f2, f3})
 	if err != nil {
 		t.Fatalf("unexpected error writing snapshot: %v", err)
 	}
@@ -199,6 +221,7 @@ func TestCompactor_CompactFull_SkipFullBlocks(t *testing.T) {
 		FileStore: &fakeFileStore{},
 		Size:      2,
 	}
+	compactor.Open()
 
 	files, err := compactor.CompactFull([]string{f1, f2, f3})
 	if err != nil {
@@ -297,6 +320,7 @@ func TestCompactor_CompactFull_TombstonedSkipBlock(t *testing.T) {
 		FileStore: &fakeFileStore{},
 		Size:      2,
 	}
+	compactor.Open()
 
 	files, err := compactor.CompactFull([]string{f1, f2, f3})
 	if err != nil {
@@ -396,6 +420,7 @@ func TestCompactor_CompactFull_TombstonedPartialBlock(t *testing.T) {
 		FileStore: &fakeFileStore{},
 		Size:      2,
 	}
+	compactor.Open()
 
 	files, err := compactor.CompactFull([]string{f1, f2, f3})
 	if err != nil {
@@ -500,6 +525,7 @@ func TestCompactor_CompactFull_TombstonedMultipleRanges(t *testing.T) {
 		FileStore: &fakeFileStore{},
 		Size:      2,
 	}
+	compactor.Open()
 
 	files, err := compactor.CompactFull([]string{f1, f2, f3})
 	if err != nil {
@@ -611,6 +637,7 @@ func TestCompactor_CompactFull_MaxKeys(t *testing.T) {
 		Dir:       dir,
 		FileStore: &fakeFileStore{},
 	}
+	compactor.Open()
 
 	// Compact both files, should get 2 files back
 	files, err := compactor.CompactFull([]string{f1Name, f2Name})

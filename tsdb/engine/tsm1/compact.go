@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/tsdb"
@@ -30,7 +31,12 @@ const (
 	TSMFileExtension        = "tsm"
 )
 
-var errMaxFileExceeded = fmt.Errorf("max file exceeded")
+var (
+	errMaxFileExceeded     = fmt.Errorf("max file exceeded")
+	errSnapshotsDisabled   = fmt.Errorf("snapshots disabled")
+	errCompactionsDisabled = fmt.Errorf("compactions disabled")
+	errCompactionAborted   = fmt.Errorf("compaction aborted")
+)
 
 var (
 	MaxTime = time.Unix(0, math.MaxInt64)
@@ -406,17 +412,49 @@ func (c *DefaultPlanner) findGenerations() tsmGenerations {
 // Compactor merges multiple TSM files into new files or
 // writes a Cache into 1 or more TSM files
 type Compactor struct {
-	Dir    string
-	Cancel chan struct{}
-	Size   int
+	Dir  string
+	Size int
 
 	FileStore interface {
 		NextGeneration() int
 	}
+
+	mu      sync.RWMutex
+	opened  bool
+	closing chan struct{}
+}
+
+func (c *Compactor) Open() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.opened {
+		return
+	}
+
+	c.closing = make(chan struct{})
+	c.opened = true
+}
+
+func (c *Compactor) Close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if !c.opened {
+		return
+	}
+	c.opened = false
+	close(c.closing)
 }
 
 // WriteSnapshot will write a Cache snapshot to a new TSM files.
 func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
+	c.mu.RLock()
+	opened := c.opened
+	c.mu.RUnlock()
+
+	if !opened {
+		return nil, errSnapshotsDisabled
+	}
+
 	iter := NewCacheKeyIterator(cache, tsdb.DefaultMaxPointsPerBlock)
 	return c.writeNewFiles(c.FileStore.NextGeneration(), 0, iter)
 }
@@ -477,21 +515,28 @@ func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
 
 // Compact will write multiple smaller TSM files into 1 or more larger files
 func (c *Compactor) CompactFull(tsmFiles []string) ([]string, error) {
+	c.mu.RLock()
+	opened := c.opened
+	c.mu.RUnlock()
+
+	if !opened {
+		return nil, errCompactionsDisabled
+	}
+
 	return c.compact(false, tsmFiles)
 }
 
 // Compact will write multiple smaller TSM files into 1 or more larger files
 func (c *Compactor) CompactFast(tsmFiles []string) ([]string, error) {
-	return c.compact(true, tsmFiles)
-}
+	c.mu.RLock()
+	opened := c.opened
+	c.mu.RUnlock()
 
-// Clone will return a new compactor that can be used even if the engine is closed
-func (c *Compactor) Clone() *Compactor {
-	return &Compactor{
-		Dir:       c.Dir,
-		FileStore: c.FileStore,
-		Cancel:    c.Cancel,
+	if !opened {
+		return nil, errCompactionsDisabled
 	}
+
+	return c.compact(true, tsmFiles)
 }
 
 // writeNewFiles will write from the iterator into new TSM files, rotating
@@ -560,11 +605,14 @@ func (c *Compactor) write(path string, iter KeyIterator) (err error) {
 	}()
 
 	for iter.Next() {
+		c.mu.RLock()
 		select {
-		case <-c.Cancel:
-			return fmt.Errorf("compaction aborted")
+		case <-c.closing:
+			c.mu.RUnlock()
+			return errCompactionAborted
 		default:
 		}
+		c.mu.RUnlock()
 
 		// Each call to read returns the next sorted key (or the prior one if there are
 		// more values to write).  The size of values will be less than or equal to our

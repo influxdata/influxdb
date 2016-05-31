@@ -38,9 +38,10 @@ const (
 
 // Engine represents a storage engine with compressed blocks.
 type Engine struct {
-	mu   sync.RWMutex
-	done chan struct{}
-	wg   sync.WaitGroup
+	mu                 sync.RWMutex
+	done               chan struct{}
+	wg                 sync.WaitGroup
+	compactionsEnabled bool
 
 	path      string
 	logger    *log.Logger
@@ -106,6 +107,57 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 	return e
 }
 
+func (e *Engine) SetEnabled(enabled bool) {
+	e.SetCompactionsEnabled(enabled)
+}
+
+// SetCompactionsEnabled enables compactions on the engine.  When disabled
+// all running compactions are aborted and new compactions stop running.
+func (e *Engine) SetCompactionsEnabled(enabled bool) {
+	if enabled {
+		e.mu.Lock()
+		if e.compactionsEnabled {
+			e.mu.Unlock()
+			return
+		}
+		e.compactionsEnabled = true
+
+		e.done = make(chan struct{})
+		e.Compactor.Open()
+
+		e.mu.Unlock()
+
+		e.wg.Add(5)
+		go e.compactCache()
+		go e.compactTSMFull()
+		go e.compactTSMLevel(true, 1)
+		go e.compactTSMLevel(true, 2)
+		go e.compactTSMLevel(false, 3)
+
+		e.logger.Printf("compactions enabled for: %v", e.path)
+	} else {
+		e.mu.Lock()
+		if !e.compactionsEnabled {
+			e.mu.Unlock()
+			return
+		}
+		// Prevent new compactions from starting
+		e.compactionsEnabled = false
+		e.mu.Unlock()
+
+		// Stop all background compaction goroutines
+		close(e.done)
+
+		// Abort any running goroutines (this could take a while)
+		e.Compactor.Close()
+
+		// Wait for compaction goroutines to exit
+		e.wg.Wait()
+
+		e.logger.Printf("compactions disabled for: %v", e.path)
+	}
+}
+
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
@@ -144,7 +196,6 @@ func (e *Engine) Format() tsdb.EngineFormat {
 // Open opens and initializes the engine.
 func (e *Engine) Open() error {
 	e.done = make(chan struct{})
-	e.Compactor.Cancel = e.done
 
 	if err := os.MkdirAll(e.path, 0777); err != nil {
 		return err
@@ -166,28 +217,14 @@ func (e *Engine) Open() error {
 		return err
 	}
 
-	e.wg.Add(5)
-	go e.compactCache()
-	go e.compactTSMFull()
-	go e.compactTSMLevel(true, 1)
-	go e.compactTSMLevel(true, 2)
-	go e.compactTSMLevel(false, 3)
+	e.SetCompactionsEnabled(true)
 
 	return nil
 }
 
 // Close closes the engine. Subsequent calls to Close are a nop.
 func (e *Engine) Close() error {
-	e.mu.RLock()
-	if e.done == nil {
-		e.mu.RUnlock()
-		return nil
-	}
-	e.mu.RUnlock()
-
-	// Shutdown goroutines and wait.
-	close(e.done)
-	e.wg.Wait()
+	e.SetCompactionsEnabled(false)
 
 	// Lock now and close everything else down.
 	e.mu.Lock()
@@ -565,7 +602,7 @@ func (e *Engine) WriteSnapshot() error {
 		}
 	}()
 
-	closedFiles, snapshot, compactor, err := func() ([]string, *Cache, *Compactor, error) {
+	closedFiles, snapshot, err := func() ([]string, *Cache, error) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
 
@@ -573,20 +610,20 @@ func (e *Engine) WriteSnapshot() error {
 		started = &now
 
 		if err := e.WAL.CloseSegment(); err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 
 		segments, err := e.WAL.ClosedSegments()
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 
 		snapshot, err := e.Cache.Snapshot()
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 
-		return segments, snapshot, e.Compactor.Clone(), nil
+		return segments, snapshot, nil
 	}()
 
 	if err != nil {
@@ -598,7 +635,7 @@ func (e *Engine) WriteSnapshot() error {
 	// holding the engine write lock.
 	snapshot.Deduplicate()
 
-	return e.writeSnapshotAndCommit(closedFiles, snapshot, compactor)
+	return e.writeSnapshotAndCommit(closedFiles, snapshot)
 }
 
 // CreateSnapshot will create a temp directory that holds
@@ -615,7 +652,7 @@ func (e *Engine) CreateSnapshot() (string, error) {
 }
 
 // writeSnapshotAndCommit will write the passed cache to a new TSM file and remove the closed WAL segments
-func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache, compactor *Compactor) (err error) {
+func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (err error) {
 
 	defer func() {
 		if err != nil {
@@ -623,7 +660,7 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache, c
 		}
 	}()
 	// write the new snapshot files
-	newFiles, err := compactor.WriteSnapshot(snapshot)
+	newFiles, err := e.Compactor.WriteSnapshot(snapshot)
 	if err != nil {
 		e.logger.Printf("error writing snapshot from compactor: %v", err)
 		return err

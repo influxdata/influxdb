@@ -354,6 +354,50 @@ cpu,host=serverB,region=uswest value=25  0
 	}
 }
 
+func TestShard_Disabled_WriteQuery(t *testing.T) {
+	sh := NewShard()
+	if err := sh.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer sh.Close()
+
+	sh.SetEnabled(false)
+
+	pt := models.MustNewPoint(
+		"cpu",
+		map[string]string{"host": "server"},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	err := sh.WritePoints([]models.Point{pt})
+	if err == nil {
+		t.Fatalf("expected shard disabled error")
+	}
+	if err != tsdb.ErrShardDisabled {
+		t.Fatalf(err.Error())
+	}
+
+	_, got := sh.CreateIterator(influxql.IteratorOptions{})
+	if err == nil {
+		t.Fatalf("expected shard disabled error")
+	}
+	if exp := tsdb.ErrShardDisabled; got != exp {
+		t.Fatalf("got %v, expected %v", got, exp)
+	}
+
+	sh.SetEnabled(true)
+
+	err = sh.WritePoints([]models.Point{pt})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if _, err = sh.CreateIterator(influxql.IteratorOptions{}); err != nil {
+		t.Fatalf("unexpected error: %v", got)
+	}
+}
+
 func BenchmarkWritePoints_NewSeries_1K(b *testing.B)   { benchmarkWritePoints(b, 38, 3, 3, 1) }
 func BenchmarkWritePoints_NewSeries_100K(b *testing.B) { benchmarkWritePoints(b, 32, 5, 5, 1) }
 func BenchmarkWritePoints_NewSeries_250K(b *testing.B) { benchmarkWritePoints(b, 80, 5, 5, 1) }
