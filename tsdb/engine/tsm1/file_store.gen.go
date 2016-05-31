@@ -25,6 +25,11 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[
 	tombstones := first.r.TombstoneRange(c.key)
 	values = c.filterFloatValues(tombstones, values)
 
+	// Check we have remaining values.
+	if len(values) == 0 {
+		return nil, nil
+	}
+
 	// Only one block with this key and time range so return it
 	if len(c.current) == 1 {
 		if len(values) > 0 {
@@ -154,6 +159,11 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 	// Remove any tombstones
 	tombstones := first.r.TombstoneRange(c.key)
 	values = c.filterIntegerValues(tombstones, values)
+
+	// Check we have remaining values.
+	if len(values) == 0 {
+		return nil, nil
+	}
 
 	// Only one block with this key and time range so return it
 	if len(c.current) == 1 {
@@ -285,6 +295,11 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 	tombstones := first.r.TombstoneRange(c.key)
 	values = c.filterStringValues(tombstones, values)
 
+	// Check we have remaining values.
+	if len(values) == 0 {
+		return nil, nil
+	}
+
 	// Only one block with this key and time range so return it
 	if len(c.current) == 1 {
 		if len(values) > 0 {
@@ -414,6 +429,11 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 	// Remove any tombstones
 	tombstones := first.r.TombstoneRange(c.key)
 	values = c.filterBooleanValues(tombstones, values)
+
+	// Check we have remaining values.
+	if len(values) == 0 {
+		return nil, nil
+	}
 
 	// Only one block with this key and time range so return it
 	if len(c.current) == 1 {

@@ -20,6 +20,11 @@ func (c *KeyCursor) Read{{.Name}}Block(tdec *TimeDecoder, vdec *{{.Name}}Decoder
 	tombstones := first.r.TombstoneRange(c.key)
 	values = c.filter{{.Name}}Values(tombstones, values)
 
+	// Check we have remaining values.
+	if len(values) == 0 {
+		return nil, nil
+	}
+
 	// Only one block with this key and time range so return it
 	if len(c.current) == 1 {
 		if len(values) > 0 {
