@@ -31,7 +31,12 @@ const (
 	TSMFileExtension        = "tsm"
 )
 
-var errMaxFileExceeded = fmt.Errorf("max file exceeded")
+var (
+	errMaxFileExceeded     = fmt.Errorf("max file exceeded")
+	errSnapshotsDisabled   = fmt.Errorf("snapshots disabled")
+	errCompactionsDisabled = fmt.Errorf("compactions disabled")
+	errCompactionAborted   = fmt.Errorf("compaction aborted")
+)
 
 var (
 	MaxTime = time.Unix(0, math.MaxInt64)
@@ -447,7 +452,7 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 	c.mu.RUnlock()
 
 	if !opened {
-		return nil, fmt.Errorf("snapshots disabled")
+		return nil, errSnapshotsDisabled
 	}
 
 	iter := NewCacheKeyIterator(cache, tsdb.DefaultMaxPointsPerBlock)
@@ -515,7 +520,7 @@ func (c *Compactor) CompactFull(tsmFiles []string) ([]string, error) {
 	c.mu.RUnlock()
 
 	if !opened {
-		return nil, fmt.Errorf("compactions disabled")
+		return nil, errCompactionsDisabled
 	}
 
 	return c.compact(false, tsmFiles)
@@ -528,7 +533,7 @@ func (c *Compactor) CompactFast(tsmFiles []string) ([]string, error) {
 	c.mu.RUnlock()
 
 	if !opened {
-		return nil, fmt.Errorf("compactions disabled")
+		return nil, errCompactionsDisabled
 	}
 
 	return c.compact(true, tsmFiles)
@@ -604,7 +609,7 @@ func (c *Compactor) write(path string, iter KeyIterator) (err error) {
 		select {
 		case <-c.closing:
 			c.mu.RUnlock()
-			return fmt.Errorf("compaction aborted")
+			return errCompactionAborted
 		default:
 		}
 		c.mu.RUnlock()
