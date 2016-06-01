@@ -17,6 +17,10 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
+type pointsWriter interface {
+	WritePointsInto(*IntoWriteRequest) error
+}
+
 // StatementExecutor executes a statement in the query.
 type StatementExecutor struct {
 	MetaClient MetaClient
@@ -28,9 +32,7 @@ type StatementExecutor struct {
 	Monitor *monitor.Monitor
 
 	// Used for rewriting points back into system for SELECT INTO statements.
-	PointsWriter interface {
-		WritePointsInto(*IntoWriteRequest) error
-	}
+	PointsWriter pointsWriter
 
 	// Select statement limits
 	MaxSelectPointN   int
@@ -507,6 +509,12 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 	// Emit rows to the results channel.
 	var writeN int64
 	var emitted bool
+
+	var pointsWriter *BufferedPointsWriter
+	if stmt.Target != nil {
+		pointsWriter = NewBufferedPointsWriter(e.PointsWriter, stmt.Target.Measurement.Database, stmt.Target.Measurement.RetentionPolicy, 10000)
+	}
+
 	for {
 		row, err := em.Emit()
 		if err != nil {
@@ -523,7 +531,7 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 
 		// Write points back into system for INTO statements.
 		if stmt.Target != nil {
-			if err := e.writeInto(stmt, row); err != nil {
+			if err := e.writeInto(pointsWriter, stmt, row); err != nil {
 				return err
 			}
 			writeN += int64(len(row.Values))
@@ -545,8 +553,12 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 		emitted = true
 	}
 
-	// Emit write count if an INTO statement.
+	// Flush remaing points and emit write count if an INTO statement.
 	if stmt.Target != nil {
+		if err := pointsWriter.Flush(); err != nil {
+			return err
+		}
+
 		var messages []*influxql.Message
 		if ctx.ReadOnly {
 			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
@@ -779,7 +791,82 @@ func (e *StatementExecutor) executeShowUsersStatement(q *influxql.ShowUsersState
 	return []*models.Row{row}, nil
 }
 
-func (e *StatementExecutor) writeInto(stmt *influxql.SelectStatement, row *models.Row) error {
+type BufferedPointsWriter struct {
+	w               pointsWriter
+	buf             []models.Point
+	database        string
+	retentionPolicy string
+}
+
+func NewBufferedPointsWriter(w pointsWriter, database, retentionPolicy string, capacity int) *BufferedPointsWriter {
+	return &BufferedPointsWriter{
+		w:               w,
+		buf:             make([]models.Point, 0, capacity),
+		database:        database,
+		retentionPolicy: retentionPolicy,
+	}
+}
+
+func (w *BufferedPointsWriter) WritePointsInto(req *IntoWriteRequest) error {
+	// Make sure we're buffering points only for the expected destination.
+	if req.Database != w.database || req.RetentionPolicy != w.retentionPolicy {
+		return fmt.Errorf("writer for %s.%s can't write into %s.%s", w.database, w.retentionPolicy, req.Database, req.RetentionPolicy)
+	}
+
+	for i := 0; i < len(req.Points); {
+		// Get the available space in the buffer.
+		avail := cap(w.buf) - len(w.buf)
+
+		// Calculate number of points to copy into the buffer.
+		n := len(req.Points[i:])
+		if n > avail {
+			n = avail
+		}
+
+		// Copy points into buffer.
+		w.buf = append(w.buf, req.Points[i:n+i]...)
+
+		// Advance the index by number of points copied.
+		i += n
+
+		// If buffer is full, flush points to underlying writer.
+		if len(w.buf) == cap(w.buf) {
+			if err := w.Flush(); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// Flush writes all buffered points to the underlying writer.
+func (w *BufferedPointsWriter) Flush() error {
+	if len(w.buf) == 0 {
+		return nil
+	}
+
+	if err := w.w.WritePointsInto(&IntoWriteRequest{
+		Database:        w.database,
+		RetentionPolicy: w.retentionPolicy,
+		Points:          w.buf,
+	}); err != nil {
+		return err
+	}
+
+	// Clear the buffer.
+	w.buf = w.buf[:0]
+
+	return nil
+}
+
+// Len returns the number of points buffered.
+func (w *BufferedPointsWriter) Len() int { return len(w.buf) }
+
+// Cap returns the capacity (in points) of the buffer.
+func (w *BufferedPointsWriter) Cap() int { return cap(w.buf) }
+
+func (e *StatementExecutor) writeInto(w pointsWriter, stmt *influxql.SelectStatement, row *models.Row) error {
 	if stmt.Target.Measurement.Database == "" {
 		return errNoDatabaseInTarget
 	}
@@ -801,7 +888,7 @@ func (e *StatementExecutor) writeInto(stmt *influxql.SelectStatement, row *model
 		return err
 	}
 
-	if err := e.PointsWriter.WritePointsInto(&IntoWriteRequest{
+	if err := w.WritePointsInto(&IntoWriteRequest{
 		Database:        stmt.Target.Measurement.Database,
 		RetentionPolicy: stmt.Target.Measurement.RetentionPolicy,
 		Points:          points,
