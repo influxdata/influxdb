@@ -139,11 +139,11 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 
 	series.measurement = m
 	d.series[series.Key] = series
-	d.mu.Unlock()
 
 	m.AddSeries(series)
 
 	d.statMap.Add(statDatabaseSeries, 1)
+	d.mu.Unlock()
 
 	return series
 }
