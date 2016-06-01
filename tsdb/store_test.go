@@ -24,7 +24,7 @@ func TestStore_DeleteRetentionPolicy(t *testing.T) {
 	defer s.Close()
 
 	// Create a new shard and verify that it exists.
-	if err := s.CreateShard("db0", "rp0", 1); err != nil {
+	if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
 		t.Fatal(err)
 	} else if sh := s.Shard(1); sh == nil {
 		t.Fatalf("expected shard")
@@ -32,7 +32,7 @@ func TestStore_DeleteRetentionPolicy(t *testing.T) {
 
 	// Create a new shard under the same retention policy,  and verify
 	// that it exists.
-	if err := s.CreateShard("db0", "rp0", 2); err != nil {
+	if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
 		t.Fatal(err)
 	} else if sh := s.Shard(2); sh == nil {
 		t.Fatalf("expected shard")
@@ -40,7 +40,7 @@ func TestStore_DeleteRetentionPolicy(t *testing.T) {
 
 	// Create a new shard under a different retention policy, and
 	// verify that it exists.
-	if err := s.CreateShard("db0", "rp1", 3); err != nil {
+	if err := s.CreateShard("db0", "rp1", 3, true); err != nil {
 		t.Fatal(err)
 	} else if sh := s.Shard(3); sh == nil {
 		t.Fatalf("expected shard")
@@ -92,7 +92,7 @@ func TestStore_CreateShard(t *testing.T) {
 	defer s.Close()
 
 	// Create a new shard and verify that it exists.
-	if err := s.CreateShard("db0", "rp0", 1); err != nil {
+	if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
 		t.Fatal(err)
 	} else if sh := s.Shard(1); sh == nil {
 		t.Fatalf("expected shard")
@@ -101,7 +101,7 @@ func TestStore_CreateShard(t *testing.T) {
 	}
 
 	// Create another shard and verify that it exists.
-	if err := s.CreateShard("db0", "rp0", 2); err != nil {
+	if err := s.CreateShard("db0", "rp0", 2, true); err != nil {
 		t.Fatal(err)
 	} else if sh := s.Shard(2); sh == nil {
 		t.Fatalf("expected shard")
@@ -123,7 +123,7 @@ func TestStore_DeleteShard(t *testing.T) {
 	defer s.Close()
 
 	// Create a new shard and verify that it exists.
-	if err := s.CreateShard("db0", "rp0", 1); err != nil {
+	if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
 		t.Fatal(err)
 	} else if sh := s.Shard(1); sh == nil {
 		t.Fatalf("expected shard")
@@ -143,7 +143,7 @@ func TestStore_CreateShardSnapShot(t *testing.T) {
 	defer s.Close()
 
 	// Create a new shard and verify that it exists.
-	if err := s.CreateShard("db0", "rp0", 1); err != nil {
+	if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
 		t.Fatal(err)
 	} else if sh := s.Shard(1); sh == nil {
 		t.Fatalf("expected shard")
@@ -324,7 +324,7 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 	}
 
 	// Create the shard on the other store and restore from buffer.
-	if err := s1.CreateShard("db0", "rp0", 100); err != nil {
+	if err := s1.CreateShard("db0", "rp0", 100, true); err != nil {
 		t.Fatal(err)
 	}
 	if err := s1.RestoreShard(100, &buf); err != nil {
@@ -395,7 +395,7 @@ func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) 
 
 		// Create requested number of shards in the store & write points.
 		for shardID := 0; shardID < shardCnt; shardID++ {
-			if err := store.CreateShard("mydb", "myrp", uint64(shardID)); err != nil {
+			if err := store.CreateShard("mydb", "myrp", uint64(shardID), true); err != nil {
 				return fmt.Errorf("create shard: %s", err)
 			}
 			if err := store.BatchWrite(shardID, points); err != nil {
@@ -466,7 +466,7 @@ func (s *Store) Close() error {
 
 // MustCreateShardWithData creates a shard and writes line protocol data to it.
 func (s *Store) MustCreateShardWithData(db, rp string, shardID int, data ...string) {
-	if err := s.CreateShard(db, rp, uint64(shardID)); err != nil {
+	if err := s.CreateShard(db, rp, uint64(shardID), true); err != nil {
 		panic(err)
 	}
 	s.MustWriteToShardString(shardID, data...)

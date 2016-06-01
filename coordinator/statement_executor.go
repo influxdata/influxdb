@@ -997,7 +997,7 @@ type IntoWriteRequest struct {
 
 // TSDBStore is an interface for accessing the time series data store.
 type TSDBStore interface {
-	CreateShard(database, policy string, shardID uint64) error
+	CreateShard(database, policy string, shardID uint64, enabled bool) error
 	WriteToShard(shardID uint64, points []models.Point) error
 
 	RestoreShard(id uint64, r io.Reader) error

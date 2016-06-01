@@ -105,7 +105,8 @@ type Shard struct {
 	logger *log.Logger
 
 	// The writer used by the logger.
-	LogOutput io.Writer
+	LogOutput    io.Writer
+	EnableOnOpen bool
 }
 
 // NewShard returns a new initialized Shard. walPath doesn't apply to the b1 type index
@@ -133,8 +134,9 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 		database:        db,
 		retentionPolicy: rp,
 
-		statMap:   statMap,
-		LogOutput: os.Stderr,
+		statMap:      statMap,
+		LogOutput:    os.Stderr,
+		EnableOnOpen: true,
 	}
 	s.SetLogOutput(os.Stderr)
 	return s
@@ -156,8 +158,10 @@ func (s *Shard) SetEnabled(enabled bool) {
 	s.mu.Lock()
 	// Prevent writes and queries
 	s.enabled = enabled
-	// Disable background compactions and snapshotting
-	s.engine.SetEnabled(enabled)
+	if s.engine != nil {
+		// Disable background compactions and snapshotting
+		s.engine.SetEnabled(enabled)
+	}
 	s.mu.Unlock()
 }
 
@@ -184,13 +188,13 @@ func (s *Shard) Open() error {
 		// Set log output on the engine.
 		e.SetLogOutput(s.LogOutput)
 
+		// Disable compactions while loading the index
+		e.SetEnabled(false)
+
 		// Open engine.
 		if err := e.Open(); err != nil {
 			return err
 		}
-
-		// Disable compactions while loading the index
-		e.SetEnabled(false)
 
 		// Load metadata index.
 		start := time.Now()
@@ -213,8 +217,10 @@ func (s *Shard) Open() error {
 		return NewShardError(s.id, err)
 	}
 
-	// enable writes, queries and compactions
-	s.SetEnabled(true)
+	if s.EnableOnOpen {
+		// enable writes, queries and compactions
+		s.SetEnabled(true)
+	}
 
 	return nil
 }

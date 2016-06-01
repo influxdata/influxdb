@@ -59,7 +59,7 @@ type PointsWriter struct {
 	}
 
 	TSDBStore interface {
-		CreateShard(database, retentionPolicy string, shardID uint64) error
+		CreateShard(database, retentionPolicy string, shardID uint64, enabled bool) error
 		WriteToShard(shardID uint64, points []models.Point) error
 	}
 
@@ -280,7 +280,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 	// If we've written to shard that should exist on the current node, but the store has
 	// not actually created this shard, tell it to create it and retry the write
 	if err == tsdb.ErrShardNotFound {
-		err = w.TSDBStore.CreateShard(database, retentionPolicy, shard.ID)
+		err = w.TSDBStore.CreateShard(database, retentionPolicy, shard.ID, true)
 		if err != nil {
 			w.Logger.Printf("write failed for shard %d: %v", shard.ID, err)
 			w.statMap.Add(statWriteErr, 1)
