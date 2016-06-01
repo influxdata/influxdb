@@ -66,16 +66,6 @@ message IteratorStats {
     optional int64 PointN  = 2;
 }
 
-message Series {
-    optional string Name = 1;
-    optional bytes  Tags = 2;
-    repeated uint32 Aux  = 3;
-}
-
-message SeriesList {
-    repeated Series Items = 1;
-}
-
 message VarRef {
     required string Val  = 1;
     optional int32  Type = 2;

@@ -184,7 +184,10 @@ func DefaultQueryExecutor() *QueryExecutor {
 
 // ExecuteQuery parses query and executes against the database.
 func (e *QueryExecutor) ExecuteQuery(query, database string, chunkSize int) <-chan *influxql.Result {
-	return e.QueryExecutor.ExecuteQuery(MustParseQuery(query), database, chunkSize, false, make(chan struct{}))
+	return e.QueryExecutor.ExecuteQuery(MustParseQuery(query), influxql.ExecutionOptions{
+		Database:  database,
+		ChunkSize: chunkSize,
+	}, make(chan struct{}))
 }
 
 // TSDBStore is a mockable implementation of coordinator.TSDBStore.

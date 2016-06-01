@@ -304,7 +304,24 @@ func NewInterruptIterator(input Iterator, closing <-chan struct{}) Iterator {
 	case BooleanIterator:
 		return newBooleanInterruptIterator(input, closing)
 	default:
-		panic(fmt.Sprintf("unsupported fill iterator type: %T", input))
+		panic(fmt.Sprintf("unsupported interrupt iterator type: %T", input))
+	}
+}
+
+// NewCloseInterruptIterator returns an iterator that will invoke the Close() method on an
+// iterator when a channel has been closed.
+func NewCloseInterruptIterator(input Iterator, closing <-chan struct{}) Iterator {
+	switch input := input.(type) {
+	case FloatIterator:
+		return newFloatCloseInterruptIterator(input, closing)
+	case IntegerIterator:
+		return newIntegerCloseInterruptIterator(input, closing)
+	case StringIterator:
+		return newStringCloseInterruptIterator(input, closing)
+	case BooleanIterator:
+		return newBooleanCloseInterruptIterator(input, closing)
+	default:
+		panic(fmt.Sprintf("unsupported close iterator iterator type: %T", input))
 	}
 }
 
@@ -519,18 +536,18 @@ func DrainIterators(itrs []Iterator) {
 }
 
 // NewReaderIterator returns an iterator that streams from a reader.
-func NewReaderIterator(r io.Reader, typ DataType, stats IteratorStats) (Iterator, error) {
+func NewReaderIterator(r io.Reader, typ DataType, stats IteratorStats) Iterator {
 	switch typ {
 	case Float:
-		return newFloatReaderIterator(r, stats), nil
+		return newFloatReaderIterator(r, stats)
 	case Integer:
-		return newIntegerReaderIterator(r, stats), nil
+		return newIntegerReaderIterator(r, stats)
 	case String:
-		return newStringReaderIterator(r, stats), nil
+		return newStringReaderIterator(r, stats)
 	case Boolean:
-		return newBooleanReaderIterator(r, stats), nil
+		return newBooleanReaderIterator(r, stats)
 	default:
-		return &nilFloatIterator{}, nil
+		return &nilFloatIterator{}
 	}
 }
 
@@ -998,110 +1015,6 @@ func (v *selectInfo) Visit(n Node) Visitor {
 		return nil
 	}
 	return v
-}
-
-// Series represents a series that will be returned by the iterator.
-type Series struct {
-	Name string
-	Tags Tags
-	Aux  []DataType
-}
-
-// ID is a single string that combines the name and tags id for the series.
-func (s *Series) ID() string {
-	return s.Name + "\x00" + s.Tags.ID()
-}
-
-// Combine combines two series with the same name and tags.
-// It will promote auxiliary iterator types to the highest type.
-func (s *Series) Combine(other *Series) {
-	for i, t := range s.Aux {
-		if other.Aux[i] == Unknown {
-			continue
-		}
-
-		if t == Unknown || other.Aux[i] < t {
-			s.Aux[i] = other.Aux[i]
-		}
-	}
-}
-
-func encodeSeries(s Series) *internal.Series {
-	aux := make([]uint32, len(s.Aux))
-	for i := range s.Aux {
-		aux[i] = uint32(s.Aux[i])
-	}
-
-	return &internal.Series{
-		Name: proto.String(s.Name),
-		Tags: encodeTags(s.Tags.KeyValues()),
-		Aux:  aux,
-	}
-}
-
-func decodeSeries(pb *internal.Series) Series {
-	var aux []DataType
-	if len(pb.GetAux()) > 0 {
-		aux = make([]DataType, len(pb.GetAux()))
-		for i := range pb.GetAux() {
-			aux[i] = DataType(pb.GetAux()[i])
-		}
-	}
-
-	return Series{
-		Name: pb.GetName(),
-		Tags: newTagsID(string(pb.GetTags())),
-		Aux:  aux,
-	}
-}
-
-// SeriesList is a list of series that will be returned by an iterator.
-type SeriesList []Series
-
-func (a SeriesList) Len() int      { return len(a) }
-func (a SeriesList) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-
-func (a SeriesList) Less(i, j int) bool {
-	if a[i].Name != a[j].Name {
-		return a[i].Name < a[j].Name
-	}
-	return a[i].Tags.ID() < a[j].Tags.ID()
-}
-
-// MarshalBinary encodes list into a binary format.
-func (a SeriesList) MarshalBinary() ([]byte, error) {
-	return proto.Marshal(encodeSeriesList(a))
-}
-
-// UnmarshalBinary decodes from a binary format.
-func (a *SeriesList) UnmarshalBinary(buf []byte) error {
-	var pb internal.SeriesList
-	if err := proto.Unmarshal(buf, &pb); err != nil {
-		return err
-	}
-
-	(*a) = decodeSeriesList(&pb)
-
-	return nil
-}
-
-func encodeSeriesList(a SeriesList) *internal.SeriesList {
-	pb := make([]*internal.Series, len(a))
-	for i := range a {
-		pb[i] = encodeSeries(a[i])
-	}
-
-	return &internal.SeriesList{
-		Items: pb,
-	}
-}
-
-func decodeSeriesList(pb *internal.SeriesList) SeriesList {
-	a := make([]Series, len(pb.GetItems()))
-	for i := range pb.GetItems() {
-		a[i] = decodeSeries(pb.GetItems()[i])
-	}
-	return SeriesList(a)
 }
 
 // Interval represents a repeating interval for a query.

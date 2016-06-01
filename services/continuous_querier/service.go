@@ -334,7 +334,9 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 	defer close(closing)
 
 	// Execute the SELECT.
-	ch := s.QueryExecutor.ExecuteQuery(q, cq.Database, NoChunkingSize, false, closing)
+	ch := s.QueryExecutor.ExecuteQuery(q, influxql.ExecutionOptions{
+		Database: cq.Database,
+	}, closing)
 
 	// There is only one statement, so we will only ever receive one result
 	res, ok := <-ch

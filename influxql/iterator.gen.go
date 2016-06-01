@@ -750,6 +750,58 @@ func (itr *floatInterruptIterator) Next() (*FloatPoint, error) {
 	return itr.input.Next()
 }
 
+// floatCloseInterruptIterator represents a float implementation of CloseInterruptIterator.
+type floatCloseInterruptIterator struct {
+	input   FloatIterator
+	closing <-chan struct{}
+	done    chan struct{}
+	once    sync.Once
+}
+
+func newFloatCloseInterruptIterator(input FloatIterator, closing <-chan struct{}) *floatCloseInterruptIterator {
+	itr := &floatCloseInterruptIterator{
+		input:   input,
+		closing: closing,
+		done:    make(chan struct{}),
+	}
+	go itr.monitor()
+	return itr
+}
+
+func (itr *floatCloseInterruptIterator) monitor() {
+	select {
+	case <-itr.closing:
+		itr.Close()
+	case <-itr.done:
+	}
+}
+
+func (itr *floatCloseInterruptIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *floatCloseInterruptIterator) Close() error {
+	itr.once.Do(func() {
+		close(itr.done)
+		itr.input.Close()
+	})
+	return nil
+}
+
+func (itr *floatCloseInterruptIterator) Next() (*FloatPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		// Check if the iterator was closed.
+		select {
+		case <-itr.done:
+			return nil, nil
+		default:
+			return nil, err
+		}
+	}
+	return p, nil
+}
+
 // auxFloatPoint represents a combination of a point and an error for the AuxIterator.
 type auxFloatPoint struct {
 	point *FloatPoint
@@ -2756,6 +2808,58 @@ func (itr *integerInterruptIterator) Next() (*IntegerPoint, error) {
 	return itr.input.Next()
 }
 
+// integerCloseInterruptIterator represents a integer implementation of CloseInterruptIterator.
+type integerCloseInterruptIterator struct {
+	input   IntegerIterator
+	closing <-chan struct{}
+	done    chan struct{}
+	once    sync.Once
+}
+
+func newIntegerCloseInterruptIterator(input IntegerIterator, closing <-chan struct{}) *integerCloseInterruptIterator {
+	itr := &integerCloseInterruptIterator{
+		input:   input,
+		closing: closing,
+		done:    make(chan struct{}),
+	}
+	go itr.monitor()
+	return itr
+}
+
+func (itr *integerCloseInterruptIterator) monitor() {
+	select {
+	case <-itr.closing:
+		itr.Close()
+	case <-itr.done:
+	}
+}
+
+func (itr *integerCloseInterruptIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *integerCloseInterruptIterator) Close() error {
+	itr.once.Do(func() {
+		close(itr.done)
+		itr.input.Close()
+	})
+	return nil
+}
+
+func (itr *integerCloseInterruptIterator) Next() (*IntegerPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		// Check if the iterator was closed.
+		select {
+		case <-itr.done:
+			return nil, nil
+		default:
+			return nil, err
+		}
+	}
+	return p, nil
+}
+
 // auxIntegerPoint represents a combination of a point and an error for the AuxIterator.
 type auxIntegerPoint struct {
 	point *IntegerPoint
@@ -4759,6 +4863,58 @@ func (itr *stringInterruptIterator) Next() (*StringPoint, error) {
 	return itr.input.Next()
 }
 
+// stringCloseInterruptIterator represents a string implementation of CloseInterruptIterator.
+type stringCloseInterruptIterator struct {
+	input   StringIterator
+	closing <-chan struct{}
+	done    chan struct{}
+	once    sync.Once
+}
+
+func newStringCloseInterruptIterator(input StringIterator, closing <-chan struct{}) *stringCloseInterruptIterator {
+	itr := &stringCloseInterruptIterator{
+		input:   input,
+		closing: closing,
+		done:    make(chan struct{}),
+	}
+	go itr.monitor()
+	return itr
+}
+
+func (itr *stringCloseInterruptIterator) monitor() {
+	select {
+	case <-itr.closing:
+		itr.Close()
+	case <-itr.done:
+	}
+}
+
+func (itr *stringCloseInterruptIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *stringCloseInterruptIterator) Close() error {
+	itr.once.Do(func() {
+		close(itr.done)
+		itr.input.Close()
+	})
+	return nil
+}
+
+func (itr *stringCloseInterruptIterator) Next() (*StringPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		// Check if the iterator was closed.
+		select {
+		case <-itr.done:
+			return nil, nil
+		default:
+			return nil, err
+		}
+	}
+	return p, nil
+}
+
 // auxStringPoint represents a combination of a point and an error for the AuxIterator.
 type auxStringPoint struct {
 	point *StringPoint
@@ -6760,6 +6916,58 @@ func (itr *booleanInterruptIterator) Next() (*BooleanPoint, error) {
 	// Increment the counter for every point read.
 	itr.count++
 	return itr.input.Next()
+}
+
+// booleanCloseInterruptIterator represents a boolean implementation of CloseInterruptIterator.
+type booleanCloseInterruptIterator struct {
+	input   BooleanIterator
+	closing <-chan struct{}
+	done    chan struct{}
+	once    sync.Once
+}
+
+func newBooleanCloseInterruptIterator(input BooleanIterator, closing <-chan struct{}) *booleanCloseInterruptIterator {
+	itr := &booleanCloseInterruptIterator{
+		input:   input,
+		closing: closing,
+		done:    make(chan struct{}),
+	}
+	go itr.monitor()
+	return itr
+}
+
+func (itr *booleanCloseInterruptIterator) monitor() {
+	select {
+	case <-itr.closing:
+		itr.Close()
+	case <-itr.done:
+	}
+}
+
+func (itr *booleanCloseInterruptIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *booleanCloseInterruptIterator) Close() error {
+	itr.once.Do(func() {
+		close(itr.done)
+		itr.input.Close()
+	})
+	return nil
+}
+
+func (itr *booleanCloseInterruptIterator) Next() (*BooleanPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		// Check if the iterator was closed.
+		select {
+		case <-itr.done:
+			return nil, nil
+		default:
+			return nil, err
+		}
+	}
+	return p, nil
 }
 
 // auxBooleanPoint represents a combination of a point and an error for the AuxIterator.
