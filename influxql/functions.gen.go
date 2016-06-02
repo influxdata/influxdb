@@ -45,8 +45,8 @@ type FloatFuncReducer struct {
 	fn   FloatReduceFunc
 }
 
-func NewFloatFuncReducer(fn FloatReduceFunc) *FloatFuncReducer {
-	return &FloatFuncReducer{fn: fn}
+func NewFloatFuncReducer(fn FloatReduceFunc, prev *FloatPoint) *FloatFuncReducer {
+	return &FloatFuncReducer{fn: fn, prev: prev}
 }
 
 func (r *FloatFuncReducer) AggregateFloat(p *FloatPoint) {
@@ -100,8 +100,8 @@ type FloatFuncIntegerReducer struct {
 	fn   FloatReduceIntegerFunc
 }
 
-func NewFloatFuncIntegerReducer(fn FloatReduceIntegerFunc) *FloatFuncIntegerReducer {
-	return &FloatFuncIntegerReducer{fn: fn}
+func NewFloatFuncIntegerReducer(fn FloatReduceIntegerFunc, prev *IntegerPoint) *FloatFuncIntegerReducer {
+	return &FloatFuncIntegerReducer{fn: fn, prev: prev}
 }
 
 func (r *FloatFuncIntegerReducer) AggregateFloat(p *FloatPoint) {
@@ -155,8 +155,8 @@ type FloatFuncStringReducer struct {
 	fn   FloatReduceStringFunc
 }
 
-func NewFloatFuncStringReducer(fn FloatReduceStringFunc) *FloatFuncStringReducer {
-	return &FloatFuncStringReducer{fn: fn}
+func NewFloatFuncStringReducer(fn FloatReduceStringFunc, prev *StringPoint) *FloatFuncStringReducer {
+	return &FloatFuncStringReducer{fn: fn, prev: prev}
 }
 
 func (r *FloatFuncStringReducer) AggregateFloat(p *FloatPoint) {
@@ -210,8 +210,8 @@ type FloatFuncBooleanReducer struct {
 	fn   FloatReduceBooleanFunc
 }
 
-func NewFloatFuncBooleanReducer(fn FloatReduceBooleanFunc) *FloatFuncBooleanReducer {
-	return &FloatFuncBooleanReducer{fn: fn}
+func NewFloatFuncBooleanReducer(fn FloatReduceBooleanFunc, prev *BooleanPoint) *FloatFuncBooleanReducer {
+	return &FloatFuncBooleanReducer{fn: fn, prev: prev}
 }
 
 func (r *FloatFuncBooleanReducer) AggregateFloat(p *FloatPoint) {
@@ -354,8 +354,8 @@ type IntegerFuncFloatReducer struct {
 	fn   IntegerReduceFloatFunc
 }
 
-func NewIntegerFuncFloatReducer(fn IntegerReduceFloatFunc) *IntegerFuncFloatReducer {
-	return &IntegerFuncFloatReducer{fn: fn}
+func NewIntegerFuncFloatReducer(fn IntegerReduceFloatFunc, prev *FloatPoint) *IntegerFuncFloatReducer {
+	return &IntegerFuncFloatReducer{fn: fn, prev: prev}
 }
 
 func (r *IntegerFuncFloatReducer) AggregateInteger(p *IntegerPoint) {
@@ -409,8 +409,8 @@ type IntegerFuncReducer struct {
 	fn   IntegerReduceFunc
 }
 
-func NewIntegerFuncReducer(fn IntegerReduceFunc) *IntegerFuncReducer {
-	return &IntegerFuncReducer{fn: fn}
+func NewIntegerFuncReducer(fn IntegerReduceFunc, prev *IntegerPoint) *IntegerFuncReducer {
+	return &IntegerFuncReducer{fn: fn, prev: prev}
 }
 
 func (r *IntegerFuncReducer) AggregateInteger(p *IntegerPoint) {
@@ -464,8 +464,8 @@ type IntegerFuncStringReducer struct {
 	fn   IntegerReduceStringFunc
 }
 
-func NewIntegerFuncStringReducer(fn IntegerReduceStringFunc) *IntegerFuncStringReducer {
-	return &IntegerFuncStringReducer{fn: fn}
+func NewIntegerFuncStringReducer(fn IntegerReduceStringFunc, prev *StringPoint) *IntegerFuncStringReducer {
+	return &IntegerFuncStringReducer{fn: fn, prev: prev}
 }
 
 func (r *IntegerFuncStringReducer) AggregateInteger(p *IntegerPoint) {
@@ -519,8 +519,8 @@ type IntegerFuncBooleanReducer struct {
 	fn   IntegerReduceBooleanFunc
 }
 
-func NewIntegerFuncBooleanReducer(fn IntegerReduceBooleanFunc) *IntegerFuncBooleanReducer {
-	return &IntegerFuncBooleanReducer{fn: fn}
+func NewIntegerFuncBooleanReducer(fn IntegerReduceBooleanFunc, prev *BooleanPoint) *IntegerFuncBooleanReducer {
+	return &IntegerFuncBooleanReducer{fn: fn, prev: prev}
 }
 
 func (r *IntegerFuncBooleanReducer) AggregateInteger(p *IntegerPoint) {
@@ -663,8 +663,8 @@ type StringFuncFloatReducer struct {
 	fn   StringReduceFloatFunc
 }
 
-func NewStringFuncFloatReducer(fn StringReduceFloatFunc) *StringFuncFloatReducer {
-	return &StringFuncFloatReducer{fn: fn}
+func NewStringFuncFloatReducer(fn StringReduceFloatFunc, prev *FloatPoint) *StringFuncFloatReducer {
+	return &StringFuncFloatReducer{fn: fn, prev: prev}
 }
 
 func (r *StringFuncFloatReducer) AggregateString(p *StringPoint) {
@@ -718,8 +718,8 @@ type StringFuncIntegerReducer struct {
 	fn   StringReduceIntegerFunc
 }
 
-func NewStringFuncIntegerReducer(fn StringReduceIntegerFunc) *StringFuncIntegerReducer {
-	return &StringFuncIntegerReducer{fn: fn}
+func NewStringFuncIntegerReducer(fn StringReduceIntegerFunc, prev *IntegerPoint) *StringFuncIntegerReducer {
+	return &StringFuncIntegerReducer{fn: fn, prev: prev}
 }
 
 func (r *StringFuncIntegerReducer) AggregateString(p *StringPoint) {
@@ -773,8 +773,8 @@ type StringFuncReducer struct {
 	fn   StringReduceFunc
 }
 
-func NewStringFuncReducer(fn StringReduceFunc) *StringFuncReducer {
-	return &StringFuncReducer{fn: fn}
+func NewStringFuncReducer(fn StringReduceFunc, prev *StringPoint) *StringFuncReducer {
+	return &StringFuncReducer{fn: fn, prev: prev}
 }
 
 func (r *StringFuncReducer) AggregateString(p *StringPoint) {
@@ -828,8 +828,8 @@ type StringFuncBooleanReducer struct {
 	fn   StringReduceBooleanFunc
 }
 
-func NewStringFuncBooleanReducer(fn StringReduceBooleanFunc) *StringFuncBooleanReducer {
-	return &StringFuncBooleanReducer{fn: fn}
+func NewStringFuncBooleanReducer(fn StringReduceBooleanFunc, prev *BooleanPoint) *StringFuncBooleanReducer {
+	return &StringFuncBooleanReducer{fn: fn, prev: prev}
 }
 
 func (r *StringFuncBooleanReducer) AggregateString(p *StringPoint) {
@@ -972,8 +972,8 @@ type BooleanFuncFloatReducer struct {
 	fn   BooleanReduceFloatFunc
 }
 
-func NewBooleanFuncFloatReducer(fn BooleanReduceFloatFunc) *BooleanFuncFloatReducer {
-	return &BooleanFuncFloatReducer{fn: fn}
+func NewBooleanFuncFloatReducer(fn BooleanReduceFloatFunc, prev *FloatPoint) *BooleanFuncFloatReducer {
+	return &BooleanFuncFloatReducer{fn: fn, prev: prev}
 }
 
 func (r *BooleanFuncFloatReducer) AggregateBoolean(p *BooleanPoint) {
@@ -1027,8 +1027,8 @@ type BooleanFuncIntegerReducer struct {
 	fn   BooleanReduceIntegerFunc
 }
 
-func NewBooleanFuncIntegerReducer(fn BooleanReduceIntegerFunc) *BooleanFuncIntegerReducer {
-	return &BooleanFuncIntegerReducer{fn: fn}
+func NewBooleanFuncIntegerReducer(fn BooleanReduceIntegerFunc, prev *IntegerPoint) *BooleanFuncIntegerReducer {
+	return &BooleanFuncIntegerReducer{fn: fn, prev: prev}
 }
 
 func (r *BooleanFuncIntegerReducer) AggregateBoolean(p *BooleanPoint) {
@@ -1082,8 +1082,8 @@ type BooleanFuncStringReducer struct {
 	fn   BooleanReduceStringFunc
 }
 
-func NewBooleanFuncStringReducer(fn BooleanReduceStringFunc) *BooleanFuncStringReducer {
-	return &BooleanFuncStringReducer{fn: fn}
+func NewBooleanFuncStringReducer(fn BooleanReduceStringFunc, prev *StringPoint) *BooleanFuncStringReducer {
+	return &BooleanFuncStringReducer{fn: fn, prev: prev}
 }
 
 func (r *BooleanFuncStringReducer) AggregateBoolean(p *BooleanPoint) {
@@ -1137,8 +1137,8 @@ type BooleanFuncReducer struct {
 	fn   BooleanReduceFunc
 }
 
-func NewBooleanFuncReducer(fn BooleanReduceFunc) *BooleanFuncReducer {
-	return &BooleanFuncReducer{fn: fn}
+func NewBooleanFuncReducer(fn BooleanReduceFunc, prev *BooleanPoint) *BooleanFuncReducer {
+	return &BooleanFuncReducer{fn: fn, prev: prev}
 }
 
 func (r *BooleanFuncReducer) AggregateBoolean(p *BooleanPoint) {
