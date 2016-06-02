@@ -569,19 +569,19 @@ func (c *Client) AdminUserExists() bool {
 }
 
 func (c *Client) Authenticate(username, password string) (*UserInfo, error) {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-
-	data := c.cacheData.Clone()
-
 	// Find user.
-	userInfo := data.User(username)
+	c.mu.RLock()
+	userInfo := c.cacheData.User(username)
+	c.mu.RUnlock()
 	if userInfo == nil {
 		return nil, ErrUserNotFound
 	}
 
 	// Check the local auth cache first.
-	if au, ok := c.authCache[username]; ok {
+	c.mu.RLock()
+	au, ok := c.authCache[username]
+	c.mu.RUnlock()
+	if ok {
 		// verify the password using the cached salt and hash
 		if bytes.Equal(c.hashWithSalt(au.salt, password), au.hash) {
 			return userInfo, nil
@@ -600,8 +600,9 @@ func (c *Client) Authenticate(username, password string) (*UserInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	c.mu.Lock()
 	c.authCache[username] = authUser{salt: salt, hash: hashed, bhash: userInfo.Hash}
-
+	c.mu.Unlock()
 	return userInfo, nil
 }
 
