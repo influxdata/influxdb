@@ -2301,8 +2301,8 @@ func TestSelect_HoltWinters_GroupBy_Agg(t *testing.T) {
 	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]influxql.Point{
-		{&influxql.FloatPoint{Name: "cpu", Time: 20 * Second, Value: 11.136685559138241}},
-		{&influxql.FloatPoint{Name: "cpu", Time: 22 * Second, Value: 7.507280682335967}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 20 * Second, Value: 11.960623419918432}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 22 * Second, Value: 7.953140268154609}},
 	}) {
 		t.Fatalf("unexpected points: %s", spew.Sdump(a))
 	}

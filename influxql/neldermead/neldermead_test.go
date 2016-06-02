@@ -24,6 +24,12 @@ func almostEqual(a, b, e float64) bool {
 }
 
 func Test_Optimize(t *testing.T) {
+
+	constraints := func(x []float64) {
+		for i := range x {
+			x[i] = round(x[i], 5)
+		}
+	}
 	// 100*(b-a^2)^2 + (1-a)^2
 	//
 	// Obvious global minimum at (a,b) = (1,1)
@@ -31,22 +37,17 @@ func Test_Optimize(t *testing.T) {
 	// Useful visualization:
 	// https://www.wolframalpha.com/input/?i=minimize(100*(b-a%5E2)%5E2+%2B+(1-a)%5E2)
 	f := func(x []float64) float64 {
+		constraints(x)
 		// a = x[0]
 		// b = x[1]
 		return 100*(x[1]-x[0]*x[0])*(x[1]-x[0]*x[0]) + (1.0-x[0])*(1.0-x[0])
-	}
-
-	constraints := func(x []float64) {
-		for i := range x {
-			x[i] = round(x[i], 5)
-		}
 	}
 
 	start := []float64{-1.2, 1.0}
 
 	opt := neldermead.New()
 	epsilon := 1e-5
-	min, parameters := opt.Optimize(f, start, epsilon, 1, constraints)
+	min, parameters := opt.Optimize(f, start, epsilon, 1)
 
 	if !almostEqual(min, 0, epsilon) {
 		t.Errorf("unexpected min: got %f exp 0", min)

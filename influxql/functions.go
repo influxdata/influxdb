@@ -322,14 +322,6 @@ func (r *IntegerMovingAverageReducer) Emit() []FloatPoint {
 //    1. Using the series the initial values are calculated using a SSE.
 //    2. The series is forecasted into the future using the iterative relations.
 type FloatHoltWintersReducer struct {
-	// Smoothing parameters
-	alpha,
-	beta,
-	gamma float64
-
-	// Dampening parameter
-	phi float64
-
 	// Season period
 	m        int
 	seasonal bool
@@ -355,11 +347,19 @@ type FloatHoltWintersReducer struct {
 }
 
 const (
-	defaultAlpha   = 0.5
-	defaultBeta    = 0.5
-	defaultGamma   = 0.5
-	defaultPhi     = 0.5
-	defaultEpsilon = 1.0e-4
+	// Arbitrary weight for initializing some intial guesses.
+	// This should be in the  range [0,1]
+	hwWeight = 0.5
+	// Epsilon value for the minimization process
+	hwDefaultEpsilon = 1.0e-4
+	// Define a grid of initial guesses for the parameters: alpha, beta, gamma, and phi.
+	// Keep in mind that this grid is N^4 so we should keep N small
+	// The starting lower guess
+	hwGuessLower = 0.3
+	//  The upper bound on the grid
+	hwGuessUpper = 1.0
+	// The step between guesses
+	hwGuessStep = 0.4
 )
 
 // NewFloatHoltWintersReducer creates a new FloatHoltWintersReducer.
@@ -369,10 +369,6 @@ func NewFloatHoltWintersReducer(h, m int, includeFitData bool, interval time.Dur
 		seasonal = false
 	}
 	return &FloatHoltWintersReducer{
-		alpha:          defaultAlpha,
-		beta:           defaultBeta,
-		gamma:          defaultGamma,
-		phi:            defaultPhi,
 		h:              h,
 		m:              m,
 		seasonal:       seasonal,
@@ -380,7 +376,7 @@ func NewFloatHoltWintersReducer(h, m int, includeFitData bool, interval time.Dur
 		interval:       int64(interval),
 		halfInterval:   int64(interval) / 2,
 		optim:          neldermead.New(),
-		epsilon:        defaultEpsilon,
+		epsilon:        hwDefaultEpsilon,
 	}
 }
 
@@ -442,14 +438,8 @@ func (r *FloatHoltWintersReducer) Emit() []FloatPoint {
 		r.y = append(r.y, p.Value)
 	}
 
-	// Smoothing parameters
-	alpha, beta, gamma := r.alpha, r.beta, r.gamma
-
 	// Seasonality
 	m := r.m
-
-	// Dampening paramter
-	phi := r.phi
 
 	// Starting guesses
 	// NOTE: Since these values are guesses
@@ -464,7 +454,7 @@ func (r *FloatHoltWintersReducer) Emit() []FloatPoint {
 			}
 		}
 	} else {
-		l_0 += alpha * r.y[0]
+		l_0 += hwWeight * r.y[0]
 	}
 
 	b_0 := 0.0
@@ -476,7 +466,7 @@ func (r *FloatHoltWintersReducer) Emit() []FloatPoint {
 		}
 	} else {
 		if !math.IsNaN(r.y[1]) {
-			b_0 = beta * (r.y[1] - r.y[0])
+			b_0 = hwWeight * (r.y[1] - r.y[0])
 		}
 	}
 
@@ -493,10 +483,6 @@ func (r *FloatHoltWintersReducer) Emit() []FloatPoint {
 	}
 
 	parameters := make([]float64, 6+len(s))
-	parameters[0] = alpha
-	parameters[1] = beta
-	parameters[2] = gamma
-	parameters[3] = phi
 	parameters[4] = l_0
 	parameters[5] = b_0
 	o := len(parameters) - len(s)
@@ -505,28 +491,51 @@ func (r *FloatHoltWintersReducer) Emit() []FloatPoint {
 	}
 
 	// Determine best fit for the various parameters
-	_, params := r.optim.Optimize(r.sse, parameters, r.epsilon, 1, r.constrain)
+	minSSE := math.Inf(1)
+	var bestParams []float64
+	for alpha := hwGuessLower; alpha < hwGuessUpper; alpha += hwGuessStep {
+		for beta := hwGuessLower; beta < hwGuessUpper; beta += hwGuessStep {
+			for gamma := hwGuessLower; gamma < hwGuessUpper; gamma += hwGuessStep {
+				for phi := hwGuessLower; phi < hwGuessUpper; phi += hwGuessStep {
+					parameters[0] = alpha
+					parameters[1] = beta
+					parameters[2] = gamma
+					parameters[3] = phi
+					sse, params := r.optim.Optimize(r.sse, parameters, r.epsilon, 1)
+					if sse < minSSE || bestParams == nil {
+						minSSE = sse
+						bestParams = params
+					}
+				}
+			}
+		}
+	}
 
 	// Forecast
-	forecasted := r.forecast(r.h, params)
+	forecasted := r.forecast(r.h, bestParams)
 	var points []FloatPoint
 	if r.includeFitData {
-		points = make([]FloatPoint, len(forecasted))
+		start := r.points[0].Time
+		points = make([]FloatPoint, 0, len(forecasted))
 		for i, v := range forecasted {
-			t := start + r.interval*(int64(i))
-			points[i] = FloatPoint{
-				Value: v,
-				Time:  t,
+			if !math.IsNaN(v) {
+				t := start + r.interval*(int64(i))
+				points = append(points, FloatPoint{
+					Value: v,
+					Time:  t,
+				})
 			}
 		}
 	} else {
-		points = make([]FloatPoint, r.h)
-		forecasted := r.forecast(r.h, params)
+		stop := r.points[len(r.points)-1].Time
+		points = make([]FloatPoint, 0, r.h)
 		for i, v := range forecasted[len(r.y):] {
-			t := stop + r.interval*(int64(i)+1)
-			points[i] = FloatPoint{
-				Value: v,
-				Time:  t,
+			if !math.IsNaN(v) {
+				t := stop + r.interval*(int64(i)+1)
+				points = append(points, FloatPoint{
+					Value: v,
+					Time:  t,
+				})
 			}
 		}
 	}
@@ -546,6 +555,9 @@ func (r *FloatHoltWintersReducer) next(alpha, beta, gamma, phi, phi_h, y_t, l_tp
 
 // Forecast the data h points into the future.
 func (r *FloatHoltWintersReducer) forecast(h int, params []float64) []float64 {
+	// Constrain parameters
+	r.constrain(params)
+
 	y_t := r.y[0]
 
 	phi := params[3]
@@ -575,7 +587,7 @@ func (r *FloatHoltWintersReducer) forecast(h int, params []float64) []float64 {
 	stm, stmh := 1.0, 1.0
 	for t := 1; t < l+h; t++ {
 		if r.seasonal {
-			hm = (t - 1) % m
+			hm = t % m
 			stm = seasonals[(t-m+so)%m]
 			stmh = seasonals[(t-m+hm+so)%m]
 		}
@@ -594,8 +606,8 @@ func (r *FloatHoltWintersReducer) forecast(h int, params []float64) []float64 {
 		phi_h += math.Pow(phi, float64(t))
 
 		if r.seasonal {
-			so++
 			seasonals[(t+so)%m] = s_t
+			so++
 		}
 
 		forecasted[t] = y_t
@@ -611,8 +623,13 @@ func (r *FloatHoltWintersReducer) sse(params []float64) float64 {
 		// Skip missing values since we cannot use them to compute an error.
 		if !math.IsNaN(r.y[i]) {
 			// Compute error
-			diff := forecasted[i] - r.y[i]
-			sse += diff * diff
+			if math.IsNaN(forecasted[i]) {
+				// Penalize forecasted NaNs
+				return math.Inf(1)
+			} else {
+				diff := forecasted[i] - r.y[i]
+				sse += diff * diff
+			}
 		}
 	}
 	return sse
