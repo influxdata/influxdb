@@ -189,7 +189,7 @@ func (e *QueryExecutor) ExecuteQuery(query, database string, chunkSize int) <-ch
 
 // TSDBStore is a mockable implementation of coordinator.TSDBStore.
 type TSDBStore struct {
-	CreateShardFn  func(database, policy string, shardID uint64) error
+	CreateShardFn  func(database, policy string, shardID uint64, enabled bool) error
 	WriteToShardFn func(shardID uint64, points []models.Point) error
 
 	RestoreShardFn func(id uint64, r io.Reader) error
@@ -203,11 +203,11 @@ type TSDBStore struct {
 	ShardIteratorCreatorFn  func(id uint64) influxql.IteratorCreator
 }
 
-func (s *TSDBStore) CreateShard(database, policy string, shardID uint64) error {
+func (s *TSDBStore) CreateShard(database, policy string, shardID uint64, enabled bool) error {
 	if s.CreateShardFn == nil {
 		return nil
 	}
-	return s.CreateShardFn(database, policy, shardID)
+	return s.CreateShardFn(database, policy, shardID, enabled)
 }
 
 func (s *TSDBStore) WriteToShard(shardID uint64, points []models.Point) error {

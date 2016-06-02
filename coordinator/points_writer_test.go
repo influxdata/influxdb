@@ -381,15 +381,15 @@ func (f *fakeShardWriter) WriteShard(shardID, nodeID uint64, points []models.Poi
 
 type fakeStore struct {
 	WriteFn       func(shardID uint64, points []models.Point) error
-	CreateShardfn func(database, retentionPolicy string, shardID uint64) error
+	CreateShardfn func(database, retentionPolicy string, shardID uint64, enabled bool) error
 }
 
 func (f *fakeStore) WriteToShard(shardID uint64, points []models.Point) error {
 	return f.WriteFn(shardID, points)
 }
 
-func (f *fakeStore) CreateShard(database, retentionPolicy string, shardID uint64) error {
-	return f.CreateShardfn(database, retentionPolicy, shardID)
+func (f *fakeStore) CreateShard(database, retentionPolicy string, shardID uint64, enabled bool) error {
+	return f.CreateShardfn(database, retentionPolicy, shardID, enabled)
 }
 
 func NewPointsWriterMetaClient() *PointsWriterMetaClient {

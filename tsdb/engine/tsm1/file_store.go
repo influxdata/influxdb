@@ -626,7 +626,7 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 	tmpPath := fmt.Sprintf("%s/%d.tmp", f.dir, f.currentTempDirID)
 	err := os.Mkdir(tmpPath, 0777)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 
 	for _, tsmf := range files {

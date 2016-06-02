@@ -67,6 +67,9 @@ type Engine struct {
 	// no writes have been committed to the WAL, the engine will write
 	// a snapshot of the cache to a TSM file
 	CacheFlushWriteColdDuration time.Duration
+
+	// Controls whether to enabled compactions when the engine is open
+	enableCompactionsOnOpen bool
 }
 
 // NewEngine returns a new instance of Engine.
@@ -101,6 +104,7 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 
 		CacheFlushMemorySizeThreshold: opt.Config.CacheSnapshotMemorySize,
 		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
+		enableCompactionsOnOpen:       true,
 	}
 	e.SetLogOutput(os.Stderr)
 
@@ -108,6 +112,7 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 }
 
 func (e *Engine) SetEnabled(enabled bool) {
+	e.enableCompactionsOnOpen = enabled
 	e.SetCompactionsEnabled(enabled)
 }
 
@@ -217,7 +222,9 @@ func (e *Engine) Open() error {
 		return err
 	}
 
-	e.SetCompactionsEnabled(true)
+	if e.enableCompactionsOnOpen {
+		e.SetCompactionsEnabled(true)
+	}
 
 	return nil
 }
@@ -642,7 +649,7 @@ func (e *Engine) WriteSnapshot() error {
 // temporary hardlinks to the underylyng shard files
 func (e *Engine) CreateSnapshot() (string, error) {
 	if err := e.WriteSnapshot(); err != nil {
-		return "", nil
+		return "", err
 	}
 
 	e.mu.RLock()
