@@ -52,6 +52,7 @@ message ShardGroupInfo {
 	required int64 EndTime = 3;
 	required int64 DeletedAt = 4;
 	repeated ShardInfo Shards = 5;
+	optional int64 TruncatedAt = 6;
 }
 
 message ShardInfo {

@@ -870,10 +870,12 @@ func NewRetentionPolicyInfo(name string) *RetentionPolicyInfo {
 // ShardGroupByTimestamp returns the shard group in the policy that contains the timestamp.
 func (rpi *RetentionPolicyInfo) ShardGroupByTimestamp(timestamp time.Time) *ShardGroupInfo {
 	for i := range rpi.ShardGroups {
-		if rpi.ShardGroups[i].Contains(timestamp) && !rpi.ShardGroups[i].Deleted() {
+		sgi := &rpi.ShardGroups[i]
+		if sgi.Contains(timestamp) && !sgi.Deleted() && (!sgi.Truncated() || timestamp.Before(sgi.TruncatedAt)) {
 			return &rpi.ShardGroups[i]
 		}
 	}
+
 	return nil
 }
 
@@ -997,11 +999,12 @@ func normalisedShardDuration(sgd, d time.Duration) time.Duration {
 // to be sure that a ShardGroup is not simply missing. If the DeletedAt is set, the system can
 // safely delete any associated shards.
 type ShardGroupInfo struct {
-	ID        uint64
-	StartTime time.Time
-	EndTime   time.Time
-	DeletedAt time.Time
-	Shards    []ShardInfo
+	ID          uint64
+	StartTime   time.Time
+	EndTime     time.Time
+	DeletedAt   time.Time
+	Shards      []ShardInfo
+	TruncatedAt time.Time
 }
 
 // ShardGroupInfos implements sort.Interface on []ShardGroupInfo, based
@@ -1025,6 +1028,11 @@ func (sgi *ShardGroupInfo) Overlaps(min, max time.Time) bool {
 // Deleted returns whether this ShardGroup has been deleted.
 func (sgi *ShardGroupInfo) Deleted() bool {
 	return !sgi.DeletedAt.IsZero()
+}
+
+// Truncated returns true if this ShardGroup has been truncated (no new writes)
+func (sgi *ShardGroupInfo) Truncated() bool {
+	return !sgi.TruncatedAt.IsZero()
 }
 
 // clone returns a deep copy of sgi.
@@ -1055,6 +1063,10 @@ func (sgi *ShardGroupInfo) marshal() *internal.ShardGroupInfo {
 		DeletedAt: proto.Int64(MarshalTime(sgi.DeletedAt)),
 	}
 
+	if !sgi.TruncatedAt.IsZero() {
+		pb.TruncatedAt = proto.Int64(MarshalTime(sgi.TruncatedAt))
+	}
+
 	pb.Shards = make([]*internal.ShardInfo, len(sgi.Shards))
 	for i := range sgi.Shards {
 		pb.Shards[i] = sgi.Shards[i].marshal()
@@ -1069,6 +1081,10 @@ func (sgi *ShardGroupInfo) unmarshal(pb *internal.ShardGroupInfo) {
 	sgi.StartTime = UnmarshalTime(pb.GetStartTime())
 	sgi.EndTime = UnmarshalTime(pb.GetEndTime())
 	sgi.DeletedAt = UnmarshalTime(pb.GetDeletedAt())
+
+	if pb != nil && pb.TruncatedAt != nil {
+		sgi.TruncatedAt = UnmarshalTime(pb.GetTruncatedAt())
+	}
 
 	if len(pb.GetShards()) > 0 {
 		sgi.Shards = make([]ShardInfo, len(pb.GetShards()))
