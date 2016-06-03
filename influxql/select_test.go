@@ -1,6 +1,7 @@
 package influxql_test
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 	"time"
@@ -2401,3 +2402,30 @@ func NewRawBenchmarkIteratorCreator(pointN int) *IteratorCreator {
 	}
 	return &ic
 }
+
+func benchmarkSelectDedupe(b *testing.B, seriesN, pointsPerSeries int) {
+	stmt := MustParseSelectStatement(`SELECT sval::string FROM cpu`)
+	stmt.Dedupe = true
+
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		if opt.Expr != nil {
+			panic("unexpected expression")
+		}
+
+		p := influxql.FloatPoint{
+			Name: "tags",
+			Aux:  []interface{}{nil},
+		}
+
+		return &FloatPointGenerator{N: seriesN * pointsPerSeries, Fn: func(i int) *influxql.FloatPoint {
+			p.Aux[0] = fmt.Sprintf("server%d", i%seriesN)
+			return &p
+		}}, nil
+	}
+
+	b.ResetTimer()
+	benchmarkSelect(b, stmt, &ic)
+}
+
+func BenchmarkSelect_Dedupe_1K(b *testing.B) { benchmarkSelectDedupe(b, 1000, 100) }

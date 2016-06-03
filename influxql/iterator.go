@@ -1259,7 +1259,11 @@ func (itr *floatFastDedupeIterator) Next() (*FloatPoint, error) {
 		}
 
 		// If the point has already been output then move to the next point.
-		key := fastDedupeKey{p.Name, p.Aux[0]}
+		key := fastDedupeKey{name: p.Name}
+		key.values[0] = p.Aux[0]
+		if len(p.Aux) > 1 {
+			key.values[1] = p.Aux[1]
+		}
 		if _, ok := itr.m[key]; ok {
 			continue
 		}
@@ -1271,8 +1275,8 @@ func (itr *floatFastDedupeIterator) Next() (*FloatPoint, error) {
 }
 
 type fastDedupeKey struct {
-	name  string
-	value interface{}
+	name   string
+	values [2]interface{}
 }
 
 type reverseStringSlice []string

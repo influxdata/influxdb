@@ -104,9 +104,13 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) (
 
 	// Filter out duplicate rows, if required.
 	if opt.Dedupe {
-		// If there is no group by and it's a single field then fast dedupe.
-		if itr, ok := input.(FloatIterator); ok && len(fields) == 1 && len(opt.Dimensions) == 0 {
-			input = newFloatFastDedupeIterator(itr)
+		// If there is no group by and it is a float iterator, see if we can use a fast dedupe.
+		if itr, ok := input.(FloatIterator); ok && len(opt.Dimensions) == 0 {
+			if sz := len(fields); sz > 0 && sz < 3 {
+				input = newFloatFastDedupeIterator(itr)
+			} else {
+				input = NewDedupeIterator(itr)
+			}
 		} else {
 			input = NewDedupeIterator(input)
 		}
