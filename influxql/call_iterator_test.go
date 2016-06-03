@@ -740,11 +740,11 @@ type FloatPointGenerator struct {
 func (g *FloatPointGenerator) Close() error                  { return nil }
 func (g *FloatPointGenerator) Stats() influxql.IteratorStats { return influxql.IteratorStats{} }
 
-func (g *FloatPointGenerator) Next() *influxql.FloatPoint {
+func (g *FloatPointGenerator) Next() (*influxql.FloatPoint, error) {
 	if g.i == g.N {
-		return nil
+		return nil, nil
 	}
 	p := g.Fn(g.i)
 	g.i++
-	return p
+	return p, nil
 }
