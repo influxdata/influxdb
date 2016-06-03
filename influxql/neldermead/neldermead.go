@@ -38,7 +38,6 @@ func (o *Optimizer) Optimize(
 	start []float64,
 	epsilon,
 	scale float64,
-	constrain func([]float64),
 ) (float64, []float64) {
 	n := len(start)
 
@@ -83,10 +82,6 @@ func (o *Optimizer) Optimize(
 		}
 	}
 
-	if constrain != nil {
-		constrain(v[n])
-	}
-
 	// find the initial function values
 	for j := 0; j <= n; j++ {
 		f[j] = objfunc(v[j])
@@ -129,9 +124,6 @@ func (o *Optimizer) Optimize(
 		for i := 0; i <= n-1; i++ {
 			vr[i] = vm[i] + o.Alpha*(vm[i]-v[vg][i])
 		}
-		if constrain != nil {
-			constrain(vr)
-		}
 
 		// value of function at reflection point
 		fr := objfunc(vr)
@@ -147,9 +139,6 @@ func (o *Optimizer) Optimize(
 		if fr < f[vs] {
 			for i := 0; i <= n-1; i++ {
 				ve[i] = vm[i] + o.Gamma*(vr[i]-vm[i])
-			}
-			if constrain != nil {
-				constrain(ve)
 			}
 
 			// value of function at expansion point
@@ -186,10 +175,6 @@ func (o *Optimizer) Optimize(
 				}
 			}
 
-			if constrain != nil {
-				constrain(vc)
-			}
-
 			// value of function at contraction point
 			fc := objfunc(vc)
 
@@ -210,17 +195,7 @@ func (o *Optimizer) Optimize(
 						}
 					}
 				}
-
-				if constrain != nil {
-					constrain(v[vg])
-				}
-
 				f[vg] = objfunc(v[vg])
-
-				if constrain != nil {
-					constrain(v[vh])
-				}
-
 				f[vh] = objfunc(v[vh])
 			}
 		}
