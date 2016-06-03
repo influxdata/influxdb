@@ -163,7 +163,6 @@ func (h *Handler) AddRoutes(routes ...Route) {
 		if r.Gzipped {
 			handler = gzipFilter(handler)
 		}
-		handler = versionHeader(handler, h)
 		handler = cors(handler)
 		handler = requestID(handler)
 		if h.Config.LogEnabled && r.LoggingEnabled {
@@ -181,6 +180,9 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.statMap.Add(statRequest, 1)
 	h.statMap.Add(statRequestsActive, 1)
 	start := time.Now()
+
+	// Add version header to all InfluxDB requests.
+	w.Header().Add("X-Influxdb-Version", h.Version)
 
 	// FIXME(benbjohnson): Add pprof enabled flag.
 	if strings.HasPrefix(r.URL.Path, "/debug/pprof") {
@@ -852,15 +854,6 @@ func gzipFilter(inner http.Handler) http.Handler {
 		defer gz.Close()
 		gzw := gzipResponseWriter{Writer: gz, ResponseWriter: w}
 		inner.ServeHTTP(gzw, r)
-	})
-}
-
-// versionHeader takes a HTTP handler and returns a HTTP handler
-// and adds the X-INFLUXBD-VERSION header to outgoing responses.
-func versionHeader(inner http.Handler, h *Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Add("X-InfluxDB-Version", h.Version)
-		inner.ServeHTTP(w, r)
 	})
 }
 

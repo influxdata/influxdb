@@ -326,7 +326,6 @@ func TestHandler_Version(t *testing.T) {
 	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
 		return nil
 	}
-	w := httptest.NewRecorder()
 	tests := []struct {
 		method   string
 		endpoint string
@@ -347,9 +346,15 @@ func TestHandler_Version(t *testing.T) {
 			endpoint: "/write",
 			body:     bytes.NewReader(make([]byte, 10)),
 		},
+		{
+			method:   "GET",
+			endpoint: "/notfound",
+			body:     nil,
+		},
 	}
 
 	for _, test := range tests {
+		w := httptest.NewRecorder()
 		h.ServeHTTP(w, MustNewRequest(test.method, test.endpoint, test.body))
 		if v, ok := w.HeaderMap["X-Influxdb-Version"]; ok {
 			if v[0] != "0.0.0" {

@@ -53,6 +53,7 @@
 - [#6250](https://github.com/influxdata/influxdb/issues/6250): Slow startup time
 - [#6753](https://github.com/influxdata/influxdb/issues/6753): Prevent panic if there are no values.
 - [#6685](https://github.com/influxdata/influxdb/issues/6685): Batch SELECT INTO / CQ writes
+- [#6756](https://github.com/influxdata/influxdb/issues/6756): Set X-Influxdb-Version header on every request (even 404 requests).
 
 ## v0.13.0 [2016-05-12]
 
