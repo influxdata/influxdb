@@ -146,6 +146,7 @@ func TestCache_DeleteRange_NoValues(t *testing.T) {
 		t.Fatalf("cache values mismatch: got %v, exp %v", got, exp)
 	}
 }
+
 func TestCache_Cache_Delete(t *testing.T) {
 	v0 := NewValue(1, 1.0)
 	v1 := NewValue(2, 2.0)
@@ -182,6 +183,16 @@ func TestCache_Cache_Delete(t *testing.T) {
 
 	if got, exp := len(c.Values("foo")), 3; got != exp {
 		t.Fatalf("cache values mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestCache_Cache_Delete_NonExistent(t *testing.T) {
+	c := NewCache(1024, "")
+
+	c.Delete([]string{"bar"})
+
+	if got, exp := c.Size(), uint64(0); exp != got {
+		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
 	}
 }
 

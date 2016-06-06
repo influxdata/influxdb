@@ -334,21 +334,27 @@ func (c *Cache) DeleteRange(keys []string, min, max int64) {
 	defer c.mu.Unlock()
 
 	for _, k := range keys {
-		origSize := c.store[k].size()
+		// Make sure key exist in the cache, skip if it does not
+		e, ok := c.store[k]
+		if !ok {
+			continue
+		}
+
+		origSize := e.size()
 		if min == math.MinInt64 && max == math.MaxInt64 {
 			c.size -= uint64(origSize)
 			delete(c.store, k)
 			continue
 		}
 
-		c.store[k].filter(min, max)
-		if c.store[k].count() == 0 {
+		e.filter(min, max)
+		if e.count() == 0 {
 			delete(c.store, k)
 			c.size -= uint64(origSize)
 			continue
 		}
 
-		c.size -= uint64(origSize - c.store[k].size())
+		c.size -= uint64(origSize - e.size())
 	}
 }
 
