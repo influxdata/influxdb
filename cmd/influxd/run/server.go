@@ -345,14 +345,17 @@ func (s *Server) Close() error {
 
 // startServerReporting starts periodic server reporting.
 func (s *Server) startServerReporting() {
+	s.reportServer()
+
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-s.closing:
 			return
-		default:
+		case <-ticker.C:
+			s.reportServer()
 		}
-		s.reportServer()
-		<-time.After(24 * time.Hour)
 	}
 }
 
