@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 const (
@@ -200,6 +201,7 @@ type TSDBStore struct {
 	DeleteRetentionPolicyFn func(database, name string) error
 	DeleteShardFn           func(id uint64) error
 	DeleteSeriesFn          func(database string, sources []influxql.Source, condition influxql.Expr) error
+	DatabaseIndexFn         func(name string) *tsdb.DatabaseIndex
 	ShardIteratorCreatorFn  func(id uint64) influxql.IteratorCreator
 }
 
@@ -265,6 +267,10 @@ func (s *TSDBStore) IteratorCreator(shards []meta.ShardInfo) (influxql.IteratorC
 
 func (s *TSDBStore) ShardIteratorCreator(id uint64) influxql.IteratorCreator {
 	return s.ShardIteratorCreatorFn(id)
+}
+
+func (s *TSDBStore) DatabaseIndex(name string) *tsdb.DatabaseIndex {
+	return s.DatabaseIndexFn(name)
 }
 
 // MustParseQuery parses s into a query. Panic on error.

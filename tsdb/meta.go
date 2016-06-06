@@ -239,12 +239,18 @@ func (d *DatabaseIndex) TagsForSeries(key string) map[string]string {
 	return ss.Tags
 }
 
-// measurementsByExpr takes an expression containing only tags and returns a
+// MeasurementsByExpr takes an expression containing only tags and returns a
 // list of matching *Measurement. The bool return argument returns if the
 // expression was a measurement expression. It is used to differentiate a list
 // of no measurements because all measurements were filtered out (when the bool
 // is true) against when there are no measurements because the expression
 // wasn't evaluated (when the bool is false).
+func (d *DatabaseIndex) MeasurementsByExpr(expr influxql.Expr) (Measurements, bool, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.measurementsByExpr(expr)
+}
+
 func (d *DatabaseIndex) measurementsByExpr(expr influxql.Expr) (Measurements, bool, error) {
 	if expr == nil {
 		return nil, false, nil
@@ -536,6 +542,17 @@ func (m *Measurement) SeriesByID(id uint64) *Series {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.seriesByID[id]
+}
+
+// SeriesByIDSlice returns a list of series by identifiers.
+func (m *Measurement) SeriesByIDSlice(ids []uint64) []*Series {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	a := make([]*Series, len(ids))
+	for i, id := range ids {
+		a[i] = m.seriesByID[id]
+	}
+	return a
 }
 
 // AppendSeriesKeysByID appends keys for a list of series ids to a buffer.
@@ -1121,8 +1138,14 @@ func expandExprWithValues(expr influxql.Expr, keys []string, tagExprs []tagExpr,
 	return exprs
 }
 
-// seriesIDsAllOrByExpr walks an expressions for matching series IDs
+// SeriesIDsAllOrByExpr walks an expressions for matching series IDs
 // or, if no expressions is given, returns all series IDs for the measurement.
+func (m *Measurement) SeriesIDsAllOrByExpr(expr influxql.Expr) (SeriesIDs, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.seriesIDsAllOrByExpr(expr)
+}
+
 func (m *Measurement) seriesIDsAllOrByExpr(expr influxql.Expr) (SeriesIDs, error) {
 	// If no expression given or the measurement has no series,
 	// we can take just return the ids or nil accordingly.
@@ -1142,7 +1165,7 @@ func (m *Measurement) seriesIDsAllOrByExpr(expr influxql.Expr) (SeriesIDs, error
 }
 
 // tagKeysByExpr extracts the tag keys wanted by the expression.
-func (m *Measurement) tagKeysByExpr(expr influxql.Expr) (stringSet, bool, error) {
+func (m *Measurement) TagKeysByExpr(expr influxql.Expr) (stringSet, bool, error) {
 	switch e := expr.(type) {
 	case *influxql.BinaryExpr:
 		switch e.Op {
@@ -1175,12 +1198,12 @@ func (m *Measurement) tagKeysByExpr(expr influxql.Expr) (stringSet, bool, error)
 			}
 			return m.tagKeysByFilter(tf.Op, tf.Value, tf.Regex), true, nil
 		case influxql.AND, influxql.OR:
-			lhsKeys, lhsOk, err := m.tagKeysByExpr(e.LHS)
+			lhsKeys, lhsOk, err := m.TagKeysByExpr(e.LHS)
 			if err != nil {
 				return nil, false, err
 			}
 
-			rhsKeys, rhsOk, err := m.tagKeysByExpr(e.RHS)
+			rhsKeys, rhsOk, err := m.TagKeysByExpr(e.RHS)
 			if err != nil {
 				return nil, false, err
 			}
@@ -1201,7 +1224,7 @@ func (m *Measurement) tagKeysByExpr(expr influxql.Expr) (stringSet, bool, error)
 			return nil, false, fmt.Errorf("invalid operator")
 		}
 	case *influxql.ParenExpr:
-		return m.tagKeysByExpr(e.Expr)
+		return m.TagKeysByExpr(e.Expr)
 	}
 	return nil, false, fmt.Errorf("%#v", expr)
 }
