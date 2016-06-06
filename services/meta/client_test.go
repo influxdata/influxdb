@@ -819,6 +819,7 @@ func newClient() (string, *meta.Client) {
 func newConfig() *meta.Config {
 	cfg := meta.NewConfig()
 	cfg.Dir = testTempDir(2)
+	cfg.DefaultRetentionPolicyName = "default"
 	return cfg
 }
 

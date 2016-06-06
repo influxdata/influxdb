@@ -1624,7 +1624,6 @@ func TestParser_ParseStatement(t *testing.T) {
 				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    24 * time.Hour,
 				RetentionPolicyReplication: 1,
-				RetentionPolicyName:        "default",
 			},
 		},
 		{
@@ -1636,7 +1635,6 @@ func TestParser_ParseStatement(t *testing.T) {
 				RetentionPolicyDuration:           0,
 				RetentionPolicyReplication:        1,
 				RetentionPolicyShardGroupDuration: 30 * time.Minute,
-				RetentionPolicyName:               "default",
 			},
 		},
 		{
@@ -1647,7 +1645,6 @@ func TestParser_ParseStatement(t *testing.T) {
 				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    24 * time.Hour,
 				RetentionPolicyReplication: 1,
-				RetentionPolicyName:        "default",
 			},
 		},
 		{
@@ -1658,7 +1655,6 @@ func TestParser_ParseStatement(t *testing.T) {
 				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    0,
 				RetentionPolicyReplication: 2,
-				RetentionPolicyName:        "default",
 			},
 		},
 		{
@@ -1669,7 +1665,6 @@ func TestParser_ParseStatement(t *testing.T) {
 				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    0,
 				RetentionPolicyReplication: 2,
-				RetentionPolicyName:        "default",
 			},
 		},
 		{

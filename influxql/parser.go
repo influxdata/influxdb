@@ -1573,16 +1573,14 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 		}
 
 		// Look for "NAME"
-		var rpName string = "default" // default is default
 		if err := p.parseTokens([]Token{NAME}); err != nil {
 			p.unscan()
 		} else {
-			rpName, err = p.parseIdent()
+			stmt.RetentionPolicyName, err = p.parseIdent()
 			if err != nil {
 				return nil, err
 			}
 		}
-		stmt.RetentionPolicyName = rpName
 	} else {
 		p.unscan()
 	}
