@@ -68,6 +68,39 @@ func (e *entry) add(values []Value) {
 	e.mu.Unlock()
 }
 
+func (e *entry) add_unlocked(values []Value) {
+	// See if the new values are sorted or contain duplicate timestamps
+	var (
+		prevTime int64
+		needSort bool
+	)
+
+	for _, v := range values {
+		if v.UnixNano() <= prevTime {
+			needSort = true
+			break
+		}
+		prevTime = v.UnixNano()
+	}
+
+	// if there are existing values make sure they're all less than the first of
+	// the new values being added
+	if needSort {
+		e.needSort = needSort
+	}
+	if len(e.values) == 0 {
+		e.values = values
+	} else {
+		l := len(e.values)
+		lastValTime := e.values[l-1].UnixNano()
+		if lastValTime >= values[0].UnixNano() {
+			e.needSort = true
+		}
+		e.values = append(e.values, values...)
+	}
+}
+
+
 // deduplicate sorts and orders the entry's values. If values are already deduped and
 // and sorted, the function does no work and simply returns.
 func (e *entry) deduplicate() {
@@ -204,7 +237,9 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	c.mu.RUnlock()
 
 	for k, v := range values {
-		c.entry(k).add(v)
+		c.mu.Lock()
+		c.entry_unlocked(k).add_unlocked(v)
+		c.mu.Unlock()
 	}
 	c.mu.Lock()
 	c.size += uint64(totalSz)
@@ -478,6 +513,15 @@ func (c *Cache) entry(key string) *entry {
 
 	return e
 }
+func (c *Cache) entry_unlocked(key string) *entry {
+	e, ok := c.store[key]
+	if !ok {
+		e = newEntry()
+		c.store[key] = e
+	}
+	return e
+}
+
 
 // CacheLoader processes a set of WAL segment files, and loads a cache with the data
 // contained within those files.  Processing of the supplied files take place in the
