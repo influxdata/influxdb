@@ -235,13 +235,10 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 		return ErrCacheMemoryExceeded
 	}
 	c.mu.RUnlock()
-
-	for k, v := range values {
-		c.mu.Lock()
-		c.entry_unlocked(k).add_unlocked(v)
-		c.mu.Unlock()
-	}
 	c.mu.Lock()
+	for k, v := range values {
+		c.entry_unlocked(k).add_unlocked(v)
+	}
 	c.size = newSize
 	c.mu.Unlock()
 
