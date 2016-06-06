@@ -7,6 +7,7 @@ import (
 	"io"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb"
@@ -403,6 +404,12 @@ func (e *StatementExecutor) executeSetPasswordUserStatement(q *influxql.SetPassw
 }
 
 func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatement, ctx *influxql.ExecutionContext) error {
+	// Handle SHOW TAG VALUES separately so it can be optimized.
+	// https://github.com/influxdata/influxdb/issues/6233
+	if source, ok := stmt.Sources[0].(*influxql.Measurement); ok && source.Name == "_tags" {
+		return e.executeShowTagValues(stmt, ctx)
+	}
+
 	// It is important to "stamp" this time so that everywhere we evaluate `now()` in the statement is EXACTLY the same `now`
 	now := time.Now().UTC()
 	opt := influxql.SelectOptions{InterruptCh: ctx.InterruptCh}
@@ -595,6 +602,130 @@ func (e *StatementExecutor) iteratorCreator(stmt *influxql.SelectStatement, opt 
 		return nil, err
 	}
 	return e.TSDBStore.IteratorCreator(shards)
+}
+
+func (e *StatementExecutor) executeShowTagValues(stmt *influxql.SelectStatement, ctx *influxql.ExecutionContext) error {
+	if stmt.Condition == nil {
+		return errors.New("a condition is required")
+	}
+
+	source := stmt.Sources[0].(*influxql.Measurement)
+	index := e.TSDBStore.DatabaseIndex(source.Database)
+	if index == nil {
+		ctx.Results <- &influxql.Result{StatementID: ctx.StatementID, Series: make([]*models.Row, 0)}
+		return nil
+	}
+
+	measurementExpr := influxql.CloneExpr(stmt.Condition)
+	measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				if !ok || tag.Val != "_name" {
+					return nil
+				}
+			}
+		}
+		return e
+	}), nil)
+
+	mms, ok, err := index.MeasurementsByExpr(measurementExpr)
+	if err != nil {
+		return err
+	} else if !ok {
+		mms = index.Measurements()
+		sort.Sort(mms)
+	}
+
+	// If there are no measurements, return immediately.
+	if len(mms) == 0 {
+		ctx.Results <- &influxql.Result{StatementID: ctx.StatementID, Series: make([]*models.Row, 0)}
+		return nil
+	}
+
+	filterExpr := influxql.CloneExpr(stmt.Condition)
+	filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				if !ok || strings.HasPrefix(tag.Val, "_") {
+					return nil
+				}
+			}
+		}
+		return e
+	}), nil)
+
+	var emitted bool
+	columns := stmt.ColumnNames()
+	for _, mm := range mms {
+		ids, err := mm.SeriesIDsAllOrByExpr(filterExpr)
+		if err != nil {
+			return err
+		}
+		ss := mm.SeriesByIDSlice(ids)
+
+		// Determine a list of keys from condition.
+		keySet, ok, err := mm.TagKeysByExpr(stmt.Condition)
+		if err != nil {
+			return err
+		}
+
+		// Loop over all keys for each series.
+		m := make(map[keyValue]struct{}, len(ss))
+		for _, series := range ss {
+			for key, value := range series.Tags {
+				if !ok {
+					// nop
+				} else if _, exists := keySet[key]; !exists {
+					continue
+				}
+				m[keyValue{key, value}] = struct{}{}
+			}
+		}
+
+		// Move to next series if no key/values match.
+		if len(m) == 0 {
+			continue
+		}
+
+		// Sort key/value set.
+		a := make([]keyValue, 0, len(m))
+		for kv := range m {
+			a = append(a, kv)
+		}
+		sort.Sort(keyValues(a))
+
+		// Convert to result values.
+		slab := make([]interface{}, len(a)*2)
+		values := make([][]interface{}, len(a))
+		for i, elem := range a {
+			slab[i*2], slab[i*2+1] = elem.key, elem.value
+			values[i] = slab[i*2 : i*2+2]
+		}
+
+		// Send result to client.
+		ctx.Results <- &influxql.Result{
+			StatementID: ctx.StatementID,
+			Series: []*models.Row{&models.Row{
+				Name:    mm.Name,
+				Columns: columns,
+				Values:  values,
+			}},
+		}
+		emitted = true
+	}
+
+	// Always emit at least one row.
+	if !emitted {
+		ctx.Results <- &influxql.Result{StatementID: ctx.StatementID, Series: make([]*models.Row, 0)}
+	}
+
+	return nil
 }
 
 func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement) (models.Rows, error) {
@@ -1008,6 +1139,7 @@ type TSDBStore interface {
 	DeleteRetentionPolicy(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShard(id uint64) error
+	DatabaseIndex(name string) *tsdb.DatabaseIndex
 	IteratorCreator(shards []meta.ShardInfo) (influxql.IteratorCreator, error)
 	ShardIteratorCreator(id uint64) influxql.IteratorCreator
 }
@@ -1105,3 +1237,19 @@ type uint64Slice []uint64
 func (a uint64Slice) Len() int           { return len(a) }
 func (a uint64Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a uint64Slice) Less(i, j int) bool { return a[i] < a[j] }
+
+type keyValue struct {
+	key, value string
+}
+
+type keyValues []keyValue
+
+func (a keyValues) Len() int      { return len(a) }
+func (a keyValues) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a keyValues) Less(i, j int) bool {
+	ki, kj := a[i].key, a[j].key
+	if ki == kj {
+		return a[i].value < a[j].value
+	}
+	return ki < kj
+}
