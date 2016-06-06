@@ -268,9 +268,11 @@ func (c *Cache) Snapshot() (*Cache, error) {
 // Deduplicate sorts the snapshot before returning it. The compactor and any queries
 // coming in while it writes will need the values sorted
 func (c *Cache) Deduplicate() {
+	c.mu.RLock()
 	for _, e := range c.store {
 		e.deduplicate()
 	}
+	c.mu.RUnlock()
 }
 
 // ClearSnapshot will remove the snapshot cache from the list of flushing caches and

@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math"
+	"math/rand"
 	"os"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/golang/snappy"
@@ -192,7 +194,7 @@ func TestCache_Cache_Delete_NonExistent(t *testing.T) {
 	c.Delete([]string{"bar"})
 
 	if got, exp := c.Size(), uint64(0); exp != got {
-		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
+		t.Fatalf("cache size incorrect exp %d, got %d", exp, got)
 	}
 }
 
@@ -398,6 +400,37 @@ func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
 	if deduped := c.Values("bar"); !reflect.DeepEqual(expAscValues, deduped) {
 		t.Fatalf("deduped ascending values for bar incorrect, exp: %v, got %v", expAscValues, deduped)
 	}
+}
+
+func TestCache_Deduplicate_Concurrent(t *testing.T) {
+	values := make(map[string][]Value)
+
+	for i := 0; i < 1000; i++ {
+		for j := 0; j < 100; j++ {
+			values[fmt.Sprintf("cpu%d", i)] = []Value{NewValue(int64(i+j)+int64(rand.Intn(10)), float64(i))}
+		}
+	}
+
+	wg := sync.WaitGroup{}
+	c := NewCache(1000000, "")
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			c.WriteMulti(values)
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			c.Deduplicate()
+		}
+	}()
+
+	wg.Wait()
 }
 
 // Ensure the CacheLoader can correctly load from a single segment, even if it's corrupted.
