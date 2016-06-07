@@ -408,6 +408,7 @@ type ShardGroupInfo struct {
 	EndTime          *int64       `protobuf:"varint,3,req,name=EndTime" json:"EndTime,omitempty"`
 	DeletedAt        *int64       `protobuf:"varint,4,req,name=DeletedAt" json:"DeletedAt,omitempty"`
 	Shards           []*ShardInfo `protobuf:"bytes,5,rep,name=Shards" json:"Shards,omitempty"`
+	TruncatedAt      *int64       `protobuf:"varint,6,opt,name=TruncatedAt" json:"TruncatedAt,omitempty"`
 	XXX_unrecognized []byte       `json:"-"`
 }
 
@@ -448,6 +449,13 @@ func (m *ShardGroupInfo) GetShards() []*ShardInfo {
 		return m.Shards
 	}
 	return nil
+}
+
+func (m *ShardGroupInfo) GetTruncatedAt() int64 {
+	if m != nil && m.TruncatedAt != nil {
+		return *m.TruncatedAt
+	}
+	return 0
 }
 
 type ShardInfo struct {
