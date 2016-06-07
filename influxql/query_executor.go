@@ -60,6 +60,18 @@ func ErrDatabaseNotFound(name string) error { return fmt.Errorf("database not fo
 // ErrMeasurementNotFound returns a measurement not found error for the given measurement name.
 func ErrMeasurementNotFound(name string) error { return fmt.Errorf("measurement not found: %s", name) }
 
+// ExecutionOptions contains the options for executing a query.
+type ExecutionOptions struct {
+	// The database the query is running against.
+	Database string
+
+	// The requested maximum number of points to return in each result.
+	ChunkSize int
+
+	// If this query is being executed in a read-only context.
+	ReadOnly bool
+}
+
 // ExecutionContext contains state that the query is currently executing with.
 type ExecutionContext struct {
 	// The statement ID of the executing query.
@@ -74,20 +86,14 @@ type ExecutionContext struct {
 	// Output channel where results and errors should be sent.
 	Results chan *Result
 
-	// The database the query is running against.
-	Database string
-
-	// The requested maximum number of points to return in each result.
-	ChunkSize int
-
-	// If this query is being executed in a read-only context.
-	ReadOnly bool
-
 	// Hold the query executor's logger.
 	Log *log.Logger
 
 	// A channel that is closed when the query is interrupted.
 	InterruptCh <-chan struct{}
+
+	// Options used to start this query.
+	ExecutionOptions
 }
 
 // StatementExecutor executes a statement within the QueryExecutor.
@@ -162,13 +168,13 @@ func (e *QueryExecutor) SetLogOutput(w io.Writer) {
 }
 
 // ExecuteQuery executes each statement within a query.
-func (e *QueryExecutor) ExecuteQuery(query *Query, database string, chunkSize int, readonly bool, closing chan struct{}) <-chan *Result {
+func (e *QueryExecutor) ExecuteQuery(query *Query, opt ExecutionOptions, closing chan struct{}) <-chan *Result {
 	results := make(chan *Result)
-	go e.executeQuery(query, database, chunkSize, readonly, closing, results)
+	go e.executeQuery(query, opt, closing, results)
 	return results
 }
 
-func (e *QueryExecutor) executeQuery(query *Query, database string, chunkSize int, readonly bool, closing <-chan struct{}, results chan *Result) {
+func (e *QueryExecutor) executeQuery(query *Query, opt ExecutionOptions, closing <-chan struct{}, results chan *Result) {
 	defer close(results)
 	defer e.recover(query, results)
 
@@ -178,7 +184,7 @@ func (e *QueryExecutor) executeQuery(query *Query, database string, chunkSize in
 		e.statMap.Add(statQueryExecutionDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
 
-	qid, task, err := e.attachQuery(query, database, closing)
+	qid, task, err := e.attachQuery(query, opt.Database, closing)
 	if err != nil {
 		results <- &Result{Err: err}
 		return
@@ -187,14 +193,12 @@ func (e *QueryExecutor) executeQuery(query *Query, database string, chunkSize in
 
 	// Setup the execution context that will be used when executing statements.
 	ctx := ExecutionContext{
-		QueryID:     qid,
-		Query:       task,
-		Results:     results,
-		Database:    database,
-		ChunkSize:   chunkSize,
-		ReadOnly:    readonly,
-		Log:         e.Logger,
-		InterruptCh: task.closing,
+		QueryID:          qid,
+		Query:            task,
+		Results:          results,
+		Log:              e.Logger,
+		InterruptCh:      task.closing,
+		ExecutionOptions: opt,
 	}
 
 	var i int
@@ -204,7 +208,7 @@ loop:
 		stmt := query.Statements[i]
 
 		// If a default database wasn't passed in by the caller, check the statement.
-		defaultDB := database
+		defaultDB := opt.Database
 		if defaultDB == "" {
 			if s, ok := stmt.(HasDefaultDatabase); ok {
 				defaultDB = s.DefaultDatabase()

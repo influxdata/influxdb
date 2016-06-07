@@ -16,8 +16,6 @@ It has these top-level messages:
 	Measurement
 	Interval
 	IteratorStats
-	Series
-	SeriesList
 	VarRef
 */
 package influxql
@@ -431,54 +429,6 @@ func (m *IteratorStats) GetPointN() int64 {
 	return 0
 }
 
-type Series struct {
-	Name             *string  `protobuf:"bytes,1,opt,name=Name" json:"Name,omitempty"`
-	Tags             []byte   `protobuf:"bytes,2,opt,name=Tags" json:"Tags,omitempty"`
-	Aux              []uint32 `protobuf:"varint,3,rep,name=Aux" json:"Aux,omitempty"`
-	XXX_unrecognized []byte   `json:"-"`
-}
-
-func (m *Series) Reset()         { *m = Series{} }
-func (m *Series) String() string { return proto.CompactTextString(m) }
-func (*Series) ProtoMessage()    {}
-
-func (m *Series) GetName() string {
-	if m != nil && m.Name != nil {
-		return *m.Name
-	}
-	return ""
-}
-
-func (m *Series) GetTags() []byte {
-	if m != nil {
-		return m.Tags
-	}
-	return nil
-}
-
-func (m *Series) GetAux() []uint32 {
-	if m != nil {
-		return m.Aux
-	}
-	return nil
-}
-
-type SeriesList struct {
-	Items            []*Series `protobuf:"bytes,1,rep,name=Items" json:"Items,omitempty"`
-	XXX_unrecognized []byte    `json:"-"`
-}
-
-func (m *SeriesList) Reset()         { *m = SeriesList{} }
-func (m *SeriesList) String() string { return proto.CompactTextString(m) }
-func (*SeriesList) ProtoMessage()    {}
-
-func (m *SeriesList) GetItems() []*Series {
-	if m != nil {
-		return m.Items
-	}
-	return nil
-}
-
 type VarRef struct {
 	Val              *string `protobuf:"bytes,1,req,name=Val" json:"Val,omitempty"`
 	Type             *int32  `protobuf:"varint,2,opt,name=Type" json:"Type,omitempty"`
@@ -511,7 +461,5 @@ func init() {
 	proto.RegisterType((*Measurement)(nil), "influxql.Measurement")
 	proto.RegisterType((*Interval)(nil), "influxql.Interval")
 	proto.RegisterType((*IteratorStats)(nil), "influxql.IteratorStats")
-	proto.RegisterType((*Series)(nil), "influxql.Series")
-	proto.RegisterType((*SeriesList)(nil), "influxql.SeriesList")
 	proto.RegisterType((*VarRef)(nil), "influxql.VarRef")
 }

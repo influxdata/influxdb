@@ -478,7 +478,7 @@ func (itr *{{$k.name}}ParallelIterator) monitor()  {
 	for {
 		// Read next point.
 		p, err := itr.input.Next()
-		
+
 		select {
 		case <-itr.closing:
 			return
@@ -746,6 +746,58 @@ func (itr *{{$k.name}}InterruptIterator) Next() (*{{$k.Name}}Point, error) {
 	// Increment the counter for every point read.
 	itr.count++
 	return itr.input.Next()
+}
+
+// {{$k.name}}CloseInterruptIterator represents a {{$k.name}} implementation of CloseInterruptIterator.
+type {{$k.name}}CloseInterruptIterator struct {
+	input   {{$k.Name}}Iterator
+	closing <-chan struct{}
+	done    chan struct{}
+	once    sync.Once
+}
+
+func new{{$k.Name}}CloseInterruptIterator(input {{$k.Name}}Iterator, closing <-chan struct{}) *{{$k.name}}CloseInterruptIterator {
+	itr := &{{$k.name}}CloseInterruptIterator{
+		input:   input,
+		closing: closing,
+		done:    make(chan struct{}),
+	}
+	go itr.monitor()
+	return itr
+}
+
+func (itr *{{$k.name}}CloseInterruptIterator) monitor() {
+	select {
+	case <-itr.closing:
+		itr.Close()
+	case <-itr.done:
+	}
+}
+
+func (itr *{{$k.name}}CloseInterruptIterator) Stats() IteratorStats {
+	return itr.input.Stats()
+}
+
+func (itr *{{$k.name}}CloseInterruptIterator) Close() error {
+	itr.once.Do(func() {
+		close(itr.done)
+		itr.input.Close()
+	})
+	return nil
+}
+
+func (itr *{{$k.name}}CloseInterruptIterator) Next() (*{{$k.Name}}Point, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		// Check if the iterator was closed.
+		select {
+		case <-itr.done:
+			return nil, nil
+		default:
+			return nil, err
+		}
+	}
+	return p, nil
 }
 
 // aux{{$k.Name}}Point represents a combination of a point and an error for the AuxIterator.
