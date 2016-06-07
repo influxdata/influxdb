@@ -312,13 +312,13 @@ func (e *StatementExecutor) executeDropContinuousQueryStatement(q *influxql.Drop
 // It does not return an error if the database was not found on any of
 // the nodes, or in the Meta store.
 func (e *StatementExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabaseStatement) error {
-	// Remove the database from the Meta Store.
-	if err := e.MetaClient.DropDatabase(stmt.Name); err != nil {
+	// Locally delete the datababse.
+	if err := e.TSDBStore.DeleteDatabase(stmt.Name); err != nil {
 		return err
 	}
 
-	// Locally delete the datababse.
-	return e.TSDBStore.DeleteDatabase(stmt.Name)
+	// Remove the database from the Meta Store.
+	return e.MetaClient.DropDatabase(stmt.Name)
 }
 
 func (e *StatementExecutor) executeDropMeasurementStatement(stmt *influxql.DropMeasurementStatement, database string) error {
@@ -345,22 +345,22 @@ func (e *StatementExecutor) executeDropSeriesStatement(stmt *influxql.DropSeries
 }
 
 func (e *StatementExecutor) executeDropShardStatement(stmt *influxql.DropShardStatement) error {
-	// Remove the shard reference from the Meta Store.
-	if err := e.MetaClient.DropShard(stmt.ID); err != nil {
+	// Locally delete the shard.
+	if err := e.TSDBStore.DeleteShard(stmt.ID); err != nil {
 		return err
 	}
 
-	// Locally delete the shard.
-	return e.TSDBStore.DeleteShard(stmt.ID)
+	// Remove the shard reference from the Meta Store.
+	return e.MetaClient.DropShard(stmt.ID)
 }
 
 func (e *StatementExecutor) executeDropRetentionPolicyStatement(stmt *influxql.DropRetentionPolicyStatement) error {
-	if err := e.MetaClient.DropRetentionPolicy(stmt.Database, stmt.Name); err != nil {
+	// Locally drop the retention policy.
+	if err := e.TSDBStore.DeleteRetentionPolicy(stmt.Database, stmt.Name); err != nil {
 		return err
 	}
 
-	// Locally drop the retention policy.
-	return e.TSDBStore.DeleteRetentionPolicy(stmt.Database, stmt.Name)
+	return e.MetaClient.DropRetentionPolicy(stmt.Database, stmt.Name)
 }
 
 func (e *StatementExecutor) executeDropSubscriptionStatement(q *influxql.DropSubscriptionStatement) error {
