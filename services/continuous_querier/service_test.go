@@ -50,7 +50,7 @@ func TestContinuousQueryService_Run(t *testing.T) {
 
 	// Set a callback for ExecuteStatement.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			callCnt++
 			if callCnt >= expectCallCnt {
 				done <- struct{}{}
@@ -120,7 +120,7 @@ func TestContinuousQueryService_ResampleOptions(t *testing.T) {
 
 	// Set a callback for ExecuteStatement.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			callCnt++
 			if callCnt >= expectCallCnt {
 				done <- struct{}{}
@@ -184,7 +184,7 @@ func TestContinuousQueryService_EveryHigherThanInterval(t *testing.T) {
 
 	// Set a callback for ExecuteQuery.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			callCnt++
 			if callCnt >= expectCallCnt {
 				done <- struct{}{}
@@ -239,7 +239,7 @@ func TestContinuousQueryService_NotLeader(t *testing.T) {
 	done := make(chan struct{})
 	// Set a callback for ExecuteStatement. Shouldn't get called because we're not the leader.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			done <- struct{}{}
 			ctx.Results <- &influxql.Result{Err: errUnexpected}
 			return nil
@@ -266,7 +266,7 @@ func TestContinuousQueryService_MetaClientFailsToGetDatabases(t *testing.T) {
 	done := make(chan struct{})
 	// Set ExecuteQuery callback, which shouldn't get called because of meta store failure.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			done <- struct{}{}
 			ctx.Results <- &influxql.Result{Err: errUnexpected}
 			return nil
@@ -287,7 +287,7 @@ func TestContinuousQueryService_MetaClientFailsToGetDatabases(t *testing.T) {
 func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 	s := NewTestService(t)
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			return errUnexpected
 		},
 	}
@@ -320,7 +320,7 @@ func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	s := NewTestService(t)
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			return errExpected
 		},
 	}
@@ -483,10 +483,10 @@ type QueryExecutor struct {
 
 // StatementExecutor is a mock statement executor.
 type StatementExecutor struct {
-	ExecuteStatementFn func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error
+	ExecuteStatementFn func(stmt influxql.Statement, ctx influxql.ExecutionContext) error
 }
 
-func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 	return e.ExecuteStatementFn(stmt, ctx)
 }
 

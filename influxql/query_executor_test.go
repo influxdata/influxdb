@@ -12,10 +12,10 @@ import (
 var errUnexpected = errors.New("unexpected error")
 
 type StatementExecutor struct {
-	ExecuteStatementFn func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error
+	ExecuteStatementFn func(stmt influxql.Statement, ctx influxql.ExecutionContext) error
 }
 
-func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 	return e.ExecuteStatementFn(stmt, ctx)
 }
 
@@ -31,7 +31,7 @@ func TestQueryExecutor_AttachQuery(t *testing.T) {
 
 	e := NewQueryExecutor()
 	e.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			if ctx.QueryID != 1 {
 				t.Errorf("incorrect query id: exp=1 got=%d", ctx.QueryID)
 			}
@@ -52,7 +52,7 @@ func TestQueryExecutor_KillQuery(t *testing.T) {
 
 	e := NewQueryExecutor()
 	e.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			switch stmt.(type) {
 			case *influxql.KillQueryStatement:
 				return e.TaskManager.ExecuteStatement(stmt, ctx)
@@ -90,7 +90,7 @@ func TestQueryExecutor_Interrupt(t *testing.T) {
 
 	e := NewQueryExecutor()
 	e.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			select {
 			case <-ctx.InterruptCh:
 				return influxql.ErrQueryInterrupted
@@ -118,7 +118,7 @@ func TestQueryExecutor_ShowQueries(t *testing.T) {
 
 	e := NewQueryExecutor()
 	e.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			switch stmt.(type) {
 			case *influxql.ShowQueriesStatement:
 				return e.TaskManager.ExecuteStatement(stmt, ctx)
@@ -152,7 +152,7 @@ func TestQueryExecutor_Limit_Timeout(t *testing.T) {
 
 	e := NewQueryExecutor()
 	e.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			select {
 			case <-ctx.InterruptCh:
 				return influxql.ErrQueryInterrupted
@@ -181,7 +181,7 @@ func TestQueryExecutor_Limit_ConcurrentQueries(t *testing.T) {
 
 	e := NewQueryExecutor()
 	e.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			qid <- ctx.QueryID
 			<-ctx.InterruptCh
 			return influxql.ErrQueryInterrupted
@@ -221,7 +221,7 @@ func TestQueryExecutor_Close(t *testing.T) {
 
 	e := NewQueryExecutor()
 	e.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			close(ch1)
 			<-ctx.InterruptCh
 			close(ch2)
@@ -268,7 +268,7 @@ func TestQueryExecutor_Panic(t *testing.T) {
 
 	e := NewQueryExecutor()
 	e.StatementExecutor = &StatementExecutor{
-		ExecuteStatementFn: func(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 			panic("test error")
 		},
 	}
