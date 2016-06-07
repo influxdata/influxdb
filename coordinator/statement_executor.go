@@ -407,7 +407,10 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 	// Handle SHOW TAG VALUES separately so it can be optimized.
 	// https://github.com/influxdata/influxdb/issues/6233
 	if source, ok := stmt.Sources[0].(*influxql.Measurement); ok && source.Name == "_tags" {
-		return e.executeShowTagValues(stmt, ctx)
+		// Use the optimized version only if we have direct access to the database.
+		if store, ok := e.TSDBStore.(LocalTSDBStore); ok {
+			return e.executeShowTagValues(stmt, ctx, store)
+		}
 	}
 
 	// It is important to "stamp" this time so that everywhere we evaluate `now()` in the statement is EXACTLY the same `now`
@@ -604,13 +607,13 @@ func (e *StatementExecutor) iteratorCreator(stmt *influxql.SelectStatement, opt 
 	return e.TSDBStore.IteratorCreator(shards)
 }
 
-func (e *StatementExecutor) executeShowTagValues(stmt *influxql.SelectStatement, ctx *influxql.ExecutionContext) error {
+func (e *StatementExecutor) executeShowTagValues(stmt *influxql.SelectStatement, ctx *influxql.ExecutionContext, store LocalTSDBStore) error {
 	if stmt.Condition == nil {
 		return errors.New("a condition is required")
 	}
 
 	source := stmt.Sources[0].(*influxql.Measurement)
-	index := e.TSDBStore.DatabaseIndex(source.Database)
+	index := store.DatabaseIndex(source.Database)
 	if index == nil {
 		ctx.Results <- &influxql.Result{StatementID: ctx.StatementID, Series: make([]*models.Row, 0)}
 		return nil
@@ -1139,9 +1142,7 @@ type TSDBStore interface {
 	DeleteRetentionPolicy(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShard(id uint64) error
-	DatabaseIndex(name string) *tsdb.DatabaseIndex
 	IteratorCreator(shards []meta.ShardInfo) (influxql.IteratorCreator, error)
-	ShardIteratorCreator(id uint64) influxql.IteratorCreator
 }
 
 type LocalTSDBStore struct {
