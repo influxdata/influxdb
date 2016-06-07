@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -514,6 +515,8 @@ func (s *Shard) createSystemIterator(opt influxql.IteratorOptions) (influxql.Ite
 		return NewSeriesIterator(s, opt)
 	case "_tagKeys":
 		return NewTagKeysIterator(s, opt)
+	case "_tags":
+		return NewTagValuesIterator(s, opt)
 	default:
 		return nil, fmt.Errorf("unknown system source: %s", m.Name)
 	}
@@ -1319,6 +1322,134 @@ type tagValuesIterator struct {
 	buf    struct {
 		s    *Series  // current series
 		keys []string // current tag's keys
+	}
+}
+
+// NewTagValuesIterator returns a new instance of TagValuesIterator.
+func NewTagValuesIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	if opt.Condition == nil {
+		return nil, errors.New("a condition is required")
+	}
+
+	measurementExpr := influxql.CloneExpr(opt.Condition)
+	measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				if !ok || tag.Val != "_name" {
+					return nil
+				}
+			}
+		}
+		return e
+	}), nil)
+
+	mms, ok, err := sh.index.measurementsByExpr(measurementExpr)
+	if err != nil {
+		return nil, err
+	} else if !ok {
+		mms = sh.index.Measurements()
+		sort.Sort(mms)
+	}
+
+	// If there are no measurements, return immediately.
+	if len(mms) == 0 {
+		return &tagValuesIterator{}, nil
+	}
+
+	filterExpr := influxql.CloneExpr(opt.Condition)
+	filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				if !ok || strings.HasPrefix(tag.Val, "_") {
+					return nil
+				}
+			}
+		}
+		return e
+	}), nil)
+
+	var series []*Series
+	keys := newStringSet()
+	for _, mm := range mms {
+		ss, ok, err := mm.TagKeysByExpr(opt.Condition)
+		if err != nil {
+			return nil, err
+		} else if !ok {
+			keys.add(mm.TagKeys()...)
+		} else {
+			keys = keys.union(ss)
+		}
+
+		ids, err := mm.seriesIDsAllOrByExpr(filterExpr)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, id := range ids {
+			series = append(series, mm.SeriesByID(id))
+		}
+	}
+
+	return &tagValuesIterator{
+		series: series,
+		keys:   keys.list(),
+		fields: influxql.VarRefs(opt.Aux).Strings(),
+	}, nil
+}
+
+// Stats returns stats about the points processed.
+func (itr *tagValuesIterator) Stats() influxql.IteratorStats { return influxql.IteratorStats{} }
+
+// Close closes the iterator.
+func (itr *tagValuesIterator) Close() error { return nil }
+
+// Next emits the next point in the iterator.
+func (itr *tagValuesIterator) Next() (*influxql.FloatPoint, error) {
+	for {
+		// If there are no more values then move to the next key.
+		if len(itr.buf.keys) == 0 {
+			if len(itr.series) == 0 {
+				return nil, nil
+			}
+
+			itr.buf.s = itr.series[0]
+			itr.buf.keys = itr.keys
+			itr.series = itr.series[1:]
+			continue
+		}
+
+		key := itr.buf.keys[0]
+		value, ok := itr.buf.s.Tags[key]
+		if !ok {
+			itr.buf.keys = itr.buf.keys[1:]
+			continue
+		}
+
+		// Prepare auxiliary fields.
+		auxFields := make([]interface{}, len(itr.fields))
+		for i, f := range itr.fields {
+			switch f {
+			case "_tagKey":
+				auxFields[i] = key
+			case "value":
+				auxFields[i] = value
+			}
+		}
+
+		// Return next key.
+		p := &influxql.FloatPoint{
+			Name: itr.buf.s.measurement.Name,
+			Aux:  auxFields,
+		}
+		itr.buf.keys = itr.buf.keys[1:]
+
+		return p, nil
 	}
 }
 
