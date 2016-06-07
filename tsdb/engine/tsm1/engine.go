@@ -385,11 +385,8 @@ func (e *Engine) Restore(r io.Reader, basePath string) error {
 			}
 		}
 
-		return nil
+		return syncDir(e.path)
 	}(); err != nil {
-		if err := e.Open(); err != nil {
-			log.Printf("error reopening engine after restore: %s", err)
-		}
 		return err
 	}
 
@@ -414,8 +411,11 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string) er
 		return err
 	}
 
+	destPath := filepath.Join(e.path, path)
+	tmp := destPath + ".tmp"
+
 	// Create new file on disk.
-	f, err := os.OpenFile(filepath.Join(e.path, path), os.O_CREATE|os.O_RDWR, 0666)
+	f, err := os.OpenFile(tmp, os.O_CREATE|os.O_RDWR, 0666)
 	if err != nil {
 		return err
 	}
@@ -430,7 +430,12 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string) er
 	if err := f.Sync(); err != nil {
 		return err
 	}
-	return f.Close()
+
+	if err := f.Close(); err != nil {
+		return err
+	}
+
+	return renameFile(tmp, destPath)
 }
 
 // addToIndexFromKey will pull the measurement name, series key, and field name from a composite key and add it to the
