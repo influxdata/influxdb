@@ -84,18 +84,20 @@ type Handler struct {
 
 	ContinuousQuerier continuous_querier.ContinuousQuerier
 
-	Config  *Config
-	Logger  *log.Logger
-	statMap *expvar.Map
+	Config    *Config
+	Logger    *log.Logger
+	CLFLogger *log.Logger
+	statMap   *expvar.Map
 }
 
 // NewHandler returns a new instance of handler with routes.
 func NewHandler(c Config, statMap *expvar.Map) *Handler {
 	h := &Handler{
-		mux:     pat.New(),
-		Config:  &c,
-		Logger:  log.New(os.Stderr, "[http] ", log.LstdFlags),
-		statMap: statMap,
+		mux:       pat.New(),
+		Config:    &c,
+		Logger:    log.New(os.Stderr, "[httpd] ", log.LstdFlags),
+		CLFLogger: log.New(os.Stderr, "[httpd] ", 0),
+		statMap:   statMap,
 	}
 
 	h.AddRoutes([]Route{
@@ -915,8 +917,7 @@ func (h *Handler) logging(inner http.Handler, name string) http.Handler {
 		start := time.Now()
 		l := &responseLogger{w: w}
 		inner.ServeHTTP(l, r)
-		logLine := buildLogLine(l, r, start)
-		h.Logger.Println(logLine)
+		h.CLFLogger.Println(buildLogLine(l, r, start))
 	})
 }
 

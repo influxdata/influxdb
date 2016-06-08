@@ -1,3 +1,13 @@
+## v1.0.0 [unreleased]
+
+### Release Notes
+
+### Features
+
+- [#6812](https://github.com/influxdata/influxdb/pull/6812): Make httpd logger closer to Common (& combined) Log Format.
+
+### Bugfixes
+
 ## v1.0.0-beta1 [2016-06-07]
 
 ### Release Notes
