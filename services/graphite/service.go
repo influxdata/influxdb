@@ -52,13 +52,14 @@ func (c *tcpConnection) Close() {
 type Service struct {
 	mu sync.Mutex
 
-	bindAddress   string
-	database      string
-	protocol      string
-	batchSize     int
-	batchPending  int
-	batchTimeout  time.Duration
-	udpReadBuffer int
+	bindAddress     string
+	database        string
+	retentionPolicy string
+	protocol        string
+	batchSize       int
+	batchPending    int
+	batchTimeout    time.Duration
+	udpReadBuffer   int
 
 	batcher *tsdb.PointBatcher
 	parser  *Parser
@@ -85,6 +86,10 @@ type Service struct {
 	}
 	MetaClient interface {
 		CreateDatabase(name string) (*meta.DatabaseInfo, error)
+		CreateDatabaseWithRetentionPolicy(name string, rpi *meta.RetentionPolicyInfo) (*meta.DatabaseInfo, error)
+		CreateRetentionPolicy(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
+		Database(name string) *meta.DatabaseInfo
+		RetentionPolicy(database, name string) (*meta.RetentionPolicyInfo, error)
 	}
 }
 
@@ -94,17 +99,18 @@ func NewService(c Config) (*Service, error) {
 	d := c.WithDefaults()
 
 	s := Service{
-		bindAddress:    d.BindAddress,
-		database:       d.Database,
-		protocol:       d.Protocol,
-		batchSize:      d.BatchSize,
-		batchPending:   d.BatchPending,
-		udpReadBuffer:  d.UDPReadBuffer,
-		batchTimeout:   time.Duration(d.BatchTimeout),
-		logger:         log.New(os.Stderr, "[graphite] ", log.LstdFlags),
-		tcpConnections: make(map[string]*tcpConnection),
-		done:           make(chan struct{}),
-		diagsKey:       strings.Join([]string{"graphite", d.Protocol, d.BindAddress}, ":"),
+		bindAddress:     d.BindAddress,
+		database:        d.Database,
+		retentionPolicy: d.RetentionPolicy,
+		protocol:        d.Protocol,
+		batchSize:       d.BatchSize,
+		batchPending:    d.BatchPending,
+		udpReadBuffer:   d.UDPReadBuffer,
+		batchTimeout:    time.Duration(d.BatchTimeout),
+		logger:          log.New(os.Stderr, "[graphite] ", log.LstdFlags),
+		tcpConnections:  make(map[string]*tcpConnection),
+		done:            make(chan struct{}),
+		diagsKey:        strings.Join([]string{"graphite", d.Protocol, d.BindAddress}, ":"),
 	}
 
 	parser, err := NewParserWithOptions(Options{
@@ -137,9 +143,19 @@ func (s *Service) Open() error {
 		s.Monitor.RegisterDiagnosticsClient(s.diagsKey, s)
 	}
 
-	if _, err := s.MetaClient.CreateDatabase(s.database); err != nil {
-		s.logger.Printf("Failed to ensure target database %s exists: %s", s.database, err.Error())
-		return err
+	if db := s.MetaClient.Database(s.database); db != nil {
+		if rp, _ := s.MetaClient.RetentionPolicy(s.database, s.retentionPolicy); rp == nil {
+			rpi := meta.NewRetentionPolicyInfo(s.retentionPolicy)
+			if _, err := s.MetaClient.CreateRetentionPolicy(s.database, rpi); err != nil {
+				s.logger.Printf("Failed to ensure target retention policy %s exists: %s", s.database, err.Error())
+			}
+		}
+	} else {
+		rpi := meta.NewRetentionPolicyInfo(s.retentionPolicy)
+		if _, err := s.MetaClient.CreateDatabaseWithRetentionPolicy(s.database, rpi); err != nil {
+			s.logger.Printf("Failed to ensure target database %s exists: %s", s.database, err.Error())
+			return err
+		}
 	}
 
 	s.batcher = tsdb.NewPointBatcher(s.batchSize, s.batchPending, s.batchTimeout)
@@ -355,7 +371,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 	for {
 		select {
 		case batch := <-batcher.Out():
-			if err := s.PointsWriter.WritePoints(s.database, "", models.ConsistencyLevelAny, batch); err == nil {
+			if err := s.PointsWriter.WritePoints(s.database, s.retentionPolicy, models.ConsistencyLevelAny, batch); err == nil {
 				s.statMap.Add(statBatchesTransmitted, 1)
 				s.statMap.Add(statPointsTransmitted, int64(len(batch)))
 			} else {

@@ -54,6 +54,7 @@ type Config struct {
 	Enabled          bool          `toml:"enabled"`
 	BindAddress      string        `toml:"bind-address"`
 	Database         string        `toml:"database"`
+	RetentionPolicy  string        `toml:"retention-policy"`
 	Protocol         string        `toml:"protocol"`
 	BatchSize        int           `toml:"batch-size"`
 	BatchPending     int           `toml:"batch-pending"`
