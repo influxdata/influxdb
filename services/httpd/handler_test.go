@@ -38,8 +38,8 @@ func TestHandler_Query(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
@@ -102,8 +102,8 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u=user1&p=abcd&db=foo&q=SELECT+*+FROM+bar", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if w.Body.String() != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 
 	// Test the handler with valid JWT bearer token.
@@ -116,8 +116,8 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if w.Body.String() != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 
 	// Test the handler with JWT token signed with invalid key.
@@ -130,8 +130,8 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if w.Body.String() != `{"error":"signature is invalid"}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"signature is invalid"}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 
 	// Test handler with valid JWT token carrying non-existant user.
@@ -142,8 +142,8 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if w.Body.String() != `{"error":"user not found"}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"user not found"}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 
 	// Test handler with expired JWT token.
@@ -170,8 +170,8 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
-	} else if w.Body.String() != `{"error":"token expiration required"}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"token expiration required"}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
@@ -205,8 +205,8 @@ func TestHandler_Query_MergeResults(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"results":[{"series":[{"name":"series0"},{"name":"series1"}]}]}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"series":[{"name":"series0"},{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
@@ -223,8 +223,8 @@ func TestHandler_Query_MergeEmptyResults(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"results":[{"series":[{"name":"series1"}]}]}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"series":[{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
@@ -258,8 +258,8 @@ func TestHandler_Query_ErrQueryRequired(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query", nil))
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"error":"missing required parameter \"q\""}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"missing required parameter \"q\""}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
@@ -270,8 +270,8 @@ func TestHandler_Query_ErrInvalidQuery(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?q=SELECT", nil))
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"error":"error parsing query: found EOF, expected identifier, string, number, bool at line 1, char 8"}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"error parsing query: found EOF, expected identifier, string, number, bool at line 1, char 8"}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
@@ -300,8 +300,8 @@ func TestHandler_Query_ErrResult(t *testing.T) {
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SHOW+SERIES+from+bin", nil))
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
-	} else if w.Body.String() != `{"results":[{"error":"measurement not found"}]}` {
-		t.Fatalf("unexpected body: %s", w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"error":"measurement not found"}]}` {
+		t.Fatalf("unexpected body: %s", body)
 	}
 }
 
@@ -388,28 +388,6 @@ func TestHandler_HandleBadRequestBody(t *testing.T) {
 	h.ServeHTTP(w, MustNewRequest("POST", "/write", b))
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", w.Code)
-	}
-}
-
-func TestMarshalJSON_NoPretty(t *testing.T) {
-	if b := httpd.MarshalJSON(struct {
-		Name string `json:"name"`
-	}{Name: "foo"}, false); string(b) != `{"name":"foo"}` {
-		t.Fatalf("unexpected bytes: %s", b)
-	}
-}
-
-func TestMarshalJSON_Pretty(t *testing.T) {
-	if b := httpd.MarshalJSON(struct {
-		Name string `json:"name"`
-	}{Name: "foo"}, true); string(b) != "{\n    \"name\": \"foo\"\n}" {
-		t.Fatalf("unexpected bytes: %q", string(b))
-	}
-}
-
-func TestMarshalJSON_Error(t *testing.T) {
-	if b := httpd.MarshalJSON(&invalidJSON{}, true); string(b) != "json: error calling MarshalJSON for type *httpd_test.invalidJSON: marker" {
-		t.Fatalf("unexpected bytes: %q", string(b))
 	}
 }
 
