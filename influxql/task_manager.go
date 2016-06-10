@@ -183,6 +183,32 @@ func (t *TaskManager) KillQuery(qid uint64) error {
 	return nil
 }
 
+// QueryInfo represents the information for a query.
+type QueryInfo struct {
+	ID       uint64        `json:"id"`
+	Query    string        `json:"query"`
+	Database string        `json:"database"`
+	Duration time.Duration `json:"duration"`
+}
+
+// Queries returns a list of all running queries with information about them.
+func (t *TaskManager) Queries() []QueryInfo {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	now := time.Now()
+	queries := make([]QueryInfo, 0, len(t.queries))
+	for id, qi := range t.queries {
+		queries = append(queries, QueryInfo{
+			ID:       id,
+			Query:    qi.query,
+			Database: qi.database,
+			Duration: now.Sub(qi.startTime),
+		})
+	}
+	return queries
+}
+
 func (t *TaskManager) waitForQuery(qid uint64, interrupt <-chan struct{}, closing <-chan struct{}, monitorCh <-chan error) {
 	var timerCh <-chan time.Time
 	if t.QueryTimeout != 0 {
