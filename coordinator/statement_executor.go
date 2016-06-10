@@ -26,6 +26,9 @@ type pointsWriter interface {
 type StatementExecutor struct {
 	MetaClient MetaClient
 
+	// TaskManager holds the StatementExecutor that handles task-related commands.
+	TaskManager influxql.StatementExecutor
+
 	// TSDB storage for local node.
 	TSDBStore TSDBStore
 
@@ -41,10 +44,10 @@ type StatementExecutor struct {
 	MaxSelectBucketsN int
 }
 
-func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *influxql.ExecutionContext) error {
+func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 	// Select statements are handled separately so that they can be streamed.
 	if stmt, ok := stmt.(*influxql.SelectStatement); ok {
-		return e.executeSelectStatement(stmt, ctx)
+		return e.executeSelectStatement(stmt, &ctx)
 	}
 
 	var rows models.Rows
@@ -182,6 +185,9 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *influ
 			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
 		}
 		err = e.executeSetPasswordUserStatement(stmt)
+	case *influxql.ShowQueriesStatement, *influxql.KillQueryStatement:
+		// Send query related statements to the task manager.
+		return e.TaskManager.ExecuteStatement(stmt, ctx)
 	default:
 		return influxql.ErrInvalidQuery
 	}
