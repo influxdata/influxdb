@@ -345,6 +345,35 @@ func (e *QueryExecutor) query(qid uint64) (*QueryTask, bool) {
 	return query, ok
 }
 
+// newQuery creates a new query to be managed by the QueryExecutor.
+func (e *QueryExecutor) newQuery(q *Query, database string, interrupt <-chan struct{}) (uint64, *QueryTask, error) {
+	task := &QueryTask{
+		query:     q.String(),
+		database:  database,
+		startTime: time.Now(),
+		closing:   make(chan struct{}),
+		monitorCh: make(chan error),
+	}
+
+	e.mu.Lock()
+	if e.shutdown {
+		e.mu.Unlock()
+		return 0, nil, ErrQueryEngineShutdown
+	}
+
+	if e.MaxConcurrentQueries > 0 && len(e.queries) >= e.MaxConcurrentQueries {
+		e.mu.Unlock()
+		return 0, nil, ErrMaxConcurrentQueriesReached
+	}
+
+	// Retrieve the query id and unlock the mutex.
+	qid := e.nextID
+	e.queries[qid] = task
+	e.nextID++
+	e.mu.Unlock()
+	return qid, task, nil
+}
+
 // attachQuery attaches a running query to be managed by the QueryExecutor.
 // Returns the query id of the newly attached query or an error if it was
 // unable to assign a query id or attach the query to the QueryExecutor.
@@ -353,44 +382,26 @@ func (e *QueryExecutor) query(qid uint64) (*QueryTask, bool) {
 //
 // After a query finishes running, the system is free to reuse a query id.
 func (e *QueryExecutor) attachQuery(q *Query, database string, interrupt <-chan struct{}) (uint64, *QueryTask, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	if e.shutdown {
-		return 0, nil, ErrQueryEngineShutdown
+	qid, task, err := e.newQuery(q, database, interrupt)
+	if err != nil {
+		return 0, nil, err
 	}
 
-	if e.MaxConcurrentQueries > 0 && len(e.queries) >= e.MaxConcurrentQueries {
-		return 0, nil, ErrMaxConcurrentQueriesReached
-	}
-
-	qid := e.nextID
-	query := &QueryTask{
-		query:     q.String(),
-		database:  database,
-		startTime: time.Now(),
-		closing:   make(chan struct{}),
-		monitorCh: make(chan error),
-	}
-	e.queries[qid] = query
-
-	go e.waitForQuery(qid, query.closing, interrupt, query.monitorCh)
+	go e.waitForQuery(qid, task.closing, interrupt, task.monitorCh)
 	if e.LogQueriesAfter != 0 {
-		go query.monitor(func(closing <-chan struct{}) error {
+		go task.monitor(func(closing <-chan struct{}) error {
 			t := time.NewTimer(e.LogQueriesAfter)
-			defer t.Stop()
-
 			select {
 			case <-t.C:
 				e.Logger.Printf("Detected slow query: %s (qid: %d, database: %s, threshold: %s)",
-					query.query, qid, query.database, e.LogQueriesAfter)
+					task.query, qid, task.database, e.LogQueriesAfter)
 			case <-closing:
+				t.Stop()
 			}
 			return nil
 		})
 	}
-	e.nextID++
-	return qid, query, nil
+	return qid, task, nil
 }
 
 // killQuery stops and removes a query from the QueryExecutor.
