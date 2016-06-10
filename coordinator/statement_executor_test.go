@@ -247,7 +247,7 @@ func (s *TSDBStore) DeleteSeries(database string, sources []influxql.Source, con
 	return s.DeleteSeriesFn(database, sources, condition)
 }
 
-func (s *TSDBStore) IteratorCreator(shards []meta.ShardInfo) (influxql.IteratorCreator, error) {
+func (s *TSDBStore) IteratorCreator(shards []meta.ShardInfo, opt *influxql.SelectOptions) (influxql.IteratorCreator, error) {
 	// Generate iterators for each node.
 	ics := make([]influxql.IteratorCreator, 0)
 	if err := func() error {

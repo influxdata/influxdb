@@ -415,7 +415,10 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 
 	// It is important to "stamp" this time so that everywhere we evaluate `now()` in the statement is EXACTLY the same `now`
 	now := time.Now().UTC()
-	opt := influxql.SelectOptions{InterruptCh: ctx.InterruptCh}
+	opt := influxql.SelectOptions{
+		InterruptCh: ctx.InterruptCh,
+		NodeID:      ctx.ExecutionOptions.NodeID,
+	}
 
 	// Replace instances of "now()" with the current time, and check the resultant times.
 	nowValuer := influxql.NowValuer{Now: now}
@@ -604,7 +607,7 @@ func (e *StatementExecutor) iteratorCreator(stmt *influxql.SelectStatement, opt 
 	if err != nil {
 		return nil, err
 	}
-	return e.TSDBStore.IteratorCreator(shards)
+	return e.TSDBStore.IteratorCreator(shards, opt)
 }
 
 func (e *StatementExecutor) executeShowTagValues(stmt *influxql.SelectStatement, ctx *influxql.ExecutionContext, store LocalTSDBStore) error {
@@ -1142,19 +1145,19 @@ type TSDBStore interface {
 	DeleteRetentionPolicy(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShard(id uint64) error
-	IteratorCreator(shards []meta.ShardInfo) (influxql.IteratorCreator, error)
+	IteratorCreator(shards []meta.ShardInfo, opt *influxql.SelectOptions) (influxql.IteratorCreator, error)
 }
 
 type LocalTSDBStore struct {
 	*tsdb.Store
 }
 
-func (s LocalTSDBStore) IteratorCreator(shards []meta.ShardInfo) (influxql.IteratorCreator, error) {
+func (s LocalTSDBStore) IteratorCreator(shards []meta.ShardInfo, opt *influxql.SelectOptions) (influxql.IteratorCreator, error) {
 	shardIDs := make([]uint64, len(shards))
 	for i, sh := range shards {
 		shardIDs[i] = sh.ID
 	}
-	return s.Store.IteratorCreator(shardIDs)
+	return s.Store.IteratorCreator(shardIDs, opt)
 }
 
 // ShardIteratorCreator is an interface for creating an IteratorCreator to access a specific shard.
