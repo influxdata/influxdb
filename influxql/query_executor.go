@@ -63,6 +63,9 @@ type ExecutionOptions struct {
 
 	// If this query is being executed in a read-only context.
 	ReadOnly bool
+
+	// Node to execute on.
+	NodeID uint64
 }
 
 // ExecutionContext contains state that the query is currently executing with.

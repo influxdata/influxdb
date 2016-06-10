@@ -267,6 +267,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	}(time.Now())
 
 	pretty := r.FormValue("pretty") == "true"
+	nodeID, _ := strconv.ParseUint(r.FormValue("node_id"), 10, 64)
 
 	qp := strings.TrimSpace(r.FormValue("q"))
 	if qp == "" {
@@ -370,6 +371,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 		Database:  db,
 		ChunkSize: chunkSize,
 		ReadOnly:  r.Method == "GET",
+		NodeID:    nodeID,
 	}, closing)
 
 	// if we're not chunking, this will be the in memory buffer for all results before sending to client

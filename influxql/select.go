@@ -15,6 +15,10 @@ type SelectOptions struct {
 	// The upper bound for a select call.
 	MaxTime time.Time
 
+	// Node to exclusively read from.
+	// If zero, all nodes are used.
+	NodeID uint64
+
 	// An optional channel that, if closed, signals that the select should be
 	// interrupted.
 	InterruptCh <-chan struct{}

@@ -709,7 +709,7 @@ func (s *Store) IteratorCreators() influxql.IteratorCreators {
 	return a
 }
 
-func (s *Store) IteratorCreator(shards []uint64) (influxql.IteratorCreator, error) {
+func (s *Store) IteratorCreator(shards []uint64, opt *influxql.SelectOptions) (influxql.IteratorCreator, error) {
 	// Generate iterators for each node.
 	ics := make([]influxql.IteratorCreator, 0)
 	if err := func() error {
