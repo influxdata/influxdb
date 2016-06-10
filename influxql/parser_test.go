@@ -1129,6 +1129,15 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// KILL QUERY 4 ON localhost
+		{
+			s: `KILL QUERY 4 ON localhost`,
+			stmt: &influxql.KillQueryStatement{
+				QueryID: 4,
+				Host:    "localhost",
+			},
+		},
+
 		// SHOW RETENTION POLICIES
 		{
 			s: `SHOW RETENTION POLICIES ON mydb`,
@@ -2312,6 +2321,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `GRANT ALL PRIVILEGES TO`, err: `found EOF, expected identifier at line 1, char 25`},
 		{s: `KILL`, err: `found EOF, expected QUERY at line 1, char 6`},
 		{s: `KILL QUERY 10s`, err: `found 10s, expected integer at line 1, char 12`},
+		{s: `KILL QUERY 4 ON 'host'`, err: `found host, expected identifier at line 1, char 16`},
 		{s: `REVOKE`, err: `found EOF, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 8`},
 		{s: `REVOKE BOGUS`, err: `found BOGUS, expected READ, WRITE, ALL [PRIVILEGES] at line 1, char 8`},
 		{s: `REVOKE READ`, err: `found EOF, expected ON at line 1, char 13`},

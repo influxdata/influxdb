@@ -685,10 +685,20 @@ func (s *GrantAdminStatement) RequiredPrivileges() (ExecutionPrivileges, error) 
 type KillQueryStatement struct {
 	// The query to kill.
 	QueryID uint64
+
+	// The host to delegate the kill to.
+	Host string
 }
 
 func (s *KillQueryStatement) String() string {
-	return fmt.Sprintf("KILL QUERY %d", s.QueryID)
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("KILL QUERY ")
+	_, _ = buf.WriteString(strconv.FormatUint(s.QueryID, 10))
+	if s.Host != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(QuoteIdent(s.Host))
+	}
+	return buf.String()
 }
 
 func (s *KillQueryStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
