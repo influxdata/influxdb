@@ -486,10 +486,6 @@ func (e *HandlerStatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx
 	return e.ExecuteStatementFn(stmt, ctx)
 }
 
-func (e *HandlerStatementExecutor) NormalizeStatement(stmt influxql.Statement, database string) error {
-	return nil
-}
-
 // HandlerQueryAuthorizer is a mock implementation of Handler.QueryAuthorizer.
 type HandlerQueryAuthorizer struct {
 	AuthorizeQueryFn func(u *meta.UserInfo, query *influxql.Query, database string) error

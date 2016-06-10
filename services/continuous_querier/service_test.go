@@ -490,10 +490,6 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *influ
 	return e.ExecuteStatementFn(stmt, ctx)
 }
 
-func (e *StatementExecutor) NormalizeStatement(stmt influxql.Statement, database string) error {
-	return nil
-}
-
 // NewQueryExecutor returns a *QueryExecutor.
 func NewQueryExecutor(t *testing.T) *QueryExecutor {
 	e := influxql.NewQueryExecutor()

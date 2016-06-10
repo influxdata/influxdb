@@ -173,6 +173,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.QueryExecutor = influxql.NewQueryExecutor()
 	s.QueryExecutor.StatementExecutor = &coordinator.StatementExecutor{
 		MetaClient:        s.MetaClient,
+		TaskManager:       s.QueryExecutor.TaskManager,
 		TSDBStore:         coordinator.LocalTSDBStore{Store: s.TSDBStore},
 		Monitor:           s.Monitor,
 		PointsWriter:      s.PointsWriter,
@@ -180,9 +181,9 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		MaxSelectSeriesN:  c.Coordinator.MaxSelectSeriesN,
 		MaxSelectBucketsN: c.Coordinator.MaxSelectBucketsN,
 	}
-	s.QueryExecutor.QueryTimeout = time.Duration(c.Coordinator.QueryTimeout)
-	s.QueryExecutor.LogQueriesAfter = time.Duration(c.Coordinator.LogQueriesAfter)
-	s.QueryExecutor.MaxConcurrentQueries = c.Coordinator.MaxConcurrentQueries
+	s.QueryExecutor.TaskManager.QueryTimeout = time.Duration(c.Coordinator.QueryTimeout)
+	s.QueryExecutor.TaskManager.LogQueriesAfter = time.Duration(c.Coordinator.LogQueriesAfter)
+	s.QueryExecutor.TaskManager.MaxConcurrentQueries = c.Coordinator.MaxConcurrentQueries
 
 	// Initialize the monitor
 	s.Monitor.Version = s.buildInfo.Version
