@@ -64,7 +64,6 @@ func NewService(c Config) *Service {
 	s := &Service{
 		Logger:        log.New(os.Stderr, "[subscriber] ", log.LstdFlags),
 		statMap:       influxdb.NewStatistics("subscriber", "subscriber", nil),
-		points:        make(chan *coordinator.WritePointsRequest, 100),
 		closed:        true,
 		conf:          c,
 		failures:      &expvar.Int{},
@@ -88,6 +87,7 @@ func (s *Service) Open() error {
 
 	s.closing = make(chan struct{})
 	s.update = make(chan struct{})
+	s.points = make(chan *coordinator.WritePointsRequest, 100)
 
 	s.wg.Add(2)
 	go func() {
