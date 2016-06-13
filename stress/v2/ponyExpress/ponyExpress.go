@@ -107,17 +107,20 @@ func (pe *ponyExpress) listen() {
 	l := NewConcurrencyLimiter((pe.wconc + pe.qconc) * 2)
 
 	// Concume incoming packages
+	counter := 0
 	for p := range pe.packageChan {
+		serv := counter % len(pe.addresses)
 		l.Increment()
 		go func(p Package) {
 			defer l.Decrement()
 			switch p.T {
 			case Write:
-				pe.spinOffWritePackage(p)
+				pe.spinOffWritePackage(p, serv)
 			case Query:
-				pe.spinOffQueryPackage(p)
+				pe.spinOffQueryPackage(p, serv)
 			}
 		}(p)
+		counter++
 	}
 
 }
