@@ -9,22 +9,22 @@ import (
 	"time"
 )
 
-func (pe *ponyExpress) spinOffQueryPackage(p Package) {
+func (pe *ponyExpress) spinOffQueryPackage(p Package, serv int) {
 	pe.Add(1)
 	pe.rc.Increment()
 	go func() {
 		// Send the query
-		pe.prepareQuerySend(p)
+		pe.prepareQuerySend(p, serv)
 		pe.Done()
 		pe.rc.Decrement()
 	}()
 }
 
 // Prepares to send the GET request
-func (pe *ponyExpress) prepareQuerySend(p Package) {
+func (pe *ponyExpress) prepareQuerySend(p Package, serv int) {
 
 	// TODO: Implement round robin queryies
-	queryURL := fmt.Sprintf("http://%v/query?db=%v&q=%v", pe.addresses[0], pe.database, url.QueryEscape(string(p.Body)))
+	queryURL := fmt.Sprintf("http://%v/query?db=%v&q=%v", pe.addresses[serv], pe.database, url.QueryEscape(string(p.Body)))
 
 	// Send the query
 	pe.makeGet(queryURL, p.StatementID, p.Tracer)

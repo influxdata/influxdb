@@ -14,18 +14,18 @@ import (
 // ###############################################
 
 // Packages up Package from channel in goroutine
-func (pe *ponyExpress) spinOffWritePackage(p Package) {
+func (pe *ponyExpress) spinOffWritePackage(p Package, serv int) {
 	pe.Add(1)
 	pe.wc.Increment()
 	go func() {
-		pe.retry(p, time.Duration(time.Nanosecond))
+		pe.retry(p, time.Duration(time.Nanosecond), serv)
 		pe.Done()
 		pe.wc.Decrement()
 	}()
 }
 
 // Implements backoff and retry logic for 500 responses
-func (pe *ponyExpress) retry(p Package, backoff time.Duration) {
+func (pe *ponyExpress) retry(p Package, backoff time.Duration, serv int) {
 
 	// Set Backoff Interval to 500ms
 	backoffInterval := time.Duration(500 * time.Millisecond)
@@ -34,7 +34,7 @@ func (pe *ponyExpress) retry(p Package, backoff time.Duration) {
 	bo := backoff + backoffInterval
 
 	// Make the write request
-	resp, elapsed, err := pe.prepareWrite(p.Body)
+	resp, elapsed, err := pe.prepareWrite(p.Body, serv)
 
 	// Find number of times request has been retried
 	numBackoffs := int(bo/backoffInterval) - 1
@@ -66,17 +66,17 @@ func (pe *ponyExpress) retry(p Package, backoff time.Duration) {
 		fmt.Println(err)
 		// Backoff enforcement
 		time.Sleep(bo)
-		pe.retry(p, bo)
+		pe.retry(p, bo, serv)
 	}
 
 }
 
 // Prepares to send the POST request
-func (pe *ponyExpress) prepareWrite(points []byte) (*http.Response, time.Duration, error) {
+func (pe *ponyExpress) prepareWrite(points []byte, serv int) (*http.Response, time.Duration, error) {
 
 	// Construct address string
 	writeTemplate := "http://%v/write?db=%v&precision=%v"
-	address := fmt.Sprintf(writeTemplate, pe.addresses[0], pe.database, pe.precision)
+	address := fmt.Sprintf(writeTemplate, pe.addresses[serv], pe.database, pe.precision)
 
 	// Start timer
 	t := time.Now()
