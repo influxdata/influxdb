@@ -324,24 +324,24 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 		}
 	}
 
-	// Now we know where the key region is within buf, and the locations of tags, we
-	// need to determine if duplicate tags exist and if the tags are sorted.  This iterates
-	// 1/2 of the list comparing each end with each other, walking towards the center from
-	// both sides.
-	for j := 0; j < commas/2; j++ {
+	// Now we know where the key region is within buf, and the location of tags, we
+	// need to determine if duplicate tags exist and if the tags are sorted. This iterates
+	// over the list comparing each tag in the sequence with each other.
+	for j := 0; j < commas-1; j++ {
 		// get the left and right tags
 		_, left := scanTo(buf[indices[j]:indices[j+1]-1], 0, '=')
-		_, right := scanTo(buf[indices[commas-j-1]:indices[commas-j]-1], 0, '=')
+		_, right := scanTo(buf[indices[j+1]:indices[j+2]-1], 0, '=')
 
-		// If the tags are equal, then there are duplicate tags, and we should abort
-		if bytes.Equal(left, right) {
-			return i, buf[start:i], fmt.Errorf("duplicate tags")
-		}
-
-		// If left is greater than right, the tags are not sorted.  We must continue
-		// since their could be duplicate tags still.
-		if bytes.Compare(left, right) > 0 {
+		// If left is greater than right, the tags are not sorted. We do not have to
+		// continue because the short path no longer works.
+		// If the tags are equal, then there are duplicate tags, and we should abort.
+		// If the tags are not sorted, this pass may not find duplicate tags and we
+		// need to do a more exhaustive search later.
+		if cmp := bytes.Compare(left, right); cmp > 0 {
 			sorted = false
+			break
+		} else if cmp == 0 {
+			return i, buf[start:i], fmt.Errorf("duplicate tags")
 		}
 	}
 
@@ -365,6 +365,20 @@ func scanKey(buf []byte, i int) (int, []byte, error) {
 			pos++
 			_, v := scanToSpaceOr(buf, i, ',')
 			pos += copy(b[pos:], v)
+		}
+
+		// Check again for duplicate tags now that the tags are sorted.
+		for j := 0; j < commas-1; j++ {
+			// get the left and right tags
+			_, left := scanTo(buf[indices[j]:], 0, '=')
+			_, right := scanTo(buf[indices[j+1]:], 0, '=')
+
+			// If the tags are equal, then there are duplicate tags, and we should abort.
+			// If the tags are not sorted, this pass may not find duplicate tags and we
+			// need to do a more exhaustive search later.
+			if bytes.Equal(left, right) {
+				return i, b, fmt.Errorf("duplicate tags")
+			}
 		}
 
 		return i, b, nil
