@@ -56,6 +56,7 @@
 - [#6685](https://github.com/influxdata/influxdb/issues/6685): Batch SELECT INTO / CQ writes
 - [#6756](https://github.com/influxdata/influxdb/issues/6756): Set X-Influxdb-Version header on every request (even 404 requests).
 - [#6760](https://github.com/influxdata/influxdb/issues/6760): Prevent panic in concurrent auth cache write
+- [#6771](https://github.com/influxdata/influxdb/issues/6771): Fix the point validation parser to identify and sort tags correctly.
 
 ## v0.13.0 [2016-05-12]
 
