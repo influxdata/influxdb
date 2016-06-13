@@ -24,6 +24,7 @@
 - [#3733](https://github.com/influxdata/influxdb/issues/3733): Modify the default retention policy name and make it configurable.
 - [#5655](https://github.com/influxdata/influxdb/issues/5655): Support specifying a retention policy for the graphite service.
 - [#6820](https://github.com/influxdata/influxdb/issues/6820): Add NodeID to execution options
+- [#4532](https://github.com/influxdata/influxdb/issues/4532): Support regex selection in SHOW TAG VALUES for the key.
 
 ### Bugfixes
 

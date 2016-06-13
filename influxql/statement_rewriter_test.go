@@ -112,6 +112,14 @@ func TestRewriteStatement(t *testing.T) {
 			s:    `SELECT _tagKey AS "key", value FROM mydb.myrp1._tags WHERE (_name = 'cpu') AND (_tagKey = 'region' OR _tagKey = 'host')`,
 		},
 		{
+			stmt: `SHOW TAG VALUES FROM cpu WITH KEY =~ /(region|host)/`,
+			s:    `SELECT _tagKey AS "key", value FROM _tags WHERE (_name = 'cpu') AND (_tagKey =~ /(region|host)/)`,
+		},
+		{
+			stmt: `SHOW TAG VALUES FROM mydb.myrp1.cpu WITH KEY =~ /(region|host)/`,
+			s:    `SELECT _tagKey AS "key", value FROM mydb.myrp1._tags WHERE (_name = 'cpu') AND (_tagKey =~ /(region|host)/)`,
+		},
+		{
 			stmt: `SELECT value FROM cpu`,
 			s:    `SELECT value FROM cpu`,
 		},

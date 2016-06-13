@@ -5554,8 +5554,20 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
+			name:    "show tag values with key regex",
+			command: "SHOW TAG VALUES WITH KEY =~ /ho/",
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["key","value"],"values":[["host","server01"],["host","server02"]]},{"name":"disk","columns":["key","value"],"values":[["host","server03"]]},{"name":"gpu","columns":["key","value"],"values":[["host","server02"],["host","server03"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
 			name:    `show tag values with key and where`,
 			command: `SHOW TAG VALUES FROM cpu WITH KEY = host WHERE region = 'uswest'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["key","value"],"values":[["host","server01"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show tag values with key regex and where`,
+			command: `SHOW TAG VALUES FROM cpu WITH KEY =~ /ho/ WHERE region = 'uswest'`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["key","value"],"values":[["host","server01"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
@@ -5586,6 +5598,12 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 		&Query{
 			name:    `show tag values with key in and where does not match the regular expression`,
 			command: `SHOW TAG VALUES FROM cpu WITH KEY IN (host, region) WHERE region = 'uswest'`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["key","value"],"values":[["host","server01"],["region","uswest"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    `show tag values with key regex and where does not match the regular expression`,
+			command: `SHOW TAG VALUES FROM cpu WITH KEY =~ /(host|region)/ WHERE region = 'uswest'`,
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["key","value"],"values":[["host","server01"],["region","uswest"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},

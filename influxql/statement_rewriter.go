@@ -90,9 +90,9 @@ func rewriteShowTagValuesStatement(stmt *ShowTagValuesStatement) (Statement, err
 	}
 
 	condition := stmt.Condition
-	if len(stmt.TagKeys) > 0 {
-		var expr Expr
-		for _, tagKey := range stmt.TagKeys {
+	var expr Expr
+	if list, ok := stmt.TagKeyExpr.(*ListLiteral); ok {
+		for _, tagKey := range list.Vals {
 			tagExpr := &BinaryExpr{
 				Op:  EQ,
 				LHS: &VarRef{Val: "_tagKey"},
@@ -109,16 +109,22 @@ func rewriteShowTagValuesStatement(stmt *ShowTagValuesStatement) (Statement, err
 				expr = tagExpr
 			}
 		}
+	} else {
+		expr = &BinaryExpr{
+			Op:  stmt.Op,
+			LHS: &VarRef{Val: "_tagKey"},
+			RHS: stmt.TagKeyExpr,
+		}
+	}
 
-		// Set condition or "AND" together.
-		if condition == nil {
-			condition = expr
-		} else {
-			condition = &BinaryExpr{
-				Op:  AND,
-				LHS: &ParenExpr{Expr: condition},
-				RHS: &ParenExpr{Expr: expr},
-			}
+	// Set condition or "AND" together.
+	if condition == nil {
+		condition = expr
+	} else {
+		condition = &BinaryExpr{
+			Op:  AND,
+			LHS: &ParenExpr{Expr: condition},
+			RHS: &ParenExpr{Expr: expr},
 		}
 	}
 	condition = rewriteSourcesCondition(stmt.Sources, condition)
