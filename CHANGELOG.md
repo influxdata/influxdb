@@ -71,6 +71,7 @@
 - [#6760](https://github.com/influxdata/influxdb/issues/6760): Prevent panic in concurrent auth cache write
 - [#6771](https://github.com/influxdata/influxdb/issues/6771): Fix the point validation parser to identify and sort tags correctly.
 - [#6835](https://github.com/influxdata/influxdb/pull/6835): Include sysvinit-tools as an rpm dependency.
+- [#6834](https://github.com/influxdata/influxdb/pull/6834): Add port to all graphite log output to help with debugging multiple endpoints
 
 ## v0.13.0 [2016-05-12]
 
