@@ -75,8 +75,13 @@ func (pe *ponyExpress) retry(p Package, backoff time.Duration, serv int) {
 func (pe *ponyExpress) prepareWrite(points []byte, serv int) (*http.Response, time.Duration, error) {
 
 	// Construct address string
-	writeTemplate := "http://%v/write?db=%v&precision=%v"
-	address := fmt.Sprintf(writeTemplate, pe.addresses[serv], pe.database, pe.precision)
+	var writeTemplate string
+	if pe.ssl {
+		writeTemplate = "https://%v/write?db=%v&precision=%v&u=%v&p=%v"
+	} else {
+		writeTemplate = "http://%v/write?db=%v&precision=%v&u=%v&p=%v"
+	}
+	address := fmt.Sprintf(writeTemplate, pe.addresses[serv], pe.database, pe.precision, pe.username, pe.password)
 
 	// Start timer
 	t := time.Now()
