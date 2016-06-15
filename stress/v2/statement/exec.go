@@ -3,7 +3,7 @@ package statement
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/stress/v2/ponyExpress"
+	"github.com/influxdata/influxdb/stress/v2/stress_client"
 )
 
 // ExecStatement run outside scripts. This functionality is not built out
@@ -21,12 +21,12 @@ func (i *ExecStatement) SetID(s string) {
 }
 
 // Run statisfies the Statement Interface
-func (i *ExecStatement) Run(s *ponyExpress.StoreFront) {
+func (i *ExecStatement) Run(s *stressClient.StressTest) {
 	runtime := time.Now()
 	i.runtime = time.Since(runtime)
 }
 
 // Report statisfies the Statement Interface
-func (i *ExecStatement) Report(s *ponyExpress.StoreFront) string {
+func (i *ExecStatement) Report(s *stressClient.StressTest) string {
 	return ""
 }

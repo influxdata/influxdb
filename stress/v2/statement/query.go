@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/stress/v2/ponyExpress"
+	"github.com/influxdata/influxdb/stress/v2/stress_client"
 )
 
 // QueryStatement is a Statement Implementation to run queries on the target InfluxDB instance
@@ -22,7 +22,7 @@ type QueryStatement struct {
 	Count int
 
 	// Tracer for tracking returns
-	Tracer *ponyExpress.Tracer
+	Tracer *stressClient.Tracer
 
 	// track time for all queries
 	runtime time.Duration
@@ -40,10 +40,9 @@ func (i *QueryStatement) SetID(s string) {
 }
 
 // Run statisfies the Statement Interface
-func (i *QueryStatement) Run(s *ponyExpress.StoreFront) {
+func (i *QueryStatement) Run(s *stressClient.StressTest) {
 
-	// Set the tracer
-	i.Tracer = ponyExpress.NewTracer(i.tags())
+	i.Tracer = stressClient.NewTracer(i.tags())
 
 	vals := make(map[string]interface{})
 
@@ -58,7 +57,7 @@ func (i *QueryStatement) Run(s *ponyExpress.StoreFront) {
 			b := []byte(i.TemplateString)
 
 			// Make the package
-			p := ponyExpress.NewPackage(ponyExpress.Query, b, i.StatementID, i.Tracer)
+			p := stressClient.NewPackage(stressClient.Query, b, i.StatementID, i.Tracer)
 
 			// Increment the tracer
 			i.Tracer.Add(1)
@@ -71,7 +70,7 @@ func (i *QueryStatement) Run(s *ponyExpress.StoreFront) {
 
 			// TODO: Currently the program lock up here if s.GetPoint
 			//       cannot return a value, which can happen.
-			// Seee insert.go
+			// See insert.go
 			s.Lock()
 			point = s.GetPoint(i.Name, s.Precision)
 			s.Unlock()
@@ -82,7 +81,7 @@ func (i *QueryStatement) Run(s *ponyExpress.StoreFront) {
 			b := []byte(fmt.Sprintf(i.TemplateString, setArgs(vals, i.Args)...))
 
 			// Make the package
-			p := ponyExpress.NewPackage(ponyExpress.Query, b, i.StatementID, i.Tracer)
+			p := stressClient.NewPackage(stressClient.Query, b, i.StatementID, i.Tracer)
 
 			// Increment the tracer
 			i.Tracer.Add(1)
@@ -101,8 +100,8 @@ func (i *QueryStatement) Run(s *ponyExpress.StoreFront) {
 }
 
 // Report statisfies the Statement Interface
-func (i *QueryStatement) Report(s *ponyExpress.StoreFront) string {
-	// Pull data via StoreFront client
+func (i *QueryStatement) Report(s *stressClient.StressTest) string {
+	// Pull data via StressTest client
 	allData := s.GetStatementResults(i.StatementID, "query")
 
 	if len(allData) == 0 || allData[0].Series == nil {

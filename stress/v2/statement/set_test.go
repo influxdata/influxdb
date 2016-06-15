@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/influxdata/influxdb/stress/v2/ponyExpress"
+	"github.com/influxdata/influxdb/stress/v2/stress_client"
 )
 
 func TestSetSetID(t *testing.T) {
@@ -37,15 +37,15 @@ func TestSetRun(t *testing.T) {
 
 func testSetRunUtl(t *testing.T, property string, value string) {
 	i := newTestSet(property, value)
-	s, _, directiveCh := ponyExpress.NewTestStoreFront()
+	s, _, directiveCh := stressClient.NewTestStressTest()
 	// Listen to the other side of the directiveCh
 	go func() {
 		for d := range directiveCh {
 			if i.Var != d.Property {
-				t.Errorf("wrong property sent to ponyExpress\n  expected: %v\n got: %v\n", i.Var, d.Property)
+				t.Errorf("wrong property sent to stressClient\n  expected: %v\n got: %v\n", i.Var, d.Property)
 			}
 			if i.Value != d.Value {
-				t.Errorf("wrong value sent to ponyExpress\n  expected: %v\n  got: %v\n", i.Value, d.Value)
+				t.Errorf("wrong value sent to stressClient\n  expected: %v\n  got: %v\n", i.Value, d.Value)
 			}
 			d.Tracer.Done()
 		}
@@ -68,17 +68,13 @@ func testSetRunUtl(t *testing.T, property string, value string) {
 		}
 	// TODO: Actually test this
 	case "resultsaddress":
-	case "testname":
-		if i.Value != s.TestName {
-			t.Errorf("Failed to set %v\n", i.Var)
-		}
 	default:
 	}
 }
 
 func TestSetReport(t *testing.T) {
 	set := newTestSet("this", "that")
-	s, _, _ := ponyExpress.NewTestStoreFront()
+	s, _, _ := stressClient.NewTestStressTest()
 	rpt := set.Report(s)
 	expected := fmt.Sprintf("SET %v = '%v'", set.Var, set.Value)
 	if rpt != expected {
@@ -90,7 +86,7 @@ func newTestSet(toSet, value string) *SetStatement {
 	return &SetStatement{
 		Var:         toSet,
 		Value:       value,
-		Tracer:      ponyExpress.NewTracer(make(map[string]string)),
+		Tracer:      stressClient.NewTracer(make(map[string]string)),
 		StatementID: "fooID",
 	}
 }

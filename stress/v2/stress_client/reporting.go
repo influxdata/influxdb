@@ -1,4 +1,4 @@
-package ponyExpress
+package stressClient
 
 import (
 	"log"
@@ -8,37 +8,37 @@ import (
 	influx "github.com/influxdata/influxdb/client/v2"
 )
 
-// reporting.go contains functions to emit tags and points from various parts of ponyExpress
+// reporting.go contains functions to emit tags and points from various parts of stressClient
 // These points are then written to the ("_%v", sf.TestName) database
 
-// These are the tags that ponyExpress adds to any response points
-func (pe *ponyExpress) tags(statementID string) map[string]string {
+// These are the tags that stressClient adds to any response points
+func (sc *stressClient) tags(statementID string) map[string]string {
 	tags := map[string]string{
-		"number_targets": fmtInt(len(pe.addresses)),
-		"precision":      pe.precision,
-		"writers":        fmtInt(pe.wconc),
-		"readers":        fmtInt(pe.qconc),
-		"test_id":        pe.testID,
+		"number_targets": fmtInt(len(sc.addresses)),
+		"precision":      sc.precision,
+		"writers":        fmtInt(sc.wconc),
+		"readers":        fmtInt(sc.qconc),
+		"test_id":        sc.testID,
 		"statement_id":   statementID,
-		"write_interval": pe.wdelay,
-		"query_interval": pe.qdelay,
+		"write_interval": sc.wdelay,
+		"query_interval": sc.qdelay,
 	}
 	return tags
 }
 
-// These are the tags that the StoreFront adds to any response points
-func (sf *StoreFront) tags() map[string]string {
+// These are the tags that the StressTest adds to any response points
+func (st *StressTest) tags() map[string]string {
 	tags := map[string]string{
-		"precision":  sf.Precision,
-		"batch_size": fmtInt(sf.BatchSize),
+		"precision":  st.Precision,
+		"batch_size": fmtInt(st.BatchSize),
 	}
 	return tags
 }
 
 // This function makes a *client.Point for reporting on writes
-func (pe *ponyExpress) writePoint(retries int, statementID string, statusCode int, responseTime time.Duration, addedTags map[string]string, writeBytes int) *influx.Point {
+func (sc *stressClient) writePoint(retries int, statementID string, statusCode int, responseTime time.Duration, addedTags map[string]string, writeBytes int) *influx.Point {
 
-	tags := sumTags(pe.tags(statementID), addedTags)
+	tags := sumTags(sc.tags(statementID), addedTags)
 
 	fields := map[string]interface{}{
 		"status_code":      statusCode,
@@ -56,9 +56,9 @@ func (pe *ponyExpress) writePoint(retries int, statementID string, statusCode in
 }
 
 // This function makes a *client.Point for reporting on queries
-func (pe *ponyExpress) queryPoint(statementID string, body []byte, statusCode int, responseTime time.Duration, addedTags map[string]string) *influx.Point {
+func (sc *stressClient) queryPoint(statementID string, body []byte, statusCode int, responseTime time.Duration, addedTags map[string]string) *influx.Point {
 
-	tags := sumTags(pe.tags(statementID), addedTags)
+	tags := sumTags(sc.tags(statementID), addedTags)
 
 	fields := map[string]interface{}{
 		"status_code":      statusCode,

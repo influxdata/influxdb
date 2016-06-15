@@ -36,7 +36,7 @@ func main() {
 		if *config != "" {
 			v2.RunStress(*config)
 		} else {
-			v2.RunStress("stress/v2/file.iql")
+			v2.RunStress("stress/v2/iql/file.iql")
 		}
 	} else {
 
