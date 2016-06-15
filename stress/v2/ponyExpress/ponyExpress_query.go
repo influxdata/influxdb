@@ -23,8 +23,13 @@ func (pe *ponyExpress) spinOffQueryPackage(p Package, serv int) {
 // Prepares to send the GET request
 func (pe *ponyExpress) prepareQuerySend(p Package, serv int) {
 
-	// TODO: Implement round robin queryies
-	queryURL := fmt.Sprintf("http://%v/query?db=%v&q=%v", pe.addresses[serv], pe.database, url.QueryEscape(string(p.Body)))
+	var queryTemplate string
+	if pe.ssl {
+		queryTemplate = "https://%v/query?db=%v&q=%v&u=%v&p=%v"
+	} else {
+		queryTemplate = "http://%v/query?db=%v&q=%v&u=%v&p=%v"
+	}
+	queryURL := fmt.Sprintf(queryTemplate, pe.addresses[serv], pe.database, url.QueryEscape(string(p.Body)), pe.username, pe.password)
 
 	// Send the query
 	pe.makeGet(queryURL, p.StatementID, p.Tracer)

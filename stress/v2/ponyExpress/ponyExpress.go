@@ -20,6 +20,9 @@ func startPonyExpress(packageCh <-chan Package, directiveCh <-chan Directive, re
 		testID: testID,
 
 		addresses: []string{"localhost:8086"},
+		ssl:       false,
+		username:  "",
+		password:  "",
 		precision: "ns",
 		database:  "stress",
 		startDate: "2016-01-01",
@@ -51,6 +54,9 @@ type ponyExpress struct {
 	database  string
 	wdelay    string
 	qdelay    string
+	username  string
+	password  string
+	ssl       bool
 
 	// Channels from statements
 	packageChan   <-chan Package
@@ -84,6 +90,9 @@ func newTestPonyExpress(url string) (*ponyExpress, chan Directive, chan Package)
 		database:      "fooDatabase",
 		wdelay:        "50ms",
 		qdelay:        "50ms",
+		ssl:           false,
+		username:      "",
+		password:      "",
 		wconc:         5,
 		qconc:         5,
 		packageChan:   pkgChan,
@@ -152,6 +161,20 @@ func (pe *ponyExpress) directiveListen() {
 		// database is the InfluxDB database to target for both writes and queries
 		case "database":
 			pe.database = d.Value
+
+		// username for the target database
+		case "username":
+			pe.username = d.Value
+
+		// username for the target database
+		case "password":
+			pe.password = d.Value
+
+		// use https if the there is a value for ssl
+		case "ssl":
+			if d.Value == "true" {
+				pe.ssl = true
+			}
 
 			// concurrency is the number concurrent writers to the database
 		case "writeconcurrency":
