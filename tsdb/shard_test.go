@@ -516,17 +516,16 @@ func BenchmarkWritePoints_NewSeries_1_Measurement_1024_TagKeys_1_TagValue(b *tes
 func BenchmarkWritePoints_NewSeries_1_Measurement_1_TagKey_65536_TagValue(b *testing.B) {
 	benchmarkWritePoints(b, 1, 1, 1<<16, 1)
 }
-func BenchmarkWritePoints_NewSeries_1_Measurements_2_TagKeys_256_TagValue(b *testing.B) {
-
+func BenchmarkWritePoints_NewSeries_1_Measurement_2_TagKeys_256_TagValue(b *testing.B) {
 	benchmarkWritePoints(b, 1, 2, 1<<8, 1)
 }
-func BenchmarkWritePoints_NewSeries_1_Measurements_4_TagKeys_16_TagValue(b *testing.B) {
+func BenchmarkWritePoints_NewSeries_1_Measurement_4_TagKeys_16_TagValue(b *testing.B) {
 	benchmarkWritePoints(b, 1, 4, 1<<4, 1)
 }
-func BenchmarkWritePoints_NewSeries_1_Measurements_8_TagKeys_4_TagValue(b *testing.B) {
+func BenchmarkWritePoints_NewSeries_1_Measurement_8_TagKeys_4_TagValue(b *testing.B) {
 	benchmarkWritePoints(b, 1, 8, 1<<2, 1)
 }
-func BenchmarkWritePoints_NewSeries_1_Measurements_16_TagKeys_2_TagValue(b *testing.B) {
+func BenchmarkWritePoints_NewSeries_1_Measurement_16_TagKeys_2_TagValue(b *testing.B) {
 	benchmarkWritePoints(b, 1, 16, 1<<1, 1)
 }
 
