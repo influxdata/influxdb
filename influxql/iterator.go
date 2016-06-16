@@ -23,7 +23,7 @@ const (
 
 	// MaxTime is used as the maximum time value when computing an unbounded range.
 	// This time is 2262-04-11 23:47:16.854775806 +0000 UTC
-	MaxTime = models.MaxNanoTime - 1
+	MaxTime = models.MaxNanoTime
 )
 
 // Iterator represents a generic interface for all Iterators.
