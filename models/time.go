@@ -18,9 +18,9 @@ const (
 
 	// MaxNanoTime is the maximum time that can be represented.
 	//
-	// 2262-04-11 23:47:16.854775807 +0000 UTC
+	// 2262-04-11 23:47:16.854775806 +0000 UTC
 	//
-	MaxNanoTime = int64(math.MaxInt64)
+	MaxNanoTime = int64(math.MaxInt64) - 1
 )
 
 var (

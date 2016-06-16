@@ -389,7 +389,8 @@ func (data *Data) CreateShardGroup(database, policy string, timestamp time.Time)
 	sgi.StartTime = timestamp.Truncate(rpi.ShardGroupDuration).UTC()
 	sgi.EndTime = sgi.StartTime.Add(rpi.ShardGroupDuration).UTC()
 	if sgi.EndTime.After(time.Unix(0, models.MaxNanoTime)) {
-		sgi.EndTime = time.Unix(0, models.MaxNanoTime)
+		// Shard group range is [start, end) so add one to the max time.
+		sgi.EndTime = time.Unix(0, models.MaxNanoTime+1)
 	}
 
 	data.MaxShardID++

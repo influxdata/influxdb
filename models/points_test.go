@@ -1213,7 +1213,7 @@ func TestParsePointNegativeTimestamp(t *testing.T) {
 }
 
 func TestParsePointMaxTimestamp(t *testing.T) {
-	test(t, `cpu value=1 9223372036854775807`,
+	test(t, fmt.Sprintf(`cpu value=1 %d`, models.MaxNanoTime),
 		NewTestPoint(
 			"cpu",
 			models.Tags{},
