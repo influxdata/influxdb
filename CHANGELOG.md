@@ -2,6 +2,8 @@
 
 ### Release Notes
 
+With this release the systemd configuration files for InfluxDB will use the system configured default for logging and will no longer write files to `/var/log/influxdb` by default. On most systems, the logs will be directed to the systemd journal and can be accessed by `journalctl -u influxdb.service`. Consult the systemd journal documentation for configuring journald.
+
 ### Features
 
 - [#6812](https://github.com/influxdata/influxdb/pull/6812): Make httpd logger closer to Common (& combined) Log Format.
@@ -73,6 +75,7 @@
 - [#6835](https://github.com/influxdata/influxdb/pull/6835): Include sysvinit-tools as an rpm dependency.
 - [#6834](https://github.com/influxdata/influxdb/pull/6834): Add port to all graphite log output to help with debugging multiple endpoints
 - [#6850](https://github.com/influxdata/influxdb/pull/6850): Modify the max nanosecond time to be one nanosecond less.
+- [#6824](https://github.com/influxdata/influxdb/issues/6824): Remove systemd output redirection.
 
 ## v0.13.0 [2016-05-12]
 
