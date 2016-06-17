@@ -1,10 +1,8 @@
 ### Welcome to the InfluxDB configuration file.
 
-# Once every 24 hours InfluxDB will report anonymous data to m.influxdb.com
-# The data includes raft id (random 8 bytes), os, arch, version, and metadata.
-# We don't track ip addresses of servers reporting. This is only used
-# to track the number of instances running and the versions, which
-# is very helpful for us.
+# Once every 24 hours InfluxDB will report usage data to usage.influxdb.com
+# The data includes a random ID, os, arch, version, the number of series and other
+# usage data. No data from user databases is ever transmitted.
 # Change this option to true to disable reporting.
 reporting-disabled = false
 
