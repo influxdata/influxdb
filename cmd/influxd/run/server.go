@@ -360,7 +360,7 @@ func (s *Server) startServerReporting() {
 	}
 }
 
-// reportServer reports anonymous statistics about the system.
+// reportServer reports usage statistics about the system.
 func (s *Server) reportServer() {
 	dis := s.MetaClient.Databases()
 	numDatabases := len(dis)
@@ -402,7 +402,7 @@ func (s *Server) reportServer() {
 		},
 	}
 
-	s.Logger.Printf("Sending anonymous usage statistics to m.influxdb.com")
+	s.Logger.Printf("Sending usage statistics to usage.influxdata.com")
 
 	go cl.Save(usage)
 }
