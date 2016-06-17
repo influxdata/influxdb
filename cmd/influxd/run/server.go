@@ -402,7 +402,7 @@ func (s *Server) reportServer() {
 		},
 	}
 
-	s.Logger.Printf("Sending usage statistics to m.influxdb.com")
+	s.Logger.Printf("Sending usage statistics to usage.influxdata.com")
 
 	go cl.Save(usage)
 }
