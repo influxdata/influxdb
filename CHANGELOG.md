@@ -67,6 +67,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6834](https://github.com/influxdata/influxdb/pull/6834): Add port to all graphite log output to help with debugging multiple endpoints
 - [#6850](https://github.com/influxdata/influxdb/pull/6850): Modify the max nanosecond time to be one nanosecond less.
 - [#6824](https://github.com/influxdata/influxdb/issues/6824): Remove systemd output redirection.
+- [#6859](https://github.com/influxdata/influxdb/issues/6859): Set the condition cursor instead of aux iterator when creating a nil condition cursor.
 
 ## v0.13.0 [2016-05-12]
 

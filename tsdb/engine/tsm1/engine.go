@@ -1147,16 +1147,16 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 				// If a field was requested, use a nil cursor of the requested type.
 				switch ref.Type {
 				case influxql.Float, influxql.AnyField:
-					aux[i] = &floatNilLiteralCursor{}
+					conds[i] = &floatNilLiteralCursor{}
 					continue
 				case influxql.Integer:
-					aux[i] = &integerNilLiteralCursor{}
+					conds[i] = &integerNilLiteralCursor{}
 					continue
 				case influxql.String:
-					aux[i] = &stringNilLiteralCursor{}
+					conds[i] = &stringNilLiteralCursor{}
 					continue
 				case influxql.Boolean:
-					aux[i] = &booleanNilLiteralCursor{}
+					conds[i] = &booleanNilLiteralCursor{}
 					continue
 				}
 			}
