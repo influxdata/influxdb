@@ -1,6 +1,6 @@
 ### Welcome to the InfluxDB configuration file.
 
-# Once every 24 hours InfluxDB will report usage data to usage.influxdb.com
+# Once every 24 hours InfluxDB will report usage data to usage.influxdata.com
 # The data includes a random ID, os, arch, version, the number of series and other
 # usage data. No data from user databases is ever transmitted.
 # Change this option to true to disable reporting.
