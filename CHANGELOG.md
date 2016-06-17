@@ -2,20 +2,10 @@
 
 ### Release Notes
 
-With this release the systemd configuration files for InfluxDB will use the system configured default for logging and will no longer write files to `/var/log/influxdb` by default. On most systems, the logs will be directed to the systemd journal and can be accessed by `journalctl -u influxdb.service`. Consult the systemd journal documentation for configuring journald.
-
-### Features
-
-- [#6812](https://github.com/influxdata/influxdb/pull/6812): Make httpd logger closer to Common (& combined) Log Format.
-
-### Bugfixes
-
-## v1.0.0-beta1 [2016-06-07]
-
-### Release Notes
-
 * Config option `[cluster]` has been replaced with `[coordinator]`
 * Support for config options `[collectd]` and `[opentsdb]` has been removed; use `[[collectd]]` and `[[opentsdb]]` instead
+
+With this release the systemd configuration files for InfluxDB will use the system configured default for logging and will no longer write files to `/var/log/influxdb` by default. On most systems, the logs will be directed to the systemd journal and can be accessed by `journalctl -u influxdb.service`. Consult the systemd journald documentation for configuring journald.
 
 ### Features
 
@@ -34,6 +24,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6686](https://github.com/influxdata/influxdb/pull/6686): Optimize timestamp run-length decoding
 - [#6713](https://github.com/influxdata/influxdb/pull/6713): Reduce allocations during query parsing.
 - [#3733](https://github.com/influxdata/influxdb/issues/3733): Modify the default retention policy name and make it configurable.
+- [#6812](https://github.com/influxdata/influxdb/pull/6812): Make httpd logger closer to Common (& combined) Log Format.
 - [#5655](https://github.com/influxdata/influxdb/issues/5655): Support specifying a retention policy for the graphite service.
 - [#6820](https://github.com/influxdata/influxdb/issues/6820): Add NodeID to execution options
 - [#4532](https://github.com/influxdata/influxdb/issues/4532): Support regex selection in SHOW TAG VALUES for the key.
