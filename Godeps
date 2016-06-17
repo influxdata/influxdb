@@ -1,6 +1,5 @@
 collectd.org 9fc824c70f713ea0f058a07b49a4c563ef2a3b98
 github.com/BurntSushi/toml a4eecd407cf4129fc902ece859a0114e4cf1a7f4
-github.com/armon/go-metrics 345426c77237ece5dab0e1605c3e4b35c3f54757
 github.com/bmizerany/pat b8a35001b773c267eb260a691f4e5499a3531600
 github.com/boltdb/bolt 2f846c3551b76d7710f159be840d66c3d064abbe
 github.com/davecgh/go-spew fc32781af5e85e548d3f1abaf0fa3dbe8a72495c
@@ -9,9 +8,6 @@ github.com/dgryski/go-bits 86c69b3c986f9d40065df5bd8f765796549eef2e
 github.com/dgryski/go-bitstream 27cd5973303fde7d914860be1ea4b927a6be0c92
 github.com/gogo/protobuf 74b6e9deaff6ba6da1389ec97351d337f0d08b06
 github.com/golang/snappy 5979233c5d6225d4a8e438cdd0b411888449ddab
-github.com/hashicorp/go-msgpack fa3f63826f7c23912c15263591e65d54d080b458
-github.com/hashicorp/raft 8fd9a2fdfd154f4b393aa24cff91e3c317efe839
-github.com/hashicorp/raft-boltdb d1e82c1ec3f15ee991f7cc7ffd5b67ff6f5bbaee
 github.com/influxdata/usage-client 475977e68d79883d9c8d67131c84e4241523f452
 github.com/jwilder/encoding b421ab402545ef5a119f4f827784c6551d9bfc37
 github.com/kimor79/gollectd 61d0deeb4ffcc167b2a1baa8efd72365692811bc
@@ -19,4 +15,3 @@ github.com/paulbellamy/ratecounter 5a11f585a31379765c190c033b6ad39956584447
 github.com/peterh/liner 82a939e738b0ee23e84ec7a12d8e216f4d95c53f
 github.com/rakyll/statik 274df120e9065bdd08eb1120e0375e3dc1ae8465
 golang.org/x/crypto 1f22c0103821b9390939b6776727195525381532
-gopkg.in/fatih/pool.v2 cba550ebf9bce999a02e963296d4bc7a486cb715
