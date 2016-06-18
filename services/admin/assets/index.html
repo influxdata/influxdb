@@ -134,6 +134,10 @@
                           <li><label data-query="CREATE RETENTION POLICY &quot;rp_name&quot; ON &quot;db_name&quot; DURATION 30d REPLICATION 1 DEFAULT">Create Retention Policy</label></li>
                           <li><label data-query="DROP RETENTION POLICY &quot;rp_name&quot; ON &quot;db_name&quot;">Drop Retention Policy</label></li>
                           <li class="divider"></li>
+                          <li><label data-query="SHOW CONTINUOUS QUERIES">Show Continuous Queries</label></li>
+                          <li><label data-query="CREATE CONTINUOUS QUERY &quot;cq_name&quot; ON &quot;db_name&quot; BEGIN SELECT min(&quot;field&quot;) INTO &quot;target_measurement&quot; FROM &quot;current_measurement&quot; GROUP BY time(30m) END">Create Continuous Query</label></li>
+                          <li><label data-query="DROP CONTINUOUS QUERY &quot;cq_name&quot; ON &quot;db_name&quot;">Drop Continuous Query</label></li>
+                          <li class="divider"></li>
                           <li><label data-query="SHOW USERS">Show Users</label></li>
                           <li><label data-query="CREATE USER &quot;username&quot; WITH PASSWORD 'password'">Create User</label></li>
                           <li><label data-query="CREATE USER &quot;username&quot; WITH PASSWORD 'password' WITH ALL PRIVILEGES">Create Admin User</label></li>
