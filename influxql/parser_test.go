@@ -1779,6 +1779,24 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW USER statement
+		{
+			s: `SHOW USER testuser`,
+			stmt: &influxql.ShowUserStatement{
+				Name: "testuser",
+			},
+		},
+
+		// SHOW USER WITH PASSWORD statement
+		{
+			s: `SHOW USER testuser WITH PASSWORD 'pwd1337'`,
+			stmt: &influxql.ShowUserStatement{
+				Name:         "testuser",
+				Password:     "pwd1337",
+				WithPassword: true,
+			},
+		},
+
 		// SET PASSWORD FOR USER
 		{
 			s: `SET PASSWORD FOR testuser = 'pwd1337'`,
@@ -2248,11 +2266,14 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SHOW RETENTION POLICIES mydb`, err: `found mydb, expected ON at line 1, char 25`},
 		{s: `SHOW RETENTION POLICIES ON`, err: `found EOF, expected identifier at line 1, char 28`},
 		{s: `SHOW SHARD`, err: `found EOF, expected GROUPS at line 1, char 12`},
-		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, DIAGNOSTICS, FIELD, GRANTS, MEASUREMENTS, QUERIES, RETENTION, SERIES, SHARD, SHARDS, STATS, SUBSCRIPTIONS, TAG, USERS at line 1, char 6`},
+		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, DIAGNOSTICS, FIELD, GRANTS, MEASUREMENTS, QUERIES, RETENTION, SERIES, SHARD, SHARDS, STATS, SUBSCRIPTIONS, TAG, USER, USERS at line 1, char 6`},
 		{s: `SHOW STATS FOR`, err: `found EOF, expected string at line 1, char 16`},
 		{s: `SHOW DIAGNOSTICS FOR`, err: `found EOF, expected string at line 1, char 22`},
 		{s: `SHOW GRANTS`, err: `found EOF, expected FOR at line 1, char 13`},
 		{s: `SHOW GRANTS FOR`, err: `found EOF, expected identifier at line 1, char 17`},
+		{s: `SHOW USER`, err: `found EOF, expected identifier at line 1, char 11`},
+		{s: `SHOW USER testuser WITH`, err: `found EOF, expected PASSWORD at line 1, char 25`},
+		{s: `SHOW USER testuser WITH PASSWORD`, err: `found EOF, expected string at line 1, char 34`},
 		{s: `DROP CONTINUOUS`, err: `found EOF, expected QUERY at line 1, char 17`},
 		{s: `DROP CONTINUOUS QUERY`, err: `found EOF, expected identifier at line 1, char 23`},
 		{s: `DROP CONTINUOUS QUERY myquery`, err: `found EOF, expected ON at line 1, char 31`},

@@ -144,6 +144,7 @@ func (*ShowDiagnosticsStatement) node()       {}
 func (*ShowTagKeysStatement) node()           {}
 func (*ShowTagValuesStatement) node()         {}
 func (*ShowUsersStatement) node()             {}
+func (*ShowUserStatement) node()              {}
 
 func (*BinaryExpr) node()      {}
 func (*BooleanLiteral) node()  {}
@@ -255,6 +256,7 @@ func (*ShowDiagnosticsStatement) stmt()       {}
 func (*ShowTagKeysStatement) stmt()           {}
 func (*ShowTagValuesStatement) stmt()         {}
 func (*ShowUsersStatement) stmt()             {}
+func (*ShowUserStatement) stmt()              {}
 func (*RevokeStatement) stmt()                {}
 func (*RevokeAdminStatement) stmt()           {}
 func (*SelectStatement) stmt()                {}
@@ -2838,6 +2840,35 @@ func (s *ShowUsersStatement) String() string {
 // RequiredPrivileges returns the privilege(s) required to execute a ShowUsersStatement
 func (s *ShowUsersStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
+}
+
+// ShowUserStatement represents a command for retrieving a specific user.
+type ShowUserStatement struct {
+	// Name of the user to retrieve.
+	Name string
+
+	// User's password.
+	Password string
+
+	// should the password be used to retrieve the user.
+	WithPassword bool
+}
+
+// String returns a string representation of the ShowUserStatement
+func (s *ShowUserStatement) String() string {
+	var buf bytes.Buffer
+	_, _ = buf.WriteString("SHOW USER ")
+	_, _ = buf.WriteString(QuoteIdent(s.Name))
+	if s.WithPassword {
+		_, _ = buf.WriteString(" WITH PASSWORD ")
+		_, _ = buf.WriteString("[REDACTED]")
+	}
+	return buf.String()
+}
+
+// RequiredPrivileges returns the privilege(s) required to execute a ShowUserStatement
+func (s *ShowUserStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
+	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: ReadPrivilege}}, nil
 }
 
 // ShowFieldKeysStatement represents a command for listing field keys.

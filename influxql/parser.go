@@ -172,6 +172,8 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		return nil, newParseError(tokstr(tok, lit), []string{"KEYS", "VALUES"}, pos)
 	case USERS:
 		return p.parseShowUsersStatement()
+	case USER:
+		return p.parseShowUserStatement()
 	case SUBSCRIPTIONS:
 		return p.parseShowSubscriptionsStatement()
 	}
@@ -187,6 +189,7 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 		"SERIES",
 		"TAG",
 		"USERS",
+		"USER",
 		"STATS",
 		"DIAGNOSTICS",
 		"SHARD",
@@ -1299,6 +1302,37 @@ func (p *Parser) parseTagKeyExpr() (Token, Literal, error) {
 // This function assumes the "SHOW USERS" tokens have been consumed.
 func (p *Parser) parseShowUsersStatement() (*ShowUsersStatement, error) {
 	return &ShowUsersStatement{}, nil
+}
+
+// parseShowUserStatement parses a string and returns a ShowUserStatement.
+// This function assumes the "SHOW USER" tokens have been consumed.
+func (p *Parser) parseShowUserStatement() (*ShowUserStatement, error) {
+	stmt := &ShowUserStatement{}
+
+	// Parse name of the user to retrieve.
+	ident, err := p.parseIdent()
+	if err != nil {
+		return nil, err
+	}
+	stmt.Name = ident
+
+	// Parse optional "WITH PASSWORD" tokens
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == WITH {
+		if err := p.parseTokens([]Token{PASSWORD}); err != nil {
+			return nil, err
+		}
+
+		if ident, err = p.parseString(); err != nil {
+			return nil, err
+		}
+
+		stmt.Password = ident
+		stmt.WithPassword = true
+	} else {
+		p.unscan()
+	}
+
+	return stmt, nil
 }
 
 // parseShowSubscriptionsStatement parses a string and returns a ShowSubscriptionsStatement

@@ -20,6 +20,10 @@ func TestSanitize(t *testing.T) {
 			s:    `set password for "admin" = 'admin'`,
 			stmt: `set password for "admin" = [REDACTED]`,
 		},
+		{
+			s:    `show user "admin" with password 'admin'`,
+			stmt: `show user "admin" with password [REDACTED]`,
+		},
 
 		// Common invalid statements that should still be redacted.
 		{
@@ -29,6 +33,10 @@ func TestSanitize(t *testing.T) {
 		{
 			s:    `set password for "admin" = "admin"`,
 			stmt: `set password for "admin" = [REDACTED]`,
+		},
+		{
+			s:    `show user "admin" with password "admin"`,
+			stmt: `show user "admin" with password [REDACTED]`,
 		},
 	}
 

@@ -9,6 +9,7 @@ import (
 
 // MetaClient is an interface for accessing meta data.
 type MetaClient interface {
+	Authenticate(username, password string) (*meta.UserInfo, error)
 	CreateContinuousQuery(database, name, query string) error
 	CreateDatabase(name string) (*meta.DatabaseInfo, error)
 	CreateDatabaseWithRetentionPolicy(name string, rpi *meta.RetentionPolicyInfo) (*meta.DatabaseInfo, error)
@@ -33,4 +34,5 @@ type MetaClient interface {
 	UserPrivilege(username, database string) (*influxql.Privilege, error)
 	UserPrivileges(username string) (map[string]influxql.Privilege, error)
 	Users() []meta.UserInfo
+	User(username string) (*meta.UserInfo, error)
 }
