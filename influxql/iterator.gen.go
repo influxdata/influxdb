@@ -8266,7 +8266,7 @@ func NewIteratorEncoder(w io.Writer) *IteratorEncoder {
 	}
 }
 
-// Encode encodes and writes all of itr's points to the underlying writer.
+// EncodeIterator encodes and writes all of itr's points to the underlying writer.
 func (enc *IteratorEncoder) EncodeIterator(itr Iterator) error {
 	switch itr := itr.(type) {
 	case FloatIterator:

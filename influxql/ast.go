@@ -39,7 +39,8 @@ const (
 )
 
 var (
-	// Invalid timestamp string used to compare against time field
+	// ErrInvalidTime is returned when the timestamp string used to
+	// compare against time field is invalid.
 	ErrInvalidTime = errors.New("invalid timestamp string")
 )
 
@@ -63,6 +64,7 @@ func InspectDataType(v interface{}) DataType {
 	}
 }
 
+// InspectDataTypes returns all of the data types for an interface slice.
 func InspectDataTypes(a []interface{}) []DataType {
 	dta := make([]DataType, len(a))
 	for i, v := range a {
@@ -685,6 +687,7 @@ func (s *GrantAdminStatement) RequiredPrivileges() (ExecutionPrivileges, error) 
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
 }
 
+// KillQueryStatement represents a command for killing a query.
 type KillQueryStatement struct {
 	// The query to kill.
 	QueryID uint64
@@ -693,6 +696,7 @@ type KillQueryStatement struct {
 	Host string
 }
 
+// String returns a string representation of the kill query statement.
 func (s *KillQueryStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("KILL QUERY ")
@@ -704,6 +708,7 @@ func (s *KillQueryStatement) String() string {
 	return buf.String()
 }
 
+// RequiredPrivileges returns the privilege required to execute a KillQueryStatement.
 func (s *KillQueryStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
 }
@@ -1260,7 +1265,7 @@ func (s *SelectStatement) ColumnNames() []string {
 				count++
 			}
 		}
-		names[name] += 1
+		names[name]++
 		columnNames[i+offset] = name
 	}
 	return columnNames
@@ -2537,7 +2542,7 @@ func (s *DropMeasurementStatement) RequiredPrivileges() (ExecutionPrivileges, er
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
 }
 
-// SowQueriesStatement represents a command for listing all running queries.
+// ShowQueriesStatement represents a command for listing all running queries.
 type ShowQueriesStatement struct{}
 
 // String returns a string representation of the show queries statement.
@@ -3106,6 +3111,7 @@ func (r *VarRef) String() string {
 	return buf.String()
 }
 
+// VarRefs represents a slice of VarRef types.
 type VarRefs []VarRef
 
 func (a VarRefs) Len() int { return len(a) }
@@ -3116,6 +3122,8 @@ func (a VarRefs) Less(i, j int) bool {
 	return a[i].Type < a[j].Type
 }
 func (a VarRefs) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+// Strings returns a slice of the variable names.
 func (a VarRefs) Strings() []string {
 	s := make([]string, len(a))
 	for i, ref := range a {
@@ -3359,6 +3367,8 @@ func (v *binaryExprValidator) Visit(n Node) Visitor {
 	return v
 }
 
+// BinaryExprName returns the name of a binary expression by concatenating
+// the variables in the binary expression with underscores.
 func BinaryExprName(expr *BinaryExpr) string {
 	v := binaryExprNameVisitor{}
 	Walk(&v, expr)

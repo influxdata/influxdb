@@ -281,7 +281,7 @@ func decodeAux(pb []*internal.Aux) []interface{} {
 	return aux
 }
 
-// NewPointDecoder decodes generic points from a reader.
+// PointDecoder decodes generic points from a reader.
 type PointDecoder struct {
 	r     io.Reader
 	stats IteratorStats
