@@ -110,11 +110,28 @@ func NewEngine(path string, walPath string, options EngineOptions) (Engine, erro
 	return fn(path, walPath, options), nil
 }
 
+// Mode determines the read/write mode of an engine.
+// TODO(jsternberg): Finish implementing this.
+type Mode int
+
+const (
+	// ReadMode will open the engine in a read-only mode.
+	ReadMode Mode = 1 << iota
+
+	// WriteMode will open the engine in a write-only mode.
+	WriteMode
+
+	// ReadWriteMode will open the engine in a read/write mode.
+	ReadWriteMode = ReadMode | WriteMode
+)
+
 // EngineOptions represents the options used to initialize the engine.
 type EngineOptions struct {
 	EngineVersion string
 
 	Config Config
+
+	Mode Mode
 }
 
 // NewEngineOptions returns the default options.
@@ -122,6 +139,7 @@ func NewEngineOptions() EngineOptions {
 	return EngineOptions{
 		EngineVersion: DefaultEngine,
 		Config:        NewConfig(),
+		Mode:          ReadWriteMode,
 	}
 }
 

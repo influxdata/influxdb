@@ -82,11 +82,6 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 
 	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize), path)
 
-	c := &Compactor{
-		Dir:       path,
-		FileStore: fs,
-	}
-
 	e := &Engine{
 		path:              path,
 		measurementFields: make(map[string]*tsdb.MeasurementFields),
@@ -94,17 +89,22 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 		WAL:   w,
 		Cache: cache,
 
-		FileStore: fs,
-		Compactor: c,
-		CompactionPlan: &DefaultPlanner{
-			FileStore:                    fs,
-			CompactFullWriteColdDuration: time.Duration(opt.Config.CompactFullWriteColdDuration),
-		},
+		FileStore:         fs,
 		MaxPointsPerBlock: opt.Config.MaxPointsPerBlock,
 
 		CacheFlushMemorySizeThreshold: opt.Config.CacheSnapshotMemorySize,
 		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
-		enableCompactionsOnOpen:       true,
+	}
+	if opt.Mode&tsdb.WriteMode != 0 {
+		e.Compactor = &Compactor{
+			Dir:       path,
+			FileStore: fs,
+		}
+		e.CompactionPlan = &DefaultPlanner{
+			FileStore:                    fs,
+			CompactFullWriteColdDuration: time.Duration(opt.Config.CompactFullWriteColdDuration),
+		}
+		e.enableCompactionsOnOpen = true
 	}
 	e.SetLogOutput(os.Stderr)
 
@@ -119,6 +119,10 @@ func (e *Engine) SetEnabled(enabled bool) {
 // SetCompactionsEnabled enables compactions on the engine.  When disabled
 // all running compactions are aborted and new compactions stop running.
 func (e *Engine) SetCompactionsEnabled(enabled bool) {
+	if e.Compactor == nil {
+		return
+	}
+
 	if enabled {
 		e.mu.Lock()
 		if e.compactionsEnabled {
