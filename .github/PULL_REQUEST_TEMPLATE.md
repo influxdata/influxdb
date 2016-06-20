@@ -7,3 +7,4 @@
 ###### Required only if applicable
 _You can erase any checkboxes below this note if they are not applicable to your Pull Request._
 - [ ] [InfluxQL Spec](https://github.com/influxdata/influxdb/blob/master/influxql/README.md) updated
+- [ ] Provide example syntax
