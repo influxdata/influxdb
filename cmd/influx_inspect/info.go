@@ -10,6 +10,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -55,18 +56,18 @@ func cmdInfo(path string) {
 			fields := m.FieldNames()
 			sort.Strings(fields)
 			series := m.SeriesKeys()
-			sort.Strings(series)
 			sort.Sort(ShardIDs(shardIDs))
 
 			// Sample a point from each measurement to determine the field types
+			sources := []influxql.Source{&influxql.Measurement{Name: m.Name}}
 			for _, shardID := range shardIDs {
 				shard := tstore.Shard(shardID)
-				codec := shard.FieldCodec(m.Name)
-				if codec == nil {
+				fieldSet, _, err := shard.FieldDimensions(sources)
+				if err != nil {
 					continue
 				}
-				for _, field := range codec.Fields() {
-					ft := fmt.Sprintf("%s:%s", field.Name, field.Type)
+				for _, name := range fields {
+					ft := fmt.Sprintf("%s:%s", name, fieldSet[name])
 					fmt.Fprintf(tw, "%d\t%s\t%s\t%d/%d\t%d [%s]\t%d\n", shardID, db, m.Name, len(tags), tagValues,
 						len(fields), ft, len(series))
 
