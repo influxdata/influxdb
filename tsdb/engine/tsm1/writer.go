@@ -257,22 +257,26 @@ func (d *directIndex) Add(key string, blockType byte, minTime, maxTime int64, of
 	d.size += indexEntrySize
 }
 
-func (d *directIndex) Entries(key string) []IndexEntry {
-	d.mu.RLock()
-	defer d.mu.RUnlock()
-
+func (d *directIndex) entries(key string) []IndexEntry {
 	entries := d.blocks[key]
 	if entries == nil {
 		return nil
 	}
-	return d.blocks[key].entries
+	return entries.entries
+}
+
+func (d *directIndex) Entries(key string) []IndexEntry {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	return d.entries(key)
 }
 
 func (d *directIndex) Entry(key string, t int64) *IndexEntry {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	entries := d.Entries(key)
+	entries := d.entries(key)
 	for _, entry := range entries {
 		if entry.Contains(t) {
 			return &entry
@@ -294,7 +298,10 @@ func (d *directIndex) Keys() []string {
 }
 
 func (d *directIndex) KeyCount() int {
-	return len(d.blocks)
+	d.mu.RLock()
+	n := len(d.blocks)
+	d.mu.RUnlock()
+	return n
 }
 
 func (d *directIndex) addEntries(key string, entries *indexEntries) {
@@ -311,7 +318,7 @@ func (d *directIndex) WriteTo(w io.Writer) (int64, error) {
 	defer d.mu.RUnlock()
 
 	// Index blocks are writtens sorted by key
-	var keys []string
+	keys := make([]string, 0, len(d.blocks))
 	for k := range d.blocks {
 		keys = append(keys, k)
 	}
