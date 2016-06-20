@@ -138,7 +138,7 @@ func floatPointsSortBy(points []FloatPoint, cmp func(a, b *FloatPoint) bool) *fl
 	}
 }
 
-// NewFloatPointEncoder encodes FloatPoint points to a writer.
+// FloatPointEncoder encodes FloatPoint points to a writer.
 type FloatPointEncoder struct {
 	w io.Writer
 }
@@ -168,7 +168,7 @@ func (enc *FloatPointEncoder) EncodeFloatPoint(p *FloatPoint) error {
 	return nil
 }
 
-// NewFloatPointDecoder decodes FloatPoint points from a reader.
+// FloatPointDecoder decodes FloatPoint points from a reader.
 type FloatPointDecoder struct {
 	r     io.Reader
 	stats IteratorStats
@@ -340,7 +340,7 @@ func integerPointsSortBy(points []IntegerPoint, cmp func(a, b *IntegerPoint) boo
 	}
 }
 
-// NewIntegerPointEncoder encodes IntegerPoint points to a writer.
+// IntegerPointEncoder encodes IntegerPoint points to a writer.
 type IntegerPointEncoder struct {
 	w io.Writer
 }
@@ -370,7 +370,7 @@ func (enc *IntegerPointEncoder) EncodeIntegerPoint(p *IntegerPoint) error {
 	return nil
 }
 
-// NewIntegerPointDecoder decodes IntegerPoint points from a reader.
+// IntegerPointDecoder decodes IntegerPoint points from a reader.
 type IntegerPointDecoder struct {
 	r     io.Reader
 	stats IteratorStats
@@ -542,7 +542,7 @@ func stringPointsSortBy(points []StringPoint, cmp func(a, b *StringPoint) bool) 
 	}
 }
 
-// NewStringPointEncoder encodes StringPoint points to a writer.
+// StringPointEncoder encodes StringPoint points to a writer.
 type StringPointEncoder struct {
 	w io.Writer
 }
@@ -572,7 +572,7 @@ func (enc *StringPointEncoder) EncodeStringPoint(p *StringPoint) error {
 	return nil
 }
 
-// NewStringPointDecoder decodes StringPoint points from a reader.
+// StringPointDecoder decodes StringPoint points from a reader.
 type StringPointDecoder struct {
 	r     io.Reader
 	stats IteratorStats
@@ -744,7 +744,7 @@ func booleanPointsSortBy(points []BooleanPoint, cmp func(a, b *BooleanPoint) boo
 	}
 }
 
-// NewBooleanPointEncoder encodes BooleanPoint points to a writer.
+// BooleanPointEncoder encodes BooleanPoint points to a writer.
 type BooleanPointEncoder struct {
 	w io.Writer
 }
@@ -774,7 +774,7 @@ func (enc *BooleanPointEncoder) EncodeBooleanPoint(p *BooleanPoint) error {
 	return nil
 }
 
-// NewBooleanPointDecoder decodes BooleanPoint points from a reader.
+// BooleanPointDecoder decodes BooleanPoint points from a reader.
 type BooleanPointDecoder struct {
 	r     io.Reader
 	stats IteratorStats

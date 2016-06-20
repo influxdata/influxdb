@@ -32,6 +32,7 @@ func NewParser(r io.Reader) *Parser {
 	return &Parser{s: newBufScanner(r)}
 }
 
+// SetParams sets the parameters that will be used for any bound parameter substitutions.
 func (p *Parser) SetParams(params map[string]interface{}) {
 	p.params = params
 }
@@ -1255,7 +1256,8 @@ func (p *Parser) parseTagKeyExpr() (Token, Literal, error) {
 	}
 
 	// Parse required IN, EQ, or EQREGEX token.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok == IN {
+	tok, pos, lit := p.scanIgnoreWhitespace()
+	if tok == IN {
 		// Parse required ( token.
 		if tok, pos, lit = p.scanIgnoreWhitespace(); tok != LPAREN {
 			return 0, nil, newParseError(tokstr(tok, lit), []string{"("}, pos)
@@ -1289,9 +1291,8 @@ func (p *Parser) parseTagKeyExpr() (Token, Literal, error) {
 			return 0, nil, newParseError(tokstr(tok, lit), []string{"regex"}, pos)
 		}
 		return tok, re, nil
-	} else {
-		return 0, nil, newParseError(tokstr(tok, lit), []string{"IN", "=", "=~"}, pos)
 	}
+	return 0, nil, newParseError(tokstr(tok, lit), []string{"IN", "=", "=~"}, pos)
 }
 
 // parseShowUsersStatement parses a string and returns a ShowUsersStatement.

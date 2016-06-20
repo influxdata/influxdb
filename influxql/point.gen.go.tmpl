@@ -144,7 +144,7 @@ func {{.name}}PointsSortBy(points []{{.Name}}Point, cmp func(a, b *{{.Name}}Poin
 	}
 }
 
-// New{{.Name}}PointEncoder encodes {{.Name}}Point points to a writer.
+// {{.Name}}PointEncoder encodes {{.Name}}Point points to a writer.
 type {{.Name}}PointEncoder struct {
 	w io.Writer
 }
@@ -175,7 +175,7 @@ func (enc *{{.Name}}PointEncoder) Encode{{.Name}}Point(p *{{.Name}}Point) error 
 }
 
 
-// New{{.Name}}PointDecoder decodes {{.Name}}Point points from a reader.
+// {{.Name}}PointDecoder decodes {{.Name}}Point points from a reader.
 type {{.Name}}PointDecoder struct {
 	r     io.Reader
 	stats IteratorStats

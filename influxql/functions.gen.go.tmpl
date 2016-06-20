@@ -38,15 +38,20 @@ type {{$k.Name}}PointEmitter interface {
 // {{$k.Name}}Reduce{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Func is the function called by a {{$k.Name}}Point reducer.
 type {{$k.Name}}Reduce{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Func func(prev *{{$v.Name}}Point, curr *{{$k.Name}}Point) (t int64, v {{$v.Type}}, aux []interface{})
 
+// {{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer is a reducer that reduces
+// the passed in points to a single point using a reduce function.
 type {{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer struct {
 	prev *{{$v.Name}}Point
 	fn   {{$k.Name}}Reduce{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Func
 }
 
+// New{{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer creates a new {{$k.Name}}Func{{$v.Name}}Reducer.
 func New{{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer(fn {{$k.Name}}Reduce{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Func, prev *{{$v.Name}}Point) *{{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer {
 	return &{{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer{fn: fn, prev: prev}
 }
 
+// Aggregate{{$k.Name}} takes a {{$k.Name}}Point and invokes the reduce function with the
+// current and new point to modify the current point.
 func (r *{{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) Aggregate{{$k.Name}}(p *{{$k.Name}}Point) {
 	t, v, aux := r.fn(r.prev, p)
 	if r.prev == nil {
@@ -62,6 +67,7 @@ func (r *{{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) Aggr
 	}
 }
 
+// Emit emits the point that was generated when reducing the points fed in with Aggregate{{$k.Name}}.
 func (r *{{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) Emit() []{{$v.Name}}Point {
 	return []{{$v.Name}}Point{*r.prev}
 }
@@ -69,23 +75,32 @@ func (r *{{$k.Name}}Func{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) Emit
 // {{$k.Name}}Reduce{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}SliceFunc is the function called by a {{$k.Name}}Point reducer.
 type {{$k.Name}}Reduce{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}SliceFunc func(a []{{$k.Name}}Point) []{{$v.Name}}Point
 
+// {{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer is a reducer that aggregates
+// the passed in points and then invokes the function to reduce the points when they are emitted.
 type {{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer struct {
 	points []{{$k.Name}}Point
 	fn     {{$k.Name}}Reduce{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}SliceFunc
 }
 
+// New{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer creates a new {{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer.
 func New{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer(fn {{$k.Name}}Reduce{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}SliceFunc) *{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer {
 	return &{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer{fn: fn}
 }
 
+// Aggregate{{$k.Name}} copies the {{$k.Name}}Point into the internal slice to be passed
+// to the reduce function when Emit is called.
 func (r *{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) Aggregate{{$k.Name}}(p *{{$k.Name}}Point) {
 	r.points = append(r.points, *p)
 }
 
+// Aggregate{{$k.Name}}Bulk performs a bulk copy of {{$k.Name}}Points into the internal slice.
+// This is a more efficient version of calling Aggregate{{$k.Name}} on each point.
 func (r *{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) Aggregate{{$k.Name}}Bulk(points []{{$k.Name}}Point) {
 	r.points = append(r.points, points...)
 }
 
+// Emit invokes the reduce function on the aggregated points to generate the aggregated points.
+// This method does not clear the points from the internal slice.
 func (r *{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) Emit() []{{$v.Name}}Point {
 	return r.fn(r.points)
 }
