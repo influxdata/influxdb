@@ -10,12 +10,6 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 )
 
-type loggingResponseWriter interface {
-	http.ResponseWriter
-	Status() int
-	Size() int
-}
-
 // responseLogger is wrapper of http.ResponseWriter that keeps track of its HTTP status
 // code and body size
 type responseLogger struct {

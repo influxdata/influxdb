@@ -470,7 +470,6 @@ func (e *Engine) addToIndexFromKey(shardID uint64, key string, fieldType influxq
 	_, tags, _ := models.ParseKey(seriesKey)
 
 	s := tsdb.NewSeries(seriesKey, tags)
-	s.InitializeShards()
 	index.CreateSeriesIndexIfNotExists(measurement, s)
 	s.AssignShard(shardID)
 

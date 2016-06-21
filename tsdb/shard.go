@@ -1,7 +1,6 @@
 package tsdb
 
 import (
-	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
@@ -1238,35 +1237,5 @@ func (itr *measurementKeysIterator) Next() (*influxql.FloatPoint, error) {
 		itr.buf.keys = itr.buf.keys[1:]
 
 		return p, nil
-	}
-}
-
-// IsNumeric returns whether a given aggregate can only be run on numeric fields.
-func IsNumeric(c *influxql.Call) bool {
-	switch c.Name {
-	case "count", "first", "last", "distinct":
-		return false
-	default:
-		return true
-	}
-}
-
-// mustMarshal encodes a value to JSON.
-// This will panic if an error occurs. This should only be used internally when
-// an invalid marshal will cause corruption and a panic is appropriate.
-func mustMarshalJSON(v interface{}) []byte {
-	b, err := json.Marshal(v)
-	if err != nil {
-		panic("marshal: " + err.Error())
-	}
-	return b
-}
-
-// mustUnmarshalJSON decodes a value from JSON.
-// This will panic if an error occurs. This should only be used internally when
-// an invalid unmarshal will cause corruption and a panic is appropriate.
-func mustUnmarshalJSON(b []byte, v interface{}) {
-	if err := json.Unmarshal(b, v); err != nil {
-		panic("unmarshal: " + err.Error())
 	}
 }

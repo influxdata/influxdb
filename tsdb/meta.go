@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"sort"
 	"sync"
-	"time"
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
@@ -20,8 +19,6 @@ import (
 //go:generate protoc --gogo_out=. internal/meta.proto
 
 const (
-	maxStringLength = 64 * 1024
-
 	statDatabaseSeries       = "numSeries"       // number of series in this database
 	statDatabaseMeasurements = "numMeasurements" // number of measurements in this database
 )
@@ -493,10 +490,6 @@ func (d *DatabaseIndex) DropSeries(keys []string) {
 	}
 	d.statMap.Add(statDatabaseSeries, -nDeleted)
 }
-
-const (
-	statMeasurementSeries = "numSeries" // number of series contained in this measurement
-)
 
 // Measurement represents a collection of time series in a database. It also contains in memory
 // structures for indexing tags. Exported functions are goroutine safe while un-exported functions
@@ -1338,85 +1331,12 @@ func (m *Measurement) uniqueTagValues(expr influxql.Expr) map[string][]string {
 	return out
 }
 
-// SelectFields returns a list of fields in the SELECT section of stmt.
-func (m *Measurement) SelectFields(stmt *influxql.SelectStatement) []string {
-	set := newStringSet()
-	for _, name := range stmt.NamesInSelect() {
-		if m.HasField(name) {
-			set.add(name)
-			continue
-		}
-	}
-	return set.list()
-}
-
-// SelectTags returns a list of non-field tags in the SELECT section of stmt.
-func (m *Measurement) SelectTags(stmt *influxql.SelectStatement) []string {
-	set := newStringSet()
-	for _, name := range stmt.NamesInSelect() {
-		if !m.HasField(name) && m.HasTagKey(name) {
-			set.add(name)
-		}
-	}
-	return set.list()
-}
-
-// WhereFields returns a list of non-"time" fields in the WHERE section of stmt.
-func (m *Measurement) WhereFields(stmt *influxql.SelectStatement) []string {
-	set := newStringSet()
-	for _, name := range stmt.NamesInWhere() {
-		if name != "time" && m.HasField(name) {
-			set.add(name)
-		}
-	}
-	return set.list()
-}
-
 // Measurements represents a list of *Measurement.
 type Measurements []*Measurement
 
 func (a Measurements) Len() int           { return len(a) }
 func (a Measurements) Less(i, j int) bool { return a[i].Name < a[j].Name }
 func (a Measurements) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-
-// SelectFields returns a list of fields in the SELECT section of stmt.
-func (a Measurements) SelectFields(stmt *influxql.SelectStatement) []string {
-	set := newStringSet()
-	for _, name := range stmt.NamesInSelect() {
-		for _, m := range a {
-			if m.HasField(name) {
-				set.add(name)
-			}
-		}
-	}
-	return set.list()
-}
-
-// SelectTags returns a list of non-field tags in the SELECT section of stmt.
-func (a Measurements) SelectTags(stmt *influxql.SelectStatement) []string {
-	set := newStringSet()
-	for _, name := range stmt.NamesInSelect() {
-		for _, m := range a {
-			if !m.HasField(name) && m.HasTagKey(name) {
-				set.add(name)
-			}
-		}
-	}
-	return set.list()
-}
-
-// WhereFields returns a list of non-"time" fields in the WHERE section of stmt.
-func (a Measurements) WhereFields(stmt *influxql.SelectStatement) []string {
-	set := newStringSet()
-	for _, name := range stmt.NamesInWhere() {
-		for _, m := range a {
-			if name != "time" && m.HasField(name) {
-				set.add(name)
-			}
-		}
-	}
-	return set.list()
-}
 
 func (a Measurements) intersect(other Measurements) Measurements {
 	l := a
@@ -1550,13 +1470,6 @@ func (s *Series) UnmarshalBinary(buf []byte) error {
 		s.Tags[t.GetKey()] = t.GetValue()
 	}
 	return nil
-}
-
-// InitializeShards initializes the list of shards.
-func (s *Series) InitializeShards() {
-	s.mu.Lock()
-	s.shardIDs = make(map[uint64]bool)
-	s.mu.Unlock()
 }
 
 // SeriesIDs is a convenience type for sorting, checking equality, and doing
@@ -1712,11 +1625,6 @@ func MarshalTags(tags map[string]string) []byte {
 		}
 	}
 	return b
-}
-
-// timeBetweenInclusive returns true if t is between min and max, inclusive.
-func timeBetweenInclusive(t, min, max time.Time) bool {
-	return (t.Equal(min) || t.After(min)) && (t.Equal(max) || t.Before(max))
 }
 
 // TagKeys returns a list of the measurement's tag names.

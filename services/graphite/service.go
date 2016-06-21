@@ -20,10 +20,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
-const (
-	udpBufferSize     = 65536
-	leaderWaitTimeout = 30 * time.Second
-)
+const udpBufferSize = 65536
 
 // statistics gathered by the graphite package.
 const (
@@ -31,7 +28,6 @@ const (
 	statBytesReceived       = "bytesRx"
 	statPointsParseFail     = "pointsParseFail"
 	statPointsNaNFail       = "pointsNaNFail"
-	statPointsUnsupported   = "pointsUnsupportedFail"
 	statBatchesTransmitted  = "batchesTx"
 	statPointsTransmitted   = "pointsTx"
 	statBatchesTransmitFail = "batchesTxFail"

@@ -1,7 +1,6 @@
 package tsdb
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -92,7 +91,7 @@ func NewEngine(path string, walPath string, options EngineOptions) (Engine, erro
 	}
 
 	// If it's a dir then it's a tsm1 engine
-	format := "tsm1"
+	format := DefaultEngine
 	if fi, err := os.Stat(path); err != nil {
 		return nil, err
 	} else if !fi.Mode().IsDir() {
@@ -124,30 +123,3 @@ func NewEngineOptions() EngineOptions {
 		Config:        NewConfig(),
 	}
 }
-
-// DedupeEntries returns slices with unique keys (the first 8 bytes).
-func DedupeEntries(a [][]byte) [][]byte {
-	// Convert to a map where the last slice is used.
-	m := make(map[string][]byte)
-	for _, b := range a {
-		m[string(b[0:8])] = b
-	}
-
-	// Convert map back to a slice of byte slices.
-	other := make([][]byte, 0, len(m))
-	for _, v := range m {
-		other = append(other, v)
-	}
-
-	// Sort entries.
-	sort.Sort(ByteSlices(other))
-
-	return other
-}
-
-// ByteSlices wraps a list of byte-slices for sorting.
-type ByteSlices [][]byte
-
-func (a ByteSlices) Len() int           { return len(a) }
-func (a ByteSlices) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByteSlices) Less(i, j int) bool { return bytes.Compare(a[i], a[j]) == -1 }

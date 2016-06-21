@@ -24,14 +24,6 @@ import (
 )
 
 const (
-	// errSleep is the time to sleep after we've failed on every metaserver
-	// before making another pass
-	errSleep = time.Second
-
-	// maxRetries is the maximum number of attemps to make before returning
-	// a failure to the caller
-	maxRetries = 10
-
 	// SaltBytes is the number of bytes used for salts
 	SaltBytes = 32
 
@@ -1045,14 +1037,6 @@ func (c *Client) Load() error {
 		return err
 	}
 	return nil
-}
-
-type errCommand struct {
-	msg string
-}
-
-func (e errCommand) Error() string {
-	return e.msg
 }
 
 type uint64Slice []uint64

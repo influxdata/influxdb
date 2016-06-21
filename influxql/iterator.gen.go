@@ -299,7 +299,6 @@ func (h *floatMergeHeap) Pop() interface{} {
 
 type floatMergeHeapItem struct {
 	itr *bufFloatIterator
-	err error
 }
 
 // floatSortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
@@ -308,7 +307,6 @@ type floatSortedMergeIterator struct {
 	opt    IteratorOptions
 	heap   floatSortedMergeHeap
 	init   bool
-	point  FloatPoint
 }
 
 // newFloatSortedMergeIterator returns an instance of floatSortedMergeIterator.
@@ -2357,7 +2355,6 @@ func (h *integerMergeHeap) Pop() interface{} {
 
 type integerMergeHeapItem struct {
 	itr *bufIntegerIterator
-	err error
 }
 
 // integerSortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
@@ -2366,7 +2363,6 @@ type integerSortedMergeIterator struct {
 	opt    IteratorOptions
 	heap   integerSortedMergeHeap
 	init   bool
-	point  IntegerPoint
 }
 
 // newIntegerSortedMergeIterator returns an instance of integerSortedMergeIterator.
@@ -4412,7 +4408,6 @@ func (h *stringMergeHeap) Pop() interface{} {
 
 type stringMergeHeapItem struct {
 	itr *bufStringIterator
-	err error
 }
 
 // stringSortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
@@ -4421,7 +4416,6 @@ type stringSortedMergeIterator struct {
 	opt    IteratorOptions
 	heap   stringSortedMergeHeap
 	init   bool
-	point  StringPoint
 }
 
 // newStringSortedMergeIterator returns an instance of stringSortedMergeIterator.
@@ -6467,7 +6461,6 @@ func (h *booleanMergeHeap) Pop() interface{} {
 
 type booleanMergeHeapItem struct {
 	itr *bufBooleanIterator
-	err error
 }
 
 // booleanSortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
@@ -6476,7 +6469,6 @@ type booleanSortedMergeIterator struct {
 	opt    IteratorOptions
 	heap   booleanSortedMergeHeap
 	init   bool
-	point  BooleanPoint
 }
 
 // newBooleanSortedMergeIterator returns an instance of booleanSortedMergeIterator.
