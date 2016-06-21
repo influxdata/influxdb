@@ -70,6 +70,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6859](https://github.com/influxdata/influxdb/issues/6859): Set the condition cursor instead of aux iterator when creating a nil condition cursor.
 - [#6869](https://github.com/influxdata/influxdb/issues/6869): Remove FieldCodec from tsdb package.
 - [#6882](https://github.com/influxdata/influxdb/pull/6882): Remove a double lock in the tsm1 index writer.
+- [#6883](https://github.com/influxdata/influxdb/pull/6883): Rename dumptsmdev to dumptsm in influx_inspect.
 
 ## v0.13.0 [2016-05-12]
 
