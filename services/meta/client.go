@@ -80,7 +80,7 @@ func NewClient(config *Config) *Client {
 		},
 		closing:             make(chan struct{}),
 		changed:             make(chan struct{}),
-		logger:              log.New(os.Stderr, "[metaclient] ", log.LstdFlags),
+		logger:              log.New(ioutil.Discard, "[metaclient] ", log.LstdFlags),
 		authCache:           make(map[string]authUser, 0),
 		path:                config.Dir,
 		retentionAutoCreate: config.RetentionAutoCreate,

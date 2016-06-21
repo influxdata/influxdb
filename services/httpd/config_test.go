@@ -16,7 +16,6 @@ bind-address = ":8080"
 auth-enabled = true
 log-enabled = true
 write-tracing = true
-pprof-enabled = true
 https-enabled = true
 https-certificate = "/dev/null"
 `, &c); err != nil {
@@ -34,8 +33,6 @@ https-certificate = "/dev/null"
 		t.Fatalf("unexpected log enabled: %v", c.LogEnabled)
 	} else if c.WriteTracing != true {
 		t.Fatalf("unexpected write tracing: %v", c.WriteTracing)
-	} else if c.PprofEnabled != true {
-		t.Fatalf("unexpected pprof enabled: %v", c.PprofEnabled)
 	} else if c.HTTPSEnabled != true {
 		t.Fatalf("unexpected https enabled: %v", c.HTTPSEnabled)
 	} else if c.HTTPSCertificate != "/dev/null" {

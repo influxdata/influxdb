@@ -262,7 +262,9 @@ func (s *Server) Open() error {
 
 	// Configure logging for all services and clients.
 	w := s.logOutput
-	s.MetaClient.SetLogOutput(w)
+	if s.config.Meta.LoggingEnabled {
+		s.MetaClient.SetLogOutput(w)
+	}
 	s.TSDBStore.SetLogOutput(w)
 	if s.config.Data.QueryLogEnabled {
 		s.QueryExecutor.SetLogOutput(w)
@@ -422,21 +424,6 @@ func (s *Server) monitorErrorChan(ch <-chan error) {
 	}
 }
 
-// HTTPAddr returns the HTTP address used by other nodes for HTTP queries and writes.
-func (s *Server) HTTPAddr() string {
-	return s.remoteAddr(s.httpAPIAddr)
-}
-
-// TCPAddr returns the TCP address used by other nodes for cluster communication.
-func (s *Server) TCPAddr() string {
-	return s.remoteAddr(s.tcpAddr)
-}
-
-// MetaServers returns the meta node HTTP addresses used by this server.
-func (s *Server) MetaServers() []string {
-	return []string{s.HTTPAddr()}
-}
-
 // Service represents a service attached to the server.
 type Service interface {
 	SetLogOutput(w io.Writer)
@@ -499,25 +486,4 @@ type monitorPointsWriter coordinator.PointsWriter
 
 func (pw *monitorPointsWriter) WritePoints(database, retentionPolicy string, points models.Points) error {
 	return (*coordinator.PointsWriter)(pw).WritePoints(database, retentionPolicy, models.ConsistencyLevelAny, points)
-}
-
-func (s *Server) remoteAddr(addr string) string {
-	hostname := s.config.Hostname
-	remote, err := DefaultHost(hostname, addr)
-	if err != nil {
-		return addr
-	}
-	return remote
-}
-
-func DefaultHost(hostname, addr string) (string, error) {
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return "", err
-	}
-
-	if host == "" || host == "0.0.0.0" || host == "::" {
-		return net.JoinHostPort(hostname, port), nil
-	}
-	return addr, nil
 }

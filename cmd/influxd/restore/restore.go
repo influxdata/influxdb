@@ -333,25 +333,24 @@ func (cmd *Command) unpackFile(tr *tar.Reader, fileName string) error {
 func (cmd *Command) printUsage() {
 	fmt.Fprintf(cmd.Stdout, `usage: influxd restore [flags] PATH
 
-Restore uses backups from the PATH to restore the metastore, databases,
+Uses backups from the PATH to restore the metastore, databases,
 retention policies, or specific shards. The InfluxDB process must not be
-running during restore.
+running during a restore.
 
-Options:
-  -metadir <path>
-        Optional. If set the metastore will be recovered to the given path.
-  -datadir <path>
-        Optional. If set the restore process will recover the specified
-        database, retention policy or shard to the given directory.
-  -database <name>
-        Optional. Required if no metadir given. Will restore the database
-        TSM files.
-  -retention <name>
-        Optional. If given, database is required. Will restore the retention policy's
-        TSM files.
-  -shard <id>
-    Optional. If given, database and retention are required. Will restore the shard's
-    TSM files.
+	-metadir <path>
+		Optional. If set the metastore will be recovered to the given path.
+	-datadir <path>
+		Optional. If set the restore process will recover the specified
+		database, retention policy or shard to the given directory.
+	-database <name>
+		Optional. Required if no metadir given. Will restore the database
+		TSM files.
+	-retention <name>
+		Optional. If given, database is required. Will restore the retention policy's
+		TSM files.
+	-shard <id>
+		Optional. If given, database and retention are required. Will restore the shard's
+		TSM files.
 
 `)
 }
