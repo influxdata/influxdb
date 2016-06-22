@@ -22,8 +22,6 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
-const leaderWaitTimeout = 30 * time.Second
-
 // statistics gathered by the openTSDB package.
 const (
 	statHTTPConnectionsHandled   = "httpConnsHandled"

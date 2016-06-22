@@ -11,7 +11,6 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -24,10 +23,6 @@ var (
 	ErrShardNotFound = fmt.Errorf("shard not found")
 	// ErrStoreClosed gets returned when trying to use a closed Store.
 	ErrStoreClosed = fmt.Errorf("store is closed")
-)
-
-const (
-	maintenanceCheckInterval = time.Minute
 )
 
 // Store manages shards and indexes for databases.
@@ -778,18 +773,6 @@ func (e *Store) filterShowSeriesResult(limit, offset int, rows models.Rows) mode
 		}
 	}
 	return filteredSeries
-}
-
-// IsRetryable returns true if this error is temporary and could be retried
-func IsRetryable(err error) bool {
-	if err == nil {
-		return true
-	}
-
-	if strings.Contains(err.Error(), "field type conflict") {
-		return false
-	}
-	return true
 }
 
 // DecodeStorePath extracts the database and retention policy names

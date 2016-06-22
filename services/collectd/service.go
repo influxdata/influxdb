@@ -18,8 +18,6 @@ import (
 	"github.com/kimor79/gollectd"
 )
 
-const leaderWaitTimeout = 30 * time.Second
-
 // statistics gathered by the collectd service.
 const (
 	statPointsReceived       = "pointsRx"
@@ -305,11 +303,4 @@ func (s *Service) UnmarshalCollectd(packet *gollectd.Packet) []models.Point {
 		points = append(points, p)
 	}
 	return points
-}
-
-// assert will panic with a given formatted message if the given condition is false.
-func assert(condition bool, msg string, v ...interface{}) {
-	if !condition {
-		panic(fmt.Sprintf("assert failed: "+msg, v...))
-	}
 }

@@ -297,7 +297,6 @@ func (h *{{$k.name}}MergeHeap) Pop() interface{} {
 
 type {{$k.name}}MergeHeapItem struct {
 	itr *buf{{$k.Name}}Iterator
-	err error
 }
 
 // {{$k.name}}SortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
@@ -306,7 +305,6 @@ type {{$k.name}}SortedMergeIterator struct {
 	opt    IteratorOptions
 	heap   {{$k.name}}SortedMergeHeap
 	init   bool
-	point  {{$k.Name}}Point
 }
 
 // new{{$k.Name}}SortedMergeIterator returns an instance of {{$k.name}}SortedMergeIterator.

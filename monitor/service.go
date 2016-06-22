@@ -17,8 +17,6 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 )
 
-const leaderWaitTimeout = 30 * time.Second
-
 // Policy constants.
 const (
 	MonitorRetentionPolicy         = "monitor"
@@ -403,15 +401,6 @@ type Statistic struct {
 	Name   string                 `json:"name"`
 	Tags   map[string]string      `json:"tags"`
 	Values map[string]interface{} `json:"values"`
-}
-
-// newStatistic returns a new statistic object.
-func newStatistic(name string, tags map[string]string, values map[string]interface{}) *Statistic {
-	return &Statistic{
-		Name:   name,
-		Tags:   tags,
-		Values: values,
-	}
 }
 
 // valueNames returns a sorted list of the value names, if any.
