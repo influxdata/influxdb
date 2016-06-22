@@ -598,13 +598,24 @@ func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
 				continue
 			}
 
+			location := &location{
+				r:     fd,
+				entry: ie,
+			}
+
+			if ascending {
+				// For an ascending cursor, mark everything before the seek time as read
+				// so we can filter it out at query time
+				location.readMin = math.MinInt64
+				location.readMax = t - 1
+			} else {
+				// For an ascending cursort, mark everything after the seek time as read
+				// so we can filter it out at query time
+				location.readMin = t + 1
+				location.readMax = math.MaxInt64
+			}
 			// Otherwise, add this file and block location
-			locations = append(locations, &location{
-				r:       fd,
-				entry:   ie,
-				readMin: math.MaxInt64,
-				readMax: math.MinInt64,
-			})
+			locations = append(locations, location)
 		}
 	}
 	return locations
@@ -839,6 +850,9 @@ func (c *KeyCursor) seekDescending(t int64) {
 // Next moves the cursor to the next position.
 // Data should be read by the ReadBlock functions.
 func (c *KeyCursor) Next() {
+	if len(c.current) == 0 {
+		return
+	}
 	// Do we still have unread values in the current block
 	if !c.current[0].read() {
 		return
@@ -875,15 +889,12 @@ func (c *KeyCursor) nextAscending() {
 	}
 
 	// If we have ovelapping blocks, append all their values so we can dedup
-	first := c.seeks[c.pos]
 	for i := c.pos + 1; i < len(c.seeks); i++ {
 		if c.seeks[i].read() {
 			continue
 		}
 
-		if c.seeks[i].entry.MinTime <= first.entry.MaxTime {
-			c.current = append(c.current, c.seeks[i])
-		}
+		c.current = append(c.current, c.seeks[i])
 	}
 }
 
@@ -911,14 +922,11 @@ func (c *KeyCursor) nextDescending() {
 	}
 
 	// If we have ovelapping blocks, append all their values so we can dedup
-	first := c.seeks[c.pos]
 	for i := c.pos; i >= 0; i-- {
 		if c.seeks[i].read() {
 			continue
 		}
-		if c.seeks[i].entry.MaxTime >= first.entry.MinTime {
-			c.current = append(c.current, c.seeks[i])
-		}
+		c.current = append(c.current, c.seeks[i])
 	}
 }
 

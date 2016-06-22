@@ -459,6 +459,307 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapString(t *testing.T) {
 	}
 }
 
+// Tests that blocks with a lower min time in later files are not returned
+// more than once causing unsorted results
+func TestFileStore_SeekToAsc_OverlapMinFloat(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 1.0), tsm1.NewValue(3, 3.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 2.0), tsm1.NewValue(4, 4.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 0.0), tsm1.NewValue(1, 1.1)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 2.2)}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	buf := make([]tsm1.FloatValue, 1000)
+	c := fs.KeyCursor("cpu", 0, true)
+	// Search for an entry that exists in the second file
+	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp := []tsm1.Value{
+		data[2].values[0],
+		data[2].values[1],
+		data[3].values[0],
+		data[0].values[1],
+	}
+
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+	// Check that calling Next will dedupe points
+	c.Next()
+	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp = []tsm1.Value{
+		data[1].values[1],
+	}
+
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+	c.Next()
+	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	exp = nil
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+// Tests that blocks with a lower min time in later files are not returned
+// more than once causing unsorted results
+func TestFileStore_SeekToAsc_OverlapMinInteger(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, int64(1)), tsm1.NewValue(3, int64(3))}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, int64(2)), tsm1.NewValue(4, int64(4))}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, int64(0)), tsm1.NewValue(1, int64(10))}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, int64(5))}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	buf := make([]tsm1.IntegerValue, 1000)
+	c := fs.KeyCursor("cpu", 0, true)
+	// Search for an entry that exists in the second file
+	values, err := c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp := []tsm1.Value{
+		data[2].values[0],
+		data[2].values[1],
+		data[3].values[0],
+		data[0].values[1],
+	}
+
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+	// Check that calling Next will dedupe points
+	c.Next()
+	values, err = c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp = []tsm1.Value{
+		data[1].values[1],
+	}
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+	c.Next()
+	values, err = c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	exp = nil
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+// Tests that blocks with a lower min time in later files are not returned
+// more than once causing unsorted results
+func TestFileStore_SeekToAsc_OverlapMinBoolean(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, true), tsm1.NewValue(3, true)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, true), tsm1.NewValue(4, true)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, true), tsm1.NewValue(1, false)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, false)}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	buf := make([]tsm1.BooleanValue, 1000)
+	c := fs.KeyCursor("cpu", 0, true)
+	// Search for an entry that exists in the second file
+	values, err := c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp := []tsm1.Value{
+		data[2].values[0],
+		data[2].values[1],
+		data[3].values[0],
+		data[0].values[1],
+	}
+
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+	// Check that calling Next will dedupe points
+	c.Next()
+	values, err = c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp = []tsm1.Value{
+		data[1].values[1],
+	}
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+	c.Next()
+	values, err = c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	exp = nil
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+// Tests that blocks with a lower min time in later files are not returned
+// more than once causing unsorted results
+func TestFileStore_SeekToAsc_OverlapMinString(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, "1.0"), tsm1.NewValue(3, "3.0")}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, "2.0"), tsm1.NewValue(4, "4.0")}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, "0.0"), tsm1.NewValue(1, "1.1")}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, "2.2")}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	buf := make([]tsm1.StringValue, 1000)
+	c := fs.KeyCursor("cpu", 0, true)
+	// Search for an entry that exists in the second file
+	values, err := c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp := []tsm1.Value{
+		data[2].values[0],
+		data[2].values[1],
+		data[3].values[0],
+		data[0].values[1],
+	}
+
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+	// Check that calling Next will dedupe points
+	c.Next()
+	values, err = c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp = []tsm1.Value{
+		data[1].values[1],
+	}
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+	c.Next()
+	values, err = c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	exp = nil
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
 func TestFileStore_SeekToAsc_Middle(t *testing.T) {
 	dir := MustTempDir()
 	defer os.RemoveAll(dir)
@@ -487,16 +788,34 @@ func TestFileStore_SeekToAsc_Middle(t *testing.T) {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
 
-	exp := data[0]
-	if got, exp := len(values), len(exp.values); got != exp {
+	exp := []tsm1.Value{data[0].values[2]}
+	if got, exp := len(values), len(exp); got != exp {
 		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
 	}
 
-	for i, v := range exp.values {
+	for i, v := range exp {
 		if got, exp := values[i].Value(), v.Value(); got != exp {
 			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
 		}
 	}
+
+	c.Next()
+	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp = []tsm1.Value{data[1].values[0]}
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
 }
 
 func TestFileStore_SeekToAsc_End(t *testing.T) {
@@ -632,7 +951,260 @@ func TestFileStore_SeekToDesc_Duplicate(t *testing.T) {
 			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
 		}
 	}
+}
 
+func TestFileStore_SeekToDesc_OverlapMaxFloat(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 1.0), tsm1.NewValue(3, 3.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 2.0), tsm1.NewValue(4, 4.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 0.0), tsm1.NewValue(1, 1.1)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 2.2)}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	// Search for an entry that exists in the second file
+	buf := make([]tsm1.FloatValue, 1000)
+	c := fs.KeyCursor("cpu", 5, false)
+	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp := []tsm1.Value{
+		data[3].values[0],
+		data[0].values[1],
+		data[1].values[1],
+	}
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+	c.Next()
+	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+	exp = []tsm1.Value{
+
+		data[2].values[0],
+		data[2].values[1],
+	}
+
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+}
+
+func TestFileStore_SeekToDesc_OverlapMaxInteger(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, int64(1)), tsm1.NewValue(3, int64(3))}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, int64(2)), tsm1.NewValue(4, int64(4))}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, int64(0)), tsm1.NewValue(1, int64(10))}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, int64(5))}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	// Search for an entry that exists in the second file
+	buf := make([]tsm1.IntegerValue, 1000)
+	c := fs.KeyCursor("cpu", 5, false)
+	values, err := c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp := []tsm1.Value{
+		data[3].values[0],
+		data[0].values[1],
+		data[1].values[1],
+	}
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+	c.Next()
+	values, err = c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+	exp = []tsm1.Value{
+		data[2].values[0],
+		data[2].values[1],
+	}
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+}
+
+func TestFileStore_SeekToDesc_OverlapMaxBoolean(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, true), tsm1.NewValue(3, true)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, true), tsm1.NewValue(4, true)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, true), tsm1.NewValue(1, false)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, false)}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	// Search for an entry that exists in the second file
+	buf := make([]tsm1.BooleanValue, 1000)
+	c := fs.KeyCursor("cpu", 5, false)
+	values, err := c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp := []tsm1.Value{
+		data[3].values[0],
+		data[0].values[1],
+		data[1].values[1],
+	}
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+	c.Next()
+	values, err = c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+	exp = []tsm1.Value{
+		data[2].values[0],
+		data[2].values[1],
+	}
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+}
+
+func TestFileStore_SeekToDesc_OverlapMaxString(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	fs := tsm1.NewFileStore(dir)
+
+	// Setup 3 files
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, "1.0"), tsm1.NewValue(3, "3.0")}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, "2.0"), tsm1.NewValue(4, "4.0")}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, "0.0"), tsm1.NewValue(1, "1.1")}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, "2.2")}},
+	}
+
+	files, err := newFiles(dir, data...)
+	if err != nil {
+		t.Fatalf("unexpected error creating files: %v", err)
+	}
+
+	fs.Add(files...)
+
+	// Search for an entry that exists in the second file
+	buf := make([]tsm1.StringValue, 1000)
+	c := fs.KeyCursor("cpu", 5, false)
+	values, err := c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp := []tsm1.Value{
+		data[3].values[0],
+		data[0].values[1],
+		data[1].values[1],
+	}
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+	c.Next()
+	values, err = c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+	exp = []tsm1.Value{
+		data[2].values[0],
+		data[2].values[1],
+	}
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
 }
 
 func TestFileStore_SeekToDesc_AfterEnd(t *testing.T) {
@@ -791,37 +1363,17 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapInteger(t *testing.T) {
 	fs.Add(files...)
 
 	buf := make([]tsm1.IntegerValue, 1000)
-	c := fs.KeyCursor("cpu", 8, false)
+	c := fs.KeyCursor("cpu", 11, false)
 	values, err := c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
 
 	exp := []tsm1.Value{
+		data[3].values[0],
 		data[0].values[0],
 		data[0].values[1],
 		data[3].values[1],
-	}
-
-	if got, exp := len(values), len(exp); got != exp {
-		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
-	}
-
-	for i, v := range exp {
-		if got, exp := values[i].Value(), v.Value(); got != exp {
-			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
-		}
-	}
-
-	c.Next()
-	values, err = c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
-
-	if err != nil {
-		t.Fatalf("unexpected error reading values: %v", err)
-	}
-
-	exp = []tsm1.Value{
-		data[3].values[0],
 	}
 
 	if got, exp := len(values), len(exp); got != exp {
@@ -888,7 +1440,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapBoolean(t *testing.T) {
 	fs.Add(files...)
 
 	buf := make([]tsm1.BooleanValue, 1000)
-	c := fs.KeyCursor("cpu", 8, false)
+	c := fs.KeyCursor("cpu", 11, false)
 	values, err := c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -985,7 +1537,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapString(t *testing.T) {
 	fs.Add(files...)
 
 	buf := make([]tsm1.StringValue, 1000)
-	c := fs.KeyCursor("cpu", 8, false)
+	c := fs.KeyCursor("cpu", 11, false)
 	values, err := c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -1091,15 +1643,50 @@ func TestFileStore_SeekToDesc_Middle(t *testing.T) {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
 
-	exp := data[1]
-	if got, exp := len(values), len(exp.values); got != exp {
+	exp := []tsm1.Value{
+		data[1].values[0],
+		data[1].values[1],
+	}
+
+	if got, exp := len(values), len(exp); got != exp {
 		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
 	}
 
-	for i, v := range exp.values {
+	for i, v := range exp {
 		if got, exp := values[i].Value(), v.Value(); got != exp {
 			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
 		}
+	}
+	c.Next()
+	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	exp = []tsm1.Value{
+		data[0].values[0],
+	}
+
+	if got, exp := len(values), len(exp); got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, v := range exp {
+		if got, exp := values[i].Value(), v.Value(); got != exp {
+			t.Fatalf("read value mismatch(%d): got %v, exp %v", i, got, exp)
+		}
+	}
+
+	c.Next()
+	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+
+	if err != nil {
+		t.Fatalf("unexpected error reading values: %v", err)
+	}
+
+	if got, exp := len(values), 0; got != exp {
+		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
 	}
 }
 
