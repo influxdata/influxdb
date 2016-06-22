@@ -4,14 +4,14 @@ import (
 	"log"
 	"strconv"
 
-	"github.com/influxdata/influxdb/stress/v2/ponyExpress"
+	"github.com/influxdata/influxdb/stress/v2/stress_client"
 )
 
 // Statement is the common interface to shape the testing environment and prepare database requests
 // The parser turns the 'statements' in the config file into Statements
 type Statement interface {
-	Run(s *ponyExpress.StoreFront)
-	Report(s *ponyExpress.StoreFront) string
+	Run(s *stressClient.StressTest)
+	Report(s *stressClient.StressTest) string
 	SetID(s string)
 }
 

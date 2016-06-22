@@ -1,4 +1,4 @@
-package ponyExpress
+package stressClient
 
 import (
 	"strings"
@@ -14,9 +14,9 @@ const (
 	Query
 )
 
-func startPonyExpress(packageCh <-chan Package, directiveCh <-chan Directive, responseCh chan<- Response, testID string) {
+func startStressClient(packageCh <-chan Package, directiveCh <-chan Directive, responseCh chan<- Response, testID string) {
 
-	c := &ponyExpress{
+	c := &stressClient{
 		testID: testID,
 
 		addresses: []string{"localhost:8086"},
@@ -39,12 +39,11 @@ func startPonyExpress(packageCh <-chan Package, directiveCh <-chan Directive, re
 	}
 	// start listening for writes and queries
 	go c.listen()
-
 	// start listening for state changes
 	go c.directiveListen()
 }
 
-type ponyExpress struct {
+type stressClient struct {
 	testID string
 
 	// State for the Stress Test
@@ -78,11 +77,11 @@ type ponyExpress struct {
 	rc *ConcurrencyLimiter
 }
 
-// NewTestPonyExpress returns a blank ponyExpress for testing
-func newTestPonyExpress(url string) (*ponyExpress, chan Directive, chan Package) {
+// NewTestStressClient returns a blank stressClient for testing
+func newTestStressClient(url string) (*stressClient, chan Directive, chan Package) {
 	pkgChan := make(chan Package)
 	dirChan := make(chan Directive)
-	pe := &ponyExpress{
+	pe := &stressClient{
 		testID:        "foo_id",
 		addresses:     []string{url},
 		precision:     "s",
@@ -103,30 +102,22 @@ func newTestPonyExpress(url string) (*ponyExpress, chan Directive, chan Package)
 	return pe, dirChan, pkgChan
 }
 
-// client starts listening for Packages on the main channel
-func (pe *ponyExpress) listen() {
-
-	defer pe.Wait()
-
-	// Keep track of number of concurrent readers and writers seperately
-	pe.wc = NewConcurrencyLimiter(pe.wconc)
-	pe.rc = NewConcurrencyLimiter(pe.qconc)
-
-	// Manage overall number of goroutines and keep at 2 x (wconc + qconc)
-	l := NewConcurrencyLimiter((pe.wconc + pe.qconc) * 2)
-
-	// Concume incoming packages
+// stressClient starts listening for Packages on the main channel
+func (sc *stressClient) listen() {
+	defer sc.Wait()
+	sc.wc = NewConcurrencyLimiter(sc.wconc)
+	sc.rc = NewConcurrencyLimiter(sc.qconc)
+	l := NewConcurrencyLimiter((sc.wconc + sc.qconc) * 2)
 	counter := 0
-	for p := range pe.packageChan {
-		serv := counter % len(pe.addresses)
+	for p := range sc.packageChan {
 		l.Increment()
 		go func(p Package) {
 			defer l.Decrement()
 			switch p.T {
 			case Write:
-				pe.spinOffWritePackage(p, serv)
+				sc.spinOffWritePackage(p, (counter % len(sc.addresses)))
 			case Query:
-				pe.spinOffQueryPackage(p, serv)
+				sc.spinOffQueryPackage(p, (counter % len(sc.addresses)))
 			}
 		}(p)
 		counter++
@@ -135,64 +126,50 @@ func (pe *ponyExpress) listen() {
 }
 
 // Set handles all SET requests for test state
-func (pe *ponyExpress) directiveListen() {
-	for d := range pe.directiveChan {
-		pe.Lock()
+func (sc *stressClient) directiveListen() {
+	for d := range sc.directiveChan {
+		sc.Lock()
 		switch d.Property {
-
 		// addresses is a []string of target InfluxDB instance(s) for the test
 		// comes in as a "|" seperated array of addresses
 		case "addresses":
 			addr := strings.Split(d.Value, "|")
-			pe.addresses = addr
-
+			sc.addresses = addr
 		// percison is the write precision for InfluxDB
 		case "precision":
-			pe.precision = d.Value
-
+			sc.precision = d.Value
 		// writeinterval is an optional delay between batches
 		case "writeinterval":
-			pe.wdelay = d.Value
-
+			sc.wdelay = d.Value
 		// queryinterval is an optional delay between the batches
 		case "queryinterval":
-			pe.qdelay = d.Value
-
+			sc.qdelay = d.Value
 		// database is the InfluxDB database to target for both writes and queries
 		case "database":
-			pe.database = d.Value
-
+			sc.database = d.Value
 		// username for the target database
 		case "username":
-			pe.username = d.Value
-
+			sc.username = d.Value
 		// username for the target database
 		case "password":
-			pe.password = d.Value
-
-		// use https if the there is a value for ssl
+			sc.password = d.Value
+		// use https if sent true
 		case "ssl":
 			if d.Value == "true" {
-				pe.ssl = true
+				sc.ssl = true
 			}
-
-			// concurrency is the number concurrent writers to the database
+		// concurrency is the number concurrent writers to the database
 		case "writeconcurrency":
 			conc := parseInt(d.Value)
-			pe.wconc = conc
-			// Reset the ConcurrencyLimiter
-			pe.wc.NewMax(conc)
-
-			// concurrentqueries is the number of concurrent queries to run against the database
+			sc.wconc = conc
+			sc.wc.NewMax(conc)
+		// concurrentqueries is the number of concurrent queriers database
 		case "queryconcurrency":
 			conc := parseInt(d.Value)
-			pe.qconc = conc
-			// Reset the ConcurrencyLimiter
-			pe.rc.NewMax(conc)
+			sc.qconc = conc
+			sc.rc.NewMax(conc)
 		}
-
-		// Decrement the tracker
 		d.Tracer.Done()
-		pe.Unlock()
+		sc.Unlock()
 	}
 }

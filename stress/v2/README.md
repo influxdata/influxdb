@@ -1,17 +1,5 @@
 # Influx Stress tool
 
-Blockers to finishing:
-* Finalize reporting
-  - Decide on how to incorporate TestName (db[difficult], measurement[refactor], tag[easy])
-  - Get feedback on reporting syntax
-  - Pull addition data from queries
-* Documentation is sorely lacking. 
-  - Parser behavior and proper `.iql` syntax
-  - How the templated query generation works
-  - Collection of tested `.iql` files to simulate different loads
-  
-Commune is potentially blocking writes, look into performance
-
 This stress tool works from list of InfluxQL-esque statements. The language has been extended to allow for some basic templating of fields, tags and measurements in both line protocol and query statements.
 
 By default the test outputs a human readable report to `STDOUT` and records test statistics in an active installation of InfluxDB at `localhost:8086`.
@@ -19,17 +7,26 @@ By default the test outputs a human readable report to `STDOUT` and records test
 To set state variables for the test such as the address of the Influx node use the following syntax:
 
 ```
+# The values listed below are the default values for each of the parameters
+ 
 # Pipe delineated list of addresses. For cluster: [192.168.0.10:8086|192.168.0.2:8086|192.168.0.3:8086]
-# Queries currently hit only the first node in a list. Writes are round robin.
+# Queries and writes are round-robin to the configured addresses.
 SET Addresses [localhost:8086]
 
-# Influx instance to store results
-SET ResultsAddress [localhost:8086]
+# False (default) uses http, true uses https
+SET SSL [false]
+
+# Username for targeted influx server or cluster
+SET Username []
+
+# Password for targeted influx server or cluster
+SET Password []
 
 # Database to target for queries and writes. Works like the InfluxCLI USE
-SET Database [thing2]
+SET Database [stress]
 
 # Precision for the data being written
+# Only s and ns supported
 SET Precision [s]
 
 # Date the first written point will be timestamped
@@ -157,3 +154,19 @@ WAIT -> 624.585319ms
 [√] "DROP DATABASE thing" -> 991.088464ms
 [√] "DROP DATABASE thing2" -> 421.362831ms
 ```
+
+### Next Steps:
+
+##### Reporting
+- Only use one database for reporting
+- Get feedback on reporting syntax
+- Pull addition data from queries
+
+##### Documentation
+- Parser behavior and proper `.iql` syntax
+- How the templated query generation works
+- Collection of tested `.iql` files to simulate different loads
+  
+##### Performance
+- `Commune` is potentially blocking writes, look into performance.
+- Templated query generation is currently in a quazi-working state.

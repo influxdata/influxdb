@@ -6,7 +6,7 @@ import (
 	"time"
 
 	influx "github.com/influxdata/influxdb/client/v2"
-	"github.com/influxdata/influxdb/stress/v2/ponyExpress"
+	"github.com/influxdata/influxdb/stress/v2/stress_client"
 	"github.com/influxdata/influxdb/stress/v2/stressql"
 )
 
@@ -14,7 +14,7 @@ import (
 func RunStress(file string) {
 
 	// Spin up the Client
-	s := ponyExpress.NewStoreFront()
+	s := stressClient.NewStressTest()
 
 	// Parse the file into Statements
 	stmts, err := stressql.ParseStatements(file)
@@ -40,7 +40,7 @@ func RunStress(file string) {
 	}
 }
 
-func blankResponse() ponyExpress.Response {
+func blankResponse() stressClient.Response {
 	// Points must have at least one field
 	fields := map[string]interface{}{"done": true}
 	// Make a 'blank' point
@@ -50,10 +50,10 @@ func blankResponse() ponyExpress.Response {
 		log.Fatalf("Error creating blank response point\n  error: %v\n", err)
 	}
 	// Add a tracer to prevent program from returning too early
-	tracer := ponyExpress.NewTracer(make(map[string]string))
+	tracer := stressClient.NewTracer(make(map[string]string))
 	// Add to the WaitGroup
 	tracer.Add(1)
 	// Make a new response with the point and the tracer
-	resp := ponyExpress.NewResponse(p, tracer)
+	resp := stressClient.NewResponse(p, tracer)
 	return resp
 }

@@ -1,4 +1,4 @@
-package ponyExpress
+package stressClient
 
 import (
 	"sync"

@@ -3,7 +3,7 @@ package statement
 import (
 	"testing"
 
-	"github.com/influxdata/influxdb/stress/v2/ponyExpress"
+	"github.com/influxdata/influxdb/stress/v2/stress_client"
 )
 
 func TestInfluxQlSetID(t *testing.T) {
@@ -17,10 +17,10 @@ func TestInfluxQlSetID(t *testing.T) {
 
 func TestInfluxQlRun(t *testing.T) {
 	e := newTestInfluxQl()
-	s, packageCh, _ := ponyExpress.NewTestStoreFront()
+	s, packageCh, _ := stressClient.NewTestStressTest()
 	go func() {
 		for pkg := range packageCh {
-			if pkg.T != ponyExpress.Query {
+			if pkg.T != stressClient.Query {
 				t.Errorf("Expected package to be Query\nGot: %v", pkg.T)
 			}
 			if string(pkg.Body) != e.Query {
@@ -38,7 +38,7 @@ func TestInfluxQlRun(t *testing.T) {
 func newTestInfluxQl() *InfluxqlStatement {
 	return &InfluxqlStatement{
 		Query:       "CREATE DATABASE foo",
-		Tracer:      ponyExpress.NewTracer(make(map[string]string)),
+		Tracer:      stressClient.NewTracer(make(map[string]string)),
 		StatementID: "fooID",
 	}
 }

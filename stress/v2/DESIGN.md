@@ -17,9 +17,9 @@ The tool has the following components:
   - `QUERY` - Runs a given query or generates sample queries given a companion `INSERT` statement
   - `SET` - Changes the test parameters. Defaults are listed in the `README.md`
   - `WAIT` - Required after a `GO` statement. Blocks till all proceeding statements finish.
-* Clients - The statement, results and InfluxDB clients. This code lives in `v2/ponyExpress`
-  - `Storefront` - The `Statement` client. Also contains the results client.
-  - `ponyExpress` - A performant InfluxDB client. Makes `GET /query` and `POST /write` requests. Forwards the results to the results client.
+* Clients - The statement, results and InfluxDB clients. This code lives in `v2/stress_client`
+  - `StressTest` - The `Statement` client. Also contains the results client.
+  - `stressClient` - A performant InfluxDB client. Makes `GET /query` and `POST /write` requests. Forwards the results to the results client.
   
 ![Influx Stress Design](./influx_stress_v2.png)
 
@@ -28,8 +28,8 @@ The tool has the following components:
 `Statement` is an interface defined in `v2/statement/statement.go`:
 ```go
 type Statement interface {
-	Run(s *ponyExpress.StoreFront)
-	Report(s *ponyExpress.StoreFront) string
+	Run(s *stressClient.StressTest)
+	Report(s *stressClient.StressTest) string
 	SetID(s string)
 }
 ```
@@ -37,11 +37,11 @@ type Statement interface {
 * `Report` retrieves and collates all recorded test data from the reporting InfluxDB instance.
 * `SetID` gives the statement an ID. Used in the parser. Each `statementID` is an 8 character random string used for reporting.
 
-### `Statement` -> `Storefront`
+### `Statement` -> `StressTest`
 
-`Statement`s send `Packages` (queries or writes to the target database) or `Directives` (for changing test state) through the `StoreFront` to the `ponyExpress` where they are processed.
+`Statement`s send `Package`s (queries or writes to the target database) or `Directives` (for changing test state) through the `StressTest` to the `stressClient` where they are processed.
 ```go
-// v2/ponyExpress/package.go
+// v2/stress_client/package.go
 
 // T is Query or Write
 // StatementID is for reporting
@@ -52,9 +52,9 @@ type Package struct {
 	Tracer      *Tracer
 }
 
-// v2/ponyExpress/directive.go
+// v2/stress_client/directive.go
 
-// Property is test state to change
+// Property is test state variable to change
 // Value is the new value
 type Directive struct {
 	Property string
@@ -63,10 +63,10 @@ type Directive struct {
 }
 ```
 
-The `Tracer` on both of these packages contains a `sync.WaitGroup` that prevents `Statement`s from returning before all their operations are finished. This `WaitGroup` is incremented in the `Run()` of the statement and decremented in `*StoreFront.resultsListen()` after results are recorded in the database. This is well documented with inline comments. `Tracer`s also carry optional tags for reporting purposes.
+The `Tracer` on both of these packages contains a `sync.WaitGroup` that prevents `Statement`s from returning before all their operations are finished. This `WaitGroup` is incremented in the `Run()` of the statement and decremented in `*StressTest.resultsListen()` after results are recorded in the database. This is well documented with inline comments. `Tracer`s also carry optional tags for reporting purposes.
 
 ```go
-//  v2/ponyExpress/tracer.go
+//  v2/stress_client/tracer.go
 type Tracer struct {
 	Tags map[string]string
 
@@ -74,12 +74,12 @@ type Tracer struct {
 }
 ```
 
-### `StoreFront`
+### `StressTest`
 
-The `StoreFront` is the client for the statements through the `*StoreFront.SendPackage()` and `*StoreFront.SendDirective()` functions. It also contains some test state and the `ResultsClient`. 
+The `StressTest` is the client for the statements through the `*StressTest.SendPackage()` and `*StressTest.SendDirective()` functions. It also contains some test state and the `ResultsClient`. 
 
 ```go
-type StoreFront struct {
+type StressTest struct {
 	TestID   string
 	TestName string
 
@@ -101,19 +101,19 @@ type StoreFront struct {
 
 ### Reporting Client
 
-The `ResultsClient` turns raw responses from InfluxDB into properly tagged points containing any relevant information for storage in another InfluxDB instance. The code for creating those points lives in `v2/ponyExpress/reporting.go`
+The `ResultsClient` turns raw responses from InfluxDB into properly tagged points containing any relevant information for storage in another InfluxDB instance. The code for creating those points lives in `v2/stress_client/reporting.go`
 
 ### InfluxDB Instance (reporting)
 
-This is `localhost:8086` by default. The results are currently stored in the `_DefaultTestName` database. This is going to be changed.
+This is `localhost:8086` by default. The results are currently stored in the `_stressTest` database.
 
-### `ponyExpress`
+### `stressClient`
 
-An InfluxDB client designed for speed. `ponyExpress` also holds most test state. 
+An InfluxDB client designed for speed. `stressClient` also holds most test state. 
 
 ```go
-// v2/ponyExpress/ponyExpress.go
-type ponyExpress struct {
+// v2/stress_client/stress_client.go
+type stressClient struct {
 	testID string
 
 	// State for the Stress Test
@@ -144,7 +144,7 @@ type ponyExpress struct {
 	rc *ConcurrencyLimiter
 }
 ```
-Code for handling the write path is in `v2/ponyExpress/ponyExpress_write.go` while the query path is in `v2/ponyExpress/ponyExpress_query.go`.
+Code for handling the write path is in `v2/stress_client/stress_client_write.go` while the query path is in `v2/stress_client/stress_client_query.go`.
 
 ### InfluxDB Instance (stress test target)
 
@@ -152,10 +152,10 @@ The InfluxDB which is being put under stress.
 
 ### response data
 
-`Response`s carry points from `ponyExpress` to the `ResultsClient`.
+`Response`s carry points from `stressClient` to the `ResultsClient`.
 
 ```go
-// v2/ponyExpress/response.go
+// v2/stress_client/response.go
 type Response struct {
 	Point  *influx.Point
 	Tracer *Tracer

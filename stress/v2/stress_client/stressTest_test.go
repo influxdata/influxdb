@@ -1,7 +1,6 @@
-package ponyExpress
+package stressClient
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -18,15 +17,15 @@ func NewBlankTestPoint() *influx.Point {
 	return pt
 }
 
-func TestStoreFrontBatcher(t *testing.T) {
-	sf, _, _ := NewTestStoreFront()
+func TestStressTestBatcher(t *testing.T) {
+	sf, _, _ := NewTestStressTest()
 	bpconf := influx.BatchPointsConfig{
-		Database:  fmt.Sprintf("_%v", sf.TestName),
+		Database:  sf.TestDB,
 		Precision: "ns",
 	}
 	bp, _ := influx.NewBatchPoints(bpconf)
 	pt := NewBlankTestPoint()
-	bp = sf.batcher(pt, bp, bpconf)
+	bp = sf.batcher(pt, bp)
 	if len(bp.Points()) != 1 {
 		t.Fail()
 	}

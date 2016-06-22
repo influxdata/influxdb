@@ -1,4 +1,4 @@
-package ponyExpress
+package stressClient
 
 import (
 	"bytes"
@@ -14,18 +14,18 @@ import (
 // ###############################################
 
 // Packages up Package from channel in goroutine
-func (pe *ponyExpress) spinOffWritePackage(p Package, serv int) {
-	pe.Add(1)
-	pe.wc.Increment()
+func (sc *stressClient) spinOffWritePackage(p Package, serv int) {
+	sc.Add(1)
+	sc.wc.Increment()
 	go func() {
-		pe.retry(p, time.Duration(time.Nanosecond), serv)
-		pe.Done()
-		pe.wc.Decrement()
+		sc.retry(p, time.Duration(time.Nanosecond), serv)
+		sc.Done()
+		sc.wc.Decrement()
 	}()
 }
 
 // Implements backoff and retry logic for 500 responses
-func (pe *ponyExpress) retry(p Package, backoff time.Duration, serv int) {
+func (sc *stressClient) retry(p Package, backoff time.Duration, serv int) {
 
 	// Set Backoff Interval to 500ms
 	backoffInterval := time.Duration(500 * time.Millisecond)
@@ -34,7 +34,7 @@ func (pe *ponyExpress) retry(p Package, backoff time.Duration, serv int) {
 	bo := backoff + backoffInterval
 
 	// Make the write request
-	resp, elapsed, err := pe.prepareWrite(p.Body, serv)
+	resp, elapsed, err := sc.prepareWrite(p.Body, serv)
 
 	// Find number of times request has been retried
 	numBackoffs := int(bo/backoffInterval) - 1
@@ -49,13 +49,13 @@ func (pe *ponyExpress) retry(p Package, backoff time.Duration, serv int) {
 	}
 
 	// Make a point for reporting
-	point := pe.writePoint(numBackoffs, p.StatementID, statusCode, elapsed, p.Tracer.Tags, len(p.Body))
+	point := sc.writePoint(numBackoffs, p.StatementID, statusCode, elapsed, p.Tracer.Tags, len(p.Body))
 
 	// Send the Response(point, tracer)
-	pe.responseChan <- NewResponse(point, p.Tracer)
+	sc.responseChan <- NewResponse(point, p.Tracer)
 
 	// BatchInterval enforcement
-	bi, _ := time.ParseDuration(pe.wdelay)
+	bi, _ := time.ParseDuration(sc.wdelay)
 	time.Sleep(bi)
 
 	// Retry if the statusCode was not 204 or the err != nil
@@ -66,22 +66,22 @@ func (pe *ponyExpress) retry(p Package, backoff time.Duration, serv int) {
 		fmt.Println(err)
 		// Backoff enforcement
 		time.Sleep(bo)
-		pe.retry(p, bo, serv)
+		sc.retry(p, bo, serv)
 	}
 
 }
 
 // Prepares to send the POST request
-func (pe *ponyExpress) prepareWrite(points []byte, serv int) (*http.Response, time.Duration, error) {
+func (sc *stressClient) prepareWrite(points []byte, serv int) (*http.Response, time.Duration, error) {
 
 	// Construct address string
 	var writeTemplate string
-	if pe.ssl {
+	if sc.ssl {
 		writeTemplate = "https://%v/write?db=%v&precision=%v&u=%v&p=%v"
 	} else {
 		writeTemplate = "http://%v/write?db=%v&precision=%v&u=%v&p=%v"
 	}
-	address := fmt.Sprintf(writeTemplate, pe.addresses[serv], pe.database, pe.precision, pe.username, pe.password)
+	address := fmt.Sprintf(writeTemplate, sc.addresses[serv], sc.database, sc.precision, sc.username, sc.password)
 
 	// Start timer
 	t := time.Now()

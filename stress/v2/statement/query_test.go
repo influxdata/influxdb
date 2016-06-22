@@ -3,7 +3,7 @@ package statement
 import (
 	"testing"
 
-	"github.com/influxdata/influxdb/stress/v2/ponyExpress"
+	"github.com/influxdata/influxdb/stress/v2/stress_client"
 )
 
 func TestQuerySetID(t *testing.T) {
@@ -17,7 +17,7 @@ func TestQuerySetID(t *testing.T) {
 
 func TestQueryRun(t *testing.T) {
 	i := newTestQuery()
-	s, packageCh, _ := ponyExpress.NewTestStoreFront()
+	s, packageCh, _ := stressClient.NewTestStressTest()
 	// Listen to the other side of the directiveCh
 	go func() {
 		for pkg := range packageCh {
@@ -37,6 +37,6 @@ func newTestQuery() *QueryStatement {
 		TemplateString: "SELECT count(value) FROM cpu",
 		Args:           []string{},
 		Count:          5,
-		Tracer:         ponyExpress.NewTracer(map[string]string{}),
+		Tracer:         stressClient.NewTracer(map[string]string{}),
 	}
 }

@@ -1,4 +1,4 @@
-package ponyExpress
+package stressClient
 
 import (
 	"testing"
@@ -33,7 +33,7 @@ func TestCommunePoint(t *testing.T) {
 }
 
 func TestSetCommune(t *testing.T) {
-	sf, _, _ := NewTestStoreFront()
+	sf, _, _ := NewTestStressTest()
 	ch := sf.SetCommune("foo_name")
 	ch <- "write,tag=tagVal fooField=5 1460912595"
 	pt := sf.GetPoint("foo_name", "s")

@@ -4,14 +4,14 @@ import (
 	"log"
 	"time"
 
-	"github.com/influxdata/influxdb/stress/v2/ponyExpress"
+	"github.com/influxdata/influxdb/stress/v2/stress_client"
 )
 
 // InfluxqlStatement is a Statement Implementation that allows statements that parse in InfluxQL to be passed directly to the target instance
 type InfluxqlStatement struct {
 	StatementID string
 	Query       string
-	Tracer      *ponyExpress.Tracer
+	Tracer      *stressClient.Tracer
 }
 
 func (i *InfluxqlStatement) tags() map[string]string {
@@ -25,13 +25,13 @@ func (i *InfluxqlStatement) SetID(s string) {
 }
 
 // Run statisfies the Statement Interface
-func (i *InfluxqlStatement) Run(s *ponyExpress.StoreFront) {
+func (i *InfluxqlStatement) Run(s *stressClient.StressTest) {
 
 	// Set the tracer
-	i.Tracer = ponyExpress.NewTracer(i.tags())
+	i.Tracer = stressClient.NewTracer(i.tags())
 
 	// Make the Package
-	p := ponyExpress.NewPackage(ponyExpress.Query, []byte(i.Query), i.StatementID, i.Tracer)
+	p := stressClient.NewPackage(stressClient.Query, []byte(i.Query), i.StatementID, i.Tracer)
 
 	// Increment the tracer
 	i.Tracer.Add(1)
@@ -45,7 +45,7 @@ func (i *InfluxqlStatement) Run(s *ponyExpress.StoreFront) {
 
 // Report statisfies the Statement Interface
 // No test coverage, fix
-func (i *InfluxqlStatement) Report(s *ponyExpress.StoreFront) (out string) {
+func (i *InfluxqlStatement) Report(s *stressClient.StressTest) (out string) {
 	allData := s.GetStatementResults(i.StatementID, "query")
 
 	iqlr := &influxQlReport{

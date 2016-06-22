@@ -1,6 +1,6 @@
-package ponyExpress
+package stressClient
 
-// Directive is a struct to enable communication between SetStatements and the ponyExpress backend
+// Directive is a struct to enable communication between SetStatements and the stressClient backend
 // Directives change state for the stress test
 type Directive struct {
 	Property string

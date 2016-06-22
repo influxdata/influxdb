@@ -1,4 +1,4 @@
-package ponyExpress
+package stressClient
 
 import (
 	"fmt"
@@ -9,38 +9,38 @@ import (
 	"time"
 )
 
-func (pe *ponyExpress) spinOffQueryPackage(p Package, serv int) {
-	pe.Add(1)
-	pe.rc.Increment()
+func (sc *stressClient) spinOffQueryPackage(p Package, serv int) {
+	sc.Add(1)
+	sc.rc.Increment()
 	go func() {
 		// Send the query
-		pe.prepareQuerySend(p, serv)
-		pe.Done()
-		pe.rc.Decrement()
+		sc.prepareQuerySend(p, serv)
+		sc.Done()
+		sc.rc.Decrement()
 	}()
 }
 
 // Prepares to send the GET request
-func (pe *ponyExpress) prepareQuerySend(p Package, serv int) {
+func (sc *stressClient) prepareQuerySend(p Package, serv int) {
 
 	var queryTemplate string
-	if pe.ssl {
+	if sc.ssl {
 		queryTemplate = "https://%v/query?db=%v&q=%v&u=%v&p=%v"
 	} else {
 		queryTemplate = "http://%v/query?db=%v&q=%v&u=%v&p=%v"
 	}
-	queryURL := fmt.Sprintf(queryTemplate, pe.addresses[serv], pe.database, url.QueryEscape(string(p.Body)), pe.username, pe.password)
+	queryURL := fmt.Sprintf(queryTemplate, sc.addresses[serv], sc.database, url.QueryEscape(string(p.Body)), sc.username, sc.password)
 
 	// Send the query
-	pe.makeGet(queryURL, p.StatementID, p.Tracer)
+	sc.makeGet(queryURL, p.StatementID, p.Tracer)
 
 	// Query Interval enforcement
-	qi, _ := time.ParseDuration(pe.qdelay)
+	qi, _ := time.ParseDuration(sc.qdelay)
 	time.Sleep(qi)
 }
 
 // Sends the GET request, reads it, and handles errors
-func (pe *ponyExpress) makeGet(addr, statementID string, tr *Tracer) {
+func (sc *stressClient) makeGet(addr, statementID string, tr *Tracer) {
 
 	// Make GET request
 	t := time.Now()
@@ -65,7 +65,7 @@ func (pe *ponyExpress) makeGet(addr, statementID string, tr *Tracer) {
 	}
 
 	// Send the response
-	pe.responseChan <- NewResponse(pe.queryPoint(statementID, body, resp.StatusCode, elapsed, tr.Tags), tr)
+	sc.responseChan <- NewResponse(sc.queryPoint(statementID, body, resp.StatusCode, elapsed, tr.Tags), tr)
 }
 
 func success(r *http.Response) bool {

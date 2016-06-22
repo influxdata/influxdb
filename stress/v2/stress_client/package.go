@@ -1,6 +1,6 @@
-package ponyExpress
+package stressClient
 
-// Package is a struct to enable communication between InsertStatements, QueryStatements and InfluxQLStatements and the ponyExpress backend
+// Package is a struct to enable communication between InsertStatements, QueryStatements and InfluxQLStatements and the stressClient backend
 // Packages carry either writes or queries in the []byte that makes up the Body
 type Package struct {
 	T           Type

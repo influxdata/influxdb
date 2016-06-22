@@ -4,7 +4,7 @@ import "testing"
 
 // Pulls the default configFile and makes sure it parses
 func TestParseStatements(t *testing.T) {
-	stmts, err := ParseStatements("../file.iql")
+	stmts, err := ParseStatements("../iql/file.iql")
 	if err != nil {
 		t.Error(err)
 	}
