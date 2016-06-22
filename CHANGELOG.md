@@ -71,6 +71,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6869](https://github.com/influxdata/influxdb/issues/6869): Remove FieldCodec from tsdb package.
 - [#6882](https://github.com/influxdata/influxdb/pull/6882): Remove a double lock in the tsm1 index writer.
 - [#6883](https://github.com/influxdata/influxdb/pull/6883): Rename dumptsmdev to dumptsm in influx_inspect.
+- [#6880](https://github.com/influxdata/influxdb/pull/6880): Open database in read only mode for influx_inspect.
 
 ## v0.13.0 [2016-05-12]
 

@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -16,10 +15,11 @@ import (
 
 func cmdInfo(path string) {
 	tstore := tsdb.NewStore(filepath.Join(path, "data"))
-	tstore.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+	tstore.SetLogOutput(ioutil.Discard)
 	tstore.EngineOptions.Config.Dir = filepath.Join(path, "data")
 	tstore.EngineOptions.Config.WALLoggingEnabled = false
 	tstore.EngineOptions.Config.WALDir = filepath.Join(path, "wal")
+	tstore.EngineOptions.Mode = tsdb.ReadMode
 	if err := tstore.Open(); err != nil {
 		fmt.Printf("Failed to open dir: %v\n", err)
 		os.Exit(1)
