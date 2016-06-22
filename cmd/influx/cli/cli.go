@@ -337,41 +337,46 @@ func (c *CommandLine) use(cmd string) {
 	}
 	d := args[1]
 
-	// validate if specified database exists
+	// Validate if specified database exists
 	response, err := c.Client.Query(client.Query{Command: "SHOW DATABASES"})
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
 		return
-	}
-
-	if err := response.Error(); err != nil {
-		fmt.Printf("ERR: %s\n", err)
-		return
-	}
-
-	// verify the provided database exists
-	databaseExists := func() bool {
-		for _, result := range response.Results {
-			for _, row := range result.Series {
-				if row.Name == "databases" {
-					for _, values := range row.Values {
-						for _, database := range values {
-							if database == d {
-								return true
+	} else if err := response.Error(); err != nil {
+		if c.Username == "" {
+			fmt.Printf("ERR: %s\n", err)
+			return
+		}
+		// TODO(jsternberg): Fix SHOW DATABASES to be user-aware #6397.
+		// If we are unable to run SHOW DATABASES, display a warning and use the
+		// database anyway in case the person doesn't have permission to run the
+		// command, but does have permission to use the database.
+		fmt.Printf("WARN: %s\n", err)
+	} else {
+		// Verify the provided database exists
+		if databaseExists := func() bool {
+			for _, result := range response.Results {
+				for _, row := range result.Series {
+					if row.Name == "databases" {
+						for _, values := range row.Values {
+							for _, database := range values {
+								if database == d {
+									return true
+								}
 							}
 						}
 					}
 				}
 			}
+			return false
+		}(); !databaseExists {
+			fmt.Printf("ERR: Database %s doesn't exist. Run SHOW DATABASES for a list of existing databases.\n", d)
+			return
 		}
-		return false
-	}()
-	if databaseExists {
-		c.Database = d
-		fmt.Printf("Using database %s\n", d)
-	} else {
-		fmt.Printf("ERR: Database %s doesn't exist. Run SHOW DATABASES for a list of existing databases.\n", d)
 	}
+
+	c.Database = d
+	fmt.Printf("Using database %s\n", d)
 }
 
 // SetPrecision sets client precision
