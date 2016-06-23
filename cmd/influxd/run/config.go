@@ -1,6 +1,7 @@
 package run
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -110,12 +111,20 @@ func NewDemoConfig() (*Config, error) {
 	return c, nil
 }
 
+// trimBOM trims the Byte-Order-Marks from the beginning of the file.
+// this is for Windows compatability only.
+// see https://github.com/influxdata/telegraf/issues/1378
+func trimBOM(f []byte) []byte {
+	return bytes.TrimPrefix(f, []byte("\xef\xbb\xbf"))
+}
+
 // FromTomlFile loads the config from a TOML file.
 func (c *Config) FromTomlFile(fpath string) error {
 	bs, err := ioutil.ReadFile(fpath)
 	if err != nil {
 		return err
 	}
+	bs = trimBOM(bs)
 	return c.FromToml(string(bs))
 }
 
