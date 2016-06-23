@@ -39,8 +39,21 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[
 	}
 
 	// Use the current block time range as our overlapping window
-	minT, maxT := values[0].UnixNano(), values[len(values)-1].UnixNano()
+	minT, maxT := first.readMin, first.readMax
+	if len(values) > 0 {
+		minT, maxT = values[0].UnixNano(), values[len(values)-1].UnixNano()
+	}
 	if c.ascending {
+		// Blocks are ordered by generation, we may have values in the past in later blocks, if so,
+		// expand the window to include the min time range to ensure values are returned in ascending
+		// order
+		for i := 1; i < len(c.current); i++ {
+			cur := c.current[i]
+			if cur.entry.MinTime < minT && !cur.read() {
+				minT = cur.entry.MinTime
+			}
+		}
+
 		// Find first block that overlaps our window
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
@@ -48,7 +61,9 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				maxT = cur.entry.MaxTime
+				if cur.entry.MaxTime > maxT {
+					maxT = cur.entry.MaxTime
+				}
 				values = FloatValues(values).Include(minT, maxT)
 				break
 			}
@@ -60,6 +75,7 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
 			if !cur.entry.OverlapsTimeRange(minT, maxT) || cur.read() {
+				cur.markRead(minT, maxT)
 				continue
 			}
 
@@ -79,15 +95,23 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[
 				// Only use values in the overlapping window
 				v = FloatValues(v).Include(minT, maxT)
 
-				if len(v) > 0 {
-					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
-				}
 				// Merge the remaing values with the existing
 				values = FloatValues(values).Merge(v)
 			}
+			cur.markRead(minT, maxT)
 		}
 
 	} else {
+		// Blocks are ordered by generation, we may have values in the past in later blocks, if so,
+		// expand the window to include the max time range to ensure values are returned in descending
+		// order
+		for i := 1; i < len(c.current); i++ {
+			cur := c.current[i]
+			if cur.entry.MaxTime > maxT && !cur.read() {
+				maxT = cur.entry.MaxTime
+			}
+		}
+
 		// Find first block that overlaps our window
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
@@ -95,7 +119,9 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				minT = cur.entry.MinTime
+				if cur.entry.MinTime < minT {
+					minT = cur.entry.MinTime
+				}
 				values = FloatValues(values).Include(minT, maxT)
 				break
 			}
@@ -107,6 +133,7 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
 			if !cur.entry.OverlapsTimeRange(minT, maxT) || cur.read() {
+				cur.markRead(minT, maxT)
 				continue
 			}
 
@@ -127,12 +154,10 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[
 			// don't use it again.
 			if len(v) > 0 {
 				v = FloatValues(v).Include(minT, maxT)
-
-				if len(v) > 0 {
-					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
-				}
+				// Merge the remaing values with the existing
 				values = FloatValues(v).Merge(values)
 			}
+			cur.markRead(minT, maxT)
 		}
 	}
 
@@ -174,8 +199,21 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 	}
 
 	// Use the current block time range as our overlapping window
-	minT, maxT := values[0].UnixNano(), values[len(values)-1].UnixNano()
+	minT, maxT := first.readMin, first.readMax
+	if len(values) > 0 {
+		minT, maxT = values[0].UnixNano(), values[len(values)-1].UnixNano()
+	}
 	if c.ascending {
+		// Blocks are ordered by generation, we may have values in the past in later blocks, if so,
+		// expand the window to include the min time range to ensure values are returned in ascending
+		// order
+		for i := 1; i < len(c.current); i++ {
+			cur := c.current[i]
+			if cur.entry.MinTime < minT && !cur.read() {
+				minT = cur.entry.MinTime
+			}
+		}
+
 		// Find first block that overlaps our window
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
@@ -183,7 +221,9 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				maxT = cur.entry.MaxTime
+				if cur.entry.MaxTime > maxT {
+					maxT = cur.entry.MaxTime
+				}
 				values = IntegerValues(values).Include(minT, maxT)
 				break
 			}
@@ -195,6 +235,7 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
 			if !cur.entry.OverlapsTimeRange(minT, maxT) || cur.read() {
+				cur.markRead(minT, maxT)
 				continue
 			}
 
@@ -214,15 +255,23 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 				// Only use values in the overlapping window
 				v = IntegerValues(v).Include(minT, maxT)
 
-				if len(v) > 0 {
-					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
-				}
 				// Merge the remaing values with the existing
 				values = IntegerValues(values).Merge(v)
 			}
+			cur.markRead(minT, maxT)
 		}
 
 	} else {
+		// Blocks are ordered by generation, we may have values in the past in later blocks, if so,
+		// expand the window to include the max time range to ensure values are returned in descending
+		// order
+		for i := 1; i < len(c.current); i++ {
+			cur := c.current[i]
+			if cur.entry.MaxTime > maxT && !cur.read() {
+				maxT = cur.entry.MaxTime
+			}
+		}
+
 		// Find first block that overlaps our window
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
@@ -230,7 +279,9 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				minT = cur.entry.MinTime
+				if cur.entry.MinTime < minT {
+					minT = cur.entry.MinTime
+				}
 				values = IntegerValues(values).Include(minT, maxT)
 				break
 			}
@@ -242,6 +293,7 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
 			if !cur.entry.OverlapsTimeRange(minT, maxT) || cur.read() {
+				cur.markRead(minT, maxT)
 				continue
 			}
 
@@ -262,12 +314,10 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 			// don't use it again.
 			if len(v) > 0 {
 				v = IntegerValues(v).Include(minT, maxT)
-
-				if len(v) > 0 {
-					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
-				}
+				// Merge the remaing values with the existing
 				values = IntegerValues(v).Merge(values)
 			}
+			cur.markRead(minT, maxT)
 		}
 	}
 
@@ -309,8 +359,21 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 	}
 
 	// Use the current block time range as our overlapping window
-	minT, maxT := values[0].UnixNano(), values[len(values)-1].UnixNano()
+	minT, maxT := first.readMin, first.readMax
+	if len(values) > 0 {
+		minT, maxT = values[0].UnixNano(), values[len(values)-1].UnixNano()
+	}
 	if c.ascending {
+		// Blocks are ordered by generation, we may have values in the past in later blocks, if so,
+		// expand the window to include the min time range to ensure values are returned in ascending
+		// order
+		for i := 1; i < len(c.current); i++ {
+			cur := c.current[i]
+			if cur.entry.MinTime < minT && !cur.read() {
+				minT = cur.entry.MinTime
+			}
+		}
+
 		// Find first block that overlaps our window
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
@@ -318,7 +381,9 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				maxT = cur.entry.MaxTime
+				if cur.entry.MaxTime > maxT {
+					maxT = cur.entry.MaxTime
+				}
 				values = StringValues(values).Include(minT, maxT)
 				break
 			}
@@ -330,6 +395,7 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
 			if !cur.entry.OverlapsTimeRange(minT, maxT) || cur.read() {
+				cur.markRead(minT, maxT)
 				continue
 			}
 
@@ -349,15 +415,23 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 				// Only use values in the overlapping window
 				v = StringValues(v).Include(minT, maxT)
 
-				if len(v) > 0 {
-					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
-				}
 				// Merge the remaing values with the existing
 				values = StringValues(values).Merge(v)
 			}
+			cur.markRead(minT, maxT)
 		}
 
 	} else {
+		// Blocks are ordered by generation, we may have values in the past in later blocks, if so,
+		// expand the window to include the max time range to ensure values are returned in descending
+		// order
+		for i := 1; i < len(c.current); i++ {
+			cur := c.current[i]
+			if cur.entry.MaxTime > maxT && !cur.read() {
+				maxT = cur.entry.MaxTime
+			}
+		}
+
 		// Find first block that overlaps our window
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
@@ -365,7 +439,9 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				minT = cur.entry.MinTime
+				if cur.entry.MinTime < minT {
+					minT = cur.entry.MinTime
+				}
 				values = StringValues(values).Include(minT, maxT)
 				break
 			}
@@ -377,6 +453,7 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
 			if !cur.entry.OverlapsTimeRange(minT, maxT) || cur.read() {
+				cur.markRead(minT, maxT)
 				continue
 			}
 
@@ -397,12 +474,10 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 			// don't use it again.
 			if len(v) > 0 {
 				v = StringValues(v).Include(minT, maxT)
-
-				if len(v) > 0 {
-					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
-				}
+				// Merge the remaing values with the existing
 				values = StringValues(v).Merge(values)
 			}
+			cur.markRead(minT, maxT)
 		}
 	}
 
@@ -444,8 +519,21 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 	}
 
 	// Use the current block time range as our overlapping window
-	minT, maxT := values[0].UnixNano(), values[len(values)-1].UnixNano()
+	minT, maxT := first.readMin, first.readMax
+	if len(values) > 0 {
+		minT, maxT = values[0].UnixNano(), values[len(values)-1].UnixNano()
+	}
 	if c.ascending {
+		// Blocks are ordered by generation, we may have values in the past in later blocks, if so,
+		// expand the window to include the min time range to ensure values are returned in ascending
+		// order
+		for i := 1; i < len(c.current); i++ {
+			cur := c.current[i]
+			if cur.entry.MinTime < minT && !cur.read() {
+				minT = cur.entry.MinTime
+			}
+		}
+
 		// Find first block that overlaps our window
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
@@ -453,7 +541,9 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				maxT = cur.entry.MaxTime
+				if cur.entry.MaxTime > maxT {
+					maxT = cur.entry.MaxTime
+				}
 				values = BooleanValues(values).Include(minT, maxT)
 				break
 			}
@@ -465,6 +555,7 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
 			if !cur.entry.OverlapsTimeRange(minT, maxT) || cur.read() {
+				cur.markRead(minT, maxT)
 				continue
 			}
 
@@ -484,15 +575,23 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 				// Only use values in the overlapping window
 				v = BooleanValues(v).Include(minT, maxT)
 
-				if len(v) > 0 {
-					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
-				}
 				// Merge the remaing values with the existing
 				values = BooleanValues(values).Merge(v)
 			}
+			cur.markRead(minT, maxT)
 		}
 
 	} else {
+		// Blocks are ordered by generation, we may have values in the past in later blocks, if so,
+		// expand the window to include the max time range to ensure values are returned in descending
+		// order
+		for i := 1; i < len(c.current); i++ {
+			cur := c.current[i]
+			if cur.entry.MaxTime > maxT && !cur.read() {
+				maxT = cur.entry.MaxTime
+			}
+		}
+
 		// Find first block that overlaps our window
 		for i := 1; i < len(c.current); i++ {
 			cur := c.current[i]
@@ -500,7 +599,9 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 				// Shrink our window so it's the intersection of the first overlapping block and the
 				// first block.  We do this to minimize the region that overlaps and needs to
 				// be merged.
-				minT = cur.entry.MinTime
+				if cur.entry.MinTime < minT {
+					minT = cur.entry.MinTime
+				}
 				values = BooleanValues(values).Include(minT, maxT)
 				break
 			}
@@ -512,6 +613,7 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 			cur := c.current[i]
 			// Skip this block if it doesn't contain points we looking for or they have already been read
 			if !cur.entry.OverlapsTimeRange(minT, maxT) || cur.read() {
+				cur.markRead(minT, maxT)
 				continue
 			}
 
@@ -532,12 +634,10 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 			// don't use it again.
 			if len(v) > 0 {
 				v = BooleanValues(v).Include(minT, maxT)
-
-				if len(v) > 0 {
-					cur.markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
-				}
+				// Merge the remaing values with the existing
 				values = BooleanValues(v).Merge(values)
 			}
+			cur.markRead(minT, maxT)
 		}
 	}
 
