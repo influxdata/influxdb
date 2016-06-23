@@ -404,22 +404,6 @@ func BenchmarkWritePoints_NewSeries_250K(b *testing.B) { benchmarkWritePoints(b,
 func BenchmarkWritePoints_NewSeries_500K(b *testing.B) { benchmarkWritePoints(b, 160, 5, 5, 1) }
 func BenchmarkWritePoints_NewSeries_1M(b *testing.B)   { benchmarkWritePoints(b, 320, 5, 5, 1) }
 
-func BenchmarkWritePoints_ExistingSeries_1K(b *testing.B) {
-	benchmarkWritePointsExistingSeries(b, 38, 3, 3, 1)
-}
-func BenchmarkWritePoints_ExistingSeries_100K(b *testing.B) {
-	benchmarkWritePointsExistingSeries(b, 32, 5, 5, 1)
-}
-func BenchmarkWritePoints_ExistingSeries_250K(b *testing.B) {
-	benchmarkWritePointsExistingSeries(b, 80, 5, 5, 1)
-}
-func BenchmarkWritePoints_ExistingSeries_500K(b *testing.B) {
-	benchmarkWritePointsExistingSeries(b, 160, 5, 5, 1)
-}
-func BenchmarkWritePoints_ExistingSeries_1M(b *testing.B) {
-	benchmarkWritePointsExistingSeries(b, 320, 5, 5, 1)
-}
-
 // Fix measurement and tag key cardinalities and vary tag value cardinality
 func BenchmarkWritePoints_NewSeries_1_Measurement_1_TagKey_100_TagValues(b *testing.B) {
 	benchmarkWritePoints(b, 1, 1, 100, 1)
@@ -527,6 +511,22 @@ func BenchmarkWritePoints_NewSeries_1_Measurement_8_TagKeys_4_TagValue(b *testin
 }
 func BenchmarkWritePoints_NewSeries_1_Measurement_16_TagKeys_2_TagValue(b *testing.B) {
 	benchmarkWritePoints(b, 1, 16, 1<<1, 1)
+}
+
+func BenchmarkWritePoints_ExistingSeries_1K(b *testing.B) {
+	benchmarkWritePointsExistingSeries(b, 38, 3, 3, 1)
+}
+func BenchmarkWritePoints_ExistingSeries_100K(b *testing.B) {
+	benchmarkWritePointsExistingSeries(b, 32, 5, 5, 1)
+}
+func BenchmarkWritePoints_ExistingSeries_250K(b *testing.B) {
+	benchmarkWritePointsExistingSeries(b, 80, 5, 5, 1)
+}
+func BenchmarkWritePoints_ExistingSeries_500K(b *testing.B) {
+	benchmarkWritePointsExistingSeries(b, 160, 5, 5, 1)
+}
+func BenchmarkWritePoints_ExistingSeries_1M(b *testing.B) {
+	benchmarkWritePointsExistingSeries(b, 320, 5, 5, 1)
 }
 
 // benchmarkWritePoints benchmarks writing new series to a shard.
