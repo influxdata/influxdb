@@ -66,7 +66,7 @@ type authUser struct {
 func NewClient(config *Config) *Client {
 	return &Client{
 		cacheData: &Data{
-			ClusterID: uint64(uint64(rand.Int63())),
+			ClusterID: uint64(rand.Int63()),
 			Index:     1,
 			DefaultRetentionPolicyName: config.DefaultRetentionPolicyName,
 		},
