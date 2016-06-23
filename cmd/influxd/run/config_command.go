@@ -72,7 +72,10 @@ func (cmd *PrintConfigCommand) parseConfig(path string) (*Config, error) {
 	return config, nil
 }
 
-var printConfigUsage = `usage: config
+var printConfigUsage = `usage: influxd config [flags]
 
-	config displays the default configuration
+Displays the default configuration.
+
+	-config <path>
+			Set the path to the initial configuration file.
 `

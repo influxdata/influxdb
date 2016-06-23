@@ -185,7 +185,7 @@ func NewVersionCommand() *VersionCommand {
 func (cmd *VersionCommand) Run(args ...string) error {
 	// Parse flags in case -h is specified.
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
-	fs.Usage = func() { fmt.Fprintln(cmd.Stderr, strings.TrimSpace(versionUsage)) }
+	fs.Usage = func() { fmt.Fprintln(cmd.Stderr, versionUsage) }
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -196,8 +196,7 @@ func (cmd *VersionCommand) Run(args ...string) error {
 	return nil
 }
 
-var versionUsage = `
-usage: version
+var versionUsage = `usage: influxd version
 
-	version displays the InfluxDB version, build branch and git commit hash
+Displays the InfluxDB version, build branch and git commit hash.
 `

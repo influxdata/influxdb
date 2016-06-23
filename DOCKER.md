@@ -28,17 +28,3 @@ This will start an interactive, single-node, that publishes the containers port 
 ```
 $ docker run -it -p 8086:8086 -p 8088:8088 influxdb
 ```
-
-## Multi-Node Cluster
-
-This will create a simple 3-node cluster.  The data is stored within the container and will be lost when the container is removed.  This is only useful for test clusters.
-
-The `HOST_IP` env variable should be your host IP if running under linux or the virtualbox VM IP if running under OSX.  On OSX, this would be something like: `$(docker-machine ip dev)` or `$(boot2docker ip)` depending on which docker tool you are using.
-
-```
-$ export HOST_IP=<your host/VM IP>
-$ docker run -it -p 8086:8086 -p 8088:8088 influxdb -hostname $HOST_IP:8088
-$ docker run -it -p 8186:8086 -p 8188:8088 influxdb -hostname $HOST_IP:8188 -join $HOST_IP:8088
-$ docker run -it -p 8286:8086 -p 8288:8088 influxdb -hostname $HOST_IP:8288 -join $HOST_IP:8088
-```
-

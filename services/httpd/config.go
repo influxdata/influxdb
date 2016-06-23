@@ -10,7 +10,6 @@ type Config struct {
 	AuthEnabled        bool   `toml:"auth-enabled"`
 	LogEnabled         bool   `toml:"log-enabled"`
 	WriteTracing       bool   `toml:"write-tracing"`
-	PprofEnabled       bool   `toml:"pprof-enabled"`
 	HTTPSEnabled       bool   `toml:"https-enabled"`
 	HTTPSCertificate   string `toml:"https-certificate"`
 	HTTPSPrivateKey    string `toml:"https-private-key"`

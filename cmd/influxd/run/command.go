@@ -95,10 +95,6 @@ func (cmd *Command) Run(args ...string) error {
 		return fmt.Errorf("apply env config: %v", err)
 	}
 
-	if options.Hostname != "" {
-		config.Hostname = options.Hostname
-	}
-
 	// Validate the configuration.
 	if err := config.Validate(); err != nil {
 		return fmt.Errorf("%s. To generate a valid configuration file run `influxd config > influxdb.generated.conf`", err)
@@ -156,7 +152,8 @@ func (cmd *Command) ParseFlags(args ...string) (Options, error) {
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
 	fs.StringVar(&options.ConfigPath, "config", "", "")
 	fs.StringVar(&options.PIDFile, "pidfile", "", "")
-	fs.StringVar(&options.Hostname, "hostname", "", "")
+	// Ignore hostname option.
+	_ = fs.String("hostname", "", "")
 	fs.StringVar(&options.CPUProfile, "cpuprofile", "", "")
 	fs.StringVar(&options.MemProfile, "memprofile", "", "")
 	fs.Usage = func() { fmt.Fprintln(cmd.Stderr, usage) }
@@ -207,24 +204,16 @@ func (cmd *Command) ParseConfig(path string) (*Config, error) {
 	return config, nil
 }
 
-var usage = `usage: run [flags]
+var usage = `usage: influxd run [flags]
 
-run starts the InfluxDB server. If this is the first time running the command
-then a new cluster will be initialized unless the -join argument is used.
+Runs the InfluxDB server.
 
         -config <path>
                           Set the path to the configuration file.
-
-        -hostname <name>
-                          Override the hostname, the 'hostname' configuration
-                          option will be overridden.
-
         -pidfile <path>
                           Write process ID to a file.
-
         -cpuprofile <path>
                           Write CPU profiling information to a file.
-
         -memprofile <path>
                           Write memory usage information to a file.
 `
@@ -233,7 +222,6 @@ then a new cluster will be initialized unless the -join argument is used.
 type Options struct {
 	ConfigPath string
 	PIDFile    string
-	Hostname   string
 	CPUProfile string
 	MemProfile string
 }

@@ -28,6 +28,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#5655](https://github.com/influxdata/influxdb/issues/5655): Support specifying a retention policy for the graphite service.
 - [#6820](https://github.com/influxdata/influxdb/issues/6820): Add NodeID to execution options
 - [#4532](https://github.com/influxdata/influxdb/issues/4532): Support regex selection in SHOW TAG VALUES for the key.
+- [#6889](https://github.com/influxdata/influxdb/pull/6889): Update help and remove unused config options from the configuration file.
 
 ### Bugfixes
 
