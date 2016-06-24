@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -96,13 +97,25 @@ func (s *Service) Open() error {
 		return err
 	}
 
+	// load configured types.db files
 	if s.typesdb == nil {
-		// Open collectd types.
-		typesdb, err := gollectd.TypesDBFile(s.Config.TypesDB)
-		if err != nil {
-			return fmt.Errorf("Open(): %s", err)
+		// load single file, if any configured
+		if s.Config.TypesDB != "" {
+			if err := s.loadTypesDb(s.Config.TypesDB); err != nil {
+				return err
+			}
 		}
-		s.typesdb = typesdb
+		// load directories, if any configured
+		if len(s.Config.TypesDBDirs) > 0 {
+			// read all files in configured directories
+			// in case any fails, fail all
+			for _, dir := range s.Config.TypesDBDirs {
+				// process all files in directory
+				if err := filepath.Walk(dir, s.loadTypesDbDir); err != nil {
+					return err
+				}
+			}
+		}
 	}
 
 	// Resolve our address.
@@ -144,6 +157,32 @@ func (s *Service) Open() error {
 	return nil
 }
 
+func (s *Service) loadTypesDb(path string) error {
+	// make sure s.typesdb is not nil
+	if s.typesdb == nil {
+		s.typesdb = make(gollectd.Types)
+	}
+
+	typesdb, err := gollectd.TypesDBFile(path)
+	if err != nil {
+		return fmt.Errorf("Open(): %s", err)
+	}
+	for k, v := range typesdb {
+		s.typesdb[k] = v
+	}
+
+	return nil
+}
+
+func (s *Service) loadTypesDbDir(path string, f os.FileInfo, err error) error {
+	// process files not dirs
+	if !f.IsDir() {
+		return s.loadTypesDb(path)
+	}
+
+	return nil
+}
+
 // Close stops the service.
 func (s *Service) Close() error {
 	// Close the connection, and wait for the goroutine to exit.
@@ -170,12 +209,6 @@ func (s *Service) Close() error {
 // called after Open is called.
 func (s *Service) SetLogOutput(w io.Writer) {
 	s.Logger = log.New(w, "[collectd] ", log.LstdFlags)
-}
-
-// SetTypes sets collectd types db.
-func (s *Service) SetTypes(types string) (err error) {
-	s.typesdb, err = gollectd.TypesDB([]byte(types))
-	return
 }
 
 // Err returns a channel for fatal errors that occur on go routines.

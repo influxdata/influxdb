@@ -53,6 +53,7 @@ type Config struct {
 	BatchDuration   toml.Duration `toml:"batch-timeout"`
 	ReadBuffer      int           `toml:"read-buffer"`
 	TypesDB         string        `toml:"typesdb"`
+	TypesDBDirs     []string      `toml:"typesdb-dirs"`
 }
 
 // NewConfig returns a new instance of Config with defaults.
