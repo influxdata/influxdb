@@ -50,7 +50,6 @@ type Store struct {
 // The returned store must be initialized by calling Open before using it.
 func NewStore(path string) *Store {
 	opts := NewEngineOptions()
-	opts.Config = NewConfig()
 
 	return &Store{
 		path:          path,
