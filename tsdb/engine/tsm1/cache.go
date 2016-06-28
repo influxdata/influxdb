@@ -413,7 +413,7 @@ func (c *Cache) merged(key string) Values {
 	n := 0
 	for _, e := range entries {
 		e.mu.RLock()
-		if !needSort && n > 0 {
+		if !needSort && n > 0 && len(e.values) > 0 {
 			needSort = values[n-1].UnixNano() >= e.values[0].UnixNano()
 		}
 		n += copy(values[n:], e.values)
