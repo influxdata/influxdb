@@ -76,6 +76,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6864](https://github.com/influxdata/influxdb/pull/6864): Allow a non-admin to call "use" for the influx cli.
 - [#6855](https://github.com/influxdata/influxdb/pull/6855): Update `stress/v2` to work with clusters, ssl, and username/password auth. Code cleanup
 - [#6738](https://github.com/influxdata/influxdb/issues/6738): Time sorting broken with overwritten points
+- [#6829](https://github.com/influxdata/influxdb/issues/6829): Fix panic: runtime error: index out of range
 
 ## v0.13.0 [2016-05-12]
 
