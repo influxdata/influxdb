@@ -3,29 +3,23 @@
 // license that can be found in the LICENSE file.
 
 // Package expvar provides a standardized interface to public variables, such
-// as operation counters in servers. It exposes these variables via HTTP at
-// /debug/vars in JSON format.
+// as operation counters in servers. These variables can be exposed over HTTP
+// in JSON format by using the Handler function.
 //
 // Operations to set or modify these public variables are atomic.
 //
-// In addition to adding the HTTP handler, this package registers the
+// In addition to the HTTP handler, this package registers the
 // following variables:
 //
 //	cmdline   os.Args
 //	memstats  runtime.Memstats
 //
-// The package is sometimes only imported for the side effect of
-// registering its HTTP handler and the above variables.  To use it
-// this way, link this package into your program:
-//	import _ "expvar"
-//
-package expvar
+package expvar // import "github.com/influxdata/influxdb/expvar"
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"math"
 	"net/http"
 	"os"
@@ -246,16 +240,28 @@ var (
 
 // Publish declares a named exported variable. This should be called from a
 // package's init function when it creates its Vars. If the name is already
-// registered then this will log.Panic.
+// registered then this will overwrite the old value.
 func Publish(name string, v Var) {
 	mutex.Lock()
 	defer mutex.Unlock()
-	if _, existing := vars[name]; existing {
-		log.Panicln("Reuse of exported var name:", name)
+	if _, existing := vars[name]; !existing {
+		varKeys = append(varKeys, name)
+		sort.Strings(varKeys)
 	}
 	vars[name] = v
-	varKeys = append(varKeys, name)
-	sort.Strings(varKeys)
+}
+
+// Remove removes a named exported variable. If the variable has not been
+// published, this function does nothing.
+func Remove(name string) {
+	mutex.Lock()
+	defer mutex.Unlock()
+	if _, existing := vars[name]; existing {
+		i := sort.SearchStrings(varKeys, name)
+		copy(varKeys[i:], varKeys[i+1:])
+		varKeys = varKeys[:len(varKeys)-1]
+	}
+	delete(vars, name)
 }
 
 // Get retrieves a named exported variable.
@@ -302,7 +308,7 @@ func Do(f func(KeyValue)) {
 	}
 }
 
-func expvarHandler(w http.ResponseWriter, r *http.Request) {
+func Handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	fmt.Fprintf(w, "{\n")
 	first := true
@@ -327,7 +333,6 @@ func memstats() interface{} {
 }
 
 func init() {
-	http.HandleFunc("/debug/vars", expvarHandler)
 	Publish("cmdline", Func(cmdline))
 	Publish("memstats", Func(memstats))
 }

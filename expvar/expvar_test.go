@@ -246,7 +246,7 @@ func TestHandler(t *testing.T) {
 	}
 	rr := httptest.NewRecorder()
 	rr.Body = new(bytes.Buffer)
-	expvarHandler(rr, nil)
+	Handler(rr, nil)
 	want := `{
 "map1": {"a": 1, "z": 2},
 "map2": {"0": 0, "1": 1, "2": 2, "3": 3, "4": 4, "5": 5, "6": 6, "7": 7, "8": 8}
@@ -387,4 +387,24 @@ func BenchmarkRealworldExpvarUsage(b *testing.B) {
 		}(clients[p])
 	}
 	wg.Wait()
+}
+
+func TestDoublePublish(t *testing.T) {
+	_ = NewInt("value")
+	exp := NewInt("value")
+	if got := Get("value"); got != exp {
+		t.Fatalf(`Get("value") = %q, want %q`, got, exp)
+	}
+}
+
+func TestRemove(t *testing.T) {
+	exp := NewInt("value")
+	if got := Get("value"); got != exp {
+		t.Fatalf(`Get("value") = %q, want %q`, got, exp)
+	}
+
+	Remove("value")
+	if got, exp := Get("value"), Var(nil); got != exp {
+		t.Fatalf(`Get("value") = %q, want %q`, got, exp)
+	}
 }
