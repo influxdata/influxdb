@@ -1,7 +1,6 @@
 package tsm1
 
 import (
-	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/expvar"
 	"github.com/influxdata/influxdb/tsdb"
 )
 

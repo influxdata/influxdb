@@ -2,7 +2,6 @@ package subscriber // import "github.com/influxdata/influxdb/services/subscriber
 
 import (
 	"errors"
-	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -14,6 +13,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/coordinator"
+	"github.com/influxdata/influxdb/expvar"
 	"github.com/influxdata/influxdb/services/meta"
 )
 

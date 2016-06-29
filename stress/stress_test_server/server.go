@@ -1,15 +1,16 @@
 package main
 
 import (
-	"expvar"
 	"fmt"
-	"github.com/paulbellamy/ratecounter"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/influxdata/influxdb/expvar"
+	"github.com/paulbellamy/ratecounter"
 )
 
 var (

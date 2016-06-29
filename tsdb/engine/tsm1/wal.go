@@ -3,7 +3,6 @@ package tsm1
 import (
 	"encoding/binary"
 	"errors"
-	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/expvar"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
