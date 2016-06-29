@@ -248,6 +248,7 @@ func (s *Shard) close() error {
 	if err == nil {
 		s.engine = nil
 	}
+	expvar.Remove(fmt.Sprintf("shard:%s:%d", s.path, s.id))
 	return err
 }
 

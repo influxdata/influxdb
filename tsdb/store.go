@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/expvar"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 )
@@ -371,6 +372,7 @@ func (s *Store) ShardIteratorCreator(id uint64) influxql.IteratorCreator {
 func (s *Store) DeleteDatabase(name string) error {
 	type resp struct {
 		shardID uint64
+		path    string
 		err     error
 	}
 
@@ -385,7 +387,7 @@ func (s *Store) DeleteDatabase(name string) error {
 			go func() {
 				defer wg.Done()
 				err := sh.Close()
-				responses <- resp{shardID, err}
+				responses <- resp{shardID, sh.path, err}
 			}()
 		}
 	}
@@ -412,6 +414,7 @@ func (s *Store) DeleteDatabase(name string) error {
 	}
 
 	delete(s.databaseIndexes, name)
+	expvar.Remove("database:" + name)
 	return nil
 }
 

@@ -389,6 +389,7 @@ func (l *WAL) Close() error {
 		l.currentSegmentWriter = nil
 	}
 
+	expvar.Remove("tsm1_wal:" + l.path)
 	return nil
 }
 

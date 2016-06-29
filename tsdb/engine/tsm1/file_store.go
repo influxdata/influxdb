@@ -386,6 +386,7 @@ func (f *FileStore) Close() error {
 	}
 
 	f.files = nil
+	expvar.Remove("tsm1_filestore:" + f.dir)
 	return nil
 }
 

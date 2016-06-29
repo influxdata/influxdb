@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/expvar"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
@@ -240,8 +241,11 @@ func (e *Engine) Close() error {
 
 	if err := e.FileStore.Close(); err != nil {
 		return err
+	} else if err := e.WAL.Close(); err != nil {
+		return err
 	}
-	return e.WAL.Close()
+	expvar.Remove("tsm1_cache:" + e.path)
+	return nil
 }
 
 // SetLogOutput sets the logger used for all messages. It must not be called
