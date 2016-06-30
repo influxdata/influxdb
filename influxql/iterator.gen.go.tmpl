@@ -554,7 +554,7 @@ func (itr *{{$k.name}}LimitIterator) Next() (*{{$k.Name}}Point, error) {
 
 type {{$k.name}}FillIterator struct {
 	input     *buf{{$k.Name}}Iterator
-	prev      *{{$k.Name}}Point
+	prev      {{$k.Name}}Point
 	startTime int64
 	endTime   int64
 	auxFields []interface{}
@@ -592,6 +592,7 @@ func new{{$k.Name}}FillIterator(input {{$k.Name}}Iterator, expr Expr, opt Iterat
 
 	return &{{$k.name}}FillIterator{
 		input:     newBuf{{$k.Name}}Iterator(input),
+		prev:      {{$k.Name}}Point{Nil: true},
 		startTime: startTime,
 		endTime:   endTime,
 		auxFields: auxFields,
@@ -645,7 +646,7 @@ func (itr *{{$k.name}}FillIterator) Next() (*{{$k.Name}}Point, error) {
 		// Set the new interval.
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
-		itr.prev = nil
+		itr.prev = {{$k.Name}}Point{Nil: true}
 		break
 	}
 
@@ -668,7 +669,7 @@ func (itr *{{$k.name}}FillIterator) Next() (*{{$k.Name}}Point, error) {
 		case NumberFill:
 			p.Value = castTo{{$k.Name}}(itr.opt.FillValue)
 		case PreviousFill:
-			if itr.prev != nil {
+			if !itr.prev.Nil {
 				p.Value = itr.prev.Value
 				p.Nil = itr.prev.Nil
 			} else {
@@ -676,7 +677,7 @@ func (itr *{{$k.name}}FillIterator) Next() (*{{$k.Name}}Point, error) {
 			}
 		}
 	} else {
-		itr.prev = p
+		itr.prev = *p
 	}
 
 	// Advance the expected time. Do not advance to a new window here
