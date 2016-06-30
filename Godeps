@@ -15,3 +15,4 @@ github.com/paulbellamy/ratecounter 5a11f585a31379765c190c033b6ad39956584447
 github.com/peterh/liner 8975875355a81d612fafb9f5a6037bdcc2d9b073
 github.com/rakyll/statik 274df120e9065bdd08eb1120e0375e3dc1ae8465
 golang.org/x/crypto c197bcf24cde29d3f73c7b4ac6fd41f4384e8af6
+github.com/retailnext/hllpp 38a7bb71b483e855d35010808143beaf05b67f9d
