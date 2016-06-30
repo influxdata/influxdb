@@ -111,40 +111,42 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 	println()
 
 	tw := tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
-	fmt.Fprintln(tw, "  "+strings.Join([]string{"Pos", "Min Time", "Max Time", "Ofs", "Size", "Key", "Field"}, "\t"))
-	var pos int
-	for i := 0; i < keyCount; i++ {
-		key, _ := r.KeyAt(i)
-		for _, e := range r.Entries(key) {
-			pos++
-			split := strings.Split(key, "#!~#")
-
-			// We dont' know know if we have fields so use an informative default
-			var measurement, field string = "UNKNOWN", "UNKNOWN"
-
-			// Possible corruption? Try to read as much as we can and point to the problem.
-			measurement = split[0]
-			field = split[1]
-
-			if opts.filterKey != "" && !strings.Contains(key, opts.filterKey) {
-				continue
-			}
-			fmt.Fprintln(tw, "  "+strings.Join([]string{
-				strconv.FormatInt(int64(pos), 10),
-				time.Unix(0, e.MinTime).UTC().Format(time.RFC3339Nano),
-				time.Unix(0, e.MaxTime).UTC().Format(time.RFC3339Nano),
-				strconv.FormatInt(int64(e.Offset), 10),
-				strconv.FormatInt(int64(e.Size), 10),
-				measurement,
-				field,
-			}, "\t"))
-		}
-	}
 
 	if opts.dumpIndex {
 		println("Index:")
 		tw.Flush()
 		println()
+
+		fmt.Fprintln(tw, "  "+strings.Join([]string{"Pos", "Min Time", "Max Time", "Ofs", "Size", "Key", "Field"}, "\t"))
+		var pos int
+		for i := 0; i < keyCount; i++ {
+			key, _ := r.KeyAt(i)
+			for _, e := range r.Entries(key) {
+				pos++
+				split := strings.Split(key, "#!~#")
+
+				// We dont' know know if we have fields so use an informative default
+				var measurement, field string = "UNKNOWN", "UNKNOWN"
+
+				// Possible corruption? Try to read as much as we can and point to the problem.
+				measurement = split[0]
+				field = split[1]
+
+				if opts.filterKey != "" && !strings.Contains(key, opts.filterKey) {
+					continue
+				}
+				fmt.Fprintln(tw, "  "+strings.Join([]string{
+					strconv.FormatInt(int64(pos), 10),
+					time.Unix(0, e.MinTime).UTC().Format(time.RFC3339Nano),
+					time.Unix(0, e.MaxTime).UTC().Format(time.RFC3339Nano),
+					strconv.FormatInt(int64(e.Offset), 10),
+					strconv.FormatInt(int64(e.Size), 10),
+					measurement,
+					field,
+				}, "\t"))
+				tw.Flush()
+			}
+		}
 	}
 
 	tw = tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
@@ -169,6 +171,12 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 			f.Read(buf)
 
 			blockSize += int64(e.Size)
+
+			if opts.filterKey != "" && !strings.Contains(key, opts.filterKey) {
+				i += blockSize
+				blockCount++
+				continue
+			}
 
 			blockType := buf[0]
 
@@ -202,23 +210,19 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 			blockStats.inc(int(blockType+1), values[0]>>4)
 			blockStats.size(len(buf))
 
-			if opts.filterKey != "" && !strings.Contains(key, opts.filterKey) {
-				i += blockSize
-				blockCount++
-				continue
+			if opts.dumpBlocks {
+				fmt.Fprintln(tw, "  "+strings.Join([]string{
+					strconv.FormatInt(blockCount, 10),
+					strconv.FormatUint(uint64(chksum), 10),
+					strconv.FormatInt(i, 10),
+					strconv.FormatInt(int64(len(buf)), 10),
+					typeDesc,
+					startTime.UTC().Format(time.RFC3339Nano),
+					strconv.FormatInt(int64(len(v)), 10),
+					fmt.Sprintf("%s/%s", tsEncoding, vEncoding),
+					fmt.Sprintf("%d/%d", len(ts), len(values)),
+				}, "\t"))
 			}
-
-			fmt.Fprintln(tw, "  "+strings.Join([]string{
-				strconv.FormatInt(blockCount, 10),
-				strconv.FormatUint(uint64(chksum), 10),
-				strconv.FormatInt(i, 10),
-				strconv.FormatInt(int64(len(buf)), 10),
-				typeDesc,
-				startTime.UTC().Format(time.RFC3339Nano),
-				strconv.FormatInt(int64(len(v)), 10),
-				fmt.Sprintf("%s/%s", tsEncoding, vEncoding),
-				fmt.Sprintf("%d/%d", len(ts), len(values)),
-			}, "\t"))
 
 			i += blockSize
 			blockCount++
