@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
-	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -13,8 +12,10 @@ import (
 	"net/http/pprof"
 	"os"
 	"runtime/debug"
+	"sort"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/bmizerany/pat"
@@ -22,6 +23,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/uuid"
@@ -78,6 +80,10 @@ type Handler struct {
 
 	QueryExecutor *influxql.QueryExecutor
 
+	Monitor interface {
+		Statistics(tags map[string]string) ([]*monitor.Statistic, error)
+	}
+
 	PointsWriter interface {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 	}
@@ -87,17 +93,35 @@ type Handler struct {
 	Config    *Config
 	Logger    *log.Logger
 	CLFLogger *log.Logger
-	statMap   *expvar.Map
+	statMap   struct {
+		NumRequests                  int64
+		NumCQRequests                int64
+		NumQueryRequests             int64
+		NumWriteRequests             int64
+		NumPingRequests              int64
+		NumStatusRequests            int64
+		WriteRequestBytesReceived    int64
+		QueryRequestBytesTransmitted int64
+		PointsWrittenOK              int64
+		PointsWrittenFail            int64
+		AuthenticationFailures       int64
+		RequestDuration              int64
+		QueryRequestDuration         int64
+		WriteRequestDuration         int64
+		ActiveRequests               int64
+		ActiveWriteRequests          int64
+		NumClientErrors              int64
+		NumServerErrors              int64
+	}
 }
 
 // NewHandler returns a new instance of handler with routes.
-func NewHandler(c Config, statMap *expvar.Map) *Handler {
+func NewHandler(c Config) *Handler {
 	h := &Handler{
 		mux:       pat.New(),
 		Config:    &c,
 		Logger:    log.New(os.Stderr, "[httpd] ", log.LstdFlags),
 		CLFLogger: log.New(os.Stderr, "[httpd] ", 0),
-		statMap:   statMap,
 	}
 
 	h.AddRoutes([]Route{
@@ -147,6 +171,33 @@ func NewHandler(c Config, statMap *expvar.Map) *Handler {
 	return h
 }
 
+func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
+	return []models.Statistic{{
+		Name: "httpd",
+		Tags: tags,
+		Values: map[string]interface{}{
+			statRequest:                      atomic.LoadInt64(&h.statMap.NumRequests),
+			statCQRequest:                    atomic.LoadInt64(&h.statMap.NumCQRequests),
+			statQueryRequest:                 atomic.LoadInt64(&h.statMap.NumQueryRequests),
+			statWriteRequest:                 atomic.LoadInt64(&h.statMap.NumWriteRequests),
+			statPingRequest:                  atomic.LoadInt64(&h.statMap.NumPingRequests),
+			statStatusRequest:                atomic.LoadInt64(&h.statMap.NumStatusRequests),
+			statWriteRequestBytesReceived:    atomic.LoadInt64(&h.statMap.WriteRequestBytesReceived),
+			statQueryRequestBytesTransmitted: atomic.LoadInt64(&h.statMap.QueryRequestBytesTransmitted),
+			statPointsWrittenOK:              atomic.LoadInt64(&h.statMap.PointsWrittenOK),
+			statPointsWrittenFail:            atomic.LoadInt64(&h.statMap.PointsWrittenFail),
+			statAuthFail:                     atomic.LoadInt64(&h.statMap.AuthenticationFailures),
+			statRequestDuration:              atomic.LoadInt64(&h.statMap.RequestDuration),
+			statQueryRequestDuration:         atomic.LoadInt64(&h.statMap.QueryRequestDuration),
+			statWriteRequestDuration:         atomic.LoadInt64(&h.statMap.WriteRequestDuration),
+			statRequestsActive:               atomic.LoadInt64(&h.statMap.ActiveRequests),
+			statWriteRequestsActive:          atomic.LoadInt64(&h.statMap.ActiveWriteRequests),
+			statClientError:                  atomic.LoadInt64(&h.statMap.NumClientErrors),
+			statServerError:                  atomic.LoadInt64(&h.statMap.NumServerErrors),
+		},
+	}}
+}
+
 // AddRoutes sets the provided routes on the handler.
 func (h *Handler) AddRoutes(routes ...Route) {
 	for _, r := range routes {
@@ -179,8 +230,9 @@ func (h *Handler) AddRoutes(routes ...Route) {
 
 // ServeHTTP responds to HTTP request to the handler.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.statMap.Add(statRequest, 1)
-	h.statMap.Add(statRequestsActive, 1)
+	atomic.AddInt64(&h.statMap.NumRequests, 1)
+	atomic.AddInt64(&h.statMap.ActiveRequests, 1)
+	defer atomic.AddInt64(&h.statMap.ActiveRequests, -1)
 	start := time.Now()
 
 	// Add version header to all InfluxDB requests.
@@ -199,13 +251,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			pprof.Index(w, r)
 		}
 	} else if strings.HasPrefix(r.URL.Path, "/debug/vars") {
-		serveExpvar(w, r)
+		h.serveExpvar(w, r)
 	} else {
 		h.mux.ServeHTTP(w, r)
 	}
 
-	h.statMap.Add(statRequestsActive, -1)
-	h.statMap.Add(statRequestDuration, time.Since(start).Nanoseconds())
+	atomic.AddInt64(&h.statMap.RequestDuration, time.Since(start).Nanoseconds())
 }
 
 // writeHeader writes the provided status code in the response, and
@@ -213,15 +264,15 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) writeHeader(w http.ResponseWriter, code int) {
 	switch code / 100 {
 	case 4:
-		h.statMap.Add(statClientError, 1)
+		atomic.AddInt64(&h.statMap.NumClientErrors, 1)
 	case 5:
-		h.statMap.Add(statServerError, 1)
+		atomic.AddInt64(&h.statMap.NumServerErrors, 1)
 	}
 	w.WriteHeader(code)
 }
 
 func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.Request, user *meta.UserInfo) {
-	h.statMap.Add(statCQRequest, 1)
+	atomic.AddInt64(&h.statMap.NumCQRequests, 1)
 
 	// If the continuous query service isn't configured, return 404.
 	if h.ContinuousQuerier == nil {
@@ -263,9 +314,9 @@ func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.R
 
 // serveQuery parses an incoming query and, if valid, executes the query.
 func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.UserInfo) {
-	h.statMap.Add(statQueryRequest, 1)
+	atomic.AddInt64(&h.statMap.NumQueryRequests, 1)
 	defer func(start time.Time) {
-		h.statMap.Add(statQueryRequestDuration, time.Since(start).Nanoseconds())
+		atomic.AddInt64(&h.statMap.QueryRequestDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
 
 	pretty := r.FormValue("pretty") == "true"
@@ -403,7 +454,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 			if !pretty {
 				w.Write([]byte("\n"))
 			}
-			h.statMap.Add(statQueryRequestBytesTransmitted, int64(n))
+			atomic.AddInt64(&h.statMap.QueryRequestBytesTransmitted, int64(n))
 			w.(http.Flusher).Flush()
 			continue
 		}
@@ -458,17 +509,17 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	// If it's not chunked we buffered everything in memory, so write it out
 	if !chunked {
 		n, _ := w.Write(MarshalJSON(resp, pretty))
-		h.statMap.Add(statQueryRequestBytesTransmitted, int64(n))
+		atomic.AddInt64(&h.statMap.QueryRequestBytesTransmitted, int64(n))
 	}
 }
 
 // serveWrite receives incoming series data in line protocol format and writes it to the database.
 func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.UserInfo) {
-	h.statMap.Add(statWriteRequest, 1)
-	h.statMap.Add(statWriteRequestsActive, 1)
+	atomic.AddInt64(&h.statMap.NumWriteRequests, 1)
+	atomic.AddInt64(&h.statMap.ActiveWriteRequests, 1)
 	defer func(start time.Time) {
-		h.statMap.Add(statWriteRequestsActive, -1)
-		h.statMap.Add(statWriteRequestDuration, time.Since(start).Nanoseconds())
+		atomic.AddInt64(&h.statMap.ActiveWriteRequests, -1)
+		atomic.AddInt64(&h.statMap.WriteRequestDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
 
 	database := r.URL.Query().Get("db")
@@ -524,7 +575,7 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 		h.resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
 		return
 	}
-	h.statMap.Add(statWriteRequestBytesReceived, int64(buf.Len()))
+	atomic.AddInt64(&h.statMap.WriteRequestBytesReceived, int64(buf.Len()))
 
 	if h.Config.WriteTracing {
 		h.Logger.Printf("Write body received by handler: %s", buf.Bytes())
@@ -555,23 +606,23 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 
 	// Write points.
 	if err := h.PointsWriter.WritePoints(database, r.URL.Query().Get("rp"), consistency, points); influxdb.IsClientError(err) {
-		h.statMap.Add(statPointsWrittenFail, int64(len(points)))
+		atomic.AddInt64(&h.statMap.PointsWrittenFail, int64(len(points)))
 		h.resultError(w, influxql.Result{Err: err}, http.StatusBadRequest)
 		return
 	} else if err != nil {
-		h.statMap.Add(statPointsWrittenFail, int64(len(points)))
+		atomic.AddInt64(&h.statMap.PointsWrittenFail, int64(len(points)))
 		h.resultError(w, influxql.Result{Err: err}, http.StatusInternalServerError)
 		return
 	} else if parseError != nil {
 		// We wrote some of the points
-		h.statMap.Add(statPointsWrittenOK, int64(len(points)))
+		atomic.AddInt64(&h.statMap.PointsWrittenOK, int64(len(points)))
 		// The other points failed to parse which means the client sent invalid line protocol.  We return a 400
 		// response code as well as the lines that failed to parse.
 		h.resultError(w, influxql.Result{Err: fmt.Errorf("partial write:\n%v", parseError)}, http.StatusBadRequest)
 		return
 	}
 
-	h.statMap.Add(statPointsWrittenOK, int64(len(points)))
+	atomic.AddInt64(&h.statMap.PointsWrittenOK, int64(len(points)))
 	h.writeHeader(w, http.StatusNoContent)
 }
 
@@ -582,14 +633,14 @@ func (h *Handler) serveOptions(w http.ResponseWriter, r *http.Request) {
 
 // servePing returns a simple response to let the client know the server is running.
 func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
-	h.statMap.Add(statPingRequest, 1)
+	atomic.AddInt64(&h.statMap.NumPingRequests, 1)
 	h.writeHeader(w, http.StatusNoContent)
 }
 
-// serveStatus has been depricated
+// serveStatus has been deprecated
 func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
-	h.Logger.Printf("WARNING: /status has been depricated.  Use /ping instead.")
-	h.statMap.Add(statStatusRequest, 1)
+	h.Logger.Printf("WARNING: /status has been deprecated.  Use /ping instead.")
+	atomic.AddInt64(&h.statMap.NumStatusRequests, 1)
 	h.writeHeader(w, http.StatusNoContent)
 }
 
@@ -635,19 +686,57 @@ func MarshalJSON(v interface{}, pretty bool) []byte {
 	return b
 }
 
-// serveExpvar serves registered expvar information over HTTP.
-func serveExpvar(w http.ResponseWriter, r *http.Request) {
+// serveExpvar serves internal metrics in /debug/vars format over HTTP.
+func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
+	// Retrieve statistics from the monitor.
+	stats, err := h.Monitor.Statistics(nil)
+	if err != nil {
+		h.httpError(w, err.Error(), false, http.StatusInternalServerError)
+		return
+	}
+
+	m := make(map[string]*monitor.Statistic)
+	for _, s := range stats {
+		// Very hackily create a unique key.
+		buf := bytes.NewBufferString(s.Name)
+		if path, ok := s.Tags["path"]; ok {
+			fmt.Fprintf(buf, ":%s", path)
+			if id, ok := s.Tags["id"]; ok {
+				fmt.Fprintf(buf, ":%s", id)
+			}
+		} else if database, ok := s.Tags["database"]; ok {
+			fmt.Fprintf(buf, ":%s", database)
+		}
+		key := buf.String()
+
+		m[key] = s
+	}
+
+	// Sort the keys to simulate /debug/vars output.
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	fmt.Fprintf(w, "{\n")
+	fmt.Fprintln(w, "{")
 	first := true
-	expvar.Do(func(kv expvar.KeyValue) {
+	for _, key := range keys {
+		// Marshal this statistic to JSON.
+		out, err := json.Marshal(m[key])
+		if err != nil {
+			continue
+		}
+
 		if !first {
-			fmt.Fprintf(w, ",\n")
+			fmt.Fprintln(w, ",")
 		}
 		first = false
-		fmt.Fprintf(w, "%q: %s", kv.Key, kv.Value)
-	})
-	fmt.Fprintf(w, "\n}\n")
+		fmt.Fprintf(w, "%q: ", key)
+		w.Write(bytes.TrimSpace(out))
+	}
+	fmt.Fprintln(w, "\n}")
 }
 
 // h.httpError writes an error to the client in a standard format.
@@ -751,7 +840,7 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, *meta.UserInfo)
 		if requireAuthentication && adminExists {
 			creds, err := parseCredentials(r)
 			if err != nil {
-				h.statMap.Add(statAuthFail, 1)
+				atomic.AddInt64(&h.statMap.AuthenticationFailures, 1)
 				h.httpError(w, err.Error(), false, http.StatusUnauthorized)
 				return
 			}
@@ -759,14 +848,14 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, *meta.UserInfo)
 			switch creds.Method {
 			case UserAuthentication:
 				if creds.Username == "" {
-					h.statMap.Add(statAuthFail, 1)
+					atomic.AddInt64(&h.statMap.AuthenticationFailures, 1)
 					h.httpError(w, "username required", false, http.StatusUnauthorized)
 					return
 				}
 
 				user, err = h.MetaClient.Authenticate(creds.Username, creds.Password)
 				if err != nil {
-					h.statMap.Add(statAuthFail, 1)
+					atomic.AddInt64(&h.statMap.AuthenticationFailures, 1)
 					h.httpError(w, "authorization failed", false, http.StatusUnauthorized)
 					return
 				}

@@ -1390,6 +1390,20 @@ func (p *point) UnixNano() int64 {
 // values.
 type Tags map[string]string
 
+// Merge merges the tags combining the two. If both define a tag with the
+// same key, the merged value overwrites the old value.
+// A new map is returned.
+func (t Tags) Merge(other map[string]string) Tags {
+	merged := make(map[string]string, len(t)+len(other))
+	for k, v := range t {
+		merged[k] = v
+	}
+	for k, v := range other {
+		merged[k] = v
+	}
+	return Tags(merged)
+}
+
 // HashKey hashes all of a tag's keys.
 func (t Tags) HashKey() []byte {
 	// Empty maps marshal to empty bytes.

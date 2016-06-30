@@ -996,20 +996,13 @@ func (s *SelectStatement) TimeFieldName() string {
 
 // Clone returns a deep copy of the statement.
 func (s *SelectStatement) Clone() *SelectStatement {
-	clone := &SelectStatement{
-		Fields:     make(Fields, 0, len(s.Fields)),
-		Dimensions: make(Dimensions, 0, len(s.Dimensions)),
-		Sources:    cloneSources(s.Sources),
-		SortFields: make(SortFields, 0, len(s.SortFields)),
-		Condition:  CloneExpr(s.Condition),
-		Limit:      s.Limit,
-		Offset:     s.Offset,
-		SLimit:     s.SLimit,
-		SOffset:    s.SOffset,
-		Fill:       s.Fill,
-		FillValue:  s.FillValue,
-		IsRawQuery: s.IsRawQuery,
-	}
+	clone := *s
+	clone.Fields = make(Fields, 0, len(s.Fields))
+	clone.Dimensions = make(Dimensions, 0, len(s.Dimensions))
+	clone.Sources = cloneSources(s.Sources)
+	clone.SortFields = make(SortFields, 0, len(s.SortFields))
+	clone.Condition = CloneExpr(s.Condition)
+
 	if s.Target != nil {
 		clone.Target = &Target{
 			Measurement: &Measurement{
@@ -1029,7 +1022,7 @@ func (s *SelectStatement) Clone() *SelectStatement {
 	for _, f := range s.SortFields {
 		clone.SortFields = append(clone.SortFields, &SortField{Name: f.Name, Ascending: f.Ascending})
 	}
-	return clone
+	return &clone
 }
 
 func cloneSources(sources Sources) Sources {
