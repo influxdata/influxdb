@@ -96,7 +96,7 @@ func NewService(c Config) (*Service, error) {
 		Logger:          log.New(os.Stderr, "[opentsdb] ", log.LstdFlags),
 		LogPointErrors:  d.LogPointErrors,
 		stats:           &Statistics{},
-		statTags:        map[string]string{"bind": d.BindAddress},
+		statTags:        models.NewTags(map[string]string{"bind": d.BindAddress}),
 	}
 	return s, nil
 }
@@ -381,7 +381,7 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		}
 		fields["value"] = fv
 
-		pt, err := models.NewPoint(measurement, tags, fields, t)
+		pt, err := models.NewPoint(measurement, models.NewTags(tags), fields, t)
 		if err != nil {
 			atomic.AddInt64(&s.stats.TelnetBadFloat, 1)
 			if s.LogPointErrors {

@@ -12,8 +12,8 @@ func TestCommunePoint(t *testing.T) {
 	if point.Name() != "write" {
 		t.Errorf("expected: write\ngot: %v", point.Name())
 	}
-	if point.Tags()["tag"] != "tagVal" {
-		t.Errorf("expected: tagVal\ngot: %v", point.Tags()["tag"])
+	if point.Tags().GetString("tag") != "tagVal" {
+		t.Errorf("expected: tagVal\ngot: %v", point.Tags().GetString("tag"))
 	}
 	if int(point.Fields()["fooField"].(float64)) != 5 {
 		t.Errorf("expected: 5\ngot: %v\n", point.Fields()["fooField"])
@@ -24,8 +24,8 @@ func TestCommunePoint(t *testing.T) {
 	if point.Name() != "write" {
 		t.Errorf("expected: write\ngot: %v", point.Name())
 	}
-	if point.Tags()["tag"] != "tagVal" {
-		t.Errorf("expected: tagVal\ngot: %v", point.Tags()["tag"])
+	if point.Tags().GetString("tag") != "tagVal" {
+		t.Errorf("expected: tagVal\ngot: %v", point.Tags().GetString("tag"))
 	}
 	if int(point.Fields()["fooField"].(float64)) != 5 {
 		t.Errorf("expected: 5\ngot: %v\n", point.Fields()["fooField"])
@@ -40,8 +40,8 @@ func TestSetCommune(t *testing.T) {
 	if pt.Name() != "write" {
 		t.Errorf("expected: write\ngot: %v", pt.Name())
 	}
-	if pt.Tags()["tag"] != "tagVal" {
-		t.Errorf("expected: tagVal\ngot: %v", pt.Tags()["tag"])
+	if pt.Tags().GetString("tag") != "tagVal" {
+		t.Errorf("expected: tagVal\ngot: %v", pt.Tags().GetString("tag"))
 	}
 	if int(pt.Fields()["fooField"].(float64)) != 5 {
 		t.Errorf("expected: 5\ngot: %v\n", pt.Fields()["fooField"])

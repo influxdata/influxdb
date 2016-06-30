@@ -68,7 +68,7 @@ type TSMIndex interface {
 	Key(index int) (string, []IndexEntry)
 
 	// KeyAt returns the key in the index at the given postion.
-	KeyAt(index int) (string, byte)
+	KeyAt(index int) ([]byte, byte)
 
 	// KeyCount returns the count of unique keys in the index.
 	KeyCount() int
@@ -116,7 +116,7 @@ func (b *BlockIterator) PeekNext() string {
 		return b.key
 	} else if b.n-b.i > 1 {
 		key, _ := b.r.KeyAt(b.i + 1)
-		return key
+		return string(key)
 	}
 	return ""
 }
@@ -243,7 +243,7 @@ func (t *TSMReader) Key(index int) (string, []IndexEntry) {
 }
 
 // KeyAt returns the key and key type at position idx in the index.
-func (t *TSMReader) KeyAt(idx int) (string, byte) {
+func (t *TSMReader) KeyAt(idx int) ([]byte, byte) {
 	return t.index.KeyAt(idx)
 }
 
@@ -489,6 +489,13 @@ func (t *TSMReader) BlockIterator() *BlockIterator {
 	}
 }
 
+// deref removes mmap references held by another object.
+func (t *TSMReader) deref(d dereferencer) {
+	if acc, ok := t.accessor.(*mmapAccessor); ok {
+		d.Dereference(acc.b)
+	}
+}
+
 // indirectIndex is a TSMIndex that uses a raw byte slice representation of an index.  This
 // implementation can be used for indexes that may be MMAPed into memory.
 type indirectIndex struct {
@@ -667,15 +674,15 @@ func (d *indirectIndex) Key(idx int) (string, []IndexEntry) {
 	return string(key), entries.entries
 }
 
-func (d *indirectIndex) KeyAt(idx int) (string, byte) {
+func (d *indirectIndex) KeyAt(idx int) ([]byte, byte) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
 	if idx < 0 || idx >= len(d.offsets) {
-		return "", 0
+		return nil, 0
 	}
 	n, key, _ := readKey(d.b[d.offsets[idx]:])
-	return string(key), d.b[d.offsets[idx]+int32(n)]
+	return key, d.b[d.offsets[idx]+int32(n)]
 }
 
 func (d *indirectIndex) KeyCount() int {

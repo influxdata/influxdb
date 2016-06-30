@@ -58,7 +58,7 @@ type TSMFile interface {
 	KeyCount() int
 
 	// KeyAt returns the key located at index position idx
-	KeyAt(idx int) (string, byte)
+	KeyAt(idx int) ([]byte, byte)
 
 	// Type returns the block type of the values stored for the key.  Returns one of
 	// BlockFloat64, BlockInt64, BlockBoolean, BlockString.  If key does not exist,
@@ -106,6 +106,13 @@ type TSMFile interface {
 	// BlockIterator returns an iterator pointing to the first block in the file and
 	// allows sequential iteration to each every block.
 	BlockIterator() *BlockIterator
+
+	// Removes mmap references held by another object.
+	deref(dereferencer)
+}
+
+type dereferencer interface {
+	Dereference([]byte)
 }
 
 // Statistics gathered by the FileStore.
@@ -132,6 +139,8 @@ type FileStore struct {
 	purger *purger
 
 	currentTempDirID int
+
+	dereferencer dereferencer
 }
 
 type FileStat struct {
@@ -157,7 +166,7 @@ func (f FileStat) ContainsKey(key string) bool {
 
 func NewFileStore(dir string) *FileStore {
 	logger := log.New(os.Stderr, "[filestore] ", log.LstdFlags)
-	return &FileStore{
+	fs := &FileStore{
 		dir:          dir,
 		lastModified: time.Now(),
 		logger:       logger,
@@ -169,6 +178,8 @@ func NewFileStore(dir string) *FileStore {
 			logger: logger,
 		},
 	}
+	fs.purger.fileStore = fs
+	return fs
 }
 
 // enableTraceLogging must be called before the FileStore is opened.
@@ -204,7 +215,7 @@ type FileStoreStatistics struct {
 func (f *FileStore) Statistics(tags map[string]string) []models.Statistic {
 	return []models.Statistic{{
 		Name: "tsm1_filestore",
-		Tags: tags,
+		Tags: models.NewTags(tags),
 		Values: map[string]interface{}{
 			statFileStoreBytes: atomic.LoadInt64(&f.stats.DiskBytes),
 			statFileStoreCount: atomic.LoadInt64(&f.stats.FileCount),
@@ -281,7 +292,7 @@ func (f *FileStore) Remove(paths ...string) {
 
 // WalkKeys calls fn for every key in every TSM file known to the FileStore.  If the key
 // exists in multiple files, it will be invoked for each file.
-func (f *FileStore) WalkKeys(fn func(key string, typ byte) error) error {
+func (f *FileStore) WalkKeys(fn func(key []byte, typ byte) error) error {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -305,7 +316,7 @@ func (f *FileStore) Keys() map[string]byte {
 	for _, f := range f.files {
 		for i := 0; i < f.KeyCount(); i++ {
 			key, typ := f.KeyAt(i)
-			uniqueKeys[key] = typ
+			uniqueKeys[string(key)] = typ
 		}
 	}
 
@@ -554,6 +565,11 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 
 					inuse = append(inuse, file)
 					continue
+				}
+
+				// Remove any mmap references held by the index.
+				if f.dereferencer != nil {
+					file.deref(f.dereferencer)
 				}
 
 				if err := file.Close(); err != nil {
@@ -1088,9 +1104,10 @@ func (c *KeyCursor) filterBooleanValues(tombstones []TimeRange, values BooleanVa
 }
 
 type purger struct {
-	mu      sync.RWMutex
-	files   map[string]TSMFile
-	running bool
+	mu        sync.RWMutex
+	fileStore *FileStore
+	files     map[string]TSMFile
+	running   bool
 
 	logger *log.Logger
 }
@@ -1118,6 +1135,11 @@ func (p *purger) purge() {
 			p.mu.Lock()
 			for k, v := range p.files {
 				if !v.InUse() {
+					// Remove any mmap references held by the index.
+					if p.fileStore.dereferencer != nil {
+						v.deref(p.fileStore.dereferencer)
+					}
+
 					if err := v.Close(); err != nil {
 						p.logger.Printf("purge: close file: %v", err)
 						continue

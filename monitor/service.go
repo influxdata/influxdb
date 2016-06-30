@@ -212,14 +212,13 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 
 		statistic := &Statistic{
 			Statistic: models.Statistic{
-				Tags:   make(map[string]string),
 				Values: make(map[string]interface{}),
 			},
 		}
 
 		// Add any supplied tags.
 		for k, v := range tags {
-			statistic.Tags[k] = v
+			statistic.Tags.SetString(k, v)
 		}
 
 		// Every other top-level expvar value is a map.
@@ -242,7 +241,7 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 					if err != nil {
 						return
 					}
-					statistic.Tags[t.Key] = u
+					statistic.Tags.SetString(t.Key, u)
 				})
 			case "values":
 				// string-interface map.
@@ -281,14 +280,13 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 	statistic := &Statistic{
 		Statistic: models.Statistic{
 			Name:   "runtime",
-			Tags:   make(map[string]string),
 			Values: make(map[string]interface{}),
 		},
 	}
 
 	// Add any supplied tags to Go memstats
 	for k, v := range tags {
-		statistic.Tags[k] = v
+		statistic.Tags.SetString(k, v)
 	}
 
 	var rt runtime.MemStats

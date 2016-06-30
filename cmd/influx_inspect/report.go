@@ -78,7 +78,7 @@ func cmdReport(opts *reportOpts) {
 			totalSeries.Add([]byte(key))
 
 			if opts.detailed {
-				sep := strings.Index(key, "#!~#")
+				sep := strings.Index(string(key), "#!~#")
 				seriesKey, field := key[:sep], key[sep+4:]
 				measurement, tags, _ := models.ParseKey(seriesKey)
 
@@ -96,13 +96,13 @@ func cmdReport(opts *reportOpts) {
 				}
 				fieldCount.Add([]byte(field))
 
-				for t, v := range tags {
-					tagCount, ok := tagCardialities[t]
+				for _, t := range tags {
+					tagCount, ok := tagCardialities[string(t.Key)]
 					if !ok {
 						tagCount = hllpp.New()
-						tagCardialities[t] = tagCount
+						tagCardialities[string(t.Key)] = tagCount
 					}
-					tagCount.Add([]byte(v))
+					tagCount.Add(t.Value)
 				}
 			}
 		}

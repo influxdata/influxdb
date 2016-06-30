@@ -171,7 +171,7 @@ type CacheStatistics struct {
 func (c *Cache) Statistics(tags map[string]string) []models.Statistic {
 	return []models.Statistic{{
 		Name: "tsm1_cache",
-		Tags: tags,
+		Tags: models.NewTags(tags),
 		Values: map[string]interface{}{
 			statCacheMemoryBytes:    atomic.LoadInt64(&c.stats.MemSizeBytes),
 			statCacheDiskBytes:      atomic.LoadInt64(&c.stats.DiskSizeBytes),

@@ -106,7 +106,7 @@ func NewService(c Config) (*Service, error) {
 		batchTimeout:    time.Duration(d.BatchTimeout),
 		logger:          log.New(os.Stderr, fmt.Sprintf("[graphite] %s ", d.BindAddress), log.LstdFlags),
 		stats:           &Statistics{},
-		statTags:        map[string]string{"proto": d.Protocol, "bind": d.BindAddress},
+		statTags:        models.NewTags(map[string]string{"proto": d.Protocol, "bind": d.BindAddress}),
 		tcpConnections:  make(map[string]*tcpConnection),
 		done:            make(chan struct{}),
 		diagsKey:        strings.Join([]string{"graphite", d.Protocol, d.BindAddress}, ":"),

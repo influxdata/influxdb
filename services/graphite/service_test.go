@@ -39,7 +39,7 @@ func Test_ServerGraphiteTCP(t *testing.T) {
 
 			pt, _ := models.NewPoint(
 				"cpu",
-				map[string]string{},
+				models.NewTags(map[string]string{}),
 				map[string]interface{}{"value": 23.456},
 				time.Unix(now.Unix(), 0))
 
@@ -115,7 +115,7 @@ func Test_ServerGraphiteUDP(t *testing.T) {
 
 			pt, _ := models.NewPoint(
 				"cpu",
-				map[string]string{},
+				models.NewTags(map[string]string{}),
 				map[string]interface{}{"value": 23.456},
 				time.Unix(now.Unix(), 0))
 			if database != "graphitedb" {

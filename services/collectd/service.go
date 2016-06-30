@@ -70,7 +70,7 @@ func NewService(c Config) *Service {
 		Logger:   log.New(os.Stderr, "[collectd] ", log.LstdFlags),
 		err:      make(chan error),
 		stats:    &Statistics{},
-		statTags: map[string]string{"bind": c.BindAddress},
+		statTags: models.NewTags(map[string]string{"bind": c.BindAddress}),
 	}
 
 	return &s
@@ -360,8 +360,9 @@ func (s *Service) UnmarshalCollectd(packet *gollectd.Packet) []models.Point {
 		if packet.TypeInstance != "" {
 			tags["type_instance"] = packet.TypeInstance
 		}
-		p, err := models.NewPoint(name, tags, fields, timestamp)
+
 		// Drop invalid points
+		p, err := models.NewPoint(name, models.NewTags(tags), fields, timestamp)
 		if err != nil {
 			s.Logger.Printf("Dropping point %v: %v", name, err)
 			atomic.AddInt64(&s.stats.InvalidDroppedPoints, 1)

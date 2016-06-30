@@ -83,7 +83,7 @@ type WritePointsRequest struct {
 // AddPoint adds a point to the WritePointRequest with field key 'value'
 func (w *WritePointsRequest) AddPoint(name string, value interface{}, timestamp time.Time, tags map[string]string) {
 	pt, err := models.NewPoint(
-		name, tags, map[string]interface{}{"value": value}, timestamp,
+		name, models.NewTags(tags), map[string]interface{}{"value": value}, timestamp,
 	)
 	if err != nil {
 		return
@@ -176,7 +176,7 @@ type WriteStatistics struct {
 func (w *PointsWriter) Statistics(tags map[string]string) []models.Statistic {
 	return []models.Statistic{{
 		Name: "write",
-		Tags: tags,
+		Tags: models.NewTags(tags),
 		Values: map[string]interface{}{
 			statWriteReq:           atomic.LoadInt64(&w.stats.WriteReq),
 			statPointWriteReq:      atomic.LoadInt64(&w.stats.PointWriteReq),

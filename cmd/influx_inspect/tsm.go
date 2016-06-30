@@ -121,9 +121,9 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 		var pos int
 		for i := 0; i < keyCount; i++ {
 			key, _ := r.KeyAt(i)
-			for _, e := range r.Entries(key) {
+			for _, e := range r.Entries(string(key)) {
 				pos++
-				split := strings.Split(key, "#!~#")
+				split := strings.Split(string(key), "#!~#")
 
 				// We dont' know know if we have fields so use an informative default
 				var measurement, field string = "UNKNOWN", "UNKNOWN"
@@ -132,7 +132,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 				measurement = split[0]
 				field = split[1]
 
-				if opts.filterKey != "" && !strings.Contains(key, opts.filterKey) {
+				if opts.filterKey != "" && !strings.Contains(string(key), opts.filterKey) {
 					continue
 				}
 				fmt.Fprintln(tw, "  "+strings.Join([]string{
@@ -160,7 +160,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 	// Start at the beginning and read every block
 	for j := 0; j < keyCount; j++ {
 		key, _ := r.KeyAt(j)
-		for _, e := range r.Entries(key) {
+		for _, e := range r.Entries(string(key)) {
 
 			f.Seek(int64(e.Offset), 0)
 			f.Read(b[:4])
@@ -172,7 +172,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 
 			blockSize += int64(e.Size)
 
-			if opts.filterKey != "" && !strings.Contains(key, opts.filterKey) {
+			if opts.filterKey != "" && !strings.Contains(string(key), opts.filterKey) {
 				i += blockSize
 				blockCount++
 				continue

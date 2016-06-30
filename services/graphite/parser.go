@@ -64,12 +64,12 @@ func NewParserWithOptions(options Options) (*Parser, error) {
 		}
 
 		// Parse out the default tags specific to this template
-		tags := models.Tags{}
+		var tags models.Tags
 		if strings.Contains(parts[len(parts)-1], "=") {
 			tagStrs := strings.Split(parts[len(parts)-1], ",")
 			for _, kv := range tagStrs {
 				parts := strings.Split(kv, "=")
-				tags[parts[0]] = parts[1]
+				tags.SetString(parts[0], parts[1])
 			}
 		}
 
@@ -151,12 +151,12 @@ func (p *Parser) Parse(line string) (models.Point, error) {
 	}
 
 	// Set the default tags on the point if they are not already set
-	for k, v := range p.tags {
-		if _, ok := tags[k]; !ok {
-			tags[k] = v
+	for _, t := range p.tags {
+		if _, ok := tags[string(t.Key)]; !ok {
+			tags[string(t.Key)] = string(t.Value)
 		}
 	}
-	return models.NewPoint(measurement, tags, fieldValues, timestamp)
+	return models.NewPoint(measurement, models.NewTags(tags), fieldValues, timestamp)
 }
 
 // ApplyTemplate extracts the template fields from the given line and
@@ -171,9 +171,9 @@ func (p *Parser) ApplyTemplate(line string) (string, map[string]string, string, 
 	template := p.matcher.Match(fields[0])
 	name, tags, field, err := template.Apply(fields[0])
 	// Set the default tags on the point if they are not already set
-	for k, v := range p.tags {
-		if _, ok := tags[k]; !ok {
-			tags[k] = v
+	for _, t := range p.tags {
+		if _, ok := tags[string(t.Key)]; !ok {
+			tags[string(t.Key)] = string(t.Value)
 		}
 	}
 	return name, tags, field, err
@@ -223,8 +223,8 @@ func (t *template) Apply(line string) (string, map[string]string, string, error)
 	)
 
 	// Set any default tags
-	for k, v := range t.defaultTags {
-		tags[k] = append(tags[k], v)
+	for _, t := range t.defaultTags {
+		tags[string(t.Key)] = append(tags[string(t.Key)], string(t.Value))
 	}
 
 	// See if an invalid combination has been specified in the template:

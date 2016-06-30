@@ -114,7 +114,7 @@ func (w *csvResponseWriter) WriteResponse(resp Response) (n int, err error) {
 		for _, row := range result.Series {
 			w.columns[0] = row.Name
 			if len(row.Tags) > 0 {
-				w.columns[1] = string(models.Tags(row.Tags).HashKey()[1:])
+				w.columns[1] = string(models.NewTags(row.Tags).HashKey()[1:])
 			} else {
 				w.columns[1] = ""
 			}
