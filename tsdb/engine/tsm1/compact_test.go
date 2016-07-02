@@ -1488,6 +1488,237 @@ func TestDefaultPlanner_PlanLevel_Multiple(t *testing.T) {
 	}
 }
 
+func TestDefaultPlanner_PlanOptimize_NoLevel4(t *testing.T) {
+	data := []tsm1.FileStat{
+		tsm1.FileStat{
+			Path: "01-03.tsm1",
+			Size: 251 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "02-03.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "03-03.tsm1",
+			Size: 2 * 1024 * 1024 * 1024,
+		},
+	}
+
+	cp := &tsm1.DefaultPlanner{
+		FileStore: &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return data
+			},
+		},
+	}
+
+	expFiles := []tsm1.FileStat{}
+	tsm := cp.PlanOptimize()
+	if exp, got := len(expFiles), len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestDefaultPlanner_PlanOptimize_Level4(t *testing.T) {
+	data := []tsm1.FileStat{
+		tsm1.FileStat{
+			Path: "01-04.tsm1",
+			Size: 251 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "02-04.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "03-04.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "04-04.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "05-03.tsm1",
+			Size: 2 * 1024 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "06-04.tsm1",
+			Size: 2 * 1024 * 1024 * 1024,
+		},
+	}
+
+	cp := &tsm1.DefaultPlanner{
+		FileStore: &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return data
+			},
+		},
+	}
+
+	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3]}
+	tsm := cp.PlanOptimize()
+	if exp, got := 1, len(tsm); exp != got {
+		t.Fatalf("group length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if exp, got := len(expFiles1), len(tsm[0]); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, p := range expFiles1 {
+		if got, exp := tsm[0][i], p.Path; got != exp {
+			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+		}
+	}
+}
+
+func TestDefaultPlanner_PlanOptimize_Multiple(t *testing.T) {
+	data := []tsm1.FileStat{
+		tsm1.FileStat{
+			Path: "01-04.tsm1",
+			Size: 251 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "02-04.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "03-04.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "04-04.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "05-03.tsm1",
+			Size: 2 * 1024 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "06-04.tsm1",
+			Size: 2 * 1024 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "07-04.tsm1",
+			Size: 2 * 1024 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "08-04.tsm1",
+			Size: 2 * 1024 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "09-04.tsm1",
+			Size: 2 * 1024 * 1024 * 1024,
+		},
+	}
+
+	cp := &tsm1.DefaultPlanner{
+		FileStore: &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return data
+			},
+		},
+	}
+
+	expFiles1 := []tsm1.FileStat{data[0], data[1], data[2], data[3]}
+	expFiles2 := []tsm1.FileStat{data[5], data[6], data[7], data[8]}
+
+	tsm := cp.PlanOptimize()
+	if exp, got := 2, len(tsm); exp != got {
+		t.Fatalf("group length mismatch: got %v, exp %v", got, exp)
+	}
+
+	if exp, got := len(expFiles1), len(tsm[0]); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, p := range expFiles1 {
+		if got, exp := tsm[0][i], p.Path; got != exp {
+			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+		}
+	}
+
+	if exp, got := len(expFiles2), len(tsm[1]); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, p := range expFiles2 {
+		if got, exp := tsm[1][i], p.Path; got != exp {
+			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+		}
+	}
+}
+
+func TestDefaultPlanner_PlanOptimize_Optimized(t *testing.T) {
+	data := []tsm1.FileStat{
+		tsm1.FileStat{
+			Path: "01-03.tsm1",
+			Size: 251 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "01-04.tsm1",
+			Size: 1 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "01-05.tsm1",
+			Size: 2 * 1024 * 1024 * 1024,
+		},
+	}
+
+	cp := &tsm1.DefaultPlanner{
+		FileStore: &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return data
+			},
+		},
+	}
+
+	expFiles := []tsm1.FileStat{}
+	tsm := cp.PlanOptimize()
+	if exp, got := len(expFiles), len(tsm); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+func TestDefaultPlanner_PlanOptimize_Tombstones(t *testing.T) {
+	data := []tsm1.FileStat{
+		tsm1.FileStat{
+			Path: "01-04.tsm1",
+			Size: 251 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path:         "01-05.tsm1",
+			Size:         1 * 1024 * 1024,
+			HasTombstone: true,
+		},
+		tsm1.FileStat{
+			Path: "02-06.tsm1",
+			Size: 2 * 1024 * 1024 * 1024,
+		},
+	}
+
+	cp := &tsm1.DefaultPlanner{
+		FileStore: &fakeFileStore{
+			PathsFn: func() []tsm1.FileStat {
+				return data
+			},
+		},
+	}
+
+	expFiles := []tsm1.FileStat{data[0], data[1], data[2]}
+	tsm := cp.PlanOptimize()
+	if exp, got := len(expFiles), len(tsm[0]); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
+	for i, p := range expFiles {
+		if got, exp := tsm[0][i], p.Path; got != exp {
+			t.Fatalf("tsm file mismatch: got %v, exp %v", got, exp)
+		}
+	}
+
+}
+
 // Ensure that the planner will compact all files if no writes
 // have happened in some interval
 func TestDefaultPlanner_Plan_FullOnCold(t *testing.T) {

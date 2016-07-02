@@ -50,6 +50,7 @@ type CompactionGroup []string
 type CompactionPlanner interface {
 	Plan(lastWrite time.Time) []CompactionGroup
 	PlanLevel(level int) []CompactionGroup
+	PlanOptimize() []CompactionGroup
 }
 
 // DefaultPlanner implements CompactionPlanner using a strategy to roll up
@@ -208,6 +209,71 @@ func (c *DefaultPlanner) PlanLevel(level int) []CompactionGroup {
 
 			cGroups = append(cGroups, cGroup)
 		}
+	}
+
+	return cGroups
+}
+
+// PlanOptimize returns all TSM files if they are in different generations in order
+// to optimize the index across TSM files.  Each returned compaction group can be
+// compacted concurrently.
+func (c *DefaultPlanner) PlanOptimize() []CompactionGroup {
+	// Determine the generations from all files on disk.  We need to treat
+	// a generation conceptually as a single file even though it may be
+	// split across several files in sequence.
+	generations := c.findGenerations()
+
+	// If there is only one generation and no tombstones, then there's nothing to
+	// do.
+	if len(generations) <= 1 && !generations.hasTombstones() {
+		return nil
+	}
+
+	// Group each generation by level such that two adjacent generations in the same
+	// level become part of the same group.
+	var currentGen tsmGenerations
+	var groups []tsmGenerations
+	for i := 0; i < len(generations); i++ {
+		cur := generations[i]
+
+		if len(currentGen) == 0 || currentGen[0].level() == cur.level() {
+			currentGen = append(currentGen, cur)
+			continue
+		}
+		groups = append(groups, currentGen)
+
+		currentGen = tsmGenerations{}
+		currentGen = append(currentGen, cur)
+	}
+
+	if len(currentGen) > 0 {
+		groups = append(groups, currentGen)
+	}
+
+	// Only optimize level 4 files since using lower-levels will collide
+	// with the level planners
+	var levelGroups []tsmGenerations
+	for _, cur := range groups {
+		if cur[0].level() == 4 {
+			levelGroups = append(levelGroups, cur)
+		}
+	}
+
+	var cGroups []CompactionGroup
+	for _, group := range levelGroups {
+		// Skip the group if it's not worthwhile to optimize it
+		if len(group) < 4 && !group.hasTombstones() {
+			continue
+		}
+
+		var cGroup CompactionGroup
+		for _, gen := range group {
+			for _, file := range gen.files {
+				cGroup = append(cGroup, file.Path)
+			}
+		}
+
+		cGroups = append(cGroups, cGroup)
 	}
 
 	return cGroups
