@@ -79,6 +79,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6738](https://github.com/influxdata/influxdb/issues/6738): Time sorting broken with overwritten points
 - [#6829](https://github.com/influxdata/influxdb/issues/6829): Fix panic: runtime error: index out of range
 - [#6911](https://github.com/influxdata/influxdb/issues/6911): Fix fill(previous) when used with math operators.
+- [#6934](https://github.com/influxdata/influxdb/issues/6934): Fix regex binary encoding for a measurement.
 
 ## v0.13.0 [2016-05-12]
 

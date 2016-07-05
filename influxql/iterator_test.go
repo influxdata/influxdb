@@ -999,7 +999,7 @@ func TestIteratorOptions_MarshalBinary_Measurement_Regex(t *testing.T) {
 	var other influxql.IteratorOptions
 	if err := other.UnmarshalBinary(buf); err != nil {
 		t.Fatal(err)
-	} else if v := other.Sources[0].(*influxql.Measurement).Regex.Val.String(); v != `/series.+/` {
+	} else if v := other.Sources[0].(*influxql.Measurement).Regex.Val.String(); v != `series.+` {
 		t.Fatalf("unexpected measurement regex: %s", v)
 	}
 }
