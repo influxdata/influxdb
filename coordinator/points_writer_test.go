@@ -53,7 +53,8 @@ func TestPointsWriter_MapShards_One(t *testing.T) {
 // Ensures the points writer maps a multiple points across shard group boundaries.
 func TestPointsWriter_MapShards_Multiple(t *testing.T) {
 	ms := PointsWriterMetaClient{}
-	rp := NewRetentionPolicy("myp", time.Hour, 3)
+	rp := NewRetentionPolicy("myp", 0, 3)
+	rp.ShardGroupDuration = time.Hour
 	AttachShardGroupInfo(rp, []meta.ShardOwner{
 		{NodeID: 1},
 		{NodeID: 2},
@@ -79,7 +80,9 @@ func TestPointsWriter_MapShards_Multiple(t *testing.T) {
 		panic("should not get here")
 	}
 
-	c := coordinator.PointsWriter{MetaClient: ms}
+	c := coordinator.NewPointsWriter()
+	c.MetaClient = ms
+	defer c.Close()
 	pr := &coordinator.WritePointsRequest{
 		Database:        "mydb",
 		RetentionPolicy: "myrp",
@@ -117,6 +120,43 @@ func TestPointsWriter_MapShards_Multiple(t *testing.T) {
 		if len(points) == 2 && points[1].Time() != pr.Points[2].Time() {
 			t.Fatalf("MapShards() value mismatch. got %v, exp %v", points[1].Time(), pr.Points[2].Time())
 		}
+	}
+}
+
+// Ensures the points writer does not map points beyond the retention policy.
+func TestPointsWriter_MapShards_Invalid(t *testing.T) {
+	ms := PointsWriterMetaClient{}
+	rp := NewRetentionPolicy("myp", time.Hour, 3)
+
+	ms.RetentionPolicyFn = func(db, retentionPolicy string) (*meta.RetentionPolicyInfo, error) {
+		return rp, nil
+	}
+
+	ms.CreateShardGroupIfNotExistsFn = func(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {
+		return &rp.ShardGroups[0], nil
+	}
+
+	c := coordinator.NewPointsWriter()
+	c.MetaClient = ms
+	defer c.Close()
+	pr := &coordinator.WritePointsRequest{
+		Database:        "mydb",
+		RetentionPolicy: "myrp",
+	}
+
+	// Add a point that goes beyond the current retention policy.
+	pr.AddPoint("cpu", 1.0, time.Now().Add(-2*time.Hour), nil)
+
+	var (
+		shardMappings *coordinator.ShardMapping
+		err           error
+	)
+	if shardMappings, err = c.MapShards(pr); err != nil {
+		t.Fatalf("unexpected an error: %v", err)
+	}
+
+	if exp := 0; len(shardMappings.Points) != exp {
+		t.Errorf("MapShards() len mismatch. got %v, exp %v", len(shardMappings.Points), exp)
 	}
 }
 
