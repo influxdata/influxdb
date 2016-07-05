@@ -419,6 +419,7 @@ func (c *Cache) merged(key string) Values {
 		n += copy(values[n:], e.values)
 		e.mu.RUnlock()
 	}
+	values = values[:n]
 
 	if needSort {
 		values = values.Deduplicate()
