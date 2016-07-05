@@ -21,6 +21,7 @@ const (
 	statPointWriteReq      = "pointReq"
 	statPointWriteReqLocal = "pointReqLocal"
 	statWriteOK            = "writeOk"
+	statWriteDrop          = "writeDrop"
 	statWriteTimeout       = "writeTimeout"
 	statWriteErr           = "writeError"
 	statSubWriteOK         = "subWriteOk"
@@ -169,12 +170,25 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 	rp, err := w.MetaClient.RetentionPolicy(wp.Database, wp.RetentionPolicy)
 	if err != nil {
 		return nil, err
-	}
-	if rp == nil {
+	} else if rp == nil {
 		return nil, influxdb.ErrRetentionPolicyNotFound(wp.RetentionPolicy)
 	}
 
+	// Find the minimum time for a point if the retention policy has a shard
+	// group duration. We will automatically drop any points before this time.
+	// There is a chance of a time on the edge of the shard group duration to
+	// sneak through even after it has been removed, but the circumstances are
+	// rare enough and don't matter enough that we don't account for this
+	// edge case.
+	min := time.Unix(0, models.MinNanoTime)
+	if rp.Duration > 0 {
+		min = time.Now().Add(-rp.Duration)
+	}
+
 	for _, p := range wp.Points {
+		if p.Time().Before(min) {
+			continue
+		}
 		timeRanges[p.Time().Truncate(rp.ShardGroupDuration)] = nil
 	}
 
@@ -189,7 +203,11 @@ func (w *PointsWriter) MapShards(wp *WritePointsRequest) (*ShardMapping, error) 
 
 	mapping := NewShardMapping()
 	for _, p := range wp.Points {
-		sg := timeRanges[p.Time().Truncate(rp.ShardGroupDuration)]
+		sg, ok := timeRanges[p.Time().Truncate(rp.ShardGroupDuration)]
+		if !ok {
+			w.statMap.Add(statWriteDrop, 1)
+			continue
+		}
 		sh := sg.ShardFor(p.HashID())
 		mapping.MapPoint(&sh, p)
 	}

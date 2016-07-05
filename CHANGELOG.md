@@ -81,6 +81,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6911](https://github.com/influxdata/influxdb/issues/6911): Fix fill(previous) when used with math operators.
 - [#6934](https://github.com/influxdata/influxdb/pull/6934): Fix regex binary encoding for a measurement.
 - [#6942](https://github.com/influxdata/influxdb/pull/6942): Fix panic: truncate the slice when merging the caches.
+- [#6708](https://github.com/influxdata/influxdb/issues/6708): Drop writes from before the retention policy time window.
 
 ## v0.13.0 [2016-05-12]
 
