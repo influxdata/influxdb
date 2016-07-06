@@ -1,7 +1,6 @@
 package tsm1
 
 import (
-	"expvar"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/expvar"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -386,6 +386,7 @@ func (f *FileStore) Close() error {
 	}
 
 	f.files = nil
+	expvar.Remove("tsm1_filestore:" + f.dir)
 	return nil
 }
 

@@ -2,7 +2,6 @@ package udp // import "github.com/influxdata/influxdb/services/udp"
 
 import (
 	"errors"
-	"expvar"
 	"io"
 	"log"
 	"net"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/expvar"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"

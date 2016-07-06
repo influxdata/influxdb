@@ -2,7 +2,6 @@ package continuous_querier // import "github.com/influxdata/influxdb/services/co
 
 import (
 	"errors"
-	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/expvar"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/services/meta"
 )

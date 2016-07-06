@@ -1,13 +1,13 @@
 package tsdb
 
 import (
-	"expvar"
 	"fmt"
 	"regexp"
 	"sort"
 	"sync"
 
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/expvar"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/escape"

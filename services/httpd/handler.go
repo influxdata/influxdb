@@ -5,7 +5,6 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
-	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -20,6 +19,7 @@ import (
 	"github.com/bmizerany/pat"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/expvar"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/continuous_querier"
@@ -199,7 +199,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			pprof.Index(w, r)
 		}
 	} else if strings.HasPrefix(r.URL.Path, "/debug/vars") {
-		serveExpvar(w, r)
+		expvar.Handler(w, r)
 	} else {
 		h.mux.ServeHTTP(w, r)
 	}
@@ -633,21 +633,6 @@ func MarshalJSON(v interface{}, pretty bool) []byte {
 		return []byte(err.Error())
 	}
 	return b
-}
-
-// serveExpvar serves registered expvar information over HTTP.
-func serveExpvar(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	fmt.Fprintf(w, "{\n")
-	first := true
-	expvar.Do(func(kv expvar.KeyValue) {
-		if !first {
-			fmt.Fprintf(w, ",\n")
-		}
-		first = false
-		fmt.Fprintf(w, "%q: %s", kv.Key, kv.Value)
-	})
-	fmt.Fprintf(w, "\n}\n")
 }
 
 // h.httpError writes an error to the client in a standard format.

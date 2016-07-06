@@ -2,7 +2,6 @@ package tsdb
 
 import (
 	"errors"
-	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/expvar"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	internal "github.com/influxdata/influxdb/tsdb/internal"
@@ -248,6 +248,7 @@ func (s *Shard) close() error {
 	if err == nil {
 		s.engine = nil
 	}
+	expvar.Remove(fmt.Sprintf("shard:%s:%d", s.path, s.id))
 	return err
 }
 

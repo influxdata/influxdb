@@ -1,8 +1,9 @@
 package influxdb
 
 import (
-	"expvar"
 	"sync"
+
+	"github.com/influxdata/influxdb/expvar"
 )
 
 var expvarMu sync.Mutex
