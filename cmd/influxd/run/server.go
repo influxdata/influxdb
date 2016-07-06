@@ -191,6 +191,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.Monitor.Branch = s.buildInfo.Branch
 	s.Monitor.BuildTime = s.buildInfo.Time
 	s.Monitor.PointsWriter = (*monitorPointsWriter)(s.PointsWriter)
+	s.Monitor.Register("queryExecutor", s.QueryExecutor)
 	return s, nil
 }
 

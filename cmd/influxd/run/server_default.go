@@ -51,6 +51,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.QueryAuthorizer = meta.NewQueryAuthorizer(s.MetaClient)
 	srv.Handler.WriteAuthorizer = meta.NewWriteAuthorizer(s.MetaClient)
 	srv.Handler.QueryExecutor = s.QueryExecutor
+	srv.Handler.Monitor = s.Monitor
 	srv.Handler.PointsWriter = s.PointsWriter
 	srv.Handler.Version = s.buildInfo.Version
 
@@ -62,6 +63,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	}
 
 	s.Services = append(s.Services, srv)
+	s.Monitor.Register(fmt.Sprintf("httpd:%s", c.BindAddress), srv)
 }
 
 func (s *Server) appendCollectdService(c collectd.Config) {

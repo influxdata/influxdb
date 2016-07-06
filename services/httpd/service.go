@@ -2,7 +2,6 @@ package httpd // import "github.com/influxdata/influxdb/services/httpd"
 
 import (
 	"crypto/tls"
-	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -12,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb"
+	"github.com/influxdata/influxdb/models"
 )
 
 // statistics gathered by the httpd package.
@@ -49,18 +48,11 @@ type Service struct {
 
 	Handler *Handler
 
-	Logger  *log.Logger
-	statMap *expvar.Map
+	Logger *log.Logger
 }
 
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
-	// Configure expvar monitoring. It's OK to do this even if the service fails to open and
-	// should be done before any data could arrive for the service.
-	key := strings.Join([]string{"httpd", c.BindAddress}, ":")
-	tags := map[string]string{"bind": c.BindAddress}
-	statMap := influxdb.NewStatistics(key, "httpd", tags)
-
 	s := &Service{
 		addr:    c.BindAddress,
 		https:   c.HTTPSEnabled,
@@ -68,7 +60,7 @@ func NewService(c Config) *Service {
 		key:     c.HTTPSPrivateKey,
 		limit:   c.MaxConnectionLimit,
 		err:     make(chan error),
-		Handler: NewHandler(c, statMap),
+		Handler: NewHandler(c),
 		Logger:  log.New(os.Stderr, "[httpd] ", log.LstdFlags),
 	}
 	if s.key == "" {
@@ -157,6 +149,10 @@ func (s *Service) Addr() net.Addr {
 		return s.ln.Addr()
 	}
 	return nil
+}
+
+func (s *Service) Statistics(tags map[string]string) []models.Statistic {
+	return s.Handler.Statistics(models.Tags{"bind": s.addr}.Merge(tags))
 }
 
 // serve serves the handler from the listener.
