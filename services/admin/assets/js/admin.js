@@ -353,7 +353,7 @@ var pretty = function(val) {
 }
 
 var getClientVersion = function () {
-    var query = $.get(window.location.origin + "/");
+    var query = $.get(window.location.origin + window.location.pathname);
 
     query.fail(handleRequestError);
 
