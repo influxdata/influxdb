@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"sort"
 	"testing"
+	"testing/quick"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
@@ -1245,6 +1247,51 @@ func TestTSMReader_File_Read(t *testing.T) {
 
 	if exp, got := count, len(data); exp != got {
 		t.Fatalf("read values count mismatch: exp %v, got %v", exp, got)
+	}
+}
+
+func TestIndexEntriesPreSorting(t *testing.T) {
+	f := func(xss [][]tsm1.IndexEntry) bool {
+		// Build the gold data:
+		n := 0
+		gold := []tsm1.IndexEntry{}
+		for _, xs := range xss {
+			gold = append(gold, xs...)
+			n += len(xs)
+		}
+
+		// Build the real data:
+		a := tsm1.NewIndexEntries(0)
+		for _, xs := range xss {
+			a.AppendIndexEntries(xs)
+		}
+
+		// Sanity check that the items are the same before sorting:
+		got := a.Items()
+		if len(got) != len(gold) {
+			return false
+		}
+		for i := range got {
+			if got[i] != gold[i] {
+				return false
+			}
+		}
+
+		// Sort the instance, failing if an extraneous sort happened:
+		needSort := !sort.IsSorted(a)
+		didSort := a.Sort()
+		if needSort != didSort {
+			return false
+		}
+
+		// Check that the predicate is correct after sorting:
+		return a.Len() == n && sort.IsSorted(a)
+	}
+	cfg := &quick.Config{
+		MaxCount: 10000,
+	}
+	if err := quick.Check(f, cfg); err != nil {
+		t.Error(err)
 	}
 }
 
