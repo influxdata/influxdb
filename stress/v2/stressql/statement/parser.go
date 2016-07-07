@@ -104,7 +104,9 @@ func isDigit(r rune) bool {
 	return r >= '0' && r <= '9'
 }
 
-func isLetter(ch rune) bool { return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') }
+func isLetter(ch rune) bool {
+	return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch == '@')
+}
 
 // Scanner scans over the file and converts the raw text into tokens
 type Scanner struct {
