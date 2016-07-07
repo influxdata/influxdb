@@ -61,9 +61,11 @@ type Engine struct {
 	wg                 sync.WaitGroup
 	compactionsEnabled bool
 
-	path      string
-	logger    *log.Logger
-	logOutput io.Writer
+	path         string
+	logger       *log.Logger // Logger to be used for important messages
+	traceLogger  *log.Logger // Logger to be used when trace-logging is on.
+	logOutput    io.Writer   // Writer to be logger and traceLogger if active.
+	traceLogging bool
 
 	// TODO(benbjohnson): Index needs to be moved entirely into engine.
 	index             *tsdb.DatabaseIndex
@@ -95,11 +97,7 @@ type Engine struct {
 // NewEngine returns a new instance of Engine.
 func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
 	w := NewWAL(walPath)
-	w.LoggingEnabled = opt.Config.WALLoggingEnabled
-
 	fs := NewFileStore(path)
-	fs.traceLogging = opt.Config.DataLoggingEnabled
-
 	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize), path)
 
 	c := &Compactor{
@@ -108,9 +106,12 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 	}
 
 	e := &Engine{
-		path:              path,
-		logger:            log.New(os.Stderr, "[tsm1] ", log.LstdFlags),
-		logOutput:         os.Stderr,
+		path:         path,
+		logger:       log.New(os.Stderr, "[tsm1] ", log.LstdFlags),
+		traceLogger:  log.New(ioutil.Discard, "[tsm1] ", log.LstdFlags),
+		logOutput:    os.Stderr,
+		traceLogging: opt.Config.TraceLoggingEnabled,
+
 		measurementFields: make(map[string]*tsdb.MeasurementFields),
 
 		WAL:   w,
@@ -128,6 +129,12 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
 		enableCompactionsOnOpen:       true,
 		stats: &EngineStatistics{},
+	}
+
+	if e.traceLogging {
+		e.traceLogger.SetOutput(e.logOutput)
+		fs.enableTraceLogging(true)
+		w.enableTraceLogging(true)
 	}
 
 	return e
@@ -307,6 +314,12 @@ func (e *Engine) Close() error {
 // use.
 func (e *Engine) SetLogOutput(w io.Writer) {
 	e.logger.SetOutput(w)
+
+	// Set the trace logger's output only if trace logging is enabled.
+	if e.traceLogging {
+		e.traceLogger.SetOutput(w)
+	}
+
 	e.WAL.SetLogOutput(w)
 	e.FileStore.SetLogOutput(w)
 

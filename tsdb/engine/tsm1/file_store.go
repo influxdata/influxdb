@@ -110,8 +110,9 @@ type FileStore struct {
 
 	files []TSMFile
 
-	logger       *log.Logger
-	logOutput    io.Writer
+	logger       *log.Logger // Logger to be used for important messages
+	traceLogger  *log.Logger // Logger to be used when trace-logging is on.
+	logOutput    io.Writer   // Writer to be logger and traceLogger if active.
 	traceLogging bool
 
 	stats *FileStoreStatistics
@@ -145,8 +146,17 @@ func NewFileStore(dir string) *FileStore {
 		dir:          dir,
 		lastModified: time.Now(),
 		logger:       log.New(os.Stderr, "[filestore] ", log.LstdFlags),
+		traceLogger:  log.New(ioutil.Discard, "[filestore] ", log.LstdFlags),
 		logOutput:    os.Stderr,
 		stats:        &FileStoreStatistics{},
+	}
+}
+
+// enableTraceLogging must be called before the FileStore is opened.
+func (f *FileStore) enableTraceLogging(enabled bool) {
+	f.traceLogging = enabled
+	if enabled {
+		f.traceLogger.SetOutput(f.logOutput)
 	}
 }
 
@@ -154,6 +164,11 @@ func NewFileStore(dir string) *FileStore {
 // use.
 func (f *FileStore) SetLogOutput(w io.Writer) {
 	f.logger.SetOutput(w)
+
+	// Set the trace logger's output only if trace logging is enabled.
+	if f.traceLogging {
+		f.traceLogger.SetOutput(w)
+	}
 
 	f.mu.Lock()
 	f.logOutput = w
