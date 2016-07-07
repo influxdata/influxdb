@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/httpd"
@@ -427,14 +426,12 @@ type Handler struct {
 
 // NewHandler returns a new instance of Handler.
 func NewHandler(requireAuthentication bool) *Handler {
-	statMap := influxdb.NewStatistics("httpd", "httpd", nil)
-
 	config := httpd.NewConfig()
 	config.AuthEnabled = requireAuthentication
 	config.SharedSecret = "super secret key"
 
 	h := &Handler{
-		Handler: httpd.NewHandler(config, statMap),
+		Handler: httpd.NewHandler(config),
 	}
 	h.Handler.MetaClient = &h.MetaClient
 	h.Handler.QueryExecutor = influxql.NewQueryExecutor()

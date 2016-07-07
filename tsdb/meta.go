@@ -1,13 +1,12 @@
 package tsdb
 
 import (
-	"expvar"
 	"fmt"
 	"regexp"
 	"sort"
 	"sync"
+	"sync/atomic"
 
-	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/escape"
@@ -34,7 +33,7 @@ type DatabaseIndex struct {
 
 	name string // name of the database represented by this index
 
-	statMap *expvar.Map
+	stats *IndexStatistics
 }
 
 // NewDatabaseIndex returns a new initialized DatabaseIndex.
@@ -43,8 +42,26 @@ func NewDatabaseIndex(name string) *DatabaseIndex {
 		measurements: make(map[string]*Measurement),
 		series:       make(map[string]*Series),
 		name:         name,
-		statMap:      influxdb.NewStatistics("database:"+name, "database", map[string]string{"database": name}),
+		stats:        &IndexStatistics{},
 	}
+}
+
+// IndexStatistics maintains statistics for the index.
+type IndexStatistics struct {
+	NumSeries       int64
+	NumMeasurements int64
+}
+
+// Statistics returns statistics for periodic monitoring.
+func (d *DatabaseIndex) Statistics(tags map[string]string) []models.Statistic {
+	return []models.Statistic{{
+		Name: "database",
+		Tags: models.Tags(map[string]string{"database": d.name}).Merge(tags),
+		Values: map[string]interface{}{
+			statDatabaseSeries:       atomic.LoadInt64(&d.stats.NumSeries),
+			statDatabaseMeasurements: atomic.LoadInt64(&d.stats.NumMeasurements),
+		},
+	}}
 }
 
 // Series returns a series by key.
@@ -139,7 +156,7 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 
 	m.AddSeries(series)
 
-	d.statMap.Add(statDatabaseSeries, 1)
+	atomic.AddInt64(&d.stats.NumSeries, 1)
 	d.mu.Unlock()
 
 	return series
@@ -168,7 +185,7 @@ func (d *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) *Measurem
 	if m == nil {
 		m = NewMeasurement(name)
 		d.measurements[name] = m
-		d.statMap.Add(statDatabaseMeasurements, 1)
+		atomic.AddInt64(&d.stats.NumMeasurements, 1)
 	}
 	return m
 }
@@ -201,14 +218,14 @@ func (d *DatabaseIndex) UnassignShard(k string, shardID uint64) {
 				if !ss.measurement.HasSeries() {
 					d.mu.Lock()
 					d.dropMeasurement(ss.measurement.Name)
-					d.statMap.Add(statDatabaseMeasurements, int64(-1))
+					atomic.AddInt64(&d.stats.NumMeasurements, -1)
 					d.mu.Unlock()
 				}
 
 				// Remove the series key from the series index
 				d.mu.Lock()
 				delete(d.series, k)
-				d.statMap.Add(statDatabaseSeries, int64(-1))
+				atomic.AddInt64(&d.stats.NumSeries, -1)
 				d.mu.Unlock()
 			}
 		}
@@ -455,8 +472,8 @@ func (d *DatabaseIndex) dropMeasurement(name string) {
 		delete(d.series, s.Key)
 	}
 
-	d.statMap.Add(statDatabaseSeries, int64(-len(m.seriesByID)))
-	d.statMap.Add(statDatabaseMeasurements, -1)
+	atomic.AddInt64(&d.stats.NumSeries, int64(-len(m.seriesByID)))
+	atomic.AddInt64(&d.stats.NumMeasurements, -1)
 }
 
 // DropSeries removes the series keys and their tags from the index
@@ -488,7 +505,7 @@ func (d *DatabaseIndex) DropSeries(keys []string) {
 	for mname := range mToDelete {
 		d.dropMeasurement(mname)
 	}
-	d.statMap.Add(statDatabaseSeries, -nDeleted)
+	atomic.AddInt64(&d.stats.NumSeries, -nDeleted)
 }
 
 // Measurement represents a collection of time series in a database. It also contains in memory

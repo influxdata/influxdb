@@ -69,6 +69,25 @@ func (s *Store) SetLogOutput(w io.Writer) {
 	}
 }
 
+func (s *Store) Statistics(tags map[string]string) []models.Statistic {
+	var statistics []models.Statistic
+
+	s.mu.RLock()
+	indexes := make([]models.Statistic, 0, len(s.databaseIndexes))
+	for _, dbi := range s.databaseIndexes {
+		indexes = append(indexes, dbi.Statistics(tags)...)
+	}
+	shards := s.shardsSlice()
+	s.mu.RUnlock()
+
+	for _, shard := range shards {
+		statistics = append(statistics, shard.Statistics(tags)...)
+	}
+
+	statistics = append(statistics, indexes...)
+	return statistics
+}
+
 // Path returns the store's root path.
 func (s *Store) Path() string { return s.path }
 

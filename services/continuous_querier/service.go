@@ -2,17 +2,17 @@ package continuous_querier // import "github.com/influxdata/influxdb/services/co
 
 import (
 	"errors"
-	"expvar"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 )
 
@@ -74,7 +74,7 @@ type Service struct {
 	RunCh          chan *RunRequest
 	Logger         *log.Logger
 	loggingEnabled bool
-	statMap        *expvar.Map
+	stats          *Statistics
 	// lastRuns maps CQ name to last time it was run.
 	mu       sync.RWMutex
 	lastRuns map[string]time.Time
@@ -89,8 +89,8 @@ func NewService(c Config) *Service {
 		RunInterval:    time.Duration(c.RunInterval),
 		RunCh:          make(chan *RunRequest),
 		loggingEnabled: c.LogEnabled,
-		statMap:        influxdb.NewStatistics("cq", "cq", nil),
 		Logger:         log.New(os.Stderr, "[continuous_querier] ", log.LstdFlags),
+		stats:          &Statistics{},
 		lastRuns:       map[string]time.Time{},
 	}
 
@@ -131,6 +131,24 @@ func (s *Service) Close() error {
 // called after Open is called.
 func (s *Service) SetLogOutput(w io.Writer) {
 	s.Logger = log.New(w, "[continuous_querier] ", log.LstdFlags)
+}
+
+// Statistics maintains the statistics for the continuous query service.
+type Statistics struct {
+	QueryOK   int64
+	QueryFail int64
+}
+
+// Statistics returns statistics for periodic monitoring.
+func (s *Service) Statistics(tags map[string]string) []models.Statistic {
+	return []models.Statistic{{
+		Name: "cq",
+		Tags: tags,
+		Values: map[string]interface{}{
+			statQueryOK:   atomic.LoadInt64(&s.stats.QueryOK),
+			statQueryFail: atomic.LoadInt64(&s.stats.QueryFail),
+		},
+	}}
 }
 
 // Run runs the specified continuous query, or all CQs if none is specified.
@@ -225,9 +243,9 @@ func (s *Service) runContinuousQueries(req *RunRequest) {
 			}
 			if err := s.ExecuteContinuousQuery(&db, &cq, req.Now); err != nil {
 				s.Logger.Printf("error executing query: %s: err = %s", cq.Query, err)
-				s.statMap.Add(statQueryFail, 1)
+				atomic.AddInt64(&s.stats.QueryFail, 1)
 			} else {
-				s.statMap.Add(statQueryOK, 1)
+				atomic.AddInt64(&s.stats.QueryOK, 1)
 			}
 		}
 	}

@@ -47,6 +47,9 @@ type Engine interface {
 	// Format will return the format for the engine
 	Format() EngineFormat
 
+	// Statistics will return statistics relevant to this engine.
+	Statistics(tags map[string]string) []models.Statistic
+
 	io.WriterTo
 }
 

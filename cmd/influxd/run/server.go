@@ -147,8 +147,6 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		MetaClient: meta.NewClient(c.Meta),
 
-		Monitor: monitor.New(c.Monitor),
-
 		reportingDisabled: c.ReportingDisabled,
 
 		httpAPIAddr: c.HTTPD.BindAddress,
@@ -158,6 +156,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		config:    c,
 		logOutput: os.Stderr,
 	}
+	s.Monitor = monitor.New(s, c.Monitor)
 
 	if err := s.MetaClient.Open(); err != nil {
 		return nil, err
@@ -201,6 +200,20 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	s.Monitor.BuildTime = s.buildInfo.Time
 	s.Monitor.PointsWriter = (*monitorPointsWriter)(s.PointsWriter)
 	return s, nil
+}
+
+func (s *Server) Statistics(tags map[string]string) []models.Statistic {
+	var statistics []models.Statistic
+	statistics = append(statistics, s.QueryExecutor.Statistics(tags)...)
+	statistics = append(statistics, s.TSDBStore.Statistics(tags)...)
+	statistics = append(statistics, s.PointsWriter.Statistics(tags)...)
+	statistics = append(statistics, s.Subscriber.Statistics(tags)...)
+	for _, srv := range s.Services {
+		if m, ok := srv.(monitor.Reporter); ok {
+			statistics = append(statistics, m.Statistics(tags)...)
+		}
+	}
+	return statistics
 }
 
 func (s *Server) appendSnapshotterService() {
@@ -250,6 +263,7 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.QueryAuthorizer = meta.NewQueryAuthorizer(s.MetaClient)
 	srv.Handler.WriteAuthorizer = meta.NewWriteAuthorizer(s.MetaClient)
 	srv.Handler.QueryExecutor = s.QueryExecutor
+	srv.Handler.Monitor = s.Monitor
 	srv.Handler.PointsWriter = s.PointsWriter
 	srv.Handler.Version = s.buildInfo.Version
 
