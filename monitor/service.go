@@ -1,6 +1,8 @@
 package monitor // import "github.com/influxdata/influxdb/monitor"
 
 import (
+	"bytes"
+	"errors"
 	"expvar"
 	"fmt"
 	"io"
@@ -33,9 +35,10 @@ type Monitor struct {
 
 	wg sync.WaitGroup
 
-	mu                sync.Mutex
+	mu                sync.RWMutex
 	globalTags        map[string]string
 	diagRegistrations map[string]diagnostics.Client
+	reporter          Reporter
 	done              chan struct{}
 	storeCreated      bool
 	storeEnabled      bool
@@ -64,10 +67,11 @@ type PointsWriter interface {
 }
 
 // New returns a new instance of the monitor system.
-func New(c Config) *Monitor {
+func New(r Reporter, c Config) *Monitor {
 	return &Monitor{
 		globalTags:           make(map[string]string),
 		diagRegistrations:    make(map[string]diagnostics.Client),
+		reporter:             r,
 		storeEnabled:         c.StoreEnabled,
 		storeDatabase:        c.StoreDatabase,
 		storeInterval:        time.Duration(c.StoreInterval),
@@ -206,8 +210,10 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 		}
 
 		statistic := &Statistic{
-			Tags:   make(map[string]string),
-			Values: make(map[string]interface{}),
+			Statistic: models.Statistic{
+				Tags:   make(map[string]string),
+				Values: make(map[string]interface{}),
+			},
 		}
 
 		// Add any supplied tags.
@@ -272,9 +278,11 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 
 	// Add Go memstats.
 	statistic := &Statistic{
-		Name:   "runtime",
-		Tags:   make(map[string]string),
-		Values: make(map[string]interface{}),
+		Statistic: models.Statistic{
+			Name:   "runtime",
+			Tags:   make(map[string]string),
+			Values: make(map[string]interface{}),
+		},
 	}
 
 	// Add any supplied tags to Go memstats
@@ -303,7 +311,20 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 	}
 	statistics = append(statistics, statistic)
 
+	statistics = m.gatherStatistics(statistics, tags)
+	sort.Sort(Statistics(statistics))
+
 	return statistics, nil
+}
+
+func (m *Monitor) gatherStatistics(statistics []*Statistic, tags map[string]string) []*Statistic {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for _, s := range m.reporter.Statistics(tags) {
+		statistics = append(statistics, &Statistic{Statistic: s})
+	}
+	return statistics
 }
 
 // Diagnostics fetches diagnostic information for each registered
@@ -346,6 +367,21 @@ func (m *Monitor) createInternalStorage() {
 	m.storeCreated = true
 }
 
+// waitUntilInterval waits until we are on an even interval for the duration.
+func (m *Monitor) waitUntilInterval(d time.Duration) error {
+	now := time.Now()
+	until := now.Truncate(d).Add(d)
+	timer := time.NewTimer(until.Sub(now))
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		return nil
+	case <-m.done:
+		return errors.New("interrupted")
+	}
+}
+
 // storeStatistics writes the statistics to an InfluxDB system.
 func (m *Monitor) storeStatistics() {
 	defer m.wg.Done()
@@ -355,35 +391,44 @@ func (m *Monitor) storeStatistics() {
 	hostname, _ := os.Hostname()
 	m.SetGlobalTag("hostname", hostname)
 
-	m.mu.Lock()
-	tick := time.NewTicker(m.storeInterval)
-	m.mu.Unlock()
+	// Wait until an even interval to start recording monitor statistics.
+	// If we are interrupted before the interval for some reason, exit early.
+	if err := m.waitUntilInterval(m.storeInterval); err != nil {
+		return
+	}
 
+	tick := time.NewTicker(m.storeInterval)
 	defer tick.Stop()
+
 	for {
 		select {
-		case <-tick.C:
+		case now := <-tick.C:
+			now = now.Truncate(m.storeInterval)
 			func() {
 				m.mu.Lock()
 				defer m.mu.Unlock()
-
 				m.createInternalStorage()
+			}()
 
-				stats, err := m.Statistics(m.globalTags)
+			stats, err := m.Statistics(m.globalTags)
+			if err != nil {
+				m.Logger.Printf("failed to retrieve registered statistics: %s", err)
+				return
+			}
+
+			points := make(models.Points, 0, len(stats))
+			for _, s := range stats {
+				pt, err := models.NewPoint(s.Name, s.Tags, s.Values, now)
 				if err != nil {
-					m.Logger.Printf("failed to retrieve registered statistics: %s", err)
+					m.Logger.Printf("Dropping point %v: %v", s.Name, err)
 					return
 				}
+				points = append(points, pt)
+			}
 
-				points := make(models.Points, 0, len(stats))
-				for _, s := range stats {
-					pt, err := models.NewPoint(s.Name, s.Tags, s.Values, time.Now().Truncate(time.Second))
-					if err != nil {
-						m.Logger.Printf("Dropping point %v: %v", s.Name, err)
-						return
-					}
-					points = append(points, pt)
-				}
+			func() {
+				m.mu.RLock()
+				defer m.mu.RUnlock()
 
 				if err := m.PointsWriter.WritePoints(m.storeDatabase, m.storeRetentionPolicy, points); err != nil {
 					m.Logger.Printf("failed to store statistics: %s", err)
@@ -398,9 +443,7 @@ func (m *Monitor) storeStatistics() {
 
 // Statistic represents the information returned by a single monitor client.
 type Statistic struct {
-	Name   string                 `json:"name"`
-	Tags   map[string]string      `json:"tags"`
-	Values map[string]interface{} `json:"values"`
+	models.Statistic
 }
 
 // valueNames returns a sorted list of the value names, if any.
@@ -412,6 +455,17 @@ func (s *Statistic) ValueNames() []string {
 	sort.Strings(a)
 	return a
 }
+
+type Statistics []*Statistic
+
+func (a Statistics) Len() int { return len(a) }
+func (a Statistics) Less(i, j int) bool {
+	if a[i].Name != a[j].Name {
+		return a[i].Name < a[j].Name
+	}
+	return bytes.Compare(a[i].Tags.HashKey(), a[j].Tags.HashKey()) < 0
+}
+func (a Statistics) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 // DiagnosticsFromMap returns a Diagnostics from a map.
 func DiagnosticsFromMap(m map[string]interface{}) *diagnostics.Diagnostics {

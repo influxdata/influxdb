@@ -198,6 +198,15 @@ func (e *Engine) Format() tsdb.EngineFormat {
 	return tsdb.TSM1Format
 }
 
+// Statistics returns statistics for periodic monitoring.
+func (e *Engine) Statistics(tags map[string]string) []models.Statistic {
+	statistics := make([]models.Statistic, 0, 3)
+	statistics = append(statistics, e.Cache.Statistics(tags)...)
+	statistics = append(statistics, e.FileStore.Statistics(tags)...)
+	statistics = append(statistics, e.WAL.Statistics(tags)...)
+	return statistics
+}
+
 // Open opens and initializes the engine.
 func (e *Engine) Open() error {
 	e.done = make(chan struct{})
