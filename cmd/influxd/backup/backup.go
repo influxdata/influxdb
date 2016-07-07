@@ -345,21 +345,21 @@ func (cmd *Command) requestInfo(request *snapshotter.Request) (*snapshotter.Resp
 
 // printUsage prints the usage message to STDERR.
 func (cmd *Command) printUsage() {
-	fmt.Fprintf(cmd.Stdout, `usage: influxd backup [flags] PATH
+	fmt.Fprintf(cmd.Stdout, `Downloads a snapshot of a data node and saves it to disk.
 
-Downloads a snapshot of a data node and saves it to disk.
+Usage: influxd backup [flags] PATH
 
-	-host <host:port>
-		The host to connect to snapshot. Defaults to 127.0.0.1:8088.
-	-database <name>
-		The database to backup.
-	-retention <name>
-		Optional. The retention policy to backup.
-	-shard <id>
-		Optional. The shard id to backup. If specified, retention is required.
-	-since <2015-12-24T08:12:23>
-		Optional. Do an incremental backup since the passed in RFC3339
-		formatted time.
+    -host <host:port>
+            The host to connect to snapshot. Defaults to 127.0.0.1:8088.
+    -database <name>
+            The database to backup.
+    -retention <name>
+            Optional. The retention policy to backup.
+    -shard <id>
+            Optional. The shard id to backup. If specified, retention is required.
+    -since <2015-12-24T08:12:23>
+            Optional. Do an incremental backup since the passed in RFC3339
+            formatted time.
 
 `)
 }

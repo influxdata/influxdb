@@ -28,9 +28,7 @@ func (cmd *Command) Run(args ...string) error {
 const usage = `
 Configure and start an InfluxDB server.
 
-Usage:
-
-	influxd [[command] [arguments]]
+Usage: influxd [[command] [arguments]]
 
 The commands are:
 

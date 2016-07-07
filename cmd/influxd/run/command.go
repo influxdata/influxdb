@@ -204,18 +204,23 @@ func (cmd *Command) ParseConfig(path string) (*Config, error) {
 	return config, nil
 }
 
-var usage = `usage: influxd run [flags]
+var usage = `Runs the InfluxDB server.
 
-Runs the InfluxDB server.
+Usage: influxd run [flags]
 
-        -config <path>
-                          Set the path to the configuration file.
-        -pidfile <path>
-                          Write process ID to a file.
-        -cpuprofile <path>
-                          Write CPU profiling information to a file.
-        -memprofile <path>
-                          Write memory usage information to a file.
+    -config <path>
+            Set the path to the configuration file.
+            This defaults to the environment variable INFLUXDB_CONFIG_PATH,
+            ~/.influxdb/influxdb.conf, or /etc/influxdb/influxdb.conf if a file
+            is present at any of these locations.
+            Disable the automatic loading of a configuration file using
+            the null device (such as /dev/null).
+    -pidfile <path>
+            Write process ID to a file.
+    -cpuprofile <path>
+            Write CPU profiling information to a file.
+    -memprofile <path>
+            Write memory usage information to a file.
 `
 
 // Options represents the command line options that can be parsed.
@@ -235,6 +240,9 @@ type Options struct {
 //        - /etc/influxdb
 func (opt *Options) GetConfigPath() string {
 	if opt.ConfigPath != "" {
+		if opt.ConfigPath == os.DevNull {
+			return ""
+		}
 		return opt.ConfigPath
 	} else if envVar := os.Getenv("INFLUXDB_CONFIG_PATH"); envVar != "" {
 		return envVar
