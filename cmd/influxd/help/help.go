@@ -34,6 +34,7 @@ The commands are:
 
     backup               downloads a snapshot of a data node and saves it to disk
     config               display the default configuration
+    help                 display this help message
     restore              uses a snapshot of a data node to rebuild a cluster
     run                  run node with existing configuration
     version              displays the InfluxDB version
