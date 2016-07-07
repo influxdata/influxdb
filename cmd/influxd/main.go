@@ -196,7 +196,7 @@ func (cmd *VersionCommand) Run(args ...string) error {
 	return nil
 }
 
-var versionUsage = `usage: influxd version
+var versionUsage = `Displays the InfluxDB version, build branch and git commit hash.
 
-Displays the InfluxDB version, build branch and git commit hash.
+Usage: influxd version
 `
