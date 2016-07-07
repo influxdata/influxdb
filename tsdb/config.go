@@ -74,7 +74,7 @@ func NewConfig() Config {
 		CacheSnapshotWriteColdDuration: toml.Duration(DefaultCacheSnapshotWriteColdDuration),
 		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
 
-		DataLoggingEnabled: true,
+		DataLoggingEnabled: false,
 	}
 }
 
