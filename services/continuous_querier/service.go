@@ -75,6 +75,7 @@ type Service struct {
 	Logger         *log.Logger
 	loggingEnabled bool
 	stats          *Statistics
+	logQueries     bool
 	// lastRuns maps CQ name to last time it was run.
 	mu       sync.RWMutex
 	lastRuns map[string]time.Time
@@ -89,6 +90,7 @@ func NewService(c Config) *Service {
 		RunInterval:    time.Duration(c.RunInterval),
 		RunCh:          make(chan *RunRequest),
 		loggingEnabled: c.LogEnabled,
+		logQueries:     c.LogQueries,
 		Logger:         log.New(os.Stderr, "[continuous_querier] ", log.LstdFlags),
 		stats:          &Statistics{},
 		lastRuns:       map[string]time.Time{},
@@ -353,6 +355,7 @@ func (s *Service) runContinuousQueryAndWriteResult(cq *ContinuousQuery) error {
 	// Execute the SELECT.
 	ch := s.QueryExecutor.ExecuteQuery(q, influxql.ExecutionOptions{
 		Database: cq.Database,
+		Quiet:    !s.logQueries,
 	}, closing)
 
 	// There is only one statement, so we will only ever receive one result
