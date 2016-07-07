@@ -109,6 +109,8 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 
 	e := &Engine{
 		path:              path,
+		logger:            log.New(os.Stderr, "[tsm1] ", log.LstdFlags),
+		logOutput:         os.Stderr,
 		measurementFields: make(map[string]*tsdb.MeasurementFields),
 
 		WAL:   w,
@@ -127,7 +129,6 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 		enableCompactionsOnOpen:       true,
 		stats: &EngineStatistics{},
 	}
-	e.SetLogOutput(os.Stderr)
 
 	return e
 }
@@ -302,13 +303,16 @@ func (e *Engine) Close() error {
 	return e.WAL.Close()
 }
 
-// SetLogOutput sets the logger used for all messages. It must not be called
-// after the Open method has been called.
+// SetLogOutput sets the logger used for all messages. It is safe for concurrent
+// use.
 func (e *Engine) SetLogOutput(w io.Writer) {
-	e.logger = log.New(w, "[tsm1] ", log.LstdFlags)
+	e.logger.SetOutput(w)
 	e.WAL.SetLogOutput(w)
 	e.FileStore.SetLogOutput(w)
+
+	e.mu.Lock()
 	e.logOutput = w
+	e.mu.Unlock()
 }
 
 // LoadMetadataIndex loads the shard metadata into memory.

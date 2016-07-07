@@ -82,8 +82,8 @@ type WAL struct {
 	closing chan struct{}
 
 	// WALOutput is the writer used by the logger.
-	LogOutput io.Writer
 	logger    *log.Logger
+	logOutput io.Writer
 
 	// SegmentSize is the file size at which a segment file will be rotated
 	SegmentSize int
@@ -101,19 +101,23 @@ func NewWAL(path string) *WAL {
 		path: path,
 
 		// these options should be overriden by any options in the config
-		LogOutput:   os.Stderr,
 		SegmentSize: DefaultSegmentSize,
-		logger:      log.New(os.Stderr, "[tsm1wal] ", log.LstdFlags),
 		closing:     make(chan struct{}),
 		stats:       &WALStatistics{},
 		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
+		logger:      log.New(os.Stderr, "[tsm1wal] ", log.LstdFlags),
+		logOutput:   os.Stderr,
 	}
 }
 
-// SetLogOutput sets the location that logs are written to. It must not be
-// called after the Open method has been called.
+// SetLogOutput sets the location that logs are written to. It is safe for
+// concurrent use.
 func (l *WAL) SetLogOutput(w io.Writer) {
-	l.logger = log.New(w, "[tsm1wal] ", log.LstdFlags)
+	l.logger.SetOutput(w)
+
+	l.mu.Lock()
+	l.logOutput = w
+	l.mu.Unlock()
 }
 
 // WALStatistics maintains statistics about the WAL.

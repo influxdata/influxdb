@@ -60,14 +60,17 @@ func NewStore(path string) *Store {
 	}
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
-// called after Open is called.
+// SetLogOutput sets the writer to which all logs are written. It is safe for
+// concurrent use.
 func (s *Store) SetLogOutput(w io.Writer) {
-	s.Logger = log.New(w, "[store] ", log.LstdFlags)
-	s.logOutput = w
+	s.Logger.SetOutput(w)
 	for _, s := range s.shards {
 		s.SetLogOutput(w)
 	}
+
+	s.mu.Lock()
+	s.logOutput = w
+	s.mu.Unlock()
 }
 
 func (s *Store) Statistics(tags map[string]string) []models.Statistic {

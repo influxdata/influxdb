@@ -110,7 +110,8 @@ type FileStore struct {
 
 	files []TSMFile
 
-	Logger       *log.Logger
+	logger       *log.Logger
+	logOutput    io.Writer
 	traceLogging bool
 
 	stats *FileStoreStatistics
@@ -143,15 +144,20 @@ func NewFileStore(dir string) *FileStore {
 	return &FileStore{
 		dir:          dir,
 		lastModified: time.Now(),
-		Logger:       log.New(os.Stderr, "[filestore] ", log.LstdFlags),
+		logger:       log.New(os.Stderr, "[filestore] ", log.LstdFlags),
+		logOutput:    os.Stderr,
 		stats:        &FileStoreStatistics{},
 	}
 }
 
-// SetLogOutput sets the logger used for all messages. It must not be called
-// after the Open method has been called.
+// SetLogOutput sets the logger used for all messages. It is safe for concurrent
+// use.
 func (f *FileStore) SetLogOutput(w io.Writer) {
-	f.Logger = log.New(w, "[filestore] ", log.LstdFlags)
+	f.logger.SetOutput(w)
+
+	f.mu.Lock()
+	f.logOutput = w
+	f.mu.Unlock()
 }
 
 // FileStoreStatistics keeps statistics about the file store.
@@ -367,7 +373,7 @@ func (f *FileStore) Open() error {
 			start := time.Now()
 			df, err := NewTSMReader(file)
 			if f.traceLogging {
-				f.Logger.Printf("%s (#%d) opened in %v", file.Name(), idx, time.Now().Sub(start))
+				f.logger.Printf("%s (#%d) opened in %v", file.Name(), idx, time.Now().Sub(start))
 			}
 
 			if err != nil {
