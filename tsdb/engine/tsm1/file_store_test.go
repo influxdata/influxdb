@@ -2177,6 +2177,26 @@ func TestFileStore_CreateSnapshot(t *testing.T) {
 	}
 }
 
+func TestFileStore_Reopen(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	fs := tsm1.NewFileStore(dir)
+	cycle := func() {
+		if err := fs.Open(); err != nil {
+			fatal(t, "opening file store", err)
+		}
+		defer fs.Close()
+
+		stats := fs.Stats()
+		if got, exp := len(stats), 0; got != exp {
+			t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
+		}
+	}
+	cycle()
+	cycle()
+}
+
 func newFileDir(dir string, values ...keyValues) ([]string, error) {
 	var files []string
 

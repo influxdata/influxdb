@@ -1,20 +1,19 @@
 package monitor // import "github.com/influxdata/influxdb/monitor"
 
 import (
-	"expvar"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"runtime"
 	"sort"
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/stats"
 )
 
 // Policy constants.
@@ -41,11 +40,15 @@ type Monitor struct {
 	storeEnabled      bool
 	storeAddress      string
 
+	statsView stats.View
+
 	storeDatabase          string
 	storeRetentionPolicy   string
 	storeRetentionDuration time.Duration
 	storeReplicationFactor int
 	storeInterval          time.Duration
+
+	idleTime time.Duration
 
 	MetaClient interface {
 		CreateDatabaseWithRetentionPolicy(name string, rpi *meta.RetentionPolicyInfo) (*meta.DatabaseInfo, error)
@@ -72,6 +75,7 @@ func New(c Config) *Monitor {
 		storeDatabase:        c.StoreDatabase,
 		storeInterval:        time.Duration(c.StoreInterval),
 		storeRetentionPolicy: MonitorRetentionPolicy,
+		idleTime:             time.Duration(c.IdleTime),
 		Logger:               log.New(os.Stderr, "[monitor] ", log.LstdFlags),
 	}
 }
@@ -103,6 +107,8 @@ func (m *Monitor) Open() error {
 	m.RegisterDiagnosticsClient("network", &network{})
 	m.RegisterDiagnosticsClient("system", &system{})
 
+	m.statsView = stats.Root.Open()
+
 	m.mu.Lock()
 	m.done = make(chan struct{})
 	m.mu.Unlock()
@@ -129,6 +135,7 @@ func (m *Monitor) Close() error {
 	close(m.done)
 	m.mu.Unlock()
 
+	m.statsView.Close()
 	m.wg.Wait()
 
 	m.mu.Lock()
@@ -199,15 +206,16 @@ func (m *Monitor) DeregisterDiagnosticsClient(name string) {
 func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 	var statistics []*Statistic
 
-	expvar.Do(func(kv expvar.KeyValue) {
-		// Skip built-in expvar stats.
-		if kv.Key == "memstats" || kv.Key == "cmdline" {
+	m.statsView.Do(func(s stats.Statistics) {
+		// Stop logging idle statistics
+		if s.UpdateIdleTime() > m.idleTime {
 			return
 		}
 
 		statistic := &Statistic{
+			Name:   s.Name(),
 			Tags:   make(map[string]string),
-			Values: make(map[string]interface{}),
+			Values: s.Values(),
 		}
 
 		// Add any supplied tags.
@@ -215,52 +223,9 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 			statistic.Tags[k] = v
 		}
 
-		// Every other top-level expvar value is a map.
-		m := kv.Value.(*expvar.Map)
-
-		m.Do(func(subKV expvar.KeyValue) {
-			switch subKV.Key {
-			case "name":
-				// straight to string name.
-				u, err := strconv.Unquote(subKV.Value.String())
-				if err != nil {
-					return
-				}
-				statistic.Name = u
-			case "tags":
-				// string-string tags map.
-				n := subKV.Value.(*expvar.Map)
-				n.Do(func(t expvar.KeyValue) {
-					u, err := strconv.Unquote(t.Value.String())
-					if err != nil {
-						return
-					}
-					statistic.Tags[t.Key] = u
-				})
-			case "values":
-				// string-interface map.
-				n := subKV.Value.(*expvar.Map)
-				n.Do(func(kv expvar.KeyValue) {
-					var f interface{}
-					var err error
-					switch v := kv.Value.(type) {
-					case *expvar.Float:
-						f, err = strconv.ParseFloat(v.String(), 64)
-						if err != nil {
-							return
-						}
-					case *expvar.Int:
-						f, err = strconv.ParseInt(v.String(), 10, 64)
-						if err != nil {
-							return
-						}
-					default:
-						return
-					}
-					statistic.Values[kv.Key] = f
-				})
-			}
-		})
+		for k, v := range s.Tags() {
+			statistic.Tags[k] = v
+		}
 
 		// If a registered client has no field data, don't include it in the results
 		if len(statistic.Values) == 0 {

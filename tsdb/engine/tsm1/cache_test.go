@@ -501,6 +501,16 @@ func TestCacheLoader_LoadSingle(t *testing.T) {
 	}
 }
 
+func TestCache_Reopen(t *testing.T) {
+	c := NewCache(100, "")
+	cycle := func() {
+		c.Open()
+		c.Close()
+	}
+	cycle()
+	cycle()
+}
+
 // Ensure the CacheLoader can correctly load from two segments, even if one is corrupted.
 func TestCacheLoader_LoadDouble(t *testing.T) {
 	// Create a WAL segment.
