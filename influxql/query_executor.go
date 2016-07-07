@@ -66,6 +66,9 @@ type ExecutionOptions struct {
 
 	// Node to execute on.
 	NodeID uint64
+
+	// Do not log the normalized statement for this query.
+	Quiet bool
 }
 
 // ExecutionContext contains state that the query is currently executing with.
@@ -226,7 +229,9 @@ func (e *QueryExecutor) executeQuery(query *Query, opt ExecutionOptions, closing
 		}
 
 		// Log each normalized statement.
-		e.Logger.Println(stmt.String())
+		if !opt.Quiet {
+			e.Logger.Println(stmt.String())
+		}
 
 		// Send any other statements to the underlying statement executor.
 		err = e.StatementExecutor.ExecuteStatement(stmt, ctx)

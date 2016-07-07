@@ -299,3 +299,4 @@ reporting-disabled = false
   log-enabled = true
   enabled = true
   # run-interval = "1s" # interval for how often continuous queries will be checked if they need to run
+  log-queries = true
