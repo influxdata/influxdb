@@ -274,19 +274,80 @@ func TestHandler_Query_ErrInvalidQuery(t *testing.T) {
 	}
 }
 
-// Ensure the handler returns a status 401 if the user is not authorized.
-// func TestHandler_Query_ErrUnauthorized(t *testing.T) {
-// 	h := NewHandler(false)
-// 	h.QueryExecutor.AuthorizeFn = func(u *meta.UserInfo, q *influxql.Query, db string) error {
-// 		return errors.New("marker")
-// 	}
+// Ensure the handler returns an appropriate 401 or 403 status when authentication or authorization fails.
+func TestHandler_Query_ErrAuthorize(t *testing.T) {
+	h := NewHandler(true)
+	h.QueryAuthorizer.AuthorizeQueryFn = func(u *meta.UserInfo, q *influxql.Query, db string) error {
+		return errors.New("marker")
+	}
+	h.MetaClient.UsersFn = func() []meta.UserInfo {
+		return []meta.UserInfo{
+			{
+				Name:  "admin",
+				Hash:  "admin",
+				Admin: true,
+			},
+			{
+				Name: "user1",
+				Hash: "abcd",
+				Privileges: map[string]influxql.Privilege{
+					"db0": influxql.ReadPrivilege,
+				},
+			},
+		}
+	}
+	h.MetaClient.AuthenticateFn = func(u, p string) (*meta.UserInfo, error) {
+		for _, user := range h.MetaClient.Users() {
+			if u == user.Name {
+				if p == user.Hash {
+					return &user, nil
+				}
+				return nil, meta.ErrAuthenticate
+			}
+		}
+		return nil, meta.ErrUserNotFound
+	}
 
-// 	w := httptest.NewRecorder()
-// 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?u=bar&db=foo&q=SHOW+SERIES+FROM+bar", nil))
-// 	if w.Code != http.StatusUnauthorized {
-// 		t.Fatalf("unexpected status: %d", w.Code)
-// 	}
-// }
+	for i, tt := range []struct {
+		user     string
+		password string
+		query    string
+		code     int
+	}{
+		{
+			query: "/query?q=SHOW+DATABASES",
+			code:  http.StatusUnauthorized,
+		},
+		{
+			user:     "user1",
+			password: "abcd",
+			query:    "/query?q=SHOW+DATABASES",
+			code:     http.StatusForbidden,
+		},
+		{
+			user:     "user2",
+			password: "abcd",
+			query:    "/query?q=SHOW+DATABASES",
+			code:     http.StatusUnauthorized,
+		},
+	} {
+		w := httptest.NewRecorder()
+		r := MustNewJSONRequest("GET", tt.query, nil)
+		params := r.URL.Query()
+		if tt.user != "" {
+			params.Set("u", tt.user)
+		}
+		if tt.password != "" {
+			params.Set("p", tt.password)
+		}
+		r.URL.RawQuery = params.Encode()
+
+		h.ServeHTTP(w, r)
+		if w.Code != tt.code {
+			t.Errorf("%d. unexpected status: got=%d exp=%d\noutput: %s", i, w.Code, tt.code, w.Body.String())
+		}
+	}
+}
 
 // Ensure the handler returns a status 200 if an error is returned in the result.
 func TestHandler_Query_ErrResult(t *testing.T) {
