@@ -145,19 +145,18 @@ func (m *Main) Run(args ...string) error {
 func ParseCommandName(args []string) (string, []string) {
 	// Retrieve command name as first argument.
 	var name string
-	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
-		name = args[0]
-	}
-
-	// Special case -h immediately following binary name
-	if len(args) > 0 && args[0] == "-h" {
-		name = "help"
+	if len(args) > 0 {
+		if !strings.HasPrefix(args[0], "-") {
+			name = args[0]
+		} else if args[0] == "-h" || args[0] == "-help" || args[0] == "--help" {
+			// Special case -h immediately following binary name
+			name = "help"
+		}
 	}
 
 	// If command is "help" and has an argument then rewrite args to use "-h".
-	if name == "help" && len(args) > 1 {
-		args[0], args[1] = args[1], "-h"
-		name = args[0]
+	if name == "help" && len(args) > 2 && !strings.HasPrefix(args[1], "-") {
+		return args[1], []string{"-h"}
 	}
 
 	// If a named command is specified then return it with its arguments.
