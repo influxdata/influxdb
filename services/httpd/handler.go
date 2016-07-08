@@ -385,7 +385,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 			if err, ok := err.(meta.ErrAuthorize); ok {
 				h.Logger.Printf("Unauthorized request | user: %q | query: %q | database %q\n", err.User, err.Query.String(), err.Database)
 			}
-			h.httpError(w, "error authorizing query: "+err.Error(), pretty, http.StatusUnauthorized)
+			h.httpError(w, "error authorizing query: "+err.Error(), pretty, http.StatusForbidden)
 			return
 		}
 	}
@@ -539,13 +539,13 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 	}
 
 	if h.Config.AuthEnabled && user == nil {
-		h.resultError(w, influxql.Result{Err: fmt.Errorf("user is required to write to database %q", database)}, http.StatusUnauthorized)
+		h.resultError(w, influxql.Result{Err: fmt.Errorf("user is required to write to database %q", database)}, http.StatusForbidden)
 		return
 	}
 
 	if h.Config.AuthEnabled {
 		if err := h.WriteAuthorizer.AuthorizeWrite(user.Name, database); err != nil {
-			h.resultError(w, influxql.Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", user.Name, database)}, http.StatusUnauthorized)
+			h.resultError(w, influxql.Result{Err: fmt.Errorf("%q user is not authorized to write to database %q", user.Name, database)}, http.StatusForbidden)
 			return
 		}
 	}
@@ -761,6 +761,11 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 // h.httpError writes an error to the client in a standard format.
 func (h *Handler) httpError(w http.ResponseWriter, error string, pretty bool, code int) {
 	w.Header().Add("Content-Type", "application/json")
+	if code == http.StatusUnauthorized {
+		// If an unauthorized header will be sent back, add a WWW-Authenticate header
+		// as an authorization challenge.
+		w.Header().Set("WWW-Authenticate", fmt.Sprintf("Basic realm=\"%s\"", h.Config.Realm))
+	}
 	h.writeHeader(w, code)
 	response := Response{Err: errors.New(error)}
 	var b []byte
