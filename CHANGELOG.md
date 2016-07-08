@@ -88,6 +88,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6942](https://github.com/influxdata/influxdb/pull/6942): Fix panic: truncate the slice when merging the caches.
 - [#6708](https://github.com/influxdata/influxdb/issues/6708): Drop writes from before the retention policy time window.
 - [#6968](https://github.com/influxdata/influxdb/issues/6968): Always use the demo config when outputting a new config.
+- [#6986](https://github.com/influxdata/influxdb/pull/6986): update connection settings when changing hosts in cli.
 
 ## v0.13.0 [2016-05-12]
 
