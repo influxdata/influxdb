@@ -33,6 +33,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6938](https://github.com/influxdata/influxdb/issues/6938): Added favicon
 - [#6507](https://github.com/influxdata/influxdb/issues/6507): Refactor monitor service to avoid expvar and write monitor statistics on a truncated time interval.
 - [#6805](https://github.com/influxdata/influxdb/issues/6805): Allow any variant of the help option to trigger the help.
+- [#5499](https://github.com/influxdata/influxdb/issues/5499): Add stats and diagnostics to the TSM engine.
 
 ### Bugfixes
 
