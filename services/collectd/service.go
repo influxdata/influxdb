@@ -3,9 +3,11 @@ package collectd // import "github.com/influxdata/influxdb/services/collectd"
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -93,11 +95,52 @@ func (s *Service) Open() error {
 
 	if s.typesdb == nil {
 		// Open collectd types.
-		typesdb, err := gollectd.TypesDBFile(s.Config.TypesDB)
-		if err != nil {
-			return fmt.Errorf("Open(): %s", err)
+		if stat, err := os.Stat(s.Config.TypesDB); err != nil {
+			return fmt.Errorf("Stat(): %s", err)
+		} else if stat.IsDir() {
+			alltypesdb := make(gollectd.Types)
+			var readdir func(path string)
+			readdir = func(path string) {
+				files, err := ioutil.ReadDir(path)
+				if err != nil {
+					s.Logger.Printf("Unable to read directory %s: %s\n", path, err)
+					return
+				}
+
+				for _, f := range files {
+					fullpath := filepath.Join(path, f.Name())
+					if f.IsDir() {
+						readdir(fullpath)
+						continue
+					}
+
+					s.Logger.Printf("Loading %s\n", fullpath)
+					types, err := gollectd.TypesDBFile(fullpath)
+					if err != nil {
+						s.Logger.Printf("Unable to parse collectd types file: %s\n", f.Name())
+						continue
+					}
+
+					for k, t := range types {
+						a, ok := alltypesdb[k]
+						if ok {
+							alltypesdb[k] = t
+						} else {
+							alltypesdb[k] = append(a, t...)
+						}
+					}
+				}
+			}
+			readdir(s.Config.TypesDB)
+			s.typesdb = alltypesdb
+		} else {
+			s.Logger.Printf("Loading %s\n", s.Config.TypesDB)
+			typesdb, err := gollectd.TypesDBFile(s.Config.TypesDB)
+			if err != nil {
+				return fmt.Errorf("Open(): %s", err)
+			}
+			s.typesdb = typesdb
 		}
-		s.typesdb = typesdb
 	}
 
 	// Resolve our address.
