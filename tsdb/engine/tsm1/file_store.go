@@ -98,6 +98,7 @@ type TSMFile interface {
 // Statistics gathered by the FileStore.
 const (
 	statFileStoreBytes = "diskBytes"
+	statFileStoreCount = "numFiles"
 )
 
 type FileStore struct {
@@ -156,6 +157,7 @@ func (f *FileStore) SetLogOutput(w io.Writer) {
 // FileStoreStatistics keeps statistics about the file store.
 type FileStoreStatistics struct {
 	DiskBytes int64
+	FileCount int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -165,6 +167,7 @@ func (f *FileStore) Statistics(tags map[string]string) []models.Statistic {
 		Tags: tags,
 		Values: map[string]interface{}{
 			statFileStoreBytes: atomic.LoadInt64(&f.stats.DiskBytes),
+			statFileStoreCount: atomic.LoadInt64(&f.stats.FileCount),
 		},
 	}}
 }
@@ -206,6 +209,7 @@ func (f *FileStore) Add(files ...TSMFile) {
 	}
 	f.files = append(f.files, files...)
 	sort.Sort(tsmReaders(f.files))
+	atomic.StoreInt64(&f.stats.FileCount, int64(len(f.files)))
 }
 
 // Remove removes the files with matching paths from the set of active files.  It does
@@ -232,6 +236,7 @@ func (f *FileStore) Remove(paths ...string) {
 	}
 	f.files = active
 	sort.Sort(tsmReaders(f.files))
+	atomic.StoreInt64(&f.stats.FileCount, int64(len(f.files)))
 }
 
 // WalkKeys calls fn for every key in every TSM file known to the FileStore.  If the key
@@ -384,6 +389,7 @@ func (f *FileStore) Open() error {
 	close(readerC)
 
 	sort.Sort(tsmReaders(f.files))
+	atomic.StoreInt64(&f.stats.FileCount, int64(len(f.files)))
 	return nil
 }
 
@@ -396,6 +402,7 @@ func (f *FileStore) Close() error {
 	}
 
 	f.files = nil
+	atomic.StoreInt64(&f.stats.FileCount, 0)
 	return nil
 }
 
@@ -506,6 +513,7 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 
 	f.files = active
 	sort.Sort(tsmReaders(f.files))
+	atomic.StoreInt64(&f.stats.FileCount, int64(len(f.files)))
 
 	// Recalculate the disk size stat
 	var totalSize int64
