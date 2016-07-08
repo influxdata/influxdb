@@ -267,6 +267,7 @@ func (l *WAL) Remove(files []string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for _, fn := range files {
+		l.traceLogger.Printf("Removing %s", fn)
 		os.RemoveAll(fn)
 	}
 
@@ -414,6 +415,7 @@ func (l *WAL) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	l.traceLogger.Printf("Closing %s", l.path)
 	// Close, but don't set to nil so future goroutines can still be signaled
 	close(l.closing)
 

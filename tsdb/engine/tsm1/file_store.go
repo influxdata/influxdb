@@ -387,9 +387,7 @@ func (f *FileStore) Open() error {
 		go func(idx int, file *os.File) {
 			start := time.Now()
 			df, err := NewTSMReader(file)
-			if f.traceLogging {
-				f.logger.Printf("%s (#%d) opened in %v", file.Name(), idx, time.Now().Sub(start))
-			}
+			f.logger.Printf("%s (#%d) opened in %v", file.Name(), idx, time.Now().Sub(start))
 
 			if err != nil {
 				readerC <- &res{r: df, err: fmt.Errorf("error opening memory map for file %s: %v", file.Name(), err)}
@@ -661,6 +659,7 @@ func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
 // CreateSnapshot will create hardlinks for all tsm and tombstone files
 // in the path provided
 func (f *FileStore) CreateSnapshot() (string, error) {
+	f.traceLogger.Printf("Creating snapshot in %s", f.dir)
 	files := f.Files()
 
 	f.mu.Lock()
