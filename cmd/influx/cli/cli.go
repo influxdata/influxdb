@@ -292,6 +292,13 @@ func (c *CommandLine) Connect(cmd string) error {
 		return fmt.Errorf("Failed to connect to %s\n", c.Client.Addr())
 	}
 	c.ServerVersion = v
+	// Update the command with the current connection information
+	if h, p, err := net.SplitHostPort(config.URL.Host); err == nil {
+		c.Host = h
+		if i, err := strconv.Atoi(p); err == nil {
+			c.Port = i
+		}
+	}
 
 	return nil
 }
