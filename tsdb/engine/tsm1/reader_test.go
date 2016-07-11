@@ -2,8 +2,10 @@ package tsm1_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"math"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
@@ -1168,6 +1170,83 @@ func TestTSMReader_File_ReadAll(t *testing.T) {
 
 	if exp, got := len(data), count; exp != got {
 		t.Fatalf("read values count mismatch: exp %v, got %v", exp, got)
+	}
+}
+
+func TestTSMReader_FuzzCrashes(t *testing.T) {
+	cases := []string{
+		"\x16\xd1\x16\xd1\x01\x10\x14X\xfb\x03\xac~\x80\xf0\x00\x00\x00I^K" +
+			"_\xf0\x00\x00\x00D424259389w\xf0\x00\x00\x00" +
+			"o\x93\bO\x10?\xf0\x00\x00\x00\x00\b\x00\xc2_\xff\xd8\x0fX^" +
+			"/\xbf\xe8\x00\x00\x00\x00\x00\x01\x00\bctr#!~#n\x00" +
+			"\x00\x01\x14X\xfb\xb0\x03\xac~\x80\x14X\xfb\xb1\x00\xd4ܥ\x00\x00" +
+			"\x00\x00\x00\x00\x00\x05\x00\x00\x00@\x00\x00\x00\x00\x00\x00\x00E",
+		"\x16\xd1\x16\xd1\x01\x80'Z\\\x00\v)\x00\x00\x00\x00;\x9a\xca\x00" +
+			"\x01\x05\x10?\xf0\x00\x00\x00\x00\x00\x00\xc2_\xff\xd6\x1d\xd4&\xed\v" +
+			"\xc5\xf7\xfb\xc0\x00\x00\x00\x00\x00 \x00\x06a#!~#v\x00\x00" +
+			"\x01\x00\x00\x00\x00;\x9a\xca\x00\x00\x00\x00\x01*\x05\xf2\x00\x00\x00\x00" +
+			"\x00\x00\x00\x00\x00\x00\x00\x00\x002",
+		"\x16\xd1\x16\xd1\x01\x80\xf0\x00\x00\x00I^K_\xf0\x00\x00\x00D7" +
+			"\nw\xf0\x00\x00\x00o\x93\bO\x10?\xf0\x00\x00\x00\x00\x00\x00\xc2" +
+			"_\xff\x14X\xfb\xb0\x03\xac~\x80\x14X\xfb\xb1\x00\xd4ܥ\x00\x00" +
+			"\x00\x00\x00\x00\x00\x05\x00\x00\x00@\x00\x00\x00\x00\x00\x00\x00E",
+		"\x16\xd1\x16\xd1\x01000000000000000" +
+			"00000000000000000000" +
+			"0000000000\x00\x000\x00\x0100000" +
+			"000\x00\x00\x00\x00\x00\x00\x002",
+		"\x16\xd1\x16\xd1\x01",
+		"\x16\xd1\x16\xd1\x01\x00\x00o\x93\bO\x10?\xf0\x00\x00\x00\x00X^" +
+			"/\xbf\xe8\x00\x00\x00\x00\x00\x01\x00\bctr#!~#n\x00" +
+			"\x00\x01\x14X\xfb\xb0\x03\xac~\x80\x14X\xfb\xb1\x00\xd4ܥ\x00\x00" +
+			"\x00\x00\x00\x00\x00\x05\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00E",
+	}
+
+	for _, c := range cases {
+		func() {
+			defer func() {
+				err := recover()
+				if err != nil {
+					t.Errorf("exp no panic, got %s", err)
+				}
+			}()
+
+			dir, err := ioutil.TempDir("", "tsmreader-fuzz")
+			if err != nil {
+				t.Errorf("exp no error, got %s", err)
+			}
+
+			filename := filepath.Join(dir, "x.tsm")
+			if err := ioutil.WriteFile(filename, []byte(c), 0600); err != nil {
+				t.Errorf("exp no error, got %s", err)
+			}
+			defer os.RemoveAll(dir)
+
+			f, err := os.Open(filename)
+			if err != nil {
+				t.Errorf("exp no error, got %s", err)
+			}
+			defer f.Close()
+
+			r, err := tsm1.NewTSMReader(f)
+			if err != nil {
+				t.Errorf("exp no error, got %s", err)
+			}
+			defer r.Close()
+
+			iter := r.BlockIterator()
+			for iter.Next() {
+				key, _, _, _, _, err := iter.Read()
+				if err != nil {
+					t.Errorf("exp no error, got %s", err)
+				}
+
+				_, _ = r.Type(key)
+
+				if _, err = r.ReadAll(key); err != nil {
+					t.Errorf("exp no error, got %s", err)
+				}
+			}
+		}()
 	}
 }
 
