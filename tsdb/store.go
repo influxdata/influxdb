@@ -386,39 +386,63 @@ func (s *Store) ShardIteratorCreator(id uint64) influxql.IteratorCreator {
 	return &shardIteratorCreator{sh: sh}
 }
 
-// DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
-func (s *Store) DeleteDatabase(name string) error {
-	type resp struct {
-		shardID uint64
-		err     error
-	}
+// shardExecuteFn checks if a function should be run on a shard and returns
+// a function to execute on that shard if it should.
+type shardExecuteFn func(shardID uint64, sh *Shard) (bool, error)
 
-	s.mu.RLock()
-	responses := make(chan resp, len(s.shards))
-	var wg sync.WaitGroup
-	// Close and delete all shards on the database.
-	for shardID, sh := range s.shards {
-		if sh.database == name {
+type shardExecuteResp struct {
+	shardID uint64
+	err     error
+}
+
+// executeInParallel calls shardExecuteFn to return a function that it will then
+// execute in parallel.
+func (s *Store) executeInParallel(fn shardExecuteFn) <-chan shardExecuteResp {
+	responses := make(chan shardExecuteResp)
+	go func() {
+		var wg sync.WaitGroup
+		s.mu.RLock()
+		for shardID, sh := range s.shards {
 			wg.Add(1)
-			shardID, sh := shardID, sh // scoped copies of loop variables
+			shardID, sh := shardID, sh
 			go func() {
 				defer wg.Done()
-				err := sh.Close()
-				responses <- resp{shardID, err}
+				ok, err := fn(shardID, sh)
+				if ok {
+					responses <- shardExecuteResp{shardID, err}
+				}
 			}()
 		}
-	}
-	s.mu.RUnlock()
-	wg.Wait()
-	close(responses)
+		s.mu.RUnlock()
+		wg.Wait()
+		close(responses)
+	}()
+	return responses
+}
 
+// DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
+func (s *Store) DeleteDatabase(name string) error {
+	responses := s.executeInParallel(func(shardID uint64, sh *Shard) (bool, error) {
+		if sh.database == name {
+			return true, sh.Close()
+		}
+		return false, nil
+	})
+
+	errs := 0
 	for r := range responses {
 		if r.err != nil {
-			return r.err
+			s.Logger.Printf("Unable to close shard %d: %s\n", r.shardID, r.err)
+			errs++
+			continue
 		}
 		s.mu.Lock()
 		delete(s.shards, r.shardID)
 		s.mu.Unlock()
+	}
+
+	if errs > 0 {
+		return fmt.Errorf("unable to close all shards: %d left open", errs)
 	}
 
 	s.mu.Lock()
@@ -438,18 +462,29 @@ func (s *Store) DeleteDatabase(name string) error {
 // provided retention policy, remove the retention policy directories on
 // both the DB and WAL, and remove all shard files from disk.
 func (s *Store) DeleteRetentionPolicy(database, name string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Close and delete all shards under the retention policy on the
 	// database.
-	for shardID, sh := range s.shards {
+	responses := s.executeInParallel(func(shardID uint64, sh *Shard) (bool, error) {
 		if sh.database == database && sh.retentionPolicy == name {
-			// Delete the shard from disk.
-			if err := s.deleteShard(shardID); err != nil {
-				return err
-			}
+			return true, sh.Close()
 		}
+		return false, nil
+	})
+
+	errs := 0
+	for r := range responses {
+		if r.err != nil {
+			s.Logger.Printf("Unable to delete shard %d: %s", r.shardID, r.err)
+			errs++
+			continue
+		}
+		s.mu.Lock()
+		delete(s.shards, r.shardID)
+		s.mu.Unlock()
+	}
+
+	if errs > 0 {
+		return fmt.Errorf("unable to delete retention policy: %d shards could not be deleted", errs)
 	}
 
 	// Remove the rentention policy folder.
@@ -463,11 +498,11 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 
 // DeleteMeasurement removes a measurement and all associated series from a database.
 func (s *Store) DeleteMeasurement(database, name string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Find the database.
+	s.mu.RLock()
 	db := s.databaseIndexes[database]
+	s.mu.RUnlock()
+
 	if db == nil {
 		return nil
 	}
@@ -482,16 +517,25 @@ func (s *Store) DeleteMeasurement(database, name string) error {
 	db.DropMeasurement(m.Name)
 
 	// Remove underlying data.
-	for _, sh := range s.shards {
-		if sh.database != database {
-			continue
+	seriesKeys := m.SeriesKeys()
+	responses := s.executeInParallel(func(shardID uint64, sh *Shard) (bool, error) {
+		if sh.database == database {
+			return true, sh.DeleteMeasurement(m.Name, seriesKeys)
 		}
+		return false, nil
+	})
 
-		if err := sh.DeleteMeasurement(m.Name, m.SeriesKeys()); err != nil {
-			return err
+	errs := 0
+	for r := range responses {
+		if r.err != nil {
+			s.Logger.Printf("Unable to delete measurement from shard %d: %s", r.shardID, r.err)
+			errs++
 		}
 	}
 
+	if errs > 0 {
+		return fmt.Errorf("unable to delete measurement: error accessing %d shards", errs)
+	}
 	return nil
 }
 
