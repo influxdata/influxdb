@@ -1,25 +1,17 @@
-#!/usr/bin/env bash
-
+#!/bin/bash
 ### BEGIN INIT INFO
 # Provides:          influxd
 # Required-Start:    $all
 # Required-Stop:     $remote_fs $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: Start influxd at boot time
+# Short-Description: Start the InfluxDB process
 ### END INIT INFO
 
 # If you modify this, please make sure to also edit influxdb.service
-# this init script supports three different variations:
-#  1. New lsb that define start-stop-daemon
-#  2. Old lsb that don't have start-stop-daemon but define, log, pidofproc and killproc
-#  3. Centos installations without lsb-core installed
-#
-# In the third case we have to define our own functions which are very dumb
-# and expect the args to be positioned correctly.
 
 # Command-line options that can be set in /etc/default/influxdb.  These will override
-# any config file values. Example: "-join http://1.2.3.4:8086"
+# any config file values.
 DEFAULT=/etc/default/influxdb
 
 # Daemon options
@@ -32,10 +24,19 @@ NAME=influxdb
 USER=influxdb
 GROUP=influxdb
 
-# Daemon name, where is the actual executable
-# If the daemon is not there, then exit.
+# Check for sudo or root privileges before continuing
+if [ "$UID" != "0" ]; then
+    echo "You must be root to run this script"
+    exit 1
+fi
+
+# Daemon name, where is the actual executable If the daemon is not
+# there, then exit.
 DAEMON=/usr/bin/influxd
-[ -x $DAEMON ] || exit 5
+if [ ! -x $DAEMON ]; then
+    echo "Executable $DAEMON does not exist!"
+    exit 5
+fi
 
 # Configuration file
 CONFIG=/etc/influxdb/influxdb.conf
@@ -72,52 +73,10 @@ if [ ! -f "$STDERR" ]; then
     mkdir -p $(dirname $STDERR)
 fi
 
-# Overwrite init script variables with /etc/default/influxdb values
+# Override init script variables with DEFAULT values
 if [ -r $DEFAULT ]; then
     source $DEFAULT
 fi
-
-function pidofproc() {
-    if [ $# -ne 3 ]; then
-        echo "Expected three arguments, e.g. $0 -p pidfile daemon-name"
-    fi
-
-    PID=`pgrep -f $3`
-    local PIDFILE=`cat $2`
-
-    if [ "x$PIDFILE" == "x" ]; then
-        return 1
-    fi
-
-    if [ "x$PID" != "x" -a "$PIDFILE" == "$PID" ]; then
-        return 0
-    fi
-
-    return 1
-}
-
-function killproc() {
-    if [ $# -ne 3 ]; then
-        echo "Expected three arguments, e.g. $0 -p pidfile signal"
-    fi
-
-    PID=`cat $2`
-
-    /bin/kill -s $3 $PID
-    while true; do
-        pidof `basename $DAEMON` >/dev/null
-        if [ $? -ne 0 ]; then
-            return 0
-        fi
-
-        sleep 1
-        n=$(expr $n + 1)
-        if [ $n -eq 30 ]; then
-            /bin/kill -s SIGKILL $PID
-            return 0
-        fi
-    done
-}
 
 function log_failure_msg() {
     echo "$@" "[ FAILED ]"
@@ -130,104 +89,135 @@ function log_success_msg() {
 function start() {
     # Check if config file exist
     if [ ! -r $CONFIG ]; then
-        log_failure_msg "config file doesn't exist (or you don't have permission to view)"
+        log_failure_msg "config file $CONFIG doesn't exist (or you don't have permission to view)"
         exit 4
     fi
 
-    # Checked the PID file exists and check the actual status of process
-    if [ -e $PIDFILE ]; then
-	PID="$(pgrep -f $PIDFILE)"
-	if test -n "$PID" && kill -0 "$PID" &>/dev/null; then
-	    # If the status is SUCCESS then don't need to start again.
-            log_failure_msg "$NAME process is running"
-            exit 0 # Exit
+    # Check that the PID file exists, and check the actual status of process
+    if [ -f $PIDFILE ]; then
+        PID="$(cat $PIDFILE)"
+        if kill -0 "$PID" &>/dev/null; then
+            # Process is already up
+            log_success_msg "$NAME process is already running"
+            return 0
         fi
-        # if PID file does not exist, check if writable
     else
-        su -s /bin/sh -c "touch $PIDFILE" $USER > /dev/null 2>&1
+        su -s /bin/sh -c "touch $PIDFILE" $USER &>/dev/null
         if [ $? -ne 0 ]; then
             log_failure_msg "$PIDFILE not writable, check permissions"
             exit 5
         fi
     fi
 
-    # Bump the file limits, before launching the daemon. These will carry over to
-    # launched processes.
+    # Bump the file limits, before launching the daemon. These will
+    # carry over to launched processes.
     ulimit -n $OPEN_FILE_LIMIT
     if [ $? -ne 0 ]; then
-        log_failure_msg "set open file limit to $OPEN_FILE_LIMIT"
+        log_failure_msg "Unable to set ulimit to $OPEN_FILE_LIMIT"
         exit 1
     fi
 
-    log_success_msg "Starting the process" "$NAME"
-    if which start-stop-daemon > /dev/null 2>&1; then
-        start-stop-daemon --chuid $GROUP:$USER --start --quiet --pidfile $PIDFILE --exec $DAEMON -- -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
+    # Launch process
+    echo "Starting $NAME..."
+    if which start-stop-daemon &>/dev/null; then
+        start-stop-daemon \
+            --chuid $GROUP:$USER \
+            --start \
+            --quiet \
+            --pidfile $PIDFILE \
+            --exec $DAEMON \
+            -- \
+            -pidfile $PIDFILE \
+            -config $CONFIG \
+            $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
     else
-        su -s /bin/sh -c "nohup $DAEMON -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &" $USER
+        local CMD="$DAEMON -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &"
+        su -s /bin/sh -c "$CMD" $USER
     fi
-    log_success_msg "$NAME process was started"
+
+    # Sleep to verify process is still up
+    sleep 1
+    if [ -f $PIDFILE ]; then
+        # PIDFILE exists
+        if kill -0 $(cat $PIDFILE) &>/dev/null; then
+            # PID up, service running
+            log_success_msg "$NAME process was started"
+            return 0
+        fi
+    fi
+    log_failure_msg "$NAME process was unable to start"
+    exit 1
 }
 
 function stop() {
     # Stop the daemon.
-    if [ -e $PIDFILE ]; then
-	PID="$(pgrep -f $PIDFILE)"
-	if test -n "$PID" && kill -0 "$PID" &>/dev/null; then
-            if killproc -p $PIDFILE SIGTERM && /bin/rm -rf $PIDFILE; then
-                log_success_msg "$NAME process was stopped"
-            else
-                log_failure_msg "$NAME failed to stop service"
-            fi
+    if [ -f $PIDFILE ]; then
+        local PID="$(cat $PIDFILE)"
+        if kill -0 $PID &>/dev/null; then
+            echo "Stopping $NAME..."
+            # Process still up, send SIGTERM and remove PIDFILE
+            kill -s SIGTERM $PID &>/dev/null && rm -f "$PIDFILE" &>/dev/null
+            while true; do
+                # Enter loop to ensure process is stopped
+                kill -0 $PID &>/dev/null
+                if [ "$?" != "0" ]; then
+                    # Process stopped, break from loop
+                    log_success_msg "$NAME process was stopped"
+                    return 0
+                fi
+
+                # Process still up after signal, sleep and wait
+                sleep 1
+                n=$(expr $n + 1)
+                if [ $n -eq 30 ]; then
+                    # After 30 seconds, send SIGKILL
+                    echo "Timeout exceeded, sending SIGKILL..."
+                    kill -s SIGKILL $PID &>/dev/null
+                elif [ $? -eq 40 ]; then
+                    # After 40 seconds, error out
+                    log_failure_msg "could not stop $NAME process"
+                    exit 1
+                fi
+            done
         fi
-    else
-        log_failure_msg "$NAME process is not running"
     fi
+    log_success_msg "$NAME process already stopped"
 }
 
 function restart() {
     # Restart the daemon.
-    PID="$(pgrep -f $PIDFILE)"
     stop
-    while test -n "$PID" && test -d "/proc/$PID" &>/dev/null
-    do
-        echo "Process $PID is still running..."
-        sleep 1
-    done
     start
 }
 
 function status() {
     # Check the status of the process.
-    if [ -e $PIDFILE ]; then
-	PID="$(pgrep -f $PIDFILE)"
-	if test -n "$PID" && test -d "/proc/$PID" &>/dev/null; then
-            log_success_msg "$NAME Process is running"
+    if [ -f $PIDFILE ]; then
+        PID="$(cat $PIDFILE)"
+        if kill -0 $PID &>/dev/null; then
+            log_success_msg "$NAME process is running"
             exit 0
-        else
-            log_failure_msg "$NAME Process is not running"
-            exit 1
         fi
-    else
-        log_failure_msg "$NAME Process is not running"
-        exit 3
     fi
+    log_failure_msg "$NAME process is not running"
+    exit 1
 }
 
 case $1 in
     start)
-	start
+        start
         ;;
 
     stop)
-	stop
+        stop
         ;;
 
     restart)
-	restart
+        restart
         ;;
 
     status)
-	status
+        status
         ;;
 
     version)
