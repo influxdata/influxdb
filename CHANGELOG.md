@@ -36,6 +36,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#5499](https://github.com/influxdata/influxdb/issues/5499): Add stats and diagnostics to the TSM engine.
 - [#6959](https://github.com/influxdata/influxdb/issues/6959): Return 403 Forbidden when authentication succeeds but authorization fails.
 - [#1110](https://github.com/influxdata/influxdb/issues/1110): Support loading a folder for collectd typesdb files.
+- [#6837](https://github.com/influxdata/influxdb/issues/6837): Provides a SHOW USER WITH PASSWORD to verify a user password.
 
 ### Bugfixes
 

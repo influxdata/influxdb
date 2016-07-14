@@ -8,7 +8,7 @@ import (
 var (
 	sanitizeSetPassword = regexp.MustCompile(`(?i)password\s+for[^=]*=\s+(["']?[^\s"]+["']?)`)
 
-	sanitizeCreatePassword = regexp.MustCompile(`(?i)with\s+password\s+(["']?[^\s"]+["']?)`)
+	sanitizeWithPassword = regexp.MustCompile(`(?i)with\s+password\s+(["']?[^\s"]+["']?)`)
 )
 
 // Sanitize attempts to sanitize passwords out of a raw query.
@@ -32,7 +32,7 @@ func Sanitize(query string) string {
 		query = buf.String()
 	}
 
-	if matches := sanitizeCreatePassword.FindAllStringSubmatchIndex(query, -1); matches != nil {
+	if matches := sanitizeWithPassword.FindAllStringSubmatchIndex(query, -1); matches != nil {
 		var buf bytes.Buffer
 		i := 0
 		for _, match := range matches {

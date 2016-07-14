@@ -180,6 +180,8 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx influx
 		rows, err = e.executeShowSubscriptionsStatement(stmt)
 	case *influxql.ShowUsersStatement:
 		rows, err = e.executeShowUsersStatement(stmt)
+	case *influxql.ShowUserStatement:
+		rows, err = e.executeShowUserStatement(stmt)
 	case *influxql.SetPasswordUserStatement:
 		if ctx.ReadOnly {
 			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
@@ -931,6 +933,22 @@ func (e *StatementExecutor) executeShowUsersStatement(q *influxql.ShowUsersState
 	for _, ui := range e.MetaClient.Users() {
 		row.Values = append(row.Values, []interface{}{ui.Name, ui.Admin})
 	}
+	return []*models.Row{row}, nil
+}
+
+func (e *StatementExecutor) executeShowUserStatement(q *influxql.ShowUserStatement) (models.Rows, error) {
+	row := &models.Row{Columns: []string{"user", "admin"}}
+
+	if ui, _ := e.MetaClient.User(q.Name); ui != nil {
+		if q.WithPassword {
+			row.Columns = append(row.Columns, "password_match")
+			_, err := e.MetaClient.Authenticate(q.Name, q.Password)
+			row.Values = append(row.Values, []interface{}{ui.Name, ui.Admin, err != meta.ErrAuthenticate})
+		} else {
+			row.Values = append(row.Values, []interface{}{ui.Name, ui.Admin})
+		}
+	}
+
 	return []*models.Row{row}, nil
 }
 

@@ -9,6 +9,7 @@ import (
 
 // MetaClient is a mockable implementation of cluster.MetaClient.
 type MetaClient struct {
+	AuthenticateFn                      func(username, password string) (*meta.UserInfo, error)
 	CreateContinuousQueryFn             func(database, name, query string) error
 	CreateDatabaseFn                    func(name string) (*meta.DatabaseInfo, error)
 	CreateDatabaseWithRetentionPolicyFn func(name string, rpi *meta.RetentionPolicyInfo) (*meta.DatabaseInfo, error)
@@ -38,6 +39,7 @@ type MetaClient struct {
 	UserPrivilegeFn                     func(username, database string) (*influxql.Privilege, error)
 	UserPrivilegesFn                    func(username string) (map[string]influxql.Privilege, error)
 	UsersFn                             func() []meta.UserInfo
+	UserFn                              func(username string) (*meta.UserInfo, error)
 }
 
 func (c *MetaClient) CreateContinuousQuery(database, name, query string) error {
@@ -153,6 +155,14 @@ func (c *MetaClient) UserPrivileges(username string) (map[string]influxql.Privil
 
 func (c *MetaClient) Users() []meta.UserInfo {
 	return c.UsersFn()
+}
+
+func (c *MetaClient) User(username string) (*meta.UserInfo, error) {
+	return c.UserFn(username)
+}
+
+func (c *MetaClient) Authenticate(username, password string) (*meta.UserInfo, error) {
+	return c.AuthenticateFn(username, password)
 }
 
 // DefaultMetaClientDatabaseFn returns a single database (db0) with a retention policy.
