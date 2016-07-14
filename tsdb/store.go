@@ -730,9 +730,13 @@ func (s *Store) deleteSeries(database string, seriesKeys []string, min, max int6
 		return influxql.ErrDatabaseNotFound(database)
 	}
 
-	for _, sh := range s.shards {
+	shards := s.filterShards(func(sh *Shard) bool {
+		return sh.database == database
+	})
+
+	return s.walkShards(shards, func(sh *Shard) error {
 		if sh.database != database {
-			continue
+			return nil
 		}
 		if err := sh.DeleteSeriesRange(seriesKeys, min, max); err != nil {
 			return err
@@ -750,9 +754,8 @@ func (s *Store) deleteSeries(database string, seriesKeys []string, min, max int6
 				db.UnassignShard(k, sh.id)
 			}
 		}
-	}
-
-	return nil
+		return nil
+	})
 }
 
 // ExpandSources expands sources against all local shards.
