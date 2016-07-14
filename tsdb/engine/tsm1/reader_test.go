@@ -1175,6 +1175,7 @@ func TestTSMReader_File_ReadAll(t *testing.T) {
 
 func TestTSMReader_FuzzCrashes(t *testing.T) {
 	cases := []string{
+		"",
 		"\x16\xd1\x16\xd1\x01\x10\x14X\xfb\x03\xac~\x80\xf0\x00\x00\x00I^K" +
 			"_\xf0\x00\x00\x00D424259389w\xf0\x00\x00\x00" +
 			"o\x93\bO\x10?\xf0\x00\x00\x00\x00\b\x00\xc2_\xff\xd8\x0fX^" +
@@ -1203,33 +1204,24 @@ func TestTSMReader_FuzzCrashes(t *testing.T) {
 
 	for _, c := range cases {
 		func() {
-			defer func() {
-				err := recover()
-				if err != nil {
-					t.Errorf("exp no panic, got %s", err)
-				}
-			}()
-
-			dir, err := ioutil.TempDir("", "tsmreader-fuzz")
-			if err != nil {
-				t.Errorf("exp no error, got %s", err)
-			}
+			dir := MustTempDir()
+			defer os.RemoveAll(dir)
 
 			filename := filepath.Join(dir, "x.tsm")
 			if err := ioutil.WriteFile(filename, []byte(c), 0600); err != nil {
-				t.Errorf("exp no error, got %s", err)
+				t.Fatalf("exp no error, got %s", err)
 			}
 			defer os.RemoveAll(dir)
 
 			f, err := os.Open(filename)
 			if err != nil {
-				t.Errorf("exp no error, got %s", err)
+				t.Fatalf("exp no error, got %s", err)
 			}
 			defer f.Close()
 
 			r, err := tsm1.NewTSMReader(f)
 			if err != nil {
-				t.Errorf("exp no error, got %s", err)
+				return
 			}
 			defer r.Close()
 
@@ -1237,13 +1229,13 @@ func TestTSMReader_FuzzCrashes(t *testing.T) {
 			for iter.Next() {
 				key, _, _, _, _, err := iter.Read()
 				if err != nil {
-					t.Errorf("exp no error, got %s", err)
+					return
 				}
 
 				_, _ = r.Type(key)
 
 				if _, err = r.ReadAll(key); err != nil {
-					t.Errorf("exp no error, got %s", err)
+					return
 				}
 			}
 		}()
