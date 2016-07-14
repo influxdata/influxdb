@@ -347,17 +347,8 @@ func (s *Store) SetShardEnabled(shardID uint64, enabled bool) error {
 
 // DeleteShard removes a shard from disk.
 func (s *Store) DeleteShard(shardID uint64) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.deleteShard(shardID)
-}
-
-// deleteShard removes a shard from disk. Callers of deleteShard need
-// to handle locks appropriately.
-func (s *Store) deleteShard(shardID uint64) error {
-	// ensure shard exists
-	sh, ok := s.shards[shardID]
-	if !ok {
+	sh := s.Shard(shardID)
+	if sh == nil {
 		return nil
 	}
 
@@ -373,7 +364,10 @@ func (s *Store) deleteShard(shardID uint64) error {
 		return err
 	}
 
+	s.mu.Lock()
 	delete(s.shards, shardID)
+	s.mu.Unlock()
+
 	return nil
 }
 
