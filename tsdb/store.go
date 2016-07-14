@@ -463,11 +463,10 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 
 // DeleteMeasurement removes a measurement and all associated series from a database.
 func (s *Store) DeleteMeasurement(database, name string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Find the database.
+	s.mu.RLock()
 	db := s.databaseIndexes[database]
+	s.mu.RUnlock()
 	if db == nil {
 		return nil
 	}
@@ -478,21 +477,78 @@ func (s *Store) DeleteMeasurement(database, name string) error {
 		return influxql.ErrMeasurementNotFound(name)
 	}
 
+	seriesKeys := m.SeriesKeys()
+
+	shards := s.filterShards(func(sh *Shard) bool {
+		return sh.database == database
+	})
+
+	if err := s.walkShards(shards, func(sh *Shard) error {
+		if err := sh.DeleteMeasurement(m.Name, seriesKeys); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
 	// Remove measurement from index.
 	db.DropMeasurement(m.Name)
 
-	// Remove underlying data.
-	for _, sh := range s.shards {
-		if sh.database != database {
-			continue
-		}
+	return nil
+}
 
-		if err := sh.DeleteMeasurement(m.Name, m.SeriesKeys()); err != nil {
-			return err
+// filterShards returns a slice of shards where fn returns true
+// for the shard.
+func (s *Store) filterShards(fn func(sh *Shard) bool) []*Shard {
+	shards := make([]*Shard, 0, len(s.shards))
+	for _, sh := range s.shards {
+		if fn(sh) {
+			shards = append(shards, sh)
 		}
 	}
+	return shards
+}
 
-	return nil
+// walkShards apply a function to each shard in parallel.  If any of the
+// functions return an error, the first error is returned.
+func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
+	// struct to hold the result of opening each reader in a goroutine
+	type res struct {
+		s   *Shard
+		err error
+	}
+
+	throttle := newthrottle(runtime.GOMAXPROCS(0))
+
+	resC := make(chan *res)
+	var n int
+
+	for _, sh := range shards {
+		n++
+
+		go func(sh *Shard) {
+			throttle.take()
+			defer throttle.release()
+
+			if err := fn(sh); err != nil {
+				resC <- &res{err: fmt.Errorf("shard %d: %s", sh.id, err)}
+				return
+			}
+
+			resC <- &res{s: sh}
+		}(sh)
+	}
+
+	var err error
+	for i := 0; i < n; i++ {
+		res := <-resC
+		if res.err != nil {
+			err = res.err
+		}
+	}
+	close(resC)
+	return err
 }
 
 // ShardIDs returns a slice of all ShardIDs under management.
