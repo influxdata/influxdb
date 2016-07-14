@@ -438,18 +438,22 @@ func (s *Store) DeleteDatabase(name string) error {
 // provided retention policy, remove the retention policy directories on
 // both the DB and WAL, and remove all shard files from disk.
 func (s *Store) DeleteRetentionPolicy(database, name string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
+	shards := s.filterShards(func(sh *Shard) bool {
+		return sh.database == database && sh.retentionPolicy == name
+	})
+	s.mu.RUnlock()
 
 	// Close and delete all shards under the retention policy on the
 	// database.
-	for shardID, sh := range s.shards {
-		if sh.database == database && sh.retentionPolicy == name {
-			// Delete the shard from disk.
-			if err := s.deleteShard(shardID); err != nil {
-				return err
-			}
+	if err := s.walkShards(shards, func(sh *Shard) error {
+		if sh.database != database || sh.retentionPolicy != name {
+			return nil
 		}
+
+		return sh.Close()
+	}); err != nil {
+		return err
 	}
 
 	// Remove the rentention policy folder.
@@ -458,7 +462,16 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 	}
 
 	// Remove the retention policy folder from the the WAL.
-	return os.RemoveAll(filepath.Join(s.EngineOptions.Config.WALDir, database, name))
+	if err := os.RemoveAll(filepath.Join(s.EngineOptions.Config.WALDir, database, name)); err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	for _, sh := range shards {
+		delete(s.shards, sh.id)
+	}
+	s.mu.Unlock()
+	return nil
 }
 
 // DeleteMeasurement removes a measurement and all associated series from a database.
