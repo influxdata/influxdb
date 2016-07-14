@@ -404,6 +404,115 @@ func BenchmarkWritePoints_NewSeries_250K(b *testing.B) { benchmarkWritePoints(b,
 func BenchmarkWritePoints_NewSeries_500K(b *testing.B) { benchmarkWritePoints(b, 160, 5, 5, 1) }
 func BenchmarkWritePoints_NewSeries_1M(b *testing.B)   { benchmarkWritePoints(b, 320, 5, 5, 1) }
 
+// Fix measurement and tag key cardinalities and vary tag value cardinality
+func BenchmarkWritePoints_NewSeries_1_Measurement_1_TagKey_100_TagValues(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1, 100, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_1_TagKey_500_TagValues(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1, 500, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_1_TagKey_1000_TagValues(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1, 1000, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_1_TagKey_5000_TagValues(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1, 5000, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_1_TagKey_10000_TagValues(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1, 10000, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_1_TagKey_50000_TagValues(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1, 50000, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_1_TagKey_100000_TagValues(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1, 100000, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_1_TagKey_500000_TagValues(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1, 500000, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_1_TagKey_1000000_TagValues(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1, 1000000, 1)
+}
+
+// Fix tag key and tag values cardinalities and vary measurement cardinality
+func BenchmarkWritePoints_NewSeries_100_Measurements_1_TagKey_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 100, 1, 1, 1)
+}
+func BenchmarkWritePoints_NewSeries_500_Measurements_1_TagKey_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 500, 1, 1, 1)
+}
+func BenchmarkWritePoints_NewSeries_1000_Measurement_1_TagKey_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1000, 1, 1, 1)
+}
+
+func BenchmarkWritePoints_NewSeries_5000_Measurement_1_TagKey_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 5000, 1, 1, 1)
+}
+func BenchmarkWritePoints_NewSeries_10000_Measurement_1_TagKey_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 10000, 1, 1, 1)
+}
+func BenchmarkWritePoints_NewSeries_50000_Measurement_1_TagKey_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 50000, 1, 1, 1)
+}
+func BenchmarkWritePoints_NewSeries_100000_Measurement_1_TagKey_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 100000, 1, 1, 1)
+}
+func BenchmarkWritePoints_NewSeries_500000_Measurement_1_TagKey_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 500000, 1, 1, 1)
+}
+func BenchmarkWritePoints_NewSeries_1000000_Measurement_1_TagKey_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1000000, 1, 1, 1)
+}
+
+// Fix measurement and tag values cardinalities and vary tag key cardinality
+func BenchmarkWritePoints_NewSeries_1_Measurement_2_TagKeys_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1<<1, 1, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurements_4_TagKeys_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1<<2, 1, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurements_8_TagKeys_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1<<3, 1, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_16_TagKeys_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1<<4, 1, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_32_TagKeys_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1<<5, 1, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_64_TagKeys_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1<<6, 1, 1)
+
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_128_TagKeys_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1<<7, 1, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_256_TagKeys_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1<<8, 1, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_512_TagKeys_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1<<9, 1, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_1024_TagKeys_1_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1<<10, 1, 1)
+}
+
+// Fix series cardinality and vary tag keys and value cardinalities
+func BenchmarkWritePoints_NewSeries_1_Measurement_1_TagKey_65536_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1, 1, 1<<16, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_2_TagKeys_256_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1, 2, 1<<8, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_4_TagKeys_16_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1, 4, 1<<4, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_8_TagKeys_4_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1, 8, 1<<2, 1)
+}
+func BenchmarkWritePoints_NewSeries_1_Measurement_16_TagKeys_2_TagValue(b *testing.B) {
+	benchmarkWritePoints(b, 1, 16, 1<<1, 1)
+}
+
 func BenchmarkWritePoints_ExistingSeries_1K(b *testing.B) {
 	benchmarkWritePointsExistingSeries(b, 38, 3, 3, 1)
 }
