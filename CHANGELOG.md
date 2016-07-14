@@ -91,6 +91,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6968](https://github.com/influxdata/influxdb/issues/6968): Always use the demo config when outputting a new config.
 - [#6986](https://github.com/influxdata/influxdb/pull/6986): update connection settings when changing hosts in cli.
 - [#6965](https://github.com/influxdata/influxdb/pull/6965): Minor improvements to init script. Removes sysvinit-utils as package dependency.
+- [#6952](https://github.com/influxdata/influxdb/pull/6952): Fix compaction planning with large TSM files
 
 ## v0.13.0 [2016-05-12]
 

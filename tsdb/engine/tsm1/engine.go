@@ -39,17 +39,19 @@ const (
 
 // Statistics gathered by the engine.
 const (
-	statCacheCompactions            = "cacheCompactions"
-	statCacheCompactionError        = "cacheCompactionErr"
-	statCacheCompactionDuration     = "cacheCompactionDuration"
-	statTSMLevel1Compactions        = "tsmLevel1Compactions"
-	statTSMLevel1CompactionDuration = "tsmLevel1CompactionDuration"
-	statTSMLevel2Compactions        = "tsmLevel2Compactions"
-	statTSMLevel2CompactionDuration = "tsmLevel2CompactionDuration"
-	statTSMLevel3Compactions        = "tsmLevel3Compactions"
-	statTSMLevel3CompactionDuration = "tsmLevel3CompactionDuration"
-	statTSMFullCompactions          = "tsmFullCompactions"
-	statTSMFullCompactionDuration   = "tsmFullCompactionDuration"
+	statCacheCompactions              = "cacheCompactions"
+	statCacheCompactionError          = "cacheCompactionErr"
+	statCacheCompactionDuration       = "cacheCompactionDuration"
+	statTSMLevel1Compactions          = "tsmLevel1Compactions"
+	statTSMLevel1CompactionDuration   = "tsmLevel1CompactionDuration"
+	statTSMLevel2Compactions          = "tsmLevel2Compactions"
+	statTSMLevel2CompactionDuration   = "tsmLevel2CompactionDuration"
+	statTSMLevel3Compactions          = "tsmLevel3Compactions"
+	statTSMLevel3CompactionDuration   = "tsmLevel3CompactionDuration"
+	statTSMOptimizeCompactions        = "tsmOptimizeCompactions"
+	statTSMOptimizeCompactionDuration = "tsmOptimizeCompactionDuration"
+	statTSMFullCompactions            = "tsmFullCompactions"
+	statTSMFullCompactionDuration     = "tsmFullCompactionDuration"
 )
 
 // Engine represents a storage engine with compressed blocks.
@@ -219,15 +221,18 @@ func (e *Engine) Format() tsdb.EngineFormat {
 
 // EngineStatistics maintains statistics for the engine.
 type EngineStatistics struct {
-	CacheCompactions          int64
-	CacheCompactionErrors     int64
-	CacheCompactionDuration   int64
-	TSMCompactions            [3]int64
-	TSMCompactionErrors       [3]int64
-	TSMCompactionDuration     [3]int64
-	TSMFullCompactions        int64
-	TSMFullCompactionErrors   int64
-	TSMFullCompactionDuration int64
+	CacheCompactions              int64
+	CacheCompactionErrors         int64
+	CacheCompactionDuration       int64
+	TSMCompactions                [3]int64
+	TSMCompactionErrors           [3]int64
+	TSMCompactionDuration         [3]int64
+	TSMOptimizeCompactions        int64
+	TSMOptimizeCompactionErrors   int64
+	TSMOptimizeCompactionDuration int64
+	TSMFullCompactions            int64
+	TSMFullCompactionErrors       int64
+	TSMFullCompactionDuration     int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -875,7 +880,15 @@ func (e *Engine) compactTSMFull() {
 			return
 
 		default:
+			optimize := false
+			logDesc := "full"
 			tsmFiles := e.CompactionPlan.Plan(e.WAL.LastWriteTime())
+
+			if len(tsmFiles) == 0 {
+				optimize = true
+				logDesc = "optimize"
+				tsmFiles = e.CompactionPlan.PlanOptimize()
+			}
 
 			if len(tsmFiles) == 0 {
 				time.Sleep(time.Second)
@@ -891,17 +904,33 @@ func (e *Engine) compactTSMFull() {
 				go func(groupNum int, group CompactionGroup) {
 					defer wg.Done()
 					start := time.Now()
-					e.logger.Printf("beginning full compaction of group %d, %d TSM files", groupNum, len(group))
+					e.logger.Printf("beginning %s compaction of group %d, %d TSM files", logDesc, groupNum, len(group))
 					for i, f := range group {
-						e.logger.Printf("compacting full group (%d) %s (#%d)", groupNum, f, i)
+						e.logger.Printf("compacting %s group (%d) %s (#%d)", logDesc, groupNum, f, i)
 					}
 
-					files, err := e.Compactor.CompactFull(group)
-					if err != nil {
-						e.logger.Printf("error compacting TSM files: %v", err)
-						atomic.AddInt64(&e.stats.TSMFullCompactionErrors, 1)
-						time.Sleep(time.Second)
-						return
+					var (
+						files []string
+						err   error
+					)
+					if optimize {
+						files, err = e.Compactor.CompactFast(group)
+						if err != nil {
+							e.logger.Printf("error compacting TSM files: %v", err)
+							atomic.AddInt64(&e.stats.TSMOptimizeCompactionErrors, 1)
+
+							time.Sleep(time.Second)
+							return
+						}
+					} else {
+						files, err = e.Compactor.CompactFull(group)
+						if err != nil {
+							e.logger.Printf("error compacting TSM files: %v", err)
+							atomic.AddInt64(&e.stats.TSMFullCompactionErrors, 1)
+
+							time.Sleep(time.Second)
+							return
+						}
 					}
 
 					if err := e.FileStore.Replace(group, files); err != nil {
@@ -912,17 +941,27 @@ func (e *Engine) compactTSMFull() {
 					}
 
 					for i, f := range files {
-						e.logger.Printf("compacted full group (%d) into %s (#%d)", groupNum, f, i)
+						e.logger.Printf("compacted %s group (%d) into %s (#%d)", logDesc, groupNum, f, i)
 					}
-					atomic.AddInt64(&e.stats.TSMFullCompactions, 1)
-					e.logger.Printf("compacted full %d files into %d files in %s",
-						len(group), len(files), time.Since(start))
+
+					if optimize {
+						atomic.AddInt64(&e.stats.TSMOptimizeCompactions, 1)
+					} else {
+						atomic.AddInt64(&e.stats.TSMFullCompactions, 1)
+					}
+					e.logger.Printf("compacted %s %d files into %d files in %s",
+						logDesc, len(group), len(files), time.Since(start))
 				}(i, group)
 			}
 			wg.Wait()
 
 			// Track the amount of time spent compacting the groups.
-			atomic.AddInt64(&e.stats.TSMFullCompactionDuration, time.Since(start).Nanoseconds())
+			if optimize {
+				atomic.AddInt64(&e.stats.TSMOptimizeCompactionDuration, time.Since(start).Nanoseconds())
+			} else {
+				atomic.AddInt64(&e.stats.TSMFullCompactionDuration, time.Since(start).Nanoseconds())
+			}
+
 		}
 	}
 }

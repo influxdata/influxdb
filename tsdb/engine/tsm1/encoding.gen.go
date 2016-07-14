@@ -30,6 +30,18 @@ func (a Values) Size() int {
 	return sz
 }
 
+func (a Values) ordered() bool {
+	if len(a) <= 1 {
+		return true
+	}
+	for i := 1; i < len(a); i++ {
+		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
+			return false
+		}
+	}
+	return true
+}
+
 func (a Values) assertOrdered() {
 	if len(a) <= 1 {
 		return
@@ -96,6 +108,17 @@ func (a Values) Merge(b Values) Values {
 
 	if len(b) == 0 {
 		return a
+	}
+
+	// Normally, both a and b should not contain duplicates.  Due to a bug in older versions, it's
+	// possible stored blocks might contain duplicate values.  Remove them if they exists before
+	// merging.
+	if !a.ordered() {
+		a = a.Deduplicate()
+	}
+
+	if !b.ordered() {
+		b = b.Deduplicate()
 	}
 
 	if a[len(a)-1].UnixNano() < b[0].UnixNano() {
@@ -178,6 +201,18 @@ func (a FloatValues) Size() int {
 	return sz
 }
 
+func (a FloatValues) ordered() bool {
+	if len(a) <= 1 {
+		return true
+	}
+	for i := 1; i < len(a); i++ {
+		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
+			return false
+		}
+	}
+	return true
+}
+
 func (a FloatValues) assertOrdered() {
 	if len(a) <= 1 {
 		return
@@ -244,6 +279,17 @@ func (a FloatValues) Merge(b FloatValues) FloatValues {
 
 	if len(b) == 0 {
 		return a
+	}
+
+	// Normally, both a and b should not contain duplicates.  Due to a bug in older versions, it's
+	// possible stored blocks might contain duplicate values.  Remove them if they exists before
+	// merging.
+	if !a.ordered() {
+		a = a.Deduplicate()
+	}
+
+	if !b.ordered() {
+		b = b.Deduplicate()
 	}
 
 	if a[len(a)-1].UnixNano() < b[0].UnixNano() {
@@ -326,6 +372,18 @@ func (a IntegerValues) Size() int {
 	return sz
 }
 
+func (a IntegerValues) ordered() bool {
+	if len(a) <= 1 {
+		return true
+	}
+	for i := 1; i < len(a); i++ {
+		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
+			return false
+		}
+	}
+	return true
+}
+
 func (a IntegerValues) assertOrdered() {
 	if len(a) <= 1 {
 		return
@@ -392,6 +450,17 @@ func (a IntegerValues) Merge(b IntegerValues) IntegerValues {
 
 	if len(b) == 0 {
 		return a
+	}
+
+	// Normally, both a and b should not contain duplicates.  Due to a bug in older versions, it's
+	// possible stored blocks might contain duplicate values.  Remove them if they exists before
+	// merging.
+	if !a.ordered() {
+		a = a.Deduplicate()
+	}
+
+	if !b.ordered() {
+		b = b.Deduplicate()
 	}
 
 	if a[len(a)-1].UnixNano() < b[0].UnixNano() {
@@ -474,6 +543,18 @@ func (a StringValues) Size() int {
 	return sz
 }
 
+func (a StringValues) ordered() bool {
+	if len(a) <= 1 {
+		return true
+	}
+	for i := 1; i < len(a); i++ {
+		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
+			return false
+		}
+	}
+	return true
+}
+
 func (a StringValues) assertOrdered() {
 	if len(a) <= 1 {
 		return
@@ -540,6 +621,17 @@ func (a StringValues) Merge(b StringValues) StringValues {
 
 	if len(b) == 0 {
 		return a
+	}
+
+	// Normally, both a and b should not contain duplicates.  Due to a bug in older versions, it's
+	// possible stored blocks might contain duplicate values.  Remove them if they exists before
+	// merging.
+	if !a.ordered() {
+		a = a.Deduplicate()
+	}
+
+	if !b.ordered() {
+		b = b.Deduplicate()
 	}
 
 	if a[len(a)-1].UnixNano() < b[0].UnixNano() {
@@ -622,6 +714,18 @@ func (a BooleanValues) Size() int {
 	return sz
 }
 
+func (a BooleanValues) ordered() bool {
+	if len(a) <= 1 {
+		return true
+	}
+	for i := 1; i < len(a); i++ {
+		if av, ab := a[i-1].UnixNano(), a[i].UnixNano(); av >= ab {
+			return false
+		}
+	}
+	return true
+}
+
 func (a BooleanValues) assertOrdered() {
 	if len(a) <= 1 {
 		return
@@ -688,6 +792,17 @@ func (a BooleanValues) Merge(b BooleanValues) BooleanValues {
 
 	if len(b) == 0 {
 		return a
+	}
+
+	// Normally, both a and b should not contain duplicates.  Due to a bug in older versions, it's
+	// possible stored blocks might contain duplicate values.  Remove them if they exists before
+	// merging.
+	if !a.ordered() {
+		a = a.Deduplicate()
+	}
+
+	if !b.ordered() {
+		b = b.Deduplicate()
 	}
 
 	if a[len(a)-1].UnixNano() < b[0].UnixNano() {
