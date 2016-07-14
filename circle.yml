@@ -9,7 +9,6 @@ machine:
       - sudo rm -rf /usr/local/go
       - sudo tar -C /usr/local -xzf download/$GODIST
 
-
 dependencies:
     cache_directories:
         - "~/docker"
@@ -23,3 +22,20 @@ test:
     override:
         - bash circle-test.sh:
             parallel: true
+
+deployment:
+  release:
+    tag: /^v[0-9]+(\.[0-9]+)*(\S*)$/
+    commands:
+      - >
+        docker run
+        -e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID"
+        -e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY"
+        -v $(pwd):/root/go/src/github.com/influxdata/influxdb
+        test_64bit
+        --release
+        --package
+        --platform all
+        --arch all
+        --upload
+        --bucket dl.influxdata.com/influxdb/releases
