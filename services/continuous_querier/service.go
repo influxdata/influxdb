@@ -301,17 +301,14 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 	// Retrieve the oldest interval we should calculate based on the next time
 	// interval. We do this instead of using the current time just in case any
-	// time intervals were missed. If they were missed, we still need to do at
-	// least one calculation, but we don't need to do a calculation for every
-	// calculation we missed since they'll all end up returning the same results
-	// anyway.
+	// time intervals were missed. The start time of the oldest interval is what
+	// we use as the start time.
 	resampleFor := interval
 	if cq.Resample.For != 0 {
 		resampleFor = cq.Resample.For
 	} else if interval < resampleEvery {
 		resampleFor = resampleEvery
 	}
-	oldestTime := nextRun.Add(-resampleFor)
 
 	// If the resample interval is greater than the interval of the query, use the
 	// query interval instead.
@@ -319,23 +316,22 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 		resampleEvery = interval
 	}
 
-	// Calculate and set the time range for the query. Go from most recent to least.
-	startTime := now.Add(-resampleEvery).Truncate(interval)
-	for ; !startTime.Before(oldestTime); startTime = startTime.Add(-interval) {
-		endTime := startTime.Add(interval)
-		if err := cq.q.SetTimeRange(startTime, endTime); err != nil {
-			s.Logger.Printf("error setting time range: %s\n", err)
-		}
+	// Calculate and set the time range for the query.
+	startTime := nextRun.Add(-resampleFor).Add(interval - 1).Truncate(interval)
+	endTime := now.Add(-resampleEvery).Add(interval).Truncate(interval)
+	if err := cq.q.SetTimeRange(startTime, endTime); err != nil {
+		s.Logger.Printf("error setting time range: %s\n", err)
+		return err
+	}
 
-		if s.loggingEnabled {
-			s.Logger.Printf("executing continuous query %s (%v to %v)", cq.Info.Name, startTime, endTime)
-		}
+	if s.loggingEnabled {
+		s.Logger.Printf("executing continuous query %s (%v to %v)", cq.Info.Name, startTime, endTime)
+	}
 
-		// Do the actual processing of the query & writing of results.
-		if err := s.runContinuousQueryAndWriteResult(cq); err != nil {
-			s.Logger.Printf("error: %s. running: %s\n", err, cq.q.String())
-			return err
-		}
+	// Do the actual processing of the query & writing of results.
+	if err := s.runContinuousQueryAndWriteResult(cq); err != nil {
+		s.Logger.Printf("error: %s. running: %s\n", err, cq.q.String())
+		return err
 	}
 	return nil
 }
