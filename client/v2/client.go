@@ -24,7 +24,7 @@ const (
 	MaxUDPPayload  = 60 * 1024
 
 	newlineString = "\n"
-	commaByte     = 44
+	commaString   = ","
 )
 
 // HTTPConfig is the config data needed to create an HTTP Client
@@ -437,14 +437,14 @@ func makeChunks(blob string, chunkSize int) []string {
 		// move deviding position back while do not match a comma char to keep persistency
 		for l := stop; l > 0 && l != len(blob); l-- {
 			stop = l
-			if blob[l] == commaByte {
+			if string(blob[l]) == commaString {
 				break
 			}
 		}
 
 		// if the current position is a comma
 		// then move starting position forward to skip comma sign
-		if blob[start] == commaByte {
+		if string(blob[start]) == commaString {
 			start += 1
 		}
 
