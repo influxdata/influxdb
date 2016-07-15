@@ -92,6 +92,8 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6986](https://github.com/influxdata/influxdb/pull/6986): update connection settings when changing hosts in cli.
 - [#6965](https://github.com/influxdata/influxdb/pull/6965): Minor improvements to init script. Removes sysvinit-utils as package dependency.
 - [#6952](https://github.com/influxdata/influxdb/pull/6952): Fix compaction planning with large TSM files
+- [#6819](https://github.com/influxdata/influxdb/issues/6819): Database unresponsive after DROP MEASUREMENT
+- [#6796](https://github.com/influxdata/influxdb/issues/6796): Out of Memory Error when Dropping Measurement
 
 ## v0.13.0 [2016-05-12]
 
