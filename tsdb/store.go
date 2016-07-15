@@ -511,13 +511,12 @@ func (s *Store) filterShards(fn func(sh *Shard) bool) []*Shard {
 func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
 	// struct to hold the result of opening each reader in a goroutine
 	type res struct {
-		s   *Shard
 		err error
 	}
 
 	throttle := newthrottle(runtime.GOMAXPROCS(0))
 
-	resC := make(chan *res)
+	resC := make(chan res)
 	var n int
 
 	for _, sh := range shards {
@@ -528,11 +527,11 @@ func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
 			defer throttle.release()
 
 			if err := fn(sh); err != nil {
-				resC <- &res{err: fmt.Errorf("shard %d: %s", sh.id, err)}
+				resC <- res{err: fmt.Errorf("shard %d: %s", sh.id, err)}
 				return
 			}
 
-			resC <- &res{s: sh}
+			resC <- res{}
 		}(sh)
 	}
 
@@ -919,24 +918,16 @@ func measurementsFromSourcesOrDB(db *DatabaseIndex, sources ...influxql.Source) 
 // throttle is a simple channel based concurrency limiter.  It uses a fixed
 // size channel to limit callers from proceeding until there is a value avalable
 // in the channel.  If all are in-use, the caller blocks until one is freed.
-type throttle struct {
-	c chan struct{}
+type throttle chan struct{}
+
+func newthrottle(limit int) throttle {
+	return make(throttle, limit)
 }
 
-func newthrottle(limit int) *throttle {
-	t := &throttle{
-		c: make(chan struct{}, limit),
-	}
-	for i := 0; i < limit; i++ {
-		t.c <- struct{}{}
-	}
-	return t
+func (t throttle) take() {
+	t <- struct{}{}
 }
 
-func (t *throttle) take() {
-	<-t.c
-}
-
-func (t *throttle) release() {
-	t.c <- struct{}{}
+func (t throttle) release() {
+	<-t
 }
