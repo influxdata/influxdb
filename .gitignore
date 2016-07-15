@@ -81,3 +81,4 @@ integration/migration_data/
 # man outputs
 man/*.xml
 man/*.1
+man/*.1.gz

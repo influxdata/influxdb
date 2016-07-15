@@ -24,6 +24,7 @@ DATA_DIR = "/var/lib/influxdb"
 SCRIPT_DIR = "/usr/lib/influxdb/scripts"
 CONFIG_DIR = "/etc/influxdb"
 LOGROTATE_DIR = "/etc/logrotate.d"
+MAN_DIR = "/usr/share/man"
 
 INIT_SCRIPT = "scripts/init.sh"
 SYSTEMD_SCRIPT = "scripts/influxdb.service"
@@ -61,6 +62,7 @@ fpm_common_args = "-f -s dir --log error \
 --maintainer {} \
 --directories {} \
 --directories {} \
+--directories {} \
 --description \"{}\"".format(
      VENDOR,
      PACKAGE_URL,
@@ -71,6 +73,7 @@ fpm_common_args = "-f -s dir --log error \
      MAINTAINER,
      LOG_DIR,
      DATA_DIR,
+     MAN_DIR,
      DESCRIPTION)
 
 for f in CONFIGURATION_FILES:
@@ -120,7 +123,8 @@ def create_package_fs(build_root):
              DATA_DIR[1:],
              SCRIPT_DIR[1:],
              CONFIG_DIR[1:],
-             LOGROTATE_DIR[1:] ]
+             LOGROTATE_DIR[1:],
+             MAN_DIR[1:] ]
     for d in dirs:
         os.makedirs(os.path.join(build_root, d))
         os.chmod(os.path.join(build_root, d), 0o755)
@@ -143,6 +147,14 @@ def package_scripts(build_root, config_only=False, windows=False):
         os.chmod(os.path.join(build_root, LOGROTATE_DIR[1:], "influxdb"), 0o644)
         shutil.copyfile(DEFAULT_CONFIG, os.path.join(build_root, CONFIG_DIR[1:], "influxdb.conf"))
         os.chmod(os.path.join(build_root, CONFIG_DIR[1:], "influxdb.conf"), 0o644)
+
+def package_man_files(build_root):
+    """Copy and gzip man pages to the package filesystem."""
+    logging.debug("Installing man pages.")
+    run("make -C man/ clean install DESTDIR={}/usr".format(build_root))
+    for path, dir, files in os.walk(os.path.join(build_root, MAN_DIR[1:])):
+        for f in files:
+            run("gzip {}".format(os.path.join(path, f)))
 
 def run_generate():
     """Run 'go generate' to rebuild any static assets.
@@ -601,6 +613,9 @@ def package(build_output, pkg_name, version, nightly=False, iteration=1, static=
                 else:
                     create_package_fs(build_root)
                     package_scripts(build_root)
+
+                if platform != "windows":
+                    package_man_files(build_root)
 
                 for binary in targets:
                     # Copy newly-built binaries to packaging directory

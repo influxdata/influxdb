@@ -1,5 +1,7 @@
 #!/usr/bin/make -f
 
+DESTDIR = /usr/local
+
 MAN1_TXT =
 MAN1_TXT += influxd.txt
 MAN1_TXT += influxd-backup.txt
@@ -16,6 +18,11 @@ DOC_MAN1 = $(patsubst %.txt,%.1,$(MAN1_TXT))
 
 build: $(DOC_MAN1)
 
+install: build
+	@echo '  INSTALL $(DOC_MAN1)' && \
+	mkdir -p $(DESTDIR)/share/man/man1 && \
+	install -m 0644 $(DOC_MAN1) $(DESTDIR)/share/man/man1
+
 clean:
 	rm -f $(MAN_XML) $(DOC_MAN1)
 
@@ -28,4 +35,4 @@ clean:
 	@echo '  XMLTO $@' && \
 	xmlto man $< 2> /dev/null
 
-.PHONY: build clean
+.PHONY: build install clean
