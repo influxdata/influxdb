@@ -172,6 +172,10 @@ type ShardStatistics struct {
 
 // Statistics returns statistics for periodic monitoring.
 func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
+	if err := s.ready(); err != nil {
+		return nil
+	}
+
 	tags = s.statTags.Merge(tags)
 	statistics := []models.Statistic{{
 		Name: "shard",
