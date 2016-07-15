@@ -600,6 +600,12 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 		return nil
 	}
 
+	// Disable and abort running compactions so that tombstones added existing tsm
+	// files don't get removed.  This would cause deleted measurements/series to
+	// re-appear once the compaction completed.
+	e.SetCompactionsEnabled(false)
+	defer e.SetCompactionsEnabled(true)
+
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
