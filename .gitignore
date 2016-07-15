@@ -77,3 +77,7 @@ integration/migration_data/
 
 // Ingnore SourceGraph directory
 .srclib-store/
+
+# man outputs
+man/*.xml
+man/*.1
