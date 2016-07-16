@@ -159,8 +159,6 @@ func (e *Engine) SetCompactionsEnabled(enabled bool) {
 		go e.compactTSMLevel(true, 1)
 		go e.compactTSMLevel(true, 2)
 		go e.compactTSMLevel(false, 3)
-
-		e.logger.Printf("compactions enabled for: %v", e.path)
 	} else {
 		e.mu.Lock()
 		if !e.compactionsEnabled {
@@ -179,8 +177,6 @@ func (e *Engine) SetCompactionsEnabled(enabled bool) {
 
 		// Wait for compaction goroutines to exit
 		e.wg.Wait()
-
-		e.logger.Printf("compactions disabled for: %v", e.path)
 	}
 }
 
