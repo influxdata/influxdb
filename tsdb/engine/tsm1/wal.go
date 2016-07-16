@@ -18,6 +18,7 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/throttle"
 )
 
 const (
@@ -90,7 +91,8 @@ type WAL struct {
 	LoggingEnabled bool
 
 	// statistics for the WAL
-	stats *WALStatistics
+	stats    *WALStatistics
+	throttle throttle.Fixed
 }
 
 func NewWAL(path string) *WAL {
@@ -103,6 +105,7 @@ func NewWAL(path string) *WAL {
 		logger:      log.New(os.Stderr, "[tsm1wal] ", log.LstdFlags),
 		closing:     make(chan struct{}),
 		stats:       &WALStatistics{},
+		throttle:    throttle.New(10),
 	}
 }
 
@@ -277,6 +280,12 @@ func (l *WAL) LastWriteTime() time.Time {
 }
 
 func (l *WAL) writeToLog(entry WALEntry) (int, error) {
+	// limit how many concurrent encodings can be in flight.  Since we can only
+	// write one at a time to disk, a slow disk can cause the allocations below
+	// to increase quickly.  If we're backed up, wait until others have completed.
+	l.throttle.Take()
+	defer l.throttle.Release()
+
 	// encode and compress the entry while we're not locked
 	bytes := getBuf(walEncodeBufSize)
 	defer putBuf(bytes)

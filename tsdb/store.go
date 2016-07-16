@@ -16,6 +16,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/throttle"
 )
 
 var (
@@ -145,7 +146,7 @@ func (s *Store) loadShards() error {
 		err error
 	}
 
-	throttle := newthrottle(runtime.GOMAXPROCS(0))
+	t := throttle.New(runtime.GOMAXPROCS(0))
 
 	resC := make(chan *res)
 	var n int
@@ -171,8 +172,8 @@ func (s *Store) loadShards() error {
 			for _, sh := range shards {
 				n++
 				go func(index *DatabaseIndex, db, rp, sh string) {
-					throttle.take()
-					defer throttle.release()
+					t.Take()
+					defer t.Release()
 
 					start := time.Now()
 					path := filepath.Join(s.path, db, rp, sh)
@@ -514,7 +515,7 @@ func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
 		err error
 	}
 
-	throttle := newthrottle(runtime.GOMAXPROCS(0))
+	t := throttle.New(runtime.GOMAXPROCS(0))
 
 	resC := make(chan res)
 	var n int
@@ -523,8 +524,8 @@ func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
 		n++
 
 		go func(sh *Shard) {
-			throttle.take()
-			defer throttle.release()
+			t.Take()
+			defer t.Release()
 
 			if err := fn(sh); err != nil {
 				resC <- res{err: fmt.Errorf("shard %d: %s", sh.id, err)}
@@ -913,21 +914,4 @@ func measurementsFromSourcesOrDB(db *DatabaseIndex, sources ...influxql.Source) 
 	sort.Sort(measurements)
 
 	return measurements, nil
-}
-
-// throttle is a simple channel based concurrency limiter.  It uses a fixed
-// size channel to limit callers from proceeding until there is a value avalable
-// in the channel.  If all are in-use, the caller blocks until one is freed.
-type throttle chan struct{}
-
-func newthrottle(limit int) throttle {
-	return make(throttle, limit)
-}
-
-func (t throttle) take() {
-	t <- struct{}{}
-}
-
-func (t throttle) release() {
-	<-t
 }
