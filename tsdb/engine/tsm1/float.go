@@ -142,13 +142,19 @@ type FloatDecoder struct {
 
 // SetBytes initializes the decoder with b. Must call before calling Next().
 func (it *FloatDecoder) SetBytes(b []byte) error {
-	// first byte is the compression type.
-	// we currently just have gorilla compression.
-	it.br.Reset(b[1:])
+	var v uint64
+	if len(b) == 0 {
+		v = uvnan
+	} else {
+		// first byte is the compression type.
+		// we currently just have gorilla compression.
+		it.br.Reset(b[1:])
 
-	v, err := it.br.ReadBits(64)
-	if err != nil {
-		return err
+		var err error
+		v, err = it.br.ReadBits(64)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Reset all fields.

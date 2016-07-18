@@ -239,6 +239,17 @@ func Test_FloatEncoder_Quick(t *testing.T) {
 	}, nil)
 }
 
+func TestFloatDecoder_Empty(t *testing.T) {
+	var dec tsm1.FloatDecoder
+	if err := dec.SetBytes([]byte{}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if dec.Next() {
+		t.Fatalf("exp next == false, got true")
+	}
+}
+
 func BenchmarkFloatEncoder(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		s := tsm1.NewFloatEncoder()
