@@ -525,6 +525,25 @@ func TestTimeEncoder_Count_Simple8(t *testing.T) {
 	}
 }
 
+func TestTimeDecoder_Corrupt(t *testing.T) {
+	cases := []string{
+		"",                 // Empty
+		"\x10\x14",         // Packed: not enough data
+		"\x20\x00",         // RLE: not enough data for starting timestamp
+		"\x2012345678\x90", // RLE: initial timestamp but invalid uvarint encoding
+		"\x2012345678\x7f", // RLE: timestamp, RLE but invalid repeat
+		"\x00123",          // Raw: data length not multiple of 8
+	}
+
+	for _, c := range cases {
+		var dec TimeDecoder
+		dec.Init([]byte(c))
+		if dec.Next() {
+			t.Fatalf("exp next == false, got true")
+		}
+	}
+}
+
 func BenchmarkTimeEncoder(b *testing.B) {
 	enc := NewTimeEncoder()
 	x := make([]int64, 1024)
