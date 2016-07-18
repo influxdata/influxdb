@@ -534,7 +534,18 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 	}
 
 	iter := NewCacheKeyIterator(cache, tsdb.DefaultMaxPointsPerBlock)
-	return c.writeNewFiles(c.FileStore.NextGeneration(), 0, iter)
+	files, err := c.writeNewFiles(c.FileStore.NextGeneration(), 0, iter)
+
+	// See if we were closed while writing a snapshot
+	c.mu.RLock()
+	opened = c.opened
+	c.mu.RUnlock()
+
+	if !opened {
+		return nil, errSnapshotsDisabled
+	}
+
+	return files, err
 }
 
 // Compact will write multiple smaller TSM files into 1 or more larger files
@@ -601,7 +612,18 @@ func (c *Compactor) CompactFull(tsmFiles []string) ([]string, error) {
 		return nil, errCompactionsDisabled
 	}
 
-	return c.compact(false, tsmFiles)
+	files, err := c.compact(false, tsmFiles)
+
+	// See if we were closed while writing a snapshot
+	c.mu.RLock()
+	opened = c.opened
+	c.mu.RUnlock()
+
+	if !opened {
+		return nil, errCompactionsDisabled
+	}
+
+	return files, err
 }
 
 // Compact will write multiple smaller TSM files into 1 or more larger files
@@ -614,7 +636,19 @@ func (c *Compactor) CompactFast(tsmFiles []string) ([]string, error) {
 		return nil, errCompactionsDisabled
 	}
 
-	return c.compact(true, tsmFiles)
+	files, err := c.compact(true, tsmFiles)
+
+	// See if we were closed while writing a snapshot
+	c.mu.RLock()
+	opened = c.opened
+	c.mu.RUnlock()
+
+	if !opened {
+		return nil, errCompactionsDisabled
+	}
+
+	return files, err
+
 }
 
 // writeNewFiles will write from the iterator into new TSM files, rotating

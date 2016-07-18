@@ -159,8 +159,6 @@ func (e *Engine) SetCompactionsEnabled(enabled bool) {
 		go e.compactTSMLevel(true, 1)
 		go e.compactTSMLevel(true, 2)
 		go e.compactTSMLevel(false, 3)
-
-		e.logger.Printf("compactions enabled for: %v", e.path)
 	} else {
 		e.mu.Lock()
 		if !e.compactionsEnabled {
@@ -179,8 +177,6 @@ func (e *Engine) SetCompactionsEnabled(enabled bool) {
 
 		// Wait for compaction goroutines to exit
 		e.wg.Wait()
-
-		e.logger.Printf("compactions disabled for: %v", e.path)
 	}
 }
 
@@ -600,6 +596,12 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 		return nil
 	}
 
+	// Disable and abort running compactions so that tombstones added existing tsm
+	// files don't get removed.  This would cause deleted measurements/series to
+	// re-appear once the compaction completed.
+	e.SetCompactionsEnabled(false)
+	defer e.SetCompactionsEnabled(true)
+
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
@@ -771,7 +773,7 @@ func (e *Engine) compactCache() {
 			if e.ShouldCompactCache(e.WAL.LastWriteTime()) {
 				start := time.Now()
 				err := e.WriteSnapshot()
-				if err != nil {
+				if err != nil && err != errCompactionsDisabled {
 					e.logger.Printf("error writing snapshot: %v", err)
 					atomic.AddInt64(&e.stats.CacheCompactionErrors, 1)
 				} else {
@@ -832,7 +834,7 @@ func (e *Engine) compactTSMLevel(fast bool, level int) {
 
 					if fast {
 						files, err = e.Compactor.CompactFast(group)
-						if err != nil {
+						if err != nil && err != errCompactionsDisabled {
 							e.logger.Printf("error compacting TSM files: %v", err)
 							atomic.AddInt64(&e.stats.TSMCompactionErrors[level-1], 1)
 							time.Sleep(time.Second)
@@ -840,7 +842,7 @@ func (e *Engine) compactTSMLevel(fast bool, level int) {
 						}
 					} else {
 						files, err = e.Compactor.CompactFull(group)
-						if err != nil {
+						if err != nil && err != errCompactionsDisabled {
 							e.logger.Printf("error compacting TSM files: %v", err)
 							atomic.AddInt64(&e.stats.TSMCompactionErrors[level-1], 1)
 							time.Sleep(time.Second)
@@ -915,7 +917,7 @@ func (e *Engine) compactTSMFull() {
 					)
 					if optimize {
 						files, err = e.Compactor.CompactFast(group)
-						if err != nil {
+						if err != nil && err != errCompactionsDisabled {
 							e.logger.Printf("error compacting TSM files: %v", err)
 							atomic.AddInt64(&e.stats.TSMOptimizeCompactionErrors, 1)
 
@@ -924,7 +926,7 @@ func (e *Engine) compactTSMFull() {
 						}
 					} else {
 						files, err = e.Compactor.CompactFull(group)
-						if err != nil {
+						if err != nil && err != errCompactionsDisabled {
 							e.logger.Printf("error compacting TSM files: %v", err)
 							atomic.AddInt64(&e.stats.TSMFullCompactionErrors, 1)
 
