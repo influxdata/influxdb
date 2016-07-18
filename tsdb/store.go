@@ -16,7 +16,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/throttle"
+	"github.com/influxdata/influxdb/pkg/limiter"
 )
 
 var (
@@ -146,7 +146,7 @@ func (s *Store) loadShards() error {
 		err error
 	}
 
-	t := throttle.New(runtime.GOMAXPROCS(0))
+	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
 
 	resC := make(chan *res)
 	var n int
@@ -515,7 +515,7 @@ func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
 		err error
 	}
 
-	t := throttle.New(runtime.GOMAXPROCS(0))
+	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
 
 	resC := make(chan res)
 	var n int

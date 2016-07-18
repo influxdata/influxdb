@@ -18,7 +18,7 @@ import (
 
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/pkg/throttle"
+	"github.com/influxdata/influxdb/pkg/limiter"
 )
 
 const (
@@ -63,8 +63,9 @@ var (
 
 // Statistics gathered by the WAL.
 const (
-	statWALOldBytes     = "oldSegmentsDiskBytes"
-	statWALCurrentBytes = "currentSegmentDiskBytes"
+	statWALOldBytes         = "oldSegmentsDiskBytes"
+	statWALCurrentBytes     = "currentSegmentDiskBytes"
+	defaultWaitingWALWrites = 10
 )
 
 type WAL struct {
@@ -91,8 +92,8 @@ type WAL struct {
 	LoggingEnabled bool
 
 	// statistics for the WAL
-	stats    *WALStatistics
-	throttle throttle.Fixed
+	stats   *WALStatistics
+	limiter limiter.Fixed
 }
 
 func NewWAL(path string) *WAL {
@@ -105,7 +106,7 @@ func NewWAL(path string) *WAL {
 		logger:      log.New(os.Stderr, "[tsm1wal] ", log.LstdFlags),
 		closing:     make(chan struct{}),
 		stats:       &WALStatistics{},
-		throttle:    throttle.New(10),
+		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
 	}
 }
 
@@ -283,8 +284,8 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	// limit how many concurrent encodings can be in flight.  Since we can only
 	// write one at a time to disk, a slow disk can cause the allocations below
 	// to increase quickly.  If we're backed up, wait until others have completed.
-	l.throttle.Take()
-	defer l.throttle.Release()
+	l.limiter.Take()
+	defer l.limiter.Release()
 
 	// encode and compress the entry while we're not locked
 	bytes := getBuf(walEncodeBufSize)
