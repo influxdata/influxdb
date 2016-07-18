@@ -113,3 +113,20 @@ func Test_BooleanEncoder_Quick(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func Test_BooleanDecoder_Corrupt(t *testing.T) {
+	cases := []string{
+		"",         // Empty
+		"\x10\x90", // Packed: invalid count
+		"\x10\x7f", // Packed: count greater than remaining bits, multiple bytes expected
+		"\x10\x01", // Packed: count greater than remaining bits, one byte expected
+	}
+
+	for _, c := range cases {
+		var dec tsm1.BooleanDecoder
+		dec.SetBytes([]byte(c))
+		if dec.Next() {
+			t.Fatalf("exp next == false, got true for case %q", c)
+		}
+	}
+}
