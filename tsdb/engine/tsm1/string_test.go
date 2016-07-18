@@ -125,3 +125,57 @@ func Test_StringEncoder_Quick(t *testing.T) {
 		return true
 	}, nil)
 }
+
+func Test_StringDecoder_Empty(t *testing.T) {
+	var dec StringDecoder
+	if err := dec.SetBytes([]byte{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if dec.Next() {
+		t.Fatalf("exp Next() == false, got true")
+	}
+}
+
+func Test_StringDecoder_CorruptInitial(t *testing.T) {
+	cases := []string{
+		"\x10\x03\b\x03Hi", // Higher length than actual data
+		"\x10\x1dp\x9c\x90\x90\x90\x90\x90\x90\x90\x90\x90length overflow----",
+	}
+
+	for _, c := range cases {
+		var dec StringDecoder
+		if err := dec.SetBytes([]byte(c)); err != nil {
+			t.Fatal(err)
+		}
+
+		if !dec.Next() {
+			t.Fatalf("exp Next() to return true, got false")
+		}
+
+		_ = dec.Read()
+		if dec.Error() == nil {
+			t.Fatalf("exp an err, got nil: %q", c)
+		}
+	}
+}
+
+func Test_StringDecoder_CorruptReadAll(t *testing.T) {
+	cases := []string{
+		"0t\x00\x01\x000\x00\x01\x000\x00\x01\x000\x00\x01\x000\x00\x01" +
+			"\x000\x00\x01\x000\x00\x01\x000\x00\x00\x00\xff:\x01\x00\x01\x00\x01" +
+			"\x00\x01\x00\x01\x00\x01\x00\x010\x010\x000\x010\x010\x010\x01" +
+			"0\x010\x010\x010\x010\x010\x010\x010\x010\x010\x010", // Upper slice bounds overflows negative
+	}
+
+	for _, c := range cases {
+		var dec StringDecoder
+		if err := dec.SetBytes([]byte(c)); err != nil {
+			t.Fatal(err)
+		}
+
+		for dec.Next() {
+			_ = dec.Read()
+		}
+	}
+}
