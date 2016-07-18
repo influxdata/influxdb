@@ -147,6 +147,13 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 	m := d.CreateMeasurementIndexIfNotExists(measurementName)
 
 	d.mu.Lock()
+	// Check for the series again under a write lock
+	ss = d.series[series.Key]
+	if ss != nil {
+		d.mu.Unlock()
+		return ss
+	}
+
 	// set the in memory ID for query processing on this shard
 	series.id = d.lastID + 1
 	d.lastID++
