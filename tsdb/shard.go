@@ -524,7 +524,7 @@ func (s *Shard) createSystemIterator(opt influxql.IteratorOptions) (influxql.Ite
 	case "_fieldKeys":
 		return NewFieldKeysIterator(s, opt)
 	case "_measurements":
-		return NewMeasurementIterator(s, opt)
+		return NewMeasurementIterator(s.index, opt)
 	case "_series":
 		return NewSeriesIterator(s, opt)
 	case "_tagKeys":
@@ -900,24 +900,18 @@ func (itr *fieldKeysIterator) Next() (*influxql.FloatPoint, error) {
 
 // MeasurementIterator represents a string iterator that emits all measurement names in a shard.
 type MeasurementIterator struct {
-	mms    Measurements
-	source *influxql.Measurement
+	mms Measurements
 }
 
 // NewMeasurementIterator returns a new instance of MeasurementIterator.
-func NewMeasurementIterator(sh *Shard, opt influxql.IteratorOptions) (*MeasurementIterator, error) {
+func NewMeasurementIterator(dbi *DatabaseIndex, opt influxql.IteratorOptions) (*MeasurementIterator, error) {
 	itr := &MeasurementIterator{}
-
-	// Extract source.
-	if len(opt.Sources) > 0 {
-		itr.source, _ = opt.Sources[0].(*influxql.Measurement)
-	}
 
 	// Retrieve measurements from shard. Filter if condition specified.
 	if opt.Condition == nil {
-		itr.mms = sh.index.Measurements()
+		itr.mms = dbi.Measurements()
 	} else {
-		mms, _, err := sh.index.measurementsByExpr(opt.Condition)
+		mms, _, err := dbi.measurementsByExpr(opt.Condition)
 		if err != nil {
 			return nil, err
 		}
