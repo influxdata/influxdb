@@ -22,6 +22,17 @@ __Actual behavior:__ [What actually happened]
 
 __Additional info:__ [Include gist of relevant config, logs, etc.]
 
+Also, if this is an issue of for performance, locking, etc the following commands are useful to create debug information for the team.
+
+```
+curl -o block.txt "http://localhost:8086/debug/pprof/block?debug=1" 
+curl -o goroutine.txt "http://localhost:8086/debug/pprof/goroutine?debug=1" 
+curl -o vars.txt "http://localhost:8086/debug/vars" 
+iostat -xd 1 30 > iostat.txt
+```
+
+Please run those if possible and link them from a [gist](http://gist.github.com).
+
 *Please note, the quickest way to fix a bug is to open a Pull Request.*
 
 
