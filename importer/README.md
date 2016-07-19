@@ -17,6 +17,27 @@ http://get.influxdb.org.s3.amazonaws.com/influxdb-0.8.9-1.x86_64.rpm
 
 The `DDL` section contains the sql commands to create databases and retention policies.  the `DML` section is [line protocol](https://github.com/influxdata/influxdb/blob/master/tsdb/README.md) and can be directly posted to the [http endpoint](https://docs.influxdata.com/influxdb/v0.10/guides/writing_data) in `0.10`.  Remember that batching is important and we don't recommend batch sizes over 5k without further testing.
 
+Example export file:
+```
+# DDL
+CREATE DATABASE db0
+CREATE DATABASE db1
+CREATE RETENTION POLICY rp1 ON db1 DURATION 1h REPLICATION 1
+
+# DML
+# CONTEXT-DATABASE:db0
+# CONTEXT-RETENTION-POLICY:autogen
+cpu,host=server1 value=33.3 1464026335000000000
+cpu,host=server1 value=43.3 1464026395000000000
+cpu,host=server1 value=63.3 1464026575000000000
+
+# CONTEXT-DATABASE:db1
+# CONTEXT-RETENTION-POLICY:rp1
+cpu,host=server1 value=73.3 1464026335000000000
+cpu,host=server1 value=83.3 1464026395000000000
+cpu,host=server1 value=93.3 1464026575000000000
+```
+
 You need to specify a database and shard group when you export.
 
 To list out your shards, use the following http endpoint:
