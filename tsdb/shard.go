@@ -542,6 +542,10 @@ func (s *Shard) createSystemIterator(opt influxql.IteratorOptions) (influxql.Ite
 
 // FieldDimensions returns unique sets of fields and dimensions across a list of sources.
 func (s *Shard) FieldDimensions(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+	if err := s.ready(); err != nil {
+		return nil, nil, err
+	}
+
 	if influxql.Sources(sources).HasSystemSource() {
 		// Only support a single system source.
 		if len(sources) > 1 {
