@@ -565,7 +565,7 @@ func (d *indirectIndex) Entries(key string) []IndexEntry {
 		if _, err := readEntries(d.b[ofs:], &entries); err != nil {
 			panic(fmt.Sprintf("error reading entries: %v", err))
 		}
-		return entries.entries
+		return entries.Items()
 	}
 
 	// The key is not in the index.  i is the index where it would be inserted.
@@ -600,7 +600,7 @@ func (d *indirectIndex) Key(idx int) (string, []IndexEntry) {
 
 	var entries indexEntries
 	readEntries(d.b[int(d.offsets[idx])+n:], &entries)
-	return string(key), entries.entries
+	return string(key), entries.Items()
 }
 
 func (d *indirectIndex) KeyAt(idx int) (string, byte) {
@@ -1058,20 +1058,80 @@ func (m *mmapAccessor) close() error {
 }
 
 type indexEntries struct {
-	Type    byte
-	entries []IndexEntry
+	Type   byte
+	items  []IndexEntry
+	sorted bool
 }
 
-func (a *indexEntries) Len() int      { return len(a.entries) }
-func (a *indexEntries) Swap(i, j int) { a.entries[i], a.entries[j] = a.entries[j], a.entries[i] }
+func NewIndexEntries(blockType byte) *indexEntries {
+	return &indexEntries{
+		Type:   blockType,
+		sorted: true,
+	}
+}
+
+func (a *indexEntries) Len() int      { return len(a.items) }
+func (a *indexEntries) Swap(i, j int) { a.items[i], a.items[j] = a.items[j], a.items[i] }
 func (a *indexEntries) Less(i, j int) bool {
-	return a.entries[i].MinTime < a.entries[j].MinTime
+	return a.items[i].MinTime < a.items[j].MinTime
+}
+
+// Entries exposes the internal data.
+func (a *indexEntries) Items() []IndexEntry {
+	return a.items
+}
+
+// AppendIndexEntries acts like `append` while also tracking pre-sorted status.
+func (a *indexEntries) AppendIndexEntries(items []IndexEntry) {
+	// Nothing to do:
+	if len(items) == 0 {
+		return
+	}
+
+	// Save the original length for later:
+	l := len(a.items)
+
+	// Perform the append:
+	a.items = append(a.items, items...)
+
+	// Nothing to do if the items are already known to be unsorted:
+	if !a.sorted {
+		return
+	}
+
+	// If there were pre-existing sorted items, perform a comparison for
+	// the boundary case:
+	if l > 0 && a.Less(l, l-1) {
+		a.sorted = false
+		return
+	}
+
+	// Detect if the new items are already sorted, storing the result for
+	// use by (*indexEntries).Sort.
+	// (Note that sort.Interface is not implemented on []IndexEntry, so
+	// this uses (*indexEntries).Less instead.)
+	for i := l; i < len(a.items)-1; i++ {
+		if a.Less(i+1, i) {
+			a.sorted = false
+			break
+		}
+	}
+}
+
+// Sort acts like `sort.Sort` while also avoiding sorting pre-sorted data.
+func (a *indexEntries) Sort() bool {
+	if a.sorted {
+		return false
+	}
+	sort.Sort(a)
+	a.sorted = true
+	return true
 }
 
 func (a *indexEntries) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, len(a.entries)*indexEntrySize)
+	buf := make([]byte, len(a.items)*indexEntrySize)
 
-	for i, entry := range a.entries {
+	for i, entry := range a.items {
 		entry.AppendTo(buf[indexEntrySize*i:])
 	}
 
@@ -1082,7 +1142,7 @@ func (a *indexEntries) WriteTo(w io.Writer) (total int64, err error) {
 	var buf [indexEntrySize]byte
 	var n int
 
-	for _, entry := range a.entries {
+	for _, entry := range a.items {
 		entry.AppendTo(buf[:])
 		n, err = w.Write(buf[:])
 		total += int64(n)
@@ -1114,13 +1174,13 @@ func readEntries(b []byte, entries *indexEntries) (n int, err error) {
 	count := int(binary.BigEndian.Uint16(b[n : n+indexCountSize]))
 	n += indexCountSize
 
-	entries.entries = make([]IndexEntry, count)
+	entries.items = make([]IndexEntry, count)
 	for i := 0; i < count; i++ {
 		var ie IndexEntry
 		if err := ie.UnmarshalBinary(b[i*indexEntrySize+indexCountSize+indexTypeSize : i*indexEntrySize+indexCountSize+indexEntrySize+indexTypeSize]); err != nil {
 			return 0, fmt.Errorf("readEntries: unmarshal error: %v", err)
 		}
-		entries.entries[i] = ie
+		entries.items[i] = ie
 		n += indexEntrySize
 	}
 	return

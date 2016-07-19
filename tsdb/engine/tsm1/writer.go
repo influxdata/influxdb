@@ -236,9 +236,7 @@ func (d *directIndex) Add(key string, blockType byte, minTime, maxTime int64, of
 
 	entries := d.blocks[key]
 	if entries == nil {
-		entries = &indexEntries{
-			Type: blockType,
-		}
+		entries = NewIndexEntries(blockType)
 		d.blocks[key] = entries
 		// size of the key stored in the index
 		d.size += uint32(2 + len(key))
@@ -246,11 +244,13 @@ func (d *directIndex) Add(key string, blockType byte, minTime, maxTime int64, of
 		// size of the count of entries stored in the index
 		d.size += indexCountSize
 	}
-	entries.entries = append(entries.entries, IndexEntry{
-		MinTime: minTime,
-		MaxTime: maxTime,
-		Offset:  offset,
-		Size:    size,
+	entries.AppendIndexEntries([]IndexEntry{
+		{
+			MinTime: minTime,
+			MaxTime: maxTime,
+			Offset:  offset,
+			Size:    size,
+		},
 	})
 
 	// size of the encoded index entry
@@ -262,7 +262,7 @@ func (d *directIndex) entries(key string) []IndexEntry {
 	if entries == nil {
 		return nil
 	}
-	return entries.entries
+	return entries.Items()
 }
 
 func (d *directIndex) Entries(key string) []IndexEntry {
@@ -310,7 +310,7 @@ func (d *directIndex) addEntries(key string, entries *indexEntries) {
 		d.blocks[key] = entries
 		return
 	}
-	existing.entries = append(existing.entries, entries.entries...)
+	existing.AppendIndexEntries(entries.Items())
 }
 
 func (d *directIndex) WriteTo(w io.Writer) (int64, error) {
@@ -338,7 +338,7 @@ func (d *directIndex) WriteTo(w io.Writer) (int64, error) {
 		if entries.Len() > maxIndexEntries {
 			return N, fmt.Errorf("key '%s' exceeds max index entries: %d > %d", key, entries.Len(), maxIndexEntries)
 		}
-		sort.Sort(entries)
+		entries.Sort()
 
 		binary.BigEndian.PutUint16(buf[0:2], uint16(len(key)))
 		buf[2] = entries.Type
