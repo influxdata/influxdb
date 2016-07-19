@@ -130,3 +130,32 @@ func Test_BooleanDecoder_Corrupt(t *testing.T) {
 		}
 	}
 }
+
+func BenchmarkBooleanDecoder_2048(b *testing.B) { benchmarkBooleanDecoder(b, 2048) }
+
+func benchmarkBooleanDecoder(b *testing.B, size int) {
+	e := tsm1.NewBooleanEncoder()
+	for i := 0; i < size; i++ {
+		e.Write(i&1 == 1)
+	}
+	bytes, err := e.Bytes()
+	if err != nil {
+		b.Fatalf("unexpected error: %v", err)
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		var d tsm1.BooleanDecoder
+		d.SetBytes(bytes)
+
+		var n int
+		for d.Next() {
+			_ = d.Read()
+			n++
+		}
+		if n != size {
+			b.Fatalf("expected to read %d booleans, but read %d", size, n)
+		}
+	}
+}

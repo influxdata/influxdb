@@ -134,10 +134,10 @@ func (e *BooleanDecoder) Next() bool {
 
 func (e *BooleanDecoder) Read() bool {
 	// Index into the byte slice
-	idx := e.i / 8
+	idx := e.i >> 3 // integer division by 8
 
 	// Bit position
-	pos := (8 - e.i%8) - 1
+	pos := 7 - (e.i & 0x7)
 
 	// The mask to select the bit
 	mask := byte(1 << uint(pos))
