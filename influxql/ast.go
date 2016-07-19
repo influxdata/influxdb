@@ -1846,7 +1846,7 @@ func (s *SelectStatement) GroupByInterval() (time.Duration, error) {
 }
 
 // GroupByOffset extracts the time interval offset, if specified.
-func (s *SelectStatement) GroupByOffset(opt *IteratorOptions) (time.Duration, error) {
+func (s *SelectStatement) GroupByOffset() (time.Duration, error) {
 	interval, err := s.GroupByInterval()
 	if err != nil {
 		return 0, err

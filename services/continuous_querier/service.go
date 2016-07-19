@@ -293,6 +293,12 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 		return nil
 	}
 
+	// Get the group by offset.
+	offset, err := cq.q.GroupByOffset()
+	if err != nil {
+		return err
+	}
+
 	resampleEvery := interval
 	if cq.Resample.Every != 0 {
 		resampleEvery = cq.Resample.Every
@@ -300,7 +306,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 	// We're about to run the query so store the current time closest to the nearest interval.
 	// If all is going well, this time should be the same as nextRun.
-	cq.LastRun = now.Truncate(resampleEvery)
+	cq.LastRun = now.Add(-offset).Truncate(resampleEvery).Add(offset)
 	s.lastRuns[id] = cq.LastRun
 
 	// Retrieve the oldest interval we should calculate based on the next time
@@ -321,8 +327,8 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	}
 
 	// Calculate and set the time range for the query.
-	startTime := nextRun.Add(-resampleFor).Add(interval - 1).Truncate(interval)
-	endTime := now.Add(-resampleEvery).Add(interval).Truncate(interval)
+	startTime := nextRun.Add(interval - resampleFor - offset - 1).Truncate(interval).Add(offset)
+	endTime := now.Add(interval - resampleEvery - offset).Truncate(interval).Add(offset)
 	if !endTime.After(startTime) {
 		// Exit early since there is no time interval.
 		return nil
