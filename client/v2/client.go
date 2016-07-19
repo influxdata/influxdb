@@ -416,9 +416,8 @@ func NewPointFrom(pt models.Point) *Point {
 // makeChunks splits blob by selecting chunk by range
 func makeChunks(blob string, chunkSize int) []string {
 	var (
-		size   = int(math.Ceil(float64(len(blob)) / float64(chunkSize)))
-		chunks = make([]string, 0, size)
-
+		size        = int(math.Ceil(float64(len(blob)) / float64(chunkSize)))
+		chunks      = make([]string, 0, size)
 		start, stop int
 	)
 
@@ -453,6 +452,7 @@ func makeChunks(blob string, chunkSize int) []string {
 	return chunks
 }
 
+// Write splits metrics into small parts and writes to UDP connection
 func (uc *udpclient) Write(bp BatchPoints) error {
 	var d time.Duration
 	d, _ = time.ParseDuration("1" + bp.Precision())
@@ -460,49 +460,41 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 	for _, p := range bp.Points() {
 		pointstring := p.pt.RoundedString(d) + newlineString
 		// Write and reset the buffer if we reach the max size
-		if len(pointstring) >= uc.payloadSize {
-			// If byte size of metrics are more than max UDP payload size(MaxUDPPayload)
-			// then split the metrics into chunks, which each chunk have max MaxUDPPayload byte size
-			var (
-				key, data, timestamp string
-				payload              = strings.Split(pointstring, " ")
-				newBuffer            = bytes.Buffer{}
-			)
-
-			// skip the metrics, if they are in invalid format
-			if len(payload) < 3 {
-				break
+		if len(pointstring) < uc.payloadSize {
+			if _, err := uc.conn.Write([]byte(pointstring)); err != nil {
+				return err
 			}
-
-			key = payload[0]
-			data = payload[1]
-			timestamp = payload[2]
-
-			// split the metrics into multiple chunks,
-			// set chunks size less than maxUDPPayload, because 'key' and 'timestamp' will be appended
-			chunks := makeChunks(data, uc.payloadSize-(len(key+timestamp)))
-
-			// range over each chunk
-			// prepend key and append timestamp
-			// then write to UDP connection
-			for _, chunk := range chunks {
-				newBuffer.WriteString(key)
-				newBuffer.WriteString(" ")
-				newBuffer.WriteString(chunk)
-				newBuffer.WriteString(" ")
-				newBuffer.WriteString(timestamp)
-
-				if _, err := uc.conn.Write(newBuffer.Bytes()); err != nil {
-					return err
-				}
-				newBuffer.Reset()
-			}
+			continue
 		}
-		if _, err := uc.conn.Write([]byte(pointstring)); err != nil {
-			return err
+
+		// If byte size of metrics are more than max UDP payload size(MaxUDPPayload)
+		// then split the metrics into chunks, which each chunk have max MaxUDPPayload byte size
+		newBuffer := bytes.Buffer{}
+		// trim the "key", and split by space
+		payload := strings.Split(strings.TrimPrefix(pointstring, string(p.pt.Key())), " ")
+		// get the timestamp, timestamp always located at the end
+		timestamp := payload[len(payload)-1]
+
+		// cut the timestamp from payload and joing
+		// set chunks size less than maxUDPPayload, because 'key' and 'timestamp' will be appended later
+		chunks := makeChunks(strings.TrimSuffix(strings.Join(payload, ""), timestamp), uc.payloadSize-(len(string(p.pt.Key())+timestamp)))
+
+		// range over each chunk
+		// prepend key and append timestamp
+		// then write to UDP connection
+		for _, chunk := range chunks {
+			newBuffer.WriteString(string(p.pt.Key()))
+			newBuffer.WriteString(" ")
+			newBuffer.WriteString(chunk)
+			newBuffer.WriteString(" ")
+			newBuffer.WriteString(timestamp)
+
+			if _, err := uc.conn.Write(newBuffer.Bytes()); err != nil {
+				return err
+			}
+			newBuffer.Reset()
 		}
 	}
-
 	return nil
 }
 
