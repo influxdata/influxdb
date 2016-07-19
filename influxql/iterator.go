@@ -618,6 +618,8 @@ func (a IteratorCreators) CreateIterator(opt IteratorOptions) (Iterator, error) 
 			itr, err := ic.CreateIterator(opt)
 			if err != nil {
 				return err
+			} else if itr == nil {
+				continue
 			}
 			itrs = append(itrs, itr)
 		}
@@ -625,6 +627,10 @@ func (a IteratorCreators) CreateIterator(opt IteratorOptions) (Iterator, error) 
 	}(); err != nil {
 		Iterators(itrs).Close()
 		return nil, err
+	}
+
+	if len(itrs) == 0 {
+		return nil, nil
 	}
 
 	return Iterators(itrs).Merge(opt)
