@@ -323,6 +323,11 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	// Calculate and set the time range for the query.
 	startTime := nextRun.Add(-resampleFor).Add(interval - 1).Truncate(interval)
 	endTime := now.Add(-resampleEvery).Add(interval).Truncate(interval)
+	if !endTime.After(startTime) {
+		// Exit early since there is no time interval.
+		return nil
+	}
+
 	if err := cq.q.SetTimeRange(startTime, endTime); err != nil {
 		s.Logger.Printf("error setting time range: %s\n", err)
 		return err
