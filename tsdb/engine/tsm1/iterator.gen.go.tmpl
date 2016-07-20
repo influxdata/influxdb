@@ -10,6 +10,7 @@ import (
 )
 
 type cursor interface {
+	close() error
 	next() (t int64, v interface{})
 }
 
@@ -224,7 +225,7 @@ func (itr *{{.name}}Iterator) Stats() influxql.IteratorStats {
 }
 
 // Close closes the iterator.
-func (itr *{{.name}}Iterator) Close() error { return nil }
+func (itr *{{.name}}Iterator) Close() error { return itr.cur.close() }
 
 // {{.name}}LimitIterator
 type {{.name}}LimitIterator struct {
@@ -331,6 +332,12 @@ func (c *{{.name}}AscendingCursor) peekTSM() (t int64, v {{.Type}}) {
 	return item.UnixNano(), item.value
 }
 
+// close closes the cursor and any dependent cursors.
+func (c *{{.name}}AscendingCursor) close() (error) {
+	c.tsm.keyCursor.Close()
+	return nil
+}
+
 // next returns the next key/value for the cursor.
 func (c *{{.name}}AscendingCursor) next() (int64, interface{}) { return c.next{{.Name}}() }
 
@@ -377,7 +384,6 @@ func (c *{{.name}}AscendingCursor) nextTSM() {
 		c.tsm.keyCursor.Next()
 		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
-			c.tsm.keyCursor.Close()
 			return
 		}
 		c.tsm.pos = 0
@@ -444,6 +450,12 @@ func (c *{{.name}}DescendingCursor) peekTSM() (t int64, v {{.Type}}) {
 	return item.UnixNano(), item.value
 }
 
+// close closes the cursor and any dependent cursors.
+func (c *{{.name}}DescendingCursor) close() (error) {
+	c.tsm.keyCursor.Close()
+	return nil
+}
+
 // next returns the next key/value for the cursor.
 func (c *{{.name}}DescendingCursor) next() (int64, interface{}) { return c.next{{.Name}}() }
 
@@ -490,7 +502,6 @@ func (c *{{.name}}DescendingCursor) nextTSM() {
 		c.tsm.keyCursor.Next()
 		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
-			c.tsm.keyCursor.Close()
 			return
 		}
 		c.tsm.pos = len(c.tsm.values) - 1
