@@ -596,10 +596,15 @@ func (d *indirectIndex) Key(idx int) (string, []IndexEntry) {
 	if idx < 0 || idx >= len(d.offsets) {
 		return "", nil
 	}
-	n, key, _ := readKey(d.b[d.offsets[idx]:])
+	n, key, err := readKey(d.b[d.offsets[idx]:])
+	if err != nil {
+		return "", nil
+	}
 
 	var entries indexEntries
-	readEntries(d.b[int(d.offsets[idx])+n:], &entries)
+	if _, err := readEntries(d.b[int(d.offsets[idx])+n:], &entries); err != nil {
+		return "", nil
+	}
 	return string(key), entries.entries
 }
 
@@ -773,6 +778,9 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 
 	// Keep a reference to the actual index bytes
 	d.b = b
+	if len(b) == 0 {
+		return nil
+	}
 
 	//var minKey, maxKey []byte
 	var minTime, maxTime int64 = math.MaxInt64, 0
@@ -783,18 +791,28 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 	// basically skips across the slice keeping track of the counter when we are at a key
 	// field.
 	var i int32
-	for i < int32(len(b)) {
+	iMax := int32(len(b))
+	for i < iMax {
 		d.offsets = append(d.offsets, i)
 
 		// Skip to the start of the values
 		// key length value (2) + type (1) + length of key
+		if i+2 >= iMax {
+			return fmt.Errorf("indirectIndex: not enough data for key length value")
+		}
 		i += 3 + int32(binary.BigEndian.Uint16(b[i:i+2]))
 
 		// count of index entries
+		if i+indexCountSize >= iMax {
+			return fmt.Errorf("indirectIndex: not enough data for index entries count")
+		}
 		count := int32(binary.BigEndian.Uint16(b[i : i+indexCountSize]))
 		i += indexCountSize
 
 		// Find the min time for the block
+		if i+8 >= iMax {
+			return fmt.Errorf("indirectIndex: not enough data for min time")
+		}
 		minT := int64(binary.BigEndian.Uint64(b[i : i+8]))
 		if minT < minTime {
 			minTime = minT
@@ -803,6 +821,9 @@ func (d *indirectIndex) UnmarshalBinary(b []byte) error {
 		i += (count - 1) * indexEntrySize
 
 		// Find the max time for the block
+		if i+16 >= iMax {
+			return fmt.Errorf("indirectIndex: not enough data for max time")
+		}
 		maxT := int64(binary.BigEndian.Uint64(b[i+8 : i+16]))
 		if maxT > maxTime {
 			maxTime = maxT
@@ -871,9 +892,15 @@ func (m *mmapAccessor) init() (*indirectIndex, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(m.b) < 8 {
+		return nil, fmt.Errorf("mmapAccessor: byte slice too small for indirectIndex")
+	}
 
 	indexOfsPos := len(m.b) - 8
 	indexStart := binary.BigEndian.Uint64(m.b[indexOfsPos : indexOfsPos+8])
+	if indexStart >= uint64(indexOfsPos) {
+		return nil, fmt.Errorf("mmapAccessor: invalid indexStart")
+	}
 
 	m.index = NewIndirectIndex()
 	if err := m.index.UnmarshalBinary(m.b[indexStart:indexOfsPos]); err != nil {
@@ -1106,6 +1133,10 @@ func readKey(b []byte) (n int, key []byte, err error) {
 }
 
 func readEntries(b []byte, entries *indexEntries) (n int, err error) {
+	if len(b) < 1+indexCountSize {
+		return 0, fmt.Errorf("readEntries: data too short for headers")
+	}
+
 	// 1 byte block type
 	entries.Type = b[n]
 	n++
@@ -1117,7 +1148,12 @@ func readEntries(b []byte, entries *indexEntries) (n int, err error) {
 	entries.entries = make([]IndexEntry, count)
 	for i := 0; i < count; i++ {
 		var ie IndexEntry
-		if err := ie.UnmarshalBinary(b[i*indexEntrySize+indexCountSize+indexTypeSize : i*indexEntrySize+indexCountSize+indexEntrySize+indexTypeSize]); err != nil {
+		start := i*indexEntrySize + indexCountSize + indexTypeSize
+		end := start + indexEntrySize
+		if end > len(b) {
+			return 0, fmt.Errorf("readEntries: data too short for indexEntry %d", i)
+		}
+		if err := ie.UnmarshalBinary(b[start:end]); err != nil {
 			return 0, fmt.Errorf("readEntries: unmarshal error: %v", err)
 		}
 		entries.entries[i] = ie

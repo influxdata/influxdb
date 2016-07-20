@@ -59,9 +59,13 @@ type StringDecoder struct {
 func (e *StringDecoder) SetBytes(b []byte) error {
 	// First byte stores the encoding type, only have snappy format
 	// currently so ignore for now.
-	data, err := snappy.Decode(nil, b[1:])
-	if err != nil {
-		return fmt.Errorf("failed to decode string block: %v", err.Error())
+	var data []byte
+	if len(b) > 0 {
+		var err error
+		data, err = snappy.Decode(nil, b[1:])
+		if err != nil {
+			return fmt.Errorf("failed to decode string block: %v", err.Error())
+		}
 	}
 
 	e.b = data
@@ -73,6 +77,10 @@ func (e *StringDecoder) SetBytes(b []byte) error {
 }
 
 func (e *StringDecoder) Next() bool {
+	if e.err != nil {
+		return false
+	}
+
 	e.i += e.l
 	return e.i < len(e.b)
 }
@@ -80,11 +88,26 @@ func (e *StringDecoder) Next() bool {
 func (e *StringDecoder) Read() string {
 	// Read the length of the string
 	length, n := binary.Uvarint(e.b[e.i:])
+	if n <= 0 {
+		e.err = fmt.Errorf("StringDecoder: invalid encoded string length")
+		return ""
+	}
 
 	// The length of this string plus the length of the variable byte encoded length
 	e.l = int(length) + n
 
-	return string(e.b[e.i+n : e.i+n+int(length)])
+	lower := e.i + n
+	upper := lower + int(length)
+	if upper < lower {
+		e.err = fmt.Errorf("StringDecoder: length overflow")
+		return ""
+	}
+	if upper > len(e.b) {
+		e.err = fmt.Errorf("StringDecoder: not enough data to represent encoded string")
+		return ""
+	}
+
+	return string(e.b[lower:upper])
 }
 
 func (e *StringDecoder) Error() error {

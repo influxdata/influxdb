@@ -122,7 +122,10 @@ func BlockCount(block []byte) int {
 		panic(fmt.Sprintf("count of short block: got %v, exp %v", len(block), encodedBlockHeaderSize))
 	}
 	// first byte is the block type
-	tb, _ := unpackBlock(block[1:])
+	tb, _, err := unpackBlock(block[1:])
+	if err != nil {
+		panic(fmt.Sprintf("BlockCount: error unpacking block: %s", err.Error()))
+	}
 	return CountTimestamps(tb)
 }
 
@@ -255,7 +258,10 @@ func DecodeFloatBlock(block []byte, tdec *TimeDecoder, vdec *FloatDecoder, a *[]
 	}
 	block = block[1:]
 
-	tb, vb := unpackBlock(block)
+	tb, vb, err := unpackBlock(block)
+	if err != nil {
+		return nil, err
+	}
 
 	// Setup our timestamp and value decoders
 	tdec.Init(tb)
@@ -356,7 +362,10 @@ func DecodeBooleanBlock(block []byte, tdec *TimeDecoder, vdec *BooleanDecoder, a
 	}
 	block = block[1:]
 
-	tb, vb := unpackBlock(block)
+	tb, vb, err := unpackBlock(block)
+	if err != nil {
+		return nil, err
+	}
 
 	// Setup our timestamp and value decoders
 	tdec.Init(tb)
@@ -443,7 +452,10 @@ func DecodeIntegerBlock(block []byte, tdec *TimeDecoder, vdec *IntegerDecoder, a
 	block = block[1:]
 
 	// The first 8 bytes is the minimum timestamp of the block
-	tb, vb := unpackBlock(block)
+	tb, vb, err := unpackBlock(block)
+	if err != nil {
+		return nil, err
+	}
 
 	// Setup our timestamp and value decoders
 	tdec.Init(tb)
@@ -530,7 +542,10 @@ func DecodeStringBlock(block []byte, tdec *TimeDecoder, vdec *StringDecoder, a *
 	block = block[1:]
 
 	// The first 8 bytes is the minimum timestamp of the block
-	tb, vb := unpackBlock(block)
+	tb, vb, err := unpackBlock(block)
+	if err != nil {
+		return nil, err
+	}
 
 	// Setup our timestamp and value decoders
 	tdec.Init(tb)
@@ -583,15 +598,24 @@ func packBlock(ts []byte, values []byte) []byte {
 	return append(block, values...)
 }
 
-func unpackBlock(buf []byte) (ts, values []byte) {
+func unpackBlock(buf []byte) (ts, values []byte, err error) {
 	// Unpack the timestamp block length
 	tsLen, i := binary.Uvarint(buf)
+	if i <= 0 {
+		err = fmt.Errorf("unpackBlock: unable to read timestamp block length")
+		return
+	}
 
 	// Unpack the timestamp bytes
-	ts = buf[int(i) : int(i)+int(tsLen)]
+	tsIdx := int(i) + int(tsLen)
+	if tsIdx > len(buf) {
+		err = fmt.Errorf("unpackBlock: not enough data for timestamp")
+		return
+	}
+	ts = buf[int(i):tsIdx]
 
 	// Unpack the value bytes
-	values = buf[int(i)+int(tsLen):]
+	values = buf[tsIdx:]
 	return
 }
 
