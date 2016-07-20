@@ -1319,6 +1319,102 @@ func TestTSMReader_File_Read(t *testing.T) {
 	}
 }
 
+func TestTSMReader_References(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+	f := MustTempFile(dir)
+	defer f.Close()
+
+	w, err := tsm1.NewTSMWriter(f)
+	if err != nil {
+		t.Fatalf("unexpected error creating writer: %v", err)
+	}
+
+	var data = []struct {
+		key    string
+		values []tsm1.Value
+	}{
+		{"float", []tsm1.Value{
+			tsm1.NewValue(1, 1.0)},
+		},
+		{"int", []tsm1.Value{
+			tsm1.NewValue(1, int64(1))},
+		},
+		{"bool", []tsm1.Value{
+			tsm1.NewValue(1, true)},
+		},
+		{"string", []tsm1.Value{
+			tsm1.NewValue(1, "foo")},
+		},
+	}
+	for _, d := range data {
+		if err := w.Write(d.key, d.values); err != nil {
+			t.Fatalf("unexpected error writing: %v", err)
+		}
+	}
+
+	if err := w.WriteIndex(); err != nil {
+		t.Fatalf("unexpected error writing index: %v", err)
+	}
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("unexpected error closing: %v", err)
+	}
+
+	f, err = os.Open(f.Name())
+	if err != nil {
+		t.Fatalf("unexpected error open file: %v", err)
+	}
+
+	r, err := tsm1.NewTSMReader(f)
+	if err != nil {
+		t.Fatalf("unexpected error created reader: %v", err)
+	}
+	defer r.Close()
+
+	r.Ref()
+
+	if err := r.Close(); err != tsm1.ErrFileInUse {
+		t.Fatalf("expected error closing reader: %v", err)
+	}
+
+	if err := r.Remove(); err != tsm1.ErrFileInUse {
+		t.Fatalf("expected error removing reader: %v", err)
+	}
+
+	var count int
+	for _, d := range data {
+		readValues, err := r.Read(d.key, d.values[0].UnixNano())
+		if err != nil {
+			t.Fatalf("unexpected error readin: %v", err)
+		}
+
+		if exp, got := len(d.values), len(readValues); exp != got {
+			t.Fatalf("read values length mismatch: exp %v, got %v", exp, len(readValues))
+		}
+
+		for i, v := range d.values {
+			if v.Value() != readValues[i].Value() {
+				t.Fatalf("read value mismatch(%d): exp %v, got %d", i, v.Value(), readValues[i].Value())
+			}
+		}
+		count++
+	}
+
+	if exp, got := count, len(data); exp != got {
+		t.Fatalf("read values count mismatch: exp %v, got %v", exp, got)
+	}
+	r.Unref()
+
+	if err := r.Close(); err != nil {
+		t.Fatalf("unexpected error closing reader: %v", err)
+	}
+
+	if err := r.Remove(); err != nil {
+		t.Fatalf("unexpected error removing reader: %v", err)
+	}
+}
+
 func BenchmarkIndirectIndex_UnmarshalBinary(b *testing.B) {
 	index := tsm1.NewIndexWriter()
 	for i := 0; i < 100000; i++ {

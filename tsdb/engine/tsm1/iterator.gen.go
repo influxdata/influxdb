@@ -381,6 +381,7 @@ func (c *floatAscendingCursor) nextTSM() {
 		c.tsm.keyCursor.Next()
 		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
+			c.tsm.keyCursor.Close()
 			return
 		}
 		c.tsm.pos = 0
@@ -493,6 +494,7 @@ func (c *floatDescendingCursor) nextTSM() {
 		c.tsm.keyCursor.Next()
 		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
+			c.tsm.keyCursor.Close()
 			return
 		}
 		c.tsm.pos = len(c.tsm.values) - 1
@@ -791,6 +793,7 @@ func (c *integerAscendingCursor) nextTSM() {
 		c.tsm.keyCursor.Next()
 		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
+			c.tsm.keyCursor.Close()
 			return
 		}
 		c.tsm.pos = 0
@@ -903,6 +906,7 @@ func (c *integerDescendingCursor) nextTSM() {
 		c.tsm.keyCursor.Next()
 		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
+			c.tsm.keyCursor.Close()
 			return
 		}
 		c.tsm.pos = len(c.tsm.values) - 1
@@ -1201,6 +1205,7 @@ func (c *stringAscendingCursor) nextTSM() {
 		c.tsm.keyCursor.Next()
 		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
+			c.tsm.keyCursor.Close()
 			return
 		}
 		c.tsm.pos = 0
@@ -1313,6 +1318,7 @@ func (c *stringDescendingCursor) nextTSM() {
 		c.tsm.keyCursor.Next()
 		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
+			c.tsm.keyCursor.Close()
 			return
 		}
 		c.tsm.pos = len(c.tsm.values) - 1
@@ -1611,6 +1617,7 @@ func (c *booleanAscendingCursor) nextTSM() {
 		c.tsm.keyCursor.Next()
 		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
+			c.tsm.keyCursor.Close()
 			return
 		}
 		c.tsm.pos = 0
@@ -1723,6 +1730,7 @@ func (c *booleanDescendingCursor) nextTSM() {
 		c.tsm.keyCursor.Next()
 		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.tdec, &c.tsm.vdec, &c.tsm.buf)
 		if len(c.tsm.values) == 0 {
+			c.tsm.keyCursor.Close()
 			return
 		}
 		c.tsm.pos = len(c.tsm.values) - 1

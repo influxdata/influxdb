@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
@@ -2018,6 +2019,89 @@ func TestFileStore_Remove(t *testing.T) {
 	if got, exp := fs.CurrentGeneration(), 4; got != exp {
 		t.Fatalf("current ID mismatch: got %v, exp %v", got, exp)
 	}
+}
+
+func TestFileStore_Replace(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	// Create 3 TSM files...
+	data := []keyValues{
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(0, 1.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(1, 2.0)}},
+		keyValues{"cpu", []tsm1.Value{tsm1.NewValue(2, 3.0)}},
+	}
+
+	files, err := newFileDir(dir, data...)
+	if err != nil {
+		fatal(t, "creating test files", err)
+	}
+
+	// Replace requires assumes new files have a .tmp extension
+	replacement := files[2] + ".tmp"
+	os.Rename(files[2], replacement)
+
+	fs := tsm1.NewFileStore(dir)
+	if err := fs.Open(); err != nil {
+		fatal(t, "opening file store", err)
+	}
+	defer fs.Close()
+
+	if got, exp := fs.Count(), 2; got != exp {
+		t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
+	}
+
+	// Should record references to the two existing TSM files
+	cur := fs.KeyCursor("cpu", 0, true)
+
+	// Should move the existing files out of the way, but allow query to complete
+	if err := fs.Replace(files[:2], []string{replacement}); err != nil {
+		t.Fatalf("replace: %v", err)
+	}
+
+	if got, exp := fs.Count(), 1; got != exp {
+		t.Fatalf("file count mismatch: got %v, exp %v", got, exp)
+	}
+
+	// There should be two blocks (1 in each file)
+	tdec := &tsm1.TimeDecoder{}
+	vdec := &tsm1.FloatDecoder{}
+	cur.Next()
+	buf := make([]tsm1.FloatValue, 10)
+	values, err := cur.ReadFloatBlock(tdec, vdec, &buf)
+	if got, exp := len(values), 1; got != exp {
+		t.Fatalf("value len mismatch: got %v, exp %v", got, exp)
+	}
+	cur.Next()
+	values, err = cur.ReadFloatBlock(tdec, vdec, &buf)
+	if got, exp := len(values), 1; got != exp {
+		t.Fatalf("value len mismatch: got %v, exp %v", got, exp)
+	}
+
+	// No more blocks for this cursor
+	cur.Next()
+	values, err = cur.ReadFloatBlock(tdec, vdec, &buf)
+	if got, exp := len(values), 0; got != exp {
+		t.Fatalf("value len mismatch: got %v, exp %v", got, exp)
+	}
+
+	// Release the references (files should get evicted by purger shortly)
+	cur.Close()
+
+	time.Sleep(time.Second)
+	// Make sure the two TSM files used by the cursor are gone
+	if _, err := os.Stat(files[0]); !os.IsNotExist(err) {
+		t.Fatalf("stat file: %v", err)
+	}
+	if _, err := os.Stat(files[1]); !os.IsNotExist(err) {
+		t.Fatalf("stat file: %v", err)
+	}
+
+	// Make sure the new file exists
+	if _, err := os.Stat(files[2]); err != nil {
+		t.Fatalf("stat file: %v", err)
+	}
+
 }
 
 func TestFileStore_Open_Deleted(t *testing.T) {
