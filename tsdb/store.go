@@ -518,8 +518,6 @@ func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
 		err error
 	}
 
-	t := limiter.NewFixed(runtime.GOMAXPROCS(0))
-
 	resC := make(chan res)
 	var n int
 
@@ -527,9 +525,6 @@ func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
 		n++
 
 		go func(sh *Shard) {
-			t.Take()
-			defer t.Release()
-
 			if err := fn(sh); err != nil {
 				resC <- res{err: fmt.Errorf("shard %d: %s", sh.id, err)}
 				return
