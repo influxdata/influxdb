@@ -1,92 +1,162 @@
 package main
 
 import (
-	"bufio"
+	"compress/gzip"
 	"fmt"
-	"io/ioutil"
+	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
-func cmdExport(path string) {
-	dataPath := filepath.Join(path, "data")
+type cmdExport struct {
+	path            string
+	out             string
+	db              string
+	retentionPolicy string
+	compress        bool
 
-	// No need to do this in a loop
-	ext := fmt.Sprintf(".%s", tsm1.TSMFileExtension)
+	ext   string
+	files map[string][]string
+}
 
-	// Get all TSM files by walking through the data dir
-	files := []string{}
-	err := filepath.Walk(dataPath, func(path string, f os.FileInfo, err error) error {
+func newCmdExport(path, out, db, retentionPolicy string, compress bool) *cmdExport {
+	return &cmdExport{
+		path:            filepath.Join(path, "data"),
+		out:             out,
+		db:              db,
+		compress:        compress,
+		ext:             fmt.Sprintf(".%s", tsm1.TSMFileExtension),
+		retentionPolicy: retentionPolicy,
+		files:           make(map[string][]string),
+	}
+}
+
+func (c *cmdExport) validate() error {
+	// validate args
+	if c.retentionPolicy != "" && c.db == "" {
+		return fmt.Errorf("must specify a db")
+	}
+	return nil
+}
+
+func (c *cmdExport) run() error {
+	if err := c.validate(); err != nil {
+		return err
+	}
+
+	return c.export()
+}
+
+func (c *cmdExport) export() error {
+	if err := c.walkFiles(); err != nil {
+		return err
+	}
+	return c.writeFiles()
+}
+
+func (c *cmdExport) walkFiles() error {
+	err := filepath.Walk(c.path, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if filepath.Ext(path) == ext {
-			files = append(files, path)
+		if filepath.Ext(path) == c.ext {
+			//files = append(files, path)
+			relPath, _ := filepath.Rel(c.path, path)
+			dirs := strings.Split(relPath, string(byte(os.PathSeparator)))
+			if dirs[0] == c.db || c.db == "" {
+				if dirs[1] == c.retentionPolicy || c.retentionPolicy == "" {
+					key := filepath.Join(dirs[0], dirs[1])
+					files := c.files[key]
+					if files == nil {
+						files = []string{}
+					}
+					c.files[key] = append(files, path)
+				}
+			}
 		}
 		return nil
 	})
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
+	}
+	return nil
+}
+
+func (c *cmdExport) writeFiles() error {
+	// open our output file and create an output buffer
+	var w io.WriteCloser
+	w, err := os.Create(c.out)
+	if err != nil {
+		return err
+	}
+	defer w.Close()
+	if c.compress {
+		w = gzip.NewWriter(w)
 	}
 
-	// Loop through each file and output all of the data
-	for _, f := range files {
-		file, err := os.OpenFile(f, os.O_RDONLY, 0600)
+	// Write out all the DDL
+	fmt.Fprintln(w, "# DDL")
+	for key, _ := range c.files {
+		keys := strings.Split(key, string(byte(os.PathSeparator)))
+		fmt.Fprintf(w, "CREATE DATABASE %s\n", keys[0])
+		fmt.Fprintf(w, "CREATE RETENTION POLICY %s ON %s DURATION inf REPLICATION 1\n", keys[1], keys[0])
+	}
 
-		relPath, _ := filepath.Rel(dataPath, f)
-		dirs := strings.Split(relPath, string(byte(os.PathSeparator)))
-		database := dirs[0]
-		fmt.Println("Opening", f, "in database", database)
-		temp, _ := ioutil.TempDir("/tmp", "influxdb")
-
-		if err != nil {
-			fmt.Printf("%v", err)
-			os.Exit(1)
-		}
-
-		reader, err := tsm1.NewTSMReader(file)
-
-		if err != nil {
-			fmt.Printf("%v", err)
-			os.Exit(1)
-		}
-
-		filename := temp + "/" + database + ".lp"
-
-		of, _ := os.Create(filename)
-		defer of.Close()
-		w := bufio.NewWriter(of)
-
-		fmt.Println("Writing", reader.KeyCount(), "series to", filename)
-
-		for i := 0; i < reader.KeyCount(); i++ {
-			var pairs string
-			key, typ := reader.KeyAt(i)
-			values, _ := reader.ReadAll(key)
-			split := strings.Split(key, "#!~#")
-			measurement, field := split[0], split[1]
-
-			for _, value := range values {
-				switch typ {
-				case tsm1.BlockFloat64:
-					pairs = field + "=" + fmt.Sprintf("%v", value.Value())
-				case tsm1.BlockInteger:
-					pairs = field + "=" + fmt.Sprintf("%vi", value.Value())
-				case tsm1.BlockBoolean:
-					pairs = field + "=" + fmt.Sprintf("%v", value.Value())
-				case tsm1.BlockString:
-					pairs = field + "=" + fmt.Sprintf("\"%v\"", value.Value())
-				default:
-					pairs = field + "=" + fmt.Sprintf("%v", value.Value())
+	fmt.Fprintln(w, "# DML")
+	for key, files := range c.files {
+		keys := strings.Split(key, string(byte(os.PathSeparator)))
+		fmt.Fprintf(w, "# CONTEXT-DATABASE:%s\n", keys[0])
+		fmt.Fprintf(w, "# CONTEXT-RETENTION-POLICY:%s\n", keys[1])
+		for _, f := range files {
+			// use an anonymous function here to close the files in the defers and not let them
+			// accumulate in the loop
+			if err := func(f string) error {
+				file, err := os.OpenFile(f, os.O_RDONLY, 0600)
+				if err != nil {
+					return fmt.Errorf("%v", err)
 				}
+				defer file.Close()
+				reader, err := tsm1.NewTSMReader(file)
+				if err != nil {
+					log.Printf("unable to read %s, skipping\n", f)
+					return nil
+				}
+				defer reader.Close()
 
-				fmt.Fprintln(w, measurement, pairs, value.UnixNano())
+				for i := 0; i < reader.KeyCount(); i++ {
+					var pairs string
+					key, typ := reader.KeyAt(i)
+					values, _ := reader.ReadAll(key)
+					measurement, field := tsm1.SeriesAndFieldFromCompositeKey(key)
+
+					for _, value := range values {
+						switch typ {
+						case tsm1.BlockFloat64:
+							pairs = field + "=" + fmt.Sprintf("%v", value.Value())
+						case tsm1.BlockInteger:
+							pairs = field + "=" + fmt.Sprintf("%vi", value.Value())
+						case tsm1.BlockBoolean:
+							pairs = field + "=" + fmt.Sprintf("%v", value.Value())
+						case tsm1.BlockString:
+							pairs = field + "=" + fmt.Sprintf("%q", models.EscapeStringField(fmt.Sprintf("%s", value.Value())))
+						default:
+							pairs = field + "=" + fmt.Sprintf("%v", value.Value())
+						}
+
+						fmt.Fprintln(w, measurement, pairs, value.UnixNano())
+					}
+				}
+				return nil
+			}(f); err != nil {
+				return err
 			}
-
-			w.Flush()
 		}
+		_ = key
 	}
+	return nil
 }

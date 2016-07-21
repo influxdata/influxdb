@@ -1057,9 +1057,9 @@ func unescapeTag(in []byte) []byte {
 	return in
 }
 
-// escapeStringField returns a copy of in with any double quotes or
+// EscapeStringField returns a copy of in with any double quotes or
 // backslashes with escaped values
-func escapeStringField(in string) string {
+func EscapeStringField(in string) string {
 	var out []byte
 	i := 0
 	for {
@@ -1576,14 +1576,14 @@ func (p Fields) MarshalBinary() []byte {
 			b = append(b, t...)
 		case string:
 			b = append(b, '"')
-			b = append(b, []byte(escapeStringField(t))...)
+			b = append(b, []byte(EscapeStringField(t))...)
 			b = append(b, '"')
 		case nil:
 			// skip
 		default:
 			// Can't determine the type, so convert to string
 			b = append(b, '"')
-			b = append(b, []byte(escapeStringField(fmt.Sprintf("%v", v)))...)
+			b = append(b, []byte(EscapeStringField(fmt.Sprintf("%v", v)))...)
 			b = append(b, '"')
 
 		}
