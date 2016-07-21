@@ -16,7 +16,8 @@ Displays detailed information about InfluxDB data files.
 
 	println(`Commands:
   info - displays series meta-data for all shards.  Default location [$HOME/.influxdb]
-  dumptsm - dumps low-level details about tsm1 files.`)
+  dumptsm - dumps low-level details about tsm1 files.
+  export - exports a tsm file to line protocol`)
 	println()
 }
 
@@ -101,9 +102,14 @@ func main() {
 		}
 		cmdVerify(path)
 	case "export":
-		var path string
+		var path, out, db, rp string
+		var compress bool
 		fs := flag.NewFlagSet("export", flag.ExitOnError)
 		fs.StringVar(&path, "dir", os.Getenv("HOME")+"/.influxdb", "Root storage path. [$HOME/.influxdb]")
+		fs.StringVar(&out, "out", os.Getenv("HOME")+"/.influxdb/export", "Destination file to export to")
+		fs.StringVar(&db, "db", "", "Optional: the database to export")
+		fs.StringVar(&rp, "rp", "", "Optional: the retention policy to export (requires db parameter to be specified)")
+		fs.BoolVar(&compress, "compress", false, "Compress the output")
 
 		fs.Usage = func() {
 			println("Usage: influx_inspect export [options]\n\n   exports TSM files into InfluxDB line protocol format")
@@ -116,7 +122,11 @@ func main() {
 			fmt.Printf("%v", err)
 			os.Exit(1)
 		}
-		cmdExport(path)
+		c := newCmdExport(path, out, db, rp, compress)
+		if err := c.run(); err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
 	default:
 		flag.Usage()
 		os.Exit(1)

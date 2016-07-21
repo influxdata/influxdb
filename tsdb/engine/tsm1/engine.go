@@ -519,7 +519,7 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string) er
 // addToIndexFromKey will pull the measurement name, series key, and field name from a composite key and add it to the
 // database index and measurement fields
 func (e *Engine) addToIndexFromKey(shardID uint64, key string, fieldType influxql.DataType, index *tsdb.DatabaseIndex) error {
-	seriesKey, field := seriesAndFieldFromCompositeKey(key)
+	seriesKey, field := SeriesAndFieldFromCompositeKey(key)
 	measurement := tsdb.MeasurementFromSeriesKey(seriesKey)
 
 	m := index.CreateMeasurementIndexIfNotExists(measurement)
@@ -589,12 +589,12 @@ func (e *Engine) ContainsSeries(keys []string) (map[string]bool, error) {
 	}
 
 	for _, k := range e.Cache.Keys() {
-		seriesKey, _ := seriesAndFieldFromCompositeKey(k)
+		seriesKey, _ := SeriesAndFieldFromCompositeKey(k)
 		keyMap[seriesKey] = true
 	}
 
 	if err := e.FileStore.WalkKeys(func(k string, _ byte) error {
-		seriesKey, _ := seriesAndFieldFromCompositeKey(k)
+		seriesKey, _ := SeriesAndFieldFromCompositeKey(k)
 		if _, ok := keyMap[seriesKey]; ok {
 			keyMap[seriesKey] = true
 		}
@@ -635,7 +635,7 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 	var deleteKeys []string
 	// go through the keys in the file store
 	if err := e.FileStore.WalkKeys(func(k string, _ byte) error {
-		seriesKey, _ := seriesAndFieldFromCompositeKey(k)
+		seriesKey, _ := SeriesAndFieldFromCompositeKey(k)
 		if _, ok := keyMap[seriesKey]; ok {
 			deleteKeys = append(deleteKeys, k)
 		}
@@ -653,7 +653,7 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 	e.Cache.RLock()
 	s := e.Cache.Store()
 	for k, _ := range s {
-		seriesKey, _ := seriesAndFieldFromCompositeKey(k)
+		seriesKey, _ := SeriesAndFieldFromCompositeKey(k)
 		if _, ok := keyMap[seriesKey]; ok {
 			walKeys = append(walKeys, k)
 		}
@@ -1449,7 +1449,7 @@ func tsmFieldTypeToInfluxQLDataType(typ byte) (influxql.DataType, error) {
 	}
 }
 
-func seriesAndFieldFromCompositeKey(key string) (string, string) {
+func SeriesAndFieldFromCompositeKey(key string) (string, string) {
 	sep := strings.Index(key, keyFieldSeparator)
 	if sep == -1 {
 		// No field???
