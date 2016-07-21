@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"reflect"
+	"sort"
 	"sync"
 	"testing"
 
@@ -39,17 +40,22 @@ func TestCache_CacheWrite(t *testing.T) {
 
 	c := NewCache(3*valuesSize, "")
 
-	if err := c.Write("foo", values); err != nil {
+	foo := NewCompositeKey("foo", "").StringKey()
+	bar := NewCompositeKey("bar", "").StringKey()
+	if err := c.Write(foo, values); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
-	if err := c.Write("bar", values); err != nil {
+	if err := c.Write(bar, values); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
 	if n := c.Size(); n != 2*valuesSize {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
 	}
 
-	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+	exp := []string{bar, foo}
+	keys := c.Keys()
+	sort.Strings(keys)
+	if !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 }
@@ -63,14 +69,16 @@ func TestCache_CacheWriteMulti(t *testing.T) {
 
 	c := NewCache(3*valuesSize, "")
 
-	if err := c.WriteMulti(map[string][]Value{"foo": values, "bar": values}); err != nil {
+	foo := NewCompositeKey("foo", "foo").StringKey()
+	bar := NewCompositeKey("bar", "bar").StringKey()
+	if err := c.WriteMulti(map[string][]Value{foo: values, bar: values}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
 	if n := c.Size(); n != 2*valuesSize {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
 	}
 
-	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+	if exp, keys := []string{bar, foo}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 }
@@ -84,20 +92,23 @@ func TestCache_Cache_DeleteRange(t *testing.T) {
 
 	c := NewCache(3*valuesSize, "")
 
-	if err := c.WriteMulti(map[string][]Value{"foo": values, "bar": values}); err != nil {
+	foo := NewCompositeKey("foo", "").StringKey()
+	bar := NewCompositeKey("bar", "").StringKey()
+
+	if err := c.WriteMulti(map[string][]Value{foo: values, bar: values}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
 	if n := c.Size(); n != 2*valuesSize {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
 	}
 
-	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+	if exp, keys := []string{bar, foo}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
-	c.DeleteRange([]string{"bar"}, 2, math.MaxInt64)
+	c.DeleteRange([]string{bar}, 2, math.MaxInt64)
 
-	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+	if exp, keys := []string{bar, foo}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
@@ -105,11 +116,11 @@ func TestCache_Cache_DeleteRange(t *testing.T) {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
 	}
 
-	if got, exp := len(c.Values("bar")), 1; got != exp {
+	if got, exp := len(c.Values(bar)), 1; got != exp {
 		t.Fatalf("cache values mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := len(c.Values("foo")), 3; got != exp {
+	if got, exp := len(c.Values(foo)), 3; got != exp {
 		t.Fatalf("cache values mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -123,18 +134,20 @@ func TestCache_DeleteRange_NoValues(t *testing.T) {
 
 	c := NewCache(3*valuesSize, "")
 
-	if err := c.WriteMulti(map[string][]Value{"foo": values}); err != nil {
+	foo := NewCompositeKey("foo", "").StringKey()
+
+	if err := c.WriteMulti(map[string][]Value{foo: values}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
 	if n := c.Size(); n != valuesSize {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
 	}
 
-	if exp, keys := []string{"foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+	if exp, keys := []string{foo}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
-	c.DeleteRange([]string{"foo"}, math.MinInt64, math.MaxInt64)
+	c.DeleteRange([]string{foo}, math.MinInt64, math.MaxInt64)
 
 	if exp, keys := 0, len(c.Keys()); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
@@ -144,7 +157,7 @@ func TestCache_DeleteRange_NoValues(t *testing.T) {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
 	}
 
-	if got, exp := len(c.Values("foo")), 0; got != exp {
+	if got, exp := len(c.Values(foo)), 0; got != exp {
 		t.Fatalf("cache values mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -158,20 +171,23 @@ func TestCache_Cache_Delete(t *testing.T) {
 
 	c := NewCache(3*valuesSize, "")
 
-	if err := c.WriteMulti(map[string][]Value{"foo": values, "bar": values}); err != nil {
+	foo := NewCompositeKey("foo", "").StringKey()
+	bar := NewCompositeKey("bar", "").StringKey()
+
+	if err := c.WriteMulti(map[string][]Value{foo: values, bar: values}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
 	if n := c.Size(); n != 2*valuesSize {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", 2*valuesSize, n)
 	}
 
-	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+	if exp, keys := []string{bar, foo}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
-	c.Delete([]string{"bar"})
+	c.Delete([]string{bar})
 
-	if exp, keys := []string{"foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+	if exp, keys := []string{foo}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
@@ -179,11 +195,11 @@ func TestCache_Cache_Delete(t *testing.T) {
 		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
 	}
 
-	if got, exp := len(c.Values("bar")), 0; got != exp {
+	if got, exp := len(c.Values(bar)), 0; got != exp {
 		t.Fatalf("cache values mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := len(c.Values("foo")), 3; got != exp {
+	if got, exp := len(c.Values(foo)), 3; got != exp {
 		t.Fatalf("cache values mismatch: got %v, exp %v", got, exp)
 	}
 }
@@ -191,7 +207,8 @@ func TestCache_Cache_Delete(t *testing.T) {
 func TestCache_Cache_Delete_NonExistent(t *testing.T) {
 	c := NewCache(1024, "")
 
-	c.Delete([]string{"bar"})
+	bar := NewCompositeKey("bar", "").StringKey()
+	c.Delete([]string{bar})
 
 	if got, exp := c.Size(), uint64(0); exp != got {
 		t.Fatalf("cache size incorrect exp %d, got %d", exp, got)
@@ -212,23 +229,25 @@ func TestCache_CacheWriteMulti_Duplicates(t *testing.T) {
 
 	c := NewCache(0, "")
 
-	if err := c.WriteMulti(map[string][]Value{"foo": values0}); err != nil {
+	foo := NewCompositeKey("foo", "").StringKey()
+
+	if err := c.WriteMulti(map[string][]Value{foo: values0}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
 
-	if err := c.WriteMulti(map[string][]Value{"foo": values1}); err != nil {
+	if err := c.WriteMulti(map[string][]Value{foo: values1}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
 
-	if exp, keys := []string{"foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+	if exp, keys := []string{foo}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 
 	expAscValues := Values{v0, v1, v3, v5}
-	if exp, got := len(expAscValues), len(c.Values("foo")); exp != got {
+	if exp, got := len(expAscValues), len(c.Values(foo)); exp != got {
 		t.Fatalf("value count mismatch: exp: %v, got %v", exp, got)
 	}
-	if deduped := c.Values("foo"); !reflect.DeepEqual(expAscValues, deduped) {
+	if deduped := c.Values(foo); !reflect.DeepEqual(expAscValues, deduped) {
 		t.Fatalf("deduped ascending values for foo incorrect, exp: %v, got %v", expAscValues, deduped)
 	}
 }
@@ -241,19 +260,21 @@ func TestCache_CacheValues(t *testing.T) {
 	v4 := NewValue(4, 4.0)
 
 	c := NewCache(512, "")
-	if deduped := c.Values("no such key"); deduped != nil {
+	noSuchKey := NewCompositeKey("no such key", "").StringKey()
+	if deduped := c.Values(noSuchKey); deduped != nil {
 		t.Fatalf("Values returned for no such key")
 	}
 
-	if err := c.Write("foo", Values{v0, v1, v2, v3}); err != nil {
+	foo := NewCompositeKey("foo", "").StringKey()
+	if err := c.Write(foo, Values{v0, v1, v2, v3}); err != nil {
 		t.Fatalf("failed to write 3 values, key foo to cache: %s", err.Error())
 	}
-	if err := c.Write("foo", Values{v4}); err != nil {
+	if err := c.Write(foo, Values{v4}); err != nil {
 		t.Fatalf("failed to write 1 value, key foo to cache: %s", err.Error())
 	}
 
 	expAscValues := Values{v3, v1, v2, v4}
-	if deduped := c.Values("foo"); !reflect.DeepEqual(expAscValues, deduped) {
+	if deduped := c.Values(foo); !reflect.DeepEqual(expAscValues, deduped) {
 		t.Fatalf("deduped ascending values for foo incorrect, exp: %v, got %v", expAscValues, deduped)
 	}
 }
@@ -269,7 +290,8 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	v7 := NewValue(2, 5.0)
 
 	c := NewCache(512, "")
-	if err := c.Write("foo", Values{v0, v1, v2, v3}); err != nil {
+	foo := NewCompositeKey("foo", "").StringKey()
+	if err := c.Write(foo, Values{v0, v1, v2, v3}); err != nil {
 		t.Fatalf("failed to write 3 values, key foo to cache: %s", err.Error())
 	}
 
@@ -280,30 +302,30 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	}
 
 	expValues := Values{v0, v1, v2, v3}
-	if deduped := snapshot.values("foo"); !reflect.DeepEqual(expValues, deduped) {
+	if deduped := snapshot.values(foo); !reflect.DeepEqual(expValues, deduped) {
 		t.Fatalf("snapshotted values for foo incorrect, exp: %v, got %v", expValues, deduped)
 	}
 
 	// Ensure cache is still as expected.
-	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+	if deduped := c.Values(foo); !reflect.DeepEqual(expValues, deduped) {
 		t.Fatalf("post-snapshot values for foo incorrect, exp: %v, got %v", expValues, deduped)
 	}
 
 	// Write a new value to the cache.
-	if err := c.Write("foo", Values{v4}); err != nil {
+	if err := c.Write(foo, Values{v4}); err != nil {
 		t.Fatalf("failed to write post-snap value, key foo to cache: %s", err.Error())
 	}
 	expValues = Values{v0, v1, v2, v3, v4}
-	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+	if deduped := c.Values(foo); !reflect.DeepEqual(expValues, deduped) {
 		t.Fatalf("post-snapshot write values for foo incorrect, exp: %v, got %v", expValues, deduped)
 	}
 
 	// Write a new, out-of-order, value to the cache.
-	if err := c.Write("foo", Values{v5}); err != nil {
+	if err := c.Write(foo, Values{v5}); err != nil {
 		t.Fatalf("failed to write post-snap value, key foo to cache: %s", err.Error())
 	}
 	expValues = Values{v5, v0, v1, v2, v3, v4}
-	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+	if deduped := c.Values(foo); !reflect.DeepEqual(expValues, deduped) {
 		t.Fatalf("post-snapshot out-of-order write values for foo incorrect, exp: %v, got %v", expValues, deduped)
 	}
 
@@ -311,7 +333,7 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	c.ClearSnapshot(true)
 
 	expValues = Values{v5, v4}
-	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+	if deduped := c.Values(foo); !reflect.DeepEqual(expValues, deduped) {
 		t.Fatalf("post-clear values for foo incorrect, exp: %v, got %v", expValues, deduped)
 	}
 
@@ -321,7 +343,7 @@ func TestCache_CacheSnapshot(t *testing.T) {
 		t.Fatalf("failed to snapshot cache: %v", err)
 	}
 
-	if err := c.Write("foo", Values{v4, v5}); err != nil {
+	if err := c.Write(foo, Values{v4, v5}); err != nil {
 		t.Fatalf("failed to write post-snap value, key foo to cache: %s", err.Error())
 	}
 
@@ -332,12 +354,12 @@ func TestCache_CacheSnapshot(t *testing.T) {
 		t.Fatalf("failed to snapshot cache: %v", err)
 	}
 
-	if err := c.Write("foo", Values{v6, v7}); err != nil {
+	if err := c.Write(foo, Values{v6, v7}); err != nil {
 		t.Fatalf("failed to write post-snap value, key foo to cache: %s", err.Error())
 	}
 
 	expValues = Values{v5, v7, v4, v6}
-	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
+	if deduped := c.Values(foo); !reflect.DeepEqual(expValues, deduped) {
 		t.Fatalf("post-snapshot out-of-order write values for foo incorrect, exp: %v, got %v", expValues, deduped)
 	}
 }
@@ -350,18 +372,20 @@ func TestCache_CacheEmptySnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to snapshot cache: %v", err)
 	}
-	if deduped := snapshot.values("foo"); !reflect.DeepEqual(Values(nil), deduped) {
+
+	foo := NewCompositeKey("foo", "").StringKey()
+	if deduped := snapshot.values(foo); !reflect.DeepEqual(Values(nil), deduped) {
 		t.Fatalf("snapshotted values for foo incorrect, exp: %v, got %v", nil, deduped)
 	}
 
 	// Ensure cache is still as expected.
-	if deduped := c.Values("foo"); !reflect.DeepEqual(Values(nil), deduped) {
+	if deduped := c.Values(foo); !reflect.DeepEqual(Values(nil), deduped) {
 		t.Fatalf("post-snapshotted values for foo incorrect, exp: %v, got %v", Values(nil), deduped)
 	}
 
 	// Clear snapshot.
 	c.ClearSnapshot(true)
-	if deduped := c.Values("foo"); !reflect.DeepEqual(Values(nil), deduped) {
+	if deduped := c.Values(foo); !reflect.DeepEqual(Values(nil), deduped) {
 		t.Fatalf("post-snapshot-clear values for foo incorrect, exp: %v, got %v", Values(nil), deduped)
 	}
 }
@@ -372,13 +396,16 @@ func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
 
 	c := NewCache(uint64(v1.Size()), "")
 
-	if err := c.Write("foo", Values{v0}); err != nil {
+	foo := NewCompositeKey("foo", "").StringKey()
+	bar := NewCompositeKey("bar", "").StringKey()
+
+	if err := c.Write(foo, Values{v0}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
-	if exp, keys := []string{"foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+	if exp, keys := []string{foo}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after writes, exp %v, got %v", exp, keys)
 	}
-	if err := c.Write("bar", Values{v1}); err != ErrCacheMemoryExceeded {
+	if err := c.Write(bar, Values{v1}); err != ErrCacheMemoryExceeded {
 		t.Fatalf("wrong error writing key bar to cache")
 	}
 
@@ -387,17 +414,17 @@ func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to snapshot cache: %v", err)
 	}
-	if err := c.Write("bar", Values{v1}); err != ErrCacheMemoryExceeded {
+	if err := c.Write(bar, Values{v1}); err != ErrCacheMemoryExceeded {
 		t.Fatalf("wrong error writing key bar to cache")
 	}
 
 	// Clear the snapshot and the write should now succeed.
 	c.ClearSnapshot(true)
-	if err := c.Write("bar", Values{v1}); err != nil {
+	if err := c.Write(bar, Values{v1}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
 	}
 	expAscValues := Values{v1}
-	if deduped := c.Values("bar"); !reflect.DeepEqual(expAscValues, deduped) {
+	if deduped := c.Values(bar); !reflect.DeepEqual(expAscValues, deduped) {
 		t.Fatalf("deduped ascending values for bar incorrect, exp: %v, got %v", expAscValues, deduped)
 	}
 }
@@ -407,7 +434,8 @@ func TestCache_Deduplicate_Concurrent(t *testing.T) {
 
 	for i := 0; i < 1000; i++ {
 		for j := 0; j < 100; j++ {
-			values[fmt.Sprintf("cpu%d", i)] = []Value{NewValue(int64(i+j)+int64(rand.Intn(10)), float64(i))}
+			s := NewCompositeKey(fmt.Sprintf("cpu%d", i), "").StringKey()
+			values[s] = []Value{NewValue(int64(i+j)+int64(rand.Intn(10)), float64(i))}
 		}
 	}
 
@@ -445,10 +473,14 @@ func TestCacheLoader_LoadSingle(t *testing.T) {
 	p2 := NewValue(1, int64(1))
 	p3 := NewValue(1, true)
 
+	foo := NewCompositeKey("foo", "").StringKey()
+	bar := NewCompositeKey("bar", "").StringKey()
+	baz := NewCompositeKey("baz", "").StringKey()
+
 	values := map[string][]Value{
-		"foo": []Value{p1},
-		"bar": []Value{p2},
-		"baz": []Value{p3},
+		foo: []Value{p1},
+		bar: []Value{p2},
+		baz: []Value{p3},
 	}
 
 	entry := &WriteWALEntry{
@@ -467,13 +499,13 @@ func TestCacheLoader_LoadSingle(t *testing.T) {
 	}
 
 	// Check the cache.
-	if values := cache.Values("foo"); !reflect.DeepEqual(values, Values{p1}) {
+	if values := cache.Values(foo); !reflect.DeepEqual(values, Values{p1}) {
 		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p1})
 	}
-	if values := cache.Values("bar"); !reflect.DeepEqual(values, Values{p2}) {
+	if values := cache.Values(bar); !reflect.DeepEqual(values, Values{p2}) {
 		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p2})
 	}
-	if values := cache.Values("baz"); !reflect.DeepEqual(values, Values{p3}) {
+	if values := cache.Values(baz); !reflect.DeepEqual(values, Values{p3}) {
 		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p3})
 	}
 
@@ -490,13 +522,13 @@ func TestCacheLoader_LoadSingle(t *testing.T) {
 	}
 
 	// Check the cache.
-	if values := cache.Values("foo"); !reflect.DeepEqual(values, Values{p1}) {
+	if values := cache.Values(foo); !reflect.DeepEqual(values, Values{p1}) {
 		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p1})
 	}
-	if values := cache.Values("bar"); !reflect.DeepEqual(values, Values{p2}) {
+	if values := cache.Values(bar); !reflect.DeepEqual(values, Values{p2}) {
 		t.Fatalf("cache key bar not as expected, got %v, exp %v", values, Values{p2})
 	}
-	if values := cache.Values("baz"); !reflect.DeepEqual(values, Values{p3}) {
+	if values := cache.Values(baz); !reflect.DeepEqual(values, Values{p3}) {
 		t.Fatalf("cache key baz not as expected, got %v, exp %v", values, Values{p3})
 	}
 }
@@ -525,14 +557,19 @@ func TestCacheLoader_LoadDouble(t *testing.T) {
 		}
 	}
 
+	foo := NewCompositeKey("foo", "").StringKey()
+	bar := NewCompositeKey("bar", "").StringKey()
 	values := map[string][]Value{
-		"foo": []Value{p1},
-		"bar": []Value{p2},
+		foo: []Value{p1},
+		bar: []Value{p2},
 	}
 	segmentWrite(w1, values)
+
+	baz := NewCompositeKey("baz", "").StringKey()
+	qux := NewCompositeKey("qux", "").StringKey()
 	values = map[string][]Value{
-		"baz": []Value{p3},
-		"qux": []Value{p4},
+		baz: []Value{p3},
+		qux: []Value{p4},
 	}
 	segmentWrite(w2, values)
 
@@ -549,16 +586,16 @@ func TestCacheLoader_LoadDouble(t *testing.T) {
 	}
 
 	// Check the cache.
-	if values := cache.Values("foo"); !reflect.DeepEqual(values, Values{p1}) {
+	if values := cache.Values(foo); !reflect.DeepEqual(values, Values{p1}) {
 		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p1})
 	}
-	if values := cache.Values("bar"); !reflect.DeepEqual(values, Values{p2}) {
+	if values := cache.Values(bar); !reflect.DeepEqual(values, Values{p2}) {
 		t.Fatalf("cache key bar not as expected, got %v, exp %v", values, Values{p2})
 	}
-	if values := cache.Values("baz"); !reflect.DeepEqual(values, Values{p3}) {
+	if values := cache.Values(baz); !reflect.DeepEqual(values, Values{p3}) {
 		t.Fatalf("cache key baz not as expected, got %v, exp %v", values, Values{p3})
 	}
-	if values := cache.Values("qux"); !reflect.DeepEqual(values, Values{p4}) {
+	if values := cache.Values(qux); !reflect.DeepEqual(values, Values{p4}) {
 		t.Fatalf("cache key qux not as expected, got %v, exp %v", values, Values{p4})
 	}
 }
@@ -575,8 +612,9 @@ func TestCacheLoader_LoadDeleted(t *testing.T) {
 	p2 := NewValue(2, 2.0)
 	p3 := NewValue(3, 3.0)
 
+	foo := NewCompositeKey("foo", "").StringKey()
 	values := map[string][]Value{
-		"foo": []Value{p1, p2, p3},
+		foo: []Value{p1, p2, p3},
 	}
 
 	entry := &WriteWALEntry{
@@ -588,7 +626,7 @@ func TestCacheLoader_LoadDeleted(t *testing.T) {
 	}
 
 	dentry := &DeleteRangeWALEntry{
-		Keys: []string{"foo"},
+		Keys: []string{foo},
 		Min:  2,
 		Max:  3,
 	}
@@ -605,7 +643,7 @@ func TestCacheLoader_LoadDeleted(t *testing.T) {
 	}
 
 	// Check the cache.
-	if values := cache.Values("foo"); !reflect.DeepEqual(values, Values{p1}) {
+	if values := cache.Values(foo); !reflect.DeepEqual(values, Values{p1}) {
 		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p1})
 	}
 
@@ -617,7 +655,7 @@ func TestCacheLoader_LoadDeleted(t *testing.T) {
 	}
 
 	// Check the cache.
-	if values := cache.Values("foo"); !reflect.DeepEqual(values, Values{p1}) {
+	if values := cache.Values(foo); !reflect.DeepEqual(values, Values{p1}) {
 		t.Fatalf("cache key foo not as expected, got %v, exp %v", values, Values{p1})
 	}
 }

@@ -24,7 +24,8 @@ func TestCheckConcurrentReadsAreSafe(t *testing.T) {
 	}
 
 	for i := range series {
-		series[i] = fmt.Sprintf("series%d", i)
+		k := tsm1.NewCompositeKey(fmt.Sprintf("series%d", i), "").StringKey()
+		series[i] = k
 	}
 
 	wg := sync.WaitGroup{}
@@ -69,7 +70,8 @@ func TestCacheRace(t *testing.T) {
 	}
 
 	for i := range series {
-		series[i] = fmt.Sprintf("series%d", i)
+		k := tsm1.NewCompositeKey(fmt.Sprintf("series%d", i), "").StringKey()
+		series[i] = k
 	}
 
 	wg := sync.WaitGroup{}
@@ -119,7 +121,8 @@ func TestCacheRace2Compacters(t *testing.T) {
 	}
 
 	for i := range series {
-		series[i] = fmt.Sprintf("series%d", i)
+		k := tsm1.NewCompositeKey(fmt.Sprintf("series%d", i), "").StringKey()
+		series[i] = k
 	}
 
 	wg := sync.WaitGroup{}
