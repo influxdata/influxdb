@@ -451,6 +451,10 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 		key := string(p.Key())
 		ss := s.index.Series(key)
 		if ss == nil {
+			if s.options.Config.MaxSeriesPerDatabase > 0 && len(s.index.series)+1 > s.options.Config.MaxSeriesPerDatabase {
+				return nil, fmt.Errorf("max series per database exceeded: %s", key)
+			}
+
 			ss = NewSeries(key, p.Tags())
 			atomic.AddInt64(&s.stats.SeriesCreated, 1)
 		}
