@@ -57,7 +57,7 @@ type Config struct {
 	CompactFullWriteColdDuration   toml.Duration `toml:"compact-full-write-cold-duration"`
 	MaxPointsPerBlock              int           `toml:"max-points-per-block"`
 
-	DataLoggingEnabled bool `toml:"data-logging-enabled"`
+	TraceLoggingEnabled bool `toml:"trace-logging-enabled"`
 }
 
 // NewConfig returns the default configuration for tsdb.
@@ -74,7 +74,7 @@ func NewConfig() Config {
 		CacheSnapshotWriteColdDuration: toml.Duration(DefaultCacheSnapshotWriteColdDuration),
 		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
 
-		DataLoggingEnabled: true,
+		TraceLoggingEnabled: false,
 	}
 }
 

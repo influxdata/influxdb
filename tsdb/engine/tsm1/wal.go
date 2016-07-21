@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"math"
 	"os"
@@ -82,14 +83,13 @@ type WAL struct {
 	closing chan struct{}
 
 	// WALOutput is the writer used by the logger.
-	LogOutput io.Writer
-	logger    *log.Logger
+	logger       *log.Logger // Logger to be used for important messages
+	traceLogger  *log.Logger // Logger to be used when trace-logging is on.
+	logOutput    io.Writer   // Writer to be logger and traceLogger if active.
+	traceLogging bool
 
 	// SegmentSize is the file size at which a segment file will be rotated
 	SegmentSize int
-
-	// LoggingEnabled specifies if detailed logs should be output
-	LoggingEnabled bool
 
 	// statistics for the WAL
 	stats   *WALStatistics
@@ -101,19 +101,37 @@ func NewWAL(path string) *WAL {
 		path: path,
 
 		// these options should be overriden by any options in the config
-		LogOutput:   os.Stderr,
 		SegmentSize: DefaultSegmentSize,
-		logger:      log.New(os.Stderr, "[tsm1wal] ", log.LstdFlags),
 		closing:     make(chan struct{}),
 		stats:       &WALStatistics{},
 		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
+		logger:      log.New(os.Stderr, "[tsm1wal] ", log.LstdFlags),
+		traceLogger: log.New(ioutil.Discard, "[tsm1wal] ", log.LstdFlags),
+		logOutput:   os.Stderr,
 	}
 }
 
-// SetLogOutput sets the location that logs are written to. It must not be
-// called after the Open method has been called.
+// enableTraceLogging must be called before the WAL is opened.
+func (l *WAL) enableTraceLogging(enabled bool) {
+	l.traceLogging = enabled
+	if enabled {
+		l.traceLogger.SetOutput(l.logOutput)
+	}
+}
+
+// SetLogOutput sets the location that logs are written to. It is safe for
+// concurrent use.
 func (l *WAL) SetLogOutput(w io.Writer) {
-	l.logger = log.New(w, "[tsm1wal] ", log.LstdFlags)
+	l.logger.SetOutput(w)
+
+	// Set the trace logger's output only if trace logging is enabled.
+	if l.traceLogging {
+		l.traceLogger.SetOutput(w)
+	}
+
+	l.mu.Lock()
+	l.logOutput = w
+	l.mu.Unlock()
 }
 
 // WALStatistics maintains statistics about the WAL.
@@ -146,10 +164,9 @@ func (l *WAL) Open() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.LoggingEnabled {
-		l.logger.Printf("tsm1 WAL starting with %d segment size\n", l.SegmentSize)
-		l.logger.Printf("tsm1 WAL writing to %s\n", l.path)
-	}
+	l.traceLogger.Printf("tsm1 WAL starting with %d segment size\n", l.SegmentSize)
+	l.traceLogger.Printf("tsm1 WAL writing to %s\n", l.path)
+
 	if err := os.MkdirAll(l.path, 0777); err != nil {
 		return err
 	}
@@ -250,6 +267,7 @@ func (l *WAL) Remove(files []string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for _, fn := range files {
+		l.traceLogger.Printf("Removing %s", fn)
 		os.RemoveAll(fn)
 	}
 
@@ -397,6 +415,7 @@ func (l *WAL) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	l.traceLogger.Printf("Closing %s", l.path)
 	// Close, but don't set to nil so future goroutines can still be signaled
 	close(l.closing)
 

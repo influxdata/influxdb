@@ -100,9 +100,9 @@ type Shard struct {
 	statTags models.Tags
 
 	logger *log.Logger
+	// used by logger. Referenced so it can be passed down to new caches.
+	logOutput io.Writer
 
-	// The writer used by the logger.
-	LogOutput    io.Writer
 	EnableOnOpen bool
 }
 
@@ -128,22 +128,24 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 		database:        db,
 		retentionPolicy: rp,
 
-		LogOutput:    os.Stderr,
+		logger:       log.New(os.Stderr, "[shard] ", log.LstdFlags),
+		logOutput:    os.Stderr,
 		EnableOnOpen: true,
 	}
-
-	s.SetLogOutput(os.Stderr)
 	return s
 }
 
-// SetLogOutput sets the writer to which log output will be written. It must
-// not be called after the Open method has been called.
+// SetLogOutput sets the writer to which log output will be written. It is safe
+// for concurrent use.
 func (s *Shard) SetLogOutput(w io.Writer) {
-	s.LogOutput = w
-	s.logger = log.New(w, "[shard] ", log.LstdFlags)
+	s.logger.SetOutput(w)
 	if err := s.ready(); err == nil {
 		s.engine.SetLogOutput(w)
 	}
+
+	s.mu.Lock()
+	s.logOutput = w
+	s.mu.Unlock()
 }
 
 // SetEnabled enables the shard for queries and write.  When disabled, all
@@ -215,7 +217,7 @@ func (s *Shard) Open() error {
 		}
 
 		// Set log output on the engine.
-		e.SetLogOutput(s.LogOutput)
+		e.SetLogOutput(s.logOutput)
 
 		// Disable compactions while loading the index
 		e.SetEnabled(false)

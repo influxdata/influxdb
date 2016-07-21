@@ -110,7 +110,9 @@ type FileStore struct {
 
 	files []TSMFile
 
-	Logger       *log.Logger
+	logger       *log.Logger // Logger to be used for important messages
+	traceLogger  *log.Logger // Logger to be used when trace-logging is on.
+	logOutput    io.Writer   // Writer to be logger and traceLogger if active.
 	traceLogging bool
 
 	stats *FileStoreStatistics
@@ -143,15 +145,34 @@ func NewFileStore(dir string) *FileStore {
 	return &FileStore{
 		dir:          dir,
 		lastModified: time.Now(),
-		Logger:       log.New(os.Stderr, "[filestore] ", log.LstdFlags),
+		logger:       log.New(os.Stderr, "[filestore] ", log.LstdFlags),
+		traceLogger:  log.New(ioutil.Discard, "[filestore] ", log.LstdFlags),
+		logOutput:    os.Stderr,
 		stats:        &FileStoreStatistics{},
 	}
 }
 
-// SetLogOutput sets the logger used for all messages. It must not be called
-// after the Open method has been called.
+// enableTraceLogging must be called before the FileStore is opened.
+func (f *FileStore) enableTraceLogging(enabled bool) {
+	f.traceLogging = enabled
+	if enabled {
+		f.traceLogger.SetOutput(f.logOutput)
+	}
+}
+
+// SetLogOutput sets the logger used for all messages. It is safe for concurrent
+// use.
 func (f *FileStore) SetLogOutput(w io.Writer) {
-	f.Logger = log.New(w, "[filestore] ", log.LstdFlags)
+	f.logger.SetOutput(w)
+
+	// Set the trace logger's output only if trace logging is enabled.
+	if f.traceLogging {
+		f.traceLogger.SetOutput(w)
+	}
+
+	f.mu.Lock()
+	f.logOutput = w
+	f.mu.Unlock()
 }
 
 // FileStoreStatistics keeps statistics about the file store.
@@ -366,9 +387,7 @@ func (f *FileStore) Open() error {
 		go func(idx int, file *os.File) {
 			start := time.Now()
 			df, err := NewTSMReader(file)
-			if f.traceLogging {
-				f.Logger.Printf("%s (#%d) opened in %v", file.Name(), idx, time.Now().Sub(start))
-			}
+			f.logger.Printf("%s (#%d) opened in %v", file.Name(), idx, time.Now().Sub(start))
 
 			if err != nil {
 				readerC <- &res{r: df, err: fmt.Errorf("error opening memory map for file %s: %v", file.Name(), err)}
@@ -640,6 +659,7 @@ func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
 // CreateSnapshot will create hardlinks for all tsm and tombstone files
 // in the path provided
 func (f *FileStore) CreateSnapshot() (string, error) {
+	f.traceLogger.Printf("Creating snapshot in %s", f.dir)
 	files := f.Files()
 
 	f.mu.Lock()
