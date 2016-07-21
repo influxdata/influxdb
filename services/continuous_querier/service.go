@@ -324,14 +324,20 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 		return err
 	}
 
+	var start time.Time
 	if s.loggingEnabled {
 		s.Logger.Printf("executing continuous query %s (%v to %v)", cq.Info.Name, startTime, endTime)
+		start = time.Now()
 	}
 
 	// Do the actual processing of the query & writing of results.
 	if err := s.runContinuousQueryAndWriteResult(cq); err != nil {
 		s.Logger.Printf("error: %s. running: %s\n", err, cq.q.String())
 		return err
+	}
+
+	if s.loggingEnabled {
+		s.Logger.Printf("finished continuous query %s (%v to %v) in %s", cq.Info.Name, startTime, endTime, time.Now().Sub(start))
 	}
 	return nil
 }
