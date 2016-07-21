@@ -60,14 +60,14 @@ func cmdReport(opts *reportOpts) {
 	for _, f := range files {
 		file, err := os.OpenFile(f, os.O_RDONLY, 0600)
 		if err != nil {
-			fmt.Printf("%v", err)
-			os.Exit(1)
+			fmt.Fprintf(os.Stderr, "error: %s: %v. Skipping.\n", f, err)
+			continue
 		}
 
 		reader, err := tsm1.NewTSMReader(file)
 		if err != nil {
-			fmt.Printf("%v", err)
-			os.Exit(1)
+			fmt.Fprintf(os.Stderr, "error: %s: %v. Skipping.\n", file.Name(), err)
+			continue
 		}
 
 		seriesCount := reader.KeyCount()
