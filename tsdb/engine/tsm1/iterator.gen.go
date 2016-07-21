@@ -16,6 +16,7 @@ import (
 )
 
 type cursor interface {
+	close() error
 	next() (t int64, v interface{})
 }
 
@@ -228,7 +229,7 @@ func (itr *floatIterator) Stats() influxql.IteratorStats {
 }
 
 // Close closes the iterator.
-func (itr *floatIterator) Close() error { return nil }
+func (itr *floatIterator) Close() error { return itr.cur.close() }
 
 // floatLimitIterator
 type floatLimitIterator struct {
@@ -333,6 +334,12 @@ func (c *floatAscendingCursor) peekTSM() (t int64, v float64) {
 
 	item := c.tsm.values[c.tsm.pos]
 	return item.UnixNano(), item.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *floatAscendingCursor) close() error {
+	c.tsm.keyCursor.Close()
+	return nil
 }
 
 // next returns the next key/value for the cursor.
@@ -445,6 +452,12 @@ func (c *floatDescendingCursor) peekTSM() (t int64, v float64) {
 
 	item := c.tsm.values[c.tsm.pos]
 	return item.UnixNano(), item.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *floatDescendingCursor) close() error {
+	c.tsm.keyCursor.Close()
+	return nil
 }
 
 // next returns the next key/value for the cursor.
@@ -638,7 +651,7 @@ func (itr *integerIterator) Stats() influxql.IteratorStats {
 }
 
 // Close closes the iterator.
-func (itr *integerIterator) Close() error { return nil }
+func (itr *integerIterator) Close() error { return itr.cur.close() }
 
 // integerLimitIterator
 type integerLimitIterator struct {
@@ -743,6 +756,12 @@ func (c *integerAscendingCursor) peekTSM() (t int64, v int64) {
 
 	item := c.tsm.values[c.tsm.pos]
 	return item.UnixNano(), item.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *integerAscendingCursor) close() error {
+	c.tsm.keyCursor.Close()
+	return nil
 }
 
 // next returns the next key/value for the cursor.
@@ -855,6 +874,12 @@ func (c *integerDescendingCursor) peekTSM() (t int64, v int64) {
 
 	item := c.tsm.values[c.tsm.pos]
 	return item.UnixNano(), item.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *integerDescendingCursor) close() error {
+	c.tsm.keyCursor.Close()
+	return nil
 }
 
 // next returns the next key/value for the cursor.
@@ -1048,7 +1073,7 @@ func (itr *stringIterator) Stats() influxql.IteratorStats {
 }
 
 // Close closes the iterator.
-func (itr *stringIterator) Close() error { return nil }
+func (itr *stringIterator) Close() error { return itr.cur.close() }
 
 // stringLimitIterator
 type stringLimitIterator struct {
@@ -1153,6 +1178,12 @@ func (c *stringAscendingCursor) peekTSM() (t int64, v string) {
 
 	item := c.tsm.values[c.tsm.pos]
 	return item.UnixNano(), item.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *stringAscendingCursor) close() error {
+	c.tsm.keyCursor.Close()
+	return nil
 }
 
 // next returns the next key/value for the cursor.
@@ -1265,6 +1296,12 @@ func (c *stringDescendingCursor) peekTSM() (t int64, v string) {
 
 	item := c.tsm.values[c.tsm.pos]
 	return item.UnixNano(), item.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *stringDescendingCursor) close() error {
+	c.tsm.keyCursor.Close()
+	return nil
 }
 
 // next returns the next key/value for the cursor.
@@ -1458,7 +1495,7 @@ func (itr *booleanIterator) Stats() influxql.IteratorStats {
 }
 
 // Close closes the iterator.
-func (itr *booleanIterator) Close() error { return nil }
+func (itr *booleanIterator) Close() error { return itr.cur.close() }
 
 // booleanLimitIterator
 type booleanLimitIterator struct {
@@ -1563,6 +1600,12 @@ func (c *booleanAscendingCursor) peekTSM() (t int64, v bool) {
 
 	item := c.tsm.values[c.tsm.pos]
 	return item.UnixNano(), item.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *booleanAscendingCursor) close() error {
+	c.tsm.keyCursor.Close()
+	return nil
 }
 
 // next returns the next key/value for the cursor.
@@ -1675,6 +1718,12 @@ func (c *booleanDescendingCursor) peekTSM() (t int64, v bool) {
 
 	item := c.tsm.values[c.tsm.pos]
 	return item.UnixNano(), item.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *booleanDescendingCursor) close() error {
+	c.tsm.keyCursor.Close()
+	return nil
 }
 
 // next returns the next key/value for the cursor.

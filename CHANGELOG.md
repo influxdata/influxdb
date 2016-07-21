@@ -99,6 +99,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6796](https://github.com/influxdata/influxdb/issues/6796): Out of Memory Error when Dropping Measurement
 - [#6946](https://github.com/influxdata/influxdb/issues/6946): Duplicate data for the same timestamp
 - [#7043](https://github.com/influxdata/influxdb/pull/7043): Remove limiter from walkShards
+- [#5501](https://github.com/influxdata/influxdb/issues/5501): Queries against files that have just been compacted need to point to new files
 
 ## v0.13.0 [2016-05-12]
 

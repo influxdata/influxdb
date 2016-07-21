@@ -9,9 +9,15 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"sync/atomic"
 )
 
+var ErrFileInUse = fmt.Errorf("file still in use")
+
 type TSMReader struct {
+	// refs is the count of active references to this reader
+	refs int64
+
 	mu sync.RWMutex
 
 	// accessor provides access and decoding of blocks for the reader
@@ -162,6 +168,7 @@ type blockAccessor interface {
 	readStringBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error)
 	readBooleanBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error)
 	readBytes(entry *IndexEntry, buf []byte) (uint32, []byte, error)
+	rename(path string) error
 	path() string
 	close() error
 }
@@ -300,15 +307,57 @@ func (t *TSMReader) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	return t.accessor.close()
+	if t.refs > 0 {
+		return ErrFileInUse
+	}
+
+	if err := t.accessor.close(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Ref records a usage of this TSMReader.  If there are active references
+// when the reader is closed or removed, the reader will remain open until
+// there are no more references.
+func (t *TSMReader) Ref() {
+	atomic.AddInt64(&t.refs, 1)
+}
+
+// Unref removes a usage record of this TSMReader.  If the Reader was closed
+// by another goroutine while there were active references, the file will
+// be closed and remove
+func (t *TSMReader) Unref() {
+	atomic.AddInt64(&t.refs, -1)
+}
+
+func (t *TSMReader) InUse() bool {
+	refs := atomic.LoadInt64(&t.refs)
+	return refs > 0
 }
 
 // Remove removes any underlying files stored on disk for this reader.
 func (t *TSMReader) Remove() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	return t.remove()
+}
 
+func (t *TSMReader) Rename(path string) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.accessor.rename(path)
+}
+
+// Remove removes any underlying files stored on disk for this reader.
+func (t *TSMReader) remove() error {
 	path := t.accessor.path()
+
+	if t.InUse() {
+		return ErrFileInUse
+	}
+
 	if path != "" {
 		os.RemoveAll(path)
 	}
@@ -908,6 +957,45 @@ func (m *mmapAccessor) init() (*indirectIndex, error) {
 	}
 
 	return m.index, nil
+}
+
+func (m *mmapAccessor) rename(path string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	err := munmap(m.b)
+	if err != nil {
+		return err
+	}
+
+	if err := m.f.Close(); err != nil {
+		return err
+	}
+
+	if err := renameFile(m.f.Name(), path); err != nil {
+		return err
+	}
+
+	m.f, err = os.Open(path)
+	if err != nil {
+		return err
+	}
+
+	if _, err := m.f.Seek(0, 0); err != nil {
+		return err
+	}
+
+	stat, err := m.f.Stat()
+	if err != nil {
+		return err
+	}
+
+	m.b, err = mmap(m.f, 0, int(stat.Size()))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (m *mmapAccessor) read(key string, timestamp int64) ([]Value, error) {

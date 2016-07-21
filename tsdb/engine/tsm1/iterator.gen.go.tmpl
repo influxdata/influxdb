@@ -10,6 +10,7 @@ import (
 )
 
 type cursor interface {
+	close() error
 	next() (t int64, v interface{})
 }
 
@@ -224,7 +225,7 @@ func (itr *{{.name}}Iterator) Stats() influxql.IteratorStats {
 }
 
 // Close closes the iterator.
-func (itr *{{.name}}Iterator) Close() error { return nil }
+func (itr *{{.name}}Iterator) Close() error { return itr.cur.close() }
 
 // {{.name}}LimitIterator
 type {{.name}}LimitIterator struct {
@@ -329,6 +330,12 @@ func (c *{{.name}}AscendingCursor) peekTSM() (t int64, v {{.Type}}) {
 
 	item := c.tsm.values[c.tsm.pos]
 	return item.UnixNano(), item.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *{{.name}}AscendingCursor) close() (error) {
+	c.tsm.keyCursor.Close()
+	return nil
 }
 
 // next returns the next key/value for the cursor.
@@ -441,6 +448,12 @@ func (c *{{.name}}DescendingCursor) peekTSM() (t int64, v {{.Type}}) {
 
 	item := c.tsm.values[c.tsm.pos]
 	return item.UnixNano(), item.value
+}
+
+// close closes the cursor and any dependent cursors.
+func (c *{{.name}}DescendingCursor) close() (error) {
+	c.tsm.keyCursor.Close()
+	return nil
 }
 
 // next returns the next key/value for the cursor.
