@@ -91,7 +91,7 @@ type TSMFile interface {
 	// Remove deletes the file from the filesystem
 	Remove() error
 
-	// Returns true if the file is current in use by queries
+	// Returns true if the file is currently in use by queries
 	InUse() bool
 
 	// Ref records that this file is actively in use
@@ -530,7 +530,7 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 			if remove == file.Path() {
 				keep = false
 
-				// If queries running against this file, then we need to move it out of the
+				// If queries are running against this file, then we need to move it out of the
 				// way and let them complete.  We'll then delete the original file to avoid
 				// blocking callers upstream.  If the process crashes, the temp file is
 				// cleaned up at startup automatically.
