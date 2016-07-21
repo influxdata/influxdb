@@ -45,7 +45,7 @@ func cmdReport(opts *reportOpts) {
 	}
 
 	tw := tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
-	fmt.Fprintln(tw, strings.Join([]string{"File", "Series"}, "\t"))
+	fmt.Fprintln(tw, strings.Join([]string{"File", "Series", "Load Time"}, "\t"))
 
 	totalSeries := hllpp.New()
 	tagCardialities := map[string]*hllpp.HLLPP{}
@@ -64,11 +64,13 @@ func cmdReport(opts *reportOpts) {
 			continue
 		}
 
+		loadStart := time.Now()
 		reader, err := tsm1.NewTSMReader(file)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error: %s: %v. Skipping.\n", file.Name(), err)
 			continue
 		}
+		loadTime := time.Since(loadStart)
 
 		seriesCount := reader.KeyCount()
 		for i := 0; i < seriesCount; i++ {
@@ -109,6 +111,7 @@ func cmdReport(opts *reportOpts) {
 		fmt.Fprintln(tw, strings.Join([]string{
 			filepath.Base(file.Name()),
 			strconv.FormatInt(int64(seriesCount), 10),
+			loadTime.String(),
 		}, "\t"))
 		tw.Flush()
 	}
