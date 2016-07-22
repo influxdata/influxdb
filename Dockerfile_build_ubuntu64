@@ -12,7 +12,10 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     rpm \
     zip \
     python \
-    python-boto
+    python-boto \
+    asciidoc \
+    xmlto \
+    docbook-xsl
 
 RUN gem install fpm
 
