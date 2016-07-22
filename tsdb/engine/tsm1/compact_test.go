@@ -1860,12 +1860,8 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 	if exp, got := 0, len(cp.Plan(time.Now().Add(-time.Second))); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
-	// even though we do this, the planner should remember that last time we were over
-	cp.FileStore = fs
-	if exp, got := 0, len(cp.Plan(time.Now().Add(-time.Second))); got != exp {
-		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
-	}
 
+	cp.FileStore = fs
 	// ensure that it will plan if last modified has changed
 	fs.lastModified = time.Now()
 

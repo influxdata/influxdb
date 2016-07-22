@@ -71,11 +71,6 @@ type DefaultPlanner struct {
 	// should always be greater than the CacheFlushWriteColdDuraion
 	CompactFullWriteColdDuration time.Duration
 
-	// lastPlanCompactedFull will be true if the last time
-	// Plan was called, all files were over the max size
-	// or there was only one file
-	lastPlanCompactedFull bool
-
 	// lastPlanCheck is the last time Plan was called
 	lastPlanCheck time.Time
 }
@@ -286,7 +281,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 	generations := c.findGenerations()
 
 	// first check if we should be doing a full compaction because nothing has been written in a long time
-	if !c.lastPlanCompactedFull && c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration && len(generations) > 1 {
+	if c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration && len(generations) > 1 {
 		var tsmFiles []string
 		for i, group := range generations {
 			var skip bool
@@ -315,8 +310,6 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 			}
 		}
 		sort.Strings(tsmFiles)
-
-		c.lastPlanCompactedFull = true
 
 		if len(tsmFiles) <= 1 {
 			return nil
@@ -455,8 +448,6 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 		sort.Strings(cGroup)
 		tsmFiles = append(tsmFiles, cGroup)
 	}
-
-	c.lastPlanCompactedFull = false
 
 	return tsmFiles
 }
