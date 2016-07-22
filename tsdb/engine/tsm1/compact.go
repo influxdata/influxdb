@@ -32,10 +32,11 @@ const (
 )
 
 var (
-	errMaxFileExceeded     = fmt.Errorf("max file exceeded")
-	errSnapshotsDisabled   = fmt.Errorf("snapshots disabled")
-	errCompactionsDisabled = fmt.Errorf("compactions disabled")
-	errCompactionAborted   = fmt.Errorf("compaction aborted")
+	errMaxFileExceeded      = fmt.Errorf("max file exceeded")
+	errSnapshotsDisabled    = fmt.Errorf("snapshots disabled")
+	errCompactionsDisabled  = fmt.Errorf("compactions disabled")
+	errCompactionAborted    = fmt.Errorf("compaction aborted")
+	errCompactionInProgress = fmt.Errorf("compaction in progress")
 )
 
 var (
@@ -695,13 +696,9 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 }
 
 func (c *Compactor) write(path string, iter KeyIterator) (err error) {
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		return fmt.Errorf("%v already file exists. aborting", path)
-	}
-
-	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0666)
+	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 	if err != nil {
-		return err
+		return errCompactionInProgress
 	}
 
 	// Create the write for the new TSM file.
