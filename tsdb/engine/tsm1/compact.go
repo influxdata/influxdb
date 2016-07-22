@@ -492,6 +492,7 @@ type Compactor struct {
 	mu      sync.RWMutex
 	opened  bool
 	closing chan struct{}
+	files   map[string]struct{}
 }
 
 func (c *Compactor) Open() {
@@ -503,6 +504,7 @@ func (c *Compactor) Open() {
 
 	c.closing = make(chan struct{})
 	c.opened = true
+	c.files = make(map[string]struct{})
 }
 
 func (c *Compactor) Close() {
@@ -604,6 +606,11 @@ func (c *Compactor) CompactFull(tsmFiles []string) ([]string, error) {
 		return nil, errCompactionsDisabled
 	}
 
+	if !c.add(tsmFiles) {
+		return nil, errCompactionInProgress
+	}
+	defer c.remove(tsmFiles)
+
 	files, err := c.compact(false, tsmFiles)
 
 	// See if we were closed while writing a snapshot
@@ -627,6 +634,11 @@ func (c *Compactor) CompactFast(tsmFiles []string) ([]string, error) {
 	if !opened {
 		return nil, errCompactionsDisabled
 	}
+
+	if !c.add(tsmFiles) {
+		return nil, errCompactionInProgress
+	}
+	defer c.remove(tsmFiles)
 
 	files, err := c.compact(true, tsmFiles)
 
@@ -673,9 +685,6 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 
 		// We hit an error but didn't finish the compaction.  Remove the temp file and abort.
 		if err != nil {
-			if err := os.Remove(fileName); err != nil {
-				return nil, err
-			}
 			return nil, err
 		}
 
@@ -748,6 +757,36 @@ func (c *Compactor) write(path string, iter KeyIterator) (err error) {
 		return err
 	}
 	return nil
+}
+
+func (c *Compactor) add(files []string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var inuse bool
+	for _, f := range files {
+		if _, ok := c.files[f]; ok {
+			inuse = true
+			break
+		}
+	}
+
+	if inuse {
+		return false
+	}
+
+	for _, f := range files {
+		c.files[f] = struct{}{}
+	}
+	return true
+}
+
+func (c *Compactor) remove(files []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, f := range files {
+		delete(c.files, f)
+	}
 }
 
 // KeyIterator allows iteration over set of keys and values in sorted order.
