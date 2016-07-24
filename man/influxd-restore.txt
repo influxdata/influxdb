@@ -15,19 +15,19 @@ Uses backups from the PATH to restore the metastore, databases, retention polici
 
 OPTIONS
 -------
--metadir <path>::
+--metadir <path>::
   If set, the metastore will be recovered to the given path. Optional.
 
--datadir <path>::
+--datadir <path>::
   If set, the restore process will recover the specified database, retention policy, or shard to the given directory. Optional.
 
--database <name>::
+-d, --database <name>::
   Will restore the database TSM files. Required if no metadir is given. Optional.
 
--retention <name>::
+-r, --retention <name>::
   Will restore the retention policy's TSM files. If given, database is required. Optional.
 
--shard <id>::
+--shard <id>::
   Will restore the shard's TSM files. If given, database and retention are required. Optional.
 
 SEE ALSO

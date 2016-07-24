@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -9,11 +8,12 @@ import (
 
 	"github.com/influxdata/influxdb/stress"
 	v2 "github.com/influxdata/influxdb/stress/v2"
+	flag "github.com/spf13/pflag"
 )
 
 var (
 	useV2      = flag.Bool("v2", false, "Use version 2 of stress tool")
-	config     = flag.String("config", "", "The stress test file")
+	config     = flag.StringP("config", "c", "", "The stress test file")
 	cpuprofile = flag.String("cpuprofile", "", "Write the cpu profile to `filename`")
 	db         = flag.String("db", "", "target database within test system for write and query load")
 )

@@ -8,8 +8,8 @@ influxd-config - Generate configuration files for InfluxDB
 SYNOPSIS
 --------
 [verse]
-'influxd' config (-config <path>)
-'influxd config' -config /dev/null
+'influxd' config ((-c | --config) <path>)
+'influxd config' (-c | --config) /dev/null
 
 DESCRIPTION
 -----------
@@ -21,10 +21,10 @@ When using this command to regenerate a configuration file in place, be sure to 
 
 ===
 # DO NOT USE!
-$ influxd config -config influxdb.conf > influxdb.conf
+$ influxd config --config influxdb.conf > influxdb.conf
 
 # PROPER METHOD!
-$ influxd config -config influxdb.conf > influxdb.conf.tmp && \
+$ influxd config --config influxdb.conf > influxdb.conf.tmp && \
       mv influxdb.conf.tmp influxdb.conf
 ===
 
@@ -34,7 +34,7 @@ The second command version will force 'influxd config' to output the default con
 
 OPTIONS
 -------
--config <path>::
+-c, --config <path>::
   Customize the default configuration file to load. Disables automatic loading when the path is */dev/null*.
 
 include::footer.txt[]

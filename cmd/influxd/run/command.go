@@ -1,7 +1,6 @@
 package run
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -11,6 +10,8 @@ import (
 	"runtime"
 	"strconv"
 	"time"
+
+	flag "github.com/spf13/pflag"
 )
 
 const logo = `
@@ -150,7 +151,7 @@ func (cmd *Command) monitorServerErrors() {
 func (cmd *Command) ParseFlags(args ...string) (Options, error) {
 	var options Options
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
-	fs.StringVar(&options.ConfigPath, "config", "", "")
+	fs.StringVarP(&options.ConfigPath, "config", "c", "", "")
 	fs.StringVar(&options.PIDFile, "pidfile", "", "")
 	// Ignore hostname option.
 	_ = fs.String("hostname", "", "")
@@ -208,18 +209,18 @@ var usage = `Runs the InfluxDB server.
 
 Usage: influxd run [flags]
 
-    -config <path>
+    -c, --config <path>
             Set the path to the configuration file.
             This defaults to the environment variable INFLUXDB_CONFIG_PATH,
             ~/.influxdb/influxdb.conf, or /etc/influxdb/influxdb.conf if a file
             is present at any of these locations.
             Disable the automatic loading of a configuration file using
             the null device (such as /dev/null).
-    -pidfile <path>
+    --pidfile <path>
             Write process ID to a file.
-    -cpuprofile <path>
+    --cpuprofile <path>
             Write CPU profiling information to a file.
-    -memprofile <path>
+    --memprofile <path>
             Write memory usage information to a file.
 `
 

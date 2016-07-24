@@ -127,8 +127,8 @@ function start() {
             --pidfile $PIDFILE \
             --exec $DAEMON \
             -- \
-            -pidfile $PIDFILE \
-            -config $CONFIG \
+            --pidfile $PIDFILE \
+            --config $CONFIG \
             $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &
     else
         local CMD="$DAEMON -pidfile $PIDFILE -config $CONFIG $INFLUXD_OPTS >>$STDOUT 2>>$STDERR &"

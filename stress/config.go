@@ -1,12 +1,12 @@
 package stress
 
 import (
-	"flag"
 	"fmt"
 	"strings"
 	"sync"
 
 	"github.com/BurntSushi/toml"
+	flag "github.com/spf13/pflag"
 )
 
 // Config is a struct for the Stress test configuration
@@ -118,8 +118,8 @@ func NewOutputConfig() *outputConfig {
 	var o outputConfig
 	tags := make(map[string]string)
 	o.tags = tags
-	database := flag.String("database", "stress", "name of database where the response times will persist")
-	retentionPolicy := flag.String("retention-policy", "", "name of the retention policy where the response times will persist")
+	database := flag.StringP("database", "d", "stress", "name of database where the response times will persist")
+	retentionPolicy := flag.StringP("retention-policy", "r", "", "name of the retention policy where the response times will persist")
 	address := flag.String("addr", "http://localhost:8086", "IP address and port of database where response times will persist (e.g., localhost:8086)")
 	flag.Var(&o, "tags", "A comma seperated list of tags")
 	flag.Parse()
@@ -144,4 +144,8 @@ func (t *outputConfig) Set(value string) error {
 		t.tags[tags[0]] = tags[1]
 	}
 	return nil
+}
+
+func (t *outputConfig) Type() string {
+	return "outputConfig"
 }

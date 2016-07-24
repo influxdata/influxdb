@@ -1,12 +1,12 @@
 package run
 
 import (
-	"flag"
 	"fmt"
 	"io"
 	"os"
 
 	"github.com/BurntSushi/toml"
+	flag "github.com/spf13/pflag"
 )
 
 // PrintConfigCommand represents the command executed by "influxd config".
@@ -29,7 +29,7 @@ func NewPrintConfigCommand() *PrintConfigCommand {
 func (cmd *PrintConfigCommand) Run(args ...string) error {
 	// Parse command flags.
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
-	configPath := fs.String("config", "", "")
+	configPath := fs.StringP("config", "c", "", "")
 	fs.Usage = func() { fmt.Fprintln(cmd.Stderr, printConfigUsage) }
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -82,7 +82,7 @@ var printConfigUsage = `Displays the default configuration.
 
 Usage: influxd config [flags]
 
-    -config <path>
+    -c, --config <path>
             Set the path to the initial configuration file.
             This defaults to the environment variable INFLUXDB_CONFIG_PATH,
             ~/.influxdb/influxdb.conf, or /etc/influxdb/influxdb.conf if a file

@@ -1,11 +1,11 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
 	_ "github.com/influxdata/influxdb/tsdb/engine"
+	flag "github.com/spf13/pflag"
 )
 
 func usage() {
@@ -24,6 +24,7 @@ Displays detailed information about InfluxDB data files.
 func main() {
 
 	flag.Usage = usage
+	flag.SetInterspersed(false)
 	flag.Parse()
 
 	if len(flag.Args()) == 0 {

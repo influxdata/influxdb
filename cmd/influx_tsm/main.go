@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -23,6 +22,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_tsm/b1"
 	"github.com/influxdata/influxdb/cmd/influx_tsm/bz1"
 	"github.com/influxdata/influxdb/cmd/influx_tsm/tsdb"
+	flag "github.com/spf13/pflag"
 )
 
 // ShardReader reads b* shards and converts to tsm shards
@@ -72,7 +72,7 @@ func (o *options) Parse() error {
 	fs.StringVar(&opts.BackupPath, "backup", "", "The location to backup up the current databases. Must not be within the data directory.")
 	fs.StringVar(&opts.DebugAddr, "debug", "", "If set, http debugging endpoints will be enabled on the given address")
 	fs.DurationVar(&opts.UpdateInterval, "interval", 5*time.Second, "How often status updates are printed.")
-	fs.BoolVar(&opts.Yes, "y", false, "Don't ask, just convert")
+	fs.BoolVarP(&opts.Yes, "yes", "y", false, "Don't ask, just convert")
 	fs.StringVar(&opts.CpuFile, "profile", "", "CPU Profile location")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %v [options] <data-path> \n", os.Args[0])

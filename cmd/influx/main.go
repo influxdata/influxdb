@@ -1,12 +1,12 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 
 	"github.com/influxdata/influxdb/client"
 	"github.com/influxdata/influxdb/cmd/influx/cli"
+	flag "github.com/spf13/pflag"
 )
 
 // These variables are populated via the Go linker.
@@ -37,19 +37,19 @@ func main() {
 	c := cli.New(version)
 
 	fs := flag.NewFlagSet("InfluxDB shell version "+version, flag.ExitOnError)
-	fs.StringVar(&c.Host, "host", client.DefaultHost, "Influxdb host to connect to.")
-	fs.IntVar(&c.Port, "port", client.DefaultPort, "Influxdb port to connect to.")
-	fs.StringVar(&c.Username, "username", c.Username, "Username to connect to the server.")
+	fs.StringVarP(&c.Host, "host", "H", client.DefaultHost, "Influxdb host to connect to.")
+	fs.IntVarP(&c.Port, "port", "p", client.DefaultPort, "Influxdb port to connect to.")
+	fs.StringVarP(&c.Username, "username", "u", c.Username, "Username to connect to the server.")
 	fs.StringVar(&c.Password, "password", c.Password, `Password to connect to the server.  Leaving blank will prompt for password (--password="").`)
-	fs.StringVar(&c.Database, "database", c.Database, "Database to connect to the server.")
+	fs.StringVarP(&c.Database, "database", "d", c.Database, "Database to connect to the server.")
 	fs.BoolVar(&c.Ssl, "ssl", false, "Use https for connecting to cluster.")
 	fs.BoolVar(&c.UnsafeSsl, "unsafeSsl", false, "Set this when connecting to the cluster using https and not use SSL verification.")
 	fs.StringVar(&c.Format, "format", defaultFormat, "Format specifies the format of the server responses:  json, csv, or column.")
 	fs.StringVar(&c.Precision, "precision", defaultPrecision, "Precision specifies the format of the timestamp:  rfc3339,h,m,s,ms,u or ns.")
 	fs.StringVar(&c.WriteConsistency, "consistency", "all", "Set write consistency level: any, one, quorum, or all.")
 	fs.BoolVar(&c.Pretty, "pretty", false, "Turns on pretty print for the json format.")
-	fs.StringVar(&c.Execute, "execute", c.Execute, "Execute command and quit.")
-	fs.BoolVar(&c.ShowVersion, "version", false, "Displays the InfluxDB version.")
+	fs.StringVarP(&c.Execute, "execute", "e", c.Execute, "Execute command and quit.")
+	fs.BoolVarP(&c.ShowVersion, "version", "v", false, "Displays the InfluxDB version.")
 	fs.BoolVar(&c.Import, "import", false, "Import a previous database.")
 	fs.IntVar(&c.PPS, "pps", defaultPPS, "How many points per second the import will allow.  By default it is zero and will not throttle importing.")
 	fs.StringVar(&c.Path, "path", "", "path to the file to import")
@@ -58,48 +58,48 @@ func main() {
 	// Define our own custom usage to print
 	fs.Usage = func() {
 		fmt.Println(`Usage of influx:
-  -version
+  -v, --version
        Display the version and exit.
-  -host 'host name'
+  -H, --host 'host name'
        Host to connect to.
-  -port 'port #'
+  -p, --port 'port #'
        Port to connect to.
-  -database 'database name'
+  -d, --database 'database name'
        Database to connect to the server.
-  -password 'password'
+  --password 'password'
       Password to connect to the server.  Leaving blank will prompt for password (--password '').
-  -username 'username'
+  -u, --username 'username'
        Username to connect to the server.
-  -ssl
+  --ssl
         Use https for requests.
-  -unsafeSsl
+  --unsafeSsl
         Set this when connecting to the cluster using https and not use SSL verification.
-  -execute 'command'
+  -e, --execute 'command'
        Execute command and quit.
-  -format 'json|csv|column'
+  --format 'json|csv|column'
        Format specifies the format of the server responses:  json, csv, or column.
-  -precision 'rfc3339|h|m|s|ms|u|ns'
+  --precision 'rfc3339|h|m|s|ms|u|ns'
        Precision specifies the format of the timestamp:  rfc3339, h, m, s, ms, u or ns.
-  -consistency 'any|one|quorum|all'
+  --consistency 'any|one|quorum|all'
        Set write consistency level: any, one, quorum, or all
-  -pretty
+  --pretty
        Turns on pretty print for the json format.
-  -import
+  --import
        Import a previous database export from file
-  -pps
+  --pps
        How many points per second the import will allow.  By default it is zero and will not throttle importing.
-  -path
+  --path
        Path to file to import
-  -compressed
+  --compressed
        Set to true if the import file is compressed
 
 Examples:
 
     # Use influx in a non-interactive mode to query the database "metrics" and pretty print json:
-    $ influx -database 'metrics' -execute 'select * from cpu' -format 'json' -pretty
+    $ influx --database 'metrics' --execute 'select * from cpu' --format 'json' --pretty
 
     # Connect to a specific database on startup and set database context:
-    $ influx -database 'metrics' -host 'localhost' -port '8086'
+    $ influx --database 'metrics' --host 'localhost' --port '8086'
 `)
 	}
 	fs.Parse(os.Args[1:])

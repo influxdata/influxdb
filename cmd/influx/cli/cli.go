@@ -82,7 +82,7 @@ func (c *CommandLine) Run() error {
 	// determine if they set the password flag but provided no value
 	for _, v := range os.Args {
 		v = strings.ToLower(v)
-		if (strings.HasPrefix(v, "-password") || strings.HasPrefix(v, "--password")) && c.Password == "" {
+		if strings.HasPrefix(v, "--password") && c.Password == "" {
 			promptForPassword = true
 			break
 		}
