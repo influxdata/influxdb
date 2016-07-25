@@ -63,7 +63,7 @@ func Test_StringEncoder_Multi_Compressed(t *testing.T) {
 		t.Fatalf("unexpected encoding: got %v, exp %v", b[0], stringCompressedSnappy)
 	}
 
-	if exp := 47; len(b) != exp {
+	if exp := 51; len(b) != exp {
 		t.Fatalf("unexpected length: got %v, exp %v", len(b), exp)
 	}
 
@@ -137,7 +137,7 @@ func Test_StringDecoder_Empty(t *testing.T) {
 	}
 }
 
-func Test_StringDecoder_CorruptInitial(t *testing.T) {
+func Test_StringDecoder_CorruptRead(t *testing.T) {
 	cases := []string{
 		"\x10\x03\b\x03Hi", // Higher length than actual data
 		"\x10\x1dp\x9c\x90\x90\x90\x90\x90\x90\x90\x90\x90length overflow----",
@@ -160,7 +160,7 @@ func Test_StringDecoder_CorruptInitial(t *testing.T) {
 	}
 }
 
-func Test_StringDecoder_CorruptReadAll(t *testing.T) {
+func Test_StringDecoder_CorruptSetBytes(t *testing.T) {
 	cases := []string{
 		"0t\x00\x01\x000\x00\x01\x000\x00\x01\x000\x00\x01\x000\x00\x01" +
 			"\x000\x00\x01\x000\x00\x01\x000\x00\x00\x00\xff:\x01\x00\x01\x00\x01" +
@@ -170,12 +170,8 @@ func Test_StringDecoder_CorruptReadAll(t *testing.T) {
 
 	for _, c := range cases {
 		var dec StringDecoder
-		if err := dec.SetBytes([]byte(c)); err != nil {
-			t.Fatal(err)
-		}
-
-		for dec.Next() {
-			_ = dec.Read()
+		if err := dec.SetBytes([]byte(c)); err == nil {
+			t.Fatalf("exp an err, got nil: %q", c)
 		}
 	}
 }
