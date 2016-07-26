@@ -15,9 +15,9 @@ Displays detailed information about InfluxDB data files.
 `)
 
 	println(`Commands:
-  info - displays series meta-data for all shards.  Default location [$HOME/.influxdb]
   dumptsm - dumps low-level details about tsm1 files.
-  export - exports a tsm file to line protocol`)
+  export - exports a tsm file to line protocol
+  report - displays a shard level report`)
 	println()
 }
 
@@ -32,13 +32,14 @@ func main() {
 	}
 
 	switch flag.Args()[0] {
-	case "info":
-		var path string
-		fs := flag.NewFlagSet("info", flag.ExitOnError)
-		fs.StringVar(&path, "dir", os.Getenv("HOME")+"/.influxdb", "Root storage path. [$HOME/.influxdb]")
+	case "report":
+		opts := &reportOpts{}
+		fs := flag.NewFlagSet("report", flag.ExitOnError)
+		fs.StringVar(&opts.pattern, "pattern", "", "Include only files matching a pattern")
+		fs.BoolVar(&opts.detailed, "detailed", false, "Report detailed cardinality estimates")
 
 		fs.Usage = func() {
-			println("Usage: influx_inspect info [options]\n\n   Displays series meta-data for all shards.")
+			println("Usage: influx_inspect report [options]\n\n   Displays shard level report")
 			println()
 			println("Options:")
 			fs.PrintDefaults()
@@ -48,7 +49,8 @@ func main() {
 			fmt.Printf("%v", err)
 			os.Exit(1)
 		}
-		cmdInfo(path)
+		opts.dir = fs.Arg(0)
+		cmdReport(opts)
 	case "dumptsmdev":
 		fmt.Fprintf(os.Stderr, "warning: dumptsmdev is deprecated, use dumptsm instead.\n")
 		fallthrough
