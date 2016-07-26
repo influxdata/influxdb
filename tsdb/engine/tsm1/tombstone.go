@@ -1,6 +1,7 @@
 package tsm1
 
 import (
+	"bufio"
 	"encoding/binary"
 	"io/ioutil"
 	"math"
@@ -198,19 +199,9 @@ func (t *Tombstoner) readTombstone() ([]Tombstone, error) {
 // compatibility with versions prior to 0.13.  This format is a simple newline
 // separated text file.
 func (t *Tombstoner) readTombstoneV1(f *os.File, fn func(t Tombstone) error) error {
-	var b []byte
-	var err error
-	b, err = ioutil.ReadAll(f)
-	if err != nil {
-		return err
-	}
-
-	lines := strings.TrimSpace(string(b))
-	if lines == "" {
-		return nil
-	}
-
-	for _, line := range strings.Split(string(b), "\n") {
+	r := bufio.NewScanner(f)
+	for r.Scan() {
+		line := r.Text()
 		if line == "" {
 			continue
 		}
@@ -222,7 +213,7 @@ func (t *Tombstoner) readTombstoneV1(f *os.File, fn func(t Tombstone) error) err
 			return err
 		}
 	}
-	return nil
+	return r.Err()
 }
 
 // readTombstoneV2 reads the second version of tombstone files that are capable
