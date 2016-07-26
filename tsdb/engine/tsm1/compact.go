@@ -763,18 +763,14 @@ func (c *Compactor) add(files []string) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	var inuse bool
+	// See if the new files are already in use
 	for _, f := range files {
 		if _, ok := c.files[f]; ok {
-			inuse = true
-			break
+			return false
 		}
 	}
 
-	if inuse {
-		return false
-	}
-
+	// Mark all the new files in use
 	for _, f := range files {
 		c.files[f] = struct{}{}
 	}
