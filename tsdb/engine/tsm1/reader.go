@@ -203,7 +203,7 @@ func NewTSMReader(f *os.File) (*TSMReader, error) {
 
 func (t *TSMReader) applyTombstones() error {
 	var cur, prev Tombstone
-	batch := make([]string, 0, 1024)
+	batch := make([]string, 0, 4096)
 
 	if err := t.tombstoner.Walk(func(ts Tombstone) error {
 		cur = ts
@@ -215,7 +215,7 @@ func (t *TSMReader) applyTombstones() error {
 		}
 		batch = append(batch, ts.Key)
 
-		if len(batch) > 1024 {
+		if len(batch) > 4096 {
 			t.index.DeleteRange(batch, prev.Min, prev.Max)
 			batch = batch[:0]
 		}
