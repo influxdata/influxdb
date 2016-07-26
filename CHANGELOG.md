@@ -103,6 +103,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6946](https://github.com/influxdata/influxdb/issues/6946): Duplicate data for the same timestamp
 - [#7043](https://github.com/influxdata/influxdb/pull/7043): Remove limiter from walkShards
 - [#5501](https://github.com/influxdata/influxdb/issues/5501): Queries against files that have just been compacted need to point to new files
+- [#6595](https://github.com/influxdata/influxdb/issues/6595): Fix full compactions conflicting with level compactions
 
 ## v0.13.0 [2016-05-12]
 

@@ -858,7 +858,15 @@ func (e *Engine) compactTSMLevel(fast bool, level int) {
 
 					if fast {
 						files, err = e.Compactor.CompactFast(group)
-						if err != nil && err != errCompactionsDisabled {
+						if err == errCompactionsDisabled || err == errCompactionInProgress {
+							e.logger.Printf("aborted level %d group (%d). %v",
+								level, groupNum, err)
+
+							if err == errCompactionInProgress {
+								time.Sleep(time.Second)
+							}
+							return
+						} else if err != nil {
 							e.logger.Printf("error compacting TSM files: %v", err)
 							atomic.AddInt64(&e.stats.TSMCompactionErrors[level-1], 1)
 							time.Sleep(time.Second)
@@ -866,7 +874,15 @@ func (e *Engine) compactTSMLevel(fast bool, level int) {
 						}
 					} else {
 						files, err = e.Compactor.CompactFull(group)
-						if err != nil && err != errCompactionsDisabled {
+						if err == errCompactionsDisabled || err == errCompactionInProgress {
+							e.logger.Printf("aborted level %d compaction group (%d). %v",
+								level, groupNum, err)
+
+							if err == errCompactionInProgress {
+								time.Sleep(time.Second)
+							}
+							return
+						} else if err != nil {
 							e.logger.Printf("error compacting TSM files: %v", err)
 							atomic.AddInt64(&e.stats.TSMCompactionErrors[level-1], 1)
 							time.Sleep(time.Second)
@@ -941,7 +957,15 @@ func (e *Engine) compactTSMFull() {
 					)
 					if optimize {
 						files, err = e.Compactor.CompactFast(group)
-						if err != nil && err != errCompactionsDisabled {
+						if err == errCompactionsDisabled || err == errCompactionInProgress {
+							e.logger.Printf("aborted %s compaction group (%d). %v",
+								logDesc, groupNum, err)
+
+							if err == errCompactionInProgress {
+								time.Sleep(time.Second)
+							}
+							return
+						} else if err != nil {
 							e.logger.Printf("error compacting TSM files: %v", err)
 							atomic.AddInt64(&e.stats.TSMOptimizeCompactionErrors, 1)
 
@@ -950,7 +974,15 @@ func (e *Engine) compactTSMFull() {
 						}
 					} else {
 						files, err = e.Compactor.CompactFull(group)
-						if err != nil && err != errCompactionsDisabled {
+						if err == errCompactionsDisabled || err == errCompactionInProgress {
+							e.logger.Printf("aborted %s compaction group (%d). %v",
+								logDesc, groupNum, err)
+
+							if err == errCompactionInProgress {
+								time.Sleep(time.Second)
+							}
+							return
+						} else if err != nil {
 							e.logger.Printf("error compacting TSM files: %v", err)
 							atomic.AddInt64(&e.stats.TSMFullCompactionErrors, 1)
 

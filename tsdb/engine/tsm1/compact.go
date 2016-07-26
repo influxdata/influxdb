@@ -32,10 +32,11 @@ const (
 )
 
 var (
-	errMaxFileExceeded     = fmt.Errorf("max file exceeded")
-	errSnapshotsDisabled   = fmt.Errorf("snapshots disabled")
-	errCompactionsDisabled = fmt.Errorf("compactions disabled")
-	errCompactionAborted   = fmt.Errorf("compaction aborted")
+	errMaxFileExceeded      = fmt.Errorf("max file exceeded")
+	errSnapshotsDisabled    = fmt.Errorf("snapshots disabled")
+	errCompactionsDisabled  = fmt.Errorf("compactions disabled")
+	errCompactionAborted    = fmt.Errorf("compaction aborted")
+	errCompactionInProgress = fmt.Errorf("compaction in progress")
 )
 
 var (
@@ -69,11 +70,6 @@ type DefaultPlanner struct {
 	// do a full compaction of the TSM files in this shard. This duration
 	// should always be greater than the CacheFlushWriteColdDuraion
 	CompactFullWriteColdDuration time.Duration
-
-	// lastPlanCompactedFull will be true if the last time
-	// Plan was called, all files were over the max size
-	// or there was only one file
-	lastPlanCompactedFull bool
 
 	// lastPlanCheck is the last time Plan was called
 	lastPlanCheck time.Time
@@ -285,7 +281,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 	generations := c.findGenerations()
 
 	// first check if we should be doing a full compaction because nothing has been written in a long time
-	if !c.lastPlanCompactedFull && c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration && len(generations) > 1 {
+	if c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration && len(generations) > 1 {
 		var tsmFiles []string
 		for i, group := range generations {
 			var skip bool
@@ -314,8 +310,6 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 			}
 		}
 		sort.Strings(tsmFiles)
-
-		c.lastPlanCompactedFull = true
 
 		if len(tsmFiles) <= 1 {
 			return nil
@@ -455,8 +449,6 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 		tsmFiles = append(tsmFiles, cGroup)
 	}
 
-	c.lastPlanCompactedFull = false
-
 	return tsmFiles
 }
 
@@ -500,6 +492,7 @@ type Compactor struct {
 	mu      sync.RWMutex
 	opened  bool
 	closing chan struct{}
+	files   map[string]struct{}
 }
 
 func (c *Compactor) Open() {
@@ -511,6 +504,7 @@ func (c *Compactor) Open() {
 
 	c.closing = make(chan struct{})
 	c.opened = true
+	c.files = make(map[string]struct{})
 }
 
 func (c *Compactor) Close() {
@@ -612,6 +606,11 @@ func (c *Compactor) CompactFull(tsmFiles []string) ([]string, error) {
 		return nil, errCompactionsDisabled
 	}
 
+	if !c.add(tsmFiles) {
+		return nil, errCompactionInProgress
+	}
+	defer c.remove(tsmFiles)
+
 	files, err := c.compact(false, tsmFiles)
 
 	// See if we were closed while writing a snapshot
@@ -635,6 +634,11 @@ func (c *Compactor) CompactFast(tsmFiles []string) ([]string, error) {
 	if !opened {
 		return nil, errCompactionsDisabled
 	}
+
+	if !c.add(tsmFiles) {
+		return nil, errCompactionInProgress
+	}
+	defer c.remove(tsmFiles)
 
 	files, err := c.compact(true, tsmFiles)
 
@@ -681,9 +685,6 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 
 		// We hit an error but didn't finish the compaction.  Remove the temp file and abort.
 		if err != nil {
-			if err := os.Remove(fileName); err != nil {
-				return nil, err
-			}
 			return nil, err
 		}
 
@@ -695,13 +696,9 @@ func (c *Compactor) writeNewFiles(generation, sequence int, iter KeyIterator) ([
 }
 
 func (c *Compactor) write(path string, iter KeyIterator) (err error) {
-	if _, err := os.Stat(path); !os.IsNotExist(err) {
-		return fmt.Errorf("%v already file exists. aborting", path)
-	}
-
-	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0666)
+	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0666)
 	if err != nil {
-		return err
+		return errCompactionInProgress
 	}
 
 	// Create the write for the new TSM file.
@@ -760,6 +757,32 @@ func (c *Compactor) write(path string, iter KeyIterator) (err error) {
 		return err
 	}
 	return nil
+}
+
+func (c *Compactor) add(files []string) bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// See if the new files are already in use
+	for _, f := range files {
+		if _, ok := c.files[f]; ok {
+			return false
+		}
+	}
+
+	// Mark all the new files in use
+	for _, f := range files {
+		c.files[f] = struct{}{}
+	}
+	return true
+}
+
+func (c *Compactor) remove(files []string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for _, f := range files {
+		delete(c.files, f)
+	}
 }
 
 // KeyIterator allows iteration over set of keys and values in sorted order.
