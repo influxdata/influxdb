@@ -2,9 +2,7 @@ package collectd // import "github.com/influxdata/influxdb/services/collectd"
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -15,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/log"
 	"github.com/kimor79/gollectd"
 )
 
@@ -67,18 +66,18 @@ func NewService(c Config) *Service {
 		// Use defaults where necessary.
 		Config: c.WithDefaults(),
 
-		Logger:   log.New(os.Stderr, "[collectd] ", log.LstdFlags),
 		err:      make(chan error),
 		stats:    &Statistics{},
 		statTags: map[string]string{"bind": c.BindAddress},
 	}
+	s.WithLogger(log.Log)
 
 	return &s
 }
 
 // Open starts the service.
 func (s *Service) Open() error {
-	s.Logger.Printf("Starting collectd service")
+	s.Logger.Info("Starting collectd service")
 
 	if s.Config.BindAddress == "" {
 		return fmt.Errorf("bind address is blank")
@@ -89,7 +88,7 @@ func (s *Service) Open() error {
 	}
 
 	if _, err := s.MetaClient.CreateDatabase(s.Config.Database); err != nil {
-		s.Logger.Printf("Failed to ensure target database %s exists: %s", s.Config.Database, err.Error())
+		s.Logger.WithError(err).Errorf("Failed to ensure target database %s exists", s.Config.Database)
 		return err
 	}
 
@@ -103,7 +102,7 @@ func (s *Service) Open() error {
 			readdir = func(path string) {
 				files, err := ioutil.ReadDir(path)
 				if err != nil {
-					s.Logger.Printf("Unable to read directory %s: %s\n", path, err)
+					s.Logger.WithError(err).Errorf("unable to read directory: %s", path)
 					return
 				}
 
@@ -114,10 +113,10 @@ func (s *Service) Open() error {
 						continue
 					}
 
-					s.Logger.Printf("Loading %s\n", fullpath)
+					s.Logger.Infof("Loading %s", fullpath)
 					types, err := gollectd.TypesDBFile(fullpath)
 					if err != nil {
-						s.Logger.Printf("Unable to parse collectd types file: %s\n", f.Name())
+						s.Logger.WithError(err).Errorf("unable to parse collectd types file: %s", f.Name())
 						continue
 					}
 
@@ -134,7 +133,7 @@ func (s *Service) Open() error {
 			readdir(s.Config.TypesDB)
 			s.typesdb = alltypesdb
 		} else {
-			s.Logger.Printf("Loading %s\n", s.Config.TypesDB)
+			s.Logger.Infof("loading %s", s.Config.TypesDB)
 			typesdb, err := gollectd.TypesDBFile(s.Config.TypesDB)
 			if err != nil {
 				return fmt.Errorf("Open(): %s", err)
@@ -165,7 +164,7 @@ func (s *Service) Open() error {
 	}
 	s.conn = conn
 
-	s.Logger.Println("Listening on UDP: ", conn.LocalAddr().String())
+	s.Logger.Infof("Listening on UDP: %s", conn.LocalAddr().String())
 
 	// Start the points batcher.
 	s.batcher = tsdb.NewPointBatcher(s.Config.BatchSize, s.Config.BatchPending, time.Duration(s.Config.BatchDuration))
@@ -200,14 +199,14 @@ func (s *Service) Close() error {
 	s.stop = nil
 	s.conn = nil
 	s.batcher = nil
-	s.Logger.Println("collectd UDP closed")
+	s.Logger.Info("collectd UDP closed")
 	return nil
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
-// called after Open is called.
-func (s *Service) SetLogOutput(w io.Writer) {
-	s.Logger = log.New(w, "[collectd] ", log.LstdFlags)
+// WithLogger sets the logger to augment for log messages. It must not be
+// called after the Open method has been called.
+func (s *Service) WithLogger(l *log.Logger) {
+	s.Logger = l.WithField("service", "collectd")
 }
 
 // Statistics maintains statistics for the collectd service.
@@ -279,7 +278,7 @@ func (s *Service) serve() {
 		n, _, err := s.conn.ReadFromUDP(buffer)
 		if err != nil {
 			atomic.AddInt64(&s.stats.ReadFail, 1)
-			s.Logger.Printf("collectd ReadFromUDP error: %s", err)
+			s.Logger.WithError(err).Error("collectd ReadFromUDP error")
 			continue
 		}
 		if n > 0 {
@@ -293,7 +292,7 @@ func (s *Service) handleMessage(buffer []byte) {
 	packets, err := gollectd.Packets(buffer, s.typesdb)
 	if err != nil {
 		atomic.AddInt64(&s.stats.PointsParseFail, 1)
-		s.Logger.Printf("Collectd parse error: %s", err)
+		s.Logger.WithError(err).Error("Collectd parse error")
 		return
 	}
 	for _, packet := range *packets {
@@ -317,7 +316,7 @@ func (s *Service) writePoints() {
 				atomic.AddInt64(&s.stats.BatchesTransmitted, 1)
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))
 			} else {
-				s.Logger.Printf("failed to write point batch to database %q: %s", s.Config.Database, err)
+				s.Logger.WithError(err).Errorf("failed to write point batch to database %q", s.Config.Database)
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
 		}
@@ -363,7 +362,7 @@ func (s *Service) UnmarshalCollectd(packet *gollectd.Packet) []models.Point {
 		p, err := models.NewPoint(name, tags, fields, timestamp)
 		// Drop invalid points
 		if err != nil {
-			s.Logger.Printf("Dropping point %v: %v", name, err)
+			s.Logger.WithField("metric", name).WithError(err).Error("dropping point")
 			atomic.AddInt64(&s.stats.InvalidDroppedPoints, 1)
 			continue
 		}

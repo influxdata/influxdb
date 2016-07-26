@@ -2,10 +2,7 @@ package udp // import "github.com/influxdata/influxdb/services/udp"
 
 import (
 	"errors"
-	"io"
-	"log"
 	"net"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/log"
 )
 
 const (
@@ -64,15 +62,16 @@ type Service struct {
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
 	d := *c.WithDefaults()
-	return &Service{
+	s := &Service{
 		config:     d,
 		done:       make(chan struct{}),
 		parserChan: make(chan []byte, parserChanLen),
 		batcher:    tsdb.NewPointBatcher(d.BatchSize, d.BatchPending, time.Duration(d.BatchTimeout)),
-		Logger:     log.New(os.Stderr, "[udp] ", log.LstdFlags),
 		stats:      &Statistics{},
 		statTags:   map[string]string{"bind": d.BindAddress},
 	}
+	s.WithLogger(log.Log)
+	return s
 }
 
 // Open starts the service
@@ -90,26 +89,26 @@ func (s *Service) Open() (err error) {
 
 	s.addr, err = net.ResolveUDPAddr("udp", s.config.BindAddress)
 	if err != nil {
-		s.Logger.Printf("Failed to resolve UDP address %s: %s", s.config.BindAddress, err)
+		s.Logger.WithError(err).Errorf("Failed to resolve UDP address %s", s.config.BindAddress)
 		return err
 	}
 
 	s.conn, err = net.ListenUDP("udp", s.addr)
 	if err != nil {
-		s.Logger.Printf("Failed to set up UDP listener at address %s: %s", s.addr, err)
+		s.Logger.WithError(err).Errorf("Failed to set up UDP listener at address %s", s.addr)
 		return err
 	}
 
 	if s.config.ReadBuffer != 0 {
 		err = s.conn.SetReadBuffer(s.config.ReadBuffer)
 		if err != nil {
-			s.Logger.Printf("Failed to set UDP read buffer to %d: %s",
-				s.config.ReadBuffer, err)
+			s.Logger.WithError(err).Errorf("Failed to set UDP read buffer to %d",
+				s.config.ReadBuffer)
 			return err
 		}
 	}
 
-	s.Logger.Printf("Started listening on UDP: %s", s.config.BindAddress)
+	s.Logger.Infof("Started listening on UDP: %s", s.config.BindAddress)
 
 	s.wg.Add(3)
 	go s.serve()
@@ -157,7 +156,7 @@ func (s *Service) writer() {
 				atomic.AddInt64(&s.stats.BatchesTransmitted, 1)
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))
 			} else {
-				s.Logger.Printf("failed to write point batch to database %q: %s", s.config.Database, err)
+				s.Logger.WithError(err).Errorf("failed to write point batch to database %q", s.config.Database)
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
 
@@ -183,7 +182,7 @@ func (s *Service) serve() {
 			n, _, err := s.conn.ReadFromUDP(buf)
 			if err != nil {
 				atomic.AddInt64(&s.stats.ReadFail, 1)
-				s.Logger.Printf("Failed to read UDP message: %s", err)
+				s.Logger.WithError(err).Error("Failed to read UDP message")
 				continue
 			}
 			atomic.AddInt64(&s.stats.BytesReceived, int64(n))
@@ -206,7 +205,7 @@ func (s *Service) parser() {
 			points, err := models.ParsePointsWithPrecision(buf, time.Now().UTC(), s.config.Precision)
 			if err != nil {
 				atomic.AddInt64(&s.stats.PointsParseFail, 1)
-				s.Logger.Printf("Failed to parse points: %s", err)
+				s.Logger.WithError(err).Error("Failed to parse points")
 				continue
 			}
 
@@ -234,15 +233,15 @@ func (s *Service) Close() error {
 	s.done = nil
 	s.conn = nil
 
-	s.Logger.Print("Service closed")
+	s.Logger.Info("Service closed")
 
 	return nil
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
-// called after Open is called.
-func (s *Service) SetLogOutput(w io.Writer) {
-	s.Logger = log.New(w, "[udp] ", log.LstdFlags)
+// WithLogger sets the logger to augment for log messages. It must not be
+// called after the Open method has been called.
+func (s *Service) WithLogger(l *log.Logger) {
+	s.Logger = l.WithField("service", "udp")
 }
 
 // Addr returns the listener's address

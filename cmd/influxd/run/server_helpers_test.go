@@ -20,6 +20,8 @@ import (
 	"github.com/influxdata/influxdb/services/httpd"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/log"
+	"github.com/influxdata/log/handlers/discard"
 )
 
 const emptyResults = `{"results":[{}]}`
@@ -476,6 +478,6 @@ func writeTestData(s *Server, t *Test) error {
 func configureLogging(s *Server) {
 	// Set the logger to discard unless verbose is on
 	if !testing.Verbose() {
-		s.SetLogOutput(ioutil.Discard)
+		s.WithLogger(log.New(discard.Default))
 	}
 }

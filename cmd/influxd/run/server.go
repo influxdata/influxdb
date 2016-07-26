@@ -2,8 +2,6 @@ package run
 
 import (
 	"fmt"
-	"io"
-	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -30,6 +28,7 @@ import (
 	"github.com/influxdata/influxdb/services/udp"
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/log"
 	client "github.com/influxdata/usage-client/v1"
 	// Initialize the engine packages
 	_ "github.com/influxdata/influxdb/tsdb/engine"
@@ -94,10 +93,6 @@ type Server struct {
 	tcpAddr string
 
 	config *Config
-
-	// logOutput is the writer to which all services should be configured to
-	// write logs to after appension.
-	logOutput io.Writer
 }
 
 // NewServer returns a new instance of Server built from a config.
@@ -143,7 +138,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		BindAddress: bind,
 
-		Logger: log.New(os.Stderr, "", log.LstdFlags),
+		Logger: log.Log,
 
 		MetaClient: meta.NewClient(c.Meta),
 
@@ -153,8 +148,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		httpUseTLS:  c.HTTPD.HTTPSEnabled,
 		tcpAddr:     bind,
 
-		config:    c,
-		logOutput: os.Stderr,
+		config: c,
 	}
 	s.Monitor = monitor.New(s, c.Monitor)
 
@@ -224,11 +218,10 @@ func (s *Server) appendSnapshotterService() {
 	s.SnapshotterService = srv
 }
 
-// SetLogOutput sets the logger used for all messages. It must not be called
-// after the Open method has been called.
-func (s *Server) SetLogOutput(w io.Writer) {
-	s.Logger = log.New(os.Stderr, "", log.LstdFlags)
-	s.logOutput = w
+// WithLogger sets the logger to augment for log messages. It must not be
+// called after the Open method has been called.
+func (s *Server) WithLogger(l *log.Logger) {
+	s.Logger = l
 }
 
 func (s *Server) appendMonitorService() {
@@ -403,21 +396,20 @@ func (s *Server) Open() error {
 	s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
 
 	// Configure logging for all services and clients.
-	w := s.logOutput
 	if s.config.Meta.LoggingEnabled {
-		s.MetaClient.SetLogOutput(w)
+		s.MetaClient.WithLogger(s.Logger)
 	}
-	s.TSDBStore.SetLogOutput(w)
+	s.TSDBStore.WithLogger(s.Logger)
 	if s.config.Data.QueryLogEnabled {
-		s.QueryExecutor.SetLogOutput(w)
+		s.QueryExecutor.WithLogger(s.Logger)
 	}
-	s.PointsWriter.SetLogOutput(w)
-	s.Subscriber.SetLogOutput(w)
+	s.PointsWriter.WithLogger(s.Logger)
+	s.Subscriber.WithLogger(s.Logger)
 	for _, svc := range s.Services {
-		svc.SetLogOutput(w)
+		svc.WithLogger(s.Logger)
 	}
-	s.SnapshotterService.SetLogOutput(w)
-	s.Monitor.SetLogOutput(w)
+	s.SnapshotterService.WithLogger(s.Logger)
+	s.Monitor.WithLogger(s.Logger)
 
 	// Open TSDB store.
 	if err := s.TSDBStore.Open(); err != nil {
@@ -546,7 +538,7 @@ func (s *Server) reportServer() {
 		},
 	}
 
-	s.Logger.Printf("Sending usage statistics to usage.influxdata.com")
+	s.Logger.Info("Sending usage statistics to usage.influxdata.com")
 
 	go cl.Save(usage)
 }
@@ -568,7 +560,7 @@ func (s *Server) monitorErrorChan(ch <-chan error) {
 
 // Service represents a service attached to the server.
 type Service interface {
-	SetLogOutput(w io.Writer)
+	WithLogger(l *log.Logger)
 	Open() error
 	Close() error
 }
@@ -586,7 +578,7 @@ func startProfile(cpuprofile, memprofile string) {
 		if err != nil {
 			log.Fatalf("cpuprofile: %v", err)
 		}
-		log.Printf("writing CPU profile to: %s\n", cpuprofile)
+		log.Infof("writing CPU profile to: %s\n", cpuprofile)
 		prof.cpu = f
 		pprof.StartCPUProfile(prof.cpu)
 	}
@@ -596,7 +588,7 @@ func startProfile(cpuprofile, memprofile string) {
 		if err != nil {
 			log.Fatalf("memprofile: %v", err)
 		}
-		log.Printf("writing mem profile to: %s\n", memprofile)
+		log.Infof("writing mem profile to: %s\n", memprofile)
 		prof.mem = f
 		runtime.MemProfileRate = 4096
 	}
@@ -608,12 +600,12 @@ func stopProfile() {
 	if prof.cpu != nil {
 		pprof.StopCPUProfile()
 		prof.cpu.Close()
-		log.Println("CPU profile stopped")
+		log.Info("CPU profile stopped")
 	}
 	if prof.mem != nil {
 		pprof.Lookup("heap").WriteTo(prof.mem, 0)
 		prof.mem.Close()
-		log.Println("mem profile stopped")
+		log.Info("mem profile stopped")
 	}
 }
 

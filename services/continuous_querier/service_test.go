@@ -3,8 +3,6 @@ package continuous_querier
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"log"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +11,8 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/log"
+	"github.com/influxdata/log/handlers/discard"
 )
 
 var (
@@ -344,7 +344,7 @@ func NewTestService(t *testing.T) *Service {
 
 	// Set Logger to write to dev/null so stdout isn't polluted.
 	if !testing.Verbose() {
-		s.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+		s.WithLogger(log.New(discard.Default))
 	}
 
 	// Add a couple test databases and CQs.

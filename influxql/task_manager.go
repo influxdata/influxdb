@@ -2,12 +2,12 @@ package influxql
 
 import (
 	"fmt"
-	"io/ioutil"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/log"
+	"github.com/influxdata/log/handlers/discard"
 )
 
 const (
@@ -43,7 +43,7 @@ type TaskManager struct {
 func NewTaskManager() *TaskManager {
 	return &TaskManager{
 		QueryTimeout: DefaultQueryTimeout,
-		Logger:       log.New(ioutil.Discard, "[query] ", log.LstdFlags),
+		Logger:       &log.Logger{Handler: discard.Default},
 		queries:      make(map[uint64]*QueryTask),
 		nextID:       1,
 	}
@@ -156,8 +156,12 @@ func (t *TaskManager) AttachQuery(q *Query, database string, interrupt <-chan st
 
 			select {
 			case <-timer.C:
-				t.Logger.Printf("Detected slow query: %s (qid: %d, database: %s, threshold: %s)",
-					query.query, qid, query.database, t.LogQueriesAfter)
+				t.Logger.WithFields(log.Fields{
+					"query":     query.query,
+					"qid":       qid,
+					"database":  query.database,
+					"threshold": t.LogQueriesAfter,
+				}).Warnf("Detected slow query")
 			case <-closing:
 			}
 			return nil

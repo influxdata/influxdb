@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"log"
 	"os"
 	"reflect"
 	"testing"
@@ -16,6 +15,8 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/log"
+	"github.com/influxdata/log/handlers/text"
 )
 
 const (
@@ -171,7 +172,7 @@ func NewQueryExecutor() *QueryExecutor {
 	if testing.Verbose() {
 		out = io.MultiWriter(out, os.Stderr)
 	}
-	e.QueryExecutor.Logger = log.New(out, "[query] ", log.LstdFlags)
+	e.QueryExecutor.WithLogger(log.New(text.New(out)))
 
 	return e
 }

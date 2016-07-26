@@ -3,8 +3,6 @@ package collectd
 import (
 	"encoding/hex"
 	"errors"
-	"io/ioutil"
-	"log"
 	"net"
 	"testing"
 	"time"
@@ -12,6 +10,8 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/log"
+	"github.com/influxdata/log/handlers/discard"
 )
 
 // Test that the service checks / creates the target database on startup.
@@ -201,7 +201,7 @@ func newTestService(batchSize int, batchDuration time.Duration) *testService {
 	}
 
 	if !testing.Verbose() {
-		s.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+		s.WithLogger(log.New(discard.Default))
 	}
 
 	return s

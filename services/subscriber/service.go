@@ -3,10 +3,7 @@ package subscriber // import "github.com/influxdata/influxdb/services/subscriber
 import (
 	"errors"
 	"fmt"
-	"io"
-	"log"
 	"net/url"
-	"os"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/log"
 )
 
 // Statistics for the Subscriber service.
@@ -62,11 +60,11 @@ type Service struct {
 // NewService returns a subscriber service with given settings
 func NewService(c Config) *Service {
 	s := &Service{
-		Logger: log.New(os.Stderr, "[subscriber] ", log.LstdFlags),
 		closed: true,
 		stats:  &Statistics{},
 		conf:   c,
 	}
+	s.WithLogger(log.Log)
 	s.NewPointsWriter = s.newPointsWriter
 	return s
 }
@@ -95,7 +93,7 @@ func (s *Service) Open() error {
 		s.waitForMetaUpdates()
 	}()
 
-	s.Logger.Println("opened service")
+	s.Logger.Info("opened service")
 	return nil
 }
 
@@ -110,14 +108,14 @@ func (s *Service) Close() error {
 	close(s.closing)
 
 	s.wg.Wait()
-	s.Logger.Println("closed service")
+	s.Logger.Info("closed service")
 	return nil
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
-// called after Open is called.
-func (s *Service) SetLogOutput(w io.Writer) {
-	s.Logger = log.New(w, "[subscriber] ", log.LstdFlags)
+// WithLogger sets the logger to augment for log messages. It must not be
+// called after the Open method has been called.
+func (s *Service) WithLogger(l *log.Logger) {
+	s.Logger = l.WithField("service", "subscriber")
 }
 
 // Statistics maintains the statistics for the subscriber service.
@@ -153,7 +151,7 @@ func (s *Service) waitForMetaUpdates() {
 		case <-ch:
 			err := s.Update()
 			if err != nil {
-				s.Logger.Println("error updating subscriptions:", err)
+				s.Logger.WithError(err).Error("error updating subscriptions")
 			}
 		case <-s.closing:
 			return
@@ -225,7 +223,7 @@ func (s *Service) run() {
 		case <-s.update:
 			err := s.updateSubs(&wg)
 			if err != nil {
-				s.Logger.Println("failed to update subscriptions:", err)
+				s.Logger.WithError(err).Error("failed to update subscriptions")
 			}
 		case p, ok := <-s.points:
 			if !ok {
@@ -299,7 +297,7 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) error {
 					cw.Run()
 				}()
 				s.subs[se] = cw
-				s.Logger.Println("added new subscription for", se.db, se.rp)
+				s.Logger.Infof("added new subscription for %s %s", se.db, se.rp)
 			}
 		}
 	}
@@ -312,7 +310,7 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) error {
 
 			// Remove it from the set
 			delete(s.subs, se)
-			s.Logger.Println("deleted old subscription for", se.db, se.rp)
+			s.Logger.Infof("deleted old subscription for %s %s", se.db, se.rp)
 		}
 	}
 
@@ -349,7 +347,7 @@ func (c chanWriter) Run() {
 	for wr := range c.writeRequests {
 		err := c.pw.WritePoints(wr)
 		if err != nil {
-			c.logger.Println(err)
+			c.logger.Error(err.Error())
 			atomic.AddInt64(c.failures, 1)
 		} else {
 			atomic.AddInt64(c.pointsWritten, int64(len(wr.Points)))

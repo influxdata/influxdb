@@ -8,6 +8,7 @@ github.com/dgryski/go-bits 2ad8d707cc05b1815ce6ff2543bb5e8d8f9298ef
 github.com/dgryski/go-bitstream 7d46cd22db7004f0cceb6f7975824b560cf0e486
 github.com/gogo/protobuf 6abcf94fd4c97dcb423fdafd42fe9f96ca7e421b
 github.com/golang/snappy d9eb7a3d35ec988b8585d4a0068e462c27d28380
+github.com/influxdata/log 667e50d3218b39de54e4db8dffb77cdb8809afc1
 github.com/influxdata/usage-client 475977e68d79883d9c8d67131c84e4241523f452
 github.com/jwilder/encoding ac74639f65b2180a2e5eb5ff197f0c122441aed0
 github.com/kimor79/gollectd 61d0deeb4ffcc167b2a1baa8efd72365692811bc
