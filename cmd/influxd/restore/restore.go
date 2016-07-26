@@ -182,7 +182,6 @@ func (cmd *Command) unpackMeta() error {
 	}
 
 	client := meta.NewClient(c)
-	client.SetLogOutput(ioutil.Discard)
 	if err := client.Open(); err != nil {
 		return err
 	}

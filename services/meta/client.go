@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
+	"github.com/influxdata/log"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -64,7 +64,7 @@ type authUser struct {
 
 // NewClient returns a new *Client.
 func NewClient(config *Config) *Client {
-	return &Client{
+	c := &Client{
 		cacheData: &Data{
 			ClusterID: uint64(rand.Int63()),
 			Index:     1,
@@ -72,11 +72,12 @@ func NewClient(config *Config) *Client {
 		},
 		closing:             make(chan struct{}),
 		changed:             make(chan struct{}),
-		logger:              log.New(ioutil.Discard, "[metaclient] ", log.LstdFlags),
 		authCache:           make(map[string]authUser, 0),
 		path:                config.Dir,
 		retentionAutoCreate: config.RetentionAutoCreate,
 	}
+	c.WithLogger(log.Log)
+	return c
 }
 
 // Open a connection to a meta service cluster.
@@ -781,16 +782,16 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 				nextShardGroupTime := g.EndTime.Add(1 * time.Nanosecond)
 				// if it already exists, continue
 				if sg, _ := data.ShardGroupByTimestamp(di.Name, rp.Name, nextShardGroupTime); sg != nil {
-					c.logger.Printf("shard group %d exists for database %s, retention policy %s", sg.ID, di.Name, rp.Name)
+					c.logger.Infof("shard group %d exists for database %s, retention policy %s", sg.ID, di.Name, rp.Name)
 					continue
 				}
 				newGroup, err := createShardGroup(data, di.Name, rp.Name, nextShardGroupTime)
 				if err != nil {
-					c.logger.Printf("failed to precreate successive shard group for group %d: %s", g.ID, err.Error())
+					c.logger.Infof("failed to precreate successive shard group for group %d: %s", g.ID, err.Error())
 					continue
 				}
 				changed = true
-				c.logger.Printf("new shard group %d successfully precreated for database %s, retention policy %s", newGroup.ID, di.Name, rp.Name)
+				c.logger.Infof("new shard group %d successfully precreated for database %s, retention policy %s", newGroup.ID, di.Name, rp.Name)
 			}
 		}
 	}
@@ -958,12 +959,12 @@ func (c *Client) MarshalBinary() ([]byte, error) {
 	return c.cacheData.MarshalBinary()
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
-// called after Open is called.
-func (c *Client) SetLogOutput(w io.Writer) {
+// WithLogger sets the logger to augment for log messages. It must not be
+// called after the Open method has been called.
+func (c *Client) WithLogger(l *log.Logger) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.logger = log.New(w, "[metaclient] ", log.LstdFlags)
+	c.logger = l.WithField("service", "metaclient")
 }
 
 func (c *Client) updateAuthCache() {

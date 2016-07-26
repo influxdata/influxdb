@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -16,6 +15,8 @@ import (
 	"github.com/influxdata/influxdb/cmd/influxd/help"
 	"github.com/influxdata/influxdb/cmd/influxd/restore"
 	"github.com/influxdata/influxdb/cmd/influxd/run"
+	"github.com/influxdata/log"
+	"github.com/influxdata/log/handlers/discard"
 )
 
 // These variables are populated via the Go linker.
@@ -41,6 +42,9 @@ func init() {
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
+	// Configure default logging.
+	log.SetHandler(discard.Default)
+
 	m := NewMain()
 	if err := m.Run(os.Args[1:]...); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -50,8 +54,6 @@ func main() {
 
 // Main represents the program execution.
 type Main struct {
-	Logger *log.Logger
-
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
@@ -60,7 +62,6 @@ type Main struct {
 // NewMain return a new instance of Main.
 func NewMain() *Main {
 	return &Main{
-		Logger: log.New(os.Stderr, "[run] ", log.LstdFlags),
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,
@@ -87,12 +88,12 @@ func (m *Main) Run(args ...string) error {
 
 		signalCh := make(chan os.Signal, 1)
 		signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
-		m.Logger.Println("Listening for signals")
+		log.Info("Listening for signals")
 
 		// Block until one of the signals above is received
 		select {
 		case <-signalCh:
-			m.Logger.Println("Signal received, initializing clean shutdown...")
+			log.Info("Signal received, initializing clean shutdown...")
 			go func() {
 				cmd.Close()
 			}()
@@ -100,14 +101,14 @@ func (m *Main) Run(args ...string) error {
 
 		// Block again until another signal is received, a shutdown timeout elapses,
 		// or the Command is gracefully closed
-		m.Logger.Println("Waiting for clean shutdown...")
+		log.Info("Waiting for clean shutdown...")
 		select {
 		case <-signalCh:
-			m.Logger.Println("second signal received, initializing hard shutdown")
+			log.Warn("second signal received, initializing hard shutdown")
 		case <-time.After(time.Second * 30):
-			m.Logger.Println("time limit reached, initializing hard shutdown")
+			log.Error("time limit reached, initializing hard shutdown")
 		case <-cmd.Closed:
-			m.Logger.Println("server shutdown completed")
+			log.Info("server shutdown completed")
 		}
 
 		// goodbye.

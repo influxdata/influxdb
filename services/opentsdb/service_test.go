@@ -1,8 +1,6 @@
 package opentsdb_test
 
 import (
-	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
 	"reflect"
@@ -15,6 +13,8 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/opentsdb"
+	"github.com/influxdata/log"
+	"github.com/influxdata/log/handlers/discard"
 )
 
 // Ensure a point can be written via the telnet protocol.
@@ -147,7 +147,7 @@ func NewService(database string) *Service {
 	s.Service.MetaClient = &DatabaseCreator{}
 
 	if !testing.Verbose() {
-		s.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+		s.WithLogger(log.New(discard.Default))
 	}
 
 	return s

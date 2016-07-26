@@ -3,15 +3,14 @@ package influxql
 import (
 	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"log"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/log"
+	"github.com/influxdata/log/handlers/discard"
 )
 
 var (
@@ -118,17 +117,21 @@ type QueryExecutor struct {
 	// Defaults to discarding all log output.
 	Logger *log.Logger
 
+	// LogLevel is the level of the logger.
+	LogLevel log.Level
+
 	// expvar-based stats.
 	stats *QueryStatistics
 }
 
 // NewQueryExecutor returns a new instance of QueryExecutor.
 func NewQueryExecutor() *QueryExecutor {
-	return &QueryExecutor{
+	s := &QueryExecutor{
 		TaskManager: NewTaskManager(),
-		Logger:      log.New(ioutil.Discard, "[query] ", log.LstdFlags),
 		stats:       &QueryStatistics{},
 	}
+	s.WithLogger(&log.Logger{Handler: discard.Default})
+	return s
 }
 
 // QueryStatistics keeps statistics related to the QueryExecutor.
@@ -154,11 +157,12 @@ func (e *QueryExecutor) Close() error {
 	return e.TaskManager.Close()
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
-// called after Open is called.
-func (e *QueryExecutor) SetLogOutput(w io.Writer) {
-	e.Logger = log.New(w, "[query] ", log.LstdFlags)
+// WithLogger sets the logger to augment for log messages. It must not be
+// called after the Open method has been called.
+func (e *QueryExecutor) WithLogger(l *log.Logger) {
+	e.Logger = l.WithField("service", "query")
 	e.TaskManager.Logger = e.Logger
+	e.Logger.Level = e.LogLevel
 }
 
 // ExecuteQuery executes each statement within a query.
@@ -186,11 +190,15 @@ func (e *QueryExecutor) executeQuery(query *Query, opt ExecutionOptions, closing
 	defer e.TaskManager.KillQuery(qid)
 
 	// Setup the execution context that will be used when executing statements.
+	logger := e.Logger.WithFields(log.Fields{
+		"qid":      qid,
+		"database": opt.Database,
+	})
 	ctx := ExecutionContext{
 		QueryID:          qid,
 		Query:            task,
 		Results:          results,
-		Log:              e.Logger,
+		Log:              logger,
 		InterruptCh:      task.closing,
 		ExecutionOptions: opt,
 	}
@@ -226,7 +234,7 @@ func (e *QueryExecutor) executeQuery(query *Query, opt ExecutionOptions, closing
 		}
 
 		// Log each normalized statement.
-		e.Logger.Println(stmt.String())
+		logger.Debug(stmt.String())
 
 		// Send any other statements to the underlying statement executor.
 		err = e.StatementExecutor.ExecuteStatement(stmt, ctx)
@@ -260,7 +268,10 @@ func (e *QueryExecutor) executeQuery(query *Query, opt ExecutionOptions, closing
 
 func (e *QueryExecutor) recover(query *Query, results chan *Result) {
 	if err := recover(); err != nil {
-		e.Logger.Printf("%s [panic:%s] %s", query.String(), err, debug.Stack())
+		e.Logger.WithFields(log.Fields{
+			"panic": err,
+			"trace": debug.Stack(),
+		})
 		results <- &Result{
 			StatementID: -1,
 			Err:         fmt.Errorf("%s [panic:%s]", query.String(), err),

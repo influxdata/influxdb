@@ -69,7 +69,7 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx influx
 			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
 		}
 		if stmt.IfNotExists {
-			ctx.Log.Println("WARNING: IF NOT EXISTS is deprecated as of v0.13.0 and will be removed in a future release")
+			ctx.Log.Warn("IF NOT EXISTS is deprecated as of v0.13.0 and will be removed in a future release")
 			messages = append(messages, &influxql.Message{
 				Level: influxql.WarningLevel,
 				Text:  "IF NOT EXISTS is deprecated as of v0.13.0 and will be removed in a future release",
@@ -103,7 +103,7 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx influx
 			messages = append(messages, influxql.ReadOnlyWarning(stmt.String()))
 		}
 		if stmt.IfExists {
-			ctx.Log.Println("WARNING: IF EXISTS is deprecated as of v0.13.0 and will be removed in a future release")
+			ctx.Log.Warn("IF EXISTS is deprecated as of v0.13.0 and will be removed in a future release")
 			messages = append(messages, &influxql.Message{
 				Level: influxql.WarningLevel,
 				Text:  "IF EXISTS is deprecated as of v0.13.0 and will be removed in a future release",

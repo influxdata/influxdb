@@ -2,9 +2,7 @@ package tsm1
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
-	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -16,6 +14,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/log"
 )
 
 type TSMFile interface {
@@ -123,10 +122,7 @@ type FileStore struct {
 
 	files []TSMFile
 
-	logger       *log.Logger // Logger to be used for important messages
-	traceLogger  *log.Logger // Logger to be used when trace-logging is on.
-	logOutput    io.Writer   // Writer to be logger and traceLogger if active.
-	traceLogging bool
+	Logger *log.Logger
 
 	stats  *FileStoreStatistics
 	purger *purger
@@ -156,42 +152,23 @@ func (f FileStat) ContainsKey(key string) bool {
 }
 
 func NewFileStore(dir string) *FileStore {
-	logger := log.New(os.Stderr, "[filestore] ", log.LstdFlags)
-	return &FileStore{
+	f := &FileStore{
 		dir:          dir,
 		lastModified: time.Now(),
-		logger:       logger,
-		traceLogger:  log.New(ioutil.Discard, "[filestore] ", log.LstdFlags),
-		logOutput:    os.Stderr,
 		stats:        &FileStoreStatistics{},
 		purger: &purger{
-			files:  map[string]TSMFile{},
-			logger: logger,
+			files: map[string]TSMFile{},
 		},
 	}
+	f.WithLogger(log.Log)
+	return f
 }
 
-// enableTraceLogging must be called before the FileStore is opened.
-func (f *FileStore) enableTraceLogging(enabled bool) {
-	f.traceLogging = enabled
-	if enabled {
-		f.traceLogger.SetOutput(f.logOutput)
-	}
-}
-
-// SetLogOutput sets the logger used for all messages. It is safe for concurrent
-// use.
-func (f *FileStore) SetLogOutput(w io.Writer) {
-	f.logger.SetOutput(w)
-
-	// Set the trace logger's output only if trace logging is enabled.
-	if f.traceLogging {
-		f.traceLogger.SetOutput(w)
-	}
-
-	f.mu.Lock()
-	f.logOutput = w
-	f.mu.Unlock()
+// WithLogger sets the logger to augment for log messages. It must not be
+// called after the Open method has been called.
+func (f *FileStore) WithLogger(l *log.Logger) {
+	f.Logger = l.WithField("service", "filestore")
+	f.purger.logger = f.Logger
 }
 
 // FileStoreStatistics keeps statistics about the file store.
@@ -406,7 +383,11 @@ func (f *FileStore) Open() error {
 		go func(idx int, file *os.File) {
 			start := time.Now()
 			df, err := NewTSMReader(file)
-			f.logger.Printf("%s (#%d) opened in %v", file.Name(), idx, time.Now().Sub(start))
+			f.Logger.WithFields(log.Fields{
+				"path":     file.Name(),
+				"idx":      idx,
+				"duration": time.Now().Sub(start),
+			}).Debug("opened filestore")
 
 			if err != nil {
 				readerC <- &res{r: df, err: fmt.Errorf("error opening memory map for file %s: %v", file.Name(), err)}
@@ -712,7 +693,7 @@ func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
 // CreateSnapshot will create hardlinks for all tsm and tombstone files
 // in the path provided
 func (f *FileStore) CreateSnapshot() (string, error) {
-	f.traceLogger.Printf("Creating snapshot in %s", f.dir)
+	f.Logger.Debugf("Creating snapshot in %s", f.dir)
 	files := f.Files()
 
 	f.mu.Lock()
@@ -1096,12 +1077,12 @@ func (p *purger) purge() {
 			for k, v := range p.files {
 				if !v.InUse() {
 					if err := v.Close(); err != nil {
-						p.logger.Printf("purge: close file: %v", err)
+						p.logger.WithError(err).Error("purge: close file")
 						continue
 					}
 
 					if err := v.Remove(); err != nil {
-						p.logger.Printf("purge: remove file: %v", err)
+						p.logger.WithError(err).Error("purge: remove file")
 						continue
 					}
 					delete(p.files, k)

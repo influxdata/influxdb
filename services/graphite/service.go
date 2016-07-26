@@ -3,11 +3,8 @@ package graphite // import "github.com/influxdata/influxdb/services/graphite"
 import (
 	"bufio"
 	"fmt"
-	"io"
-	"log"
 	"math"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/log"
 )
 
 const udpBufferSize = 65536
@@ -104,13 +102,13 @@ func NewService(c Config) (*Service, error) {
 		batchPending:    d.BatchPending,
 		udpReadBuffer:   d.UDPReadBuffer,
 		batchTimeout:    time.Duration(d.BatchTimeout),
-		logger:          log.New(os.Stderr, fmt.Sprintf("[graphite] %s ", d.BindAddress), log.LstdFlags),
 		stats:           &Statistics{},
 		statTags:        map[string]string{"proto": d.Protocol, "bind": d.BindAddress},
 		tcpConnections:  make(map[string]*tcpConnection),
 		done:            make(chan struct{}),
 		diagsKey:        strings.Join([]string{"graphite", d.Protocol, d.BindAddress}, ":"),
 	}
+	s.WithLogger(log.Log)
 
 	parser, err := NewParserWithOptions(Options{
 		Templates:   d.Templates,
@@ -130,7 +128,7 @@ func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.logger.Printf("Starting graphite service, batch size %d, batch timeout %s", s.batchSize, s.batchTimeout)
+	s.logger.Infof("Starting graphite service, batch size %d, batch timeout %s", s.batchSize, s.batchTimeout)
 
 	// Register diagnostics if a Monitor service is available.
 	if s.Monitor != nil {
@@ -141,13 +139,13 @@ func (s *Service) Open() error {
 		if rp, _ := s.MetaClient.RetentionPolicy(s.database, s.retentionPolicy); rp == nil {
 			rpi := meta.NewRetentionPolicyInfo(s.retentionPolicy)
 			if _, err := s.MetaClient.CreateRetentionPolicy(s.database, rpi); err != nil {
-				s.logger.Printf("Failed to ensure target retention policy %s exists: %s", s.database, err.Error())
+				s.logger.WithError(err).Errorf("Failed to ensure target retention policy %s exists", s.database)
 			}
 		}
 	} else {
 		rpi := meta.NewRetentionPolicyInfo(s.retentionPolicy)
 		if _, err := s.MetaClient.CreateDatabaseWithRetentionPolicy(s.database, rpi); err != nil {
-			s.logger.Printf("Failed to ensure target database %s exists: %s", s.database, err.Error())
+			s.logger.WithError(err).Errorf("Failed to ensure target database %s exists", s.database)
 			return err
 		}
 	}
@@ -171,7 +169,7 @@ func (s *Service) Open() error {
 		return err
 	}
 
-	s.logger.Printf("Listening on %s: %s", strings.ToUpper(s.protocol), s.addr.String())
+	s.logger.Infof("Listening on %s: %s", strings.ToUpper(s.protocol), s.addr.String())
 	return nil
 }
 func (s *Service) closeAllConnections() {
@@ -211,10 +209,10 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
-// called after Open is called.
-func (s *Service) SetLogOutput(w io.Writer) {
-	s.logger = log.New(w, "[graphite] ", log.LstdFlags)
+// WithLogger sets the logger to augment for log messages. It must not be
+// called after the Open method has been called.
+func (s *Service) WithLogger(l *log.Logger) {
+	s.logger = l.WithField("service", "graphite")
 }
 
 // Statistics maintains statistics for the graphite service.
@@ -268,11 +266,11 @@ func (s *Service) openTCPServer() (net.Addr, error) {
 		for {
 			conn, err := s.ln.Accept()
 			if opErr, ok := err.(*net.OpError); ok && !opErr.Temporary() {
-				s.logger.Println("graphite TCP listener closed")
+				s.logger.Info("graphite TCP listener closed")
 				return
 			}
 			if err != nil {
-				s.logger.Println("error accepting TCP connection", err.Error())
+				s.logger.WithError(err).Error("error accepting TCP connection")
 				continue
 			}
 
@@ -383,7 +381,7 @@ func (s *Service) handleLine(line string) {
 				return
 			}
 		}
-		s.logger.Printf("unable to parse line: %s: %s", line, err)
+		s.logger.WithError(err).Errorf("unable to parse line: %s", line)
 		atomic.AddInt64(&s.stats.PointsParseFail, 1)
 		return
 	}
@@ -401,7 +399,7 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 				atomic.AddInt64(&s.stats.BatchesTransmitted, 1)
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))
 			} else {
-				s.logger.Printf("failed to write point batch to database %q: %s", s.database, err)
+				s.logger.WithError(err).Errorf("failed to write point batch to database %q", s.database)
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
 

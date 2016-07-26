@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
 	"time"
+
+	"github.com/influxdata/log"
+	"github.com/influxdata/log/handlers/text"
 )
 
 const logo = `
@@ -65,16 +67,15 @@ func (cmd *Command) Run(args ...string) error {
 	fmt.Print(logo)
 
 	// Configure default logging.
-	log.SetPrefix("[run] ")
-	log.SetFlags(log.LstdFlags)
+	log.SetHandler(text.Default)
 
 	// Set parallelism.
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	// Mark start-up in log.
-	log.Printf("InfluxDB starting, version %s, branch %s, commit %s",
+	log.Infof("InfluxDB starting, version %s, branch %s, commit %s",
 		cmd.Version, cmd.Branch, cmd.Commit)
-	log.Printf("Go version %s, GOMAXPROCS set to %d", runtime.Version(), runtime.GOMAXPROCS(0))
+	log.Infof("Go version %s, GOMAXPROCS set to %d", runtime.Version(), runtime.GOMAXPROCS(0))
 
 	// Write the PID file.
 	if err := cmd.writePIDFile(options.PIDFile); err != nil {
@@ -135,11 +136,10 @@ func (cmd *Command) Close() error {
 }
 
 func (cmd *Command) monitorServerErrors() {
-	logger := log.New(cmd.Stderr, "", log.LstdFlags)
 	for {
 		select {
 		case err := <-cmd.Server.Err():
-			logger.Println(err)
+			log.Error(err.Error())
 		case <-cmd.closing:
 			return
 		}
@@ -190,11 +190,11 @@ func (cmd *Command) writePIDFile(path string) error {
 func (cmd *Command) ParseConfig(path string) (*Config, error) {
 	// Use demo configuration if no config path is specified.
 	if path == "" {
-		log.Println("no configuration provided, using default settings")
+		log.Info("no configuration provided, using default settings")
 		return NewDemoConfig()
 	}
 
-	log.Printf("Using configuration at: %s\n", path)
+	log.Infof("Using configuration at: %s", path)
 
 	config := NewConfig()
 	if err := config.FromTomlFile(path); err != nil {

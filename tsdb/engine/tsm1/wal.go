@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -20,6 +18,7 @@ import (
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/limiter"
+	"github.com/influxdata/log"
 )
 
 const (
@@ -82,11 +81,7 @@ type WAL struct {
 	// cache and flush variables
 	closing chan struct{}
 
-	// WALOutput is the writer used by the logger.
-	logger       *log.Logger // Logger to be used for important messages
-	traceLogger  *log.Logger // Logger to be used when trace-logging is on.
-	logOutput    io.Writer   // Writer to be logger and traceLogger if active.
-	traceLogging bool
+	logger *log.Logger
 
 	// SegmentSize is the file size at which a segment file will be rotated
 	SegmentSize int
@@ -97,7 +92,7 @@ type WAL struct {
 }
 
 func NewWAL(path string) *WAL {
-	return &WAL{
+	w := &WAL{
 		path: path,
 
 		// these options should be overriden by any options in the config
@@ -105,33 +100,18 @@ func NewWAL(path string) *WAL {
 		closing:     make(chan struct{}),
 		stats:       &WALStatistics{},
 		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
-		logger:      log.New(os.Stderr, "[tsm1wal] ", log.LstdFlags),
-		traceLogger: log.New(ioutil.Discard, "[tsm1wal] ", log.LstdFlags),
-		logOutput:   os.Stderr,
 	}
+	w.WithLogger(log.Log)
+	return w
 }
 
-// enableTraceLogging must be called before the WAL is opened.
-func (l *WAL) enableTraceLogging(enabled bool) {
-	l.traceLogging = enabled
-	if enabled {
-		l.traceLogger.SetOutput(l.logOutput)
-	}
-}
-
-// SetLogOutput sets the location that logs are written to. It is safe for
-// concurrent use.
-func (l *WAL) SetLogOutput(w io.Writer) {
-	l.logger.SetOutput(w)
-
-	// Set the trace logger's output only if trace logging is enabled.
-	if l.traceLogging {
-		l.traceLogger.SetOutput(w)
-	}
-
-	l.mu.Lock()
-	l.logOutput = w
-	l.mu.Unlock()
+// WithLogger sets the logger to augment for log messages. It must not be
+// called after the Open method has been called.
+func (l *WAL) WithLogger(li *log.Logger) {
+	l.logger = li.WithFields(log.Fields{
+		"engine": "tsm1wal",
+		"path":   l.path,
+	})
 }
 
 // WALStatistics maintains statistics about the WAL.
@@ -164,8 +144,8 @@ func (l *WAL) Open() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	l.traceLogger.Printf("tsm1 WAL starting with %d segment size\n", l.SegmentSize)
-	l.traceLogger.Printf("tsm1 WAL writing to %s\n", l.path)
+	l.logger.Debugf("tsm1 WAL starting with %d segment size", l.SegmentSize)
+	l.logger.Debugf("tsm1 WAL writing to %s", l.path)
 
 	if err := os.MkdirAll(l.path, 0777); err != nil {
 		return err
@@ -267,7 +247,7 @@ func (l *WAL) Remove(files []string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	for _, fn := range files {
-		l.traceLogger.Printf("Removing %s", fn)
+		l.logger.Debugf("Removing %s", fn)
 		os.RemoveAll(fn)
 	}
 
@@ -415,7 +395,7 @@ func (l *WAL) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	l.traceLogger.Printf("Closing %s", l.path)
+	l.logger.Debug("closing")
 	// Close, but don't set to nil so future goroutines can still be signaled
 	close(l.closing)
 

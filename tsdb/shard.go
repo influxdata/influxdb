@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -17,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	internal "github.com/influxdata/influxdb/tsdb/internal"
+	"github.com/influxdata/log"
 )
 
 // monitorStatInterval is the interval at which the shard is inspected
@@ -100,8 +100,6 @@ type Shard struct {
 	statTags models.Tags
 
 	logger *log.Logger
-	// used by logger. Referenced so it can be passed down to new caches.
-	logOutput io.Writer
 
 	EnableOnOpen bool
 }
@@ -128,24 +126,24 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 		database:        db,
 		retentionPolicy: rp,
 
-		logger:       log.New(os.Stderr, "[shard] ", log.LstdFlags),
-		logOutput:    os.Stderr,
+		logger: log.WithFields(log.Fields{
+			"shard": id,
+			"path":  path,
+		}),
 		EnableOnOpen: true,
 	}
 	return s
 }
 
-// SetLogOutput sets the writer to which log output will be written. It is safe
-// for concurrent use.
-func (s *Shard) SetLogOutput(w io.Writer) {
-	s.logger.SetOutput(w)
+// WithLogger changes log interface that this shard should use.
+func (s *Shard) WithLogger(l *log.Logger) {
+	s.logger = l.WithFields(log.Fields{
+		"shard": s.id,
+		"path":  s.path,
+	})
 	if err := s.ready(); err == nil {
-		s.engine.SetLogOutput(w)
+		s.engine.WithLogger(s.logger)
 	}
-
-	s.mu.Lock()
-	s.logOutput = w
-	s.mu.Unlock()
 }
 
 // SetEnabled enables the shard for queries and write.  When disabled, all
@@ -216,8 +214,8 @@ func (s *Shard) Open() error {
 			return err
 		}
 
-		// Set log output on the engine.
-		e.SetLogOutput(s.logOutput)
+		// Set logger on the engine.
+		e.WithLogger(s.logger)
 
 		// Disable compactions while loading the index
 		e.SetEnabled(false)
@@ -238,7 +236,7 @@ func (s *Shard) Open() error {
 
 		s.engine = e
 
-		s.logger.Printf("%s database index loaded in %s", s.path, time.Now().Sub(start))
+		s.logger.WithField("duration", time.Now().Sub(start)).Info("database index loaded")
 
 		go s.monitorSize()
 
@@ -693,7 +691,7 @@ func (s *Shard) monitorSize() {
 		case <-t.C:
 			size, err := s.DiskSize()
 			if err != nil {
-				s.logger.Printf("Error collecting shard size: %v", err)
+				s.logger.Infof("Error collecting shard size: %v", err)
 				continue
 			}
 			atomic.StoreInt64(&s.stats.DiskBytes, size)
