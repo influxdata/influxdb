@@ -27,6 +27,7 @@ Also, if this is an issue of for performance, locking, etc the following command
 ```
 curl -o block.txt "http://localhost:8086/debug/pprof/block?debug=1" 
 curl -o goroutine.txt "http://localhost:8086/debug/pprof/goroutine?debug=1" 
+curl -o heap.txt "http://localhost:8086/debug/pprof/heap?debug=1" 
 curl -o vars.txt "http://localhost:8086/debug/vars" 
 iostat -xd 1 30 > iostat.txt
 influx -execute "show shards" > shards.txt
