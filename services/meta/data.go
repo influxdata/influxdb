@@ -1012,9 +1012,25 @@ type ShardGroupInfo struct {
 // on the StartTime field.
 type ShardGroupInfos []ShardGroupInfo
 
-func (a ShardGroupInfos) Len() int           { return len(a) }
-func (a ShardGroupInfos) Less(i, j int) bool { return a[i].StartTime.Before(a[j].StartTime) }
-func (a ShardGroupInfos) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a ShardGroupInfos) Len() int      { return len(a) }
+func (a ShardGroupInfos) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ShardGroupInfos) Less(i, j int) bool {
+	iEnd := a[i].EndTime
+	if a[i].Truncated() {
+		iEnd = a[i].TruncatedAt
+	}
+
+	jEnd := a[j].EndTime
+	if a[j].Truncated() {
+		jEnd = a[j].TruncatedAt
+	}
+
+	if iEnd.Equal(jEnd) {
+		return a[i].StartTime.Before(a[j].StartTime)
+	}
+
+	return iEnd.Before(jEnd)
+}
 
 // Contains return true if the shard group contains data for the timestamp.
 func (sgi *ShardGroupInfo) Contains(timestamp time.Time) bool {
