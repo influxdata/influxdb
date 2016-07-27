@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -9,6 +10,12 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/models"
+)
+
+var (
+	mockMetrics = `aerospike_namespace,aerospike_host=localhost:3000,host=tyrion,namespace=test,node_name=BB9020011AC4202 available_bin_names=32768i,batch_sub_proxy_complete=0i,batch_sub_proxy_error=0i,batch_sub_proxy_timeout=0i,batch_sub_read_error=0i,batch_sub_read_not_found=0i,batch_sub_read_success=0i,batch_sub_read_timeout=0i,batch_sub_tsvc_error=0i,batch_sub_tsvc_timeout=0i,client_delete_error=0i,client_delete_not_found=0i,client_delete_success=0i,client_delete_timeout=0i,client_lang_delete_success=0i,client_lang_error=0i,client_lang_read_success=0i,client_lang_write_success=0i,client_proxy_complete=0i,client_proxy_error=0i,client_proxy_timeout=0i,client_read_error=0i,client_read_not_found=0i,client_read_success=0i,client_read_timeout=0i,client_tsvc_error=0i,client_tsvc_timeout=0i,client_udf_complete=0i,client_udf_error=0i,client_udf_timeout=0i,client_write_error=0i,client_write_success=0i,client_write_timeout=0i,cold_start_evict_ttl=4294967295i,current_time=206400387i,default_ttl=432000i,device_available_pct=99i,device_free_pct=100i,device_total_bytes=4294967296i,device_used_bytes=0i,evict_hist_buckets=10000i,evict_tenths_pct=5i,evict_ttl=0i,evicted_objects=0i,expired_objects=0i,fail_generation=0i,fail_key_busy=0i,fail_record_too_big=0i,fail_xdr_forbidden=0i,geo2dsphere_within.earth_radius_meters=6371000i,geo2dsphere_within.level_mod=1i,geo2dsphere_within.max_cells=12i,geo2dsphere_within.max_level=30i,geo2dsphere_within.min_level=1i,geo_region_query_cells=0i,geo_region_query_falsepos=0i,geo_region_query_points=0i,geo_region_query_reqs=0i,high_water_disk_pct=50i,high_water_memory_pct=60i,ldt_gc_rate=0i,ldt_page_size=8192i,master_objects=0i,master_sub_objects=0i,max_ttl=315360000i,max_void_time=0i,memory_free_pct=100i,memory_size=1073741824i,memory_used_bytes=0i,memory_used_data_bytes=0i,memory_used_index_bytes=0i,memory_used_sindex_bytes=0i,migrate_order=5i,migrate_record_receives=0i,migrate_record_retransmits=0i,migrate_records_skipped=0i,migrate_records_transmitted=0i,migrate_rx_instances=0i,migrate_rx_partitions_active=0i,migrate_rx_partitions_initial=0i,migrate_rx_partitions_remaining=0i,migrate_sleep=1i,migrate_tx_instances=0i,migrate_tx_partitions_active=0i,migrate_tx_partitions_imbalance=0i,migrate_tx_partitions_initial=0i,migrate_tx_partitions_remaining=0i,non_expirable_objects=0i,nsup_cycle_duration=0i,nsup_cycle_sleep_pct=0i,objects=0i,prole_objects=0i,prole_sub_objects=0i,query_agg=0i,query_agg_abort=0i,query_agg_avg_rec_count=0i,query_agg_error=0i,query_agg_success=0i,query_fail=0i,query_long_queue_full=0i 1468704387000000000`
 )
 
 func TestUDPClient_Query(t *testing.T) {
@@ -415,4 +422,67 @@ func TestBatchPoints_SettersGetters(t *testing.T) {
 	if bp.WriteConsistency() != "wc2" {
 		t.Errorf("Expected: %s, got %s", bp.WriteConsistency(), "wc2")
 	}
+}
+
+func TestWriteChunks(t *testing.T) {
+	var (
+		payloadSize = 1500
+		UDPAddr     = "localhost:8888"
+		metricSize  = len(mockMetrics)
+		done        = make(chan struct{})
+	)
+	addr, err := net.ResolveUDPAddr("udp", UDPAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	conn, err := net.ListenUDP("udp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer conn.Close()
+
+	go func() {
+		for {
+			buf := make([]byte, 1024*4)
+			n, _, err := conn.ReadFromUDP(buf)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// run until all metrics chunks are not received
+			if metricSize -= n; metricSize < 0 {
+				done <- struct{}{}
+			}
+		}
+	}()
+
+	client, err := NewUDPClient(UDPConfig{
+		Addr:        UDPAddr,
+		PayloadSize: payloadSize,
+	})
+
+	bp, _ := NewBatchPoints(BatchPointsConfig{
+		Precision:        "ns",
+		Database:         "db",
+		RetentionPolicy:  "rp",
+		WriteConsistency: "wc",
+	})
+
+	points, err := models.ParsePoints([]byte(mockMetrics))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, p := range points {
+		bp.AddPoint(&Point{
+			pt: p,
+		})
+	}
+
+	err = client.Write(bp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-done
 }
