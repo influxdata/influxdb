@@ -74,7 +74,7 @@ func (d *DatabaseIndex) Series(key string) *Series {
 
 func (d *DatabaseIndex) SeriesKeys() []string {
 	d.mu.RLock()
-	s := make([]string, len(d.series))
+	s := make([]string, 0, len(d.series))
 	for k := range d.series {
 		s = append(s, k)
 	}
