@@ -185,6 +185,10 @@ func (e *Engine) SetCompactionsEnabled(enabled bool) {
 
 		// Wait for compaction goroutines to exit
 		e.wg.Wait()
+
+		if err := e.cleanup(); err != nil {
+			e.logger.Printf("error cleaning up temp file: %v", err)
+		}
 	}
 }
 
@@ -1073,6 +1077,10 @@ func (e *Engine) cleanup() error {
 		}
 	}
 
+	return e.cleanupTempTSMFiles()
+}
+
+func (e *Engine) cleanupTempTSMFiles() error {
 	files, err := filepath.Glob(filepath.Join(e.path, fmt.Sprintf("*.%s", CompactionTempExtension)))
 	if err != nil {
 		return fmt.Errorf("error getting compaction temp files: %s", err.Error())
@@ -1083,7 +1091,6 @@ func (e *Engine) cleanup() error {
 			return fmt.Errorf("error removing temp compaction files: %v", err)
 		}
 	}
-
 	return nil
 }
 
