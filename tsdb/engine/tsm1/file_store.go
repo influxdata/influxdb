@@ -769,9 +769,8 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 		}
 		// Check for tombstones and link those as well
 		for _, tf := range tsmf.TombstoneFiles() {
-			tfpath := filepath.Join(f.dir, tf.Path)
 			newpath := filepath.Join(tmpPath, filepath.Base(tf.Path))
-			if err := os.Link(tfpath, newpath); err != nil {
+			if err := os.Link(tf.Path, newpath); err != nil {
 				return "", fmt.Errorf("error creating tombstone hard link: %q", err)
 			}
 		}

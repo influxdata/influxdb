@@ -98,7 +98,7 @@ func (t *Tombstoner) TombstoneFiles() []FileStat {
 
 	if stat.Size() > 0 {
 		return []FileStat{FileStat{
-			Path:         stat.Name(),
+			Path:         t.tombstonePath(),
 			LastModified: stat.ModTime().UnixNano(),
 			Size:         uint32(stat.Size())}}
 	}
