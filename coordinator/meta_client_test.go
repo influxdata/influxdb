@@ -28,7 +28,6 @@ type MetaClient struct {
 	DropShardFn                         func(id uint64) error
 	DropUserFn                          func(name string) error
 	MetaNodesFn                         func() ([]meta.NodeInfo, error)
-	RetentionAutoCreateNameFn           func() string
 	RetentionPolicyFn                   func(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
 	SetAdminPrivilegeFn                 func(username string, admin bool) error
 	SetDefaultRetentionPolicyFn         func(database, name string) error
@@ -114,10 +113,6 @@ func (c *MetaClient) DropUser(name string) error {
 
 func (c *MetaClient) MetaNodes() ([]meta.NodeInfo, error) {
 	return c.MetaNodesFn()
-}
-
-func (c *MetaClient) RetentionAutoCreateName() string {
-	return c.RetentionAutoCreateNameFn()
 }
 
 func (c *MetaClient) RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error) {

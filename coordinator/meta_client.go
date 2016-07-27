@@ -23,7 +23,6 @@ type MetaClient interface {
 	DropRetentionPolicy(database, name string) error
 	DropSubscription(database, rp, name string) error
 	DropUser(name string) error
-	RetentionAutoCreateName() string
 	RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
 	SetAdminPrivilege(username string, admin bool) error
 	SetDefaultRetentionPolicy(database, name string) error
