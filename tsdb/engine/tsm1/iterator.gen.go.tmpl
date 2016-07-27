@@ -17,6 +17,7 @@ type cursor interface {
 // cursorAt provides a bufferred cursor interface.
 // This required for literal value cursors which don't have a time value.
 type cursorAt interface {
+	close() error
 	peek() (k int64, v interface{})
 	nextAt(seek int64) interface{}
 }
@@ -38,6 +39,10 @@ type bufCursor struct {
 // newBufCursor returns a bufferred wrapper for cur.
 func newBufCursor(cur cursor, ascending bool) *bufCursor {
 	return &bufCursor{cur: cur, ascending: ascending}
+}
+
+func (c *bufCursor) close() error {
+	return c.cur.close()
 }
 
 // next returns the buffer, if filled. Otherwise returns the next key/value from the cursor.
@@ -225,7 +230,18 @@ func (itr *{{.name}}Iterator) Stats() influxql.IteratorStats {
 }
 
 // Close closes the iterator.
-func (itr *{{.name}}Iterator) Close() error { return itr.cur.close() }
+func (itr *{{.name}}Iterator) Close() error {
+	for _, c := range itr.aux {
+		c.close()
+	}
+	for _, c := range itr.conds.curs {
+	    c.close()
+	}
+	if itr.cur != nil {
+		return itr.cur.close()
+	}
+	return nil
+}
 
 // {{.name}}LimitIterator
 type {{.name}}LimitIterator struct {
@@ -514,6 +530,7 @@ type {{.name}}LiteralCursor struct {
 	value {{.Type}}
 }
 
+func (c *{{.name}}LiteralCursor) close() error { return nil }
 func (c *{{.name}}LiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, c.value }
 func (c *{{.name}}LiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, c.value }
 func (c *{{.name}}LiteralCursor) nextAt(seek int64) interface{} { return c.value }
@@ -523,6 +540,7 @@ func (c *{{.name}}LiteralCursor) nextAt(seek int64) interface{} { return c.value
 // It doesn't not have a time value so it can only be used with nextAt().
 type {{.name}}NilLiteralCursor struct {}
 
+func (c *{{.name}}NilLiteralCursor) close() error { return nil }
 func (c *{{.name}}NilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, (*{{.Type}})(nil) }
 func (c *{{.name}}NilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*{{.Type}})(nil) }
 func (c *{{.name}}NilLiteralCursor) nextAt(seek int64) interface{} { return (*{{.Type}})(nil) }
