@@ -2,6 +2,8 @@ package meta
 
 import (
 	"reflect"
+	"sort"
+	"time"
 
 	"testing"
 )
@@ -27,5 +29,28 @@ func TestnewShardOwner(t *testing.T) {
 	// The ownership frequencies are updated.
 	if got, exp := ownerFreqs, map[int]int{1: 15, 2: 12, 3: 12}; !reflect.DeepEqual(got, exp) {
 		t.Errorf("got owner frequencies %v, expected %v", got, exp)
+	}
+}
+
+func TestShardGroupSort(t *testing.T) {
+	sg1 := ShardGroupInfo{
+		ID:          1,
+		StartTime:   time.Unix(1000, 0),
+		EndTime:     time.Unix(1100, 0),
+		TruncatedAt: time.Unix(1050, 0),
+	}
+
+	sg2 := ShardGroupInfo{
+		ID:        2,
+		StartTime: time.Unix(1000, 0),
+		EndTime:   time.Unix(1100, 0),
+	}
+
+	sgs := ShardGroupInfos{sg2, sg1}
+
+	sort.Sort(sgs)
+
+	if sgs[len(sgs)-1].ID != 2 {
+		t.Fatal("unstable sort for ShardGroupInfos")
 	}
 }
