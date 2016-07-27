@@ -38,6 +38,8 @@ type Data struct {
 
 	MaxShardGroupID uint64
 	MaxShardID      uint64
+
+	DefaultRetentionPolicyName string `json:"-"`
 }
 
 // NewShardOwner sets the owner of the provided shard to the data node
@@ -134,9 +136,7 @@ func (data *Data) RetentionPolicy(database, name string) (*RetentionPolicyInfo, 
 // Returns an error if name is blank or if a database does not exist.
 func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) error {
 	// Validate retention policy.
-	if rpi.Name == "" {
-		return ErrRetentionPolicyNameRequired
-	} else if rpi.ReplicaN < 1 {
+	if rpi.ReplicaN < 1 {
 		return ErrReplicationFactorTooLow
 	}
 
@@ -156,9 +156,18 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 		return nil
 	}
 
+	// Determine the retention policy name if it is blank.
+	rpName := rpi.Name
+	if rpName == "" {
+		if data.DefaultRetentionPolicyName == "" {
+			return ErrRetentionPolicyNameRequired
+		}
+		rpName = data.DefaultRetentionPolicyName
+	}
+
 	// Append copy of new policy.
 	rp := RetentionPolicyInfo{
-		Name:               rpi.Name,
+		Name:               rpName,
 		Duration:           rpi.Duration,
 		ReplicaN:           rpi.ReplicaN,
 		ShardGroupDuration: rpi.ShardGroupDuration,
@@ -254,7 +263,10 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 // SetDefaultRetentionPolicy sets the default retention policy for a database.
 func (data *Data) SetDefaultRetentionPolicy(database, name string) error {
 	if name == "" {
-		return ErrRetentionPolicyNameRequired
+		if data.DefaultRetentionPolicyName == "" {
+			return ErrRetentionPolicyNameRequired
+		}
+		name = data.DefaultRetentionPolicyName
 	}
 
 	// Find database and verify policy exists.

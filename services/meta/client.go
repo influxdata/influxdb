@@ -53,8 +53,7 @@ type Client struct {
 
 	path string
 
-	retentionAutoCreate        bool
-	defaultRetentionPolicyName string
+	retentionAutoCreate bool
 }
 
 type authUser struct {
@@ -69,14 +68,14 @@ func NewClient(config *Config) *Client {
 		cacheData: &Data{
 			ClusterID: uint64(rand.Int63()),
 			Index:     1,
+			DefaultRetentionPolicyName: config.DefaultRetentionPolicyName,
 		},
-		closing:                    make(chan struct{}),
-		changed:                    make(chan struct{}),
-		logger:                     log.New(ioutil.Discard, "[metaclient] ", log.LstdFlags),
-		authCache:                  make(map[string]authUser, 0),
-		path:                       config.Dir,
-		retentionAutoCreate:        config.RetentionAutoCreate,
-		defaultRetentionPolicyName: config.DefaultRetentionPolicyName,
+		closing:             make(chan struct{}),
+		changed:             make(chan struct{}),
+		logger:              log.New(ioutil.Discard, "[metaclient] ", log.LstdFlags),
+		authCache:           make(map[string]authUser, 0),
+		path:                config.Dir,
+		retentionAutoCreate: config.RetentionAutoCreate,
 	}
 }
 
@@ -190,12 +189,11 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 	// create default retention policy
 	if c.retentionAutoCreate {
 		if err := data.CreateRetentionPolicy(name, &RetentionPolicyInfo{
-			Name:     c.defaultRetentionPolicyName,
 			ReplicaN: 1,
 		}); err != nil {
 			return nil, err
 		}
-		if err := data.SetDefaultRetentionPolicy(name, c.defaultRetentionPolicyName); err != nil {
+		if err := data.SetDefaultRetentionPolicy(name, ""); err != nil {
 			return nil, err
 		}
 	}
@@ -297,11 +295,6 @@ func (c *Client) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo
 	}
 
 	return rp, nil
-}
-
-// RetentionAutoCreateName returns the name used for auto generated retention policies.
-func (c *Client) RetentionAutoCreateName() string {
-	return c.defaultRetentionPolicyName
 }
 
 // RetentionPolicy returns the requested retention policy info.
