@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -817,6 +818,155 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	s.mu.RUnlock()
 
 	return sh.WritePoints(points)
+}
+
+func (s *Store) Measurements(database string, cond influxql.Expr) ([]string, error) {
+	dbi := s.DatabaseIndex(database)
+	if dbi == nil {
+		return nil, nil
+	}
+
+	// Retrieve measurements from database index. Filter if condition specified.
+	var mms Measurements
+	if cond == nil {
+		mms = dbi.Measurements()
+	} else {
+		var err error
+		mms, _, err = dbi.MeasurementsByExpr(cond)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Sort measurements by name.
+	sort.Sort(mms)
+
+	measurements := make([]string, len(mms))
+	for i, m := range mms {
+		measurements[i] = m.Name
+	}
+
+	return measurements, nil
+}
+
+type TagValues struct {
+	Measurement string
+	Values      []KeyValue
+}
+
+func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, error) {
+	if cond == nil {
+		return nil, errors.New("a condition is required")
+	}
+
+	dbi := s.DatabaseIndex(database)
+	if dbi == nil {
+		return nil, nil
+	}
+
+	measurementExpr := influxql.CloneExpr(cond)
+	measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				if !ok || tag.Val != "_name" {
+					return nil
+				}
+			}
+		}
+		return e
+	}), nil)
+
+	mms, ok, err := dbi.MeasurementsByExpr(measurementExpr)
+	if err != nil {
+		return nil, err
+	} else if !ok {
+		mms = dbi.Measurements()
+		sort.Sort(mms)
+	}
+
+	// If there are no measurements, return immediately.
+	if len(mms) == 0 {
+		return nil, nil
+	}
+
+	filterExpr := influxql.CloneExpr(cond)
+	filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				if !ok || strings.HasPrefix(tag.Val, "_") {
+					return nil
+				}
+			}
+		}
+		return e
+	}), nil)
+
+	tagValues := make([]TagValues, len(mms))
+	for i, mm := range mms {
+		tagValues[i].Measurement = mm.Name
+
+		ids, err := mm.SeriesIDsAllOrByExpr(filterExpr)
+		if err != nil {
+			return nil, err
+		}
+		ss := mm.SeriesByIDSlice(ids)
+
+		// Determine a list of keys from condition.
+		keySet, ok, err := mm.TagKeysByExpr(cond)
+		if err != nil {
+			return nil, err
+		}
+
+		// Loop over all keys for each series.
+		m := make(map[KeyValue]struct{}, len(ss))
+		for _, series := range ss {
+			for key, value := range series.Tags {
+				if !ok {
+					// nop
+				} else if _, exists := keySet[key]; !exists {
+					continue
+				}
+				m[KeyValue{key, value}] = struct{}{}
+			}
+		}
+
+		// Return an empty slice if there are no key/value matches.
+		if len(m) == 0 {
+			return nil, nil
+		}
+
+		// Sort key/value set.
+		a := make([]KeyValue, 0, len(m))
+		for kv := range m {
+			a = append(a, kv)
+		}
+		sort.Sort(KeyValues(a))
+		tagValues[i].Values = a
+	}
+
+	return tagValues, nil
+}
+
+type KeyValue struct {
+	Key, Value string
+}
+
+type KeyValues []KeyValue
+
+func (a KeyValues) Len() int      { return len(a) }
+func (a KeyValues) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a KeyValues) Less(i, j int) bool {
+	ki, kj := a[i].Key, a[j].Key
+	if ki == kj {
+		return a[i].Value < a[j].Value
+	}
+	return ki < kj
 }
 
 // filterShowSeriesResult will limit the number of series returned based on the limit and the offset.
