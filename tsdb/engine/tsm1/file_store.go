@@ -553,7 +553,7 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 					}
 
 					inuse = append(inuse, file)
-					break
+					continue
 				}
 
 				if err := file.Close(); err != nil {
