@@ -5,6 +5,7 @@
 * Config option `[cluster]` has been replaced with `[coordinator]`
 * Support for config options `[collectd]` and `[opentsdb]` has been removed; use `[[collectd]]` and `[[opentsdb]]` instead.
 * Config option `data-logging-enabled` within the `[data]` section, has been renamed to `trace-logging-enabled`, and defaults to `false`.
+* The keywords `IF`, `EXISTS`, and `NOT` where removed for this release.  This means you no longer need to specify `IF NOT EXISTS` for `DROP DATABASE` or `IF EXISTS` for `CREATE DATABASE`.
 
 With this release the systemd configuration files for InfluxDB will use the system configured default for logging and will no longer write files to `/var/log/influxdb` by default. On most systems, the logs will be directed to the systemd journal and can be accessed by `journalctl -u influxdb.service`. Consult the systemd journald documentation for configuring journald.
 
@@ -44,6 +45,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7011](https://github.com/influxdata/influxdb/issues/7011): Create man pages for commands.
 - [#7050](https://github.com/influxdata/influxdb/pull/7050): Update go package library dependencies.
 - [#5750](https://github.com/influxdata/influxdb/issues/5750): Support wildcards in aggregate functions.
+- [#7605](https://github.com/influxdata/influxdb/issues/7605): Remove IF EXISTS/IF NOT EXISTS from influxql language.
 
 ### Bugfixes
 

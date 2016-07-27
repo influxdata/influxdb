@@ -54,24 +54,24 @@ func init() {
 				exp:     `{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["db0"],["db0_r"]]}]}]}`,
 			},
 			&Query{
-				name:    "create database should not error with existing database with IF NOT EXISTS",
-				command: `CREATE DATABASE IF NOT EXISTS db0`,
-				exp:     `{"results":[{"messages":[{"level":"warning","text":"IF NOT EXISTS is deprecated as of v0.13.0 and will be removed in a future release"}]}]}`,
+				name:    "create database should not error with existing database",
+				command: `CREATE DATABASE db0`,
+				exp:     `{"results":[{}]}`,
 			},
 			&Query{
-				name:    "create database should create non-existing database with IF NOT EXISTS",
-				command: `CREATE DATABASE IF NOT EXISTS db1`,
-				exp:     `{"results":[{"messages":[{"level":"warning","text":"IF NOT EXISTS is deprecated as of v0.13.0 and will be removed in a future release"}]}]}`,
+				name:    "create database should create non-existing database",
+				command: `CREATE DATABASE db1`,
+				exp:     `{"results":[{}]}`,
 			},
 			&Query{
-				name:    "create database with retention duration should error if retention policy is different with IF NOT EXISTS",
-				command: `CREATE DATABASE IF NOT EXISTS db1 WITH DURATION 24h`,
+				name:    "create database with retention duration should error if retention policy is different",
+				command: `CREATE DATABASE db1 WITH DURATION 24h`,
 				exp:     `{"results":[{"error":"retention policy conflicts with an existing policy"}]}`,
 			},
 			&Query{
-				name:    "create database should error IF NOT EXISTS with bad retention duration",
-				command: `CREATE DATABASE IF NOT EXISTS db1 WITH DURATION xyz`,
-				exp:     `{"error":"error parsing query: found xyz, expected duration at line 1, char 49"}`,
+				name:    "create database should error with bad retention duration",
+				command: `CREATE DATABASE db1 WITH DURATION xyz`,
+				exp:     `{"error":"error parsing query: found xyz, expected duration at line 1, char 35"}`,
 			},
 			&Query{
 				name:    "show database should succeed",
@@ -102,9 +102,9 @@ func init() {
 				exp:     `{"results":[{}]}`,
 			},
 			&Query{
-				name:    "drop database should not error with non-existing database db1 WITH IF EXISTS",
-				command: `DROP DATABASE IF EXISTS db1`,
-				exp:     `{"results":[{"messages":[{"level":"warning","text":"IF EXISTS is deprecated as of v0.13.0 and will be removed in a future release"}]}]}`,
+				name:    "drop database should not error with non-existing database db1",
+				command: `DROP DATABASE db1`,
+				exp:     `{"results":[{}]}`,
 			},
 			&Query{
 				name:    "show database should have no results",

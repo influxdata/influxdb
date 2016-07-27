@@ -108,8 +108,8 @@ This tool is still under active development and has rough edges. Work is continu
 ### Output:
 Output for config file in this repo:
 ```
-[√] "CREATE DATABASE IF NOT EXISTS thing" -> 1.806785ms
-[√] "CREATE DATABASE IF NOT EXISTS thing2" -> 1.492504ms
+[√] "CREATE DATABASE thing" -> 1.806785ms
+[√] "CREATE DATABASE thing2" -> 1.492504ms
 SET Database = 'thing'
 SET Precision = 's'
 Go Write Statement:                    mockCpu

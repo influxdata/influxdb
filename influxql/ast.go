@@ -459,10 +459,6 @@ type CreateDatabaseStatement struct {
 	// Name of the database to be created.
 	Name string
 
-	// IfNotExists indicates whether to return without error if the database
-	// already exists.
-	IfNotExists bool
-
 	// RetentionPolicyCreate indicates whether the user explicitly wants to create a retention policy
 	RetentionPolicyCreate bool
 
@@ -483,9 +479,6 @@ type CreateDatabaseStatement struct {
 func (s *CreateDatabaseStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("CREATE DATABASE ")
-	if s.IfNotExists {
-		_, _ = buf.WriteString("IF NOT EXISTS ")
-	}
 	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	if s.RetentionPolicyCreate {
 		_, _ = buf.WriteString(" WITH DURATION ")
@@ -512,19 +505,12 @@ func (s *CreateDatabaseStatement) RequiredPrivileges() (ExecutionPrivileges, err
 type DropDatabaseStatement struct {
 	// Name of the database to be dropped.
 	Name string
-
-	// IfExists indicates whether to return without error if the database
-	// does not exists.
-	IfExists bool
 }
 
 // String returns a string representation of the drop database statement.
 func (s *DropDatabaseStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("DROP DATABASE ")
-	if s.IfExists {
-		_, _ = buf.WriteString("IF EXISTS ")
-	}
 	_, _ = buf.WriteString(QuoteIdent(s.Name))
 	return buf.String()
 }
