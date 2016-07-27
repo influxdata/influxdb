@@ -279,7 +279,6 @@ func (t *Tombstoner) readTombstoneV2(f *os.File, fn func(t Tombstone) error) err
 			return err
 		}
 	}
-	return nil
 }
 
 func (t *Tombstoner) tombstonePath() string {
