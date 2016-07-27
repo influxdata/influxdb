@@ -68,7 +68,6 @@ func NewClient(config *Config) *Client {
 		cacheData: &Data{
 			ClusterID: uint64(rand.Int63()),
 			Index:     1,
-			DefaultRetentionPolicyName: config.DefaultRetentionPolicyName,
 		},
 		closing:             make(chan struct{}),
 		changed:             make(chan struct{}),

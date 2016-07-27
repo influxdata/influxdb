@@ -38,12 +38,12 @@ func TestMetaClient_CreateDatabaseOnly(t *testing.T) {
 	}
 
 	// Make sure a default retention policy was created.
-	rp, err := c.RetentionPolicy("db0", "default")
+	rp, err := c.RetentionPolicy("db0", "autogen")
 	if err != nil {
 		t.Fatal(err)
 	} else if rp == nil {
 		t.Fatal("failed to create rp")
-	} else if exp, got := "default", rp.Name; exp != got {
+	} else if exp, got := "autogen", rp.Name; exp != got {
 		t.Fatalf("rp name wrong:\n\texp: %s\n\tgot: %s", exp, got)
 	}
 }
@@ -608,17 +608,17 @@ func TestMetaClient_Subscriptions_Create(t *testing.T) {
 	}
 
 	// Create a subscription
-	if err := c.CreateSubscription("db0", "default", "sub0", "ALL", []string{"udp://example.com:9090"}); err != nil {
+	if err := c.CreateSubscription("db0", "autogen", "sub0", "ALL", []string{"udp://example.com:9090"}); err != nil {
 		t.Fatal(err)
 	}
 
 	// Re-create a subscription
-	if err := c.CreateSubscription("db0", "default", "sub0", "ALL", []string{"udp://example.com:9090"}); err == nil || err.Error() != `subscription already exists` {
+	if err := c.CreateSubscription("db0", "autogen", "sub0", "ALL", []string{"udp://example.com:9090"}); err == nil || err.Error() != `subscription already exists` {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
 	// Create another subscription.
-	if err := c.CreateSubscription("db0", "default", "sub1", "ALL", []string{"udp://example.com:6060"}); err != nil {
+	if err := c.CreateSubscription("db0", "autogen", "sub1", "ALL", []string{"udp://example.com:6060"}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -637,19 +637,19 @@ func TestMetaClient_Subscriptions_Drop(t *testing.T) {
 
 	// DROP SUBSCRIPTION returns ErrSubscriptionNotFound when the
 	// subscription is unknown.
-	err := c.DropSubscription("db0", "default", "foo")
+	err := c.DropSubscription("db0", "autogen", "foo")
 	if got, exp := err, meta.ErrSubscriptionNotFound; got == nil || got.Error() != exp.Error() {
 		t.Fatalf("got: %s, exp: %s", got, exp)
 	}
 
 	// Create a subscription.
-	if err := c.CreateSubscription("db0", "default", "sub0", "ALL", []string{"udp://example.com:9090"}); err != nil {
+	if err := c.CreateSubscription("db0", "autogen", "sub0", "ALL", []string{"udp://example.com:9090"}); err != nil {
 		t.Fatal(err)
 	}
 
 	// DROP SUBSCRIPTION returns an influxdb.ErrDatabaseNotFound when
 	// the database is unknown.
-	err = c.DropSubscription("foo", "default", "sub0")
+	err = c.DropSubscription("foo", "autogen", "sub0")
 	if got, exp := err, influxdb.ErrDatabaseNotFound("foo"); got.Error() != exp.Error() {
 		t.Fatalf("got: %s, exp: %s", got, exp)
 	}
@@ -662,7 +662,7 @@ func TestMetaClient_Subscriptions_Drop(t *testing.T) {
 	}
 
 	// DROP SUBSCRIPTION drops the subsciption if it can find it.
-	err = c.DropSubscription("db0", "default", "sub0")
+	err = c.DropSubscription("db0", "autogen", "sub0")
 	if got := err; got != nil {
 		t.Fatalf("got: %s, exp: %v", got, nil)
 	}
@@ -681,7 +681,7 @@ func TestMetaClient_Shards(t *testing.T) {
 
 	// Test creating a shard group.
 	tmin := time.Now()
-	sg, err := c.CreateShardGroup("db0", "default", tmin)
+	sg, err := c.CreateShardGroup("db0", "autogen", tmin)
 	if err != nil {
 		t.Fatal(err)
 	} else if sg == nil {
@@ -696,7 +696,7 @@ func TestMetaClient_Shards(t *testing.T) {
 	}
 
 	// Test finding shard groups by time range.
-	groups, err := c.ShardGroupsByTimeRange("db0", "default", tmin, tmax)
+	groups, err := c.ShardGroupsByTimeRange("db0", "autogen", tmin, tmax)
 	if err != nil {
 		t.Fatal(err)
 	} else if len(groups) != 2 {
@@ -707,16 +707,16 @@ func TestMetaClient_Shards(t *testing.T) {
 	db, rp, owner := c.ShardOwner(groups[0].Shards[0].ID)
 	if db != "db0" {
 		t.Fatalf("wrong db name: %s", db)
-	} else if rp != "default" {
+	} else if rp != "autogen" {
 		t.Fatalf("wrong rp name: %s", rp)
 	} else if owner.ID != groups[0].ID {
 		t.Fatalf("wrong owner: exp %d got %d", groups[0].ID, owner.ID)
 	}
 
 	// Test deleting a shard group.
-	if err := c.DeleteShardGroup("db0", "default", groups[0].ID); err != nil {
+	if err := c.DeleteShardGroup("db0", "autogen", groups[0].ID); err != nil {
 		t.Fatal(err)
-	} else if groups, err = c.ShardGroupsByTimeRange("db0", "default", tmin, tmax); err != nil {
+	} else if groups, err = c.ShardGroupsByTimeRange("db0", "autogen", tmin, tmax); err != nil {
 		t.Fatal(err)
 	} else if len(groups) != 1 {
 		t.Fatalf("wrong number of shard groups after delete: %d", len(groups))
@@ -737,7 +737,7 @@ func TestMetaClient_CreateShardGroupIdempotent(t *testing.T) {
 
 	// create a shard group.
 	tmin := time.Now()
-	sg, err := c.CreateShardGroup("db0", "default", tmin)
+	sg, err := c.CreateShardGroup("db0", "autogen", tmin)
 	if err != nil {
 		t.Fatal(err)
 	} else if sg == nil {
@@ -748,7 +748,7 @@ func TestMetaClient_CreateShardGroupIdempotent(t *testing.T) {
 	t.Log("index: ", i)
 
 	// create the same shard group.
-	sg, err = c.CreateShardGroup("db0", "default", tmin)
+	sg, err = c.CreateShardGroup("db0", "autogen", tmin)
 	if err != nil {
 		t.Fatal(err)
 	} else if sg == nil {
@@ -819,7 +819,6 @@ func newClient() (string, *meta.Client) {
 func newConfig() *meta.Config {
 	cfg := meta.NewConfig()
 	cfg.Dir = testTempDir(2)
-	cfg.DefaultRetentionPolicyName = "default"
 	return cfg
 }
 

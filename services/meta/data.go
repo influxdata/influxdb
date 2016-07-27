@@ -24,6 +24,9 @@ const (
 	// DefaultRetentionPolicyDuration is the default value of RetentionPolicyInfo.Duration.
 	DefaultRetentionPolicyDuration = 7 * (24 * time.Hour)
 
+	// DefaultRetentionPolicyName is the default name for auto generated retention policies.
+	DefaultRetentionPolicyName = "autogen"
+
 	// MinRetentionPolicyDuration represents the minimum duration for a policy.
 	MinRetentionPolicyDuration = time.Hour
 )
@@ -38,8 +41,6 @@ type Data struct {
 
 	MaxShardGroupID uint64
 	MaxShardID      uint64
-
-	DefaultRetentionPolicyName string `json:"-"`
 }
 
 // NewShardOwner sets the owner of the provided shard to the data node
@@ -159,10 +160,7 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 	// Determine the retention policy name if it is blank.
 	rpName := rpi.Name
 	if rpName == "" {
-		if data.DefaultRetentionPolicyName == "" {
-			return ErrRetentionPolicyNameRequired
-		}
-		rpName = data.DefaultRetentionPolicyName
+		rpName = DefaultRetentionPolicyName
 	}
 
 	// Append copy of new policy.
@@ -263,10 +261,7 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 // SetDefaultRetentionPolicy sets the default retention policy for a database.
 func (data *Data) SetDefaultRetentionPolicy(database, name string) error {
 	if name == "" {
-		if data.DefaultRetentionPolicyName == "" {
-			return ErrRetentionPolicyNameRequired
-		}
-		name = data.DefaultRetentionPolicyName
+		name = DefaultRetentionPolicyName
 	}
 
 	// Find database and verify policy exists.
