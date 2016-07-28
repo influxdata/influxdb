@@ -401,7 +401,7 @@ func scanMeasurement(buf []byte, i int) (int, int, error) {
 	// Check first byte of measurement, anything except a comma is fine.
 	// It can't be a space, since whitespace is stripped prior to this
 	// function call.
-	if buf[i] == ',' {
+	if i >= len(buf) || buf[i] == ',' {
 		return -1, i, fmt.Errorf("missing measurement")
 	}
 
