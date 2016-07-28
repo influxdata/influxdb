@@ -876,8 +876,13 @@ func TestServer_Query_Count(t *testing.T) {
 			exp:     `{"results":[{}]}`,
 		},
 		&Query{
-			name:    "selecting count(*) should error",
+			name:    "selecting count(*) should expand the wildcard",
 			command: `SELECT count(*) FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","count_value"],"values":[["1970-01-01T00:00:00Z",1]]}]}]}`,
+		},
+		&Query{
+			name:    "selecting count(2) should error",
+			command: `SELECT count(2) FROM db0.rp0.cpu`,
 			exp:     `{"error":"error parsing query: expected field argument in count()"}`,
 		},
 	}...)
