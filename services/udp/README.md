@@ -4,34 +4,37 @@
 
 Some OSes (most notably, Linux) place very restricive limits on the performance
 of UDP protocols. It is _highly_ recommended that you increase these OS limits to
-at least 8MB before trying to run large amounts of UDP traffic to your instance.
-8MB is just a recommendation, and should be adjusted to be inline with your
+at least 25MB before trying to run UDP traffic to your instance.
+25MB is just a recommendation, and should be adjusted to be inline with your
 `read-buffer` plugin setting.
 
 ### Linux
-Check the current UDP/IP receive buffer limit by typing the following commands:
+Check the current UDP/IP receive buffer default and limit by typing the following commands:
 
 ```
 sysctl net.core.rmem_max
+sysctl net.core.rmem_default
 ```
 
-If the values are less than 8388608 bytes you should add the following lines to the /etc/sysctl.conf file:
+If the values are less than 26214400 bytes (25MB) you should add the following lines to the /etc/sysctl.conf file:
 
 ```
-net.core.rmem_max=8388608
+net.core.rmem_max=26214400
+net.core.rmem_default=26214400
 ```
 
 Changes to /etc/sysctl.conf do not take effect until reboot.  To update the values immediately, type the following commands as root:
 
 ```
-sysctl -w net.core.rmem_max=8388608
+sysctl -w net.core.rmem_max=26214400
+sysctl -w net.core.rmem_default=26214400
 ```
 
 ### BSD/Darwin
 
 On BSD/Darwin systems you need to add about a 15% padding to the kernel limit
-socket buffer. Meaning if you want an 8MB buffer (8388608 bytes) you need to set
-the kernel limit to `8388608*1.15 = 9646900`. This is not documented anywhere but
+socket buffer. Meaning if you want an 25MB buffer (8388608 bytes) you need to set
+the kernel limit to `26214400*1.15 = 30146560`. This is not documented anywhere but
 happens
 [in the kernel here.](https://github.com/freebsd/freebsd/blob/master/sys/kern/uipc_sockbuf.c#L63-L64)
 
@@ -41,16 +44,16 @@ Check the current UDP/IP buffer limit by typing the following command:
 sysctl kern.ipc.maxsockbuf
 ```
 
-If the value is less than 9646900 bytes you should add the following lines to the /etc/sysctl.conf file (create it if necessary):
+If the value is less than 30146560 bytes you should add the following lines to the /etc/sysctl.conf file (create it if necessary):
 
 ```
-kern.ipc.maxsockbuf=9646900
+kern.ipc.maxsockbuf=30146560
 ```
 
 Changes to /etc/sysctl.conf do not take effect until reboot.  To update the values immediately, type the following commands as root:
 
 ```
-sysctl -w kern.ipc.maxsockbuf=9646900
+sysctl -w kern.ipc.maxsockbuf=30146560
 ```
 
 ### Using the read-buffer option for the UDP listener
