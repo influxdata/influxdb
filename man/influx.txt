@@ -9,9 +9,9 @@ SYNOPSIS
 --------
 [verse]
 'influx' [options]
-'influx' -execute <command> [options]
-'influx' -import -path <path> (-compressed) [options]
-'influx' -version
+'influx' (-e | --execute) <command> [options]
+'influx' --import --path <path> (--compressed) [options]
+'influx' (-v | --version)
 
 DESCRIPTION
 -----------
@@ -27,55 +27,55 @@ The fourth form outputs the version of the command line and then immediately exi
 
 OPTIONS
 -------
--host <host>::
+-H, --host <host>::
   Host to connect to. Default is localhost.
 
--port <port>::
+-p, --port <port>::
   Port to use when connecting to the host. Default is 8086.
 
--database <database>::
+-d, --database <database>::
   Database to use when connecting to the database.
 
--username <username>::
+-u, --username <username>::
   Username to connect to the server.
 
--password <password>::
+--password <password>::
   Password to connect to the server. If left blank, this will prompt for a password.
 
--ssl:
+--ssl:
   Use https for requests.
 
--unsafeSsl::
+--unsafeSsl::
   Set this with '-ssl' to allow unsafe connections.
 
--execute <command>::
+-e, --execute <command>::
   Executes the command and exits.
 
--format <json|csv|column>::
+--format <json|csv|column>::
   Sets the format of the server responses. Default is column.
 
--precision <rfc3339|h|m|s|ms|u|ns>::
+--precision <rfc3339|h|m|s|ms|u|ns>::
   Specifies the format of the timestamp. Default is ns.
 
--consistency <any|one|quorum|all>::
+--consistency <any|one|quorum|all>::
   Set the write consistency level. Default is one.
 
--pretty::
+--pretty::
   Turns on pretty print format for the JSON format.
 
--import::
+--import::
   Import a previous database export from a file. If specified, '-path <path>' must also be specified.
 
--path <path>::
+--path <path>::
   Path to the database export file to import. Must be used with '-import'.
 
--pps <n>:
+--pps <n>:
   How many points per second the import will allow. By default, it is zero and will not throttle importing.
 
--compressed::
+--compressed::
   Set if the import file is compressed. Must be used with '-import'.
 
--version::
+-v, --version::
   Outputs the version of the influx client.
 
 include::footer.txt[]

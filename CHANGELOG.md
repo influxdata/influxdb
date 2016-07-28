@@ -5,8 +5,11 @@
 * Config option `[cluster]` has been replaced with `[coordinator]`
 * Support for config options `[collectd]` and `[opentsdb]` has been removed; use `[[collectd]]` and `[[opentsdb]]` instead.
 * Config option `data-logging-enabled` within the `[data]` section, has been renamed to `trace-logging-enabled`, and defaults to `false`.
+* Switch binaries to use posix flags.
 
-With this release the systemd configuration files for InfluxDB will use the system configured default for logging and will no longer write files to `/var/log/influxdb` by default. On most systems, the logs will be directed to the systemd journal and can be accessed by `journalctl -u influxdb.service`. Consult the systemd journald documentation for configuring journald.
+With this release, the systemd configuration files for InfluxDB will use the system configured default for logging and will no longer write files to `/var/log/influxdb` by default. On most systems, the logs will be directed to the systemd journal and can be accessed by `journalctl -u influxdb.service`. Consult the systemd journald documentation for configuring journald.
+
+With this release, the binaries will also now use posix flags instead of Go flags. Anytime you previously used one dash with a command line option, use two dashes. For example: `influxd --config /etc/influxdb/influxdb.conf`.
 
 ### Features
 
@@ -43,6 +46,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7046](https://github.com/influxdata/influxdb/pull/7046): Add tsm file export to influx_inspect tool.
 - [#7011](https://github.com/influxdata/influxdb/issues/7011): Create man pages for commands.
 - [#7050](https://github.com/influxdata/influxdb/pull/7050): Update go package library dependencies.
+- [#7052](https://github.com/influxdata/influxdb/pull/7052): Switch binaries to use posix flags.
 
 ### Bugfixes
 

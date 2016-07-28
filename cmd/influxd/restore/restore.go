@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -18,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influxd/backup"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/services/snapshotter"
+	flag "github.com/spf13/pflag"
 )
 
 // Command represents the program execution for "influxd restore".
@@ -72,8 +72,8 @@ func (cmd *Command) parseFlags(args []string) error {
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
 	fs.StringVar(&cmd.metadir, "metadir", "", "")
 	fs.StringVar(&cmd.datadir, "datadir", "", "")
-	fs.StringVar(&cmd.database, "database", "", "")
-	fs.StringVar(&cmd.retention, "retention", "", "")
+	fs.StringVarP(&cmd.database, "database", "d", "", "")
+	fs.StringVarP(&cmd.retention, "retention", "r", "", "")
 	fs.StringVar(&cmd.shard, "shard", "", "")
 	fs.SetOutput(cmd.Stdout)
 	fs.Usage = cmd.printUsage
@@ -92,22 +92,22 @@ func (cmd *Command) parseFlags(args []string) error {
 
 	// validate the arguments
 	if cmd.metadir == "" && cmd.database == "" {
-		return fmt.Errorf("-metadir or -database are required to restore")
+		return fmt.Errorf("--metadir or --database are required to restore")
 	}
 
 	if cmd.database != "" && cmd.datadir == "" {
-		return fmt.Errorf("-datadir is required to restore")
+		return fmt.Errorf("--datadir is required to restore")
 	}
 
 	if cmd.shard != "" {
 		if cmd.database == "" {
-			return fmt.Errorf("-database is required to restore shard")
+			return fmt.Errorf("--database is required to restore shard")
 		}
 		if cmd.retention == "" {
-			return fmt.Errorf("-retention is required to restore shard")
+			return fmt.Errorf("--retention is required to restore shard")
 		}
 	} else if cmd.retention != "" && cmd.database == "" {
-		return fmt.Errorf("-database is required to restore retention policy")
+		return fmt.Errorf("--database is required to restore retention policy")
 	}
 
 	return nil
@@ -337,18 +337,18 @@ running during a restore.
 
 Usage: influxd restore [flags] PATH
 
-    -metadir <path>
+    --metadir <path>
             Optional. If set the metastore will be recovered to the given path.
-    -datadir <path>
+    --datadir <path>
             Optional. If set the restore process will recover the specified
             database, retention policy or shard to the given directory.
-    -database <name>
+    -d, --database <name>
             Optional. Required if no metadir given. Will restore the database
             TSM files.
-    -retention <name>
+    -r, --retention <name>
             Optional. If given, database is required. Will restore the retention policy's
             TSM files.
-    -shard <id>
+    --shard <id>
             Optional. If given, database and retention are required. Will restore the shard's
             TSM files.
 

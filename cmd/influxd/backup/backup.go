@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/influxdata/influxdb/services/snapshotter"
 	"github.com/influxdata/influxdb/tcp"
+	flag "github.com/spf13/pflag"
 )
 
 const (
@@ -93,9 +93,9 @@ func (cmd *Command) Run(args ...string) error {
 func (cmd *Command) parseFlags(args []string) (retentionPolicy, shardID string, since time.Time, err error) {
 	fs := flag.NewFlagSet("", flag.ContinueOnError)
 
-	fs.StringVar(&cmd.host, "host", "localhost:8088", "")
-	fs.StringVar(&cmd.database, "database", "", "")
-	fs.StringVar(&retentionPolicy, "retention", "", "")
+	fs.StringVarP(&cmd.host, "host", "H", "localhost:8088", "")
+	fs.StringVarP(&cmd.database, "database", "d", "", "")
+	fs.StringVarP(&retentionPolicy, "retention", "r", "", "")
 	fs.StringVar(&shardID, "shard", "", "")
 	var sinceArg string
 	fs.StringVar(&sinceArg, "since", "", "")
@@ -349,15 +349,15 @@ func (cmd *Command) printUsage() {
 
 Usage: influxd backup [flags] PATH
 
-    -host <host:port>
+    -H, --host <host:port>
             The host to connect to snapshot. Defaults to 127.0.0.1:8088.
-    -database <name>
+    -d, --database <name>
             The database to backup.
-    -retention <name>
+    -r, --retention <name>
             Optional. The retention policy to backup.
-    -shard <id>
+    --shard <id>
             Optional. The shard id to backup. If specified, retention is required.
-    -since <2015-12-24T08:12:23>
+    --since <2015-12-24T08:12:23>
             Optional. Do an incremental backup since the passed in RFC3339
             formatted time.
 
