@@ -276,6 +276,14 @@ func (s *TSDBStore) DatabaseIndex(name string) *tsdb.DatabaseIndex {
 	return s.DatabaseIndexFn(name)
 }
 
+func (s *TSDBStore) Measurements(database string, cond influxql.Expr) ([]string, error) {
+	return nil, nil
+}
+
+func (s *TSDBStore) TagValues(database string, cond influxql.Expr) ([]tsdb.TagValues, error) {
+	return nil, nil
+}
+
 // MustParseQuery parses s into a query. Panic on error.
 func MustParseQuery(s string) *influxql.Query {
 	q, err := influxql.ParseQuery(s)
