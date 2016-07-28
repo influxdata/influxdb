@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -428,7 +429,7 @@ func TestWriteChunks(t *testing.T) {
 	var (
 		payloadSize = 1500
 		UDPAddr     = "localhost:8888"
-		metricSize  = len(mockMetrics)
+		metricSize  = int32(len(mockMetrics))
 		done        = make(chan struct{})
 	)
 	addr, err := net.ResolveUDPAddr("udp", UDPAddr)
@@ -441,8 +442,6 @@ func TestWriteChunks(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	defer conn.Close()
-
 	go func() {
 		for {
 			buf := make([]byte, 1024*4)
@@ -450,8 +449,11 @@ func TestWriteChunks(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			if n > payloadSize {
+				t.Fatalf("payload size is greater than expected: want < %d, got %d", payloadSize, n)
+			}
 			// run until all metrics chunks are not received
-			if metricSize -= n; metricSize < 0 {
+			if atomic.AddInt32(&metricSize, int32(-n)); atomic.LoadInt32(&metricSize) < 0 {
 				done <- struct{}{}
 			}
 		}
