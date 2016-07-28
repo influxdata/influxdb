@@ -46,20 +46,11 @@ func rewriteShowMeasurementsStatement(stmt *ShowMeasurementsStatement) (Statemen
 	if stmt.Source != nil {
 		condition = rewriteSourcesCondition(Sources([]Source{stmt.Source}), stmt.Condition)
 	}
-
-	return &SelectStatement{
-		Fields: Fields([]*Field{
-			{Expr: &VarRef{Val: "_name"}, Alias: "name"},
-		}),
-		Sources: Sources([]Source{
-			&Measurement{Name: "_measurements"},
-		}),
+	return &ShowMeasurementsStatement{
 		Condition:  condition,
-		Offset:     stmt.Offset,
 		Limit:      stmt.Limit,
+		Offset:     stmt.Offset,
 		SortFields: stmt.SortFields,
-		OmitTime:   true,
-		Dedupe:     true,
 	}, nil
 }
 
@@ -129,18 +120,13 @@ func rewriteShowTagValuesStatement(stmt *ShowTagValuesStatement) (Statement, err
 	}
 	condition = rewriteSourcesCondition(stmt.Sources, condition)
 
-	return &SelectStatement{
-		Fields: []*Field{
-			{Expr: &VarRef{Val: "_tagKey"}, Alias: "key"},
-			{Expr: &VarRef{Val: "value"}},
-		},
-		Sources:    rewriteSources(stmt.Sources, "_tags"),
+	return &ShowTagValuesStatement{
+		Op:         stmt.Op,
+		TagKeyExpr: stmt.TagKeyExpr,
 		Condition:  condition,
-		Offset:     stmt.Offset,
-		Limit:      stmt.Limit,
 		SortFields: stmt.SortFields,
-		OmitTime:   true,
-		Dedupe:     true,
+		Limit:      stmt.Limit,
+		Offset:     stmt.Offset,
 	}, nil
 }
 
@@ -162,7 +148,6 @@ func rewriteShowTagKeysStatement(stmt *ShowTagKeysStatement) (Statement, error) 
 		OmitTime:   true,
 		Dedupe:     true,
 	}, nil
-
 }
 
 // rewriteSources rewrites sources with previous database and retention policy
