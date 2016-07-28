@@ -214,7 +214,6 @@ func (s *Service) parser() {
 				s.batcher.In() <- point
 			}
 			atomic.AddInt64(&s.stats.PointsReceived, int64(len(points)))
-			atomic.AddInt64(&s.stats.PointsReceived, int64(len(points)))
 		}
 	}
 }
