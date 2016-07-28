@@ -43,6 +43,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7046](https://github.com/influxdata/influxdb/pull/7046): Add tsm file export to influx_inspect tool.
 - [#7011](https://github.com/influxdata/influxdb/issues/7011): Create man pages for commands.
 - [#7050](https://github.com/influxdata/influxdb/pull/7050): Update go package library dependencies.
+- [#5750](https://github.com/influxdata/influxdb/issues/5750): Support wildcards in aggregate functions.
 
 ### Bugfixes
 

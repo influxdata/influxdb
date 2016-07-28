@@ -428,6 +428,39 @@ func TestSelectStatement_RewriteFields(t *testing.T) {
 			stmt:    `SELECT * FROM cpu GROUP BY *`,
 			rewrite: `SELECT value1::float, value2::integer FROM cpu GROUP BY host, region`,
 		},
+
+		// Wildcard function with all fields.
+		{
+			stmt:    `SELECT mean(*) FROM cpu`,
+			rewrite: `SELECT mean(value1::float) AS mean_value1, mean(value2::integer) AS mean_value2 FROM cpu`,
+		},
+
+		{
+			stmt:    `SELECT distinct(*) FROM strings`,
+			rewrite: `SELECT distinct(string::string) AS distinct_string, distinct(value::float) AS distinct_value FROM strings`,
+		},
+
+		{
+			stmt:    `SELECT distinct(*) FROM bools`,
+			rewrite: `SELECT distinct(bool::boolean) AS distinct_bool, distinct(value::float) AS distinct_value FROM bools`,
+		},
+
+		// Wildcard function with some fields excluded.
+		{
+			stmt:    `SELECT mean(*) FROM strings`,
+			rewrite: `SELECT mean(value::float) AS mean_value FROM strings`,
+		},
+
+		{
+			stmt:    `SELECT mean(*) FROM bools`,
+			rewrite: `SELECT mean(value::float) AS mean_value FROM bools`,
+		},
+
+		// Wildcard function with an alias.
+		{
+			stmt:    `SELECT mean(*) AS alias FROM cpu`,
+			rewrite: `SELECT mean(value1::float) AS alias_value1, mean(value2::integer) AS alias_value2 FROM cpu`,
+		},
 	}
 
 	for i, tt := range tests {
@@ -439,7 +472,24 @@ func TestSelectStatement_RewriteFields(t *testing.T) {
 
 		var ic IteratorCreator
 		ic.FieldDimensionsFn = func(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
-			fields = map[string]influxql.DataType{"value1": influxql.Float, "value2": influxql.Integer}
+			source := sources[0].(*influxql.Measurement)
+			switch source.Name {
+			case "cpu":
+				fields = map[string]influxql.DataType{
+					"value1": influxql.Float,
+					"value2": influxql.Integer,
+				}
+			case "strings":
+				fields = map[string]influxql.DataType{
+					"value":  influxql.Float,
+					"string": influxql.String,
+				}
+			case "bools":
+				fields = map[string]influxql.DataType{
+					"value": influxql.Float,
+					"bool":  influxql.Boolean,
+				}
+			}
 			dimensions = map[string]struct{}{"host": struct{}{}, "region": struct{}{}}
 			return
 		}
