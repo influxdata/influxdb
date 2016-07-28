@@ -21,6 +21,10 @@ const (
 	// a select statement, passing zero tells it not to chunk results.
 	// Only applies to raw queries.
 	NoChunkingSize = 0
+
+	// idDelimiter is used as a delimiter when creating a unique name for a
+	// Continuous Query.
+	idDelimiter = string(rune(31)) // unit separator
 )
 
 // Statistics for the CQ service.
@@ -175,7 +179,7 @@ func (s *Service) Run(database, name string, t time.Time) error {
 		for _, cq := range db.ContinuousQueries {
 			if name == "" || cq.Name == name {
 				// Remove the last run time for the CQ
-				id := fmt.Sprintf("%s:%s", db.Name, cq.Name)
+				id := fmt.Sprintf("%s%s%s", db.Name, idDelimiter, cq.Name)
 				if _, ok := s.lastRuns[id]; ok {
 					delete(s.lastRuns, id)
 				}
@@ -265,7 +269,7 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	// Get the last time this CQ was run from the service's cache.
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	id := fmt.Sprintf("%s:%s", dbi.Name, cqi.Name)
+	id := fmt.Sprintf("%s%s%s", dbi.Name, idDelimiter, cqi.Name)
 	cq.LastRun, cq.HasRun = s.lastRuns[id]
 
 	// Set the retention policy to default if it wasn't specified in the query.
