@@ -79,6 +79,10 @@ influx_inspect export --db mydb --rp autogen
 This is a sample of what the output will look like.
 
 ```
+# DDL
+CREATE DATABASE MY_DB_NAME
+CREATE RETENTION POLICY autogen ON MY_DB_NAME DURATION inf REPLICATION 1
+
 # DML
 # CONTEXT-DATABASE:MY_DB_NAME
 # CONTEXT-RETENTION-POLICY:autogen
@@ -86,7 +90,7 @@ randset value=97.9296104805 1439856000000000000
 randset value=25.3849066842 1439856100000000000
 ```
 
-##### Caveats
+# Caveats
 
-1. This only produces the DML, not the DDL.  This means that end users will have to either script or manually recreate the database and retention policy before importing.
-
+The system does not have access to the meta store when exporting TSM shards.  As such, it always creates the retention policy with infinite duration and replication factor of 1.
+End users may want to change this prior to re-importing if they are importing to a cluster or want a different duration for retention.
