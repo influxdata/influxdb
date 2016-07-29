@@ -331,16 +331,12 @@ func (f *FileStore) Delete(keys []string) error {
 // DeleteRange removes the values for keys between min and max.
 func (f *FileStore) DeleteRange(keys []string, min, max int64) error {
 	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	f.lastModified = time.Now()
+	f.mu.Unlock()
 
-	for _, file := range f.files {
-		if err := file.DeleteRange(keys, min, max); err != nil {
-			return err
-		}
-	}
-	return nil
+	return f.walkFiles(func(tsm TSMFile) error {
+		return tsm.DeleteRange(keys, min, max)
+	})
 }
 
 func (f *FileStore) Open() error {
@@ -557,7 +553,7 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 					}
 
 					inuse = append(inuse, file)
-					break
+					continue
 				}
 
 				if err := file.Close(); err != nil {
@@ -631,6 +627,34 @@ func (f *FileStore) BlockCount(path string, idx int) int {
 		}
 	}
 	return 0
+}
+
+// walkFiles calls fn for every files in filestore in parallel
+func (f *FileStore) walkFiles(fn func(f TSMFile) error) error {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	// struct to hold the result of opening each reader in a goroutine
+
+	errC := make(chan error, len(f.files))
+	for _, f := range f.files {
+		go func(tsm TSMFile) {
+			if err := fn(tsm); err != nil {
+				errC <- fmt.Errorf("file %s: %s", tsm.Path(), err)
+				return
+			}
+
+			errC <- nil
+		}(f)
+	}
+
+	for i := 0; i < cap(errC); i++ {
+		res := <-errC
+		if res != nil {
+			return res
+		}
+	}
+	return nil
 }
 
 // locations returns the files and index blocks for a key and time.  ascending indicates
@@ -736,9 +760,8 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 		}
 		// Check for tombstones and link those as well
 		for _, tf := range tsmf.TombstoneFiles() {
-			tfpath := filepath.Join(f.dir, tf.Path)
 			newpath := filepath.Join(tmpPath, filepath.Base(tf.Path))
-			if err := os.Link(tfpath, newpath); err != nil {
+			if err := os.Link(tf.Path, newpath); err != nil {
 				return "", fmt.Errorf("error creating tombstone hard link: %q", err)
 			}
 		}

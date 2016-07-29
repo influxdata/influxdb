@@ -109,6 +109,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7088](https://github.com/influxdata/influxdb/pull/7088): Fix UDP pointsRx being incremented twice.
 - [#7080](https://github.com/influxdata/influxdb/pull/7080): Ensure IDs can't clash when managing Continuous Queries.
 - [#6990](https://github.com/influxdata/influxdb/issues/6990): Fix panic parsing empty key
+- [#7084](https://github.com/influxdata/influxdb/pull/7084): Tombstone memory improvements
 
 ## v0.13.0 [2016-05-12]
 

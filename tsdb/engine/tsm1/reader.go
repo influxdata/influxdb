@@ -202,27 +202,27 @@ func NewTSMReader(f *os.File) (*TSMReader, error) {
 }
 
 func (t *TSMReader) applyTombstones() error {
-	// Read any tombstone entries if the exist
-	tombstones, err := t.tombstoner.ReadAll()
-	if err != nil {
-		return fmt.Errorf("init: read tombstones: %v", err)
-	}
-
-	if len(tombstones) == 0 {
-		return nil
-	}
-
 	var cur, prev Tombstone
-	cur = tombstones[0]
-	batch := []string{cur.Key}
-	for i := 1; i < len(tombstones); i++ {
-		cur = tombstones[i]
-		prev = tombstones[i-1]
-		if prev.Min != cur.Min || prev.Max != cur.Max {
+	batch := make([]string, 0, 4096)
+
+	if err := t.tombstoner.Walk(func(ts Tombstone) error {
+		cur = ts
+		if len(batch) > 0 {
+			if prev.Min != cur.Min || prev.Max != cur.Max {
+				t.index.DeleteRange(batch, prev.Min, prev.Max)
+				batch = batch[:0]
+			}
+		}
+		batch = append(batch, ts.Key)
+
+		if len(batch) >= 4096 {
 			t.index.DeleteRange(batch, prev.Min, prev.Max)
 			batch = batch[:0]
 		}
-		batch = append(batch, cur.Key)
+		prev = ts
+		return nil
+	}); err != nil {
+		return fmt.Errorf("init: read tombstones: %v", err)
 	}
 
 	if len(batch) > 0 {
