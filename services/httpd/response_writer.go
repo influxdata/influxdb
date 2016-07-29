@@ -14,11 +14,11 @@ type ResponseWriter interface {
 	http.ResponseWriter
 }
 
-// NewResponseWriter creates a new ResponseWriter based on the Content-Type of the request
-// that wraps the ResponseWriter.
+// NewResponseWriter creates a new ResponseWriter based on the Accept header
+// in the request that wraps the ResponseWriter.
 func NewResponseWriter(w http.ResponseWriter, r *http.Request) ResponseWriter {
 	pretty := r.URL.Query().Get("pretty") == "true"
-	switch r.Header.Get("Content-Type") {
+	switch r.Header.Get("Accept") {
 	case "application/json":
 		fallthrough
 	default:
