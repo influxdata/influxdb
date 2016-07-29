@@ -215,7 +215,7 @@ func (t *TSMReader) applyTombstones() error {
 		}
 		batch = append(batch, ts.Key)
 
-		if len(batch) > 4096 {
+		if len(batch) >= 4096 {
 			t.index.DeleteRange(batch, prev.Min, prev.Max)
 			batch = batch[:0]
 		}

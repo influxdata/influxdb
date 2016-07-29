@@ -11,7 +11,10 @@ import (
 	"sync"
 )
 
-const v2header = 0x1502
+const (
+	v2header     = 0x1502
+	v2headerSize = 4
+)
 
 type Tombstoner struct {
 	mu sync.Mutex
@@ -116,8 +119,7 @@ func (t *Tombstoner) Walk(fn func(t Tombstone) error) error {
 	defer f.Close()
 
 	var b [4]byte
-	_, err = f.Read(b[:])
-	if err != nil {
+	if _, err := f.Read(b[:]); err != nil {
 		// Might be a zero length file which should not exist, but
 		// an old bug allowed them to occur.  Treat it as an empty
 		// v1 tombstone file so we don't abort loading the TSM file.
@@ -221,7 +223,7 @@ func (t *Tombstoner) readTombstoneV1(f *os.File, fn func(t Tombstone) error) err
 // format is binary.
 func (t *Tombstoner) readTombstoneV2(f *os.File, fn func(t Tombstone) error) error {
 	// Skip header, already checked earlier
-	if _, err := f.Seek(4, os.SEEK_SET); err != nil {
+	if _, err := f.Seek(v2headerSize, os.SEEK_SET); err != nil {
 		return err
 	}
 	n := int64(4)

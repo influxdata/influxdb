@@ -635,35 +635,26 @@ func (f *FileStore) walkFiles(fn func(f TSMFile) error) error {
 	defer f.mu.RUnlock()
 
 	// struct to hold the result of opening each reader in a goroutine
-	type res struct {
-		err error
-	}
 
-	resC := make(chan res)
-	var n int
-
+	errC := make(chan error, len(f.files))
 	for _, f := range f.files {
-		n++
-
 		go func(tsm TSMFile) {
 			if err := fn(tsm); err != nil {
-				resC <- res{err: fmt.Errorf("file %s: %s", tsm.Path(), err)}
+				errC <- fmt.Errorf("file %s: %s", tsm.Path(), err)
 				return
 			}
 
-			resC <- res{}
+			errC <- nil
 		}(f)
 	}
 
-	var err error
-	for i := 0; i < n; i++ {
-		res := <-resC
-		if res.err != nil {
-			err = res.err
+	for i := 0; i < cap(errC); i++ {
+		res := <-errC
+		if res != nil {
+			return res
 		}
 	}
-	close(resC)
-	return err
+	return nil
 }
 
 // locations returns the files and index blocks for a key and time.  ascending indicates
