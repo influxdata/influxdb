@@ -1864,3 +1864,9 @@ func TestNewPointsRejectsMaxKey(t *testing.T) {
 		t.Fatalf("parse point with max key. got: nil, expected: error")
 	}
 }
+
+func TestParseKeyEmpty(t *testing.T) {
+	if _, _, err := models.ParseKey(""); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
