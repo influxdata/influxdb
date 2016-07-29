@@ -457,6 +457,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	// If it's not chunked we buffered everything in memory, so write it out
 	if !chunked {
 		n, _ := rw.WriteResponse(resp)
+		w.(http.Flusher).Flush()
 		h.statMap.Add(statQueryRequestBytesTransmitted, int64(n))
 	}
 }
