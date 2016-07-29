@@ -81,7 +81,6 @@ const (
 	DURATION
 	END
 	EVERY
-	EXISTS
 	EXPLAIN
 	FIELD
 	FOR
@@ -90,7 +89,6 @@ const (
 	GRANTS
 	GROUP
 	GROUPS
-	IF
 	IN
 	INF
 	INSERT
@@ -102,7 +100,6 @@ const (
 	MEASUREMENT
 	MEASUREMENTS
 	NAME
-	NOT
 	OFFSET
 	ON
 	ORDER
@@ -200,7 +197,6 @@ var tokens = [...]string{
 	DURATION:      "DURATION",
 	END:           "END",
 	EVERY:         "EVERY",
-	EXISTS:        "EXISTS",
 	EXPLAIN:       "EXPLAIN",
 	FIELD:         "FIELD",
 	FOR:           "FOR",
@@ -209,7 +205,6 @@ var tokens = [...]string{
 	GRANTS:        "GRANTS",
 	GROUP:         "GROUP",
 	GROUPS:        "GROUPS",
-	IF:            "IF",
 	IN:            "IN",
 	INF:           "INF",
 	INSERT:        "INSERT",
@@ -221,7 +216,6 @@ var tokens = [...]string{
 	MEASUREMENT:   "MEASUREMENT",
 	MEASUREMENTS:  "MEASUREMENTS",
 	NAME:          "NAME",
-	NOT:           "NOT",
 	OFFSET:        "OFFSET",
 	ON:            "ON",
 	ORDER:         "ORDER",

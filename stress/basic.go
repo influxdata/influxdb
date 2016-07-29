@@ -504,7 +504,6 @@ func (b *BasicQueryClient) Exec(qs <-chan Query, r chan<- response) error {
 // InfluxDB instance.
 func resetDB(c client.Client, database string) error {
 	_, err := c.Query(client.Query{
-		// Change to DROP DATABASE %s IF EXISTS
 		Command: fmt.Sprintf("DROP DATABASE %s", database),
 	})
 	if err != nil {

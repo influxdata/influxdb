@@ -1627,24 +1627,14 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `CREATE DATABASE testdb`,
 			stmt: &influxql.CreateDatabaseStatement{
-				Name:                  "testdb",
-				IfNotExists:           false,
-				RetentionPolicyCreate: false,
-			},
-		},
-		{
-			s: `CREATE DATABASE IF NOT EXISTS testdb`,
-			stmt: &influxql.CreateDatabaseStatement{
-				Name:                  "testdb",
-				IfNotExists:           true,
+				Name: "testdb",
 				RetentionPolicyCreate: false,
 			},
 		},
 		{
 			s: `CREATE DATABASE testdb WITH DURATION 24h`,
 			stmt: &influxql.CreateDatabaseStatement{
-				Name:                       "testdb",
-				IfNotExists:                false,
+				Name: "testdb",
 				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    24 * time.Hour,
 				RetentionPolicyReplication: 1,
@@ -1653,8 +1643,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `CREATE DATABASE testdb WITH SHARD DURATION 30m`,
 			stmt: &influxql.CreateDatabaseStatement{
-				Name:                              "testdb",
-				IfNotExists:                       false,
+				Name: "testdb",
 				RetentionPolicyCreate:             true,
 				RetentionPolicyDuration:           0,
 				RetentionPolicyReplication:        1,
@@ -1662,30 +1651,9 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 		{
-			s: `CREATE DATABASE IF NOT EXISTS testdb WITH DURATION 24h`,
-			stmt: &influxql.CreateDatabaseStatement{
-				Name:                       "testdb",
-				IfNotExists:                true,
-				RetentionPolicyCreate:      true,
-				RetentionPolicyDuration:    24 * time.Hour,
-				RetentionPolicyReplication: 1,
-			},
-		},
-		{
 			s: `CREATE DATABASE testdb WITH REPLICATION 2`,
 			stmt: &influxql.CreateDatabaseStatement{
-				Name:                       "testdb",
-				IfNotExists:                false,
-				RetentionPolicyCreate:      true,
-				RetentionPolicyDuration:    0,
-				RetentionPolicyReplication: 2,
-			},
-		},
-		{
-			s: `CREATE DATABASE IF NOT EXISTS testdb WITH REPLICATION 2`,
-			stmt: &influxql.CreateDatabaseStatement{
-				Name:                       "testdb",
-				IfNotExists:                true,
+				Name: "testdb",
 				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    0,
 				RetentionPolicyReplication: 2,
@@ -1694,19 +1662,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `CREATE DATABASE testdb WITH NAME test_name`,
 			stmt: &influxql.CreateDatabaseStatement{
-				Name:                       "testdb",
-				IfNotExists:                false,
-				RetentionPolicyCreate:      true,
-				RetentionPolicyDuration:    0,
-				RetentionPolicyReplication: 1,
-				RetentionPolicyName:        "test_name",
-			},
-		},
-		{
-			s: `CREATE DATABASE IF NOT EXISTS testdb WITH NAME test_name`,
-			stmt: &influxql.CreateDatabaseStatement{
-				Name:                       "testdb",
-				IfNotExists:                true,
+				Name: "testdb",
 				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    0,
 				RetentionPolicyReplication: 1,
@@ -1716,19 +1672,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `CREATE DATABASE testdb WITH DURATION 24h REPLICATION 2 NAME test_name`,
 			stmt: &influxql.CreateDatabaseStatement{
-				Name:                       "testdb",
-				IfNotExists:                false,
-				RetentionPolicyCreate:      true,
-				RetentionPolicyDuration:    24 * time.Hour,
-				RetentionPolicyReplication: 2,
-				RetentionPolicyName:        "test_name",
-			},
-		},
-		{
-			s: `CREATE DATABASE IF NOT EXISTS testdb WITH DURATION 24h REPLICATION 2 NAME test_name`,
-			stmt: &influxql.CreateDatabaseStatement{
-				Name:                       "testdb",
-				IfNotExists:                true,
+				Name: "testdb",
 				RetentionPolicyCreate:      true,
 				RetentionPolicyDuration:    24 * time.Hour,
 				RetentionPolicyReplication: 2,
@@ -1738,20 +1682,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `CREATE DATABASE testdb WITH DURATION 24h REPLICATION 2 SHARD DURATION 10m NAME test_name `,
 			stmt: &influxql.CreateDatabaseStatement{
-				Name:                              "testdb",
-				IfNotExists:                       false,
-				RetentionPolicyCreate:             true,
-				RetentionPolicyDuration:           24 * time.Hour,
-				RetentionPolicyReplication:        2,
-				RetentionPolicyName:               "test_name",
-				RetentionPolicyShardGroupDuration: 10 * time.Minute,
-			},
-		},
-		{
-			s: `CREATE DATABASE IF NOT EXISTS testdb WITH DURATION 24h REPLICATION 2 SHARD DURATION 10m NAME test_name`,
-			stmt: &influxql.CreateDatabaseStatement{
-				Name:                              "testdb",
-				IfNotExists:                       true,
+				Name: "testdb",
 				RetentionPolicyCreate:             true,
 				RetentionPolicyDuration:           24 * time.Hour,
 				RetentionPolicyReplication:        2,
@@ -1798,15 +1729,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s: `DROP DATABASE testdb`,
 			stmt: &influxql.DropDatabaseStatement{
-				Name:     "testdb",
-				IfExists: false,
-			},
-		},
-		{
-			s: `DROP DATABASE IF EXISTS testdb`,
-			stmt: &influxql.DropDatabaseStatement{
-				Name:     "testdb",
-				IfExists: true,
+				Name: "testdb",
 			},
 		},
 
@@ -2269,16 +2192,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `CREATE DATABASE "testdb" WITH REPLICATION`, err: `found EOF, expected integer at line 1, char 43`},
 		{s: `CREATE DATABASE "testdb" WITH NAME`, err: `found EOF, expected identifier at line 1, char 36`},
 		{s: `CREATE DATABASE "testdb" WITH SHARD`, err: `found EOF, expected DURATION at line 1, char 37`},
-		{s: `CREATE DATABASE IF`, err: `found EOF, expected NOT at line 1, char 20`},
-		{s: `CREATE DATABASE IF NOT`, err: `found EOF, expected EXISTS at line 1, char 24`},
-		{s: `CREATE DATABASE IF NOT EXISTS`, err: `found EOF, expected identifier at line 1, char 31`},
-		{s: `CREATE DATABASE IF NOT EXISTS "testdb" WITH`, err: `found EOF, expected DURATION, NAME, REPLICATION, SHARD at line 1, char 45`},
-		{s: `CREATE DATABASE IF NOT EXISTS "testdb" WITH DURATION`, err: `found EOF, expected duration at line 1, char 54`},
-		{s: `CREATE DATABASE IF NOT EXISTS "testdb" WITH REPLICATION`, err: `found EOF, expected integer at line 1, char 57`},
-		{s: `CREATE DATABASE IF NOT EXISTS "testdb" WITH NAME`, err: `found EOF, expected identifier at line 1, char 50`},
 		{s: `DROP DATABASE`, err: `found EOF, expected identifier at line 1, char 15`},
-		{s: `DROP DATABASE IF`, err: `found EOF, expected EXISTS at line 1, char 18`},
-		{s: `DROP DATABASE IF EXISTS`, err: `found EOF, expected identifier at line 1, char 25`},
 		{s: `DROP RETENTION`, err: `found EOF, expected POLICY at line 1, char 16`},
 		{s: `DROP RETENTION POLICY`, err: `found EOF, expected identifier at line 1, char 23`},
 		{s: `DROP RETENTION POLICY "1h.cpu"`, err: `found EOF, expected ON at line 1, char 31`},
