@@ -161,7 +161,7 @@ func (s *Server) HTTPGet(url string) (results string, err error) {
 	if err != nil {
 		return "", err
 	}
-	body := string(MustReadAll(resp.Body))
+	body := strings.TrimSpace(string(MustReadAll(resp.Body)))
 	switch resp.StatusCode {
 	case http.StatusBadRequest:
 		if !expectPattern(".*error parsing query*.", body) {
@@ -182,7 +182,7 @@ func (s *Server) HTTPPost(url string, content []byte) (results string, err error
 	if err != nil {
 		return "", err
 	}
-	body := string(MustReadAll(resp.Body))
+	body := strings.TrimSpace(string(MustReadAll(resp.Body)))
 	switch resp.StatusCode {
 	case http.StatusBadRequest:
 		if !expectPattern(".*error parsing query*.", body) {
