@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/BurntSushi/toml"
 )
@@ -105,7 +104,6 @@ type outputConfig struct {
 	addr            string
 	database        string
 	retentionPolicy string
-	mu              sync.Mutex
 }
 
 func (t *outputConfig) SetParams(addr, db, rp string) {

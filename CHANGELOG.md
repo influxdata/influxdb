@@ -113,6 +113,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6990](https://github.com/influxdata/influxdb/issues/6990): Fix panic parsing empty key
 - [#7084](https://github.com/influxdata/influxdb/pull/7084): Tombstone memory improvements
 - [#6543](https://github.com/influxdata/influxdb/issues/6543): Fix parseFill to check for fill ident before attempting to parse an expression.
+- [#7032](https://github.com/influxdata/influxdb/pull/7032): Copy tags in influx_stress to avoid a concurrent write panic on a map.
 
 ## v0.13.0 [2016-05-12]
 
