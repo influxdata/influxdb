@@ -2152,6 +2152,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT count(foo + sum(bar)) FROM cpu`, err: `expected field argument in count()`},
 		{s: `SELECT (count(foo + sum(bar))) FROM cpu`, err: `expected field argument in count()`},
 		{s: `SELECT sum(value) + count(foo + sum(bar)) FROM cpu`, err: `binary expressions cannot mix aggregates and raw fields`},
+		{s: `SELECT mean(value) FROM cpu FILL + value`, err: `fill must be a function call`},
 		// See issues https://github.com/influxdata/influxdb/issues/1647
 		// and https://github.com/influxdata/influxdb/issues/4404
 		//{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},

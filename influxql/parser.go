@@ -2071,24 +2071,23 @@ func (p *Parser) parseDimension() (*Dimension, error) {
 // parseFill parses the fill call and its options.
 func (p *Parser) parseFill() (FillOption, interface{}, error) {
 	// Parse the expression first.
+	tok, _, lit := p.scanIgnoreWhitespace()
+	p.unscan()
+	if tok != IDENT || strings.ToLower(lit) != "fill" {
+		return NullFill, nil, nil
+	}
+
 	expr, err := p.ParseExpr()
 	if err != nil {
-		p.unscan()
-		return NullFill, nil, nil
+		return NullFill, nil, err
 	}
-	lit, ok := expr.(*Call)
+	fill, ok := expr.(*Call)
 	if !ok {
-		p.unscan()
-		return NullFill, nil, nil
-	}
-	if strings.ToLower(lit.Name) != "fill" {
-		p.unscan()
-		return NullFill, nil, nil
-	}
-	if len(lit.Args) != 1 {
+		return NullFill, nil, errors.New("fill must be a function call")
+	} else if len(fill.Args) != 1 {
 		return NullFill, nil, errors.New("fill requires an argument, e.g.: 0, null, none, previous")
 	}
-	switch lit.Args[0].String() {
+	switch fill.Args[0].String() {
 	case "null":
 		return NullFill, nil, nil
 	case "none":
@@ -2096,7 +2095,7 @@ func (p *Parser) parseFill() (FillOption, interface{}, error) {
 	case "previous":
 		return PreviousFill, nil, nil
 	default:
-		switch num := lit.Args[0].(type) {
+		switch num := fill.Args[0].(type) {
 		case *IntegerLiteral:
 			return NumberFill, num.Val, nil
 		case *NumberLiteral:
