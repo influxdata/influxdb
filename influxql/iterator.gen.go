@@ -164,6 +164,9 @@ func (itr *floatMergeIterator) Close() error {
 	for _, input := range itr.inputs {
 		input.Close()
 	}
+	itr.curr = nil
+	itr.inputs = nil
+	itr.heap.items = nil
 	return nil
 }
 
@@ -440,6 +443,7 @@ type floatParallelIterator struct {
 
 	once    sync.Once
 	closing chan struct{}
+	wg      sync.WaitGroup
 }
 
 // newFloatParallelIterator returns a new instance of floatParallelIterator.
@@ -449,6 +453,7 @@ func newFloatParallelIterator(input FloatIterator) *floatParallelIterator {
 		ch:      make(chan floatPointError, 1),
 		closing: make(chan struct{}),
 	}
+	itr.wg.Add(1)
 	go itr.monitor()
 	return itr
 }
@@ -459,6 +464,7 @@ func (itr *floatParallelIterator) Stats() IteratorStats { return itr.input.Stats
 // Close closes the underlying iterators.
 func (itr *floatParallelIterator) Close() error {
 	itr.once.Do(func() { close(itr.closing) })
+	itr.wg.Wait()
 	return itr.input.Close()
 }
 
@@ -474,6 +480,7 @@ func (itr *floatParallelIterator) Next() (*FloatPoint, error) {
 // monitor runs in a separate goroutine and actively pulls the next point.
 func (itr *floatParallelIterator) monitor() {
 	defer close(itr.ch)
+	defer itr.wg.Done()
 
 	for {
 		// Read next point.
@@ -2221,6 +2228,9 @@ func (itr *integerMergeIterator) Close() error {
 	for _, input := range itr.inputs {
 		input.Close()
 	}
+	itr.curr = nil
+	itr.inputs = nil
+	itr.heap.items = nil
 	return nil
 }
 
@@ -2497,6 +2507,7 @@ type integerParallelIterator struct {
 
 	once    sync.Once
 	closing chan struct{}
+	wg      sync.WaitGroup
 }
 
 // newIntegerParallelIterator returns a new instance of integerParallelIterator.
@@ -2506,6 +2517,7 @@ func newIntegerParallelIterator(input IntegerIterator) *integerParallelIterator 
 		ch:      make(chan integerPointError, 1),
 		closing: make(chan struct{}),
 	}
+	itr.wg.Add(1)
 	go itr.monitor()
 	return itr
 }
@@ -2516,6 +2528,7 @@ func (itr *integerParallelIterator) Stats() IteratorStats { return itr.input.Sta
 // Close closes the underlying iterators.
 func (itr *integerParallelIterator) Close() error {
 	itr.once.Do(func() { close(itr.closing) })
+	itr.wg.Wait()
 	return itr.input.Close()
 }
 
@@ -2531,6 +2544,7 @@ func (itr *integerParallelIterator) Next() (*IntegerPoint, error) {
 // monitor runs in a separate goroutine and actively pulls the next point.
 func (itr *integerParallelIterator) monitor() {
 	defer close(itr.ch)
+	defer itr.wg.Done()
 
 	for {
 		// Read next point.
@@ -4275,6 +4289,9 @@ func (itr *stringMergeIterator) Close() error {
 	for _, input := range itr.inputs {
 		input.Close()
 	}
+	itr.curr = nil
+	itr.inputs = nil
+	itr.heap.items = nil
 	return nil
 }
 
@@ -4551,6 +4568,7 @@ type stringParallelIterator struct {
 
 	once    sync.Once
 	closing chan struct{}
+	wg      sync.WaitGroup
 }
 
 // newStringParallelIterator returns a new instance of stringParallelIterator.
@@ -4560,6 +4578,7 @@ func newStringParallelIterator(input StringIterator) *stringParallelIterator {
 		ch:      make(chan stringPointError, 1),
 		closing: make(chan struct{}),
 	}
+	itr.wg.Add(1)
 	go itr.monitor()
 	return itr
 }
@@ -4570,6 +4589,7 @@ func (itr *stringParallelIterator) Stats() IteratorStats { return itr.input.Stat
 // Close closes the underlying iterators.
 func (itr *stringParallelIterator) Close() error {
 	itr.once.Do(func() { close(itr.closing) })
+	itr.wg.Wait()
 	return itr.input.Close()
 }
 
@@ -4585,6 +4605,7 @@ func (itr *stringParallelIterator) Next() (*StringPoint, error) {
 // monitor runs in a separate goroutine and actively pulls the next point.
 func (itr *stringParallelIterator) monitor() {
 	defer close(itr.ch)
+	defer itr.wg.Done()
 
 	for {
 		// Read next point.
@@ -6329,6 +6350,9 @@ func (itr *booleanMergeIterator) Close() error {
 	for _, input := range itr.inputs {
 		input.Close()
 	}
+	itr.curr = nil
+	itr.inputs = nil
+	itr.heap.items = nil
 	return nil
 }
 
@@ -6605,6 +6629,7 @@ type booleanParallelIterator struct {
 
 	once    sync.Once
 	closing chan struct{}
+	wg      sync.WaitGroup
 }
 
 // newBooleanParallelIterator returns a new instance of booleanParallelIterator.
@@ -6614,6 +6639,7 @@ func newBooleanParallelIterator(input BooleanIterator) *booleanParallelIterator 
 		ch:      make(chan booleanPointError, 1),
 		closing: make(chan struct{}),
 	}
+	itr.wg.Add(1)
 	go itr.monitor()
 	return itr
 }
@@ -6624,6 +6650,7 @@ func (itr *booleanParallelIterator) Stats() IteratorStats { return itr.input.Sta
 // Close closes the underlying iterators.
 func (itr *booleanParallelIterator) Close() error {
 	itr.once.Do(func() { close(itr.closing) })
+	itr.wg.Wait()
 	return itr.input.Close()
 }
 
@@ -6639,6 +6666,7 @@ func (itr *booleanParallelIterator) Next() (*BooleanPoint, error) {
 // monitor runs in a separate goroutine and actively pulls the next point.
 func (itr *booleanParallelIterator) monitor() {
 	defer close(itr.ch)
+	defer itr.wg.Done()
 
 	for {
 		// Read next point.

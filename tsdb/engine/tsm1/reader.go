@@ -232,10 +232,10 @@ func (t *TSMReader) applyTombstones() error {
 }
 
 func (t *TSMReader) Path() string {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	return t.accessor.path()
+	t.mu.RLock()
+	p := t.accessor.path()
+	t.mu.RUnlock()
+	return p
 }
 
 func (t *TSMReader) Key(index int) (string, []IndexEntry) {
@@ -249,54 +249,59 @@ func (t *TSMReader) KeyAt(idx int) (string, byte) {
 
 func (t *TSMReader) ReadAt(entry *IndexEntry, vals []Value) ([]Value, error) {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	return t.accessor.readBlock(entry, vals)
+	v, err := t.accessor.readBlock(entry, vals)
+	t.mu.RUnlock()
+	return v, err
 }
 
 func (t *TSMReader) ReadFloatBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *FloatDecoder, vals *[]FloatValue) ([]FloatValue, error) {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.accessor.readFloatBlock(entry, tdec, vdec, vals)
+	v, err := t.accessor.readFloatBlock(entry, tdec, vdec, vals)
+	t.mu.RUnlock()
+	return v, err
 }
 
 func (t *TSMReader) ReadIntegerBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *IntegerDecoder, vals *[]IntegerValue) ([]IntegerValue, error) {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.accessor.readIntegerBlock(entry, tdec, vdec, vals)
+	v, err := t.accessor.readIntegerBlock(entry, tdec, vdec, vals)
+	t.mu.RUnlock()
+	return v, err
 }
 
 func (t *TSMReader) ReadStringBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *StringDecoder, vals *[]StringValue) ([]StringValue, error) {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.accessor.readStringBlock(entry, tdec, vdec, vals)
+	v, err := t.accessor.readStringBlock(entry, tdec, vdec, vals)
+	t.mu.RUnlock()
+	return v, err
 }
 
 func (t *TSMReader) ReadBooleanBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *BooleanDecoder, vals *[]BooleanValue) ([]BooleanValue, error) {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.accessor.readBooleanBlock(entry, tdec, vdec, vals)
+	v, err := t.accessor.readBooleanBlock(entry, tdec, vdec, vals)
+	t.mu.RUnlock()
+	return v, err
 }
 
 func (t *TSMReader) Read(key string, timestamp int64) ([]Value, error) {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-
-	return t.accessor.read(key, timestamp)
+	v, err := t.accessor.read(key, timestamp)
+	t.mu.RUnlock()
+	return v, err
 }
 
 // ReadAll returns all values for a key in all blocks.
 func (t *TSMReader) ReadAll(key string) ([]Value, error) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	return t.accessor.readAll(key)
+	t.mu.RLock()
+	v, err := t.accessor.readAll(key)
+	t.mu.RUnlock()
+	return v, err
 }
 
 func (t *TSMReader) readBytes(e *IndexEntry, b []byte) (uint32, []byte, error) {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.accessor.readBytes(e, b)
+	n, v, err := t.accessor.readBytes(e, b)
+	t.mu.RUnlock()
+	return n, v, err
 }
 
 func (t *TSMReader) Type(key string) (byte, error) {
@@ -426,35 +431,40 @@ func (t *TSMReader) IndexSize() uint32 {
 
 func (t *TSMReader) Size() uint32 {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return uint32(t.size)
+	size := t.size
+	t.mu.RUnlock()
+	return uint32(size)
 }
 
 func (t *TSMReader) LastModified() int64 {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.lastModified
+	lm := t.lastModified
+	t.mu.RUnlock()
+	return lm
 }
 
 // HasTombstones return true if there are any tombstone entries recorded.
 func (t *TSMReader) HasTombstones() bool {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.tombstoner.HasTombstones()
+	b := t.tombstoner.HasTombstones()
+	t.mu.RUnlock()
+	return b
 }
 
 // TombstoneFiles returns any tombstone files associated with this TSM file.
 func (t *TSMReader) TombstoneFiles() []FileStat {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.tombstoner.TombstoneFiles()
+	fs := t.tombstoner.TombstoneFiles()
+	t.mu.RUnlock()
+	return fs
 }
 
 // TombstoneRange returns ranges of time that are deleted for the given key.
 func (t *TSMReader) TombstoneRange(key string) []TimeRange {
 	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.index.TombstoneRange(key)
+	tr := t.index.TombstoneRange(key)
+	t.mu.RUnlock()
+	return tr
 }
 
 func (t *TSMReader) Stats() FileStat {
@@ -1026,14 +1036,15 @@ func (m *mmapAccessor) readBlock(entry *IndexEntry, values []Value) ([]Value, er
 
 func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *FloatDecoder, values *[]FloatValue) ([]FloatValue, error) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+		m.mu.RUnlock()
 		return nil, ErrTSMClosed
 	}
 
-	//TODO: Validate checksum
 	a, err := DecodeFloatBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], tdec, vdec, values)
+	m.mu.RUnlock()
+
 	if err != nil {
 		return nil, err
 	}
@@ -1043,13 +1054,15 @@ func (m *mmapAccessor) readFloatBlock(entry *IndexEntry, tdec *TimeDecoder, vdec
 
 func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+		m.mu.RUnlock()
 		return nil, ErrTSMClosed
 	}
-	//TODO: Validate checksum
+
 	a, err := DecodeIntegerBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], tdec, vdec, values)
+	m.mu.RUnlock()
+
 	if err != nil {
 		return nil, err
 	}
@@ -1059,13 +1072,15 @@ func (m *mmapAccessor) readIntegerBlock(entry *IndexEntry, tdec *TimeDecoder, vd
 
 func (m *mmapAccessor) readStringBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+		m.mu.RUnlock()
 		return nil, ErrTSMClosed
 	}
-	//TODO: Validate checksum
+
 	a, err := DecodeStringBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], tdec, vdec, values)
+	m.mu.RUnlock()
+
 	if err != nil {
 		return nil, err
 	}
@@ -1075,13 +1090,15 @@ func (m *mmapAccessor) readStringBlock(entry *IndexEntry, tdec *TimeDecoder, vde
 
 func (m *mmapAccessor) readBooleanBlock(entry *IndexEntry, tdec *TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 
 	if int64(len(m.b)) < entry.Offset+int64(entry.Size) {
+		m.mu.RUnlock()
 		return nil, ErrTSMClosed
 	}
-	//TODO: Validate checksum
+
 	a, err := DecodeBooleanBlock(m.b[entry.Offset+4:entry.Offset+int64(entry.Size)], tdec, vdec, values)
+	m.mu.RUnlock()
+
 	if err != nil {
 		return nil, err
 	}
