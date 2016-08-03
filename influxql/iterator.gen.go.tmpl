@@ -161,6 +161,9 @@ func (itr *{{$k.name}}MergeIterator) Close() error {
 	for _, input := range itr.inputs {
 		input.Close()
 	}
+	itr.curr = nil
+	itr.inputs = nil
+	itr.heap.items = nil
 	return nil
 }
 
@@ -435,9 +438,10 @@ type {{$k.name}}SortedMergeHeapItem struct {
 type {{$k.name}}ParallelIterator struct {
 	input   {{$k.Name}}Iterator
 	ch      chan {{$k.name}}PointError
-	
+
 	once    sync.Once
 	closing chan struct{}
+	wg sync.WaitGroup
 }
 
 // new{{$k.Name}}ParallelIterator returns a new instance of {{$k.name}}ParallelIterator.
@@ -445,8 +449,9 @@ func new{{$k.Name}}ParallelIterator(input {{$k.Name}}Iterator) *{{$k.name}}Paral
 	itr := &{{$k.name}}ParallelIterator{
 		input:   input,
 		ch:      make(chan {{$k.name}}PointError, 1),
-		closing: make(chan struct{}), 
+		closing: make(chan struct{}),
 	}
+	itr.wg.Add(1)
 	go itr.monitor()
 	return itr
 }
@@ -457,7 +462,8 @@ func (itr *{{$k.name}}ParallelIterator) Stats() IteratorStats { return itr.input
 // Close closes the underlying iterators.
 func (itr *{{$k.name}}ParallelIterator) Close() error {
 	itr.once.Do(func() { close(itr.closing) })
-	return itr.input.Close() 
+	itr.wg.Wait()
+	return itr.input.Close()
 }
 
 // Next returns the next point from the iterator.
@@ -472,6 +478,7 @@ func (itr *{{$k.name}}ParallelIterator) Next() (*{{$k.Name}}Point, error) {
 // monitor runs in a separate goroutine and actively pulls the next point.
 func (itr *{{$k.name}}ParallelIterator) monitor()  {
 	defer close(itr.ch)
+	defer itr.wg.Done()
 
 	for {
 		// Read next point.
