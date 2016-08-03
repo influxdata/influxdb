@@ -1157,7 +1157,7 @@ func (s *SelectStatement) RewriteFields(ic IteratorCreator) (*SelectStatement, e
 
 				// Add additional types for certain functions.
 				switch call.Name {
-				case "count", "first", "last", "distinct", "elapsed":
+				case "count", "first", "last", "distinct", "elapsed", "mode":
 					supportedTypes[String] = struct{}{}
 					supportedTypes[Boolean] = struct{}{}
 				case "stddev":
@@ -3215,7 +3215,7 @@ func (c *Call) Fields() []string {
 			}
 		}
 		return keys
-	case "min", "max", "first", "last", "sum", "mean":
+	case "min", "max", "first", "last", "sum", "mean", "mode":
 		// maintain the order the user specified in the query
 		keyMap := make(map[string]struct{})
 		keys := []string{}
