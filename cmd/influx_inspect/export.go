@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 
 type cmdExport struct {
 	path            string
+	tsmDir          string
 	out             string
 	db              string
 	retentionPolicy string
@@ -24,9 +26,10 @@ type cmdExport struct {
 	files map[string][]string
 }
 
-func newCmdExport(path, out, db, retentionPolicy string, compress bool) *cmdExport {
+func newCmdExport(path, tsmDir, out, db, retentionPolicy string, compress bool) *cmdExport {
 	return &cmdExport{
 		path:            filepath.Join(path, "data"),
+		tsmDir:          tsmDir,
 		out:             out,
 		db:              db,
 		compress:        compress,
@@ -53,7 +56,11 @@ func (c *cmdExport) run() error {
 }
 
 func (c *cmdExport) export() error {
-	if err := c.walkFiles(); err != nil {
+	if c.tsmDir != "" {
+		if err := c.getTSMDirFiles(); err != nil {
+			return err
+		}
+	} else if err := c.walkFiles(); err != nil {
 		return err
 	}
 	return c.writeFiles()
@@ -99,19 +106,25 @@ func (c *cmdExport) writeFiles() error {
 		w = gzip.NewWriter(w)
 	}
 
-	// Write out all the DDL
-	fmt.Fprintln(w, "# DDL")
-	for key, _ := range c.files {
-		keys := strings.Split(key, string(byte(os.PathSeparator)))
-		fmt.Fprintf(w, "CREATE DATABASE %s\n", keys[0])
-		fmt.Fprintf(w, "CREATE RETENTION POLICY %s ON %s DURATION inf REPLICATION 1\n", keys[1], keys[0])
+	if c.tsmDir == "" {
+		// Write out all the DDL
+		fmt.Fprintln(w, "# DDL")
+		for key, _ := range c.files {
+			keys := strings.Split(key, string(byte(os.PathSeparator)))
+			fmt.Fprintf(w, "CREATE DATABASE %s\n", keys[0])
+			fmt.Fprintf(w, "CREATE RETENTION POLICY %s ON %s DURATION inf REPLICATION 1\n", keys[1], keys[0])
+		}
+
+		fmt.Fprintln(w, "# DML")
 	}
 
-	fmt.Fprintln(w, "# DML")
 	for key, files := range c.files {
-		keys := strings.Split(key, string(byte(os.PathSeparator)))
-		fmt.Fprintf(w, "# CONTEXT-DATABASE:%s\n", keys[0])
-		fmt.Fprintf(w, "# CONTEXT-RETENTION-POLICY:%s\n", keys[1])
+		if c.tsmDir == "" {
+			keys := strings.Split(key, string(byte(os.PathSeparator)))
+			fmt.Fprintf(w, "# CONTEXT-DATABASE:%s\n", keys[0])
+			fmt.Fprintf(w, "# CONTEXT-RETENTION-POLICY:%s\n", keys[1])
+		}
+
 		for _, f := range files {
 			// use an anonymous function here to close the files in the defers and not let them
 			// accumulate in the loop
@@ -158,5 +171,30 @@ func (c *cmdExport) writeFiles() error {
 		}
 		_ = key
 	}
+	return nil
+}
+
+func (c *cmdExport) getTSMDirFiles() error {
+	fis, err := ioutil.ReadDir(c.tsmDir)
+	if err != nil {
+		return err
+	}
+
+	files := []string{}
+
+	for _, fi := range fis {
+		if fi.IsDir() {
+			continue
+		}
+
+		ext := filepath.Ext(fi.Name())
+
+		if ext == c.ext {
+			files = append(files, filepath.Join(c.tsmDir, fi.Name()))
+		}
+	}
+
+	c.files[""] = files
+
 	return nil
 }
