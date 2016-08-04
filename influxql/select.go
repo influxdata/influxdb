@@ -334,6 +334,12 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions, selec
 						itr = &nilFloatIterator{}
 					}
 					return itr, nil
+				case "increase":
+					input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt, false)
+					if err != nil {
+						return nil, err
+					}
+					return newIncreaseIterator(input, opt)
 				case "median":
 					input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt, false)
 					if err != nil {

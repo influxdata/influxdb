@@ -439,6 +439,71 @@ func newMeanIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	}
 }
 
+// newIncreaseIterator returns an iterator for operating on a increase() call. See #7076.
+func newIncreaseIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatSliceFuncReducer(FloatIncreaseReduceSlice)
+			return fn, fn
+		}
+		return &floatReduceFloatIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
+			fn := NewIntegerSliceFuncReducer(IntegerIncreaseReduceSlice)
+			return fn, fn
+		}
+		return &integerReduceIntegerIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
+	default:
+		return nil, fmt.Errorf("unsupported increase iterator type: %T", input)
+	}
+}
+
+// FloatIncreaseReduceSlice returns the increase value within a window.
+func FloatIncreaseReduceSlice(a []FloatPoint) []FloatPoint {
+	var count int
+	var prev float64
+	var increase float64
+	for _, p := range a {
+		if math.IsNaN(p.Value) {
+			continue
+		}
+		count++
+		if count > 1 && p.Value >= prev {
+			increase += p.Value - prev
+		}
+		prev = p.Value
+	}
+
+	// If there was only one valid point then return 0.
+	if count < 2 {
+		return []FloatPoint{{Time: ZeroTime, Nil: true}}
+	} else {
+		return []FloatPoint{{Time: ZeroTime, Value: increase}}
+	}
+}
+
+// IntegerIncreaseReduceSlice returns the increase value within a window.
+func IntegerIncreaseReduceSlice(a []IntegerPoint) []IntegerPoint {
+	var count int
+	var prev int64
+	var increase int64
+	for _, p := range a {
+		count++
+		if count > 1 && p.Value >= prev {
+			increase += p.Value - prev
+		}
+		prev = p.Value
+	}
+
+	// If there was only one valid point then return 0.
+	if count < 2 {
+		return []IntegerPoint{{Time: ZeroTime, Nil: true}}
+	} else {
+		return []IntegerPoint{{Time: ZeroTime, Value: increase}}
+	}
+}
+
 // newMedianIterator returns an iterator for operating on a median() call.
 func newMedianIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
