@@ -17,7 +17,8 @@ Displays detailed information about InfluxDB data files.
 	println(`Commands:
   dumptsm - dumps low-level details about tsm1 files.
   export - exports a tsm file to line protocol
-  report - displays a shard level report`)
+  report - displays a shard level report
+  exportwal - exports wal files to line protocol`)
 	println()
 }
 
@@ -97,12 +98,36 @@ func main() {
 			println("Options:")
 			fs.PrintDefaults()
 		}
-
 		if err := fs.Parse(flag.Args()[1:]); err != nil {
 			fmt.Printf("%v", err)
 			os.Exit(1)
 		}
 		cmdVerify(path)
+
+	case "exportwal":
+		opts := &exportWALOpts{}
+		fs := flag.NewFlagSet("file", flag.ExitOnError)
+
+		fs.Usage = func() {
+			println("Usage: influx_inspect exportwal [options] <path>\n\n  Exports wal files into line protocol.")
+			println()
+			println("Options:")
+			fs.PrintDefaults()
+			os.Exit(0)
+		}
+		if err := fs.Parse(flag.Args()[1:]); err != nil {
+			fmt.Printf("%v", err)
+			os.Exit(1)
+		}
+
+		if len(fs.Args()) == 0 || fs.Args()[0] == "" {
+			fmt.Printf("WAL file not specified\n\n")
+			fs.Usage()
+			fs.PrintDefaults()
+			os.Exit(1)
+		}
+		opts.path = fs.Args()[0]
+		cmdExportWAL(opts)
 	case "export":
 		var path, out, db, rp string
 		var compress bool
