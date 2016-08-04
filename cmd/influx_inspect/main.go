@@ -129,10 +129,11 @@ func main() {
 		opts.path = fs.Args()[0]
 		cmdExportWAL(opts)
 	case "export":
-		var path, out, db, rp string
+		var path, tsmDir, out, db, rp string
 		var compress bool
 		fs := flag.NewFlagSet("export", flag.ExitOnError)
 		fs.StringVar(&path, "dir", os.Getenv("HOME")+"/.influxdb", "Root storage path. [$HOME/.influxdb]")
+		fs.StringVar(&tsmDir, "tsmdir", "", "Path to single dir with tsm files to export.")
 		fs.StringVar(&out, "out", os.Getenv("HOME")+"/.influxdb/export", "Destination file to export to")
 		fs.StringVar(&db, "db", "", "Optional: the database to export")
 		fs.StringVar(&rp, "rp", "", "Optional: the retention policy to export (requires db parameter to be specified)")
@@ -149,7 +150,7 @@ func main() {
 			fmt.Printf("%v", err)
 			os.Exit(1)
 		}
-		c := newCmdExport(path, out, db, rp, compress)
+		c := newCmdExport(path, tsmDir, out, db, rp, compress)
 		if err := c.run(); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
