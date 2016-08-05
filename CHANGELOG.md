@@ -1,5 +1,9 @@
 ## v1.0.0 [unreleased]
 
+### Breaking changes
+
+* `max-series-per-database` was added with a default of 1M but can be disabled by setting it to `0`. Existing databases with series that exceed this limit will continue to load but writes that would create new series will fail.
+
 ### Release Notes
 
 * Config option `[cluster]` has been replaced with `[coordinator]`
@@ -46,6 +50,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7050](https://github.com/influxdata/influxdb/pull/7050): Update go package library dependencies.
 - [#5750](https://github.com/influxdata/influxdb/issues/5750): Support wildcards in aggregate functions.
 - [#7605](https://github.com/influxdata/influxdb/issues/7605): Remove IF EXISTS/IF NOT EXISTS from influxql language.
+- [#7095](https://github.com/influxdata/influxdb/pull/7095): Add MaxSeriesPerDatabase config setting.
 
 ### Bugfixes
 

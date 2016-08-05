@@ -36,6 +36,9 @@ const (
 	// DefaultMaxPointsPerBlock is the maximum number of points in an encoded
 	// block in a TSM file
 	DefaultMaxPointsPerBlock = 1000
+
+	// DefaultMaxSeriesPerDatabase is the maximum number of series a node can hold per database.
+	DefaultMaxSeriesPerDatabase = 1000000
 )
 
 // Config holds the configuration for the tsbd package.
@@ -57,6 +60,13 @@ type Config struct {
 	CompactFullWriteColdDuration   toml.Duration `toml:"compact-full-write-cold-duration"`
 	MaxPointsPerBlock              int           `toml:"max-points-per-block"`
 
+	// Limits
+
+	// MaxSeriesPerDatabase is the maximum number of series a node can hold per database.
+	// When this limit is exceeded, writes return a 'max series per database exceeded' error.
+	// A value of 0 disables the limit.
+	MaxSeriesPerDatabase int `toml:"max-series-per-database"`
+
 	TraceLoggingEnabled bool `toml:"trace-logging-enabled"`
 }
 
@@ -73,6 +83,8 @@ func NewConfig() Config {
 		CacheSnapshotMemorySize:        DefaultCacheSnapshotMemorySize,
 		CacheSnapshotWriteColdDuration: toml.Duration(DefaultCacheSnapshotWriteColdDuration),
 		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
+
+		MaxSeriesPerDatabase: DefaultMaxSeriesPerDatabase,
 
 		TraceLoggingEnabled: false,
 	}

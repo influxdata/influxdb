@@ -1,6 +1,7 @@
 package tsdb_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -94,6 +95,59 @@ func TestShardWriteAndIndex(t *testing.T) {
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
+}
+
+func TestMaxSeriesLimit(t *testing.T) {
+	tmpDir, _ := ioutil.TempDir("", "shard_test")
+	defer os.RemoveAll(tmpDir)
+	tmpShard := path.Join(tmpDir, "shard")
+	tmpWal := path.Join(tmpDir, "wal")
+
+	index := tsdb.NewDatabaseIndex("db")
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.Config.MaxSeriesPerDatabase = 1000
+
+	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+
+	if err := sh.Open(); err != nil {
+		t.Fatalf("error opening shard: %s", err.Error())
+	}
+
+	// Writing 1K series should succeed.
+	points := []models.Point{}
+
+	for i := 0; i < 1000; i++ {
+		pt := models.MustNewPoint(
+			"cpu",
+			map[string]string{"host": fmt.Sprintf("server%d", i)},
+			map[string]interface{}{"value": 1.0},
+			time.Unix(1, 2),
+		)
+		points = append(points, pt)
+	}
+
+	err := sh.WritePoints(points)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	// Writing one more series should exceed the series limit.
+	pt := models.MustNewPoint(
+		"cpu",
+		map[string]string{"host": "server9999"},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	err = sh.WritePoints([]models.Point{pt})
+	if err == nil {
+		t.Fatal("expected error")
+	} else if err.Error() != "max series per database exceeded: cpu,host=server9999" {
+		t.Fatalf("unexpected error messag:\n\texp = max series per database exceeded: cpu,host=server9999\n\tgot = %s", err.Error())
+	}
+
+	sh.Close()
 }
 
 func TestShardWriteAddNewField(t *testing.T) {
