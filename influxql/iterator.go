@@ -861,7 +861,7 @@ func newIteratorOptionsStmt(stmt *SelectStatement, sopt *SelectOptions) (opt Ite
 	if interval < 0 {
 		interval = 0
 	} else if interval > 0 {
-		opt.Interval.Offset, err = stmt.GroupByOffset(&opt)
+		opt.Interval.Offset, err = stmt.GroupByOffset()
 		if err != nil {
 			return opt, err
 		}
