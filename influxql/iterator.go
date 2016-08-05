@@ -696,6 +696,91 @@ func (a IteratorCreators) ExpandSources(sources Sources) (Sources, error) {
 	return sorted, nil
 }
 
+// lazyIteratorCreators represents a list of iterator creators that are lazily created.
+type lazyIteratorCreators IteratorCreators
+
+// NewLazyIteratorCreator returns an iterator creator for that creates iterators lazily.
+func NewLazyIteratorCreator(a []IteratorCreator) IteratorCreator {
+	return lazyIteratorCreators(a)
+}
+
+func (a lazyIteratorCreators) CreateIterator(opt IteratorOptions) (Iterator, error) {
+	for {
+		if len(a) == 0 {
+			return nil, nil
+		}
+
+		// Create first iterator to determine data type.
+		itr, err := a[0].CreateIterator(opt)
+		if err != nil {
+			return nil, err
+		} else if itr == nil {
+			a = a[1:]
+			continue
+		} else if len(a) == 1 {
+			return Iterators{itr}.Merge(opt)
+		}
+
+		// All additional iterators need to be the same type.
+		switch itr := itr.(type) {
+		case FloatIterator:
+			itrs := make([]FloatIterator, len(a))
+			itrs[0] = itr
+			for i := 1; i < len(itrs); i++ {
+				ic := a[i]
+				itrs[i] = &lazyFloatIterator{
+					fn: func() (Iterator, error) { return ic.CreateIterator(opt) },
+				}
+			}
+			return Iterators{NewMultiFloatIterator(itrs)}.Merge(opt)
+
+		case IntegerIterator:
+			itrs := make([]IntegerIterator, len(a))
+			itrs[0] = itr
+			for i := 1; i < len(itrs); i++ {
+				ic := a[i]
+				itrs[i] = &lazyIntegerIterator{
+					fn: func() (Iterator, error) { return ic.CreateIterator(opt) },
+				}
+			}
+			return Iterators{NewMultiIntegerIterator(itrs)}.Merge(opt)
+
+		case StringIterator:
+			itrs := make([]StringIterator, len(a))
+			itrs[0] = itr
+			for i := 1; i < len(itrs); i++ {
+				ic := a[i]
+				itrs[i] = &lazyStringIterator{
+					fn: func() (Iterator, error) { return ic.CreateIterator(opt) },
+				}
+			}
+			return Iterators{NewMultiStringIterator(itrs)}.Merge(opt)
+
+		case BooleanIterator:
+			itrs := make([]BooleanIterator, len(a))
+			itrs[0] = itr
+			for i := 1; i < len(itrs); i++ {
+				ic := a[i]
+				itrs[i] = &lazyBooleanIterator{
+					fn: func() (Iterator, error) { return ic.CreateIterator(opt) },
+				}
+			}
+			return Iterators{NewMultiBooleanIterator(itrs)}.Merge(opt)
+
+		default:
+			panic(fmt.Sprintf("unsupported iterator type for lazy iteration: %T", itr))
+		}
+	}
+}
+
+func (a lazyIteratorCreators) FieldDimensions(sources Sources) (fields map[string]DataType, dimensions map[string]struct{}, err error) {
+	return IteratorCreators(a).FieldDimensions(sources)
+}
+
+func (a lazyIteratorCreators) ExpandSources(sources Sources) (Sources, error) {
+	return IteratorCreators(a).ExpandSources(sources)
+}
+
 // IteratorOptions is an object passed to CreateIterator to specify creation options.
 type IteratorOptions struct {
 	// Expression to iterate for.

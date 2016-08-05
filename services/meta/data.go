@@ -1164,6 +1164,17 @@ func (si *ShardInfo) unmarshal(pb *internal.ShardInfo) {
 	}
 }
 
+type ShardInfos []ShardInfo
+
+// Reverse returns a reversed list of shard infos.
+func (a ShardInfos) Reverse() []ShardInfo {
+	other := make([]ShardInfo, len(a))
+	for i := range a {
+		other[len(other)-i-1] = a[i]
+	}
+	return other
+}
+
 // SubscriptionInfo hold the subscription information
 type SubscriptionInfo struct {
 	Name         string

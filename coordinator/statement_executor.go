@@ -603,6 +603,12 @@ func (e *StatementExecutor) iteratorCreator(stmt *influxql.SelectStatement, opt 
 	if err != nil {
 		return nil, err
 	}
+
+	// Reverse shards if in descending order.
+	if !stmt.TimeAscending() {
+		shards = meta.ShardInfos(shards).Reverse()
+	}
+
 	return e.TSDBStore.IteratorCreator(shards, opt)
 }
 
