@@ -21,9 +21,6 @@ import (
 // could be travelling over the internet.
 const (
 	UDPPayloadSize = 1500
-
-	newlineString = "\n"
-	commaString   = ","
 )
 
 // HTTPConfig is the config data needed to create an HTTP Client
@@ -435,14 +432,14 @@ func makeChunks(blob string, chunkSize int) []string {
 		// move deviding position back while do not match a comma char to keep persistency
 		for l := stop; l > 0 && l != len(blob); l-- {
 			stop = l
-			if string(blob[l]) == commaString {
+			if string(blob[l]) == "," {
 				break
 			}
 		}
 
 		// if the current position is a comma
 		// then move starting position forward to skip comma sign
-		if string(blob[start]) == commaString {
+		if string(blob[start]) == "," {
 			start += 1
 		}
 
@@ -458,7 +455,7 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 	d, _ = time.ParseDuration("1" + bp.Precision())
 
 	for _, p := range bp.Points() {
-		pointstring := p.pt.RoundedString(d) + newlineString
+		pointstring := p.pt.RoundedString(d) + "\n"
 		// Write and reset the buffer if we reach the max size
 		if len(pointstring) < uc.payloadSize {
 			if _, err := uc.conn.Write([]byte(pointstring)); err != nil {
