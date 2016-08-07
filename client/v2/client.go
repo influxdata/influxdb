@@ -196,14 +196,14 @@ func NewUDPClient(conf UDPConfig) (Client, error) {
 		return nil, err
 	}
 
-	udpPayloadSize := conf.PayloadSize
-	if udpPayloadSize == 0 {
-		udpPayloadSize = UDPPayloadSize
+	payloadSize := conf.PayloadSize
+	if payloadSize == 0 {
+		payloadSize = UDPPayloadSize
 	}
 
 	return &udpclient{
 		conn:        conn,
-		payloadSize: udpPayloadSize,
+		payloadSize: payloadSize,
 	}, nil
 }
 
