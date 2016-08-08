@@ -28,6 +28,7 @@ import (
 	"github.com/influxdata/influxdb/services/snapshotter"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/influxdata/influxdb/services/udp"
+	"github.com/influxdata/influxdb/services/unixsocket"
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
 	client "github.com/influxdata/usage-client/v1"
@@ -341,6 +342,16 @@ func (s *Server) appendUDPService(c udp.Config) {
 	s.Services = append(s.Services, srv)
 }
 
+func (s *Server) appendUnixSocketService(c unixsocket.Config) {
+	if !c.Enabled {
+		return
+	}
+	srv := unixsocket.NewService(c)
+	srv.PointsWriter = s.PointsWriter
+	srv.MetaClient = s.MetaClient
+	s.Services = append(s.Services, srv)
+}
+
 func (s *Server) appendContinuousQueryService(c continuous_querier.Config) {
 	if !c.Enabled {
 		return
@@ -393,6 +404,9 @@ func (s *Server) Open() error {
 	}
 	for _, i := range s.config.UDPInputs {
 		s.appendUDPService(i)
+	}
+	for _, i := range s.config.UnixSocketInputs {
+		s.appendUnixSocketService(i)
 	}
 
 	s.Subscriber.MetaClient = s.MetaClient
