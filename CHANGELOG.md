@@ -122,6 +122,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7107](https://github.com/influxdata/influxdb/pull/7107): Limit shard concurrency
 - [#7028](https://github.com/influxdata/influxdb/pull/7028): Do not run continuous queries that have no time span.
 - [#7025](https://github.com/influxdata/influxdb/issues/7025): Move the CQ interval by the group by offset.
+- [#7125](https://github.com/influxdata/influxdb/pull/7125): Ensure gzip writer is closed in influx_inspect export
 
 ## v0.13.0 [2016-05-12]
 

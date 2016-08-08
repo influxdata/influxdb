@@ -97,6 +97,7 @@ func (c *cmdExport) writeFiles() error {
 	defer w.Close()
 	if c.compress {
 		w = gzip.NewWriter(w)
+		defer w.Close()
 	}
 
 	// Write out all the DDL
