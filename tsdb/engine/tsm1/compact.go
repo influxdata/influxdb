@@ -1158,8 +1158,6 @@ func (k *tsmKeyIterator) combine(dedup bool) blocks {
 }
 
 func (k *tsmKeyIterator) chunk(dst blocks) blocks {
-	k.mergedValues.assertOrdered()
-
 	for len(k.mergedValues) > k.size {
 		values := k.mergedValues[:k.size]
 		cb, err := Values(values).Encode(nil)
