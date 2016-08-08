@@ -904,6 +904,47 @@ func TestServer_Query_Count(t *testing.T) {
 	}
 }
 
+// Ensure the server can limit concurrent series.
+func TestServer_Query_MaxSelectSeriesN(t *testing.T) {
+	t.Parallel()
+	config := NewConfig()
+	config.Coordinator.MaxSelectSeriesN = 3
+	s := OpenServer(config)
+	defer s.Close()
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: `cpu,host=server01 value=1.0 0`},
+		&Write{data: `cpu,host=server02 value=1.0 0`},
+		&Write{data: `cpu,host=server03 value=1.0 0`},
+		&Write{data: `cpu,host=server04 value=1.0 0`},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "exceeed max series",
+			command: `SELECT COUNT(value) FROM db0.rp0.cpu`,
+			exp:     `{"results":[{"error":"max select series count exceeded: 4 series"}]}`,
+		},
+	}...)
+
+	if err := test.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 // Ensure the server can query with Now().
 func TestServer_Query_Now(t *testing.T) {
 	t.Parallel()

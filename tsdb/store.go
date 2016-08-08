@@ -377,12 +377,15 @@ func (s *Store) DeleteShard(shardID uint64) error {
 }
 
 // ShardIteratorCreator returns an iterator creator for a shard.
-func (s *Store) ShardIteratorCreator(id uint64) influxql.IteratorCreator {
+func (s *Store) ShardIteratorCreator(id uint64, opt *influxql.SelectOptions) influxql.IteratorCreator {
 	sh := s.Shard(id)
 	if sh == nil {
 		return nil
 	}
-	return &shardIteratorCreator{sh: sh}
+	return &shardIteratorCreator{
+		sh:         sh,
+		maxSeriesN: opt.MaxSeriesN,
+	}
 }
 
 // DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
@@ -783,7 +786,7 @@ func (s *Store) IteratorCreator(shards []uint64, opt *influxql.SelectOptions) (i
 	ics := make([]influxql.IteratorCreator, 0)
 	if err := func() error {
 		for _, id := range shards {
-			ic := s.ShardIteratorCreator(id)
+			ic := s.ShardIteratorCreator(id, opt)
 			if ic == nil {
 				continue
 			}

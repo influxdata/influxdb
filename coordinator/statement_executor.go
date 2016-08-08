@@ -412,12 +412,6 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 	em.OmitTime = stmt.OmitTime
 	defer em.Close()
 
-	// Calculate initial stats across all iterators.
-	stats := influxql.Iterators(itrs).Stats()
-	if e.MaxSelectSeriesN > 0 && stats.SeriesN > e.MaxSelectSeriesN {
-		return fmt.Errorf("max select series count exceeded: %d series", stats.SeriesN)
-	}
-
 	// Emit rows to the results channel.
 	var writeN int64
 	var emitted bool
@@ -505,6 +499,7 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 	opt := influxql.SelectOptions{
 		InterruptCh: ctx.InterruptCh,
 		NodeID:      ctx.ExecutionOptions.NodeID,
+		MaxSeriesN:  e.MaxSelectSeriesN,
 	}
 
 	// Replace instances of "now()" with the current time, and check the resultant times.
