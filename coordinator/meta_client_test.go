@@ -11,8 +11,8 @@ import (
 type MetaClient struct {
 	CreateContinuousQueryFn             func(database, name, query string) error
 	CreateDatabaseFn                    func(name string) (*meta.DatabaseInfo, error)
-	CreateDatabaseWithRetentionPolicyFn func(name string, rpi *meta.RetentionPolicyInfo) (*meta.DatabaseInfo, error)
-	CreateRetentionPolicyFn             func(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
+	CreateDatabaseWithRetentionPolicyFn func(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)
+	CreateRetentionPolicyFn             func(database string, spec *meta.RetentionPolicySpec) (*meta.RetentionPolicyInfo, error)
 	CreateSubscriptionFn                func(database, rp, name, mode string, destinations []string) error
 	CreateUserFn                        func(name, password string, admin bool) (*meta.UserInfo, error)
 	DatabaseFn                          func(name string) *meta.DatabaseInfo
@@ -48,13 +48,14 @@ func (c *MetaClient) CreateDatabase(name string) (*meta.DatabaseInfo, error) {
 	return c.CreateDatabaseFn(name)
 }
 
-func (c *MetaClient) CreateDatabaseWithRetentionPolicy(name string, rpi *meta.RetentionPolicyInfo) (*meta.DatabaseInfo, error) {
-	return c.CreateDatabaseWithRetentionPolicyFn(name, rpi)
+func (c *MetaClient) CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error) {
+	return c.CreateDatabaseWithRetentionPolicyFn(name, spec)
 }
 
-func (c *MetaClient) CreateRetentionPolicy(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error) {
-	return c.CreateRetentionPolicyFn(database, rpi)
+func (c *MetaClient) CreateRetentionPolicy(database string, spec *meta.RetentionPolicySpec) (*meta.RetentionPolicyInfo, error) {
+	return c.CreateRetentionPolicyFn(database, spec)
 }
+
 func (c *MetaClient) DropShard(id uint64) error {
 	return c.DropShardFn(id)
 }

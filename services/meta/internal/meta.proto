@@ -37,6 +37,13 @@ message DatabaseInfo {
 	repeated ContinuousQueryInfo ContinuousQueries = 4;
 }
 
+message RetentionPolicySpec {
+	optional string Name               = 1;
+	optional int64  Duration           = 2;
+	optional int64  ShardGroupDuration = 3;
+	optional uint32 ReplicaN           = 4;
+}
+
 message RetentionPolicyInfo {
 	required string Name = 1;
 	required int64 Duration = 2;
