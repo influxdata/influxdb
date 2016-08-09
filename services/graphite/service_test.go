@@ -176,11 +176,11 @@ func (d *DatabaseCreator) CreateDatabase(name string) (*meta.DatabaseInfo, error
 	return nil, nil
 }
 
-func (d *DatabaseCreator) CreateRetentionPolicy(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error) {
+func (d *DatabaseCreator) CreateRetentionPolicy(database string, spec *meta.RetentionPolicySpec) (*meta.RetentionPolicyInfo, error) {
 	return nil, nil
 }
 
-func (d *DatabaseCreator) CreateDatabaseWithRetentionPolicy(name string, rpi *meta.RetentionPolicyInfo) (*meta.DatabaseInfo, error) {
+func (d *DatabaseCreator) CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error) {
 	d.Created = true
 	return nil, nil
 }
