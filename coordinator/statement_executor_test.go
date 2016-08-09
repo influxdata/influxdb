@@ -73,44 +73,6 @@ func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
 	}
 }
 
-// Ensure query executor can enforce a maximum series selection count.
-func TestQueryExecutor_ExecuteQuery_MaxSelectSeriesN(t *testing.T) {
-	e := DefaultQueryExecutor()
-	e.StatementExecutor.MaxSelectSeriesN = 3
-
-	// The meta client should return a two shards on the local node.
-	e.MetaClient.ShardsByTimeRangeFn = func(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error) {
-		return []meta.ShardInfo{
-			{ID: 100, Owners: []meta.ShardOwner{{NodeID: 0}}},
-			{ID: 101, Owners: []meta.ShardOwner{{NodeID: 0}}},
-		}, nil
-	}
-
-	// This iterator creator returns an iterator that operates on 2 series.
-	// Reuse this iterator for both shards. This brings the total series count to 4.
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-		return &FloatIterator{
-			Points: []influxql.FloatPoint{{Name: "cpu", Time: int64(0 * time.Second), Aux: []interface{}{float64(100)}}},
-			stats:  influxql.IteratorStats{SeriesN: 2},
-		}, nil
-	}
-	ic.FieldDimensionsFn = func(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
-		return map[string]influxql.DataType{"value": influxql.Float}, nil, nil
-	}
-	e.TSDBStore.ShardIteratorCreatorFn = func(id uint64) influxql.IteratorCreator { return &ic }
-
-	// Verify all results from the query.
-	if a := ReadAllResults(e.ExecuteQuery(`SELECT count(value) FROM cpu`, "db0", 0)); !reflect.DeepEqual(a, []*influxql.Result{
-		{
-			StatementID: 0,
-			Err:         errors.New("max select series count exceeded: 4 series"),
-		},
-	}) {
-		t.Fatalf("unexpected results: %s", spew.Sdump(a))
-	}
-}
-
 // Ensure query executor can enforce a maximum bucket selection count.
 func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 	e := DefaultQueryExecutor()
