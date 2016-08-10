@@ -250,6 +250,41 @@ func TestHandler_Query_Chunked(t *testing.T) {
 	}
 }
 
+// Ensure the handler can accept an async query.
+func TestHandler_Query_Async(t *testing.T) {
+	done := make(chan struct{})
+	h := NewHandler(false)
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+		if stmt.String() != `SELECT * FROM bar` {
+			t.Fatalf("unexpected query: %s", stmt.String())
+		} else if ctx.Database != `foo` {
+			t.Fatalf("unexpected db: %s", ctx.Database)
+		}
+		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+		ctx.Results <- &influxql.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		close(done)
+		return nil
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar&async=true", nil))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", w.Code)
+	} else if body := strings.TrimSpace(w.Body.String()); body != `` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+
+	// Wait to make sure the async query runs and completes.
+	timer := time.NewTimer(100 * time.Millisecond)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		t.Fatal("timeout while waiting for async query to complete")
+	case <-done:
+	}
+}
+
 // Ensure the handler returns a status 400 if the query is not passed in.
 func TestHandler_Query_ErrQueryRequired(t *testing.T) {
 	h := NewHandler(false)
