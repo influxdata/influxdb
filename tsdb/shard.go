@@ -447,6 +447,24 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 
 	// get the shard mutex for locally defined fields
 	for _, p := range points {
+		// verify the tags and fields
+		tags := p.Tags()
+		if _, ok := tags["time"]; ok {
+			s.logger.Printf("dropping tag 'time' from '%s'\n", p.PrecisionString(""))
+			delete(tags, "time")
+			p.SetTags(tags)
+		}
+
+		fields := p.Fields()
+		if _, ok := fields["time"]; ok {
+			s.logger.Printf("dropping field 'time' from '%s'\n", p.PrecisionString(""))
+			delete(fields, "time")
+
+			if len(fields) == 0 {
+				continue
+			}
+		}
+
 		// see if the series should be added to the index
 		key := string(p.Key())
 		ss := s.index.Series(key)
@@ -455,7 +473,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 				return nil, fmt.Errorf("max series per database exceeded: %s", key)
 			}
 
-			ss = NewSeries(key, p.Tags())
+			ss = NewSeries(key, tags)
 			atomic.AddInt64(&s.stats.SeriesCreated, 1)
 		}
 
@@ -466,14 +484,14 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 		mf := s.engine.MeasurementFields(p.Name())
 
 		if mf == nil {
-			for name, value := range p.Fields() {
+			for name, value := range fields {
 				fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &Field{Name: name, Type: influxql.InspectDataType(value)}})
 			}
 			continue // skip validation since all fields are new
 		}
 
 		// validate field types and encode data
-		for name, value := range p.Fields() {
+		for name, value := range fields {
 			if f := mf.Field(name); f != nil {
 				// Field present in shard metadata, make sure there is no type conflict.
 				if f.Type != influxql.InspectDataType(value) {
