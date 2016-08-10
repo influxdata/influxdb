@@ -260,6 +260,21 @@ func (e *QueryExecutor) executeQuery(query *Query, opt ExecutionOptions, closing
 			// Stop after the first error.
 			break
 		}
+
+		// Check if the query was interrupted during an uninterruptible statement.
+		interrupted := false
+		if ctx.InterruptCh != nil {
+			select {
+			case <-ctx.InterruptCh:
+				interrupted = true
+			default:
+				// Query has not been interrupted.
+			}
+		}
+
+		if interrupted {
+			break
+		}
 	}
 
 	// Send error results for any statements which were not executed.
