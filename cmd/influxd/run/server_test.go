@@ -330,7 +330,7 @@ func TestServer_UserCommands(t *testing.T) {
 			&Query{
 				name:    "bad create user request",
 				command: `CREATE USER 0xBAD WITH PASSWORD pwd1337`,
-				exp:     `{"error":"error parsing query: found 0, expected identifier at line 1, char 13"}`,
+				exp:     `{"error":"error parsing query: found 0xBAD, expected identifier at line 1, char 13"}`,
 			},
 			&Query{
 				name:    "bad create user request, no name",
