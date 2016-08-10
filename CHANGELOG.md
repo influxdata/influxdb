@@ -3,6 +3,7 @@
 ### Features
 
 - [#7120](https://github.com/influxdata/influxdb/issues/7120): Add additional statistics to query executor.
+- [#7135](https://github.com/influxdata/influxdb/pull/7135): Support enable HTTP service over unix domain socket. Thanks @oiooj
 
 ### Bugfixes
 

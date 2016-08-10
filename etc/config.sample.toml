@@ -173,6 +173,9 @@ reporting-disabled = false
   max-row-limit = 10000
   realm = "InfluxDB"
 
+  unix-socket-enabled = false # enable http service over unix domain socket
+  # bind-socket = "/var/run/influxdb.sock"
+
 ###
 ### [subsciber]
 ###
