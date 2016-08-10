@@ -1,3 +1,9 @@
+## v1.1.0 [unreleased]
+
+### Bugfixes
+
+- [#1834](https://github.com/influxdata/influxdb/issues/1834): Drop time when used as a tag or field key.
+
 ## v1.0.0 [unreleased]
 
 ### Breaking changes
