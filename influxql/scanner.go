@@ -263,21 +263,32 @@ func (s *Scanner) scanNumber() (tok Token, pos Pos, lit string) {
 
 	// Read as a duration or integer if it doesn't have a fractional part.
 	if !isDecimal {
-		// If the next rune is a duration unit (u,µ,ms,s) then return a duration token
-		if ch0, _ := s.r.read(); ch0 == 'u' || ch0 == 'µ' || ch0 == 's' || ch0 == 'h' || ch0 == 'd' || ch0 == 'w' {
+		// If the next rune is a letter then this is a duration token.
+		if ch0, _ := s.r.read(); isLetter(ch0) || ch0 == 'µ' {
 			_, _ = buf.WriteRune(ch0)
-			return DURATIONVAL, pos, buf.String()
-		} else if ch0 == 'm' {
-			_, _ = buf.WriteRune(ch0)
-			if ch1, _ := s.r.read(); ch1 == 's' {
+			for {
+				ch1, _ := s.r.read()
+				if !isLetter(ch1) && ch1 != 'µ' {
+					s.r.unread()
+					break
+				}
 				_, _ = buf.WriteRune(ch1)
-			} else {
-				s.r.unread()
+			}
+
+			// Continue reading digits and letters as part of this token.
+			for {
+				if ch0, _ := s.r.read(); isLetter(ch0) || ch0 == 'µ' || isDigit(ch0) {
+					_, _ = buf.WriteRune(ch0)
+				} else {
+					s.r.unread()
+					break
+				}
 			}
 			return DURATIONVAL, pos, buf.String()
+		} else {
+			s.r.unread()
+			return INTEGER, pos, buf.String()
 		}
-		s.r.unread()
-		return INTEGER, pos, buf.String()
 	}
 	return NUMBER, pos, buf.String()
 }

@@ -31,7 +31,7 @@ func init() {
 			&Query{
 				name:    "create database should error with bad name",
 				command: `CREATE DATABASE 0xdb0`,
-				exp:     `{"error":"error parsing query: found 0, expected identifier at line 1, char 17"}`,
+				exp:     `{"error":"error parsing query: found 0xdb0, expected identifier at line 1, char 17"}`,
 			},
 			&Query{
 				name:    "create database with retention duration should error with bad retention duration",

@@ -2546,6 +2546,10 @@ func TestParseDuration(t *testing.T) {
 		{s: `2h`, d: 2 * time.Hour},
 		{s: `2d`, d: 2 * 24 * time.Hour},
 		{s: `2w`, d: 2 * 7 * 24 * time.Hour},
+		{s: `1h30m`, d: time.Hour + 30*time.Minute},
+		{s: `30ms3000u`, d: 30*time.Millisecond + 3000*time.Microsecond},
+		{s: `-5s`, d: -5 * time.Second},
+		{s: `-5m30s`, d: -5*time.Minute - 30*time.Second},
 
 		{s: ``, err: "invalid duration"},
 		{s: `3`, err: "invalid duration"},
