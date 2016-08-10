@@ -331,16 +331,34 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 		rw = NewResponseWriter(w, r)
 	}
 
+	// Retrieve the node id the query should be executed on.
 	nodeID, _ := strconv.ParseUint(r.FormValue("node_id"), 10, 64)
-	qp := strings.TrimSpace(r.FormValue("q"))
-	if qp == "" {
+
+	var qr io.Reader
+	// Attempt to read the form value from the "q" form value.
+	if qp := strings.TrimSpace(r.FormValue("q")); qp != "" {
+		qr = strings.NewReader(qp)
+	} else if r.MultipartForm != nil && r.MultipartForm.File != nil {
+		// If we have a multipart/form-data, try to retrieve a file from 'q'.
+		if fhs := r.MultipartForm.File["q"]; len(fhs) > 0 {
+			f, err := fhs[0].Open()
+			if err != nil {
+				h.httpError(rw, err.Error(), http.StatusBadRequest)
+				return
+			}
+			defer f.Close()
+			qr = f
+		}
+	}
+
+	if qr == nil {
 		h.httpError(rw, `missing required parameter "q"`, http.StatusBadRequest)
 		return
 	}
 
 	epoch := strings.TrimSpace(r.FormValue("epoch"))
 
-	p := influxql.NewParser(strings.NewReader(qp))
+	p := influxql.NewParser(qr)
 	db := r.FormValue("db")
 
 	// Sanitize the request query params so it doesn't show up in the response logger.
@@ -396,7 +414,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	}
 
 	// Parse chunk size. Use default if not provided or unparsable.
-	chunked := (r.FormValue("chunked") == "true")
+	chunked := r.FormValue("chunked") == "true"
 	chunkSize := DefaultChunkSize
 	if chunked {
 		if n, err := strconv.ParseInt(r.FormValue("chunk_size"), 10, 64); err == nil && int(n) > 0 {
@@ -404,27 +422,33 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 		}
 	}
 
-	// Make sure if the client disconnects we signal the query to abort
-	closing := make(chan struct{})
-	if notifier, ok := w.(http.CloseNotifier); ok {
-		// CloseNotify() is not guaranteed to send a notification when the query
-		// is closed. Use this channel to signal that the query is finished to
-		// prevent lingering goroutines that may be stuck.
-		done := make(chan struct{})
-		defer close(done)
+	// Parse whether this is an async command.
+	async := r.FormValue("async") == "true"
 
-		notify := notifier.CloseNotify()
-		go func() {
-			// Wait for either the request to finish
-			// or for the client to disconnect
-			select {
-			case <-done:
-			case <-notify:
-				close(closing)
-			}
-		}()
-	} else {
-		defer close(closing)
+	// Make sure if the client disconnects we signal the query to abort
+	var closing chan struct{}
+	if !async {
+		closing = make(chan struct{})
+		if notifier, ok := w.(http.CloseNotifier); ok {
+			// CloseNotify() is not guaranteed to send a notification when the query
+			// is closed. Use this channel to signal that the query is finished to
+			// prevent lingering goroutines that may be stuck.
+			done := make(chan struct{})
+			defer close(done)
+
+			notify := notifier.CloseNotify()
+			go func() {
+				// Wait for either the request to finish
+				// or for the client to disconnect
+				select {
+				case <-done:
+				case <-notify:
+					close(closing)
+				}
+			}()
+		} else {
+			defer close(closing)
+		}
 	}
 
 	// Execute query.
@@ -435,6 +459,14 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 		ReadOnly:  r.Method == "GET",
 		NodeID:    nodeID,
 	}, closing)
+
+	// If we are running in async mode, open a goroutine to drain the results
+	// and return with a StatusNoContent.
+	if async {
+		go h.async(query, results)
+		h.writeHeader(w, http.StatusNoContent)
+		return
+	}
 
 	// if we're not chunking, this will be the in memory buffer for all results before sending to client
 	resp := Response{Results: make([]*influxql.Result, 0)}
@@ -516,6 +548,22 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	if !chunked {
 		n, _ := rw.WriteResponse(resp)
 		atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(n))
+	}
+}
+
+// async drains the results from an async query and logs a message if it fails.
+func (h *Handler) async(query *influxql.Query, results <-chan *influxql.Result) {
+	for r := range results {
+		// Drain the results and do nothing with them.
+		// If it fails, log the failure so there is at least a record of it.
+		if r.Err != nil {
+			// Do not log when a statement was not executed since there would
+			// have been an earlier error that was already logged.
+			if r.Err == influxql.ErrNotExecuted {
+				continue
+			}
+			h.Logger.Printf("error while running async query: %s: %s", query, r.Err)
+		}
 	}
 }
 
