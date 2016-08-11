@@ -1541,31 +1541,28 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 		stmt.RetentionPolicyCreate = true
 
 		// Look for "DURATION"
-		var rpDuration time.Duration // default is forever
 		if err := p.parseTokens([]Token{DURATION}); err != nil {
 			p.unscan()
 		} else {
-			rpDuration, err = p.parseDuration()
+			rpDuration, err := p.parseDuration()
 			if err != nil {
 				return nil, err
 			}
+			stmt.RetentionPolicyDuration = &rpDuration
 		}
-		stmt.RetentionPolicyDuration = rpDuration
 
 		// Look for "REPLICATION"
-		var rpReplication = 1 // default is 1
 		if err := p.parseTokens([]Token{REPLICATION}); err != nil {
 			p.unscan()
 		} else {
-			rpReplication, err = p.parseInt(1, math.MaxInt32)
+			rpReplication, err := p.parseInt(1, math.MaxInt32)
 			if err != nil {
 				return nil, err
 			}
+			stmt.RetentionPolicyReplication = &rpReplication
 		}
-		stmt.RetentionPolicyReplication = rpReplication
 
 		// Look for "SHARD"
-		var rpShardGroupDuration time.Duration
 		if err := p.parseTokens([]Token{SHARD}); err != nil {
 			p.unscan()
 		} else {
@@ -1574,11 +1571,10 @@ func (p *Parser) parseCreateDatabaseStatement() (*CreateDatabaseStatement, error
 			if tok != DURATION {
 				return nil, newParseError(tokstr(tok, lit), []string{"DURATION"}, pos)
 			}
-			rpShardGroupDuration, err = p.parseDuration()
+			stmt.RetentionPolicyShardGroupDuration, err = p.parseDuration()
 			if err != nil {
 				return nil, err
 			}
-			stmt.RetentionPolicyShardGroupDuration = rpShardGroupDuration
 		}
 
 		// Look for "NAME"

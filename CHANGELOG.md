@@ -138,6 +138,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7025](https://github.com/influxdata/influxdb/issues/7025): Move the CQ interval by the group by offset.
 - [#7125](https://github.com/influxdata/influxdb/pull/7125): Ensure gzip writer is closed in influx_inspect export
 - [#7127](https://github.com/influxdata/influxdb/pull/7127): Concurrent series limit
+- [#7119](https://github.com/influxdata/influxdb/pull/7119): Fix CREATE DATABASE when dealing with default values.
 
 ## v0.13.0 [2016-05-12]
 

@@ -35,6 +35,10 @@ var (
 	// on a default retention policy.
 	ErrRetentionPolicyDefault = errors.New("retention policy is default")
 
+	// ErrRetentionPolicyRequired is returned when a retention policy is required
+	// by an operation, but a nil policy was passed.
+	ErrRetentionPolicyRequired = errors.New("retention policy required")
+
 	// ErrRetentionPolicyNameRequired is returned when creating a policy without a name.
 	ErrRetentionPolicyNameRequired = errors.New("retention policy name required")
 

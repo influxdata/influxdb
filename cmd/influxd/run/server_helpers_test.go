@@ -78,7 +78,7 @@ func OpenServerWithVersion(c *run.Config, version string) *Server {
 // OpenDefaultServer opens a test server with a default database & retention policy.
 func OpenDefaultServer(c *run.Config) *Server {
 	s := OpenServer(c)
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicyInfo("rp0", 1, 0)); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
 		panic(err)
 	}
 	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
@@ -111,7 +111,7 @@ func (s *Server) URL() string {
 }
 
 // CreateDatabaseAndRetentionPolicy will create the database and retention policy.
-func (s *Server) CreateDatabaseAndRetentionPolicy(db string, rp *meta.RetentionPolicyInfo) error {
+func (s *Server) CreateDatabaseAndRetentionPolicy(db string, rp *meta.RetentionPolicySpec) error {
 	if _, err := s.MetaClient.CreateDatabase(db); err != nil {
 		return err
 	} else if _, err := s.MetaClient.CreateRetentionPolicy(db, rp); err != nil {
@@ -250,8 +250,8 @@ func NewConfig() *run.Config {
 	return c
 }
 
-func newRetentionPolicyInfo(name string, rf int, duration time.Duration) *meta.RetentionPolicyInfo {
-	return &meta.RetentionPolicyInfo{Name: name, ReplicaN: rf, Duration: duration}
+func newRetentionPolicySpec(name string, rf int, duration time.Duration) *meta.RetentionPolicySpec {
+	return &meta.RetentionPolicySpec{Name: name, ReplicaN: &rf, Duration: &duration}
 }
 
 func maxFloat64() string {
@@ -456,7 +456,7 @@ func writeTestData(s *Server, t *Test) error {
 			w.rp = t.retentionPolicy()
 		}
 
-		if err := s.CreateDatabaseAndRetentionPolicy(w.db, newRetentionPolicyInfo(w.rp, 1, 0)); err != nil {
+		if err := s.CreateDatabaseAndRetentionPolicy(w.db, newRetentionPolicySpec(w.rp, 1, 0)); err != nil {
 			return err
 		}
 		if err := s.MetaClient.SetDefaultRetentionPolicy(w.db, w.rp); err != nil {
