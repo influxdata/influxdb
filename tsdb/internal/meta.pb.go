@@ -25,15 +25,22 @@ var _ = proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
 
+// This is a compile-time assertion to ensure that this generated file
+// is compatible with the proto package it is being compiled against.
+// A compilation error at this line likely means your copy of the
+// proto package needs to be updated.
+const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
+
 type Series struct {
 	Key              *string `protobuf:"bytes,1,req,name=Key" json:"Key,omitempty"`
 	Tags             []*Tag  `protobuf:"bytes,2,rep,name=Tags" json:"Tags,omitempty"`
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *Series) Reset()         { *m = Series{} }
-func (m *Series) String() string { return proto.CompactTextString(m) }
-func (*Series) ProtoMessage()    {}
+func (m *Series) Reset()                    { *m = Series{} }
+func (m *Series) String() string            { return proto.CompactTextString(m) }
+func (*Series) ProtoMessage()               {}
+func (*Series) Descriptor() ([]byte, []int) { return fileDescriptorMeta, []int{0} }
 
 func (m *Series) GetKey() string {
 	if m != nil && m.Key != nil {
@@ -55,9 +62,10 @@ type Tag struct {
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *Tag) Reset()         { *m = Tag{} }
-func (m *Tag) String() string { return proto.CompactTextString(m) }
-func (*Tag) ProtoMessage()    {}
+func (m *Tag) Reset()                    { *m = Tag{} }
+func (m *Tag) String() string            { return proto.CompactTextString(m) }
+func (*Tag) ProtoMessage()               {}
+func (*Tag) Descriptor() ([]byte, []int) { return fileDescriptorMeta, []int{1} }
 
 func (m *Tag) GetKey() string {
 	if m != nil && m.Key != nil {
@@ -78,9 +86,10 @@ type MeasurementFields struct {
 	XXX_unrecognized []byte   `json:"-"`
 }
 
-func (m *MeasurementFields) Reset()         { *m = MeasurementFields{} }
-func (m *MeasurementFields) String() string { return proto.CompactTextString(m) }
-func (*MeasurementFields) ProtoMessage()    {}
+func (m *MeasurementFields) Reset()                    { *m = MeasurementFields{} }
+func (m *MeasurementFields) String() string            { return proto.CompactTextString(m) }
+func (*MeasurementFields) ProtoMessage()               {}
+func (*MeasurementFields) Descriptor() ([]byte, []int) { return fileDescriptorMeta, []int{2} }
 
 func (m *MeasurementFields) GetFields() []*Field {
 	if m != nil {
@@ -96,9 +105,10 @@ type Field struct {
 	XXX_unrecognized []byte  `json:"-"`
 }
 
-func (m *Field) Reset()         { *m = Field{} }
-func (m *Field) String() string { return proto.CompactTextString(m) }
-func (*Field) ProtoMessage()    {}
+func (m *Field) Reset()                    { *m = Field{} }
+func (m *Field) String() string            { return proto.CompactTextString(m) }
+func (*Field) ProtoMessage()               {}
+func (*Field) Descriptor() ([]byte, []int) { return fileDescriptorMeta, []int{3} }
 
 func (m *Field) GetID() int32 {
 	if m != nil && m.ID != nil {
@@ -126,4 +136,22 @@ func init() {
 	proto.RegisterType((*Tag)(nil), "meta.Tag")
 	proto.RegisterType((*MeasurementFields)(nil), "meta.MeasurementFields")
 	proto.RegisterType((*Field)(nil), "meta.Field")
+}
+
+func init() { proto.RegisterFile("internal/meta.proto", fileDescriptorMeta) }
+
+var fileDescriptorMeta = []byte{
+	// 181 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x54, 0x8c, 0x3f, 0xcb, 0xc2, 0x30,
+	0x18, 0xc4, 0x79, 0x9b, 0xb6, 0xd0, 0xeb, 0xeb, 0x60, 0x1c, 0x2c, 0xb8, 0xd4, 0x4c, 0x9d, 0x5a,
+	0xf1, 0x33, 0x88, 0x20, 0xa2, 0x8b, 0xc5, 0x3d, 0xe0, 0x83, 0x14, 0xfa, 0x8f, 0x24, 0x1d, 0xfa,
+	0xed, 0x4d, 0x52, 0x17, 0xa7, 0xe7, 0xee, 0x9e, 0xbb, 0x1f, 0x36, 0x4d, 0x6f, 0x48, 0xf5, 0xb2,
+	0xad, 0x3a, 0x32, 0xb2, 0x1c, 0xd5, 0x60, 0x06, 0x1e, 0x3a, 0x2d, 0x4a, 0xc4, 0x0f, 0x52, 0x0d,
+	0x69, 0x9e, 0x82, 0x5d, 0x69, 0xce, 0xfe, 0xf2, 0xa0, 0x48, 0xf8, 0x16, 0x61, 0x2d, 0xdf, 0x3a,
+	0x0b, 0x72, 0x56, 0xa4, 0xc7, 0xa4, 0xf4, 0x3b, 0x9b, 0x88, 0x3d, 0x98, 0x3d, 0xbf, 0xe5, 0x15,
+	0xa2, 0xa7, 0x6c, 0x27, 0xb2, 0x6d, 0x6b, 0xc5, 0x01, 0xeb, 0x1b, 0x49, 0x3d, 0x29, 0xea, 0xa8,
+	0x37, 0xe7, 0x86, 0xda, 0x97, 0xe6, 0x3b, 0xc4, 0x8b, 0xb2, 0x1b, 0x87, 0x4c, 0x17, 0xa4, 0xcf,
+	0x44, 0x85, 0xc8, 0x0b, 0x0e, 0x04, 0x97, 0x93, 0xa7, 0x46, 0xfc, 0x1f, 0xe1, 0x5d, 0x76, 0x5f,
+	0xa8, 0x73, 0xf5, 0x3c, 0x52, 0xc6, 0xdc, 0xef, 0x13, 0x00, 0x00, 0xff, 0xff, 0x04, 0x3d, 0x58,
+	0x4a, 0xd1, 0x00, 0x00, 0x00,
 }

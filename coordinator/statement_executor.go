@@ -252,28 +252,33 @@ func (e *StatementExecutor) executeCreateDatabaseStatement(stmt *influxql.Create
 		return err
 	}
 
-	rpi := meta.NewRetentionPolicyInfo(stmt.RetentionPolicyName)
-	rpi.Duration = stmt.RetentionPolicyDuration
-	rpi.ReplicaN = stmt.RetentionPolicyReplication
-	rpi.ShardGroupDuration = stmt.RetentionPolicyShardGroupDuration
-	_, err := e.MetaClient.CreateDatabaseWithRetentionPolicy(stmt.Name, rpi)
+	spec := meta.RetentionPolicySpec{
+		Name:               stmt.RetentionPolicyName,
+		Duration:           stmt.RetentionPolicyDuration,
+		ReplicaN:           stmt.RetentionPolicyReplication,
+		ShardGroupDuration: stmt.RetentionPolicyShardGroupDuration,
+	}
+	_, err := e.MetaClient.CreateDatabaseWithRetentionPolicy(stmt.Name, &spec)
 	return err
 }
 
 func (e *StatementExecutor) executeCreateRetentionPolicyStatement(stmt *influxql.CreateRetentionPolicyStatement) error {
-	rpi := meta.NewRetentionPolicyInfo(stmt.Name)
-	rpi.Duration = stmt.Duration
-	rpi.ReplicaN = stmt.Replication
-	rpi.ShardGroupDuration = stmt.ShardGroupDuration
+	spec := meta.RetentionPolicySpec{
+		Name:               stmt.Name,
+		Duration:           &stmt.Duration,
+		ReplicaN:           &stmt.Replication,
+		ShardGroupDuration: stmt.ShardGroupDuration,
+	}
 
 	// Create new retention policy.
-	if _, err := e.MetaClient.CreateRetentionPolicy(stmt.Database, rpi); err != nil {
+	rp, err := e.MetaClient.CreateRetentionPolicy(stmt.Database, &spec)
+	if err != nil {
 		return err
 	}
 
 	// If requested, set new policy as the default.
 	if stmt.Default {
-		if err := e.MetaClient.SetDefaultRetentionPolicy(stmt.Database, stmt.Name); err != nil {
+		if err := e.MetaClient.SetDefaultRetentionPolicy(stmt.Database, rp.Name); err != nil {
 			return err
 		}
 	}
@@ -412,12 +417,6 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 	em.OmitTime = stmt.OmitTime
 	defer em.Close()
 
-	// Calculate initial stats across all iterators.
-	stats := influxql.Iterators(itrs).Stats()
-	if e.MaxSelectSeriesN > 0 && stats.SeriesN > e.MaxSelectSeriesN {
-		return fmt.Errorf("max select series count exceeded: %d series", stats.SeriesN)
-	}
-
 	// Emit rows to the results channel.
 	var writeN int64
 	var emitted bool
@@ -505,6 +504,7 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 	opt := influxql.SelectOptions{
 		InterruptCh: ctx.InterruptCh,
 		NodeID:      ctx.ExecutionOptions.NodeID,
+		MaxSeriesN:  e.MaxSelectSeriesN,
 	}
 
 	// Replace instances of "now()" with the current time, and check the resultant times.
@@ -603,6 +603,12 @@ func (e *StatementExecutor) iteratorCreator(stmt *influxql.SelectStatement, opt 
 	if err != nil {
 		return nil, err
 	}
+
+	// Reverse shards if in descending order.
+	if !stmt.TimeAscending() {
+		shards = meta.ShardInfos(shards).Reverse()
+	}
+
 	return e.TSDBStore.IteratorCreator(shards, opt)
 }
 

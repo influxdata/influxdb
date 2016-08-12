@@ -44,6 +44,8 @@ var (
 // Statistics for the QueryExecutor
 const (
 	statQueriesActive          = "queriesActive"   // Number of queries currently being executed
+	statQueriesExecuted        = "queriesExecuted" // Number of queries that have been executed (started).
+	statQueriesFinished        = "queriesFinished" // Number of queries that have finished.
 	statQueryExecutionDuration = "queryDurationNs" // Total (wall) time spent executing queries
 )
 
@@ -137,6 +139,8 @@ func NewQueryExecutor() *QueryExecutor {
 // QueryStatistics keeps statistics related to the QueryExecutor.
 type QueryStatistics struct {
 	ActiveQueries          int64
+	ExecutedQueries        int64
+	FinishedQueries        int64
 	QueryExecutionDuration int64
 }
 
@@ -147,6 +151,8 @@ func (e *QueryExecutor) Statistics(tags map[string]string) []models.Statistic {
 		Tags: tags,
 		Values: map[string]interface{}{
 			statQueriesActive:          atomic.LoadInt64(&e.stats.ActiveQueries),
+			statQueriesExecuted:        atomic.LoadInt64(&e.stats.ExecutedQueries),
+			statQueriesFinished:        atomic.LoadInt64(&e.stats.FinishedQueries),
 			statQueryExecutionDuration: atomic.LoadInt64(&e.stats.QueryExecutionDuration),
 		},
 	}}
@@ -176,8 +182,10 @@ func (e *QueryExecutor) executeQuery(query *Query, opt ExecutionOptions, closing
 	defer e.recover(query, results)
 
 	atomic.AddInt64(&e.stats.ActiveQueries, 1)
+	atomic.AddInt64(&e.stats.ExecutedQueries, 1)
 	defer func(start time.Time) {
 		atomic.AddInt64(&e.stats.ActiveQueries, -1)
+		atomic.AddInt64(&e.stats.FinishedQueries, 1)
 		atomic.AddInt64(&e.stats.QueryExecutionDuration, time.Since(start).Nanoseconds())
 	}(time.Now())
 
@@ -250,6 +258,21 @@ func (e *QueryExecutor) executeQuery(query *Query, opt ExecutionOptions, closing
 				Err:         err,
 			}
 			// Stop after the first error.
+			break
+		}
+
+		// Check if the query was interrupted during an uninterruptible statement.
+		interrupted := false
+		if ctx.InterruptCh != nil {
+			select {
+			case <-ctx.InterruptCh:
+				interrupted = true
+			default:
+				// Query has not been interrupted.
+			}
+		}
+
+		if interrupted {
 			break
 		}
 	}

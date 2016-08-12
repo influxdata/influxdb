@@ -770,7 +770,6 @@ func TestTimeRange(t *testing.T) {
 
 		// number literal
 		{expr: `time < 10`, min: `0001-01-01T00:00:00Z`, max: `1970-01-01T00:00:00.000000009Z`},
-		{expr: `time < 10i`, min: `0001-01-01T00:00:00Z`, max: `1970-01-01T00:00:00.000000009Z`},
 
 		// Equality
 		{expr: `time = '2000-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `2000-01-01T00:00:00.000000001Z`},

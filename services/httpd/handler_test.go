@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -35,6 +36,44 @@ func TestHandler_Query(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d", w.Code)
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+// Ensure the handler returns results from a query passed as a file.
+func TestHandler_Query_File(t *testing.T) {
+	h := NewHandler(false)
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+		if stmt.String() != `SELECT * FROM bar` {
+			t.Fatalf("unexpected query: %s", stmt.String())
+		} else if ctx.Database != `foo` {
+			t.Fatalf("unexpected db: %s", ctx.Database)
+		}
+		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+		ctx.Results <- &influxql.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		return nil
+	}
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("q", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	io.WriteString(part, "SELECT * FROM bar")
+
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	r := MustNewJSONRequest("POST", "/query?db=foo", &body)
+	r.Header.Set("Content-Type", writer.FormDataContentType())
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, r)
 	if w.Code != http.StatusOK {
 		t.Fatalf("unexpected status: %d", w.Code)
 	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"series":[{"name":"series0"}]},{"series":[{"name":"series1"}]}]}` {
@@ -247,6 +286,41 @@ func TestHandler_Query_Chunked(t *testing.T) {
 {"results":[{"series":[{"name":"series1"}]}]}
 ` {
 		t.Fatalf("unexpected body: %s", w.Body.String())
+	}
+}
+
+// Ensure the handler can accept an async query.
+func TestHandler_Query_Async(t *testing.T) {
+	done := make(chan struct{})
+	h := NewHandler(false)
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+		if stmt.String() != `SELECT * FROM bar` {
+			t.Fatalf("unexpected query: %s", stmt.String())
+		} else if ctx.Database != `foo` {
+			t.Fatalf("unexpected db: %s", ctx.Database)
+		}
+		ctx.Results <- &influxql.Result{StatementID: 1, Series: models.Rows([]*models.Row{{Name: "series0"}})}
+		ctx.Results <- &influxql.Result{StatementID: 2, Series: models.Rows([]*models.Row{{Name: "series1"}})}
+		close(done)
+		return nil
+	}
+
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar&async=true", nil))
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("unexpected status: %d", w.Code)
+	} else if body := strings.TrimSpace(w.Body.String()); body != `` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+
+	// Wait to make sure the async query runs and completes.
+	timer := time.NewTimer(100 * time.Millisecond)
+	defer timer.Stop()
+
+	select {
+	case <-timer.C:
+		t.Fatal("timeout while waiting for async query to complete")
+	case <-done:
 	}
 }
 
@@ -543,7 +617,7 @@ func MustNewRequest(method, urlStr string, body io.Reader) *http.Request {
 // MustNewRequest returns a new HTTP request with the content type set. Panic on error.
 func MustNewJSONRequest(method, urlStr string, body io.Reader) *http.Request {
 	r := MustNewRequest(method, urlStr, body)
-	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("Accept", "application/json")
 	return r
 }
 

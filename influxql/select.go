@@ -22,6 +22,9 @@ type SelectOptions struct {
 	// An optional channel that, if closed, signals that the select should be
 	// interrupted.
 	InterruptCh <-chan struct{}
+
+	// Maximum number of concurrent series.
+	MaxSeriesN int
 }
 
 // Select executes stmt against ic and returns a list of iterators to stream from.

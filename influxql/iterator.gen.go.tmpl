@@ -161,6 +161,9 @@ func (itr *{{$k.name}}MergeIterator) Close() error {
 	for _, input := range itr.inputs {
 		input.Close()
 	}
+	itr.curr = nil
+	itr.inputs = nil
+	itr.heap.items = nil
 	return nil
 }
 
@@ -435,9 +438,10 @@ type {{$k.name}}SortedMergeHeapItem struct {
 type {{$k.name}}ParallelIterator struct {
 	input   {{$k.Name}}Iterator
 	ch      chan {{$k.name}}PointError
-	
+
 	once    sync.Once
 	closing chan struct{}
+	wg sync.WaitGroup
 }
 
 // new{{$k.Name}}ParallelIterator returns a new instance of {{$k.name}}ParallelIterator.
@@ -445,8 +449,9 @@ func new{{$k.Name}}ParallelIterator(input {{$k.Name}}Iterator) *{{$k.name}}Paral
 	itr := &{{$k.name}}ParallelIterator{
 		input:   input,
 		ch:      make(chan {{$k.name}}PointError, 1),
-		closing: make(chan struct{}), 
+		closing: make(chan struct{}),
 	}
+	itr.wg.Add(1)
 	go itr.monitor()
 	return itr
 }
@@ -457,7 +462,8 @@ func (itr *{{$k.name}}ParallelIterator) Stats() IteratorStats { return itr.input
 // Close closes the underlying iterators.
 func (itr *{{$k.name}}ParallelIterator) Close() error {
 	itr.once.Do(func() { close(itr.closing) })
-	return itr.input.Close() 
+	itr.wg.Wait()
+	return itr.input.Close()
 }
 
 // Next returns the next point from the iterator.
@@ -472,6 +478,7 @@ func (itr *{{$k.name}}ParallelIterator) Next() (*{{$k.Name}}Point, error) {
 // monitor runs in a separate goroutine and actively pulls the next point.
 func (itr *{{$k.name}}ParallelIterator) monitor()  {
 	defer close(itr.ch)
+	defer itr.wg.Done()
 
 	for {
 		// Read next point.
@@ -484,6 +491,104 @@ func (itr *{{$k.name}}ParallelIterator) monitor()  {
 		}
 	}
 }
+
+type lazy{{$k.Name}}Iterator struct {
+	itr {{$k.Name}}Iterator
+	fn  func() (Iterator, error)
+}
+
+// init instantiates the underlying iterator.
+func (itr *lazy{{$k.Name}}Iterator) init() error {
+	if itr.itr != nil {
+		return nil
+	}
+
+	i, err := itr.fn()
+	if err != nil {
+		return err
+	} else if i == nil {
+		return nil
+	}
+
+	if it, ok := i.({{$k.Name}}Iterator); ok {
+		itr.itr = it
+	} else {
+		return fmt.Errorf("invalid lazy {{$k.name}} iterator type: %T", i)
+	}
+
+	return nil
+}
+
+func (itr *lazy{{$k.Name}}Iterator) Close() error {
+	if itr.itr == nil {
+		return nil
+	}
+	return itr.itr.Close()
+}
+
+func (itr *lazy{{$k.Name}}Iterator) Next() (*{{$k.Name}}Point, error) {
+	if err := itr.init(); err != nil {
+		return nil, err
+	} else if itr.itr == nil {
+		return nil, nil
+	}
+	return itr.itr.Next()
+}
+
+func (itr *lazy{{$k.Name}}Iterator) Stats() IteratorStats {
+	if itr.itr == nil {
+		return IteratorStats{}
+	}
+	return itr.itr.Stats()
+}
+
+// Multi{{$k.Name}}Iterator represents an iterator that concatenates a list of iterators.
+type Multi{{$k.Name}}Iterator []{{$k.Name}}Iterator
+
+// NewMulti{{$k.Name}}Iterator returns a pointer to a Multi{{$k.Name}}Iterator.
+func NewMulti{{$k.Name}}Iterator(a []{{$k.Name}}Iterator) *Multi{{$k.Name}}Iterator {
+	itr := Multi{{$k.Name}}Iterator(a)
+	return &itr
+}
+
+// Close closes all iterators.
+func (a *Multi{{$k.Name}}Iterator) Close() error {
+	for _, itr := range *a {
+		itr.Close()
+	}
+	return nil
+}
+
+// Next iterates over all points in all iterators sequentially.
+func (a *Multi{{$k.Name}}Iterator) Next() (*{{$k.Name}}Point, error) {
+	for {
+		// Return no point if
+		if len(*a) == 0 {
+			return nil, nil
+		}
+
+		// Read next point off the first iterator until EOF.
+		p, err := (*a)[0].Next()
+		if p == nil && err == nil {
+			if err := (*a)[0].Close(); err != nil {
+				return nil, err
+			}
+			*a = (*a)[1:]
+			continue
+		}
+		return p, err
+	}
+}
+
+// Stats returns the aggregation of all iterator stats.
+func (a *Multi{{$k.Name}}Iterator) Stats() IteratorStats {
+	var stats IteratorStats
+	for _, itr := range *a {
+		stats.Add(itr.Stats())
+	}
+	return stats
+}
+
 
 type {{$k.name}}PointError struct {
 	point *{{$k.Name}}Point

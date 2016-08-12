@@ -18,6 +18,8 @@ log-enabled = true
 write-tracing = true
 https-enabled = true
 https-certificate = "/dev/null"
+unix-socket-enabled = true
+bind-socket = "/var/run/influxdb.sock"
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -37,6 +39,10 @@ https-certificate = "/dev/null"
 		t.Fatalf("unexpected https enabled: %v", c.HTTPSEnabled)
 	} else if c.HTTPSCertificate != "/dev/null" {
 		t.Fatalf("unexpected https certificate: %v", c.HTTPSCertificate)
+	} else if c.UnixSocketEnabled != true {
+		t.Fatalf("unexpected unix socket enabled: %v", c.UnixSocketEnabled)
+	} else if c.BindSocket != "/var/run/influxdb.sock" {
+		t.Fatalf("unexpected bind unix socket: %v", c.BindSocket)
 	}
 }
 

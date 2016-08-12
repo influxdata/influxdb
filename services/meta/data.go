@@ -22,7 +22,7 @@ const (
 	DefaultRetentionPolicyReplicaN = 1
 
 	// DefaultRetentionPolicyDuration is the default value of RetentionPolicyInfo.Duration.
-	DefaultRetentionPolicyDuration = 7 * (24 * time.Hour)
+	DefaultRetentionPolicyDuration = time.Duration(0)
 
 	// DefaultRetentionPolicyName is the default name for auto generated retention policies.
 	DefaultRetentionPolicyName = "autogen"
@@ -137,12 +137,17 @@ func (data *Data) RetentionPolicy(database, name string) (*RetentionPolicyInfo, 
 // Returns an error if name is blank or if a database does not exist.
 func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) error {
 	// Validate retention policy.
-	if rpi.ReplicaN < 1 {
+	if rpi == nil {
+		return ErrRetentionPolicyRequired
+	} else if rpi.Name == "" {
+		return ErrRetentionPolicyNameRequired
+	} else if rpi.ReplicaN < 1 {
 		return ErrReplicationFactorTooLow
 	}
 
 	// Normalise ShardDuration before comparing to any existing
-	// retention policies
+	// retention policies. The client is supposed to do this, but
+	// do it again to verify input.
 	rpi.ShardGroupDuration = normalisedShardDuration(rpi.ShardGroupDuration, rpi.Duration)
 
 	// Find database.
@@ -150,27 +155,15 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 	if di == nil {
 		return influxdb.ErrDatabaseNotFound(database)
 	} else if rp := di.RetentionPolicy(rpi.Name); rp != nil {
-		// RP with that name already exists.  Make sure they're the same.
+		// RP with that name already exists. Make sure they're the same.
 		if rp.ReplicaN != rpi.ReplicaN || rp.Duration != rpi.Duration || rp.ShardGroupDuration != rpi.ShardGroupDuration {
 			return ErrRetentionPolicyExists
 		}
 		return nil
 	}
 
-	// Determine the retention policy name if it is blank.
-	rpName := rpi.Name
-	if rpName == "" {
-		rpName = DefaultRetentionPolicyName
-	}
-
 	// Append copy of new policy.
-	rp := RetentionPolicyInfo{
-		Name:               rpName,
-		Duration:           rpi.Duration,
-		ReplicaN:           rpi.ReplicaN,
-		ShardGroupDuration: rpi.ShardGroupDuration,
-	}
-	di.RetentionPolicies = append(di.RetentionPolicies, rp)
+	di.RetentionPolicies = append(di.RetentionPolicies, *rpi)
 	return nil
 }
 
@@ -844,6 +837,93 @@ func (di *DatabaseInfo) unmarshal(pb *internal.DatabaseInfo) {
 	}
 }
 
+// RetentionPolicySpec represents the specification for a new retention policy.
+type RetentionPolicySpec struct {
+	Name               string
+	ReplicaN           *int
+	Duration           *time.Duration
+	ShardGroupDuration time.Duration
+}
+
+// NewRetentionPolicyInfo creates a new retention policy info from the specification.
+func (s *RetentionPolicySpec) NewRetentionPolicyInfo() *RetentionPolicyInfo {
+	return DefaultRetentionPolicyInfo().Apply(s)
+}
+
+// Matches checks if this retention policy specification matches
+// an existing retention policy.
+func (s *RetentionPolicySpec) Matches(rpi *RetentionPolicyInfo) bool {
+	if rpi == nil {
+		return false
+	} else if s.Name != "" && s.Name != rpi.Name {
+		return false
+	} else if s.Duration != nil && *s.Duration != rpi.Duration {
+		return false
+	} else if s.ReplicaN != nil && *s.ReplicaN != rpi.ReplicaN {
+		return false
+	}
+
+	// Normalise ShardDuration before comparing to any existing retention policies.
+	// Normalize with the retention policy info's duration instead of the spec
+	// since they should be the same and we're performing a comparison.
+	sgDuration := normalisedShardDuration(s.ShardGroupDuration, rpi.Duration)
+	if sgDuration != rpi.ShardGroupDuration {
+		return false
+	}
+	return true
+}
+
+// marshal serializes to a protobuf representation.
+func (s *RetentionPolicySpec) marshal() *internal.RetentionPolicySpec {
+	pb := &internal.RetentionPolicySpec{}
+	if s.Name != "" {
+		pb.Name = proto.String(s.Name)
+	}
+	if s.Duration != nil {
+		pb.Duration = proto.Int64(int64(*s.Duration))
+	}
+	if s.ShardGroupDuration > 0 {
+		pb.ShardGroupDuration = proto.Int64(int64(s.ShardGroupDuration))
+	}
+	if s.ReplicaN != nil {
+		pb.ReplicaN = proto.Uint32(uint32(*s.ReplicaN))
+	}
+	return pb
+}
+
+// unmarshal deserializes from a protobuf representation.
+func (s *RetentionPolicySpec) unmarshal(pb *internal.RetentionPolicySpec) {
+	if pb.Name != nil {
+		s.Name = pb.GetName()
+	}
+	if pb.Duration != nil {
+		duration := time.Duration(pb.GetDuration())
+		s.Duration = &duration
+	}
+	if pb.ShardGroupDuration != nil {
+		s.ShardGroupDuration = time.Duration(pb.GetShardGroupDuration())
+	}
+	if pb.ReplicaN != nil {
+		replicaN := int(pb.GetReplicaN())
+		s.ReplicaN = &replicaN
+	}
+}
+
+// MarshalBinary encodes RetentionPolicySpec to a binary format.
+func (s *RetentionPolicySpec) MarshalBinary() ([]byte, error) {
+	return proto.Marshal(s.marshal())
+}
+
+// UnmarshalBinary decodes RetentionPolicySpec from a binary format.
+func (s *RetentionPolicySpec) UnmarshalBinary(data []byte) error {
+	var pb internal.RetentionPolicySpec
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+	s.unmarshal(&pb)
+	return nil
+}
+
 // RetentionPolicyInfo represents metadata about a retention policy.
 type RetentionPolicyInfo struct {
 	Name               string
@@ -861,6 +941,32 @@ func NewRetentionPolicyInfo(name string) *RetentionPolicyInfo {
 		ReplicaN: DefaultRetentionPolicyReplicaN,
 		Duration: DefaultRetentionPolicyDuration,
 	}
+}
+
+// DefaultRetentionPolicyInfo returns a new instance of RetentionPolicyInfo with defaults set.
+func DefaultRetentionPolicyInfo() *RetentionPolicyInfo {
+	return NewRetentionPolicyInfo(DefaultRetentionPolicyName)
+}
+
+// Apply applies a specification to the retention policy info.
+func (rpi *RetentionPolicyInfo) Apply(spec *RetentionPolicySpec) *RetentionPolicyInfo {
+	rp := &RetentionPolicyInfo{
+		Name:               rpi.Name,
+		ReplicaN:           rpi.ReplicaN,
+		Duration:           rpi.Duration,
+		ShardGroupDuration: rpi.ShardGroupDuration,
+	}
+	if spec.Name != "" {
+		rp.Name = spec.Name
+	}
+	if spec.ReplicaN != nil {
+		rp.ReplicaN = *spec.ReplicaN
+	}
+	if spec.Duration != nil {
+		rp.Duration = *spec.Duration
+	}
+	rp.ShardGroupDuration = normalisedShardDuration(spec.ShardGroupDuration, rp.Duration)
+	return rp
 }
 
 // ShardGroupByTimestamp returns the shard group in the policy that contains the timestamp.
@@ -1162,6 +1268,17 @@ func (si *ShardInfo) unmarshal(pb *internal.ShardInfo) {
 			si.Owners[i].unmarshal(x)
 		}
 	}
+}
+
+type ShardInfos []ShardInfo
+
+// Reverse returns a reversed list of shard infos.
+func (a ShardInfos) Reverse() []ShardInfo {
+	other := make([]ShardInfo, len(a))
+	for i := range a {
+		other[len(other)-i-1] = a[i]
+	}
+	return other
 }
 
 // SubscriptionInfo hold the subscription information

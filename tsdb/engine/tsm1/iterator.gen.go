@@ -49,7 +49,9 @@ func newBufCursor(cur cursor, ascending bool) *bufCursor {
 }
 
 func (c *bufCursor) close() error {
-	return c.cur.close()
+	err := c.cur.close()
+	c.cur = nil
+	return err
 }
 
 // next returns the buffer, if filled. Otherwise returns the next key/value from the cursor.
@@ -238,11 +240,15 @@ func (itr *floatIterator) Close() error {
 	for _, c := range itr.aux {
 		c.close()
 	}
+	itr.aux = nil
 	for _, c := range itr.conds.curs {
 		c.close()
 	}
+	itr.conds.curs = nil
 	if itr.cur != nil {
-		return itr.cur.close()
+		err := itr.cur.close()
+		itr.cur = nil
+		return err
 	}
 	return nil
 }
@@ -355,6 +361,10 @@ func (c *floatAscendingCursor) peekTSM() (t int64, v float64) {
 // close closes the cursor and any dependent cursors.
 func (c *floatAscendingCursor) close() error {
 	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.tsm.buf = nil
+	c.cache.values = nil
+	c.tsm.values = nil
 	return nil
 }
 
@@ -473,6 +483,10 @@ func (c *floatDescendingCursor) peekTSM() (t int64, v float64) {
 // close closes the cursor and any dependent cursors.
 func (c *floatDescendingCursor) close() error {
 	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.tsm.buf = nil
+	c.cache.values = nil
+	c.tsm.values = nil
 	return nil
 }
 
@@ -673,11 +687,15 @@ func (itr *integerIterator) Close() error {
 	for _, c := range itr.aux {
 		c.close()
 	}
+	itr.aux = nil
 	for _, c := range itr.conds.curs {
 		c.close()
 	}
+	itr.conds.curs = nil
 	if itr.cur != nil {
-		return itr.cur.close()
+		err := itr.cur.close()
+		itr.cur = nil
+		return err
 	}
 	return nil
 }
@@ -790,6 +808,10 @@ func (c *integerAscendingCursor) peekTSM() (t int64, v int64) {
 // close closes the cursor and any dependent cursors.
 func (c *integerAscendingCursor) close() error {
 	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.tsm.buf = nil
+	c.cache.values = nil
+	c.tsm.values = nil
 	return nil
 }
 
@@ -908,6 +930,10 @@ func (c *integerDescendingCursor) peekTSM() (t int64, v int64) {
 // close closes the cursor and any dependent cursors.
 func (c *integerDescendingCursor) close() error {
 	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.tsm.buf = nil
+	c.cache.values = nil
+	c.tsm.values = nil
 	return nil
 }
 
@@ -1108,11 +1134,15 @@ func (itr *stringIterator) Close() error {
 	for _, c := range itr.aux {
 		c.close()
 	}
+	itr.aux = nil
 	for _, c := range itr.conds.curs {
 		c.close()
 	}
+	itr.conds.curs = nil
 	if itr.cur != nil {
-		return itr.cur.close()
+		err := itr.cur.close()
+		itr.cur = nil
+		return err
 	}
 	return nil
 }
@@ -1225,6 +1255,10 @@ func (c *stringAscendingCursor) peekTSM() (t int64, v string) {
 // close closes the cursor and any dependent cursors.
 func (c *stringAscendingCursor) close() error {
 	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.tsm.buf = nil
+	c.cache.values = nil
+	c.tsm.values = nil
 	return nil
 }
 
@@ -1343,6 +1377,10 @@ func (c *stringDescendingCursor) peekTSM() (t int64, v string) {
 // close closes the cursor and any dependent cursors.
 func (c *stringDescendingCursor) close() error {
 	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.tsm.buf = nil
+	c.cache.values = nil
+	c.tsm.values = nil
 	return nil
 }
 
@@ -1543,11 +1581,15 @@ func (itr *booleanIterator) Close() error {
 	for _, c := range itr.aux {
 		c.close()
 	}
+	itr.aux = nil
 	for _, c := range itr.conds.curs {
 		c.close()
 	}
+	itr.conds.curs = nil
 	if itr.cur != nil {
-		return itr.cur.close()
+		err := itr.cur.close()
+		itr.cur = nil
+		return err
 	}
 	return nil
 }
@@ -1660,6 +1702,10 @@ func (c *booleanAscendingCursor) peekTSM() (t int64, v bool) {
 // close closes the cursor and any dependent cursors.
 func (c *booleanAscendingCursor) close() error {
 	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.tsm.buf = nil
+	c.cache.values = nil
+	c.tsm.values = nil
 	return nil
 }
 
@@ -1778,6 +1824,10 @@ func (c *booleanDescendingCursor) peekTSM() (t int64, v bool) {
 // close closes the cursor and any dependent cursors.
 func (c *booleanDescendingCursor) close() error {
 	c.tsm.keyCursor.Close()
+	c.tsm.keyCursor = nil
+	c.tsm.buf = nil
+	c.cache.values = nil
+	c.tsm.values = nil
 	return nil
 }
 

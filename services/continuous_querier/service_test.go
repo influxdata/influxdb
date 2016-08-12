@@ -254,6 +254,54 @@ func TestContinuousQueryService_EveryHigherThanInterval(t *testing.T) {
 	}
 }
 
+func TestContinuousQueryService_GroupByOffset(t *testing.T) {
+	s := NewTestService(t)
+	mc := NewMetaClient(t)
+	mc.CreateDatabase("db", "")
+	mc.CreateContinuousQuery("db", "cq", `CREATE CONTINUOUS QUERY cq ON db BEGIN SELECT mean(value) INTO cpu_mean FROM cpu GROUP BY time(1m, 30s) END`)
+	s.MetaClient = mc
+
+	// Set RunInterval high so we can trigger using Run method.
+	s.RunInterval = 10 * time.Minute
+
+	done := make(chan struct{})
+	var expected struct {
+		min time.Time
+		max time.Time
+	}
+
+	// Set a callback for ExecuteStatement.
+	s.QueryExecutor.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+			s := stmt.(*influxql.SelectStatement)
+			min, max, err := influxql.TimeRange(s.Condition)
+			if err != nil {
+				t.Errorf("unexpected error parsing time range: %s", err)
+			} else if !expected.min.Equal(min) || !expected.max.Equal(max) {
+				t.Errorf("mismatched time range: got=(%s, %s) exp=(%s, %s)", min, max, expected.min, expected.max)
+			}
+			done <- struct{}{}
+			ctx.Results <- &influxql.Result{}
+			return nil
+		},
+	}
+
+	s.Open()
+	defer s.Close()
+
+	// Set the 'now' time to the start of a 10 minute interval with a 30 second offset.
+	// Then trigger a run. This should trigger two queries (one for the current time
+	// interval, one for the previous).
+	now := time.Now().UTC().Truncate(10 * time.Minute).Add(30 * time.Second)
+	expected.min = now.Add(-time.Minute)
+	expected.max = now.Add(-1)
+	s.RunCh <- &RunRequest{Now: now}
+
+	if err := wait(done, 100*time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // Test service when not the cluster leader (CQs shouldn't run).
 func TestContinuousQueryService_NotLeader(t *testing.T) {
 	s := NewTestService(t)

@@ -447,11 +447,33 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 
 	// get the shard mutex for locally defined fields
 	for _, p := range points {
+		// verify the tags and fields
+		tags := p.Tags()
+		if _, ok := tags["time"]; ok {
+			s.logger.Printf("dropping tag 'time' from '%s'\n", p.PrecisionString(""))
+			delete(tags, "time")
+			p.SetTags(tags)
+		}
+
+		fields := p.Fields()
+		if _, ok := fields["time"]; ok {
+			s.logger.Printf("dropping field 'time' from '%s'\n", p.PrecisionString(""))
+			delete(fields, "time")
+
+			if len(fields) == 0 {
+				continue
+			}
+		}
+
 		// see if the series should be added to the index
 		key := string(p.Key())
 		ss := s.index.Series(key)
 		if ss == nil {
-			ss = NewSeries(key, p.Tags())
+			if s.options.Config.MaxSeriesPerDatabase > 0 && len(s.index.series)+1 > s.options.Config.MaxSeriesPerDatabase {
+				return nil, fmt.Errorf("max series per database exceeded: %s", key)
+			}
+
+			ss = NewSeries(key, tags)
 			atomic.AddInt64(&s.stats.SeriesCreated, 1)
 		}
 
@@ -462,14 +484,14 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 		mf := s.engine.MeasurementFields(p.Name())
 
 		if mf == nil {
-			for name, value := range p.Fields() {
+			for name, value := range fields {
 				fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &Field{Name: name, Type: influxql.InspectDataType(value)}})
 			}
 			continue // skip validation since all fields are new
 		}
 
 		// validate field types and encode data
-		for name, value := range p.Fields() {
+		for name, value := range fields {
 			if f := mf.Field(name); f != nil {
 				// Field present in shard metadata, make sure there is no type conflict.
 				if f.Type != influxql.InspectDataType(value) {
@@ -804,13 +826,30 @@ type Field struct {
 // shardIteratorCreator creates iterators for a local shard.
 // This simply wraps the shard so that Close() does not close the underlying shard.
 type shardIteratorCreator struct {
-	sh *Shard
+	sh         *Shard
+	maxSeriesN int
 }
 
 func (ic *shardIteratorCreator) Close() error { return nil }
 
 func (ic *shardIteratorCreator) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	return ic.sh.CreateIterator(opt)
+	itr, err := ic.sh.CreateIterator(opt)
+	if err != nil {
+		return nil, err
+	} else if itr == nil {
+		return nil, nil
+	}
+
+	// Enforce series limit at creation time.
+	if ic.maxSeriesN > 0 {
+		stats := itr.Stats()
+		if stats.SeriesN > ic.maxSeriesN {
+			itr.Close()
+			return nil, fmt.Errorf("max select series count exceeded: %d series", stats.SeriesN)
+		}
+	}
+
+	return itr, nil
 }
 func (ic *shardIteratorCreator) FieldDimensions(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
 	return ic.sh.FieldDimensions(sources)
