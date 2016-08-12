@@ -1,5 +1,7 @@
 ## v1.1.0 [unreleased]
 
+### Release Notes
+
 ### Features
 
 - [#7120](https://github.com/influxdata/influxdb/issues/7120): Add additional statistics to query executor.
@@ -7,6 +9,7 @@
 - [#3634](https://github.com/influxdata/influxdb/issues/3634): Support mixed duration units.
 - [#7099](https://github.com/influxdata/influxdb/pull/7099): Implement text/csv content encoding for the response writer.
 - [#6992](https://github.com/influxdata/influxdb/issues/6992): Support tools for running async queries.
+- [#7136](https://github.com/influxdata/influxdb/pull/7136): Update jwt-go dependency to version 3.
 
 ### Bugfixes
 

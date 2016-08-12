@@ -3,7 +3,7 @@ github.com/BurntSushi/toml 99064174e013895bbd9b025c31100bd1d9b590ca
 github.com/bmizerany/pat c068ca2f0aacee5ac3681d68e4d0a003b7d1fd2c
 github.com/boltdb/bolt 5cc10bbbc5c141029940133bb33c9e969512a698
 github.com/davecgh/go-spew 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
-github.com/dgrijalva/jwt-go 9b486c879bab3fde556ce8c27d9a2bb05d5b2c60
+github.com/dgrijalva/jwt-go 63734eae1ef55eaac06fdc0f312615f2e321e273
 github.com/dgryski/go-bits 2ad8d707cc05b1815ce6ff2543bb5e8d8f9298ef
 github.com/dgryski/go-bitstream 7d46cd22db7004f0cceb6f7975824b560cf0e486
 github.com/gogo/protobuf 6abcf94fd4c97dcb423fdafd42fe9f96ca7e421b
