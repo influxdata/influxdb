@@ -440,11 +440,6 @@ func newMeanIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 }
 
 // newMedianIterator returns an iterator for operating on a median() call.
-func NewMedianIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
-	return newMedianIterator(input, opt)
-}
-
-// newMedianIterator returns an iterator for operating on a median() call.
 func newMedianIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:

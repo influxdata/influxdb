@@ -871,33 +871,6 @@ func benchmarkDistinctIterator(b *testing.B, pointN int) {
 	}
 }
 
-func BenchmarkMedianIterator_1K(b *testing.B)   { benchmarkMedianIterator(b, 1000) }
-func BenchmarkMedianIterator_100K(b *testing.B) { benchmarkMedianIterator(b, 100000) }
-func BenchmarkMedianIterator_1M(b *testing.B)   { benchmarkMedianIterator(b, 1000000) }
-
-func benchmarkMedianIterator(b *testing.B, pointN int) {
-	b.ReportAllocs()
-
-	for i := 0; i < b.N; i++ {
-		// Create a lightweight point generator.
-		p := influxql.FloatPoint{Name: "cpu"}
-		input := FloatPointGenerator{
-			N: pointN,
-			Fn: func(i int) *influxql.FloatPoint {
-				p.Value = float64(i % 10)
-				return &p
-			},
-		}
-
-		// Execute call against input.
-		itr, err := influxql.NewMedianIterator(&input, influxql.IteratorOptions{})
-		if err != nil {
-			b.Fatal(err)
-		}
-		influxql.DrainIterator(itr)
-	}
-}
-
 func BenchmarkModeIterator_1K(b *testing.B)   { benchmarkModeIterator(b, 1000) }
 func BenchmarkModeIterator_100K(b *testing.B) { benchmarkModeIterator(b, 100000) }
 func BenchmarkModeIterator_1M(b *testing.B)   { benchmarkModeIterator(b, 1000000) }
