@@ -469,12 +469,24 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 		newBuffer := bytes.Buffer{}
 		// trim the "key", and split by space
 		payload := strings.Split(strings.TrimPrefix(pointstring, string(p.pt.Key())), " ")
-		// get the timestamp, timestamp always located at the end
-		timestamp := payload[len(payload)-1]
+
+		var (
+			timestamp       string
+			timestampExists bool
+		)
+
+		if len(payload) == 3 {
+			// get the timestamp, timestamp always located at the end
+			timestamp = payload[2]
+			timestampExists = true
+		}
 
 		// cut the timestamp from payload and joing
 		// set chunks size less than maxUDPPayload, because 'key' and 'timestamp' will be appended later
-		chunks := makeChunks(strings.TrimSuffix(strings.Join(payload, ""), timestamp), uc.payloadSize-(len(string(p.pt.Key())+timestamp)))
+		chunks := makeChunks(
+			strings.TrimSuffix(payload[1], timestamp),
+			uc.payloadSize-(len(string(p.pt.Key())+timestamp)),
+		)
 
 		// range over each chunk
 		// prepend key and append timestamp
@@ -483,8 +495,10 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 			newBuffer.WriteString(string(p.pt.Key()))
 			newBuffer.WriteString(" ")
 			newBuffer.WriteString(chunk)
-			newBuffer.WriteString(" ")
-			newBuffer.WriteString(timestamp)
+			if timestampExists {
+				newBuffer.WriteString(" ")
+				newBuffer.WriteString(timestamp)
+			}
 
 			if _, err := uc.conn.Write(newBuffer.Bytes()); err != nil {
 				return err
