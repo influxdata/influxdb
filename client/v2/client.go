@@ -429,7 +429,7 @@ func makeChunks(blob string, chunkSize int) []string {
 			stop = len(blob)
 		}
 
-		// move deviding position back while do not match a comma char to keep persistency
+		// move dividing position back until do not match a comma character
 		for l := stop; l > 0 && l != len(blob); l-- {
 			stop = l
 			if string(blob[l]) == "," {
@@ -466,7 +466,7 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 
 		// If byte size of metrics are more than max UDP payload size(MaxUDPPayload)
 		// then split the metrics into chunks, which each chunk have max MaxUDPPayload byte size
-		newBuffer := bytes.Buffer{}
+		b := bytes.Buffer{}
 		// trim the "key", and split by space
 		payload := strings.Split(strings.TrimPrefix(pointstring, string(p.pt.Key())), " ")
 
@@ -492,18 +492,18 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 		// prepend key and append timestamp
 		// then write to UDP connection
 		for _, chunk := range chunks {
-			newBuffer.WriteString(string(p.pt.Key()))
-			newBuffer.WriteString(" ")
-			newBuffer.WriteString(chunk)
+			b.WriteString(string(p.pt.Key()))
+			b.WriteString(" ")
+			b.WriteString(chunk)
 			if timestampExists {
-				newBuffer.WriteString(" ")
-				newBuffer.WriteString(timestamp)
+				b.WriteString(" ")
+				b.WriteString(timestamp)
 			}
 
-			if _, err := uc.conn.Write(newBuffer.Bytes()); err != nil {
+			if _, err := uc.conn.Write(b.Bytes()); err != nil {
 				return err
 			}
-			newBuffer.Reset()
+			b.Reset()
 		}
 	}
 	return nil
