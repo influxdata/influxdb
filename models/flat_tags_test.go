@@ -7,17 +7,24 @@ import (
 )
 
 func TestFlatTagsInsertionSort(t *testing.T) {
-	f := func(fts flatTags) bool {
+	f := func(generated []flatTag) bool {
 		// set up the expected key data:
 		gold := []string{}
-		for i := 0; i < fts.Len(); i++ {
-			k, _ := fts.Get(i)
-			gold = append(gold, string(k))
+		for _, ft := range generated {
+			gold = append(gold, string(ft.Key))
 		}
 		sort.Strings(gold)
 
+		// set up the container:
+		fts := &flatTags{}
+		for _, ft := range generated {
+			fts.Append(ft.Key, ft.Val)
+		}
+
 		// perform the work:
-		fts.InsertionSort()
+		if !fts.IsSorted() {
+			fts.InsertionSort()
+		}
 
 		// set up the got key data:
 		got := []string{}

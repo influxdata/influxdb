@@ -1439,7 +1439,9 @@ func (t Tags) HashKey() []byte {
 	}
 
 	// sort the keys:
-	escaped.InsertionSort()
+	if !escaped.IsSorted() {
+		escaped.InsertionSort()
+	}
 
 	// calculate additional size needed for separators:
 	sz += escaped.Len() + (escaped.Len() * 2)
@@ -1470,18 +1472,26 @@ type Fields map[string]interface{}
 func parseNumber(val []byte) (interface{}, error) {
 	if val[len(val)-1] == 'i' {
 		val = val[:len(val)-1]
-		return strconv.ParseInt(string(val), 10, 64)
+		// This usage of unsafeBytesToString is safe because no
+		// references to it are kept by strconv.ParseInt nor do we
+		// return a reference:
+		return strconv.ParseInt(unsafeBytesToString(val), 10, 64)
 	}
 	for i := 0; i < len(val); i++ {
 		// If there is a decimal or an N (NaN), I (Inf), parse as float
 		if val[i] == '.' || val[i] == 'N' || val[i] == 'n' || val[i] == 'I' || val[i] == 'i' || val[i] == 'e' {
-			return strconv.ParseFloat(string(val), 64)
+			// This usage of unsafeBytesToString is safe
+			// because no references to it are kept by
+			// strconv.ParseFloat nor do we return a reference:
+			return strconv.ParseFloat(unsafeBytesToString(val), 64)
 		}
 		if val[i] < '0' && val[i] > '9' {
 			return string(val), nil
 		}
 	}
-	return strconv.ParseFloat(string(val), 64)
+	// This usage of unsafeBytesToString is safe because no references to
+	// it are kept by strconv.ParseFloat nor do we return a reference:
+	return strconv.ParseFloat(unsafeBytesToString(val), 64)
 }
 
 func newFieldsFromBinary(buf []byte) Fields {
@@ -1519,7 +1529,9 @@ func newFieldsFromBinary(buf []byte) Fields {
 
 				// Otherwise parse it as bool
 			} else {
-				value, err = strconv.ParseBool(string(valueBuf))
+				// This usage of unsafeBytesToString is safe because no references to
+				// it are kept by strconv.ParseBool nor do we return a reference:
+				value, err = strconv.ParseBool(unsafeBytesToString(valueBuf))
 				if err != nil {
 					panic(fmt.Sprintf("unable to parse bool value '%v': %v\n", string(valueBuf), err))
 				}
