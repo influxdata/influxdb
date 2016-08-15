@@ -1029,6 +1029,11 @@ func scanFieldValue(buf []byte, i int) (int, []byte) {
 
 func escapeMeasurement(in []byte) []byte {
 	for _, x := range measurementEscapeCodes {
+		// This check avoids the "always make a copy" behavior of
+		// `bytes.Replace`:
+		if bytes.Count(in, x.unescaped) == 0 {
+			continue
+		}
 		in = bytes.Replace(in, x.unescaped, x.escaped, -1)
 	}
 	return in
@@ -1036,6 +1041,11 @@ func escapeMeasurement(in []byte) []byte {
 
 func unescapeMeasurement(in []byte) []byte {
 	for _, x := range measurementEscapeCodes {
+		// This check avoids the "always make a copy" behavior of
+		// `bytes.Replace`:
+		if bytes.Count(in, x.escaped) == 0 {
+			continue
+		}
 		in = bytes.Replace(in, x.escaped, x.unescaped, -1)
 	}
 	return in
@@ -1059,6 +1069,11 @@ func unescapeTag(in []byte) []byte {
 	}
 
 	for _, x := range tagEscapeCodes {
+		// This check avoids the "always make a copy" behavior of
+		// `bytes.Replace`:
+		if bytes.Count(in, x.escaped) == 0 {
+			continue
+		}
 		in = bytes.Replace(in, x.escaped, x.unescaped, -1)
 	}
 	return in
