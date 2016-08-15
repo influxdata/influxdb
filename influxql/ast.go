@@ -2633,10 +2633,10 @@ type ShowStatsStatement struct {
 // String returns a string representation of a ShowStatsStatement.
 func (s *ShowStatsStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("SHOW STATS ")
+	_, _ = buf.WriteString("SHOW STATS")
 	if s.Module != "" {
-		_, _ = buf.WriteString("FOR ")
-		_, _ = buf.WriteString(s.Module)
+		_, _ = buf.WriteString(" FOR ")
+		_, _ = buf.WriteString(QuoteString(s.Module))
 	}
 	return buf.String()
 }
@@ -2677,10 +2677,10 @@ type ShowDiagnosticsStatement struct {
 // String returns a string representation of the ShowDiagnosticsStatement.
 func (s *ShowDiagnosticsStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("SHOW DIAGNOSTICS ")
+	_, _ = buf.WriteString("SHOW DIAGNOSTICS")
 	if s.Module != "" {
-		_, _ = buf.WriteString("FOR ")
-		_, _ = buf.WriteString(s.Module)
+		_, _ = buf.WriteString(" FOR ")
+		_, _ = buf.WriteString(QuoteString(s.Module))
 	}
 	return buf.String()
 }
@@ -2859,7 +2859,11 @@ func (s *ShowTagValuesStatement) String() string {
 	_, _ = buf.WriteString(" WITH KEY ")
 	_, _ = buf.WriteString(s.Op.String())
 	_, _ = buf.WriteString(" ")
-	_, _ = buf.WriteString(s.TagKeyExpr.String())
+	if lit, ok := s.TagKeyExpr.(*StringLiteral); ok {
+		_, _ = buf.WriteString(QuoteIdent(lit.Val))
+	} else {
+		_, _ = buf.WriteString(s.TagKeyExpr.String())
+	}
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
 		_, _ = buf.WriteString(s.Condition.String())
