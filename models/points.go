@@ -1418,43 +1418,48 @@ func (t Tags) HashKey() []byte {
 		return nil
 	}
 
-	escaped := tagsGetFromPool()
+	escaped := flatTagsGetFromPool()
+	sz := 0
 	for k, v := range t {
-		ek := escapeTag([]byte(k))
-		ev := escapeTag([]byte(v))
+		// It's safe to call unsafeStringToBytes here because
+		// escapeTag will make a copy if changes need to be made,
+		// and the lifetime of the unsafe byte slice is constrained
+		// to be within this `HashKey` function:
+		ek := escapeTag(unsafeStringToBytes(k))
+		ev := escapeTag(unsafeStringToBytes(v))
 
 		if len(ev) > 0 {
-			escaped[string(ek)] = ev
+			// track the sizes for later:
+			sz += len(ek) + len(ev)
+
+			// append this escaped key, value pair to the
+			// collection:
+			escaped.Append(ek, ev)
 		}
 	}
 
-	// Extract keys and determine final size.
-	sz := len(escaped) + (len(escaped) * 2) // separators
-	keys := make([]string, len(escaped)+1)
-	i := 0
-	for k, v := range escaped {
-		keys[i] = k
-		i++
-		sz += len(k) + len(v)
-	}
-	keys = keys[:i]
-	sort.Strings(keys)
+	// sort the keys:
+	escaped.InsertionSort()
+
+	// calculate additional size needed for separators:
+	sz += escaped.Len() + (escaped.Len() * 2)
+
 	// Generate marshaled bytes.
 	b := make([]byte, sz)
 	buf := b
 	idx := 0
-	for _, k := range keys {
+	for i := 0; i < escaped.Len() ;i++ {
+		k, v := escaped.Get(i)
 		buf[idx] = ','
 		idx++
 		copy(buf[idx:idx+len(k)], k)
 		idx += len(k)
 		buf[idx] = '='
 		idx++
-		v := escaped[k]
 		copy(buf[idx:idx+len(v)], v)
 		idx += len(v)
 	}
-	tagsPutIntoPool(escaped)
+	flatTagsPutIntoPool(escaped)
 	return b[:idx]
 }
 
