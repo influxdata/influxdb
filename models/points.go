@@ -1043,6 +1043,11 @@ func unescapeMeasurement(in []byte) []byte {
 
 func escapeTag(in []byte) []byte {
 	for _, x := range tagEscapeCodes {
+		// This check avoids the "always make a copy" behavior of
+		// `bytes.Replace`:
+		if bytes.Count(in, x.unescaped) == 0 {
+			continue
+		}
 		in = bytes.Replace(in, x.unescaped, x.escaped, -1)
 	}
 	return in
@@ -1413,13 +1418,13 @@ func (t Tags) HashKey() []byte {
 		return nil
 	}
 
-	escaped := Tags{}
+	escaped := tagsGetFromPool()
 	for k, v := range t {
 		ek := escapeTag([]byte(k))
 		ev := escapeTag([]byte(v))
 
 		if len(ev) > 0 {
-			escaped[string(ek)] = string(ev)
+			escaped[string(ek)] = ev
 		}
 	}
 
@@ -1449,6 +1454,7 @@ func (t Tags) HashKey() []byte {
 		copy(buf[idx:idx+len(v)], v)
 		idx += len(v)
 	}
+	tagsPutIntoPool(escaped)
 	return b[:idx]
 }
 
