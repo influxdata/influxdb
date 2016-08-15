@@ -16,15 +16,19 @@ import (
 )
 
 var (
-	measurementEscapeCodes = map[byte][]byte{
-		',': []byte(`\,`),
-		' ': []byte(`\ `),
+	measurementEscapeCodes = []struct {
+		unescaped, escaped []byte
+	}{
+		{[]byte(`,`), []byte(`\,`)},
+		{[]byte(` `), []byte(`\ `)},
 	}
 
-	tagEscapeCodes = map[byte][]byte{
-		',': []byte(`\,`),
-		' ': []byte(`\ `),
-		'=': []byte(`\=`),
+	tagEscapeCodes = []struct {
+		unescaped, escaped []byte
+	}{
+		{[]byte(`,`), []byte(`\,`)},
+		{[]byte(` `), []byte(`\ `)},
+		{[]byte(`=`), []byte(`\=`)},
 	}
 
 	ErrPointMustHaveAField  = errors.New("point without fields is unsupported")
@@ -1022,24 +1026,22 @@ func scanFieldValue(buf []byte, i int) (int, []byte) {
 }
 
 func escapeMeasurement(in []byte) []byte {
-	for b, esc := range measurementEscapeCodes {
-		in = bytes.Replace(in, []byte{b}, esc, -1)
+	for _, x := range measurementEscapeCodes {
+		in = bytes.Replace(in, x.unescaped, x.escaped, -1)
 	}
 	return in
 }
 
 func unescapeMeasurement(in []byte) []byte {
-	for b, esc := range measurementEscapeCodes {
-		in = bytes.Replace(in, esc, []byte{b}, -1)
+	for _, x := range measurementEscapeCodes {
+		in = bytes.Replace(in, x.escaped, x.unescaped, -1)
 	}
 	return in
 }
 
 func escapeTag(in []byte) []byte {
-	for b, esc := range tagEscapeCodes {
-		if bytes.IndexByte(in, b) != -1 {
-			in = bytes.Replace(in, []byte{b}, esc, -1)
-		}
+	for _, x := range tagEscapeCodes {
+		in = bytes.Replace(in, x.unescaped, x.escaped, -1)
 	}
 	return in
 }
@@ -1049,10 +1051,8 @@ func unescapeTag(in []byte) []byte {
 		return in
 	}
 
-	for b, esc := range tagEscapeCodes {
-		if bytes.IndexByte(in, b) != -1 {
-			in = bytes.Replace(in, esc, []byte{b}, -1)
-		}
+	for _, x := range tagEscapeCodes {
+		in = bytes.Replace(in, x.escaped, x.unescaped, -1)
 	}
 	return in
 }
