@@ -253,7 +253,9 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 		pt.time = defaultTime
 		pt.SetPrecision(precision)
 	} else {
-		ts, err := strconv.ParseInt(string(ts), 10, 64)
+		// Use unsafeBytesToString here because a plain `string`
+		// conversion escapes to the heap (as of Go 1.6):
+		ts, err := strconv.ParseInt(unsafeBytesToString(ts), 10, 64)
 		if err != nil {
 			return nil, err
 		}
