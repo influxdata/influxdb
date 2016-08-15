@@ -33,7 +33,7 @@ type flatTag struct {
 // alternative to map[string]string that is used elsewhere in this package.
 type flatTags struct {
 	Sorted bool
-	Data []flatTag
+	Data   []flatTag
 }
 
 // Len helps implement sort.Interface.
