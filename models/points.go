@@ -1448,7 +1448,7 @@ func (t Tags) HashKey() []byte {
 	b := make([]byte, sz)
 	buf := b
 	idx := 0
-	for i := 0; i < escaped.Len() ;i++ {
+	for i := 0; i < escaped.Len(); i++ {
 		k, v := escaped.Get(i)
 		buf[idx] = ','
 		idx++
