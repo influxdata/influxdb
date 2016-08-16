@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"regexp"
 	"strings"
 	"testing"
@@ -362,6 +363,73 @@ func TestHandler_Query_ErrResult(t *testing.T) {
 		t.Fatalf("unexpected status: %d", w.Code)
 	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"error":"measurement not found"}]}` {
 		t.Fatalf("unexpected body: %s", body)
+	}
+}
+
+// Ensure that closing the HTTP connection causes the query to be interrupted.
+func TestHandler_Query_CloseNotify(t *testing.T) {
+	// Avoid leaking a goroutine when this fails.
+	done := make(chan struct{})
+	defer close(done)
+
+	interrupted := make(chan struct{})
+	h := NewHandler(false)
+	h.StatementExecutor.ExecuteStatementFn = func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+		select {
+		case <-ctx.InterruptCh:
+		case <-done:
+		}
+		close(interrupted)
+		return nil
+	}
+
+	s := httptest.NewServer(h)
+	defer s.Close()
+
+	// Parse the URL and generate a query request.
+	u, err := url.Parse(s.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	u.Path = "/query"
+
+	values := url.Values{}
+	values.Set("q", "SELECT * FROM cpu")
+	values.Set("db", "db0")
+	values.Set("rp", "rp0")
+	values.Set("chunked", "true")
+	u.RawQuery = values.Encode()
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Perform the request and retrieve the response.
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Validate that the interrupted channel has NOT been closed yet.
+	timer := time.NewTimer(100 * time.Millisecond)
+	select {
+	case <-interrupted:
+		timer.Stop()
+		t.Fatal("query interrupted unexpectedly")
+	case <-timer.C:
+	}
+
+	// Close the response body which should abort the query in the handler.
+	resp.Body.Close()
+
+	// The query should abort within 100 milliseconds.
+	timer.Reset(100 * time.Millisecond)
+	select {
+	case <-interrupted:
+		timer.Stop()
+	case <-timer.C:
+		t.Fatal("timeout while waiting for query to abort")
 	}
 }
 
