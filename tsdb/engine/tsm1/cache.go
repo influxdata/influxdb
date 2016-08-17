@@ -387,6 +387,7 @@ func (c *Cache) DeleteRange(keys []string, min, max int64) {
 
 		c.size -= uint64(origSize - e.size())
 	}
+	atomic.StoreInt64(&c.stats.MemSizeBytes, int64(c.size))
 }
 
 func (c *Cache) SetMaxSize(size uint64) {
