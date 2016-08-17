@@ -825,7 +825,7 @@ func (e *Engine) compactCache() {
 	defer e.wg.Done()
 	for {
 		select {
-		case <-e.done:
+		case <-e.notifyDone():
 			return
 
 		default:
@@ -865,7 +865,7 @@ func (e *Engine) compactTSMLevel(fast bool, level int) {
 
 	for {
 		select {
-		case <-e.done:
+		case <-e.notifyDone():
 			return
 
 		default:
@@ -955,7 +955,7 @@ func (e *Engine) compactTSMFull() {
 
 	for {
 		select {
-		case <-e.done:
+		case <-e.notifyDone():
 			return
 
 		default:
