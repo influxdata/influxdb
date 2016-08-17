@@ -491,41 +491,66 @@ type Compactor struct {
 		NextGeneration() int
 	}
 
-	mu      sync.RWMutex
-	opened  bool
-	closing chan struct{}
-	files   map[string]struct{}
+	mu                 sync.RWMutex
+	snapshotsEnabled   bool
+	compactionsEnabled bool
+
+	files map[string]struct{}
 }
 
 func (c *Compactor) Open() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if c.opened {
+	if c.snapshotsEnabled || c.compactionsEnabled {
 		return
 	}
 
-	c.closing = make(chan struct{})
-	c.opened = true
+	c.snapshotsEnabled = true
+	c.compactionsEnabled = true
 	c.files = make(map[string]struct{})
 }
 
 func (c *Compactor) Close() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if !c.opened {
+	if !(c.snapshotsEnabled || c.compactionsEnabled) {
 		return
 	}
-	c.opened = false
-	close(c.closing)
+	c.snapshotsEnabled = false
+	c.compactionsEnabled = false
+}
+
+func (c *Compactor) DisableSnapshots() {
+	c.mu.Lock()
+	c.snapshotsEnabled = false
+	c.mu.Unlock()
+}
+
+func (c *Compactor) EnabledSnapshots() {
+	c.mu.Lock()
+	c.snapshotsEnabled = true
+	c.mu.Unlock()
+}
+
+func (c *Compactor) DisableCompactions() {
+	c.mu.Lock()
+	c.compactionsEnabled = false
+	c.mu.Unlock()
+}
+
+func (c *Compactor) EnabledCompactions() {
+	c.mu.Lock()
+	c.compactionsEnabled = true
+	c.mu.Unlock()
 }
 
 // WriteSnapshot will write a Cache snapshot to a new TSM files.
 func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 	c.mu.RLock()
-	opened := c.opened
+	enabled := c.snapshotsEnabled
 	c.mu.RUnlock()
 
-	if !opened {
+	if !enabled {
 		return nil, errSnapshotsDisabled
 	}
 
@@ -534,10 +559,10 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 
 	// See if we were closed while writing a snapshot
 	c.mu.RLock()
-	opened = c.opened
+	enabled = c.snapshotsEnabled
 	c.mu.RUnlock()
 
-	if !opened {
+	if !enabled {
 		return nil, errSnapshotsDisabled
 	}
 
@@ -601,10 +626,10 @@ func (c *Compactor) compact(fast bool, tsmFiles []string) ([]string, error) {
 // Compact will write multiple smaller TSM files into 1 or more larger files
 func (c *Compactor) CompactFull(tsmFiles []string) ([]string, error) {
 	c.mu.RLock()
-	opened := c.opened
+	enabled := c.compactionsEnabled
 	c.mu.RUnlock()
 
-	if !opened {
+	if !enabled {
 		return nil, errCompactionsDisabled
 	}
 
@@ -617,10 +642,10 @@ func (c *Compactor) CompactFull(tsmFiles []string) ([]string, error) {
 
 	// See if we were closed while writing a snapshot
 	c.mu.RLock()
-	opened = c.opened
+	enabled = c.compactionsEnabled
 	c.mu.RUnlock()
 
-	if !opened {
+	if !enabled {
 		return nil, errCompactionsDisabled
 	}
 
@@ -630,10 +655,10 @@ func (c *Compactor) CompactFull(tsmFiles []string) ([]string, error) {
 // Compact will write multiple smaller TSM files into 1 or more larger files
 func (c *Compactor) CompactFast(tsmFiles []string) ([]string, error) {
 	c.mu.RLock()
-	opened := c.opened
+	enabled := c.compactionsEnabled
 	c.mu.RUnlock()
 
-	if !opened {
+	if !enabled {
 		return nil, errCompactionsDisabled
 	}
 
@@ -646,10 +671,10 @@ func (c *Compactor) CompactFast(tsmFiles []string) ([]string, error) {
 
 	// See if we were closed while writing a snapshot
 	c.mu.RLock()
-	opened = c.opened
+	enabled = c.compactionsEnabled
 	c.mu.RUnlock()
 
-	if !opened {
+	if !enabled {
 		return nil, errCompactionsDisabled
 	}
 
@@ -717,14 +742,12 @@ func (c *Compactor) write(path string, iter KeyIterator) (err error) {
 
 	for iter.Next() {
 		c.mu.RLock()
-		select {
-		case <-c.closing:
-			c.mu.RUnlock()
-			return errCompactionAborted
-		default:
-		}
+		enabled := c.snapshotsEnabled || c.compactionsEnabled
 		c.mu.RUnlock()
 
+		if !enabled {
+			return errCompactionAborted
+		}
 		// Each call to read returns the next sorted key (or the prior one if there are
 		// more values to write).  The size of values will be less than or equal to our
 		// chunk size (1000)

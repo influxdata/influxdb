@@ -58,10 +58,13 @@ const (
 
 // Engine represents a storage engine with compressed blocks.
 type Engine struct {
-	mu                 sync.RWMutex
-	done               chan struct{}
-	wg                 sync.WaitGroup
-	compactionsEnabled bool
+	mu                         sync.RWMutex
+	done                       chan struct{}
+	snapshotterDone            chan struct{}
+	wg                         sync.WaitGroup
+	snapshotterWg              sync.WaitGroup
+	levelCompactionsEnabled    bool
+	snapshotCompactionsEnabled bool
 
 	path         string
 	logger       *log.Logger // Logger to be used for important messages
@@ -151,47 +154,81 @@ func (e *Engine) SetEnabled(enabled bool) {
 // all running compactions are aborted and new compactions stop running.
 func (e *Engine) SetCompactionsEnabled(enabled bool) {
 	if enabled {
-		e.mu.Lock()
-		if e.compactionsEnabled {
-			e.mu.Unlock()
-			return
-		}
-		e.compactionsEnabled = true
+		e.enableSnapshotCompactions()
+		e.enableLevelCompactions()
 
-		e.done = make(chan struct{})
-		e.Compactor.Open()
-
-		e.mu.Unlock()
-
-		e.wg.Add(5)
-		go e.compactCache()
-		go e.compactTSMFull()
-		go e.compactTSMLevel(true, 1)
-		go e.compactTSMLevel(true, 2)
-		go e.compactTSMLevel(false, 3)
 	} else {
-		e.mu.Lock()
-		if !e.compactionsEnabled {
-			e.mu.Unlock()
-			return
-		}
-		// Prevent new compactions from starting
-		e.compactionsEnabled = false
-		e.mu.Unlock()
-
-		// Stop all background compaction goroutines
-		close(e.done)
-
-		// Abort any running goroutines (this could take a while)
-		e.Compactor.Close()
-
-		// Wait for compaction goroutines to exit
-		e.wg.Wait()
-
-		if err := e.cleanup(); err != nil {
-			e.logger.Printf("error cleaning up temp file: %v", err)
-		}
+		e.disableSnapshotCompactions()
+		e.disableLevelCompactions()
 	}
+}
+
+func (e *Engine) enableLevelCompactions() {
+	e.mu.Lock()
+	if e.levelCompactionsEnabled {
+		e.mu.Unlock()
+		return
+	}
+	e.levelCompactionsEnabled = true
+	e.Compactor.EnabledCompactions()
+	e.done = make(chan struct{})
+	e.mu.Unlock()
+
+	e.wg.Add(4)
+	go e.compactTSMFull()
+	go e.compactTSMLevel(true, 1)
+	go e.compactTSMLevel(true, 2)
+	go e.compactTSMLevel(false, 3)
+}
+
+func (e *Engine) disableLevelCompactions() {
+	e.mu.Lock()
+	if !e.levelCompactionsEnabled {
+		e.mu.Unlock()
+		return
+	}
+	// Prevent new compactions from starting
+	e.levelCompactionsEnabled = false
+	e.Compactor.DisableCompactions()
+	e.mu.Unlock()
+
+	// Stop all background compaction goroutines
+	close(e.done)
+
+	// Wait for compaction goroutines to exit
+	e.wg.Wait()
+
+	if err := e.cleanup(); err != nil {
+		e.logger.Printf("error cleaning up temp file: %v", err)
+	}
+}
+
+func (e *Engine) enableSnapshotCompactions() {
+	e.mu.Lock()
+	if e.snapshotCompactionsEnabled {
+		e.mu.Unlock()
+		return
+	}
+
+	e.snapshotCompactionsEnabled = true
+	e.snapshotterDone = make(chan struct{})
+	e.Compactor.EnabledSnapshots()
+	e.mu.Unlock()
+
+	e.snapshotterWg.Add(1)
+	go e.compactCache()
+}
+
+func (e *Engine) disableSnapshotCompactions() {
+	e.mu.Lock()
+	if !e.snapshotCompactionsEnabled {
+		e.mu.Unlock()
+		return
+	}
+	e.snapshotCompactionsEnabled = false
+	e.Compactor.DisableSnapshots()
+	e.mu.Unlock()
+	e.snapshotterWg.Wait()
 }
 
 // Path returns the path the engine was opened with.
@@ -293,6 +330,8 @@ func (e *Engine) Open() error {
 	if err := e.reloadCache(); err != nil {
 		return err
 	}
+
+	e.Compactor.Open()
 
 	if e.enableCompactionsOnOpen {
 		e.SetCompactionsEnabled(true)
@@ -645,12 +684,12 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 
 	// Disable and abort running compactions so that tombstones added existing tsm
 	// files don't get removed.  This would cause deleted measurements/series to
-	// re-appear once the compaction completed.
-	e.SetCompactionsEnabled(false)
-	defer e.SetCompactionsEnabled(true)
-
-	e.mu.RLock()
-	defer e.mu.RUnlock()
+	// re-appear once the compaction completed.  We only disable the level compactions
+	// so that snapshotting does not stop while writing out tombstones.  If it is stopped,
+	// and writing tombstones takes a long time, writes can get rejected due to the cache
+	// filling up.
+	e.disableLevelCompactions()
+	defer e.enableLevelCompactions()
 
 	// keyMap is used to see if a given key should be deleted.  seriesKey
 	// are the measurement + tagset (minus separate & field)
@@ -822,13 +861,21 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (
 
 // compactCache continually checks if the WAL cache should be written to disk
 func (e *Engine) compactCache() {
-	defer e.wg.Done()
+	defer e.snapshotterWg.Done()
 	for {
 		select {
-		case <-e.done:
+		case <-e.snapshotterDone:
 			return
 
 		default:
+			e.mu.RLock()
+			enabled := e.snapshotCompactionsEnabled
+			e.mu.RUnlock()
+
+			if !enabled {
+				return
+			}
+
 			e.Cache.UpdateAge()
 			if e.ShouldCompactCache(e.WAL.LastWriteTime()) {
 				start := time.Now()
