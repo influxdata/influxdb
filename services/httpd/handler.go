@@ -465,7 +465,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 			n, _ := rw.WriteResponse(Response{
 				Results: []*influxql.Result{r},
 			})
-			atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(n+1))
+			atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(n))
 			w.(http.Flusher).Flush()
 			continue
 		}
