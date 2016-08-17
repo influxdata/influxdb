@@ -56,10 +56,10 @@ const (
 
 // Engine represents a storage engine with compressed blocks.
 type Engine struct {
-	mu                 sync.RWMutex
-	done               chan struct{}
-	wg                 sync.WaitGroup
-	compactionsEnabled bool
+	mu          sync.RWMutex
+	done        chan struct{}
+	wg          sync.WaitGroup
+	compRunning bool // Whether or not compactions are running.
 
 	path         string
 	logger       *log.Logger // Logger to be used for important messages
@@ -106,6 +106,7 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 	}
 
 	e := &Engine{
+		done:         make(chan struct{}),
 		path:         path,
 		logger:       log.New(os.Stderr, "[tsm1] ", log.LstdFlags),
 		traceLogger:  log.New(ioutil.Discard, "[tsm1] ", log.LstdFlags),
@@ -130,13 +131,13 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 		enableCompactionsOnOpen:       true,
 		stats: &EngineStatistics{},
 	}
+	close(e.done) // Compactions will begin in a stopped state.
 
 	if e.traceLogging {
 		e.traceLogger.SetOutput(e.logOutput)
 		fs.enableTraceLogging(true)
 		w.enableTraceLogging(true)
 	}
-
 	return e
 }
 
@@ -145,20 +146,39 @@ func (e *Engine) SetEnabled(enabled bool) {
 	e.SetCompactionsEnabled(enabled)
 }
 
+func (e *Engine) compactionsRunning() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.compRunning
+}
+
+// notifyDone returns a channel for indicating when compactions have stopped
+// running. The channel returned by notifyDone will block until all compactions
+// have completed.
+func (e *Engine) notifyDone() <-chan struct{} {
+	e.mu.RLock()
+	c := e.done
+	e.mu.RUnlock()
+	return c
+}
+
 // SetCompactionsEnabled enables compactions on the engine.  When disabled
 // all running compactions are aborted and new compactions stop running.
 func (e *Engine) SetCompactionsEnabled(enabled bool) {
 	if enabled {
-		e.mu.Lock()
-		if e.compactionsEnabled {
-			e.mu.Unlock()
-			return
+		if e.compactionsRunning() {
+			return // If we're currently running compactions then we're done.
 		}
-		e.compactionsEnabled = true
 
+		// Compactions are not running, but they might be in the process of
+		// stopping. We should block until all the compactors have returned and
+		// we're done waiting on the waitgroup.
+		<-e.notifyDone()
+
+		e.mu.Lock()
+		e.compRunning = true
 		e.done = make(chan struct{})
 		e.Compactor.Open()
-
 		e.mu.Unlock()
 
 		e.wg.Add(5)
@@ -168,17 +188,21 @@ func (e *Engine) SetCompactionsEnabled(enabled bool) {
 		go e.compactTSMLevel(true, 2)
 		go e.compactTSMLevel(false, 3)
 	} else {
-		e.mu.Lock()
-		if !e.compactionsEnabled {
-			e.mu.Unlock()
+		// If we have already stopped compactions then compactions have either
+		// stopped or are in the process of stopping.
+		if !e.compactionsRunning() {
+			// If we're in the process of stopping we should wait until compactions
+			// are stopped before returning to the caller.
+			<-e.notifyDone()
 			return
 		}
-		// Prevent new compactions from starting
-		e.compactionsEnabled = false
-		e.mu.Unlock()
 
+		// Block new calls to enable compactions.
+		e.mu.Lock()
+		e.compRunning = false
 		// Stop all background compaction goroutines
 		close(e.done)
+		e.mu.Unlock()
 
 		// Abort any running goroutines (this could take a while)
 		e.Compactor.Close()
@@ -271,6 +295,7 @@ func (e *Engine) Statistics(tags map[string]string) []models.Statistic {
 // Open opens and initializes the engine.
 func (e *Engine) Open() error {
 	e.done = make(chan struct{})
+	close(e.done) // Compactions will begin in a stopped state.
 
 	if err := os.MkdirAll(e.path, 0777); err != nil {
 		return err

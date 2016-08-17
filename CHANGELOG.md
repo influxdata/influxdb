@@ -15,6 +15,7 @@
 
 - [#1834](https://github.com/influxdata/influxdb/issues/1834): Drop time when used as a tag or field key.
 - [#7152](https://github.com/influxdata/influxdb/issues/7152): Decrement number of measurements only once when deleting the last series from a measurement.
+- [#7149](https://github.com/influxdata/influxdb/issues/7149): Fix a waitgroup race in TSM engine.
 
 ## v1.0.0 [unreleased]
 
