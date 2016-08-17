@@ -2464,7 +2464,7 @@ func (s *CreateContinuousQueryStatement) DefaultDatabase() string {
 
 // RequiredPrivileges returns the privilege required to execute a CreateContinuousQueryStatement.
 func (s *CreateContinuousQueryStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	ep := ExecutionPrivileges{{Admin: false, Name: s.Database, Privilege: ReadPrivilege}}
+	ep := ExecutionPrivileges{{Admin: false, Name: s.Database, Privilege: WritePrivilege}}
 
 	// Selecting into a database that's different from the source?
 	if s.Source.Target.Measurement.Database != "" {
