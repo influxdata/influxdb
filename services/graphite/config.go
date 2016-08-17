@@ -116,12 +116,12 @@ func (c *Config) WithDefaults() *Config {
 
 // DefaultTags returns the config's tags.
 func (c *Config) DefaultTags() models.Tags {
-	tags := models.Tags{}
+	m := make(map[string]string, len(c.Tags))
 	for _, t := range c.Tags {
 		parts := strings.Split(t, "=")
-		tags[parts[0]] = parts[1]
+		m[parts[0]] = parts[1]
 	}
-	return tags
+	return models.NewTags(m)
 }
 
 // Validate validates the config's templates and tags.

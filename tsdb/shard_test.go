@@ -47,7 +47,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 
 	pt := models.MustNewPoint(
 		"cpu",
-		map[string]string{"host": "server"},
+		models.Tags{{Key: []byte("host"), Value: []byte("server")}},
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
 	)
@@ -69,7 +69,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 		}
 
 		seriesTags := index.Series(string(pt.Key())).Tags
-		if len(seriesTags) != len(pt.Tags()) || pt.Tags()["host"] != seriesTags["host"] {
+		if len(seriesTags) != len(pt.Tags()) || pt.Tags().GetString("host") != seriesTags.GetString("host") {
 			t.Fatalf("tags weren't properly saved to series index: %v, %v", pt.Tags(), seriesTags)
 		}
 		if !reflect.DeepEqual(index.Measurement("cpu").TagKeys(), []string{"host"}) {
@@ -121,7 +121,7 @@ func TestMaxSeriesLimit(t *testing.T) {
 	for i := 0; i < 1000; i++ {
 		pt := models.MustNewPoint(
 			"cpu",
-			map[string]string{"host": fmt.Sprintf("server%d", i)},
+			models.Tags{{Key: []byte("host"), Value: []byte(fmt.Sprintf("server%d", i))}},
 			map[string]interface{}{"value": 1.0},
 			time.Unix(1, 2),
 		)
@@ -136,7 +136,7 @@ func TestMaxSeriesLimit(t *testing.T) {
 	// Writing one more series should exceed the series limit.
 	pt := models.MustNewPoint(
 		"cpu",
-		map[string]string{"host": "server9999"},
+		models.Tags{{Key: []byte("host"), Value: []byte("server9999")}},
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
 	)
@@ -169,7 +169,7 @@ func TestWriteTimeTag(t *testing.T) {
 
 	pt := models.MustNewPoint(
 		"cpu",
-		map[string]string{},
+		models.NewTags(map[string]string{}),
 		map[string]interface{}{"time": 1.0},
 		time.Unix(1, 2),
 	)
@@ -189,7 +189,7 @@ func TestWriteTimeTag(t *testing.T) {
 
 	pt = models.MustNewPoint(
 		"cpu",
-		map[string]string{},
+		models.NewTags(map[string]string{}),
 		map[string]interface{}{"value": 1.0, "time": 1.0},
 		time.Unix(1, 2),
 	)
@@ -230,7 +230,7 @@ func TestWriteTimeField(t *testing.T) {
 
 	pt := models.MustNewPoint(
 		"cpu",
-		map[string]string{"time": "now"},
+		models.NewTags(map[string]string{"time": "now"}),
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
 	)
@@ -270,7 +270,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 
 	pt := models.MustNewPoint(
 		"cpu",
-		map[string]string{"host": "server"},
+		models.NewTags(map[string]string{"host": "server"}),
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
 	)
@@ -282,7 +282,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 
 	pt = models.MustNewPoint(
 		"cpu",
-		map[string]string{"host": "server"},
+		models.NewTags(map[string]string{"host": "server"}),
 		map[string]interface{}{"value": 1.0, "value2": 2.0},
 		time.Unix(1, 2),
 	)
@@ -296,7 +296,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 		t.Fatalf("series wasn't in index")
 	}
 	seriesTags := index.Series(string(pt.Key())).Tags
-	if len(seriesTags) != len(pt.Tags()) || pt.Tags()["host"] != seriesTags["host"] {
+	if len(seriesTags) != len(pt.Tags()) || pt.Tags().GetString("host") != seriesTags.GetString("host") {
 		t.Fatalf("tags weren't properly saved to series index: %v, %v", pt.Tags(), seriesTags)
 	}
 	if !reflect.DeepEqual(index.Measurement("cpu").TagKeys(), []string{"host"}) {
@@ -328,7 +328,7 @@ func TestShard_Close_RemoveIndex(t *testing.T) {
 
 	pt := models.MustNewPoint(
 		"cpu",
-		map[string]string{"host": "server"},
+		models.NewTags(map[string]string{"host": "server"}),
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
 	)
@@ -521,7 +521,7 @@ func TestShard_Disabled_WriteQuery(t *testing.T) {
 
 	pt := models.MustNewPoint(
 		"cpu",
-		map[string]string{"host": "server"},
+		models.NewTags(map[string]string{"host": "server"}),
 		map[string]interface{}{"value": 1.0},
 		time.Unix(1, 2),
 	)

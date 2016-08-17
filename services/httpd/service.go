@@ -192,7 +192,7 @@ func (s *Service) Addr() net.Addr {
 
 // Statistics returns statistics for periodic monitoring.
 func (s *Service) Statistics(tags map[string]string) []models.Statistic {
-	return s.Handler.Statistics(models.Tags{"bind": s.addr}.Merge(tags))
+	return s.Handler.Statistics(models.NewTags(map[string]string{"bind": s.addr}).Merge(tags).Map())
 }
 
 // serveTCP serves the handler from the TCP listener.

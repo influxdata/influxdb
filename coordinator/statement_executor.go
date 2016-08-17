@@ -818,7 +818,7 @@ func (e *StatementExecutor) executeShowStatsStatement(stmt *influxql.ShowStatsSt
 		if stmt.Module != "" && stat.Name != stmt.Module {
 			continue
 		}
-		row := &models.Row{Name: stat.Name, Tags: stat.Tags}
+		row := &models.Row{Name: stat.Name, Tags: stat.Tags.Map()}
 
 		values := make([]interface{}, 0, len(stat.Values))
 		for _, k := range stat.ValueNames() {
@@ -1055,7 +1055,7 @@ func convertRowToPoints(measurementName string, row *models.Row) ([]models.Point
 			}
 		}
 
-		p, err := models.NewPoint(measurementName, row.Tags, vals, v[timeIndex].(time.Time))
+		p, err := models.NewPoint(measurementName, models.NewTags(row.Tags), vals, v[timeIndex].(time.Time))
 		if err != nil {
 			// Drop points that can't be stored
 			continue

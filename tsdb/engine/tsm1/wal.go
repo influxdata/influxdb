@@ -144,7 +144,7 @@ type WALStatistics struct {
 func (l *WAL) Statistics(tags map[string]string) []models.Statistic {
 	return []models.Statistic{{
 		Name: "tsm1_wal",
-		Tags: tags,
+		Tags: models.NewTags(tags),
 		Values: map[string]interface{}{
 			statWALOldBytes:     atomic.LoadInt64(&l.stats.OldBytes),
 			statWALCurrentBytes: atomic.LoadInt64(&l.stats.CurrentBytes),

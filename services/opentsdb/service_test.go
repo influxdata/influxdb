@@ -39,7 +39,7 @@ func TestService_Telnet(t *testing.T) {
 		} else if !reflect.DeepEqual(points, []models.Point{
 			models.MustNewPoint(
 				"sys.cpu.user",
-				map[string]string{"host": "webserver01", "cpu": "0"},
+				models.NewTags(map[string]string{"host": "webserver01", "cpu": "0"}),
 				map[string]interface{}{"value": 42.5},
 				time.Unix(1356998400, 0),
 			),
@@ -101,7 +101,7 @@ func TestService_HTTP(t *testing.T) {
 		} else if !reflect.DeepEqual(points, []models.Point{
 			models.MustNewPoint(
 				"sys.cpu.nice",
-				map[string]string{"dc": "lga", "host": "web01"},
+				models.NewTags(map[string]string{"dc": "lga", "host": "web01"}),
 				map[string]interface{}{"value": 18.0},
 				time.Unix(1346846400, 0),
 			),

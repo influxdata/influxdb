@@ -562,7 +562,7 @@ func (p *Point) MarshalJSON() ([]byte, error) {
 // MarshalString renders string representation of a Point with specified
 // precision. The default precision is nanoseconds.
 func (p *Point) MarshalString() string {
-	pt, err := models.NewPoint(p.Measurement, p.Tags, p.Fields, p.Time)
+	pt, err := models.NewPoint(p.Measurement, models.NewTags(p.Tags), p.Fields, p.Time)
 	if err != nil {
 		return "# ERROR: " + err.Error() + " " + p.Measurement
 	}

@@ -356,7 +356,7 @@ func NewPoint(
 		T = t[0]
 	}
 
-	pt, err := models.NewPoint(name, tags, fields, T)
+	pt, err := models.NewPoint(name, models.NewTags(tags), fields, T)
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +382,7 @@ func (p *Point) Name() string {
 
 // Tags returns the tags associated with the point
 func (p *Point) Tags() map[string]string {
-	return p.pt.Tags()
+	return p.pt.Tags().Map()
 }
 
 // Time return the timestamp for the point

@@ -71,7 +71,7 @@ func NewService(c Config) *Service {
 		batcher:    tsdb.NewPointBatcher(d.BatchSize, d.BatchPending, time.Duration(d.BatchTimeout)),
 		Logger:     log.New(os.Stderr, "[udp] ", log.LstdFlags),
 		stats:      &Statistics{},
-		statTags:   map[string]string{"bind": d.BindAddress},
+		statTags:   models.NewTags(map[string]string{"bind": d.BindAddress}),
 	}
 }
 

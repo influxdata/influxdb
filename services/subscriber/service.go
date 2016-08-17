@@ -130,7 +130,7 @@ type Statistics struct {
 func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 	statistics := []models.Statistic{{
 		Name: "subscriber",
-		Tags: tags,
+		Tags: models.NewTags(tags),
 		Values: map[string]interface{}{
 			statPointsWritten: atomic.LoadInt64(&s.stats.PointsWritten),
 			statWriteFailures: atomic.LoadInt64(&s.stats.WriteFailures),
@@ -415,13 +415,13 @@ func (b *balancewriter) WritePoints(p *coordinator.WritePointsRequest) error {
 
 // Statistics returns statistics for periodic monitoring.
 func (b *balancewriter) Statistics(tags map[string]string) []models.Statistic {
-	tags = models.Tags(tags).Merge(b.tags)
+	tags = models.NewTags(tags).Merge(b.tags).Map()
 
 	statistics := make([]models.Statistic, len(b.stats))
 	for i := range b.stats {
 		statistics[i] = models.Statistic{
 			Name: "subscriber",
-			Tags: models.Tags(tags).Merge(map[string]string{"destination": b.stats[i].dest}),
+			Tags: models.NewTags(tags).Merge(map[string]string{"destination": b.stats[i].dest}),
 			Values: map[string]interface{}{
 				statPointsWritten: atomic.LoadInt64(&b.stats[i].pointsWritten),
 				statWriteFailures: atomic.LoadInt64(&b.stats[i].failures),

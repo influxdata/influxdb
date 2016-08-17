@@ -132,7 +132,7 @@ func (c *cmdExport) writeFiles() error {
 				for i := 0; i < reader.KeyCount(); i++ {
 					var pairs string
 					key, typ := reader.KeyAt(i)
-					values, _ := reader.ReadAll(key)
+					values, _ := reader.ReadAll(string(key))
 					measurement, field := tsm1.SeriesAndFieldFromCompositeKey(key)
 
 					for _, value := range values {

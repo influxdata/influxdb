@@ -139,14 +139,14 @@ func ParsePointsString(buf string) ([]Point, error) {
 }
 
 // ParseKey returns the measurement name and tags from a point.
-func ParseKey(buf string) (string, Tags, error) {
+func ParseKey(buf []byte) (string, Tags, error) {
 	// Ignore the error because scanMeasurement returns "missing fields" which we ignore
 	// when just parsing a key
-	state, i, _ := scanMeasurement([]byte(buf), 0)
+	state, i, _ := scanMeasurement(buf, 0)
 
 	var tags Tags
 	if state == tagKeyState {
-		tags = parseTags([]byte(buf))
+		tags = parseTags(buf)
 		// scanMeasurement returns the location of the comma if there are tags, strip that off
 		return string(buf[:i-1]), tags, nil
 	}
@@ -1225,39 +1225,42 @@ func (p *point) Tags() Tags {
 }
 
 func parseTags(buf []byte) Tags {
-	tags := make(map[string]string, bytes.Count(buf, []byte(",")))
+	if len(buf) == 0 {
+		return nil
+	}
+
+	pos, name := scanTo(buf, 0, ',')
+
+	// it's an empty key, so there are no tags
+	if len(name) == 0 {
+		return nil
+	}
+
+	tags := make(Tags, 0, bytes.Count(buf, []byte(",")))
 	hasEscape := bytes.IndexByte(buf, '\\') != -1
 
-	if len(buf) != 0 {
-		pos, name := scanTo(buf, 0, ',')
+	i := pos + 1
+	var key, value []byte
+	for {
+		if i >= len(buf) {
+			break
+		}
+		i, key = scanTo(buf, i, '=')
+		i, value = scanTagValue(buf, i+1)
 
-		// it's an empyt key, so there are no tags
-		if len(name) == 0 {
-			return tags
+		if len(value) == 0 {
+			continue
 		}
 
-		i := pos + 1
-		var key, value []byte
-		for {
-			if i >= len(buf) {
-				break
-			}
-			i, key = scanTo(buf, i, '=')
-			i, value = scanTagValue(buf, i+1)
-
-			if len(value) == 0 {
-				continue
-			}
-
-			if hasEscape {
-				tags[string(unescapeTag(key))] = string(unescapeTag(value))
-			} else {
-				tags[string(key)] = string(value)
-			}
-
-			i++
+		if hasEscape {
+			tags = append(tags, Tag{Key: unescapeTag(key), Value: unescapeTag(value)})
+		} else {
+			tags = append(tags, Tag{Key: key, Value: value})
 		}
+
+		i++
 	}
+
 	return tags
 }
 
@@ -1276,7 +1279,8 @@ func (p *point) SetTags(tags Tags) {
 // AddTag adds or replaces a tag value for a point
 func (p *point) AddTag(key, value string) {
 	tags := p.Tags()
-	tags[key] = value
+	tags = append(tags, Tag{Key: []byte(key), Value: []byte(value)})
+	sort.Sort(tags)
 	p.key = MakeKey([]byte(p.Name()), tags)
 }
 
@@ -1386,64 +1390,137 @@ func (p *point) UnixNano() int64 {
 	return p.Time().UnixNano()
 }
 
-// Tags represents a mapping between a Point's tag names and their
-// values.
-type Tags map[string]string
+// Tag represents a single key/value tag pair.
+type Tag struct {
+	Key   []byte
+	Value []byte
+}
+
+// Tags represents a sorted list of tags.
+type Tags []Tag
+
+// NewTags returns a new Tags from a map.
+func NewTags(m map[string]string) Tags {
+	a := make(Tags, 0, len(m))
+	for k, v := range m {
+		a = append(a, Tag{Key: []byte(k), Value: []byte(v)})
+	}
+	sort.Sort(a)
+	return a
+}
+
+func (a Tags) Len() int           { return len(a) }
+func (a Tags) Less(i, j int) bool { return bytes.Compare(a[i].Key, a[j].Key) == -1 }
+func (a Tags) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// Get returns the value for a key.
+func (a Tags) Get(key []byte) []byte {
+	// OPTIMIZE: Use sort.Search if tagset is large.
+
+	for _, t := range a {
+		if bytes.Equal(t.Key, key) {
+			return t.Value
+		}
+	}
+	return nil
+}
+
+// GetString returns the string value for a string key.
+func (a Tags) GetString(key string) string {
+	return string(a.Get([]byte(key)))
+}
+
+// Set sets the value for a key.
+func (a *Tags) Set(key, value []byte) {
+	for _, t := range *a {
+		if bytes.Equal(t.Key, key) {
+			t.Value = value
+			return
+		}
+	}
+	*a = append(*a, Tag{Key: key, Value: value})
+	sort.Sort(*a)
+}
+
+// SetString sets the string value for a string key.
+func (a *Tags) SetString(key, value string) {
+	a.Set([]byte(key), []byte(value))
+}
+
+// Delete removes a tag by key.
+func (a *Tags) Delete(key []byte) {
+	for i, t := range *a {
+		if bytes.Equal(t.Key, key) {
+			copy((*a)[i:], (*a)[i+1:])
+			(*a)[len(*a)-1] = Tag{}
+			*a = (*a)[:len(*a)-1]
+			return
+		}
+	}
+}
+
+// Map returns a map representation of the tags.
+func (a Tags) Map() map[string]string {
+	m := make(map[string]string, len(a))
+	for _, t := range a {
+		m[string(t.Key)] = string(t.Value)
+	}
+	return m
+}
 
 // Merge merges the tags combining the two. If both define a tag with the
 // same key, the merged value overwrites the old value.
 // A new map is returned.
-func (t Tags) Merge(other map[string]string) Tags {
-	merged := make(map[string]string, len(t)+len(other))
-	for k, v := range t {
-		merged[k] = v
+func (a Tags) Merge(other map[string]string) Tags {
+	merged := make(map[string]string, len(a)+len(other))
+	for _, t := range a {
+		merged[string(t.Key)] = string(t.Value)
 	}
 	for k, v := range other {
 		merged[k] = v
 	}
-	return Tags(merged)
+	return NewTags(merged)
 }
 
 // HashKey hashes all of a tag's keys.
-func (t Tags) HashKey() []byte {
+func (a Tags) HashKey() []byte {
 	// Empty maps marshal to empty bytes.
-	if len(t) == 0 {
+	if len(a) == 0 {
 		return nil
 	}
 
-	escaped := Tags{}
-	for k, v := range t {
-		ek := escapeTag([]byte(k))
-		ev := escapeTag([]byte(v))
+	escaped := make(Tags, 0, len(a))
+	for _, t := range a {
+		ek := escapeTag(t.Key)
+		ev := escapeTag(t.Value)
 
 		if len(ev) > 0 {
-			escaped[string(ek)] = string(ev)
+			escaped = append(escaped, Tag{Key: ek, Value: ev})
 		}
 	}
 
 	// Extract keys and determine final size.
 	sz := len(escaped) + (len(escaped) * 2) // separators
-	keys := make([]string, len(escaped)+1)
-	i := 0
-	for k, v := range escaped {
-		keys[i] = k
-		i++
-		sz += len(k) + len(v)
+	keys := make([][]byte, len(escaped)+1)
+	for i, t := range escaped {
+		keys[i] = t.Key
+		sz += len(t.Key) + len(t.Value)
 	}
-	keys = keys[:i]
-	sort.Strings(keys)
+	keys = keys[:len(escaped)]
+	sort.Sort(byteSlices(keys))
+
 	// Generate marshaled bytes.
 	b := make([]byte, sz)
 	buf := b
 	idx := 0
-	for _, k := range keys {
+	for i, k := range keys {
 		buf[idx] = ','
 		idx++
 		copy(buf[idx:idx+len(k)], k)
 		idx += len(k)
 		buf[idx] = '='
 		idx++
-		v := escaped[k]
+		v := escaped[i].Value
 		copy(buf[idx:idx+len(v)], v)
 		idx += len(v)
 	}
@@ -1594,3 +1671,9 @@ func (p Fields) MarshalBinary() []byte {
 	}
 	return b
 }
+
+type byteSlices [][]byte
+
+func (a byteSlices) Len() int           { return len(a) }
+func (a byteSlices) Less(i, j int) bool { return bytes.Compare(a[i], a[j]) == -1 }
+func (a byteSlices) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
