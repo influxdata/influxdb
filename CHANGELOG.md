@@ -4,6 +4,27 @@
 
 ### Breaking changes
 
+* The Shard `writePointsFail` stat has been renamed to `writePointsErr` for consistency with other stats.
+
+### Features
+
+- [#7120](https://github.com/influxdata/influxdb/issues/7120): Add additional statistics to query executor.
+- [#7135](https://github.com/influxdata/influxdb/pull/7135): Support enable HTTP service over unix domain socket. Thanks @oiooj
+- [#3634](https://github.com/influxdata/influxdb/issues/3634): Support mixed duration units.
+- [#7099](https://github.com/influxdata/influxdb/pull/7099): Implement text/csv content encoding for the response writer.
+- [#6992](https://github.com/influxdata/influxdb/issues/6992): Support tools for running async queries.
+- [#7136](https://github.com/influxdata/influxdb/pull/7136): Update jwt-go dependency to version 3.
+- [#7172](https://github.com/influxdata/influxdb/pull/7172): Write path stats
+
+### Bugfixes
+
+- [#1834](https://github.com/influxdata/influxdb/issues/1834): Drop time when used as a tag or field key.
+- [#7152](https://github.com/influxdata/influxdb/issues/7152): Decrement number of measurements only once when deleting the last series from a measurement.
+
+## v1.0.0 [unreleased]
+
+### Breaking changes
+
 * `max-series-per-database` was added with a default of 1M but can be disabled by setting it to `0`. Existing databases with series that exceed this limit will continue to load but writes that would create new series will fail.
 * Config option `[cluster]` has been replaced with `[coordinator]`
 * Support for config options `[collectd]` and `[opentsdb]` has been removed; use `[[collectd]]` and `[[opentsdb]]` instead.
