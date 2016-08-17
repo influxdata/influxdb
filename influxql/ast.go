@@ -2589,7 +2589,7 @@ func (s *DropMeasurementStatement) String() string {
 
 // RequiredPrivileges returns the privilege(s) required to execute a DropMeasurementStatement
 func (s *DropMeasurementStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: WritePrivilege}}, nil
 }
 
 // ShowQueriesStatement represents a command for listing all running queries.
