@@ -24,13 +24,15 @@ import (
 const monitorStatInterval = 30 * time.Second
 
 const (
-	statWriteReq        = "writeReq"
-	statSeriesCreate    = "seriesCreate"
-	statFieldsCreate    = "fieldsCreate"
-	statWritePointsFail = "writePointsFail"
-	statWritePointsOK   = "writePointsOk"
-	statWriteBytes      = "writeBytes"
-	statDiskBytes       = "diskBytes"
+	statWriteReq       = "writeReq"
+	statWriteReqOK     = "writeReqOk"
+	statWriteReqErr    = "writeReqErr"
+	statSeriesCreate   = "seriesCreate"
+	statFieldsCreate   = "fieldsCreate"
+	statWritePointsErr = "writePointsErr"
+	statWritePointsOK  = "writePointsOk"
+	statWriteBytes     = "writeBytes"
+	statDiskBytes      = "diskBytes"
 )
 
 var (
@@ -163,13 +165,15 @@ func (s *Shard) SetEnabled(enabled bool) {
 
 // ShardStatistics maintains statistics for a shard.
 type ShardStatistics struct {
-	WriteReq        int64
-	SeriesCreated   int64
-	FieldsCreated   int64
-	WritePointsFail int64
-	WritePointsOK   int64
-	BytesWritten    int64
-	DiskBytes       int64
+	WriteReq       int64
+	WriteReqOK     int64
+	WriteReqErr    int64
+	SeriesCreated  int64
+	FieldsCreated  int64
+	WritePointsErr int64
+	WritePointsOK  int64
+	BytesWritten   int64
+	DiskBytes      int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -179,17 +183,19 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 	}
 
 	tags = s.statTags.Merge(tags).Map()
+	seriesN, _ := s.engine.SeriesCount()
 	statistics := []models.Statistic{{
 		Name: "shard",
 		Tags: models.NewTags(tags).Merge(map[string]string{"engine": s.options.EngineVersion}),
 		Values: map[string]interface{}{
-			statWriteReq:        atomic.LoadInt64(&s.stats.WriteReq),
-			statSeriesCreate:    atomic.LoadInt64(&s.stats.SeriesCreated),
-			statFieldsCreate:    atomic.LoadInt64(&s.stats.FieldsCreated),
-			statWritePointsFail: atomic.LoadInt64(&s.stats.WritePointsFail),
-			statWritePointsOK:   atomic.LoadInt64(&s.stats.WritePointsOK),
-			statWriteBytes:      atomic.LoadInt64(&s.stats.BytesWritten),
-			statDiskBytes:       atomic.LoadInt64(&s.stats.DiskBytes),
+			statWriteReq:       atomic.LoadInt64(&s.stats.WriteReq),
+			statWriteReqOK:     atomic.LoadInt64(&s.stats.WriteReqOK),
+			statWriteReqErr:    atomic.LoadInt64(&s.stats.WriteReqErr),
+			statSeriesCreate:   seriesN,
+			statWritePointsErr: atomic.LoadInt64(&s.stats.WritePointsErr),
+			statWritePointsOK:  atomic.LoadInt64(&s.stats.WritePointsOK),
+			statWriteBytes:     atomic.LoadInt64(&s.stats.BytesWritten),
+			statDiskBytes:      atomic.LoadInt64(&s.stats.DiskBytes),
 		},
 	}}
 	statistics = append(statistics, s.engine.Statistics(tags)...)
@@ -367,10 +373,12 @@ func (s *Shard) WritePoints(points []models.Point) error {
 
 	// Write to the engine.
 	if err := s.engine.WritePoints(points); err != nil {
-		atomic.AddInt64(&s.stats.WritePointsFail, 1)
+		atomic.AddInt64(&s.stats.WritePointsErr, int64(len(points)))
+		atomic.AddInt64(&s.stats.WriteReqErr, 1)
 		return fmt.Errorf("engine: %s", err)
 	}
 	atomic.AddInt64(&s.stats.WritePointsOK, int64(len(points)))
+	atomic.AddInt64(&s.stats.WriteReqOK, 1)
 
 	return nil
 }
