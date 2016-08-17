@@ -36,77 +36,77 @@ func BenchmarkMarshal(b *testing.B) {
 }
 
 func BenchmarkParsePointNoTags(b *testing.B) {
-	line := `cpu value=1i 1000000000`
+	line := []byte(`cpu value=1i 1000000000`)
 	for i := 0; i < b.N; i++ {
-		models.ParsePoints([]byte(line))
+		models.ParsePoints(line)
 		b.SetBytes(int64(len(line)))
 	}
 }
 
 func BenchmarkParsePointWithPrecisionN(b *testing.B) {
-	line := `cpu value=1i 1000000000`
+	line := []byte(`cpu value=1i 1000000000`)
 	defaultTime := time.Now().UTC()
 	for i := 0; i < b.N; i++ {
-		models.ParsePointsWithPrecision([]byte(line), defaultTime, "n")
+		models.ParsePointsWithPrecision(line, defaultTime, "n")
 		b.SetBytes(int64(len(line)))
 	}
 }
 
 func BenchmarkParsePointWithPrecisionU(b *testing.B) {
-	line := `cpu value=1i 1000000000`
+	line := []byte(`cpu value=1i 1000000000`)
 	defaultTime := time.Now().UTC()
 	for i := 0; i < b.N; i++ {
-		models.ParsePointsWithPrecision([]byte(line), defaultTime, "u")
+		models.ParsePointsWithPrecision(line, defaultTime, "u")
 		b.SetBytes(int64(len(line)))
 	}
 }
 
 func BenchmarkParsePointsTagsSorted2(b *testing.B) {
-	line := `cpu,host=serverA,region=us-west value=1i 1000000000`
+	line := []byte(`cpu,host=serverA,region=us-west value=1i 1000000000`)
 	for i := 0; i < b.N; i++ {
-		models.ParsePoints([]byte(line))
+		models.ParsePoints(line)
 		b.SetBytes(int64(len(line)))
 	}
 }
 
 func BenchmarkParsePointsTagsSorted5(b *testing.B) {
-	line := `cpu,env=prod,host=serverA,region=us-west,target=servers,zone=1c value=1i 1000000000`
+	line := []byte(`cpu,env=prod,host=serverA,region=us-west,target=servers,zone=1c value=1i 1000000000`)
 	for i := 0; i < b.N; i++ {
-		models.ParsePoints([]byte(line))
+		models.ParsePoints(line)
 		b.SetBytes(int64(len(line)))
 	}
 }
 
 func BenchmarkParsePointsTagsSorted10(b *testing.B) {
-	line := `cpu,env=prod,host=serverA,region=us-west,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5,target=servers,zone=1c value=1i 1000000000`
+	line := []byte(`cpu,env=prod,host=serverA,region=us-west,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5,target=servers,zone=1c value=1i 1000000000`)
 	for i := 0; i < b.N; i++ {
-		models.ParsePoints([]byte(line))
+		models.ParsePoints(line)
 		b.SetBytes(int64(len(line)))
 	}
 }
 
 func BenchmarkParsePointsTagsUnSorted2(b *testing.B) {
-	line := `cpu,region=us-west,host=serverA value=1i 1000000000`
+	line := []byte(`cpu,region=us-west,host=serverA value=1i 1000000000`)
 	for i := 0; i < b.N; i++ {
-		pt, _ := models.ParsePoints([]byte(line))
+		pt, _ := models.ParsePoints(line)
 		b.SetBytes(int64(len(line)))
 		pt[0].Key()
 	}
 }
 
 func BenchmarkParsePointsTagsUnSorted5(b *testing.B) {
-	line := `cpu,region=us-west,host=serverA,env=prod,target=servers,zone=1c value=1i 1000000000`
+	line := []byte(`cpu,region=us-west,host=serverA,env=prod,target=servers,zone=1c value=1i 1000000000`)
 	for i := 0; i < b.N; i++ {
-		pt, _ := models.ParsePoints([]byte(line))
+		pt, _ := models.ParsePoints(line)
 		b.SetBytes(int64(len(line)))
 		pt[0].Key()
 	}
 }
 
 func BenchmarkParsePointsTagsUnSorted10(b *testing.B) {
-	line := `cpu,region=us-west,host=serverA,env=prod,target=servers,zone=1c,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5 value=1i 1000000000`
+	line := []byte(`cpu,region=us-west,host=serverA,env=prod,target=servers,zone=1c,tag1=value1,tag2=value2,tag3=value3,tag4=value4,tag5=value5 value=1i 1000000000`)
 	for i := 0; i < b.N; i++ {
-		pt, _ := models.ParsePoints([]byte(line))
+		pt, _ := models.ParsePoints(line)
 		b.SetBytes(int64(len(line)))
 		pt[0].Key()
 	}

@@ -16,15 +16,19 @@ import (
 )
 
 var (
-	measurementEscapeCodes = map[byte][]byte{
-		',': []byte(`\,`),
-		' ': []byte(`\ `),
+	measurementEscapeCodes = []struct {
+		unescaped, escaped []byte
+	}{
+		{[]byte(`,`), []byte(`\,`)},
+		{[]byte(` `), []byte(`\ `)},
 	}
 
-	tagEscapeCodes = map[byte][]byte{
-		',': []byte(`\,`),
-		' ': []byte(`\ `),
-		'=': []byte(`\=`),
+	tagEscapeCodes = []struct {
+		unescaped, escaped []byte
+	}{
+		{[]byte(`,`), []byte(`\,`)},
+		{[]byte(` `), []byte(`\ `)},
+		{[]byte(`=`), []byte(`\=`)},
 	}
 
 	ErrPointMustHaveAField  = errors.New("point without fields is unsupported")
@@ -249,7 +253,9 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 		pt.time = defaultTime
 		pt.SetPrecision(precision)
 	} else {
-		ts, err := strconv.ParseInt(string(ts), 10, 64)
+		// Use unsafeBytesToString here because a plain `string`
+		// conversion escapes to the heap (as of Go 1.6):
+		ts, err := strconv.ParseInt(unsafeBytesToString(ts), 10, 64)
 		if err != nil {
 			return nil, err
 		}
@@ -1022,24 +1028,37 @@ func scanFieldValue(buf []byte, i int) (int, []byte) {
 }
 
 func escapeMeasurement(in []byte) []byte {
-	for b, esc := range measurementEscapeCodes {
-		in = bytes.Replace(in, []byte{b}, esc, -1)
+	for _, x := range measurementEscapeCodes {
+		// This check avoids the "always make a copy" behavior of
+		// `bytes.Replace`:
+		if bytes.Count(in, x.unescaped) == 0 {
+			continue
+		}
+		in = bytes.Replace(in, x.unescaped, x.escaped, -1)
 	}
 	return in
 }
 
 func unescapeMeasurement(in []byte) []byte {
-	for b, esc := range measurementEscapeCodes {
-		in = bytes.Replace(in, esc, []byte{b}, -1)
+	for _, x := range measurementEscapeCodes {
+		// This check avoids the "always make a copy" behavior of
+		// `bytes.Replace`:
+		if bytes.Count(in, x.escaped) == 0 {
+			continue
+		}
+		in = bytes.Replace(in, x.escaped, x.unescaped, -1)
 	}
 	return in
 }
 
 func escapeTag(in []byte) []byte {
-	for b, esc := range tagEscapeCodes {
-		if bytes.IndexByte(in, b) != -1 {
-			in = bytes.Replace(in, []byte{b}, esc, -1)
+	for _, x := range tagEscapeCodes {
+		// This check avoids the "always make a copy" behavior of
+		// `bytes.Replace`:
+		if bytes.Count(in, x.unescaped) == 0 {
+			continue
 		}
+		in = bytes.Replace(in, x.unescaped, x.escaped, -1)
 	}
 	return in
 }
@@ -1049,10 +1068,13 @@ func unescapeTag(in []byte) []byte {
 		return in
 	}
 
-	for b, esc := range tagEscapeCodes {
-		if bytes.IndexByte(in, b) != -1 {
-			in = bytes.Replace(in, esc, []byte{b}, -1)
+	for _, x := range tagEscapeCodes {
+		// This check avoids the "always make a copy" behavior of
+		// `bytes.Replace`:
+		if bytes.Count(in, x.escaped) == 0 {
+			continue
 		}
+		in = bytes.Replace(in, x.escaped, x.unescaped, -1)
 	}
 	return in
 }
@@ -1411,42 +1433,50 @@ func (t Tags) HashKey() []byte {
 		return nil
 	}
 
-	escaped := Tags{}
+	escaped := flatTagsGetFromPool()
+	sz := 0
 	for k, v := range t {
-		ek := escapeTag([]byte(k))
-		ev := escapeTag([]byte(v))
+		// It's safe to call unsafeStringToBytes here because
+		// escapeTag will make a copy if changes need to be made,
+		// and the lifetime of the unsafe byte slice is constrained
+		// to be within this `HashKey` function:
+		ek := escapeTag(unsafeStringToBytes(k))
+		ev := escapeTag(unsafeStringToBytes(v))
 
 		if len(ev) > 0 {
-			escaped[string(ek)] = string(ev)
+			// track the sizes for later:
+			sz += len(ek) + len(ev)
+
+			// append this escaped key, value pair to the
+			// collection:
+			escaped.Append(ek, ev)
 		}
 	}
 
-	// Extract keys and determine final size.
-	sz := len(escaped) + (len(escaped) * 2) // separators
-	keys := make([]string, len(escaped)+1)
-	i := 0
-	for k, v := range escaped {
-		keys[i] = k
-		i++
-		sz += len(k) + len(v)
+	// sort the keys:
+	if !escaped.IsSorted() {
+		escaped.InsertionSort()
 	}
-	keys = keys[:i]
-	sort.Strings(keys)
+
+	// calculate additional size needed for separators:
+	sz += escaped.Len() + (escaped.Len() * 2)
+
 	// Generate marshaled bytes.
 	b := make([]byte, sz)
 	buf := b
 	idx := 0
-	for _, k := range keys {
+	for i := 0; i < escaped.Len(); i++ {
+		k, v := escaped.Get(i)
 		buf[idx] = ','
 		idx++
 		copy(buf[idx:idx+len(k)], k)
 		idx += len(k)
 		buf[idx] = '='
 		idx++
-		v := escaped[k]
 		copy(buf[idx:idx+len(v)], v)
 		idx += len(v)
 	}
+	flatTagsPutIntoPool(escaped)
 	return b[:idx]
 }
 
@@ -1457,18 +1487,26 @@ type Fields map[string]interface{}
 func parseNumber(val []byte) (interface{}, error) {
 	if val[len(val)-1] == 'i' {
 		val = val[:len(val)-1]
-		return strconv.ParseInt(string(val), 10, 64)
+		// This usage of unsafeBytesToString is safe because no
+		// references to it are kept by strconv.ParseInt nor do we
+		// return a reference:
+		return strconv.ParseInt(unsafeBytesToString(val), 10, 64)
 	}
 	for i := 0; i < len(val); i++ {
 		// If there is a decimal or an N (NaN), I (Inf), parse as float
 		if val[i] == '.' || val[i] == 'N' || val[i] == 'n' || val[i] == 'I' || val[i] == 'i' || val[i] == 'e' {
-			return strconv.ParseFloat(string(val), 64)
+			// This usage of unsafeBytesToString is safe
+			// because no references to it are kept by
+			// strconv.ParseFloat nor do we return a reference:
+			return strconv.ParseFloat(unsafeBytesToString(val), 64)
 		}
 		if val[i] < '0' && val[i] > '9' {
 			return string(val), nil
 		}
 	}
-	return strconv.ParseFloat(string(val), 64)
+	// This usage of unsafeBytesToString is safe because no references to
+	// it are kept by strconv.ParseFloat nor do we return a reference:
+	return strconv.ParseFloat(unsafeBytesToString(val), 64)
 }
 
 func newFieldsFromBinary(buf []byte) Fields {
@@ -1506,7 +1544,9 @@ func newFieldsFromBinary(buf []byte) Fields {
 
 				// Otherwise parse it as bool
 			} else {
-				value, err = strconv.ParseBool(string(valueBuf))
+				// This usage of unsafeBytesToString is safe because no references to
+				// it are kept by strconv.ParseBool nor do we return a reference:
+				value, err = strconv.ParseBool(unsafeBytesToString(valueBuf))
 				if err != nil {
 					panic(fmt.Sprintf("unable to parse bool value '%v': %v\n", string(valueBuf), err))
 				}
