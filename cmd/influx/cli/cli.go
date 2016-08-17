@@ -745,7 +745,7 @@ func interfaceToString(v interface{}) string {
 // Settings prints current settings
 func (c *CommandLine) Settings() {
 	w := new(tabwriter.Writer)
-	w.Init(os.Stdout, 0, 8, 1, '\t', 0)
+	w.Init(os.Stdout, 0, 1, 1, '\t', 0)
 	if c.Port > 0 {
 		fmt.Fprintf(w, "Host\t%s:%d\n", c.Host, c.Port)
 	} else {
