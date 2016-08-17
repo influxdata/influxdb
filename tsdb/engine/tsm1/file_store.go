@@ -647,13 +647,16 @@ func (f *FileStore) BlockCount(path string, idx int) int {
 
 // walkFiles calls fn for every files in filestore in parallel
 func (f *FileStore) walkFiles(fn func(f TSMFile) error) error {
+	// Copy the current TSM files to prevent a slow walker from
+	// blocking other operations.
 	f.mu.RLock()
-	defer f.mu.RUnlock()
+	files := make([]TSMFile, len(f.files))
+	copy(files, f.files)
+	f.mu.RUnlock()
 
 	// struct to hold the result of opening each reader in a goroutine
-
-	errC := make(chan error, len(f.files))
-	for _, f := range f.files {
+	errC := make(chan error, len(files))
+	for _, f := range files {
 		go func(tsm TSMFile) {
 			if err := fn(tsm); err != nil {
 				errC <- fmt.Errorf("file %s: %s", tsm.Path(), err)
