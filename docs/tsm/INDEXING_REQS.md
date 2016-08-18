@@ -17,20 +17,22 @@ Another issue that arises with high cardinality is slower startup times.  Startu
 1. The index must support finding all series by a measurement
 2. The index must support finding all series by a tag and value
 3. The index must support retrieving all tag keys
-4. The index must support retrieving all tag values by tag key
-5. The index must support the removal of measurements
-6. The index must support removal of series
-7. The index must support removal of tag keys and values
-8. The index must support finding all series by regex
-9. Updating the index for new series must not cause writes to block
-10. Queries and writes must not block each other
-11. The index must support point-in-time snapshots using the current shard backup and snapshotting mechanism (hard links)
+4. The index must support retrieve all tag keys by measurement
+5. The index must support retrieving all tag values by tag key
+6. The index must support retrieving all tag values by tag key and measurement
+7. The index must support the removal of measurements
+8. The index must support removal of series
+9. The index must support removal of tag keys and values
+10. The index must support finding all series by regex
+11. Updating the index for new series must not cause writes to block
+12. Queries and writes must not block each other
+13. The index must support point-in-time snapshots using the current shard backup and snapshotting mechanism (hard links)
 
 ### Performance
 
 1. The index must be able to support 1B+ series without exhausting RAM
-2. Startup times should must not exceed 5 mins
-3. Query planning must be <100ms
+2. Startup times should must not exceed 1 min
+3. Query planning must be <10ms
 4. The index should not significantly increase the total storage size of a shard.
 
 ### Reliability
