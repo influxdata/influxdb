@@ -472,7 +472,12 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	resp := Response{Results: make([]*influxql.Result, 0)}
 
 	// Status header is OK once this point is reached.
+	// Attempt to flush the header immediately so the client gets the header information
+	// and knows the query was accepted.
 	h.writeHeader(rw, http.StatusOK)
+	if w, ok := w.(http.Flusher); ok {
+		w.Flush()
+	}
 
 	// pull all results from the channel
 	rows := 0
@@ -492,7 +497,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 			n, _ := rw.WriteResponse(Response{
 				Results: []*influxql.Result{r},
 			})
-			atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(n+1))
+			atomic.AddInt64(&h.stats.QueryRequestBytesTransmitted, int64(n))
 			w.(http.Flusher).Flush()
 			continue
 		}
@@ -995,6 +1000,9 @@ func (w gzipResponseWriter) Write(b []byte) (int, error) {
 
 func (w gzipResponseWriter) Flush() {
 	w.Writer.(*gzip.Writer).Flush()
+	if w, ok := w.ResponseWriter.(http.Flusher); ok {
+		w.Flush()
+	}
 }
 
 func (w gzipResponseWriter) CloseNotify() <-chan bool {
