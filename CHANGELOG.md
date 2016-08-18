@@ -2,6 +2,10 @@
 
 ### Release Notes
 
+### Breaking changes
+
+* The Shard `writePointsFail` stat has been renamed to `writePointsErr` for consistency with other stats.
+
 ### Features
 
 - [#7120](https://github.com/influxdata/influxdb/issues/7120): Add additional statistics to query executor.
@@ -10,6 +14,7 @@
 - [#7099](https://github.com/influxdata/influxdb/pull/7099): Implement text/csv content encoding for the response writer.
 - [#6992](https://github.com/influxdata/influxdb/issues/6992): Support tools for running async queries.
 - [#7136](https://github.com/influxdata/influxdb/pull/7136): Update jwt-go dependency to version 3.
+- [#7172](https://github.com/influxdata/influxdb/pull/7172): Write path stats
 
 ### Bugfixes
 

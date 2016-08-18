@@ -116,6 +116,9 @@ const (
 
 	statCachedBytes         = "cachedBytes"         // counter: Total number of bytes written into snapshots.
 	statWALCompactionTimeMs = "WALCompactionTimeMs" // counter: Total number of milliseconds spent compacting snapshots
+
+	writeOK  = "writeOk"
+	writeErr = "writeErr"
 )
 
 // Cache maintains an in-memory store of Values for a set of keys.
@@ -165,6 +168,8 @@ type CacheStatistics struct {
 	CacheAgeMs          int64
 	CachedBytes         int64
 	WALCompactionTimeMs int64
+	WriteOK             int64
+	WriteErr            int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -193,6 +198,7 @@ func (c *Cache) Write(key string, values []Value) error {
 	newSize := c.size + uint64(addedSize)
 	if c.maxSize > 0 && newSize+c.snapshotSize > c.maxSize {
 		c.mu.Unlock()
+		atomic.AddInt64(&c.stats.WriteErr, 1)
 		return ErrCacheMemoryExceeded
 	}
 
@@ -202,6 +208,7 @@ func (c *Cache) Write(key string, values []Value) error {
 
 	// Update the memory size stat
 	c.updateMemSize(int64(addedSize))
+	atomic.AddInt64(&c.stats.WriteOK, 1)
 
 	return nil
 }
@@ -219,6 +226,7 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	newSize := c.size + uint64(totalSz)
 	if c.maxSize > 0 && newSize+c.snapshotSize > c.maxSize {
 		c.mu.RUnlock()
+		atomic.AddInt64(&c.stats.WriteErr, 1)
 		return ErrCacheMemoryExceeded
 	}
 	c.mu.RUnlock()
@@ -232,6 +240,7 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 
 	// Update the memory size stat
 	c.updateMemSize(int64(totalSz))
+	atomic.AddInt64(&c.stats.WriteOK, 1)
 
 	return nil
 }
@@ -378,6 +387,7 @@ func (c *Cache) DeleteRange(keys []string, min, max int64) {
 
 		c.size -= uint64(origSize - e.size())
 	}
+	atomic.StoreInt64(&c.stats.MemSizeBytes, int64(c.size))
 }
 
 func (c *Cache) SetMaxSize(size uint64) {
