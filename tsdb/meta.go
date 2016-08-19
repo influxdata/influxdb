@@ -55,9 +55,12 @@ type IndexStatistics struct {
 
 // Statistics returns statistics for periodic monitoring.
 func (d *DatabaseIndex) Statistics(tags map[string]string) []models.Statistic {
+	if _, ok := tags["database"]; !ok {
+		tags["database"] = d.name
+	}
 	return []models.Statistic{{
 		Name: "database",
-		Tags: models.NewTags(map[string]string{"database": d.name}).Merge(tags),
+		Tags: tags,
 		Values: map[string]interface{}{
 			statDatabaseSeries:       atomic.LoadInt64(&d.stats.NumSeries),
 			statDatabaseMeasurements: atomic.LoadInt64(&d.stats.NumMeasurements),

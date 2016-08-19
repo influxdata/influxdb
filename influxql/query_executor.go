@@ -148,7 +148,7 @@ type QueryStatistics struct {
 func (e *QueryExecutor) Statistics(tags map[string]string) []models.Statistic {
 	return []models.Statistic{{
 		Name: "queryExecutor",
-		Tags: models.NewTags(tags),
+		Tags: tags,
 		Values: map[string]interface{}{
 			statQueriesActive:          atomic.LoadInt64(&e.stats.ActiveQueries),
 			statQueriesExecuted:        atomic.LoadInt64(&e.stats.ExecutedQueries),

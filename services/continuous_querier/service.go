@@ -147,7 +147,7 @@ type Statistics struct {
 func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 	return []models.Statistic{{
 		Name: "cq",
-		Tags: models.NewTags(tags),
+		Tags: tags,
 		Values: map[string]interface{}{
 			statQueryOK:   atomic.LoadInt64(&s.stats.QueryOK),
 			statQueryFail: atomic.LoadInt64(&s.stats.QueryFail),

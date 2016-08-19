@@ -215,7 +215,7 @@ type FileStoreStatistics struct {
 func (f *FileStore) Statistics(tags map[string]string) []models.Statistic {
 	return []models.Statistic{{
 		Name: "tsm1_filestore",
-		Tags: models.NewTags(tags),
+		Tags: tags,
 		Values: map[string]interface{}{
 			statFileStoreBytes: atomic.LoadInt64(&f.stats.DiskBytes),
 			statFileStoreCount: atomic.LoadInt64(&f.stats.FileCount),

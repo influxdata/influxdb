@@ -249,7 +249,7 @@ func (e *Engine) Statistics(tags map[string]string) []models.Statistic {
 	statistics := make([]models.Statistic, 0, 4)
 	statistics = append(statistics, models.Statistic{
 		Name: "tsm1_engine",
-		Tags: models.NewTags(tags),
+		Tags: tags,
 		Values: map[string]interface{}{
 			statCacheCompactions:            atomic.LoadInt64(&e.stats.CacheCompactions),
 			statCacheCompactionDuration:     atomic.LoadInt64(&e.stats.CacheCompactionDuration),

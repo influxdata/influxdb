@@ -1,7 +1,6 @@
 package monitor // import "github.com/influxdata/influxdb/monitor"
 
 import (
-	"bytes"
 	"errors"
 	"expvar"
 	"fmt"
@@ -218,7 +217,7 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 
 		// Add any supplied tags.
 		for k, v := range tags {
-			statistic.Tags.SetString(k, v)
+			statistic.Tags[k] = v
 		}
 
 		// Every other top-level expvar value is a map.
@@ -241,7 +240,7 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 					if err != nil {
 						return
 					}
-					statistic.Tags.SetString(t.Key, u)
+					statistic.Tags[t.Key] = u
 				})
 			case "values":
 				// string-interface map.
@@ -286,7 +285,7 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 
 	// Add any supplied tags to Go memstats
 	for k, v := range tags {
-		statistic.Tags.SetString(k, v)
+		statistic.Tags[k] = v
 	}
 
 	var rt runtime.MemStats
@@ -311,7 +310,7 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 	statistics = append(statistics, statistic)
 
 	statistics = m.gatherStatistics(statistics, tags)
-	sort.Sort(Statistics(statistics))
+	sort.Sort(Statistics(statistics)) // Unstable sort.
 
 	return statistics, nil
 }
@@ -421,7 +420,7 @@ func (m *Monitor) storeStatistics() {
 
 			points := make(models.Points, 0, len(stats))
 			for _, s := range stats {
-				pt, err := models.NewPoint(s.Name, s.Tags, s.Values, now)
+				pt, err := models.NewPoint(s.Name, models.NewTags(s.Tags), s.Values, now)
 				if err != nil {
 					m.Logger.Printf("Dropping point %v: %v", s.Name, err)
 					return
@@ -463,10 +462,7 @@ type Statistics []*Statistic
 
 func (a Statistics) Len() int { return len(a) }
 func (a Statistics) Less(i, j int) bool {
-	if a[i].Name != a[j].Name {
-		return a[i].Name < a[j].Name
-	}
-	return bytes.Compare(a[i].Tags.HashKey(), a[j].Tags.HashKey()) < 0
+	return a[i].Name < a[j].Name
 }
 func (a Statistics) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 

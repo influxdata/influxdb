@@ -2,6 +2,6 @@ package models
 
 type Statistic struct {
 	Name   string                 `json:"name"`
-	Tags   Tags                   `json:"tags"`
+	Tags   map[string]string      `json:"tags"`
 	Values map[string]interface{} `json:"values"`
 }

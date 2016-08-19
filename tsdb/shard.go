@@ -97,7 +97,7 @@ type Shard struct {
 
 	// expvar-based stats.
 	stats    *ShardStatistics
-	statTags models.Tags
+	statTags map[string]string
 
 	logger *log.Logger
 	// used by logger. Referenced so it can be passed down to new caches.
@@ -118,12 +118,13 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 		closing: make(chan struct{}),
 
 		stats: &ShardStatistics{},
-		statTags: models.NewTags(map[string]string{
+		statTags: map[string]string{
 			"path":            path,
 			"id":              fmt.Sprintf("%d", id),
 			"database":        db,
 			"retentionPolicy": rp,
-		}),
+			"engine":          options.EngineVersion,
+		},
 
 		database:        db,
 		retentionPolicy: rp,
@@ -178,10 +179,16 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 		return nil
 	}
 
-	tags = s.statTags.Merge(tags).Map()
+	// Insert any missing default tag values.
+	for k, v := range s.statTags {
+		if _, ok := tags[k]; !ok {
+			tags[k] = v
+		}
+	}
+
 	statistics := []models.Statistic{{
 		Name: "shard",
-		Tags: models.NewTags(tags).Merge(map[string]string{"engine": s.options.EngineVersion}),
+		Tags: tags,
 		Values: map[string]interface{}{
 			statWriteReq:        atomic.LoadInt64(&s.stats.WriteReq),
 			statSeriesCreate:    atomic.LoadInt64(&s.stats.SeriesCreated),
