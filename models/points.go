@@ -3,6 +3,7 @@ package models // import "github.com/influxdata/influxdb/models"
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -1394,6 +1395,22 @@ func (p *point) UnixNano() int64 {
 type Tag struct {
 	Key   []byte
 	Value []byte
+}
+
+// MarshalJSON implements the json.Marshaler interface.
+//
+// When Tags are marshalled to a JSON representation it is helpful if they're
+// represented as readable strings, rather than the base64 encoded strings which
+// are emitted when encoding a []byte.
+func (t Tag) MarshalJSON() ([]byte, error) {
+	var out = struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}{
+		Key:   string(t.Key),
+		Value: string(t.Value),
+	}
+	return json.Marshal(out)
 }
 
 // Tags represents a sorted list of tags.
