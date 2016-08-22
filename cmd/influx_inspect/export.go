@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
@@ -18,13 +20,36 @@ type cmdExport struct {
 	out             string
 	db              string
 	retentionPolicy string
+	startTime       int64
+	endTime         int64
 	compress        bool
 
 	ext   string
 	files map[string][]string
 }
 
-func newCmdExport(path, out, db, retentionPolicy string, compress bool) *cmdExport {
+func newCmdExport(path, out, db, retentionPolicy, startTime, endTime string, compress bool) (*cmdExport, error) {
+	var start, end int64
+	if startTime != "" {
+		s, err := time.Parse(time.RFC3339, startTime)
+		if err != nil {
+			return nil, err
+		}
+		start = s.UnixNano()
+	} else {
+		start = math.MinInt64
+	}
+	if endTime != "" {
+		e, err := time.Parse(time.RFC3339, endTime)
+		if err != nil {
+			return nil, err
+		}
+		end = e.UnixNano()
+	} else {
+		// set end time to max if it is not set.
+		end = math.MaxInt64
+	}
+
 	return &cmdExport{
 		path:            filepath.Join(path, "data"),
 		out:             out,
@@ -32,14 +57,19 @@ func newCmdExport(path, out, db, retentionPolicy string, compress bool) *cmdExpo
 		compress:        compress,
 		ext:             fmt.Sprintf(".%s", tsm1.TSMFileExtension),
 		retentionPolicy: retentionPolicy,
+		startTime:       start,
+		endTime:         end,
 		files:           make(map[string][]string),
-	}
+	}, nil
 }
 
 func (c *cmdExport) validate() error {
 	// validate args
 	if c.retentionPolicy != "" && c.db == "" {
 		return fmt.Errorf("must specify a db")
+	}
+	if c.startTime != 0 && c.endTime != 0 && c.endTime < c.startTime {
+		return fmt.Errorf("end time before start time")
 	}
 	return nil
 }
@@ -100,6 +130,9 @@ func (c *cmdExport) writeFiles() error {
 		defer w.Close()
 	}
 
+	s, e := time.Unix(0, c.startTime).Format(time.RFC3339), time.Unix(0, c.endTime).Format(time.RFC3339)
+	fmt.Fprintf(w, "# INFLUXDB EXPORT: %s - %s\n", s, e)
+
 	// Write out all the DDL
 	fmt.Fprintln(w, "# DDL")
 	for key, _ := range c.files {
@@ -129,6 +162,10 @@ func (c *cmdExport) writeFiles() error {
 				}
 				defer reader.Close()
 
+				if sgStart, sgEnd := reader.TimeRange(); sgStart > c.endTime || sgEnd < c.startTime {
+					return nil
+				}
+
 				for i := 0; i < reader.KeyCount(); i++ {
 					var pairs string
 					key, typ := reader.KeyAt(i)
@@ -136,6 +173,10 @@ func (c *cmdExport) writeFiles() error {
 					measurement, field := tsm1.SeriesAndFieldFromCompositeKey(key)
 
 					for _, value := range values {
+						if (value.UnixNano() < c.startTime) || (value.UnixNano() > c.endTime) {
+							continue
+						}
+
 						switch typ {
 						case tsm1.BlockFloat64:
 							pairs = field + "=" + fmt.Sprintf("%v", value.Value())
@@ -149,7 +190,7 @@ func (c *cmdExport) writeFiles() error {
 							pairs = field + "=" + fmt.Sprintf("%v", value.Value())
 						}
 
-						fmt.Fprintln(w, measurement, pairs, value.UnixNano())
+						fmt.Fprintln(w, string(measurement), pairs, value.UnixNano())
 					}
 				}
 				return nil
