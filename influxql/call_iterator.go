@@ -548,15 +548,17 @@ func FloatModeReduceSlice(a []FloatPoint) []FloatPoint {
 	currMode := a[0].Value
 	mostMode := a[0].Value
 	mostTime := a[0].Time
+	currTime := a[0].Time
 
 	for _, p := range a {
 		if p.Value != currMode {
 			currFreq = 1
 			currMode = p.Value
+			currTime = p.Time
 			continue
 		}
 		currFreq++
-		if mostFreq > currFreq || (mostFreq == currFreq && p.Time > mostTime) {
+		if mostFreq > currFreq || (mostFreq == currFreq && currTime > mostTime) {
 			continue
 		}
 		mostFreq = currFreq
@@ -579,15 +581,17 @@ func IntegerModeReduceSlice(a []IntegerPoint) []IntegerPoint {
 	currMode := a[0].Value
 	mostMode := a[0].Value
 	mostTime := a[0].Time
+	currTime := a[0].Time
 
 	for _, p := range a {
 		if p.Value != currMode {
 			currFreq = 1
 			currMode = p.Value
+			currTime = p.Time
 			continue
 		}
 		currFreq++
-		if mostFreq > currFreq || (mostFreq == currFreq && p.Time > mostTime) {
+		if mostFreq > currFreq || (mostFreq == currFreq && currTime > mostTime) {
 			continue
 		}
 		mostFreq = currFreq
@@ -611,15 +615,17 @@ func StringModeReduceSlice(a []StringPoint) []StringPoint {
 	currMode := a[0].Value
 	mostMode := a[0].Value
 	mostTime := a[0].Time
+	currTime := a[0].Time
 
 	for _, p := range a {
 		if p.Value != currMode {
 			currFreq = 1
 			currMode = p.Value
+			currTime = p.Time
 			continue
 		}
 		currFreq++
-		if mostFreq > currFreq || (mostFreq == currFreq && p.Time > mostTime) {
+		if mostFreq > currFreq || (mostFreq == currFreq && currTime > mostTime) {
 			continue
 		}
 		mostFreq = currFreq
