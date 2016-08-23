@@ -442,8 +442,11 @@ func (f *FileStore) Close() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	for _, f := range f.files {
-		f.Close()
+	for _, file := range f.files {
+		if f.dereferencer != nil {
+			file.deref(f.dereferencer)
+		}
+		file.Close()
 	}
 
 	f.files = nil

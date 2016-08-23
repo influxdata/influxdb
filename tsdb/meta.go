@@ -1504,9 +1504,9 @@ func (s *Series) Dereference(b []byte) {
 	min := uintptr(unsafe.Pointer(&b[0]))
 	max := min + uintptr(len(b))
 
-	for _, t := range s.Tags {
-		deref(&t.Key, min, max)
-		deref(&t.Value, min, max)
+	for i := range s.Tags {
+		deref(&s.Tags[i].Key, min, max)
+		deref(&s.Tags[i].Value, min, max)
 	}
 
 	s.mu.Unlock()
