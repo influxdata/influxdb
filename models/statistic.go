@@ -8,8 +8,8 @@ type Statistic struct {
 
 func NewStatistic(name string) Statistic {
 	return Statistic{
-		Name: name,
-		Tags: make(map[string]string),
+		Name:   name,
+		Tags:   make(map[string]string),
 		Values: make(map[string]interface{}),
 	}
 }
