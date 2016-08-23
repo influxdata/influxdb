@@ -67,7 +67,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7011](https://github.com/influxdata/influxdb/issues/7011): Create man pages for commands.
 - [#7050](https://github.com/influxdata/influxdb/pull/7050): Update go package library dependencies.
 - [#5750](https://github.com/influxdata/influxdb/issues/5750): Support wildcards in aggregate functions.
-- [#7605](https://github.com/influxdata/influxdb/issues/7605): Remove IF EXISTS/IF NOT EXISTS from influxql language.
+- [#7065](https://github.com/influxdata/influxdb/issues/7065): Remove IF EXISTS/IF NOT EXISTS from influxql language.
 - [#7095](https://github.com/influxdata/influxdb/pull/7095): Add MaxSeriesPerDatabase config setting.
 
 ### Bugfixes
