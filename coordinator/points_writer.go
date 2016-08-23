@@ -176,7 +176,7 @@ type WriteStatistics struct {
 func (w *PointsWriter) Statistics(tags map[string]string) []models.Statistic {
 	return []models.Statistic{{
 		Name: "write",
-		Tags: models.NewTags(tags),
+		Tags: tags,
 		Values: map[string]interface{}{
 			statWriteReq:           atomic.LoadInt64(&w.stats.WriteReq),
 			statPointWriteReq:      atomic.LoadInt64(&w.stats.PointWriteReq),

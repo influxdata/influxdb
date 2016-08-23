@@ -15,6 +15,7 @@
 
 - [#1834](https://github.com/influxdata/influxdb/issues/1834): Drop time when used as a tag or field key.
 - [#7152](https://github.com/influxdata/influxdb/issues/7152): Decrement number of measurements only once when deleting the last series from a measurement.
+- [#7177](https://github.com/influxdata/influxdb/issues/7177): Fix base64 encoding issue with /debug/vars stats.
 
 ## v1.0.0 [unreleased]
 

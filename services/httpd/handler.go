@@ -179,7 +179,7 @@ type Statistics struct {
 func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 	return []models.Statistic{{
 		Name: "httpd",
-		Tags: models.NewTags(tags),
+		Tags: tags,
 		Values: map[string]interface{}{
 			statRequest:                      atomic.LoadInt64(&h.stats.Requests),
 			statCQRequest:                    atomic.LoadInt64(&h.stats.CQRequests),
@@ -742,24 +742,24 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 	for _, s := range stats {
 		// Very hackily create a unique key.
 		buf := bytes.NewBufferString(s.Name)
-		if path := s.Tags.Get([]byte("path")); path != nil {
+		if path, ok := s.Tags["path"]; ok {
 			fmt.Fprintf(buf, ":%s", path)
-			if id := s.Tags.Get([]byte("id")); id != nil {
+			if id, ok := s.Tags["id"]; ok {
 				fmt.Fprintf(buf, ":%s", id)
 			}
-		} else if bind := s.Tags.Get([]byte("bind")); bind != nil {
-			if proto := s.Tags.Get([]byte("proto")); proto != nil {
+		} else if bind, ok := s.Tags["bind"]; ok {
+			if proto, ok := s.Tags["proto"]; ok {
 				fmt.Fprintf(buf, ":%s", proto)
 			}
 			fmt.Fprintf(buf, ":%s", bind)
-		} else if database := s.Tags.Get([]byte("database")); database != nil {
+		} else if database, ok := s.Tags["database"]; ok {
 			fmt.Fprintf(buf, ":%s", database)
-			if rp := s.Tags.Get([]byte("retention_policy")); rp != nil {
+			if rp, ok := s.Tags["retention_policy"]; ok {
 				fmt.Fprintf(buf, ":%s", rp)
-				if name := s.Tags.Get([]byte("name")); name != nil {
+				if name, ok := s.Tags["name"]; ok {
 					fmt.Fprintf(buf, ":%s", name)
 				}
-				if dest := s.Tags.Get([]byte("destination")); dest != nil {
+				if dest, ok := s.Tags["destination"]; ok {
 					fmt.Fprintf(buf, ":%s", dest)
 				}
 			}

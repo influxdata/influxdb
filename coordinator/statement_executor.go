@@ -818,7 +818,7 @@ func (e *StatementExecutor) executeShowStatsStatement(stmt *influxql.ShowStatsSt
 		if stmt.Module != "" && stat.Name != stmt.Module {
 			continue
 		}
-		row := &models.Row{Name: stat.Name, Tags: stat.Tags.Map()}
+		row := &models.Row{Name: stat.Name, Tags: stat.Tags}
 
 		values := make([]interface{}, 0, len(stat.Values))
 		for _, k := range stat.ValueNames() {
