@@ -210,9 +210,7 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 		}
 
 		statistic := &Statistic{
-			Statistic: models.Statistic{
-				Values: make(map[string]interface{}),
-			},
+			Statistic: models.NewStatistic(""),
 		}
 
 		// Add any supplied tags.
@@ -277,10 +275,7 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 
 	// Add Go memstats.
 	statistic := &Statistic{
-		Statistic: models.Statistic{
-			Name:   "runtime",
-			Values: make(map[string]interface{}),
-		},
+		Statistic: models.NewStatistic("runtime"),
 	}
 
 	// Add any supplied tags to Go memstats
