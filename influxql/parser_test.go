@@ -2038,6 +2038,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT last(max(value)) FROM myseries`, err: `expected field argument in last()`},
 		{s: `SELECT mean(max(value)) FROM myseries`, err: `expected field argument in mean()`},
 		{s: `SELECT median(max(value)) FROM myseries`, err: `expected field argument in median()`},
+		{s: `SELECT mode(max(value)) FROM myseries`, err: `expected field argument in mode()`},
 		{s: `SELECT stddev(max(value)) FROM myseries`, err: `expected field argument in stddev()`},
 		{s: `SELECT spread(max(value)) FROM myseries`, err: `expected field argument in spread()`},
 		{s: `SELECT top() FROM myseries`, err: `invalid number of arguments for top, expected at least 2, got 0`},
