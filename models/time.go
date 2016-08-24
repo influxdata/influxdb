@@ -10,11 +10,11 @@ import (
 )
 
 const (
-	// MinNanoTime is the minumum time that can be represented.
+	// MinNanoTime is the minimum time that can be represented.
 	//
-	// 1677-09-21 00:12:43.145224192 +0000 UTC
+	// 1970-01-01 00:00:00.000000000 +0000 UTC
 	//
-	MinNanoTime = int64(math.MinInt64)
+	MinNanoTime = int64(0)
 
 	// MaxNanoTime is the maximum time that can be represented.
 	//
