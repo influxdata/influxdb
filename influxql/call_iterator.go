@@ -649,10 +649,9 @@ func BooleanModeReduceSlice(a []BooleanPoint) []BooleanPoint {
 	for _, p := range a {
 		if p.Value {
 			trueFreq++
-			continue
+		} else {
+			falsFreq++
 		}
-		// a nil value is treated as false
-		falsFreq++
 	}
 	// In case either of true or false are mode then retuned mode value wont be
 	// of metric with oldest timestamp
