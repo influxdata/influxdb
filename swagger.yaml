@@ -1,0 +1,665 @@
+swagger: '2.0'
+info:
+  title: Influxdata Enterprise Application
+  description: Monitor some stuff
+  version: "1.1.0"
+host: enterprise.influxdata.com
+schemes:
+  - https
+basePath: /enterprise/v1
+produces:
+  - application/json
+paths:
+  '/':
+    get:
+      summary: Lists all the endpoints
+      description: |
+        List of the endpoints.  This can be used to tell if this is OSS or not.
+      responses:
+        200:
+          description: All dem links
+          schema:
+            $ref: '#/definitions/Links'
+        default:
+          description: Unexpected internal service error
+          schema:
+            $ref: '#/definitions/Error'
+  /sources:
+    get:
+      summary: Configured data sources
+      description: |
+        These data sources store time series data.
+      responses:
+        200:
+          description: An array of data sources
+          schema:
+              $ref: '#/definitions/Sources'
+        default:
+          description: Unexpected internal service error
+          schema:
+            $ref: '#/definitions/Error'
+    post:
+      summary: Create new data source
+      parameters:
+        - name: source
+          in: body
+          description: Configuration options for data source
+          schema:
+             $ref: '#/definitions/Source'
+      responses:
+         '201':
+           description: Successfully create data source
+           headers:
+              Location:
+                type: string
+                format: url
+                description: Location of the newly created data source resource.
+           schema:
+             $ref: '#/definitions/Source'
+         default:
+           description: A processing or an unexpected error.
+           schema:
+             $ref: '#/definitions/Error'
+  /sources/{id}:
+    get:
+      parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of the data source
+           required: true
+      summary: Configured data sources
+      description: |
+        These data sources store time series data.
+      responses:
+        200:
+          description: Data source used to supply time series to layouts.
+          schema:
+              $ref: '#/definitions/Source'
+        404:
+          description: Unknown source id
+          schema:
+            $ref: '#/definitions/Error'
+        default:
+          description: Unexpected internal service error
+          schema:
+            $ref: '#/definitions/Error'
+    patch:
+       summary: Update data source configuration
+       parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of a data source
+           required: true
+         - name: config
+           in: body
+           description: data source configuration
+           schema:
+             $ref: '#/definitions/Source'
+           required: true
+       responses:
+         '204':
+           description: Data source's configuration was changed
+         '404':
+           description: Happens when trying to access a non-existent data source.
+           schema:
+             $ref: '#/definitions/Error'
+         default:
+           description: A processing or an unexpected error.
+           schema:
+             $ref: '#/definitions/Error'
+    delete:
+      parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of the source
+           required: true
+      summary: This specific data source will be removed from the data store
+      responses:
+        204:
+          description: data source has been removed
+        404:
+          description: Unknown data source id
+          schema:
+            $ref: '#/definitions/Error'
+        default:
+          description: Unexpected internal service error
+          schema:
+            $ref: '#/definitions/Error'
+  /sources/{id}/permissions:
+    get:
+      parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of the data source
+           required: true
+      summary: List of possible valid permissions on this data source
+      responses:
+        200:
+          description: An array of permissions
+          schema:
+              $ref: '#/definitions/ACL'
+        default:
+          description: Unexpected internal service error
+          schema:
+            $ref: '#/definitions/Error'
+  /sources/{id}/users:
+    get:
+      parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of the data source
+           required: true
+      summary: List of all users on this data source
+      responses:
+        200:
+          description: An array of users
+          schema:
+              $ref: '#/definitions/Users'
+        default:
+          description: Unexpected internal service error
+          schema:
+            $ref: '#/definitions/Error'
+    post:
+      summary: Create new user for this data source
+      parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of the data source
+           required: true
+         - name: user
+           in: body
+           description: Configuration options for new user
+           schema:
+             $ref: '#/definitions/User'
+      responses:
+         '201':
+           description: Successfully created new user
+           headers:
+              Location:
+                type: string
+                format: url
+                description: Location of the newly created user resource.
+           schema:
+             $ref: '#/definitions/User'
+         default:
+           description: A processing or an unexpected error.
+           schema:
+             $ref: '#/definitions/Error'
+  /sources/{id}/users/{user_id}:
+    get:
+      parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of the data source
+           required: true
+         - name: user_id
+           in: path
+           type: string
+           description: ID of the specific user
+           required: true
+      summary: Returns information about a specific user
+      description: |
+        Specific User and their permissions.
+      responses:
+        200:
+          description: Information relating to the user
+          schema:
+              $ref: '#/definitions/User'
+        404:
+          description: Unknown source id
+          schema:
+            $ref: '#/definitions/Error'
+        default:
+          description: Unexpected internal service error
+          schema:
+            $ref: '#/definitions/Error'
+    patch:
+       summary: Update user configuration
+       parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of a data source
+           required: true
+         - name: user_id
+           in: path
+           type: string
+           description: ID of the specific user
+           required: true
+         - name: config
+           in: body
+           description: user configuration
+           schema:
+             $ref: '#/definitions/User'
+           required: true
+       responses:
+         '204':
+           description: Users's configuration was changed
+         '404':
+           description: Happens when trying to access a non-existent user.
+           schema:
+             $ref: '#/definitions/Error'
+         default:
+           description: A processing or an unexpected error.
+           schema:
+             $ref: '#/definitions/Error'
+    delete:
+      parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of the source
+           required: true
+         - name: user_id
+           in: path
+           type: string
+           description: ID of the specific user
+           required: true
+      summary: This specific user will be removed from the data store
+      responses:
+        204:
+          description: User has been removed
+        404:
+          description: Unknown user id
+          schema:
+            $ref: '#/definitions/Error'
+        default:
+          description: Unexpected internal service error
+          schema:
+            $ref: '#/definitions/Error'
+  /sources/{id}/roles:
+    get:
+      parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of the data source
+           required: true
+      summary: List of all roles on this data source
+      responses:
+        200:
+          description: An array of roles
+          schema:
+              $ref: '#/definitions/Roles'
+        default:
+          description: Unexpected internal service error
+          schema:
+            $ref: '#/definitions/Error'
+    post:
+      summary: Create new role for this data source
+      parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of the data source
+           required: true
+         - name: role
+           in: body
+           description: Configuration options for new role
+           schema:
+             $ref: '#/definitions/Role'
+      responses:
+         '201':
+           description: Successfully created new role
+           headers:
+              Location:
+                type: string
+                format: url
+                description: Location of the newly created role resource.
+           schema:
+             $ref: '#/definitions/Role'
+         default:
+           description: A processing or an unexpected error.
+           schema:
+             $ref: '#/definitions/Error'
+  /sources/{id}/role/{role_id}:
+    get:
+      parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of the data source
+           required: true
+         - name: role_id
+           in: path
+           type: string
+           description: ID of the specific role
+           required: true
+      summary: Returns information about a specific role
+      description: |
+        Specific Role and its associated permissions.
+      responses:
+        200:
+          description: Information relating to the role
+          schema:
+              $ref: '#/definitions/Role'
+        404:
+          description: Unknown source id
+          schema:
+            $ref: '#/definitions/Error'
+        default:
+          description: Unexpected internal service error
+          schema:
+            $ref: '#/definitions/Error'
+    patch:
+       summary: Update role configuration
+       parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of a data source
+           required: true
+         - name: role_id
+           in: path
+           type: string
+           description: ID of the specific role
+           required: true
+         - name: config
+           in: body
+           description: role configuration
+           schema:
+             $ref: '#/definitions/Role'
+           required: true
+       responses:
+         '204':
+           description: Role's configuration was changed
+         '404':
+           description: Happens when trying to access a non-existent role.
+           schema:
+             $ref: '#/definitions/Error'
+         default:
+           description: A processing or an unexpected error.
+           schema:
+             $ref: '#/definitions/Error'
+    delete:
+      parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of the source
+           required: true
+         - name: role_id
+           in: path
+           type: string
+           description: ID of the specific role
+           required: true
+      summary: This specific role will be removed from the data store
+      responses:
+        204:
+          description: Role has been removed
+        404:
+          description: Unknown role id
+          schema:
+            $ref: '#/definitions/Error'
+        default:
+          description: Unexpected internal service error
+          schema:
+            $ref: '#/definitions/Error'
+  /layouts:
+    get:
+      summary: Configured Layouts
+      description: |
+        Not sure what we are doing about this...
+      responses:
+        200:
+          description: An array of layouts
+          schema:
+              $ref: '#/definitions/Layouts'
+        default:
+          description: Unexpected internal service error
+          schema:
+            $ref: '#/definitions/Error'
+    post:
+      summary: Create new layout
+      parameters:
+        - name: layout
+          in: body
+          description: Create new named layout
+          schema:
+             $ref: '#/definitions/Layout'
+      responses:
+         '201':
+           description: Successfully create layout
+           headers:
+              Location:
+                type: string
+                format: url
+                description: Location of the newly created layout
+           schema:
+             $ref: '#/definitions/Layout'
+         default:
+           description: A processing or an unexpected error.
+           schema:
+             $ref: '#/definitions/Error'
+  /layouts/{id}:
+    get:
+      parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of the layout
+           required: true
+      summary: Unique named layout
+      description: |
+        Layouts will hold information about how to layout the page of graphs.
+      responses:
+        200:
+          description: An array of layouts
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/Layouts'
+        404:
+          description: Unknown layout id
+          schema:
+            $ref: '#/definitions/Error'
+        default:
+          description: Unexpected internal service error
+          schema:
+            $ref: '#/definitions/Error'
+    delete:
+      parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of the layout
+           required: true
+      summary: This specific layout will be removed from the data store
+      responses:
+        204:
+          description: An array of layouts
+        404:
+          description: Unknown layout id
+          schema:
+            $ref: '#/definitions/Error'
+        default:
+          description: Unexpected internal service error
+          schema:
+            $ref: '#/definitions/Error'
+    patch:
+       summary: Update layout configuration
+       parameters:
+         - name: id
+           in: path
+           type: string
+           description: ID of a layout
+           required: true
+         - name: config
+           in: body
+           description: layout configuration update parameters
+           schema:
+             $ref: '#/definitions/Layout'
+           required: true
+       responses:
+         '204':
+           description: Layout's configuration was changed
+         '404':
+           description: Happens when trying to access a non-existent layout.
+           schema:
+             $ref: '#/definitions/Error'
+         default:
+           description: A processing or an unexpected error.
+           schema:
+             $ref: '#/definitions/Error'
+definitions:
+  Sources:
+    type: object
+    properties:
+      sources:
+        type: array
+        items:
+          $ref: '#/definitions/Source'   
+  Source:
+    type: object
+    properties:
+      id:
+        type: string
+        description: Unique identifier representing a specific data source.
+        readOnly: True
+      name:
+        type: string
+        description: User facing name of data source
+      type:
+        type: string
+        description: Format of the data source
+        enum:
+          - influx
+          - influx-enterprise
+      link:
+         $ref: "#/definitions/Link"
+    required:
+      - type
+      - name
+  Roles:
+    type: object
+    properties:
+      role:
+        type: array
+        items:
+          $ref: "#/definitions/Role"
+  Role:
+    type: object
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+        maxLength: 64
+      permissions:
+        type: array
+        items:
+          $ref: '#/definitions/Permission'
+      link:
+         $ref: "#/definitions/Link"
+      users:
+        $ref: "#/definitions/Links"
+    required:
+      - id
+      - permissions
+      - name
+  Users:
+    type: object
+    properties:
+      users:
+        type: array
+        items:
+          $ref: "#/definitions/User"
+  User:
+    type: object
+    properties:
+      id:
+        type: string
+      username:
+        type: string
+        maxLength: 64
+      permissions:
+        type: array
+        items:
+          $ref: '#/definitions/Permission'
+      link:
+         $ref: "#/definitions/Link"
+    required:
+      - id
+      - permissions
+  Permission:
+    type: object
+    properties:
+      database:
+        type: string
+      acls:
+        $ref: "/definitions/ACL"
+  ACL:
+    type: array
+    items:
+      $ref: "#/definitions/AC"
+  AC:
+    type: string
+    description: Specific access 
+    enum:
+      - ViewAdmin
+      - ViewChronograf
+      - CreateDatabase
+      - CreateUserAndRole
+      - AddRemoveNode
+      - DropDatabase
+      - DropData
+      - ReadData
+      - WriteData
+      - Rebalance
+      - ManageShard
+  Layouts:
+    type: object
+    properties:
+      layouts:
+        type: array
+        items:
+          $ref: "#/definitions/Layout"
+  Layout:
+    type: object
+    properties:
+      version:
+         type: string
+      data:
+        type: string
+        description: Information used to actually layout...  I hate this name... not sure this is right.
+      data_source:
+        $ref: '#/definitions/Link'
+      link:
+         $ref: "#/definitions/Link"
+    required:
+      - version
+      - data
+      - data_source
+  Error:
+    type: object
+    properties:
+      code:
+        type: integer
+        format: int32
+      message:
+        type: string
+  Links:
+    type: object
+    properties:
+      links:
+        type: array
+        items:
+          $ref: "#/definitions/Link"
+  Link:
+     type: object
+     readOnly: true
+     description: URI of resource.
+     properties:
+       rel:
+         type: string
+       href:
+         type: string
+         format: url
+     required: [rel, href]
