@@ -500,6 +500,168 @@ func IntegerMedianReduceSlice(a []IntegerPoint) []FloatPoint {
 	return []FloatPoint{{Time: ZeroTime, Value: float64(a[len(a)/2].Value)}}
 }
 
+// newModeIterator returns an iterator for operating on a mode() call.
+func NewModeIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatSliceFuncReducer(FloatModeReduceSlice)
+			return fn, fn
+		}
+		return &floatReduceFloatIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
+			fn := NewIntegerSliceFuncReducer(IntegerModeReduceSlice)
+			return fn, fn
+		}
+		return &integerReduceIntegerIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
+	case StringIterator:
+		createFn := func() (StringPointAggregator, StringPointEmitter) {
+			fn := NewStringSliceFuncReducer(StringModeReduceSlice)
+			return fn, fn
+		}
+		return &stringReduceStringIterator{input: newBufStringIterator(input), opt: opt, create: createFn}, nil
+	case BooleanIterator:
+		createFn := func() (BooleanPointAggregator, BooleanPointEmitter) {
+			fn := NewBooleanSliceFuncReducer(BooleanModeReduceSlice)
+			return fn, fn
+		}
+		return &booleanReduceBooleanIterator{input: newBufBooleanIterator(input), opt: opt, create: createFn}, nil
+
+	default:
+		return nil, fmt.Errorf("unsupported median iterator type: %T", input)
+	}
+}
+
+// FloatModeReduceSlice returns the mode value within a window.
+func FloatModeReduceSlice(a []FloatPoint) []FloatPoint {
+	if len(a) == 1 {
+		return a
+	}
+
+	// fmt.Println(a[0])
+	sort.Sort(floatPointsByValue(a))
+
+	mostFreq := 0
+	currFreq := 0
+	currMode := a[0].Value
+	mostMode := a[0].Value
+	mostTime := a[0].Time
+	currTime := a[0].Time
+
+	for _, p := range a {
+		if p.Value != currMode {
+			currFreq = 1
+			currMode = p.Value
+			currTime = p.Time
+			continue
+		}
+		currFreq++
+		if mostFreq > currFreq || (mostFreq == currFreq && currTime > mostTime) {
+			continue
+		}
+		mostFreq = currFreq
+		mostMode = p.Value
+		mostTime = p.Time
+	}
+
+	return []FloatPoint{{Time: ZeroTime, Value: mostMode}}
+}
+
+// IntegerModeReduceSlice returns the mode value within a window.
+func IntegerModeReduceSlice(a []IntegerPoint) []IntegerPoint {
+	if len(a) == 1 {
+		return a
+	}
+	sort.Sort(integerPointsByValue(a))
+
+	mostFreq := 0
+	currFreq := 0
+	currMode := a[0].Value
+	mostMode := a[0].Value
+	mostTime := a[0].Time
+	currTime := a[0].Time
+
+	for _, p := range a {
+		if p.Value != currMode {
+			currFreq = 1
+			currMode = p.Value
+			currTime = p.Time
+			continue
+		}
+		currFreq++
+		if mostFreq > currFreq || (mostFreq == currFreq && currTime > mostTime) {
+			continue
+		}
+		mostFreq = currFreq
+		mostMode = p.Value
+		mostTime = p.Time
+	}
+
+	return []IntegerPoint{{Time: ZeroTime, Value: mostMode}}
+}
+
+// StringModeReduceSlice returns the mode value within a window.
+func StringModeReduceSlice(a []StringPoint) []StringPoint {
+	if len(a) == 1 {
+		return a
+	}
+
+	sort.Sort(stringPointsByValue(a))
+
+	mostFreq := 0
+	currFreq := 0
+	currMode := a[0].Value
+	mostMode := a[0].Value
+	mostTime := a[0].Time
+	currTime := a[0].Time
+
+	for _, p := range a {
+		if p.Value != currMode {
+			currFreq = 1
+			currMode = p.Value
+			currTime = p.Time
+			continue
+		}
+		currFreq++
+		if mostFreq > currFreq || (mostFreq == currFreq && currTime > mostTime) {
+			continue
+		}
+		mostFreq = currFreq
+		mostMode = p.Value
+		mostTime = p.Time
+	}
+
+	return []StringPoint{{Time: ZeroTime, Value: mostMode}}
+}
+
+// BooleanModeReduceSlice returns the mode value within a window.
+func BooleanModeReduceSlice(a []BooleanPoint) []BooleanPoint {
+	if len(a) == 1 {
+		return a
+	}
+
+	trueFreq := 0
+	falsFreq := 0
+	mostMode := false
+
+	for _, p := range a {
+		if p.Value {
+			trueFreq++
+		} else {
+			falsFreq++
+		}
+	}
+	// In case either of true or false are mode then retuned mode value wont be
+	// of metric with oldest timestamp
+	if trueFreq >= falsFreq {
+		mostMode = true
+	}
+
+	return []BooleanPoint{{Time: ZeroTime, Value: mostMode}}
+}
+
 // newStddevIterator returns an iterator for operating on a stddev() call.
 func newStddevIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 	switch input := input.(type) {

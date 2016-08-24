@@ -343,6 +343,12 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions, selec
 						return nil, err
 					}
 					return newMedianIterator(input, opt)
+				case "mode":
+					input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt, false)
+					if err != nil {
+						return nil, err
+					}
+					return NewModeIterator(input, opt)
 				case "stddev":
 					input, err := buildExprIterator(expr.Args[0].(*VarRef), ic, opt, false)
 					if err != nil {
