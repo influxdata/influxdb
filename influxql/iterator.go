@@ -19,7 +19,8 @@ var ErrUnknownCall = errors.New("unknown call")
 
 const (
 	// MinTime is used as the minimum time value when computing an unbounded range.
-	MinTime = int64(0)
+	// This time is 1970-01-01 00:00:00.000000000 +0000 UTC
+	MinTime = models.MinNanoTime
 
 	// MaxTime is used as the maximum time value when computing an unbounded range.
 	// This time is 2262-04-11 23:47:16.854775806 +0000 UTC
