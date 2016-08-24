@@ -73,8 +73,8 @@ type Service struct {
 	LogPointErrors bool
 	Logger         *log.Logger
 
-	stats    *Statistics
-	statTags map[string]string
+	stats       *Statistics
+	defaultTags models.StatisticTags
 }
 
 // NewService returns a new instance of Service.
@@ -96,7 +96,7 @@ func NewService(c Config) (*Service, error) {
 		Logger:          log.New(os.Stderr, "[opentsdb] ", log.LstdFlags),
 		LogPointErrors:  d.LogPointErrors,
 		stats:           &Statistics{},
-		statTags:        map[string]string{"bind": d.BindAddress},
+		defaultTags:     models.StatisticTags{"bind": d.BindAddress},
 	}
 	return s, nil
 }
@@ -200,16 +200,9 @@ type Statistics struct {
 
 // Statistics returns statistics for periodic monitoring.
 func (s *Service) Statistics(tags map[string]string) []models.Statistic {
-	// Insert any missing deault tag values.
-	for k, v := range s.statTags {
-		if _, ok := tags[k]; !ok {
-			tags[k] = v
-		}
-	}
-
 	return []models.Statistic{{
 		Name: "opentsdb",
-		Tags: tags,
+		Tags: s.defaultTags.Merge(tags),
 		Values: map[string]interface{}{
 			statHTTPConnectionsHandled:   atomic.LoadInt64(&s.stats.HTTPConnectionsHandled),
 			statTelnetConnectionsActive:  atomic.LoadInt64(&s.stats.ActiveTelnetConnections),

@@ -200,7 +200,7 @@ func (s *Service) createSubscription(se subEntry, mode string, destinations []st
 		bm:      bm,
 		writers: writers,
 		stats:   stats,
-		tags: map[string]string{
+		defaultTags: models.StatisticTags{
 			"database":         se.db,
 			"retention_policy": se.rp,
 			"name":             se.name,
@@ -383,11 +383,11 @@ type writerStats struct {
 
 // balances writes across PointsWriters according to BalanceMode
 type balancewriter struct {
-	bm      BalanceMode
-	writers []PointsWriter
-	stats   []writerStats
-	tags    map[string]string
-	i       int
+	bm          BalanceMode
+	writers     []PointsWriter
+	stats       []writerStats
+	defaultTags models.StatisticTags
+	i           int
 }
 
 func (b *balancewriter) WritePoints(p *coordinator.WritePointsRequest) error {
@@ -415,19 +415,12 @@ func (b *balancewriter) WritePoints(p *coordinator.WritePointsRequest) error {
 
 // Statistics returns statistics for periodic monitoring.
 func (b *balancewriter) Statistics(tags map[string]string) []models.Statistic {
-	// Insert any missing default tag values.
-	for k, v := range b.tags {
-		if _, ok := tags[k]; !ok {
-			tags[k] = v
-		}
-	}
-
 	statistics := make([]models.Statistic, len(b.stats))
 	for i := range b.stats {
 		tags["destination"] = b.stats[i].dest
 		statistics[i] = models.Statistic{
 			Name: "subscriber",
-			Tags: tags,
+			Tags: b.defaultTags.Merge(tags),
 			Values: map[string]interface{}{
 				statPointsWritten: atomic.LoadInt64(&b.stats[i].pointsWritten),
 				statWriteFailures: atomic.LoadInt64(&b.stats[i].failures),

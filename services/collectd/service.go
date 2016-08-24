@@ -57,8 +57,8 @@ type Service struct {
 	addr    net.Addr
 
 	// expvar-based stats.
-	stats    *Statistics
-	statTags map[string]string
+	stats       *Statistics
+	defaultTags models.StatisticTags
 }
 
 // NewService returns a new instance of the collectd service.
@@ -67,10 +67,10 @@ func NewService(c Config) *Service {
 		// Use defaults where necessary.
 		Config: c.WithDefaults(),
 
-		Logger:   log.New(os.Stderr, "[collectd] ", log.LstdFlags),
-		err:      make(chan error),
-		stats:    &Statistics{},
-		statTags: map[string]string{"bind": c.BindAddress},
+		Logger:      log.New(os.Stderr, "[collectd] ", log.LstdFlags),
+		err:         make(chan error),
+		stats:       &Statistics{},
+		defaultTags: models.StatisticTags{"bind": c.BindAddress},
 	}
 
 	return &s
@@ -224,15 +224,9 @@ type Statistics struct {
 
 // Statistics returns statistics for periodic monitoring.
 func (s *Service) Statistics(tags map[string]string) []models.Statistic {
-	// Insert any missing deault tag values.
-	for k, v := range s.statTags {
-		if _, ok := tags[k]; !ok {
-			tags[k] = v
-		}
-	}
 	return []models.Statistic{{
 		Name: "collectd",
-		Tags: tags,
+		Tags: s.defaultTags.Merge(tags),
 		Values: map[string]interface{}{
 			statPointsReceived:       atomic.LoadInt64(&s.stats.PointsReceived),
 			statBytesReceived:        atomic.LoadInt64(&s.stats.BytesReceived),

@@ -59,9 +59,9 @@ type Service struct {
 	batcher *tsdb.PointBatcher
 	parser  *Parser
 
-	logger   *log.Logger
-	stats    *Statistics
-	statTags map[string]string
+	logger      *log.Logger
+	stats       *Statistics
+	defaultTags models.StatisticTags
 
 	tcpConnectionsMu sync.Mutex
 	tcpConnections   map[string]*tcpConnection
@@ -106,7 +106,7 @@ func NewService(c Config) (*Service, error) {
 		batchTimeout:    time.Duration(d.BatchTimeout),
 		logger:          log.New(os.Stderr, fmt.Sprintf("[graphite] %s ", d.BindAddress), log.LstdFlags),
 		stats:           &Statistics{},
-		statTags:        map[string]string{"proto": d.Protocol, "bind": d.BindAddress},
+		defaultTags:     models.StatisticTags{"proto": d.Protocol, "bind": d.BindAddress},
 		tcpConnections:  make(map[string]*tcpConnection),
 		done:            make(chan struct{}),
 		diagsKey:        strings.Join([]string{"graphite", d.Protocol, d.BindAddress}, ":"),
@@ -232,15 +232,9 @@ type Statistics struct {
 
 // Statistics returns statistics for periodic monitoring.
 func (s *Service) Statistics(tags map[string]string) []models.Statistic {
-	// Insert any missing deault tag values.
-	for k, v := range s.statTags {
-		if _, ok := tags[k]; !ok {
-			tags[k] = v
-		}
-	}
 	return []models.Statistic{{
 		Name: "graphite",
-		Tags: tags,
+		Tags: s.defaultTags.Merge(tags),
 		Values: map[string]interface{}{
 			statPointsReceived:      atomic.LoadInt64(&s.stats.PointsReceived),
 			statBytesReceived:       atomic.LoadInt64(&s.stats.BytesReceived),
