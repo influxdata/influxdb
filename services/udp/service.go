@@ -56,22 +56,22 @@ type Service struct {
 		CreateDatabase(name string) (*meta.DatabaseInfo, error)
 	}
 
-	Logger   *log.Logger
-	stats    *Statistics
-	statTags map[string]string
+	Logger      *log.Logger
+	stats       *Statistics
+	defaultTags models.StatisticTags
 }
 
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
 	d := *c.WithDefaults()
 	return &Service{
-		config:     d,
-		done:       make(chan struct{}),
-		parserChan: make(chan []byte, parserChanLen),
-		batcher:    tsdb.NewPointBatcher(d.BatchSize, d.BatchPending, time.Duration(d.BatchTimeout)),
-		Logger:     log.New(os.Stderr, "[udp] ", log.LstdFlags),
-		stats:      &Statistics{},
-		statTags:   map[string]string{"bind": d.BindAddress},
+		config:      d,
+		done:        make(chan struct{}),
+		parserChan:  make(chan []byte, parserChanLen),
+		batcher:     tsdb.NewPointBatcher(d.BatchSize, d.BatchPending, time.Duration(d.BatchTimeout)),
+		Logger:      log.New(os.Stderr, "[udp] ", log.LstdFlags),
+		stats:       &Statistics{},
+		defaultTags: models.StatisticTags{"bind": d.BindAddress},
 	}
 }
 
@@ -132,16 +132,9 @@ type Statistics struct {
 
 // Statistics returns statistics for periodic monitoring.
 func (s *Service) Statistics(tags map[string]string) []models.Statistic {
-	// Insert any missing deault tag values.
-	for k, v := range s.statTags {
-		if _, ok := tags[k]; !ok {
-			tags[k] = v
-		}
-	}
-
 	return []models.Statistic{{
 		Name: "udp",
-		Tags: tags,
+		Tags: s.defaultTags.Merge(tags),
 		Values: map[string]interface{}{
 			statPointsReceived:      atomic.LoadInt64(&s.stats.PointsReceived),
 			statBytesReceived:       atomic.LoadInt64(&s.stats.BytesReceived),

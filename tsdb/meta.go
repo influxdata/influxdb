@@ -34,7 +34,8 @@ type DatabaseIndex struct {
 
 	name string // name of the database represented by this index
 
-	stats *IndexStatistics
+	stats       *IndexStatistics
+	defaultTags models.StatisticTags
 }
 
 // NewDatabaseIndex returns a new initialized DatabaseIndex.
@@ -44,6 +45,7 @@ func NewDatabaseIndex(name string) *DatabaseIndex {
 		series:       make(map[string]*Series),
 		name:         name,
 		stats:        &IndexStatistics{},
+		defaultTags:  models.StatisticTags{"database": name},
 	}
 }
 
@@ -55,12 +57,9 @@ type IndexStatistics struct {
 
 // Statistics returns statistics for periodic monitoring.
 func (d *DatabaseIndex) Statistics(tags map[string]string) []models.Statistic {
-	if _, ok := tags["database"]; !ok {
-		tags["database"] = d.name
-	}
 	return []models.Statistic{{
 		Name: "database",
-		Tags: tags,
+		Tags: d.defaultTags.Merge(tags),
 		Values: map[string]interface{}{
 			statDatabaseSeries:       atomic.LoadInt64(&d.stats.NumSeries),
 			statDatabaseMeasurements: atomic.LoadInt64(&d.stats.NumMeasurements),
