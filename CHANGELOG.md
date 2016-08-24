@@ -50,6 +50,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#5750](https://github.com/influxdata/influxdb/issues/5750): Support wildcards in aggregate functions.
 - [#7605](https://github.com/influxdata/influxdb/issues/7605): Remove IF EXISTS/IF NOT EXISTS from influxql language.
 - [#7095](https://github.com/influxdata/influxdb/pull/7095): Add MaxSeriesPerDatabase config setting.
+- [#7199](https://github.com/influxdata/influxdb/pull/7199): Add mode function. Thanks @agaurav.
 
 ### Bugfixes
 
