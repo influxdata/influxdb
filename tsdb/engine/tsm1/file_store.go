@@ -677,7 +677,7 @@ func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
 		// skip it.
 		if ascending && maxTime < t {
 			continue
-			// If we are descending and the min time fo the file is after where we want to start,
+			// If we are descending and the min time of the file is after where we want to start,
 			// then skip it.
 		} else if !ascending && minTime > t {
 			continue

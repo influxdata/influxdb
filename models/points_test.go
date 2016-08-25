@@ -1225,7 +1225,7 @@ func TestParsePointMaxTimestamp(t *testing.T) {
 }
 
 func TestParsePointMinTimestamp(t *testing.T) {
-	test(t, `cpu value=1 -9223372036854775808`,
+	test(t, `cpu value=1 -9223372036854775806`,
 		NewTestPoint(
 			"cpu",
 			models.Tags{},
