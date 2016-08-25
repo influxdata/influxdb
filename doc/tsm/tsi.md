@@ -2,120 +2,346 @@
 
 ## Overview
 
-This is a proposal for a TSI (Time-Series Index) file format to provide fast, memory-mapped access to an inverted index of measurement, series and tag data. It operates at a per-shard level and can be appended to as new series are added.
+This is a proposal for a TSI (Time-Series Index) file format to provide fast,
+memory-mapped access to an inverted index of measurement, series and tag data.
+It operates at a per-shard level and can be appended to as new series are added.
 
 
-## Block types
+## Sections
 
-The file contains multiple variable-length block types:
+The file format for the inverted index consists of two top-level sections:
 
-- Series Block - This block stores a series block ID and a list of series ids that map to series keys. The list is sorted by series key. The series id is only used internally within the index file and no guarantees are provided about preserving keys after a compaction.
+1. `Series Dictionary` - This contains a sorted list of terms as well as a
+   sorted, dictionary-encoded list of series keys. There is only one dictionary
+   per file.
 
-- Measurement Block - This block stores the measurement name and a list of tag keys. Each tag key points to a tag value block.
+2. `Tag Sets` - This contains one or more tag set blocks, one for each
+   measurement in the index. Inside, the Tag Keys block lists all the keys for
+   a single measurement and they point to a Tag Values block which contains all
+   the values for a single key.
 
-- Tag Value Block - This block stores a list of values for a tag key that points to a sorted list of series ids. The series ids are used instead of series keys because the IDs are much smaller than the keys and sorted integer sets can be operated on more quickly.
+3. `Measurements Block` - This contains a list of all the measurements in the
+   index. Each measurement points to its associated tag set.
 
-## Usage
 
-Initially, series are appended to a WAL file and the series information is held in-memory. Once this reaches a threshold, the WAL block is compacted to a set of series, measurement, & tag value blocks. The WAL file is discarded and these new blocks will serve as the index and will be operated upon through an mmap.
+The following is a diagram of the high level components:
 
-Series keys can be queried by measurement and tag value by first jumping to the appropriate measurement block. References to measurement blocks will be held in-memory once the files are read in. From the measurement block, a binary search on the tag keys will allow you to find a particular key. Once the key is found, you can jump to the key's tag value block and perform a binary search to find a particular value and a list of associated series IDs.
+	╔═══════Inverted Index═══════╗
+	║                            ║
+	║ ┌────────────────────────┐ ║
+	║ │                        │ ║
+	║ │   Series Dictionary    │ ║
+	║ │                        │ ║
+	║ └────────────────────────┘ ║
+	║ ┏━━━━━━━━Tag Set━━━━━━━━━┓ ║
+	║ ┃┌──────────────────────┐┃ ║
+	║ ┃│   Tag Values Block   │┃ ║
+	║ ┃├──────────────────────┤┃ ║
+	║ ┃│   Tag Values Block   │┃ ║
+	║ ┃├──────────────────────┤┃ ║
+	║ ┃│    Tag Keys Block    │┃ ║
+	║ ┃└──────────────────────┘┃ ║
+	║ ┗━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
+	║ ┏━━━━━━━━Tag Set━━━━━━━━━┓ ║
+	║ ┃┌──────────────────────┐┃ ║
+	║ ┃│   Tag Values Block   │┃ ║
+	║ ┃├──────────────────────┤┃ ║
+	║ ┃│   Tag Values Block   │┃ ║
+	║ ┃├──────────────────────┤┃ ║
+	║ ┃│   Tag Values Block   │┃ ║
+	║ ┃├──────────────────────┤┃ ║
+	║ ┃│    Tag Keys Block    │┃ ║
+	║ ┃└──────────────────────┘┃ ║
+	║ ┗━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
+	║  ┌──────────────────────┐  ║
+	║  │  Measurements Block  │  ║
+	║  └──────────────────────┘  ║
+	╚════════════════════════════╝
 
-_One future optimization may be to maintain an in-memory histogram to limit the number of pages searched during tag key and tag value traversal._
 
-### Tiered storage
 
-Once the series, measurement, and tag value blocks are written for a WAL block, a new WAL block can be started at the end of the file. Once this WAL block reaches a threshold size, it can be rewritten as a new set of series, measurement, and tag value blocks.
+### Series Dictionary
 
-These measurement blocks may duplicate measurement blocks created earlier by other WAL blocks so looking up measurements will involve first searching the new measurement block and then falling back to older measurement blocks and merging the data at query time.
+The series dictionary contains two sections:
 
-### Compaction
+1. `Dictionary` - A list of terms sorted by frequency
 
-As TSI files grow and measurements are duplicated, query time merging becomes more costly so a larger compaction will be necessary to consolidate all series, measurement, and tag value blocks into one.
+2. `Series List` - A sorted list of dictionary-encoded series keys.
 
-When an index file or WAL file is compacted it is locked and the new index and WAL will begin on a new file. This is to allow snapshotting to take hard links on the files.
+The following is a diagram of the Series Dictionary:
 
-#### Two Compaction Types
+	╔══Series Dictionary═══╗
+	║ ┌───────────────────┐║
+	║ │    Dictionary     │║
+	║ ├───────────────────┤║
+	║ │    Series List    │║
+	║ └───────────────────┘║
+	╚══════════════════════╝
+
+
+#### Dictionary
+
+The dictionary is a sorted list of terms with the most frequent terms coming
+first. Each term consists of a variable encoded length followed by the term
+itself. The starting position of the length is used in dictionary encoding in
+the next block.
+
+	╔══════════Dictionary══════════╗
+	║ ┌──────────────────────────┐ ║
+	║ │   Term Count <uint32>    │ ║
+	║ └──────────────────────────┘ ║
+	║ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓ ║
+	║ ┃ ┌──────────────────────┐ ┃ ║
+	║ ┃ │  len(Term) <varint>  │ ┃ ║
+	║ ┃ ├──────────────────────┤ ┃ ║
+	║ ┃ │    Term <byte...>    │ ┃ ║
+	║ ┃ └──────────────────────┘ ┃ ║
+	║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
+	║ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓ ║
+	║ ┃ ┌──────────────────────┐ ┃ ║
+	║ ┃ │  len(Term) <varint>  │ ┃ ║
+	║ ┃ ├──────────────────────┤ ┃ ║
+	║ ┃ │    Term <byte...>    │ ┃ ║
+	║ ┃ └──────────────────────┘ ┃ ║
+	║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
+	╚══════════════════════════════╝
+
+
+
+#### Series List
+
+This section contains a sorted list of dictionary encoded series keys:
+
+	╔═════════Series List══════════╗
+	║ ┌──────────────────────────┐ ║
+	║ │  Series Count <uint32>   │ ║
+	║ └──────────────────────────┘ ║
+	║ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓ ║
+	║ ┃ ┌──────────────────────┐ ┃ ║
+	║ ┃ │     Flag <uint8>     │ ┃ ║
+	║ ┃ ├──────────────────────┤ ┃ ║
+	║ ┃ │ len(Series) <varint> │ ┃ ║
+	║ ┃ ├──────────────────────┤ ┃ ║
+	║ ┃ │   Series <byte...>   │ ┃ ║
+	║ ┃ └──────────────────────┘ ┃ ║
+	║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
+	║             ...              ║
+	╚══════════════════════════════╝
+
+Each series is dictionary encoded using the terms in the Dictionary. The series
+also contains a `flag`. The LSB of the flag is used to indicate a tombstone and
+the remaining bits are reserved for future use.
+
+The format for the series is:
+
+	╔════════════Series════════════╗
+	║ ┌──────────────────────────┐ ║
+	║ │   Measurement <varint>   │ ║
+	║ ├──────────────────────────┤ ║
+	║ │    Tag Count <varint>    │ ║
+	║ └──────────────────────────┘ ║
+	║ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓ ║
+	║ ┃┌────────────────────────┐┃ ║
+	║ ┃│    Tag Key <varint>    │┃ ║
+	║ ┃├────────────────────────┤┃ ║
+	║ ┃│   Tag Value <varint>   │┃ ║
+	║ ┃└────────────────────────┘┃ ║
+	║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
+	║ ┏━━━━━━━━━━━━━━━━━━━━━━━━━━┓ ║
+	║ ┃┌────────────────────────┐┃ ║
+	║ ┃│    Tag Key <varint>    │┃ ║
+	║ ┃├────────────────────────┤┃ ║
+	║ ┃│   Tag Value <varint>   │┃ ║
+	║ ┃└────────────────────────┘┃ ║
+	║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
+	╚══════════════════════════════╝
+
+Each `varint` in the series is a pointer to a position in the Dictionary for
+a given term.
+
+
+
+### Tag Sets
+
+This group contains a Tag Key block and multiple Tag Value blocks. There is one
+tag set for each measurement.
+
+	╔════════Tag Set═════════╗
+	║┌──────────────────────┐║
+	║│   Tag Values Block   │║
+	║├──────────────────────┤║
+	║│   Tag Values Block   │║
+	║├──────────────────────┤║
+	║│    Tag Keys Block    │║
+	║└──────────────────────┘║
+	╚════════════════════════╝
+
+
+#### Tag Values Block
+
+This block contains all the values for a single tag key. It starts with a `Hash
+Index` which points into the `Value List`. The value list contains a sorted list
+of values which contain a list of series they belong to.
+
+	╔═══════Tag Values Block═══════╗
+	║                              ║
+	║ ┏━━━━━━━━Hash Index━━━━━━━━┓ ║
+	║ ┃ ┌──────────────────────┐ ┃ ║
+	║ ┃ │ len(Values) <uint32> │ ┃ ║
+	║ ┃ ├──────────────────────┤ ┃ ║
+	║ ┃ │Value Offset <uint32> │ ┃ ║
+	║ ┃ ├──────────────────────┤ ┃ ║
+	║ ┃ │Value Offset <uint32> │ ┃ ║
+	║ ┃ └──────────────────────┘ ┃ ║
+	║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
+	║ ┏━━━━━━━━Value List━━━━━━━━┓ ║
+	║ ┃                          ┃ ║
+	║ ┃┏━━━━━━━━━Value━━━━━━━━━━┓┃ ║
+	║ ┃┃┌──────────────────────┐┃┃ ║
+	║ ┃┃│     Flag <uint8>     │┃┃ ║
+	║ ┃┃├──────────────────────┤┃┃ ║
+	║ ┃┃│ len(Value) <uint16>  │┃┃ ║
+	║ ┃┃├──────────────────────┤┃┃ ║
+	║ ┃┃│   Value <byte...>    │┃┃ ║
+	║ ┃┃├──────────────────────┤┃┃ ║
+	║ ┃┃│ len(Series) <uint32> │┃┃ ║
+	║ ┃┃├──────────────────────┤┃┃ ║
+	║ ┃┃│SeriesIDs <uint32...> │┃┃ ║
+	║ ┃┃└──────────────────────┘┃┃ ║
+	║ ┃┗━━━━━━━━━━━━━━━━━━━━━━━━┛┃ ║
+	║ ┃           ...            ┃ ║
+	║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
+	╚══════════════════════════════╝
+
+The LSB of the `Flag` byte is used to indicate a tombstone on the value.
+
+
+#### Tag Key Block
+
+This block is structured similarly to the `Tag Values` block. The `Hash Index`
+points into the `Key List`. The key list contains a sorted list of keys which
+point to tag value blocks.
+
+	╔════════Tag Key Block═════════╗
+	║                              ║
+	║ ┏━━━━━━━━Hash Index━━━━━━━━┓ ║
+	║ ┃ ┌──────────────────────┐ ┃ ║
+	║ ┃ │  len(Keys) <uint32>  │ ┃ ║
+	║ ┃ ├──────────────────────┤ ┃ ║
+	║ ┃ │ Key Offset <uint32>  │ ┃ ║
+	║ ┃ ├──────────────────────┤ ┃ ║
+	║ ┃ │ Key Offset <uint32>  │ ┃ ║
+	║ ┃ └──────────────────────┘ ┃ ║
+	║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
+	║ ┏━━━━━━━━━Key List━━━━━━━━━┓ ║
+	║ ┃                          ┃ ║
+	║ ┃┏━━━━━━━━━━Key━━━━━━━━━━━┓┃ ║
+	║ ┃┃┌──────────────────────┐┃┃ ║
+	║ ┃┃│     Flag <uint8>     │┃┃ ║
+	║ ┃┃├──────────────────────┤┃┃ ║
+	║ ┃┃│  len(Key) <uint16>   │┃┃ ║
+	║ ┃┃├──────────────────────┤┃┃ ║
+	║ ┃┃│    Key <byte...>     │┃┃ ║
+	║ ┃┃├──────────────────────┤┃┃ ║
+	║ ┃┃│Value Offset <uint32> │┃┃ ║
+	║ ┃┃└──────────────────────┘┃┃ ║
+	║ ┃┗━━━━━━━━━━━━━━━━━━━━━━━━┛┃ ║
+	║ ┃           ...            ┃ ║
+	║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
+	╚══════════════════════════════╝
+
+The LSB of the `Flag` byte is used to indicate a tombstone on the key.
+
+
+### Measurements Block
+
+The trailer of the index file is the measurements block which contains a lookup
+of all measurements. This block contains a hash index which points into a list
+of measurements. Each measurement points to its associated Tag Key block and 
+has a list of associated series.
+
+
+	╔══════════Measurements Block═══════════╗
+	║                                       ║
+	║ ┏━━━━━━━━━━━━Hash Index━━━━━━━━━━━━━┓ ║
+	║ ┃ ┌───────────────────────────────┐ ┃ ║
+	║ ┃ │  len(Measurements) <uint32>   │ ┃ ║
+	║ ┃ ├───────────────────────────────┤ ┃ ║
+	║ ┃ │  Measurement Offset <uint32>  │ ┃ ║
+	║ ┃ ├───────────────────────────────┤ ┃ ║
+	║ ┃ │  Measurement Offset <uint32>  │ ┃ ║
+	║ ┃ └───────────────────────────────┘ ┃ ║
+	║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
+	║ ┏━━━━━━━━━Measurement List━━━━━━━━━━┓ ║
+	║ ┃                                   ┃ ║
+	║ ┃┏━━━━━━━━━━Measurement━━━━━━━━━━━┓ ┃ ║
+	║ ┃┃┌─────────────────────────────┐ ┃ ┃ ║
+	║ ┃┃│        Flag <uint8>         │ ┃ ┃ ║
+	║ ┃┃├─────────────────────────────┤ ┃ ┃ ║
+	║ ┃┃│     len(Name) <uint16>      │ ┃ ┃ ║
+	║ ┃┃├─────────────────────────────┤ ┃ ┃ ║
+	║ ┃┃│       Name <byte...>        │ ┃ ┃ ║
+	║ ┃┃├─────────────────────────────┤ ┃ ┃ ║
+	║ ┃┃│  Tag Block Offset <uint32>  │ ┃ ┃ ║
+	║ ┃┃├─────────────────────────────┤ ┃ ┃ ║
+	║ ┃┃│    len(Series) <uint32>     │ ┃ ┃ ║
+	║ ┃┃├─────────────────────────────┤ ┃ ┃ ║
+	║ ┃┃│    SeriesIDs <uint32...>    │ ┃ ┃ ║
+	║ ┃┃└─────────────────────────────┘ ┃ ┃ ║
+	║ ┃┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ┃ ║
+	║ ┃                ...                ┃ ║
+	║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
+	╚═══════════════════════════════════════╝
+
+The LSB of the `Flag` byte is used to indicate a tombstone on the measurement.
+
+_Note: The list of series positions may be changed to a compressed bitmap if
+performance of the uncompressed `uint32` array is found to be poor._
+
+
+## Write-Ahead Log (WAL)
+
+A separate file will be used as a write-ahead log to append new series. This
+file will simply contain the series key followed by a checksum:
+
+	╔═════════════WAL══════════════╗
+	║                              ║
+	║ ┏━━━━━━━━━━Entry━━━━━━━━━━━┓ ║
+	║ ┃ ┌──────────────────────┐ ┃ ║
+	║ ┃ │     Flag <uint8>     │ ┃ ║
+	║ ┃ ├──────────────────────┤ ┃ ║
+	║ ┃ │ len(Series) <uint16> │ ┃ ║
+	║ ┃ ├──────────────────────┤ ┃ ║
+	║ ┃ │   Series <byte...>   │ ┃ ║
+	║ ┃ ├──────────────────────┤ ┃ ║
+	║ ┃ │  Checksum <uint32>   │ ┃ ║
+	║ ┃ └──────────────────────┘ ┃ ║
+	║ ┗━━━━━━━━━━━━━━━━━━━━━━━━━━┛ ║
+	║             ...              ║
+	╚══════════════════════════════╝
+
+The LSB of the `Flag` byte is used to indicate a tombstone on the series.
+
+New series keys are appended to the WAL until the WAL reaches a size or time
+based threshold and can be compacted into an inverted index.
+
+
+#### Compaction Types
 
 There are two separate types of compaction that can occur:
 
-1. Fast compaction -- compacts a set of WAL entries into series, measurement, and tag value blocks. These blocks are layered on top of previously compacted block sets.
+1. Fast compaction -- compacts a set of WAL entries into an inverted index. Each
+   new index will layer on top of the previous one and searches will need to
+   combine each layered index.
 
-2. Full compaction -- compacts sets of block sets into a single block set. This takes the multiple layers of series, measurement, and tag value blocks and merges them into one. It also removes any entries which have been tombstoned.
+2. Full compaction -- compacts multiple inverted indexes into a single index.
 
 
-## Detailed Block Information
+## Hash Indexing
 
-### Series Blocks
+All hash indexes within the Measurement, Tag Key, and Tag Value blocks will use
+[Robin Hood Hashing](robin-hood) which minimizes minimizes worst case search
+time.
 
-Series blocks contain a `uint32` block ID followed by a list of `uint32` local series IDs. Combining the block id and local series ID provides a globally addressable `uint64` series ID: `(blockID,seriesID)`. Block IDs are assigned in sequential order and are only unique within an index file.
+[robin-hood]: https://cs.uwaterloo.ca/research/tr/1986/CS-86-14.pdf
 
-For example, if the block ID was 1 and the local series ID was 5 then the global ID is (1,5) and is represented as `1 << 32 | 5`.
-
-The layout on disk for the block would be:
-
-```
-BLOCKID<uint32>
-KEYN<uint32>
-(KEYPOS<uint64>)*
-(FLAG<uint8>,KEYSZ<uint16>,KEY<string>)*
-```
-
-With a global ID, the key can be looked up by moving to the appropriate block and then moving to the `KEYPOS` based on the local series ID and then finally jumping to the key itself using the key position.
-
-The `FLAG` contains boolean flags for the series. The first bit is a tombstone flag to mark the series as deleted. Other bits are reserved for future use.
-
-Because the local ID is a `uint32` we are limited to approximately 4 billion series in a block. Once the ID overflows then additional series will need to be written to a new block.
-
-#### Histogram
-
-There will also be a smaller bucketed index at the end of the series block which will allow us to narrow down the set of pages to search. This index can be searched first and then a binary search can be performed within a limited range of the series block.
-
-The layout of this histogram would be:
-
-```
-KEYN<uint32>
-(KEYPOS<uint64>)*
-(KEYSZ<uint16>,KEY<string>)*
-```
-
-### Measurement Blocks
-
-Measurement blocks hold the measurement name and a list of tags with pointers to their tag value blocks.
-
-The layout on disk for the block would be:
-
-```
-FLAG<uint8>,NAMESZ<uint16>,NAME<string>
-KEYN<uint64>
-(KEYPOS<uint64>,VALBLKPOS<uint64>)*
-(KEYFLAG<uint8>,KEYSZ<uint16>,KEY<string>)*
-```
-
-The `FLAG` and `KEYFLAG` contains boolean flags for the measurement and key, respectively. The first bit is a tombstone flag to mark the object as deleted. Other bits are reserved for future use.
-
-### Tag Value Blocks
-
-Tag value blocks contain a sorted list of tag values.
-
-The layout on disk for the block would be:
-
-```
-VALN<uint32>
-(VALPOS<uint64>)*
-(FLAG<uint8>,VALSZ<uint16>,VAL<string>)*
-```
-
-The `FLAG` contains boolean flags for the tag value. The first bit is a tombstone flag to mark the tag value as deleted. Other bits are reserved for future use.
-
-### WAL File
-
-The Write Ahead Log (WAL) exists to quickly append new data. Once it reaches a size threshold it can be compacted into a set of blocks on the index.
-
-The format of each entry in the WAL is:
-
-```
-FLAG<uint8>,KEYSZ<uint16>,KEY<string>,CHECKSUM<uint8>
-```
-
-The `FLAG` holds boolean flags for the series key while the `KEYSZ` and `KEY` store a fixed-size series key. The `CHECKSUM` at the end ensures all bytes were written correctly to disk.
