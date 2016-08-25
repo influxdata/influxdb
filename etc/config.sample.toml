@@ -177,13 +177,13 @@ reporting-disabled = false
   # bind-socket = "/var/run/influxdb.sock"
 
 ###
-### [subsciber]
+### [subscriber]
 ###
 ### Controls the subscriptions, which can be used to fork a copy of all data
 ### received by the InfluxDB host.
 ###
 
-[subsciber]
+[subscriber]
   enabled = true
   http-timeout = "30s"
 
