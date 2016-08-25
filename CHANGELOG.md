@@ -1,3 +1,9 @@
+## v1.0.1 [unreleased]
+
+### Bugfixes
+
+- [#7271](https://github.com/influxdata/influxdb/issues/7271): Fixing typo within example configuration file. Thanks @andyfeller!
+
 ## v1.0.0 [2016-09-07]
 
 ### Release Notes
