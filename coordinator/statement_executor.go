@@ -533,7 +533,7 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 		}
 	}
 	if opt.MinTime.IsZero() {
-		opt.MinTime = time.Unix(0, 0)
+		opt.MinTime = time.Unix(0, influxql.MinTime).UTC()
 	}
 
 	// Convert DISTINCT into a call.

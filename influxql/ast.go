@@ -1164,7 +1164,7 @@ func (s *SelectStatement) RewriteFields(ic IteratorCreator) (*SelectStatement, e
 
 				// Add additional types for certain functions.
 				switch call.Name {
-				case "count", "first", "last", "distinct", "elapsed":
+				case "count", "first", "last", "distinct", "elapsed", "mode":
 					supportedTypes[String] = struct{}{}
 					supportedTypes[Boolean] = struct{}{}
 				case "stddev":
@@ -3222,7 +3222,7 @@ func (c *Call) Fields() []string {
 			}
 		}
 		return keys
-	case "min", "max", "first", "last", "sum", "mean":
+	case "min", "max", "first", "last", "sum", "mean", "mode":
 		// maintain the order the user specified in the query
 		keyMap := make(map[string]struct{})
 		keys := []string{}
@@ -3637,7 +3637,7 @@ func TimeRange(expr Expr) (min, max time.Time, err error) {
 }
 
 // TimeRangeAsEpochNano returns the minimum and maximum times, as epoch nano, specified by
-// and expression. If there is no lower bound, the start of the epoch is returned
+// an expression. If there is no lower bound, the minimum time is returned
 // for minimum. If there is no higher bound, now is returned for maximum.
 func TimeRangeAsEpochNano(expr Expr) (min, max int64, err error) {
 	tmin, tmax, err := TimeRange(expr)
@@ -3646,7 +3646,7 @@ func TimeRangeAsEpochNano(expr Expr) (min, max int64, err error) {
 	}
 
 	if tmin.IsZero() {
-		min = time.Unix(0, 0).UnixNano()
+		min = time.Unix(0, MinTime).UnixNano()
 	} else {
 		min = tmin.UnixNano()
 	}
@@ -3687,7 +3687,9 @@ func timeExprValue(ref Expr, lit Expr) (t time.Time, err error) {
 		case *TimeLiteral:
 			if lit.Val.After(time.Unix(0, MaxTime)) {
 				return time.Time{}, fmt.Errorf("time %s overflows time literal", lit.Val.Format(time.RFC3339))
-			} else if lit.Val.Before(time.Unix(0, MinTime)) {
+			} else if lit.Val.Before(time.Unix(0, MinTime+1)) {
+				// The minimum allowable time literal is one greater than the minimum time because the minimum time
+				// is a sentinel value only used internally.
 				return time.Time{}, fmt.Errorf("time %s underflows time literal", lit.Val.Format(time.RFC3339))
 			}
 			return lit.Val, nil

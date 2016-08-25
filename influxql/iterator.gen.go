@@ -816,6 +816,11 @@ func (itr *floatIntervalIterator) Next() (*FloatPoint, error) {
 		return nil, err
 	}
 	p.Time, _ = itr.opt.Window(p.Time)
+	// If we see the minimum allowable time, set the time to zero so we don't
+	// break the default returned time for aggregate queries without times.
+	if p.Time == MinTime {
+		p.Time = 0
+	}
 	return p, nil
 }
 
@@ -2977,6 +2982,11 @@ func (itr *integerIntervalIterator) Next() (*IntegerPoint, error) {
 		return nil, err
 	}
 	p.Time, _ = itr.opt.Window(p.Time)
+	// If we see the minimum allowable time, set the time to zero so we don't
+	// break the default returned time for aggregate queries without times.
+	if p.Time == MinTime {
+		p.Time = 0
+	}
 	return p, nil
 }
 
@@ -5135,6 +5145,11 @@ func (itr *stringIntervalIterator) Next() (*StringPoint, error) {
 		return nil, err
 	}
 	p.Time, _ = itr.opt.Window(p.Time)
+	// If we see the minimum allowable time, set the time to zero so we don't
+	// break the default returned time for aggregate queries without times.
+	if p.Time == MinTime {
+		p.Time = 0
+	}
 	return p, nil
 }
 
@@ -7293,6 +7308,11 @@ func (itr *booleanIntervalIterator) Next() (*BooleanPoint, error) {
 		return nil, err
 	}
 	p.Time, _ = itr.opt.Window(p.Time)
+	// If we see the minimum allowable time, set the time to zero so we don't
+	// break the default returned time for aggregate queries without times.
+	if p.Time == MinTime {
+		p.Time = 0
+	}
 	return p, nil
 }
 

@@ -619,7 +619,7 @@ func (d *indirectIndex) Entries(key string) []IndexEntry {
 		}
 
 		// The search may have returned an i == 0 which could indicated that the value
-		// searched should be inserted at postion 0.  Make sure the key in the index
+		// searched should be inserted at position 0.  Make sure the key in the index
 		// matches the search value.
 		if !bytes.Equal(kb, k) {
 			return nil
