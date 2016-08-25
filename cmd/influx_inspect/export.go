@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
@@ -137,8 +138,8 @@ func (c *cmdExport) writeFiles() error {
 	fmt.Fprintln(w, "# DDL")
 	for key, _ := range c.files {
 		keys := strings.Split(key, string(byte(os.PathSeparator)))
-		fmt.Fprintf(w, "CREATE DATABASE %s\n", keys[0])
-		fmt.Fprintf(w, "CREATE RETENTION POLICY %s ON %s DURATION inf REPLICATION 1\n", keys[1], keys[0])
+		db, rp := influxql.QuoteIdent(keys[0]), influxql.QuoteIdent(keys[1])
+		fmt.Fprintf(w, "CREATE DATABASE %s WITH NAME %s\n", db, rp)
 	}
 
 	fmt.Fprintln(w, "# DML")
