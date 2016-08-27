@@ -104,13 +104,15 @@ func main() {
 		}
 		cmdVerify(path)
 	case "export":
-		var path, out, db, rp string
+		var path, out, db, rp, start, end string
 		var compress bool
 		fs := flag.NewFlagSet("export", flag.ExitOnError)
 		fs.StringVar(&path, "dir", os.Getenv("HOME")+"/.influxdb", "Root storage path. [$HOME/.influxdb]")
 		fs.StringVar(&out, "out", os.Getenv("HOME")+"/.influxdb/export", "Destination file to export to")
 		fs.StringVar(&db, "db", "", "Optional: the database to export")
 		fs.StringVar(&rp, "rp", "", "Optional: the retention policy to export (requires db parameter to be specified)")
+		fs.StringVar(&start, "start-time", "", "Optional: the start time to export")
+		fs.StringVar(&end, "end-time", "", "Optional: the end time to export")
 		fs.BoolVar(&compress, "compress", false, "Compress the output")
 
 		fs.Usage = func() {
@@ -124,7 +126,11 @@ func main() {
 			fmt.Printf("%v", err)
 			os.Exit(1)
 		}
-		c := newCmdExport(path, out, db, rp, compress)
+		c, err := newCmdExport(path, out, db, rp, start, end, compress)
+		if err != nil {
+			fmt.Printf("%v", err)
+			os.Exit(1)
+		}
 		if err := c.run(); err != nil {
 			fmt.Println(err)
 			os.Exit(1)
