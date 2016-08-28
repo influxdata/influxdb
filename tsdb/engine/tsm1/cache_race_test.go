@@ -1,5 +1,3 @@
-// +build !race
-
 package tsm1_test
 
 import (
@@ -11,7 +9,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
-func TestCheckConcurrentReadsAreSafe(t *testing.T) {
+func TestCacheCheckConcurrentReadsAreSafe(t *testing.T) {
 	values := make(tsm1.Values, 1000)
 	timestamps := make([]int64, len(values))
 	series := make([]string, 100)
