@@ -12,11 +12,13 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"encoding/json"
 
 	"github.com/influxdata/influxdb/client"
 	"github.com/influxdata/influxdb/cmd/influx/cli"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/peterh/liner"
+	"github.com/influxdata/influxdb/models"
 )
 
 const (
@@ -127,6 +129,191 @@ func TestSetFormat(t *testing.T) {
 	c.SetFormat("format " + f)
 	if c.Format != f {
 		t.Fatalf("Format is %s but should be %s", c.Format, f)
+	}
+}
+
+func createFakeResponse(rows ...models.Row) *client.Response {
+
+
+
+	/*row1_1 := models.Row {
+		Name: "cpu",
+		Tags: map[string]string{"host": "anomaly.io",
+			"instance": "big"},
+		Columns: []string{"time", "value", "latency"},
+		Values: [][]interface{}{
+			{json.Number("1300000000"), float64(100), 12},
+			{json.Number("1400000000"), float64(200), 80},
+		},
+	}
+
+	row1_2 := models.Row {
+		Name: "cpu",
+		Tags: map[string]string{},
+		Columns: []string{"time", "detection"},
+		Values: [][]interface{}{
+			{json.Number("1500000000"), true},
+			{json.Number("1600000000"), false},
+		},
+	}
+
+	//special caractere
+	row2_1 := models.Row {
+		Name: "cpu usage",
+		Tags: map[string]string{},
+		Columns: []string{"time", "host", "anomaly=true detect"},
+		Values: [][]interface{}{
+			{json.Number("1500000000"), "server A,server B",},
+			{json.Number("1600000000"), false},
+		},
+	}*/
+
+	result1 := client.Result{Series: rows}
+	results := []client.Result{result1}
+	response := &client.Response{Results: results}
+	return response
+}
+
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+func TestLineProtocolBasic(t *testing.T) {
+	t.Parallel()
+	c := cli.CommandLine{Format:"lineprotocol"}
+
+	expects := []string{}
+	row1 := models.Row {
+		Name: "cpu",
+		Tags: map[string]string{"host": "anomaly.io"},
+		Columns: []string{"time", "value", "latency"},
+		Values: [][]interface{}{
+			{json.Number("1300000000"), float64(100), 12},
+			{json.Number("1400000000"), int64(200), 80},
+			{float64(1500000001), int64(222), 333},
+			{int64(888), float64(123), float64(456)},
+		},
+	}
+	expects = append(expects, "cpu,host=anomaly.io value=100,latency=12i 1300000000")
+	expects = append(expects, "cpu,host=anomaly.io value=200i,latency=80i 1400000000")
+	expects = append(expects, "cpu,host=anomaly.io value=222i,latency=333i 1500000001")
+	expects = append(expects, "cpu,host=anomaly.io value=123,latency=456 888")
+
+	row2 := models.Row {
+		Name: "cpu",
+		Tags: map[string]string{},
+		Columns: []string{"time", "detection"},
+		Values: [][]interface{}{
+			{json.Number("1500000000"), true},
+			{json.Number("1600000000"), false},
+		},
+	}
+	expects = append(expects, "cpu detection=true 1500000000")
+	expects = append(expects, "cpu detection=false 1600000000")
+
+	output := new(bytes.Buffer)
+	c.FormatResponse(createFakeResponse(row1,row2), output)
+
+	lpRows := strings.Split(output.String(), "\n")
+	lpRows = lpRows[0:len(lpRows)-1] //remove last /n
+
+	checkMatch(t, lpRows, expects)
+}
+
+// Tag are map[string]. The order is guaranteed by sorting the tag.
+// Test tag should be in order: "a_instancetype" then "b_domain"
+func TestLineProtocolMultiTag(t *testing.T) {
+	t.Parallel()
+	c := cli.CommandLine{Format:"lineprotocol"}
+
+	expects := []string{}
+	row1 := models.Row {
+		Name: "cpu",
+		Tags: map[string]string{"b_domain": "anomaly.io",
+			"a_instancetype": "big"},
+		Columns: []string{"time", "value"},
+		Values: [][]interface{}{
+			{json.Number("1300000000"), float64(100)},
+			{json.Number("1400000000"), float64(123)},
+		},
+	}
+	expects = append(expects, "cpu,a_instancetype=big,b_domain=anomaly.io value=100 1300000000")
+	expects = append(expects, "cpu,a_instancetype=big,b_domain=anomaly.io value=123 1400000000")
+
+	output := new(bytes.Buffer)
+	c.FormatResponse(createFakeResponse(row1), output)
+
+	lpRows := strings.Split(output.String(), "\n")
+	lpRows = lpRows[0:len(lpRows)-1] //remove last /n
+
+	checkMatch(t, lpRows, expects)
+}
+
+func TestLineProtocolSpecialChar(t *testing.T) {
+	t.Parallel()
+	c := cli.CommandLine{Format:"lineprotocol"}
+
+	expects := []string{}
+	row1 := models.Row {
+		Name: "my strange=long,measurement",
+		Tags: map[string]string{"my strange=long,tag key": "my strange=long,tag value"},
+		Columns: []string{"time", "value", "my strange=long,column name"},
+		Values: [][]interface{}{
+			{json.Number("1300000000"), float64(100), "my strange=long,column value with \" <-double-quote!  "},
+		},
+	}
+	var buffer bytes.Buffer
+	buffer.WriteString("my\\ strange=long\\,measurement") // escape: comma and space
+	buffer.WriteString(",")
+	buffer.WriteString("my\\ strange\\=long\\,tag\\ key") //escape: commas, spaces, and equal signs
+	buffer.WriteString("=")
+	buffer.WriteString("my\\ strange\\=long\\,tag\\ value") //escape: commas, spaces, and equal signs
+	buffer.WriteString(" value=100")
+	buffer.WriteString(",my\\ strange\\=long\\,column\\ name")
+	buffer.WriteString("=")
+	buffer.WriteString("\"my strange=long,column value with \\\" <-double-quote!  \"") //escape: double-quote
+	buffer.WriteString(" 1300000000")
+	expects = append(expects, buffer.String())
+
+
+	row2 := models.Row {
+		Name: "cpu",
+		Tags: map[string]string{},
+		Columns: []string{"time", "notstrange:-)àç!èè§(''\"é&", "str_field"},
+		Values: [][]interface{}{
+			{json.Number("1500000000"), true, "hello world"},
+			{json.Number("1600000000"), false, "martin magakian"},
+		},
+	}
+	expects = append(expects, "cpu notstrange:-)àç!èè§(''\"é&=true,str_field=\"hello world\" 1500000000")
+	expects = append(expects, "cpu notstrange:-)àç!èè§(''\"é&=false,str_field=\"martin magakian\" 1600000000")
+
+	output := new(bytes.Buffer)
+	c.FormatResponse(createFakeResponse(row1,row2), output)
+
+	lpRows := strings.Split(output.String(), "\n")
+	lpRows = lpRows[0:len(lpRows)-1] //remove last /n
+
+	checkMatch(t, lpRows, expects)
+}
+
+func checkMatch(t *testing.T, lpRows []string, expects []string) {
+	for _,line := range lpRows {
+		if !contains(expects, line){
+			for _,c := range expects{
+				fmt.Println(c)
+			}
+			t.Fatalf("LineProtocol:\n%s\nwas not expected", line)
+		}
+	}
+
+	if len(lpRows) != len(expects){
+		t.Fatalf("expected %d lineProtocol but get %d lineProtocol", len(expects), len(lpRows))
 	}
 }
 
@@ -375,6 +562,10 @@ func TestParseCommand_Consistency(t *testing.T) {
 	}
 }
 
+
+
+
+
 func TestParseCommand_Insert(t *testing.T) {
 	t.Parallel()
 	ts := emptyTestServer()
@@ -579,3 +770,4 @@ func emptyTestServer() *httptest.Server {
 		}
 	}))
 }
+

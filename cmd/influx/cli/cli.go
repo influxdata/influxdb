@@ -413,10 +413,10 @@ func (c *CommandLine) SetFormat(cmd string) {
 	cmd = strings.ToLower(cmd)
 
 	switch cmd {
-	case "json", "csv", "column":
+	case "json", "csv", "column", "lineprotocol":
 		c.Format = cmd
 	default:
-		fmt.Printf("Unknown format %q. Please use json, csv, or column.\n", cmd)
+		fmt.Printf("Unknown format %q. Please use json, csv, column or lineprotocol.\n", cmd)
 	}
 }
 
@@ -592,6 +592,8 @@ func (c *CommandLine) FormatResponse(response *client.Response, w io.Writer) {
 		c.writeCSV(response, w)
 	case "column":
 		c.writeColumns(response, w)
+	case "lineprotocol":
+		c.writeLineProtocol(response, w)
 	default:
 		fmt.Fprintf(w, "Unknown output format %q.\n", c.Format)
 	}
@@ -640,6 +642,114 @@ func (c *CommandLine) writeColumns(response *client.Response, w io.Writer) {
 		}
 		writer.Flush()
 	}
+}
+
+func (c *CommandLine) writeLineProtocol(response *client.Response, w io.Writer) {
+	for _, result := range response.Results {
+		// Print out all messages first
+		for _, m := range result.Messages {
+			fmt.Fprintf(w, "%s: %s.\n", m.Level, m.Text)
+		}
+
+		for _, multiRow := range result.Series {
+			for _, row := range c.formatLineProtocol(multiRow) {
+				fmt.Fprintln(w, row)
+			}
+		}
+	}
+}
+
+func (c *CommandLine) formatLineProtocol(row models.Row) []string{
+
+	name := lineProtocolEscapeName(row.Name)
+
+	// gather tags
+	tags := []string{}
+	for k, v := range row.Tags {
+		kStr := lineProtocolEscapeKeyTag(k)
+		vStr := lineProtocolEscapeKeyTag(v)
+		if kStr != "" && vStr != "" {
+			tags = append(tags, fmt.Sprintf("%s=%s", kStr, vStr))
+		}
+	}
+	sort.Strings(tags)
+
+	entries := []string{}
+	for _, value := range row.Values {
+		values := []string{}
+		var time string
+		for colIndex, col := range row.Columns {
+			valueEntry := value[colIndex]
+			if col == "time" {
+				//avoid scientific notation for time
+				switch t := valueEntry.(type) {
+				case float64:
+					time = strconv.FormatFloat(t, 'f', 0, 64)
+				default:
+					_, time = interfaceToString(valueEntry)
+				}
+			} else {
+				vStr := lineProtocolFormatIfStringOrInt(valueEntry)
+				kStr := lineProtocolEscapeKeyTag(col)
+				if kStr != "" && vStr != "" {
+					values = append(values, fmt.Sprintf("%s=%s", kStr, vStr))
+				}
+			}
+		}
+		entry := c.createLineProtocolRow(name, tags, values, time)
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func (c *CommandLine) createLineProtocolRow(name string, tags []string, values []string, time string) string{
+	var row bytes.Buffer
+	row.WriteString(name)
+	if len(tags) > 0 {
+		row.WriteString(",")
+		row.WriteString(strings.Join(tags,","))
+	}
+
+	if len(values) > 0 {
+		row.WriteString(" ")
+		row.WriteString(strings.Join(values,","))
+	}
+
+	if time != "" {
+		row.WriteString(" ")
+		row.WriteString(time)
+	}
+
+	return row.String()
+}
+
+func lineProtocolEscape(entry string, escapes []string) string{
+	entryModif := entry
+	for _, escape := range escapes {
+		newChar := fmt.Sprintf("\\%s",escape)
+		entryModif = strings.Replace(entryModif, escape, newChar, -1)
+	}
+	return entryModif
+}
+
+func lineProtocolFormatIfStringOrInt(v interface{}) string{
+	typeInterface, str := interfaceToString(v)
+	switch (typeInterface){
+	case INT:
+		return fmt.Sprintf("%si",str)
+	case STRING:
+		str = lineProtocolEscape(str, []string{"\""})
+		return fmt.Sprintf("\"%s\"",str)
+	}
+	return str
+}
+
+func lineProtocolEscapeName(entry string) string{
+	return lineProtocolEscape(entry, []string{","," "})
+}
+
+func lineProtocolEscapeKeyTag(entry string) string{
+	return lineProtocolEscape(entry, []string{","," ", "="})
 }
 
 // formatResults will behave differently if you are formatting for columns or csv
@@ -715,7 +825,8 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 			}
 
 			for _, vv := range v {
-				values = append(values, interfaceToString(vv))
+				_, str := interfaceToString(vv)
+				values = append(values, str)
 			}
 			rows = append(rows, strings.Join(values, separator))
 		}
@@ -727,20 +838,32 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 	return rows
 }
 
-func interfaceToString(v interface{}) string {
+func interfaceToString(v interface{}) (Type, string) {
 	switch t := v.(type) {
 	case nil:
-		return ""
+		return NIL, ""
 	case bool:
-		return fmt.Sprintf("%v", v)
+		return BOOLEAN, fmt.Sprintf("%v", v)
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-		return fmt.Sprintf("%d", t)
+		return INT, fmt.Sprintf("%d", t)
 	case float32, float64:
-		return fmt.Sprintf("%v", t)
+		return FLOAT, fmt.Sprintf("%v", t)
+	case json.Number:
+		return FLOAT, fmt.Sprintf("%v", t) // JSON is always seen as float
 	default:
-		return fmt.Sprintf("%v", t)
+		return STRING, fmt.Sprintf("%v", t)
 	}
 }
+
+type Type int
+
+const (
+	NIL Type = 1 + iota
+	BOOLEAN
+	INT
+	FLOAT
+	STRING
+)
 
 // Settings prints current settings
 func (c *CommandLine) Settings() {
