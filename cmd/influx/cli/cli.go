@@ -659,7 +659,7 @@ func (c *CommandLine) writeLineProtocol(response *client.Response, w io.Writer) 
 	}
 }
 
-func (c *CommandLine) formatLineProtocol(row models.Row) []string{
+func (c *CommandLine) formatLineProtocol(row models.Row) []string {
 
 	name := lineProtocolEscapeName(row.Name)
 
@@ -702,17 +702,17 @@ func (c *CommandLine) formatLineProtocol(row models.Row) []string{
 	return entries
 }
 
-func (c *CommandLine) createLineProtocolRow(name string, tags []string, values []string, time string) string{
+func (c *CommandLine) createLineProtocolRow(name string, tags []string, values []string, time string) string {
 	var row bytes.Buffer
 	row.WriteString(name)
 	if len(tags) > 0 {
 		row.WriteString(",")
-		row.WriteString(strings.Join(tags,","))
+		row.WriteString(strings.Join(tags, ","))
 	}
 
 	if len(values) > 0 {
 		row.WriteString(" ")
-		row.WriteString(strings.Join(values,","))
+		row.WriteString(strings.Join(values, ","))
 	}
 
 	if time != "" {
@@ -723,33 +723,33 @@ func (c *CommandLine) createLineProtocolRow(name string, tags []string, values [
 	return row.String()
 }
 
-func lineProtocolEscape(entry string, escapes []string) string{
+func lineProtocolEscape(entry string, escapes []string) string {
 	entryModif := entry
 	for _, escape := range escapes {
-		newChar := fmt.Sprintf("\\%s",escape)
+		newChar := fmt.Sprintf("\\%s", escape)
 		entryModif = strings.Replace(entryModif, escape, newChar, -1)
 	}
 	return entryModif
 }
 
-func lineProtocolFormatIfStringOrInt(v interface{}) string{
+func lineProtocolFormatIfStringOrInt(v interface{}) string {
 	typeInterface, str := interfaceToString(v)
-	switch (typeInterface){
+	switch typeInterface {
 	case INT:
-		return fmt.Sprintf("%si",str)
+		return fmt.Sprintf("%si", str)
 	case STRING:
 		str = lineProtocolEscape(str, []string{"\""})
-		return fmt.Sprintf("\"%s\"",str)
+		return fmt.Sprintf("\"%s\"", str)
 	}
 	return str
 }
 
-func lineProtocolEscapeName(entry string) string{
-	return lineProtocolEscape(entry, []string{","," "})
+func lineProtocolEscapeName(entry string) string {
+	return lineProtocolEscape(entry, []string{",", " "})
 }
 
-func lineProtocolEscapeKeyTag(entry string) string{
-	return lineProtocolEscape(entry, []string{","," ", "="})
+func lineProtocolEscapeKeyTag(entry string) string {
+	return lineProtocolEscape(entry, []string{",", " ", "="})
 }
 
 // formatResults will behave differently if you are formatting for columns or csv
