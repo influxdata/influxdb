@@ -3,6 +3,7 @@ package cli_test
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -12,13 +13,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-	"encoding/json"
 
 	"github.com/influxdata/influxdb/client"
 	"github.com/influxdata/influxdb/cmd/influx/cli"
 	"github.com/influxdata/influxdb/influxql"
-	"github.com/peterh/liner"
 	"github.com/influxdata/influxdb/models"
+	"github.com/peterh/liner"
 )
 
 const (
@@ -134,8 +134,6 @@ func TestSetFormat(t *testing.T) {
 
 func createFakeResponse(rows ...models.Row) *client.Response {
 
-
-
 	/*row1_1 := models.Row {
 		Name: "cpu",
 		Tags: map[string]string{"host": "anomaly.io",
@@ -185,12 +183,12 @@ func contains(s []string, e string) bool {
 
 func TestLineProtocolBasic(t *testing.T) {
 	t.Parallel()
-	c := cli.CommandLine{Format:"lineprotocol"}
+	c := cli.CommandLine{Format: "lineprotocol"}
 
 	expects := []string{}
-	row1 := models.Row {
-		Name: "cpu",
-		Tags: map[string]string{"host": "anomaly.io"},
+	row1 := models.Row{
+		Name:    "cpu",
+		Tags:    map[string]string{"host": "anomaly.io"},
 		Columns: []string{"time", "value", "latency"},
 		Values: [][]interface{}{
 			{json.Number("1300000000"), float64(100), 12},
@@ -204,9 +202,9 @@ func TestLineProtocolBasic(t *testing.T) {
 	expects = append(expects, "cpu,host=anomaly.io value=222i,latency=333i 1500000001")
 	expects = append(expects, "cpu,host=anomaly.io value=123,latency=456 888")
 
-	row2 := models.Row {
-		Name: "cpu",
-		Tags: map[string]string{},
+	row2 := models.Row{
+		Name:    "cpu",
+		Tags:    map[string]string{},
 		Columns: []string{"time", "detection"},
 		Values: [][]interface{}{
 			{json.Number("1500000000"), true},
@@ -217,10 +215,10 @@ func TestLineProtocolBasic(t *testing.T) {
 	expects = append(expects, "cpu detection=false 1600000000")
 
 	output := new(bytes.Buffer)
-	c.FormatResponse(createFakeResponse(row1,row2), output)
+	c.FormatResponse(createFakeResponse(row1, row2), output)
 
 	lpRows := strings.Split(output.String(), "\n")
-	lpRows = lpRows[0:len(lpRows)-1] //remove last /n
+	lpRows = lpRows[0 : len(lpRows)-1] //remove last /n
 
 	checkMatch(t, lpRows, expects)
 }
@@ -229,10 +227,10 @@ func TestLineProtocolBasic(t *testing.T) {
 // Test tag should be in order: "a_instancetype" then "b_domain"
 func TestLineProtocolMultiTag(t *testing.T) {
 	t.Parallel()
-	c := cli.CommandLine{Format:"lineprotocol"}
+	c := cli.CommandLine{Format: "lineprotocol"}
 
 	expects := []string{}
-	row1 := models.Row {
+	row1 := models.Row{
 		Name: "cpu",
 		Tags: map[string]string{"b_domain": "anomaly.io",
 			"a_instancetype": "big"},
@@ -249,19 +247,19 @@ func TestLineProtocolMultiTag(t *testing.T) {
 	c.FormatResponse(createFakeResponse(row1), output)
 
 	lpRows := strings.Split(output.String(), "\n")
-	lpRows = lpRows[0:len(lpRows)-1] //remove last /n
+	lpRows = lpRows[0 : len(lpRows)-1] //remove last /n
 
 	checkMatch(t, lpRows, expects)
 }
 
 func TestLineProtocolSpecialChar(t *testing.T) {
 	t.Parallel()
-	c := cli.CommandLine{Format:"lineprotocol"}
+	c := cli.CommandLine{Format: "lineprotocol"}
 
 	expects := []string{}
-	row1 := models.Row {
-		Name: "my strange=long,measurement",
-		Tags: map[string]string{"my strange=long,tag key": "my strange=long,tag value"},
+	row1 := models.Row{
+		Name:    "my strange=long,measurement",
+		Tags:    map[string]string{"my strange=long,tag key": "my strange=long,tag value"},
 		Columns: []string{"time", "value", "my strange=long,column name"},
 		Values: [][]interface{}{
 			{json.Number("1300000000"), float64(100), "my strange=long,column value with \" <-double-quote!  "},
@@ -280,10 +278,9 @@ func TestLineProtocolSpecialChar(t *testing.T) {
 	buffer.WriteString(" 1300000000")
 	expects = append(expects, buffer.String())
 
-
-	row2 := models.Row {
-		Name: "cpu",
-		Tags: map[string]string{},
+	row2 := models.Row{
+		Name:    "cpu",
+		Tags:    map[string]string{},
 		Columns: []string{"time", "notstrange:-)àç!èè§(''\"é&", "str_field"},
 		Values: [][]interface{}{
 			{json.Number("1500000000"), true, "hello world"},
@@ -294,25 +291,25 @@ func TestLineProtocolSpecialChar(t *testing.T) {
 	expects = append(expects, "cpu notstrange:-)àç!èè§(''\"é&=false,str_field=\"martin magakian\" 1600000000")
 
 	output := new(bytes.Buffer)
-	c.FormatResponse(createFakeResponse(row1,row2), output)
+	c.FormatResponse(createFakeResponse(row1, row2), output)
 
 	lpRows := strings.Split(output.String(), "\n")
-	lpRows = lpRows[0:len(lpRows)-1] //remove last /n
+	lpRows = lpRows[0 : len(lpRows)-1] //remove last /n
 
 	checkMatch(t, lpRows, expects)
 }
 
 func checkMatch(t *testing.T, lpRows []string, expects []string) {
-	for _,line := range lpRows {
-		if !contains(expects, line){
-			for _,c := range expects{
+	for _, line := range lpRows {
+		if !contains(expects, line) {
+			for _, c := range expects {
 				fmt.Println(c)
 			}
 			t.Fatalf("LineProtocol:\n%s\nwas not expected", line)
 		}
 	}
 
-	if len(lpRows) != len(expects){
+	if len(lpRows) != len(expects) {
 		t.Fatalf("expected %d lineProtocol but get %d lineProtocol", len(expects), len(lpRows))
 	}
 }
@@ -562,10 +559,6 @@ func TestParseCommand_Consistency(t *testing.T) {
 	}
 }
 
-
-
-
-
 func TestParseCommand_Insert(t *testing.T) {
 	t.Parallel()
 	ts := emptyTestServer()
@@ -770,4 +763,3 @@ func emptyTestServer() *httptest.Server {
 		}
 	}))
 }
-
