@@ -889,7 +889,7 @@ func (c *CommandLine) help() {
         auth                  prompts for username and password
         pretty                toggles pretty print for the json format
         use <db_name>         sets current database
-        format <format>       specifies the format of the server responses: json, csv, or column
+        format <format>       specifies the format of the server responses: json, csv, column, or lineprotocol
         precision <format>    specifies the format of the timestamp: rfc3339, h, m, s, ms, u or ns
         consistency <level>   sets write consistency level: any, one, quorum, or all
         history               displays command history

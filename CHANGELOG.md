@@ -4,6 +4,7 @@
 
 ### Features
 
+- [#6234](https://github.com/influxdata/influxdb/issues/6234): Add lineprotocol format to influx CLI.
 - [#7120](https://github.com/influxdata/influxdb/issues/7120): Add additional statistics to query executor.
 - [#7135](https://github.com/influxdata/influxdb/pull/7135): Support enable HTTP service over unix domain socket. Thanks @oiooj
 - [#3634](https://github.com/influxdata/influxdb/issues/3634): Support mixed duration units.
