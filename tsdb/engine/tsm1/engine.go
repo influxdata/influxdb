@@ -57,13 +57,22 @@ const (
 
 // Engine represents a storage engine with compressed blocks.
 type Engine struct {
-	mu           sync.RWMutex
-	wg           sync.WaitGroup
-	done         chan struct{}
-	levelWorkers int
+	mu sync.RWMutex
 
-	snapDone chan struct{}
-	snapWG   sync.WaitGroup
+	// The following group of fields is used to track the state of level compactions within the
+	// Engine. The WaitGroup is used to monitor the compaction goroutines, the 'done' channel is
+	// used to signal those goroutines to shutdown. Every request to disable level compactions will
+	// call 'Wait' on 'wg', with the first goroutine to arrive (levelWorkers == 0 while holding the
+	// lock) will close the done channel and re-assign 'nil' to the variable. Re-enabling will
+	// decrease 'levelWorkers', and when it decreases to zero, level compactions will be started
+	// back up again.
+
+	wg           sync.WaitGroup // waitgroup for active level compaction goroutines
+	done         chan struct{}  // channel to signal level compactions to stop
+	levelWorkers int            // Number of "workers" that expect compactions to be in a disabled state
+
+	snapDone chan struct{}  // channel to signal snapshot compactions to stop
+	snapWG   sync.WaitGroup // waitgroup for running snapshot compactions
 
 	path         string
 	logger       *log.Logger // Logger to be used for important messages
@@ -154,16 +163,22 @@ func (e *Engine) SetEnabled(enabled bool) {
 func (e *Engine) SetCompactionsEnabled(enabled bool) {
 	if enabled {
 		e.enableSnapshotCompactions()
-		e.enableLevelCompactions(0)
+		e.enableLevelCompactions(false)
 	} else {
 		e.disableSnapshotCompactions()
-		e.disableLevelCompactions(0)
+		e.disableLevelCompactions(false)
 	}
 }
 
-func (e *Engine) enableLevelCompactions(n int) {
+// enableLevelCompactions will request that level compactions start back up again
+//
+// 'wait' signifies that a corresponding call to disableLevelCompactions(true) was made at some
+// point, and the associated task that required disabled compactions is now complete
+func (e *Engine) enableLevelCompactions(wait bool) {
 	e.mu.Lock()
-	e.levelWorkers -= n
+	if wait {
+		e.levelWorkers -= 1
+	}
 	if e.levelWorkers != 0 || e.done != nil {
 		// still waiting on more workers or already enabled
 		e.mu.Unlock()
@@ -184,10 +199,16 @@ func (e *Engine) enableLevelCompactions(n int) {
 	go func() { defer e.wg.Done(); e.compactTSMLevel(false, 3, quit) }()
 }
 
-func (e *Engine) disableLevelCompactions(n int) {
+// disableLevelCompactions will stop level compactions before returning
+//
+// If 'wait' is set to true, then a corresponding call to enableLevelCompactions(true) will be
+// required before level compactions will start back up again
+func (e *Engine) disableLevelCompactions(wait bool) {
 	e.mu.Lock()
 	old := e.levelWorkers
-	e.levelWorkers += n
+	if wait {
+		e.levelWorkers += 1
+	}
 
 	if old == 0 && e.done != nil {
 		// Prevent new compactions from starting
@@ -672,8 +693,8 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 	// so that snapshotting does not stop while writing out tombstones.  If it is stopped,
 	// and writing tombstones takes a long time, writes can get rejected due to the cache
 	// filling up.
-	e.disableLevelCompactions(1)
-	defer e.enableLevelCompactions(1)
+	e.disableLevelCompactions(true)
+	defer e.enableLevelCompactions(true)
 
 	// keyMap is used to see if a given key should be deleted.  seriesKey
 	// are the measurement + tagset (minus separate & field)
