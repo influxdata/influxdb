@@ -799,7 +799,7 @@ func (s *Store) IteratorCreator(shards []uint64, opt *influxql.SelectOptions) (i
 		return nil, err
 	}
 
-	return influxql.NewLazyIteratorCreator(ics), nil
+	return influxql.IteratorCreators(ics), nil
 }
 
 // WriteToShard writes a list of points to a shard identified by its ID.
