@@ -126,6 +126,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7125](https://github.com/influxdata/influxdb/pull/7125): Ensure gzip writer is closed in influx_inspect export
 - [#7127](https://github.com/influxdata/influxdb/pull/7127): Concurrent series limit
 - [#7218](https://github.com/influxdata/influxdb/issues/7218): Fix alter retention policy when all options are used.
+- [#7225](https://github.com/influxdata/influxdb/issues/7225): runtime: goroutine stack exceeds 1000000000-byte limit
 
 ## v0.13.0 [2016-05-12]
 
