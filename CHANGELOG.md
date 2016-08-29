@@ -4,32 +4,12 @@
 
 ### Breaking changes
 
-* The Shard `writePointsFail` stat has been renamed to `writePointsErr` for consistency with other stats.
-
-### Features
-
-- [#7120](https://github.com/influxdata/influxdb/issues/7120): Add additional statistics to query executor.
-- [#7135](https://github.com/influxdata/influxdb/pull/7135): Support enable HTTP service over unix domain socket. Thanks @oiooj
-- [#3634](https://github.com/influxdata/influxdb/issues/3634): Support mixed duration units.
-- [#7099](https://github.com/influxdata/influxdb/pull/7099): Implement text/csv content encoding for the response writer.
-- [#6992](https://github.com/influxdata/influxdb/issues/6992): Support tools for running async queries.
-- [#7136](https://github.com/influxdata/influxdb/pull/7136): Update jwt-go dependency to version 3.
-- [#7172](https://github.com/influxdata/influxdb/pull/7172): Write path stats
-
-### Bugfixes
-
-- [#1834](https://github.com/influxdata/influxdb/issues/1834): Drop time when used as a tag or field key.
-- [#7152](https://github.com/influxdata/influxdb/issues/7152): Decrement number of measurements only once when deleting the last series from a measurement.
-
-## v1.0.0 [unreleased]
-
-### Breaking changes
-
 * `max-series-per-database` was added with a default of 1M but can be disabled by setting it to `0`. Existing databases with series that exceed this limit will continue to load but writes that would create new series will fail.
 * Config option `[cluster]` has been replaced with `[coordinator]`
 * Support for config options `[collectd]` and `[opentsdb]` has been removed; use `[[collectd]]` and `[[opentsdb]]` instead.
 * Config option `data-logging-enabled` within the `[data]` section, has been renamed to `trace-logging-enabled`, and defaults to `false`.
 * The keywords `IF`, `EXISTS`, and `NOT` where removed for this release.  This means you no longer need to specify `IF NOT EXISTS` for `DROP DATABASE` or `IF EXISTS` for `CREATE DATABASE`.  If these are specified, a query parse error is returned.
+* The Shard `writePointsFail` stat has been renamed to `writePointsErr` for consistency with other stats.
 
 With this release the systemd configuration files for InfluxDB will use the system configured default for logging and will no longer write files to `/var/log/influxdb` by default. On most systems, the logs will be directed to the systemd journal and can be accessed by `journalctl -u influxdb.service`. Consult the systemd journald documentation for configuring journald.
 
@@ -73,6 +53,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7095](https://github.com/influxdata/influxdb/pull/7095): Add MaxSeriesPerDatabase config setting.
 - [#7199](https://github.com/influxdata/influxdb/pull/7199): Add mode function. Thanks @agaurav.
 - [#7194](https://github.com/influxdata/influxdb/issues/7194): Support negative timestamps for the query engine.
+- [#7172](https://github.com/influxdata/influxdb/pull/7172): Write path stats
 
 ### Bugfixes
 
@@ -141,7 +122,6 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7084](https://github.com/influxdata/influxdb/pull/7084): Tombstone memory improvements
 - [#6543](https://github.com/influxdata/influxdb/issues/6543): Fix parseFill to check for fill ident before attempting to parse an expression.
 - [#7032](https://github.com/influxdata/influxdb/pull/7032): Copy tags in influx_stress to avoid a concurrent write panic on a map.
-- [#7107](https://github.com/influxdata/influxdb/pull/7107): Limit shard concurrency
 - [#7028](https://github.com/influxdata/influxdb/pull/7028): Do not run continuous queries that have no time span.
 - [#7025](https://github.com/influxdata/influxdb/issues/7025): Move the CQ interval by the group by offset.
 - [#7125](https://github.com/influxdata/influxdb/pull/7125): Ensure gzip writer is closed in influx_inspect export
