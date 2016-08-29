@@ -1956,6 +1956,11 @@ func TestParser_ParseStatement(t *testing.T) {
 			s:    `ALTER RETENTION POLICY policy1 ON testdb REPLICATION 4 SHARD DURATION 10m`,
 			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", -1, 10*time.Minute, 4, false),
 		},
+		// ALTER RETENTION POLICY with all options
+		{
+			s:    `ALTER RETENTION POLICY default ON testdb DURATION 0s REPLICATION 4 SHARD DURATION 10m DEFAULT`,
+			stmt: newAlterRetentionPolicyStatement("default", "testdb", time.Duration(0), 10*time.Minute, 4, true),
+		},
 
 		// SHOW STATS
 		{

@@ -474,8 +474,8 @@ func (p *Parser) parseAlterRetentionPolicyStatement() (*AlterRetentionPolicyStat
 	}
 	stmt.Database = ident
 
-	// Loop through option tokens (DURATION, REPLICATION, DEFAULT, etc.).
-	maxNumOptions := 3
+	// Loop through option tokens (DURATION, REPLICATION, SHARD DURATION, DEFAULT, etc.).
+	maxNumOptions := 4
 Loop:
 	for i := 0; i < maxNumOptions; i++ {
 		tok, pos, lit := p.scanIgnoreWhitespace()
