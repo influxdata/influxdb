@@ -11,8 +11,8 @@ import (
 type MetaClient interface {
 	CreateContinuousQuery(database, name, query string) error
 	CreateDatabase(name string) (*meta.DatabaseInfo, error)
-	CreateDatabaseWithRetentionPolicy(name string, rpi *meta.RetentionPolicyInfo) (*meta.DatabaseInfo, error)
-	CreateRetentionPolicy(database string, rpi *meta.RetentionPolicyInfo) (*meta.RetentionPolicyInfo, error)
+	CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)
+	CreateRetentionPolicy(database string, spec *meta.RetentionPolicySpec) (*meta.RetentionPolicyInfo, error)
 	CreateSubscription(database, rp, name, mode string, destinations []string) error
 	CreateUser(name, password string, admin bool) (*meta.UserInfo, error)
 	Database(name string) *meta.DatabaseInfo

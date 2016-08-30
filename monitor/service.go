@@ -23,6 +23,7 @@ import (
 const (
 	MonitorRetentionPolicy         = "monitor"
 	MonitorRetentionPolicyDuration = 7 * 24 * time.Hour
+	MonitorRetentionPolicyReplicaN = 1
 )
 
 // Monitor represents an instance of the monitor system.
@@ -51,7 +52,7 @@ type Monitor struct {
 	storeInterval          time.Duration
 
 	MetaClient interface {
-		CreateDatabaseWithRetentionPolicy(name string, rpi *meta.RetentionPolicyInfo) (*meta.DatabaseInfo, error)
+		CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)
 		Database(name string) *meta.DatabaseInfo
 	}
 
@@ -352,11 +353,15 @@ func (m *Monitor) createInternalStorage() {
 	}
 
 	if di := m.MetaClient.Database(m.storeDatabase); di == nil {
-		rpi := meta.NewRetentionPolicyInfo(MonitorRetentionPolicy)
-		rpi.Duration = MonitorRetentionPolicyDuration
-		rpi.ReplicaN = 1
+		duration := MonitorRetentionPolicyDuration
+		replicaN := MonitorRetentionPolicyReplicaN
+		spec := meta.RetentionPolicySpec{
+			Name:     MonitorRetentionPolicy,
+			Duration: &duration,
+			ReplicaN: &replicaN,
+		}
 
-		if _, err := m.MetaClient.CreateDatabaseWithRetentionPolicy(m.storeDatabase, rpi); err != nil {
+		if _, err := m.MetaClient.CreateDatabaseWithRetentionPolicy(m.storeDatabase, &spec); err != nil {
 			m.Logger.Printf("failed to create database '%s', failed to create storage: %s",
 				m.storeDatabase, err.Error())
 			return
