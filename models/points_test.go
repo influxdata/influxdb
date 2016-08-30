@@ -1836,6 +1836,20 @@ t159,label=another a=2i,value=1i 1`
 	}
 }
 
+func TestParsePointsBlankLine(t *testing.T) {
+	buf := `cpu value=1i 1000000000
+
+cpu value=2i 2000000000`
+	points, err := models.ParsePointsString(buf)
+	if err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	if len(points) != 2 {
+		t.Fatalf("expected 2 points, got %d", len(points))
+	}
+}
+
 func TestNewPointsWithBytesWithCorruptData(t *testing.T) {
 	corrupted := []byte{0, 0, 0, 3, 102, 111, 111, 0, 0, 0, 4, 61, 34, 65, 34, 1, 0, 0, 0, 14, 206, 86, 119, 24, 32, 72, 233, 168, 2, 148}
 	p, err := models.NewPointFromBytes(corrupted)

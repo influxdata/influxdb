@@ -128,6 +128,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7127](https://github.com/influxdata/influxdb/pull/7127): Concurrent series limit
 - [#7218](https://github.com/influxdata/influxdb/issues/7218): Fix alter retention policy when all options are used.
 - [#7225](https://github.com/influxdata/influxdb/issues/7225): runtime: goroutine stack exceeds 1000000000-byte limit
+- [#7240](https://github.com/influxdata/influxdb/issues/7240): Allow blank lines in the line protocol input.
 
 ## v0.13.0 [2016-05-12]
 
