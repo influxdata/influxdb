@@ -22,6 +22,7 @@ import (
 	"github.com/influxdata/influxdb/importer/v8"
 	"github.com/influxdata/influxdb/models"
 	"github.com/peterh/liner"
+	"time"
 )
 
 const (
@@ -651,105 +652,43 @@ func (c *CommandLine) writeLineProtocol(response *client.Response, w io.Writer) 
 			fmt.Fprintf(w, "%s: %s.\n", m.Level, m.Text)
 		}
 
-		for _, multiRow := range result.Series {
-			for _, row := range c.formatLineProtocol(multiRow) {
-				fmt.Fprintln(w, row)
+		for _, row := range result.Series {
+			points := c.rowToPoints(row)
+			for _, point := range points {
+				fmt.Fprintln(w, point.String())
 			}
 		}
 	}
 }
 
-func (c *CommandLine) formatLineProtocol(row models.Row) []string {
+func (c *CommandLine) rowToPoints(row models.Row) models.Points{
 
-	name := lineProtocolEscapeName(row.Name)
+	tags := models.NewTags(row.Tags)
 
-	// gather tags
-	tags := []string{}
-	for k, v := range row.Tags {
-		kStr := lineProtocolEscapeKeyTag(k)
-		vStr := lineProtocolEscapeKeyTag(v)
-		if kStr != "" && vStr != "" {
-			tags = append(tags, fmt.Sprintf("%s=%s", kStr, vStr))
-		}
-	}
-	sort.Strings(tags)
-
-	entries := []string{}
+	points := models.Points{}
 	for _, value := range row.Values {
-		values := []string{}
-		var time string
-		for colIndex, col := range row.Columns {
-			valueEntry := value[colIndex]
-			if col == "time" {
-				//avoid scientific notation for time
-				switch t := valueEntry.(type) {
-				case float64:
-					time = strconv.FormatFloat(t, 'f', 0, 64)
-				default:
-					_, time = interfaceToString(valueEntry)
-				}
-			} else {
-				vStr := lineProtocolFormatIfStringOrInt(valueEntry)
-				kStr := lineProtocolEscapeKeyTag(col)
-				if kStr != "" && vStr != "" {
-					values = append(values, fmt.Sprintf("%s=%s", kStr, vStr))
-				}
+		time, fields := c.findTimeAndFields(value, row.Columns)
+		point, _ := models.NewPoint(row.Name, tags, fields, time)
+		points = append(points, point)
+	}
+	return points
+}
+
+func (c *CommandLine) findTimeAndFields(value []interface{}, columns []string ) (time.Time, models.Fields){
+	var timePoint time.Time
+	fields := models.Fields{}
+	for colIndex, col := range columns {
+		valueEntry := value[colIndex]
+		if col == "time" {
+			timeStr, err := strconv.ParseInt(interfaceToString(valueEntry), 0, 64)
+			if err == nil {
+				timePoint = time.Unix(0, timeStr)
 			}
+		} else {
+			fields[col] = valueEntry
 		}
-		entry := c.createLineProtocolRow(name, tags, values, time)
-		entries = append(entries, entry)
 	}
-	return entries
-}
-
-func (c *CommandLine) createLineProtocolRow(name string, tags []string, values []string, time string) string {
-	var row bytes.Buffer
-	row.WriteString(name)
-	if len(tags) > 0 {
-		row.WriteString(",")
-		row.WriteString(strings.Join(tags, ","))
-	}
-
-	if len(values) > 0 {
-		row.WriteString(" ")
-		row.WriteString(strings.Join(values, ","))
-	}
-
-	if time != "" {
-		row.WriteString(" ")
-		row.WriteString(time)
-	}
-
-	return row.String()
-}
-
-func lineProtocolEscape(entry string, escapes []string) string {
-	entryModif := entry
-	for _, escape := range escapes {
-		newChar := fmt.Sprintf("\\%s", escape)
-		entryModif = strings.Replace(entryModif, escape, newChar, -1)
-	}
-	return entryModif
-}
-
-func lineProtocolFormatIfStringOrInt(v interface{}) string {
-	typeInterface, str := interfaceToString(v)
-	switch typeInterface {
-	case INT:
-		return fmt.Sprintf("%si", str)
-	case STRING:
-		str = lineProtocolEscape(str, []string{"\""})
-		return fmt.Sprintf("\"%s\"", str)
-	}
-	return str
-}
-
-func lineProtocolEscapeName(entry string) string {
-	return lineProtocolEscape(entry, []string{",", " "})
-}
-
-func lineProtocolEscapeKeyTag(entry string) string {
-	return lineProtocolEscape(entry, []string{",", " ", "="})
+	return timePoint, fields
 }
 
 // formatResults will behave differently if you are formatting for columns or csv
@@ -825,7 +764,7 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 			}
 
 			for _, vv := range v {
-				_, str := interfaceToString(vv)
+				str := interfaceToString(vv)
 				values = append(values, str)
 			}
 			rows = append(rows, strings.Join(values, separator))
@@ -838,32 +777,20 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 	return rows
 }
 
-func interfaceToString(v interface{}) (Type, string) {
+func interfaceToString(v interface{}) string {
 	switch t := v.(type) {
 	case nil:
-		return NIL, ""
+		return ""
 	case bool:
-		return BOOLEAN, fmt.Sprintf("%v", v)
+		return fmt.Sprintf("%v", v)
 	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-		return INT, fmt.Sprintf("%d", t)
+		return fmt.Sprintf("%d", t)
 	case float32, float64:
-		return FLOAT, fmt.Sprintf("%v", t)
-	case json.Number:
-		return FLOAT, fmt.Sprintf("%v", t) // JSON is always seen as float
+		return fmt.Sprintf("%v", t)
 	default:
-		return STRING, fmt.Sprintf("%v", t)
+		return fmt.Sprintf("%v", t)
 	}
 }
-
-type Type int
-
-const (
-	NIL Type = 1 + iota
-	BOOLEAN
-	INT
-	FLOAT
-	STRING
-)
 
 // Settings prints current settings
 func (c *CommandLine) Settings() {

@@ -193,14 +193,14 @@ func TestLineProtocolBasic(t *testing.T) {
 		Values: [][]interface{}{
 			{json.Number("1300000000"), float64(100), 12},
 			{json.Number("1400000000"), int64(200), 80},
-			{float64(1500000001), int64(222), 333},
-			{int64(888), float64(123), float64(456)},
+			{json.Number("1500000001"), int64(222), 333},
+			{json.Number("888"), float64(123), float64(456)},
 		},
 	}
-	expects = append(expects, "cpu,host=anomaly.io value=100,latency=12i 1300000000")
-	expects = append(expects, "cpu,host=anomaly.io value=200i,latency=80i 1400000000")
-	expects = append(expects, "cpu,host=anomaly.io value=222i,latency=333i 1500000001")
-	expects = append(expects, "cpu,host=anomaly.io value=123,latency=456 888")
+	expects = append(expects, "cpu,host=anomaly.io latency=12i,value=100 1300000000")
+	expects = append(expects, "cpu,host=anomaly.io latency=80i,value=200i 1400000000")
+	expects = append(expects, "cpu,host=anomaly.io latency=333i,value=222i 1500000001")
+	expects = append(expects, "cpu,host=anomaly.io latency=456,value=123 888")
 
 	row2 := models.Row{
 		Name:    "cpu",
@@ -247,7 +247,7 @@ func TestLineProtocolMultiTag(t *testing.T) {
 	c.FormatResponse(createFakeResponse(row1), output)
 
 	lpRows := strings.Split(output.String(), "\n")
-	lpRows = lpRows[0 : len(lpRows)-1] //remove last /n
+	lpRows = lpRows[0 : len(lpRows)-1] //remove last line as it's an empty line
 
 	checkMatch(t, lpRows, expects)
 }
@@ -271,10 +271,12 @@ func TestLineProtocolSpecialChar(t *testing.T) {
 	buffer.WriteString("my\\ strange\\=long\\,tag\\ key") //escape: commas, spaces, and equal signs
 	buffer.WriteString("=")
 	buffer.WriteString("my\\ strange\\=long\\,tag\\ value") //escape: commas, spaces, and equal signs
-	buffer.WriteString(" value=100")
-	buffer.WriteString(",my\\ strange\\=long\\,column\\ name")
+	buffer.WriteString(" ")
+	buffer.WriteString("my\\ strange\\=long\\,column\\ name")
 	buffer.WriteString("=")
 	buffer.WriteString("\"my strange=long,column value with \\\" <-double-quote!  \"") //escape: double-quote
+	buffer.WriteString(",value=100")
+
 	buffer.WriteString(" 1300000000")
 	expects = append(expects, buffer.String())
 
@@ -287,14 +289,14 @@ func TestLineProtocolSpecialChar(t *testing.T) {
 			{json.Number("1600000000"), false, "martin magakian"},
 		},
 	}
-	expects = append(expects, "cpu notstrange:-)àç!èè§(''\"é&=true,str_field=\"hello world\" 1500000000")
-	expects = append(expects, "cpu notstrange:-)àç!èè§(''\"é&=false,str_field=\"martin magakian\" 1600000000")
+	expects = append(expects, "cpu notstrange:-)àç!èè§(''\\\"é&=true,str_field=\"hello world\" 1500000000")
+	expects = append(expects, "cpu notstrange:-)àç!èè§(''\\\"é&=false,str_field=\"martin magakian\" 1600000000")
 
 	output := new(bytes.Buffer)
 	c.FormatResponse(createFakeResponse(row1, row2), output)
 
 	lpRows := strings.Split(output.String(), "\n")
-	lpRows = lpRows[0 : len(lpRows)-1] //remove last /n
+	lpRows = lpRows[0 : len(lpRows)-1] //remove last line as it's an empty line
 
 	checkMatch(t, lpRows, expects)
 }
