@@ -661,8 +661,7 @@ func (c *CommandLine) writeLineProtocol(response *client.Response, w io.Writer) 
 	}
 }
 
-func (c *CommandLine) rowToPoints(row models.Row) models.Points{
-
+func (c *CommandLine) rowToPoints(row models.Row) models.Points {
 	tags := models.NewTags(row.Tags)
 
 	points := models.Points{}
@@ -674,7 +673,7 @@ func (c *CommandLine) rowToPoints(row models.Row) models.Points{
 	return points
 }
 
-func (c *CommandLine) findTimeAndFields(value []interface{}, columns []string ) (time.Time, models.Fields){
+func (c *CommandLine) findTimeAndFields(value []interface{}, columns []string) (time.Time, models.Fields) {
 	var timePoint time.Time
 	fields := models.Fields{}
 	for colIndex, col := range columns {
