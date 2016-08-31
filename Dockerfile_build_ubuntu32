@@ -1,4 +1,4 @@
-FROM 32bit/ubuntu:14.04
+FROM ioft/i386-ubuntu:14.04
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     python-software-properties \
