@@ -543,6 +543,60 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 	}
 }
 
+// Ensures that deleting series from TSM files with multiple fields removes all the
+/// series
+func TestEngine_DeleteSeries(t *testing.T) {
+	// Generate temporary file.
+	f, _ := ioutil.TempFile("", "tsm")
+	f.Close()
+	os.Remove(f.Name())
+	walPath := filepath.Join(f.Name(), "wal")
+	os.MkdirAll(walPath, 0777)
+	defer os.RemoveAll(f.Name())
+
+	// Create a few points.
+	p1 := MustParsePointString("cpu,host=A value=1.1 1000000000")
+	p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
+	p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
+
+	// Write those points to the engine.
+	e := tsm1.NewEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
+
+	// mock the planner so compactions don't run during the test
+	e.CompactionPlan = &mockPlanner{}
+
+	if err := e.Open(); err != nil {
+		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
+	}
+
+	if err := e.WritePoints([]models.Point{p1, p2, p3}); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+	if err := e.WriteSnapshot(); err != nil {
+		t.Fatalf("failed to snapshot: %s", err.Error())
+	}
+
+	keys := e.FileStore.Keys()
+	if exp, got := 3, len(keys); exp != got {
+		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+	}
+
+	if err := e.DeleteSeries([]string{"cpu,host=A"}); err != nil {
+		t.Fatalf("failed to delete series: %v", err)
+	}
+
+	keys = e.FileStore.Keys()
+	if exp, got := 1, len(keys); exp != got {
+		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
+	}
+
+	exp := "cpu,host=B#!~#value"
+	if _, ok := keys[exp]; !ok {
+		t.Fatalf("wrong series deleted: exp %v, got %v", exp, keys)
+	}
+
+}
+
 func BenchmarkEngine_CreateIterator_Count_1K(b *testing.B) {
 	benchmarkEngineCreateIteratorCount(b, 1000)
 }

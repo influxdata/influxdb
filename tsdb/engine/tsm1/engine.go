@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -631,21 +632,27 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 
 	// keyMap is used to see if a given key should be deleted.  seriesKey
 	// are the measurement + tagset (minus separate & field)
-	keyMap := make(map[string]int, len(seriesKeys))
+	keyMap := make(map[string]struct{}, len(seriesKeys))
 	for _, k := range seriesKeys {
-		keyMap[k] = 0
+		keyMap[k] = struct{}{}
 	}
 
 	deleteKeys := make([]string, 0, len(seriesKeys))
 	// go through the keys in the file store
 	if err := e.FileStore.WalkKeys(func(k string, _ byte) error {
 		seriesKey, _ := SeriesAndFieldFromCompositeKey(k)
-
 		// Keep track if we've added this key since WalkKeys can return keys
 		// we've seen before
-		if v, ok := keyMap[seriesKey]; ok && v == 0 {
-			deleteKeys = append(deleteKeys, k)
-			keyMap[seriesKey] += 1
+		key := string(k)
+		if _, ok := keyMap[string(seriesKey)]; ok {
+			i := sort.SearchStrings(deleteKeys, key)
+			if i == len(deleteKeys) {
+				deleteKeys = append(deleteKeys, key)
+			} else if key != deleteKeys[i] {
+				deleteKeys = append(deleteKeys, key)
+				copy(deleteKeys[i+1:], deleteKeys[i:])
+				deleteKeys[i] = key
+			}
 		}
 		return nil
 	}); err != nil {
@@ -656,10 +663,6 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 		return err
 	}
 
-	// reset the counts
-	for k := range keyMap {
-		keyMap[k] = 0
-	}
 	// find the keys in the cache and remove them
 	walKeys := deleteKeys[:0]
 	e.Cache.RLock()
