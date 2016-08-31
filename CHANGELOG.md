@@ -130,6 +130,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7225](https://github.com/influxdata/influxdb/issues/7225): runtime: goroutine stack exceeds 1000000000-byte limit
 - [#7240](https://github.com/influxdata/influxdb/issues/7240): Allow blank lines in the line protocol input.
 - [#7119](https://github.com/influxdata/influxdb/pull/7119): Fix CREATE DATABASE when dealing with default values.
+- [#7243](https://github.com/influxdata/influxdb/issues/7243): Optimize queries that compare a tag value to an empty string.
 
 ## v0.13.0 [2016-05-12]
 
