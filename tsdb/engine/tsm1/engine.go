@@ -693,7 +693,7 @@ func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
 
 // SeriesCount returns the number of series buckets on the shard.
 func (e *Engine) SeriesCount() (n int, err error) {
-	return 0, nil
+	return e.index.SeriesN(), nil
 }
 
 func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }

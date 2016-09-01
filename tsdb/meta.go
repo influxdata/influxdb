@@ -947,18 +947,26 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 				// return series that have a tag of specific value.
 				ids = tagVals[str.Val]
 			} else {
-				ids = m.seriesIDs
-				for k := range tagVals {
-					ids = ids.Reject(tagVals[k])
+				// Make a copy of all series ids and mark the ones we need to evict.
+				seriesIDs := newEvictSeriesIDs(m.seriesIDs)
+
+				// Go through each slice and mark the values we find as zero so
+				// they can be removed later.
+				for _, a := range tagVals {
+					seriesIDs.mark(a)
 				}
+
+				// Make a new slice with only the remaining ids.
+				ids = seriesIDs.evict()
 			}
 		} else if n.Op == influxql.NEQ {
 			if str.Val != "" {
 				ids = m.seriesIDs.Reject(tagVals[str.Val])
 			} else {
 				for k := range tagVals {
-					ids = ids.Union(tagVals[k])
+					ids = append(ids, tagVals[k]...)
 				}
+				sort.Sort(ids)
 			}
 		}
 		return ids, &influxql.BooleanLiteral{Val: true}, nil
@@ -985,31 +993,37 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 		// start with the list of all series and reject series that don't match our condition.
 		// If we should not include the empty string, include series that match our condition.
 		if empty && n.Op == influxql.EQREGEX {
-			ids = m.seriesIDs
+			// See comments above for EQ with a StringLiteral.
+			seriesIDs := newEvictSeriesIDs(m.seriesIDs)
 			for k := range tagVals {
 				if !re.Val.MatchString(k) {
-					ids = ids.Reject(tagVals[k])
+					seriesIDs.mark(tagVals[k])
 				}
 			}
+			ids = seriesIDs.evict()
 		} else if empty && n.Op == influxql.NEQREGEX {
 			for k := range tagVals {
 				if !re.Val.MatchString(k) {
-					ids = ids.Union(tagVals[k])
+					ids = append(ids, tagVals[k]...)
 				}
 			}
+			sort.Sort(ids)
 		} else if !empty && n.Op == influxql.EQREGEX {
 			for k := range tagVals {
 				if re.Val.MatchString(k) {
-					ids = ids.Union(tagVals[k])
+					ids = append(ids, tagVals[k]...)
 				}
 			}
+			sort.Sort(ids)
 		} else if !empty && n.Op == influxql.NEQREGEX {
-			ids = m.seriesIDs
+			// See comments above for EQ with a StringLiteral.
+			seriesIDs := newEvictSeriesIDs(m.seriesIDs)
 			for k := range tagVals {
 				if re.Val.MatchString(k) {
-					ids = ids.Reject(tagVals[k])
+					seriesIDs.mark(tagVals[k])
 				}
 			}
+			ids = seriesIDs.evict()
 		}
 		return ids, &influxql.BooleanLiteral{Val: true}, nil
 	}
@@ -1666,6 +1680,84 @@ func (a SeriesIDs) Reject(other SeriesIDs) SeriesIDs {
 	}
 
 	return SeriesIDs(ids)
+}
+
+// seriesID is a series id that may or may not have been evicted from the
+// current id list.
+type seriesID struct {
+	val   uint64
+	evict bool
+}
+
+// evictSeriesIDs is a slice of SeriesIDs with an extra field to mark if the
+// field should be evicted or not.
+type evictSeriesIDs struct {
+	ids []seriesID
+	sz  int
+}
+
+// newEvictSeriesIDs copies the ids into a new slice that can be used for
+// evicting series from the slice.
+func newEvictSeriesIDs(ids []uint64) evictSeriesIDs {
+	a := make([]seriesID, len(ids))
+	for i, id := range ids {
+		a[i].val = id
+	}
+	return evictSeriesIDs{
+		ids: a,
+		sz:  len(a),
+	}
+}
+
+// mark marks all of the ids in the sorted slice to be evicted from the list of
+// series ids. If an id to be evicted does not exist, it just gets ignored.
+func (a *evictSeriesIDs) mark(ids []uint64) {
+	seriesIDs := a.ids
+	for _, id := range ids {
+		if len(seriesIDs) == 0 {
+			break
+		}
+
+		// Perform a binary search of the remaining slice if
+		// the first element does not match the value we're
+		// looking for.
+		i := 0
+		if seriesIDs[0].val < id {
+			i = sort.Search(len(seriesIDs), func(i int) bool {
+				return seriesIDs[i].val >= id
+			})
+		}
+
+		if i >= len(seriesIDs) {
+			break
+		} else if seriesIDs[i].val == id {
+			if !seriesIDs[i].evict {
+				seriesIDs[i].evict = true
+				a.sz--
+			}
+			// Skip over this series since it has been evicted and won't be
+			// encountered again.
+			i++
+		}
+		seriesIDs = seriesIDs[i:]
+	}
+}
+
+// evict creates a new slice with only the series that have not been evicted.
+func (a *evictSeriesIDs) evict() (ids SeriesIDs) {
+	if a.sz == 0 {
+		return ids
+	}
+
+	// Make a new slice with only the remaining ids.
+	ids = make([]uint64, 0, a.sz)
+	for _, id := range a.ids {
+		if id.evict {
+			continue
+		}
+		ids = append(ids, id.val)
+	}
+	return ids
 }
 
 // TagFilter represents a tag filter when looking up other tags or measurements.
