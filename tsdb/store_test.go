@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -96,8 +98,6 @@ func TestStore_CreateShard(t *testing.T) {
 		t.Fatal(err)
 	} else if sh := s.Shard(1); sh == nil {
 		t.Fatalf("expected shard")
-	} else if di := s.DatabaseIndex("db0"); di == nil {
-		t.Errorf("expected database index")
 	}
 
 	// Create another shard and verify that it exists.
@@ -147,8 +147,6 @@ func TestStore_CreateShardSnapShot(t *testing.T) {
 		t.Fatal(err)
 	} else if sh := s.Shard(1); sh == nil {
 		t.Fatalf("expected shard")
-	} else if di := s.DatabaseIndex("db0"); di == nil {
-		t.Errorf("expected database index")
 	}
 
 	dir, e := s.CreateShardSnapshot(1)
@@ -157,6 +155,40 @@ func TestStore_CreateShardSnapShot(t *testing.T) {
 	}
 	if dir == "" {
 		t.Fatal("empty directory name")
+	}
+}
+
+func TestStore_Open(t *testing.T) {
+	s := NewStore()
+	defer s.Close()
+
+	if err := os.MkdirAll(filepath.Join(s.Path(), "db0", "rp0", "2"), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(s.Path(), "db0", "rp2", "4"), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.MkdirAll(filepath.Join(s.Path(), "db1", "rp0", "1"), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	// Store should ignore shard since it does not have a numeric name.
+	if err := s.Open(); err != nil {
+		t.Fatal(err)
+	} else if n := len(s.Databases()); n != 2 {
+		t.Fatalf("unexpected database index count: %d", n)
+	} else if n := s.ShardN(); n != 3 {
+		t.Fatalf("unexpected shard count: %d", n)
+	}
+
+	expDatabases := []string{"db0", "db1"}
+	gotDatabases := s.Databases()
+	sort.Strings(gotDatabases)
+
+	if got, exp := gotDatabases, expDatabases; !reflect.DeepEqual(got, exp) {
+		t.Fatalf("got %#v, expected %#v", got, exp)
 	}
 }
 
@@ -173,7 +205,7 @@ func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
 	// Store should ignore database since it's a file.
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
-	} else if n := s.DatabaseIndexN(); n != 0 {
+	} else if n := len(s.Databases()); n != 0 {
 		t.Fatalf("unexpected database index count: %d", n)
 	}
 }
@@ -190,10 +222,12 @@ func TestStore_Open_InvalidRetentionPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Store should ignore database since it's a file.
+	// Store should ignore retention policy since it's a file, and there should
+	// be no indices created.
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
-	} else if n := s.DatabaseIndexN(); n != 1 {
+	} else if n := len(s.Databases()); n != 0 {
+		t.Log(s.Databases())
 		t.Fatalf("unexpected database index count: %d", n)
 	}
 }
@@ -213,7 +247,7 @@ func TestStore_Open_InvalidShard(t *testing.T) {
 	// Store should ignore shard since it does not have a numeric name.
 	if err := s.Open(); err != nil {
 		t.Fatal(err)
-	} else if n := s.DatabaseIndexN(); n != 1 {
+	} else if n := len(s.Databases()); n != 0 {
 		t.Fatalf("unexpected database index count: %d", n)
 	} else if n := s.ShardN(); n != 0 {
 		t.Fatalf("unexpected shard count: %d", n)

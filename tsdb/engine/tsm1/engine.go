@@ -98,7 +98,6 @@ type Engine struct {
 	logOutput    io.Writer   // Writer to be logger and traceLogger if active.
 	traceLogging bool
 
-	// TODO(benbjohnson): Index needs to be moved entirely into engine.
 	index             *tsdb.DatabaseIndex
 	measurementFields map[string]*tsdb.MeasurementFields
 

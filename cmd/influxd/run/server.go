@@ -499,21 +499,16 @@ func (s *Server) startServerReporting() {
 
 // reportServer reports usage statistics about the system.
 func (s *Server) reportServer() {
-	dis := s.MetaClient.Databases()
-	numDatabases := len(dis)
+	dbs := s.MetaClient.Databases()
+	numDatabases := len(dbs)
 
 	numMeasurements := 0
 	numSeries := 0
 
 	// Only needed in the case of a data node
 	if s.TSDBStore != nil {
-		for _, di := range dis {
-			d := s.TSDBStore.DatabaseIndex(di.Name)
-			if d == nil {
-				// No data in this store for this database.
-				continue
-			}
-			m, s := d.MeasurementSeriesCounts()
+		for _, db := range dbs {
+			m, s := s.TSDBStore.MeasurementSeriesCounts(db.Name)
 			numMeasurements += m
 			numSeries += s
 		}
