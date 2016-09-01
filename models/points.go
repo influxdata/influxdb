@@ -30,6 +30,7 @@ var (
 	ErrPointMustHaveAField  = errors.New("point without fields is unsupported")
 	ErrInvalidNumber        = errors.New("invalid number")
 	ErrInvalidPoint         = errors.New("point is invalid")
+	ErrOverflowsInt64       = errors.New("field value overflows int64")
 	ErrMaxKeyLengthExceeded = errors.New("max key length exceeded")
 )
 
@@ -1121,6 +1122,7 @@ func NewPoint(name string, tags Tags, fields Fields, time time.Time) (Point, err
 	if len(fields) == 0 {
 		return nil, ErrPointMustHaveAField
 	}
+
 	if !time.IsZero() {
 		if err := CheckTime(time); err != nil {
 			return nil, err
@@ -1144,10 +1146,15 @@ func NewPoint(name string, tags Tags, fields Fields, time time.Time) (Point, err
 		return nil, fmt.Errorf("max key length exceeded: %v > %v", len(key), MaxKeyLength)
 	}
 
+	fval, err := fields.MarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+
 	return &point{
 		key:    key,
 		time:   time,
-		fields: fields.MarshalBinary(),
+		fields: fval,
 	}, nil
 }
 
@@ -1593,9 +1600,9 @@ func newFieldsFromBinary(buf []byte) Fields {
 
 // MarshalBinary encodes all the fields to their proper type and returns the binary
 // represenation
-// NOTE: uint64 is specifically not supported due to potential overflow when we decode
-// again later to an int64
-func (p Fields) MarshalBinary() []byte {
+// NOTE: uint64 field value will be convert to int64, if value greater than max int64
+// return overflow error
+func (p Fields) MarshalBinary() ([]byte, error) {
 	b := []byte{}
 	keys := make([]string, len(p))
 	i := 0
@@ -1637,6 +1644,13 @@ func (p Fields) MarshalBinary() []byte {
 		case uint32:
 			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
 			b = append(b, 'i')
+		case uint64:
+			// uint64 field value must less than max int64
+			if t > math.MaxInt64 {
+				return b, ErrOverflowsInt64
+			}
+			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
+			b = append(b, 'i')
 		case float32:
 			val := []byte(strconv.FormatFloat(float64(t), 'f', -1, 32))
 			b = append(b, val...)
@@ -1663,9 +1677,9 @@ func (p Fields) MarshalBinary() []byte {
 		b = append(b, ',')
 	}
 	if len(b) > 0 {
-		return b[0 : len(b)-1]
+		return b[0 : len(b)-1], nil
 	}
-	return b
+	return b, nil
 }
 
 type byteSlices [][]byte
