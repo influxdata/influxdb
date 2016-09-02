@@ -1,40 +1,101 @@
-Design
+## Chronograf
+[TOC]
 
 ### Design Philosophy
-	1. Present uniform interface to front-end covering Plutonium and InfluxDB OSS offerings.
-	2. Simplify the front-end interaction with time-series database.
-	3. Ease of setup and use. 
-	4. Extensible as base for future applications
-	5. There will be an open source version of this.
-	7. Stress Parallel Development across all teams.
-	8. Support of on-prem is first class.
+
+1. Present uniform interface to front-end covering Plutonium and InfluxDB OSS offerings.
+2. Simplify the front-end interaction with time-series database.
+3. Ease of setup and use. 
+4. Extensible as base for future applications
+5. There will be an open source version of this.
+7. Stress Parallel Development across all teams.
+8. First class support of on-prem.
+9. Release to cloud first.
 	
-### Goals
-	1. Version 1.1: Produce pre-canned graphs for devops telegraf data for docker containers.
-	2. Up and running in 2 minutes
-	3. Version 1.1: User administration for OSS and Plutonium
-	4. Leverage our existing enterprise front-end code.
-	5. Leverage lessons-learned for enterprise back-end code.
-	6. Minimum viable product by Oct 10th.
-	7. Three to four weeks of testing and polishing before release.
+### Initial Goals
+1. Produce pre-canned graphs for devops telegraf data for docker containers or system stats.
+2. Up and running in 2 minutes
+3. User administration for OSS and Plutonium
+4. Leverage our existing enterprise front-end code.
+5. Leverage lessons-learned for enterprise back-end code.
+6. Minimum viable product by Oct 10th.
+7. Three to four weeks of testing and polishing before release.
 
-### Version Features:
+### Versions
 
-1.1
+Each version will contain more and more features around monitoring various devops components. 
 
-1.2
+#### Cycles
+Two month cycles (typically, one month feature/one month polish)
 
-1.3
+#### Features
+
+1. Nov
+	- Data explorer for both OSS and Enterprise
+	- Dashboards for telegraf system metrics
+	- User and Role adminstration
+	- Proxy queries over OSS and Enterprise
+	- Authenticate against OSS/Enterprise
+
+2. Jan
+	- Telegraf agent service
+	- Additional Dashboards for telegraf agent
+	
+3. Mar
+	- The next stuff
 
 ### Supported Versions of Tick Stack
 ... what versions are we supporting and not supporting? Nothing pre-1.0?
 
-### Query Proxy
-1. Which client do we use? 
 
-	- Current clients are not flexible
-	- New client in design phase
-	- non-SELECT queries need either Plutonium client or Influx oss client
+### Closed source vs Open Source
+
+- Ideally, we would use the soon-to-be open source plutonium client to interact with Influx Enterprise. This would mean that this application could be entirely open source. (We should check with Todd and Nate.)
+- However, if in the future we want to deliever a closed source version, we'll use the open source version as a library.  The open source library will define certain routes (/users, /whatever); the closed source version will either override those routes, or add new ones.  This implies that the closed source version is simply additional or manipulated routes on the server.
+- Survey the experience of closed source with Jason and Nathaniel.
+
+### Repository
+
+#### Structure
+Both the javascript and go source will be in the same repository.
+
+#### Builds
+Javascript build will be decoupled from Go build process. 
+
+Asset compilation will happen during build of backend-server.
+
+This allows the front-end team to swap in mocked, auto-generated swagger backend for testing and development.
+
+##### Javascript
+Webpack
+Static asset compilation during backend-server build.
+
+
+##### Go
+
+We'll use GDM as the vendoring solution to maintain consistency with other pieces of TICK stack.
+
+*Future work*: we must switch to the community vendoring solution when it actually seems mature.
+
+### API
+
+#### REST
+We'll use swagger interface definition to specify API and JSON validation.  The goal is to emphasize designing to an interface facilitating parallel development.
+
+#### Query Proxy
+
+The query proxy is a special endpoint to query influx. 
+
+We have a different approach than enterprise 1.0 and grafana 2.0.  These two use a GET and pass GET parameters to the backend.  
+
+Our approach will be a POST receiving a JSON object defining additional meta data about the query.
+
+Features would include:
+1. Load balancing against all data nodes in cluster
+2. Formatting the output results to be simple to use in frontend.
+3. Decimating the results to minimize network traffic.
+4. Use prepared queries to move query window.
+5. Allow different types of response protocols (http GET, websocket, etc.)
 
 ```sequence
 App->Proxy: POST query
@@ -76,57 +137,35 @@ Content-Type: application/json
  	}
  }
  ```
+ ##### Questions
+ 1. Should the POST response just contain the results?
+ 	- Perhaps it sucks to have to do a parameterized GET
+ 1. Which influx client do we use? 
+
+	- Current clients are not flexible
+	- New client in design phase
+	- non-SELECT queries need either Plutonium client or Influx oss client
+
+ 1. Use websockets to support a subscription model?
  
- #### Websocket sketch?
- We'll avoid websockets for version 1.1 but allow it in the future through the `type` parameter.
- 
- c:begin
- s:data
- s:end
- 
- c:ping
- s:refresh
- c:accept
- s:data
- s:end
- c:disconnect
- 
- c:ping
- c:update
- 
-### Closed source vs Open Source
+	 We'll avoid websockets for version 1.1 but allow it in the future through the `type` parameter.
+     Simple protocol sketch:
+	 
+		 c:begin
+		 s:data
+		 s:end
 
-- Ideally, we would use the soon-to-be open source plutonium client to interact with Influx Enterprise. This would mean that this application could be entirely open source. (We should check with Todd and Nate.)
-- However, if in the future we want to deliever a closed source version, we'll use the open source version as a library.  The open source library will define certain routes (/users /whatever); the closed source version will either override those routes, or add new ones.  This implies that the closed source version is simply additional or manipulated routes on the server.
-- Survey the experience of closed source with Jason and Nathaniel.
+		 c:ping
+		 s:refresh
+		 c:accept
+		 s:data
+		 s:end
+		 c:disconnect
 
-### Builds
-Javascript build will be decoupled from Go build process. 
-
-Asset compilation will happen during build of backend-server.
-
-This allows the front-end team to swap in mocked, auto-generated swagger backend for testing and development.
-
-#### Javascript
-Webpack
-Static asset compilation during backend-server build.
-
-
-#### Go
-
-We'll use GDM as the vendoring solution to maintain consistency with other pieces of TICK stack.
-
-*Future work*: we must switch to the community vendoring solution when it actually seems mature.
-
-
-### Authentication
-Do we want shared secret authentication between the server and the influx data store?
-
-How will users be authenticated to the web server?
-
-What we want is to have the backend data store (influx oss or influx meta) handle the authentication so that the web server has less responsibility.
-
-### Backend-server store 
+		 c:ping
+		 c:update
+		 
+#### Backend-server store 
 We will build a interface for storing API resources.
 
 Some API resources could come from the influx data source (like users) most will be stored in a key/value or relational store.
@@ -135,11 +174,7 @@ Version 1.1 will use boltdb as the key/value store.
 
 Future versions will support more HA data stores.
 
-#### Objects
-1. Server Configuration
-	
-	- Any setting that would normally in TICK stack land be in a file, we'll expose through an updatable API.
-	- License/Organization info, modules(pre-canned dash, query builder, customer dash, config builder), usage and debug history/info, support contacts
+##### Objects
 
 1. Data source
 
@@ -158,23 +193,37 @@ Future versions will support more HA data stores.
 
 	- We need to have another discussion about the goals.
 	- For now the design is an opaque JSON blob until we know how to structure this.
+	- precanned dashboards for telegraf
 
-1. Dashboards
-
-	- precanned
+1. Queries
+	- We may store the queries object.
+	- Downside: when to expire? TTL?
+	- Upside: single endpoint for specific query with bindable parameters.
 
 1. Sessions for particular user?
 	- What data do we persist about a user's session, if any?
+	
+1. Server Configuration
+	
+	- Any setting that would normally in TICK stack land be in a file, we'll expose through an updatable API.
+	- License/Organization info, modules(pre-canned dash, query builder, customer dash, config builder), usage and debug history/info, support contacts
 
-### API
+#### Authentication
 
-We'll use swagger interface definition to specify API and JSON validation.  The goal is to emphasize designing to an interface facilitating parallel development.
+We want the backend data store (influx oss or influx meta) handle the authentication so that the web server has less responsibility.
+
+##### Questions
+1. Do we want shared secret authentication between the server and the influx data store?
+
+2. How will users be authenticated to the web server?
+
 
 ### Testing
 Talk with Mark and Michael and talk about larger efforts.  This will impact the repository layout.
 There is a potentially large testing matrix of components.
 
 #### Integration Testing
+Because we are pulling together so many TICK stack components we will need strong integration testing.
 
 - Stress testing.
 	- Benchmark pathological queries
@@ -192,27 +241,36 @@ There is a potentially large testing matrix of components.
 	- Deployment experience
 	- Ease of use.
 	- Speed to accomplish task, e.g. find specific info, change setting.
+
+
 ### Collection Agent
-Talk to Cameron about distribution/service
 
-Get his opinions on our basic designs (env vars?)
+The collection agent is at the very least telegraf and a configuration.
 
-confd vs something built into telegraf
+The collection agent post-version 1 will feel similar to [Datadog](https://app.datadoghq.com/account/settings#agent).
 
-Telegraf authentication jwt?
+Good user experience is the key
 
-Prebuilt package (rpm, deb) vs something else.  Are there different config files for each one of these packages?
+#### Quesions
+1. Talk to Cameron about distribution/service
 
-First implementation similar to Datadog https://app.datadoghq.com/account/settings#agent?
-Add environment variables for `INFLUX_URL` and `INFLUX_SHARED_SECRET`. Anything else?
+1. Get his opinions on our basic designs (env vars?)
 
-what product order are we supporting? 
-1. Docker
+1. Use confd vs something built into telegraf for dynamic configuration?
 
-Multiple telegrafs to support other services? E.g. a telegraf instance with only Postgres plugin
+1. Telegraf authentication with jwt?
+
+1. Should there be prebuilt package (rpm, deb) vs something else.  Are there different config files for each one of these packages?
+1. We could just have environment variables `INFLUX_URL` and `INFLUX_SHARED_SECRET`. Anything else?
+
+1. what product order are we supporting? 
+	- v1 system stats
+	- v2 Docker stats
+
+1. Multiple telegrafs to support other services? E.g. a telegraf instance with only Postgres plugin
 
 ### User Stories
-#### Initial Setup
+#### Initial Setup v2
 1. User clicks on an icon that represents their system (e.g. Redhat).
 2. User fills out a form that includes the information needed to configure telegraf.
 	- influx url
