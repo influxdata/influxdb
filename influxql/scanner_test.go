@@ -70,8 +70,8 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `"foo\"bar\""`, tok: influxql.IDENT, lit: `foo"bar"`},
 		{s: `test"`, tok: influxql.BADSTRING, lit: "", pos: influxql.Pos{Line: 0, Char: 3}},
 		{s: `"test`, tok: influxql.BADSTRING, lit: `test`},
-		{s: `$host`, tok: influxql.BOUNDPARAM, lit: `host`},
-		{s: `$"host param"`, tok: influxql.BOUNDPARAM, lit: `host param`},
+		{s: `$host`, tok: influxql.BOUNDPARAM, lit: `$host`},
+		{s: `$"host param"`, tok: influxql.BOUNDPARAM, lit: `$host param`},
 
 		{s: `true`, tok: influxql.TRUE},
 		{s: `false`, tok: influxql.FALSE},

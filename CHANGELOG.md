@@ -16,7 +16,8 @@
 - [#1834](https://github.com/influxdata/influxdb/issues/1834): Drop time when used as a tag or field key.
 - [#7152](https://github.com/influxdata/influxdb/issues/7152): Decrement number of measurements only once when deleting the last series from a measurement.
 - [#7177](https://github.com/influxdata/influxdb/issues/7177): Fix base64 encoding issue with /debug/vars stats.
-- [#7196](https://github.com/influxdata/influxdb/ssues/7196): Fix mmap dereferencing, fixes #7183, #7180
+- [#7196](https://github.com/influxdata/influxdb/issues/7196): Fix mmap dereferencing, fixes #7183, #7180
+- [#7013](https://github.com/influxdata/influxdb/issues/7013): Fix the dollar sign so it properly handles reserved keywords.
 
 ## v1.0.0 [unreleased]
 
