@@ -36,6 +36,19 @@ Design
 	- New client in design phase
 	- non-SELECT queries need either Plutonium client or Influx oss client
 
+```sequence
+App->Proxy: POST query
+Note right of Proxy: Query Validation
+Proxy-->App: Location of query resource
+App->Proxy: GET Location
+Note right of Proxy: Load balance query
+Proxy->Influx/Relay/Cluster: SELECT
+Note right of Influx/Relay/Cluster: Prepared Telegraf query
+Influx/Relay/Cluster-->Proxy: Time Series
+Note right of Proxy: Format and Decimate
+Proxy-->App: 
+Note left of App: Format to dygraph
+```
 
 Example: 
 ```http
