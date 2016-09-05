@@ -504,7 +504,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 			if f := mf.Field(name); f != nil {
 				// Field present in shard metadata, make sure there is no type conflict.
 				if f.Type != influxql.InspectDataType(value) {
-					return nil, fmt.Errorf("field type conflict: input field \"%s\" on measurement \"%s\" is type %T, already exists as type %s", name, p.Name(), value, f.Type)
+					return nil, fmt.Errorf("%s: input field \"%s\" on measurement \"%s\" is type %T, already exists as type %s", ErrFieldTypeConflict, name, p.Name(), value, f.Type)
 				}
 
 				continue // Field is present, and it's of the same type. Nothing more to do.

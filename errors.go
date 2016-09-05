@@ -6,18 +6,9 @@ import (
 	"strings"
 )
 
-var (
-	// ErrFieldsRequired is returned when a point does not any fields.
-	ErrFieldsRequired = errors.New("fields required")
-
-	// ErrFieldTypeConflict is returned when a new field already exists with a different type.
-	ErrFieldTypeConflict = errors.New("field type conflict")
-
-	// ErrUpgradeEngine will be returned when it's determined that
-	// the server has encountered shards that are not in the `tsm1`
-	// format.
-	ErrUpgradeEngine = errors.New("\n\n" + upgradeMessage + "\n\n")
-)
+// ErrFieldTypeConflict is returned when a new field already exists with a
+// different type.
+var ErrFieldTypeConflict = errors.New("field type conflict")
 
 // ErrDatabaseNotFound indicates that a database operation failed on the
 // specified database because the specified database does not exist.
@@ -35,14 +26,7 @@ func IsClientError(err error) bool {
 		return false
 	}
 
-	if err == ErrFieldsRequired {
-		return true
-	}
-	if err == ErrFieldTypeConflict {
-		return true
-	}
-
-	if strings.Contains(err.Error(), ErrFieldTypeConflict.Error()) {
+	if strings.HasPrefix(err.Error(), ErrFieldTypeConflict.Error()) {
 		return true
 	}
 
