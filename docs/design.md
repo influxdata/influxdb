@@ -51,7 +51,7 @@ Two month cycles (typically, one month feature/one month polish)
 ### Closed source vs Open Source
 
 - Ideally, we would use the soon-to-be open source plutonium client to interact with Influx Enterprise. This would mean that this application could be entirely open source. (We should check with Todd and Nate.)
-- However, if in the future we want to deliever a closed source version, we'll use the open source version as a library.  The open source library will define certain routes (/users, /whatever); the closed source version will either override those routes, or add new ones.  This implies that the closed source version is simply additional or manipulated routes on the server.
+- However, if in the future we want to deliver a closed source version, we'll use the open source version as a library.  The open source library will define certain routes (/users, /whatever); the closed source version will either override those routes, or add new ones.  This implies that the closed source version is simply additional or manipulated routes on the server.
 - Survey the experience of closed source with Jason and Nathaniel.
 
 ### Repository
@@ -98,13 +98,13 @@ Features would include:
 1. Only support `SELECT` queries. (no explicit validation? happens in plutonium)
 
 Chronograf will take a different approach than InfluxEnterprise 1.0 and Grafana 2 & 3, which use a GET request with parameters.
-It provides two endpoints for euphemeral and persistent queries.
+It provides two endpoints for ephemeral and persistent queries.
 Both endpoints accept a POST request with a JSON object containing similar parameters.
 
-##### Euphemeral Queries
+##### Ephemeral Queries
 
-Euphemeral queries are transient and unlikely to be requested multiple times.
-They should be most useful for the data explorer or other adhoc query functionality.
+Ephemeral queries are transient and unlikely to be requested multiple times.
+They should be most useful for the data explorer or other ad hoc query functionality.
 
 Uses a POST request to the `/queries` endpoint and returns results in the response.
 No resource is created.
@@ -290,7 +290,7 @@ _For back-end:_
 
 _For front-end:_
 1. Is it desirable to use InfluxQL prepared statements or construct query from components (server-side or in-app)?
-1. Does separating euphemeral and persistent queries make sense? (Perhaps it sucks to have to do a parameterized GET)
+1. Does separating ephemeral and persistent queries make sense? (Perhaps it sucks to have to do a parameterized GET)
 1. SHOW/DROP statements on separate endpoints. (`/users`, `/roles`, `/measurements`, `/tags`, `/fields`)
 
 _For core:_
