@@ -133,39 +133,6 @@ func TestSetFormat(t *testing.T) {
 }
 
 func createFakeResponse(rows ...models.Row) *client.Response {
-
-	/*row1_1 := models.Row {
-		Name: "cpu",
-		Tags: map[string]string{"host": "anomaly.io",
-			"instance": "big"},
-		Columns: []string{"time", "value", "latency"},
-		Values: [][]interface{}{
-			{json.Number("1300000000"), float64(100), 12},
-			{json.Number("1400000000"), float64(200), 80},
-		},
-	}
-
-	row1_2 := models.Row {
-		Name: "cpu",
-		Tags: map[string]string{},
-		Columns: []string{"time", "detection"},
-		Values: [][]interface{}{
-			{json.Number("1500000000"), true},
-			{json.Number("1600000000"), false},
-		},
-	}
-
-	//special caractere
-	row2_1 := models.Row {
-		Name: "cpu usage",
-		Tags: map[string]string{},
-		Columns: []string{"time", "host", "anomaly=true detect"},
-		Values: [][]interface{}{
-			{json.Number("1500000000"), "server A,server B",},
-			{json.Number("1600000000"), false},
-		},
-	}*/
-
 	result1 := client.Result{Series: rows}
 	results := []client.Result{result1}
 	response := &client.Response{Results: results}
