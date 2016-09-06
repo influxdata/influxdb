@@ -162,12 +162,12 @@ func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision strin
 		block  []byte
 		failed []string
 	)
-	for {
+	for pos < len(buf) {
 		pos, block = scanLine(buf, pos)
 		pos++
 
 		if len(block) == 0 {
-			break
+			continue
 		}
 
 		// lines which start with '#' are comments
@@ -192,10 +192,6 @@ func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision strin
 			failed = append(failed, fmt.Sprintf("unable to parse '%s': %v", string(block[start:len(block)]), err))
 		} else {
 			points = append(points, pt)
-		}
-
-		if pos >= len(buf) {
-			break
 		}
 
 	}

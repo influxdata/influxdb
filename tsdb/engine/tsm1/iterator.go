@@ -25,7 +25,7 @@ type floatCastIntegerCursor struct {
 	cursor integerCursor
 }
 
-func (c *floatCastIntegerCursor) close() error { return c.close() }
+func (c *floatCastIntegerCursor) close() error { return c.cursor.close() }
 
 func (c *floatCastIntegerCursor) next() (t int64, v interface{}) { return c.nextFloat() }
 
@@ -38,7 +38,7 @@ type integerCastFloatCursor struct {
 	cursor floatCursor
 }
 
-func (c *integerCastFloatCursor) close() error { return c.close() }
+func (c *integerCastFloatCursor) close() error { return c.cursor.close() }
 
 func (c *integerCastFloatCursor) next() (t int64, v interface{}) { return c.nextInteger() }
 

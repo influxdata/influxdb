@@ -66,6 +66,8 @@ var (
 const (
 	statWALOldBytes         = "oldSegmentsDiskBytes"
 	statWALCurrentBytes     = "currentSegmentDiskBytes"
+	statWriteOk             = "writeOk"
+	statWriteErr            = "writeErr"
 	defaultWaitingWALWrites = 10
 )
 
@@ -138,6 +140,8 @@ func (l *WAL) SetLogOutput(w io.Writer) {
 type WALStatistics struct {
 	OldBytes     int64
 	CurrentBytes int64
+	WriteOK      int64
+	WriteErr     int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -148,6 +152,8 @@ func (l *WAL) Statistics(tags map[string]string) []models.Statistic {
 		Values: map[string]interface{}{
 			statWALOldBytes:     atomic.LoadInt64(&l.stats.OldBytes),
 			statWALCurrentBytes: atomic.LoadInt64(&l.stats.CurrentBytes),
+			statWriteOk:         atomic.LoadInt64(&l.stats.WriteOK),
+			statWriteErr:        atomic.LoadInt64(&l.stats.WriteErr),
 		},
 	}}
 }
@@ -226,8 +232,10 @@ func (l *WAL) WritePoints(values map[string][]Value) (int, error) {
 
 	id, err := l.writeToLog(entry)
 	if err != nil {
+		atomic.AddInt64(&l.stats.WriteErr, 1)
 		return -1, err
 	}
+	atomic.AddInt64(&l.stats.WriteOK, 1)
 
 	return id, nil
 }

@@ -1950,6 +1950,11 @@ func TestParser_ParseStatement(t *testing.T) {
 			s:    `ALTER RETENTION POLICY policy1 ON testdb REPLICATION 4 SHARD DURATION 10m`,
 			stmt: newAlterRetentionPolicyStatement("policy1", "testdb", -1, 10*time.Minute, 4, false),
 		},
+		// ALTER RETENTION POLICY with all options
+		{
+			s:    `ALTER RETENTION POLICY default ON testdb DURATION 0s REPLICATION 4 SHARD DURATION 10m DEFAULT`,
+			stmt: newAlterRetentionPolicyStatement("default", "testdb", time.Duration(0), 10*time.Minute, 4, true),
+		},
 
 		// SHOW STATS
 		{
@@ -2326,10 +2331,28 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		if !reflect.DeepEqual(tt.err, errstring(err)) {
 			t.Errorf("%d. %q: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.s, tt.err, err)
-		} else if tt.err == "" && !reflect.DeepEqual(tt.stmt, stmt) {
-			t.Logf("\n# %s\nexp=%s\ngot=%s\n", tt.s, mustMarshalJSON(tt.stmt), mustMarshalJSON(stmt))
-			t.Logf("\nSQL exp=%s\nSQL got=%s\n", tt.stmt.String(), stmt.String())
-			t.Errorf("%d. %q\n\nstmt mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.s, tt.stmt, stmt)
+		} else if tt.err == "" {
+			if !reflect.DeepEqual(tt.stmt, stmt) {
+				t.Logf("\n# %s\nexp=%s\ngot=%s\n", tt.s, mustMarshalJSON(tt.stmt), mustMarshalJSON(stmt))
+				t.Logf("\nSQL exp=%s\nSQL got=%s\n", tt.stmt.String(), stmt.String())
+				t.Errorf("%d. %q\n\nstmt mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.s, tt.stmt, stmt)
+			} else {
+				// Attempt to reparse the statement as a string and confirm it parses the same.
+				// Skip this if we have some kind of statement with a password since those will never be reparsed.
+				switch stmt.(type) {
+				case *influxql.CreateUserStatement, *influxql.SetPasswordUserStatement:
+					continue
+				}
+
+				stmt2, err := influxql.ParseStatement(stmt.String())
+				if err != nil {
+					t.Errorf("%d. %q: unable to parse statement string: %s", i, stmt.String(), err)
+				} else if !reflect.DeepEqual(tt.stmt, stmt2) {
+					t.Logf("\n# %s\nexp=%s\ngot=%s\n", tt.s, mustMarshalJSON(tt.stmt), mustMarshalJSON(stmt2))
+					t.Logf("\nSQL exp=%s\nSQL got=%s\n", tt.stmt.String(), stmt2.String())
+					t.Errorf("%d. %q\n\nstmt reparse mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.s, tt.stmt, stmt2)
+				}
+			}
 		}
 	}
 }

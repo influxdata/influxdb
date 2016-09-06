@@ -30,6 +30,7 @@
 * Support for config options `[collectd]` and `[opentsdb]` has been removed; use `[[collectd]]` and `[[opentsdb]]` instead.
 * Config option `data-logging-enabled` within the `[data]` section, has been renamed to `trace-logging-enabled`, and defaults to `false`.
 * The keywords `IF`, `EXISTS`, and `NOT` where removed for this release.  This means you no longer need to specify `IF NOT EXISTS` for `DROP DATABASE` or `IF EXISTS` for `CREATE DATABASE`.  If these are specified, a query parse error is returned.
+* The Shard `writePointsFail` stat has been renamed to `writePointsErr` for consistency with other stats.
 
 With this release the systemd configuration files for InfluxDB will use the system configured default for logging and will no longer write files to `/var/log/influxdb` by default. On most systems, the logs will be directed to the systemd journal and can be accessed by `journalctl -u influxdb.service`. Consult the systemd journald documentation for configuring journald.
 
@@ -73,6 +74,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7095](https://github.com/influxdata/influxdb/pull/7095): Add MaxSeriesPerDatabase config setting.
 - [#7199](https://github.com/influxdata/influxdb/pull/7199): Add mode function. Thanks @agaurav.
 - [#7194](https://github.com/influxdata/influxdb/issues/7194): Support negative timestamps for the query engine.
+- [#7172](https://github.com/influxdata/influxdb/pull/7172): Write path stats
 
 ### Bugfixes
 
@@ -141,12 +143,16 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7084](https://github.com/influxdata/influxdb/pull/7084): Tombstone memory improvements
 - [#6543](https://github.com/influxdata/influxdb/issues/6543): Fix parseFill to check for fill ident before attempting to parse an expression.
 - [#7032](https://github.com/influxdata/influxdb/pull/7032): Copy tags in influx_stress to avoid a concurrent write panic on a map.
-- [#7107](https://github.com/influxdata/influxdb/pull/7107): Limit shard concurrency
 - [#7028](https://github.com/influxdata/influxdb/pull/7028): Do not run continuous queries that have no time span.
 - [#7025](https://github.com/influxdata/influxdb/issues/7025): Move the CQ interval by the group by offset.
 - [#7125](https://github.com/influxdata/influxdb/pull/7125): Ensure gzip writer is closed in influx_inspect export
 - [#7127](https://github.com/influxdata/influxdb/pull/7127): Concurrent series limit
 - [#7119](https://github.com/influxdata/influxdb/pull/7119): Fix CREATE DATABASE when dealing with default values.
+- [#7218](https://github.com/influxdata/influxdb/issues/7218): Fix alter retention policy when all options are used.
+- [#7225](https://github.com/influxdata/influxdb/issues/7225): runtime: goroutine stack exceeds 1000000000-byte limit
+- [#7240](https://github.com/influxdata/influxdb/issues/7240): Allow blank lines in the line protocol input.
+- [#7119](https://github.com/influxdata/influxdb/pull/7119): Fix CREATE DATABASE when dealing with default values.
+- [#7243](https://github.com/influxdata/influxdb/issues/7243): Optimize queries that compare a tag value to an empty string.
 
 ## v0.13.0 [2016-05-12]
 
