@@ -1,0 +1,3 @@
+dist/
+.pull-request
+node_modules
