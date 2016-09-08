@@ -152,6 +152,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7240](https://github.com/influxdata/influxdb/issues/7240): Allow blank lines in the line protocol input.
 - [#7119](https://github.com/influxdata/influxdb/pull/7119): Fix CREATE DATABASE when dealing with default values.
 - [#7243](https://github.com/influxdata/influxdb/issues/7243): Optimize queries that compare a tag value to an empty string.
+- [#7074](https://github.com/influxdata/influxdb/issues/7074): Continuous full compactions
 
 ## v0.13.0 [2016-05-12]
 

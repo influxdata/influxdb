@@ -283,11 +283,12 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 	// first check if we should be doing a full compaction because nothing has been written in a long time
 	if c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration && len(generations) > 1 {
 		var tsmFiles []string
+		var genCount int
 		for i, group := range generations {
 			var skip bool
 
 			// Skip the file if it's over the max size and contains a full block and it does not have any tombstones
-			if group.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(group.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock && !group.hasTombstones() {
+			if len(generations) > 2 && group.size() > uint64(maxTSMFileSize) && c.FileStore.BlockCount(group.files[0].Path, 1) == tsdb.DefaultMaxPointsPerBlock && !group.hasTombstones() {
 				skip = true
 			}
 
@@ -308,10 +309,12 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 			for _, f := range group.files {
 				tsmFiles = append(tsmFiles, f.Path)
 			}
+			genCount += 1
 		}
 		sort.Strings(tsmFiles)
 
-		if len(tsmFiles) <= 1 {
+		// Make sure we have more than 1 file and more than 1 generation
+		if len(tsmFiles) <= 1 || genCount <= 1 {
 			return nil
 		}
 
