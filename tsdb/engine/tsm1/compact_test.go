@@ -1847,6 +1847,18 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 			Path: "02-05.tsm1",
 			Size: 2049 * 1024 * 1024,
 		},
+		tsm1.FileStat{
+			Path: "03-05.tsm1",
+			Size: 2049 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "04-05.tsm1",
+			Size: 2049 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "05-05.tsm1",
+			Size: 2049 * 1024 * 1024,
+		},
 	}
 
 	overFs := &fakeFileStore{
@@ -1861,11 +1873,79 @@ func TestDefaultPlanner_Plan_SkipPlanningAfterFull(t *testing.T) {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 
+	// ensure the optimize planner would pick this up
+	if exp, got := 1, len(cp.PlanOptimize()); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+
 	cp.FileStore = fs
 	// ensure that it will plan if last modified has changed
 	fs.lastModified = time.Now()
 
 	if exp, got := 4, len(cp.Plan(time.Now())[0]); got != exp {
+		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
+	}
+}
+
+// Tests that 2 generations, each over 2 GB and the second in level 2 does
+// not return just the first generation.  This was a case where full planning
+// would get repeatedly plan the same files and never stop.
+func TestDefaultPlanner_Plan_TwoGenLevel3(t *testing.T) {
+	data := []tsm1.FileStat{
+		tsm1.FileStat{
+			Path: "000002245-000001666.tsm",
+			Size: 2049 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "000002245-000001667.tsm",
+			Size: 2049 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "000002245-000001668.tsm",
+			Size: 2049 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "000002245-000001669.tsm",
+			Size: 2049 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "000002245-000001670.tsm",
+			Size: 2049 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "000002245-000001671.tsm",
+			Size: 2049 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "000002245-000001672.tsm",
+			Size: 2049 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "000002245-000001673.tsm",
+			Size: 192631258,
+		},
+		tsm1.FileStat{
+			Path: "000002246-000000002.tsm",
+			Size: 2049 * 1024 * 1024,
+		},
+		tsm1.FileStat{
+			Path: "000002246-000000003.tsm",
+			Size: 192631258,
+		},
+	}
+
+	cp := &tsm1.DefaultPlanner{
+		FileStore: &fakeFileStore{
+			blockCount: 1000,
+			PathsFn: func() []tsm1.FileStat {
+				return data
+			},
+		},
+		CompactFullWriteColdDuration: time.Hour,
+	}
+
+	tsm := cp.Plan(time.Now().Add(-24 * time.Hour))
+	if exp, got := 1, len(tsm); got != exp {
 		t.Fatalf("tsm file length mismatch: got %v, exp %v", got, exp)
 	}
 }
