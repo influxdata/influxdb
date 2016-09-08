@@ -249,7 +249,6 @@ paths:
                   schema:
                       $ref: '#/definitions/Query'
                   required: true
-                  type: string
             responses:
                 204:
                     description: Stored query has been updated
@@ -341,7 +340,6 @@ paths:
                   type: string
                   description: ID of the data source
                   required: true
-                  summary: List of possible valid permissions on this data source
             responses:
                 200:
                     description: An array of permissions
@@ -747,8 +745,8 @@ definitions:
         properties:
             role:
                 type: array
-            items:
-                $ref: "#/definitions/Role"
+                items:
+                  $ref: "#/definitions/Role"
     Role:
         type: object
         required:
@@ -774,8 +772,8 @@ definitions:
         properties:
             users:
                 type: array
-            items:
-                $ref: "#/definitions/User"
+                items:
+                  $ref: "#/definitions/User"
     User:
         type: object
         required:
