@@ -654,11 +654,9 @@ paths:
                 dashboards will hold information about how to layout the page of graphs.
             responses:
                 200:
-                    description: An array of dashboards
+                    description: Returns the specified dashboard containing `cells`.
                     schema:
-                        type: array
-                        items:
-                            $ref: '#/definitions/Dashboards'
+                        $ref: '#/definitions/Dashboard'
                 404:
                     description: Unknown dashboard id
                     schema:
