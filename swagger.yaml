@@ -72,7 +72,7 @@ paths:
             description: These data sources store time series data.
             responses:
                 200:
-                    description: Data source used to supply time series to layouts.
+                    description: Data source used to supply time series to dashboards.
                     schema:
                         $ref: '#/definitions/Source'
                 404:
@@ -605,62 +605,62 @@ paths:
                     description: Unexpected internal service error
                     schema:
                         $ref: '#/definitions/Error'
-    /layouts:
+    /dashboards:
         get:
-            summary: Configured Layouts
+            summary: Pre-configured dashboards
             description: |
-                Not sure what we are doing about this...
+                Dashboards are a collection of `Cells` that visualize time-series data.
             responses:
                 200:
-                    description: An array of layouts
+                    description: An array of dashboards 
                     schema:
-                        $ref: '#/definitions/Layouts'
+                        $ref: '#/definitions/Dashboards'
                 default:
                     description: Unexpected internal service error
                     schema:
                         $ref: '#/definitions/Error'
         post:
-            summary: Create new layout
+            summary: Create new Dashboard
             parameters:
-                - name: layout
+                - name: dashboard
                   in: body
-                  description: Create new named layout
+                  description: Defines the dashboard and queries of the cells within the dashboard.
                   schema:
-                      $ref: '#/definitions/Layout'
+                      $ref: '#/definitions/Dashboard'
             responses:
                 201:
-                    description: Successfully create layout
+                    description: Successfully created new dashboard
                     headers:
                         Location:
                             type: string
                             format: url
-                            description: Location of the newly created layout
+                            description: Location of the newly created dashboard
                     schema:
-                        $ref: '#/definitions/Layout'
+                        $ref: '#/definitions/Dashboard'
                 default:
                     description: A processing or an unexpected error.
                     schema:
                         $ref: '#/definitions/Error'
-    /layouts/{id}:
+    /dashboards/{id}:
         get:
             parameters:
                 - name: id
                   in: path
                   type: string
-                  description: ID of the layout
+                  description: ID of the dashboard
                   required: true
-            summary: Unique named layout
+            summary: Specific pre-configured dashboard containing cells and queries.
             description: |
-                Layouts will hold information about how to layout the page of graphs.
+                dashboards will hold information about how to layout the page of graphs.
             responses:
                 200:
-                    description: An array of layouts
+                    description: An array of dashboards
                     schema:
                         type: array
                         items:
-                            $ref: '#/definitions/Layouts'
+                            $ref: '#/definitions/Dashboards'
                 404:
-                    description: Unknown layout id
+                    description: Unknown dashboard id
                     schema:
                         $ref: '#/definitions/Error'
                 default:
@@ -672,39 +672,39 @@ paths:
                 - name: id
                   in: path
                   type: string
-                  description: ID of the layout
+                  description: ID of the dashboard
                   required: true
-            summary: This specific layout will be removed from the data store
+            summary: This specific dashboard will be removed from the data store
             responses:
                 204:
-                    description: An array of layouts
+                    description: An array of dashboards
                 404:
-                    description: Unknown layout id
+                    description: Unknown dashboard id
                     schema:
                         $ref: '#/definitions/Error'
                 default:
                     description: Unexpected internal service error
                     schema:
                         $ref: '#/definitions/Error'
-        patch:
-            summary: Update layout configuration
+        put:
+            summary: Completely update dashboard configuration
             parameters:
                 - name: id
                   in: path
                   type: string
-                  description: ID of a layout
+                  description: ID of a dashboard
                   required: true
                 - name: config
                   in: body
-                  description: layout configuration update parameters
+                  description: dashboard configuration update parameters
                   schema:
-                      $ref: '#/definitions/Layout'
+                      $ref: '#/definitions/Dashboard'
                   required: true
             responses:
                 204:
-                    description: Layout's configuration was changed
+                    description: Dashboard's configuration was changed
                 404:
-                    description: Happens when trying to access a non-existent layout.
+                    description: Happens when trying to access a non-existent dashboard.
                     schema:
                         $ref: '#/definitions/Error'
                 default:
@@ -746,7 +746,7 @@ definitions:
             role:
                 type: array
                 items:
-                  $ref: "#/definitions/Role"
+                    $ref: "#/definitions/Role"
     Role:
         type: object
         required:
@@ -773,7 +773,7 @@ definitions:
             users:
                 type: array
                 items:
-                  $ref: "#/definitions/User"
+                    $ref: "#/definitions/User"
     User:
         type: object
         required:
@@ -818,29 +818,48 @@ definitions:
             - WriteData
             - Rebalance
             - ManageShard
-    Layouts:
+    Dashboards:
         type: object
         properties:
-            layouts:
+            dashboards:
                 type: array
                 items:
-                    $ref: "#/definitions/Layout"
-    Layout:
+                    $ref: "#/definitions/Dashboard"
+    Dashboard:
         type: object
         required:
-            - version
-            - data
-            - data_source
+            - cells
         properties:
-            version:
-                type: string
-            data:
-                type: string
-                description: Information used to actually layout...  I hate this name... not sure this is right.
-            data_source:
-                $ref: '#/definitions/Link'
-            link:
-                $ref: "#/definitions/Link"
+            cells:
+                type: array
+                description: Cells are the individual visualization elements.
+                items:
+                    $ref: "#/definitions/Cell"
+    Cell:
+        type: object
+        properties:
+            x:
+                description: X-coordinate of Cell in the Dashboard
+                type: integer
+                format: int32
+            'y':
+                description: Y-coordinate of Cell in the Dashboard
+                type: integer
+                format: int32
+            w:
+                description: Width of Cell in the Dashboard
+                type: integer
+                format: int32
+            h:
+                description: Height of Cell in the Dashboard
+                type: integer
+                format: int32
+            queryLinks:
+                description: Time-series data queries for Cell. GETs to these links produce `QueryResults.`
+                type: array
+                items:
+                    type: string
+                    format: url
     Error:
         type: object
         properties:
@@ -907,13 +926,6 @@ definitions:
                                 type: string
             tags:
                 type: object
-            timeBounds:
-                type: object
-                properties:
-                    lower:
-                        type: string
-                    upper:
-                        type: string
             raw:
                 type: string
             groupBy:
