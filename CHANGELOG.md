@@ -18,7 +18,7 @@
 - [#7177](https://github.com/influxdata/influxdb/issues/7177): Fix base64 encoding issue with /debug/vars stats.
 - [#7196](https://github.com/influxdata/influxdb/ssues/7196): Fix mmap dereferencing, fixes #7183, #7180
 
-## v1.0.0 [unreleased]
+## v1.0.0 [2016-09-08]
 
 ### Release Notes
 
