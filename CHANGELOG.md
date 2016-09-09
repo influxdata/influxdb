@@ -29,6 +29,7 @@
 - [#6896](https://github.com/influxdata/influxdb/issues/6896): Correctly read in input from a non-interactive stream for the CLI.
 - [#7463](https://github.com/influxdata/influxdb/pull/7463): Make input plugin services open/close idempotent.
 - [#7473](https://github.com/influxdata/influxdb/pull/7473): Align binary math expression streams by time.
+- [#7281](https://github.com/influxdata/influxdb/pull/7281): Add stats for active compactions, compaction errors.
 
 ### Bugfixes
 
