@@ -685,7 +685,7 @@ paths:
                     schema:
                         $ref: '#/definitions/Error'
         put:
-            summary: Completely update dashboard configuration
+            summary: Replace dashboard configuration.
             parameters:
                 - name: id
                   in: path
