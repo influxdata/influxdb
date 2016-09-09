@@ -344,7 +344,7 @@ paths:
                 200:
                     description: An array of permissions
                     schema:
-                        $ref: '#/definitions/ACL'
+                        $ref: '#/definitions/AllPermissions'
                 default:
                     description: Unexpected internal service error
                     schema:
@@ -741,30 +741,23 @@ definitions:
     Roles:
         type: object
         properties:
-            role:
+            roles:
                 type: array
                 items:
                     $ref: "#/definitions/Role"
     Role:
         type: object
         required:
-            - id
             - permissions
             - name
         properties:
-            id:
-                type: string
             name:
                 type: string
                 maxLength: 64
             permissions:
-                type: array
-                items:
-                    $ref: '#/definitions/Permission'
-            link:
-                $ref: "#/definitions/Link"
+                $ref: '#/definitions/Permissions'
             users:
-                $ref: "#/definitions/Links"
+                $ref: "#/definitions/Users"
     Users:
         type: object
         properties:
@@ -775,33 +768,27 @@ definitions:
     User:
         type: object
         required:
-            - id
             - permissions
-
+            - username
         properties:
-            id:
-                type: string
             username:
                 type: string
                 maxLength: 64
             permissions:
-                type: array
-                items:
-                    $ref: '#/definitions/Permission'
-            link:
-                $ref: "#/definitions/Link"
-    Permission:
+                $ref: '#/definitions/Permissions'
+            roles:
+                $ref: '#/definitions/Roles'
+    Permissions:
         type: object
         properties:
             database:
+                description: permissions are scoped to a specific database
                 type: string
-            acls:
-                $ref: "#/definitions/ACL"
-    ACL:
-        type: array
-        items:
-            $ref: "#/definitions/AC"
-    AC:
+            permissions:
+                type: array
+                items:
+                    $ref: "#/definitions/Permission"
+    Permission:
         type: string
         description: Specific access 
         enum:
@@ -816,6 +803,11 @@ definitions:
             - WriteData
             - Rebalance
             - ManageShard
+    AllPermissions:
+        description: All Possible permission strings
+        type: array
+        items:
+            $ref: "#/definitions/Permission"
     Dashboards:
         type: object
         properties:
