@@ -3,10 +3,10 @@ info:
     title: Mr Fusion
     description: Fuel for Chronograf
     version: "1.1.0"
-host: enterprise.influxdata.com
+host: Chronograf.influxdata.com
 schemes:
     - http
-basePath: /enterprise/v1
+basePath: /chronograf/v1
 consumes:
     - application/json
 produces:
