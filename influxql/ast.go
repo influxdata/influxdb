@@ -3334,6 +3334,33 @@ type StringLiteral struct {
 // String returns a string representation of the literal.
 func (l *StringLiteral) String() string { return QuoteString(l.Val) }
 
+// IsTimeLiteral returns if this string can be interpreted as a time literal.
+func (l *StringLiteral) IsTimeLiteral() bool {
+	return isDateTimeString(l.Val) || isDateString(l.Val)
+}
+
+// ToTimeLiteral returns a time literal if this string can be converted to a time literal.
+func (l *StringLiteral) ToTimeLiteral() (*TimeLiteral, error) {
+	if isDateTimeString(l.Val) {
+		t, err := time.Parse(DateTimeFormat, l.Val)
+		if err != nil {
+			// try to parse it as an RFCNano time
+			t, err = time.Parse(time.RFC3339Nano, l.Val)
+			if err != nil {
+				return nil, ErrInvalidTime
+			}
+		}
+		return &TimeLiteral{Val: t}, nil
+	} else if isDateString(l.Val) {
+		t, err := time.Parse(DateFormat, l.Val)
+		if err != nil {
+			return nil, ErrInvalidTime
+		}
+		return &TimeLiteral{Val: t}, nil
+	}
+	return nil, ErrInvalidTime
+}
+
 // TimeLiteral represents a point-in-time literal.
 type TimeLiteral struct {
 	Val time.Time
@@ -3664,22 +3691,12 @@ func timeExprValue(ref Expr, lit Expr) (t time.Time, err error) {
 	if ref, ok := ref.(*VarRef); ok && strings.ToLower(ref.Val) == "time" {
 		// If literal looks like a date time then parse it as a time literal.
 		if strlit, ok := lit.(*StringLiteral); ok {
-			if isDateTimeString(strlit.Val) {
-				t, err := time.Parse(DateTimeFormat, strlit.Val)
+			if strlit.IsTimeLiteral() {
+				t, err := strlit.ToTimeLiteral()
 				if err != nil {
-					// try to parse it as an RFCNano time
-					t, err = time.Parse(time.RFC3339Nano, strlit.Val)
-					if err != nil {
-						return time.Time{}, ErrInvalidTime
-					}
+					return time.Time{}, err
 				}
-				lit = &TimeLiteral{Val: t}
-			} else if isDateString(strlit.Val) {
-				t, err := time.Parse(DateFormat, strlit.Val)
-				if err != nil {
-					return time.Time{}, ErrInvalidTime
-				}
-				lit = &TimeLiteral{Val: t}
+				lit = t
 			}
 		}
 
@@ -4254,6 +4271,18 @@ func reduceBinaryExprDurationLHS(op Token, lhs *DurationLiteral, rhs Expr) Expr 
 		case ADD:
 			return &TimeLiteral{Val: rhs.Val.Add(lhs.Val)}
 		}
+	case *StringLiteral:
+		t, err := rhs.ToTimeLiteral()
+		if err != nil {
+			break
+		}
+		expr := reduceBinaryExprDurationLHS(op, lhs, t)
+
+		// If the returned expression is still a binary expr, that means
+		// we couldn't reduce it so this wasn't used in a time literal context.
+		if _, ok := expr.(*BinaryExpr); !ok {
+			return expr
+		}
 	case *nilLiteral:
 		return &BooleanLiteral{Val: false}
 	}
@@ -4297,6 +4326,22 @@ func reduceBinaryExprIntegerLHS(op Token, lhs *IntegerLiteral, rhs Expr) Expr {
 			return &TimeLiteral{Val: time.Unix(0, lhs.Val).Add(rhs.Val)}
 		case SUB:
 			return &TimeLiteral{Val: time.Unix(0, lhs.Val).Add(-rhs.Val)}
+		}
+	case *TimeLiteral:
+		d := &DurationLiteral{Val: time.Duration(lhs.Val)}
+		expr := reduceBinaryExprDurationLHS(op, d, rhs)
+		if _, ok := expr.(*BinaryExpr); !ok {
+			return expr
+		}
+	case *StringLiteral:
+		t, err := rhs.ToTimeLiteral()
+		if err != nil {
+			break
+		}
+		d := &DurationLiteral{Val: time.Duration(lhs.Val)}
+		expr := reduceBinaryExprDurationLHS(op, d, t)
+		if _, ok := expr.(*BinaryExpr); !ok {
+			return expr
 		}
 	case *nilLiteral:
 		return &BooleanLiteral{Val: false}
@@ -4377,11 +4422,105 @@ func reduceBinaryExprStringLHS(op Token, lhs *StringLiteral, rhs Expr) Expr {
 	case *StringLiteral:
 		switch op {
 		case EQ:
-			return &BooleanLiteral{Val: lhs.Val == rhs.Val}
+			var expr Expr = &BooleanLiteral{Val: lhs.Val == rhs.Val}
+			// This might be a comparison between time literals.
+			// If it is, parse the time literals and then compare since it
+			// could be a different result if they use different formats
+			// for the same time.
+			if lhs.IsTimeLiteral() && rhs.IsTimeLiteral() {
+				tlhs, err := lhs.ToTimeLiteral()
+				if err != nil {
+					return expr
+				}
+
+				trhs, err := rhs.ToTimeLiteral()
+				if err != nil {
+					return expr
+				}
+
+				t := reduceBinaryExprTimeLHS(op, tlhs, trhs)
+				if _, ok := t.(*BinaryExpr); !ok {
+					expr = t
+				}
+			}
+			return expr
 		case NEQ:
-			return &BooleanLiteral{Val: lhs.Val != rhs.Val}
+			var expr Expr = &BooleanLiteral{Val: lhs.Val != rhs.Val}
+			// This might be a comparison between time literals.
+			// If it is, parse the time literals and then compare since it
+			// could be a different result if they use different formats
+			// for the same time.
+			if lhs.IsTimeLiteral() && rhs.IsTimeLiteral() {
+				tlhs, err := lhs.ToTimeLiteral()
+				if err != nil {
+					return expr
+				}
+
+				trhs, err := rhs.ToTimeLiteral()
+				if err != nil {
+					return expr
+				}
+
+				t := reduceBinaryExprTimeLHS(op, tlhs, trhs)
+				if _, ok := t.(*BinaryExpr); !ok {
+					expr = t
+				}
+			}
+			return expr
 		case ADD:
 			return &StringLiteral{Val: lhs.Val + rhs.Val}
+		default:
+			// Attempt to convert the string literal to a time literal.
+			t, err := lhs.ToTimeLiteral()
+			if err != nil {
+				break
+			}
+			expr := reduceBinaryExprTimeLHS(op, t, rhs)
+
+			// If the returned expression is still a binary expr, that means
+			// we couldn't reduce it so this wasn't used in a time literal context.
+			if _, ok := expr.(*BinaryExpr); !ok {
+				return expr
+			}
+		}
+	case *DurationLiteral:
+		// Attempt to convert the string literal to a time literal.
+		t, err := lhs.ToTimeLiteral()
+		if err != nil {
+			break
+		}
+		expr := reduceBinaryExprTimeLHS(op, t, rhs)
+
+		// If the returned expression is still a binary expr, that means
+		// we couldn't reduce it so this wasn't used in a time literal context.
+		if _, ok := expr.(*BinaryExpr); !ok {
+			return expr
+		}
+	case *TimeLiteral:
+		// Attempt to convert the string literal to a time literal.
+		t, err := lhs.ToTimeLiteral()
+		if err != nil {
+			break
+		}
+		expr := reduceBinaryExprTimeLHS(op, t, rhs)
+
+		// If the returned expression is still a binary expr, that means
+		// we couldn't reduce it so this wasn't used in a time literal context.
+		if _, ok := expr.(*BinaryExpr); !ok {
+			return expr
+		}
+	case *IntegerLiteral:
+		// Attempt to convert the string literal to a time literal.
+		t, err := lhs.ToTimeLiteral()
+		if err != nil {
+			break
+		}
+		expr := reduceBinaryExprTimeLHS(op, t, rhs)
+
+		// If the returned expression is still a binary expr, that means
+		// we couldn't reduce it so this wasn't used in a time literal context.
+		if _, ok := expr.(*BinaryExpr); !ok {
+			return expr
 		}
 	case *nilLiteral:
 		switch op {
@@ -4401,6 +4540,12 @@ func reduceBinaryExprTimeLHS(op Token, lhs *TimeLiteral, rhs Expr) Expr {
 		case SUB:
 			return &TimeLiteral{Val: lhs.Val.Add(-rhs.Val)}
 		}
+	case *IntegerLiteral:
+		d := &DurationLiteral{Val: time.Duration(rhs.Val)}
+		expr := reduceBinaryExprTimeLHS(op, lhs, d)
+		if _, ok := expr.(*BinaryExpr); !ok {
+			return expr
+		}
 	case *TimeLiteral:
 		switch op {
 		case SUB:
@@ -4417,6 +4562,18 @@ func reduceBinaryExprTimeLHS(op Token, lhs *TimeLiteral, rhs Expr) Expr {
 			return &BooleanLiteral{Val: lhs.Val.Before(rhs.Val)}
 		case LTE:
 			return &BooleanLiteral{Val: lhs.Val.Before(rhs.Val) || lhs.Val.Equal(rhs.Val)}
+		}
+	case *StringLiteral:
+		t, err := rhs.ToTimeLiteral()
+		if err != nil {
+			break
+		}
+		expr := reduceBinaryExprTimeLHS(op, lhs, t)
+
+		// If the returned expression is still a binary expr, that means
+		// we couldn't reduce it so this wasn't used in a time literal context.
+		if _, ok := expr.(*BinaryExpr); !ok {
+			return expr
 		}
 	case *nilLiteral:
 		return &BooleanLiteral{Val: false}

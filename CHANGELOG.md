@@ -3,6 +3,7 @@
 ### Bugfixes
 
 - [#7271](https://github.com/influxdata/influxdb/issues/7271): Fixing typo within example configuration file. Thanks @andyfeller!
+- [#7270](https://github.com/influxdata/influxdb/issues/7270): Implement time math for lazy time literals.
 
 ## v1.0.0 [2016-09-07]
 
