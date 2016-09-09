@@ -163,174 +163,6 @@ paths:
                     description: Unexpected internal service error
                     schema:
                         $ref: '#/definitions/Error'
-    /sources/{id}/queries:
-        post:
-            parameters:
-                - name: id
-                  in: path
-                  type: string
-                  description: ID of the data source
-                  required: true
-                - name: query
-                  in: body
-                  description: Query Parameters
-                  schema:
-                      $ref: '#/definitions/Query'
-                  required: true
-            responses:
-                201:
-                    description: Responses from the data source backend in the query order from request.
-                    headers:
-                        Location:
-                            type: string
-                            format: url
-                            description: Location of the newly created query resource.
-                    schema:
-                        $ref: '#/definitions/QueryResponse'
-                400:
-                    description: Any query that results in a data source error (syntax error, etc) will cause this response.  The error message will be passed back in the body
-                    schema:
-                        $ref: '#/definitions/Error'
-                404:
-                    description: Data source id does not exist.
-                    schema:
-                        $ref: '#/definitions/Error'
-                408:
-                    description: Timeout trying to query data source.
-                    schema:
-                        $ref: '#/definitions/Error'
-                default:
-                    description: Unexpected internal service error
-                    schema:
-                        $ref: '#/definitions/Error'
-    /sources/{id}/queries/{qid}:
-        get:
-            summary: Return the configuration of the query including the resultsLink RPC endpoint.
-            parameters:
-                - name: id
-                  in: path
-                  type: string
-                  description: ID of the data source
-                  required: true
-                - name: qid
-                  in: path
-                  description: ID of stored query
-                  required: true
-                  type: string
-            responses:
-                200:
-                    description: Query exists and the configuration is return
-                    schema:
-                        $ref: '#/definitions/QueryResponse'
-                404:
-                    description: source id or query id does not exist.
-                    schema:
-                        $ref: '#/definitions/Error'
-                default:
-                    description: Unexpected internal service error
-                    schema:
-                        $ref: '#/definitions/Error'
-        patch:
-            summary: Update specific query configuration parameters.
-            parameters:
-                - name: id
-                  in: path
-                  type: string
-                  description: ID of the data source
-                  required: true
-                - name: qid
-                  in: path
-                  description: ID of stored query
-                  required: true
-                  type: string
-                - name: query
-                  in: body
-                  description: Query configuration parameters
-                  schema:
-                      $ref: '#/definitions/Query'
-                  required: true
-            responses:
-                204:
-                    description: Stored query has been updated
-                404:
-                    description: source id or query id does not exist.
-                    schema:
-                        $ref: '#/definitions/Error'
-                default:
-                    description: Unexpected internal service error
-                    schema:
-                        $ref: '#/definitions/Error'
-        delete:
-            summary: Destroy query resource
-            parameters:
-                - name: id
-                  in: path
-                  type: string
-                  description: ID of the data source
-                  required: true
-                - name: qid
-                  in: path
-                  description: ID of stored query
-                  required: true
-                  type: string
-            responses:
-                204:
-                    description: Stored query has been destroyed.
-                404:
-                    description: source id or query id does not exist.
-                    schema:
-                        $ref: '#/definitions/Error'
-                default:
-                    description: Unexpected internal service error
-                    schema:
-                        $ref: '#/definitions/Error'
-    /sources/{id}/queries/{qid}/results:
-        get:
-            summary: Return results from executing the query.
-            description: |
-                This endpoint acts as an RPC call to execute the query against the time series data source.
-                The data source results are formatted before return according the the query's configuration.
-                This endpoint also transforms the data source's error conditions into status codes 400 or 408.
-            parameters:
-                - name: id
-                  in: path
-                  type: string
-                  description: ID of the data source
-                  required: true
-                - name: qid
-                  in: path
-                  description: ID of stored query
-                  required: true
-                  type: string
-                - name: lower
-                  in: query
-                  description: Optional lower-time bound override.  Will update the query configuration.
-                  type: string
-                - name: upper
-                  in: query
-                  description: Optional upper-time bound override.  Will update the query configuration.
-                  type: string
-            responses:
-                200:
-                    description: Query successfully executed and results have been transformed.
-                    schema:
-                        $ref: '#/definitions/QueryResults'
-                400:
-                    description: Any query that results in a data source error (syntax error, etc) will cause this response.  The error message will be passed back in the body
-                    schema:
-                        $ref: '#/definitions/Error'
-                404:
-                    description: source id or query id does not exist.
-                    schema:
-                        $ref: '#/definitions/Error'
-                408:
-                    description: Timeout trying to query data source.
-                    schema:
-                        $ref: '#/definitions/Error'
-                default:
-                    description: Unexpected internal service error
-                    schema:
-                        $ref: '#/definitions/Error'
     /sources/{id}/permissions:
         get:
             summary: Returns the list of possible permissions supported by the backend time series data source.
@@ -471,6 +303,166 @@ paths:
                     description: User has been removed
                 404:
                     description: Unknown user id
+                    schema:
+                        $ref: '#/definitions/Error'
+                default:
+                    description: Unexpected internal service error
+                    schema:
+                        $ref: '#/definitions/Error'
+    /sources/{id}/users/{user_id}/explorers:
+        get:
+            parameters:
+              - name: id
+                in: path
+                type: string
+                description: ID of the data source
+                required: true
+              - name: user_id
+                in: path
+                type: string
+                description: All Data Explorers returned only for this user.
+                required: true
+            responses:
+                200:
+                    description: Data explorer saved sessions for user are returned.
+                    schema:
+                        $ref: '#/definitions/Explorers'
+                404:
+                    description: Data source id or user does not exist.
+                    schema:
+                        $ref: '#/definitions/Error'
+                default:
+                    description: Unexpected internal service error
+                    schema:
+                        $ref: '#/definitions/Error'
+        post:
+            summary: Create new named explorer for this user
+            parameters:
+                - name: id
+                  in: path
+                  type: string
+                  description: ID of the data source
+                  required: true
+                - name: user_id
+                  in: path
+                  type: string
+                  description: ID of user to associate this explorer with.
+                  required: true
+                - name: explorer
+                  in: body
+                  description: Explorer session to save
+                  schema:
+                      $ref: '#/definitions/Explorer'
+            responses:
+                201:
+                    description: Successfully created new explorer session
+                    headers:
+                        Location:
+                            type: string
+                            format: url
+                            description: Location of the newly created explorer resource.
+                    schema:
+                        $ref: '#/definitions/Explorer'
+                404:
+                    description: Data source id or user does not exist.
+                    schema:
+                        $ref: '#/definitions/Error'
+                default:
+                    description: A processing or an unexpected error.
+                    schema:
+                        $ref: '#/definitions/Error'
+    /sources/{id}/user/{user_id}/explorers/{explorer_id}:
+        get:
+            parameters:
+                - name: id
+                  in: path
+                  type: string
+                  description: ID of the data source
+                  required: true
+                - name: user_id
+                  in: path
+                  type: string
+                  description: ID of user to associate this explorer with.
+                  required: true
+                - name: explorer_id
+                  in: path
+                  type: string
+                  description: ID of the specific explorer.
+                  required: true
+            summary: Returns the specified data explorer session
+            description: |
+                A data explorer session specifies query information.
+            responses:
+                200:
+                    description: Information relating to the explorer
+                    schema:
+                        $ref: '#/definitions/Explorer'
+                404:
+                    description: Data source id, user, or explorer does not exist.
+                    schema:
+                        $ref: '#/definitions/Error'
+                default:
+                    description: Unexpected internal service error
+                    schema:
+                        $ref: '#/definitions/Error'
+        patch:
+            summary: Update explorer configuration
+            parameters:
+                - name: id
+                  in: path
+                  type: string
+                  description: ID of the data source
+                  required: true
+                - name: user_id
+                  in: path
+                  type: string
+                  description: ID of user
+                  required: true
+                - name: explorer_id
+                  in: path
+                  type: string
+                  description: ID of the specific explorer.
+                  required: true
+                - name: explorer
+                  in: body
+                  description: Update the explorer information to this.
+                  required: true
+                  schema:
+                      $ref: "#/definitions/Explorer"
+            responses:
+                204:
+                    description: Explorer's configuration was changed
+                404:
+                    description: Data source id, user, or explorer does not exist.
+                    schema:
+                        $ref: '#/definitions/Error'
+                default:
+                    description: A processing or an unexpected error.
+                    schema:
+                        $ref: '#/definitions/Error'
+        delete:
+            parameters:
+                - name: id
+                  in: path
+                  type: string
+                  description: ID of the data source
+                  required: true
+                - name: user_id
+                  in: path
+                  type: string
+                  description: ID of user to associate this explorer with.
+                  required: true
+                - name: explorer_id
+                  in: path
+                  type: string
+                  description: ID of the specific explorer.
+                  required: true
+            summary: This specific exporer session will be removed.
+            responses:
+                204:
+                    description: Explorer session has been removed
+                404:
+                    description: Data source id, user, or explorer does not exist.
                     schema:
                         $ref: '#/definitions/Error'
                 default:
@@ -738,6 +730,49 @@ definitions:
                     - influx-enterprise
             link:
                 $ref: "#/definitions/Link"
+    Proxy:
+        type: object
+        required:
+            - query
+        properties:
+            query:
+                type: string
+            format:
+                type: string
+                enum:
+                    - raw
+                default: raw
+    ProxyResponse:
+        type: object
+        properties:
+            results:
+                description: results from influx
+                type: object
+    Explorers:
+        type: object
+        properties:
+            explorers:
+              type: array
+              items:
+                  $ref: "#/definitions/Explorer"
+    Explorer:
+        type: object
+        properties:
+            created_at:
+                type: string
+                format: date-time
+            updated_at:
+                type: string
+                format: date-time
+                description: Latest time the explorer was updated.
+            name:
+                type: string
+                description: Explorer name given by user.
+            data:
+                type: object
+                description: Serialization of the explorer query configuration.
+            link:
+                $ref: "#/definitions/Link"
     Roles:
         type: object
         properties:
@@ -758,6 +793,8 @@ definitions:
                 $ref: '#/definitions/Permissions'
             users:
                 $ref: "#/definitions/Users"
+            link:
+                $ref: "#/definitions/Link"
     Users:
         type: object
         properties:
@@ -778,6 +815,8 @@ definitions:
                 $ref: '#/definitions/Permissions'
             roles:
                 $ref: '#/definitions/Roles'
+            link:
+                $ref: "#/definitions/Link"
     Permissions:
         type: object
         properties:
@@ -825,6 +864,8 @@ definitions:
                 description: Cells are the individual visualization elements.
                 items:
                     $ref: "#/definitions/Cell"
+            link:
+                $ref: "#/definitions/Link"
     Cell:
         type: object
         properties:
@@ -844,20 +885,11 @@ definitions:
                 description: Height of Cell in the Dashboard
                 type: integer
                 format: int32
-            queryLinks:
-                description: Time-series data queries for Cell. GETs to these links produce `QueryResults.`
+            queries:
+                description: Time-series data queries for Cell.
                 type: array
                 items:
                     type: string
-                    format: url
-    Error:
-        type: object
-        properties:
-            code:
-                type: integer
-                format: int32
-            message:
-                type: string
     Links:
         type: object
         properties:
@@ -876,84 +908,11 @@ definitions:
             href:
                 type: string
                 format: url
-    Proxy:
-        type: object
-        required:
-            - query
-        properties:
-            query:
-                type: string
-            format:
-                type: string
-                enum:
-                    - raw
-                default: raw
-    ProxyResponse:
+    Error:
         type: object
         properties:
-            results:
-                description: results from influx
-                type: object
-    Query:
-        type: object
-        properties:
-            database:
+            code:
+                type: integer
+                format: int32
+            message:
                 type: string
-            measurement:
-                type: string
-            retentionPolicy:
-                type: string
-            fields:
-                type: array
-                items:
-                    type: object
-                    properties:
-                        field:
-                            type: string
-                        funcs:
-                            type: array
-                            items:
-                                type: string
-            tags:
-                type: object
-            raw:
-                type: string
-            groupBy:
-                type: object
-                properties:
-                    time: 
-                        type: string
-                        format: duration
-                    tags:
-                        type: array
-                        items:
-                            type: string
-            format:
-                type: string
-                description: Query response format
-                enum:
-                    - raw
-                default: raw
-            protocol:
-                type: string
-                description: Protocol method to communicate results back (in the future this could include web sockets).
-                enum:
-                    - http
-                default: http 
-    QueryResponse:
-        allOf: 
-            - $ref: "#/definitions/Query"
-            - type: object
-              required:
-                  - resultsLink
-              properties:
-                  resultsLink:
-                      type: string
-                      format: url
-    QueryResults:
-        type: object
-        required:
-            - results
-        properties:
-            results:
-                type: object
