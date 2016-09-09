@@ -5,6 +5,7 @@ import (
 	"compress/gzip"
 	"encoding/json"
 	"errors"
+	"expvar"
 	"fmt"
 	"io"
 	"log"
@@ -12,7 +13,6 @@ import (
 	"net/http/pprof"
 	"os"
 	"runtime/debug"
-	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -690,8 +690,31 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	m := make(map[string]*monitor.Statistic)
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+
+	fmt.Fprintln(w, "{")
+	first := true
+	if val := expvar.Get("cmdline"); val != nil {
+		if !first {
+			fmt.Fprintln(w, ",")
+		}
+		first = false
+		fmt.Fprintf(w, "\"cmdline\": %s", val)
+	}
+	if val := expvar.Get("memstats"); val != nil {
+		if !first {
+			fmt.Fprintln(w, ",")
+		}
+		first = false
+		fmt.Fprintf(w, "\"memstats\": %s", val)
+	}
+
 	for _, s := range stats {
+		val, err := json.Marshal(s)
+		if err != nil {
+			continue
+		}
+
 		// Very hackily create a unique key.
 		buf := bytes.NewBufferString(s.Name)
 		if path, ok := s.Tags["path"]; ok {
@@ -718,32 +741,12 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		}
 		key := buf.String()
 
-		m[key] = s
-	}
-
-	// Sort the keys to simulate /debug/vars output.
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	fmt.Fprintln(w, "{")
-	first := true
-	for _, key := range keys {
-		// Marshal this statistic to JSON.
-		out, err := json.Marshal(m[key])
-		if err != nil {
-			continue
-		}
-
 		if !first {
 			fmt.Fprintln(w, ",")
 		}
 		first = false
 		fmt.Fprintf(w, "%q: ", key)
-		w.Write(bytes.TrimSpace(out))
+		w.Write(bytes.TrimSpace(val))
 	}
 	fmt.Fprintln(w, "\n}")
 }
