@@ -84,10 +84,7 @@ Features would include:
 1. Use parameters to move query time range.
 1. Allow different types of response protocols (http GET, websocket, etc.).
 
-It provides two endpoints:
-
 - **`/proxy`:** used to send queries directly to the Influx backend.  They should be most useful for the data explorer or other ad hoc query functionality.
-- **`/queries`:** Permanent resource that can repeatedly return results. Queries are specified using a JSON representation. The server constructs the raw influxql query from the representation.
 
 ##### `/proxy` Queries
 
@@ -113,6 +110,7 @@ Request:
 POST /enterprise/v1/sources/{id}/proxy HTTP/1.1
 Accept: application/json
 Content-Type: application/json
+
 {
   	"query": "SELECT * from telegraf where time > $value",
   	"format": "dygraph",
@@ -139,108 +137,6 @@ Content-Type: application/json
 {
 	"code": 400,
 	"message": "error parsing query: found..."
-}
-```
-
-
-##### `/queries` Queries
-
-POSTs to the `/queries` endpoint creates a resource, which will provide results for frequent queries.
-Query resources should be most useful for dashboards.
-
-The `resultsLink` key in the POST response is the URI to `GET` the results of the query.  The parameters `lower` and `upper` are passed to the `GET` request to specify the time range of the query.
-
-
-```sequence
-App->/queries: POST query
-Note right of /queries: Query Validation
-/queries-->App: Location of query resource: /query/{id}
-App->/queries: GET /queries/{id}/results?lower=now()-1h&upper=now()
-Note right of /queries: Load balance query
-/queries->Influx/Relay/Cluster: SELECT
-Influx/Relay/Cluster-->/queries: Time Series
-Note right of /queries: Format and Decimate
-/queries-->App: 
-```
-
-Example Request:
-
-```http
-POST /enterprise/v1/sources/{id}/queries HTTP/1.1
-Accept: application/json
-Content-Type: application/json
-
-{
-	"database": "telegraf",
-	"measurement": "cpu",
-	"retentionPolicy": "autogen",
-	"fields": [
-		{"field": "usage_system", "funcs": ["mean"]},
-		{"field": "usage_user", "funcs": ["mean"]},
-	],
-	"tags": {
-		"cpu": ["cpu0", "cpu1", "cpu2"],
-		"host": ["host1"]
-	},
-    "groupBy": {
-		"time": "1h",
-		"tags": [
-			"cpu0",
-			"cpu1"
-		]
-	}
-	"format": "raw"
-}
-```
-
-Response:
- 
-```http
-HTTP/1.1 204 Created
-Content-Type: application/json
-Location: /enterprise/v1/sources/{id}/queries/{qid}
-
-{
-	"database": "telegraf",
-	"measurement": "cpu",
-	"retentionPolicy": "autogen",
-	"fields": [
-		{"field": "usage_system", "funcs": ["mean"]},
-		{"field": "usage_user", "funcs": ["mean"]},
-	],
-	"tags": {
-		"cpu": ["cpu0", "cpu1", "cpu2"],
-		"host": ["host1"]
-	},
-    "groupBy": {
-		"time": "1h",
-		"tags": [
-			"cpu0",
-			"cpu1"
-		]
-	}
-	"format": "raw",
-	"resultsLink": "/enterprise/v1/sources/{id}/queries/{qid}/results"
-}
-
-```
-
-GET Request:
-
-```http
-GET /enterprise/v1/sources/{id}/series/{qid}/results?lower=now()-1h&upper=now() HTTP/1.1
-```
-
-Response:
- 
-```http
-HTTP/1.1 200 OK
-Content-Type: application/json
-
-{
-      "results": [
-	  	"...",
-	]
 }
 ```
 
