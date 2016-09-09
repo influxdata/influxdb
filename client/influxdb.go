@@ -498,17 +498,36 @@ func (r *Response) Error() error {
 	return nil
 }
 
+// duplexReader reads responses and writes it to another writer while
+// satisfying the reader interface.
+type duplexReader struct {
+	r io.Reader
+	w io.Writer
+}
+
+func (r *duplexReader) Read(p []byte) (n int, err error) {
+	n, err = r.r.Read(p)
+	if err == nil {
+		r.w.Write(p[:n])
+	}
+	return n, err
+}
+
 // ChunkedResponse represents a response from the server that
 // uses chunking to stream the output.
 type ChunkedResponse struct {
-	dec *json.Decoder
+	dec    *json.Decoder
+	duplex *duplexReader
+	buf    bytes.Buffer
 }
 
 // NewChunkedResponse reads a stream and produces responses from the stream.
 func NewChunkedResponse(r io.Reader) *ChunkedResponse {
-	dec := json.NewDecoder(r)
-	dec.UseNumber()
-	return &ChunkedResponse{dec: dec}
+	resp := &ChunkedResponse{}
+	resp.duplex = &duplexReader{r: r, w: &resp.buf}
+	resp.dec = json.NewDecoder(resp.duplex)
+	resp.dec.UseNumber()
+	return resp
 }
 
 // NextResponse reads the next line of the stream and returns a response.
@@ -518,8 +537,13 @@ func (r *ChunkedResponse) NextResponse() (*Response, error) {
 		if err == io.EOF {
 			return nil, nil
 		}
-		return nil, err
+		// A decoding error happened. This probably means the server crashed
+		// and sent a last-ditch error message to us. Ensure we have read the
+		// entirety of the connection to get any remaining error text.
+		io.Copy(ioutil.Discard, r.duplex)
+		return nil, errors.New(strings.TrimSpace(r.buf.String()))
 	}
+	r.buf.Reset()
 	return &response, nil
 }
 
