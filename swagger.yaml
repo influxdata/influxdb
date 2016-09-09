@@ -948,7 +948,8 @@ definitions:
                   - resultsLink
               properties:
                   resultsLink:
-                      $ref: "#/definitions/Link"
+                      type: string
+                      format: url
     QueryResults:
         type: object
         required:
