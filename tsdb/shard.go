@@ -184,9 +184,10 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 	}
 
 	seriesN, _ := s.engine.SeriesCount()
+	tags = s.defaultTags.Merge(tags)
 	statistics := []models.Statistic{{
 		Name: "shard",
-		Tags: s.defaultTags.Merge(tags),
+		Tags: tags,
 		Values: map[string]interface{}{
 			statWriteReq:       atomic.LoadInt64(&s.stats.WriteReq),
 			statWriteReqOK:     atomic.LoadInt64(&s.stats.WriteReqOK),
