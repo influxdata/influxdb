@@ -7,9 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
@@ -18,7 +20,7 @@ import (
 // UDPPayloadSize is a reasonable default payload size for UDP packets that
 // could be travelling over the internet.
 const (
-	UDPPayloadSize = 512
+	UDPPayloadSize = 1500
 )
 
 // HTTPConfig is the config data needed to create an HTTP Client
@@ -405,29 +407,106 @@ func NewPointFrom(pt models.Point) *Point {
 	return &Point{pt: pt}
 }
 
+// makeChunks splits blob string into chunks that size
+// of each chunk does not exceed given chunkSize
+// makeChunks assumes that size of blob string is greater than chunkSize
+// makeChunks splits blob by selecting chunk by range
+func makeChunks(blob string, chunkSize int) []string {
+	var (
+		size        = int(math.Ceil(float64(len(blob)) / float64(chunkSize)))
+		chunks      = make([]string, 0, size)
+		start, stop int
+	)
+
+	// range by chunkSize
+	for i := 0; i < len(blob); i += chunkSize {
+		// set boundaries of range
+		stop = start + chunkSize
+
+		// if the stop is more than blob length
+		// then set it to end of the blob
+		if stop > len(blob) {
+			stop = len(blob)
+		}
+
+		// move dividing position back until do not match a comma character
+		for l := stop; l > 0 && l != len(blob); l-- {
+			stop = l
+			if string(blob[l]) == "," {
+				break
+			}
+		}
+
+		// if the current position is a comma
+		// then move starting position forward to skip comma sign
+		if string(blob[start]) == "," {
+			start += 1
+		}
+
+		chunks = append(chunks, blob[start:stop])
+		start = stop
+	}
+	return chunks
+}
+
+// Write splits metrics into small parts and writes to UDP connection
 func (uc *udpclient) Write(bp BatchPoints) error {
-	var b bytes.Buffer
 	var d time.Duration
 	d, _ = time.ParseDuration("1" + bp.Precision())
 
 	for _, p := range bp.Points() {
 		pointstring := p.pt.RoundedString(d) + "\n"
-
 		// Write and reset the buffer if we reach the max size
-		if b.Len()+len(pointstring) >= uc.payloadSize {
+		if len(pointstring) < uc.payloadSize {
+			if _, err := uc.conn.Write([]byte(pointstring)); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// If byte size of metrics are more than max UDP payload size(MaxUDPPayload)
+		// then split the metrics into chunks, which each chunk have max MaxUDPPayload byte size
+		b := bytes.Buffer{}
+		// trim the "key", and split by space
+		payload := strings.Split(strings.TrimPrefix(pointstring, string(p.pt.Key())), " ")
+
+		var (
+			timestamp       string
+			timestampExists bool
+		)
+
+		if len(payload) == 3 {
+			// get the timestamp, timestamp always located at the end
+			timestamp = payload[2]
+			timestampExists = true
+		}
+
+		// cut the timestamp from payload and joing
+		// set chunks size less than maxUDPPayload, because 'key' and 'timestamp' will be appended later
+		chunks := makeChunks(
+			strings.TrimSuffix(payload[1], timestamp),
+			uc.payloadSize-(len(string(p.pt.Key())+timestamp)),
+		)
+
+		// range over each chunk
+		// prepend key and append timestamp
+		// then write to UDP connection
+		for _, chunk := range chunks {
+			b.WriteString(string(p.pt.Key()))
+			b.WriteString(" ")
+			b.WriteString(chunk)
+			if timestampExists {
+				b.WriteString(" ")
+				b.WriteString(timestamp)
+			}
+
 			if _, err := uc.conn.Write(b.Bytes()); err != nil {
 				return err
 			}
 			b.Reset()
 		}
-
-		if _, err := b.WriteString(pointstring); err != nil {
-			return err
-		}
 	}
-
-	_, err := uc.conn.Write(b.Bytes())
-	return err
+	return nil
 }
 
 func (c *client) Write(bp BatchPoints) error {
