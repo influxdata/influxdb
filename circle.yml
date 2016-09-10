@@ -17,4 +17,4 @@ deployment:
     branch: develop
     commands:
       - docker login -e $HEROKU_EMAIL -u $HEROKU_EMAIL -p $HEROKU_PASS registry.heroku.com
-      - docker push mrfusion-acc/web
+      - docker push registry.heroku.com/mrfusion-acc/web
