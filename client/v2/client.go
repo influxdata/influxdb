@@ -19,6 +19,7 @@ import (
 // could be travelling over the internet.
 const (
 	UDPPayloadSize = 512
+	MaxPointSize   = 64 * 1024
 )
 
 // HTTPConfig is the config data needed to create an HTTP Client
@@ -413,7 +414,6 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 	for _, p := range bp.Points() {
 		pointstring := p.pt.RoundedString(d) + "\n"
 
-		// Write and reset the buffer if we reach the max size
 		if b.Len()+len(pointstring) >= uc.payloadSize {
 			if _, err := uc.conn.Write(b.Bytes()); err != nil {
 				return err
@@ -421,8 +421,38 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 			b.Reset()
 		}
 
-		if _, err := b.WriteString(pointstring); err != nil {
-			return err
+		if b.Len()+len(pointstring) <= uc.payloadSize {
+			if _, err := b.WriteString(pointstring); err != nil {
+				return err
+			}
+		} else {
+			if p.Time().IsZero() {
+				if len(pointstring) > MaxPointSize {
+					return fmt.Errorf("point size is greater than %dB", MaxPointSize)
+				}
+				if _, err := b.WriteString(pointstring); err != nil {
+					return err
+				}
+			} else {
+				points, err := p.pt.SplitN(uc.payloadSize - 2) // -2 because of `+ "\n"`
+				if err != nil {
+					return err
+				}
+				for _, sp := range points {
+					pointstring := sp.RoundedString(d) + "\n"
+
+					if b.Len()+len(pointstring) >= uc.payloadSize {
+						if _, err := uc.conn.Write(b.Bytes()); err != nil {
+							return err
+						}
+						b.Reset()
+					}
+
+					if _, err := b.WriteString(pointstring); err != nil {
+						return err
+					}
+				}
+			}
 		}
 	}
 

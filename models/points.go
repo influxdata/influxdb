@@ -75,6 +75,11 @@ type Point interface {
 	// is a timestamp associated with the point, then it will be rounded to the
 	// given duration
 	RoundedString(d time.Duration) string
+
+	// SplitN splits a point into multiple points and ensures that
+	// the string length of any returned point is no larger than the input size,
+	// except points which consists from one field, they can be larger than the input size.
+	SplitN(size int) ([]Point, error)
 }
 
 // Points represents a sortable list of points by timestamp.
@@ -1384,6 +1389,49 @@ func (p *point) HashID() uint64 {
 
 func (p *point) UnixNano() int64 {
 	return p.Time().UnixNano()
+}
+
+func (p *point) SplitN(size int) ([]Point, error) {
+	if len(p.String()) <= size {
+		return []Point{p}, nil
+	}
+
+	points := []Point{}
+	tags := p.Tags()
+	fields := make(Fields)
+
+	for k, v := range p.Fields() {
+		fields[k] = v
+		next, err := NewPoint(p.Name(), tags, fields, p.Time())
+		if err != nil {
+			return []Point{}, fmt.Errorf("failed to create new point: %s", err)
+		}
+
+		if len(next.String()) > size {
+			if len(fields) == 1 {
+				points = append(points, next)
+				fields = make(Fields)
+			} else {
+				delete(fields, k)
+				pt, err := NewPoint(p.Name(), tags, fields, p.Time())
+				if err != nil {
+					return []Point{}, fmt.Errorf("failed to create new point: %s", err)
+				}
+				points = append(points, pt)
+				fields = Fields{k: v}
+			}
+		}
+	}
+
+	if len(fields) != 0 {
+		pt, err := NewPoint(p.Name(), tags, fields, p.Time())
+		if err != nil {
+			return []Point{}, fmt.Errorf("failed to create new point: %s", err)
+		}
+		points = append(points, pt)
+	}
+
+	return points, nil
 }
 
 // Tag represents a single key/value tag pair.
