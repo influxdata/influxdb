@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -9,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/models"
 )
 
 func TestUDPClient_Query(t *testing.T) {
@@ -414,5 +417,100 @@ func TestBatchPoints_SettersGetters(t *testing.T) {
 	}
 	if bp.WriteConsistency() != "wc2" {
 		t.Errorf("Expected: %s, got %s", bp.WriteConsistency(), "wc2")
+	}
+}
+
+var testPoints = func() (input []*Point, outputPointsCount int) {
+	tags := map[string]string{"tag1": "blabla"}
+	timeNow := time.Now()
+	fields := map[string]interface{}{
+		"aaaaaaaaa": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"bbbbbbbbb": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+	}
+	pt, _ := NewPoint("point 1", tags, fields, timeNow)
+	input = append(input, pt)
+
+	fields = map[string]interface{}{
+		"aaaaaaaaa": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		"bbbbbbbbb": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+		"ccccccccc": "cccccccccccccccccccccccccccccccccccccccccccccccc",
+		"ddddddddd": "dddddddddddddddddddddddddddddddddddddddddddddddd",
+		"eeeeeeeee": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+		"fffffffff": "ffffffffffffffffffffffffffffffffffffffffffffffff",
+		"ggggggggg": "gggggggggggggggggggggggggggggggggggggggggggggggg",
+		"hhhhhhhhh": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
+		"iiiiiiiii": "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii",
+	}
+	pt, _ = NewPoint("point 2", tags, fields, timeNow)
+	input = append(input, pt)
+
+	pt, _ = NewPoint("point 3", tags, fields)
+	input = append(input, pt)
+
+	outputPointsCount = 4
+
+	return
+}
+
+func TestWriteChunks(t *testing.T) {
+	var (
+		UDPAddr       = "localhost:8888"
+		done          = make(chan bool)
+		input, output = testPoints()
+	)
+	addr, err := net.ResolveUDPAddr("udp", UDPAddr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	conn, err := net.ListenUDP("udp", addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	go func() {
+		var counter int
+		for {
+			buf := make([]byte, 1024*4)
+			n, _, err := conn.ReadFromUDP(buf)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			points, err := models.ParsePoints([]byte(buf[:n]))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			counter += len(points)
+
+			if counter == output {
+				done <- true
+			}
+		}
+	}()
+
+	client, err := NewUDPClient(UDPConfig{Addr: UDPAddr})
+
+	bp, _ := NewBatchPoints(BatchPointsConfig{
+		Precision:        "ns",
+		Database:         "db",
+		RetentionPolicy:  "rp",
+		WriteConsistency: "wc",
+	})
+
+	for _, p := range input {
+		bp.AddPoint(p)
+	}
+
+	err = client.Write(bp)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(time.Second * 3):
+		t.Fatal("Input points count is not equal output points count")
 	}
 }
