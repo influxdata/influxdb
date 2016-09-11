@@ -57,7 +57,7 @@ type options struct {
 	SkipBackup     bool
 	UpdateInterval time.Duration
 	Yes            bool
-	CpuFile        string
+	CPUFile        string
 }
 
 func (o *options) Parse() error {
@@ -73,7 +73,7 @@ func (o *options) Parse() error {
 	fs.StringVar(&opts.DebugAddr, "debug", "", "If set, http debugging endpoints will be enabled on the given address")
 	fs.DurationVar(&opts.UpdateInterval, "interval", 5*time.Second, "How often status updates are printed.")
 	fs.BoolVar(&opts.Yes, "y", false, "Don't ask, just convert")
-	fs.StringVar(&opts.CpuFile, "profile", "", "CPU Profile location")
+	fs.StringVar(&opts.CPUFile, "profile", "", "CPU Profile location")
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, "Usage: %v [options] <data-path> \n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "%v\n\nOptions:\n", description)
@@ -217,8 +217,8 @@ func main() {
 	}
 	fmt.Println("Conversion starting....")
 
-	if opts.CpuFile != "" {
-		f, err := os.Create(opts.CpuFile)
+	if opts.CPUFile != "" {
+		f, err := os.Create(opts.CPUFile)
 		if err != nil {
 			log.Fatal(err)
 		}
