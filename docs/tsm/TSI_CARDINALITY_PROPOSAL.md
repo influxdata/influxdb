@@ -83,25 +83,26 @@ This section gives a broad overview of how we might implement cardinality estima
 
 On system startup we would need to consult each TSI index and extract the sketches contained in each one, storing them in the associated Shard types in the database.
 Since the sketches are small, this should be quick to do.
-We would also need to scan all WAL files and merge WAL sketches into the in-memory sketches we pulled from the index.
+We would also need to scan all WAL files and for each WAL file, update the associated index sketch with the series and measurement data.
 The end result would be two in-memory sketches for each database: one for series data and one for measurement data.
 
 TSI sketches would only be updated during a full compaction, meaning they may over-estimate cardinalities if there are tombstoned series or measurements in the index.
 We would need to know how many series and measurements have been tombstoned, but not yet removed from the index, so that we can adjust down our cardinality estimates.
 We would do this by referring to a new tombstone count we could add to the TSI index.
 
-WAL files may also contain tombstoned series and measurements that have not been fast-compacted into the TSI file, so we would also scan them and count the tombstoned series/measurements, adding them to the counts we got from the associated TSI files for that database.
+WAL files may also contain tombstoned series and measurements that have not been fast-compacted into the TSI file.
+We would simply skip over them when scanning the WAL file on startup such that they wouldn't contribute to the cardinality estimate.
 
 ##### Building an index sketch
 
 When a new index is created as the result of a full compaction, a new sketch will be generated for both the series and measurements within the index.
 This will involve scanning and hashing with a 64-bit hash function, every series and measurement value within the index.
 A suitable hash function for this purpose would be [MurmurHash3][4], which is optimised to generate 128-bit hash values on 64-bit architectures (we can use the first 64 bits for the series/measurement hash).
-Each hashed value will then contribute to the HLL++ sketch for either the series or measurement sketch.
+Each hashed value will then contribute to the HLL++ sketch for either series or measurements.
 
 Some prototyping and testing may be needed, but I would suggest a starting point for the precision of the HLL++ sketch to be `14`, which will require a sketch size of around `16KB`.
 
-Once the sketch has been generated it can be stored in the index and also in memory within the `Shard`.
+Once the sketch has been generated, it can be stored in the index and also in memory within the `Shard`.
 
 ##### Getting cardinality estimates
 
@@ -114,7 +115,7 @@ When calculating estimates, we will need to consider the number of tombstoned se
 ##### Adding new series and measurements
 
 Since TSI indices are immutable, we should not modify an index's sketch when a new series is added to the database.
-Instead we will update the in-memory sketches, and for durability we will then also update sketches we will keep in the WAL files.
+Instead, we will update the in-memory sketches with the series and measurement data we perist to the associated WAL file.
 
 ##### Removing series and measurements
 
@@ -131,8 +132,11 @@ We can do this by consulting the measurement hash index in the TSI
 and looking up the `len(series)` value, which tells us how many series belong to the measurement.
 
 **Note** technically we would need to scan all the series for the measurement and check if they have been tombstoned or not in the index, or are marked as tombstoned in the WAL file.
-The reason being, that any series tombstoned in the index or WAL will also have been accounted for and if we don't consider them we will double-count them, and reduce the accuracy of the cardinality estimate.
+The reason being that any series tombstoned in the index or WAL will also have been accounted for in the sketch, and if we don't consider them we will double-count them, and reduce the accuracy of the cardinality estimate.
 Possibly we could avoid this and have a less accurate estimation.
+
+**Note** if there are multiple TSI files for a database, then there will be multiple `len(series)` values too, and some of those series may be duplicated across TSI files, meaning that summing all of the `len(series)` values will be inaccurate.
+
 Thoughts would be welcome on the above...
 
 
@@ -157,12 +161,12 @@ We would also need to add tombstone counters for series and measurements, which 
 ╔═══════Inverted Index═══════╗
 ║ ┌────────────────────────┐ ║
 ║ │                        │ ║
-║ │        Sketches        │ ║
+║ │   Series Dictionary    │ ║
 ║ │                        │ ║
 ║ └────────────────────────┘ ║
 ║ ┌────────────────────────┐ ║
 ║ │                        │ ║
-║ │   Series Dictionary    │ ║
+║ │        Sketches        │ ║
 ║ │                        │ ║
 ║ └────────────────────────┘ ║
 ║ ┌────────Tag Set─────────┐ ║
@@ -198,9 +202,7 @@ The exact format will be decided during implementation.
 
 ```
 ╔═══════════Sketches═══════════╗
-║ ┌──────────────────────────┐ ║
-║ │   Sketch Count <uint32>  │ ║
-║ └──────────────────────────┘ ║
+║                              ║
 ║ ┌────── Series Sketch ─────┐ ║
 ║ │┌────────────────────────┐│ ║
 ║ ││  len(Sketch) <uint32>  ││ ║
