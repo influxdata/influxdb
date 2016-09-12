@@ -16,18 +16,18 @@ import (
 	"github.com/influxdata/mrfusion/models"
 )
 
-// NewPatchSourcesIDUserUserIDExplorationsExplorationIDParams creates a new PatchSourcesIDUserUserIDExplorationsExplorationIDParams object
+// NewPatchSourcesIDUsersUserIDExplorationsExplorationIDParams creates a new PatchSourcesIDUsersUserIDExplorationsExplorationIDParams object
 // with the default values initialized.
-func NewPatchSourcesIDUserUserIDExplorationsExplorationIDParams() PatchSourcesIDUserUserIDExplorationsExplorationIDParams {
+func NewPatchSourcesIDUsersUserIDExplorationsExplorationIDParams() PatchSourcesIDUsersUserIDExplorationsExplorationIDParams {
 	var ()
-	return PatchSourcesIDUserUserIDExplorationsExplorationIDParams{}
+	return PatchSourcesIDUsersUserIDExplorationsExplorationIDParams{}
 }
 
-// PatchSourcesIDUserUserIDExplorationsExplorationIDParams contains all the bound params for the patch sources ID user user ID explorations exploration ID operation
+// PatchSourcesIDUsersUserIDExplorationsExplorationIDParams contains all the bound params for the patch sources ID users user ID explorations exploration ID operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters PatchSourcesIDUserUserIDExplorationsExplorationID
-type PatchSourcesIDUserUserIDExplorationsExplorationIDParams struct {
+// swagger:parameters PatchSourcesIDUsersUserIDExplorationsExplorationID
+type PatchSourcesIDUsersUserIDExplorationsExplorationIDParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
@@ -56,7 +56,7 @@ type PatchSourcesIDUserUserIDExplorationsExplorationIDParams struct {
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *PatchSourcesIDUserUserIDExplorationsExplorationIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
 
@@ -105,7 +105,7 @@ func (o *PatchSourcesIDUserUserIDExplorationsExplorationIDParams) BindRequest(r 
 	return nil
 }
 
-func (o *PatchSourcesIDUserUserIDExplorationsExplorationIDParams) bindExplorationID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) bindExplorationID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
@@ -116,7 +116,7 @@ func (o *PatchSourcesIDUserUserIDExplorationsExplorationIDParams) bindExploratio
 	return nil
 }
 
-func (o *PatchSourcesIDUserUserIDExplorationsExplorationIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
@@ -127,7 +127,7 @@ func (o *PatchSourcesIDUserUserIDExplorationsExplorationIDParams) bindID(rawData
 	return nil
 }
 
-func (o *PatchSourcesIDUserUserIDExplorationsExplorationIDParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]

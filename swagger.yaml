@@ -371,7 +371,7 @@ paths:
                     description: A processing or an unexpected error.
                     schema:
                         $ref: '#/definitions/Error'
-    /sources/{id}/user/{user_id}/explorations/{exploration_id}:
+    /sources/{id}/users/{user_id}/explorations/{exploration_id}:
         get:
             parameters:
                 - name: id
