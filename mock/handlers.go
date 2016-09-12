@@ -1,4 +1,4 @@
-package handlers
+package mock
 
 import (
 	"strconv"
@@ -6,25 +6,35 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
 	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/mock"
 	"github.com/influxdata/mrfusion/models"
 	op "github.com/influxdata/mrfusion/restapi/operations"
 	"golang.org/x/net/context"
 )
 
-type MockHandler struct {
+type Handler struct {
 	Store    mrfusion.ExplorationStore
 	Response mrfusion.Response
 }
 
-func NewMockHandler() MockHandler {
-	return MockHandler{
-		mock.DefaultExplorationStore,
-		mock.SampleResponse,
+func NewHandler() Handler {
+	return Handler{
+		DefaultExplorationStore,
+		SampleResponse,
 	}
 }
 
-func (m *MockHandler) Explorations(ctx context.Context, params op.GetSourcesIDUsersUserIDExplorationsParams) middleware.Responder {
+func (m *Handler) Proxy(ctx context.Context, params op.PostSourcesIDProxyParams) middleware.Responder {
+	results, err := m.Response.Results()
+	if err != nil {
+		return op.NewPostSourcesIDProxyDefault(500)
+	}
+	res := &models.ProxyResponse{
+		Results: results,
+	}
+	return op.NewPostSourcesIDProxyOK().WithPayload(res)
+}
+
+func (m *Handler) Explorations(ctx context.Context, params op.GetSourcesIDUsersUserIDExplorationsParams) middleware.Responder {
 	id, err := strconv.Atoi(params.UserID)
 	if err != nil {
 		return op.NewGetSourcesIDUsersUserIDExplorationsDefault(500)
@@ -46,7 +56,7 @@ func (m *MockHandler) Explorations(ctx context.Context, params op.GetSourcesIDUs
 	return op.NewGetSourcesIDUsersUserIDExplorationsOK().WithPayload(res)
 }
 
-func (m *MockHandler) Exploration(ctx context.Context, params op.GetSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
+func (m *Handler) Exploration(ctx context.Context, params op.GetSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
 	eID, err := strconv.Atoi(params.ExplorationID)
 	if err != nil {
 		return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDDefault(500)
@@ -65,7 +75,7 @@ func (m *MockHandler) Exploration(ctx context.Context, params op.GetSourcesIDUse
 	return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDOK().WithPayload(res)
 }
 
-func (m *MockHandler) UpdateExploration(ctx context.Context, params op.PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
+func (m *Handler) UpdateExploration(ctx context.Context, params op.PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
 	eID, err := strconv.Atoi(params.ExplorationID)
 	if err != nil {
 		return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDDefault(500)
@@ -83,7 +93,7 @@ func (m *MockHandler) UpdateExploration(ctx context.Context, params op.PatchSour
 	return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDNoContent()
 }
 
-func (m *MockHandler) NewExploration(ctx context.Context, params op.PostSourcesIDUsersUserIDExplorationsParams) middleware.Responder {
+func (m *Handler) NewExploration(ctx context.Context, params op.PostSourcesIDUsersUserIDExplorationsParams) middleware.Responder {
 	id, err := strconv.Atoi(params.UserID)
 	if err != nil {
 		return op.NewPostSourcesIDUsersUserIDExplorationsDefault(500)
@@ -106,7 +116,7 @@ func (m *MockHandler) NewExploration(ctx context.Context, params op.PostSourcesI
 	return op.NewPostSourcesIDUsersUserIDExplorationsCreated()
 }
 
-func (m *MockHandler) DeleteExploration(ctx context.Context, params op.DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
+func (m *Handler) DeleteExploration(ctx context.Context, params op.DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
 	ID, err := strconv.Atoi(params.ExplorationID)
 	if err != nil {
 		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDDefault(500)

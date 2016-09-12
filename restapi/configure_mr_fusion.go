@@ -9,7 +9,7 @@ import (
 	middleware "github.com/go-openapi/runtime/middleware"
 	"golang.org/x/net/context"
 
-	"github.com/influxdata/mrfusion/restapi/handlers"
+	"github.com/influxdata/mrfusion/mock"
 	"github.com/influxdata/mrfusion/restapi/operations"
 )
 
@@ -35,7 +35,7 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 
 	api.JSONProducer = runtime.JSONProducer()
 
-	mockHandler := handlers.NewMockHandler()
+	mockHandler := mock.NewHandler()
 
 	api.DeleteDashboardsIDHandler = operations.DeleteDashboardsIDHandlerFunc(func(ctx context.Context, params operations.DeleteDashboardsIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .DeleteDashboardsID has not yet been implemented")
@@ -105,9 +105,9 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 	api.PostSourcesHandler = operations.PostSourcesHandlerFunc(func(ctx context.Context, params operations.PostSourcesParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PostSources has not yet been implemented")
 	})
-	api.PostSourcesIDProxyHandler = operations.PostSourcesIDProxyHandlerFunc(func(ctx context.Context, params operations.PostSourcesIDProxyParams) middleware.Responder {
-		return middleware.NotImplemented("operation .PostSourcesIDProxy has not yet been implemented")
-	})
+
+	api.PostSourcesIDProxyHandler = operations.PostSourcesIDProxyHandlerFunc(mockHandler.Proxy)
+
 	api.PostSourcesIDRolesHandler = operations.PostSourcesIDRolesHandlerFunc(func(ctx context.Context, params operations.PostSourcesIDRolesParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PostSourcesIDRoles has not yet been implemented")
 	})
