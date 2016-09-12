@@ -475,10 +475,17 @@ func (p *Parser) parseAlterRetentionPolicyStatement() (*AlterRetentionPolicyStat
 	stmt.Database = ident
 
 	// Loop through option tokens (DURATION, REPLICATION, SHARD DURATION, DEFAULT, etc.).
-	maxNumOptions := 4
+	found := make(map[Token]struct{})
 Loop:
-	for i := 0; i < maxNumOptions; i++ {
+	for {
 		tok, pos, lit := p.scanIgnoreWhitespace()
+		if _, ok := found[tok]; ok {
+			return nil, &ParseError{
+				Message: fmt.Sprintf("found duplicate %s option", tok),
+				Pos:     pos,
+			}
+		}
+
 		switch tok {
 		case DURATION:
 			d, err := p.parseDuration()
@@ -506,12 +513,13 @@ Loop:
 		case DEFAULT:
 			stmt.Default = true
 		default:
-			if i < 1 {
+			if len(found) == 0 {
 				return nil, newParseError(tokstr(tok, lit), []string{"DURATION", "REPLICATION", "SHARD", "DEFAULT"}, pos)
 			}
 			p.unscan()
 			break Loop
 		}
+		found[tok] = struct{}{}
 	}
 
 	return stmt, nil
