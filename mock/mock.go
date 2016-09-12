@@ -15,26 +15,29 @@ type ExplorationStore struct {
 }
 
 func NewExplorationStore(nowFunc func() time.Time) mrfusion.ExplorationStore {
-	return &ExplorationStore{
+	e := ExplorationStore{
 		NowFunc: nowFunc,
+		db:      map[int]mrfusion.Exploration{},
 	}
+	e.db[1] = mrfusion.Exploration{
+		ID:        1,
+		Name:      "Ferdinand Magellan",
+		UserID:    1,
+		Data:      `"{"panels":{“123":{"id”:"123","queryIds":[“456"]}},"queryConfigs":{"456":{"id”:"456","database":null,"measurement":null,"retentionPolicy":null,"fields":[],"tags":{},"groupBy":{"time":null,"tags":[]},"areTagsAccepted":true,"rawText":null}}}"`,
+		CreatedAt: nowFunc(),
+		UpdatedAt: nowFunc(),
+	}
+	return &e
 }
 
-var DefaultExplorationStore ExplorationStore = ExplorationStore{
-	NowFunc: time.Now,
-}
+var DefaultExplorationStore mrfusion.ExplorationStore = NewExplorationStore(time.Now)
 
 func (m *ExplorationStore) Query(ctx context.Context, userID int) ([]mrfusion.Exploration, error) {
-	return []mrfusion.Exploration{
-		{
-			ID:        1,
-			Name:      "John Smith",
-			UserID:    userID,
-			Data:      "",
-			CreatedAt: m.NowFunc(),
-			UpdatedAt: m.NowFunc(),
-		},
-	}, nil
+	res := []mrfusion.Exploration{}
+	for _, v := range m.db {
+		res = append(res, v)
+	}
+	return res, nil
 }
 
 func (m *ExplorationStore) Add(ctx context.Context, e mrfusion.Exploration) error {
