@@ -467,6 +467,7 @@ func TestWriteChunks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer conn.Close()
 
 	go func() {
 		var counter int
@@ -486,18 +487,26 @@ func TestWriteChunks(t *testing.T) {
 
 			if counter == output {
 				done <- true
+				return
 			}
 		}
 	}()
 
 	client, err := NewUDPClient(UDPConfig{Addr: UDPAddr})
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	bp, _ := NewBatchPoints(BatchPointsConfig{
+	bp, err := NewBatchPoints(BatchPointsConfig{
 		Precision:        "ns",
 		Database:         "db",
 		RetentionPolicy:  "rp",
 		WriteConsistency: "wc",
 	})
+
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	for _, p := range input {
 		bp.AddPoint(p)
