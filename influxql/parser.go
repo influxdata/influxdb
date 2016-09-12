@@ -2654,6 +2654,9 @@ func ParseDuration(s string) (time.Duration, error) {
 		i++
 	}
 
+	var measure int64
+	var unit string
+
 	// Parsing loop.
 	for i < len(a) {
 		// Find the number portion.
@@ -2672,15 +2675,18 @@ func ParseDuration(s string) (time.Duration, error) {
 		if err != nil {
 			return 0, ErrInvalidDuration
 		}
+		measure = n
 
 		// Extract the unit of measure.
 		// If the last two characters are "ms" then parse as milliseconds.
 		// Otherwise just use the last character as the unit of measure.
+		unit = string(a[i])
 		switch a[i] {
 		case 'u', 'µ':
 			d += time.Duration(n) * time.Microsecond
 		case 'm':
 			if i+1 < len(a) && a[i+1] == 's' {
+				unit = string(a[i:2])
 				d += time.Duration(n) * time.Millisecond
 				i += 2
 				continue
@@ -2699,6 +2705,12 @@ func ParseDuration(s string) (time.Duration, error) {
 		}
 		i++
 	}
+
+	// Check to see if we overflowed a duration
+	if d < 0 && !isNegative {
+		return 0, fmt.Errorf("overflowed duration %d%s: choose a smaller duration or INF", measure, unit)
+	}
+
 	if isNegative {
 		d = -d
 	}
