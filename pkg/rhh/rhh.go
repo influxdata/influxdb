@@ -15,8 +15,8 @@ const LoadFactor = 90
 // HashMap represents a hash map that implements Robin Hood Hashing.
 // https://cs.uwaterloo.ca/research/tr/1986/CS-86-14.pdf
 type HashMap struct {
-	elems  []hashElem
 	hashes []uint32
+	elems  []hashElem
 
 	n         int
 	capacity  int
@@ -147,6 +147,22 @@ func (m *HashMap) hashKey(key []byte) uint32 {
 	}
 	return h
 }
+
+// Elem returns the i-th key/value pair of the hash map.
+func (m *HashMap) Elem(i int) (key, value []byte) {
+	if i >= len(m.elems) {
+		return nil, nil
+	}
+
+	e := &m.elems[i]
+	return e.key, e.value
+}
+
+// Len returns the number of key/values set in map.
+func (m *HashMap) Len() int { return m.n }
+
+// Cap returns the number of key/values set in map.
+func (m *HashMap) Cap() int { return m.capacity }
 
 // AverageProbeCount returns the average number of probes for each element.
 func (m *HashMap) AverageProbeCount() float64 {
