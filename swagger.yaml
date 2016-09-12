@@ -309,7 +309,7 @@ paths:
                     description: Unexpected internal service error
                     schema:
                         $ref: '#/definitions/Error'
-    /sources/{id}/users/{user_id}/explorers:
+    /sources/{id}/users/{user_id}/explorations:
         get:
             parameters:
               - name: id
@@ -320,13 +320,13 @@ paths:
               - name: user_id
                 in: path
                 type: string
-                description: All Data Explorers returned only for this user.
+                description: All Data Explorations returned only for this user.
                 required: true
             responses:
                 200:
-                    description: Data explorer saved sessions for user are returned.
+                    description: Data Explorations saved sessions for user are returned.
                     schema:
-                        $ref: '#/definitions/Explorers'
+                        $ref: '#/definitions/Explorations'
                 404:
                     description: Data source id or user does not exist.
                     schema:
@@ -336,7 +336,7 @@ paths:
                     schema:
                         $ref: '#/definitions/Error'
         post:
-            summary: Create new named explorer for this user
+            summary: Create new named exploration for this user
             parameters:
                 - name: id
                   in: path
@@ -346,23 +346,23 @@ paths:
                 - name: user_id
                   in: path
                   type: string
-                  description: ID of user to associate this explorer with.
+                  description: ID of user to associate this exploration with.
                   required: true
-                - name: explorer
+                - name: exploration 
                   in: body
-                  description: Explorer session to save
+                  description: Exploration session to save
                   schema:
-                      $ref: '#/definitions/Explorer'
+                      $ref: '#/definitions/Exploration'
             responses:
                 201:
-                    description: Successfully created new explorer session
+                    description: Successfully created new Exploration session
                     headers:
                         Location:
                             type: string
                             format: url
-                            description: Location of the newly created explorer resource.
+                            description: Location of the newly created exploration resource.
                     schema:
-                        $ref: '#/definitions/Explorer'
+                        $ref: '#/definitions/Exploration'
                 404:
                     description: Data source id or user does not exist.
                     schema:
@@ -371,7 +371,7 @@ paths:
                     description: A processing or an unexpected error.
                     schema:
                         $ref: '#/definitions/Error'
-    /sources/{id}/user/{user_id}/explorers/{explorer_id}:
+    /sources/{id}/user/{user_id}/explorations/{exploration_id}:
         get:
             parameters:
                 - name: id
@@ -382,23 +382,23 @@ paths:
                 - name: user_id
                   in: path
                   type: string
-                  description: ID of user to associate this explorer with.
+                  description: ID of user to associate this exploration with.
                   required: true
-                - name: explorer_id
+                - name: exploration_id 
                   in: path
                   type: string
-                  description: ID of the specific explorer.
+                  description: ID of the specific exploration.
                   required: true
-            summary: Returns the specified data explorer session
+            summary: Returns the specified data exploration session
             description: |
-                A data explorer session specifies query information.
+                A data exploration session specifies query information.
             responses:
                 200:
-                    description: Information relating to the explorer
+                    description: Information relating to the exploration
                     schema:
-                        $ref: '#/definitions/Explorer'
+                        $ref: '#/definitions/Exploration'
                 404:
-                    description: Data source id, user, or explorer does not exist.
+                    description: Data source id, user, or exploration does not exist.
                     schema:
                         $ref: '#/definitions/Error'
                 default:
@@ -406,7 +406,7 @@ paths:
                     schema:
                         $ref: '#/definitions/Error'
         patch:
-            summary: Update explorer configuration
+            summary: Update exploration configuration
             parameters:
                 - name: id
                   in: path
@@ -418,22 +418,22 @@ paths:
                   type: string
                   description: ID of user
                   required: true
-                - name: explorer_id
+                - name: exploration_id 
                   in: path
                   type: string
-                  description: ID of the specific explorer.
+                  description: ID of the specific exploration.
                   required: true
-                - name: explorer
+                - name: exploration 
                   in: body
-                  description: Update the explorer information to this.
+                  description: Update the exploration information to this.
                   required: true
                   schema:
-                      $ref: "#/definitions/Explorer"
+                      $ref: "#/definitions/Exploration"
             responses:
                 204:
-                    description: Explorer's configuration was changed
+                    description: Exploration's configuration was changed
                 404:
-                    description: Data source id, user, or explorer does not exist.
+                    description: Data source id, user, or exploration does not exist.
                     schema:
                         $ref: '#/definitions/Error'
                 default:
@@ -450,19 +450,19 @@ paths:
                 - name: user_id
                   in: path
                   type: string
-                  description: ID of user to associate this explorer with.
+                  description: ID of user to associate this exploration with.
                   required: true
-                - name: explorer_id
+                - name: exploration_id 
                   in: path
                   type: string
-                  description: ID of the specific explorer.
+                  description: ID of the specific exploration.
                   required: true
             summary: This specific exporer session will be removed.
             responses:
                 204:
-                    description: Explorer session has been removed
+                    description: Exploration session has been removed
                 404:
-                    description: Data source id, user, or explorer does not exist.
+                    description: Data source id, user, or exploration does not exist.
                     schema:
                         $ref: '#/definitions/Error'
                 default:
@@ -748,14 +748,14 @@ definitions:
             results:
                 description: results from influx
                 type: object
-    Explorers:
+    Explorations:
         type: object
         properties:
-            explorers:
+            explorations:
               type: array
               items:
-                  $ref: "#/definitions/Explorer"
-    Explorer:
+                  $ref: "#/definitions/Exploration"
+    Exploration:
         type: object
         properties:
             created_at:
@@ -764,13 +764,13 @@ definitions:
             updated_at:
                 type: string
                 format: date-time
-                description: Latest time the explorer was updated.
+                description: Latest time the exploration was updated.
             name:
                 type: string
-                description: Explorer name given by user.
+                description: Exploration name given by user.
             data:
                 type: object
-                description: Serialization of the explorer query configuration.
+                description: Serialization of the exploration query configuration.
             link:
                 $ref: "#/definitions/Link"
     Roles:
