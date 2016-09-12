@@ -83,14 +83,18 @@ func TestSeriesList_Series(t *testing.T) {
 
 	// Verify all series exist.
 	for i, s := range series {
-		if offset := l.SeriesOffset(l.EncodeSeries(s.Name, s.Tags)); offset == 0 {
+		if offset, deleted := l.SeriesOffset(l.EncodeSeries(s.Name, s.Tags)); offset == 0 {
 			t.Fatalf("series does not exist: i=%d", i)
+		} else if deleted {
+			t.Fatalf("series deleted: i=%d", i)
 		}
 	}
 
 	// Verify non-existent series doesn't exist.
-	if offset := l.SeriesOffset(l.EncodeSeries("foo", models.NewTags(map[string]string{"region": "north"}))); offset != 0 {
+	if offset, deleted := l.SeriesOffset(l.EncodeSeries("foo", models.NewTags(map[string]string{"region": "north"}))); offset != 0 {
 		t.Fatalf("series should not exist: offset=%d", offset)
+	} else if deleted {
+		t.Fatalf("series should not be deleted")
 	}
 }
 
