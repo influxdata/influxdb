@@ -136,7 +136,7 @@ func (c *cmdExport) writeFiles() error {
 
 	// Write out all the DDL
 	fmt.Fprintln(w, "# DDL")
-	for key, _ := range c.files {
+	for key := range c.files {
 		keys := strings.Split(key, string(byte(os.PathSeparator)))
 		db, rp := influxql.QuoteIdent(keys[0]), influxql.QuoteIdent(keys[1])
 		fmt.Fprintf(w, "CREATE DATABASE %s WITH NAME %s\n", db, rp)
