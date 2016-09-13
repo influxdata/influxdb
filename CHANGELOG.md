@@ -5,6 +5,7 @@
 - [#7271](https://github.com/influxdata/influxdb/issues/7271): Fixing typo within example configuration file. Thanks @andyfeller!
 - [#7270](https://github.com/influxdata/influxdb/issues/7270): Implement time math for lazy time literals.
 - [#7272](https://github.com/influxdata/influxdb/issues/7272): Report cmdline and memstats in /debug/vars.
+- [#7299](https://github.com/influxdata/influxdb/ssues/7299): Ensure fieldsCreated stat available in shard measurement.
 
 ## v1.0.0 [2016-09-07]
 
