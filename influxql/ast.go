@@ -2245,6 +2245,10 @@ func (s *DeleteStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 
 // ShowSeriesStatement represents a command for listing series in the database.
 type ShowSeriesStatement struct {
+	// Database to query. If blank, use the default database.
+	// The database can also be specified per source in the Sources.
+	Database string
+
 	// Measurement(s) the series are listed for.
 	Sources Sources
 
@@ -2267,6 +2271,10 @@ func (s *ShowSeriesStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW SERIES")
 
+	if s.Database != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(QuoteIdent(s.Database))
+	}
 	if s.Sources != nil {
 		_, _ = buf.WriteString(" FROM ")
 		_, _ = buf.WriteString(s.Sources.String())
@@ -2518,6 +2526,9 @@ func (s *DropContinuousQueryStatement) RequiredPrivileges() (ExecutionPrivileges
 
 // ShowMeasurementsStatement represents a command for listing measurements.
 type ShowMeasurementsStatement struct {
+	// Database to query. If blank, use the default database.
+	Database string
+
 	// Measurement name or regex.
 	Source Source
 
@@ -2540,6 +2551,10 @@ func (s *ShowMeasurementsStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW MEASUREMENTS")
 
+	if s.Database != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(s.Database)
+	}
 	if s.Source != nil {
 		_, _ = buf.WriteString(" WITH MEASUREMENT ")
 		if m, ok := s.Source.(*Measurement); ok && m.Regex != nil {
@@ -2614,8 +2629,11 @@ type ShowRetentionPoliciesStatement struct {
 // String returns a string representation of a ShowRetentionPoliciesStatement.
 func (s *ShowRetentionPoliciesStatement) String() string {
 	var buf bytes.Buffer
-	_, _ = buf.WriteString("SHOW RETENTION POLICIES ON ")
-	_, _ = buf.WriteString(QuoteIdent(s.Database))
+	_, _ = buf.WriteString("SHOW RETENTION POLICIES")
+	if s.Database != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(QuoteIdent(s.Database))
+	}
 	return buf.String()
 }
 
@@ -2759,6 +2777,10 @@ func (s *ShowSubscriptionsStatement) RequiredPrivileges() (ExecutionPrivileges, 
 
 // ShowTagKeysStatement represents a command for listing tag keys.
 type ShowTagKeysStatement struct {
+	// Database to query. If blank, use the default database.
+	// The database can also be specified per source in the Sources.
+	Database string
+
 	// Data sources that fields are extracted from.
 	Sources Sources
 
@@ -2786,6 +2808,10 @@ func (s *ShowTagKeysStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW TAG KEYS")
 
+	if s.Database != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(QuoteIdent(s.Database))
+	}
 	if s.Sources != nil {
 		_, _ = buf.WriteString(" FROM ")
 		_, _ = buf.WriteString(s.Sources.String())
@@ -2824,6 +2850,10 @@ func (s *ShowTagKeysStatement) RequiredPrivileges() (ExecutionPrivileges, error)
 
 // ShowTagValuesStatement represents a command for listing tag values.
 type ShowTagValuesStatement struct {
+	// Database to query. If blank, use the default database.
+	// The database can also be specified per source in the Sources.
+	Database string
+
 	// Data source that fields are extracted from.
 	Sources Sources
 
@@ -2852,6 +2882,10 @@ func (s *ShowTagValuesStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW TAG VALUES")
 
+	if s.Database != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(QuoteIdent(s.Database))
+	}
 	if s.Sources != nil {
 		_, _ = buf.WriteString(" FROM ")
 		_, _ = buf.WriteString(s.Sources.String())
@@ -2903,6 +2937,10 @@ func (s *ShowUsersStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 
 // ShowFieldKeysStatement represents a command for listing field keys.
 type ShowFieldKeysStatement struct {
+	// Database to query. If blank, use the default database.
+	// The database can also be specified per source in the Sources.
+	Database string
+
 	// Data sources that fields are extracted from.
 	Sources Sources
 
@@ -2922,6 +2960,10 @@ func (s *ShowFieldKeysStatement) String() string {
 	var buf bytes.Buffer
 	_, _ = buf.WriteString("SHOW FIELD KEYS")
 
+	if s.Database != "" {
+		_, _ = buf.WriteString(" ON ")
+		_, _ = buf.WriteString(QuoteIdent(s.Database))
+	}
 	if s.Sources != nil {
 		_, _ = buf.WriteString(" FROM ")
 		_, _ = buf.WriteString(s.Sources.String())

@@ -672,11 +672,11 @@ func (e *StatementExecutor) executeShowGrantsForUserStatement(q *influxql.ShowGr
 }
 
 func (e *StatementExecutor) executeShowMeasurementsStatement(q *influxql.ShowMeasurementsStatement, ctx *influxql.ExecutionContext) error {
-	if ctx.Database == "" {
+	if q.Database == "" {
 		return ErrDatabaseNameRequired
 	}
 
-	measurements, err := e.TSDBStore.Measurements(ctx.Database, q.Condition)
+	measurements, err := e.TSDBStore.Measurements(q.Database, q.Condition)
 	if err != nil || len(measurements) == 0 {
 		ctx.Results <- &influxql.Result{
 			StatementID: ctx.StatementID,
@@ -723,6 +723,10 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(q *influxql.ShowMea
 }
 
 func (e *StatementExecutor) executeShowRetentionPoliciesStatement(q *influxql.ShowRetentionPoliciesStatement) (models.Rows, error) {
+	if q.Database == "" {
+		return nil, ErrDatabaseNameRequired
+	}
+
 	di := e.MetaClient.Database(q.Database)
 	if di == nil {
 		return nil, influxdb.ErrDatabaseNotFound(q.Database)
@@ -1068,6 +1072,14 @@ func (e *StatementExecutor) NormalizeStatement(stmt influxql.Statement, defaultD
 			return
 		}
 		switch node := node.(type) {
+		case *influxql.ShowRetentionPoliciesStatement:
+			if node.Database == "" {
+				node.Database = defaultDatabase
+			}
+		case *influxql.ShowMeasurementsStatement:
+			if node.Database == "" {
+				node.Database = defaultDatabase
+			}
 		case *influxql.Measurement:
 			err = e.normalizeMeasurement(node, defaultDatabase)
 		}
