@@ -1045,6 +1045,17 @@ func (p *Parser) parseShowSeriesStatement() (*ShowSeriesStatement, error) {
 	stmt := &ShowSeriesStatement{}
 	var err error
 
+	// Parse optional ON clause.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ON {
+		// Parse the database.
+		stmt.Database, err = p.parseIdent()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		p.unscan()
+	}
+
 	// Parse optional FROM.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
 		if stmt.Sources, err = p.parseSources(); err != nil {
@@ -1082,6 +1093,17 @@ func (p *Parser) parseShowSeriesStatement() (*ShowSeriesStatement, error) {
 func (p *Parser) parseShowMeasurementsStatement() (*ShowMeasurementsStatement, error) {
 	stmt := &ShowMeasurementsStatement{}
 	var err error
+
+	// Parse optional ON clause.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ON {
+		// Parse the database.
+		stmt.Database, err = p.parseIdent()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		p.unscan()
+	}
 
 	// Parse optional WITH clause.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == WITH {
@@ -1141,16 +1163,16 @@ func (p *Parser) parseShowRetentionPoliciesStatement() (*ShowRetentionPoliciesSt
 	stmt := &ShowRetentionPoliciesStatement{}
 
 	// Expect an "ON" keyword.
-	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != ON {
-		return nil, newParseError(tokstr(tok, lit), []string{"ON"}, pos)
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ON {
+		// Parse the database.
+		ident, err := p.parseIdent()
+		if err != nil {
+			return nil, err
+		}
+		stmt.Database = ident
+	} else {
+		p.unscan()
 	}
-
-	// Parse the database.
-	ident, err := p.parseIdent()
-	if err != nil {
-		return nil, err
-	}
-	stmt.Database = ident
 
 	return stmt, nil
 }
@@ -1160,6 +1182,17 @@ func (p *Parser) parseShowRetentionPoliciesStatement() (*ShowRetentionPoliciesSt
 func (p *Parser) parseShowTagKeysStatement() (*ShowTagKeysStatement, error) {
 	stmt := &ShowTagKeysStatement{}
 	var err error
+
+	// Parse optional ON clause.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ON {
+		// Parse the database.
+		stmt.Database, err = p.parseIdent()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		p.unscan()
+	}
 
 	// Parse optional source.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
@@ -1208,6 +1241,17 @@ func (p *Parser) parseShowTagKeysStatement() (*ShowTagKeysStatement, error) {
 func (p *Parser) parseShowTagValuesStatement() (*ShowTagValuesStatement, error) {
 	stmt := &ShowTagValuesStatement{}
 	var err error
+
+	// Parse optional ON clause.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ON {
+		// Parse the database.
+		stmt.Database, err = p.parseIdent()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		p.unscan()
+	}
 
 	// Parse optional source.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
@@ -1313,6 +1357,17 @@ func (p *Parser) parseShowSubscriptionsStatement() (*ShowSubscriptionsStatement,
 func (p *Parser) parseShowFieldKeysStatement() (*ShowFieldKeysStatement, error) {
 	stmt := &ShowFieldKeysStatement{}
 	var err error
+
+	// Parse optional ON clause.
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == ON {
+		// Parse the database.
+		stmt.Database, err = p.parseIdent()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		p.unscan()
+	}
 
 	// Parse optional source.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {

@@ -1035,6 +1035,14 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW SERIES ON db0
+		{
+			s: `SHOW SERIES ON db0`,
+			stmt: &influxql.ShowSeriesStatement{
+				Database: "db0",
+			},
+		},
+
 		// SHOW SERIES FROM /<regex>/
 		{
 			s: `SHOW SERIES FROM /[cg]pu/`,
@@ -1097,6 +1105,14 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW MEASUREMENTS ON db0
+		{
+			s: `SHOW MEASUREMENTS ON db0`,
+			stmt: &influxql.ShowMeasurementsStatement{
+				Database: "db0",
+			},
+		},
+
 		// SHOW MEASUREMENTS WITH MEASUREMENT = cpu
 		{
 			s: `SHOW MEASUREMENTS WITH MEASUREMENT = cpu`,
@@ -1140,9 +1156,15 @@ func TestParser_ParseStatement(t *testing.T) {
 
 		// SHOW RETENTION POLICIES
 		{
-			s: `SHOW RETENTION POLICIES ON mydb`,
+			s:    `SHOW RETENTION POLICIES`,
+			stmt: &influxql.ShowRetentionPoliciesStatement{},
+		},
+
+		// SHOW RETENTION POLICIES ON db0
+		{
+			s: `SHOW RETENTION POLICIES ON db0`,
 			stmt: &influxql.ShowRetentionPoliciesStatement{
-				Database: "mydb",
+				Database: "db0",
 			},
 		},
 
@@ -1151,6 +1173,14 @@ func TestParser_ParseStatement(t *testing.T) {
 			s: `SHOW TAG KEYS FROM src`,
 			stmt: &influxql.ShowTagKeysStatement{
 				Sources: []influxql.Source{&influxql.Measurement{Name: "src"}},
+			},
+		},
+
+		// SHOW TAG KEYS ON db0
+		{
+			s: `SHOW TAG KEYS ON db0`,
+			stmt: &influxql.ShowTagKeysStatement{
+				Database: "db0",
 			},
 		},
 
@@ -1357,6 +1387,16 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SHOW TAG VALUES ON db0
+		{
+			s: `SHOW TAG VALUES ON db0 WITH KEY = "host"`,
+			stmt: &influxql.ShowTagValuesStatement{
+				Database:   "db0",
+				Op:         influxql.EQ,
+				TagKeyExpr: &influxql.StringLiteral{Val: "host"},
+			},
+		},
+
 		// SHOW USERS
 		{
 			s:    `SHOW USERS`,
@@ -1385,6 +1425,12 @@ func TestParser_ParseStatement(t *testing.T) {
 						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`[cg]pu`)},
 					},
 				},
+			},
+		},
+		{
+			s: `SHOW FIELD KEYS ON db0`,
+			stmt: &influxql.ShowFieldKeysStatement{
+				Database: "db0",
 			},
 		},
 
@@ -2168,8 +2214,6 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SHOW CONTINUOUS`, err: `found EOF, expected QUERIES at line 1, char 17`},
 		{s: `SHOW RETENTION`, err: `found EOF, expected POLICIES at line 1, char 16`},
 		{s: `SHOW RETENTION ON`, err: `found ON, expected POLICIES at line 1, char 16`},
-		{s: `SHOW RETENTION POLICIES`, err: `found EOF, expected ON at line 1, char 25`},
-		{s: `SHOW RETENTION POLICIES mydb`, err: `found mydb, expected ON at line 1, char 25`},
 		{s: `SHOW RETENTION POLICIES ON`, err: `found EOF, expected identifier at line 1, char 28`},
 		{s: `SHOW SHARD`, err: `found EOF, expected GROUPS at line 1, char 12`},
 		{s: `SHOW FOO`, err: `found FOO, expected CONTINUOUS, DATABASES, DIAGNOSTICS, FIELD, GRANTS, MEASUREMENTS, QUERIES, RETENTION, SERIES, SHARD, SHARDS, STATS, SUBSCRIPTIONS, TAG, USERS at line 1, char 6`},

@@ -10,6 +10,7 @@
 - [#7099](https://github.com/influxdata/influxdb/pull/7099): Implement text/csv content encoding for the response writer.
 - [#6992](https://github.com/influxdata/influxdb/issues/6992): Support tools for running async queries.
 - [#7136](https://github.com/influxdata/influxdb/pull/7136): Update jwt-go dependency to version 3.
+- [#6962](https://github.com/influxdata/influxdb/issues/6962): Support ON and use default database for SHOW commands.
 
 ### Bugfixes
 
