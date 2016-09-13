@@ -332,11 +332,6 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return nil
 	}
 
-	// Remove the shard from the database indexes before closing the shard.
-	// Closing the shard will do this as well, but it will unload it while
-	// the shard is locked which can block stats collection and other calls.
-	sh.UnloadIndex()
-
 	if err := sh.Close(); err != nil {
 		return err
 	}
@@ -686,28 +681,9 @@ func (s *Store) deleteSeries(database string, seriesKeys []string, min, max int6
 	s.mu.RUnlock()
 
 	return s.walkShards(shards, func(sh *Shard) error {
-		if sh.database != database {
-			return nil
-		}
-
 		if err := sh.DeleteSeriesRange(seriesKeys, min, max); err != nil {
 			return err
 		}
-
-		// The keys we passed in may be fully deleted from the shard, if so,
-		// we need to remove the shard from all the meta data indices.
-		existing, err := sh.ContainsSeries(seriesKeys)
-		if err != nil {
-			return err
-		}
-
-		var toDelete []string
-		for k, exists := range existing {
-			if !exists {
-				toDelete = append(toDelete, k)
-			}
-		}
-		sh.index.DropSeries(toDelete)
 		return nil
 	})
 }
