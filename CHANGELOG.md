@@ -17,6 +17,7 @@
 - [#7152](https://github.com/influxdata/influxdb/issues/7152): Decrement number of measurements only once when deleting the last series from a measurement.
 - [#7177](https://github.com/influxdata/influxdb/issues/7177): Fix base64 encoding issue with /debug/vars stats.
 - [#7196](https://github.com/influxdata/influxdb/ssues/7196): Fix mmap dereferencing, fixes #7183, #7180
+- [#7299](https://github.com/influxdata/influxdb/ssues/7299): Ensure fieldsCreated stat available in shard measurement.
 
 ## v1.0.0 [2016-09-08]
 
