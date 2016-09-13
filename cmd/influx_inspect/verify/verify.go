@@ -1,8 +1,10 @@
-package main
+package verify
 
 import (
+	"flag"
 	"fmt"
 	"hash/crc32"
+	"io"
 	"os"
 	"path/filepath"
 	"text/tabwriter"
@@ -11,7 +13,33 @@ import (
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
-func cmdVerify(path string) {
+// Command represents the program execution for "influx_inspect verify".
+type Command struct {
+	Stderr io.Writer
+	Stdout io.Writer
+}
+
+// NewCommand returns a new instance of Command.
+func NewCommand() *Command {
+	return &Command{
+		Stderr: os.Stderr,
+		Stdout: os.Stdout,
+	}
+}
+
+// Run executes the command.
+func (cmd *Command) Run(args ...string) error {
+	var path string
+	fs := flag.NewFlagSet("verify", flag.ExitOnError)
+	fs.StringVar(&path, "dir", os.Getenv("HOME")+"/.influxdb", "Root storage path. [$HOME/.influxdb]")
+
+	fs.SetOutput(cmd.Stdout)
+	fs.Usage = cmd.printUsage
+
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
 	start := time.Now()
 	dataPath := filepath.Join(path, "data")
 
@@ -36,20 +64,18 @@ func cmdVerify(path string) {
 		panic(err)
 	}
 
-	tw := tabwriter.NewWriter(os.Stdout, 16, 8, 0, '\t', 0)
+	tw := tabwriter.NewWriter(cmd.Stdout, 16, 8, 0, '\t', 0)
 
 	// Verify the checksums of every block in every file
 	for _, f := range files {
 		file, err := os.OpenFile(f, os.O_RDONLY, 0600)
 		if err != nil {
-			fmt.Printf("%v", err)
-			os.Exit(1)
+			return err
 		}
 
 		reader, err := tsm1.NewTSMReader(file)
 		if err != nil {
-			fmt.Printf("%v", err)
-			os.Exit(1)
+			return err
 		}
 
 		blockItr := reader.BlockIterator()
@@ -75,4 +101,19 @@ func cmdVerify(path string) {
 
 	fmt.Fprintf(tw, "Broken Blocks: %d / %d, in %vs\n", brokenBlocks, totalBlocks, time.Since(start).Seconds())
 	tw.Flush()
+	return nil
+}
+
+// printUsage prints the usage message to STDERR.
+func (cmd *Command) printUsage() {
+	usage := fmt.Sprintf(`Verifies the the checksum of shards.
+
+Usage: influx_inspect verify [flags]
+
+    -dir <path>
+            Root storage path
+            Defaults to "%[1]s/.influxdb".
+ `, os.Getenv("HOME"))
+
+	fmt.Fprintf(cmd.Stdout, usage)
 }

@@ -13,6 +13,7 @@
 - [#6962](https://github.com/influxdata/influxdb/issues/6962): Support ON and use default database for SHOW commands.
 - [#7268](https://github.com/influxdata/influxdb/pull/7268): More man pages for the other tools we package and compress man pages fully.
 - [#7305](https://github.com/influxdata/influxdb/pull/7305): UDP Client: Split large points. Thanks @vlasad
+- [#7115](https://github.com/influxdata/influxdb/issues/7115): Feature request: `influx inspect -export` should dump WAL files.
 
 ### Bugfixes
 

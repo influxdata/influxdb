@@ -1,8 +1,10 @@
-package main
+package dumptsm
 
 import (
 	"encoding/binary"
+	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -12,85 +14,71 @@ import (
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
-type tsdmDumpOpts struct {
+// Command represents the program execution for "influxd dumptsm".
+type Command struct {
+	// Standard input/output, overridden for testing.
+	Stderr io.Writer
+	Stdout io.Writer
+
 	dumpIndex  bool
 	dumpBlocks bool
+	dumpAll    bool
 	filterKey  string
 	path       string
 }
 
-type blockStats struct {
-	min, max int
-	counts   [][]int
-}
-
-func (b *blockStats) inc(typ int, enc byte) {
-	for len(b.counts) <= typ {
-		b.counts = append(b.counts, []int{})
-	}
-	for len(b.counts[typ]) <= int(enc) {
-		b.counts[typ] = append(b.counts[typ], 0)
-	}
-	b.counts[typ][enc]++
-}
-
-func (b *blockStats) size(sz int) {
-	if b.min == 0 || sz < b.min {
-		b.min = sz
-	}
-	if b.min == 0 || sz > b.max {
-		b.max = sz
+// NewCommand returns a new instance of Command.
+func NewCommand() *Command {
+	return &Command{
+		Stderr: os.Stderr,
+		Stdout: os.Stdout,
 	}
 }
 
-var (
-	fieldType = []string{
-		"timestamp", "float", "int", "bool", "string",
-	}
-	blockTypes = []string{
-		"float64", "int64", "bool", "string",
-	}
-	timeEnc = []string{
-		"none", "s8b", "rle",
-	}
-	floatEnc = []string{
-		"none", "gor",
-	}
-	intEnc = []string{
-		"none", "s8b", "rle",
-	}
-	boolEnc = []string{
-		"none", "bp",
-	}
-	stringEnc = []string{
-		"none", "snpy",
-	}
-	encDescs = [][]string{
-		timeEnc, floatEnc, intEnc, boolEnc, stringEnc,
-	}
-)
+// Run executes the command.
+func (cmd *Command) Run(args ...string) error {
+	fs := flag.NewFlagSet("file", flag.ExitOnError)
+	fs.BoolVar(&cmd.dumpIndex, "index", false, "Dump raw index data")
+	fs.BoolVar(&cmd.dumpBlocks, "blocks", false, "Dump raw block data")
+	fs.BoolVar(&cmd.dumpAll, "all", false, "Dump all data. Caution: This may print a lot of information")
+	fs.StringVar(&cmd.filterKey, "filter-key", "", "Only display index and block data match this key substring")
 
-func cmdDumpTsm1(opts *tsdmDumpOpts) {
+	fs.SetOutput(cmd.Stdout)
+	fs.Usage = cmd.printUsage
+
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	if fs.Arg(0) == "" {
+		fmt.Printf("TSM file not specified\n\n")
+		fs.Usage()
+		return nil
+	}
+	cmd.path = fs.Args()[0]
+	cmd.dumpBlocks = cmd.dumpBlocks || cmd.dumpAll || cmd.filterKey != ""
+	cmd.dumpIndex = cmd.dumpIndex || cmd.dumpAll || cmd.filterKey != ""
+	return cmd.dump()
+}
+
+func (cmd *Command) dump() error {
 	var errors []error
 
-	f, err := os.Open(opts.path)
+	f, err := os.Open(cmd.path)
 	if err != nil {
-		println(err.Error())
-		os.Exit(1)
+		return err
 	}
 
 	// Get the file size
 	stat, err := f.Stat()
 	if err != nil {
-		println(err.Error())
-		os.Exit(1)
+		return err
 	}
 	b := make([]byte, 8)
 
 	r, err := tsm1.NewTSMReader(f)
 	if err != nil {
-		println("Error opening TSM files: ", err.Error())
-		os.Exit(1)
+		return fmt.Errorf("Error opening TSM files: %s", err.Error())
 	}
 	defer r.Close()
 
@@ -100,7 +88,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 	blockStats := &blockStats{}
 
 	println("Summary:")
-	fmt.Printf("  File: %s\n", opts.path)
+	fmt.Printf("  File: %s\n", cmd.path)
 	fmt.Printf("  Time Range: %s - %s\n",
 		time.Unix(0, minTime).UTC().Format(time.RFC3339Nano),
 		time.Unix(0, maxTime).UTC().Format(time.RFC3339Nano),
@@ -110,9 +98,9 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 	fmt.Printf("  File Size: %d\n", stat.Size())
 	println()
 
-	tw := tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
+	tw := tabwriter.NewWriter(cmd.Stdout, 8, 8, 1, '\t', 0)
 
-	if opts.dumpIndex {
+	if cmd.dumpIndex {
 		println("Index:")
 		tw.Flush()
 		println()
@@ -132,7 +120,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 				measurement = split[0]
 				field = split[1]
 
-				if opts.filterKey != "" && !strings.Contains(string(key), opts.filterKey) {
+				if cmd.filterKey != "" && !strings.Contains(string(key), cmd.filterKey) {
 					continue
 				}
 				fmt.Fprintln(tw, "  "+strings.Join([]string{
@@ -149,7 +137,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 		}
 	}
 
-	tw = tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
+	tw = tabwriter.NewWriter(cmd.Stdout, 8, 8, 1, '\t', 0)
 	fmt.Fprintln(tw, "  "+strings.Join([]string{"Blk", "Chk", "Ofs", "Len", "Type", "Min Time", "Points", "Enc [T/V]", "Len [T/V]"}, "\t"))
 
 	// Starting at 5 because the magic number is 4 bytes + 1 byte version
@@ -172,7 +160,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 
 			blockSize += int64(e.Size)
 
-			if opts.filterKey != "" && !strings.Contains(string(key), opts.filterKey) {
+			if cmd.filterKey != "" && !strings.Contains(string(key), cmd.filterKey) {
 				i += blockSize
 				blockCount++
 				continue
@@ -185,8 +173,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 			var v []tsm1.Value
 			v, err := tsm1.DecodeBlock(buf, v)
 			if err != nil {
-				fmt.Printf("error: %v\n", err.Error())
-				os.Exit(1)
+				return err
 			}
 			startTime := time.Unix(0, v[0].UnixNano())
 
@@ -210,7 +197,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 			blockStats.inc(int(blockType+1), values[0]>>4)
 			blockStats.size(len(buf))
 
-			if opts.dumpBlocks {
+			if cmd.dumpBlocks {
 				fmt.Fprintln(tw, "  "+strings.Join([]string{
 					strconv.FormatInt(blockCount, 10),
 					strconv.FormatUint(uint64(chksum), 10),
@@ -229,7 +216,7 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 		}
 	}
 
-	if opts.dumpBlocks {
+	if cmd.dumpBlocks {
 		println("Blocks:")
 		tw.Flush()
 		println()
@@ -271,5 +258,77 @@ func cmdDumpTsm1(opts *tsdmDumpOpts) {
 			fmt.Printf("  * %v\n", err)
 		}
 		println()
+		return fmt.Errorf("error count %d", len(errors))
+	}
+	return nil
+}
+
+// printUsage prints the usage message to STDERR.
+func (cmd *Command) printUsage() {
+	usage := `Dumps low-level details about tsm1 files.
+
+Usage: influx_inspect dumptsm [flags] <path
+
+    -index
+            Dump raw index data
+    -blocks
+            Dump raw block data
+    -all
+            Dump all data. Caution: This may print a lot of information
+    -filter-key <name>
+            Only display index and block data match this key substring
+`
+
+	fmt.Fprintf(cmd.Stdout, usage)
+}
+
+var (
+	fieldType = []string{
+		"timestamp", "float", "int", "bool", "string",
+	}
+	blockTypes = []string{
+		"float64", "int64", "bool", "string",
+	}
+	timeEnc = []string{
+		"none", "s8b", "rle",
+	}
+	floatEnc = []string{
+		"none", "gor",
+	}
+	intEnc = []string{
+		"none", "s8b", "rle",
+	}
+	boolEnc = []string{
+		"none", "bp",
+	}
+	stringEnc = []string{
+		"none", "snpy",
+	}
+	encDescs = [][]string{
+		timeEnc, floatEnc, intEnc, boolEnc, stringEnc,
+	}
+)
+
+type blockStats struct {
+	min, max int
+	counts   [][]int
+}
+
+func (b *blockStats) inc(typ int, enc byte) {
+	for len(b.counts) <= typ {
+		b.counts = append(b.counts, []int{})
+	}
+	for len(b.counts[typ]) <= int(enc) {
+		b.counts[typ] = append(b.counts[typ], 0)
+	}
+	b.counts[typ][enc]++
+}
+
+func (b *blockStats) size(sz int) {
+	if b.min == 0 || sz < b.min {
+		b.min = sz
+	}
+	if b.min == 0 || sz > b.max {
+		b.max = sz
 	}
 }
