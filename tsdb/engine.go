@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"regexp"
 	"sort"
 	"time"
 
@@ -36,12 +37,22 @@ type Engine interface {
 
 	CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
 	WritePoints(points []models.Point) error
+
+	CreateSeries(measurment string, series *Series) (*Series, error)
+	Series(key string) (*Series, error)
 	ContainsSeries(keys []string) (map[string]bool, error)
 	DeleteSeries(keys []string) error
 	DeleteSeriesRange(keys []string, min, max int64) error
-	DeleteMeasurement(name string, seriesKeys []string) error
 	SeriesCount() (n int, err error)
+
+	CreateMeasurement(name string) (*Measurement, error)
+	Measurement(name string) (*Measurement, error)
+	Measurements() (Measurements, error)
+	MeasurementsByExpr(expr influxql.Expr) (Measurements, bool, error)
+	MeasurementsByRegex(re *regexp.Regexp) (Measurements, error)
 	MeasurementFields(measurement string) *MeasurementFields
+	DeleteMeasurement(name string, seriesKeys []string) error
+
 	CreateSnapshot() (string, error)
 	SetEnabled(enabled bool)
 

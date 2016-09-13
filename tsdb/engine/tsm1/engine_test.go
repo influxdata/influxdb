@@ -573,7 +573,8 @@ func TestEngine_DeleteSeries(t *testing.T) {
 	p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
 	// Write those points to the engine.
-	e := tsm1.NewEngine(1, f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
+	e := tsm1.NewEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
+	e.LoadMetadataIndex(1, tsdb.NewDatabaseIndex("db0")) // Initialise an index
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}

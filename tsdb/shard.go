@@ -101,7 +101,6 @@ func (e PartialWriteError) Error() string {
 // Data can be split across many shards. The query engine in TSDB is responsible
 // for combining the output of many shards into a single query result.
 type Shard struct {
-	index   *DatabaseIndex
 	path    string
 	walPath string
 	id      uint64
@@ -219,7 +218,6 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 	}}
 
 	// Add the index and engine statistics.
-	statistics = append(statistics, s.index.Statistics(tags)...)
 	statistics = append(statistics, s.engine.Statistics(tags)...)
 	return statistics
 }
@@ -257,14 +255,17 @@ func (s *Shard) Open() error {
 
 		// Load metadata index.
 		start := time.Now()
-		if err := e.LoadMetadataIndex(s.id, s.index); err != nil {
+		if err := e.LoadMetadataIndex(s.id, NewDatabaseIndex(s.database)); err != nil {
 			return err
 		}
 
-		count := s.index.SeriesShardN(s.id)
-		atomic.AddInt64(&s.stats.SeriesCreated, int64(count))
-
 		s.engine = e
+
+		count, err := s.engine.SeriesCount()
+		if err != nil {
+			return err
+		}
+		atomic.AddInt64(&s.stats.SeriesCreated, int64(count))
 
 		s.logger.Info(fmt.Sprintf("%s database index loaded in %s", s.path, time.Now().Sub(start)))
 
@@ -302,9 +303,6 @@ func (s *Shard) close() error {
 	default:
 		close(s.closing)
 	}
-
-	// Wipe out our index.
-	s.index = NewDatabaseIndex(s.database)
 
 	err := s.engine.Close()
 	if err == nil {
@@ -462,19 +460,17 @@ func (s *Shard) DeleteMeasurement(name string) error {
 	}
 
 	// Attempt to find the series keys.
-	m := s.index.Measurement(name)
+	m, err := s.engine.Measurement(name)
+	if err != nil {
+		return err
+	}
+
 	if m == nil {
 		return influxql.ErrMeasurementNotFound(name)
 	}
 
 	// Remove the measurement from the engine.
-	if err := s.engine.DeleteMeasurement(name, m.SeriesKeys()); err != nil {
-		return err
-	}
-
-	// Remove the measurement from the index.
-	s.index.DropMeasurement(name)
-	return nil
+	return s.engine.DeleteMeasurement(name, m.SeriesKeys())
 }
 
 func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error {
@@ -492,7 +488,10 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 		}
 
 		// ensure the measurement is in the index and the field is there
-		measurement := s.index.CreateMeasurementIndexIfNotExists(f.Measurement)
+		measurement, err := s.engine.CreateMeasurement(f.Measurement)
+		if err != nil {
+			return err
+		}
 		measurement.SetFieldName(f.Field.Name)
 	}
 
@@ -512,7 +511,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		// and record why/increment counters
 		for i, p := range points {
 			tags := p.Tags()
-			m := s.index.Measurement(p.Name())
+			m := s.Measurement(p.Name())
 
 			// Measurement doesn't exist yet, can't check the limit
 			if m != nil {
@@ -574,22 +573,31 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		iter.Reset()
 
 		// see if the series should be added to the index
-		ss := s.index.SeriesBytes(p.Key())
+		key := string(p.Key())
+		ss, err := s.engine.Series(key)
+		if err != nil {
+			return nil, nil, err
+		}
+
 		if ss == nil {
-			if s.options.Config.MaxSeriesPerDatabase > 0 && s.index.SeriesN()+1 > s.options.Config.MaxSeriesPerDatabase {
+			cnt, err := s.engine.SeriesN()
+			if err != nil {
+				return nil, nil, err
+			}
+
+			if s.options.Config.MaxSeriesPerDatabase > 0 && cnt+1 > s.options.Config.MaxSeriesPerDatabase {
 				atomic.AddInt64(&s.stats.WritePointsDropped, 1)
 				dropped++
-				reason = fmt.Sprintf("max-series-per-database limit exceeded: db=%s (%d/%d)",
-					s.database, s.index.SeriesN(), s.options.Config.MaxSeriesPerDatabase)
+				reason = fmt.Sprintf("db %s max series limit reached: (%d/%d)", s.database, cnt, s.options.Config.MaxSeriesPerDatabase)
 				continue
 			}
 
-			ss = s.index.CreateSeriesIndexIfNotExists(p.Name(), NewSeries(string(p.Key()), tags))
+			ss = NewSeries(p.Key(), tags)
 			atomic.AddInt64(&s.stats.SeriesCreated, 1)
 		}
 
-		if !ss.Assigned(s.id) {
-			ss.AssignShard(s.id)
+		if ss, err = s.engine.CreateSeries(p.Name(), ss); err != nil {
+			return nil, nil, err
 		}
 
 		// see if the field definitions need to be saved to the shard
@@ -657,18 +665,20 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 
 // Measurement returns the named measurement from the index.
 func (s *Shard) Measurement(name string) *Measurement {
-	return s.index.Measurement(name)
+	m, _ := s.engine.Measurement(name)
+	return m
 }
 
 // Measurements returns a slice of all measurements from the index.
 func (s *Shard) Measurements() []*Measurement {
-	return s.index.Measurements()
+	m, _ := s.engine.Measurements()
+	return m
 }
 
 // MeasurementsByExpr takes an expression containing only tags and returns a
 // slice of matching measurements.
 func (s *Shard) MeasurementsByExpr(cond influxql.Expr) (Measurements, bool, error) {
-	return s.index.MeasurementsByExpr(cond)
+	return s.engine.MeasurementsByExpr(cond)
 }
 
 // SeriesCount returns the number of series buckets on the shard.
@@ -681,7 +691,8 @@ func (s *Shard) SeriesCount() (int, error) {
 
 // Series returns a series by key.
 func (s *Shard) Series(key string) *Series {
-	return s.index.Series(key)
+	series, _ := s.engine.Series(key)
+	return series
 }
 
 // WriteTo writes the shard's data to w.
@@ -767,7 +778,10 @@ func (s *Shard) FieldDimensions(sources influxql.Sources) (fields map[string]inf
 		switch m := src.(type) {
 		case *influxql.Measurement:
 			// Retrieve measurement.
-			mm := s.index.Measurement(m.Name)
+			mm, err := s.engine.Measurement(m.Name)
+			if err != nil {
+				return nil, nil, err
+			}
 			if mm == nil {
 				continue
 			}
@@ -785,7 +799,7 @@ func (s *Shard) FieldDimensions(sources influxql.Sources) (fields map[string]inf
 		}
 	}
 
-	return
+	return fields, dimensions, nil
 }
 
 // ExpandSources expands regex sources and removes duplicates.
@@ -805,7 +819,12 @@ func (s *Shard) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 			}
 
 			// Loop over matching measurements.
-			for _, m := range s.index.MeasurementsByRegex(src.Regex.Val) {
+			measurements, err := s.engine.MeasurementsByRegex(src.Regex.Val)
+			if err != nil {
+				return nil, err
+			}
+
+			for _, m := range measurements {
 				other := &influxql.Measurement{
 					Database:        src.Database,
 					RetentionPolicy: src.RetentionPolicy,
@@ -886,8 +905,8 @@ func (s *Shard) monitor() {
 				continue
 			}
 
-			for _, m := range s.index.Measurements() {
-				m.WalkTagKeys(func(k string) {
+			for _, m := range s.Measurements() {
+				for _, k := range m.TagKeys() {
 					n := m.Cardinality(k)
 					perc := int(float64(n) / float64(s.options.Config.MaxValuesPerTag) * 100)
 					if perc > 100 {
@@ -1072,15 +1091,16 @@ func (ic *shardIteratorCreator) ExpandSources(sources influxql.Sources) (influxq
 func NewFieldKeysIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Iterator, error) {
 	itr := &fieldKeysIterator{sh: sh}
 
+	var err error
 	// Retrieve measurements from shard. Filter if condition specified.
 	if opt.Condition == nil {
-		itr.mms = sh.index.Measurements()
-	} else {
-		mms, _, err := sh.index.measurementsByExpr(opt.Condition)
-		if err != nil {
+		if itr.mms, err = sh.engine.Measurements(); err != nil {
 			return nil, err
 		}
-		itr.mms = mms
+	} else {
+		if itr.mms, _, err = sh.engine.MeasurementsByExpr(opt.Condition); err != nil {
+			return nil, err
+		}
 	}
 
 	// Sort measurements by name.
@@ -1182,7 +1202,10 @@ func NewSeriesIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Iterat
 	}
 
 	// Read and sort all measurements.
-	mms := sh.index.Measurements()
+	mms, err := sh.engine.Measurements()
+	if err != nil {
+		return nil, err
+	}
 	sort.Sort(mms)
 
 	return &seriesIterator{
@@ -1295,11 +1318,13 @@ func NewTagValuesIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Ite
 		return e
 	}), nil)
 
-	mms, ok, err := sh.index.measurementsByExpr(measurementExpr)
+	mms, ok, err := sh.engine.MeasurementsByExpr(measurementExpr)
 	if err != nil {
 		return nil, err
 	} else if !ok {
-		mms = sh.index.Measurements()
+		if mms, err = sh.engine.Measurements(); err != nil {
+			return nil, err
+		}
 		sort.Sort(mms)
 	}
 
@@ -1408,11 +1433,14 @@ type measurementKeyFunc func(m *Measurement) []string
 func newMeasurementKeysIterator(sh *Shard, fn measurementKeyFunc, opt influxql.IteratorOptions) (*measurementKeysIterator, error) {
 	itr := &measurementKeysIterator{fn: fn}
 
+	var err error
 	// Retrieve measurements from shard. Filter if condition specified.
 	if opt.Condition == nil {
-		itr.mms = sh.index.Measurements()
+		if itr.mms, err = sh.engine.Measurements(); err != nil {
+			return nil, err
+		}
 	} else {
-		mms, _, err := sh.index.measurementsByExpr(opt.Condition)
+		mms, _, err := sh.engine.MeasurementsByExpr(opt.Condition)
 		if err != nil {
 			return nil, err
 		}
