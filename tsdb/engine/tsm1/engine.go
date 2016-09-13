@@ -10,6 +10,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -203,6 +204,22 @@ func (e *Engine) Index() *tsdb.DatabaseIndex {
 	return e.index
 }
 
+func (e *Engine) Measurement(name string) (*tsdb.Measurement, error) {
+	return e.index.Measurement(name), nil
+}
+
+func (e *Engine) Measurements() (tsdb.Measurements, error) {
+	return e.index.Measurements(), nil
+}
+
+func (e *Engine) MeasurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool, error) {
+	return e.index.MeasurementsByExpr(expr)
+}
+
+func (e *Engine) MeasurementsByRegex(re *regexp.Regexp) (tsdb.Measurements, error) {
+	return e.index.MeasurementsByRegex(re), nil
+}
+
 // MeasurementFields returns the measurement fields for a measurement.
 func (e *Engine) MeasurementFields(measurement string) *tsdb.MeasurementFields {
 	e.mu.RLock()
@@ -263,6 +280,7 @@ func (e *Engine) Statistics(tags map[string]string) []models.Statistic {
 			statTSMFullCompactionDuration:   atomic.LoadInt64(&e.stats.TSMFullCompactionDuration),
 		},
 	})
+	statistics = append(statistics, e.index.Statistics(tags)...)
 	statistics = append(statistics, e.Cache.Statistics(tags)...)
 	statistics = append(statistics, e.FileStore.Statistics(tags)...)
 	statistics = append(statistics, e.WAL.Statistics(tags)...)
@@ -544,8 +562,6 @@ func (e *Engine) addToIndexFromKey(shardID uint64, key []byte, fieldType influxq
 	// Have we already indexed this series?
 	ss := index.SeriesBytes(seriesKey)
 	if ss != nil {
-		// Add this shard to the existing series
-		ss.AssignShard(shardID)
 		return nil
 	}
 
@@ -555,7 +571,6 @@ func (e *Engine) addToIndexFromKey(shardID uint64, key []byte, fieldType influxq
 
 	s := tsdb.NewSeries(string(seriesKey), tags)
 	index.CreateSeriesIndexIfNotExists(measurement, s)
-	s.AssignShard(shardID)
 
 	return nil
 }
@@ -608,6 +623,7 @@ func (e *Engine) ContainsSeries(keys []string) (map[string]bool, error) {
 	}); err != nil {
 		return nil, err
 	}
+
 	return keyMap, nil
 }
 
@@ -679,9 +695,31 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 	e.Cache.DeleteRange(walKeys, min, max)
 
 	// delete from the WAL
-	_, err := e.WAL.DeleteRange(walKeys, min, max)
+	if _, err := e.WAL.DeleteRange(walKeys, min, max); err != nil {
+		return err
+	}
 
-	return err
+	// Have we deleted all points for the series? If so, we need to remove
+	// the series from the index.
+	existing, err := e.ContainsSeries(seriesKeys)
+	if err != nil {
+		return err
+	}
+
+	var toDelete []string
+	for k, exists := range existing {
+		if !exists {
+			toDelete = append(toDelete, k)
+		}
+	}
+	e.index.DropSeries(toDelete)
+
+	return nil
+}
+
+// CreateMeasurement creates a measurement on the index.
+func (e *Engine) CreateMeasurement(name string) (*tsdb.Measurement, error) {
+	return e.index.CreateMeasurementIndexIfNotExists(name), nil
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
@@ -690,12 +728,27 @@ func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
 	delete(e.measurementFields, name)
 	e.mu.Unlock()
 
-	return e.DeleteSeries(seriesKeys)
+	if err := e.DeleteSeries(seriesKeys); err != nil {
+		return err
+	}
+
+	// Remove the measurement from the index.
+	e.index.DropMeasurement(name)
+	return nil
 }
 
 // SeriesCount returns the number of series buckets on the shard.
 func (e *Engine) SeriesCount() (n int, err error) {
 	return e.index.SeriesN(), nil
+}
+
+func (e *Engine) CreateSeries(measurment string, series *tsdb.Series) (*tsdb.Series, error) {
+	return e.index.CreateSeriesIndexIfNotExists(measurment, series), nil
+}
+
+// Series returns a series from the index.
+func (e *Engine) Series(key string) (*tsdb.Series, error) {
+	return e.index.Series(key), nil
 }
 
 func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }

@@ -561,6 +561,7 @@ func TestEngine_DeleteSeries(t *testing.T) {
 
 	// Write those points to the engine.
 	e := tsm1.NewEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
+	e.LoadMetadataIndex(1, tsdb.NewDatabaseIndex("db0")) // Initialise an index
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
