@@ -902,6 +902,16 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 		return nil, err
 	}
 
+	// Parse optional join: "JOIN".
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == JOIN {
+		if err := p.parseTokens([]Token{MEASUREMENTS}); err != nil {
+			return nil, err
+		}
+		stmt.JoinMeasurements = true
+	} else {
+		p.unscan()
+	}
+
 	// Parse condition: "WHERE EXPR".
 	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
@@ -949,6 +959,21 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 			stmt.IsRawQuery = false
 		}
 	})
+
+	// Rewrite VarRef's if JOIN MEASUREMENTS was not specified.
+	// We assume JOIN MEASUREMENTS is specified when parsing variables because
+	// it is easier to go in this direction than the other because we will
+	// throw out information about the position of quotes and ident separators.
+	if !stmt.JoinMeasurements {
+		WalkFunc(stmt, func(n Node) {
+			if ref, ok := n.(*VarRef); ok {
+				if ref.Measurement != "" {
+					ref.Val = strings.Join([]string{ref.Measurement, ref.Val}, ".")
+					ref.Measurement = ""
+				}
+			}
+		})
+	}
 
 	if err := stmt.validate(tr); err != nil {
 		return nil, err
@@ -2259,7 +2284,11 @@ func (p *Parser) parseVarRef() (*VarRef, error) {
 		p.unscan()
 	}
 
-	vr := &VarRef{Val: strings.Join(segments, "."), Type: dtype}
+	vr := &VarRef{Type: dtype}
+	if len(segments) > 1 {
+		vr.Measurement = strings.Join(segments[:len(segments)-1], ".")
+	}
+	vr.Val = segments[len(segments)-1]
 
 	return vr, nil
 }

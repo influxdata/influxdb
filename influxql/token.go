@@ -93,6 +93,7 @@ const (
 	INF
 	INSERT
 	INTO
+	JOIN
 	KEY
 	KEYS
 	KILL
@@ -209,6 +210,7 @@ var tokens = [...]string{
 	INF:           "INF",
 	INSERT:        "INSERT",
 	INTO:          "INTO",
+	JOIN:          "JOIN",
 	KEY:           "KEY",
 	KEYS:          "KEYS",
 	KILL:          "KILL",

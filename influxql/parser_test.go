@@ -994,6 +994,23 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT statement with JOIN MEASUREMENTS
+		{
+			s: `SELECT cpu.value, mem.value FROM cpu, mem JOIN MEASUREMENTS`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.VarRef{Measurement: "cpu", Val: "value"}},
+					{Expr: &influxql.VarRef{Measurement: "mem", Val: "value"}},
+				},
+				Sources: []influxql.Source{
+					&influxql.Measurement{Name: "cpu"},
+					&influxql.Measurement{Name: "mem"},
+				},
+				JoinMeasurements: true,
+			},
+		},
+
 		// See issues https://github.com/influxdata/influxdb/issues/1647
 		// and https://github.com/influxdata/influxdb/issues/4404
 		// DELETE statement
