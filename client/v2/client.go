@@ -415,12 +415,13 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 
 	for _, p := range bp.Points() {
 		pointstring := p.pt.RoundedString(d) + "\n"
+		if len(pointstring) > MaxPointSize {
+			return ErrLargePoint
+		}
 
-		if b.Len()+len(pointstring) >= uc.payloadSize {
-			if b.Len() > 0 {
-				if _, err := uc.conn.Write(b.Bytes()); err != nil {
-					return err
-				}
+		if b.Len() > 0 && b.Len()+len(pointstring) > uc.payloadSize {
+			if _, err := uc.conn.Write(b.Bytes()); err != nil {
+				return err
 			}
 			b.Reset()
 		}
@@ -431,9 +432,6 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 		}
 
 		if p.Time().IsZero() {
-			if len(pointstring) > MaxPointSize {
-				return ErrLargePoint
-			}
 			b.WriteString(pointstring)
 			continue
 		}
@@ -445,11 +443,9 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 		for _, sp := range points {
 			pointstring := sp.RoundedString(d) + "\n"
 
-			if b.Len()+len(pointstring) >= uc.payloadSize {
-				if b.Len() > 0 {
-					if _, err := uc.conn.Write(b.Bytes()); err != nil {
-						return err
-					}
+			if b.Len() > 0 && b.Len()+len(pointstring) > uc.payloadSize {
+				if _, err := uc.conn.Write(b.Bytes()); err != nil {
+					return err
 				}
 				b.Reset()
 			}
