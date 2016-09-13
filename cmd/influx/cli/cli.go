@@ -645,7 +645,7 @@ func (c *CommandLine) writeColumns(response *client.Response, w io.Writer) {
 // formatResults will behave differently if you are formatting for columns or csv
 func (c *CommandLine) formatResults(result client.Result, separator string) []string {
 	rows := []string{}
-	// Create a tabbed writer for each result a they won't always line up
+	// Create a tabbed writer for each result as they won't always line up
 	for i, row := range result.Series {
 		// gather tags
 		tags := []string{}
@@ -676,15 +676,11 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 			rows = append(rows, "")
 		}
 
-		// If we are column format, we break out the name/tag to seperate lines
+		// If we are column format, we break out the name/tag to separate lines
 		if c.Format == "column" {
 			if row.Name != "" {
 				n := fmt.Sprintf("name: %s", row.Name)
 				rows = append(rows, n)
-				if len(tags) == 0 {
-					l := strings.Repeat("-", len(n))
-					rows = append(rows, l)
-				}
 			}
 			if len(tags) > 0 {
 				t := fmt.Sprintf("tags: %s", (strings.Join(tags, ", ")))
@@ -694,8 +690,8 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 
 		rows = append(rows, strings.Join(columnNames, separator))
 
-		// if format is column, break tags to their own line/format
-		if c.Format == "column" && len(tags) > 0 {
+		// if format is column, write dashes under each column
+		if c.Format == "column" {
 			lines := []string{}
 			for _, columnName := range columnNames {
 				lines = append(lines, strings.Repeat("-", len(columnName)))
