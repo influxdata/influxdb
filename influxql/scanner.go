@@ -32,7 +32,7 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 		return s.scanWhitespace()
 	} else if isLetter(ch0) || ch0 == '_' {
 		s.r.unread()
-		return s.scanIdent()
+		return s.scanIdent(true)
 	} else if isDigit(ch0) {
 		return s.scanNumber()
 	}
@@ -43,7 +43,7 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 		return EOF, pos, ""
 	case '"':
 		s.r.unread()
-		return s.scanIdent()
+		return s.scanIdent(true)
 	case '\'':
 		return s.scanString()
 	case '.':
@@ -54,11 +54,11 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 		}
 		return DOT, pos, ""
 	case '$':
-		tok, _, lit := s.scanIdent()
-		if tok == IDENT {
-			tok = BOUNDPARAM
+		tok, _, lit = s.scanIdent(false)
+		if tok != IDENT {
+			return tok, pos, "$" + lit
 		}
-		return tok, pos, lit
+		return BOUNDPARAM, pos, "$" + lit
 	case '+', '-':
 		return s.scanNumber()
 	case '*':
@@ -135,7 +135,7 @@ func (s *Scanner) scanWhitespace() (tok Token, pos Pos, lit string) {
 	return WS, pos, buf.String()
 }
 
-func (s *Scanner) scanIdent() (tok Token, pos Pos, lit string) {
+func (s *Scanner) scanIdent(lookup bool) (tok Token, pos Pos, lit string) {
 	// Save the starting position of the identifier.
 	_, pos = s.r.read()
 	s.r.unread()
@@ -161,10 +161,11 @@ func (s *Scanner) scanIdent() (tok Token, pos Pos, lit string) {
 	lit = buf.String()
 
 	// If the literal matches a keyword then return that keyword.
-	if tok = Lookup(lit); tok != IDENT {
-		return tok, pos, ""
+	if lookup {
+		if tok = Lookup(lit); tok != IDENT {
+			return tok, pos, ""
+		}
 	}
-
 	return IDENT, pos, lit
 }
 

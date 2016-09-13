@@ -2409,9 +2409,14 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 		}
 		return &RegexLiteral{Val: re}, nil
 	case BOUNDPARAM:
-		v, ok := p.params[lit]
+		k := strings.TrimPrefix(lit, "$")
+		if len(k) == 0 {
+			return nil, errors.New("empty bound parameter")
+		}
+
+		v, ok := p.params[k]
 		if !ok {
-			return nil, fmt.Errorf("missing parameter: %s", lit)
+			return nil, fmt.Errorf("missing parameter: %s", k)
 		}
 
 		switch v := v.(type) {

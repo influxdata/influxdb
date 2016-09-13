@@ -2308,6 +2308,8 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SET PASSWORD FOR dejan`, err: `found EOF, expected = at line 1, char 24`},
 		{s: `SET PASSWORD FOR dejan =`, err: `found EOF, expected string at line 1, char 25`},
 		{s: `SET PASSWORD FOR dejan = bla`, err: `found bla, expected string at line 1, char 26`},
+		{s: `$SHOW$DATABASES`, err: `found $SHOW, expected SELECT, DELETE, SHOW, CREATE, DROP, GRANT, REVOKE, ALTER, SET, KILL at line 1, char 1`},
+		{s: `SELECT * FROM cpu WHERE "tagkey" = $$`, err: `empty bound parameter`},
 	}
 
 	for i, tt := range tests {
