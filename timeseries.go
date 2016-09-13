@@ -13,16 +13,9 @@ type Row interface {
 	Values() [][]interface{}
 }
 
-// Message represents a user message.
-type Message interface {
-	Level() string
-	Text() string
-}
-
 // Result represents a resultset returned from a single statement in a `Query`.
 type Result interface {
 	Series() ([]Row, error)
-	Messages() ([]Message, error)
 }
 
 // Response is the result of a query against a TimeSeries
