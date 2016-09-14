@@ -282,19 +282,16 @@ func (e *Engine) disableSnapshotCompactions() {
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
-// Index returns the database index.
-func (e *Engine) Index() *tsdb.DatabaseIndex {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.index
-}
-
 func (e *Engine) Measurement(name string) (*tsdb.Measurement, error) {
 	return e.index.Measurement(name), nil
 }
 
 func (e *Engine) Measurements() (tsdb.Measurements, error) {
 	return e.index.Measurements(), nil
+}
+
+func (e *Engine) MeasurementCardinality() (int64, error) {
+	panic("TODO: edd")
 }
 
 func (e *Engine) MeasurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool, error) {
@@ -325,9 +322,8 @@ func (e *Engine) MeasurementFields(measurement string) *tsdb.MeasurementFields {
 	return m
 }
 
-// Format returns the format type of this engine.
-func (e *Engine) Format() tsdb.EngineFormat {
-	return tsdb.TSM1Format
+func (e *Engine) SeriesCardinality() (int64, error) {
+	panic("TODO: edd")
 }
 
 // EngineStatistics maintains statistics for the engine.
@@ -735,9 +731,9 @@ func (e *Engine) WritePoints(points []models.Point) error {
 	return err
 }
 
-// ContainsSeries returns a map of keys indicating whether the key exists and
+// containsSeries returns a map of keys indicating whether the key exists and
 // has values or not.
-func (e *Engine) ContainsSeries(keys []string) (map[string]bool, error) {
+func (e *Engine) containsSeries(keys []string) (map[string]bool, error) {
 	// keyMap is used to see if a given key exists.  keys
 	// are the measurement + tagset (minus separate & field)
 	keyMap := map[string]bool{}
@@ -763,8 +759,8 @@ func (e *Engine) ContainsSeries(keys []string) (map[string]bool, error) {
 	return keyMap, nil
 }
 
-// DeleteSeries removes all series keys from the engine.
-func (e *Engine) DeleteSeries(seriesKeys []string) error {
+// deleteSeries removes all series keys from the engine.
+func (e *Engine) deleteSeries(seriesKeys []string) error {
 	return e.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
 }
 
@@ -837,7 +833,7 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 
 	// Have we deleted all points for the series? If so, we need to remove
 	// the series from the index.
-	existing, err := e.ContainsSeries(seriesKeys)
+	existing, err := e.containsSeries(seriesKeys)
 	if err != nil {
 		return err
 	}
@@ -864,30 +860,13 @@ func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
 	delete(e.measurementFields, name)
 	e.fieldsMu.Unlock()
 
-	if err := e.DeleteSeries(seriesKeys); err != nil {
+	if err := e.deleteSeries(seriesKeys); err != nil {
 		return err
 	}
 
 	// Remove the measurement from the index.
 	e.index.DropMeasurement(name)
 	return nil
-}
-
-// SeriesCount returns the number of series buckets on the shard.
-func (e *Engine) SeriesCount() (n int, err error) {
-	return e.index.SeriesN(), nil
-}
-
-// LastModified returns the time when this shard was last modified.
-func (e *Engine) LastModified() time.Time {
-	walTime := e.WAL.LastWriteTime()
-	fsTime := e.FileStore.LastModified()
-
-	if walTime.After(fsTime) {
-		return walTime
-	}
-
-	return fsTime
 }
 
 func (e *Engine) CreateSeries(measurment string, series *tsdb.Series) (*tsdb.Series, error) {

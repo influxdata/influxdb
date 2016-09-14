@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -127,8 +129,9 @@ type Shard struct {
 
 // NewShard returns a new initialized Shard.
 func NewShard(id uint64, path string, walPath string, options EngineOptions) *Shard {
-	db, rp := DecodeStorePath(path)
+	db, rp := decodeStorePath(path)
 	logger := zap.New(zap.NullEncoder())
+
 	s := &Shard{
 		id:      id,
 		path:    path,
@@ -198,7 +201,7 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 		return nil
 	}
 
-	seriesN, _ := s.engine.SeriesCount()
+	seriesN, _ := s.engine.SeriesCardinality()
 	tags = s.defaultTags.Merge(tags)
 	statistics := []models.Statistic{{
 		Name: "shard",
@@ -261,7 +264,7 @@ func (s *Shard) Open() error {
 
 		s.engine = e
 
-		count, err := s.engine.SeriesCount()
+		count, err := s.engine.SeriesCardinality()
 		if err != nil {
 			return err
 		}
@@ -418,26 +421,9 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	return writeError
 }
 
-// ContainsSeries determines if the shard contains the provided series keys. The
-// returned map contains all the provided keys that are in the shard, and the
-// value for each key will be true if the shard has values for that key.
-func (s *Shard) ContainsSeries(seriesKeys []string) (map[string]bool, error) {
-	if err := s.ready(); err != nil {
-		return nil, err
-	}
-
-	return s.engine.ContainsSeries(seriesKeys)
-}
-
 // DeleteSeries deletes a list of series.
 func (s *Shard) DeleteSeries(seriesKeys []string) error {
-	if err := s.ready(); err != nil {
-		return err
-	}
-	if err := s.engine.DeleteSeries(seriesKeys); err != nil {
-		return err
-	}
-	return nil
+	return s.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
 }
 
 // DeleteSeriesRange deletes all values from seriesKeys with timestamps between min and max (inclusive).
@@ -585,7 +571,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 				return nil, nil, err
 			}
 
-			if s.options.Config.MaxSeriesPerDatabase > 0 && cnt+1 > s.options.Config.MaxSeriesPerDatabase {
+			if s.options.Config.MaxSeriesPerDatabase > 0 && cnt+1 > int64(s.options.Config.MaxSeriesPerDatabase) {
 				atomic.AddInt64(&s.stats.WritePointsDropped, 1)
 				dropped++
 				reason = fmt.Sprintf("db %s max series limit reached: (%d/%d)", s.database, cnt, s.options.Config.MaxSeriesPerDatabase)
@@ -681,12 +667,12 @@ func (s *Shard) MeasurementsByExpr(cond influxql.Expr) (Measurements, bool, erro
 	return s.engine.MeasurementsByExpr(cond)
 }
 
-// SeriesCount returns the number of series buckets on the shard.
-func (s *Shard) SeriesCount() (int, error) {
+// SeriesCardinality returns the number of series buckets on the shard.
+func (s *Shard) SeriesCardinality() (int64, error) {
 	if err := s.ready(); err != nil {
 		return 0, err
 	}
-	return s.engine.SeriesCount()
+	return s.engine.SeriesCardinality()
 }
 
 // Series returns a series by key.
