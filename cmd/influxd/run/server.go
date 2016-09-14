@@ -509,15 +509,25 @@ func (s *Server) reportServer() {
 	dbs := s.MetaClient.Databases()
 	numDatabases := len(dbs)
 
-	numMeasurements := 0
-	numSeries := 0
+	var (
+		numMeasurements int64
+		numSeries       int64
+	)
 
-	// Only needed in the case of a data node
-	if s.TSDBStore != nil {
-		for _, db := range dbs {
-			m, s := s.TSDBStore.MeasurementSeriesCounts(db.Name)
-			numMeasurements += m
-			numSeries += s
+	for _, db := range dbs {
+		name := db.Name
+		n, err := s.TSDBStore.SeriesCardinality(name)
+		if err != nil {
+			s.Logger.Printf("Unable to get series cardinality for database %s: %v", name, err)
+		} else {
+			numSeries += n
+		}
+
+		n, err = s.TSDBStore.MeasurementsCardinality(name)
+		if err != nil {
+			s.Logger.Printf("Unable to get measurement cardinality for database %s: %v", name, err)
+		} else {
+			numMeasurements += n
 		}
 	}
 
