@@ -76,10 +76,10 @@ type Point interface {
 	// given duration
 	RoundedString(d time.Duration) string
 
-	// SplitN splits a point into multiple points and ensures that
-	// the string length of any returned point is no larger than the input size,
-	// except points which consists from one field, they can be larger than the input size.
-	SplitN(size int) ([]Point, error)
+	// Split will attempt to return multiple points with the same timestamp whose
+	// string representations are no longer than size. Points with a single field or
+	// a point without a timestamp may exceed the requested size.
+	Split(size int) []Point
 }
 
 // Points represents a sortable list of points by timestamp.
@@ -996,11 +996,7 @@ func scanTagValue(buf []byte, i int) (int, []byte) {
 func scanFieldValue(buf []byte, i int) (int, []byte) {
 	start := i
 	quoted := false
-	for {
-		if i >= len(buf) {
-			break
-		}
-
+	for i < len(buf) {
 		// Only escape char for a field value is a double-quote
 		if buf[i] == '\\' && i+1 < len(buf) && buf[i+1] == '"' {
 			i += 2
@@ -1122,20 +1118,42 @@ func unescapeStringField(in string) string {
 
 // NewPoint returns a new point with the given measurement name, tags, fields and timestamp.  If
 // an unsupported field value (NaN) or out of range time is passed, this function returns an error.
-func NewPoint(name string, tags Tags, fields Fields, time time.Time) (Point, error) {
+func NewPoint(name string, tags Tags, fields Fields, t time.Time) (Point, error) {
+	key, err := pointKey(name, tags, fields, t)
+	if err != nil {
+		return nil, err
+	}
+
+	return &point{
+		key:    key,
+		time:   t,
+		fields: fields.MarshalBinary(),
+	}, nil
+}
+
+// pointKey checks some basic requirements for valid points, and returns the
+// key, along with an possible error
+func pointKey(measurement string, tags Tags, fields Fields, t time.Time) ([]byte, error) {
 	if len(fields) == 0 {
 		return nil, ErrPointMustHaveAField
 	}
-	if !time.IsZero() {
-		if err := CheckTime(time); err != nil {
+
+	if !t.IsZero() {
+		if err := CheckTime(t); err != nil {
 			return nil, err
 		}
 	}
 
 	for key, value := range fields {
-		if fv, ok := value.(float64); ok {
+		switch value := value.(type) {
+		case float64:
 			// Ensure the caller validates and handles invalid field values
-			if math.IsNaN(fv) {
+			if math.IsNaN(value) {
+				return nil, fmt.Errorf("NaN is an unsupported value for field %s", key)
+			}
+		case float32:
+			// Ensure the caller validates and handles invalid field values
+			if math.IsNaN(float64(value)) {
 				return nil, fmt.Errorf("NaN is an unsupported value for field %s", key)
 			}
 		}
@@ -1144,16 +1162,12 @@ func NewPoint(name string, tags Tags, fields Fields, time time.Time) (Point, err
 		}
 	}
 
-	key := MakeKey([]byte(name), tags)
+	key := MakeKey([]byte(measurement), tags)
 	if len(key) > MaxKeyLength {
 		return nil, fmt.Errorf("max key length exceeded: %v > %v", len(key), MaxKeyLength)
 	}
 
-	return &point{
-		key:    key,
-		time:   time,
-		fields: fields.MarshalBinary(),
-	}, nil
+	return key, nil
 }
 
 // NewPointFromBytes returns a new Point from a marshalled Point.
@@ -1391,47 +1405,40 @@ func (p *point) UnixNano() int64 {
 	return p.Time().UnixNano()
 }
 
-func (p *point) SplitN(size int) ([]Point, error) {
-	if len(p.String()) <= size {
-		return []Point{p}, nil
+func (p *point) Split(size int) []Point {
+	if p.time.IsZero() || len(p.String()) <= size {
+		return []Point{p}
 	}
 
-	points := []Point{}
-	tags := p.Tags()
-	fields := make(Fields)
+	// key string, timestamp string, spaces
+	size -= len(p.key) + len(strconv.FormatInt(p.time.UnixNano(), 10)) + 2
 
-	for k, v := range p.Fields() {
-		fields[k] = v
-		next, err := NewPoint(p.Name(), tags, fields, p.Time())
-		if err != nil {
-			return []Point{}, fmt.Errorf("failed to create new point: %s", err)
+	var points []Point
+	var start, cur int
+
+	for cur < len(p.fields) {
+		end, _ := scanTo(p.fields, cur, '=')
+		end, _ = scanFieldValue(p.fields, end+1)
+
+		if cur > start && end-start > size {
+			points = append(points, &point{
+				key:    p.key,
+				time:   p.time,
+				fields: p.fields[start : cur-1],
+			})
+			start = cur
 		}
 
-		if len(next.String()) > size {
-			if len(fields) == 1 {
-				points = append(points, next)
-				fields = make(Fields)
-			} else {
-				delete(fields, k)
-				pt, err := NewPoint(p.Name(), tags, fields, p.Time())
-				if err != nil {
-					return []Point{}, fmt.Errorf("failed to create new point: %s", err)
-				}
-				points = append(points, pt)
-				fields = Fields{k: v}
-			}
-		}
+		cur = end + 1
 	}
 
-	if len(fields) != 0 {
-		pt, err := NewPoint(p.Name(), tags, fields, p.Time())
-		if err != nil {
-			return []Point{}, fmt.Errorf("failed to create new point: %s", err)
-		}
-		points = append(points, pt)
-	}
+	points = append(points, &point{
+		key:    p.key,
+		time:   p.time,
+		fields: p.fields[start:],
+	})
 
-	return points, nil
+	return points
 }
 
 // Tag represents a single key/value tag pair.
@@ -1445,6 +1452,9 @@ type Tags []Tag
 
 // NewTags returns a new Tags from a map.
 func NewTags(m map[string]string) Tags {
+	if len(m) == 0 {
+		return nil
+	}
 	a := make(Tags, 0, len(m))
 	for k, v := range m {
 		a = append(a, Tag{Key: []byte(k), Value: []byte(v)})
@@ -1643,76 +1653,86 @@ func newFieldsFromBinary(buf []byte) Fields {
 // represenation
 // NOTE: uint64 is specifically not supported due to potential overflow when we decode
 // again later to an int64
+// NOTE2: uint is accepted, and may be 64 bits, and is for some reason accepted...
 func (p Fields) MarshalBinary() []byte {
-	b := []byte{}
-	keys := make([]string, len(p))
-	i := 0
+	var b []byte
+	keys := make([]string, 0, len(p))
+
 	for k := range p {
-		keys[i] = k
-		i++
+		keys = append(keys, k)
 	}
+
+	// Not really necessary, can probably be removed.
 	sort.Strings(keys)
 
-	for _, k := range keys {
-		v := p[k]
-		b = append(b, []byte(escape.String(k))...)
-		b = append(b, '=')
-		switch t := v.(type) {
-		case int:
-			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
-			b = append(b, 'i')
-		case int8:
-			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
-			b = append(b, 'i')
-		case int16:
-			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
-			b = append(b, 'i')
-		case int32:
-			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
-			b = append(b, 'i')
-		case int64:
-			b = append(b, []byte(strconv.FormatInt(t, 10))...)
-			b = append(b, 'i')
-		case uint:
-			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
-			b = append(b, 'i')
-		case uint8:
-			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
-			b = append(b, 'i')
-		case uint16:
-			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
-			b = append(b, 'i')
-		case uint32:
-			b = append(b, []byte(strconv.FormatInt(int64(t), 10))...)
-			b = append(b, 'i')
-		case float32:
-			val := []byte(strconv.FormatFloat(float64(t), 'f', -1, 32))
-			b = append(b, val...)
-		case float64:
-			val := []byte(strconv.FormatFloat(t, 'f', -1, 64))
-			b = append(b, val...)
-		case bool:
-			b = append(b, []byte(strconv.FormatBool(t))...)
-		case []byte:
-			b = append(b, t...)
-		case string:
-			b = append(b, '"')
-			b = append(b, []byte(EscapeStringField(t))...)
-			b = append(b, '"')
-		case nil:
-			// skip
-		default:
-			// Can't determine the type, so convert to string
-			b = append(b, '"')
-			b = append(b, []byte(EscapeStringField(fmt.Sprintf("%v", v)))...)
-			b = append(b, '"')
-
+	for i, k := range keys {
+		if i > 0 {
+			b = append(b, ',')
 		}
-		b = append(b, ',')
+		b = appendField(b, k, p[k])
 	}
-	if len(b) > 0 {
-		return b[0 : len(b)-1]
+
+	return b
+}
+
+func appendField(b []byte, k string, v interface{}) []byte {
+	b = append(b, []byte(escape.String(k))...)
+	b = append(b, '=')
+
+	// check popular types first
+	switch v := v.(type) {
+	case float64:
+		b = strconv.AppendFloat(b, v, 'f', -1, 64)
+	case int64:
+		b = strconv.AppendInt(b, v, 10)
+		b = append(b, 'i')
+	case string:
+		b = append(b, '"')
+		b = append(b, []byte(EscapeStringField(v))...)
+		b = append(b, '"')
+	case bool:
+		b = strconv.AppendBool(b, v)
+	case int32:
+		b = strconv.AppendInt(b, int64(v), 10)
+		b = append(b, 'i')
+	case int16:
+		b = strconv.AppendInt(b, int64(v), 10)
+		b = append(b, 'i')
+	case int8:
+		b = strconv.AppendInt(b, int64(v), 10)
+		b = append(b, 'i')
+	case int:
+		b = strconv.AppendInt(b, int64(v), 10)
+		b = append(b, 'i')
+	case uint32:
+		b = strconv.AppendInt(b, int64(v), 10)
+		b = append(b, 'i')
+	case uint16:
+		b = strconv.AppendInt(b, int64(v), 10)
+		b = append(b, 'i')
+	case uint8:
+		b = strconv.AppendInt(b, int64(v), 10)
+		b = append(b, 'i')
+	// TODO: 'uint' should be considered just as "dangerous" as a uint64,
+	// perhaps the value should be checked and capped at MaxInt64? We could
+	// then include uint64 as an accepted value
+	case uint:
+		b = strconv.AppendInt(b, int64(v), 10)
+		b = append(b, 'i')
+	case float32:
+		b = strconv.AppendFloat(b, float64(v), 'f', -1, 32)
+	case []byte:
+		b = append(b, v...)
+	case nil:
+		// skip
+	default:
+		// Can't determine the type, so convert to string
+		b = append(b, '"')
+		b = append(b, []byte(EscapeStringField(fmt.Sprintf("%v", v)))...)
+		b = append(b, '"')
+
 	}
+
 	return b
 }
 

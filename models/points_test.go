@@ -15,7 +15,15 @@ import (
 )
 
 var (
-	tags       = models.NewTags(map[string]string{"foo": "bar", "apple": "orange", "host": "serverA", "region": "uswest"})
+	tags   = models.NewTags(map[string]string{"foo": "bar", "apple": "orange", "host": "serverA", "region": "uswest"})
+	fields = models.Fields{
+		"int64":         int64(math.MaxInt64),
+		"uint32":        uint32(math.MaxUint32),
+		"string":        "String field that has a decent length, probably some log message or something",
+		"boolean":       false,
+		"float64-tiny":  math.SmallestNonzeroFloat64,
+		"float64-large": math.MaxFloat64,
+	}
 	maxFloat64 = strconv.FormatFloat(math.MaxFloat64, 'f', 1, 64)
 	minFloat64 = strconv.FormatFloat(-math.MaxFloat64, 'f', 1, 64)
 )
@@ -32,6 +40,15 @@ func TestMarshal(t *testing.T) {
 func BenchmarkMarshal(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		tags.HashKey()
+	}
+}
+
+var p models.Point
+
+func BenchmarkNewPoint(b *testing.B) {
+	ts := time.Now()
+	for i := 0; i < b.N; i++ {
+		p, _ = models.NewPoint("measurement", tags, fields, ts)
 	}
 }
 

@@ -7,21 +7,11 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
-)
-
-var ErrLargePoint = errors.New("point exceeds allowed size")
-
-// UDPPayloadSize is a reasonable default payload size for UDP packets that
-// could be travelling over the internet.
-const (
-	UDPPayloadSize = 512
-	MaxPointSize   = 65507
 )
 
 // HTTPConfig is the config data needed to create an HTTP Client
@@ -49,17 +39,6 @@ type HTTPConfig struct {
 	// TLSConfig allows the user to set their own TLS config for the HTTP
 	// Client. If set, this option overrides InsecureSkipVerify.
 	TLSConfig *tls.Config
-}
-
-// UDPConfig is the config data needed to create a UDP Client
-type UDPConfig struct {
-	// Addr should be of the form "host:port"
-	// or "[ipv6-host%zone]:port".
-	Addr string
-
-	// PayloadSize is the maximum size of a UDP client message, optional
-	// Tune this based on your network. Defaults to UDPBufferSize.
-	PayloadSize int
 }
 
 // BatchPointsConfig is the config data needed to create an instance of the BatchPoints struct
@@ -180,42 +159,6 @@ func (c *client) Close() error {
 	return nil
 }
 
-// NewUDPClient returns a client interface for writing to an InfluxDB UDP
-// service from the given config.
-func NewUDPClient(conf UDPConfig) (Client, error) {
-	var udpAddr *net.UDPAddr
-	udpAddr, err := net.ResolveUDPAddr("udp", conf.Addr)
-	if err != nil {
-		return nil, err
-	}
-
-	conn, err := net.DialUDP("udp", nil, udpAddr)
-	if err != nil {
-		return nil, err
-	}
-
-	payloadSize := conf.PayloadSize
-	if payloadSize == 0 {
-		payloadSize = UDPPayloadSize
-	}
-
-	return &udpclient{
-		conn:        conn,
-		payloadSize: payloadSize,
-	}, nil
-}
-
-// Ping will check to see if the server is up with an optional timeout on waiting for leader.
-// Ping returns how long the request took, the version of the server it connected to, and an error if one occurred.
-func (uc *udpclient) Ping(timeout time.Duration) (time.Duration, string, error) {
-	return 0, "", nil
-}
-
-// Close releases the udpclient's resources.
-func (uc *udpclient) Close() error {
-	return uc.conn.Close()
-}
-
 // client is safe for concurrent use as the fields are all read-only
 // once the client is instantiated.
 type client struct {
@@ -227,11 +170,6 @@ type client struct {
 	useragent  string
 	httpClient *http.Client
 	transport  *http.Transport
-}
-
-type udpclient struct {
-	conn        *net.UDPConn
-	payloadSize int
 }
 
 // BatchPoints is an interface into a batched grouping of points to write into
@@ -408,59 +346,6 @@ func NewPointFrom(pt models.Point) *Point {
 	return &Point{pt: pt}
 }
 
-func (uc *udpclient) Write(bp BatchPoints) error {
-	var b bytes.Buffer
-	var d time.Duration
-	d, _ = time.ParseDuration("1" + bp.Precision())
-
-	for _, p := range bp.Points() {
-		pointstring := p.pt.RoundedString(d) + "\n"
-		if len(pointstring) > MaxPointSize {
-			return ErrLargePoint
-		}
-
-		if b.Len() > 0 && b.Len()+len(pointstring) > uc.payloadSize {
-			if _, err := uc.conn.Write(b.Bytes()); err != nil {
-				return err
-			}
-			b.Reset()
-		}
-
-		if b.Len()+len(pointstring) <= uc.payloadSize {
-			b.WriteString(pointstring)
-			continue
-		}
-
-		if p.Time().IsZero() {
-			b.WriteString(pointstring)
-			continue
-		}
-
-		points, err := p.pt.SplitN(uc.payloadSize - 2) // -2 because of `+ "\n"`
-		if err != nil {
-			return err
-		}
-		for _, sp := range points {
-			pointstring := sp.RoundedString(d) + "\n"
-
-			if b.Len() > 0 && b.Len()+len(pointstring) > uc.payloadSize {
-				if _, err := uc.conn.Write(b.Bytes()); err != nil {
-					return err
-				}
-				b.Reset()
-			}
-			b.WriteString(pointstring)
-		}
-	}
-
-	if b.Len() > 0 {
-		if _, err := uc.conn.Write(b.Bytes()); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (c *client) Write(bp BatchPoints) error {
 	var b bytes.Buffer
 
@@ -561,10 +446,6 @@ type Result struct {
 	Series   []models.Row
 	Messages []*Message
 	Err      string `json:"error,omitempty"`
-}
-
-func (uc *udpclient) Query(q Query) (*Response, error) {
-	return nil, fmt.Errorf("Querying via UDP is not supported")
 }
 
 // Query sends a command to the server and returns the Response

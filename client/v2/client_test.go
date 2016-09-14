@@ -2,7 +2,6 @@ package client
 
 import (
 	"encoding/json"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -10,8 +9,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/influxdata/influxdb/models"
 )
 
 func TestUDPClient_Query(t *testing.T) {
@@ -74,6 +71,68 @@ func TestUDPClient_BadAddr(t *testing.T) {
 		t.Error("Expected resolve error")
 	}
 }
+
+func TestUDPClient_Batches(t *testing.T) {
+	var logger writeLogger
+	var cl udpclient
+
+	cl.conn = &logger
+	cl.payloadSize = 20 // should allow for two points per batch
+
+	// expected point should look like this: "cpu a=1i"
+	fields := map[string]interface{}{"a": 1}
+
+	p, _ := NewPoint("cpu", nil, fields, time.Time{})
+
+	bp, _ := NewBatchPoints(BatchPointsConfig{})
+
+	for i := 0; i < 9; i++ {
+		bp.AddPoint(p)
+	}
+
+	if err := cl.Write(bp); err != nil {
+		t.Fatalf("Unexpected error during Write: %v", err)
+	}
+
+	if len(logger.writes) != 5 {
+		t.Errorf("Mismatched write count: got %v, exp %v", len(logger.writes), 5)
+	}
+}
+
+func TestUDPClient_Split(t *testing.T) {
+	var logger writeLogger
+	var cl udpclient
+
+	cl.conn = &logger
+	cl.payloadSize = 1 // force one field per point
+
+	fields := map[string]interface{}{"a": 1, "b": 2, "c": 3, "d": 4}
+
+	p, _ := NewPoint("cpu", nil, fields, time.Unix(1, 0))
+
+	bp, _ := NewBatchPoints(BatchPointsConfig{})
+
+	bp.AddPoint(p)
+
+	if err := cl.Write(bp); err != nil {
+		t.Fatalf("Unexpected error during Write: %v", err)
+	}
+
+	if len(logger.writes) != len(fields) {
+		t.Errorf("Mismatched write count: got %v, exp %v", len(logger.writes), len(fields))
+	}
+}
+
+type writeLogger struct {
+	writes [][]byte
+}
+
+func (w *writeLogger) Write(b []byte) (int, error) {
+	w.writes = append(w.writes, append([]byte(nil), b...))
+	return len(b), nil
+}
+
+func (w *writeLogger) Close() error { return nil }
 
 func TestClient_Query(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -417,109 +476,5 @@ func TestBatchPoints_SettersGetters(t *testing.T) {
 	}
 	if bp.WriteConsistency() != "wc2" {
 		t.Errorf("Expected: %s, got %s", bp.WriteConsistency(), "wc2")
-	}
-}
-
-var testPoints = func() (input []*Point, outputPointsCount int) {
-	tags := map[string]string{"tag1": "blabla"}
-	timeNow := time.Now()
-	fields := map[string]interface{}{
-		"aaaaaaaaa": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		"bbbbbbbbb": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-	}
-	pt, _ := NewPoint("point 1", tags, fields, timeNow)
-	input = append(input, pt)
-
-	fields = map[string]interface{}{
-		"aaaaaaaaa": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		"bbbbbbbbb": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-		"ccccccccc": "cccccccccccccccccccccccccccccccccccccccccccccccc",
-		"ddddddddd": "dddddddddddddddddddddddddddddddddddddddddddddddd",
-		"eeeeeeeee": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-		"fffffffff": "ffffffffffffffffffffffffffffffffffffffffffffffff",
-		"ggggggggg": "gggggggggggggggggggggggggggggggggggggggggggggggg",
-		"hhhhhhhhh": "hhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhh",
-		"iiiiiiiii": "iiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii",
-	}
-	pt, _ = NewPoint("point 2", tags, fields, timeNow)
-	input = append(input, pt)
-
-	pt, _ = NewPoint("point 3", tags, fields)
-	input = append(input, pt)
-
-	outputPointsCount = 4
-
-	return
-}
-
-func TestWriteChunks(t *testing.T) {
-	var (
-		UDPAddr       = "localhost:8888"
-		done          = make(chan bool)
-		input, output = testPoints()
-	)
-	addr, err := net.ResolveUDPAddr("udp", UDPAddr)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	conn, err := net.ListenUDP("udp", addr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer conn.Close()
-
-	go func() {
-		var counter int
-		for {
-			buf := make([]byte, 1024*4)
-			n, _, err := conn.ReadFromUDP(buf)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			points, err := models.ParsePoints([]byte(buf[:n]))
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			counter += len(points)
-
-			if counter == output {
-				done <- true
-				return
-			}
-		}
-	}()
-
-	client, err := NewUDPClient(UDPConfig{Addr: UDPAddr})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	bp, err := NewBatchPoints(BatchPointsConfig{
-		Precision:        "ns",
-		Database:         "db",
-		RetentionPolicy:  "rp",
-		WriteConsistency: "wc",
-	})
-
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, p := range input {
-		bp.AddPoint(p)
-	}
-
-	err = client.Write(bp)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	select {
-	case <-done:
-	case <-time.After(time.Second * 3):
-		t.Fatal("Input points count is not equal output points count")
 	}
 }
