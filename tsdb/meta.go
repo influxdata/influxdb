@@ -50,6 +50,9 @@ func NewDatabaseIndex(name string) *DatabaseIndex {
 	}
 }
 
+func (d *DatabaseIndex) Open() error  { return nil }
+func (d *DatabaseIndex) Close() error { return nil }
+
 // IndexStatistics maintains statistics for the index.
 type IndexStatistics struct {
 	NumSeries       int64
@@ -69,34 +72,29 @@ func (d *DatabaseIndex) Statistics(tags map[string]string) []models.Statistic {
 }
 
 // Series returns a series by key.
-func (d *DatabaseIndex) Series(key string) *Series {
+func (d *DatabaseIndex) Series(key string) (*Series, error) {
 	d.mu.RLock()
 	s := d.series[key]
 	d.mu.RUnlock()
-	return s
-}
-
-// SeriesBytes returns a series by key.
-func (d *DatabaseIndex) SeriesBytes(key []byte) *Series {
-	return d.Series(string(key))
+	return s, nil
 }
 
 // SeriesN returns the number of series.
-func (d *DatabaseIndex) SeriesN() int {
+func (d *DatabaseIndex) SeriesN() (int64, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return len(d.series)
+	return int64(len(d.series)), nil
 }
 
 // Measurement returns the measurement object from the index by the name
-func (d *DatabaseIndex) Measurement(name string) *Measurement {
+func (d *DatabaseIndex) Measurement(name string) (*Measurement, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.measurements[name]
+	return d.measurements[name], nil
 }
 
 // MeasurementsByName returns a list of measurements.
-func (d *DatabaseIndex) MeasurementsByName(names []string) []*Measurement {
+func (d *DatabaseIndex) MeasurementsByName(names []string) ([]*Measurement, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -106,30 +104,30 @@ func (d *DatabaseIndex) MeasurementsByName(names []string) []*Measurement {
 			a = append(a, m)
 		}
 	}
-	return a
+	return a, nil
 }
 
 // CreateSeriesIndexIfNotExists adds the series for the given measurement to the
 // index and sets its ID or returns the existing series object
-func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, series *Series) *Series {
+func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, series *Series) (*Series, error) {
 	d.mu.RLock()
 	// if there is a measurement for this id, it's already been added
 	ss := d.series[series.Key]
 	if ss != nil {
 		d.mu.RUnlock()
-		return ss
+		return ss, nil
 	}
 	d.mu.RUnlock()
 
 	// get or create the measurement index
-	m := d.CreateMeasurementIndexIfNotExists(measurementName)
+	m, _ := d.CreateMeasurementIndexIfNotExists(measurementName)
 
 	d.mu.Lock()
 	// Check for the series again under a write lock
 	ss = d.series[series.Key]
 	if ss != nil {
 		d.mu.Unlock()
-		return ss
+		return ss, nil
 	}
 
 	// set the in memory ID for query processing on this shard
@@ -144,12 +142,12 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 	atomic.AddInt64(&d.stats.NumSeries, 1)
 	d.mu.Unlock()
 
-	return series
+	return series, nil
 }
 
 // CreateMeasurementIndexIfNotExists creates or retrieves an in memory index
 // object for the measurement
-func (d *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) *Measurement {
+func (d *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) (*Measurement, error) {
 	name = escape.UnescapeString(name)
 
 	// See if the measurement exists using a read-lock
@@ -157,7 +155,7 @@ func (d *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) *Measurem
 	m := d.measurements[name]
 	if m != nil {
 		d.mu.RUnlock()
-		return m
+		return m, nil
 	}
 	d.mu.RUnlock()
 
@@ -173,19 +171,19 @@ func (d *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) *Measurem
 		d.measurements[name] = m
 		atomic.AddInt64(&d.stats.NumMeasurements, 1)
 	}
-	return m
+	return m, nil
 }
 
 // TagsForSeries returns the tag map for the passed in series
-func (d *DatabaseIndex) TagsForSeries(key string) models.Tags {
+func (d *DatabaseIndex) TagsForSeries(key string) (models.Tags, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
 	ss := d.series[key]
 	if ss == nil {
-		return nil
+		return nil, nil
 	}
-	return ss.Tags
+	return ss.Tags, nil
 }
 
 // MeasurementsByExpr takes an expression containing only tags and returns a
@@ -363,7 +361,7 @@ func (d *DatabaseIndex) measurementsByTagFilters(filters []*TagFilter) Measureme
 }
 
 // MeasurementsByRegex returns the measurements that match the regex.
-func (d *DatabaseIndex) MeasurementsByRegex(re *regexp.Regexp) Measurements {
+func (d *DatabaseIndex) MeasurementsByRegex(re *regexp.Regexp) (Measurements, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
@@ -373,11 +371,11 @@ func (d *DatabaseIndex) MeasurementsByRegex(re *regexp.Regexp) Measurements {
 			matches = append(matches, m)
 		}
 	}
-	return matches
+	return matches, nil
 }
 
 // Measurements returns a list of all measurements.
-func (d *DatabaseIndex) Measurements() Measurements {
+func (d *DatabaseIndex) Measurements() (Measurements, error) {
 	d.mu.RLock()
 	measurements := make(Measurements, 0, len(d.measurements))
 	for _, m := range d.measurements {
@@ -385,15 +383,16 @@ func (d *DatabaseIndex) Measurements() Measurements {
 	}
 	d.mu.RUnlock()
 
-	return measurements
+	return measurements, nil
 }
 
 // DropMeasurement removes the measurement and all of its underlying
 // series from the database index
-func (d *DatabaseIndex) DropMeasurement(name string) {
+func (d *DatabaseIndex) DropMeasurement(name string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	d.dropMeasurement(name)
+	return nil
 }
 
 func (d *DatabaseIndex) dropMeasurement(name string) {
@@ -412,9 +411,9 @@ func (d *DatabaseIndex) dropMeasurement(name string) {
 }
 
 // DropSeries removes the series keys and their tags from the index
-func (d *DatabaseIndex) DropSeries(keys []string) {
+func (d *DatabaseIndex) DropSeries(keys []string) error {
 	if len(keys) == 0 {
-		return
+		return nil
 	}
 
 	d.mu.Lock()
@@ -445,6 +444,7 @@ func (d *DatabaseIndex) DropSeries(keys []string) {
 		d.dropMeasurement(mname)
 	}
 	atomic.AddInt64(&d.stats.NumSeries, -nDeleted)
+	return nil
 }
 
 // Dereference removes all references to data within b and moves them to the heap.

@@ -43,7 +43,10 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	}
 
 	// Verify index is correct.
-	if m := index.Measurement("cpu"); m == nil {
+	m, err := index.Measurement("cpu")
+	if err != nil {
+		t.Fatal(err)
+	} else if m == nil {
 		t.Fatal("measurement not found")
 	} else if s := m.SeriesByID(1); s.Key != "cpu,host=A" || !reflect.DeepEqual(s.Tags, models.NewTags(map[string]string{"host": "A"})) {
 		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags)
@@ -66,7 +69,9 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	}
 
 	// Verify index is correct.
-	if m := index.Measurement("cpu"); m == nil {
+	if m, err = index.Measurement("cpu"); err != nil {
+		t.Fatal(err)
+	} else if m == nil {
 		t.Fatal("measurement not found")
 	} else if s := m.SeriesByID(1); s.Key != "cpu,host=A" || !reflect.DeepEqual(s.Tags, models.NewTags(map[string]string{"host": "A"})) {
 		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags)
@@ -91,7 +96,9 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	}
 
 	// Verify index is correct.
-	if m := index.Measurement("cpu"); m == nil {
+	if m, err = index.Measurement("cpu"); err != nil {
+		t.Fatal(err)
+	} else if m == nil {
 		t.Fatal("measurement not found")
 	} else if s := m.SeriesByID(1); s.Key != "cpu,host=A" || !reflect.DeepEqual(s.Tags, models.NewTags(map[string]string{"host": "A"})) {
 		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags)

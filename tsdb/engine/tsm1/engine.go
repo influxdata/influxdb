@@ -99,7 +99,7 @@ type Engine struct {
 	logOutput    io.Writer   // Writer to be logger and traceLogger if active.
 	traceLogging bool
 
-	index             *tsdb.DatabaseIndex
+	index             tsdb.Index
 	measurementFields map[string]*tsdb.MeasurementFields
 
 	WAL            *WAL
@@ -280,11 +280,11 @@ func (e *Engine) disableSnapshotCompactions() {
 func (e *Engine) Path() string { return e.path }
 
 func (e *Engine) Measurement(name string) (*tsdb.Measurement, error) {
-	return e.index.Measurement(name), nil
+	return e.index.Measurement(name)
 }
 
 func (e *Engine) Measurements() (tsdb.Measurements, error) {
-	return e.index.Measurements(), nil
+	return e.index.Measurements()
 }
 
 func (e *Engine) MeasurementCardinality() (int64, error) {
@@ -296,7 +296,7 @@ func (e *Engine) MeasurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool
 }
 
 func (e *Engine) MeasurementsByRegex(re *regexp.Regexp) (tsdb.Measurements, error) {
-	return e.index.MeasurementsByRegex(re), nil
+	return e.index.MeasurementsByRegex(re)
 }
 
 // MeasurementFields returns the measurement fields for a measurement.
@@ -430,6 +430,12 @@ func (e *Engine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.done = nil // Ensures that the channel will not be closed again.
+
+	if e.index != nil {
+		if err := e.index.Close(); err != nil {
+			return err
+		}
+	}
 
 	if err := e.FileStore.Close(); err != nil {
 		return err
@@ -650,7 +656,7 @@ func (e *Engine) addToIndexFromKey(shardID uint64, key []byte, fieldType influxq
 	seriesKey, field := SeriesAndFieldFromCompositeKey(key)
 	measurement := tsdb.MeasurementFromSeriesKey(string(seriesKey))
 
-	m := index.CreateMeasurementIndexIfNotExists(measurement)
+	m, _ := index.CreateMeasurementIndexIfNotExists(measurement)
 	m.SetFieldName(field)
 
 	mf := e.measurementFields[measurement]
@@ -664,8 +670,10 @@ func (e *Engine) addToIndexFromKey(shardID uint64, key []byte, fieldType influxq
 	}
 
 	// Have we already indexed this series?
-	ss := index.SeriesBytes(seriesKey)
-	if ss != nil {
+	ss, err := index.Series(string(seriesKey))
+	if err != nil {
+		return err
+	} else if ss != nil {
 		return nil
 	}
 
@@ -836,14 +844,12 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 			toDelete = append(toDelete, k)
 		}
 	}
-	e.index.DropSeries(toDelete)
-
-	return nil
+	return e.index.DropSeries(toDelete)
 }
 
 // CreateMeasurement creates a measurement on the index.
 func (e *Engine) CreateMeasurement(name string) (*tsdb.Measurement, error) {
-	return e.index.CreateMeasurementIndexIfNotExists(name), nil
+	return e.index.CreateMeasurementIndexIfNotExists(name)
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
@@ -857,17 +863,16 @@ func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
 	}
 
 	// Remove the measurement from the index.
-	e.index.DropMeasurement(name)
-	return nil
+	return e.index.DropMeasurement(name)
 }
 
 func (e *Engine) CreateSeries(measurment string, series *tsdb.Series) (*tsdb.Series, error) {
-	return e.index.CreateSeriesIndexIfNotExists(measurment, series), nil
+	return e.index.CreateSeriesIndexIfNotExists(measurment, series)
 }
 
 // Series returns a series from the index.
 func (e *Engine) Series(key string) (*tsdb.Series, error) {
-	return e.index.Series(key), nil
+	return e.index.Series(key)
 }
 
 func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
@@ -1328,7 +1333,11 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions, aggregate bo
 
 	var itrs []influxql.Iterator
 	if err := func() error {
-		mms := tsdb.Measurements(e.index.MeasurementsByName(influxql.Sources(opt.Sources).Names()))
+		mByName, err := e.index.MeasurementsByName(influxql.Sources(opt.Sources).Names())
+		if err != nil {
+			return err
+		}
+		mms := tsdb.Measurements(mByName)
 
 		for _, mm := range mms {
 			// Determine tagsets for this measurement based on dimensions and filters.
@@ -1458,7 +1467,12 @@ func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, mm *tsdb.Measu
 
 // createVarRefSeriesIterator creates an iterator for a variable reference for a series.
 func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measurement, seriesKey string, t *influxql.TagSet, filter influxql.Expr, conditionFields []influxql.VarRef, opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	tags := influxql.NewTags(e.index.TagsForSeries(seriesKey).Map())
+	tfs, err := e.index.TagsForSeries(seriesKey)
+	if err != nil {
+		return nil, err
+	}
+
+	tags := influxql.NewTags(tfs.Map())
 
 	// Create options specific for this series.
 	itrOpt := opt
