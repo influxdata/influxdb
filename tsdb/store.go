@@ -453,9 +453,16 @@ func (s *Store) DeleteMeasurement(database, name string) error {
 }
 
 // filterShards returns a slice of shards where fn returns true
-// for the shard.
+// for the shard. If the provided predicate is nil then all shards are returned.
 func (s *Store) filterShards(fn func(sh *Shard) bool) []*Shard {
-	shards := make([]*Shard, 0, len(s.shards))
+	var shards []*Shard
+	if fn == nil {
+		shards = make([]*Shard, 0, len(s.shards))
+		fn = func(*Shard) bool { return true }
+	} else {
+		shards = make([]*Shard, 0)
+	}
+
 	for _, sh := range s.shards {
 		if fn(sh) {
 			shards = append(shards, sh)
@@ -507,21 +514,6 @@ func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
 	return err
 }
 
-// ShardIDs returns a slice of all ShardIDs under management.
-func (s *Store) ShardIDs() []uint64 {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.shardIDs()
-}
-
-func (s *Store) shardIDs() []uint64 {
-	a := make([]uint64, 0, len(s.shards))
-	for shardID := range s.shards {
-		a = append(a, shardID)
-	}
-	return a
-}
-
 // shardsSlice returns an ordered list of shards.
 func (s *Store) shardsSlice() []*Shard {
 	a := make([]*Shard, 0, len(s.shards))
@@ -547,18 +539,31 @@ func (s *Store) Databases() []string {
 // DiskSize returns the size of all the shard files in bytes.
 // This size does not include the WAL size.
 func (s *Store) DiskSize() (int64, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
 	var size int64
-	for _, shardID := range s.ShardIDs() {
-		shard := s.Shard(shardID)
-		sz, err := shard.DiskSize()
+
+	s.mu.RLock()
+	allShards := s.filterShards(nil)
+	s.mu.RUnlock()
+
+	for _, sh := range allShards {
+		sz, err := sh.DiskSize()
 		if err != nil {
 			return 0, err
 		}
 		size += sz
 	}
 	return size, nil
+}
+
+// SeriesCardinality returns the series cardinality for the provided database.
+func (s *Store) SeriesCardinality(database string) (int64, error) {
+	panic("TODO: edd")
+}
+
+// MeasurementsCardinality returns the measurement cardinality for the provided
+// database.
+func (s *Store) MeasurementsCardinality(database string) (int64, error) {
+	panic("TODO: edd")
 }
 
 // BackupShard will get the shard and have the engine backup since the passed in
@@ -672,14 +677,6 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	}
 
 	// delete the raw series data.
-	return s.deleteSeries(database, seriesKeys, min, max)
-}
-
-func (s *Store) deleteSeries(database string, seriesKeys []string, min, max int64) error {
-	s.mu.RLock()
-	shards := s.filterShards(byDatabase(database))
-	s.mu.RUnlock()
-
 	return s.walkShards(shards, func(sh *Shard) error {
 		if err := sh.DeleteSeriesRange(seriesKeys, min, max); err != nil {
 			return err
@@ -947,9 +944,9 @@ func (e *Store) filterShowSeriesResult(limit, offset int, rows models.Rows) mode
 	return filteredSeries
 }
 
-// DecodeStorePath extracts the database and retention policy names
+// decodeStorePath extracts the database and retention policy names
 // from a given shard or WAL path.
-func DecodeStorePath(shardOrWALPath string) (database, retentionPolicy string) {
+func decodeStorePath(shardOrWALPath string) (database, retentionPolicy string) {
 	// shardOrWALPath format: /maybe/absolute/base/then/:database/:retentionPolicy/:nameOfShardOrWAL
 
 	// Discard the last part of the path (the shard name or the wal name).

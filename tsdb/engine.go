@@ -27,10 +27,13 @@ var (
 type Engine interface {
 	Open() error
 	Close() error
+	SetEnabled(enabled bool)
 
 	SetLogOutput(io.Writer)
+
 	LoadMetadataIndex(shardID uint64, index *DatabaseIndex) error
 
+	CreateSnapshot() (string, error)
 	Backup(w io.Writer, basePath string, since time.Time) error
 	Restore(r io.Reader, basePath string) error
 
@@ -38,25 +41,18 @@ type Engine interface {
 	WritePoints(points []models.Point) error
 
 	CreateSeries(measurment string, series *Series) (*Series, error)
-	Series(key string) (*Series, error)
-	ContainsSeries(keys []string) (map[string]bool, error)
-	DeleteSeries(keys []string) error
 	DeleteSeriesRange(keys []string, min, max int64) error
-	SeriesCount() (n int, err error)
+	Series(key string) (*Series, error)
+	SeriesCardinality() (n int64, err error)
 
 	CreateMeasurement(name string) (*Measurement, error)
+	DeleteMeasurement(name string, seriesKeys []string) error
 	Measurement(name string) (*Measurement, error)
 	Measurements() (Measurements, error)
+	MeasurementCardinality() (n int64, err error)
 	MeasurementsByExpr(expr influxql.Expr) (Measurements, bool, error)
 	MeasurementsByRegex(re *regexp.Regexp) (Measurements, error)
 	MeasurementFields(measurement string) *MeasurementFields
-	DeleteMeasurement(name string, seriesKeys []string) error
-
-	CreateSnapshot() (string, error)
-	SetEnabled(enabled bool)
-
-	// Format will return the format for the engine
-	Format() EngineFormat
 
 	// Statistics will return statistics relevant to this engine.
 	Statistics(tags map[string]string) []models.Statistic
