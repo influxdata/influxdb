@@ -52,7 +52,7 @@ func main() {
 			c.Read.QueryClients.Basic.Database = *db
 		}
 
-		w := stress.NewWriter(&c.Write.PointGenerators.Basic, &c.Write.InfluxClients.Basic)
+		w := stress.NewWriter(c.Write.PointGenerators.Basic, &c.Write.InfluxClients.Basic)
 		r := stress.NewQuerier(&c.Read.QueryGenerators.Basic, &c.Read.QueryClients.Basic)
 		s := stress.NewStressTest(&c.Provision.Basic, w, r)
 

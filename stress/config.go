@@ -31,7 +31,7 @@ type Write struct {
 // PointGenerators is a struct that contains the configuration
 // parameters for all implemented PointGenerator's.
 type PointGenerators struct {
-	Basic BasicPointGenerator `toml:"basic"`
+	Basic *BasicPointGenerator `toml:"basic"`
 }
 
 // InfluxClients is a struct that contains the configuration

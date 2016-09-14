@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestnewShardOwner(t *testing.T) {
+func Test_newShardOwner(t *testing.T) {
 	// An error is returned if there are no data nodes available.
 	_, err := NewShardOwner(ShardInfo{}, map[int]int{})
 	if err == nil {
