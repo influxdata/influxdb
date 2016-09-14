@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -114,7 +115,7 @@ type Shard struct {
 
 // NewShard returns a new initialized Shard. walPath doesn't apply to the b1 type index
 func NewShard(id uint64, path string, walPath string, options EngineOptions) *Shard {
-	db, rp := DecodeStorePath(path)
+	db, rp := decodeStorePath(path)
 	s := &Shard{
 		id:      id,
 		path:    path,
@@ -187,7 +188,7 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 		return nil
 	}
 
-	seriesN, _ := s.engine.SeriesCount()
+	seriesN, _ := s.engine.SeriesCardinality()
 	tags = s.defaultTags.Merge(tags)
 	statistics := []models.Statistic{{
 		Name: "shard",
@@ -249,7 +250,7 @@ func (s *Shard) Open() error {
 
 		s.engine = e
 
-		count, err := s.engine.SeriesCount()
+		count, err := s.engine.SeriesCardinality()
 		if err != nil {
 			return err
 		}
@@ -391,23 +392,9 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	return nil
 }
 
-func (s *Shard) ContainsSeries(seriesKeys []string) (map[string]bool, error) {
-	if err := s.ready(); err != nil {
-		return nil, err
-	}
-
-	return s.engine.ContainsSeries(seriesKeys)
-}
-
 // DeleteSeries deletes a list of series.
 func (s *Shard) DeleteSeries(seriesKeys []string) error {
-	if err := s.ready(); err != nil {
-		return err
-	}
-	if err := s.engine.DeleteSeries(seriesKeys); err != nil {
-		return err
-	}
-	return nil
+	return s.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
 }
 
 // DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
@@ -500,12 +487,12 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 		}
 
 		if ss == nil {
-			cnt, err := s.engine.SeriesCount()
+			cnt, err := s.engine.SeriesCardinality()
 			if err != nil {
 				return nil, err
 			}
 
-			if s.options.Config.MaxSeriesPerDatabase > 0 && cnt+1 > s.options.Config.MaxSeriesPerDatabase {
+			if s.options.Config.MaxSeriesPerDatabase > 0 && cnt+1 > int64(s.options.Config.MaxSeriesPerDatabase) {
 				return nil, fmt.Errorf("max series per database exceeded: %s", key)
 			}
 
@@ -563,12 +550,12 @@ func (s *Shard) MeasurementsByExpr(cond influxql.Expr) (Measurements, bool, erro
 	return s.engine.MeasurementsByExpr(cond)
 }
 
-// SeriesCount returns the number of series buckets on the shard.
-func (s *Shard) SeriesCount() (int, error) {
+// SeriesCardinality returns the number of series buckets on the shard.
+func (s *Shard) SeriesCardinality() (int64, error) {
 	if err := s.ready(); err != nil {
 		return 0, err
 	}
-	return s.engine.SeriesCount()
+	return s.engine.SeriesCardinality()
 }
 
 // Series returns a series by key.
