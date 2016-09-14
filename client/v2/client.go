@@ -58,7 +58,8 @@ type BatchPointsConfig struct {
 
 // Client is a client interface for writing & querying the database
 type Client interface {
-	// Ping checks that status of cluster
+	// Ping checks that status of cluster, and will always return 0 time and no
+	// error for UDP clients
 	Ping(timeout time.Duration) (time.Duration, string, error)
 
 	// Write takes a BatchPoints object and writes all Points to InfluxDB.

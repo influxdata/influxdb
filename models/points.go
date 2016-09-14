@@ -80,6 +80,16 @@ type Point interface {
 	// string representations are no longer than size. Points with a single field or
 	// a point without a timestamp may exceed the requested size.
 	Split(size int) []Point
+
+	// Round will round the timestamp of the point to the given duration
+	Round(d time.Duration)
+
+	// StringSize returns the length of the string that would be returned by String()
+	StringSize() int
+
+	// AppendString appends the result of String() to the provided buffer and returns
+	// the result, potentially reducing string allocations
+	AppendString(buf []byte) []byte
 }
 
 // Points represents a sortable list of points by timestamp.
@@ -1234,6 +1244,11 @@ func (p *point) SetTime(t time.Time) {
 	p.time = t
 }
 
+// Round implements Point.Round
+func (p *point) Round(d time.Duration) {
+	p.time = p.time.Round(d)
+}
+
 // Tags returns the tag set for the point
 func (p *point) Tags() Tags {
 	return parseTags(p.key)
@@ -1330,6 +1345,41 @@ func (p *point) String() string {
 		return string(p.Key()) + " " + string(p.fields)
 	}
 	return string(p.Key()) + " " + string(p.fields) + " " + strconv.FormatInt(p.UnixNano(), 10)
+}
+
+// AppendString implements Point.AppendString
+func (p *point) AppendString(buf []byte) []byte {
+	buf = append(buf, p.key...)
+	buf = append(buf, ' ')
+	buf = append(buf, p.fields...)
+
+	if !p.time.IsZero() {
+		buf = append(buf, ' ')
+		buf = strconv.AppendInt(buf, p.UnixNano(), 10)
+	}
+
+	return buf
+}
+
+func (p *point) StringSize() int {
+	size := len(p.key) + len(p.fields) + 1
+
+	if !p.time.IsZero() {
+		digits := 1 // even "0" has one digit
+		t := p.UnixNano()
+		if t < 0 {
+			// account for negative sign, then negate
+			digits++
+			t = -t
+		}
+		for t > 9 { // already accounted for one digit
+			digits++
+			t /= 10
+		}
+		size += digits + 1 // digits and a space
+	}
+
+	return size
 }
 
 func (p *point) MarshalBinary() ([]byte, error) {

@@ -21,8 +21,8 @@ var (
 		"uint32":        uint32(math.MaxUint32),
 		"string":        "String field that has a decent length, probably some log message or something",
 		"boolean":       false,
-		"float64-tiny":  math.SmallestNonzeroFloat64,
-		"float64-large": math.MaxFloat64,
+		"float64-tiny":  float64(math.SmallestNonzeroFloat64),
+		"float64-large": float64(math.MaxFloat64),
 	}
 	maxFloat64 = strconv.FormatFloat(math.MaxFloat64, 'f', 1, 64)
 	minFloat64 = strconv.FormatFloat(-math.MaxFloat64, 'f', 1, 64)
@@ -40,6 +40,50 @@ func TestMarshal(t *testing.T) {
 func BenchmarkMarshal(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		tags.HashKey()
+	}
+}
+
+func TestPoint_StringSize(t *testing.T) {
+	testPoint_cube(t, func(p models.Point) {
+		l := p.StringSize()
+		s := p.String()
+
+		if l != len(s) {
+			t.Errorf("Incorrect length for %q. got %v, exp %v", s, l, len(s))
+		}
+	})
+
+}
+
+func TestPoint_AppendString(t *testing.T) {
+	testPoint_cube(t, func(p models.Point) {
+		got := p.AppendString(nil)
+		exp := []byte(p.String())
+
+		if !reflect.DeepEqual(exp, got) {
+			t.Errorf("AppendString() didn't match String(): got %v, exp %v", got, exp)
+		}
+	})
+}
+
+func testPoint_cube(t *testing.T, f func(p models.Point)) {
+	// heard of a table-driven test? let's make a cube-driven test...
+	tagList := []models.Tags{nil, {{[]byte("foo"), []byte("bar")}}, tags}
+	fieldList := []models.Fields{{"a": 42.0}, {"a": 42, "b": "things"}, fields}
+	timeList := []time.Time{time.Time{}, time.Unix(0, 0), time.Unix(-34526, 0), time.Unix(231845, 0), time.Now()}
+
+	for _, tagSet := range tagList {
+		for _, fieldSet := range fieldList {
+			for _, pointTime := range timeList {
+				p, err := models.NewPoint("test", tagSet, fieldSet, pointTime)
+				if err != nil {
+					t.Errorf("unexpected error creating point: %v", err)
+					continue
+				}
+
+				f(p)
+			}
+		}
 	}
 }
 

@@ -1,23 +1,16 @@
 package client
 
 import (
-	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"net"
 	"time"
 )
 
-var ErrLargePoint = errors.New("point exceeds allowed size")
-
 const (
 	// UDPPayloadSize is a reasonable default payload size for UDP packets that
 	// could be travelling over the internet.
 	UDPPayloadSize = 512
-
-	// MaxPayloadSize is a safe maximum limit for a UDP payload over IPv4
-	MaxUDPPayloadSize = 65467
 )
 
 // UDPConfig is the config data needed to create a UDP Client
@@ -27,7 +20,7 @@ type UDPConfig struct {
 	Addr string
 
 	// PayloadSize is the maximum size of a UDP client message, optional
-	// Tune this based on your network. Defaults to UDPBufferSize.
+	// Tune this based on your network. Defaults to UDPPayloadSize.
 	PayloadSize int
 }
 
@@ -56,12 +49,6 @@ func NewUDPClient(conf UDPConfig) (Client, error) {
 	}, nil
 }
 
-// Ping will check to see if the server is up with an optional timeout on waiting for leader.
-// Ping returns how long the request took, the version of the server it connected to, and an error if one occurred.
-func (uc *udpclient) Ping(timeout time.Duration) (time.Duration, string, error) {
-	return 0, "", nil
-}
-
 // Close releases the udpclient's resources.
 func (uc *udpclient) Close() error {
 	return uc.conn.Close()
@@ -73,45 +60,43 @@ type udpclient struct {
 }
 
 func (uc *udpclient) Write(bp BatchPoints) error {
-	var b bytes.Buffer
-	var d time.Duration
-	d, _ = time.ParseDuration("1" + bp.Precision())
+	var b = make([]byte, 0, uc.payloadSize) // initial buffer size, it will grow as needed
+	var d, _ = time.ParseDuration("1" + bp.Precision())
 
 	var delayedError error
 
-	var checkBuffer = func(s string) {
-		if b.Len() > 0 && b.Len()+len(s) > uc.payloadSize {
-			if _, err := uc.conn.Write(b.Bytes()); err != nil {
+	var checkBuffer = func(n int) {
+		if len(b) > 0 && len(b)+n > uc.payloadSize {
+			if _, err := uc.conn.Write(b); err != nil {
 				delayedError = err
 			}
-			b.Reset()
+			b = b[:0]
 		}
 	}
 
 	for _, p := range bp.Points() {
-		point := p.pt.RoundedString(d) + "\n"
-		if len(point) > MaxUDPPayloadSize {
-			delayedError = ErrLargePoint
+		p.pt.Round(d)
+		pointSize := p.pt.StringSize() + 1 // include newline in size
+		//point := p.pt.RoundedString(d) + "\n"
+
+		checkBuffer(pointSize)
+
+		if p.Time().IsZero() || pointSize <= uc.payloadSize {
+			b = p.pt.AppendString(b)
+			b = append(b, '\n')
 			continue
 		}
 
-		checkBuffer(point)
-
-		if p.Time().IsZero() || len(point) <= uc.payloadSize {
-			b.WriteString(point)
-			continue
-		}
-
-		points := p.pt.Split(uc.payloadSize - 1) // newline will be added
+		points := p.pt.Split(uc.payloadSize - 1) // account for newline character
 		for _, sp := range points {
-			point = sp.RoundedString(d) + "\n"
-			checkBuffer(point)
-			b.WriteString(point)
+			checkBuffer(sp.StringSize() + 1)
+			b = sp.AppendString(b)
+			b = append(b, '\n')
 		}
 	}
 
-	if b.Len() > 0 {
-		if _, err := uc.conn.Write(b.Bytes()); err != nil {
+	if len(b) > 0 {
+		if _, err := uc.conn.Write(b); err != nil {
 			return err
 		}
 	}
@@ -120,4 +105,8 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 
 func (uc *udpclient) Query(q Query) (*Response, error) {
 	return nil, fmt.Errorf("Querying via UDP is not supported")
+}
+
+func (uc *udpclient) Ping(timeout time.Duration) (time.Duration, string, error) {
+	return 0, "", nil
 }
