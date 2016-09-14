@@ -2431,12 +2431,6 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 			p.unscan()
 		}
 		return wc, nil
-	case REGEX:
-		re, err := regexp.Compile(lit)
-		if err != nil {
-			return nil, &ParseError{Message: err.Error(), Pos: pos}
-		}
-		return &RegexLiteral{Val: re}, nil
 	case BOUNDPARAM:
 		k := strings.TrimPrefix(lit, "$")
 		if len(k) == 0 {
