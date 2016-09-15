@@ -66,13 +66,20 @@ func Test_Influx_CancelsInFlightRequests(t *testing.T) {
 	series, _ := influx.NewClient(ts.URL)
 	ctx, cancel := context.WithCancel(context.Background())
 
+	errs := make(chan (error))
 	go func() {
-		_, _ = series.Query(ctx, "show databases")
+		_, err := series.Query(ctx, "show databases")
+		errs <- err
 	}()
 
 	cancel()
 
 	if started != true && finished != false {
 		t.Errorf("Expected cancellation during request processing. Started: %t. Finished: %t", started, finished)
+	}
+
+	err := <-errs
+	if _, ok := err.(influx.TimeoutError); !ok {
+		t.Error("Expected TimeoutError but wasn't. err was", err)
 	}
 }

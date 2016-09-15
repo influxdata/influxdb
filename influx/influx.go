@@ -43,6 +43,6 @@ func (c *Client) Query(ctx context.Context, query mrfusion.Query) (mrfusion.Resp
 	case resp := <-resps:
 		return resp, resp.err
 	case <-ctx.Done():
-		return nil, nil
+		return nil, TimeoutError{}
 	}
 }
