@@ -62,6 +62,8 @@ type MrFusionAPI struct {
 	GetSourcesHandler GetSourcesHandler
 	// GetSourcesIDHandler sets the operation handler for the get sources ID operation
 	GetSourcesIDHandler GetSourcesIDHandler
+	// GetSourcesIDMonitoredHandler sets the operation handler for the get sources ID monitored operation
+	GetSourcesIDMonitoredHandler GetSourcesIDMonitoredHandler
 	// GetSourcesIDPermissionsHandler sets the operation handler for the get sources ID permissions operation
 	GetSourcesIDPermissionsHandler GetSourcesIDPermissionsHandler
 	// GetSourcesIDRolesHandler sets the operation handler for the get sources ID roles operation
@@ -199,6 +201,10 @@ func (o *MrFusionAPI) Validate() error {
 
 	if o.GetSourcesIDHandler == nil {
 		unregistered = append(unregistered, "GetSourcesIDHandler")
+	}
+
+	if o.GetSourcesIDMonitoredHandler == nil {
+		unregistered = append(unregistered, "GetSourcesIDMonitoredHandler")
 	}
 
 	if o.GetSourcesIDPermissionsHandler == nil {
@@ -395,6 +401,11 @@ func (o *MrFusionAPI) initHandlerCache() {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
 	}
 	o.handlers["GET"]["/sources/{id}"] = NewGetSourcesID(o.context, o.GetSourcesIDHandler)
+
+	if o.handlers["GET"] == nil {
+		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
+	}
+	o.handlers["GET"]["/sources/{id}/monitored"] = NewGetSourcesIDMonitored(o.context, o.GetSourcesIDMonitoredHandler)
 
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)

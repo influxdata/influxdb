@@ -26,7 +26,7 @@ type Role struct {
 	Users       []User
 }
 
-// Storage and retrieval of authentication information
+// AuthStore is the Storage and retrieval of authentication information
 type AuthStore struct {
 	Permissions interface {
 		// Returns a list of all possible permissions support by the AuthStore.
@@ -67,6 +67,7 @@ type Exploration struct {
 	UpdatedAt time.Time // Latest time the exploration was updated.
 }
 
+// ExplorationStore stores front-end serializations of explorater sessions
 type ExplorationStore interface {
 	// Search the ExplorationStore for all explorations owned by userID.
 	Query(ctx context.Context, userID int) ([]Exploration, error)
@@ -95,13 +96,13 @@ type Dashboard struct {
 	Cells []Cell
 }
 
-// Stores Dashboards and associated Cells
+// DashboardStore stores dashboards and associated Cells
 type DashboardStore interface {
-	// Create a new dashboard in the DashboardStore
+	// Add creates a new dashboard in the DashboardStore
 	Add(context.Context, Dashboard) error
 	// Delete the dashboard from the store
 	Delete(context.Context, Dashboard) error
-	// Retrieve Dashboard if `ID` exists
+	// Get retrieves Dashboard if `ID` exists
 	Get(ctx context.Context, ID int) error
 	// Update the dashboard in the store.
 	Update(context.Context, Dashboard) error

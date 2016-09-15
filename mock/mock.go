@@ -132,3 +132,31 @@ func NewResponse(result mrfusion.Result) mrfusion.Response {
 func (r *Response) Results() ([]mrfusion.Result, error) {
 	return r.results, nil
 }
+
+type TimeSeries struct {
+	Hosts    []string
+	Response mrfusion.Response
+}
+
+func NewTimeSeries(hosts []string, response mrfusion.Response) mrfusion.TimeSeries {
+	return &TimeSeries{
+		Hosts:    hosts,
+		Response: response,
+	}
+}
+
+var DefaultTimeSeries mrfusion.TimeSeries = NewTimeSeries([]string{"hydrogen", "helium", "hadron", "howdy"}, SampleResponse)
+
+func (t *TimeSeries) Query(context.Context, mrfusion.Query) (mrfusion.Response, error) {
+	return t.Response, nil
+}
+
+func (t *TimeSeries) MonitoredServices(context.Context) ([]mrfusion.MonitoredService, error) {
+	hosts := make([]mrfusion.MonitoredService, len(t.Hosts))
+	for i, name := range t.Hosts {
+		hosts[i].Type = "host"
+		hosts[i].TagKey = "host"
+		hosts[i].TagValue = name
+	}
+	return hosts, nil
+}

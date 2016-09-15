@@ -47,6 +47,43 @@ func (o *GetSourcesIDPermissionsOK) WriteResponse(rw http.ResponseWriter, produc
 
 }
 
+/*GetSourcesIDPermissionsNotFound Data source id does not exist.
+
+swagger:response getSourcesIdPermissionsNotFound
+*/
+type GetSourcesIDPermissionsNotFound struct {
+
+	// In: body
+	Payload *models.Error `json:"body,omitempty"`
+}
+
+// NewGetSourcesIDPermissionsNotFound creates GetSourcesIDPermissionsNotFound with default headers values
+func NewGetSourcesIDPermissionsNotFound() *GetSourcesIDPermissionsNotFound {
+	return &GetSourcesIDPermissionsNotFound{}
+}
+
+// WithPayload adds the payload to the get sources Id permissions not found response
+func (o *GetSourcesIDPermissionsNotFound) WithPayload(payload *models.Error) *GetSourcesIDPermissionsNotFound {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the get sources Id permissions not found response
+func (o *GetSourcesIDPermissionsNotFound) SetPayload(payload *models.Error) {
+	o.Payload = payload
+}
+
+// WriteResponse to the client
+func (o *GetSourcesIDPermissionsNotFound) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.WriteHeader(404)
+	if o.Payload != nil {
+		if err := producer.Produce(rw, o.Payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
+	}
+}
+
 /*GetSourcesIDPermissionsDefault Unexpected internal service error
 
 swagger:response getSourcesIdPermissionsDefault
