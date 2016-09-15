@@ -1088,7 +1088,11 @@ func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr) (SeriesIDs, Filt
 				return nil, nil, err
 			}
 
-			filters := FilterExprs{}
+			if len(ids) == 0 {
+				return ids, nil, nil
+			}
+
+			filters := make(FilterExprs, len(ids))
 			for _, id := range ids {
 				filters[id] = expr
 			}
