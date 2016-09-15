@@ -1,4 +1,8 @@
-# Influx Stress tool
+# Influx Stress Tool V2
+
+```
+$ influx_stress -v2 -config iql/file.iql
+```
 
 This stress tool works from list of InfluxQL-esque statements. The language has been extended to allow for some basic templating of fields, tags and measurements in both line protocol and query statements.
 
@@ -64,8 +68,8 @@ You can write points like this:
 ```
 INSERT mockCpu
 cpu,
-host=server-[int rand(100) 10000],location=[string rand(8) 1000]
-value=[float inc(0) 0]
+host=server-[int inc(0) 10000],location=[string rand(8) 1000]
+value=[float rand(1000) 0]
 100000 10s
 
 Explained:
@@ -103,7 +107,13 @@ WAIT
 
 Fastest point generation and write load requires 3-4 running `GO INSERT` statements at a time.
 
-This tool is still under active development and has rough edges. Work is continuing.
+You can run queries like this:
+
+```
+QUERY cpu
+SELECT mean(value) FROM cpu WHERE host='server-1'
+DO 1000
+```
 
 ### Output:
 Output for config file in this repo:
@@ -157,16 +167,11 @@ WAIT -> 624.585319ms
 
 ### Next Steps:
 
-##### Reporting
-- Only use one database for reporting
-- Get feedback on reporting syntax
-- Pull addition data from queries
-
 ##### Documentation
 - Parser behavior and proper `.iql` syntax
 - How the templated query generation works
 - Collection of tested `.iql` files to simulate different loads
   
 ##### Performance
-- `Commune` is potentially blocking writes, look into performance.
-- Templated query generation is currently in a quazi-working state.
+- `Commune`, a stuct to enable templated Query generation, is blocking writes when used, look into performance.
+- Templated query generation is currently in a quazi-working state. See the above point.
