@@ -4,11 +4,17 @@ machine:
       - docker
 
 dependencies:
+  pre:
+      - git config --global url."git@github.com:".insteadOf "https://github.com/"
+      - go get -u github.com/sparrc/gdm
+      - gdm restore
   override:
     - docker info
     - docker build --rm=false -t influxdata/mrfusion .
+
 test:
   override:
+    - go test -v -race ./...
     - docker run -d -p 8080:5000 -e PORT=5000 influxdata/mrfusion; sleep 10
     - curl --retry 10 --retry-delay 5 -v http://localhost:8080
 
