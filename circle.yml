@@ -4,15 +4,15 @@ machine:
       - docker
   post:
     - go version
-    - go version | grep 1.7.1 || sudo rm -rf /usr/local/go
-    - wget https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz
-    - sudo tar -C /usr/local -xzf go1.7.1.linux-amd64.tar.gz
+    - go version | grep 1.7.1 || (sudo rm -rf /usr/local/go && wget https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz && sudo tar -C /usr/local -xzf go1.7.1.linux-amd64.tar.gz)
     - go version
 
 dependencies:
   pre:
       - git config --global url."git@github.com:".insteadOf "https://github.com/"
-      - make prepare
+      - mkdir -p ${HOME}/.go_workspace/src/github.com/influxdata
+      - ln -sf ${HOME}/mrfusion ${HOME}/.go_workspace/src/github.com/influxdata
+      - cd ${HOME}/.go_workspace/src/github.com/influxdata/mrfusion  && make
   override:
     - docker info
 
