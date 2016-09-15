@@ -2,19 +2,24 @@
 machine:
   services:
       - docker
+  post:
+    - go version
+    - go version | grep 1.7.1 || sudo rm -rf /usr/local/go
+    - wget https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz
+    - sudo tar -C /usr/local -xzf go1.7.1.linux-amd64.tar.gz
+    - go version
 
 dependencies:
   pre:
       - git config --global url."git@github.com:".insteadOf "https://github.com/"
-      - go get -u github.com/sparrc/gdm
-      - gdm restore
+      - make prepare
   override:
     - docker info
-    - docker build --rm=false -t influxdata/mrfusion .
 
 test:
   override:
-    - go test -v -race ./...
+    - make test
+    - docker build --rm=false -t influxdata/mrfusion .
     - docker run -d -p 8080:5000 -e PORT=5000 influxdata/mrfusion; sleep 10
     - curl --retry 10 --retry-delay 5 -v http://localhost:8080
 
