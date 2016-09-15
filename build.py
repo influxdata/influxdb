@@ -154,7 +154,7 @@ def package_man_files(build_root):
     run("make -C man/ clean install DESTDIR={}/usr".format(build_root))
     for path, dir, files in os.walk(os.path.join(build_root, MAN_DIR[1:])):
         for f in files:
-            run("gzip {}".format(os.path.join(path, f)))
+            run("gzip -9n {}".format(os.path.join(path, f)))
 
 def run_generate():
     """Run 'go generate' to rebuild any static assets.
