@@ -45,6 +45,4 @@ func (c *Client) Query(ctx context.Context, query mrfusion.Query) (mrfusion.Resp
 	case <-ctx.Done():
 		return nil, nil
 	}
-
-	return nil, nil
 }

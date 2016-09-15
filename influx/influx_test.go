@@ -4,13 +4,22 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/influxdata/mrfusion"
 	"github.com/influxdata/mrfusion/influx"
 	"golang.org/x/net/context"
 )
 
-func Test_MakesRequestsToQueryEndpoint(t *testing.T) {
+func Test_Influx_RejectsBadHostnames(t *testing.T) {
+	t.Parallel()
+	_, err := influx.NewClient("wibble")
+	if err == nil {
+		t.Error("Expected an error for invalid influx host")
+	}
+}
+
+func Test_Influx_MakesRequestsToQueryEndpoint(t *testing.T) {
 	t.Parallel()
 	called := false
 	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
@@ -36,5 +45,34 @@ func Test_MakesRequestsToQueryEndpoint(t *testing.T) {
 
 	if called == false {
 		t.Error("Expected http request to Influx but there was none")
+	}
+}
+
+func Test_Influx_CancelsInFlightRequests(t *testing.T) {
+	t.Parallel()
+
+	started := false
+	finished := false
+	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		started = true
+		time.Sleep(2 * time.Second)
+		finished = true
+	}))
+	defer func() {
+		ts.CloseClientConnections()
+		ts.Close()
+	}()
+
+	series, _ := influx.NewClient(ts.URL)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		_, _ = series.Query(ctx, "show databases")
+	}()
+
+	cancel()
+
+	if started != true && finished != false {
+		t.Errorf("Expected cancellation during request processing. Started: %t. Finished: %t", started, finished)
 	}
 }
