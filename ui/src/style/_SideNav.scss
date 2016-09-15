@@ -1,0 +1,325 @@
+/*
+    Sidebar Navigation Styles
+    ----------------------------------------------
+*/
+
+$sidebar-menu-gutter: 30px;
+$sidebar-menu-indent: 13px;
+$sidebar-radius: 4px;
+
+$sidebar-hover: $g8-storm;
+$sidebar-item-hover: $g7-graphite;
+$sidebar-lighter: $g8-storm;
+$sidebar-light: $g7-graphite;
+$sidebar-dark: $g4-onyx;
+$sidebar-icon: $g11-sidewalk;
+$sidebar-text: $g13-mist;
+$sidebar-icon-hover: $g20-white;
+$sidebar-icon-active: $g20-white;
+$sidebar-active-bg: $c-pool;
+$sidebar-active-accent: $c-laser;
+$sidebar-logo-bg: $g17-whisper;
+$sidebar-logo-color: $g8-storm;
+
+
+// Rename button
+.js-open-rename-cluster-modal {
+  display: inline-block;
+  height: 20px;
+  width: 20px;
+  border: none;
+  background-color: $g8-storm;
+  vertical-align: middle;
+  border-radius: 3px;
+  margin-left: 11px;
+  margin-right: -25px;
+  position: relative;
+  font-size: 13px;
+  color: $g20-white;
+  opacity: 0.4;
+  transition:
+    background-color 0.25s ease,
+    opacity 0.25s ease;
+
+  .icon.pencil {
+    position: absolute;
+    top: 3px;
+    left: 4px;
+  }
+
+  &:hover {
+    background-color: $g9-mountain;
+    cursor: pointer;
+  }
+}
+
+// Sidebar styles
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: $sidebar-width;
+  background: $sidebar-light;
+  background: -moz-linear-gradient(top,  $sidebar-light 0%, $sidebar-dark 100%);
+  background: -webkit-linear-gradient(top,  $sidebar-light 0%,$sidebar-dark 100%);
+  background: linear-gradient(to bottom,  $sidebar-light 0%,$sidebar-dark 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$sidebar-light', endColorstr='$sidebar-dark',GradientType=0 );
+
+  &__logo {
+    width: $sidebar-width;
+    height: $sidebar-width;
+    background-color: $sidebar-logo-bg;
+    position: relative;
+    color: $sidebar-logo-color;
+
+    span.icon {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%,-50%);
+      font-size: $sidebar-width * 0.4222;
+    }
+  }
+
+  &__icon {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease;
+    color: $sidebar-icon;
+
+    span.icon {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%,-50%);
+      font-size: $sidebar-width * 0.4222;
+    }
+  }
+
+  &__square {
+    z-index: 999;
+    width: $sidebar-width;
+    height: $sidebar-width;
+    background-color: transparent;
+    position: relative;
+    color: $sidebar-icon;
+
+    /* Here for specificity issues */
+    .sidebar__icon {
+      &:link,
+      &:active,
+      &:visited {
+        transition:
+          background-color 0.25s ease,
+          color 0.25s ease;
+        color: $sidebar-icon;
+      }
+    }
+
+    &:hover {
+      cursor: pointer;
+
+      .sidebar__icon {
+        color: $sidebar-icon-hover;
+        background-color: $sidebar-hover;
+      }
+
+      /* Show menu on hover */
+      .sidebar__menu-wrapper,
+      .sidebar__menu-wrapper-bottom {
+        visibility: visible;
+      }
+      .sidebar__menu {
+        opacity: 1;
+      }
+    }
+
+    /* Active Indicator */
+    &:after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 4px;
+      height: 100%;
+      transform: translateY(-50%) scale(1,0);
+      background-color: $c-pool;
+      z-index: 999;
+      backface-visibility: hidden;
+      transition:
+        transform 0.4s ease;
+    }
+
+    /* Active State Styles */
+    &.active {
+      &:after {
+        transform: translateY(-50%) scale(1,1);
+        transition:
+          transform 0.31s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      }
+
+      .sidebar__icon {
+        color: $sidebar-icon-active;
+
+        &:link,
+        &:active,
+        &:visited,
+        &:hover {
+          color: $sidebar-icon-active;
+        }
+      }
+    }
+    &-last {
+      position: absolute;
+      bottom: 0;
+    }
+  }
+
+  &__menu {
+    border-radius: 0 $sidebar-radius $sidebar-radius 0;
+    background: $sidebar-hover;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    display: flex;
+    flex-direction: column;
+    list-style: none;
+
+    &-wrapper {
+      position: absolute;
+      top: 0;
+      left: 100%;
+      z-index: 999;
+      visibility: hidden;
+      display: flex;
+      transition: all 0.25s ease;
+    }
+    &-wrapper-bottom {
+      position: absolute;
+      bottom: 0;
+      left: 100%;
+      z-index: 999;
+      visibility: hidden;
+      display: flex;
+      transition: all 0.25s ease;
+    }
+  }
+
+  &__menu-heading,
+  &__menu-item {
+    width: 100%;
+    white-space: nowrap;
+    margin: 0;
+    display: block;
+  }
+
+  &__menu-item {
+    color: $sidebar-text;
+    font-size: 15px;
+    line-height: 22px;
+    font-weight: 500;
+    position: relative;
+    padding: 4px $sidebar-menu-gutter;
+    transition:
+          color 0.25s ease,
+          background-color 0.25s ease;
+
+    // Overriding link styles
+    &:link,
+    &:active,
+    &:visited {
+      color: $sidebar-text;
+      font-weight: 500;
+      transition:
+          color 0.25s ease,
+          background-color 0.25s ease;
+    }
+
+    // Rounding top outside corner to match container
+    &:first-child {
+      border-top-right-radius: $sidebar-radius;
+    }
+
+    // Rounding bottom outside corner of match container
+    &:last-child {
+      border-bottom-right-radius: $sidebar-radius;
+    }
+
+    // Used for sub-navigation
+    small {
+      font-size: 13px;
+      border-left: 2px solid $sidebar-icon;
+      padding-left: $sidebar-menu-indent;
+      display: inline-block;
+      transition: border-color 0.25s ease;
+    }
+    // Invisible until item is active, indicates active item
+    &:after {
+      position: absolute;
+      top: 50%;
+      left: $sidebar-menu-gutter /2;
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: transparent;
+      transform: translate(-50%,-50%);
+    }
+    &:hover {
+      cursor: pointer;
+      background-color: $sidebar-item-hover;
+      color: $sidebar-icon-hover;
+
+      small {
+        border-color: $sidebar-icon-hover;
+      }
+      // Emphasize rename icon on hover
+      .js-open-rename-cluster-modal {
+        opacity: 1;
+      }
+    }
+    &.active {
+      background: $sidebar-active-bg;
+      background: -moz-linear-gradient(left,  $sidebar-active-bg 0%, $sidebar-active-accent 100%);
+      background: -webkit-linear-gradient(left,  $sidebar-active-bg 0%,$sidebar-active-accent 100%);
+      background: linear-gradient(to right,  $sidebar-active-bg 0%,$sidebar-active-accent 100%);
+      filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$sidebar-active-bg', endColorstr='$sidebar-active-accent',GradientType=1 );
+      color: $sidebar-icon-hover;
+
+      &:link,
+      &:active,
+      &:visited {
+        color: $sidebar-icon-hover;
+      }
+
+      // Show indicator
+      &:after {
+        background-color: $sidebar-icon-active;
+      }
+
+      // Show rename icon when active
+      .js-open-rename-cluster-modal {
+        background-color: $c-laser;
+        opacity: 1;
+
+        &:hover {
+          background-color: $c-hydrogen;
+        }
+      }
+    }
+  }
+
+  &__menu-heading {
+    color: $g20-white;
+    height: $sidebar-width;
+    line-height: $sidebar-width;
+    font-size: 20px;
+    text-transform: uppercase;
+    font-weight: 400;
+    padding: 0px $sidebar-menu-gutter;
+  }
+
+}

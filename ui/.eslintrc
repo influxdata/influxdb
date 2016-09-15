@@ -1,0 +1,19 @@
+{
+  "extends": ["@influxdata/eslint", "@influxdata/eslint/react"],
+  "env": {
+    "browser": true,
+    "mocha": true,
+  },
+  "rules": {
+    "react/display-name": 0,
+    "jsx-quotes": [1, "prefer-double"],
+    "quotes": [0, "double"],
+    "react/jsx-no-bind": 0,
+    "func-style": 0,
+    "func-names": 0,
+    "arrow-parens": 0,
+  },
+  "globals": {
+    "expect": true,
+  }
+}

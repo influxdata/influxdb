@@ -1,0 +1,19 @@
+.data-explorer {
+  ul {
+    list-style-type: none;
+  }
+
+  .disabled {
+    pointer-events: none;
+  }
+
+  .dropdown-option {
+    cursor: pointer;
+    color: white;
+
+    &:hover {
+      background: #545667;
+    }
+  }
+}
+

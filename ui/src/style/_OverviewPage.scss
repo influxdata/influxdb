@@ -1,0 +1,132 @@
+.cluster-stat-tiles {
+  display: flex;
+  justify-content: space-between;
+}
+.cluster-stat-tile {
+  line-height: 1.75;
+  width: 49%;
+}
+$cluster-stat-height: 44px;
+$cluster-stat-padding: 2em;
+@keyframes cluster-spinner {
+    0% {transform: rotate(0deg);}
+    100% {transform: rotate(360deg);}
+}
+
+.cluster-stat {
+  display: flex !important;
+  justify-content: space-between;
+  padding: $cluster-stat-padding 0;
+  align-items: center;
+  height: $cluster-stat-height;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+
+  div {
+    div {
+      min-width: 150px;
+      max-width: 300px;
+    }
+  }
+  &-empty {
+    width: 100%;
+    background-color: $g19-ghost;
+    height: $cluster-stat-height;
+    margin: 0;
+    line-height: $cluster-stat-height;
+    text-align: center;
+    border-bottom: 2px solid $g18-cloud;
+    border-top: 2px solid $g20-white;
+    border-radius: 4px;
+    font-style: italic;
+
+    .icon {
+      animation: cluster-spinner 3.8s infinite linear;
+      display: inline-block;
+      vertical-align: middle;
+      position: relative;
+      top: -1px;
+    }
+  }
+  &--label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    padding-left: 1.5em;
+  }
+  &-2x {
+    display: flex;
+    justify-content: space-between;
+    padding: $cluster-stat-padding 0;
+    align-items: center;
+    height: $cluster-stat-height;
+    margin: 0;
+
+    &--label,
+    &--number {
+      vertical-align: middle;
+      display: inline-block;
+      line-height: 1em;
+    }
+    &--number {
+      // font-size: 18px;
+      font-weight: 600;
+      margin-left: 15px;
+    }
+  }
+}
+.influx-version,
+.disk-util {
+  border: 2px solid $g18-cloud;
+  border-radius: 4px;
+  padding: 4px 10px;
+}
+.quarter-table-width {
+  width: 25%;
+}
+.js-node-table {
+  margin-bottom: 0;
+  tbody tr td {
+    height: $cluster-stat-height + 16px;
+  }
+  .cluster-stat {
+    padding: 0;
+  }
+}
+.btn.rebalance {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+div {
+  #rebalance {
+    margin-left: 5px;
+    font-size: 20px;
+    animation-name: spin;
+    animation-duration: 4000ms;
+    animation-iteration-count: infinite;
+    animation-timing-function: linear;
+  }
+}
+@keyframes spin {
+  from {
+    transform:rotate(0deg);
+  }
+  to {
+    transform:rotate(360deg);
+  }
+}
+.tasks__popover {
+  -webkit-box-shadow: 0 5px 10px rgba(0,0,0,.2);
+  box-shadow: 0 5px 10px rgba(0,0,0,.2);
+  position: absolute;
+  width: auto;
+  background: #FFFFFF;
+  right: 10px;
+  top: 53px;
+  z-index: 1;
+  border-radius: 5px;
+}

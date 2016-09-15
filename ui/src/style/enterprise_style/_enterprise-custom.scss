@@ -1,0 +1,595 @@
+/*
+	This is a bunch of stuff built on top of the bootstrap theme for the Enterprise app.
+*/
+
+body {
+  display: flex;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  align-items: stretch;
+  /* Ensures sidebar and page-wrapper go full-height */
+  overflow: auto; /* plz halp alex I need this 4 the signup pages */
+}
+
+/*
+    Layout
+    ----------------------------------------------
+*/
+
+.enterprise-wrapper {
+  width: 100%;
+  position: relative;
+
+  > div {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+  }
+
+  &--flex {
+    display: flex;
+    align-items: stretch;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+  }
+}
+
+.container-fluid {
+  /* Overriding left and right padding from the theme to be more spacious */
+  padding-left: $page-wrapper-padding;
+  padding-right: $page-wrapper-padding;
+  max-width: $page-wrapper-max-width;
+}
+.page-wrapper,
+.sidebar {
+  display: block;
+}
+.page-wrapper {
+  position: relative;
+  flex-grow: 1;
+  overflow: auto;
+  background: $g18-cloud;
+  background: -moz-linear-gradient(top,  $g18-cloud 0%, $g19-ghost 100%);
+  background: -webkit-linear-gradient(top,  $g18-cloud 0%,$g19-ghost 100%);
+  background: linear-gradient(to bottom,  $g18-cloud 0%,$g19-ghost 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$g18-cloud', endColorstr='$g19-ghost',GradientType=0 );
+}
+.signup-flow-bg {
+  background-image: url(/assets/images/signup-bg.png);
+  background-position: center top;
+  background-repeat: no-repeat;
+  background-size: contain;
+}
+
+/*
+    Enterprise Page Header
+    ----------------------------------------------
+*/
+.enterprise-header {
+  background-color: $g20-white;
+  height: $enterprise-page-header-height;
+  margin-bottom: 45px;
+  padding: 0 $page-wrapper-padding;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  &__container {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: ($page-wrapper-max-width - $page-wrapper-padding - $page-wrapper-padding);
+  }
+  h1 {
+    text-transform: uppercase;
+    font-size: 20px;
+    font-weight: 400;
+    margin: 0;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  &__left {
+    display: flex;
+    flex-direction: column;
+
+    > * {
+      margin: 0;
+    }
+  } 
+  &__right {
+    font-size: 0;
+
+    > * {
+      margin: 0 0 0 4px;
+    }
+  }
+}
+
+.minimal-dropdown {
+  .dropdown-toggle {
+    font-size: 20px;
+    font-weight: 400;
+    background-color: transparent;
+    border: none;
+
+    &:hover {
+      .button-text {
+        color: $g10-wolf;
+      }
+      .caret {
+        color: $g10-wolf;
+      }
+    }
+  }
+  .button-text,
+  .caret {
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .button-text {
+    transition: color 0.25s ease;
+  }
+  .caret {
+    transition: color 0.25s ease;
+  }
+  &.open {
+    .button-text {
+      color: $g10-wolf;
+    }
+    .caret {
+      color: $g10-wolf;
+    }
+  }
+}
+
+/*
+    Unsorted
+    ----------------------------------------------
+*/
+.progress-label {
+  margin-bottom: 4px;
+  color: $g11-sidewalk;
+  width: 100%;
+
+  strong {
+    font-weight: 500;
+    color: $g8-storm;
+  }
+}
+.flex-group {
+  margin: 0;
+
+  .flex-space {
+    display: inline-block;
+    width: 20px;
+  }
+}
+.main {
+  margin-top: 60px;
+}
+.fake-panel-title {
+  margin-top: 25px;
+  margin-bottom: 25px;
+  &.match-search {
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+}
+.modal#dbModal {
+  .modal-body {
+    width: 100%;
+    display: inline-block;
+  }
+}
+.btn-block.dropdown-toggle {
+  text-align: left;
+  position: relative;
+
+  .caret {
+    position: absolute;
+    top: 50%;
+    right: 18px;
+    transform: translateY(-50%);
+  }
+
+  & + .dropdown-menu {
+    width: 100%;
+  }
+}
+.pointer {
+  cursor: pointer;
+}
+.modal {
+  form {
+    padding: 0;
+    margin: 0;
+    background-color: transparent;
+  }
+  .form-grid {
+    width: 100%;
+    display: inline-block;
+
+    &.padding-top {
+      padding-top: 15px;
+    }
+  }
+}
+#accordion {
+  .panel-heading {
+    color: gray;
+    align-items: center;
+
+    .progress {
+      width: 200px;
+      margin: 0 20px;
+    }
+  }
+}
+
+.continuous-queries {
+  h1, h2, h3, h4, h5, h6 {
+    padding-bottom: 10px;
+    border-bottom: 1px solid whitesmoke;
+  }
+  pre code {
+    white-space: normal;
+  }
+
+  &__empty {
+    text-align: center;
+    padding: 60px 0;
+    color: $g15-platinum;
+
+    h1, h2, h3, h4, h5, h6 {
+      padding-bottom: 0;
+      border-bottom: none;
+      font-weight: 400;
+    }
+
+    img {
+      width: 100px;
+      height: auto;
+      margin-bottom: 30px;
+    }
+  }
+}
+
+.product-buttons {
+  margin-bottom: 20px;
+}
+
+
+
+$telegraf: #f95f53;
+$influxdb: #4591ED;
+$kapacitor: #4ED8A0;
+$chronograf: #C557FF;
+
+.influxdb-bg {
+  background-color: $influxdb;
+}
+
+.telegraf-bg {
+  background-color: $telegraf;
+}
+
+.chronograf-bg {
+  background-color: $chronograf;
+}
+
+.kapacitor-bg {
+  background-color: $kapacitor;
+}
+
+.btn-telegraf {
+  @extend .telegraf-bg;
+
+  &.inactive {
+    background-color: lighten($telegraf, 25%);
+    color: #000000;
+  }
+}
+
+.btn-influxdb {
+  @extend .influxdb-bg;
+
+  &.inactive {
+    background-color: lighten($influxdb, 25%);
+    color: #000000;
+  }
+}
+
+.btn-chronograf {
+  @extend .chronograf-bg;
+
+  &.inactive {
+    background-color: lighten($chronograf, 25%);
+    color: #000000;
+  }
+}
+
+.btn-kapacitor {
+  @extend .kapacitor-bg;
+
+  &.inactive {
+    background-color: lighten($kapacitor, 25%);
+    color: #000000;
+  }
+}
+
+.pinger {
+  color: #fff;
+}
+
+.ping-pending {
+  color: yellow;
+  animation: blinker 1s linear infinite;
+}
+
+.ping-success {
+  color: green;
+}
+
+.ping-failure {
+  color: red;
+}
+
+@keyframes blinker {
+  50% {
+    opacity: 0.0;
+  }
+}
+
+.profile-info {
+  color: #fff;
+  text-align: right;
+}
+
+a {
+  &.btn {
+    color: #fff;
+  }
+}
+
+.caret {
+  cursor: pointer;
+}
+
+/*
+    Custom Tabs
+    ----------------------------------------------
+*/
+.tab-group {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 20px;
+  display: inline-block;
+
+  .btn.tab {
+    border: 2px solid $g17-whisper;
+    border-right-width: 0;
+    padding: 10px 20px;
+    margin: 0 !important;
+    font-weight: 400;
+    color: $g11-sidewalk;
+    background-color: $g17-whisper;
+    box-shadow: none;
+    transition:
+      color 0.25s ease,
+      background-color 0.25s ease;
+
+    &:hover {
+      cursor: pointer;
+      background-color: $g18-cloud;
+      color: $g9-mountain;
+    }
+
+    &:first-child {
+      border-radius: 5px 0 0 5px;
+    }
+
+    &:last-child {
+      border-radius: 0 5px 5px 0;
+      border-right-width: 2px;
+    }
+    &.active {
+      background-color: white;
+      color: $g8-storm;
+    }
+  }
+}
+
+.flash-messages {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 570px;
+  top: 36px;
+  z-index: 9999;
+
+  .alert {
+    font-size: 16px;
+    font-weight: 500;
+    border-width: 0;
+    color: $g20-white;
+
+    &.alert-success {
+      background-color: $c-rainforest;
+    }
+    &.alert-primary {
+      background-color: $c-pool;
+    }
+    &.alert-warning {
+      background-color: $c-comet;
+      
+    }
+    &.alert-danger {
+      background-color: $c-dreamsicle;
+    }
+
+    button.close {
+      position: absolute;
+      top: 50%;
+      right: 13px;
+      transform: translateY(-50%);
+      font-size: 16px;
+      text-shadow: none;
+      opacity: 0.6;
+      transition: opacity 0.25s ease;
+
+      .icon {
+        color: $g20-white;
+        text-shadow: none;
+      }
+      &:hover {
+        opacity: 1;
+      }
+    }
+  }
+}
+
+
+/*
+    Error Pages
+    ----------------------------------------------
+*/
+.panel-error {
+  margin-top: $page-wrapper-padding;
+  margin-bottom: $page-wrapper-padding;
+}
+table.table.error-table {
+  margin-bottom: 0;
+  .label {
+    padding: 4px 7px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  tbody {
+    td {
+      border: none;
+    }
+  }
+  tbody tr:nth-child(odd) {
+    background-color: $g19-ghost;
+    td:last-child {
+      background-color: $g5-pepper;
+    }
+  }
+  tbody tr:nth-child(even) {
+    background-color: $g18-cloud;
+    td:last-child {
+      background-color: $g4-onyx;
+    }
+  }
+  pre {
+    border: none;
+    background-color: transparent;
+    color: $c-moonstone;
+    font-weight: 600;
+    border-radius: 0;
+    padding: 4px;
+  }
+}
+
+/*
+    Database Manager polish
+    ----------------------------------------------
+*/
+.db-manager-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  h4 {
+    margin-bottom: 4px;
+  }
+  p {
+    color: $g12-forge;
+  }
+}
+
+/*
+    Cluster Renaming UI
+    ----------------------------------------------
+*/
+.cluster-dropdown {
+  &__item {
+    position: relative;
+
+    &:hover {
+      .cluster-dropdown__rename {
+        opacity: 1;
+      }
+      a {
+        background-color: $c-laser;
+        color: $g20-white;
+      }
+    }
+  }
+  &__rename {
+    z-index: 2;
+    opacity: 0;
+    position: absolute;
+    top: 50%;
+    right: 0;
+    width: 34px;
+    height: 100%;
+    transform: translateY(-50%);
+    border: 0;
+    background-color: transparent;
+    color: $c-hydrogen;
+    transition:
+      opacity 0.25s ease,
+      color 0.25s ease;
+
+    &:hover {
+      color: $g20-white;
+      cursor: pointer;
+    }
+  }
+}
+
+/*
+    Generic Empty State
+    ----------------------------------------------
+*/
+.generic-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: $g12-forge;
+  padding: 20px 0;
+
+  .icon {
+    margin-bottom: 11px;
+  }
+}
+
+.cluster-accounts > *:not(:last-child) {
+  margin-bottom: 12px;
+}
+
+
+
+
+/*
+    Static Form Controls
+    ----------------------------------------------
+*/
+.form-control-static {
+  border: 2px solid $g17-whisper;
+  height: 40px;
+  border-radius: 4px;
+  padding: 0 18px;
+  line-height: 36px;
+}
