@@ -12,26 +12,49 @@ import (
 )
 
 type Handler struct {
-	Store    mrfusion.ExplorationStore
-	Response mrfusion.Response
+	Store      mrfusion.ExplorationStore
+	TimeSeries mrfusion.TimeSeries
 }
 
 func NewHandler() Handler {
 	return Handler{
 		DefaultExplorationStore,
-		SampleResponse,
+		DefaultTimeSeries,
 	}
 }
 
 func (m *Handler) Proxy(ctx context.Context, params op.PostSourcesIDProxyParams) middleware.Responder {
-	results, err := m.Response.Results()
+	query := params.Query.Query
+	response, err := m.TimeSeries.Query(ctx, mrfusion.Query(*query))
 	if err != nil {
 		return op.NewPostSourcesIDProxyDefault(500)
 	}
+
+	results, err := response.Results()
+	if err != nil {
+		return op.NewPostSourcesIDProxyDefault(500)
+	}
+
 	res := &models.ProxyResponse{
 		Results: results,
 	}
 	return op.NewPostSourcesIDProxyOK().WithPayload(res)
+}
+
+func (m *Handler) MonitoredServices(ctx context.Context, params op.GetSourcesIDMonitoredParams) middleware.Responder {
+	srvs, err := m.TimeSeries.MonitoredServices(ctx)
+	if err != nil {
+		return op.NewGetSourcesIDMonitoredDefault(500)
+	}
+	res := &models.Services{}
+	for _, s := range srvs {
+		res.Services = append(res.Services, &models.Service{
+			TagKey:   s.TagKey,
+			TagValue: s.TagValue,
+			Type:     s.Type,
+		})
+	}
+	return op.NewGetSourcesIDMonitoredOK().WithPayload(res)
 }
 
 func (m *Handler) Explorations(ctx context.Context, params op.GetSourcesIDUsersUserIDExplorationsParams) middleware.Responder {

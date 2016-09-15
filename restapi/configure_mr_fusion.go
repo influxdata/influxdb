@@ -121,6 +121,8 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 		return middleware.NotImplemented("operation .PutDashboardsID has not yet been implemented")
 	})
 
+	api.GetSourcesIDMonitoredHandler = operations.GetSourcesIDMonitoredHandlerFunc(mockHandler.MonitoredServices)
+
 	api.ServerShutdown = func() {}
 
 	return setupGlobalMiddleware(api.Serve(setupMiddlewares))
