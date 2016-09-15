@@ -3,6 +3,7 @@ package tsdb_test
 import (
 	"bytes"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/influxdata/influxdb/influxql"
@@ -90,6 +91,69 @@ func Test_SeriesIDs_Reject(t *testing.T) {
 	if !exp.Equals(got) {
 		t.Fatalf("exp=%v, got=%v", exp, got)
 	}
+}
+
+func BenchmarkMeasurement_SeriesIDForExp_EQRegex(b *testing.B) {
+	m := tsdb.NewMeasurement("cpu")
+	for i := 0; i < 100000; i++ {
+		s := tsdb.NewSeries("cpu", models.Tags{models.Tag{
+			Key:   []byte("host"),
+			Value: []byte(fmt.Sprintf("host%d", i))}})
+		s.ID = uint64(i)
+		m.AddSeries(s)
+	}
+
+	if exp, got := 100000, len(m.SeriesKeys()); exp != got {
+		b.Fatalf("series count mismatch: exp %v got %v", exp, got)
+	}
+
+	stmt, err := influxql.NewParser(strings.NewReader(`SELECT * FROM cpu WHERE host =~ /host\d+/`)).ParseStatement()
+	if err != nil {
+		b.Fatalf("invalid statement: %s", err)
+	}
+
+	selectStmt := stmt.(*influxql.SelectStatement)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ids := m.IDsForExpr(selectStmt.Condition.(*influxql.BinaryExpr))
+		if exp, got := 100000, len(ids); exp != got {
+			b.Fatalf("series count mismatch: exp %v got %v", exp, got)
+		}
+
+	}
+}
+
+func BenchmarkMeasurement_SeriesIDForExp_NERegex(b *testing.B) {
+	m := tsdb.NewMeasurement("cpu")
+	for i := 0; i < 100000; i++ {
+		s := tsdb.NewSeries("cpu", models.Tags{models.Tag{
+			Key:   []byte("host"),
+			Value: []byte(fmt.Sprintf("host%d", i))}})
+		s.ID = uint64(i)
+		m.AddSeries(s)
+	}
+
+	if exp, got := 100000, len(m.SeriesKeys()); exp != got {
+		b.Fatalf("series count mismatch: exp %v got %v", exp, got)
+	}
+
+	stmt, err := influxql.NewParser(strings.NewReader(`SELECT * FROM cpu WHERE host !~ /foo\d+/`)).ParseStatement()
+	if err != nil {
+		b.Fatalf("invalid statement: %s", err)
+	}
+
+	selectStmt := stmt.(*influxql.SelectStatement)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ids := m.IDsForExpr(selectStmt.Condition.(*influxql.BinaryExpr))
+		if exp, got := 100000, len(ids); exp != got {
+			b.Fatalf("series count mismatch: exp %v got %v", exp, got)
+		}
+
+	}
+
 }
 
 // Ensure tags can be marshaled into a byte slice.
