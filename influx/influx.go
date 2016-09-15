@@ -29,9 +29,22 @@ func NewClient(host string) (*Client, error) {
 
 // Query issues a request to a configured InfluxDB instance for time series
 // information specified by query. Queries must be "fully-qualified," and
-// include both the database and retention policy.
+// include both the database and retention policy. In-flight requests can be
+// cancelled using the provided context.
 func (c *Client) Query(ctx context.Context, query mrfusion.Query) (mrfusion.Response, error) {
 	q := ixClient.NewQuery(string(query), "", "")
-	resp, err := c.ix.Query(q)
-	return response{resp}, err
+	resps := make(chan (response))
+	go func() {
+		resp, err := c.ix.Query(q)
+		resps <- response{resp, err}
+	}()
+
+	select {
+	case resp := <-resps:
+		return resp, resp.err
+	case <-ctx.Done():
+		return nil, nil
+	}
+
+	return nil, nil
 }

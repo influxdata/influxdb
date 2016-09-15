@@ -9,6 +9,7 @@ import (
 
 type response struct {
 	*client.Response
+	err error
 }
 
 func (r response) MarshalJSON() ([]byte, error) {
