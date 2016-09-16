@@ -2686,7 +2686,7 @@ func ParseDuration(s string) (time.Duration, error) {
 			d += time.Duration(n) * time.Microsecond
 		case 'm':
 			if i+1 < len(a) && a[i+1] == 's' {
-				unit = string(a[i:2])
+				unit = string(a[i : i+2])
 				d += time.Duration(n) * time.Millisecond
 				i += 2
 				continue
