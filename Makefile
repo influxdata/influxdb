@@ -24,7 +24,7 @@ docker: docker-${BINARY}
 bindata: 
 	go-bindata -debug -dev -o dist/dist_gen.go -ignore 'map|go' -pkg dist ui/build/...
 
-assets: jsbuild go-bindata
+assets: jsbuild bindata
 
 
 jsbuild:
