@@ -70,7 +70,10 @@ var config = {
       },
     }),
     new ExtractTextPlugin("style.css"),
-    new HtmlWebpackPlugin(),
+    new HtmlWebpackPlugin({
+      template: path.resolve(__dirname, '..', 'src', 'index.template.html'),
+      inject: 'body',
+    }),
     new webpack.optimize.UglifyJsPlugin({
       compress: {
         warnings: false

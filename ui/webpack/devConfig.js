@@ -68,7 +68,10 @@ module.exports = {
     //
     new webpack.IgnorePlugin(/xhr2/),
     new ExtractTextPlugin("style.css"),
-    new HtmlWebpackPlugin(),
+    new HtmlWebpackPlugin({
+      template: path.resolve(__dirname, '..', 'src', 'index.template.html'),
+      inject: 'body',
+    }),
   ],
   postcss: require('./postcss'),
   target: 'web',
