@@ -417,10 +417,11 @@ func (b *balancewriter) WritePoints(p *coordinator.WritePointsRequest) error {
 func (b *balancewriter) Statistics(tags map[string]string) []models.Statistic {
 	statistics := make([]models.Statistic, len(b.stats))
 	for i := range b.stats {
-		tags["destination"] = b.stats[i].dest
+		subTags := b.defaultTags.Merge(tags)
+		subTags["destination"] = b.stats[i].dest
 		statistics[i] = models.Statistic{
 			Name: "subscriber",
-			Tags: b.defaultTags.Merge(tags),
+			Tags: subTags,
 			Values: map[string]interface{}{
 				statPointsWritten: atomic.LoadInt64(&b.stats[i].pointsWritten),
 				statWriteFailures: atomic.LoadInt64(&b.stats[i].failures),

@@ -5608,6 +5608,50 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 	}
 }
 
+func TestServer_Query_ShowStats(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.MetaClient.CreateSubscription("db0", "rp0", "foo", "ALL", []string{"udp://localhost:9000"}); err != nil {
+		t.Fatal(err)
+	}
+
+	test := NewTest("db0", "rp0")
+	test.addQueries([]*Query{
+		&Query{
+			name:    `show shots`,
+			command: "SHOW STATS",
+			exp:     "subscriber", // Should see a subscriber stat in the json
+			pattern: true,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 func TestServer_Query_ShowMeasurements(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())
