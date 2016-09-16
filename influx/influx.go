@@ -12,7 +12,9 @@ type Client struct {
 	ix ixClient.Client
 }
 
-// NewClient initializes a Client
+// NewClient initializes an HTTP Client for InfluxDB. UDP, although supported
+// for querying InfluxDB, is not supported here to remove the need to
+// explicitly Close the client.
 func NewClient(host string) (*Client, error) {
 	cl, err := ixClient.NewHTTPClient(ixClient.HTTPConfig{
 		Addr: host,
@@ -45,4 +47,10 @@ func (c *Client) Query(ctx context.Context, query mrfusion.Query) (mrfusion.Resp
 	case <-ctx.Done():
 		return nil, TimeoutError{}
 	}
+}
+
+// MonitoredServices returns all services for which this instance of InfluxDB
+// has time series information stored for.
+func (c *Client) MonitoredServices(ctx context.Context) ([]mrfusion.MonitoredService, error) {
+	return []mrfusion.MonitoredService{}, nil
 }
