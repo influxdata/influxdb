@@ -21,8 +21,8 @@ test:
 deployment:
     heroku:
         branch: develop
-    commands:
-        - make docker
-        - docker login -e $HEROKU_EMAIL -u $HEROKU_EMAIL -p $HEROKU_PASS registry.heroku.com
-        - docker tag mrfusion registry.heroku.com/mrfusion-acc/web
-        - docker push registry.heroku.com/mrfusion-acc/web
+        commands:
+            - make docker
+            - docker login -e $HEROKU_EMAIL -u $HEROKU_EMAIL -p $HEROKU_PASS registry.heroku.com
+            - docker tag mrfusion registry.heroku.com/mrfusion-acc/web
+            - docker push registry.heroku.com/mrfusion-acc/web
