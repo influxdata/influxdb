@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build": "npm run clean && env NODE_ENV=production node_modules/webpack/bin/webpack.js -p --config ./webpack/prodConfig.js",
+    "build:dev": "node_modules/webpack/bin/webpack.js --config ./webpack/devConfig.js",
     "start": "node_modules/webpack/bin/webpack.js -w --config ./webpack/devConfig.js",
     "lint": "eslint .",
     "test:dev": "testem",
