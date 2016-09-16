@@ -7,7 +7,7 @@ import (
 	"github.com/influxdata/influxdb/services/admin"
 )
 
-func TestConfig_Parse(t *testing.T) {
+func TestConfigParse(t *testing.T) {
 	// Parse configuration.
 	var c admin.Config
 	if _, err := toml.Decode(`
