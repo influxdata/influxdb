@@ -1,7 +1,5 @@
 ---
 machine:
-  services:
-      - docker
   post:
     - go version
     - go version | grep 1.7.1 || (sudo rm -rf /usr/local/go && wget https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz && sudo tar -C /usr/local -xzf go1.7.1.linux-amd64.tar.gz)
@@ -13,20 +11,7 @@ dependencies:
       - mkdir -p ${HOME}/.go_workspace/src/github.com/influxdata
       - ln -sf ${HOME}/mrfusion ${HOME}/.go_workspace/src/github.com/influxdata
       - cd ${HOME}/.go_workspace/src/github.com/influxdata/mrfusion  && make
-  override:
-    - docker info
 
 test:
   override:
     - make test
-    - docker build --rm=false -t influxdata/mrfusion .
-    - docker run -d -p 8080:5000 -e PORT=5000 influxdata/mrfusion; sleep 10
-    - curl --retry 10 --retry-delay 5 -v http://localhost:8080
-
-deployment:
-  heroku:
-    branch: develop
-    commands:
-      - docker login -e $HEROKU_EMAIL -u $HEROKU_EMAIL -p $HEROKU_PASS registry.heroku.com
-      - docker tag influxdata/mrfusion registry.heroku.com/mrfusion-acc/web
-      - docker push registry.heroku.com/mrfusion-acc/web
