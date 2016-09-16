@@ -26,7 +26,7 @@ dev:
 	gdm restore
 	go get -u github.com/jteeuwen/go-bindata/...
 
-prepare: dev bindata
+prepare: dev assets
 
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi
