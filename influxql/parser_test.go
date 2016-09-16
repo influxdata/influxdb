@@ -869,6 +869,23 @@ func TestParser_ParseStatement(t *testing.T) {
 				},
 			},
 		},
+		// SELECT statement with group by and multi digit duration (prevent regression from #731://github.com/influxdata/influxdb/pull/7316)
+		{
+			s: fmt.Sprintf(`SELECT count(value) FROM cpu where time < '%s' group by time(500ms)`, now.UTC().Format(time.RFC3339Nano)),
+			stmt: &influxql.SelectStatement{
+				Fields: []*influxql.Field{{
+					Expr: &influxql.Call{
+						Name: "count",
+						Args: []influxql.Expr{&influxql.VarRef{Val: "value"}}}}},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.LT,
+					LHS: &influxql.VarRef{Val: "time"},
+					RHS: &influxql.StringLiteral{Val: now.UTC().Format(time.RFC3339Nano)},
+				},
+				Dimensions: []*influxql.Dimension{{Expr: &influxql.Call{Name: "time", Args: []influxql.Expr{&influxql.DurationLiteral{Val: 500 * time.Millisecond}}}}},
+			},
+		},
 
 		// SELECT statement with fill
 		{
