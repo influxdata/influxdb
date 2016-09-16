@@ -17,16 +17,9 @@ type Row interface {
 	Values() [][]interface{}
 }
 
-// Message represents a user message.
-type Message interface {
-	Level() string
-	Text() string
-}
-
 // Result represents a resultset returned from a single statement in a `Query`.
 type Result interface {
 	Series() ([]Row, error)
-	Messages() ([]Message, error)
 }
 
 // Response is the result of a query against a TimeSeries
@@ -35,8 +28,17 @@ type Response interface {
 	json.Marshaler
 }
 
+// MonitoredService is a service sending monitoring data to a `TimeSeries`
+type MonitoredService struct {
+	TagKey   string `json:"tagKey"`
+	TagValue string `json:"tagValue"`
+	Type     string `json:"type"`
+}
+
 // Represents a queryable time series database.
 type TimeSeries interface {
 	// Query retrieves time series data from the database.
 	Query(context.Context, Query) (Response, error)
+	// MonitoredServices retrieves all services sending monitoring data to this `TimeSeries`
+	MonitoredServices(context.Context) ([]MonitoredService, error)
 }

@@ -48,10 +48,10 @@ type MrFusionAPI struct {
 	DeleteSourcesIDHandler DeleteSourcesIDHandler
 	// DeleteSourcesIDRolesRoleIDHandler sets the operation handler for the delete sources ID roles role ID operation
 	DeleteSourcesIDRolesRoleIDHandler DeleteSourcesIDRolesRoleIDHandler
-	// DeleteSourcesIDUserUserIDExplorationsExplorationIDHandler sets the operation handler for the delete sources ID user user ID explorations exploration ID operation
-	DeleteSourcesIDUserUserIDExplorationsExplorationIDHandler DeleteSourcesIDUserUserIDExplorationsExplorationIDHandler
 	// DeleteSourcesIDUsersUserIDHandler sets the operation handler for the delete sources ID users user ID operation
 	DeleteSourcesIDUsersUserIDHandler DeleteSourcesIDUsersUserIDHandler
+	// DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler sets the operation handler for the delete sources ID users user ID explorations exploration ID operation
+	DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler
 	// GetHandler sets the operation handler for the get operation
 	GetHandler GetHandler
 	// GetDashboardsHandler sets the operation handler for the get dashboards operation
@@ -62,28 +62,30 @@ type MrFusionAPI struct {
 	GetSourcesHandler GetSourcesHandler
 	// GetSourcesIDHandler sets the operation handler for the get sources ID operation
 	GetSourcesIDHandler GetSourcesIDHandler
+	// GetSourcesIDMonitoredHandler sets the operation handler for the get sources ID monitored operation
+	GetSourcesIDMonitoredHandler GetSourcesIDMonitoredHandler
 	// GetSourcesIDPermissionsHandler sets the operation handler for the get sources ID permissions operation
 	GetSourcesIDPermissionsHandler GetSourcesIDPermissionsHandler
 	// GetSourcesIDRolesHandler sets the operation handler for the get sources ID roles operation
 	GetSourcesIDRolesHandler GetSourcesIDRolesHandler
 	// GetSourcesIDRolesRoleIDHandler sets the operation handler for the get sources ID roles role ID operation
 	GetSourcesIDRolesRoleIDHandler GetSourcesIDRolesRoleIDHandler
-	// GetSourcesIDUserUserIDExplorationsExplorationIDHandler sets the operation handler for the get sources ID user user ID explorations exploration ID operation
-	GetSourcesIDUserUserIDExplorationsExplorationIDHandler GetSourcesIDUserUserIDExplorationsExplorationIDHandler
 	// GetSourcesIDUsersHandler sets the operation handler for the get sources ID users operation
 	GetSourcesIDUsersHandler GetSourcesIDUsersHandler
 	// GetSourcesIDUsersUserIDHandler sets the operation handler for the get sources ID users user ID operation
 	GetSourcesIDUsersUserIDHandler GetSourcesIDUsersUserIDHandler
 	// GetSourcesIDUsersUserIDExplorationsHandler sets the operation handler for the get sources ID users user ID explorations operation
 	GetSourcesIDUsersUserIDExplorationsHandler GetSourcesIDUsersUserIDExplorationsHandler
+	// GetSourcesIDUsersUserIDExplorationsExplorationIDHandler sets the operation handler for the get sources ID users user ID explorations exploration ID operation
+	GetSourcesIDUsersUserIDExplorationsExplorationIDHandler GetSourcesIDUsersUserIDExplorationsExplorationIDHandler
 	// PatchSourcesIDHandler sets the operation handler for the patch sources ID operation
 	PatchSourcesIDHandler PatchSourcesIDHandler
 	// PatchSourcesIDRolesRoleIDHandler sets the operation handler for the patch sources ID roles role ID operation
 	PatchSourcesIDRolesRoleIDHandler PatchSourcesIDRolesRoleIDHandler
-	// PatchSourcesIDUserUserIDExplorationsExplorationIDHandler sets the operation handler for the patch sources ID user user ID explorations exploration ID operation
-	PatchSourcesIDUserUserIDExplorationsExplorationIDHandler PatchSourcesIDUserUserIDExplorationsExplorationIDHandler
 	// PatchSourcesIDUsersUserIDHandler sets the operation handler for the patch sources ID users user ID operation
 	PatchSourcesIDUsersUserIDHandler PatchSourcesIDUsersUserIDHandler
+	// PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler sets the operation handler for the patch sources ID users user ID explorations exploration ID operation
+	PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler
 	// PostDashboardsHandler sets the operation handler for the post dashboards operation
 	PostDashboardsHandler PostDashboardsHandler
 	// PostSourcesHandler sets the operation handler for the post sources operation
@@ -173,12 +175,12 @@ func (o *MrFusionAPI) Validate() error {
 		unregistered = append(unregistered, "DeleteSourcesIDRolesRoleIDHandler")
 	}
 
-	if o.DeleteSourcesIDUserUserIDExplorationsExplorationIDHandler == nil {
-		unregistered = append(unregistered, "DeleteSourcesIDUserUserIDExplorationsExplorationIDHandler")
-	}
-
 	if o.DeleteSourcesIDUsersUserIDHandler == nil {
 		unregistered = append(unregistered, "DeleteSourcesIDUsersUserIDHandler")
+	}
+
+	if o.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler == nil {
+		unregistered = append(unregistered, "DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler")
 	}
 
 	if o.GetHandler == nil {
@@ -201,6 +203,10 @@ func (o *MrFusionAPI) Validate() error {
 		unregistered = append(unregistered, "GetSourcesIDHandler")
 	}
 
+	if o.GetSourcesIDMonitoredHandler == nil {
+		unregistered = append(unregistered, "GetSourcesIDMonitoredHandler")
+	}
+
 	if o.GetSourcesIDPermissionsHandler == nil {
 		unregistered = append(unregistered, "GetSourcesIDPermissionsHandler")
 	}
@@ -211,10 +217,6 @@ func (o *MrFusionAPI) Validate() error {
 
 	if o.GetSourcesIDRolesRoleIDHandler == nil {
 		unregistered = append(unregistered, "GetSourcesIDRolesRoleIDHandler")
-	}
-
-	if o.GetSourcesIDUserUserIDExplorationsExplorationIDHandler == nil {
-		unregistered = append(unregistered, "GetSourcesIDUserUserIDExplorationsExplorationIDHandler")
 	}
 
 	if o.GetSourcesIDUsersHandler == nil {
@@ -229,6 +231,10 @@ func (o *MrFusionAPI) Validate() error {
 		unregistered = append(unregistered, "GetSourcesIDUsersUserIDExplorationsHandler")
 	}
 
+	if o.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler == nil {
+		unregistered = append(unregistered, "GetSourcesIDUsersUserIDExplorationsExplorationIDHandler")
+	}
+
 	if o.PatchSourcesIDHandler == nil {
 		unregistered = append(unregistered, "PatchSourcesIDHandler")
 	}
@@ -237,12 +243,12 @@ func (o *MrFusionAPI) Validate() error {
 		unregistered = append(unregistered, "PatchSourcesIDRolesRoleIDHandler")
 	}
 
-	if o.PatchSourcesIDUserUserIDExplorationsExplorationIDHandler == nil {
-		unregistered = append(unregistered, "PatchSourcesIDUserUserIDExplorationsExplorationIDHandler")
-	}
-
 	if o.PatchSourcesIDUsersUserIDHandler == nil {
 		unregistered = append(unregistered, "PatchSourcesIDUsersUserIDHandler")
+	}
+
+	if o.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler == nil {
+		unregistered = append(unregistered, "PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler")
 	}
 
 	if o.PostDashboardsHandler == nil {
@@ -364,12 +370,12 @@ func (o *MrFusionAPI) initHandlerCache() {
 	if o.handlers["DELETE"] == nil {
 		o.handlers[strings.ToUpper("DELETE")] = make(map[string]http.Handler)
 	}
-	o.handlers["DELETE"]["/sources/{id}/user/{user_id}/explorations/{exploration_id}"] = NewDeleteSourcesIDUserUserIDExplorationsExplorationID(o.context, o.DeleteSourcesIDUserUserIDExplorationsExplorationIDHandler)
+	o.handlers["DELETE"]["/sources/{id}/users/{user_id}"] = NewDeleteSourcesIDUsersUserID(o.context, o.DeleteSourcesIDUsersUserIDHandler)
 
 	if o.handlers["DELETE"] == nil {
 		o.handlers[strings.ToUpper("DELETE")] = make(map[string]http.Handler)
 	}
-	o.handlers["DELETE"]["/sources/{id}/users/{user_id}"] = NewDeleteSourcesIDUsersUserID(o.context, o.DeleteSourcesIDUsersUserIDHandler)
+	o.handlers["DELETE"]["/sources/{id}/users/{user_id}/explorations/{exploration_id}"] = NewDeleteSourcesIDUsersUserIDExplorationsExplorationID(o.context, o.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler)
 
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
@@ -399,6 +405,11 @@ func (o *MrFusionAPI) initHandlerCache() {
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
 	}
+	o.handlers["GET"]["/sources/{id}/monitored"] = NewGetSourcesIDMonitored(o.context, o.GetSourcesIDMonitoredHandler)
+
+	if o.handlers["GET"] == nil {
+		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
+	}
 	o.handlers["GET"]["/sources/{id}/permissions"] = NewGetSourcesIDPermissions(o.context, o.GetSourcesIDPermissionsHandler)
 
 	if o.handlers["GET"] == nil {
@@ -410,11 +421,6 @@ func (o *MrFusionAPI) initHandlerCache() {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
 	}
 	o.handlers["GET"]["/sources/{id}/roles/{role_id}"] = NewGetSourcesIDRolesRoleID(o.context, o.GetSourcesIDRolesRoleIDHandler)
-
-	if o.handlers["GET"] == nil {
-		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
-	}
-	o.handlers["GET"]["/sources/{id}/user/{user_id}/explorations/{exploration_id}"] = NewGetSourcesIDUserUserIDExplorationsExplorationID(o.context, o.GetSourcesIDUserUserIDExplorationsExplorationIDHandler)
 
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
@@ -431,6 +437,11 @@ func (o *MrFusionAPI) initHandlerCache() {
 	}
 	o.handlers["GET"]["/sources/{id}/users/{user_id}/explorations"] = NewGetSourcesIDUsersUserIDExplorations(o.context, o.GetSourcesIDUsersUserIDExplorationsHandler)
 
+	if o.handlers["GET"] == nil {
+		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
+	}
+	o.handlers["GET"]["/sources/{id}/users/{user_id}/explorations/{exploration_id}"] = NewGetSourcesIDUsersUserIDExplorationsExplorationID(o.context, o.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler)
+
 	if o.handlers["PATCH"] == nil {
 		o.handlers[strings.ToUpper("PATCH")] = make(map[string]http.Handler)
 	}
@@ -444,12 +455,12 @@ func (o *MrFusionAPI) initHandlerCache() {
 	if o.handlers["PATCH"] == nil {
 		o.handlers[strings.ToUpper("PATCH")] = make(map[string]http.Handler)
 	}
-	o.handlers["PATCH"]["/sources/{id}/user/{user_id}/explorations/{exploration_id}"] = NewPatchSourcesIDUserUserIDExplorationsExplorationID(o.context, o.PatchSourcesIDUserUserIDExplorationsExplorationIDHandler)
+	o.handlers["PATCH"]["/sources/{id}/users/{user_id}"] = NewPatchSourcesIDUsersUserID(o.context, o.PatchSourcesIDUsersUserIDHandler)
 
 	if o.handlers["PATCH"] == nil {
 		o.handlers[strings.ToUpper("PATCH")] = make(map[string]http.Handler)
 	}
-	o.handlers["PATCH"]["/sources/{id}/users/{user_id}"] = NewPatchSourcesIDUsersUserID(o.context, o.PatchSourcesIDUsersUserIDHandler)
+	o.handlers["PATCH"]["/sources/{id}/users/{user_id}/explorations/{exploration_id}"] = NewPatchSourcesIDUsersUserIDExplorationsExplorationID(o.context, o.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler)
 
 	if o.handlers["POST"] == nil {
 		o.handlers[strings.ToUpper("POST")] = make(map[string]http.Handler)
