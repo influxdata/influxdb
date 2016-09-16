@@ -1,4 +1,10 @@
 # mrfusion
+
+## Builds
+To build assets and the go server, run `make`.
+To run server either `./mrfusion --port 8888` or `make run`
+
+## Deployment (for now)
 Includes a Dockerfile that builds a container suitable for Heroku.
 
 In order to push to heroku, make sure you've logged into Heroku normally with...
