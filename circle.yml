@@ -9,6 +9,7 @@ machine:
 
 dependencies:
     pre:
+        - npm install -g node-sass
         - git config --global url."git@github.com:".insteadOf "https://github.com/"
         - mkdir -p ${HOME}/.go_workspace/src/github.com/influxdata
         - ln -sf ${HOME}/mrfusion ${HOME}/.go_workspace/src/github.com/influxdata

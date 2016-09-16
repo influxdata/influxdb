@@ -10,6 +10,8 @@ BINARY=mrfusion
 
 default: prepare ${BINARY}
 
+prepare: dev assets
+
 ${BINARY}: $(SOURCES)
 	go build -o ${BINARY} ${LDFLAGS} ./cmd/mr-fusion-server/main.go
 
@@ -19,24 +21,35 @@ docker-${BINARY}: $(SOURCES)
 docker: docker-${BINARY}
 	docker build -t mrfusion .
 
-assets:
-	mkdir -p ui/build
+assets: jsbuild
 	go-bindata -o ui/ui.go -ignore 'map|go' -pkg ui -nocompress=true ui/build/...
 
-dev:
+jsbuild:
+	cd ui && npm run build
+
+dev: jsdev godev
+
+godev:
 	go get github.com/sparrc/gdm
 	gdm restore
 	go get -u github.com/jteeuwen/go-bindata/...
 
-prepare: dev assets
+jsdev:
+	cd ui && npm install 
 
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi
+	cd ui && npm run clean
 
-test:
+test: gotest jstest
+
+gotest:
 	go test -race ./...
+
+jstest:
+	cd ui && npm test
 
 run:
 	./mrfusion --port 8888
 
-.PHONY: clean test run
+.PHONY: clean test jstest run

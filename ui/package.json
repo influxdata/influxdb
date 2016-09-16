@@ -15,7 +15,8 @@
     "test:dev": "testem",
     "test": "mocha --compilers js:babel-core/register --recursive spec/",
     "test:watch": "npm run test:mocha -- --watch",
-    "test:browser": "webpack-dev-server --config webpack/testConfig.js"
+    "test:browser": "webpack-dev-server --config webpack/testConfig.js",
+    "clean": "rm -rf ui/build"
   },
   "author": "",
   "eslintConfig": {
