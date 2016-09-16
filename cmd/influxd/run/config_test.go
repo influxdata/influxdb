@@ -118,6 +118,9 @@ bind-address = ":8087"
 
 [[graphite]]
 protocol = "udp"
+templates = [
+  "default.* .template.in.config"
+]
 
 [[graphite]]
 protocol = "tcp"
@@ -156,6 +159,14 @@ enabled = true
 		t.Fatalf("failed to set env var: %v", err)
 	}
 
+	if err := os.Setenv("INFLUXDB_GRAPHITE_0_TEMPLATES_0", "overide.* .template.0"); err != nil {
+		t.Fatalf("failed to set env var: %v", err)
+	}
+
+	if err := os.Setenv("INFLUXDB_GRAPHITE_1_TEMPLATES", "overide.* .template.1.1,overide.* .template.1.2"); err != nil {
+		t.Fatalf("failed to set env var: %v", err)
+	}
+
 	if err := os.Setenv("INFLUXDB_GRAPHITE_1_PROTOCOL", "udp"); err != nil {
 		t.Fatalf("failed to set env var: %v", err)
 	}
@@ -183,6 +194,14 @@ enabled = true
 
 	if c.UDPInputs[1].BindAddress != ":1234" {
 		t.Fatalf("unexpected udp bind address: %s", c.UDPInputs[1].BindAddress)
+	}
+
+	if len(c.GraphiteInputs[0].Templates) != 1 || c.GraphiteInputs[0].Templates[0] != "overide.* .template.0" {
+		t.Fatalf("unexpected graphite 0 templates: %+v", c.GraphiteInputs[0].Templates)
+	}
+
+	if len(c.GraphiteInputs[1].Templates) != 2 || c.GraphiteInputs[1].Templates[1] != "overide.* .template.1.2" {
+		t.Fatalf("unexpected graphite 1 templates: %+v", c.GraphiteInputs[1].Templates)
 	}
 
 	if c.GraphiteInputs[1].Protocol != "udp" {
