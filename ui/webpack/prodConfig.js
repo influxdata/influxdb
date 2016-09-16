@@ -9,8 +9,8 @@ var config = {
     app: path.resolve(__dirname, '..', 'src', 'index.js'),
   },
   output: {
-    publicPath: '/assets/generated/',
-    path: path.resolve(__dirname, '../../assets/generated'),
+    publicPath: '/build',
+    path: path.resolve(__dirname, '../build'),
     filename: '[name].js',
   },
   resolve: {
