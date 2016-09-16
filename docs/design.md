@@ -74,6 +74,9 @@ We'll use GDM as the vendoring solution to maintain consistency with other piece
 #### REST
 We'll use swagger interface definition to specify API and JSON validation.  The goal is to emphasize designing to an interface facilitating parallel development.
 
+At first, we'll autogenerate the http server in go from the swagger definition.  This will free the team up from implementing the http validation, etc. and work strictly on 
+business logic.  Towards the end of the development cycle we'll implement the http routing and JSON validation.
+
 #### Queries
 
 Features would include:
