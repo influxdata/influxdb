@@ -2,6 +2,7 @@
 var webpack = require('webpack');
 var path = require('path');
 var ExtractTextPlugin = require("extract-text-webpack-plugin");
+var HtmlWebpackPlugin = require("html-webpack-plugin");
 
 var config = {
   devtool:  'hidden-source-map',
@@ -69,6 +70,7 @@ var config = {
       },
     }),
     new ExtractTextPlugin("style.css"),
+    new HtmlWebpackPlugin(),
     new webpack.optimize.UglifyJsPlugin({
       compress: {
         warnings: false

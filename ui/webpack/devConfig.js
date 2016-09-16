@@ -1,6 +1,7 @@
 var webpack = require('webpack');
 var path = require('path');
 var ExtractTextPlugin = require("extract-text-webpack-plugin");
+var HtmlWebpackPlugin = require("html-webpack-plugin");
 
 module.exports = {
   devtool: 'eval-cheap-module-source-map',
@@ -67,6 +68,7 @@ module.exports = {
     //
     new webpack.IgnorePlugin(/xhr2/),
     new ExtractTextPlugin("style.css"),
+    new HtmlWebpackPlugin(),
   ],
   postcss: require('./postcss'),
   target: 'web',
