@@ -12,9 +12,9 @@ import (
 	middleware "github.com/go-openapi/runtime/middleware"
 	"golang.org/x/net/context"
 
-	"github.com/influxdata/mrfusion/dist"
 	"github.com/influxdata/mrfusion/mock"
 	"github.com/influxdata/mrfusion/restapi/operations"
+	"github.com/influxdata/mrfusion/ui"
 )
 
 // This file is safe to edit. Once it exists it will not be overwritten
@@ -149,15 +149,21 @@ func setupMiddlewares(handler http.Handler) http.Handler {
 func setupGlobalMiddleware(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("%s %s %s\n", r.RemoteAddr, r.Method, r.URL)
-		if r.URL.Path == "//" || r.URL.Path == "/" || strings.Contains(r.URL.Path, "/index.html") {
-			octets, _ := dist.Asset("dist/index.html")
-			fmt.Fprintf(w, "%s\n", string(octets))
+		if strings.Contains(r.URL.Path, "/chronograf/v1") {
+			handler.ServeHTTP(w, r)
 			return
-		} else if strings.Contains(r.URL.Path, "/bundle.js") {
-			octets, _ := dist.Asset("dist/bundle.js")
-			fmt.Fprintf(w, "%s\n", string(octets))
+		} else if r.URL.Path == "/ui/build/" {
+			octets, _ := ui.Asset("ui/build/index.html")
+			fmt.Fprintf(w, "%s", string(octets))
+			return
+		} else if strings.Index(r.URL.Path, "/ui/build/") == 0 {
+			octets, err := ui.Asset(r.URL.Path[1:])
+			if err != nil {
+				http.NotFound(w, r)
+			}
+			fmt.Fprintf(w, "%s", string(octets))
 			return
 		}
-		handler.ServeHTTP(w, r)
+		http.Redirect(w, r, "/ui/build/index.html", http.StatusFound)
 	})
 }

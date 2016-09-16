@@ -17,8 +17,9 @@ docker-${BINARY}: $(SOURCES)
 	CGO_ENABLED=0 GOOS=linux go build -installsuffix cgo -o ${BINARY} ${LDFLAGS} \
 		./cmd/mr-fusion-server/main.go
 
-bindata:
-	go-bindata -o dist/dist_gen.go -ignore 'map|go' -pkg dist -nocompress=true dist/...
+assets:
+	mkdir -p ui/build
+	go-bindata -o ui/ui.go -ignore 'map|go' -pkg ui -nocompress=true ui/build/...
 
 dev:
 	go get github.com/sparrc/gdm
