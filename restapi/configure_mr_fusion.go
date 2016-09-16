@@ -12,9 +12,9 @@ import (
 	middleware "github.com/go-openapi/runtime/middleware"
 	"golang.org/x/net/context"
 
+	"github.com/influxdata/mrfusion/dist"
 	"github.com/influxdata/mrfusion/mock"
 	"github.com/influxdata/mrfusion/restapi/operations"
-	"github.com/influxdata/mrfusion/ui"
 )
 
 // This file is safe to edit. Once it exists it will not be overwritten
@@ -152,18 +152,22 @@ func setupGlobalMiddleware(handler http.Handler) http.Handler {
 		if strings.Contains(r.URL.Path, "/chronograf/v1") {
 			handler.ServeHTTP(w, r)
 			return
-		} else if r.URL.Path == "/ui/build/" {
-			octets, _ := ui.Asset("ui/build/index.html")
+		} else if r.URL.Path == "/build/" {
+			octets, _ := dist.Asset("ui/build/index.html")
 			fmt.Fprintf(w, "%s", string(octets))
 			return
-		} else if strings.Index(r.URL.Path, "/ui/build/") == 0 {
-			octets, err := ui.Asset(r.URL.Path[1:])
+		} else if strings.Index(r.URL.Path, "/build/") == 0 {
+			octets, err := dist.Asset("ui" + r.URL.Path)
 			if err != nil {
 				http.NotFound(w, r)
 			}
+			if strings.Contains(r.URL.Path, ".css") {
+				w.Header().Set("Content-Type", "text/css")
+			}
+
 			fmt.Fprintf(w, "%s", string(octets))
 			return
 		}
-		http.Redirect(w, r, "/ui/build/index.html", http.StatusFound)
+		http.Redirect(w, r, "/build/index.html", http.StatusFound)
 	})
 }

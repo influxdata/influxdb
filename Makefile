@@ -5,7 +5,7 @@ BUILD_TIME ?= $$(date +%FT%T%z)
 
 SOURCES := $(shell find . -name '*.go')
 
-LDFLAGS=-ldflags "-s -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}  -X main.Branch=${BRANCH}"
+LDFLAGS=-ldflags "-s -X dist.rootDir=. -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}  -X main.Branch=${BRANCH}"
 BINARY=mrfusion
 
 default: prepare ${BINARY}
@@ -21,8 +21,11 @@ docker-${BINARY}: $(SOURCES)
 docker: docker-${BINARY}
 	docker build -t mrfusion .
 
-assets: jsbuild
-	go-bindata -o ui/ui.go -ignore 'map|go' -pkg ui -nocompress=true ui/build/...
+bindata: 
+	go-bindata -debug -dev -o dist/dist_gen.go -ignore 'map|go' -pkg dist ui/build/...
+
+assets: jsbuild go-bindata
+
 
 jsbuild:
 	cd ui && npm run build
