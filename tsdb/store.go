@@ -357,6 +357,11 @@ func (s *Store) DeleteShard(shardID uint64) error {
 		return nil
 	}
 
+	// Remove the shard from the database indexes before closing the shard.
+	// Closing the shard will do this as well, but it will unload it while
+	// the shard is locked which can block stats collection and other calls.
+	sh.UnloadIndex()
+
 	if err := sh.Close(); err != nil {
 		return err
 	}
