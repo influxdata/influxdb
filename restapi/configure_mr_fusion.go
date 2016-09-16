@@ -2,13 +2,17 @@ package restapi
 
 import (
 	"crypto/tls"
+	"fmt"
+	"log"
 	"net/http"
+	"strings"
 
 	errors "github.com/go-openapi/errors"
 	runtime "github.com/go-openapi/runtime"
 	middleware "github.com/go-openapi/runtime/middleware"
 	"golang.org/x/net/context"
 
+	"github.com/influxdata/mrfusion/dist"
 	"github.com/influxdata/mrfusion/mock"
 	"github.com/influxdata/mrfusion/restapi/operations"
 )
@@ -125,7 +129,8 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 
 	api.ServerShutdown = func() {}
 
-	return setupGlobalMiddleware(api.Serve(setupMiddlewares))
+	handler := setupGlobalMiddleware(api.Serve(setupMiddlewares))
+	return handler
 }
 
 // The TLS configuration before HTTPS server starts.
@@ -142,5 +147,17 @@ func setupMiddlewares(handler http.Handler) http.Handler {
 // The middleware configuration happens before anything, this middleware also applies to serving the swagger.json document.
 // So this is a good place to plug in a panic handling middleware, logging and metrics
 func setupGlobalMiddleware(handler http.Handler) http.Handler {
-	return handler
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s %s\n", r.RemoteAddr, r.Method, r.URL)
+		if r.URL.Path == "//" || r.URL.Path == "/" || strings.Contains(r.URL.Path, "/index.html") {
+			octets, _ := dist.Asset("dist/index.html")
+			fmt.Fprintf(w, "%s\n", string(octets))
+			return
+		} else if strings.Contains(r.URL.Path, "/bundle.js") {
+			octets, _ := dist.Asset("dist/bundle.js")
+			fmt.Fprintf(w, "%s\n", string(octets))
+			return
+		}
+		handler.ServeHTTP(w, r)
+	})
 }

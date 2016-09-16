@@ -1,3 +1,5 @@
-dist/
+dist/*.js
+dist/*.html
 .pull-request
 node_modules
+mrfusion

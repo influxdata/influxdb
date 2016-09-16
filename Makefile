@@ -17,9 +17,15 @@ docker-${BINARY}: $(SOURCES)
 	CGO_ENABLED=0 GOOS=linux go build -installsuffix cgo -o ${BINARY} ${LDFLAGS} \
 		./cmd/mr-fusion-server/main.go
 
-prepare:
+bindata:
+	go-bindata -o dist/dist_gen.go -ignore 'map|go' -pkg dist -nocompress=true dist/...
+
+dev:
 	go get github.com/sparrc/gdm
 	gdm restore
+	go get -u github.com/jteeuwen/go-bindata/...
+
+prepare: dev bindata
 
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi
