@@ -13,10 +13,7 @@
     "build:dev": "node_modules/webpack/bin/webpack.js --config ./webpack/devConfig.js",
     "start": "node_modules/webpack/bin/webpack.js -w --config ./webpack/devConfig.js",
     "lint": "eslint src/",
-    "test:dev": "testem",
-    "test": "mocha --compilers js:babel-core/register --recursive spec/",
-    "test:watch": "npm run test:mocha -- --watch",
-    "test:browser": "webpack-dev-server --config webpack/testConfig.js",
+    "test": "karma start",
     "clean": "rm -rf ui/build"
   },
   "author": "",
