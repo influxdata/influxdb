@@ -16,6 +16,8 @@ ${BINARY}: $(SOURCES)
 docker-${BINARY}: $(SOURCES)
 	CGO_ENABLED=0 GOOS=linux go build -installsuffix cgo -o ${BINARY} ${LDFLAGS} \
 		./cmd/mr-fusion-server/main.go
+docker: docker-${BINARY}
+	docker build -t mrfusion .
 
 assets:
 	mkdir -p ui/build
@@ -34,4 +36,7 @@ clean:
 test:
 	go test -race ./...
 
-.PHONY: clean test
+run:
+	./mrfusion --port 8888
+
+.PHONY: clean test run
