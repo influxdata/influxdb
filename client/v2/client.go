@@ -15,10 +15,13 @@ import (
 	"github.com/influxdata/influxdb/models"
 )
 
+var ErrLargePoint = errors.New("point exceeds allowed size")
+
 // UDPPayloadSize is a reasonable default payload size for UDP packets that
 // could be travelling over the internet.
 const (
 	UDPPayloadSize = 512
+	MaxPointSize   = 65507
 )
 
 // HTTPConfig is the config data needed to create an HTTP Client
@@ -412,22 +415,50 @@ func (uc *udpclient) Write(bp BatchPoints) error {
 
 	for _, p := range bp.Points() {
 		pointstring := p.pt.RoundedString(d) + "\n"
+		if len(pointstring) > MaxPointSize {
+			return ErrLargePoint
+		}
 
-		// Write and reset the buffer if we reach the max size
-		if b.Len()+len(pointstring) >= uc.payloadSize {
+		if b.Len() > 0 && b.Len()+len(pointstring) > uc.payloadSize {
 			if _, err := uc.conn.Write(b.Bytes()); err != nil {
 				return err
 			}
 			b.Reset()
 		}
 
-		if _, err := b.WriteString(pointstring); err != nil {
+		if b.Len()+len(pointstring) <= uc.payloadSize {
+			b.WriteString(pointstring)
+			continue
+		}
+
+		if p.Time().IsZero() {
+			b.WriteString(pointstring)
+			continue
+		}
+
+		points, err := p.pt.SplitN(uc.payloadSize - 2) // -2 because of `+ "\n"`
+		if err != nil {
 			return err
+		}
+		for _, sp := range points {
+			pointstring := sp.RoundedString(d) + "\n"
+
+			if b.Len() > 0 && b.Len()+len(pointstring) > uc.payloadSize {
+				if _, err := uc.conn.Write(b.Bytes()); err != nil {
+					return err
+				}
+				b.Reset()
+			}
+			b.WriteString(pointstring)
 		}
 	}
 
-	_, err := uc.conn.Write(b.Bytes())
-	return err
+	if b.Len() > 0 {
+		if _, err := uc.conn.Write(b.Bytes()); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *client) Write(bp BatchPoints) error {
