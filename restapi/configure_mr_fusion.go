@@ -176,7 +176,7 @@ func setupGlobalMiddleware(handler http.Handler) http.Handler {
 			handler.ServeHTTP(w, r)
 			return
 		} else if r.URL.Path == "/build" {
-			http.Redirect(w, r, "", http.StatusFound)
+			http.Redirect(w, r, "/build/", http.StatusFound)
 			return
 		} else if strings.Index(r.URL.Path, "/build/") == 0 {
 			assets().Serve()

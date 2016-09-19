@@ -26,7 +26,7 @@ docker: dep assets docker-${BINARY}
 
 assets: js bindata
 
-devassets: dev-js dev-bindata
+dev-assets: dev-js dev-bindata
 
 bindata: 
 	go-bindata -o dist/dist_gen.go -ignore 'map|go' -pkg dist ui/build/...
