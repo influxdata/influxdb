@@ -38,7 +38,6 @@ func configureFlags(api *operations.MrFusionAPI) {
 
 func assets() mrfusion.Assets {
 	if devFlags.Develop {
-		log.Printf("Running in develop mode.")
 		return &dist.DebugAssets{
 			Dir: "ui",
 		}
@@ -179,7 +178,7 @@ func setupGlobalMiddleware(handler http.Handler) http.Handler {
 			http.Redirect(w, r, "/build/", http.StatusFound)
 			return
 		} else if strings.Index(r.URL.Path, "/build/") == 0 {
-			assets().Serve()
+			assets().Handler().ServeHTTP(w, r)
 			return
 		}
 		http.Redirect(w, r, "/build/index.html", http.StatusFound)

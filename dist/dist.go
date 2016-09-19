@@ -11,8 +11,8 @@ type DebugAssets struct {
 	Dir string // Dir is a directory location of asset files
 }
 
-// Serve is an http.FileServer for the Dir
-func (d *DebugAssets) Serve() http.Handler {
+// Handler is an http.FileServer for the Dir
+func (d *DebugAssets) Handler() http.Handler {
 	return http.FileServer(http.Dir(d.Dir))
 }
 
@@ -21,17 +21,13 @@ type BindataAssets struct {
 	Prefix string // Prefix is prepended to the http file request
 }
 
-// Serve serves go-bindata using a go-bindata-assetfs façade
-func (b *BindataAssets) Serve() http.Handler {
+// Handler serves go-bindata using a go-bindata-assetfs façade
+func (b *BindataAssets) Handler() http.Handler {
 	var dir http.FileSystem = &assetfs.AssetFS{
 		Asset:     Asset,
 		AssetDir:  AssetDir,
 		AssetInfo: AssetInfo,
-		Prefix:    b.Prefix}
+		Prefix:    b.Prefix,
+	}
 	return http.FileServer(dir)
 }
-
-// You found me! I was hiding down here!
-
-// rootDir is used for go-bindata dev mode to specify a relative path.
-var rootDir string
