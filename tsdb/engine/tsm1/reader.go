@@ -1167,9 +1167,9 @@ func (m *mmapAccessor) readAll(key string) ([]Value, error) {
 
 func (m *mmapAccessor) path() string {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	return m.f.Name()
+	path := m.f.Name()
+	m.mu.RUnlock()
+	return path
 }
 
 func (m *mmapAccessor) close() error {

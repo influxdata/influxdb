@@ -458,9 +458,8 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 // findGenerations groups all the TSM files by they generation based
 // on their filename then returns the generations in descending order (newest first)
 func (c *DefaultPlanner) findGenerations() tsmGenerations {
-	generations := map[int]*tsmGeneration{}
-
 	tsmStats := c.FileStore.Stats()
+	generations := make(map[int]*tsmGeneration, len(tsmStats))
 	for _, f := range tsmStats {
 		gen, _, _ := ParseTSMFileName(f.Path)
 
