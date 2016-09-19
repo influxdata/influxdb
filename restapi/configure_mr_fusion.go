@@ -39,11 +39,11 @@ func configureFlags(api *operations.MrFusionAPI) {
 func assets() mrfusion.Assets {
 	if devFlags.Develop {
 		return &dist.DebugAssets{
-			Dir: "ui",
+			Dir: "ui/build",
 		}
 	}
 	return &dist.BindataAssets{
-		Prefix: "ui",
+		Prefix: "ui/build",
 	}
 }
 
@@ -174,13 +174,11 @@ func setupGlobalMiddleware(handler http.Handler) http.Handler {
 		if strings.Contains(r.URL.Path, "/chronograf/v1") {
 			handler.ServeHTTP(w, r)
 			return
-		} else if r.URL.Path == "/build" {
-			http.Redirect(w, r, "/build/", http.StatusFound)
-			return
-		} else if strings.Index(r.URL.Path, "/build/") == 0 {
+		} else if r.URL.Path == "//" {
+			http.Redirect(w, r, "/index.html", http.StatusFound)
+		} else {
 			assets().Handler().ServeHTTP(w, r)
 			return
 		}
-		http.Redirect(w, r, "/build/index.html", http.StatusFound)
 	})
 }
