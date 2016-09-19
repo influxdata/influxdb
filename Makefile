@@ -8,7 +8,11 @@ SOURCES := $(shell find . -name '*.go')
 LDFLAGS=-ldflags "-s -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}  -X main.Branch=${BRANCH}"
 BINARY=mrfusion
 
-default: prepare ${BINARY}
+default: dep build
+
+build: assets ${BINARY}
+
+dev: dev-assets ${BINARY}
 
 ${BINARY}: $(SOURCES)
 	go build -o ${BINARY} ${LDFLAGS} ./cmd/mr-fusion-server/main.go
@@ -16,27 +20,49 @@ ${BINARY}: $(SOURCES)
 docker-${BINARY}: $(SOURCES)
 	CGO_ENABLED=0 GOOS=linux go build -installsuffix cgo -o ${BINARY} ${LDFLAGS} \
 		./cmd/mr-fusion-server/main.go
-docker: docker-${BINARY}
+
+docker: dep assets docker-${BINARY}
 	docker build -t mrfusion .
 
-assets:
-	mkdir -p ui/build
-	go-bindata -o ui/ui.go -ignore 'map|go' -pkg ui -nocompress=true ui/build/...
+assets: js bindata
 
-dev:
+dev-assets: dev-js dev-bindata
+
+bindata: 
+	go-bindata -o dist/dist_gen.go -ignore 'map|go' -pkg dist ui/build/...
+
+dev-bindata:
+	go-bindata -debug -dev -o dist/dist_gen.go -ignore 'map|go' -pkg dist ui/build/...
+
+js:
+	cd ui && npm run build
+
+dev-js:
+	cd ui && npm run build:dev
+
+dep: jsdep godep
+
+godep:
 	go get github.com/sparrc/gdm
 	gdm restore
 	go get -u github.com/jteeuwen/go-bindata/...
 
-prepare: dev assets
+jsdep:
+	cd ui && npm install 
+
+test: jstest gotest
+
+gotest:
+	go test -race ./...
+
+jstest:
+	cd ui && npm test
+
+run: ${BINARY}
+	./mrfusion --port 8888
 
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi
+	cd ui && npm run clean
 
-test:
-	go test -race ./...
-
-run:
-	./mrfusion --port 8888
-
-.PHONY: clean test run
+.PHONY: clean test jstest gotest run

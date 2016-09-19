@@ -1,0 +1,2 @@
+--require spec/spec-helper.js
+--require spec/chai.js

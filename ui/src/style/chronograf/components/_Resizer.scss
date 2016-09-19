@@ -1,0 +1,45 @@
+$resizer-handle-width: 2px;
+$resizer-click-area: 28px;
+$resizer-glow: 14px;
+
+.resizer__handle {
+	top: 0;
+	left: 0;
+	width: $resizer-click-area;
+	margin-left: -$resizer-click-area/2 - $resizer-handle-width/2;
+	margin-right: -$resizer-click-area/2 - $resizer-handle-width/2;
+	height: 100%;
+	z-index: 2;
+	user-select: none;
+	-webkit-user-select: none;
+	position: relative;
+
+	&:after {
+		content: '';
+		display: block;
+		position: absolute;
+		top: 0;
+		left: 50%;
+		transform: translateX(-50%);
+		height: 100%;
+		width: $resizer-handle-width;
+		background-color: $g4-onyx;
+		box-shadow: 0 0 0 transparent;
+		transition:
+			background-color 0.19s ease;
+	}
+	&:hover {
+		cursor: ew-resize;
+
+		&:after {
+			background-color: $g8-storm;
+		}
+	}
+	&.dragging:after {
+		transition:
+			box-shadow 0.3s ease,
+			background-color 0.3s ease;
+		background-color: $c-pool;
+		box-shadow: 0 0 $resizer-glow $c-pool;
+	}
+}

@@ -1,0 +1,16 @@
+framework: "jasmine2"
+
+# Files for testem to watch
+src_files:
+  - "built_specs/all_specs.js"
+# Files for testem to serve in the test runner
+serve_files:
+  - "bower_components/jquery/dist/jquery.min.js"
+  - "bower_components/jasmine-jquery/lib/jasmine-jquery.js"
+  - "bower_components/sinon/index.js"
+  - "built_specs/all_specs.js"
+
+launch_in_ci:
+  - "phantomjs"
+launch_in_dev:
+  - "phantomjs"

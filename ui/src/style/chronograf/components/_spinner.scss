@@ -1,0 +1,26 @@
+.page-spinner {
+  border: 0.3em solid rgba(51, 51, 51, 0.4);
+  border-left-color: $c-pool;
+  border-radius: 50%;
+  width: 8em;
+  height: 8em;
+  position: fixed;
+  margin: auto;
+  top: 0;
+  left: $sidebar-width; // Center the spinner based on the main content window, not the entire screen
+  bottom: 0;
+  right: 0;
+
+  /* This is a hack to tell the browser to use the GPU when rendering the spinner. */
+  transform: translateZ(0);
+  animation: spinner 0.5s infinite linear;
+}
+
+@keyframes spinner {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}

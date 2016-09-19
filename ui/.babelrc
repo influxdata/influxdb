@@ -1,0 +1,16 @@
+{
+  "plugins": [
+    "syntax-trailing-function-commas",
+    "transform-decorators-legacy",
+    "transform-runtime",
+    "lodash"
+  ],
+  "presets": ["es2015", "react"],
+  "env": {
+    "production": {
+      "plugins": [
+        "transform-react-remove-prop-types"
+      ]
+    },
+  }
+}

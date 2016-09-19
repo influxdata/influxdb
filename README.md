@@ -1,8 +1,10 @@
 # mrfusion
 
 ## Builds
-To build assets and the go server, run `make`.
-To run server either `./mrfusion --port 8888` or `make run`
+
+* To build assets and the go server, run `make`.
+* To run server either `./mrfusion --port 8888` or `make run`
+* If you add files to the javascript build and you don't want to rebuild everything, run `make bindata && make mrfusion`
 
 ## Deployment (for now)
 Includes a Dockerfile that builds a container suitable for Heroku.

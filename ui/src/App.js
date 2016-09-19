@@ -1,21 +1,33 @@
-import React, { Component } from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React, {PropTypes} from 'react';
+import FlashMessages from 'shared/components/FlashMessages';
+import SideNavContainer from 'src/side_nav';
 
-class App extends Component {
+const App = React.createClass({
+  propTypes: {
+    params: PropTypes.shape({
+      clusterID: PropTypes.string.isRequired,
+    }).isRequired,
+    addFlashMessage: PropTypes.func.isRequired, // Injected by the `FlashMessages` wrapper
+    children: PropTypes.node.isRequired,
+    location: PropTypes.shape({
+      pathname: PropTypes.string,
+    }),
+  },
+
   render() {
+    const {clusterID} = this.props.params;
+
     return (
-      <div className="App">
-        <div className="App-header">
-          <img src={logo} className="App-logo" alt="logo" />
-          <h2>Welcome to React</h2>
+      <div className="enterprise-wrapper--flex">
+        <SideNavContainer addFlashMessage={this.props.addFlashMessage} clusterID={clusterID} currentLocation={this.props.location.pathname} />
+        <div className="page-wrapper">
+          {this.props.children && React.cloneElement(this.props.children, {
+            addFlashMessage: this.props.addFlashMessage,
+          })}
         </div>
-        <p className="App-intro">
-          To get started, edit <code>src/App.js</code> and save to reload.
-        </p>
       </div>
     );
-  }
-}
+  },
+});
 
-export default App;
+export default FlashMessages(App);

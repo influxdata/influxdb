@@ -2,7 +2,6 @@ package restapi
 
 import (
 	"crypto/tls"
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -10,19 +9,42 @@ import (
 	errors "github.com/go-openapi/errors"
 	runtime "github.com/go-openapi/runtime"
 	middleware "github.com/go-openapi/runtime/middleware"
+	"github.com/go-openapi/swag"
 	"golang.org/x/net/context"
 
+	"github.com/influxdata/mrfusion"
+	"github.com/influxdata/mrfusion/dist"
 	"github.com/influxdata/mrfusion/mock"
 	"github.com/influxdata/mrfusion/restapi/operations"
-	"github.com/influxdata/mrfusion/ui"
 )
 
 // This file is safe to edit. Once it exists it will not be overwritten
 
 //go:generate swagger generate server --target .. --name  --spec ../swagger.yaml --with-context
 
+var devFlags = struct {
+	Develop bool `short:"d" long:"develop" description:"Run server in develop mode."`
+}{}
+
 func configureFlags(api *operations.MrFusionAPI) {
-	// api.CommandLineOptionsGroups = []swag.CommandLineOptionsGroup{ ... }
+	api.CommandLineOptionsGroups = []swag.CommandLineOptionsGroup{
+		swag.CommandLineOptionsGroup{
+			ShortDescription: "Develop Mode server",
+			LongDescription:  "Server will use the ui/build directory directly.",
+			Options:          &devFlags,
+		},
+	}
+}
+
+func assets() mrfusion.Assets {
+	if devFlags.Develop {
+		return &dist.DebugAssets{
+			Dir: "ui",
+		}
+	}
+	return &dist.BindataAssets{
+		Prefix: "ui",
+	}
 }
 
 func configureAPI(api *operations.MrFusionAPI) http.Handler {
@@ -152,18 +174,13 @@ func setupGlobalMiddleware(handler http.Handler) http.Handler {
 		if strings.Contains(r.URL.Path, "/chronograf/v1") {
 			handler.ServeHTTP(w, r)
 			return
-		} else if r.URL.Path == "/ui/build/" {
-			octets, _ := ui.Asset("ui/build/index.html")
-			fmt.Fprintf(w, "%s", string(octets))
+		} else if r.URL.Path == "/build" {
+			http.Redirect(w, r, "/build/", http.StatusFound)
 			return
-		} else if strings.Index(r.URL.Path, "/ui/build/") == 0 {
-			octets, err := ui.Asset(r.URL.Path[1:])
-			if err != nil {
-				http.NotFound(w, r)
-			}
-			fmt.Fprintf(w, "%s", string(octets))
+		} else if strings.Index(r.URL.Path, "/build/") == 0 {
+			assets().Handler().ServeHTTP(w, r)
 			return
 		}
-		http.Redirect(w, r, "/ui/build/index.html", http.StatusFound)
+		http.Redirect(w, r, "/build/index.html", http.StatusFound)
 	})
 }

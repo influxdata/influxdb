@@ -3,3 +3,5 @@ dist/*.html
 .pull-request
 node_modules
 mrfusion
+node_modules/
+build/

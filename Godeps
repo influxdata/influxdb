@@ -1,6 +1,7 @@
 github.com/PuerkitoBio/purell 8a290539e2e8629dbc4e6bad948158f790ec31f4
 github.com/PuerkitoBio/urlesc 5bd2802263f21d8788851d5305584c82a5c75d7e
 github.com/asaskevich/govalidator 593d64559f7600f29581a3ee42177f5dbded27a9
+github.com/elazarl/go-bindata-assetfs 9a6736ed45b44bf3835afeebb3034b57ed329f3e
 github.com/go-openapi/analysis b44dc874b601d9e4e2f6e19140e794ba24bead3b
 github.com/go-openapi/errors 4178436c9f2430cdd945c50301cfb61563b56573
 github.com/go-openapi/jsonpointer 46af16f9f7b149af66e5d1bd010e3574dc06de98

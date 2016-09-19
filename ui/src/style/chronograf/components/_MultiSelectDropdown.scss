@@ -1,0 +1,24 @@
+.multi-select-dropdown {
+  &__menu {
+    display: block !important;
+  }
+  &__toggle {
+    display: block !important;
+    width: 14em;
+  }
+  &__label {
+    text-overflow: ellipsis;
+    width: 85%;
+    display: block;
+    overflow: hidden;
+  }
+  &__caret {
+    position: absolute;
+    right: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  &__apply {
+    margin: 10px 0 0 0;
+  }
+}

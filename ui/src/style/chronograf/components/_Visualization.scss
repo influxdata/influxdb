@@ -1,0 +1,266 @@
+$graph-panel__tab-height: 44px;
+$graph-panel__tab-offset: 8px;
+
+$dygraphs-legend-offset: 32px;
+
+.graph-panel {
+  position: relative;
+  margin-bottom: 18px;
+  transition: box-shadow 0.3s ease;
+
+  &.active {
+    .graph-panel__title {
+      color: $g20-white;
+    }
+  }
+
+  &:last-child {
+    margin-bottom: 100%;
+  }
+
+  &__view-selector {
+    cursor: pointer;
+
+    &.active {
+      color: $g20-white;
+    }
+  }
+
+  &__bar {
+    background-color: $g5-pepper;
+    border-radius: 4px 4px 0 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: $graph-panel__tab-height;
+    padding: 0 16px;
+    transition:
+      background-color 0.25s ease;
+
+  }
+  &__left {
+    display: flex;
+    align-items: center;
+  }
+  &__title {
+    font-size: 16px;
+    color: $g13-mist;
+    font-weight: 500;
+    margin-right: 16px;
+    transition:
+      color 0.25s ease;
+
+    .icon {
+      font-size: 12px;
+      margin-right: 8px;
+      position: relative;
+      top: -1px;
+    }
+  }
+  &__tabs {
+    padding: 0;
+    margin: $graph-panel__tab-offset 0 0 0;
+    list-style: none;
+    display: flex;
+  }
+  &__tab {
+    background-color: $g5-pepper;
+    color: $g10-wolf;
+    height: $graph-panel__tab-height - $graph-panel__tab-offset;
+    line-height: $graph-panel__tab-height - $graph-panel__tab-offset - 5px;
+    border-radius: 4px 4px 0 0;
+    margin-right: 2px;
+    padding: 0 14px;
+    font-weight: 500;
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease;
+
+    &:hover {
+      cursor: pointer;
+      color: $g13-mist;
+      background-color: $g4-onyx;
+    }
+    &.active {
+      background-color: $g3-castle;
+      color: $g20-white;
+    }
+  }
+  &__options {
+    width: $graph-panel__tab-height - 16px;
+    height: $graph-panel__tab-height - 16px;
+    border-radius: 3px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-left: 9.5px;
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease;
+    &:hover {
+      cursor: pointer;
+      color: $g13-mist;
+      background-color: $g6-smoke;
+    }
+  }
+  &__graph-container {
+    background-color: $g3-castle;
+    border-radius: 0 0 4px 4px;
+    padding: 9.5px;
+    position: relative;
+  }
+  &__graph-empty {
+    width: 100%;
+    height: 140px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    > * {
+      margin: 0;
+    }
+  }
+  &__graph-fetching {
+    width: 100%;
+    height: 320px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  &__spinner {
+    width: 121px;
+    height: 121px;
+    background-image: url(/assets/images/laser-spinner.png);
+    background-size: 100% 100%;
+    background-position: center center;
+    background-repeat: no-repeat;
+    animation: graph-panel-spinner 1s infinite linear;
+  }
+  &__spinner--small {
+    width: 38px;
+    height: 38px;
+    background-image: url(/assets/images/laser-spinner.png);
+    background-size: 100% 100%;
+    background-position: center center;
+    background-repeat: no-repeat;
+    animation: graph-panel-spinner 1s infinite linear;
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    top: 0;
+    margin: auto;
+  }
+}
+@keyframes graph-panel-spinner {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.multi-table__tabs {
+  display: flex;
+}
+.multi-table__tab {
+  white-space: nowrap;
+  color: $g10-wolf;
+  background: $g5-pepper;
+  height: 30px;
+  line-height: 30px;
+  margin-right: 2px;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  padding: 0 10px;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease;
+
+  &:hover {
+    color: $g20-white;
+    background-color: $g6-smoke;
+  }
+  &.active {
+    font-weight: 700;
+    background-color: $g6-smoke;
+    color: $g14-chromium;
+  }
+}
+
+// Dygraph styles. Needs a home.
+.dygraph-axis-label {
+  color: $g11-sidewalk;
+  font-weight: 500;
+}
+.graph-vertical-marker {
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background-color: $g8-storm;
+  position: absolute;
+  pointer-events: none;
+  display: none;
+  transform: translateX(9px);
+}
+.container--dygraph-legend {
+  background-color: $g1-raven;
+  display: block;
+  position: fixed;
+  padding: 11px;
+  z-index: 500;
+  font-size: 13px;
+  color: $g12-forge;
+  border-radius: 3px;
+  font-weight: 600;
+  line-height: 13px;
+
+  &.hidden {
+    display: none;
+  }
+
+  /*
+   * Only animate position that's controlled during rendering.
+   * See http://stackoverflow.com/a/17117992
+   */
+  transition: all 0.25s ease;
+  transition-property: top, right, bottom, left;
+
+  /* Row */
+  /* Styles for Key go here, get overrided by > b */
+  > span {
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+    display: flex;
+    opacity: 0.5;
+    padding-top: 4px;
+    font-size: 13px;
+    line-height: 13px;
+    font-weight: 600 !important;
+    color: $g19-ghost;
+    margin: 0;
+
+    /* Border on top of first row */
+    &:first-child {
+      border-top: 2px solid $g4-onyx;
+      padding-top: 6px;
+      margin-top: 6px;
+    }
+
+    /* Legend Key */
+    > b {
+      font-weight: 600 !important;
+    }
+  }
+
+  .highlight {
+    font-weight: 600;
+    opacity: 1;
+
+    > b {
+     font-weight: 600;
+    }
+  }
+}

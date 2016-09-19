@@ -1,14 +1,7 @@
-# See http://help.github.com/ignore-files/ for more about ignoring files.
-
-# dependencies
-node_modules
-
-# testing
-coverage
-
-# production
-build
-
-# misc
-.DS_Store
-npm-debug.log
+node_modules/
+artifacts/
+spec/allSpecs.js
+dev/
+dist/
+bower_components/
+log/
