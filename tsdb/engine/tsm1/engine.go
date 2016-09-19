@@ -360,17 +360,21 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index *tsdb.DatabaseIndex) er
 	e.Cache.RLock() // shouldn't need the lock, but just to be safe
 	defer e.Cache.RUnlock()
 
-	for key, entry := range e.Cache.Store() {
+	for _, bucket := range e.Cache.Store().Buckets {
+		bucket.RLock()
+		for key, entry := range bucket.data {
+			fieldType, err := entry.values.InfluxQLType()
+			if err != nil {
+				e.logger.Printf("error getting the data type of values for key %s: %s", key, err.Error())
+				continue
+			}
 
-		fieldType, err := entry.values.InfluxQLType()
-		if err != nil {
-			e.logger.Printf("error getting the data type of values for key %s: %s", key, err.Error())
-			continue
+			if err := e.addToIndexFromKey(shardID, []byte(key), fieldType, index); err != nil {
+				bucket.RUnlock()
+				return err
+			}
 		}
-
-		if err := e.addToIndexFromKey(shardID, []byte(key), fieldType, index); err != nil {
-			return err
-		}
+		bucket.RUnlock()
 	}
 
 	e.traceLogger.Printf("Meta data index for shard %d loaded in %v", shardID, time.Since(now))
@@ -668,12 +672,15 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 	// find the keys in the cache and remove them
 	walKeys := deleteKeys[:0]
 	e.Cache.RLock()
-	s := e.Cache.Store()
-	for k, _ := range s {
-		seriesKey, _ := SeriesAndFieldFromCompositeKey([]byte(k))
-		if _, ok := keyMap[string(seriesKey)]; ok {
-			walKeys = append(walKeys, k)
+	for _, bucket := range e.Cache.Store().Buckets {
+		bucket.RLock()
+		for k := range bucket.data {
+			seriesKey, _ := SeriesAndFieldFromCompositeKey([]byte(k))
+			if _, ok := keyMap[string(seriesKey)]; ok {
+				walKeys = append(walKeys, k)
+			}
 		}
+		bucket.RUnlock()
 	}
 	e.Cache.RUnlock()
 

@@ -1,5 +1,6 @@
 collectd.org 9fc824c70f713ea0f058a07b49a4c563ef2a3b98
 github.com/BurntSushi/toml 99064174e013895bbd9b025c31100bd1d9b590ca
+github.com/OneOfOne/xxhash 5d931d4a2da753f31d09cb2862ffa01c44bc656b
 github.com/bmizerany/pat c068ca2f0aacee5ac3681d68e4d0a003b7d1fd2c
 github.com/boltdb/bolt 5cc10bbbc5c141029940133bb33c9e969512a698
 github.com/davecgh/go-spew 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
