@@ -91,6 +91,13 @@ func NewFloatDerivativeReducer(interval Interval, isNonNegative, ascending bool)
 
 // AggregateFloat aggregates a point into the reducer and updates the current window.
 func (r *FloatDerivativeReducer) AggregateFloat(p *FloatPoint) {
+	// Skip past a point when it does not advance the stream. A joined series
+	// may have multiple points at the same time so we will discard anything
+	// except the first point we encounter.
+	if !r.curr.Nil && r.curr.Time == p.Time {
+		return
+	}
+
 	r.prev = r.curr
 	r.curr = *p
 }
@@ -106,6 +113,9 @@ func (r *FloatDerivativeReducer) Emit() []FloatPoint {
 			elapsed = -elapsed
 		}
 		value := diff / (float64(elapsed) / float64(r.interval.Duration))
+
+		// Mark this point as read by changing the previous point to nil.
+		r.prev.Nil = true
 
 		// Drop negative values for non-negative derivatives.
 		if r.isNonNegative && diff < 0 {
@@ -138,6 +148,13 @@ func NewIntegerDerivativeReducer(interval Interval, isNonNegative, ascending boo
 
 // AggregateInteger aggregates a point into the reducer and updates the current window.
 func (r *IntegerDerivativeReducer) AggregateInteger(p *IntegerPoint) {
+	// Skip past a point when it does not advance the stream. A joined series
+	// may have multiple points at the same time so we will discard anything
+	// except the first point we encounter.
+	if !r.curr.Nil && r.curr.Time == p.Time {
+		return
+	}
+
 	r.prev = r.curr
 	r.curr = *p
 }
@@ -153,6 +170,9 @@ func (r *IntegerDerivativeReducer) Emit() []FloatPoint {
 			elapsed = -elapsed
 		}
 		value := diff / (float64(elapsed) / float64(r.interval.Duration))
+
+		// Mark this point as read by changing the previous point to nil.
+		r.prev.Nil = true
 
 		// Drop negative values for non-negative derivatives.
 		if r.isNonNegative && diff < 0 {
@@ -179,6 +199,13 @@ func NewFloatDifferenceReducer() *FloatDifferenceReducer {
 
 // AggregateFloat aggregates a point into the reducer and updates the current window.
 func (r *FloatDifferenceReducer) AggregateFloat(p *FloatPoint) {
+	// Skip past a point when it does not advance the stream. A joined series
+	// may have multiple points at the same time so we will discard anything
+	// except the first point we encounter.
+	if !r.curr.Nil && r.curr.Time == p.Time {
+		return
+	}
+
 	r.prev = r.curr
 	r.curr = *p
 }
@@ -188,6 +215,9 @@ func (r *FloatDifferenceReducer) Emit() []FloatPoint {
 	if !r.prev.Nil {
 		// Calculate the difference of successive points.
 		value := r.curr.Value - r.prev.Value
+
+		// Mark this point as read by changing the previous point to nil.
+		r.prev.Nil = true
 		return []FloatPoint{{Time: r.curr.Time, Value: value}}
 	}
 	return nil
@@ -209,6 +239,13 @@ func NewIntegerDifferenceReducer() *IntegerDifferenceReducer {
 
 // AggregateInteger aggregates a point into the reducer and updates the current window.
 func (r *IntegerDifferenceReducer) AggregateInteger(p *IntegerPoint) {
+	// Skip past a point when it does not advance the stream. A joined series
+	// may have multiple points at the same time so we will discard anything
+	// except the first point we encounter.
+	if !r.curr.Nil && r.curr.Time == p.Time {
+		return
+	}
+
 	r.prev = r.curr
 	r.curr = *p
 }
@@ -218,6 +255,9 @@ func (r *IntegerDifferenceReducer) Emit() []IntegerPoint {
 	if !r.prev.Nil {
 		// Calculate the difference of successive points.
 		value := r.curr.Value - r.prev.Value
+
+		// Mark this point as read by changing the previous point to nil.
+		r.prev.Nil = true
 		return []IntegerPoint{{Time: r.curr.Time, Value: value}}
 	}
 	return nil
