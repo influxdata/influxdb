@@ -79,7 +79,7 @@ func Test_Influx_CancelsInFlightRequests(t *testing.T) {
 	}
 
 	err := <-errs
-	if _, ok := err.(influx.TimeoutError); !ok {
-		t.Error("Expected TimeoutError but wasn't. err was", err)
+	if err != mrfusion.ErrUpstreamTimeout {
+		t.Error("Expected timeout error but wasn't. err was", err)
 	}
 }
