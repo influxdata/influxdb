@@ -235,7 +235,7 @@ export const ClusterAccountContainer = React.createClass({
   handleDeleteAccount() {
     const {clusterID, accountID} = this.props.params;
     deleteClusterAccount(clusterID, accountID).then(() => {
-      this.props.router.push(`/clusters/${clusterID}/accounts`);
+      this.props.router.push(`/accounts`);
       this.props.addFlashMessage({
         type: 'success',
         text: 'Cluster account deleted!',

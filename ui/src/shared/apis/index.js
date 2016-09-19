@@ -1,8 +1,8 @@
 import AJAX from 'utils/ajax';
 
-export function showCluster(clusterID) {
+export function getSources() {
   return AJAX({
-    url: metaProxy(clusterID, '/show-cluster'),
+    url: '/chronograf/v1/sources',
   });
 }
 
@@ -39,7 +39,7 @@ export function createDatabase({database, rpName, duration, replicaN}) {
 
 export function getClusters() {
   return AJAX({
-    url: `/api/int/v1/clusters`,
+    url: ``,
   });
 }
 
@@ -64,9 +64,9 @@ export function meUpdate({firstName, lastName, email, password, confirmation, ol
   });
 }
 
-export function getWebUsers(clusterID) {
+export function getWebUsers() {
   return AJAX({
-    url: `/api/int/v1/clusters/${clusterID}/users`,
+    url: `/api/int/v1/users`,
   });
 }
 
@@ -242,7 +242,7 @@ export function deleteClusterAccount(clusterID, accountName) {
     }),
     // Remove any cluster user links that are tied to this cluster account.
     AJAX({
-      url: `/api/int/v1/clusters/${clusterID}/user_links/batch/${accountName}`,
+      url: `/api/int/v1/user_links/batch/${accountName}`,
       method: 'DELETE',
     }),
   ]);
@@ -383,20 +383,20 @@ export function deleteRole(clusterID, roleName) {
 
 export function deleteUserClusterLink(clusterID, userClusterLinkID) {
   return AJAX({
-    url: `/api/int/v1/clusters/${clusterID}/user_links/${userClusterLinkID}`,
+    url: `/api/int/v1/user_links/${userClusterLinkID}`,
     method: `DELETE`,
   });
 }
 
-export function getUserClusterLinks(clusterID) {
+export function getUserClusterLinks() {
   return AJAX({
-    url: `/api/int/v1/clusters/${clusterID}/user_links`,
+    url: `/api/int/v1/user_links`,
   });
 }
 
 export function createUserClusterLink({userID, clusterID, clusterUser}) {
   return AJAX({
-    url: `/api/int/v1/clusters/${clusterID}/user_links`,
+    url: `/api/int/v1/user_links`,
     method: 'POST',
     data: {
       user_id: userID,
@@ -408,7 +408,7 @@ export function createUserClusterLink({userID, clusterID, clusterUser}) {
 
 export function getWebUsersByClusterAccount(clusterID, clusterAccount) {
   return AJAX({
-    url: `/api/int/v1/clusters/${clusterID}/user_links/batch/${encodeURIComponent(clusterAccount)}`,
+    url: `/api/int/v1/user_links/batch/${encodeURIComponent(clusterAccount)}`,
   });
 }
 
@@ -422,12 +422,12 @@ export function batchCreateUserClusterLink(userID, clusterLinks) {
 
 export function addWebUsersToClusterAccount(clusterID, clusterAccount, userIDs) {
   return AJAX({
-    url: `/api/int/v1/clusters/${clusterID}/user_links/batch/${encodeURIComponent(clusterAccount)}`,
+    url: `/api/int/v1/user_links/batch/${encodeURIComponent(clusterAccount)}`,
     method: 'POST',
     data: userIDs,
   });
 }
 
 function metaProxy(clusterID, slug) {
-  return `/api/int/v1/clusters/${clusterID}/meta${slug}`;
+  return `/api/int/v1/meta${slug}`;
 }

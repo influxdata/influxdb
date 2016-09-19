@@ -2,16 +2,13 @@ import React, {PropTypes} from 'react';
 import NoClusterError from 'shared/components/NoClusterError';
 import NoClusterLinksError from 'shared/components/NoClusterLinksError';
 import {webUserShape} from 'src/utils/propTypes';
-import {showCluster} from 'src/shared/apis';
+import {getSources} from 'src/shared/apis';
 
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data nodes, but not every page requires them to function.
 // Routes that do require data nodes can be nested under this component.
 const CheckDataNodes = React.createClass({
   propTypes: {
-    params: PropTypes.shape({
-      clusterID: PropTypes.string.isRequired,
-    }).isRequired,
     addFlashMessage: PropTypes.func,
     children: PropTypes.node,
   },
@@ -44,8 +41,8 @@ const CheckDataNodes = React.createClass({
   },
 
   componentDidMount() {
-    const {clusterID} = this.props.params;
-    showCluster(clusterID).then((resp) => {
+    getSources().then((resp) => {
+      // TODO: get this wired up correctly once getSources is working.
       const dataNodes = this.getHealthyDataNodes(resp.data.data);
       this.setState({
         dataNodes,

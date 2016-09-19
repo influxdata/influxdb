@@ -158,7 +158,7 @@ export function createExplorer(clusterID, push) {
     }).then((resp) => {
       const explorer = parseRawExplorer(resp.data);
       dispatch(loadExplorer(explorer));
-      push(`/clusters/${clusterID}/chronograf/data_explorer/${explorer.id}`);
+      push(`/chronograf/data_explorer/${explorer.id}`);
     });
   };
 }
@@ -179,7 +179,7 @@ export function deleteExplorer(clusterID, explorerID, push) {
         // explorer and should create a new one.
         if (explorer) {
           dispatch(loadExplorer(explorer));
-          push(`/clusters/${clusterID}/chronograf/data_explorer/${explorer.id}`);
+          push(`/chronograf/data_explorer/${explorer.id}`);
         } else {
           dispatch(createExplorer(clusterID, push));
         }
@@ -249,7 +249,7 @@ export function fetchExplorers({clusterID, explorerID, push}) {
       if (!explorerID) {
         const explorer = _.maxBy(explorers, (ex) => ex.updated_at);
         dispatch(loadExplorer(explorer));
-        push(`/clusters/${clusterID}/chronograf/data_explorer/${explorer.id}`);
+        push(`/chronograf/data_explorer/${explorer.id}`);
         return;
       }
 
@@ -306,7 +306,7 @@ export function chooseExplorer(clusterID, explorerID, push) {
     }).then((resp) => {
       const explorer = parseRawExplorer(resp.data);
       dispatch(loadExplorer(explorer));
-      push(`/clusters/${clusterID}/chronograf/data_explorer/${explorerID}`);
+      push(`/chronograf/data_explorer/${explorerID}`);
     });
   };
 }

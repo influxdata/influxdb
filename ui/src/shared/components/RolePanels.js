@@ -3,11 +3,10 @@ import {Link} from 'react-router';
 import PermissionsTable from 'src/shared/components/PermissionsTable';
 import {roleShape} from 'utils/propTypes';
 
-const {arrayOf, string, bool, func} = PropTypes;
+const {arrayOf, bool, func} = PropTypes;
 const RolePanels = React.createClass({
   propTypes: {
     roles: arrayOf(roleShape).isRequired,
-    clusterID: string.isRequired,
     showUserCount: bool,
     onRemoveAccountFromRole: func,
   },
@@ -19,7 +18,7 @@ const RolePanels = React.createClass({
   },
 
   render() {
-    const {roles, clusterID} = this.props;
+    const {roles} = this.props;
 
     if (!roles.length) {
       return (
@@ -58,7 +57,7 @@ const RolePanels = React.createClass({
                         Remove
                       </button>
                     ) : null}
-                    <Link to={`/clusters/${clusterID}/roles/${encodeURIComponent(role.name)}`} className="btn btn-xs btn-link">
+                    <Link to={`/roles/${encodeURIComponent(role.name)}`} className="btn btn-xs btn-link">
                       Go To Role
                     </Link>
                   </div>
