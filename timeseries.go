@@ -1,6 +1,10 @@
 package mrfusion
 
-import "golang.org/x/net/context"
+import (
+	"encoding/json"
+
+	"golang.org/x/net/context"
+)
 
 // Used to retrieve a Response from a TimeSeries.
 type Query string
@@ -21,6 +25,7 @@ type Result interface {
 // Response is the result of a query against a TimeSeries
 type Response interface {
 	Results() ([]Result, error)
+	json.Marshaler
 }
 
 // MonitoredService is a service sending monitoring data to a `TimeSeries`

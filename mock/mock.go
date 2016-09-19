@@ -121,6 +121,10 @@ type Response struct {
 	results []mrfusion.Result
 }
 
+func (r *Response) MarshalJSON() ([]byte, error) {
+	return []byte(`{}`), nil
+}
+
 var SampleResponse mrfusion.Response = NewResponse(SampleResult)
 
 func NewResponse(result mrfusion.Result) mrfusion.Response {
