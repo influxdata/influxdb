@@ -5,12 +5,14 @@ BUILD_TIME ?= $$(date +%FT%T%z)
 
 SOURCES := $(shell find . -name '*.go')
 
-LDFLAGS=-ldflags "-s -X dist.rootDir=. -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}  -X main.Branch=${BRANCH}"
+LDFLAGS=-ldflags "-s -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}  -X main.Branch=${BRANCH}"
 BINARY=mrfusion
 
-default: prepare ${BINARY}
+default: dep build
 
-prepare: dev assets
+build: assets ${BINARY}
+
+dev: dev-assets ${BINARY}
 
 ${BINARY}: $(SOURCES)
 	go build -o ${BINARY} ${LDFLAGS} ./cmd/mr-fusion-server/main.go
@@ -18,33 +20,37 @@ ${BINARY}: $(SOURCES)
 docker-${BINARY}: $(SOURCES)
 	CGO_ENABLED=0 GOOS=linux go build -installsuffix cgo -o ${BINARY} ${LDFLAGS} \
 		./cmd/mr-fusion-server/main.go
-docker: docker-${BINARY}
+
+docker: dep assets docker-${BINARY}
 	docker build -t mrfusion .
 
+assets: js bindata
+
+devassets: dev-js dev-bindata
+
 bindata: 
+	go-bindata -o dist/dist_gen.go -ignore 'map|go' -pkg dist ui/build/...
+
+dev-bindata:
 	go-bindata -debug -dev -o dist/dist_gen.go -ignore 'map|go' -pkg dist ui/build/...
 
-assets: jsbuild bindata
-
-
-jsbuild:
+js:
 	cd ui && npm run build
 
-dev: jsdev godev
+dev-js:
+	cd ui && npm run build:dev
 
-godev:
+dep: jsdep godep
+
+godep:
 	go get github.com/sparrc/gdm
 	gdm restore
 	go get -u github.com/jteeuwen/go-bindata/...
 
-jsdev:
+jsdep:
 	cd ui && npm install 
 
-clean:
-	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi
-	cd ui && npm run clean
-
-test: gotest jstest
+test: jstest gotest
 
 gotest:
 	go test -race ./...
@@ -52,7 +58,11 @@ gotest:
 jstest:
 	cd ui && npm test
 
-run:
+run: ${BINARY}
 	./mrfusion --port 8888
 
-.PHONY: clean test jstest run
+clean:
+	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi
+	cd ui && npm run clean
+
+.PHONY: clean test jstest gotest run

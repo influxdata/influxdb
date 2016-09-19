@@ -2,7 +2,6 @@ package restapi
 
 import (
 	"crypto/tls"
-	"fmt"
 	"log"
 	"net/http"
 	"strings"
@@ -10,8 +9,10 @@ import (
 	errors "github.com/go-openapi/errors"
 	runtime "github.com/go-openapi/runtime"
 	middleware "github.com/go-openapi/runtime/middleware"
+	"github.com/go-openapi/swag"
 	"golang.org/x/net/context"
 
+	"github.com/influxdata/mrfusion"
 	"github.com/influxdata/mrfusion/dist"
 	"github.com/influxdata/mrfusion/mock"
 	"github.com/influxdata/mrfusion/restapi/operations"
@@ -21,8 +22,30 @@ import (
 
 //go:generate swagger generate server --target .. --name  --spec ../swagger.yaml --with-context
 
+var devFlags = struct {
+	Develop bool `short:"d" long:"develop" description:"Run server in develop mode."`
+}{}
+
 func configureFlags(api *operations.MrFusionAPI) {
-	// api.CommandLineOptionsGroups = []swag.CommandLineOptionsGroup{ ... }
+	api.CommandLineOptionsGroups = []swag.CommandLineOptionsGroup{
+		swag.CommandLineOptionsGroup{
+			ShortDescription: "Develop Mode server",
+			LongDescription:  "Server will use the ui/build directory directly.",
+			Options:          &devFlags,
+		},
+	}
+}
+
+func assets() mrfusion.Assets {
+	if devFlags.Develop {
+		log.Printf("Running in develop mode.")
+		return &dist.DebugAssets{
+			Dir: "ui",
+		}
+	}
+	return &dist.BindataAssets{
+		Prefix: "ui",
+	}
 }
 
 func configureAPI(api *operations.MrFusionAPI) http.Handler {
@@ -152,20 +175,11 @@ func setupGlobalMiddleware(handler http.Handler) http.Handler {
 		if strings.Contains(r.URL.Path, "/chronograf/v1") {
 			handler.ServeHTTP(w, r)
 			return
-		} else if r.URL.Path == "/build/" {
-			octets, _ := dist.Asset("ui/build/index.html")
-			fmt.Fprintf(w, "%s", string(octets))
+		} else if r.URL.Path == "/build" {
+			http.Redirect(w, r, "", http.StatusFound)
 			return
 		} else if strings.Index(r.URL.Path, "/build/") == 0 {
-			octets, err := dist.Asset("ui" + r.URL.Path)
-			if err != nil {
-				http.NotFound(w, r)
-			}
-			if strings.Contains(r.URL.Path, ".css") {
-				w.Header().Set("Content-Type", "text/css")
-			}
-
-			fmt.Fprintf(w, "%s", string(octets))
+			assets().Serve()
 			return
 		}
 		http.Redirect(w, r, "/build/index.html", http.StatusFound)
