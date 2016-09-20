@@ -16,7 +16,7 @@ import {
 
 const DataExplorer = React.createClass({
   propTypes: {
-    dataNodes: PropTypes.arrayOf(PropTypes.string.isRequired).isRequired,
+    proxyLink: PropTypes.string.isRequired,
     timeRange: PropTypes.shape({
       upper: PropTypes.string,
       lower: PropTypes.string,
@@ -32,11 +32,11 @@ const DataExplorer = React.createClass({
   },
 
   childContextTypes: {
-    dataNodes: PropTypes.arrayOf(PropTypes.string.isRequired).isRequired,
+    proxyLink: PropTypes.string,
   },
 
   getChildContext() {
-    return {dataNodes: this.props.dataNodes};
+    return {proxyLink: this.props.proxyLink};
   },
 
   getInitialState() {
@@ -52,7 +52,7 @@ const DataExplorer = React.createClass({
   },
 
   render() {
-    const {timeRange, explorers, explorerID, clusterID, setTimeRange, createExplorer, chooseExplorer, deleteExplorer, editExplorer} = this.props;
+    const {timeRange, explorers, explorerID, setTimeRange, createExplorer, chooseExplorer, deleteExplorer, editExplorer} = this.props;
 
     if (explorers === FETCHING) {
       // TODO: page-wide spinner
@@ -71,11 +71,10 @@ const DataExplorer = React.createClass({
           explorers={explorers}
           timeRange={timeRange}
           explorerID={explorerID}
-          clusterID={clusterID}
         />
         <ResizeContainer>
           <PanelBuilder timeRange={timeRange} activePanelID={this.state.activePanelID} setActivePanel={this.handleSetActivePanel} />
-          <Visualizations clusterID={clusterID} timeRange={timeRange} activePanelID={this.state.activePanelID} />
+          <Visualizations timeRange={timeRange} activePanelID={this.state.activePanelID} />
         </ResizeContainer>
       </div>
     );

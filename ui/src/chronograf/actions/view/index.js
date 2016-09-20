@@ -227,13 +227,14 @@ function loadExplorer(explorer) {
   };
 }
 
-export function fetchExplorers({clusterID, explorerID, push}) {
+export function fetchExplorers({sourceLink, userID, explorerID, push}) {
   return (dispatch) => {
     dispatch({type: 'FETCH_EXPLORERS'});
     AJAX({
-      url: `/api/int/v1/explorers?cluster_id=${clusterID}`,
-    }).then((resp) => {
-      const explorers = resp.data.map(parseRawExplorer);
+      url: `/chronograf/v1/sources/1/users/1/explorations`,
+    }).then(({data: {explorations}}) => {
+      debugger;
+      const explorers = explorations.map(parseRawExplorer);
       dispatch(loadExplorers(explorers));
 
       // Create a new explorer session for a user if they don't have any
