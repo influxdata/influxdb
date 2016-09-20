@@ -12,7 +12,7 @@ import (
 
 // Ensure hash map can perform basic get/put operations.
 func TestHashMap(t *testing.T) {
-	m := rhh.NewHashMap()
+	m := rhh.NewHashMap(rhh.DefaultOptions)
 	m.Put([]byte("foo"), []byte("bar"))
 	m.Put([]byte("baz"), []byte("bat"))
 
@@ -38,7 +38,7 @@ func TestHashMap_Quick(t *testing.T) {
 	}
 
 	if err := quick.Check(func(keys, values [][]byte) bool {
-		m := rhh.NewHashMap()
+		m := rhh.NewHashMap(rhh.Options{Capacity: 1000, LoadFactor: 100})
 		h := make(map[string][]byte)
 
 		// Insert all key/values into both maps.
