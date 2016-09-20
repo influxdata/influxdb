@@ -10,7 +10,7 @@ var config = {
     app: path.resolve(__dirname, '..', 'src', 'index.js'),
   },
   output: {
-    publicPath: '/build',
+    publicPath: '/',
     path: path.resolve(__dirname, '../build'),
     filename: '[name].js',
   },
