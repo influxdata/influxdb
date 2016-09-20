@@ -41,7 +41,7 @@ export const HostsPage = React.createClass({
                         dataNodes.map(({name, id}) => {
                           return (
                             <tr key={id}>
-                              <td>{name}</td>
+                              <td><a href={`/host/${id}`}>{name}</a></td>
                               <td>UP</td>
                               <td>98%</td>
                               <td>1.12</td>
