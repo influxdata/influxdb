@@ -104,7 +104,7 @@ export const RolePageContainer = React.createClass({
     deleteRole(clusterID, roleSlug).then(() => {
       // TODO: add success notification when we're implementing them higher in the tree.
       // Right now the notification just gets swallowed when we transition to a new route.
-      this.props.router.push(`/clusters/${clusterID}/roles`);
+      this.props.router.push(`/roles`);
     }).catch(err => {
       console.error(err.toString()); // eslint-disable-line no-console
       this.addErrorNotification(err);

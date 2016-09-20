@@ -1,6 +1,5 @@
 import React, {PropTypes} from 'react';
 import {Link} from 'react-router';
-import {lightClusterAccountShape} from 'src/utils/propTypes';
 
 import CreateDatabase from './CreateDatabase';
 
@@ -8,7 +7,6 @@ const {number, string, shape, arrayOf, func} = PropTypes;
 
 const DatabaseManager = React.createClass({
   propTypes: {
-    clusterID: string.isRequired,
     database: string.isRequired,
     databases: arrayOf(shape({})).isRequired,
     dbStats: shape({
@@ -16,7 +14,11 @@ const DatabaseManager = React.createClass({
       numMeasurements: number.isRequired,
       numSeries: number.isRequired,
     }),
-    users: arrayOf(lightClusterAccountShape).isRequired,
+    users: arrayOf(shape({
+      id: number,
+      name: string.isRequired,
+      roles: string.isRequired,
+    })).isRequired,
     queries: arrayOf(string).isRequired,
     replicationFactors: arrayOf(number).isRequired,
     onClickDatabase: func.isRequired,
@@ -24,7 +26,7 @@ const DatabaseManager = React.createClass({
   },
 
   render() {
-    const {database, clusterID, databases, dbStats, queries, users,
+    const {database, databases, dbStats, queries, users,
       replicationFactors, onClickDatabase, onCreateDatabase} = this.props;
 
     return (
@@ -40,7 +42,7 @@ const DatabaseManager = React.createClass({
                 <ul className="dropdown-menu" aria-labelledby="dropdownMenu1">
                   {
                     databases.map((db) => {
-                      return <li onClick={() => onClickDatabase(db.Name)} key={db.Name}><Link to={`/clusters/${clusterID}/databases/manager/${db.Name}`}>{db.Name}</Link></li>;
+                      return <li onClick={() => onClickDatabase(db.Name)} key={db.Name}><Link to={`/databases/manager/${db.Name}`}>{db.Name}</Link></li>;
                     })
                   }
                 </ul>
@@ -96,7 +98,7 @@ const DatabaseManager = React.createClass({
                         users.map((user) => {
                           return (
                             <tr key={user.name}>
-                              <td><Link title="Manage Access" to={`/clusters/${clusterID}/accounts/${user.name}`}>{user.name}</Link></td>
+                              <td><Link title="Manage Access" to={`/accounts/${user.name}`}>{user.name}</Link></td>
                               <td>{user.roles}</td>
                             </tr>
                           );

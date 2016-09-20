@@ -28,7 +28,7 @@ assets: js bindata
 
 dev-assets: dev-js dev-bindata
 
-bindata: 
+bindata:
 	go-bindata -o dist/dist_gen.go -ignore 'map|go' -pkg dist ui/build/...
 
 dev-bindata:
@@ -48,7 +48,7 @@ godep:
 	go get -u github.com/jteeuwen/go-bindata/...
 
 jsdep:
-	cd ui && npm install 
+	cd ui && npm install
 
 test: jstest gotest
 
@@ -60,6 +60,9 @@ jstest:
 
 run: ${BINARY}
 	./mrfusion --port 8888
+
+run-dev: ${BINARY}
+	./mrfusion -d --port 8888
 
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi

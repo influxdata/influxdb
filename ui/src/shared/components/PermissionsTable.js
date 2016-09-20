@@ -1,9 +1,15 @@
 import React, {PropTypes} from 'react';
-import {permissionShape} from 'utils/propTypes';
+
+const {arrayOf, shape, string} = PropTypes;
 
 const PermissionsTable = React.createClass({
   propTypes: {
-    permissions: PropTypes.arrayOf(permissionShape).isRequired,
+    permissions: PropTypes.arrayOf(shape({
+      name: string.isRequired,
+      displayName: string.isRequired,
+      description: string.isRequired,
+      resources: arrayOf(string.isRequired).isRequired,
+    })).isRequired,
     showAddResource: PropTypes.bool,
     onRemovePermission: PropTypes.func,
   },

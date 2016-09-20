@@ -18,9 +18,9 @@ export function buildInfluxUrl({host, statement, database, retentionPolicy}) {
   return encodeURIComponent(url);
 }
 
-export function proxy(url, clusterID) {
+export function proxy(url) {
   return AJAX({
-    url: `/clusters/${clusterID}/proxy?proxy_url=${url}`,
+    url: `/proxy?proxy_url=${url}`,
   });
 }
 

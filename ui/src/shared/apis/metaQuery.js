@@ -42,9 +42,9 @@ export function showRetentionPolicies(host, databases, clusterID) {
   return proxy(url, clusterID);
 }
 
-export function showShards(clusterID) {
+export function showShards() {
   return AJAX({
-    url: `/api/int/v1/clusters/${clusterID}/show-shards`,
+    url: `/api/int/v1/show-shards`,
   });
 }
 
