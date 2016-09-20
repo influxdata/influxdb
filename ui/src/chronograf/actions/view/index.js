@@ -231,16 +231,15 @@ export function fetchExplorers({sourceLink, userID, explorerID, push}) {
   return (dispatch) => {
     dispatch({type: 'FETCH_EXPLORERS'});
     AJAX({
-      url: `/chronograf/v1/sources/1/users/1/explorations`,
+      url: `${sourceLink}/users/${userID}/explorations`,
     }).then(({data: {explorations}}) => {
-      debugger;
       const explorers = explorations.map(parseRawExplorer);
       dispatch(loadExplorers(explorers));
 
       // Create a new explorer session for a user if they don't have any
       // saved (e.g. when they visit for the first time).
       if (!explorers.length) {
-        dispatch(createExplorer(clusterID, push));
+        dispatch(createExplorer(push));
         return;
       }
 
@@ -250,7 +249,7 @@ export function fetchExplorers({sourceLink, userID, explorerID, push}) {
       if (!explorerID) {
         const explorer = _.maxBy(explorers, (ex) => ex.updated_at);
         dispatch(loadExplorer(explorer));
-        push(`/chronograf/data_explorer/${explorer.id}`);
+        push(`/chronograf/data_explorer/${encodeURIComponent(explorer.link.href)}`);
         return;
       }
 

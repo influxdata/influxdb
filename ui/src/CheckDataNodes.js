@@ -47,13 +47,13 @@ const CheckDataNodes = React.createClass({
     }
 
     const {source} = this.state;
-    if (!source || !source.links.proxy) {
+    if (!source) {
       // this should probably be changed....
       return <NoClusterError />;
     }
 
     return this.props.children && React.cloneElement(this.props.children, Object.assign({}, this.props, {
-      proxyLink: source.links.proxy,
+      source,
     }));
   },
 });

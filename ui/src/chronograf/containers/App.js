@@ -6,7 +6,12 @@ import DataExplorer from './DataExplorer';
 
 const App = React.createClass({
   propTypes: {
-    proxyLink: PropTypes.string.isRequired,
+    source: PropTypes.shape({
+      links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
+        self: PropTypes.string.isRequired,
+      }).isRequired,
+    }).isRequired,
     fetchExplorers: PropTypes.func.isRequired,
     router: PropTypes.shape({
       push: PropTypes.func.isRequired,
@@ -19,8 +24,8 @@ const App = React.createClass({
   componentDidMount() {
     const {explorerID} = this.props.params;
     this.props.fetchExplorers({
-      sourceLink: 'linkgoesheres', // source.links.self
-      userID: 1, // userID
+      sourceLink: this.props.source.links.self,
+      userID: 1, // TODO: get the userID
       explorerID: Number(explorerID),
       push: this.props.router.push,
     });
@@ -30,7 +35,7 @@ const App = React.createClass({
     const {explorerID} = this.props.params;
     return (
       <div className="data-explorer-container">
-        <DataExplorer proxyLink={this.props.proxyLink} explorerID={Number(explorerID)} />
+        <DataExplorer source={this.props.source} explorerID={Number(explorerID)} />
       </div>
     );
   },

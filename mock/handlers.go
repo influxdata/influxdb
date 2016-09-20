@@ -100,11 +100,17 @@ func (m *Handler) Explorations(ctx context.Context, params op.GetSourcesIDUsersU
 	}
 	res := &models.Explorations{}
 	for _, e := range exs {
+		rel := "self"
+		href := "/chronograf/v1/source/1/users/1/explorations/1"
 		res.Explorations = append(res.Explorations, &models.Exploration{
 			Data:      e.Data,
 			Name:      e.Name,
 			UpdatedAt: strfmt.DateTime(e.UpdatedAt),
 			CreatedAt: strfmt.DateTime(e.CreatedAt),
+			Link: &models.Link{
+				Rel:  &rel,
+				Href: &href,
+			},
 		},
 		)
 	}

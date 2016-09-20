@@ -16,14 +16,18 @@ import {
 
 const DataExplorer = React.createClass({
   propTypes: {
-    proxyLink: PropTypes.string.isRequired,
+    source: PropTypes.shape({
+      links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
+        self: PropTypes.string.isRequired,
+      }).isRequired,
+    }).isRequired,
     timeRange: PropTypes.shape({
       upper: PropTypes.string,
       lower: PropTypes.string,
     }).isRequired,
     explorers: PropTypes.shape({}).isRequired,
     explorerID: PropTypes.number.isRequired,
-    clusterID: PropTypes.string.isRequired,
     setTimeRange: PropTypes.func.isRequired,
     createExplorer: PropTypes.func.isRequired,
     chooseExplorer: PropTypes.func.isRequired,
@@ -32,11 +36,16 @@ const DataExplorer = React.createClass({
   },
 
   childContextTypes: {
-    proxyLink: PropTypes.string,
+    source: PropTypes.shape({
+      links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
+        self: PropTypes.string.isRequired,
+      }).isRequired,
+    }).isRequired,
   },
 
   getChildContext() {
-    return {proxyLink: this.props.proxyLink};
+    return {source: this.props.source};
   },
 
   getInitialState() {
