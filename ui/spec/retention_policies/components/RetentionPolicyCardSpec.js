@@ -86,14 +86,6 @@ describe('RetentionPolicies.Components.RetentionPolicyCard', function() {
     expect(shards.text()).to.match(/localhost:8188/);
   })
 
-  it('renders correctly formatted timestamps for a shard\'s start and end date', function() {
-    const wrapper = setup();
-
-    const shards = wrapper.find('tbody tr');
-
-    expect(shards.text()).to.match(/2006-01-01:16 — 2006-01-08:161/);
-  });
-
   it('renders disk usage for each node that a shard belongs to', function() {
     const wrapper = setup();
 
