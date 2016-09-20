@@ -1,6 +1,5 @@
 import React, {PropTypes} from 'react';
 import {Link} from 'react-router';
-import {lightClusterAccountShape} from 'src/utils/propTypes';
 
 import CreateDatabase from './CreateDatabase';
 
@@ -15,7 +14,11 @@ const DatabaseManager = React.createClass({
       numMeasurements: number.isRequired,
       numSeries: number.isRequired,
     }),
-    users: arrayOf(lightClusterAccountShape).isRequired,
+    users: arrayOf(shape({
+      id: number,
+      name: string.isRequired,
+      roles: string.isRequired,
+    })).isRequired,
     queries: arrayOf(string).isRequired,
     replicationFactors: arrayOf(number).isRequired,
     onClickDatabase: func.isRequired,

@@ -10,9 +10,8 @@ import RemoveAccountFromRoleModal from '../components/RemoveAccountFromRoleModal
 import RemoveWebUserModal from '../components/RemoveUserFromAccountModal';
 import DeleteClusterAccountModal from '../components/DeleteClusterAccountModal';
 import {Tab, TabList, TabPanels, TabPanel, Tabs} from 'shared/components/Tabs';
-import {clusterAccountShape, roleShape, webUserShape} from 'utils/propTypes';
 
-const {shape, string, func, arrayOf} = PropTypes;
+const {shape, string, func, arrayOf, number, bool} = PropTypes;
 const TABS = ['Roles', 'Permissions', 'Account Details', 'Web Users'];
 
 export const ClusterAccountEditPage = React.createClass({
@@ -25,11 +24,49 @@ export const ClusterAccountEditPage = React.createClass({
     })),
     clusterID: string.isRequired,
     accountID: string.isRequired,
-    account: clusterAccountShape,
-    roles: arrayOf(roleShape),
+    account: shape({
+      name: string.isRequired,
+      hash: string,
+      permissions: arrayOf(shape({
+        name: string.isRequired,
+        displayName: string.isRequired,
+        description: string.isRequired,
+        resources: arrayOf(string.isRequired).isRequired,
+      })).isRequired,
+      roles: arrayOf(shape({
+        name: string.isRequired,
+        users: arrayOf(string.isRequired).isRequired,
+        permissions: arrayOf(shape({
+          name: string.isRequired,
+          displayName: string.isRequired,
+          description: string.isRequired,
+          resources: arrayOf(string.isRequired).isRequired,
+        })).isRequired,
+      })).isRequired,
+    }),
+    roles: arrayOf(shape({
+      name: string.isRequired,
+      users: arrayOf(string.isRequired).isRequired,
+      permissions: arrayOf(shape({
+        name: string.isRequired,
+        displayName: string.isRequired,
+        description: string.isRequired,
+        resources: arrayOf(string.isRequired).isRequired,
+      })).isRequired,
+    })),
     databases: arrayOf(string.isRequired),
-    assignedWebUsers: arrayOf(webUserShape),
-    unassignedWebUsers: arrayOf(webUserShape),
+    assignedWebUsers: arrayOf(shape({
+      id: number.isRequired,
+      name: string.isRequired,
+      email: string.isRequired,
+      admin: bool.isRequired,
+    })),
+    unassignedWebUsers: arrayOf(shape({
+      id: number.isRequired,
+      name: string.isRequired,
+      email: string.isRequired,
+      admin: bool.isRequired,
+    })),
     me: shape(),
     onUpdatePassword: func.isRequired,
     onRemoveAccountFromRole: func.isRequired,

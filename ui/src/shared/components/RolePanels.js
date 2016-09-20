@@ -1,12 +1,21 @@
 import React, {PropTypes} from 'react';
 import {Link} from 'react-router';
 import PermissionsTable from 'src/shared/components/PermissionsTable';
-import {roleShape} from 'utils/propTypes';
 
-const {arrayOf, bool, func} = PropTypes;
+const {arrayOf, bool, func, shape, string} = PropTypes;
+
 const RolePanels = React.createClass({
   propTypes: {
-    roles: arrayOf(roleShape).isRequired,
+    roles: arrayOf(shape({
+      name: string.isRequired,
+      users: arrayOf(string.isRequired).isRequired,
+      permissions: arrayOf(shape({
+        name: string.isRequired,
+        displayName: string.isRequired,
+        description: string.isRequired,
+        resources: arrayOf(string.isRequired).isRequired,
+      })).isRequired,
+    })).isRequired,
     showUserCount: bool,
     onRemoveAccountFromRole: func,
   },

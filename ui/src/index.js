@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {PropTypes} from 'react';
 import {render} from 'react-dom';
 import {Provider} from 'react-redux';
 import {Router, Route, browserHistory} from 'react-router';
@@ -19,9 +19,10 @@ import AccountSettingsPage from 'src/account_settings';
 import NotFound from 'src/shared/components/NotFound';
 import NoClusterError from 'src/shared/components/NoClusterError';
 import configureStore from 'src/store/configureStore';
-import {webUserShape} from 'src/utils/propTypes';
 
 import 'src/style/enterprise_style/application.scss';
+
+const {number, shape, string, bool} = PropTypes;
 
 const defaultTimeRange = {upper: null, lower: 'now() - 15m'};
 const lsTimeRange = window.localStorage.getItem('timeRange');
@@ -90,7 +91,12 @@ const Root = React.createClass({
   },
 
   childContextTypes: {
-    me: webUserShape,
+    me: shape({
+      id: number.isRequired,
+      name: string.isRequired,
+      email: string.isRequired,
+      admin: bool.isRequired,
+    }),
   },
 
   getChildContext() {

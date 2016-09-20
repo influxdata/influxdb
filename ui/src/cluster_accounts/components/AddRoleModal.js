@@ -1,11 +1,40 @@
 import React, {PropTypes} from 'react';
-import {roleShape, clusterAccountShape} from 'utils/propTypes';
+
+const {shape, string, arrayOf, func} = PropTypes;
 
 const AddRoleModal = React.createClass({
   propTypes: {
-    account: clusterAccountShape,
-    roles: PropTypes.arrayOf(roleShape),
-    onAddRoleToAccount: PropTypes.func.isRequired,
+    account: shape({
+      name: string.isRequired,
+      hash: string,
+      permissions: arrayOf(shape({
+        name: string.isRequired,
+        displayName: string.isRequired,
+        description: string.isRequired,
+        resources: arrayOf(string.isRequired).isRequired,
+      })).isRequired,
+      roles: arrayOf(shape({
+        name: string.isRequired,
+        users: arrayOf(string.isRequired).isRequired,
+        permissions: arrayOf(shape({
+          name: string.isRequired,
+          displayName: string.isRequired,
+          description: string.isRequired,
+          resources: arrayOf(string.isRequired).isRequired,
+        })).isRequired,
+      })).isRequired,
+    }),
+    roles: arrayOf(shape({
+      name: string.isRequired,
+      users: arrayOf(string.isRequired).isRequired,
+      permissions: arrayOf(shape({
+        name: string.isRequired,
+        displayName: string.isRequired,
+        description: string.isRequired,
+        resources: arrayOf(string.isRequired).isRequired,
+      })).isRequired,
+    })),
+    onAddRoleToAccount: func.isRequired,
   },
 
   getInitialState() {
