@@ -25,9 +25,9 @@ type Source struct {
 	*/
 	ID string `json:"id,omitempty"`
 
-	/* link
+	/* links
 	 */
-	Link *Link `json:"link,omitempty"`
+	Links *SourceLinks `json:"links,omitempty"`
 
 	/* User facing name of data source
 
@@ -46,7 +46,7 @@ type Source struct {
 func (m *Source) Validate(formats strfmt.Registry) error {
 	var res []error
 
-	if err := m.validateLink(formats); err != nil {
+	if err := m.validateLinks(formats); err != nil {
 		// prop
 		res = append(res, err)
 	}
@@ -67,15 +67,15 @@ func (m *Source) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *Source) validateLink(formats strfmt.Registry) error {
+func (m *Source) validateLinks(formats strfmt.Registry) error {
 
-	if swag.IsZero(m.Link) { // not required
+	if swag.IsZero(m.Links) { // not required
 		return nil
 	}
 
-	if m.Link != nil {
+	if m.Links != nil {
 
-		if err := m.Link.Validate(formats); err != nil {
+		if err := m.Links.Validate(formats); err != nil {
 			return err
 		}
 	}
@@ -122,5 +122,46 @@ func (m *Source) validateType(formats strfmt.Registry) error {
 		return err
 	}
 
+	return nil
+}
+
+/*SourceLinks source links
+
+swagger:model SourceLinks
+*/
+type SourceLinks struct {
+
+	/* URL location of the monitored services endpoint for this source
+	 */
+	Monitored string `json:"monitored,omitempty"`
+
+	/* URL location of the permissions endpoint for this source
+	 */
+	Permissions string `json:"permissions,omitempty"`
+
+	/* URL location of proxy endpoint for this source
+	 */
+	Proxy string `json:"proxy,omitempty"`
+
+	/* URL location of the roles endpoint for this source
+	 */
+	Roles string `json:"roles,omitempty"`
+
+	/* Self link mapping to this resource
+	 */
+	Self string `json:"self,omitempty"`
+
+	/* URL location of users endpoint for this source
+	 */
+	Users string `json:"users,omitempty"`
+}
+
+// Validate validates this source links
+func (m *SourceLinks) Validate(formats strfmt.Registry) error {
+	var res []error
+
+	if len(res) > 0 {
+		return errors.CompositeValidationError(res...)
+	}
 	return nil
 }

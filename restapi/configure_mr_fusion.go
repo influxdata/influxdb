@@ -39,11 +39,13 @@ func configureFlags(api *operations.MrFusionAPI) {
 func assets() mrfusion.Assets {
 	if devFlags.Develop {
 		return &dist.DebugAssets{
-			Dir: "ui/build",
+			Dir:     "ui/build",
+			Default: "ui/build/index.html",
 		}
 	}
 	return &dist.BindataAssets{
-		Prefix: "ui/build",
+		Prefix:  "ui/build",
+		Default: "index.html",
 	}
 }
 
@@ -87,12 +89,10 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 	api.GetDashboardsIDHandler = operations.GetDashboardsIDHandlerFunc(func(ctx context.Context, params operations.GetDashboardsIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .GetDashboardsID has not yet been implemented")
 	})
-	api.GetSourcesHandler = operations.GetSourcesHandlerFunc(func(ctx context.Context, params operations.GetSourcesParams) middleware.Responder {
-		return middleware.NotImplemented("operation .GetSources has not yet been implemented")
-	})
-	api.GetSourcesIDHandler = operations.GetSourcesIDHandlerFunc(func(ctx context.Context, params operations.GetSourcesIDParams) middleware.Responder {
-		return middleware.NotImplemented("operation .GetSourcesID has not yet been implemented")
-	})
+
+	api.GetSourcesHandler = operations.GetSourcesHandlerFunc(mockHandler.Sources)
+	api.GetSourcesIDHandler = operations.GetSourcesIDHandlerFunc(mockHandler.SourcesID)
+
 	api.GetSourcesIDPermissionsHandler = operations.GetSourcesIDPermissionsHandlerFunc(func(ctx context.Context, params operations.GetSourcesIDPermissionsParams) middleware.Responder {
 		return middleware.NotImplemented("operation .GetSourcesIDPermissions has not yet been implemented")
 	})

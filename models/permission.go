@@ -18,6 +18,20 @@ swagger:model Permission
 */
 type Permission string
 
+const (
+	PermissionViewAdmin         Permission = "ViewAdmin"
+	PermissionViewChronograf    Permission = "ViewChronograf"
+	PermissionCreateDatabase    Permission = "CreateDatabase"
+	PermissionCreateUserAndRole Permission = "CreateUserAndRole"
+	PermissionAddRemoveNode     Permission = "AddRemoveNode"
+	PermissionDropDatabase      Permission = "DropDatabase"
+	PermissionDropData          Permission = "DropData"
+	PermissionReadData          Permission = "ReadData"
+	PermissionWriteData         Permission = "WriteData"
+	PermissionRebalance         Permission = "Rebalance"
+	PermissionManageShard       Permission = "ManageShard"
+)
+
 // for schema
 var permissionEnum []interface{}
 
