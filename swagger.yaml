@@ -754,8 +754,33 @@ definitions:
                 enum:
                     - influx
                     - influx-enterprise
-            link:
-                $ref: "#/definitions/Link"
+            links: 
+                type: object
+                properties:
+                    self:
+                        type: string
+                        description: Self link mapping to this resource
+                        format: url
+                    users:
+                        type: string
+                        description: URL location of users endpoint for this source
+                        format: url
+                    roles:
+                        type: string
+                        description: URL location of the roles endpoint for this source
+                        format: url
+                    proxy:
+                        type: string
+                        description: URL location of proxy endpoint for this source
+                        format: url
+                    permissions:
+                        type: string
+                        description: URL location of the permissions endpoint for this source
+                        format: url
+                    monitored:
+                        type: string
+                        description: URL location of the monitored services endpoint for this source
+                        format: url
     Proxy:
         type: object
         required:

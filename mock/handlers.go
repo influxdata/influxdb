@@ -23,6 +23,39 @@ func NewHandler() Handler {
 	}
 }
 
+func sampleSource() *models.Source {
+	name := "muh name"
+	influxType := "influx-enterprise"
+
+	return &models.Source{
+		ID: "1",
+		Links: &models.SourceLinks{
+			Self:  "/chronograf/v1/sources/1",
+			Proxy: "/chronograf/v1/sources/1/proxy",
+		},
+		Name: &name,
+		Type: &influxType,
+	}
+
+}
+
+func (m *Handler) Sources(ctx context.Context, params op.GetSourcesParams) middleware.Responder {
+	res := &models.Sources{
+		Sources: []*models.Source{
+			sampleSource(),
+		},
+	}
+
+	return op.NewGetSourcesOK().WithPayload(res)
+}
+
+func (m *Handler) SourcesID(ctx context.Context, params op.GetSourcesIDParams) middleware.Responder {
+	if params.ID != "1" {
+		return op.NewGetSourcesIDNotFound()
+	}
+	return op.NewGetSourcesIDOK().WithPayload(sampleSource())
+}
+
 func (m *Handler) Proxy(ctx context.Context, params op.PostSourcesIDProxyParams) middleware.Responder {
 	query := params.Query.Query
 	response, err := m.TimeSeries.Query(ctx, mrfusion.Query(*query))
