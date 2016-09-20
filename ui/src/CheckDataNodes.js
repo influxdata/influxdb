@@ -1,6 +1,5 @@
 import React, {PropTypes} from 'react';
 import NoClusterError from 'shared/components/NoClusterError';
-import NoClusterLinksError from 'shared/components/NoClusterLinksError';
 import {getSources} from 'src/shared/apis';
 
 const {bool, number, string, node, func, shape} = PropTypes;
@@ -31,25 +30,9 @@ const CheckDataNodes = React.createClass({
     };
   },
 
-  // Data nodes are considered healthy (part of the cluster and most likely
-  // accepting queries) if they have a status of 'joined' and a valid http address.
-  getHealthyDataNodes(dataNodes) {
-    if (!dataNodes) {
-      return [];
-    }
-
-    return dataNodes.filter(n => (
-      n.status === 'joined' && n.httpAddr !== ''
-    )).map(n => {
-      const scheme = n.httpScheme ? n.httpScheme : 'http';
-      return `${scheme}://${n.httpAddr}`;
-    });
-  },
-
   componentDidMount() {
     getSources().then((resp) => {
-      // TODO: get this wired up correctly once getSources is working.
-      const dataNodes = this.getHealthyDataNodes(resp.data.data);
+      const dataNodes = resp.data.sources;
       this.setState({
         dataNodes,
         isFetching: false,
@@ -68,11 +51,6 @@ const CheckDataNodes = React.createClass({
     const {dataNodes} = this.state;
     if (!dataNodes || !dataNodes.length) {
       return <NoClusterError />;
-    }
-
-    const {me} = this.context;
-    if (!me.cluster_links || !me.cluster_links.length) {
-      return <NoClusterLinksError />;
     }
 
     return this.props.children && React.cloneElement(this.props.children, Object.assign({}, this.props, {
