@@ -6,33 +6,28 @@ import (
 	"github.com/influxdata/influxdb/pkg/murmur3"
 )
 
-// DefaultCapacity is the initial capacity of a HashMap.
-const DefaultCapacity = 256
-
-// LoadFactor is the percent fill before the map is grown.
-const LoadFactor = 90
-
 // HashMap represents a hash map that implements Robin Hood Hashing.
 // https://cs.uwaterloo.ca/research/tr/1986/CS-86-14.pdf
 type HashMap struct {
 	hashes []uint32
 	elems  []hashElem
 
-	n         int
-	capacity  int
-	threshold int
-	mask      uint32
+	n          int
+	capacity   int
+	threshold  int
+	loadFactor int
 }
 
-func NewHashMap() *HashMap {
+func NewHashMap(opt Options) *HashMap {
 	m := &HashMap{
-		capacity: DefaultCapacity,
+		capacity:   opt.Capacity,
+		loadFactor: opt.LoadFactor,
 	}
 	m.alloc()
 	return m
 }
 
-func (m *HashMap) Get(key []byte) []byte {
+func (m *HashMap) Get(key []byte) interface{} {
 	i := m.index(key)
 	if i == -1 {
 		return nil
@@ -40,10 +35,10 @@ func (m *HashMap) Get(key []byte) []byte {
 	return m.elems[i].value
 }
 
-func (m *HashMap) Put(key, val []byte) {
+func (m *HashMap) Put(key []byte, val interface{}) {
 	// Grow the map if we've run out of slots.
 	m.n++
-	if m.n >= m.threshold {
+	if m.n > m.threshold {
 		m.grow()
 	}
 
@@ -54,8 +49,8 @@ func (m *HashMap) Put(key, val []byte) {
 	}
 }
 
-func (m *HashMap) insert(hash uint32, key, val []byte) (overwritten bool) {
-	pos := int(hash & m.mask)
+func (m *HashMap) insert(hash uint32, key []byte, val interface{}) (overwritten bool) {
+	pos := int(hash) % m.capacity
 	dist := 0
 
 	// Continue searching until we find an empty slot or lower probe distance.
@@ -86,7 +81,7 @@ func (m *HashMap) insert(hash uint32, key, val []byte) (overwritten bool) {
 		}
 
 		// Increment position, wrap around on overflow.
-		pos = int(uint32(pos+1) & m.mask)
+		pos = (pos + 1) % m.capacity
 		dist++
 	}
 }
@@ -95,8 +90,7 @@ func (m *HashMap) insert(hash uint32, key, val []byte) (overwritten bool) {
 func (m *HashMap) alloc() {
 	m.elems = make([]hashElem, m.capacity)
 	m.hashes = make([]uint32, m.capacity)
-	m.threshold = (m.capacity * LoadFactor) / 100
-	m.mask = uint32(m.capacity - 1)
+	m.threshold = (m.capacity * m.loadFactor) / 100
 }
 
 // grow doubles the capacity and reinserts all existing hashes & elements.
@@ -122,7 +116,7 @@ func (m *HashMap) grow() {
 // index returns the position of key in the hash map.
 func (m *HashMap) index(key []byte) int {
 	hash := m.hashKey(key)
-	pos := int(hash & m.mask)
+	pos := int(hash) % m.capacity
 
 	dist := 0
 	for {
@@ -134,7 +128,7 @@ func (m *HashMap) index(key []byte) int {
 			return pos
 		}
 
-		pos = int(uint32(pos+1) & m.mask)
+		pos = (pos + 1) % m.capacity
 		dist++
 	}
 }
@@ -149,7 +143,7 @@ func (m *HashMap) hashKey(key []byte) uint32 {
 }
 
 // Elem returns the i-th key/value pair of the hash map.
-func (m *HashMap) Elem(i int) (key, value []byte) {
+func (m *HashMap) Elem(i int) (key []byte, value interface{}) {
 	if i >= len(m.elems) {
 		return nil, nil
 	}
@@ -179,11 +173,23 @@ func (m *HashMap) AverageProbeCount() float64 {
 
 // dist returns the probe distance for a hash in a slot index.
 func (m *HashMap) dist(hash uint32, i int) int {
-	return int(uint32(i+m.capacity-int(hash&m.mask)) & m.mask)
+	return (i + m.capacity - (int(hash) % m.capacity)) % m.capacity
 }
 
 type hashElem struct {
 	key   []byte
-	value []byte
+	value interface{}
 	hash  uint32
+}
+
+// Options represents initialization options that are passed to NewHashMap().
+type Options struct {
+	Capacity   int
+	LoadFactor int
+}
+
+// DefaultOptions represents a default set of options to pass to NewHashMap().
+var DefaultOptions = Options{
+	Capacity:   256,
+	LoadFactor: 90,
 }
