@@ -40,7 +40,7 @@ const SideNav = React.createClass({
         </NavBlock>
         <NavBlock matcher="hosts" icon="crown" link={`/hosts/list`}>
           <NavHeader link={`/hosts/list`} title="Infrastructure" />
-          <NavListItem matcher="list" link={`/list`}>Host List</NavListItem>
+          <NavListItem matcher="list" link={`/hosts/list`}>Host List</NavListItem>
         </NavBlock>
       </NavBar>
     );

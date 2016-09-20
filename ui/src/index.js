@@ -5,6 +5,7 @@ import {Router, Route, browserHistory} from 'react-router';
 
 import App from 'src/App';
 import CheckDataNodes from 'src/CheckDataNodes';
+import HostsPage from 'src/hosts';
 import OverviewPage from 'src/overview';
 import QueriesPage from 'src/queries';
 import TasksPage from 'src/tasks';
@@ -130,6 +131,7 @@ const Root = React.createClass({
               <Route path="chronograf/data_explorer/:explorerID" component={DataExplorer} />
               <Route path="roles" component={RolesPageContainer} />
               <Route path="roles/:roleSlug" component={RolePageContainer} />
+              <Route path="hosts/list" component={HostsPage} />
             </Route>
             <Route path="users" component={UsersPage} />
             <Route path="users/:userID" component={UserEditPage} />
