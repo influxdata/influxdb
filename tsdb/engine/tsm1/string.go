@@ -26,11 +26,18 @@ type StringEncoder struct {
 	bytes []byte
 }
 
-func NewStringEncoder() StringEncoder {
-	return StringEncoder{}
+func NewStringEncoder(sz int) StringEncoder {
+	return StringEncoder{
+		bytes: make([]byte, 0, sz),
+	}
+}
+
+func (e *StringEncoder) Reset() {
+	e.bytes = e.bytes[:0]
 }
 
 func (e *StringEncoder) Write(s string) {
+	//println(len(e.bytes), cap(e.bytes))
 	b := make([]byte, 10)
 	// Append the length of the string using variable byte encoding
 	i := binary.PutUvarint(b, uint64(len(s)))
