@@ -19,6 +19,10 @@ swagger:model Proxy
 */
 type Proxy struct {
 
+	/* database
+	 */
+	Database string `json:"database,omitempty"`
+
 	/* format
 	 */
 	Format *string `json:"format,omitempty"`
@@ -28,6 +32,10 @@ type Proxy struct {
 	Required: true
 	*/
 	Query *string `json:"query"`
+
+	/* rp
+	 */
+	Rp string `json:"rp,omitempty"`
 }
 
 // Validate validates this proxy
