@@ -25,14 +25,14 @@ const CheckDataNodes = React.createClass({
   getInitialState() {
     return {
       isFetching: true,
-      source: null,
+      sources: [],
     };
   },
 
   componentDidMount() {
     getSources().then(({data: {sources}}) => {
       this.setState({
-        source: sources[0],
+        sources,
         isFetching: false,
       });
     }).catch((err) => {
@@ -46,14 +46,14 @@ const CheckDataNodes = React.createClass({
       return <div className="page-spinner" />;
     }
 
-    const {source} = this.state;
-    if (!source) {
+    const {sources} = this.state;
+    if (!sources.length) {
       // this should probably be changed....
       return <NoClusterError />;
     }
 
     return this.props.children && React.cloneElement(this.props.children, Object.assign({}, this.props, {
-      source,
+      sources,
     }));
   },
 });

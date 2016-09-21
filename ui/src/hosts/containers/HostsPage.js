@@ -3,11 +3,11 @@ import FlashMessages from 'shared/components/FlashMessages';
 
 export const HostsPage = React.createClass({
   propTypes: {
-    dataNodes: PropTypes.arrayOf(React.PropTypes.object),
+    sources: PropTypes.arrayOf(React.PropTypes.object),
   },
 
   render() {
-    const {dataNodes} = this.props;
+    const {sources} = this.props;
 
     return (
       <div className="hosts">
@@ -38,7 +38,7 @@ export const HostsPage = React.createClass({
                     </thead>
                     <tbody>
                       {
-                        dataNodes.map(({name, id}) => {
+                        sources.map(({name, id}) => {
                           return (
                             <tr key={id}>
                               <td><a href={`/hosts/${id}`}>{name}</a></td>

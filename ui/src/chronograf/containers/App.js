@@ -6,12 +6,13 @@ import DataExplorer from './DataExplorer';
 
 const App = React.createClass({
   propTypes: {
-    source: PropTypes.shape({
+    sources: PropTypes.arrayOf(PropTypes.shape({
       links: PropTypes.shape({
         proxy: PropTypes.string.isRequired,
         self: PropTypes.string.isRequired,
       }).isRequired,
     }).isRequired,
+    ).isRequired,
     fetchExplorers: PropTypes.func.isRequired,
     router: PropTypes.shape({
       push: PropTypes.func.isRequired,
@@ -24,7 +25,7 @@ const App = React.createClass({
   componentDidMount() {
     const {base64ExplorerID} = this.props.params;
     this.props.fetchExplorers({
-      sourceLink: this.props.source.links.self,
+      sourceLink: this.props.sources[0].links.self,
       userID: 1, // TODO: get the userID
       explorerID: base64ExplorerID ? this.decodeID(base64ExplorerID) : null,
       push: this.props.router.push,
@@ -35,7 +36,7 @@ const App = React.createClass({
     const {base64ExplorerID} = this.props.params;
     return (
       <div className="data-explorer-container">
-        <DataExplorer source={this.props.source} explorerID={this.decodeID(base64ExplorerID)} />
+        <DataExplorer source={this.props.sources} explorerID={this.decodeID(base64ExplorerID)} />
       </div>
     );
   },

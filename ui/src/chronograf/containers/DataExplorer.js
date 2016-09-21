@@ -15,7 +15,7 @@ import {
 
 const DataExplorer = React.createClass({
   propTypes: {
-    source: PropTypes.shape({
+    sources: PropTypes.shape({
       links: PropTypes.shape({
         proxy: PropTypes.string.isRequired,
         self: PropTypes.string.isRequired,
@@ -35,16 +35,17 @@ const DataExplorer = React.createClass({
   },
 
   childContextTypes: {
-    source: PropTypes.shape({
+    sources: PropTypes.arrayOf(PropTypes.shape({
       links: PropTypes.shape({
         proxy: PropTypes.string.isRequired,
         self: PropTypes.string.isRequired,
       }).isRequired,
     }).isRequired,
+    ).isRequired,
   },
 
   getChildContext() {
-    return {source: this.props.source};
+    return {sources: this.props.sources};
   },
 
   getInitialState() {
