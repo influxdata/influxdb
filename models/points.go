@@ -89,6 +89,33 @@ type Point interface {
 	// AppendString appends the result of String() to the provided buffer and returns
 	// the result, potentially reducing string allocations
 	AppendString(buf []byte) []byte
+
+	// FieldIterator retuns a FieldIterator that can be used to traverse the
+	// fields of a point without constructing the in-memory map
+	FieldIterator() FieldIterator
+}
+
+type FieldType int
+
+const (
+	Integer FieldType = iota
+	Float
+	Boolean
+	String
+	Empty
+)
+
+type FieldIterator interface {
+	Next() bool
+	FieldKey() []byte
+	Type() FieldType
+	StringValue() string
+	IntegerValue() int64
+	BooleanValue() bool
+	FloatValue() float64
+
+	Delete()
+	Reset()
 }
 
 // Points represents a sortable list of points by timestamp.
@@ -121,6 +148,8 @@ type point struct {
 
 	// cached version of parsed name from key
 	cachedName string
+
+	it fieldIterator
 }
 
 const (
@@ -201,7 +230,7 @@ func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision strin
 			block = block[:len(block)-1]
 		}
 
-		pt, err := parsePoint(block[start:len(block)], defaultTime, precision)
+		pt, err := parsePoint(block[start:], defaultTime, precision)
 		if err != nil {
 			failed = append(failed, fmt.Sprintf("unable to parse '%s': %v", string(block[start:len(block)]), err))
 		} else {
@@ -259,7 +288,7 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 		pt.time = defaultTime
 		pt.SetPrecision(precision)
 	} else {
-		ts, err := ParseIntBytes(ts, 10, 64)
+		ts, err := parseIntBytes(ts, 10, 64)
 		if err != nil {
 			return nil, err
 		}
@@ -796,14 +825,14 @@ func scanNumber(buf []byte, i int) (int, error) {
 		// Parse the int to check bounds the number of digits could be larger than the max range
 		// We subtract 1 from the index to remove the `i` from our tests
 		if len(buf[start:i-1]) >= maxInt64Digits || len(buf[start:i-1]) >= minInt64Digits {
-			if _, err := ParseIntBytes(buf[start:i-1], 10, 64); err != nil {
+			if _, err := parseIntBytes(buf[start:i-1], 10, 64); err != nil {
 				return i, fmt.Errorf("unable to parse integer %s: %s", buf[start:i-1], err)
 			}
 		}
 	} else {
 		// Parse the float to check bounds if it's scientific or the number of digits could be larger than the max range
 		if scientific || len(buf[start:i]) >= maxFloat64Digits || len(buf[start:i]) >= minFloat64Digits {
-			if _, err := ParseFloatBytes(buf[start:i], 10); err != nil {
+			if _, err := parseFloatBytes(buf[start:i], 10); err != nil {
 				return i, fmt.Errorf("invalid float")
 			}
 		}
@@ -1637,18 +1666,18 @@ type Fields map[string]interface{}
 func parseNumber(val []byte) (interface{}, error) {
 	if val[len(val)-1] == 'i' {
 		val = val[:len(val)-1]
-		return ParseIntBytes(val, 10, 64)
+		return parseIntBytes(val, 10, 64)
 	}
 	for i := 0; i < len(val); i++ {
 		// If there is a decimal or an N (NaN), I (Inf), parse as float
 		if val[i] == '.' || val[i] == 'N' || val[i] == 'n' || val[i] == 'I' || val[i] == 'i' || val[i] == 'e' {
-			return ParseFloatBytes(val, 64)
+			return parseFloatBytes(val, 64)
 		}
 		if val[i] < '0' && val[i] > '9' {
 			return string(val), nil
 		}
 	}
-	return ParseFloatBytes(val, 64)
+	return parseFloatBytes(val, 64)
 }
 
 func newFieldsFromBinary(buf []byte) Fields {
@@ -1696,6 +1725,122 @@ func newFieldsFromBinary(buf []byte) Fields {
 		i++
 	}
 	return fields
+}
+
+func (p *point) FieldIterator() FieldIterator {
+	p.Reset()
+	return p
+}
+
+type fieldIterator struct {
+	start, end  int
+	key, keybuf []byte
+	valueBuf    []byte
+	fieldType   FieldType
+}
+
+func (p *point) Next() bool {
+	p.it.start = p.it.end
+	if p.it.start >= len(p.fields) {
+		return false
+	}
+
+	p.it.end, p.it.key = scanTo(p.fields, p.it.start, '=')
+	if escape.IsEscaped(p.it.key) {
+		p.it.keybuf = escape.AppendUnescaped(p.it.keybuf[:0], p.it.key)
+		p.it.key = p.it.keybuf
+	}
+
+	p.it.end, p.it.valueBuf = scanFieldValue(p.fields, p.it.end+1)
+	p.it.end++
+
+	if len(p.it.valueBuf) == 0 {
+		p.it.fieldType = Empty
+		return true
+	}
+
+	c := p.it.valueBuf[0]
+
+	if c == '"' {
+		p.it.fieldType = String
+		return true
+	}
+
+	if strings.IndexByte(`0123456789-.nNiI`, c) >= 0 {
+		if p.it.valueBuf[len(p.it.valueBuf)-1] == 'i' {
+			p.it.fieldType = Integer
+			p.it.valueBuf = p.it.valueBuf[:len(p.it.valueBuf)-1]
+		} else {
+			p.it.fieldType = Float
+		}
+		return true
+	}
+
+	// to keep the same behavior that currently exists, default to boolean
+	p.it.fieldType = Boolean
+	return true
+}
+
+func (p *point) FieldKey() []byte {
+	return p.it.key
+}
+
+func (p *point) Type() FieldType {
+	return p.it.fieldType
+}
+
+func (p *point) StringValue() string {
+	return unescapeStringField(string(p.it.valueBuf[1 : len(p.it.valueBuf)-1]))
+}
+
+func (p *point) IntegerValue() int64 {
+	n, err := parseIntBytes(p.it.valueBuf, 10, 64)
+	if err != nil {
+		panic(fmt.Sprintf("unable to parse integer value %q: %v", p.it.valueBuf, err))
+	}
+	return n
+}
+
+func (p *point) BooleanValue() bool {
+	b, err := parseBoolBytes(p.it.valueBuf)
+	if err != nil {
+		panic(fmt.Sprintf("unable to parse bool value %q: %v", p.it.valueBuf, err))
+	}
+	return b
+}
+
+func (p *point) FloatValue() float64 {
+	f, err := parseFloatBytes(p.it.valueBuf, 64)
+	if err != nil {
+		// panic because that's what the non-iterator code does
+		panic(fmt.Sprintf("unable to parse floating point value %q: %v", p.it.valueBuf, err))
+	}
+	return f
+}
+
+func (p *point) Delete() {
+	switch {
+	case p.it.end == p.it.start:
+	case p.it.end >= len(p.fields):
+		p.fields = p.fields[:p.it.start]
+	case p.it.start == 0:
+		p.fields = p.fields[p.it.end:]
+	default:
+		p.fields = append(p.fields[:p.it.start], p.fields[p.it.end:]...)
+	}
+
+	p.it.end = p.it.start
+	p.it.key = nil
+	p.it.valueBuf = nil
+	p.it.fieldType = Empty
+}
+
+func (p *point) Reset() {
+	p.it.fieldType = Empty
+	p.it.key = nil
+	p.it.valueBuf = nil
+	p.it.start = 0
+	p.it.end = 0
 }
 
 // MarshalBinary encodes all the fields to their proper type and returns the binary

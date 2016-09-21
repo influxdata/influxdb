@@ -108,18 +108,33 @@ func NewValue(t int64, value interface{}) Value {
 	case string:
 		return &StringValue{unixnano: t, value: v}
 	}
-	return &EmptyValue{}
+	return EmptyValue{}
 }
 
-type EmptyValue struct {
+func NewIntegerValue(t int64, v int64) Value {
+	return &IntegerValue{unixnano: t, value: v}
 }
 
-func (e *EmptyValue) UnixNano() int64    { return tsdb.EOF }
-func (e *EmptyValue) Value() interface{} { return nil }
-func (e *EmptyValue) Size() int          { return 0 }
-func (e *EmptyValue) String() string     { return "" }
+func NewFloatValue(t int64, v float64) Value {
+	return &FloatValue{unixnano: t, value: v}
+}
 
-func (_ *EmptyValue) internalOnly()   {}
+func NewBooleanValue(t int64, v bool) Value {
+	return &BooleanValue{unixnano: t, value: v}
+}
+
+func NewStringValue(t int64, v string) Value {
+	return &StringValue{unixnano: t, value: v}
+}
+
+type EmptyValue struct{}
+
+func (e EmptyValue) UnixNano() int64    { return tsdb.EOF }
+func (e EmptyValue) Value() interface{} { return nil }
+func (e EmptyValue) Size() int          { return 0 }
+func (e EmptyValue) String() string     { return "" }
+
+func (_ EmptyValue) internalOnly()    {}
 func (_ *StringValue) internalOnly()  {}
 func (_ *IntegerValue) internalOnly() {}
 func (_ *BooleanValue) internalOnly() {}

@@ -1958,3 +1958,198 @@ func TestParseKeyEmpty(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
+
+func TestPoint_FieldIterator_Simple(t *testing.T) {
+
+	p, err := models.ParsePoints([]byte(`m v=42i,f=42 36`))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(p) != 1 {
+		t.Fatalf("wrong number of points, got %d, exp %d", len(p), 1)
+	}
+
+	fi := p[0].FieldIterator()
+
+	if !fi.Next() {
+		t.Fatal("field iterator terminated before first field")
+	}
+
+	if fi.Type() != models.Integer {
+		t.Fatalf("'42i' should be an Integer, got %v", fi.Type())
+	}
+
+	if fi.IntegerValue() != 42 {
+		t.Fatalf("'42i' should be 42, got %d", fi.IntegerValue())
+	}
+
+	if !fi.Next() {
+		t.Fatalf("field iterator terminated before second field")
+	}
+
+	if fi.Type() != models.Float {
+		t.Fatalf("'42' should be a Float, got %v", fi.Type())
+	}
+
+	if fi.FloatValue() != 42.0 {
+		t.Fatalf("'42' should be %f, got %f", 42.0, fi.FloatValue())
+	}
+
+	if fi.Next() {
+		t.Fatal("field iterator didn't terminate")
+	}
+}
+
+func toFields(fi models.FieldIterator) models.Fields {
+	m := make(models.Fields)
+	for fi.Next() {
+		var v interface{}
+		switch fi.Type() {
+		case models.Float:
+			v = fi.FloatValue()
+		case models.Integer:
+			v = fi.IntegerValue()
+		case models.String:
+			v = fi.StringValue()
+		case models.Boolean:
+			v = fi.BooleanValue()
+		case models.Empty:
+			v = nil
+		default:
+			panic("unknown type")
+		}
+		m[string(fi.FieldKey())] = v
+	}
+	return m
+}
+
+func TestPoint_FieldIterator_FieldMap(t *testing.T) {
+
+	points, err := models.ParsePointsString(`
+m v=42
+m v=42i
+m v="string"
+m v=true
+m v="string\"with\"escapes"
+m v=42i,f=42,g=42.314
+m a=2i,b=3i,c=true,d="stuff",e=-0.23,f=123.456
+`)
+
+	if err != nil {
+		t.Fatal("failed to parse test points:", err)
+	}
+
+	for _, p := range points {
+		exp := p.Fields()
+		got := toFields(p.FieldIterator())
+
+		if !reflect.DeepEqual(got, exp) {
+			t.Errorf("FieldIterator failed for %#q: got %#v, exp %#v", p.String(), got, exp)
+		}
+	}
+}
+
+func TestPoint_FieldIterator_Delete_Begin(t *testing.T) {
+	points, err := models.ParsePointsString(`m a=1,b=2,c=3`)
+	if err != nil || len(points) != 1 {
+		t.Fatal("failed parsing point")
+	}
+
+	fi := points[0].FieldIterator()
+	fi.Next() // a
+	fi.Delete()
+
+	fi.Reset()
+
+	got := toFields(fi)
+	exp := models.Fields{"b": float64(2), "c": float64(3)}
+
+	if !reflect.DeepEqual(got, exp) {
+		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
+	}
+}
+
+func TestPoint_FieldIterator_Delete_Middle(t *testing.T) {
+	points, err := models.ParsePointsString(`m a=1,b=2,c=3`)
+	if err != nil || len(points) != 1 {
+		t.Fatal("failed parsing point")
+	}
+
+	fi := points[0].FieldIterator()
+	fi.Next() // a
+	fi.Next() // b
+	fi.Delete()
+
+	fi.Reset()
+
+	got := toFields(fi)
+	exp := models.Fields{"a": float64(1), "c": float64(3)}
+
+	if !reflect.DeepEqual(got, exp) {
+		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
+	}
+}
+
+func TestPoint_FieldIterator_Delete_End(t *testing.T) {
+	points, err := models.ParsePointsString(`m a=1,b=2,c=3`)
+	if err != nil || len(points) != 1 {
+		t.Fatal("failed parsing point")
+	}
+
+	fi := points[0].FieldIterator()
+	fi.Next() // a
+	fi.Next() // b
+	fi.Next() // c
+	fi.Delete()
+
+	fi.Reset()
+
+	got := toFields(fi)
+	exp := models.Fields{"a": float64(1), "b": float64(2)}
+
+	if !reflect.DeepEqual(got, exp) {
+		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
+	}
+}
+
+func TestPoint_FieldIterator_Delete_Nothing(t *testing.T) {
+	points, err := models.ParsePointsString(`m a=1,b=2,c=3`)
+	if err != nil || len(points) != 1 {
+		t.Fatal("failed parsing point")
+	}
+
+	fi := points[0].FieldIterator()
+	fi.Delete()
+
+	fi.Reset()
+
+	got := toFields(fi)
+	exp := models.Fields{"a": float64(1), "b": float64(2), "c": float64(3)}
+
+	if !reflect.DeepEqual(got, exp) {
+		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
+	}
+}
+
+func TestPoint_FieldIterator_Delete_Twice(t *testing.T) {
+	points, err := models.ParsePointsString(`m a=1,b=2,c=3`)
+	if err != nil || len(points) != 1 {
+		t.Fatal("failed parsing point")
+	}
+
+	fi := points[0].FieldIterator()
+	fi.Next() // a
+	fi.Next() // b
+	fi.Delete()
+	fi.Delete() // no-op
+
+	fi.Reset()
+
+	got := toFields(fi)
+	exp := models.Fields{"a": float64(1), "c": float64(3)}
+
+	if !reflect.DeepEqual(got, exp) {
+		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
+	}
+}

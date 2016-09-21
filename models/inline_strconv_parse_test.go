@@ -1,38 +1,23 @@
-package models_test
+package models
 
 import (
 	"strconv"
 	"testing"
 	"testing/quick"
-
-	"github.com/influxdata/influxdb/models"
 )
 
 func TestParseIntBytesEquivalenceFuzz(t *testing.T) {
 	f := func(b []byte, base int, bitSize int) bool {
-		wantI, wantErr := strconv.ParseInt(string(b), base, bitSize)
-		gotI, gotErr := models.ParseIntBytes(b, base, bitSize)
+		exp, expErr := strconv.ParseInt(string(b), base, bitSize)
+		got, gotErr := parseIntBytes(b, base, bitSize)
 
-		pred := wantI == gotI
-
-		// error objects are heap allocated so naive equality checking
-		// won't work here. naive pointer dereferencing will panic
-		// in the case of a nil error.
-		if wantErr != nil && gotErr == nil {
-			pred = false
-		} else if wantErr == nil && gotErr != nil {
-			pred = false
-		} else if wantErr != nil && gotErr != nil {
-			if wantErr.Error() != gotErr.Error() {
-				pred = false
-			}
-		}
-
-		return pred
+		return exp == got && checkErrs(expErr, gotErr)
 	}
+
 	cfg := &quick.Config{
 		MaxCount: 10000,
 	}
+
 	if err := quick.Check(f, cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -43,29 +28,16 @@ func TestParseIntBytesValid64bitBase10EquivalenceFuzz(t *testing.T) {
 	f := func(n int64) bool {
 		buf = strconv.AppendInt(buf[:0], n, 10)
 
-		wantI, wantErr := strconv.ParseInt(string(buf), 10, 64)
-		gotI, gotErr := models.ParseIntBytes(buf, 10, 64)
+		exp, expErr := strconv.ParseInt(string(buf), 10, 64)
+		got, gotErr := parseIntBytes(buf, 10, 64)
 
-		pred := wantI == gotI
-
-		// error objects are heap allocated so naive equality checking
-		// won't work here. naive pointer dereferencing will panic
-		// in the case of a nil error.
-		if wantErr != nil && gotErr == nil {
-			pred = false
-		} else if wantErr == nil && gotErr != nil {
-			pred = false
-		} else if wantErr != nil && gotErr != nil {
-			if wantErr.Error() != gotErr.Error() {
-				pred = false
-			}
-		}
-
-		return pred
+		return exp == got && checkErrs(expErr, gotErr)
 	}
+
 	cfg := &quick.Config{
 		MaxCount: 10000,
 	}
+
 	if err := quick.Check(f, cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -73,29 +45,16 @@ func TestParseIntBytesValid64bitBase10EquivalenceFuzz(t *testing.T) {
 
 func TestParseFloatBytesEquivalenceFuzz(t *testing.T) {
 	f := func(b []byte, bitSize int) bool {
-		wantI, wantErr := strconv.ParseFloat(string(b), bitSize)
-		gotI, gotErr := models.ParseFloatBytes(b, bitSize)
+		exp, expErr := strconv.ParseFloat(string(b), bitSize)
+		got, gotErr := parseFloatBytes(b, bitSize)
 
-		pred := wantI == gotI
-
-		// error objects are heap allocated so naive equality checking
-		// won't work here. naive pointer dereferencing will panic
-		// in the case of a nil error.
-		if wantErr != nil && gotErr == nil {
-			pred = false
-		} else if wantErr == nil && gotErr != nil {
-			pred = false
-		} else if wantErr != nil && gotErr != nil {
-			if wantErr.Error() != gotErr.Error() {
-				pred = false
-			}
-		}
-
-		return pred
+		return exp == got && checkErrs(expErr, gotErr)
 	}
+
 	cfg := &quick.Config{
 		MaxCount: 10000,
 	}
+
 	if err := quick.Check(f, cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -106,30 +65,39 @@ func TestParseFloatBytesValid64bitEquivalenceFuzz(t *testing.T) {
 	f := func(n float64) bool {
 		buf = strconv.AppendFloat(buf[:0], n, 'f', -1, 64)
 
-		wantI, wantErr := strconv.ParseFloat(string(buf), 64)
-		gotI, gotErr := models.ParseFloatBytes(buf, 64)
+		exp, expErr := strconv.ParseFloat(string(buf), 64)
+		got, gotErr := parseFloatBytes(buf, 64)
 
-		pred := wantI == gotI
-
-		// error objects are heap allocated so naive equality checking
-		// won't work here. naive pointer dereferencing will panic
-		// in the case of a nil error.
-		if wantErr != nil && gotErr == nil {
-			pred = false
-		} else if wantErr == nil && gotErr != nil {
-			pred = false
-		} else if wantErr != nil && gotErr != nil {
-			if wantErr.Error() != gotErr.Error() {
-				pred = false
-			}
-		}
-
-		return pred
+		return exp == got && checkErrs(expErr, gotErr)
 	}
+
 	cfg := &quick.Config{
 		MaxCount: 10000,
 	}
+
 	if err := quick.Check(f, cfg); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestParseBoolBytesEquivalence(t *testing.T) {
+	var buf []byte
+	for _, s := range []string{"1", "t", "T", "TRUE", "true", "True", "0", "f", "F", "FALSE", "false", "False", "fail", "TrUe", "FAlSE", "numbers", ""} {
+		buf = append(buf[:0], s...)
+
+		exp, expErr := strconv.ParseBool(s)
+		got, gotErr := parseBoolBytes(buf)
+
+		if got != exp || !checkErrs(expErr, gotErr) {
+			t.Errorf("Failed to parse boolean value %q correctly: wanted (%t, %v), got (%t, %v)", s, exp, expErr, got, gotErr)
+		}
+	}
+}
+
+func checkErrs(a, b error) bool {
+	if (a == nil) != (b == nil) {
+		return false
+	}
+
+	return a == nil || a.Error() == b.Error()
 }
