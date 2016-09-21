@@ -4,7 +4,7 @@ var ExtractTextPlugin = require("extract-text-webpack-plugin");
 var HtmlWebpackPlugin = require("html-webpack-plugin");
 
 module.exports = {
-  devtool: 'eval-cheap-module-source-map',
+  devtool: 'cheap-eval-source-map',
   entry: {
     app: path.resolve(__dirname, '..', 'src', 'index.js'),
   },
