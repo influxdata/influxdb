@@ -67,13 +67,8 @@ func (m *Handler) Proxy(ctx context.Context, params op.PostSourcesIDProxyParams)
 		return op.NewPostSourcesIDProxyDefault(500)
 	}
 
-	results, err := response.Results()
-	if err != nil {
-		return op.NewPostSourcesIDProxyDefault(500)
-	}
-
 	res := &models.ProxyResponse{
-		Results: results,
+		Results: response,
 	}
 	return op.NewPostSourcesIDProxyOK().WithPayload(res)
 }
