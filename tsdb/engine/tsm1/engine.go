@@ -20,6 +20,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
 )
@@ -320,8 +321,16 @@ func (e *Engine) MeasurementFields(measurement string) *tsdb.MeasurementFields {
 	return m
 }
 
-func (e *Engine) SeriesCardinality() (int64, error) {
-	panic("TODO: edd")
+func (e *Engine) SeriesN() (uint64, error) {
+	return e.index.SeriesN()
+}
+
+func (e *Engine) SeriesSketch() (estimator.Sketch, error) {
+	return e.index.SeriesSketch()
+}
+
+func (e *Engine) MeasurementsSketch() (estimator.Sketch, error) {
+	return e.index.MeasurementsSketch()
 }
 
 // EngineStatistics maintains statistics for the engine.
@@ -459,6 +468,11 @@ func (e *Engine) WithLogger(log zap.Logger) {
 // LoadMetadataIndex loads the shard metadata into memory.
 func (e *Engine) LoadMetadataIndex(shardID uint64, index *tsdb.DatabaseIndex) error {
 	now := time.Now()
+
+	// Open the index if it's not already open.
+	if err := index.Open(); err != nil {
+		return err
+	}
 
 	// Save reference to index for iterator creation.
 	e.index = index

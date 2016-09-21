@@ -38,7 +38,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	}
 
 	// Load metadata index.
-	index := tsdb.NewDatabaseIndex("db")
+	index := MustNewDatabaseIndex("db")
 	if err := e.LoadMetadataIndex(1, index); err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	}
 
 	// Load metadata index.
-	index = tsdb.NewDatabaseIndex("db")
+	index = MustNewDatabaseIndex("db")
 	if err := e.LoadMetadataIndex(1, index); err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	}
 
 	// Load metadata index.
-	index = tsdb.NewDatabaseIndex("db")
+	index = MustNewDatabaseIndex("db")
 	if err := e.LoadMetadataIndex(1, index); err != nil {
 		t.Fatal(err)
 	}
@@ -571,7 +571,7 @@ func TestEngine_DeleteSeries(t *testing.T) {
 
 	// Write those points to the engine.
 	e := tsm1.NewEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
-	e.LoadMetadataIndex(1, tsdb.NewDatabaseIndex("db0")) // Initialise an index
+	e.LoadMetadataIndex(1, MustNewDatabaseIndex("db0")) // Initialise an index
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -964,7 +964,7 @@ func MustOpenEngine() *Engine {
 	if err := e.Open(); err != nil {
 		panic(err)
 	}
-	if err := e.LoadMetadataIndex(1, tsdb.NewDatabaseIndex("db")); err != nil {
+	if err := e.LoadMetadataIndex(1, MustNewDatabaseIndex("db")); err != nil {
 		panic(err)
 	}
 	return e
@@ -1008,6 +1008,16 @@ func (e *Engine) MustMeasurement(name string) *tsdb.Measurement {
 		panic(err)
 	}
 	return m
+}
+
+// MustNewDatabaseIndex creates a tsdb.DatabaseIndex, panicking if there is an
+// error doing do.
+func MustNewDatabaseIndex(name string) *tsdb.DatabaseIndex {
+	index, err := tsdb.NewDatabaseIndex(name)
+	if err != nil {
+		panic(err)
+	}
+	return index
 }
 
 // WritePointsString parses a string buffer and writes the points.

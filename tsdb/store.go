@@ -16,6 +16,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/limiter"
 	"go.uber.org/zap"
 )
@@ -554,7 +555,31 @@ func (s *Store) DiskSize() (int64, error) {
 
 // SeriesCardinality returns the series cardinality for the provided database.
 func (s *Store) SeriesCardinality(database string) (int64, error) {
-	panic("TODO: edd")
+	s.mu.RLock()
+	shards := s.filterShards(byDatabase(database))
+	s.mu.RUnlock()
+
+	var sketch estimator.Sketch
+	// Iterate over all shards for the database and combine all of the series
+	// sketches.
+	for _, shard := range shards {
+		other, err := shard.engine.SeriesSketch()
+		if err != nil {
+			return 0, err
+		}
+
+		if sketch == nil {
+			sketch = other
+		} else if err = sketch.Merge(other); err != nil {
+			return 0, err
+		}
+	}
+
+	if sketch != nil {
+		cnt, err := sketch.Count()
+		return int64(cnt), err
+	}
+	return 0, nil
 }
 
 // MeasurementsCardinality returns the measurement cardinality for the provided

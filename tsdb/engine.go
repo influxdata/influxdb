@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/estimator"
 	"go.uber.org/zap"
 )
 
@@ -43,7 +44,10 @@ type Engine interface {
 	CreateSeries(measurment string, series *Series) (*Series, error)
 	DeleteSeriesRange(keys []string, min, max int64) error
 	Series(key string) (*Series, error)
-	SeriesCardinality() (n int64, err error)
+
+	SeriesN() (uint64, error)
+	SeriesSketch() (estimator.Sketch, error)
+	MeasurementsSketch() (estimator.Sketch, error)
 
 	CreateMeasurement(name string) (*Measurement, error)
 	DeleteMeasurement(name string, seriesKeys []string) error
