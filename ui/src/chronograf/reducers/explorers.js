@@ -10,12 +10,7 @@ export default function explorers(state = {}, action) {
 
     case 'LOAD_EXPLORERS': {
       return action.payload.explorers.reduce((nextState, explorer) => {
-        nextState[explorer.id] = {
-          id: explorer.id,
-          name: explorer.name,
-          updatedAt: explorer.updated_at,
-          createdAt: explorer.created_at,
-        };
+        nextState[explorer.link.href] = normalizeExplorer(explorer);
         return nextState;
       }, {});
     }
@@ -24,7 +19,7 @@ export default function explorers(state = {}, action) {
       const {explorer} = action.payload;
 
       const update = {
-        [explorer.id]: normalizeExplorer(explorer),
+        [explorer.link.href]: normalizeExplorer(explorer),
       };
 
       return u(update, state);
@@ -50,13 +45,12 @@ export default function explorers(state = {}, action) {
 }
 
 function normalizeExplorer(explorer) {
-  const {id, name, data, user_id, cluster_id, created_at, updated_at} = explorer;
+  const {link, name, data, user_id, created_at, updated_at} = explorer;
   return Object.assign({}, explorer, {
-    id,
+    id: link.href,
     name,
     data,
     userID: user_id,
-    clusterID: cluster_id,
     createdAt: created_at,
     updatedAt: updated_at,
   });

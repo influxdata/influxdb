@@ -27,7 +27,7 @@ const DataExplorer = React.createClass({
       lower: PropTypes.string,
     }).isRequired,
     explorers: PropTypes.shape({}).isRequired,
-    explorerID: PropTypes.number.isRequired,
+    explorerID: PropTypes.string,
     setTimeRange: PropTypes.func.isRequired,
     createExplorer: PropTypes.func.isRequired,
     chooseExplorer: PropTypes.func.isRequired,
@@ -70,7 +70,7 @@ const DataExplorer = React.createClass({
 
     const activeExplorer = explorers[explorerID];
     if (!activeExplorer) {
-      return <NotFound />;
+      return null; // TODO: handle no explorers;
     }
 
     return (

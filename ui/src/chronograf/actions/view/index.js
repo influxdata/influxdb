@@ -249,7 +249,7 @@ export function fetchExplorers({sourceLink, userID, explorerID, push}) {
       if (!explorerID) {
         const explorer = _.maxBy(explorers, (ex) => ex.updated_at);
         dispatch(loadExplorer(explorer));
-        push(`/chronograf/data_explorer/${encodeURIComponent(explorer.link.href)}`);
+        push(`/chronograf/data_explorer/${btoa(explorer.link.href)}`);
         return;
       }
 

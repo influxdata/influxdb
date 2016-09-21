@@ -22,20 +22,20 @@ const App = React.createClass({
   },
 
   componentDidMount() {
-    const {explorerID} = this.props.params;
+    const {base64ExplorerID} = this.props.params;
     this.props.fetchExplorers({
       sourceLink: this.props.source.links.self,
       userID: 1, // TODO: get the userID
-      explorerID: Number(explorerID),
+      explorerID: base64ExplorerID ? atob(base64ExplorerID) : null,
       push: this.props.router.push,
     });
   },
 
   render() {
-    const {explorerID} = this.props.params;
+    const {base64ExplorerID} = this.props.params;
     return (
       <div className="data-explorer-container">
-        <DataExplorer source={this.props.source} explorerID={Number(explorerID)} />
+        <DataExplorer source={this.props.source} explorerID={atob(base64ExplorerID)} />
       </div>
     );
   },
