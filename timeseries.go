@@ -6,8 +6,12 @@ import (
 	"golang.org/x/net/context"
 )
 
-// Used to retrieve a Response from a TimeSeries.
-type Query string
+// Query retrieves a Response from a TimeSeries.
+type Query struct {
+	Command  string // Command is the query itself
+	Database string // Database is optional and if empty will not be used.
+	RP       string // RP is a retention policy and optional; if empty will not be used.
+}
 
 // Row represents a single row returned from the execution of a single statement in a `Query`.
 type Row interface {

@@ -57,8 +57,12 @@ func (m *Handler) SourcesID(ctx context.Context, params op.GetSourcesIDParams) m
 }
 
 func (m *Handler) Proxy(ctx context.Context, params op.PostSourcesIDProxyParams) middleware.Responder {
-	query := params.Query.Query
-	response, err := m.TimeSeries.Query(ctx, mrfusion.Query(*query))
+	query := mrfusion.Query{
+		Command:  *params.Query.Query,
+		Database: params.Query.Database,
+		RP:       params.Query.Rp,
+	}
+	response, err := m.TimeSeries.Query(ctx, mrfusion.Query(query))
 	if err != nil {
 		return op.NewPostSourcesIDProxyDefault(500)
 	}

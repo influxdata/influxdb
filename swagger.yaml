@@ -788,6 +788,10 @@ definitions:
         properties:
             query:
                 type: string
+            database:
+                type: string
+            rp:
+                type: string
             format:
                 type: string
                 enum:
