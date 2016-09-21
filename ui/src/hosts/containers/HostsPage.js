@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react';
 import FlashMessages from 'shared/components/FlashMessages';
+import HostsTable from '../components/HostsTable';
 
 export const HostsPage = React.createClass({
   propTypes: {
@@ -26,32 +27,7 @@ export const HostsPage = React.createClass({
             <div className="col-md-12">
               <div className="panel panel-minimal">
                 <div className="panel-body">
-                  <table className="table v-center">
-                    <thead>
-                      <tr>
-                        <th>Hostname</th>
-                        <th>Status</th>
-                        <th>CPU</th>
-                        <th>Load</th>
-                        <th>Apps</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {
-                        sources.map(({name, id}) => {
-                          return (
-                            <tr key={id}>
-                              <td><a href={`/hosts/${id}`}>{name}</a></td>
-                              <td>UP</td>
-                              <td>98%</td>
-                              <td>1.12</td>
-                              <td>influxdb, ntp, system</td>
-                            </tr>
-                          );
-                        })
-                      }
-                    </tbody>
-                  </table>
+                  <HostsTable hosts={sources} />
                 </div>
               </div>
             </div>
