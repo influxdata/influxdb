@@ -188,7 +188,12 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 		return nil
 	}
 
-	seriesN, _ := s.engine.SeriesCardinality()
+	seriesN, err := s.engine.SeriesN()
+	if err != nil {
+		s.logger.Print(err)
+		seriesN = 0
+	}
+
 	tags = s.defaultTags.Merge(tags)
 	statistics := []models.Statistic{{
 		Name: "shard",
@@ -244,17 +249,23 @@ func (s *Shard) Open() error {
 
 		// Load metadata index.
 		start := time.Now()
-		if err := e.LoadMetadataIndex(s.id, NewDatabaseIndex(s.database)); err != nil {
+		index, err := NewDatabaseIndex(s.database)
+		if err != nil {
+			return err
+		}
+
+		if err := e.LoadMetadataIndex(s.id, index); err != nil {
 			return err
 		}
 
 		s.engine = e
 
-		count, err := s.engine.SeriesCardinality()
+		seriesN, err := s.engine.SeriesN()
 		if err != nil {
 			return err
 		}
-		atomic.AddInt64(&s.stats.SeriesCreated, int64(count))
+		// Store statistic of exact number of series in shard.
+		atomic.AddInt64(&s.stats.SeriesCreated, int64(seriesN))
 
 		s.logger.Printf("%s database index loaded in %s", s.path, time.Now().Sub(start))
 
@@ -486,13 +497,14 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 			return nil, err
 		}
 
-		if ss == nil {
-			cnt, err := s.engine.SeriesCardinality()
-			if err != nil {
-				return nil, err
-			}
+		seriesN, err := s.engine.SeriesN()
+		if err != nil {
+			return nil, err
+		}
 
-			if s.options.Config.MaxSeriesPerDatabase > 0 && cnt+1 > int64(s.options.Config.MaxSeriesPerDatabase) {
+		if ss == nil {
+			if s.options.Config.MaxSeriesPerDatabase > 0 &&
+				int64(seriesN)+1 > int64(s.options.Config.MaxSeriesPerDatabase) {
 				return nil, fmt.Errorf("max series per database exceeded: %s", key)
 			}
 
@@ -550,12 +562,12 @@ func (s *Shard) MeasurementsByExpr(cond influxql.Expr) (Measurements, bool, erro
 	return s.engine.MeasurementsByExpr(cond)
 }
 
-// SeriesCardinality returns the number of series buckets on the shard.
-func (s *Shard) SeriesCardinality() (int64, error) {
+// SeriesN returns the exact number of series in the shard.
+func (s *Shard) SeriesN() (uint64, error) {
 	if err := s.ready(); err != nil {
 		return 0, err
 	}
-	return s.engine.SeriesCardinality()
+	return s.engine.SeriesN()
 }
 
 // Series returns a series by key.
