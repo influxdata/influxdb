@@ -1,2 +1,3 @@
 import HostsPage from './containers/HostsPage';
-export default HostsPage;
+import HostPage from './containers/HostPage';
+export {HostsPage, HostPage};

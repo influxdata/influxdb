@@ -5,7 +5,7 @@ import {Router, Route, browserHistory} from 'react-router';
 
 import App from 'src/App';
 import CheckDataNodes from 'src/CheckDataNodes';
-import HostsPage from 'src/hosts';
+import {HostsPage, HostPage} from 'src/hosts';
 import OverviewPage from 'src/overview';
 import QueriesPage from 'src/queries';
 import TasksPage from 'src/tasks';
@@ -132,6 +132,7 @@ const Root = React.createClass({
               <Route path="roles" component={RolesPageContainer} />
               <Route path="roles/:roleSlug" component={RolePageContainer} />
               <Route path="hosts" component={HostsPage} />
+              <Route path="hosts/:hostID" component={HostPage} />
             </Route>
             <Route path="users" component={UsersPage} />
             <Route path="users/:userID" component={UserEditPage} />
