@@ -5,6 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/estimator"
 )
 
 type Index interface {
@@ -23,7 +24,9 @@ type Index interface {
 	Series(key string) (*Series, error)
 	DropSeries(keys []string) error
 
-	SeriesN() (int64, error)
+	SeriesN() (uint64, error)
+	SeriesSketch() (estimator.Sketch, error)
+	MeasurementsSketch() (estimator.Sketch, error)
 
 	Statistics(tags map[string]string) []models.Statistic
 	TagsForSeries(key string) (models.Tags, error)

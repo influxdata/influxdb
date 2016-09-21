@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/escape"
+	"github.com/influxdata/influxdb/pkg/estimator"
 	internal "github.com/influxdata/influxdb/tsdb/internal"
 
 	"github.com/gogo/protobuf/proto"
@@ -33,6 +34,9 @@ type DatabaseIndex struct {
 	series       map[string]*Series      // map series key to the Series object
 	lastID       uint64                  // last used series ID. They're in memory only for this shard
 
+	seriesSketch       *estimator.HyperLogLogPlus
+	measurementsSketch *estimator.HyperLogLogPlus
+
 	name string // name of the database represented by this index
 
 	stats       *IndexStatistics
@@ -40,18 +44,26 @@ type DatabaseIndex struct {
 }
 
 // NewDatabaseIndex returns a new initialized DatabaseIndex.
-func NewDatabaseIndex(name string) *DatabaseIndex {
-	return &DatabaseIndex{
+func NewDatabaseIndex(name string) (index *DatabaseIndex, err error) {
+	index = &DatabaseIndex{
 		measurements: make(map[string]*Measurement),
 		series:       make(map[string]*Series),
 		name:         name,
 		stats:        &IndexStatistics{},
 		defaultTags:  models.StatisticTags{"database": name},
 	}
+	if index.seriesSketch, err = estimator.NewHyperLogLogPlus(14); err != nil {
+		return nil, err
+	}
+
+	if index.measurementsSketch, err = estimator.NewHyperLogLogPlus(14); err != nil {
+		return nil, err
+	}
+	return index, nil
 }
 
-func (d *DatabaseIndex) Open() error  { return nil }
-func (d *DatabaseIndex) Close() error { return nil }
+func (d *DatabaseIndex) Open() (err error) { return nil }
+func (d *DatabaseIndex) Close() error      { return nil }
 
 // IndexStatistics maintains statistics for the index.
 type IndexStatistics struct {
@@ -79,11 +91,18 @@ func (d *DatabaseIndex) Series(key string) (*Series, error) {
 	return s, nil
 }
 
-// SeriesN returns the number of series.
-func (d *DatabaseIndex) SeriesN() (int64, error) {
+// SeriesN returns the exact number of series in the index.
+func (d *DatabaseIndex) SeriesN() (uint64, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return int64(len(d.series)), nil
+	return uint64(len(d.series)), nil
+}
+
+// SeriesSketch returns the sketch for the series.
+func (d *DatabaseIndex) SeriesSketch() (estimator.Sketch, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.seriesSketch, nil
 }
 
 // Measurement returns the measurement object from the index by the name
@@ -91,6 +110,13 @@ func (d *DatabaseIndex) Measurement(name string) (*Measurement, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	return d.measurements[name], nil
+}
+
+// MeasurementsSketch returns the sketch for the series.
+func (d *DatabaseIndex) MeasurementsSketch() (estimator.Sketch, error) {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	return d.measurementsSketch, nil
 }
 
 // MeasurementsByName returns a list of measurements.
@@ -120,7 +146,10 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 	d.mu.RUnlock()
 
 	// get or create the measurement index
-	m, _ := d.CreateMeasurementIndexIfNotExists(measurementName)
+	m, err := d.CreateMeasurementIndexIfNotExists(measurementName)
+	if err != nil {
+		return nil, err
+	}
 
 	d.mu.Lock()
 	// Check for the series again under a write lock
@@ -139,6 +168,10 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 
 	m.AddSeries(series)
 
+	// Add the series to the series sketch.
+	if err := d.seriesSketch.Add([]byte(series.Key)); err != nil {
+		return nil, err
+	}
 	atomic.AddInt64(&d.stats.NumSeries, 1)
 	d.mu.Unlock()
 
@@ -169,6 +202,11 @@ func (d *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) (*Measure
 	if m == nil {
 		m = NewMeasurement(name)
 		d.measurements[name] = m
+
+		// Add the measurement to the measurements sketch.
+		if err := d.measurementsSketch.Add([]byte(name)); err != nil {
+			return nil, err
+		}
 		atomic.AddInt64(&d.stats.NumMeasurements, 1)
 	}
 	return m, nil

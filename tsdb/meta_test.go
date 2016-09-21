@@ -248,7 +248,11 @@ func BenchmarkCreateSeriesIndex_1M(b *testing.B) {
 func benchmarkCreateSeriesIndex(b *testing.B, series []*TestSeries) {
 	idxs := make([]*tsdb.DatabaseIndex, 0, b.N)
 	for i := 0; i < b.N; i++ {
-		idxs = append(idxs, tsdb.NewDatabaseIndex(fmt.Sprintf("db%d", i)))
+		index, err := tsdb.NewDatabaseIndex(fmt.Sprintf("db%d", i))
+		if err != nil {
+			b.Fatal(err)
+		}
+		idxs = append(idxs, index)
 	}
 
 	b.ResetTimer()
