@@ -16,9 +16,9 @@ type InfluxProxy struct {
 func (h *InfluxProxy) Proxy(ctx context.Context, params op.PostSourcesIDProxyParams) middleware.Responder {
 	// TODO: Add support for multiple TimeSeries with lookup based on params.ID
 	query := mrfusion.Query{
-		Command:  *params.Query.Query,
-		Database: params.Query.Database,
-		RP:       params.Query.Rp,
+		Command: *params.Query.Query,
+		DB:      params.Query.DB,
+		RP:      params.Query.Rp,
 	}
 
 	response, err := h.TimeSeries.Query(ctx, query)

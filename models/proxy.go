@@ -19,9 +19,9 @@ swagger:model Proxy
 */
 type Proxy struct {
 
-	/* database
+	/* db
 	 */
-	Database string `json:"database,omitempty"`
+	Db string `json:"db,omitempty"`
 
 	/* format
 	 */
