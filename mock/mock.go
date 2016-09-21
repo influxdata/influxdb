@@ -1,7 +1,6 @@
 package mock
 
 import (
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -70,71 +69,11 @@ func (m *ExplorationStore) Update(ctx context.Context, e mrfusion.Exploration) e
 	return nil
 }
 
-type Row struct {
-	name    string            `json:"name,omitempty"`
-	tags    map[string]string `json:"tags,omitempty"`
-	columns []string          `json:"columns,omitempty"`
-	values  [][]interface{}   `json:"values,omitempty"`
-}
-
-func NewRow(row string) mrfusion.Row {
-	r := Row{}
-	json.Unmarshal([]byte(row), &r)
-	return &r
-}
-
-var SampleRow mrfusion.Row = NewRow(`{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T01:00:00Z",1]]}`)
-
-func (r *Row) Name() string {
-	return r.name
-}
-
-func (r *Row) Tags() map[string]string {
-	return r.tags
-}
-
-func (r *Row) Columns() []string {
-	return r.columns
-}
-
-func (r *Row) Values() [][]interface{} {
-	return r.values
-}
-
-type Result struct {
-	rows []mrfusion.Row
-}
-
-func NewResult(row mrfusion.Row) mrfusion.Result {
-	return &Result{
-		rows: []mrfusion.Row{row},
-	}
-}
-
-var SampleResult mrfusion.Result = NewResult(SampleRow)
-
-func (r *Result) Series() ([]mrfusion.Row, error) {
-	return r.rows, nil
-}
-
 type Response struct {
-	results []mrfusion.Result
 }
 
 func (r *Response) MarshalJSON() ([]byte, error) {
-	return []byte(`{}`), nil
-}
-
-var SampleResponse mrfusion.Response = NewResponse(SampleResult)
-
-func NewResponse(result mrfusion.Result) mrfusion.Response {
-	return &Response{
-		results: []mrfusion.Result{result},
-	}
-}
-
-func (r *Response) Results() ([]mrfusion.Result, error) {
-	return r.results, nil
+	return []byte(`[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",1]]}]}]`), nil
 }
 
 type TimeSeries struct {
@@ -149,7 +88,7 @@ func NewTimeSeries(hosts []string, response mrfusion.Response) mrfusion.TimeSeri
 	}
 }
 
-var DefaultTimeSeries mrfusion.TimeSeries = NewTimeSeries([]string{"hydrogen", "helium", "hadron", "howdy"}, SampleResponse)
+var DefaultTimeSeries mrfusion.TimeSeries = NewTimeSeries([]string{"hydrogen", "helium", "hadron", "howdy"}, &Response{})
 
 func (t *TimeSeries) Query(context.Context, mrfusion.Query) (mrfusion.Response, error) {
 	return t.Response, nil

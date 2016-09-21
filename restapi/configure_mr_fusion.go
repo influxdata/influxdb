@@ -14,6 +14,8 @@ import (
 
 	"github.com/influxdata/mrfusion"
 	"github.com/influxdata/mrfusion/dist"
+	"github.com/influxdata/mrfusion/handlers"
+	"github.com/influxdata/mrfusion/influx"
 	"github.com/influxdata/mrfusion/mock"
 	"github.com/influxdata/mrfusion/restapi/operations"
 )
@@ -26,12 +28,21 @@ var devFlags = struct {
 	Develop bool `short:"d" long:"develop" description:"Run server in develop mode."`
 }{}
 
+var influxFlags = struct {
+	Server string `short:"s" long:"server" description:"Full URL of InfluxDB server (http://localhost:8086)"`
+}{}
+
 func configureFlags(api *operations.MrFusionAPI) {
 	api.CommandLineOptionsGroups = []swag.CommandLineOptionsGroup{
 		swag.CommandLineOptionsGroup{
 			ShortDescription: "Develop Mode server",
 			LongDescription:  "Server will use the ui/build directory directly.",
 			Options:          &devFlags,
+		},
+		swag.CommandLineOptionsGroup{
+			ShortDescription: "Default Time Series Backend",
+			LongDescription:  "Specify the url of an InfxluDB server",
+			Options:          &influxFlags,
 		},
 	}
 }
@@ -132,7 +143,18 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 		return middleware.NotImplemented("operation .PostSources has not yet been implemented")
 	})
 
-	api.PostSourcesIDProxyHandler = operations.PostSourcesIDProxyHandlerFunc(mockHandler.Proxy)
+	if len(influxFlags.Server) > 0 {
+		c, err := influx.NewClient(influxFlags.Server)
+		if err != nil {
+			panic(err)
+		}
+		h := handlers.InfluxProxy{
+			TimeSeries: c,
+		}
+		api.PostSourcesIDProxyHandler = operations.PostSourcesIDProxyHandlerFunc(h.Proxy)
+	} else {
+		api.PostSourcesIDProxyHandler = operations.PostSourcesIDProxyHandlerFunc(mockHandler.Proxy)
+	}
 
 	api.PostSourcesIDRolesHandler = operations.PostSourcesIDRolesHandlerFunc(func(ctx context.Context, params operations.PostSourcesIDRolesParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PostSourcesIDRoles has not yet been implemented")

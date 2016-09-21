@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 
 	"github.com/influxdata/influxdb/client/v2"
-	"github.com/influxdata/mrfusion"
 )
 
 type response struct {
@@ -14,8 +13,4 @@ type response struct {
 
 func (r response) MarshalJSON() ([]byte, error) {
 	return json.Marshal(r.Results)
-}
-
-func (r response) Results() ([]mrfusion.Result, error) {
-	return []mrfusion.Result{}, nil
 }

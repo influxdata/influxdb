@@ -34,7 +34,7 @@ func NewClient(host string) (*Client, error) {
 // include both the database and retention policy. In-flight requests can be
 // cancelled using the provided context.
 func (c *Client) Query(ctx context.Context, query mrfusion.Query) (mrfusion.Response, error) {
-	q := ixClient.NewQuery(query.Command, query.Database, query.RP)
+	q := ixClient.NewQuery(query.Command, query.DB, query.RP)
 	resps := make(chan (response))
 	go func() {
 		resp, err := c.ix.Query(q)

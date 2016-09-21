@@ -1,35 +1,17 @@
 package mrfusion
 
-import (
-	"encoding/json"
-
-	"golang.org/x/net/context"
-)
+import "golang.org/x/net/context"
 
 // Query retrieves a Response from a TimeSeries.
 type Query struct {
-	Command  string // Command is the query itself
-	Database string // Database is optional and if empty will not be used.
-	RP       string // RP is a retention policy and optional; if empty will not be used.
-}
-
-// Row represents a single row returned from the execution of a single statement in a `Query`.
-type Row interface {
-	Name() string
-	Tags() map[string]string
-	Columns() []string
-	Values() [][]interface{}
-}
-
-// Result represents a resultset returned from a single statement in a `Query`.
-type Result interface {
-	Series() ([]Row, error)
+	Command string // Command is the query itself
+	DB      string // DB is optional and if empty will not be used.
+	RP      string // RP is a retention policy and optional; if empty will not be used.
 }
 
 // Response is the result of a query against a TimeSeries
 type Response interface {
-	Results() ([]Result, error)
-	json.Marshaler
+	MarshalJSON() ([]byte, error)
 }
 
 // MonitoredService is a service sending monitoring data to a `TimeSeries`
