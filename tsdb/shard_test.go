@@ -63,12 +63,12 @@ func TestShardWriteAndIndex(t *testing.T) {
 	}
 
 	validateIndex := func() {
-		cnt, err := sh.SeriesCardinality()
+		cnt, err := sh.SeriesN()
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		if got, exp := cnt, int64(1); got != exp {
+		if got, exp := cnt, uint64(1); got != exp {
 			t.Fatalf("got %v series, exp %v series in index", got, exp)
 		}
 
@@ -344,11 +344,11 @@ func TestShardWriteAddNewField(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	cnt, err := sh.SeriesCardinality()
+	cnt, err := sh.SeriesN()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, exp := cnt, int64(1); got != exp {
+	if got, exp := cnt, uint64(1); got != exp {
 		t.Fatalf("got %d series, exp %d series in index", got, exp)
 	}
 
@@ -394,11 +394,11 @@ func TestShard_Close_RemoveIndex(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	cnt, err := sh.SeriesCardinality()
+	cnt, err := sh.SeriesN()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, exp := cnt, int64(1); got != exp {
+	if got, exp := cnt, uint64(1); got != exp {
 		t.Fatalf("got %d series, exp %d series in index", got, exp)
 	}
 
@@ -406,10 +406,10 @@ func TestShard_Close_RemoveIndex(t *testing.T) {
 	sh.Close()
 	sh.Open()
 
-	if cnt, err = sh.SeriesCardinality(); err != nil {
+	if cnt, err = sh.SeriesN(); err != nil {
 		t.Fatal(err)
 	}
-	if got, exp := cnt, int64(1); got != exp {
+	if got, exp := cnt, uint64(1); got != exp {
 		t.Fatalf("got %d series, exp %d series in index", got, exp)
 	}
 
