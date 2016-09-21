@@ -43,7 +43,7 @@ function setup(customProps = {}) {
   return mount(<OverviewPage {...props} />);
 }
 
-describe('Overview.Containers.OverviewPage', function() {
+xdescribe('Overview.Containers.OverviewPage', function() {
   it('renders a spinner initially', function() {
     const wrapper = shallow(<OverviewPage dataNodes={['localhost:8086']} params={{clusterID}} addFlashMessage={() => {}} />);
 
