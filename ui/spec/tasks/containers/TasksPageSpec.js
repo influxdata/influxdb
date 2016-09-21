@@ -66,19 +66,6 @@ describe('Tasks.Containers.TasksPage', function() {
       expect(wrapper.find(RebalanceModal).length).to.equal(1);
     });
 
-    it('sends a request to check if a user is authorized', function(done) {
-      const wrapper = setup();
-
-      this.server.respond();
-
-      setTimeout(() => {
-        const request = this.server.requests.find(r => r.url.match(/\/api\/int\/v1\/clusters\/1000\/authorized/))
-        expect(request).to.be.ok;
-        expect(request.method).to.equal('GET');
-        done();
-      });
-    });
-
     it('fetches a list of active tasks', function(done) {
       const wrapper = setup();
 

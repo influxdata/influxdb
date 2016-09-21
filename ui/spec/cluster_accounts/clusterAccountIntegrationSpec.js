@@ -76,7 +76,7 @@ function setup(customProps = {}) {
   return mount(<ClusterAccountContainer {...props} />);
 }
 
-describe('Cluster Account page', function() {
+xdescribe('Cluster Account page', function() {
   beforeEach(function() {
     this.fakes = sinon.collection;
     this.fakes.stub(api, 'getClusterAccount').returns(Promise.resolve(clusterAccountResponse));
