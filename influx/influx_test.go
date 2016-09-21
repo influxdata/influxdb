@@ -38,7 +38,10 @@ func Test_Influx_MakesRequestsToQueryEndpoint(t *testing.T) {
 		t.Fatal("Unexpected error initializing client: err:", err)
 	}
 
-	_, err = series.Query(context.Background(), "show databases")
+	query := mrfusion.Query{
+		Command: "show databases",
+	}
+	_, err = series.Query(context.Background(), query)
 	if err != nil {
 		t.Fatal("Expected no error but was", err)
 	}
@@ -68,7 +71,11 @@ func Test_Influx_CancelsInFlightRequests(t *testing.T) {
 
 	errs := make(chan (error))
 	go func() {
-		_, err := series.Query(ctx, "show databases")
+		query := mrfusion.Query{
+			Command: "show databases",
+		}
+
+		_, err := series.Query(ctx, query)
 		errs <- err
 	}()
 
