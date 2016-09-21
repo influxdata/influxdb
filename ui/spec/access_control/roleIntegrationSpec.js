@@ -66,7 +66,7 @@ function setup(customProps = {}) {
   return mount(<RolePageContainer {...props} />);
 }
 
-describe('Role edit page', function() {
+xdescribe('Role edit page', function() {
   beforeEach(function() {
     this.fakes = sinon.collection;
     this.fakes.stub(api, 'getRoles').returns(Promise.resolve(rolesResponse));
