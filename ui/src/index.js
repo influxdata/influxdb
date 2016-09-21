@@ -131,7 +131,7 @@ const Root = React.createClass({
               <Route path="chronograf/data_explorer/:explorerID" component={DataExplorer} />
               <Route path="roles" component={RolesPageContainer} />
               <Route path="roles/:roleSlug" component={RolePageContainer} />
-              <Route path="hosts/list" component={HostsPage} />
+              <Route path="hosts" component={HostsPage} />
             </Route>
             <Route path="users" component={UsersPage} />
             <Route path="users/:userID" component={UserEditPage} />
