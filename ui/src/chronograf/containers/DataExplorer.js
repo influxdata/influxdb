@@ -4,7 +4,6 @@ import PanelBuilder from '../components/PanelBuilder';
 import Visualizations from '../components/Visualizations';
 import Header from '../containers/Header';
 import ResizeContainer from 'shared/components/ResizeContainer';
-import NotFound from 'shared/components/NotFound';
 import {FETCHING} from '../reducers/explorers';
 import {
   setTimeRange as setTimeRangeAction,

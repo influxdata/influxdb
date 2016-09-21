@@ -69,7 +69,7 @@ const Header = React.createClass({
   },
 
   confirmDeleteExplorer() {
-    this.props.actions.deleteExplorer(this.props.clusterID, this.state.explorerIDToDelete, this.props.router.push);
+    this.props.actions.deleteExplorer(this.state.explorerIDToDelete, this.props.router.push);
   },
 
   openEditExplorerModal({id}) {
@@ -77,7 +77,7 @@ const Header = React.createClass({
   },
 
   confirmEditExplorer({name}) {
-    this.props.actions.editExplorer(this.props.clusterID, this.state.explorerIDToEdit, {name});
+    this.props.actions.editExplorer(this.state.explorerIDToEdit, {name});
   },
 
   getName({name, createdAt}) {
