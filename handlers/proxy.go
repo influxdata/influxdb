@@ -17,7 +17,7 @@ func (h *InfluxProxy) Proxy(ctx context.Context, params op.PostSourcesIDProxyPar
 	// TODO: Add support for multiple TimeSeries with lookup based on params.ID
 	query := mrfusion.Query{
 		Command: *params.Query.Query,
-		DB:      params.Query.DB,
+		DB:      params.Query.Db,
 		RP:      params.Query.Rp,
 	}
 
