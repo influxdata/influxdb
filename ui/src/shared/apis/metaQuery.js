@@ -4,7 +4,6 @@ import {buildInfluxUrl, proxy} from 'utils/queryUrlGenerator';
 export function showDatabases(source) {
   const query = `SHOW DATABASES`;
 
-  console.log(source);
   return proxy({source, query});
 }
 

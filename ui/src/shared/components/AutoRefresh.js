@@ -1,9 +1,8 @@
 import React, {PropTypes} from 'react';
 import _ from 'lodash';
-import {proxy, buildInfluxUrl} from 'utils/queryUrlGenerator';
+import {proxy} from 'utils/queryUrlGenerator';
 
 function _fetchTimeSeries(source, db, query) {
-  debugger;
   return proxy({source, db, query});
 }
 

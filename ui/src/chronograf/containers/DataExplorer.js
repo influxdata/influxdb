@@ -18,6 +18,10 @@ const DataExplorer = React.createClass({
     sources: PropTypes.arrayOf(PropTypes.shape()).isRequired,
     explorers: PropTypes.shape({}).isRequired,
     explorerID: PropTypes.string,
+    timeRange: PropTypes.shape({
+      upper: PropTypes.string,
+      lower: PropTypes.string,
+    }).isRequired,
     setTimeRange: PropTypes.func.isRequired,
     createExplorer: PropTypes.func.isRequired,
     chooseExplorer: PropTypes.func.isRequired,
