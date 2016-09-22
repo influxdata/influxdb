@@ -19,7 +19,7 @@ const Visualization = React.createClass({
   },
 
   contextTypes: {
-    sources: arrayOf(shape).isRequired,
+    sources: arrayOf(shape()).isRequired,
   },
 
   getInitialState() {
@@ -42,13 +42,16 @@ const Visualization = React.createClass({
 
   render() {
     const {queryConfigs, timeRange, isActive, name} = this.props;
+    const {sources} = this.context;
+    const proxyLink = sources[0].links.proxy;
+
     const {isGraphInView} = this.state;
     const statements = queryConfigs.map((query) => {
       const text = query.rawText || selectStatement(timeRange, query);
       return {text, id: query.id};
     });
     const queries = statements.filter((s) => s.text !== null).map((s) => {
-      return {host: this.context.dataNodes, text: s.text, id: s.id};
+      return {host: [proxyLink], text: s.text, id: s.id};
     });
     const autoRefreshMs = 10000;
 

@@ -19,8 +19,7 @@ const FieldList = React.createClass({
   },
 
   contextTypes: {
-    dataNodes: PropTypes.arrayOf(PropTypes.string.isRequired).isRequired,
-    clusterID: PropTypes.string,
+    sources: PropTypes.arrayOf(PropTypes.shape().isRequired).isRequired,
   },
 
   getInitialState() {
@@ -35,8 +34,9 @@ const FieldList = React.createClass({
       return;
     }
 
-    const {dataNodes, clusterID} = this.context;
-    showFieldKeys(dataNodes, database, measurement, clusterID).then((resp) => {
+    const {sources} = this.context;
+    const proxySource = sources[0].links.proxy;
+    showFieldKeys(proxySource, database, measurement).then((resp) => {
       const {errors, fieldSets} = showFieldKeysParser(resp.data);
       if (errors.length) {
         // TODO: do something

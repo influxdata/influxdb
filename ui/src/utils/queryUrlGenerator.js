@@ -15,7 +15,7 @@ export function buildInfluxUrl() {
   //   url += `&rp=${retentionPolicy}`;
   // }
 
-  return console.log("you dont need the buildinfgluxrul generator delte me");
+  console.log("you dont need the buildinfgluxrul generator delte me");
 }
 
 export function proxy({source, query, db, rp}) {

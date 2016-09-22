@@ -2,14 +2,9 @@ import React, {PropTypes} from 'react';
 import _ from 'lodash';
 import {proxy, buildInfluxUrl} from 'utils/queryUrlGenerator';
 
-function _fetchTimeSeries(host, database, query) {
-  const url = buildInfluxUrl({
-    host,
-    database,
-    statement: query,
-  });
-
-  return proxy(url);
+function _fetchTimeSeries(source, db, query) {
+  debugger;
+  return proxy({source, db, query});
 }
 
 export default function AutoRefresh(ComposedComponent) {

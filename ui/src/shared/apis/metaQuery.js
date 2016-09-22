@@ -59,11 +59,10 @@ export function dropShard(host, shard, clusterID) {
   return proxy(url, clusterID);
 }
 
-export function showFieldKeys(host, database, measurement, clusterID) {
-  const statement = `SHOW FIELD KEYS FROM "${measurement}"`;
-  const url = buildInfluxUrl({host, statement, database});
+export function showFieldKeys(source, db, measurement) {
+  const query = `SHOW FIELD KEYS FROM "${measurement}"`;
 
-  return proxy(url, clusterID);
+  return proxy({source, query, db});
 }
 
 export function showTagKeys(host, {database, retentionPolicy, measurement}, clusterID) {
