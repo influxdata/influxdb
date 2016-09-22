@@ -15,7 +15,7 @@ dependencies:
         - ln -sf ${HOME}/mrfusion ${HOME}/.go_workspace/src/github.com/influxdata
         - cd ${HOME}/.go_workspace/src/github.com/influxdata/mrfusion  && make
     cache_directories:
-        - /ui/node_modules
+        - ${HOME}/.go_workspace/src/github.com/influxdata/mrfusion/ui/node_modules
 
 test:
     override:
