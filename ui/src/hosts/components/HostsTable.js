@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react';
+import Reactable from 'reactable';
 
 const HostsTable = React.createClass({
   propTypes: {
@@ -7,34 +8,32 @@ const HostsTable = React.createClass({
 
   render() {
     const {hosts} = this.props;
+    const {Table, Thead, Tr, Td, Th} = Reactable;
+
 
     return (
-      <table className="table v-center">
-        <thead>
-          <tr>
-            <th>Hostname</th>
-            <th>Status</th>
-            <th>CPU</th>
-            <th>Load</th>
-            <th>Apps</th>
-          </tr>
-        </thead>
-        <tbody>
-          {
-            hosts.map(({name, id}) => {
-              return (
-                <tr key={id}>
-                  <td><a href={`/hosts/${id}`}>{name}</a></td>
-                  <td>UP</td>
-                  <td>98%</td>
-                  <td>1.12</td>
-                  <td>influxdb, ntp, system</td>
-                </tr>
-              );
-            })
-          }
-        </tbody>
-      </table>
+      <Table sortable={true} className="table v-center">
+        <Thead>
+          <Th column="hostname">Hostname</Th>
+          <Th column="status">Status</Th>
+          <Th column="cpu">CPU</Th>
+          <Th column="load">Load</Th>
+          <Th column="apps">Apps</Th>
+        </Thead>
+        {
+          hosts.map(({name, id}) => {
+            return (
+              <Tr key={id}>
+                <Td column="hostname"><a href={`/hosts/${id}`}>{name}</a></Td>
+                <Td column="status">UP</Td>
+                <Td column="cpu">98%</Td>
+                <Td column="load">1.12</Td>
+                <Td column="apps">influxdb, ntp, system</Td>
+              </Tr>
+            );
+          })
+        }
+      </Table>
     );
   },
 });
