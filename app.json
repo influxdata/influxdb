@@ -1,0 +1,19 @@
+{
+  "name": "mrfusion",
+  "description": "Mr Fusion acceptance application on Heroku.",
+  "scripts": {
+  },
+  "env": {
+  },
+  "formation": {
+    "web": {
+      "quantity": 1
+    }
+  },
+  "addons": [
+
+  ],
+  "buildpacks": [
+
+  ]
+}
