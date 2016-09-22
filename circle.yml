@@ -14,11 +14,11 @@ dependencies:
         - mkdir -p ${HOME}/.go_workspace/src/github.com/influxdata
         - ln -sf ${HOME}/mrfusion ${HOME}/.go_workspace/src/github.com/influxdata
         - "make jsdep":
-            pwd: ${HOME}/.go_workspace/src/github.com/influxdata/mrfusion
+            pwd: ../.go_workspace/src/github.com/influxdata/mrfusion
         - "make godep":
-            pwd: ${HOME}/.go_workspace/src/github.com/influxdata/mrfusion
+            pwd: ../.go_workspace/src/github.com/influxdata/mrfusion
         - "make build":
-            pwd: ${HOME}/.go_workspace/src/github.com/influxdata/mrfusion
+            pwd: ../.go_workspace/src/github.com/influxdata/mrfusion
     cache_directories:
         - ${HOME}/.go_workspace/src/github.com/influxdata/mrfusion/ui/node_modules
 
