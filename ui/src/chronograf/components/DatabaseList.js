@@ -13,8 +13,7 @@ const DatabaseList = React.createClass({
   },
 
   contextTypes: {
-    dataNodes: PropTypes.arrayOf(PropTypes.string.isRequired).isRequired,
-    clusterID: PropTypes.string.isRequired,
+    sources: PropTypes.arrayOf(PropTypes.shape().isRequired).isRequired,
   },
 
   getInitialState() {
@@ -24,15 +23,16 @@ const DatabaseList = React.createClass({
   },
 
   componentDidMount() {
-    const {dataNodes, clusterID} = this.context;
-    showDatabases(dataNodes, clusterID).then((resp) => {
+    const {sources} = this.context;
+    const source = sources[0].links.proxy;
+    showDatabases(source).then((resp) => {
       const {errors, databases} = showDatabasesParser(resp.data);
       if (errors.length) {
         // do something
       }
 
       const namespaces = [];
-      showRetentionPolicies(dataNodes, databases, clusterID).then((res) => {
+      showRetentionPolicies(source, databases).then((res) => {
         res.data.results.forEach((result, index) => {
           const {errors: errs, retentionPolicies} = showRetentionPoliciesParser(result);
           if (errs.length) {

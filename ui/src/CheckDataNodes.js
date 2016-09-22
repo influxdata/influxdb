@@ -25,16 +25,14 @@ const CheckDataNodes = React.createClass({
   getInitialState() {
     return {
       isFetching: true,
-      // A list of 'queryable' data nodes.
-      dataNodes: null,
+      sources: [],
     };
   },
 
   componentDidMount() {
-    getSources().then((resp) => {
-      const dataNodes = resp.data.sources;
+    getSources().then(({data: {sources}}) => {
       this.setState({
-        dataNodes,
+        sources,
         isFetching: false,
       });
     }).catch((err) => {
@@ -48,13 +46,14 @@ const CheckDataNodes = React.createClass({
       return <div className="page-spinner" />;
     }
 
-    const {dataNodes} = this.state;
-    if (!dataNodes || !dataNodes.length) {
+    const {sources} = this.state;
+    if (!sources.length) {
+      // this should probably be changed....
       return <NoClusterError />;
     }
 
     return this.props.children && React.cloneElement(this.props.children, Object.assign({}, this.props, {
-      dataNodes,
+      sources,
     }));
   },
 });

@@ -227,19 +227,19 @@ function loadExplorer(explorer) {
   };
 }
 
-export function fetchExplorers({clusterID, explorerID, push}) {
+export function fetchExplorers({sourceLink, userID, explorerID, push}) {
   return (dispatch) => {
     dispatch({type: 'FETCH_EXPLORERS'});
     AJAX({
-      url: `/api/int/v1/explorers?cluster_id=${clusterID}`,
-    }).then((resp) => {
-      const explorers = resp.data.map(parseRawExplorer);
+      url: `${sourceLink}/users/${userID}/explorations`,
+    }).then(({data: {explorations}}) => {
+      const explorers = explorations.map(parseRawExplorer);
       dispatch(loadExplorers(explorers));
 
       // Create a new explorer session for a user if they don't have any
       // saved (e.g. when they visit for the first time).
       if (!explorers.length) {
-        dispatch(createExplorer(clusterID, push));
+        dispatch(createExplorer(push));
         return;
       }
 
@@ -249,7 +249,7 @@ export function fetchExplorers({clusterID, explorerID, push}) {
       if (!explorerID) {
         const explorer = _.maxBy(explorers, (ex) => ex.updated_at);
         dispatch(loadExplorer(explorer));
-        push(`/chronograf/data_explorer/${explorer.id}`);
+        push(`/chronograf/data_explorer/${btoa(explorer.link.href)}`);
         return;
       }
 

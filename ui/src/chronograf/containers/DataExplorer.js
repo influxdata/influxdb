@@ -4,7 +4,6 @@ import PanelBuilder from '../components/PanelBuilder';
 import Visualizations from '../components/Visualizations';
 import Header from '../containers/Header';
 import ResizeContainer from 'shared/components/ResizeContainer';
-import NotFound from 'shared/components/NotFound';
 import {FETCHING} from '../reducers/explorers';
 import {
   setTimeRange as setTimeRangeAction,
@@ -16,14 +15,13 @@ import {
 
 const DataExplorer = React.createClass({
   propTypes: {
-    dataNodes: PropTypes.arrayOf(PropTypes.string.isRequired).isRequired,
+    sources: PropTypes.arrayOf(PropTypes.shape()).isRequired,
+    explorers: PropTypes.shape({}).isRequired,
+    explorerID: PropTypes.string,
     timeRange: PropTypes.shape({
       upper: PropTypes.string,
       lower: PropTypes.string,
     }).isRequired,
-    explorers: PropTypes.shape({}).isRequired,
-    explorerID: PropTypes.number.isRequired,
-    clusterID: PropTypes.string.isRequired,
     setTimeRange: PropTypes.func.isRequired,
     createExplorer: PropTypes.func.isRequired,
     chooseExplorer: PropTypes.func.isRequired,
@@ -32,11 +30,17 @@ const DataExplorer = React.createClass({
   },
 
   childContextTypes: {
-    dataNodes: PropTypes.arrayOf(PropTypes.string.isRequired).isRequired,
+    sources: PropTypes.arrayOf(PropTypes.shape({
+      links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
+        self: PropTypes.string.isRequired,
+      }).isRequired,
+    }).isRequired,
+    ).isRequired,
   },
 
   getChildContext() {
-    return {dataNodes: this.props.dataNodes};
+    return {sources: this.props.sources};
   },
 
   getInitialState() {
@@ -52,7 +56,7 @@ const DataExplorer = React.createClass({
   },
 
   render() {
-    const {timeRange, explorers, explorerID, clusterID, setTimeRange, createExplorer, chooseExplorer, deleteExplorer, editExplorer} = this.props;
+    const {timeRange, explorers, explorerID, setTimeRange, createExplorer, chooseExplorer, deleteExplorer, editExplorer} = this.props;
 
     if (explorers === FETCHING) {
       // TODO: page-wide spinner
@@ -61,7 +65,7 @@ const DataExplorer = React.createClass({
 
     const activeExplorer = explorers[explorerID];
     if (!activeExplorer) {
-      return <NotFound />;
+      return null; // TODO: handle no explorers;
     }
 
     return (
@@ -71,11 +75,10 @@ const DataExplorer = React.createClass({
           explorers={explorers}
           timeRange={timeRange}
           explorerID={explorerID}
-          clusterID={clusterID}
         />
         <ResizeContainer>
           <PanelBuilder timeRange={timeRange} activePanelID={this.state.activePanelID} setActivePanel={this.handleSetActivePanel} />
-          <Visualizations clusterID={clusterID} timeRange={timeRange} activePanelID={this.state.activePanelID} />
+          <Visualizations timeRange={timeRange} activePanelID={this.state.activePanelID} />
         </ResizeContainer>
       </div>
     );

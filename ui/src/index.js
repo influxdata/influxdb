@@ -128,7 +128,7 @@ const Root = React.createClass({
               <Route path="databases/manager/:database" component={DatabaseManager} />
               <Route path="databases/retentionpolicies/:database" component={RetentionPoliciesPage} />
               <Route path="chronograf/data_explorer" component={DataExplorer} />
-              <Route path="chronograf/data_explorer/:explorerID" component={DataExplorer} />
+              <Route path="chronograf/data_explorer/:base64ExplorerID" component={DataExplorer} />
               <Route path="roles" component={RolesPageContainer} />
               <Route path="roles/:roleSlug" component={RolePageContainer} />
               <Route path="hosts" component={HostsPage} />

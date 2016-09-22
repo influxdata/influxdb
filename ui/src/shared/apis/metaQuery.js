@@ -1,11 +1,10 @@
 import AJAX from 'utils/ajax';
 import {buildInfluxUrl, proxy} from 'utils/queryUrlGenerator';
 
-export function showDatabases(host, clusterID) {
-  const statement = `SHOW DATABASES`;
-  const url = buildInfluxUrl({host, statement});
+export function showDatabases(source) {
+  const query = `SHOW DATABASES`;
 
-  return proxy(url, clusterID);
+  return proxy({source, query});
 }
 
 export function showQueries(host, db, clusterID) {
@@ -22,24 +21,21 @@ export function killQuery(host, queryId, clusterID) {
   return proxy(url, clusterID);
 }
 
-export function showMeasurements(host, database, clusterID) {
-  const statement = 'SHOW MEASUREMENTS';
-  const url = buildInfluxUrl({host, statement, database});
+export function showMeasurements(source, db) {
+  const query = 'SHOW MEASUREMENTS';
 
-  return proxy(url, clusterID);
+  return proxy({source, db, query});
 }
 
-export function showRetentionPolicies(host, databases, clusterID) {
-  let statement;
+export function showRetentionPolicies(source, databases) {
+  let query;
   if (Array.isArray(databases)) {
-    statement = databases.map((db) => `SHOW RETENTION POLICIES ON "${db}"`).join('&q=');
+    query = databases.map((db) => `SHOW RETENTION POLICIES ON "${db}"`).join(';');
   } else {
-    statement = `SHOW RETENTION POLICIES ON "${databases}"`;
+    query = `SHOW RETENTION POLICIES ON "${databases}"`;
   }
 
-  const url = buildInfluxUrl({host, statement});
-
-  return proxy(url, clusterID);
+  return proxy({source, query});
 }
 
 export function showShards() {
@@ -62,11 +58,10 @@ export function dropShard(host, shard, clusterID) {
   return proxy(url, clusterID);
 }
 
-export function showFieldKeys(host, database, measurement, clusterID) {
-  const statement = `SHOW FIELD KEYS FROM "${measurement}"`;
-  const url = buildInfluxUrl({host, statement, database});
+export function showFieldKeys(source, db, measurement) {
+  const query = `SHOW FIELD KEYS FROM "${measurement}"`;
 
-  return proxy(url, clusterID);
+  return proxy({source, query, db});
 }
 
 export function showTagKeys(host, {database, retentionPolicy, measurement}, clusterID) {

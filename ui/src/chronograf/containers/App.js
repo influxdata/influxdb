@@ -6,43 +6,51 @@ import DataExplorer from './DataExplorer';
 
 const App = React.createClass({
   propTypes: {
-    dataNodes: PropTypes.arrayOf(PropTypes.string.isRequired).isRequired,
+    sources: PropTypes.arrayOf(PropTypes.shape({
+      links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
+        self: PropTypes.string.isRequired,
+      }).isRequired,
+    }).isRequired,
+    ).isRequired,
     fetchExplorers: PropTypes.func.isRequired,
     router: PropTypes.shape({
       push: PropTypes.func.isRequired,
     }).isRequired,
     params: PropTypes.shape({
-      clusterID: PropTypes.string.isRequired,
-      explorerID: PropTypes.string,
+      base64ExplorerID: PropTypes.string,
     }).isRequired,
   },
 
   componentDidMount() {
-    const {clusterID, explorerID} = this.props.params;
+    const {base64ExplorerID} = this.props.params;
     this.props.fetchExplorers({
-      clusterID,
-      explorerID: Number(explorerID),
+      sourceLink: this.props.sources[0].links.self,
+      userID: 1, // TODO: get the userID
+      explorerID: base64ExplorerID ? this.decodeID(base64ExplorerID) : null,
       push: this.props.router.push,
     });
   },
 
-  childContextTypes: {
-    clusterID: PropTypes.string,
-  },
-
-  getChildContext() {
-    return {
-      clusterID: this.props.params.clusterID,
-    };
-  },
-
   render() {
-    const {clusterID, explorerID} = this.props.params;
+    const {base64ExplorerID} = this.props.params;
     return (
       <div className="data-explorer-container">
-        <DataExplorer dataNodes={this.props.dataNodes} clusterID={clusterID} explorerID={Number(explorerID)} />
+        <DataExplorer sources={this.props.sources} explorerID={this.decodeID(base64ExplorerID)} />
       </div>
     );
+  },
+
+  decodeID(base64Id) {
+    try {
+      return atob(base64Id);
+    } catch (e) {
+      if (!(e instanceof DOMException && e.name === "InvalidCharacterError")) {
+        throw e;
+      }
+
+      return null;
+    }
   },
 });
 

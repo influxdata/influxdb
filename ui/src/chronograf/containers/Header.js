@@ -12,8 +12,7 @@ const Header = React.createClass({
       lower: PropTypes.string,
     }).isRequired,
     explorers: PropTypes.shape({}).isRequired,
-    clusterID: PropTypes.string.isRequired,
-    explorerID: PropTypes.number.isRequired,
+    explorerID: PropTypes.string.isRequired,
     actions: PropTypes.shape({
       setTimeRange: PropTypes.func.isRequired,
       createExplorer: PropTypes.func.isRequired,
@@ -50,7 +49,7 @@ const Header = React.createClass({
   handleCreateExplorer() {
     // TODO: passing in this.props.router.push is a big smell, getting something like
     // react-router-redux might be better here
-    this.props.actions.createExplorer(this.props.clusterID, this.props.router.push);
+    this.props.actions.createExplorer(this.props.router.push);
   },
 
   handleChooseExplorer({id}) {
@@ -58,7 +57,7 @@ const Header = React.createClass({
       return;
     }
 
-    this.props.actions.chooseExplorer(this.props.clusterID, id, this.props.router.push);
+    this.props.actions.chooseExplorer(id, this.props.router.push);
   },
 
   /**
@@ -70,7 +69,7 @@ const Header = React.createClass({
   },
 
   confirmDeleteExplorer() {
-    this.props.actions.deleteExplorer(this.props.clusterID, this.state.explorerIDToDelete, this.props.router.push);
+    this.props.actions.deleteExplorer(this.state.explorerIDToDelete, this.props.router.push);
   },
 
   openEditExplorerModal({id}) {
@@ -78,7 +77,7 @@ const Header = React.createClass({
   },
 
   confirmEditExplorer({name}) {
-    this.props.actions.editExplorer(this.props.clusterID, this.state.explorerIDToEdit, {name});
+    this.props.actions.editExplorer(this.state.explorerIDToEdit, {name});
   },
 
   getName({name, createdAt}) {
