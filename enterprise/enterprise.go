@@ -23,6 +23,21 @@ type Client struct {
 	dataNodes *ring.Ring
 }
 
+// NewClientWithTimeSeries initializes a Client with a known set of TimeSeries.
+// It is not necessary to call Open when creating a Client using this function
+func NewClientWithTimeSeries(series ...mrfusion.TimeSeries) *Client {
+	c := &Client{}
+
+	c.dataNodes = ring.New(len(series))
+
+	for _, s := range series {
+		c.dataNodes.Value = s
+		c.dataNodes = c.dataNodes.Next()
+	}
+
+	return c
+}
+
 // NewClient initializes and returns a Client.
 func (c *Client) Open() error {
 	cluster, err := c.Ctrl.ShowCluster()
@@ -46,11 +61,15 @@ func (c *Client) Open() error {
 // Query retrieves timeseries information pertaining to a specified query. It
 // can be cancelled by using a provided context.
 func (c *Client) Query(ctx context.Context, q mrfusion.Query) (mrfusion.Response, error) {
-	cl := c.dataNodes.Next().Value.(mrfusion.TimeSeries)
-	return cl.Query(ctx, q)
+	return c.nextDataNode().Query(ctx, q)
 }
 
 // MonitoredServices returns the services monitored by this Enterprise cluster.
 func (c *Client) MonitoredServices(ctx context.Context) ([]mrfusion.MonitoredService, error) {
 	return []mrfusion.MonitoredService{}, nil
+}
+
+func (c *Client) nextDataNode() mrfusion.TimeSeries {
+	c.dataNodes = c.dataNodes.Next()
+	return c.dataNodes.Value.(mrfusion.TimeSeries)
 }

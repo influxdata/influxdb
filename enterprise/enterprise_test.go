@@ -66,3 +66,23 @@ func Test_Enterprise_IssuesQueries(t *testing.T) {
 		t.Fatal("Expected request to data node but none was received")
 	}
 }
+
+func Test_Enterprise_AdvancesDataNodes(t *testing.T) {
+	m1 := mock.NewTimeSeries([]string{"http://host-1.example.com:8086"}, &mock.Response{})
+	m2 := mock.NewTimeSeries([]string{"http://host-2.example.com:8086"}, &mock.Response{})
+	cl := enterprise.NewClientWithTimeSeries(mrfusion.TimeSeries(m1), mrfusion.TimeSeries(m2))
+
+	_, err := cl.Query(context.Background(), mrfusion.Query{"show shards", "_internal", "autogen"})
+	if err != nil {
+		t.Fatal("Unexpected error while issuing query: err:", err)
+	}
+
+	_, err = cl.Query(context.Background(), mrfusion.Query{"show shards", "_internal", "autogen"})
+	if err != nil {
+		t.Fatal("Unexpected error while issuing query: err:", err)
+	}
+
+	if m1.QueryCtr != 1 || m2.QueryCtr != 1 {
+		t.Fatalf("Expected m1.Query to be called once but was %d. Expected m2.Query to be called once but was %d\n", m1.QueryCtr, m2.QueryCtr)
+	}
+}
