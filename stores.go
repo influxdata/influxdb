@@ -57,26 +57,32 @@ type AuthStore struct {
 	}
 }
 
+// UserID is a unique ID for a source user.
+type UserID int
+
+// ExplorationID is a unique ID for an exploration.
+type ExplorationID int
+
 // Exploration is a serialization of front-end Data Explorer.
 type Exploration struct {
-	ID        int
+	ID        ExplorationID
 	Name      string    // User provided name of the exploration.
-	UserID    int       // UserID is the owner of this exploration.
+	UserID    UserID    // UserID is the owner of this exploration.
 	Data      string    // Opaque blob of JSON data
 	CreatedAt time.Time // Time the exploration was first created
 	UpdatedAt time.Time // Latest time the exploration was updated.
 }
 
-// ExplorationStore stores front-end serializations of explorater sessions
+// ExplorationStore stores front-end serializations of data explorer sessions.
 type ExplorationStore interface {
 	// Search the ExplorationStore for all explorations owned by userID.
-	Query(ctx context.Context, userID int) ([]Exploration, error)
+	Query(ctx context.Context, userID UserID) ([]Exploration, error)
 	// Create a new Exploration in the ExplorationStore
 	Add(context.Context, Exploration) error
 	// Delete the exploration from the ExplorationStore
 	Delete(context.Context, Exploration) error
 	// Retrieve an exploration if `ID` exists.
-	Get(ctx context.Context, ID int) (Exploration, error)
+	Get(ctx context.Context, ID ExplorationID) (Exploration, error)
 	// Update the exploration; will update `UpdatedAt`.
 	Update(context.Context, Exploration) error
 }
