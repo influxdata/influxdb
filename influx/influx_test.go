@@ -11,14 +11,6 @@ import (
 	"golang.org/x/net/context"
 )
 
-func Test_Influx_RejectsBadHostnames(t *testing.T) {
-	t.Parallel()
-	_, err := influx.NewClient("wibble")
-	if err == nil {
-		t.Error("Expected an error for invalid influx host")
-	}
-}
-
 func Test_Influx_MakesRequestsToQueryEndpoint(t *testing.T) {
 	t.Parallel()
 	called := false
