@@ -18,6 +18,7 @@ const (
 	ErrLayoutInvalid       = Error("layout is invalid")
 	ErrAlertNotFound       = Error("alert not found")
 	ErrAuthentication      = Error("user not authenticated")
+	ErrUninitialized       = Error("client uninitialized. Call Open() method")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -238,13 +239,13 @@ type Dashboard struct {
 
 // DashboardCell holds visual and query information for a cell
 type DashboardCell struct {
-	X       int32    `json:"x"`
-	Y       int32    `json:"y"`
-	W       int32    `json:"w"`
-	H       int32    `json:"h"`
-	Name    string   `json:"name"`
+	X       int32   `json:"x"`
+	Y       int32   `json:"y"`
+	W       int32   `json:"w"`
+	H       int32   `json:"h"`
+	Name    string  `json:"name"`
 	Queries []Query `json:"queries"`
-	Type    string   `json:"type"`
+	Type    string  `json:"type"`
 }
 
 // DashboardsStore is the storage and retrieval of dashboards

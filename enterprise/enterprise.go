@@ -23,10 +23,10 @@ type Client struct {
 	}
 
 	dataNodes *ring.Ring
+	opened    bool
 }
 
 // NewClientWithTimeSeries initializes a Client with a known set of TimeSeries.
-// It is not necessary to call Open when creating a Client using this function
 func NewClientWithTimeSeries(series ...mrfusion.TimeSeries) *Client {
 	c := &Client{}
 
@@ -57,6 +57,11 @@ func NewClientWithURL(mu string, tls bool) (*Client, error) {
 
 // Open prepares a Client to process queries. It must be called prior to calling Query
 func (c *Client) Open() error {
+	c.opened = true
+	// return early if we already have dataNodes
+	if c.dataNodes != nil {
+		return nil
+	}
 	cluster, err := c.Ctrl.ShowCluster()
 	if err != nil {
 		return err
@@ -78,6 +83,9 @@ func (c *Client) Open() error {
 // Query retrieves timeseries information pertaining to a specified query. It
 // can be cancelled by using a provided context.
 func (c *Client) Query(ctx context.Context, q mrfusion.Query) (mrfusion.Response, error) {
+	if !c.opened {
+		return nil, mrfusion.ErrUninitialized
+	}
 	return c.nextDataNode().Query(ctx, q)
 }
 

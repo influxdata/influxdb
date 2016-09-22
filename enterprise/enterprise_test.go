@@ -72,7 +72,12 @@ func Test_Enterprise_AdvancesDataNodes(t *testing.T) {
 	m2 := mock.NewTimeSeries([]string{"http://host-2.example.com:8086"}, &mock.Response{})
 	cl := enterprise.NewClientWithTimeSeries(mrfusion.TimeSeries(m1), mrfusion.TimeSeries(m2))
 
-	_, err := cl.Query(context.Background(), mrfusion.Query{"show shards", "_internal", "autogen"})
+	err := cl.Open()
+	if err != nil {
+		t.Error("Unexpected error while initializing client: err:", err)
+	}
+
+	_, err = cl.Query(context.Background(), mrfusion.Query{"show shards", "_internal", "autogen"})
 	if err != nil {
 		t.Fatal("Unexpected error while issuing query: err:", err)
 	}
@@ -114,5 +119,14 @@ func Test_Enterprise_NewClientWithURL(t *testing.T) {
 		} else if err == nil && testURL.shouldErr {
 			t.Errorf("Expected error creating Client with URL %s and TLS preference %t", testURL.url, testURL.tls)
 		}
+	}
+}
+
+func Test_Enterprise_ComplainsIfNotOpened(t *testing.T) {
+	m1 := mock.NewTimeSeries([]string{"http://host-1.example.com:8086"}, &mock.Response{})
+	cl := enterprise.NewClientWithTimeSeries(mrfusion.TimeSeries(m1))
+	_, err := cl.Query(context.Background(), mrfusion.Query{"show shards", "_internal", "autogen"})
+	if err != mrfusion.ErrUninitialized {
+		t.Error("Expected ErrUnitialized, but was this err:", err)
 	}
 }
