@@ -54,6 +54,7 @@ test: jstest gotest
 
 gotest:
 	go test ./...
+	go test -race ./...
 
 jstest:
 	cd ui && npm test
