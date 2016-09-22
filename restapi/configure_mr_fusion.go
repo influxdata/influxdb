@@ -29,7 +29,7 @@ var devFlags = struct {
 }{}
 
 var influxFlags = struct {
-	Server string `short:"s" long:"server" description:"Full URL of InfluxDB server (http://localhost:8086)"`
+	Server string `short:"s" long:"server" description:"Full URL of InfluxDB server (http://localhost:8086)" env:"INFLUX_HOST"`
 }{}
 
 func configureFlags(api *operations.MrFusionAPI) {
