@@ -1,30 +1,32 @@
 import AJAX from 'utils/ajax';
 
-export function buildInfluxUrl({host, statement, database, retentionPolicy}) {
-  // If multiple data nodes are provided, pick one at random to avoid hammering any
-  // single node. This could be smarter and track state in the future, but for now it
-  // gets the job done.
-  const h = Array.isArray(host) ? selectRandomNode(host) : host;
-  let url = `${h}/query?epoch=ms&q=${statement}`;
+// TODO delete buildInfluxUrl
+export function buildInfluxUrl() {
+  // // If multiple data nodes are provided, pick one at random to avoid hammering any
+  // // single node. This could be smarter and track state in the future, but for now it
+  // // gets the job done.
+  // let url = `${h}/query?epoch=ms&q=${statement}`;
 
-  if (database) {
-    url += `&db=${database}`;
-  }
+  // if (database) {
+  //   url += `&db=${database}`;
+  // }
 
-  if (retentionPolicy) {
-    url += `&rp=${retentionPolicy}`;
-  }
+  // if (retentionPolicy) {
+  //   url += `&rp=${retentionPolicy}`;
+  // }
 
-  return encodeURIComponent(url);
+  return console.log("you dont need the buildinfgluxrul generator delte me");
 }
 
-export function proxy(url) {
+export function proxy({source, query, db, rp}) {
+  debugger;
   return AJAX({
-    url: `/proxy?proxy_url=${url}`,
+    method: 'POST',
+    url: source,
+    data: {
+      query,
+      db,
+      rp,
+    },
   });
-}
-
-function selectRandomNode(nodes) {
-  const index = Math.floor(Math.random() * nodes.length);
-  return nodes[index];
 }

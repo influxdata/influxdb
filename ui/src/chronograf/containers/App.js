@@ -36,7 +36,7 @@ const App = React.createClass({
     const {base64ExplorerID} = this.props.params;
     return (
       <div className="data-explorer-container">
-        <DataExplorer source={this.props.sources} explorerID={this.decodeID(base64ExplorerID)} />
+        <DataExplorer sources={this.props.sources} explorerID={this.decodeID(base64ExplorerID)} />
       </div>
     );
   },
