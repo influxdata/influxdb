@@ -6,8 +6,4 @@ RUN apk add --update ca-certificates && \
 
 ADD mrfusion /mrfusion
 
-EXPOSE 8888
-
-# ENV PORT ||= 8888
-
-CMD ["/mrfusion", "--port=$PORT"]
+CMD ["/mrfusion"]
