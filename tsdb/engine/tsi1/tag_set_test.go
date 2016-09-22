@@ -49,6 +49,7 @@ func TestTagSetWriter(t *testing.T) {
 var benchmarkTagSet10x1000 *tsi1.TagSet
 var benchmarkTagSet100x1000 *tsi1.TagSet
 var benchmarkTagSet1000x1000 *tsi1.TagSet
+var benchmarkTagSet1x1000000 *tsi1.TagSet
 
 func BenchmarkTagSet_SeriesN_10_1000(b *testing.B) {
 	benchmarkTagSet_SeriesN(b, 10, 1000, &benchmarkTagSet10x1000)
@@ -59,20 +60,21 @@ func BenchmarkTagSet_SeriesN_100_1000(b *testing.B) {
 func BenchmarkTagSet_SeriesN_1000_1000(b *testing.B) {
 	benchmarkTagSet_SeriesN(b, 1000, 1000, &benchmarkTagSet1000x1000)
 }
+func BenchmarkTagSet_SeriesN_1_1000000(b *testing.B) {
+	benchmarkTagSet_SeriesN(b, 1, 1000000, &benchmarkTagSet1x1000000)
+}
 
 func benchmarkTagSet_SeriesN(b *testing.B, tagN, valueN int, ts **tsi1.TagSet) {
 	if (*ts) == nil {
 		tsw := tsi1.NewTagSetWriter()
 
 		// Write tagset block.
-		var seriesID uint32
 		var kbuf, vbuf [20]byte
 		for i := 0; i < tagN; i++ {
 			for j := 0; j < valueN; j++ {
 				k := strconv.AppendInt(kbuf[:0], int64(i), 10)
 				v := strconv.AppendInt(vbuf[:0], int64(j), 10)
-				tsw.AddTagValueSeries(k, v, seriesID)
-				seriesID++
+				tsw.AddTagValueSeries(k, v, 1)
 			}
 		}
 		tsw.AddSeries(map[string]string{"region": "us-east", "host": "server0"}, 1)
