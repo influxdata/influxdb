@@ -5,7 +5,7 @@ import sinon from 'sinon';
 
 import RetentionPoliciesApp from 'src/retention_policies/containers/RetentionPoliciesApp';
 
-describe('RetentionPolicies.Containers.RetentionPoliciesApp', () => {
+xdescribe('RetentionPolicies.Containers.RetentionPoliciesApp', () => {
   let server;
   before(() => { server = sinon.fakeServer.create(); });
   after(() =>  { server.restore() });
