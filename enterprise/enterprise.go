@@ -2,6 +2,8 @@ package enterprise
 
 import (
 	"container/ring"
+	"net/url"
+	"strings"
 
 	"github.com/influxdata/mrfusion"
 	"github.com/influxdata/mrfusion/influx"
@@ -38,7 +40,22 @@ func NewClientWithTimeSeries(series ...mrfusion.TimeSeries) *Client {
 	return c
 }
 
-// NewClient initializes and returns a Client.
+// NewClientWithURL initializes an Enterprise client with a URL to a Meta Node.
+// Acceptable URLs include host:port combinations as well as scheme://host:port
+// varieties. TLS is used when the URL contains "https" or when the TLS
+// parameter is set. The latter option is provided for host:port combinations
+func NewClientWithURL(mu string, tls bool) (*Client, error) {
+	metaURL, err := parseMetaURL(mu, tls)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Client{
+		Ctrl: control.NewClient(metaURL.Host),
+	}, nil
+}
+
+// Open prepares a Client to process queries. It must be called prior to calling Query
 func (c *Client) Open() error {
 	cluster, err := c.Ctrl.ShowCluster()
 	if err != nil {
@@ -69,7 +86,28 @@ func (c *Client) MonitoredServices(ctx context.Context) ([]mrfusion.MonitoredSer
 	return []mrfusion.MonitoredService{}, nil
 }
 
+// nextDataNode retrieves the next available data node
 func (c *Client) nextDataNode() mrfusion.TimeSeries {
 	c.dataNodes = c.dataNodes.Next()
 	return c.dataNodes.Value.(mrfusion.TimeSeries)
+}
+
+// parseMetaURL constructs a url from either a host:port combination or a
+// scheme://host:port combo. The optional TLS parameter takes precedence over
+// any TLS preference found in the provided URL
+func parseMetaURL(mu string, tls bool) (metaURL *url.URL, err error) {
+	if strings.Contains(mu, "http") {
+		metaURL, err = url.Parse(mu)
+	} else {
+		metaURL = &url.URL{
+			Scheme: "http",
+			Host:   mu,
+		}
+	}
+
+	if tls {
+		metaURL.Scheme = "https"
+	}
+
+	return
 }

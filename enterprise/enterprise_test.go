@@ -86,3 +86,33 @@ func Test_Enterprise_AdvancesDataNodes(t *testing.T) {
 		t.Fatalf("Expected m1.Query to be called once but was %d. Expected m2.Query to be called once but was %d\n", m1.QueryCtr, m2.QueryCtr)
 	}
 }
+
+func Test_Enterprise_NewClientWithURL(t *testing.T) {
+	t.Parallel()
+
+	urls := []struct {
+		url       string
+		tls       bool
+		shouldErr bool
+	}{
+		{"http://localhost:8086", false, false},
+		{"https://localhost:8086", false, false},
+
+		{"http://localhost:8086", true, false},
+		{"https://localhost:8086", true, false},
+
+		{"localhost:8086", false, false},
+		{"localhost:8086", true, false},
+
+		{":http", false, true},
+	}
+
+	for _, testURL := range urls {
+		_, err := enterprise.NewClientWithURL(testURL.url, testURL.tls)
+		if err != nil && !testURL.shouldErr {
+			t.Errorf("Unexpected error creating Client with URL %s and TLS preference %t. err: %s", testURL.url, testURL.tls, err.Error())
+		} else if err == nil && testURL.shouldErr {
+			t.Errorf("Expected error creating Client with URL %s and TLS preference %t", testURL.url, testURL.tls)
+		}
+	}
+}
