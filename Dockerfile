@@ -6,4 +6,4 @@ RUN apk add --update ca-certificates && \
 
 ADD mrfusion /mrfusion
 
-CMD ["/mrfusion"]
+CMD ["/mrfusion --server $INFLUX_HOST"]
