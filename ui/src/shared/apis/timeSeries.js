@@ -1,11 +1,5 @@
-import {proxy, buildInfluxUrl} from 'utils/queryUrlGenerator';
+import {proxy} from 'utils/queryUrlGenerator';
 
-export default function fetchTimeSeries(host, database, query, clusterID) {
-  const url = buildInfluxUrl({
-    host,
-    database,
-    statement: query,
-  });
-
-  return proxy(url, clusterID);
+export default function fetchTimeSeries(source, database, query) {
+  return proxy({source, query, database});
 }
