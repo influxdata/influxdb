@@ -17,16 +17,16 @@ func TestHashMap(t *testing.T) {
 	m.Put([]byte("baz"), []byte("bat"))
 
 	// Verify values can be retrieved.
-	if v := m.Get([]byte("foo")); !bytes.Equal(v, []byte("bar")) {
+	if v := m.Get([]byte("foo")); !bytes.Equal(v.([]byte), []byte("bar")) {
 		t.Fatalf("unexpected value: %s", v)
 	}
-	if v := m.Get([]byte("baz")); !bytes.Equal(v, []byte("bat")) {
+	if v := m.Get([]byte("baz")); !bytes.Equal(v.([]byte), []byte("bat")) {
 		t.Fatalf("unexpected value: %s", v)
 	}
 
 	// Overwrite field & verify.
 	m.Put([]byte("foo"), []byte("XXX"))
-	if v := m.Get([]byte("foo")); !bytes.Equal(v, []byte("XXX")) {
+	if v := m.Get([]byte("foo")); !bytes.Equal(v.([]byte), []byte("XXX")) {
 		t.Fatalf("unexpected value: %s", v)
 	}
 }
@@ -38,7 +38,7 @@ func TestHashMap_Quick(t *testing.T) {
 	}
 
 	if err := quick.Check(func(keys, values [][]byte) bool {
-		m := rhh.NewHashMap(rhh.Options{Capacity: 1000, LoadFactor: 100})
+		m := rhh.NewHashMap(rhh.Options{Capacity: 1000, LoadFactor: 90})
 		h := make(map[string][]byte)
 
 		// Insert all key/values into both maps.
@@ -50,7 +50,7 @@ func TestHashMap_Quick(t *testing.T) {
 
 		// Verify the maps are equal.
 		for k, v := range h {
-			if mv := m.Get([]byte(k)); !bytes.Equal(mv, v) {
+			if mv := m.Get([]byte(k)); !bytes.Equal(mv.([]byte), v) {
 				t.Fatalf("value mismatch:\nkey=%x\ngot=%x\nexp=%x\n\n", []byte(k), mv, v)
 			}
 		}

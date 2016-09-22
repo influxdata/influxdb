@@ -62,7 +62,7 @@ func (ts *TagSet) Version() int { return ts.version }
 // TagValueSeriesN returns the number of series ids associated with a tag value.
 func (ts *TagSet) TagValueSeriesN(key, value []byte) int {
 	velem := ts.tagValueElem(key, value)
-	if velem.value == nil {
+	if len(velem.value) == 0 {
 		return 0
 	}
 	return int(velem.seriesN)
@@ -72,7 +72,7 @@ func (ts *TagSet) TagValueSeriesN(key, value []byte) int {
 func (ts *TagSet) TagValueSeriesIDs(key, value []byte) []uint32 {
 	// Find value element.
 	velem := ts.tagValueElem(key, value)
-	if velem.value == nil {
+	if len(velem.value) == 0 {
 		return nil
 	}
 
@@ -98,18 +98,21 @@ func (ts *TagSet) tagKeyElem(key []byte) tagKeyElem {
 		// Find offset of tag key.
 		offset := binary.BigEndian.Uint64(ts.hashData[TagKeyNSize+(pos*TagKeyOffsetSize):])
 
-		// Parse into element.
-		var e tagKeyElem
-		e.UnmarshalBinary(ts.data[offset:])
+		// Evaluate key if offset is not empty.
+		if offset > 0 {
+			// Parse into element.
+			var e tagKeyElem
+			e.UnmarshalBinary(ts.data[offset:])
 
-		// Return if keys match.
-		if bytes.Equal(e.key, key) {
-			return e
-		}
+			// Return if keys match.
+			if bytes.Equal(e.key, key) {
+				return e
+			}
 
-		// Check if we've exceeded the probe distance.
-		if d > dist(hashKey(e.key), pos, int(keyN)) {
-			return tagKeyElem{}
+			// Check if we've exceeded the probe distance.
+			if d > dist(hashKey(e.key), pos, int(keyN)) {
+				return tagKeyElem{}
+			}
 		}
 
 		// Move position forward.
@@ -123,7 +126,7 @@ func (ts *TagSet) tagKeyElem(key []byte) tagKeyElem {
 func (ts *TagSet) tagValueElem(key, value []byte) tagValueElem {
 	// Find key element, exit if not found.
 	kelem := ts.tagKeyElem(key)
-	if kelem.key == nil {
+	if len(kelem.key) == 0 {
 		return tagValueElem{}
 	}
 
@@ -139,18 +142,21 @@ func (ts *TagSet) tagValueElem(key, value []byte) tagValueElem {
 		// Find offset of tag value.
 		offset := binary.BigEndian.Uint64(hashData[TagValueNSize+(pos*TagValueOffsetSize):])
 
-		// Parse into element.
-		var e tagValueElem
-		e.UnmarshalBinary(ts.data[offset:])
+		// Evaluate value if offset is not empty.
+		if offset > 0 {
+			// Parse into element.
+			var e tagValueElem
+			e.UnmarshalBinary(ts.data[offset:])
 
-		// Return if values match.
-		if bytes.Equal(e.value, value) {
-			return e
-		}
+			// Return if values match.
+			if bytes.Equal(e.value, value) {
+				return e
+			}
 
-		// Check if we've exceeded the probe distance.
-		if d > dist(hashKey(e.value), pos, int(valueN)) {
-			return tagValueElem{}
+			// Check if we've exceeded the probe distance.
+			if d > dist(hashKey(e.value), pos, int(valueN)) {
+				return tagValueElem{}
+			}
 		}
 
 		// Move position forward.
@@ -304,10 +310,15 @@ func (tsw *TagSetWriter) createTagSetIfNotExists(key []byte) tagSet {
 
 // WriteTo encodes the tag values & tag key blocks.
 func (tsw *TagSetWriter) WriteTo(w io.Writer) (n int64, err error) {
+	// Write padding byte so no offsets are zero.
+	if err := writeUint8To(w, 0, &n); err != nil {
+		return n, err
+	}
+
 	// Build key hash map with an exact capacity.
 	m := rhh.NewHashMap(rhh.Options{
 		Capacity:   len(tsw.sets),
-		LoadFactor: 100,
+		LoadFactor: 90,
 	})
 	for key := range tsw.sets {
 		ts := tsw.sets[key]
@@ -315,10 +326,10 @@ func (tsw *TagSetWriter) WriteTo(w io.Writer) (n int64, err error) {
 	}
 
 	// Write value blocks in key map order.
-	for i := 0; i < m.Len(); i++ {
-		k, v := m.Elem(i)
-		if k == nil {
-			panic("rhh nil key")
+	for i := 0; i < m.Cap(); i++ {
+		_, v := m.Elem(i)
+		if v == nil {
+			continue
 		}
 		ts := v.(*tagSet)
 
@@ -353,20 +364,17 @@ func (tsw *TagSetWriter) writeTagValueBlockTo(w io.Writer, values map[string]tag
 	// Build RHH map from tag values.
 	m := rhh.NewHashMap(rhh.Options{
 		Capacity:   len(values),
-		LoadFactor: 100,
+		LoadFactor: 90,
 	})
 	for value, tv := range values {
 		m.Put([]byte(value), tv)
 	}
 
 	// Encode value list.
-	offsets := make([]int64, m.Len())
-	for i := 0; i < m.Len(); i++ {
+	offsets := make([]int64, m.Cap())
+	for i := 0; i < m.Cap(); i++ {
 		k, v := m.Elem(i)
-		if k == nil {
-			panic("rhh nil key")
-		}
-		tv := v.(tagValue)
+		tv, _ := v.(tagValue)
 
 		// Save current offset so we can use it in the hash index.
 		offsets[i] = *n
@@ -381,7 +389,7 @@ func (tsw *TagSetWriter) writeTagValueBlockTo(w io.Writer, values map[string]tag
 	hoff = *n
 
 	// Encode hash map length.
-	if err := writeUint32To(w, uint32(m.Len()), n); err != nil {
+	if err := writeUint32To(w, uint32(m.Cap()), n); err != nil {
 		return hoff, err
 	}
 
@@ -427,11 +435,11 @@ func (tsw *TagSetWriter) writeTagValueTo(w io.Writer, v []byte, tv tagValue, n *
 // writeTagKeyBlockTo encodes keys from a tag set into w.
 func (tsw *TagSetWriter) writeTagKeyBlockTo(w io.Writer, m *rhh.HashMap, n *int64) (hoff int64, err error) {
 	// Encode key list.
-	offsets := make([]int64, m.Len())
-	for i := 0; i < m.Len(); i++ {
+	offsets := make([]int64, m.Cap())
+	for i := 0; i < m.Cap(); i++ {
 		k, v := m.Elem(i)
-		if k == nil {
-			panic("rhh nil key")
+		if v == nil {
+			continue
 		}
 		ts := v.(*tagSet)
 
@@ -448,7 +456,7 @@ func (tsw *TagSetWriter) writeTagKeyBlockTo(w io.Writer, m *rhh.HashMap, n *int6
 	hoff = *n
 
 	// Encode hash map length.
-	if err := writeUint32To(w, uint32(m.Len()), n); err != nil {
+	if err := writeUint32To(w, uint32(m.Cap()), n); err != nil {
 		return hoff, err
 	}
 
