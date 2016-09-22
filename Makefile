@@ -53,7 +53,7 @@ jsdep:
 test: jstest gotest
 
 gotest:
-	go test -race ./...
+	go test ./...
 
 jstest:
 	cd ui && npm test
