@@ -19,7 +19,6 @@ export function buildInfluxUrl() {
 }
 
 export function proxy({source, query, db, rp}) {
-  debugger;
   return AJAX({
     method: 'POST',
     url: source,

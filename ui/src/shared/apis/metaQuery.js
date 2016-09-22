@@ -22,10 +22,10 @@ export function killQuery(host, queryId, clusterID) {
   return proxy(url, clusterID);
 }
 
-export function showMeasurements(source, database) {
+export function showMeasurements(source, db) {
   const query = 'SHOW MEASUREMENTS';
 
-  return proxy({source, database, query});
+  return proxy({source, db, query});
 }
 
 export function showRetentionPolicies(source, databases) {

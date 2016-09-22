@@ -12,7 +12,7 @@ const Header = React.createClass({
       lower: PropTypes.string,
     }).isRequired,
     explorers: PropTypes.shape({}).isRequired,
-    explorerID: PropTypes.number.isRequired,
+    explorerID: PropTypes.string.isRequired,
     actions: PropTypes.shape({
       setTimeRange: PropTypes.func.isRequired,
       createExplorer: PropTypes.func.isRequired,

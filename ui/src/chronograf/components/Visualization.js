@@ -19,8 +19,7 @@ const Visualization = React.createClass({
   },
 
   contextTypes: {
-    dataNodes: arrayOf(string.isRequired).isRequired,
-    clusterID: string.isRequired,
+    sources: arrayOf(shape).isRequired,
   },
 
   getInitialState() {

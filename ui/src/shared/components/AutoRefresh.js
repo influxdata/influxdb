@@ -2,14 +2,14 @@ import React, {PropTypes} from 'react';
 import _ from 'lodash';
 import {proxy, buildInfluxUrl} from 'utils/queryUrlGenerator';
 
-function _fetchTimeSeries(host, database, query, clusterID) {
+function _fetchTimeSeries(host, database, query) {
   const url = buildInfluxUrl({
     host,
     database,
     statement: query,
   });
 
-  return proxy(url, clusterID);
+  return proxy(url);
 }
 
 export default function AutoRefresh(ComposedComponent) {
@@ -22,7 +22,6 @@ export default function AutoRefresh(ComposedComponent) {
         host: PropTypes.oneOfType([PropTypes.string, PropTypes.arrayOf(PropTypes.string)]),
         text: PropTypes.string,
       }).isRequired).isRequired,
-      clusterID: PropTypes.string.isRequired,
     },
     getInitialState() {
       return {timeSeries: []};
@@ -66,7 +65,7 @@ export default function AutoRefresh(ComposedComponent) {
       let count = 0;
       const newSeries = [];
       queries.forEach(({host, database, text}) => {
-        _fetchTimeSeries(host, database, text, this.props.clusterID).then((resp) => {
+        _fetchTimeSeries(host, database, text).then((resp) => {
           newSeries.push({identifier: host, response: resp.data});
           count += 1;
           if (count === queries.length) {

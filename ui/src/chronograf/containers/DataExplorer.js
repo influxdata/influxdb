@@ -36,7 +36,6 @@ const DataExplorer = React.createClass({
   },
 
   getChildContext() {
-    console.log("here are your sources: ", this.props.sources)
     return {sources: this.props.sources};
   },
 

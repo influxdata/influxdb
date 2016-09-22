@@ -15,8 +15,7 @@ const MeasurementList = React.createClass({
   },
 
   contextTypes: {
-    dataNodes: PropTypes.arrayOf(PropTypes.string.isRequired).isRequired,
-    clusterID: PropTypes.string,
+    sources: PropTypes.arrayOf(PropTypes.shape().isRequired).isRequired,
   },
 
   getInitialState() {
@@ -32,7 +31,7 @@ const MeasurementList = React.createClass({
     }
 
     const {sources} = this.context;
-    const source = sources[0].link.href;
+    const source = sources[0].links.proxy;
     showMeasurements(source, this.props.query.database).then((resp) => {
       const {errors, measurementSets} = showMeasurementsParser(resp.data);
       if (errors.length) {
