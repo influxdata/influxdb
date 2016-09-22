@@ -46,12 +46,12 @@ func Test_Influx_MakesRequestsToQueryEndpoint(t *testing.T) {
 func Test_Influx_CancelsInFlightRequests(t *testing.T) {
 	t.Parallel()
 
-	started := false
-	finished := false
+	started := make(chan bool, 1)
+	finished := make(chan bool, 1)
 	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		started = true
-		time.Sleep(2 * time.Second)
-		finished = true
+		started <- true
+		time.Sleep(20 * time.Millisecond)
+		finished <- true
 	}))
 	defer func() {
 		ts.CloseClientConnections()
@@ -71,10 +71,27 @@ func Test_Influx_CancelsInFlightRequests(t *testing.T) {
 		errs <- err
 	}()
 
+	timer := time.NewTimer(10 * time.Second)
+	defer timer.Stop()
+
+	select {
+	case s := <-started:
+		if !s {
+			t.Errorf("Expected cancellation during request processing. Started: %t", s)
+		}
+	case <-timer.C:
+		t.Fatalf("Expected server to finish")
+	}
+
 	cancel()
 
-	if started != true && finished != false {
-		t.Errorf("Expected cancellation during request processing. Started: %t. Finished: %t", started, finished)
+	select {
+	case f := <-finished:
+		if !f {
+			t.Errorf("Expected cancellation during request processing. Finished: %t", f)
+		}
+	case <-timer.C:
+		t.Fatalf("Expected server to finish")
 	}
 
 	err := <-errs
