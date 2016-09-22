@@ -15,12 +15,13 @@ type HashMap struct {
 	n          int
 	capacity   int
 	threshold  int
+	mask       uint32
 	loadFactor int
 }
 
 func NewHashMap(opt Options) *HashMap {
 	m := &HashMap{
-		capacity:   opt.Capacity,
+		capacity:   pow2(opt.Capacity),
 		loadFactor: opt.LoadFactor,
 	}
 	m.alloc()
@@ -50,7 +51,7 @@ func (m *HashMap) Put(key []byte, val interface{}) {
 }
 
 func (m *HashMap) insert(hash uint32, key []byte, val interface{}) (overwritten bool) {
-	pos := int(hash) % m.capacity
+	pos := int(hash & m.mask)
 	dist := 0
 
 	// Continue searching until we find an empty slot or lower probe distance.
@@ -81,7 +82,7 @@ func (m *HashMap) insert(hash uint32, key []byte, val interface{}) (overwritten 
 		}
 
 		// Increment position, wrap around on overflow.
-		pos = (pos + 1) % m.capacity
+		pos = int(uint32(pos+1) & m.mask)
 		dist++
 	}
 }
@@ -91,6 +92,7 @@ func (m *HashMap) alloc() {
 	m.elems = make([]hashElem, m.capacity)
 	m.hashes = make([]uint32, m.capacity)
 	m.threshold = (m.capacity * m.loadFactor) / 100
+	m.mask = uint32(m.capacity - 1)
 }
 
 // grow doubles the capacity and reinserts all existing hashes & elements.
@@ -116,7 +118,7 @@ func (m *HashMap) grow() {
 // index returns the position of key in the hash map.
 func (m *HashMap) index(key []byte) int {
 	hash := m.hashKey(key)
-	pos := int(hash) % m.capacity
+	pos := int(hash & m.mask)
 
 	dist := 0
 	for {
@@ -128,7 +130,7 @@ func (m *HashMap) index(key []byte) int {
 			return pos
 		}
 
-		pos = (pos + 1) % m.capacity
+		pos = int(uint32(pos+1) & m.mask)
 		dist++
 	}
 }
@@ -173,7 +175,7 @@ func (m *HashMap) AverageProbeCount() float64 {
 
 // dist returns the probe distance for a hash in a slot index.
 func (m *HashMap) dist(hash uint32, i int) int {
-	return (i + m.capacity - (int(hash) % m.capacity)) % m.capacity
+	return int(uint32(i+m.capacity-int(hash&m.mask)) & m.mask)
 }
 
 type hashElem struct {
@@ -192,4 +194,15 @@ type Options struct {
 var DefaultOptions = Options{
 	Capacity:   256,
 	LoadFactor: 90,
+}
+
+// pow2 returns the number that is the next highest power of 2.
+// Returns v if it is a power of 2.
+func pow2(v int) int {
+	for i := 2; i < 1<<32; i *= 2 {
+		if i >= v {
+			return i
+		}
+	}
+	panic("unreachable")
 }
