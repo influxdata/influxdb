@@ -35,10 +35,6 @@ const ChronoTable = React.createClass({
     containerWidth: number.isRequired,
   },
 
-  contextTypes: {
-    clusterID: string,
-  },
-
   getInitialState() {
     return {
       cellData: {
@@ -52,7 +48,7 @@ const ChronoTable = React.createClass({
   fetchCellData(query) {
     this.setState({isLoading: true});
     // second param is db, we want to leave this blank
-    fetchTimeSeries(query.host, undefined, query.text, this.context.clusterID).then((resp) => {
+    fetchTimeSeries(query.host, undefined, query.text).then((resp) => {
       const cellData = _.get(resp.data, ['results', '0', 'series', '0'], false);
       if (!cellData) {
         return this.setState({isLoading: false});
