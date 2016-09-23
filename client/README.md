@@ -255,6 +255,28 @@ func WriteUDP() {
 }
 ```
 
+### Point Splitting
+
+The UDP client now supports splitting single points that exceed the configured
+payload size. The logic for processing each point is listed here, starting with
+an empty payload.
+
+1. If adding the point to the current (non-empty) payload would exceed the
+   configured size, send the current payload. Otherwise, add it to the current
+   payload.
+1. If the point is smaller than the configured size, add it to the payload.
+1. If the point has no timestamp, just try to send the entire point as a single
+   UDP payload, and process the next point.
+1. Since the point has a timestamp, re-use the existing measurement name,
+   tagset, and timestamp and create multiple new points by splitting up the
+   fields. The per-point length will be kept close to the configured size,
+   staying under it if possible. This does mean that one large field, maybe a
+   long string, could be sent as a larger-than-configured payload.
+
+The above logic attempts to respect configured payload sizes, but not sacrifice
+any data integrity. Points without a timestamp can't be split, as that may
+cause fields to have differing timestamps when processed by the server.
+
 ## Go Docs
 
 Please refer to
