@@ -754,6 +754,12 @@ definitions:
                 enum:
                     - influx
                     - influx-enterprise
+            username:
+                type: string
+                description: Username for authentication to data source
+            password:
+                type: string
+                description: Password in cleartext!
             links: 
                 type: object
                 properties:
