@@ -260,7 +260,7 @@ func parsePoint(buf []byte, defaultTime time.Time, precision string) (Point, err
 		pt.time = defaultTime
 		pt.SetPrecision(precision)
 	} else {
-		ts, err := strconv.ParseInt(string(ts), 10, 64)
+		ts, err := ParseIntBytes(ts, 10, 64)
 		if err != nil {
 			return nil, err
 		}
@@ -797,14 +797,14 @@ func scanNumber(buf []byte, i int) (int, error) {
 		// Parse the int to check bounds the number of digits could be larger than the max range
 		// We subtract 1 from the index to remove the `i` from our tests
 		if len(buf[start:i-1]) >= maxInt64Digits || len(buf[start:i-1]) >= minInt64Digits {
-			if _, err := strconv.ParseInt(string(buf[start:i-1]), 10, 64); err != nil {
+			if _, err := ParseIntBytes(buf[start:i-1], 10, 64); err != nil {
 				return i, fmt.Errorf("unable to parse integer %s: %s", buf[start:i-1], err)
 			}
 		}
 	} else {
 		// Parse the float to check bounds if it's scientific or the number of digits could be larger than the max range
 		if scientific || len(buf[start:i]) >= maxFloat64Digits || len(buf[start:i]) >= minFloat64Digits {
-			if _, err := strconv.ParseFloat(string(buf[start:i]), 10); err != nil {
+			if _, err := ParseFloatBytes(buf[start:i], 10); err != nil {
 				return i, fmt.Errorf("invalid float")
 			}
 		}
@@ -1638,18 +1638,18 @@ type Fields map[string]interface{}
 func parseNumber(val []byte) (interface{}, error) {
 	if val[len(val)-1] == 'i' {
 		val = val[:len(val)-1]
-		return strconv.ParseInt(string(val), 10, 64)
+		return ParseIntBytes(val, 10, 64)
 	}
 	for i := 0; i < len(val); i++ {
 		// If there is a decimal or an N (NaN), I (Inf), parse as float
 		if val[i] == '.' || val[i] == 'N' || val[i] == 'n' || val[i] == 'I' || val[i] == 'i' || val[i] == 'e' {
-			return strconv.ParseFloat(string(val), 64)
+			return ParseFloatBytes(val, 64)
 		}
 		if val[i] < '0' && val[i] > '9' {
 			return string(val), nil
 		}
 	}
-	return strconv.ParseFloat(string(val), 64)
+	return ParseFloatBytes(val, 64)
 }
 
 func newFieldsFromBinary(buf []byte) Fields {
