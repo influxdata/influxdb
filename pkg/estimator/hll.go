@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/cespare/xxhash"
 	"github.com/clarkduvall/hyperloglog"
-	"github.com/influxdata/influxdb/pkg/murmur3"
 )
 
 // Sketch is the interface representing a sketch for estimating cardinality.
@@ -48,8 +48,7 @@ func (h hash64) Sum64() uint64 {
 }
 
 func (s *HyperLogLogPlus) Add(v []byte) error {
-	hash := hash64(murmur3.Sum64(v))
-	s.hll.Add(hash)
+	s.hll.Add(hash64(xxhash.Sum64(v)))
 	return nil
 }
 
@@ -84,5 +83,5 @@ func (s *HyperLogLogPlus) Merge(sketch Sketch) error {
 		return fmt.Errorf("sketch is of type %T", sketch)
 	}
 
-	return s.Merge(other)
+	return s.hll.Merge(other.hll)
 }

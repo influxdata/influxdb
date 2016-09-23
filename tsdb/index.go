@@ -25,8 +25,8 @@ type Index interface {
 	DropSeries(keys []string) error
 
 	SeriesN() (uint64, error)
-	SeriesSketch() (estimator.Sketch, error)
-	MeasurementsSketch() (estimator.Sketch, error)
+	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
+	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 
 	Statistics(tags map[string]string) []models.Statistic
 	TagsForSeries(key string) (models.Tags, error)

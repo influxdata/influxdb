@@ -46,14 +46,13 @@ type Engine interface {
 	Series(key string) (*Series, error)
 
 	SeriesN() (uint64, error)
-	SeriesSketch() (estimator.Sketch, error)
-	MeasurementsSketch() (estimator.Sketch, error)
+	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
+	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 
 	CreateMeasurement(name string) (*Measurement, error)
 	DeleteMeasurement(name string, seriesKeys []string) error
 	Measurement(name string) (*Measurement, error)
 	Measurements() (Measurements, error)
-	MeasurementCardinality() (n int64, err error)
 	MeasurementsByExpr(expr influxql.Expr) (Measurements, bool, error)
 	MeasurementsByRegex(re *regexp.Regexp) (Measurements, error)
 	MeasurementFields(measurement string) *MeasurementFields
