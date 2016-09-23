@@ -58,6 +58,12 @@ var (
 	ErrShardDisabled = errors.New("shard is disabled")
 )
 
+var (
+	// Static objects to prevent small allocs.
+	staticTimeByteSlice = []byte("time")
+	staticTimeString    = "time"
+)
+
 // A ShardError implements the error interface, and contains extra
 // context about the shard that generated the error.
 type ShardError struct {
@@ -465,16 +471,16 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 	for _, p := range points {
 		// verify the tags and fields
 		tags := p.Tags()
-		if v := tags.Get([]byte("time")); v != nil {
+		if v := tags.Get(staticTimeByteSlice); v != nil {
 			s.logger.Printf("dropping tag 'time' from '%s'\n", p.PrecisionString(""))
-			tags.Delete([]byte("time"))
+			tags.Delete(staticTimeByteSlice)
 			p.SetTags(tags)
 		}
 
 		fields := p.Fields()
-		if _, ok := fields["time"]; ok {
+		if _, ok := fields[staticTimeString]; ok {
 			s.logger.Printf("dropping field 'time' from '%s'\n", p.PrecisionString(""))
-			delete(fields, "time")
+			delete(fields, staticTimeString)
 
 			if len(fields) == 0 {
 				continue
@@ -482,9 +488,9 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 		}
 
 		// see if the series should be added to the index
-		key := string(p.Key())
-		ss := s.index.Series(key)
+		ss := s.index.SeriesBytes(p.Key())
 		if ss == nil {
+			key := string(p.Key())
 			if s.options.Config.MaxSeriesPerDatabase > 0 && len(s.index.series)+1 > s.options.Config.MaxSeriesPerDatabase {
 				return nil, fmt.Errorf("max series per database exceeded: %s", key)
 			}
