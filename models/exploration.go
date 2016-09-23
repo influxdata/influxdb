@@ -15,6 +15,7 @@ import (
 swagger:model Exploration
 */
 type Exploration struct {
+
 	/* created at
 	 */
 	CreatedAt strfmt.DateTime `json:"created_at,omitempty"`

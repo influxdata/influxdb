@@ -33,10 +33,16 @@ func sampleSource() *models.Source {
 			Self:  "/chronograf/v1/sources/1",
 			Proxy: "/chronograf/v1/sources/1/proxy",
 		},
-		Name: &name,
-		Type: &influxType,
+		Name:     &name,
+		Type:     &influxType,
+		Username: "HOWDY!",
+		Password: "changeme",
 	}
 
+}
+
+func (m *Handler) NewSource(ctx context.Context, params op.PostSourcesParams) middleware.Responder {
+	return op.NewPostSourcesCreated()
 }
 
 func (m *Handler) Sources(ctx context.Context, params op.GetSourcesParams) middleware.Responder {

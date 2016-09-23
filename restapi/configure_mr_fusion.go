@@ -139,9 +139,7 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 	api.PostDashboardsHandler = operations.PostDashboardsHandlerFunc(func(ctx context.Context, params operations.PostDashboardsParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PostDashboards has not yet been implemented")
 	})
-	api.PostSourcesHandler = operations.PostSourcesHandlerFunc(func(ctx context.Context, params operations.PostSourcesParams) middleware.Responder {
-		return middleware.NotImplemented("operation .PostSources has not yet been implemented")
-	})
+	api.PostSourcesHandler = operations.PostSourcesHandlerFunc(mockHandler.NewSource)
 
 	if len(influxFlags.Server) > 0 {
 		c, err := influx.NewClient(influxFlags.Server)

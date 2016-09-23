@@ -35,11 +35,19 @@ type Source struct {
 	*/
 	Name *string `json:"name"`
 
+	/* Password in cleartext!
+	 */
+	Password string `json:"password,omitempty"`
+
 	/* Format of the data source
 
 	Required: true
 	*/
 	Type *string `json:"type"`
+
+	/* Username for authentication to data source
+	 */
+	Username string `json:"username,omitempty"`
 }
 
 // Validate validates this source
