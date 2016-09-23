@@ -8,6 +8,16 @@
 - [#7299](https://github.com/influxdata/influxdb/ssues/7299): Ensure fieldsCreated stat available in shard measurement.
 - [#6846](https://github.com/influxdata/influxdb/issues/6846): Read an invalid JSON response as an error in the influx client.
 - [#7110](https://github.com/influxdata/influxdb/issues/7110): Skip past points at the same time in derivative call within a merged series.
+- [#1834](https://github.com/influxdata/influxdb/issues/1834): Drop time when used as a tag or field key.
+- [#7152](https://github.com/influxdata/influxdb/issues/7152): Decrement number of measurements only once when deleting the last series from a measurement.
+- [#7177](https://github.com/influxdata/influxdb/issues/7177): Fix base64 encoding issue with /debug/vars stats.
+- [#7196](https://github.com/influxdata/influxdb/issues/7196): Fix mmap dereferencing, fixes #7183, #7180
+- [#7013](https://github.com/influxdata/influxdb/issues/7013): Fix the dollar sign so it properly handles reserved keywords.
+- [#7297](https://github.com/influxdata/influxdb/issues/7297): Use consistent column output from the CLI for column formatted responses.
+- [#7231](https://github.com/influxdata/influxdb/issues/7231): Duplicate parsing bug in ALTER RETENTION POLICY.
+- [#7285](https://github.com/influxdata/influxdb/issues/7285): Correctly use password-type field in Admin UI. Thanks @dandv!
+- [#2792](https://github.com/influxdata/influxdb/issues/2792): Exceeding max retention policy duration gives incorrect error message
+- [#7226](https://github.com/influxdata/influxdb/issues/7226): Fix database locked up when deleting shards
 
 ## v1.0.0 [2016-09-07]
 
