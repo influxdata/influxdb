@@ -590,6 +590,7 @@ func (s *Store) cardinalityEstimate(dbName string, getSketches func(*Shard) (est
 		if err != nil {
 			return 0, err
 		}
+
 		return int64(pos - neg), nil
 	}
 	return 0, nil

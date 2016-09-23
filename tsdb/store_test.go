@@ -408,6 +408,74 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 	}
 }
 
+func TestStore_SeriesCardinality_Tombstoning(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping test in short mode.")
+	}
+
+	store := MustOpenStore()
+	defer store.Close()
+
+	// Generate point data to write to the shards.
+	series := genTestSeries(10, 2, 4) // 160 series
+
+	points := make([]models.Point, 0, len(series))
+	for _, s := range series {
+		points = append(points, models.MustNewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": 1.0}, time.Now()))
+	}
+
+	// Create requested number of shards in the store & write points across
+	// shards such that we never write the same series to multiple shards.
+	for shardID := 0; shardID < 4; shardID++ {
+		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+			t.Fatalf("create shard: %s", err)
+		}
+
+		if err := store.BatchWrite(shardID, points[shardID*40:(shardID+1)*40]); err != nil {
+			t.Fatalf("batch write: %s", err)
+		}
+	}
+
+	// Delete all the series for each measurement.
+	measurements, err := store.Measurements("db", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	done := map[string]struct{}{}
+	for _, k := range measurements {
+		if _, ok := done[k]; !ok {
+			store.DeleteSeries("db", []influxql.Source{&influxql.Measurement{Name: k}}, nil)
+			done[k] = struct{}{}
+		}
+	}
+
+	// Estimate the series cardinality...
+	cardinality, err := store.Store.SeriesCardinality("db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 20 of the actual cardinality.
+	// TODO(edd): this is totally arbitrary. How can I make it better?
+	if got, exp := math.Abs(float64(cardinality)-0.0), 20.0; got > exp {
+		t.Fatalf("got cardinality %v (expected within %v), which is larger than expected %v", got, 10.0, 0)
+	}
+
+	// Since all the series have been deleted, all the measurements should have
+	// been removed from the index too.
+	if cardinality, err = store.Store.MeasurementsCardinality("db"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 2 of the actual cardinality.
+	// TODO(edd): this is totally arbitrary. How can I make it better?
+	if got, exp := math.Abs(float64(cardinality)-0.0), 2.0; got > exp {
+		t.Fatalf("got cardinality %v (expected within %v), which is larger than expected %v", got, 10.0, 0)
+	}
+
+}
+
 func TestStore_SeriesCardinality_Unique(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping test in short mode.")
