@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"math"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -406,6 +408,124 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 	}
 }
 
+func TestStore_SeriesCardinality_Unique(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping test in short mode.")
+	}
+
+	store := MustOpenStore()
+	defer store.Close()
+
+	// Generate point data to write to the shards.
+	series := genTestSeries(64, 5, 5) // 200,000 series
+	expCardinality := len(series)
+
+	points := make([]models.Point, 0, len(series))
+	for _, s := range series {
+		points = append(points, models.MustNewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": 1.0}, time.Now()))
+	}
+
+	// Create requested number of shards in the store & write points across
+	// shards such that we never write the same series to multiple shards.
+	for shardID := 0; shardID < 10; shardID++ {
+		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+			t.Fatalf("create shard: %s", err)
+		}
+		if err := store.BatchWrite(shardID, points[shardID*20000:(shardID+1)*20000]); err != nil {
+			t.Fatalf("batch write: %s", err)
+		}
+	}
+
+	// Estimate the series cardinality...
+	cardinality, err := store.Store.SeriesCardinality("db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 1.5% of the actual cardinality.
+	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality))/float64(expCardinality), 0.015; got > exp {
+		t.Fatalf("got epsilon of %v for cardinality %d (expected %d), which is larger than expected %v", got, cardinality, expCardinality, exp)
+	}
+}
+
+// This test tests cardinality estimation when series data is duplicated across
+// multiple shards.
+func TestStore_SeriesCardinality_Duplicates(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping test in short mode.")
+	}
+
+	store := MustOpenStore()
+	defer store.Close()
+
+	// Generate point data to write to the shards.
+	series := genTestSeries(64, 5, 5) // 200,000 series.
+	expCardinality := len(series)
+
+	points := make([]models.Point, 0, len(series))
+	for _, s := range series {
+		points = append(points, models.MustNewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": 1.0}, time.Now()))
+	}
+
+	// Create requested number of shards in the store & write points.
+	for shardID := 0; shardID < 10; shardID++ {
+		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+			t.Fatalf("create shard: %s", err)
+		}
+
+		var from, to int
+		if shardID == 0 {
+			// if it's the first shard then write all of the points.
+			from, to = 0, len(points)-1
+		} else {
+			// For other shards we write a random sub-section of all the points.
+			// which will duplicate the series and shouldn't increase the
+			// cardinality.
+			from, to := rand.Intn(len(points)), rand.Intn(len(points))
+			if from > to {
+				from, to = to, from
+			}
+		}
+
+		if err := store.BatchWrite(shardID, points[from:to]); err != nil {
+			t.Fatalf("batch write: %s", err)
+		}
+	}
+
+	// Estimate the series cardinality...
+	cardinality, err := store.Store.SeriesCardinality("db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 1.5% of the actual cardinality.
+	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality))/float64(expCardinality), 0.015; got > exp {
+		t.Fatalf("got epsilon of %v for cardinality %d (expected %d), which is larger than expected %v", got, cardinality, expCardinality, exp)
+	}
+}
+
+func BenchmarkStore_SeriesCardinality_100_Shards(b *testing.B) {
+	store := MustOpenStore()
+	defer store.Close()
+
+	// Write a point to 100 shards.
+	for shardID := 0; shardID < 100; shardID++ {
+		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+			b.Fatalf("create shard: %s", err)
+		}
+
+		err := store.WriteToShard(uint64(shardID), []models.Point{models.MustNewPoint("cpu", nil, map[string]interface{}{"value": 1.0}, time.Now())})
+		if err != nil {
+			b.Fatalf("write: %s", err)
+		}
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = store.SeriesCardinality("db")
+	}
+}
+
 func BenchmarkStoreOpen_200KSeries_100Shards(b *testing.B) { benchmarkStoreOpen(b, 64, 5, 5, 1, 100) }
 
 func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) {
@@ -476,6 +596,12 @@ func NewStore() *Store {
 // MustOpenStore returns a new, open Store at a temporary path.
 func MustOpenStore() *Store {
 	s := NewStore()
+
+	// Quieten the logs.
+	if !testing.Verbose() {
+		s.SetLogOutput(ioutil.Discard)
+	}
+
 	if err := s.Open(); err != nil {
 		panic(err)
 	}
