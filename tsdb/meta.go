@@ -34,8 +34,8 @@ type DatabaseIndex struct {
 	series       map[string]*Series      // map series key to the Series object
 	lastID       uint64                  // last used series ID. They're in memory only for this shard
 
-	seriesSketch       *estimator.HyperLogLogPlus
-	measurementsSketch *estimator.HyperLogLogPlus
+	seriesSketch, seriesTSSketch             *estimator.HyperLogLogPlus
+	measurementsSketch, measurementsTSSketch *estimator.HyperLogLogPlus
 
 	name string // name of the database represented by this index
 
@@ -52,13 +52,17 @@ func NewDatabaseIndex(name string) (index *DatabaseIndex, err error) {
 		stats:        &IndexStatistics{},
 		defaultTags:  models.StatisticTags{"database": name},
 	}
+
 	if index.seriesSketch, err = estimator.NewHyperLogLogPlus(14); err != nil {
+		return nil, err
+	} else if index.seriesTSSketch, err = estimator.NewHyperLogLogPlus(14); err != nil {
+		return nil, err
+	} else if index.measurementsSketch, err = estimator.NewHyperLogLogPlus(14); err != nil {
+		return nil, err
+	} else if index.measurementsTSSketch, err = estimator.NewHyperLogLogPlus(14); err != nil {
 		return nil, err
 	}
 
-	if index.measurementsSketch, err = estimator.NewHyperLogLogPlus(14); err != nil {
-		return nil, err
-	}
 	return index, nil
 }
 
@@ -99,10 +103,10 @@ func (d *DatabaseIndex) SeriesN() (uint64, error) {
 }
 
 // SeriesSketch returns the sketch for the series.
-func (d *DatabaseIndex) SeriesSketch() (estimator.Sketch, error) {
+func (d *DatabaseIndex) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.seriesSketch, nil
+	return d.seriesSketch, d.seriesTSSketch, nil
 }
 
 // Measurement returns the measurement object from the index by the name
@@ -113,10 +117,10 @@ func (d *DatabaseIndex) Measurement(name string) (*Measurement, error) {
 }
 
 // MeasurementsSketch returns the sketch for the series.
-func (d *DatabaseIndex) MeasurementsSketch() (estimator.Sketch, error) {
+func (d *DatabaseIndex) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.measurementsSketch, nil
+	return d.measurementsSketch, d.measurementsTSSketch, nil
 }
 
 // MeasurementsByName returns a list of measurements.
