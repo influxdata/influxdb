@@ -18,6 +18,7 @@
 - [#7285](https://github.com/influxdata/influxdb/issues/7285): Correctly use password-type field in Admin UI. Thanks @dandv!
 - [#2792](https://github.com/influxdata/influxdb/issues/2792): Exceeding max retention policy duration gives incorrect error message
 - [#7226](https://github.com/influxdata/influxdb/issues/7226): Fix database locked up when deleting shards
+- [#7315](https://github.com/influxdata/influxdb/issues/7315): Prevent users from manually using system queries since incorrect use would result in a panic.
 
 ## v1.0.0 [2016-09-07]
 

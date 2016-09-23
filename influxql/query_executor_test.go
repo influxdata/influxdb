@@ -283,6 +283,56 @@ func TestQueryExecutor_Panic(t *testing.T) {
 	}
 }
 
+func TestQueryExecutor_InvalidSource(t *testing.T) {
+	e := NewQueryExecutor()
+	e.StatementExecutor = &StatementExecutor{
+		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+			return errors.New("statement executed unexpectedly")
+		},
+	}
+
+	for i, tt := range []struct {
+		q   string
+		err string
+	}{
+		{
+			q:   `SELECT fieldKey, fieldType FROM _fieldKeys`,
+			err: `unable to use system source '_fieldKeys': use SHOW FIELD KEYS instead`,
+		},
+		{
+			q:   `SELECT "name" FROM _measurements`,
+			err: `unable to use system source '_measurements': use SHOW MEASUREMENTS instead`,
+		},
+		{
+			q:   `SELECT "key" FROM _series`,
+			err: `unable to use system source '_series': use SHOW SERIES instead`,
+		},
+		{
+			q:   `SELECT tagKey FROM _tagKeys`,
+			err: `unable to use system source '_tagKeys': use SHOW TAG KEYS instead`,
+		},
+		{
+			q:   `SELECT "key", value FROM _tags`,
+			err: `unable to use system source '_tags': use SHOW TAG VALUES instead`,
+		},
+	} {
+		q, err := influxql.ParseQuery(tt.q)
+		if err != nil {
+			t.Errorf("%d. unable to parse: %s", i, tt.q)
+			continue
+		}
+
+		results := e.ExecuteQuery(q, influxql.ExecutionOptions{}, nil)
+		result := <-results
+		if len(result.Series) != 0 {
+			t.Errorf("%d. expected %d rows, got %d", 0, i, len(result.Series))
+		}
+		if result.Err == nil || result.Err.Error() != tt.err {
+			t.Errorf("%d. unexpected error: %s", i, result.Err)
+		}
+	}
+}
+
 func discardOutput(results <-chan *influxql.Result) {
 	for range results {
 		// Read all results and discard.

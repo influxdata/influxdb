@@ -199,6 +199,7 @@ func (e *QueryExecutor) executeQuery(query *Query, opt ExecutionOptions, closing
 	}
 
 	var i int
+LOOP:
 	for ; i < len(query.Statements); i++ {
 		ctx.StatementID = i
 		stmt := query.Statements[i]
@@ -208,6 +209,36 @@ func (e *QueryExecutor) executeQuery(query *Query, opt ExecutionOptions, closing
 		if defaultDB == "" {
 			if s, ok := stmt.(HasDefaultDatabase); ok {
 				defaultDB = s.DefaultDatabase()
+			}
+		}
+
+		// Do not let queries manually use the system measurements. If we find
+		// one, return an error. This prevents a person from using the
+		// measurement incorrectly and causing a panic.
+		if stmt, ok := stmt.(*SelectStatement); ok {
+			for _, s := range stmt.Sources {
+				switch s := s.(type) {
+				case *Measurement:
+					if IsSystemName(s.Name) {
+						command := "the appropriate meta command"
+						switch s.Name {
+						case "_fieldKeys":
+							command = "SHOW FIELD KEYS"
+						case "_measurements":
+							command = "SHOW MEASUREMENTS"
+						case "_series":
+							command = "SHOW SERIES"
+						case "_tagKeys":
+							command = "SHOW TAG KEYS"
+						case "_tags":
+							command = "SHOW TAG VALUES"
+						}
+						results <- &Result{
+							Err: fmt.Errorf("unable to use system source '%s': use %s instead", s.Name, command),
+						}
+						break LOOP
+					}
+				}
 			}
 		}
 
