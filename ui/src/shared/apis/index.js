@@ -6,6 +6,19 @@ export function getSources() {
   });
 }
 
+export function createSource({url, name, username, password}) {
+  return AJAX({
+    url: '/chronograf/v1/sources',
+    method: 'POST',
+    data: {
+      url,
+      name,
+      username,
+      password,
+    },
+  });
+}
+
 export function updateCluster(clusterID, displayName) {
   return AJAX({
     url: `/api/int/v1/clusters/${clusterID}`,

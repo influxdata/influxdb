@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react';
 import {render} from 'react-dom';
 import {Provider} from 'react-redux';
-import {Router, Route, browserHistory} from 'react-router';
+import {Router, Route, browserHistory, IndexRoute} from 'react-router';
 
 import App from 'src/App';
 import CheckDataNodes from 'src/CheckDataNodes';
@@ -13,6 +13,7 @@ import RetentionPoliciesPage from 'src/retention_policies';
 import DataExplorer from 'src/chronograf';
 import DatabaseManager from 'src/database_manager';
 import SignUp from 'src/sign_up';
+import SelectSourcePage from 'src/select_source';
 import {UsersPage, UserEditPage} from 'src/web_users';
 import {ClusterAccountsPage, ClusterAccountPage} from 'src/cluster_accounts';
 import {RolesPageContainer, RolePageContainer} from 'src/access_control';
@@ -121,6 +122,7 @@ const Root = React.createClass({
           <Route path="/signup/admin/:step" component={SignUp} />
           <Route path="/" component={App}>
             <Route component={CheckDataNodes}>
+              <IndexRoute component={SelectSourcePage} />
               <Route path="overview" component={OverviewPage} />
               <Route path="queries" component={QueriesPage} />
               <Route path="accounts" component={ClusterAccountsPage} />

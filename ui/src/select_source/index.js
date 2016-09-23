@@ -1,2 +1,2 @@
 import SelectSourcePage from './containers/SelectSourcePage';
-export SelectSourcePage;
+export default SelectSourcePage;
