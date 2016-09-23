@@ -12,8 +12,8 @@ const HostsTable = React.createClass({
     };
   },
 
-  filterHosts() {
-    const hosts = this.props.hosts.filter((h) => h.name.search(this.refs.filter.value) !== -1);
+  filterHosts(searchTerm) {
+    const hosts = this.props.hosts.filter((h) => h.name.search(searchTerm) !== -1);
     this.setState({filteredHosts: hosts});
   },
 
@@ -22,9 +22,7 @@ const HostsTable = React.createClass({
 
     return (
       <div>
-        <div className="col-md-3">
-          <input ref="filter" type="text" className="form-control" onChange={this.filterHosts}/>
-        </div>
+        <SearchBar onSearch={this.filterHosts} />
         <Table sortable={true} className="table v-center">
           <Thead>
             <Th column="name">Hostname</Th>
@@ -47,6 +45,33 @@ const HostsTable = React.createClass({
             })
           }
         </Table>
+      </div>
+    );
+  },
+});
+
+const SearchBar = React.createClass({
+  propTypes: {
+    onSearch: PropTypes.func.isRequired,
+  },
+
+  handleChange() {
+    this.props.onSearch(this.refs.searchInput.value);
+  },
+
+  render() {
+    return (
+      <div className="users__search-widget input-group">
+        <div className="input-group-addon">
+          <span className="icon search" aria-hidden="true"></span>
+        </div>
+        <input
+          type="text"
+          className="form-control"
+          placeholder="Find host"
+          ref="searchInput"
+          onChange={this.handleChange}
+        />
       </div>
     );
   },
