@@ -289,10 +289,6 @@ func (e *Engine) Measurements() (tsdb.Measurements, error) {
 	return e.index.Measurements()
 }
 
-func (e *Engine) MeasurementCardinality() (int64, error) {
-	panic("TODO: edd")
-}
-
 func (e *Engine) MeasurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool, error) {
 	return e.index.MeasurementsByExpr(expr)
 }
@@ -325,12 +321,12 @@ func (e *Engine) SeriesN() (uint64, error) {
 	return e.index.SeriesN()
 }
 
-func (e *Engine) SeriesSketch() (estimator.Sketch, error) {
-	return e.index.SeriesSketch()
+func (e *Engine) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
+	return e.index.SeriesSketches()
 }
 
-func (e *Engine) MeasurementsSketch() (estimator.Sketch, error) {
-	return e.index.MeasurementsSketch()
+func (e *Engine) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
+	return e.index.MeasurementsSketches()
 }
 
 // EngineStatistics maintains statistics for the engine.

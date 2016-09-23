@@ -553,39 +553,61 @@ func (s *Store) DiskSize() (int64, error) {
 	return size, nil
 }
 
-// SeriesCardinality returns the series cardinality for the provided database.
-func (s *Store) SeriesCardinality(database string) (int64, error) {
+func (s *Store) cardinalityEstimate(dbName string, getSketches func(*Shard) (estimator.Sketch, estimator.Sketch, error)) (int64, error) {
+	var (
+		ss estimator.Sketch // Sketch estimating number of items.
+		ts estimator.Sketch // Sketch estimating number of tombstoned items.
+	)
+
 	s.mu.RLock()
-	shards := s.filterShards(byDatabase(database))
+	shards := s.filterShards(byDatabase(dbName))
 	s.mu.RUnlock()
 
-	var sketch estimator.Sketch
-	// Iterate over all shards for the database and combine all of the series
+	// Iterate over all shards for the database and combine all of the sketches.
 	// sketches.
 	for _, shard := range shards {
-		other, err := shard.engine.SeriesSketch()
+		s, t, err := getSketches(shard)
 		if err != nil {
 			return 0, err
 		}
 
-		if sketch == nil {
-			sketch = other
-		} else if err = sketch.Merge(other); err != nil {
+		if ss == nil {
+			ss, ts = s, t
+		} else if err = ss.Merge(s); err != nil {
+			return 0, err
+		} else if err = ts.Merge(t); err != nil {
 			return 0, err
 		}
 	}
 
-	if sketch != nil {
-		cnt, err := sketch.Count()
-		return int64(cnt), err
+	if ss != nil {
+		pos, err := ss.Count()
+		if err != nil {
+			return 0, err
+		}
+
+		neg, err := ts.Count()
+		if err != nil {
+			return 0, err
+		}
+		return int64(pos - neg), nil
 	}
 	return 0, nil
+}
+
+// SeriesCardinality returns the series cardinality for the provided database.
+func (s *Store) SeriesCardinality(database string) (int64, error) {
+	return s.cardinalityEstimate(database, func(sh *Shard) (estimator.Sketch, estimator.Sketch, error) {
+		return sh.engine.SeriesSketches()
+	})
 }
 
 // MeasurementsCardinality returns the measurement cardinality for the provided
 // database.
 func (s *Store) MeasurementsCardinality(database string) (int64, error) {
-	panic("TODO: edd")
+	return s.cardinalityEstimate(database, func(sh *Shard) (estimator.Sketch, estimator.Sketch, error) {
+		return sh.engine.MeasurementsSketches()
+	})
 }
 
 // BackupShard will get the shard and have the engine backup since the passed in
