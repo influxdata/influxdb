@@ -433,14 +433,18 @@ func (d *DatabaseIndex) Measurements() (Measurements, error) {
 func (d *DatabaseIndex) DropMeasurement(name string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	d.dropMeasurement(name)
-	return nil
+	return d.dropMeasurement(name)
 }
 
-func (d *DatabaseIndex) dropMeasurement(name string) {
+func (d *DatabaseIndex) dropMeasurement(name string) error {
+	// Update the tombstone sketch.
+	if err := d.measurementsTSSketch.Add([]byte(name)); err != nil {
+		return err
+	}
+
 	m := d.measurements[name]
 	if m == nil {
-		return
+		return nil
 	}
 
 	delete(d.measurements, name)
@@ -450,6 +454,7 @@ func (d *DatabaseIndex) dropMeasurement(name string) {
 
 	atomic.AddInt64(&d.stats.NumSeries, int64(-len(m.seriesByID)))
 	atomic.AddInt64(&d.stats.NumMeasurements, -1)
+	return nil
 }
 
 // DropSeries removes the series keys and their tags from the index
@@ -467,6 +472,11 @@ func (d *DatabaseIndex) DropSeries(keys []string) error {
 	)
 
 	for _, k := range keys {
+		// Update the tombstone sketch.
+		if err := d.seriesTSSketch.Add([]byte(k)); err != nil {
+			return err
+		}
+
 		series := d.series[k]
 		if series == nil {
 			continue
