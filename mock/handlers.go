@@ -25,7 +25,6 @@ func NewHandler() Handler {
 
 func sampleSource() *models.Source {
 	name := "muh name"
-	influxType := "influx-enterprise"
 	url := "http://localhost:8086"
 
 	return &models.Source{
@@ -35,7 +34,7 @@ func sampleSource() *models.Source {
 			Proxy: "/chronograf/v1/sources/1/proxy",
 		},
 		Name:     &name,
-		Type:     &influxType,
+		Type:     "influx-enterprise",
 		Username: "HOWDY!",
 		Password: "changeme",
 		URL:      &url,
