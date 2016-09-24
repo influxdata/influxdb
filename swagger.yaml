@@ -740,6 +740,7 @@ definitions:
         required:
             - type
             - name
+            - url
         properties:
             id:
                 type: string
@@ -760,6 +761,10 @@ definitions:
             password:
                 type: string
                 description: Password in cleartext!
+            url:
+                type: string
+                format: url
+                description: URL for the time series data source backend (e.g. http://localhost:8086)
             links: 
                 type: object
                 properties:
