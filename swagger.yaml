@@ -738,7 +738,6 @@ definitions:
     Source:
         type: object
         required:
-            - type
             - name
             - url
         properties:

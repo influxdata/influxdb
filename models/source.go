@@ -40,10 +40,8 @@ type Source struct {
 	Password string `json:"password,omitempty"`
 
 	/* Format of the data source
-
-	Required: true
-	*/
-	Type *string `json:"type"`
+	 */
+	Type string `json:"type,omitempty"`
 
 	/* URL for the time series data source backend (e.g. http://localhost:8086)
 
@@ -132,12 +130,12 @@ func (m *Source) validateTypeEnum(path, location string, value string) error {
 
 func (m *Source) validateType(formats strfmt.Registry) error {
 
-	if err := validate.Required("type", "body", m.Type); err != nil {
-		return err
+	if swag.IsZero(m.Type) { // not required
+		return nil
 	}
 
 	// value enum
-	if err := m.validateTypeEnum("type", "body", *m.Type); err != nil {
+	if err := m.validateTypeEnum("type", "body", m.Type); err != nil {
 		return err
 	}
 
