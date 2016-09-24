@@ -1,5 +1,4 @@
-dist/*.js
-dist/*.html
+dist/dist_gen.go
 .pull-request
 node_modules
 mrfusion

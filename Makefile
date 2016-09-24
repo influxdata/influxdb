@@ -65,6 +65,9 @@ run: ${BINARY}
 run-dev: ${BINARY}
 	./mrfusion -d --port 8888
 
+swagger: swagger.yaml
+	swagger generate server -f swagger.yaml  --with-context
+
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi
 	cd ui && npm run clean

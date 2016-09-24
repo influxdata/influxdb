@@ -26,6 +26,7 @@ func NewHandler() Handler {
 func sampleSource() *models.Source {
 	name := "muh name"
 	influxType := "influx-enterprise"
+	url := "http://localhost:8086"
 
 	return &models.Source{
 		ID: "1",
@@ -37,8 +38,8 @@ func sampleSource() *models.Source {
 		Type:     &influxType,
 		Username: "HOWDY!",
 		Password: "changeme",
+		URL:      &url,
 	}
-
 }
 
 func (m *Handler) NewSource(ctx context.Context, params op.PostSourcesParams) middleware.Responder {

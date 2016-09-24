@@ -45,6 +45,12 @@ type Source struct {
 	*/
 	Type *string `json:"type"`
 
+	/* URL for the time series data source backend (e.g. http://localhost:8086)
+
+	Required: true
+	*/
+	URL *string `json:"url"`
+
 	/* Username for authentication to data source
 	 */
 	Username string `json:"username,omitempty"`
@@ -65,6 +71,11 @@ func (m *Source) Validate(formats strfmt.Registry) error {
 	}
 
 	if err := m.validateType(formats); err != nil {
+		// prop
+		res = append(res, err)
+	}
+
+	if err := m.validateURL(formats); err != nil {
 		// prop
 		res = append(res, err)
 	}
@@ -127,6 +138,15 @@ func (m *Source) validateType(formats strfmt.Registry) error {
 
 	// value enum
 	if err := m.validateTypeEnum("type", "body", *m.Type); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Source) validateURL(formats strfmt.Registry) error {
+
+	if err := validate.Required("url", "body", m.URL); err != nil {
 		return err
 	}
 
