@@ -28,6 +28,5 @@ type Index interface {
 	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 
-	Statistics(tags map[string]string) []models.Statistic
 	TagsForSeries(key string) (models.Tags, error)
 }
