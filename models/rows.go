@@ -1,7 +1,6 @@
 package models
 
 import (
-	"hash/fnv"
 	"sort"
 )
 
@@ -20,7 +19,7 @@ func (r *Row) SameSeries(o *Row) bool {
 
 // tagsHash returns a hash of tag key/value pairs.
 func (r *Row) tagsHash() uint64 {
-	h := fnv.New64a()
+	h := NewInlineFNV64a()
 	keys := r.tagsKeys()
 	for _, k := range keys {
 		h.Write([]byte(k))

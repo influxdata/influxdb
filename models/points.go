@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"math"
 	"sort"
 	"strconv"
@@ -1445,7 +1444,7 @@ func (p *point) unmarshalBinary() Fields {
 }
 
 func (p *point) HashID() uint64 {
-	h := fnv.New64a()
+	h := NewInlineFNV64a()
 	h.Write(p.key)
 	sum := h.Sum64()
 	return sum
