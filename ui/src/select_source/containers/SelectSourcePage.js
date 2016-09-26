@@ -8,6 +8,11 @@ export const SelectSourcePage = React.createClass({
     router: PropTypes.shape({
       push: PropTypes.func.isRequired,
     }).isRequired,
+    location: PropTypes.shape({
+      query: PropTypes.shape({
+        error: PropTypes.string,
+      }).isRequired,
+    }).isRequired,
   },
 
   getInitialState() {
@@ -44,6 +49,7 @@ export const SelectSourcePage = React.createClass({
   },
 
   render() {
+    const error = !!this.props.location.query.error;
     return (
       <div id="select-source-page">
         <div className="container">
@@ -54,6 +60,7 @@ export const SelectSourcePage = React.createClass({
                   <h2 className="deluxe">Welcome to Chronograf</h2>
                 </div>
                 <div className="panel-body">
+                  {error ? <p className="alert alert-danger">bad id bro</p> : null}
                   <form onSubmit={this.handleSelectSource}>
                     <div className="form-group col-sm-12">
                       <h4>Select an InfluxDB server to connect to</h4>

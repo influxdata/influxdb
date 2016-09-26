@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react';
-import NoClusterError from 'shared/components/NoClusterError';
+import {withRouter} from 'react-router';
 import {getSources} from 'src/shared/apis';
 
 const {bool, number, string, node, func, shape} = PropTypes;
@@ -13,6 +13,9 @@ const CheckDataNodes = React.createClass({
     children: node,
     params: PropTypes.shape({
       sourceID: PropTypes.string,
+    }).isRequired,
+    router: PropTypes.shape({
+      push: PropTypes.func.isRequired,
     }).isRequired,
   },
 
@@ -28,14 +31,21 @@ const CheckDataNodes = React.createClass({
   getInitialState() {
     return {
       isFetching: true,
-      sources: [],
+      source: null,
     };
   },
 
   componentDidMount() {
     getSources().then(({data: {sources}}) => {
+      const {sourceID} = this.props.params;
+      const source = sources.find((s) => s.id === sourceID);
+
+      if (!source) { // would be great to check source.status or similar here
+        return this.props.router.push(`/?error="bad id: ${sourceID}"`);
+      }
+
       this.setState({
-        sources,
+        source,
         isFetching: false,
       });
     }).catch((err) => {
@@ -49,19 +59,10 @@ const CheckDataNodes = React.createClass({
       return <div className="page-spinner" />;
     }
 
-    const {sourceID} = this.props.params;
-    const {sources} = this.state;
-    const source = sources.find((s) => s.id === sourceID);
-    if (!source) {
-      // the id in the address bar doesn't match a source we know about
-      // ask paul? go to source selection page?
-      return <NoClusterError />;
-    }
-
     return this.props.children && React.cloneElement(this.props.children, Object.assign({}, this.props, {
-      source,
+      source: this.state.source,
     }));
   },
 });
 
-export default CheckDataNodes;
+export default withRouter(CheckDataNodes);
