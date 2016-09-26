@@ -35,8 +35,17 @@ type BooleanEncoder struct {
 }
 
 // NewBooleanEncoder returns a new instance of BooleanEncoder.
-func NewBooleanEncoder() BooleanEncoder {
-	return BooleanEncoder{}
+func NewBooleanEncoder(sz int) BooleanEncoder {
+	return BooleanEncoder{
+		bytes: make([]byte, 0, (sz+7)/8),
+	}
+}
+
+func (e *BooleanEncoder) Reset() {
+	e.bytes = e.bytes[:0]
+	e.b = 0
+	e.i = 0
+	e.n = 0
 }
 
 func (e *BooleanEncoder) Write(b bool) {

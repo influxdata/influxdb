@@ -637,6 +637,10 @@ func BenchmarkEngine_WritePoints_1000(b *testing.B) {
 	benchmarkEngine_WritePoints(b, 1000)
 }
 
+func BenchmarkEngine_WritePoints_5000(b *testing.B) {
+	benchmarkEngine_WritePoints(b, 5000)
+}
+
 func benchmarkEngine_WritePoints(b *testing.B, batchSize int) {
 	e := MustOpenEngine()
 	defer e.Close()
@@ -644,9 +648,9 @@ func benchmarkEngine_WritePoints(b *testing.B, batchSize int) {
 	e.Index().CreateMeasurementIndexIfNotExists("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
 
-	p := MustParsePointString("cpu value=1.2")
 	pp := make([]models.Point, 0, batchSize)
 	for i := 0; i < batchSize; i++ {
+		p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2", i))
 		pp = append(pp, p)
 	}
 

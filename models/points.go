@@ -171,7 +171,7 @@ func ParseKey(buf []byte) (string, Tags, error) {
 // ParsePointsWithPrecision is similar to ParsePoints, but allows the
 // caller to provide a precision for time.
 func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision string) ([]Point, error) {
-	points := []Point{}
+	points := make([]Point, 0, bytes.Count(buf, []byte{'\n'})+1)
 	var (
 		pos    int
 		block  []byte

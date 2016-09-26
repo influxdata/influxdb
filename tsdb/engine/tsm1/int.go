@@ -43,8 +43,17 @@ type IntegerEncoder struct {
 	values []uint64
 }
 
-func NewIntegerEncoder() IntegerEncoder {
-	return IntegerEncoder{rle: true}
+func NewIntegerEncoder(sz int) IntegerEncoder {
+	return IntegerEncoder{
+		rle:    true,
+		values: make([]uint64, 0, sz),
+	}
+}
+
+func (e *IntegerEncoder) Reset() {
+	e.prev = 0
+	e.rle = true
+	e.values = e.values[:0]
 }
 
 func (e *IntegerEncoder) Write(v int64) {
@@ -77,8 +86,9 @@ func (e *IntegerEncoder) Bytes() ([]byte, error) {
 }
 
 func (e *IntegerEncoder) encodeRLE() ([]byte, error) {
-	// Large varints can take up to 10 bytes
-	b := make([]byte, 1+10*3)
+	// Large varints can take up to 10 bytes.  We're storing 3 + 1
+	// type byte.
+	var b [31]byte
 
 	// 4 high bits used for the encoding type
 	b[0] = byte(intCompressedRLE) << 4

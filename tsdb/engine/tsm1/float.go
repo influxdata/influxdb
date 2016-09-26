@@ -52,13 +52,28 @@ func NewFloatEncoder() *FloatEncoder {
 	}
 
 	s.bw = bitstream.NewWriter(&s.buf)
+	s.buf.WriteByte(floatCompressedGorilla << 4)
 
 	return &s
 
 }
 
+func (s *FloatEncoder) Reset() {
+	s.val = 0
+	s.err = nil
+	s.leading = ^uint64(0)
+	s.trailing = 0
+	s.buf.Reset()
+	s.buf.WriteByte(floatCompressedGorilla << 4)
+
+	s.bw.Resume(0x0, 8)
+
+	s.finished = false
+	s.first = true
+}
+
 func (s *FloatEncoder) Bytes() ([]byte, error) {
-	return append([]byte{floatCompressedGorilla << 4}, s.buf.Bytes()...), s.err
+	return s.buf.Bytes(), s.err
 }
 
 func (s *FloatEncoder) Finish() {

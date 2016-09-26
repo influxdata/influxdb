@@ -26,8 +26,14 @@ type StringEncoder struct {
 	bytes []byte
 }
 
-func NewStringEncoder() StringEncoder {
-	return StringEncoder{}
+func NewStringEncoder(sz int) StringEncoder {
+	return StringEncoder{
+		bytes: make([]byte, 0, sz),
+	}
+}
+
+func (e *StringEncoder) Reset() {
+	e.bytes = e.bytes[:0]
 }
 
 func (e *StringEncoder) Write(s string) {

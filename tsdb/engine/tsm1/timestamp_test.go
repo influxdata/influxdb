@@ -8,7 +8,7 @@ import (
 )
 
 func Test_TimeEncoder(t *testing.T) {
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(1)
 
 	x := []int64{}
 	now := time.Unix(0, 0)
@@ -42,7 +42,7 @@ func Test_TimeEncoder(t *testing.T) {
 }
 
 func Test_TimeEncoder_NoValues(t *testing.T) {
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(0)
 	b, err := enc.Bytes()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -56,7 +56,7 @@ func Test_TimeEncoder_NoValues(t *testing.T) {
 }
 
 func Test_TimeEncoder_One(t *testing.T) {
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(1)
 	var tm int64
 
 	enc.Write(tm)
@@ -81,7 +81,7 @@ func Test_TimeEncoder_One(t *testing.T) {
 }
 
 func Test_TimeEncoder_Two(t *testing.T) {
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(2)
 	t1 := int64(0)
 	t2 := int64(1)
 	enc.Write(t1)
@@ -116,7 +116,7 @@ func Test_TimeEncoder_Two(t *testing.T) {
 }
 
 func Test_TimeEncoder_Three(t *testing.T) {
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(3)
 	t1 := int64(0)
 	t2 := int64(1)
 	t3 := int64(3)
@@ -162,7 +162,7 @@ func Test_TimeEncoder_Three(t *testing.T) {
 }
 
 func Test_TimeEncoder_Large_Range(t *testing.T) {
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(2)
 	t1 := int64(1442369134000000000)
 	t2 := int64(1442369135000000000)
 	enc.Write(t1)
@@ -196,7 +196,7 @@ func Test_TimeEncoder_Large_Range(t *testing.T) {
 }
 
 func Test_TimeEncoder_Uncompressed(t *testing.T) {
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(3)
 	t1 := time.Unix(0, 0).UnixNano()
 	t2 := time.Unix(1, 0).UnixNano()
 
@@ -248,7 +248,7 @@ func Test_TimeEncoder_Uncompressed(t *testing.T) {
 }
 
 func Test_TimeEncoder_RLE(t *testing.T) {
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(512)
 	var ts []int64
 	for i := 0; i < 500; i++ {
 		ts = append(ts, int64(i))
@@ -289,7 +289,7 @@ func Test_TimeEncoder_RLE(t *testing.T) {
 }
 
 func Test_TimeEncoder_Reverse(t *testing.T) {
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(3)
 	ts := []int64{
 		int64(3),
 		int64(2),
@@ -321,7 +321,7 @@ func Test_TimeEncoder_Reverse(t *testing.T) {
 }
 
 func Test_TimeEncoder_220SecondDelta(t *testing.T) {
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(256)
 	var ts []int64
 	now := time.Now()
 	for i := 0; i < 220; i++ {
@@ -368,7 +368,7 @@ func Test_TimeEncoder_220SecondDelta(t *testing.T) {
 func Test_TimeEncoder_Quick(t *testing.T) {
 	quick.Check(func(values []int64) bool {
 		// Write values to encoder.
-		enc := NewTimeEncoder()
+		enc := NewTimeEncoder(1024)
 		exp := make([]int64, len(values))
 		for i, v := range values {
 			exp[i] = int64(v)
@@ -402,7 +402,7 @@ func Test_TimeEncoder_Quick(t *testing.T) {
 }
 
 func Test_TimeEncoder_RLESeconds(t *testing.T) {
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(6)
 	ts := make([]int64, 6)
 
 	ts[0] = int64(1444448158000000000)
@@ -443,7 +443,7 @@ func Test_TimeEncoder_RLESeconds(t *testing.T) {
 }
 
 func TestTimeEncoder_Count_Uncompressed(t *testing.T) {
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(2)
 	t1 := time.Unix(0, 0).UnixNano()
 	t2 := time.Unix(1, 0).UnixNano()
 
@@ -469,7 +469,7 @@ func TestTimeEncoder_Count_Uncompressed(t *testing.T) {
 }
 
 func TestTimeEncoder_Count_RLE(t *testing.T) {
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(5)
 	ts := make([]int64, 6)
 
 	ts[0] = int64(1444448158000000000)
@@ -498,7 +498,7 @@ func TestTimeEncoder_Count_RLE(t *testing.T) {
 }
 
 func TestTimeEncoder_Count_Simple8(t *testing.T) {
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(3)
 	t1 := int64(0)
 	t2 := int64(1)
 	t3 := int64(3)
@@ -545,7 +545,7 @@ func TestTimeDecoder_Corrupt(t *testing.T) {
 }
 
 func BenchmarkTimeEncoder(b *testing.B) {
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(1024)
 	x := make([]int64, 1024)
 	for i := 0; i < len(x); i++ {
 		x[i] = time.Now().UnixNano()
@@ -560,7 +560,7 @@ func BenchmarkTimeEncoder(b *testing.B) {
 
 func BenchmarkTimeDecoder_Packed(b *testing.B) {
 	x := make([]int64, 1024)
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(1024)
 	for i := 0; i < len(x); i++ {
 		x[i] = time.Now().UnixNano()
 		enc.Write(x[i])
@@ -582,7 +582,7 @@ func BenchmarkTimeDecoder_Packed(b *testing.B) {
 
 func BenchmarkTimeDecoder_RLE(b *testing.B) {
 	x := make([]int64, 1024)
-	enc := NewTimeEncoder()
+	enc := NewTimeEncoder(1024)
 	for i := 0; i < len(x); i++ {
 		x[i] = int64(i * 10)
 		enc.Write(x[i])

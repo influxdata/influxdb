@@ -96,6 +96,19 @@ func BenchmarkNewPoint(b *testing.B) {
 	}
 }
 
+func BenchmarkParsePointNoTags5000(b *testing.B) {
+	var batch [5000]string
+	for i := 0; i < len(batch); i++ {
+		batch[i] = `cpu value=1i 1000000000`
+	}
+	lines := strings.Join(batch[:], "\n")
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		models.ParsePoints([]byte(lines))
+		b.SetBytes(int64(len(lines)))
+	}
+}
+
 func BenchmarkParsePointNoTags(b *testing.B) {
 	line := `cpu value=1i 1000000000`
 	for i := 0; i < b.N; i++ {

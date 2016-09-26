@@ -8,7 +8,7 @@ import (
 )
 
 func Test_StringEncoder_NoValues(t *testing.T) {
-	enc := NewStringEncoder()
+	enc := NewStringEncoder(1024)
 	b, err := enc.Bytes()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -24,7 +24,7 @@ func Test_StringEncoder_NoValues(t *testing.T) {
 }
 
 func Test_StringEncoder_Single(t *testing.T) {
-	enc := NewStringEncoder()
+	enc := NewStringEncoder(1024)
 	v1 := "v1"
 	enc.Write(v1)
 	b, err := enc.Bytes()
@@ -46,7 +46,7 @@ func Test_StringEncoder_Single(t *testing.T) {
 }
 
 func Test_StringEncoder_Multi_Compressed(t *testing.T) {
-	enc := NewStringEncoder()
+	enc := NewStringEncoder(1024)
 
 	values := make([]string, 10)
 	for i := range values {
@@ -93,7 +93,7 @@ func Test_StringEncoder_Quick(t *testing.T) {
 			expected = []string{}
 		}
 		// Write values to encoder.
-		enc := NewStringEncoder()
+		enc := NewStringEncoder(1024)
 		for _, v := range values {
 			enc.Write(v)
 		}

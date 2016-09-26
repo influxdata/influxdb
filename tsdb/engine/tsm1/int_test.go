@@ -9,7 +9,7 @@ import (
 )
 
 func Test_IntegerEncoder_NoValues(t *testing.T) {
-	enc := NewIntegerEncoder()
+	enc := NewIntegerEncoder(0)
 	b, err := enc.Bytes()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -27,7 +27,7 @@ func Test_IntegerEncoder_NoValues(t *testing.T) {
 }
 
 func Test_IntegerEncoder_One(t *testing.T) {
-	enc := NewIntegerEncoder()
+	enc := NewIntegerEncoder(1)
 	v1 := int64(1)
 
 	enc.Write(1)
@@ -52,7 +52,7 @@ func Test_IntegerEncoder_One(t *testing.T) {
 }
 
 func Test_IntegerEncoder_Two(t *testing.T) {
-	enc := NewIntegerEncoder()
+	enc := NewIntegerEncoder(2)
 	var v1, v2 int64 = 1, 2
 
 	enc.Write(v1)
@@ -87,7 +87,7 @@ func Test_IntegerEncoder_Two(t *testing.T) {
 }
 
 func Test_IntegerEncoder_Negative(t *testing.T) {
-	enc := NewIntegerEncoder()
+	enc := NewIntegerEncoder(3)
 	var v1, v2, v3 int64 = -2, 0, 1
 
 	enc.Write(v1)
@@ -131,7 +131,7 @@ func Test_IntegerEncoder_Negative(t *testing.T) {
 }
 
 func Test_IntegerEncoder_Large_Range(t *testing.T) {
-	enc := NewIntegerEncoder()
+	enc := NewIntegerEncoder(2)
 	var v1, v2 int64 = math.MinInt64, math.MaxInt64
 	enc.Write(v1)
 	enc.Write(v2)
@@ -164,7 +164,7 @@ func Test_IntegerEncoder_Large_Range(t *testing.T) {
 }
 
 func Test_IntegerEncoder_Uncompressed(t *testing.T) {
-	enc := NewIntegerEncoder()
+	enc := NewIntegerEncoder(3)
 	var v1, v2, v3 int64 = 0, 1, 1 << 60
 
 	enc.Write(v1)
@@ -223,7 +223,7 @@ func Test_IntegerEncoder_NegativeUncompressed(t *testing.T) {
 		2761419461769776844, -1324397441074946198, -680758138988210958,
 		94468846694902125, -2394093124890745254, -2682139311758778198,
 	}
-	enc := NewIntegerEncoder()
+	enc := NewIntegerEncoder(256)
 	for _, v := range values {
 		enc.Write(v)
 	}
@@ -258,7 +258,7 @@ func Test_IntegerEncoder_NegativeUncompressed(t *testing.T) {
 }
 
 func Test_IntegerEncoder_AllNegative(t *testing.T) {
-	enc := NewIntegerEncoder()
+	enc := NewIntegerEncoder(3)
 	values := []int64{
 		-10, -5, -1,
 	}
@@ -296,7 +296,7 @@ func Test_IntegerEncoder_AllNegative(t *testing.T) {
 }
 
 func Test_IntegerEncoder_CounterPacked(t *testing.T) {
-	enc := NewIntegerEncoder()
+	enc := NewIntegerEncoder(16)
 	values := []int64{
 		1e15, 1e15 + 1, 1e15 + 2, 1e15 + 3, 1e15 + 4, 1e15 + 6,
 	}
@@ -340,7 +340,7 @@ func Test_IntegerEncoder_CounterPacked(t *testing.T) {
 }
 
 func Test_IntegerEncoder_CounterRLE(t *testing.T) {
-	enc := NewIntegerEncoder()
+	enc := NewIntegerEncoder(16)
 	values := []int64{
 		1e15, 1e15 + 1, 1e15 + 2, 1e15 + 3, 1e15 + 4, 1e15 + 5,
 	}
@@ -384,7 +384,7 @@ func Test_IntegerEncoder_CounterRLE(t *testing.T) {
 }
 
 func Test_IntegerEncoder_MinMax(t *testing.T) {
-	enc := NewIntegerEncoder()
+	enc := NewIntegerEncoder(2)
 	values := []int64{
 		math.MinInt64, math.MaxInt64,
 	}
@@ -433,7 +433,7 @@ func Test_IntegerEncoder_Quick(t *testing.T) {
 		}
 
 		// Write values to encoder.
-		enc := NewIntegerEncoder()
+		enc := NewIntegerEncoder(1024)
 		for _, v := range values {
 			enc.Write(v)
 		}
@@ -484,7 +484,7 @@ func Test_IntegerDecoder_Corrupt(t *testing.T) {
 }
 
 func BenchmarkIntegerEncoderRLE(b *testing.B) {
-	enc := NewIntegerEncoder()
+	enc := NewIntegerEncoder(1024)
 	x := make([]int64, 1024)
 	for i := 0; i < len(x); i++ {
 		x[i] = int64(i)
@@ -498,7 +498,7 @@ func BenchmarkIntegerEncoderRLE(b *testing.B) {
 }
 
 func BenchmarkIntegerEncoderPackedSimple(b *testing.B) {
-	enc := NewIntegerEncoder()
+	enc := NewIntegerEncoder(1024)
 	x := make([]int64, 1024)
 	for i := 0; i < len(x); i++ {
 		// Small amount of randomness prevents RLE from being used
@@ -518,7 +518,7 @@ type byteSetter interface {
 
 func BenchmarkIntegerDecoderPackedSimple(b *testing.B) {
 	x := make([]int64, 1024)
-	enc := NewIntegerEncoder()
+	enc := NewIntegerEncoder(1024)
 	for i := 0; i < len(x); i++ {
 		// Small amount of randomness prevents RLE from being used
 		x[i] = int64(i) + int64(rand.Intn(10))
@@ -538,7 +538,7 @@ func BenchmarkIntegerDecoderPackedSimple(b *testing.B) {
 
 func BenchmarkIntegerDecoderRLE(b *testing.B) {
 	x := make([]int64, 1024)
-	enc := NewIntegerEncoder()
+	enc := NewIntegerEncoder(1024)
 	for i := 0; i < len(x); i++ {
 		x[i] = int64(i)
 		enc.Write(x[i])

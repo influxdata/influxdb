@@ -9,7 +9,7 @@ import (
 )
 
 func Test_BooleanEncoder_NoValues(t *testing.T) {
-	enc := tsm1.NewBooleanEncoder()
+	enc := tsm1.NewBooleanEncoder(0)
 	b, err := enc.Bytes()
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -23,7 +23,7 @@ func Test_BooleanEncoder_NoValues(t *testing.T) {
 }
 
 func Test_BooleanEncoder_Single(t *testing.T) {
-	enc := tsm1.NewBooleanEncoder()
+	enc := tsm1.NewBooleanEncoder(1)
 	v1 := true
 	enc.Write(v1)
 	b, err := enc.Bytes()
@@ -43,7 +43,7 @@ func Test_BooleanEncoder_Single(t *testing.T) {
 }
 
 func Test_BooleanEncoder_Multi_Compressed(t *testing.T) {
-	enc := tsm1.NewBooleanEncoder()
+	enc := tsm1.NewBooleanEncoder(10)
 
 	values := make([]bool, 10)
 	for i := range values {
@@ -84,7 +84,7 @@ func Test_BooleanEncoder_Quick(t *testing.T) {
 			expected = []bool{}
 		}
 		// Write values to encoder.
-		enc := tsm1.NewBooleanEncoder()
+		enc := tsm1.NewBooleanEncoder(1024)
 		for _, v := range values {
 			enc.Write(v)
 		}
@@ -134,7 +134,7 @@ func Test_BooleanDecoder_Corrupt(t *testing.T) {
 func BenchmarkBooleanDecoder_2048(b *testing.B) { benchmarkBooleanDecoder(b, 2048) }
 
 func benchmarkBooleanDecoder(b *testing.B, size int) {
-	e := tsm1.NewBooleanEncoder()
+	e := tsm1.NewBooleanEncoder(size)
 	for i := 0; i < size; i++ {
 		e.Write(i&1 == 1)
 	}
