@@ -60,7 +60,7 @@ var (
 
 var (
 	// Static objects to prevent small allocs.
-	staticTimeByteSlice = []byte("time")
+	timeTag = []byte("time")
 )
 
 // A ShardError implements the error interface, and contains extra
@@ -470,9 +470,9 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 	for _, p := range points {
 		// verify the tags and fields
 		tags := p.Tags()
-		if v := tags.Get(staticTimeByteSlice); v != nil {
+		if v := tags.Get(timeTag); v != nil {
 			s.logger.Printf("dropping tag 'time' from '%s'\n", p.PrecisionString(""))
-			tags.Delete(staticTimeByteSlice)
+			tags.Delete(timeTag)
 			p.SetTags(tags)
 		}
 
