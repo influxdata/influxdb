@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/mrfusion/dist"
 	"github.com/influxdata/mrfusion/handlers"
 	"github.com/influxdata/mrfusion/influx"
+	fusionlog "github.com/influxdata/mrfusion/log"
 	"github.com/influxdata/mrfusion/mock"
 	op "github.com/influxdata/mrfusion/restapi/operations"
 )

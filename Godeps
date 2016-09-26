@@ -1,5 +1,6 @@
 github.com/PuerkitoBio/purell 8a290539e2e8629dbc4e6bad948158f790ec31f4
 github.com/PuerkitoBio/urlesc 5bd2802263f21d8788851d5305584c82a5c75d7e
+github.com/Sirupsen/logrus 3ec0642a7fb6488f65b06f9040adc67e3990296a
 github.com/asaskevich/govalidator 593d64559f7600f29581a3ee42177f5dbded27a9
 github.com/boltdb/bolt 5cc10bbbc5c141029940133bb33c9e969512a698
 github.com/elazarl/go-bindata-assetfs 9a6736ed45b44bf3835afeebb3034b57ed329f3e
