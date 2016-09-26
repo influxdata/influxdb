@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 
-	"github.com/influxdata/influxdb/pkg/murmur3"
 	"github.com/influxdata/influxdb/pkg/rhh"
 )
 
@@ -55,7 +54,7 @@ type TagSet struct {
 	version int    // tag set version
 }
 
-// Verison returns the encoding version parsed from the data.
+// Version returns the encoding version parsed from the data.
 // Only valid after UnmarshalBinary() has been successfully invoked.
 func (ts *TagSet) Version() int { return ts.version }
 
@@ -252,9 +251,6 @@ func (e *tagValueElem) UnmarshalBinary(data []byte) {
 // TagSetWriter writes a TagSet section.
 type TagSetWriter struct {
 	sets map[string]tagSet
-
-	// Starting offset of the writer.
-	Offset int64
 }
 
 // NewTagSetWriter returns a new TagSetWriter.
@@ -315,7 +311,7 @@ func (tsw *TagSetWriter) WriteTo(w io.Writer) (n int64, err error) {
 		return n, err
 	}
 
-	// Build key hash map with an exact capacity.
+	// Build key hash map.
 	m := rhh.NewHashMap(rhh.Options{
 		Capacity:   len(tsw.sets),
 		LoadFactor: 90,
@@ -530,18 +526,4 @@ func (tv tagValue) flag() byte {
 		flag |= TagValueTombstoneFlag
 	}
 	return flag
-}
-
-// hashKey hashes a key using murmur3.
-func hashKey(key []byte) uint32 {
-	h := murmur3.Sum32(key)
-	if h == 0 {
-		h = 1
-	}
-	return h
-}
-
-// dist returns the probe distance for a hash in a slot index.
-func dist(hash uint32, i, capacity int) int {
-	return (i + capacity - (int(hash) % capacity)) % capacity
 }
