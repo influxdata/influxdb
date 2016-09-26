@@ -6,7 +6,7 @@ github.com/davecgh/go-spew 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
 github.com/dgrijalva/jwt-go 63734eae1ef55eaac06fdc0f312615f2e321e273
 github.com/dgryski/go-bits 2ad8d707cc05b1815ce6ff2543bb5e8d8f9298ef
 github.com/dgryski/go-bitstream 7d46cd22db7004f0cceb6f7975824b560cf0e486
-github.com/gogo/protobuf a11c89fbb0ad4acfa8abc4a4d5f7e27c477169b1
+github.com/gogo/protobuf 0394392b81058a7f972029451f06e528bb18ba50
 github.com/golang/snappy d9eb7a3d35ec988b8585d4a0068e462c27d28380
 github.com/influxdata/usage-client 6d3895376368aa52a3a81d2a16e90f0f52371967
 github.com/jwilder/encoding ac74639f65b2180a2e5eb5ff197f0c122441aed0
