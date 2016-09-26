@@ -1,6 +1,6 @@
 package pool
 
-// Generic is a pool of byte slices that can be re-used.  Slices in
+// Generic is a pool of types that can be re-used.  Items in
 // this pool will not be garbage collected when not in use.
 type Generic struct {
 	pool chan interface{}

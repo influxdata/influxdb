@@ -14,7 +14,9 @@ func NewBytes(max int) *Bytes {
 	}
 }
 
-// Get returns a byte slice size with at least sz capacity.
+// Get returns a byte slice size with at least sz capacity. Items
+// returned may not be in the zero state and should be reset by the
+// caller.
 func (p *Bytes) Get(sz int) []byte {
 	var c []byte
 	select {
