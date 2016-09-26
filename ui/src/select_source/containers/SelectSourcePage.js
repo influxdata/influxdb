@@ -10,7 +10,7 @@ export const SelectSourcePage = React.createClass({
     }).isRequired,
     location: PropTypes.shape({
       query: PropTypes.shape({
-        error: PropTypes.string,
+        redirectPath: PropTypes.string,
       }).isRequired,
     }).isRequired,
   },
@@ -32,7 +32,7 @@ export const SelectSourcePage = React.createClass({
   handleSelectSource(e) {
     e.preventDefault();
     const source = this.state.sources.find((s) => s.name === this.selectedSource.value);
-    this.props.router.push(`/sources/${source.id}/hosts`);
+    this.redirectToApp(source);
   },
 
   handleNewSource(e) {
@@ -44,12 +44,22 @@ export const SelectSourcePage = React.createClass({
       password: this.sourcePassword.value,
     };
     createSource(source).then(() => {
-      // this.props.router.push(`/sources/${source.id}/hosts`);
+      // this.redirectToApp(sourceFromServer)
     });
   },
 
+  redirectToApp(source) {
+    const {redirectPath} = this.props.location.query;
+    if (!redirectPath) {
+      this.props.router.push(`/sources/${source.id}/hosts`);
+    }
+
+    const fixedPath = redirectPath.replace(/\/sources\/[^/]*/, `/sources/${source.id}`);
+    return this.props.router.push(fixedPath);
+  },
+
   render() {
-    const error = !!this.props.location.query.error;
+    const error = !!this.props.location.query.redirectPath;
     return (
       <div id="select-source-page">
         <div className="container">

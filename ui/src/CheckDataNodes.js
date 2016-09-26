@@ -17,6 +17,9 @@ const CheckDataNodes = React.createClass({
     router: PropTypes.shape({
       push: PropTypes.func.isRequired,
     }).isRequired,
+    location: PropTypes.shape({
+      pathname: PropTypes.string.isRequired,
+    }).isRequired,
   },
 
   contextTypes: {
@@ -41,7 +44,8 @@ const CheckDataNodes = React.createClass({
       const source = sources.find((s) => s.id === sourceID);
 
       if (!source) { // would be great to check source.status or similar here
-        return this.props.router.push(`/?error="bad id: ${sourceID}"`);
+        const {router, location} = this.props;
+        return router.push(`/?redirectPath=${location.pathname}`);
       }
 
       this.setState({
