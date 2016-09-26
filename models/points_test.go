@@ -68,7 +68,7 @@ func TestPoint_AppendString(t *testing.T) {
 
 func testPoint_cube(t *testing.T, f func(p models.Point)) {
 	// heard of a table-driven test? let's make a cube-driven test...
-	tagList := []models.Tags{nil, {{[]byte("foo"), []byte("bar")}}, tags}
+	tagList := []models.Tags{nil, {models.Tag{Key: []byte("foo"), Value: []byte("bar")}}, tags}
 	fieldList := []models.Fields{{"a": 42.0}, {"a": 42, "b": "things"}, fields}
 	timeList := []time.Time{time.Time{}, time.Unix(0, 0), time.Unix(-34526, 0), time.Unix(231845, 0), time.Now()}
 
