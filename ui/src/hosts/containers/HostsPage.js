@@ -4,11 +4,20 @@ import HostsTable from '../components/HostsTable';
 
 export const HostsPage = React.createClass({
   propTypes: {
-    sources: PropTypes.arrayOf(React.PropTypes.object),
+    source: PropTypes.shape({
+      id: PropTypes.string.isRequired,
+      name: PropTypes.string.isRequired,
+      type: PropTypes.string.isRequired, // 'influx-enterprise'
+      username: PropTypes.string.isRequired,
+      links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
+      }).isRequired,
+    }).isRequired,
   },
 
   render() {
-    const {sources} = this.props;
+    const {source} = this.props;
+    const sources = [source];
 
     return (
       <div className="hosts">

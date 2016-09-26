@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react';
 import {render} from 'react-dom';
 import {Provider} from 'react-redux';
-import {Router, Route, browserHistory, IndexRoute} from 'react-router';
+import {Router, Route, browserHistory} from 'react-router';
 
 import App from 'src/App';
 import CheckDataNodes from 'src/CheckDataNodes';
@@ -120,9 +120,9 @@ const Root = React.createClass({
       <Provider store={store}>
         <Router history={browserHistory}>
           <Route path="/signup/admin/:step" component={SignUp} />
-          <Route path="/" component={App}>
+          <Route path="/" component={SelectSourcePage} />
+          <Route path="/sources/:sourceID" component={App}>
             <Route component={CheckDataNodes}>
-              <IndexRoute component={SelectSourcePage} />
               <Route path="overview" component={OverviewPage} />
               <Route path="queries" component={QueriesPage} />
               <Route path="accounts" component={ClusterAccountsPage} />

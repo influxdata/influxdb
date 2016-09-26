@@ -9,12 +9,17 @@ const App = React.createClass({
     location: PropTypes.shape({
       pathname: PropTypes.string,
     }),
+    params: PropTypes.shape({
+      sourceID: PropTypes.string.isRequired,
+    }).isRequired,
   },
 
   render() {
+    const {sourceID} = this.props.params;
+
     return (
       <div className="enterprise-wrapper--flex">
-        <SideNavContainer addFlashMessage={this.props.addFlashMessage} currentLocation={this.props.location.pathname} />
+        <SideNavContainer sourceID={sourceID} addFlashMessage={this.props.addFlashMessage} currentLocation={this.props.location.pathname} />
         <div className="page-wrapper">
           {this.props.children && React.cloneElement(this.props.children, {
             addFlashMessage: this.props.addFlashMessage,

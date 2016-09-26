@@ -1,8 +1,15 @@
-import React from 'react';
+import React, {PropTypes} from 'react';
+import {withRouter} from 'react-router';
 import FlashMessages from 'shared/components/FlashMessages';
 import {createSource, getSources} from 'shared/apis';
 
 export const SelectSourcePage = React.createClass({
+  propTypes: {
+    router: PropTypes.shape({
+      push: PropTypes.func.isRequired,
+    }).isRequired,
+  },
+
   getInitialState() {
     return {
       sources: [],
@@ -19,8 +26,8 @@ export const SelectSourcePage = React.createClass({
 
   handleSelectSource(e) {
     e.preventDefault();
-    // const source = this.state.sources.find((s) => s.name === this.selectedSource.value);
-    // redirect to /hosts?sourceId=source.id
+    const source = this.state.sources.find((s) => s.name === this.selectedSource.value);
+    this.props.router.push(`/sources/${source.id}/hosts`);
   },
 
   handleNewSource(e) {
@@ -32,7 +39,7 @@ export const SelectSourcePage = React.createClass({
       password: this.sourcePassword.value,
     };
     createSource(source).then(() => {
-      // redirect to /hosts?sourceId=123
+      // this.props.router.push(`/sources/${source.id}/hosts`);
     });
   },
 
@@ -90,4 +97,4 @@ export const SelectSourcePage = React.createClass({
   },
 });
 
-export default FlashMessages(SelectSourcePage);
+export default FlashMessages(withRouter(SelectSourcePage));

@@ -19,7 +19,11 @@ const FieldList = React.createClass({
   },
 
   contextTypes: {
-    sources: PropTypes.arrayOf(PropTypes.shape().isRequired).isRequired,
+    source: PropTypes.shape({
+      links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
+      }).isRequired,
+    }).isRequired,
   },
 
   getInitialState() {
@@ -34,8 +38,8 @@ const FieldList = React.createClass({
       return;
     }
 
-    const {sources} = this.context;
-    const proxySource = sources[0].links.proxy;
+    const {source} = this.context;
+    const proxySource = source.links.proxy;
     showFieldKeys(proxySource, database, measurement).then((resp) => {
       const {errors, fieldSets} = showFieldKeysParser(resp.data);
       if (errors.length) {

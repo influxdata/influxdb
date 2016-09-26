@@ -11,6 +11,9 @@ const CheckDataNodes = React.createClass({
   propTypes: {
     addFlashMessage: func,
     children: node,
+    params: PropTypes.shape({
+      sourceID: PropTypes.string,
+    }).isRequired,
   },
 
   contextTypes: {
@@ -46,14 +49,17 @@ const CheckDataNodes = React.createClass({
       return <div className="page-spinner" />;
     }
 
+    const {sourceID} = this.props.params;
     const {sources} = this.state;
-    if (!sources.length) {
-      // this should probably be changed....
+    const source = sources.find((s) => s.id === sourceID);
+    if (!source) {
+      // the id in the address bar doesn't match a source we know about
+      // ask paul? go to source selection page?
       return <NoClusterError />;
     }
 
     return this.props.children && React.cloneElement(this.props.children, Object.assign({}, this.props, {
-      sources,
+      source,
     }));
   },
 });

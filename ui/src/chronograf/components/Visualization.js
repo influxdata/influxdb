@@ -19,7 +19,11 @@ const Visualization = React.createClass({
   },
 
   contextTypes: {
-    sources: arrayOf(shape()).isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
+      }).isRequired,
+    }).isRequired,
   },
 
   getInitialState() {
@@ -42,8 +46,8 @@ const Visualization = React.createClass({
 
   render() {
     const {queryConfigs, timeRange, isActive, name} = this.props;
-    const {sources} = this.context;
-    const proxyLink = sources[0].links.proxy;
+    const {source} = this.context;
+    const proxyLink = source.links.proxy;
 
     const {isGraphInView} = this.state;
     const statements = queryConfigs.map((query) => {

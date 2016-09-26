@@ -15,7 +15,11 @@ const MeasurementList = React.createClass({
   },
 
   contextTypes: {
-    sources: PropTypes.arrayOf(PropTypes.shape().isRequired).isRequired,
+    source: PropTypes.shape({
+      links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
+      }).isRequired,
+    }).isRequired,
   },
 
   getInitialState() {
@@ -30,9 +34,9 @@ const MeasurementList = React.createClass({
       return;
     }
 
-    const {sources} = this.context;
-    const source = sources[0].links.proxy;
-    showMeasurements(source, this.props.query.database).then((resp) => {
+    const {source} = this.context;
+    const proxy = source.links.proxy;
+    showMeasurements(proxy, this.props.query.database).then((resp) => {
       const {errors, measurementSets} = showMeasurementsParser(resp.data);
       if (errors.length) {
         // TODO: display errors in the UI.
