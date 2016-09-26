@@ -37,7 +37,6 @@ func (e *StringEncoder) Reset() {
 }
 
 func (e *StringEncoder) Write(s string) {
-	//println(len(e.bytes), cap(e.bytes))
 	b := make([]byte, 10)
 	// Append the length of the string using variable byte encoding
 	i := binary.PutUvarint(b, uint64(len(s)))
