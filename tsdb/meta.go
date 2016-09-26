@@ -166,7 +166,7 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 	}
 
 	// set the in memory ID for query processing on this shard
-	series.id = d.lastID + 1
+	series.ID = d.lastID + 1
 	d.lastID++
 
 	series.measurement = m
@@ -644,7 +644,7 @@ func (m *Measurement) HasSeries() bool {
 // AddSeries will add a series to the measurementIndex. Returns false if already present
 func (m *Measurement) AddSeries(s *Series) bool {
 	m.mu.RLock()
-	if _, ok := m.seriesByID[s.id]; ok {
+	if _, ok := m.seriesByID[s.ID]; ok {
 		m.mu.RUnlock()
 		return false
 	}
@@ -653,12 +653,12 @@ func (m *Measurement) AddSeries(s *Series) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	if _, ok := m.seriesByID[s.id]; ok {
+	if _, ok := m.seriesByID[s.ID]; ok {
 		return false
 	}
 
-	m.seriesByID[s.id] = s
-	m.seriesIDs = append(m.seriesIDs, s.id)
+	m.seriesByID[s.ID] = s
+	m.seriesIDs = append(m.seriesIDs, s.ID)
 
 	// the series ID should always be higher than all others because it's a new
 	// series. So don't do the sort if we don't have to.
@@ -674,7 +674,7 @@ func (m *Measurement) AddSeries(s *Series) bool {
 			m.seriesByTagKeyValue[string(t.Key)] = valueMap
 		}
 		ids := valueMap[string(t.Value)]
-		ids = append(ids, s.id)
+		ids = append(ids, s.ID)
 
 		// most of the time the series ID will be higher than all others because it's a new
 		// series. So don't do the sort if we don't have to.
@@ -689,7 +689,7 @@ func (m *Measurement) AddSeries(s *Series) bool {
 
 // DropSeries will remove a series from the measurementIndex.
 func (m *Measurement) DropSeries(series *Series) {
-	seriesID := series.id
+	seriesID := series.ID
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -889,6 +889,11 @@ func mergeSeriesFilters(op influxql.Token, ids SeriesIDs, lfilters, rfilters Fil
 	return series, filters
 }
 
+func (m *Measurement) IDsForExpr(n *influxql.BinaryExpr) SeriesIDs {
+	ids, _, _ := m.idsForExpr(n)
+	return ids
+}
+
 // idsForExpr will return a collection of series ids and a filter expression that should
 // be used to filter points from those series.
 func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Expr, error) {
@@ -1002,6 +1007,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 			}
 			ids = seriesIDs.evict()
 		} else if empty && n.Op == influxql.NEQREGEX {
+			ids = make(SeriesIDs, 0, len(m.seriesIDs))
 			for k := range tagVals {
 				if !re.Val.MatchString(k) {
 					ids = append(ids, tagVals[k]...)
@@ -1009,6 +1015,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 			}
 			sort.Sort(ids)
 		} else if !empty && n.Op == influxql.EQREGEX {
+			ids = make(SeriesIDs, 0, len(m.seriesIDs))
 			for k := range tagVals {
 				if re.Val.MatchString(k) {
 					ids = append(ids, tagVals[k]...)
@@ -1462,7 +1469,7 @@ type Series struct {
 	mu          sync.RWMutex
 	Key         string
 	Tags        models.Tags
-	id          uint64
+	ID          uint64
 	measurement *Measurement
 	shardIDs    []uint64 // shards that have this series defined
 }
