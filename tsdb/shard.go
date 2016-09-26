@@ -490,7 +490,12 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 		ss := s.index.SeriesBytes(p.Key())
 		if ss == nil {
 			key := string(p.Key())
-			if s.options.Config.MaxSeriesPerDatabase > 0 && len(s.index.series)+1 > s.options.Config.MaxSeriesPerDatabase {
+
+			s.index.mu.RLock()
+			indexSeriesLen := len(s.index.series)
+			s.index.mu.RUnlock()
+
+			if s.options.Config.MaxSeriesPerDatabase > 0 && indexSeriesLen+1 > s.options.Config.MaxSeriesPerDatabase {
 				return nil, fmt.Errorf("max series per database exceeded: %s", key)
 			}
 
