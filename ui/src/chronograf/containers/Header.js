@@ -15,7 +15,7 @@ const Header = React.createClass({
     explorerID: PropTypes.string.isRequired,
     actions: PropTypes.shape({
       setTimeRange: PropTypes.func.isRequired,
-      createExplorer: PropTypes.func.isRequired,
+      createExploration: PropTypes.func.isRequired,
       chooseExplorer: PropTypes.func.isRequired,
       deleteExplorer: PropTypes.func.isRequired,
       editExplorer: PropTypes.func.isRequired,
@@ -32,6 +32,10 @@ const Header = React.createClass({
     };
   },
 
+  contextTypes: {
+    sources: PropTypes.arrayOf(PropTypes.shape().isRequired).isRequired,
+  },
+
   handleChooseTimeRange(bounds) {
     this.props.actions.setTimeRange(bounds);
   },
@@ -46,10 +50,11 @@ const Header = React.createClass({
     return selected ? selected.inputValue : 'Custom';
   },
 
-  handleCreateExplorer() {
+  handleCreateExploration() {
     // TODO: passing in this.props.router.push is a big smell, getting something like
     // react-router-redux might be better here
-    this.props.actions.createExplorer(this.props.router.push);
+
+    this.props.actions.createExploration(this.context.sources[0].links.self, this.props.router.push);
   },
 
   handleChooseExplorer({id}) {
@@ -99,7 +104,7 @@ const Header = React.createClass({
     return (
       <div className="enterprise-header data-explorer__header">
         <div className="enterprise-header__left">
-          <h1 className="dropdown-title">Session: </h1>
+          <h1 className="dropdown-title">Exploration: </h1>
           <Dropdown
             className="sessions-dropdown"
             items={dropdownItems}
@@ -107,7 +112,7 @@ const Header = React.createClass({
             onChoose={this.handleChooseExplorer}
             selected={this.getName(selectedExplorer)}
           />
-          <div className="btn btn-sm btn-primary sessions-dropdown__btn" onClick={this.handleCreateExplorer}>New Session</div>
+          <div className="btn btn-sm btn-primary sessions-dropdown__btn" onClick={this.handleCreateExploration}>New Exploration</div>
         </div>
         <div className="enterprise-header__right">
           <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={this.findSelected(timeRange)} />
@@ -174,7 +179,7 @@ const EditExplorerModal = React.createClass({
               <button type="button" className="close" data-dismiss="modal" aria-label="Close">
                 <span aria-hidden="true">×</span>
               </button>
-              <h4 className="modal-title">Rename Explorer Session</h4>
+              <h4 className="modal-title">Rename Exploreration</h4>
             </div>
             <form onSubmit={this.handleConfirm}>
               <div className="modal-body">

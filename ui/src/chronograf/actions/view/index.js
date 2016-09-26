@@ -142,14 +142,13 @@ export function toggleTagAcceptance(queryId) {
   };
 }
 
-export function createExplorer(clusterID, push) {
+export function createExploration(url, push) {
   return (dispatch) => {
     const initialState = getInitialState();
     AJAX({
-      url: '/api/int/v1/explorers',
+      url: `${url}/users/1/explorations`, // TODO: change this to use actual user link once users are introduced
       method: 'POST',
       data: JSON.stringify({
-        cluster_id: clusterID,
         data: JSON.stringify(initialState),
       }),
       headers: {
@@ -158,6 +157,7 @@ export function createExplorer(clusterID, push) {
     }).then((resp) => {
       const explorer = parseRawExplorer(resp.data);
       dispatch(loadExplorer(explorer));
+      debugger;
       push(`/chronograf/data_explorer/${explorer.id}`);
     });
   };
@@ -181,7 +181,7 @@ export function deleteExplorer(clusterID, explorerID, push) {
           dispatch(loadExplorer(explorer));
           push(`/chronograf/data_explorer/${explorer.id}`);
         } else {
-          dispatch(createExplorer(clusterID, push));
+          dispatch(createExploration(clusterID, push));
         }
       }
 
