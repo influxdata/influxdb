@@ -389,7 +389,7 @@ func (e *Engine) Statistics(tags map[string]string) []models.Statistic {
 			statTSMFullCompactionDuration: atomic.LoadInt64(&e.stats.TSMFullCompactionDuration),
 		},
 	})
-	statistics = append(statistics, e.index.Statistics(tags)...)
+
 	statistics = append(statistics, e.Cache.Statistics(tags)...)
 	statistics = append(statistics, e.FileStore.Statistics(tags)...)
 	statistics = append(statistics, e.WAL.Statistics(tags)...)

@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"sort"
 	"sync"
-	"sync/atomic"
 	"unsafe"
 
 	"github.com/influxdata/influxdb/influxql"
@@ -19,11 +18,6 @@ import (
 )
 
 //go:generate protoc --gogo_out=. internal/meta.proto
-
-const (
-	statDatabaseSeries       = "numSeries"       // number of series in this database
-	statDatabaseMeasurements = "numMeasurements" // number of measurements in this database
-)
 
 // DatabaseIndex is the in memory index of a collection of measurements, time series, and their tags.
 // Exported functions are goroutine safe while un-exported functions assume the caller will use the appropriate locks
@@ -38,9 +32,6 @@ type DatabaseIndex struct {
 	measurementsSketch, measurementsTSSketch *estimator.HyperLogLogPlus
 
 	name string // name of the database represented by this index
-
-	stats       *IndexStatistics
-	defaultTags models.StatisticTags
 }
 
 // NewDatabaseIndex returns a new initialized DatabaseIndex.
@@ -49,8 +40,6 @@ func NewDatabaseIndex(name string) (index *DatabaseIndex, err error) {
 		measurements: make(map[string]*Measurement),
 		series:       make(map[string]*Series),
 		name:         name,
-		stats:        &IndexStatistics{},
-		defaultTags:  models.StatisticTags{"database": name},
 	}
 
 	if index.seriesSketch, err = estimator.NewHyperLogLogPlus(14); err != nil {
@@ -68,24 +57,6 @@ func NewDatabaseIndex(name string) (index *DatabaseIndex, err error) {
 
 func (d *DatabaseIndex) Open() (err error) { return nil }
 func (d *DatabaseIndex) Close() error      { return nil }
-
-// IndexStatistics maintains statistics for the index.
-type IndexStatistics struct {
-	NumSeries       int64
-	NumMeasurements int64
-}
-
-// Statistics returns statistics for periodic monitoring.
-func (d *DatabaseIndex) Statistics(tags map[string]string) []models.Statistic {
-	return []models.Statistic{{
-		Name: "database",
-		Tags: d.defaultTags.Merge(tags),
-		Values: map[string]interface{}{
-			statDatabaseSeries:       atomic.LoadInt64(&d.stats.NumSeries),
-			statDatabaseMeasurements: atomic.LoadInt64(&d.stats.NumMeasurements),
-		},
-	}}
-}
 
 // Series returns a series by key.
 func (d *DatabaseIndex) Series(key string) (*Series, error) {
@@ -176,7 +147,6 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 	if err := d.seriesSketch.Add([]byte(series.Key)); err != nil {
 		return nil, err
 	}
-	atomic.AddInt64(&d.stats.NumSeries, 1)
 	d.mu.Unlock()
 
 	return series, nil
@@ -211,7 +181,6 @@ func (d *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) (*Measure
 		if err := d.measurementsSketch.Add([]byte(name)); err != nil {
 			return nil, err
 		}
-		atomic.AddInt64(&d.stats.NumMeasurements, 1)
 	}
 	return m, nil
 }
@@ -451,9 +420,6 @@ func (d *DatabaseIndex) dropMeasurement(name string) error {
 	for _, s := range m.seriesByID {
 		delete(d.series, s.Key)
 	}
-
-	atomic.AddInt64(&d.stats.NumSeries, int64(-len(m.seriesByID)))
-	atomic.AddInt64(&d.stats.NumMeasurements, -1)
 	return nil
 }
 
@@ -495,7 +461,6 @@ func (d *DatabaseIndex) DropSeries(keys []string) error {
 	for mname := range mToDelete {
 		d.dropMeasurement(mname)
 	}
-	atomic.AddInt64(&d.stats.NumSeries, -nDeleted)
 	return nil
 }
 
