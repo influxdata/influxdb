@@ -51,8 +51,11 @@ EXPORT OPTIONS
 -rp <name>::
   The retention policy to export. Optional. Requires the '-db <name>' option to be specified.
 
--dir <path>::
-  Root storage path. Defaults to '~/.influxdb'.
+-data-dir <path>::
+  Data storage path. Defaults to '~/.influxdb/data'.
+
+-wal-dir <path>::
+  Wal storage path. Defaults to '~/.influxdb/wal'.
 
 -start-time <timestamp>::
   The start time of the export. The timestamp is in RFC3339 format. Optional.

@@ -1,7 +1,9 @@
-package main
+package report
 
 import (
+	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -14,25 +16,49 @@ import (
 	"github.com/retailnext/hllpp"
 )
 
-type reportOpts struct {
+// Command represents the program execution for "influxd report".
+type Command struct {
+	Stderr io.Writer
+	Stdout io.Writer
+
 	dir      string
 	pattern  string
 	detailed bool
 }
 
-func cmdReport(opts *reportOpts) {
+// NewCommand returns a new instance of Command.
+func NewCommand() *Command {
+	return &Command{
+		Stderr: os.Stderr,
+		Stdout: os.Stdout,
+	}
+}
+
+// Run executes the command.
+func (cmd *Command) Run(args ...string) error {
+	fs := flag.NewFlagSet("report", flag.ExitOnError)
+	fs.StringVar(&cmd.pattern, "pattern", "", "Include only files matching a pattern")
+	fs.BoolVar(&cmd.detailed, "detailed", false, "Report detailed cardinality estimates")
+
+	fs.SetOutput(cmd.Stdout)
+	fs.Usage = cmd.printUsage
+
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cmd.dir = fs.Arg(0)
+
 	start := time.Now()
 
-	files, err := filepath.Glob(filepath.Join(opts.dir, fmt.Sprintf("*.%s", tsm1.TSMFileExtension)))
+	files, err := filepath.Glob(filepath.Join(cmd.dir, fmt.Sprintf("*.%s", tsm1.TSMFileExtension)))
 	if err != nil {
-		fmt.Printf("%v\n", err)
-		os.Exit(1)
+		return err
 	}
 
 	var filtered []string
-	if opts.pattern != "" {
+	if cmd.pattern != "" {
 		for _, f := range files {
-			if strings.Contains(f, opts.pattern) {
+			if strings.Contains(f, cmd.pattern) {
 				filtered = append(filtered, f)
 			}
 		}
@@ -40,11 +66,10 @@ func cmdReport(opts *reportOpts) {
 	}
 
 	if len(files) == 0 {
-		fmt.Printf("no tsm files at %v\n", opts.dir)
-		os.Exit(1)
+		return fmt.Errorf("no tsm files at %v\n", cmd.dir)
 	}
 
-	tw := tabwriter.NewWriter(os.Stdout, 8, 8, 1, '\t', 0)
+	tw := tabwriter.NewWriter(cmd.Stdout, 8, 8, 1, '\t', 0)
 	fmt.Fprintln(tw, strings.Join([]string{"File", "Series", "Load Time"}, "\t"))
 
 	totalSeries := hllpp.New()
@@ -60,14 +85,14 @@ func cmdReport(opts *reportOpts) {
 	for _, f := range files {
 		file, err := os.OpenFile(f, os.O_RDONLY, 0600)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s: %v. Skipping.\n", f, err)
+			fmt.Fprintf(cmd.Stderr, "error: %s: %v. Skipping.\n", f, err)
 			continue
 		}
 
 		loadStart := time.Now()
 		reader, err := tsm1.NewTSMReader(file)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %s: %v. Skipping.\n", file.Name(), err)
+			fmt.Fprintf(cmd.Stderr, "error: %s: %v. Skipping.\n", file.Name(), err)
 			continue
 		}
 		loadTime := time.Since(loadStart)
@@ -77,7 +102,7 @@ func cmdReport(opts *reportOpts) {
 			key, _ := reader.KeyAt(i)
 			totalSeries.Add([]byte(key))
 
-			if opts.detailed {
+			if cmd.detailed {
 				sep := strings.Index(string(key), "#!~#")
 				seriesKey, field := key[:sep], key[sep+4:]
 				measurement, tags, _ := models.ParseKey(seriesKey)
@@ -121,7 +146,7 @@ func cmdReport(opts *reportOpts) {
 	fmt.Printf("Statistics\n")
 	fmt.Printf("  Series:\n")
 	fmt.Printf("    Total (est): %d\n", totalSeries.Count())
-	if opts.detailed {
+	if cmd.detailed {
 		fmt.Printf("  Measurements (est):\n")
 		for t, card := range measCardinalities {
 			fmt.Printf("    %v: %d (%d%%)\n", t, card.Count(), int((float64(card.Count())/float64(totalSeries.Count()))*100))
@@ -139,4 +164,21 @@ func cmdReport(opts *reportOpts) {
 	}
 
 	fmt.Printf("Completed in %s\n", time.Since(start))
+	return nil
+}
+
+// printUsage prints the usage message to STDERR.
+func (cmd *Command) printUsage() {
+	usage := `Displays shard level report.
+
+Usage: influx_inspect report [flags]
+
+    -pattern <pattern>
+            Include only files matching a pattern.
+    -detailed
+            Report detailed cardinality estimates.
+            Defaults to "false".
+`
+
+	fmt.Fprintf(cmd.Stdout, usage)
 }
