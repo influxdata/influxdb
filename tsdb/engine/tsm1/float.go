@@ -52,7 +52,7 @@ func NewFloatEncoder() *FloatEncoder {
 	}
 
 	s.bw = bitstream.NewWriter(&s.buf)
-	s.buf.Write([]byte{byte(floatCompressedGorilla << 4)})
+	s.buf.WriteByte(floatCompressedGorilla << 4)
 
 	return &s
 
@@ -64,7 +64,7 @@ func (s *FloatEncoder) Reset() {
 	s.leading = ^uint64(0)
 	s.trailing = 0
 	s.buf.Reset()
-	s.buf.Write([]byte{byte(floatCompressedGorilla << 4)})
+	s.buf.WriteByte(floatCompressedGorilla << 4)
 
 	s.bw.Resume(0x0, 8)
 

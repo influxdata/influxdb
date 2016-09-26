@@ -151,10 +151,11 @@ func (e *encoder) encodePacked(div uint64, dts []uint64) ([]byte, error) {
 		return nil, err
 	}
 
-	if len(e.bytes) < 8+1+len(deltas) {
-		e.bytes = make([]byte, 8+1+len(deltas))
+	sz := 8 + 1 + len(deltas)
+	if cap(e.bytes) < sz {
+		e.bytes = make([]byte, sz)
 	}
-	b := e.bytes
+	b := e.bytes[:sz]
 
 	// 4 high bits used for the encoding type
 	b[0] = byte(timeCompressedPackedSimple) << 4
@@ -169,10 +170,11 @@ func (e *encoder) encodePacked(div uint64, dts []uint64) ([]byte, error) {
 }
 
 func (e *encoder) encodeRaw() ([]byte, error) {
-	if len(e.bytes) < 1+len(e.ts)*8 {
-		e.bytes = make([]byte, 1+len(e.ts)*8)
+	sz := 1 + len(e.ts)*8
+	if cap(e.bytes) < sz {
+		e.bytes = make([]byte, sz)
 	}
-	b := e.bytes
+	b := e.bytes[:sz]
 	b[0] = byte(timeUncompressed) << 4
 	for i, v := range e.ts {
 		binary.BigEndian.PutUint64(b[1+i*8:1+i*8+8], uint64(v))
@@ -181,11 +183,12 @@ func (e *encoder) encodeRaw() ([]byte, error) {
 }
 
 func (e *encoder) encodeRLE(first, delta, div uint64, n int) ([]byte, error) {
-	// Large varints can take up to 10 bytes
-	if len(e.bytes) < 31 {
-		e.bytes = make([]byte, 31)
+	// Large varints can take up to 10 bytes, we're encoding 3 + 1 byte type
+	sz := 31
+	if cap(e.bytes) < sz {
+		e.bytes = make([]byte, sz)
 	}
-	b := e.bytes
+	b := e.bytes[:sz]
 	// 4 high bits used for the encoding type
 	b[0] = byte(timeCompressedRLE) << 4
 	// 4 low bits are the log10 divisor

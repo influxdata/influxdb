@@ -86,7 +86,8 @@ func (e *IntegerEncoder) Bytes() ([]byte, error) {
 }
 
 func (e *IntegerEncoder) encodeRLE() ([]byte, error) {
-	// Large varints can take up to 10 bytes
+	// Large varints can take up to 10 bytes.  We're storing 3 + 1
+	// type byte.
 	var b [31]byte
 
 	// 4 high bits used for the encoding type

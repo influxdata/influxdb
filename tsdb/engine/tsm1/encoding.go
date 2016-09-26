@@ -625,10 +625,11 @@ func DecodeStringBlock(block []byte, tdec *TimeDecoder, vdec *StringDecoder, a *
 func packBlock(buf []byte, typ byte, ts []byte, values []byte) []byte {
 	// We encode the length of the timestamp block using a variable byte encoding.
 	// This allows small byte slices to take up 1 byte while larger ones use 2 or more.
-	if len(buf) < 1+10+len(ts)+len(values) {
-		buf = make([]byte, 1+10+len(ts)+len(values))
+	sz := 1 + 10 + len(ts) + len(values)
+	if cap(buf) < sz {
+		buf = make([]byte, sz)
 	}
-	b := buf
+	b := buf[:sz]
 	b[0] = typ
 	i := binary.PutUvarint(b[1:10], uint64(len(ts)))
 	i += 1
