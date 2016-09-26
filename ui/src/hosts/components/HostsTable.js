@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react';
-import Reactable from 'reactable';
+import _ from 'lodash';
 
 const HostsTable = React.createClass({
   propTypes: {
@@ -9,42 +9,67 @@ const HostsTable = React.createClass({
   getInitialState() {
     return {
       filteredHosts: this.props.hosts,
+      sortDirection: null,
     };
   },
 
   filterHosts(searchTerm) {
-    const hosts = this.props.hosts.filter((h) => h.name.search(searchTerm) !== -1);
+    const unfiltered = this.props.hosts;
+    const hosts = unfiltered.filter((h) => h.name.search(searchTerm) !== -1);
     this.setState({filteredHosts: hosts});
   },
 
+  changeSort() {
+    if (this.state.sortDirection === 'asc') {
+      this.setState({sortDirection: 'desc'});
+    } else {
+      this.setState({sortDirection: 'asc'});
+    }
+  },
+
+  sort(hosts) {
+    switch (this.state.sortDirection) {
+      case 'asc':
+        return _.sortBy(hosts, (e) => e.name);
+      case 'desc':
+        return _.sortBy(hosts, (e) => e.name).reverse();
+      default:
+        return hosts;
+    }
+  },
+
   render() {
-    const {Table, Thead, Tr, Td, Th} = Reactable;
+    const hosts = this.sort(this.state.filteredHosts);
 
     return (
       <div>
         <SearchBar onSearch={this.filterHosts} />
-        <Table sortable={true} className="table v-center">
-          <Thead>
-            <Th column="name">Hostname</Th>
-            <Th column="status">Status</Th>
-            <Th column="cpu">CPU</Th>
-            <Th column="load">Load</Th>
-            <Th column="apps">Apps</Th>
-          </Thead>
-          {
-            this.state.filteredHosts.map(({name, id}) => {
-              return (
-                <Tr key={id}>
-                  <Td column="name"><a href={`/hosts/${id}`}>{name}</a></Td>
-                  <Td column="status">UP</Td>
-                  <Td column="cpu">98%</Td>
-                  <Td column="load">1.12</Td>
-                  <Td column="apps">influxdb, ntp, system</Td>
-                </Tr>
-              );
-            })
-          }
-        </Table>
+        <table className="table v-center">
+          <thead>
+            <tr>
+              <th onClick={this.changeSort} className="sortable-header">Hostname</th>
+              <th>Status</th>
+              <th>CPU</th>
+              <th>Load</th>
+              <th>Apps</th>
+            </tr>
+          </thead>
+          <tbody>
+            {
+              hosts.map(({name, id}) => {
+                return (
+                  <tr key={name}>
+                    <td><a href={`/hosts/${id}`}>{name}</a></td>
+                    <td>UP</td>
+                    <td>98%</td>
+                    <td>1.12</td>
+                    <td>influxdb, ntp, system</td>
+                  </tr>
+                );
+              })
+            }
+          </tbody>
+        </table>
       </div>
     );
   },
