@@ -28,6 +28,12 @@ var (
 	ErrStoreClosed = fmt.Errorf("store is closed")
 )
 
+// Statistics gathered by the store.
+const (
+	statDatabaseSeries       = "numSeries"       // number of series in a database
+	statDatabaseMeasurements = "numMeasurements" // number of measurements in a database
+)
+
 // Store manages shards and indexes for databases.
 type Store struct {
 	mu sync.RWMutex
@@ -79,8 +85,33 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 	shards := s.shardsSlice()
 	s.mu.RUnlock()
 
+	// Add all the series and measurements cardinality estimations.
+	databases := s.Databases()
+	statistics := make([]models.Statistic, 0, len(databases))
+	for _, database := range databases {
+		sc, err := s.SeriesCardinality(database)
+		if err != nil {
+			s.Logger.Print(err)
+			continue
+		}
+
+		mc, err := s.MeasurementsCardinality(database)
+		if err != nil {
+			s.Logger.Print(err)
+			continue
+		}
+
+		statistics = append(statistics, models.Statistic{
+			Name: "database",
+			Tags: models.StatisticTags{"database": database}.Merge(tags),
+			Values: map[string]interface{}{
+				statDatabaseSeries:       sc,
+				statDatabaseMeasurements: mc,
+			},
+		})
+	}
+
 	// Gather all statistics for all shards.
-	var statistics []models.Statistic
 	for _, shard := range shards {
 		statistics = append(statistics, shard.Statistics(tags)...)
 	}
