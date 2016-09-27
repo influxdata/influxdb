@@ -179,7 +179,7 @@ const EditExplorerModal = React.createClass({
               <button type="button" className="close" data-dismiss="modal" aria-label="Close">
                 <span aria-hidden="true">×</span>
               </button>
-              <h4 className="modal-title">Rename Exploreration</h4>
+              <h4 className="modal-title">Rename Explorer</h4>
             </div>
             <form onSubmit={this.handleConfirm}>
               <div className="modal-body">
