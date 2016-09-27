@@ -38,7 +38,7 @@ const SideNav = React.createClass({
           <NavListItem matcher="settings" link={`/account/settings`}>Settings</NavListItem>
           <a className="sidebar__menu-item" href="/logout">Logout</a>
         </NavBlock>
-        <NavBlock matcher="hosts" icon="crown" link={`/hosts`}>
+        <NavBlock matcher="hosts" icon="cpu" link={`/hosts`}>
           <NavHeader link={`/hosts`} title="Infrastructure" />
           <NavListItem matcher="hosts" link={`/hosts`}>Host List</NavListItem>
         </NavBlock>
