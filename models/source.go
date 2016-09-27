@@ -19,6 +19,10 @@ swagger:model Source
 */
 type Source struct {
 
+	/* Indicates whether this source is the default source
+	 */
+	Default bool `json:"default,omitempty"`
+
 	/* Unique identifier representing a specific data source.
 
 	Read Only: true
