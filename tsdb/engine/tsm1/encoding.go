@@ -230,7 +230,7 @@ func (f *FloatValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.value)
 }
 
-func encodeFloatBlock(buf []byte, values []Value) (b []byte, err error) {
+func encodeFloatBlock(buf []byte, values []Value) ([]byte, err error) {
 	if len(values) == 0 {
 		return nil, nil
 	}
@@ -251,7 +251,8 @@ func encodeFloatBlock(buf []byte, values []Value) (b []byte, err error) {
 	}
 	venc.Finish()
 
-	var tb, vb []byte
+	var err error
+	var b, tb, vb []byte
 
 	// Encoded timestamp values
 	tb, err = tsenc.Bytes()
@@ -271,7 +272,7 @@ func encodeFloatBlock(buf []byte, values []Value) (b []byte, err error) {
 cleanup:
 	putTimeEncoder(tsenc)
 	putFloatEncoder(venc)
-	return
+	return b, err
 
 }
 
@@ -342,7 +343,7 @@ func (f *BooleanValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
 }
 
-func encodeBooleanBlock(buf []byte, values []Value) (b []byte, err error) {
+func encodeBooleanBlock(buf []byte, values []Value) ([]byte, error) {
 	if len(values) == 0 {
 		return nil, nil
 	}
@@ -359,7 +360,8 @@ func encodeBooleanBlock(buf []byte, values []Value) (b []byte, err error) {
 		venc.Write(v.(*BooleanValue).value)
 	}
 
-	var tb, vb []byte
+	var err error
+	var b, tb, vb []byte
 
 	// Encoded timestamp values
 	tb, err = tsenc.Bytes()
@@ -379,7 +381,7 @@ func encodeBooleanBlock(buf []byte, values []Value) (b []byte, err error) {
 cleanup:
 	putTimeEncoder(tsenc)
 	putBooleanEncoder(venc)
-	return
+	return b, err
 }
 
 func DecodeBooleanBlock(block []byte, tdec *TimeDecoder, vdec *BooleanDecoder, a *[]BooleanValue) ([]BooleanValue, error) {
@@ -447,7 +449,7 @@ func (f *IntegerValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
 }
 
-func encodeIntegerBlock(buf []byte, values []Value) (b []byte, err error) {
+func encodeIntegerBlock(buf []byte, values []Value) ([]byte, error) {
 	tsEnc := getTimeEncoder(len(values))
 	vEnc := getIntegerEncoder(len(values))
 
@@ -456,7 +458,8 @@ func encodeIntegerBlock(buf []byte, values []Value) (b []byte, err error) {
 		vEnc.Write(v.(*IntegerValue).value)
 	}
 
-	var tb, vb []byte
+	var err error
+	var b, tb, vb []byte
 
 	// Encoded timestamp values
 	tb, err = tsEnc.Bytes()
@@ -475,7 +478,7 @@ func encodeIntegerBlock(buf []byte, values []Value) (b []byte, err error) {
 cleanup:
 	putTimeEncoder(tsEnc)
 	putIntegerEncoder(vEnc)
-	return
+	return b, err
 }
 
 func DecodeIntegerBlock(block []byte, tdec *TimeDecoder, vdec *IntegerDecoder, a *[]IntegerValue) ([]IntegerValue, error) {
@@ -544,7 +547,7 @@ func (f *StringValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
 }
 
-func encodeStringBlock(buf []byte, values []Value) (b []byte, err error) {
+func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 	tsEnc := getTimeEncoder(len(values))
 	vEnc := getStringEncoder(len(values) * len(values[0].(*StringValue).value))
 
@@ -553,7 +556,8 @@ func encodeStringBlock(buf []byte, values []Value) (b []byte, err error) {
 		vEnc.Write(v.(*StringValue).value)
 	}
 
-	var tb, vb []byte
+	var err error
+	var b, tb, vb []byte
 
 	// Encoded timestamp values
 	tb, err = tsEnc.Bytes()
@@ -572,7 +576,7 @@ func encodeStringBlock(buf []byte, values []Value) (b []byte, err error) {
 cleanup:
 	putTimeEncoder(tsEnc)
 	putStringEncoder(vEnc)
-	return
+	return b, err
 }
 
 func DecodeStringBlock(block []byte, tdec *TimeDecoder, vdec *StringDecoder, a *[]StringValue) ([]StringValue, error) {
