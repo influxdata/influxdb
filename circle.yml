@@ -13,14 +13,9 @@ dependencies:
         - git config --global url."git@github.com:".insteadOf "https://github.com/"
         - mkdir -p ${HOME}/.go_workspace/src/github.com/influxdata
         - ln -sf ${HOME}/mrfusion ${HOME}/.go_workspace/src/github.com/influxdata
-        - "make jsdep":
-            pwd: ../.go_workspace/src/github.com/influxdata/mrfusion
-        - "make godep":
-            pwd: ../.go_workspace/src/github.com/influxdata/mrfusion
-        - "make build":
+        - "make":
             pwd: ../.go_workspace/src/github.com/influxdata/mrfusion
     cache_directories:
-        - ../.go_workspace/src/github.com/influxdata/mrfusion/ui/node_modules
         - ../../../../../mrfusion/ui/node_modules
 
 test:
