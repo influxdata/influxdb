@@ -230,7 +230,7 @@ func (f *FloatValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.value)
 }
 
-func encodeFloatBlock(buf []byte, values []Value) ([]byte, err error) {
+func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	if len(values) == 0 {
 		return nil, nil
 	}
