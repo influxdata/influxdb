@@ -305,8 +305,6 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 	statistics = append(statistics, statistic)
 
 	statistics = m.gatherStatistics(statistics, tags)
-	sort.Sort(Statistics(statistics)) // Unstable sort.
-
 	return statistics, nil
 }
 

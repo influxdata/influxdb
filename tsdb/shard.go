@@ -198,6 +198,7 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 			statWriteReqOK:     atomic.LoadInt64(&s.stats.WriteReqOK),
 			statWriteReqErr:    atomic.LoadInt64(&s.stats.WriteReqErr),
 			statSeriesCreate:   seriesN,
+			statFieldsCreate:   atomic.LoadInt64(&s.stats.FieldsCreated),
 			statWritePointsErr: atomic.LoadInt64(&s.stats.WritePointsErr),
 			statWritePointsOK:  atomic.LoadInt64(&s.stats.WritePointsOK),
 			statWriteBytes:     atomic.LoadInt64(&s.stats.BytesWritten),
