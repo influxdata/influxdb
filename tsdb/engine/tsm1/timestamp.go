@@ -73,7 +73,7 @@ func NewTimeEncoder(sz int) TimeEncoder {
 func (e *encoder) Reset() {
 	e.ts = e.ts[:0]
 	e.bytes = e.bytes[:0]
-	e.enc = simple8b.NewEncoder()
+	e.enc.Reset()
 }
 
 // Write adds a time.Time to the compressed stream.
