@@ -76,6 +76,12 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 
 	mockHandler := mock.NewHandler()
 
+	api.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler = operations.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.DeleteExploration)
+	api.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler = operations.GetSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.Exploration)
+	api.GetSourcesIDUsersUserIDExplorationsHandler = operations.GetSourcesIDUsersUserIDExplorationsHandlerFunc(mockHandler.Explorations)
+	api.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler = operations.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.UpdateExploration)
+	api.PostSourcesIDUsersUserIDExplorationsHandler = operations.PostSourcesIDUsersUserIDExplorationsHandlerFunc(mockHandler.NewExploration)
+
 	api.DeleteDashboardsIDHandler = operations.DeleteDashboardsIDHandlerFunc(func(ctx context.Context, params operations.DeleteDashboardsIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .DeleteDashboardsID has not yet been implemented")
 	})
@@ -85,9 +91,7 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 	api.DeleteSourcesIDRolesRoleIDHandler = operations.DeleteSourcesIDRolesRoleIDHandlerFunc(func(ctx context.Context, params operations.DeleteSourcesIDRolesRoleIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .DeleteSourcesIDRolesRoleID has not yet been implemented")
 	})
-	api.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler = operations.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(func(ctx context.Context, params operations.DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
-		return middleware.NotImplemented("operation .DeleteSourcesIDUsersUserIDExplorationsExplorationID has not yet been implemented")
-	})
+
 	api.DeleteSourcesIDUsersUserIDHandler = operations.DeleteSourcesIDUsersUserIDHandlerFunc(func(ctx context.Context, params operations.DeleteSourcesIDUsersUserIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .DeleteSourcesIDUsersUserID has not yet been implemented")
 	})
@@ -114,8 +118,6 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 		return middleware.NotImplemented("operation .GetSourcesIDRolesRoleID has not yet been implemented")
 	})
 
-	api.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler = operations.GetSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.Exploration)
-
 	api.GetSourcesIDUsersHandler = operations.GetSourcesIDUsersHandlerFunc(func(ctx context.Context, params operations.GetSourcesIDUsersParams) middleware.Responder {
 		return middleware.NotImplemented("operation .GetSourcesIDUsers has not yet been implemented")
 	})
@@ -123,16 +125,13 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 		return middleware.NotImplemented("operation .GetSourcesIDUsersUserID has not yet been implemented")
 	})
 
-	api.GetSourcesIDUsersUserIDExplorationsHandler = operations.GetSourcesIDUsersUserIDExplorationsHandlerFunc(mockHandler.Explorations)
 	api.PatchSourcesIDHandler = operations.PatchSourcesIDHandlerFunc(func(ctx context.Context, params operations.PatchSourcesIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PatchSourcesID has not yet been implemented")
 	})
 	api.PatchSourcesIDRolesRoleIDHandler = operations.PatchSourcesIDRolesRoleIDHandlerFunc(func(ctx context.Context, params operations.PatchSourcesIDRolesRoleIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PatchSourcesIDRolesRoleID has not yet been implemented")
 	})
-	api.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler = operations.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(func(ctx context.Context, params operations.PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
-		return middleware.NotImplemented("operation .PatchSourcesIDUsersUserIDExplorationsExplorationID has not yet been implemented")
-	})
+
 	api.PatchSourcesIDUsersUserIDHandler = operations.PatchSourcesIDUsersUserIDHandlerFunc(func(ctx context.Context, params operations.PatchSourcesIDUsersUserIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PatchSourcesIDUsersUserID has not yet been implemented")
 	})
@@ -160,9 +159,7 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 	api.PostSourcesIDUsersHandler = operations.PostSourcesIDUsersHandlerFunc(func(ctx context.Context, params operations.PostSourcesIDUsersParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PostSourcesIDUsers has not yet been implemented")
 	})
-	api.PostSourcesIDUsersUserIDExplorationsHandler = operations.PostSourcesIDUsersUserIDExplorationsHandlerFunc(func(ctx context.Context, params operations.PostSourcesIDUsersUserIDExplorationsParams) middleware.Responder {
-		return middleware.NotImplemented("operation .PostSourcesIDUsersUserIDExplorations has not yet been implemented")
-	})
+
 	api.PutDashboardsIDHandler = operations.PutDashboardsIDHandlerFunc(func(ctx context.Context, params operations.PutDashboardsIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PutDashboardsID has not yet been implemented")
 	})
