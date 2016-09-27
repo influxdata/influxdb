@@ -21,6 +21,7 @@ dependencies:
             pwd: ../.go_workspace/src/github.com/influxdata/mrfusion
     cache_directories:
         - ../.go_workspace/src/github.com/influxdata/mrfusion/ui/node_modules
+        - ../../../../../.go_workspace/src/github.com/influxdata/mrfusion/ui/node_modules
 
 test:
     override:
