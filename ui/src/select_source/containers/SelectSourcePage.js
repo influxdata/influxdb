@@ -51,7 +51,7 @@ export const SelectSourcePage = React.createClass({
   redirectToApp(source) {
     const {redirectPath} = this.props.location.query;
     if (!redirectPath) {
-      this.props.router.push(`/sources/${source.id}/hosts`);
+      return this.props.router.push(`/sources/${source.id}/hosts`);
     }
 
     const fixedPath = redirectPath.replace(/\/sources\/[^/]*/, `/sources/${source.id}`);
