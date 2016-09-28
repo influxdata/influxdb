@@ -36,11 +36,6 @@ const SideNav = React.createClass({
           <NavHeader link={`${sourcePrefix}/chronograf/data_explorer`} title={'Chronograf'} />
           <NavListItem matcher={'data_explorer'} link={`${sourcePrefix}/chronograf/data_explorer`}>Data Explorer</NavListItem>
         </NavBlock>
-        <NavBlock matcher="settings" icon="user-outline" link={`${sourcePrefix}/account/settings`}>
-          <NavHeader link={`${sourcePrefix}/account/settings`} title="My Account" />
-          <NavListItem matcher="settings" link={`${sourcePrefix}/account/settings`}>Settings</NavListItem>
-          <a className="sidebar__menu-item" href="/logout">Logout</a>
-        </NavBlock>
         <NavBlock matcher="hosts" icon="cpu" link={`${sourcePrefix}/hosts`}>
           <NavHeader link={`${sourcePrefix}/hosts`} title="Infrastructure" />
           <NavListItem matcher="hosts" link={`${sourcePrefix}/hosts`}>Host List</NavListItem>
