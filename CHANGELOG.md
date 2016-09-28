@@ -1,3 +1,9 @@
+## v1.0.2 [unreleased]
+
+## Bugfixes
+
+- [#7150](https://github.com/influxdata/influxdb/issues/7150): Do not automatically reset the shard duration when using ALTER RETENTION POLICY
+
 ## v1.0.1 [2016-09-26]
 
 ### Bugfixes
