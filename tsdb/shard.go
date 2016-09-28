@@ -174,7 +174,6 @@ type ShardStatistics struct {
 	WriteReq       int64
 	WriteReqOK     int64
 	WriteReqErr    int64
-	SeriesCreated  int64
 	FieldsCreated  int64
 	WritePointsErr int64
 	WritePointsOK  int64
@@ -202,7 +201,7 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 			statWriteReq:       atomic.LoadInt64(&s.stats.WriteReq),
 			statWriteReqOK:     atomic.LoadInt64(&s.stats.WriteReqOK),
 			statWriteReqErr:    atomic.LoadInt64(&s.stats.WriteReqErr),
-			statSeriesCreate:   seriesN,
+			statSeriesCreate:   int64(seriesN),
 			statFieldsCreate:   atomic.LoadInt64(&s.stats.FieldsCreated),
 			statWritePointsErr: atomic.LoadInt64(&s.stats.WritePointsErr),
 			statWritePointsOK:  atomic.LoadInt64(&s.stats.WritePointsOK),
@@ -259,14 +258,6 @@ func (s *Shard) Open() error {
 		}
 
 		s.engine = e
-
-		seriesN, err := s.engine.SeriesN()
-		if err != nil {
-			return err
-		}
-		// Store statistic of exact number of series in shard.
-		atomic.AddInt64(&s.stats.SeriesCreated, int64(seriesN))
-
 		s.logger.Printf("%s database index loaded in %s", s.path, time.Now().Sub(start))
 
 		go s.monitorSize()
@@ -509,7 +500,6 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 			}
 
 			ss = NewSeries(key, tags)
-			atomic.AddInt64(&s.stats.SeriesCreated, 1)
 		}
 
 		if ss, err = s.engine.CreateSeries(p.Name(), ss); err != nil {
