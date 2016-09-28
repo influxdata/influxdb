@@ -631,6 +631,9 @@ func (s *Store) cardinalityEstimate(dbName string, getSketches func(*Shard) (est
 // SeriesCardinality returns the series cardinality for the provided database.
 func (s *Store) SeriesCardinality(database string) (int64, error) {
 	return s.cardinalityEstimate(database, func(sh *Shard) (estimator.Sketch, estimator.Sketch, error) {
+		if sh == nil {
+			return nil, nil, errors.New("shard nil, can't get cardinality")
+		}
 		return sh.engine.SeriesSketches()
 	})
 }
@@ -639,6 +642,9 @@ func (s *Store) SeriesCardinality(database string) (int64, error) {
 // database.
 func (s *Store) MeasurementsCardinality(database string) (int64, error) {
 	return s.cardinalityEstimate(database, func(sh *Shard) (estimator.Sketch, estimator.Sketch, error) {
+		if sh == nil {
+			return nil, nil, errors.New("shard nil, can't get cardinality")
+		}
 		return sh.engine.MeasurementsSketches()
 	})
 }
