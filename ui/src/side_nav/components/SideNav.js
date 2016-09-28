@@ -17,10 +17,6 @@ const SideNav = React.createClass({
         <div className="sidebar__logo">
           <span className="icon cubo-uniform"></span>
         </div>
-        <NavBlock matcher={'users'} icon={"access-key"} link={`${sourcePrefix}/users`}>
-          <NavHeader link={`${sourcePrefix}/users`} title="Web Admin" />
-          <NavListItem matcher={'users'} link={`${sourcePrefix}/users`}>Users</NavListItem>
-        </NavBlock>
         <NavBlock matcher="overview" icon="crown" link={`${sourcePrefix}/overview`}>
           <NavHeader link={`${sourcePrefix}/overview`} title="Sources" />
           <NavListItem matcher="overview" link={`${sourcePrefix}/overview`}>Overview</NavListItem>
