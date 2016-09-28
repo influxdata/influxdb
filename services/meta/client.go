@@ -145,10 +145,9 @@ func (c *Client) ClusterID() uint64 {
 // Database returns info for the requested database.
 func (c *Client) Database(name string) *DatabaseInfo {
 	c.mu.RLock()
-	data := c.cacheData.Clone()
-	c.mu.RUnlock()
+	defer c.mu.RUnlock()
 
-	for _, d := range data.Databases {
+	for _, d := range c.cacheData.Databases {
 		if d.Name == name {
 			return &d
 		}
@@ -160,10 +159,9 @@ func (c *Client) Database(name string) *DatabaseInfo {
 // Databases returns a list of all database infos.
 func (c *Client) Databases() []DatabaseInfo {
 	c.mu.RLock()
-	data := c.cacheData.Clone()
-	c.mu.RUnlock()
+	defer c.mu.RUnlock()
 
-	dbs := data.Databases
+	dbs := c.cacheData.Databases
 	if dbs == nil {
 		return []DatabaseInfo{}
 	}
@@ -300,10 +298,9 @@ func (c *Client) CreateRetentionPolicy(database string, spec *RetentionPolicySpe
 // RetentionPolicy returns the requested retention policy info.
 func (c *Client) RetentionPolicy(database, name string) (rpi *RetentionPolicyInfo, err error) {
 	c.mu.RLock()
-	data := c.cacheData.Clone()
-	c.mu.RUnlock()
+	defer c.mu.RUnlock()
 
-	db := data.Database(database)
+	db := c.cacheData.Database(database)
 	if db == nil {
 		return nil, influxdb.ErrDatabaseNotFound(database)
 	}
@@ -367,10 +364,9 @@ func (c *Client) UpdateRetentionPolicy(database, name string, rpu *RetentionPoli
 
 func (c *Client) Users() []UserInfo {
 	c.mu.RLock()
-	data := c.cacheData.Clone()
-	c.mu.RUnlock()
+	defer c.mu.RUnlock()
 
-	users := data.Users
+	users := c.cacheData.Users
 
 	if users == nil {
 		return []UserInfo{}
@@ -380,10 +376,9 @@ func (c *Client) Users() []UserInfo {
 
 func (c *Client) User(name string) (*UserInfo, error) {
 	c.mu.RLock()
-	data := c.cacheData.Clone()
-	c.mu.RUnlock()
+	defer c.mu.RUnlock()
 
-	for _, u := range data.Users {
+	for _, u := range c.cacheData.Users {
 		if u.Name == name {
 			return &u, nil
 		}
@@ -525,10 +520,9 @@ func (c *Client) SetAdminPrivilege(username string, admin bool) error {
 
 func (c *Client) UserPrivileges(username string) (map[string]influxql.Privilege, error) {
 	c.mu.RLock()
-	data := c.cacheData.Clone()
-	c.mu.RUnlock()
+	defer c.mu.RUnlock()
 
-	p, err := data.UserPrivileges(username)
+	p, err := c.cacheData.UserPrivileges(username)
 	if err != nil {
 		return nil, err
 	}
@@ -537,10 +531,9 @@ func (c *Client) UserPrivileges(username string) (map[string]influxql.Privilege,
 
 func (c *Client) UserPrivilege(username, database string) (*influxql.Privilege, error) {
 	c.mu.RLock()
-	data := c.cacheData.Clone()
-	c.mu.RUnlock()
+	defer c.mu.RUnlock()
 
-	p, err := data.UserPrivilege(username, database)
+	p, err := c.cacheData.UserPrivilege(username, database)
 	if err != nil {
 		return nil, err
 	}
@@ -549,10 +542,9 @@ func (c *Client) UserPrivilege(username, database string) (*influxql.Privilege, 
 
 func (c *Client) AdminUserExists() bool {
 	c.mu.RLock()
-	data := c.cacheData.Clone()
-	c.mu.RUnlock()
+	defer c.mu.RUnlock()
 
-	for _, u := range data.Users {
+	for _, u := range c.cacheData.Users {
 		if u.Admin {
 			return true
 		}
@@ -608,7 +600,6 @@ func (c *Client) UserCount() int {
 // ShardIDs returns a list of all shard ids.
 func (c *Client) ShardIDs() []uint64 {
 	c.mu.RLock()
-	defer c.mu.RUnlock()
 
 	var a []uint64
 	for _, dbi := range c.cacheData.Databases {
@@ -620,6 +611,7 @@ func (c *Client) ShardIDs() []uint64 {
 			}
 		}
 	}
+	c.mu.RUnlock()
 	sort.Sort(uint64Slice(a))
 	return a
 }
@@ -807,10 +799,9 @@ func (c *Client) PrecreateShardGroups(from, to time.Time) error {
 // ShardOwner returns the owning shard group info for a specific shard.
 func (c *Client) ShardOwner(shardID uint64) (database, policy string, sgi *ShardGroupInfo) {
 	c.mu.RLock()
-	data := c.cacheData.Clone()
-	c.mu.RUnlock()
+	defer c.mu.RUnlock()
 
-	for _, dbi := range data.Databases {
+	for _, dbi := range c.cacheData.Databases {
 		for _, rpi := range dbi.RetentionPolicies {
 			for _, g := range rpi.ShardGroups {
 				if g.Deleted() {
