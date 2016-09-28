@@ -2144,7 +2144,7 @@ func (p *Parser) parseFill() (FillOption, interface{}, error) {
 	if !ok {
 		return NullFill, nil, errors.New("fill must be a function call")
 	} else if len(fill.Args) != 1 {
-		return NullFill, nil, errors.New("fill requires an argument, e.g.: 0, null, none, previous")
+		return NullFill, nil, errors.New("fill requires an argument, e.g.: 0, null, none, previous, linear")
 	}
 	switch fill.Args[0].String() {
 	case "null":
@@ -2153,6 +2153,8 @@ func (p *Parser) parseFill() (FillOption, interface{}, error) {
 		return NoFill, nil, nil
 	case "previous":
 		return PreviousFill, nil, nil
+	case "linear":
+		return LinearFill, nil, nil
 	default:
 		switch num := fill.Args[0].(type) {
 		case *IntegerLiteral:

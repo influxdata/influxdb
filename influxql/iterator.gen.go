@@ -673,6 +673,22 @@ func (itr *floatFillIterator) Next() (*FloatPoint, error) {
 		}
 
 		switch itr.opt.Fill {
+		case LinearFill:
+			if !itr.prev.Nil {
+				next, err := itr.input.peek()
+				if err != nil {
+					return nil, err
+				}
+				if next != nil {
+					interval := int64(itr.opt.Interval.Duration)
+					start := itr.window.time / interval
+					p.Value = linearFloat(start, itr.prev.Time/interval, next.Time/interval, itr.prev.Value, next.Value)
+				} else {
+					p.Nil = true
+				}
+			} else {
+				p.Nil = true
+			}
 		case NullFill:
 			p.Nil = true
 		case NumberFill:
@@ -2742,6 +2758,22 @@ func (itr *integerFillIterator) Next() (*IntegerPoint, error) {
 		}
 
 		switch itr.opt.Fill {
+		case LinearFill:
+			if !itr.prev.Nil {
+				next, err := itr.input.peek()
+				if err != nil {
+					return nil, err
+				}
+				if next != nil {
+					interval := int64(itr.opt.Interval.Duration)
+					start := itr.window.time / interval
+					p.Value = linearInteger(start, itr.prev.Time/interval, next.Time/interval, itr.prev.Value, next.Value)
+				} else {
+					p.Nil = true
+				}
+			} else {
+				p.Nil = true
+			}
 		case NullFill:
 			p.Nil = true
 		case NumberFill:
@@ -4808,6 +4840,8 @@ func (itr *stringFillIterator) Next() (*StringPoint, error) {
 		}
 
 		switch itr.opt.Fill {
+		case LinearFill:
+			fallthrough
 		case NullFill:
 			p.Nil = true
 		case NumberFill:
@@ -6874,6 +6908,8 @@ func (itr *booleanFillIterator) Next() (*BooleanPoint, error) {
 		}
 
 		switch itr.opt.Fill {
+		case LinearFill:
+			fallthrough
 		case NullFill:
 			p.Nil = true
 		case NumberFill:
