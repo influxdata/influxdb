@@ -121,6 +121,7 @@ const Root = React.createClass({
         <Router history={browserHistory}>
           <Route path="/signup/admin/:step" component={SignUp} />
           <Route path="/" component={SelectSourcePage} />
+          <Route path="/sources" component={SelectSourcePage} />
           <Route path="/sources/:sourceID" component={App}>
             <Route component={CheckDataNodes}>
               <Route path="overview" component={OverviewPage} />
