@@ -251,27 +251,28 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	}
 	venc.Finish()
 
+	var err error
+	var b, tb, vb []byte
+
 	// Encoded timestamp values
-	tb, err := tsenc.Bytes()
+	tb, err = tsenc.Bytes()
 	if err != nil {
-		putTimeEncoder(tsenc)
-		putFloatEncoder(venc)
-		return nil, err
+		goto cleanup
 	}
 	// Encoded float values
-	vb, err := venc.Bytes()
+	vb, err = venc.Bytes()
 	if err != nil {
-		putTimeEncoder(tsenc)
-		putFloatEncoder(venc)
-		return nil, err
+		goto cleanup
 	}
 
 	// Prepend the first timestamp of the block in the first 8 bytes and the block
 	// in the next byte, followed by the block
-	b := packBlock(buf, BlockFloat64, tb, vb)
+	b = packBlock(buf, BlockFloat64, tb, vb)
+
+cleanup:
 	putTimeEncoder(tsenc)
 	putFloatEncoder(venc)
-	return b, nil
+	return b, err
 
 }
 
@@ -359,27 +360,28 @@ func encodeBooleanBlock(buf []byte, values []Value) ([]byte, error) {
 		venc.Write(v.(*BooleanValue).value)
 	}
 
+	var err error
+	var b, tb, vb []byte
+
 	// Encoded timestamp values
-	tb, err := tsenc.Bytes()
+	tb, err = tsenc.Bytes()
 	if err != nil {
-		putTimeEncoder(tsenc)
-		putBooleanEncoder(venc)
-		return nil, err
+		goto cleanup
 	}
 	// Encoded float values
-	vb, err := venc.Bytes()
+	vb, err = venc.Bytes()
 	if err != nil {
-		putTimeEncoder(tsenc)
-		putBooleanEncoder(venc)
-		return nil, err
+		goto cleanup
 	}
 
 	// Prepend the first timestamp of the block in the first 8 bytes and the block
 	// in the next byte, followed by the block
-	b := packBlock(buf, BlockBoolean, tb, vb)
+	b = packBlock(buf, BlockBoolean, tb, vb)
+
+cleanup:
 	putTimeEncoder(tsenc)
 	putBooleanEncoder(venc)
-	return b, nil
+	return b, err
 }
 
 func DecodeBooleanBlock(block []byte, tdec *TimeDecoder, vdec *BooleanDecoder, a *[]BooleanValue) ([]BooleanValue, error) {
@@ -456,26 +458,27 @@ func encodeIntegerBlock(buf []byte, values []Value) ([]byte, error) {
 		vEnc.Write(v.(*IntegerValue).value)
 	}
 
+	var err error
+	var b, tb, vb []byte
+
 	// Encoded timestamp values
-	tb, err := tsEnc.Bytes()
+	tb, err = tsEnc.Bytes()
 	if err != nil {
-		putTimeEncoder(tsEnc)
-		putIntegerEncoder(vEnc)
-		return nil, err
+		goto cleanup
 	}
 	// Encoded int64 values
-	vb, err := vEnc.Bytes()
+	vb, err = vEnc.Bytes()
 	if err != nil {
-		putTimeEncoder(tsEnc)
-		putIntegerEncoder(vEnc)
-		return nil, err
+		goto cleanup
 	}
 
 	// Prepend the first timestamp of the block in the first 8 bytes
-	b := packBlock(buf, BlockInteger, tb, vb)
+	b = packBlock(buf, BlockInteger, tb, vb)
+
+cleanup:
 	putTimeEncoder(tsEnc)
 	putIntegerEncoder(vEnc)
-	return b, nil
+	return b, err
 }
 
 func DecodeIntegerBlock(block []byte, tdec *TimeDecoder, vdec *IntegerDecoder, a *[]IntegerValue) ([]IntegerValue, error) {
@@ -553,26 +556,27 @@ func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 		vEnc.Write(v.(*StringValue).value)
 	}
 
+	var err error
+	var b, tb, vb []byte
+
 	// Encoded timestamp values
-	tb, err := tsEnc.Bytes()
+	tb, err = tsEnc.Bytes()
 	if err != nil {
-		putTimeEncoder(tsEnc)
-		putStringEncoder(vEnc)
-		return nil, err
+		goto cleanup
 	}
 	// Encoded string values
-	vb, err := vEnc.Bytes()
+	vb, err = vEnc.Bytes()
 	if err != nil {
-		putTimeEncoder(tsEnc)
-		putStringEncoder(vEnc)
-		return nil, err
+		goto cleanup
 	}
 
 	// Prepend the first timestamp of the block in the first 8 bytes
-	b := packBlock(buf, BlockString, tb, vb)
+	b = packBlock(buf, BlockString, tb, vb)
+
+cleanup:
 	putTimeEncoder(tsEnc)
 	putStringEncoder(vEnc)
-	return b, nil
+	return b, err
 }
 
 func DecodeStringBlock(block []byte, tdec *TimeDecoder, vdec *StringDecoder, a *[]StringValue) ([]StringValue, error) {
