@@ -103,7 +103,7 @@ func (m *Handler) Explorations(ctx context.Context, params op.GetSourcesIDUsersU
 	if err != nil {
 		return op.NewGetSourcesIDUsersUserIDExplorationsDefault(500)
 	}
-	exs, err := m.Store.Query(ctx, id)
+	exs, err := m.Store.Query(ctx, mrfusion.UserID(id))
 	if err != nil {
 		return op.NewGetSourcesIDUsersUserIDExplorationsNotFound()
 	}
@@ -139,7 +139,7 @@ func (m *Handler) Exploration(ctx context.Context, params op.GetSourcesIDUsersUs
 		return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
 	}
 
-	e, err := m.Store.Get(ctx, eID)
+	e, err := m.Store.Get(ctx, mrfusion.ExplorationID(eID))
 	if err != nil {
 		log.Printf("Error unknown exploration id: %d: %v", eID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error unknown exploration id"}
@@ -167,14 +167,14 @@ func (m *Handler) UpdateExploration(ctx context.Context, params op.PatchSourcesI
 		return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDDefault(500)
 	}
 
-	e, err := m.Store.Get(ctx, eID)
+	e, err := m.Store.Get(ctx, mrfusion.ExplorationID(eID))
 	if err != nil {
 		log.Printf("Error unknown exploration id: %d: %v", eID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error unknown exploration id"}
 		return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
 	}
 	if params.Exploration != nil {
-		e.ID = eID
+		e.ID = mrfusion.ExplorationID(eID)
 		e.Data = params.Exploration.Data.(string)
 		e.Name = params.Exploration.Name
 		m.Store.Update(ctx, e)
@@ -188,7 +188,7 @@ func (m *Handler) NewExploration(ctx context.Context, params op.PostSourcesIDUse
 		return op.NewPostSourcesIDUsersUserIDExplorationsDefault(500)
 	}
 
-	exs, err := m.Store.Query(ctx, id)
+	exs, err := m.Store.Query(ctx, mrfusion.UserID(id))
 	if err != nil {
 		log.Printf("Error unknown user id: %d: %v", id, err)
 		errMsg := &models.Error{Code: 404, Message: "Error unknown user id"}
@@ -200,7 +200,7 @@ func (m *Handler) NewExploration(ctx context.Context, params op.PostSourcesIDUse
 		e := mrfusion.Exploration{
 			Data: params.Exploration.Data.(string),
 			Name: params.Exploration.Name,
-			ID:   eID,
+			ID:   mrfusion.ExplorationID(eID),
 		}
 		m.Store.Add(ctx, e)
 	}
@@ -225,7 +225,7 @@ func (m *Handler) DeleteExploration(ctx context.Context, params op.DeleteSources
 		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDDefault(500)
 	}
 
-	if err := m.Store.Delete(ctx, mrfusion.Exploration{ID: ID}); err != nil {
+	if err := m.Store.Delete(ctx, mrfusion.Exploration{ID: mrfusion.ExplorationID(ID)}); err != nil {
 		log.Printf("Error unknown explorations id: %d: %v", ID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error unknown user id"}
 		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)

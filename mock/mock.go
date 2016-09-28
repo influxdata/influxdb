@@ -36,7 +36,7 @@ func NewExplorationStore(nowFunc func() time.Time) mrfusion.ExplorationStore {
 
 var DefaultExplorationStore mrfusion.ExplorationStore = NewExplorationStore(time.Now)
 
-func (m *ExplorationStore) Query(ctx context.Context, userID int) ([]mrfusion.Exploration, error) {
+func (m *ExplorationStore) Query(ctx context.Context, userID mrfusion.UserID) ([]mrfusion.Exploration, error) {
 	res := []mrfusion.Exploration{}
 	for _, v := range m.db {
 		res = append(res, v)
@@ -52,12 +52,12 @@ func (m *ExplorationStore) Add(ctx context.Context, e mrfusion.Exploration) erro
 }
 
 func (m *ExplorationStore) Delete(ctx context.Context, e mrfusion.Exploration) error {
-	delete(m.db, e.ID)
+	delete(m.db, int(e.ID))
 	return nil
 }
 
-func (m *ExplorationStore) Get(ctx context.Context, ID int) (mrfusion.Exploration, error) {
-	e, ok := m.db[ID]
+func (m *ExplorationStore) Get(ctx context.Context, ID mrfusion.ExplorationID) (mrfusion.Exploration, error) {
+	e, ok := m.db[int(ID)]
 	if !ok {
 		return mrfusion.Exploration{}, fmt.Errorf("Unknown ID %d", ID)
 	}
@@ -65,12 +65,12 @@ func (m *ExplorationStore) Get(ctx context.Context, ID int) (mrfusion.Exploratio
 }
 
 func (m *ExplorationStore) Update(ctx context.Context, e mrfusion.Exploration) error {
-	_, ok := m.db[e.ID]
+	_, ok := m.db[int(e.ID)]
 	if !ok {
 		return fmt.Errorf("Unknown ID %d", e.ID)
 	}
 	e.UpdatedAt = m.NowFunc()
-	m.db[e.ID] = e
+	m.db[int(e.ID)] = e
 	return nil
 }
 
