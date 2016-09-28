@@ -183,16 +183,15 @@ func (s *Shard) SetEnabled(enabled bool) {
 
 // ShardStatistics maintains statistics for a shard.
 type ShardStatistics struct {
-	WriteReq           int64
-	WriteReqOK         int64
-	WriteReqErr        int64
-	SeriesCreated      int64
-	FieldsCreated      int64
-	WritePointsErr     int64
+	WriteReq       int64
+	WriteReqOK     int64
+	WriteReqErr    int64
+	FieldsCreated  int64
+	WritePointsErr int64
 	WritePointsDropped int64
-	WritePointsOK      int64
-	BytesWritten       int64
-	DiskBytes          int64
+	WritePointsOK  int64
+	BytesWritten   int64
+	DiskBytes      int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -212,16 +211,16 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 		Name: "shard",
 		Tags: tags,
 		Values: map[string]interface{}{
-			statWriteReq:           atomic.LoadInt64(&s.stats.WriteReq),
-			statWriteReqOK:         atomic.LoadInt64(&s.stats.WriteReqOK),
-			statWriteReqErr:        atomic.LoadInt64(&s.stats.WriteReqErr),
-			statSeriesCreate:       seriesN,
-			statFieldsCreate:       atomic.LoadInt64(&s.stats.FieldsCreated),
-			statWritePointsErr:     atomic.LoadInt64(&s.stats.WritePointsErr),
+			statWriteReq:       atomic.LoadInt64(&s.stats.WriteReq),
+			statWriteReqOK:     atomic.LoadInt64(&s.stats.WriteReqOK),
+			statWriteReqErr:    atomic.LoadInt64(&s.stats.WriteReqErr),
+			statSeriesCreate:   int64(seriesN),
+			statFieldsCreate:   atomic.LoadInt64(&s.stats.FieldsCreated),
+			statWritePointsErr: atomic.LoadInt64(&s.stats.WritePointsErr),
 			statWritePointsDropped: atomic.LoadInt64(&s.stats.WritePointsDropped),
-			statWritePointsOK:      atomic.LoadInt64(&s.stats.WritePointsOK),
-			statWriteBytes:         atomic.LoadInt64(&s.stats.BytesWritten),
-			statDiskBytes:          atomic.LoadInt64(&s.stats.DiskBytes),
+			statWritePointsOK:  atomic.LoadInt64(&s.stats.WritePointsOK),
+			statWriteBytes:     atomic.LoadInt64(&s.stats.BytesWritten),
+			statDiskBytes:      atomic.LoadInt64(&s.stats.DiskBytes),
 		},
 	}}
 
@@ -273,14 +272,6 @@ func (s *Shard) Open() error {
 		}
 
 		s.engine = e
-
-		seriesN, err := s.engine.SeriesN()
-		if err != nil {
-			return err
-		}
-		// Store statistic of exact number of series in shard.
-		atomic.AddInt64(&s.stats.SeriesCreated, int64(seriesN))
-
 		s.logger.Info(fmt.Sprintf("%s database index loaded in %s", s.path, time.Now().Sub(start)))
 
 		go s.monitor()
