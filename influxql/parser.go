@@ -904,10 +904,32 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 
 	// Parse optional join: "JOIN".
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == JOIN {
-		if err := p.parseTokens([]Token{MEASUREMENTS}); err != nil {
+		if err := p.parseTokens([]Token{SERIES}); err != nil {
 			return nil, err
 		}
-		stmt.JoinMeasurements = true
+		stmt.JoinSeries = true
+
+		// Parse optional dimensions: "ON".
+		if tok, _, _ := p.scanIgnoreWhitespace(); tok == ON {
+			for {
+				// Parse the dimension.
+				d, err := p.parseIdent()
+				if err != nil {
+					return nil, err
+				}
+
+				// Add new dimension.
+				stmt.JoinSeriesDimensions = append(stmt.JoinSeriesDimensions, d)
+
+				// If there's not a comma next then stop parsing dimensions.
+				if tok, _, _ := p.scan(); tok != COMMA {
+					p.unscan()
+					break
+				}
+			}
+		} else {
+			p.unscan()
+		}
 	} else {
 		p.unscan()
 	}
@@ -964,7 +986,7 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 	// We assume JOIN MEASUREMENTS is specified when parsing variables because
 	// it is easier to go in this direction than the other because we will
 	// throw out information about the position of quotes and ident separators.
-	if !stmt.JoinMeasurements {
+	if !stmt.JoinSeries {
 		WalkFunc(stmt, func(n Node) {
 			if ref, ok := n.(*VarRef); ok {
 				if ref.Measurement != "" {

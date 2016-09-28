@@ -933,8 +933,11 @@ type SelectStatement struct {
 	// if it's a query for raw data values (i.e. not an aggregate)
 	IsRawQuery bool
 
-	// Marks that measurements should be joined along with series.
-	JoinMeasurements bool
+	// Marks that series should be joined across measurements.
+	JoinSeries bool
+
+	// The dimensions to use when joining series.
+	JoinSeriesDimensions []string
 
 	// What fill option the select statement uses, if any
 	Fill FillOption
@@ -1347,8 +1350,17 @@ func (s *SelectStatement) String() string {
 		_, _ = buf.WriteString(" FROM ")
 		_, _ = buf.WriteString(s.Sources.String())
 	}
-	if s.JoinMeasurements {
-		_, _ = buf.WriteString(" JOIN MEASUREMENTS")
+	if s.JoinSeries {
+		_, _ = buf.WriteString(" JOIN SERIES")
+		if len(s.JoinSeriesDimensions) > 0 {
+			_, _ = buf.WriteString(" ON ")
+			for i, dim := range s.JoinSeriesDimensions {
+				if i > 0 {
+					_, _ = buf.WriteString(", ")
+				}
+				_, _ = buf.WriteString(dim)
+			}
+		}
 	}
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
