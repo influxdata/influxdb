@@ -28,6 +28,19 @@
 - [#2792](https://github.com/influxdata/influxdb/issues/2792): Exceeding max retention policy duration gives incorrect error message
 - [#7226](https://github.com/influxdata/influxdb/issues/7226): Fix database locked up when deleting shards
 
+## v1.0.1 [2016-09-26]
+
+### Bugfixes
+
+- [#7271](https://github.com/influxdata/influxdb/issues/7271): Fixing typo within example configuration file. Thanks @andyfeller!
+- [#7270](https://github.com/influxdata/influxdb/issues/7270): Implement time math for lazy time literals.
+- [#7272](https://github.com/influxdata/influxdb/issues/7272): Report cmdline and memstats in /debug/vars.
+- [#7299](https://github.com/influxdata/influxdb/ssues/7299): Ensure fieldsCreated stat available in shard measurement.
+- [#6846](https://github.com/influxdata/influxdb/issues/6846): Read an invalid JSON response as an error in the influx client.
+- [#7110](https://github.com/influxdata/influxdb/issues/7110): Skip past points at the same time in derivative call within a merged series.
+- [#7226](https://github.com/influxdata/influxdb/issues/7226): Fix database locked up when deleting shards
+- [#7315](https://github.com/influxdata/influxdb/issues/7315): Prevent users from manually using system queries since incorrect use would result in a panic.
+
 ## v1.0.0 [2016-09-08]
 
 ### Release Notes
