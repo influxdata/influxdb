@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react';
-import NoClusterError from 'shared/components/NoClusterError';
+import {withRouter} from 'react-router';
 import {getSources} from 'src/shared/apis';
 
 const {bool, number, string, node, func, shape} = PropTypes;
@@ -11,6 +11,15 @@ const CheckDataNodes = React.createClass({
   propTypes: {
     addFlashMessage: func,
     children: node,
+    params: PropTypes.shape({
+      sourceID: PropTypes.string,
+    }).isRequired,
+    router: PropTypes.shape({
+      push: PropTypes.func.isRequired,
+    }).isRequired,
+    location: PropTypes.shape({
+      pathname: PropTypes.string.isRequired,
+    }).isRequired,
   },
 
   contextTypes: {
@@ -25,14 +34,22 @@ const CheckDataNodes = React.createClass({
   getInitialState() {
     return {
       isFetching: true,
-      sources: [],
+      source: null,
     };
   },
 
   componentDidMount() {
     getSources().then(({data: {sources}}) => {
+      const {sourceID} = this.props.params;
+      const source = sources.find((s) => s.id === sourceID);
+
+      if (!source) { // would be great to check source.status or similar here
+        const {router, location} = this.props;
+        return router.push(`/?redirectPath=${location.pathname}`);
+      }
+
       this.setState({
-        sources,
+        source,
         isFetching: false,
       });
     }).catch((err) => {
@@ -46,16 +63,10 @@ const CheckDataNodes = React.createClass({
       return <div className="page-spinner" />;
     }
 
-    const {sources} = this.state;
-    if (!sources.length) {
-      // this should probably be changed....
-      return <NoClusterError />;
-    }
-
     return this.props.children && React.cloneElement(this.props.children, Object.assign({}, this.props, {
-      sources,
+      source: this.state.source,
     }));
   },
 });
 
-export default CheckDataNodes;
+export default withRouter(CheckDataNodes);

@@ -1,8 +1,20 @@
-import React from 'react';
+import React, {PropTypes} from 'react';
+import {withRouter} from 'react-router';
 import FlashMessages from 'shared/components/FlashMessages';
 import {createSource, getSources} from 'shared/apis';
 
 export const SelectSourcePage = React.createClass({
+  propTypes: {
+    router: PropTypes.shape({
+      push: PropTypes.func.isRequired,
+    }).isRequired,
+    location: PropTypes.shape({
+      query: PropTypes.shape({
+        redirectPath: PropTypes.string,
+      }).isRequired,
+    }).isRequired,
+  },
+
   getInitialState() {
     return {
       sources: [],
@@ -19,8 +31,8 @@ export const SelectSourcePage = React.createClass({
 
   handleSelectSource(e) {
     e.preventDefault();
-    // const source = this.state.sources.find((s) => s.name === this.selectedSource.value);
-    // redirect to /hosts?sourceId=source.id
+    const source = this.state.sources.find((s) => s.name === this.selectedSource.value);
+    this.redirectToApp(source);
   },
 
   handleNewSource(e) {
@@ -32,11 +44,22 @@ export const SelectSourcePage = React.createClass({
       password: this.sourcePassword.value,
     };
     createSource(source).then(() => {
-      // redirect to /hosts?sourceId=123
+      // this.redirectToApp(sourceFromServer)
     });
   },
 
+  redirectToApp(source) {
+    const {redirectPath} = this.props.location.query;
+    if (!redirectPath) {
+      return this.props.router.push(`/sources/${source.id}/hosts`);
+    }
+
+    const fixedPath = redirectPath.replace(/\/sources\/[^/]*/, `/sources/${source.id}`);
+    return this.props.router.push(fixedPath);
+  },
+
   render() {
+    const error = !!this.props.location.query.redirectPath;
     return (
       <div id="select-source-page">
         <div className="container">
@@ -47,6 +70,7 @@ export const SelectSourcePage = React.createClass({
                   <h2 className="deluxe">Welcome to Chronograf</h2>
                 </div>
                 <div className="panel-body">
+                  {error ? <p className="alert alert-danger">Data source not found or unavailable</p> : null}
                   <form onSubmit={this.handleSelectSource}>
                     <div className="form-group col-sm-12">
                       <h4>Select an InfluxDB server to connect to</h4>
@@ -90,4 +114,4 @@ export const SelectSourcePage = React.createClass({
   },
 });
 
-export default FlashMessages(SelectSourcePage);
+export default FlashMessages(withRouter(SelectSourcePage));

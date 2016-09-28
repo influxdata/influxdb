@@ -101,7 +101,7 @@ const NavBar = React.createClass({
   },
 
   render() {
-    const children = React.Children.map((this.props.children), (child) => {
+    const children = React.Children.map(this.props.children, (child) => {
       if (child && child.type === NavBlock) {
         return React.cloneElement(child, {
           location: this.props.location,

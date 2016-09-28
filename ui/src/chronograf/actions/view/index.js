@@ -227,11 +227,11 @@ function loadExplorer(explorer) {
   };
 }
 
-export function fetchExplorers({sourceLink, userID, explorerID, push}) {
+export function fetchExplorers({source, userID, explorerID, push}) {
   return (dispatch) => {
     dispatch({type: 'FETCH_EXPLORERS'});
     AJAX({
-      url: `${sourceLink}/users/${userID}/explorations`,
+      url: `${source.links.self}/users/${userID}/explorations`,
     }).then(({data: {explorations}}) => {
       const explorers = explorations.map(parseRawExplorer);
       dispatch(loadExplorers(explorers));
@@ -249,7 +249,7 @@ export function fetchExplorers({sourceLink, userID, explorerID, push}) {
       if (!explorerID) {
         const explorer = _.maxBy(explorers, (ex) => ex.updated_at);
         dispatch(loadExplorer(explorer));
-        push(`/chronograf/data_explorer/${btoa(explorer.link.href)}`);
+        push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorer.link.href)}`);
         return;
       }
 
