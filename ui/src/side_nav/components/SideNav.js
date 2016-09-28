@@ -17,6 +17,14 @@ const SideNav = React.createClass({
         <div className="sidebar__logo">
           <span className="icon cubo-uniform"></span>
         </div>
+        <NavBlock matcher="hosts" icon="cpu" link={`${sourcePrefix}/hosts`}>
+          <NavHeader link={`${sourcePrefix}/hosts`} title="Infrastructure" />
+          <NavListItem matcher="hosts" link={`${sourcePrefix}/hosts`}>Host List</NavListItem>
+        </NavBlock>
+        <NavBlock matcher="chronograf" icon="graphline" link={`${sourcePrefix}/chronograf/data_explorer`}>
+          <NavHeader link={`${sourcePrefix}/chronograf/data_explorer`} title={'Chronograf'} />
+          <NavListItem matcher={'data_explorer'} link={`${sourcePrefix}/chronograf/data_explorer`}>Data Explorer</NavListItem>
+        </NavBlock>
         <NavBlock matcher="overview" icon="crown" link={`${sourcePrefix}/overview`}>
           <NavHeader link={`${sourcePrefix}/overview`} title="Sources" />
           <NavListItem matcher="overview" link={`${sourcePrefix}/overview`}>Overview</NavListItem>
@@ -27,14 +35,6 @@ const SideNav = React.createClass({
           <NavListItem matcher="accounts" link={`${sourcePrefix}/accounts`}>Cluster Accounts</NavListItem>
           <NavListItem matcher="manager" link={`${sourcePrefix}/databases/manager/_internal`}>Database Manager</NavListItem>
           <NavListItem matcher="retentionpolicies" link={`${sourcePrefix}/databases/retentionpolicies/_internal`}>Retention Policies</NavListItem>
-        </NavBlock>
-        <NavBlock matcher="chronograf" icon="graphline" link={`${sourcePrefix}/chronograf/data_explorer`}>
-          <NavHeader link={`${sourcePrefix}/chronograf/data_explorer`} title={'Chronograf'} />
-          <NavListItem matcher={'data_explorer'} link={`${sourcePrefix}/chronograf/data_explorer`}>Data Explorer</NavListItem>
-        </NavBlock>
-        <NavBlock matcher="hosts" icon="cpu" link={`${sourcePrefix}/hosts`}>
-          <NavHeader link={`${sourcePrefix}/hosts`} title="Infrastructure" />
-          <NavListItem matcher="hosts" link={`${sourcePrefix}/hosts`}>Host List</NavListItem>
         </NavBlock>
       </NavBar>
     );
