@@ -764,6 +764,9 @@ definitions:
                 type: string
                 format: url
                 description: URL for the time series data source backend (e.g. http://localhost:8086)
+            default:
+                type: boolean
+                description: Indicates whether this source is the default source
             links: 
                 type: object
                 properties:
