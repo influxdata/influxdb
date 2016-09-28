@@ -21,7 +21,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/pkg/pool"
 	"github.com/influxdata/influxdb/tsdb"
 )
 
@@ -834,9 +833,6 @@ type tsmKeyIterator struct {
 
 	buf []blocks
 
-	// freeBytes are []byte allocated, and free to be re-used
-	freeBytes *pool.Bytes
-
 	// mergeValues are decoded blocks that have been combined
 	mergedValues Values
 
@@ -901,14 +897,12 @@ func NewTSMKeyIterator(size int, fast bool, readers ...*TSMReader) (KeyIterator,
 		iterators: iter,
 		fast:      fast,
 		buf:       make([]blocks, len(iter)),
-		freeBytes: pool.NewBytes(1024),
 	}, nil
 }
 
 func (k *tsmKeyIterator) Next() bool {
 	// Any merged blocks pending?
 	if len(k.merged) > 0 {
-		k.freeBytes.Put(k.merged[0].b)
 		k.merged = k.merged[1:]
 		if len(k.merged) > 0 {
 			return true
@@ -1168,8 +1162,7 @@ func (k *tsmKeyIterator) combine(dedup bool) blocks {
 func (k *tsmKeyIterator) chunk(dst blocks) blocks {
 	for len(k.mergedValues) > k.size {
 		values := k.mergedValues[:k.size]
-		buf := k.freeBytes.Get(16 * 1024)
-		cb, err := Values(values).Encode(buf)
+		cb, err := Values(values).Encode(nil)
 		if err != nil {
 			k.err = err
 			return nil
@@ -1187,8 +1180,7 @@ func (k *tsmKeyIterator) chunk(dst blocks) blocks {
 
 	// Re-encode the remaining values into the last block
 	if len(k.mergedValues) > 0 {
-		buf := k.freeBytes.Get(16 * 1024)
-		cb, err := Values(k.mergedValues).Encode(buf)
+		cb, err := Values(k.mergedValues).Encode(nil)
 		if err != nil {
 			k.err = err
 			return nil
