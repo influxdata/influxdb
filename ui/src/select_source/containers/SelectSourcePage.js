@@ -70,7 +70,7 @@ export const SelectSourcePage = React.createClass({
                   <h2 className="deluxe">Welcome to Chronograf</h2>
                 </div>
                 <div className="panel-body">
-                  {error ? <p className="alert alert-danger">bad id bro</p> : null}
+                  {error ? <p className="alert alert-danger">Data source not found or unavailable</p> : null}
                   <form onSubmit={this.handleSelectSource}>
                     <div className="form-group col-sm-12">
                       <h4>Select an InfluxDB server to connect to</h4>
