@@ -202,7 +202,7 @@ func (m *Handler) NewExploration(ctx context.Context, params op.PostSourcesIDUse
 			Name: params.Exploration.Name,
 			ID:   mrfusion.ExplorationID(eID),
 		}
-		m.Store.Add(ctx, e)
+		m.Store.Add(ctx, &e)
 	}
 	params.Exploration.UpdatedAt = strfmt.DateTime(time.Now())
 	params.Exploration.CreatedAt = strfmt.DateTime(time.Now())
@@ -225,7 +225,7 @@ func (m *Handler) DeleteExploration(ctx context.Context, params op.DeleteSources
 		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDDefault(500)
 	}
 
-	if err := m.Store.Delete(ctx, mrfusion.Exploration{ID: mrfusion.ExplorationID(ID)}); err != nil {
+	if err := m.Store.Delete(ctx, &mrfusion.Exploration{ID: mrfusion.ExplorationID(ID)}); err != nil {
 		log.Printf("Error unknown explorations id: %d: %v", ID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error unknown user id"}
 		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)

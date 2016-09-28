@@ -10,9 +10,12 @@ import (
 type Permission string
 type Permissions []Permission
 
+// UserID is a unique ID for a source user.
+type UserID int
+
 // Represents an authenticated user.
 type User struct {
-	ID          int
+	ID          UserID
 	Name        string
 	Permissions Permissions
 	Roles       []Role
@@ -57,34 +60,32 @@ type AuthStore struct {
 	}
 }
 
-// UserID is a unique ID for a source user.
-type UserID int
-
-// ExplorationID is a unique ID for an exploration.
+// ExplorationID is a unique ID for an Exploration.
 type ExplorationID int
 
 // Exploration is a serialization of front-end Data Explorer.
 type Exploration struct {
 	ID        ExplorationID
-	Name      string    // User provided name of the exploration.
-	UserID    UserID    // UserID is the owner of this exploration.
-	Data      string    // Opaque blob of JSON data
-	CreatedAt time.Time // Time the exploration was first created
+	Name      string    // User provided name of the Exploration.
+	UserID    UserID    // UserID is the owner of this Exploration.
+	Data      string    // Opaque blob of JSON data.
+	CreatedAt time.Time // Time the exploration was first created.
 	UpdatedAt time.Time // Latest time the exploration was updated.
+	Default   bool      // Flags an exploration as the default.
 }
 
 // ExplorationStore stores front-end serializations of data explorer sessions.
 type ExplorationStore interface {
-	// Search the ExplorationStore for all explorations owned by userID.
-	Query(ctx context.Context, userID UserID) ([]Exploration, error)
-	// Create a new Exploration in the ExplorationStore
-	Add(context.Context, Exploration) error
-	// Delete the exploration from the ExplorationStore
-	Delete(context.Context, Exploration) error
-	// Retrieve an exploration if `ID` exists.
-	Get(ctx context.Context, ID ExplorationID) (Exploration, error)
-	// Update the exploration; will update `UpdatedAt`.
-	Update(context.Context, Exploration) error
+	// Search the ExplorationStore for each Exploration owned by `UserID`.
+	Query(ctx context.Context, userID UserID) ([]*Exploration, error)
+	// Create a new Exploration in the ExplorationStore.
+	Add(context.Context, *Exploration) error
+	// Delete the Exploration from the ExplorationStore.
+	Delete(context.Context, *Exploration) error
+	// Retrieve an Exploration if `ID` exists.
+	Get(ctx context.Context, ID ExplorationID) (*Exploration, error)
+	// Update the Exploration; will also update the `UpdatedAt` time.
+	Update(context.Context, *Exploration) error
 }
 
 // Cell is a rectangle and multiple time series queries to visualize.

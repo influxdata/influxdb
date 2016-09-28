@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/store/bolt/internal"
+	"github.com/influxdata/mrfusion/bolt/internal"
 )
 
 // Ensure an exploration can be marshaled and unmarshaled.
@@ -20,12 +20,12 @@ func TestMarshalExploration(t *testing.T) {
 		UpdatedAt: time.Now().UTC(),
 	}
 
-	var other mrfusion.Exploration
+	var vv mrfusion.Exploration
 	if buf, err := internal.MarshalExploration(&v); err != nil {
 		t.Fatal(err)
-	} else if err := internal.UnmarshalExploration(buf, &other); err != nil {
+	} else if err := internal.UnmarshalExploration(buf, &vv); err != nil {
 		t.Fatal(err)
-	} else if !reflect.DeepEqual(v, other) {
-		t.Fatalf("unexpected copy: %#v", other)
+	} else if !reflect.DeepEqual(v, vv) {
+		t.Fatalf("exploration protobuf copy error: got %#v, expected %#v", vv, v)
 	}
 }

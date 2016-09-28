@@ -9,22 +9,22 @@ import (
 )
 
 type ExplorationStore struct {
-	db      map[int]mrfusion.Exploration
+	db      map[int]*mrfusion.Exploration
 	NowFunc func() time.Time
 }
 
 func NewExplorationStore(nowFunc func() time.Time) mrfusion.ExplorationStore {
 	e := ExplorationStore{
 		NowFunc: nowFunc,
-		db:      map[int]mrfusion.Exploration{},
+		db:      map[int]*mrfusion.Exploration{},
 	}
-	e.db[0] = mrfusion.Exploration{
+	e.db[0] = &mrfusion.Exploration{
 		Name:      "Ferdinand Magellan",
 		Data:      "{\"panels\":{\"123\":{\"id\":\"123\",\"queryIds\":[\"456\"]}},\"queryConfigs\":{\"456\":{\"id\":\"456\",\"database\":null,\"measurement\":null,\"retentionPolicy\":null,\"fields\":[],\"tags\":{},\"groupBy\":{\"time\":null,\"tags\":[]},\"areTagsAccepted\":true,\"rawText\":null}}}",
 		CreatedAt: nowFunc(),
 		UpdatedAt: nowFunc(),
 	}
-	e.db[1] = mrfusion.Exploration{
+	e.db[1] = &mrfusion.Exploration{
 		Name:      "Ferdinand Magellan",
 		Data:      "{\"panels\":{\"123\":{\"id\":\"123\",\"queryIds\":[\"456\"]}},\"queryConfigs\":{\"456\":{\"id\":\"456\",\"database\":null,\"measurement\":null,\"retentionPolicy\":null,\"fields\":[],\"tags\":{},\"groupBy\":{\"time\":null,\"tags\":[]},\"areTagsAccepted\":true,\"rawText\":null}}}",
 		CreatedAt: nowFunc(),
@@ -36,35 +36,35 @@ func NewExplorationStore(nowFunc func() time.Time) mrfusion.ExplorationStore {
 
 var DefaultExplorationStore mrfusion.ExplorationStore = NewExplorationStore(time.Now)
 
-func (m *ExplorationStore) Query(ctx context.Context, userID mrfusion.UserID) ([]mrfusion.Exploration, error) {
-	res := []mrfusion.Exploration{}
+func (m *ExplorationStore) Query(ctx context.Context, userID mrfusion.UserID) ([]*mrfusion.Exploration, error) {
+	res := []*mrfusion.Exploration{}
 	for _, v := range m.db {
 		res = append(res, v)
 	}
 	return res, nil
 }
 
-func (m *ExplorationStore) Add(ctx context.Context, e mrfusion.Exploration) error {
+func (m *ExplorationStore) Add(ctx context.Context, e *mrfusion.Exploration) error {
 	e.CreatedAt = m.NowFunc()
 	e.UpdatedAt = m.NowFunc()
 	m.db[len(m.db)] = e
 	return nil
 }
 
-func (m *ExplorationStore) Delete(ctx context.Context, e mrfusion.Exploration) error {
+func (m *ExplorationStore) Delete(ctx context.Context, e *mrfusion.Exploration) error {
 	delete(m.db, int(e.ID))
 	return nil
 }
 
-func (m *ExplorationStore) Get(ctx context.Context, ID mrfusion.ExplorationID) (mrfusion.Exploration, error) {
+func (m *ExplorationStore) Get(ctx context.Context, ID mrfusion.ExplorationID) (*mrfusion.Exploration, error) {
 	e, ok := m.db[int(ID)]
 	if !ok {
-		return mrfusion.Exploration{}, fmt.Errorf("Unknown ID %d", ID)
+		return nil, fmt.Errorf("Unknown ID %d", ID)
 	}
 	return e, nil
 }
 
-func (m *ExplorationStore) Update(ctx context.Context, e mrfusion.Exploration) error {
+func (m *ExplorationStore) Update(ctx context.Context, e *mrfusion.Exploration) error {
 	_, ok := m.db[int(e.ID)]
 	if !ok {
 		return fmt.Errorf("Unknown ID %d", e.ID)

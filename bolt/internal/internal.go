@@ -18,6 +18,7 @@ func MarshalExploration(e *mrfusion.Exploration) ([]byte, error) {
 		Data:      e.Data,
 		CreatedAt: e.CreatedAt.UnixNano(),
 		UpdatedAt: e.UpdatedAt.UnixNano(),
+		Default:   e.Default,
 	})
 }
 
@@ -34,6 +35,7 @@ func UnmarshalExploration(data []byte, e *mrfusion.Exploration) error {
 	e.Data = pb.Data
 	e.CreatedAt = time.Unix(0, pb.CreatedAt).UTC()
 	e.UpdatedAt = time.Unix(0, pb.UpdatedAt).UTC()
+	e.Default = pb.Default
 
 	return nil
 }
