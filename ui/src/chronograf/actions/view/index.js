@@ -283,12 +283,13 @@ function saveExplorer(error) {
   };
 }
 
-export function chooseExplorer(clusterID, explorerID, push) {
+export function chooseExplorer(explorerID, push) {
   return (dispatch, getState) => {
     // Save the previous session explicitly in case an auto-save was unable to complete.
     const {panels, queryConfigs, activeExplorer} = getState();
     api.saveExplorer({
       explorerID: activeExplorer.id,
+      name: activeExplorer.name,
       panels,
       queryConfigs,
     }).then(() => {
@@ -301,11 +302,11 @@ export function chooseExplorer(clusterID, explorerID, push) {
 
     dispatch(fetchExplorer());
     AJAX({
-      url: `/api/int/v1/explorers/${explorerID}`,
+      url: explorerID,
     }).then((resp) => {
       const explorer = parseRawExplorer(resp.data);
       dispatch(loadExplorer(explorer));
-      push(`/chronograf/data_explorer/${explorerID}`);
+      push(`/chronograf/data_explorer/${btoa(explorerID)}`);
     });
   };
 }

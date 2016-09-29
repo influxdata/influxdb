@@ -69,7 +69,7 @@ const DataExplorer = React.createClass({
 
     const activeExplorer = explorers[explorerID];
     if (!activeExplorer) {
-      return null; // TODO: handle no explorers;
+      return <div>You have no active explorers</div>; // TODO: handle no explorers;
     }
 
     return (

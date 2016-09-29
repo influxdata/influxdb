@@ -33,13 +33,14 @@ export default function persistState() {
     store.subscribe(() => {
       const state = Object.assign({}, store.getState());
       const explorerID = state.activeExplorer.id;
+      const name = state.activeExplorer.name;
       if (!explorerID) {
         return;
       }
       const {panels, queryConfigs} = state;
       autoSaveTimer.clear();
       autoSaveTimer.set(() => {
-        saveExplorer({panels, queryConfigs, explorerID}).then((_) => {
+        saveExplorer({panels, queryConfigs, explorerID, name}).then((_) => {
           // TODO: This is a no-op currently because we don't have any feedback in the UI around saving, but maybe we do something in the future?
           // If we ever show feedback in the UI, we could potentially indicate to remove it here.
         }).catch(({response}) => {

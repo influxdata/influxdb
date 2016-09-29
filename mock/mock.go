@@ -24,8 +24,8 @@ func NewExplorationStore(nowFunc func() time.Time) mrfusion.ExplorationStore {
 		CreatedAt: nowFunc(),
 		UpdatedAt: nowFunc(),
 	}
-	e.db[1] = &mrfusion.Exploration{
-		Name:      "Ferdinand Magellan",
+	e.db[1] = mrfusion.Exploration{
+		Name:      "Your Mom",
 		Data:      "{\"panels\":{\"123\":{\"id\":\"123\",\"queryIds\":[\"456\"]}},\"queryConfigs\":{\"456\":{\"id\":\"456\",\"database\":null,\"measurement\":null,\"retentionPolicy\":null,\"fields\":[],\"tags\":{},\"groupBy\":{\"time\":null,\"tags\":[]},\"areTagsAccepted\":true,\"rawText\":null}}}",
 		CreatedAt: nowFunc(),
 		UpdatedAt: nowFunc(),
