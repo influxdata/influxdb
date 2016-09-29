@@ -49,7 +49,7 @@ VENDOR = "InfluxData"
 DESCRIPTION = "Distributed time-series database."
 
 prereqs = [ 'git', 'go' ]
-go_vet_command = "go tool vet -example=false ./"
+go_vet_command = "go tool vet ./"
 optional_prereqs = [ 'fpm', 'rpmbuild', 'gpg' ]
 
 fpm_common_args = "-f -s dir --log error \
