@@ -27,4 +27,6 @@ type TimeSeries interface {
 	Query(context.Context, Query) (Response, error)
 	// MonitoredServices retrieves all services sending monitoring data to this `TimeSeries`
 	MonitoredServices(context.Context) ([]MonitoredService, error)
+	// Connect will connect to the time series using the information in `Source`.
+	Connect(context.Context, *Source) error
 }

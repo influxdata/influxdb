@@ -8,6 +8,7 @@ import (
 	"github.com/go-openapi/swag"
 
 	"github.com/go-openapi/errors"
+	"github.com/go-openapi/validate"
 )
 
 /*Sources sources
@@ -17,8 +18,10 @@ swagger:model Sources
 type Sources struct {
 
 	/* sources
-	 */
-	Sources []*Source `json:"sources,omitempty"`
+
+	Required: true
+	*/
+	Sources []*Source `json:"sources"`
 }
 
 // Validate validates this sources
@@ -38,8 +41,8 @@ func (m *Sources) Validate(formats strfmt.Registry) error {
 
 func (m *Sources) validateSources(formats strfmt.Registry) error {
 
-	if swag.IsZero(m.Sources) { // not required
-		return nil
+	if err := validate.Required("sources", "body", m.Sources); err != nil {
+		return err
 	}
 
 	for i := 0; i < len(m.Sources); i++ {

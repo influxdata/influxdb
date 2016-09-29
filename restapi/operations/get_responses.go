@@ -18,7 +18,7 @@ swagger:response getOK
 type GetOK struct {
 
 	// In: body
-	Payload *models.Links `json:"body,omitempty"`
+	Payload *models.Routes `json:"body,omitempty"`
 }
 
 // NewGetOK creates GetOK with default headers values
@@ -27,13 +27,13 @@ func NewGetOK() *GetOK {
 }
 
 // WithPayload adds the payload to the get o k response
-func (o *GetOK) WithPayload(payload *models.Links) *GetOK {
+func (o *GetOK) WithPayload(payload *models.Routes) *GetOK {
 	o.Payload = payload
 	return o
 }
 
 // SetPayload sets the payload to the get o k response
-func (o *GetOK) SetPayload(payload *models.Links) {
+func (o *GetOK) SetPayload(payload *models.Routes) {
 	o.Payload = payload
 }
 

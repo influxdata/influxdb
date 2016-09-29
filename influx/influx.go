@@ -111,3 +111,13 @@ func (c *Client) Query(ctx context.Context, q mrfusion.Query) (mrfusion.Response
 func (c *Client) MonitoredServices(ctx context.Context) ([]mrfusion.MonitoredService, error) {
 	return []mrfusion.MonitoredService{}, nil
 }
+
+func (c *Client) Connect(ctx context.Context, src *mrfusion.Source) error {
+	u, err := url.Parse(src.URL)
+	if err != nil {
+		return err
+	}
+	u.User = url.UserPassword(src.Username, src.Password)
+	c.URL = u
+	return nil
+}
