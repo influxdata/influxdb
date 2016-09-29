@@ -8,35 +8,42 @@ const RefreshingLineGraph = AutoRefresh(LineGraph);
 
 export const HostPage = React.createClass({
   propTypes: {
-    sources: PropTypes.arrayOf(PropTypes.shape()),
+    source: PropTypes.shape({
+      links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
+      }).isRequired,
+    }).isRequired,
+    params: PropTypes.shape({
+      hostID: PropTypes.string.isRequired,
+    }).isRequired,
   },
 
   render() {
     const autoRefreshMs = 15000;
-    const source = this.props.sources[0].links.proxy;
+    const source = this.props.source.links.proxy;
     const queries = [
       {
-        text: `SELECT "usage_user" FROM "telegraf"."default"."cpu" WHERE time > now() - 15m`,
+        text: `SELECT "usage_user" FROM "telegraf"."default"."cpu" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
         name: 'CPU',
       },
       {
-        text: `SELECT "used_percent" FROM "telegraf"."default"."mem" WHERE time > now() - 15m`,
+        text: `SELECT "used_percent" FROM "telegraf"."default"."mem" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
         name: "Memory",
       },
       {
-        text: `SELECT "load1" FROM "telegraf"."default"."system" WHERE time > now() - 15m`,
+        text: `SELECT "load1" FROM "telegraf"."default"."system" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
         name: "Load",
       },
       {
-        text: `SELECT "bytes_recv", "bytes_sent" FROM "telegraf"."default"."net" WHERE time > now() - 15m`,
+        text: `SELECT "bytes_recv", "bytes_sent" FROM "telegraf"."default"."net" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
         name: "Network",
       },
       {
-        text: `SELECT "io_time" FROM "telegraf"."default"."diskio" WHERE time > now() - 15m`,
+        text: `SELECT "io_time" FROM "telegraf"."default"."diskio" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
         name: "Disk IO",
       },
       {
-        text: `SELECT "used_percent" FROM "telegraf"."default"."disk" WHERE time > now() - 15m`,
+        text: `SELECT "used_percent" FROM "telegraf"."default"."disk" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
         name: "Disk usage",
       },
     ];
