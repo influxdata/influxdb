@@ -1,0 +1,12 @@
+syntax = "proto3";
+package internal;
+
+message Exploration {
+	int64 ID = 1; // ExplorationID is a unique ID for an Exploration.
+	string Name = 2; // User provided name of the Exploration.
+	int64 UserID = 3; // UserID is the owner of this Exploration.
+	string Data = 4; // Opaque blob of JSON data.
+	int64 CreatedAt = 5; // Time the exploration was first created.
+	int64 UpdatedAt = 6; // Latest time the exploration was updated.
+	bool Default = 7; // Flags an exploration as the default.
+}

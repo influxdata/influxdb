@@ -50,6 +50,9 @@ godep:
 jsdep:
 	cd ui && npm install
 
+gen: bolt/internal/internal.proto
+	go generate github.com/influxdata/mrfusion/bolt/internal
+
 test: jstest gotest
 
 gotest:

@@ -1,6 +1,7 @@
 github.com/PuerkitoBio/purell 8a290539e2e8629dbc4e6bad948158f790ec31f4
 github.com/PuerkitoBio/urlesc 5bd2802263f21d8788851d5305584c82a5c75d7e
 github.com/asaskevich/govalidator 593d64559f7600f29581a3ee42177f5dbded27a9
+github.com/boltdb/bolt 5cc10bbbc5c141029940133bb33c9e969512a698
 github.com/elazarl/go-bindata-assetfs 9a6736ed45b44bf3835afeebb3034b57ed329f3e
 github.com/go-openapi/analysis b44dc874b601d9e4e2f6e19140e794ba24bead3b
 github.com/go-openapi/errors 4178436c9f2430cdd945c50301cfb61563b56573
@@ -12,6 +13,7 @@ github.com/go-openapi/spec 6aced65f8501fe1217321abf0749d354824ba2ff
 github.com/go-openapi/strfmt d65c7fdb29eca313476e529628176fe17e58c488
 github.com/go-openapi/swag 0e04f5e499b19bf51031c01a00f098f25067d8dc
 github.com/go-openapi/validate deaf2c9013bc1a7f4c774662259a506ba874d80f
+github.com/gogo/protobuf 6abcf94fd4c97dcb423fdafd42fe9f96ca7e421b
 github.com/gorilla/context 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 github.com/jessevdk/go-flags 4cc2832a6e6d1d3b815e2b9d544b2a4dfb3ce8fa
 github.com/mailru/easyjson e978125a7e335d8f4db746a9ac5b44643f27416b
