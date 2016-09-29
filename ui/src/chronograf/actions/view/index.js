@@ -142,11 +142,11 @@ export function toggleTagAcceptance(queryId) {
   };
 }
 
-export function createExploration(sourceLink, push) {
+export function createExploration(source, push) {
   return (dispatch) => {
     const initialState = getInitialState();
     AJAX({
-      url: `${sourceLink}/users/1/explorations`, // TODO: change this to use actual user link once users are introduced
+      url: `${source.links.self}/users/1/explorations`, // TODO: change this to use actual user link once users are introduced
       method: 'POST',
       data: JSON.stringify({
         data: JSON.stringify(initialState),
@@ -157,7 +157,7 @@ export function createExploration(sourceLink, push) {
     }).then((resp) => {
       const explorer = parseRawExplorer(resp.data);
       dispatch(loadExplorer(explorer));
-      push(`/chronograf/data_explorer/${btoa(explorer.link.href)}`); // Base64 encode explorer URI
+      push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorer.link.href)}`); // Base64 encode explorer URI
     });
   };
 }
@@ -283,7 +283,7 @@ function saveExplorer(error) {
   };
 }
 
-export function chooseExplorer(explorerID, push) {
+export function chooseExplorer(explorerID, source, push) {
   return (dispatch, getState) => {
     // Save the previous session explicitly in case an auto-save was unable to complete.
     const {panels, queryConfigs, activeExplorer} = getState();
@@ -306,7 +306,7 @@ export function chooseExplorer(explorerID, push) {
     }).then((resp) => {
       const explorer = parseRawExplorer(resp.data);
       dispatch(loadExplorer(explorer));
-      push(`/chronograf/data_explorer/${btoa(explorerID)}`);
+      push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorerID)}`);
     });
   };
 }

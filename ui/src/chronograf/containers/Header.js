@@ -33,7 +33,7 @@ const Header = React.createClass({
   },
 
   contextTypes: {
-    sources: PropTypes.arrayOf(PropTypes.shape().isRequired).isRequired,
+    source: PropTypes.shape(),
   },
 
   handleChooseTimeRange(bounds) {
@@ -54,7 +54,7 @@ const Header = React.createClass({
     // TODO: passing in this.props.router.push is a big smell, getting something like
     // react-router-redux might be better here
 
-    this.props.actions.createExploration(this.context.sources[0].links.self, this.props.router.push);
+    this.props.actions.createExploration(this.context.source, this.props.router.push);
   },
 
   handleChooseExplorer({id}) {
@@ -62,7 +62,7 @@ const Header = React.createClass({
       return;
     }
 
-    this.props.actions.chooseExplorer(id, this.props.router.push);
+    this.props.actions.chooseExplorer(id, this.context.source, this.props.router.push);
   },
 
   /**
