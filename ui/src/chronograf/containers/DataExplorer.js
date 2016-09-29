@@ -8,7 +8,7 @@ import {FETCHING} from '../reducers/explorers';
 import {
   setTimeRange as setTimeRangeAction,
   createExploration as createExplorationAction,
-  chooseExplorer as chooseExplorerAction,
+  chooseExploration as chooseExplorationAction,
   deleteExplorer as deleteExplorerAction,
   editExplorer as editExplorerAction,
 } from '../actions/view';
@@ -29,7 +29,7 @@ const DataExplorer = React.createClass({
     }).isRequired,
     setTimeRange: PropTypes.func.isRequired,
     createExploration: PropTypes.func.isRequired,
-    chooseExplorer: PropTypes.func.isRequired,
+    chooseExploration: PropTypes.func.isRequired,
     deleteExplorer: PropTypes.func.isRequired,
     editExplorer: PropTypes.func.isRequired,
   },
@@ -60,7 +60,7 @@ const DataExplorer = React.createClass({
   },
 
   render() {
-    const {timeRange, explorers, explorerID, setTimeRange, createExploration, chooseExplorer, deleteExplorer, editExplorer} = this.props;
+    const {timeRange, explorers, explorerID, setTimeRange, createExploration, chooseExploration, deleteExplorer, editExplorer} = this.props;
 
     if (explorers === FETCHING) {
       // TODO: page-wide spinner
@@ -75,7 +75,7 @@ const DataExplorer = React.createClass({
     return (
       <div className="data-explorer">
         <Header
-          actions={{setTimeRange, createExploration, chooseExplorer, deleteExplorer, editExplorer}}
+          actions={{setTimeRange, createExploration, chooseExploration, deleteExplorer, editExplorer}}
           explorers={explorers}
           timeRange={timeRange}
           explorerID={explorerID}
@@ -99,7 +99,7 @@ function mapStateToProps(state) {
 export default connect(mapStateToProps, {
   setTimeRange: setTimeRangeAction,
   createExploration: createExplorationAction,
-  chooseExplorer: chooseExplorerAction,
+  chooseExploration: chooseExplorationAction,
   deleteExplorer: deleteExplorerAction,
   editExplorer: editExplorerAction,
 })(DataExplorer);

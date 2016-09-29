@@ -283,7 +283,7 @@ function saveExplorer(error) {
   };
 }
 
-export function chooseExplorer(explorerURI, source, push) {
+export function chooseExploration(explorerURI, source, push) {
   return (dispatch, getState) => {
     // Save the previous session explicitly in case an auto-save was unable to complete.
     const {panels, queryConfigs, activeExplorer} = getState();

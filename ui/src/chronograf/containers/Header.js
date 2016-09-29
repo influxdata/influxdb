@@ -16,7 +16,7 @@ const Header = React.createClass({
     actions: PropTypes.shape({
       setTimeRange: PropTypes.func.isRequired,
       createExploration: PropTypes.func.isRequired,
-      chooseExplorer: PropTypes.func.isRequired,
+      chooseExploration: PropTypes.func.isRequired,
       deleteExplorer: PropTypes.func.isRequired,
       editExplorer: PropTypes.func.isRequired,
     }),
@@ -62,7 +62,7 @@ const Header = React.createClass({
       return;
     }
 
-    this.props.actions.chooseExplorer(id, this.context.source, this.props.router.push);
+    this.props.actions.chooseExploration(id, this.context.source, this.props.router.push);
   },
 
   /**
