@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"sort"
@@ -760,18 +761,18 @@ func (m *Measurement) filters(condition influxql.Expr) (map[uint64]influxql.Expr
 // TODO: this shouldn't be exported. However, until tx.go and the engine get refactored into tsdb, we need it.
 func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 
 	// get the unique set of series ids and the filters that should be applied to each
 	filters, err := m.filters(condition)
 	if err != nil {
+		m.mu.RUnlock()
 		return nil, err
 	}
 
 	// For every series, get the tag values for the requested tag keys i.e. dimensions. This is the
 	// TagSet for that series. Series with the same TagSet are then grouped together, because for the
 	// purpose of GROUP BY they are part of the same composite series.
-	tagSets := make(map[string]*influxql.TagSet)
+	tagSets := make(map[string]*influxql.TagSet, 64)
 	for id, filter := range filters {
 		s := m.seriesByID[id]
 		tags := make(map[string]string, len(dimensions))
@@ -780,28 +781,25 @@ func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*
 		for _, dim := range dimensions {
 			tags[dim] = s.Tags.GetString(dim)
 		}
-
 		// Convert the TagSet to a string, so it can be added to a map allowing TagSets to be handled
 		// as a set.
-		tagsAsKey := string(MarshalTags(tags))
-		tagSet, ok := tagSets[tagsAsKey]
+		tagsAsKey := MarshalTags(tags)
+		tagSet, ok := tagSets[string(tagsAsKey)]
 		if !ok {
 			// This TagSet is new, create a new entry for it.
-			tagSet = &influxql.TagSet{}
-			tagsForSet := make(map[string]string, len(tags))
-			for k, v := range tags {
-				tagsForSet[k] = v
+			tagSet = &influxql.TagSet{
+				Tags: tags,
+				Key:  tagsAsKey,
 			}
-			tagSet.Tags = tagsForSet
-			tagSet.Key = MarshalTags(tagsForSet)
 		}
-
 		// Associate the series and filter with the Tagset.
 		tagSet.AddFilter(m.seriesByID[id].Key, filter)
 
 		// Ensure it's back in the map.
-		tagSets[tagsAsKey] = tagSet
+		tagSets[string(tagsAsKey)] = tagSet
 	}
+	// Release the lock while we sort all the tags
+	m.mu.RUnlock()
 
 	// Sort the series in each tag set.
 	for _, t := range tagSets {
@@ -810,16 +808,11 @@ func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*
 
 	// The TagSets have been created, as a map of TagSets. Just send
 	// the values back as a slice, sorting for consistency.
-	sortedTagSetKeys := make([]string, 0, len(tagSets))
-	for k := range tagSets {
-		sortedTagSetKeys = append(sortedTagSetKeys, k)
+	sortedTagsSets := make([]*influxql.TagSet, 0, len(tagSets))
+	for _, v := range tagSets {
+		sortedTagsSets = append(sortedTagsSets, v)
 	}
-	sort.Strings(sortedTagSetKeys)
-
-	sortedTagsSets := make([]*influxql.TagSet, 0, len(sortedTagSetKeys))
-	for _, k := range sortedTagSetKeys {
-		sortedTagsSets = append(sortedTagsSets, tagSets[k])
-	}
+	sort.Sort(byTagKey(sortedTagsSets))
 
 	return sortedTagsSets, nil
 }
@@ -827,9 +820,9 @@ func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*
 // mergeSeriesFilters merges two sets of filter expressions and culls series IDs.
 func mergeSeriesFilters(op influxql.Token, ids SeriesIDs, lfilters, rfilters FilterExprs) (SeriesIDs, FilterExprs) {
 	// Create a map to hold the final set of series filter expressions.
-	filters := make(map[uint64]influxql.Expr, 0)
+	filters := make(map[uint64]influxql.Expr, len(ids))
 	// Resulting list of series IDs
-	var series SeriesIDs
+	series := make(SeriesIDs, 0, len(ids))
 
 	// Combining logic:
 	// +==========+==========+==========+=======================+=======================+
@@ -1982,3 +1975,9 @@ type uint64Slice []uint64
 func (a uint64Slice) Len() int           { return len(a) }
 func (a uint64Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a uint64Slice) Less(i, j int) bool { return a[i] < a[j] }
+
+type byTagKey []*influxql.TagSet
+
+func (t byTagKey) Len() int           { return len(t) }
+func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
+func (t byTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
