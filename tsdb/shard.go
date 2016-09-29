@@ -127,6 +127,7 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 		stats: &ShardStatistics{},
 		defaultTags: models.StatisticTags{
 			"path":            path,
+			"walPath":         walPath,
 			"id":              fmt.Sprintf("%d", id),
 			"database":        db,
 			"retentionPolicy": rp,
