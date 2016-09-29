@@ -198,7 +198,7 @@ func (e *Engine) SetCompactionsEnabled(enabled bool) {
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
-func (e *Engine) Measurement(name string) (*tsdb.Measurement, error) {
+func (e *Engine) Measurement(name []byte) (*tsdb.Measurement, error) {
 	return e.index.Measurement(name)
 }
 
@@ -572,7 +572,7 @@ func (e *Engine) addToIndexFromKey(shardID uint64, key []byte, fieldType influxq
 	}
 
 	// Have we already indexed this series?
-	ss, err := index.Series(string(seriesKey))
+	ss, err := index.Series(seriesKey)
 	if err != nil {
 		return err
 	} else if ss != nil {
@@ -583,7 +583,7 @@ func (e *Engine) addToIndexFromKey(shardID uint64, key []byte, fieldType influxq
 	// fields (in line protocol format) in the series key
 	_, tags, _ := models.ParseKey(seriesKey)
 
-	s := tsdb.NewSeries(string(seriesKey), tags)
+	s := tsdb.NewSeries(seriesKey, tags)
 	index.CreateSeriesIndexIfNotExists(measurement, s)
 
 	return nil
@@ -615,12 +615,12 @@ func (e *Engine) WritePoints(points []models.Point) error {
 
 // containsSeries returns a map of keys indicating whether the key exists and
 // has values or not.
-func (e *Engine) containsSeries(keys []string) (map[string]bool, error) {
+func (e *Engine) containsSeries(keys [][]byte) (map[string]bool, error) {
 	// keyMap is used to see if a given key exists.  keys
 	// are the measurement + tagset (minus separate & field)
 	keyMap := map[string]bool{}
 	for _, k := range keys {
-		keyMap[k] = false
+		keyMap[string(k)] = false
 	}
 
 	for _, k := range e.Cache.Keys() {
@@ -642,12 +642,12 @@ func (e *Engine) containsSeries(keys []string) (map[string]bool, error) {
 }
 
 // deleteSeries removes all series keys from the engine.
-func (e *Engine) deleteSeries(seriesKeys []string) error {
+func (e *Engine) deleteSeries(seriesKeys [][]byte) error {
 	return e.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
 }
 
 // DeleteSeriesRange removes the values between min and max (inclusive) from all series.
-func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
+func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	if len(seriesKeys) == 0 {
 		return nil
 	}
@@ -665,7 +665,7 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 	// are the measurement + tagset (minus separate & field)
 	keyMap := make(map[string]struct{}, len(seriesKeys))
 	for _, k := range seriesKeys {
-		keyMap[k] = struct{}{}
+		keyMap[string(k)] = struct{}{}
 	}
 
 	deleteKeys := make([]string, 0, len(seriesKeys))
@@ -735,9 +735,9 @@ func (e *Engine) CreateMeasurement(name string) (*tsdb.Measurement, error) {
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
-func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
+func (e *Engine) DeleteMeasurement(name []byte, seriesKeys [][]byte) error {
 	e.mu.Lock()
-	delete(e.measurementFields, name)
+	delete(e.measurementFields, string(name))
 	e.mu.Unlock()
 
 	if err := e.deleteSeries(seriesKeys); err != nil {
@@ -753,7 +753,7 @@ func (e *Engine) CreateSeries(measurment string, series *tsdb.Series) (*tsdb.Ser
 }
 
 // Series returns a series from the index.
-func (e *Engine) Series(key string) (*tsdb.Series, error) {
+func (e *Engine) Series(key []byte) (*tsdb.Series, error) {
 	return e.index.Series(key)
 }
 

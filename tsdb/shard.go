@@ -395,12 +395,12 @@ func (s *Shard) WritePoints(points []models.Point) error {
 }
 
 // DeleteSeries deletes a list of series.
-func (s *Shard) DeleteSeries(seriesKeys []string) error {
+func (s *Shard) DeleteSeries(seriesKeys [][]byte) error {
 	return s.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
 }
 
 // DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
-func (s *Shard) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
+func (s *Shard) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	if err := s.ready(); err != nil {
 		return err
 	}
@@ -413,7 +413,7 @@ func (s *Shard) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 }
 
 // DeleteMeasurement deletes a measurement and all underlying series.
-func (s *Shard) DeleteMeasurement(name string) error {
+func (s *Shard) DeleteMeasurement(name []byte) error {
 	if err := s.ready(); err != nil {
 		return err
 	}
@@ -425,7 +425,7 @@ func (s *Shard) DeleteMeasurement(name string) error {
 	}
 
 	if m == nil {
-		return influxql.ErrMeasurementNotFound(name)
+		return influxql.ErrMeasurementNotFound(string(name))
 	}
 
 	// Remove the measurement from the engine.
@@ -482,8 +482,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 		}
 
 		// see if the series should be added to the index
-		key := string(p.Key())
-		ss, err := s.engine.Series(key)
+		ss, err := s.engine.Series(p.Key())
 		if err != nil {
 			return nil, err
 		}
@@ -496,10 +495,10 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 		if ss == nil {
 			if s.options.Config.MaxSeriesPerDatabase > 0 &&
 				int64(seriesN)+1 > int64(s.options.Config.MaxSeriesPerDatabase) {
-				return nil, fmt.Errorf("max series per database exceeded: %s", key)
+				return nil, fmt.Errorf("max series per database exceeded: %s", p.Key())
 			}
 
-			ss = NewSeries(key, tags)
+			ss = NewSeries(p.Key(), tags)
 		}
 
 		if ss, err = s.engine.CreateSeries(p.Name(), ss); err != nil {
@@ -535,7 +534,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 }
 
 // Measurement returns the named measurement from the index.
-func (s *Shard) Measurement(name string) *Measurement {
+func (s *Shard) Measurement(name []byte) *Measurement {
 	m, _ := s.engine.Measurement(name)
 	return m
 }
@@ -561,7 +560,7 @@ func (s *Shard) SeriesN() (uint64, error) {
 }
 
 // Series returns a series by key.
-func (s *Shard) Series(key string) *Series {
+func (s *Shard) Series(key []byte) *Series {
 	series, _ := s.engine.Series(key)
 	return series
 }
@@ -649,7 +648,7 @@ func (s *Shard) FieldDimensions(sources influxql.Sources) (fields map[string]inf
 		switch m := src.(type) {
 		case *influxql.Measurement:
 			// Retrieve measurement.
-			mm, err := s.engine.Measurement(m.Name)
+			mm, err := s.engine.Measurement([]byte(m.Name))
 			if err != nil {
 				return nil, nil, err
 			}
