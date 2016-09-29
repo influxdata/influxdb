@@ -74,7 +74,7 @@ func TestExplorationStore_CRUD(t *testing.T) {
 
 	// Add new explorations.
 	for i := range explorations {
-		if err := s.Add(nil, explorations[i]); err != nil {
+		if _, err := s.Add(nil, explorations[i]); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -156,7 +156,7 @@ func TestExplorationStore_Query(t *testing.T) {
 
 	// Add new explorations.
 	for i := range explorations {
-		if err := s.Add(nil, explorations[i]); err != nil {
+		if _, err := s.Add(nil, explorations[i]); err != nil {
 			t.Fatal(err)
 		}
 	}

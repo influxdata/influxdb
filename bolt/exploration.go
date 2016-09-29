@@ -41,7 +41,7 @@ func (s *ExplorationStore) Query(ctx context.Context, uid mrfusion.UserID) ([]*m
 }
 
 // Create a new Exploration in the ExplorationStore.
-func (s *ExplorationStore) Add(ctx context.Context, e *mrfusion.Exploration) error {
+func (s *ExplorationStore) Add(ctx context.Context, e *mrfusion.Exploration) (*mrfusion.Exploration, error) {
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(ExplorationBucket)
 		seq, err := b.NextSequence()
@@ -58,10 +58,10 @@ func (s *ExplorationStore) Add(ctx context.Context, e *mrfusion.Exploration) err
 		}
 		return nil
 	}); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return e, nil
 }
 
 // Delete the exploration from the ExplorationStore

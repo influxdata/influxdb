@@ -44,11 +44,11 @@ func (m *ExplorationStore) Query(ctx context.Context, userID mrfusion.UserID) ([
 	return res, nil
 }
 
-func (m *ExplorationStore) Add(ctx context.Context, e *mrfusion.Exploration) error {
+func (m *ExplorationStore) Add(ctx context.Context, e *mrfusion.Exploration) (*mrfusion.Exploration, error) {
 	e.CreatedAt = m.NowFunc()
 	e.UpdatedAt = m.NowFunc()
 	m.db[len(m.db)] = e
-	return nil
+	return e, nil
 }
 
 func (m *ExplorationStore) Delete(ctx context.Context, e *mrfusion.Exploration) error {

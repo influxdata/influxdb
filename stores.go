@@ -79,7 +79,7 @@ type ExplorationStore interface {
 	// Search the ExplorationStore for each Exploration owned by `UserID`.
 	Query(ctx context.Context, userID UserID) ([]*Exploration, error)
 	// Create a new Exploration in the ExplorationStore.
-	Add(context.Context, *Exploration) error
+	Add(context.Context, *Exploration) (*Exploration, error)
 	// Delete the Exploration from the ExplorationStore.
 	Delete(context.Context, *Exploration) error
 	// Retrieve an Exploration if `ID` exists.
