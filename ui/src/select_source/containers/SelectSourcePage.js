@@ -43,8 +43,8 @@ export const SelectSourcePage = React.createClass({
       username: this.sourceUser.value,
       password: this.sourcePassword.value,
     };
-    createSource(source).then(() => {
-      // this.redirectToApp(sourceFromServer)
+    createSource(source).then(({data: sourceFromServer}) => {
+      this.redirectToApp(sourceFromServer);
     });
   },
 
