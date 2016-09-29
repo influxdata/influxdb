@@ -226,7 +226,7 @@ function loadExplorer(explorer) {
   };
 }
 
-export function fetchExplorers({source, userID, explorerID, push}) {
+export function fetchExplorers({source, userID, explorerURI, push}) {
   return (dispatch) => {
     dispatch({type: 'FETCH_EXPLORERS'});
     AJAX({
@@ -242,18 +242,18 @@ export function fetchExplorers({source, userID, explorerID, push}) {
         return;
       }
 
-      // If no explorerID is provided, it means the user wasn't attempting to visit
+      // If no explorerURI is provided, it means the user wasn't attempting to visit
       // a specific explorer (i.e. `/data_explorer/:id`).  In this case, pick the
       // most recently updated explorer and navigate to it.
-      if (!explorerID) {
+      if (!explorerURI) {
         const explorer = _.maxBy(explorers, (ex) => ex.updated_at);
         dispatch(loadExplorer(explorer));
         push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorer.link.href)}`);
         return;
       }
 
-      // We have an explorerID, meaning a specific explorer was requested.
-      const explorer = explorers.find((ex) => ex.id === explorerID);
+      // We have an explorerURI, meaning a specific explorer was requested.
+      const explorer = explorers.find((ex) => ex.id === explorerURI);
 
       // Attempting to request a non-existent explorer
       if (!explorer) {
@@ -283,7 +283,7 @@ function saveExplorer(error) {
   };
 }
 
-export function chooseExplorer(explorerID, source, push) {
+export function chooseExplorer(explorerURI, source, push) {
   return (dispatch, getState) => {
     // Save the previous session explicitly in case an auto-save was unable to complete.
     const {panels, queryConfigs, activeExplorer} = getState();
@@ -302,11 +302,11 @@ export function chooseExplorer(explorerID, source, push) {
 
     dispatch(fetchExplorer());
     AJAX({
-      url: explorerID,
+      url: explorerURI,
     }).then((resp) => {
       const explorer = parseRawExplorer(resp.data);
       dispatch(loadExplorer(explorer));
-      push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorerID)}`);
+      push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorerURI)}`);
     });
   };
 }
