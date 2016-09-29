@@ -184,18 +184,6 @@ func (s *Shard) SetEnabled(enabled bool) {
 
 // ShardStatistics maintains statistics for a shard.
 type ShardStatistics struct {
-<<<<<<< b5d86c3e037ad29fba33d47a0c794e5b07ca7e2a
-	WriteReq           int64
-	WriteReqOK         int64
-	WriteReqErr        int64
-	SeriesCreated      int64
-	FieldsCreated      int64
-	WritePointsErr     int64
-	WritePointsDropped int64
-	WritePointsOK      int64
-	BytesWritten       int64
-	DiskBytes          int64
-=======
 	WriteReq       int64
 	WriteReqOK     int64
 	WriteReqErr    int64
@@ -204,7 +192,6 @@ type ShardStatistics struct {
 	WritePointsOK  int64
 	BytesWritten   int64
 	DiskBytes      int64
->>>>>>> Cleanup series created stat
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -224,18 +211,6 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 		Name: "shard",
 		Tags: tags,
 		Values: map[string]interface{}{
-<<<<<<< b5d86c3e037ad29fba33d47a0c794e5b07ca7e2a
-			statWriteReq:           atomic.LoadInt64(&s.stats.WriteReq),
-			statWriteReqOK:         atomic.LoadInt64(&s.stats.WriteReqOK),
-			statWriteReqErr:        atomic.LoadInt64(&s.stats.WriteReqErr),
-			statSeriesCreate:       seriesN,
-			statFieldsCreate:       atomic.LoadInt64(&s.stats.FieldsCreated),
-			statWritePointsErr:     atomic.LoadInt64(&s.stats.WritePointsErr),
-			statWritePointsDropped: atomic.LoadInt64(&s.stats.WritePointsDropped),
-			statWritePointsOK:      atomic.LoadInt64(&s.stats.WritePointsOK),
-			statWriteBytes:         atomic.LoadInt64(&s.stats.BytesWritten),
-			statDiskBytes:          atomic.LoadInt64(&s.stats.DiskBytes),
-=======
 			statWriteReq:       atomic.LoadInt64(&s.stats.WriteReq),
 			statWriteReqOK:     atomic.LoadInt64(&s.stats.WriteReqOK),
 			statWriteReqErr:    atomic.LoadInt64(&s.stats.WriteReqErr),
@@ -245,7 +220,6 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 			statWritePointsOK:  atomic.LoadInt64(&s.stats.WritePointsOK),
 			statWriteBytes:     atomic.LoadInt64(&s.stats.BytesWritten),
 			statDiskBytes:      atomic.LoadInt64(&s.stats.DiskBytes),
->>>>>>> Cleanup series created stat
 		},
 	}}
 
@@ -441,12 +415,12 @@ func (s *Shard) WritePoints(points []models.Point) error {
 }
 
 // DeleteSeries deletes a list of series.
-func (s *Shard) DeleteSeries(seriesKeys []string) error {
+func (s *Shard) DeleteSeries(seriesKeys [][]byte) error {
 	return s.DeleteSeriesRange(seriesKeys, math.MinInt64, math.MaxInt64)
 }
 
 // DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
-func (s *Shard) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
+func (s *Shard) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	if err := s.ready(); err != nil {
 		return err
 	}
@@ -459,7 +433,7 @@ func (s *Shard) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 }
 
 // DeleteMeasurement deletes a measurement and all underlying series.
-func (s *Shard) DeleteMeasurement(name string) error {
+func (s *Shard) DeleteMeasurement(name []byte) error {
 	if err := s.ready(); err != nil {
 		return err
 	}
@@ -471,7 +445,7 @@ func (s *Shard) DeleteMeasurement(name string) error {
 	}
 
 	if m == nil {
-		return influxql.ErrMeasurementNotFound(name)
+		return influxql.ErrMeasurementNotFound(string(name))
 	}
 
 	// Remove the measurement from the engine.
@@ -578,8 +552,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		iter.Reset()
 
 		// see if the series should be added to the index
-		key := string(p.Key())
-		ss, err := s.engine.Series(key)
+		ss, err := s.engine.Series(p.Key())
 		if err != nil {
 			return nil, nil, err
 		}
@@ -590,7 +563,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 				return nil, nil, err
 			}
 
-			if s.options.Config.MaxSeriesPerDatabase > 0 && sn+1 > int64(s.options.Config.MaxSeriesPerDatabase) {
+			if s.options.Config.MaxSeriesPerDatabase > 0 && sn+1 > uint64(s.options.Config.MaxSeriesPerDatabase) {
 				atomic.AddInt64(&s.stats.WritePointsDropped, 1)
 				dropped += 1
 				reason = fmt.Sprintf("db %s max series limit reached: (%d/%d)", s.database, sn, s.options.Config.MaxSeriesPerDatabase)
@@ -598,7 +571,6 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 			}
 
 			ss = NewSeries(p.Key(), tags)
-			atomic.AddInt64(&s.stats.SeriesCreated, 1)
 		}
 
 		if ss, err = s.engine.CreateSeries(p.Name(), ss); err != nil {
@@ -669,7 +641,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 }
 
 // Measurement returns the named measurement from the index.
-func (s *Shard) Measurement(name string) *Measurement {
+func (s *Shard) Measurement(name []byte) *Measurement {
 	m, _ := s.engine.Measurement(name)
 	return m
 }
@@ -695,7 +667,7 @@ func (s *Shard) SeriesN() (uint64, error) {
 }
 
 // Series returns a series by key.
-func (s *Shard) Series(key string) *Series {
+func (s *Shard) Series(key []byte) *Series {
 	series, _ := s.engine.Series(key)
 	return series
 }
@@ -783,7 +755,7 @@ func (s *Shard) FieldDimensions(sources influxql.Sources) (fields map[string]inf
 		switch m := src.(type) {
 		case *influxql.Measurement:
 			// Retrieve measurement.
-			mm, err := s.engine.Measurement(m.Name)
+			mm, err := s.engine.Measurement([]byte(m.Name))
 			if err != nil {
 				return nil, nil, err
 			}
