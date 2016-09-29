@@ -1,6 +1,9 @@
 import React, {PropTypes} from 'react';
+import _ from 'lodash';
 import FlashMessages from 'shared/components/FlashMessages';
 import HostsTable from '../components/HostsTable';
+import {proxy} from 'utils/queryUrlGenerator';
+import timeSeriesToDygraph from 'utils/timeSeriesToDygraph';
 
 export const HostsPage = React.createClass({
   propTypes: {
@@ -15,10 +18,33 @@ export const HostsPage = React.createClass({
     }).isRequired,
   },
 
-  render() {
-    const {source} = this.props;
-    const sources = [source];
+  getInitialState() {
+    return {
+      hosts: [],
+    };
+  },
 
+  componentDidMount() {
+    proxy({
+      source: this.props.source.links.proxy,
+      query: `select mean(usage_user) from cpu where cpu = 'cpu-total' and time > now() - 10m group by host`,
+      db: 'telegraf',
+    }).then((resp) => {
+      const hosts = resp.data.results[0].series.map((s) => {
+        const meanIndex = s.columns.findIndex((col) => col === 'mean');
+        return {
+          name: s.tags['host'],
+          cpu: Math.round(s.values[0][meanIndex]),
+        };
+      });
+
+      this.setState({
+        hosts,
+      });
+    });
+  },
+
+  render() {
     return (
       <div className="hosts">
         <div className="enterprise-header">
@@ -36,7 +62,7 @@ export const HostsPage = React.createClass({
             <div className="col-md-12">
               <div className="panel panel-minimal">
                 <div className="panel-body">
-                  <HostsTable hosts={sources} />
+                  <HostsTable hosts={this.state.hosts} />
                 </div>
               </div>
             </div>

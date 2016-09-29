@@ -3,20 +3,28 @@ import _ from 'lodash';
 
 const HostsTable = React.createClass({
   propTypes: {
-    hosts: PropTypes.arrayOf(React.PropTypes.object),
+    hosts: PropTypes.arrayOf(PropTypes.shape({
+      name: PropTypes.string,
+      cpu: PropTypes.number,
+      load: PropTypes.string,
+    })),
   },
 
   getInitialState() {
     return {
+      searchTerm: '',
       filteredHosts: this.props.hosts,
       sortDirection: null,
     };
   },
 
-  filterHosts(searchTerm) {
-    const unfiltered = this.props.hosts;
-    const hosts = unfiltered.filter((h) => h.name.search(searchTerm) !== -1);
-    this.setState({filteredHosts: hosts});
+  componentWillReceiveProps(newProps) {
+    this.filterHosts(newProps.hosts, this.state.searchTerm);
+  },
+
+  filterHosts(allHosts, searchTerm) {
+    const hosts = allHosts.filter((h) => h.name.search(searchTerm) !== -1);
+    this.setState({searchTerm, filteredHosts: hosts});
   },
 
   changeSort() {
@@ -27,8 +35,8 @@ const HostsTable = React.createClass({
     }
   },
 
-  sort(hosts) {
-    switch (this.state.sortDirection) {
+  sort(hosts, direction) {
+    switch (direction) {
       case 'asc':
         return _.sortBy(hosts, (e) => e.name);
       case 'desc':
@@ -39,11 +47,11 @@ const HostsTable = React.createClass({
   },
 
   render() {
-    const hosts = this.sort(this.state.filteredHosts);
+    const hosts = this.sort(this.state.filteredHosts, this.state.sortDirection);
 
     return (
       <div>
-        <SearchBar onSearch={this.filterHosts} />
+        <SearchBar onSearch={_.wrap(this.props.hosts, this.filterHosts)} />
         <table className="table v-center">
           <thead>
             <tr>
@@ -56,13 +64,13 @@ const HostsTable = React.createClass({
           </thead>
           <tbody>
             {
-              hosts.map(({name, id}) => {
+              hosts.map(({name, cpu, load}) => {
                 return (
                   <tr key={name}>
-                    <td><a href={`/hosts/${id}`}>{name}</a></td>
+                    <td><a href={`/hosts/${name}`}>{name}</a></td>
                     <td>UP</td>
-                    <td>98%</td>
-                    <td>1.12</td>
+                    <td>{`${cpu}%`}</td>
+                    <td>changeme</td>
                     <td>influxdb, ntp, system</td>
                   </tr>
                 );
