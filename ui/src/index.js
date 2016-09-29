@@ -14,10 +14,8 @@ import DataExplorer from 'src/chronograf';
 import DatabaseManager from 'src/database_manager';
 import SignUp from 'src/sign_up';
 import SelectSourcePage from 'src/select_source';
-import {UsersPage, UserEditPage} from 'src/web_users';
 import {ClusterAccountsPage, ClusterAccountPage} from 'src/cluster_accounts';
 import {RolesPageContainer, RolePageContainer} from 'src/access_control';
-import AccountSettingsPage from 'src/account_settings';
 import NotFound from 'src/shared/components/NotFound';
 import NoClusterError from 'src/shared/components/NoClusterError';
 import configureStore from 'src/store/configureStore';
@@ -121,6 +119,7 @@ const Root = React.createClass({
         <Router history={browserHistory}>
           <Route path="/signup/admin/:step" component={SignUp} />
           <Route path="/" component={SelectSourcePage} />
+          <Route path="/sources" component={SelectSourcePage} />
           <Route path="/sources/:sourceID" component={App}>
             <Route component={CheckDataNodes}>
               <Route path="overview" component={OverviewPage} />
@@ -136,10 +135,7 @@ const Root = React.createClass({
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
             </Route>
-            <Route path="users" component={UsersPage} />
-            <Route path="users/:userID" component={UserEditPage} />
             <Route path="tasks" component={TasksPage} />
-            <Route path="account/settings" component={AccountSettingsPage} />
             <Route path="*" component={NotFound} />
           </Route>
         </Router>
