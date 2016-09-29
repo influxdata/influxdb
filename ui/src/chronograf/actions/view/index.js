@@ -156,7 +156,7 @@ export function createExploration(source, push) {
       },
     }).then((resp) => {
       const explorer = parseRawExplorer(resp.data);
-      dispatch(loadExplorer(explorer));
+      dispatch(loadExploration(explorer));
       push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorer.link.href)}`); // Base64 encode explorer URI
     });
   };
@@ -177,7 +177,7 @@ export function deleteExplorer(clusterID, explorerID, push) {
         // If we don't have an explorer to navigate to, it means we're deleting the last
         // explorer and should create a new one.
         if (explorer) {
-          dispatch(loadExplorer(explorer));
+          dispatch(loadExploration(explorer));
           push(`/chronograf/data_explorer/${explorer.id}`);
         } else {
           dispatch(createExploration(clusterID, push));
@@ -219,7 +219,7 @@ function loadExplorers(explorers) {
   };
 }
 
-function loadExplorer(explorer) {
+function loadExploration(explorer) {
   return {
     type: 'LOAD_EXPLORER',
     payload: {explorer},
@@ -247,7 +247,7 @@ export function fetchExplorers({source, userID, explorerURI, push}) {
       // most recently updated explorer and navigate to it.
       if (!explorerURI) {
         const explorer = _.maxBy(explorers, (ex) => ex.updated_at);
-        dispatch(loadExplorer(explorer));
+        dispatch(loadExploration(explorer));
         push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorer.link.href)}`);
         return;
       }
@@ -260,7 +260,7 @@ export function fetchExplorers({source, userID, explorerURI, push}) {
         return;
       }
 
-      dispatch(loadExplorer(explorer));
+      dispatch(loadExploration(explorer));
     });
   };
 }
@@ -305,7 +305,7 @@ export function chooseExploration(explorerURI, source, push) {
       url: explorerURI,
     }).then((resp) => {
       const explorer = parseRawExplorer(resp.data);
-      dispatch(loadExplorer(explorer));
+      dispatch(loadExploration(explorer));
       push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorerURI)}`);
     });
   };
