@@ -5,9 +5,12 @@ const HostsTable = React.createClass({
   propTypes: {
     hosts: PropTypes.arrayOf(PropTypes.shape({
       name: PropTypes.string,
-      cpu: PropTypes.number,
+      cpu: PropTypes.string,
       load: PropTypes.string,
     })),
+    source: PropTypes.shape({
+      id: PropTypes.string.isRequired,
+    }).isRequired,
   },
 
   getInitialState() {
@@ -48,6 +51,7 @@ const HostsTable = React.createClass({
 
   render() {
     const hosts = this.sort(this.state.filteredHosts, this.state.sortDirection);
+    const {source} = this.props;
 
     return (
       <div>
@@ -67,10 +71,10 @@ const HostsTable = React.createClass({
               hosts.map(({name, cpu, load}) => {
                 return (
                   <tr key={name}>
-                    <td><a href={`/hosts/${name}`}>{name}</a></td>
+                    <td><a href={`/sources/${source.id}/hosts/${name}`}>{name}</a></td>
                     <td>UP</td>
                     <td>{`${cpu}%`}</td>
-                    <td>changeme</td>
+                    <td>{`${load}`}</td>
                     <td>influxdb, ntp, system</td>
                   </tr>
                 );
