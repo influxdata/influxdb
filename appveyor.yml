@@ -12,17 +12,13 @@ clone_folder: c:\gopath\src\github.com\influxdata\influxdb
 
 # Environment variables
 environment:
-  #AppVeyor has go 1.6 as default go environment
-  GOROOT: C:\go16
+  GOROOT: C:\go17
   GOPATH: C:\gopath
-  GOVERSION: 1.7.1
 
 # Scripts that run after cloning repository
 install:
  - set PATH=%GOROOT%\bin;%GOPATH%\bin;%PATH%
  - rmdir c:\go /s /q
- - appveyor DownloadFile https://storage.googleapis.com/golang/go%GOVERSION%.windows-amd64.zip
- - 7z x go%GOVERSION%.windows-amd64.zip -y -oC:\ > NUL
  - echo %PATH%
  - echo %GOPATH%
  - cd C:\gopath\src\github.com\influxdata\influxdb
