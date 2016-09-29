@@ -7,8 +7,8 @@ import ResizeContainer from 'shared/components/ResizeContainer';
 import {FETCHING} from '../reducers/explorers';
 import {
   setTimeRange as setTimeRangeAction,
-  createExplorer as createExplorerAction,
-  chooseExplorer as chooseExplorerAction,
+  createExploration as createExplorationAction,
+  chooseExploration as chooseExplorationAction,
   deleteExplorer as deleteExplorerAction,
   editExplorer as editExplorerAction,
 } from '../actions/view';
@@ -28,8 +28,8 @@ const DataExplorer = React.createClass({
       lower: PropTypes.string,
     }).isRequired,
     setTimeRange: PropTypes.func.isRequired,
-    createExplorer: PropTypes.func.isRequired,
-    chooseExplorer: PropTypes.func.isRequired,
+    createExploration: PropTypes.func.isRequired,
+    chooseExploration: PropTypes.func.isRequired,
     deleteExplorer: PropTypes.func.isRequired,
     editExplorer: PropTypes.func.isRequired,
   },
@@ -60,7 +60,7 @@ const DataExplorer = React.createClass({
   },
 
   render() {
-    const {timeRange, explorers, explorerID, setTimeRange, createExplorer, chooseExplorer, deleteExplorer, editExplorer} = this.props;
+    const {timeRange, explorers, explorerID, setTimeRange, createExploration, chooseExploration, deleteExplorer, editExplorer} = this.props;
 
     if (explorers === FETCHING) {
       // TODO: page-wide spinner
@@ -69,13 +69,13 @@ const DataExplorer = React.createClass({
 
     const activeExplorer = explorers[explorerID];
     if (!activeExplorer) {
-      return null; // TODO: handle no explorers;
+      return <div>You have no active explorers</div>; // TODO: handle no explorers;
     }
 
     return (
       <div className="data-explorer">
         <Header
-          actions={{setTimeRange, createExplorer, chooseExplorer, deleteExplorer, editExplorer}}
+          actions={{setTimeRange, createExploration, chooseExploration, deleteExplorer, editExplorer}}
           explorers={explorers}
           timeRange={timeRange}
           explorerID={explorerID}
@@ -98,8 +98,8 @@ function mapStateToProps(state) {
 
 export default connect(mapStateToProps, {
   setTimeRange: setTimeRangeAction,
-  createExplorer: createExplorerAction,
-  chooseExplorer: chooseExplorerAction,
+  createExploration: createExplorationAction,
+  chooseExploration: chooseExplorationAction,
   deleteExplorer: deleteExplorerAction,
   editExplorer: editExplorerAction,
 })(DataExplorer);

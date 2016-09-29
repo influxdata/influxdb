@@ -142,14 +142,13 @@ export function toggleTagAcceptance(queryId) {
   };
 }
 
-export function createExplorer(clusterID, push) {
+export function createExploration(source, push) {
   return (dispatch) => {
     const initialState = getInitialState();
     AJAX({
-      url: '/api/int/v1/explorers',
+      url: `${source.links.self}/users/1/explorations`, // TODO: change this to use actual user link once users are introduced
       method: 'POST',
       data: JSON.stringify({
-        cluster_id: clusterID,
         data: JSON.stringify(initialState),
       }),
       headers: {
@@ -157,8 +156,8 @@ export function createExplorer(clusterID, push) {
       },
     }).then((resp) => {
       const explorer = parseRawExplorer(resp.data);
-      dispatch(loadExplorer(explorer));
-      push(`/chronograf/data_explorer/${explorer.id}`);
+      dispatch(loadExploration(explorer));
+      push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorer.link.href)}`); // Base64 encode explorer URI
     });
   };
 }
@@ -178,10 +177,10 @@ export function deleteExplorer(clusterID, explorerID, push) {
         // If we don't have an explorer to navigate to, it means we're deleting the last
         // explorer and should create a new one.
         if (explorer) {
-          dispatch(loadExplorer(explorer));
+          dispatch(loadExploration(explorer));
           push(`/chronograf/data_explorer/${explorer.id}`);
         } else {
-          dispatch(createExplorer(clusterID, push));
+          dispatch(createExploration(clusterID, push));
         }
       }
 
@@ -220,14 +219,14 @@ function loadExplorers(explorers) {
   };
 }
 
-function loadExplorer(explorer) {
+function loadExploration(explorer) {
   return {
     type: 'LOAD_EXPLORER',
     payload: {explorer},
   };
 }
 
-export function fetchExplorers({source, userID, explorerID, push}) {
+export function fetchExplorers({source, userID, explorerURI, push}) {
   return (dispatch) => {
     dispatch({type: 'FETCH_EXPLORERS'});
     AJAX({
@@ -239,29 +238,29 @@ export function fetchExplorers({source, userID, explorerID, push}) {
       // Create a new explorer session for a user if they don't have any
       // saved (e.g. when they visit for the first time).
       if (!explorers.length) {
-        dispatch(createExplorer(push));
+        dispatch(createExploration(push));
         return;
       }
 
-      // If no explorerID is provided, it means the user wasn't attempting to visit
+      // If no explorerURI is provided, it means the user wasn't attempting to visit
       // a specific explorer (i.e. `/data_explorer/:id`).  In this case, pick the
       // most recently updated explorer and navigate to it.
-      if (!explorerID) {
+      if (!explorerURI) {
         const explorer = _.maxBy(explorers, (ex) => ex.updated_at);
-        dispatch(loadExplorer(explorer));
+        dispatch(loadExploration(explorer));
         push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorer.link.href)}`);
         return;
       }
 
-      // We have an explorerID, meaning a specific explorer was requested.
-      const explorer = explorers.find((ex) => ex.id === explorerID);
+      // We have an explorerURI, meaning a specific explorer was requested.
+      const explorer = explorers.find((ex) => ex.id === explorerURI);
 
       // Attempting to request a non-existent explorer
       if (!explorer) {
         return;
       }
 
-      dispatch(loadExplorer(explorer));
+      dispatch(loadExploration(explorer));
     });
   };
 }
@@ -284,12 +283,13 @@ function saveExplorer(error) {
   };
 }
 
-export function chooseExplorer(clusterID, explorerID, push) {
+export function chooseExploration(explorerURI, source, push) {
   return (dispatch, getState) => {
     // Save the previous session explicitly in case an auto-save was unable to complete.
     const {panels, queryConfigs, activeExplorer} = getState();
     api.saveExplorer({
       explorerID: activeExplorer.id,
+      name: activeExplorer.name,
       panels,
       queryConfigs,
     }).then(() => {
@@ -302,11 +302,11 @@ export function chooseExplorer(clusterID, explorerID, push) {
 
     dispatch(fetchExplorer());
     AJAX({
-      url: `/api/int/v1/explorers/${explorerID}`,
+      url: explorerURI,
     }).then((resp) => {
       const explorer = parseRawExplorer(resp.data);
-      dispatch(loadExplorer(explorer));
-      push(`/chronograf/data_explorer/${explorerID}`);
+      dispatch(loadExploration(explorer));
+      push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorerURI)}`);
     });
   };
 }
