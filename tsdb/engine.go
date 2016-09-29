@@ -42,16 +42,16 @@ type Engine interface {
 	WritePoints(points []models.Point) error
 
 	CreateSeries(measurment string, series *Series) (*Series, error)
-	DeleteSeriesRange(keys []string, min, max int64) error
-	Series(key string) (*Series, error)
+	DeleteSeriesRange(keys [][]byte, min, max int64) error
+	Series(key []byte) (*Series, error)
 
 	SeriesN() (uint64, error)
 	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 
 	CreateMeasurement(name string) (*Measurement, error)
-	DeleteMeasurement(name string, seriesKeys []string) error
-	Measurement(name string) (*Measurement, error)
+	DeleteMeasurement(name []byte, seriesKeys [][]byte) error
+	Measurement(name []byte) (*Measurement, error)
 	Measurements() (Measurements, error)
 	MeasurementsByExpr(expr influxql.Expr) (Measurements, bool, error)
 	MeasurementsByRegex(re *regexp.Regexp) (Measurements, error)

@@ -59,9 +59,9 @@ func (d *DatabaseIndex) Open() (err error) { return nil }
 func (d *DatabaseIndex) Close() error      { return nil }
 
 // Series returns a series by key.
-func (d *DatabaseIndex) Series(key string) (*Series, error) {
+func (d *DatabaseIndex) Series(key []byte) (*Series, error) {
 	d.mu.RLock()
-	s := d.series[key]
+	s := d.series[string(key)]
 	d.mu.RUnlock()
 	return s, nil
 }
@@ -81,10 +81,10 @@ func (d *DatabaseIndex) SeriesSketches() (estimator.Sketch, estimator.Sketch, er
 }
 
 // Measurement returns the measurement object from the index by the name
-func (d *DatabaseIndex) Measurement(name string) (*Measurement, error) {
+func (d *DatabaseIndex) Measurement(name []byte) (*Measurement, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
-	return d.measurements[name], nil
+	return d.measurements[string(name)], nil
 }
 
 // MeasurementsSketch returns the sketch for the series.
@@ -375,6 +375,9 @@ func (d *DatabaseIndex) measurementsByTagFilters(filters []*TagFilter) Measureme
 
 			isEQ := (f.Op == influxql.EQ || f.Op == influxql.EQREGEX)
 
+			//
+			// XNOR gate
+			//
 			// tags match | operation is EQ | measurement matches
 			// --------------------------------------------------
 			//     True   |       True      |      True
@@ -421,10 +424,10 @@ func (d *DatabaseIndex) Measurements() (Measurements, error) {
 
 // DropMeasurement removes the measurement and all of its underlying
 // series from the database index
-func (d *DatabaseIndex) DropMeasurement(name string) error {
+func (d *DatabaseIndex) DropMeasurement(name []byte) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.dropMeasurement(name)
+	return d.dropMeasurement(string(name))
 }
 
 func (d *DatabaseIndex) dropMeasurement(name string) error {
@@ -558,13 +561,13 @@ func (m *Measurement) AppendSeriesKeysByID(dst []string, ids []uint64) []string 
 	return dst
 }
 
-// SeriesKeys returns the keys of every series in this measurement.
-func (m *Measurement) SeriesKeys() []string {
+// SeriesKeys returns the keys of every series in this measurement
+func (m *Measurement) SeriesKeys() [][]byte {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	keys := make([]string, 0, len(m.seriesByID))
+	keys := make([][]byte, 0, len(m.seriesByID))
 	for _, s := range m.seriesByID {
-		keys = append(keys, s.Key)
+		keys = append(keys, []byte(s.Key))
 	}
 	return keys
 }
