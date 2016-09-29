@@ -27,6 +27,7 @@
 - [#7285](https://github.com/influxdata/influxdb/issues/7285): Correctly use password-type field in Admin UI. Thanks @dandv!
 - [#2792](https://github.com/influxdata/influxdb/issues/2792): Exceeding max retention policy duration gives incorrect error message
 - [#7226](https://github.com/influxdata/influxdb/issues/7226): Fix database locked up when deleting shards
+- [#7382](https://github.com/influxdata/influxdb/issues/7382): Shard stats include wal path tag so disk bytes make more sense.
 
 ## v1.0.1 [2016-09-26]
 
