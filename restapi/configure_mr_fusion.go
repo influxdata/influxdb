@@ -13,6 +13,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/influxdata/mrfusion"
+	"github.com/influxdata/mrfusion/bolt"
 	"github.com/influxdata/mrfusion/dist"
 	"github.com/influxdata/mrfusion/handlers"
 	"github.com/influxdata/mrfusion/influx"
@@ -32,6 +33,10 @@ var influxFlags = struct {
 	Server string `short:"s" long:"server" description:"Full URL of InfluxDB server (http://localhost:8086)" env:"INFLUX_HOST"`
 }{}
 
+var storeFlags = struct {
+	BoltPath string `short:"b" long:"bolt-path" description:"Full path to boltDB file (/Users/somebody/mrfusion.db)" env:"BOLT_PATH"`
+}{}
+
 func configureFlags(api *operations.MrFusionAPI) {
 	api.CommandLineOptionsGroups = []swag.CommandLineOptionsGroup{
 		swag.CommandLineOptionsGroup{
@@ -41,8 +46,13 @@ func configureFlags(api *operations.MrFusionAPI) {
 		},
 		swag.CommandLineOptionsGroup{
 			ShortDescription: "Default Time Series Backend",
-			LongDescription:  "Specify the url of an InfxluDB server",
+			LongDescription:  "Specify the url of an InfluxDB server",
 			Options:          &influxFlags,
+		},
+		swag.CommandLineOptionsGroup{
+			ShortDescription: "Default Store Backend",
+			LongDescription:  "Specify the path to a BoltDB file",
+			Options:          &storeFlags,
 		},
 	}
 }
@@ -76,11 +86,27 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 
 	mockHandler := mock.NewHandler()
 
-	api.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler = operations.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.DeleteExploration)
-	api.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler = operations.GetSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.Exploration)
-	api.GetSourcesIDUsersUserIDExplorationsHandler = operations.GetSourcesIDUsersUserIDExplorationsHandlerFunc(mockHandler.Explorations)
-	api.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler = operations.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.UpdateExploration)
-	api.PostSourcesIDUsersUserIDExplorationsHandler = operations.PostSourcesIDUsersUserIDExplorationsHandlerFunc(mockHandler.NewExploration)
+	if len(storeFlags.BoltPath) > 0 {
+		c := bolt.NewClient()
+		c.Path = storeFlags.BoltPath
+		if err := c.Open(); err != nil {
+			panic(err)
+		}
+		h := handlers.ExplorationStore{
+			ExplorationStore: c.ExplorationStore,
+		}
+		api.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler = operations.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(h.DeleteExploration)
+		api.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler = operations.GetSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(h.Exploration)
+		api.GetSourcesIDUsersUserIDExplorationsHandler = operations.GetSourcesIDUsersUserIDExplorationsHandlerFunc(h.Explorations)
+		api.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler = operations.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(h.UpdateExploration)
+		api.PostSourcesIDUsersUserIDExplorationsHandler = operations.PostSourcesIDUsersUserIDExplorationsHandlerFunc(h.NewExploration)
+	} else {
+		api.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler = operations.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.DeleteExploration)
+		api.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler = operations.GetSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.Exploration)
+		api.GetSourcesIDUsersUserIDExplorationsHandler = operations.GetSourcesIDUsersUserIDExplorationsHandlerFunc(mockHandler.Explorations)
+		api.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler = operations.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.UpdateExploration)
+		api.PostSourcesIDUsersUserIDExplorationsHandler = operations.PostSourcesIDUsersUserIDExplorationsHandlerFunc(mockHandler.NewExploration)
+	}
 
 	api.DeleteDashboardsIDHandler = operations.DeleteDashboardsIDHandlerFunc(func(ctx context.Context, params operations.DeleteDashboardsIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .DeleteDashboardsID has not yet been implemented")
