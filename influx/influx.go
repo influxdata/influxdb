@@ -113,7 +113,7 @@ func (c *Client) MonitoredServices(ctx context.Context) ([]mrfusion.MonitoredSer
 }
 
 func (c *Client) Connect(ctx context.Context, src *mrfusion.Source) error {
-	u, err := url.Parse(src.URL)
+	u, err := url.Parse(src.URL[0])
 	if err != nil {
 		return err
 	}

@@ -45,7 +45,7 @@ func (m *Handler) NewSource(ctx context.Context, params op.PostSourcesParams) mi
 		Type:     params.Source.Type,
 		Username: params.Source.Username,
 		Password: params.Source.Password,
-		URL:      *params.Source.URL,
+		URL:      []string{*params.Source.URL},
 		Default:  params.Source.Default,
 	}
 	var err error
@@ -75,7 +75,7 @@ func mrToModel(src mrfusion.Source) *models.Source {
 		Type:     src.Type,
 		Username: src.Username,
 		Password: src.Password,
-		URL:      &src.URL,
+		URL:      &src.URL[0],
 		Default:  src.Default,
 	}
 }
@@ -154,7 +154,7 @@ func (m *Handler) UpdateSource(ctx context.Context, params op.PatchSourcesIDPara
 		src.Username = params.Config.Username
 	}
 	if params.Config.URL != nil {
-		src.URL = *params.Config.URL
+		src.URL = []string{*params.Config.URL}
 	}
 	if params.Config.Type != "" {
 		src.Type = params.Config.Type

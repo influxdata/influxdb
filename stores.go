@@ -118,13 +118,13 @@ type DashboardStore interface {
 }
 
 type Source struct {
-	ID       int    // ID is the unique ID of the source
-	Name     string // Name is the user-defined name for the source
-	Type     string // Type specifies which kinds of source (enterprise vs oss)
-	Username string // Username is the username to connect to the source
-	Password string // Password is in CLEARTEXT FIXME
-	URL      string // URL is the connection URL to the source
-	Default  bool   // Default specifies the default source for the application
+	ID       int      // ID is the unique ID of the source
+	Name     string   // Name is the user-defined name for the source
+	Type     string   // Type specifies which kinds of source (enterprise vs oss)
+	Username string   // Username is the username to connect to the source
+	Password string   // Password is in CLEARTEXT FIXME
+	URL      []string // URL are the connections to the source
+	Default  bool     // Default specifies the default source for the application
 }
 
 // SourcesStore stores connection information for a `TimeSeries`
