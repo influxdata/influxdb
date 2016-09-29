@@ -7,7 +7,6 @@ import (
 	"net/url"
 
 	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/log"
 
 	"golang.org/x/net/context"
 )
@@ -16,13 +15,13 @@ import (
 type Client struct {
 	URL *url.URL
 
-	lg log.Logger
+	lg mrfusion.Logger
 }
 
 // NewClient initializes an HTTP Client for InfluxDB. UDP, although supported
 // for querying InfluxDB, is not supported here to remove the need to
 // explicitly Close the client.
-func NewClient(host string, lg log.Logger) (*Client, error) {
+func NewClient(host string, lg mrfusion.Logger) (*Client, error) {
 	l := lg.WithField("host", host)
 	u, err := url.Parse(host)
 	if err != nil {
