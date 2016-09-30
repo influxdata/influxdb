@@ -9,8 +9,7 @@ export const HostsPage = React.createClass({
     source: PropTypes.shape({
       id: PropTypes.string.isRequired,
       name: PropTypes.string.isRequired,
-      type: PropTypes.string.isRequired, // 'influx-enterprise'
-      username: PropTypes.string.isRequired,
+      type: PropTypes.string, // 'influx-enterprise'
       links: PropTypes.shape({
         proxy: PropTypes.string.isRequired,
       }).isRequired,
