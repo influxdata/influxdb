@@ -3,11 +3,14 @@ var webpack = require('webpack');
 var path = require('path');
 var ExtractTextPlugin = require("extract-text-webpack-plugin");
 var HtmlWebpackPlugin = require("html-webpack-plugin");
+var package = require('../package.json');
+var dependencies = package.dependencies;
 
 var config = {
   devtool:  'hidden-source-map',
   entry: {
     app: path.resolve(__dirname, '..', 'src', 'index.js'),
+    vendor: Object.keys(dependencies),
   },
   output: {
     publicPath: '/',
@@ -69,15 +72,23 @@ var config = {
         NODE_ENV: JSON.stringify('production'),
       },
     }),
+    new webpack.ProvidePlugin({
+      $: "jquery",
+      jQuery: "jquery",
+    }),
     new ExtractTextPlugin("style.css"),
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, '..', 'src', 'index.template.html'),
       inject: 'body',
+      chunksSortMode: 'dependency',
     }),
     new webpack.optimize.UglifyJsPlugin({
       compress: {
         warnings: false
       }
+    }),
+    new webpack.optimize.CommonsChunkPlugin({
+      names: ['vendor', 'manifest'],
     }),
   ],
   postcss: require('./postcss'),

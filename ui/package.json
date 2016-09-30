@@ -82,6 +82,7 @@
   },
   "dependencies": {
     "axios": "^0.13.1",
+    "bootstrap": "^3.3.7",
     "classnames": "^2.2.3",
     "dygraphs": "^1.1.1",
     "fixed-data-table": "^0.6.1",
