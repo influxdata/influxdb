@@ -238,7 +238,7 @@ export function fetchExplorers({source, userID, explorerURI, push}) {
       // Create a new explorer session for a user if they don't have any
       // saved (e.g. when they visit for the first time).
       if (!explorers.length) {
-        dispatch(createExploration(push));
+        dispatch(createExploration(source, push));
         return;
       }
 
