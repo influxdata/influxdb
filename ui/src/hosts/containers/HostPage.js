@@ -23,27 +23,27 @@ export const HostPage = React.createClass({
     const source = this.props.source.links.proxy;
     const queries = [
       {
-        text: `SELECT "usage_user" FROM "telegraf"."default"."cpu" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
+        text: `SELECT "usage_user" FROM "telegraf".."cpu" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
         name: 'CPU',
       },
       {
-        text: `SELECT "used_percent" FROM "telegraf"."default"."mem" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
+        text: `SELECT "used_percent" FROM "telegraf".."mem" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
         name: "Memory",
       },
       {
-        text: `SELECT "load1" FROM "telegraf"."default"."system" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
+        text: `SELECT "load1" FROM "telegraf".."system" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
         name: "Load",
       },
       {
-        text: `SELECT "bytes_recv", "bytes_sent" FROM "telegraf"."default"."net" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
+        text: `SELECT "bytes_recv", "bytes_sent" FROM "telegraf".."net" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
         name: "Network",
       },
       {
-        text: `SELECT "io_time" FROM "telegraf"."default"."diskio" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
+        text: `SELECT "io_time" FROM "telegraf".."diskio" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
         name: "Disk IO",
       },
       {
-        text: `SELECT "used_percent" FROM "telegraf"."default"."disk" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
+        text: `SELECT "used_percent" FROM "telegraf".."disk" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
         name: "Disk usage",
       },
     ];
