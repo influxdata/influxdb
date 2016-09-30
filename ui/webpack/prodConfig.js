@@ -15,7 +15,7 @@ var config = {
   output: {
     publicPath: '/',
     path: path.resolve(__dirname, '../build'),
-    filename: '[name].js',
+    filename: '[name].[chunkhash].js',
   },
   resolve: {
     alias: {

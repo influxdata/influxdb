@@ -14,7 +14,7 @@ module.exports = {
   output: {
     publicPath: '/',
     path: path.resolve(__dirname, '../build'),
-    filename: '[name].dev.js',
+    filename: '[name].[chunkhash].dev.js',
   },
   resolve: {
     alias: {
