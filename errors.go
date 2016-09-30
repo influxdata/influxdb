@@ -4,6 +4,7 @@ package mrfusion
 const (
 	ErrUpstreamTimeout     = Error("request to backend timed out")
 	ErrExplorationNotFound = Error("exploration not found")
+	ErrSourceNotFound      = Error("source not found")
 )
 
 // Error is a domain error encountered while processing mrfusion requests

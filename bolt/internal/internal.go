@@ -39,3 +39,33 @@ func UnmarshalExploration(data []byte, e *mrfusion.Exploration) error {
 
 	return nil
 }
+
+// MarshalSource encodes an source to binary protobuf format.
+func MarshalSource(s mrfusion.Source) ([]byte, error) {
+	return proto.Marshal(&Source{
+		ID:       int64(s.ID),
+		Name:     s.Name,
+		Type:     s.Type,
+		Username: s.Username,
+		Password: s.Password,
+		URLs:     s.URL,
+		Default:  s.Default,
+	})
+}
+
+// UnmarshalSource decodes an source from binary protobuf data.
+func UnmarshalSource(data []byte, s *mrfusion.Source) error {
+	var pb Source
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+
+	s.ID = int(pb.ID)
+	s.Name = pb.Name
+	s.Type = pb.Type
+	s.Username = pb.Username
+	s.Password = pb.Password
+	s.URL = pb.URLs
+	s.Default = pb.Default
+	return nil
+}

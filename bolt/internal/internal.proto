@@ -2,11 +2,21 @@ syntax = "proto3";
 package internal;
 
 message Exploration {
-	int64 ID = 1; // ExplorationID is a unique ID for an Exploration.
-	string Name = 2; // User provided name of the Exploration.
-	int64 UserID = 3; // UserID is the owner of this Exploration.
-	string Data = 4; // Opaque blob of JSON data.
+	int64 ID        = 1; // ExplorationID is a unique ID for an Exploration.
+	string Name     = 2; // User provided name of the Exploration.
+	int64 UserID    = 3; // UserID is the owner of this Exploration.
+	string Data     = 4; // Opaque blob of JSON data.
 	int64 CreatedAt = 5; // Time the exploration was first created.
 	int64 UpdatedAt = 6; // Latest time the exploration was updated.
-	bool Default = 7; // Flags an exploration as the default.
+	bool Default    = 7; // Flags an exploration as the default.
+}
+
+message Source {
+	int64 ID             = 1; // ID is the unique ID of the source
+	string Name          = 2; // Name is the user-defined name for the source
+	string Type          = 3; // Type specifies which kinds of source (enterprise vs oss)
+	string Username      = 4; // Username is the username to connect to the source
+	string Password      = 5;
+	repeated string URLs = 6; // URL are the connections to the source
+	bool Default         = 7; // Flags an exploration as the default.
 }
