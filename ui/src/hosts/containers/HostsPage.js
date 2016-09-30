@@ -1,6 +1,8 @@
 import React, {PropTypes} from 'react';
+import _ from 'lodash';
 import FlashMessages from 'shared/components/FlashMessages';
 import HostsTable from '../components/HostsTable';
+import {proxy} from 'utils/queryUrlGenerator';
 
 export const HostsPage = React.createClass({
   propTypes: {
@@ -15,10 +17,40 @@ export const HostsPage = React.createClass({
     }).isRequired,
   },
 
-  render() {
-    const {source} = this.props;
-    const sources = [source];
+  getInitialState() {
+    return {
+      hosts: [],
+    };
+  },
 
+  componentDidMount() {
+    proxy({
+      source: this.props.source.links.proxy,
+      query: `select mean(usage_user) from cpu where cpu = 'cpu-total' and time > now() - 10m group by host; select mean("load1") from "telegraf"."default"."system" where time > now() - 10m group by host`,
+      db: 'telegraf',
+    }).then((resp) => {
+      const hosts = {};
+      const precision = 100;
+      resp.data.results[0].series.forEach((s) => {
+        const meanIndex = s.columns.findIndex((col) => col === 'mean');
+        hosts[s.tags.host] = {
+          name: s.tags.host,
+          cpu: (Math.round(s.values[0][meanIndex] * precision) / precision).toFixed(2),
+        };
+      });
+
+      resp.data.results[1].series.forEach((s) => {
+        const meanIndex = s.columns.findIndex((col) => col === 'mean');
+        hosts[s.tags.host].load = (Math.round(s.values[0][meanIndex] * precision) / precision).toFixed(2);
+      });
+
+      this.setState({
+        hosts: _.values(hosts),
+      });
+    });
+  },
+
+  render() {
     return (
       <div className="hosts">
         <div className="enterprise-header">
@@ -36,7 +68,7 @@ export const HostsPage = React.createClass({
             <div className="col-md-12">
               <div className="panel panel-minimal">
                 <div className="panel-body">
-                  <HostsTable hosts={sources} />
+                  <HostsTable source={this.props.source} hosts={this.state.hosts} />
                 </div>
               </div>
             </div>
