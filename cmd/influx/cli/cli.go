@@ -22,6 +22,7 @@ import (
 	"github.com/influxdata/influxdb/importer/v8"
 	"github.com/influxdata/influxdb/models"
 	"github.com/peterh/liner"
+	"time"
 )
 
 const (
@@ -413,10 +414,10 @@ func (c *CommandLine) SetFormat(cmd string) {
 	cmd = strings.ToLower(cmd)
 
 	switch cmd {
-	case "json", "csv", "column":
+	case "json", "csv", "column", "lineprotocol":
 		c.Format = cmd
 	default:
-		fmt.Printf("Unknown format %q. Please use json, csv, or column.\n", cmd)
+		fmt.Printf("Unknown format %q. Please use json, csv, column or lineprotocol.\n", cmd)
 	}
 }
 
@@ -592,6 +593,8 @@ func (c *CommandLine) FormatResponse(response *client.Response, w io.Writer) {
 		c.writeCSV(response, w)
 	case "column":
 		c.writeColumns(response, w)
+	case "lineprotocol":
+		c.writeLineProtocol(response, w)
 	default:
 		fmt.Fprintf(w, "Unknown output format %q.\n", c.Format)
 	}
@@ -640,6 +643,51 @@ func (c *CommandLine) writeColumns(response *client.Response, w io.Writer) {
 		}
 		writer.Flush()
 	}
+}
+
+func (c *CommandLine) writeLineProtocol(response *client.Response, w io.Writer) {
+	for _, result := range response.Results {
+		// Print out all messages first
+		for _, m := range result.Messages {
+			fmt.Fprintf(w, "%s: %s.\n", m.Level, m.Text)
+		}
+
+		for _, row := range result.Series {
+			points := c.rowToPoints(row)
+			for _, point := range points {
+				fmt.Fprintln(w, point.String())
+			}
+		}
+	}
+}
+
+func (c *CommandLine) rowToPoints(row models.Row) models.Points {
+	tags := models.NewTags(row.Tags)
+
+	points := models.Points{}
+	for _, value := range row.Values {
+		time, fields := c.findTimeAndFields(value, row.Columns)
+		point, _ := models.NewPoint(row.Name, tags, fields, time)
+		points = append(points, point)
+	}
+	return points
+}
+
+func (c *CommandLine) findTimeAndFields(value []interface{}, columns []string) (time.Time, models.Fields) {
+	var timePoint time.Time
+	fields := models.Fields{}
+	for colIndex, col := range columns {
+		valueEntry := value[colIndex]
+		if col == "time" {
+			timeStr, err := strconv.ParseInt(interfaceToString(valueEntry), 0, 64)
+			if err == nil {
+				timePoint = time.Unix(0, timeStr)
+			}
+		} else {
+			fields[col] = valueEntry
+		}
+	}
+	return timePoint, fields
 }
 
 // formatResults will behave differently if you are formatting for columns or csv
@@ -711,7 +759,8 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 			}
 
 			for _, vv := range v {
-				values = append(values, interfaceToString(vv))
+				str := interfaceToString(vv)
+				values = append(values, str)
 			}
 			rows = append(rows, strings.Join(values, separator))
 		}
@@ -762,7 +811,7 @@ func (c *CommandLine) help() {
         auth                  prompts for username and password
         pretty                toggles pretty print for the json format
         use <db_name>         sets current database
-        format <format>       specifies the format of the server responses: json, csv, or column
+        format <format>       specifies the format of the server responses: json, csv, column, or lineprotocol
         precision <format>    specifies the format of the timestamp: rfc3339, h, m, s, ms, u or ns
         consistency <level>   sets write consistency level: any, one, quorum, or all
         history               displays command history

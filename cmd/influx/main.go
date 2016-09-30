@@ -76,8 +76,8 @@ func main() {
         Set this when connecting to the cluster using https and not use SSL verification.
   -execute 'command'
        Execute command and quit.
-  -format 'json|csv|column'
-       Format specifies the format of the server responses:  json, csv, or column.
+  -format 'json|csv|column|lineprotocol'
+       Format specifies the format of the server responses:  json, csv, column or lineprotocol.
   -precision 'rfc3339|h|m|s|ms|u|ns'
        Precision specifies the format of the timestamp:  rfc3339, h, m, s, ms, u or ns.
   -consistency 'any|one|quorum|all'
