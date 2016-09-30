@@ -28,10 +28,10 @@ type TSMFile interface {
 
 	// ReadAt returns all the values in the block identified by entry.
 	ReadAt(entry *IndexEntry, values []Value) ([]Value, error)
-	ReadFloatBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *FloatDecoder, values *[]FloatValue) ([]FloatValue, error)
-	ReadIntegerBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *IntegerDecoder, values *[]IntegerValue) ([]IntegerValue, error)
-	ReadStringBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *StringDecoder, values *[]StringValue) ([]StringValue, error)
-	ReadBooleanBlockAt(entry *IndexEntry, tdec *TimeDecoder, vdec *BooleanDecoder, values *[]BooleanValue) ([]BooleanValue, error)
+	ReadFloatBlockAt(entry *IndexEntry, values *[]FloatValue) ([]FloatValue, error)
+	ReadIntegerBlockAt(entry *IndexEntry, values *[]IntegerValue) ([]IntegerValue, error)
+	ReadStringBlockAt(entry *IndexEntry, values *[]StringValue) ([]StringValue, error)
+	ReadBooleanBlockAt(entry *IndexEntry, values *[]BooleanValue) ([]BooleanValue, error)
 
 	// Entries returns the index entries for all blocks for the given key.
 	Entries(key string) []IndexEntry
@@ -680,14 +680,13 @@ func (f *FileStore) walkFiles(fn func(f TSMFile) error) error {
 // whether the key will be scan in ascending time order or descenging time order.
 // This function assumes the read-lock has been taken.
 func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
-	var locations []*location
-
 	filesSnapshot := make([]TSMFile, len(f.files))
 	for i := range f.files {
 		filesSnapshot[i] = f.files[i]
 	}
 
 	var entries []IndexEntry
+	locations := make([]*location, 0, len(filesSnapshot))
 	for _, fd := range filesSnapshot {
 		minTime, maxTime := fd.TimeRange()
 
@@ -799,13 +798,13 @@ func ParseTSMFileName(name string) (int, int, error) {
 
 	id := base[:idx]
 
-	parts := strings.Split(id, "-")
-	if len(parts) != 2 {
+	idx = strings.Index(id, "-")
+	if idx == -1 {
 		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
 	}
 
-	generation, err := strconv.ParseUint(parts[0], 10, 32)
-	sequence, err := strconv.ParseUint(parts[1], 10, 32)
+	generation, err := strconv.ParseUint(id[:idx], 10, 32)
+	sequence, err := strconv.ParseUint(id[idx+1:], 10, 32)
 
 	return int(generation), int(sequence), err
 }
@@ -891,8 +890,9 @@ func newKeyCursor(fs *FileStore, key string, t int64, ascending bool) *KeyCursor
 		fs:        fs,
 		seeks:     fs.locations(key, t, ascending),
 		ascending: ascending,
-		refs:      map[string]TSMFile{},
 	}
+	c.refs = make(map[string]TSMFile, len(c.seeks))
+
 	c.duplicates = c.hasOverlappingBlocks()
 
 	if ascending {
@@ -1025,7 +1025,7 @@ func (c *KeyCursor) nextAscending() {
 
 	// Append the first matching block
 	if len(c.current) == 0 {
-		c.current = append(c.current, &location{})
+		c.current = append(c.current, nil)
 	} else {
 		c.current = c.current[:1]
 	}

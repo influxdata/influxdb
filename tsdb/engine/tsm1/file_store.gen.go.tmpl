@@ -3,7 +3,7 @@ package tsm1
 
 {{range .}}
 // Read{{.Name}}Block reads the next block as a set of {{.name}} values.
-func (c *KeyCursor) Read{{.Name}}Block(tdec *TimeDecoder, vdec *{{.Name}}Decoder, buf *[]{{.Name}}Value) ([]{{.Name}}Value, error) {
+func (c *KeyCursor) Read{{.Name}}Block(buf *[]{{.Name}}Value) ([]{{.Name}}Value, error) {
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
@@ -12,7 +12,7 @@ func (c *KeyCursor) Read{{.Name}}Block(tdec *TimeDecoder, vdec *{{.Name}}Decoder
 	// First block is the oldest block containing the points we're searching for.
 	first := c.current[0]
 	*buf = (*buf)[:0]
-	values, err := first.r.Read{{.Name}}BlockAt(&first.entry, tdec, vdec, buf)
+	values, err := first.r.Read{{.Name}}BlockAt(&first.entry, buf)
 
 	// Remove values we already read
 	values = {{.Name}}Values(values).Exclude(first.readMin, first.readMax)
@@ -77,7 +77,7 @@ func (c *KeyCursor) Read{{.Name}}Block(tdec *TimeDecoder, vdec *{{.Name}}Decoder
 
 			tombstones := cur.r.TombstoneRange(c.key)
 			var a []{{.Name}}Value
-			v, err := cur.r.Read{{.Name}}BlockAt(&cur.entry, tdec, vdec, &a)
+			v, err := cur.r.Read{{.Name}}BlockAt(&cur.entry, &a)
 			if err != nil {
 				return nil, err
 			}
@@ -136,7 +136,7 @@ func (c *KeyCursor) Read{{.Name}}Block(tdec *TimeDecoder, vdec *{{.Name}}Decoder
 			tombstones := cur.r.TombstoneRange(c.key)
 
 			var a []{{.Name}}Value
-			v, err := cur.r.Read{{.Name}}BlockAt(&cur.entry, tdec, vdec, &a)
+			v, err := cur.r.Read{{.Name}}BlockAt(&cur.entry, &a)
 			if err != nil {
 				return nil, err
 			}

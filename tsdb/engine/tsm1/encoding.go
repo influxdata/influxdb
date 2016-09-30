@@ -3,6 +3,7 @@ package tsm1
 import (
 	"encoding/binary"
 	"fmt"
+	"runtime"
 	"time"
 
 	"github.com/influxdata/influxdb/influxql"
@@ -28,21 +29,62 @@ const (
 	encodedBlockHeaderSize = 1
 )
 
+func init() {
+	// Prime the pools with with at one encoder/decoder for each available CPU
+	vals := make([]interface{}, 0, runtime.NumCPU())
+	for _, p := range []*pool.Generic{
+		timeEncoderPool, timeDecoderPool,
+		integerEncoderPool, integerDecoderPool,
+		floatDecoderPool, floatDecoderPool,
+		stringEncoderPool, stringEncoderPool,
+		booleanEncoderPool, booleanDecoderPool,
+	} {
+		vals = vals[:0]
+		// Check one out to force the allocation now and hold onto it
+		for i := 0; i < runtime.NumCPU(); i++ {
+			v := p.Get(tsdb.DefaultMaxPointsPerBlock)
+			vals = append(vals, v)
+		}
+		// Add them all back
+		for _, v := range vals {
+			p.Put(v)
+		}
+	}
+}
+
 var (
-	timeEncoderPool = pool.NewGeneric(1024, func(sz int) interface{} {
+	// encoder pools
+	timeEncoderPool = pool.NewGeneric(runtime.NumCPU(), func(sz int) interface{} {
 		return NewTimeEncoder(sz)
 	})
-	integerEncoderPool = pool.NewGeneric(1024, func(sz int) interface{} {
+	integerEncoderPool = pool.NewGeneric(runtime.NumCPU(), func(sz int) interface{} {
 		return NewIntegerEncoder(sz)
 	})
-	floatEncoderPool = pool.NewGeneric(1024, func(sz int) interface{} {
+	floatEncoderPool = pool.NewGeneric(runtime.NumCPU(), func(sz int) interface{} {
 		return NewFloatEncoder()
 	})
-	stringEncoderPool = pool.NewGeneric(1024, func(sz int) interface{} {
+	stringEncoderPool = pool.NewGeneric(runtime.NumCPU(), func(sz int) interface{} {
 		return NewStringEncoder(sz)
 	})
-	booleanEncoderPool = pool.NewGeneric(1024, func(sz int) interface{} {
+	booleanEncoderPool = pool.NewGeneric(runtime.NumCPU(), func(sz int) interface{} {
 		return NewBooleanEncoder(sz)
+	})
+
+	// decoder pools
+	timeDecoderPool = pool.NewGeneric(runtime.NumCPU(), func(sz int) interface{} {
+		return &TimeDecoder{}
+	})
+	integerDecoderPool = pool.NewGeneric(runtime.NumCPU(), func(sz int) interface{} {
+		return &IntegerDecoder{}
+	})
+	floatDecoderPool = pool.NewGeneric(runtime.NumCPU(), func(sz int) interface{} {
+		return &FloatDecoder{}
+	})
+	stringDecoderPool = pool.NewGeneric(runtime.NumCPU(), func(sz int) interface{} {
+		return &StringDecoder{}
+	})
+	booleanDecoderPool = pool.NewGeneric(runtime.NumCPU(), func(sz int) interface{} {
+		return &BooleanDecoder{}
 	})
 )
 
@@ -163,7 +205,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 	switch blockType {
 	case BlockFloat64:
 		var buf []FloatValue
-		decoded, err := DecodeFloatBlock(block, &TimeDecoder{}, &FloatDecoder{}, &buf)
+		decoded, err := DecodeFloatBlock(block, &buf)
 		if len(vals) < len(decoded) {
 			vals = make([]Value, len(decoded))
 		}
@@ -173,7 +215,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 		return vals[:len(decoded)], err
 	case BlockInteger:
 		var buf []IntegerValue
-		decoded, err := DecodeIntegerBlock(block, &TimeDecoder{}, &IntegerDecoder{}, &buf)
+		decoded, err := DecodeIntegerBlock(block, &buf)
 		if len(vals) < len(decoded) {
 			vals = make([]Value, len(decoded))
 		}
@@ -184,7 +226,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 
 	case BlockBoolean:
 		var buf []BooleanValue
-		decoded, err := DecodeBooleanBlock(block, &TimeDecoder{}, &BooleanDecoder{}, &buf)
+		decoded, err := DecodeBooleanBlock(block, &buf)
 		if len(vals) < len(decoded) {
 			vals = make([]Value, len(decoded))
 		}
@@ -195,7 +237,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 
 	case BlockString:
 		var buf []StringValue
-		decoded, err := DecodeStringBlock(block, &TimeDecoder{}, &StringDecoder{}, &buf)
+		decoded, err := DecodeStringBlock(block, &buf)
 		if len(vals) < len(decoded) {
 			vals = make([]Value, len(decoded))
 		}
@@ -276,7 +318,7 @@ cleanup:
 
 }
 
-func DecodeFloatBlock(block []byte, tdec *TimeDecoder, vdec *FloatDecoder, a *[]FloatValue) ([]FloatValue, error) {
+func DecodeFloatBlock(block []byte, a *[]FloatValue) ([]FloatValue, error) {
 	// Block type is the next block, make sure we actually have a float block
 	blockType := block[0]
 	if blockType != BlockFloat64 {
@@ -289,14 +331,18 @@ func DecodeFloatBlock(block []byte, tdec *TimeDecoder, vdec *FloatDecoder, a *[]
 		return nil, err
 	}
 
+	tdec := timeDecoderPool.Get(0).(*TimeDecoder)
+	vdec := floatDecoderPool.Get(0).(*FloatDecoder)
+
+	var i int
 	// Setup our timestamp and value decoders
 	tdec.Init(tb)
-	if err := vdec.SetBytes(vb); err != nil {
-		return nil, err
+	err = vdec.SetBytes(vb)
+	if err != nil {
+		goto cleanup
 	}
 
 	// Decode both a timestamp and value
-	i := 0
 	for tdec.Next() && vdec.Next() {
 		ts := tdec.Read()
 		v := vdec.Values()
@@ -311,15 +357,22 @@ func DecodeFloatBlock(block []byte, tdec *TimeDecoder, vdec *FloatDecoder, a *[]
 	}
 
 	// Did timestamp decoding have an error?
-	if tdec.Error() != nil {
-		return nil, tdec.Error()
-	}
-	// Did float decoding have an error?
-	if vdec.Error() != nil {
-		return nil, vdec.Error()
+	err = tdec.Error()
+	if err != nil {
+		goto cleanup
 	}
 
-	return (*a)[:i], nil
+	// Did float decoding have an error?
+	err = vdec.Error()
+	if err != nil {
+		goto cleanup
+	}
+
+cleanup:
+	timeDecoderPool.Put(tdec)
+	floatDecoderPool.Put(vdec)
+
+	return (*a)[:i], err
 }
 
 type BooleanValue struct {
@@ -384,7 +437,7 @@ cleanup:
 	return b, err
 }
 
-func DecodeBooleanBlock(block []byte, tdec *TimeDecoder, vdec *BooleanDecoder, a *[]BooleanValue) ([]BooleanValue, error) {
+func DecodeBooleanBlock(block []byte, a *[]BooleanValue) ([]BooleanValue, error) {
 	// Block type is the next block, make sure we actually have a float block
 	blockType := block[0]
 	if blockType != BlockBoolean {
@@ -396,6 +449,9 @@ func DecodeBooleanBlock(block []byte, tdec *TimeDecoder, vdec *BooleanDecoder, a
 	if err != nil {
 		return nil, err
 	}
+
+	tdec := timeDecoderPool.Get(0).(*TimeDecoder)
+	vdec := booleanDecoderPool.Get(0).(*BooleanDecoder)
 
 	// Setup our timestamp and value decoders
 	tdec.Init(tb)
@@ -417,15 +473,21 @@ func DecodeBooleanBlock(block []byte, tdec *TimeDecoder, vdec *BooleanDecoder, a
 	}
 
 	// Did timestamp decoding have an error?
-	if tdec.Error() != nil {
-		return nil, tdec.Error()
+	err = tdec.Error()
+	if err != nil {
+		goto cleanup
 	}
 	// Did boolean decoding have an error?
-	if vdec.Error() != nil {
-		return nil, vdec.Error()
+	err = vdec.Error()
+	if err != nil {
+		goto cleanup
 	}
 
-	return (*a)[:i], nil
+cleanup:
+	timeDecoderPool.Put(tdec)
+	booleanDecoderPool.Put(vdec)
+
+	return (*a)[:i], err
 }
 
 type IntegerValue struct {
@@ -481,7 +543,7 @@ cleanup:
 	return b, err
 }
 
-func DecodeIntegerBlock(block []byte, tdec *TimeDecoder, vdec *IntegerDecoder, a *[]IntegerValue) ([]IntegerValue, error) {
+func DecodeIntegerBlock(block []byte, a *[]IntegerValue) ([]IntegerValue, error) {
 	blockType := block[0]
 	if blockType != BlockInteger {
 		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockInteger, blockType)
@@ -494,6 +556,9 @@ func DecodeIntegerBlock(block []byte, tdec *TimeDecoder, vdec *IntegerDecoder, a
 	if err != nil {
 		return nil, err
 	}
+
+	tdec := timeDecoderPool.Get(0).(*TimeDecoder)
+	vdec := integerDecoderPool.Get(0).(*IntegerDecoder)
 
 	// Setup our timestamp and value decoders
 	tdec.Init(tb)
@@ -515,15 +580,21 @@ func DecodeIntegerBlock(block []byte, tdec *TimeDecoder, vdec *IntegerDecoder, a
 	}
 
 	// Did timestamp decoding have an error?
-	if tdec.Error() != nil {
-		return nil, tdec.Error()
+	err = tdec.Error()
+	if err != nil {
+		goto cleanup
 	}
 	// Did int64 decoding have an error?
-	if vdec.Error() != nil {
-		return nil, vdec.Error()
+	err = vdec.Error()
+	if err != nil {
+		goto cleanup
 	}
 
-	return (*a)[:i], nil
+cleanup:
+	timeDecoderPool.Put(tdec)
+	integerDecoderPool.Put(vdec)
+
+	return (*a)[:i], err
 }
 
 type StringValue struct {
@@ -579,7 +650,7 @@ cleanup:
 	return b, err
 }
 
-func DecodeStringBlock(block []byte, tdec *TimeDecoder, vdec *StringDecoder, a *[]StringValue) ([]StringValue, error) {
+func DecodeStringBlock(block []byte, a *[]StringValue) ([]StringValue, error) {
 	blockType := block[0]
 	if blockType != BlockString {
 		return nil, fmt.Errorf("invalid block type: exp %d, got %d", BlockString, blockType)
@@ -593,14 +664,18 @@ func DecodeStringBlock(block []byte, tdec *TimeDecoder, vdec *StringDecoder, a *
 		return nil, err
 	}
 
+	var i int
+	tdec := timeDecoderPool.Get(0).(*TimeDecoder)
+	vdec := stringDecoderPool.Get(0).(*StringDecoder)
+
 	// Setup our timestamp and value decoders
 	tdec.Init(tb)
-	if err := vdec.SetBytes(vb); err != nil {
-		return nil, err
+	err = vdec.SetBytes(vb)
+	if err != nil {
+		goto cleanup
 	}
 
 	// Decode both a timestamp and value
-	i := 0
 	for tdec.Next() && vdec.Next() {
 		ts := tdec.Read()
 		v := vdec.Read()
@@ -615,15 +690,21 @@ func DecodeStringBlock(block []byte, tdec *TimeDecoder, vdec *StringDecoder, a *
 	}
 
 	// Did timestamp decoding have an error?
-	if tdec.Error() != nil {
-		return nil, tdec.Error()
+	err = tdec.Error()
+	if err != nil {
+		goto cleanup
 	}
 	// Did string decoding have an error?
-	if vdec.Error() != nil {
-		return nil, vdec.Error()
+	err = vdec.Error()
+	if err != nil {
+		goto cleanup
 	}
 
-	return (*a)[:i], nil
+cleanup:
+	timeDecoderPool.Put(tdec)
+	stringDecoderPool.Put(vdec)
+
+	return (*a)[:i], err
 }
 
 func packBlock(buf []byte, typ byte, ts []byte, values []byte) []byte {

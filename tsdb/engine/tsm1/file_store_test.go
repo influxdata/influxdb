@@ -70,7 +70,7 @@ func TestFileStore_SeekToAsc_FromStart(t *testing.T) {
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
 	// Search for an entry that exists in the second file
-	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err := c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -110,7 +110,7 @@ func TestFileStore_SeekToAsc_Duplicate(t *testing.T) {
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
 	// Search for an entry that exists in the second file
-	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err := c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestFileStore_SeekToAsc_Duplicate(t *testing.T) {
 
 	// Check that calling Next will dedupe points
 	c.Next()
-	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err = c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestFileStore_SeekToAsc_Duplicate(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err = c.ReadFloatBlock(&buf)
 	exp = nil
 	if got, exp := len(values), len(exp); got != exp {
 		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
@@ -178,7 +178,7 @@ func TestFileStore_SeekToAsc_BeforeStart(t *testing.T) {
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
-	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err := c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapFloat(t *testing.T) {
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
-	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err := c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -242,7 +242,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapFloat(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err = c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapInteger(t *testing.T) {
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.IntegerValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
-	values, err := c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	values, err := c.ReadIntegerBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -308,7 +308,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapInteger(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	values, err = c.ReadIntegerBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -353,7 +353,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapBoolean(t *testing.T) {
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.BooleanValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
-	values, err := c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	values, err := c.ReadBooleanBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -374,7 +374,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapBoolean(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	values, err = c.ReadBooleanBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -419,7 +419,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapString(t *testing.T) {
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.StringValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
-	values, err := c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	values, err := c.ReadStringBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -440,7 +440,7 @@ func TestFileStore_SeekToAsc_BeforeStart_OverlapString(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	values, err = c.ReadStringBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -485,7 +485,7 @@ func TestFileStore_SeekToAsc_OverlapMinFloat(t *testing.T) {
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
 	// Search for an entry that exists in the second file
-	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err := c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -509,7 +509,7 @@ func TestFileStore_SeekToAsc_OverlapMinFloat(t *testing.T) {
 
 	// Check that calling Next will dedupe points
 	c.Next()
-	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err = c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -529,7 +529,7 @@ func TestFileStore_SeekToAsc_OverlapMinFloat(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err = c.ReadFloatBlock(&buf)
 	exp = nil
 	if got, exp := len(values), len(exp); got != exp {
 		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
@@ -561,7 +561,7 @@ func TestFileStore_SeekToAsc_OverlapMinInteger(t *testing.T) {
 	buf := make([]tsm1.IntegerValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
 	// Search for an entry that exists in the second file
-	values, err := c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	values, err := c.ReadIntegerBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -585,7 +585,7 @@ func TestFileStore_SeekToAsc_OverlapMinInteger(t *testing.T) {
 
 	// Check that calling Next will dedupe points
 	c.Next()
-	values, err = c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	values, err = c.ReadIntegerBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -604,7 +604,7 @@ func TestFileStore_SeekToAsc_OverlapMinInteger(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	values, err = c.ReadIntegerBlock(&buf)
 	exp = nil
 	if got, exp := len(values), len(exp); got != exp {
 		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
@@ -636,7 +636,7 @@ func TestFileStore_SeekToAsc_OverlapMinBoolean(t *testing.T) {
 	buf := make([]tsm1.BooleanValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
 	// Search for an entry that exists in the second file
-	values, err := c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	values, err := c.ReadBooleanBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -660,7 +660,7 @@ func TestFileStore_SeekToAsc_OverlapMinBoolean(t *testing.T) {
 
 	// Check that calling Next will dedupe points
 	c.Next()
-	values, err = c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	values, err = c.ReadBooleanBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -679,7 +679,7 @@ func TestFileStore_SeekToAsc_OverlapMinBoolean(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	values, err = c.ReadBooleanBlock(&buf)
 	exp = nil
 	if got, exp := len(values), len(exp); got != exp {
 		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
@@ -711,7 +711,7 @@ func TestFileStore_SeekToAsc_OverlapMinString(t *testing.T) {
 	buf := make([]tsm1.StringValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
 	// Search for an entry that exists in the second file
-	values, err := c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	values, err := c.ReadStringBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -735,7 +735,7 @@ func TestFileStore_SeekToAsc_OverlapMinString(t *testing.T) {
 
 	// Check that calling Next will dedupe points
 	c.Next()
-	values, err = c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	values, err = c.ReadStringBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -754,7 +754,7 @@ func TestFileStore_SeekToAsc_OverlapMinString(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	values, err = c.ReadStringBlock(&buf)
 	exp = nil
 	if got, exp := len(values), len(exp); got != exp {
 		t.Fatalf("value length mismatch: got %v, exp %v", got, exp)
@@ -784,7 +784,7 @@ func TestFileStore_SeekToAsc_Middle(t *testing.T) {
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 3, true)
-	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err := c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -801,7 +801,7 @@ func TestFileStore_SeekToAsc_Middle(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err = c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -840,7 +840,7 @@ func TestFileStore_SeekToAsc_End(t *testing.T) {
 
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 2, true)
-	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err := c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -879,7 +879,7 @@ func TestFileStore_SeekToDesc_FromStart(t *testing.T) {
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 0, false)
-	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err := c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -918,7 +918,7 @@ func TestFileStore_SeekToDesc_Duplicate(t *testing.T) {
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 2, false)
-	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err := c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -936,7 +936,7 @@ func TestFileStore_SeekToDesc_Duplicate(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err = c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -977,7 +977,7 @@ func TestFileStore_SeekToDesc_OverlapMaxFloat(t *testing.T) {
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 5, false)
-	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err := c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -998,7 +998,7 @@ func TestFileStore_SeekToDesc_OverlapMaxFloat(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err = c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1042,7 +1042,7 @@ func TestFileStore_SeekToDesc_OverlapMaxInteger(t *testing.T) {
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.IntegerValue, 1000)
 	c := fs.KeyCursor("cpu", 5, false)
-	values, err := c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	values, err := c.ReadIntegerBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1063,7 +1063,7 @@ func TestFileStore_SeekToDesc_OverlapMaxInteger(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	values, err = c.ReadIntegerBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1105,7 +1105,7 @@ func TestFileStore_SeekToDesc_OverlapMaxBoolean(t *testing.T) {
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.BooleanValue, 1000)
 	c := fs.KeyCursor("cpu", 5, false)
-	values, err := c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	values, err := c.ReadBooleanBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1126,7 +1126,7 @@ func TestFileStore_SeekToDesc_OverlapMaxBoolean(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	values, err = c.ReadBooleanBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1168,7 +1168,7 @@ func TestFileStore_SeekToDesc_OverlapMaxString(t *testing.T) {
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.StringValue, 1000)
 	c := fs.KeyCursor("cpu", 5, false)
-	values, err := c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	values, err := c.ReadStringBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1189,7 +1189,7 @@ func TestFileStore_SeekToDesc_OverlapMaxString(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	values, err = c.ReadStringBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1229,7 +1229,7 @@ func TestFileStore_SeekToDesc_AfterEnd(t *testing.T) {
 
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 4, false)
-	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err := c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1268,7 +1268,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapFloat(t *testing.T) {
 
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 10, false)
-	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err := c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1289,7 +1289,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapFloat(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err = c.ReadFloatBlock(&buf)
 
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -1311,7 +1311,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapFloat(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err = c.ReadFloatBlock(&buf)
 
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -1332,7 +1332,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapFloat(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err = c.ReadFloatBlock(&buf)
 
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -1365,7 +1365,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapInteger(t *testing.T) {
 
 	buf := make([]tsm1.IntegerValue, 1000)
 	c := fs.KeyCursor("cpu", 11, false)
-	values, err := c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	values, err := c.ReadIntegerBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1388,7 +1388,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapInteger(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	values, err = c.ReadIntegerBlock(&buf)
 
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -1409,7 +1409,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapInteger(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	values, err = c.ReadIntegerBlock(&buf)
 
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -1442,7 +1442,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapBoolean(t *testing.T) {
 
 	buf := make([]tsm1.BooleanValue, 1000)
 	c := fs.KeyCursor("cpu", 11, false)
-	values, err := c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	values, err := c.ReadBooleanBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1463,7 +1463,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapBoolean(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	values, err = c.ReadBooleanBlock(&buf)
 
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -1485,7 +1485,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapBoolean(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	values, err = c.ReadBooleanBlock(&buf)
 
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -1506,7 +1506,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapBoolean(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	values, err = c.ReadBooleanBlock(&buf)
 
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -1539,7 +1539,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapString(t *testing.T) {
 
 	buf := make([]tsm1.StringValue, 1000)
 	c := fs.KeyCursor("cpu", 11, false)
-	values, err := c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	values, err := c.ReadStringBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1560,7 +1560,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapString(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	values, err = c.ReadStringBlock(&buf)
 
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -1582,7 +1582,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapString(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	values, err = c.ReadStringBlock(&buf)
 
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -1603,7 +1603,7 @@ func TestFileStore_SeekToDesc_AfterEnd_OverlapString(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	values, err = c.ReadStringBlock(&buf)
 
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -1639,7 +1639,7 @@ func TestFileStore_SeekToDesc_Middle(t *testing.T) {
 	// Search for an entry that exists in the second file
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 3, false)
-	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err := c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1659,7 +1659,7 @@ func TestFileStore_SeekToDesc_Middle(t *testing.T) {
 		}
 	}
 	c.Next()
-	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err = c.ReadFloatBlock(&buf)
 
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -1680,7 +1680,7 @@ func TestFileStore_SeekToDesc_Middle(t *testing.T) {
 	}
 
 	c.Next()
-	values, err = c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err = c.ReadFloatBlock(&buf)
 
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
@@ -1712,7 +1712,7 @@ func TestFileStore_SeekToDesc_End(t *testing.T) {
 
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 2, false)
-	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err := c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1756,7 +1756,7 @@ func TestKeyCursor_TombstoneRange(t *testing.T) {
 	c := fs.KeyCursor("cpu", 0, true)
 	expValues := []int{0, 2}
 	for _, v := range expValues {
-		values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+		values, err := c.ReadFloatBlock(&buf)
 		if err != nil {
 			t.Fatalf("unexpected error reading values: %v", err)
 		}
@@ -1799,7 +1799,7 @@ func TestKeyCursor_TombstoneRange_PartialFloat(t *testing.T) {
 
 	buf := make([]tsm1.FloatValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
-	values, err := c.ReadFloatBlock(&tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &buf)
+	values, err := c.ReadFloatBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1843,7 +1843,7 @@ func TestKeyCursor_TombstoneRange_PartialInteger(t *testing.T) {
 
 	buf := make([]tsm1.IntegerValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
-	values, err := c.ReadIntegerBlock(&tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &buf)
+	values, err := c.ReadIntegerBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1887,7 +1887,7 @@ func TestKeyCursor_TombstoneRange_PartialString(t *testing.T) {
 
 	buf := make([]tsm1.StringValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
-	values, err := c.ReadStringBlock(&tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &buf)
+	values, err := c.ReadStringBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -1931,7 +1931,7 @@ func TestKeyCursor_TombstoneRange_PartialBoolean(t *testing.T) {
 
 	buf := make([]tsm1.BooleanValue, 1000)
 	c := fs.KeyCursor("cpu", 0, true)
-	values, err := c.ReadBooleanBlock(&tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &buf)
+	values, err := c.ReadBooleanBlock(&buf)
 	if err != nil {
 		t.Fatalf("unexpected error reading values: %v", err)
 	}
@@ -2064,23 +2064,21 @@ func TestFileStore_Replace(t *testing.T) {
 	}
 
 	// There should be two blocks (1 in each file)
-	tdec := &tsm1.TimeDecoder{}
-	vdec := &tsm1.FloatDecoder{}
 	cur.Next()
 	buf := make([]tsm1.FloatValue, 10)
-	values, err := cur.ReadFloatBlock(tdec, vdec, &buf)
+	values, err := cur.ReadFloatBlock(&buf)
 	if got, exp := len(values), 1; got != exp {
 		t.Fatalf("value len mismatch: got %v, exp %v", got, exp)
 	}
 	cur.Next()
-	values, err = cur.ReadFloatBlock(tdec, vdec, &buf)
+	values, err = cur.ReadFloatBlock(&buf)
 	if got, exp := len(values), 1; got != exp {
 		t.Fatalf("value len mismatch: got %v, exp %v", got, exp)
 	}
 
 	// No more blocks for this cursor
 	cur.Next()
-	values, err = cur.ReadFloatBlock(tdec, vdec, &buf)
+	values, err = cur.ReadFloatBlock(&buf)
 	if got, exp := len(values), 0; got != exp {
 		t.Fatalf("value len mismatch: got %v, exp %v", got, exp)
 	}
