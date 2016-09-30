@@ -20,3 +20,11 @@ message Source {
 	repeated string URLs = 6; // URL are the connections to the source
 	bool Default         = 7; // Flags an exploration as the default.
 }
+
+message Server {
+	int64 ID             = 1; // ID is the unique ID of the server 
+	string Name          = 2; // Name is the user-defined name for the server
+	string Username      = 3; // Username is the username to connect to the server
+	string Password      = 4;
+	string URL           = 5; // URL is the path to the server
+}

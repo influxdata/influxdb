@@ -115,6 +115,13 @@ func configureAPI(api *op.MrFusionAPI) http.Handler {
 			TimeSeries: &ts,
 		}
 		api.PostSourcesIDProxyHandler = op.PostSourcesIDProxyHandlerFunc(p.Proxy)
+
+		api.DeleteKapacitorsIDHandler = op.DeleteKapacitorsIDHandlerFunc(h.RemoveKapacitor)
+		api.PatchKapacitorsIDHandler = op.PatchKapacitorsIDHandlerFunc(h.UpdateKapacitor)
+
+		api.GetKapacitorsHandler = op.GetKapacitorsHandlerFunc(h.Kapacitors)
+		api.GetKapacitorsIDHandler = op.GetKapacitorsIDHandlerFunc(h.KapacitorsID)
+		api.PostKapacitorsHandler = op.PostKapacitorsHandlerFunc(h.NewKapacitor)
 	} else {
 		api.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.DeleteExploration)
 		api.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.GetSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.Exploration)

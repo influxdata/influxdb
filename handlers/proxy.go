@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"io/ioutil"
 	"strconv"
 
 	"github.com/go-openapi/runtime/middleware"
@@ -13,8 +14,10 @@ import (
 )
 
 type InfluxProxy struct {
-	Srcs       mrfusion.SourcesStore
-	TimeSeries mrfusion.TimeSeries
+	Srcs           mrfusion.SourcesStore
+	ServersStore   mrfusion.ServersStore
+	TimeSeries     mrfusion.TimeSeries
+	KapacitorProxy mrfusion.Proxy
 }
 
 func (h *InfluxProxy) Proxy(ctx context.Context, params op.PostSourcesIDProxyParams) middleware.Responder {
@@ -64,4 +67,45 @@ func (h *InfluxProxy) Proxy(ctx context.Context, params op.PostSourcesIDProxyPar
 		Results: response,
 	}
 	return op.NewPostSourcesIDProxyOK().WithPayload(res)
+}
+
+func (h *InfluxProxy) ProxyPost(ctx context.Context, params op.PostKapacitorsIDProxyParams) middleware.Responder {
+	id, err := strconv.Atoi(params.ID)
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
+		return op.NewPostKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+	}
+
+	srv, err := h.ServersStore.Get(ctx, id)
+	if err != nil {
+		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.ID)}
+		return op.NewPostKapacitorsIDProxyNotFound().WithPayload(errMsg)
+	}
+
+	if err = h.KapacitorProxy.Connect(ctx, &srv); err != nil {
+		errMsg := &models.Error{Code: 400, Message: fmt.Sprintf("Unable to connect to servers store %s", params.ID)}
+		return op.NewPostKapacitorsIDProxyNotFound().WithPayload(errMsg)
+	}
+
+	req := &mrfusion.Request{
+		Method: "POST",
+		Path:   params.Path,
+	}
+
+	resp, err := h.KapacitorProxy.Do(ctx, req)
+	defer resp.Body.Close()
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error with proxy %v", err)}
+		return op.NewPostKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+
+	}
+
+	content, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error reading body of response: %v", err)}
+		return op.NewPostKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+
+	}
+
+	return op.NewPostKapacitorsIDProxyDefault(resp.StatusCode).WithPayload(content)
 }

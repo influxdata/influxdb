@@ -7,8 +7,8 @@ import (
 	"github.com/influxdata/mrfusion"
 )
 
-// Ensure an SourceStore can store, retrieve, update, and delete sources.
-func TestSourceStore(t *testing.T) {
+// Ensure an ServerStore can store, retrieve, update, and delete servers.
+func TestServerStore(t *testing.T) {
 	c, err := NewTestClient()
 	if err != nil {
 		t.Fatal(err)
@@ -17,24 +17,20 @@ func TestSourceStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer c.Close()
-	s := c.SourcesStore
+	s := c.ServersStore
 
-	srcs := []mrfusion.Source{
-		mrfusion.Source{
+	srcs := []mrfusion.Server{
+		mrfusion.Server{
 			Name:     "Of Truth",
-			Type:     "influx",
 			Username: "marty",
 			Password: "I❤️  jennifer parker",
-			URL:      []string{"toyota-hilux.lyon-estates.local", "lake.hilldale.local"},
-			Default:  true,
+			URL:      "toyota-hilux.lyon-estates.local",
 		},
-		mrfusion.Source{
+		mrfusion.Server{
 			Name:     "HipToBeSquare",
-			Type:     "influx",
 			Username: "calvinklein",
 			Password: "chuck b3rry",
-			URL:      []string{"toyota-hilux.lyon-estates.local", "lake.hilldale.local"},
-			Default:  true,
+			URL:      "toyota-hilux.lyon-estates.local",
 		},
 	}
 
@@ -47,11 +43,11 @@ func TestSourceStore(t *testing.T) {
 		if actual, err := s.Get(nil, srcs[i].ID); err != nil {
 			t.Fatal(err)
 		} else if !reflect.DeepEqual(actual, srcs[i]) {
-			t.Fatal("source loaded is different then source saved; actual: %v, expected %v", actual, srcs[i])
+			t.Fatal("server loaded is different then server saved; actual: %v, expected %v", actual, srcs[i])
 		}
 	}
 
-	// Update source.
+	// Update server.
 	srcs[0].Username = "calvinklein"
 	srcs[1].Name = "Enchantment Under the Sea Dance"
 	if err := s.Update(nil, srcs[0]); err != nil {
@@ -60,26 +56,26 @@ func TestSourceStore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Confirm sources have updated.
+	// Confirm servers have updated.
 	if src, err := s.Get(nil, srcs[0].ID); err != nil {
 		t.Fatal(err)
 	} else if src.Username != "calvinklein" {
-		t.Fatalf("source 0 update error: got %v, expected %v", src.Username, "calvinklein")
+		t.Fatalf("server 0 update error: got %v, expected %v", src.Username, "calvinklein")
 	}
 	if src, err := s.Get(nil, srcs[1].ID); err != nil {
 		t.Fatal(err)
 	} else if src.Name != "Enchantment Under the Sea Dance" {
-		t.Fatalf("source 1 update error: got %v, expected %v", src.Name, "Enchantment Under the Sea Dance")
+		t.Fatalf("server 1 update error: got %v, expected %v", src.Name, "Enchantment Under the Sea Dance")
 	}
 
-	// Delete an source.
+	// Delete an server.
 	if err := s.Delete(nil, srcs[0]); err != nil {
 		t.Fatal(err)
 	}
 
-	// Confirm source has been deleted.
-	if _, err := s.Get(nil, srcs[0].ID); err != mrfusion.ErrSourceNotFound {
-		t.Fatalf("source delete error: got %v, expected %v", err, mrfusion.ErrSourceNotFound)
+	// Confirm server has been deleted.
+	if _, err := s.Get(nil, srcs[0].ID); err != mrfusion.ErrServerNotFound {
+		t.Fatalf("server delete error: got %v, expected %v", err, mrfusion.ErrServerNotFound)
 	}
 
 	if bsrcs, err := s.All(nil); err != nil {
@@ -87,6 +83,6 @@ func TestSourceStore(t *testing.T) {
 	} else if len(bsrcs) != 1 {
 		t.Fatalf("After delete All returned incorrect number of srcs; got %d, expected %d", len(bsrcs), 1)
 	} else if !reflect.DeepEqual(bsrcs[0], srcs[1]) {
-		t.Fatalf("After delete All returned incorrect source; got %v, expected %v", bsrcs[0], srcs[1])
+		t.Fatalf("After delete All returned incorrect server; got %v, expected %v", bsrcs[0], srcs[1])
 	}
 }
