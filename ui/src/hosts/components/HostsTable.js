@@ -10,6 +10,7 @@ const HostsTable = React.createClass({
     })),
     source: PropTypes.shape({
       id: PropTypes.string.isRequired,
+      name: PropTypes.string.isRequired,
     }).isRequired,
   },
 
@@ -55,7 +56,12 @@ const HostsTable = React.createClass({
 
     return (
       <div>
-        <SearchBar onSearch={_.wrap(this.props.hosts, this.filterHosts)} />
+        <div className="host-table-header">
+          <SearchBar onSearch={_.wrap(this.props.hosts, this.filterHosts)} />
+          <div className="active-source">
+            Source: {source.name}
+          </div>
+        </div>
         <table className="table v-center">
           <thead>
             <tr>
