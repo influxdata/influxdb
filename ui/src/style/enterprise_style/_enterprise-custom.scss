@@ -605,3 +605,39 @@ table.table.error-table {
   padding: 0 18px;
   line-height: 36px;
 }
+
+
+/*
+    Stuff for making Tables of Data more readable
+    ----------------------------------------------
+*/
+table .monotype {
+  font-family: Consolas, "Lucida Console", Monaco, monospace;
+  letter-spacing: 0.69px;
+  font-size: 12px;
+  font-weight: 700;
+  color: $g9-mountain;
+}
+.table-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: $g17-whisper;
+
+  &.dot-success {
+    background-color: $c-rainforest;
+  }
+  &.dot-primary {
+    background-color: $c-pool;
+  }
+  &.dot-warning {
+    background-color: $c-comet;
+  }
+  &.dot-danger {
+    background-color: $c-dreamsicle;
+  }
+  &.dot-critical {
+    background-color: $c-fire;
+  }
+}
