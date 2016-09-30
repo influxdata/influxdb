@@ -14,11 +14,7 @@ import (
 	op "github.com/influxdata/mrfusion/restapi/operations"
 )
 
-type ExplorationStore struct {
-	ExplorationStore mrfusion.ExplorationStore
-}
-
-func (h *ExplorationStore) Explorations(ctx context.Context, params op.GetSourcesIDUsersUserIDExplorationsParams) middleware.Responder {
+func (h *Store) Explorations(ctx context.Context, params op.GetSourcesIDUsersUserIDExplorationsParams) middleware.Responder {
 	uID, err := strconv.Atoi(params.UserID)
 	if err != nil {
 		log.Printf("Error: Unable to convert UserID: %s: %v", params.UserID, err)
@@ -26,18 +22,18 @@ func (h *ExplorationStore) Explorations(ctx context.Context, params op.GetSource
 		return op.NewGetSourcesIDUsersUserIDExplorationsDefault(500).WithPayload(errMsg)
 	}
 
-	exs, err := h.ExplorationStore.Query(ctx, mrfusion.UserID(uID))
+	mrExs, err := h.ExplorationStore.Query(ctx, mrfusion.UserID(uID))
 	if err != nil {
 		log.Printf("Error: Unknown response from store while querying UserID: %s: %v", params.UserID, err)
 		errMsg := &models.Error{Code: 500, Message: "Error: Unknown response from store while querying UserID"}
 		return op.NewGetSourcesIDUsersUserIDExplorationsDefault(500).WithPayload(errMsg)
 	}
 
-	res := &models.Explorations{}
-	for _, e := range exs {
+	exs := make([]*models.Exploration, len(mrExs))
+	for _, e := range mrExs {
 		rel := "self"
 		href := fmt.Sprintf("/chronograf/v1/sources/1/users/%d/explorations/%d", uID, e.ID)
-		res.Explorations = append(res.Explorations, &models.Exploration{
+		exs = append(exs, &models.Exploration{
 			Data:      e.Data,
 			Name:      e.Name,
 			UpdatedAt: strfmt.DateTime(e.UpdatedAt),
@@ -49,10 +45,13 @@ func (h *ExplorationStore) Explorations(ctx context.Context, params op.GetSource
 		},
 		)
 	}
+	res := &models.Explorations{
+		Explorations: exs,
+	}
 	return op.NewGetSourcesIDUsersUserIDExplorationsOK().WithPayload(res)
 }
 
-func (h *ExplorationStore) Exploration(ctx context.Context, params op.GetSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
+func (h *Store) Exploration(ctx context.Context, params op.GetSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
 	eID, err := strconv.Atoi(params.ExplorationID)
 	if err != nil {
 		log.Printf("Error: Unable to convert ExplorationID: %s: %v", params.ExplorationID, err)
@@ -95,7 +94,7 @@ func (h *ExplorationStore) Exploration(ctx context.Context, params op.GetSources
 	return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDOK().WithPayload(res)
 }
 
-func (h *ExplorationStore) UpdateExploration(ctx context.Context, params op.PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
+func (h *Store) UpdateExploration(ctx context.Context, params op.PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
 	if params.Exploration == nil {
 		log.Printf("Error: Exploration is nil")
 		errMsg := &models.Error{Code: 400, Message: "Error: Exploration is nil"}
@@ -140,7 +139,7 @@ func (h *ExplorationStore) UpdateExploration(ctx context.Context, params op.Patc
 	return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDNoContent()
 }
 
-func (h *ExplorationStore) NewExploration(ctx context.Context, params op.PostSourcesIDUsersUserIDExplorationsParams) middleware.Responder {
+func (h *Store) NewExploration(ctx context.Context, params op.PostSourcesIDUsersUserIDExplorationsParams) middleware.Responder {
 	if params.Exploration == nil {
 		log.Printf("Error: Exploration is nil")
 		errMsg := &models.Error{Code: 400, Message: "Error: Exploration is nil"}
@@ -185,7 +184,7 @@ func (h *ExplorationStore) NewExploration(ctx context.Context, params op.PostSou
 
 }
 
-func (h *ExplorationStore) DeleteExploration(ctx context.Context, params op.DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
+func (h *Store) DeleteExploration(ctx context.Context, params op.DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
 	eID, err := strconv.Atoi(params.ExplorationID)
 	if err != nil {
 		log.Printf("Error: Unable to convert ExplorationID: %s: %v", params.ExplorationID, err)

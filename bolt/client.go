@@ -13,11 +13,13 @@ type Client struct {
 	Now  func() time.Time
 
 	ExplorationStore *ExplorationStore
+	SourcesStore     *SourcesStore
 }
 
 func NewClient() *Client {
 	c := &Client{Now: time.Now}
 	c.ExplorationStore = &ExplorationStore{client: c}
+	c.SourcesStore = &SourcesStore{client: c}
 	return c
 }
 
@@ -35,12 +37,18 @@ func (c *Client) Open() error {
 		if _, err := tx.CreateBucketIfNotExists(ExplorationBucket); err != nil {
 			return err
 		}
+		// Always create Sources bucket.
+		if _, err := tx.CreateBucketIfNotExists(SourcesBucket); err != nil {
+			return err
+		}
+
 		return nil
 	}); err != nil {
 		return err
 	}
 
 	c.ExplorationStore = &ExplorationStore{client: c}
+	c.SourcesStore = &SourcesStore{client: c}
 
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/go-openapi/swag"
 
 	"github.com/go-openapi/errors"
+	"github.com/go-openapi/validate"
 )
 
 /*Explorations explorations
@@ -17,8 +18,10 @@ swagger:model Explorations
 type Explorations struct {
 
 	/* explorations
-	 */
-	Explorations []*Exploration `json:"explorations,omitempty"`
+
+	Required: true
+	*/
+	Explorations []*Exploration `json:"explorations"`
 }
 
 // Validate validates this explorations
@@ -38,8 +41,8 @@ func (m *Explorations) Validate(formats strfmt.Registry) error {
 
 func (m *Explorations) validateExplorations(formats strfmt.Registry) error {
 
-	if swag.IsZero(m.Explorations) { // not required
-		return nil
+	if err := validate.Required("explorations", "body", m.Explorations); err != nil {
+		return err
 	}
 
 	for i := 0; i < len(m.Explorations); i++ {

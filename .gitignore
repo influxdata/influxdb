@@ -4,3 +4,4 @@ node_modules
 mrfusion
 node_modules/
 build/
+chronograf.db

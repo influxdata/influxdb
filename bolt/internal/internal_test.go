@@ -29,3 +29,24 @@ func TestMarshalExploration(t *testing.T) {
 		t.Fatalf("exploration protobuf copy error: got %#v, expected %#v", vv, v)
 	}
 }
+
+func TestMarshalSource(t *testing.T) {
+	v := mrfusion.Source{
+		ID:       12,
+		Name:     "Fountain of Truth",
+		Type:     "influx",
+		Username: "docbrown",
+		Password: "1 point twenty-one g1g@w@tts",
+		URL:      []string{"http://twin-pines.mall.io:8086", "https://lonepine.mall.io:8086"},
+		Default:  true,
+	}
+
+	var vv mrfusion.Source
+	if buf, err := internal.MarshalSource(v); err != nil {
+		t.Fatal(err)
+	} else if err := internal.UnmarshalSource(buf, &vv); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(v, vv) {
+		t.Fatalf("source protobuf copy error: got %#v, expected %#v", vv, v)
+	}
+}

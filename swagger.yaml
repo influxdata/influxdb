@@ -820,6 +820,8 @@ definitions:
                 type: object
     Explorations:
         type: object
+        required:
+            - explorations
         properties:
             explorations:
               type: array
