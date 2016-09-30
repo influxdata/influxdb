@@ -165,6 +165,7 @@ func (*SortField) node()       {}
 func (SortFields) node()       {}
 func (Sources) node()          {}
 func (*StringLiteral) node()   {}
+func (*SubQuery) node()        {}
 func (*Target) node()          {}
 func (*TimeLiteral) node()     {}
 func (*VarRef) node()          {}
@@ -305,6 +306,7 @@ type Source interface {
 }
 
 func (*Measurement) source() {}
+func (*SubQuery) source()    {}
 
 // Sources represents a list of sources.
 type Sources []Source
@@ -330,6 +332,9 @@ func (a Sources) Filter(database, retentionPolicy string) []Source {
 			if s.Database == database && s.RetentionPolicy == retentionPolicy {
 				sources = append(sources, s)
 			}
+		case *SubQuery:
+			filteredSources := s.Statement.Sources.Filter(database, retentionPolicy)
+			sources = append(sources, filteredSources...)
 		}
 	}
 	return sources
@@ -3123,6 +3128,16 @@ func decodeMeasurement(pb *internal.Measurement) (*Measurement, error) {
 	}
 
 	return mm, nil
+}
+
+// SubQuery is a source with a SelectStatement as the backing store.
+type SubQuery struct {
+	Statement *SelectStatement
+}
+
+// String returns a string representation of the subquery.
+func (s *SubQuery) String() string {
+	return fmt.Sprintf("(%s)", s.Statement.String())
 }
 
 // VarRef represents a reference to a variable.

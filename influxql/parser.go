@@ -906,7 +906,7 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 	if tok, pos, lit := p.scanIgnoreWhitespace(); tok != FROM {
 		return nil, newParseError(tokstr(tok, lit), []string{"FROM"}, pos)
 	}
-	if stmt.Sources, err = p.parseSources(); err != nil {
+	if stmt.Sources, err = p.parseSources(true); err != nil {
 		return nil, err
 	}
 
@@ -1027,7 +1027,7 @@ func (p *Parser) parseDeleteStatement() (Statement, error) {
 
 	if tok == FROM {
 		// Parse source.
-		if stmt.Sources, err = p.parseSources(); err != nil {
+		if stmt.Sources, err = p.parseSources(false); err != nil {
 			return nil, err
 		}
 	} else {
@@ -1066,7 +1066,7 @@ func (p *Parser) parseShowSeriesStatement() (*ShowSeriesStatement, error) {
 
 	// Parse optional FROM.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
-		if stmt.Sources, err = p.parseSources(); err != nil {
+		if stmt.Sources, err = p.parseSources(false); err != nil {
 			return nil, err
 		}
 	} else {
@@ -1125,7 +1125,7 @@ func (p *Parser) parseShowMeasurementsStatement() (*ShowMeasurementsStatement, e
 		switch tok {
 		case EQ, EQREGEX:
 			// Parse required source (measurement name or regex).
-			if stmt.Source, err = p.parseSource(); err != nil {
+			if stmt.Source, err = p.parseSource(false); err != nil {
 				return nil, err
 			}
 		default:
@@ -1204,7 +1204,7 @@ func (p *Parser) parseShowTagKeysStatement() (*ShowTagKeysStatement, error) {
 
 	// Parse optional source.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
-		if stmt.Sources, err = p.parseSources(); err != nil {
+		if stmt.Sources, err = p.parseSources(false); err != nil {
 			return nil, err
 		}
 	} else {
@@ -1263,7 +1263,7 @@ func (p *Parser) parseShowTagValuesStatement() (*ShowTagValuesStatement, error) 
 
 	// Parse optional source.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
-		if stmt.Sources, err = p.parseSources(); err != nil {
+		if stmt.Sources, err = p.parseSources(false); err != nil {
 			return nil, err
 		}
 	} else {
@@ -1379,7 +1379,7 @@ func (p *Parser) parseShowFieldKeysStatement() (*ShowFieldKeysStatement, error) 
 
 	// Parse optional source.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == FROM {
-		if stmt.Sources, err = p.parseSources(); err != nil {
+		if stmt.Sources, err = p.parseSources(false); err != nil {
 			return nil, err
 		}
 	} else {
@@ -1429,7 +1429,7 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 
 	if tok == FROM {
 		// Parse source.
-		if stmt.Sources, err = p.parseSources(); err != nil {
+		if stmt.Sources, err = p.parseSources(false); err != nil {
 			return nil, err
 		}
 	} else {
@@ -1983,11 +1983,11 @@ func (p *Parser) parseAlias() (string, error) {
 }
 
 // parseSources parses a comma delimited list of sources.
-func (p *Parser) parseSources() (Sources, error) {
+func (p *Parser) parseSources(subqueries bool) (Sources, error) {
 	var sources Sources
 
 	for {
-		s, err := p.parseSource()
+		s, err := p.parseSource(subqueries)
 		if err != nil {
 			return nil, err
 		}
@@ -2012,7 +2012,7 @@ func (p *Parser) peekRune() rune {
 	return r
 }
 
-func (p *Parser) parseSource() (Source, error) {
+func (p *Parser) parseSource(subqueries bool) (Source, error) {
 	m := &Measurement{}
 
 	// Attempt to parse a regex.
@@ -2023,6 +2023,28 @@ func (p *Parser) parseSource() (Source, error) {
 		m.Regex = re
 		// Regex is always last so we're done.
 		return m, nil
+	}
+
+	// If there is no regular expression, this might be a subquery.
+	// Parse the subquery if we are in a query that allows them as a source.
+	if m.Regex == nil && subqueries {
+		if tok, _, _ := p.scanIgnoreWhitespace(); tok == LPAREN {
+			if err := p.parseTokens([]Token{SELECT}); err != nil {
+				return nil, err
+			}
+
+			stmt, err := p.parseSelectStatement(targetNotRequired)
+			if err != nil {
+				return nil, err
+			}
+
+			if err := p.parseTokens([]Token{RPAREN}); err != nil {
+				return nil, err
+			}
+			return &SubQuery{Statement: stmt}, nil
+		} else {
+			p.unscan()
+		}
 	}
 
 	// Didn't find a regex so parse segmented identifiers.
