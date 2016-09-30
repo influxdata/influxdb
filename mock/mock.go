@@ -8,6 +8,62 @@ import (
 	"golang.org/x/net/context"
 )
 
+type SourcesStore struct {
+	srcs map[int]mrfusion.Source
+}
+
+func NewSourcesStore() mrfusion.SourcesStore {
+	return &SourcesStore{
+		srcs: map[int]mrfusion.Source{},
+	}
+}
+
+func (s *SourcesStore) All(ctx context.Context) ([]mrfusion.Source, error) {
+	all := []mrfusion.Source{}
+	for _, src := range s.srcs {
+		all = append(all, src)
+	}
+	return all, nil
+}
+
+func (s *SourcesStore) Add(ctx context.Context, src mrfusion.Source) (mrfusion.Source, error) {
+	id := len(s.srcs) + 1
+	for k, _ := range s.srcs {
+		if k >= id {
+			id = k + 1
+			break
+		}
+	}
+	src.ID = id
+	s.srcs[id] = src
+	return src, nil
+}
+
+func (s *SourcesStore) Delete(ctx context.Context, src mrfusion.Source) error {
+	if _, ok := s.srcs[src.ID]; !ok {
+		return fmt.Errorf("Error unknown id %d", src.ID)
+	}
+	delete(s.srcs, src.ID)
+	return nil
+}
+
+func (s *SourcesStore) Get(ctx context.Context, ID int) (mrfusion.Source, error) {
+	if src, ok := s.srcs[ID]; ok {
+		return src, nil
+	}
+	return mrfusion.Source{}, fmt.Errorf("Error no such source %d", ID)
+}
+
+func (s *SourcesStore) Update(ctx context.Context, src mrfusion.Source) error {
+	if _, ok := s.srcs[src.ID]; !ok {
+		return fmt.Errorf("Error unknown ID %d", src.ID)
+	}
+	s.srcs[src.ID] = src
+	return nil
+}
+
+var DefaultSourcesStore mrfusion.SourcesStore = NewSourcesStore()
+
 type ExplorationStore struct {
 	db      map[int]*mrfusion.Exploration
 	NowFunc func() time.Time
@@ -97,6 +153,10 @@ var DefaultTimeSeries mrfusion.TimeSeries = NewTimeSeries([]string{"hydrogen", "
 
 func (t *TimeSeries) Query(context.Context, mrfusion.Query) (mrfusion.Response, error) {
 	return t.Response, nil
+}
+
+func (t *TimeSeries) Connect(ctx context.Context, src *mrfusion.Source) error {
+	return nil
 }
 
 func (t *TimeSeries) MonitoredServices(context.Context) ([]mrfusion.MonitoredService, error) {

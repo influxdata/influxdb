@@ -2,11 +2,11 @@ package restapi
 
 import (
 	"crypto/tls"
-	"fmt"
 	"log"
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -213,6 +213,11 @@ func (s *Server) Listen() error {
 		if s.TLSCertificateKey == "" {
 			s.Fatalf("the required flag `--tls-key` was not specified")
 		}
+
+		// Use http host if https host wasn't defined
+		if s.TLSHost == "" {
+			s.TLSHost = s.Host
+		}
 	}
 
 	if s.hasScheme(schemeUnix) {
@@ -224,7 +229,7 @@ func (s *Server) Listen() error {
 	}
 
 	if s.hasScheme(schemeHTTP) {
-		listener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.Host, s.Port))
+		listener, err := net.Listen("tcp", net.JoinHostPort(s.Host, strconv.Itoa(s.Port)))
 		if err != nil {
 			return err
 		}
@@ -239,10 +244,7 @@ func (s *Server) Listen() error {
 	}
 
 	if s.hasScheme(schemeHTTPS) {
-		if s.TLSHost == "" {
-			s.TLSHost = s.Host
-		}
-		tlsListener, err := net.Listen("tcp", fmt.Sprintf("%s:%d", s.TLSHost, s.TLSPort))
+		tlsListener, err := net.Listen("tcp", net.JoinHostPort(s.TLSHost, strconv.Itoa(s.TLSPort)))
 		if err != nil {
 			return err
 		}

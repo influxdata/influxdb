@@ -16,70 +16,154 @@ import (
 
 type Handler struct {
 	Store      mrfusion.ExplorationStore
+	Srcs       mrfusion.SourcesStore
 	TimeSeries mrfusion.TimeSeries
 }
 
 func NewHandler() Handler {
-	return Handler{
-		DefaultExplorationStore,
-		DefaultTimeSeries,
+	h := Handler{
+		Store:      DefaultExplorationStore,
+		Srcs:       DefaultSourcesStore,
+		TimeSeries: DefaultTimeSeries,
 	}
+	return h
 }
 
-func sampleSource() *models.Source {
-	name := "muh name"
-	url := "http://localhost:8086"
-
-	return &models.Source{
-		ID: "1",
-		Links: &models.SourceLinks{
-			Self:  "/chronograf/v1/sources/1",
-			Proxy: "/chronograf/v1/sources/1/proxy",
-		},
-		Name:     &name,
-		Type:     "influx-enterprise",
-		Username: "HOWDY!",
-		Password: "changeme",
-		URL:      &url,
+func (m *Handler) AllRoutes(ctx context.Context, params op.GetParams) middleware.Responder {
+	routes := &models.Routes{
+		Sources:    "/chronograf/v1/sources",
+		Dashboards: "/chronograf/v1/dashboards",
+		Apps:       "/chronograf/v1/apps",
+		Users:      "/chronograf/v1/users",
 	}
+	return op.NewGetOK().WithPayload(routes)
 }
 
 func (m *Handler) NewSource(ctx context.Context, params op.PostSourcesParams) middleware.Responder {
-	return op.NewPostSourcesCreated()
+	src := mrfusion.Source{
+		Name:     *params.Source.Name,
+		Type:     params.Source.Type,
+		Username: params.Source.Username,
+		Password: params.Source.Password,
+		URL:      []string{*params.Source.URL},
+		Default:  params.Source.Default,
+	}
+	var err error
+	if src, err = m.Srcs.Add(ctx, src); err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error storing source %v: %v", params.Source, err)}
+		return op.NewPostSourcesDefault(500).WithPayload(errMsg)
+	}
+	mSrc := mrToModel(src)
+	return op.NewPostSourcesCreated().WithPayload(mSrc).WithLocation(mSrc.Links.Self)
+}
+
+func srcLinks(id int) *models.SourceLinks {
+	return &models.SourceLinks{
+		Self:        fmt.Sprintf("/chronograf/v1/sources/%d", id),
+		Proxy:       fmt.Sprintf("/chronograf/v1/sources/%d/proxy", id),
+		Users:       fmt.Sprintf("/chronograf/v1/sources/%d/users", id),
+		Roles:       fmt.Sprintf("/chronograf/v1/sources/%d/roles", id),
+		Permissions: fmt.Sprintf("/chronograf/v1/sources/%d/permissions", id),
+	}
+}
+
+func mrToModel(src mrfusion.Source) *models.Source {
+	return &models.Source{
+		ID:       strconv.Itoa(src.ID),
+		Links:    srcLinks(src.ID),
+		Name:     &src.Name,
+		Type:     src.Type,
+		Username: src.Username,
+		Password: src.Password,
+		URL:      &src.URL[0],
+		Default:  src.Default,
+	}
 }
 
 func (m *Handler) Sources(ctx context.Context, params op.GetSourcesParams) middleware.Responder {
+	mrSrcs, err := m.Srcs.All(ctx)
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: "Error loading sources"}
+		return op.NewGetSourcesDefault(500).WithPayload(errMsg)
+	}
+
+	srcs := make([]*models.Source, len(mrSrcs))
+	for i, src := range mrSrcs {
+		srcs[i] = mrToModel(src)
+	}
+
 	res := &models.Sources{
-		Sources: []*models.Source{
-			sampleSource(),
-		},
+		Sources: srcs,
 	}
 
 	return op.NewGetSourcesOK().WithPayload(res)
 }
 
 func (m *Handler) SourcesID(ctx context.Context, params op.GetSourcesIDParams) middleware.Responder {
-	if params.ID != "1" {
-		return op.NewGetSourcesIDNotFound()
+	id, err := strconv.Atoi(params.ID)
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
+		return op.NewGetSourcesIDDefault(500).WithPayload(errMsg)
 	}
-	return op.NewGetSourcesIDOK().WithPayload(sampleSource())
+
+	src, err := m.Srcs.Get(ctx, id)
+	if err != nil {
+		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.ID)}
+		return op.NewGetSourcesIDNotFound().WithPayload(errMsg)
+	}
+
+	return op.NewGetSourcesIDOK().WithPayload(mrToModel(src))
 }
 
-func (m *Handler) Proxy(ctx context.Context, params op.PostSourcesIDProxyParams) middleware.Responder {
-	query := mrfusion.Query{
-		Command: *params.Query.Query,
-		DB:      params.Query.Db,
-		RP:      params.Query.Rp,
-	}
-	response, err := m.TimeSeries.Query(ctx, mrfusion.Query(query))
+func (m *Handler) RemoveSource(ctx context.Context, params op.DeleteSourcesIDParams) middleware.Responder {
+	id, err := strconv.Atoi(params.ID)
 	if err != nil {
-		return op.NewPostSourcesIDProxyDefault(500)
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
+		return op.NewDeleteSourcesIDDefault(500).WithPayload(errMsg)
+	}
+	src := mrfusion.Source{
+		ID: id,
+	}
+	if err = m.Srcs.Delete(ctx, src); err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Unknown error deleting source %s", params.ID)}
+		return op.NewDeleteSourcesIDDefault(500).WithPayload(errMsg)
 	}
 
-	res := &models.ProxyResponse{
-		Results: response,
+	return op.NewDeleteSourcesIDNoContent()
+}
+
+func (m *Handler) UpdateSource(ctx context.Context, params op.PatchSourcesIDParams) middleware.Responder {
+	id, err := strconv.Atoi(params.ID)
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
+		return op.NewPatchSourcesIDDefault(500).WithPayload(errMsg)
 	}
-	return op.NewPostSourcesIDProxyOK().WithPayload(res)
+	src, err := m.Srcs.Get(ctx, id)
+	if err != nil {
+		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.ID)}
+		return op.NewPatchSourcesIDNotFound().WithPayload(errMsg)
+	}
+	src.Default = params.Config.Default
+	if params.Config.Name != nil {
+		src.Name = *params.Config.Name
+	}
+	if params.Config.Password != "" {
+		src.Password = params.Config.Password
+	}
+	if params.Config.Username != "" {
+		src.Username = params.Config.Username
+	}
+	if params.Config.URL != nil {
+		src.URL = []string{*params.Config.URL}
+	}
+	if params.Config.Type != "" {
+		src.Type = params.Config.Type
+	}
+	if err := m.Srcs.Update(ctx, src); err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error updating source ID %s", params.ID)}
+		return op.NewPatchSourcesIDDefault(500).WithPayload(errMsg)
+	}
+	return op.NewPatchSourcesIDNoContent()
 }
 
 func (m *Handler) MonitoredServices(ctx context.Context, params op.GetSourcesIDMonitoredParams) middleware.Responder {
@@ -96,6 +180,39 @@ func (m *Handler) MonitoredServices(ctx context.Context, params op.GetSourcesIDM
 		})
 	}
 	return op.NewGetSourcesIDMonitoredOK().WithPayload(res)
+}
+
+func (m *Handler) Proxy(ctx context.Context, params op.PostSourcesIDProxyParams) middleware.Responder {
+	id, err := strconv.Atoi(params.ID)
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
+		return op.NewPostSourcesIDProxyDefault(500).WithPayload(errMsg)
+	}
+
+	src, err := m.Srcs.Get(ctx, id)
+	if err != nil {
+		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.ID)}
+		return op.NewPostSourcesIDProxyNotFound().WithPayload(errMsg)
+	}
+
+	if err = m.TimeSeries.Connect(ctx, &src); err != nil {
+		errMsg := &models.Error{Code: 400, Message: fmt.Sprintf("Unable to connect to source %s", params.ID)}
+		return op.NewPostSourcesIDProxyNotFound().WithPayload(errMsg)
+	}
+	query := mrfusion.Query{
+		Command: *params.Query.Query,
+		DB:      params.Query.Db,
+		RP:      params.Query.Rp,
+	}
+	response, err := m.TimeSeries.Query(ctx, mrfusion.Query(query))
+	if err != nil {
+		return op.NewPostSourcesIDProxyDefault(500)
+	}
+
+	res := &models.ProxyResponse{
+		Results: response,
+	}
+	return op.NewPostSourcesIDProxyOK().WithPayload(res)
 }
 
 func (m *Handler) Explorations(ctx context.Context, params op.GetSourcesIDUsersUserIDExplorationsParams) middleware.Responder {

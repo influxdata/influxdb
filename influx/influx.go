@@ -59,6 +59,9 @@ func query(u *url.URL, q mrfusion.Query) (mrfusion.Response, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("received status code %d from server", resp.StatusCode)
+	}
 
 	var response Response
 	dec := json.NewDecoder(resp.Body)
@@ -73,6 +76,7 @@ func query(u *url.URL, q mrfusion.Query) (mrfusion.Response, error) {
 	if decErr != nil {
 		return nil, fmt.Errorf("unable to decode json: received status code %d err: %s", resp.StatusCode, decErr)
 	}
+
 	// If we don't have an error in our json response, and didn't get statusOK
 	// then send back an error
 	if resp.StatusCode != http.StatusOK && response.Err != "" {
@@ -110,4 +114,14 @@ func (c *Client) Query(ctx context.Context, q mrfusion.Query) (mrfusion.Response
 // has time series information stored for.
 func (c *Client) MonitoredServices(ctx context.Context) ([]mrfusion.MonitoredService, error) {
 	return []mrfusion.MonitoredService{}, nil
+}
+
+func (c *Client) Connect(ctx context.Context, src *mrfusion.Source) error {
+	u, err := url.Parse(src.URL[0])
+	if err != nil {
+		return err
+	}
+	u.User = url.UserPassword(src.Username, src.Password)
+	c.URL = u
+	return nil
 }

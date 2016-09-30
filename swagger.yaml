@@ -20,7 +20,7 @@ paths:
                 200:
                     description: Returns the links to the top level endpoints.
                     schema:
-                        $ref: '#/definitions/Links'
+                        $ref: '#/definitions/Routes'
                 default:
                     description: Unexpected internal service error
                     schema:
@@ -730,6 +730,8 @@ paths:
 definitions:
     Sources:
         type: object
+        required:
+            - sources
         properties:
             sources:
                 type: array
@@ -958,6 +960,25 @@ definitions:
                 type: array
                 items:
                     type: string
+    Routes:
+        type: object
+        properties:
+            users:
+                description: Location of the users endpoint
+                type: string
+                format: url
+            dashboards:
+                description: Location of the dashboards endpoint
+                type: string
+                format: url
+            sources:
+                description: Location of the sources endpoint
+                type: string
+                format: url
+            apps:
+                description: Location of the apps endpoint
+                type: string
+                format: url
     Services:
         type: object
         properties:

@@ -86,6 +86,8 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 
 	mockHandler := mock.NewHandler()
 
+	api.GetHandler = operations.GetHandlerFunc(mockHandler.AllRoutes)
+
 	if len(storeFlags.BoltPath) > 0 {
 		c := bolt.NewClient()
 		c.Path = storeFlags.BoltPath
@@ -108,12 +110,28 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 		api.PostSourcesIDUsersUserIDExplorationsHandler = operations.PostSourcesIDUsersUserIDExplorationsHandlerFunc(mockHandler.NewExploration)
 	}
 
-	api.DeleteDashboardsIDHandler = operations.DeleteDashboardsIDHandlerFunc(func(ctx context.Context, params operations.DeleteDashboardsIDParams) middleware.Responder {
-		return middleware.NotImplemented("operation .DeleteDashboardsID has not yet been implemented")
-	})
-	api.DeleteSourcesIDHandler = operations.DeleteSourcesIDHandlerFunc(func(ctx context.Context, params operations.DeleteSourcesIDParams) middleware.Responder {
-		return middleware.NotImplemented("operation .DeleteSourcesID has not yet been implemented")
-	})
+	api.DeleteSourcesIDHandler = operations.DeleteSourcesIDHandlerFunc(mockHandler.RemoveSource)
+	api.PatchSourcesIDHandler = operations.PatchSourcesIDHandlerFunc(mockHandler.UpdateSource)
+
+	api.GetSourcesHandler = operations.GetSourcesHandlerFunc(mockHandler.Sources)
+	api.GetSourcesIDHandler = operations.GetSourcesIDHandlerFunc(mockHandler.SourcesID)
+	api.PostSourcesHandler = operations.PostSourcesHandlerFunc(mockHandler.NewSource)
+
+	if len(influxFlags.Server) > 0 {
+		c, err := influx.NewClient(influxFlags.Server)
+		if err != nil {
+			panic(err)
+		}
+		// TODO: Change to bolt when finished
+		h := handlers.InfluxProxy{
+			Srcs:       mock.DefaultSourcesStore,
+			TimeSeries: c,
+		}
+		api.PostSourcesIDProxyHandler = operations.PostSourcesIDProxyHandlerFunc(h.Proxy)
+	} else {
+		api.PostSourcesIDProxyHandler = operations.PostSourcesIDProxyHandlerFunc(mockHandler.Proxy)
+	}
+
 	api.DeleteSourcesIDRolesRoleIDHandler = operations.DeleteSourcesIDRolesRoleIDHandlerFunc(func(ctx context.Context, params operations.DeleteSourcesIDRolesRoleIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .DeleteSourcesIDRolesRoleID has not yet been implemented")
 	})
@@ -121,8 +139,9 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 	api.DeleteSourcesIDUsersUserIDHandler = operations.DeleteSourcesIDUsersUserIDHandlerFunc(func(ctx context.Context, params operations.DeleteSourcesIDUsersUserIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .DeleteSourcesIDUsersUserID has not yet been implemented")
 	})
-	api.GetHandler = operations.GetHandlerFunc(func(ctx context.Context, params operations.GetParams) middleware.Responder {
-		return middleware.NotImplemented("operation .Get has not yet been implemented")
+
+	api.DeleteDashboardsIDHandler = operations.DeleteDashboardsIDHandlerFunc(func(ctx context.Context, params operations.DeleteDashboardsIDParams) middleware.Responder {
+		return middleware.NotImplemented("operation .DeleteDashboardsID has not yet been implemented")
 	})
 	api.GetDashboardsHandler = operations.GetDashboardsHandlerFunc(func(ctx context.Context, params operations.GetDashboardsParams) middleware.Responder {
 		return middleware.NotImplemented("operation .GetDashboards has not yet been implemented")
@@ -130,9 +149,6 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 	api.GetDashboardsIDHandler = operations.GetDashboardsIDHandlerFunc(func(ctx context.Context, params operations.GetDashboardsIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .GetDashboardsID has not yet been implemented")
 	})
-
-	api.GetSourcesHandler = operations.GetSourcesHandlerFunc(mockHandler.Sources)
-	api.GetSourcesIDHandler = operations.GetSourcesIDHandlerFunc(mockHandler.SourcesID)
 
 	api.GetSourcesIDPermissionsHandler = operations.GetSourcesIDPermissionsHandlerFunc(func(ctx context.Context, params operations.GetSourcesIDPermissionsParams) middleware.Responder {
 		return middleware.NotImplemented("operation .GetSourcesIDPermissions has not yet been implemented")
@@ -151,9 +167,6 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 		return middleware.NotImplemented("operation .GetSourcesIDUsersUserID has not yet been implemented")
 	})
 
-	api.PatchSourcesIDHandler = operations.PatchSourcesIDHandlerFunc(func(ctx context.Context, params operations.PatchSourcesIDParams) middleware.Responder {
-		return middleware.NotImplemented("operation .PatchSourcesID has not yet been implemented")
-	})
 	api.PatchSourcesIDRolesRoleIDHandler = operations.PatchSourcesIDRolesRoleIDHandlerFunc(func(ctx context.Context, params operations.PatchSourcesIDRolesRoleIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PatchSourcesIDRolesRoleID has not yet been implemented")
 	})
@@ -164,20 +177,6 @@ func configureAPI(api *operations.MrFusionAPI) http.Handler {
 	api.PostDashboardsHandler = operations.PostDashboardsHandlerFunc(func(ctx context.Context, params operations.PostDashboardsParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PostDashboards has not yet been implemented")
 	})
-	api.PostSourcesHandler = operations.PostSourcesHandlerFunc(mockHandler.NewSource)
-
-	if len(influxFlags.Server) > 0 {
-		c, err := influx.NewClient(influxFlags.Server)
-		if err != nil {
-			panic(err)
-		}
-		h := handlers.InfluxProxy{
-			TimeSeries: c,
-		}
-		api.PostSourcesIDProxyHandler = operations.PostSourcesIDProxyHandlerFunc(h.Proxy)
-	} else {
-		api.PostSourcesIDProxyHandler = operations.PostSourcesIDProxyHandlerFunc(mockHandler.Proxy)
-	}
 
 	api.PostSourcesIDRolesHandler = operations.PostSourcesIDRolesHandlerFunc(func(ctx context.Context, params operations.PostSourcesIDRolesParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PostSourcesIDRoles has not yet been implemented")

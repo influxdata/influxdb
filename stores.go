@@ -105,12 +105,38 @@ type Dashboard struct {
 
 // DashboardStore stores dashboards and associated Cells
 type DashboardStore interface {
+	// All returns all dashboards in the store
+	All(context.Context) ([]*Dashboard, error)
 	// Add creates a new dashboard in the DashboardStore
-	Add(context.Context, Dashboard) error
+	Add(context.Context, *Dashboard) error
 	// Delete the dashboard from the store
-	Delete(context.Context, Dashboard) error
+	Delete(context.Context, *Dashboard) error
 	// Get retrieves Dashboard if `ID` exists
-	Get(ctx context.Context, ID int) error
+	Get(ctx context.Context, ID int) (*Dashboard, error)
 	// Update the dashboard in the store.
-	Update(context.Context, Dashboard) error
+	Update(context.Context, *Dashboard) error
+}
+
+type Source struct {
+	ID       int      // ID is the unique ID of the source
+	Name     string   // Name is the user-defined name for the source
+	Type     string   // Type specifies which kinds of source (enterprise vs oss)
+	Username string   // Username is the username to connect to the source
+	Password string   // Password is in CLEARTEXT FIXME
+	URL      []string // URL are the connections to the source
+	Default  bool     // Default specifies the default source for the application
+}
+
+// SourcesStore stores connection information for a `TimeSeries`
+type SourcesStore interface {
+	// All returns all sources in the store
+	All(context.Context) ([]Source, error)
+	// Add creates a new source in the SourcesStore and returns Source with ID
+	Add(context.Context, Source) (Source, error)
+	// Delete the Source from the store
+	Delete(context.Context, Source) error
+	// Get retrieves Source if `ID` exists
+	Get(ctx context.Context, ID int) (Source, error)
+	// Update the Source in the store.
+	Update(context.Context, Source) error
 }
