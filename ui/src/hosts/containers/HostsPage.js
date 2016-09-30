@@ -56,7 +56,7 @@ export const HostsPage = React.createClass({
           <div className="enterprise-header__container">
             <div className="enterprise-header__left">
               <h1>
-                Hosts
+                Host List
               </h1>
             </div>
           </div>
