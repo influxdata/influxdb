@@ -61,7 +61,7 @@ export const SelectSourcePage = React.createClass({
   render() {
     const error = !!this.props.location.query.redirectPath;
     return (
-      <div id="select-source-page">
+      <div className="page-wrapper" id="select-source-page">
         <div className="container">
           <div className="row">
             <div className="col-md-8 col-md-offset-2">
@@ -70,38 +70,55 @@ export const SelectSourcePage = React.createClass({
                   <h2 className="deluxe">Welcome to Chronograf</h2>
                 </div>
                 <div className="panel-body">
-                  {error ? <p className="alert alert-danger">Data source not found or unavailable</p> : null}
+                  <br/>
+                  <h4 className="text-center">Select an InfluxDB Server to connect to</h4>
+                  <br/>
                   <form onSubmit={this.handleSelectSource}>
-                    <div className="form-group col-sm-12">
-                      <h4>Select an InfluxDB server to connect to</h4>
-                      <label htmlFor="source">InfluxDB Server</label>
-                      <select className="form-control input-lg" id="source">
+                    <div className="form-group col-sm-8 col-sm-offset-2">
+                      {error ? <div className="alert alert-danger"><span className="icon alert-triangle"></span>Data source not found or unavailable</div> : null}
+                    </div>
+                    <div className="form-group col-xs-7 col-sm-5 col-sm-offset-2">
+                      <label htmlFor="source" className="sr-only">Detected InfluxDB Servers</label>
+                      <select className="form-control" id="source">
                         {this.state.sources.map(({name}) => {
                           return <option ref={(r) => this.selectedSource = r} key={name} value={name}>{name}</option>;
                         })}
                       </select>
                     </div>
 
-                    <div className="form-group col-sm-6 col-sm-offset-3">
-                      <button className="btn btn-lg btn-block btn-success" type="submit">Connect</button>
+                    <div className="form-group col-xs-5 col-sm-3">
+                      <button className="btn btn-block btn-primary" type="submit">Connect</button>
                     </div>
                   </form>
 
+                  <br/>
+                  <hr/>
+                  <br/>
+                  <h4 className="text-center">Or connect to a New Server</h4>
+                  <br/>
+
                   <form onSubmit={this.handleNewSource}>
                     <div>
-                      <h4>Or connect to a new server</h4>
-                      <label htmlFor="connect-string">connection string</label>
-                      <input ref={(r) => this.sourceURL = r} id="connect-string" placeholder="http://localhost:8086"></input>
-                      <label htmlFor="name">name</label>
-                      <input ref={(r) => this.sourceName = r} id="name" placeholder="Influx 1"></input>
-                      <label htmlFor="username">username</label>
-                      <input ref={(r) => this.sourceUser = r} id="username"></input>
-                      <label htmlFor="password">password</label>
-                      <input ref={(r) => this.sourcePassword = r} id="password" type="password"></input>
+                      <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
+                        <label htmlFor="connect-string">Connection String</label>
+                        <input ref={(r) => this.sourceURL = r} className="form-control" id="connect-string" placeholder="http://localhost:8086"></input>
+                      </div>
+                      <div className="form-group col-xs-6 col-sm-4">
+                        <label htmlFor="name">Name</label>
+                        <input ref={(r) => this.sourceName = r} className="form-control" id="name" placeholder="Influx 1"></input>
+                      </div>
+                      <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
+                        <label htmlFor="username">Username</label>
+                        <input ref={(r) => this.sourceUser = r} className="form-control" id="username"></input>
+                      </div>
+                      <div className="form-group col-xs-6 col-sm-4">
+                        <label htmlFor="password">Password</label>
+                        <input ref={(r) => this.sourcePassword = r} className="form-control" id="password" type="password"></input>
+                      </div>
                     </div>
 
-                    <div className="form-group col-sm-6 col-sm-offset-3">
-                      <button className="btn btn-lg btn-block btn-success" type="submit">Create</button>
+                    <div className="form-group col-xs-12 text-center">
+                      <button className="btn btn-success" type="submit">&nbsp;&nbsp;Create New Server&nbsp;&nbsp;</button>
                     </div>
                   </form>
                 </div>

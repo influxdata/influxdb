@@ -14,6 +14,18 @@ body {
 }
 
 /*
+    Chronograf Select Host Page
+    ----------------------------------------------
+*/
+body > #react-root {
+  width: 100%;
+  
+  .container {
+    margin-top: 60px;
+  }
+}
+
+/*
     Layout
     ----------------------------------------------
 */
