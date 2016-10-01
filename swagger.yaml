@@ -739,6 +739,8 @@ paths:
                   description: The kapacitor API path to use in the proxy redirect
                   required: true
             responses:
+                204:
+                    description: Kapacitor returned no content
                 404:
                     description: Kapacitor ID does not exist.
                     schema:
@@ -761,6 +763,8 @@ paths:
                   description: The kapacitor API path to use in the proxy redirect
                   required: true
             responses:
+                204:
+                    description: Kapacitor returned no content
                 404:
                     description: Kapacitor ID does not exist.
                     schema:

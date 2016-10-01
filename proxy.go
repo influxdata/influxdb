@@ -1,9 +1,10 @@
 package mrfusion
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
+
+	"golang.org/x/net/context"
 )
 
 // Request contains the information needed to make an HTTP call.
