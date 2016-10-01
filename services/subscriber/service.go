@@ -324,8 +324,13 @@ func (s *Service) newPointsWriter(u url.URL) (PointsWriter, error) {
 	switch u.Scheme {
 	case "udp":
 		return NewUDP(u.Host), nil
-	case "http", "https":
+	case "http":
 		return NewHTTP(u.String(), time.Duration(s.conf.HTTPTimeout))
+	case "https":
+		if s.conf.InsecureSkipVerify {
+			s.Logger.Println("WARNING: 'insecure-skip-verify' is true. This will skip all certificate verifications.")
+		}
+		return NewHTTPS(u.String(), time.Duration(s.conf.HTTPTimeout), s.conf.InsecureSkipVerify, s.conf.CaCerts)
 	default:
 		return nil, fmt.Errorf("unknown destination scheme %s", u.Scheme)
 	}
