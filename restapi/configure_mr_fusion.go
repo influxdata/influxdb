@@ -2,7 +2,7 @@ package restapi
 
 import (
 	"crypto/tls"
-	"log"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -25,6 +25,8 @@ import (
 // This file is safe to edit. Once it exists it will not be overwritten
 
 //go:generate swagger generate server --target .. --name  --spec ../swagger.yaml --with-context
+
+var logger = fusionlog.New()
 
 var devFlags = struct {
 	Develop bool `short:"d" long:"develop" description:"Run server in develop mode."`
@@ -70,7 +72,11 @@ func configureAPI(api *op.MrFusionAPI) http.Handler {
 	// Expected interface func(string, ...interface{})
 	//
 	// Example:
-	// s.api.Logger = log.Printf
+	api.Logger = func(msg string, args ...interface{}) {
+		logger.
+			WithField("component", "api").
+			Info(fmt.Sprintf(msg, args))
+	}
 
 	api.JSONConsumer = runtime.JSONConsumer()
 
@@ -205,7 +211,13 @@ func setupMiddlewares(handler http.Handler) http.Handler {
 // So this is a good place to plug in a panic handling middleware, logging and metrics
 func setupGlobalMiddleware(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%s %s %s\n", r.RemoteAddr, r.Method, r.URL)
+		logger.
+			WithField("component", "server").
+			WithField("remote_addr", r.RemoteAddr).
+			WithField("method", r.Method).
+			WithField("url", r.URL).
+			Info("Serving request")
+
 		if strings.Contains(r.URL.Path, "/chronograf/v1") {
 			handler.ServeHTTP(w, r)
 			return
