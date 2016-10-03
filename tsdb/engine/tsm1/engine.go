@@ -564,7 +564,7 @@ func (e *Engine) addToIndexFromKey(shardID uint64, key []byte, fieldType influxq
 // WritePoints writes metadata and point data into the engine.
 // Returns an error if new points are added to an existing key.
 func (e *Engine) WritePoints(points []models.Point) error {
-	values := map[string][]Value{}
+	values := make(map[string][]Value, len(points))
 	var keyBuf []byte
 	var baseLen int
 	for _, p := range points {
