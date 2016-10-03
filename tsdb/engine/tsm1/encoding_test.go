@@ -1095,7 +1095,7 @@ func BenchmarkDecodeBlock_Float_TypeSpecific(b *testing.B) {
 	decodedValues := make([]tsm1.FloatValue, len(values))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err = tsm1.DecodeFloatBlock(bytes, &tsm1.TimeDecoder{}, &tsm1.FloatDecoder{}, &decodedValues)
+		_, err = tsm1.DecodeFloatBlock(bytes, &decodedValues)
 		if err != nil {
 			b.Fatalf("unexpected error decoding block: %v", err)
 		}
@@ -1164,7 +1164,7 @@ func BenchmarkDecodeBlock_Integer_TypeSpecific(b *testing.B) {
 	decodedValues := make([]tsm1.IntegerValue, len(values))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err = tsm1.DecodeIntegerBlock(bytes, &tsm1.TimeDecoder{}, &tsm1.IntegerDecoder{}, &decodedValues)
+		_, err = tsm1.DecodeIntegerBlock(bytes, &decodedValues)
 		if err != nil {
 			b.Fatalf("unexpected error decoding block: %v", err)
 		}
@@ -1233,7 +1233,7 @@ func BenchmarkDecodeBlock_Boolean_TypeSpecific(b *testing.B) {
 	decodedValues := make([]tsm1.BooleanValue, len(values))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err = tsm1.DecodeBooleanBlock(bytes, &tsm1.TimeDecoder{}, &tsm1.BooleanDecoder{}, &decodedValues)
+		_, err = tsm1.DecodeBooleanBlock(bytes, &decodedValues)
 		if err != nil {
 			b.Fatalf("unexpected error decoding block: %v", err)
 		}
@@ -1302,7 +1302,7 @@ func BenchmarkDecodeBlock_String_TypeSpecific(b *testing.B) {
 	decodedValues := make([]tsm1.StringValue, len(values))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err = tsm1.DecodeStringBlock(bytes, &tsm1.TimeDecoder{}, &tsm1.StringDecoder{}, &decodedValues)
+		_, err = tsm1.DecodeStringBlock(bytes, &decodedValues)
 		if err != nil {
 			b.Fatalf("unexpected error decoding block: %v", err)
 		}

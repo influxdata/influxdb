@@ -349,9 +349,65 @@ func (c *Cache) Keys() []string {
 
 // Values returns a copy of all values, deduped and sorted, for the given key.
 func (c *Cache) Values(key string) Values {
+	var snapshotEntries *entry
 	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.merged(key)
+	e := c.store[key]
+	if c.snapshot != nil {
+		snapshotEntries = c.snapshot.store[key]
+	}
+	c.mu.RUnlock()
+
+	if e == nil {
+		if snapshotEntries == nil {
+			// No values in hot cache or snapshots.
+			return nil
+		}
+	} else {
+		e.deduplicate()
+	}
+
+	// Build the sequence of entries that will be returned, in the correct order.
+	// Calculate the required size of the destination buffer.
+	var entries []*entry
+	sz := 0
+
+	if snapshotEntries != nil {
+		snapshotEntries.deduplicate() // guarantee we are deduplicated
+		entries = append(entries, snapshotEntries)
+		sz += snapshotEntries.count()
+	}
+
+	if e != nil {
+		entries = append(entries, e)
+		sz += e.count()
+	}
+
+	// Any entries? If not, return.
+	if sz == 0 {
+		return nil
+	}
+
+	// Create the buffer, and copy all hot values and snapshots. Individual
+	// entries are sorted at this point, so now the code has to check if the
+	// resultant buffer will be sorted from start to finish.
+	var needSort bool
+	values := make(Values, sz)
+	n := 0
+	for _, e := range entries {
+		e.mu.RLock()
+		if !needSort && n > 0 && len(e.values) > 0 {
+			needSort = values[n-1].UnixNano() >= e.values[0].UnixNano()
+		}
+		n += copy(values[n:], e.values)
+		e.mu.RUnlock()
+	}
+	values = values[:n]
+
+	if needSort {
+		values = values.Deduplicate()
+	}
+
+	return values
 }
 
 // Delete will remove the keys from the cache
@@ -395,68 +451,6 @@ func (c *Cache) SetMaxSize(size uint64) {
 	c.mu.Lock()
 	c.maxSize = size
 	c.mu.Unlock()
-}
-
-// merged returns a copy of hot and snapshot values. The copy will be merged, deduped, and
-// sorted. It assumes all necessary locks have been taken. If the caller knows that the
-// the hot source data for the key will not be changed, it is safe to call this function
-// with a read-lock taken. Otherwise it must be called with a write-lock taken.
-func (c *Cache) merged(key string) Values {
-	e := c.store[key]
-	if e == nil {
-		if c.snapshot == nil {
-			// No values in hot cache or snapshots.
-			return nil
-		}
-	} else {
-		e.deduplicate()
-	}
-
-	// Build the sequence of entries that will be returned, in the correct order.
-	// Calculate the required size of the destination buffer.
-	var entries []*entry
-	sz := 0
-
-	if c.snapshot != nil {
-		snapshotEntries := c.snapshot.store[key]
-		if snapshotEntries != nil {
-			snapshotEntries.deduplicate() // guarantee we are deduplicated
-			entries = append(entries, snapshotEntries)
-			sz += snapshotEntries.count()
-		}
-	}
-
-	if e != nil {
-		entries = append(entries, e)
-		sz += e.count()
-	}
-
-	// Any entries? If not, return.
-	if sz == 0 {
-		return nil
-	}
-
-	// Create the buffer, and copy all hot values and snapshots. Individual
-	// entries are sorted at this point, so now the code has to check if the
-	// resultant buffer will be sorted from start to finish.
-	var needSort bool
-	values := make(Values, sz)
-	n := 0
-	for _, e := range entries {
-		e.mu.RLock()
-		if !needSort && n > 0 && len(e.values) > 0 {
-			needSort = values[n-1].UnixNano() >= e.values[0].UnixNano()
-		}
-		n += copy(values[n:], e.values)
-		e.mu.RUnlock()
-	}
-	values = values[:n]
-
-	if needSort {
-		values = values.Deduplicate()
-	}
-
-	return values
 }
 
 // Store returns the underlying cache store. This is not goroutine safe!

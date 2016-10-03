@@ -7,7 +7,7 @@
 package tsm1
 
 // ReadFloatBlock reads the next block as a set of float values.
-func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[]FloatValue) ([]FloatValue, error) {
+func (c *KeyCursor) ReadFloatBlock(buf *[]FloatValue) ([]FloatValue, error) {
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
@@ -16,7 +16,7 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[
 	// First block is the oldest block containing the points we're searching for.
 	first := c.current[0]
 	*buf = (*buf)[:0]
-	values, err := first.r.ReadFloatBlockAt(&first.entry, tdec, vdec, buf)
+	values, err := first.r.ReadFloatBlockAt(&first.entry, buf)
 
 	// Remove values we already read
 	values = FloatValues(values).Exclude(first.readMin, first.readMax)
@@ -81,7 +81,7 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[
 
 			tombstones := cur.r.TombstoneRange(c.key)
 			var a []FloatValue
-			v, err := cur.r.ReadFloatBlockAt(&cur.entry, tdec, vdec, &a)
+			v, err := cur.r.ReadFloatBlockAt(&cur.entry, &a)
 			if err != nil {
 				return nil, err
 			}
@@ -140,7 +140,7 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[
 			tombstones := cur.r.TombstoneRange(c.key)
 
 			var a []FloatValue
-			v, err := cur.r.ReadFloatBlockAt(&cur.entry, tdec, vdec, &a)
+			v, err := cur.r.ReadFloatBlockAt(&cur.entry, &a)
 			if err != nil {
 				return nil, err
 			}
@@ -167,7 +167,7 @@ func (c *KeyCursor) ReadFloatBlock(tdec *TimeDecoder, vdec *FloatDecoder, buf *[
 }
 
 // ReadIntegerBlock reads the next block as a set of integer values.
-func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, buf *[]IntegerValue) ([]IntegerValue, error) {
+func (c *KeyCursor) ReadIntegerBlock(buf *[]IntegerValue) ([]IntegerValue, error) {
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
@@ -176,7 +176,7 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 	// First block is the oldest block containing the points we're searching for.
 	first := c.current[0]
 	*buf = (*buf)[:0]
-	values, err := first.r.ReadIntegerBlockAt(&first.entry, tdec, vdec, buf)
+	values, err := first.r.ReadIntegerBlockAt(&first.entry, buf)
 
 	// Remove values we already read
 	values = IntegerValues(values).Exclude(first.readMin, first.readMax)
@@ -241,7 +241,7 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 
 			tombstones := cur.r.TombstoneRange(c.key)
 			var a []IntegerValue
-			v, err := cur.r.ReadIntegerBlockAt(&cur.entry, tdec, vdec, &a)
+			v, err := cur.r.ReadIntegerBlockAt(&cur.entry, &a)
 			if err != nil {
 				return nil, err
 			}
@@ -300,7 +300,7 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 			tombstones := cur.r.TombstoneRange(c.key)
 
 			var a []IntegerValue
-			v, err := cur.r.ReadIntegerBlockAt(&cur.entry, tdec, vdec, &a)
+			v, err := cur.r.ReadIntegerBlockAt(&cur.entry, &a)
 			if err != nil {
 				return nil, err
 			}
@@ -327,7 +327,7 @@ func (c *KeyCursor) ReadIntegerBlock(tdec *TimeDecoder, vdec *IntegerDecoder, bu
 }
 
 // ReadStringBlock reads the next block as a set of string values.
-func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf *[]StringValue) ([]StringValue, error) {
+func (c *KeyCursor) ReadStringBlock(buf *[]StringValue) ([]StringValue, error) {
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
@@ -336,7 +336,7 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 	// First block is the oldest block containing the points we're searching for.
 	first := c.current[0]
 	*buf = (*buf)[:0]
-	values, err := first.r.ReadStringBlockAt(&first.entry, tdec, vdec, buf)
+	values, err := first.r.ReadStringBlockAt(&first.entry, buf)
 
 	// Remove values we already read
 	values = StringValues(values).Exclude(first.readMin, first.readMax)
@@ -401,7 +401,7 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 
 			tombstones := cur.r.TombstoneRange(c.key)
 			var a []StringValue
-			v, err := cur.r.ReadStringBlockAt(&cur.entry, tdec, vdec, &a)
+			v, err := cur.r.ReadStringBlockAt(&cur.entry, &a)
 			if err != nil {
 				return nil, err
 			}
@@ -460,7 +460,7 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 			tombstones := cur.r.TombstoneRange(c.key)
 
 			var a []StringValue
-			v, err := cur.r.ReadStringBlockAt(&cur.entry, tdec, vdec, &a)
+			v, err := cur.r.ReadStringBlockAt(&cur.entry, &a)
 			if err != nil {
 				return nil, err
 			}
@@ -487,7 +487,7 @@ func (c *KeyCursor) ReadStringBlock(tdec *TimeDecoder, vdec *StringDecoder, buf 
 }
 
 // ReadBooleanBlock reads the next block as a set of boolean values.
-func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, buf *[]BooleanValue) ([]BooleanValue, error) {
+func (c *KeyCursor) ReadBooleanBlock(buf *[]BooleanValue) ([]BooleanValue, error) {
 	// No matching blocks to decode
 	if len(c.current) == 0 {
 		return nil, nil
@@ -496,7 +496,7 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 	// First block is the oldest block containing the points we're searching for.
 	first := c.current[0]
 	*buf = (*buf)[:0]
-	values, err := first.r.ReadBooleanBlockAt(&first.entry, tdec, vdec, buf)
+	values, err := first.r.ReadBooleanBlockAt(&first.entry, buf)
 
 	// Remove values we already read
 	values = BooleanValues(values).Exclude(first.readMin, first.readMax)
@@ -561,7 +561,7 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 
 			tombstones := cur.r.TombstoneRange(c.key)
 			var a []BooleanValue
-			v, err := cur.r.ReadBooleanBlockAt(&cur.entry, tdec, vdec, &a)
+			v, err := cur.r.ReadBooleanBlockAt(&cur.entry, &a)
 			if err != nil {
 				return nil, err
 			}
@@ -620,7 +620,7 @@ func (c *KeyCursor) ReadBooleanBlock(tdec *TimeDecoder, vdec *BooleanDecoder, bu
 			tombstones := cur.r.TombstoneRange(c.key)
 
 			var a []BooleanValue
-			v, err := cur.r.ReadBooleanBlockAt(&cur.entry, tdec, vdec, &a)
+			v, err := cur.r.ReadBooleanBlockAt(&cur.entry, &a)
 			if err != nil {
 				return nil, err
 			}
