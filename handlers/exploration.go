@@ -30,10 +30,10 @@ func (h *Store) Explorations(ctx context.Context, params op.GetSourcesIDUsersUse
 	}
 
 	exs := make([]*models.Exploration, len(mrExs))
-	for _, e := range mrExs {
+	for i, e := range mrExs {
 		rel := "self"
 		href := fmt.Sprintf("/chronograf/v1/sources/1/users/%d/explorations/%d", uID, e.ID)
-		exs = append(exs, &models.Exploration{
+		exs[i] = &models.Exploration{
 			Data:      e.Data,
 			Name:      e.Name,
 			UpdatedAt: strfmt.DateTime(e.UpdatedAt),
@@ -42,8 +42,7 @@ func (h *Store) Explorations(ctx context.Context, params op.GetSourcesIDUsersUse
 				Rel:  &rel,
 				Href: &href,
 			},
-		},
-		)
+		}
 	}
 	res := &models.Explorations{
 		Explorations: exs,
