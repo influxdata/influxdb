@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/mrfusion"
 	"github.com/influxdata/mrfusion/influx"
+	"github.com/influxdata/mrfusion/log"
 	"golang.org/x/net/context"
 )
 
@@ -25,7 +26,7 @@ func Test_Influx_MakesRequestsToQueryEndpoint(t *testing.T) {
 	defer ts.Close()
 
 	var series mrfusion.TimeSeries
-	series, err := influx.NewClient(ts.URL)
+	series, err := influx.NewClient(ts.URL, log.New())
 	if err != nil {
 		t.Fatal("Unexpected error initializing client: err:", err)
 	}
@@ -58,7 +59,7 @@ func Test_Influx_CancelsInFlightRequests(t *testing.T) {
 		ts.Close()
 	}()
 
-	series, _ := influx.NewClient(ts.URL)
+	series, _ := influx.NewClient(ts.URL, log.New())
 	ctx, cancel := context.WithCancel(context.Background())
 
 	errs := make(chan (error))
@@ -97,5 +98,29 @@ func Test_Influx_CancelsInFlightRequests(t *testing.T) {
 	err := <-errs
 	if err != mrfusion.ErrUpstreamTimeout {
 		t.Error("Expected timeout error but wasn't. err was", err)
+	}
+}
+
+func Test_Influx_RejectsInvalidHosts(t *testing.T) {
+	_, err := influx.NewClient(":", log.New())
+	if err == nil {
+		t.Fatal("Expected err but was nil")
+	}
+}
+
+func Test_Influx_ReportsInfluxErrs(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	cl, err := influx.NewClient(ts.URL, log.New())
+	if err != nil {
+		t.Fatal("Encountered unexpected error while initializing influx client: err:", err)
+	}
+
+	_, err = cl.Query(context.Background(), mrfusion.Query{"show shards", "_internal", "autogen"})
+	if err == nil {
+		t.Fatal("Expected an error but received none")
 	}
 }

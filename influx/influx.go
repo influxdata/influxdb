@@ -14,18 +14,23 @@ import (
 // Client is a device for retrieving time series data from an InfluxDB instance
 type Client struct {
 	URL *url.URL
+
+	lg mrfusion.Logger
 }
 
 // NewClient initializes an HTTP Client for InfluxDB. UDP, although supported
 // for querying InfluxDB, is not supported here to remove the need to
 // explicitly Close the client.
-func NewClient(host string) (*Client, error) {
+func NewClient(host string, lg mrfusion.Logger) (*Client, error) {
+	l := lg.WithField("host", host)
 	u, err := url.Parse(host)
 	if err != nil {
+		l.Error("Error initialize influx client: err:", err)
 		return nil, err
 	}
 	return &Client{
 		URL: u,
+		lg:  l,
 	}, nil
 }
 
@@ -38,7 +43,7 @@ func (r Response) MarshalJSON() ([]byte, error) {
 	return r.Results, nil
 }
 
-func query(u *url.URL, q mrfusion.Query) (mrfusion.Response, error) {
+func (c *Client) query(u *url.URL, q mrfusion.Query) (mrfusion.Response, error) {
 	u.Path = "query"
 
 	req, err := http.NewRequest("POST", u.String(), nil)
@@ -74,12 +79,19 @@ func query(u *url.URL, q mrfusion.Query) (mrfusion.Response, error) {
 
 	// If we got a valid decode error, send that back
 	if decErr != nil {
-		return nil, fmt.Errorf("unable to decode json: received status code %d err: %s", resp.StatusCode, decErr)
+		c.lg.
+			WithField("influx_status", resp.StatusCode).
+			Error("Error parsing results from influxdb: err:", decErr)
+		return nil, decErr
 	}
 
 	// If we don't have an error in our json response, and didn't get statusOK
 	// then send back an error
 	if resp.StatusCode != http.StatusOK && response.Err != "" {
+		c.lg.
+			WithField("influx_status", resp.StatusCode).
+			Error("Received non-200 response from influxdb")
+
 		return &response, fmt.Errorf("received status code %d from server",
 			resp.StatusCode)
 	}
@@ -98,7 +110,7 @@ type result struct {
 func (c *Client) Query(ctx context.Context, q mrfusion.Query) (mrfusion.Response, error) {
 	resps := make(chan (result))
 	go func() {
-		resp, err := query(c.URL, q)
+		resp, err := c.query(c.URL, q)
 		resps <- result{resp, err}
 	}()
 
