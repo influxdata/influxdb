@@ -87,34 +87,73 @@ func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementElem, ok bool) {
 // UnmarshalBinary unpacks data into the block. Block is not copied so data
 // should be retained and unchanged after being passed into this function.
 func (blk *MeasurementBlock) UnmarshalBinary(data []byte) error {
-	// Parse version.
-	if len(data) < MeasurementBlockVersion {
-		return io.ErrShortBuffer
-	}
-	versionOffset := len(data) - MeasurementBlockVersionSize
-	blk.version = int(binary.BigEndian.Uint16(data[versionOffset:]))
-
-	// Ensure version matches.
-	if blk.version != MeasurementBlockVersion {
-		return ErrUnsupportedMeasurementBlockVersion
+	// Read trailer.
+	t, err := ReadMeasurementBlockTrailer(data)
+	if err != nil {
+		return err
 	}
 
-	// Parse size & validate.
-	szOffset := versionOffset - MeasurementBlockSize
-	sz := binary.BigEndian.Uint64(data[szOffset:])
-	if uint64(len(data)) != sz+MeasurementTrailerSize {
+	// Verify data size is correct.
+	if int64(len(data)) != t.Size {
 		return ErrMeasurementBlockSizeMismatch
 	}
 
-	// Parse hash index offset.
-	hoffOffset := szOffset - MeasurementHashOffsetSize
-	hoff := binary.BigEndian.Uint64(data[hoffOffset:])
+	// Save data section.
+	blk.data = data[t.Data.Offset:]
+	blk.data = blk.data[:t.Data.Size]
 
-	// Save data block & hash block.
-	blk.data = data[:hoff]
-	blk.hashData = data[hoff:hoffOffset]
+	// Save hash index block.
+	blk.hashData = data[t.HashIndex.Offset:]
+	blk.hashData = blk.hashData[:t.HashIndex.Size]
 
 	return nil
+}
+
+// ReadMeasurementBlockTrailer returns the trailer from data.
+func ReadMeasurementBlockTrailer(data []byte) (MeasurementBlockTrailer, error) {
+	var t MeasurementBlockTrailer
+
+	// Read version.
+	versionOffset := len(data) - MeasurementBlockVersionSize
+	t.Version = int(binary.BigEndian.Uint16(data[versionOffset:]))
+
+	if t.Version != MeasurementBlockVersion {
+		return t, ErrUnsupportedMeasurementBlockVersion
+	}
+
+	// Parse total size.
+	szOffset := versionOffset - MeasurementBlockSize
+	sz := int64(binary.BigEndian.Uint64(data[szOffset:]))
+	t.Size = int64(sz + MeasurementTrailerSize)
+
+	// Parse hash index offset.
+	hoffOffset := szOffset - MeasurementHashOffsetSize
+	t.HashIndex.Offset = int64(binary.BigEndian.Uint64(data[hoffOffset:]))
+	t.HashIndex.Size = int64(hoffOffset) - t.HashIndex.Offset
+
+	// Compute data size.
+	t.Data.Offset = 0
+	t.Data.Size = t.HashIndex.Offset
+
+	return t, nil
+}
+
+// MeasurementBlockTrailer represents meta data at the end of a MeasurementBlock.
+type MeasurementBlockTrailer struct {
+	Version int   // Encoding version
+	Size    int64 // Total size w/ trailer
+
+	// Offset & size of data section.
+	Data struct {
+		Offset int64
+		Size   int64
+	}
+
+	// Offset & size of hash map section.
+	HashIndex struct {
+		Offset int64
+		Size   int64
+	}
 }
 
 // MeasurementElem represents an internal measurement element.

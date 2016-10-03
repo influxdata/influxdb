@@ -1571,6 +1571,42 @@ func (a Tags) Len() int           { return len(a) }
 func (a Tags) Less(i, j int) bool { return bytes.Compare(a[i].Key, a[j].Key) == -1 }
 func (a Tags) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
+// Equal returns true if a equals other.
+func (a Tags) Equal(other Tags) bool {
+	if len(a) != len(other) {
+		return false
+	}
+	for i := range a {
+		if !bytes.Equal(a[i].Key, other[i].Key) || !bytes.Equal(a[i].Value, other[i].Value) {
+			return false
+		}
+	}
+	return true
+}
+
+// CompareTags returns -1 if a < b, 1 if a > b, and 0 if a == b.
+func CompareTags(a, b Tags) int {
+	// Compare each key & value until a mismatch.
+	for i := 0; i < len(a) && i < len(b); i++ {
+		if cmp := bytes.Compare(a[i].Key, b[i].Key); cmp != 0 {
+			return cmp
+		}
+		if cmp := bytes.Compare(a[i].Value, b[i].Value); cmp != 0 {
+			return cmp
+		}
+	}
+
+	// If all tags are equal up to this point then return shorter tagset.
+	if len(a) < len(b) {
+		return -1
+	} else if len(a) > len(b) {
+		return 1
+	}
+
+	// All tags are equal.
+	return 0
+}
+
 // Get returns the value for a key.
 func (a Tags) Get(key []byte) []byte {
 	// OPTIMIZE: Use sort.Search if tagset is large.
