@@ -2001,7 +2001,7 @@ func walkRefs(exp Expr) []VarRef {
 	case *VarRef:
 		return []VarRef{*expr}
 	case *Call:
-		var a []VarRef
+		a := make([]VarRef, 0, len(expr.Args))
 		for _, expr := range expr.Args {
 			if ref, ok := expr.(*VarRef); ok {
 				a = append(a, *ref)
@@ -2009,9 +2009,11 @@ func walkRefs(exp Expr) []VarRef {
 		}
 		return a
 	case *BinaryExpr:
-		var ret []VarRef
-		ret = append(ret, walkRefs(expr.LHS)...)
-		ret = append(ret, walkRefs(expr.RHS)...)
+		lhs := walkRefs(expr.LHS)
+		rhs := walkRefs(expr.RHS)
+		ret := make([]VarRef, 0, len(lhs)+len(rhs))
+		ret = append(ret, lhs...)
+		ret = append(ret, rhs...)
 		return ret
 	case *ParenExpr:
 		return walkRefs(expr.Expr)
