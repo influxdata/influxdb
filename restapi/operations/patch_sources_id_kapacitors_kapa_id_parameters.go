@@ -16,18 +16,18 @@ import (
 	"github.com/influxdata/mrfusion/models"
 )
 
-// NewPatchKapacitorsIDParams creates a new PatchKapacitorsIDParams object
+// NewPatchSourcesIDKapacitorsKapaIDParams creates a new PatchSourcesIDKapacitorsKapaIDParams object
 // with the default values initialized.
-func NewPatchKapacitorsIDParams() PatchKapacitorsIDParams {
+func NewPatchSourcesIDKapacitorsKapaIDParams() PatchSourcesIDKapacitorsKapaIDParams {
 	var ()
-	return PatchKapacitorsIDParams{}
+	return PatchSourcesIDKapacitorsKapaIDParams{}
 }
 
-// PatchKapacitorsIDParams contains all the bound params for the patch kapacitors ID operation
+// PatchSourcesIDKapacitorsKapaIDParams contains all the bound params for the patch sources ID kapacitors kapa ID operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters PatchKapacitorsID
-type PatchKapacitorsIDParams struct {
+// swagger:parameters PatchSourcesIDKapacitorsKapaID
+type PatchSourcesIDKapacitorsKapaIDParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
@@ -37,16 +37,21 @@ type PatchKapacitorsIDParams struct {
 	  In: body
 	*/
 	Config *models.Kapacitor
-	/*ID of a kapacitor backend
+	/*ID of the source
 	  Required: true
 	  In: path
 	*/
 	ID string
+	/*ID of a kapacitor backend
+	  Required: true
+	  In: path
+	*/
+	KapaID string
 }
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *PatchKapacitorsIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *PatchSourcesIDKapacitorsKapaIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
 
@@ -79,19 +84,35 @@ func (o *PatchKapacitorsIDParams) BindRequest(r *http.Request, route *middleware
 		res = append(res, err)
 	}
 
+	rKapaID, rhkKapaID, _ := route.Params.GetOK("kapa_id")
+	if err := o.bindKapaID(rKapaID, rhkKapaID, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
 	return nil
 }
 
-func (o *PatchKapacitorsIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *PatchSourcesIDKapacitorsKapaIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
 	}
 
 	o.ID = raw
+
+	return nil
+}
+
+func (o *PatchSourcesIDKapacitorsKapaIDParams) bindKapaID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	o.KapaID = raw
 
 	return nil
 }

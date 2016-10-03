@@ -70,28 +70,34 @@ func (h *InfluxProxy) Proxy(ctx context.Context, params op.PostSourcesIDProxyPar
 	return op.NewPostSourcesIDProxyOK().WithPayload(res)
 }
 
-func (h *InfluxProxy) KapacitorProxyPost(ctx context.Context, params op.PostKapacitorsIDProxyParams) middleware.Responder {
-	id, err := strconv.Atoi(params.ID)
+func (h *InfluxProxy) KapacitorProxyPost(ctx context.Context, params op.PostSourcesIDKapacitorsKapaIDProxyParams) middleware.Responder {
+	id, err := strconv.Atoi(params.KapaID)
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.KapaID)}
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
+	}
+
+	srcID, err := strconv.Atoi(params.ID)
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
-		return op.NewPostKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
 	srv, err := h.ServersStore.Get(ctx, id)
-	if err != nil {
-		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.ID)}
-		return op.NewPostKapacitorsIDProxyNotFound().WithPayload(errMsg)
+	if err != nil || srv.SrcID != srcID {
+		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.KapaID)}
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyNotFound().WithPayload(errMsg)
 	}
 
 	if err = h.KapacitorProxy.Connect(ctx, &srv); err != nil {
-		errMsg := &models.Error{Code: 400, Message: fmt.Sprintf("Unable to connect to servers store %s", params.ID)}
-		return op.NewPostKapacitorsIDProxyNotFound().WithPayload(errMsg)
+		errMsg := &models.Error{Code: 400, Message: fmt.Sprintf("Unable to connect to servers store %s", params.KapaID)}
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyNotFound().WithPayload(errMsg)
 	}
 
 	body, err := json.Marshal(params.Query)
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting to JSON %v", err)}
-		return op.NewPostKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
 	req := &mrfusion.Request{
@@ -104,7 +110,7 @@ func (h *InfluxProxy) KapacitorProxyPost(ctx context.Context, params op.PostKapa
 	defer resp.Body.Close()
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error with proxy %v", err)}
-		return op.NewPostKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 
 	}
 
@@ -117,34 +123,40 @@ func (h *InfluxProxy) KapacitorProxyPost(ctx context.Context, params op.PostKapa
 
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error reading body of response: %v", err)}
-		return op.NewPostKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
-	return op.NewPostKapacitorsIDProxyDefault(resp.StatusCode).WithPayload(j)
+	return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(resp.StatusCode).WithPayload(j)
 }
 
-func (h *InfluxProxy) KapacitorProxyPatch(ctx context.Context, params op.PatchKapacitorsIDProxyParams) middleware.Responder {
-	id, err := strconv.Atoi(params.ID)
+func (h *InfluxProxy) KapacitorProxyPatch(ctx context.Context, params op.PatchSourcesIDKapacitorsKapaIDProxyParams) middleware.Responder {
+	id, err := strconv.Atoi(params.KapaID)
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.KapaID)}
+		return op.NewPatchSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
+	}
+
+	srcID, err := strconv.Atoi(params.ID)
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
-		return op.NewPatchKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
 	srv, err := h.ServersStore.Get(ctx, id)
-	if err != nil {
-		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.ID)}
-		return op.NewPatchKapacitorsIDProxyNotFound().WithPayload(errMsg)
+	if err != nil || srv.SrcID != srcID {
+		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.KapaID)}
+		return op.NewPatchSourcesIDKapacitorsKapaIDProxyNotFound().WithPayload(errMsg)
 	}
 
 	if err = h.KapacitorProxy.Connect(ctx, &srv); err != nil {
-		errMsg := &models.Error{Code: 400, Message: fmt.Sprintf("Unable to connect to servers store %s", params.ID)}
-		return op.NewPatchKapacitorsIDProxyNotFound().WithPayload(errMsg)
+		errMsg := &models.Error{Code: 400, Message: fmt.Sprintf("Unable to connect to servers store %s", params.KapaID)}
+		return op.NewPatchSourcesIDKapacitorsKapaIDProxyNotFound().WithPayload(errMsg)
 	}
 
 	body, err := json.Marshal(params.Query)
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting to JSON %v", err)}
-		return op.NewPostKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
 	req := &mrfusion.Request{
@@ -157,7 +169,7 @@ func (h *InfluxProxy) KapacitorProxyPatch(ctx context.Context, params op.PatchKa
 	defer resp.Body.Close()
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error with proxy %v", err)}
-		return op.NewPatchKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+		return op.NewPatchSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
 	dec := json.NewDecoder(resp.Body)
@@ -169,29 +181,35 @@ func (h *InfluxProxy) KapacitorProxyPatch(ctx context.Context, params op.PatchKa
 
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error reading body of response: %v", err)}
-		return op.NewPatchKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+		return op.NewPatchSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 
 	}
 
-	return op.NewPatchKapacitorsIDProxyDefault(resp.StatusCode).WithPayload(j)
+	return op.NewPatchSourcesIDKapacitorsKapaIDProxyDefault(resp.StatusCode).WithPayload(j)
 }
 
-func (h *InfluxProxy) KapacitorProxyGet(ctx context.Context, params op.GetKapacitorsIDProxyParams) middleware.Responder {
-	id, err := strconv.Atoi(params.ID)
+func (h *InfluxProxy) KapacitorProxyGet(ctx context.Context, params op.GetSourcesIDKapacitorsKapaIDProxyParams) middleware.Responder {
+	id, err := strconv.Atoi(params.KapaID)
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.KapaID)}
+		return op.NewGetSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
+	}
+
+	srcID, err := strconv.Atoi(params.ID)
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
-		return op.NewGetKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
 	srv, err := h.ServersStore.Get(ctx, id)
-	if err != nil {
-		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.ID)}
-		return op.NewGetKapacitorsIDProxyNotFound().WithPayload(errMsg)
+	if err != nil || srv.SrcID != srcID {
+		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.KapaID)}
+		return op.NewGetSourcesIDKapacitorsKapaIDProxyNotFound().WithPayload(errMsg)
 	}
 
 	if err = h.KapacitorProxy.Connect(ctx, &srv); err != nil {
-		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Unable to connect to servers store %s", params.ID)}
-		return op.NewGetKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Unable to connect to servers store %s", params.KapaID)}
+		return op.NewGetSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
 	req := &mrfusion.Request{
@@ -203,12 +221,12 @@ func (h *InfluxProxy) KapacitorProxyGet(ctx context.Context, params op.GetKapaci
 	defer resp.Body.Close()
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error with proxy %v", err)}
-		return op.NewGetKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+		return op.NewGetSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 
 	}
 
 	if resp.StatusCode == http.StatusNoContent {
-		return op.NewGetKapacitorsIDProxyNoContent()
+		return op.NewGetSourcesIDKapacitorsKapaIDProxyNoContent()
 	}
 
 	dec := json.NewDecoder(resp.Body)
@@ -220,28 +238,34 @@ func (h *InfluxProxy) KapacitorProxyGet(ctx context.Context, params op.GetKapaci
 
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error reading body of response: %v", err)}
-		return op.NewGetKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+		return op.NewGetSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
-	return op.NewGetKapacitorsIDProxyDefault(resp.StatusCode).WithPayload(j)
+	return op.NewGetSourcesIDKapacitorsKapaIDProxyDefault(resp.StatusCode).WithPayload(j)
 }
 
-func (h *InfluxProxy) KapacitorProxyDelete(ctx context.Context, params op.DeleteKapacitorsIDProxyParams) middleware.Responder {
-	id, err := strconv.Atoi(params.ID)
+func (h *InfluxProxy) KapacitorProxyDelete(ctx context.Context, params op.DeleteSourcesIDKapacitorsKapaIDProxyParams) middleware.Responder {
+	id, err := strconv.Atoi(params.KapaID)
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.KapaID)}
+		return op.NewDeleteSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
+	}
+
+	srcID, err := strconv.Atoi(params.ID)
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
-		return op.NewDeleteKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
 	srv, err := h.ServersStore.Get(ctx, id)
-	if err != nil {
-		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.ID)}
-		return op.NewDeleteKapacitorsIDProxyNotFound().WithPayload(errMsg)
+	if err != nil || srv.SrcID != srcID {
+		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.KapaID)}
+		return op.NewDeleteSourcesIDKapacitorsKapaIDProxyNotFound().WithPayload(errMsg)
 	}
 
 	if err = h.KapacitorProxy.Connect(ctx, &srv); err != nil {
-		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Unable to connect to servers store %s", params.ID)}
-		return op.NewDeleteKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Unable to connect to servers store %s", params.KapaID)}
+		return op.NewDeleteSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
 	req := &mrfusion.Request{
@@ -253,12 +277,12 @@ func (h *InfluxProxy) KapacitorProxyDelete(ctx context.Context, params op.Delete
 	defer resp.Body.Close()
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error with proxy %v", err)}
-		return op.NewDeleteKapacitorsIDProxyDefault(500).WithPayload(errMsg)
+		return op.NewDeleteSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 
 	}
 
 	if resp.StatusCode == http.StatusNoContent {
-		return op.NewGetKapacitorsIDProxyNoContent()
+		return op.NewGetSourcesIDKapacitorsKapaIDProxyNoContent()
 	}
 
 	dec := json.NewDecoder(resp.Body)
@@ -268,5 +292,5 @@ func (h *InfluxProxy) KapacitorProxyDelete(ctx context.Context, params op.Delete
 		err = nil
 	}
 
-	return op.NewDeleteKapacitorsIDProxyDefault(resp.StatusCode).WithPayload(j)
+	return op.NewDeleteSourcesIDKapacitorsKapaIDProxyDefault(resp.StatusCode).WithPayload(j)
 }

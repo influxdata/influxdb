@@ -50,3 +50,23 @@ func TestMarshalSource(t *testing.T) {
 		t.Fatalf("source protobuf copy error: got %#v, expected %#v", vv, v)
 	}
 }
+
+func TestMarshalServer(t *testing.T) {
+	v := mrfusion.Server{
+		ID:       12,
+		SrcID:    2,
+		Name:     "Fountain of Truth",
+		Username: "docbrown",
+		Password: "1 point twenty-one g1g@w@tts",
+		URL:      "http://oldmanpeabody.mall.io:9092",
+	}
+
+	var vv mrfusion.Server
+	if buf, err := internal.MarshalServer(v); err != nil {
+		t.Fatal(err)
+	} else if err := internal.UnmarshalServer(buf, &vv); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(v, vv) {
+		t.Fatalf("source protobuf copy error: got %#v, expected %#v", vv, v)
+	}
+}

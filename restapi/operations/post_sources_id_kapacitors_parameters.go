@@ -13,18 +13,18 @@ import (
 	"github.com/influxdata/mrfusion/models"
 )
 
-// NewPostKapacitorsParams creates a new PostKapacitorsParams object
+// NewPostSourcesIDKapacitorsParams creates a new PostSourcesIDKapacitorsParams object
 // with the default values initialized.
-func NewPostKapacitorsParams() PostKapacitorsParams {
+func NewPostSourcesIDKapacitorsParams() PostSourcesIDKapacitorsParams {
 	var ()
-	return PostKapacitorsParams{}
+	return PostSourcesIDKapacitorsParams{}
 }
 
-// PostKapacitorsParams contains all the bound params for the post kapacitors operation
+// PostSourcesIDKapacitorsParams contains all the bound params for the post sources ID kapacitors operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters PostKapacitors
-type PostKapacitorsParams struct {
+// swagger:parameters PostSourcesIDKapacitors
+type PostSourcesIDKapacitorsParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
@@ -37,7 +37,7 @@ type PostKapacitorsParams struct {
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *PostKapacitorsParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *PostSourcesIDKapacitorsParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
 

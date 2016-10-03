@@ -14,27 +14,32 @@ import (
 	strfmt "github.com/go-openapi/strfmt"
 )
 
-// NewDeleteKapacitorsIDProxyParams creates a new DeleteKapacitorsIDProxyParams object
+// NewDeleteSourcesIDKapacitorsKapaIDProxyParams creates a new DeleteSourcesIDKapacitorsKapaIDProxyParams object
 // with the default values initialized.
-func NewDeleteKapacitorsIDProxyParams() DeleteKapacitorsIDProxyParams {
+func NewDeleteSourcesIDKapacitorsKapaIDProxyParams() DeleteSourcesIDKapacitorsKapaIDProxyParams {
 	var ()
-	return DeleteKapacitorsIDProxyParams{}
+	return DeleteSourcesIDKapacitorsKapaIDProxyParams{}
 }
 
-// DeleteKapacitorsIDProxyParams contains all the bound params for the delete kapacitors ID proxy operation
+// DeleteSourcesIDKapacitorsKapaIDProxyParams contains all the bound params for the delete sources ID kapacitors kapa ID proxy operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters DeleteKapacitorsIDProxy
-type DeleteKapacitorsIDProxyParams struct {
+// swagger:parameters DeleteSourcesIDKapacitorsKapaIDProxy
+type DeleteSourcesIDKapacitorsKapaIDProxyParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
 
-	/*ID of the kapacitor backend.
+	/*ID of the source
 	  Required: true
 	  In: path
 	*/
 	ID string
+	/*ID of the kapacitor backend.
+	  Required: true
+	  In: path
+	*/
+	KapaID string
 	/*The kapacitor API path to use in the proxy redirect
 	  Required: true
 	  In: query
@@ -44,7 +49,7 @@ type DeleteKapacitorsIDProxyParams struct {
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *DeleteKapacitorsIDProxyParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *DeleteSourcesIDKapacitorsKapaIDProxyParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
 
@@ -52,6 +57,11 @@ func (o *DeleteKapacitorsIDProxyParams) BindRequest(r *http.Request, route *midd
 
 	rID, rhkID, _ := route.Params.GetOK("id")
 	if err := o.bindID(rID, rhkID, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
+	rKapaID, rhkKapaID, _ := route.Params.GetOK("kapa_id")
+	if err := o.bindKapaID(rKapaID, rhkKapaID, route.Formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -66,7 +76,7 @@ func (o *DeleteKapacitorsIDProxyParams) BindRequest(r *http.Request, route *midd
 	return nil
 }
 
-func (o *DeleteKapacitorsIDProxyParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *DeleteSourcesIDKapacitorsKapaIDProxyParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
@@ -77,7 +87,18 @@ func (o *DeleteKapacitorsIDProxyParams) bindID(rawData []string, hasKey bool, fo
 	return nil
 }
 
-func (o *DeleteKapacitorsIDProxyParams) bindPath(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *DeleteSourcesIDKapacitorsKapaIDProxyParams) bindKapaID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	o.KapaID = raw
+
+	return nil
+}
+
+func (o *DeleteSourcesIDKapacitorsKapaIDProxyParams) bindPath(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	if !hasKey {
 		return errors.Required("path", "query")
 	}

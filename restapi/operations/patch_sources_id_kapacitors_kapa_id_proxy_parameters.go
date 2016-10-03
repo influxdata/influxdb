@@ -17,27 +17,32 @@ import (
 	"github.com/influxdata/mrfusion/models"
 )
 
-// NewPostKapacitorsIDProxyParams creates a new PostKapacitorsIDProxyParams object
+// NewPatchSourcesIDKapacitorsKapaIDProxyParams creates a new PatchSourcesIDKapacitorsKapaIDProxyParams object
 // with the default values initialized.
-func NewPostKapacitorsIDProxyParams() PostKapacitorsIDProxyParams {
+func NewPatchSourcesIDKapacitorsKapaIDProxyParams() PatchSourcesIDKapacitorsKapaIDProxyParams {
 	var ()
-	return PostKapacitorsIDProxyParams{}
+	return PatchSourcesIDKapacitorsKapaIDProxyParams{}
 }
 
-// PostKapacitorsIDProxyParams contains all the bound params for the post kapacitors ID proxy operation
+// PatchSourcesIDKapacitorsKapaIDProxyParams contains all the bound params for the patch sources ID kapacitors kapa ID proxy operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters PostKapacitorsIDProxy
-type PostKapacitorsIDProxyParams struct {
+// swagger:parameters PatchSourcesIDKapacitorsKapaIDProxy
+type PatchSourcesIDKapacitorsKapaIDProxyParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
 
-	/*ID of the kapacitor backend.
+	/*ID of the source
 	  Required: true
 	  In: path
 	*/
 	ID string
+	/*ID of the kapacitor backend.
+	  Required: true
+	  In: path
+	*/
+	KapaID string
 	/*The kapacitor API path to use in the proxy redirect
 	  Required: true
 	  In: query
@@ -52,7 +57,7 @@ type PostKapacitorsIDProxyParams struct {
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *PostKapacitorsIDProxyParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *PatchSourcesIDKapacitorsKapaIDProxyParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
 
@@ -60,6 +65,11 @@ func (o *PostKapacitorsIDProxyParams) BindRequest(r *http.Request, route *middle
 
 	rID, rhkID, _ := route.Params.GetOK("id")
 	if err := o.bindID(rID, rhkID, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
+	rKapaID, rhkKapaID, _ := route.Params.GetOK("kapa_id")
+	if err := o.bindKapaID(rKapaID, rhkKapaID, route.Formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -95,7 +105,7 @@ func (o *PostKapacitorsIDProxyParams) BindRequest(r *http.Request, route *middle
 	return nil
 }
 
-func (o *PostKapacitorsIDProxyParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *PatchSourcesIDKapacitorsKapaIDProxyParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
@@ -106,7 +116,18 @@ func (o *PostKapacitorsIDProxyParams) bindID(rawData []string, hasKey bool, form
 	return nil
 }
 
-func (o *PostKapacitorsIDProxyParams) bindPath(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *PatchSourcesIDKapacitorsKapaIDProxyParams) bindKapaID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	o.KapaID = raw
+
+	return nil
+}
+
+func (o *PatchSourcesIDKapacitorsKapaIDProxyParams) bindPath(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	if !hasKey {
 		return errors.Required("path", "query")
 	}

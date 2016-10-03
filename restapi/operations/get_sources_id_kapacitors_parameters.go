@@ -12,23 +12,23 @@ import (
 	strfmt "github.com/go-openapi/strfmt"
 )
 
-// NewGetKapacitorsIDParams creates a new GetKapacitorsIDParams object
+// NewGetSourcesIDKapacitorsParams creates a new GetSourcesIDKapacitorsParams object
 // with the default values initialized.
-func NewGetKapacitorsIDParams() GetKapacitorsIDParams {
+func NewGetSourcesIDKapacitorsParams() GetSourcesIDKapacitorsParams {
 	var ()
-	return GetKapacitorsIDParams{}
+	return GetSourcesIDKapacitorsParams{}
 }
 
-// GetKapacitorsIDParams contains all the bound params for the get kapacitors ID operation
+// GetSourcesIDKapacitorsParams contains all the bound params for the get sources ID kapacitors operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters GetKapacitorsID
-type GetKapacitorsIDParams struct {
+// swagger:parameters GetSourcesIDKapacitors
+type GetSourcesIDKapacitorsParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
 
-	/*ID of the kapacitor
+	/*ID of the source
 	  Required: true
 	  In: path
 	*/
@@ -37,7 +37,7 @@ type GetKapacitorsIDParams struct {
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *GetKapacitorsIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *GetSourcesIDKapacitorsParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
 
@@ -52,7 +52,7 @@ func (o *GetKapacitorsIDParams) BindRequest(r *http.Request, route *middleware.M
 	return nil
 }
 
-func (o *GetKapacitorsIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *GetSourcesIDKapacitorsParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]

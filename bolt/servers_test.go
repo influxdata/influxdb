@@ -22,12 +22,14 @@ func TestServerStore(t *testing.T) {
 	srcs := []mrfusion.Server{
 		mrfusion.Server{
 			Name:     "Of Truth",
+			SrcID:    10,
 			Username: "marty",
 			Password: "I❤️  jennifer parker",
 			URL:      "toyota-hilux.lyon-estates.local",
 		},
 		mrfusion.Server{
 			Name:     "HipToBeSquare",
+			SrcID:    12,
 			Username: "calvinklein",
 			Password: "chuck b3rry",
 			URL:      "toyota-hilux.lyon-estates.local",

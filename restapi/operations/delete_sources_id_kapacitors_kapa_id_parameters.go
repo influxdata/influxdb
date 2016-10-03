@@ -7,56 +7,52 @@ import (
 	"net/http"
 
 	"github.com/go-openapi/errors"
-	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
-	"github.com/go-openapi/validate"
 
 	strfmt "github.com/go-openapi/strfmt"
 )
 
-// NewGetKapacitorsIDProxyParams creates a new GetKapacitorsIDProxyParams object
+// NewDeleteSourcesIDKapacitorsKapaIDParams creates a new DeleteSourcesIDKapacitorsKapaIDParams object
 // with the default values initialized.
-func NewGetKapacitorsIDProxyParams() GetKapacitorsIDProxyParams {
+func NewDeleteSourcesIDKapacitorsKapaIDParams() DeleteSourcesIDKapacitorsKapaIDParams {
 	var ()
-	return GetKapacitorsIDProxyParams{}
+	return DeleteSourcesIDKapacitorsKapaIDParams{}
 }
 
-// GetKapacitorsIDProxyParams contains all the bound params for the get kapacitors ID proxy operation
+// DeleteSourcesIDKapacitorsKapaIDParams contains all the bound params for the delete sources ID kapacitors kapa ID operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters GetKapacitorsIDProxy
-type GetKapacitorsIDProxyParams struct {
+// swagger:parameters DeleteSourcesIDKapacitorsKapaID
+type DeleteSourcesIDKapacitorsKapaIDParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
 
-	/*ID of the kapacitor backend.
+	/*ID of the source
 	  Required: true
 	  In: path
 	*/
 	ID string
-	/*The kapacitor API path to use in the proxy redirect
+	/*ID of the kapacitor
 	  Required: true
-	  In: query
+	  In: path
 	*/
-	Path string
+	KapaID string
 }
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *GetKapacitorsIDProxyParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *DeleteSourcesIDKapacitorsKapaIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
-
-	qs := runtime.Values(r.URL.Query())
 
 	rID, rhkID, _ := route.Params.GetOK("id")
 	if err := o.bindID(rID, rhkID, route.Formats); err != nil {
 		res = append(res, err)
 	}
 
-	qPath, qhkPath, _ := qs.GetOK("path")
-	if err := o.bindPath(qPath, qhkPath, route.Formats); err != nil {
+	rKapaID, rhkKapaID, _ := route.Params.GetOK("kapa_id")
+	if err := o.bindKapaID(rKapaID, rhkKapaID, route.Formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -66,7 +62,7 @@ func (o *GetKapacitorsIDProxyParams) BindRequest(r *http.Request, route *middlew
 	return nil
 }
 
-func (o *GetKapacitorsIDProxyParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *DeleteSourcesIDKapacitorsKapaIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
@@ -77,19 +73,13 @@ func (o *GetKapacitorsIDProxyParams) bindID(rawData []string, hasKey bool, forma
 	return nil
 }
 
-func (o *GetKapacitorsIDProxyParams) bindPath(rawData []string, hasKey bool, formats strfmt.Registry) error {
-	if !hasKey {
-		return errors.Required("path", "query")
-	}
+func (o *DeleteSourcesIDKapacitorsKapaIDParams) bindKapaID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
 	}
-	if err := validate.RequiredString("path", "query", raw); err != nil {
-		return err
-	}
 
-	o.Path = raw
+	o.KapaID = raw
 
 	return nil
 }

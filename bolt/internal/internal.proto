@@ -27,4 +27,5 @@ message Server {
 	string Username      = 3; // Username is the username to connect to the server
 	string Password      = 4;
 	string URL           = 5; // URL is the path to the server
+ 	int64 SrcID          = 6; // SrcID is the ID of the data source
 }

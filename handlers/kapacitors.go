@@ -12,7 +12,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-func (h *Store) NewKapacitor(ctx context.Context, params op.PostKapacitorsParams) middleware.Responder {
+func (h *Store) NewKapacitor(ctx context.Context, params op.PostSourcesIDKapacitorsParams) middleware.Responder {
 	srv := mrfusion.Server{
 		Name:     *params.Kapacitor.Name,
 		Username: params.Kapacitor.Username,
@@ -22,10 +22,10 @@ func (h *Store) NewKapacitor(ctx context.Context, params op.PostKapacitorsParams
 	var err error
 	if srv, err = h.ServersStore.Add(ctx, srv); err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error storing kapacitor %v: %v", params.Kapacitor, err)}
-		return op.NewPostKapacitorsDefault(500).WithPayload(errMsg)
+		return op.NewPostSourcesIDKapacitorsDefault(500).WithPayload(errMsg)
 	}
 	mSrv := srvToModel(srv)
-	return op.NewPostKapacitorsCreated().WithPayload(mSrv).WithLocation(mSrv.Links.Self)
+	return op.NewPostSourcesIDKapacitorsCreated().WithPayload(mSrv).WithLocation(mSrv.Links.Self)
 }
 
 func srvLinks(id int) *models.KapacitorLinks {
@@ -46,11 +46,11 @@ func srvToModel(srv mrfusion.Server) *models.Kapacitor {
 	}
 }
 
-func (h *Store) Kapacitors(ctx context.Context, params op.GetKapacitorsParams) middleware.Responder {
+func (h *Store) Kapacitors(ctx context.Context, params op.GetSourcesIDKapacitorsParams) middleware.Responder {
 	mrSrvs, err := h.ServersStore.All(ctx)
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: "Error loading kapacitors"}
-		return op.NewGetKapacitorsDefault(500).WithPayload(errMsg)
+		return op.NewGetSourcesIDKapacitorsDefault(500).WithPayload(errMsg)
 	}
 
 	srvs := make([]*models.Kapacitor, len(mrSrvs))
@@ -62,52 +62,75 @@ func (h *Store) Kapacitors(ctx context.Context, params op.GetKapacitorsParams) m
 		Kapacitors: srvs,
 	}
 
-	return op.NewGetKapacitorsOK().WithPayload(res)
+	return op.NewGetSourcesIDKapacitorsOK().WithPayload(res)
 }
 
-func (h *Store) KapacitorsID(ctx context.Context, params op.GetKapacitorsIDParams) middleware.Responder {
-	id, err := strconv.Atoi(params.ID)
+func (h *Store) KapacitorsID(ctx context.Context, params op.GetSourcesIDKapacitorsKapaIDParams) middleware.Responder {
+	id, err := strconv.Atoi(params.KapaID)
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.KapaID)}
+		return op.NewGetSourcesIDKapacitorsKapaIDDefault(500).WithPayload(errMsg)
+	}
+
+	srcID, err := strconv.Atoi(params.ID)
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
-		return op.NewGetKapacitorsIDDefault(500).WithPayload(errMsg)
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
 	srv, err := h.ServersStore.Get(ctx, id)
-	if err != nil {
-		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.ID)}
-		return op.NewGetKapacitorsIDNotFound().WithPayload(errMsg)
+	if err != nil || srv.SrcID != srcID {
+		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.KapaID)}
+		return op.NewGetSourcesIDKapacitorsKapaIDNotFound().WithPayload(errMsg)
 	}
 
-	return op.NewGetKapacitorsIDOK().WithPayload(srvToModel(srv))
+	return op.NewGetSourcesIDKapacitorsKapaIDOK().WithPayload(srvToModel(srv))
 }
 
-func (h *Store) RemoveKapacitor(ctx context.Context, params op.DeleteKapacitorsIDParams) middleware.Responder {
-	id, err := strconv.Atoi(params.ID)
+func (h *Store) RemoveKapacitor(ctx context.Context, params op.DeleteSourcesIDKapacitorsKapaIDParams) middleware.Responder {
+	id, err := strconv.Atoi(params.KapaID)
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.KapaID)}
+		return op.NewDeleteSourcesIDKapacitorsKapaIDDefault(500).WithPayload(errMsg)
+	}
+
+	srcID, err := strconv.Atoi(params.ID)
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
-		return op.NewDeleteKapacitorsIDDefault(500).WithPayload(errMsg)
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
-	srv := mrfusion.Server{
-		ID: id,
+
+	srv, err := h.ServersStore.Get(ctx, id)
+	if err != nil || srv.SrcID != srcID {
+		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.KapaID)}
+		return op.NewDeleteSourcesIDKapacitorsKapaIDNotFound().WithPayload(errMsg)
 	}
+
 	if err = h.ServersStore.Delete(ctx, srv); err != nil {
-		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Unknown error deleting kapacitor %s", params.ID)}
-		return op.NewDeleteKapacitorsIDDefault(500).WithPayload(errMsg)
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Unknown error deleting kapacitor %s", params.KapaID)}
+		return op.NewDeleteSourcesIDKapacitorsKapaIDDefault(500).WithPayload(errMsg)
 	}
 
-	return op.NewDeleteKapacitorsIDNoContent()
+	return op.NewDeleteSourcesIDKapacitorsKapaIDNoContent()
 }
 
-func (h *Store) UpdateKapacitor(ctx context.Context, params op.PatchKapacitorsIDParams) middleware.Responder {
-	id, err := strconv.Atoi(params.ID)
+func (h *Store) UpdateKapacitor(ctx context.Context, params op.PatchSourcesIDKapacitorsKapaIDParams) middleware.Responder {
+	id, err := strconv.Atoi(params.KapaID)
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.KapaID)}
+		return op.NewPatchSourcesIDKapacitorsKapaIDDefault(500).WithPayload(errMsg)
+	}
+
+	srcID, err := strconv.Atoi(params.ID)
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
-		return op.NewPatchKapacitorsIDDefault(500).WithPayload(errMsg)
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
+
 	srv, err := h.ServersStore.Get(ctx, id)
-	if err != nil {
-		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.ID)}
-		return op.NewPatchKapacitorsIDNotFound().WithPayload(errMsg)
+	if err != nil || srv.SrcID != srcID {
+		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.KapaID)}
+		return op.NewPatchSourcesIDKapacitorsKapaIDNotFound().WithPayload(errMsg)
 	}
 	if params.Config.Name != nil {
 		srv.Name = *params.Config.Name
@@ -122,8 +145,8 @@ func (h *Store) UpdateKapacitor(ctx context.Context, params op.PatchKapacitorsID
 		srv.URL = *params.Config.URL
 	}
 	if err := h.ServersStore.Update(ctx, srv); err != nil {
-		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error updating kapacitor ID %s", params.ID)}
-		return op.NewPatchKapacitorsIDDefault(500).WithPayload(errMsg)
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error updating kapacitor ID %s", params.KapaID)}
+		return op.NewPatchSourcesIDKapacitorsKapaIDDefault(500).WithPayload(errMsg)
 	}
-	return op.NewPatchKapacitorsIDNoContent()
+	return op.NewPatchSourcesIDKapacitorsKapaIDNoContent()
 }
