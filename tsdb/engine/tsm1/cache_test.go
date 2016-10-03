@@ -7,7 +7,9 @@ import (
 	"math/rand"
 	"os"
 	"reflect"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/golang/snappy"
@@ -649,12 +651,49 @@ func mustMarshalEntry(entry WALEntry) (WalEntryType, []byte) {
 	return entry.Type(), snappy.Encode(b, b)
 }
 
+var fvSize = uint64(NewValue(1, float64(1)).Size())
+
 func BenchmarkCacheFloatEntries(b *testing.B) {
+	cache := NewCache(uint64(b.N)*fvSize, "")
+	vals := make([][]Value, b.N)
 	for i := 0; i < b.N; i++ {
-		cache := NewCache(10000, "")
-		for j := 0; j < 10000; j++ {
-			v := NewValue(1, float64(j))
-			cache.Write("test", []Value{v})
+		vals[i] = []Value{NewValue(1, float64(i))}
+	}
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		if err := cache.Write("test", vals[i]); err != nil {
+			b.Fatal("err:", err, "i:", i, "N:", b.N)
 		}
 	}
+}
+
+type points struct {
+	key  string
+	vals []Value
+}
+
+func BenchmarkCacheParallelFloatEntries(b *testing.B) {
+	c := b.N * runtime.GOMAXPROCS(0)
+	cache := NewCache(uint64(c)*fvSize, "")
+	vals := make([]points, c)
+	for i := 0; i < c; i++ {
+		v := make([]Value, 10)
+		for j := 0; j < 10; j++ {
+			v[j] = NewValue(1, float64(i+j))
+		}
+		vals[i] = points{key: fmt.Sprintf("cpu%v", rand.Intn(20)), vals: v}
+	}
+	i := int32(-1)
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			j := atomic.AddInt32(&i, 1)
+			v := vals[j]
+			if err := cache.Write(v.key, v.vals); err != nil {
+				b.Fatal("err:", err, "j:", j, "N:", b.N)
+			}
+		}
+	})
 }
