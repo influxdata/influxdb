@@ -17,11 +17,17 @@ const (
 )
 
 type Tombstoner struct {
-	mu sync.Mutex
+	mu sync.RWMutex
 
 	// Path is the location of the file to record tombstone. This should be the
 	// full path to a TSM file.
 	Path string
+
+	// cache of the stats for this tombstone
+	fileStats []FileStat
+	// indicates that the stats may be out of sync with what is on disk and they
+	// should be refreshed.
+	statsLoaded bool
 }
 
 type Tombstone struct {
@@ -53,6 +59,8 @@ func (t *Tombstoner) AddRange(keys []string, min, max int64) error {
 		return nil
 	}
 
+	t.statsLoaded = false
+
 	tombstones, err := t.readTombstone()
 	if err != nil {
 		return nil
@@ -79,34 +87,48 @@ func (t *Tombstoner) Delete() error {
 	if err := os.RemoveAll(t.tombstonePath()); err != nil {
 		return err
 	}
+	t.statsLoaded = false
 	return nil
 }
 
 // HasTombstones return true if there are any tombstone entries recorded.
 func (t *Tombstoner) HasTombstones() bool {
-	stat, err := os.Stat(t.tombstonePath())
-	if err != nil {
-		return false
-	}
-
-	return stat.Size() > 0
+	files := t.TombstoneFiles()
+	return len(files) > 0 && files[0].Size > 0
 }
 
 // TombstoneFiles returns any tombstone files associated with this TSM file.
 func (t *Tombstoner) TombstoneFiles() []FileStat {
+	t.mu.RLock()
+	if t.statsLoaded {
+		stats := t.fileStats
+		t.mu.RUnlock()
+		return stats
+	}
+	t.mu.RUnlock()
+
 	stat, err := os.Stat(t.tombstonePath())
-	if err != nil {
+	if os.IsNotExist(err) || err != nil {
+		t.mu.Lock()
+		// The file doesn't exist so record that we tried to load it so
+		// we don't continue to keep trying.  This is the common case.
+		t.statsLoaded = os.IsNotExist(err)
+		t.fileStats = t.fileStats[:0]
+		t.mu.Unlock()
 		return nil
 	}
 
-	if stat.Size() > 0 {
-		return []FileStat{FileStat{
-			Path:         t.tombstonePath(),
-			LastModified: stat.ModTime().UnixNano(),
-			Size:         uint32(stat.Size())}}
-	}
+	t.mu.Lock()
+	t.fileStats = append(t.fileStats[:0], FileStat{
+		Path:         t.tombstonePath(),
+		LastModified: stat.ModTime().UnixNano(),
+		Size:         uint32(stat.Size()),
+	})
+	t.statsLoaded = true
+	stats := t.fileStats
+	t.mu.Unlock()
 
-	return nil
+	return stats
 }
 
 func (t *Tombstoner) Walk(fn func(t Tombstone) error) error {

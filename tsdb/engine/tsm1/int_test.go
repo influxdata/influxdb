@@ -355,6 +355,94 @@ func Test_IntegerEncoder_CounterRLE(t *testing.T) {
 	}
 
 	if b[0]>>4 != intCompressedRLE {
+		t.Fatalf("unexpected encoding format: expected RLE, got %v", b[0]>>4)
+	}
+
+	// Should use 1 header byte, 8 byte first value, 1 var-byte for delta and 1 var-byte for
+	// count of deltas in this particular RLE.
+	if exp := 11; len(b) != exp {
+		t.Fatalf("encoded length mismatch: got %v, exp %v", len(b), exp)
+	}
+
+	var dec IntegerDecoder
+	dec.SetBytes(b)
+	i := 0
+	for dec.Next() {
+		if i > len(values) {
+			t.Fatalf("read too many values: got %v, exp %v", i, len(values))
+		}
+
+		if values[i] != dec.Read() {
+			t.Fatalf("read value %d mismatch: got %v, exp %v", i, dec.Read(), values[i])
+		}
+		i += 1
+	}
+
+	if i != len(values) {
+		t.Fatalf("failed to read enough values: got %v, exp %v", i, len(values))
+	}
+}
+
+func Test_IntegerEncoder_Descending(t *testing.T) {
+	enc := NewIntegerEncoder()
+	values := []int64{
+		7094, 4472, 1850,
+	}
+
+	for _, v := range values {
+		enc.Write(v)
+	}
+
+	b, err := enc.Bytes()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if b[0]>>4 != intCompressedRLE {
+		t.Fatalf("unexpected encoding format: expected simple, got %v", b[0]>>4)
+	}
+
+	// Should use 1 header byte, 8 byte first value, 1 var-byte for delta and 1 var-byte for
+	// count of deltas in this particular RLE.
+	if exp := 12; len(b) != exp {
+		t.Fatalf("encoded length mismatch: got %v, exp %v", len(b), exp)
+	}
+
+	var dec IntegerDecoder
+	dec.SetBytes(b)
+	i := 0
+	for dec.Next() {
+		if i > len(values) {
+			t.Fatalf("read too many values: got %v, exp %v", i, len(values))
+		}
+
+		if values[i] != dec.Read() {
+			t.Fatalf("read value %d mismatch: got %v, exp %v", i, dec.Read(), values[i])
+		}
+		i += 1
+	}
+
+	if i != len(values) {
+		t.Fatalf("failed to read enough values: got %v, exp %v", i, len(values))
+	}
+}
+
+func Test_IntegerEncoder_Flat(t *testing.T) {
+	enc := NewIntegerEncoder()
+	values := []int64{
+		1, 1, 1, 1,
+	}
+
+	for _, v := range values {
+		enc.Write(v)
+	}
+
+	b, err := enc.Bytes()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if b[0]>>4 != intCompressedRLE {
 		t.Fatalf("unexpected encoding format: expected simple, got %v", b[0]>>4)
 	}
 
