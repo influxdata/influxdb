@@ -2,10 +2,6 @@
 
 $default-border-radius: 4px;
 
-.dygraph-axis-label {
-  color: $graph-axis-label;
-}
-
 .dygraph-title {
   font-weight: 300;
   font-size: 0.75em;
@@ -37,8 +33,20 @@ $default-border-radius: 4px;
   height: 28px;
 }
 
+.dygraph-axis-label {
+  font-size: 13px;
+  line-height: 13px;
+  color: $graph-axis-label;
+  width: 100%;
+  display: block;
+}
 .dygraph-axis-label-y {
-  padding-right: 0.75em;
+  text-align: left !important;
+  padding-right: 0.3em;
+}
+.dygraph-axis-label-x {
+  padding-top: 0.3em;
+  text-align: center !important;
 }
 
 .line-graph__legend {
@@ -58,7 +66,8 @@ $default-border-radius: 4px;
   /*
    * Only animate position that's controlled during rendering.
    * See http://stackoverflow.com/a/17117992
-   */
+  */
+
   transition: all 0.2s ease;
   transition-property: top, right, bottom, left;
 
@@ -91,4 +100,3 @@ $default-border-radius: 4px;
   pointer-events: none;
   display: none;
 }
-
