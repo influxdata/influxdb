@@ -81,9 +81,6 @@ func (cmd *Command) Run(args ...string) error {
 		return fmt.Errorf("write pid file: %s", err)
 	}
 
-	// Turn on block profiling to debug stuck databases
-	runtime.SetBlockProfileRate(int(1 * time.Second))
-
 	// Parse config
 	config, err := cmd.ParseConfig(options.GetConfigPath())
 	if err != nil {
@@ -98,6 +95,11 @@ func (cmd *Command) Run(args ...string) error {
 	// Validate the configuration.
 	if err := config.Validate(); err != nil {
 		return fmt.Errorf("%s. To generate a valid configuration file run `influxd config > influxdb.generated.conf`", err)
+	}
+
+	if config.HTTPD.PprofEnabled {
+		// Turn on block profiling to debug stuck databases
+		runtime.SetBlockProfileRate(int(1 * time.Second))
 	}
 
 	// Create server from config and start it.

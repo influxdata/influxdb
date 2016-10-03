@@ -244,8 +244,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Add version header to all InfluxDB requests.
 	w.Header().Add("X-Influxdb-Version", h.Version)
 
-	// FIXME(benbjohnson): Add pprof enabled flag.
-	if strings.HasPrefix(r.URL.Path, "/debug/pprof") {
+	if strings.HasPrefix(r.URL.Path, "/debug/pprof") && h.Config.PprofEnabled {
 		switch r.URL.Path {
 		case "/debug/pprof/cmdline":
 			pprof.Cmdline(w, r)
