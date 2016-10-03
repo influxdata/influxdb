@@ -21,6 +21,7 @@ export const HostPage = React.createClass({
   render() {
     const autoRefreshMs = 15000;
     const source = this.props.source.links.proxy;
+    const hostID = this.props.params.hostID;
     const queries = [
       {
         text: `SELECT "usage_user" FROM "telegraf".."cpu" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
@@ -49,29 +50,31 @@ export const HostPage = React.createClass({
     ];
 
     return (
-      <div className="host">
-        <div className="enterprise-header">
+      <div className="host-dashboard hosts-page">
+        <div className="enterprise-header hosts-dashboard-header">
           <div className="enterprise-header__container">
             <div className="enterprise-header__left">
-              <h1>
-                Host - {this.props.params.hostID}
-              </h1>
+              <h1>{hostID}</h1>
+            </div>
+            <div className="enterprise-header__right">
+              <p>Uptime: <strong>2d 4h 33m</strong></p>
             </div>
           </div>
         </div>
-
-        <div className="container-fluid">
+        <div className="container-fluid hosts-dashboard">
           <div className="row">
             {
               queries.map((query) => {
                 const q = Object.assign({}, query, {host: source});
                 return (
-                  <div className="col-md-4 graph-panel__graph-container" key={q.name}>
-                    <h2>{q.name}</h2>
-                    <RefreshingLineGraph
-                      queries={[q]}
-                      autoRefresh={autoRefreshMs}
-                    />
+                  <div className="col-xs-12 col-sm-6 col-lg-4" key={q.name}>
+                    <h2 className="hosts-graph-heading">{q.name}</h2>
+                    <div className="hosts-graph graph-panel__graph-container">
+                      <RefreshingLineGraph
+                        queries={[q]}
+                        autoRefresh={autoRefreshMs}
+                      />
+                    </div>
                   </div>
                 );
               })

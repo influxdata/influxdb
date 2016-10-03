@@ -80,6 +80,15 @@ body > #react-root {
   background-size: contain;
 }
 
+.page-wrapper > div {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 /*
     Enterprise Page Header
     ----------------------------------------------
@@ -639,5 +648,103 @@ table .monotype {
   }
   &.dot-critical {
     background-color: $c-fire;
+  }
+}
+
+
+/*
+    Hosts Dashboard
+    ----------------------------------------------
+*/
+.hosts-page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: $g2-kevlar;
+  background: -moz-linear-gradient(top, $g2-kevlar 0%, $g0-obsidian 100%);
+  background: -webkit-linear-gradient(top, $g2-kevlar 0%, $g0-obsidian 100%);
+  background: linear-gradient(to bottom, $g2-kevlar 0%, $g0-obsidian 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$g2-kevlar', endColorstr='$g0-obsidian',GradientType=0 );
+
+  color: $g17-whisper;
+
+  .enterprise-header {
+    background-color: $g0-obsidian;
+  }
+  
+  .panel-minimal {
+    border: 0;
+
+    .panel-title {
+      color: $g17-whisper !important;
+    }
+    .panel-body {
+      padding: 30px;
+      background-color: $g3-castle;
+      border: 0;
+      color: $g17-whisper;
+
+      > *:first-child {
+        margin-top: 0;
+      }
+      > *:last-child {
+        margin-bottom: 0;
+      }
+
+      table {
+        th,td {
+          border-color: $g5-pepper;
+        }
+        th {
+          color: $g17-whisper;
+        }
+        td {
+          color: $g14-chromium;
+        }
+      }
+    }
+  }
+
+.hosts-dashboard {
+  max-width: 100%;
+  // position: relative;
+  // flex-grow: 1;
+  // overflow: auto;
+}
+.graph-panel__graph-container.hosts-graph {
+  margin-bottom: 15px;
+  padding: 9.5px 16px;
+}
+.hosts-graph-heading {
+  display: block;
+  width: 100%;
+  margin: 15px 0 0 0;
+  background-color: $g5-pepper;
+  padding: 9.5px 16px;
+  font-weight: 500;
+  font-size: 16px;
+  color: $g14-chromium;
+  border-radius: 4px 4px 0 0;
+}
+.hosts-dashboard-header {
+  .enterprise-header__container {
+    max-width: 100%;
+  }
+  .enterprise-header__left {
+    flex-direction: row;
+    align-items: center;
+
+    > * {
+      margin-right: 15px;
+      &:last-child {
+        margin-right: 0;
+      }
+    }
+  }
+  .enterprise-header__right {
+    font-size: inherit;
   }
 }

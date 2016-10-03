@@ -51,7 +51,7 @@ export const HostsPage = React.createClass({
 
   render() {
     return (
-      <div className="hosts">
+      <div className="hosts hosts-page">
         <div className="enterprise-header">
           <div className="enterprise-header__container">
             <div className="enterprise-header__left">
