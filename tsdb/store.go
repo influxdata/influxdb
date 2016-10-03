@@ -627,21 +627,10 @@ func (s *Store) estimateCardinality(dbName string, getSketches func(*Shard) (est
 		}
 	}
 
-	if ss == nil {
-		return 0, nil
+	if ss != nil {
+		return int64(ss.Count() - ts.Count()), nil
 	}
-
-	pos, err := ss.Count()
-	if err != nil {
-		return 0, err
-	}
-
-	neg, err := ts.Count()
-	if err != nil {
-		return 0, err
-	}
-
-	return int64(pos - neg), nil
+	return 0, nil
 }
 
 // SeriesCardinality returns the series cardinality for the provided database.
