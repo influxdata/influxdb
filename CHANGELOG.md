@@ -29,6 +29,12 @@
 - [#7226](https://github.com/influxdata/influxdb/issues/7226): Fix database locked up when deleting shards
 - [#7382](https://github.com/influxdata/influxdb/issues/7382): Shard stats include wal path tag so disk bytes make more sense.
 
+## v1.0.2 [unreleased]
+
+### Bugfixes
+
+- [#7391](https://github.com/influxdata/influxdb/issues/7391): Fix RLE integer decoding producing negative numbers
+
 ## v1.0.1 [2016-09-26]
 
 ### Bugfixes
