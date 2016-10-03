@@ -12,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/escape"
 	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	internal "github.com/influxdata/influxdb/tsdb/internal"
 
 	"github.com/gogo/protobuf/proto"
@@ -28,8 +29,8 @@ type DatabaseIndex struct {
 	series       map[string]*Series      // map series key to the Series object
 	lastID       uint64                  // last used series ID. They're in memory only for this shard
 
-	seriesSketch, seriesTSSketch             *estimator.HyperLogLogPlus
-	measurementsSketch, measurementsTSSketch *estimator.HyperLogLogPlus
+	seriesSketch, seriesTSSketch             *hll.Plus
+	measurementsSketch, measurementsTSSketch *hll.Plus
 
 	name string // name of the database represented by this index
 }
@@ -42,13 +43,13 @@ func NewDatabaseIndex(name string) (index *DatabaseIndex, err error) {
 		name:         name,
 	}
 
-	if index.seriesSketch, err = estimator.NewHyperLogLogPlus(14); err != nil {
+	if index.seriesSketch, err = hll.NewPlus(16); err != nil {
 		return nil, err
-	} else if index.seriesTSSketch, err = estimator.NewHyperLogLogPlus(14); err != nil {
+	} else if index.seriesTSSketch, err = hll.NewPlus(16); err != nil {
 		return nil, err
-	} else if index.measurementsSketch, err = estimator.NewHyperLogLogPlus(14); err != nil {
+	} else if index.measurementsSketch, err = hll.NewPlus(16); err != nil {
 		return nil, err
-	} else if index.measurementsTSSketch, err = estimator.NewHyperLogLogPlus(14); err != nil {
+	} else if index.measurementsTSSketch, err = hll.NewPlus(16); err != nil {
 		return nil, err
 	}
 
@@ -166,9 +167,7 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 	m.AddSeries(series)
 
 	// Add the series to the series sketch.
-	if err := d.seriesSketch.Add([]byte(series.Key)); err != nil {
-		return nil, err
-	}
+	d.seriesSketch.Add([]byte(series.Key))
 	d.mu.Unlock()
 
 	return series, nil
@@ -200,9 +199,7 @@ func (d *DatabaseIndex) CreateMeasurementIndexIfNotExists(name string) (*Measure
 		d.measurements[name] = m
 
 		// Add the measurement to the measurements sketch.
-		if err := d.measurementsSketch.Add([]byte(name)); err != nil {
-			return nil, err
-		}
+		d.measurementsSketch.Add([]byte(name))
 	}
 	return m, nil
 }
@@ -432,9 +429,7 @@ func (d *DatabaseIndex) DropMeasurement(name []byte) error {
 
 func (d *DatabaseIndex) dropMeasurement(name string) error {
 	// Update the tombstone sketch.
-	if err := d.measurementsTSSketch.Add([]byte(name)); err != nil {
-		return err
-	}
+	d.measurementsTSSketch.Add([]byte(name))
 
 	m := d.measurements[name]
 	if m == nil {
@@ -464,9 +459,7 @@ func (d *DatabaseIndex) DropSeries(keys []string) error {
 
 	for _, k := range keys {
 		// Update the tombstone sketch.
-		if err := d.seriesTSSketch.Add([]byte(k)); err != nil {
-			return err
-		}
+		d.seriesTSSketch.Add([]byte(k))
 
 		series := d.series[k]
 		if series == nil {
