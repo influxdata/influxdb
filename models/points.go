@@ -1469,7 +1469,24 @@ func (p *point) RoundedString(d time.Duration) string {
 }
 
 func (p *point) unmarshalBinary() Fields {
-	return newFieldsFromBinary(p.fields)
+	iter := p.FieldIterator()
+	fields := make(Fields, 8)
+	for iter.Next() {
+		if len(iter.FieldKey()) == 0 {
+			continue
+		}
+		switch iter.Type() {
+		case Float:
+			fields[string(iter.FieldKey())] = iter.FloatValue()
+		case Integer:
+			fields[string(iter.FieldKey())] = iter.IntegerValue()
+		case String:
+			fields[string(iter.FieldKey())] = iter.StringValue()
+		case Boolean:
+			fields[string(iter.FieldKey())] = iter.BooleanValue()
+		}
+	}
+	return fields
 }
 
 func (p *point) HashID() uint64 {
@@ -1678,53 +1695,6 @@ func parseNumber(val []byte) (interface{}, error) {
 		}
 	}
 	return parseFloatBytes(val, 64)
-}
-
-func newFieldsFromBinary(buf []byte) Fields {
-	fields := make(Fields, 8)
-	var (
-		i              int
-		name, valueBuf []byte
-		value          interface{}
-		err            error
-	)
-	for i < len(buf) {
-
-		i, name = scanTo(buf, i, '=')
-		name = escape.Unescape(name)
-
-		i, valueBuf = scanFieldValue(buf, i+1)
-		if len(name) > 0 {
-			if len(valueBuf) == 0 {
-				fields[string(name)] = nil
-				continue
-			}
-
-			// If the first char is a double-quote, then unmarshal as string
-			if valueBuf[0] == '"' {
-				value = unescapeStringField(string(valueBuf[1 : len(valueBuf)-1]))
-				// Check for numeric characters and special NaN or Inf
-			} else if (valueBuf[0] >= '0' && valueBuf[0] <= '9') || valueBuf[0] == '-' || valueBuf[0] == '.' ||
-				valueBuf[0] == 'N' || valueBuf[0] == 'n' || // NaN
-				valueBuf[0] == 'I' || valueBuf[0] == 'i' { // Inf
-
-				value, err = parseNumber(valueBuf)
-				if err != nil {
-					panic(fmt.Sprintf("unable to parse number value '%v': %v", string(valueBuf), err))
-				}
-
-				// Otherwise parse it as bool
-			} else {
-				value, err = strconv.ParseBool(string(valueBuf))
-				if err != nil {
-					panic(fmt.Sprintf("unable to parse bool value '%v': %v\n", string(valueBuf), err))
-				}
-			}
-			fields[string(name)] = value
-		}
-		i++
-	}
-	return fields
 }
 
 func (p *point) FieldIterator() FieldIterator {
