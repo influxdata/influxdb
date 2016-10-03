@@ -586,7 +586,7 @@ func (e *Engine) WritePoints(points []models.Point) error {
 			case models.Boolean:
 				v = NewBooleanValue(t, iter.BooleanValue())
 			default:
-				v = EmptyValue{}
+				return fmt.Errorf("unknown field type for %s: %s", string(iter.FieldKey()), p.String())
 			}
 			values[string(keyBuf)] = append(values[string(keyBuf)], v)
 		}
