@@ -642,14 +642,13 @@ paths:
                     schema:
                         $ref: '#/definitions/Error'
         post:
+            summary: Create new kapacitor backend
             parameters:
                 - name: id
                   in: path
                   type: string
                   description: ID of the source
                   required: true
-            summary: Create new kapacitor backend
-            parameters:
                 - name: kapacitor
                   in: body
                   description: Configuration options for kapacitor
@@ -1095,6 +1094,10 @@ definitions:
                     permissions:
                         type: string
                         description: URL location of the permissions endpoint for this source
+                        format: url
+                    kapacitors:
+                        type: string
+                        description: URL location of the kapacitors endpoint for this source
                         format: url
                     monitored:
                         type: string

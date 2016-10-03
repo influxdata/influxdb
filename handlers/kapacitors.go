@@ -13,13 +13,25 @@ import (
 )
 
 func (h *Store) NewKapacitor(ctx context.Context, params op.PostSourcesIDKapacitorsParams) middleware.Responder {
+	srcID, err := strconv.Atoi(params.ID)
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
+		return op.NewGetSourcesIDKapacitorsDefault(500).WithPayload(errMsg)
+	}
+
+	_, err = h.SourcesStore.Get(ctx, srcID)
+	if err != nil {
+		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.ID)}
+		return op.NewGetSourcesIDKapacitorsDefault(404).WithPayload(errMsg)
+	}
+
 	srv := mrfusion.Server{
+		SrcID:    srcID,
 		Name:     *params.Kapacitor.Name,
 		Username: params.Kapacitor.Username,
 		Password: params.Kapacitor.Password,
 		URL:      *params.Kapacitor.URL,
 	}
-	var err error
 	if srv, err = h.ServersStore.Add(ctx, srv); err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error storing kapacitor %v: %v", params.Kapacitor, err)}
 		return op.NewPostSourcesIDKapacitorsDefault(500).WithPayload(errMsg)
@@ -28,17 +40,17 @@ func (h *Store) NewKapacitor(ctx context.Context, params op.PostSourcesIDKapacit
 	return op.NewPostSourcesIDKapacitorsCreated().WithPayload(mSrv).WithLocation(mSrv.Links.Self)
 }
 
-func srvLinks(id int) *models.KapacitorLinks {
+func srvLinks(srcID int, id int) *models.KapacitorLinks {
 	return &models.KapacitorLinks{
-		Self:  fmt.Sprintf("/chronograf/v1/kapacitors/%d", id),
-		Proxy: fmt.Sprintf("/chronograf/v1/kapacitors/%d/proxy", id),
+		Self:  fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d", srcID, id),
+		Proxy: fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy", srcID, id),
 	}
 }
 
 func srvToModel(srv mrfusion.Server) *models.Kapacitor {
 	return &models.Kapacitor{
 		ID:       strconv.Itoa(srv.ID),
-		Links:    srvLinks(srv.ID),
+		Links:    srvLinks(srv.SrcID, srv.ID),
 		Name:     &srv.Name,
 		Username: srv.Username,
 		Password: srv.Password,
