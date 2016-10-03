@@ -6,6 +6,8 @@ import {Router, Route, browserHistory} from 'react-router';
 import App from 'src/App';
 import CheckDataNodes from 'src/CheckDataNodes';
 import {HostsPage, HostPage} from 'src/hosts';
+import {KapacitorPage, KapacitorTasksPage} from 'src/kapacitor';
+import OverviewPage from 'src/overview';
 import QueriesPage from 'src/queries';
 import TasksPage from 'src/tasks';
 import RetentionPoliciesPage from 'src/retention_policies';
@@ -110,6 +112,8 @@ const Root = React.createClass({
               <Route path="roles/:roleSlug" component={RolePageContainer} />
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
+              <Route path="kapacitor" component={KapacitorPage} />
+              <Route path="kapacitor_tasks" component={KapacitorTasksPage} />
             </Route>
             <Route path="tasks" component={TasksPage} />
             <Route path="*" component={NotFound} />

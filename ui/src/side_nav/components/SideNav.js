@@ -15,7 +15,7 @@ const SideNav = React.createClass({
     return (
       <NavBar location={location}>
         <div className="sidebar__logo">
-          <span className="icon cubo-uniform"></span>
+          <a href="/"><span className="icon cubo-uniform"></span></a>
         </div>
         <NavBlock matcher="hosts" icon="cpu" link={`${sourcePrefix}/hosts`}>
           <NavHeader link={`${sourcePrefix}/hosts`} title="Infrastructure" />
@@ -34,6 +34,10 @@ const SideNav = React.createClass({
           <NavListItem matcher="accounts" link={`${sourcePrefix}/accounts`}>Cluster Accounts</NavListItem>
           <NavListItem matcher="manager" link={`${sourcePrefix}/databases/manager/_internal`}>Database Manager</NavListItem>
           <NavListItem matcher="retentionpolicies" link={`${sourcePrefix}/databases/retentionpolicies/_internal`}>Retention Policies</NavListItem>
+        </NavBlock>
+        <NavBlock matcher="alerting" icon="cubo-uniform">
+          <NavListItem matcher="kapacitor" link={`${sourcePrefix}/kapacitor`}>Kapacitor Config</NavListItem>
+          <NavListItem matcher="kapacitor_tasks" link={`${sourcePrefix}/kapacitor_tasks`}>Kapacitor Tasks</NavListItem>
         </NavBlock>
       </NavBar>
     );
