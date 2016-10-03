@@ -260,14 +260,28 @@ func NewTagSetWriter() *TagSetWriter {
 	}
 }
 
-// AddTagValueSeries associates series id with a tag/value pair.
-func (tsw *TagSetWriter) AddTagValueSeries(key, value []byte, seriesID uint32) {
-	ts := tsw.createTagSetIfNotExists(key)
+// AddTag adds a key without any associated values.
+func (tsw *TagSetWriter) AddTag(key []byte, deleted bool) {
+	ts := tsw.sets[string(key)]
+	ts.deleted = deleted
+	tsw.sets[string(key)] = ts
+}
+
+// AddTagValue adds a key/value pair with an associated list of series.
+func (tsw *TagSetWriter) AddTagValue(key, value []byte, deleted bool, seriesIDs []uint32) {
+	ts, ok := tsw.sets[string(key)]
+	if !ok || ts.values == nil {
+		ts.values = make(map[string]tagValue)
+		tsw.sets[string(key)] = ts
+	}
+
 	tv := ts.values[string(value)]
-	tv.seriesIDs = append(tv.seriesIDs, seriesID)
+	tv.deleted = deleted
+	tv.seriesIDs = seriesIDs
 	ts.values[string(value)] = tv
 }
 
+/*
 // AddSeries associates series id with a map of key/value pairs.
 // This is not optimized and is only provided for ease of use.
 func (tsw *TagSetWriter) AddSeries(m map[string]string, seriesID uint32) {
@@ -275,34 +289,7 @@ func (tsw *TagSetWriter) AddSeries(m map[string]string, seriesID uint32) {
 		tsw.AddTagValueSeries([]byte(k), []byte(v), seriesID)
 	}
 }
-
-// DeleteTag marks a tag key as tombstoned.
-// The tag must not be used after deleting it.
-func (tsw *TagSetWriter) DeleteTag(key []byte) {
-	ts := tsw.sets[string(key)]
-	ts.deleted = true
-	tsw.sets[string(key)] = ts
-}
-
-// DeleteTagValue marks a tag value as tombstoned.
-func (tsw *TagSetWriter) DeleteTagValue(key, value []byte) {
-	ts := tsw.createTagSetIfNotExists(key)
-	tv := ts.values[string(value)]
-	tv.deleted = true
-	ts.values[string(value)] = tv
-}
-
-// createTagSetIfNotExists returns the tag set for a key.
-func (tsw *TagSetWriter) createTagSetIfNotExists(key []byte) tagSet {
-	ts, ok := tsw.sets[string(key)]
-	if ok {
-		return ts
-	}
-
-	ts = tagSet{values: make(map[string]tagValue)}
-	tsw.sets[string(key)] = ts
-	return ts
-}
+*/
 
 // WriteTo encodes the tag values & tag key blocks.
 func (tsw *TagSetWriter) WriteTo(w io.Writer) (n int64, err error) {
