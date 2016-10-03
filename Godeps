@@ -3,7 +3,6 @@ github.com/BurntSushi/toml 99064174e013895bbd9b025c31100bd1d9b590ca
 github.com/bmizerany/pat c068ca2f0aacee5ac3681d68e4d0a003b7d1fd2c
 github.com/boltdb/bolt 4b1ebc1869ad66568b313d0dc410e2be72670dda
 github.com/cespare/xxhash 1ce10610a70c8da08278fbe935f2feafd6d9074d
-github.com/clarkduvall/hyperloglog 2d38f733946d0a1f2e810513c71b834cbeba1480
 github.com/davecgh/go-spew 346938d642f2ec3594ed81d874461961cd0faa76
 github.com/dgrijalva/jwt-go 24c63f56522a87ec5339cc3567883f1039378fdb
 github.com/dgryski/go-bits 2ad8d707cc05b1815ce6ff2543bb5e8d8f9298ef
