@@ -203,7 +203,7 @@ func (d *IntegerDecoder) Error() error {
 func (d *IntegerDecoder) Read() int64 {
 	switch d.encoding {
 	case intCompressedRLE:
-		return ZigZagDecode(d.rleFirst + uint64(d.i)*d.rleDelta)
+		return ZigZagDecode(d.rleFirst) + int64(d.i)*ZigZagDecode(d.rleDelta)
 	default:
 		v := ZigZagDecode(d.values[d.i])
 		// v is the delta encoded value, we need to add the prior value to get the original
