@@ -2,16 +2,19 @@ var webpack = require('webpack');
 var path = require('path');
 var ExtractTextPlugin = require("extract-text-webpack-plugin");
 var HtmlWebpackPlugin = require("html-webpack-plugin");
+var package = require('../package.json');
+var dependencies = package.dependencies;
 
 module.exports = {
   devtool: 'source-map',
   entry: {
     app: path.resolve(__dirname, '..', 'src', 'index.js'),
+    vendor: Object.keys(dependencies),
   },
   output: {
     publicPath: '/',
     path: path.resolve(__dirname, '../build'),
-    filename: '[name].dev.js',
+    filename: '[name].[chunkhash].dev.js',
   },
   resolve: {
     alias: {
@@ -62,14 +65,17 @@ module.exports = {
     failOnError: false,
   },
   plugins: [
-    // Fixes annoying, unhelpful warnings in Electron,
-    // coming from reqwest's peer dependency on xhr2.
-    //
-    new webpack.IgnorePlugin(/xhr2/),
+    new webpack.ProvidePlugin({
+      $: "jquery",
+      jQuery: "jquery",
+    }),
     new ExtractTextPlugin("style.css"),
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, '..', 'src', 'index.template.html'),
       inject: 'body',
+    }),
+    new webpack.optimize.CommonsChunkPlugin({
+      names: ['vendor', 'manifest'],
     }),
   ],
   postcss: require('./postcss'),
