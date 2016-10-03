@@ -13,16 +13,18 @@ import (
 func TestTagSetWriter(t *testing.T) {
 	// Write 3 series to writer.
 	tsw := tsi1.NewTagSetWriter()
-	tsw.AddSeries(map[string]string{"region": "us-east", "host": "server0"}, 1)
-	tsw.AddSeries(map[string]string{"region": "us-east", "host": "server1"}, 2)
-	tsw.AddSeries(map[string]string{"region": "us-west", "host": "server2"}, 3)
+	tsw.AddTagValue([]byte("region"), []byte("us-east"), false, []uint32{1, 2})
+	tsw.AddTagValue([]byte("region"), []byte("us-west"), false, []uint32{3})
+	tsw.AddTagValue([]byte("host"), []byte("server0"), false, []uint32{1})
+	tsw.AddTagValue([]byte("host"), []byte("server1"), false, []uint32{2})
+	tsw.AddTagValue([]byte("host"), []byte("server2"), false, []uint32{3})
 
 	// Encode into buffer.
 	var buf bytes.Buffer
 	if n, err := tsw.WriteTo(&buf); err != nil {
 		t.Fatal(err)
-	} else if n == 0 {
-		t.Fatal("expected bytes written")
+	} else if int(n) != buf.Len() {
+		t.Fatal("bytes written mismatch: %d, expected %d", n, buf.Len())
 	}
 
 	// Unmarshal into a TagSet.
@@ -74,12 +76,9 @@ func benchmarkTagSet_SeriesN(b *testing.B, tagN, valueN int, ts **tsi1.TagSet) {
 			for j := 0; j < valueN; j++ {
 				k := strconv.AppendInt(kbuf[:0], int64(i), 10)
 				v := strconv.AppendInt(vbuf[:0], int64(j), 10)
-				tsw.AddTagValueSeries(k, v, 1)
+				tsw.AddTagValue(k, v, false, []uint32{1})
 			}
 		}
-		tsw.AddSeries(map[string]string{"region": "us-east", "host": "server0"}, 1)
-		tsw.AddSeries(map[string]string{"region": "us-east", "host": "server1"}, 2)
-		tsw.AddSeries(map[string]string{"region": "us-west", "host": "server2"}, 3)
 
 		// Encode into buffer.
 		var buf bytes.Buffer
