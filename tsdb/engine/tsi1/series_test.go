@@ -3,7 +3,6 @@ package tsi1_test
 import (
 	"bytes"
 	"fmt"
-	"io"
 	"reflect"
 	"testing"
 
@@ -19,14 +18,6 @@ func TestSeriesList_UnmarshalBinary(t *testing.T) {
 		{Name: "mem", Tags: models.NewTags(map[string]string{"region": "east"})},
 	}); err != nil {
 		t.Fatal(err)
-	}
-}
-
-// Ensure series list returns an error if the buffer is too small.
-func TestSeriesList_UnmarshalBinary_ErrShortBuffer(t *testing.T) {
-	var l tsi1.SeriesList
-	if err := l.UnmarshalBinary(make([]byte, 4)); err != io.ErrShortBuffer {
-		t.Fatalf("unexpected error: %s", err)
 	}
 }
 

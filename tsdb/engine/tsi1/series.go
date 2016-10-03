@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"math"
+	"sort"
 
 	"github.com/influxdata/influxdb/models"
 )
@@ -15,8 +16,18 @@ var ErrSeriesOverflow = errors.New("series overflow")
 
 // Series list field size constants.
 const (
-	SeriesListTrailerSize = 8
+	// Series list trailer field sizes.
+	TermListOffsetSize   = 8
+	TermListSizeSize     = 8
+	SeriesDataOffsetSize = 8
+	SeriesDataSizeSize   = 8
 
+	SeriesListTrailerSize = TermListOffsetSize +
+		TermListSizeSize +
+		SeriesDataOffsetSize +
+		SeriesDataSizeSize
+
+	// Other field sizes
 	TermCountSize   = 4
 	SeriesCountSize = 4
 	SeriesIDSize    = 4
@@ -171,24 +182,15 @@ func (l *SeriesList) SeriesCount() uint32 {
 // If data is an mmap then it should stay open until the series list is no
 // longer used because data access is performed directly from the byte slice.
 func (l *SeriesList) UnmarshalBinary(data []byte) error {
-	// Ensure data is at least long enough to contain a trailer.
-	if len(data) < SeriesListTrailerSize {
-		return io.ErrShortBuffer
-	}
+	t := ReadSeriesListTrailer(data)
 
-	// Read trailer offsets.
-	termDataOffset := binary.BigEndian.Uint32(data[len(data)-8:])
-	seriesDataOffset := binary.BigEndian.Uint32(data[len(data)-4:])
+	// Slice term list data.
+	l.termData = data[t.TermList.Offset:]
+	l.termData = l.termData[:t.TermList.Size]
 
-	// Save reference to term list data.
-	termDataSize := seriesDataOffset - termDataOffset
-	l.termData = data[termDataOffset:]
-	l.termData = l.termData[:termDataSize]
-
-	// Save reference to series data.
-	seriesDataSize := uint32(len(data)) - seriesDataOffset - SeriesListTrailerSize
-	l.seriesData = data[seriesDataOffset:]
-	l.seriesData = l.seriesData[:seriesDataSize]
+	// Slice series data data.
+	l.seriesData = data[t.SeriesData.Offset:]
+	l.seriesData = l.seriesData[:t.SeriesData.Size]
 
 	return nil
 }
@@ -197,6 +199,9 @@ func (l *SeriesList) UnmarshalBinary(data []byte) error {
 type SeriesListWriter struct {
 	terms  map[string]int // term frequency
 	series []serie        // series list
+
+	// Term list is available after writer has been written.
+	termList *TermList
 }
 
 // NewSeriesListWriter returns a new instance of SeriesListWriter.
@@ -238,30 +243,35 @@ func (sw *SeriesListWriter) append(name string, tags models.Tags, deleted bool) 
 
 // WriteTo computes the dictionary encoding of the series and writes to w.
 func (sw *SeriesListWriter) WriteTo(w io.Writer) (n int64, err error) {
+	var t SeriesListTrailer
+
 	terms := NewTermList(sw.terms)
 
 	// Write term dictionary.
-	termDataOffset := n
+	t.TermList.Offset = n
 	nn, err := sw.writeTermListTo(w, terms)
 	n += nn
 	if err != nil {
 		return n, err
 	}
+	t.TermList.Size = n - t.TermList.Offset
 
 	// Write dictionary-encoded series list.
-	seriesDataOffset := n
+	t.SeriesData.Offset = n
 	nn, err = sw.writeSeriesTo(w, terms, uint32(n))
 	n += nn
 	if err != nil {
 		return n, err
 	}
+	t.SeriesData.Size = n - t.SeriesData.Offset
 
 	// Write trailer.
-	nn, err = sw.writeTrailerTo(w, uint32(termDataOffset), uint32(seriesDataOffset))
-	n += nn
-	if err != nil {
+	if err := sw.writeTrailerTo(w, t, &n); err != nil {
 		return n, err
 	}
+
+	// Save term list for future encoding.
+	sw.termList = terms
 
 	return n, nil
 }
@@ -309,6 +319,9 @@ func (sw *SeriesListWriter) writeTermListTo(w io.Writer, terms *TermList) (n int
 func (sw *SeriesListWriter) writeSeriesTo(w io.Writer, terms *TermList, offset uint32) (n int64, err error) {
 	buf := make([]byte, binary.MaxVarintLen32+1)
 
+	// Ensure series are sorted.
+	sort.Sort(series(sw.series))
+
 	// Write series count.
 	binary.BigEndian.PutUint32(buf[:4], uint32(len(sw.series)))
 	nn, err := w.Write(buf[:4])
@@ -350,20 +363,74 @@ func (sw *SeriesListWriter) writeSeriesTo(w io.Writer, terms *TermList, offset u
 }
 
 // writeTrailerTo writes offsets to the end of the series list.
-func (sw *SeriesListWriter) writeTrailerTo(w io.Writer, termDataOffset, seriesDataOffset uint32) (n int64, err error) {
-	// Write offset of term list.
-	if err := binary.Write(w, binary.BigEndian, termDataOffset); err != nil {
-		return n, err
+func (sw *SeriesListWriter) writeTrailerTo(w io.Writer, t SeriesListTrailer, n *int64) error {
+	if err := writeUint64To(w, uint64(t.TermList.Offset), n); err != nil {
+		return err
+	} else if err := writeUint64To(w, uint64(t.TermList.Size), n); err != nil {
+		return err
 	}
-	n += 4
 
-	// Write offset of series data.
-	if err := binary.Write(w, binary.BigEndian, seriesDataOffset); err != nil {
-		return n, err
+	if err := writeUint64To(w, uint64(t.SeriesData.Offset), n); err != nil {
+		return err
+	} else if err := writeUint64To(w, uint64(t.SeriesData.Size), n); err != nil {
+		return err
 	}
-	n += 4
 
-	return n, nil
+	return nil
+}
+
+// Offset returns the series offset from the writer.
+// Only valid after the series list has been written to a writer.
+func (sw *SeriesListWriter) Offset(name string, tags models.Tags) uint32 {
+	// Find position of series.
+	i := sort.Search(len(sw.series), func(i int) bool {
+		s := &sw.series[i]
+		return s.name >= name && models.CompareTags(s.tags, tags) != -1
+	})
+
+	// Ignore if it's not an exact match.
+	if i >= len(sw.series) {
+		return 0
+	} else if s := &sw.series[i]; s.name != name || !s.tags.Equal(tags) {
+		return 0
+	}
+
+	// Return offset & deleted flag of series.
+	return sw.series[i].offset
+}
+
+// ReadSeriesListTrailer returns the series list trailer from data.
+func ReadSeriesListTrailer(data []byte) SeriesListTrailer {
+	var t SeriesListTrailer
+
+	// Slice trailer data.
+	buf := data[len(data)-SeriesListTrailerSize:]
+
+	// Read term list info.
+	t.TermList.Offset = int64(binary.BigEndian.Uint64(buf[0:TermListOffsetSize]))
+	buf = buf[TermListOffsetSize:]
+	t.TermList.Size = int64(binary.BigEndian.Uint64(buf[0:TermListSizeSize]))
+	buf = buf[TermListSizeSize:]
+
+	// Read series data info.
+	t.SeriesData.Offset = int64(binary.BigEndian.Uint64(buf[0:SeriesDataOffsetSize]))
+	buf = buf[SeriesDataOffsetSize:]
+	t.SeriesData.Size = int64(binary.BigEndian.Uint64(buf[0:SeriesDataSizeSize]))
+	buf = buf[SeriesDataSizeSize:]
+
+	return t
+}
+
+// SeriesListTrailer represents meta data written to the end of the series list.
+type SeriesListTrailer struct {
+	TermList struct {
+		Offset int64
+		Size   int64
+	}
+	SeriesData struct {
+		Offset int64
+		Size   int64
+	}
 }
 
 type serie struct {
@@ -381,5 +448,5 @@ func (a series) Less(i, j int) bool {
 	if a[i].name != a[j].name {
 		return a[i].name < a[i].name
 	}
-	panic("TODO: CompareTags(a[i].tags, a[j].tags)")
+	return models.CompareTags(a[i].tags, a[j].tags) == -1
 }
