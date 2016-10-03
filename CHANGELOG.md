@@ -4,12 +4,6 @@
 
 - [#7150](https://github.com/influxdata/influxdb/issues/7150): Do not automatically reset the shard duration when using ALTER RETENTION POLICY
 - [#5878](https://github.com/influxdata/influxdb/issues/5878): Ensure correct shard groups created when retention policy has been altered.
-
-
-## v1.0.2 [unreleased]
-
-### Bugfixes
-
 - [#7391](https://github.com/influxdata/influxdb/issues/7391): Fix RLE integer decoding producing negative numbers
 
 ## v1.0.1 [2016-09-26]

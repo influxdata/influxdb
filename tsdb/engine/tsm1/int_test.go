@@ -384,7 +384,7 @@ func Test_IntegerEncoder_CounterRLE(t *testing.T) {
 }
 
 func Test_IntegerEncoder_Descending(t *testing.T) {
-	enc := NewIntegerEncoder(16)
+	enc := NewIntegerEncoder()
 	values := []int64{
 		7094, 4472, 1850,
 	}
@@ -428,7 +428,7 @@ func Test_IntegerEncoder_Descending(t *testing.T) {
 }
 
 func Test_IntegerEncoder_Flat(t *testing.T) {
-	enc := NewIntegerEncoder(16)
+	enc := NewIntegerEncoder()
 	values := []int64{
 		1, 1, 1, 1,
 	}
