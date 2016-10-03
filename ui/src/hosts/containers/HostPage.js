@@ -44,7 +44,7 @@ export const HostPage = React.createClass({
       },
       {
         text: `SELECT "used_percent" FROM "telegraf".."disk" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
-        name: "Disk usage",
+        name: "Disk Usage",
       },
     ];
 
