@@ -668,9 +668,33 @@ table .monotype {
   background: -webkit-linear-gradient(top, $g2-kevlar 0%, $g0-obsidian 100%);
   background: linear-gradient(to bottom, $g2-kevlar 0%, $g0-obsidian 100%);
   filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$g2-kevlar', endColorstr='$g0-obsidian',GradientType=0 );
-
   color: $g17-whisper;
 
+  &::-webkit-scrollbar {
+    width: 14px;
+    height: 14px;
+
+    &-button {
+      background-color: $g0-obsidian;
+    }
+    &-track {
+      background-color: $g0-obsidian;
+    }
+    &-track-piece {
+      background: $g0-obsidian;
+    }
+    &-thumb {
+      background-color: $c-pool;
+      border: 4px solid $g0-obsidian;
+      border-radius: 7px;
+    }
+    &-corner {
+      background-color: $g0-obsidian;
+    }
+    &-resizer {
+      background-color: $c-pool;
+    }
+  }
   .enterprise-header {
     background-color: $g0-obsidian;
   }
@@ -703,6 +727,9 @@ table .monotype {
         }
         td {
           color: $g14-chromium;
+        }
+        tbody tr:last-child td {
+          border-bottom: 2px solid $g5-pepper;
         }
       }
     }
