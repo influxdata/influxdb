@@ -106,9 +106,6 @@ func (h *InfluxProxy) KapacitorProxyPost(ctx context.Context, params op.PostSour
 		Body:   body,
 	}
 
-	fmt.Println("kappy post")
-	fmt.Println(string(body))
-
 	resp, err := h.KapacitorProxy.Do(ctx, req)
 	defer resp.Body.Close()
 	if err != nil {
