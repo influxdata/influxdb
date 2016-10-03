@@ -66,7 +66,7 @@ body > #react-root {
 .page-wrapper {
   position: relative;
   flex-grow: 1;
-  overflow: auto;
+  overflow: hidden;
   background: $g18-cloud;
   background: -moz-linear-gradient(top,  $g18-cloud 0%, $g19-ghost 100%);
   background: -webkit-linear-gradient(top,  $g18-cloud 0%,$g19-ghost 100%);
@@ -708,6 +708,70 @@ table .monotype {
     }
   }
 
+  .users__search-widget {
+    position: relative;
+
+    input.form-control {
+      position: relative;
+      width: 100%;
+      z-index: 1;
+      background-color: $g2-kevlar;
+      border-color: $g5-pepper;
+      color: $g17-whisper;
+      border-radius: 4px;
+      padding-left: 34px;
+
+      &:focus {
+        border-color: $c-pool !important;
+        color: $c-pool;
+
+        &::-webkit-input-placeholder {
+        color: $c-pool;
+        }
+        &::-moz-placeholder {
+          color: $c-pool;
+        }
+        &:-ms-input-placeholder {
+          color: $c-pool;
+        }
+        &:-moz-placeholder {
+          color: $c-pool;
+        }
+
+        & + .input-group-addon {
+          color: $c-pool;
+        }
+      }
+      &::-webkit-input-placeholder {
+        color: $g11-sidewalk;
+      }
+      &::-moz-placeholder {
+        color: $g11-sidewalk;
+      }
+      &:-ms-input-placeholder {
+        color: $g11-sidewalk;
+      }
+      &:-moz-placeholder {
+        color: $g11-sidewalk;
+      }
+    }
+    .input-group-addon {
+      padding: 0;
+      text-align: center;
+      line-height: 38px;
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      z-index: 2;
+      border: 0;
+      width: 40px;
+      background-color: transparent;
+      transition:
+        color 0.25s ease;
+    }
+  }
+}
 .hosts-dashboard {
   max-width: 100%;
   // position: relative;
