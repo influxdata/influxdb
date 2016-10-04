@@ -46,6 +46,10 @@ type MrFusionAPI struct {
 	DeleteDashboardsIDHandler DeleteDashboardsIDHandler
 	// DeleteSourcesIDHandler sets the operation handler for the delete sources ID operation
 	DeleteSourcesIDHandler DeleteSourcesIDHandler
+	// DeleteSourcesIDKapacitorsKapaIDHandler sets the operation handler for the delete sources ID kapacitors kapa ID operation
+	DeleteSourcesIDKapacitorsKapaIDHandler DeleteSourcesIDKapacitorsKapaIDHandler
+	// DeleteSourcesIDKapacitorsKapaIDProxyHandler sets the operation handler for the delete sources ID kapacitors kapa ID proxy operation
+	DeleteSourcesIDKapacitorsKapaIDProxyHandler DeleteSourcesIDKapacitorsKapaIDProxyHandler
 	// DeleteSourcesIDRolesRoleIDHandler sets the operation handler for the delete sources ID roles role ID operation
 	DeleteSourcesIDRolesRoleIDHandler DeleteSourcesIDRolesRoleIDHandler
 	// DeleteSourcesIDUsersUserIDHandler sets the operation handler for the delete sources ID users user ID operation
@@ -62,6 +66,12 @@ type MrFusionAPI struct {
 	GetSourcesHandler GetSourcesHandler
 	// GetSourcesIDHandler sets the operation handler for the get sources ID operation
 	GetSourcesIDHandler GetSourcesIDHandler
+	// GetSourcesIDKapacitorsHandler sets the operation handler for the get sources ID kapacitors operation
+	GetSourcesIDKapacitorsHandler GetSourcesIDKapacitorsHandler
+	// GetSourcesIDKapacitorsKapaIDHandler sets the operation handler for the get sources ID kapacitors kapa ID operation
+	GetSourcesIDKapacitorsKapaIDHandler GetSourcesIDKapacitorsKapaIDHandler
+	// GetSourcesIDKapacitorsKapaIDProxyHandler sets the operation handler for the get sources ID kapacitors kapa ID proxy operation
+	GetSourcesIDKapacitorsKapaIDProxyHandler GetSourcesIDKapacitorsKapaIDProxyHandler
 	// GetSourcesIDMonitoredHandler sets the operation handler for the get sources ID monitored operation
 	GetSourcesIDMonitoredHandler GetSourcesIDMonitoredHandler
 	// GetSourcesIDPermissionsHandler sets the operation handler for the get sources ID permissions operation
@@ -80,6 +90,10 @@ type MrFusionAPI struct {
 	GetSourcesIDUsersUserIDExplorationsExplorationIDHandler GetSourcesIDUsersUserIDExplorationsExplorationIDHandler
 	// PatchSourcesIDHandler sets the operation handler for the patch sources ID operation
 	PatchSourcesIDHandler PatchSourcesIDHandler
+	// PatchSourcesIDKapacitorsKapaIDHandler sets the operation handler for the patch sources ID kapacitors kapa ID operation
+	PatchSourcesIDKapacitorsKapaIDHandler PatchSourcesIDKapacitorsKapaIDHandler
+	// PatchSourcesIDKapacitorsKapaIDProxyHandler sets the operation handler for the patch sources ID kapacitors kapa ID proxy operation
+	PatchSourcesIDKapacitorsKapaIDProxyHandler PatchSourcesIDKapacitorsKapaIDProxyHandler
 	// PatchSourcesIDRolesRoleIDHandler sets the operation handler for the patch sources ID roles role ID operation
 	PatchSourcesIDRolesRoleIDHandler PatchSourcesIDRolesRoleIDHandler
 	// PatchSourcesIDUsersUserIDHandler sets the operation handler for the patch sources ID users user ID operation
@@ -90,6 +104,10 @@ type MrFusionAPI struct {
 	PostDashboardsHandler PostDashboardsHandler
 	// PostSourcesHandler sets the operation handler for the post sources operation
 	PostSourcesHandler PostSourcesHandler
+	// PostSourcesIDKapacitorsHandler sets the operation handler for the post sources ID kapacitors operation
+	PostSourcesIDKapacitorsHandler PostSourcesIDKapacitorsHandler
+	// PostSourcesIDKapacitorsKapaIDProxyHandler sets the operation handler for the post sources ID kapacitors kapa ID proxy operation
+	PostSourcesIDKapacitorsKapaIDProxyHandler PostSourcesIDKapacitorsKapaIDProxyHandler
 	// PostSourcesIDProxyHandler sets the operation handler for the post sources ID proxy operation
 	PostSourcesIDProxyHandler PostSourcesIDProxyHandler
 	// PostSourcesIDRolesHandler sets the operation handler for the post sources ID roles operation
@@ -171,6 +189,14 @@ func (o *MrFusionAPI) Validate() error {
 		unregistered = append(unregistered, "DeleteSourcesIDHandler")
 	}
 
+	if o.DeleteSourcesIDKapacitorsKapaIDHandler == nil {
+		unregistered = append(unregistered, "DeleteSourcesIDKapacitorsKapaIDHandler")
+	}
+
+	if o.DeleteSourcesIDKapacitorsKapaIDProxyHandler == nil {
+		unregistered = append(unregistered, "DeleteSourcesIDKapacitorsKapaIDProxyHandler")
+	}
+
 	if o.DeleteSourcesIDRolesRoleIDHandler == nil {
 		unregistered = append(unregistered, "DeleteSourcesIDRolesRoleIDHandler")
 	}
@@ -201,6 +227,18 @@ func (o *MrFusionAPI) Validate() error {
 
 	if o.GetSourcesIDHandler == nil {
 		unregistered = append(unregistered, "GetSourcesIDHandler")
+	}
+
+	if o.GetSourcesIDKapacitorsHandler == nil {
+		unregistered = append(unregistered, "GetSourcesIDKapacitorsHandler")
+	}
+
+	if o.GetSourcesIDKapacitorsKapaIDHandler == nil {
+		unregistered = append(unregistered, "GetSourcesIDKapacitorsKapaIDHandler")
+	}
+
+	if o.GetSourcesIDKapacitorsKapaIDProxyHandler == nil {
+		unregistered = append(unregistered, "GetSourcesIDKapacitorsKapaIDProxyHandler")
 	}
 
 	if o.GetSourcesIDMonitoredHandler == nil {
@@ -239,6 +277,14 @@ func (o *MrFusionAPI) Validate() error {
 		unregistered = append(unregistered, "PatchSourcesIDHandler")
 	}
 
+	if o.PatchSourcesIDKapacitorsKapaIDHandler == nil {
+		unregistered = append(unregistered, "PatchSourcesIDKapacitorsKapaIDHandler")
+	}
+
+	if o.PatchSourcesIDKapacitorsKapaIDProxyHandler == nil {
+		unregistered = append(unregistered, "PatchSourcesIDKapacitorsKapaIDProxyHandler")
+	}
+
 	if o.PatchSourcesIDRolesRoleIDHandler == nil {
 		unregistered = append(unregistered, "PatchSourcesIDRolesRoleIDHandler")
 	}
@@ -257,6 +303,14 @@ func (o *MrFusionAPI) Validate() error {
 
 	if o.PostSourcesHandler == nil {
 		unregistered = append(unregistered, "PostSourcesHandler")
+	}
+
+	if o.PostSourcesIDKapacitorsHandler == nil {
+		unregistered = append(unregistered, "PostSourcesIDKapacitorsHandler")
+	}
+
+	if o.PostSourcesIDKapacitorsKapaIDProxyHandler == nil {
+		unregistered = append(unregistered, "PostSourcesIDKapacitorsKapaIDProxyHandler")
 	}
 
 	if o.PostSourcesIDProxyHandler == nil {
@@ -373,6 +427,16 @@ func (o *MrFusionAPI) initHandlerCache() {
 	if o.handlers["DELETE"] == nil {
 		o.handlers[strings.ToUpper("DELETE")] = make(map[string]http.Handler)
 	}
+	o.handlers["DELETE"]["/sources/{id}/kapacitors/{kapa_id}"] = NewDeleteSourcesIDKapacitorsKapaID(o.context, o.DeleteSourcesIDKapacitorsKapaIDHandler)
+
+	if o.handlers["DELETE"] == nil {
+		o.handlers[strings.ToUpper("DELETE")] = make(map[string]http.Handler)
+	}
+	o.handlers["DELETE"]["/sources/{id}/kapacitors/{kapa_id}/proxy"] = NewDeleteSourcesIDKapacitorsKapaIDProxy(o.context, o.DeleteSourcesIDKapacitorsKapaIDProxyHandler)
+
+	if o.handlers["DELETE"] == nil {
+		o.handlers[strings.ToUpper("DELETE")] = make(map[string]http.Handler)
+	}
 	o.handlers["DELETE"]["/sources/{id}/roles/{role_id}"] = NewDeleteSourcesIDRolesRoleID(o.context, o.DeleteSourcesIDRolesRoleIDHandler)
 
 	if o.handlers["DELETE"] == nil {
@@ -409,6 +473,21 @@ func (o *MrFusionAPI) initHandlerCache() {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
 	}
 	o.handlers["GET"]["/sources/{id}"] = NewGetSourcesID(o.context, o.GetSourcesIDHandler)
+
+	if o.handlers["GET"] == nil {
+		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
+	}
+	o.handlers["GET"]["/sources/{id}/kapacitors"] = NewGetSourcesIDKapacitors(o.context, o.GetSourcesIDKapacitorsHandler)
+
+	if o.handlers["GET"] == nil {
+		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
+	}
+	o.handlers["GET"]["/sources/{id}/kapacitors/{kapa_id}"] = NewGetSourcesIDKapacitorsKapaID(o.context, o.GetSourcesIDKapacitorsKapaIDHandler)
+
+	if o.handlers["GET"] == nil {
+		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
+	}
+	o.handlers["GET"]["/sources/{id}/kapacitors/{kapa_id}/proxy"] = NewGetSourcesIDKapacitorsKapaIDProxy(o.context, o.GetSourcesIDKapacitorsKapaIDProxyHandler)
 
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
@@ -458,6 +537,16 @@ func (o *MrFusionAPI) initHandlerCache() {
 	if o.handlers["PATCH"] == nil {
 		o.handlers[strings.ToUpper("PATCH")] = make(map[string]http.Handler)
 	}
+	o.handlers["PATCH"]["/sources/{id}/kapacitors/{kapa_id}"] = NewPatchSourcesIDKapacitorsKapaID(o.context, o.PatchSourcesIDKapacitorsKapaIDHandler)
+
+	if o.handlers["PATCH"] == nil {
+		o.handlers[strings.ToUpper("PATCH")] = make(map[string]http.Handler)
+	}
+	o.handlers["PATCH"]["/sources/{id}/kapacitors/{kapa_id}/proxy"] = NewPatchSourcesIDKapacitorsKapaIDProxy(o.context, o.PatchSourcesIDKapacitorsKapaIDProxyHandler)
+
+	if o.handlers["PATCH"] == nil {
+		o.handlers[strings.ToUpper("PATCH")] = make(map[string]http.Handler)
+	}
 	o.handlers["PATCH"]["/sources/{id}/roles/{role_id}"] = NewPatchSourcesIDRolesRoleID(o.context, o.PatchSourcesIDRolesRoleIDHandler)
 
 	if o.handlers["PATCH"] == nil {
@@ -479,6 +568,16 @@ func (o *MrFusionAPI) initHandlerCache() {
 		o.handlers[strings.ToUpper("POST")] = make(map[string]http.Handler)
 	}
 	o.handlers["POST"]["/sources"] = NewPostSources(o.context, o.PostSourcesHandler)
+
+	if o.handlers["POST"] == nil {
+		o.handlers[strings.ToUpper("POST")] = make(map[string]http.Handler)
+	}
+	o.handlers["POST"]["/sources/{id}/kapacitors"] = NewPostSourcesIDKapacitors(o.context, o.PostSourcesIDKapacitorsHandler)
+
+	if o.handlers["POST"] == nil {
+		o.handlers[strings.ToUpper("POST")] = make(map[string]http.Handler)
+	}
+	o.handlers["POST"]["/sources/{id}/kapacitors/{kapa_id}/proxy"] = NewPostSourcesIDKapacitorsKapaIDProxy(o.context, o.PostSourcesIDKapacitorsKapaIDProxyHandler)
 
 	if o.handlers["POST"] == nil {
 		o.handlers[strings.ToUpper("POST")] = make(map[string]http.Handler)

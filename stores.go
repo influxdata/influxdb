@@ -140,3 +140,26 @@ type SourcesStore interface {
 	// Update the Source in the store.
 	Update(context.Context, Source) error
 }
+
+type Server struct {
+	ID       int    // ID is the unique ID of the server
+	SrcID    int    // SrcID of the data soruce
+	Name     string // Name is the user-defined name for the server
+	Username string // Username is the username to connect to the server
+	Password string // Password is in CLEARTEXT FIXME
+	URL      string // URL are the connections to the server
+}
+
+// ServersStore stores connection information for a `Server`
+type ServersStore interface {
+	// All returns all servers in the store
+	All(context.Context) ([]Server, error)
+	// Add creates a new source in the ServersStore and returns Server with ID
+	Add(context.Context, Server) (Server, error)
+	// Delete the Server from the store
+	Delete(context.Context, Server) error
+	// Get retrieves Server if `ID` exists
+	Get(ctx context.Context, ID int) (Server, error)
+	// Update the Server in the store.
+	Update(context.Context, Server) error
+}

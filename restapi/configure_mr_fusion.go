@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/mrfusion/dist"
 	"github.com/influxdata/mrfusion/handlers"
 	"github.com/influxdata/mrfusion/influx"
+	"github.com/influxdata/mrfusion/kapacitor"
 	fusionlog "github.com/influxdata/mrfusion/log"
 	"github.com/influxdata/mrfusion/mock"
 	op "github.com/influxdata/mrfusion/restapi/operations"
@@ -95,6 +96,7 @@ func configureAPI(api *op.MrFusionAPI) http.Handler {
 		h := handlers.Store{
 			ExplorationStore: c.ExplorationStore,
 			SourcesStore:     c.SourcesStore,
+			ServersStore:     c.ServersStore,
 		}
 		api.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(h.DeleteExploration)
 		api.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.GetSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(h.Exploration)
@@ -109,12 +111,25 @@ func configureAPI(api *op.MrFusionAPI) http.Handler {
 		api.GetSourcesIDHandler = op.GetSourcesIDHandlerFunc(h.SourcesID)
 		api.PostSourcesHandler = op.PostSourcesHandlerFunc(h.NewSource)
 
-		ts := influx.Client{}
+		api.GetSourcesIDKapacitorsHandler = op.GetSourcesIDKapacitorsHandlerFunc(h.Kapacitors)
+		api.PostSourcesIDKapacitorsHandler = op.PostSourcesIDKapacitorsHandlerFunc(h.NewKapacitor)
+
+		api.GetSourcesIDKapacitorsKapaIDHandler = op.GetSourcesIDKapacitorsKapaIDHandlerFunc(h.KapacitorsID)
+		api.DeleteSourcesIDKapacitorsKapaIDHandler = op.DeleteSourcesIDKapacitorsKapaIDHandlerFunc(h.RemoveKapacitor)
+		api.PatchSourcesIDKapacitorsKapaIDHandler = op.PatchSourcesIDKapacitorsKapaIDHandlerFunc(h.UpdateKapacitor)
+
 		p := handlers.InfluxProxy{
-			Srcs:       c.SourcesStore,
-			TimeSeries: &ts,
+			Srcs:           c.SourcesStore,
+			TimeSeries:     &influx.Client{},
+			KapacitorProxy: &kapacitor.Proxy{},
+			ServersStore:   c.ServersStore,
 		}
 		api.PostSourcesIDProxyHandler = op.PostSourcesIDProxyHandlerFunc(p.Proxy)
+
+		api.PostSourcesIDKapacitorsKapaIDProxyHandler = op.PostSourcesIDKapacitorsKapaIDProxyHandlerFunc(p.KapacitorProxyPost)
+		api.PatchSourcesIDKapacitorsKapaIDProxyHandler = op.PatchSourcesIDKapacitorsKapaIDProxyHandlerFunc(p.KapacitorProxyPatch)
+		api.GetSourcesIDKapacitorsKapaIDProxyHandler = op.GetSourcesIDKapacitorsKapaIDProxyHandlerFunc(p.KapacitorProxyGet)
+		api.DeleteSourcesIDKapacitorsKapaIDProxyHandler = op.DeleteSourcesIDKapacitorsKapaIDProxyHandlerFunc(p.KapacitorProxyDelete)
 	} else {
 		api.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.DeleteExploration)
 		api.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.GetSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.Exploration)

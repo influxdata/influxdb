@@ -69,3 +69,31 @@ func UnmarshalSource(data []byte, s *mrfusion.Source) error {
 	s.Default = pb.Default
 	return nil
 }
+
+// MarshalServer encodes an source to binary protobuf format.
+func MarshalServer(s mrfusion.Server) ([]byte, error) {
+	return proto.Marshal(&Server{
+		ID:       int64(s.ID),
+		SrcID:    int64(s.SrcID),
+		Name:     s.Name,
+		Username: s.Username,
+		Password: s.Password,
+		URL:      s.URL,
+	})
+}
+
+// UnmarshalServer decodes an source from binary protobuf data.
+func UnmarshalServer(data []byte, s *mrfusion.Server) error {
+	var pb Server
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+
+	s.ID = int(pb.ID)
+	s.SrcID = int(pb.SrcID)
+	s.Name = pb.Name
+	s.Username = pb.Username
+	s.Password = pb.Password
+	s.URL = pb.URL
+	return nil
+}

@@ -161,6 +161,10 @@ swagger:model SourceLinks
 */
 type SourceLinks struct {
 
+	/* URL location of the kapacitors endpoint for this source
+	 */
+	Kapacitors string `json:"kapacitors,omitempty"`
+
 	/* URL location of the monitored services endpoint for this source
 	 */
 	Monitored string `json:"monitored,omitempty"`

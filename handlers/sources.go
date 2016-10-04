@@ -37,6 +37,7 @@ func srcLinks(id int) *models.SourceLinks {
 		Users:       fmt.Sprintf("/chronograf/v1/sources/%d/users", id),
 		Roles:       fmt.Sprintf("/chronograf/v1/sources/%d/roles", id),
 		Permissions: fmt.Sprintf("/chronograf/v1/sources/%d/permissions", id),
+		Kapacitors:  fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors", id),
 	}
 }
 
