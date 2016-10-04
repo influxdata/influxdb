@@ -3,7 +3,7 @@ package rhh
 import (
 	"bytes"
 
-	"github.com/influxdata/influxdb/pkg/murmur3"
+	"github.com/cespare/xxhash"
 )
 
 // HashMap represents a hash map that implements Robin Hood Hashing.
@@ -137,11 +137,11 @@ func (m *HashMap) index(key []byte) int {
 
 // hashKey computes a hash of key. Hash is always non-zero.
 func (m *HashMap) hashKey(key []byte) uint32 {
-	h := murmur3.Sum32(key)
+	h := xxhash.Sum64(key)
 	if h == 0 {
 		h = 1
 	}
-	return h
+	return uint32(h)
 }
 
 // Elem returns the i-th key/value pair of the hash map.
