@@ -27,6 +27,19 @@ export function showMeasurements(source, db) {
   return proxy({source, db, query});
 }
 
+export function showTagKeys({source, database, retentionPolicy, measurement}) {
+  const query = `SHOW TAG KEYS FROM "${measurement}"`;
+
+  return proxy({source, db: database, rp: retentionPolicy, query});
+}
+
+export function showTagValues({source, database, retentionPolicy, measurement, tagKeys}) {
+  const keys = tagKeys.sort().map((k) => `"${k}"`).join(', ');
+  const query = `SHOW TAG VALUES FROM "${measurement}" WITH KEY IN (${keys})`;
+
+  return proxy({source, db: database, rp: retentionPolicy, query});
+}
+
 export function showRetentionPolicies(source, databases) {
   let query;
   if (Array.isArray(databases)) {
@@ -62,20 +75,4 @@ export function showFieldKeys(source, db, measurement) {
   const query = `SHOW FIELD KEYS FROM "${measurement}"`;
 
   return proxy({source, query, db});
-}
-
-export function showTagKeys(host, {database, retentionPolicy, measurement}, clusterID) {
-  const statement = `SHOW TAG KEYS FROM "${measurement}"`;
-  const url = buildInfluxUrl({host, statement, database, retentionPolicy});
-
-  return proxy(url, clusterID);
-}
-
-export function showTagValues(host, {database, retentionPolicy, measurement, tagKeys, clusterID}) {
-  const keys = tagKeys.sort().map((k) => `"${k}"`).join(', ');
-  const statement = `SHOW TAG VALUES FROM "${measurement}" WITH KEY IN (${keys})`;
-
-  const url = buildInfluxUrl({host, statement, database, retentionPolicy});
-
-  return proxy(url, clusterID);
 }
