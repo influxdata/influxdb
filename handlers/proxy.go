@@ -114,6 +114,10 @@ func (h *InfluxProxy) KapacitorProxyPost(ctx context.Context, params op.PostSour
 
 	}
 
+	if resp.StatusCode == http.StatusNoContent {
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyNoContent()
+	}
+
 	dec := json.NewDecoder(resp.Body)
 	var j interface{}
 	err = dec.Decode(&j)
@@ -170,6 +174,10 @@ func (h *InfluxProxy) KapacitorProxyPatch(ctx context.Context, params op.PatchSo
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error with proxy %v", err)}
 		return op.NewPatchSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
+	}
+
+	if resp.StatusCode == http.StatusNoContent {
+		return op.NewPatchSourcesIDKapacitorsKapaIDProxyNoContent()
 	}
 
 	dec := json.NewDecoder(resp.Body)

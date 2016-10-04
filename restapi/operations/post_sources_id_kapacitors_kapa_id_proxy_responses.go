@@ -11,6 +11,24 @@ import (
 	"github.com/influxdata/mrfusion/models"
 )
 
+/*PostSourcesIDKapacitorsKapaIDProxyNoContent Kapacitor returned no content
+
+swagger:response postSourcesIdKapacitorsKapaIdProxyNoContent
+*/
+type PostSourcesIDKapacitorsKapaIDProxyNoContent struct {
+}
+
+// NewPostSourcesIDKapacitorsKapaIDProxyNoContent creates PostSourcesIDKapacitorsKapaIDProxyNoContent with default headers values
+func NewPostSourcesIDKapacitorsKapaIDProxyNoContent() *PostSourcesIDKapacitorsKapaIDProxyNoContent {
+	return &PostSourcesIDKapacitorsKapaIDProxyNoContent{}
+}
+
+// WriteResponse to the client
+func (o *PostSourcesIDKapacitorsKapaIDProxyNoContent) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+
+	rw.WriteHeader(204)
+}
+
 /*PostSourcesIDKapacitorsKapaIDProxyNotFound Kapacitor ID does not exist.
 
 swagger:response postSourcesIdKapacitorsKapaIdProxyNotFound
