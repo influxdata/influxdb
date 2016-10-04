@@ -545,6 +545,21 @@ func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
 	return err
 }
 
+// ShardIDs returns a slice of all ShardIDs under management.
+func (s *Store) ShardIDs() []uint64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.shardIDs()
+}
+
+func (s *Store) shardIDs() []uint64 {
+	a := make([]uint64, 0, len(s.shards))
+	for shardID := range s.shards {
+		a = append(a, shardID)
+	}
+	return a
+}
+
 // shardsSlice returns an ordered list of shards.
 func (s *Store) shardsSlice() []*Shard {
 	a := make([]*Shard, 0, len(s.shards))
