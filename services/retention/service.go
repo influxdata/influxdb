@@ -17,6 +17,7 @@ type Service struct {
 		DeleteShardGroup(database, policy string, id uint64) error
 	}
 	TSDBStore interface {
+		ShardIDs() []uint64
 		DeleteShard(shardID uint64) error
 	}
 
@@ -118,14 +119,16 @@ func (s *Service) deleteShards() {
 				}
 			}
 
-			for id, info := range deletedShardIDs {
-				if err := s.TSDBStore.DeleteShard(id); err != nil {
-					s.logger.Printf("failed to delete shard ID %d from database %s, retention policy %s: %s",
-						id, info.db, info.rp, err.Error())
-					continue
+			for _, id := range s.TSDBStore.ShardIDs() {
+				if info, ok := deletedShardIDs[id]; ok {
+					if err := s.TSDBStore.DeleteShard(id); err != nil {
+						s.logger.Printf("failed to delete shard ID %d from database %s, retention policy %s: %s",
+							id, info.db, info.rp, err.Error())
+						continue
+					}
+					s.logger.Printf("shard ID %d from database %s, retention policy %s, deleted",
+						id, info.db, info.rp)
 				}
-				s.logger.Printf("shard ID %d from database %s, retention policy %s, deleted",
-					id, info.db, info.rp)
 			}
 		}
 	}
