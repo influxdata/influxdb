@@ -21,7 +21,6 @@ export const KapacitorPage = React.createClass({
 
   componentDidMount() {
     getKapacitor(this.props.source.id).then((res) => {
-      console.log("setting state", res);
       const kapacitor = res.data;
       this.setState({
         kapacitorURL: kapacitor.url,
@@ -37,14 +36,13 @@ export const KapacitorPage = React.createClass({
   handleKapacitorUpdate(e) {
     e.preventDefault();
     const kapacitor = {
+      sourceID: this.props.source.id,
       url: this.state.kapacitorURL,
       name: this.state.kapacitorName,
       username: this.state.kapacitorUser,
       password: this.kapacitorPassword.value,
     };
-    console.log("handle: ", kapacitor);
-    if (this.validKapacitor) {
-      console.log("creating: ", kapacitor);
+    if (!this.state.validKapacitor) {
       createKapacitor(kapacitor).then(({data: kapacitor}) => {
         this.setState({
           validKapacitor: true,     
@@ -52,7 +50,6 @@ export const KapacitorPage = React.createClass({
       });      
     } else {
       updateKapacitor(kapacitor).then(({data: kapacitor}) => {
-        console.log("updating: ", kapacitor);
         this.setState({
           validKapacitor: true,
         });

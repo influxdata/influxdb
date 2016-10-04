@@ -447,11 +447,11 @@ function metaProxy(clusterID, slug) {
 }
 
 // Kapacitor functions
-// TODO: update kapacitor functions to all be scoped by source
+// TODO: update kapacitor functions to assume only one kapacitor. waiting for @goller
 
 export function getKapacitor(sourceID) {
   return AJAX({
-    url: `/chronograf/v1/kapacitors/1`,
+    url: `/chronograf/v1/sources/${sourceID}/kapacitors/1`,
     method: 'GET',
   });
 }
@@ -462,7 +462,7 @@ export function createKapacitor({sourceID, url, name, username, password}) {
   }
 
   return AJAX({
-    url: `/chronograf/v1/kapacitors`,
+    url: `/chronograf/v1/sources/${sourceID}/kapacitors`,
     method: 'POST',
     data: {
       name: name,
@@ -478,11 +478,8 @@ export function updateKapacitor({sourceID, url, name, username, password}) {
     name = "My Kapacitor";
   }
 
-  // TODO: remove this once kapacitor is scoped to source
-  sourceID = 1
-
   return AJAX({
-    url: `/chronograf/v1/kapacitors/${sourceID}`,
+    url: `/chronograf/v1/sources/${sourceID}/kapacitors/1`,
     method: 'PATCH',
     data: {
       name: name,
@@ -494,6 +491,7 @@ export function updateKapacitor({sourceID, url, name, username, password}) {
 }
 
 export function getKapacitorConfig(sourceID) {
+  console.log("get config")
   return kapacitorProxy(sourceID, 'GET', '/kapacitor/v1/config', '');
 }
 
@@ -502,11 +500,9 @@ export function updateKapacitorConfigSection(sourceID, section, properties) {
 
   console.log("updating: ", `/kapacitor/v1/config/${section}`, properties);
 
-  sourceID = 1
-
   return AJAX({
     method: 'POST',
-    url: `/chronograf/v1/kapacitors/${sourceID}/proxy`,
+    url: `/chronograf/v1/sources/${sourceID}/kapacitors/1/proxy`,
     params: {
       path: `/kapacitor/v1/config/${section}`,
     },
@@ -515,7 +511,7 @@ export function updateKapacitorConfigSection(sourceID, section, properties) {
     },
     headers: {
       'Content-Type': 'application/json',
-    }
+    },
   });
 }
 
@@ -547,7 +543,7 @@ export function testAlertOutput(sourceID, outputName) {
   createKapacitorTask(sourceID, taskName, "batch", telegrafRPs, script).then((res) => {
     console.log("task created");
     // TODO: fix this ghetto stuff
-    setTimeout(function(){ deleteKapacitorTask(sourceID, taskName); }, 1500);
+    setTimeout(function(){ console.log("deleting"); deleteKapacitorTask(sourceID, taskName); }, 1500);
   });
 }
 
@@ -574,12 +570,9 @@ export function deleteKapacitorTask(sourceID, id) {
 }
 
 export function kapacitorProxy(sourceID, method, path, body) {
-  // TODO: remove this once kapacitor is scoped to source
-  sourceID = 1
-
   return AJAX({
     method: method,
-    url: `/chronograf/v1/kapacitors/${sourceID}/proxy`,
+    url: `/chronograf/v1/sources/${sourceID}/kapacitors/1/proxy`,
     params: {
       path: path,
     },
