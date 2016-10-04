@@ -37,8 +37,7 @@ const (
 // Store manages shards and indexes for databases.
 type Store struct {
 	mu sync.RWMutex
-	// databases keeps track of the number of databases being managed by the
-	// store.
+	// databases keeps track of the number of databases being managed by the store.
 	databases map[string]struct{}
 
 	path string
@@ -502,7 +501,7 @@ func (s *Store) filterShards(fn func(sh *Shard) bool) []*Shard {
 
 // byDatabase provides a predicate for filterShards that matches on the name of
 // the database passed in.
-var byDatabase = func(name string) func(sh *Shard) bool {
+func byDatabase(name string) func(sh *Shard) bool {
 	return func(sh *Shard) bool {
 		return sh.database == name
 	}
@@ -584,7 +583,7 @@ func (s *Store) DiskSize() (int64, error) {
 	return size, nil
 }
 
-func (s *Store) cardinalityEstimate(dbName string, getSketches func(*Shard) (estimator.Sketch, estimator.Sketch, error)) (int64, error) {
+func (s *Store) estimateCardinality(dbName string, getSketches func(*Shard) (estimator.Sketch, estimator.Sketch, error)) (int64, error) {
 	var (
 		ss estimator.Sketch // Sketch estimating number of items.
 		ts estimator.Sketch // Sketch estimating number of tombstoned items.
@@ -595,7 +594,6 @@ func (s *Store) cardinalityEstimate(dbName string, getSketches func(*Shard) (est
 	s.mu.RUnlock()
 
 	// Iterate over all shards for the database and combine all of the sketches.
-	// sketches.
 	for _, shard := range shards {
 		s, t, err := getSketches(shard)
 		if err != nil {
@@ -611,25 +609,26 @@ func (s *Store) cardinalityEstimate(dbName string, getSketches func(*Shard) (est
 		}
 	}
 
-	if ss != nil {
-		pos, err := ss.Count()
-		if err != nil {
-			return 0, err
-		}
-
-		neg, err := ts.Count()
-		if err != nil {
-			return 0, err
-		}
-
-		return int64(pos - neg), nil
+	if ss == nil {
+		return 0, nil
 	}
-	return 0, nil
+
+	pos, err := ss.Count()
+	if err != nil {
+		return 0, err
+	}
+
+	neg, err := ts.Count()
+	if err != nil {
+		return 0, err
+	}
+
+	return int64(pos - neg), nil
 }
 
 // SeriesCardinality returns the series cardinality for the provided database.
 func (s *Store) SeriesCardinality(database string) (int64, error) {
-	return s.cardinalityEstimate(database, func(sh *Shard) (estimator.Sketch, estimator.Sketch, error) {
+	return s.estimateCardinality(database, func(sh *Shard) (estimator.Sketch, estimator.Sketch, error) {
 		if sh == nil {
 			return nil, nil, errors.New("shard nil, can't get cardinality")
 		}
@@ -640,7 +639,7 @@ func (s *Store) SeriesCardinality(database string) (int64, error) {
 // MeasurementsCardinality returns the measurement cardinality for the provided
 // database.
 func (s *Store) MeasurementsCardinality(database string) (int64, error) {
-	return s.cardinalityEstimate(database, func(sh *Shard) (estimator.Sketch, estimator.Sketch, error) {
+	return s.estimateCardinality(database, func(sh *Shard) (estimator.Sketch, estimator.Sketch, error) {
 		if sh == nil {
 			return nil, nil, errors.New("shard nil, can't get cardinality")
 		}

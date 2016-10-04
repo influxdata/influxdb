@@ -32,7 +32,7 @@ type Engine interface {
 	SetEnabled(enabled bool)
 	WithLogger(zap.Logger)
 
-	LoadMetadataIndex(shardID uint64, index *DatabaseIndex) error
+	LoadMetadataIndex(shardID uint64, index Index) error
 
 	CreateSnapshot() (string, error)
 	Backup(w io.Writer, basePath string, since time.Time) error
