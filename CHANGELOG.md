@@ -4,7 +4,8 @@
 
 ### Features
 
-- [#7403](https://github.com/influxdata/influxdb/pull/7403): Add `fill(linear)` to query language
+- [#7415](https://github.com/influxdata/influxdb/pull/7415): Add sample function to query language.
+- [#7403](https://github.com/influxdata/influxdb/pull/7403): Add `fill(linear)` to query language.
 - [#7120](https://github.com/influxdata/influxdb/issues/7120): Add additional statistics to query executor.
 - [#7135](https://github.com/influxdata/influxdb/pull/7135): Support enable HTTP service over unix domain socket. Thanks @oiooj
 - [#3634](https://github.com/influxdata/influxdb/issues/3634): Support mixed duration units.
