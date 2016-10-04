@@ -11,22 +11,41 @@ import (
 	"github.com/influxdata/mrfusion/models"
 )
 
-/*PatchSourcesIDUsersUserIDExplorationsExplorationIDNoContent Exploration's configuration was changed
+/*PatchSourcesIDUsersUserIDExplorationsExplorationIDOK Exploration's configuration was changed
 
-swagger:response patchSourcesIdUsersUserIdExplorationsExplorationIdNoContent
+swagger:response patchSourcesIdUsersUserIdExplorationsExplorationIdOK
 */
-type PatchSourcesIDUsersUserIDExplorationsExplorationIDNoContent struct {
+type PatchSourcesIDUsersUserIDExplorationsExplorationIDOK struct {
+
+	// In: body
+	Payload *models.Exploration `json:"body,omitempty"`
 }
 
-// NewPatchSourcesIDUsersUserIDExplorationsExplorationIDNoContent creates PatchSourcesIDUsersUserIDExplorationsExplorationIDNoContent with default headers values
-func NewPatchSourcesIDUsersUserIDExplorationsExplorationIDNoContent() *PatchSourcesIDUsersUserIDExplorationsExplorationIDNoContent {
-	return &PatchSourcesIDUsersUserIDExplorationsExplorationIDNoContent{}
+// NewPatchSourcesIDUsersUserIDExplorationsExplorationIDOK creates PatchSourcesIDUsersUserIDExplorationsExplorationIDOK with default headers values
+func NewPatchSourcesIDUsersUserIDExplorationsExplorationIDOK() *PatchSourcesIDUsersUserIDExplorationsExplorationIDOK {
+	return &PatchSourcesIDUsersUserIDExplorationsExplorationIDOK{}
+}
+
+// WithPayload adds the payload to the patch sources Id users user Id explorations exploration Id o k response
+func (o *PatchSourcesIDUsersUserIDExplorationsExplorationIDOK) WithPayload(payload *models.Exploration) *PatchSourcesIDUsersUserIDExplorationsExplorationIDOK {
+	o.Payload = payload
+	return o
+}
+
+// SetPayload sets the payload to the patch sources Id users user Id explorations exploration Id o k response
+func (o *PatchSourcesIDUsersUserIDExplorationsExplorationIDOK) SetPayload(payload *models.Exploration) {
+	o.Payload = payload
 }
 
 // WriteResponse to the client
-func (o *PatchSourcesIDUsersUserIDExplorationsExplorationIDNoContent) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
+func (o *PatchSourcesIDUsersUserIDExplorationsExplorationIDOK) WriteResponse(rw http.ResponseWriter, producer runtime.Producer) {
 
-	rw.WriteHeader(204)
+	rw.WriteHeader(200)
+	if o.Payload != nil {
+		if err := producer.Produce(rw, o.Payload); err != nil {
+			panic(err) // let the recovery middleware deal with this
+		}
+	}
 }
 
 /*PatchSourcesIDUsersUserIDExplorationsExplorationIDNotFound Data source id, user, or exploration does not exist.

@@ -456,8 +456,10 @@ paths:
                   schema:
                       $ref: "#/definitions/Exploration"
             responses:
-                204:
+                200:
                     description: Exploration's configuration was changed
+                    schema:
+                        $ref: '#/definitions/Exploration'
                 404:
                     description: Data source id, user, or exploration does not exist.
                     schema:
