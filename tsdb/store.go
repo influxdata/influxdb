@@ -818,8 +818,8 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	default:
 	}
 
-	sh, ok := s.shards[shardID]
-	if !ok {
+	sh := s.shards[shardID]
+	if sh == nil {
 		s.mu.RUnlock()
 		return ErrShardNotFound
 	}

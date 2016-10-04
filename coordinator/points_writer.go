@@ -117,12 +117,7 @@ func NewShardMapping() *ShardMapping {
 
 // MapPoint maps a point to shard
 func (s *ShardMapping) MapPoint(shardInfo *meta.ShardInfo, p models.Point) {
-	points, ok := s.Points[shardInfo.ID]
-	if !ok {
-		s.Points[shardInfo.ID] = []models.Point{p}
-	} else {
-		s.Points[shardInfo.ID] = append(points, p)
-	}
+	s.Points[shardInfo.ID] = append(s.Points[shardInfo.ID], p)
 	s.Shards[shardInfo.ID] = shardInfo
 }
 
@@ -270,8 +265,7 @@ func (w *PointsWriter) WritePoints(database, retentionPolicy string, consistency
 		return err
 	}
 
-	// Write each shard in it's own goroutine and return as soon
-	// as one fails.
+	// Write each shard in it's own goroutine and return as soon as one fails.
 	ch := make(chan error, len(shardMappings.Points))
 	for shardID, points := range shardMappings.Points {
 		go func(shard *meta.ShardInfo, database, retentionPolicy string, points []models.Point) {

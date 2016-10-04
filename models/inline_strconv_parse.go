@@ -6,16 +6,21 @@ import (
 	"unsafe"
 )
 
-// ParseIntBytes is a zero-alloc wrapper around strconv.ParseInt.
-func ParseIntBytes(b []byte, base int, bitSize int) (i int64, err error) {
+// parseIntBytes is a zero-alloc wrapper around strconv.ParseInt.
+func parseIntBytes(b []byte, base int, bitSize int) (i int64, err error) {
 	s := unsafeBytesToString(b)
 	return strconv.ParseInt(s, base, bitSize)
 }
 
-// ParseFloatBytes is a zero-alloc wrapper around strconv.ParseFloat.
-func ParseFloatBytes(b []byte, bitSize int) (float64, error) {
+// parseFloatBytes is a zero-alloc wrapper around strconv.ParseFloat.
+func parseFloatBytes(b []byte, bitSize int) (float64, error) {
 	s := unsafeBytesToString(b)
 	return strconv.ParseFloat(s, bitSize)
+}
+
+// parseBoolBytes is a zero-alloc wrapper around strconv.ParseBool.
+func parseBoolBytes(b []byte) (bool, error) {
+	return strconv.ParseBool(unsafeBytesToString(b))
 }
 
 // unsafeBytesToString converts a []byte to a string without a heap allocation.

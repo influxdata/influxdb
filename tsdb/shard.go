@@ -1,6 +1,7 @@
 package tsdb
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -60,7 +61,7 @@ var (
 
 var (
 	// Static objects to prevent small allocs.
-	timeTag = []byte("time")
+	timeBytes = []byte("time")
 )
 
 // A ShardError implements the error interface, and contains extra
@@ -472,59 +473,94 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 	for _, p := range points {
 		// verify the tags and fields
 		tags := p.Tags()
-		if v := tags.Get(timeTag); v != nil {
+		if v := tags.Get(timeBytes); v != nil {
 			s.logger.Printf("dropping tag 'time' from '%s'\n", p.PrecisionString(""))
-			tags.Delete(timeTag)
+			tags.Delete(timeBytes)
 			p.SetTags(tags)
 		}
 
-		fields := p.Fields()
-		if _, ok := fields["time"]; ok {
-			s.logger.Printf("dropping field 'time' from '%s'\n", p.PrecisionString(""))
-			delete(fields, "time")
-
-			if len(fields) == 0 {
+		var validField bool
+		iter := p.FieldIterator()
+		for iter.Next() {
+			if bytes.Equal(iter.FieldKey(), timeBytes) {
+				s.logger.Printf("dropping field 'time' from '%s'\n", p.PrecisionString(""))
+				iter.Delete()
 				continue
 			}
+			validField = true
 		}
+
+		if !validField {
+			continue
+		}
+
+		iter.Reset()
 
 		// see if the series should be added to the index
 		ss := s.index.SeriesBytes(p.Key())
 		if ss == nil {
-			key := string(p.Key())
 			if s.options.Config.MaxSeriesPerDatabase > 0 && s.index.SeriesN()+1 > s.options.Config.MaxSeriesPerDatabase {
-				return nil, fmt.Errorf("max series per database exceeded: %s", key)
+				return nil, fmt.Errorf("max series per database exceeded: %s", p.Key())
 			}
 
-			ss = NewSeries(key, tags)
+			ss = s.index.CreateSeriesIndexIfNotExists(p.Name(), NewSeries(string(p.Key()), tags))
 			atomic.AddInt64(&s.stats.SeriesCreated, 1)
 		}
 
-		ss = s.index.CreateSeriesIndexIfNotExists(p.Name(), ss)
-		s.index.AssignShard(ss.Key, s.id)
+		if !ss.Assigned(s.id) {
+			ss.AssignShard(s.id)
+		}
 
 		// see if the field definitions need to be saved to the shard
 		mf := s.engine.MeasurementFields(p.Name())
 
 		if mf == nil {
-			for name, value := range fields {
-				fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &Field{Name: name, Type: influxql.InspectDataType(value)}})
+			var createType influxql.DataType
+			for iter.Next() {
+				switch iter.Type() {
+				case models.Float:
+					createType = influxql.Float
+				case models.Integer:
+					createType = influxql.Integer
+				case models.String:
+					createType = influxql.String
+				case models.Boolean:
+					createType = influxql.Boolean
+				default:
+					continue
+				}
+				fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &Field{Name: string(iter.FieldKey()), Type: createType}})
 			}
 			continue // skip validation since all fields are new
 		}
 
+		iter.Reset()
+
 		// validate field types and encode data
-		for name, value := range fields {
-			if f := mf.Field(name); f != nil {
+		for iter.Next() {
+			var fieldType influxql.DataType
+			switch iter.Type() {
+			case models.Float:
+				fieldType = influxql.Float
+			case models.Integer:
+				fieldType = influxql.Integer
+			case models.Boolean:
+				fieldType = influxql.Boolean
+			case models.String:
+				fieldType = influxql.String
+			default:
+				continue
+			}
+			if f := mf.FieldBytes(iter.FieldKey()); f != nil {
 				// Field present in shard metadata, make sure there is no type conflict.
-				if f.Type != influxql.InspectDataType(value) {
-					return nil, fmt.Errorf("%s: input field \"%s\" on measurement \"%s\" is type %T, already exists as type %s", ErrFieldTypeConflict, name, p.Name(), value, f.Type)
+				if f.Type != fieldType {
+					return nil, fmt.Errorf("%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s", ErrFieldTypeConflict, iter.FieldKey(), p.Name(), fieldType, f.Type)
 				}
 
 				continue // Field is present, and it's of the same type. Nothing more to do.
 			}
 
-			fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &Field{Name: name, Type: influxql.InspectDataType(value)}})
+			fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &Field{Name: string(iter.FieldKey()), Type: fieldType}})
 		}
 	}
 
@@ -824,6 +860,13 @@ func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.Dat
 func (m *MeasurementFields) Field(name string) *Field {
 	m.mu.RLock()
 	f := m.fields[name]
+	m.mu.RUnlock()
+	return f
+}
+
+func (m *MeasurementFields) FieldBytes(name []byte) *Field {
+	m.mu.RLock()
+	f := m.fields[string(name)]
 	m.mu.RUnlock()
 	return f
 }

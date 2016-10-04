@@ -564,11 +564,31 @@ func (e *Engine) addToIndexFromKey(shardID uint64, key []byte, fieldType influxq
 // WritePoints writes metadata and point data into the engine.
 // Returns an error if new points are added to an existing key.
 func (e *Engine) WritePoints(points []models.Point) error {
-	values := map[string][]Value{}
+	values := make(map[string][]Value, len(points))
+	var keyBuf []byte
+	var baseLen int
 	for _, p := range points {
-		for k, v := range p.Fields() {
-			key := string(p.Key()) + keyFieldSeparator + k
-			values[key] = append(values[key], NewValue(p.Time().UnixNano(), v))
+		keyBuf = append(keyBuf[:0], p.Key()...)
+		keyBuf = append(keyBuf, keyFieldSeparator...)
+		baseLen = len(keyBuf)
+		iter := p.FieldIterator()
+		t := p.Time().UnixNano()
+		for iter.Next() {
+			keyBuf = append(keyBuf[:baseLen], iter.FieldKey()...)
+			var v Value
+			switch iter.Type() {
+			case models.Float:
+				v = NewFloatValue(t, iter.FloatValue())
+			case models.Integer:
+				v = NewIntegerValue(t, iter.IntegerValue())
+			case models.String:
+				v = NewStringValue(t, iter.StringValue())
+			case models.Boolean:
+				v = NewBooleanValue(t, iter.BooleanValue())
+			default:
+				return fmt.Errorf("unknown field type for %s: %s", string(iter.FieldKey()), p.String())
+			}
+			values[string(keyBuf)] = append(values[string(keyBuf)], v)
 		}
 	}
 
