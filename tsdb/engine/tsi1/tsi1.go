@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/influxdata/influxdb/pkg/murmur3"
+	"github.com/cespare/xxhash"
 )
 
 // writeTo writes write v into w. Updates n.
@@ -77,11 +77,11 @@ func Hexdump(data []byte) {
 
 // hashKey hashes a key using murmur3.
 func hashKey(key []byte) uint32 {
-	h := murmur3.Sum32(key)
+	h := xxhash.Sum64(key)
 	if h == 0 {
 		h = 1
 	}
-	return h
+	return uint32(h)
 }
 
 // dist returns the probe distance for a hash in a slot index.
