@@ -194,11 +194,11 @@ export function deleteExplorer(source, explorerURI, push) {
   };
 }
 
-export function editExplorer(clusterID, explorerID, params) {
+export function editExplorer(explorerURI, params) {
   return (dispatch) => {
     AJAX({
-      url: `/api/int/v1/explorers/${explorerID}`,
-      method: 'PUT',
+      url: explorerURI,
+      method: 'PATCH',
       data: JSON.stringify(params),
       headers: {
         'Content-Type': 'application/json',
