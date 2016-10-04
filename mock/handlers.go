@@ -296,7 +296,7 @@ func (m *Handler) UpdateExploration(ctx context.Context, params op.PatchSourcesI
 		e.Name = params.Exploration.Name
 		m.Store.Update(ctx, e)
 	}
-	return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDNoContent()
+	return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDOK()
 }
 
 func (m *Handler) NewExploration(ctx context.Context, params op.PostSourcesIDUsersUserIDExplorationsParams) middleware.Responder {
