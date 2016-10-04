@@ -33,7 +33,9 @@ const Header = React.createClass({
   },
 
   contextTypes: {
-    source: PropTypes.shape(),
+    source: PropTypes.shape({
+      name: PropTypes.string,
+    }),
   },
 
   handleChooseTimeRange(bounds) {
@@ -113,6 +115,9 @@ const Header = React.createClass({
             selected={this.getName(selectedExplorer)}
           />
           <div className="btn btn-sm btn-primary sessions-dropdown__btn" onClick={this.handleCreateExploration}>New Exploration</div>
+        </div>
+        <div className="source-indicator">
+          Source: {this.context.source.name}
         </div>
         <div className="enterprise-header__right">
           <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={this.findSelected(timeRange)} />
