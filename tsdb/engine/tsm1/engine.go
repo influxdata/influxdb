@@ -467,17 +467,17 @@ func (e *Engine) SetLogOutput(w io.Writer) {
 }
 
 // LoadMetadataIndex loads the shard metadata into memory.
-func (e *Engine) LoadMetadataIndex(shardID uint64, index *tsdb.DatabaseIndex) error {
+func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	now := time.Now()
+
+	// Save reference to index for iterator creation.
+	e.index = index
+	e.FileStore.dereferencer = index
 
 	// Open the index if it's not already open.
 	if err := index.Open(); err != nil {
 		return err
 	}
-
-	// Save reference to index for iterator creation.
-	e.index = index
-	e.FileStore.dereferencer = index
 
 	if err := e.FileStore.WalkKeys(func(key []byte, typ byte) error {
 		fieldType, err := tsmFieldTypeToInfluxQLDataType(typ)
@@ -662,7 +662,7 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string) er
 
 // addToIndexFromKey will pull the measurement name, series key, and field name from a composite key and add it to the
 // database index and measurement fields
-func (e *Engine) addToIndexFromKey(shardID uint64, key []byte, fieldType influxql.DataType, index *tsdb.DatabaseIndex) error {
+func (e *Engine) addToIndexFromKey(shardID uint64, key []byte, fieldType influxql.DataType, index tsdb.Index) error {
 	seriesKey, field := SeriesAndFieldFromCompositeKey(key)
 	measurement := tsdb.MeasurementFromSeriesKey(string(seriesKey))
 
