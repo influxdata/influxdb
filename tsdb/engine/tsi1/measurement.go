@@ -158,9 +158,13 @@ type MeasurementBlockTrailer struct {
 
 // MeasurementElem represents an internal measurement element.
 type MeasurementElem struct {
-	Flag   byte   // flag
-	Name   []byte // measurement name
-	Offset uint64 // tag set offset
+	Flag byte   // flag
+	Name []byte // measurement name
+
+	TagSet struct {
+		Offset int64
+		Size   int64
+	}
 
 	Series struct {
 		N    uint32 // series count
@@ -188,7 +192,8 @@ func (e *MeasurementElem) UnmarshalBinary(data []byte) error {
 	e.Flag, data = data[0], data[1:]
 
 	// Parse tagset offset.
-	e.Offset, data = binary.BigEndian.Uint64(data), data[8:]
+	e.TagSet.Offset, data = int64(binary.BigEndian.Uint64(data)), data[8:]
+	e.TagSet.Size, data = int64(binary.BigEndian.Uint64(data)), data[8:]
 
 	// Parse name.
 	sz, n := binary.Uvarint(data)
@@ -214,10 +219,11 @@ func NewMeasurementBlockWriter() *MeasurementBlockWriter {
 	}
 }
 
-// Add adds a measurement with series and offset.
-func (mw *MeasurementBlockWriter) Add(name []byte, offset uint64, seriesIDs []uint32) {
+// Add adds a measurement with series and tag set offset/size.
+func (mw *MeasurementBlockWriter) Add(name []byte, offset, size int64, seriesIDs []uint32) {
 	mm := mw.mms[string(name)]
-	mm.offset = offset
+	mm.tagSet.offset = offset
+	mm.tagSet.size = size
 	mm.seriesIDs = seriesIDs
 	mw.mms[string(name)] = mm
 }
@@ -293,7 +299,9 @@ func (mw *MeasurementBlockWriter) writeMeasurementTo(w io.Writer, name []byte, m
 	if err := writeUint8To(w, mm.flag(), n); err != nil {
 		return err
 	}
-	if err := writeUint64To(w, mm.offset, n); err != nil {
+	if err := writeUint64To(w, uint64(mm.tagSet.offset), n); err != nil {
+		return err
+	} else if err := writeUint64To(w, uint64(mm.tagSet.size), n); err != nil {
 		return err
 	}
 
@@ -337,8 +345,11 @@ func (mw *MeasurementBlockWriter) writeTrailerTo(w io.Writer, hoff int64, n *int
 }
 
 type measurement struct {
-	deleted   bool
-	offset    uint64
+	deleted bool
+	tagSet  struct {
+		offset int64
+		size   int64
+	}
 	seriesIDs []uint32
 }
 

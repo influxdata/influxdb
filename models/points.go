@@ -1697,9 +1697,9 @@ func (a Tags) GetString(key string) string {
 
 // Set sets the value for a key.
 func (a *Tags) Set(key, value []byte) {
-	for _, t := range *a {
+	for i, t := range *a {
 		if bytes.Equal(t.Key, key) {
-			t.Value = value
+			(*a)[i].Value = value
 			return
 		}
 	}
