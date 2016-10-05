@@ -34,7 +34,7 @@ export default function explorers(state = {}, action) {
     case 'EDIT_EXPLORER': {
       const {explorer} = action.payload;
       const update = {
-        [explorer.id]: normalizeExplorer(explorer),
+        [explorer.link.href]: normalizeExplorer(explorer),
       };
 
       return u(update, state);
