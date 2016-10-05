@@ -58,34 +58,9 @@ type TagSet struct {
 // Only valid after UnmarshalBinary() has been successfully invoked.
 func (ts *TagSet) Version() int { return ts.version }
 
-// TagValueSeriesN returns the number of series ids associated with a tag value.
-func (ts *TagSet) TagValueSeriesN(key, value []byte) int {
-	velem := ts.tagValueElem(key, value)
-	if len(velem.value) == 0 {
-		return 0
-	}
-	return int(velem.seriesN)
-}
-
-// TagValueSeriesIDs returns the series IDs associated with a tag value.
-func (ts *TagSet) TagValueSeriesIDs(key, value []byte) []uint32 {
-	// Find value element.
-	velem := ts.tagValueElem(key, value)
-	if len(velem.value) == 0 {
-		return nil
-	}
-
-	// Build slice of series ids.
-	a := make([]uint32, velem.seriesN)
-	for i := range a {
-		a[i] = velem.seriesID(i)
-	}
-	return a
-}
-
-// tagKeyElem returns an element for a tag key.
+// TagKeyElem returns an element for a tag key.
 // Returns an element with a nil key if not found.
-func (ts *TagSet) tagKeyElem(key []byte) tagKeyElem {
+func (ts *TagSet) TagKeyElem(key []byte) TagKeyElem {
 	keyN := binary.BigEndian.Uint32(ts.hashData[:TagKeyNSize])
 	hash := hashKey(key)
 	pos := int(hash) % int(keyN)
@@ -100,17 +75,17 @@ func (ts *TagSet) tagKeyElem(key []byte) tagKeyElem {
 		// Evaluate key if offset is not empty.
 		if offset > 0 {
 			// Parse into element.
-			var e tagKeyElem
+			var e TagKeyElem
 			e.UnmarshalBinary(ts.data[offset:])
 
 			// Return if keys match.
-			if bytes.Equal(e.key, key) {
+			if bytes.Equal(e.Key, key) {
 				return e
 			}
 
 			// Check if we've exceeded the probe distance.
-			if d > dist(hashKey(e.key), pos, int(keyN)) {
-				return tagKeyElem{}
+			if d > dist(hashKey(e.Key), pos, int(keyN)) {
+				return TagKeyElem{}
 			}
 		}
 
@@ -120,16 +95,16 @@ func (ts *TagSet) tagKeyElem(key []byte) tagKeyElem {
 	}
 }
 
-// tagValueElem returns an element for a tag value.
+// TagValueElem returns an element for a tag value.
 // Returns an element with a nil value if not found.
-func (ts *TagSet) tagValueElem(key, value []byte) tagValueElem {
+func (ts *TagSet) TagValueElem(key, value []byte) TagValueElem {
 	// Find key element, exit if not found.
-	kelem := ts.tagKeyElem(key)
-	if len(kelem.key) == 0 {
-		return tagValueElem{}
+	kelem := ts.TagKeyElem(key)
+	if len(kelem.Key) == 0 {
+		return TagValueElem{}
 	}
 
-	hashData := ts.data[kelem.valueOffset:]
+	hashData := ts.data[kelem.Offset:]
 	valueN := binary.BigEndian.Uint32(hashData[:TagValueNSize])
 	hash := hashKey(value)
 	pos := int(hash) % int(valueN)
@@ -144,17 +119,17 @@ func (ts *TagSet) tagValueElem(key, value []byte) tagValueElem {
 		// Evaluate value if offset is not empty.
 		if offset > 0 {
 			// Parse into element.
-			var e tagValueElem
+			var e TagValueElem
 			e.UnmarshalBinary(ts.data[offset:])
 
 			// Return if values match.
-			if bytes.Equal(e.value, value) {
+			if bytes.Equal(e.Value, value) {
 				return e
 			}
 
 			// Check if we've exceeded the probe distance.
-			if d > dist(hashKey(e.value), pos, int(valueN)) {
-				return tagValueElem{}
+			if d > dist(hashKey(e.Value), pos, int(valueN)) {
+				return TagValueElem{}
 			}
 		}
 
@@ -197,55 +172,66 @@ func (ts *TagSet) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// tagKeyElem represents an intenral tag key element.
-type tagKeyElem struct {
-	flag        byte
-	key         []byte
-	valueOffset uint64
+// TagKeyElem represents a tag key element.
+type TagKeyElem struct {
+	Flag   byte
+	Key    []byte
+	Offset uint64 // Value block offset
 }
 
 // UnmarshalBinary unmarshals data into e.
-func (e *tagKeyElem) UnmarshalBinary(data []byte) {
+func (e *TagKeyElem) UnmarshalBinary(data []byte) {
 	// Parse flag data.
-	e.flag, data = data[0], data[1:]
+	e.Flag, data = data[0], data[1:]
 
 	// Parse value offset.
-	e.valueOffset, data = binary.BigEndian.Uint64(data), data[8:]
+	e.Offset, data = binary.BigEndian.Uint64(data), data[8:]
 
 	// Parse key.
 	sz, n := binary.Uvarint(data)
 	data = data[n:]
-	e.key = data[:sz]
+	e.Key = data[:sz]
 }
 
-// tagValueElem represents an intenral tag value element.
-type tagValueElem struct {
-	flag       byte
-	value      []byte
-	seriesN    uint64
-	seriesData []byte
+// TagValueElem represents a tag value element.
+type TagValueElem struct {
+	Flag   byte
+	Value  []byte
+	Series struct {
+		N    uint64 // Series count
+		Data []byte // Raw series data
+	}
 }
 
-// seriesID returns series ID at an index.
-func (e *tagValueElem) seriesID(i int) uint32 {
-	return binary.BigEndian.Uint32(e.seriesData[i*SeriesIDSize:])
+// SeriesID returns series ID at an index.
+func (e *TagValueElem) SeriesID(i int) uint32 {
+	return binary.BigEndian.Uint32(e.Series.Data[i*SeriesIDSize:])
+}
+
+// SeriesIDs returns a list decoded series ids.
+func (e *TagValueElem) SeriesIDs() []uint32 {
+	a := make([]uint32, e.Series.N)
+	for i := 0; i < int(e.Series.N); i++ {
+		a[i] = e.SeriesID(i)
+	}
+	return a
 }
 
 // UnmarshalBinary unmarshals data into e.
-func (e *tagValueElem) UnmarshalBinary(data []byte) {
+func (e *TagValueElem) UnmarshalBinary(data []byte) {
 	// Parse flag data.
-	e.flag, data = data[0], data[1:]
+	e.Flag, data = data[0], data[1:]
 
 	// Parse value.
 	sz, n := binary.Uvarint(data)
-	e.value, data = data[n:n+int(sz)], data[n+int(sz):]
+	e.Value, data = data[n:n+int(sz)], data[n+int(sz):]
 
 	// Parse series count.
-	e.seriesN, n = binary.Uvarint(data)
+	e.Series.N, n = binary.Uvarint(data)
 	data = data[n:]
 
 	// Save reference to series data.
-	e.seriesData = data[:e.seriesN*SeriesIDSize]
+	e.Series.Data = data[:e.Series.N*SeriesIDSize]
 }
 
 // TagSetWriter writes a TagSet section.

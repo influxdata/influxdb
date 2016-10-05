@@ -34,17 +34,17 @@ func TestTagSetWriter(t *testing.T) {
 	}
 
 	// Verify data in TagSet.
-	if a := ts.TagValueSeriesIDs([]byte("region"), []byte("us-east")); !reflect.DeepEqual(a, []uint32{1, 2}) {
-		t.Fatalf("unexpected series ids: %#v", a)
-	} else if a := ts.TagValueSeriesIDs([]byte("region"), []byte("us-west")); !reflect.DeepEqual(a, []uint32{3}) {
-		t.Fatalf("unexpected series ids: %#v", a)
+	if e := ts.TagValueElem([]byte("region"), []byte("us-east")); !reflect.DeepEqual(e.SeriesIDs(), []uint32{1, 2}) {
+		t.Fatalf("unexpected series ids: %#v", e.SeriesIDs())
+	} else if e := ts.TagValueElem([]byte("region"), []byte("us-west")); !reflect.DeepEqual(e.SeriesIDs(), []uint32{3}) {
+		t.Fatalf("unexpected series ids: %#v", e.SeriesIDs())
 	}
-	if a := ts.TagValueSeriesIDs([]byte("host"), []byte("server0")); !reflect.DeepEqual(a, []uint32{1}) {
-		t.Fatalf("unexpected series ids: %#v", a)
-	} else if a := ts.TagValueSeriesIDs([]byte("host"), []byte("server1")); !reflect.DeepEqual(a, []uint32{2}) {
-		t.Fatalf("unexpected series ids: %#v", a)
-	} else if a := ts.TagValueSeriesIDs([]byte("host"), []byte("server2")); !reflect.DeepEqual(a, []uint32{3}) {
-		t.Fatalf("unexpected series ids: %#v", a)
+	if e := ts.TagValueElem([]byte("host"), []byte("server0")); !reflect.DeepEqual(e.SeriesIDs(), []uint32{1}) {
+		t.Fatalf("unexpected series ids: %#v", e.SeriesIDs())
+	} else if e := ts.TagValueElem([]byte("host"), []byte("server1")); !reflect.DeepEqual(e.SeriesIDs(), []uint32{2}) {
+		t.Fatalf("unexpected series ids: %#v", e.SeriesIDs())
+	} else if e := ts.TagValueElem([]byte("host"), []byte("server2")); !reflect.DeepEqual(e.SeriesIDs(), []uint32{3}) {
+		t.Fatalf("unexpected series ids: %#v", e.SeriesIDs())
 	}
 }
 
@@ -100,8 +100,8 @@ func benchmarkTagSet_SeriesN(b *testing.B, tagN, valueN int, ts **tsi1.TagSet) {
 
 	key, value := []byte("0"), []byte("0")
 	for i := 0; i < b.N; i++ {
-		if n := (*ts).TagValueSeriesN(key, value); n != 1 {
-			b.Fatalf("unexpected series count: %d", n)
+		if e := (*ts).TagValueElem(key, value); e.Series.N != 1 {
+			b.Fatalf("unexpected series count: %d", e.Series.N)
 		}
 	}
 }

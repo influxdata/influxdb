@@ -1,6 +1,7 @@
 package tsi1
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -11,6 +12,9 @@ import (
 
 // IndexVersion is the current TSI1 index version.
 const IndexVersion = 1
+
+// FileSignature represents a magic number at the header of the index file.
+const FileSignature = "TSI1"
 
 // Index field size constants.
 const (
@@ -30,6 +34,7 @@ const (
 
 // Index errors.
 var (
+	ErrInvalidIndex            = errors.New("invalid index")
 	ErrUnsupportedIndexVersion = errors.New("unsupported index version")
 )
 
@@ -45,6 +50,13 @@ type Index struct {
 // UnmarshalBinary opens an index from data.
 // The byte slice is retained so it must be kept open.
 func (i *Index) UnmarshalBinary(data []byte) error {
+	// Ensure magic number exists at the beginning.
+	if len(data) < len(FileSignature) {
+		return io.ErrShortBuffer
+	} else if !bytes.Equal(data[:len(FileSignature)], []byte(FileSignature)) {
+		return ErrInvalidIndex
+	}
+
 	// Read index trailer.
 	t, err := ReadIndexTrailer(data)
 	if err != nil {
@@ -64,12 +76,13 @@ func (i *Index) UnmarshalBinary(data []byte) error {
 	buf = data[t.SeriesList.Offset:]
 	buf = buf[:t.SeriesList.Size]
 
-	Hexdump(buf)
-
 	// Unmarshal series list.
 	if err := i.slist.UnmarshalBinary(buf); err != nil {
 		return err
 	}
+
+	// Save reference to entire data block.
+	i.data = data
 
 	return nil
 }
@@ -79,6 +92,36 @@ func (i *Index) Close() error {
 	i.slist = SeriesList{}
 	i.mblk = MeasurementBlock{}
 	return nil
+}
+
+// TagValueElem returns a list of series ids for a measurement/tag/value.
+func (i *Index) TagValueElem(name, key, value []byte) (TagValueElem, error) {
+	// Find measurement.
+	e, ok := i.mblk.Elem(name)
+	if !ok {
+		return TagValueElem{}, nil
+	}
+
+	// Find tag set block.
+	tblk, err := i.tagSetBlock(&e)
+	if err != nil {
+		return TagValueElem{}, err
+	}
+	return tblk.TagValueElem(key, value), nil
+}
+
+// tagSetBlock returns a tag set block for a measurement.
+func (i *Index) tagSetBlock(e *MeasurementElem) (TagSet, error) {
+	// Slice tag set data.
+	buf := i.data[e.TagSet.Offset:]
+	buf = buf[:e.TagSet.Size]
+
+	// Unmarshal block.
+	var blk TagSet
+	if err := blk.UnmarshalBinary(buf); err != nil {
+		return TagSet{}, err
+	}
+	return blk, nil
 }
 
 // Indices represents a layered set of indices.
@@ -130,6 +173,11 @@ func (iw *IndexWriter) Add(name string, tags models.Tags) {
 // WriteTo writes the index to w.
 func (iw *IndexWriter) WriteTo(w io.Writer) (n int64, err error) {
 	var t IndexTrailer
+
+	// Write magic number.
+	if err := writeTo(w, []byte(FileSignature), &n); err != nil {
+		return n, err
+	}
 
 	// Write series list.
 	t.SeriesList.Offset = n
@@ -236,6 +284,9 @@ func (iw *IndexWriter) writeTagsetTo(w io.Writer, name string, n *int64) error {
 		}
 	}
 
+	// Save tagset offset to measurement.
+	mm.offset = *n
+
 	// Write tagset to writer.
 	nn, err := tsw.WriteTo(w)
 	*n += nn
@@ -244,7 +295,9 @@ func (iw *IndexWriter) writeTagsetTo(w io.Writer, name string, n *int64) error {
 	}
 
 	// Save tagset offset to measurement.
-	mm.offset = uint64(*n)
+	mm.size = *n - mm.offset
+
+	iw.mms[name] = mm
 
 	return nil
 }
@@ -254,7 +307,7 @@ func (iw *IndexWriter) writeMeasurementBlockTo(w io.Writer, names []string, n *i
 
 	// Add measurement data.
 	for _, mm := range iw.mms {
-		mw.Add(mm.name, mm.offset, mm.seriesIDs)
+		mw.Add(mm.name, mm.offset, mm.size, mm.seriesIDs)
 	}
 
 	// Write data to writer.
@@ -313,7 +366,8 @@ type indexMeasurement struct {
 	name      []byte
 	deleted   bool
 	tagset    indexTagset
-	offset    uint64
+	offset    int64 // tagset offset
+	size      int64 // tagset size
 	seriesIDs []uint32
 }
 

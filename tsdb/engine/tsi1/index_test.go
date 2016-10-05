@@ -2,13 +2,14 @@ package tsi1_test
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/engine/tsi1"
 )
 
-// Ensure index can be built and opened.
+// Ensure a simple index can be built and opened.
 func TestIndex(t *testing.T) {
 	series := []Series{
 		{Name: "cpu", Tags: models.NewTags(map[string]string{"region": "east"})},
@@ -33,4 +34,92 @@ func TestIndex(t *testing.T) {
 	if err := idx.UnmarshalBinary(buf.Bytes()); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// Ensure index generation can be successfully built.
+func TestGenerateIndex(t *testing.T) {
+	// Build generated index.
+	idx, err := GenerateIndex(10, 3, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify that tag/value series can be fetched.
+	if e, err := idx.TagValueElem([]byte("measurement0"), []byte("key0"), []byte("value0")); err != nil {
+		t.Fatal(err)
+	} else if e.Series.N == 0 {
+		t.Fatal("expected series")
+	}
+}
+
+func BenchmarkIndex_TagValueSeries(b *testing.B) {
+	b.Run("M=10,K=10,V=10", func(b *testing.B) {
+		benchmarkIndex_TagValueSeries(b, 10, 3, 4)
+	})
+}
+
+func benchmarkIndex_TagValueSeries(b *testing.B, measurementN, tagN, tagValueN int) {
+	idx := MustGenerateIndex(measurementN, tagN, tagValueN)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		if e, err := idx.TagValueElem([]byte("measurement0"), []byte("key0"), []byte("value0")); err != nil {
+			b.Fatal(err)
+		} else if e.Series.N == 0 {
+			b.Fatal("expected series")
+		}
+	}
+}
+
+// GenerateIndex Generates an index from a set of series based on the count arguments.
+// Total series returned will equal measurementN * tagN * valueN.
+func GenerateIndex(measurementN, tagN, valueN int) (*tsi1.Index, error) {
+	tagValueN := pow(valueN, tagN)
+
+	iw := tsi1.NewIndexWriter()
+	for i := 0; i < measurementN; i++ {
+		name := fmt.Sprintf("measurement%d", i)
+
+		// Generate tag sets.
+		for j := 0; j < tagValueN; j++ {
+			var tags models.Tags
+			for k := 0; k < tagN; k++ {
+				key := []byte(fmt.Sprintf("key%d", k))
+				value := []byte(fmt.Sprintf("value%d", (j / pow(valueN, k) % valueN)))
+				tags = append(tags, models.Tag{Key: key, Value: value})
+			}
+			iw.Add(name, tags)
+		}
+	}
+
+	// Write index to buffer.
+	var buf bytes.Buffer
+	if _, err := iw.WriteTo(&buf); err != nil {
+		return nil, err
+	}
+
+	// Load index from buffer.
+	var idx tsi1.Index
+	if err := idx.UnmarshalBinary(buf.Bytes()); err != nil {
+		return nil, err
+	}
+	return &idx, nil
+}
+
+func MustGenerateIndex(measurementN, tagN, valueN int) *tsi1.Index {
+	idx, err := GenerateIndex(measurementN, tagN, valueN)
+	if err != nil {
+		panic(err)
+	}
+	return idx
+}
+
+func pow(x, y int) int {
+	r := 1
+	for i := 0; i < y; i++ {
+		r *= x
+	}
+	return r
 }
