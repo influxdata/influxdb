@@ -233,10 +233,10 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	}
 	c.mu.RUnlock()
 
-	for k, v := range values {
-		c.entry(k).add(v)
-	}
 	c.mu.Lock()
+	for k, v := range values {
+		c.write(k, v)
+	}
 	c.size += uint64(totalSz)
 	c.mu.Unlock()
 
