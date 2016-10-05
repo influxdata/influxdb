@@ -1125,11 +1125,71 @@ func (e *Engine) KeyCursor(key string, t int64, ascending bool) *KeyCursor {
 	return e.FileStore.KeyCursor(key, t, ascending)
 }
 
+func newFirstIterator(input influxql.Iterator, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	if opt.Ascending {
+		switch input := input.(type) {
+		case influxql.SeekFloatIterator:
+			return newFirstFloatIterator(input, opt), nil
+		case influxql.SeekIntegerIterator:
+			return newFirstIntegerIterator(input, opt), nil
+		case influxql.SeekStringIterator:
+			return newFirstStringIterator(input, opt), nil
+		case influxql.SeekBooleanIterator:
+			return newFirstBooleanIterator(input, opt), nil
+		}
+	}
+	return influxql.NewCallIterator(input, opt)
+}
+
+func newLastIterator(input influxql.Iterator, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	if !opt.Ascending {
+		switch input := input.(type) {
+		case influxql.SeekFloatIterator:
+			return newFirstFloatIterator(input, opt), nil
+		case influxql.SeekIntegerIterator:
+			return newFirstIntegerIterator(input, opt), nil
+		case influxql.SeekStringIterator:
+			return newFirstStringIterator(input, opt), nil
+		case influxql.SeekBooleanIterator:
+			return newFirstBooleanIterator(input, opt), nil
+		}
+	}
+	return influxql.NewCallIterator(input, opt)
+}
+
 func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
 	if call, ok := opt.Expr.(*influxql.Call); ok {
 		refOpt := opt
 		refOpt.Expr = call.Args[0].(*influxql.VarRef)
-		inputs, err := e.createVarRefIterator(refOpt, true)
+
+		var fn iteratorWrapFn
+		if call.Name == "first" && opt.Ascending {
+			fn = func(inputs []influxql.Iterator) ([]influxql.Iterator, error) {
+				for i, input := range inputs {
+					itr, err := newFirstIterator(input, opt)
+					if err != nil {
+						return nil, err
+					}
+					inputs[i] = itr
+				}
+				output := influxql.NewParallelMergeIterator(inputs, opt, runtime.GOMAXPROCS(0))
+				return []influxql.Iterator{output}, nil
+			}
+		} else if call.Name == "last" && !opt.Ascending {
+			fn = func(inputs []influxql.Iterator) ([]influxql.Iterator, error) {
+				for i, input := range inputs {
+					itr, err := newLastIterator(input, opt)
+					if err != nil {
+						return nil, err
+					}
+					inputs[i] = itr
+				}
+				output := influxql.NewParallelMergeIterator(inputs, opt, runtime.GOMAXPROCS(0))
+				return []influxql.Iterator{output}, nil
+			}
+		}
+
+		inputs, err := e.createIteratorGroups(refOpt, fn)
 		if err != nil {
 			return nil, err
 		} else if len(inputs) == 0 {
@@ -1195,6 +1255,54 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions, aggregate bo
 				} else {
 					itrs = append(itrs, inputs...)
 				}
+			}
+		}
+		return nil
+	}(); err != nil {
+		influxql.Iterators(itrs).Close()
+		return nil, err
+	}
+
+	return itrs, nil
+}
+
+type iteratorWrapFn func(inputs []influxql.Iterator) ([]influxql.Iterator, error)
+
+// createVarRefIterator creates an iterator for a variable reference.
+// The aggregate argument determines this is being created for an aggregate.
+// If this is an aggregate, the limit optimization is disabled temporarily. See #6661.
+func (e *Engine) createIteratorGroups(opt influxql.IteratorOptions, fn iteratorWrapFn) ([]influxql.Iterator, error) {
+	ref, _ := opt.Expr.(*influxql.VarRef)
+
+	var itrs []influxql.Iterator
+	if err := func() error {
+		mms := tsdb.Measurements(e.index.MeasurementsByName(influxql.Sources(opt.Sources).Names()))
+
+		for _, mm := range mms {
+			// Determine tagsets for this measurement based on dimensions and filters.
+			tagSets, err := mm.TagSets(opt.Dimensions, opt.Condition)
+			if err != nil {
+				return err
+			}
+
+			// Calculate tag sets and apply SLIMIT/SOFFSET.
+			tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
+
+			for _, t := range tagSets {
+				inputs, err := e.createTagSetIterators(ref, mm, t, opt)
+				if err != nil {
+					return err
+				}
+
+				if fn != nil {
+					outputs, err := fn(inputs)
+					if err != nil {
+						influxql.Iterators(inputs).Close()
+						return err
+					}
+					inputs = outputs
+				}
+				itrs = append(itrs, inputs...)
 			}
 		}
 		return nil

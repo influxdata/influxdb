@@ -29,6 +29,12 @@ type FloatIterator interface {
 	Next() (*FloatPoint, error)
 }
 
+// SeekFloatIterator represents an iterator that can seek to a point.
+type SeekFloatIterator interface {
+	FloatIterator
+	SeekTo(seek int64) error
+}
+
 // newFloatIterators converts a slice of Iterator to a slice of FloatIterator.
 // Drop and closes any iterator in itrs that is not a FloatIterator and cannot
 // be cast to a FloatIterator.
@@ -2101,6 +2107,12 @@ type IntegerIterator interface {
 	Next() (*IntegerPoint, error)
 }
 
+// SeekIntegerIterator represents an iterator that can seek to a point.
+type SeekIntegerIterator interface {
+	IntegerIterator
+	SeekTo(seek int64) error
+}
+
 // newIntegerIterators converts a slice of Iterator to a slice of IntegerIterator.
 // Drop and closes any iterator in itrs that is not a IntegerIterator and cannot
 // be cast to a IntegerIterator.
@@ -4167,6 +4179,12 @@ type StringIterator interface {
 	Next() (*StringPoint, error)
 }
 
+// SeekStringIterator represents an iterator that can seek to a point.
+type SeekStringIterator interface {
+	StringIterator
+	SeekTo(seek int64) error
+}
+
 // newStringIterators converts a slice of Iterator to a slice of StringIterator.
 // Drop and closes any iterator in itrs that is not a StringIterator and cannot
 // be cast to a StringIterator.
@@ -6231,6 +6249,12 @@ func (itr *stringReaderIterator) Next() (*StringPoint, error) {
 type BooleanIterator interface {
 	Iterator
 	Next() (*BooleanPoint, error)
+}
+
+// SeekBooleanIterator represents an iterator that can seek to a point.
+type SeekBooleanIterator interface {
+	BooleanIterator
+	SeekTo(seek int64) error
 }
 
 // newBooleanIterators converts a slice of Iterator to a slice of BooleanIterator.
