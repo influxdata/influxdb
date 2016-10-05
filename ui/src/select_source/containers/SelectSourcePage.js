@@ -61,7 +61,7 @@ export const SelectSourcePage = React.createClass({
   render() {
     const error = !!this.props.location.query.redirectPath;
     return (
-      <div className="page-wrapper" id="select-source-page">
+      <div id="select-source-page">
         <div className="container">
           <div className="row">
             <div className="col-md-8 col-md-offset-2">
