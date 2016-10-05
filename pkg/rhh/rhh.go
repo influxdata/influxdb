@@ -21,7 +21,7 @@ type HashMap struct {
 
 func NewHashMap(opt Options) *HashMap {
 	m := &HashMap{
-		capacity:   pow2(opt.Capacity),
+		capacity:   pow2(opt.Capacity), // Limited to 2^32.
 		loadFactor: opt.LoadFactor,
 	}
 	m.alloc()

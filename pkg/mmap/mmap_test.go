@@ -2,7 +2,6 @@ package mmap_test
 
 import (
 	"bytes"
-	"io"
 	"io/ioutil"
 	"testing"
 
