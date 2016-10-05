@@ -32,7 +32,13 @@ type FloatIterator interface {
 // SeekFloatIterator represents an iterator that can seek to a point.
 type SeekFloatIterator interface {
 	FloatIterator
+
+	// SeekTo advances the Iterator to the seek time.
 	SeekTo(seek int64) error
+
+	// SeekUntil advances the Iterator until the seek time so the next point
+	// returned is the point before the seek time.
+	SeekUntil(seek int64) error
 }
 
 // newFloatIterators converts a slice of Iterator to a slice of FloatIterator.
@@ -2110,7 +2116,13 @@ type IntegerIterator interface {
 // SeekIntegerIterator represents an iterator that can seek to a point.
 type SeekIntegerIterator interface {
 	IntegerIterator
+
+	// SeekTo advances the Iterator to the seek time.
 	SeekTo(seek int64) error
+
+	// SeekUntil advances the Iterator until the seek time so the next point
+	// returned is the point before the seek time.
+	SeekUntil(seek int64) error
 }
 
 // newIntegerIterators converts a slice of Iterator to a slice of IntegerIterator.
@@ -4182,7 +4194,13 @@ type StringIterator interface {
 // SeekStringIterator represents an iterator that can seek to a point.
 type SeekStringIterator interface {
 	StringIterator
+
+	// SeekTo advances the Iterator to the seek time.
 	SeekTo(seek int64) error
+
+	// SeekUntil advances the Iterator until the seek time so the next point
+	// returned is the point before the seek time.
+	SeekUntil(seek int64) error
 }
 
 // newStringIterators converts a slice of Iterator to a slice of StringIterator.
@@ -6254,7 +6272,13 @@ type BooleanIterator interface {
 // SeekBooleanIterator represents an iterator that can seek to a point.
 type SeekBooleanIterator interface {
 	BooleanIterator
+
+	// SeekTo advances the Iterator to the seek time.
 	SeekTo(seek int64) error
+
+	// SeekUntil advances the Iterator until the seek time so the next point
+	// returned is the point before the seek time.
+	SeekUntil(seek int64) error
 }
 
 // newBooleanIterators converts a slice of Iterator to a slice of BooleanIterator.

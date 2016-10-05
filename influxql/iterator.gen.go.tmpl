@@ -28,7 +28,13 @@ type {{$k.Name}}Iterator interface {
 // Seek{{$k.Name}}Iterator represents an iterator that can seek to a point.
 type Seek{{$k.Name}}Iterator interface {
 	{{$k.Name}}Iterator
+
+	// SeekTo advances the Iterator to the seek time.
 	SeekTo(seek int64) error
+
+	// SeekUntil advances the Iterator until the seek time so the next point
+	// returned is the point before the seek time.
+	SeekUntil(seek int64) error
 }
 
 // new{{$k.Name}}Iterators converts a slice of Iterator to a slice of {{$k.Name}}Iterator.
