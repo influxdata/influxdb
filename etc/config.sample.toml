@@ -49,8 +49,8 @@ reporting-disabled = false
   # These are the WAL settings for the storage engine >= 0.9.3
   wal-dir = "/var/lib/influxdb/wal"
   wal-logging-enabled = true
-  
-  # Trace logging provides more verbose output around the tsm engine. Turning 
+
+  # Trace logging provides more verbose output around the tsm engine. Turning
   # this on can provide more useful output for debugging tsm engine issues.
   # trace-logging-enabled = false
 
@@ -182,7 +182,9 @@ reporting-disabled = false
 
 [subscriber]
   enabled = true
-  http-timeout = "30s"
+  # http-timeout = "30s"
+  # write-concurrency = 40
+  # write-buffer-size = 1000
 
 
 ###
