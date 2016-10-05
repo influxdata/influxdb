@@ -255,7 +255,7 @@ func (s *Shard) Open() error {
 
 		s.logger.Printf("%s database index loaded in %s", s.path, time.Now().Sub(start))
 
-		go s.monitorSize()
+		go s.monitor()
 
 		return nil
 	}(); err != nil {
@@ -468,6 +468,29 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 // validateSeriesAndFields checks which series and fields are new and whose metadata should be saved and indexed
 func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, error) {
 	var fieldsToCreate []*FieldCreate
+
+	if s.options.Config.MaxValuesPerTag > 0 {
+		for _, p := range points {
+			tags := p.Tags()
+			// Tag value cardinality limit
+			m := s.index.Measurement(p.Name())
+			// Measurement doesn't exist yet, can't check the limit
+			if m != nil {
+				for _, tag := range tags {
+					// If the tag value already exists, skip the limit check
+					if m.HasTagKeyValue(tag.Key, tag.Value) {
+						continue
+					}
+
+					n := m.Cardinality(tag.Key)
+					if n >= s.options.Config.MaxValuesPerTag {
+						return nil, fmt.Errorf("max values per tag exceeded: %s, %v=%v: %d, limit %d",
+							m.Name, string(tag.Key), string(tag.Value), n, s.options.Config.MaxValuesPerTag)
+					}
+				}
+			}
+		}
+	}
 
 	// get the shard mutex for locally defined fields
 	for _, p := range points {
@@ -756,9 +779,11 @@ func (s *Shard) CreateSnapshot() (string, error) {
 	return s.engine.CreateSnapshot()
 }
 
-func (s *Shard) monitorSize() {
+func (s *Shard) monitor() {
 	t := time.NewTicker(monitorStatInterval)
 	defer t.Stop()
+	t2 := time.NewTicker(time.Minute)
+	defer t2.Stop()
 	for {
 		select {
 		case <-s.closing:
@@ -770,6 +795,26 @@ func (s *Shard) monitorSize() {
 				continue
 			}
 			atomic.StoreInt64(&s.stats.DiskBytes, size)
+		case <-t2.C:
+			if s.options.Config.MaxValuesPerTag == 0 {
+				continue
+			}
+
+			for _, m := range s.index.Measurements() {
+				for _, k := range m.TagKeysBytes() {
+					n := m.Cardinality(k)
+					perc := int(float64(n) / float64(s.options.Config.MaxValuesPerTag) * 100)
+					if perc > 100 {
+						perc = 100
+					}
+
+					// Log at 80, 85, 90-100% levels
+					if perc == 80 || perc == 85 || perc >= 90 {
+						s.logger.Printf("WARN: %d%% of tag values limit reached: (%d/%d), db=%s measurement=%s tag=%s",
+							perc, n, s.options.Config.MaxValuesPerTag, s.database, m.Name, k)
+					}
+				}
+			}
 		}
 	}
 }

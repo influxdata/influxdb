@@ -2,6 +2,10 @@
 
 ### Release Notes
 
+### Breaking changes
+
+* `max-values-per-tag` was added with a default of 100,000, but can be disabled by setting it to `0`.  Existing measurements with tags that exceed this limit will continue to load, but writes that would cause the tags cardinality to increase will return an error.  This limit can be used to prevent high cardinality tag values from being written to a measurement.
+
 ### Features
 
 - [#7415](https://github.com/influxdata/influxdb/pull/7415): Add sample function to query language.
@@ -18,6 +22,7 @@
 - [#7115](https://github.com/influxdata/influxdb/issues/7115): Feature request: `influx inspect -export` should dump WAL files.
 - [#7388](https://github.com/influxdata/influxdb/pull/7388): Implement cumulative_sum() function.
 - [#7441](https://github.com/influxdata/influxdb/pull/7441): Speed up shutdown by closing shards concurrently.
+- [#7146](https://github.com/influxdata/influxdb/issues/7146): Add max-values-per-tag to limit high tag cardinality data
 
 ### Bugfixes
 

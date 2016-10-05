@@ -149,6 +149,9 @@ type point struct {
 	// cached version of parsed name from key
 	cachedName string
 
+	// cached version of parsed tags
+	cachedTags Tags
+
 	it fieldIterator
 }
 
@@ -1279,7 +1282,11 @@ func (p *point) Round(d time.Duration) {
 
 // Tags returns the tag set for the point
 func (p *point) Tags() Tags {
-	return parseTags(p.key)
+	if p.cachedTags != nil {
+		return p.cachedTags
+	}
+	p.cachedTags = parseTags(p.key)
+	return p.cachedTags
 }
 
 func parseTags(buf []byte) Tags {
@@ -1332,6 +1339,7 @@ func MakeKey(name []byte, tags Tags) []byte {
 // SetTags replaces the tags for the point
 func (p *point) SetTags(tags Tags) {
 	p.key = MakeKey([]byte(p.Name()), tags)
+	p.cachedTags = tags
 }
 
 // AddTag adds or replaces a tag value for a point
@@ -1339,6 +1347,7 @@ func (p *point) AddTag(key, value string) {
 	tags := p.Tags()
 	tags = append(tags, Tag{Key: []byte(key), Value: []byte(value)})
 	sort.Sort(tags)
+	p.cachedTags = tags
 	p.key = MakeKey([]byte(p.Name()), tags)
 }
 
