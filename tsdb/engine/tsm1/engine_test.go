@@ -43,7 +43,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	}
 
 	// Verify index is correct.
-	m, err := index.Measurement("cpu")
+	m, err := index.Measurement([]byte("cpu"))
 	if err != nil {
 		t.Fatal(err)
 	} else if m == nil {
@@ -69,7 +69,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	}
 
 	// Verify index is correct.
-	if m, err = index.Measurement("cpu"); err != nil {
+	if m, err = index.Measurement([]byte("cpu")); err != nil {
 		t.Fatal(err)
 	} else if m == nil {
 		t.Fatal("measurement not found")
@@ -96,7 +96,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	}
 
 	// Verify index is correct.
-	if m, err = index.Measurement("cpu"); err != nil {
+	if m, err = index.Measurement([]byte("cpu")); err != nil {
 		t.Fatal(err)
 	} else if m == nil {
 		t.Fatal("measurement not found")
@@ -120,7 +120,7 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 	}
 
 	// Remove series.
-	if err := e.DeleteSeriesRange([]string{"cpu,host=A"}, math.MinInt64, math.MaxInt64); err != nil {
+	if err := e.DeleteSeriesRange([][]byte{[]byte("cpu,host=A")}, math.MinInt64, math.MaxInt64); err != nil {
 		t.Fatalf("failed to delete series: %s", err.Error())
 	}
 
@@ -230,13 +230,7 @@ func TestEngine_CreateIterator_Cache_Ascending(t *testing.T) {
 
 	e.CreateMeasurement("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-<<<<<<< HEAD
-	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
-	si.AssignShard(1)
-
-=======
-	e.CreateSeries("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
->>>>>>> 9baa584... Refactor
+	e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A value=1.2 2000000000`,
@@ -289,13 +283,7 @@ func TestEngine_CreateIterator_Cache_Descending(t *testing.T) {
 
 	e.CreateMeasurement("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-<<<<<<< HEAD
-	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
-	si.AssignShard(1)
-
-=======
-	e.CreateSeries("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
->>>>>>> 9baa584... Refactor
+	e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A value=1.2 2000000000`,
@@ -348,13 +336,7 @@ func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 
 	e.CreateMeasurement("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-<<<<<<< HEAD
-	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
-	si.AssignShard(1)
-
-=======
-	e.CreateSeries("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
->>>>>>> 9baa584... Refactor
+	e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A value=1.2 2000000000`,
@@ -408,13 +390,7 @@ func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 
 	e.CreateMeasurement("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-<<<<<<< HEAD
-	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
-	si.AssignShard(1)
-
-=======
-	e.CreateSeries("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
->>>>>>> 9baa584... Refactor
+	e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A value=1.2 2000000000`,
@@ -469,13 +445,7 @@ func TestEngine_CreateIterator_Aux(t *testing.T) {
 	e.CreateMeasurement("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("F", influxql.Float, false)
-<<<<<<< HEAD
-	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
-	si.AssignShard(1)
-
-=======
-	e.CreateSeries("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
->>>>>>> 9baa584... Refactor
+	e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A F=100 1000000000`,
@@ -536,13 +506,7 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("X", influxql.Float, false)
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("Y", influxql.Float, false)
-<<<<<<< HEAD
-	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
-	si.AssignShard(1)
-
-=======
-	e.CreateSeries("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
->>>>>>> 9baa584... Refactor
+	e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A X=10 1000000000`,
@@ -627,7 +591,7 @@ func TestEngine_DeleteSeries(t *testing.T) {
 		t.Fatalf("series count mismatch: exp %v, got %v", exp, got)
 	}
 
-	if err := e.DeleteSeriesRange([]string{"cpu,host=A"}, math.MinInt64, math.MaxInt64); err != nil {
+	if err := e.DeleteSeriesRange([][]byte{[]byte("cpu,host=A")}, math.MinInt64, math.MaxInt64); err != nil {
 		t.Fatalf("failed to delete series: %v", err)
 	}
 
@@ -809,7 +773,7 @@ func MustInitBenchmarkEngine(pointN int) *Engine {
 	// Initialize metadata.
 	e.CreateMeasurement("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-	e.CreateSeries("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
+	e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
 
 	// Generate time ascending points with jitterred time & value.
 	rand := rand.New(rand.NewSource(0))
@@ -911,7 +875,7 @@ func (e *Engine) MustWriteSnapshot() {
 // MustMeasurement calls Measurement on the underlying tsdb.Engine, and panics
 // if it returns an error.
 func (e *Engine) MustMeasurement(name string) *tsdb.Measurement {
-	m, err := e.Engine.Measurement(name)
+	m, err := e.Engine.Measurement([]byte(name))
 	if err != nil {
 		panic(err)
 	}

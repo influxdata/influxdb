@@ -122,7 +122,7 @@ func TestMeasurement_AppendSeriesKeysByID_Exists(t *testing.T) {
 func BenchmarkMeasurement_SeriesIDForExp_EQRegex(b *testing.B) {
 	m := tsdb.NewMeasurement("cpu")
 	for i := 0; i < 100000; i++ {
-		s := tsdb.NewSeries("cpu", models.Tags{models.Tag{
+		s := tsdb.NewSeries([]byte("cpu"), models.Tags{models.Tag{
 			Key:   []byte("host"),
 			Value: []byte(fmt.Sprintf("host%d", i))}})
 		s.ID = uint64(i)
@@ -153,7 +153,7 @@ func BenchmarkMeasurement_SeriesIDForExp_EQRegex(b *testing.B) {
 func BenchmarkMeasurement_SeriesIDForExp_NERegex(b *testing.B) {
 	m := tsdb.NewMeasurement("cpu")
 	for i := 0; i < 100000; i++ {
-		s := tsdb.NewSeries("cpu", models.Tags{models.Tag{
+		s := tsdb.NewSeries([]byte("cpu"), models.Tags{models.Tag{
 			Key:   []byte("host"),
 			Value: []byte(fmt.Sprintf("host%d", i))}})
 		s.ID = uint64(i)
@@ -279,7 +279,7 @@ func genTestSeries(mCnt, tCnt, vCnt int) []*TestSeries {
 		for _, ts := range tagSets {
 			series = append(series, &TestSeries{
 				Measurement: m,
-				Series:      tsdb.NewSeries(fmt.Sprintf("%s:%s", m, string(tsdb.MarshalTags(ts))), models.NewTags(ts)),
+				Series:      tsdb.NewSeries([]byte(fmt.Sprintf("%s:%s", m, string(tsdb.MarshalTags(ts)))), models.NewTags(ts)),
 			})
 		}
 	}
