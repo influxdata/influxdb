@@ -12,9 +12,9 @@ import (
 func TestMeasurementBlockWriter(t *testing.T) {
 	// Write 3 measurements to writer.
 	mw := tsi1.NewMeasurementBlockWriter()
-	mw.Add([]byte("foo"), 100, []uint32{1, 3, 4})
-	mw.Add([]byte("bar"), 200, []uint32{2})
-	mw.Add([]byte("baz"), 300, []uint32{5, 6})
+	mw.Add([]byte("foo"), 100, 10, []uint32{1, 3, 4})
+	mw.Add([]byte("bar"), 200, 20, []uint32{2})
+	mw.Add([]byte("baz"), 300, 30, []uint32{5, 6})
 
 	// Encode into buffer.
 	var buf bytes.Buffer
@@ -33,24 +33,24 @@ func TestMeasurementBlockWriter(t *testing.T) {
 	// Verify data in block.
 	if e, ok := blk.Elem([]byte("foo")); !ok {
 		t.Fatal("expected element")
-	} else if e.Offset != 100 {
-		t.Fatalf("unexpected offset: %v", e.Offset)
+	} else if e.TagSet.Offset != 100 || e.TagSet.Size != 10 {
+		t.Fatalf("unexpected offset/size: %v/%v", e.TagSet.Offset, e.TagSet.Size)
 	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint32{1, 3, 4}) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}
 
 	if e, ok := blk.Elem([]byte("bar")); !ok {
 		t.Fatal("expected element")
-	} else if e.Offset != 200 {
-		t.Fatalf("unexpected offset: %v", e.Offset)
+	} else if e.TagSet.Offset != 200 || e.TagSet.Size != 20 {
+		t.Fatalf("unexpected offset/size: %v/%v", e.TagSet.Offset, e.TagSet.Size)
 	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint32{2}) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}
 
 	if e, ok := blk.Elem([]byte("baz")); !ok {
 		t.Fatal("expected element")
-	} else if e.Offset != 300 {
-		t.Fatalf("unexpected offset: %v", e.Offset)
+	} else if e.TagSet.Offset != 300 || e.TagSet.Size != 30 {
+		t.Fatalf("unexpected offset/size: %v/%v", e.TagSet.Offset, e.TagSet.Size)
 	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint32{5, 6}) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}

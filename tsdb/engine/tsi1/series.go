@@ -385,7 +385,10 @@ func (sw *SeriesListWriter) Offset(name string, tags models.Tags) uint32 {
 	// Find position of series.
 	i := sort.Search(len(sw.series), func(i int) bool {
 		s := &sw.series[i]
-		return s.name >= name && models.CompareTags(s.tags, tags) != -1
+		if s.name != name {
+			return s.name >= name
+		}
+		return models.CompareTags(s.tags, tags) != -1
 	})
 
 	// Ignore if it's not an exact match.
@@ -446,7 +449,7 @@ func (a series) Len() int      { return len(a) }
 func (a series) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a series) Less(i, j int) bool {
 	if a[i].name != a[j].name {
-		return a[i].name < a[i].name
+		return a[i].name < a[j].name
 	}
 	return models.CompareTags(a[i].tags, a[j].tags) == -1
 }
