@@ -53,14 +53,18 @@ func TestGenerateIndex(t *testing.T) {
 }
 
 func BenchmarkIndex_TagValueSeries(b *testing.B) {
-	b.Run("M=10,K=10,V=10", func(b *testing.B) {
-		benchmarkIndex_TagValueSeries(b, 10, 3, 4)
+	b.Run("M=1,K=2,V=3", func(b *testing.B) {
+		benchmarkIndex_TagValueSeries(b, MustFindOrGenerateIndex(1, 2, 3))
+	})
+	b.Run("M=10,K=5,V=5", func(b *testing.B) {
+		benchmarkIndex_TagValueSeries(b, MustFindOrGenerateIndex(10, 5, 5))
+	})
+	b.Run("M=10,K=7,V=5", func(b *testing.B) {
+		benchmarkIndex_TagValueSeries(b, MustFindOrGenerateIndex(10, 7, 5))
 	})
 }
 
-func benchmarkIndex_TagValueSeries(b *testing.B, measurementN, tagN, tagValueN int) {
-	idx := MustGenerateIndex(measurementN, tagN, tagValueN)
-
+func benchmarkIndex_TagValueSeries(b *testing.B, idx *tsi1.Index) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
@@ -77,6 +81,8 @@ func benchmarkIndex_TagValueSeries(b *testing.B, measurementN, tagN, tagValueN i
 // Total series returned will equal measurementN * tagN * valueN.
 func GenerateIndex(measurementN, tagN, valueN int) (*tsi1.Index, error) {
 	tagValueN := pow(valueN, tagN)
+
+	println("generating", measurementN*pow(valueN, tagN))
 
 	iw := tsi1.NewIndexWriter()
 	for i := 0; i < measurementN; i++ {
@@ -114,6 +120,32 @@ func MustGenerateIndex(measurementN, tagN, valueN int) *tsi1.Index {
 		panic(err)
 	}
 	return idx
+}
+
+var indexCache struct {
+	MeasurementN int
+	TagN         int
+	ValueN       int
+
+	Index *tsi1.Index
+}
+
+// MustFindOrGenerateIndex returns a cached index or generates one if it doesn't exist.
+func MustFindOrGenerateIndex(measurementN, tagN, valueN int) *tsi1.Index {
+	// Use cache if fields match and the index has been generated.
+	if indexCache.MeasurementN == measurementN &&
+		indexCache.TagN == tagN &&
+		indexCache.ValueN == valueN &&
+		indexCache.Index != nil {
+		return indexCache.Index
+	}
+
+	// Generate and cache.
+	indexCache.MeasurementN = measurementN
+	indexCache.TagN = tagN
+	indexCache.ValueN = valueN
+	indexCache.Index = MustGenerateIndex(measurementN, tagN, valueN)
+	return indexCache.Index
 }
 
 func pow(x, y int) int {
