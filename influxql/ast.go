@@ -892,6 +892,8 @@ const (
 	NumberFill
 	// PreviousFill means that empty aggregate windows will be filled with whatever the previous aggregate window had
 	PreviousFill
+	// LinearFill means that empty aggregate windows will be filled with whatever a linear value between non null windows
+	LinearFill
 )
 
 // SelectStatement represents a command for extracting data from the database.
@@ -1356,6 +1358,8 @@ func (s *SelectStatement) String() string {
 		_, _ = buf.WriteString(" fill(none)")
 	case NumberFill:
 		_, _ = buf.WriteString(fmt.Sprintf(" fill(%v)", s.FillValue))
+	case LinearFill:
+		_, _ = buf.WriteString(" fill(linear)")
 	case PreviousFill:
 		_, _ = buf.WriteString(" fill(previous)")
 	}

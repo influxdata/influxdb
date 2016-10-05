@@ -1133,6 +1133,119 @@ func TestSelect_Fill_Previous_Float(t *testing.T) {
 	}
 }
 
+// Ensure a SELECT query with a fill(linear) statement can be executed.
+func TestSelect_Fill_Linear_Float_One(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return influxql.NewCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 32 * Second, Value: 4},
+		}}, opt)
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`), &ic, nil)
+	if err != nil {
+		t.Fatal(err)
+	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]influxql.Point{
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 3}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 4, Aggregated: 1}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Nil: true}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Nil: true}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+func TestSelect_Fill_Linear_Float_Many(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return influxql.NewCallIterator(&FloatIterator{Points: []influxql.FloatPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 2},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 62 * Second, Value: 7},
+		}}, opt)
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT mean(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`), &ic, nil)
+	if err != nil {
+		t.Fatal(err)
+	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]influxql.Point{
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 2, Aggregated: 1}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 3}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 4}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Value: 5}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Value: 6}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 60 * Second, Value: 7, Aggregated: 1}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+// Ensure a SELECT query with a fill(linear) statement can be executed for integers.
+func TestSelect_Fill_Linear_Integer_One(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return influxql.NewCallIterator(&IntegerIterator{Points: []influxql.IntegerPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 1},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 32 * Second, Value: 4},
+		}}, opt)
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT max(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:00Z' GROUP BY host, time(10s) fill(linear)`), &ic, nil)
+	if err != nil {
+		t.Fatal(err)
+	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]influxql.Point{
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 1, Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 2}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 4, Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Nil: true}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Nil: true}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+func TestSelect_Fill_Linear_Integer_Many(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return influxql.NewCallIterator(&IntegerIterator{Points: []influxql.IntegerPoint{
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 12 * Second, Value: 1},
+			{Name: "cpu", Tags: ParseTags("host=A"), Time: 72 * Second, Value: 10},
+		}}, opt)
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT max(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:01:20Z' GROUP BY host, time(10s) fill(linear)`), &ic, nil)
+	if err != nil {
+		t.Fatal(err)
+	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]influxql.Point{
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Nil: true}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: 1, Aggregated: 1}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 20 * Second, Value: 2}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: 4}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 40 * Second, Value: 5}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 50 * Second, Value: 7}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 60 * Second, Value: 8}},
+		{&influxql.IntegerPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 70 * Second, Value: 10, Aggregated: 1}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
 // Ensure a SELECT stddev() query can be executed.
 func TestSelect_Stddev_Float(t *testing.T) {
 	var ic IteratorCreator
