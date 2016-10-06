@@ -49,22 +49,34 @@ export const HostPage = React.createClass({
     ];
 
     return (
-      <div className="container-fluid">
-        <div className="row">
-          {
-          queries.map((query) => {
-            const q = Object.assign({}, query, {host: source});
-            return (
-              <div className="col-md-4 graph-panel__graph-container" key={q.name}>
-                <h2>{q.name}</h2>
-                <RefreshingLineGraph
-                  queries={[q]}
-                  autoRefresh={autoRefreshMs}
-                />
-              </div>
-            );
-          })
-        }
+      <div className="host">
+        <div className="enterprise-header">
+          <div className="enterprise-header__container">
+            <div className="enterprise-header__left">
+              <h1>
+                Host - {this.props.params.hostID}
+              </h1>
+            </div>
+          </div>
+        </div>
+
+        <div className="container-fluid">
+          <div className="row">
+            {
+              queries.map((query) => {
+                const q = Object.assign({}, query, {host: source});
+                return (
+                  <div className="col-md-4 graph-panel__graph-container" key={q.name}>
+                    <h2>{q.name}</h2>
+                    <RefreshingLineGraph
+                      queries={[q]}
+                      autoRefresh={autoRefreshMs}
+                    />
+                  </div>
+                );
+              })
+            }
+          </div>
         </div>
       </div>
     );
