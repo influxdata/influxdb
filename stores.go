@@ -99,8 +99,10 @@ type Cell struct {
 
 // Layout is a collection of Cells for visualization
 type Layout struct {
-	ID    int
-	Cells []Cell
+	ID          int
+	Application string
+	Measurement string
+	Cells       []Cell
 }
 
 // LayoutStore stores dashboards and associated Cells

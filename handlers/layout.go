@@ -32,7 +32,9 @@ func layoutToMrF(l *models.Layout) mrfusion.Layout {
 		}
 	}
 	return mrfusion.Layout{
-		Cells: cells,
+		Measurement: *l.Measurement,
+		Application: *l.App,
+		Cells:       cells,
 	}
 }
 
@@ -81,20 +83,44 @@ func layoutToModel(l mrfusion.Layout) *models.Layout {
 			Href: &href,
 			Rel:  &rel,
 		},
-		Cells: cells,
+		Cells:       cells,
+		Measurement: &l.Measurement,
+		App:         &l.Application,
 	}
 }
 
+func requestedLayout(filtered map[string]bool, layout mrfusion.Layout) bool {
+	// If the length of the filter is zero then all values are acceptable.
+	if len(filtered) == 0 {
+		return true
+	}
+
+	// If filter contains either measurement or application
+	return filtered[layout.Measurement] || filtered[layout.Application]
+}
+
 func (h *Store) Layouts(ctx context.Context, params op.GetLayoutsParams) middleware.Responder {
+	// Construct a filter sieve for both applications and measurements
+	filtered := map[string]bool{}
+	for _, a := range params.Apps {
+		filtered[a] = true
+	}
+
+	for _, m := range params.Measurements {
+		filtered[m] = true
+	}
+
 	mrLays, err := h.LayoutStore.All(ctx)
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: "Error loading layouts"}
 		return op.NewGetLayoutsDefault(500).WithPayload(errMsg)
 	}
 
-	lays := make([]*models.Layout, len(mrLays))
-	for i, layout := range mrLays {
-		lays[i] = layoutToModel(layout)
+	lays := []*models.Layout{}
+	for _, layout := range mrLays {
+		if requestedLayout(filtered, layout) {
+			lays = append(lays, layoutToModel(layout))
+		}
 	}
 
 	res := &models.Layouts{

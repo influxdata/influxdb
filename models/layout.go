@@ -17,6 +17,12 @@ swagger:model Layout
 */
 type Layout struct {
 
+	/* App is the user facing name of this Layout
+
+	Required: true
+	*/
+	App *string `json:"app"`
+
 	/* Cells are the individual visualization elements.
 
 	Required: true
@@ -26,11 +32,22 @@ type Layout struct {
 	/* link
 	 */
 	Link *Link `json:"link,omitempty"`
+
+	/* Measurement is the descriptive name of the time series data.
+
+	Required: true
+	*/
+	Measurement *string `json:"measurement"`
 }
 
 // Validate validates this layout
 func (m *Layout) Validate(formats strfmt.Registry) error {
 	var res []error
+
+	if err := m.validateApp(formats); err != nil {
+		// prop
+		res = append(res, err)
+	}
 
 	if err := m.validateCells(formats); err != nil {
 		// prop
@@ -42,9 +59,23 @@ func (m *Layout) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
+	if err := m.validateMeasurement(formats); err != nil {
+		// prop
+		res = append(res, err)
+	}
+
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+func (m *Layout) validateApp(formats strfmt.Registry) error {
+
+	if err := validate.Required("app", "body", m.App); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -83,6 +114,15 @@ func (m *Layout) validateLink(formats strfmt.Registry) error {
 		if err := m.Link.Validate(formats); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (m *Layout) validateMeasurement(formats strfmt.Registry) error {
+
+	if err := validate.Required("measurement", "body", m.Measurement); err != nil {
+		return err
 	}
 
 	return nil

@@ -119,8 +119,10 @@ func MarshalLayout(l mrfusion.Layout) ([]byte, error) {
 		}
 	}
 	return proto.Marshal(&Layout{
-		ID:    int64(l.ID),
-		Cells: cells,
+		ID:          int64(l.ID),
+		Measurement: l.Measurement,
+		Application: l.Application,
+		Cells:       cells,
 	})
 }
 
@@ -132,6 +134,8 @@ func UnmarshalLayout(data []byte, l *mrfusion.Layout) error {
 	}
 
 	l.ID = int(pb.ID)
+	l.Measurement = pb.Measurement
+	l.Application = pb.Application
 	cells := make([]mrfusion.Cell, len(pb.Cells))
 	for i, c := range pb.Cells {
 		queries := make([]mrfusion.Query, len(c.Queries))

@@ -886,9 +886,17 @@ paths:
         get:
             summary: Pre-configured layouts
             parameters:
-                - name: ids
+                - name: measurements
                   in: query
-                  description: IDs for all layouts to return
+                  description: Returns layouts with this measurement
+                  required: false
+                  type: array
+                  items:
+                      type: string
+                  collectionFormat: csv
+                - name: apps
+                  in: query
+                  description: Returns layouts with this app
                   required: false
                   type: array
                   items:
@@ -1255,7 +1263,15 @@ definitions:
         type: object
         required:
             - cells
+            - app
+            - measurement
         properties:
+            app:
+                type: string
+                description: App is the user facing name of this Layout
+            measurement:
+                type: string
+                description: Measurement is the descriptive name of the time series data.
             cells:
                 type: array
                 description: Cells are the individual visualization elements.

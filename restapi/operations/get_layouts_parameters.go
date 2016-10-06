@@ -30,11 +30,16 @@ type GetLayoutsParams struct {
 	// HTTP Request Object
 	HTTPRequest *http.Request
 
-	/*IDs for all layouts to return
+	/*Returns layouts with this app
 	  In: query
 	  Collection Format: csv
 	*/
-	Ids []string
+	Apps []string
+	/*Returns layouts with this measurement
+	  In: query
+	  Collection Format: csv
+	*/
+	Measurements []string
 }
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
@@ -45,8 +50,13 @@ func (o *GetLayoutsParams) BindRequest(r *http.Request, route *middleware.Matche
 
 	qs := runtime.Values(r.URL.Query())
 
-	qIds, qhkIds, _ := qs.GetOK("ids")
-	if err := o.bindIds(qIds, qhkIds, route.Formats); err != nil {
+	qApps, qhkApps, _ := qs.GetOK("apps")
+	if err := o.bindApps(qApps, qhkApps, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
+	qMeasurements, qhkMeasurements, _ := qs.GetOK("measurements")
+	if err := o.bindMeasurements(qMeasurements, qhkMeasurements, route.Formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -56,14 +66,14 @@ func (o *GetLayoutsParams) BindRequest(r *http.Request, route *middleware.Matche
 	return nil
 }
 
-func (o *GetLayoutsParams) bindIds(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *GetLayoutsParams) bindApps(rawData []string, hasKey bool, formats strfmt.Registry) error {
 
-	var qvIds string
+	var qvApps string
 	if len(rawData) > 0 {
-		qvIds = rawData[len(rawData)-1]
+		qvApps = rawData[len(rawData)-1]
 	}
 
-	raw := swag.SplitByFormat(qvIds, "csv")
+	raw := swag.SplitByFormat(qvApps, "csv")
 	size := len(raw)
 
 	if size == 0 {
@@ -73,7 +83,7 @@ func (o *GetLayoutsParams) bindIds(rawData []string, hasKey bool, formats strfmt
 	ic := raw
 	isz := size
 	var ir []string
-	iValidateElement := func(i int, idsI string) *errors.Validation {
+	iValidateElement := func(i int, appsI string) *errors.Validation {
 
 		return nil
 	}
@@ -86,7 +96,42 @@ func (o *GetLayoutsParams) bindIds(rawData []string, hasKey bool, formats strfmt
 		ir = append(ir, ic[i])
 	}
 
-	o.Ids = ir
+	o.Apps = ir
+
+	return nil
+}
+
+func (o *GetLayoutsParams) bindMeasurements(rawData []string, hasKey bool, formats strfmt.Registry) error {
+
+	var qvMeasurements string
+	if len(rawData) > 0 {
+		qvMeasurements = rawData[len(rawData)-1]
+	}
+
+	raw := swag.SplitByFormat(qvMeasurements, "csv")
+	size := len(raw)
+
+	if size == 0 {
+		return nil
+	}
+
+	ic := raw
+	isz := size
+	var ir []string
+	iValidateElement := func(i int, measurementsI string) *errors.Validation {
+
+		return nil
+	}
+
+	for i := 0; i < isz; i++ {
+
+		if err := iValidateElement(i, ic[i]); err != nil {
+			return err
+		}
+		ir = append(ir, ic[i])
+	}
+
+	o.Measurements = ir
 
 	return nil
 }

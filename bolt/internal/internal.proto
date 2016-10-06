@@ -31,8 +31,10 @@ message Server {
 }
 
 message Layout {
-    int64 ID                = 1; // ID is the unique ID of the layout
-    repeated Cell Cells     = 2; // Cells are the individual visualization elements.
+    int64 ID                = 1; // ID is the unique ID of the layout.
+    string Application      = 2; // Application is the user facing name of this Layout.
+    string Measurement      = 3; // Measurement is the descriptive name of the time series data.
+    repeated Cell Cells     = 4; // Cells are the individual visualization elements.
 }
 
 message Cell {
