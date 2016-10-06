@@ -150,6 +150,10 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 	// do it again to verify input.
 	rpi.ShardGroupDuration = normalisedShardDuration(rpi.ShardGroupDuration, rpi.Duration)
 
+	if rpi.Duration > 0 && rpi.Duration < rpi.ShardGroupDuration {
+		return ErrIncompatibleDurations
+	}
+
 	// Find database.
 	di := data.Database(database)
 	if di == nil {
@@ -231,6 +235,15 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 		return ErrRetentionPolicyDurationTooLow
 	}
 
+	// Enforce duration is at least the shard duration
+	if (rpu.Duration != nil && *rpu.Duration > 0 &&
+		((rpu.ShardGroupDuration != nil && *rpu.Duration < *rpu.ShardGroupDuration) ||
+			(rpu.ShardGroupDuration == nil && *rpu.Duration < rpi.ShardGroupDuration))) ||
+		(rpu.Duration == nil && rpi.Duration > 0 &&
+			rpu.ShardGroupDuration != nil && rpi.Duration < *rpu.ShardGroupDuration) {
+		return ErrIncompatibleDurations
+	}
+
 	// Update fields.
 	if rpu.Name != nil {
 		rpi.Name = *rpu.Name
@@ -241,11 +254,8 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 	if rpu.ReplicaN != nil {
 		rpi.ReplicaN = *rpu.ReplicaN
 	}
-
 	if rpu.ShardGroupDuration != nil {
-		rpi.ShardGroupDuration = *rpu.ShardGroupDuration
-	} else {
-		rpi.ShardGroupDuration = shardGroupDuration(rpi.Duration)
+		rpi.ShardGroupDuration = normalisedShardDuration(*rpu.ShardGroupDuration, rpi.Duration)
 	}
 
 	return nil

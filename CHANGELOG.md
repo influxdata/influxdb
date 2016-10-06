@@ -32,11 +32,15 @@
 - [#7382](https://github.com/influxdata/influxdb/issues/7382): Shard stats include wal path tag so disk bytes make more sense.
 - [#7385](https://github.com/influxdata/influxdb/pull/7385): Reduce query planning allocations
 
-## v1.0.2 [unreleased]
+## v1.0.2 [2016-10-05]
 
 ### Bugfixes
 
+- [#7150](https://github.com/influxdata/influxdb/issues/7150): Do not automatically reset the shard duration when using ALTER RETENTION POLICY
+- [#5878](https://github.com/influxdata/influxdb/issues/5878): Ensure correct shard groups created when retention policy has been altered.
 - [#7391](https://github.com/influxdata/influxdb/issues/7391): Fix RLE integer decoding producing negative numbers
+- [#7335](https://github.com/influxdata/influxdb/pull/7335): Avoid stat syscall when planning compactions
+- [#7330](https://github.com/influxdata/influxdb/issues/7330): Subscription data loss under high write load
 
 ## v1.0.1 [2016-09-26]
 

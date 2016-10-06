@@ -42,6 +42,8 @@ http-timeout = "60s"
 enabled = true
 ca-certs = '%s'
 insecure-skip-verify = true
+write-buffer-size = 1000
+write-concurrency = 10
 `, abspath), &c); err != nil {
 		t.Fatal(err)
 	}
@@ -87,6 +89,8 @@ http-timeout = "60s"
 enabled = true
 ca-certs = '%s'
 insecure-skip-verify = false
+write-buffer-size = 1000
+write-concurrency = 10
 `, tmpfile.Name()), &c); err != nil {
 		t.Fatal(err)
 	}
