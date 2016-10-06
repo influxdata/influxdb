@@ -84,7 +84,7 @@ func TestMetaClient_CreateDatabaseWithRetentionPolicy(t *testing.T) {
 		Name:               "rp0",
 		Duration:           &duration,
 		ReplicaN:           &replicaN,
-		ShardGroupDuration: 2 * time.Hour,
+		ShardGroupDuration: 30 * time.Minute,
 	}
 	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &spec); err != nil {
 		t.Fatal(err)
@@ -104,7 +104,7 @@ func TestMetaClient_CreateDatabaseWithRetentionPolicy(t *testing.T) {
 		t.Fatalf("rp duration wrong: %v", rp.Duration)
 	} else if rp.ReplicaN != 1 {
 		t.Fatalf("rp replication wrong: %d", rp.ReplicaN)
-	} else if rp.ShardGroupDuration != 2*time.Hour {
+	} else if rp.ShardGroupDuration != 30*time.Minute {
 		t.Fatalf("rp shard duration wrong: %v", rp.ShardGroupDuration)
 	}
 
@@ -306,7 +306,7 @@ func TestMetaClient_CreateRetentionPolicy(t *testing.T) {
 	// Creating the same policy, but with a different shard group
 	// duration should also result in an error.
 	rp1 = rp0
-	rp1.ShardGroupDuration = 2 * rp0.ShardGroupDuration
+	rp1.ShardGroupDuration = rp0.ShardGroupDuration / 2
 
 	_, got = c.CreateRetentionPolicy("db0", &meta.RetentionPolicySpec{
 		Name:               rp1.Name,
@@ -315,6 +315,22 @@ func TestMetaClient_CreateRetentionPolicy(t *testing.T) {
 		ShardGroupDuration: rp1.ShardGroupDuration,
 	})
 	if exp := meta.ErrRetentionPolicyExists; got != exp {
+		t.Fatalf("got error %v, expected error %v", got, exp)
+	}
+
+	// Creating a policy with the shard duration being greater than the
+	// duration should also be an error.
+	rp1 = rp0
+	rp1.Duration = 1 * time.Hour
+	rp1.ShardGroupDuration = 2 * time.Hour
+
+	_, got = c.CreateRetentionPolicy("db0", &meta.RetentionPolicySpec{
+		Name:               rp1.Name,
+		ReplicaN:           &rp1.ReplicaN,
+		Duration:           &rp1.Duration,
+		ShardGroupDuration: rp1.ShardGroupDuration,
+	})
+	if exp := meta.ErrIncompatibleDurations; got != exp {
 		t.Fatalf("got error %v, expected error %v", got, exp)
 	}
 }
@@ -357,6 +373,87 @@ func TestMetaClient_SetDefaultRetentionPolicy(t *testing.T) {
 	// Make sure default retention policy is now rp0
 	if exp, got := "rp0", db.DefaultRetentionPolicy; exp != got {
 		t.Fatalf("rp name wrong: \n\texp: %s\n\tgot: %s", exp, db.DefaultRetentionPolicy)
+	}
+}
+
+func TestMetaClient_UpdateRetentionPolicy(t *testing.T) {
+	t.Parallel()
+
+	d, c := newClient()
+	defer os.RemoveAll(d)
+	defer c.Close()
+
+	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &meta.RetentionPolicySpec{
+		Name:               "rp0",
+		ShardGroupDuration: 4 * time.Hour,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	rpi, err := c.RetentionPolicy("db0", "rp0")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Set the duration to another value and ensure that the shard group duration
+	// doesn't change.
+	duration := 2 * rpi.ShardGroupDuration
+	replicaN := 1
+	if err := c.UpdateRetentionPolicy("db0", "rp0", &meta.RetentionPolicyUpdate{
+		Duration: &duration,
+		ReplicaN: &replicaN,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	rpi, err = c.RetentionPolicy("db0", "rp0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exp, got := 4*time.Hour, rpi.ShardGroupDuration; exp != got {
+		t.Fatalf("shard group duration wrong: \n\texp: %s\n\tgot: %s", exp, got)
+	}
+
+	// Set the duration to below the shard group duration. This should return an error.
+	duration = rpi.ShardGroupDuration / 2
+	if err := c.UpdateRetentionPolicy("db0", "rp0", &meta.RetentionPolicyUpdate{
+		Duration: &duration,
+	}); err == nil {
+		t.Fatal("expected error")
+	} else if err != meta.ErrIncompatibleDurations {
+		t.Fatalf("expected error '%s', got '%s'", meta.ErrIncompatibleDurations, err)
+	}
+
+	// Set the shard duration longer than the overall duration. This should also return an error.
+	sgDuration := rpi.Duration * 2
+	if err := c.UpdateRetentionPolicy("db0", "rp0", &meta.RetentionPolicyUpdate{
+		ShardGroupDuration: &sgDuration,
+	}); err == nil {
+		t.Fatal("expected error")
+	} else if err != meta.ErrIncompatibleDurations {
+		t.Fatalf("expected error '%s', got '%s'", meta.ErrIncompatibleDurations, err)
+	}
+
+	// Set both values to incompatible values and ensure an error is returned.
+	duration = rpi.ShardGroupDuration
+	sgDuration = rpi.Duration
+	if err := c.UpdateRetentionPolicy("db0", "rp0", &meta.RetentionPolicyUpdate{
+		Duration:           &duration,
+		ShardGroupDuration: &sgDuration,
+	}); err == nil {
+		t.Fatal("expected error")
+	} else if err != meta.ErrIncompatibleDurations {
+		t.Fatalf("expected error '%s', got '%s'", meta.ErrIncompatibleDurations, err)
+	}
+
+	// Allow any shard duration if the duration is set to zero.
+	duration = time.Duration(0)
+	sgDuration = 168 * time.Hour
+	if err := c.UpdateRetentionPolicy("db0", "rp0", &meta.RetentionPolicyUpdate{
+		Duration:           &duration,
+		ShardGroupDuration: &sgDuration,
+	}); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

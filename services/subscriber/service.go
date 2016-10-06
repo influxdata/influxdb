@@ -24,7 +24,8 @@ const (
 )
 
 // PointsWriter is an interface for writing points to a subscription destination.
-// Only WritePoints() needs to be satisfied.
+// Only WritePoints() needs to be satisfied.  PointsWriter implementations
+// must be goroutine safe.
 type PointsWriter interface {
 	WritePoints(p *coordinator.WritePointsRequest) error
 }
@@ -287,17 +288,19 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) error {
 					return err
 				}
 				cw := chanWriter{
-					writeRequests: make(chan *coordinator.WritePointsRequest, 100),
+					writeRequests: make(chan *coordinator.WritePointsRequest, s.conf.WriteBufferSize),
 					pw:            sub,
 					pointsWritten: &s.stats.PointsWritten,
 					failures:      &s.stats.WriteFailures,
 					logger:        s.Logger,
 				}
-				wg.Add(1)
-				go func() {
-					defer wg.Done()
-					cw.Run()
-				}()
+				for i := 0; i < s.conf.WriteConcurrency; i++ {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						cw.Run()
+					}()
+				}
 				s.subs[se] = cw
 				s.Logger.Println("added new subscription for", se.db, se.rp)
 			}
