@@ -844,6 +844,33 @@ func benchmarkCallIterator(b *testing.B, opt influxql.IteratorOptions, pointN in
 	}
 }
 
+func BenchmarkSampleIterator_1k(b *testing.B)   { benchmarkSampleIterator(b, 1000) }
+func BenchmarkSampleIterator_100k(b *testing.B) { benchmarkSampleIterator(b, 100000) }
+func BenchmarkSampleIterator_1M(b *testing.B)   { benchmarkSampleIterator(b, 1000000) }
+
+func benchmarkSampleIterator(b *testing.B, pointN int) {
+	b.ReportAllocs()
+
+	// Create a lightweight point generator.
+	p := influxql.FloatPoint{Name: "cpu"}
+	input := FloatPointGenerator{
+		N: pointN,
+		Fn: func(i int) *influxql.FloatPoint {
+			p.Value = float64(i)
+			return &p
+		},
+	}
+
+	for i := 0; i < b.N; i++ {
+		// Execute call against input.
+		itr, err := influxql.NewSampleIterator(&input, influxql.IteratorOptions{}, 100)
+		if err != nil {
+			b.Fatal(err)
+		}
+		influxql.DrainIterator(itr)
+	}
+}
+
 func BenchmarkDistinctIterator_1K(b *testing.B)   { benchmarkDistinctIterator(b, 1000) }
 func BenchmarkDistinctIterator_100K(b *testing.B) { benchmarkDistinctIterator(b, 100000) }
 func BenchmarkDistinctIterator_1M(b *testing.B)   { benchmarkDistinctIterator(b, 1000000) }

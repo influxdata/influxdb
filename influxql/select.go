@@ -254,6 +254,14 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions, selec
 				return nil, err
 			}
 			return NewIntervalIterator(input, opt), nil
+		case "sample":
+			input, err := buildExprIterator(expr.Args[0], ic, opt, selector)
+			if err != nil {
+				return nil, err
+			}
+			size := expr.Args[1].(*IntegerLiteral)
+
+			return newSampleIterator(input, opt, int(size.Val))
 		case "holt_winters", "holt_winters_with_fit":
 			input, err := buildExprIterator(expr.Args[0], ic, opt, selector)
 			if err != nil {

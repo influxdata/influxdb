@@ -1544,7 +1544,7 @@ func (s *SelectStatement) validSelectWithAggregate() error {
 	onlySelectors := true
 	for k := range calls {
 		switch k {
-		case "top", "bottom", "max", "min", "first", "last", "percentile":
+		case "top", "bottom", "max", "min", "first", "last", "percentile", "sample":
 		default:
 			onlySelectors = false
 			break
@@ -1612,6 +1612,30 @@ func (s *SelectStatement) validPercentileAggr(expr *Call) error {
 		return nil
 	default:
 		return fmt.Errorf("expected float argument in percentile()")
+	}
+}
+
+// validPercentileAggr determines if PERCENTILE have valid arguments.
+func (s *SelectStatement) validSampleAggr(expr *Call) error {
+	if err := s.validSelectWithAggregate(); err != nil {
+		return err
+	}
+	if exp, got := 2, len(expr.Args); got != exp {
+		return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
+	}
+
+	switch expr.Args[0].(type) {
+	case *VarRef:
+		// do nothing
+	default:
+		return fmt.Errorf("expected field argument in sample()")
+	}
+
+	switch expr.Args[1].(type) {
+	case *IntegerLiteral:
+		return nil
+	default:
+		return fmt.Errorf("expected integer argument in sample()")
 	}
 }
 
@@ -1707,6 +1731,10 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 				}
 			case "percentile":
 				if err := s.validPercentileAggr(expr); err != nil {
+					return err
+				}
+			case "sample":
+				if err := s.validSampleAggr(expr); err != nil {
 					return err
 				}
 			case "holt_winters", "holt_winters_with_fit":

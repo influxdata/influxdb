@@ -170,6 +170,18 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// sample
+		{
+			s: `SELECT sample(field1, 100) FROM myseries;`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: false,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.Call{Name: "sample", Args: []influxql.Expr{&influxql.VarRef{Val: "field1"}, &influxql.IntegerLiteral{Val: 100}}}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "myseries"}},
+			},
+		},
+
 		// derivative
 		{
 			s: `SELECT derivative(field1, 1h) FROM myseries;`,

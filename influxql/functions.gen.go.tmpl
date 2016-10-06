@@ -1,6 +1,10 @@
 package influxql
 
-import "sort"
+import (
+"sort"
+"time"
+"math/rand"
+)
 
 {{with $types := .}}{{range $k := $types}}
 
@@ -164,6 +168,51 @@ func (r *{{$k.Name}}ElapsedReducer) Emit() []IntegerPoint {
 		}
 	}
 	return nil
+}
+
+// {{$k.Name}}SampleReduces implements a reservoir sampling to calculate a random subset of points
+type {{$k.Name}}SampleReducer struct {
+	count int // how many points we've iterated over
+	rng   *rand.Rand // random number generator for each reducer
+
+	points {{$k.name}}Points // the reservoir
+}
+
+// New{{$k.Name}}SampleReducer creates a new {{$k.Name}}SampleReducer
+func New{{$k.Name}}SampleReducer(size int) *{{$k.Name}}SampleReducer {
+	return &{{$k.Name}}SampleReducer{
+		rng:    rand.New(rand.NewSource(time.Now().UnixNano())), // seed with current time as suggested by https://golang.org/pkg/math/rand/
+		points: make({{$k.name}}Points, size),
+	}
+}
+
+// Aggregate{{$k.Name}} aggregates a point into the reducer.
+func (r *{{$k.Name}}SampleReducer) Aggregate{{$k.Name}}(p *{{$k.Name}}Point) {
+	r.count++
+	// Fill the reservoir with the first n points
+	if r.count-1 < len(r.points) {
+		r.points[r.count-1] = *p
+		return
+	}
+
+	// Generate a random integer between 1 and the count and
+	// if that number is less than the length of the slice
+	// replace the point at that index rnd with p.
+	rnd := rand.Intn(r.count)
+	if rnd < len(r.points) {
+		r.points[rnd] = *p
+	}
+}
+
+// Emit emits the reservoir sample as many points.
+func (r *{{$k.Name}}SampleReducer) Emit() []{{$k.Name}}Point {
+	min := len(r.points)
+	if r.count < min {
+		min = r.count
+	}
+	pts := r.points[:min]
+	sort.Sort(pts)
+	return pts
 }
 
 
