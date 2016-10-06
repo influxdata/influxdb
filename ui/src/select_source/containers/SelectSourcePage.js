@@ -15,27 +15,6 @@ export const SelectSourcePage = React.createClass({
     }).isRequired,
   },
 
-  getInitialState() {
-    return {
-      sources: [],
-      selectedSource: undefined,
-    };
-  },
-
-  componentDidMount() {
-    getSources().then(({data: {sources}}) => {
-      this.setState({
-        sources,
-      });
-    });
-  },
-
-  handleSelectSource(e) {
-    e.preventDefault();
-    const source = this.state.sources.find((s) => s.name === (this.state.selectedSource || this.sourceSelect.value));
-    this.redirectToApp(source);
-  },
-
   handleNewSource(e) {
     e.preventDefault();
     const source = {
@@ -45,21 +24,8 @@ export const SelectSourcePage = React.createClass({
       password: this.sourcePassword.value,
     };
     createSource(source).then(({data: sourceFromServer}) => {
-      this.setState({
-        sources: this.state.sources.concat(sourceFromServer),
-        selectedSource: sourceFromServer.name,
-      });
-      this.sourceURL.value = '';
-      this.sourceName.value = '';
-      this.sourceUser.value = '';
-      this.sourcePassword.value = '';
-      this.sourceSelect.focus();
-    });
-  },
-
-  handleChangeSourceSelection() {
-    this.setState({
-      selectedSource: this.sourceSelect.value,
+      localStorage.setItem('defaultSource', JSON.stringify(sourceFromServer));
+      this.redirectToApp(sourceFromServer)
     });
   },
 
@@ -74,18 +40,6 @@ export const SelectSourcePage = React.createClass({
   },
 
   render() {
-    const error = !!this.props.location.query.redirectPath;
-
-    const selectProps = {
-      className: 'form-control',
-      id: 'source',
-      ref: (r) => {
-        this.sourceSelect = r;
-      },
-      onChange: this.handleChangeSourceSelection,
-      value: this.state.selectedSource,
-    };
-
     return (
       <div id="select-source-page">
         <div className="container">
@@ -96,31 +50,7 @@ export const SelectSourcePage = React.createClass({
                   <h2 className="deluxe">Welcome to Chronograf</h2>
                 </div>
                 <div className="panel-body">
-                  <br/>
-                  <h4 className="text-center">Select an InfluxDB Server to connect to</h4>
-                  <br/>
-                  <form onSubmit={this.handleSelectSource}>
-                    <div className="form-group col-sm-8 col-sm-offset-2">
-                      {error ? <div className="alert alert-danger"><span className="icon alert-triangle"></span>Data source not found or unavailable</div> : null}
-                    </div>
-                    <div className="form-group col-xs-7 col-sm-5 col-sm-offset-2">
-                      <label htmlFor="source" className="sr-only">Detected InfluxDB Servers</label>
-                      <select {...selectProps}>
-                        {this.state.sources.map(({name}) => {
-                          return <option key={name} value={name}>{name}</option>;
-                        })}
-                      </select>
-                    </div>
-
-                    <div className="form-group col-xs-5 col-sm-3">
-                      <button className="btn btn-block btn-primary" type="submit">Connect</button>
-                    </div>
-                  </form>
-
-                  <br/>
-                  <hr/>
-                  <br/>
-                  <h4 className="text-center">Or connect to a New Server</h4>
+                  <h4 className="text-center">Connect to a New Server</h4>
                   <br/>
 
                   <form onSubmit={this.handleNewSource}>

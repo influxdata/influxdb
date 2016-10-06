@@ -104,6 +104,13 @@ const Root = React.createClass({
     };
   },
 
+  hasDefaultSource(_, replace) {
+    const defaultSource = JSON.parse(localStorage.getItem('defaultSource'));
+    if (!!defaultSource && defaultSource.id) {
+      return replace(`/sources/${defaultSource.id}/hosts`);
+    }
+  },
+
   render() {
     if (this.state.isFetching) {
       return null;
@@ -117,7 +124,7 @@ const Root = React.createClass({
       <Provider store={store}>
         <Router history={browserHistory}>
           <Route path="/signup/admin/:step" component={SignUp} />
-          <Route path="/" component={SelectSourcePage} />
+          <Route path="/" component={SelectSourcePage} onEnter={this.hasDefaultSource} />
           <Route path="/sources" component={SelectSourcePage} />
           <Route path="/sources/:sourceID" component={App}>
             <Route component={CheckDataNodes}>

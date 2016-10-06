@@ -39,12 +39,12 @@ const CheckDataNodes = React.createClass({
   },
 
   componentDidMount() {
-    getSources().then(({data: {sources}}) => {
-      const {sourceID} = this.props.params;
-      const source = sources.find((s) => s.id === sourceID);
+    const {router, location, params} = this.props;
 
-      if (!source) { // would be great to check source.status or similar here
-        const {router, location} = this.props;
+    getSources().then(({data: {sources}}) => {
+      const source = sources.find((s) => s.id === params.sourceID);
+
+      if (!source) { // would be great to check source.status or similar here, or try run a query against the source
         return router.push(`/?redirectPath=${location.pathname}`);
       }
 
