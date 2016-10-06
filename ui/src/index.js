@@ -6,7 +6,6 @@ import {Router, Route, browserHistory} from 'react-router';
 import App from 'src/App';
 import CheckDataNodes from 'src/CheckDataNodes';
 import {HostsPage, HostPage} from 'src/hosts';
-import OverviewPage from 'src/overview';
 import QueriesPage from 'src/queries';
 import TasksPage from 'src/tasks';
 import RetentionPoliciesPage from 'src/retention_policies';
@@ -122,7 +121,6 @@ const Root = React.createClass({
           <Route path="/sources" component={SelectSourcePage} />
           <Route path="/sources/:sourceID" component={App}>
             <Route component={CheckDataNodes}>
-              <Route path="overview" component={OverviewPage} />
               <Route path="queries" component={QueriesPage} />
               <Route path="accounts" component={ClusterAccountsPage} />
               <Route path="accounts/:accountID" component={ClusterAccountPage} />

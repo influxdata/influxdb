@@ -27,7 +27,6 @@ const SideNav = React.createClass({
         </NavBlock>
         <NavBlock matcher="overview" icon="crown" link={`${sourcePrefix}/overview`}>
           <NavHeader link={`${sourcePrefix}/overview`} title="Sources" />
-          <NavListItem matcher="overview" link={`${sourcePrefix}/overview`}>Overview</NavListItem>
           <NavListItem matcher="sources$" link={`/sources`}>Manage Sources</NavListItem>
           <NavListItem matcher="queries" link={`${sourcePrefix}/queries`}>Queries</NavListItem>
           <NavListItem matcher="tasks" link={`${sourcePrefix}/tasks`}>Tasks</NavListItem>
