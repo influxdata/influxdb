@@ -17,6 +17,5 @@
 // Because of some issues with sharing styles across multiple webpack bundles,
 // we have to import other scss files here instead of in their corresponding
 // components.  There's likely a better fix, but this does for now.
-@import '../_OverviewPage';
 @import '../chronograf/main';
 @import '../_SideNav';
