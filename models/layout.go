@@ -11,11 +11,11 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Dashboard dashboard
+/*Layout layout
 
-swagger:model Dashboard
+swagger:model Layout
 */
-type Dashboard struct {
+type Layout struct {
 
 	/* Cells are the individual visualization elements.
 
@@ -28,8 +28,8 @@ type Dashboard struct {
 	Link *Link `json:"link,omitempty"`
 }
 
-// Validate validates this dashboard
-func (m *Dashboard) Validate(formats strfmt.Registry) error {
+// Validate validates this layout
+func (m *Layout) Validate(formats strfmt.Registry) error {
 	var res []error
 
 	if err := m.validateCells(formats); err != nil {
@@ -48,7 +48,7 @@ func (m *Dashboard) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *Dashboard) validateCells(formats strfmt.Registry) error {
+func (m *Layout) validateCells(formats strfmt.Registry) error {
 
 	if err := validate.Required("cells", "body", m.Cells); err != nil {
 		return err
@@ -72,7 +72,7 @@ func (m *Dashboard) validateCells(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *Dashboard) validateLink(formats strfmt.Registry) error {
+func (m *Layout) validateLink(formats strfmt.Registry) error {
 
 	if swag.IsZero(m.Link) { // not required
 		return nil

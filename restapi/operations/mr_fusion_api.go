@@ -42,8 +42,8 @@ type MrFusionAPI struct {
 	// JSONProducer registers a producer for a "application/json" mime type
 	JSONProducer runtime.Producer
 
-	// DeleteDashboardsIDHandler sets the operation handler for the delete dashboards ID operation
-	DeleteDashboardsIDHandler DeleteDashboardsIDHandler
+	// DeleteLayoutsIDHandler sets the operation handler for the delete layouts ID operation
+	DeleteLayoutsIDHandler DeleteLayoutsIDHandler
 	// DeleteSourcesIDHandler sets the operation handler for the delete sources ID operation
 	DeleteSourcesIDHandler DeleteSourcesIDHandler
 	// DeleteSourcesIDKapacitorsKapaIDHandler sets the operation handler for the delete sources ID kapacitors kapa ID operation
@@ -58,10 +58,10 @@ type MrFusionAPI struct {
 	DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler
 	// GetHandler sets the operation handler for the get operation
 	GetHandler GetHandler
-	// GetDashboardsHandler sets the operation handler for the get dashboards operation
-	GetDashboardsHandler GetDashboardsHandler
-	// GetDashboardsIDHandler sets the operation handler for the get dashboards ID operation
-	GetDashboardsIDHandler GetDashboardsIDHandler
+	// GetLayoutsHandler sets the operation handler for the get layouts operation
+	GetLayoutsHandler GetLayoutsHandler
+	// GetLayoutsIDHandler sets the operation handler for the get layouts ID operation
+	GetLayoutsIDHandler GetLayoutsIDHandler
 	// GetSourcesHandler sets the operation handler for the get sources operation
 	GetSourcesHandler GetSourcesHandler
 	// GetSourcesIDHandler sets the operation handler for the get sources ID operation
@@ -100,8 +100,8 @@ type MrFusionAPI struct {
 	PatchSourcesIDUsersUserIDHandler PatchSourcesIDUsersUserIDHandler
 	// PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler sets the operation handler for the patch sources ID users user ID explorations exploration ID operation
 	PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler
-	// PostDashboardsHandler sets the operation handler for the post dashboards operation
-	PostDashboardsHandler PostDashboardsHandler
+	// PostLayoutsHandler sets the operation handler for the post layouts operation
+	PostLayoutsHandler PostLayoutsHandler
 	// PostSourcesHandler sets the operation handler for the post sources operation
 	PostSourcesHandler PostSourcesHandler
 	// PostSourcesIDKapacitorsHandler sets the operation handler for the post sources ID kapacitors operation
@@ -116,8 +116,8 @@ type MrFusionAPI struct {
 	PostSourcesIDUsersHandler PostSourcesIDUsersHandler
 	// PostSourcesIDUsersUserIDExplorationsHandler sets the operation handler for the post sources ID users user ID explorations operation
 	PostSourcesIDUsersUserIDExplorationsHandler PostSourcesIDUsersUserIDExplorationsHandler
-	// PutDashboardsIDHandler sets the operation handler for the put dashboards ID operation
-	PutDashboardsIDHandler PutDashboardsIDHandler
+	// PutLayoutsIDHandler sets the operation handler for the put layouts ID operation
+	PutLayoutsIDHandler PutLayoutsIDHandler
 
 	// ServeError is called when an error is received, there is a default handler
 	// but you can set your own with this
@@ -181,8 +181,8 @@ func (o *MrFusionAPI) Validate() error {
 		unregistered = append(unregistered, "JSONProducer")
 	}
 
-	if o.DeleteDashboardsIDHandler == nil {
-		unregistered = append(unregistered, "DeleteDashboardsIDHandler")
+	if o.DeleteLayoutsIDHandler == nil {
+		unregistered = append(unregistered, "DeleteLayoutsIDHandler")
 	}
 
 	if o.DeleteSourcesIDHandler == nil {
@@ -213,12 +213,12 @@ func (o *MrFusionAPI) Validate() error {
 		unregistered = append(unregistered, "GetHandler")
 	}
 
-	if o.GetDashboardsHandler == nil {
-		unregistered = append(unregistered, "GetDashboardsHandler")
+	if o.GetLayoutsHandler == nil {
+		unregistered = append(unregistered, "GetLayoutsHandler")
 	}
 
-	if o.GetDashboardsIDHandler == nil {
-		unregistered = append(unregistered, "GetDashboardsIDHandler")
+	if o.GetLayoutsIDHandler == nil {
+		unregistered = append(unregistered, "GetLayoutsIDHandler")
 	}
 
 	if o.GetSourcesHandler == nil {
@@ -297,8 +297,8 @@ func (o *MrFusionAPI) Validate() error {
 		unregistered = append(unregistered, "PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler")
 	}
 
-	if o.PostDashboardsHandler == nil {
-		unregistered = append(unregistered, "PostDashboardsHandler")
+	if o.PostLayoutsHandler == nil {
+		unregistered = append(unregistered, "PostLayoutsHandler")
 	}
 
 	if o.PostSourcesHandler == nil {
@@ -329,8 +329,8 @@ func (o *MrFusionAPI) Validate() error {
 		unregistered = append(unregistered, "PostSourcesIDUsersUserIDExplorationsHandler")
 	}
 
-	if o.PutDashboardsIDHandler == nil {
-		unregistered = append(unregistered, "PutDashboardsIDHandler")
+	if o.PutLayoutsIDHandler == nil {
+		unregistered = append(unregistered, "PutLayoutsIDHandler")
 	}
 
 	if len(unregistered) > 0 {
@@ -417,7 +417,7 @@ func (o *MrFusionAPI) initHandlerCache() {
 	if o.handlers["DELETE"] == nil {
 		o.handlers[strings.ToUpper("DELETE")] = make(map[string]http.Handler)
 	}
-	o.handlers["DELETE"]["/dashboards/{id}"] = NewDeleteDashboardsID(o.context, o.DeleteDashboardsIDHandler)
+	o.handlers["DELETE"]["/layouts/{id}"] = NewDeleteLayoutsID(o.context, o.DeleteLayoutsIDHandler)
 
 	if o.handlers["DELETE"] == nil {
 		o.handlers[strings.ToUpper("DELETE")] = make(map[string]http.Handler)
@@ -457,12 +457,12 @@ func (o *MrFusionAPI) initHandlerCache() {
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/dashboards"] = NewGetDashboards(o.context, o.GetDashboardsHandler)
+	o.handlers["GET"]["/layouts"] = NewGetLayouts(o.context, o.GetLayoutsHandler)
 
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/dashboards/{id}"] = NewGetDashboardsID(o.context, o.GetDashboardsIDHandler)
+	o.handlers["GET"]["/layouts/{id}"] = NewGetLayoutsID(o.context, o.GetLayoutsIDHandler)
 
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
@@ -562,7 +562,7 @@ func (o *MrFusionAPI) initHandlerCache() {
 	if o.handlers["POST"] == nil {
 		o.handlers[strings.ToUpper("POST")] = make(map[string]http.Handler)
 	}
-	o.handlers["POST"]["/dashboards"] = NewPostDashboards(o.context, o.PostDashboardsHandler)
+	o.handlers["POST"]["/layouts"] = NewPostLayouts(o.context, o.PostLayoutsHandler)
 
 	if o.handlers["POST"] == nil {
 		o.handlers[strings.ToUpper("POST")] = make(map[string]http.Handler)
@@ -602,7 +602,7 @@ func (o *MrFusionAPI) initHandlerCache() {
 	if o.handlers["PUT"] == nil {
 		o.handlers[strings.ToUpper("PUT")] = make(map[string]http.Handler)
 	}
-	o.handlers["PUT"]["/dashboards/{id}"] = NewPutDashboardsID(o.context, o.PutDashboardsIDHandler)
+	o.handlers["PUT"]["/layouts/{id}"] = NewPutLayoutsID(o.context, o.PutLayoutsIDHandler)
 
 }
 

@@ -6,6 +6,7 @@ const (
 	ErrExplorationNotFound = Error("exploration not found")
 	ErrSourceNotFound      = Error("source not found")
 	ErrServerNotFound      = Error("server not found")
+	ErrLayoutNotFound      = Error("layout not found")
 )
 
 // Error is a domain error encountered while processing mrfusion requests

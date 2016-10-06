@@ -31,10 +31,9 @@ func NewHandler() Handler {
 
 func (m *Handler) AllRoutes(ctx context.Context, params op.GetParams) middleware.Responder {
 	routes := &models.Routes{
-		Sources:    "/chronograf/v1/sources",
-		Dashboards: "/chronograf/v1/dashboards",
-		Apps:       "/chronograf/v1/apps",
-		Users:      "/chronograf/v1/users",
+		Sources: "/chronograf/v1/sources",
+		Layouts: "/chronograf/v1/layouts",
+		Users:   "/chronograf/v1/users",
 	}
 	return op.NewGetOK().WithPayload(routes)
 }
