@@ -37,8 +37,11 @@ type SeekFloatIterator interface {
 	SeekTo(seek int64) error
 
 	// SeekUntil advances the Iterator until the seek time so the next point
-	// returned is the point before the seek time.
-	SeekUntil(seek int64) error
+	// returned is the point before the seek time if it exists. Since it is
+	// possible that there are no points before the seek time, this may advance
+	// the Iterator past the seek time. If this seeks past the seek time, false
+	// is returned.
+	SeekUntil(seek int64) (ok bool, err error)
 }
 
 // newFloatIterators converts a slice of Iterator to a slice of FloatIterator.
@@ -2121,8 +2124,11 @@ type SeekIntegerIterator interface {
 	SeekTo(seek int64) error
 
 	// SeekUntil advances the Iterator until the seek time so the next point
-	// returned is the point before the seek time.
-	SeekUntil(seek int64) error
+	// returned is the point before the seek time if it exists. Since it is
+	// possible that there are no points before the seek time, this may advance
+	// the Iterator past the seek time. If this seeks past the seek time, false
+	// is returned.
+	SeekUntil(seek int64) (ok bool, err error)
 }
 
 // newIntegerIterators converts a slice of Iterator to a slice of IntegerIterator.
@@ -4199,8 +4205,11 @@ type SeekStringIterator interface {
 	SeekTo(seek int64) error
 
 	// SeekUntil advances the Iterator until the seek time so the next point
-	// returned is the point before the seek time.
-	SeekUntil(seek int64) error
+	// returned is the point before the seek time if it exists. Since it is
+	// possible that there are no points before the seek time, this may advance
+	// the Iterator past the seek time. If this seeks past the seek time, false
+	// is returned.
+	SeekUntil(seek int64) (ok bool, err error)
 }
 
 // newStringIterators converts a slice of Iterator to a slice of StringIterator.
@@ -6277,8 +6286,11 @@ type SeekBooleanIterator interface {
 	SeekTo(seek int64) error
 
 	// SeekUntil advances the Iterator until the seek time so the next point
-	// returned is the point before the seek time.
-	SeekUntil(seek int64) error
+	// returned is the point before the seek time if it exists. Since it is
+	// possible that there are no points before the seek time, this may advance
+	// the Iterator past the seek time. If this seeks past the seek time, false
+	// is returned.
+	SeekUntil(seek int64) (ok bool, err error)
 }
 
 // newBooleanIterators converts a slice of Iterator to a slice of BooleanIterator.

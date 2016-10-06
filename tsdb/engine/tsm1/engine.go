@@ -1137,6 +1137,17 @@ func newFirstIterator(input influxql.Iterator, opt influxql.IteratorOptions) (in
 		case influxql.SeekBooleanIterator:
 			return newFirstBooleanIterator(input, opt), nil
 		}
+	} else {
+		switch input := input.(type) {
+		case influxql.SeekFloatIterator:
+			return newLastFloatIterator(input, opt), nil
+		case influxql.SeekIntegerIterator:
+			return newLastIntegerIterator(input, opt), nil
+		case influxql.SeekStringIterator:
+			return newLastStringIterator(input, opt), nil
+		case influxql.SeekBooleanIterator:
+			return newLastBooleanIterator(input, opt), nil
+		}
 	}
 	return influxql.NewCallIterator(input, opt)
 }
@@ -1152,6 +1163,17 @@ func newLastIterator(input influxql.Iterator, opt influxql.IteratorOptions) (inf
 			return newFirstStringIterator(input, opt), nil
 		case influxql.SeekBooleanIterator:
 			return newFirstBooleanIterator(input, opt), nil
+		}
+	} else {
+		switch input := input.(type) {
+		case influxql.SeekFloatIterator:
+			return newLastFloatIterator(input, opt), nil
+		case influxql.SeekIntegerIterator:
+			return newLastIntegerIterator(input, opt), nil
+		case influxql.SeekStringIterator:
+			return newLastStringIterator(input, opt), nil
+		case influxql.SeekBooleanIterator:
+			return newLastBooleanIterator(input, opt), nil
 		}
 	}
 	return influxql.NewCallIterator(input, opt)

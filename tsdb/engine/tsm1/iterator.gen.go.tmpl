@@ -255,13 +255,18 @@ func (itr *{{.name}}Iterator) SeekTo(t int64) error {
 	return nil
 }
 
-func (itr *{{.name}}Iterator) SeekUntil(t int64) error {
+func (itr *{{.name}}Iterator) SeekUntil(t int64) (bool, error) {
 	cur, err := itr.bufCursor()
 	if err != nil {
-		return err
+		return false, err
 	}
-	cur.seekAt(t)
-	return nil
+	cur.seekUntil(t)
+
+	// Check if the next point is before the seek time.
+	k, v := cur.next{{.Name}}()
+	ok := (itr.opt.Ascending && k < t) || (!itr.opt.Ascending && k > t)
+	cur.unread(k, v)
+	return ok, nil
 }
 
 // Close closes the iterator.
@@ -567,10 +572,10 @@ func (c *{{.name}}DescendingCursor) nextTSM() {
 	}
 }
 
-// buf{{.Name}}Cursor
+// buf{{.Name}}Cursor provides a ring buffer to support seeking in a cursor.
 type buf{{.Name}}Cursor struct {
 	cur {{.name}}Cursor
-	buf struct {
+	buf [2]struct {
 		key    int64
 		value  {{.Type}}
 		filled bool
@@ -587,17 +592,19 @@ func (c *buf{{.Name}}Cursor) close() error { return c.cur.close() }
 func (c *buf{{.Name}}Cursor) next() (int64, interface{}) { return c.next{{.Name}}() }
 
 func (c *buf{{.Name}}Cursor) next{{.Name}}() (int64, {{.Type}}) {
-	if c.buf.filled {
-		k, v := c.buf.key, c.buf.value
-		c.buf.filled = false
+	if c.buf[0].filled {
+		k, v := c.buf[0].key, c.buf[0].value
+		c.buf[0] = c.buf[1]
+		c.buf[1].filled = false
 		return k, v
 	}
 	return c.cur.next{{.Name}}()
 }
 
 func (c *buf{{.Name}}Cursor) unread(k int64, v {{.Type}}) {
-	c.buf.key, c.buf.value = k, v
-	c.buf.filled = true
+	c.buf[1] = c.buf[0]
+	c.buf[0].key, c.buf[0].value = k, v
+	c.buf[0].filled = true
 }
 
 func (c *buf{{.Name}}Cursor) seekAt(seek int64) {
@@ -610,6 +617,25 @@ func (c *buf{{.Name}}Cursor) seekAt(seek int64) {
 		if c.ascending && k < seek {
 			continue
 		} else if !c.ascending && k > seek {
+			continue
+		}
+		c.unread(k, v)
+		return
+	}
+}
+
+func (c *buf{{.Name}}Cursor) seekUntil(seek int64) {
+	for {
+		k, v := c.next{{.Name}}()
+		if k == tsdb.EOF {
+			break
+		}
+
+		if c.ascending && k < seek {
+			c.unread(k, v)
+			continue
+		} else if !c.ascending && k > seek {
+			c.unread(k, v)
 			continue
 		}
 		c.unread(k, v)
@@ -688,6 +714,68 @@ func (itr *first{{.Name}}Iterator) Next() (*influxql.{{.Name}}Point, error) {
 	}
 	itr.point = *p
 	return p.Clone(), nil
+}
+
+// last{{.Name}}Iterator returns the first value from each window for an iterator.
+type last{{.Name}}Iterator struct {
+	input influxql.Seek{{.Name}}Iterator
+	opt   influxql.IteratorOptions
+	point influxql.{{.Name}}Point
+}
+
+func newLast{{.Name}}Iterator(input influxql.Seek{{.Name}}Iterator, opt influxql.IteratorOptions) *last{{.Name}}Iterator {
+	return &last{{.Name}}Iterator{
+		input: input,
+		opt:   opt,
+		point: influxql.{{.Name}}Point{Nil: true},
+	}
+}
+
+func (itr *last{{.Name}}Iterator) Close() error { return itr.input.Close() }
+func (itr *last{{.Name}}Iterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
+
+func (itr *last{{.Name}}Iterator) Next() (*influxql.{{.Name}}Point, error) {
+	// Seek to the next point if we have read a previous point.
+	if !itr.point.Nil {
+		// If we do not have an interval, return immediately.
+		if itr.opt.Interval.IsZero() {
+			return nil, nil
+		}
+	}
+
+	_, end := itr.opt.Window(itr.point.Time)
+	if itr.opt.Ascending {
+		// Ascending iterator needs to move to the future interval.
+		end += int64(itr.opt.Interval.Duration)
+	} else {
+		// The start time of the current interval is the end time of the past interval
+		// we need to move to. This is intentionally left empty for this comment.
+	}
+
+	for {
+		// Seek to at least the next interval's start time. This may not get us the
+		// time interval that is in start, but it will at least get us the next new
+		// time interval.
+		if ok, err := itr.input.SeekUntil(end); err != nil {
+			return nil, err
+		} else if ok {
+			break
+		}
+
+		duration := int64(itr.opt.Interval.Duration)
+		if !itr.opt.Ascending {
+			duration = -duration
+		}
+		end += duration
+	}
+
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		itr.point.Nil = true
+		return p, err
+	}
+	itr.point = *p
+	return &itr.point, nil
 }
 
 {{end}}

@@ -33,8 +33,11 @@ type Seek{{$k.Name}}Iterator interface {
 	SeekTo(seek int64) error
 
 	// SeekUntil advances the Iterator until the seek time so the next point
-	// returned is the point before the seek time.
-	SeekUntil(seek int64) error
+	// returned is the point before the seek time if it exists. Since it is
+	// possible that there are no points before the seek time, this may advance
+	// the Iterator past the seek time. If this seeks past the seek time, false
+	// is returned.
+	SeekUntil(seek int64) (ok bool, err error)
 }
 
 // new{{$k.Name}}Iterators converts a slice of Iterator to a slice of {{$k.Name}}Iterator.
