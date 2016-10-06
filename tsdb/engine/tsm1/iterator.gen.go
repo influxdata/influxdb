@@ -116,7 +116,7 @@ func (c *bufCursor) nextAt(seek int64) interface{} {
 const statsBufferCopyIntervalN = 100
 
 type floatIterator struct {
-	cur   *bufFloatCursor
+	cur   floatCursor
 	aux   []cursorAt
 	conds struct {
 		names []string
@@ -134,6 +134,7 @@ type floatIterator struct {
 
 func newFloatIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur floatCursor, aux []cursorAt, conds []cursorAt, condNames []string) *floatIterator {
 	itr := &floatIterator{
+		cur: cur,
 		aux: aux,
 		opt: opt,
 		point: influxql.FloatPoint{
@@ -143,9 +144,6 @@ func newFloatIterator(name string, tags influxql.Tags, opt influxql.IteratorOpti
 		statsBuf: influxql.IteratorStats{
 			SeriesN: 1,
 		},
-	}
-	if cur != nil {
-		itr.cur = newBufFloatCursor(cur, opt.Ascending)
 	}
 	itr.stats = itr.statsBuf
 
@@ -237,8 +235,36 @@ func (itr *floatIterator) Stats() influxql.IteratorStats {
 	return stats
 }
 
+// bufCursor returns a buffered cursor so seek operations can be performed.
+// If the current cursor isn't a buffered cursor, this wraps it in one automatically.
+func (itr *floatIterator) bufCursor() (*bufFloatCursor, error) {
+	if itr.cur == nil {
+		return nil, influxql.ErrSeekUnavailable
+	}
+
+	cur, ok := itr.cur.(*bufFloatCursor)
+	if !ok {
+		cur = newBufFloatCursor(itr.cur, itr.opt.Ascending)
+		itr.cur = cur
+	}
+	return cur, nil
+}
+
 func (itr *floatIterator) SeekTo(t int64) error {
-	itr.cur.seekAt(t)
+	cur, err := itr.bufCursor()
+	if err != nil {
+		return err
+	}
+	cur.seekAt(t)
+	return nil
+}
+
+func (itr *floatIterator) SeekUntil(t int64) error {
+	cur, err := itr.bufCursor()
+	if err != nil {
+		return err
+	}
+	cur.seekAt(t)
 	return nil
 }
 
@@ -668,7 +694,7 @@ func (itr *firstFloatIterator) Next() (*influxql.FloatPoint, error) {
 }
 
 type integerIterator struct {
-	cur   *bufIntegerCursor
+	cur   integerCursor
 	aux   []cursorAt
 	conds struct {
 		names []string
@@ -686,6 +712,7 @@ type integerIterator struct {
 
 func newIntegerIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur integerCursor, aux []cursorAt, conds []cursorAt, condNames []string) *integerIterator {
 	itr := &integerIterator{
+		cur: cur,
 		aux: aux,
 		opt: opt,
 		point: influxql.IntegerPoint{
@@ -695,9 +722,6 @@ func newIntegerIterator(name string, tags influxql.Tags, opt influxql.IteratorOp
 		statsBuf: influxql.IteratorStats{
 			SeriesN: 1,
 		},
-	}
-	if cur != nil {
-		itr.cur = newBufIntegerCursor(cur, opt.Ascending)
 	}
 	itr.stats = itr.statsBuf
 
@@ -789,8 +813,36 @@ func (itr *integerIterator) Stats() influxql.IteratorStats {
 	return stats
 }
 
+// bufCursor returns a buffered cursor so seek operations can be performed.
+// If the current cursor isn't a buffered cursor, this wraps it in one automatically.
+func (itr *integerIterator) bufCursor() (*bufIntegerCursor, error) {
+	if itr.cur == nil {
+		return nil, influxql.ErrSeekUnavailable
+	}
+
+	cur, ok := itr.cur.(*bufIntegerCursor)
+	if !ok {
+		cur = newBufIntegerCursor(itr.cur, itr.opt.Ascending)
+		itr.cur = cur
+	}
+	return cur, nil
+}
+
 func (itr *integerIterator) SeekTo(t int64) error {
-	itr.cur.seekAt(t)
+	cur, err := itr.bufCursor()
+	if err != nil {
+		return err
+	}
+	cur.seekAt(t)
+	return nil
+}
+
+func (itr *integerIterator) SeekUntil(t int64) error {
+	cur, err := itr.bufCursor()
+	if err != nil {
+		return err
+	}
+	cur.seekAt(t)
 	return nil
 }
 
@@ -1220,7 +1272,7 @@ func (itr *firstIntegerIterator) Next() (*influxql.IntegerPoint, error) {
 }
 
 type stringIterator struct {
-	cur   *bufStringCursor
+	cur   stringCursor
 	aux   []cursorAt
 	conds struct {
 		names []string
@@ -1238,6 +1290,7 @@ type stringIterator struct {
 
 func newStringIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur stringCursor, aux []cursorAt, conds []cursorAt, condNames []string) *stringIterator {
 	itr := &stringIterator{
+		cur: cur,
 		aux: aux,
 		opt: opt,
 		point: influxql.StringPoint{
@@ -1247,9 +1300,6 @@ func newStringIterator(name string, tags influxql.Tags, opt influxql.IteratorOpt
 		statsBuf: influxql.IteratorStats{
 			SeriesN: 1,
 		},
-	}
-	if cur != nil {
-		itr.cur = newBufStringCursor(cur, opt.Ascending)
 	}
 	itr.stats = itr.statsBuf
 
@@ -1341,8 +1391,36 @@ func (itr *stringIterator) Stats() influxql.IteratorStats {
 	return stats
 }
 
+// bufCursor returns a buffered cursor so seek operations can be performed.
+// If the current cursor isn't a buffered cursor, this wraps it in one automatically.
+func (itr *stringIterator) bufCursor() (*bufStringCursor, error) {
+	if itr.cur == nil {
+		return nil, influxql.ErrSeekUnavailable
+	}
+
+	cur, ok := itr.cur.(*bufStringCursor)
+	if !ok {
+		cur = newBufStringCursor(itr.cur, itr.opt.Ascending)
+		itr.cur = cur
+	}
+	return cur, nil
+}
+
 func (itr *stringIterator) SeekTo(t int64) error {
-	itr.cur.seekAt(t)
+	cur, err := itr.bufCursor()
+	if err != nil {
+		return err
+	}
+	cur.seekAt(t)
+	return nil
+}
+
+func (itr *stringIterator) SeekUntil(t int64) error {
+	cur, err := itr.bufCursor()
+	if err != nil {
+		return err
+	}
+	cur.seekAt(t)
 	return nil
 }
 
@@ -1772,7 +1850,7 @@ func (itr *firstStringIterator) Next() (*influxql.StringPoint, error) {
 }
 
 type booleanIterator struct {
-	cur   *bufBooleanCursor
+	cur   booleanCursor
 	aux   []cursorAt
 	conds struct {
 		names []string
@@ -1790,6 +1868,7 @@ type booleanIterator struct {
 
 func newBooleanIterator(name string, tags influxql.Tags, opt influxql.IteratorOptions, cur booleanCursor, aux []cursorAt, conds []cursorAt, condNames []string) *booleanIterator {
 	itr := &booleanIterator{
+		cur: cur,
 		aux: aux,
 		opt: opt,
 		point: influxql.BooleanPoint{
@@ -1799,9 +1878,6 @@ func newBooleanIterator(name string, tags influxql.Tags, opt influxql.IteratorOp
 		statsBuf: influxql.IteratorStats{
 			SeriesN: 1,
 		},
-	}
-	if cur != nil {
-		itr.cur = newBufBooleanCursor(cur, opt.Ascending)
 	}
 	itr.stats = itr.statsBuf
 
@@ -1893,8 +1969,36 @@ func (itr *booleanIterator) Stats() influxql.IteratorStats {
 	return stats
 }
 
+// bufCursor returns a buffered cursor so seek operations can be performed.
+// If the current cursor isn't a buffered cursor, this wraps it in one automatically.
+func (itr *booleanIterator) bufCursor() (*bufBooleanCursor, error) {
+	if itr.cur == nil {
+		return nil, influxql.ErrSeekUnavailable
+	}
+
+	cur, ok := itr.cur.(*bufBooleanCursor)
+	if !ok {
+		cur = newBufBooleanCursor(itr.cur, itr.opt.Ascending)
+		itr.cur = cur
+	}
+	return cur, nil
+}
+
 func (itr *booleanIterator) SeekTo(t int64) error {
-	itr.cur.seekAt(t)
+	cur, err := itr.bufCursor()
+	if err != nil {
+		return err
+	}
+	cur.seekAt(t)
+	return nil
+}
+
+func (itr *booleanIterator) SeekUntil(t int64) error {
+	cur, err := itr.bufCursor()
+	if err != nil {
+		return err
+	}
+	cur.seekAt(t)
 	return nil
 }
 
