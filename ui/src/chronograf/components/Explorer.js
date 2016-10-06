@@ -28,7 +28,6 @@ const Explorer = React.createClass({
       applyFuncsToField: func.isRequired,
       deletePanel: func.isRequired,
     }).isRequired,
-    onClickStatement: func.isRequired,
   },
 
   getInitialState() {
@@ -120,7 +119,6 @@ const Explorer = React.createClass({
         timeRange={timeRange}
         query={this.getActiveQuery()}
         actions={actions}
-        onClickStatement={this.props.onClickStatement}
         onAddQuery={this.handleAddQuery}
       />
     );

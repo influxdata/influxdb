@@ -33,7 +33,6 @@ const QueryEditor = React.createClass({
       groupByTime: func.isRequired,
       toggleTagAcceptance: func.isRequired,
     }).isRequired,
-    onClickStatement: func.isRequired,
   },
 
   getInitialState() {
@@ -99,22 +98,11 @@ const QueryEditor = React.createClass({
     return (
       <div className="query-editor">
         <div className="query-editor__code">
-          {this.renderQueryWarning()}
-          <pre className={classNames("", {"rq-mode": query.rawText})} onClick={() => this.props.onClickStatement(query.id)}><code>{statement}</code></pre>
+          <pre className={classNames("", {"rq-mode": query.rawText})}><code>{statement}</code></pre>
         </div>
         {this.renderEditor()}
       </div>
     );
-  },
-
-  renderQueryWarning() {
-    if (!this.props.query.rawText) {
-      return (
-        <div className="query-editor__warning">
-          <div className="btn btn-sm btn-warning" onClick={() => this.props.onClickStatement(this.props.query.id)}>Convert to Raw Query</div>
-        </div>
-      );
-    }
   },
 
   renderEditor() {

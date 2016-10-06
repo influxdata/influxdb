@@ -14,7 +14,6 @@ const ExplorerList = React.createClass({
     panels: shape({}).isRequired,
     queryConfigs: PropTypes.shape({}),
     actions: shape({}).isRequired,
-    onClickStatement: func.isRequired,
     setActivePanel: func.isRequired,
     activePanelID: string,
   },
@@ -54,7 +53,6 @@ const ExplorerList = React.createClass({
               onToggleExplorer={this.handleToggleExplorer}
               isExpanded={panelID === activePanelID}
               actions={allActions}
-              onClickStatement={this.props.onClickStatement}
             />
           );
         })}
