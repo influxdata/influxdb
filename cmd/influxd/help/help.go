@@ -41,5 +41,5 @@ The commands are:
 
 "run" is the default command.
 
-Use "influxd help [command]" for more information about a command.
+Use "influxd [command] -help" for more information about a command.
 `
