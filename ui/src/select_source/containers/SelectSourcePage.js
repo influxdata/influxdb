@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
 import FlashMessages from 'shared/components/FlashMessages';
-import {createSource, getSources} from 'shared/apis';
+import {createSource} from 'shared/apis';
 
 export const SelectSourcePage = React.createClass({
   propTypes: {
@@ -25,7 +25,7 @@ export const SelectSourcePage = React.createClass({
     };
     createSource(source).then(({data: sourceFromServer}) => {
       localStorage.setItem('defaultSource', JSON.stringify(sourceFromServer));
-      this.redirectToApp(sourceFromServer)
+      this.redirectToApp(sourceFromServer);
     });
   },
 
