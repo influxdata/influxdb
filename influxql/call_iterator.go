@@ -1227,6 +1227,26 @@ func newMovingAverageIterator(input Iterator, n int, opt IteratorOptions) (Itera
 	}
 }
 
+// newCumulativeSumIterator returns an iterator for operating on a cumulative_sum() call.
+func newCumulativeSumIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatCumulativeSumReducer()
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
+			fn := NewIntegerCumulativeSumReducer()
+			return fn, fn
+		}
+		return newIntegerStreamIntegerIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported cumulative sum iterator type: %T", input)
+	}
+}
+
 // newHoltWintersIterator returns an iterator for operating on a elapsed() call.
 func newHoltWintersIterator(input Iterator, opt IteratorOptions, h, m int, includeFitData bool, interval time.Duration) (Iterator, error) {
 	switch input := input.(type) {

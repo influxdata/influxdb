@@ -315,6 +315,12 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions, selec
 				return newMovingAverageIterator(input, int(n.Val), opt)
 			}
 			panic(fmt.Sprintf("invalid series aggregate function: %s", expr.Name))
+		case "cumulative_sum":
+			input, err := buildExprIterator(expr.Args[0], ic, opt, selector)
+			if err != nil {
+				return nil, err
+			}
+			return newCumulativeSumIterator(input, opt)
 		default:
 			itr, err := func() (Iterator, error) {
 				switch expr.Name {

@@ -1643,7 +1643,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	for _, f := range s.Fields {
 		for _, expr := range walkFunctionCalls(f.Expr) {
 			switch expr.Name {
-			case "derivative", "non_negative_derivative", "difference", "moving_average", "elapsed":
+			case "derivative", "non_negative_derivative", "difference", "moving_average", "cumulative_sum", "elapsed":
 				if err := s.validSelectWithAggregate(); err != nil {
 					return err
 				}
@@ -1663,9 +1663,9 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 							return errors.New("elapsed requires a duration argument")
 						}
 					}
-				case "difference":
+				case "difference", "cumulative_sum":
 					if got := len(expr.Args); got != 1 {
-						return fmt.Errorf("invalid number of arguments for difference, expected 1, got %d", got)
+						return fmt.Errorf("invalid number of arguments for %s, expected 1, got %d", expr.Name, got)
 					}
 				case "moving_average":
 					if got := len(expr.Args); got != 2 {
