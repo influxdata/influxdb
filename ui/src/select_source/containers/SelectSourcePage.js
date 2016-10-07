@@ -18,6 +18,7 @@ export const SelectSourcePage = React.createClass({
   getInitialState() {
     return {
       sources: [],
+      selectedSource: undefined,
     };
   },
 
@@ -31,7 +32,7 @@ export const SelectSourcePage = React.createClass({
 
   handleSelectSource(e) {
     e.preventDefault();
-    const source = this.state.sources.find((s) => s.name === this.selectedSource.value);
+    const source = this.state.sources.find((s) => s.name === (this.state.selectedSource || this.sourceSelect.value));
     this.redirectToApp(source);
   },
 
@@ -44,7 +45,21 @@ export const SelectSourcePage = React.createClass({
       password: this.sourcePassword.value,
     };
     createSource(source).then(({data: sourceFromServer}) => {
-      this.redirectToApp(sourceFromServer);
+      this.setState({
+        sources: this.state.sources.concat(sourceFromServer),
+        selectedSource: sourceFromServer.name,
+      });
+      this.sourceURL.value = '';
+      this.sourceName.value = '';
+      this.sourceUser.value = '';
+      this.sourcePassword.value = '';
+      this.sourceSelect.focus();
+    });
+  },
+
+  handleChangeSourceSelection() {
+    this.setState({
+      selectedSource: this.sourceSelect.value,
     });
   },
 
@@ -60,6 +75,17 @@ export const SelectSourcePage = React.createClass({
 
   render() {
     const error = !!this.props.location.query.redirectPath;
+
+    const selectProps = {
+      className: 'form-control',
+      id: 'source',
+      ref: (r) => {
+        this.sourceSelect = r;
+      },
+      onChange: this.handleChangeSourceSelection,
+      value: this.state.selectedSource,
+    };
+
     return (
       <div id="select-source-page">
         <div className="container">
@@ -79,9 +105,9 @@ export const SelectSourcePage = React.createClass({
                     </div>
                     <div className="form-group col-xs-7 col-sm-5 col-sm-offset-2">
                       <label htmlFor="source" className="sr-only">Detected InfluxDB Servers</label>
-                      <select className="form-control" id="source">
+                      <select {...selectProps}>
                         {this.state.sources.map(({name}) => {
-                          return <option ref={(r) => this.selectedSource = r} key={name} value={name}>{name}</option>;
+                          return <option key={name} value={name}>{name}</option>;
                         })}
                       </select>
                     </div>
@@ -118,7 +144,7 @@ export const SelectSourcePage = React.createClass({
                     </div>
 
                     <div className="form-group col-xs-12 text-center">
-                      <button className="btn btn-success" type="submit">&nbsp;&nbsp;Create New Server&nbsp;&nbsp;</button>
+                      <button className="btn btn-success" type="submit">Create New Server</button>
                     </div>
                   </form>
                 </div>
