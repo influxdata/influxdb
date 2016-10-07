@@ -465,24 +465,29 @@ func (c *floatAscendingCursor) seekTSM(t int64) {
 		return
 	}
 
-	for {
-		values := c.tsm.values[c.tsm.pos:]
-		i := sort.Search(len(values), func(i int) bool {
-			return values[i].UnixNano() >= t
-		})
-		c.tsm.pos += i
-
-		if c.tsm.pos < len(c.tsm.values) {
-			return
+	values := c.tsm.values[c.tsm.pos:]
+	i, j := 0, len(values)
+	for i < j {
+		h := i + (j-i)/2
+		if values[h].UnixNano() >= t {
+			j = h
+		} else {
+			i = h + 1
 		}
-
-		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.buf)
-		if len(c.tsm.values) == 0 {
-			return
-		}
-		c.tsm.pos = 0
 	}
+	c.tsm.pos += i
+
+	if c.tsm.pos < len(c.tsm.values) {
+		return
+	}
+
+	// We did not find a value within the current interval.
+	// Seek to the appropriate interval.
+	c.tsm.keyCursor.seekAscending(t)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.buf)
+	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
+		return c.tsm.values[i].UnixNano() >= t
+	})
 }
 
 func (c *floatAscendingCursor) seek(t int64) {
@@ -1183,24 +1188,29 @@ func (c *integerAscendingCursor) seekTSM(t int64) {
 		return
 	}
 
-	for {
-		values := c.tsm.values[c.tsm.pos:]
-		i := sort.Search(len(values), func(i int) bool {
-			return values[i].UnixNano() >= t
-		})
-		c.tsm.pos += i
-
-		if c.tsm.pos < len(c.tsm.values) {
-			return
+	values := c.tsm.values[c.tsm.pos:]
+	tmin, tmax := 0, len(values)
+	for tmin < tmax {
+		h := tmin + (tmax-tmin)/2
+		if values[h].UnixNano() >= t {
+			tmax = h
+		} else {
+			tmin = h + 1
 		}
-
-		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.buf)
-		if len(c.tsm.values) == 0 {
-			return
-		}
-		c.tsm.pos = 0
 	}
+	c.tsm.pos += tmin
+
+	if c.tsm.pos < len(c.tsm.values) {
+		return
+	}
+
+	// We did not find a value within the current interval.
+	// Seek to the appropriate interval.
+	c.tsm.keyCursor.seekAscending(t)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.buf)
+	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
+		return c.tsm.values[i].UnixNano() >= t
+	})
 }
 
 func (c *integerAscendingCursor) seek(t int64) {
@@ -1901,24 +1911,29 @@ func (c *stringAscendingCursor) seekTSM(t int64) {
 		return
 	}
 
-	for {
-		values := c.tsm.values[c.tsm.pos:]
-		i := sort.Search(len(values), func(i int) bool {
-			return values[i].UnixNano() >= t
-		})
-		c.tsm.pos += i
-
-		if c.tsm.pos < len(c.tsm.values) {
-			return
+	values := c.tsm.values[c.tsm.pos:]
+	tmin, tmax := 0, len(values)
+	for tmin < tmax {
+		h := tmin + (tmax-tmin)/2
+		if values[h].UnixNano() >= t {
+			tmax = h
+		} else {
+			tmin = h + 1
 		}
-
-		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.buf)
-		if len(c.tsm.values) == 0 {
-			return
-		}
-		c.tsm.pos = 0
 	}
+	c.tsm.pos += tmin
+
+	if c.tsm.pos < len(c.tsm.values) {
+		return
+	}
+
+	// We did not find a value within the current interval.
+	// Seek to the appropriate interval.
+	c.tsm.keyCursor.seekAscending(t)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.buf)
+	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
+		return c.tsm.values[i].UnixNano() >= t
+	})
 }
 
 func (c *stringAscendingCursor) seek(t int64) {
@@ -2619,24 +2634,29 @@ func (c *booleanAscendingCursor) seekTSM(t int64) {
 		return
 	}
 
-	for {
-		values := c.tsm.values[c.tsm.pos:]
-		i := sort.Search(len(values), func(i int) bool {
-			return values[i].UnixNano() >= t
-		})
-		c.tsm.pos += i
-
-		if c.tsm.pos < len(c.tsm.values) {
-			return
+	values := c.tsm.values[c.tsm.pos:]
+	tmin, tmax := 0, len(values)
+	for tmin < tmax {
+		h := tmin + (tmax-tmin)/2
+		if values[h].UnixNano() >= t {
+			tmax = h
+		} else {
+			tmin = h + 1
 		}
-
-		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.buf)
-		if len(c.tsm.values) == 0 {
-			return
-		}
-		c.tsm.pos = 0
 	}
+	c.tsm.pos += tmin
+
+	if c.tsm.pos < len(c.tsm.values) {
+		return
+	}
+
+	// We did not find a value within the current interval.
+	// Seek to the appropriate interval.
+	c.tsm.keyCursor.seekAscending(t)
+	c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.buf)
+	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
+		return c.tsm.values[i].UnixNano() >= t
+	})
 }
 
 func (c *booleanAscendingCursor) seek(t int64) {

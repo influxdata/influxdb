@@ -462,24 +462,29 @@ func (c *{{.name}}AscendingCursor) seekTSM(t int64) {
 		return
 	}
 
-	for {
-		values := c.tsm.values[c.tsm.pos:]
-		i := sort.Search(len(values), func(i int) bool {
-			return values[i].UnixNano() >= t
-		})
-		c.tsm.pos += i
-
-		if c.tsm.pos < len(c.tsm.values) {
-			return
+	values := c.tsm.values[c.tsm.pos:]
+	i, j := 0, len(values)
+	for i < j {
+		h := i + (j-i)/2
+		if values[h].UnixNano() >= t {
+			tmax = h
+		} else {
+			tmin = h + 1
 		}
-
-		c.tsm.keyCursor.Next()
-		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.buf)
-		if len(c.tsm.values) == 0 {
-			return
-		}
-		c.tsm.pos = 0
 	}
+	c.tsm.pos += i
+
+	if c.tsm.pos < len(c.tsm.values) {
+		return
+	}
+
+	// We did not find a value within the current interval.
+	// Seek to the appropriate interval.
+	c.tsm.keyCursor.seekAscending(t)
+	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.buf)
+	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
+		return c.tsm.values[i].UnixNano() >= t
+	})
 }
 
 func (c *{{.name}}AscendingCursor) seek(t int64) {
