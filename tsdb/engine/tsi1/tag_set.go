@@ -63,7 +63,7 @@ func (ts *TagSet) Version() int { return ts.version }
 func (ts *TagSet) TagKeyElem(key []byte) TagKeyElem {
 	keyN := binary.BigEndian.Uint32(ts.hashData[:TagKeyNSize])
 	hash := hashKey(key)
-	pos := int(hash) % int(keyN)
+	pos := int(hash % keyN)
 
 	// Track current distance
 	var d int
@@ -107,7 +107,7 @@ func (ts *TagSet) TagValueElem(key, value []byte) TagValueElem {
 	hashData := ts.data[kelem.Offset:]
 	valueN := binary.BigEndian.Uint32(hashData[:TagValueNSize])
 	hash := hashKey(value)
-	pos := int(hash) % int(valueN)
+	pos := int(hash % valueN)
 
 	// Track current distance
 	var d int

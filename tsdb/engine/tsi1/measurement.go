@@ -52,7 +52,7 @@ func (blk *MeasurementBlock) Version() int { return blk.version }
 func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementElem, ok bool) {
 	n := binary.BigEndian.Uint32(blk.hashData[:MeasurementNSize])
 	hash := hashKey(name)
-	pos := int(hash) % int(n)
+	pos := int(hash % n)
 
 	// Track current distance
 	var d int
