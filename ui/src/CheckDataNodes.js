@@ -34,37 +34,38 @@ const CheckDataNodes = React.createClass({
   getInitialState() {
     return {
       isFetching: true,
-      source: null,
+      sources: [],
     };
   },
 
   componentDidMount() {
     getSources().then(({data: {sources}}) => {
-      const {sourceID} = this.props.params;
-      const source = sources.find((s) => s.id === sourceID);
-
-      if (!source) { // would be great to check source.status or similar here
-        const {router, location} = this.props;
-        return router.push(`/?redirectPath=${location.pathname}`);
-      }
-
-      this.setState({
-        source,
-        isFetching: false,
-      });
+      this.setState({sources, isFetching: false});
     }).catch((err) => {
       console.error(err); // eslint-disable-line no-console
       this.setState({isFetching: false});
     });
   },
 
+  componentWillUpdate(nextProps, nextState) {
+    const {router, location, params} = nextProps;
+    const {isFetching, sources} = nextState;
+    if (!isFetching && !sources.find((s) => s.id === params.sourceID)) {
+      return router.push(`/?redirectPath=${location.pathname}`);
+    }
+  },
+
   render() {
-    if (this.state.isFetching) {
+    const {params} = this.props;
+    const {isFetching, sources} = this.state;
+    const source = sources.find((s) => s.id === params.sourceID);
+
+    if (isFetching || !source) {
       return <div className="page-spinner" />;
     }
 
     return this.props.children && React.cloneElement(this.props.children, Object.assign({}, this.props, {
-      source: this.state.source,
+      source,
     }));
   },
 });
