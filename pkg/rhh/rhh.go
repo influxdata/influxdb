@@ -82,7 +82,7 @@ func (m *HashMap) insert(hash uint32, key []byte, val interface{}) (overwritten 
 		}
 
 		// Increment position, wrap around on overflow.
-		pos = int(uint32(pos+1) & m.mask)
+		pos = int((uint32(pos) + 1) & m.mask)
 		dist++
 	}
 }
@@ -199,7 +199,7 @@ var DefaultOptions = Options{
 // pow2 returns the number that is the next highest power of 2.
 // Returns v if it is a power of 2.
 func pow2(v int) int {
-	for i := 2; i < 1<<32; i *= 2 {
+	for i := 2; i < 1<<30; i *= 2 {
 		if i >= v {
 			return i
 		}

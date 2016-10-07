@@ -24,7 +24,7 @@ func TestTagSetWriter(t *testing.T) {
 	if n, err := tsw.WriteTo(&buf); err != nil {
 		t.Fatal(err)
 	} else if int(n) != buf.Len() {
-		t.Fatal("bytes written mismatch: %d, expected %d", n, buf.Len())
+		t.Fatalf("bytes written mismatch: %d, expected %d", n, buf.Len())
 	}
 
 	// Unmarshal into a TagSet.
