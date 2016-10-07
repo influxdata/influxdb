@@ -51,12 +51,12 @@ export const HostsPage = React.createClass({
 
   render() {
     return (
-      <div className="hosts">
+      <div className="hosts hosts-page">
         <div className="enterprise-header">
           <div className="enterprise-header__container">
             <div className="enterprise-header__left">
               <h1>
-                Hosts
+                Host List
               </h1>
             </div>
           </div>
@@ -65,11 +65,7 @@ export const HostsPage = React.createClass({
         <div className="container-fluid">
           <div className="row">
             <div className="col-md-12">
-              <div className="panel panel-minimal">
-                <div className="panel-body">
-                  <HostsTable source={this.props.source} hosts={this.state.hosts} />
-                </div>
-              </div>
+              <HostsTable source={this.props.source} hosts={this.state.hosts} />
             </div>
           </div>
         </div>

@@ -19,7 +19,6 @@ body {
 */
 body > #react-root {
   width: 100%;
-  
   .container {
     margin-top: 60px;
   }
@@ -66,7 +65,7 @@ body > #react-root {
 .page-wrapper {
   position: relative;
   flex-grow: 1;
-  overflow: auto;
+  overflow: hidden;
   background: $g18-cloud;
   background: -moz-linear-gradient(top,  $g18-cloud 0%, $g19-ghost 100%);
   background: -webkit-linear-gradient(top,  $g18-cloud 0%,$g19-ghost 100%);
@@ -80,6 +79,15 @@ body > #react-root {
   background-size: contain;
 }
 
+.page-wrapper > div {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 /*
     Enterprise Page Header
     ----------------------------------------------
@@ -87,7 +95,7 @@ body > #react-root {
 .enterprise-header {
   background-color: $g20-white;
   height: $enterprise-page-header-height;
-  margin-bottom: 45px;
+  margin-bottom: 15px;
   padding: 0 $page-wrapper-padding;
   display: flex;
   justify-content: center;
@@ -591,9 +599,6 @@ table.table.error-table {
   margin-bottom: 12px;
 }
 
-
-
-
 /*
     Static Form Controls
     ----------------------------------------------
@@ -604,4 +609,40 @@ table.table.error-table {
   border-radius: 4px;
   padding: 0 18px;
   line-height: 36px;
+}
+
+
+/*
+    Stuff for making Tables of Data more readable
+    ----------------------------------------------
+*/
+table .monotype {
+  font-family: Consolas, "Lucida Console", Monaco, monospace;
+  letter-spacing: 0.69px;
+  font-size: 12px;
+  font-weight: 700;
+  color: $g9-mountain;
+}
+.table-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: $g17-whisper;
+
+  &.dot-success {
+    background-color: $c-rainforest;
+  }
+  &.dot-primary {
+    background-color: $c-pool;
+  }
+  &.dot-warning {
+    background-color: $c-comet;
+  }
+  &.dot-danger {
+    background-color: $c-dreamsicle;
+  }
+  &.dot-critical {
+    background-color: $c-fire;
+  }
 }

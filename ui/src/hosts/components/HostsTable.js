@@ -55,39 +55,39 @@ const HostsTable = React.createClass({
     const {source} = this.props;
 
     return (
-      <div>
-        <div className="host-table-header">
+      <div className="panel panel-minimal">
+        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+          <h2 className="panel-title">{this.props.hosts.length} Hosts</h2>
           <SearchBar onSearch={_.wrap(this.props.hosts, this.filterHosts)} />
-          <div className="active-source">
-            Source: {source.name}
-          </div>
         </div>
-        <table className="table v-center">
-          <thead>
-            <tr>
-              <th onClick={this.changeSort} className="sortable-header">Hostname</th>
-              <th>Status</th>
-              <th>CPU</th>
-              <th>Load</th>
-              <th>Apps</th>
-            </tr>
-          </thead>
-          <tbody>
-            {
-              hosts.map(({name, cpu, load}) => {
-                return (
-                  <tr key={name}>
-                    <td><a href={`/sources/${source.id}/hosts/${name}`}>{name}</a></td>
-                    <td>UP</td>
-                    <td>{`${cpu}%`}</td>
-                    <td>{`${load}`}</td>
-                    <td>influxdb, ntp, system</td>
-                  </tr>
-                );
-              })
-            }
-          </tbody>
-        </table>
+        <div className="panel-body">
+          <table className="table v-center">
+            <thead>
+              <tr>
+                <th onClick={this.changeSort} className="sortable-header">Hostname</th>
+                <th className="text-center">Status</th>
+                <th>CPU</th>
+                <th>Load</th>
+                <th>Apps</th>
+              </tr>
+            </thead>
+            <tbody>
+              {
+                hosts.map(({name, cpu, load}) => {
+                  return (
+                    <tr key={name}>
+                      <td className="monotype"><a href={`/sources/${source.id}/hosts/${name}`}>{name}</a></td>
+                      <td className="text-center"><div className="table-dot dot-success"></div></td>
+                      <td className="monotype">{`${cpu}%`}</td>
+                      <td className="monotype">{`${load}`}</td>
+                      <td className="monotype">influxdb, ntp, system</td>
+                    </tr>
+                  );
+                })
+              }
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   },
@@ -105,16 +105,16 @@ const SearchBar = React.createClass({
   render() {
     return (
       <div className="users__search-widget input-group">
-        <div className="input-group-addon">
-          <span className="icon search" aria-hidden="true"></span>
-        </div>
         <input
           type="text"
           className="form-control"
-          placeholder="Find host"
+          placeholder="Filter Hosts"
           ref="searchInput"
           onChange={this.handleChange}
         />
+        <div className="input-group-addon">
+          <span className="icon search" aria-hidden="true"></span>
+        </div>
       </div>
     );
   },
