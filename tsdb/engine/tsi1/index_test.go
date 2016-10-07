@@ -60,7 +60,7 @@ func BenchmarkIndex_TagValueSeries(b *testing.B) {
 		benchmarkIndex_TagValueSeries(b, MustFindOrGenerateIndex(10, 5, 5))
 	})
 	b.Run("M=10,K=7,V=5", func(b *testing.B) {
-		benchmarkIndex_TagValueSeries(b, MustFindOrGenerateIndex(10, 7, 5))
+		benchmarkIndex_TagValueSeries(b, MustFindOrGenerateIndex(10, 7, 7))
 	})
 }
 
@@ -105,6 +105,7 @@ func GenerateIndex(measurementN, tagN, valueN int) (*tsi1.Index, error) {
 	if _, err := iw.WriteTo(&buf); err != nil {
 		return nil, err
 	}
+	println("file size", buf.Len())
 
 	// Load index from buffer.
 	var idx tsi1.Index

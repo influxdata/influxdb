@@ -224,7 +224,7 @@ func (sw *SeriesListWriter) Delete(name string, tags models.Tags) error {
 
 func (sw *SeriesListWriter) append(name string, tags models.Tags, deleted bool) error {
 	// Ensure writer doesn't add too many series.
-	if len(sw.series) == math.MaxUint32 {
+	if len(sw.series) == math.MaxInt32 {
 		return ErrSeriesOverflow
 	}
 
