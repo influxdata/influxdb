@@ -33,13 +33,11 @@ const ResizeContainer = React.createClass({
     }
 
     const appWidth = parseInt(getComputedStyle(this.refs.resizeContainer).width, 10);
-    console.log(appWidth);
     // handleOffSet moves the resize handle as many pixels as the side bar is taking up.
     const handleOffSet = window.innerWidth - appWidth;
     const turnToPercent = 100;
     const newLeftPanelPercent = Math.ceil(((e.pageX - handleOffSet) / (appWidth))*turnToPercent);
     const newRightPanelPercent = (turnToPercent - newLeftPanelPercent);
-    console.log(newLeftPanelPercent+" / "+newRightPanelPercent);
     
     // Don't trigger a resize unless the change in size is greater than minResizePercentage
     const minResizePercentage = 0.5;
