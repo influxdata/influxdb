@@ -9,8 +9,8 @@ const ResizeContainer = React.createClass({
 
   getInitialState() {
     return {
-      leftWidth: '33.3333%',
-      rightWidth: '66.6666%',
+      leftWidth: '34%',
+      rightWidth: '66%',
       isDragging: false,
     };
   },
@@ -35,17 +35,24 @@ const ResizeContainer = React.createClass({
     const appWidth = parseInt(getComputedStyle(this.refs.resizeContainer).width, 10);
     // handleOffSet moves the resize handle as many pixels as the side bar is taking up.
     const handleOffSet = window.innerWidth - appWidth;
-    const newLeftPanelPercent = ((e.pageX - handleOffSet) / (appWidth));
-    const newRightPanelPercent = (1 - ((e.pageX - handleOffSet) / (appWidth)));
     const turnToPercent = 100;
-
-    // dont trigger a resize unless the change in size is greater than minResizePercentage
+    const newLeftPanelPercent = Math.ceil(((e.pageX - handleOffSet) / (appWidth))*turnToPercent);
+    const newRightPanelPercent = (turnToPercent - newLeftPanelPercent);
+    
+    // Don't trigger a resize unless the change in size is greater than minResizePercentage
     const minResizePercentage = 0.5;
-    if (Math.abs(newLeftPanelPercent * turnToPercent - parseFloat(this.state.leftWidth)) < minResizePercentage) {
+    if (Math.abs(newLeftPanelPercent - parseFloat(this.state.leftWidth)) < minResizePercentage) {
       return;
     }
 
-    this.setState({leftWidth: `${(newLeftPanelPercent * turnToPercent)}%`, rightWidth: `${(newRightPanelPercent * turnToPercent)}%`});
+    // Don't trigger a resize if the new sizes are too small
+    const minLeftPanelWidth = 371;
+    const minRightPanelWidth = 389;
+    if (((newLeftPanelPercent/turnToPercent) * appWidth) < minLeftPanelWidth || ((newRightPanelPercent/turnToPercent) * appWidth) < minRightPanelWidth ) {
+      return;
+    }
+
+    this.setState({leftWidth: `${(newLeftPanelPercent)}%`, rightWidth: `${(newRightPanelPercent)}%`});
   },
 
   render() {
