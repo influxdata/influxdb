@@ -200,7 +200,7 @@ func (c *CommandLine) mainLoop() error {
 				c.exit()
 				return e
 			}
-			if err := c.ParseCommand(l); err != ErrBlankCommand && !strings.HasPrefix(l, "auth") {
+			if err := c.ParseCommand(l); err != ErrBlankCommand && !strings.HasPrefix(strings.TrimSpace(l), "auth") {
 				c.Line.AppendHistory(l)
 				c.saveHistory()
 			}
