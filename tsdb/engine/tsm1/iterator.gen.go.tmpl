@@ -12,6 +12,7 @@ import (
 type cursor interface {
 	close() error
 	next() (t int64, v interface{})
+	seek(t int64)
 }
 
 // cursorAt provides a buffered cursor interface.
@@ -21,9 +22,6 @@ type cursorAt interface {
 	peek() (k int64, v interface{})
 	nextAt(seek int64) interface{}
 }
-
-type nilCursor struct {}
-func (nilCursor) next() (int64, interface{}) { return tsdb.EOF, nil }
 
 // bufCursor implements a buffered cursor.
 type bufCursor struct {
@@ -247,11 +245,7 @@ func (itr *{{.name}}Iterator) bufCursor() (*buf{{.Name}}Cursor, error) {
 }
 
 func (itr *{{.name}}Iterator) SeekTo(t int64) error {
-	cur, err := itr.bufCursor()
-	if err != nil {
-		return err
-	}
-	cur.seekAt(t)
+	itr.cur.seek(t)
 	return nil
 }
 
@@ -439,6 +433,17 @@ func (c *{{.name}}AscendingCursor) nextCache() {
 	c.cache.pos++
 }
 
+func (c *{{.name}}AscendingCursor) seekCache(t int64) {
+	if c.cache.pos >= len(c.cache.values) {
+		return
+	}
+	values := c.cache.values[c.cache.pos:]
+	i := sort.Search(len(values), func(i int) bool {
+		return values[i].UnixNano() >= t
+	})
+	c.cache.pos += i
+}
+
 // nextTSM returns the next value from the TSM files.
 func (c *{{.name}}AscendingCursor) nextTSM() {
 	c.tsm.pos++
@@ -450,6 +455,36 @@ func (c *{{.name}}AscendingCursor) nextTSM() {
 		}
 		c.tsm.pos = 0
 	}
+}
+
+func (c *{{.name}}AscendingCursor) seekTSM(t int64) {
+	if c.tsm.pos >= len(c.tsm.values) {
+		return
+	}
+
+	for {
+		values := c.tsm.values[c.tsm.pos:]
+		i := sort.Search(len(values), func(i int) bool {
+			return values[i].UnixNano() >= t
+		})
+		c.tsm.pos += i
+
+		if c.tsm.pos < len(c.tsm.values) {
+			return
+		}
+
+		c.tsm.keyCursor.Next()
+		c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.buf)
+		if len(c.tsm.values) == 0 {
+			return
+		}
+		c.tsm.pos = 0
+	}
+}
+
+func (c *{{.name}}AscendingCursor) seek(t int64) {
+	c.seekCache(t)
+	c.seekTSM(t)
 }
 
 type {{.name}}DescendingCursor struct {
@@ -559,6 +594,9 @@ func (c *{{.name}}DescendingCursor) nextCache() {
 	c.cache.pos--
 }
 
+func (c *{{.name}}DescendingCursor) seekCache(t int64) {
+}
+
 // nextTSM returns the next value from the TSM files.
 func (c *{{.name}}DescendingCursor) nextTSM() {
 	c.tsm.pos--
@@ -570,6 +608,14 @@ func (c *{{.name}}DescendingCursor) nextTSM() {
 		}
 		c.tsm.pos = len(c.tsm.values) - 1
 	}
+}
+
+func (c *{{.name}}DescendingCursor) seekTSM(t int64) {
+}
+
+func (c *{{.name}}DescendingCursor) seek(t int64) {
+	c.seekCache(t)
+	c.seekTSM(t)
 }
 
 // buf{{.Name}}Cursor provides a ring buffer to support seeking in a cursor.
@@ -605,6 +651,10 @@ func (c *buf{{.Name}}Cursor) unread(k int64, v {{.Type}}) {
 	c.buf[1] = c.buf[0]
 	c.buf[0].key, c.buf[0].value = k, v
 	c.buf[0].filled = true
+}
+
+func (c *buf{{.Name}}Cursor) seek(t int64) {
+	c.cur.seek(t)
 }
 
 func (c *buf{{.Name}}Cursor) seekAt(seek int64) {

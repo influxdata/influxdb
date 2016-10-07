@@ -34,6 +34,8 @@ func (c *floatCastIntegerCursor) nextFloat() (int64, float64) {
 	return t, float64(v)
 }
 
+func (c *floatCastIntegerCursor) seek(t int64) { c.cursor.seek(t) }
+
 type integerCastFloatCursor struct {
 	cursor floatCursor
 }
@@ -46,3 +48,5 @@ func (c *integerCastFloatCursor) nextInteger() (int64, int64) {
 	t, v := c.cursor.nextFloat()
 	return t, int64(v)
 }
+
+func (c *integerCastFloatCursor) seek(t int64) { c.cursor.seek(t) }

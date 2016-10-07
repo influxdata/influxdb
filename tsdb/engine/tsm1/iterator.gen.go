@@ -18,6 +18,7 @@ import (
 type cursor interface {
 	close() error
 	next() (t int64, v interface{})
+	seek(t int64)
 }
 
 // cursorAt provides a buffered cursor interface.
@@ -27,10 +28,6 @@ type cursorAt interface {
 	peek() (k int64, v interface{})
 	nextAt(seek int64) interface{}
 }
-
-type nilCursor struct{}
-
-func (nilCursor) next() (int64, interface{}) { return tsdb.EOF, nil }
 
 // bufCursor implements a buffered cursor.
 type bufCursor struct {
@@ -251,11 +248,7 @@ func (itr *floatIterator) bufCursor() (*bufFloatCursor, error) {
 }
 
 func (itr *floatIterator) SeekTo(t int64) error {
-	cur, err := itr.bufCursor()
-	if err != nil {
-		return err
-	}
-	cur.seekAt(t)
+	itr.cur.seek(t)
 	return nil
 }
 
@@ -443,6 +436,17 @@ func (c *floatAscendingCursor) nextCache() {
 	c.cache.pos++
 }
 
+func (c *floatAscendingCursor) seekCache(t int64) {
+	if c.cache.pos >= len(c.cache.values) {
+		return
+	}
+	values := c.cache.values[c.cache.pos:]
+	i := sort.Search(len(values), func(i int) bool {
+		return values[i].UnixNano() >= t
+	})
+	c.cache.pos += i
+}
+
 // nextTSM returns the next value from the TSM files.
 func (c *floatAscendingCursor) nextTSM() {
 	c.tsm.pos++
@@ -454,6 +458,36 @@ func (c *floatAscendingCursor) nextTSM() {
 		}
 		c.tsm.pos = 0
 	}
+}
+
+func (c *floatAscendingCursor) seekTSM(t int64) {
+	if c.tsm.pos >= len(c.tsm.values) {
+		return
+	}
+
+	for {
+		values := c.tsm.values[c.tsm.pos:]
+		i := sort.Search(len(values), func(i int) bool {
+			return values[i].UnixNano() >= t
+		})
+		c.tsm.pos += i
+
+		if c.tsm.pos < len(c.tsm.values) {
+			return
+		}
+
+		c.tsm.keyCursor.Next()
+		c.tsm.values, _ = c.tsm.keyCursor.ReadFloatBlock(&c.tsm.buf)
+		if len(c.tsm.values) == 0 {
+			return
+		}
+		c.tsm.pos = 0
+	}
+}
+
+func (c *floatAscendingCursor) seek(t int64) {
+	c.seekCache(t)
+	c.seekTSM(t)
 }
 
 type floatDescendingCursor struct {
@@ -563,6 +597,9 @@ func (c *floatDescendingCursor) nextCache() {
 	c.cache.pos--
 }
 
+func (c *floatDescendingCursor) seekCache(t int64) {
+}
+
 // nextTSM returns the next value from the TSM files.
 func (c *floatDescendingCursor) nextTSM() {
 	c.tsm.pos--
@@ -574,6 +611,14 @@ func (c *floatDescendingCursor) nextTSM() {
 		}
 		c.tsm.pos = len(c.tsm.values) - 1
 	}
+}
+
+func (c *floatDescendingCursor) seekTSM(t int64) {
+}
+
+func (c *floatDescendingCursor) seek(t int64) {
+	c.seekCache(t)
+	c.seekTSM(t)
 }
 
 // bufFloatCursor provides a ring buffer to support seeking in a cursor.
@@ -609,6 +654,10 @@ func (c *bufFloatCursor) unread(k int64, v float64) {
 	c.buf[1] = c.buf[0]
 	c.buf[0].key, c.buf[0].value = k, v
 	c.buf[0].filled = true
+}
+
+func (c *bufFloatCursor) seek(t int64) {
+	c.cur.seek(t)
 }
 
 func (c *bufFloatCursor) seekAt(seek int64) {
@@ -917,11 +966,7 @@ func (itr *integerIterator) bufCursor() (*bufIntegerCursor, error) {
 }
 
 func (itr *integerIterator) SeekTo(t int64) error {
-	cur, err := itr.bufCursor()
-	if err != nil {
-		return err
-	}
-	cur.seekAt(t)
+	itr.cur.seek(t)
 	return nil
 }
 
@@ -1109,6 +1154,17 @@ func (c *integerAscendingCursor) nextCache() {
 	c.cache.pos++
 }
 
+func (c *integerAscendingCursor) seekCache(t int64) {
+	if c.cache.pos >= len(c.cache.values) {
+		return
+	}
+	values := c.cache.values[c.cache.pos:]
+	i := sort.Search(len(values), func(i int) bool {
+		return values[i].UnixNano() >= t
+	})
+	c.cache.pos += i
+}
+
 // nextTSM returns the next value from the TSM files.
 func (c *integerAscendingCursor) nextTSM() {
 	c.tsm.pos++
@@ -1120,6 +1176,36 @@ func (c *integerAscendingCursor) nextTSM() {
 		}
 		c.tsm.pos = 0
 	}
+}
+
+func (c *integerAscendingCursor) seekTSM(t int64) {
+	if c.tsm.pos >= len(c.tsm.values) {
+		return
+	}
+
+	for {
+		values := c.tsm.values[c.tsm.pos:]
+		i := sort.Search(len(values), func(i int) bool {
+			return values[i].UnixNano() >= t
+		})
+		c.tsm.pos += i
+
+		if c.tsm.pos < len(c.tsm.values) {
+			return
+		}
+
+		c.tsm.keyCursor.Next()
+		c.tsm.values, _ = c.tsm.keyCursor.ReadIntegerBlock(&c.tsm.buf)
+		if len(c.tsm.values) == 0 {
+			return
+		}
+		c.tsm.pos = 0
+	}
+}
+
+func (c *integerAscendingCursor) seek(t int64) {
+	c.seekCache(t)
+	c.seekTSM(t)
 }
 
 type integerDescendingCursor struct {
@@ -1229,6 +1315,9 @@ func (c *integerDescendingCursor) nextCache() {
 	c.cache.pos--
 }
 
+func (c *integerDescendingCursor) seekCache(t int64) {
+}
+
 // nextTSM returns the next value from the TSM files.
 func (c *integerDescendingCursor) nextTSM() {
 	c.tsm.pos--
@@ -1240,6 +1329,14 @@ func (c *integerDescendingCursor) nextTSM() {
 		}
 		c.tsm.pos = len(c.tsm.values) - 1
 	}
+}
+
+func (c *integerDescendingCursor) seekTSM(t int64) {
+}
+
+func (c *integerDescendingCursor) seek(t int64) {
+	c.seekCache(t)
+	c.seekTSM(t)
 }
 
 // bufIntegerCursor provides a ring buffer to support seeking in a cursor.
@@ -1275,6 +1372,10 @@ func (c *bufIntegerCursor) unread(k int64, v int64) {
 	c.buf[1] = c.buf[0]
 	c.buf[0].key, c.buf[0].value = k, v
 	c.buf[0].filled = true
+}
+
+func (c *bufIntegerCursor) seek(t int64) {
+	c.cur.seek(t)
 }
 
 func (c *bufIntegerCursor) seekAt(seek int64) {
@@ -1583,11 +1684,7 @@ func (itr *stringIterator) bufCursor() (*bufStringCursor, error) {
 }
 
 func (itr *stringIterator) SeekTo(t int64) error {
-	cur, err := itr.bufCursor()
-	if err != nil {
-		return err
-	}
-	cur.seekAt(t)
+	itr.cur.seek(t)
 	return nil
 }
 
@@ -1775,6 +1872,17 @@ func (c *stringAscendingCursor) nextCache() {
 	c.cache.pos++
 }
 
+func (c *stringAscendingCursor) seekCache(t int64) {
+	if c.cache.pos >= len(c.cache.values) {
+		return
+	}
+	values := c.cache.values[c.cache.pos:]
+	i := sort.Search(len(values), func(i int) bool {
+		return values[i].UnixNano() >= t
+	})
+	c.cache.pos += i
+}
+
 // nextTSM returns the next value from the TSM files.
 func (c *stringAscendingCursor) nextTSM() {
 	c.tsm.pos++
@@ -1786,6 +1894,36 @@ func (c *stringAscendingCursor) nextTSM() {
 		}
 		c.tsm.pos = 0
 	}
+}
+
+func (c *stringAscendingCursor) seekTSM(t int64) {
+	if c.tsm.pos >= len(c.tsm.values) {
+		return
+	}
+
+	for {
+		values := c.tsm.values[c.tsm.pos:]
+		i := sort.Search(len(values), func(i int) bool {
+			return values[i].UnixNano() >= t
+		})
+		c.tsm.pos += i
+
+		if c.tsm.pos < len(c.tsm.values) {
+			return
+		}
+
+		c.tsm.keyCursor.Next()
+		c.tsm.values, _ = c.tsm.keyCursor.ReadStringBlock(&c.tsm.buf)
+		if len(c.tsm.values) == 0 {
+			return
+		}
+		c.tsm.pos = 0
+	}
+}
+
+func (c *stringAscendingCursor) seek(t int64) {
+	c.seekCache(t)
+	c.seekTSM(t)
 }
 
 type stringDescendingCursor struct {
@@ -1895,6 +2033,9 @@ func (c *stringDescendingCursor) nextCache() {
 	c.cache.pos--
 }
 
+func (c *stringDescendingCursor) seekCache(t int64) {
+}
+
 // nextTSM returns the next value from the TSM files.
 func (c *stringDescendingCursor) nextTSM() {
 	c.tsm.pos--
@@ -1906,6 +2047,14 @@ func (c *stringDescendingCursor) nextTSM() {
 		}
 		c.tsm.pos = len(c.tsm.values) - 1
 	}
+}
+
+func (c *stringDescendingCursor) seekTSM(t int64) {
+}
+
+func (c *stringDescendingCursor) seek(t int64) {
+	c.seekCache(t)
+	c.seekTSM(t)
 }
 
 // bufStringCursor provides a ring buffer to support seeking in a cursor.
@@ -1941,6 +2090,10 @@ func (c *bufStringCursor) unread(k int64, v string) {
 	c.buf[1] = c.buf[0]
 	c.buf[0].key, c.buf[0].value = k, v
 	c.buf[0].filled = true
+}
+
+func (c *bufStringCursor) seek(t int64) {
+	c.cur.seek(t)
 }
 
 func (c *bufStringCursor) seekAt(seek int64) {
@@ -2249,11 +2402,7 @@ func (itr *booleanIterator) bufCursor() (*bufBooleanCursor, error) {
 }
 
 func (itr *booleanIterator) SeekTo(t int64) error {
-	cur, err := itr.bufCursor()
-	if err != nil {
-		return err
-	}
-	cur.seekAt(t)
+	itr.cur.seek(t)
 	return nil
 }
 
@@ -2441,6 +2590,17 @@ func (c *booleanAscendingCursor) nextCache() {
 	c.cache.pos++
 }
 
+func (c *booleanAscendingCursor) seekCache(t int64) {
+	if c.cache.pos >= len(c.cache.values) {
+		return
+	}
+	values := c.cache.values[c.cache.pos:]
+	i := sort.Search(len(values), func(i int) bool {
+		return values[i].UnixNano() >= t
+	})
+	c.cache.pos += i
+}
+
 // nextTSM returns the next value from the TSM files.
 func (c *booleanAscendingCursor) nextTSM() {
 	c.tsm.pos++
@@ -2452,6 +2612,36 @@ func (c *booleanAscendingCursor) nextTSM() {
 		}
 		c.tsm.pos = 0
 	}
+}
+
+func (c *booleanAscendingCursor) seekTSM(t int64) {
+	if c.tsm.pos >= len(c.tsm.values) {
+		return
+	}
+
+	for {
+		values := c.tsm.values[c.tsm.pos:]
+		i := sort.Search(len(values), func(i int) bool {
+			return values[i].UnixNano() >= t
+		})
+		c.tsm.pos += i
+
+		if c.tsm.pos < len(c.tsm.values) {
+			return
+		}
+
+		c.tsm.keyCursor.Next()
+		c.tsm.values, _ = c.tsm.keyCursor.ReadBooleanBlock(&c.tsm.buf)
+		if len(c.tsm.values) == 0 {
+			return
+		}
+		c.tsm.pos = 0
+	}
+}
+
+func (c *booleanAscendingCursor) seek(t int64) {
+	c.seekCache(t)
+	c.seekTSM(t)
 }
 
 type booleanDescendingCursor struct {
@@ -2561,6 +2751,9 @@ func (c *booleanDescendingCursor) nextCache() {
 	c.cache.pos--
 }
 
+func (c *booleanDescendingCursor) seekCache(t int64) {
+}
+
 // nextTSM returns the next value from the TSM files.
 func (c *booleanDescendingCursor) nextTSM() {
 	c.tsm.pos--
@@ -2572,6 +2765,14 @@ func (c *booleanDescendingCursor) nextTSM() {
 		}
 		c.tsm.pos = len(c.tsm.values) - 1
 	}
+}
+
+func (c *booleanDescendingCursor) seekTSM(t int64) {
+}
+
+func (c *booleanDescendingCursor) seek(t int64) {
+	c.seekCache(t)
+	c.seekTSM(t)
 }
 
 // bufBooleanCursor provides a ring buffer to support seeking in a cursor.
@@ -2607,6 +2808,10 @@ func (c *bufBooleanCursor) unread(k int64, v bool) {
 	c.buf[1] = c.buf[0]
 	c.buf[0].key, c.buf[0].value = k, v
 	c.buf[0].filled = true
+}
+
+func (c *bufBooleanCursor) seek(t int64) {
+	c.cur.seek(t)
 }
 
 func (c *bufBooleanCursor) seekAt(seek int64) {
