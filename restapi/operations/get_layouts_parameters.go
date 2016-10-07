@@ -35,11 +35,11 @@ type GetLayoutsParams struct {
 	  Collection Format: csv
 	*/
 	Apps []string
-	/*Returns layouts with this measurement
+	/*Returns layouts with this telegraf measurement
 	  In: query
 	  Collection Format: csv
 	*/
-	Measurements []string
+	TelegrafMeasurements []string
 }
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
@@ -55,8 +55,8 @@ func (o *GetLayoutsParams) BindRequest(r *http.Request, route *middleware.Matche
 		res = append(res, err)
 	}
 
-	qMeasurements, qhkMeasurements, _ := qs.GetOK("measurements")
-	if err := o.bindMeasurements(qMeasurements, qhkMeasurements, route.Formats); err != nil {
+	qTelegrafMeasurements, qhkTelegrafMeasurements, _ := qs.GetOK("telegraf_measurements")
+	if err := o.bindTelegrafMeasurements(qTelegrafMeasurements, qhkTelegrafMeasurements, route.Formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -101,14 +101,14 @@ func (o *GetLayoutsParams) bindApps(rawData []string, hasKey bool, formats strfm
 	return nil
 }
 
-func (o *GetLayoutsParams) bindMeasurements(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *GetLayoutsParams) bindTelegrafMeasurements(rawData []string, hasKey bool, formats strfmt.Registry) error {
 
-	var qvMeasurements string
+	var qvTelegrafMeasurements string
 	if len(rawData) > 0 {
-		qvMeasurements = rawData[len(rawData)-1]
+		qvTelegrafMeasurements = rawData[len(rawData)-1]
 	}
 
-	raw := swag.SplitByFormat(qvMeasurements, "csv")
+	raw := swag.SplitByFormat(qvTelegrafMeasurements, "csv")
 	size := len(raw)
 
 	if size == 0 {
@@ -118,7 +118,7 @@ func (o *GetLayoutsParams) bindMeasurements(rawData []string, hasKey bool, forma
 	ic := raw
 	isz := size
 	var ir []string
-	iValidateElement := func(i int, measurementsI string) *errors.Validation {
+	iValidateElement := func(i int, telegrafMeasurementsI string) *errors.Validation {
 
 		return nil
 	}
@@ -131,7 +131,7 @@ func (o *GetLayoutsParams) bindMeasurements(rawData []string, hasKey bool, forma
 		ir = append(ir, ic[i])
 	}
 
-	o.Measurements = ir
+	o.TelegrafMeasurements = ir
 
 	return nil
 }

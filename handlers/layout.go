@@ -106,7 +106,7 @@ func (h *Store) Layouts(ctx context.Context, params op.GetLayoutsParams) middlew
 		filtered[a] = true
 	}
 
-	for _, m := range params.Measurements {
+	for _, m := range params.TelegrafMeasurements {
 		filtered[m] = true
 	}
 

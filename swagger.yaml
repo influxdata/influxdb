@@ -886,9 +886,9 @@ paths:
         get:
             summary: Pre-configured layouts
             parameters:
-                - name: measurements
+                - name: telegraf_measurements
                   in: query
-                  description: Returns layouts with this measurement
+                  description: Returns layouts with this telegraf measurement
                   required: false
                   type: array
                   items:
