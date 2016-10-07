@@ -2,6 +2,7 @@ package dist
 
 import (
 	"net/http"
+	"path"
 
 	"github.com/elazarl/go-bindata-assetfs"
 )
@@ -29,7 +30,7 @@ func (b *BindataAssets) Handler() http.Handler {
 	def := func(name string) ([]byte, error) {
 		octets, err := Asset(name)
 		if err != nil {
-			return Asset(b.Default)
+			return Asset(path.Join(b.Prefix, b.Default))
 		}
 		return octets, nil
 	}
