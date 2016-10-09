@@ -31,14 +31,10 @@ if [ ! -d ${WDIR}/bin/ ];then
     exit 1
 fi
 ARCH=$(echo ${ID} |tr '[:upper:]' '[:lower:]')
-## CLI
-cd ${WDIR}/cmd/influx
-go get -d
-echo "> go build -o ./bin/influx_${GIT_TAG}_${ARCH}"
-go build -o ${WDIR}/bin/influx_${GIT_TAG}_${ARCH}
-
-## Server
-cd ${WDIR}/cmd/influxd
-go get -d
-echo "> go build -o ./bin/influxd_${GIT_TAG}_${ARCH}"
-go build -o ${WDIR}/bin/influxd_${GIT_TAG}_${ARCH}
+cd cmd/
+for cmd in $(find . -maxdepth 1 -mindepth 1 -type d);do
+    cd ${WDIR}/cmd/${cmd}
+    go get -d
+    echo "> go build -o ./bin/${cmd}_${GIT_TAG}_${ARCH}"
+    go build -o ${WDIR}/bin/${cmd}_${GIT_TAG}_${ARCH}
+done
