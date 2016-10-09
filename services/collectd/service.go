@@ -151,6 +151,23 @@ func (s *Service) Open() error {
 			s.popts.TypesDB = types
 		}
 	}
+
+	// Sets the security level according to the config.
+	// Default not necessary because we validate the config.
+	switch s.Config.SecurityLevel {
+	case "none":
+		s.popts.SecurityLevel = network.None
+	case "sign":
+		s.popts.SecurityLevel = network.Sign
+	case "encrypt":
+		s.popts.SecurityLevel = network.Encrypt
+	}
+
+	// Sets the auth file according to the config.
+	if s.popts.PasswordLookup == nil {
+		s.popts.PasswordLookup = network.NewAuthFile(s.Config.AuthFile)
+	}
+
 	// Resolve our address.
 	addr, err := net.ResolveUDPAddr("udp", s.Config.BindAddress)
 	if err != nil {
@@ -334,7 +351,7 @@ func (s *Service) handleMessage(buffer []byte) {
 		return
 	}
 	for _, valueList := range valueLists {
-		points := s.UnmarshalValueList(&valueList)
+		points := s.UnmarshalValueList(valueList)
 		for _, p := range points {
 			s.batcher.In() <- p
 		}
