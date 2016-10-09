@@ -34,11 +34,11 @@ fi
 ## CLI
 cd ${WDIR}/cmd/influx
 go get -d
-echo "> go build -o ${WDIR}/bin/influx_${GIT_TAG}_${ID}"
+echo "> go build -o ./bin/influx_${GIT_TAG}_${ID}"
 go build -o ${WDIR}/bin/influx_${GIT_TAG}_${ID}
 
 ## Server
 cd ${WDIR}/cmd/influxd
 go get -d
-echo "> go build -o ${WDIR}/bin/influxd_${GIT_TAG}_${ID}"
+echo "> go build -o ./bin/influxd_${GIT_TAG}_${ID}"
 go build -o ${WDIR}/bin/influxd_${GIT_TAG}_${ID}
