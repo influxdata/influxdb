@@ -30,15 +30,15 @@ if [ ! -d ${WDIR}/bin/ ];then
     echo "No target directory (${WDIR}/bin/)... "
     exit 1
 fi
-
+ARCH=$(echo ${ID} |tr '[:upper:]' '[:lower:]')
 ## CLI
 cd ${WDIR}/cmd/influx
 go get -d
-echo "> go build -o ./bin/influx_${GIT_TAG}_${ID}"
-go build -o ${WDIR}/bin/influx_${GIT_TAG}_${ID}
+echo "> go build -o ./bin/influx_${GIT_TAG}_${ARCH}"
+go build -o ${WDIR}/bin/influx_${GIT_TAG}_${ARCH}
 
 ## Server
 cd ${WDIR}/cmd/influxd
 go get -d
-echo "> go build -o ./bin/influxd_${GIT_TAG}_${ID}"
-go build -o ${WDIR}/bin/influxd_${GIT_TAG}_${ID}
+echo "> go build -o ./bin/influxd_${GIT_TAG}_${ARCH}"
+go build -o ${WDIR}/bin/influxd_${GIT_TAG}_${ARCH}

@@ -36,4 +36,9 @@ tools:
 	go get github.com/kisielk/errcheck
 	go get github.com/sparrc/gdm
 
+linux:
+	docker run --rm -ti -v $(CURDIR):/usr/local/src/github.com/influxdata/influxdb/ --workdir /usr/local/src/github.com/influxdata/influxdb/ qnib/golang ./build-qnib.sh
+alpine:
+	docker run --rm -ti -v $(CURDIR):/usr/local/src/github.com/influxdata/influxdb/ --workdir /usr/local/src/github.com/influxdata/influxdb/ qnib/alpn-go-dev ./build-qnib.sh
+
 .PHONY: default,metalint,deadcode,cyclo,aligncheck,defercheck,structcheck,lint,errcheck,tools
