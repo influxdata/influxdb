@@ -654,7 +654,16 @@ func (m *Measurement) HasSeries() bool {
 }
 
 // Cardinality returns the number of values associated with tag key
-func (m *Measurement) Cardinality(key []byte) int {
+func (m *Measurement) Cardinality(key string) int {
+	var n int
+	m.mu.RLock()
+	n = len(m.seriesByTagKeyValue[key])
+	m.mu.RUnlock()
+	return n
+}
+
+// Cardinality returns the number of values associated with tag key
+func (m *Measurement) CardinalityBytes(key []byte) int {
 	var n int
 	m.mu.RLock()
 	n = len(m.seriesByTagKeyValue[string(key)])
@@ -1839,17 +1848,6 @@ func (m *Measurement) TagKeys() []string {
 	return keys
 }
 
-func (m *Measurement) TagKeysBytes() [][]byte {
-	m.mu.RLock()
-	keys := make([][]byte, 0, len(m.seriesByTagKeyValue))
-	for k := range m.seriesByTagKeyValue {
-		keys = append(keys, []byte(k))
-	}
-	m.mu.RUnlock()
-	sort.Sort(bytesSlice(keys))
-	return keys
-}
-
 // TagValues returns all the values for the given tag key
 func (m *Measurement) TagValues(key string) []string {
 	m.mu.RLock()
@@ -2012,9 +2010,3 @@ type byTagKey []*influxql.TagSet
 func (t byTagKey) Len() int           { return len(t) }
 func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
 func (t byTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-
-type bytesSlice [][]byte
-
-func (t bytesSlice) Len() int           { return len(t) }
-func (t bytesSlice) Less(i, j int) bool { return bytes.Compare(t[i], t[j]) < 0 }
-func (t bytesSlice) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }

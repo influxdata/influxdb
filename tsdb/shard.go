@@ -510,7 +510,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 						continue
 					}
 
-					n := m.Cardinality(tag.Key)
+					n := m.CardinalityBytes(tag.Key)
 					if n >= s.options.Config.MaxValuesPerTag {
 						dropPoint = true
 						reason = fmt.Sprintf("max tag value limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
@@ -853,7 +853,7 @@ func (s *Shard) monitor() {
 			}
 
 			for _, m := range s.index.Measurements() {
-				for _, k := range m.TagKeysBytes() {
+				for _, k := range m.TagKeys() {
 					n := m.Cardinality(k)
 					perc := int(float64(n) / float64(s.options.Config.MaxValuesPerTag) * 100)
 					if perc > 100 {
