@@ -1,0 +1,15 @@
+ {
+ 	"telegraf_measurement": "disk",
+ 	"app": "Host Disks Stats",
+ 	"cells": [{
+ 		"x": 0,
+ 		"y": 0,
+ 		"w": 10,
+ 		"h": 10,
+ 		"queries": [{
+ 			"query": "select used_percent from disk",
+ 			"db": "telegraf",
+ 			"rp": "autogen"
+		}]
+ 	}]
+ }

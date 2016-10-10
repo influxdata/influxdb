@@ -90,19 +90,19 @@ type ExplorationStore interface {
 
 // Cell is a rectangle and multiple time series queries to visualize.
 type Cell struct {
-	X       int32
-	Y       int32
-	W       int32
-	H       int32
-	Queries []Query
+	X       int32   `json:"x"`
+	Y       int32   `json:"y"`
+	W       int32   `json:"w"`
+	H       int32   `json:"h"`
+	Queries []Query `json:"queries"`
 }
 
 // Layout is a collection of Cells for visualization
 type Layout struct {
-	ID          string
-	Application string
-	Measurement string
-	Cells       []Cell
+	ID          string `json:"id"`
+	Application string `json:"app"`
+	Measurement string `json:"measurement"`
+	Cells       []Cell `json:"cells"`
 }
 
 // LayoutStore stores dashboards and associated Cells
