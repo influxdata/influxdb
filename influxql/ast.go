@@ -1167,9 +1167,7 @@ func (s *SelectStatement) RewriteFields(ic IteratorCreator) (*SelectStatement, e
 				switch call.Name {
 				case "count", "first", "last", "distinct", "elapsed", "mode":
 					supportedTypes[String] = struct{}{}
-					supportedTypes[Boolean] = struct{}{}
-				case "stddev":
-					supportedTypes[String] = struct{}{}
+					fallthrough
 				case "min", "max":
 					supportedTypes[Boolean] = struct{}{}
 				}

@@ -1320,43 +1320,6 @@ func TestSelect_Stddev_Integer(t *testing.T) {
 	}
 }
 
-// Ensure a SELECT stddev() query can be executed.
-func TestSelect_Stddev_String(t *testing.T) {
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-		return &StringIterator{Points: []influxql.StringPoint{
-			{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 0 * Second, Value: "a"},
-			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 5 * Second, Value: "b"},
-			{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 9 * Second, Value: "c"},
-			{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 10 * Second, Value: "d"},
-			{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 11 * Second, Value: "e"},
-			{Name: "cpu", Tags: ParseTags("region=west,host=A"), Time: 31 * Second, Value: "f"},
-
-			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 50 * Second, Value: "g"},
-			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 51 * Second, Value: "h"},
-			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 52 * Second, Value: "i"},
-			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: "j"},
-			{Name: "cpu", Tags: ParseTags("region=west,host=B"), Time: 53 * Second, Value: "k"},
-		}}, nil
-	}
-
-	// Execute selection.
-	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT stddev(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`), &ic, nil)
-	if err != nil {
-		t.Fatal(err)
-	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
-		t.Fatalf("unexpected error: %s", err)
-	} else if !deep.Equal(a, [][]influxql.Point{
-		{&influxql.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0 * Second, Value: ""}},
-		{&influxql.StringPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 0 * Second, Value: ""}},
-		{&influxql.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 10 * Second, Value: ""}},
-		{&influxql.StringPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 30 * Second, Value: ""}},
-		{&influxql.StringPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 50 * Second, Value: ""}},
-	}) {
-		t.Fatalf("unexpected points: %s", spew.Sdump(a))
-	}
-}
-
 // Ensure a SELECT spread() query can be executed.
 func TestSelect_Spread_Float(t *testing.T) {
 	var ic IteratorCreator
