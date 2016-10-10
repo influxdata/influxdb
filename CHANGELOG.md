@@ -23,6 +23,7 @@
 - [#7388](https://github.com/influxdata/influxdb/pull/7388): Implement cumulative_sum() function.
 - [#7441](https://github.com/influxdata/influxdb/pull/7441): Speed up shutdown by closing shards concurrently.
 - [#7146](https://github.com/influxdata/influxdb/issues/7146): Add max-values-per-tag to limit high tag cardinality data
+- [#5955](https://github.com/influxdata/influxdb/issues/5955): Make regex work on field and dimension keys in SELECT clause.
 
 ### Bugfixes
 
