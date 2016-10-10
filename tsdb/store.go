@@ -229,11 +229,13 @@ func (s *Store) Close() error {
 	}
 	s.wg.Wait()
 
-	for _, sh := range s.shards {
-		if err := sh.Close(); err != nil {
-			return err
-		}
+	// Close all the shards in parallel.
+	if err := s.walkShards(s.shardsSlice(), func(sh *Shard) error {
+		return sh.Close()
+	}); err != nil {
+		return err
 	}
+
 	s.opened = false
 	s.shards = nil
 	s.databaseIndexes = nil

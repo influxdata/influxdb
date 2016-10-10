@@ -17,6 +17,7 @@
 - [#7305](https://github.com/influxdata/influxdb/pull/7305): UDP Client: Split large points. Thanks @vlasad
 - [#7115](https://github.com/influxdata/influxdb/issues/7115): Feature request: `influx inspect -export` should dump WAL files.
 - [#7388](https://github.com/influxdata/influxdb/pull/7388): Implement cumulative_sum() function.
+- [#7441](https://github.com/influxdata/influxdb/pull/7441): Speed up shutdown by closing shards concurrently.
 
 ### Bugfixes
 
