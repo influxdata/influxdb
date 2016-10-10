@@ -2,7 +2,6 @@ package dist
 
 import (
 	"net/http"
-	"path"
 
 	"github.com/elazarl/go-bindata-assetfs"
 )
@@ -28,9 +27,17 @@ type BindataAssets struct {
 func (b *BindataAssets) Handler() http.Handler {
 	// def wraps the assets to return the default file if the file doesn't exist
 	def := func(name string) ([]byte, error) {
+		// If the named asset exists, then return it directly.
 		octets, err := Asset(name)
 		if err != nil {
-			return Asset(path.Join(b.Prefix, b.Default))
+			// If this is at / then we just error out so we can return a Directory
+			// This directory will then be redirected by go to the /index.html
+			if name == b.Prefix {
+				return nil, err
+			}
+			// If this is anything other than slash, we just return the default
+			// asset.  This default asset will handle the routing.
+			return Asset(b.Default)
 		}
 		return octets, nil
 	}

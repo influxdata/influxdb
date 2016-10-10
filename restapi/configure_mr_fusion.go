@@ -61,7 +61,7 @@ func assets() mrfusion.Assets {
 	}
 	return &dist.BindataAssets{
 		Prefix:  "ui/build",
-		Default: "index.html",
+		Default: "ui/build/index.html",
 	}
 }
 
@@ -236,8 +236,6 @@ func setupGlobalMiddleware(handler http.Handler) http.Handler {
 		if strings.Contains(r.URL.Path, "/chronograf/v1") {
 			handler.ServeHTTP(w, r)
 			return
-		} else if r.URL.Path == "//" {
-			http.Redirect(w, r, "/index.html", http.StatusFound)
 		} else {
 			assets().Handler().ServeHTTP(w, r)
 			return
