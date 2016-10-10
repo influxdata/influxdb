@@ -48,7 +48,7 @@ var config = {
         loader: ExtractTextPlugin.extract('style-loader', 'css-loader!postcss-loader'),
       },
       {
-        test   : /\.(png|jpg|ttf|eot|svg|woff(2)?)(\?[a-z0-9]+)?$/,
+        test   : /\.(ico|png|jpg|ttf|eot|svg|woff(2)?)(\?[a-z0-9]+)?$/,
         loader : 'file',
       },
       {
@@ -81,6 +81,7 @@ var config = {
       template: path.resolve(__dirname, '..', 'src', 'index.template.html'),
       inject: 'body',
       chunksSortMode: 'dependency',
+      favicon: 'assets/images/favicon.ico',
     }),
     new webpack.optimize.UglifyJsPlugin({
       compress: {
