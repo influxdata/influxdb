@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"strconv"
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/influxdata/mrfusion"
@@ -32,7 +31,8 @@ func layoutToMrF(l *models.Layout) mrfusion.Layout {
 		}
 	}
 	return mrfusion.Layout{
-		Measurement: *l.Measurement,
+		ID:          l.ID,
+		Measurement: *l.TelegrafMeasurement,
 		Application: *l.App,
 		Cells:       cells,
 	}
@@ -50,7 +50,7 @@ func (h *Store) NewLayout(ctx context.Context, params op.PostLayoutsParams) midd
 }
 
 func layoutToModel(l mrfusion.Layout) *models.Layout {
-	href := fmt.Sprintf("/chronograf/v1/layouts/%d", l.ID)
+	href := fmt.Sprintf("/chronograf/v1/layouts/%s", l.ID)
 	rel := "self"
 
 	cells := make([]*models.Cell, len(l.Cells))
@@ -83,9 +83,10 @@ func layoutToModel(l mrfusion.Layout) *models.Layout {
 			Href: &href,
 			Rel:  &rel,
 		},
-		Cells:       cells,
-		Measurement: &l.Measurement,
-		App:         &l.Application,
+		Cells:               cells,
+		TelegrafMeasurement: &l.Measurement,
+		App:                 &l.Application,
+		ID:                  l.ID,
 	}
 }
 
@@ -131,13 +132,7 @@ func (h *Store) Layouts(ctx context.Context, params op.GetLayoutsParams) middlew
 }
 
 func (h *Store) LayoutsID(ctx context.Context, params op.GetLayoutsIDParams) middleware.Responder {
-	id, err := strconv.Atoi(params.ID)
-	if err != nil {
-		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
-		return op.NewGetLayoutsIDDefault(500).WithPayload(errMsg)
-	}
-
-	layout, err := h.LayoutStore.Get(ctx, id)
+	layout, err := h.LayoutStore.Get(ctx, params.ID)
 	if err != nil {
 		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.ID)}
 		return op.NewGetLayoutsIDNotFound().WithPayload(errMsg)
@@ -147,15 +142,10 @@ func (h *Store) LayoutsID(ctx context.Context, params op.GetLayoutsIDParams) mid
 }
 
 func (h *Store) RemoveLayout(ctx context.Context, params op.DeleteLayoutsIDParams) middleware.Responder {
-	id, err := strconv.Atoi(params.ID)
-	if err != nil {
-		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
-		return op.NewDeleteLayoutsIDDefault(500).WithPayload(errMsg)
-	}
 	layout := mrfusion.Layout{
-		ID: id,
+		ID: params.ID,
 	}
-	if err = h.LayoutStore.Delete(ctx, layout); err != nil {
+	if err := h.LayoutStore.Delete(ctx, layout); err != nil {
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Unknown error deleting layout %s", params.ID)}
 		return op.NewDeleteLayoutsIDDefault(500).WithPayload(errMsg)
 	}
@@ -164,20 +154,15 @@ func (h *Store) RemoveLayout(ctx context.Context, params op.DeleteLayoutsIDParam
 }
 
 func (h *Store) UpdateLayout(ctx context.Context, params op.PutLayoutsIDParams) middleware.Responder {
-	id, err := strconv.Atoi(params.ID)
-	if err != nil {
-		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
-		return op.NewPutLayoutsIDDefault(500).WithPayload(errMsg)
-	}
-	layout, err := h.LayoutStore.Get(ctx, id)
+	layout, err := h.LayoutStore.Get(ctx, params.ID)
 	if err != nil {
 		errMsg := &models.Error{Code: 404, Message: fmt.Sprintf("Unknown ID %s", params.ID)}
 		return op.NewPutLayoutsIDNotFound().WithPayload(errMsg)
 	}
 	layout = layoutToMrF(params.Config)
-	layout.ID = id
+	layout.ID = params.ID
 	if err := h.LayoutStore.Update(ctx, layout); err != nil {
-		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error updating layout ID %s", params.ID)}
+		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error updating layout ID %s: %v", params.ID, err)}
 		return op.NewPutLayoutsIDDefault(500).WithPayload(errMsg)
 	}
 	return op.NewPutLayoutsIDOK().WithPayload(layoutToModel(layout))

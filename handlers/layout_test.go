@@ -20,7 +20,7 @@ func TestNewLayout(t *testing.T) {
 	var tests = []struct {
 		Desc            string
 		AddError        error
-		ExistingLayouts map[int]mrfusion.Layout
+		ExistingLayouts map[string]mrfusion.Layout
 		NewLayout       *models.Layout
 		ExpectedID      int
 		ExpectedHref    string
@@ -30,8 +30,8 @@ func TestNewLayout(t *testing.T) {
 			Desc:     "Test that an error in datastore returns 500 status",
 			AddError: errors.New("error"),
 			NewLayout: &models.Layout{
-				Measurement: new(string),
-				App:         new(string),
+				TelegrafMeasurement: new(string),
+				App:                 new(string),
 				Cells: []*models.Cell{
 					&models.Cell{
 						X: new(int32),
@@ -45,10 +45,10 @@ func TestNewLayout(t *testing.T) {
 		},
 		{
 			Desc:            "Test that creating a layout returns 201 status",
-			ExistingLayouts: map[int]mrfusion.Layout{},
+			ExistingLayouts: map[string]mrfusion.Layout{},
 			NewLayout: &models.Layout{
-				Measurement: new(string),
-				App:         new(string),
+				TelegrafMeasurement: new(string),
+				App:                 new(string),
 				Cells: []*models.Cell{
 					&models.Cell{
 						X: new(int32),

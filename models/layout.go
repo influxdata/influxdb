@@ -29,6 +29,10 @@ type Layout struct {
 	*/
 	Cells []*Cell `json:"cells"`
 
+	/* ID is an opaque string that uniquely identifies this layout.
+	 */
+	ID string `json:"id,omitempty"`
+
 	/* link
 	 */
 	Link *Link `json:"link,omitempty"`
@@ -37,7 +41,7 @@ type Layout struct {
 
 	Required: true
 	*/
-	Measurement *string `json:"measurement"`
+	TelegrafMeasurement *string `json:"telegraf_measurement"`
 }
 
 // Validate validates this layout
@@ -59,7 +63,7 @@ func (m *Layout) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
-	if err := m.validateMeasurement(formats); err != nil {
+	if err := m.validateTelegrafMeasurement(formats); err != nil {
 		// prop
 		res = append(res, err)
 	}
@@ -119,9 +123,9 @@ func (m *Layout) validateLink(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *Layout) validateMeasurement(formats strfmt.Registry) error {
+func (m *Layout) validateTelegrafMeasurement(formats strfmt.Registry) error {
 
-	if err := validate.Required("measurement", "body", m.Measurement); err != nil {
+	if err := validate.Required("telegraf_measurement", "body", m.TelegrafMeasurement); err != nil {
 		return err
 	}
 

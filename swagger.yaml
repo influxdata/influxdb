@@ -1264,12 +1264,15 @@ definitions:
         required:
             - cells
             - app
-            - measurement
+            - telegraf_measurement
         properties:
+            id:
+                type: string
+                description: ID is an opaque string that uniquely identifies this layout.
             app:
                 type: string
                 description: App is the user facing name of this Layout
-            measurement:
+            telegraf_measurement:
                 type: string
                 description: Measurement is the descriptive name of the time series data.
             cells:

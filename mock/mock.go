@@ -2,6 +2,7 @@ package mock
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/influxdata/mrfusion"
@@ -170,7 +171,7 @@ func (t *TimeSeries) MonitoredServices(context.Context) ([]mrfusion.MonitoredSer
 }
 
 type LayoutStore struct {
-	Layouts     map[int]mrfusion.Layout
+	Layouts     map[string]mrfusion.Layout
 	AllError    error
 	AddError    error
 	DeleteError error
@@ -183,9 +184,9 @@ func (l *LayoutStore) All(ctx context.Context) ([]mrfusion.Layout, error) {
 	if l.AllError != nil {
 		return nil, l.AllError
 	}
-	layouts := make([]mrfusion.Layout, len(l.Layouts))
-	for i, l := range l.Layouts {
-		layouts[i] = l
+	layouts := []mrfusion.Layout{}
+	for _, l := range l.Layouts {
+		layouts = append(layouts, l)
 	}
 	return layouts, nil
 }
@@ -195,7 +196,7 @@ func (l *LayoutStore) Add(ctx context.Context, layout mrfusion.Layout) (mrfusion
 	if l.AddError != nil {
 		return mrfusion.Layout{}, l.AddError
 	}
-	id := len(l.Layouts)
+	id := strconv.Itoa(len(l.Layouts))
 	layout.ID = id
 	l.Layouts[id] = layout
 	return layout, nil
@@ -217,7 +218,7 @@ func (l *LayoutStore) Delete(ctx context.Context, layout mrfusion.Layout) error 
 }
 
 // Get will return map with key ID or GetError
-func (l *LayoutStore) Get(ctx context.Context, ID int) (mrfusion.Layout, error) {
+func (l *LayoutStore) Get(ctx context.Context, ID string) (mrfusion.Layout, error) {
 	if l.GetError != nil {
 		return mrfusion.Layout{}, l.GetError
 	}

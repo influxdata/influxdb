@@ -99,7 +99,7 @@ type Cell struct {
 
 // Layout is a collection of Cells for visualization
 type Layout struct {
-	ID          int
+	ID          string
 	Application string
 	Measurement string
 	Cells       []Cell
@@ -114,7 +114,7 @@ type LayoutStore interface {
 	// Delete the dashboard from the store
 	Delete(context.Context, Layout) error
 	// Get retrieves Layout if `ID` exists
-	Get(ctx context.Context, ID int) (Layout, error)
+	Get(ctx context.Context, ID string) (Layout, error)
 	// Update the dashboard in the store.
 	Update(context.Context, Layout) error
 }
