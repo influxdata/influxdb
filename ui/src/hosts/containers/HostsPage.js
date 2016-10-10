@@ -1,8 +1,7 @@
 import React, {PropTypes} from 'react';
-import _ from 'lodash';
 import FlashMessages from 'shared/components/FlashMessages';
 import HostsTable from '../components/HostsTable';
-import {proxy} from 'utils/queryUrlGenerator';
+import {getCpuAndLoadForHosts} from '../apis';
 
 export const HostsPage = React.createClass({
   propTypes: {
@@ -14,6 +13,7 @@ export const HostsPage = React.createClass({
         proxy: PropTypes.string.isRequired,
       }).isRequired,
     }).isRequired,
+    addFlashMessage: PropTypes.func.isRequired,
   },
 
   getInitialState() {
@@ -23,28 +23,12 @@ export const HostsPage = React.createClass({
   },
 
   componentDidMount() {
-    proxy({
-      source: this.props.source.links.proxy,
-      query: `select mean(usage_user) from cpu where cpu = 'cpu-total' and time > now() - 10m group by host; select mean("load1") from "telegraf"."default"."system" where time > now() - 10m group by host`,
-      db: 'telegraf',
-    }).then((resp) => {
-      const hosts = {};
-      const precision = 100;
-      resp.data.results[0].series.forEach((s) => {
-        const meanIndex = s.columns.findIndex((col) => col === 'mean');
-        hosts[s.tags.host] = {
-          name: s.tags.host,
-          cpu: (Math.round(s.values[0][meanIndex] * precision) / precision).toFixed(2),
-        };
-      });
-
-      resp.data.results[1].series.forEach((s) => {
-        const meanIndex = s.columns.findIndex((col) => col === 'mean');
-        hosts[s.tags.host].load = (Math.round(s.values[0][meanIndex] * precision) / precision).toFixed(2);
-      });
-
-      this.setState({
-        hosts: _.values(hosts),
+    getCpuAndLoadForHosts(this.props.source.links.proxy).then((hosts) => {
+      this.setState({hosts});
+    }).catch(() => {
+      this.props.addFlashMessage({
+        type: 'error',
+        text: `There was an error finding hosts. Check that your server is running.`,
       });
     });
   },
