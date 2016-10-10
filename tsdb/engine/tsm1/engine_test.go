@@ -614,7 +614,7 @@ func benchmarkEngineCreateIteratorCount(b *testing.B, pointN int) {
 		Ascending: true,
 		StartTime: influxql.MinTime,
 		EndTime:   influxql.MaxTime,
-	}, pointN)
+	}, pointN, 1)
 }
 
 func BenchmarkEngine_CreateIterator_Limit_1K(b *testing.B) {
@@ -673,11 +673,26 @@ func benchmarkEngineCreateIteratorLimit(b *testing.B, pointN int) {
 		StartTime:  influxql.MinTime,
 		EndTime:    influxql.MaxTime,
 		Limit:      10,
-	}, pointN)
+	}, pointN, 1)
 }
 
-func benchmarkIterator(b *testing.B, opt influxql.IteratorOptions, pointN int) {
-	e := MustInitBenchmarkEngine(pointN)
+func BenchmarkEngine_CreateIterator_Limit_HighCardinality_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorLimit_HighCardinality(b, 1000)
+}
+
+func benchmarkEngineCreateIteratorLimit_HighCardinality(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:      influxql.MustParseExpr("value"),
+		Sources:   []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Ascending: true,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+		Limit:     1,
+	}, pointN, 3)
+}
+
+func benchmarkIterator(b *testing.B, opt influxql.IteratorOptions, pointN, cardinalityN int) {
+	e := MustInitBenchmarkEngine(pointN, cardinalityN)
 	b.ResetTimer()
 	b.ReportAllocs()
 
@@ -691,18 +706,19 @@ func benchmarkIterator(b *testing.B, opt influxql.IteratorOptions, pointN int) {
 }
 
 var benchmark struct {
-	Engine *Engine
-	PointN int
+	Engine       *Engine
+	PointN       int
+	CardinalityN int
 }
 
 var hostNames = []string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J"}
 
 // MustInitBenchmarkEngine creates a new engine and fills it with points.
 // Reuses previous engine if the same parameters were used.
-func MustInitBenchmarkEngine(pointN int) *Engine {
+func MustInitBenchmarkEngine(pointN, cardinalityN int) *Engine {
 	// Reuse engine, if available.
 	if benchmark.Engine != nil {
-		if benchmark.PointN == pointN {
+		if benchmark.PointN == pointN && benchmark.CardinalityN == cardinalityN {
 			return benchmark.Engine
 		}
 
@@ -728,8 +744,16 @@ func MustInitBenchmarkEngine(pointN int) *Engine {
 	for i := 0; i < pointN; i += batchSize {
 		var buf bytes.Buffer
 		for j := 0; j < batchSize; j++ {
+			host := hostNames[j%len(hostNames)]
+			if cardinalityN > 1 {
+				k := j
+				for n := 1; n < cardinalityN; n++ {
+					k /= len(hostNames)
+					host += hostNames[k%len(hostNames)]
+				}
+			}
 			fmt.Fprintf(&buf, "cpu,host=%s value=%d %d",
-				hostNames[j%len(hostNames)],
+				host,
 				100+rand.Intn(50)-25,
 				(time.Duration(i+j)*time.Second)+(time.Duration(rand.Intn(500)-250)*time.Millisecond),
 			)
