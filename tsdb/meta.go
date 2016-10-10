@@ -635,11 +635,40 @@ func (m *Measurement) HasTagKey(k string) bool {
 	return hasTag
 }
 
+func (m *Measurement) HasTagKeyValue(k, v []byte) bool {
+	m.mu.RLock()
+	if vals, ok := m.seriesByTagKeyValue[string(k)]; ok {
+		_, ok := vals[string(v)]
+		m.mu.RUnlock()
+		return ok
+	}
+	m.mu.RUnlock()
+	return false
+}
+
 // HasSeries returns true if there is at least 1 series under this measurement
 func (m *Measurement) HasSeries() bool {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return len(m.seriesByID) > 0
+}
+
+// Cardinality returns the number of values associated with tag key
+func (m *Measurement) Cardinality(key string) int {
+	var n int
+	m.mu.RLock()
+	n = len(m.seriesByTagKeyValue[key])
+	m.mu.RUnlock()
+	return n
+}
+
+// Cardinality returns the number of values associated with tag key
+func (m *Measurement) CardinalityBytes(key []byte) int {
+	var n int
+	m.mu.RLock()
+	n = len(m.seriesByTagKeyValue[string(key)])
+	m.mu.RUnlock()
+	return n
 }
 
 // AddSeries will add a series to the measurementIndex. Returns false if already present
@@ -1810,11 +1839,11 @@ func MarshalTags(tags map[string]string) []byte {
 // TagKeys returns a list of the measurement's tag names.
 func (m *Measurement) TagKeys() []string {
 	m.mu.RLock()
-	defer m.mu.RUnlock()
 	keys := make([]string, 0, len(m.seriesByTagKeyValue))
 	for k := range m.seriesByTagKeyValue {
 		keys = append(keys, k)
 	}
+	m.mu.RUnlock()
 	sort.Strings(keys)
 	return keys
 }

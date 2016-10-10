@@ -25,15 +25,16 @@ import (
 const monitorStatInterval = 30 * time.Second
 
 const (
-	statWriteReq       = "writeReq"
-	statWriteReqOK     = "writeReqOk"
-	statWriteReqErr    = "writeReqErr"
-	statSeriesCreate   = "seriesCreate"
-	statFieldsCreate   = "fieldsCreate"
-	statWritePointsErr = "writePointsErr"
-	statWritePointsOK  = "writePointsOk"
-	statWriteBytes     = "writeBytes"
-	statDiskBytes      = "diskBytes"
+	statWriteReq           = "writeReq"
+	statWriteReqOK         = "writeReqOk"
+	statWriteReqErr        = "writeReqErr"
+	statSeriesCreate       = "seriesCreate"
+	statFieldsCreate       = "fieldsCreate"
+	statWritePointsErr     = "writePointsErr"
+	statWritePointsDropped = "writePointsDropped"
+	statWritePointsOK      = "writePointsOk"
+	statWriteBytes         = "writeBytes"
+	statDiskBytes          = "diskBytes"
 )
 
 var (
@@ -81,6 +82,17 @@ func NewShardError(id uint64, err error) error {
 
 func (e ShardError) Error() string {
 	return fmt.Sprintf("[shard %d] %s", e.id, e.Err)
+}
+
+// PartialWriteErrors indicates a write request could only write a portion of the
+// requested values.
+type PartialWriteError struct {
+	Reason  string
+	Dropped int
+}
+
+func (e PartialWriteError) Error() string {
+	return fmt.Sprintf("%s dropped=%d", e.Reason, e.Dropped)
 }
 
 // Shard represents a self-contained time series database. An inverted index of
@@ -173,15 +185,16 @@ func (s *Shard) SetEnabled(enabled bool) {
 
 // ShardStatistics maintains statistics for a shard.
 type ShardStatistics struct {
-	WriteReq       int64
-	WriteReqOK     int64
-	WriteReqErr    int64
-	SeriesCreated  int64
-	FieldsCreated  int64
-	WritePointsErr int64
-	WritePointsOK  int64
-	BytesWritten   int64
-	DiskBytes      int64
+	WriteReq           int64
+	WriteReqOK         int64
+	WriteReqErr        int64
+	SeriesCreated      int64
+	FieldsCreated      int64
+	WritePointsErr     int64
+	WritePointsDropped int64
+	WritePointsOK      int64
+	BytesWritten       int64
+	DiskBytes          int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -196,15 +209,16 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 		Name: "shard",
 		Tags: tags,
 		Values: map[string]interface{}{
-			statWriteReq:       atomic.LoadInt64(&s.stats.WriteReq),
-			statWriteReqOK:     atomic.LoadInt64(&s.stats.WriteReqOK),
-			statWriteReqErr:    atomic.LoadInt64(&s.stats.WriteReqErr),
-			statSeriesCreate:   seriesN,
-			statFieldsCreate:   atomic.LoadInt64(&s.stats.FieldsCreated),
-			statWritePointsErr: atomic.LoadInt64(&s.stats.WritePointsErr),
-			statWritePointsOK:  atomic.LoadInt64(&s.stats.WritePointsOK),
-			statWriteBytes:     atomic.LoadInt64(&s.stats.BytesWritten),
-			statDiskBytes:      atomic.LoadInt64(&s.stats.DiskBytes),
+			statWriteReq:           atomic.LoadInt64(&s.stats.WriteReq),
+			statWriteReqOK:         atomic.LoadInt64(&s.stats.WriteReqOK),
+			statWriteReqErr:        atomic.LoadInt64(&s.stats.WriteReqErr),
+			statSeriesCreate:       seriesN,
+			statFieldsCreate:       atomic.LoadInt64(&s.stats.FieldsCreated),
+			statWritePointsErr:     atomic.LoadInt64(&s.stats.WritePointsErr),
+			statWritePointsDropped: atomic.LoadInt64(&s.stats.WritePointsDropped),
+			statWritePointsOK:      atomic.LoadInt64(&s.stats.WritePointsOK),
+			statWriteBytes:         atomic.LoadInt64(&s.stats.BytesWritten),
+			statDiskBytes:          atomic.LoadInt64(&s.stats.DiskBytes),
 		},
 	}}
 	statistics = append(statistics, s.engine.Statistics(tags)...)
@@ -255,7 +269,7 @@ func (s *Shard) Open() error {
 
 		s.logger.Printf("%s database index loaded in %s", s.path, time.Now().Sub(start))
 
-		go s.monitorSize()
+		go s.monitor()
 
 		return nil
 	}(); err != nil {
@@ -370,14 +384,21 @@ func (s *Shard) WritePoints(points []models.Point) error {
 		return err
 	}
 
+	var writeError error
+
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	atomic.AddInt64(&s.stats.WriteReq, 1)
 
-	fieldsToCreate, err := s.validateSeriesAndFields(points)
+	points, fieldsToCreate, err := s.validateSeriesAndFields(points)
 	if err != nil {
-		return err
+		if _, ok := err.(PartialWriteError); !ok {
+			return err
+		}
+		// There was a partial write (points dropped), hold onto the error to return
+		// to the caller, but continue on writing the remaining points.
+		writeError = err
 	}
 	atomic.AddInt64(&s.stats.FieldsCreated, int64(len(fieldsToCreate)))
 
@@ -395,7 +416,7 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	atomic.AddInt64(&s.stats.WritePointsOK, int64(len(points)))
 	atomic.AddInt64(&s.stats.WriteReqOK, 1)
 
-	return nil
+	return writeError
 }
 
 func (s *Shard) ContainsSeries(seriesKeys []string) (map[string]bool, error) {
@@ -466,11 +487,54 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 }
 
 // validateSeriesAndFields checks which series and fields are new and whose metadata should be saved and indexed
-func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, error) {
-	var fieldsToCreate []*FieldCreate
+func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, []*FieldCreate, error) {
+	var (
+		fieldsToCreate []*FieldCreate
+		err            error
+		dropped, n     int
+		reason         string
+	)
+	if s.options.Config.MaxValuesPerTag > 0 {
+		// Validate that all the new points would not exceed any limits, if so, we drop them
+		// and record why/increment counters
+		for i, p := range points {
+			tags := p.Tags()
+			m := s.index.Measurement(p.Name())
+
+			// Measurement doesn't exist yet, can't check the limit
+			if m != nil {
+				var dropPoint bool
+				for _, tag := range tags {
+					// If the tag value already exists, skip the limit check
+					if m.HasTagKeyValue(tag.Key, tag.Value) {
+						continue
+					}
+
+					n := m.CardinalityBytes(tag.Key)
+					if n >= s.options.Config.MaxValuesPerTag {
+						dropPoint = true
+						reason = fmt.Sprintf("max tag value limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
+							n, s.options.Config.MaxValuesPerTag, m.Name, string(tag.Key), string(tag.Key))
+						break
+					}
+				}
+				if dropPoint {
+					atomic.AddInt64(&s.stats.WritePointsDropped, 1)
+					dropped += 1
+
+					// This causes n below to not be increment allowing the point to be dropped
+					continue
+				}
+			}
+			points[n] = points[i]
+			n += 1
+		}
+		points = points[:n]
+	}
 
 	// get the shard mutex for locally defined fields
-	for _, p := range points {
+	n = 0
+	for i, p := range points {
 		// verify the tags and fields
 		tags := p.Tags()
 		if v := tags.Get(timeBytes); v != nil {
@@ -500,7 +564,11 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 		ss := s.index.SeriesBytes(p.Key())
 		if ss == nil {
 			if s.options.Config.MaxSeriesPerDatabase > 0 && s.index.SeriesN()+1 > s.options.Config.MaxSeriesPerDatabase {
-				return nil, fmt.Errorf("max series per database exceeded: %s", p.Key())
+				atomic.AddInt64(&s.stats.WritePointsDropped, 1)
+				dropped += 1
+				reason = fmt.Sprintf("db %s max series limit reached: (%d/%d)",
+					s.database, s.index.SeriesN(), s.options.Config.MaxSeriesPerDatabase)
+				continue
 			}
 
 			ss = s.index.CreateSeriesIndexIfNotExists(p.Name(), NewSeries(string(p.Key()), tags))
@@ -554,7 +622,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 			if f := mf.FieldBytes(iter.FieldKey()); f != nil {
 				// Field present in shard metadata, make sure there is no type conflict.
 				if f.Type != fieldType {
-					return nil, fmt.Errorf("%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s", ErrFieldTypeConflict, iter.FieldKey(), p.Name(), fieldType, f.Type)
+					return points, nil, fmt.Errorf("%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s", ErrFieldTypeConflict, iter.FieldKey(), p.Name(), fieldType, f.Type)
 				}
 
 				continue // Field is present, and it's of the same type. Nothing more to do.
@@ -562,9 +630,16 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]*FieldCreate, 
 
 			fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &Field{Name: string(iter.FieldKey()), Type: fieldType}})
 		}
+		points[n] = points[i]
+		n += 1
+	}
+	points = points[:n]
+
+	if dropped > 0 {
+		err = PartialWriteError{Reason: reason, Dropped: dropped}
 	}
 
-	return fieldsToCreate, nil
+	return points, fieldsToCreate, err
 }
 
 // SeriesCount returns the number of series buckets on the shard.
@@ -756,9 +831,11 @@ func (s *Shard) CreateSnapshot() (string, error) {
 	return s.engine.CreateSnapshot()
 }
 
-func (s *Shard) monitorSize() {
+func (s *Shard) monitor() {
 	t := time.NewTicker(monitorStatInterval)
 	defer t.Stop()
+	t2 := time.NewTicker(time.Minute)
+	defer t2.Stop()
 	for {
 		select {
 		case <-s.closing:
@@ -770,6 +847,26 @@ func (s *Shard) monitorSize() {
 				continue
 			}
 			atomic.StoreInt64(&s.stats.DiskBytes, size)
+		case <-t2.C:
+			if s.options.Config.MaxValuesPerTag == 0 {
+				continue
+			}
+
+			for _, m := range s.index.Measurements() {
+				for _, k := range m.TagKeys() {
+					n := m.Cardinality(k)
+					perc := int(float64(n) / float64(s.options.Config.MaxValuesPerTag) * 100)
+					if perc > 100 {
+						perc = 100
+					}
+
+					// Log at 80, 85, 90-100% levels
+					if perc == 80 || perc == 85 || perc >= 90 {
+						s.logger.Printf("WARN: %d%% of tag values limit reached: (%d/%d), db=%s shard=%d measurement=%s tag=%s",
+							perc, n, s.options.Config.MaxValuesPerTag, s.database, s.id, m.Name, k)
+					}
+				}
+			}
 		}
 	}
 }

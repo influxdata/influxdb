@@ -26,6 +26,7 @@ import (
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
 )
 
@@ -164,6 +165,7 @@ type Statistics struct {
 	WriteRequestBytesReceived    int64
 	QueryRequestBytesTransmitted int64
 	PointsWrittenOK              int64
+	PointsWrittenDropped         int64
 	PointsWrittenFail            int64
 	AuthenticationFailures       int64
 	RequestDuration              int64
@@ -190,6 +192,7 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 			statWriteRequestBytesReceived:    atomic.LoadInt64(&h.stats.WriteRequestBytesReceived),
 			statQueryRequestBytesTransmitted: atomic.LoadInt64(&h.stats.QueryRequestBytesTransmitted),
 			statPointsWrittenOK:              atomic.LoadInt64(&h.stats.PointsWrittenOK),
+			statPointsWrittenDropped:         atomic.LoadInt64(&h.stats.PointsWrittenDropped),
 			statPointsWrittenFail:            atomic.LoadInt64(&h.stats.PointsWrittenFail),
 			statAuthFail:                     atomic.LoadInt64(&h.stats.AuthenticationFailures),
 			statRequestDuration:              atomic.LoadInt64(&h.stats.RequestDuration),
@@ -666,6 +669,11 @@ func (h *Handler) serveWrite(w http.ResponseWriter, r *http.Request, user *meta.
 	if err := h.PointsWriter.WritePoints(database, r.URL.Query().Get("rp"), consistency, points); influxdb.IsClientError(err) {
 		atomic.AddInt64(&h.stats.PointsWrittenFail, int64(len(points)))
 		h.httpError(w, err.Error(), http.StatusBadRequest)
+		return
+	} else if werr, ok := err.(tsdb.PartialWriteError); ok {
+		atomic.AddInt64(&h.stats.PointsWrittenOK, int64(len(points)-werr.Dropped))
+		atomic.AddInt64(&h.stats.PointsWrittenDropped, int64(werr.Dropped))
+		h.httpError(w, fmt.Sprintf("partial write: %v", werr), http.StatusBadRequest)
 		return
 	} else if err != nil {
 		atomic.AddInt64(&h.stats.PointsWrittenFail, int64(len(points)))

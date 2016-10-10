@@ -101,7 +101,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 func TestMaxSeriesLimit(t *testing.T) {
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
-	tmpShard := path.Join(tmpDir, "shard")
+	tmpShard := path.Join(tmpDir, "db", "rp", "1")
 	tmpWal := path.Join(tmpDir, "wal")
 
 	index := tsdb.NewDatabaseIndex("db")
@@ -144,8 +144,61 @@ func TestMaxSeriesLimit(t *testing.T) {
 	err = sh.WritePoints([]models.Point{pt})
 	if err == nil {
 		t.Fatal("expected error")
-	} else if err.Error() != "max series per database exceeded: cpu,host=server9999" {
-		t.Fatalf("unexpected error message:\n\texp = max series per database exceeded: cpu,host=server9999\n\tgot = %s", err.Error())
+	} else if exp, got := `db db max series limit reached: (1000/1000) dropped=1`, err.Error(); exp != got {
+		t.Fatalf("unexpected error message:\n\texp = %s\n\tgot = %s", exp, got)
+	}
+
+	sh.Close()
+}
+
+func TestShard_MaxTagValuesLimit(t *testing.T) {
+	tmpDir, _ := ioutil.TempDir("", "shard_test")
+	defer os.RemoveAll(tmpDir)
+	tmpShard := path.Join(tmpDir, "db", "rp", "1")
+	tmpWal := path.Join(tmpDir, "wal")
+
+	index := tsdb.NewDatabaseIndex("db")
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.Config.MaxValuesPerTag = 1000
+
+	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+
+	if err := sh.Open(); err != nil {
+		t.Fatalf("error opening shard: %s", err.Error())
+	}
+
+	// Writing 1K series should succeed.
+	points := []models.Point{}
+
+	for i := 0; i < 1000; i++ {
+		pt := models.MustNewPoint(
+			"cpu",
+			models.Tags{{Key: []byte("host"), Value: []byte(fmt.Sprintf("server%d", i))}},
+			map[string]interface{}{"value": 1.0},
+			time.Unix(1, 2),
+		)
+		points = append(points, pt)
+	}
+
+	err := sh.WritePoints(points)
+	if err != nil {
+		t.Fatalf(err.Error())
+	}
+
+	// Writing one more series should exceed the series limit.
+	pt := models.MustNewPoint(
+		"cpu",
+		models.Tags{{Key: []byte("host"), Value: []byte("server9999")}},
+		map[string]interface{}{"value": 1.0},
+		time.Unix(1, 2),
+	)
+
+	err = sh.WritePoints([]models.Point{pt})
+	if err == nil {
+		t.Fatal("expected error")
+	} else if exp, got := `max tag value limit exceeded (1000/1000): measurement="cpu" tag="host" value="host" dropped=1`, err.Error(); exp != got {
+		t.Fatalf("unexpected error message:\n\texp = %s\n\tgot = %s", exp, got)
 	}
 
 	sh.Close()
