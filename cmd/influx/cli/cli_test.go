@@ -48,6 +48,7 @@ func TestRunCLI(t *testing.T) {
 	c.Host = h
 	c.Port, _ = strconv.Atoi(p)
 	c.IgnoreSignals = true
+	c.ForceTTY = true
 	go func() {
 		close(c.Quit)
 	}()
@@ -69,6 +70,7 @@ func TestRunCLI_ExecuteInsert(t *testing.T) {
 	c.Precision = "ms"
 	c.Execute = "INSERT sensor,floor=1 value=2"
 	c.IgnoreSignals = true
+	c.ForceTTY = true
 	if err := c.Run(); err != nil {
 		t.Fatalf("Run failed with error: %s", err)
 	}
