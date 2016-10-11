@@ -4,9 +4,11 @@ package canned
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/influxdata/mrfusion"
 	fusionlog "github.com/influxdata/mrfusion/log"
@@ -17,7 +19,7 @@ const AppExt = ".json"
 
 var logger = fusionlog.New()
 
-// Apps are canned JSON layouts.  Implements LayoutStore
+// Apps are canned JSON layouts.  Implements LayoutStore.
 type Apps struct {
 	Dir      string                                      // Dir is the directory contained the pre-canned applications.
 	Load     func(string) (mrfusion.Layout, error)       // Load loads string name and return a Layout
@@ -40,32 +42,9 @@ func NewApps(dir string, ids mrfusion.ID) mrfusion.LayoutStore {
 	}
 }
 
-// NewBindataApps restores application layouts into dir and serves them there.
-// If the file system is not permanent (e.g. Docker without a volume) changes will
-// not persist.
-func NewBindataApps(dir string, ids mrfusion.ID) mrfusion.LayoutStore {
-	names := AssetNames()
-	// Only restore the files that do not exist.
-	// The idea is that any changes are preserved.
-	for _, f := range names {
-		// File doesn't exist so we try to restore.
-		if _, err := os.Stat(f); err != nil {
-			if err = RestoreAsset(dir, f); err != nil {
-				// If app is not able to be restored, I want the keep trying for all the rest.
-				logger.
-					WithField("component", "apps").
-					WithField("name", f).
-					WithField("dir", dir).
-					Info("Unable to restore app asset", err)
-				continue
-			}
-		}
-	}
-	return NewApps(dir, ids)
-}
-
 func fileName(dir string, layout mrfusion.Layout) string {
-	return path.Join(dir, layout.ID+AppExt)
+	base := fmt.Sprintf("%s_%s%s", layout.Measurement, layout.ID, AppExt)
+	return path.Join(dir, base)
 }
 
 func loadFile(name string) (mrfusion.Layout, error) {
@@ -143,7 +122,11 @@ func (a *Apps) Add(ctx context.Context, layout mrfusion.Layout) (mrfusion.Layout
 }
 
 func (a *Apps) Delete(ctx context.Context, layout mrfusion.Layout) error {
-	file := a.Filename(a.Dir, layout)
+	file, err := a.idToFile(layout.ID)
+	if err != nil {
+		return err
+	}
+
 	if err := a.Remove(file); err != nil {
 		logger.
 			WithField("component", "apps").
@@ -155,7 +138,10 @@ func (a *Apps) Delete(ctx context.Context, layout mrfusion.Layout) error {
 }
 
 func (a *Apps) Get(ctx context.Context, ID string) (mrfusion.Layout, error) {
-	file := a.Filename(a.Dir, mrfusion.Layout{ID: ID})
+	file, err := a.idToFile(ID)
+	if err != nil {
+		return mrfusion.Layout{}, err
+	}
 	l, err := a.Load(file)
 	if err != nil {
 		return mrfusion.Layout{}, mrfusion.ErrLayoutNotFound
@@ -164,9 +150,40 @@ func (a *Apps) Get(ctx context.Context, ID string) (mrfusion.Layout, error) {
 }
 
 func (a *Apps) Update(ctx context.Context, layout mrfusion.Layout) error {
-	if err := a.Delete(ctx, layout); err != nil {
+	file, err := a.idToFile(layout.ID)
+	if err != nil {
 		return err
 	}
-	file := a.Filename(a.Dir, layout)
+
+	l, err := a.Load(file)
+	if err != nil {
+		return mrfusion.ErrLayoutNotFound
+	}
+
+	if err := a.Delete(ctx, l); err != nil {
+		return err
+	}
+	file = a.Filename(a.Dir, layout)
 	return a.Create(file, layout)
+}
+
+// idToFile takes an id and finds the associated filename
+func (a *Apps) idToFile(ID string) (string, error) {
+	// Because the entire layout information is not known at this point, we need
+	// to try to find the name of the file through matching.
+	files, err := a.ReadDir(a.Dir)
+	if err != nil {
+		return "", err
+	}
+
+	var file string
+	for _, f := range files {
+		if strings.Contains(f.Name(), ID) {
+			file = path.Join(a.Dir, f.Name())
+		}
+	}
+	if file == "" {
+		return "", mrfusion.ErrLayoutNotFound
+	}
+	return file, nil
 }

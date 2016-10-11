@@ -30,11 +30,9 @@ dev-assets: dev-js dev-bindata
 
 bindata:
 	go-bindata -o dist/dist_gen.go -ignore 'map|go' -pkg dist ui/build/...
-	go generate ./canned
 
 dev-bindata:
 	go-bindata -debug -o dist/dist_gen.go -ignore 'map|go' -pkg dist ui/build/...
-	go-bindata -debug -o canned/apps_gen.go -ignore 'README|apps' -pkg canned canned/...
 
 js:
 	cd ui && npm run build

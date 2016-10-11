@@ -40,6 +40,10 @@ var storeFlags = struct {
 	BoltPath string `short:"b" long:"bolt-path" description:"Full path to boltDB file (/Users/somebody/mrfusion.db)" env:"BOLT_PATH" default:"chronograf.db"`
 }{}
 
+var cannedFlags = struct {
+	CannedPath string `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts" env:"CANNED_PATH" default:"canned"`
+}{}
+
 func configureFlags(api *op.MrFusionAPI) {
 	api.CommandLineOptionsGroups = []swag.CommandLineOptionsGroup{
 		swag.CommandLineOptionsGroup{
@@ -51,6 +55,11 @@ func configureFlags(api *op.MrFusionAPI) {
 			ShortDescription: "Default Store Backend",
 			LongDescription:  "Specify the path to a BoltDB file",
 			Options:          &storeFlags,
+		},
+		swag.CommandLineOptionsGroup{
+			ShortDescription: "Directory of pre-canned layouts",
+			LongDescription:  "Specify the path to a directory of pre-canned application layout files.",
+			Options:          &cannedFlags,
 		},
 	}
 }
@@ -97,13 +106,9 @@ func configureAPI(api *op.MrFusionAPI) http.Handler {
 			panic(err)
 		}
 
-		var apps mrfusion.LayoutStore
-		if devFlags.Develop {
-			apps = canned.NewApps("canned", &uuid.V4{})
-		} else {
-			apps = canned.NewBindataApps("canned", &uuid.V4{})
-		}
+		apps := canned.NewApps(cannedFlags.CannedPath, &uuid.V4{})
 
+		// allLayouts acts as a front-end to both the bolt layouts and the filesystem layouts.
 		allLayouts := &layouts.MultiLayoutStore{
 			Stores: []mrfusion.LayoutStore{
 				c.LayoutStore,
