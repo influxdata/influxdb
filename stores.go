@@ -101,7 +101,7 @@ type Cell struct {
 type Layout struct {
 	ID          string `json:"id"`
 	Application string `json:"app"`
-	Measurement string `json:"telegraf_measurement"`
+	Measurement string `json:"measurement"`
 	Cells       []Cell `json:"cells"`
 }
 

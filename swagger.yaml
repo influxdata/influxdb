@@ -886,9 +886,9 @@ paths:
         get:
             summary: Pre-configured layouts
             parameters:
-                - name: telegraf_measurements
+                - name: measurements
                   in: query
-                  description: Returns layouts with this telegraf measurement
+                  description: Returns layouts with this measurement
                   required: false
                   type: array
                   items:
@@ -1264,7 +1264,7 @@ definitions:
         required:
             - cells
             - app
-            - telegraf_measurement
+            - measurement
         properties:
             id:
                 type: string
@@ -1272,7 +1272,7 @@ definitions:
             app:
                 type: string
                 description: App is the user facing name of this Layout
-            telegraf_measurement:
+            measurement:
                 type: string
                 description: Measurement is the descriptive name of the time series data.
             cells:
