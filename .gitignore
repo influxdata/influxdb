@@ -1,4 +1,5 @@
 dist/dist_gen.go
+canned/apps_gen.go
 .pull-request
 node_modules
 mrfusion

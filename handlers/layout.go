@@ -32,7 +32,7 @@ func layoutToMrF(l *models.Layout) mrfusion.Layout {
 	}
 	return mrfusion.Layout{
 		ID:          l.ID,
-		Measurement: *l.TelegrafMeasurement,
+		Measurement: *l.Measurement,
 		Application: *l.App,
 		Cells:       cells,
 	}
@@ -83,10 +83,10 @@ func layoutToModel(l mrfusion.Layout) *models.Layout {
 			Href: &href,
 			Rel:  &rel,
 		},
-		Cells:               cells,
-		TelegrafMeasurement: &l.Measurement,
-		App:                 &l.Application,
-		ID:                  l.ID,
+		Cells:       cells,
+		Measurement: &l.Measurement,
+		App:         &l.Application,
+		ID:          l.ID,
 	}
 }
 
@@ -107,7 +107,7 @@ func (h *Store) Layouts(ctx context.Context, params op.GetLayoutsParams) middlew
 		filtered[a] = true
 	}
 
-	for _, m := range params.TelegrafMeasurements {
+	for _, m := range params.Measurements {
 		filtered[m] = true
 	}
 

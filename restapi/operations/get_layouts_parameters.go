@@ -35,11 +35,11 @@ type GetLayoutsParams struct {
 	  Collection Format: csv
 	*/
 	Apps []string
-	/*Returns layouts with this telegraf measurement
+	/*Returns layouts with this measurement
 	  In: query
 	  Collection Format: csv
 	*/
-	TelegrafMeasurements []string
+	Measurements []string
 }
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
@@ -55,8 +55,8 @@ func (o *GetLayoutsParams) BindRequest(r *http.Request, route *middleware.Matche
 		res = append(res, err)
 	}
 
-	qTelegrafMeasurements, qhkTelegrafMeasurements, _ := qs.GetOK("telegraf_measurements")
-	if err := o.bindTelegrafMeasurements(qTelegrafMeasurements, qhkTelegrafMeasurements, route.Formats); err != nil {
+	qMeasurements, qhkMeasurements, _ := qs.GetOK("measurements")
+	if err := o.bindMeasurements(qMeasurements, qhkMeasurements, route.Formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -101,14 +101,14 @@ func (o *GetLayoutsParams) bindApps(rawData []string, hasKey bool, formats strfm
 	return nil
 }
 
-func (o *GetLayoutsParams) bindTelegrafMeasurements(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *GetLayoutsParams) bindMeasurements(rawData []string, hasKey bool, formats strfmt.Registry) error {
 
-	var qvTelegrafMeasurements string
+	var qvMeasurements string
 	if len(rawData) > 0 {
-		qvTelegrafMeasurements = rawData[len(rawData)-1]
+		qvMeasurements = rawData[len(rawData)-1]
 	}
 
-	raw := swag.SplitByFormat(qvTelegrafMeasurements, "csv")
+	raw := swag.SplitByFormat(qvMeasurements, "csv")
 	size := len(raw)
 
 	if size == 0 {
@@ -118,7 +118,7 @@ func (o *GetLayoutsParams) bindTelegrafMeasurements(rawData []string, hasKey boo
 	ic := raw
 	isz := size
 	var ir []string
-	iValidateElement := func(i int, telegrafMeasurementsI string) *errors.Validation {
+	iValidateElement := func(i int, measurementsI string) *errors.Validation {
 
 		return nil
 	}
@@ -131,7 +131,7 @@ func (o *GetLayoutsParams) bindTelegrafMeasurements(rawData []string, hasKey boo
 		ir = append(ir, ic[i])
 	}
 
-	o.TelegrafMeasurements = ir
+	o.Measurements = ir
 
 	return nil
 }

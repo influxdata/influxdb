@@ -36,7 +36,7 @@ func NewClient() *Client {
 // Open and initialize boltDB. Initial buckets are created if they do not exist.
 func (c *Client) Open() error {
 	// Open database file.
-	db, err := bolt.Open(c.Path, 0644, &bolt.Options{Timeout: 1 * time.Second})
+	db, err := bolt.Open(c.Path, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		return err
 	}
