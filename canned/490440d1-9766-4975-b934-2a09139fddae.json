@@ -1,6 +1,7 @@
  {
- 	"telegraf_measurement": "disk",
- 	"app": "Host Disks Stats",
+    "id": "490440d1-9766-4975-b934-2a09139fddae",
+ 	"telegraf_measurement": "MY_MEASUREMENT",
+ 	"app": "User Facing Application Name",
  	"cells": [{
  		"x": 0,
  		"y": 0,

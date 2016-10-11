@@ -5,7 +5,9 @@ import (
 	"errors"
 	"os"
 	"path"
+	"path/filepath"
 	"reflect"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -22,10 +24,10 @@ func TestAll(t *testing.T) {
 	}{
 		{
 			Existing: []mrfusion.Layout{
-				{ID: 1,
+				{ID: "1",
 					Application: "howdy",
 				},
-				{ID: 2,
+				{ID: "2",
 					Application: "doody",
 				},
 			},
@@ -57,22 +59,22 @@ func TestAdd(t *testing.T) {
 	var tests = []struct {
 		Existing   []mrfusion.Layout
 		Add        mrfusion.Layout
-		ExpectedID int
+		ExpectedID string
 		Err        error
 	}{
 		{
 			Existing: []mrfusion.Layout{
-				{ID: 1,
+				{ID: "1",
 					Application: "howdy",
 				},
-				{ID: 2,
+				{ID: "2",
 					Application: "doody",
 				},
 			},
 			Add: mrfusion.Layout{
 				Application: "newbie",
 			},
-			ExpectedID: 3,
+			ExpectedID: "3",
 			Err:        nil,
 		},
 		{
@@ -80,7 +82,7 @@ func TestAdd(t *testing.T) {
 			Add: mrfusion.Layout{
 				Application: "newbie",
 			},
-			ExpectedID: 0,
+			ExpectedID: "1",
 			Err:        nil,
 		},
 		{
@@ -88,7 +90,7 @@ func TestAdd(t *testing.T) {
 			Add: mrfusion.Layout{
 				Application: "newbie",
 			},
-			ExpectedID: 0,
+			ExpectedID: "",
 			Err:        errors.New("Error"),
 		},
 	}
@@ -109,22 +111,22 @@ func TestDelete(t *testing.T) {
 	t.Parallel()
 	var tests = []struct {
 		Existing []mrfusion.Layout
-		DeleteID int
+		DeleteID string
 		Expected map[string]mrfusion.Layout
 		Err      error
 	}{
 		{
 			Existing: []mrfusion.Layout{
-				{ID: 1,
+				{ID: "1",
 					Application: "howdy",
 				},
-				{ID: 2,
+				{ID: "2",
 					Application: "doody",
 				},
 			},
-			DeleteID: 1,
+			DeleteID: "1",
 			Expected: map[string]mrfusion.Layout{
-				"dir/2.json": {ID: 2,
+				"dir/2.json": {ID: "2",
 					Application: "doody",
 				},
 			},
@@ -132,13 +134,13 @@ func TestDelete(t *testing.T) {
 		},
 		{
 			Existing: []mrfusion.Layout{},
-			DeleteID: 1,
+			DeleteID: "1",
 			Expected: map[string]mrfusion.Layout{},
 			Err:      mrfusion.ErrLayoutNotFound,
 		},
 		{
 			Existing: nil,
-			DeleteID: 1,
+			DeleteID: "1",
 			Expected: map[string]mrfusion.Layout{},
 			Err:      errors.New("Error"),
 		},
@@ -159,35 +161,35 @@ func TestGet(t *testing.T) {
 	t.Parallel()
 	var tests = []struct {
 		Existing []mrfusion.Layout
-		ID       int
+		ID       string
 		Expected mrfusion.Layout
 		Err      error
 	}{
 		{
 			Existing: []mrfusion.Layout{
-				{ID: 1,
+				{ID: "1",
 					Application: "howdy",
 				},
-				{ID: 2,
+				{ID: "2",
 					Application: "doody",
 				},
 			},
-			ID: 1,
+			ID: "1",
 			Expected: mrfusion.Layout{
-				ID:          1,
+				ID:          "1",
 				Application: "howdy",
 			},
 			Err: nil,
 		},
 		{
 			Existing: []mrfusion.Layout{},
-			ID:       1,
+			ID:       "1",
 			Expected: mrfusion.Layout{},
 			Err:      mrfusion.ErrLayoutNotFound,
 		},
 		{
 			Existing: nil,
-			ID:       1,
+			ID:       "1",
 			Expected: mrfusion.Layout{},
 			Err:      mrfusion.ErrLayoutNotFound,
 		},
@@ -214,24 +216,24 @@ func TestUpdate(t *testing.T) {
 	}{
 		{
 			Existing: []mrfusion.Layout{
-				{ID: 1,
+				{ID: "1",
 					Application: "howdy",
 				},
-				{ID: 2,
+				{ID: "2",
 					Application: "doody",
 				},
 			},
 			Update: mrfusion.Layout{
-				ID:          1,
+				ID:          "1",
 				Application: "hello",
 				Measurement: "measurement",
 			},
 			Expected: map[string]mrfusion.Layout{
-				"dir/1.json": {ID: 1,
+				"dir/1.json": {ID: "1",
 					Application: "hello",
 					Measurement: "measurement",
 				},
-				"dir/2.json": {ID: 2,
+				"dir/2.json": {ID: "2",
 					Application: "doody",
 				},
 			},
@@ -240,7 +242,7 @@ func TestUpdate(t *testing.T) {
 		{
 			Existing: []mrfusion.Layout{},
 			Update: mrfusion.Layout{
-				ID: 1,
+				ID: "1",
 			},
 			Expected: map[string]mrfusion.Layout{},
 			Err:      mrfusion.ErrLayoutNotFound,
@@ -248,7 +250,7 @@ func TestUpdate(t *testing.T) {
 		{
 			Existing: nil,
 			Update: mrfusion.Layout{
-				ID: 1,
+				ID: "1",
 			},
 			Expected: map[string]mrfusion.Layout{},
 			Err:      mrfusion.ErrLayoutNotFound,
@@ -294,10 +296,25 @@ func (m *MockFileInfo) Sys() interface{} {
 	return nil
 }
 
+type MockFileInfos []os.FileInfo
+
+func (m MockFileInfos) Len() int           { return len(m) }
+func (m MockFileInfos) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
+func (m MockFileInfos) Less(i, j int) bool { return m[i].Name() < m[j].Name() }
+
+type MockID struct {
+	id int
+}
+
+func (m *MockID) Generate() (string, error) {
+	m.id++
+	return strconv.Itoa(m.id), nil
+}
+
 func MockApps(existing []mrfusion.Layout, expected error) (canned.Apps, *map[string]mrfusion.Layout) {
 	layouts := map[string]mrfusion.Layout{}
 	fileName := func(dir string, layout mrfusion.Layout) string {
-		return path.Join(dir, strconv.Itoa(layout.ID)+".json")
+		return path.Join(dir, layout.ID+".json")
 	}
 	dir := "dir"
 	for _, l := range existing {
@@ -329,8 +346,9 @@ func MockApps(existing []mrfusion.Layout, expected error) (canned.Apps, *map[str
 		}
 		info := []os.FileInfo{}
 		for k, _ := range layouts {
-			info = append(info, &MockFileInfo{k})
+			info = append(info, &MockFileInfo{filepath.Base(k)})
 		}
+		sort.Sort(MockFileInfos(info))
 		return info, nil
 	}
 
@@ -352,5 +370,8 @@ func MockApps(existing []mrfusion.Layout, expected error) (canned.Apps, *map[str
 		Create:   create,
 		ReadDir:  readDir,
 		Remove:   remove,
+		IDs: &MockID{
+			id: len(existing),
+		},
 	}, &layouts
 }

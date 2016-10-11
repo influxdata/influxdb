@@ -65,6 +65,10 @@ func (s *LayoutStore) Add(ctx context.Context, src mrfusion.Layout) (mrfusion.La
 
 // Delete removes the Layout from the LayoutStore
 func (s *LayoutStore) Delete(ctx context.Context, src mrfusion.Layout) error {
+	_, err := s.Get(ctx, src.ID)
+	if err != nil {
+		return err
+	}
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		if err := tx.Bucket(LayoutBucket).Delete([]byte(src.ID)); err != nil {
 			return err

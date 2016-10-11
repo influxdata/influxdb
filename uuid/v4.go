@@ -2,14 +2,8 @@ package uuid
 
 import uuid "github.com/satori/go.uuid"
 
-type V4 struct {
-	u *uuid.UUID
-}
+type V4 struct{}
 
 func (i *V4) Generate() (string, error) {
-	if i.u == nil {
-		u := uuid.NewV4()
-		i.u = &u
-	}
-	return i.u.String(), nil
+	return uuid.NewV4().String(), nil
 }

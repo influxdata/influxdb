@@ -1,9 +1,8 @@
 package layouts
 
 import (
-	"context"
-
 	"github.com/influxdata/mrfusion"
+	"golang.org/x/net/context"
 )
 
 // MultiLayoutStore is a Layoutstore that contains multiple LayoutStores
@@ -24,7 +23,7 @@ func (s *MultiLayoutStore) All(ctx context.Context) ([]mrfusion.Layout, error) {
 			// Try to load as many layouts as possible
 			continue
 		}
-		ok := true
+		ok = true
 		all = append(all, layouts...)
 	}
 	if !ok {
@@ -34,18 +33,52 @@ func (s *MultiLayoutStore) All(ctx context.Context) ([]mrfusion.Layout, error) {
 }
 
 // Add creates a new dashboard in the LayoutStore.  Tries each store sequentially until success.
-func (s *MultiLayoutStore) Add(context.Context, mrfusion.Layout) (mrfusion.Layout, error) {
+func (s *MultiLayoutStore) Add(ctx context.Context, layout mrfusion.Layout) (mrfusion.Layout, error) {
+	var err error
+	for _, store := range s.Stores {
+		var l mrfusion.Layout
+		l, err = store.Add(ctx, layout)
+		if err == nil {
+			return l, nil
+		}
+	}
+	return mrfusion.Layout{}, err
 }
 
 // Delete the dashboard from the store.  Searches through all stores to find Layout and
 // then deletes from that store.
-func (s *MultiLayoutStore) Delete(context.Context, mrfusion.Layout) error {
+func (s *MultiLayoutStore) Delete(ctx context.Context, layout mrfusion.Layout) error {
+	var err error
+	for _, store := range s.Stores {
+		err = store.Delete(ctx, layout)
+		if err == nil {
+			return nil
+		}
+	}
+	return err
 }
 
 // Get retrieves Layout if `ID` exists.  Searches through each store sequentially until success.
-func (s *MultiLayoutStore) Get(ctx context.Context, ID int) (mrfusion.Layout, error) {
+func (s *MultiLayoutStore) Get(ctx context.Context, ID string) (mrfusion.Layout, error) {
+	var err error
+	for _, store := range s.Stores {
+		var l mrfusion.Layout
+		l, err = store.Get(ctx, ID)
+		if err == nil {
+			return l, nil
+		}
+	}
+	return mrfusion.Layout{}, err
 }
 
 // Update the dashboard in the store.  Searches through each store sequentially until success.
-func (s *MultiLayoutStore) Update(context.Context, mrfusion.Layout) error {
+func (s *MultiLayoutStore) Update(ctx context.Context, layout mrfusion.Layout) error {
+	var err error
+	for _, store := range s.Stores {
+		err = store.Update(ctx, layout)
+		if err == nil {
+			return nil
+		}
+	}
+	return err
 }

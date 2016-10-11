@@ -1,14 +1,12 @@
 package canned
 
-//go:generate go-bindata -o apps_gen.go -ignore apps -pkg canned .
+//go:generate go-bindata -o apps_gen.go -ignore README|apps -pkg canned .
 
 import (
 	"encoding/json"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
-	"strconv"
 
 	"github.com/influxdata/mrfusion"
 	fusionlog "github.com/influxdata/mrfusion/log"
@@ -27,9 +25,10 @@ type Apps struct {
 	Create   func(string, mrfusion.Layout) error         // Create will write layout to file.
 	ReadDir  func(dirname string) ([]os.FileInfo, error) // ReadDir reads the directory named by dirname and returns a list of directory entries sorted by filename.
 	Remove   func(name string) error                     // Remove file
+	IDs      mrfusion.ID                                 // IDs generate unique ids for new application layouts
 }
 
-func NewApps(dir string) mrfusion.LayoutStore {
+func NewApps(dir string, ids mrfusion.ID) mrfusion.LayoutStore {
 	return &Apps{
 		Dir:      dir,
 		Load:     loadFile,
@@ -37,13 +36,14 @@ func NewApps(dir string) mrfusion.LayoutStore {
 		Create:   createLayout,
 		ReadDir:  ioutil.ReadDir,
 		Remove:   os.Remove,
+		IDs:      ids,
 	}
 }
 
 // NewBindataApps restores application layouts into dir and serves them there.
 // If the file system is not permanent (e.g. Docker without a volume) changes will
 // not persist.
-func NewBindataApps(dir string) mrfusion.LayoutStore {
+func NewBindataApps(dir string, ids mrfusion.ID) mrfusion.LayoutStore {
 	names := AssetNames()
 	// Only restore the files that do not exist.
 	// The idea is that any changes are preserved.
@@ -57,17 +57,15 @@ func NewBindataApps(dir string) mrfusion.LayoutStore {
 					WithField("name", f).
 					WithField("dir", dir).
 					Info("Unable to restore app asset", err)
-
-				log.Printf("Unable to restore app asset %s to dir %s: %v", f, dir, err)
 				continue
 			}
 		}
 	}
-	return NewApps(dir)
+	return NewApps(dir, ids)
 }
 
 func fileName(dir string, layout mrfusion.Layout) string {
-	return path.Join(dir, strconv.Itoa(layout.ID)+".json")
+	return path.Join(dir, layout.ID+AppExt)
 }
 
 func loadFile(name string) (mrfusion.Layout, error) {
@@ -76,7 +74,7 @@ func loadFile(name string) (mrfusion.Layout, error) {
 		logger.
 			WithField("component", "apps").
 			WithField("name", name).
-			Error("Unable to file")
+			Error("Unable to read file")
 		return mrfusion.Layout{}, err
 	}
 	var layout mrfusion.Layout
@@ -96,7 +94,7 @@ func createLayout(file string, layout mrfusion.Layout) error {
 		return err
 	}
 	defer h.Close()
-	if octets, err := json.Marshal(layout); err != nil {
+	if octets, err := json.MarshalIndent(layout, "    ", "    "); err != nil {
 		logger.
 			WithField("component", "apps").
 			WithField("name", file).
@@ -125,7 +123,7 @@ func (a *Apps) All(ctx context.Context) ([]mrfusion.Layout, error) {
 		if path.Ext(file.Name()) != AppExt {
 			continue
 		}
-		if layout, err := a.Load(file.Name()); err != nil {
+		if layout, err := a.Load(path.Join(a.Dir, file.Name())); err != nil {
 			continue // We want to load all files we can.
 		} else {
 			layouts = append(layouts, layout)
@@ -135,18 +133,8 @@ func (a *Apps) All(ctx context.Context) ([]mrfusion.Layout, error) {
 }
 
 func (a *Apps) Add(ctx context.Context, layout mrfusion.Layout) (mrfusion.Layout, error) {
-	// First make an ID number
-	layouts, err := a.All(ctx)
-	if err != nil {
-		return mrfusion.Layout{}, err
-	}
-	layout.ID = 0
-	for _, l := range layouts {
-		if l.ID >= layout.ID {
-			layout.ID = l.ID + 1
-		}
-	}
-
+	var err error
+	layout.ID, err = a.IDs.Generate()
 	file := a.Filename(a.Dir, layout)
 	if err = a.Create(file, layout); err != nil {
 		return mrfusion.Layout{}, err
@@ -166,7 +154,7 @@ func (a *Apps) Delete(ctx context.Context, layout mrfusion.Layout) error {
 	return nil
 }
 
-func (a *Apps) Get(ctx context.Context, ID int) (mrfusion.Layout, error) {
+func (a *Apps) Get(ctx context.Context, ID string) (mrfusion.Layout, error) {
 	file := a.Filename(a.Dir, mrfusion.Layout{ID: ID})
 	l, err := a.Load(file)
 	if err != nil {

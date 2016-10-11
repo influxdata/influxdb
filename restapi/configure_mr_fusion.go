@@ -14,13 +14,16 @@ import (
 
 	"github.com/influxdata/mrfusion"
 	"github.com/influxdata/mrfusion/bolt"
+	"github.com/influxdata/mrfusion/canned"
 	"github.com/influxdata/mrfusion/dist"
 	"github.com/influxdata/mrfusion/handlers"
 	"github.com/influxdata/mrfusion/influx"
 	"github.com/influxdata/mrfusion/kapacitor"
+	"github.com/influxdata/mrfusion/layouts"
 	fusionlog "github.com/influxdata/mrfusion/log"
 	"github.com/influxdata/mrfusion/mock"
 	op "github.com/influxdata/mrfusion/restapi/operations"
+	"github.com/influxdata/mrfusion/uuid"
 )
 
 // This file is safe to edit. Once it exists it will not be overwritten
@@ -93,11 +96,25 @@ func configureAPI(api *op.MrFusionAPI) http.Handler {
 		if err := c.Open(); err != nil {
 			panic(err)
 		}
+
+		var apps mrfusion.LayoutStore
+		if devFlags.Develop {
+			apps = canned.NewApps("canned", &uuid.V4{})
+		} else {
+			apps = canned.NewBindataApps("canned", &uuid.V4{})
+		}
+
+		allLayouts := &layouts.MultiLayoutStore{
+			Stores: []mrfusion.LayoutStore{
+				c.LayoutStore,
+				apps,
+			},
+		}
 		h := handlers.Store{
 			ExplorationStore: c.ExplorationStore,
 			SourcesStore:     c.SourcesStore,
 			ServersStore:     c.ServersStore,
-			LayoutStore:      c.LayoutStore,
+			LayoutStore:      allLayouts,
 		}
 
 		api.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(h.DeleteExploration)
