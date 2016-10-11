@@ -13,13 +13,13 @@ export function getCpuAndLoadForHosts(proxyLink) {
       const meanIndex = s.columns.findIndex((col) => col === 'mean');
       hosts[s.tags.host] = {
         name: s.tags.host,
-        cpu: (Math.round(s.values[0][meanIndex] * precision) / precision).toFixed(2),
+        cpu: (Math.round(s.values[0][meanIndex] * precision) / precision),
       };
     });
 
     resp.data.results[1].series.forEach((s) => {
       const meanIndex = s.columns.findIndex((col) => col === 'mean');
-      hosts[s.tags.host].load = (Math.round(s.values[0][meanIndex] * precision) / precision).toFixed(2);
+      hosts[s.tags.host].load = (Math.round(s.values[0][meanIndex] * precision) / precision);
     });
 
     return _.values(hosts);
