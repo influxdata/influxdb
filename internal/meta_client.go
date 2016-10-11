@@ -13,7 +13,7 @@ type MetaClientMock struct {
 	CreateContinuousQueryFn             func(database, name, query string) error
 	CreateDatabaseFn                    func(name string) (*meta.DatabaseInfo, error)
 	CreateDatabaseWithRetentionPolicyFn func(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)
-	CreateRetentionPolicyFn             func(database string, spec *meta.RetentionPolicySpec) (*meta.RetentionPolicyInfo, error)
+	CreateRetentionPolicyFn             func(database string, spec *meta.RetentionPolicySpec, makeDefault bool) (*meta.RetentionPolicyInfo, error)
 	CreateShardGroupFn                  func(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
 	CreateSubscriptionFn                func(database, rp, name, mode string, destinations []string) error
 	CreateUserFn                        func(name, password string, admin bool) (*meta.UserInfo, error)
@@ -63,8 +63,8 @@ func (c *MetaClientMock) CreateDatabaseWithRetentionPolicy(name string, spec *me
 	return c.CreateDatabaseWithRetentionPolicyFn(name, spec)
 }
 
-func (c *MetaClientMock) CreateRetentionPolicy(database string, spec *meta.RetentionPolicySpec) (*meta.RetentionPolicyInfo, error) {
-	return c.CreateRetentionPolicyFn(database, spec)
+func (c *MetaClientMock) CreateRetentionPolicy(database string, spec *meta.RetentionPolicySpec, makeDefault bool) (*meta.RetentionPolicyInfo, error) {
+	return c.CreateRetentionPolicyFn(database, spec, makeDefault)
 }
 
 func (c *MetaClientMock) CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error) {

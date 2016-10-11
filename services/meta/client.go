@@ -186,7 +186,7 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 	// create default retention policy
 	if c.retentionAutoCreate {
 		rpi := DefaultRetentionPolicyInfo()
-		if err := data.CreateRetentionPolicy(name, rpi); err != nil {
+		if err := data.CreateRetentionPolicy(name, rpi, true); err != nil {
 			return nil, err
 		}
 		if err := data.SetDefaultRetentionPolicy(name, rpi.Name); err != nil {
@@ -224,7 +224,7 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *RetentionP
 
 	rpi := spec.NewRetentionPolicyInfo()
 	if rp := db.RetentionPolicy(rpi.Name); rp == nil {
-		if err := data.CreateRetentionPolicy(name, rpi); err != nil {
+		if err := data.CreateRetentionPolicy(name, rpi, true); err != nil {
 			return nil, err
 		}
 	} else if !spec.Matches(rp) {
@@ -273,7 +273,7 @@ func (c *Client) DropDatabase(name string) error {
 }
 
 // CreateRetentionPolicy creates a retention policy on the specified database.
-func (c *Client) CreateRetentionPolicy(database string, spec *RetentionPolicySpec) (*RetentionPolicyInfo, error) {
+func (c *Client) CreateRetentionPolicy(database string, spec *RetentionPolicySpec, makeDefault bool) (*RetentionPolicyInfo, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -284,7 +284,7 @@ func (c *Client) CreateRetentionPolicy(database string, spec *RetentionPolicySpe
 	}
 
 	rp := spec.NewRetentionPolicyInfo()
-	if err := data.CreateRetentionPolicy(database, rp); err != nil {
+	if err := data.CreateRetentionPolicy(database, rp, makeDefault); err != nil {
 		return nil, err
 	}
 

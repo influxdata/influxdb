@@ -418,6 +418,12 @@ func init() {
 				once:    true,
 			},
 			&Query{
+				name:    "create retention policy with default on",
+				command: `CREATE RETENTION POLICY rp3 ON db0 DURATION 1h REPLICATION 1 SHARD DURATION 30m DEFAULT`,
+				exp:     `{"results":[{"error":"retention policy conflicts with an existing policy"}]}`,
+				once:    true,
+			},
+			&Query{
 				name:    "show retention policy should show both with custom shard",
 				command: `SHOW RETENTION POLICIES ON db0`,
 				exp:     `{"results":[{"series":[{"columns":["name","duration","shardGroupDuration","replicaN","default"],"values":[["rp0","2h0m0s","1h0m0s",3,true],["rp3","1h0m0s","30m0s",1,false]]}]}]}`,

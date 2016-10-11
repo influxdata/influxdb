@@ -248,7 +248,7 @@ func TestMetaClient_CreateRetentionPolicy(t *testing.T) {
 		ReplicaN:           &rp0.ReplicaN,
 		Duration:           &rp0.Duration,
 		ShardGroupDuration: rp0.ShardGroupDuration,
-	}); err != nil {
+	}, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -265,7 +265,7 @@ func TestMetaClient_CreateRetentionPolicy(t *testing.T) {
 		ReplicaN:           &rp0.ReplicaN,
 		Duration:           &rp0.Duration,
 		ShardGroupDuration: rp0.ShardGroupDuration,
-	}); err != nil {
+	}, true); err != nil {
 		t.Fatal(err)
 	} else if actual, err = c.RetentionPolicy("db0", "rp0"); err != nil {
 		t.Fatal(err)
@@ -283,7 +283,7 @@ func TestMetaClient_CreateRetentionPolicy(t *testing.T) {
 		ReplicaN:           &rp1.ReplicaN,
 		Duration:           &rp1.Duration,
 		ShardGroupDuration: rp1.ShardGroupDuration,
-	})
+	}, true)
 	if exp := meta.ErrRetentionPolicyExists; got != exp {
 		t.Fatalf("got error %v, expected error %v", got, exp)
 	}
@@ -298,7 +298,7 @@ func TestMetaClient_CreateRetentionPolicy(t *testing.T) {
 		ReplicaN:           &rp1.ReplicaN,
 		Duration:           &rp1.Duration,
 		ShardGroupDuration: rp1.ShardGroupDuration,
-	})
+	}, true)
 	if exp := meta.ErrRetentionPolicyExists; got != exp {
 		t.Fatalf("got error %v, expected error %v", got, exp)
 	}
@@ -313,7 +313,7 @@ func TestMetaClient_CreateRetentionPolicy(t *testing.T) {
 		ReplicaN:           &rp1.ReplicaN,
 		Duration:           &rp1.Duration,
 		ShardGroupDuration: rp1.ShardGroupDuration,
-	})
+	}, true)
 	if exp := meta.ErrRetentionPolicyExists; got != exp {
 		t.Fatalf("got error %v, expected error %v", got, exp)
 	}
@@ -329,7 +329,7 @@ func TestMetaClient_CreateRetentionPolicy(t *testing.T) {
 		ReplicaN:           &rp1.ReplicaN,
 		Duration:           &rp1.Duration,
 		ShardGroupDuration: rp1.ShardGroupDuration,
-	})
+	}, true)
 	if exp := meta.ErrIncompatibleDurations; got != exp {
 		t.Fatalf("got error %v, expected error %v", got, exp)
 	}
@@ -481,7 +481,7 @@ func TestMetaClient_DropRetentionPolicy(t *testing.T) {
 		Name:     "rp0",
 		Duration: &duration,
 		ReplicaN: &replicaN,
-	}); err != nil {
+	}, true); err != nil {
 		t.Fatal(err)
 	}
 

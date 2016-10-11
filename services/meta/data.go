@@ -135,7 +135,7 @@ func (data *Data) RetentionPolicy(database, name string) (*RetentionPolicyInfo, 
 
 // CreateRetentionPolicy creates a new retention policy on a database.
 // Returns an error if name is blank or if a database does not exist.
-func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) error {
+func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo, makeDefault bool) error {
 	// Validate retention policy.
 	if rpi == nil {
 		return ErrRetentionPolicyRequired
@@ -163,11 +163,21 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 		if rp.ReplicaN != rpi.ReplicaN || rp.Duration != rpi.Duration || rp.ShardGroupDuration != rpi.ShardGroupDuration {
 			return ErrRetentionPolicyExists
 		}
+		// if they want to make it default, and it's not the default, it's not an identical command so it's an error
+		if makeDefault && di.DefaultRetentionPolicy != rpi.Name {
+			return ErrRetentionPolicyConflict
+		}
 		return nil
 	}
 
 	// Append copy of new policy.
 	di.RetentionPolicies = append(di.RetentionPolicies, *rpi)
+
+	// Set the default if needed
+	if makeDefault {
+		di.DefaultRetentionPolicy = rpi.Name
+	}
+
 	return nil
 }
 

@@ -271,7 +271,7 @@ func NewTestService(c *Config) *TestService {
 		MetaClient: &internal.MetaClientMock{},
 	}
 
-	service.MetaClient.CreateRetentionPolicyFn = func(string, *meta.RetentionPolicySpec) (*meta.RetentionPolicyInfo, error) {
+	service.MetaClient.CreateRetentionPolicyFn = func(string, *meta.RetentionPolicySpec, bool) (*meta.RetentionPolicyInfo, error) {
 		return nil, nil
 	}
 

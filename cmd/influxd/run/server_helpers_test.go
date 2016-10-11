@@ -114,7 +114,7 @@ func (s *Server) URL() string {
 func (s *Server) CreateDatabaseAndRetentionPolicy(db string, rp *meta.RetentionPolicySpec) error {
 	if _, err := s.MetaClient.CreateDatabase(db); err != nil {
 		return err
-	} else if _, err := s.MetaClient.CreateRetentionPolicy(db, rp); err != nil {
+	} else if _, err := s.MetaClient.CreateRetentionPolicy(db, rp, true); err != nil {
 		return err
 	}
 	return nil
