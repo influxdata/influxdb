@@ -20,7 +20,6 @@ const HostsTable = React.createClass({
       filteredHosts: this.props.hosts,
       sortDirection: null,
       sortKey: null,
-      sortType: null,
     };
   },
 
