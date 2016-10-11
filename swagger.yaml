@@ -882,6 +882,21 @@ paths:
                     description: Response directly from kapacitor
                     schema:
                         $ref: '#/definitions/KapacitorProxyResponse'
+    /mappings:
+      get:
+        summary: Mappings between app names and measurements
+        description: |
+          Mappings provide a means to alias measurement names found within a telegraf database and application layouts found within Chronograf
+        responses:
+          200:
+            description: An array of mappings
+            schema:
+              $ref: '#/definitions/Mappings'
+          default:
+            description: Unexpected internal service error
+            schema:
+              $ref: '#/definitions/Error'
+
     /layouts:
         get:
             summary: Pre-configured layouts
@@ -1282,6 +1297,27 @@ definitions:
                     $ref: "#/definitions/Cell"
             link:
                 $ref: "#/definitions/Link"
+    Mappings:
+      type: object
+      properties:
+        mappings:
+          type: array
+          items:
+            $ref: "#/definitions/Mapping"
+
+    Mapping:
+      type: object
+      required:
+        - measurement
+        - name
+      properties:
+        measurement:
+          description: The measurement where data for this mapping is found
+          type: string
+        name:
+          description: The application name which will be assigned to the corresponding measurement
+          type: string
+
     Cell:
         type: object
         required:
