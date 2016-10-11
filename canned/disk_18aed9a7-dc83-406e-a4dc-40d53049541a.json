@@ -1,0 +1,16 @@
+ {
+    "id": "18aed9a7-dc83-406e-a4dc-40d53049541a",
+ 	"measurement": "disk",
+ 	"app": "User Facing Application Name",
+ 	"cells": [{
+ 		"x": 0,
+ 		"y": 0,
+ 		"w": 10,
+ 		"h": 10,
+ 		"queries": [{
+ 			"query": "select used_percent from disk",
+ 			"db": "telegraf",
+ 			"rp": "autogen"
+		}]
+ 	}]
+ }
