@@ -183,15 +183,15 @@ func (s *Shard) SetEnabled(enabled bool) {
 
 // ShardStatistics maintains statistics for a shard.
 type ShardStatistics struct {
-	WriteReq       int64
-	WriteReqOK     int64
-	WriteReqErr    int64
-	FieldsCreated  int64
-	WritePointsErr int64
+	WriteReq           int64
+	WriteReqOK         int64
+	WriteReqErr        int64
+	FieldsCreated      int64
+	WritePointsErr     int64
 	WritePointsDropped int64
-	WritePointsOK  int64
-	BytesWritten   int64
-	DiskBytes      int64
+	WritePointsOK      int64
+	BytesWritten       int64
+	DiskBytes          int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -499,8 +499,8 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		// and record why/increment counters
 		for i, p := range points {
 			tags := p.Tags()
-			m := s.Measurement(p.Name())
 
+			m := s.Measurement([]byte(p.Name()))
 			// Measurement doesn't exist yet, can't check the limit
 			if m != nil {
 				var dropPoint bool
