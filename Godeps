@@ -18,6 +18,7 @@ github.com/gogo/protobuf 6abcf94fd4c97dcb423fdafd42fe9f96ca7e421b
 github.com/gorilla/context 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 github.com/jessevdk/go-flags 4cc2832a6e6d1d3b815e2b9d544b2a4dfb3ce8fa
 github.com/mailru/easyjson e978125a7e335d8f4db746a9ac5b44643f27416b
+github.com/satori/go.uuid b061729afc07e77a8aa4fad0a2fd840958f1942a
 github.com/tylerb/graceful 50a48b6e73fcc75b45e22c05b79629a67c79e938
 golang.org/x/net 749a502dd1eaf3e5bfd4f8956748c502357c0bbe
 golang.org/x/text 1e65e9bf72c307081cea196f47ef37aed17eb316

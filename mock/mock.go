@@ -2,6 +2,7 @@ package mock
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/influxdata/mrfusion"
@@ -167,4 +168,78 @@ func (t *TimeSeries) MonitoredServices(context.Context) ([]mrfusion.MonitoredSer
 		hosts[i].TagValue = name
 	}
 	return hosts, nil
+}
+
+type LayoutStore struct {
+	Layouts     map[string]mrfusion.Layout
+	AllError    error
+	AddError    error
+	DeleteError error
+	GetError    error
+	UpdateError error
+}
+
+// All will return all info in the map or whatever is AllError
+func (l *LayoutStore) All(ctx context.Context) ([]mrfusion.Layout, error) {
+	if l.AllError != nil {
+		return nil, l.AllError
+	}
+	layouts := []mrfusion.Layout{}
+	for _, l := range l.Layouts {
+		layouts = append(layouts, l)
+	}
+	return layouts, nil
+}
+
+// Add create a new ID and add to map or return AddError
+func (l *LayoutStore) Add(ctx context.Context, layout mrfusion.Layout) (mrfusion.Layout, error) {
+	if l.AddError != nil {
+		return mrfusion.Layout{}, l.AddError
+	}
+	id := strconv.Itoa(len(l.Layouts))
+	layout.ID = id
+	l.Layouts[id] = layout
+	return layout, nil
+}
+
+// Delete will remove layout from map or return DeleteError
+func (l *LayoutStore) Delete(ctx context.Context, layout mrfusion.Layout) error {
+	if l.DeleteError != nil {
+		return l.DeleteError
+	}
+
+	id := layout.ID
+	if _, ok := l.Layouts[id]; !ok {
+		return mrfusion.ErrLayoutNotFound
+	}
+
+	delete(l.Layouts, id)
+	return nil
+}
+
+// Get will return map with key ID or GetError
+func (l *LayoutStore) Get(ctx context.Context, ID string) (mrfusion.Layout, error) {
+	if l.GetError != nil {
+		return mrfusion.Layout{}, l.GetError
+	}
+
+	if layout, ok := l.Layouts[ID]; !ok {
+		return mrfusion.Layout{}, mrfusion.ErrLayoutNotFound
+	} else {
+		return layout, nil
+	}
+}
+
+// Update will update layout or return UpdateError
+func (l *LayoutStore) Update(ctx context.Context, layout mrfusion.Layout) error {
+	if l.UpdateError != nil {
+		return l.UpdateError
+	}
+	id := layout.ID
+	if _, ok := l.Layouts[id]; !ok {
+		return mrfusion.ErrLayoutNotFound
+	} else {
+		l.Layouts[id] = layout
+	}
+	return nil
 }

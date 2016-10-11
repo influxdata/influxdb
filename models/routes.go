@@ -15,13 +15,9 @@ swagger:model Routes
 */
 type Routes struct {
 
-	/* Location of the apps endpoint
+	/* Location of the layouts endpoint
 	 */
-	Apps string `json:"apps,omitempty"`
-
-	/* Location of the dashboards endpoint
-	 */
-	Dashboards string `json:"dashboards,omitempty"`
+	Layouts string `json:"layouts,omitempty"`
 
 	/* Location of the sources endpoint
 	 */

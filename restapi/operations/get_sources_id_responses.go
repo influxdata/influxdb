@@ -11,7 +11,7 @@ import (
 	"github.com/influxdata/mrfusion/models"
 )
 
-/*GetSourcesIDOK Data source used to supply time series to dashboards.
+/*GetSourcesIDOK Data source used to supply time series information.
 
 swagger:response getSourcesIdOK
 */

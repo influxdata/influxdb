@@ -2,30 +2,51 @@ syntax = "proto3";
 package internal;
 
 message Exploration {
-	int64 ID        = 1; // ExplorationID is a unique ID for an Exploration.
-	string Name     = 2; // User provided name of the Exploration.
-	int64 UserID    = 3; // UserID is the owner of this Exploration.
-	string Data     = 4; // Opaque blob of JSON data.
-	int64 CreatedAt = 5; // Time the exploration was first created.
-	int64 UpdatedAt = 6; // Latest time the exploration was updated.
-	bool Default    = 7; // Flags an exploration as the default.
+	int64 ID                = 1; // ExplorationID is a unique ID for an Exploration.
+	string Name             = 2; // User provided name of the Exploration.
+	int64 UserID            = 3; // UserID is the owner of this Exploration.
+	string Data             = 4; // Opaque blob of JSON data.
+	int64 CreatedAt         = 5; // Time the exploration was first created.
+	int64 UpdatedAt         = 6; // Latest time the exploration was updated.
+	bool Default            = 7; // Flags an exploration as the default.
 }
 
 message Source {
-	int64 ID             = 1; // ID is the unique ID of the source
-	string Name          = 2; // Name is the user-defined name for the source
-	string Type          = 3; // Type specifies which kinds of source (enterprise vs oss)
-	string Username      = 4; // Username is the username to connect to the source
-	string Password      = 5;
-	repeated string URLs = 6; // URL are the connections to the source
-	bool Default         = 7; // Flags an exploration as the default.
+	int64 ID                = 1; // ID is the unique ID of the source
+	string Name             = 2; // Name is the user-defined name for the source
+	string Type             = 3; // Type specifies which kinds of source (enterprise vs oss)
+	string Username         = 4; // Username is the username to connect to the source
+	string Password         = 5;
+	repeated string URLs    = 6; // URL are the connections to the source
+	bool Default            = 7; // Flags an exploration as the default.
 }
 
 message Server {
-	int64 ID             = 1; // ID is the unique ID of the server 
-	string Name          = 2; // Name is the user-defined name for the server
-	string Username      = 3; // Username is the username to connect to the server
-	string Password      = 4;
-	string URL           = 5; // URL is the path to the server
- 	int64 SrcID          = 6; // SrcID is the ID of the data source
+	int64 ID                = 1; // ID is the unique ID of the server 
+	string Name             = 2; // Name is the user-defined name for the server
+	string Username         = 3; // Username is the username to connect to the server
+	string Password         = 4;
+	string URL              = 5; // URL is the path to the server
+ 	int64 SrcID             = 6; // SrcID is the ID of the data source
+}
+
+message Layout {
+    string ID               = 1; // ID is the unique ID of the layout.
+    string Application      = 2; // Application is the user facing name of this Layout.
+    string Measurement      = 3; // Measurement is the descriptive name of the time series data.
+    repeated Cell Cells     = 4; // Cells are the individual visualization elements.
+}
+
+message Cell {
+    int32 x                 = 1; // X-coordinate of Cell in the Layout 
+    int32 y                 = 2; // Y-coordinate of Cell in the Layout
+    int32 w                 = 3; // Width of Cell in the Layout
+    int32 h                 = 4; // Height of Cell in the Layout
+    repeated Query queries  = 5; // Time-series data queries for Cell.
+}
+
+message Query {
+    string Command          = 1; // Command is the query itself
+    string DB               = 2; // DB the database for the query (optional)
+    string RP               = 3; // RP is a retention policy and optional;
 }

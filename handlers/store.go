@@ -7,4 +7,5 @@ type Store struct {
 	ExplorationStore mrfusion.ExplorationStore
 	SourcesStore     mrfusion.SourcesStore
 	ServersStore     mrfusion.ServersStore
+	LayoutStore      mrfusion.LayoutStore
 }

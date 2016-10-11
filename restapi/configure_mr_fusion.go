@@ -97,7 +97,9 @@ func configureAPI(api *op.MrFusionAPI) http.Handler {
 			ExplorationStore: c.ExplorationStore,
 			SourcesStore:     c.SourcesStore,
 			ServersStore:     c.ServersStore,
+			LayoutStore:      c.LayoutStore,
 		}
+
 		api.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(h.DeleteExploration)
 		api.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.GetSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(h.Exploration)
 		api.GetSourcesIDUsersUserIDExplorationsHandler = op.GetSourcesIDUsersUserIDExplorationsHandlerFunc(h.Explorations)
@@ -130,6 +132,12 @@ func configureAPI(api *op.MrFusionAPI) http.Handler {
 		api.PatchSourcesIDKapacitorsKapaIDProxyHandler = op.PatchSourcesIDKapacitorsKapaIDProxyHandlerFunc(p.KapacitorProxyPatch)
 		api.GetSourcesIDKapacitorsKapaIDProxyHandler = op.GetSourcesIDKapacitorsKapaIDProxyHandlerFunc(p.KapacitorProxyGet)
 		api.DeleteSourcesIDKapacitorsKapaIDProxyHandler = op.DeleteSourcesIDKapacitorsKapaIDProxyHandlerFunc(p.KapacitorProxyDelete)
+
+		api.DeleteLayoutsIDHandler = op.DeleteLayoutsIDHandlerFunc(h.RemoveLayout)
+		api.GetLayoutsHandler = op.GetLayoutsHandlerFunc(h.Layouts)
+		api.GetLayoutsIDHandler = op.GetLayoutsIDHandlerFunc(h.LayoutsID)
+		api.PostLayoutsHandler = op.PostLayoutsHandlerFunc(h.NewLayout)
+		api.PutLayoutsIDHandler = op.PutLayoutsIDHandlerFunc(h.UpdateLayout)
 	} else {
 		api.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.DeleteExploration)
 		api.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.GetSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.Exploration)
@@ -152,16 +160,6 @@ func configureAPI(api *op.MrFusionAPI) http.Handler {
 
 	api.DeleteSourcesIDUsersUserIDHandler = op.DeleteSourcesIDUsersUserIDHandlerFunc(func(ctx context.Context, params op.DeleteSourcesIDUsersUserIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .DeleteSourcesIDUsersUserID has not yet been implemented")
-	})
-
-	api.DeleteDashboardsIDHandler = op.DeleteDashboardsIDHandlerFunc(func(ctx context.Context, params op.DeleteDashboardsIDParams) middleware.Responder {
-		return middleware.NotImplemented("operation .DeleteDashboardsID has not yet been implemented")
-	})
-	api.GetDashboardsHandler = op.GetDashboardsHandlerFunc(func(ctx context.Context, params op.GetDashboardsParams) middleware.Responder {
-		return middleware.NotImplemented("operation .GetDashboards has not yet been implemented")
-	})
-	api.GetDashboardsIDHandler = op.GetDashboardsIDHandlerFunc(func(ctx context.Context, params op.GetDashboardsIDParams) middleware.Responder {
-		return middleware.NotImplemented("operation .GetDashboardsID has not yet been implemented")
 	})
 
 	api.GetSourcesIDPermissionsHandler = op.GetSourcesIDPermissionsHandlerFunc(func(ctx context.Context, params op.GetSourcesIDPermissionsParams) middleware.Responder {
@@ -188,21 +186,12 @@ func configureAPI(api *op.MrFusionAPI) http.Handler {
 	api.PatchSourcesIDUsersUserIDHandler = op.PatchSourcesIDUsersUserIDHandlerFunc(func(ctx context.Context, params op.PatchSourcesIDUsersUserIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PatchSourcesIDUsersUserID has not yet been implemented")
 	})
-	api.PostDashboardsHandler = op.PostDashboardsHandlerFunc(func(ctx context.Context, params op.PostDashboardsParams) middleware.Responder {
-		return middleware.NotImplemented("operation .PostDashboards has not yet been implemented")
-	})
-
 	api.PostSourcesIDRolesHandler = op.PostSourcesIDRolesHandlerFunc(func(ctx context.Context, params op.PostSourcesIDRolesParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PostSourcesIDRoles has not yet been implemented")
 	})
 	api.PostSourcesIDUsersHandler = op.PostSourcesIDUsersHandlerFunc(func(ctx context.Context, params op.PostSourcesIDUsersParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PostSourcesIDUsers has not yet been implemented")
 	})
-
-	api.PutDashboardsIDHandler = op.PutDashboardsIDHandlerFunc(func(ctx context.Context, params op.PutDashboardsIDParams) middleware.Responder {
-		return middleware.NotImplemented("operation .PutDashboardsID has not yet been implemented")
-	})
-
 	api.GetSourcesIDMonitoredHandler = op.GetSourcesIDMonitoredHandlerFunc(mockHandler.MonitoredServices)
 
 	api.ServerShutdown = func() {}

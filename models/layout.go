@@ -11,11 +11,17 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Dashboard dashboard
+/*Layout layout
 
-swagger:model Dashboard
+swagger:model Layout
 */
-type Dashboard struct {
+type Layout struct {
+
+	/* App is the user facing name of this Layout
+
+	Required: true
+	*/
+	App *string `json:"app"`
 
 	/* Cells are the individual visualization elements.
 
@@ -23,14 +29,29 @@ type Dashboard struct {
 	*/
 	Cells []*Cell `json:"cells"`
 
+	/* ID is an opaque string that uniquely identifies this layout.
+	 */
+	ID string `json:"id,omitempty"`
+
 	/* link
 	 */
 	Link *Link `json:"link,omitempty"`
+
+	/* Measurement is the descriptive name of the time series data.
+
+	Required: true
+	*/
+	TelegrafMeasurement *string `json:"telegraf_measurement"`
 }
 
-// Validate validates this dashboard
-func (m *Dashboard) Validate(formats strfmt.Registry) error {
+// Validate validates this layout
+func (m *Layout) Validate(formats strfmt.Registry) error {
 	var res []error
+
+	if err := m.validateApp(formats); err != nil {
+		// prop
+		res = append(res, err)
+	}
 
 	if err := m.validateCells(formats); err != nil {
 		// prop
@@ -42,13 +63,27 @@ func (m *Dashboard) Validate(formats strfmt.Registry) error {
 		res = append(res, err)
 	}
 
+	if err := m.validateTelegrafMeasurement(formats); err != nil {
+		// prop
+		res = append(res, err)
+	}
+
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
 	return nil
 }
 
-func (m *Dashboard) validateCells(formats strfmt.Registry) error {
+func (m *Layout) validateApp(formats strfmt.Registry) error {
+
+	if err := validate.Required("app", "body", m.App); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Layout) validateCells(formats strfmt.Registry) error {
 
 	if err := validate.Required("cells", "body", m.Cells); err != nil {
 		return err
@@ -72,7 +107,7 @@ func (m *Dashboard) validateCells(formats strfmt.Registry) error {
 	return nil
 }
 
-func (m *Dashboard) validateLink(formats strfmt.Registry) error {
+func (m *Layout) validateLink(formats strfmt.Registry) error {
 
 	if swag.IsZero(m.Link) { // not required
 		return nil
@@ -83,6 +118,15 @@ func (m *Dashboard) validateLink(formats strfmt.Registry) error {
 		if err := m.Link.Validate(formats); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (m *Layout) validateTelegrafMeasurement(formats strfmt.Registry) error {
+
+	if err := validate.Required("telegraf_measurement", "body", m.TelegrafMeasurement); err != nil {
+		return err
 	}
 
 	return nil

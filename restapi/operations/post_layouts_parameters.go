@@ -13,46 +13,46 @@ import (
 	"github.com/influxdata/mrfusion/models"
 )
 
-// NewPostDashboardsParams creates a new PostDashboardsParams object
+// NewPostLayoutsParams creates a new PostLayoutsParams object
 // with the default values initialized.
-func NewPostDashboardsParams() PostDashboardsParams {
+func NewPostLayoutsParams() PostLayoutsParams {
 	var ()
-	return PostDashboardsParams{}
+	return PostLayoutsParams{}
 }
 
-// PostDashboardsParams contains all the bound params for the post dashboards operation
+// PostLayoutsParams contains all the bound params for the post layouts operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters PostDashboards
-type PostDashboardsParams struct {
+// swagger:parameters PostLayouts
+type PostLayoutsParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
 
-	/*Defines the dashboard and queries of the cells within the dashboard.
+	/*Defines the layout and queries of the cells within the layout.
 	  In: body
 	*/
-	Dashboard *models.Dashboard
+	Layout *models.Layout
 }
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *PostDashboardsParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *PostLayoutsParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
 
 	if runtime.HasBody(r) {
 		defer r.Body.Close()
-		var body models.Dashboard
+		var body models.Layout
 		if err := route.Consumer.Consume(r.Body, &body); err != nil {
-			res = append(res, errors.NewParseError("dashboard", "body", "", err))
+			res = append(res, errors.NewParseError("layout", "body", "", err))
 		} else {
 			if err := body.Validate(route.Formats); err != nil {
 				res = append(res, err)
 			}
 
 			if len(res) == 0 {
-				o.Dashboard = &body
+				o.Layout = &body
 			}
 		}
 

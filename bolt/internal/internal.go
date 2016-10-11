@@ -40,7 +40,7 @@ func UnmarshalExploration(data []byte, e *mrfusion.Exploration) error {
 	return nil
 }
 
-// MarshalSource encodes an source to binary protobuf format.
+// MarshalSource encodes a source to binary protobuf format.
 func MarshalSource(s mrfusion.Source) ([]byte, error) {
 	return proto.Marshal(&Source{
 		ID:       int64(s.ID),
@@ -53,7 +53,7 @@ func MarshalSource(s mrfusion.Source) ([]byte, error) {
 	})
 }
 
-// UnmarshalSource decodes an source from binary protobuf data.
+// UnmarshalSource decodes a source from binary protobuf data.
 func UnmarshalSource(data []byte, s *mrfusion.Source) error {
 	var pb Source
 	if err := proto.Unmarshal(data, &pb); err != nil {
@@ -70,7 +70,7 @@ func UnmarshalSource(data []byte, s *mrfusion.Source) error {
 	return nil
 }
 
-// MarshalServer encodes an source to binary protobuf format.
+// MarshalServer encodes a server to binary protobuf format.
 func MarshalServer(s mrfusion.Server) ([]byte, error) {
 	return proto.Marshal(&Server{
 		ID:       int64(s.ID),
@@ -82,7 +82,7 @@ func MarshalServer(s mrfusion.Server) ([]byte, error) {
 	})
 }
 
-// UnmarshalServer decodes an source from binary protobuf data.
+// UnmarshalServer decodes a server from binary protobuf data.
 func UnmarshalServer(data []byte, s *mrfusion.Server) error {
 	var pb Server
 	if err := proto.Unmarshal(data, &pb); err != nil {
@@ -95,5 +95,65 @@ func UnmarshalServer(data []byte, s *mrfusion.Server) error {
 	s.Username = pb.Username
 	s.Password = pb.Password
 	s.URL = pb.URL
+	return nil
+}
+
+// MarshalLayout encodes a layout to binary protobuf format.
+func MarshalLayout(l mrfusion.Layout) ([]byte, error) {
+	cells := make([]*Cell, len(l.Cells))
+	for i, c := range l.Cells {
+		queries := make([]*Query, len(c.Queries))
+		for j, q := range c.Queries {
+			queries[j] = &Query{
+				Command: q.Command,
+				DB:      q.DB,
+				RP:      q.RP,
+			}
+		}
+		cells[i] = &Cell{
+			X:       c.X,
+			Y:       c.Y,
+			W:       c.W,
+			H:       c.H,
+			Queries: queries,
+		}
+	}
+	return proto.Marshal(&Layout{
+		ID:          l.ID,
+		Measurement: l.Measurement,
+		Application: l.Application,
+		Cells:       cells,
+	})
+}
+
+// UnmarshalLayout decodes a layout from binary protobuf data.
+func UnmarshalLayout(data []byte, l *mrfusion.Layout) error {
+	var pb Layout
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+
+	l.ID = pb.ID
+	l.Measurement = pb.Measurement
+	l.Application = pb.Application
+	cells := make([]mrfusion.Cell, len(pb.Cells))
+	for i, c := range pb.Cells {
+		queries := make([]mrfusion.Query, len(c.Queries))
+		for j, q := range c.Queries {
+			queries[j] = mrfusion.Query{
+				Command: q.Command,
+				DB:      q.DB,
+				RP:      q.RP,
+			}
+		}
+		cells[i] = mrfusion.Cell{
+			X:       c.X,
+			Y:       c.Y,
+			W:       c.W,
+			H:       c.H,
+			Queries: queries,
+		}
+	}
+	l.Cells = cells
 	return nil
 }

@@ -97,24 +97,26 @@ type Cell struct {
 	Queries []Query
 }
 
-// Dashboard is a collection of Cells for visualization
-type Dashboard struct {
-	ID    int
-	Cells []Cell
+// Layout is a collection of Cells for visualization
+type Layout struct {
+	ID          string
+	Application string
+	Measurement string
+	Cells       []Cell
 }
 
-// DashboardStore stores dashboards and associated Cells
-type DashboardStore interface {
+// LayoutStore stores dashboards and associated Cells
+type LayoutStore interface {
 	// All returns all dashboards in the store
-	All(context.Context) ([]*Dashboard, error)
-	// Add creates a new dashboard in the DashboardStore
-	Add(context.Context, *Dashboard) error
+	All(context.Context) ([]Layout, error)
+	// Add creates a new dashboard in the LayoutStore
+	Add(context.Context, Layout) (Layout, error)
 	// Delete the dashboard from the store
-	Delete(context.Context, *Dashboard) error
-	// Get retrieves Dashboard if `ID` exists
-	Get(ctx context.Context, ID int) (*Dashboard, error)
+	Delete(context.Context, Layout) error
+	// Get retrieves Layout if `ID` exists
+	Get(ctx context.Context, ID string) (Layout, error)
 	// Update the dashboard in the store.
-	Update(context.Context, *Dashboard) error
+	Update(context.Context, Layout) error
 }
 
 type Source struct {

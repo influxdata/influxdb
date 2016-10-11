@@ -4,17 +4,21 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
+	"github.com/influxdata/mrfusion"
+	"github.com/influxdata/mrfusion/uuid"
 )
 
 // Client is a client for the boltDB data store.
 type Client struct {
-	Path string
-	db   *bolt.DB
-	Now  func() time.Time
+	Path      string
+	db        *bolt.DB
+	Now       func() time.Time
+	LayoutIDs mrfusion.ID
 
 	ExplorationStore *ExplorationStore
 	SourcesStore     *SourcesStore
 	ServersStore     *ServersStore
+	LayoutStore      *LayoutStore
 }
 
 func NewClient() *Client {
@@ -22,6 +26,10 @@ func NewClient() *Client {
 	c.ExplorationStore = &ExplorationStore{client: c}
 	c.SourcesStore = &SourcesStore{client: c}
 	c.ServersStore = &ServersStore{client: c}
+	c.LayoutStore = &LayoutStore{
+		client: c,
+		IDs:    &uuid.V4{},
+	}
 	return c
 }
 
@@ -47,15 +55,23 @@ func (c *Client) Open() error {
 		if _, err := tx.CreateBucketIfNotExists(ServersBucket); err != nil {
 			return err
 		}
+		// Always create Layouts bucket.
+		if _, err := tx.CreateBucketIfNotExists(LayoutBucket); err != nil {
+			return err
+		}
 
 		return nil
 	}); err != nil {
 		return err
 	}
 
-	c.ExplorationStore = &ExplorationStore{client: c}
-	c.SourcesStore = &SourcesStore{client: c}
-	c.ServersStore = &ServersStore{client: c}
+	// TODO: Ask @gunnar about these
+	/*
+		c.ExplorationStore = &ExplorationStore{client: c}
+		c.SourcesStore = &SourcesStore{client: c}
+		c.ServersStore = &ServersStore{client: c}
+		c.LayoutStore = &LayoutStore{client: c}
+	*/
 
 	return nil
 }

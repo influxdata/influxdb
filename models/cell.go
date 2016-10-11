@@ -8,6 +8,7 @@ import (
 	"github.com/go-openapi/swag"
 
 	"github.com/go-openapi/errors"
+	"github.com/go-openapi/validate"
 )
 
 /*Cell cell
@@ -16,32 +17,60 @@ swagger:model Cell
 */
 type Cell struct {
 
-	/* Height of Cell in the Dashboard
-	 */
-	H int32 `json:"h,omitempty"`
+	/* Height of Cell in the Layout
+
+	Required: true
+	*/
+	H *int32 `json:"h"`
 
 	/* Time-series data queries for Cell.
 	 */
-	Queries []string `json:"queries,omitempty"`
+	Queries []*Proxy `json:"queries,omitempty"`
 
-	/* Width of Cell in the Dashboard
-	 */
-	W int32 `json:"w,omitempty"`
+	/* Width of Cell in the Layout
 
-	/* X-coordinate of Cell in the Dashboard
-	 */
-	X int32 `json:"x,omitempty"`
+	Required: true
+	*/
+	W *int32 `json:"w"`
 
-	/* Y-coordinate of Cell in the Dashboard
-	 */
-	Y int32 `json:"y,omitempty"`
+	/* X-coordinate of Cell in the Layout
+
+	Required: true
+	*/
+	X *int32 `json:"x"`
+
+	/* Y-coordinate of Cell in the Layout
+
+	Required: true
+	*/
+	Y *int32 `json:"y"`
 }
 
 // Validate validates this cell
 func (m *Cell) Validate(formats strfmt.Registry) error {
 	var res []error
 
+	if err := m.validateH(formats); err != nil {
+		// prop
+		res = append(res, err)
+	}
+
 	if err := m.validateQueries(formats); err != nil {
+		// prop
+		res = append(res, err)
+	}
+
+	if err := m.validateW(formats); err != nil {
+		// prop
+		res = append(res, err)
+	}
+
+	if err := m.validateX(formats); err != nil {
+		// prop
+		res = append(res, err)
+	}
+
+	if err := m.validateY(formats); err != nil {
 		// prop
 		res = append(res, err)
 	}
@@ -52,10 +81,61 @@ func (m *Cell) Validate(formats strfmt.Registry) error {
 	return nil
 }
 
+func (m *Cell) validateH(formats strfmt.Registry) error {
+
+	if err := validate.Required("h", "body", m.H); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (m *Cell) validateQueries(formats strfmt.Registry) error {
 
 	if swag.IsZero(m.Queries) { // not required
 		return nil
+	}
+
+	for i := 0; i < len(m.Queries); i++ {
+
+		if swag.IsZero(m.Queries[i]) { // not required
+			continue
+		}
+
+		if m.Queries[i] != nil {
+
+			if err := m.Queries[i].Validate(formats); err != nil {
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func (m *Cell) validateW(formats strfmt.Registry) error {
+
+	if err := validate.Required("w", "body", m.W); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Cell) validateX(formats strfmt.Registry) error {
+
+	if err := validate.Required("x", "body", m.X); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (m *Cell) validateY(formats strfmt.Registry) error {
+
+	if err := validate.Required("y", "body", m.Y); err != nil {
+		return err
 	}
 
 	return nil

@@ -16,28 +16,28 @@ import (
 	"github.com/influxdata/mrfusion/models"
 )
 
-// NewPutDashboardsIDParams creates a new PutDashboardsIDParams object
+// NewPutLayoutsIDParams creates a new PutLayoutsIDParams object
 // with the default values initialized.
-func NewPutDashboardsIDParams() PutDashboardsIDParams {
+func NewPutLayoutsIDParams() PutLayoutsIDParams {
 	var ()
-	return PutDashboardsIDParams{}
+	return PutLayoutsIDParams{}
 }
 
-// PutDashboardsIDParams contains all the bound params for the put dashboards ID operation
+// PutLayoutsIDParams contains all the bound params for the put layouts ID operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters PutDashboardsID
-type PutDashboardsIDParams struct {
+// swagger:parameters PutLayoutsID
+type PutLayoutsIDParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
 
-	/*dashboard configuration update parameters
+	/*layout  configuration update parameters
 	  Required: true
 	  In: body
 	*/
-	Config *models.Dashboard
-	/*ID of a dashboard
+	Config *models.Layout
+	/*ID of a layout
 	  Required: true
 	  In: path
 	*/
@@ -46,13 +46,13 @@ type PutDashboardsIDParams struct {
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *PutDashboardsIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *PutLayoutsIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
 
 	if runtime.HasBody(r) {
 		defer r.Body.Close()
-		var body models.Dashboard
+		var body models.Layout
 		if err := route.Consumer.Consume(r.Body, &body); err != nil {
 			if err == io.EOF {
 				res = append(res, errors.Required("config", "body"))
@@ -85,7 +85,7 @@ func (o *PutDashboardsIDParams) BindRequest(r *http.Request, route *middleware.M
 	return nil
 }
 
-func (o *PutDashboardsIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *PutLayoutsIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
