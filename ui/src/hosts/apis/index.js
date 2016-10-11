@@ -1,5 +1,4 @@
 import {proxy} from 'utils/queryUrlGenerator';
-import _ from 'lodash';
 
 export function getCpuAndLoadForHosts(proxyLink) {
   return proxy({
@@ -22,6 +21,6 @@ export function getCpuAndLoadForHosts(proxyLink) {
       hosts[s.tags.host].load = (Math.round(s.values[0][meanIndex] * precision) / precision);
     });
 
-    return _.values(hosts);
+    return hosts;
   });
 }
