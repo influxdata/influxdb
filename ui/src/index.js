@@ -12,12 +12,13 @@ import RetentionPoliciesPage from 'src/retention_policies';
 import DataExplorer from 'src/chronograf';
 import DatabaseManager from 'src/database_manager';
 import SignUp from 'src/sign_up';
-import {SelectSourcePage, ManageSources} from 'src/sources';
+import {CreateSource, ManageSources} from 'src/sources';
 import {ClusterAccountsPage, ClusterAccountPage} from 'src/cluster_accounts';
 import {RolesPageContainer, RolePageContainer} from 'src/access_control';
 import NotFound from 'src/shared/components/NotFound';
 import NoClusterError from 'src/shared/components/NoClusterError';
 import configureStore from 'src/store/configureStore';
+import {getSources} from 'shared/apis';
 
 import 'src/style/enterprise_style/application.scss';
 
@@ -63,11 +64,17 @@ const Root = React.createClass({
     };
   },
 
-  hasDefaultSource(_, replace) {
-    const defaultSource = JSON.parse(localStorage.getItem('defaultSource'));
-    if (!!defaultSource && defaultSource.id) {
-      return replace(`/sources/${defaultSource.id}/hosts`);
-    }
+  hasSources(_, replace, callback) {
+    getSources().then(({data: {sources}}) => {
+      if (sources && sources.length) {
+        const defaultSource = sources.find((s) => s.default);
+        if (defaultSource && defaultSource.id) {
+          replace(`/sources/${defaultSource.id}/hosts`);
+        }
+        replace(`/sources/${sources[0].id}/hosts`);
+      }
+      callback();
+    }).catch(callback);
   },
 
   render() {
@@ -83,7 +90,7 @@ const Root = React.createClass({
       <Provider store={store}>
         <Router history={browserHistory}>
           <Route path="/signup/admin/:step" component={SignUp} />
-          <Route path="/" component={SelectSourcePage} onEnter={this.hasDefaultSource} />
+          <Route path="/" component={CreateSource} onEnter={this.hasSources} />
           <Route path="/sources/:sourceID" component={App}>
             <Route component={CheckDataNodes}>
               <Route path="manage-sources" component={ManageSources} />

@@ -1,3 +1,3 @@
-import SelectSourcePage from './containers/SelectSourcePage';
+import CreateSource from './containers/CreateSource';
 import ManageSources from './containers/ManageSources';
-export {SelectSourcePage, ManageSources};
+export {CreateSource, ManageSources};
