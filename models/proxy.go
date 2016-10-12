@@ -60,6 +60,10 @@ func (m *Proxy) Validate(formats strfmt.Registry) error {
 
 var proxyTypeFormatPropEnum []interface{}
 
+const (
+	ProxyFormatRaw string = "raw"
+)
+
 // prop value enum
 func (m *Proxy) validateFormatEnum(path, location string, value string) error {
 	if proxyTypeFormatPropEnum == nil {
