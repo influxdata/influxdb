@@ -348,3 +348,15 @@ func (m *Handler) DeleteExploration(ctx context.Context, params op.DeleteSources
 	}
 	return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDNoContent()
 }
+
+func (m *Handler) GetMappings(ctx context.Context, params op.GetMappingsParams) middleware.Responder {
+	mp := &models.Mappings{
+		Mappings: []*models.Mapping{
+			&models.Mapping{
+				Measurement: "cpu",
+				Name:        "System",
+			},
+		},
+	}
+	return op.NewGetMappingsOK().WithPayload(mp)
+}

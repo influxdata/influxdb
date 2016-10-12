@@ -20,13 +20,13 @@ type Mapping struct {
 
 	Required: true
 	*/
-	Measurement *string `json:"measurement"`
+	Measurement string `json:"measurement"`
 
 	/* The application name which will be assigned to the corresponding measurement
 
 	Required: true
 	*/
-	Name *string `json:"name"`
+	Name string `json:"name"`
 }
 
 // Validate validates this mapping

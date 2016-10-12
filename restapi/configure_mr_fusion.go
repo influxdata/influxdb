@@ -215,9 +215,7 @@ func configureAPI(api *op.MrFusionAPI) http.Handler {
 		return middleware.NotImplemented("operation .PostSourcesIDUsers has not yet been implemented")
 	})
 
-	api.GetMappingsHandler = op.GetMappingsHandlerFunc(func(ctx context.Context, params op.GetMappingsParams) middleware.Responder {
-		return middleware.NotImplemented("operation .PostSourcesIDUsers has not yet been implemented")
-	})
+	api.GetMappingsHandler = op.GetMappingsHandlerFunc(mockHandler.GetMappings)
 	api.GetSourcesIDMonitoredHandler = op.GetSourcesIDMonitoredHandlerFunc(mockHandler.MonitoredServices)
 
 	api.ServerShutdown = func() {}
