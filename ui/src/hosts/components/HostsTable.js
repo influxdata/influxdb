@@ -53,6 +53,16 @@ const HostsTable = React.createClass({
     }
   },
 
+  sortableClasses(key) {
+    if (this.state.sortKey === key) {
+      if (this.state.sortDirection === 'asc') {
+        return "sortable-header sorting-up";
+      }
+      return "sortable-header sorting-down";
+    }
+    return "sortable-header";
+  },
+
   render() {
     const hosts = this.sort(this.state.filteredHosts, this.state.sortKey, this.state.sortDirection);
     const {source} = this.props;
@@ -67,10 +77,10 @@ const HostsTable = React.createClass({
           <table className="table v-center">
             <thead>
               <tr>
-                <th onClick={() => this.changeSort('name')} className="sortable-header">Hostname</th>
+                <th onClick={() => this.changeSort('name')} className={this.sortableClasses('name')}>Hostname</th>
                 <th className="text-center">Status</th>
-                <th onClick={() => this.changeSort('cpu')} className="sortable-header">CPU</th>
-                <th onClick={() => this.changeSort('load')} className="sortable-header">Load</th>
+                <th onClick={() => this.changeSort('cpu')} className={this.sortableClasses('cpu')}>CPU</th>
+                <th onClick={() => this.changeSort('load')} className={this.sortableClasses('load')}>Load</th>
                 <th>Apps</th>
               </tr>
             </thead>
