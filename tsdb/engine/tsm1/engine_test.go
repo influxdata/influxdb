@@ -742,9 +742,11 @@ func BenchmarkEngine_CreateIterator_Limit_1M(b *testing.B) {
 func BenchmarkEngine_WritePoints_10(b *testing.B) {
 	benchmarkEngine_WritePoints(b, 10)
 }
+
 func BenchmarkEngine_WritePoints_100(b *testing.B) {
 	benchmarkEngine_WritePoints(b, 100)
 }
+
 func BenchmarkEngine_WritePoints_1000(b *testing.B) {
 	benchmarkEngine_WritePoints(b, 1000)
 }

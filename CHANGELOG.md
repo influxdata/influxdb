@@ -17,6 +17,7 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7684](https://github.com/influxdata/influxdb/issues/7684): Update Go version to 1.7.4.
 - [#7036](https://github.com/influxdata/influxdb/issues/7036): Switch logging to use structured logging everywhere.
 - [#7723](https://github.com/influxdata/influxdb/pull/7723): Remove the override of GOMAXPROCS.
+- [#7633](https://github.com/influxdata/influxdb/pull/7633): improve write performance significantly.
 
 ### Bugfixes
 

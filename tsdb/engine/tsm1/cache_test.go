@@ -85,7 +85,7 @@ func TestCache_CacheWriteMulti(t *testing.T) {
 	values := Values{v0, v1, v2}
 	valuesSize := uint64(v0.Size() + v1.Size() + v2.Size())
 
-	c := NewCache(3*valuesSize, "")
+	c := NewCache(30*valuesSize, "")
 
 	if err := c.WriteMulti(map[string][]Value{"foo": values, "bar": values}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
@@ -128,7 +128,7 @@ func TestCache_Cache_DeleteRange(t *testing.T) {
 	values := Values{v0, v1, v2}
 	valuesSize := uint64(v0.Size() + v1.Size() + v2.Size())
 
-	c := NewCache(3*valuesSize, "")
+	c := NewCache(30*valuesSize, "")
 
 	if err := c.WriteMulti(map[string][]Value{"foo": values, "bar": values}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
@@ -202,7 +202,7 @@ func TestCache_Cache_Delete(t *testing.T) {
 	values := Values{v0, v1, v2}
 	valuesSize := uint64(v0.Size() + v1.Size() + v2.Size())
 
-	c := NewCache(3*valuesSize, "")
+	c := NewCache(30*valuesSize, "")
 
 	if err := c.WriteMulti(map[string][]Value{"foo": values, "bar": values}); err != nil {
 		t.Fatalf("failed to write key foo to cache: %s", err.Error())
@@ -719,7 +719,7 @@ type points struct {
 
 func BenchmarkCacheParallelFloatEntries(b *testing.B) {
 	c := b.N * runtime.GOMAXPROCS(0)
-	cache := NewCache(uint64(c)*fvSize, "")
+	cache := NewCache(uint64(c)*fvSize*10, "")
 	vals := make([]points, c)
 	for i := 0; i < c; i++ {
 		v := make([]Value, 10)
