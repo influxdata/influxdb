@@ -36,6 +36,7 @@ type MrFusionAPI struct {
 	formats         strfmt.Registry
 	defaultConsumes string
 	defaultProduces string
+	Middleware      func(middleware.Builder) http.Handler
 	// JSONConsumer registers a consumer for a "application/json" mime type
 	JSONConsumer runtime.Consumer
 
@@ -62,6 +63,8 @@ type MrFusionAPI struct {
 	GetLayoutsHandler GetLayoutsHandler
 	// GetLayoutsIDHandler sets the operation handler for the get layouts ID operation
 	GetLayoutsIDHandler GetLayoutsIDHandler
+	// GetMappingsHandler sets the operation handler for the get mappings operation
+	GetMappingsHandler GetMappingsHandler
 	// GetSourcesHandler sets the operation handler for the get sources operation
 	GetSourcesHandler GetSourcesHandler
 	// GetSourcesIDHandler sets the operation handler for the get sources ID operation
@@ -219,6 +222,10 @@ func (o *MrFusionAPI) Validate() error {
 
 	if o.GetLayoutsIDHandler == nil {
 		unregistered = append(unregistered, "GetLayoutsIDHandler")
+	}
+
+	if o.GetMappingsHandler == nil {
+		unregistered = append(unregistered, "GetMappingsHandler")
 	}
 
 	if o.GetSourcesHandler == nil {
@@ -397,6 +404,7 @@ func (o *MrFusionAPI) HandlerFor(method, path string) (http.Handler, bool) {
 	return h, ok
 }
 
+// Context returns the middleware context for the mr fusion API
 func (o *MrFusionAPI) Context() *middleware.Context {
 	if o.context == nil {
 		o.context = middleware.NewRoutableContext(o.spec, o, nil)
@@ -406,9 +414,7 @@ func (o *MrFusionAPI) Context() *middleware.Context {
 }
 
 func (o *MrFusionAPI) initHandlerCache() {
-	if o.context == nil {
-		o.context = middleware.NewRoutableContext(o.spec, o, nil)
-	}
+	o.Context() // don't care about the result, just that the initialization happened
 
 	if o.handlers == nil {
 		o.handlers = make(map[string]map[string]http.Handler)
@@ -463,6 +469,11 @@ func (o *MrFusionAPI) initHandlerCache() {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
 	}
 	o.handlers["GET"]["/layouts/{id}"] = NewGetLayoutsID(o.context, o.GetLayoutsIDHandler)
+
+	if o.handlers["GET"] == nil {
+		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
+	}
+	o.handlers["GET"]["/mappings"] = NewGetMappings(o.context, o.GetMappingsHandler)
 
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
@@ -609,9 +620,16 @@ func (o *MrFusionAPI) initHandlerCache() {
 // Serve creates a http handler to serve the API over HTTP
 // can be used directly in http.ListenAndServe(":8000", api.Serve(nil))
 func (o *MrFusionAPI) Serve(builder middleware.Builder) http.Handler {
+	o.Init()
+
+	if o.Middleware != nil {
+		return o.Middleware(builder)
+	}
+	return o.context.APIHandler(builder)
+}
+
+func (o *MrFusionAPI) Init() {
 	if len(o.handlers) == 0 {
 		o.initHandlerCache()
 	}
-
-	return o.context.APIHandler(builder)
 }

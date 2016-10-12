@@ -272,3 +272,8 @@ func (s *Server) Shutdown() error {
 func (s *Server) GetHandler() http.Handler {
 	return s.handler
 }
+
+// SetHandler allows for setting a http handler on this server
+func (s *Server) SetHandler(handler http.Handler) {
+	s.handler = handler
+}
