@@ -43,6 +43,11 @@ const SideNav = React.createClass({
           <NavHeader link={`${sourcePrefix}/kapacitor-tasks`} title="Alerting" />
           <NavListItem link={`${sourcePrefix}/kapacitor-tasks`}>Kapacitor Tasks</NavListItem>
         </NavBlock>
+        <NavBlock matcher="alerts" icon="alert-triangle" link={`${sourcePrefix}/alerts`}>
+          <NavHeader link={`${sourcePrefix}/alerts`} title="Alerts" />
+          <NavListItem matcher="view" link={`${sourcePrefix}/alerts`}>View</NavListItem>
+          <NavListItem matcher="rules" link={`${sourcePrefix}/alert/rules`}>Rules</NavListItem>
+        </NavBlock>
       </NavBar>
     );
   },
