@@ -1299,6 +1299,8 @@ definitions:
                 $ref: "#/definitions/Link"
     Mappings:
       type: object
+      required:
+        - mappings
       properties:
         mappings:
           type: array

@@ -8,6 +8,7 @@ import (
 	"github.com/go-openapi/swag"
 
 	"github.com/go-openapi/errors"
+	"github.com/go-openapi/validate"
 )
 
 /*Mappings mappings
@@ -17,8 +18,10 @@ swagger:model Mappings
 type Mappings struct {
 
 	/* mappings
-	 */
-	Mappings []*Mapping `json:"mappings,omitempty"`
+
+	Required: true
+	*/
+	Mappings []*Mapping `json:"mappings"`
 }
 
 // Validate validates this mappings
@@ -38,8 +41,8 @@ func (m *Mappings) Validate(formats strfmt.Registry) error {
 
 func (m *Mappings) validateMappings(formats strfmt.Registry) error {
 
-	if swag.IsZero(m.Mappings) { // not required
-		return nil
+	if err := validate.Required("mappings", "body", m.Mappings); err != nil {
+		return err
 	}
 
 	for i := 0; i < len(m.Mappings); i++ {
