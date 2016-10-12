@@ -239,19 +239,21 @@ func setupMiddlewares(handler http.Handler) http.Handler {
 // So this is a good place to plug in a panic handling middleware, logging and metrics
 func setupGlobalMiddleware(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		logger.
+		l := logger.
 			WithField("component", "server").
 			WithField("remote_addr", r.RemoteAddr).
 			WithField("method", r.Method).
-			WithField("url", r.URL).
-			Info("Serving request")
+			WithField("url", r.URL)
 
 		if strings.Contains(r.URL.Path, "/chronograf/v1") {
+			l.Info("Serving API Request")
 			handler.ServeHTTP(w, r)
 			return
 		} else if r.URL.Path == "//" {
+			l.Info("Serving root redirect")
 			http.Redirect(w, r, "/index.html", http.StatusFound)
 		} else {
+			l.Info("Serving assets")
 			assets().Handler().ServeHTTP(w, r)
 			return
 		}
