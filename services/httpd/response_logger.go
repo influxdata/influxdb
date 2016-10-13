@@ -112,7 +112,7 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 		int64(time.Since(start)/time.Microsecond))
 }
 
-// detect detects the first presense of a non blank string and returns it
+// detect detects the first presence of a non blank string and returns it
 func detect(values ...string) string {
 	for _, v := range values {
 		if v != "" {
