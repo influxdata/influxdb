@@ -464,7 +464,7 @@ func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatemen
 		emitted = true
 	}
 
-	// Flush remaing points and emit write count if an INTO statement.
+	// Flush remaining points and emit write count if an INTO statement.
 	if stmt.Target != nil {
 		if err := pointsWriter.Flush(); err != nil {
 			return err
