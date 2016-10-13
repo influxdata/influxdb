@@ -27,6 +27,7 @@
 - [#7470](https://github.com/influxdata/influxdb/pull/7470): Reduce map allocations when computing the TagSet of a measurement.
 - [#6894](https://github.com/influxdata/influxdb/issues/6894): Support `INFLUX_USERNAME` and `INFLUX_PASSWORD` for setting username/password in the CLI.
 - [#6896](https://github.com/influxdata/influxdb/issues/6896): Correctly read in input from a non-interactive stream for the CLI.
+- [#7463](https://github.com/influxdata/influxdb/pull/7463): Make input plugin services open/close idempotent.
 
 ### Bugfixes
 
