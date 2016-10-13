@@ -238,7 +238,7 @@ func setupMiddlewares(handler http.Handler) http.Handler {
 // The middleware configuration happens before anything, this middleware also applies to serving the swagger.json document.
 // So this is a good place to plug in a panic handling middleware, logging and metrics
 func setupGlobalMiddleware(handler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		l := logger.
 			WithField("component", "server").
 			WithField("remote_addr", r.RemoteAddr).
@@ -258,4 +258,9 @@ func setupGlobalMiddleware(handler http.Handler) http.Handler {
 			return
 		}
 	})
+	// TODO: When we use httprouter clean up these routes
+	spec := handlers.Spec("/", SwaggerJSON, h)
+	redoc := handlers.Redoc(spec)
+
+	return redoc
 }
