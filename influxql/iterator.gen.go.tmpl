@@ -1231,6 +1231,7 @@ func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) C
 }
 
 func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) Next() (*{{$v.Name}}Point, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -1241,6 +1242,23 @@ func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) N
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 

@@ -1229,6 +1229,7 @@ func (itr *floatExprIterator) Close() error {
 }
 
 func (itr *floatExprIterator) Next() (*FloatPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -1239,6 +1240,23 @@ func (itr *floatExprIterator) Next() (*FloatPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
@@ -1467,6 +1485,7 @@ func (itr *floatIntegerExprIterator) Close() error {
 }
 
 func (itr *floatIntegerExprIterator) Next() (*IntegerPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -1477,6 +1496,23 @@ func (itr *floatIntegerExprIterator) Next() (*IntegerPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
@@ -1705,6 +1741,7 @@ func (itr *floatStringExprIterator) Close() error {
 }
 
 func (itr *floatStringExprIterator) Next() (*StringPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -1715,6 +1752,23 @@ func (itr *floatStringExprIterator) Next() (*StringPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
@@ -1943,6 +1997,7 @@ func (itr *floatBooleanExprIterator) Close() error {
 }
 
 func (itr *floatBooleanExprIterator) Next() (*BooleanPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -1953,6 +2008,23 @@ func (itr *floatBooleanExprIterator) Next() (*BooleanPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
@@ -3311,6 +3383,7 @@ func (itr *integerFloatExprIterator) Close() error {
 }
 
 func (itr *integerFloatExprIterator) Next() (*FloatPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -3321,6 +3394,23 @@ func (itr *integerFloatExprIterator) Next() (*FloatPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
@@ -3549,6 +3639,7 @@ func (itr *integerExprIterator) Close() error {
 }
 
 func (itr *integerExprIterator) Next() (*IntegerPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -3559,6 +3650,23 @@ func (itr *integerExprIterator) Next() (*IntegerPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
@@ -3787,6 +3895,7 @@ func (itr *integerStringExprIterator) Close() error {
 }
 
 func (itr *integerStringExprIterator) Next() (*StringPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -3797,6 +3906,23 @@ func (itr *integerStringExprIterator) Next() (*StringPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
@@ -4025,6 +4151,7 @@ func (itr *integerBooleanExprIterator) Close() error {
 }
 
 func (itr *integerBooleanExprIterator) Next() (*BooleanPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -4035,6 +4162,23 @@ func (itr *integerBooleanExprIterator) Next() (*BooleanPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
@@ -5379,6 +5523,7 @@ func (itr *stringFloatExprIterator) Close() error {
 }
 
 func (itr *stringFloatExprIterator) Next() (*FloatPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -5389,6 +5534,23 @@ func (itr *stringFloatExprIterator) Next() (*FloatPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
@@ -5617,6 +5779,7 @@ func (itr *stringIntegerExprIterator) Close() error {
 }
 
 func (itr *stringIntegerExprIterator) Next() (*IntegerPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -5627,6 +5790,23 @@ func (itr *stringIntegerExprIterator) Next() (*IntegerPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
@@ -5855,6 +6035,7 @@ func (itr *stringExprIterator) Close() error {
 }
 
 func (itr *stringExprIterator) Next() (*StringPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -5865,6 +6046,23 @@ func (itr *stringExprIterator) Next() (*StringPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
@@ -6093,6 +6291,7 @@ func (itr *stringBooleanExprIterator) Close() error {
 }
 
 func (itr *stringBooleanExprIterator) Next() (*BooleanPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -6103,6 +6302,23 @@ func (itr *stringBooleanExprIterator) Next() (*BooleanPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
@@ -7447,6 +7663,7 @@ func (itr *booleanFloatExprIterator) Close() error {
 }
 
 func (itr *booleanFloatExprIterator) Next() (*FloatPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -7457,6 +7674,23 @@ func (itr *booleanFloatExprIterator) Next() (*FloatPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
@@ -7685,6 +7919,7 @@ func (itr *booleanIntegerExprIterator) Close() error {
 }
 
 func (itr *booleanIntegerExprIterator) Next() (*IntegerPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -7695,6 +7930,23 @@ func (itr *booleanIntegerExprIterator) Next() (*IntegerPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
@@ -7923,6 +8175,7 @@ func (itr *booleanStringExprIterator) Close() error {
 }
 
 func (itr *booleanStringExprIterator) Next() (*StringPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -7933,6 +8186,23 @@ func (itr *booleanStringExprIterator) Next() (*StringPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
@@ -8161,6 +8431,7 @@ func (itr *booleanExprIterator) Close() error {
 }
 
 func (itr *booleanExprIterator) Next() (*BooleanPoint, error) {
+	// First, advance left and right.
 	a, err := itr.left.Next()
 	if err != nil {
 		return nil, err
@@ -8171,6 +8442,23 @@ func (itr *booleanExprIterator) Next() (*BooleanPoint, error) {
 	} else if a == nil && b == nil {
 		return nil, nil
 	}
+
+	// Now, advance the older iterator until the times match.
+	// If one of the iterators is nil, it's still safe to pass to itr.fn.
+	for a != nil && b != nil && a.Time != b.Time {
+		if a.Time < b.Time {
+			a, err = itr.left.Next()
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			b, err = itr.right.Next()
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
 	return itr.fn(a, b), nil
 }
 
