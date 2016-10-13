@@ -52,7 +52,7 @@ func AuthorizedToken(opts JWTOpts, next http.Handler) http.Handler {
 				// 3. Check if time is after not before (nbf)
 				token, err := jwt.ParseWithClaims(jwtToken, &jwt.StandardClaims{}, keyLookupFn)
 				if err != nil {
-					w.WriteHeader(http.StatusOK)
+					w.WriteHeader(http.StatusUnauthorized)
 					return
 				} else if !token.Valid {
 					w.WriteHeader(http.StatusUnauthorized)
@@ -69,9 +69,9 @@ func AuthorizedToken(opts JWTOpts, next http.Handler) http.Handler {
 					return
 				}
 				// TODO: check if the sub (e.g. /users/1) really exists
+				next.ServeHTTP(w, r)
+				return
 			}
-			next.ServeHTTP(w, r)
-			return
 		}
 		w.WriteHeader(http.StatusUnauthorized)
 	})
