@@ -2,7 +2,6 @@ package influxql
 
 import (
 	"container/heap"
-	"errors"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -559,6 +558,118 @@ func (itr *{{$k.name}}LimitIterator) Next() (*{{$k.Name}}Point, error) {
 	}
 }
 
+// {{$k.name}}LazyIterator iterates serially over a list of IteratorCreators
+// and reads the created iterator from each one.
+type {{$k.name}}LazyIterator struct {
+	input {{$k.Name}}Iterator
+	ics   IteratorCreators
+	opt   IteratorOptions
+	stats IteratorStats
+	mu    sync.RWMutex
+}
+
+// new{{$k.Name}}LazyIterator creates a new instance of {{$k.name}}LazyIterator.
+func new{{$k.Name}}LazyIterator(input {{$k.Name}}Iterator, ics IteratorCreators, opt IteratorOptions) *{{$k.name}}LazyIterator {
+	return &{{$k.name}}LazyIterator{
+		input: input,
+		ics:   ics,
+		opt:   opt,
+	}
+}
+
+// Next returns the next point from each successive iterator. When it has read
+// all of the points from the current iterator, it creates a new one and starts
+// reading from the next iterator. If an iterator fails to be created, the
+// error is returned.
+func (itr *{{$k.name}}LazyIterator) Next() (*{{$k.Name}}Point, error) {
+	for {
+		input := itr.input
+		if input == nil {
+			return nil, nil
+		}
+
+		p, err := input.Next()
+		if err != nil {
+			return nil, err
+		} else if p == nil {
+			// End of an iterator. Lock so we can move to the next iterator.
+			if ok, err := itr.advance(); !ok {
+				return nil, err
+			}
+			continue
+		}
+		return p, err
+	}
+}
+
+func (itr *{{$k.name}}LazyIterator) Stats() IteratorStats {
+	stats := itr.stats
+	itr.mu.RLock()
+	if itr.input != nil {
+		stats.Add(itr.input.Stats())
+	}
+	itr.mu.RUnlock()
+	return stats
+}
+
+func (itr *{{$k.name}}LazyIterator) Close() (err error) {
+	itr.mu.Lock()
+	defer itr.mu.Unlock()
+
+	if itr.input != nil {
+		err = itr.input.Close()
+		itr.input = nil
+	}
+	itr.ics = nil
+	return err
+}
+
+// advance creates the next Iterator from the list of IteratorCreators.
+// It continues to try creating an iterator until it gets a non-nil iterator
+// of the correct type or until there are no more IteratorCreators left.
+// If a new Iterator was created, this returns true. If an error happened while
+// creating any Iterator, false and the error are returned.
+func (itr *{{$k.name}}LazyIterator) advance() (bool, error) {
+	itr.mu.Lock()
+	defer itr.mu.Unlock()
+
+	for {
+		// If there are no more iterator creators, tell the main loop
+		// we did not advance further and there were no errors.
+		if len(itr.ics) == 0 {
+			return false, nil
+		}
+
+		// Attempt to create the iterator.
+		i, err := itr.ics[0].CreateIterator(itr.opt)
+		if err != nil {
+			// An error occurred creating the iterator. Report it.
+			return false, err
+		}
+
+		// Set the current iterator creator to nil since we no longer are using it. That way
+		// the garbage collector can free that memory. Then advance the slice.
+		itr.ics[0] = nil
+		itr.ics = itr.ics[1:]
+
+		if i == nil {
+			continue
+		}
+
+		input, ok := i.({{$k.Name}}Iterator)
+		if !ok {
+			// The returned iterator is not the type we are looking for.
+			// Discard and try to create a new one.
+			continue
+		}
+
+		// Record the final stats from the iterator and add them to our own for later recordkeeping.
+		itr.stats.Add(input.Stats())
+		itr.input = input
+		return true, nil
+	}
+}
+
 type {{$k.name}}FillIterator struct {
 	input     *buf{{$k.Name}}Iterator
 	prev      {{$k.Name}}Point
@@ -880,14 +991,6 @@ func (itr *{{$k.name}}AuxIterator) CreateIterator(opt IteratorOptions) (Iterator
 	default:
 		panic(fmt.Sprintf("invalid expression type for an aux iterator: %T", expr))
 	}
-}
-
-func (itr *{{$k.name}}AuxIterator) FieldDimensions(sources Sources) (fields map[string]DataType, dimensions map[string]struct{}, err error) {
-	return nil, nil, errors.New("not implemented")
-}
-
-func (itr *{{$k.name}}AuxIterator) ExpandSources(sources Sources) (Sources, error) {
-	return nil, errors.New("not implemented")
 }
 
 func (itr *{{.name}}AuxIterator) stream() {

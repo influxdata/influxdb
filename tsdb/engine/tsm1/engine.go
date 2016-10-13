@@ -1125,6 +1125,10 @@ func (e *Engine) KeyCursor(key string, t int64, ascending bool) *KeyCursor {
 	return e.FileStore.KeyCursor(key, t, ascending)
 }
 
+func (e *Engine) MeasurementByName(name string) *tsdb.Measurement {
+	return e.index.Measurement(name)
+}
+
 func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
 	if call, ok := opt.Expr.(*influxql.Call); ok {
 		refOpt := opt
@@ -1160,6 +1164,40 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 	itr := influxql.NewSortedMergeIterator(itrs, opt)
 	if itr != nil && opt.InterruptCh != nil {
 		itr = influxql.NewInterruptIterator(itr, opt.InterruptCh)
+	}
+	return itr, nil
+}
+
+func (e *Engine) CreateSeriesIterator(mm *tsdb.Measurement, t *influxql.TagSet, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	if call, ok := opt.Expr.(*influxql.Call); ok {
+		ref := call.Args[0].(*influxql.VarRef)
+		inputs, err := e.createTagSetIterators(ref, mm, t, opt)
+		if err != nil {
+			return nil, err
+		} else if len(inputs) == 0 {
+			return nil, nil
+		}
+
+		itr := influxql.NewMergeIterator(inputs, opt)
+		if itr != nil && opt.InterruptCh != nil {
+			itr = influxql.NewInterruptIterator(itr, opt.InterruptCh)
+		}
+		return influxql.NewCallIterator(itr, opt)
+	}
+
+	ref, _ := opt.Expr.(*influxql.VarRef)
+	itrs, err := e.createTagSetIterators(ref, mm, t, opt)
+	if err != nil {
+		return nil, err
+	}
+
+	itr := influxql.NewSortedMergeIterator(itrs, opt)
+	if itr != nil && opt.InterruptCh != nil {
+		itr = influxql.NewInterruptIterator(itr, opt.InterruptCh)
+	}
+
+	if opt.Limit > 0 || opt.Offset > 0 {
+		itr = newLimitIterator(itr, opt)
 	}
 	return itr, nil
 }

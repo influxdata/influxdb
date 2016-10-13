@@ -697,6 +697,78 @@ func TestLimitIterator(t *testing.T) {
 	}
 }
 
+// Ensure the lazy iterator works.
+func TestLazyIterator(t *testing.T) {
+	var initialized [3]bool
+	ics := []influxql.IteratorCreator{
+		&IteratorCreator{
+			CreateIteratorFn: func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+				initialized[0] = true
+				return &FloatIterator{Points: []influxql.FloatPoint{
+					{Time: 0, Value: 0},
+				}}, nil
+			},
+		},
+		&IteratorCreator{
+			CreateIteratorFn: func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+				initialized[1] = true
+				return &StringIterator{Points: []influxql.StringPoint{
+					{Time: 1, Value: "a"},
+				}}, nil
+			},
+		},
+		&IteratorCreator{
+			CreateIteratorFn: func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+				initialized[2] = true
+				return &FloatIterator{Points: []influxql.FloatPoint{
+					{Time: 2, Value: 2},
+				}}, nil
+			},
+		},
+	}
+
+	input, err := influxql.NewLazyIterator(ics, influxql.IteratorOptions{})
+	if err != nil {
+		t.Fatal(err)
+	} else if !initialized[0] {
+		t.Fatalf("did not initialize the first iterator")
+	}
+	itr := input.(influxql.FloatIterator)
+
+	if want := [3]bool{true, false, false}; !reflect.DeepEqual(initialized, want) {
+		t.Fatalf("unexpected iterator initialization: %v != %v", initialized, want)
+	}
+
+	p, err := itr.Next()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := &influxql.FloatPoint{Time: 0, Value: 0}
+	if !reflect.DeepEqual(p, want) {
+		t.Fatalf("unexpected point: %v != %v", p, want)
+	}
+
+	p, err = itr.Next()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	} else if want := [3]bool{true, true, true}; !reflect.DeepEqual(initialized, want) {
+		t.Fatalf("unexpected iterator initialization: %v != %v", initialized, want)
+	}
+
+	want = &influxql.FloatPoint{Time: 2, Value: 2}
+	if !reflect.DeepEqual(p, want) {
+		t.Fatalf("unexpected point: %v != %v", p, want)
+	}
+
+	p, err = itr.Next()
+	if p != nil {
+		t.Fatalf("unexpected point: %v", p)
+	} else if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 // Iterators is a test wrapper for iterators.
 type Iterators []influxql.Iterator
 
@@ -1054,23 +1126,24 @@ func TestIterator_EncodeDecode(t *testing.T) {
 	}
 }
 
+type FieldMapperFn func() (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
+
+func (fn FieldMapperFn) FieldDimensions() (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+	return fn()
+}
+
 // IteratorCreator is a mockable implementation of SelectStatementExecutor.IteratorCreator.
 type IteratorCreator struct {
 	CreateIteratorFn  func(opt influxql.IteratorOptions) (influxql.Iterator, error)
-	FieldDimensionsFn func(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
-	ExpandSourcesFn   func(sources influxql.Sources) (influxql.Sources, error)
+	FieldDimensionsFn func() (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
 }
 
 func (ic *IteratorCreator) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
 	return ic.CreateIteratorFn(opt)
 }
 
-func (ic *IteratorCreator) FieldDimensions(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
-	return ic.FieldDimensionsFn(sources)
-}
-
-func (ic *IteratorCreator) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
-	return ic.ExpandSourcesFn(sources)
+func (ic *IteratorCreator) FieldDimensions() (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+	return ic.FieldDimensionsFn()
 }
 
 // Test implementation of influxql.FloatIterator

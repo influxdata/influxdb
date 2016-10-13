@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sort"
 	"sync"
 	"time"
 
@@ -291,6 +290,42 @@ func NewDedupeIterator(input Iterator) Iterator {
 		return newBooleanDedupeIterator(input)
 	default:
 		panic(fmt.Sprintf("unsupported dedupe iterator type: %T", input))
+	}
+}
+
+// NewLazyIterator returns an iterator that lazily creates iterators from each IteratorCreator.
+func NewLazyIterator(ics IteratorCreators, opt IteratorOptions) (Iterator, error) {
+	for {
+		if len(ics) == 0 {
+			return nil, nil
+		}
+
+		input, err := ics[0].CreateIterator(opt)
+		if err != nil {
+			return nil, err
+		}
+
+		// Set the current iterator creator to nil since we no longer are using it. That way
+		// the garbage collector can free that memory. Then advance the slice.
+		ics[0] = nil
+		ics = ics[1:]
+
+		if input == nil {
+			continue
+		}
+
+		switch input := input.(type) {
+		case FloatIterator:
+			return newFloatLazyIterator(input, ics, opt), nil
+		case IntegerIterator:
+			return newIntegerLazyIterator(input, ics, opt), nil
+		case StringIterator:
+			return newStringLazyIterator(input, ics, opt), nil
+		case BooleanIterator:
+			return newBooleanLazyIterator(input, ics, opt), nil
+		default:
+			panic(fmt.Sprintf("unsupported lazy iterator type: %T", input))
+		}
 	}
 }
 
@@ -592,12 +627,11 @@ func NewReaderIterator(r io.Reader, typ DataType, stats IteratorStats) Iterator 
 type IteratorCreator interface {
 	// Creates a simple iterator for use in an InfluxQL query.
 	CreateIterator(opt IteratorOptions) (Iterator, error)
+}
 
-	// Returns the unique fields and dimensions across a list of sources.
-	FieldDimensions(sources Sources) (fields map[string]DataType, dimensions map[string]struct{}, err error)
-
-	// Expands regex sources to all matching sources.
-	ExpandSources(sources Sources) (Sources, error)
+// FieldMapper returns a mapping of fields and dimensions for the shards.
+type FieldMapper interface {
+	FieldDimensions() (fields map[string]DataType, dimensions map[string]struct{}, err error)
 }
 
 // IteratorCreators represents a list of iterator creators.
@@ -641,62 +675,19 @@ func (a IteratorCreators) CreateIterator(opt IteratorOptions) (Iterator, error) 
 	return Iterators(itrs).Merge(opt)
 }
 
-// FieldDimensions returns unique fields and dimensions from multiple iterator creators.
-func (a IteratorCreators) FieldDimensions(sources Sources) (fields map[string]DataType, dimensions map[string]struct{}, err error) {
-	fields = make(map[string]DataType)
-	dimensions = make(map[string]struct{})
+// LazyIteratorCreator creates a LazyIterator from the IteratorCreators.
+type LazyIteratorCreator []IteratorCreator
 
-	for _, ic := range a {
-		f, d, err := ic.FieldDimensions(sources)
-		if err != nil {
-			return nil, nil, err
-		}
-		for k, typ := range f {
-			if _, ok := fields[k]; typ != Unknown && (!ok || typ < fields[k]) {
-				fields[k] = typ
-			}
-		}
-		for k := range d {
-			dimensions[k] = struct{}{}
-		}
-	}
-	return
+// Close closes all iterator creators that implement io.Closer.
+func (a LazyIteratorCreator) Close() error {
+	return IteratorCreators(a).Close()
 }
 
-// ExpandSources expands sources across all iterator creators and returns a unique result.
-func (a IteratorCreators) ExpandSources(sources Sources) (Sources, error) {
-	m := make(map[string]Source)
-
-	for _, ic := range a {
-		expanded, err := ic.ExpandSources(sources)
-		if err != nil {
-			return nil, err
-		}
-
-		for _, src := range expanded {
-			switch src := src.(type) {
-			case *Measurement:
-				m[src.String()] = src
-			default:
-				return nil, fmt.Errorf("IteratorCreators.ExpandSources: unsupported source type: %T", src)
-			}
-		}
-	}
-
-	// Convert set to sorted slice.
-	names := make([]string, 0, len(m))
-	for name := range m {
-		names = append(names, name)
-	}
-	sort.Strings(names)
-
-	// Convert set to a list of Sources.
-	sorted := make(Sources, 0, len(m))
-	for _, name := range names {
-		sorted = append(sorted, m[name])
-	}
-
-	return sorted, nil
+// CreateIterator returns a single combined iterator from multiple iterator
+// creators wrapped in a LazyIterator. See LazyIterator for information about
+// how the LazyIterator works.
+func (a LazyIteratorCreator) CreateIterator(opt IteratorOptions) (Iterator, error) {
+	return NewLazyIterator(IteratorCreators(a), opt)
 }
 
 // IteratorOptions is an object passed to CreateIterator to specify creation options.

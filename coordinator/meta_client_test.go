@@ -32,7 +32,7 @@ type MetaClient struct {
 	SetAdminPrivilegeFn                 func(username string, admin bool) error
 	SetDefaultRetentionPolicyFn         func(database, name string) error
 	SetPrivilegeFn                      func(username, database string, p influxql.Privilege) error
-	ShardsByTimeRangeFn                 func(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error)
+	ShardGroupsByTimeRangeFn            func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 	UpdateRetentionPolicyFn             func(database, name string, rpu *meta.RetentionPolicyUpdate) error
 	UpdateUserFn                        func(name, password string) error
 	UserPrivilegeFn                     func(username, database string) (*influxql.Privilege, error)
@@ -132,8 +132,8 @@ func (c *MetaClient) SetPrivilege(username, database string, p influxql.Privileg
 	return c.SetPrivilegeFn(username, database, p)
 }
 
-func (c *MetaClient) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error) {
-	return c.ShardsByTimeRangeFn(sources, tmin, tmax)
+func (c *MetaClient) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
+	return c.ShardGroupsByTimeRangeFn(database, policy, min, max)
 }
 
 func (c *MetaClient) UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate) error {

@@ -1647,7 +1647,7 @@ func TestSelect_BinaryExpr_Float(t *testing.T) {
 			{Name: "cpu", Time: 9 * Second, Value: 19, Aux: makeAuxFields(19)},
 		}}, nil
 	}
-	ic.FieldDimensionsFn = func(sources influxql.Sources) (map[string]influxql.DataType, map[string]struct{}, error) {
+	ic.FieldDimensionsFn = func() (map[string]influxql.DataType, map[string]struct{}, error) {
 		return map[string]influxql.DataType{"value": influxql.Float}, nil, nil
 	}
 
@@ -1870,7 +1870,7 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 			{Name: "cpu", Time: 9 * Second, Value: 19, Aux: makeAuxFields(19)},
 		}}, nil
 	}
-	ic.FieldDimensionsFn = func(sources influxql.Sources) (map[string]influxql.DataType, map[string]struct{}, error) {
+	ic.FieldDimensionsFn = func() (map[string]influxql.DataType, map[string]struct{}, error) {
 		return map[string]influxql.DataType{"value": influxql.Integer}, nil, nil
 	}
 
@@ -2086,7 +2086,7 @@ func TestSelect_BinaryExpr_Mixed(t *testing.T) {
 			{Name: "cpu", Time: 9 * Second, Value: 19, Aux: []interface{}{float64(19), int64(5)}},
 		}}, nil
 	}
-	ic.FieldDimensionsFn = func(sources influxql.Sources) (map[string]influxql.DataType, map[string]struct{}, error) {
+	ic.FieldDimensionsFn = func() (map[string]influxql.DataType, map[string]struct{}, error) {
 		return map[string]influxql.DataType{
 			"total": influxql.Float,
 			"value": influxql.Integer,
@@ -2163,7 +2163,7 @@ func TestSelect_BinaryExpr_NilValues(t *testing.T) {
 			{Name: "cpu", Time: 9 * Second, Value: 19, Aux: []interface{}{nil, float64(5)}},
 		}}, nil
 	}
-	ic.FieldDimensionsFn = func(sources influxql.Sources) (map[string]influxql.DataType, map[string]struct{}, error) {
+	ic.FieldDimensionsFn = func() (map[string]influxql.DataType, map[string]struct{}, error) {
 		return map[string]influxql.DataType{
 			"total": influxql.Float,
 			"value": influxql.Float,
