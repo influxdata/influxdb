@@ -5,8 +5,8 @@ const HostsTable = React.createClass({
   propTypes: {
     hosts: PropTypes.arrayOf(PropTypes.shape({
       name: PropTypes.string,
-      cpu: PropTypes.string,
-      load: PropTypes.string,
+      cpu: PropTypes.number,
+      load: PropTypes.number,
       apps: PropTypes.arrayOf(PropTypes.string.isRequired),
     })),
     source: PropTypes.shape({
@@ -87,13 +87,13 @@ const HostsTable = React.createClass({
             </thead>
             <tbody>
               {
-                hosts.map(({name, cpu, load, apps=[]}) => {
+                hosts.map(({name, cpu, load, apps = []}) => {
                   return (
                     <tr key={name}>
                       <td className="monotype"><a href={`/sources/${source.id}/hosts/${name}`}>{name}</a></td>
                       <td className="text-center"><div className="table-dot dot-success"></div></td>
-                      <td className="monotype">{`${cpu}%`}</td>
-                      <td className="monotype">{`${load}`}</td>
+                      <td className="monotype">{`${cpu.toFixed(2)}%`}</td>
+                      <td className="monotype">{`${load.toFixed(2)}`}</td>
                       <td className="monotype">{`${apps.join(', ')}`}</td>
                     </tr>
                   );
