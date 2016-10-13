@@ -416,7 +416,8 @@ func TestSelectStatement_RewriteFields(t *testing.T) {
 			t.Fatalf("invalid statement: %q: %s", tt.stmt, err)
 		}
 
-		mapper := FieldMapperFn(func() (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+		var ic IteratorCreator
+		ic.FieldDimensionsFn = func() (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
 			source := stmt.(*influxql.SelectStatement).Sources[0].(*influxql.Measurement)
 			switch source.Name {
 			case "cpu":
@@ -437,10 +438,10 @@ func TestSelectStatement_RewriteFields(t *testing.T) {
 			}
 			dimensions = map[string]struct{}{"host": struct{}{}, "region": struct{}{}}
 			return
-		})
+		}
 
 		// Rewrite statement.
-		rw, err := stmt.(*influxql.SelectStatement).RewriteFields(mapper)
+		rw, err := stmt.(*influxql.SelectStatement).RewriteFields(&ic)
 		if err != nil {
 			t.Errorf("%d. %q: error: %s", i, tt.stmt, err)
 		} else if rw == nil {

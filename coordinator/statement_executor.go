@@ -1125,7 +1125,6 @@ type TSDBStore interface {
 	DeleteRetentionPolicy(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShard(id uint64) error
-	IteratorCreator(shards []meta.ShardInfo, opt *influxql.SelectOptions) (influxql.IteratorCreator, error)
 
 	Shard(id uint64) Shard
 	Measurements(database string, cond influxql.Expr) ([]string, error)
@@ -1136,25 +1135,12 @@ type LocalTSDBStore struct {
 	*tsdb.Store
 }
 
-func (s LocalTSDBStore) IteratorCreator(shards []meta.ShardInfo, opt *influxql.SelectOptions) (influxql.IteratorCreator, error) {
-	shardIDs := make([]uint64, len(shards))
-	for i, sh := range shards {
-		shardIDs[i] = sh.ID
-	}
-	return s.Store.IteratorCreator(shardIDs, opt)
-}
-
 func (s LocalTSDBStore) Shard(id uint64) Shard {
 	shard := s.Store.Shard(id)
 	if shard == nil {
 		return nil
 	}
 	return localShard{Shard: shard}
-}
-
-// ShardIteratorCreator is an interface for creating an IteratorCreator to access a specific shard.
-type ShardIteratorCreator interface {
-	ShardIteratorCreator(id uint64) influxql.IteratorCreator
 }
 
 // joinUint64 returns a comma-delimited string of uint64 numbers.

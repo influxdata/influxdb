@@ -383,18 +383,6 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	return nil
 }
 
-// ShardIteratorCreator returns an iterator creator for a shard.
-func (s *Store) ShardIteratorCreator(id uint64, opt *influxql.SelectOptions) influxql.IteratorCreator {
-	sh := s.Shard(id)
-	if sh == nil {
-		return nil
-	}
-	return &shardIteratorCreator{
-		sh:         sh,
-		maxSeriesN: opt.MaxSeriesN,
-	}
-}
-
 // DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
 func (s *Store) DeleteDatabase(name string) error {
 	s.mu.RLock()
@@ -816,39 +804,6 @@ func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 		sorted = append(sorted, m[name])
 	}
 	return sorted, nil
-}
-
-// IteratorCreators returns a set of all local shards as iterator creators.
-func (s *Store) IteratorCreators() influxql.IteratorCreators {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	a := make(influxql.IteratorCreators, 0, len(s.shards))
-	for _, sh := range s.shards {
-		a = append(a, sh)
-	}
-	return a
-}
-
-func (s *Store) IteratorCreator(shards []uint64, opt *influxql.SelectOptions) (influxql.IteratorCreator, error) {
-	// Generate iterators for each node.
-	ics := make([]influxql.IteratorCreator, 0)
-	if err := func() error {
-		for _, id := range shards {
-			ic := s.ShardIteratorCreator(id, opt)
-			if ic == nil {
-				continue
-			}
-			ics = append(ics, ic)
-		}
-
-		return nil
-	}(); err != nil {
-		influxql.IteratorCreators(ics).Close()
-		return nil, err
-	}
-
-	return influxql.IteratorCreators(ics), nil
 }
 
 // WriteToShard writes a list of points to a shard identified by its ID.

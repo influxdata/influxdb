@@ -98,14 +98,6 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 		}}}, nil
 	}
 
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-		return &FloatIterator{}, nil
-	}
-	ic.FieldDimensionsFn = func(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
-		return map[string]influxql.DataType{"value": influxql.Float}, nil, nil
-	}
-	e.TSDBStore.ShardIteratorCreatorFn = func(id uint64) influxql.IteratorCreator { return &ic }
 	e.TSDBStore.ShardFn = func(id uint64) coordinator.Shard {
 		sh := &Shard{}
 		sh.TagSetsFn = func(measurement string, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
@@ -199,7 +191,6 @@ type TSDBStore struct {
 	DeleteSeriesFn          func(database string, sources []influxql.Source, condition influxql.Expr) error
 	DatabaseIndexFn         func(name string) *tsdb.DatabaseIndex
 	ShardFn                 func(id uint64) coordinator.Shard
-	ShardIteratorCreatorFn  func(id uint64) influxql.IteratorCreator
 }
 
 func (s *TSDBStore) CreateShard(database, policy string, shardID uint64, enabled bool) error {
@@ -241,33 +232,8 @@ func (s *TSDBStore) DeleteSeries(database string, sources []influxql.Source, con
 	return s.DeleteSeriesFn(database, sources, condition)
 }
 
-func (s *TSDBStore) IteratorCreator(shards []meta.ShardInfo, opt *influxql.SelectOptions) (influxql.IteratorCreator, error) {
-	// Generate iterators for each node.
-	ics := make([]influxql.IteratorCreator, 0)
-	if err := func() error {
-		for _, shard := range shards {
-			ic := s.ShardIteratorCreator(shard.ID)
-			if ic == nil {
-				continue
-			}
-			ics = append(ics, ic)
-		}
-
-		return nil
-	}(); err != nil {
-		influxql.IteratorCreators(ics).Close()
-		return nil, err
-	}
-
-	return influxql.IteratorCreators(ics), nil
-}
-
 func (s *TSDBStore) Shard(id uint64) coordinator.Shard {
 	return s.ShardFn(id)
-}
-
-func (s *TSDBStore) ShardIteratorCreator(id uint64) influxql.IteratorCreator {
-	return s.ShardIteratorCreatorFn(id)
 }
 
 func (s *TSDBStore) DatabaseIndex(name string) *tsdb.DatabaseIndex {
@@ -326,20 +292,6 @@ func ReadAllResults(c <-chan *influxql.Result) []*influxql.Result {
 		a = append(a, result)
 	}
 	return a
-}
-
-// IteratorCreator is a mockable implementation of IteratorCreator.
-type IteratorCreator struct {
-	CreateIteratorFn  func(opt influxql.IteratorOptions) (influxql.Iterator, error)
-	FieldDimensionsFn func(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
-}
-
-func (ic *IteratorCreator) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	return ic.CreateIteratorFn(opt)
-}
-
-func (ic *IteratorCreator) FieldDimensions(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
-	return ic.FieldDimensionsFn(sources)
 }
 
 // FloatIterator is a represents an iterator that reads from a slice.
