@@ -17,7 +17,6 @@ const AlertsApp = React.createClass({
   getInitialState() {
     return {
       alerts: [],
-      hosts: [],
     };
   },
 
@@ -39,7 +38,7 @@ const AlertsApp = React.createClass({
         <div className="container-fluid">
           <div className="row">
             <div className="col-md-12">
-              <AlertsTable source={this.props.source} hosts={this.state.hosts} />
+              <AlertsTable source={this.props.source} alerts={this.state.alerts} />
             </div>
           </div>
         </div>

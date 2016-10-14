@@ -3,10 +3,12 @@ import _ from 'lodash';
 
 const AlertsTable = React.createClass({
   propTypes: {
-    hosts: PropTypes.arrayOf(PropTypes.shape({
+    alerts: PropTypes.arrayOf(PropTypes.shape({
       name: PropTypes.string,
-      cpu: PropTypes.number,
-      load: PropTypes.number,
+      time: PropTypes.string,
+      value: PropTypes.string,
+      host: PropTypes.string,
+      severity: PropTypes.string,
     })),
     source: PropTypes.shape({
       id: PropTypes.string.isRequired,
@@ -17,19 +19,19 @@ const AlertsTable = React.createClass({
   getInitialState() {
     return {
       searchTerm: '',
-      filteredHosts: this.props.hosts,
+      filteredAlerts: this.props.alerts,
       sortDirection: null,
       sortKey: null,
     };
   },
 
   componentWillReceiveProps(newProps) {
-    this.filterHosts(newProps.hosts, this.state.searchTerm);
+    this.filterAlerts(newProps.alerts, this.state.searchTerm);
   },
 
-  filterHosts(allHosts, searchTerm) {
-    const hosts = allHosts.filter((h) => h.name.search(searchTerm) !== -1);
-    this.setState({searchTerm, filteredHosts: hosts});
+  filterAlerts(allAlerts, searchTerm) {
+    const alerts = allAlerts.filter((h) => h.name.search(searchTerm) !== -1);
+    this.setState({searchTerm, filteredAlerts: alerts});
   },
 
   changeSort(key) {
@@ -42,44 +44,45 @@ const AlertsTable = React.createClass({
     }
   },
 
-  sort(hosts, key, direction) {
+  sort(alerts, key, direction) {
     switch (direction) {
       case 'asc':
-        return _.sortBy(hosts, (e) => e[key]);
+        return _.sortBy(alerts, (e) => e[key]);
       case 'desc':
-        return _.sortBy(hosts, (e) => e[key]).reverse();
+        return _.sortBy(alerts, (e) => e[key]).reverse();
       default:
-        return hosts;
+        return alerts;
     }
   },
 
   render() {
-    const hosts = this.sort(this.state.filteredHosts, this.state.sortKey, this.state.sortDirection);
+    const alerts = this.sort(this.state.filteredAlerts, this.state.sortKey, this.state.sortDirection);
     const {source} = this.props;
 
     return (
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-          <h2 className="panel-title">{this.props.hosts.length} Hosts</h2>
-          <SearchBar onSearch={_.wrap(this.props.hosts, this.filterHosts)} />
+          <h2 className="panel-title">{this.props.alerts.length} Alerts</h2>
+          <SearchBar onSearch={_.wrap(this.props.alerts, this.filterAlerts)} />
         </div>
         <div className="panel-body">
           <table className="table v-center">
             <thead>
               <tr>
-                <th onClick={() => this.changeSort('name')} className="sortable-header">Hostname</th>
-                <th className="text-center">Status</th>
-                <th onClick={() => this.changeSort('cpu')} className="sortable-header">CPU</th>
-                <th onClick={() => this.changeSort('load')} className="sortable-header">Load</th>
+                <th onClick={() => this.changeSort('name')} className="sortable-header">Alert</th>
+                <th className="text-center">Time</th>
+                <th onClick={() => this.changeSort('value')} className="sortable-header">Value</th>
+                <th onClick={() => this.changeSort('host')} className="sortable-header">Host</th>
+                <th onClick={() => this.changeSort('severity')} className="sortable-header">Severity</th>
                 <th>Apps</th>
               </tr>
             </thead>
             <tbody>
               {
-                hosts.map(({name, cpu, load}) => {
+                alerts.map(({name, cpu, load}) => {
                   return (
                     <tr key={name}>
-                      <td className="monotype"><a href={`/sources/${source.id}/hosts/${name}`}>{name}</a></td>
+                      <td className="monotype"><a href={`/sources/${source.id}/alerts/${name}`}>{name}</a></td>
                       <td className="text-center"><div className="table-dot dot-success"></div></td>
                       <td className="monotype">{`${cpu.toFixed(2)}%`}</td>
                       <td className="monotype">{`${load.toFixed(2)}`}</td>
@@ -111,7 +114,7 @@ const SearchBar = React.createClass({
         <input
           type="text"
           className="form-control"
-          placeholder="Filter Hosts"
+          placeholder="Filter Alerts"
           ref="searchInput"
           onChange={this.handleChange}
         />

@@ -1,0 +1,19 @@
+0 info it worked if it ends with ok
+1 verbose cli [ '/usr/local/bin/node', '/usr/local/bin/npm', 'start' ]
+2 info using npm@2.15.9
+3 info using node@v4.6.0
+4 verbose stack Error: ENOENT: no such file or directory, open '/Users/kfitzpatrick/workspace/go/src/github.com/influxdata/mrfusion/package.json'
+4 verbose stack     at Error (native)
+5 verbose cwd /Users/kfitzpatrick/workspace/go/src/github.com/influxdata/mrfusion
+6 error Darwin 14.5.0
+7 error argv "/usr/local/bin/node" "/usr/local/bin/npm" "start"
+8 error node v4.6.0
+9 error npm  v2.15.9
+10 error path /Users/kfitzpatrick/workspace/go/src/github.com/influxdata/mrfusion/package.json
+11 error code ENOENT
+12 error errno -2
+13 error syscall open
+14 error enoent ENOENT: no such file or directory, open '/Users/kfitzpatrick/workspace/go/src/github.com/influxdata/mrfusion/package.json'
+14 error enoent This is most likely not a problem with npm itself
+14 error enoent and is related to npm not being able to find a file.
+15 verbose exit [ -2, true ]
