@@ -1,6 +1,7 @@
 package coordinator
 
 import (
+	"io"
 	"runtime"
 	"sort"
 	"sync"
@@ -14,6 +15,7 @@ import (
 type IteratorCreator interface {
 	influxql.IteratorCreator
 	influxql.FieldMapper
+	io.Closer
 }
 
 // ShardMapper retrieves and maps shards into an IteratorCreator that can later be
@@ -184,7 +186,7 @@ func (a *LocalShardMapping) FieldDimensions() (fields map[string]influxql.DataTy
 // SeriesMap maps a series key to a list of the series used to construct the full series.
 type SeriesMap map[string][]*SeriesInfo
 
-func (a LocalShardMapping) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+func (a *LocalShardMapping) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
 	if influxql.Sources(opt.Sources).HasSystemSource() {
 		shards := make([]influxql.IteratorCreator, 0, a.Size)
 		for _, group := range a.ShardMap {
@@ -284,6 +286,11 @@ func (a LocalShardMapping) CreateIterator(opt influxql.IteratorOptions) (influxq
 		ics[i] = influxql.IteratorCreators(outer)
 	}
 	return influxql.NewLazyIterator(ics, opt)
+}
+
+// Close does nothing for a LocalShardMapping.
+func (a *LocalShardMapping) Close() error {
+	return nil
 }
 
 type SeriesInfo struct {

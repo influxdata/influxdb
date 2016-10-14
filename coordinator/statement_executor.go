@@ -550,6 +550,7 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 	if err != nil {
 		return nil, stmt, err
 	}
+	defer ic.Close()
 
 	// Rewrite wildcards, if any exist.
 	tmp, err := stmt.RewriteFields(ic)
