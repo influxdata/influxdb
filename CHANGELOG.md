@@ -39,6 +39,7 @@
 - [#7226](https://github.com/influxdata/influxdb/issues/7226): Fix database locked up when deleting shards
 - [#7382](https://github.com/influxdata/influxdb/issues/7382): Shard stats include wal path tag so disk bytes make more sense.
 - [#7385](https://github.com/influxdata/influxdb/pull/7385): Reduce query planning allocations
+- [#7427](https://github.com/influxdata/influxdb/issues/7427): Fix incorrect results from CQs operating on data with fields not present in all intervals.
 
 ## v1.0.2 [2016-10-05]
 
