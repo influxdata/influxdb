@@ -26,10 +26,15 @@ const AlertsTable = React.createClass({
   },
 
   componentWillReceiveProps(newProps) {
-    this.filterAlerts(newProps.alerts, this.state.searchTerm);
+    this.setFilteredAlerts(newProps.alerts, this.state.searchTerm);
   },
 
   filterAlerts(allAlerts, searchTerm) {
+    const alerts = allAlerts.filter((h) => h.name.search(searchTerm) !== -1);
+    this.setState({searchTerm, filteredAlerts: alerts});
+  },
+
+  setFilteredAlerts(allAlerts, searchTerm) {
     const alerts = allAlerts.filter((h) => h.name.search(searchTerm) !== -1);
     this.setState({searchTerm, filteredAlerts: alerts});
   },
@@ -58,7 +63,6 @@ const AlertsTable = React.createClass({
   render() {
     const alerts = this.sort(this.state.filteredAlerts, this.state.sortKey, this.state.sortDirection);
     const {source} = this.props;
-
     return (
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
@@ -70,23 +74,22 @@ const AlertsTable = React.createClass({
             <thead>
               <tr>
                 <th onClick={() => this.changeSort('name')} className="sortable-header">Alert</th>
-                <th className="text-center">Time</th>
+                <th onClick={() => this.changeSort('time')} className="sortable-header">Time</th>
                 <th onClick={() => this.changeSort('value')} className="sortable-header">Value</th>
                 <th onClick={() => this.changeSort('host')} className="sortable-header">Host</th>
                 <th onClick={() => this.changeSort('severity')} className="sortable-header">Severity</th>
-                <th>Apps</th>
               </tr>
             </thead>
             <tbody>
               {
-                alerts.map(({name, cpu, load}) => {
+                alerts.map(({name, time, value, host, severity}) => {
                   return (
                     <tr key={name}>
                       <td className="monotype"><a href={`/sources/${source.id}/alerts/${name}`}>{name}</a></td>
-                      <td className="text-center"><div className="table-dot dot-success"></div></td>
-                      <td className="monotype">{`${cpu.toFixed(2)}%`}</td>
-                      <td className="monotype">{`${load.toFixed(2)}`}</td>
-                      <td className="monotype">influxdb, ntp, system</td>
+                      <td className="monotype">{time}</td>
+                      <td className="monotype">{value}</td>
+                      <td className="monotype">{host}</td>
+                      <td className="monotype">{severity}</td>
                     </tr>
                   );
                 })

@@ -64,6 +64,8 @@ const CheckDataNodes = React.createClass({
       return <div className="page-spinner" />;
     }
 
+    // Can't this be done with context? I am very confused by this. This seems
+    // like dependecy injection to me- Kevin
     return this.props.children && React.cloneElement(this.props.children, Object.assign({}, this.props, {
       source,
     }));
