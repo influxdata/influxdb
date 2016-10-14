@@ -189,9 +189,6 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 		if err := data.CreateRetentionPolicy(name, rpi, true); err != nil {
 			return nil, err
 		}
-		if err := data.SetDefaultRetentionPolicy(name, rpi.Name); err != nil {
-			return nil, err
-		}
 	}
 
 	db := data.Database(name)
@@ -237,19 +234,17 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *RetentionP
 	// policy we just created. If the default is different from what we are
 	// trying to create, record it as a conflict and abandon with an error.
 	if db.DefaultRetentionPolicy == "" {
-		if err := data.SetDefaultRetentionPolicy(name, rpi.Name); err != nil {
-			return nil, err
-		}
+		db.DefaultRetentionPolicy = rpi.Name
 	} else if rpi.Name != db.DefaultRetentionPolicy {
 		return nil, ErrRetentionPolicyConflict
 	}
 
-	// Refresh the database info.
-	db = data.Database(name)
-
 	if err := c.commit(data); err != nil {
 		return nil, err
 	}
+
+	// Refresh the database info.
+	db = data.Database(name)
 
 	return db, nil
 }
@@ -326,32 +321,14 @@ func (c *Client) DropRetentionPolicy(database, name string) error {
 	return nil
 }
 
-// SetDefaultRetentionPolicy sets a database's default retention policy.
-func (c *Client) SetDefaultRetentionPolicy(database, name string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	data := c.cacheData.Clone()
-
-	if err := data.SetDefaultRetentionPolicy(database, name); err != nil {
-		return err
-	}
-
-	if err := c.commit(data); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // UpdateRetentionPolicy updates a retention policy.
-func (c *Client) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
+func (c *Client) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate, makeDefault bool) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	data := c.cacheData.Clone()
 
-	if err := data.UpdateRetentionPolicy(database, name, rpu); err != nil {
+	if err := data.UpdateRetentionPolicy(database, name, rpu, makeDefault); err != nil {
 		return err
 	}
 

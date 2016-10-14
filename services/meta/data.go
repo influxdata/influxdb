@@ -222,7 +222,7 @@ func (rpu *RetentionPolicyUpdate) SetReplicaN(v int) { rpu.ReplicaN = &v }
 func (rpu *RetentionPolicyUpdate) SetShardGroupDuration(v time.Duration) { rpu.ShardGroupDuration = &v }
 
 // UpdateRetentionPolicy updates an existing retention policy.
-func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
+func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate, makeDefault bool) error {
 	// Find database.
 	di := data.Database(database)
 	if di == nil {
@@ -268,25 +268,9 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 		rpi.ShardGroupDuration = normalisedShardDuration(*rpu.ShardGroupDuration, rpi.Duration)
 	}
 
-	return nil
-}
-
-// SetDefaultRetentionPolicy sets the default retention policy for a database.
-func (data *Data) SetDefaultRetentionPolicy(database, name string) error {
-	if name == "" {
-		name = DefaultRetentionPolicyName
+	if di.DefaultRetentionPolicy != rpi.Name && makeDefault {
+		di.DefaultRetentionPolicy = rpi.Name
 	}
-
-	// Find database and verify policy exists.
-	di := data.Database(database)
-	if di == nil {
-		return influxdb.ErrDatabaseNotFound(database)
-	} else if di.RetentionPolicy(name) == nil {
-		return influxdb.ErrRetentionPolicyNotFound(name)
-	}
-
-	// Set default policy.
-	di.DefaultRetentionPolicy = name
 
 	return nil
 }

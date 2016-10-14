@@ -83,10 +83,7 @@ func TestServer_Query_DropAndRecreateDatabase(t *testing.T) {
 
 	test := tests.load(t, "drop_and_recreate_database")
 
-	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicySpec(test.retentionPolicy(), 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicySpec(test.retentionPolicy(), 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -115,13 +112,10 @@ func TestServer_Query_DropDatabaseIsolated(t *testing.T) {
 
 	test := tests.load(t, "drop_database_isolated")
 
-	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicySpec(test.retentionPolicy(), 1, 0)); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicySpec(test.retentionPolicy(), 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.CreateDatabaseAndRetentionPolicy("db1", newRetentionPolicySpec("rp1", 1, 0)); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db1", newRetentionPolicySpec("rp1", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -150,10 +144,7 @@ func TestServer_Query_DeleteSeries(t *testing.T) {
 
 	test := tests.load(t, "delete_series")
 
-	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicySpec(test.retentionPolicy(), 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicySpec(test.retentionPolicy(), 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -182,10 +173,7 @@ func TestServer_Query_DropAndRecreateSeries(t *testing.T) {
 
 	test := tests.load(t, "drop_and_recreate_series")
 
-	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicySpec(test.retentionPolicy(), 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicySpec(test.retentionPolicy(), 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -234,10 +222,7 @@ func TestServer_Query_DropSeriesFromRegex(t *testing.T) {
 
 	test := tests.load(t, "drop_series_from_regex")
 
-	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicySpec(test.retentionPolicy(), 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy(test.database(), test.retentionPolicy()); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy(test.database(), newRetentionPolicySpec(test.retentionPolicy(), 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -408,7 +393,7 @@ func TestServer_Write_LineProtocol_Float(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 1*time.Hour)); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 1*time.Hour), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -433,7 +418,7 @@ func TestServer_Write_LineProtocol_Bool(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 1*time.Hour)); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 1*time.Hour), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -458,7 +443,7 @@ func TestServer_Write_LineProtocol_String(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 1*time.Hour)); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 1*time.Hour), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -483,7 +468,7 @@ func TestServer_Write_LineProtocol_Integer(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 1*time.Hour)); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 1*time.Hour), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -509,7 +494,7 @@ func TestServer_Write_LineProtocol_Partial(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 1*time.Hour)); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 1*time.Hour), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2762,7 +2747,7 @@ func TestServer_Query_MergeMany(t *testing.T) {
 	defer s.Close()
 
 	// set infinite retention policy as we are inserting data in the past and don't want retention policy enforcement to make this test racy
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2822,7 +2807,7 @@ func TestServer_Query_SLimitAndSOffset(t *testing.T) {
 	defer s.Close()
 
 	// set infinite retention policy as we are inserting data in the past and don't want retention policy enforcement to make this test racy
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -2878,10 +2863,7 @@ func TestServer_Query_Regex(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -3857,10 +3839,7 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -4189,10 +4168,7 @@ func TestServer_Query_TopInt(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -4356,10 +4332,7 @@ func TestServer_Query_Aggregates_IdenticalTime(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -4424,10 +4397,7 @@ func TestServer_Query_GroupByTimeCutoffs(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -4506,10 +4476,7 @@ func TestServer_Write_Precision(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -4623,10 +4590,7 @@ func TestServer_Query_Wildcards(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -4741,10 +4705,7 @@ func TestServer_Query_WildcardExpansion(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -4821,10 +4782,7 @@ func TestServer_Query_AcrossShardsAndFields(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -4895,10 +4853,7 @@ func TestServer_Query_Where_Fields(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -5117,10 +5072,7 @@ func TestServer_Query_Where_With_Tags(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -5205,10 +5157,7 @@ func TestServer_Query_With_EmptyTags(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -5302,10 +5251,7 @@ func TestServer_Query_LimitAndOffset(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -5419,10 +5365,7 @@ func TestServer_Query_Fill(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -5518,10 +5461,7 @@ func TestServer_Query_Chunk(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -5570,16 +5510,10 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.CreateDatabaseAndRetentionPolicy("db1", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db1", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db1", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -5736,10 +5670,7 @@ func TestServer_Query_ShowQueries_Future(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -5808,10 +5739,7 @@ func TestServer_Query_ShowSeries(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -5910,10 +5838,7 @@ func TestServer_Query_ShowStats(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -5954,10 +5879,7 @@ func TestServer_Query_ShowMeasurements(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -6044,10 +5966,7 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -6194,10 +6113,7 @@ func TestServer_Query_ShowFieldKeys(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -6260,10 +6176,7 @@ func TestServer_ContinuousQuery(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -6386,10 +6299,7 @@ func TestServer_ContinuousQuery_Deadlock(t *testing.T) {
 		s.Server = nil
 	}()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -6459,10 +6369,7 @@ func TestServer_Query_EvilIdentifiers(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -6503,10 +6410,7 @@ func TestServer_Query_OrderByTime(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -6565,10 +6469,7 @@ func TestServer_Query_FieldWithMultiplePeriods(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -6619,10 +6520,7 @@ func TestServer_Query_FieldWithMultiplePeriodsMeasurementPrefixMatch(t *testing.
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -6673,10 +6571,7 @@ func TestServer_Query_IntoTarget(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -6732,10 +6627,7 @@ func TestServer_Query_IntoTarget_Sparse(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -6793,10 +6685,7 @@ func TestServer_Query_DuplicateMeasurements(t *testing.T) {
 	defer s.Close()
 
 	// Create a second database.
-	if err := s.CreateDatabaseAndRetentionPolicy("db1", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db1", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db1", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -6920,10 +6809,7 @@ func TestServer_WhereTimeInclusive(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -7030,10 +6916,7 @@ func TestServer_Query_ImplicitEndTime(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer s.Close()
 
-	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0)); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.MetaClient.SetDefaultRetentionPolicy("db0", "rp0"); err != nil {
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		t.Fatal(err)
 	}
 

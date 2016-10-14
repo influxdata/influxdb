@@ -203,17 +203,9 @@ func (e *StatementExecutor) executeAlterRetentionPolicyStatement(stmt *influxql.
 	}
 
 	// Update the retention policy.
-	if err := e.MetaClient.UpdateRetentionPolicy(stmt.Database, stmt.Name, rpu); err != nil {
+	if err := e.MetaClient.UpdateRetentionPolicy(stmt.Database, stmt.Name, rpu, stmt.Default); err != nil {
 		return err
 	}
-
-	// If requested, set as default retention policy.
-	if stmt.Default {
-		if err := e.MetaClient.SetDefaultRetentionPolicy(stmt.Database, stmt.Name); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 

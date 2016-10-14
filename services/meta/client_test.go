@@ -335,7 +335,7 @@ func TestMetaClient_CreateRetentionPolicy(t *testing.T) {
 	}
 }
 
-func TestMetaClient_SetDefaultRetentionPolicy(t *testing.T) {
+func TestMetaClient_DefaultRetentionPolicy(t *testing.T) {
 	t.Parallel()
 
 	d, c := newClient()
@@ -402,7 +402,7 @@ func TestMetaClient_UpdateRetentionPolicy(t *testing.T) {
 	if err := c.UpdateRetentionPolicy("db0", "rp0", &meta.RetentionPolicyUpdate{
 		Duration: &duration,
 		ReplicaN: &replicaN,
-	}); err != nil {
+	}, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -418,7 +418,7 @@ func TestMetaClient_UpdateRetentionPolicy(t *testing.T) {
 	duration = rpi.ShardGroupDuration / 2
 	if err := c.UpdateRetentionPolicy("db0", "rp0", &meta.RetentionPolicyUpdate{
 		Duration: &duration,
-	}); err == nil {
+	}, true); err == nil {
 		t.Fatal("expected error")
 	} else if err != meta.ErrIncompatibleDurations {
 		t.Fatalf("expected error '%s', got '%s'", meta.ErrIncompatibleDurations, err)
@@ -428,7 +428,7 @@ func TestMetaClient_UpdateRetentionPolicy(t *testing.T) {
 	sgDuration := rpi.Duration * 2
 	if err := c.UpdateRetentionPolicy("db0", "rp0", &meta.RetentionPolicyUpdate{
 		ShardGroupDuration: &sgDuration,
-	}); err == nil {
+	}, true); err == nil {
 		t.Fatal("expected error")
 	} else if err != meta.ErrIncompatibleDurations {
 		t.Fatalf("expected error '%s', got '%s'", meta.ErrIncompatibleDurations, err)
@@ -440,7 +440,7 @@ func TestMetaClient_UpdateRetentionPolicy(t *testing.T) {
 	if err := c.UpdateRetentionPolicy("db0", "rp0", &meta.RetentionPolicyUpdate{
 		Duration:           &duration,
 		ShardGroupDuration: &sgDuration,
-	}); err == nil {
+	}, true); err == nil {
 		t.Fatal("expected error")
 	} else if err != meta.ErrIncompatibleDurations {
 		t.Fatalf("expected error '%s', got '%s'", meta.ErrIncompatibleDurations, err)
@@ -452,7 +452,7 @@ func TestMetaClient_UpdateRetentionPolicy(t *testing.T) {
 	if err := c.UpdateRetentionPolicy("db0", "rp0", &meta.RetentionPolicyUpdate{
 		Duration:           &duration,
 		ShardGroupDuration: &sgDuration,
-	}); err != nil {
+	}, true); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
