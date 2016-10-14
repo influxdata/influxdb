@@ -988,35 +988,6 @@ type Field struct {
 	Type influxql.DataType `json:"type,omitempty"`
 }
 
-// shardIteratorCreator creates iterators for a local shard.
-// This simply wraps the shard so that Close() does not close the underlying shard.
-type shardIteratorCreator struct {
-	sh         *Shard
-	maxSeriesN int
-}
-
-func (ic *shardIteratorCreator) Close() error { return nil }
-
-func (ic *shardIteratorCreator) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	itr, err := ic.sh.CreateIterator(opt)
-	if err != nil {
-		return nil, err
-	} else if itr == nil {
-		return nil, nil
-	}
-
-	// Enforce series limit at creation time.
-	if ic.maxSeriesN > 0 {
-		stats := itr.Stats()
-		if stats.SeriesN > ic.maxSeriesN {
-			itr.Close()
-			return nil, fmt.Errorf("max select series count exceeded: %d series", stats.SeriesN)
-		}
-	}
-
-	return itr, nil
-}
-
 func NewFieldKeysIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Iterator, error) {
 	itr := &fieldKeysIterator{sh: sh}
 
