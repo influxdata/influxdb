@@ -1126,7 +1126,6 @@ type TSDBStore interface {
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShard(id uint64) error
 
-	Shard(id uint64) Shard
 	Measurements(database string, cond influxql.Expr) ([]string, error)
 	TagValues(database string, cond influxql.Expr) ([]tsdb.TagValues, error)
 }
