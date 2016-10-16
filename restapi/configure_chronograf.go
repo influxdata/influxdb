@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/chronograf/canned"
 	"github.com/influxdata/chronograf/handlers"
 	"github.com/influxdata/chronograf/influx"
+	"github.com/influxdata/chronograf/jwt"
 	"github.com/influxdata/chronograf/kapacitor"
 	"github.com/influxdata/chronograf/layouts"
 	clog "github.com/influxdata/chronograf/log"
@@ -43,8 +44,10 @@ var cannedFlags = struct {
 	CannedPath string `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts" env:"CANNED_PATH" default:"canned"`
 }{}
 
-var useAuth = struct {
-	Auth bool `short:"a" long:"use-auth" description:"Enable authentication" env:"AUTHORIZATION"`
+var authFlags = struct {
+	TokenSecret        string `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
+	GithubClientID     string `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
+	GithubClientSecret string `short:"s" long:"github-client-secret" description:"Github Client Secret for OAuth 2 support" env:"GH_CLIENT_SECRET"`
 }{}
 
 func configureFlags(api *op.ChronografAPI) {
@@ -67,7 +70,7 @@ func configureFlags(api *op.ChronografAPI) {
 		swag.CommandLineOptionsGroup{
 			ShortDescription: "Server Authentication",
 			LongDescription:  "Server will use authentication",
-			Options:          &useAuth,
+			Options:          &authFlags,
 		},
 	}
 }
@@ -240,9 +243,24 @@ func setupGlobalMiddleware(handler http.Handler) http.Handler {
 		Logger:  logger,
 	})
 
-	if useAuth.Auth {
-		handler = handlers.AuthorizedToken(handlers.JWTOpts{}, handler)
+	if authFlags.TokenSecret != "" {
+		e := handlers.CookieExtractor{
+			Name: "MrFusion",
+		}
+		a := jwt.NewJWT(authFlags.TokenSecret)
+		handler = handlers.AuthorizedToken(a, &e, handler)
 	}
+
+	// TODO: Fix these routes when we use httprouter
+	gh := handlers.NewGithub(
+		authFlags.GithubClientID,
+		authFlags.GithubClientSecret,
+		jwt.NewJWT(authFlags.TokenSecret),
+		logger,
+	)
+
+	login := gh.Login()
+	callback := gh.Callback()
 
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		l := logger.
@@ -254,6 +272,14 @@ func setupGlobalMiddleware(handler http.Handler) http.Handler {
 		if strings.Contains(r.URL.Path, "/chronograf/v1") {
 			l.Info("Serving API Request")
 			handler.ServeHTTP(w, r)
+			return
+		} else if strings.HasPrefix(r.URL.Path, "/login") {
+			l.Info("Login request")
+			login.ServeHTTP(w, r)
+			return
+		} else if strings.Contains(r.URL.Path, "/auth/callback") {
+			l.Info("Auth callback")
+			callback.ServeHTTP(w, r)
 			return
 		} else if r.URL.Path == "//" {
 			l.Info("Serving root redirect")
