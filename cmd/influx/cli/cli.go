@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/url"
 	"os"
@@ -17,6 +18,8 @@ import (
 	"strings"
 	"syscall"
 	"text/tabwriter"
+
+	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/influxdata/influxdb/client"
 	"github.com/influxdata/influxdb/importer/v8"
@@ -58,6 +61,7 @@ type CommandLine struct {
 	Chunked          bool
 	Quit             chan struct{}
 	IgnoreSignals    bool // Ignore signals normally caught by this process (used primarily for testing)
+	ForceTTY         bool // Force the CLI to act as if it were connected to a TTY
 	osSignals        chan os.Signal
 	historyFilePath  string
 }
@@ -73,6 +77,22 @@ func New(version string) *CommandLine {
 
 // Run executes the CLI
 func (c *CommandLine) Run() error {
+	// If we are not running in an interactive terminal, read stdin completely
+	// and execute a query. Do not allow meta commands.
+	if !c.ForceTTY && !terminal.IsTerminal(int(os.Stdin.Fd())) {
+		if err := c.Connect(""); err != nil {
+			return fmt.Errorf(
+				"Failed to connect to %s\nPlease check your connection settings and ensure 'influxd' is running.",
+				c.Client.Addr())
+		}
+
+		cmd, err := ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+		return c.ExecuteQuery(string(cmd))
+	}
+
 	if !c.IgnoreSignals {
 		// register OS signals for graceful termination
 		signal.Notify(c.osSignals, syscall.SIGINT, syscall.SIGTERM)
