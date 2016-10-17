@@ -1,7 +1,8 @@
 import React, {PropTypes} from 'react';
+import _ from 'lodash';
 import FlashMessages from 'shared/components/FlashMessages';
 import HostsTable from '../components/HostsTable';
-import {getCpuAndLoadForHosts} from '../apis';
+import {getCpuAndLoadForHosts, getMappings, getAppsForHosts} from '../apis';
 
 export const HostsPage = React.createClass({
   propTypes: {
@@ -18,13 +19,22 @@ export const HostsPage = React.createClass({
 
   getInitialState() {
     return {
-      hosts: [],
+      hosts: {},
     };
   },
 
   componentDidMount() {
-    getCpuAndLoadForHosts(this.props.source.links.proxy).then((hosts) => {
+    const {source} = this.props;
+    Promise.all([
+      getCpuAndLoadForHosts(source.links.proxy),
+      getMappings(),
+    ]).then(([hosts, {data: {mappings}}]) => {
       this.setState({hosts});
+      const apps = mappings.concat([{name: 'docker'}, {name: 'influxdb'}]).map((m) => m.name);
+      // concatting docker and influxdb for now
+      getAppsForHosts(source.links.proxy, hosts, apps).then((newHosts) => {
+        this.setState({hosts: newHosts});
+      });
     }).catch(() => {
       this.props.addFlashMessage({
         type: 'error',
@@ -49,7 +59,7 @@ export const HostsPage = React.createClass({
         <div className="container-fluid">
           <div className="row">
             <div className="col-md-12">
-              <HostsTable source={this.props.source} hosts={this.state.hosts} />
+              <HostsTable source={this.props.source} hosts={_.values(this.state.hosts)} />
             </div>
           </div>
         </div>
