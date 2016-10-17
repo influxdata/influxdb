@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"log"
 
 	jwt "github.com/dgrijalva/jwt-go"
 )
@@ -32,6 +33,7 @@ func AuthorizedToken(opts JWTOpts, next http.Handler) http.Handler {
 	opts.EnsureDefaults()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Check for the HTTP Authorization header.
+		log.Print("do a thing!")
 		if s := r.Header.Get("Authorization"); s != "" {
 			// Check for Bearer token.
 			strs := strings.Split(s, " ")
@@ -75,10 +77,4 @@ func AuthorizedToken(opts JWTOpts, next http.Handler) http.Handler {
 		}
 		w.WriteHeader(http.StatusUnauthorized)
 	})
-}
-
-// Token returns a JWT token
-func NewToken(opts JWTOpts) http.Handler {
-	// grab https://github.com/influxdata/kapacitor/blob/04f1ab3116b6bab27cbf63cb0e6b918fc77c7320/server/server_test.go#L97
-	return nil
 }

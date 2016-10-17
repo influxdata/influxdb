@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	jwt "github.com/dgrijalva/jwt-go"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
 	"github.com/influxdata/chronograf"
@@ -362,4 +363,27 @@ func (m *Handler) GetMappings(ctx context.Context, params op.GetMappingsParams) 
 		},
 	}
 	return op.NewGetMappingsOK().WithPayload(mp)
+}
+
+func (m *Handler) Token(ctx context.Context, params op.GetTokenParams) middleware.Responder {
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS512, jwt.MapClaims{
+		"sub":      "bob",
+		"exp":      time.Now().Add(time.Hour * 24 * 30).Unix(),
+		"username": "bob",
+		"email":    "bob@mail.com",
+		"nbf":      time.Now().Unix(),
+		"iat":      time.Now().Unix(),
+	})
+
+	// sign token with secret
+	ts, err := token.SignedString([]byte("secret"))
+	if err != nil {
+		errMsg := &models.Error{Code: 500, Message: "Failed to sign token"}
+		return op.NewGetTokenDefault(500).WithPayload(errMsg)
+	}
+
+	t := models.Token(ts)
+
+	return op.NewGetTokenOK().WithPayload(t)
 }
