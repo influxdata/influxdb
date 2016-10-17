@@ -7,7 +7,6 @@ import App from 'src/App';
 import CheckDataNodes from 'src/CheckDataNodes';
 import {HostsPage, HostPage} from 'src/hosts';
 import {KapacitorPage, KapacitorTasksPage} from 'src/kapacitor';
-import OverviewPage from 'src/overview';
 import QueriesPage from 'src/queries';
 import TasksPage from 'src/tasks';
 import RetentionPoliciesPage from 'src/retention_policies';

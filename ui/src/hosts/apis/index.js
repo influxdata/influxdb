@@ -5,7 +5,7 @@ import _ from 'lodash';
 export function getCpuAndLoadForHosts(proxyLink) {
   return proxy({
     source: proxyLink,
-    query: `select mean(usage_user) from cpu where cpu = 'cpu-total' and time > now() - 10m group by host; select mean("load1") from "telegraf"."default"."system" where time > now() - 10m group by host`,
+    query: `select mean(usage_user) from cpu where cpu = 'cpu-total' and time > now() - 10m group by host; select mean("load1") from "telegraf".."system" where time > now() - 10m group by host`,
     db: 'telegraf',
   }).then((resp) => {
     const hosts = {};
