@@ -1667,11 +1667,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					return err
 				}
 				switch expr.Name {
-				case "derivative", "non_negative_derivative":
-					if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
-						return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
-					}
-				case "elapsed":
+				case "derivative", "non_negative_derivative", "elapsed":
 					if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
 						return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
 					}
@@ -1679,7 +1675,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					if len(expr.Args) == 2 {
 						// Second must be a duration .e.g (1h)
 						if _, ok := expr.Args[1].(*DurationLiteral); !ok {
-							return errors.New("elapsed requires a duration argument")
+							return fmt.Errorf("second argument to %s must be a duration, got %T", expr.Name, expr.Args[1])
 						}
 					}
 				case "difference", "cumulative_sum":
