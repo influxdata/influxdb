@@ -3,7 +3,7 @@ import AlertsTable from '../components/AlertsTable';
 import {getAlerts} from '../apis';
 
 // Kevin: because we were getting strange errors saying
-// "Failed prop type: Required prop `source` was not specified in `AlertsApp`." 
+// "Failed prop type: Required prop `source` was not specified in `AlertsApp`."
 // Tim and I decided to make the source and addFlashMessage props not required.
 // FIXME: figure out why that wasn't working
 const AlertsApp = React.createClass({
@@ -21,14 +21,8 @@ const AlertsApp = React.createClass({
 
   getInitialState() {
     return {
-      alerts: [],
+      alerts: getAlerts(),
     };
-  },
-
-  componentDidMount() {
-    this.setState(
-      { alerts:getAlerts() }
-    );
   },
 
   render() {
