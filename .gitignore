@@ -8,3 +8,4 @@ chronograf
 node_modules/
 build/
 chronograf.db
+npm-debug.log
