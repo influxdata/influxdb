@@ -1,22 +1,20 @@
+# Keep editor-specific, non-project specific ignore rules in global .gitignore:
+# https://help.github.com/articles/ignoring-files/#create-a-global-gitignore
+
 *~
 src/
 
 config.json
 /bin/
 
-TAGS
-
-# vim temp files
-*.swp
-
-*.test
 /query/a.out*
-.DS_Store
 
 # ignore generated files.
 cmd/influxd/version.go
 
 # executables
+
+*.test
 
 influx_tsm
 **/influx_tsm
@@ -68,15 +66,6 @@ config.toml
 
 # test data files
 integration/migration_data/
-
-# goide project files
-.idea
-
-# goconvey config files
-*.goconvey
-
-// Ingnore SourceGraph directory
-.srclib-store/
 
 # man outputs
 man/*.xml
