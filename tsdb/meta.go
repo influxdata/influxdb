@@ -754,30 +754,11 @@ func (m *Measurement) DropSeries(series *Series) {
 
 // filters walks the where clause of a select statement and returns a map with all series ids
 // matching the where clause and any filter expression that should be applied to each
-func (m *Measurement) filters(condition influxql.Expr) (map[uint64]influxql.Expr, error) {
+func (m *Measurement) filters(condition influxql.Expr) ([]uint64, map[uint64]influxql.Expr, error) {
 	if condition == nil || influxql.OnlyTimeExpr(condition) {
-		seriesIdsToExpr := make(map[uint64]influxql.Expr, len(m.seriesIDs))
-		for _, id := range m.seriesIDs {
-			seriesIdsToExpr[id] = nil
-		}
-		return seriesIdsToExpr, nil
+		return m.seriesIDs, nil, nil
 	}
-
-	ids, seriesIdsToExpr, err := m.walkWhereForSeriesIds(condition)
-	if err != nil {
-		return nil, err
-	}
-
-	// Ensure every id is in the map and replace literal true expressions with
-	// nil so the engine doesn't waste time evaluating them.
-	for _, id := range ids {
-		if expr, ok := seriesIdsToExpr[id]; !ok {
-			seriesIdsToExpr[id] = nil
-		} else if b, ok := expr.(*influxql.BooleanLiteral); ok && b.Val {
-			seriesIdsToExpr[id] = nil
-		}
-	}
-	return seriesIdsToExpr, nil
+	return m.walkWhereForSeriesIds(condition)
 }
 
 // TagSets returns the unique tag sets that exist for the given tag keys. This is used to determine
@@ -792,7 +773,7 @@ func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*
 	m.mu.RLock()
 
 	// get the unique set of series ids and the filters that should be applied to each
-	filters, err := m.filters(condition)
+	ids, filters, err := m.filters(condition)
 	if err != nil {
 		m.mu.RUnlock()
 		return nil, err
@@ -802,7 +783,7 @@ func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*
 	// TagSet for that series. Series with the same TagSet are then grouped together, because for the
 	// purpose of GROUP BY they are part of the same composite series.
 	tagSets := make(map[string]*influxql.TagSet, 64)
-	for id, filter := range filters {
+	for _, id := range ids {
 		s := m.seriesByID[id]
 		tags := make(map[string]string, len(dimensions))
 
@@ -822,7 +803,7 @@ func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*
 			}
 		}
 		// Associate the series and filter with the Tagset.
-		tagSet.AddFilter(m.seriesByID[id].Key, filter)
+		tagSet.AddFilter(m.seriesByID[id].Key, filters[id])
 
 		// Ensure it's back in the map.
 		tagSets[string(tagsAsKey)] = tagSet
@@ -846,69 +827,137 @@ func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*
 	return sortedTagsSets, nil
 }
 
-// mergeSeriesFilters merges two sets of filter expressions and culls series IDs.
-func mergeSeriesFilters(op influxql.Token, ids SeriesIDs, lfilters, rfilters FilterExprs) (SeriesIDs, FilterExprs) {
-	// Create a map to hold the final set of series filter expressions.
-	filters := make(map[uint64]influxql.Expr, len(ids))
-	// Resulting list of series IDs
-	series := make(SeriesIDs, 0, len(ids))
-
-	// Combining logic:
-	// +==========+==========+==========+=======================+=======================+
-	// | operator |   LHS    |   RHS    |   intermediate expr   |     reduced filter    |
-	// +==========+==========+==========+=======================+=======================+
-	// |          | <nil>    | <r-expr> | false OR <r-expr>     | <r-expr>              |
-	// |          |----------+----------+-----------------------+-----------------------+
-	// | OR       | <l-expr> | <nil>    | <l-expr> OR false     | <l-expr>              |
-	// |          |----------+----------+-----------------------+-----------------------+
-	// |          | <nil>    | <nil>    | false OR false        | false                 |
-	// |          |----------+----------+-----------------------+-----------------------+
-	// |          | <l-expr> | <r-expr> | <l-expr> OR <r-expr>  | <l-expr> OR <r-expr>  |
-	// +----------+----------+----------+-----------------------+-----------------------+
-	// |          | <nil>    | <r-expr> | false AND <r-expr>    | false*                |
-	// |          |----------+----------+-----------------------+-----------------------+
-	// | AND      | <l-expr> | <nil>    | <l-expr> AND false    | false                 |
-	// |          |----------+----------+-----------------------+-----------------------+
-	// |          | <nil>    | <nil>    | false AND false       | false                 |
-	// |          |----------+----------+-----------------------+-----------------------+
-	// |          | <l-expr> | <r-expr> | <l-expr> AND <r-expr> | <l-expr> AND <r-expr> |
-	// +----------+----------+----------+-----------------------+-----------------------+
-	// *literal false filters and series IDs should be excluded from the results
-
-	for _, id := range ids {
-		// Get LHS and RHS filter expressions for this series ID.
-		lfilter, rfilter := lfilters[id], rfilters[id]
-
-		// Set filter to false if either LHS or RHS expressions were nil.
-		if lfilter == nil {
-			lfilter = &influxql.BooleanLiteral{Val: false}
-		}
-		if rfilter == nil {
-			rfilter = &influxql.BooleanLiteral{Val: false}
-		}
-
-		// Create the intermediate filter expression for this series ID.
-		be := &influxql.BinaryExpr{
-			Op:  op,
-			LHS: lfilter,
-			RHS: rfilter,
-		}
-
-		// Reduce the intermediate expression.
-		expr := influxql.Reduce(be, nil)
-
-		// If the expression reduced to false, exclude this series ID and filter.
-		if b, ok := expr.(*influxql.BooleanLiteral); ok && !b.Val {
-			continue
-		}
-
-		// Store the series ID and merged filter in the final results.
-		if expr != nil {
-			filters[id] = expr
-		}
-		series = append(series, id)
+// intersectSeriesFilters performs an intersection for two sets of ids and filter expressions.
+func intersectSeriesFilters(lids, rids SeriesIDs, lfilters, rfilters FilterExprs) (SeriesIDs, FilterExprs) {
+	// We only want to allocate a slice and map of the smaller size.
+	var ids []uint64
+	if len(lids) > len(rids) {
+		ids = make([]uint64, 0, len(rids))
+	} else {
+		ids = make([]uint64, 0, len(lids))
 	}
-	return series, filters
+
+	var filters FilterExprs
+	if len(lfilters) > len(rfilters) {
+		filters = make(FilterExprs, len(rfilters))
+	} else {
+		filters = make(FilterExprs, len(lfilters))
+	}
+
+	// They're in sorted order so advance the counter as needed.
+	// This is, don't run comparisons against lower values that we've already passed.
+	for len(lids) > 0 && len(rids) > 0 {
+		lid, rid := lids[0], rids[0]
+		if lid == rid {
+			ids = append(ids, lid)
+
+			var expr influxql.Expr
+			lfilter := lfilters[lid]
+			rfilter := rfilters[rid]
+
+			if lfilter != nil && rfilter != nil {
+				be := &influxql.BinaryExpr{
+					Op:  influxql.AND,
+					LHS: lfilter,
+					RHS: rfilter,
+				}
+				expr = influxql.Reduce(be, nil)
+			} else if lfilter != nil {
+				expr = lfilter
+			} else if rfilter != nil {
+				expr = rfilter
+			}
+
+			if expr != nil {
+				filters[lid] = expr
+			}
+			lids, rids = lids[1:], rids[1:]
+		} else if lid < rid {
+			lids = lids[1:]
+		} else {
+			rids = rids[1:]
+		}
+	}
+	return ids, filters
+}
+
+// unionSeriesFilters performs a union for two sets of ids and filter expressions.
+func unionSeriesFilters(lids, rids SeriesIDs, lfilters, rfilters FilterExprs) (SeriesIDs, FilterExprs) {
+	ids := make([]uint64, 0, len(lids)+len(rids))
+
+	// Setup the filters with the smallest size since we will discard filters
+	// that do not have a match on the other side.
+	var filters FilterExprs
+	if len(lfilters) < len(rfilters) {
+		filters = make(FilterExprs, len(lfilters))
+	} else {
+		filters = make(FilterExprs, len(rfilters))
+	}
+
+	for len(lids) > 0 && len(rids) > 0 {
+		lid, rid := lids[0], rids[0]
+		if lid == rid {
+			ids = append(ids, lid)
+
+			// If one side does not have a filter, then the series has been
+			// included on one side of the OR with no condition. Eliminate the
+			// filter in this case.
+			var expr influxql.Expr
+			lfilter := lfilters[lid]
+			rfilter := rfilters[rid]
+			if lfilter != nil && rfilter != nil {
+				be := &influxql.BinaryExpr{
+					Op:  influxql.OR,
+					LHS: lfilter,
+					RHS: rfilter,
+				}
+				expr = influxql.Reduce(be, nil)
+			}
+
+			if expr != nil {
+				filters[lid] = expr
+			}
+			lids, rids = lids[1:], rids[1:]
+		} else if lid < rid {
+			ids = append(ids, lid)
+
+			filter := lfilters[lid]
+			if filter != nil {
+				filters[lid] = filter
+			}
+			lids = lids[1:]
+		} else {
+			ids = append(ids, rid)
+
+			filter := rfilters[rid]
+			if filter != nil {
+				filters[rid] = filter
+			}
+			rids = rids[1:]
+		}
+	}
+
+	// Now append the remainder.
+	if len(lids) > 0 {
+		for i := 0; i < len(lids); i++ {
+			ids = append(ids, lids[i])
+
+			filter := lfilters[lids[i]]
+			if filter != nil {
+				filters[lids[i]] = filter
+			}
+		}
+	} else if len(rids) > 0 {
+		for i := 0; i < len(rids); i++ {
+			ids = append(ids, rids[i])
+
+			filter := rfilters[rids[i]]
+			if filter != nil {
+				filters[rids[i]] = filter
+			}
+		}
+	}
+	return ids, filters
 }
 
 func (m *Measurement) IDsForExpr(n *influxql.BinaryExpr) SeriesIDs {
@@ -964,9 +1013,9 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 		// Special handling for "_name" to match measurement name.
 		if name.Val == "_name" {
 			if (n.Op == influxql.EQ && str.Val == m.Name) || (n.Op == influxql.NEQ && str.Val != m.Name) {
-				return m.seriesIDs, &influxql.BooleanLiteral{Val: true}, nil
+				return m.seriesIDs, nil, nil
 			}
-			return nil, &influxql.BooleanLiteral{Val: true}, nil
+			return nil, nil, nil
 		}
 
 		if n.Op == influxql.EQ {
@@ -996,7 +1045,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 				sort.Sort(ids)
 			}
 		}
-		return ids, &influxql.BooleanLiteral{Val: true}, nil
+		return ids, nil, nil
 	}
 
 	// if we're looking for series with a tag value that matches a regex
@@ -1009,7 +1058,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 			if (n.Op == influxql.EQREGEX && match) || (n.Op == influxql.NEQREGEX && !match) {
 				return m.seriesIDs, &influxql.BooleanLiteral{Val: true}, nil
 			}
-			return nil, &influxql.BooleanLiteral{Val: true}, nil
+			return nil, nil, nil
 		}
 
 		// Check if we match the empty string to see if we should include series
@@ -1054,7 +1103,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 			}
 			ids = seriesIDs.evict()
 		}
-		return ids, &influxql.BooleanLiteral{Val: true}, nil
+		return ids, nil, nil
 	}
 
 	// compare tag values
@@ -1074,11 +1123,11 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 				ids = ids.Reject(tags)
 			}
 		}
-		return ids, &influxql.BooleanLiteral{Val: true}, nil
+		return ids, nil, nil
 	}
 
 	if n.Op == influxql.NEQ || n.Op == influxql.NEQREGEX {
-		return m.seriesIDs, &influxql.BooleanLiteral{Val: true}, nil
+		return m.seriesIDs, nil, nil
 	}
 	return nil, nil, nil
 }
@@ -1121,9 +1170,17 @@ func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr) (SeriesIDs, Filt
 				return ids, nil, nil
 			}
 
-			filters := make(FilterExprs, len(ids))
-			for _, id := range ids {
-				filters[id] = expr
+			// If the expression is a boolean literal that is true, ignore it.
+			if b, ok := expr.(*influxql.BooleanLiteral); ok && b.Val {
+				expr = nil
+			}
+
+			var filters FilterExprs
+			if expr != nil {
+				filters = make(FilterExprs, len(ids))
+				for _, id := range ids {
+					filters[id] = expr
+				}
 			}
 
 			return ids, filters, nil
@@ -1141,18 +1198,13 @@ func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr) (SeriesIDs, Filt
 			}
 
 			// Combine the series IDs from the LHS and RHS.
-			var ids SeriesIDs
-			switch n.Op {
-			case influxql.AND:
-				ids = lids.Intersect(rids)
-			case influxql.OR:
-				ids = lids.Union(rids)
+			if n.Op == influxql.AND {
+				ids, filters := intersectSeriesFilters(lids, rids, lfilters, rfilters)
+				return ids, filters, nil
+			} else {
+				ids, filters := unionSeriesFilters(lids, rids, lfilters, rfilters)
+				return ids, filters, nil
 			}
-
-			// Merge the filter expressions for the LHS and RHS.
-			ids, filters := mergeSeriesFilters(n.Op, ids, lfilters, rfilters)
-
-			return ids, filters, nil
 		}
 
 		ids, _, err := m.idsForExpr(n)
