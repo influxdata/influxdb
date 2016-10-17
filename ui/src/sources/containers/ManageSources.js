@@ -48,6 +48,7 @@ export const ManageSources = React.createClass({
                     <th>Host</th>
                     <th>Kapacitor</th>
                     <th></th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -58,14 +59,14 @@ export const ManageSources = React.createClass({
                           <td>{source.name}{source.default ? <span className="label label-primary">Default</span> : null}</td>
                           <td>{source.url}</td>
                           <td>{source.links.kapacitors}</td>
-                          <td><Link to={`${pathname}/${source.id}/edit`}>Edit</Link></td>
+                          <td><Link className="btn btn-default btn-xs" to={`${pathname}/${source.id}/edit`}>Edit</Link></td>
+                          <td><Link className="btn btn-success btn-xs" to={`/sources/${source.id}/hosts`}>Connect</Link></td>
                         </tr>
                         );
                     })
                   }
                 </tbody>
               </table>
-              <div className="btn btn-success">Connect</div>
               <div className="btn btn-primary">Add</div>
             </div>
           </div>
