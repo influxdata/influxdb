@@ -390,6 +390,23 @@ func TestSelectStatement_RewriteFields(t *testing.T) {
 			stmt:    `SELECT mean(*) AS alias FROM cpu`,
 			rewrite: `SELECT mean(value1::float) AS alias_value1, mean(value2::integer) AS alias_value2 FROM cpu`,
 		},
+
+		// Query regex
+		{
+			stmt:    `SELECT /1/ FROM cpu`,
+			rewrite: `SELECT value1::float FROM cpu`,
+		},
+
+		{
+			stmt:    `SELECT value1 FROM cpu GROUP BY /h/`,
+			rewrite: `SELECT value1::float FROM cpu GROUP BY host`,
+		},
+
+		// Query regex
+		{
+			stmt:    `SELECT mean(/1/) FROM cpu`,
+			rewrite: `SELECT mean(value1::float) AS mean_value1 FROM cpu`,
+		},
 	}
 
 	for i, tt := range tests {

@@ -1915,19 +1915,27 @@ func (p *Parser) parseFields() (Fields, error) {
 func (p *Parser) parseField() (*Field, error) {
 	f := &Field{}
 
-	_, pos, _ := p.scanIgnoreWhitespace()
-	p.unscan()
-	// Parse the expression first.
-	expr, err := p.ParseExpr()
+	// Attempt to parse a regex.
+	re, err := p.parseRegex()
 	if err != nil {
 		return nil, err
+	} else if re != nil {
+		f.Expr = re
+	} else {
+		_, pos, _ := p.scanIgnoreWhitespace()
+		p.unscan()
+		// Parse the expression first.
+		expr, err := p.ParseExpr()
+		if err != nil {
+			return nil, err
+		}
+		var c validateField
+		Walk(&c, expr)
+		if c.foundInvalid {
+			return nil, fmt.Errorf("invalid operator %s in SELECT clause at line %d, char %d; operator is intended for WHERE clause", c.badToken, pos.Line+1, pos.Char+1)
+		}
+		f.Expr = expr
 	}
-	var c validateField
-	Walk(&c, expr)
-	if c.foundInvalid {
-		return nil, fmt.Errorf("invalid operator %s in SELECT clause at line %d, char %d; operator is intended for WHERE clause", c.badToken, pos.Line+1, pos.Char+1)
-	}
-	f.Expr = expr
 
 	// Parse the alias if the current and next tokens are "WS AS".
 	alias, err := p.parseAlias()
@@ -2115,6 +2123,13 @@ func (p *Parser) parseDimensions() (Dimensions, error) {
 
 // parseDimension parses a single dimension.
 func (p *Parser) parseDimension() (*Dimension, error) {
+	re, err := p.parseRegex()
+	if err != nil {
+		return nil, err
+	} else if re != nil {
+		return &Dimension{Expr: re}, nil
+	}
+
 	// Parse the expression first.
 	expr, err := p.ParseExpr()
 	if err != nil {
@@ -2538,27 +2553,50 @@ func (p *Parser) parseRegex() (*RegexLiteral, error) {
 // This function assumes the function name and LPAREN have been consumed.
 func (p *Parser) parseCall(name string) (*Call, error) {
 	name = strings.ToLower(name)
-	// If there's a right paren then just return immediately.
-	if tok, _, _ := p.scan(); tok == RPAREN {
-		return &Call{Name: name}, nil
-	}
-	p.unscan()
 
-	// Otherwise parse function call arguments.
+	// Parse first function argument if one exists.
 	var args []Expr
+	re, err := p.parseRegex()
+	if err != nil {
+		return nil, err
+	} else if re != nil {
+		args = append(args, re)
+	} else {
+		// If there's a right paren then just return immediately.
+		if tok, _, _ := p.scan(); tok == RPAREN {
+			return &Call{Name: name}, nil
+		}
+		p.unscan()
+
+		arg, err := p.ParseExpr()
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, arg)
+	}
+
+	// Parse additional function arguments if there is a comma.
 	for {
+		// If there's not a comma, stop parsing arguments.
+		if tok, _, _ := p.scanIgnoreWhitespace(); tok != COMMA {
+			p.unscan()
+			break
+		}
+
+		re, err := p.parseRegex()
+		if err != nil {
+			return nil, err
+		} else if re != nil {
+			args = append(args, re)
+			continue
+		}
+
 		// Parse an expression argument.
 		arg, err := p.ParseExpr()
 		if err != nil {
 			return nil, err
 		}
 		args = append(args, arg)
-
-		// If there's not a comma next then stop parsing arguments.
-		if tok, _, _ := p.scan(); tok != COMMA {
-			p.unscan()
-			break
-		}
 	}
 
 	// There should be a right parentheses at the end.
