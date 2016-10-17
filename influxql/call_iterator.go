@@ -677,12 +677,6 @@ func newStddevIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
 			return fn, fn
 		}
 		return &integerReduceFloatIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
-	case StringIterator:
-		createFn := func() (StringPointAggregator, StringPointEmitter) {
-			fn := NewStringSliceFuncReducer(StringStddevReduceSlice)
-			return fn, fn
-		}
-		return &stringReduceStringIterator{input: newBufStringIterator(input), opt: opt, create: createFn}, nil
 	default:
 		return nil, fmt.Errorf("unsupported stddev iterator type: %T", input)
 	}
@@ -744,11 +738,6 @@ func IntegerStddevReduceSlice(a []IntegerPoint) []FloatPoint {
 		Time:  ZeroTime,
 		Value: math.Sqrt(variance / float64(count-1)),
 	}}
-}
-
-// StringStddevReduceSlice always returns "".
-func StringStddevReduceSlice(a []StringPoint) []StringPoint {
-	return []StringPoint{{Time: ZeroTime, Value: ""}}
 }
 
 // newSpreadIterator returns an iterator for operating on a spread() call.
