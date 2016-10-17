@@ -30,11 +30,6 @@ const AlertsTable = React.createClass({
     this.setFilteredAlerts(newProps.alerts, this.state.searchTerm);
   },
 
-  filterAlerts(allAlerts, searchTerm) {
-    const alerts = allAlerts.filter((h) => h.name.search(searchTerm) !== -1);
-    this.setState({searchTerm, filteredAlerts: alerts});
-  },
-
   setFilteredAlerts(allAlerts, searchTerm) {
     const alerts = allAlerts.filter((h) => h.name.search(searchTerm) !== -1);
     this.setState({searchTerm, filteredAlerts: alerts});
