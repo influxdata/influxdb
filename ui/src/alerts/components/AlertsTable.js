@@ -1,4 +1,3 @@
-// TODO: filter on all columns
 // TODO: make with real data
 import React, {PropTypes} from 'react';
 import _ from 'lodash';
