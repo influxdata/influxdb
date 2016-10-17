@@ -102,6 +102,15 @@ func (c *CommandLine) Run() error {
 		}
 	}
 
+	// Read environment variables for username/password.
+	if c.Username == "" {
+		c.Username = os.Getenv("INFLUX_USERNAME")
+	}
+	// If we prompted for a password, always use the entered password.
+	if !promptForPassword && c.Password == "" {
+		c.Password = os.Getenv("INFLUX_PASSWORD")
+	}
+
 	if err := c.Connect(""); err != nil {
 		return fmt.Errorf(
 			"Failed to connect to %s\nPlease check your connection settings and ensure 'influxd' is running.",
