@@ -64,14 +64,19 @@ const Root = React.createClass({
     };
   },
 
-  hasSources(_, replace, callback) {
+  activeSource(sources) {
+    const defaultSource = sources.find((s) => s.default);
+    if (defaultSource && defaultSource.id) {
+      return defaultSource;
+    }
+    return sources[0];
+  },
+
+  redirectToHosts(_, replace, callback) {
     getSources().then(({data: {sources}}) => {
       if (sources && sources.length) {
-        const defaultSource = sources.find((s) => s.default);
-        if (defaultSource && defaultSource.id) {
-          replace(`/sources/${defaultSource.id}/hosts`);
-        }
-        replace(`/sources/${sources[0].id}/hosts`);
+        const path = `/sources/${this.activeSource(sources).id}/hosts`;
+        replace(path)
       }
       callback();
     }).catch(callback);
@@ -90,7 +95,7 @@ const Root = React.createClass({
       <Provider store={store}>
         <Router history={browserHistory}>
           <Route path="/signup/admin/:step" component={SignUp} />
-          <Route path="/" component={CreateSource} onEnter={this.hasSources} />
+          <Route path="/" component={CreateSource} onEnter={this.redirectToHosts} />
           <Route path="/sources/:sourceID" component={App}>
             <Route component={CheckDataNodes}>
               <Route path="manage-sources" component={ManageSources} />
