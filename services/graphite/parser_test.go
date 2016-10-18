@@ -707,3 +707,11 @@ func TestApplyTemplateFieldError(t *testing.T) {
 			"'field' can only be used once in each template: current.users.logged_in")
 	}
 }
+
+// Test Helpers
+func errstr(err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return ""
+}
