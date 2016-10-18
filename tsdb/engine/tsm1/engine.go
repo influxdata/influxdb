@@ -58,10 +58,22 @@ const (
 
 // Engine represents a storage engine with compressed blocks.
 type Engine struct {
-	mu                 sync.RWMutex
-	done               chan struct{}
-	wg                 sync.WaitGroup
-	compactionsEnabled bool
+	mu sync.RWMutex
+
+	// The following group of fields is used to track the state of level compactions within the
+	// Engine. The WaitGroup is used to monitor the compaction goroutines, the 'done' channel is
+	// used to signal those goroutines to shutdown. Every request to disable level compactions will
+	// call 'Wait' on 'wg', with the first goroutine to arrive (levelWorkers == 0 while holding the
+	// lock) will close the done channel and re-assign 'nil' to the variable. Re-enabling will
+	// decrease 'levelWorkers', and when it decreases to zero, level compactions will be started
+	// back up again.
+
+	wg           sync.WaitGroup // waitgroup for active level compaction goroutines
+	done         chan struct{}  // channel to signal level compactions to stop
+	levelWorkers int            // Number of "workers" that expect compactions to be in a disabled state
+
+	snapDone chan struct{}  // channel to signal snapshot compactions to stop
+	snapWG   sync.WaitGroup // waitgroup for running snapshot compactions
 
 	path         string
 	logger       *log.Logger // Logger to be used for important messages
@@ -151,47 +163,100 @@ func (e *Engine) SetEnabled(enabled bool) {
 // all running compactions are aborted and new compactions stop running.
 func (e *Engine) SetCompactionsEnabled(enabled bool) {
 	if enabled {
-		e.mu.Lock()
-		if e.compactionsEnabled {
-			e.mu.Unlock()
-			return
-		}
-		e.compactionsEnabled = true
-
-		e.done = make(chan struct{})
-		e.Compactor.Open()
-
-		e.mu.Unlock()
-
-		e.wg.Add(5)
-		go e.compactCache()
-		go e.compactTSMFull()
-		go e.compactTSMLevel(true, 1)
-		go e.compactTSMLevel(true, 2)
-		go e.compactTSMLevel(false, 3)
+		e.enableSnapshotCompactions()
+		e.enableLevelCompactions(false)
 	} else {
-		e.mu.Lock()
-		if !e.compactionsEnabled {
-			e.mu.Unlock()
-			return
-		}
-		// Prevent new compactions from starting
-		e.compactionsEnabled = false
+		e.disableSnapshotCompactions()
+		e.disableLevelCompactions(false)
+	}
+}
+
+// enableLevelCompactions will request that level compactions start back up again
+//
+// 'wait' signifies that a corresponding call to disableLevelCompactions(true) was made at some
+// point, and the associated task that required disabled compactions is now complete
+func (e *Engine) enableLevelCompactions(wait bool) {
+	e.mu.Lock()
+	if wait {
+		e.levelWorkers -= 1
+	}
+	if e.levelWorkers != 0 || e.done != nil {
+		// still waiting on more workers or already enabled
 		e.mu.Unlock()
+		return
+	}
+
+	// last one to enable, start things back up
+	e.Compactor.EnableCompactions()
+	quit := make(chan struct{})
+	e.done = quit
+
+	e.wg.Add(4)
+	e.mu.Unlock()
+
+	go func() { defer e.wg.Done(); e.compactTSMFull(quit) }()
+	go func() { defer e.wg.Done(); e.compactTSMLevel(true, 1, quit) }()
+	go func() { defer e.wg.Done(); e.compactTSMLevel(true, 2, quit) }()
+	go func() { defer e.wg.Done(); e.compactTSMLevel(false, 3, quit) }()
+}
+
+// disableLevelCompactions will stop level compactions before returning
+//
+// If 'wait' is set to true, then a corresponding call to enableLevelCompactions(true) will be
+// required before level compactions will start back up again
+func (e *Engine) disableLevelCompactions(wait bool) {
+	e.mu.Lock()
+	old := e.levelWorkers
+	if wait {
+		e.levelWorkers += 1
+	}
+
+	if old == 0 && e.done != nil {
+		// Prevent new compactions from starting
+		e.Compactor.DisableCompactions()
 
 		// Stop all background compaction goroutines
 		close(e.done)
+		e.done = nil
+	}
 
-		// Abort any running goroutines (this could take a while)
-		e.Compactor.Close()
+	e.mu.Unlock()
+	e.wg.Wait()
 
-		// Wait for compaction goroutines to exit
-		e.wg.Wait()
-
+	if old == 0 { // first to disable should cleanup
 		if err := e.cleanup(); err != nil {
 			e.logger.Printf("error cleaning up temp file: %v", err)
 		}
 	}
+}
+
+func (e *Engine) enableSnapshotCompactions() {
+	e.mu.Lock()
+	if e.snapDone != nil {
+		e.mu.Unlock()
+		return
+	}
+
+	e.Compactor.EnableSnapshots()
+	quit := make(chan struct{})
+	e.snapDone = quit
+	e.snapWG.Add(1)
+	e.mu.Unlock()
+
+	go func() { defer e.snapWG.Done(); e.compactCache(quit) }()
+}
+
+func (e *Engine) disableSnapshotCompactions() {
+	e.mu.Lock()
+
+	if e.snapDone != nil {
+		e.Compactor.DisableSnapshots()
+		close(e.snapDone)
+		e.snapDone = nil
+	}
+
+	e.mu.Unlock()
+	e.snapWG.Wait()
 }
 
 // Path returns the path the engine was opened with.
@@ -272,8 +337,6 @@ func (e *Engine) Statistics(tags map[string]string) []models.Statistic {
 
 // Open opens and initializes the engine.
 func (e *Engine) Open() error {
-	e.done = make(chan struct{})
-
 	if err := os.MkdirAll(e.path, 0777); err != nil {
 		return err
 	}
@@ -293,6 +356,8 @@ func (e *Engine) Open() error {
 	if err := e.reloadCache(); err != nil {
 		return err
 	}
+
+	e.Compactor.Open()
 
 	if e.enableCompactionsOnOpen {
 		e.SetCompactionsEnabled(true)
@@ -645,12 +710,12 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 
 	// Disable and abort running compactions so that tombstones added existing tsm
 	// files don't get removed.  This would cause deleted measurements/series to
-	// re-appear once the compaction completed.
-	e.SetCompactionsEnabled(false)
-	defer e.SetCompactionsEnabled(true)
-
-	e.mu.RLock()
-	defer e.mu.RUnlock()
+	// re-appear once the compaction completed.  We only disable the level compactions
+	// so that snapshotting does not stop while writing out tombstones.  If it is stopped,
+	// and writing tombstones takes a long time, writes can get rejected due to the cache
+	// filling up.
+	e.disableLevelCompactions(true)
+	defer e.enableLevelCompactions(true)
 
 	// keyMap is used to see if a given key should be deleted.  seriesKey
 	// are the measurement + tagset (minus separate & field)
@@ -821,11 +886,10 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (
 }
 
 // compactCache continually checks if the WAL cache should be written to disk
-func (e *Engine) compactCache() {
-	defer e.wg.Done()
+func (e *Engine) compactCache(quit <-chan struct{}) {
 	for {
 		select {
-		case <-e.done:
+		case <-quit:
 			return
 
 		default:
@@ -860,12 +924,10 @@ func (e *Engine) ShouldCompactCache(lastWriteTime time.Time) bool {
 		time.Now().Sub(lastWriteTime) > e.CacheFlushWriteColdDuration
 }
 
-func (e *Engine) compactTSMLevel(fast bool, level int) {
-	defer e.wg.Done()
-
+func (e *Engine) compactTSMLevel(fast bool, level int, quit <-chan struct{}) {
 	for {
 		select {
-		case <-e.done:
+		case <-quit:
 			return
 
 		default:
@@ -950,12 +1012,10 @@ func (e *Engine) compactTSMLevel(fast bool, level int) {
 	}
 }
 
-func (e *Engine) compactTSMFull() {
-	defer e.wg.Done()
-
+func (e *Engine) compactTSMFull(quit <-chan struct{}) {
 	for {
 		select {
-		case <-e.done:
+		case <-quit:
 			return
 
 		default:

@@ -46,6 +46,7 @@
 - [#7382](https://github.com/influxdata/influxdb/issues/7382): Shard stats include wal path tag so disk bytes make more sense.
 - [#7385](https://github.com/influxdata/influxdb/pull/7385): Reduce query planning allocations
 - [#7436](https://github.com/influxdata/influxdb/issues/7436): Remove accidentally added string support for the stddev call.
+- [#7161](https://github.com/influxdata/influxdb/issues/7161): Drop measurement causes cache max memory exceeded error.
 
 ## v1.0.2 [2016-10-05]
 
