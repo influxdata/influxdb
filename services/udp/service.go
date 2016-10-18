@@ -43,8 +43,9 @@ type Service struct {
 	addr *net.UDPAddr
 	wg   sync.WaitGroup
 
-	mu   sync.Mutex
-	done chan struct{}
+	mu    sync.RWMutex
+	ready bool          // Has the required database been created?
+	done  chan struct{} // Is the service closing or closed?
 
 	parserChan chan []byte
 	batcher    *tsdb.PointBatcher
@@ -91,10 +92,6 @@ func (s *Service) Open() (err error) {
 	}
 	if s.config.Database == "" {
 		return errors.New("database has to be specified in config")
-	}
-
-	if _, err := s.MetaClient.CreateDatabase(s.config.Database); err != nil {
-		return errors.New("Failed to ensure target database exists")
 	}
 
 	s.addr, err = net.ResolveUDPAddr("udp", s.config.BindAddress)
@@ -162,6 +159,12 @@ func (s *Service) writer() {
 	for {
 		select {
 		case batch := <-s.batcher.Out():
+			// Will attempt to create database if not yet created.
+			if err := s.createInternalStorage(); err != nil {
+				s.Logger.Printf("Required database %s does not yet exist: %s", s.config.Database, err.Error())
+				continue
+			}
+
 			if err := s.PointsWriter.WritePoints(s.config.Database, s.config.RetentionPolicy, models.ConsistencyLevelAny, batch); err == nil {
 				atomic.AddInt64(&s.stats.BatchesTransmitted, 1)
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))
@@ -268,6 +271,26 @@ func (s *Service) closed() bool {
 	default:
 	}
 	return s.done == nil
+}
+
+// createInternalStorage ensures that the required database has been created.
+func (s *Service) createInternalStorage() error {
+	s.mu.RLock()
+	ready := s.ready
+	s.mu.RUnlock()
+	if ready {
+		return nil
+	}
+
+	if _, err := s.MetaClient.CreateDatabase(s.config.Database); err != nil {
+		return err
+	}
+
+	// The service is now ready.
+	s.mu.Lock()
+	s.ready = true
+	s.mu.Unlock()
+	return nil
 }
 
 // SetLogOutput sets the writer to which all logs are written. It must not be

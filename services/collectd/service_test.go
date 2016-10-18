@@ -69,14 +69,15 @@ func TestService_CreatesDatabase(t *testing.T) {
 		if name != s.Config.Database {
 			t.Errorf("\n\texp = %s\n\tgot = %s\n", s.Config.Database, name)
 		}
-		called <- struct{}{}
+		// Allow some time for the caller to return and the ready status to
+		// be set.
+		time.AfterFunc(10*time.Millisecond, func() { called <- struct{}{} })
 		return nil, errors.New("an error")
 	}
 
 	if err := s.Service.Open(); err != nil {
 		t.Fatal(err)
 	}
-	defer s.Service.Close()
 
 	points, err := models.ParsePointsString(`cpu value=1`)
 	if err != nil {
@@ -88,7 +89,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 	select {
 	case <-called:
 		// OK
-	case <-time.NewTimer(time.Second).C:
+	case <-time.NewTimer(5 * time.Second).C:
 		t.Fatal("Service should have attempted to create database")
 	}
 
@@ -103,15 +104,18 @@ func TestService_CreatesDatabase(t *testing.T) {
 
 	// This time MC won't cause an error.
 	s.MetaClient.CreateDatabaseFn = func(name string) (*meta.DatabaseInfo, error) {
-		called <- struct{}{}
+		// Allow some time for the caller to return and the ready status to
+		// be set.
+		time.AfterFunc(10*time.Millisecond, func() { called <- struct{}{} })
 		return nil, nil
 	}
 
 	s.Service.batcher.In() <- points[0] // Send a point.
+	s.Service.batcher.Flush()
 	select {
 	case <-called:
 		// OK
-	case <-time.NewTimer(time.Second).C:
+	case <-time.NewTimer(5 * time.Second).C:
 		t.Fatal("Service should have attempted to create database")
 	}
 
@@ -123,6 +127,8 @@ func TestService_CreatesDatabase(t *testing.T) {
 	if got, exp := ready, true; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
+
+	s.Service.Close()
 }
 
 // Test that the collectd service correctly batches points by BatchSize.
