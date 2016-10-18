@@ -109,6 +109,7 @@ const Explorer = React.createClass({
       return (
         <div className="query-editor__empty">
           <h5>This Graph has no Queries</h5>
+          <br/>
           <div className="btn btn-primary" role="button" onClick={this.handleAddQuery}>Add a Query</div>
         </div>
       );
