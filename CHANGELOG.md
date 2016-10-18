@@ -45,6 +45,7 @@
 - [#7382](https://github.com/influxdata/influxdb/issues/7382): Shard stats include wal path tag so disk bytes make more sense.
 - [#7385](https://github.com/influxdata/influxdb/pull/7385): Reduce query planning allocations
 - [#7436](https://github.com/influxdata/influxdb/issues/7436): Remove accidentally added string support for the stddev call.
+- [#7161](https://github.com/influxdata/influxdb/issues/7161): Drop measurement causes cache max memory exceeded error.
 
 ## v1.0.2 [2016-10-05]
 
@@ -55,9 +56,6 @@
 - [#7391](https://github.com/influxdata/influxdb/issues/7391): Fix RLE integer decoding producing negative numbers
 - [#7335](https://github.com/influxdata/influxdb/pull/7335): Avoid stat syscall when planning compactions
 - [#7330](https://github.com/influxdata/influxdb/issues/7330): Subscription data loss under high write load
-- [#1834](https://github.com/influxdata/influxdb/issues/1834): Drop time when used as a tag or field key.
-- [#7152](https://github.com/influxdata/influxdb/issues/7152): Decrement number of measurements only once when deleting the last series from a measurement.
-- [#7161](https://github.com/influxdata/influxdb/issues/7161): Drop measurement causes cache max memory exceeded error.
 
 ## v1.0.1 [2016-09-26]
 
