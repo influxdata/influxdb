@@ -9,33 +9,68 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
 )
 
+func TestService_OpenClose(t *testing.T) {
+	service := NewTestService(1, time.Second)
+
+	// Closing a closed service is fine.
+	if err := service.Service.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Closing a closed service again is fine.
+	if err := service.Service.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := service.Service.Open(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Opening an already open service is fine.
+	if err := service.Service.Open(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reopening a previously opened service is fine.
+	if err := service.Service.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := service.Service.Open(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Tidy up.
+	if err := service.Service.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // Test that the service checks / creates the target database on startup.
 func TestService_CreatesDatabase(t *testing.T) {
 	t.Parallel()
 
-	s := newTestService(1, time.Second)
+	s := NewTestService(1, time.Second)
 
-	createDatabaseCalled := false
-
-	ms := &testMetaClient{}
-	ms.CreateDatabaseIfNotExistsFn = func(name string) (*meta.DatabaseInfo, error) {
+	var created bool
+	s.MetaClient.CreateDatabaseFn = func(name string) (*meta.DatabaseInfo, error) {
 		if name != s.Config.Database {
 			t.Errorf("\n\texp = %s\n\tgot = %s\n", s.Config.Database, name)
 		}
-		createDatabaseCalled = true
+		created = true
 		return nil, nil
 	}
-	s.Service.MetaClient = ms
 
-	s.Open()
-	s.Close()
+	s.Service.Open()
+	s.Service.Close()
 
-	if !createDatabaseCalled {
+	if !created {
 		t.Errorf("CreateDatabaseIfNotExists should have been called when the service opened.")
 	}
 }
@@ -51,11 +86,10 @@ func TestService_BatchSize(t *testing.T) {
 
 	for _, batchSize := range batchSizes {
 		func() {
-			s := newTestService(batchSize, time.Second)
+			s := NewTestService(batchSize, time.Second)
 
 			pointCh := make(chan models.Point)
-			s.MetaClient.CreateDatabaseIfNotExistsFn = func(name string) (*meta.DatabaseInfo, error) { return nil, nil }
-			s.PointsWriter.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+			s.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 				if len(points) != batchSize {
 					t.Errorf("\n\texp = %d\n\tgot = %d\n", batchSize, len(points))
 				}
@@ -66,13 +100,13 @@ func TestService_BatchSize(t *testing.T) {
 				return nil
 			}
 
-			if err := s.Open(); err != nil {
+			if err := s.Service.Open(); err != nil {
 				t.Fatal(err)
 			}
-			defer func() { t.Log("closing service"); s.Close() }()
+			defer func() { t.Log("closing service"); s.Service.Close() }()
 
 			// Get the address & port the service is listening on for collectd data.
-			addr := s.Addr()
+			addr := s.Service.Addr()
 			conn, err := net.Dial("udp", addr.String())
 			if err != nil {
 				t.Fatal(err)
@@ -120,24 +154,23 @@ func TestService_BatchDuration(t *testing.T) {
 
 	totalPoints := len(expPoints)
 
-	s := newTestService(5000, 250*time.Millisecond)
+	s := NewTestService(5000, 250*time.Millisecond)
 
 	pointCh := make(chan models.Point, 1000)
-	s.MetaClient.CreateDatabaseIfNotExistsFn = func(name string) (*meta.DatabaseInfo, error) { return nil, nil }
-	s.PointsWriter.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+	s.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 		for _, p := range points {
 			pointCh <- p
 		}
 		return nil
 	}
 
-	if err := s.Open(); err != nil {
+	if err := s.Service.Open(); err != nil {
 		t.Fatal(err)
 	}
-	defer func() { t.Log("closing service"); s.Close() }()
+	defer func() { t.Log("closing service"); s.Service.Close() }()
 
 	// Get the address & port the service is listening on for collectd data.
-	addr := s.Addr()
+	addr := s.Service.Addr()
 	conn, err := net.Dial("udp", addr.String())
 	if err != nil {
 		t.Fatal(err)
@@ -177,51 +210,48 @@ Loop:
 	}
 }
 
-type testService struct {
-	*Service
-	MetaClient   testMetaClient
-	PointsWriter testPointsWriter
+type TestService struct {
+	Service       *Service
+	Config        Config
+	MetaClient    *internal.MetaClientMock
+	WritePointsFn func(string, string, models.ConsistencyLevel, []models.Point) error
 }
 
-func newTestService(batchSize int, batchDuration time.Duration) *testService {
-	s := &testService{
-		Service: NewService(Config{
-			BindAddress:   "127.0.0.1:0",
-			Database:      "collectd_test",
-			BatchSize:     batchSize,
-			BatchDuration: toml.Duration(batchDuration),
-		}),
+func NewTestService(batchSize int, batchDuration time.Duration) *TestService {
+	c := Config{
+		BindAddress:   "127.0.0.1:0",
+		Database:      "collectd_test",
+		BatchSize:     batchSize,
+		BatchDuration: toml.Duration(batchDuration),
 	}
-	s.Service.PointsWriter = &s.PointsWriter
-	s.Service.MetaClient = &s.MetaClient
+
+	s := &TestService{
+		Config:     c,
+		Service:    NewService(c),
+		MetaClient: &internal.MetaClientMock{},
+	}
+
+	s.MetaClient.CreateDatabaseFn = func(name string) (*meta.DatabaseInfo, error) {
+		return nil, nil
+	}
+
+	s.Service.PointsWriter = s
+	s.Service.MetaClient = s.MetaClient
 
 	// Set the collectd types using test string.
-	if err := s.SetTypes(typesDBText); err != nil {
+	if err := s.Service.SetTypes(typesDBText); err != nil {
 		panic(err)
 	}
 
 	if !testing.Verbose() {
-		s.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+		s.Service.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
 	}
 
 	return s
 }
 
-type testPointsWriter struct {
-	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
-}
-
-func (w *testPointsWriter) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+func (w *TestService) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 	return w.WritePointsFn(database, retentionPolicy, consistencyLevel, points)
-}
-
-type testMetaClient struct {
-	CreateDatabaseIfNotExistsFn func(name string) (*meta.DatabaseInfo, error)
-	//DatabaseFn func(name string) (*meta.DatabaseInfo, error)
-}
-
-func (ms *testMetaClient) CreateDatabase(name string) (*meta.DatabaseInfo, error) {
-	return ms.CreateDatabaseIfNotExistsFn(name)
 }
 
 func wait(c chan struct{}, d time.Duration) (err error) {

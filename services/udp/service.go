@@ -42,6 +42,8 @@ type Service struct {
 	conn *net.UDPConn
 	addr *net.UDPAddr
 	wg   sync.WaitGroup
+
+	mu   sync.Mutex
 	done chan struct{}
 
 	parserChan chan []byte
@@ -66,7 +68,6 @@ func NewService(c Config) *Service {
 	d := *c.WithDefaults()
 	return &Service{
 		config:      d,
-		done:        make(chan struct{}),
 		parserChan:  make(chan []byte, parserChanLen),
 		batcher:     tsdb.NewPointBatcher(d.BatchSize, d.BatchPending, time.Duration(d.BatchTimeout)),
 		Logger:      log.New(os.Stderr, "[udp] ", log.LstdFlags),
@@ -77,6 +78,14 @@ func NewService(c Config) *Service {
 
 // Open starts the service
 func (s *Service) Open() (err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if !s.closed() {
+		return nil // Already open.
+	}
+	s.done = make(chan struct{})
+
 	if s.config.BindAddress == "" {
 		return errors.New("bind address has to be specified in config")
 	}
@@ -220,13 +229,19 @@ func (s *Service) parser() {
 
 // Close closes the underlying listener.
 func (s *Service) Close() error {
-	if s.conn == nil {
-		return errors.New("Service already closed")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.closed() {
+		return nil // Already closed.
+	}
+	close(s.done)
+
+	if s.conn != nil {
+		s.conn.Close()
 	}
 
-	s.conn.Close()
 	s.batcher.Flush()
-	close(s.done)
 	s.wg.Wait()
 
 	// Release all remaining resources.
@@ -236,6 +251,23 @@ func (s *Service) Close() error {
 	s.Logger.Print("Service closed")
 
 	return nil
+}
+
+// Closed returns true if the service is currently closed.
+func (s *Service) Closed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed()
+}
+
+func (s *Service) closed() bool {
+	select {
+	case <-s.done:
+		// Service is closing.
+		return true
+	default:
+	}
+	return s.done == nil
 }
 
 // SetLogOutput sets the writer to which all logs are written. It must not be

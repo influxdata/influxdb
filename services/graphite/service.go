@@ -108,7 +108,6 @@ func NewService(c Config) (*Service, error) {
 		stats:           &Statistics{},
 		defaultTags:     models.StatisticTags{"proto": d.Protocol, "bind": d.BindAddress},
 		tcpConnections:  make(map[string]*tcpConnection),
-		done:            make(chan struct{}),
 		diagsKey:        strings.Join([]string{"graphite", d.Protocol, d.BindAddress}, ":"),
 	}
 
@@ -129,6 +128,11 @@ func NewService(c Config) (*Service, error) {
 func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if !s.closed() {
+		return nil // Already open.
+	}
+	s.done = make(chan struct{})
 
 	s.logger.Printf("Starting graphite service, batch size %d, batch timeout %s", s.batchSize, s.batchTimeout)
 
@@ -187,6 +191,11 @@ func (s *Service) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.closed() {
+		return nil // Already closed.
+	}
+	close(s.done)
+
 	s.closeAllConnections()
 
 	if s.ln != nil {
@@ -204,11 +213,27 @@ func (s *Service) Close() error {
 		s.Monitor.DeregisterDiagnosticsClient(s.diagsKey)
 	}
 
-	close(s.done)
 	s.wg.Wait()
 	s.done = nil
 
 	return nil
+}
+
+// Closed returns true if the service is currently closed.
+func (s *Service) Closed() bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.closed()
+}
+
+func (s *Service) closed() bool {
+	select {
+	case <-s.done:
+		// Service is closing.
+		return true
+	default:
+	}
+	return s.done == nil
 }
 
 // SetLogOutput sets the writer to which all logs are written. It must not be
