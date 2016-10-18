@@ -45,8 +45,6 @@ func (c *tcpConnection) Close() {
 
 // Service represents a Graphite service.
 type Service struct {
-	mu sync.Mutex
-
 	bindAddress     string
 	database        string
 	retentionPolicy string
@@ -71,8 +69,11 @@ type Service struct {
 	addr    net.Addr
 	udpConn *net.UDPConn
 
-	wg   sync.WaitGroup
-	done chan struct{}
+	wg sync.WaitGroup
+
+	mu    sync.RWMutex
+	ready bool          // Has the required database been created?
+	done  chan struct{} // Is the service closing or closed?
 
 	Monitor interface {
 		RegisterDiagnosticsClient(name string, client diagnostics.Client)
@@ -139,21 +140,6 @@ func (s *Service) Open() error {
 	// Register diagnostics if a Monitor service is available.
 	if s.Monitor != nil {
 		s.Monitor.RegisterDiagnosticsClient(s.diagsKey, s)
-	}
-
-	if db := s.MetaClient.Database(s.database); db != nil {
-		if rp, _ := s.MetaClient.RetentionPolicy(s.database, s.retentionPolicy); rp == nil {
-			spec := meta.RetentionPolicySpec{Name: s.retentionPolicy}
-			if _, err := s.MetaClient.CreateRetentionPolicy(s.database, &spec); err != nil {
-				s.logger.Printf("Failed to ensure target retention policy %s exists: %s", s.database, err.Error())
-			}
-		}
-	} else {
-		spec := meta.RetentionPolicySpec{Name: s.retentionPolicy}
-		if _, err := s.MetaClient.CreateDatabaseWithRetentionPolicy(s.database, &spec); err != nil {
-			s.logger.Printf("Failed to ensure target database %s exists: %s", s.database, err.Error())
-			return err
-		}
 	}
 
 	s.batcher = tsdb.NewPointBatcher(s.batchSize, s.batchPending, s.batchTimeout)
@@ -234,6 +220,36 @@ func (s *Service) closed() bool {
 	default:
 	}
 	return s.done == nil
+}
+
+// createInternalStorage ensures that the required database has been created.
+func (s *Service) createInternalStorage() error {
+	s.mu.RLock()
+	ready := s.ready
+	s.mu.RUnlock()
+	if ready {
+		return nil
+	}
+
+	if db := s.MetaClient.Database(s.database); db != nil {
+		if rp, _ := s.MetaClient.RetentionPolicy(s.database, s.retentionPolicy); rp == nil {
+			spec := meta.RetentionPolicySpec{Name: s.retentionPolicy}
+			if _, err := s.MetaClient.CreateRetentionPolicy(s.database, &spec); err != nil {
+				return err
+			}
+		}
+	} else {
+		spec := meta.RetentionPolicySpec{Name: s.retentionPolicy}
+		if _, err := s.MetaClient.CreateDatabaseWithRetentionPolicy(s.database, &spec); err != nil {
+			return err
+		}
+	}
+
+	// The service is now ready.
+	s.mu.Lock()
+	s.ready = true
+	s.mu.Unlock()
+	return nil
 }
 
 // SetLogOutput sets the writer to which all logs are written. It must not be
@@ -422,6 +438,12 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 	for {
 		select {
 		case batch := <-batcher.Out():
+			// Will attempt to create database if not yet created.
+			if err := s.createInternalStorage(); err != nil {
+				s.logger.Printf("Required database or retention policy do not yet exist: %s", err.Error())
+				continue
+			}
+
 			if err := s.PointsWriter.WritePoints(s.database, s.retentionPolicy, models.ConsistencyLevelAny, batch); err == nil {
 				atomic.AddInt64(&s.stats.BatchesTransmitted, 1)
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))

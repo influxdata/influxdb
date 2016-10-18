@@ -54,8 +54,9 @@ type Service struct {
 	typesdb gollectd.Types
 	addr    net.Addr
 
-	mu   sync.Mutex
-	done chan struct{}
+	mu    sync.RWMutex
+	ready bool          // Has the required database been created?
+	done  chan struct{} // Is the service closing or closed?
 
 	// expvar-based stats.
 	stats       *Statistics
@@ -94,11 +95,6 @@ func (s *Service) Open() error {
 		return fmt.Errorf("database name is blank")
 	} else if s.PointsWriter == nil {
 		return fmt.Errorf("PointsWriter is nil")
-	}
-
-	if _, err := s.MetaClient.CreateDatabase(s.Config.Database); err != nil {
-		s.Logger.Printf("Failed to ensure target database %s exists: %s", s.Config.Database, err.Error())
-		return err
 	}
 
 	if s.typesdb == nil {
@@ -178,12 +174,11 @@ func (s *Service) Open() error {
 	s.batcher = tsdb.NewPointBatcher(s.Config.BatchSize, s.Config.BatchPending, time.Duration(s.Config.BatchDuration))
 	s.batcher.Start()
 
-	// Create waitgroup for signalling goroutines to stop.
+	// Create waitgroup for signalling goroutines to stop and start goroutines
+	// that process collectd packets.
 	s.wg.Add(2)
-
-	// Start goroutines that process collectd packets.
-	go s.serve()
-	go s.writePoints()
+	go func() { defer s.wg.Done(); s.serve() }()
+	go func() { defer s.wg.Done(); s.writePoints() }()
 
 	return nil
 }
@@ -215,13 +210,6 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// Closed returns true if the service is currently closed.
-func (s *Service) Closed() bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.closed()
-}
-
 func (s *Service) closed() bool {
 	select {
 	case <-s.done:
@@ -230,6 +218,26 @@ func (s *Service) closed() bool {
 	default:
 	}
 	return s.done == nil
+}
+
+// createInternalStorage ensures that the required database has been created.
+func (s *Service) createInternalStorage() error {
+	s.mu.RLock()
+	ready := s.ready
+	s.mu.RUnlock()
+	if ready {
+		return nil
+	}
+
+	if _, err := s.MetaClient.CreateDatabase(s.Config.Database); err != nil {
+		return err
+	}
+
+	// The service is now ready.
+	s.mu.Lock()
+	s.ready = true
+	s.mu.Unlock()
+	return nil
 }
 
 // SetLogOutput sets the writer to which all logs are written. It must not be
@@ -280,8 +288,6 @@ func (s *Service) Addr() net.Addr {
 }
 
 func (s *Service) serve() {
-	defer s.wg.Done()
-
 	// From https://collectd.org/wiki/index.php/Binary_protocol
 	//   1024 bytes (payload only, not including UDP / IP headers)
 	//   In versions 4.0 through 4.7, the receive buffer has a fixed size
@@ -331,13 +337,17 @@ func (s *Service) handleMessage(buffer []byte) {
 }
 
 func (s *Service) writePoints() {
-	defer s.wg.Done()
-
 	for {
 		select {
 		case <-s.done:
 			return
 		case batch := <-s.batcher.Out():
+			// Will attempt to create database if not yet created.
+			if err := s.createInternalStorage(); err != nil {
+				s.Logger.Printf("Required database %s not yet created: %s", s.Config.Database, err.Error())
+				continue
+			}
+
 			if err := s.PointsWriter.WritePoints(s.Config.Database, s.Config.RetentionPolicy, models.ConsistencyLevelAny, batch); err == nil {
 				atomic.AddInt64(&s.stats.BatchesTransmitted, 1)
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))

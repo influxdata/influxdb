@@ -1,6 +1,7 @@
-package opentsdb_test
+package opentsdb
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -16,11 +17,10 @@ import (
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/influxdata/influxdb/services/opentsdb"
 )
 
 func Test_Service_OpenClose(t *testing.T) {
-	service := NewService("db0", "127.0.0.1:45362")
+	service := NewTestService("db0", "127.0.0.1:45362")
 
 	// Closing a closed service is fine.
 	if err := service.Service.Close(); err != nil {
@@ -57,10 +57,87 @@ func Test_Service_OpenClose(t *testing.T) {
 }
 
 // Ensure a point can be written via the telnet protocol.
+func TestService_CreatesDatabase(t *testing.T) {
+	t.Parallel()
+
+	database := "db0"
+	s := NewTestService(database, "127.0.0.1:0")
+	s.WritePointsFn = func(string, string, models.ConsistencyLevel, []models.Point) error {
+		return nil
+	}
+
+	called := make(chan struct{})
+	s.MetaClient.CreateDatabaseFn = func(name string) (*meta.DatabaseInfo, error) {
+		if name != database {
+			t.Errorf("\n\texp = %s\n\tgot = %s\n", database, name)
+		}
+		// Allow some time for the caller to return and the ready status to
+		// be set.
+		time.AfterFunc(10*time.Millisecond, func() { called <- struct{}{} })
+		return nil, errors.New("an error")
+	}
+
+	if err := s.Service.Open(); err != nil {
+		t.Fatal(err)
+	}
+
+	points, err := models.ParsePointsString(`cpu value=1`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s.Service.batcher.In() <- points[0] // Send a point.
+	s.Service.batcher.Flush()
+	select {
+	case <-called:
+		// OK
+	case <-time.NewTimer(5 * time.Second).C:
+		t.Fatal("Service should have attempted to create database")
+	}
+
+	// ready status should not have been switched due to meta client error.
+	s.Service.mu.RLock()
+	ready := s.Service.ready
+	s.Service.mu.RUnlock()
+
+	if got, exp := ready, false; got != exp {
+		t.Fatalf("got %v, expected %v", got, exp)
+	}
+
+	// This time MC won't cause an error.
+	s.MetaClient.CreateDatabaseFn = func(name string) (*meta.DatabaseInfo, error) {
+		// Allow some time for the caller to return and the ready status to
+		// be set.
+		time.AfterFunc(10*time.Millisecond, func() { called <- struct{}{} })
+		return nil, nil
+	}
+
+	s.Service.batcher.In() <- points[0] // Send a point.
+	s.Service.batcher.Flush()
+	select {
+	case <-called:
+		// OK
+	case <-time.NewTimer(5 * time.Second).C:
+		t.Fatal("Service should have attempted to create database")
+	}
+
+	// ready status should not have been switched due to meta client error.
+	s.Service.mu.RLock()
+	ready = s.Service.ready
+	s.Service.mu.RUnlock()
+
+	if got, exp := ready, true; got != exp {
+		t.Fatalf("got %v, expected %v", got, exp)
+	}
+
+	s.Service.Close()
+}
+
+// Ensure a point can be written via the telnet protocol.
 func TestService_Telnet(t *testing.T) {
 	t.Parallel()
 
-	s := NewService("db0", "127.0.0.1:0")
+	s := NewTestService("db0", "127.0.0.1:0")
 	if err := s.Service.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +200,7 @@ func TestService_Telnet(t *testing.T) {
 func TestService_HTTP(t *testing.T) {
 	t.Parallel()
 
-	s := NewService("db0", "127.0.0.1:0")
+	s := NewTestService("db0", "127.0.0.1:0")
 	if err := s.Service.Open(); err != nil {
 		t.Fatal(err)
 	}
@@ -169,15 +246,15 @@ func TestService_HTTP(t *testing.T) {
 	}
 }
 
-type Service struct {
-	Service       *opentsdb.Service
+type TestService struct {
+	Service       *Service
 	MetaClient    *internal.MetaClientMock
 	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 }
 
-// NewService returns a new instance of Service.
-func NewService(database string, bind string) *Service {
-	s, err := opentsdb.NewService(opentsdb.Config{
+// NewTestService returns a new instance of Service.
+func NewTestService(database string, bind string) *TestService {
+	s, err := NewService(Config{
 		BindAddress:      bind,
 		Database:         database,
 		ConsistencyLevel: "one",
@@ -187,7 +264,7 @@ func NewService(database string, bind string) *Service {
 		panic(err)
 	}
 
-	service := &Service{
+	service := &TestService{
 		Service:    s,
 		MetaClient: &internal.MetaClientMock{},
 	}
@@ -208,6 +285,6 @@ func NewService(database string, bind string) *Service {
 	return service
 }
 
-func (s *Service) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+func (s *TestService) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 	return s.WritePointsFn(database, retentionPolicy, consistencyLevel, points)
 }
