@@ -49,7 +49,6 @@ type Service struct {
 	mu   sync.Mutex
 	wg   sync.WaitGroup
 	done chan struct{}
-	err  chan error
 	tls  bool
 	cert string
 
@@ -85,7 +84,6 @@ func NewService(c Config) (*Service, error) {
 	s := &Service{
 		tls:             d.TLSEnabled,
 		cert:            d.Certificate,
-		err:             make(chan error),
 		BindAddress:     d.BindAddress,
 		Database:        d.Database,
 		RetentionPolicy: d.RetentionPolicy,

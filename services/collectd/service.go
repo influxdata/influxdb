@@ -49,7 +49,6 @@ type Service struct {
 	Logger       *log.Logger
 
 	wg      sync.WaitGroup
-	err     chan error
 	conn    *net.UDPConn
 	batcher *tsdb.PointBatcher
 	typesdb gollectd.Types
@@ -70,7 +69,6 @@ func NewService(c Config) *Service {
 		Config: c.WithDefaults(),
 
 		Logger:      log.New(os.Stderr, "[collectd] ", log.LstdFlags),
-		err:         make(chan error),
 		stats:       &Statistics{},
 		defaultTags: models.StatisticTags{"bind": c.BindAddress},
 	}
@@ -275,9 +273,6 @@ func (s *Service) SetTypes(types string) (err error) {
 	s.typesdb, err = gollectd.TypesDB([]byte(types))
 	return
 }
-
-// Err returns a channel for fatal errors that occur on go routines.
-func (s *Service) Err() chan error { return s.err }
 
 // Addr returns the listener's address. Returns nil if listener is closed.
 func (s *Service) Addr() net.Addr {
