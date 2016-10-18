@@ -13,28 +13,21 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Proxy proxy
-
-swagger:model Proxy
-*/
+// Proxy proxy
+// swagger:model Proxy
 type Proxy struct {
 
-	/* db
-	 */
+	// db
 	Db string `json:"db,omitempty"`
 
-	/* format
-	 */
+	// format
 	Format *string `json:"format,omitempty"`
 
-	/* query
-
-	Required: true
-	*/
+	// query
+	// Required: true
 	Query *string `json:"query"`
 
-	/* rp
-	 */
+	// rp
 	Rp string `json:"rp,omitempty"`
 }
 
@@ -61,7 +54,7 @@ func (m *Proxy) Validate(formats strfmt.Registry) error {
 var proxyTypeFormatPropEnum []interface{}
 
 const (
-	ProxyFormatRaw string = "raw"
+	proxyFormatRaw string = "raw"
 )
 
 // prop value enum

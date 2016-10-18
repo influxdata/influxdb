@@ -10,30 +10,23 @@ import (
 	"github.com/go-openapi/errors"
 )
 
-/*Exploration exploration
-
-swagger:model Exploration
-*/
+// Exploration exploration
+// swagger:model Exploration
 type Exploration struct {
 
-	/* created at
-	 */
+	// created at
 	CreatedAt strfmt.DateTime `json:"created_at,omitempty"`
 
-	/* Serialization of the exploration query configuration.
-	 */
+	// Serialization of the exploration query configuration.
 	Data interface{} `json:"data,omitempty"`
 
-	/* link
-	 */
+	// link
 	Link *Link `json:"link,omitempty"`
 
-	/* Exploration name given by user.
-	 */
+	// Exploration name given by user.
 	Name string `json:"name,omitempty"`
 
-	/* Latest time the exploration was updated.
-	 */
+	// Latest time the exploration was updated.
 	UpdatedAt strfmt.DateTime `json:"updated_at,omitempty"`
 }
 

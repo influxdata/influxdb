@@ -15,7 +15,7 @@ paths:
     '/':
         get:
             summary: Lists all the endpoints
-            description: List of the endpoints. 
+            description: List of the endpoints.
             responses:
                 200:
                     description: Returns the links to the top level endpoints.
@@ -374,7 +374,7 @@ paths:
                   type: string
                   description: ID of user to associate this exploration with.
                   required: true
-                - name: exploration 
+                - name: exploration
                   in: body
                   description: Exploration session to save
                   schema:
@@ -410,7 +410,7 @@ paths:
                   type: string
                   description: ID of user to associate this exploration with.
                   required: true
-                - name: exploration_id 
+                - name: exploration_id
                   in: path
                   type: string
                   description: ID of the specific exploration.
@@ -444,12 +444,12 @@ paths:
                   type: string
                   description: ID of user
                   required: true
-                - name: exploration_id 
+                - name: exploration_id
                   in: path
                   type: string
                   description: ID of the specific exploration.
                   required: true
-                - name: exploration 
+                - name: exploration
                   in: body
                   description: Update the exploration information to this.
                   required: true
@@ -480,7 +480,7 @@ paths:
                   type: string
                   description: ID of user to associate this exploration with.
                   required: true
-                - name: exploration_id 
+                - name: exploration_id
                   in: path
                   type: string
                   description: ID of the specific exploration.
@@ -921,7 +921,7 @@ paths:
                 Layouts are a collection of `Cells` that visualize time-series data.
             responses:
                 200:
-                    description: An array of layouts 
+                    description: An array of layouts
                     schema:
                         $ref: '#/definitions/Layouts'
                 default:
@@ -931,7 +931,7 @@ paths:
         post:
             summary: Create new layout
             parameters:
-                - name: layout 
+                - name: layout
                   in: body
                   description: Defines the layout and queries of the cells within the layout.
                   schema:
@@ -956,7 +956,7 @@ paths:
                 - name: id
                   in: path
                   type: string
-                  description: ID of the layout 
+                  description: ID of the layout
                   required: true
             summary: Specific pre-configured layout containing cells and queries.
             description: |
@@ -1024,12 +1024,12 @@ definitions:
     Kapacitors:
         type: object
         required:
-            - kapacitors 
+            - kapacitors
         properties:
             kapacitors:
                 type: array
                 items:
-                    $ref: '#/definitions/Kapacitor'   
+                    $ref: '#/definitions/Kapacitor'
     Kapacitor:
         type: object
         required:
@@ -1053,7 +1053,7 @@ definitions:
                 type: string
                 format: url
                 description: URL for the kapacitor backend (e.g. http://localhost:9092)
-            links: 
+            links:
                 type: object
                 properties:
                     self:
@@ -1078,7 +1078,7 @@ definitions:
             sources:
                 type: array
                 items:
-                    $ref: '#/definitions/Source'   
+                    $ref: '#/definitions/Source'
     Source:
         type: object
         required:
@@ -1111,7 +1111,7 @@ definitions:
             default:
                 type: boolean
                 description: Indicates whether this source is the default source
-            links: 
+            links:
                 type: object
                 properties:
                     self:
@@ -1247,7 +1247,7 @@ definitions:
                     $ref: "#/definitions/Permission"
     Permission:
         type: string
-        description: Specific access 
+        description: Specific access
         enum:
             - ViewAdmin
             - ViewChronograf
@@ -1329,11 +1329,11 @@ definitions:
             - h
         properties:
             x:
-                description: X-coordinate of Cell in the Layout 
+                description: X-coordinate of Cell in the Layout
                 type: integer
                 format: int32
             'y':
-                description: Y-coordinate of Cell in the Layout 
+                description: Y-coordinate of Cell in the Layout
                 type: integer
                 format: int32
             w:
@@ -1362,6 +1362,10 @@ definitions:
                 format: url
             sources:
                 description: Location of the sources endpoint
+                type: string
+                format: url
+            mappings:
+                description: Location of the application mappings endpoint
                 type: string
                 format: url
     Services:

@@ -11,40 +11,29 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Kapacitor kapacitor
-
-swagger:model Kapacitor
-*/
+// Kapacitor kapacitor
+// swagger:model Kapacitor
 type Kapacitor struct {
 
-	/* Unique identifier representing a kapacitor instance.
-
-	Read Only: true
-	*/
+	// Unique identifier representing a kapacitor instance.
+	// Read Only: true
 	ID string `json:"id,omitempty"`
 
-	/* links
-	 */
+	// links
 	Links *KapacitorLinks `json:"links,omitempty"`
 
-	/* User facing name of kapacitor instance.
-
-	Required: true
-	*/
+	// User facing name of kapacitor instance.
+	// Required: true
 	Name *string `json:"name"`
 
-	/* Password in cleartext!
-	 */
+	// Password in cleartext!
 	Password string `json:"password,omitempty"`
 
-	/* URL for the kapacitor backend (e.g. http://localhost:9092)
-
-	Required: true
-	*/
+	// URL for the kapacitor backend (e.g. http://localhost:9092)
+	// Required: true
 	URL *string `json:"url"`
 
-	/* Username for authentication to kapacitor
-	 */
+	// Username for authentication to kapacitor
 	Username string `json:"username,omitempty"`
 }
 
@@ -107,18 +96,14 @@ func (m *Kapacitor) validateURL(formats strfmt.Registry) error {
 	return nil
 }
 
-/*KapacitorLinks kapacitor links
-
-swagger:model KapacitorLinks
-*/
+// KapacitorLinks kapacitor links
+// swagger:model KapacitorLinks
 type KapacitorLinks struct {
 
-	/* URL location of proxy endpoint for this source
-	 */
+	// URL location of proxy endpoint for this source
 	Proxy string `json:"proxy,omitempty"`
 
-	/* Self link mapping to this resource
-	 */
+	// Self link mapping to this resource
 	Self string `json:"self,omitempty"`
 }
 

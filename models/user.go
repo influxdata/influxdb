@@ -11,31 +11,23 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*User user
-
-swagger:model User
-*/
+// User user
+// swagger:model User
 type User struct {
 
-	/* link
-	 */
+	// link
 	Link *Link `json:"link,omitempty"`
 
-	/* permissions
-
-	Required: true
-	*/
+	// permissions
+	// Required: true
 	Permissions *Permissions `json:"permissions"`
 
-	/* roles
-	 */
+	// roles
 	Roles *Roles `json:"roles,omitempty"`
 
-	/* username
-
-	Required: true
-	Max Length: 64
-	*/
+	// username
+	// Required: true
+	// Max Length: 64
 	Username *string `json:"username"`
 }
 

@@ -11,16 +11,12 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Mappings mappings
-
-swagger:model Mappings
-*/
+// Mappings mappings
+// swagger:model Mappings
 type Mappings struct {
 
-	/* mappings
-
-	Required: true
-	*/
+	// mappings
+	// Required: true
 	Mappings []*Mapping `json:"mappings"`
 }
 

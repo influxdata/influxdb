@@ -9,22 +9,20 @@ import (
 	"github.com/go-openapi/errors"
 )
 
-/*Routes routes
-
-swagger:model Routes
-*/
+// Routes routes
+// swagger:model Routes
 type Routes struct {
 
-	/* Location of the layouts endpoint
-	 */
+	// Location of the layouts endpoint
 	Layouts string `json:"layouts,omitempty"`
 
-	/* Location of the sources endpoint
-	 */
+	// Location of the application mappings endpoint
+	Mappings string `json:"mappings,omitempty"`
+
+	// Location of the sources endpoint
 	Sources string `json:"sources,omitempty"`
 
-	/* Location of the users endpoint
-	 */
+	// Location of the users endpoint
 	Users string `json:"users,omitempty"`
 }
 

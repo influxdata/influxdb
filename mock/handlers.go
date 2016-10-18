@@ -31,9 +31,10 @@ func NewHandler() Handler {
 
 func (m *Handler) AllRoutes(ctx context.Context, params op.GetParams) middleware.Responder {
 	routes := &models.Routes{
-		Sources: "/chronograf/v1/sources",
-		Layouts: "/chronograf/v1/layouts",
-		Users:   "/chronograf/v1/users",
+		Sources:  "/chronograf/v1/sources",
+		Layouts:  "/chronograf/v1/layouts",
+		Users:    "/chronograf/v1/users",
+		Mappings: "/chronograf/v1/mappings",
 	}
 	return op.NewGetOK().WithPayload(routes)
 }
@@ -350,11 +351,13 @@ func (m *Handler) DeleteExploration(ctx context.Context, params op.DeleteSources
 }
 
 func (m *Handler) GetMappings(ctx context.Context, params op.GetMappingsParams) middleware.Responder {
+	cpu := "cpu"
+	system := "System"
 	mp := &models.Mappings{
 		Mappings: []*models.Mapping{
 			&models.Mapping{
-				Measurement: "cpu",
-				Name:        "System",
+				Measurement: &cpu,
+				Name:        &system,
 			},
 		},
 	}

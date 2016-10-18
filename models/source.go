@@ -13,48 +13,35 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Source source
-
-swagger:model Source
-*/
+// Source source
+// swagger:model Source
 type Source struct {
 
-	/* Indicates whether this source is the default source
-	 */
+	// Indicates whether this source is the default source
 	Default bool `json:"default,omitempty"`
 
-	/* Unique identifier representing a specific data source.
-
-	Read Only: true
-	*/
+	// Unique identifier representing a specific data source.
+	// Read Only: true
 	ID string `json:"id,omitempty"`
 
-	/* links
-	 */
+	// links
 	Links *SourceLinks `json:"links,omitempty"`
 
-	/* User facing name of data source
-
-	Required: true
-	*/
+	// User facing name of data source
+	// Required: true
 	Name *string `json:"name"`
 
-	/* Password in cleartext!
-	 */
+	// Password in cleartext!
 	Password string `json:"password,omitempty"`
 
-	/* Format of the data source
-	 */
+	// Format of the data source
 	Type string `json:"type,omitempty"`
 
-	/* URL for the time series data source backend (e.g. http://localhost:8086)
-
-	Required: true
-	*/
+	// URL for the time series data source backend (e.g. http://localhost:8086)
+	// Required: true
 	URL *string `json:"url"`
 
-	/* Username for authentication to data source
-	 */
+	// Username for authentication to data source
 	Username string `json:"username,omitempty"`
 }
 
@@ -116,8 +103,8 @@ func (m *Source) validateName(formats strfmt.Registry) error {
 var sourceTypeTypePropEnum []interface{}
 
 const (
-	SourceTypeInflux           string = "influx"
-	SourceTypeInfluxEnterprise string = "influx-enterprise"
+	sourceTypeInflux           string = "influx"
+	sourceTypeInfluxEnterprise string = "influx-enterprise"
 )
 
 // prop value enum
@@ -160,38 +147,29 @@ func (m *Source) validateURL(formats strfmt.Registry) error {
 	return nil
 }
 
-/*SourceLinks source links
-
-swagger:model SourceLinks
-*/
+// SourceLinks source links
+// swagger:model SourceLinks
 type SourceLinks struct {
 
-	/* URL location of the kapacitors endpoint for this source
-	 */
+	// URL location of the kapacitors endpoint for this source
 	Kapacitors string `json:"kapacitors,omitempty"`
 
-	/* URL location of the monitored services endpoint for this source
-	 */
+	// URL location of the monitored services endpoint for this source
 	Monitored string `json:"monitored,omitempty"`
 
-	/* URL location of the permissions endpoint for this source
-	 */
+	// URL location of the permissions endpoint for this source
 	Permissions string `json:"permissions,omitempty"`
 
-	/* URL location of proxy endpoint for this source
-	 */
+	// URL location of proxy endpoint for this source
 	Proxy string `json:"proxy,omitempty"`
 
-	/* URL location of the roles endpoint for this source
-	 */
+	// URL location of the roles endpoint for this source
 	Roles string `json:"roles,omitempty"`
 
-	/* Self link mapping to this resource
-	 */
+	// Self link mapping to this resource
 	Self string `json:"self,omitempty"`
 
-	/* URL location of users endpoint for this source
-	 */
+	// URL location of users endpoint for this source
 	Users string `json:"users,omitempty"`
 }
 

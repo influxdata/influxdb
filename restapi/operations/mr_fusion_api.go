@@ -628,6 +628,7 @@ func (o *MrFusionAPI) Serve(builder middleware.Builder) http.Handler {
 	return o.context.APIHandler(builder)
 }
 
+// Init allows you to just initialize the handler cache, you can then recompose the middelware as you see fit
 func (o *MrFusionAPI) Init() {
 	if len(o.handlers) == 0 {
 		o.initHandlerCache()

@@ -11,36 +11,26 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Layout layout
-
-swagger:model Layout
-*/
+// Layout layout
+// swagger:model Layout
 type Layout struct {
 
-	/* App is the user facing name of this Layout
-
-	Required: true
-	*/
+	// App is the user facing name of this Layout
+	// Required: true
 	App *string `json:"app"`
 
-	/* Cells are the individual visualization elements.
-
-	Required: true
-	*/
+	// Cells are the individual visualization elements.
+	// Required: true
 	Cells []*Cell `json:"cells"`
 
-	/* ID is an opaque string that uniquely identifies this layout.
-	 */
+	// ID is an opaque string that uniquely identifies this layout.
 	ID string `json:"id,omitempty"`
 
-	/* link
-	 */
+	// link
 	Link *Link `json:"link,omitempty"`
 
-	/* Measurement is the descriptive name of the time series data.
-
-	Required: true
-	*/
+	// Measurement is the descriptive name of the time series data.
+	// Required: true
 	Measurement *string `json:"measurement"`
 }
 

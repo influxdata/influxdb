@@ -10,23 +10,17 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Mapping mapping
-
-swagger:model Mapping
-*/
+// Mapping mapping
+// swagger:model Mapping
 type Mapping struct {
 
-	/* The measurement where data for this mapping is found
+	// The measurement where data for this mapping is found
+	// Required: true
+	Measurement *string `json:"measurement"`
 
-	Required: true
-	*/
-	Measurement string `json:"measurement"`
-
-	/* The application name which will be assigned to the corresponding measurement
-
-	Required: true
-	*/
-	Name string `json:"name"`
+	// The application name which will be assigned to the corresponding measurement
+	// Required: true
+	Name *string `json:"name"`
 }
 
 // Validate validates this mapping

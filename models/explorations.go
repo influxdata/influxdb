@@ -11,16 +11,12 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Explorations explorations
-
-swagger:model Explorations
-*/
+// Explorations explorations
+// swagger:model Explorations
 type Explorations struct {
 
-	/* explorations
-
-	Required: true
-	*/
+	// explorations
+	// Required: true
 	Explorations []*Exploration `json:"explorations"`
 }
 
