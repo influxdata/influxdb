@@ -557,7 +557,7 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 	iter := NewCacheKeyIterator(cache, tsdb.DefaultMaxPointsPerBlock)
 	files, err := c.writeNewFiles(c.FileStore.NextGeneration(), 0, iter)
 
-	// See if we were closed while writing a snapshot
+	// See if we were disabled while writing a snapshot
 	c.mu.RLock()
 	enabled = c.snapshotsEnabled
 	c.mu.RUnlock()
@@ -640,7 +640,7 @@ func (c *Compactor) CompactFull(tsmFiles []string) ([]string, error) {
 
 	files, err := c.compact(false, tsmFiles)
 
-	// See if we were closed while writing a snapshot
+	// See if we were disabled while writing a snapshot
 	c.mu.RLock()
 	enabled = c.compactionsEnabled
 	c.mu.RUnlock()
@@ -669,7 +669,7 @@ func (c *Compactor) CompactFast(tsmFiles []string) ([]string, error) {
 
 	files, err := c.compact(true, tsmFiles)
 
-	// See if we were closed while writing a snapshot
+	// See if we were disabled while writing a snapshot
 	c.mu.RLock()
 	enabled = c.compactionsEnabled
 	c.mu.RUnlock()
