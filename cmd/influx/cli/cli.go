@@ -229,7 +229,7 @@ func (c *CommandLine) mainLoop() error {
 				c.exit()
 				return e
 			}
-			if err := c.ParseCommand(l); err != ErrBlankCommand && !strings.HasPrefix(l, "auth") {
+			if err := c.ParseCommand(l); err != ErrBlankCommand && !strings.HasPrefix(strings.TrimSpace(l), "auth") {
 				c.Line.AppendHistory(l)
 				c.saveHistory()
 			}
@@ -744,7 +744,7 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 			}
 			rows = append(rows, strings.Join(values, separator))
 		}
-		// Outout a line separator if in column format
+		// Output a line separator if in column format
 		if c.Format == "column" {
 			rows = append(rows, "")
 		}
