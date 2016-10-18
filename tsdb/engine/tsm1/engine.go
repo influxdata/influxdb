@@ -170,7 +170,7 @@ func (e *Engine) enableLevelCompactions() {
 		return
 	}
 	e.levelCompactionsEnabled = true
-	e.Compactor.EnabledCompactions()
+	e.Compactor.EnableCompactions()
 	e.done = make(chan struct{})
 	e.mu.Unlock()
 
@@ -212,7 +212,7 @@ func (e *Engine) enableSnapshotCompactions() {
 
 	e.snapshotCompactionsEnabled = true
 	e.snapshotterDone = make(chan struct{})
-	e.Compactor.EnabledSnapshots()
+	e.Compactor.EnableSnapshots()
 	e.mu.Unlock()
 
 	e.snapshotterWg.Add(1)

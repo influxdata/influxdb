@@ -526,7 +526,7 @@ func (c *Compactor) DisableSnapshots() {
 	c.mu.Unlock()
 }
 
-func (c *Compactor) EnabledSnapshots() {
+func (c *Compactor) EnableSnapshots() {
 	c.mu.Lock()
 	c.snapshotsEnabled = true
 	c.mu.Unlock()
@@ -538,7 +538,7 @@ func (c *Compactor) DisableCompactions() {
 	c.mu.Unlock()
 }
 
-func (c *Compactor) EnabledCompactions() {
+func (c *Compactor) EnableCompactions() {
 	c.mu.Lock()
 	c.compactionsEnabled = true
 	c.mu.Unlock()
