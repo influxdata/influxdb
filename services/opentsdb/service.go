@@ -46,11 +46,13 @@ type Service struct {
 	ln     net.Listener  // main listener
 	httpln *chanListener // http channel-based listener
 
-	mu   sync.Mutex
 	wg   sync.WaitGroup
-	done chan struct{}
 	tls  bool
 	cert string
+
+	mu    sync.RWMutex
+	ready bool          // Has the required database been created?
+	done  chan struct{} // Is the service closing or closed?
 
 	BindAddress     string
 	Database        string
@@ -109,11 +111,6 @@ func (s *Service) Open() error {
 	s.done = make(chan struct{})
 
 	s.Logger.Println("Starting OpenTSDB service")
-
-	if _, err := s.MetaClient.CreateDatabase(s.Database); err != nil {
-		s.Logger.Printf("Failed to ensure target database %s exists: %s", s.Database, err.Error())
-		return err
-	}
 
 	s.batcher = tsdb.NewPointBatcher(s.batchSize, s.batchPending, s.batchTimeout)
 	s.batcher.Start()
@@ -200,6 +197,26 @@ func (s *Service) closed() bool {
 	default:
 		return s.done == nil
 	}
+}
+
+// createInternalStorage ensures that the required database has been created.
+func (s *Service) createInternalStorage() error {
+	s.mu.RLock()
+	ready := s.ready
+	s.mu.RUnlock()
+	if ready {
+		return nil
+	}
+
+	if _, err := s.MetaClient.CreateDatabase(s.Database); err != nil {
+		return err
+	}
+
+	// The service is now ready.
+	s.mu.Lock()
+	s.ready = true
+	s.mu.Unlock()
+	return nil
 }
 
 // SetLogOutput sets the writer to which all logs are written. It must not be
@@ -438,7 +455,15 @@ func (s *Service) serveHTTP() {
 func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 	for {
 		select {
+		case <-s.done:
+			return
 		case batch := <-batcher.Out():
+			// Will attempt to create database if not yet created.
+			if err := s.createInternalStorage(); err != nil {
+				s.Logger.Printf("Required database %s does not yet exist: %s", s.Database, err.Error())
+				continue
+			}
+
 			if err := s.PointsWriter.WritePoints(s.Database, s.RetentionPolicy, models.ConsistencyLevelAny, batch); err == nil {
 				atomic.AddInt64(&s.stats.BatchesTransmitted, 1)
 				atomic.AddInt64(&s.stats.PointsTransmitted, int64(len(batch)))
@@ -446,9 +471,6 @@ func (s *Service) processBatches(batcher *tsdb.PointBatcher) {
 				s.Logger.Printf("failed to write point batch to database %q: %s", s.Database, err)
 				atomic.AddInt64(&s.stats.BatchesTransmitFail, 1)
 			}
-
-		case <-s.done:
-			return
 		}
 	}
 }

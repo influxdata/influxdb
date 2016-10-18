@@ -76,6 +76,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 	if err := s.Service.Open(); err != nil {
 		t.Fatal(err)
 	}
+	defer s.Service.Close()
 
 	points, err := models.ParsePointsString(`cpu value=1`)
 	if err != nil {
@@ -83,11 +84,12 @@ func TestService_CreatesDatabase(t *testing.T) {
 	}
 
 	s.Service.batcher.In() <- points[0] // Send a point.
+	s.Service.batcher.Flush()
 	select {
 	case <-called:
 		// OK
 	case <-time.NewTimer(time.Second).C:
-		t.Fatalf("Service should have attempted to created database")
+		t.Fatal("Service should have attempted to create database")
 	}
 
 	// ready status should not have been switched due to meta client error.
@@ -110,7 +112,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 	case <-called:
 		// OK
 	case <-time.NewTimer(time.Second).C:
-		t.Fatalf("Service should have attempted to created database")
+		t.Fatal("Service should have attempted to create database")
 	}
 
 	// ready status should not have been switched due to meta client error.
