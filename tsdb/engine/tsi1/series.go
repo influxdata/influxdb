@@ -41,6 +41,7 @@ const (
 // SeriesList represents the section of the index which holds the term
 // dictionary and a sorted list of series keys.
 type SeriesList struct {
+	data       []byte
 	termData   []byte
 	seriesData []byte
 }
@@ -75,18 +76,18 @@ func (l *SeriesList) SeriesOffset(key []byte) (offset uint32, deleted bool) {
 }
 
 // EncodeSeries returns a dictionary-encoded series key.
-func (l *SeriesList) EncodeSeries(name string, tags models.Tags) []byte {
+func (l *SeriesList) EncodeSeries(name []byte, tags models.Tags) []byte {
 	// Build a buffer with the minimum space for the name, tag count, and tags.
 	buf := make([]byte, 2+len(tags))
 	return l.AppendEncodeSeries(buf[:0], name, tags)
 }
 
 // AppendEncodeSeries appends an encoded series value to dst and returns the new slice.
-func (l *SeriesList) AppendEncodeSeries(dst []byte, name string, tags models.Tags) []byte {
+func (l *SeriesList) AppendEncodeSeries(dst []byte, name []byte, tags models.Tags) []byte {
 	var buf [binary.MaxVarintLen32]byte
 
 	// Append encoded name.
-	n := binary.PutUvarint(buf[:], uint64(l.EncodeTerm([]byte(name))))
+	n := binary.PutUvarint(buf[:], uint64(l.EncodeTerm(name)))
 	dst = append(dst, buf[:n]...)
 
 	// Append encoded tag count.
@@ -105,15 +106,31 @@ func (l *SeriesList) AppendEncodeSeries(dst []byte, name string, tags models.Tag
 	return dst
 }
 
+// DecodeSeriesAt decodes the series at a given offset.
+func (l *SeriesList) DecodeSeriesAt(offset uint32, name *[]byte, tags *models.Tags, deleted *bool) {
+	data := l.data[offset:]
+
+	// Read flag.
+	flag, data := data[0], data[1:]
+	*deleted = (flag & SeriesTombstoneFlag) != 0
+
+	l.DecodeSeries(data, name, tags)
+}
+
 // DecodeSeries decodes a dictionary encoded series into a name and tagset.
-func (l *SeriesList) DecodeSeries(v []byte) (name string, tags models.Tags) {
+func (l *SeriesList) DecodeSeries(v []byte, name *[]byte, tags *models.Tags) {
 	// Read name.
 	offset, n := binary.Uvarint(v)
-	name, v = string(l.DecodeTerm(uint32(offset))), v[n:]
+	*name, v = l.DecodeTerm(uint32(offset)), v[n:]
 
 	// Read tag count.
 	tagN, n := binary.Uvarint(v)
 	v = v[n:]
+
+	// Clear tags, if necessary.
+	if len(*tags) > 0 {
+		*tags = (*tags)[0:]
+	}
 
 	// Loop over tag key/values.
 	for i := 0; i < int(tagN); i++ {
@@ -128,8 +145,6 @@ func (l *SeriesList) DecodeSeries(v []byte) (name string, tags models.Tags) {
 		// Add to tagset.
 		tags.Set(key, value)
 	}
-
-	return name, tags
 }
 
 // DecodeTerm returns the term at the given offset.
@@ -184,6 +199,9 @@ func (l *SeriesList) SeriesCount() uint32 {
 func (l *SeriesList) UnmarshalBinary(data []byte) error {
 	t := ReadSeriesListTrailer(data)
 
+	// Save entire block.
+	l.data = data
+
 	// Slice term list data.
 	l.termData = data[t.TermList.Offset:]
 	l.termData = l.termData[:t.TermList.Size]
@@ -213,23 +231,23 @@ func NewSeriesListWriter() *SeriesListWriter {
 
 // Add adds a series to the writer's set.
 // Returns an ErrSeriesOverflow if no more series can be held in the writer.
-func (sw *SeriesListWriter) Add(name string, tags models.Tags) error {
+func (sw *SeriesListWriter) Add(name []byte, tags models.Tags) error {
 	return sw.append(name, tags, false)
 }
 
 // Delete marks a series as tombstoned.
-func (sw *SeriesListWriter) Delete(name string, tags models.Tags) error {
+func (sw *SeriesListWriter) Delete(name []byte, tags models.Tags) error {
 	return sw.append(name, tags, true)
 }
 
-func (sw *SeriesListWriter) append(name string, tags models.Tags, deleted bool) error {
+func (sw *SeriesListWriter) append(name []byte, tags models.Tags, deleted bool) error {
 	// Ensure writer doesn't add too many series.
 	if len(sw.series) == math.MaxInt32 {
 		return ErrSeriesOverflow
 	}
 
 	// Increment term counts.
-	sw.terms[name]++
+	sw.terms[string(name)]++
 	for _, t := range tags {
 		sw.terms[string(t.Key)]++
 		sw.terms[string(t.Value)]++
@@ -381,12 +399,12 @@ func (sw *SeriesListWriter) writeTrailerTo(w io.Writer, t SeriesListTrailer, n *
 
 // Offset returns the series offset from the writer.
 // Only valid after the series list has been written to a writer.
-func (sw *SeriesListWriter) Offset(name string, tags models.Tags) uint32 {
+func (sw *SeriesListWriter) Offset(name []byte, tags models.Tags) uint32 {
 	// Find position of series.
 	i := sort.Search(len(sw.series), func(i int) bool {
 		s := &sw.series[i]
-		if s.name != name {
-			return s.name >= name
+		if cmp := bytes.Compare(s.name, name); cmp != 0 {
+			return cmp != -1
 		}
 		return models.CompareTags(s.tags, tags) != -1
 	})
@@ -394,7 +412,7 @@ func (sw *SeriesListWriter) Offset(name string, tags models.Tags) uint32 {
 	// Ignore if it's not an exact match.
 	if i >= len(sw.series) {
 		return 0
-	} else if s := &sw.series[i]; s.name != name || !s.tags.Equal(tags) {
+	} else if s := &sw.series[i]; !bytes.Equal(s.name, name) || !s.tags.Equal(tags) {
 		return 0
 	}
 
@@ -437,7 +455,7 @@ type SeriesListTrailer struct {
 }
 
 type serie struct {
-	name    string
+	name    []byte
 	tags    models.Tags
 	deleted bool
 	offset  uint32
@@ -448,8 +466,8 @@ type series []serie
 func (a series) Len() int      { return len(a) }
 func (a series) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 func (a series) Less(i, j int) bool {
-	if a[i].name != a[j].name {
-		return a[i].name < a[j].name
+	if cmp := bytes.Compare(a[i].name, a[j].name); cmp != 0 {
+		return cmp == -1
 	}
 	return models.CompareTags(a[i].tags, a[j].tags) == -1
 }

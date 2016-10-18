@@ -259,18 +259,6 @@ func (s *Shard) Open() error {
 		if err := e.Open(); err != nil {
 			return err
 		}
-
-		// Load metadata index.
-		start := time.Now()
-		index, err := NewDatabaseIndex(s.database)
-		if err != nil {
-			return err
-		}
-
-		if err := e.LoadMetadataIndex(s.id, index); err != nil {
-			return err
-		}
-
 		s.engine = e
 		s.logger.Info(fmt.Sprintf("%s database index loaded in %s", s.path, time.Now().Sub(start)))
 

@@ -233,6 +233,7 @@ func benchmarkMarshalTags(b *testing.B, keyN int) {
 	}
 }
 
+/*
 func BenchmarkCreateSeriesIndex_1K(b *testing.B) {
 	benchmarkCreateSeriesIndex(b, genTestSeries(38, 3, 3))
 }
@@ -263,6 +264,7 @@ func benchmarkCreateSeriesIndex(b *testing.B, series []*TestSeries) {
 		}
 	}
 }
+*/
 
 type TestSeries struct {
 	Measurement string

@@ -1,447 +1,295 @@
 package tsi1
 
 import (
-	"bytes"
-	"encoding/binary"
-	"errors"
-	"io"
+	"fmt"
+	"regexp"
 	"sort"
 
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/estimator"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
-// IndexVersion is the current TSI1 index version.
-const IndexVersion = 1
+// Ensure index implements the interface.
+var _ tsdb.Index = &Index{}
 
-// FileSignature represents a magic number at the header of the index file.
-const FileSignature = "TSI1"
-
-// Index field size constants.
-const (
-	// Index trailer fields
-	IndexVersionSize           = 2
-	SeriesListOffsetSize       = 8
-	SeriesListSizeSize         = 8
-	MeasurementBlockOffsetSize = 8
-	MeasurementBlockSizeSize   = 8
-
-	IndexTrailerSize = IndexVersionSize +
-		SeriesListOffsetSize +
-		SeriesListSizeSize +
-		MeasurementBlockOffsetSize +
-		MeasurementBlockSizeSize
-)
-
-// Index errors.
-var (
-	ErrInvalidIndex            = errors.New("invalid index")
-	ErrUnsupportedIndexVersion = errors.New("unsupported index version")
-)
-
-// Index represents a collection of measurement, tag, and series data.
+// Index represents a collection of layered index files and WAL.
 type Index struct {
-	data []byte
+	file *IndexFile
 
-	// Components
-	slist SeriesList
-	mblk  MeasurementBlock
+	// TODO(benbjohnson): Use layered list of index files.
+
+	// TODO(benbjohnson): Add write ahead log.
 }
 
-// UnmarshalBinary opens an index from data.
-// The byte slice is retained so it must be kept open.
-func (i *Index) UnmarshalBinary(data []byte) error {
-	// Ensure magic number exists at the beginning.
-	if len(data) < len(FileSignature) {
-		return io.ErrShortBuffer
-	} else if !bytes.Equal(data[:len(FileSignature)], []byte(FileSignature)) {
-		return ErrInvalidIndex
-	}
+// SetFile explicitly sets a file in the index.
+func (i *Index) SetFile(f *IndexFile) { i.file = f }
 
-	// Read index trailer.
-	t, err := ReadIndexTrailer(data)
-	if err != nil {
-		return err
-	}
-
-	// Slice measurement block data.
-	buf := data[t.MeasurementBlock.Offset:]
-	buf = buf[:t.MeasurementBlock.Size]
-
-	// Unmarshal measurement block.
-	if err := i.mblk.UnmarshalBinary(buf); err != nil {
-		return err
-	}
-
-	// Slice series list data.
-	buf = data[t.SeriesList.Offset:]
-	buf = buf[:t.SeriesList.Size]
-
-	// Unmarshal series list.
-	if err := i.slist.UnmarshalBinary(buf); err != nil {
-		return err
-	}
-
-	// Save reference to entire data block.
-	i.data = data
-
-	return nil
+func (i *Index) CreateMeasurementIndexIfNotExists(name string) (*tsdb.Measurement, error) {
+	panic("TODO: Requires WAL")
 }
 
-// Close closes the index file.
-func (i *Index) Close() error {
-	i.slist = SeriesList{}
-	i.mblk = MeasurementBlock{}
-	return nil
+// Measurement retrieves a measurement by name.
+func (i *Index) Measurement(name []byte) (*tsdb.Measurement, error) {
+	return i.measurement(name), nil
 }
 
-// TagValueElem returns a list of series ids for a measurement/tag/value.
-func (i *Index) TagValueElem(name, key, value []byte) (TagValueElem, error) {
-	// Find measurement.
-	e, ok := i.mblk.Elem(name)
-	if !ok {
-		return TagValueElem{}, nil
-	}
+func (i *Index) measurement(name []byte) *tsdb.Measurement {
+	m := tsdb.NewMeasurement(string(name))
 
-	// Find tag set block.
-	tblk, err := i.tagSetBlock(&e)
-	if err != nil {
-		return TagValueElem{}, err
-	}
-	return tblk.TagValueElem(key, value), nil
-}
+	// Iterate over measurement series.
+	itr := i.file.MeasurementSeriesIterator(name)
 
-// tagSetBlock returns a tag set block for a measurement.
-func (i *Index) tagSetBlock(e *MeasurementElem) (TagSet, error) {
-	// Slice tag set data.
-	buf := i.data[e.TagSet.Offset:]
-	buf = buf[:e.TagSet.Size]
-
-	// Unmarshal block.
-	var blk TagSet
-	if err := blk.UnmarshalBinary(buf); err != nil {
-		return TagSet{}, err
-	}
-	return blk, nil
-}
-
-// Indices represents a layered set of indices.
-type Indices []*Index
-
-// IndexWriter represents a naive implementation of an index builder.
-type IndexWriter struct {
-	series indexSeries
-	mms    indexMeasurements
-}
-
-// NewIndexWriter returns a new instance of IndexWriter.
-func NewIndexWriter() *IndexWriter {
-	return &IndexWriter{
-		mms: make(indexMeasurements),
-	}
-}
-
-// Add adds a series to the index.
-func (iw *IndexWriter) Add(name string, tags models.Tags) {
-	// Add to series list.
-	iw.series = append(iw.series, indexSerie{name: name, tags: tags})
-
-	// Find or create measurement.
-	mm, ok := iw.mms[name]
-	if !ok {
-		mm.name = []byte(name)
-		mm.tagset = make(indexTagset)
-		iw.mms[name] = mm
-	}
-
-	// Add tagset.
-	for _, tag := range tags {
-		t, ok := mm.tagset[string(tag.Key)]
-		if !ok {
-			t.name = tag.Key
-			t.values = make(indexValues)
-			mm.tagset[string(tag.Key)] = t
+	var id uint64 // TEMPORARY
+	var sname []byte
+	var tags models.Tags
+	var deleted bool
+	for {
+		if itr.Next(&sname, &tags, &deleted); sname == nil {
+			break
 		}
 
-		v, ok := t.values[string(tag.Value)]
-		if !ok {
-			v.name = tag.Value
-			t.values[string(tag.Value)] = v
+		// TODO: Handle deleted series.
+
+		// Append series to to measurement.
+		// TODO: Remove concept of series ids.
+		m.AddSeries(&tsdb.Series{
+			ID:   id,
+			Key:  string(sname),
+			Tags: models.CopyTags(tags),
+		})
+
+		// TEMPORARY: Increment ID.
+		id++
+	}
+
+	if !m.HasSeries() {
+		return nil
+	}
+	return m
+}
+
+// Measurements returns a list of all measurements.
+func (i *Index) Measurements() (tsdb.Measurements, error) {
+	var mms tsdb.Measurements
+	itr := i.file.MeasurementIterator()
+	for e := itr.Next(); e != nil; e = itr.Next() {
+		mms = append(mms, i.measurement(e.Name))
+	}
+	return mms, nil
+}
+
+func (i *Index) MeasurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool, error) {
+	return i.measurementsByExpr(expr)
+}
+
+func (i *Index) measurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool, error) {
+	if expr == nil {
+		return nil, false, nil
+	}
+
+	switch e := expr.(type) {
+	case *influxql.BinaryExpr:
+		switch e.Op {
+		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+			tag, ok := e.LHS.(*influxql.VarRef)
+			if !ok {
+				return nil, false, fmt.Errorf("left side of '%s' must be a tag key", e.Op.String())
+			}
+
+			// Retrieve value or regex expression from RHS.
+			var value string
+			var regex *regexp.Regexp
+			if influxql.IsRegexOp(e.Op) {
+				re, ok := e.RHS.(*influxql.RegexLiteral)
+				if !ok {
+					return nil, false, fmt.Errorf("right side of '%s' must be a regular expression", e.Op.String())
+				}
+				regex = re.Val
+			} else {
+				s, ok := e.RHS.(*influxql.StringLiteral)
+				if !ok {
+					return nil, false, fmt.Errorf("right side of '%s' must be a tag value string", e.Op.String())
+				}
+				value = s.Val
+			}
+
+			// Match on name, if specified.
+			if tag.Val == "_name" {
+				return i.measurementsByNameFilter(e.Op, value, regex), true, nil
+			} else if influxql.IsSystemName(tag.Val) {
+				return nil, false, nil
+			}
+			return i.measurementsByTagFilter(e.Op, tag.Val, value, regex), true, nil
+
+		case influxql.OR, influxql.AND:
+			lhsIDs, lhsOk, err := i.measurementsByExpr(e.LHS)
+			if err != nil {
+				return nil, false, err
+			}
+
+			rhsIDs, rhsOk, err := i.measurementsByExpr(e.RHS)
+			if err != nil {
+				return nil, false, err
+			}
+
+			if lhsOk && rhsOk {
+				if e.Op == influxql.OR {
+					return lhsIDs.Union(rhsIDs), true, nil
+				}
+				return lhsIDs.Intersect(rhsIDs), true, nil
+			} else if lhsOk {
+				return lhsIDs, true, nil
+			} else if rhsOk {
+				return rhsIDs, true, nil
+			}
+			return nil, false, nil
+
+		default:
+			return nil, false, fmt.Errorf("invalid tag comparison operator")
 		}
+
+	case *influxql.ParenExpr:
+		return i.measurementsByExpr(e.Expr)
+	default:
+		return nil, false, fmt.Errorf("%#v", expr)
 	}
 }
 
-// WriteTo writes the index to w.
-func (iw *IndexWriter) WriteTo(w io.Writer) (n int64, err error) {
-	var t IndexTrailer
+// measurementsByNameFilter returns the sorted measurements matching a name.
+func (i *Index) measurementsByNameFilter(op influxql.Token, val string, regex *regexp.Regexp) tsdb.Measurements {
+	var mms tsdb.Measurements
+	itr := i.file.MeasurementIterator()
+	for e := itr.Next(); e != nil; e = itr.Next() {
+		var matched bool
+		switch op {
+		case influxql.EQ:
+			matched = string(e.Name) == val
+		case influxql.NEQ:
+			matched = string(e.Name) != val
+		case influxql.EQREGEX:
+			matched = regex.Match(e.Name)
+		case influxql.NEQREGEX:
+			matched = !regex.Match(e.Name)
+		}
 
-	// Write magic number.
-	if err := writeTo(w, []byte(FileSignature), &n); err != nil {
-		return n, err
+		if matched {
+			mms = append(mms, i.measurement(e.Name))
+		}
 	}
-
-	// Write series list.
-	t.SeriesList.Offset = n
-	if err := iw.writeSeriesListTo(w, &n); err != nil {
-		return n, err
-	}
-	t.SeriesList.Size = n - t.SeriesList.Offset
-
-	// Sort measurement names.
-	names := iw.mms.Names()
-
-	// Write tagset blocks in measurement order.
-	if err := iw.writeTagsetsTo(w, names, &n); err != nil {
-		return n, err
-	}
-
-	// Write measurement block.
-	t.MeasurementBlock.Offset = n
-	if err := iw.writeMeasurementBlockTo(w, names, &n); err != nil {
-		return n, err
-	}
-	t.MeasurementBlock.Size = n - t.MeasurementBlock.Offset
-
-	// Write trailer.
-	if err := iw.writeTrailerTo(w, t, &n); err != nil {
-		return n, err
-	}
-
-	return n, nil
+	sort.Sort(mms)
+	return mms
 }
 
-func (iw *IndexWriter) writeSeriesListTo(w io.Writer, n *int64) error {
-	// Ensure series are sorted.
-	sort.Sort(iw.series)
+func (i *Index) measurementsByTagFilter(op influxql.Token, key, val string, regex *regexp.Regexp) tsdb.Measurements {
+	var mms tsdb.Measurements
+	itr := i.file.MeasurementIterator()
+	for e := itr.Next(); e != nil; e = itr.Next() {
+		mm := i.measurement(e.Name)
 
-	// Write all series.
-	sw := NewSeriesListWriter()
-	for _, serie := range iw.series {
-		if err := sw.Add(serie.name, serie.tags); err != nil {
-			return err
-		}
-	}
-
-	// Flush series list.
-	nn, err := sw.WriteTo(w)
-	*n += nn
-	if err != nil {
-		return err
-	}
-
-	// Add series to each measurement and key/value.
-	for i := range iw.series {
-		serie := &iw.series[i]
-
-		// Lookup series offset.
-		serie.offset = sw.Offset(serie.name, serie.tags)
-		if serie.offset == 0 {
-			panic("series not found")
-		}
-
-		// Add series id to measurement, tag key, and tag value.
-		mm := iw.mms[serie.name]
-		mm.seriesIDs = append(mm.seriesIDs, serie.offset)
-		iw.mms[serie.name] = mm
-
-		// Add series id to each tag value.
-		for _, tag := range serie.tags {
-			t := mm.tagset[string(tag.Key)]
-
-			v := t.values[string(tag.Value)]
-			v.seriesIDs = append(v.seriesIDs, serie.offset)
-			t.values[string(tag.Value)] = v
-		}
-	}
-
-	return nil
-}
-
-func (iw *IndexWriter) writeTagsetsTo(w io.Writer, names []string, n *int64) error {
-	for _, name := range names {
-		if err := iw.writeTagsetTo(w, name, n); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-// writeTagsetTo writes a single tagset to w and saves the tagset offset.
-func (iw *IndexWriter) writeTagsetTo(w io.Writer, name string, n *int64) error {
-	mm := iw.mms[name]
-
-	tsw := NewTagSetWriter()
-	for _, tag := range mm.tagset {
-		// Mark tag deleted.
-		if tag.deleted {
-			tsw.AddTag(tag.name, true)
+		tagVals := mm.SeriesByTagKeyValue(key)
+		if tagVals == nil {
 			continue
 		}
 
-		// Add each value.
-		for _, value := range tag.values {
-			sort.Sort(uint32Slice(value.seriesIDs))
-			tsw.AddTagValue(tag.name, value.name, value.deleted, value.seriesIDs)
+		// If the operator is non-regex, only check the specified value.
+		var tagMatch bool
+		if op == influxql.EQ || op == influxql.NEQ {
+			if _, ok := tagVals[val]; ok {
+				tagMatch = true
+			}
+		} else {
+			// Else, the operator is a regex and we have to check all tag
+			// values against the regular expression.
+			for tagVal := range tagVals {
+				if regex.MatchString(tagVal) {
+					tagMatch = true
+					break
+				}
+			}
+		}
+
+		//
+		// XNOR gate
+		//
+		// tags match | operation is EQ | measurement matches
+		// --------------------------------------------------
+		//     True   |       True      |      True
+		//     True   |       False     |      False
+		//     False  |       True      |      False
+		//     False  |       False     |      True
+		if tagMatch == (op == influxql.EQ || op == influxql.EQREGEX) {
+			mms = append(mms, mm)
+			break
 		}
 	}
 
-	// Save tagset offset to measurement.
-	mm.offset = *n
+	sort.Sort(mms)
+	return mms
+}
 
-	// Write tagset to writer.
-	nn, err := tsw.WriteTo(w)
-	*n += nn
+func (i *Index) MeasurementsByName(names []string) ([]*tsdb.Measurement, error) {
+	itr := i.file.MeasurementIterator()
+	mms := make([]*tsdb.Measurement, 0, len(names))
+	for e := itr.Next(); e != nil; e = itr.Next() {
+		for _, name := range names {
+			if string(e.Name) == name {
+				mms = append(mms, i.measurement(e.Name))
+				break
+			}
+		}
+	}
+	return mms, nil
+}
+
+func (i *Index) MeasurementsByRegex(re *regexp.Regexp) (tsdb.Measurements, error) {
+	itr := i.file.MeasurementIterator()
+	var mms tsdb.Measurements
+	for e := itr.Next(); e != nil; e = itr.Next() {
+		if re.Match(e.Name) {
+			mms = append(mms, i.measurement(e.Name))
+		}
+	}
+	return mms, nil
+}
+
+func (i *Index) DropMeasurement(name []byte) error {
+	panic("TODO: Requires WAL")
+}
+
+func (i *Index) CreateSeriesIndexIfNotExists(measurement string, series *tsdb.Series) (*tsdb.Series, error) {
+	panic("TODO: Requires WAL")
+}
+
+func (i *Index) Series(key []byte) (*tsdb.Series, error) {
+	panic("TODO")
+}
+
+func (i *Index) DropSeries(keys []string) error {
+	panic("TODO: Requires WAL")
+}
+
+func (i *Index) SeriesN() (n uint64, err error) {
+	itr := i.file.MeasurementIterator()
+	for e := itr.Next(); e != nil; e = itr.Next() {
+		n += uint64(e.Series.N)
+	}
+	return n, nil
+}
+
+func (i *Index) TagsForSeries(key string) (models.Tags, error) {
+	ss, err := i.Series([]byte(key))
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	// Save tagset offset to measurement.
-	mm.size = *n - mm.offset
-
-	iw.mms[name] = mm
-
-	return nil
+	return ss.Tags, nil
 }
 
-func (iw *IndexWriter) writeMeasurementBlockTo(w io.Writer, names []string, n *int64) error {
-	mw := NewMeasurementBlockWriter()
-
-	// Add measurement data.
-	for _, mm := range iw.mms {
-		mw.Add(mm.name, mm.offset, mm.size, mm.seriesIDs)
-	}
-
-	// Write data to writer.
-	nn, err := mw.WriteTo(w)
-	*n += nn
-	if err != nil {
-		return err
-	}
-
-	return nil
+func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
+	panic("TODO")
 }
 
-// writeTrailerTo writes the index trailer to w.
-func (iw *IndexWriter) writeTrailerTo(w io.Writer, t IndexTrailer, n *int64) error {
-	// Write series list info.
-	if err := writeUint64To(w, uint64(t.SeriesList.Offset), n); err != nil {
-		return err
-	} else if err := writeUint64To(w, uint64(t.SeriesList.Size), n); err != nil {
-		return err
-	}
-
-	// Write measurement block info.
-	if err := writeUint64To(w, uint64(t.MeasurementBlock.Offset), n); err != nil {
-		return err
-	} else if err := writeUint64To(w, uint64(t.MeasurementBlock.Size), n); err != nil {
-		return err
-	}
-
-	// Write index encoding version.
-	if err := writeUint16To(w, IndexVersion, n); err != nil {
-		return err
-	}
-
-	return nil
+func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
+	panic("TODO")
 }
-
-type indexSerie struct {
-	name    string
-	tags    models.Tags
-	deleted bool
-	offset  uint32
-}
-
-type indexSeries []indexSerie
-
-func (a indexSeries) Len() int      { return len(a) }
-func (a indexSeries) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a indexSeries) Less(i, j int) bool {
-	if a[i].name != a[j].name {
-		return a[i].name < a[j].name
-	}
-	return models.CompareTags(a[i].tags, a[j].tags) == -1
-}
-
-type indexMeasurement struct {
-	name      []byte
-	deleted   bool
-	tagset    indexTagset
-	offset    int64 // tagset offset
-	size      int64 // tagset size
-	seriesIDs []uint32
-}
-
-type indexMeasurements map[string]indexMeasurement
-
-// Names returns a sorted list of measurement names.
-func (m indexMeasurements) Names() []string {
-	a := make([]string, 0, len(m))
-	for name := range m {
-		a = append(a, name)
-	}
-	sort.Strings(a)
-	return a
-}
-
-type indexTag struct {
-	name    []byte
-	deleted bool
-	values  indexValues
-}
-
-type indexTagset map[string]indexTag
-
-type indexValue struct {
-	name      []byte
-	deleted   bool
-	seriesIDs []uint32
-}
-
-type indexValues map[string]indexValue
-
-// ReadIndexTrailer returns the index trailer from data.
-func ReadIndexTrailer(data []byte) (IndexTrailer, error) {
-	var t IndexTrailer
-
-	// Read version.
-	t.Version = int(binary.BigEndian.Uint16(data[len(data)-IndexVersionSize:]))
-	if t.Version != IndexVersion {
-		return t, ErrUnsupportedIndexVersion
-	}
-
-	// Slice trailer data.
-	buf := data[len(data)-IndexTrailerSize:]
-
-	// Read series list info.
-	t.SeriesList.Offset = int64(binary.BigEndian.Uint64(buf[0:SeriesListOffsetSize]))
-	buf = buf[SeriesListOffsetSize:]
-	t.SeriesList.Size = int64(binary.BigEndian.Uint64(buf[0:SeriesListSizeSize]))
-	buf = buf[SeriesListSizeSize:]
-
-	// Read measurement block info.
-	t.MeasurementBlock.Offset = int64(binary.BigEndian.Uint64(buf[0:MeasurementBlockOffsetSize]))
-	buf = buf[MeasurementBlockOffsetSize:]
-	t.MeasurementBlock.Size = int64(binary.BigEndian.Uint64(buf[0:MeasurementBlockSizeSize]))
-	buf = buf[MeasurementBlockSizeSize:]
-
-	return t, nil
-}
-
-// IndexTrailer represents meta data written to the end of the index.
-type IndexTrailer struct {
-	Version    int
-	SeriesList struct {
-		Offset int64
-		Size   int64
-	}
-	MeasurementBlock struct {
-		Offset int64
-		Size   int64
-	}
-}
-
-type uint32Slice []uint32
-
-func (a uint32Slice) Len() int           { return len(a) }
-func (a uint32Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a uint32Slice) Less(i, j int) bool { return a[i] < a[j] }

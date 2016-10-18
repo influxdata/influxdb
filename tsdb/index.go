@@ -9,9 +9,6 @@ import (
 )
 
 type Index interface {
-	Open() error
-	Close() error
-
 	CreateMeasurementIndexIfNotExists(name string) (*Measurement, error)
 	Measurement(name []byte) (*Measurement, error)
 	Measurements() (Measurements, error)
@@ -20,7 +17,7 @@ type Index interface {
 	MeasurementsByRegex(re *regexp.Regexp) (Measurements, error)
 	DropMeasurement(name []byte) error
 
-	CreateSeriesIndexIfNotExists(measurment string, series *Series) (*Series, error)
+	CreateSeriesIndexIfNotExists(measurement string, series *Series) (*Series, error)
 	Series(key []byte) (*Series, error)
 	DropSeries(keys []string) error
 
@@ -29,6 +26,4 @@ type Index interface {
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 
 	TagsForSeries(key string) (models.Tags, error)
-
-	Dereference(b []byte)
 }

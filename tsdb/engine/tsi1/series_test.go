@@ -13,9 +13,9 @@ import (
 // Ensure series list can be unmarshaled.
 func TestSeriesList_UnmarshalBinary(t *testing.T) {
 	if _, err := CreateSeriesList([]Series{
-		{Name: "cpu", Tags: models.NewTags(map[string]string{"region": "east"})},
-		{Name: "cpu", Tags: models.NewTags(map[string]string{"region": "west"})},
-		{Name: "mem", Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
+		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -24,9 +24,9 @@ func TestSeriesList_UnmarshalBinary(t *testing.T) {
 // Ensure series list contains the correct term count and term encoding.
 func TestSeriesList_Terms(t *testing.T) {
 	l := MustCreateSeriesList([]Series{
-		{Name: "cpu", Tags: models.NewTags(map[string]string{"region": "east"})},
-		{Name: "cpu", Tags: models.NewTags(map[string]string{"region": "west"})},
-		{Name: "mem", Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
+		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
 	})
 
 	// Verify term count is correct.
@@ -53,9 +53,9 @@ func TestSeriesList_Terms(t *testing.T) {
 // Ensure series list contains the correct set of series.
 func TestSeriesList_Series(t *testing.T) {
 	series := []Series{
-		{Name: "cpu", Tags: models.NewTags(map[string]string{"region": "east"})},
-		{Name: "cpu", Tags: models.NewTags(map[string]string{"region": "west"})},
-		{Name: "mem", Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
+		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
 	}
 	l := MustCreateSeriesList(series)
 
@@ -65,9 +65,11 @@ func TestSeriesList_Series(t *testing.T) {
 	}
 
 	// Ensure series can encode & decode correctly.
+	var name []byte
+	var tags models.Tags
 	for _, series := range series {
-		name, tags := l.DecodeSeries(l.EncodeSeries(series.Name, series.Tags))
-		if name != series.Name || !reflect.DeepEqual(tags, series.Tags) {
+		l.DecodeSeries(l.EncodeSeries(series.Name, series.Tags), &name, &tags)
+		if !bytes.Equal(name, series.Name) || !reflect.DeepEqual(tags, series.Tags) {
 			t.Fatalf("encoding mismatch: got=%s/%#v, exp=%s/%#v", name, tags, series.Name, series.Tags)
 		}
 	}
@@ -82,7 +84,7 @@ func TestSeriesList_Series(t *testing.T) {
 	}
 
 	// Verify non-existent series doesn't exist.
-	if offset, deleted := l.SeriesOffset(l.EncodeSeries("foo", models.NewTags(map[string]string{"region": "north"}))); offset != 0 {
+	if offset, deleted := l.SeriesOffset(l.EncodeSeries([]byte("foo"), models.NewTags(map[string]string{"region": "north"}))); offset != 0 {
 		t.Fatalf("series should not exist: offset=%d", offset)
 	} else if deleted {
 		t.Fatalf("series should not be deleted")
@@ -125,6 +127,6 @@ func MustCreateSeriesList(a []Series) *tsi1.SeriesList {
 
 // Series represents name/tagset pairs that are used in testing.
 type Series struct {
-	Name string
+	Name []byte
 	Tags models.Tags
 }
