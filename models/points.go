@@ -1721,6 +1721,37 @@ func (a Tags) HashKey() []byte {
 	return b[:idx]
 }
 
+// CopyTags returns a shallow copy of tags.
+func CopyTags(a Tags) Tags {
+	other := make(Tags, len(a))
+	copy(other, a)
+	return other
+}
+
+// DeepCopyTags returns a deep copy of tags.
+func DeepCopyTags(a Tags) Tags {
+	// Calculate size of keys/values in bytes.
+	var n int
+	for _, t := range a {
+		n += len(t.Key) + len(t.Value)
+	}
+
+	// Build single allocation for all key/values.
+	buf := make([]byte, n)
+
+	// Copy tags to new set.
+	other := make(Tags, len(a))
+	for i, t := range a {
+		copy(buf, t.Key)
+		other[i].Key, buf = buf[:len(t.Key)], buf[len(t.Key):]
+
+		copy(buf, t.Value)
+		other[i].Value, buf = buf[:len(t.Value)], buf[len(t.Value):]
+	}
+
+	return other
+}
+
 // Fields represents a mapping between a Point's field names and their
 // values.
 type Fields map[string]interface{}

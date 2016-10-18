@@ -22,6 +22,7 @@ import (
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
+/*
 // Ensure engine can load the metadata index after reopening.
 func TestEngine_LoadMetadataIndex(t *testing.T) {
 	e := MustOpenEngine()
@@ -106,6 +107,7 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags)
 	}
 }
+*/
 
 // Ensure that deletes only sent to the WAL will clear out the data from the cache on restart
 func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
@@ -570,7 +572,7 @@ func TestEngine_DeleteSeries(t *testing.T) {
 
 	// Write those points to the engine.
 	e := tsm1.NewEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
-	e.LoadMetadataIndex(1, MustNewDatabaseIndex("db0")) // Initialise an index
+	// e.LoadMetadataIndex(1, MustNewDatabaseIndex("db0")) // Initialise an index
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -836,9 +838,9 @@ func MustOpenEngine() *Engine {
 	if err := e.Open(); err != nil {
 		panic(err)
 	}
-	if err := e.LoadMetadataIndex(1, MustNewDatabaseIndex("db")); err != nil {
-		panic(err)
-	}
+	// if err := e.LoadMetadataIndex(1, MustNewDatabaseIndex("db")); err != nil {
+	// 	panic(err)
+	// }
 	return e
 }
 
@@ -882,6 +884,7 @@ func (e *Engine) MustMeasurement(name string) *tsdb.Measurement {
 	return m
 }
 
+/*
 // MustNewDatabaseIndex creates a tsdb.DatabaseIndex, panicking if there is an
 // error doing do.
 func MustNewDatabaseIndex(name string) *tsdb.DatabaseIndex {
@@ -891,6 +894,7 @@ func MustNewDatabaseIndex(name string) *tsdb.DatabaseIndex {
 	}
 	return index
 }
+*/
 
 // WritePointsString parses a string buffer and writes the points.
 func (e *Engine) WritePointsString(buf ...string) error {

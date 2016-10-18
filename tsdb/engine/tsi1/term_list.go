@@ -60,13 +60,13 @@ func (l *TermList) OffsetString(v string) uint32 {
 }
 
 // AppendEncodedSeries dictionary encodes a series and appends it to the buffer.
-func (l *TermList) AppendEncodedSeries(dst []byte, name string, tags models.Tags) []byte {
+func (l *TermList) AppendEncodedSeries(dst []byte, name []byte, tags models.Tags) []byte {
 	var buf [binary.MaxVarintLen32]byte
 
 	// Encode name.
-	offset := l.OffsetString(name)
+	offset := l.Offset(name)
 	if offset == 0 {
-		panic("name not in term list: " + name)
+		panic("name not in term list: " + string(name))
 	}
 	n := binary.PutUvarint(buf[:], uint64(offset))
 	dst = append(dst, buf[:n]...)

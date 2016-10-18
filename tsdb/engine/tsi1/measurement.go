@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+	"sort"
 
 	"github.com/influxdata/influxdb/pkg/rhh"
 )
@@ -19,6 +20,9 @@ const (
 
 // Measurement field size constants.
 const (
+	// 1 byte offset for the block to ensure non-zero offsets.
+	MeasurementFillSize = 1
+
 	// Measurement trailer fields
 	MeasurementBlockVersionSize = 2
 	MeasurementBlockSize        = 8
@@ -109,6 +113,33 @@ func (blk *MeasurementBlock) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// Iterator returns an iterator over all measurements.
+func (blk *MeasurementBlock) Iterator() MeasurementIterator {
+	return &measurementIterator{data: blk.data[MeasurementFillSize:]}
+}
+
+// measurementIterator iterates over a list measurements in a block.
+type measurementIterator struct {
+	elem MeasurementElem
+	data []byte
+}
+
+// Next returns the next measurement. Returns false when iterator is complete.
+func (itr *measurementIterator) Next() *MeasurementElem {
+	// Return nil when we run out of data.
+	if len(itr.data) == 0 {
+		return nil
+	}
+
+	// Unmarshal the element at the current position.
+	itr.elem.UnmarshalBinary(itr.data)
+
+	// Move the data forward past the record.
+	itr.data = itr.data[itr.elem.Size:]
+
+	return &itr.elem
+}
+
 // ReadMeasurementBlockTrailer returns the trailer from data.
 func ReadMeasurementBlockTrailer(data []byte) (MeasurementBlockTrailer, error) {
 	var t MeasurementBlockTrailer
@@ -170,6 +201,14 @@ type MeasurementElem struct {
 		N    uint32 // series count
 		Data []byte // serialized series data
 	}
+
+	// Size in bytes, set after unmarshaling.
+	Size int
+}
+
+// Deleted returns true if the tombstone flag is set.
+func (e *MeasurementElem) Deleted() bool {
+	return (e.Flag & MeasurementTombstoneFlag) != 0
 }
 
 // SeriesID returns series ID at an index.
@@ -188,6 +227,8 @@ func (e *MeasurementElem) SeriesIDs() []uint32 {
 
 // UnmarshalBinary unmarshals data into e.
 func (e *MeasurementElem) UnmarshalBinary(data []byte) error {
+	start := len(data)
+
 	// Parse flag data.
 	e.Flag, data = data[0], data[1:]
 
@@ -202,7 +243,10 @@ func (e *MeasurementElem) UnmarshalBinary(data []byte) error {
 	// Parse series data.
 	v, n := binary.Uvarint(data)
 	e.Series.N, data = uint32(v), data[n:]
-	e.Series.Data = data[:e.Series.N*SeriesIDSize]
+	e.Series.Data, data = data[:e.Series.N*SeriesIDSize], data[e.Series.N*SeriesIDSize:]
+
+	// Save length of elem.
+	e.Size = start - len(data)
 
 	return nil
 }
@@ -242,6 +286,29 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 		return n, err
 	}
 
+	// Sort names.
+	names := make([]string, 0, len(mw.mms))
+	for name := range mw.mms {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	// Encode key list.
+	for _, name := range names {
+		// Retrieve measurement and save offset.
+		mm := mw.mms[name]
+		mm.offset = n
+		mw.mms[name] = mm
+
+		// Write measurement
+		if err := mw.writeMeasurementTo(w, []byte(name), &mm, &n); err != nil {
+			return n, err
+		}
+	}
+
+	// Save starting offset of hash index.
+	hoff := n
+
 	// Build key hash map
 	m := rhh.NewHashMap(rhh.Options{
 		Capacity:   len(mw.mms),
@@ -252,35 +319,21 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 		m.Put([]byte(name), &mm)
 	}
 
-	// Encode key list.
-	offsets := make([]int64, m.Cap())
-	for i := 0; i < m.Cap(); i++ {
-		k, v := m.Elem(i)
-		if v == nil {
-			continue
-		}
-		mm := v.(*measurement)
-
-		// Save current offset so we can use it in the hash index.
-		offsets[i] = n
-
-		// Write measurement
-		if err := mw.writeMeasurementTo(w, k, mm, &n); err != nil {
-			return n, err
-		}
-	}
-
-	// Save starting offset of hash index.
-	hoff := n
-
 	// Encode hash map length.
 	if err := writeUint32To(w, uint32(m.Cap()), &n); err != nil {
 		return n, err
 	}
 
 	// Encode hash map offset entries.
-	for i := range offsets {
-		if err := writeUint64To(w, uint64(offsets[i]), &n); err != nil {
+	for i := 0; i < m.Cap(); i++ {
+		_, v := m.Elem(i)
+
+		var offset int64
+		if mm, ok := v.(*measurement); ok {
+			offset = mm.offset
+		}
+
+		if err := writeUint64To(w, uint64(offset), &n); err != nil {
 			return n, err
 		}
 	}
@@ -351,6 +404,7 @@ type measurement struct {
 		size   int64
 	}
 	seriesIDs []uint32
+	offset    int64
 }
 
 func (mm measurement) flag() byte {

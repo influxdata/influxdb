@@ -11,8 +11,6 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/escape"
-	"github.com/influxdata/influxdb/pkg/estimator"
-	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	internal "github.com/influxdata/influxdb/tsdb/internal"
 
 	"github.com/gogo/protobuf/proto"
@@ -20,6 +18,7 @@ import (
 
 //go:generate protoc --gogo_out=. internal/meta.proto
 
+/*
 // DatabaseIndex is the in memory index of a collection of measurements, time series, and their tags.
 // Exported functions are goroutine safe while un-exported functions assume the caller will use the appropriate locks
 type DatabaseIndex struct {
@@ -469,6 +468,7 @@ func (d *DatabaseIndex) Dereference(b []byte) {
 		s.Dereference(b)
 	}
 }
+*/
 
 // Measurement represents a collection of time series in a database. It also
 // contains in memory structures for indexing tags. Exported functions are
@@ -578,7 +578,7 @@ func (m *Measurement) Cardinality(key string) int {
 	return n
 }
 
-// Cardinality returns the number of values associated with tag key
+// CardinalityBytes returns the number of values associated with tag key
 func (m *Measurement) CardinalityBytes(key []byte) int {
 	var n int
 	m.mu.RLock()
@@ -1405,7 +1405,7 @@ func (a Measurements) Len() int           { return len(a) }
 func (a Measurements) Less(i, j int) bool { return a[i].Name < a[j].Name }
 func (a Measurements) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
-func (a Measurements) intersect(other Measurements) Measurements {
+func (a Measurements) Intersect(other Measurements) Measurements {
 	l := a
 	r := other
 
@@ -1435,7 +1435,7 @@ func (a Measurements) intersect(other Measurements) Measurements {
 	return result
 }
 
-func (a Measurements) union(other Measurements) Measurements {
+func (a Measurements) Union(other Measurements) Measurements {
 	result := make(Measurements, 0, len(a)+len(other))
 	var i, j int
 	for i < len(a) && j < len(other) {
@@ -1863,6 +1863,13 @@ func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids SeriesIDs)
 	}
 
 	return tagValues
+}
+
+func (m *Measurement) SeriesByTagKeyValue(key string) map[string]SeriesIDs {
+	m.mu.RLock()
+	ret := m.seriesByTagKeyValue[key]
+	m.mu.RUnlock()
+	return ret
 }
 
 // stringSet represents a set of strings.

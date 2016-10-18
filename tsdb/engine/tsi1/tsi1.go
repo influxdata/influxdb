@@ -7,7 +7,18 @@ import (
 	"os"
 
 	"github.com/cespare/xxhash"
+	"github.com/influxdata/influxdb/models"
 )
+
+// MeasurementIterator represents a iterator over a list of measurements.
+type MeasurementIterator interface {
+	Next() *MeasurementElem
+}
+
+// SeriesIterator represents a iterator over a list of series.
+type SeriesIterator interface {
+	Next(name *[]byte, tags *models.Tags, deleted *bool)
+}
 
 // writeTo writes write v into w. Updates n.
 func writeTo(w io.Writer, v []byte, n *int64) error {
