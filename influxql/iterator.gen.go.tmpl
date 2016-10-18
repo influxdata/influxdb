@@ -1213,9 +1213,29 @@ func (itr *{{$k.name}}Stream{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 // {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator executes a function to modify an existing point
 // for every output of the input iterator.
 type {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator struct {
-	left  *buf{{$k.Name}}Iterator
-	right *buf{{$k.Name}}Iterator
-	fn    {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprFunc
+	left      *buf{{$k.Name}}Iterator
+	right     *buf{{$k.Name}}Iterator
+	fn        {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprFunc
+	points    []{{$k.Name}}Point // must be size 2
+	storePrev bool
+}
+
+func new{{$k.Name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator(left, right {{$k.Name}}Iterator, opt IteratorOptions, fn func(a, b {{$k.Type}}) {{$v.Type}}) *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator {
+	var points []{{$k.Name}}Point
+	switch opt.Fill {
+	case NullFill, PreviousFill:
+		points = []{{$k.Name}}Point{ {Nil: true}, {Nil: true} }
+	case NumberFill:
+		value := castTo{{$k.Name}}(opt.FillValue)
+		points = []{{$k.Name}}Point{ {Value: value}, {Value: value} }
+	}
+	return &{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator{
+		left:      newBuf{{$k.Name}}Iterator(left),
+		right:     newBuf{{$k.Name}}Iterator(right),
+		points:    points,
+		fn:        fn,
+		storePrev: opt.Fill == PreviousFill,
+	}
 }
 
 func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) Stats() IteratorStats {
@@ -1231,24 +1251,83 @@ func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) C
 }
 
 func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) Next() (*{{$v.Name}}Point, error) {
-	a, err := itr.left.Next()
-	if err != nil {
-		return nil, err
+	for {
+		a, err := itr.left.Next()
+		if err != nil {
+			return nil, err
+		}
+		b, err := itr.right.Next()
+		if err != nil {
+			return nil, err
+		}
+
+		if a == nil && b == nil {
+			return nil, nil
+		} else if itr.points == nil && (a == nil || b == nil ) {
+			return nil, nil
+		}
+
+		if a != nil && b != nil {
+			if a.Time > b.Time {
+				itr.left.unread(a)
+				a = nil
+			} else if a.Time < b.Time {
+				itr.right.unread(b)
+				b = nil
+			}
+		}
+
+		if a == nil || a.Nil {
+			if itr.points == nil {
+				continue
+			}
+			p := *b
+			p.Value = itr.points[0].Value
+			p.Nil = itr.points[0].Nil
+			a = &p
+		} else if b == nil || b.Nil {
+			if itr.points == nil {
+				continue
+			}
+			p := *a
+			p.Value = itr.points[1].Value
+			p.Nil = itr.points[1].Nil
+			b = &p
+		}
+
+		if itr.storePrev {
+			itr.points[0], itr.points[1] = *a, *b
+		}
+
+{{if eq $k.Name $v.Name}}
+		if a.Nil {
+			return a, nil
+		} else if b.Nil {
+			return b, nil
+		}
+		a.Value = itr.fn(a.Value, b.Value)
+		return a, nil
+{{else}}
+		p := &{{$v.Name}}Point{
+			Name: a.Name,
+			Tags: a.Tags,
+			Time: a.Time,
+			Nil:  a.Nil || b.Nil,
+			Aggregated: a.Aggregated,
+		}
+		if !p.Nil {
+			p.Value = itr.fn(a.Value, b.Value)
+		}
+		return p, nil
+{{end}}
 	}
-	b, err := itr.right.Next()
-	if err != nil {
-		return nil, err
-	} else if a == nil && b == nil {
-		return nil, nil
-	}
-	return itr.fn(a, b), nil
 }
 
 // {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprFunc creates or modifies a point by combining two
 // points. The point passed in may be modified and returned rather than
 // allocating a new point if possible. One of the points may be nil, but at
 // least one of the points will be non-nil.
-type {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprFunc func(a *{{$k.Name}}Point, b *{{$k.Name}}Point) *{{$v.Name}}Point
+type {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprFunc func(a, b {{$k.Type}}) {{$v.Type}}
 {{end}}
 
 // {{$k.name}}TransformIterator executes a function to modify an existing point for every

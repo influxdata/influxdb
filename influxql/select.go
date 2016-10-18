@@ -879,30 +879,7 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op Token, ic IteratorCre
 		default:
 			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a FloatIterator", rhs)
 		}
-		return &floatExprIterator{
-			left:  newBufFloatIterator(left),
-			right: newBufFloatIterator(right),
-			fn: func(a *FloatPoint, b *FloatPoint) *FloatPoint {
-				if a != nil && b != nil {
-					if !a.Nil && !b.Nil {
-						a.Value = fn(a.Value, b.Value)
-						return a
-					} else if a.Nil {
-						return a
-					} else {
-						return b
-					}
-				} else if a != nil {
-					a.Value = float64(0)
-					a.Nil = true
-					return a
-				} else {
-					b.Value = float64(0)
-					b.Nil = true
-					return b
-				}
-			},
-		}, nil
+		return newFloatExprIterator(left, right, opt, fn), nil
 	case func(int64, int64) float64:
 		left, ok := lhs.(IntegerIterator)
 		if !ok {
@@ -912,44 +889,7 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op Token, ic IteratorCre
 		if !ok {
 			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a IntegerIterator", rhs)
 		}
-		return &integerFloatExprIterator{
-			left:  newBufIntegerIterator(left),
-			right: newBufIntegerIterator(right),
-			fn: func(a *IntegerPoint, b *IntegerPoint) *FloatPoint {
-				if a == nil && b == nil {
-					return nil
-				} else if a == nil {
-					return &FloatPoint{
-						Name: b.Name,
-						Tags: b.Tags,
-						Time: b.Time,
-						Aux:  b.Aux,
-						Nil:  true,
-					}
-				} else if b == nil {
-					return &FloatPoint{
-						Name: a.Name,
-						Tags: a.Tags,
-						Time: a.Time,
-						Aux:  a.Aux,
-						Nil:  true,
-					}
-				}
-
-				p := &FloatPoint{
-					Name: a.Name,
-					Tags: a.Tags,
-					Time: a.Time,
-					Aux:  a.Aux,
-				}
-				if !a.Nil && !b.Nil {
-					p.Value = fn(a.Value, b.Value)
-				} else {
-					p.Nil = true
-				}
-				return p
-			},
-		}, nil
+		return newIntegerFloatExprIterator(left, right, opt, fn), nil
 	case func(int64, int64) int64:
 		left, ok := lhs.(IntegerIterator)
 		if !ok {
@@ -959,30 +899,7 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op Token, ic IteratorCre
 		if !ok {
 			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a IntegerIterator", rhs)
 		}
-		return &integerExprIterator{
-			left:  newBufIntegerIterator(left),
-			right: newBufIntegerIterator(right),
-			fn: func(a *IntegerPoint, b *IntegerPoint) *IntegerPoint {
-				if a != nil && b != nil {
-					if !a.Nil && !b.Nil {
-						a.Value = fn(a.Value, b.Value)
-						return a
-					} else if a.Nil {
-						return a
-					} else {
-						return b
-					}
-				} else if a != nil {
-					a.Value = int64(0)
-					a.Nil = true
-					return a
-				} else {
-					b.Value = int64(0)
-					b.Nil = true
-					return b
-				}
-			},
-		}, nil
+		return newIntegerExprIterator(left, right, opt, fn), nil
 	case func(float64, float64) bool:
 		var left FloatIterator
 		switch lhs := lhs.(type) {
@@ -1003,44 +920,7 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op Token, ic IteratorCre
 		default:
 			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a FloatIterator", rhs)
 		}
-		return &floatBooleanExprIterator{
-			left:  newBufFloatIterator(left),
-			right: newBufFloatIterator(right),
-			fn: func(a *FloatPoint, b *FloatPoint) *BooleanPoint {
-				if a == nil && b == nil {
-					return nil
-				} else if a == nil {
-					return &BooleanPoint{
-						Name: b.Name,
-						Tags: b.Tags,
-						Time: b.Time,
-						Aux:  b.Aux,
-						Nil:  true,
-					}
-				} else if b == nil {
-					return &BooleanPoint{
-						Name: a.Name,
-						Tags: a.Tags,
-						Time: a.Time,
-						Aux:  a.Aux,
-						Nil:  true,
-					}
-				}
-
-				p := &BooleanPoint{
-					Name: a.Name,
-					Tags: a.Tags,
-					Time: a.Time,
-					Aux:  a.Aux,
-				}
-				if !a.Nil && !b.Nil {
-					p.Value = fn(a.Value, b.Value)
-				} else {
-					p.Nil = true
-				}
-				return p
-			},
-		}, nil
+		return newFloatBooleanExprIterator(left, right, opt, fn), nil
 	case func(int64, int64) bool:
 		left, ok := lhs.(IntegerIterator)
 		if !ok {
@@ -1050,44 +930,7 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op Token, ic IteratorCre
 		if !ok {
 			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as a IntegerIterator", rhs)
 		}
-		return &integerBooleanExprIterator{
-			left:  newBufIntegerIterator(left),
-			right: newBufIntegerIterator(right),
-			fn: func(a *IntegerPoint, b *IntegerPoint) *BooleanPoint {
-				if a == nil && b == nil {
-					return nil
-				} else if a == nil {
-					return &BooleanPoint{
-						Name: b.Name,
-						Tags: b.Tags,
-						Time: b.Time,
-						Aux:  b.Aux,
-						Nil:  true,
-					}
-				} else if b == nil {
-					return &BooleanPoint{
-						Name: a.Name,
-						Tags: a.Tags,
-						Time: a.Time,
-						Aux:  a.Aux,
-						Nil:  true,
-					}
-				}
-
-				p := &BooleanPoint{
-					Name: a.Name,
-					Tags: a.Tags,
-					Time: a.Time,
-					Aux:  a.Aux,
-				}
-				if !a.Nil && !b.Nil {
-					p.Value = fn(a.Value, b.Value)
-				} else {
-					p.Nil = true
-				}
-				return p
-			},
-		}, nil
+		return newIntegerBooleanExprIterator(left, right, opt, fn), nil
 	}
 	return nil, fmt.Errorf("unable to construct transform iterator from %T and %T", lhs, rhs)
 }
