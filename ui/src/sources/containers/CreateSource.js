@@ -3,7 +3,7 @@ import {withRouter} from 'react-router';
 import FlashMessages from 'shared/components/FlashMessages';
 import {createSource} from 'shared/apis';
 
-export const SelectSourcePage = React.createClass({
+export const CreateSource = React.createClass({
   propTypes: {
     router: PropTypes.shape({
       push: PropTypes.func.isRequired,
@@ -22,9 +22,9 @@ export const SelectSourcePage = React.createClass({
       name: this.sourceName.value,
       username: this.sourceUser.value,
       password: this.sourcePassword.value,
+      isDefault: true,
     };
     createSource(source).then(({data: sourceFromServer}) => {
-      localStorage.setItem('defaultSource', JSON.stringify(sourceFromServer));
       this.redirectToApp(sourceFromServer);
     });
   },
@@ -87,4 +87,4 @@ export const SelectSourcePage = React.createClass({
   },
 });
 
-export default FlashMessages(withRouter(SelectSourcePage));
+export default FlashMessages(withRouter(CreateSource));

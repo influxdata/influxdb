@@ -6,7 +6,7 @@ export function getSources() {
   });
 }
 
-export function createSource({url, name, username, password}) {
+export function createSource({url, name, username, password, isDefault}) {
   return AJAX({
     url: '/chronograf/v1/sources',
     method: 'POST',
@@ -15,6 +15,7 @@ export function createSource({url, name, username, password}) {
       name,
       username,
       password,
+      'default': isDefault,
     },
   });
 }
