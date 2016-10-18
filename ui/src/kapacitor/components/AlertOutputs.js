@@ -5,7 +5,6 @@ import SMTPConfig from './SMTPConfig';
 
 const AlertOutputs = React.createClass({
   propTypes: {
-    validKapacitor: PropTypes.bool,
     source: PropTypes.shape({
       id: PropTypes.string.isRequired,
     }).isRequired,
@@ -29,17 +28,14 @@ const AlertOutputs = React.createClass({
   },
 
   handleSaveConfig(section, properties) {
-    console.log("going to update");
     if (section !== '') {
-      console.log("doing it");
       updateKapacitorConfigSection(this.props.source.id, section, Object.assign({}, properties, {enabled: true})).then(() => {
         // slack test can happen
-      });      
+      });
     }
   },
 
   changeSelectedEndpoint(e) {
-    console.log("change: ", e);
     this.setState({
       selectedEndpoint: e.target.value,
     });
@@ -47,37 +43,28 @@ const AlertOutputs = React.createClass({
 
   testSlack(e) {
     e.preventDefault();
-    console.log("testing slack");
-    testAlertOutput(this.props.source.id, 'slack')
+    testAlertOutput(this.props.source.id, 'slack');
   },
 
   render() {
-    if (!this.props.validKapacitor) {
-      return (
-        <div className="panel-body">
-          Set your Kapacitor connection info to configure alerting endpoints.
-        </div>
-      );
-    } else {
-      return (
-        <div className="panel-body">
-          <h4 className="text-center">Alert Endpoints</h4>
-          <br/>
-          <div className="row">
-            <div className="form-group col-xs-7 col-sm-5 col-sm-offset-2">
-              <label htmlFor="alert-endpoint" className="sr-only">Alert Enpoint</label>
-              <select className="form-control" id="source" onChange={this.changeSelectedEndpoint}>
-                <option key='smtp' value='smtp'>SMTP</option>;
-                <option key='slack' value='slack'>Slack</option>;
-              </select>
-            </div>
-
-            {this.renderAlertConfig(this.state.selectedEndpoint)}
-
+    return (
+      <div className="panel-body">
+        <h4 className="text-center">Alert Endpoints</h4>
+        <br/>
+        <div className="row">
+          <div className="form-group col-xs-7 col-sm-5 col-sm-offset-2">
+            <label htmlFor="alert-endpoint" className="sr-only">Alert Enpoint</label>
+            <select className="form-control" id="source" onChange={this.changeSelectedEndpoint}>
+              <option key="smtp" value="smtp">SMTP</option>;
+              <option key="slack" value="slack">Slack</option>;
+            </select>
           </div>
         </div>
-      );
-    }
+        <div className="row">
+          {this.renderAlertConfig(this.state.selectedEndpoint)}
+        </div>
+      </div>
+    );
   },
 
   renderAlertConfig(endpoint) {
@@ -90,11 +77,9 @@ const AlertOutputs = React.createClass({
     }
     if (endpoint === 'slack' && this.state.slackConfig) {
       return <SlackConfig onSave={save} onTest={this.testSlack} config={this.state.slackConfig} />;
-    } 
+    }
 
-    return (
-      <div>Ima spinner</div>
-    );
+    return <div>This endpoint is not supported yet!</div>;
   },
 });
 

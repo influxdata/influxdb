@@ -22,13 +22,14 @@ export const KapacitorPage = React.createClass({
   componentDidMount() {
     getKapacitor(this.props.source.id).then((res) => {
       const kapacitor = res.data;
+      console.log("valid!")
       this.setState({
         kapacitorURL: kapacitor.url,
         kapacitorName: kapacitor.name,
         kapacitorUser: kapacitor.username,
         validKapacitor: true,
       });
-    }).catch(function (error) {
+    }).catch(function(_) {
       // do nothing for now
     });
   },
@@ -42,14 +43,15 @@ export const KapacitorPage = React.createClass({
       username: this.state.kapacitorUser,
       password: this.kapacitorPassword.value,
     };
-    if (!this.state.validKapacitor) {
-      createKapacitor(kapacitor).then(({data: kapacitor}) => {
+
+    if (this.state.validKapacitor) {
+      updateKapacitor(kapacitor).then(({data: _}) => {
         this.setState({
-          validKapacitor: true,     
+          validKapacitor: true,
         });
-      });      
+      });
     } else {
-      updateKapacitor(kapacitor).then(({data: kapacitor}) => {
+      createKapacitor(kapacitor).then(({data: _}) => {
         this.setState({
           validKapacitor: true,
         });
@@ -72,7 +74,7 @@ export const KapacitorPage = React.createClass({
   changeUser(e) {
     this.setState({
       kapacitorUser: e.target.value,
-    })
+    });
   },
 
   render() {
@@ -100,8 +102,8 @@ export const KapacitorPage = React.createClass({
               <div className="panel panel-minimal">
                 <div className="panel-body">
                   <p>
-                    Kapacitor is used as the monitoring and alerting agent. 
-                    This page will let you configure which Kapacitor to use and 
+                    Kapacitor is used as the monitoring and alerting agent.
+                    This page will let you configure which Kapacitor to use and
                     set up alert end points like email, Slack, and others.
                   </p>
                 </div>
@@ -113,15 +115,15 @@ export const KapacitorPage = React.createClass({
                     <div>
                       <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
                         <label htmlFor="connect-string">Connection String</label>
-                        <input ref={(r) => this.kapacitorURL = r} className="form-control" id="connect-string" placeholder="http://localhost:9092" value={this.state.kapacitorURL || ''} onChange={this.changeURL}></input>
+                        <input ref={(r) => this.kapacitorURL = r} className="form-control" id="connect-string" placeholder="http://localhost:9092" value={kapacitor.url || ''} onChange={this.changeURL}></input>
                       </div>
                       <div className="form-group col-xs-6 col-sm-4">
                         <label htmlFor="name">Name</label>
-                        <input ref={(r) => this.kapacitorName = r} className="form-control" id="name" placeholder="My Kapacitor" value={this.state.kapacitorName || ''} onChange={this.changeName}></input>
+                        <input ref={(r) => this.kapacitorName = r} className="form-control" id="name" placeholder="My Kapacitor" value={kapacitor.name || ''} onChange={this.changeName}></input>
                       </div>
                       <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
                         <label htmlFor="username">Username</label>
-                        <input ref={(r) => this.kapacitorUser = r} className="form-control" id="username" value={this.state.kapacitorUser || ''} onChange={this.changeUser}></input>
+                        <input ref={(r) => this.kapacitorUser = r} className="form-control" id="username" value={kapacitor.username || ''} onChange={this.changeUser}></input>
                       </div>
                       <div className="form-group col-xs-6 col-sm-4">
                         <label htmlFor="password">Password</label>
@@ -139,13 +141,25 @@ export const KapacitorPage = React.createClass({
           </div>
           <div className="row">
             <div className="col-md-8 col-offset-2">
-              <AlertOutputs source={this.props.source} validKapacitor={this.state.validKapacitor} />
+              {this.renderAlertOutputs()}
             </div>
           </div>
         </div>
       </div>
     );
   },
+
+  renderAlertOutputs() {
+    if (this.state.validKapacitor) {
+      return <AlertOutputs source={this.props.source} />;
+    }
+
+    return (
+      <div className="panel-body">
+        Set your Kapacitor connection info to configure alerting endpoints.
+      </div>
+    );
+  }
 
 });
 

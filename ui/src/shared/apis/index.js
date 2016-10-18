@@ -491,7 +491,6 @@ export function updateKapacitor({sourceID, url, name, username, password}) {
 }
 
 export function getKapacitorConfig(sourceID) {
-  console.log("get config")
   return kapacitorProxy(sourceID, 'GET', '/kapacitor/v1/config', '');
 }
 
