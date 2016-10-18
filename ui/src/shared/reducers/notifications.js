@@ -1,0 +1,12 @@
+export default function notifications(state = {}, action) {
+  switch (action.type) {
+    case 'NOTIFICATION_RECEIVED': {
+      const {type, message} = action.payload;
+      return Object.assign({}, state, {
+        [type]: message,
+      });
+    }
+  }
+
+  return state;
+}

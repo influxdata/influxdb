@@ -3,9 +3,10 @@ import {combineReducers} from 'redux';
 import thunkMiddleware from 'redux-thunk';
 import makeQueryExecuter from 'src/shared/middleware/queryExecuter';
 import * as chronografReducers from 'src/chronograf/reducers';
+import notifications from 'src/shared/reducers/notifications';
 import persistStateEnhancer from './persistStateEnhancer';
 
-const rootReducer = combineReducers(chronografReducers);
+const rootReducer = combineReducers({notifications, ...chronografReducers});
 
 export default function configureStore(initialState) {
   const createPersistentStore = compose(
