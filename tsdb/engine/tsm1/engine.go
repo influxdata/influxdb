@@ -1149,7 +1149,9 @@ func (e *Engine) reloadCache() error {
 
 func (e *Engine) cleanup() error {
 	allfiles, err := ioutil.ReadDir(e.path)
-	if err != nil {
+	if os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
 		return err
 	}
 
