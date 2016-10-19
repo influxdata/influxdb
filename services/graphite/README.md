@@ -175,7 +175,7 @@ If you need to add the same set of tags to all metrics, you can define them glob
  ]
 ```
 
-## Two graphite listener, UDP & TCP, Config
+## Two graphite listeners, UDP & TCP, Config
 
 ```
 [[graphite]]
@@ -190,5 +190,3 @@ If you need to add the same set of tags to all metrics, you can define them glob
   protocol = "udp" # protocol to read via
   udp-read-buffer = 8388608 # (8*1024*1024) UDP read buffer size
 ```
-
-
