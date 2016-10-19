@@ -262,7 +262,9 @@ func (l sgList) ShardGroupAt(t time.Time) *meta.ShardGroupInfo {
 	//  - (assuming identical end times) the shard group with the earliest start
 	//    time.
 	idx := sort.Search(len(l), func(i int) bool { return l[i].EndTime.After(t) })
-	if idx == len(l) {
+
+	// We couldn't find a shard group the point falls into.
+	if idx == len(l) || t.Before(l[idx].StartTime) {
 		return nil
 	}
 	return &l[idx]

@@ -49,6 +49,7 @@
 - [#7436](https://github.com/influxdata/influxdb/issues/7436): Remove accidentally added string support for the stddev call.
 - [#7161](https://github.com/influxdata/influxdb/issues/7161): Drop measurement causes cache max memory exceeded error.
 - [#7334](https://github.com/influxdata/influxdb/issues/7334): Panic with unread show series iterators during drop database
+- [#7482](https://github.com/influxdata/influxdb/issues/7482): Fix issue where point would be written to wrong shard.
 
 ## v1.0.2 [2016-10-05]
 
