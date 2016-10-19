@@ -9,10 +9,8 @@ import (
 	"github.com/go-openapi/errors"
 )
 
-/*AllPermissions All Possible permission strings
-
-swagger:model AllPermissions
-*/
+// AllPermissions All Possible permission strings
+// swagger:model AllPermissions
 type AllPermissions []Permission
 
 // Validate validates this all permissions

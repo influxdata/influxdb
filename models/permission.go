@@ -12,10 +12,8 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Permission Specific access
-
-swagger:model Permission
-*/
+// Permission Specific access
+// swagger:model Permission
 type Permission string
 
 const (

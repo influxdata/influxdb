@@ -9,14 +9,11 @@ import (
 	"github.com/go-openapi/errors"
 )
 
-/*ProxyResponse proxy response
-
-swagger:model ProxyResponse
-*/
+// ProxyResponse proxy response
+// swagger:model ProxyResponse
 type ProxyResponse struct {
 
-	/* results from influx
-	 */
+	// results from influx
 	Results interface{} `json:"results,omitempty"`
 }
 

@@ -10,14 +10,11 @@ import (
 	"github.com/go-openapi/errors"
 )
 
-/*Roles roles
-
-swagger:model Roles
-*/
+// Roles roles
+// swagger:model Roles
 type Roles struct {
 
-	/* roles
-	 */
+	// roles
 	Roles []*Role `json:"roles,omitempty"`
 }
 

@@ -13,22 +13,17 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Service service
-
-swagger:model Service
-*/
+// Service service
+// swagger:model Service
 type Service struct {
 
-	/* The key part of the key-value pair that makes up a tag. Used to identify a service type.
-	 */
+	// The key part of the key-value pair that makes up a tag. Used to identify a service type.
 	TagKey string `json:"tagKey,omitempty"`
 
-	/* The value part of the key-value pair that makes up a tag.
-	 */
+	// The value part of the key-value pair that makes up a tag.
 	TagValue string `json:"tagValue,omitempty"`
 
-	/* Type of service
-	 */
+	// Type of service
 	Type string `json:"type,omitempty"`
 }
 
@@ -50,9 +45,9 @@ func (m *Service) Validate(formats strfmt.Registry) error {
 var serviceTypeTypePropEnum []interface{}
 
 const (
-	ServiceTypeContainers string = "containers"
-	ServiceTypeKubernetes string = "kubernetes"
-	ServiceTypeHost       string = "host"
+	serviceTypeContainers string = "containers"
+	serviceTypeKubernetes string = "kubernetes"
+	serviceTypeHost       string = "host"
 )
 
 // prop value enum

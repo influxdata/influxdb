@@ -11,31 +11,23 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Role role
-
-swagger:model Role
-*/
+// Role role
+// swagger:model Role
 type Role struct {
 
-	/* link
-	 */
+	// link
 	Link *Link `json:"link,omitempty"`
 
-	/* name
-
-	Required: true
-	Max Length: 64
-	*/
+	// name
+	// Required: true
+	// Max Length: 64
 	Name *string `json:"name"`
 
-	/* permissions
-
-	Required: true
-	*/
+	// permissions
+	// Required: true
 	Permissions *Permissions `json:"permissions"`
 
-	/* users
-	 */
+	// users
 	Users *Users `json:"users,omitempty"`
 }
 

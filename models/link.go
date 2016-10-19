@@ -10,22 +10,16 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Link URI of resource.
-
-swagger:model Link
-*/
+// Link URI of resource.
+// swagger:model Link
 type Link struct {
 
-	/* href
-
-	Required: true
-	*/
+	// href
+	// Required: true
 	Href *string `json:"href"`
 
-	/* rel
-
-	Required: true
-	*/
+	// rel
+	// Required: true
 	Rel *string `json:"rel"`
 }
 

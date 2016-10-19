@@ -10,14 +10,11 @@ import (
 	"github.com/go-openapi/errors"
 )
 
-/*Users users
-
-swagger:model Users
-*/
+// Users users
+// swagger:model Users
 type Users struct {
 
-	/* users
-	 */
+	// users
 	Users []*User `json:"users,omitempty"`
 }
 

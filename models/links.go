@@ -10,14 +10,11 @@ import (
 	"github.com/go-openapi/errors"
 )
 
-/*Links links
-
-swagger:model Links
-*/
+// Links links
+// swagger:model Links
 type Links struct {
 
-	/* links
-	 */
+	// links
 	Links []*Link `json:"links,omitempty"`
 }
 

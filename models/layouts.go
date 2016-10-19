@@ -11,16 +11,12 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Layouts layouts
-
-swagger:model Layouts
-*/
+// Layouts layouts
+// swagger:model Layouts
 type Layouts struct {
 
-	/* layouts
-
-	Required: true
-	*/
+	// layouts
+	// Required: true
 	Layouts []*Layout `json:"layouts"`
 }
 

@@ -10,18 +10,14 @@ import (
 	"github.com/go-openapi/errors"
 )
 
-/*Permissions permissions
-
-swagger:model Permissions
-*/
+// Permissions permissions
+// swagger:model Permissions
 type Permissions struct {
 
-	/* permissions are scoped to a specific database
-	 */
+	// permissions are scoped to a specific database
 	Database string `json:"database,omitempty"`
 
-	/* permissions
-	 */
+	// permissions
 	Permissions []Permission `json:"permissions,omitempty"`
 }
 

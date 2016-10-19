@@ -11,16 +11,12 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Sources sources
-
-swagger:model Sources
-*/
+// Sources sources
+// swagger:model Sources
 type Sources struct {
 
-	/* sources
-
-	Required: true
-	*/
+	// sources
+	// Required: true
 	Sources []*Source `json:"sources"`
 }
 

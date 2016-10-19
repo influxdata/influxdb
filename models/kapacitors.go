@@ -11,16 +11,12 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Kapacitors kapacitors
-
-swagger:model Kapacitors
-*/
+// Kapacitors kapacitors
+// swagger:model Kapacitors
 type Kapacitors struct {
 
-	/* kapacitors
-
-	Required: true
-	*/
+	// kapacitors
+	// Required: true
 	Kapacitors []*Kapacitor `json:"kapacitors"`
 }
 

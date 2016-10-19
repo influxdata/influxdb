@@ -11,38 +11,27 @@ import (
 	"github.com/go-openapi/validate"
 )
 
-/*Cell cell
-
-swagger:model Cell
-*/
+// Cell cell
+// swagger:model Cell
 type Cell struct {
 
-	/* Height of Cell in the Layout
-
-	Required: true
-	*/
+	// Height of Cell in the Layout
+	// Required: true
 	H *int32 `json:"h"`
 
-	/* Time-series data queries for Cell.
-	 */
+	// Time-series data queries for Cell.
 	Queries []*Proxy `json:"queries,omitempty"`
 
-	/* Width of Cell in the Layout
-
-	Required: true
-	*/
+	// Width of Cell in the Layout
+	// Required: true
 	W *int32 `json:"w"`
 
-	/* X-coordinate of Cell in the Layout
-
-	Required: true
-	*/
+	// X-coordinate of Cell in the Layout
+	// Required: true
 	X *int32 `json:"x"`
 
-	/* Y-coordinate of Cell in the Layout
-
-	Required: true
-	*/
+	// Y-coordinate of Cell in the Layout
+	// Required: true
 	Y *int32 `json:"y"`
 }
 
