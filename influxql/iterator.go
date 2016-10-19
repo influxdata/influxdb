@@ -177,12 +177,12 @@ func NewMergeIterator(inputs []Iterator, opt IteratorOptions) Iterator {
 
 // NewParallelMergeIterator returns an iterator that breaks input iterators
 // into groups and processes them in parallel.
-func NewParallelMergeIterator(inputs []Iterator, opt IteratorOptions, parallelism int) Iterator {
+func NewParallelMergeIterator(inputs []Iterator, opt IteratorOptions, parallelism int) (Iterator, error) {
 	inputs = Iterators(inputs).filterNonNil()
 	if len(inputs) == 0 {
-		return nil
+		return nil, nil
 	} else if len(inputs) == 1 {
-		return inputs[0]
+		return inputs[0], nil
 	}
 
 	// Limit parallelism to the number of inputs.
@@ -203,11 +203,19 @@ func NewParallelMergeIterator(inputs []Iterator, opt IteratorOptions, parallelis
 			slice = inputs[i*n:]
 		}
 
+		input := NewMergeIterator(slice, opt)
+		if _, ok := opt.Expr.(*Call); ok {
+			var err error
+			input, err = NewCallIterator(input, opt)
+			if err != nil {
+				return nil, err
+			}
+		}
 		outputs[i] = newParallelIterator(NewMergeIterator(slice, opt))
 	}
 
 	// Merge all groups together.
-	return NewMergeIterator(outputs, opt)
+	return NewMergeIterator(outputs, opt), nil
 }
 
 // NewSortedMergeIterator returns an iterator to merge itrs into one.

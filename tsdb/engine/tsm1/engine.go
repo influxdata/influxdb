@@ -1153,7 +1153,7 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 			inputs[i] = itr
 		}
 
-		return influxql.NewParallelMergeIterator(inputs, opt, runtime.GOMAXPROCS(0)), nil
+		return influxql.NewParallelMergeIterator(inputs, opt, runtime.GOMAXPROCS(0))
 	}
 
 	itrs, err := e.createVarRefIterator(opt, false)
@@ -1178,11 +1178,18 @@ func (e *Engine) CreateSeriesIterator(mm *tsdb.Measurement, t *influxql.TagSet, 
 			return nil, nil
 		}
 
-		itr := influxql.NewMergeIterator(inputs, opt)
-		if itr != nil && opt.InterruptCh != nil {
-			itr = influxql.NewInterruptIterator(itr, opt.InterruptCh)
+		output, err := influxql.NewParallelMergeIterator(inputs, opt, runtime.GOMAXPROCS(0))
+		if err != nil {
+			return nil, err
 		}
-		return influxql.NewCallIterator(itr, opt)
+
+		if call.Name == "count" {
+			opt.Expr = &influxql.Call{
+				Name: "sum",
+				Args: call.Args,
+			}
+		}
+		return influxql.NewCallIterator(output, opt)
 	}
 
 	ref, _ := opt.Expr.(*influxql.VarRef)
@@ -1515,6 +1522,9 @@ func (e *Engine) buildCursor(measurement, seriesKey string, ref *influxql.VarRef
 func (e *Engine) buildFloatCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) floatCursor {
 	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
 	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), opt.SeekTime(), opt.Ascending)
+	if keyCursor == nil {
+		return nil
+	}
 	return newFloatCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
@@ -1522,6 +1532,9 @@ func (e *Engine) buildFloatCursor(measurement, seriesKey, field string, opt infl
 func (e *Engine) buildIntegerCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) integerCursor {
 	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
 	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), opt.SeekTime(), opt.Ascending)
+	if keyCursor == nil {
+		return nil
+	}
 	return newIntegerCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
@@ -1529,6 +1542,9 @@ func (e *Engine) buildIntegerCursor(measurement, seriesKey, field string, opt in
 func (e *Engine) buildStringCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) stringCursor {
 	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
 	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), opt.SeekTime(), opt.Ascending)
+	if keyCursor == nil {
+		return nil
+	}
 	return newStringCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
@@ -1536,6 +1552,9 @@ func (e *Engine) buildStringCursor(measurement, seriesKey, field string, opt inf
 func (e *Engine) buildBooleanCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) booleanCursor {
 	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
 	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), opt.SeekTime(), opt.Ascending)
+	if keyCursor == nil {
+		return nil
+	}
 	return newBooleanCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 

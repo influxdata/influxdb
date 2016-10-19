@@ -885,10 +885,15 @@ func (a ascLocations) Less(i, j int) bool {
 // newKeyCursor returns a new instance of KeyCursor.
 // This function assumes the read-lock has been taken.
 func newKeyCursor(fs *FileStore, key string, t int64, ascending bool) *KeyCursor {
+	seeks := fs.locations(key, t, ascending)
+	if len(seeks) == 0 {
+		return nil
+	}
+
 	c := &KeyCursor{
 		key:       key,
 		fs:        fs,
-		seeks:     fs.locations(key, t, ascending),
+		seeks:     seeks,
 		ascending: ascending,
 	}
 	c.refs = make(map[string]TSMFile, len(c.seeks))
