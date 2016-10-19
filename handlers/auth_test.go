@@ -147,12 +147,12 @@ func TestAuthorizedToken(t *testing.T) {
 	}{
 		{
 			Desc:         "Error in extractor",
-			Code:         http.StatusTemporaryRedirect,
+			Code:         http.StatusUnauthorized,
 			ExtractorErr: errors.New("error"),
 		},
 		{
 			Desc:    "Error in extractor",
-			Code:    http.StatusTemporaryRedirect,
+			Code:    http.StatusUnauthorized,
 			AuthErr: errors.New("error"),
 		},
 		{
@@ -182,7 +182,7 @@ func TestAuthorizedToken(t *testing.T) {
 		}
 
 		logger := fusionlog.New()
-		handler := handlers.AuthorizedToken(a, e, "/login", logger, next)
+		handler := handlers.AuthorizedToken(a, e, logger, next)
 		handler.ServeHTTP(w, req)
 		if w.Code != test.Code {
 			t.Errorf("Status code expected: %d actual %d", test.Code, w.Code)

@@ -44,8 +44,8 @@ func (b *BearerExtractor) Extract(r *http.Request) (string, error) {
 // AuthorizedToken extracts the token and validates; if valid the next handler
 // will be run.  The principal will be sent to the next handler via the request's
 // Context.  It is up to the next handler to determine if the principal has access.
-// On failure, will redirect to FailureURL.
-func AuthorizedToken(auth mrfusion.Authenticator, te mrfusion.TokenExtractor, failureURL string, logger mrfusion.Logger, next http.Handler) http.Handler {
+// On failure, will return http.StatusUnauthorized.
+func AuthorizedToken(auth mrfusion.Authenticator, te mrfusion.TokenExtractor, logger mrfusion.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log := logger.
 			WithField("component", "auth").
@@ -56,7 +56,7 @@ func AuthorizedToken(auth mrfusion.Authenticator, te mrfusion.TokenExtractor, fa
 		token, err := te.Extract(r)
 		if err != nil {
 			log.Error("Unable to extract token")
-			http.Redirect(w, r, failureURL, http.StatusTemporaryRedirect)
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		// We do not check the validity of the principal.  Those
@@ -64,7 +64,7 @@ func AuthorizedToken(auth mrfusion.Authenticator, te mrfusion.TokenExtractor, fa
 		principal, err := auth.Authenticate(r.Context(), token)
 		if err != nil {
 			log.Error("Invalid token")
-			http.Redirect(w, r, failureURL, http.StatusTemporaryRedirect)
+			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 

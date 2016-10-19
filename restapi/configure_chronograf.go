@@ -252,7 +252,7 @@ func setupGlobalMiddleware(handler http.Handler) http.Handler {
 			Name: "session",
 		}
 		a := jwt.NewJWT(authFlags.TokenSecret)
-		handler = handlers.AuthorizedToken(a, &e, failureURL, logger, handler)
+		handler = handlers.AuthorizedToken(a, &e, logger, handler)
 	}
 
 	// TODO: Fix these routes when we use httprouter
