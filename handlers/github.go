@@ -116,7 +116,11 @@ func (g *Github) Logout() http.Handler {
 	})
 }
 
-// Callback used by github callback after authorization is granted.  If granted, Callback will set a cookie with a month-long expiration.  The value of the cookie is a JWT because the JWT can be validated without the need for saving state. The JWT contains the Github user's primary email address.
+// Callback used by github callback after authorization is granted.  If
+// granted, Callback will set a cookie with a month-long expiration.  The
+// value of the cookie is a JWT because the JWT can be validated without
+// the need for saving state. The JWT contains the Github user's primary
+// email address.
 func (g *Github) Callback() http.Handler {
 	conf := g.config()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
