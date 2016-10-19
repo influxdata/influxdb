@@ -14,7 +14,7 @@
     "start": "node_modules/webpack/bin/webpack.js -w --config ./webpack/devConfig.js",
     "lint": "eslint src/",
     "test": "karma start",
-    "clean": "rm -rf ui/build"
+    "clean": "rm -rf build"
   },
   "author": "",
   "eslintConfig": {

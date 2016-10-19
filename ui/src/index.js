@@ -76,7 +76,7 @@ const Root = React.createClass({
     getSources().then(({data: {sources}}) => {
       if (sources && sources.length) {
         const path = `/sources/${this.activeSource(sources).id}/hosts`;
-        replace(path)
+        replace(path);
       }
       callback();
     }).catch(callback);

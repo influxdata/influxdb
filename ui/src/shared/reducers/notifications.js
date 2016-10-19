@@ -6,6 +6,12 @@ export default function notifications(state = {}, action) {
         [type]: message,
       });
     }
+    case 'NOTIFICATION_DISMISSED': {
+      const {type} = action.payload;
+      return Object.assign({}, state, {
+        [type]: undefined,
+      });
+    }
   }
 
   return state;

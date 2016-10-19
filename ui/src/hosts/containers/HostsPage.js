@@ -1,6 +1,5 @@
 import React, {PropTypes} from 'react';
 import _ from 'lodash';
-import FlashMessages from 'shared/components/FlashMessages';
 import HostsTable from '../components/HostsTable';
 import {getCpuAndLoadForHosts, getMappings, getAppsForHosts} from '../apis';
 
@@ -13,8 +12,8 @@ export const HostsPage = React.createClass({
       links: PropTypes.shape({
         proxy: PropTypes.string.isRequired,
       }).isRequired,
-    }).isRequired,
-    addFlashMessage: PropTypes.func.isRequired,
+    }),
+    addFlashMessage: PropTypes.func,
   },
 
   getInitialState() {
@@ -66,7 +65,6 @@ export const HostsPage = React.createClass({
       </div>
     );
   },
-
 });
 
-export default FlashMessages(HostsPage);
+export default HostsPage;

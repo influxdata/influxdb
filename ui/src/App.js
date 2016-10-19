@@ -1,7 +1,10 @@
 import React, {PropTypes} from 'react';
 import {connect} from 'react-redux';
 import SideNavContainer from 'src/side_nav';
-import {publishNotification as publishNotificationAction} from 'src/shared/actions/notifications';
+import {
+  publishNotification as publishNotificationAction,
+  dismissNotification as dismissNotificationAction,
+} from 'src/shared/actions/notifications';
 
 const App = React.createClass({
   propTypes: {
@@ -13,34 +16,56 @@ const App = React.createClass({
       sourceID: PropTypes.string.isRequired,
     }).isRequired,
     publishNotification: PropTypes.func.isRequired,
+    dismissNotification: PropTypes.func.isRequired,
     notifications: PropTypes.shape({
       success: PropTypes.string,
-      failure: PropTypes.string,
+      error: PropTypes.string,
       warning: PropTypes.string,
     }),
   },
 
-  componentDidMount() {
-    const {publishNotification} = this.props;
-    setTimeout(() => {
-      publishNotification('success', 'everything worked :)');
-    }, 500);
+  handleNotification({type, text}) {
+    this.props.publishNotification(type, text);
+  },
+
+  handleDismissNotification(type) {
+    this.props.dismissNotification(type);
   },
 
   render() {
     const {sourceID} = this.props.params;
-    console.log(this.props.notifications);
-    const addFlashMessage = console.log;
 
     return (
       <div className="enterprise-wrapper--flex">
-        <SideNavContainer sourceID={sourceID} addFlashMessage={addFlashMessage} currentLocation={this.props.location.pathname} />
+        <SideNavContainer sourceID={sourceID} addFlashMessage={this.handleNotification} currentLocation={this.props.location.pathname} />
         <div className="page-wrapper">
+          {this.renderNotifications()}
           {this.props.children && React.cloneElement(this.props.children, {
-            addFlashMessage,
+            addFlashMessage: this.handleNotification,
           })}
         </div>
       </div>
+    );
+  },
+
+  renderNotifications() {
+    const {success, error} = this.props.notifications;
+    if (!success && !error) {
+      return null;
+    }
+    if (success) {
+      return <div className="alert alert-success" role="alert">{success}{this.renderDismiss()}</div>;
+    }
+    if (error) {
+      return <div className="alert alert-danger" role="alert">{error}{this.renderDismiss()}</div>;
+    }
+  },
+
+  renderDismiss() {
+    return (
+      <button className="close" data-dismiss="alert" aria-label="Close" onClick={this.handleDismissNotification}>
+        <span className="icon remove"></span>
+      </button>
     );
   },
 });
@@ -53,4 +78,5 @@ function mapStateToProps(state) {
 
 export default connect(mapStateToProps, {
   publishNotification: publishNotificationAction,
+  dismissNotification: dismissNotificationAction,
 })(App);
