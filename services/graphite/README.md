@@ -40,7 +40,7 @@ matched multiple times. Multiple values will be joined together using the _Separ
 * Template: `.host.host.measurement.cpu.measurement`
 * Output: _measurement_ = `cpu.user` _tags_ = `host=localhost.localdomain cpu=cpu0`
 
-Since '.' requires queries on measurements to be double-quoted, you may want to set this to `_` to simplify querying parsed metrics.
+Since `.` requires queries on measurements to be double-quoted, you may want to set this to `_` to simplify querying parsed metrics.
 
 `servers.localhost.cpu.cpu0.user`
 * Separator: `_`
