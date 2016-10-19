@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	DefaultCookieName     = "MrFusion"
+	DefaultCookieName     = "session"
 	DefaultCookieDuration = time.Hour * 24 * 30
 )
 
@@ -42,19 +42,21 @@ type Github struct {
 	ClientID      string
 	ClientSecret  string
 	Scopes        []string
-	RedirectURL   string // RedirectURL is the location to redirect after callback
+	SuccessURL    string // SuccessURL is redirect location after successful authorization
+	FailureURL    string // FailureURL is redirect location after authorization failure
 	Now           func() time.Time
 	Logger        mrfusion.Logger
 }
 
 // NewGithub constructs a Github with default cookie behavior and scopes.
-func NewGithub(clientID, clientSecret string, auth mrfusion.Authenticator, log mrfusion.Logger) Github {
+func NewGithub(clientID, clientSecret, successURL, failureURL string, auth mrfusion.Authenticator, log mrfusion.Logger) Github {
 	return Github{
 		ClientID:      clientID,
 		ClientSecret:  clientSecret,
 		Cookie:        NewCookie(),
 		Scopes:        []string{"user:email"},
-		RedirectURL:   "/",
+		SuccessURL:    successURL,
+		FailureURL:    failureURL,
 		Authenticator: auth,
 		Now:           time.Now,
 		Logger:        log,
@@ -70,7 +72,6 @@ func (g *Github) config() *oauth2.Config {
 	}
 }
 
-// TODO: Perhaps remove the existing cookie?
 // Login returns a handler that redirects to Github's OAuth login.
 // Uses JWT with a random string as the state validation method.
 // JWTs are used because they can be validated without storing
@@ -100,16 +101,18 @@ func (g *Github) Login() http.Handler {
 	})
 }
 
-// Logout will expire our authentication cookie and redirect to the RedirectURL
+// Logout will expire our authentication cookie and redirect to the SuccessURL
 func (g *Github) Logout() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		deleteCookie := http.Cookie{
-			Name:    g.Cookie.Name,
-			Value:   "none",
-			Expires: g.Now().Add(-1 * time.Hour),
+			Name:     g.Cookie.Name,
+			Value:    "none",
+			Expires:  g.Now().Add(-1 * time.Hour),
+			HttpOnly: true,
+			Path:     "/",
 		}
 		http.SetCookie(w, &deleteCookie)
-		http.Redirect(w, r, g.RedirectURL, http.StatusTemporaryRedirect)
+		http.Redirect(w, r, g.SuccessURL, http.StatusTemporaryRedirect)
 	})
 }
 
@@ -128,7 +131,7 @@ func (g *Github) Callback() http.Handler {
 		_, err := g.Authenticator.Authenticate(r.Context(), state)
 		if err != nil {
 			log.Error("Invalid OAuth state received: ", err.Error())
-			http.Redirect(w, r, g.RedirectURL, http.StatusTemporaryRedirect)
+			http.Redirect(w, r, g.FailureURL, http.StatusTemporaryRedirect)
 			return
 		}
 
@@ -136,7 +139,7 @@ func (g *Github) Callback() http.Handler {
 		token, err := conf.Exchange(r.Context(), code)
 		if err != nil {
 			log.Error("Unable to exchange code for token ", err.Error())
-			http.Redirect(w, r, g.RedirectURL, http.StatusTemporaryRedirect)
+			http.Redirect(w, r, g.FailureURL, http.StatusTemporaryRedirect)
 			return
 		}
 
@@ -152,21 +155,21 @@ func (g *Github) Callback() http.Handler {
 				log.Error("Unable to retrieve Github email ", err.Error())
 			}
 
-			http.Redirect(w, r, g.RedirectURL, http.StatusTemporaryRedirect)
+			http.Redirect(w, r, g.FailureURL, http.StatusTemporaryRedirect)
 			return
 		}
 
 		email, err := primaryEmail(emails)
 		if err != nil {
 			log.Error("Unable to retrieve primary Github email ", err.Error())
-			http.Redirect(w, r, g.RedirectURL, http.StatusTemporaryRedirect)
+			http.Redirect(w, r, g.FailureURL, http.StatusTemporaryRedirect)
 		}
 
 		// We create an auth token that will be used by all other endpoints to validate the principal has a claim
 		authToken, err := g.Authenticator.Token(r.Context(), mrfusion.Principal(email), g.Cookie.Duration)
 		if err != nil {
 			log.Error("Unable to create cookie auth token ", err.Error())
-			http.Redirect(w, r, g.RedirectURL, http.StatusTemporaryRedirect)
+			http.Redirect(w, r, g.FailureURL, http.StatusTemporaryRedirect)
 		}
 
 		expireCookie := time.Now().Add(g.Cookie.Duration)
@@ -177,9 +180,9 @@ func (g *Github) Callback() http.Handler {
 			HttpOnly: true,
 			Path:     "/",
 		}
-		log.Info("User %s is authenticated", email)
+		log.Info("User ", email, " is authenticated")
 		http.SetCookie(w, &cookie)
-		http.Redirect(w, r, g.RedirectURL, http.StatusTemporaryRedirect)
+		http.Redirect(w, r, g.SuccessURL, http.StatusTemporaryRedirect)
 	})
 }
 

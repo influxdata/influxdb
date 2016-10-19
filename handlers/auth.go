@@ -41,21 +41,30 @@ func (b *BearerExtractor) Extract(r *http.Request) (string, error) {
 	return strs[1], nil
 }
 
-// AuthorizedToken extracts the token and validates; if valid the next handler will be run.  The principal will be sent to the next handler
-// via the request's Context.  It is up to the next handler to determine
-// if the principal has access.
-func AuthorizedToken(auth mrfusion.Authenticator, te mrfusion.TokenExtractor, next http.Handler) http.Handler {
+// AuthorizedToken extracts the token and validates; if valid the next handler
+// will be run.  The principal will be sent to the next handler via the request's
+// Context.  It is up to the next handler to determine if the principal has access.
+// On failure, will redirect to FailureURL.
+func AuthorizedToken(auth mrfusion.Authenticator, te mrfusion.TokenExtractor, failureURL string, logger mrfusion.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log := logger.
+			WithField("component", "auth").
+			WithField("remote_addr", r.RemoteAddr).
+			WithField("method", r.Method).
+			WithField("url", r.URL)
+
 		token, err := te.Extract(r)
 		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
+			log.Error("Unable to extract token")
+			http.Redirect(w, r, failureURL, http.StatusTemporaryRedirect)
 			return
 		}
 		// We do not check the validity of the principal.  Those
 		// handlers further down the chain should do so.
 		principal, err := auth.Authenticate(r.Context(), token)
 		if err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
+			log.Error("Invalid token")
+			http.Redirect(w, r, failureURL, http.StatusTemporaryRedirect)
 			return
 		}
 

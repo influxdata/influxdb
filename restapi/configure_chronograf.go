@@ -238,6 +238,10 @@ func setupMiddlewares(handler http.Handler) http.Handler {
 // The middleware configuration happens before anything, this middleware also applies to serving the swagger.json document.
 // So this is a good place to plug in a panic handling middleware, logging and metrics
 func setupGlobalMiddleware(handler http.Handler) http.Handler {
+	successURL := "/"
+	failureURL := "/login"
+
+	// TODO: Fix these routes when we use httprouter
 	assets := handlers.Assets(handlers.AssetsOpts{
 		Develop: devFlags.Develop,
 		Logger:  logger,
@@ -245,21 +249,24 @@ func setupGlobalMiddleware(handler http.Handler) http.Handler {
 
 	if authFlags.TokenSecret != "" {
 		e := handlers.CookieExtractor{
-			Name: "MrFusion",
+			Name: "session",
 		}
 		a := jwt.NewJWT(authFlags.TokenSecret)
-		handler = handlers.AuthorizedToken(a, &e, handler)
+		handler = handlers.AuthorizedToken(a, &e, failureURL, logger, handler)
 	}
 
 	// TODO: Fix these routes when we use httprouter
 	gh := handlers.NewGithub(
 		authFlags.GithubClientID,
 		authFlags.GithubClientSecret,
+		successURL,
+		failureURL,
 		jwt.NewJWT(authFlags.TokenSecret),
 		logger,
 	)
 
 	login := gh.Login()
+	logout := gh.Logout()
 	callback := gh.Callback()
 
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -269,17 +276,23 @@ func setupGlobalMiddleware(handler http.Handler) http.Handler {
 			WithField("method", r.Method).
 			WithField("url", r.URL)
 
+		// TODO: Warning keep these paths in this order until
+		// we have a real router.
 		if strings.Contains(r.URL.Path, "/chronograf/v1") {
 			l.Info("Serving API Request")
 			handler.ServeHTTP(w, r)
 			return
-		} else if strings.HasPrefix(r.URL.Path, "/login") {
-			l.Info("Login request")
-			login.ServeHTTP(w, r)
-			return
-		} else if strings.Contains(r.URL.Path, "/auth/callback") {
+		} else if strings.Contains(r.URL.Path, "/oauth/github/callback") {
 			l.Info("Auth callback")
 			callback.ServeHTTP(w, r)
+			return
+		} else if strings.HasPrefix(r.URL.Path, "/oauth/logout") {
+			l.Info("Login request")
+			logout.ServeHTTP(w, r)
+			return
+		} else if strings.HasPrefix(r.URL.Path, "/oauth") {
+			l.Info("Login request")
+			login.ServeHTTP(w, r)
 			return
 		} else if r.URL.Path == "//" {
 			l.Info("Serving root redirect")

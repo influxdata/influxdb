@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/mrfusion"
 	"github.com/influxdata/mrfusion/handlers"
+	fusionlog "github.com/influxdata/mrfusion/log"
 )
 
 func TestCookieExtractor(t *testing.T) {
@@ -146,12 +147,12 @@ func TestAuthorizedToken(t *testing.T) {
 	}{
 		{
 			Desc:         "Error in extractor",
-			Code:         http.StatusUnauthorized,
+			Code:         http.StatusTemporaryRedirect,
 			ExtractorErr: errors.New("error"),
 		},
 		{
 			Desc:    "Error in extractor",
-			Code:    http.StatusUnauthorized,
+			Code:    http.StatusTemporaryRedirect,
 			AuthErr: errors.New("error"),
 		},
 		{
@@ -180,7 +181,8 @@ func TestAuthorizedToken(t *testing.T) {
 			Principal: test.Principal,
 		}
 
-		handler := handlers.AuthorizedToken(a, e, next)
+		logger := fusionlog.New()
+		handler := handlers.AuthorizedToken(a, e, "/login", logger, next)
 		handler.ServeHTTP(w, req)
 		if w.Code != test.Code {
 			t.Errorf("Status code expected: %d actual %d", test.Code, w.Code)
