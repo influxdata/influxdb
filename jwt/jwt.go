@@ -20,8 +20,8 @@ type JWT struct {
 }
 
 // NewJWT creates a new JWT using time.Now; secret is used for signing and validating.
-func NewJWT(secret string) mrfusion.Authenticator {
-	return &JWT{
+func NewJWT(secret string) JWT {
+	return JWT{
 		Secret: secret,
 		Now:    time.Now,
 	}
