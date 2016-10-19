@@ -61,9 +61,7 @@ A field key can be specified by using the keyword _field_. By default if no _fie
 
 The field key can also be derived from the second "half" of the input metric-name by specifying ```field*``` (eg ```measurement.measurement.field*```). This cannot be used in conjunction with "measurement*"!
 
-When using the current default engine _BZ1_, it's recommended to use a single field per value for performance reasons.
-
-When using the _TSM1_ engine it's possible to amend measurement metrics with additional fields, e.g:
+It's possible to amend measurement metrics with additional fields, e.g:
 
 Input:
 ```
