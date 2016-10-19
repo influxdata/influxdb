@@ -15,7 +15,7 @@ Each Graphite input also performs internal batching of the points it receives, a
 
 The graphite plugin allows measurements to be saved using the graphite line protocol. By default, enabling the graphite plugin will allow you to collect metrics and store them using the metric name as the measurement.  If you send a metric named `servers.localhost.cpu.loadavg.10`, it will store the full metric name as the measurement with no extracted tags.
 
-While this default setup works, it is not the ideal way to store measurements in InfluxDB since it does not take advantage of tags.  It also will not perform optimally with a large dataset sizes since queries will be forced to use regexes which is known to not scale well.
+While this default setup works, it is not the ideal way to store measurements in InfluxDB since it does not take advantage of tags.  It also will not perform optimally with large dataset sizes since queries will be forced to use regexes which is known to not scale well.
 
 To extract tags from metrics, one or more templates must be configured to parse metrics into tags and measurements.
 
