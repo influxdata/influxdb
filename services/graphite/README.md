@@ -49,7 +49,7 @@ Since `.` requires queries on measurements to be double-quoted, you may want to 
 
 ### Adding Tags
 
-Additional tags can be added to a metric that don't exist on the received metric.  You can add additional tags by specifying them after the pattern.  Tags have the same format as the line protocol.  Multiple tags are separated by commas.
+Additional tags can be added to a metric if they don't exist on the received metric.  You can add additional tags by specifying them after the pattern.  Tags have the same format as the line protocol.  Multiple tags are separated by commas.
 
 `servers.localhost.cpu.loadavg.10`
 * Template: `.host.resource.measurement* region=us-west,zone=1a`
