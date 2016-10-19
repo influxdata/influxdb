@@ -598,7 +598,9 @@ func (m *Measurement) AppendSeriesKeysByID(dst []string, ids []uint64) []string 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	for _, id := range ids {
-		dst = append(dst, m.seriesByID[id].Key)
+		if s := m.seriesByID[id]; s != nil {
+			dst = append(dst, s.Key)
+		}
 	}
 	return dst
 }

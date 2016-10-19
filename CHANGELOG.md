@@ -48,6 +48,7 @@
 - [#7385](https://github.com/influxdata/influxdb/pull/7385): Reduce query planning allocations
 - [#7436](https://github.com/influxdata/influxdb/issues/7436): Remove accidentally added string support for the stddev call.
 - [#7161](https://github.com/influxdata/influxdb/issues/7161): Drop measurement causes cache max memory exceeded error.
+- [#7334](https://github.com/influxdata/influxdb/issues/7334): Panic with unread show series iterators during drop database
 
 ## v1.0.2 [2016-10-05]
 
