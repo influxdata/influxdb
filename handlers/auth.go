@@ -22,7 +22,7 @@ func (c *CookieExtractor) Extract(r *http.Request) (string, error) {
 	return cookie.Value, nil
 }
 
-// BearerExtractor extracts the token the Authorization: Bearer header.
+// BearerExtractor extracts the token from Authorization: Bearer header.
 type BearerExtractor struct{}
 
 // Extract returns the string following Authorization: Bearer
