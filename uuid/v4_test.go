@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/uuid"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/uuid"
 )
 
 func TestAuthenticate(t *testing.T) {
@@ -14,14 +14,14 @@ func TestAuthenticate(t *testing.T) {
 		APIKey string
 		Key    string
 		Err    error
-		User   mrfusion.Principal
+		User   chronograf.Principal
 	}{
 
 		{
 			Desc:   "Test auth err when keys are different",
 			APIKey: "key",
 			Key:    "badkey",
-			Err:    mrfusion.ErrAuthentication,
+			Err:    chronograf.ErrAuthentication,
 			User:   "",
 		},
 		{

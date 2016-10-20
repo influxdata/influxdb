@@ -9,9 +9,9 @@ import (
 
 	"golang.org/x/net/context"
 
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/handlers"
-	fusionlog "github.com/influxdata/mrfusion/log"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/handlers"
+	clog "github.com/influxdata/chronograf/log"
 )
 
 func TestCookieExtractor(t *testing.T) {
@@ -29,7 +29,7 @@ func TestCookieExtractor(t *testing.T) {
 			Value:    "reallyimportant",
 			Lookup:   "Doesntexist",
 			Expected: "",
-			Err:      mrfusion.ErrAuthentication,
+			Err:      chronograf.ErrAuthentication,
 		},
 		{
 			Desc:     "Cookie token extracted",
@@ -47,7 +47,7 @@ func TestCookieExtractor(t *testing.T) {
 			Value: test.Value,
 		})
 
-		var e mrfusion.TokenExtractor = &handlers.CookieExtractor{
+		var e chronograf.TokenExtractor = &handlers.CookieExtractor{
 			Name: test.Lookup,
 		}
 		actual, err := e.Extract(req)
@@ -75,21 +75,21 @@ func TestBearerExtractor(t *testing.T) {
 			Header:   "Doesntexist",
 			Value:    "reallyimportant",
 			Expected: "",
-			Err:      mrfusion.ErrAuthentication,
+			Err:      chronograf.ErrAuthentication,
 		},
 		{
 			Desc:     "Auth header doesn't have Bearer",
 			Header:   "Authorization",
 			Value:    "Bad Value",
 			Expected: "",
-			Err:      mrfusion.ErrAuthentication,
+			Err:      chronograf.ErrAuthentication,
 		},
 		{
 			Desc:     "Auth header doesn't have Bearer token",
 			Header:   "Authorization",
 			Value:    "Bearer",
 			Expected: "",
-			Err:      mrfusion.ErrAuthentication,
+			Err:      chronograf.ErrAuthentication,
 		},
 		{
 			Desc:     "Authorization Bearer token success",
@@ -103,7 +103,7 @@ func TestBearerExtractor(t *testing.T) {
 		req, _ := http.NewRequest("", "http://howdy.com", nil)
 		req.Header.Add(test.Header, test.Value)
 
-		var e mrfusion.TokenExtractor = &handlers.BearerExtractor{}
+		var e chronograf.TokenExtractor = &handlers.BearerExtractor{}
 		actual, err := e.Extract(req)
 		if err != test.Err {
 			t.Errorf("Bearer extract error; expected %v  actual %v", test.Err, err)
@@ -124,15 +124,15 @@ func (m *MockExtractor) Extract(*http.Request) (string, error) {
 }
 
 type MockAuthenticator struct {
-	Principal mrfusion.Principal
+	Principal chronograf.Principal
 	Err       error
 }
 
-func (m *MockAuthenticator) Authenticate(context.Context, string) (mrfusion.Principal, error) {
+func (m *MockAuthenticator) Authenticate(context.Context, string) (chronograf.Principal, error) {
 	return m.Principal, m.Err
 }
 
-func (m *MockAuthenticator) Token(context.Context, mrfusion.Principal, time.Duration) (string, error) {
+func (m *MockAuthenticator) Token(context.Context, chronograf.Principal, time.Duration) (string, error) {
 	return "", m.Err
 }
 
@@ -140,7 +140,7 @@ func TestAuthorizedToken(t *testing.T) {
 	var tests = []struct {
 		Desc         string
 		Code         int
-		Principal    mrfusion.Principal
+		Principal    chronograf.Principal
 		ExtractorErr error
 		AuthErr      error
 		Expected     string
@@ -165,10 +165,10 @@ func TestAuthorizedToken(t *testing.T) {
 	for _, test := range tests {
 		// next is a sentinel StatusOK and
 		// principal recorder.
-		var principal mrfusion.Principal
+		var principal chronograf.Principal
 		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			principal = r.Context().Value(mrfusion.PrincipalKey).(mrfusion.Principal)
+			principal = r.Context().Value(chronograf.PrincipalKey).(chronograf.Principal)
 		})
 		req, _ := http.NewRequest("GET", "", nil)
 		w := httptest.NewRecorder()
@@ -181,7 +181,7 @@ func TestAuthorizedToken(t *testing.T) {
 			Principal: test.Principal,
 		}
 
-		logger := fusionlog.New()
+		logger := clog.New()
 		handler := handlers.AuthorizedToken(a, e, logger, next)
 		handler.ServeHTTP(w, req)
 		if w.Code != test.Code {

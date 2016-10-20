@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/influxdata/mrfusion"
+	"github.com/influxdata/chronograf"
 )
 
 // CookieExtractor extracts the token from the value of the Name cookie.
@@ -17,7 +17,7 @@ type CookieExtractor struct {
 func (c *CookieExtractor) Extract(r *http.Request) (string, error) {
 	cookie, err := r.Cookie(c.Name)
 	if err != nil {
-		return "", mrfusion.ErrAuthentication
+		return "", chronograf.ErrAuthentication
 	}
 	return cookie.Value, nil
 }
@@ -29,14 +29,14 @@ type BearerExtractor struct{}
 func (b *BearerExtractor) Extract(r *http.Request) (string, error) {
 	s := r.Header.Get("Authorization")
 	if s == "" {
-		return "", mrfusion.ErrAuthentication
+		return "", chronograf.ErrAuthentication
 	}
 
 	// Check for Bearer token.
 	strs := strings.Split(s, " ")
 
 	if len(strs) != 2 || strs[0] != "Bearer" {
-		return "", mrfusion.ErrAuthentication
+		return "", chronograf.ErrAuthentication
 	}
 	return strs[1], nil
 }
@@ -45,7 +45,7 @@ func (b *BearerExtractor) Extract(r *http.Request) (string, error) {
 // will be run.  The principal will be sent to the next handler via the request's
 // Context.  It is up to the next handler to determine if the principal has access.
 // On failure, will return http.StatusUnauthorized.
-func AuthorizedToken(auth mrfusion.Authenticator, te mrfusion.TokenExtractor, logger mrfusion.Logger, next http.Handler) http.Handler {
+func AuthorizedToken(auth chronograf.Authenticator, te chronograf.TokenExtractor, logger chronograf.Logger, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log := logger.
 			WithField("component", "auth").
@@ -69,7 +69,7 @@ func AuthorizedToken(auth mrfusion.Authenticator, te mrfusion.TokenExtractor, lo
 		}
 
 		// Send the principal to the next handler
-		ctx := context.WithValue(r.Context(), mrfusion.PrincipalKey, principal)
+		ctx := context.WithValue(r.Context(), chronograf.PrincipalKey, principal)
 		next.ServeHTTP(w, r.WithContext(ctx))
 		return
 	})

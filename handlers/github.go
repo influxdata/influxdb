@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/google/go-github/github"
-	"github.com/influxdata/mrfusion"
+	"github.com/influxdata/chronograf"
 	"golang.org/x/oauth2"
 	ogh "golang.org/x/oauth2/github"
 )
@@ -38,18 +38,18 @@ func NewCookie() Cookie {
 // the user's primary Github email address.
 type Github struct {
 	Cookie        Cookie
-	Authenticator mrfusion.Authenticator
+	Authenticator chronograf.Authenticator
 	ClientID      string
 	ClientSecret  string
 	Scopes        []string
 	SuccessURL    string // SuccessURL is redirect location after successful authorization
 	FailureURL    string // FailureURL is redirect location after authorization failure
 	Now           func() time.Time
-	Logger        mrfusion.Logger
+	Logger        chronograf.Logger
 }
 
 // NewGithub constructs a Github with default cookie behavior and scopes.
-func NewGithub(clientID, clientSecret, successURL, failureURL string, auth mrfusion.Authenticator, log mrfusion.Logger) Github {
+func NewGithub(clientID, clientSecret, successURL, failureURL string, auth chronograf.Authenticator, log chronograf.Logger) Github {
 	return Github{
 		ClientID:      clientID,
 		ClientSecret:  clientSecret,
@@ -84,7 +84,7 @@ func (g *Github) Login() http.Handler {
 		// We'll give our users 10 minutes from this point to type in their github password.
 		// If the callback is not received within 10 minutes, then authorization will fail.
 		csrf := randomString(32) // 32 is not important... just long
-		state, err := g.Authenticator.Token(r.Context(), mrfusion.Principal(csrf), 10*time.Minute)
+		state, err := g.Authenticator.Token(r.Context(), chronograf.Principal(csrf), 10*time.Minute)
 		// This is likely an internal server error
 		if err != nil {
 			g.Logger.
@@ -170,7 +170,7 @@ func (g *Github) Callback() http.Handler {
 		}
 
 		// We create an auth token that will be used by all other endpoints to validate the principal has a claim
-		authToken, err := g.Authenticator.Token(r.Context(), mrfusion.Principal(email), g.Cookie.Duration)
+		authToken, err := g.Authenticator.Token(r.Context(), chronograf.Principal(email), g.Cookie.Duration)
 		if err != nil {
 			log.Error("Unable to create cookie auth token ", err.Error())
 			http.Redirect(w, r, g.FailureURL, http.StatusTemporaryRedirect)

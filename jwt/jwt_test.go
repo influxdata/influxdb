@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/jwt"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/jwt"
 )
 
 func TestAuthenticate(t *testing.T) {
@@ -15,7 +15,7 @@ func TestAuthenticate(t *testing.T) {
 		Desc   string
 		Secret string
 		Token  string
-		User   mrfusion.Principal
+		User   chronograf.Principal
 		Err    error
 	}{
 		{
@@ -83,7 +83,7 @@ func TestToken(t *testing.T) {
 			return time.Unix(-446774400, 0)
 		},
 	}
-	if token, err := j.Token(context.Background(), mrfusion.Principal("/chronograf/v1/users/1"), duration); err != nil {
+	if token, err := j.Token(context.Background(), chronograf.Principal("/chronograf/v1/users/1"), duration); err != nil {
 		t.Errorf("Error creating token for user: %v", err)
 	} else if token != expected {
 		t.Errorf("Error creating token; expected: %s  actual: %s", "", token)

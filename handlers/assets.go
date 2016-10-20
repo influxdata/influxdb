@@ -3,8 +3,8 @@ package handlers
 import (
 	"net/http"
 
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/dist"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/dist"
 )
 
 const (
@@ -17,12 +17,12 @@ type AssetsOpts struct {
 	// Develop when true serves assets from ui/build directory directly; false will use internal bindata.
 	Develop bool
 	// Logger will log the asset served
-	Logger mrfusion.Logger
+	Logger chronograf.Logger
 }
 
 // Assets creates a middleware that will serve a single page app.
 func Assets(opts AssetsOpts) http.Handler {
-	var assets mrfusion.Assets
+	var assets chronograf.Assets
 	if opts.Develop {
 		assets = &dist.DebugAssets{
 			Dir:     Dir,

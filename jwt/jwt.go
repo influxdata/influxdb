@@ -7,11 +7,11 @@ import (
 	"golang.org/x/net/context"
 
 	gojwt "github.com/dgrijalva/jwt-go"
-	"github.com/influxdata/mrfusion"
+	"github.com/influxdata/chronograf"
 )
 
 // Test if JWT implements Authenticator
-var _ mrfusion.Authenticator = &JWT{}
+var _ chronograf.Authenticator = &JWT{}
 
 // JWT represents a javascript web token that can be validated or marshaled into string.
 type JWT struct {
@@ -46,7 +46,7 @@ func (c *Claims) Valid() error {
 }
 
 // Authenticate checks if the jwtToken is signed correctly and validates with Claims.
-func (j *JWT) Authenticate(ctx context.Context, jwtToken string) (mrfusion.Principal, error) {
+func (j *JWT) Authenticate(ctx context.Context, jwtToken string) (chronograf.Principal, error) {
 	gojwt.TimeFunc = j.Now
 
 	// Check for expected signing method.
@@ -73,11 +73,11 @@ func (j *JWT) Authenticate(ctx context.Context, jwtToken string) (mrfusion.Princ
 		return "", fmt.Errorf("unable to convert claims to standard claims")
 	}
 
-	return mrfusion.Principal(claims.Subject), nil
+	return chronograf.Principal(claims.Subject), nil
 }
 
 // Token creates a signed JWT token from user that expires at Now + duration
-func (j *JWT) Token(ctx context.Context, user mrfusion.Principal, duration time.Duration) (string, error) {
+func (j *JWT) Token(ctx context.Context, user chronograf.Principal, duration time.Duration) (string, error) {
 	// Create a new token object, specifying signing method and the claims
 	// you would like it to contain.
 	now := j.Now()
