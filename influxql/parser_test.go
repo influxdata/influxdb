@@ -2986,7 +2986,7 @@ func newAlterRetentionPolicyStatement(name string, DB string, d, sd time.Duratio
 
 // mustMarshalJSON encodes a value to JSON.
 func mustMarshalJSON(v interface{}) []byte {
-	b, err := json.Marshal(v)
+	b, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
 		panic(err)
 	}
