@@ -1,4 +1,4 @@
-package mrfusion
+package chronograf
 
 import "net/http"
 

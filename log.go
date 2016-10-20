@@ -1,4 +1,4 @@
-package mrfusion
+package chronograf
 
 // Logger represents an abstracted structured logging implementation. It
 // provides methods to trigger log messages at various alert levels and a

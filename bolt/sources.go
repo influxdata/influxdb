@@ -2,13 +2,13 @@ package bolt
 
 import (
 	"github.com/boltdb/bolt"
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/bolt/internal"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/bolt/internal"
 	"golang.org/x/net/context"
 )
 
-// Ensure SourcesStore implements mrfusion.SourcesStore.
-var _ mrfusion.SourcesStore = &SourcesStore{}
+// Ensure SourcesStore implements chronograf.SourcesStore.
+var _ chronograf.SourcesStore = &SourcesStore{}
 
 var SourcesBucket = []byte("Sources")
 
@@ -17,11 +17,11 @@ type SourcesStore struct {
 }
 
 // All returns all known sources
-func (s *SourcesStore) All(ctx context.Context) ([]mrfusion.Source, error) {
-	var srcs []mrfusion.Source
+func (s *SourcesStore) All(ctx context.Context) ([]chronograf.Source, error) {
+	var srcs []chronograf.Source
 	if err := s.client.db.View(func(tx *bolt.Tx) error {
 		if err := tx.Bucket(SourcesBucket).ForEach(func(k, v []byte) error {
-			var src mrfusion.Source
+			var src chronograf.Source
 			if err := internal.UnmarshalSource(v, &src); err != nil {
 				return err
 			}
@@ -40,7 +40,7 @@ func (s *SourcesStore) All(ctx context.Context) ([]mrfusion.Source, error) {
 }
 
 // Add creates a new Source in the SourceStore.
-func (s *SourcesStore) Add(ctx context.Context, src mrfusion.Source) (mrfusion.Source, error) {
+func (s *SourcesStore) Add(ctx context.Context, src chronograf.Source) (chronograf.Source, error) {
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(SourcesBucket)
 		seq, err := b.NextSequence()
@@ -56,14 +56,14 @@ func (s *SourcesStore) Add(ctx context.Context, src mrfusion.Source) (mrfusion.S
 		}
 		return nil
 	}); err != nil {
-		return mrfusion.Source{}, err
+		return chronograf.Source{}, err
 	}
 
 	return src, nil
 }
 
 // Delete removes the Source from the SourcesStore
-func (s *SourcesStore) Delete(ctx context.Context, src mrfusion.Source) error {
+func (s *SourcesStore) Delete(ctx context.Context, src chronograf.Source) error {
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		if err := tx.Bucket(SourcesBucket).Delete(itob(src.ID)); err != nil {
 			return err
@@ -77,29 +77,29 @@ func (s *SourcesStore) Delete(ctx context.Context, src mrfusion.Source) error {
 }
 
 // Get returns a Source if the id exists.
-func (s *SourcesStore) Get(ctx context.Context, id int) (mrfusion.Source, error) {
-	var src mrfusion.Source
+func (s *SourcesStore) Get(ctx context.Context, id int) (chronograf.Source, error) {
+	var src chronograf.Source
 	if err := s.client.db.View(func(tx *bolt.Tx) error {
 		if v := tx.Bucket(SourcesBucket).Get(itob(id)); v == nil {
-			return mrfusion.ErrSourceNotFound
+			return chronograf.ErrSourceNotFound
 		} else if err := internal.UnmarshalSource(v, &src); err != nil {
 			return err
 		}
 		return nil
 	}); err != nil {
-		return mrfusion.Source{}, err
+		return chronograf.Source{}, err
 	}
 
 	return src, nil
 }
 
 // Update a Source
-func (s *SourcesStore) Update(ctx context.Context, src mrfusion.Source) error {
+func (s *SourcesStore) Update(ctx context.Context, src chronograf.Source) error {
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		// Get an existing soource with the same ID.
 		b := tx.Bucket(SourcesBucket)
 		if v := b.Get(itob(src.ID)); v == nil {
-			return mrfusion.ErrSourceNotFound
+			return chronograf.ErrSourceNotFound
 		}
 
 		if v, err := internal.MarshalSource(src); err != nil {

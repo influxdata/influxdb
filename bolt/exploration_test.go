@@ -3,7 +3,7 @@ package bolt_test
 import (
 	"testing"
 
-	"github.com/influxdata/mrfusion"
+	"github.com/influxdata/chronograf"
 )
 
 // Ensure an ExplorationStore can store, retrieve, update, and delete explorations.
@@ -18,18 +18,18 @@ func TestExplorationStore_CRUD(t *testing.T) {
 	defer c.Close()
 	s := c.ExplorationStore
 
-	explorations := []*mrfusion.Exploration{
-		&mrfusion.Exploration{
+	explorations := []*chronograf.Exploration{
+		&chronograf.Exploration{
 			Name:   "Ferdinand Magellan",
 			UserID: 2,
 			Data:   "{\"panels\":{\"123\":{\"id\":\"123\",\"queryIds\":[\"456\"]}},\"queryConfigs\":{\"456\":{\"id\":\"456\",\"database\":null,\"measurement\":null,\"retentionPolicy\":null,\"fields\":[],\"tags\":{},\"groupBy\":{\"time\":null,\"tags\":[]},\"areTagsAccepted\":true,\"rawText\":null}}}",
 		},
-		&mrfusion.Exploration{
+		&chronograf.Exploration{
 			Name:   "Marco Polo",
 			UserID: 3,
 			Data:   "{\"panels\":{\"123\":{\"id\":\"123\",\"queryIds\":[\"456\"]}},\"queryConfigs\":{\"456\":{\"id\":\"456\",\"database\":null,\"measurement\":null,\"retentionPolicy\":null,\"fields\":[],\"tags\":{},\"groupBy\":{\"time\":null,\"tags\":[]},\"areTagsAccepted\":true,\"rawText\":null}}}",
 		},
-		&mrfusion.Exploration{
+		&chronograf.Exploration{
 			Name:   "Leif Ericson",
 			UserID: 3,
 			Data:   "{\"panels\":{\"123\":{\"id\":\"123\",\"queryIds\":[\"456\"]}},\"queryConfigs\":{\"456\":{\"id\":\"456\",\"database\":null,\"measurement\":null,\"retentionPolicy\":null,\"fields\":[],\"tags\":{},\"groupBy\":{\"time\":null,\"tags\":[]},\"areTagsAccepted\":true,\"rawText\":null}}}",
@@ -83,8 +83,8 @@ func TestExplorationStore_CRUD(t *testing.T) {
 	}
 
 	// Confirm exploration has been deleted.
-	if e, err := s.Get(nil, explorations[2].ID); err != mrfusion.ErrExplorationNotFound {
-		t.Fatalf("exploration delete error: got %v, expected %v", e, mrfusion.ErrExplorationNotFound)
+	if e, err := s.Get(nil, explorations[2].ID); err != chronograf.ErrExplorationNotFound {
+		t.Fatalf("exploration delete error: got %v, expected %v", e, chronograf.ErrExplorationNotFound)
 	}
 }
 
@@ -100,18 +100,18 @@ func TestExplorationStore_Query(t *testing.T) {
 	defer c.Close()
 	s := c.ExplorationStore
 
-	explorations := []*mrfusion.Exploration{
-		&mrfusion.Exploration{
+	explorations := []*chronograf.Exploration{
+		&chronograf.Exploration{
 			Name:   "Ferdinand Magellan",
 			UserID: 2,
 			Data:   "{\"panels\":{\"123\":{\"id\":\"123\",\"queryIds\":[\"456\"]}},\"queryConfigs\":{\"456\":{\"id\":\"456\",\"database\":null,\"measurement\":null,\"retentionPolicy\":null,\"fields\":[],\"tags\":{},\"groupBy\":{\"time\":null,\"tags\":[]},\"areTagsAccepted\":true,\"rawText\":null}}}",
 		},
-		&mrfusion.Exploration{
+		&chronograf.Exploration{
 			Name:   "Marco Polo",
 			UserID: 3,
 			Data:   "{\"panels\":{\"123\":{\"id\":\"123\",\"queryIds\":[\"456\"]}},\"queryConfigs\":{\"456\":{\"id\":\"456\",\"database\":null,\"measurement\":null,\"retentionPolicy\":null,\"fields\":[],\"tags\":{},\"groupBy\":{\"time\":null,\"tags\":[]},\"areTagsAccepted\":true,\"rawText\":null}}}",
 		},
-		&mrfusion.Exploration{
+		&chronograf.Exploration{
 			Name:   "Leif Ericson",
 			UserID: 3,
 			Data:   "{\"panels\":{\"123\":{\"id\":\"123\",\"queryIds\":[\"456\"]}},\"queryConfigs\":{\"456\":{\"id\":\"456\",\"database\":null,\"measurement\":null,\"retentionPolicy\":null,\"fields\":[],\"tags\":{},\"groupBy\":{\"time\":null,\"tags\":[]},\"areTagsAccepted\":true,\"rawText\":null}}}",

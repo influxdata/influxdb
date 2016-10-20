@@ -1,9 +1,9 @@
 swagger: '2.0'
 info:
-    title: Mr Fusion
-    description: Fuel for Chronograf
+    title: Chronograf
+    description: API endpoints for Chronograf
     version: "1.1.0"
-host: Chronograf.influxdata.com
+host: chronograf.influxdata.com
 schemes:
     - http
 basePath: /chronograf/v1

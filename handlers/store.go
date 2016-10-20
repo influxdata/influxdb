@@ -1,11 +1,11 @@
 package handlers
 
-import "github.com/influxdata/mrfusion"
+import "github.com/influxdata/chronograf"
 
 // Store handles REST calls to the persistence
 type Store struct {
-	ExplorationStore mrfusion.ExplorationStore
-	SourcesStore     mrfusion.SourcesStore
-	ServersStore     mrfusion.ServersStore
-	LayoutStore      mrfusion.LayoutStore
+	ExplorationStore chronograf.ExplorationStore
+	SourcesStore     chronograf.SourcesStore
+	ServersStore     chronograf.ServersStore
+	LayoutStore      chronograf.LayoutStore
 }

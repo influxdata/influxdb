@@ -2,13 +2,13 @@ package bolt
 
 import (
 	"github.com/boltdb/bolt"
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/bolt/internal"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/bolt/internal"
 	"golang.org/x/net/context"
 )
 
-// Ensure ServersStore implements mrfusion.ServersStore.
-var _ mrfusion.ServersStore = &ServersStore{}
+// Ensure ServersStore implements chronograf.ServersStore.
+var _ chronograf.ServersStore = &ServersStore{}
 
 var ServersBucket = []byte("Servers")
 
@@ -17,11 +17,11 @@ type ServersStore struct {
 }
 
 // All returns all known servers
-func (s *ServersStore) All(ctx context.Context) ([]mrfusion.Server, error) {
-	var srcs []mrfusion.Server
+func (s *ServersStore) All(ctx context.Context) ([]chronograf.Server, error) {
+	var srcs []chronograf.Server
 	if err := s.client.db.View(func(tx *bolt.Tx) error {
 		if err := tx.Bucket(ServersBucket).ForEach(func(k, v []byte) error {
-			var src mrfusion.Server
+			var src chronograf.Server
 			if err := internal.UnmarshalServer(v, &src); err != nil {
 				return err
 			}
@@ -40,7 +40,7 @@ func (s *ServersStore) All(ctx context.Context) ([]mrfusion.Server, error) {
 }
 
 // Add creates a new Server in the ServerStore.
-func (s *ServersStore) Add(ctx context.Context, src mrfusion.Server) (mrfusion.Server, error) {
+func (s *ServersStore) Add(ctx context.Context, src chronograf.Server) (chronograf.Server, error) {
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(ServersBucket)
 		seq, err := b.NextSequence()
@@ -56,14 +56,14 @@ func (s *ServersStore) Add(ctx context.Context, src mrfusion.Server) (mrfusion.S
 		}
 		return nil
 	}); err != nil {
-		return mrfusion.Server{}, err
+		return chronograf.Server{}, err
 	}
 
 	return src, nil
 }
 
 // Delete removes the Server from the ServersStore
-func (s *ServersStore) Delete(ctx context.Context, src mrfusion.Server) error {
+func (s *ServersStore) Delete(ctx context.Context, src chronograf.Server) error {
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		if err := tx.Bucket(ServersBucket).Delete(itob(src.ID)); err != nil {
 			return err
@@ -77,29 +77,29 @@ func (s *ServersStore) Delete(ctx context.Context, src mrfusion.Server) error {
 }
 
 // Get returns a Server if the id exists.
-func (s *ServersStore) Get(ctx context.Context, id int) (mrfusion.Server, error) {
-	var src mrfusion.Server
+func (s *ServersStore) Get(ctx context.Context, id int) (chronograf.Server, error) {
+	var src chronograf.Server
 	if err := s.client.db.View(func(tx *bolt.Tx) error {
 		if v := tx.Bucket(ServersBucket).Get(itob(id)); v == nil {
-			return mrfusion.ErrServerNotFound
+			return chronograf.ErrServerNotFound
 		} else if err := internal.UnmarshalServer(v, &src); err != nil {
 			return err
 		}
 		return nil
 	}); err != nil {
-		return mrfusion.Server{}, err
+		return chronograf.Server{}, err
 	}
 
 	return src, nil
 }
 
 // Update a Server
-func (s *ServersStore) Update(ctx context.Context, src mrfusion.Server) error {
+func (s *ServersStore) Update(ctx context.Context, src chronograf.Server) error {
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		// Get an existing server with the same ID.
 		b := tx.Bucket(ServersBucket)
 		if v := b.Get(itob(src.ID)); v == nil {
-			return mrfusion.ErrServerNotFound
+			return chronograf.ErrServerNotFound
 		}
 
 		if v, err := internal.MarshalServer(src); err != nil {

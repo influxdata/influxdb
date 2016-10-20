@@ -1,7 +1,7 @@
 package layouts
 
 import (
-	"github.com/influxdata/mrfusion"
+	"github.com/influxdata/chronograf"
 	"golang.org/x/net/context"
 )
 
@@ -9,12 +9,12 @@ import (
 // The All method will return the set of all Layouts.
 // Each method will be tried against the Stores slice serially.
 type MultiLayoutStore struct {
-	Stores []mrfusion.LayoutStore
+	Stores []chronograf.LayoutStore
 }
 
 // All returns the set of all layouts
-func (s *MultiLayoutStore) All(ctx context.Context) ([]mrfusion.Layout, error) {
-	all := []mrfusion.Layout{}
+func (s *MultiLayoutStore) All(ctx context.Context) ([]chronograf.Layout, error) {
+	all := []chronograf.Layout{}
 	ok := false
 	var err error
 	for _, store := range s.Stores {
@@ -33,21 +33,21 @@ func (s *MultiLayoutStore) All(ctx context.Context) ([]mrfusion.Layout, error) {
 }
 
 // Add creates a new dashboard in the LayoutStore.  Tries each store sequentially until success.
-func (s *MultiLayoutStore) Add(ctx context.Context, layout mrfusion.Layout) (mrfusion.Layout, error) {
+func (s *MultiLayoutStore) Add(ctx context.Context, layout chronograf.Layout) (chronograf.Layout, error) {
 	var err error
 	for _, store := range s.Stores {
-		var l mrfusion.Layout
+		var l chronograf.Layout
 		l, err = store.Add(ctx, layout)
 		if err == nil {
 			return l, nil
 		}
 	}
-	return mrfusion.Layout{}, err
+	return chronograf.Layout{}, err
 }
 
 // Delete the dashboard from the store.  Searches through all stores to find Layout and
 // then deletes from that store.
-func (s *MultiLayoutStore) Delete(ctx context.Context, layout mrfusion.Layout) error {
+func (s *MultiLayoutStore) Delete(ctx context.Context, layout chronograf.Layout) error {
 	var err error
 	for _, store := range s.Stores {
 		err = store.Delete(ctx, layout)
@@ -59,20 +59,20 @@ func (s *MultiLayoutStore) Delete(ctx context.Context, layout mrfusion.Layout) e
 }
 
 // Get retrieves Layout if `ID` exists.  Searches through each store sequentially until success.
-func (s *MultiLayoutStore) Get(ctx context.Context, ID string) (mrfusion.Layout, error) {
+func (s *MultiLayoutStore) Get(ctx context.Context, ID string) (chronograf.Layout, error) {
 	var err error
 	for _, store := range s.Stores {
-		var l mrfusion.Layout
+		var l chronograf.Layout
 		l, err = store.Get(ctx, ID)
 		if err == nil {
 			return l, nil
 		}
 	}
-	return mrfusion.Layout{}, err
+	return chronograf.Layout{}, err
 }
 
 // Update the dashboard in the store.  Searches through each store sequentially until success.
-func (s *MultiLayoutStore) Update(ctx context.Context, layout mrfusion.Layout) error {
+func (s *MultiLayoutStore) Update(ctx context.Context, layout chronograf.Layout) error {
 	var err error
 	for _, store := range s.Stores {
 		err = store.Update(ctx, layout)

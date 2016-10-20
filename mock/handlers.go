@@ -8,16 +8,16 @@ import (
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/models"
-	op "github.com/influxdata/mrfusion/restapi/operations"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/models"
+	op "github.com/influxdata/chronograf/restapi/operations"
 	"golang.org/x/net/context"
 )
 
 type Handler struct {
-	Store      mrfusion.ExplorationStore
-	Srcs       mrfusion.SourcesStore
-	TimeSeries mrfusion.TimeSeries
+	Store      chronograf.ExplorationStore
+	Srcs       chronograf.SourcesStore
+	TimeSeries chronograf.TimeSeries
 }
 
 func NewHandler() Handler {
@@ -40,7 +40,7 @@ func (m *Handler) AllRoutes(ctx context.Context, params op.GetParams) middleware
 }
 
 func (m *Handler) NewSource(ctx context.Context, params op.PostSourcesParams) middleware.Responder {
-	src := mrfusion.Source{
+	src := chronograf.Source{
 		Name:     *params.Source.Name,
 		Type:     params.Source.Type,
 		Username: params.Source.Username,
@@ -67,7 +67,7 @@ func srcLinks(id int) *models.SourceLinks {
 	}
 }
 
-func mrToModel(src mrfusion.Source) *models.Source {
+func mrToModel(src chronograf.Source) *models.Source {
 	return &models.Source{
 		ID:       strconv.Itoa(src.ID),
 		Links:    srcLinks(src.ID),
@@ -121,7 +121,7 @@ func (m *Handler) RemoveSource(ctx context.Context, params op.DeleteSourcesIDPar
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
 		return op.NewDeleteSourcesIDDefault(500).WithPayload(errMsg)
 	}
-	src := mrfusion.Source{
+	src := chronograf.Source{
 		ID: id,
 	}
 	if err = m.Srcs.Delete(ctx, src); err != nil {
@@ -199,12 +199,12 @@ func (m *Handler) Proxy(ctx context.Context, params op.PostSourcesIDProxyParams)
 		errMsg := &models.Error{Code: 400, Message: fmt.Sprintf("Unable to connect to source %s", params.ID)}
 		return op.NewPostSourcesIDProxyNotFound().WithPayload(errMsg)
 	}
-	query := mrfusion.Query{
+	query := chronograf.Query{
 		Command: *params.Query.Query,
 		DB:      params.Query.Db,
 		RP:      params.Query.Rp,
 	}
-	response, err := m.TimeSeries.Query(ctx, mrfusion.Query(query))
+	response, err := m.TimeSeries.Query(ctx, chronograf.Query(query))
 	if err != nil {
 		return op.NewPostSourcesIDProxyDefault(500)
 	}
@@ -220,7 +220,7 @@ func (m *Handler) Explorations(ctx context.Context, params op.GetSourcesIDUsersU
 	if err != nil {
 		return op.NewGetSourcesIDUsersUserIDExplorationsDefault(500)
 	}
-	exs, err := m.Store.Query(ctx, mrfusion.UserID(id))
+	exs, err := m.Store.Query(ctx, chronograf.UserID(id))
 	if err != nil {
 		return op.NewGetSourcesIDUsersUserIDExplorationsNotFound()
 	}
@@ -256,7 +256,7 @@ func (m *Handler) Exploration(ctx context.Context, params op.GetSourcesIDUsersUs
 		return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
 	}
 
-	e, err := m.Store.Get(ctx, mrfusion.ExplorationID(eID))
+	e, err := m.Store.Get(ctx, chronograf.ExplorationID(eID))
 	if err != nil {
 		log.Printf("Error unknown exploration id: %d: %v", eID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error unknown exploration id"}
@@ -284,14 +284,14 @@ func (m *Handler) UpdateExploration(ctx context.Context, params op.PatchSourcesI
 		return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDDefault(500)
 	}
 
-	e, err := m.Store.Get(ctx, mrfusion.ExplorationID(eID))
+	e, err := m.Store.Get(ctx, chronograf.ExplorationID(eID))
 	if err != nil {
 		log.Printf("Error unknown exploration id: %d: %v", eID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error unknown exploration id"}
 		return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
 	}
 	if params.Exploration != nil {
-		e.ID = mrfusion.ExplorationID(eID)
+		e.ID = chronograf.ExplorationID(eID)
 		e.Data = params.Exploration.Data.(string)
 		e.Name = params.Exploration.Name
 		m.Store.Update(ctx, e)
@@ -305,7 +305,7 @@ func (m *Handler) NewExploration(ctx context.Context, params op.PostSourcesIDUse
 		return op.NewPostSourcesIDUsersUserIDExplorationsDefault(500)
 	}
 
-	exs, err := m.Store.Query(ctx, mrfusion.UserID(id))
+	exs, err := m.Store.Query(ctx, chronograf.UserID(id))
 	if err != nil {
 		log.Printf("Error unknown user id: %d: %v", id, err)
 		errMsg := &models.Error{Code: 404, Message: "Error unknown user id"}
@@ -314,10 +314,10 @@ func (m *Handler) NewExploration(ctx context.Context, params op.PostSourcesIDUse
 	eID := len(exs)
 
 	if params.Exploration != nil {
-		e := mrfusion.Exploration{
+		e := chronograf.Exploration{
 			Data: params.Exploration.Data.(string),
 			Name: params.Exploration.Name,
-			ID:   mrfusion.ExplorationID(eID),
+			ID:   chronograf.ExplorationID(eID),
 		}
 		m.Store.Add(ctx, &e)
 	}
@@ -342,7 +342,7 @@ func (m *Handler) DeleteExploration(ctx context.Context, params op.DeleteSources
 		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDDefault(500)
 	}
 
-	if err := m.Store.Delete(ctx, &mrfusion.Exploration{ID: mrfusion.ExplorationID(ID)}); err != nil {
+	if err := m.Store.Delete(ctx, &chronograf.Exploration{ID: chronograf.ExplorationID(ID)}); err != nil {
 		log.Printf("Error unknown explorations id: %d: %v", ID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error unknown user id"}
 		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)

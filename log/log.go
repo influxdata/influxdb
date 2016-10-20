@@ -4,10 +4,10 @@ import (
 	"os"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/influxdata/mrfusion"
+	"github.com/influxdata/chronograf"
 )
 
-// LogrusLogger is a mrfusion.Logger that uses logrus to process logs
+// LogrusLogger is a chronograf.Logger that uses logrus to process logs
 type logrusLogger struct {
 	l *logrus.Entry
 }
@@ -32,11 +32,11 @@ func (ll *logrusLogger) Error(items ...interface{}) {
 	ll.l.Error(items...)
 }
 
-func (ll *logrusLogger) WithField(key string, value interface{}) mrfusion.Logger {
+func (ll *logrusLogger) WithField(key string, value interface{}) chronograf.Logger {
 	return &logrusLogger{ll.l.WithField(key, value)}
 }
 
-func New() mrfusion.Logger {
+func New() chronograf.Logger {
 	logger := &logrus.Logger{
 		Out:       os.Stderr,
 		Formatter: new(logrus.TextFormatter),

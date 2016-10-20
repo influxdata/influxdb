@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/influxdata/mrfusion/bolt"
+	"github.com/influxdata/chronograf/bolt"
 )
 
 // TestNow is a set time for testing.
@@ -19,7 +19,7 @@ type TestClient struct {
 
 // NewTestClient creates new *bolt.Client with a set time and temp path.
 func NewTestClient() (*TestClient, error) {
-	f, err := ioutil.TempFile("", "mrfusion-bolt-")
+	f, err := ioutil.TempFile("", "chronograf-bolt-")
 	if err != nil {
 		return nil, errors.New("unable to open temporary boltdb file")
 	}

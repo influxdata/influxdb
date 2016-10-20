@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/bolt/internal"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/bolt/internal"
 )
 
 // Ensure an exploration can be marshaled and unmarshaled.
 func TestMarshalExploration(t *testing.T) {
-	v := mrfusion.Exploration{
+	v := chronograf.Exploration{
 		ID:        12,
 		Name:      "Some Exploration",
 		UserID:    34,
@@ -20,7 +20,7 @@ func TestMarshalExploration(t *testing.T) {
 		UpdatedAt: time.Now().UTC(),
 	}
 
-	var vv mrfusion.Exploration
+	var vv chronograf.Exploration
 	if buf, err := internal.MarshalExploration(&v); err != nil {
 		t.Fatal(err)
 	} else if err := internal.UnmarshalExploration(buf, &vv); err != nil {
@@ -31,7 +31,7 @@ func TestMarshalExploration(t *testing.T) {
 }
 
 func TestMarshalSource(t *testing.T) {
-	v := mrfusion.Source{
+	v := chronograf.Source{
 		ID:       12,
 		Name:     "Fountain of Truth",
 		Type:     "influx",
@@ -41,7 +41,7 @@ func TestMarshalSource(t *testing.T) {
 		Default:  true,
 	}
 
-	var vv mrfusion.Source
+	var vv chronograf.Source
 	if buf, err := internal.MarshalSource(v); err != nil {
 		t.Fatal(err)
 	} else if err := internal.UnmarshalSource(buf, &vv); err != nil {
@@ -52,7 +52,7 @@ func TestMarshalSource(t *testing.T) {
 }
 
 func TestMarshalServer(t *testing.T) {
-	v := mrfusion.Server{
+	v := chronograf.Server{
 		ID:       12,
 		SrcID:    2,
 		Name:     "Fountain of Truth",
@@ -61,7 +61,7 @@ func TestMarshalServer(t *testing.T) {
 		URL:      "http://oldmanpeabody.mall.io:9092",
 	}
 
-	var vv mrfusion.Server
+	var vv chronograf.Server
 	if buf, err := internal.MarshalServer(v); err != nil {
 		t.Fatal(err)
 	} else if err := internal.UnmarshalServer(buf, &vv); err != nil {

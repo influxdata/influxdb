@@ -7,18 +7,18 @@ import (
 	"strconv"
 
 	"github.com/go-openapi/runtime/middleware"
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/models"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/models"
 	"golang.org/x/net/context"
 
-	op "github.com/influxdata/mrfusion/restapi/operations"
+	op "github.com/influxdata/chronograf/restapi/operations"
 )
 
 type InfluxProxy struct {
-	Srcs           mrfusion.SourcesStore
-	ServersStore   mrfusion.ServersStore
-	TimeSeries     mrfusion.TimeSeries
-	KapacitorProxy mrfusion.Proxy
+	Srcs           chronograf.SourcesStore
+	ServersStore   chronograf.ServersStore
+	TimeSeries     chronograf.TimeSeries
+	KapacitorProxy chronograf.Proxy
 }
 
 func (h *InfluxProxy) Proxy(ctx context.Context, params op.PostSourcesIDProxyParams) middleware.Responder {
@@ -39,7 +39,7 @@ func (h *InfluxProxy) Proxy(ctx context.Context, params op.PostSourcesIDProxyPar
 		return op.NewPostSourcesIDProxyNotFound().WithPayload(errMsg)
 	}
 
-	query := mrfusion.Query{
+	query := chronograf.Query{
 		Command: *params.Query.Query,
 		DB:      params.Query.Db,
 		RP:      params.Query.Rp,
@@ -47,7 +47,7 @@ func (h *InfluxProxy) Proxy(ctx context.Context, params op.PostSourcesIDProxyPar
 
 	response, err := h.TimeSeries.Query(ctx, query)
 	if err != nil {
-		if err == mrfusion.ErrUpstreamTimeout {
+		if err == chronograf.ErrUpstreamTimeout {
 			e := &models.Error{
 				Code:    408,
 				Message: "Timeout waiting for Influx response",
@@ -100,7 +100,7 @@ func (h *InfluxProxy) KapacitorProxyPost(ctx context.Context, params op.PostSour
 		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
-	req := &mrfusion.Request{
+	req := &chronograf.Request{
 		Method: "POST",
 		Path:   params.Path,
 		Body:   body,
@@ -163,7 +163,7 @@ func (h *InfluxProxy) KapacitorProxyPatch(ctx context.Context, params op.PatchSo
 		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
-	req := &mrfusion.Request{
+	req := &chronograf.Request{
 		Method: "PATCH",
 		Path:   params.Path,
 		Body:   body,
@@ -220,7 +220,7 @@ func (h *InfluxProxy) KapacitorProxyGet(ctx context.Context, params op.GetSource
 		return op.NewGetSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
-	req := &mrfusion.Request{
+	req := &chronograf.Request{
 		Method: "GET",
 		Path:   params.Path,
 	}
@@ -276,7 +276,7 @@ func (h *InfluxProxy) KapacitorProxyDelete(ctx context.Context, params op.Delete
 		return op.NewDeleteSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
-	req := &mrfusion.Request{
+	req := &chronograf.Request{
 		Method: "DELETE",
 		Path:   params.Path,
 	}

@@ -39,7 +39,7 @@ const Root = React.createClass({
     return {
       me: {
         id: 1,
-        name: 'MrFusion',
+        name: 'Chronograf',
         email: 'foo@example.com',
         admin: true,
       },

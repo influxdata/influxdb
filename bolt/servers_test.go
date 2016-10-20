@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/mrfusion"
+	"github.com/influxdata/chronograf"
 )
 
 // Ensure an ServerStore can store, retrieve, update, and delete servers.
@@ -19,15 +19,15 @@ func TestServerStore(t *testing.T) {
 	defer c.Close()
 	s := c.ServersStore
 
-	srcs := []mrfusion.Server{
-		mrfusion.Server{
+	srcs := []chronograf.Server{
+		chronograf.Server{
 			Name:     "Of Truth",
 			SrcID:    10,
 			Username: "marty",
 			Password: "I❤️  jennifer parker",
 			URL:      "toyota-hilux.lyon-estates.local",
 		},
-		mrfusion.Server{
+		chronograf.Server{
 			Name:     "HipToBeSquare",
 			SrcID:    12,
 			Username: "calvinklein",
@@ -76,8 +76,8 @@ func TestServerStore(t *testing.T) {
 	}
 
 	// Confirm server has been deleted.
-	if _, err := s.Get(nil, srcs[0].ID); err != mrfusion.ErrServerNotFound {
-		t.Fatalf("server delete error: got %v, expected %v", err, mrfusion.ErrServerNotFound)
+	if _, err := s.Get(nil, srcs[0].ID); err != chronograf.ErrServerNotFound {
+		t.Fatalf("server delete error: got %v, expected %v", err, chronograf.ErrServerNotFound)
 	}
 
 	if bsrcs, err := s.All(nil); err != nil {

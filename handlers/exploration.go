@@ -7,11 +7,11 @@ import (
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/models"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/models"
 	"golang.org/x/net/context"
 
-	op "github.com/influxdata/mrfusion/restapi/operations"
+	op "github.com/influxdata/chronograf/restapi/operations"
 )
 
 func (h *Store) Explorations(ctx context.Context, params op.GetSourcesIDUsersUserIDExplorationsParams) middleware.Responder {
@@ -22,7 +22,7 @@ func (h *Store) Explorations(ctx context.Context, params op.GetSourcesIDUsersUse
 		return op.NewGetSourcesIDUsersUserIDExplorationsDefault(500).WithPayload(errMsg)
 	}
 
-	mrExs, err := h.ExplorationStore.Query(ctx, mrfusion.UserID(uID))
+	mrExs, err := h.ExplorationStore.Query(ctx, chronograf.UserID(uID))
 	if err != nil {
 		log.Printf("Error: Unknown response from store while querying UserID: %s: %v", params.UserID, err)
 		errMsg := &models.Error{Code: 500, Message: "Error: Unknown response from store while querying UserID"}
@@ -65,14 +65,14 @@ func (h *Store) Exploration(ctx context.Context, params op.GetSourcesIDUsersUser
 		return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
 	}
 
-	e, err := h.ExplorationStore.Get(ctx, mrfusion.ExplorationID(eID))
+	e, err := h.ExplorationStore.Get(ctx, chronograf.ExplorationID(eID))
 	if err != nil {
 		log.Printf("Error: Unknown ExplorationID: %s: %v", params.ExplorationID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error: Unknown ExplorationID"}
 		return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
 	}
 
-	if e.UserID != mrfusion.UserID(uID) {
+	if e.UserID != chronograf.UserID(uID) {
 		log.Printf("Error: Unknown ExplorationID: %s: %v", params.ExplorationID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error: Unknown ExplorationID"}
 		return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
@@ -114,8 +114,8 @@ func (h *Store) UpdateExploration(ctx context.Context, params op.PatchSourcesIDU
 		return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
 	}
 
-	e, err := h.ExplorationStore.Get(ctx, mrfusion.ExplorationID(eID))
-	if err != nil || e.UserID != mrfusion.UserID(uID) {
+	e, err := h.ExplorationStore.Get(ctx, chronograf.ExplorationID(eID))
+	if err != nil || e.UserID != chronograf.UserID(uID) {
 		log.Printf("Error: Unknown ExplorationID: %s: %v", params.ExplorationID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error: Unknown ExplorationID"}
 		return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
@@ -142,7 +142,7 @@ func (h *Store) UpdateExploration(ctx context.Context, params op.PatchSourcesIDU
 	return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDOK().WithPayload(explToModel(e))
 }
 
-func explToModel(e *mrfusion.Exploration) *models.Exploration {
+func explToModel(e *chronograf.Exploration) *models.Exploration {
 	rel := "self"
 	href := fmt.Sprintf("/chronograf/v1/sources/1/users/%d/explorations/%d", e.UserID, e.ID)
 	return &models.Exploration{
@@ -177,9 +177,9 @@ func (h *Store) NewExploration(ctx context.Context, params op.PostSourcesIDUsers
 	if params.Exploration.Data != nil {
 		data, _ = params.Exploration.Data.(string)
 	}
-	e := &mrfusion.Exploration{
+	e := &chronograf.Exploration{
 		Name:   params.Exploration.Name,
-		UserID: mrfusion.UserID(uID),
+		UserID: chronograf.UserID(uID),
 		Data:   data,
 	}
 
@@ -210,14 +210,14 @@ func (h *Store) DeleteExploration(ctx context.Context, params op.DeleteSourcesID
 		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
 	}
 
-	e, err := h.ExplorationStore.Get(ctx, mrfusion.ExplorationID(eID))
-	if err != nil || e.UserID != mrfusion.UserID(uID) {
+	e, err := h.ExplorationStore.Get(ctx, chronograf.ExplorationID(eID))
+	if err != nil || e.UserID != chronograf.UserID(uID) {
 		log.Printf("Error: Unknown ExplorationID: %s: %v", params.ExplorationID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error: Unknown ExplorationID"}
 		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
 	}
 
-	if err := h.ExplorationStore.Delete(ctx, &mrfusion.Exploration{ID: mrfusion.ExplorationID(eID)}); err != nil {
+	if err := h.ExplorationStore.Delete(ctx, &chronograf.Exploration{ID: chronograf.ExplorationID(eID)}); err != nil {
 		log.Printf("Error: Failed to delete Exploration: %v: %v", params.ExplorationID, err)
 		errMsg := &models.Error{Code: 500, Message: "Error: Failed to delete Exploration"}
 		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)

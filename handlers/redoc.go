@@ -8,7 +8,7 @@ import (
 const index = `<!DOCTYPE html>
 <html>
   <head>
-    <title>Mr. Fusion API</title>
+    <title>Chronograf API</title>
     <!-- needed for adaptive design -->
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <!--

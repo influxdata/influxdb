@@ -2,27 +2,27 @@ package bolt
 
 import (
 	"github.com/boltdb/bolt"
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/bolt/internal"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/bolt/internal"
 	"golang.org/x/net/context"
 )
 
-// Ensure LayoutStore implements mrfusion.LayoutStore.
-var _ mrfusion.LayoutStore = &LayoutStore{}
+// Ensure LayoutStore implements chronograf.LayoutStore.
+var _ chronograf.LayoutStore = &LayoutStore{}
 
 var LayoutBucket = []byte("Layout")
 
 type LayoutStore struct {
 	client *Client
-	IDs    mrfusion.ID
+	IDs    chronograf.ID
 }
 
 // All returns all known layouts
-func (s *LayoutStore) All(ctx context.Context) ([]mrfusion.Layout, error) {
-	var srcs []mrfusion.Layout
+func (s *LayoutStore) All(ctx context.Context) ([]chronograf.Layout, error) {
+	var srcs []chronograf.Layout
 	if err := s.client.db.View(func(tx *bolt.Tx) error {
 		if err := tx.Bucket(LayoutBucket).ForEach(func(k, v []byte) error {
-			var src mrfusion.Layout
+			var src chronograf.Layout
 			if err := internal.UnmarshalLayout(v, &src); err != nil {
 				return err
 			}
@@ -41,7 +41,7 @@ func (s *LayoutStore) All(ctx context.Context) ([]mrfusion.Layout, error) {
 }
 
 // Add creates a new Layout in the LayoutStore.
-func (s *LayoutStore) Add(ctx context.Context, src mrfusion.Layout) (mrfusion.Layout, error) {
+func (s *LayoutStore) Add(ctx context.Context, src chronograf.Layout) (chronograf.Layout, error) {
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(LayoutBucket)
 		id, err := s.IDs.Generate()
@@ -57,14 +57,14 @@ func (s *LayoutStore) Add(ctx context.Context, src mrfusion.Layout) (mrfusion.La
 		}
 		return nil
 	}); err != nil {
-		return mrfusion.Layout{}, err
+		return chronograf.Layout{}, err
 	}
 
 	return src, nil
 }
 
 // Delete removes the Layout from the LayoutStore
-func (s *LayoutStore) Delete(ctx context.Context, src mrfusion.Layout) error {
+func (s *LayoutStore) Delete(ctx context.Context, src chronograf.Layout) error {
 	_, err := s.Get(ctx, src.ID)
 	if err != nil {
 		return err
@@ -82,29 +82,29 @@ func (s *LayoutStore) Delete(ctx context.Context, src mrfusion.Layout) error {
 }
 
 // Get returns a Layout if the id exists.
-func (s *LayoutStore) Get(ctx context.Context, id string) (mrfusion.Layout, error) {
-	var src mrfusion.Layout
+func (s *LayoutStore) Get(ctx context.Context, id string) (chronograf.Layout, error) {
+	var src chronograf.Layout
 	if err := s.client.db.View(func(tx *bolt.Tx) error {
 		if v := tx.Bucket(LayoutBucket).Get([]byte(id)); v == nil {
-			return mrfusion.ErrLayoutNotFound
+			return chronograf.ErrLayoutNotFound
 		} else if err := internal.UnmarshalLayout(v, &src); err != nil {
 			return err
 		}
 		return nil
 	}); err != nil {
-		return mrfusion.Layout{}, err
+		return chronograf.Layout{}, err
 	}
 
 	return src, nil
 }
 
 // Update a Layout
-func (s *LayoutStore) Update(ctx context.Context, src mrfusion.Layout) error {
+func (s *LayoutStore) Update(ctx context.Context, src chronograf.Layout) error {
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		// Get an existing layout with the same ID.
 		b := tx.Bucket(LayoutBucket)
 		if v := b.Get([]byte(src.ID)); v == nil {
-			return mrfusion.ErrLayoutNotFound
+			return chronograf.ErrLayoutNotFound
 		}
 
 		if v, err := internal.MarshalLayout(src); err != nil {

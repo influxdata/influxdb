@@ -1,4 +1,4 @@
-package mrfusion
+package chronograf
 
 // General errors.
 const (
@@ -9,7 +9,7 @@ const (
 	ErrLayoutNotFound      = Error("layout not found")
 )
 
-// Error is a domain error encountered while processing mrfusion requests
+// Error is a domain error encountered while processing chronograf requests
 type Error string
 
 func (e Error) Error() string {

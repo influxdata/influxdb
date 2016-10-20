@@ -4,25 +4,25 @@ import (
 	"fmt"
 
 	"github.com/go-openapi/runtime/middleware"
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/models"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/models"
 
-	op "github.com/influxdata/mrfusion/restapi/operations"
+	op "github.com/influxdata/chronograf/restapi/operations"
 	"golang.org/x/net/context"
 )
 
-func layoutToMrF(l *models.Layout) mrfusion.Layout {
-	cells := make([]mrfusion.Cell, len(l.Cells))
+func layoutToMrF(l *models.Layout) chronograf.Layout {
+	cells := make([]chronograf.Cell, len(l.Cells))
 	for i, c := range l.Cells {
-		queries := make([]mrfusion.Query, len(c.Queries))
+		queries := make([]chronograf.Query, len(c.Queries))
 		for j, q := range c.Queries {
-			queries[j] = mrfusion.Query{
+			queries[j] = chronograf.Query{
 				Command: *q.Query,
 				DB:      q.Db,
 				RP:      q.Rp,
 			}
 		}
-		cells[i] = mrfusion.Cell{
+		cells[i] = chronograf.Cell{
 			X:       *c.X,
 			Y:       *c.Y,
 			W:       *c.W,
@@ -30,7 +30,7 @@ func layoutToMrF(l *models.Layout) mrfusion.Layout {
 			Queries: queries,
 		}
 	}
-	return mrfusion.Layout{
+	return chronograf.Layout{
 		ID:          l.ID,
 		Measurement: *l.Measurement,
 		Application: *l.App,
@@ -49,7 +49,7 @@ func (h *Store) NewLayout(ctx context.Context, params op.PostLayoutsParams) midd
 	return op.NewPostLayoutsCreated().WithPayload(mlayout).WithLocation(*mlayout.Link.Href)
 }
 
-func layoutToModel(l mrfusion.Layout) *models.Layout {
+func layoutToModel(l chronograf.Layout) *models.Layout {
 	href := fmt.Sprintf("/chronograf/v1/layouts/%s", l.ID)
 	rel := "self"
 
@@ -90,7 +90,7 @@ func layoutToModel(l mrfusion.Layout) *models.Layout {
 	}
 }
 
-func requestedLayout(filtered map[string]bool, layout mrfusion.Layout) bool {
+func requestedLayout(filtered map[string]bool, layout chronograf.Layout) bool {
 	// If the length of the filter is zero then all values are acceptable.
 	if len(filtered) == 0 {
 		return true
@@ -142,7 +142,7 @@ func (h *Store) LayoutsID(ctx context.Context, params op.GetLayoutsIDParams) mid
 }
 
 func (h *Store) RemoveLayout(ctx context.Context, params op.DeleteLayoutsIDParams) middleware.Responder {
-	layout := mrfusion.Layout{
+	layout := chronograf.Layout{
 		ID: params.ID,
 	}
 	if err := h.LayoutStore.Delete(ctx, layout); err != nil {
