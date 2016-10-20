@@ -7,6 +7,7 @@ var package = require('../package.json');
 var dependencies = package.dependencies;
 
 var config = {
+  bail: true,
   devtool:  'hidden-source-map',
   entry: {
     app: path.resolve(__dirname, '..', 'src', 'index.js'),
@@ -91,6 +92,16 @@ var config = {
     new webpack.optimize.CommonsChunkPlugin({
       names: ['vendor', 'manifest'],
     }),
+    function() { /* Webpack does not exit with non-zero status if error. */
+      this.plugin("done", function(stats) {
+        if (stats.compilation.errors && stats.compilation.errors.length && process.argv.indexOf("--watch") == -1) {
+          console.log(stats.compilation.errors.toString({
+              colors: true
+          }));
+          process.exit(1);
+        }
+      });
+    }
   ],
   postcss: require('./postcss'),
   target: 'web',
