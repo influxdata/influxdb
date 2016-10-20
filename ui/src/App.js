@@ -54,10 +54,22 @@ const App = React.createClass({
       return null;
     }
     if (success) {
-      return <div className="alert alert-success" role="alert">{success}{this.renderDismiss()}</div>;
+      return (
+        <div className="flash-messages">
+          <div className="alert alert-success" role="alert">
+            {success}{this.renderDismiss()}
+          </div>
+        </div>
+      );
     }
     if (error) {
-      return <div className="alert alert-danger" role="alert">{error}{this.renderDismiss()}</div>;
+      return (
+        <div className="flash-messages">
+          <div className="alert alert-danger" role="alert">
+            {error}{this.renderDismiss()}
+          </div>
+        </div>
+      );
     }
   },
 
