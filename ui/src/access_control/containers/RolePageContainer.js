@@ -1,7 +1,6 @@
 import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
 import RolePage from '../components/RolePage';
-import FlashMessages from 'src/shared/components/FlashMessages';
 import {showDatabases} from 'src/shared/apis/metaQuery';
 import showDatabasesParser from 'shared/parsing/showDatabases';
 import {buildRoles, buildAllPermissions} from 'src/shared/presenters';
@@ -190,4 +189,4 @@ export const RolePageContainer = React.createClass({
   },
 });
 
-export default FlashMessages(withRouter(RolePageContainer));
+export default withRouter(RolePageContainer);

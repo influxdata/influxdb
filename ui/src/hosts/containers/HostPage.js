@@ -2,7 +2,6 @@ import React, {PropTypes} from 'react';
 // TODO: move this to a higher level package than chronograf?
 import AutoRefresh from 'shared/components/AutoRefresh';
 import LineGraph from 'shared/components/LineGraph';
-import FlashMessages from 'shared/components/FlashMessages';
 
 const RefreshingLineGraph = AutoRefresh(LineGraph);
 
@@ -86,4 +85,4 @@ export const HostPage = React.createClass({
   },
 });
 
-export default FlashMessages(HostPage);
+export default HostPage;

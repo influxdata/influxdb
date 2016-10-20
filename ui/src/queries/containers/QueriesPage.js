@@ -8,7 +8,6 @@ import {
   killQuery,
 } from 'shared/apis/metaQuery';
 
-import FlashMessages from 'shared/components/FlashMessages';
 import showDatabasesParser from 'shared/parsing/showDatabases';
 import showQueriesParser from 'shared/parsing/showQueries';
 
@@ -185,4 +184,4 @@ export const QueriesPage = React.createClass({
   },
 });
 
-export default FlashMessages(QueriesPage);
+export default QueriesPage;

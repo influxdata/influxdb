@@ -2,7 +2,6 @@ import React, {PropTypes} from 'react';
 import {getDatabaseManager, createDatabase} from 'shared/apis/index';
 import DatabaseManager from '../components/DatabaseManager';
 
-
 const {shape, string} = PropTypes;
 
 const DatabaseManagerApp = React.createClass({

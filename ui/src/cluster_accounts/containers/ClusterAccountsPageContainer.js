@@ -1,5 +1,4 @@
 import React, {PropTypes} from 'react';
-import FlashMessages from 'src/shared/components/FlashMessages';
 import ClusterAccountsPage from '../components/ClusterAccountsPage';
 import DeleteClusterAccountModal from '../components/DeleteClusterAccountModal';
 import {buildClusterAccounts} from 'src/shared/presenters';
@@ -155,4 +154,4 @@ export const ClusterAccountsPageContainer = React.createClass({
   },
 });
 
-export default FlashMessages(ClusterAccountsPageContainer);
+export default ClusterAccountsPageContainer;
