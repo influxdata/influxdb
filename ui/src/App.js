@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react';
 import {connect} from 'react-redux';
+import classnames from 'classnames';
 import SideNavContainer from 'src/side_nav';
 import {
   publishNotification as publishNotificationAction,
@@ -53,24 +54,27 @@ const App = React.createClass({
     if (!success && !error) {
       return null;
     }
-    if (success) {
-      return (
-        <div className="flash-messages">
-          <div className="alert alert-success" role="alert">
-            {success}{this.renderDismiss()}
-          </div>
-        </div>
-      );
+    return (
+      <div className="flash-messages">
+        {this.renderNotification('success', success)}
+        {this.renderNotification('error', error)}
+      </div>
+    );
+  },
+
+  renderNotification(type, message) {
+    if (!message) {
+      return null;
     }
-    if (error) {
-      return (
-        <div className="flash-messages">
-          <div className="alert alert-danger" role="alert">
-            {error}{this.renderDismiss()}
-          </div>
-        </div>
-      );
-    }
+    const cls = classnames('alert', {
+      'alert-danger': type === 'error',
+      'alert-success': type === 'success',
+    });
+    return (
+      <div className={cls} role="alert">
+        {message}{this.renderDismiss()}
+      </div>
+    );
   },
 
   renderDismiss() {
