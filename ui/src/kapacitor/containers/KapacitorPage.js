@@ -22,7 +22,6 @@ export const KapacitorPage = React.createClass({
   componentDidMount() {
     getKapacitor(this.props.source.id).then((res) => {
       const kapacitor = res.data;
-      console.log("valid!")
       this.setState({
         kapacitorURL: kapacitor.url,
         kapacitorName: kapacitor.name,
@@ -159,8 +158,7 @@ export const KapacitorPage = React.createClass({
         Set your Kapacitor connection info to configure alerting endpoints.
       </div>
     );
-  }
-
+  },
 });
 
 export default FlashMessages(KapacitorPage);

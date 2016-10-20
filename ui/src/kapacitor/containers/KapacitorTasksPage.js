@@ -19,9 +19,6 @@ export const KapacitorTasksPage = React.createClass({
     };
   },
 
-  componentDidMount() {
-  },
-
   render() {
     return (
       <div className="kapacitorTasks">
