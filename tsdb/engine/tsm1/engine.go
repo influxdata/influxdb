@@ -91,6 +91,7 @@ type Engine struct {
 	snapDone chan struct{}  // channel to signal snapshot compactions to stop
 	snapWG   sync.WaitGroup // waitgroup for running snapshot compactions
 
+	id           uint64
 	path         string
 	logger       *log.Logger // Logger to be used for important messages
 	traceLogger  *log.Logger // Logger to be used when trace-logging is on.
@@ -125,7 +126,7 @@ type Engine struct {
 }
 
 // NewEngine returns a new instance of Engine.
-func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
+func NewEngine(id uint64, path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
 	w := NewWAL(walPath)
 	fs := NewFileStore(path)
 	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize), path)
@@ -136,6 +137,7 @@ func NewEngine(path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine 
 	}
 
 	e := &Engine{
+		id:           id,
 		path:         path,
 		logger:       log.New(os.Stderr, "[tsm1] ", log.LstdFlags),
 		traceLogger:  log.New(ioutil.Discard, "[tsm1] ", log.LstdFlags),
@@ -1268,7 +1270,7 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions, aggregate bo
 
 		for _, mm := range mms {
 			// Determine tagsets for this measurement based on dimensions and filters.
-			tagSets, err := mm.TagSets(opt.Dimensions, opt.Condition)
+			tagSets, err := mm.TagSets(e.id, opt.Dimensions, opt.Condition)
 			if err != nil {
 				return err
 			}
