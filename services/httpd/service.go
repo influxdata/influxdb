@@ -20,7 +20,6 @@ import (
 // statistics gathered by the httpd package.
 const (
 	statRequest                      = "req"                  // Number of HTTP requests served
-	statCQRequest                    = "cqReq"                // Number of CQ-execute requests served
 	statQueryRequest                 = "queryReq"             // Number of query requests served
 	statWriteRequest                 = "writeReq"             // Number of write requests serverd
 	statPingRequest                  = "pingReq"              // Number of ping requests served
