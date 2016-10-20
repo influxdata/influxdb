@@ -12,7 +12,7 @@ import (
 
 	strfmt "github.com/go-openapi/strfmt"
 
-	"github.com/influxdata/mrfusion/models"
+	"github.com/influxdata/chronograf/models"
 )
 
 // NewPostSourcesIDUsersParams creates a new PostSourcesIDUsersParams object

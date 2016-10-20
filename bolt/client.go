@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/uuid"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/uuid"
 )
 
 // Client is a client for the boltDB data store.
@@ -13,7 +13,7 @@ type Client struct {
 	Path      string
 	db        *bolt.DB
 	Now       func() time.Time
-	LayoutIDs mrfusion.ID
+	LayoutIDs chronograf.ID
 
 	ExplorationStore *ExplorationStore
 	SourcesStore     *SourcesStore

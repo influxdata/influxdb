@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/influxdata/mrfusion"
+	"github.com/influxdata/chronograf"
 
 	"golang.org/x/net/context"
 )
@@ -15,13 +15,13 @@ import (
 type Client struct {
 	URL *url.URL
 
-	lg mrfusion.Logger
+	lg chronograf.Logger
 }
 
 // NewClient initializes an HTTP Client for InfluxDB. UDP, although supported
 // for querying InfluxDB, is not supported here to remove the need to
 // explicitly Close the client.
-func NewClient(host string, lg mrfusion.Logger) (*Client, error) {
+func NewClient(host string, lg chronograf.Logger) (*Client, error) {
 	l := lg.WithField("host", host)
 	u, err := url.Parse(host)
 	if err != nil {
@@ -43,7 +43,7 @@ func (r Response) MarshalJSON() ([]byte, error) {
 	return r.Results, nil
 }
 
-func (c *Client) query(u *url.URL, q mrfusion.Query) (mrfusion.Response, error) {
+func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, error) {
 	u.Path = "query"
 
 	req, err := http.NewRequest("POST", u.String(), nil)
@@ -99,7 +99,7 @@ func (c *Client) query(u *url.URL, q mrfusion.Query) (mrfusion.Response, error) 
 }
 
 type result struct {
-	Response mrfusion.Response
+	Response chronograf.Response
 	Err      error
 }
 
@@ -107,7 +107,7 @@ type result struct {
 // information specified by query. Queries must be "fully-qualified," and
 // include both the database and retention policy. In-flight requests can be
 // cancelled using the provided context.
-func (c *Client) Query(ctx context.Context, q mrfusion.Query) (mrfusion.Response, error) {
+func (c *Client) Query(ctx context.Context, q chronograf.Query) (chronograf.Response, error) {
 	resps := make(chan (result))
 	go func() {
 		resp, err := c.query(c.URL, q)
@@ -118,17 +118,17 @@ func (c *Client) Query(ctx context.Context, q mrfusion.Query) (mrfusion.Response
 	case resp := <-resps:
 		return resp.Response, resp.Err
 	case <-ctx.Done():
-		return nil, mrfusion.ErrUpstreamTimeout
+		return nil, chronograf.ErrUpstreamTimeout
 	}
 }
 
 // MonitoredServices returns all services for which this instance of InfluxDB
 // has time series information stored for.
-func (c *Client) MonitoredServices(ctx context.Context) ([]mrfusion.MonitoredService, error) {
-	return []mrfusion.MonitoredService{}, nil
+func (c *Client) MonitoredServices(ctx context.Context) ([]chronograf.MonitoredService, error) {
+	return []chronograf.MonitoredService{}, nil
 }
 
-func (c *Client) Connect(ctx context.Context, src *mrfusion.Source) error {
+func (c *Client) Connect(ctx context.Context, src *chronograf.Source) error {
 	u, err := url.Parse(src.URL[0])
 	if err != nil {
 		return err

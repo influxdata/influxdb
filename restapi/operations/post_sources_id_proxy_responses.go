@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-openapi/runtime"
 
-	"github.com/influxdata/mrfusion/models"
+	"github.com/influxdata/chronograf/models"
 )
 
 /*PostSourcesIDProxyOK Result of the query from the backend time series data source.

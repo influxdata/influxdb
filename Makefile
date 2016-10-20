@@ -6,7 +6,7 @@ BUILD_TIME ?= $$(date +%FT%T%z)
 SOURCES := $(shell find . -name '*.go')
 
 LDFLAGS=-ldflags "-s -X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}  -X main.Branch=${BRANCH}"
-BINARY=mrfusion
+BINARY=chronograf
 
 default: dep build
 
@@ -15,14 +15,14 @@ build: assets ${BINARY}
 dev: dev-assets ${BINARY}
 
 ${BINARY}: $(SOURCES)
-	go build -o ${BINARY} ${LDFLAGS} ./cmd/mr-fusion-server/main.go
+	go build -o ${BINARY} ${LDFLAGS} ./cmd/chronograf-server/main.go
 
 docker-${BINARY}: $(SOURCES)
 	CGO_ENABLED=0 GOOS=linux go build -installsuffix cgo -o ${BINARY} ${LDFLAGS} \
-		./cmd/mr-fusion-server/main.go
+		./cmd/chronograf-server/main.go
 
 docker: dep assets docker-${BINARY}
-	docker build -t mrfusion .
+	docker build -t chronograf .
 
 assets: js bindata
 
@@ -51,7 +51,7 @@ jsdep:
 	cd ui && npm install
 
 gen: bolt/internal/internal.proto
-	go generate github.com/influxdata/mrfusion/bolt/internal
+	go generate github.com/influxdata/chronograf/bolt/internal
 
 test: jstest gotest gotestrace
 
@@ -65,10 +65,10 @@ jstest:
 	cd ui && npm test
 
 run: ${BINARY}
-	./mrfusion --port 8888
+	./chronograf --port 8888
 
 run-dev: ${BINARY}
-	./mrfusion -d --port 8888
+	./chronograf -d --port 8888
 
 swagger: swagger.yaml
 	swagger generate server -f swagger.yaml  --with-context

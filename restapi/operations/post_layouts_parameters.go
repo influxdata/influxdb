@@ -10,7 +10,7 @@ import (
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 
-	"github.com/influxdata/mrfusion/models"
+	"github.com/influxdata/chronograf/models"
 )
 
 // NewPostLayoutsParams creates a new PostLayoutsParams object

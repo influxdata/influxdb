@@ -1,4 +1,4 @@
-package mrfusion
+package chronograf
 
 import (
 	"encoding/json"

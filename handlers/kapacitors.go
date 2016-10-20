@@ -5,10 +5,10 @@ import (
 	"strconv"
 
 	"github.com/go-openapi/runtime/middleware"
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/models"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/models"
 
-	op "github.com/influxdata/mrfusion/restapi/operations"
+	op "github.com/influxdata/chronograf/restapi/operations"
 	"golang.org/x/net/context"
 )
 
@@ -25,7 +25,7 @@ func (h *Store) NewKapacitor(ctx context.Context, params op.PostSourcesIDKapacit
 		return op.NewGetSourcesIDKapacitorsDefault(404).WithPayload(errMsg)
 	}
 
-	srv := mrfusion.Server{
+	srv := chronograf.Server{
 		SrcID:    srcID,
 		Name:     *params.Kapacitor.Name,
 		Username: params.Kapacitor.Username,
@@ -47,7 +47,7 @@ func srvLinks(srcID int, id int) *models.KapacitorLinks {
 	}
 }
 
-func srvToModel(srv mrfusion.Server) *models.Kapacitor {
+func srvToModel(srv chronograf.Server) *models.Kapacitor {
 	return &models.Kapacitor{
 		ID:       strconv.Itoa(srv.ID),
 		Links:    srvLinks(srv.SrcID, srv.ID),

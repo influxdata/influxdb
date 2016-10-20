@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-openapi/runtime"
 
-	"github.com/influxdata/mrfusion/models"
+	"github.com/influxdata/chronograf/models"
 )
 
 /*PatchSourcesIDUsersUserIDNoContent Users's configuration was changed

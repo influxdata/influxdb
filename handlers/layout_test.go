@@ -8,11 +8,11 @@ import (
 	"testing"
 
 	"github.com/go-openapi/runtime"
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/handlers"
-	"github.com/influxdata/mrfusion/mock"
-	"github.com/influxdata/mrfusion/models"
-	op "github.com/influxdata/mrfusion/restapi/operations"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/handlers"
+	"github.com/influxdata/chronograf/mock"
+	"github.com/influxdata/chronograf/models"
+	op "github.com/influxdata/chronograf/restapi/operations"
 )
 
 func TestNewLayout(t *testing.T) {
@@ -20,7 +20,7 @@ func TestNewLayout(t *testing.T) {
 	var tests = []struct {
 		Desc            string
 		AddError        error
-		ExistingLayouts map[string]mrfusion.Layout
+		ExistingLayouts map[string]chronograf.Layout
 		NewLayout       *models.Layout
 		ExpectedID      int
 		ExpectedHref    string
@@ -45,7 +45,7 @@ func TestNewLayout(t *testing.T) {
 		},
 		{
 			Desc:            "Test that creating a layout returns 201 status",
-			ExistingLayouts: map[string]mrfusion.Layout{},
+			ExistingLayouts: map[string]chronograf.Layout{},
 			NewLayout: &models.Layout{
 				Measurement: new(string),
 				App:         new(string),

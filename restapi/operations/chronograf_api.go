@@ -16,9 +16,9 @@ import (
 	"github.com/go-openapi/swag"
 )
 
-// NewMrFusionAPI creates a new MrFusion instance
-func NewMrFusionAPI(spec *loads.Document) *MrFusionAPI {
-	return &MrFusionAPI{
+// NewChronografAPI creates a new Chronograf instance
+func NewChronografAPI(spec *loads.Document) *ChronografAPI {
+	return &ChronografAPI{
 		handlers:        make(map[string]map[string]http.Handler),
 		formats:         strfmt.Default,
 		defaultConsumes: "application/json",
@@ -28,8 +28,8 @@ func NewMrFusionAPI(spec *loads.Document) *MrFusionAPI {
 	}
 }
 
-/*MrFusionAPI Fuel for Chronograf */
-type MrFusionAPI struct {
+/*ChronografAPI API endpoints for Chronograf */
+type ChronografAPI struct {
 	spec            *loads.Document
 	context         *middleware.Context
 	handlers        map[string]map[string]http.Handler
@@ -138,42 +138,42 @@ type MrFusionAPI struct {
 }
 
 // SetDefaultProduces sets the default produces media type
-func (o *MrFusionAPI) SetDefaultProduces(mediaType string) {
+func (o *ChronografAPI) SetDefaultProduces(mediaType string) {
 	o.defaultProduces = mediaType
 }
 
 // SetDefaultConsumes returns the default consumes media type
-func (o *MrFusionAPI) SetDefaultConsumes(mediaType string) {
+func (o *ChronografAPI) SetDefaultConsumes(mediaType string) {
 	o.defaultConsumes = mediaType
 }
 
 // SetSpec sets a spec that will be served for the clients.
-func (o *MrFusionAPI) SetSpec(spec *loads.Document) {
+func (o *ChronografAPI) SetSpec(spec *loads.Document) {
 	o.spec = spec
 }
 
 // DefaultProduces returns the default produces media type
-func (o *MrFusionAPI) DefaultProduces() string {
+func (o *ChronografAPI) DefaultProduces() string {
 	return o.defaultProduces
 }
 
 // DefaultConsumes returns the default consumes media type
-func (o *MrFusionAPI) DefaultConsumes() string {
+func (o *ChronografAPI) DefaultConsumes() string {
 	return o.defaultConsumes
 }
 
 // Formats returns the registered string formats
-func (o *MrFusionAPI) Formats() strfmt.Registry {
+func (o *ChronografAPI) Formats() strfmt.Registry {
 	return o.formats
 }
 
 // RegisterFormat registers a custom format validator
-func (o *MrFusionAPI) RegisterFormat(name string, format strfmt.Format, validator strfmt.Validator) {
+func (o *ChronografAPI) RegisterFormat(name string, format strfmt.Format, validator strfmt.Validator) {
 	o.formats.Add(name, format, validator)
 }
 
-// Validate validates the registrations in the MrFusionAPI
-func (o *MrFusionAPI) Validate() error {
+// Validate validates the registrations in the ChronografAPI
+func (o *ChronografAPI) Validate() error {
 	var unregistered []string
 
 	if o.JSONConsumer == nil {
@@ -348,19 +348,19 @@ func (o *MrFusionAPI) Validate() error {
 }
 
 // ServeErrorFor gets a error handler for a given operation id
-func (o *MrFusionAPI) ServeErrorFor(operationID string) func(http.ResponseWriter, *http.Request, error) {
+func (o *ChronografAPI) ServeErrorFor(operationID string) func(http.ResponseWriter, *http.Request, error) {
 	return o.ServeError
 }
 
 // AuthenticatorsFor gets the authenticators for the specified security schemes
-func (o *MrFusionAPI) AuthenticatorsFor(schemes map[string]spec.SecurityScheme) map[string]runtime.Authenticator {
+func (o *ChronografAPI) AuthenticatorsFor(schemes map[string]spec.SecurityScheme) map[string]runtime.Authenticator {
 
 	return nil
 
 }
 
 // ConsumersFor gets the consumers for the specified media types
-func (o *MrFusionAPI) ConsumersFor(mediaTypes []string) map[string]runtime.Consumer {
+func (o *ChronografAPI) ConsumersFor(mediaTypes []string) map[string]runtime.Consumer {
 
 	result := make(map[string]runtime.Consumer)
 	for _, mt := range mediaTypes {
@@ -376,7 +376,7 @@ func (o *MrFusionAPI) ConsumersFor(mediaTypes []string) map[string]runtime.Consu
 }
 
 // ProducersFor gets the producers for the specified media types
-func (o *MrFusionAPI) ProducersFor(mediaTypes []string) map[string]runtime.Producer {
+func (o *ChronografAPI) ProducersFor(mediaTypes []string) map[string]runtime.Producer {
 
 	result := make(map[string]runtime.Producer)
 	for _, mt := range mediaTypes {
@@ -392,7 +392,7 @@ func (o *MrFusionAPI) ProducersFor(mediaTypes []string) map[string]runtime.Produ
 }
 
 // HandlerFor gets a http.Handler for the provided operation method and path
-func (o *MrFusionAPI) HandlerFor(method, path string) (http.Handler, bool) {
+func (o *ChronografAPI) HandlerFor(method, path string) (http.Handler, bool) {
 	if o.handlers == nil {
 		return nil, false
 	}
@@ -404,8 +404,8 @@ func (o *MrFusionAPI) HandlerFor(method, path string) (http.Handler, bool) {
 	return h, ok
 }
 
-// Context returns the middleware context for the mr fusion API
-func (o *MrFusionAPI) Context() *middleware.Context {
+// Context returns the middleware context for the chronograf API
+func (o *ChronografAPI) Context() *middleware.Context {
 	if o.context == nil {
 		o.context = middleware.NewRoutableContext(o.spec, o, nil)
 	}
@@ -413,7 +413,7 @@ func (o *MrFusionAPI) Context() *middleware.Context {
 	return o.context
 }
 
-func (o *MrFusionAPI) initHandlerCache() {
+func (o *ChronografAPI) initHandlerCache() {
 	o.Context() // don't care about the result, just that the initialization happened
 
 	if o.handlers == nil {
@@ -619,7 +619,7 @@ func (o *MrFusionAPI) initHandlerCache() {
 
 // Serve creates a http handler to serve the API over HTTP
 // can be used directly in http.ListenAndServe(":8000", api.Serve(nil))
-func (o *MrFusionAPI) Serve(builder middleware.Builder) http.Handler {
+func (o *ChronografAPI) Serve(builder middleware.Builder) http.Handler {
 	o.Init()
 
 	if o.Middleware != nil {
@@ -629,7 +629,7 @@ func (o *MrFusionAPI) Serve(builder middleware.Builder) http.Handler {
 }
 
 // Init allows you to just initialize the handler cache, you can then recompose the middelware as you see fit
-func (o *MrFusionAPI) Init() {
+func (o *ChronografAPI) Init() {
 	if len(o.handlers) == 0 {
 		o.initHandlerCache()
 	}

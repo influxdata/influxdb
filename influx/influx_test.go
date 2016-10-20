@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/influx"
-	"github.com/influxdata/mrfusion/log"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/influx"
+	"github.com/influxdata/chronograf/log"
 	"golang.org/x/net/context"
 )
 
@@ -25,13 +25,13 @@ func Test_Influx_MakesRequestsToQueryEndpoint(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	var series mrfusion.TimeSeries
+	var series chronograf.TimeSeries
 	series, err := influx.NewClient(ts.URL, log.New())
 	if err != nil {
 		t.Fatal("Unexpected error initializing client: err:", err)
 	}
 
-	query := mrfusion.Query{
+	query := chronograf.Query{
 		Command: "show databases",
 	}
 	_, err = series.Query(context.Background(), query)
@@ -64,7 +64,7 @@ func Test_Influx_CancelsInFlightRequests(t *testing.T) {
 
 	errs := make(chan (error))
 	go func() {
-		query := mrfusion.Query{
+		query := chronograf.Query{
 			Command: "show databases",
 		}
 
@@ -96,7 +96,7 @@ func Test_Influx_CancelsInFlightRequests(t *testing.T) {
 	}
 
 	err := <-errs
-	if err != mrfusion.ErrUpstreamTimeout {
+	if err != chronograf.ErrUpstreamTimeout {
 		t.Error("Expected timeout error but wasn't. err was", err)
 	}
 }
@@ -119,7 +119,7 @@ func Test_Influx_ReportsInfluxErrs(t *testing.T) {
 		t.Fatal("Encountered unexpected error while initializing influx client: err:", err)
 	}
 
-	_, err = cl.Query(context.Background(), mrfusion.Query{"show shards", "_internal", "autogen"})
+	_, err = cl.Query(context.Background(), chronograf.Query{"show shards", "_internal", "autogen"})
 	if err == nil {
 		t.Fatal("Expected an error but received none")
 	}

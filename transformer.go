@@ -1,4 +1,4 @@
-package mrfusion
+package chronograf
 
 // Transformer will transform the `Response` data.
 type Transformer interface {

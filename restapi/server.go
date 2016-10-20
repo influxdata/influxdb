@@ -14,7 +14,7 @@ import (
 	flags "github.com/jessevdk/go-flags"
 	graceful "github.com/tylerb/graceful"
 
-	"github.com/influxdata/mrfusion/restapi/operations"
+	"github.com/influxdata/chronograf/restapi/operations"
 )
 
 const (
@@ -31,8 +31,8 @@ func init() {
 	}
 }
 
-// NewServer creates a new api mr fusion server but does not configure it
-func NewServer(api *operations.MrFusionAPI) *Server {
+// NewServer creates a new api chronograf server but does not configure it
+func NewServer(api *operations.ChronografAPI) *Server {
 	s := new(Server)
 	s.api = api
 	return s
@@ -52,11 +52,11 @@ func (s *Server) ConfigureFlags() {
 	}
 }
 
-// Server for the mr fusion API
+// Server for the chronograf API
 type Server struct {
 	EnabledListeners []string `long:"scheme" description:"the listeners to enable, this can be repeated and defaults to the schemes in the swagger spec"`
 
-	SocketPath    flags.Filename `long:"socket-path" description:"the unix socket to listen on" default:"/var/run/mr-fusion.sock"`
+	SocketPath    flags.Filename `long:"socket-path" description:"the unix socket to listen on" default:"/var/run/chronograf.sock"`
 	domainSocketL net.Listener
 
 	Host        string `long:"host" description:"the IP to listen on" default:"localhost" env:"HOST"`
@@ -69,7 +69,7 @@ type Server struct {
 	TLSCertificateKey flags.Filename `long:"tls-key" description:"the private key to use for secure conections" env:"TLS_PRIVATE_KEY"`
 	httpsServerL      net.Listener
 
-	api          *operations.MrFusionAPI
+	api          *operations.ChronografAPI
 	handler      http.Handler
 	hasListeners bool
 }
@@ -95,7 +95,7 @@ func (s *Server) Fatalf(f string, args ...interface{}) {
 }
 
 // SetAPI configures the server with the specified API. Needs to be called before Serve
-func (s *Server) SetAPI(api *operations.MrFusionAPI) {
+func (s *Server) SetAPI(api *operations.ChronografAPI) {
 	if api == nil {
 		s.api = nil
 		s.handler = nil
@@ -136,13 +136,13 @@ func (s *Server) Serve() (err error) {
 		domainSocket.Handler = s.handler
 
 		wg.Add(1)
-		s.Logf("Serving mr fusion at unix://%s", s.SocketPath)
+		s.Logf("Serving chronograf at unix://%s", s.SocketPath)
 		go func(l net.Listener) {
 			defer wg.Done()
 			if err := domainSocket.Serve(l); err != nil {
 				s.Fatalf("%v", err)
 			}
-			s.Logf("Stopped serving mr fusion at unix://%s", s.SocketPath)
+			s.Logf("Stopped serving chronograf at unix://%s", s.SocketPath)
 		}(s.domainSocketL)
 	}
 
@@ -153,13 +153,13 @@ func (s *Server) Serve() (err error) {
 		httpServer.Handler = s.handler
 
 		wg.Add(1)
-		s.Logf("Serving mr fusion at http://%s", s.httpServerL.Addr())
+		s.Logf("Serving chronograf at http://%s", s.httpServerL.Addr())
 		go func(l net.Listener) {
 			defer wg.Done()
 			if err := httpServer.Serve(l); err != nil {
 				s.Fatalf("%v", err)
 			}
-			s.Logf("Stopped serving mr fusion at http://%s", l.Addr())
+			s.Logf("Stopped serving chronograf at http://%s", l.Addr())
 		}(s.httpServerL)
 	}
 
@@ -183,13 +183,13 @@ func (s *Server) Serve() (err error) {
 		}
 
 		wg.Add(1)
-		s.Logf("Serving mr fusion at https://%s", s.httpsServerL.Addr())
+		s.Logf("Serving chronograf at https://%s", s.httpsServerL.Addr())
 		go func(l net.Listener) {
 			defer wg.Done()
 			if err := httpsServer.Serve(l); err != nil {
 				s.Fatalf("%v", err)
 			}
-			s.Logf("Stopped serving mr fusion at https://%s", l.Addr())
+			s.Logf("Stopped serving chronograf at https://%s", l.Addr())
 		}(tls.NewListener(s.httpsServerL, httpsServer.TLSConfig))
 	}
 

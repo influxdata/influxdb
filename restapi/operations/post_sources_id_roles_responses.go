@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-openapi/runtime"
 
-	"github.com/influxdata/mrfusion/models"
+	"github.com/influxdata/chronograf/models"
 )
 
 /*PostSourcesIDRolesCreated Successfully created new role

@@ -12,18 +12,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/canned"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/canned"
 )
 
 func TestAll(t *testing.T) {
 	t.Parallel()
 	var tests = []struct {
-		Existing []mrfusion.Layout
+		Existing []chronograf.Layout
 		Err      error
 	}{
 		{
-			Existing: []mrfusion.Layout{
+			Existing: []chronograf.Layout{
 				{ID: "1",
 					Application: "howdy",
 				},
@@ -34,7 +34,7 @@ func TestAll(t *testing.T) {
 			Err: nil,
 		},
 		{
-			Existing: []mrfusion.Layout{},
+			Existing: []chronograf.Layout{},
 			Err:      nil,
 		},
 		{
@@ -57,13 +57,13 @@ func TestAll(t *testing.T) {
 func TestAdd(t *testing.T) {
 	t.Parallel()
 	var tests = []struct {
-		Existing   []mrfusion.Layout
-		Add        mrfusion.Layout
+		Existing   []chronograf.Layout
+		Add        chronograf.Layout
 		ExpectedID string
 		Err        error
 	}{
 		{
-			Existing: []mrfusion.Layout{
+			Existing: []chronograf.Layout{
 				{ID: "1",
 					Application: "howdy",
 				},
@@ -71,15 +71,15 @@ func TestAdd(t *testing.T) {
 					Application: "doody",
 				},
 			},
-			Add: mrfusion.Layout{
+			Add: chronograf.Layout{
 				Application: "newbie",
 			},
 			ExpectedID: "3",
 			Err:        nil,
 		},
 		{
-			Existing: []mrfusion.Layout{},
-			Add: mrfusion.Layout{
+			Existing: []chronograf.Layout{},
+			Add: chronograf.Layout{
 				Application: "newbie",
 			},
 			ExpectedID: "1",
@@ -87,7 +87,7 @@ func TestAdd(t *testing.T) {
 		},
 		{
 			Existing: nil,
-			Add: mrfusion.Layout{
+			Add: chronograf.Layout{
 				Application: "newbie",
 			},
 			ExpectedID: "",
@@ -110,13 +110,13 @@ func TestAdd(t *testing.T) {
 func TestDelete(t *testing.T) {
 	t.Parallel()
 	var tests = []struct {
-		Existing []mrfusion.Layout
+		Existing []chronograf.Layout
 		DeleteID string
-		Expected map[string]mrfusion.Layout
+		Expected map[string]chronograf.Layout
 		Err      error
 	}{
 		{
-			Existing: []mrfusion.Layout{
+			Existing: []chronograf.Layout{
 				{ID: "1",
 					Application: "howdy",
 				},
@@ -125,7 +125,7 @@ func TestDelete(t *testing.T) {
 				},
 			},
 			DeleteID: "1",
-			Expected: map[string]mrfusion.Layout{
+			Expected: map[string]chronograf.Layout{
 				"dir/2.json": {ID: "2",
 					Application: "doody",
 				},
@@ -133,21 +133,21 @@ func TestDelete(t *testing.T) {
 			Err: nil,
 		},
 		{
-			Existing: []mrfusion.Layout{},
+			Existing: []chronograf.Layout{},
 			DeleteID: "1",
-			Expected: map[string]mrfusion.Layout{},
-			Err:      mrfusion.ErrLayoutNotFound,
+			Expected: map[string]chronograf.Layout{},
+			Err:      chronograf.ErrLayoutNotFound,
 		},
 		{
 			Existing: nil,
 			DeleteID: "1",
-			Expected: map[string]mrfusion.Layout{},
+			Expected: map[string]chronograf.Layout{},
 			Err:      errors.New("Error"),
 		},
 	}
 	for i, test := range tests {
 		apps, actual := MockApps(test.Existing, test.Err)
-		err := apps.Delete(context.Background(), mrfusion.Layout{ID: test.DeleteID})
+		err := apps.Delete(context.Background(), chronograf.Layout{ID: test.DeleteID})
 		if err != test.Err {
 			t.Errorf("Test %d: Canned delete error expected: %v; actual: %v", i, test.Err, err)
 		}
@@ -160,13 +160,13 @@ func TestDelete(t *testing.T) {
 func TestGet(t *testing.T) {
 	t.Parallel()
 	var tests = []struct {
-		Existing []mrfusion.Layout
+		Existing []chronograf.Layout
 		ID       string
-		Expected mrfusion.Layout
+		Expected chronograf.Layout
 		Err      error
 	}{
 		{
-			Existing: []mrfusion.Layout{
+			Existing: []chronograf.Layout{
 				{ID: "1",
 					Application: "howdy",
 				},
@@ -175,23 +175,23 @@ func TestGet(t *testing.T) {
 				},
 			},
 			ID: "1",
-			Expected: mrfusion.Layout{
+			Expected: chronograf.Layout{
 				ID:          "1",
 				Application: "howdy",
 			},
 			Err: nil,
 		},
 		{
-			Existing: []mrfusion.Layout{},
+			Existing: []chronograf.Layout{},
 			ID:       "1",
-			Expected: mrfusion.Layout{},
-			Err:      mrfusion.ErrLayoutNotFound,
+			Expected: chronograf.Layout{},
+			Err:      chronograf.ErrLayoutNotFound,
 		},
 		{
 			Existing: nil,
 			ID:       "1",
-			Expected: mrfusion.Layout{},
-			Err:      mrfusion.ErrLayoutNotFound,
+			Expected: chronograf.Layout{},
+			Err:      chronograf.ErrLayoutNotFound,
 		},
 	}
 	for i, test := range tests {
@@ -209,13 +209,13 @@ func TestGet(t *testing.T) {
 func TestUpdate(t *testing.T) {
 	t.Parallel()
 	var tests = []struct {
-		Existing []mrfusion.Layout
-		Update   mrfusion.Layout
-		Expected map[string]mrfusion.Layout
+		Existing []chronograf.Layout
+		Update   chronograf.Layout
+		Expected map[string]chronograf.Layout
 		Err      error
 	}{
 		{
-			Existing: []mrfusion.Layout{
+			Existing: []chronograf.Layout{
 				{ID: "1",
 					Application: "howdy",
 				},
@@ -223,12 +223,12 @@ func TestUpdate(t *testing.T) {
 					Application: "doody",
 				},
 			},
-			Update: mrfusion.Layout{
+			Update: chronograf.Layout{
 				ID:          "1",
 				Application: "hello",
 				Measurement: "measurement",
 			},
-			Expected: map[string]mrfusion.Layout{
+			Expected: map[string]chronograf.Layout{
 				"dir/1.json": {ID: "1",
 					Application: "hello",
 					Measurement: "measurement",
@@ -240,20 +240,20 @@ func TestUpdate(t *testing.T) {
 			Err: nil,
 		},
 		{
-			Existing: []mrfusion.Layout{},
-			Update: mrfusion.Layout{
+			Existing: []chronograf.Layout{},
+			Update: chronograf.Layout{
 				ID: "1",
 			},
-			Expected: map[string]mrfusion.Layout{},
-			Err:      mrfusion.ErrLayoutNotFound,
+			Expected: map[string]chronograf.Layout{},
+			Err:      chronograf.ErrLayoutNotFound,
 		},
 		{
 			Existing: nil,
-			Update: mrfusion.Layout{
+			Update: chronograf.Layout{
 				ID: "1",
 			},
-			Expected: map[string]mrfusion.Layout{},
-			Err:      mrfusion.ErrLayoutNotFound,
+			Expected: map[string]chronograf.Layout{},
+			Err:      chronograf.ErrLayoutNotFound,
 		},
 	}
 	for i, test := range tests {
@@ -311,28 +311,28 @@ func (m *MockID) Generate() (string, error) {
 	return strconv.Itoa(m.id), nil
 }
 
-func MockApps(existing []mrfusion.Layout, expected error) (canned.Apps, *map[string]mrfusion.Layout) {
-	layouts := map[string]mrfusion.Layout{}
-	fileName := func(dir string, layout mrfusion.Layout) string {
+func MockApps(existing []chronograf.Layout, expected error) (canned.Apps, *map[string]chronograf.Layout) {
+	layouts := map[string]chronograf.Layout{}
+	fileName := func(dir string, layout chronograf.Layout) string {
 		return path.Join(dir, layout.ID+".json")
 	}
 	dir := "dir"
 	for _, l := range existing {
 		layouts[fileName(dir, l)] = l
 	}
-	load := func(file string) (mrfusion.Layout, error) {
+	load := func(file string) (chronograf.Layout, error) {
 		if expected != nil {
-			return mrfusion.Layout{}, expected
+			return chronograf.Layout{}, expected
 		}
 
 		if l, ok := layouts[file]; !ok {
-			return mrfusion.Layout{}, mrfusion.ErrLayoutNotFound
+			return chronograf.Layout{}, chronograf.ErrLayoutNotFound
 		} else {
 			return l, nil
 		}
 	}
 
-	create := func(file string, layout mrfusion.Layout) error {
+	create := func(file string, layout chronograf.Layout) error {
 		if expected != nil {
 			return expected
 		}
@@ -357,7 +357,7 @@ func MockApps(existing []mrfusion.Layout, expected error) (canned.Apps, *map[str
 			return expected
 		}
 		if _, ok := layouts[name]; !ok {
-			return mrfusion.ErrLayoutNotFound
+			return chronograf.ErrLayoutNotFound
 		}
 		delete(layouts, name)
 		return nil

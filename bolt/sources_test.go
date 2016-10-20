@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/mrfusion"
+	"github.com/influxdata/chronograf"
 )
 
 // Ensure an SourceStore can store, retrieve, update, and delete sources.
@@ -19,8 +19,8 @@ func TestSourceStore(t *testing.T) {
 	defer c.Close()
 	s := c.SourcesStore
 
-	srcs := []mrfusion.Source{
-		mrfusion.Source{
+	srcs := []chronograf.Source{
+		chronograf.Source{
 			Name:     "Of Truth",
 			Type:     "influx",
 			Username: "marty",
@@ -28,7 +28,7 @@ func TestSourceStore(t *testing.T) {
 			URL:      []string{"toyota-hilux.lyon-estates.local", "lake.hilldale.local"},
 			Default:  true,
 		},
-		mrfusion.Source{
+		chronograf.Source{
 			Name:     "HipToBeSquare",
 			Type:     "influx",
 			Username: "calvinklein",
@@ -78,8 +78,8 @@ func TestSourceStore(t *testing.T) {
 	}
 
 	// Confirm source has been deleted.
-	if _, err := s.Get(nil, srcs[0].ID); err != mrfusion.ErrSourceNotFound {
-		t.Fatalf("source delete error: got %v, expected %v", err, mrfusion.ErrSourceNotFound)
+	if _, err := s.Get(nil, srcs[0].ID); err != chronograf.ErrSourceNotFound {
+		t.Fatalf("source delete error: got %v, expected %v", err, chronograf.ErrSourceNotFound)
 	}
 
 	if bsrcs, err := s.All(nil); err != nil {

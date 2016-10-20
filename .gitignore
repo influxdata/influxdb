@@ -2,7 +2,7 @@ dist/dist_gen.go
 canned/apps_gen.go
 .pull-request
 node_modules
-mrfusion
+chronograf
 node_modules/
 build/
 chronograf.db

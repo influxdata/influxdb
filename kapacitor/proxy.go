@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/influxdata/mrfusion"
+	"github.com/influxdata/chronograf"
 
 	"golang.org/x/net/context"
 )
@@ -15,7 +15,7 @@ type Proxy struct {
 	URL *url.URL
 }
 
-func (p *Proxy) Do(ctx context.Context, req *mrfusion.Request) (*http.Response, error) {
+func (p *Proxy) Do(ctx context.Context, req *chronograf.Request) (*http.Response, error) {
 	// TODO: Locking?
 	p.URL.Path = req.Path
 
@@ -29,7 +29,7 @@ func (p *Proxy) Do(ctx context.Context, req *mrfusion.Request) (*http.Response, 
 	return httpClient.Do(httpReq)
 }
 
-func (p *Proxy) Connect(ctx context.Context, srv *mrfusion.Server) error {
+func (p *Proxy) Connect(ctx context.Context, srv *chronograf.Server) error {
 	u, err := url.Parse(srv.URL)
 	if err != nil {
 		return err

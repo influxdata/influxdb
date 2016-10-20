@@ -12,39 +12,39 @@ import (
 	"github.com/go-openapi/swag"
 	"golang.org/x/net/context"
 
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/bolt"
-	"github.com/influxdata/mrfusion/canned"
-	"github.com/influxdata/mrfusion/dist"
-	"github.com/influxdata/mrfusion/handlers"
-	"github.com/influxdata/mrfusion/influx"
-	"github.com/influxdata/mrfusion/kapacitor"
-	"github.com/influxdata/mrfusion/layouts"
-	fusionlog "github.com/influxdata/mrfusion/log"
-	"github.com/influxdata/mrfusion/mock"
-	op "github.com/influxdata/mrfusion/restapi/operations"
-	"github.com/influxdata/mrfusion/uuid"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/bolt"
+	"github.com/influxdata/chronograf/canned"
+	"github.com/influxdata/chronograf/dist"
+	"github.com/influxdata/chronograf/handlers"
+	"github.com/influxdata/chronograf/influx"
+	"github.com/influxdata/chronograf/kapacitor"
+	"github.com/influxdata/chronograf/layouts"
+	clog "github.com/influxdata/chronograf/log"
+	"github.com/influxdata/chronograf/mock"
+	op "github.com/influxdata/chronograf/restapi/operations"
+	"github.com/influxdata/chronograf/uuid"
 )
 
 // This file is safe to edit. Once it exists it will not be overwritten
 
 //go:generate swagger generate server --target .. --name  --spec ../swagger.yaml --with-context
 
-var logger = fusionlog.New()
+var logger = clog.New()
 
 var devFlags = struct {
 	Develop bool `short:"d" long:"develop" description:"Run server in develop mode."`
 }{}
 
 var storeFlags = struct {
-	BoltPath string `short:"b" long:"bolt-path" description:"Full path to boltDB file (/Users/somebody/mrfusion.db)" env:"BOLT_PATH" default:"chronograf.db"`
+	BoltPath string `short:"b" long:"bolt-path" description:"Full path to boltDB file (/Users/somebody/chronograf.db)" env:"BOLT_PATH" default:"chronograf.db"`
 }{}
 
 var cannedFlags = struct {
 	CannedPath string `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts" env:"CANNED_PATH" default:"canned"`
 }{}
 
-func configureFlags(api *op.MrFusionAPI) {
+func configureFlags(api *op.ChronografAPI) {
 	api.CommandLineOptionsGroups = []swag.CommandLineOptionsGroup{
 		swag.CommandLineOptionsGroup{
 			ShortDescription: "Develop Mode server",
@@ -64,7 +64,7 @@ func configureFlags(api *op.MrFusionAPI) {
 	}
 }
 
-func assets() mrfusion.Assets {
+func assets() chronograf.Assets {
 	if devFlags.Develop {
 		return &dist.DebugAssets{
 			Dir:     "ui/build",
@@ -77,7 +77,7 @@ func assets() mrfusion.Assets {
 	}
 }
 
-func configureAPI(api *op.MrFusionAPI) http.Handler {
+func configureAPI(api *op.ChronografAPI) http.Handler {
 	// configure the api here
 	api.ServeError = errors.ServeError
 
@@ -110,7 +110,7 @@ func configureAPI(api *op.MrFusionAPI) http.Handler {
 
 		// allLayouts acts as a front-end to both the bolt layouts and the filesystem layouts.
 		allLayouts := &layouts.MultiLayoutStore{
-			Stores: []mrfusion.LayoutStore{
+			Stores: []chronograf.LayoutStore{
 				c.LayoutStore,
 				apps,
 			},

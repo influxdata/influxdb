@@ -1,11 +1,11 @@
-/*Package restapi Mr Fusion
+/*Package restapi Chronograf
 
-Fuel for Chronograf
+API endpoints for Chronograf
 
 
     Schemes:
       http
-    Host: Chronograf.influxdata.com
+    Host: chronograf.influxdata.com
     BasePath: /chronograf/v1
     Version: 1.1.0
 

@@ -12,11 +12,11 @@ dependencies:
         - npm install -g node-sass
         - git config --global url."git@github.com:".insteadOf "https://github.com/"
         - mkdir -p ${HOME}/.go_workspace/src/github.com/influxdata
-        - ln -sf ${HOME}/mrfusion ${HOME}/.go_workspace/src/github.com/influxdata
+        - ln -sf ${HOME}/chronograf ${HOME}/.go_workspace/src/github.com/influxdata
         - "make":
-            pwd: ../.go_workspace/src/github.com/influxdata/mrfusion
+            pwd: ../.go_workspace/src/github.com/influxdata/chronograf
     cache_directories:
-        - ../../../../../mrfusion/ui/node_modules
+        - ../../../../../chronograf/ui/node_modules
 
 test:
     override:
@@ -28,5 +28,5 @@ deployment:
         commands:
             - make docker
             - docker login -e $HEROKU_EMAIL -u $HEROKU_EMAIL -p $HEROKU_PASS registry.heroku.com
-            - docker tag mrfusion registry.heroku.com/mrfusion-acc/web
+            - docker tag chronograf registry.heroku.com/mrfusion-acc/web
             - docker push registry.heroku.com/mrfusion-acc/web

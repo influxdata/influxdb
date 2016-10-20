@@ -5,15 +5,15 @@ import (
 	"strconv"
 
 	"github.com/go-openapi/runtime/middleware"
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/models"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/models"
 
-	op "github.com/influxdata/mrfusion/restapi/operations"
+	op "github.com/influxdata/chronograf/restapi/operations"
 	"golang.org/x/net/context"
 )
 
 func (h *Store) NewSource(ctx context.Context, params op.PostSourcesParams) middleware.Responder {
-	src := mrfusion.Source{
+	src := chronograf.Source{
 		Name:     *params.Source.Name,
 		Type:     params.Source.Type,
 		Username: params.Source.Username,
@@ -41,7 +41,7 @@ func srcLinks(id int) *models.SourceLinks {
 	}
 }
 
-func mrToModel(src mrfusion.Source) *models.Source {
+func mrToModel(src chronograf.Source) *models.Source {
 	return &models.Source{
 		ID:       strconv.Itoa(src.ID),
 		Links:    srcLinks(src.ID),
@@ -95,7 +95,7 @@ func (h *Store) RemoveSource(ctx context.Context, params op.DeleteSourcesIDParam
 		errMsg := &models.Error{Code: 500, Message: fmt.Sprintf("Error converting ID %s", params.ID)}
 		return op.NewDeleteSourcesIDDefault(500).WithPayload(errMsg)
 	}
-	src := mrfusion.Source{
+	src := chronograf.Source{
 		ID: id,
 	}
 	if err = h.SourcesStore.Delete(ctx, src); err != nil {

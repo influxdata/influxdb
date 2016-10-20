@@ -1,4 +1,4 @@
-MrFusion with OAuth 2.0 (Github-style)
+Chronograf with OAuth 2.0 (Github-style)
 
 Originally Authored with Hackmd.io Link
 

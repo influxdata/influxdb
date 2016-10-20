@@ -1,4 +1,4 @@
-package mrfusion
+package chronograf
 
 // ID creates uniq ID string
 type ID interface {

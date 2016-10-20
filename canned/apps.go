@@ -10,27 +10,27 @@ import (
 	"path"
 	"strings"
 
-	"github.com/influxdata/mrfusion"
-	fusionlog "github.com/influxdata/mrfusion/log"
+	"github.com/influxdata/chronograf"
+	clog "github.com/influxdata/chronograf/log"
 	"golang.org/x/net/context"
 )
 
 const AppExt = ".json"
 
-var logger = fusionlog.New()
+var logger = clog.New()
 
 // Apps are canned JSON layouts.  Implements LayoutStore.
 type Apps struct {
 	Dir      string                                      // Dir is the directory contained the pre-canned applications.
-	Load     func(string) (mrfusion.Layout, error)       // Load loads string name and return a Layout
-	Filename func(string, mrfusion.Layout) string        // Filename takes dir and layout and returns loadable file
-	Create   func(string, mrfusion.Layout) error         // Create will write layout to file.
+	Load     func(string) (chronograf.Layout, error)     // Load loads string name and return a Layout
+	Filename func(string, chronograf.Layout) string      // Filename takes dir and layout and returns loadable file
+	Create   func(string, chronograf.Layout) error       // Create will write layout to file.
 	ReadDir  func(dirname string) ([]os.FileInfo, error) // ReadDir reads the directory named by dirname and returns a list of directory entries sorted by filename.
 	Remove   func(name string) error                     // Remove file
-	IDs      mrfusion.ID                                 // IDs generate unique ids for new application layouts
+	IDs      chronograf.ID                               // IDs generate unique ids for new application layouts
 }
 
-func NewApps(dir string, ids mrfusion.ID) mrfusion.LayoutStore {
+func NewApps(dir string, ids chronograf.ID) chronograf.LayoutStore {
 	return &Apps{
 		Dir:      dir,
 		Load:     loadFile,
@@ -42,32 +42,32 @@ func NewApps(dir string, ids mrfusion.ID) mrfusion.LayoutStore {
 	}
 }
 
-func fileName(dir string, layout mrfusion.Layout) string {
+func fileName(dir string, layout chronograf.Layout) string {
 	base := fmt.Sprintf("%s_%s%s", layout.Measurement, layout.ID, AppExt)
 	return path.Join(dir, base)
 }
 
-func loadFile(name string) (mrfusion.Layout, error) {
+func loadFile(name string) (chronograf.Layout, error) {
 	octets, err := ioutil.ReadFile(name)
 	if err != nil {
 		logger.
 			WithField("component", "apps").
 			WithField("name", name).
 			Error("Unable to read file")
-		return mrfusion.Layout{}, err
+		return chronograf.Layout{}, err
 	}
-	var layout mrfusion.Layout
+	var layout chronograf.Layout
 	if err = json.Unmarshal(octets, &layout); err != nil {
 		logger.
 			WithField("component", "apps").
 			WithField("name", name).
 			Error("File is not a layout")
-		return mrfusion.Layout{}, err
+		return chronograf.Layout{}, err
 	}
 	return layout, nil
 }
 
-func createLayout(file string, layout mrfusion.Layout) error {
+func createLayout(file string, layout chronograf.Layout) error {
 	h, err := os.Create(file)
 	if err != nil {
 		return err
@@ -91,13 +91,13 @@ func createLayout(file string, layout mrfusion.Layout) error {
 	return nil
 }
 
-func (a *Apps) All(ctx context.Context) ([]mrfusion.Layout, error) {
+func (a *Apps) All(ctx context.Context) ([]chronograf.Layout, error) {
 	files, err := a.ReadDir(a.Dir)
 	if err != nil {
 		return nil, err
 	}
 
-	layouts := []mrfusion.Layout{}
+	layouts := []chronograf.Layout{}
 	for _, file := range files {
 		if path.Ext(file.Name()) != AppExt {
 			continue
@@ -111,17 +111,17 @@ func (a *Apps) All(ctx context.Context) ([]mrfusion.Layout, error) {
 	return layouts, nil
 }
 
-func (a *Apps) Add(ctx context.Context, layout mrfusion.Layout) (mrfusion.Layout, error) {
+func (a *Apps) Add(ctx context.Context, layout chronograf.Layout) (chronograf.Layout, error) {
 	var err error
 	layout.ID, err = a.IDs.Generate()
 	file := a.Filename(a.Dir, layout)
 	if err = a.Create(file, layout); err != nil {
-		return mrfusion.Layout{}, err
+		return chronograf.Layout{}, err
 	}
 	return layout, nil
 }
 
-func (a *Apps) Delete(ctx context.Context, layout mrfusion.Layout) error {
+func (a *Apps) Delete(ctx context.Context, layout chronograf.Layout) error {
 	file, err := a.idToFile(layout.ID)
 	if err != nil {
 		return err
@@ -137,19 +137,19 @@ func (a *Apps) Delete(ctx context.Context, layout mrfusion.Layout) error {
 	return nil
 }
 
-func (a *Apps) Get(ctx context.Context, ID string) (mrfusion.Layout, error) {
+func (a *Apps) Get(ctx context.Context, ID string) (chronograf.Layout, error) {
 	file, err := a.idToFile(ID)
 	if err != nil {
-		return mrfusion.Layout{}, err
+		return chronograf.Layout{}, err
 	}
 	l, err := a.Load(file)
 	if err != nil {
-		return mrfusion.Layout{}, mrfusion.ErrLayoutNotFound
+		return chronograf.Layout{}, chronograf.ErrLayoutNotFound
 	}
 	return l, nil
 }
 
-func (a *Apps) Update(ctx context.Context, layout mrfusion.Layout) error {
+func (a *Apps) Update(ctx context.Context, layout chronograf.Layout) error {
 	file, err := a.idToFile(layout.ID)
 	if err != nil {
 		return err
@@ -157,7 +157,7 @@ func (a *Apps) Update(ctx context.Context, layout mrfusion.Layout) error {
 
 	l, err := a.Load(file)
 	if err != nil {
-		return mrfusion.ErrLayoutNotFound
+		return chronograf.ErrLayoutNotFound
 	}
 
 	if err := a.Delete(ctx, l); err != nil {
@@ -183,7 +183,7 @@ func (a *Apps) idToFile(ID string) (string, error) {
 		}
 	}
 	if file == "" {
-		return "", mrfusion.ErrLayoutNotFound
+		return "", chronograf.ErrLayoutNotFound
 	}
 	return file, nil
 }

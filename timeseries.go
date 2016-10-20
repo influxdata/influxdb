@@ -1,4 +1,4 @@
-package mrfusion
+package chronograf
 
 import "golang.org/x/net/context"
 

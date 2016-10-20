@@ -4,7 +4,7 @@ MAINTAINER Chris Goller <chris@influxdb.com>
 RUN apk add --update ca-certificates && \
     rm /var/cache/apk/*
 
-ADD mrfusion /mrfusion
+ADD chronograf /chronograf
 ADD canned/*.json /canned/
 
-CMD ["/mrfusion"]
+CMD ["/chronograf"]
