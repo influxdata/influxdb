@@ -106,7 +106,7 @@ func (cmd *Command) Run(args ...string) error {
 
 // printUsage prints the usage message to STDERR.
 func (cmd *Command) printUsage() {
-	usage := fmt.Sprintf(`Verifies the the checksum of shards.
+	usage := fmt.Sprintf(`Verifies the integrity of TSM files.
 
 Usage: influx_inspect verify [flags]
 
