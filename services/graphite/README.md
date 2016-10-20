@@ -1,6 +1,6 @@
 # The Graphite Input
 
-## A note on UDP/IP OS Buffer sizes
+## A Note On UDP/IP OS Buffer Sizes
 
 If you're using UDP input and running Linux or FreeBSD, please adjust your UDP buffer
 size limit, [see here for more details.](../udp/README.md#a-note-on-udpip-os-buffer-sizes)
@@ -175,7 +175,7 @@ If you need to add the same set of tags to all metrics, you can define them glob
  ]
 ```
 
-## Two Graphite listeners, UDP & TCP, Config
+## Two Graphite Listeners, UDP & TCP, Config
 
 ```
 [[graphite]]
