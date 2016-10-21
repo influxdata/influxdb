@@ -56,17 +56,21 @@ func NewCommand() *Command {
 func (cmd *Command) Run(args ...string) error {
 	var start, end string
 	fs := flag.NewFlagSet("export", flag.ExitOnError)
-	fs.StringVar(&cmd.dataDir, "datadir", os.Getenv("HOME")+"/.influxdb/data", "Data storage path. [$HOME/.influxdb/data]")
-	fs.StringVar(&cmd.walDir, "waldir", os.Getenv("HOME")+"/.influxdb/wal", "Wal storage path. [$HOME/.influxdb/wal]")
+	fs.StringVar(&cmd.dataDir, "datadir", os.Getenv("HOME")+"/.influxdb/data", "Data storage path.")
+	fs.StringVar(&cmd.walDir, "waldir", os.Getenv("HOME")+"/.influxdb/wal", "Wal storage path.")
 	fs.StringVar(&cmd.out, "out", os.Getenv("HOME")+"/.influxdb/export", "Destination file to export to")
 	fs.StringVar(&cmd.database, "database", "", "Optional: the database to export")
-	fs.StringVar(&cmd.retentionPolicy, "retention", "", "Optional: the retention policy to export (requires db parameter to be specified)")
+	fs.StringVar(&cmd.retentionPolicy, "retention", "", "Optional: the retention policy to export (requires -database)")
 	fs.StringVar(&start, "start", "", "Optional: the start time to export")
 	fs.StringVar(&end, "end", "", "Optional: the end time to export")
 	fs.BoolVar(&cmd.compress, "compress", false, "Compress the output")
 
 	fs.SetOutput(cmd.Stdout)
-	fs.Usage = cmd.printUsage
+	fs.Usage = func() {
+		fmt.Fprintln(cmd.Stdout, "Exports TSM files into InfluxDB line protocol format.\n")
+		fmt.Fprintf(cmd.Stdout, "Usage: %s export [flags]\n\n", filepath.Base(os.Args[0]))
+		fs.PrintDefaults()
+	}
 
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -384,34 +388,4 @@ func (cmd *Command) writeWALFiles(w io.WriteCloser, files []string, key string) 
 	}
 
 	return nil
-}
-
-// printUsage prints the usage message to STDERR.
-func (cmd *Command) printUsage() {
-	usage := fmt.Sprintf(`Exports TSM files into InfluxDB line protocol format.
-
-Usage: influx_inspect export [flags]
-
-    -datadir <path>
-            Data storage path
-            Defaults to "%[1]s/.influxdb/data".
-    -waldir <path>
-            WAL storage path
-            Defaults to "%[1]s/.influxdb/wal".
-    -out <path>
-            Destination file to export to.
-            Defaults to "%[1]s/.influxdb/export".
-    -database <name>
-            Optional. Database to export.
-    -retention <name>
-            Optional. the retention policy to export (requires db parameter to be specified).
-    -start-time <time>
-            Optional. the start time to export.
-    -end-time <time>
-            Optional. the end time to export.
-    -compress
-            Optional. Compress the output.  Defaults to "false".
-`, os.Getenv("HOME"))
-
-	fmt.Fprintf(cmd.Stdout, usage)
 }
