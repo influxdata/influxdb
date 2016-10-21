@@ -629,6 +629,48 @@ func benchmarkEngineCreateIteratorCount(b *testing.B, pointN int) {
 	}, pointN)
 }
 
+func BenchmarkEngine_CreateIterator_First_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_First_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_First_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst(b, 1000000)
+}
+
+func benchmarkEngineCreateIteratorFirst(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:       influxql.MustParseExpr("first(value)"),
+		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Dimensions: []string{"host"},
+		Ascending:  true,
+		StartTime:  influxql.MinTime,
+		EndTime:    influxql.MaxTime,
+	}, pointN)
+}
+
+func BenchmarkEngine_CreateIterator_Last_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorLast(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_Last_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorLast(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_Last_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorLast(b, 1000000)
+}
+
+func benchmarkEngineCreateIteratorLast(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:       influxql.MustParseExpr("last(value)"),
+		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Dimensions: []string{"host"},
+		Ascending:  true,
+		StartTime:  influxql.MinTime,
+		EndTime:    influxql.MaxTime,
+	}, pointN)
+}
+
 func BenchmarkEngine_CreateIterator_Limit_1K(b *testing.B) {
 	benchmarkEngineCreateIteratorLimit(b, 1000)
 }
