@@ -1,5 +1,4 @@
 import React, {PropTypes} from 'react';
-import FlashMessages from 'shared/components/FlashMessages';
 import {getKapacitor, createKapacitor, updateKapacitor} from 'shared/apis';
 import AlertOutputs from '../components/AlertOutputs';
 
@@ -7,27 +6,19 @@ export const KapacitorPage = React.createClass({
   propTypes: {
     source: PropTypes.shape({
       id: PropTypes.string.isRequired,
-    }).isRequired,
+    }),
+    addFlashMessage: PropTypes.func,
   },
 
   getInitialState() {
     return {
-      kapacitorURL: '',
-      kapacitorName: '',
-      kapacitorUser: '',
-      validKapacitor: false,
+      kapacitor: null,
     };
   },
 
   componentDidMount() {
-    getKapacitor(this.props.source.id).then((res) => {
-      const kapacitor = res.data;
-      this.setState({
-        kapacitorURL: kapacitor.url,
-        kapacitorName: kapacitor.name,
-        kapacitorUser: kapacitor.username,
-        validKapacitor: true,
-      });
+    getKapacitor(this.props.source).then((kapacitor) => {
+      this.setState({kapacitor});
     }).catch(function(_) {
       // do nothing for now
     });
@@ -35,53 +26,39 @@ export const KapacitorPage = React.createClass({
 
   handleKapacitorUpdate(e) {
     e.preventDefault();
-    const kapacitor = {
-      sourceID: this.props.source.id,
-      url: this.state.kapacitorURL,
-      name: this.state.kapacitorName,
-      username: this.state.kapacitorUser,
+    const {kapacitor, newURL, newName, newUsername} = this.state;
+    const {source} = this.props;
+    const updates = {
+      url: newURL || kapacitor.url,
+      name: newName || kapacitor.name,
+      username: newUsername || kapacitor.username,
       password: this.kapacitorPassword.value,
     };
 
-    if (this.state.validKapacitor) {
-      updateKapacitor(kapacitor).then(({data: _}) => {
-        this.setState({
-          validKapacitor: true,
-        });
-      });
+    if (this.state.kapacitor) {
+      updateKapacitor(source, kapacitor, updates);
     } else {
-      createKapacitor(kapacitor).then(({data: _}) => {
-        this.setState({
-          validKapacitor: true,
-        });
-      });
+      createKapacitor(source, updates);
     }
   },
 
-  changeURL(e) {
-    this.setState({
-      kapacitorURL: e.target.value,
-    });
+  updateName() {
+    this.setState({newName: this.kapacitorName.value});
   },
 
-  changeName(e) {
-    this.setState({
-      kapacitorName: e.target.value,
-    });
+  updateURL() {
+    this.setState({newURL: this.kapacitorURL.value});
   },
 
-  changeUser(e) {
-    this.setState({
-      kapacitorUser: e.target.value,
-    });
+  updateUsername() {
+    this.setState({newUsername: this.kapacitorUser.value});
   },
 
   render() {
-    const kapacitor = {
-      url: this.state.kapacitorURL,
-      name: this.state.kapacitorName,
-      username: this.state.kapacitorUser,
-    };
+    const {kapacitor, newName, newURL, newUsername} = this.state;
+    const name = newName || (kapacitor && kapacitor.name) || '';
+    const url = newURL || (kapacitor && kapacitor.url) || '';
+    const username = newUsername || (kapacitor && kapacitor.username) || '';
 
     return (
       <div className="kapacitor">
@@ -114,15 +91,15 @@ export const KapacitorPage = React.createClass({
                     <div>
                       <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
                         <label htmlFor="connect-string">Connection String</label>
-                        <input ref={(r) => this.kapacitorURL = r} className="form-control" id="connect-string" placeholder="http://localhost:9092" value={kapacitor.url || ''} onChange={this.changeURL}></input>
+                        <input ref={(r) => this.kapacitorURL = r} className="form-control" id="connect-string" placeholder="http://localhost:9092" value={url} onChange={this.updateURL}></input>
                       </div>
                       <div className="form-group col-xs-6 col-sm-4">
                         <label htmlFor="name">Name</label>
-                        <input ref={(r) => this.kapacitorName = r} className="form-control" id="name" placeholder="My Kapacitor" value={kapacitor.name || ''} onChange={this.changeName}></input>
+                        <input ref={(r) => this.kapacitorName = r} className="form-control" id="name" placeholder="My Kapacitor" value={name} onChange={this.updateName}></input>
                       </div>
                       <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
                         <label htmlFor="username">Username</label>
-                        <input ref={(r) => this.kapacitorUser = r} className="form-control" id="username" value={kapacitor.username || ''} onChange={this.changeUser}></input>
+                        <input ref={(r) => this.kapacitorUser = r} className="form-control" id="username" value={username} onChange={this.updateUsername}></input>
                       </div>
                       <div className="form-group col-xs-6 col-sm-4">
                         <label htmlFor="password">Password</label>
@@ -149,8 +126,9 @@ export const KapacitorPage = React.createClass({
   },
 
   renderAlertOutputs() {
-    if (this.state.validKapacitor) {
-      return <AlertOutputs source={this.props.source} />;
+    const {kapacitor} = this.state;
+    if (kapacitor) {
+      return <AlertOutputs source={this.props.source} kapacitor={kapacitor} />;
     }
 
     return (
@@ -161,4 +139,4 @@ export const KapacitorPage = React.createClass({
   },
 });
 
-export default FlashMessages(KapacitorPage);
+export default KapacitorPage;

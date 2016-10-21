@@ -449,16 +449,18 @@ function metaProxy(clusterID, slug) {
 // Kapacitor functions
 // TODO: update kapacitor functions to assume only one kapacitor. waiting for @goller
 
-export function getKapacitor(sourceID) {
+export function getKapacitor(source) {
   return AJAX({
-    url: `/chronograf/v1/sources/${sourceID}/kapacitors/1`,
+    url: source.links.kapacitors,
     method: 'GET',
+  }).then(({data}) => {
+    return data.kapacitors[0];
   });
 }
 
-export function createKapacitor({sourceID, url, name = 'My Kapacitor', username, password}) {
+export function createKapacitor(source, {url, name = 'My Kapacitor', username, password}) {
   return AJAX({
-    url: `/chronograf/v1/sources/${sourceID}/kapacitors`,
+    url: source.links.kapacitors,
     method: 'POST',
     data: {
       name,
@@ -469,9 +471,9 @@ export function createKapacitor({sourceID, url, name = 'My Kapacitor', username,
   });
 }
 
-export function updateKapacitor({sourceID, url, name = 'My Kapacitor', username, password}) {
+export function updateKapacitor(source, kapacitor, {url, name = 'My Kapacitor', username, password}) {
   return AJAX({
-    url: `/chronograf/v1/sources/${sourceID}/kapacitors/1`,
+    url: kapacitor.links.self,
     method: 'PATCH',
     data: {
       name,
@@ -482,15 +484,15 @@ export function updateKapacitor({sourceID, url, name = 'My Kapacitor', username,
   });
 }
 
-export function getKapacitorConfig(sourceID) {
-  return kapacitorProxy(sourceID, 'GET', '/kapacitor/v1/config', '');
+export function getKapacitorConfig(kapacitor) {
+  return kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/config', '');
 }
 
 // updateKapacitorConfigSection will update one section in the Kapacitor config.
-export function updateKapacitorConfigSection(sourceID, section, properties) {
+export function updateKapacitorConfigSection(kapacitor, section, properties) {
   return AJAX({
     method: 'POST',
-    url: `/chronograf/v1/sources/${sourceID}/kapacitors/1/proxy`,
+    url: kapacitor.links.proxy,
     params: {
       path: `/kapacitor/v1/config/${section}`,
     },
@@ -503,7 +505,7 @@ export function updateKapacitorConfigSection(sourceID, section, properties) {
   });
 }
 
-export function testAlertOutput(sourceID, outputName) {
+export function testAlertOutput(kapacitor, outputName) {
   const script = `
     batch
       |query('''
@@ -527,15 +529,15 @@ export function testAlertOutput(sourceID, outputName) {
     },
   ];
 
-  createKapacitorTask(sourceID, taskName, 'batch', telegrafRPs, script).then(() => {
+  createKapacitorTask(kapacitor, taskName, 'batch', telegrafRPs, script).then(() => {
     const onePointFiveSeconds = 1500;
     // Im not sure what is ghetto here but something is ghetto
-    setTimeout(() => deleteKapacitorTask(sourceID, taskName), onePointFiveSeconds);
+    setTimeout(() => deleteKapacitorTask(kapacitor, taskName), onePointFiveSeconds);
   });
 }
 
-export function createKapacitorTask(sourceID, id, type, dbrps, script) {
-  return kapacitorProxy(sourceID, 'POST', '/kapacitor/v1/tasks', {
+export function createKapacitorTask(kapacitor, id, type, dbrps, script) {
+  return kapacitorProxy(kapacitor, 'POST', '/kapacitor/v1/tasks', {
     id,
     type,
     dbrps,
@@ -544,22 +546,22 @@ export function createKapacitorTask(sourceID, id, type, dbrps, script) {
   });
 }
 
-export function enableKapacitorTask(sourceID, id) {
-  return kapacitorProxy(sourceID, 'PATCH', `/kapacitor/v1/tasks/${id}`, {status: 'enabled'});
+export function enableKapacitorTask(kapacitor, id) {
+  return kapacitorProxy(kapacitor, 'PATCH', `/kapacitor/v1/tasks/${id}`, {status: 'enabled'});
 }
 
-export function disableKapacitorTask(sourceID, id) {
-  return kapacitorProxy(sourceID, 'PATCH', `/kapacitor/v1/tasks/${id}`, {status: 'disabled'});
+export function disableKapacitorTask(kapacitor, id) {
+  return kapacitorProxy(kapacitor, 'PATCH', `/kapacitor/v1/tasks/${id}`, {status: 'disabled'});
 }
 
-export function deleteKapacitorTask(sourceID, id) {
-  return kapacitorProxy(sourceID, 'DELETE', `/kapacitor/v1/tasks/${id}`, '');
+export function deleteKapacitorTask(kapacitor, id) {
+  return kapacitorProxy(kapacitor, 'DELETE', `/kapacitor/v1/tasks/${id}`, '');
 }
 
-export function kapacitorProxy(sourceID, method, path, body) {
+export function kapacitorProxy(kapacitor, method, path, body) {
   return AJAX({
     method,
-    url: `/chronograf/v1/sources/${sourceID}/kapacitors/1/proxy`,
+    url: kapacitor.links.proxy,
     params: {
       path,
     },

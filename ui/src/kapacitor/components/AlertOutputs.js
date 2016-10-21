@@ -8,6 +8,11 @@ const AlertOutputs = React.createClass({
     source: PropTypes.shape({
       id: PropTypes.string.isRequired,
     }).isRequired,
+    kapacitor: PropTypes.shape({
+      links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
+      }).isRequired,
+    }),
   },
 
   getInitialState() {
@@ -19,17 +24,17 @@ const AlertOutputs = React.createClass({
   },
 
   componentDidMount() {
-    getKapacitorConfig(this.props.source.id).then(({data: {smtp, slack}}) => {
+    getKapacitorConfig(this.props.kapacitor).then(({data: {smtp, slack}}) => {
       this.setState({
-        slackConfig: (slack && slack.length && slack[0]) || null,
-        smtpConfig: (smtp && smtp.length && smtp[0]) || null,
+        slackConfig: (slack.elements.length && slack.elements[0]) || null,
+        smtpConfig: (smtp.elements.length && smtp.elements[0]) || null,
       });
     });
   },
 
   handleSaveConfig(section, properties) {
     if (section !== '') {
-      updateKapacitorConfigSection(this.props.source.id, section, Object.assign({}, properties, {enabled: true})).then(() => {
+      updateKapacitorConfigSection(this.props.kapacitor, section, Object.assign({}, properties, {enabled: true})).then(() => {
         // slack test can happen
       });
     }
@@ -43,7 +48,7 @@ const AlertOutputs = React.createClass({
 
   testSlack(e) {
     e.preventDefault();
-    testAlertOutput(this.props.source.id, 'slack');
+    testAlertOutput(this.props.kapacitor, 'slack');
   },
 
   render() {
