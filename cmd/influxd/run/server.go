@@ -267,13 +267,6 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	srv.Handler.PointsWriter = s.PointsWriter
 	srv.Handler.Version = s.buildInfo.Version
 
-	// If a ContinuousQuerier service has been started, attach it.
-	for _, srvc := range s.Services {
-		if cqsrvc, ok := srvc.(continuous_querier.ContinuousQuerier); ok {
-			srv.Handler.ContinuousQuerier = cqsrvc
-		}
-	}
-
 	s.Services = append(s.Services, srv)
 }
 

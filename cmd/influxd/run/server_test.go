@@ -6268,15 +6268,6 @@ func TestServer_ContinuousQuery(t *testing.T) {
 	// Run first test to create CQs.
 	runTest(&test, t)
 
-	// Trigger CQs to run.
-	u := fmt.Sprintf("%s/data/process_continuous_queries?time=%d", s.URL(), interval0.UnixNano())
-	if _, err := s.HTTPPost(u, nil); err != nil {
-		t.Fatal(err)
-	}
-
-	// Wait for CQs to run. TODO: fix this ugly hack
-	//time.Sleep(time.Second * 5)
-
 	// Setup tests to check the CQ results.
 	test2 := NewTest("db0", "rp1")
 	test2.addQueries([]*Query{

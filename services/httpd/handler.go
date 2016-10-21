@@ -24,7 +24,6 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
-	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
@@ -89,8 +88,6 @@ type Handler struct {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 	}
 
-	ContinuousQuerier continuous_querier.ContinuousQuerier
-
 	Config    *Config
 	Logger    *log.Logger
 	CLFLogger *log.Logger
@@ -144,11 +141,6 @@ func NewHandler(c Config) *Handler {
 			"status-head",
 			"HEAD", "/status", false, true, h.serveStatus,
 		},
-		// TODO: (corylanou) remove this and associated code
-		Route{ // Tell data node to run CQs that should be run
-			"process-continuous-queries",
-			"POST", "/data/process_continuous_queries", false, false, h.serveProcessContinuousQueries,
-		},
 	}...)
 
 	return h
@@ -184,7 +176,6 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 		Tags: tags,
 		Values: map[string]interface{}{
 			statRequest:                      atomic.LoadInt64(&h.stats.Requests),
-			statCQRequest:                    atomic.LoadInt64(&h.stats.CQRequests),
 			statQueryRequest:                 atomic.LoadInt64(&h.stats.QueryRequests),
 			statWriteRequest:                 atomic.LoadInt64(&h.stats.WriteRequests),
 			statPingRequest:                  atomic.LoadInt64(&h.stats.PingRequests),
@@ -277,47 +268,6 @@ func (h *Handler) writeHeader(w http.ResponseWriter, code int) {
 		atomic.AddInt64(&h.stats.ServerErrors, 1)
 	}
 	w.WriteHeader(code)
-}
-
-func (h *Handler) serveProcessContinuousQueries(w http.ResponseWriter, r *http.Request, user *meta.UserInfo) {
-	atomic.AddInt64(&h.stats.CQRequests, 1)
-
-	// If the continuous query service isn't configured, return 404.
-	if h.ContinuousQuerier == nil {
-		h.writeHeader(w, http.StatusNotImplemented)
-		return
-	}
-
-	q := r.URL.Query()
-
-	// Get the database name (blank means all databases).
-	db := q.Get("db")
-	// Get the name of the CQ to run (blank means run all).
-	name := q.Get("name")
-	// Get the time for which the CQ should be evaluated.
-	t := time.Now()
-	var err error
-	s := q.Get("time")
-	if s != "" {
-		t, err = time.Parse(time.RFC3339Nano, s)
-		if err != nil {
-			// Try parsing as an int64 nanosecond timestamp.
-			i, err := strconv.ParseInt(s, 10, 64)
-			if err != nil {
-				h.writeHeader(w, http.StatusBadRequest)
-				return
-			}
-			t = time.Unix(0, i)
-		}
-	}
-
-	// Pass the request to the CQ service.
-	if err := h.ContinuousQuerier.Run(db, name, t); err != nil {
-		h.writeHeader(w, http.StatusBadRequest)
-		return
-	}
-
-	h.writeHeader(w, http.StatusNoContent)
 }
 
 // serveQuery parses an incoming query and, if valid, executes the query.
