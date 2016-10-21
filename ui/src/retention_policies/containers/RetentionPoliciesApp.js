@@ -4,7 +4,6 @@ import _ from 'lodash';
 import RetentionPoliciesHeader from '../components/RetentionPoliciesHeader';
 import RetentionPoliciesList from '../components/RetentionPoliciesList';
 import CreateRetentionPolicyModal from '../components/CreateRetentionPolicyModal';
-import FlashMessages from 'shared/components/FlashMessages';
 
 import {
   showDatabases,
@@ -25,7 +24,7 @@ const RetentionPoliciesApp = React.createClass({
     params: PropTypes.shape({
       clusterID: PropTypes.string.isRequired,
     }).isRequired,
-    addFlashMessage: PropTypes.func.isRequired,
+    addFlashMessage: PropTypes.func,
   },
 
   getInitialState() {
@@ -210,4 +209,4 @@ const RetentionPoliciesApp = React.createClass({
   },
 });
 
-export default FlashMessages(RetentionPoliciesApp);
+export default RetentionPoliciesApp;

@@ -2,7 +2,6 @@ import React, {PropTypes} from 'react';
 import {getRoles, createRole} from 'src/shared/apis';
 import {buildRoles} from 'src/shared/presenters';
 import RolesPage from '../components/RolesPage';
-import FlashMessages from 'src/shared/components/FlashMessages';
 import _ from 'lodash';
 
 export const RolesPageContainer = React.createClass({
@@ -69,4 +68,4 @@ export const RolesPageContainer = React.createClass({
   },
 });
 
-export default FlashMessages(RolesPageContainer);
+export default RolesPageContainer;

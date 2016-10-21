@@ -1,6 +1,5 @@
 import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
-import FlashMessages from 'shared/components/FlashMessages';
 import {createSource} from 'shared/apis';
 
 export const CreateSource = React.createClass({
@@ -87,4 +86,4 @@ export const CreateSource = React.createClass({
   },
 });
 
-export default FlashMessages(withRouter(CreateSource));
+export default withRouter(CreateSource);

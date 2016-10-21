@@ -1,7 +1,6 @@
 import React, {PropTypes} from 'react';
 import _ from 'lodash';
 import {withRouter} from 'react-router';
-import FlashMessages from 'shared/components/FlashMessages';
 import ClusterAccountEditPage from '../components/ClusterAccountEditPage';
 import {buildClusterAccounts, buildRoles, buildAllPermissions, buildPermission} from 'src/shared/presenters';
 import {showDatabases} from 'src/shared/apis/metaQuery';
@@ -35,7 +34,7 @@ export const ClusterAccountContainer = React.createClass({
     router: shape({
       push: func.isRequired,
     }).isRequired,
-    addFlashMessage: func.isRequired,
+    addFlashMessage: func,
   },
 
   getInitialState() {
@@ -276,4 +275,4 @@ export const ClusterAccountContainer = React.createClass({
   },
 });
 
-export default FlashMessages(withRouter(ClusterAccountContainer));
+export default withRouter(ClusterAccountContainer);

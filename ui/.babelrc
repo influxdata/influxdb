@@ -2,6 +2,7 @@
   "plugins": [
     "syntax-trailing-function-commas",
     "transform-decorators-legacy",
+    "transform-object-rest-spread",
     "transform-runtime",
     "lodash"
   ],

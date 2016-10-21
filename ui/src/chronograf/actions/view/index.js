@@ -1,6 +1,7 @@
 import uuid from 'node-uuid';
 import AJAX from 'utils/ajax';
 import getInitialState from 'src/store/getInitialState';
+import {publishNotification} from 'src/shared/actions/notifications';
 import _ from 'lodash';
 import * as api from '../../api/';
 
@@ -190,6 +191,9 @@ export function deleteExplorer(source, explorerURI, push) {
         type: 'DELETE_EXPLORER',
         payload: {id: explorerURI},
       });
+      dispatch(publishNotification('success', 'The exploration was successfully deleted'));
+    }).catch(() => {
+      dispatch(publishNotification('error', 'The exploration could not be deleted'));
     });
   };
 }

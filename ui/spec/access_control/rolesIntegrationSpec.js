@@ -171,29 +171,6 @@ describe('Roles page', function() {
         expect(wrapper.find('.roles .panel').at(startingRolesLen).text()).to.match(/new role/);
       }, done);
     });
-
-    it('renders a success notification', function(done) {
-      this.fakes.stub(api, 'createRole').returns(Promise.resolve({data: {}}));
-      const wrapper = setup();
-      submitRoleForm(wrapper, 'new role');
-
-      then(() => {
-        expect(wrapper.find('.alert-success').length).to.equal(1);
-      }, done);
-    });
-
-    describe('and the request fails', function() {
-      it('renders an error notification', function(done) {
-        this.fakes.stub(api, 'createRole').returns(Promise.reject({error: "Role name already exists."}));
-
-        const wrapper = setup();
-        submitRoleForm(wrapper, 'new role');
-
-        then(() => {
-          expect(wrapper.find('.alert-danger').length).to.equal(1);
-        }, done);
-      });
-    });
   });
 });
 /* eslint-enable */
