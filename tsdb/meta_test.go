@@ -104,7 +104,7 @@ func TestMeasurement_AppendSeriesKeysByID_Missing(t *testing.T) {
 
 func TestMeasurement_AppendSeriesKeysByID_Exists(t *testing.T) {
 	m := tsdb.NewMeasurement("cpu")
-	s := tsdb.NewSeries("cpu,host=foo", models.Tags{models.Tag{Key: []byte("host"), Value: []byte("foo")}})
+	s := tsdb.NewSeries([]byte("cpu,host=foo"), models.Tags{models.Tag{Key: []byte("host"), Value: []byte("foo")}})
 	s.ID = 1
 	m.AddSeries(s)
 

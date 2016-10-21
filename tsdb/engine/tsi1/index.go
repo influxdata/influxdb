@@ -23,6 +23,12 @@ type Index struct {
 	// TODO(benbjohnson): Add write ahead log.
 }
 
+// Open opens the index.
+func (i *Index) Open() error { panic("TODO") }
+
+// Close closes the index.
+func (i *Index) Close() error { panic("TODO") }
+
 // SetFile explicitly sets a file in the index.
 func (i *Index) SetFile(f *IndexFile) { i.file = f }
 
@@ -295,3 +301,6 @@ func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	panic("TODO")
 }
+
+// Dereference is a nop.
+func (i *Index) Dereference([]byte) {}

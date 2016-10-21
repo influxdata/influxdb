@@ -9,6 +9,9 @@ import (
 )
 
 type Index interface {
+	Open() error
+	Close() error
+
 	CreateMeasurementIndexIfNotExists(name string) (*Measurement, error)
 	Measurement(name []byte) (*Measurement, error)
 	Measurements() (Measurements, error)
@@ -26,4 +29,5 @@ type Index interface {
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 
 	TagsForSeries(key string) (models.Tags, error)
+	Dereference(b []byte)
 }

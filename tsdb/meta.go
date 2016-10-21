@@ -704,9 +704,6 @@ func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*
 	tagSets := make(map[string]*influxql.TagSet, 64)
 	for _, id := range ids {
 		s := m.seriesByID[id]
-		if !s.Assigned(shardID) {
-			continue
-		}
 		tags := make(map[string]string, len(dimensions))
 
 		// Build the TagSet for this series.
