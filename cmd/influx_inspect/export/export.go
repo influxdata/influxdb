@@ -68,7 +68,7 @@ func (cmd *Command) Run(args ...string) error {
 
 	fs.SetOutput(cmd.Stdout)
 	fs.Usage = func() {
-		fmt.Fprintln(cmd.Stdout, "Exports TSM files into InfluxDB line protocol format.\n")
+		fmt.Fprintf(cmd.Stdout, "Exports TSM files into InfluxDB line protocol format.\n\n")
 		fmt.Fprintf(cmd.Stdout, "Usage: %s export [flags]\n\n", filepath.Base(os.Args[0]))
 		fs.PrintDefaults()
 	}
