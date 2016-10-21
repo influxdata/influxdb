@@ -1359,7 +1359,7 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions, aggregate bo
 
 		for _, mm := range mms {
 			// Determine tagsets for this measurement based on dimensions and filters.
-			tagSets, err := mm.TagSets(e.id, opt.Dimensions, opt.Condition)
+			tagSets, err := mm.TagSets(opt.Dimensions, opt.Condition)
 			if err != nil {
 				return err
 			}
