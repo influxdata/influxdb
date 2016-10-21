@@ -57,10 +57,10 @@ EXPORT OPTIONS
 -wal-dir <path>::
   Wal storage path. Defaults to '~/.influxdb/wal'.
 
--start-time <timestamp>::
+-start <timestamp>::
   The start time of the export. The timestamp is in RFC3339 format. Optional.
 
--end-time <timestamp>::
+-end <timestamp>::
   The end time of the export. The timestamp is in RFC3339 format. Optional.
 
 -out <path>::
