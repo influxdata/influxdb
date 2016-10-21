@@ -771,7 +771,7 @@ func (m *Measurement) filters(condition influxql.Expr) ([]uint64, map[uint64]inf
 // This will also populate the TagSet objects with the series IDs that match each tagset and any
 // influx filter expression that goes with the series
 // TODO: this shouldn't be exported. However, until tx.go and the engine get refactored into tsdb, we need it.
-func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
+func (m *Measurement) TagSets(shardID uint64, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
 	m.mu.RLock()
 
 	// get the unique set of series ids and the filters that should be applied to each
@@ -787,6 +787,9 @@ func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*
 	tagSets := make(map[string]*influxql.TagSet, 64)
 	for _, id := range ids {
 		s := m.seriesByID[id]
+		if !s.Assigned(shardID) {
+			continue
+		}
 		tags := make(map[string]string, len(dimensions))
 
 		// Build the TagSet for this series.

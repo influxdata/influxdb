@@ -240,7 +240,7 @@ func (s *Shard) Open() error {
 		}
 
 		// Initialize underlying engine.
-		e, err := NewEngine(s.path, s.walPath, s.options)
+		e, err := NewEngine(s.id, s.path, s.walPath, s.options)
 		if err != nil {
 			return err
 		}
