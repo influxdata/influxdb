@@ -111,7 +111,7 @@ func (i *IndexFile) TagValueElem(name, key, value []byte) (TagValueElem, error) 
 }
 
 // tagSetBlock returns a tag set block for a measurement.
-func (i *IndexFile) tagSetBlock(e *MeasurementElem) (TagSet, error) {
+func (i *IndexFile) tagSetBlock(e *MeasurementBlockElem) (TagSet, error) {
 	// Slice tag set data.
 	buf := i.data[e.TagSet.Offset:]
 	buf = buf[:e.TagSet.Size]

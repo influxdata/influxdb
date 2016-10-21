@@ -271,11 +271,13 @@ func (i *Index) DropSeries(keys []string) error {
 }
 
 func (i *Index) SeriesN() (n uint64, err error) {
-	itr := i.file.MeasurementIterator()
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		n += uint64(e.Series.N)
-	}
-	return n, nil
+	panic("TODO: Use sketches")
+
+	// itr := i.file.MeasurementIterator()
+	// for e := itr.Next(); e != nil; e = itr.Next() {
+	// 	n += uint64(e.SeriesN)
+	// }
+	// return n, nil
 }
 
 func (i *Index) TagsForSeries(key string) (models.Tags, error) {
