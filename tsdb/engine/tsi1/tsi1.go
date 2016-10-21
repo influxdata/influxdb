@@ -1,6 +1,7 @@
 package tsi1
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -10,9 +11,37 @@ import (
 	"github.com/influxdata/influxdb/models"
 )
 
+// MeasurementElem represents a generic measurement element.
+type MeasurementElem struct {
+	Deleted bool
+	Name    []byte
+}
+
+// MeasurementElems represents a list of MeasurementElem.
+type MeasurementElems []MeasurementElem
+
+func (a MeasurementElems) Len() int           { return len(a) }
+func (a MeasurementElems) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a MeasurementElems) Less(i, j int) bool { return bytes.Compare(a[i].Name, a[j].Name) == -1 }
+
 // MeasurementIterator represents a iterator over a list of measurements.
 type MeasurementIterator interface {
 	Next() *MeasurementElem
+}
+
+// measurementIterator represents an iterator over a slice of measurements.
+type measurementIterator struct {
+	mms []MeasurementElem
+}
+
+// Next shifts the next element off the list.
+func (itr *measurementIterator) Next() *MeasurementElem {
+	if len(itr.mms) == 0 {
+		return nil
+	}
+	mm := itr.mms[0]
+	itr.mms = itr.mms[1:]
+	return &mm
 }
 
 // SeriesIterator represents a iterator over a list of series.

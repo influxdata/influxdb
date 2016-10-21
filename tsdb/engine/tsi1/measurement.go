@@ -53,7 +53,7 @@ type MeasurementBlock struct {
 func (blk *MeasurementBlock) Version() int { return blk.version }
 
 // Elem returns an element for a measurement.
-func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementElem, ok bool) {
+func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementBlockElem, ok bool) {
 	n := binary.BigEndian.Uint32(blk.hashData[:MeasurementNSize])
 	hash := hashKey(name)
 	pos := int(hash % n)
@@ -68,7 +68,7 @@ func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementElem, ok bool) {
 		// Evaluate name if offset is not empty.
 		if offset > 0 {
 			// Parse into element.
-			var e MeasurementElem
+			var e MeasurementBlockElem
 			e.UnmarshalBinary(blk.data[offset:])
 
 			// Return if name match.
@@ -78,7 +78,7 @@ func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementElem, ok bool) {
 
 			// Check if we've exceeded the probe distance.
 			if d > dist(hashKey(e.Name), pos, int(n)) {
-				return MeasurementElem{}, false
+				return MeasurementBlockElem{}, false
 			}
 		}
 
@@ -115,27 +115,34 @@ func (blk *MeasurementBlock) UnmarshalBinary(data []byte) error {
 
 // Iterator returns an iterator over all measurements.
 func (blk *MeasurementBlock) Iterator() MeasurementIterator {
-	return &measurementIterator{data: blk.data[MeasurementFillSize:]}
+	return &blockMeasurementIterator{data: blk.data[MeasurementFillSize:]}
 }
 
-// measurementIterator iterates over a list measurements in a block.
-type measurementIterator struct {
+// blockMeasurementIterator iterates over a list measurements in a block.
+type blockMeasurementIterator struct {
 	elem MeasurementElem
 	data []byte
 }
 
-// Next returns the next measurement. Returns false when iterator is complete.
-func (itr *measurementIterator) Next() *MeasurementElem {
+// Next returns the next measurement. Returns nil when iterator is complete.
+func (itr *blockMeasurementIterator) Next() *MeasurementElem {
 	// Return nil when we run out of data.
 	if len(itr.data) == 0 {
 		return nil
 	}
 
 	// Unmarshal the element at the current position.
-	itr.elem.UnmarshalBinary(itr.data)
+	var elem MeasurementBlockElem
+	elem.UnmarshalBinary(itr.data)
+
+	// Copy to a generic measurement element.
+	itr.elem = MeasurementElem{
+		Name:    elem.Name,
+		Deleted: elem.Deleted(),
+	}
 
 	// Move the data forward past the record.
-	itr.data = itr.data[itr.elem.Size:]
+	itr.data = itr.data[elem.Size:]
 
 	return &itr.elem
 }
@@ -187,8 +194,8 @@ type MeasurementBlockTrailer struct {
 	}
 }
 
-// MeasurementElem represents an internal measurement element.
-type MeasurementElem struct {
+// MeasurementBlockElem represents an internal measurement element.
+type MeasurementBlockElem struct {
 	Flag byte   // flag
 	Name []byte // measurement name
 
@@ -207,17 +214,17 @@ type MeasurementElem struct {
 }
 
 // Deleted returns true if the tombstone flag is set.
-func (e *MeasurementElem) Deleted() bool {
+func (e *MeasurementBlockElem) Deleted() bool {
 	return (e.Flag & MeasurementTombstoneFlag) != 0
 }
 
 // SeriesID returns series ID at an index.
-func (e *MeasurementElem) SeriesID(i int) uint32 {
+func (e *MeasurementBlockElem) SeriesID(i int) uint32 {
 	return binary.BigEndian.Uint32(e.Series.Data[i*SeriesIDSize:])
 }
 
 // SeriesIDs returns a list of decoded series ids.
-func (e *MeasurementElem) SeriesIDs() []uint32 {
+func (e *MeasurementBlockElem) SeriesIDs() []uint32 {
 	a := make([]uint32, e.Series.N)
 	for i := 0; i < int(e.Series.N); i++ {
 		a[i] = e.SeriesID(i)
@@ -226,7 +233,7 @@ func (e *MeasurementElem) SeriesIDs() []uint32 {
 }
 
 // UnmarshalBinary unmarshals data into e.
-func (e *MeasurementElem) UnmarshalBinary(data []byte) error {
+func (e *MeasurementBlockElem) UnmarshalBinary(data []byte) error {
 	start := len(data)
 
 	// Parse flag data.
