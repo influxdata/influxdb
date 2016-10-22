@@ -6,35 +6,17 @@ import (
 	"golang.org/x/net/context"
 )
 
-// Permission is a specific allowance for `User` or `Role`.
-type Permission string
-type Permissions []Permission
-
 // UserID is a unique ID for a source user.
 type UserID int
 
 // Represents an authenticated user.
 type User struct {
-	ID          UserID
-	Name        string
-	Permissions Permissions
-	Roles       []Role
-}
-
-// Role is a set of permissions that may be associated with `User`s
-type Role struct {
-	ID          int
-	Name        string
-	Permissions Permissions
-	Users       []User
+	ID   UserID
+	Name string
 }
 
 // AuthStore is the Storage and retrieval of authentication information
 type AuthStore struct {
-	Permissions interface {
-		// Returns a list of all possible permissions support by the AuthStore.
-		All(context.Context) (Permissions, error)
-	}
 	// User management for the AuthStore
 	Users interface {
 		// Create a new User in the AuthStore
@@ -45,18 +27,6 @@ type AuthStore struct {
 		Get(ctx context.Context, ID int) error
 		// Update the user's permissions or roles
 		Update(context.Context, User) error
-	}
-
-	// Roles are sets of permissions.
-	Roles interface {
-		// Create a new role to encapsulate a set of permissions.
-		Add(context.Context, Role) error
-		// Delete the role
-		Delete(context.Context, Role) error
-		// Retrieve the role and the associated users if `ID` exists.
-		Get(ctx context.Context, ID int) error
-		// Update the role to change permissions or users.
-		Update(context.Context, Role) error
 	}
 }
 

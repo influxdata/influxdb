@@ -91,6 +91,8 @@ type ChronografAPI struct {
 	GetSourcesIDUsersUserIDExplorationsHandler GetSourcesIDUsersUserIDExplorationsHandler
 	// GetSourcesIDUsersUserIDExplorationsExplorationIDHandler sets the operation handler for the get sources ID users user ID explorations exploration ID operation
 	GetSourcesIDUsersUserIDExplorationsExplorationIDHandler GetSourcesIDUsersUserIDExplorationsExplorationIDHandler
+	// GetTokenHandler sets the operation handler for the get token operation
+	GetTokenHandler GetTokenHandler
 	// PatchSourcesIDHandler sets the operation handler for the patch sources ID operation
 	PatchSourcesIDHandler PatchSourcesIDHandler
 	// PatchSourcesIDKapacitorsKapaIDHandler sets the operation handler for the patch sources ID kapacitors kapa ID operation
@@ -278,6 +280,10 @@ func (o *ChronografAPI) Validate() error {
 
 	if o.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler == nil {
 		unregistered = append(unregistered, "GetSourcesIDUsersUserIDExplorationsExplorationIDHandler")
+	}
+
+	if o.GetTokenHandler == nil {
+		unregistered = append(unregistered, "GetTokenHandler")
 	}
 
 	if o.PatchSourcesIDHandler == nil {
@@ -539,6 +545,11 @@ func (o *ChronografAPI) initHandlerCache() {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
 	}
 	o.handlers["GET"]["/sources/{id}/users/{user_id}/explorations/{exploration_id}"] = NewGetSourcesIDUsersUserIDExplorationsExplorationID(o.context, o.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler)
+
+	if o.handlers["GET"] == nil {
+		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
+	}
+	o.handlers["GET"]["/token"] = NewGetToken(o.context, o.GetTokenHandler)
 
 	if o.handlers["PATCH"] == nil {
 		o.handlers[strings.ToUpper("PATCH")] = make(map[string]http.Handler)

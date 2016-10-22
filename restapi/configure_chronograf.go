@@ -15,9 +15,9 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt"
 	"github.com/influxdata/chronograf/canned"
-	"github.com/influxdata/chronograf/dist"
 	"github.com/influxdata/chronograf/handlers"
 	"github.com/influxdata/chronograf/influx"
+	"github.com/influxdata/chronograf/jwt"
 	"github.com/influxdata/chronograf/kapacitor"
 	"github.com/influxdata/chronograf/layouts"
 	clog "github.com/influxdata/chronograf/log"
@@ -30,7 +30,7 @@ import (
 
 //go:generate swagger generate server --target .. --name  --spec ../swagger.yaml --with-context
 
-var logger = clog.New()
+var logger chronograf.Logger = clog.New()
 
 var devFlags = struct {
 	Develop bool `short:"d" long:"develop" description:"Run server in develop mode."`
@@ -42,6 +42,12 @@ var storeFlags = struct {
 
 var cannedFlags = struct {
 	CannedPath string `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts" env:"CANNED_PATH" default:"canned"`
+}{}
+
+var authFlags = struct {
+	TokenSecret        string `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
+	GithubClientID     string `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
+	GithubClientSecret string `short:"s" long:"github-client-secret" description:"Github Client Secret for OAuth 2 support" env:"GH_CLIENT_SECRET"`
 }{}
 
 func configureFlags(api *op.ChronografAPI) {
@@ -61,19 +67,11 @@ func configureFlags(api *op.ChronografAPI) {
 			LongDescription:  "Specify the path to a directory of pre-canned application layout files.",
 			Options:          &cannedFlags,
 		},
-	}
-}
-
-func assets() chronograf.Assets {
-	if devFlags.Develop {
-		return &dist.DebugAssets{
-			Dir:     "ui/build",
-			Default: "ui/build/index.html",
-		}
-	}
-	return &dist.BindataAssets{
-		Prefix:  "ui/build",
-		Default: "ui/build/index.html",
+		swag.CommandLineOptionsGroup{
+			ShortDescription: "Server Authentication",
+			LongDescription:  "Server will use authentication",
+			Options:          &authFlags,
+		},
 	}
 }
 
@@ -103,6 +101,7 @@ func configureAPI(api *op.ChronografAPI) http.Handler {
 		c := bolt.NewClient()
 		c.Path = storeFlags.BoltPath
 		if err := c.Open(); err != nil {
+			logger.WithField("component", "boltstore").Panic("Unable to open boltdb; is there a mrfusion already running?", err)
 			panic(err)
 		}
 
@@ -122,6 +121,7 @@ func configureAPI(api *op.ChronografAPI) http.Handler {
 			LayoutStore:      allLayouts,
 		}
 
+		api.GetTokenHandler = op.GetTokenHandlerFunc(mockHandler.Token)
 		api.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(h.DeleteExploration)
 		api.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.GetSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(h.Exploration)
 		api.GetSourcesIDUsersUserIDExplorationsHandler = op.GetSourcesIDUsersUserIDExplorationsHandlerFunc(h.Explorations)
@@ -238,6 +238,38 @@ func setupMiddlewares(handler http.Handler) http.Handler {
 // The middleware configuration happens before anything, this middleware also applies to serving the swagger.json document.
 // So this is a good place to plug in a panic handling middleware, logging and metrics
 func setupGlobalMiddleware(handler http.Handler) http.Handler {
+	successURL := "/"
+	failureURL := "/login"
+
+	// TODO: Fix these routes when we use httprouter
+	assets := handlers.Assets(handlers.AssetsOpts{
+		Develop: devFlags.Develop,
+		Logger:  logger,
+	})
+
+	if authFlags.TokenSecret != "" {
+		e := handlers.CookieExtractor{
+			Name: "session",
+		}
+		a := jwt.NewJWT(authFlags.TokenSecret)
+		handler = handlers.AuthorizedToken(&a, &e, logger, handler)
+	}
+
+	// TODO: Fix these routes when we use httprouter
+	auth := jwt.NewJWT(authFlags.TokenSecret)
+	gh := handlers.NewGithub(
+		authFlags.GithubClientID,
+		authFlags.GithubClientSecret,
+		successURL,
+		failureURL,
+		&auth,
+		logger,
+	)
+
+	login := gh.Login()
+	logout := gh.Logout()
+	callback := gh.Callback()
+
 	h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		l := logger.
 			WithField("component", "server").
@@ -245,17 +277,29 @@ func setupGlobalMiddleware(handler http.Handler) http.Handler {
 			WithField("method", r.Method).
 			WithField("url", r.URL)
 
+		// TODO: Warning keep these paths in this order until
+		// we have a real router.
 		if strings.Contains(r.URL.Path, "/chronograf/v1") {
 			l.Info("Serving API Request")
 			handler.ServeHTTP(w, r)
+			return
+		} else if strings.Contains(r.URL.Path, "/oauth/github/callback") {
+			l.Info("Auth callback")
+			callback.ServeHTTP(w, r)
+			return
+		} else if strings.HasPrefix(r.URL.Path, "/oauth/logout") {
+			l.Info("Login request")
+			logout.ServeHTTP(w, r)
+			return
+		} else if strings.HasPrefix(r.URL.Path, "/oauth") {
+			l.Info("Login request")
+			login.ServeHTTP(w, r)
 			return
 		} else if r.URL.Path == "//" {
 			l.Info("Serving root redirect")
 			http.Redirect(w, r, "/index.html", http.StatusFound)
 		} else {
-			l.Info("Serving assets")
-			assets().Handler().ServeHTTP(w, r)
-			return
+			assets.ServeHTTP(w, r)
 		}
 	})
 	// TODO: When we use httprouter clean up these routes

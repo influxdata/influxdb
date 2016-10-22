@@ -7,6 +7,7 @@ const (
 	ErrSourceNotFound      = Error("source not found")
 	ErrServerNotFound      = Error("server not found")
 	ErrLayoutNotFound      = Error("layout not found")
+	ErrAuthentication      = Error("user not authenticated")
 )
 
 // Error is a domain error encountered while processing chronograf requests

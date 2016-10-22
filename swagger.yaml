@@ -1020,6 +1020,20 @@ paths:
                     description: A processing or an unexpected error.
                     schema:
                         $ref: '#/definitions/Error'
+    /token:
+        get:
+            summary: Authentication token
+            description: |
+                Generates a JWT authentication token
+            responses:
+                200:
+                    description: A JWT authentication token
+                    schema:
+                        $ref: '#/definitions/Token'
+                default:
+                    description: Unexpected internal service error
+                    schema:
+                        $ref: '#/definitions/Error'
 definitions:
     Kapacitors:
         type: object
@@ -1213,6 +1227,9 @@ definitions:
                 $ref: "#/definitions/Users"
             link:
                 $ref: "#/definitions/Link"
+    Token:
+        type: object
+        description: a stringified JWT token.
     Users:
         type: object
         properties:
