@@ -40,6 +40,7 @@ type CommandLine struct {
 	Line             *liner.State
 	Host             string
 	Port             int
+	UnixSocket       string
 	Username         string
 	Password         string
 	Database         string
@@ -133,8 +134,8 @@ func (c *CommandLine) Run() error {
 
 	if err := c.Connect(""); err != nil {
 		return fmt.Errorf(
-			"Failed to connect to %s\nPlease check your connection settings and ensure 'influxd' is running.",
-			c.Client.Addr())
+			"Failed to connect to %s: %s\nPlease check your connection settings and ensure 'influxd' is running.",
+			c.Client.Addr(), err.Error())
 	}
 
 	// Modify precision.
@@ -305,6 +306,7 @@ func (c *CommandLine) Connect(cmd string) error {
 
 	config := client.NewConfig()
 	config.URL = u
+	config.UnixSocket = c.UnixSocket
 	config.Username = c.Username
 	config.Password = c.Password
 	config.UserAgent = "InfluxDBShell/" + c.ClientVersion
@@ -318,7 +320,7 @@ func (c *CommandLine) Connect(cmd string) error {
 
 	var v string
 	if _, v, e = c.Client.Ping(); e != nil {
-		return fmt.Errorf("Failed to connect to %s\n", c.Client.Addr())
+		return fmt.Errorf("Failed to connect to %s: %s\n", c.Client.Addr(), e.Error())
 	}
 	c.ServerVersion = v
 	// Update the command with the current connection information

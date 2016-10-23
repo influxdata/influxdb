@@ -39,6 +39,7 @@ func main() {
 	fs := flag.NewFlagSet("InfluxDB shell version "+version, flag.ExitOnError)
 	fs.StringVar(&c.Host, "host", client.DefaultHost, "Influxdb host to connect to.")
 	fs.IntVar(&c.Port, "port", client.DefaultPort, "Influxdb port to connect to.")
+	fs.StringVar(&c.UnixSocket, "socket", c.UnixSocket, "Influxdb unix socket to connect to.")
 	fs.StringVar(&c.Username, "username", c.Username, "Username to connect to the server.")
 	fs.StringVar(&c.Password, "password", c.Password, `Password to connect to the server.  Leaving blank will prompt for password (--password="").`)
 	fs.StringVar(&c.Database, "database", c.Database, "Database to connect to the server.")
@@ -64,6 +65,8 @@ func main() {
        Host to connect to.
   -port 'port #'
        Port to connect to.
+  -socket 'unix domain socket'
+       Unix socket to connect to.
   -database 'database name'
        Database to connect to the server.
   -password 'password'
