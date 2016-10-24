@@ -599,7 +599,8 @@ func (c *CommandLine) DatabaseToken() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if response.Error() != nil || len((*response).Results[0].Series) == 0 {
+
+	if response.Error() != nil || len(response.Results) == 0 || len(response.Results[0].Series) == 0 {
 		return "", nil
 	}
 
