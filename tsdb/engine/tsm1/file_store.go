@@ -124,6 +124,9 @@ const (
 type FileStore struct {
 	mu           sync.RWMutex
 	lastModified time.Time
+	// Most recently known file stats. If nil then stats will need to be
+	// recalculated
+	lastFileStats []FileStat
 
 	currentGeneration int
 	dir               string
@@ -258,6 +261,7 @@ func (f *FileStore) Add(files ...TSMFile) {
 	for _, file := range files {
 		atomic.AddInt64(&f.stats.DiskBytes, int64(file.Size()))
 	}
+	f.lastFileStats = f.lastFileStats[:0] // Will need to be recalculated on next call to Stats.
 	f.files = append(f.files, files...)
 	sort.Sort(tsmReaders(f.files))
 	atomic.StoreInt64(&f.stats.FileCount, int64(len(f.files)))
@@ -285,6 +289,7 @@ func (f *FileStore) Remove(paths ...string) {
 			atomic.AddInt64(&f.stats.DiskBytes, -int64(file.Size()))
 		}
 	}
+	f.lastFileStats = f.lastFileStats[:0] // Will need to be recalculated on next call to Stats.
 	f.files = active
 	sort.Sort(tsmReaders(f.files))
 	atomic.StoreInt64(&f.stats.FileCount, int64(len(f.files)))
@@ -449,6 +454,7 @@ func (f *FileStore) Close() error {
 		file.Close()
 	}
 
+	f.lastFileStats = nil
 	f.files = nil
 	atomic.StoreInt64(&f.stats.FileCount, 0)
 	return nil
@@ -485,13 +491,27 @@ func (f *FileStore) KeyCursor(key string, t int64, ascending bool) *KeyCursor {
 
 func (f *FileStore) Stats() []FileStat {
 	f.mu.RLock()
-	defer f.mu.RUnlock()
-	stats := make([]FileStat, len(f.files))
-	for i, fd := range f.files {
-		stats[i] = fd.Stats()
+	if len(f.lastFileStats) > 0 {
+		defer f.mu.RUnlock()
+		return f.lastFileStats
+	}
+	f.mu.RUnlock()
+
+	// The file stats cache is invalid due to changes to files. Need to
+	// recalculate.
+	f.mu.Lock()
+
+	// If lastFileStats's capacity is far away from the number of entries
+	// we need to add, then we'll reallocate.
+	if cap(f.lastFileStats) < len(f.files)/2 {
+		f.lastFileStats = make([]FileStat, 0, len(f.files))
 	}
 
-	return stats
+	for _, fd := range f.files {
+		f.lastFileStats = append(f.lastFileStats, fd.Stats())
+	}
+	defer f.mu.Unlock()
+	return f.lastFileStats
 }
 
 func (f *FileStore) Replace(oldFiles, newFiles []string) error {
@@ -598,6 +618,7 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 	// Tell the purger about our in-use files we need to remove
 	f.purger.add(inuse)
 
+	f.lastFileStats = f.lastFileStats[:0] // Will need to be recalculated on next call to Stats.
 	f.files = active
 	sort.Sort(tsmReaders(f.files))
 	atomic.StoreInt64(&f.stats.FileCount, int64(len(f.files)))
