@@ -27,7 +27,8 @@ const SideNav = React.createClass({
         </NavBlock>
         <NavBlock matcher="overview" icon="crown" link={`${sourcePrefix}/overview`}>
           <NavHeader link={`${sourcePrefix}/overview`} title="Sources" />
-          <NavListItem matcher="manage-sources$" link={`${sourcePrefix}/manage-sources`}>Manage Sources</NavListItem>
+          <NavListItem matcher="manage-sources$" link={`${sourcePrefix}/manage-sources`}>InfluxDB</NavListItem>
+          <NavListItem matcher="kapacitor" link={`${sourcePrefix}/kapacitor`}>Kapacitor</NavListItem>
           <NavListItem matcher="queries" link={`${sourcePrefix}/queries`}>Queries</NavListItem>
           <NavListItem matcher="tasks" link={`${sourcePrefix}/tasks`}>Tasks</NavListItem>
           <NavListItem matcher="roles" link={`${sourcePrefix}/roles`}>Roles</NavListItem>
@@ -36,7 +37,7 @@ const SideNav = React.createClass({
           <NavListItem matcher="retentionpolicies" link={`${sourcePrefix}/databases/retentionpolicies/_internal`}>Retention Policies</NavListItem>
         </NavBlock>
         <NavBlock matcher="alerting" icon="cubo-uniform">
-          <NavListItem matcher="kapacitor" link={`${sourcePrefix}/kapacitor`}>Kapacitor Config</NavListItem>
+          <NavHeader link={`${sourcePrefix}/kapacitor_tasks`} title="Alerting" />
           <NavListItem matcher="kapacitor_tasks" link={`${sourcePrefix}/kapacitor_tasks`}>Kapacitor Tasks</NavListItem>
         </NavBlock>
       </NavBar>
