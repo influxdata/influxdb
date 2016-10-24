@@ -15,18 +15,18 @@ import (
 	"github.com/influxdata/chronograf/models"
 )
 
-// NewPostSourcesIDUsersUserIDExplorationsParams creates a new PostSourcesIDUsersUserIDExplorationsParams object
+// NewPostUsersUserIDExplorationsParams creates a new PostUsersUserIDExplorationsParams object
 // with the default values initialized.
-func NewPostSourcesIDUsersUserIDExplorationsParams() PostSourcesIDUsersUserIDExplorationsParams {
+func NewPostUsersUserIDExplorationsParams() PostUsersUserIDExplorationsParams {
 	var ()
-	return PostSourcesIDUsersUserIDExplorationsParams{}
+	return PostUsersUserIDExplorationsParams{}
 }
 
-// PostSourcesIDUsersUserIDExplorationsParams contains all the bound params for the post sources ID users user ID explorations operation
+// PostUsersUserIDExplorationsParams contains all the bound params for the post users user ID explorations operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters PostSourcesIDUsersUserIDExplorations
-type PostSourcesIDUsersUserIDExplorationsParams struct {
+// swagger:parameters PostUsersUserIDExplorations
+type PostUsersUserIDExplorationsParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
@@ -35,11 +35,6 @@ type PostSourcesIDUsersUserIDExplorationsParams struct {
 	  In: body
 	*/
 	Exploration *models.Exploration
-	/*ID of the data source
-	  Required: true
-	  In: path
-	*/
-	ID string
 	/*ID of user to associate this exploration with.
 	  Required: true
 	  In: path
@@ -49,7 +44,7 @@ type PostSourcesIDUsersUserIDExplorationsParams struct {
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *PostSourcesIDUsersUserIDExplorationsParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *PostUsersUserIDExplorationsParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
 
@@ -70,11 +65,6 @@ func (o *PostSourcesIDUsersUserIDExplorationsParams) BindRequest(r *http.Request
 
 	}
 
-	rID, rhkID, _ := route.Params.GetOK("id")
-	if err := o.bindID(rID, rhkID, route.Formats); err != nil {
-		res = append(res, err)
-	}
-
 	rUserID, rhkUserID, _ := route.Params.GetOK("user_id")
 	if err := o.bindUserID(rUserID, rhkUserID, route.Formats); err != nil {
 		res = append(res, err)
@@ -86,18 +76,7 @@ func (o *PostSourcesIDUsersUserIDExplorationsParams) BindRequest(r *http.Request
 	return nil
 }
 
-func (o *PostSourcesIDUsersUserIDExplorationsParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
-	var raw string
-	if len(rawData) > 0 {
-		raw = rawData[len(rawData)-1]
-	}
-
-	o.ID = raw
-
-	return nil
-}
-
-func (o *PostSourcesIDUsersUserIDExplorationsParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *PostUsersUserIDExplorationsParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]

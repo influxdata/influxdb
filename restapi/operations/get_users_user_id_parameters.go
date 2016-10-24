@@ -12,27 +12,22 @@ import (
 	strfmt "github.com/go-openapi/strfmt"
 )
 
-// NewDeleteSourcesIDUsersUserIDParams creates a new DeleteSourcesIDUsersUserIDParams object
+// NewGetUsersUserIDParams creates a new GetUsersUserIDParams object
 // with the default values initialized.
-func NewDeleteSourcesIDUsersUserIDParams() DeleteSourcesIDUsersUserIDParams {
+func NewGetUsersUserIDParams() GetUsersUserIDParams {
 	var ()
-	return DeleteSourcesIDUsersUserIDParams{}
+	return GetUsersUserIDParams{}
 }
 
-// DeleteSourcesIDUsersUserIDParams contains all the bound params for the delete sources ID users user ID operation
+// GetUsersUserIDParams contains all the bound params for the get users user ID operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters DeleteSourcesIDUsersUserID
-type DeleteSourcesIDUsersUserIDParams struct {
+// swagger:parameters GetUsersUserID
+type GetUsersUserIDParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
 
-	/*ID of the source
-	  Required: true
-	  In: path
-	*/
-	ID string
 	/*ID of the specific user
 	  Required: true
 	  In: path
@@ -42,14 +37,9 @@ type DeleteSourcesIDUsersUserIDParams struct {
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *DeleteSourcesIDUsersUserIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *GetUsersUserIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
-
-	rID, rhkID, _ := route.Params.GetOK("id")
-	if err := o.bindID(rID, rhkID, route.Formats); err != nil {
-		res = append(res, err)
-	}
 
 	rUserID, rhkUserID, _ := route.Params.GetOK("user_id")
 	if err := o.bindUserID(rUserID, rhkUserID, route.Formats); err != nil {
@@ -62,18 +52,7 @@ func (o *DeleteSourcesIDUsersUserIDParams) BindRequest(r *http.Request, route *m
 	return nil
 }
 
-func (o *DeleteSourcesIDUsersUserIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
-	var raw string
-	if len(rawData) > 0 {
-		raw = rawData[len(rawData)-1]
-	}
-
-	o.ID = raw
-
-	return nil
-}
-
-func (o *DeleteSourcesIDUsersUserIDParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *GetUsersUserIDParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]

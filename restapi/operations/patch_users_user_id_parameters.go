@@ -16,18 +16,18 @@ import (
 	"github.com/influxdata/chronograf/models"
 )
 
-// NewPatchSourcesIDUsersUserIDParams creates a new PatchSourcesIDUsersUserIDParams object
+// NewPatchUsersUserIDParams creates a new PatchUsersUserIDParams object
 // with the default values initialized.
-func NewPatchSourcesIDUsersUserIDParams() PatchSourcesIDUsersUserIDParams {
+func NewPatchUsersUserIDParams() PatchUsersUserIDParams {
 	var ()
-	return PatchSourcesIDUsersUserIDParams{}
+	return PatchUsersUserIDParams{}
 }
 
-// PatchSourcesIDUsersUserIDParams contains all the bound params for the patch sources ID users user ID operation
+// PatchUsersUserIDParams contains all the bound params for the patch users user ID operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters PatchSourcesIDUsersUserID
-type PatchSourcesIDUsersUserIDParams struct {
+// swagger:parameters PatchUsersUserID
+type PatchUsersUserIDParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
@@ -37,11 +37,6 @@ type PatchSourcesIDUsersUserIDParams struct {
 	  In: body
 	*/
 	Config *models.User
-	/*ID of a data source
-	  Required: true
-	  In: path
-	*/
-	ID string
 	/*ID of the specific user
 	  Required: true
 	  In: path
@@ -51,7 +46,7 @@ type PatchSourcesIDUsersUserIDParams struct {
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *PatchSourcesIDUsersUserIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *PatchUsersUserIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
 
@@ -79,11 +74,6 @@ func (o *PatchSourcesIDUsersUserIDParams) BindRequest(r *http.Request, route *mi
 		res = append(res, errors.Required("config", "body"))
 	}
 
-	rID, rhkID, _ := route.Params.GetOK("id")
-	if err := o.bindID(rID, rhkID, route.Formats); err != nil {
-		res = append(res, err)
-	}
-
 	rUserID, rhkUserID, _ := route.Params.GetOK("user_id")
 	if err := o.bindUserID(rUserID, rhkUserID, route.Formats); err != nil {
 		res = append(res, err)
@@ -95,18 +85,7 @@ func (o *PatchSourcesIDUsersUserIDParams) BindRequest(r *http.Request, route *mi
 	return nil
 }
 
-func (o *PatchSourcesIDUsersUserIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
-	var raw string
-	if len(rawData) > 0 {
-		raw = rawData[len(rawData)-1]
-	}
-
-	o.ID = raw
-
-	return nil
-}
-
-func (o *PatchSourcesIDUsersUserIDParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *PatchUsersUserIDParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]

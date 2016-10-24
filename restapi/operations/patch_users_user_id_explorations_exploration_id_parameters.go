@@ -16,18 +16,18 @@ import (
 	"github.com/influxdata/chronograf/models"
 )
 
-// NewPatchSourcesIDUsersUserIDExplorationsExplorationIDParams creates a new PatchSourcesIDUsersUserIDExplorationsExplorationIDParams object
+// NewPatchUsersUserIDExplorationsExplorationIDParams creates a new PatchUsersUserIDExplorationsExplorationIDParams object
 // with the default values initialized.
-func NewPatchSourcesIDUsersUserIDExplorationsExplorationIDParams() PatchSourcesIDUsersUserIDExplorationsExplorationIDParams {
+func NewPatchUsersUserIDExplorationsExplorationIDParams() PatchUsersUserIDExplorationsExplorationIDParams {
 	var ()
-	return PatchSourcesIDUsersUserIDExplorationsExplorationIDParams{}
+	return PatchUsersUserIDExplorationsExplorationIDParams{}
 }
 
-// PatchSourcesIDUsersUserIDExplorationsExplorationIDParams contains all the bound params for the patch sources ID users user ID explorations exploration ID operation
+// PatchUsersUserIDExplorationsExplorationIDParams contains all the bound params for the patch users user ID explorations exploration ID operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters PatchSourcesIDUsersUserIDExplorationsExplorationID
-type PatchSourcesIDUsersUserIDExplorationsExplorationIDParams struct {
+// swagger:parameters PatchUsersUserIDExplorationsExplorationID
+type PatchUsersUserIDExplorationsExplorationIDParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
@@ -56,7 +56,7 @@ type PatchSourcesIDUsersUserIDExplorationsExplorationIDParams struct {
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *PatchUsersUserIDExplorationsExplorationIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
 
@@ -105,7 +105,7 @@ func (o *PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) BindRequest(r
 	return nil
 }
 
-func (o *PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) bindExplorationID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *PatchUsersUserIDExplorationsExplorationIDParams) bindExplorationID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
@@ -116,7 +116,7 @@ func (o *PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) bindExplorati
 	return nil
 }
 
-func (o *PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *PatchUsersUserIDExplorationsExplorationIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
@@ -127,7 +127,7 @@ func (o *PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) bindID(rawDat
 	return nil
 }
 
-func (o *PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *PatchUsersUserIDExplorationsExplorationIDParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]

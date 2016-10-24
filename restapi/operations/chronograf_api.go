@@ -83,14 +83,6 @@ type ChronografAPI struct {
 	GetSourcesIDRolesHandler GetSourcesIDRolesHandler
 	// GetSourcesIDRolesRoleIDHandler sets the operation handler for the get sources ID roles role ID operation
 	GetSourcesIDRolesRoleIDHandler GetSourcesIDRolesRoleIDHandler
-	// GetSourcesIDUsersHandler sets the operation handler for the get sources ID users operation
-	GetSourcesIDUsersHandler GetSourcesIDUsersHandler
-	// GetSourcesIDUsersUserIDHandler sets the operation handler for the get sources ID users user ID operation
-	GetSourcesIDUsersUserIDHandler GetSourcesIDUsersUserIDHandler
-	// GetSourcesIDUsersUserIDExplorationsHandler sets the operation handler for the get sources ID users user ID explorations operation
-	GetSourcesIDUsersUserIDExplorationsHandler GetSourcesIDUsersUserIDExplorationsHandler
-	// GetSourcesIDUsersUserIDExplorationsExplorationIDHandler sets the operation handler for the get sources ID users user ID explorations exploration ID operation
-	GetSourcesIDUsersUserIDExplorationsExplorationIDHandler GetSourcesIDUsersUserIDExplorationsExplorationIDHandler
 	// GetTokenHandler sets the operation handler for the get token operation
 	GetTokenHandler GetTokenHandler
 	// GetUsersHandler sets the operation handler for the get users operation
@@ -274,6 +266,10 @@ func (o *ChronografAPI) Validate() error {
 		unregistered = append(unregistered, "GetSourcesIDRolesRoleIDHandler")
 	}
 
+	if o.GetTokenHandler == nil {
+		unregistered = append(unregistered, "GetTokenHandler")
+	}
+
 	if o.GetUsersHandler == nil {
 		unregistered = append(unregistered, "GetUsersHandler")
 	}
@@ -288,10 +284,6 @@ func (o *ChronografAPI) Validate() error {
 
 	if o.GetUsersUserIDExplorationsExplorationIDHandler == nil {
 		unregistered = append(unregistered, "GetUsersUserIDExplorationsExplorationIDHandler")
-	}
-
-	if o.GetTokenHandler == nil {
-		unregistered = append(unregistered, "GetTokenHandler")
 	}
 
 	if o.PatchSourcesIDHandler == nil {
@@ -537,6 +529,11 @@ func (o *ChronografAPI) initHandlerCache() {
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
 	}
+	o.handlers["GET"]["/token"] = NewGetToken(o.context, o.GetTokenHandler)
+
+	if o.handlers["GET"] == nil {
+		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
+	}
 	o.handlers["GET"]["/users"] = NewGetUsers(o.context, o.GetUsersHandler)
 
 	if o.handlers["GET"] == nil {
@@ -553,11 +550,6 @@ func (o *ChronografAPI) initHandlerCache() {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
 	}
 	o.handlers["GET"]["/users/{user_id}/explorations/{exploration_id}"] = NewGetUsersUserIDExplorationsExplorationID(o.context, o.GetUsersUserIDExplorationsExplorationIDHandler)
-
-	if o.handlers["GET"] == nil {
-		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
-	}
-	o.handlers["GET"]["/token"] = NewGetToken(o.context, o.GetTokenHandler)
 
 	if o.handlers["PATCH"] == nil {
 		o.handlers[strings.ToUpper("PATCH")] = make(map[string]http.Handler)

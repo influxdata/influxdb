@@ -12,18 +12,18 @@ import (
 	strfmt "github.com/go-openapi/strfmt"
 )
 
-// NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDParams creates a new DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams object
+// NewDeleteUsersUserIDExplorationsExplorationIDParams creates a new DeleteUsersUserIDExplorationsExplorationIDParams object
 // with the default values initialized.
-func NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDParams() DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams {
+func NewDeleteUsersUserIDExplorationsExplorationIDParams() DeleteUsersUserIDExplorationsExplorationIDParams {
 	var ()
-	return DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams{}
+	return DeleteUsersUserIDExplorationsExplorationIDParams{}
 }
 
-// DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams contains all the bound params for the delete sources ID users user ID explorations exploration ID operation
+// DeleteUsersUserIDExplorationsExplorationIDParams contains all the bound params for the delete users user ID explorations exploration ID operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters DeleteSourcesIDUsersUserIDExplorationsExplorationID
-type DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams struct {
+// swagger:parameters DeleteUsersUserIDExplorationsExplorationID
+type DeleteUsersUserIDExplorationsExplorationIDParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
@@ -47,7 +47,7 @@ type DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams struct {
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *DeleteUsersUserIDExplorationsExplorationIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
 
@@ -72,7 +72,7 @@ func (o *DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams) BindRequest(
 	return nil
 }
 
-func (o *DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams) bindExplorationID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *DeleteUsersUserIDExplorationsExplorationIDParams) bindExplorationID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
@@ -83,7 +83,7 @@ func (o *DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams) bindExplorat
 	return nil
 }
 
-func (o *DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *DeleteUsersUserIDExplorationsExplorationIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
@@ -94,7 +94,7 @@ func (o *DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams) bindID(rawDa
 	return nil
 }
 
-func (o *DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *DeleteUsersUserIDExplorationsExplorationIDParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
