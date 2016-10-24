@@ -155,7 +155,6 @@ func NewEngine(id uint64, path string, walPath string, opt tsdb.EngineOptions) t
 			FileStore:                    fs,
 			CompactFullWriteColdDuration: time.Duration(opt.Config.CompactFullWriteColdDuration),
 		},
-		MaxPointsPerBlock: opt.Config.MaxPointsPerBlock,
 
 		CacheFlushMemorySizeThreshold: opt.Config.CacheSnapshotMemorySize,
 		CacheFlushWriteColdDuration:   time.Duration(opt.Config.CacheSnapshotWriteColdDuration),
