@@ -86,6 +86,8 @@ reporting-disabled = false
   # block in a TSM file. Larger numbers may yield better compression
   # but could incur a performance penalty when querying
   # max-points-per-block = 1000
+  
+  max-series-per-database = 0
 
 ###
 ### [coordinator]
