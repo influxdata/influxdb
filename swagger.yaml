@@ -323,7 +323,7 @@ paths:
                     schema:
                         $ref: '#/definitions/Explorations'
                 404:
-                    description: Data user does not exist.
+                    description: User does not exist.
                     schema:
                         $ref: '#/definitions/Error'
                 default:
@@ -354,7 +354,7 @@ paths:
                     schema:
                         $ref: '#/definitions/Exploration'
                 404:
-                    description: Data user does not exist.
+                    description: User does not exist.
                     schema:
                         $ref: '#/definitions/Error'
                 default:
@@ -383,7 +383,7 @@ paths:
                     schema:
                         $ref: '#/definitions/Exploration'
                 404:
-                    description: Data user or exploration does not exist.
+                    description: User or exploration does not exist.
                     schema:
                         $ref: '#/definitions/Error'
                 default:
