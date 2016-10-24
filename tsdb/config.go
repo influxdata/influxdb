@@ -47,11 +47,10 @@ const (
 // Config holds the configuration for the tsbd package.
 type Config struct {
 	Dir    string `toml:"dir"`
-	Engine string `toml:"engine"`
+	Engine string `toml:"-"`
 
 	// General WAL configuration options
-	WALDir            string `toml:"wal-dir"`
-	WALLoggingEnabled bool   `toml:"wal-logging-enabled"`
+	WALDir string `toml:"wal-dir"`
 
 	// Query logging
 	QueryLogEnabled bool `toml:"query-log-enabled"`
@@ -61,7 +60,6 @@ type Config struct {
 	CacheSnapshotMemorySize        uint64        `toml:"cache-snapshot-memory-size"`
 	CacheSnapshotWriteColdDuration toml.Duration `toml:"cache-snapshot-write-cold-duration"`
 	CompactFullWriteColdDuration   toml.Duration `toml:"compact-full-write-cold-duration"`
-	MaxPointsPerBlock              int           `toml:"max-points-per-block"`
 
 	// Limits
 
@@ -82,8 +80,6 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		Engine: DefaultEngine,
-
-		WALLoggingEnabled: true,
 
 		QueryLogEnabled: true,
 

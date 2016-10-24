@@ -239,7 +239,6 @@ func NewConfig() *run.Config {
 
 	c.Data.Dir = MustTempFile()
 	c.Data.WALDir = MustTempFile()
-	c.Data.WALLoggingEnabled = false
 
 	c.HTTPD.Enabled = true
 	c.HTTPD.BindAddress = "127.0.0.1:0"

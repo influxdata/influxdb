@@ -2,9 +2,14 @@
 
 ### Release Notes
 
-### Breaking changes
+### Configuration Changes
+
+The following configuration changes in the `[data]` section may need to changed before upgrading to `1.1.0` from prior versions.
 
 * `max-values-per-tag` was added with a default of 100,000, but can be disabled by setting it to `0`.  Existing measurements with tags that exceed this limit will continue to load, but writes that would cause the tags cardinality to increase will be dropped and a `partial write` error will be returned to the caller.  This limit can be used to prevent high cardinality tag values from being written to a measurement.
+* `cache-max-memory-size` has been increased to from `524288000` to `1048576000`.  This setting is the maximum amount of RAM, in bytes, a shard cache can use before it rejects writes with an error.  Setting this value to `0` disables the limit.
+* `cache-snapshot-write-cold-duration` has been decreased from `1h` to `10m`.  This setting determines how long values will stay in the shard cache while the shard is cold for writes.
+* `compact-full-write-cold-duration` has been decreased from `24h` to `4h`.  The shorter duration allows cold shards to be compacted to an optimal state more quickly.
 
 ### Features
 
@@ -32,6 +37,7 @@
 - [#7281](https://github.com/influxdata/influxdb/pull/7281): Add stats for active compactions, compaction errors.
 - [#7496](https://github.com/influxdata/influxdb/pull/7496): Filter out series within shards that do not have data for that series.
 - [#7480](https://github.com/influxdata/influxdb/pull/7480): Improve compaction planning performance by caching tsm file stats.
+- [#7320](https://github.com/influxdata/influxdb/issues/7320): Update defaults in config for latest best practices
 
 ### Bugfixes
 
