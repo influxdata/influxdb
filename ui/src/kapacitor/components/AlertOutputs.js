@@ -59,15 +59,9 @@ const AlertOutputs = React.createClass({
   testSlack(e) {
     e.preventDefault();
     testAlertOutput(this.props.kapacitor, 'slack').then(() => {
-      this.props.addFlashMessage({
-        type: 'success',
-        text: 'Slack test message sent',
-      });
+      this.props.addFlashMessage({type: 'success', text: 'Slack test message sent'});
     }).catch(() => {
-      this.props.addFlashMessage({
-        type: 'error',
-        text: `There was an error testing the slack alert`,
-      });
+      this.props.addFlashMessage({type: 'error', text: `There was an error testing the slack alert`});
     });
   },
 

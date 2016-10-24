@@ -35,11 +35,17 @@ export const KapacitorPage = React.createClass({
       password: this.kapacitorPassword.value,
     };
 
+    let promise;
     if (this.state.kapacitor) {
-      updateKapacitor(kapacitor, updates);
+      promise = updateKapacitor(kapacitor, updates);
     } else {
-      createKapacitor(source, updates);
+      promise = createKapacitor(source, updates);
     }
+    promise.then(() => {
+      this.props.addFlashMessage({type: 'success', text: 'Kapacitor saved'});
+    }).catch(() => {
+      this.props.addFlashMessage({type: 'error', text: 'There was a problem saving Kapacitor'});
+    });
   },
 
   updateName() {
@@ -56,9 +62,10 @@ export const KapacitorPage = React.createClass({
 
   render() {
     const {kapacitor, newName, newURL, newUsername} = this.state;
-    const name = newName || (kapacitor && kapacitor.name) || '';
-    const url = newURL || (kapacitor && kapacitor.url) || '';
-    const username = newUsername || (kapacitor && kapacitor.username) || '';
+    // if the fields in state are defined, use them. otherwise use the defaults
+    const name = newName === undefined ? kapacitor && kapacitor.name || '' : newName;
+    const url = newURL === undefined ? kapacitor && kapacitor.url || '' : newURL;
+    const username = newUsername === undefined ? kapacitor && kapacitor.username || '' : newUsername;
 
     return (
       <div className="kapacitor">

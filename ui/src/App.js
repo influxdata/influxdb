@@ -72,14 +72,14 @@ const App = React.createClass({
     });
     return (
       <div className={cls} role="alert">
-        {message}{this.renderDismiss()}
+        {message}{this.renderDismiss(type)}
       </div>
     );
   },
 
-  renderDismiss() {
+  renderDismiss(type) {
     return (
-      <button className="close" data-dismiss="alert" aria-label="Close" onClick={this.handleDismissNotification}>
+      <button className="close" data-dismiss="alert" aria-label="Close" onClick={() => this.handleDismissNotification(type)}>
         <span className="icon remove"></span>
       </button>
     );
