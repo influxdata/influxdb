@@ -12,18 +12,18 @@ import (
 	strfmt "github.com/go-openapi/strfmt"
 )
 
-// NewGetSourcesIDUsersUserIDExplorationsExplorationIDParams creates a new GetSourcesIDUsersUserIDExplorationsExplorationIDParams object
+// NewGetUsersUserIDExplorationsExplorationIDParams creates a new GetUsersUserIDExplorationsExplorationIDParams object
 // with the default values initialized.
-func NewGetSourcesIDUsersUserIDExplorationsExplorationIDParams() GetSourcesIDUsersUserIDExplorationsExplorationIDParams {
+func NewGetUsersUserIDExplorationsExplorationIDParams() GetUsersUserIDExplorationsExplorationIDParams {
 	var ()
-	return GetSourcesIDUsersUserIDExplorationsExplorationIDParams{}
+	return GetUsersUserIDExplorationsExplorationIDParams{}
 }
 
-// GetSourcesIDUsersUserIDExplorationsExplorationIDParams contains all the bound params for the get sources ID users user ID explorations exploration ID operation
+// GetUsersUserIDExplorationsExplorationIDParams contains all the bound params for the get users user ID explorations exploration ID operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters GetSourcesIDUsersUserIDExplorationsExplorationID
-type GetSourcesIDUsersUserIDExplorationsExplorationIDParams struct {
+// swagger:parameters GetUsersUserIDExplorationsExplorationID
+type GetUsersUserIDExplorationsExplorationIDParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
@@ -33,11 +33,6 @@ type GetSourcesIDUsersUserIDExplorationsExplorationIDParams struct {
 	  In: path
 	*/
 	ExplorationID string
-	/*ID of the data source
-	  Required: true
-	  In: path
-	*/
-	ID string
 	/*ID of user to associate this exploration with.
 	  Required: true
 	  In: path
@@ -47,17 +42,12 @@ type GetSourcesIDUsersUserIDExplorationsExplorationIDParams struct {
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *GetSourcesIDUsersUserIDExplorationsExplorationIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *GetUsersUserIDExplorationsExplorationIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
 
 	rExplorationID, rhkExplorationID, _ := route.Params.GetOK("exploration_id")
 	if err := o.bindExplorationID(rExplorationID, rhkExplorationID, route.Formats); err != nil {
-		res = append(res, err)
-	}
-
-	rID, rhkID, _ := route.Params.GetOK("id")
-	if err := o.bindID(rID, rhkID, route.Formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -72,7 +62,7 @@ func (o *GetSourcesIDUsersUserIDExplorationsExplorationIDParams) BindRequest(r *
 	return nil
 }
 
-func (o *GetSourcesIDUsersUserIDExplorationsExplorationIDParams) bindExplorationID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *GetUsersUserIDExplorationsExplorationIDParams) bindExplorationID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
@@ -83,18 +73,7 @@ func (o *GetSourcesIDUsersUserIDExplorationsExplorationIDParams) bindExploration
 	return nil
 }
 
-func (o *GetSourcesIDUsersUserIDExplorationsExplorationIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
-	var raw string
-	if len(rawData) > 0 {
-		raw = rawData[len(rawData)-1]
-	}
-
-	o.ID = raw
-
-	return nil
-}
-
-func (o *GetSourcesIDUsersUserIDExplorationsExplorationIDParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *GetUsersUserIDExplorationsExplorationIDParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]

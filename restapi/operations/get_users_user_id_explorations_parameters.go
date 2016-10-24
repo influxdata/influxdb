@@ -12,28 +12,23 @@ import (
 	strfmt "github.com/go-openapi/strfmt"
 )
 
-// NewGetSourcesIDUsersUserIDParams creates a new GetSourcesIDUsersUserIDParams object
+// NewGetUsersUserIDExplorationsParams creates a new GetUsersUserIDExplorationsParams object
 // with the default values initialized.
-func NewGetSourcesIDUsersUserIDParams() GetSourcesIDUsersUserIDParams {
+func NewGetUsersUserIDExplorationsParams() GetUsersUserIDExplorationsParams {
 	var ()
-	return GetSourcesIDUsersUserIDParams{}
+	return GetUsersUserIDExplorationsParams{}
 }
 
-// GetSourcesIDUsersUserIDParams contains all the bound params for the get sources ID users user ID operation
+// GetUsersUserIDExplorationsParams contains all the bound params for the get users user ID explorations operation
 // typically these are obtained from a http.Request
 //
-// swagger:parameters GetSourcesIDUsersUserID
-type GetSourcesIDUsersUserIDParams struct {
+// swagger:parameters GetUsersUserIDExplorations
+type GetUsersUserIDExplorationsParams struct {
 
 	// HTTP Request Object
 	HTTPRequest *http.Request
 
-	/*ID of the data source
-	  Required: true
-	  In: path
-	*/
-	ID string
-	/*ID of the specific user
+	/*All Data Explorations returned only for this user.
 	  Required: true
 	  In: path
 	*/
@@ -42,14 +37,9 @@ type GetSourcesIDUsersUserIDParams struct {
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
 // for simple values it will use straight method calls
-func (o *GetSourcesIDUsersUserIDParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
+func (o *GetUsersUserIDExplorationsParams) BindRequest(r *http.Request, route *middleware.MatchedRoute) error {
 	var res []error
 	o.HTTPRequest = r
-
-	rID, rhkID, _ := route.Params.GetOK("id")
-	if err := o.bindID(rID, rhkID, route.Formats); err != nil {
-		res = append(res, err)
-	}
 
 	rUserID, rhkUserID, _ := route.Params.GetOK("user_id")
 	if err := o.bindUserID(rUserID, rhkUserID, route.Formats); err != nil {
@@ -62,18 +52,7 @@ func (o *GetSourcesIDUsersUserIDParams) BindRequest(r *http.Request, route *midd
 	return nil
 }
 
-func (o *GetSourcesIDUsersUserIDParams) bindID(rawData []string, hasKey bool, formats strfmt.Registry) error {
-	var raw string
-	if len(rawData) > 0 {
-		raw = rawData[len(rawData)-1]
-	}
-
-	o.ID = raw
-
-	return nil
-}
-
-func (o *GetSourcesIDUsersUserIDParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+func (o *GetUsersUserIDExplorationsParams) bindUserID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
