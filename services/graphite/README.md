@@ -1,6 +1,6 @@
-# The graphite Input
+# The Graphite Input
 
-## A note on UDP/IP OS Buffer sizes
+## A Note On UDP/IP OS Buffer Sizes
 
 If you're using UDP input and running Linux or FreeBSD, please adjust your UDP buffer
 size limit, [see here for more details.](../udp/README.md#a-note-on-udpip-os-buffer-sizes)
@@ -13,15 +13,15 @@ Each Graphite input also performs internal batching of the points it receives, a
 
 ## Parsing Metrics
 
-The graphite plugin allows measurements to be saved using the graphite line protocol. By default, enabling the graphite plugin will allow you to collect metrics and store them using the metric name as the measurement.  If you send a metric named `servers.localhost.cpu.loadavg.10`, it will store the full metric name as the measurement with no extracted tags.
+The Graphite plugin allows measurements to be saved using the Graphite line protocol. By default, enabling the Graphite plugin will allow you to collect metrics and store them using the metric name as the measurement.  If you send a metric named `servers.localhost.cpu.loadavg.10`, it will store the full metric name as the measurement with no extracted tags.
 
-While this default setup works, it is not the ideal way to store measurements in InfluxDB since it does not take advantage of tags.  It also will not perform optimally with a large dataset sizes since queries will be forced to use regexes which is known to not scale well.
+While this default setup works, it is not the ideal way to store measurements in InfluxDB since it does not take advantage of tags.  It also will not perform optimally with large dataset sizes since queries will be forced to use regexes which is known to not scale well.
 
 To extract tags from metrics, one or more templates must be configured to parse metrics into tags and measurements.
 
 ## Templates
 
-Templates allow matching parts of a metric name to be used as tag keys in the stored metric.  They have a similar format to graphite metric names.  The values in between the separators are used as the tag keys.  The location of the tag key that matches the same position as the graphite metric section is used as the value.  If there is no value, the graphite portion is skipped.
+Templates allow matching parts of a metric name to be used as tag keys in the stored metric.  They have a similar format to Graphite metric names.  The values in between the separators are used as the tag keys.  The location of the tag key that matches the same position as the Graphite metric section is used as the value.  If there is no value, the Graphite portion is skipped.
 
 The special value _measurement_ is used to define the measurement name.  It can have a trailing `*` to indicate that the remainder of the metric should be used.  If a _measurement_ is not specified, the full metric name is used.
 
@@ -40,7 +40,7 @@ matched multiple times. Multiple values will be joined together using the _Separ
 * Template: `.host.host.measurement.cpu.measurement`
 * Output: _measurement_ = `cpu.user` _tags_ = `host=localhost.localdomain cpu=cpu0`
 
-Since '.' requires queries on measurements to be double-quoted, you may want to set this to `_` to simplify querying parsed metrics.
+Since `.` requires queries on measurements to be double-quoted, you may want to set this to `_` to simplify querying parsed metrics.
 
 `servers.localhost.cpu.cpu0.user`
 * Separator: `_`
@@ -49,7 +49,7 @@ Since '.' requires queries on measurements to be double-quoted, you may want to 
 
 ### Adding Tags
 
-Additional tags can be added to a metric that don't exist on the received metric.  You can add additional tags by specifying them after the pattern.  Tags have the same format as the line protocol.  Multiple tags are separated by commas.
+Additional tags can be added to a metric if they don't exist on the received metric.  You can add additional tags by specifying them after the pattern.  Tags have the same format as the line protocol.  Multiple tags are separated by commas.
 
 `servers.localhost.cpu.loadavg.10`
 * Template: `.host.resource.measurement* region=us-west,zone=1a`
@@ -61,9 +61,7 @@ A field key can be specified by using the keyword _field_. By default if no _fie
 
 The field key can also be derived from the second "half" of the input metric-name by specifying ```field*``` (eg ```measurement.measurement.field*```). This cannot be used in conjunction with "measurement*"!
 
-When using the current default engine _BZ1_, it's recommended to use a single field per value for performance reasons.
-
-When using the _TSM1_ engine it's possible to amend measurement metrics with additional fields, e.g:
+It's possible to amend measurement metrics with additional fields, e.g:
 
 Input:
 ```
@@ -172,12 +170,12 @@ If you need to add the same set of tags to all metrics, you can define them glob
      # filter + template with field key
      "stats.* .host.measurement.field",
 
-     # default template. Ignore the first graphite component "servers"
+     # default template. Ignore the first Graphite component "servers"
      ".measurement*",
  ]
 ```
 
-## Two graphite listener, UDP & TCP, Config
+## Two Graphite Listeners, UDP & TCP, Config
 
 ```
 [[graphite]]
@@ -192,5 +190,3 @@ If you need to add the same set of tags to all metrics, you can define them glob
   protocol = "udp" # protocol to read via
   udp-read-buffer = 8388608 # (8*1024*1024) UDP read buffer size
 ```
-
-
