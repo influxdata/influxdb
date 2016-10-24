@@ -1,3 +1,4 @@
+npm-debug.log
 dist/dist_gen.go
 canned/apps_gen.go
 .pull-request
