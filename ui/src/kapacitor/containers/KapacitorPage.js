@@ -36,7 +36,7 @@ export const KapacitorPage = React.createClass({
     };
 
     if (this.state.kapacitor) {
-      updateKapacitor(source, kapacitor, updates);
+      updateKapacitor(kapacitor, updates);
     } else {
       createKapacitor(source, updates);
     }
@@ -128,7 +128,7 @@ export const KapacitorPage = React.createClass({
   renderAlertOutputs() {
     const {kapacitor} = this.state;
     if (kapacitor) {
-      return <AlertOutputs source={this.props.source} kapacitor={kapacitor} />;
+      return <AlertOutputs source={this.props.source} kapacitor={kapacitor} addFlashMessage={this.props.addFlashMessage} />;
     }
 
     return (

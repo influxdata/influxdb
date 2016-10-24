@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react';
+import _ from 'lodash';
 import {getKapacitorConfig, updateKapacitorConfigSection, testAlertOutput} from 'shared/apis';
 import SlackConfig from './SlackConfig';
 import SMTPConfig from './SMTPConfig';
@@ -13,6 +14,7 @@ const AlertOutputs = React.createClass({
         proxy: PropTypes.string.isRequired,
       }).isRequired,
     }),
+    addFlashMessage: PropTypes.func.isRequired,
   },
 
   getInitialState() {
@@ -26,8 +28,8 @@ const AlertOutputs = React.createClass({
   componentDidMount() {
     getKapacitorConfig(this.props.kapacitor).then(({data: {smtp, slack}}) => {
       this.setState({
-        slackConfig: (slack.elements.length && slack.elements[0]) || null,
-        smtpConfig: (smtp.elements.length && smtp.elements[0]) || null,
+        slackConfig: _.get(slack, ['elements', '0'], null),
+        smtpConfig: _.get(smtp, ['elements', '0'], null),
       });
     });
   },
@@ -35,7 +37,15 @@ const AlertOutputs = React.createClass({
   handleSaveConfig(section, properties) {
     if (section !== '') {
       updateKapacitorConfigSection(this.props.kapacitor, section, Object.assign({}, properties, {enabled: true})).then(() => {
-        // slack test can happen
+        this.props.addFlashMessage({
+          type: 'success',
+          text: `Alert for ${section} successfully saved`,
+        });
+      }).catch(() => {
+        this.props.addFlashMessage({
+          type: 'error',
+          text: `There was an error saving the kapacitor config`,
+        });
       });
     }
   },
@@ -48,7 +58,17 @@ const AlertOutputs = React.createClass({
 
   testSlack(e) {
     e.preventDefault();
-    testAlertOutput(this.props.kapacitor, 'slack');
+    testAlertOutput(this.props.kapacitor, 'slack').then(() => {
+      this.props.addFlashMessage({
+        type: 'success',
+        text: 'Slack test message sent',
+      });
+    }).catch(() => {
+      this.props.addFlashMessage({
+        type: 'error',
+        text: `There was an error testing the slack alert`,
+      });
+    });
   },
 
   render() {

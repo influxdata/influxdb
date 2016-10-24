@@ -12,7 +12,7 @@ const SMTPConfig = React.createClass({
     onSave: PropTypes.func.isRequired,
   },
 
-  handleAlertConfig(e) {
+  handleSaveAlert(e) {
     e.preventDefault();
 
     const properties = {
@@ -33,7 +33,7 @@ const SMTPConfig = React.createClass({
       <div className="panel-body">
         <h4 className="text-center">SMTP Alert</h4>
         <br/>
-        <form onSubmit={this.handleAlertConfig}>
+        <form onSubmit={this.handleSaveAlert}>
           <div className="row">
             <div className="col-xs-7 col-sm-8 col-sm-offset-2">
               <p>

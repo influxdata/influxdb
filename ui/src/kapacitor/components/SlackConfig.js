@@ -16,7 +16,13 @@ const SlackConfig = React.createClass({
     };
   },
 
-  handleAlertConfig(e) {
+  componentWillReceiveProps(nextProps) {
+    this.setState({
+      testEnabled: !!nextProps.config.url,
+    });
+  },
+
+  handleSaveAlert(e) {
     e.preventDefault();
 
     const properties = {
@@ -25,9 +31,6 @@ const SlackConfig = React.createClass({
     };
 
     this.props.onSave(properties);
-    this.setState({
-      testEnabled: true,
-    });
   },
 
   render() {
@@ -35,9 +38,9 @@ const SlackConfig = React.createClass({
 
     return (
       <div className="panel-body">
-        <h4 className="text-center">SMTP Alert</h4>
+        <h4 className="text-center">Slack Alert</h4>
         <br/>
-        <form onSubmit={this.handleAlertConfig}>
+        <form onSubmit={this.handleSaveAlert}>
           <div className="row">
             <div className="col-xs-7 col-sm-8 col-sm-offset-2">
               <p>
@@ -47,6 +50,7 @@ const SlackConfig = React.createClass({
               <div className="form-group">
                 <label htmlFor="slack-url">Slack Webhook URL (<a href="https://api.slack.com/incoming-webhooks" target="_">see more on Slack webhooks</a>)</label>
                 <input className="form-control" id="slack-url" type="text" ref={(r) => this.url = r} defaultValue={`${url}`}></input>
+                {url === true ? <span>Note: a value of <code>true</code> indicates that a slack channel has been set</span> : null}
               </div>
 
               <div className="form-group">

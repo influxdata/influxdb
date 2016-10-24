@@ -471,7 +471,7 @@ export function createKapacitor(source, {url, name = 'My Kapacitor', username, p
   });
 }
 
-export function updateKapacitor(source, kapacitor, {url, name = 'My Kapacitor', username, password}) {
+export function updateKapacitor(kapacitor, {url, name = 'My Kapacitor', username, password}) {
   return AJAX({
     url: kapacitor.links.self,
     method: 'PATCH',
@@ -529,7 +529,7 @@ export function testAlertOutput(kapacitor, outputName) {
     },
   ];
 
-  createKapacitorTask(kapacitor, taskName, 'batch', telegrafRPs, script).then(() => {
+  return createKapacitorTask(kapacitor, taskName, 'batch', telegrafRPs, script).then(() => {
     const onePointFiveSeconds = 1500;
     // Im not sure what is ghetto here but something is ghetto
     setTimeout(() => deleteKapacitorTask(kapacitor, taskName), onePointFiveSeconds);
