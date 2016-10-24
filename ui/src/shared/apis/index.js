@@ -445,3 +445,126 @@ export function addWebUsersToClusterAccount(clusterID, clusterAccount, userIDs) 
 function metaProxy(clusterID, slug) {
   return `/api/int/v1/meta${slug}`;
 }
+
+// Kapacitor functions
+// TODO: update kapacitor functions to assume only one kapacitor. waiting for @goller
+
+export function getKapacitor(source) {
+  return AJAX({
+    url: source.links.kapacitors,
+    method: 'GET',
+  }).then(({data}) => {
+    return data.kapacitors[0];
+  });
+}
+
+export function createKapacitor(source, {url, name = 'My Kapacitor', username, password}) {
+  return AJAX({
+    url: source.links.kapacitors,
+    method: 'POST',
+    data: {
+      name,
+      url,
+      username,
+      password,
+    },
+  });
+}
+
+export function updateKapacitor(kapacitor, {url, name = 'My Kapacitor', username, password}) {
+  return AJAX({
+    url: kapacitor.links.self,
+    method: 'PATCH',
+    data: {
+      name,
+      url,
+      username,
+      password,
+    },
+  });
+}
+
+export function getKapacitorConfig(kapacitor) {
+  return kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/config', '');
+}
+
+// updateKapacitorConfigSection will update one section in the Kapacitor config.
+export function updateKapacitorConfigSection(kapacitor, section, properties) {
+  return AJAX({
+    method: 'POST',
+    url: kapacitor.links.proxy,
+    params: {
+      path: `/kapacitor/v1/config/${section}/`,
+    },
+    data: {
+      set: properties,
+    },
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+}
+
+export function testAlertOutput(kapacitor, outputName) {
+  const script = `
+    batch
+      |query('''
+        SELECT count(usage_system)
+        FROM "telegraf".""."cpu"
+      ''')
+        .period(1m)
+        .every(1s)
+        .groupBy(time(1m))
+      |alert()
+        .crit(lambda: "count" > 0)
+        .stateChangesOnly()
+        .${outputName}()
+  `;
+
+  const taskName = `test_${outputName}`;
+  const telegrafRPs = [
+    {
+      db: 'telegraf',
+      rp: '',
+    },
+  ];
+
+  return createKapacitorTask(kapacitor, taskName, 'batch', telegrafRPs, script).then(() => {
+    const onePointFiveSeconds = 1500;
+    // Im not sure what is ghetto here but something is ghetto
+    setTimeout(() => deleteKapacitorTask(kapacitor, taskName), onePointFiveSeconds);
+  });
+}
+
+export function createKapacitorTask(kapacitor, id, type, dbrps, script) {
+  return kapacitorProxy(kapacitor, 'POST', '/kapacitor/v1/tasks', {
+    id,
+    type,
+    dbrps,
+    script,
+    status: 'enabled',
+  });
+}
+
+export function enableKapacitorTask(kapacitor, id) {
+  return kapacitorProxy(kapacitor, 'PATCH', `/kapacitor/v1/tasks/${id}`, {status: 'enabled'});
+}
+
+export function disableKapacitorTask(kapacitor, id) {
+  return kapacitorProxy(kapacitor, 'PATCH', `/kapacitor/v1/tasks/${id}`, {status: 'disabled'});
+}
+
+export function deleteKapacitorTask(kapacitor, id) {
+  return kapacitorProxy(kapacitor, 'DELETE', `/kapacitor/v1/tasks/${id}`, '');
+}
+
+export function kapacitorProxy(kapacitor, method, path, body) {
+  return AJAX({
+    method,
+    url: kapacitor.links.proxy,
+    params: {
+      path,
+    },
+    data: body,
+  });
+}

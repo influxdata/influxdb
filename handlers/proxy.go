@@ -130,6 +130,10 @@ func (h *InfluxProxy) KapacitorProxyPost(ctx context.Context, params op.PostSour
 		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(500).WithPayload(errMsg)
 	}
 
+	if resp.StatusCode == http.StatusNoContent {
+		return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(200).WithPayload(j)
+	}
+
 	return op.NewPostSourcesIDKapacitorsKapaIDProxyDefault(resp.StatusCode).WithPayload(j)
 }
 
