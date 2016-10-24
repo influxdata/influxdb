@@ -53,10 +53,10 @@ type ChronografAPI struct {
 	DeleteSourcesIDKapacitorsKapaIDProxyHandler DeleteSourcesIDKapacitorsKapaIDProxyHandler
 	// DeleteSourcesIDRolesRoleIDHandler sets the operation handler for the delete sources ID roles role ID operation
 	DeleteSourcesIDRolesRoleIDHandler DeleteSourcesIDRolesRoleIDHandler
-	// DeleteSourcesIDUsersUserIDHandler sets the operation handler for the delete sources ID users user ID operation
-	DeleteSourcesIDUsersUserIDHandler DeleteSourcesIDUsersUserIDHandler
-	// DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler sets the operation handler for the delete sources ID users user ID explorations exploration ID operation
-	DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler
+	// DeleteUsersUserIDHandler sets the operation handler for the delete users user ID operation
+	DeleteUsersUserIDHandler DeleteUsersUserIDHandler
+	// DeleteUsersUserIDExplorationsExplorationIDHandler sets the operation handler for the delete users user ID explorations exploration ID operation
+	DeleteUsersUserIDExplorationsExplorationIDHandler DeleteUsersUserIDExplorationsExplorationIDHandler
 	// GetHandler sets the operation handler for the get operation
 	GetHandler GetHandler
 	// GetLayoutsHandler sets the operation handler for the get layouts operation
@@ -93,6 +93,14 @@ type ChronografAPI struct {
 	GetSourcesIDUsersUserIDExplorationsExplorationIDHandler GetSourcesIDUsersUserIDExplorationsExplorationIDHandler
 	// GetTokenHandler sets the operation handler for the get token operation
 	GetTokenHandler GetTokenHandler
+	// GetUsersHandler sets the operation handler for the get users operation
+	GetUsersHandler GetUsersHandler
+	// GetUsersUserIDHandler sets the operation handler for the get users user ID operation
+	GetUsersUserIDHandler GetUsersUserIDHandler
+	// GetUsersUserIDExplorationsHandler sets the operation handler for the get users user ID explorations operation
+	GetUsersUserIDExplorationsHandler GetUsersUserIDExplorationsHandler
+	// GetUsersUserIDExplorationsExplorationIDHandler sets the operation handler for the get users user ID explorations exploration ID operation
+	GetUsersUserIDExplorationsExplorationIDHandler GetUsersUserIDExplorationsExplorationIDHandler
 	// PatchSourcesIDHandler sets the operation handler for the patch sources ID operation
 	PatchSourcesIDHandler PatchSourcesIDHandler
 	// PatchSourcesIDKapacitorsKapaIDHandler sets the operation handler for the patch sources ID kapacitors kapa ID operation
@@ -101,10 +109,10 @@ type ChronografAPI struct {
 	PatchSourcesIDKapacitorsKapaIDProxyHandler PatchSourcesIDKapacitorsKapaIDProxyHandler
 	// PatchSourcesIDRolesRoleIDHandler sets the operation handler for the patch sources ID roles role ID operation
 	PatchSourcesIDRolesRoleIDHandler PatchSourcesIDRolesRoleIDHandler
-	// PatchSourcesIDUsersUserIDHandler sets the operation handler for the patch sources ID users user ID operation
-	PatchSourcesIDUsersUserIDHandler PatchSourcesIDUsersUserIDHandler
-	// PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler sets the operation handler for the patch sources ID users user ID explorations exploration ID operation
-	PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler
+	// PatchUsersUserIDHandler sets the operation handler for the patch users user ID operation
+	PatchUsersUserIDHandler PatchUsersUserIDHandler
+	// PatchUsersUserIDExplorationsExplorationIDHandler sets the operation handler for the patch users user ID explorations exploration ID operation
+	PatchUsersUserIDExplorationsExplorationIDHandler PatchUsersUserIDExplorationsExplorationIDHandler
 	// PostLayoutsHandler sets the operation handler for the post layouts operation
 	PostLayoutsHandler PostLayoutsHandler
 	// PostSourcesHandler sets the operation handler for the post sources operation
@@ -117,10 +125,10 @@ type ChronografAPI struct {
 	PostSourcesIDProxyHandler PostSourcesIDProxyHandler
 	// PostSourcesIDRolesHandler sets the operation handler for the post sources ID roles operation
 	PostSourcesIDRolesHandler PostSourcesIDRolesHandler
-	// PostSourcesIDUsersHandler sets the operation handler for the post sources ID users operation
-	PostSourcesIDUsersHandler PostSourcesIDUsersHandler
-	// PostSourcesIDUsersUserIDExplorationsHandler sets the operation handler for the post sources ID users user ID explorations operation
-	PostSourcesIDUsersUserIDExplorationsHandler PostSourcesIDUsersUserIDExplorationsHandler
+	// PostUsersHandler sets the operation handler for the post users operation
+	PostUsersHandler PostUsersHandler
+	// PostUsersUserIDExplorationsHandler sets the operation handler for the post users user ID explorations operation
+	PostUsersUserIDExplorationsHandler PostUsersUserIDExplorationsHandler
 	// PutLayoutsIDHandler sets the operation handler for the put layouts ID operation
 	PutLayoutsIDHandler PutLayoutsIDHandler
 
@@ -206,12 +214,12 @@ func (o *ChronografAPI) Validate() error {
 		unregistered = append(unregistered, "DeleteSourcesIDRolesRoleIDHandler")
 	}
 
-	if o.DeleteSourcesIDUsersUserIDHandler == nil {
-		unregistered = append(unregistered, "DeleteSourcesIDUsersUserIDHandler")
+	if o.DeleteUsersUserIDHandler == nil {
+		unregistered = append(unregistered, "DeleteUsersUserIDHandler")
 	}
 
-	if o.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler == nil {
-		unregistered = append(unregistered, "DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler")
+	if o.DeleteUsersUserIDExplorationsExplorationIDHandler == nil {
+		unregistered = append(unregistered, "DeleteUsersUserIDExplorationsExplorationIDHandler")
 	}
 
 	if o.GetHandler == nil {
@@ -266,20 +274,20 @@ func (o *ChronografAPI) Validate() error {
 		unregistered = append(unregistered, "GetSourcesIDRolesRoleIDHandler")
 	}
 
-	if o.GetSourcesIDUsersHandler == nil {
-		unregistered = append(unregistered, "GetSourcesIDUsersHandler")
+	if o.GetUsersHandler == nil {
+		unregistered = append(unregistered, "GetUsersHandler")
 	}
 
-	if o.GetSourcesIDUsersUserIDHandler == nil {
-		unregistered = append(unregistered, "GetSourcesIDUsersUserIDHandler")
+	if o.GetUsersUserIDHandler == nil {
+		unregistered = append(unregistered, "GetUsersUserIDHandler")
 	}
 
-	if o.GetSourcesIDUsersUserIDExplorationsHandler == nil {
-		unregistered = append(unregistered, "GetSourcesIDUsersUserIDExplorationsHandler")
+	if o.GetUsersUserIDExplorationsHandler == nil {
+		unregistered = append(unregistered, "GetUsersUserIDExplorationsHandler")
 	}
 
-	if o.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler == nil {
-		unregistered = append(unregistered, "GetSourcesIDUsersUserIDExplorationsExplorationIDHandler")
+	if o.GetUsersUserIDExplorationsExplorationIDHandler == nil {
+		unregistered = append(unregistered, "GetUsersUserIDExplorationsExplorationIDHandler")
 	}
 
 	if o.GetTokenHandler == nil {
@@ -302,12 +310,12 @@ func (o *ChronografAPI) Validate() error {
 		unregistered = append(unregistered, "PatchSourcesIDRolesRoleIDHandler")
 	}
 
-	if o.PatchSourcesIDUsersUserIDHandler == nil {
-		unregistered = append(unregistered, "PatchSourcesIDUsersUserIDHandler")
+	if o.PatchUsersUserIDHandler == nil {
+		unregistered = append(unregistered, "PatchUsersUserIDHandler")
 	}
 
-	if o.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler == nil {
-		unregistered = append(unregistered, "PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler")
+	if o.PatchUsersUserIDExplorationsExplorationIDHandler == nil {
+		unregistered = append(unregistered, "PatchUsersUserIDExplorationsExplorationIDHandler")
 	}
 
 	if o.PostLayoutsHandler == nil {
@@ -334,12 +342,12 @@ func (o *ChronografAPI) Validate() error {
 		unregistered = append(unregistered, "PostSourcesIDRolesHandler")
 	}
 
-	if o.PostSourcesIDUsersHandler == nil {
-		unregistered = append(unregistered, "PostSourcesIDUsersHandler")
+	if o.PostUsersHandler == nil {
+		unregistered = append(unregistered, "PostUsersHandler")
 	}
 
-	if o.PostSourcesIDUsersUserIDExplorationsHandler == nil {
-		unregistered = append(unregistered, "PostSourcesIDUsersUserIDExplorationsHandler")
+	if o.PostUsersUserIDExplorationsHandler == nil {
+		unregistered = append(unregistered, "PostUsersUserIDExplorationsHandler")
 	}
 
 	if o.PutLayoutsIDHandler == nil {
@@ -454,12 +462,12 @@ func (o *ChronografAPI) initHandlerCache() {
 	if o.handlers["DELETE"] == nil {
 		o.handlers[strings.ToUpper("DELETE")] = make(map[string]http.Handler)
 	}
-	o.handlers["DELETE"]["/sources/{id}/users/{user_id}"] = NewDeleteSourcesIDUsersUserID(o.context, o.DeleteSourcesIDUsersUserIDHandler)
+	o.handlers["DELETE"]["/users/{user_id}"] = NewDeleteUsersUserID(o.context, o.DeleteUsersUserIDHandler)
 
 	if o.handlers["DELETE"] == nil {
 		o.handlers[strings.ToUpper("DELETE")] = make(map[string]http.Handler)
 	}
-	o.handlers["DELETE"]["/sources/{id}/users/{user_id}/explorations/{exploration_id}"] = NewDeleteSourcesIDUsersUserIDExplorationsExplorationID(o.context, o.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler)
+	o.handlers["DELETE"]["/users/{user_id}/explorations/{exploration_id}"] = NewDeleteUsersUserIDExplorationsExplorationID(o.context, o.DeleteUsersUserIDExplorationsExplorationIDHandler)
 
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
@@ -529,22 +537,22 @@ func (o *ChronografAPI) initHandlerCache() {
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/sources/{id}/users"] = NewGetSourcesIDUsers(o.context, o.GetSourcesIDUsersHandler)
+	o.handlers["GET"]["/users"] = NewGetUsers(o.context, o.GetUsersHandler)
 
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/sources/{id}/users/{user_id}"] = NewGetSourcesIDUsersUserID(o.context, o.GetSourcesIDUsersUserIDHandler)
+	o.handlers["GET"]["/users/{user_id}"] = NewGetUsersUserID(o.context, o.GetUsersUserIDHandler)
 
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/sources/{id}/users/{user_id}/explorations"] = NewGetSourcesIDUsersUserIDExplorations(o.context, o.GetSourcesIDUsersUserIDExplorationsHandler)
+	o.handlers["GET"]["/users/{user_id}/explorations"] = NewGetUsersUserIDExplorations(o.context, o.GetUsersUserIDExplorationsHandler)
 
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/sources/{id}/users/{user_id}/explorations/{exploration_id}"] = NewGetSourcesIDUsersUserIDExplorationsExplorationID(o.context, o.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler)
+	o.handlers["GET"]["/users/{user_id}/explorations/{exploration_id}"] = NewGetUsersUserIDExplorationsExplorationID(o.context, o.GetUsersUserIDExplorationsExplorationIDHandler)
 
 	if o.handlers["GET"] == nil {
 		o.handlers[strings.ToUpper("GET")] = make(map[string]http.Handler)
@@ -574,12 +582,12 @@ func (o *ChronografAPI) initHandlerCache() {
 	if o.handlers["PATCH"] == nil {
 		o.handlers[strings.ToUpper("PATCH")] = make(map[string]http.Handler)
 	}
-	o.handlers["PATCH"]["/sources/{id}/users/{user_id}"] = NewPatchSourcesIDUsersUserID(o.context, o.PatchSourcesIDUsersUserIDHandler)
+	o.handlers["PATCH"]["/users/{user_id}"] = NewPatchUsersUserID(o.context, o.PatchUsersUserIDHandler)
 
 	if o.handlers["PATCH"] == nil {
 		o.handlers[strings.ToUpper("PATCH")] = make(map[string]http.Handler)
 	}
-	o.handlers["PATCH"]["/sources/{id}/users/{user_id}/explorations/{exploration_id}"] = NewPatchSourcesIDUsersUserIDExplorationsExplorationID(o.context, o.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler)
+	o.handlers["PATCH"]["/users/{user_id}/explorations/{exploration_id}"] = NewPatchUsersUserIDExplorationsExplorationID(o.context, o.PatchUsersUserIDExplorationsExplorationIDHandler)
 
 	if o.handlers["POST"] == nil {
 		o.handlers[strings.ToUpper("POST")] = make(map[string]http.Handler)
@@ -614,12 +622,12 @@ func (o *ChronografAPI) initHandlerCache() {
 	if o.handlers["POST"] == nil {
 		o.handlers[strings.ToUpper("POST")] = make(map[string]http.Handler)
 	}
-	o.handlers["POST"]["/sources/{id}/users"] = NewPostSourcesIDUsers(o.context, o.PostSourcesIDUsersHandler)
+	o.handlers["POST"]["/users"] = NewPostUsers(o.context, o.PostUsersHandler)
 
 	if o.handlers["POST"] == nil {
 		o.handlers[strings.ToUpper("POST")] = make(map[string]http.Handler)
 	}
-	o.handlers["POST"]["/sources/{id}/users/{user_id}/explorations"] = NewPostSourcesIDUsersUserIDExplorations(o.context, o.PostSourcesIDUsersUserIDExplorationsHandler)
+	o.handlers["POST"]["/users/{user_id}/explorations"] = NewPostUsersUserIDExplorations(o.context, o.PostUsersUserIDExplorationsHandler)
 
 	if o.handlers["PUT"] == nil {
 		o.handlers[strings.ToUpper("PUT")] = make(map[string]http.Handler)

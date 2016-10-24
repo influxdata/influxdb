@@ -122,11 +122,12 @@ func configureAPI(api *op.ChronografAPI) http.Handler {
 		}
 
 		api.GetTokenHandler = op.GetTokenHandlerFunc(mockHandler.Token)
-		api.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(h.DeleteExploration)
-		api.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.GetSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(h.Exploration)
-		api.GetSourcesIDUsersUserIDExplorationsHandler = op.GetSourcesIDUsersUserIDExplorationsHandlerFunc(h.Explorations)
-		api.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(h.UpdateExploration)
-		api.PostSourcesIDUsersUserIDExplorationsHandler = op.PostSourcesIDUsersUserIDExplorationsHandlerFunc(h.NewExploration)
+
+		api.DeleteUsersUserIDExplorationsExplorationIDHandler = op.DeleteUsersUserIDExplorationsExplorationIDHandlerFunc(h.DeleteExploration)
+		api.GetUsersUserIDExplorationsExplorationIDHandler = op.GetUsersUserIDExplorationsExplorationIDHandlerFunc(h.Exploration)
+		api.GetUsersUserIDExplorationsHandler = op.GetUsersUserIDExplorationsHandlerFunc(h.Explorations)
+		api.PatchUsersUserIDExplorationsExplorationIDHandler = op.PatchUsersUserIDExplorationsExplorationIDHandlerFunc(h.UpdateExploration)
+		api.PostUsersUserIDExplorationsHandler = op.PostUsersUserIDExplorationsHandlerFunc(h.NewExploration)
 
 		api.DeleteSourcesIDHandler = op.DeleteSourcesIDHandlerFunc(h.RemoveSource)
 		api.PatchSourcesIDHandler = op.PatchSourcesIDHandlerFunc(h.UpdateSource)
@@ -161,11 +162,11 @@ func configureAPI(api *op.ChronografAPI) http.Handler {
 		api.PostLayoutsHandler = op.PostLayoutsHandlerFunc(h.NewLayout)
 		api.PutLayoutsIDHandler = op.PutLayoutsIDHandlerFunc(h.UpdateLayout)
 	} else {
-		api.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.DeleteSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.DeleteExploration)
-		api.GetSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.GetSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.Exploration)
-		api.GetSourcesIDUsersUserIDExplorationsHandler = op.GetSourcesIDUsersUserIDExplorationsHandlerFunc(mockHandler.Explorations)
-		api.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandler = op.PatchSourcesIDUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.UpdateExploration)
-		api.PostSourcesIDUsersUserIDExplorationsHandler = op.PostSourcesIDUsersUserIDExplorationsHandlerFunc(mockHandler.NewExploration)
+		api.DeleteUsersUserIDExplorationsExplorationIDHandler = op.DeleteUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.DeleteExploration)
+		api.GetUsersUserIDExplorationsExplorationIDHandler = op.GetUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.Exploration)
+		api.GetUsersUserIDExplorationsHandler = op.GetUsersUserIDExplorationsHandlerFunc(mockHandler.Explorations)
+		api.PatchUsersUserIDExplorationsExplorationIDHandler = op.PatchUsersUserIDExplorationsExplorationIDHandlerFunc(mockHandler.UpdateExploration)
+		api.PostUsersUserIDExplorationsHandler = op.PostUsersUserIDExplorationsHandlerFunc(mockHandler.NewExploration)
 
 		api.DeleteSourcesIDHandler = op.DeleteSourcesIDHandlerFunc(mockHandler.RemoveSource)
 		api.PatchSourcesIDHandler = op.PatchSourcesIDHandlerFunc(mockHandler.UpdateSource)
@@ -180,8 +181,8 @@ func configureAPI(api *op.ChronografAPI) http.Handler {
 		return middleware.NotImplemented("operation .DeleteSourcesIDRolesRoleID has not yet been implemented")
 	})
 
-	api.DeleteSourcesIDUsersUserIDHandler = op.DeleteSourcesIDUsersUserIDHandlerFunc(func(ctx context.Context, params op.DeleteSourcesIDUsersUserIDParams) middleware.Responder {
-		return middleware.NotImplemented("operation .DeleteSourcesIDUsersUserID has not yet been implemented")
+	api.DeleteUsersUserIDHandler = op.DeleteUsersUserIDHandlerFunc(func(ctx context.Context, params op.DeleteUsersUserIDParams) middleware.Responder {
+		return middleware.NotImplemented("operation .DeleteUsersUserID has not yet been implemented")
 	})
 
 	api.GetSourcesIDPermissionsHandler = op.GetSourcesIDPermissionsHandlerFunc(func(ctx context.Context, params op.GetSourcesIDPermissionsParams) middleware.Responder {
@@ -194,25 +195,25 @@ func configureAPI(api *op.ChronografAPI) http.Handler {
 		return middleware.NotImplemented("operation .GetSourcesIDRolesRoleID has not yet been implemented")
 	})
 
-	api.GetSourcesIDUsersHandler = op.GetSourcesIDUsersHandlerFunc(func(ctx context.Context, params op.GetSourcesIDUsersParams) middleware.Responder {
-		return middleware.NotImplemented("operation .GetSourcesIDUsers has not yet been implemented")
+	api.GetUsersHandler = op.GetUsersHandlerFunc(func(ctx context.Context, params op.GetUsersParams) middleware.Responder {
+		return middleware.NotImplemented("operation .GetUsers has not yet been implemented")
 	})
-	api.GetSourcesIDUsersUserIDHandler = op.GetSourcesIDUsersUserIDHandlerFunc(func(ctx context.Context, params op.GetSourcesIDUsersUserIDParams) middleware.Responder {
-		return middleware.NotImplemented("operation .GetSourcesIDUsersUserID has not yet been implemented")
+	api.GetUsersUserIDHandler = op.GetUsersUserIDHandlerFunc(func(ctx context.Context, params op.GetUsersUserIDParams) middleware.Responder {
+		return middleware.NotImplemented("operation .GetUsersUserID has not yet been implemented")
 	})
 
 	api.PatchSourcesIDRolesRoleIDHandler = op.PatchSourcesIDRolesRoleIDHandlerFunc(func(ctx context.Context, params op.PatchSourcesIDRolesRoleIDParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PatchSourcesIDRolesRoleID has not yet been implemented")
 	})
 
-	api.PatchSourcesIDUsersUserIDHandler = op.PatchSourcesIDUsersUserIDHandlerFunc(func(ctx context.Context, params op.PatchSourcesIDUsersUserIDParams) middleware.Responder {
-		return middleware.NotImplemented("operation .PatchSourcesIDUsersUserID has not yet been implemented")
+	api.PatchUsersUserIDHandler = op.PatchUsersUserIDHandlerFunc(func(ctx context.Context, params op.PatchUsersUserIDParams) middleware.Responder {
+		return middleware.NotImplemented("operation .PatchUsersUserID has not yet been implemented")
 	})
 	api.PostSourcesIDRolesHandler = op.PostSourcesIDRolesHandlerFunc(func(ctx context.Context, params op.PostSourcesIDRolesParams) middleware.Responder {
 		return middleware.NotImplemented("operation .PostSourcesIDRoles has not yet been implemented")
 	})
-	api.PostSourcesIDUsersHandler = op.PostSourcesIDUsersHandlerFunc(func(ctx context.Context, params op.PostSourcesIDUsersParams) middleware.Responder {
-		return middleware.NotImplemented("operation .PostSourcesIDUsers has not yet been implemented")
+	api.PostUsersHandler = op.PostUsersHandlerFunc(func(ctx context.Context, params op.PostUsersParams) middleware.Responder {
+		return middleware.NotImplemented("operation .PostUsers has not yet been implemented")
 	})
 
 	api.GetMappingsHandler = op.GetMappingsHandlerFunc(mockHandler.GetMappings)
