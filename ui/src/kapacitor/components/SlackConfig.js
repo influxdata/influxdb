@@ -3,22 +3,24 @@ import React, {PropTypes} from 'react';
 const SlackConfig = React.createClass({
   propTypes: {
     config: PropTypes.shape({
-      url: PropTypes.bool,
-      channel: PropTypes.string,
-    }),
+      options: PropTypes.shape({
+        url: PropTypes.bool.isRequired,
+        channel: PropTypes.string.isRequired,
+      }).isRequired,
+    }).isRequired,
     onSave: PropTypes.func.isRequired,
     onTest: PropTypes.func.isRequired,
   },
 
   getInitialState() {
     return {
-      testEnabled: !!this.props.config.url,
+      testEnabled: !!this.props.config.options.url,
     };
   },
 
   componentWillReceiveProps(nextProps) {
     this.setState({
-      testEnabled: !!nextProps.config.url,
+      testEnabled: !!nextProps.config.options.url,
     });
   },
 
@@ -34,7 +36,7 @@ const SlackConfig = React.createClass({
   },
 
   render() {
-    const {url, channel} = this.props.config;
+    const {url, channel} = this.props.config.options;
 
     return (
       <div className="panel-body">
@@ -50,7 +52,7 @@ const SlackConfig = React.createClass({
               <div className="form-group">
                 <label htmlFor="slack-url">Slack Webhook URL (<a href="https://api.slack.com/incoming-webhooks" target="_">see more on Slack webhooks</a>)</label>
                 <input className="form-control" id="slack-url" type="text" ref={(r) => this.url = r} defaultValue={`${url}`}></input>
-                {url === true ? <span>Note: a value of <code>true</code> indicates that a slack channel has been set</span> : null}
+                <span>Note: a value of <code>true</code> or <code>false</code> indicates whether or not a slack channel has been set</span>
               </div>
 
               <div className="form-group">

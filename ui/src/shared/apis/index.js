@@ -494,7 +494,7 @@ export function updateKapacitorConfigSection(kapacitor, section, properties) {
     method: 'POST',
     url: kapacitor.links.proxy,
     params: {
-      path: `/kapacitor/v1/config/${section}`,
+      path: `/kapacitor/v1/config/${section}/`,
     },
     data: {
       set: properties,

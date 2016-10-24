@@ -3,12 +3,14 @@ import React, {PropTypes} from 'react';
 const SMTPConfig = React.createClass({
   propTypes: {
     config: PropTypes.shape({
-      host: PropTypes.string,
-      port: PropTypes.number,
-      username: PropTypes.string,
-      password: PropTypes.bool,
-      from: PropTypes.string,
-    }),
+      options: PropTypes.shape({
+        host: PropTypes.string,
+        port: PropTypes.number,
+        username: PropTypes.string,
+        password: PropTypes.bool,
+        from: PropTypes.string,
+      }).isRequired,
+    }).isRequired,
     onSave: PropTypes.func.isRequired,
   },
 
@@ -27,7 +29,7 @@ const SMTPConfig = React.createClass({
   },
 
   render() {
-    const {host, port, from, username, password} = this.props.config;
+    const {host, port, from, username, password} = this.props.config.options;
 
     return (
       <div className="panel-body">

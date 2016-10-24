@@ -26,10 +26,14 @@ const AlertOutputs = React.createClass({
   },
 
   componentDidMount() {
-    getKapacitorConfig(this.props.kapacitor).then(({data: {smtp, slack}}) => {
+    this.refreshKapacitorConfig();
+  },
+
+  refreshKapacitorConfig() {
+    getKapacitorConfig(this.props.kapacitor).then(({data: {sections}}) => {
       this.setState({
-        slackConfig: _.get(slack, ['elements', '0'], null),
-        smtpConfig: _.get(smtp, ['elements', '0'], null),
+        slackConfig: _.get(sections, ['slack', 'elements', '0'], null),
+        smtpConfig: _.get(sections, ['smtp', 'elements', '0'], null),
       });
     });
   },
@@ -37,6 +41,7 @@ const AlertOutputs = React.createClass({
   handleSaveConfig(section, properties) {
     if (section !== '') {
       updateKapacitorConfigSection(this.props.kapacitor, section, Object.assign({}, properties, {enabled: true})).then(() => {
+        this.refreshKapacitorConfig();
         this.props.addFlashMessage({
           type: 'success',
           text: `Alert for ${section} successfully saved`,
