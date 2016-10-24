@@ -14,19 +14,19 @@ import (
 	op "github.com/influxdata/chronograf/restapi/operations"
 )
 
-func (h *Store) Explorations(ctx context.Context, params op.GetSourcesIDUsersUserIDExplorationsParams) middleware.Responder {
+func (h *Store) Explorations(ctx context.Context, params op.GetUsersUserIDExplorationsParams) middleware.Responder {
 	uID, err := strconv.Atoi(params.UserID)
 	if err != nil {
 		log.Printf("Error: Unable to convert UserID: %s: %v", params.UserID, err)
 		errMsg := &models.Error{Code: 500, Message: "Error: Unable to convert UserID"}
-		return op.NewGetSourcesIDUsersUserIDExplorationsDefault(500).WithPayload(errMsg)
+		return op.NewGetUsersUserIDExplorationsDefault(500).WithPayload(errMsg)
 	}
 
 	mrExs, err := h.ExplorationStore.Query(ctx, chronograf.UserID(uID))
 	if err != nil {
 		log.Printf("Error: Unknown response from store while querying UserID: %s: %v", params.UserID, err)
 		errMsg := &models.Error{Code: 500, Message: "Error: Unknown response from store while querying UserID"}
-		return op.NewGetSourcesIDUsersUserIDExplorationsDefault(500).WithPayload(errMsg)
+		return op.NewGetUsersUserIDExplorationsDefault(500).WithPayload(errMsg)
 	}
 
 	exs := make([]*models.Exploration, len(mrExs))
@@ -47,35 +47,35 @@ func (h *Store) Explorations(ctx context.Context, params op.GetSourcesIDUsersUse
 	res := &models.Explorations{
 		Explorations: exs,
 	}
-	return op.NewGetSourcesIDUsersUserIDExplorationsOK().WithPayload(res)
+	return op.NewGetUsersUserIDExplorationsOK().WithPayload(res)
 }
 
-func (h *Store) Exploration(ctx context.Context, params op.GetSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
+func (h *Store) Exploration(ctx context.Context, params op.GetUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
 	eID, err := strconv.Atoi(params.ExplorationID)
 	if err != nil {
 		log.Printf("Error: Unable to convert ExplorationID: %s: %v", params.ExplorationID, err)
 		errMsg := &models.Error{Code: 500, Message: "Error: Unable to convert ExplorationID"}
-		return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
+		return op.NewGetUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
 	}
 
 	uID, err := strconv.Atoi(params.UserID)
 	if err != nil {
 		log.Printf("Error: Unable to convert UserID: %s: %v", params.UserID, err)
 		errMsg := &models.Error{Code: 500, Message: "Error: Unable to convert UserID"}
-		return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
+		return op.NewGetUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
 	}
 
 	e, err := h.ExplorationStore.Get(ctx, chronograf.ExplorationID(eID))
 	if err != nil {
 		log.Printf("Error: Unknown ExplorationID: %s: %v", params.ExplorationID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error: Unknown ExplorationID"}
-		return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
+		return op.NewGetUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
 	}
 
 	if e.UserID != chronograf.UserID(uID) {
 		log.Printf("Error: Unknown ExplorationID: %s: %v", params.ExplorationID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error: Unknown ExplorationID"}
-		return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
+		return op.NewGetUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
 	}
 
 	rel := "self"
@@ -90,42 +90,42 @@ func (h *Store) Exploration(ctx context.Context, params op.GetSourcesIDUsersUser
 			Href: &href,
 		},
 	}
-	return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDOK().WithPayload(res)
+	return op.NewGetUsersUserIDExplorationsExplorationIDOK().WithPayload(res)
 }
 
-func (h *Store) UpdateExploration(ctx context.Context, params op.PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
+func (h *Store) UpdateExploration(ctx context.Context, params op.PatchUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
 	if params.Exploration == nil {
 		log.Printf("Error: Exploration is nil")
 		errMsg := &models.Error{Code: 400, Message: "Error: Exploration is nil"}
-		return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDDefault(400).WithPayload(errMsg)
+		return op.NewPatchUsersUserIDExplorationsExplorationIDDefault(400).WithPayload(errMsg)
 	}
 
 	eID, err := strconv.Atoi(params.ExplorationID)
 	if err != nil {
 		log.Printf("Error: Unable to convert ExplorationID: %s: %v", params.ExplorationID, err)
 		errMsg := &models.Error{Code: 500, Message: "Error: Unable to convert ExplorationID"}
-		return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
+		return op.NewPatchUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
 	}
 
 	uID, err := strconv.Atoi(params.UserID)
 	if err != nil {
 		log.Printf("Error: Unable to convert UserID: %s: %v", params.UserID, err)
 		errMsg := &models.Error{Code: 500, Message: "Error: Unable to convert UserID"}
-		return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
+		return op.NewPatchUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
 	}
 
 	e, err := h.ExplorationStore.Get(ctx, chronograf.ExplorationID(eID))
 	if err != nil || e.UserID != chronograf.UserID(uID) {
 		log.Printf("Error: Unknown ExplorationID: %s: %v", params.ExplorationID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error: Unknown ExplorationID"}
-		return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
+		return op.NewPatchUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
 	}
 	if params.Exploration.Data != nil {
 		var ok bool
 		if e.Data, ok = params.Exploration.Data.(string); !ok {
 			log.Printf("Error: Exploration data is not a string")
 			errMsg := &models.Error{Code: 400, Message: "Error: Exploration data is not a string"}
-			return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDDefault(400).WithPayload(errMsg)
+			return op.NewPatchUsersUserIDExplorationsExplorationIDDefault(400).WithPayload(errMsg)
 		}
 	}
 
@@ -136,10 +136,10 @@ func (h *Store) UpdateExploration(ctx context.Context, params op.PatchSourcesIDU
 	if err := h.ExplorationStore.Update(ctx, e); err != nil {
 		log.Printf("Error: Failed to update Exploration: %v: %v", e, err)
 		errMsg := &models.Error{Code: 500, Message: "Error: Failed to update Exploration"}
-		return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
+		return op.NewPatchUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
 	}
 
-	return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDOK().WithPayload(explToModel(e))
+	return op.NewPatchUsersUserIDExplorationsExplorationIDOK().WithPayload(explToModel(e))
 }
 
 func explToModel(e *chronograf.Exploration) *models.Exploration {
@@ -157,18 +157,18 @@ func explToModel(e *chronograf.Exploration) *models.Exploration {
 	}
 }
 
-func (h *Store) NewExploration(ctx context.Context, params op.PostSourcesIDUsersUserIDExplorationsParams) middleware.Responder {
+func (h *Store) NewExploration(ctx context.Context, params op.PostUsersUserIDExplorationsParams) middleware.Responder {
 	if params.Exploration == nil {
 		log.Printf("Error: Exploration is nil")
 		errMsg := &models.Error{Code: 400, Message: "Error: Exploration is nil"}
-		return op.NewPostSourcesIDUsersUserIDExplorationsDefault(400).WithPayload(errMsg)
+		return op.NewPostUsersUserIDExplorationsDefault(400).WithPayload(errMsg)
 	}
 
 	uID, err := strconv.Atoi(params.UserID)
 	if err != nil {
 		log.Printf("Error: Unable to convert UserID: %s: %v", params.UserID, err)
 		errMsg := &models.Error{Code: 500, Message: "Error: Unable to convert UserID"}
-		return op.NewPostSourcesIDUsersUserIDExplorationsDefault(500).WithPayload(errMsg)
+		return op.NewPostUsersUserIDExplorationsDefault(500).WithPayload(errMsg)
 	}
 
 	// TODO: Check user if user exists.
@@ -187,40 +187,40 @@ func (h *Store) NewExploration(ctx context.Context, params op.PostSourcesIDUsers
 	if err != nil {
 		log.Printf("Error: Failed to save Exploration: %v: %v", e, err)
 		errMsg := &models.Error{Code: 500, Message: "Error: Failed to save Exploration"}
-		return op.NewPostSourcesIDUsersUserIDExplorationsDefault(500).WithPayload(errMsg)
+		return op.NewPostUsersUserIDExplorationsDefault(500).WithPayload(errMsg)
 	}
 
 	m := explToModel(e)
-	res := op.NewPostSourcesIDUsersUserIDExplorationsCreated()
+	res := op.NewPostUsersUserIDExplorationsCreated()
 	return res.WithLocation(*m.Link.Href).WithPayload(m)
 }
 
-func (h *Store) DeleteExploration(ctx context.Context, params op.DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
+func (h *Store) DeleteExploration(ctx context.Context, params op.DeleteUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
 	eID, err := strconv.Atoi(params.ExplorationID)
 	if err != nil {
 		log.Printf("Error: Unable to convert ExplorationID: %s: %v", params.ExplorationID, err)
 		errMsg := &models.Error{Code: 500, Message: "Error: Unable to convert ExplorationID"}
-		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
+		return op.NewDeleteUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
 	}
 
 	uID, err := strconv.Atoi(params.UserID)
 	if err != nil {
 		log.Printf("Error: Unable to convert UserID: %s: %v", params.UserID, err)
 		errMsg := &models.Error{Code: 500, Message: "Error: Unable to convert UserID"}
-		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
+		return op.NewDeleteUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
 	}
 
 	e, err := h.ExplorationStore.Get(ctx, chronograf.ExplorationID(eID))
 	if err != nil || e.UserID != chronograf.UserID(uID) {
 		log.Printf("Error: Unknown ExplorationID: %s: %v", params.ExplorationID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error: Unknown ExplorationID"}
-		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
+		return op.NewDeleteUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
 	}
 
 	if err := h.ExplorationStore.Delete(ctx, &chronograf.Exploration{ID: chronograf.ExplorationID(eID)}); err != nil {
 		log.Printf("Error: Failed to delete Exploration: %v: %v", params.ExplorationID, err)
 		errMsg := &models.Error{Code: 500, Message: "Error: Failed to delete Exploration"}
-		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
+		return op.NewDeleteUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
 	}
-	return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDNoContent()
+	return op.NewDeleteUsersUserIDExplorationsExplorationIDNoContent()
 }

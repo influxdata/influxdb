@@ -216,14 +216,14 @@ func (m *Handler) Proxy(ctx context.Context, params op.PostSourcesIDProxyParams)
 	return op.NewPostSourcesIDProxyOK().WithPayload(res)
 }
 
-func (m *Handler) Explorations(ctx context.Context, params op.GetSourcesIDUsersUserIDExplorationsParams) middleware.Responder {
+func (m *Handler) Explorations(ctx context.Context, params op.GetUsersUserIDExplorationsParams) middleware.Responder {
 	id, err := strconv.Atoi(params.UserID)
 	if err != nil {
-		return op.NewGetSourcesIDUsersUserIDExplorationsDefault(500)
+		return op.NewGetUsersUserIDExplorationsDefault(500)
 	}
 	exs, err := m.Store.Query(ctx, chronograf.UserID(id))
 	if err != nil {
-		return op.NewGetSourcesIDUsersUserIDExplorationsNotFound()
+		return op.NewGetUsersUserIDExplorationsNotFound()
 	}
 	res := &models.Explorations{}
 	for i, e := range exs {
@@ -241,27 +241,27 @@ func (m *Handler) Explorations(ctx context.Context, params op.GetSourcesIDUsersU
 		},
 		)
 	}
-	return op.NewGetSourcesIDUsersUserIDExplorationsOK().WithPayload(res)
+	return op.NewGetUsersUserIDExplorationsOK().WithPayload(res)
 }
 
-func (m *Handler) Exploration(ctx context.Context, params op.GetSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
+func (m *Handler) Exploration(ctx context.Context, params op.GetUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
 	id, err := strconv.Atoi(params.UserID)
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: "Error converting user id"}
-		return op.NewGetSourcesIDUsersUserIDExplorationsDefault(500).WithPayload(errMsg)
+		return op.NewGetUsersUserIDExplorationsDefault(500).WithPayload(errMsg)
 	}
 
 	eID, err := strconv.Atoi(params.ExplorationID)
 	if err != nil {
 		errMsg := &models.Error{Code: 500, Message: "Error converting exploration id"}
-		return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
+		return op.NewGetUsersUserIDExplorationsExplorationIDDefault(500).WithPayload(errMsg)
 	}
 
 	e, err := m.Store.Get(ctx, chronograf.ExplorationID(eID))
 	if err != nil {
 		log.Printf("Error unknown exploration id: %d: %v", eID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error unknown exploration id"}
-		return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
+		return op.NewGetUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
 	}
 
 	rel := "self"
@@ -276,20 +276,20 @@ func (m *Handler) Exploration(ctx context.Context, params op.GetSourcesIDUsersUs
 			Href: &href,
 		},
 	}
-	return op.NewGetSourcesIDUsersUserIDExplorationsExplorationIDOK().WithPayload(res)
+	return op.NewGetUsersUserIDExplorationsExplorationIDOK().WithPayload(res)
 }
 
-func (m *Handler) UpdateExploration(ctx context.Context, params op.PatchSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
+func (m *Handler) UpdateExploration(ctx context.Context, params op.PatchUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
 	eID, err := strconv.Atoi(params.ExplorationID)
 	if err != nil {
-		return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDDefault(500)
+		return op.NewPatchUsersUserIDExplorationsExplorationIDDefault(500)
 	}
 
 	e, err := m.Store.Get(ctx, chronograf.ExplorationID(eID))
 	if err != nil {
 		log.Printf("Error unknown exploration id: %d: %v", eID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error unknown exploration id"}
-		return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
+		return op.NewPatchUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
 	}
 	if params.Exploration != nil {
 		e.ID = chronograf.ExplorationID(eID)
@@ -297,20 +297,20 @@ func (m *Handler) UpdateExploration(ctx context.Context, params op.PatchSourcesI
 		e.Name = params.Exploration.Name
 		m.Store.Update(ctx, e)
 	}
-	return op.NewPatchSourcesIDUsersUserIDExplorationsExplorationIDOK()
+	return op.NewPatchUsersUserIDExplorationsExplorationIDOK()
 }
 
-func (m *Handler) NewExploration(ctx context.Context, params op.PostSourcesIDUsersUserIDExplorationsParams) middleware.Responder {
+func (m *Handler) NewExploration(ctx context.Context, params op.PostUsersUserIDExplorationsParams) middleware.Responder {
 	id, err := strconv.Atoi(params.UserID)
 	if err != nil {
-		return op.NewPostSourcesIDUsersUserIDExplorationsDefault(500)
+		return op.NewPostUsersUserIDExplorationsDefault(500)
 	}
 
 	exs, err := m.Store.Query(ctx, chronograf.UserID(id))
 	if err != nil {
 		log.Printf("Error unknown user id: %d: %v", id, err)
 		errMsg := &models.Error{Code: 404, Message: "Error unknown user id"}
-		return op.NewPostSourcesIDUsersUserIDExplorationsNotFound().WithPayload(errMsg)
+		return op.NewPostUsersUserIDExplorationsNotFound().WithPayload(errMsg)
 	}
 	eID := len(exs)
 
@@ -333,22 +333,22 @@ func (m *Handler) NewExploration(ctx context.Context, params op.PostSourcesIDUse
 		Rel:  &rel,
 	}
 	params.Exploration.Link = link
-	return op.NewPostSourcesIDUsersUserIDExplorationsCreated().WithPayload(params.Exploration).WithLocation(loc)
+	return op.NewPostUsersUserIDExplorationsCreated().WithPayload(params.Exploration).WithLocation(loc)
 
 }
 
-func (m *Handler) DeleteExploration(ctx context.Context, params op.DeleteSourcesIDUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
+func (m *Handler) DeleteExploration(ctx context.Context, params op.DeleteUsersUserIDExplorationsExplorationIDParams) middleware.Responder {
 	ID, err := strconv.Atoi(params.ExplorationID)
 	if err != nil {
-		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDDefault(500)
+		return op.NewDeleteUsersUserIDExplorationsExplorationIDDefault(500)
 	}
 
 	if err := m.Store.Delete(ctx, &chronograf.Exploration{ID: chronograf.ExplorationID(ID)}); err != nil {
 		log.Printf("Error unknown explorations id: %d: %v", ID, err)
 		errMsg := &models.Error{Code: 404, Message: "Error unknown user id"}
-		return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
+		return op.NewDeleteUsersUserIDExplorationsExplorationIDNotFound().WithPayload(errMsg)
 	}
-	return op.NewDeleteSourcesIDUsersUserIDExplorationsExplorationIDNoContent()
+	return op.NewDeleteUsersUserIDExplorationsExplorationIDNoContent()
 }
 
 func (m *Handler) GetMappings(ctx context.Context, params op.GetMappingsParams) middleware.Responder {
