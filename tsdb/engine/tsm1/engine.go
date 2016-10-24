@@ -1219,6 +1219,10 @@ func (e *Engine) KeyCursor(key string, t int64, ascending bool) *KeyCursor {
 	return e.FileStore.KeyCursor(key, t, ascending)
 }
 
+func (e *Engine) MeasurementByName(name string) *tsdb.Measurement {
+	return e.index.Measurement(name)
+}
+
 func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
 	if call, ok := opt.Expr.(*influxql.Call); ok {
 		refOpt := opt
@@ -1243,7 +1247,7 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 			inputs[i] = itr
 		}
 
-		return influxql.NewParallelMergeIterator(inputs, opt, runtime.GOMAXPROCS(0)), nil
+		return influxql.NewParallelMergeIterator(inputs, opt, runtime.GOMAXPROCS(0))
 	}
 
 	itrs, err := e.createVarRefIterator(opt, false)
@@ -1254,6 +1258,47 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 	itr := influxql.NewSortedMergeIterator(itrs, opt)
 	if itr != nil && opt.InterruptCh != nil {
 		itr = influxql.NewInterruptIterator(itr, opt.InterruptCh)
+	}
+	return itr, nil
+}
+
+func (e *Engine) CreateSeriesIterator(mm *tsdb.Measurement, t *influxql.TagSet, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	if call, ok := opt.Expr.(*influxql.Call); ok {
+		ref := call.Args[0].(*influxql.VarRef)
+		inputs, err := e.createTagSetIterators(ref, mm, t, opt)
+		if err != nil {
+			return nil, err
+		} else if len(inputs) == 0 {
+			return nil, nil
+		}
+
+		output, err := influxql.NewParallelMergeIterator(inputs, opt, runtime.GOMAXPROCS(0))
+		if err != nil {
+			return nil, err
+		}
+
+		if call.Name == "count" {
+			opt.Expr = &influxql.Call{
+				Name: "sum",
+				Args: call.Args,
+			}
+		}
+		return influxql.NewCallIterator(output, opt)
+	}
+
+	ref, _ := opt.Expr.(*influxql.VarRef)
+	itrs, err := e.createTagSetIterators(ref, mm, t, opt)
+	if err != nil {
+		return nil, err
+	}
+
+	itr := influxql.NewSortedMergeIterator(itrs, opt)
+	if itr != nil && opt.InterruptCh != nil {
+		itr = influxql.NewInterruptIterator(itr, opt.InterruptCh)
+	}
+
+	if opt.Limit > 0 || opt.Offset > 0 {
+		itr = newLimitIterator(itr, opt)
 	}
 	return itr, nil
 }
@@ -1571,6 +1616,9 @@ func (e *Engine) buildCursor(measurement, seriesKey string, ref *influxql.VarRef
 func (e *Engine) buildFloatCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) floatCursor {
 	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
 	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), opt.SeekTime(), opt.Ascending)
+	if keyCursor == nil {
+		return nil
+	}
 	return newFloatCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
@@ -1578,6 +1626,9 @@ func (e *Engine) buildFloatCursor(measurement, seriesKey, field string, opt infl
 func (e *Engine) buildIntegerCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) integerCursor {
 	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
 	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), opt.SeekTime(), opt.Ascending)
+	if keyCursor == nil {
+		return nil
+	}
 	return newIntegerCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
@@ -1585,6 +1636,9 @@ func (e *Engine) buildIntegerCursor(measurement, seriesKey, field string, opt in
 func (e *Engine) buildStringCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) stringCursor {
 	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
 	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), opt.SeekTime(), opt.Ascending)
+	if keyCursor == nil {
+		return nil
+	}
 	return newStringCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 
@@ -1592,6 +1646,9 @@ func (e *Engine) buildStringCursor(measurement, seriesKey, field string, opt inf
 func (e *Engine) buildBooleanCursor(measurement, seriesKey, field string, opt influxql.IteratorOptions) booleanCursor {
 	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
 	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), opt.SeekTime(), opt.Ascending)
+	if keyCursor == nil {
+		return nil
+	}
 	return newBooleanCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
 }
 

@@ -417,8 +417,8 @@ func TestSelectStatement_RewriteFields(t *testing.T) {
 		}
 
 		var ic IteratorCreator
-		ic.FieldDimensionsFn = func(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
-			source := sources[0].(*influxql.Measurement)
+		ic.FieldDimensionsFn = func() (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+			source := stmt.(*influxql.SelectStatement).Sources[0].(*influxql.Measurement)
 			switch source.Name {
 			case "cpu":
 				fields = map[string]influxql.DataType{

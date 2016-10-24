@@ -34,6 +34,8 @@ type Engine interface {
 	Restore(r io.Reader, basePath string) error
 
 	CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
+	CreateSeriesIterator(mm *Measurement, t *influxql.TagSet, opt influxql.IteratorOptions) (influxql.Iterator, error)
+	MeasurementByName(name string) *Measurement
 	WritePoints(points []models.Point) error
 	ContainsSeries(keys []string) (map[string]bool, error)
 	DeleteSeries(keys []string) error

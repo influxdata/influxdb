@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"reflect"
+	"regexp"
 	"testing"
 	"time"
 
@@ -31,28 +32,40 @@ func TestQueryExecutor_ExecuteQuery_SelectStatement(t *testing.T) {
 	e := DefaultQueryExecutor()
 
 	// The meta client should return a single shard owned by the local node.
-	e.MetaClient.ShardsByTimeRangeFn = func(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error) {
-		return []meta.ShardInfo{{ID: 100, Owners: []meta.ShardOwner{{NodeID: 0}}}}, nil
+	e.MetaClient.ShardGroupsByTimeRangeFn = func(database, policy string, tmin, tmax time.Time) (a []meta.ShardGroupInfo, err error) {
+		return []meta.ShardGroupInfo{{Shards: []meta.ShardInfo{
+			{ID: 100, Owners: []meta.ShardOwner{{NodeID: 0}}},
+		}}}, nil
 	}
 
-	// The TSDB store should return an IteratorCreator for shard.
-	// This IteratorCreator returns a single iterator with "value" in the aux fields.
-	e.TSDBStore.ShardIteratorCreatorFn = func(id uint64) influxql.IteratorCreator {
+	// The TSDB store should return a shard.
+	// This Shard returns a single iterator with "value" in the aux fields.
+	e.TSDBStore.ShardFn = func(id uint64) coordinator.Shard {
 		if id != 100 {
 			t.Fatalf("unexpected shard id: %d", id)
 		}
 
-		var ic IteratorCreator
-		ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		sh := &Shard{}
+		sh.TagSetsFn = func(measurement string, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
+			if measurement != "cpu" {
+				t.Fatalf("unexpected measurement: %s", measurement)
+			}
+			return []*influxql.TagSet{{
+				Key: []byte(""), SeriesKeys: []string{""}, Filters: []influxql.Expr{nil}}}, nil
+		}
+		sh.FieldDimensionsFn = func(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+			return map[string]influxql.DataType{"value": influxql.Float}, nil, nil
+		}
+		sh.CreateSeriesIteratorFn = func(measurement string, tagSet *influxql.TagSet, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+			if measurement != "cpu" {
+				t.Fatalf("unexpected measurement: %s", measurement)
+			}
 			return &FloatIterator{Points: []influxql.FloatPoint{
 				{Name: "cpu", Time: int64(0 * time.Second), Aux: []interface{}{float64(100)}},
 				{Name: "cpu", Time: int64(1 * time.Second), Aux: []interface{}{float64(200)}},
 			}}, nil
 		}
-		ic.FieldDimensionsFn = func(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
-			return map[string]influxql.DataType{"value": influxql.Float}, nil, nil
-		}
-		return &ic
+		return sh
 	}
 
 	// Verify all results from the query.
@@ -79,22 +92,28 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 	e.StatementExecutor.MaxSelectBucketsN = 3
 
 	// The meta client should return a single shards on the local node.
-	e.MetaClient.ShardsByTimeRangeFn = func(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error) {
-		return []meta.ShardInfo{
+	e.MetaClient.ShardGroupsByTimeRangeFn = func(database, policy string, tmin, tmax time.Time) (a []meta.ShardGroupInfo, err error) {
+		return []meta.ShardGroupInfo{{Shards: []meta.ShardInfo{
 			{ID: 100, Owners: []meta.ShardOwner{{NodeID: 0}}},
-		}, nil
+		}}}, nil
 	}
 
-	var ic IteratorCreator
-	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-		return &FloatIterator{
-			Points: []influxql.FloatPoint{{Name: "cpu", Time: int64(0 * time.Second), Aux: []interface{}{float64(100)}}},
-		}, nil
+	e.TSDBStore.ShardFn = func(id uint64) coordinator.Shard {
+		sh := &Shard{}
+		sh.TagSetsFn = func(measurement string, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
+			return []*influxql.TagSet{{
+				Key: []byte(""), SeriesKeys: []string{""}, Filters: []influxql.Expr{nil}}}, nil
+		}
+		sh.FieldDimensionsFn = func(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+			return map[string]influxql.DataType{"value": influxql.Float}, nil, nil
+		}
+		sh.CreateSeriesIteratorFn = func(measurement string, tagSet *influxql.TagSet, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+			return &FloatIterator{Points: []influxql.FloatPoint{
+				{Name: "cpu", Time: int64(0 * time.Second), Aux: []interface{}{float64(100)}},
+			}}, nil
+		}
+		return sh
 	}
-	ic.FieldDimensionsFn = func(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
-		return map[string]influxql.DataType{"value": influxql.Float}, nil, nil
-	}
-	e.TSDBStore.ShardIteratorCreatorFn = func(id uint64) influxql.IteratorCreator { return &ic }
 
 	// Verify all results from the query.
 	if a := ReadAllResults(e.ExecuteQuery(`SELECT count(value) FROM cpu WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:35Z' GROUP BY time(10s)`, "db0", 0)); !reflect.DeepEqual(a, []*influxql.Result{
@@ -126,6 +145,10 @@ func NewQueryExecutor() *QueryExecutor {
 	e.StatementExecutor = &coordinator.StatementExecutor{
 		MetaClient: &e.MetaClient,
 		TSDBStore:  &e.TSDBStore,
+		ShardMapper: &coordinator.LocalShardMapper{
+			MetaClient: &e.MetaClient,
+			TSDBStore:  &e.TSDBStore,
+		},
 	}
 	e.QueryExecutor.StatementExecutor = e.StatementExecutor
 
@@ -167,7 +190,7 @@ type TSDBStore struct {
 	DeleteShardFn           func(id uint64) error
 	DeleteSeriesFn          func(database string, sources []influxql.Source, condition influxql.Expr) error
 	DatabaseIndexFn         func(name string) *tsdb.DatabaseIndex
-	ShardIteratorCreatorFn  func(id uint64) influxql.IteratorCreator
+	ShardFn                 func(id uint64) coordinator.Shard
 }
 
 func (s *TSDBStore) CreateShard(database, policy string, shardID uint64, enabled bool) error {
@@ -209,29 +232,8 @@ func (s *TSDBStore) DeleteSeries(database string, sources []influxql.Source, con
 	return s.DeleteSeriesFn(database, sources, condition)
 }
 
-func (s *TSDBStore) IteratorCreator(shards []meta.ShardInfo, opt *influxql.SelectOptions) (influxql.IteratorCreator, error) {
-	// Generate iterators for each node.
-	ics := make([]influxql.IteratorCreator, 0)
-	if err := func() error {
-		for _, shard := range shards {
-			ic := s.ShardIteratorCreator(shard.ID)
-			if ic == nil {
-				continue
-			}
-			ics = append(ics, ic)
-		}
-
-		return nil
-	}(); err != nil {
-		influxql.IteratorCreators(ics).Close()
-		return nil, err
-	}
-
-	return influxql.IteratorCreators(ics), nil
-}
-
-func (s *TSDBStore) ShardIteratorCreator(id uint64) influxql.IteratorCreator {
-	return s.ShardIteratorCreatorFn(id)
+func (s *TSDBStore) Shard(id uint64) coordinator.Shard {
+	return s.ShardFn(id)
 }
 
 func (s *TSDBStore) DatabaseIndex(name string) *tsdb.DatabaseIndex {
@@ -244,6 +246,34 @@ func (s *TSDBStore) Measurements(database string, cond influxql.Expr) ([]string,
 
 func (s *TSDBStore) TagValues(database string, cond influxql.Expr) ([]tsdb.TagValues, error) {
 	return nil, nil
+}
+
+type Shard struct {
+	MeasurementsByRegexFn  func(re *regexp.Regexp) []string
+	TagSetsFn              func(measurement string, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error)
+	FieldDimensionsFn      func(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
+	CreateIteratorFn       func(opt influxql.IteratorOptions) (influxql.Iterator, error)
+	CreateSeriesIteratorFn func(measurement string, tagSet *influxql.TagSet, opt influxql.IteratorOptions) (influxql.Iterator, error)
+}
+
+func (s *Shard) MeasurementsByRegex(re *regexp.Regexp) []string {
+	return s.MeasurementsByRegexFn(re)
+}
+
+func (s *Shard) TagSets(measurement string, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
+	return s.TagSetsFn(measurement, dimensions, condition)
+}
+
+func (s *Shard) FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+	return s.FieldDimensionsFn(measurements)
+}
+
+func (s *Shard) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	return s.CreateIteratorFn(opt)
+}
+
+func (s *Shard) CreateSeriesIterator(measurement string, tagSet *influxql.TagSet, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	return s.CreateSeriesIteratorFn(measurement, tagSet, opt)
 }
 
 // MustParseQuery parses s into a query. Panic on error.
@@ -262,25 +292,6 @@ func ReadAllResults(c <-chan *influxql.Result) []*influxql.Result {
 		a = append(a, result)
 	}
 	return a
-}
-
-// IteratorCreator is a mockable implementation of IteratorCreator.
-type IteratorCreator struct {
-	CreateIteratorFn  func(opt influxql.IteratorOptions) (influxql.Iterator, error)
-	FieldDimensionsFn func(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
-	ExpandSourcesFn   func(sources influxql.Sources) (influxql.Sources, error)
-}
-
-func (ic *IteratorCreator) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	return ic.CreateIteratorFn(opt)
-}
-
-func (ic *IteratorCreator) FieldDimensions(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
-	return ic.FieldDimensionsFn(sources)
-}
-
-func (ic *IteratorCreator) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
-	return ic.ExpandSourcesFn(sources)
 }
 
 // FloatIterator is a represents an iterator that reads from a slice.

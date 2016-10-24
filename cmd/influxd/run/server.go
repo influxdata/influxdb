@@ -180,9 +180,13 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 	// Initialize query executor.
 	s.QueryExecutor = influxql.NewQueryExecutor()
 	s.QueryExecutor.StatementExecutor = &coordinator.StatementExecutor{
-		MetaClient:        s.MetaClient,
-		TaskManager:       s.QueryExecutor.TaskManager,
-		TSDBStore:         coordinator.LocalTSDBStore{Store: s.TSDBStore},
+		MetaClient:  s.MetaClient,
+		TaskManager: s.QueryExecutor.TaskManager,
+		TSDBStore:   coordinator.LocalTSDBStore{Store: s.TSDBStore},
+		ShardMapper: &coordinator.LocalShardMapper{
+			MetaClient: s.MetaClient,
+			TSDBStore:  coordinator.LocalTSDBStore{Store: s.TSDBStore},
+		},
 		Monitor:           s.Monitor,
 		PointsWriter:      s.PointsWriter,
 		MaxSelectPointN:   c.Coordinator.MaxSelectPointN,
