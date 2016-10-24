@@ -27,11 +27,12 @@ func (e Error) Error() string {
 // provides methods to trigger log messages at various alert levels and a
 // WithField method to set keys for a structured log message.
 type Logger interface {
+	Debug(...interface{})
 	Info(...interface{})
 	Warn(...interface{})
-	Debug(...interface{})
-	Panic(...interface{})
 	Error(...interface{})
+	Fatal(...interface{})
+	Panic(...interface{})
 
 	WithField(string, interface{}) Logger
 }

@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/server"
 	clog "github.com/influxdata/chronograf/log"
+	"github.com/influxdata/chronograf/server"
 )
 
 func TestCookieExtractor(t *testing.T) {
@@ -180,7 +180,7 @@ func TestAuthorizedToken(t *testing.T) {
 			Principal: test.Principal,
 		}
 
-		logger := clog.New()
+		logger := clog.New(clog.DebugLevel)
 		handler := server.AuthorizedToken(a, e, logger, next)
 		handler.ServeHTTP(w, req)
 		if w.Code != test.Code {

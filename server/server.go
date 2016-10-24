@@ -1,8 +1,10 @@
 package server
 
 import (
+	"math/rand"
 	"net"
 	"net/http"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -13,11 +15,10 @@ import (
 	"github.com/influxdata/chronograf/layouts"
 	clog "github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/uuid"
+	client "github.com/influxdata/usage-client/v1"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/tylerb/graceful"
 )
-
-var logger = clog.New()
 
 // Server for the chronograf API
 type Server struct {
@@ -35,9 +36,18 @@ type Server struct {
 	TokenSecret        string `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
 	GithubClientID     string `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
 	GithubClientSecret string `short:"s" long:"github-client-secret" description:"Github Client Secret for OAuth 2 support" env:"GH_CLIENT_SECRET"`
+	ReportingDisabled  bool   `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id) once every 24hr" env:"REPORTING_DISABLED"`
+	LogLevel           string `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"warn" choice:"error" choice:"fatal" choice:"panic" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
+
+	BuildInfo BuildInfo
 
 	Listener net.Listener
 	handler  http.Handler
+}
+
+type BuildInfo struct {
+	Version string
+	Commit  string
 }
 
 func (s *Server) useAuth() bool {
@@ -46,7 +56,8 @@ func (s *Server) useAuth() bool {
 
 // Serve starts and runs the chronograf server
 func (s *Server) Serve() error {
-	service := openService(s.BoltPath, s.CannedPath)
+	logger := clog.New(clog.ParseLevel(s.LogLevel))
+	service := openService(s.BoltPath, s.CannedPath, logger)
 	s.handler = NewMux(MuxOpts{
 		Develop:            s.Develop,
 		TokenSecret:        s.TokenSecret,
@@ -70,9 +81,13 @@ func (s *Server) Serve() error {
 	httpServer.TCPKeepAlive = 1 * time.Minute
 	httpServer.Handler = s.handler
 
+	if !s.ReportingDisabled {
+		go reportUsageStats(s.BuildInfo, logger)
+	}
+
 	logger.
 		WithField("component", "server").
-		Info("Serving chronograf at http://%s", s.Listener.Addr())
+		Info("Serving chronograf at http://", s.Listener.Addr())
 
 	if err := httpServer.Serve(s.Listener); err != nil {
 		logger.
@@ -83,12 +98,12 @@ func (s *Server) Serve() error {
 
 	logger.
 		WithField("component", "server").
-		Info("Stopped serving chronograf at http://%s", s.Listener.Addr())
+		Info("Stopped serving chronograf at http://", s.Listener.Addr())
 
 	return nil
 }
 
-func openService(boltPath, cannedPath string) Service {
+func openService(boltPath, cannedPath string, logger chronograf.Logger) Service {
 	db := bolt.NewClient()
 	db.Path = boltPath
 	if err := db.Open(); err != nil {
@@ -113,5 +128,41 @@ func openService(boltPath, cannedPath string) Service {
 		ServersStore:     db.ServersStore,
 		TimeSeries:       &influx.Client{},
 		LayoutStore:      layouts,
+	}
+}
+
+// reportUsageStats starts periodic server reporting.
+func reportUsageStats(bi BuildInfo, logger chronograf.Logger) {
+	rand.Seed(time.Now().UTC().UnixNano())
+	serverID := strconv.FormatUint(uint64(rand.Int63()), 10)
+	reporter := client.New("")
+	u := &client.Usage{
+		Product: "chronograf",
+		Data: []client.UsageData{
+			{
+				Values: client.Values{
+					"os":         runtime.GOOS,
+					"arch":       runtime.GOARCH,
+					"version":    bi.Version,
+					"cluster_id": serverID,
+				},
+			},
+		},
+	}
+	l := logger.WithField("component", "usage").
+		WithField("reporting_addr", reporter.URL).
+		WithField("freq", "24h").
+		WithField("stats", "os,arch,version,cluster_id")
+	l.Info("Reporting usage stats")
+	reporter.Save(u)
+
+	ticker := time.NewTicker(24 * time.Hour)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			l.Debug("Reporting usage stats")
+			go reporter.Save(u)
+		}
 	}
 }

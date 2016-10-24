@@ -26,7 +26,7 @@ func Test_Influx_MakesRequestsToQueryEndpoint(t *testing.T) {
 	defer ts.Close()
 
 	var series chronograf.TimeSeries
-	series, err := influx.NewClient(ts.URL, log.New())
+	series, err := influx.NewClient(ts.URL, log.New(log.DebugLevel))
 	if err != nil {
 		t.Fatal("Unexpected error initializing client: err:", err)
 	}
@@ -59,7 +59,7 @@ func Test_Influx_CancelsInFlightRequests(t *testing.T) {
 		ts.Close()
 	}()
 
-	series, _ := influx.NewClient(ts.URL, log.New())
+	series, _ := influx.NewClient(ts.URL, log.New(log.DebugLevel))
 	ctx, cancel := context.WithCancel(context.Background())
 
 	errs := make(chan (error))
@@ -102,7 +102,7 @@ func Test_Influx_CancelsInFlightRequests(t *testing.T) {
 }
 
 func Test_Influx_RejectsInvalidHosts(t *testing.T) {
-	_, err := influx.NewClient(":", log.New())
+	_, err := influx.NewClient(":", log.New(log.DebugLevel))
 	if err == nil {
 		t.Fatal("Expected err but was nil")
 	}
@@ -114,7 +114,7 @@ func Test_Influx_ReportsInfluxErrs(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	cl, err := influx.NewClient(ts.URL, log.New())
+	cl, err := influx.NewClient(ts.URL, log.New(log.DebugLevel))
 	if err != nil {
 		t.Fatal("Encountered unexpected error while initializing influx client: err:", err)
 	}
