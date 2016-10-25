@@ -57,8 +57,8 @@ func NewCommand() *Command {
 func (cmd *Command) Run(args ...string) error {
 	var start, end string
 	fs := flag.NewFlagSet("export", flag.ExitOnError)
-	fs.StringVar(&cmd.dataDir, "datadir", os.Getenv("HOME")+"/.influxdb/data", "Data storage path.")
-	fs.StringVar(&cmd.walDir, "waldir", os.Getenv("HOME")+"/.influxdb/wal", "Wal storage path.")
+	fs.StringVar(&cmd.dataDir, "datadir", os.Getenv("HOME")+"/.influxdb/data", "Data storage path")
+	fs.StringVar(&cmd.walDir, "waldir", os.Getenv("HOME")+"/.influxdb/wal", "WAL storage path")
 	fs.StringVar(&cmd.out, "out", os.Getenv("HOME")+"/.influxdb/export", "Destination file to export to")
 	fs.StringVar(&cmd.database, "database", "", "Optional: the database to export")
 	fs.StringVar(&cmd.retentionPolicy, "retention", "", "Optional: the retention policy to export (requires -database)")
