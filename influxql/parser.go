@@ -1030,6 +1030,25 @@ func (p *Parser) parseDeleteStatement() (Statement, error) {
 		if stmt.Sources, err = p.parseSources(); err != nil {
 			return nil, err
 		}
+
+		var err error
+		WalkFunc(stmt.Sources, func(n Node) {
+			if t, ok := n.(*Measurement); ok {
+				// Don't allow database or retention policy in from clause for delete
+				// statement.  They apply to the selected database across all retention
+				// policies.
+				if t.Database != "" {
+					err = &ParseError{Message: "database not supported"}
+				}
+				if t.RetentionPolicy != "" {
+					err = &ParseError{Message: "retention policy not supported"}
+				}
+			}
+		})
+		if err != nil {
+			return nil, err
+		}
+
 	} else {
 		p.unscan()
 	}
@@ -1430,6 +1449,24 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 	if tok == FROM {
 		// Parse source.
 		if stmt.Sources, err = p.parseSources(); err != nil {
+			return nil, err
+		}
+
+		var err error
+		WalkFunc(stmt.Sources, func(n Node) {
+			if t, ok := n.(*Measurement); ok {
+				// Don't allow database or retention policy in from clause for delete
+				// statement.  They apply to the selected database across all retention
+				// policies.
+				if t.Database != "" {
+					err = &ParseError{Message: "database not supported"}
+				}
+				if t.RetentionPolicy != "" {
+					err = &ParseError{Message: "retention policy not supported"}
+				}
+			}
+		})
+		if err != nil {
 			return nil, err
 		}
 	} else {
