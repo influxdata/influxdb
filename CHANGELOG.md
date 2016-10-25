@@ -39,6 +39,7 @@ The following configuration changes in the `[data]` section may need to changed 
 - [#7480](https://github.com/influxdata/influxdb/pull/7480): Improve compaction planning performance by caching tsm file stats.
 - [#7320](https://github.com/influxdata/influxdb/issues/7320): Update defaults in config for latest best practices
 - [#7495](https://github.com/influxdata/influxdb/pull/7495): Rewrite regexes of the form host = /^server-a$/ to host = 'server-a', to take advantage of the tsdb index.
+- [#6704](https://github.com/influxdata/influxdb/issues/6704): Optimize first/last when no group by interval is present.
 
 ### Bugfixes
 

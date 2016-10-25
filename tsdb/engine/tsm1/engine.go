@@ -1222,7 +1222,22 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 	if call, ok := opt.Expr.(*influxql.Call); ok {
 		refOpt := opt
 		refOpt.Expr = call.Args[0].(*influxql.VarRef)
-		inputs, err := e.createVarRefIterator(refOpt, true)
+
+		aggregate := true
+		if opt.Interval.IsZero() {
+			switch call.Name {
+			case "first":
+				aggregate = false
+				refOpt.Limit = 1
+				refOpt.Ascending = true
+			case "last":
+				aggregate = false
+				refOpt.Limit = 1
+				refOpt.Ascending = false
+			}
+		}
+
+		inputs, err := e.createVarRefIterator(refOpt, aggregate)
 		if err != nil {
 			return nil, err
 		} else if len(inputs) == 0 {
