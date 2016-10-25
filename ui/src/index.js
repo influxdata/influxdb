@@ -105,14 +105,14 @@ const Root = React.createClass({
               <Route path="accounts/:accountID" component={ClusterAccountPage} />
               <Route path="databases/manager/:database" component={DatabaseManager} />
               <Route path="databases/retentionpolicies/:database" component={RetentionPoliciesPage} />
-              <Route path="chronograf/data_explorer" component={DataExplorer} />
-              <Route path="chronograf/data_explorer/:base64ExplorerID" component={DataExplorer} />
+              <Route path="chronograf/data-explorer" component={DataExplorer} />
+              <Route path="chronograf/data-explorer/:base64ExplorerID" component={DataExplorer} />
               <Route path="roles" component={RolesPageContainer} />
               <Route path="roles/:roleSlug" component={RolePageContainer} />
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
-              <Route path="kapacitor" component={KapacitorPage} />
-              <Route path="kapacitor_tasks" component={KapacitorTasksPage} />
+              <Route path="kapacitor-config" component={KapacitorPage} />
+              <Route path="kapacitor-tasks" component={KapacitorTasksPage} />
             </Route>
             <Route path="tasks" component={TasksPage} />
             <Route path="*" component={NotFound} />
