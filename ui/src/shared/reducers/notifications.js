@@ -1,6 +1,11 @@
 import u from 'updeep';
 
-export default function notifications(state = {}, action) {
+function getInitialState() {
+  return {};
+}
+const initialState = getInitialState();
+
+export default function notifications(state = initialState, action) {
   switch (action.type) {
     case 'NOTIFICATION_RECEIVED': {
       const {type, message} = action.payload;
@@ -9,6 +14,9 @@ export default function notifications(state = {}, action) {
     case 'NOTIFICATION_DISMISSED': {
       const {type} = action.payload;
       return u(u.omit(type), state);
+    }
+    case 'ALL_NOTIFICATIONS_DISMISSED': {
+      return getInitialState();
     }
   }
 
