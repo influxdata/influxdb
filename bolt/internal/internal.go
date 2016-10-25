@@ -48,7 +48,7 @@ func MarshalSource(s chronograf.Source) ([]byte, error) {
 		Type:     s.Type,
 		Username: s.Username,
 		Password: s.Password,
-		URLs:     s.URL,
+		URL:      s.URL,
 		Default:  s.Default,
 	})
 }
@@ -65,7 +65,7 @@ func UnmarshalSource(data []byte, s *chronograf.Source) error {
 	s.Type = pb.Type
 	s.Username = pb.Username
 	s.Password = pb.Password
-	s.URL = pb.URLs
+	s.URL = pb.URL
 	s.Default = pb.Default
 	return nil
 }

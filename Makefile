@@ -26,13 +26,12 @@ docker: dep assets docker-${BINARY}
 
 assets: js bindata
 
-dev-assets: dev-js dev-bindata
+dev-assets: dev-js bindata
 
 bindata:
-	go-bindata -o dist/dist_gen.go -ignore 'map|go' -pkg dist ui/build/...
-
-dev-bindata:
-	go-bindata -debug -o dist/dist_gen.go -ignore 'map|go' -pkg dist ui/build/...
+	go generate -x ./dist
+	go generate -x ./server
+	go generate -x ./canned
 
 js:
 	cd ui && npm run build
@@ -51,7 +50,7 @@ jsdep:
 	cd ui && npm install
 
 gen: bolt/internal/internal.proto
-	go generate github.com/influxdata/chronograf/bolt/internal
+	go generate -x ./bolt/internal
 
 test: jstest gotest gotestrace
 
@@ -69,9 +68,6 @@ run: ${BINARY}
 
 run-dev: ${BINARY}
 	./chronograf -d --port 8888
-
-swagger: swagger.yaml
-	swagger generate server -f swagger.yaml  --with-context
 
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi

@@ -1,10 +1,11 @@
 package bolt
 
 import (
+	"context"
+
 	"github.com/boltdb/bolt"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt/internal"
-	"golang.org/x/net/context"
 )
 
 // Ensure ExplorationStore implements chronograf.ExplorationStore.
@@ -49,7 +50,7 @@ func (s *ExplorationStore) Add(ctx context.Context, e *chronograf.Exploration) (
 			return err
 		}
 		e.ID = chronograf.ExplorationID(seq)
-		e.CreatedAt = s.client.Now()
+		e.CreatedAt = s.client.Now().UTC()
 		e.UpdatedAt = e.CreatedAt
 
 		if v, err := internal.MarshalExploration(e); err != nil {
@@ -111,7 +112,7 @@ func (s *ExplorationStore) Update(ctx context.Context, e *chronograf.Exploration
 		ee.Name = e.Name
 		ee.UserID = e.UserID
 		ee.Data = e.Data
-		ee.UpdatedAt = s.client.Now()
+		ee.UpdatedAt = s.client.Now().UTC()
 
 		if v, err := internal.MarshalExploration(&ee); err != nil {
 			return err

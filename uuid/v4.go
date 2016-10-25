@@ -1,9 +1,8 @@
 package uuid
 
 import (
+	"context"
 	"time"
-
-	"golang.org/x/net/context"
 
 	"github.com/influxdata/chronograf"
 	uuid "github.com/satori/go.uuid"
