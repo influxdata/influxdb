@@ -542,6 +542,9 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 	// Remove "time" from fields list.
 	stmt.RewriteTimeFields()
 
+	// Rewrite any regex conditions that could make use of the index.
+	stmt.RewriteRegexConditions()
+
 	// Create an iterator creator based on the shards in the cluster.
 	ic, err := e.iteratorCreator(stmt, &opt)
 	if err != nil {

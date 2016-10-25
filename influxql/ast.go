@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"regexp/syntax"
 	"sort"
 	"strconv"
 	"strings"
@@ -1233,6 +1234,93 @@ func (s *SelectStatement) RewriteFields(ic IteratorCreator) (*SelectStatement, e
 	}
 
 	return other, nil
+}
+
+// RewriteRegexExprs rewrites regex conditions to make better use of the
+// database index.
+//
+// Conditions that can currently be simplified are:
+//
+//     - host =~ /^foo$/ becomes host = 'foo'
+//     - host !~ /^foo$/ becomes host != 'foo'
+//
+// Note: if the regex contains groups, character classes, repetition or
+// similar, it's likely it won't be rewritten. In order to support rewriting
+// regexes with these characters would be a lot more work.
+func (s *SelectStatement) RewriteRegexConditions() {
+	s.Condition = RewriteExpr(s.Condition, func(e Expr) Expr {
+		be, ok := e.(*BinaryExpr)
+		if !ok || (be.Op != EQREGEX && be.Op != NEQREGEX) {
+			// This expression is not a binary condition or doesn't have a
+			// regex based operator.
+			return e
+		}
+
+		// Handle regex-based condition.
+		rhs := be.RHS.(*RegexLiteral) // This must be a regex.
+
+		val, ok := matchExactRegex(rhs.Val.String())
+		if !ok {
+			// Regex didn't match.
+			return e
+		}
+
+		// Remove leading and trailing ^ and $.
+		be.RHS = &StringLiteral{Val: val}
+
+		// Update the condition operator.
+		if be.Op == EQREGEX {
+			be.Op = EQ
+		} else {
+			be.Op = NEQ
+		}
+		return be
+	})
+}
+
+// matchExactRegex matches regexes that have the following form: /^foo$/. It
+// considers /^$/ to be a matching regex.
+func matchExactRegex(v string) (string, bool) {
+	re, err := syntax.Parse(v, syntax.Perl)
+	if err != nil {
+		// Nothing we can do or log.
+		return "", false
+	}
+
+	if re.Op != syntax.OpConcat {
+		return "", false
+	}
+
+	if len(re.Sub) < 2 || len(re.Sub) > 3 {
+		// Regex has too few or too many subexpressions.
+		return "", false
+	}
+
+	start := re.Sub[0]
+	if !(start.Op == syntax.OpBeginLine || start.Op == syntax.OpBeginText) {
+		// Regex does not begin with ^
+		return "", false
+	}
+
+	end := re.Sub[len(re.Sub)-1]
+	if !(end.Op == syntax.OpEndLine || end.Op == syntax.OpEndText) {
+		// Regex does not end with $
+		return "", false
+	}
+
+	if len(re.Sub) == 3 {
+		middle := re.Sub[1]
+		if middle.Op != syntax.OpLiteral {
+			// Regex does not contain a literal op.
+			return "", false
+		}
+
+		// We can rewrite this regex.
+		return string(middle.Rune), true
+	}
+
+	// The regex /^$/
+	return "", true
 }
 
 // RewriteDistinct rewrites the expression to be a call for map/reduce to work correctly

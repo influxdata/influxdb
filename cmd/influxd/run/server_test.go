@@ -1,9 +1,11 @@
 package run_test
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -12,6 +14,33 @@ import (
 	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/models"
 )
+
+// Global server used by benchmarks
+var benchServer *Server
+
+func TestMain(m *testing.M) {
+	flag.Parse()
+
+	// Setup
+	c := NewConfig()
+	c.Retention.Enabled = false
+	c.Monitor.StoreEnabled = false
+	c.Meta.LoggingEnabled = false
+	c.Admin.Enabled = false
+	c.Subscriber.Enabled = false
+	c.ContinuousQuery.Enabled = false
+	c.Data.MaxSeriesPerDatabase = 10000000 // 10M
+	c.Data.MaxValuesPerTag = 1000000       // 1M
+	benchServer = OpenDefaultServer(c)
+
+	// Run suite.
+	r := m.Run()
+
+	// Cleanup
+	benchServer.Close()
+
+	os.Exit(r)
+}
 
 // Ensure that HTTP responses include the InfluxDB version.
 func TestServer_HTTPResponseVersion(t *testing.T) {
@@ -5165,16 +5194,22 @@ func TestServer_Query_With_EmptyTags(t *testing.T) {
 			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2009-11-10T23:00:03Z",2]]}]}]}`,
 		},
 		&Query{
-			name:    "where regex all",
-			params:  url.Values{"db": []string{"db0"}},
-			command: `select value from cpu where host =~ /.*/`,
-			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2009-11-10T23:00:02Z",1],["2009-11-10T23:00:03Z",2]]}]}]}`,
-		},
-		&Query{
 			name:    "where regex none",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select value from cpu where host !~ /.*/`,
 			exp:     `{"results":[{}]}`,
+		},
+		&Query{
+			name:    "where regex exact",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select value from cpu where host =~ /^server01$/`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2009-11-10T23:00:03Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "where regex exact (not)",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select value from cpu where host !~ /^server01$/`,
+			exp:     `{"results":[{"series":[{"name":"cpu","columns":["time","value"],"values":[["2009-11-10T23:00:02Z",1]]}]}]}`,
 		},
 		&Query{
 			name:    "where regex at least one char",
