@@ -60,6 +60,7 @@ The following configuration changes in the `[data]` section may need to changed 
 - [#7334](https://github.com/influxdata/influxdb/issues/7334): Panic with unread show series iterators during drop database
 - [#7482](https://github.com/influxdata/influxdb/issues/7482): Fix issue where point would be written to wrong shard.
 - [#7431](https://github.com/influxdata/influxdb/issues/7431): Remove /data/process_continuous_queries endpoint.
+- [#7053](https://github.com/influxdata/influxdb/issues/7053): Delete statement returns an error when retention policy or database is specified
 
 ## v1.0.2 [2016-10-05]
 
