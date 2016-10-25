@@ -529,7 +529,13 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 		if influxql.Sources(stmt.Sources).HasSystemSource() {
 			opt.MaxTime = time.Unix(0, influxql.MaxTime).UTC()
 		} else {
-			opt.MaxTime = now
+			if interval, err := stmt.GroupByInterval(); err != nil {
+				return nil, stmt, err
+			} else if interval > 0 {
+				opt.MaxTime = now
+			} else {
+				opt.MaxTime = time.Unix(0, influxql.MaxTime).UTC()
+			}
 		}
 	}
 	if opt.MinTime.IsZero() {
