@@ -17,6 +17,10 @@ export const KapacitorPage = React.createClass({
   },
 
   componentDidMount() {
+    this.fetchKapacitor();
+  },
+
+  fetchKapacitor() {
     getKapacitor(this.props.source).then((kapacitor) => {
       this.setState({kapacitor});
     }).catch(function(_) {
@@ -26,25 +30,41 @@ export const KapacitorPage = React.createClass({
 
   handleKapacitorUpdate(e) {
     e.preventDefault();
-    const {kapacitor, newURL, newName, newUsername} = this.state;
+    if (this.state.kapacitor) {
+      this.handleUpdateKapacitor();
+    } else {
+      this.handleCreateKapacitor();
+    }
+  },
+
+  handleCreateKapacitor() {
     const {source} = this.props;
-    const updates = {
+    const {newURL, newName, newUsername} = this.state;
+    createKapacitor(source, {
+      url: newURL,
+      name: newName,
+      username: newUsername,
+      password: this.kapacitorPassword.value,
+    }).then(() => {
+      this.props.addFlashMessage({type: 'success', text: 'Kapacitor saved'});
+      this.fetchKapacitor();
+    }).catch(() => {
+      this.props.addFlashMessage({type: 'error', text: 'There was a problem creating the Kapacitor record'});
+    });
+  },
+
+  handleUpdateKapacitor() {
+    const {kapacitor, newURL, newName, newUsername} = this.state;
+    updateKapacitor(kapacitor, {
       url: newURL || kapacitor.url,
       name: newName || kapacitor.name,
       username: newUsername || kapacitor.username,
       password: this.kapacitorPassword.value,
-    };
-
-    let promise;
-    if (this.state.kapacitor) {
-      promise = updateKapacitor(kapacitor, updates);
-    } else {
-      promise = createKapacitor(source, updates);
-    }
-    promise.then(() => {
+    }).then(() => {
       this.props.addFlashMessage({type: 'success', text: 'Kapacitor saved'});
+      this.fetchKapacitor();
     }).catch(() => {
-      this.props.addFlashMessage({type: 'error', text: 'There was a problem saving Kapacitor'});
+      this.props.addFlashMessage({type: 'error', text: 'There was a problem updating the Kapacitor record'});
     });
   },
 
