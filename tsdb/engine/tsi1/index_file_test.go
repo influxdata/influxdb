@@ -2,7 +2,6 @@ package tsi1_test
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
@@ -11,25 +10,30 @@ import (
 
 // Ensure a simple index file can be built and opened.
 func TestCreateIndexFile(t *testing.T) {
-	if _, err := CreateIndexFile([]Series{
+	f, err := CreateIndexFile([]Series{
 		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
 		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
 		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatal(err)
+	} else if e, err := f.TagValueElem([]byte("cpu"), []byte("region"), []byte("west")); err != nil {
+		t.Fatal(err)
+	} else if e.Series.N != 1 {
+		t.Fatalf("unexpected series count: %d", e.Series.N)
 	}
 }
 
 // Ensure index file generation can be successfully built.
 func TestGenerateIndexFile(t *testing.T) {
 	// Build generated index file.
-	idx, err := GenerateIndexFile(10, 3, 4)
+	f, err := GenerateIndexFile(10, 3, 4)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Verify that tag/value series can be fetched.
-	if e, err := idx.TagValueElem([]byte("measurement0"), []byte("key0"), []byte("value0")); err != nil {
+	if e, err := f.TagValueElem([]byte("measurement0"), []byte("key0"), []byte("value0")); err != nil {
 		t.Fatal(err)
 	} else if e.Series.N == 0 {
 		t.Fatal("expected series")
@@ -63,15 +67,14 @@ func benchmarkIndexFile_TagValueSeries(b *testing.B, idx *tsi1.IndexFile) {
 
 // CreateIndexFile creates an index file with a given set of series.
 func CreateIndexFile(series []Series) (*tsi1.IndexFile, error) {
-	// Add series to the writer.
-	ifw := tsi1.NewIndexFileWriter()
-	for _, serie := range series {
-		ifw.Add(serie.Name, serie.Tags)
+	lf, err := CreateLogFile(series)
+	if err != nil {
+		return nil, err
 	}
 
 	// Write index file to buffer.
 	var buf bytes.Buffer
-	if _, err := ifw.WriteTo(&buf); err != nil {
+	if _, err := lf.CompactTo(&buf); err != nil {
 		return nil, err
 	}
 
@@ -86,44 +89,32 @@ func CreateIndexFile(series []Series) (*tsi1.IndexFile, error) {
 // GenerateIndexFile generates an index file from a set of series based on the count arguments.
 // Total series returned will equal measurementN * tagN * valueN.
 func GenerateIndexFile(measurementN, tagN, valueN int) (*tsi1.IndexFile, error) {
-	tagValueN := pow(valueN, tagN)
-
-	iw := tsi1.NewIndexFileWriter()
-	for i := 0; i < measurementN; i++ {
-		name := []byte(fmt.Sprintf("measurement%d", i))
-
-		// Generate tag sets.
-		for j := 0; j < tagValueN; j++ {
-			var tags models.Tags
-			for k := 0; k < tagN; k++ {
-				key := []byte(fmt.Sprintf("key%d", k))
-				value := []byte(fmt.Sprintf("value%d", (j / pow(valueN, k) % valueN)))
-				tags = append(tags, models.Tag{Key: key, Value: value})
-			}
-			iw.Add(name, tags)
-		}
+	// Generate a new log file first.
+	lf, err := GenerateLogFile(measurementN, tagN, valueN)
+	if err != nil {
+		return nil, err
 	}
 
-	// Write index file to buffer.
+	// Compact log file to buffer.
 	var buf bytes.Buffer
-	if _, err := iw.WriteTo(&buf); err != nil {
+	if _, err := lf.CompactTo(&buf); err != nil {
 		return nil, err
 	}
 
 	// Load index file from buffer.
-	var idx tsi1.IndexFile
-	if err := idx.UnmarshalBinary(buf.Bytes()); err != nil {
+	var f tsi1.IndexFile
+	if err := f.UnmarshalBinary(buf.Bytes()); err != nil {
 		return nil, err
 	}
-	return &idx, nil
+	return &f, nil
 }
 
 func MustGenerateIndexFile(measurementN, tagN, valueN int) *tsi1.IndexFile {
-	idx, err := GenerateIndexFile(measurementN, tagN, valueN)
+	f, err := GenerateIndexFile(measurementN, tagN, valueN)
 	if err != nil {
 		panic(err)
 	}
-	return idx
+	return f
 }
 
 var indexFileCache struct {

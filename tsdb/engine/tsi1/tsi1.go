@@ -128,3 +128,9 @@ func hashKey(key []byte) uint32 {
 func dist(hash uint32, i, capacity int) int {
 	return (i + capacity - (int(hash) % capacity)) % capacity
 }
+
+type uint32Slice []uint32
+
+func (a uint32Slice) Len() int           { return len(a) }
+func (a uint32Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a uint32Slice) Less(i, j int) bool { return a[i] < a[j] }

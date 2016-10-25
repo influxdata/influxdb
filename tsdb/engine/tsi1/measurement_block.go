@@ -85,6 +85,10 @@ func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementBlockElem, ok bool)
 		// Move position forward.
 		pos = (pos + 1) % int(n)
 		d++
+
+		if uint32(d) > n {
+			panic("empty hash data block")
+		}
 	}
 }
 
@@ -318,7 +322,7 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 
 	// Build key hash map
 	m := rhh.NewHashMap(rhh.Options{
-		Capacity:   len(mw.mms),
+		Capacity:   len(names),
 		LoadFactor: 90,
 	})
 	for name := range mw.mms {

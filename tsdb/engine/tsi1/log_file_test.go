@@ -1,6 +1,7 @@
 package tsi1_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"reflect"
@@ -97,4 +98,48 @@ func MustOpenLogFile() *LogFile {
 func (f *LogFile) Close() error {
 	defer os.Remove(f.Path)
 	return f.LogFile.Close()
+}
+
+// CreateLogFile creates a new temporary log file and adds a list of series.
+func CreateLogFile(series []Series) (*LogFile, error) {
+	f := MustOpenLogFile()
+	for _, serie := range series {
+		if err := f.AddSeries(serie.Name, serie.Tags); err != nil {
+			return nil, err
+		}
+	}
+	return f, nil
+}
+
+// GenerateLogFile generates a log file from a set of series based on the count arguments.
+// Total series returned will equal measurementN * tagN * valueN.
+func GenerateLogFile(measurementN, tagN, valueN int) (*LogFile, error) {
+	tagValueN := pow(valueN, tagN)
+
+	f := MustOpenLogFile()
+	for i := 0; i < measurementN; i++ {
+		name := []byte(fmt.Sprintf("measurement%d", i))
+
+		// Generate tag sets.
+		for j := 0; j < tagValueN; j++ {
+			var tags models.Tags
+			for k := 0; k < tagN; k++ {
+				key := []byte(fmt.Sprintf("key%d", k))
+				value := []byte(fmt.Sprintf("value%d", (j / pow(valueN, k) % valueN)))
+				tags = append(tags, models.Tag{Key: key, Value: value})
+			}
+			if err := f.AddSeries(name, tags); err != nil {
+				return nil, err
+			}
+		}
+	}
+	return f, nil
+}
+
+func MustGenerateLogFile(measurementN, tagN, valueN int) *LogFile {
+	f, err := GenerateLogFile(measurementN, tagN, valueN)
+	if err != nil {
+		panic(err)
+	}
+	return f
 }
