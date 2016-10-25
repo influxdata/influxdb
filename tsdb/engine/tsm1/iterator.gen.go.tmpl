@@ -12,9 +12,10 @@ import (
 type cursor interface {
 	close() error
 	next() (t int64, v interface{})
+	seek(t int64)
 }
 
-// cursorAt provides a bufferred cursor interface.
+// cursorAt provides a buffered cursor interface.
 // This required for literal value cursors which don't have a time value.
 type cursorAt interface {
 	close() error
@@ -22,10 +23,7 @@ type cursorAt interface {
 	nextAt(seek int64) interface{}
 }
 
-type nilCursor struct {}
-func (nilCursor) next() (int64, interface{}) { return tsdb.EOF, nil }
-
-// bufCursor implements a bufferred cursor.
+// bufCursor implements a buffered cursor.
 type bufCursor struct {
 	cur cursor
 	buf struct {
@@ -36,7 +34,7 @@ type bufCursor struct {
 	ascending bool
 }
 
-// newBufCursor returns a bufferred wrapper for cur.
+// newBufCursor returns a buffered wrapper for cur.
 func newBufCursor(cur cursor, ascending bool) *bufCursor {
 	return &bufCursor{cur: cur, ascending: ascending}
 }
@@ -231,6 +229,40 @@ func (itr *{{.name}}Iterator) Stats() influxql.IteratorStats {
 	return stats
 }
 
+// bufCursor returns a buffered cursor so seek operations can be performed.
+// If the current cursor isn't a buffered cursor, this wraps it in one automatically.
+func (itr *{{.name}}Iterator) bufCursor() (*buf{{.Name}}Cursor, error) {
+	if itr.cur == nil {
+		return nil, influxql.ErrSeekUnavailable
+	}
+
+	cur, ok := itr.cur.(*buf{{.Name}}Cursor)
+	if !ok {
+		cur = newBuf{{.Name}}Cursor(itr.cur, itr.opt.Ascending)
+		itr.cur = cur
+	}
+	return cur, nil
+}
+
+func (itr *{{.name}}Iterator) SeekTo(t int64) error {
+	itr.cur.seek(t)
+	return nil
+}
+
+func (itr *{{.name}}Iterator) SeekUntil(t int64) (bool, error) {
+	cur, err := itr.bufCursor()
+	if err != nil {
+		return false, err
+	}
+	cur.seekUntil(t)
+
+	// Check if the next point is before the seek time.
+	k, v := cur.next{{.Name}}()
+	ok := (itr.opt.Ascending && k < t) || (!itr.opt.Ascending && k > t)
+	cur.unread(k, v)
+	return ok, nil
+}
+
 // Close closes the iterator.
 func (itr *{{.name}}Iterator) Close() error {
 	for _, c := range itr.aux {
@@ -401,6 +433,17 @@ func (c *{{.name}}AscendingCursor) nextCache() {
 	c.cache.pos++
 }
 
+func (c *{{.name}}AscendingCursor) seekCache(t int64) {
+	if c.cache.pos >= len(c.cache.values) {
+		return
+	}
+	values := c.cache.values[c.cache.pos:]
+	i := sort.Search(len(values), func(i int) bool {
+		return values[i].UnixNano() >= t
+	})
+	c.cache.pos += i
+}
+
 // nextTSM returns the next value from the TSM files.
 func (c *{{.name}}AscendingCursor) nextTSM() {
 	c.tsm.pos++
@@ -412,6 +455,41 @@ func (c *{{.name}}AscendingCursor) nextTSM() {
 		}
 		c.tsm.pos = 0
 	}
+}
+
+func (c *{{.name}}AscendingCursor) seekTSM(t int64) {
+	if c.tsm.pos >= len(c.tsm.values) {
+		return
+	}
+
+	values := c.tsm.values[c.tsm.pos:]
+	i, j := 0, len(values)
+	for i < j {
+		h := i + (j-i)/2
+		if values[h].UnixNano() >= t {
+			tmax = h
+		} else {
+			tmin = h + 1
+		}
+	}
+	c.tsm.pos += i
+
+	if c.tsm.pos < len(c.tsm.values) {
+		return
+	}
+
+	// We did not find a value within the current interval.
+	// Seek to the appropriate interval.
+	c.tsm.keyCursor.seekAscending(t)
+	c.tsm.values, _ = c.tsm.keyCursor.Read{{.Name}}Block(&c.tsm.buf)
+	c.tsm.pos = sort.Search(len(c.tsm.values), func(i int) bool {
+		return c.tsm.values[i].UnixNano() >= t
+	})
+}
+
+func (c *{{.name}}AscendingCursor) seek(t int64) {
+	c.seekCache(t)
+	c.seekTSM(t)
 }
 
 type {{.name}}DescendingCursor struct {
@@ -521,6 +599,9 @@ func (c *{{.name}}DescendingCursor) nextCache() {
 	c.cache.pos--
 }
 
+func (c *{{.name}}DescendingCursor) seekCache(t int64) {
+}
+
 // nextTSM returns the next value from the TSM files.
 func (c *{{.name}}DescendingCursor) nextTSM() {
 	c.tsm.pos--
@@ -531,6 +612,89 @@ func (c *{{.name}}DescendingCursor) nextTSM() {
 			return
 		}
 		c.tsm.pos = len(c.tsm.values) - 1
+	}
+}
+
+func (c *{{.name}}DescendingCursor) seekTSM(t int64) {
+}
+
+func (c *{{.name}}DescendingCursor) seek(t int64) {
+	c.seekCache(t)
+	c.seekTSM(t)
+}
+
+// buf{{.Name}}Cursor provides a ring buffer to support seeking in a cursor.
+type buf{{.Name}}Cursor struct {
+	cur {{.name}}Cursor
+	buf [2]struct {
+		key    int64
+		value  {{.Type}}
+		filled bool
+	}
+	ascending bool
+}
+
+// newBuf{{.Name}}Cursor returns a buffered wrapper for cur.
+func newBuf{{.Name}}Cursor(cur {{.name}}Cursor, ascending bool) *buf{{.Name}}Cursor {
+	return &buf{{.Name}}Cursor{cur: cur, ascending: ascending}
+}
+
+func (c *buf{{.Name}}Cursor) close() error { return c.cur.close() }
+func (c *buf{{.Name}}Cursor) next() (int64, interface{}) { return c.next{{.Name}}() }
+
+func (c *buf{{.Name}}Cursor) next{{.Name}}() (int64, {{.Type}}) {
+	if c.buf[0].filled {
+		k, v := c.buf[0].key, c.buf[0].value
+		c.buf[0] = c.buf[1]
+		c.buf[1].filled = false
+		return k, v
+	}
+	return c.cur.next{{.Name}}()
+}
+
+func (c *buf{{.Name}}Cursor) unread(k int64, v {{.Type}}) {
+	c.buf[1] = c.buf[0]
+	c.buf[0].key, c.buf[0].value = k, v
+	c.buf[0].filled = true
+}
+
+func (c *buf{{.Name}}Cursor) seek(t int64) {
+	c.cur.seek(t)
+}
+
+func (c *buf{{.Name}}Cursor) seekAt(seek int64) {
+	for {
+		k, v := c.next{{.Name}}()
+		if k == tsdb.EOF {
+			break
+		}
+
+		if c.ascending && k < seek {
+			continue
+		} else if !c.ascending && k > seek {
+			continue
+		}
+		c.unread(k, v)
+		return
+	}
+}
+
+func (c *buf{{.Name}}Cursor) seekUntil(seek int64) {
+	for {
+		k, v := c.next{{.Name}}()
+		if k == tsdb.EOF {
+			break
+		}
+
+		if c.ascending && k < seek {
+			c.unread(k, v)
+			continue
+		} else if !c.ascending && k > seek {
+			c.unread(k, v)
+			continue
+		}
+		c.unread(k, v)
+		return
 	}
 }
 
@@ -554,6 +718,120 @@ func (c *{{.name}}NilLiteralCursor) close() error { return nil }
 func (c *{{.name}}NilLiteralCursor) peek() (t int64, v interface{}) { return tsdb.EOF, (*{{.Type}})(nil) }
 func (c *{{.name}}NilLiteralCursor) next() (t int64, v interface{}) { return tsdb.EOF, (*{{.Type}})(nil) }
 func (c *{{.name}}NilLiteralCursor) nextAt(seek int64) interface{} { return (*{{.Type}})(nil) }
+
+// first{{.Name}}Iterator returns the first value from each window for an iterator.
+type first{{.Name}}Iterator struct {
+	input influxql.Seek{{.Name}}Iterator
+	opt   influxql.IteratorOptions
+	point influxql.{{.Name}}Point
+}
+
+func newFirst{{.Name}}Iterator(input influxql.Seek{{.Name}}Iterator, opt influxql.IteratorOptions) *first{{.Name}}Iterator {
+	return &first{{.Name}}Iterator{
+		input: input,
+		opt:   opt,
+		point: influxql.{{.Name}}Point{Nil: true},
+	}
+}
+
+func (itr *first{{.Name}}Iterator) Close() error { return itr.input.Close() }
+func (itr *first{{.Name}}Iterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
+
+func (itr *first{{.Name}}Iterator) Next() (*influxql.{{.Name}}Point, error) {
+	// Seek to the next point if we have read a previous point.
+	if !itr.point.Nil {
+		// If we do not have an interval, return immediately.
+		if itr.opt.Interval.IsZero() {
+			return nil, nil
+		}
+
+		start, _ := itr.opt.Window(itr.point.Time)
+		if itr.opt.Ascending {
+			// Ascending iterator needs to move to the future interval.
+			start += int64(itr.opt.Interval.Duration)
+		} else {
+			// The start time of the current interval is the end time of the past interval
+			// we need to move to. This is intentionally left empty for this comment.
+		}
+
+		// Seek to at least the next interval's start time. This may not get us the
+		// time interval that is in start, but it will at least get us the next new
+		// time interval.
+		if err := itr.input.SeekTo(start); err != nil {
+			return nil, err
+		}
+	}
+
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		itr.point.Nil = true
+		return p, err
+	}
+	itr.point = *p
+	return p.Clone(), nil
+}
+
+// last{{.Name}}Iterator returns the first value from each window for an iterator.
+type last{{.Name}}Iterator struct {
+	input influxql.Seek{{.Name}}Iterator
+	opt   influxql.IteratorOptions
+	point influxql.{{.Name}}Point
+}
+
+func newLast{{.Name}}Iterator(input influxql.Seek{{.Name}}Iterator, opt influxql.IteratorOptions) *last{{.Name}}Iterator {
+	return &last{{.Name}}Iterator{
+		input: input,
+		opt:   opt,
+		point: influxql.{{.Name}}Point{Nil: true},
+	}
+}
+
+func (itr *last{{.Name}}Iterator) Close() error { return itr.input.Close() }
+func (itr *last{{.Name}}Iterator) Stats() influxql.IteratorStats { return itr.input.Stats() }
+
+func (itr *last{{.Name}}Iterator) Next() (*influxql.{{.Name}}Point, error) {
+	// Seek to the next point if we have read a previous point.
+	if !itr.point.Nil {
+		// If we do not have an interval, return immediately.
+		if itr.opt.Interval.IsZero() {
+			return nil, nil
+		}
+	}
+
+	_, end := itr.opt.Window(itr.point.Time)
+	if itr.opt.Ascending {
+		// Ascending iterator needs to move to the future interval.
+		end += int64(itr.opt.Interval.Duration)
+	} else {
+		// The start time of the current interval is the end time of the past interval
+		// we need to move to. This is intentionally left empty for this comment.
+	}
+
+	for {
+		// Seek to at least the next interval's start time. This may not get us the
+		// time interval that is in start, but it will at least get us the next new
+		// time interval.
+		if ok, err := itr.input.SeekUntil(end); err != nil {
+			return nil, err
+		} else if ok {
+			break
+		}
+
+		duration := int64(itr.opt.Interval.Duration)
+		if !itr.opt.Ascending {
+			duration = -duration
+		}
+		end += duration
+	}
+
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		itr.point.Nil = true
+		return p, err
+	}
+	itr.point = *p
+	return &itr.point, nil
+}
 
 {{end}}
 

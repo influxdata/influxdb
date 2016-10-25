@@ -14,8 +14,13 @@ import (
 	internal "github.com/influxdata/influxdb/influxql/internal"
 )
 
-// ErrUnknownCall is returned when operating on an unknown function call.
-var ErrUnknownCall = errors.New("unknown call")
+var (
+	// ErrUnknownCall is returned when operating on an unknown function call.
+	ErrUnknownCall = errors.New("unknown call")
+
+	// ErrSeekUnavailable is returned when attempting to seek with an Iterator that does not support seeking.
+	ErrSeekUnavailable = errors.New("seek unavailable")
+)
 
 const (
 	// MinTime is used as the minimum time value when computing an unbounded range.

@@ -639,6 +639,254 @@ func BenchmarkEngine_CreateIterator_Limit_1M(b *testing.B) {
 	benchmarkEngineCreateIteratorLimit(b, 1000000)
 }
 
+func benchmarkEngineCreateIteratorFirst_Ascending(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:      influxql.MustParseExpr("first(value)"),
+		Sources:   []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Ascending: true,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+	}, pointN)
+}
+
+func BenchmarkEngine_CreateIterator_First_Ascending_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Ascending(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_First_Ascending_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Ascending(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_First_Ascending_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Ascending(b, 1000000)
+}
+
+func benchmarkEngineCreateIteratorFirst_Ascending_GroupByHost(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:       influxql.MustParseExpr("first(value)"),
+		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Dimensions: []string{"host"},
+		Ascending:  true,
+		StartTime:  influxql.MinTime,
+		EndTime:    influxql.MaxTime,
+	}, pointN)
+}
+
+func BenchmarkEngine_CreateIterator_First_Ascending_GroupByHost_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Ascending_GroupByHost(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_First_Ascending_GroupByHost_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Ascending_GroupByHost(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_First_Ascending_GroupByHost_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Ascending_GroupByHost(b, 1000000)
+}
+
+func benchmarkEngineCreateIteratorFirst_Ascending_GroupByTime(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:      influxql.MustParseExpr("first(value)"),
+		Sources:   []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Interval:  influxql.Interval{Duration: 10 * time.Second},
+		Ascending: true,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+	}, pointN)
+}
+
+func BenchmarkEngine_CreateIterator_First_Ascending_GroupByTime_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Ascending_GroupByTime(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_First_Ascending_GroupByTime_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Ascending_GroupByTime(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_First_Ascending_GroupByTime_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Ascending_GroupByTime(b, 1000000)
+}
+
+func benchmarkEngineCreateIteratorFirst_Descending(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:      influxql.MustParseExpr("first(value)"),
+		Sources:   []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Ascending: false,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+	}, pointN)
+}
+
+func BenchmarkEngine_CreateIterator_First_Descending_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Descending(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_First_Descending_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Descending(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_First_Descending_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Descending(b, 1000000)
+}
+
+func benchmarkEngineCreateIteratorFirst_Descending_GroupByHost(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:       influxql.MustParseExpr("first(value)"),
+		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Dimensions: []string{"host"},
+		Ascending:  false,
+		StartTime:  influxql.MinTime,
+		EndTime:    influxql.MaxTime,
+	}, pointN)
+}
+
+func BenchmarkEngine_CreateIterator_First_Descending_GroupByHost_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Descending_GroupByHost(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_First_Descending_GroupByHost_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Descending_GroupByHost(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_First_Descending_GroupByHost_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Descending_GroupByHost(b, 1000000)
+}
+
+func benchmarkEngineCreateIteratorFirst_Descending_GroupByTime(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:      influxql.MustParseExpr("first(value)"),
+		Sources:   []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Interval:  influxql.Interval{Duration: 10 * time.Second},
+		Ascending: false,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+	}, pointN)
+}
+
+func BenchmarkEngine_CreateIterator_First_Descending_GroupByTime_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Descending_GroupByTime(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_First_Descending_GroupByTime_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Descending_GroupByTime(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_First_Descending_GroupByTime_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorFirst_Descending_GroupByTime(b, 1000000)
+}
+
+func benchmarkEngineCreateIteratorLast_Ascending(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:      influxql.MustParseExpr("last(value)"),
+		Sources:   []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Ascending: true,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+	}, pointN)
+}
+
+func BenchmarkEngine_CreateIterator_Last_Ascending_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Ascending(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_Last_Ascending_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Ascending(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_Last_Ascending_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Ascending(b, 1000000)
+}
+
+func benchmarkEngineCreateIteratorLast_Ascending_GroupByHost(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:       influxql.MustParseExpr("last(value)"),
+		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Dimensions: []string{"host"},
+		Ascending:  true,
+		StartTime:  influxql.MinTime,
+		EndTime:    influxql.MaxTime,
+	}, pointN)
+}
+
+func BenchmarkEngine_CreateIterator_Last_Ascending_GroupByHost_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Ascending_GroupByHost(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_Last_Ascending_GroupByHost_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Ascending_GroupByHost(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_Last_Ascending_GroupByHost_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Ascending_GroupByHost(b, 1000000)
+}
+
+func benchmarkEngineCreateIteratorLast_Ascending_GroupByTime(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:      influxql.MustParseExpr("last(value)"),
+		Sources:   []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Interval:  influxql.Interval{Duration: 10 * time.Second},
+		Ascending: true,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+	}, pointN)
+}
+
+func BenchmarkEngine_CreateIterator_Last_Ascending_GroupByTime_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Ascending_GroupByTime(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_Last_Ascending_GroupByTime_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Ascending_GroupByTime(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_Last_Ascending_GroupByTime_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Ascending_GroupByTime(b, 1000000)
+}
+
+func benchmarkEngineCreateIteratorLast_Descending(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:      influxql.MustParseExpr("last(value)"),
+		Sources:   []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Ascending: false,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+	}, pointN)
+}
+
+func BenchmarkEngine_CreateIterator_Last_Descending_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Descending(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_Last_Descending_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Descending(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_Last_Descending_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Descending(b, 1000000)
+}
+
+func benchmarkEngineCreateIteratorLast_Descending_GroupByHost(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:       influxql.MustParseExpr("last(value)"),
+		Sources:    []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Dimensions: []string{"host"},
+		Ascending:  false,
+		StartTime:  influxql.MinTime,
+		EndTime:    influxql.MaxTime,
+	}, pointN)
+}
+
+func BenchmarkEngine_CreateIterator_Last_Descending_GroupByHost_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Descending_GroupByHost(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_Last_Descending_GroupByHost_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Descending_GroupByHost(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_Last_Descending_GroupByHost_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Descending_GroupByHost(b, 1000000)
+}
+
+func benchmarkEngineCreateIteratorLast_Descending_GroupByTime(b *testing.B, pointN int) {
+	benchmarkIterator(b, influxql.IteratorOptions{
+		Expr:      influxql.MustParseExpr("last(value)"),
+		Sources:   []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+		Interval:  influxql.Interval{Duration: 10 * time.Second},
+		Ascending: false,
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+	}, pointN)
+}
+
+func BenchmarkEngine_CreateIterator_Last_Descending_GroupByTime_1K(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Descending_GroupByTime(b, 1000)
+}
+func BenchmarkEngine_CreateIterator_Last_Descending_GroupByTime_100K(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Descending_GroupByTime(b, 100000)
+}
+func BenchmarkEngine_CreateIterator_Last_Descending_GroupByTime_1M(b *testing.B) {
+	benchmarkEngineCreateIteratorLast_Descending_GroupByTime(b, 1000000)
+}
+
 func BenchmarkEngine_WritePoints_10(b *testing.B) {
 	benchmarkEngine_WritePoints(b, 10)
 }
