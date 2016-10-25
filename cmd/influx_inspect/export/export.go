@@ -17,6 +17,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/escape"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
@@ -271,6 +272,8 @@ func (cmd *Command) writeTsmFiles(w io.WriteCloser, files []string) error {
 			key, typ := reader.KeyAt(i)
 			values, _ := reader.ReadAll(string(key))
 			measurement, field := tsm1.SeriesAndFieldFromCompositeKey(key)
+			// measurements are stored escaped, field names are not
+			field = escape.String(field)
 
 			for _, value := range values {
 				if (value.UnixNano() < cmd.startTime) || (value.UnixNano() > cmd.endTime) {
@@ -351,6 +354,8 @@ func (cmd *Command) writeWALFiles(w io.WriteCloser, files []string, key string) 
 
 				for key, values := range t.Values {
 					measurement, field := tsm1.SeriesAndFieldFromCompositeKey([]byte(key))
+					// measurements are stored escaped, field names are not
+					field = escape.String(field)
 
 					for _, value := range values {
 						if (value.UnixNano() < cmd.startTime) || (value.UnixNano() > cmd.endTime) {
