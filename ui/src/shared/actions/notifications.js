@@ -16,3 +16,9 @@ export function dismissNotification(type) {
     },
   };
 }
+
+export function dismissAllNotifications() {
+  return {
+    type: 'ALL_NOTIFICATIONS_DISMISSED',
+  };
+}

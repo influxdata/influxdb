@@ -5,6 +5,7 @@ import SideNavContainer from 'src/side_nav';
 import {
   publishNotification as publishNotificationAction,
   dismissNotification as dismissNotificationAction,
+  dismissAllNotifications as dismissAllNotificationsAction,
 } from 'src/shared/actions/notifications';
 
 const App = React.createClass({
@@ -18,6 +19,7 @@ const App = React.createClass({
     }).isRequired,
     publishNotification: PropTypes.func.isRequired,
     dismissNotification: PropTypes.func.isRequired,
+    dismissAllNotifications: PropTypes.func.isRequired,
     notifications: PropTypes.shape({
       success: PropTypes.string,
       error: PropTypes.string,
@@ -31,6 +33,12 @@ const App = React.createClass({
 
   handleDismissNotification(type) {
     this.props.dismissNotification(type);
+  },
+
+  componentWillReceiveProps(nextProps) {
+    if (nextProps.location.pathname !== this.props.location.pathname) {
+      this.props.dismissAllNotifications();
+    }
   },
 
   render() {
@@ -95,4 +103,5 @@ function mapStateToProps(state) {
 export default connect(mapStateToProps, {
   publishNotification: publishNotificationAction,
   dismissNotification: dismissNotificationAction,
+  dismissAllNotifications: dismissAllNotificationsAction,
 })(App);
