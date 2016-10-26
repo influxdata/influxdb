@@ -66,12 +66,13 @@ const HostsTable = React.createClass({
 
   render() {
     const hosts = this.sort(this.state.filteredHosts, this.state.sortKey, this.state.sortDirection);
+    const hostCount = hosts.length;
     const {source} = this.props;
 
     return (
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-          <h2 className="panel-title">{this.props.hosts.length} Hosts</h2>
+          <h2 className="panel-title">{hostCount ? `${hostCount} Hosts` : ''}</h2>
           <SearchBar onSearch={_.wrap(this.props.hosts, this.filterHosts)} />
         </div>
         <div className="panel-body">
