@@ -2,7 +2,8 @@ import React, {PropTypes} from 'react';
 // TODO: move this to a higher level package than chronograf?
 import FlashMessages from 'shared/components/FlashMessages';
 import LayoutRenderer from '../components/LayoutRenderer';
-import {fetchLayout} from '../apis';
+import {fetchLayouts} from '../apis';
+import _ from 'lodash';
 
 export const HostPage = React.createClass({
   propTypes: {
@@ -16,9 +17,13 @@ export const HostPage = React.createClass({
     }).isRequired,
   },
 
+  getInitialState() {
+    return {layouts: []};
+  },
+
   componentDidMount() {
-    fetchLayout().then((layout) => {
-      this.setState({layout});
+    fetchLayouts().then((ls) => {
+      this.setState({layouts: ls.data.layouts});
     });
   },
 
@@ -27,34 +32,28 @@ export const HostPage = React.createClass({
     const source = this.props.source.links.proxy;
     const hostID = this.props.params.hostID;
 
-    const cells = [
-      {
-        id: "18aed9a7-dc83-406e-a4dc-40d53049541a",
-        cells: [
-          {
-            queries: [
-              {
-                rp: "autogen",
-                text: "select usage_user from cpu",
-                database: "telegraf",
-              },
-            ],
-            x: 0,
-            h: 100,
-            y: 0,
-            w: 50,
-            i: "used_percent",
-            name: "Disk Used Percent",
-          },
-        ],
-        measurement: "disk",
-        link: {
-          rel: "self",
-          href: "/chronograf/v1/layouts/18aed9a7-dc83-406e-a4dc-40d53049541a",
-        },
-        app: "User Facing Application Name",
-      },
-    ];
+    const layout = _.head(this.state.layouts);
+
+    let layoutComponent;
+    if (layout) {
+      layout.cells.forEach((cell) => {
+        cell.queries.forEach((q) => {
+          q.text = q.query;
+          q.database = q.db;
+        });
+      });
+
+      layoutComponent = (
+        <LayoutRenderer
+          cells={layout.cells}
+          autoRefreshMs={autoRefreshMs}
+          source={source}
+          host={this.props.params.hostID}
+        />
+      );
+    } else {
+      layoutComponent = <div />;
+    }
 
     return (
       <div className="host-dashboard hosts-page">
@@ -70,12 +69,7 @@ export const HostPage = React.createClass({
         </div>
         <div className="container-fluid hosts-dashboard">
           <div className="row">
-            <LayoutRenderer
-              cells={cells[0].cells}
-              autoRefreshMs={autoRefreshMs}
-              source={source}
-              host={this.props.params.hostID}
-            />
+            {layoutComponent}
           </div>
         </div>
       </div>

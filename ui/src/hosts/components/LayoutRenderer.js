@@ -39,7 +39,7 @@ export const LayoutRenderer = React.createClass({
   generateGraphs() {
     return this.props.cells.map((cell) => {
       const qs = cell.queries.map((q) => {
-        _.merge(q, {host: this.props.source, text: q.query, i: "used_percent", name: "Disk Used Percent"});
+        _.merge(q, {host: this.props.source});
         q.text += ` where host = '${this.props.host}' and time > now() - 15m`;
         return q;
       });
@@ -59,7 +59,7 @@ export const LayoutRenderer = React.createClass({
 
   render() {
     return (
-      <ReactGridLayout layout={this.state.layout} isDraggable={false} isResizable={false} width={1285}>
+      <ReactGridLayout layout={this.state.layout} isDraggable={false} isResizable={false} cols={12} rowHeight={30} width={1200}>
         {this.generateGraphs()}
       </ReactGridLayout>
     );

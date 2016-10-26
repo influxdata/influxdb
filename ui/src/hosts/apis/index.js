@@ -66,7 +66,7 @@ export function getAppsForHosts(proxyLink, hosts, supportedApps) {
   });
 }
 
-export function fetchLayout() {
+export function fetchLayouts() {
   return AJAX({
     url: `/chronograf/v1/layouts`,
     method: 'GET',

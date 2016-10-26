@@ -174,6 +174,8 @@ type Cell struct {
 	Y       int32   `json:"y"`
 	W       int32   `json:"w"`
 	H       int32   `json:"h"`
+	I       string  `json:"i"`
+	Name    string  `json:"name"`
 	Queries []Query `json:"queries"`
 }
 
