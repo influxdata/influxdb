@@ -34,7 +34,7 @@ const VictoropsConfig = React.createClass({
 
     return (
       <div className="panel-body">
-        <h4 className="text-center">SMTP Alert</h4>
+        <h4 className="text-center">VictorOps Alert</h4>
         <br/>
         <form onSubmit={this.handleSaveAlert}>
           <div className="row">

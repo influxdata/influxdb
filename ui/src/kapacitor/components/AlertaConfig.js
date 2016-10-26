@@ -31,7 +31,7 @@ const AlertaConfig = React.createClass({
 
     return (
       <div className="panel-body">
-        <h4 className="text-center">Alerta alerts</h4>
+        <h4 className="text-center">Alerta Alert</h4>
         <br/>
         <form onSubmit={this.handleSaveAlert}>
           <div className="row">
