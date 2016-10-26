@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 var (
@@ -34,24 +35,35 @@ func newEntry() *entry {
 	}
 }
 
-// newEntryValues returns a new instance of entry with the given values
-func newEntryValues(values []Value) *entry {
+// newEntryValues returns a new instance of entry with the given values.  If the
+// values are not valid, an error is returned.
+func newEntryValues(values []Value) (*entry, error) {
 	e := &entry{values: values}
 
+	// No values, don't check types and ordering
+	if len(values) == 0 {
+		return e, nil
+	}
+
 	var prevTime int64
+	et := valueType(values[0])
 	for _, v := range values {
 		if v.UnixNano() <= prevTime {
 			e.needSort = true
-			break
 		}
 		prevTime = v.UnixNano()
+
+		// Make sure all the values are the same type
+		if et != valueType(v) {
+			return nil, tsdb.ErrFieldTypeConflict
+		}
 	}
 
-	return e
+	return e, nil
 }
 
 // add adds the given values to the entry.
-func (e *entry) add(values []Value) {
+func (e *entry) add(values []Value) error {
 	// See if the new values are sorted or contain duplicate timestamps
 	var (
 		prevTime int64
@@ -75,6 +87,14 @@ func (e *entry) add(values []Value) {
 	if len(e.values) == 0 {
 		e.values = values
 	} else {
+		// Make sure the new values are the same type as the exiting values
+		et := valueType(e.values[0])
+		for _, v := range values {
+			if et != valueType(v) {
+				e.mu.Unlock()
+				return tsdb.ErrFieldTypeConflict
+			}
+		}
 		l := len(e.values)
 		lastValTime := e.values[l-1].UnixNano()
 		if lastValTime >= values[0].UnixNano() {
@@ -83,6 +103,7 @@ func (e *entry) add(values []Value) {
 		e.values = append(e.values, values...)
 	}
 	e.mu.Unlock()
+	return nil
 }
 
 // deduplicate sorts and orders the entry's values. If values are already deduped and
@@ -219,7 +240,10 @@ func (c *Cache) Write(key string, values []Value) error {
 		return ErrCacheMemoryExceeded
 	}
 
-	c.write(key, values)
+	if err := c.write(key, values); err != nil {
+		c.mu.Unlock()
+		return err
+	}
 	c.size += addedSize
 	c.mu.Unlock()
 
@@ -231,7 +255,9 @@ func (c *Cache) Write(key string, values []Value) error {
 }
 
 // WriteMulti writes the map of keys and associated values to the cache. This function is goroutine-safe.
-// It returns an error if the cache will exceeded its max size by adding the new values.
+// It returns an error if the cache will exceeded its max size by adding the new values.  The write attempts
+// to write as many values as possible.  If one key fails, the others can still succeed and an error will
+// be returned.
 func (c *Cache) WriteMulti(values map[string][]Value) error {
 	var totalSz uint64
 	for _, v := range values {
@@ -246,8 +272,14 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 		return ErrCacheMemoryExceeded
 	}
 
+	var werr error
 	for k, v := range values {
-		c.write(k, v)
+		if err := c.write(k, v); err != nil {
+			// write failed, hold onto the error and adjust
+			// the size delta
+			werr = err
+			totalSz -= uint64(Values(v).Size())
+		}
 	}
 	c.size += totalSz
 	c.mu.Unlock()
@@ -256,7 +288,7 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	c.updateMemSize(int64(totalSz))
 	atomic.AddInt64(&c.stats.WriteOK, 1)
 
-	return nil
+	return werr
 }
 
 // Snapshot will take a snapshot of the current cache, add it to the slice of caches that
@@ -491,13 +523,18 @@ func (c *Cache) values(key string) Values {
 
 // write writes the set of values for the key to the cache. This function assumes
 // the lock has been taken and does not enforce the cache size limits.
-func (c *Cache) write(key string, values []Value) {
+func (c *Cache) write(key string, values []Value) error {
 	e, ok := c.store[key]
 	if !ok {
-		c.store[key] = newEntryValues(values)
-		return
+		var err error
+		e, err = newEntryValues(values)
+		if err != nil {
+			return err
+		}
+		c.store[key] = e
+		return nil
 	}
-	e.add(values)
+	return e.add(values)
 }
 
 func (c *Cache) entry(key string) *entry {
@@ -622,6 +659,21 @@ func (c *Cache) updateCachedBytes(b uint64) {
 // Update the memSize level
 func (c *Cache) updateMemSize(b int64) {
 	atomic.AddInt64(&c.stats.MemSizeBytes, b)
+}
+
+func valueType(v Value) int {
+	switch v.(type) {
+	case *FloatValue:
+		return 1
+	case *IntegerValue:
+		return 2
+	case *StringValue:
+		return 3
+	case *BooleanValue:
+		return 4
+	default:
+		return 0
+	}
 }
 
 // Update the snapshotsCount and the diskSize levels
