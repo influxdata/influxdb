@@ -51,8 +51,8 @@ const SlackConfig = React.createClass({
 
               <div className="form-group">
                 <label htmlFor="slack-url">Slack Webhook URL (<a href="https://api.slack.com/incoming-webhooks" target="_">see more on Slack webhooks</a>)</label>
-                <input className="form-control" id="slack-url" type="text" ref={(r) => this.url = r} defaultValue={`${url}`}></input>
-                <span>Note: a value of <code>true</code> or <code>false</code> indicates whether or not a slack channel has been set</span>
+                <input className="form-control" id="slack-url" type="text" ref={(r) => this.url = r} defaultValue={url || ''}></input>
+                <span>Note: a value of <code>true</code> indicates that the Slack channel has been set</span>
               </div>
 
               <div className="form-group">
