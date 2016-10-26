@@ -18,7 +18,7 @@ const (
 
 	// DefaultCacheMaxMemorySize is the maximum size a shard's cache can
 	// reach before it starts rejecting writes.
-	DefaultCacheMaxMemorySize = 500 * 1024 * 1024 // 500MB
+	DefaultCacheMaxMemorySize = 1024 * 1024 * 1024 // 1GB
 
 	// DefaultCacheSnapshotMemorySize is the size at which the engine will
 	// snapshot the cache and write it to a TSM file, freeing up memory
@@ -27,11 +27,11 @@ const (
 	// DefaultCacheSnapshotWriteColdDuration is the length of time at which
 	// the engine will snapshot the cache and write it to a new TSM file if
 	// the shard hasn't received writes or deletes
-	DefaultCacheSnapshotWriteColdDuration = time.Duration(time.Hour)
+	DefaultCacheSnapshotWriteColdDuration = time.Duration(10 * time.Minute)
 
 	// DefaultCompactFullWriteColdDuration is the duration at which the engine
 	// will compact all TSM files in a shard if it hasn't received a write or delete
-	DefaultCompactFullWriteColdDuration = time.Duration(24 * time.Hour)
+	DefaultCompactFullWriteColdDuration = time.Duration(4 * time.Hour)
 
 	// DefaultMaxPointsPerBlock is the maximum number of points in an encoded
 	// block in a TSM file
