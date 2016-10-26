@@ -17,28 +17,28 @@ const SideNav = React.createClass({
         <div className="sidebar__logo">
           <a href="/"><span className="icon cubo-uniform"></span></a>
         </div>
-        <NavBlock matcher="hosts" icon="cpu" link={`${sourcePrefix}/hosts`}>
+        <NavBlock icon="cpu" link={`${sourcePrefix}/hosts`}>
           <NavHeader link={`${sourcePrefix}/hosts`} title="Infrastructure" />
-          <NavListItem matcher="hosts" link={`${sourcePrefix}/hosts`}>Host List</NavListItem>
+          <NavListItem link={`${sourcePrefix}/hosts`}>Host List</NavListItem>
         </NavBlock>
-        <NavBlock matcher="chronograf" icon="graphline" link={`${sourcePrefix}/chronograf/data_explorer`}>
-          <NavHeader link={`${sourcePrefix}/chronograf/data_explorer`} title={'Chronograf'} />
-          <NavListItem matcher={'data_explorer'} link={`${sourcePrefix}/chronograf/data_explorer`}>Data Explorer</NavListItem>
+        <NavBlock icon="graphline" link={`${sourcePrefix}/chronograf/data-explorer`}>
+          <NavHeader link={`${sourcePrefix}/chronograf/data-explorer`} title={'Chronograf'} />
+          <NavListItem link={`${sourcePrefix}/chronograf/data-explorer`}>Data Explorer</NavListItem>
         </NavBlock>
-        <NavBlock matcher="overview" icon="crown" link={`${sourcePrefix}/overview`}>
-          <NavHeader link={`${sourcePrefix}/overview`} title="Sources" />
-          <NavListItem matcher="manage-sources$" link={`${sourcePrefix}/manage-sources`}>InfluxDB</NavListItem>
-          <NavListItem matcher="kapacitor" link={`${sourcePrefix}/kapacitor`}>Kapacitor</NavListItem>
-          <NavListItem matcher="queries" link={`${sourcePrefix}/queries`}>Queries</NavListItem>
-          <NavListItem matcher="tasks" link={`${sourcePrefix}/tasks`}>Tasks</NavListItem>
-          <NavListItem matcher="roles" link={`${sourcePrefix}/roles`}>Roles</NavListItem>
-          <NavListItem matcher="accounts" link={`${sourcePrefix}/accounts`}>Cluster Accounts</NavListItem>
-          <NavListItem matcher="manager" link={`${sourcePrefix}/databases/manager/_internal`}>Database Manager</NavListItem>
-          <NavListItem matcher="retentionpolicies" link={`${sourcePrefix}/databases/retentionpolicies/_internal`}>Retention Policies</NavListItem>
+        <NavBlock icon="crown" link={`${sourcePrefix}/manage-sources`}>
+          <NavHeader link={`${sourcePrefix}/manage-sources`} title="Sources" />
+          <NavListItem link={`${sourcePrefix}/manage-sources`}>InfluxDB</NavListItem>
+          <NavListItem link={`${sourcePrefix}/kapacitor-config`}>Kapacitor</NavListItem>
+          <NavListItem link={`${sourcePrefix}/queries`}>Queries</NavListItem>
+          <NavListItem link={`${sourcePrefix}/tasks`}>Tasks</NavListItem>
+          <NavListItem link={`${sourcePrefix}/roles`}>Roles</NavListItem>
+          <NavListItem link={`${sourcePrefix}/accounts`}>Cluster Accounts</NavListItem>
+          <NavListItem link={`${sourcePrefix}/databases/manager/_internal`}>Database Manager</NavListItem>
+          <NavListItem link={`${sourcePrefix}/databases/retentionpolicies/_internal`}>Retention Policies</NavListItem>
         </NavBlock>
-        <NavBlock matcher="alerting" icon="cubo-uniform">
-          <NavHeader link={`${sourcePrefix}/kapacitor_tasks`} title="Alerting" />
-          <NavListItem matcher="kapacitor_tasks" link={`${sourcePrefix}/kapacitor_tasks`}>Kapacitor Tasks</NavListItem>
+        <NavBlock icon="cubo-uniform" link={`${sourcePrefix}/kapacitor-tasks`}>
+          <NavHeader link={`${sourcePrefix}/kapacitor-tasks`} title="Alerting" />
+          <NavListItem link={`${sourcePrefix}/kapacitor-tasks`}>Kapacitor Tasks</NavListItem>
         </NavBlock>
       </NavBar>
     );

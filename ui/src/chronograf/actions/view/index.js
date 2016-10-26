@@ -158,7 +158,7 @@ export function createExploration(source, push) {
     }).then((resp) => {
       const explorer = parseRawExplorer(resp.data);
       dispatch(loadExploration(explorer));
-      push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorer.link.href)}`); // Base64 encode explorer URI
+      push(`/sources/${source.id}/chronograf/data-explorer/${btoa(explorer.link.href)}`); // Base64 encode explorer URI
     });
   };
 }
@@ -183,7 +183,7 @@ export function deleteExplorer(source, explorerURI, push) {
           dispatch(createExploration(source, push));
         } else {
           dispatch(loadExploration(explorer));
-          push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorer.id)}`);
+          push(`/sources/${source.id}/chronograf/data-explorer/${btoa(explorer.id)}`);
         }
       }
 
@@ -254,7 +254,7 @@ export function fetchExplorers({source, userID, explorerURI, push}) {
       if (!explorerURI) {
         const explorer = _.maxBy(explorers, (ex) => ex.updated_at);
         dispatch(loadExploration(explorer));
-        push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorer.link.href)}`);
+        push(`/sources/${source.id}/chronograf/data-explorer/${btoa(explorer.link.href)}`);
         return;
       }
 
@@ -312,7 +312,7 @@ export function chooseExploration(explorerURI, source, push) {
     }).then((resp) => {
       const explorer = parseRawExplorer(resp.data);
       dispatch(loadExploration(explorer));
-      push(`/sources/${source.id}/chronograf/data_explorer/${btoa(explorerURI)}`);
+      push(`/sources/${source.id}/chronograf/data-explorer/${btoa(explorerURI)}`);
     });
   };
 }

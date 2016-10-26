@@ -9,12 +9,11 @@ const NavListItem = React.createClass({
     link: string.isRequired,
     children: node,
     location: string,
-    matcher: string,
   },
 
   render() {
-    const {link, children, matcher, location} = this.props;
-    const isActive = matcher && !!location.match(matcher);
+    const {link, children, location} = this.props;
+    const isActive = location.startsWith(link);
 
     return <Link className={cx("sidebar__menu-item", {active: isActive})} to={link}>{children}</Link>;
   },
@@ -40,21 +39,20 @@ const NavBlock = React.createClass({
     link: string,
     icon: string.isRequired,
     location: string,
-    matcher: string,
     className: string,
     wrapperClassName: string,
   },
 
   render() {
-    const {location, matcher, className, wrapperClassName} = this.props;
-    const isActive = matcher && !!location.match(matcher);
+    const {location, className, wrapperClassName} = this.props;
+
+    const isActive = React.Children.toArray(this.props.children).find((child) => {
+      return child.type === NavListItem && location.startsWith(child.props.link);
+    });
 
     const children = React.Children.map((this.props.children), (child) => {
       if (child && child.type === NavListItem) {
-        return React.cloneElement(child, {
-          location,
-          isActive,
-        });
+        return React.cloneElement(child, {location});
       }
 
       return child;
