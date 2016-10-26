@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
-import {getSources} from 'src/shared/apis';
+import {getSources} from 'shared/apis';
 
 const {bool, number, string, node, func, shape} = PropTypes;
 

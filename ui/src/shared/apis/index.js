@@ -6,6 +6,12 @@ export function getSources() {
   });
 }
 
+export function getSource(sourceID) {
+  return AJAX({
+    url: `/chronograf/v1/sources/${sourceID}`,
+  });
+}
+
 export function createSource({url, name, username, password, isDefault}) {
   return AJAX({
     url: '/chronograf/v1/sources',
