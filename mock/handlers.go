@@ -228,7 +228,7 @@ func (m *Handler) Explorations(ctx context.Context, params op.GetUsersUserIDExpl
 	res := &models.Explorations{}
 	for i, e := range exs {
 		rel := "self"
-		href := fmt.Sprintf("/chronograf/v1/sources/1/users/%d/explorations/%d", id, i)
+		href := fmt.Sprintf("/chronograf/v1/users/%d/explorations/%d", id, i)
 		res.Explorations = append(res.Explorations, &models.Exploration{
 			Data:      e.Data,
 			Name:      e.Name,
@@ -265,7 +265,7 @@ func (m *Handler) Exploration(ctx context.Context, params op.GetUsersUserIDExplo
 	}
 
 	rel := "self"
-	href := fmt.Sprintf("/chronograf/v1/sources/1/users/%d/explorations/%d", id, eID)
+	href := fmt.Sprintf("/chronograf/v1/users/%d/explorations/%d", id, eID)
 	res := &models.Exploration{
 		Data:      e.Data,
 		Name:      e.Name,
@@ -325,7 +325,7 @@ func (m *Handler) NewExploration(ctx context.Context, params op.PostUsersUserIDE
 	params.Exploration.UpdatedAt = strfmt.DateTime(time.Now())
 	params.Exploration.CreatedAt = strfmt.DateTime(time.Now())
 
-	loc := fmt.Sprintf("/chronograf/v1/sources/1/users/%d/explorations/%d", id, eID)
+	loc := fmt.Sprintf("/chronograf/v1/users/%d/explorations/%d", id, eID)
 	rel := "self"
 
 	link := &models.Link{
