@@ -32,7 +32,7 @@ func (h *Store) Explorations(ctx context.Context, params op.GetUsersUserIDExplor
 	exs := make([]*models.Exploration, len(mrExs))
 	for i, e := range mrExs {
 		rel := "self"
-		href := fmt.Sprintf("/chronograf/v1/sources/1/users/%d/explorations/%d", uID, e.ID)
+		href := fmt.Sprintf("/chronograf/v1/users/%d/explorations/%d", uID, e.ID)
 		exs[i] = &models.Exploration{
 			Data:      e.Data,
 			Name:      e.Name,
@@ -79,7 +79,7 @@ func (h *Store) Exploration(ctx context.Context, params op.GetUsersUserIDExplora
 	}
 
 	rel := "self"
-	href := fmt.Sprintf("/chronograf/v1/sources/1/users/%d/explorations/%d", uID, eID)
+	href := fmt.Sprintf("/chronograf/v1/users/%d/explorations/%d", uID, eID)
 	res := &models.Exploration{
 		Name:      e.Name,
 		Data:      e.Data,
@@ -144,7 +144,7 @@ func (h *Store) UpdateExploration(ctx context.Context, params op.PatchUsersUserI
 
 func explToModel(e *chronograf.Exploration) *models.Exploration {
 	rel := "self"
-	href := fmt.Sprintf("/chronograf/v1/sources/1/users/%d/explorations/%d", e.UserID, e.ID)
+	href := fmt.Sprintf("/chronograf/v1/users/%d/explorations/%d", e.UserID, e.ID)
 	return &models.Exploration{
 		Name:      e.Name,
 		Data:      e.Data,
