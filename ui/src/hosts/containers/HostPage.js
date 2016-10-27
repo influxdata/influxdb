@@ -1,6 +1,5 @@
 import React, {PropTypes} from 'react';
 // TODO: move this to a higher level package than chronograf?
-import FlashMessages from 'shared/components/FlashMessages';
 import LayoutRenderer from '../components/LayoutRenderer';
 import {fetchLayouts} from '../apis';
 import _ from 'lodash';
