@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react';
+import _ from 'lodash';
 import {withRouter, Link} from 'react-router';
-import {getSources} from 'shared/apis';
+import {getSources, getKapacitor} from 'shared/apis';
 
 export const ManageSources = React.createClass({
   propTypes: {
@@ -16,11 +17,25 @@ export const ManageSources = React.createClass({
 
   componentDidMount() {
     getSources().then(({data: {sources}}) => {
-      this.setState({sources});
+      this.setState({sources}, () => {
+        sources.forEach((source) => {
+          getKapacitor(source).then((kapacitor) => {
+            this.setState((prevState) => {
+              const newSources = prevState.sources.map((newSource) => {
+                if (newSource.id !== source.id) {
+                  return newSource;
+                }
+
+                return Object.assign({}, newSource, {kapacitor});
+              });
+
+              return Object.assign({}, prevState, {sources: newSources});
+            });
+          });
+        });
+      });
     });
   },
-
-  changeSort() {},
 
   render() {
     const {sources} = this.state;
@@ -43,7 +58,7 @@ export const ManageSources = React.createClass({
               <table className="table v-center">
                 <thead>
                   <tr>
-                    <th onClick={this.changeSort} className="sortable-header">Name</th>
+                    <th>Name</th>
                     <th>Host</th>
                     <th>Kapacitor</th>
                     <th></th>
@@ -57,7 +72,7 @@ export const ManageSources = React.createClass({
                         <tr key={source.id}>
                           <td>{source.name}{source.default ? <span className="label label-primary">Default</span> : null}</td>
                           <td>{source.url}</td>
-                          <td>{source.links.kapacitors}</td>
+                          <td>{_.get(source, ['kapacitor', 'name'], '')}</td>
                           <td><Link className="btn btn-default btn-xs" to={`${pathname}/${source.id}/edit`}>Edit</Link></td>
                           <td><Link className="btn btn-success btn-xs" to={`/sources/${source.id}/hosts`}>Connect</Link></td>
                         </tr>
