@@ -2,12 +2,6 @@ import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
 import {getSource, createSource, updateSource} from 'shared/apis';
 
-// TODO: Add default checkbox
-// TODO: wire up default checkbox
-
-// TODO: loading spinner while waiting for edit page to load.
-// TODO: populate Kapacitor dropdown
-
 export const SourceForm = React.createClass({
   propTypes: {
     params: PropTypes.shape({
@@ -47,7 +41,7 @@ export const SourceForm = React.createClass({
       name: this.sourceName.value,
       username: this.sourceUsername.value,
       password: this.sourcePassword.value,
-      'default': true,
+      'default': this.sourceDefault.checked,
     });
     if (this.state.editMode) {
       updateSource(newSource).then(() => {
@@ -75,6 +69,10 @@ export const SourceForm = React.createClass({
 
   render() {
     const {source, editMode} = this.state;
+
+    if (editMode && !source.id) {
+      return <div className="page-spinner"></div>;
+    }
 
     return (
       <div id="source-form-page">
@@ -113,17 +111,13 @@ export const SourceForm = React.createClass({
                         <label htmlFor="password">Password</label>
                         <input type="password" name="password" ref={(r) => this.sourcePassword = r} className="form-control" id="password" onChange={this.onInputChange} value={source.password || ''}></input>
                       </div>
-                      <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
-                        <label htmlFor="database">Database</label>
-                        <input type="text" name="telegraf" ref={(r) => this.sourceDatabase = r} className="form-control" id="database" placeholder="telegraf" onChange={this.onInputChange} value={source.database || ''}></input>
-                      </div>
-                      <div className="form-group col-xs-6 col-sm-4">
-                        <label htmlFor="kapacitor">Kapacitor</label>
-                        <select name="kapacitor" ref={(r) => this.sourceKapacitor = r} className="form-control" id="kapacitor">
-                          <option>Foo</option>
-                          <option>Bar</option>
-                          <option>Baz</option>
-                        </select>
+                      <div className="form-group col-xs-6 col-xs-offset-2">
+                        <div className="checkbox">
+                          <label>
+                            <input type="checkbox" defaultChecked={source.default} ref={(r) => this.sourceDefault = r} />
+                            Default source
+                          </label>
+                        </div>
                       </div>
                     </div>
 
