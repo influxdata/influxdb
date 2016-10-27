@@ -26,6 +26,14 @@ export function createSource({url, name, username, password, isDefault}) {
   });
 }
 
+export function updateSource(sourceID, attributes) {
+  return AJAX({
+    url: `/chronograf/v1/sources/${sourceID}`,
+    method: 'PUT',
+    data: attributes,
+  });
+}
+
 export function updateCluster(clusterID, displayName) {
   return AJAX({
     url: `/api/int/v1/clusters/${clusterID}`,

@@ -1,17 +1,16 @@
 import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
-import {getSource, createSource} from 'shared/apis';
+import {getSource, createSource, updateSource} from 'shared/apis';
 
 // TODO: Add default checkbox
 // TODO: wire up default checkbox
+
+// TODO: make this go back to the manage sources page.
+// TODO: change to SourceForm
+
+// TODO: loading spinner while waiting for edit page to load.
 // TODO: make Kapacitor a dropdown
 // TODO: populate Kapacitor dropdown
-// TODO: make this go back to the manage sources page.
-// TODO: repurpose for edit page
-// TODO: when editing, prepopulate
-//        what part of the lifecycle should edit's be loaded in?
-// TODO: loading spinner while waiting for edit page to load.
-// TODO: change to SourceForm
 
 export const NewSource = React.createClass({
   propTypes: {
@@ -31,15 +30,13 @@ export const NewSource = React.createClass({
   getInitialState() {
     return (
     {
-        source: {
-          url: '',
-          name: '',
-          username: '',
-          password: '',
-          isDefault: false,
-        },
-      }
-    );
+      url: '',
+      name: '',
+      username: '',
+      password: '',
+      isDefault: false,
+      editMode: (this.props.params.id !== undefined),
+    });
   },
 
   componentDidMount() {
@@ -47,28 +44,34 @@ export const NewSource = React.createClass({
       const {url, name, username, password} = source;
       const isDefault = source.default; // default is a reserved word
       const loadedSource = {
-        url: url, 
+        url: url,
         name: name,
         username: username,
         password: password,
         isDefault: isDefault,
       };
-      this.setState({source: loadedSource});
+      this.setState(loadedSource);
     });
   },
 
-  handleNewSource(e) {
+  handleSubmit(e) {
     e.preventDefault();
     const source = {
       url: this.sourceURL.value,
       name: this.sourceName.value,
-      username: this.sourceUser.value,
+      username: this.sourceUsername.value,
       password: this.sourcePassword.value,
       isDefault: true,
     };
-    createSource(source).then(({data: sourceFromServer}) => {
-      this.redirectToApp(sourceFromServer);
-    });
+    if (this.state.editMode) {
+      updateSource(this.props.params.id, source).then(({data: sourceFromServer}) => {
+        this.redirectToApp(sourceFromServer);
+      });
+    } else {
+      createSource(source).then(({data: sourceFromServer}) => {
+        this.redirectToApp(sourceFromServer);
+      });
+    }
   },
 
   redirectToApp(source) {
@@ -82,29 +85,31 @@ export const NewSource = React.createClass({
   },
 
   /*
-   * `e` is the chang event
+   * `e` is the change event
    *
    * Assumes the input is named source[propertyName]
    */
   onInputChange(e) {
-    console.log(e.target);
-    console.log(e.target.id);
-    console.log(e.target.name);
-    console.log(e.target.value);
     const val = e.target.value;
     const name = e.target.name;
     const matchResults = name.match(/source\[(\w+)\]/);
-    if (matchResults !== null) { 
-      const newState = {};
+    if (matchResults !== null) {
+      const newState = {source: {}};
       newState[matchResults[1]] = val;
-      console.log(newState);
-      this.setState({source: newState});
+      this.setState(newState);
     }
   },
 
+  submitBtnLabel() {
+    return this.state.editMode ? "Update" : "Create";
+  },
+
+  titleText() {
+    return this.state.editMode ? "Update Existing Source" : "Connect to a New Source";
+  },
 
   render() {
-    const source = this.state.source || {};
+    // TODO: Replace text above form when Editing
     return (
       <div id="select-source-page">
         <div className="container">
@@ -112,30 +117,30 @@ export const NewSource = React.createClass({
             <div className="col-md-8 col-md-offset-2">
               <div className="panel panel-summer">
                 <div className="panel-body">
-                  <h4 className="text-center">Connect to a New Server</h4>
+                  <h4 className="text-center">{this.titleText()}</h4>
                   <br/>
 
-                  <form onSubmit={this.handleNewSource}>
+                  <form onSubmit={this.handleSubmit}>
                     <div>
                       <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
                         <label htmlFor="connect-string">Connection String</label>
-                        <input type="text" name="source[url]" ref={(r) => this.sourceURL = r} className="form-control" id="connect-string" placeholder="http://localhost:8086" onChange={this.onInputChange} value={this.state.source.url}></input>
+                        <input type="text" name="source[url]" ref={(r) => this.sourceURL = r} className="form-control" id="connect-string" placeholder="http://localhost:8086" onChange={this.onInputChange} value={this.state.url}></input>
                       </div>
                       <div className="form-group col-xs-6 col-sm-4">
                         <label htmlFor="name">Name</label>
-                        <input type="text" name="source[name]" ref={(r) => this.sourceName = r} className="form-control" id="name" placeholder="Influx 1" onChange={this.onInputChange} value={this.state.source.name}></input>
+                        <input type="text" name="source[name]" ref={(r) => this.sourceName = r} className="form-control" id="name" placeholder="Influx 1" onChange={this.onInputChange} value={this.state.name}></input>
                       </div>
                       <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
                         <label htmlFor="username">Username</label>
-                        <input type="text" name="source[username]" ref={(r) => this.sourceUser = r} className="form-control" id="username" onChange={this.onInputChange} value={this.state.source.username}></input>
+                        <input type="text" name="source[username]" ref={(r) => this.sourceUsername = r} className="form-control" id="username" onChange={this.onInputChange} value={this.state.username}></input>
                       </div>
                       <div className="form-group col-xs-6 col-sm-4">
                         <label htmlFor="password">Password</label>
-                        <input type="password" name="source[password]" className="form-control" id="password" onChange={this.onInputChange} value={this.state.source.password}></input>
+                        <input type="password" name="source[password]" ref={(r) => this.sourcePassword = r} className="form-control" id="password" onChange={this.onInputChange} value={this.state.password}></input>
                       </div>
                       <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
                         <label htmlFor="database">Database</label>
-                        <input type="text" name="source[telegraf]" ref={(r) => this.sourceDatabase = r} className="form-control" id="database" placeholder="telegraf" onChange={this.onInputChange} value={this.state.source.database}></input>
+                        <input type="text" name="source[telegraf]" ref={(r) => this.sourceDatabase = r} className="form-control" id="database" placeholder="telegraf" onChange={this.onInputChange} value={this.state.database}></input>
                       </div>
                       <div className="form-group col-xs-6 col-sm-4">
                         <label htmlFor="kapacitor">Kapacitor</label>
@@ -148,7 +153,7 @@ export const NewSource = React.createClass({
                     </div>
 
                     <div className="form-group col-xs-12 text-center">
-                      <button className="btn btn-success" type="submit">Create New Server</button>
+                      <button className="btn btn-success" type="submit">{this.submitBtnLabel()}</button>
                     </div>
                   </form>
                 </div>
