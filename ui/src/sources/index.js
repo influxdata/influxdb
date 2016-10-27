@@ -1,4 +1,4 @@
 import CreateSource from './containers/CreateSource';
-import NewSource from './containers/NewSource';
+import SourceForm from './containers/SourceForm';
 import ManageSources from './containers/ManageSources';
-export {CreateSource, NewSource, ManageSources};
+export {CreateSource, SourceForm, ManageSources};

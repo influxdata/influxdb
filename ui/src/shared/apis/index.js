@@ -12,25 +12,19 @@ export function getSource(sourceID) {
   });
 }
 
-export function createSource({url, name, username, password, isDefault}) {
+export function createSource(attributes) {
   return AJAX({
     url: '/chronograf/v1/sources',
     method: 'POST',
-    data: {
-      url,
-      name,
-      username,
-      password,
-      'default': isDefault,
-    },
+    data: attributes,
   });
 }
 
-export function updateSource(sourceID, attributes) {
+export function updateSource(newSource) {
   return AJAX({
-    url: `/chronograf/v1/sources/${sourceID}`,
-    method: 'PUT',
-    data: attributes,
+    url: newSource.links.self,
+    method: 'PATCH',
+    data: newSource,
   });
 }
 

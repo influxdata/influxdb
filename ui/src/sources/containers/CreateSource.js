@@ -1,5 +1,3 @@
-// Initial Source Creation Page
-// Not the "Add Source" page, that's in NewSource
 import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
 import {createSource} from 'shared/apis';
