@@ -21,7 +21,7 @@ const App = React.createClass({
     }).isRequired,
   },
 
-  componentDidMount() {
+  componentWillMount() {
     const {base64ExplorerID} = this.props.params;
     this.props.fetchExplorers({
       source: this.props.source,
@@ -33,6 +33,7 @@ const App = React.createClass({
 
   render() {
     const {base64ExplorerID} = this.props.params;
+
     return (
       <div className="data-explorer-container">
         <DataExplorer source={this.props.source} explorerID={this.decodeID(base64ExplorerID)} />

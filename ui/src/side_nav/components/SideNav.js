@@ -6,11 +6,14 @@ const SideNav = React.createClass({
   propTypes: {
     location: string.isRequired,
     sourceID: string.isRequired,
+    explorationID: string,
   },
 
   render() {
-    const {location, sourceID} = this.props;
+    const {location, sourceID, explorationID} = this.props;
     const sourcePrefix = `/sources/${sourceID}`;
+    const explorationSuffix = explorationID ? `/${explorationID}` : '';
+    const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer${explorationSuffix}`;
 
     return (
       <NavBar location={location}>
@@ -21,9 +24,9 @@ const SideNav = React.createClass({
           <NavHeader link={`${sourcePrefix}/hosts`} title="Infrastructure" />
           <NavListItem link={`${sourcePrefix}/hosts`}>Host List</NavListItem>
         </NavBlock>
-        <NavBlock icon="graphline" link={`${sourcePrefix}/chronograf/data-explorer`}>
-          <NavHeader link={`${sourcePrefix}/chronograf/data-explorer`} title={'Chronograf'} />
-          <NavListItem link={`${sourcePrefix}/chronograf/data-explorer`}>Data Explorer</NavListItem>
+        <NavBlock icon="graphline" link={dataExplorerLink}>
+          <NavHeader link={dataExplorerLink} title={'Chronograf'} />
+          <NavListItem link={dataExplorerLink}>Data Explorer</NavListItem>
         </NavBlock>
         <NavBlock icon="crown" link={`${sourcePrefix}/manage-sources`}>
           <NavHeader link={`${sourcePrefix}/manage-sources`} title="Sources" />
