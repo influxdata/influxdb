@@ -5,8 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-
-	"github.com/influxdata/influxdb/models"
 )
 
 // IndexFileVersion is the current TSI1 index file version.
@@ -94,17 +92,17 @@ func (i *IndexFile) Close() error {
 }
 
 // TagValueElem returns a list of series ids for a measurement/tag/value.
-func (i *IndexFile) TagValueElem(name, key, value []byte) (TagValueElem, error) {
+func (i *IndexFile) TagValueElem(name, key, value []byte) (TagSetValueElem, error) {
 	// Find measurement.
 	e, ok := i.mblk.Elem(name)
 	if !ok {
-		return TagValueElem{}, nil
+		return TagSetValueElem{}, nil
 	}
 
 	// Find tag set block.
 	tblk, err := i.tagSetBlock(&e)
 	if err != nil {
-		return TagValueElem{}, err
+		return TagSetValueElem{}, err
 	}
 	return tblk.TagValueElem(key, value), nil
 }
@@ -137,42 +135,44 @@ func (i *IndexFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
 	}
 
 	// Return iterator.
-	return &seriesIterator{
+	return &rawSeriesIterator{
 		n:          e.Series.N,
 		data:       e.Series.Data,
 		seriesList: &i.slist,
 	}
 }
 
-// seriesIterator iterates over a list of raw data.
-type seriesIterator struct {
-	i, n uint32
-	data []byte
+// rawSeriesIterator iterates over a list of raw data.
+type rawSeriesIterator struct {
+	i, n uint32 // index & total count
+	data []byte // raw data
 
+	// series list used for decoding
 	seriesList *SeriesList
+
+	// reusable buffer
+	e SeriesElem
 }
 
 // Next returns the next decoded series. Uses name & tags as reusable buffers.
 // Returns nils when the iterator is complete.
-func (itr *seriesIterator) Next(name *[]byte, tags *models.Tags, deleted *bool) {
+func (itr *rawSeriesIterator) Next() *SeriesElem {
 	// Return nil if we've reached the end.
 	if itr.i == itr.n {
-		*name, *tags = nil, nil
-		return
+		return nil
 	}
 
 	// Move forward and retrieved offset.
 	offset := binary.BigEndian.Uint32(itr.data[itr.i*SeriesIDSize:])
 
 	// Read from series list into buffers.
-	itr.seriesList.DecodeSeriesAt(offset, name, tags, deleted)
+	itr.seriesList.DecodeSeriesAt(offset, &itr.e.Name, &itr.e.Tags, &itr.e.Deleted)
 
 	// Move iterator forward.
 	itr.i++
-}
 
-// IndexFiles represents a layered set of index files.
-type IndexFiles []*IndexFile
+	return &itr.e
+}
 
 // ReadIndexFileTrailer returns the index file trailer from data.
 func ReadIndexFileTrailer(data []byte) (IndexFileTrailer, error) {

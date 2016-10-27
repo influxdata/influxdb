@@ -60,7 +60,7 @@ func (ts *TagSet) Version() int { return ts.version }
 
 // TagKeyElem returns an element for a tag key.
 // Returns an element with a nil key if not found.
-func (ts *TagSet) TagKeyElem(key []byte) TagKeyElem {
+func (ts *TagSet) TagKeyElem(key []byte) TagSetKeyElem {
 	keyN := binary.BigEndian.Uint32(ts.hashData[:TagKeyNSize])
 	hash := hashKey(key)
 	pos := int(hash % keyN)
@@ -75,7 +75,7 @@ func (ts *TagSet) TagKeyElem(key []byte) TagKeyElem {
 		// Evaluate key if offset is not empty.
 		if offset > 0 {
 			// Parse into element.
-			var e TagKeyElem
+			var e TagSetKeyElem
 			e.UnmarshalBinary(ts.data[offset:])
 
 			// Return if keys match.
@@ -85,7 +85,7 @@ func (ts *TagSet) TagKeyElem(key []byte) TagKeyElem {
 
 			// Check if we've exceeded the probe distance.
 			if d > dist(hashKey(e.Key), pos, int(keyN)) {
-				return TagKeyElem{}
+				return TagSetKeyElem{}
 			}
 		}
 
@@ -97,11 +97,11 @@ func (ts *TagSet) TagKeyElem(key []byte) TagKeyElem {
 
 // TagValueElem returns an element for a tag value.
 // Returns an element with a nil value if not found.
-func (ts *TagSet) TagValueElem(key, value []byte) TagValueElem {
+func (ts *TagSet) TagValueElem(key, value []byte) TagSetValueElem {
 	// Find key element, exit if not found.
 	kelem := ts.TagKeyElem(key)
 	if len(kelem.Key) == 0 {
-		return TagValueElem{}
+		return TagSetValueElem{}
 	}
 
 	hashData := ts.data[kelem.Offset:]
@@ -119,7 +119,7 @@ func (ts *TagSet) TagValueElem(key, value []byte) TagValueElem {
 		// Evaluate value if offset is not empty.
 		if offset > 0 {
 			// Parse into element.
-			var e TagValueElem
+			var e TagSetValueElem
 			e.UnmarshalBinary(ts.data[offset:])
 
 			// Return if values match.
@@ -129,7 +129,7 @@ func (ts *TagSet) TagValueElem(key, value []byte) TagValueElem {
 
 			// Check if we've exceeded the probe distance.
 			if d > dist(hashKey(e.Value), pos, int(valueN)) {
-				return TagValueElem{}
+				return TagSetValueElem{}
 			}
 		}
 
@@ -172,15 +172,15 @@ func (ts *TagSet) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// TagKeyElem represents a tag key element.
-type TagKeyElem struct {
+// TagSetKeyElem represents a tag key element in a TagSetBlock.
+type TagSetKeyElem struct {
 	Flag   byte
 	Key    []byte
 	Offset uint64 // Value block offset
 }
 
 // UnmarshalBinary unmarshals data into e.
-func (e *TagKeyElem) UnmarshalBinary(data []byte) {
+func (e *TagSetKeyElem) UnmarshalBinary(data []byte) {
 	// Parse flag data.
 	e.Flag, data = data[0], data[1:]
 
@@ -193,8 +193,8 @@ func (e *TagKeyElem) UnmarshalBinary(data []byte) {
 	e.Key = data[:sz]
 }
 
-// TagValueElem represents a tag value element.
-type TagValueElem struct {
+// TagSetValueElem represents a tag value element.
+type TagSetValueElem struct {
 	Flag   byte
 	Value  []byte
 	Series struct {
@@ -204,12 +204,12 @@ type TagValueElem struct {
 }
 
 // SeriesID returns series ID at an index.
-func (e *TagValueElem) SeriesID(i int) uint32 {
+func (e *TagSetValueElem) SeriesID(i int) uint32 {
 	return binary.BigEndian.Uint32(e.Series.Data[i*SeriesIDSize:])
 }
 
 // SeriesIDs returns a list decoded series ids.
-func (e *TagValueElem) SeriesIDs() []uint32 {
+func (e *TagSetValueElem) SeriesIDs() []uint32 {
 	a := make([]uint32, e.Series.N)
 	for i := 0; i < int(e.Series.N); i++ {
 		a[i] = e.SeriesID(i)
@@ -218,7 +218,7 @@ func (e *TagValueElem) SeriesIDs() []uint32 {
 }
 
 // UnmarshalBinary unmarshals data into e.
-func (e *TagValueElem) UnmarshalBinary(data []byte) {
+func (e *TagSetValueElem) UnmarshalBinary(data []byte) {
 	// Parse flag data.
 	e.Flag, data = data[0], data[1:]
 
@@ -246,10 +246,10 @@ func NewTagSetWriter() *TagSetWriter {
 	}
 }
 
-// AddTag adds a key without any associated values.
-func (tsw *TagSetWriter) AddTag(key []byte, deleted bool) {
+// DeleteTag marks a key as deleted.
+func (tsw *TagSetWriter) DeleteTag(key []byte) {
 	ts := tsw.sets[string(key)]
-	ts.deleted = deleted
+	ts.deleted = true
 	tsw.sets[string(key)] = ts
 }
 

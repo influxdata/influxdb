@@ -48,22 +48,15 @@ func (i *Index) measurement(name []byte) *tsdb.Measurement {
 	itr := i.file.MeasurementSeriesIterator(name)
 
 	var id uint64 // TEMPORARY
-	var sname []byte
-	var tags models.Tags
-	var deleted bool
-	for {
-		if itr.Next(&sname, &tags, &deleted); sname == nil {
-			break
-		}
-
+	for e := itr.Next(); e != nil; e = itr.Next() {
 		// TODO: Handle deleted series.
 
 		// Append series to to measurement.
 		// TODO: Remove concept of series ids.
 		m.AddSeries(&tsdb.Series{
 			ID:   id,
-			Key:  string(sname),
-			Tags: models.CopyTags(tags),
+			Key:  string(e.Name),
+			Tags: models.CopyTags(e.Tags),
 		})
 
 		// TEMPORARY: Increment ID.
