@@ -62,14 +62,9 @@ const DataExplorer = React.createClass({
   render() {
     const {timeRange, explorers, explorerID, setTimeRange, createExploration, chooseExploration, deleteExplorer, editExplorer} = this.props;
 
-    if (explorers === FETCHING) {
+    if (explorers === FETCHING || !explorerID) {
       // TODO: page-wide spinner
       return null;
-    }
-
-    const activeExplorer = explorers[explorerID];
-    if (!activeExplorer) {
-      return <div>You have no active explorers</div>; // TODO: handle no explorers;
     }
 
     return (

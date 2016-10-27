@@ -7,6 +7,7 @@ const SideNavApp = React.createClass({
     currentLocation: string.isRequired,
     addFlashMessage: func.isRequired,
     sourceID: string.isRequired,
+    explorationID: string,
   },
 
   contextTypes: {
@@ -21,7 +22,7 @@ const SideNavApp = React.createClass({
   },
 
   render() {
-    const {currentLocation, sourceID} = this.props;
+    const {currentLocation, sourceID, explorationID} = this.props;
     const {canViewChronograf} = this.context;
 
     return (
@@ -30,6 +31,7 @@ const SideNavApp = React.createClass({
         isAdmin={true}
         canViewChronograf={canViewChronograf}
         location={currentLocation}
+        explorationID={explorationID}
       />
     );
   },
