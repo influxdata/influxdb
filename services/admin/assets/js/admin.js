@@ -352,6 +352,14 @@ var pretty = function(val) {
     }
 }
 
+var truncateVersion = function (version) {
+  var parts = version.split(".")
+  if (parts.length > 2) {
+    parts = parts.slice(0, 2)
+  }
+  return parts.join(".")
+}
+
 var getClientVersion = function () {
     var query = $.get(window.location.origin + window.location.pathname);
 
@@ -360,8 +368,8 @@ var getClientVersion = function () {
     query.done(function (data, status, xhr) {
         var version = xhr.getResponseHeader('X-InfluxDB-Version');
         if (version.indexOf("unknown") == -1) {
-            version = 'v' + version;
-            console.log('got client version '+version);
+            console.log('got client version v'+version);
+            version = 'v' + truncateVersion(version);
             $('#influxdb-doc-link').attr('href', 'https://docs.influxdata.com/influxdb/'+version+'/introduction/getting_started/');
         }
         $('.influxdb-client-version').html(version);
