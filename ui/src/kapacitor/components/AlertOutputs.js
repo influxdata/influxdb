@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react';
 import _ from 'lodash';
 import {getKapacitorConfig, updateKapacitorConfigSection, testAlertOutput} from 'shared/apis';
 import AlertaConfig from './AlertaConfig';
+import PagerdutyConfig from './PagerdutyConfig';
 import SlackConfig from './SlackConfig';
 import SMTPConfig from './SMTPConfig';
 import TelegramConfig from './TelegramConfig';
@@ -38,6 +39,7 @@ const AlertOutputs = React.createClass({
     getKapacitorConfig(this.props.kapacitor).then(({data: {sections}}) => {
       this.setState({
         alertaConfig: this.getSection(sections, 'alerta'),
+        pagerdutyConfig: this.getSection(sections, 'pagerduty'),
         slackConfig: this.getSection(sections, 'slack'),
         smtpConfig: this.getSection(sections, 'smtp'),
         telegramConfig: this.getSection(sections, 'telegram'),
@@ -96,6 +98,7 @@ const AlertOutputs = React.createClass({
               <option value="smtp">SMTP</option>
               <option value="victorops">VictorOps</option>
               <option value="telegram">Telegram</option>
+              <option value="pagerduty">PagerDuty</option>
             </select>
           </div>
         </div>
@@ -129,6 +132,10 @@ const AlertOutputs = React.createClass({
 
     if (endpoint === 'telegram' && this.state.telegramConfig) {
       return <TelegramConfig onSave={save} config={this.state.telegramConfig} />;
+    }
+
+    if (endpoint === 'pagerduty' && this.state.pagerdutyConfig) {
+      return <PagerdutyConfig onSave={save} config={this.state.pagerdutyConfig} />;
     }
 
     return <div>This endpoint is not supported yet!</div>;
