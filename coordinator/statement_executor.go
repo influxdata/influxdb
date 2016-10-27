@@ -1090,7 +1090,13 @@ func (e *StatementExecutor) NormalizeStatement(stmt influxql.Statement, defaultD
 				node.Database = defaultDatabase
 			}
 		case *influxql.Measurement:
-			err = e.normalizeMeasurement(node, defaultDatabase)
+			switch stmt.(type) {
+			case *influxql.DropSeriesStatement, *influxql.DeleteSeriesStatement:
+			// DB and RP not supported by these statements so don't rewrite into invalid
+			// statements
+			default:
+				err = e.normalizeMeasurement(node, defaultDatabase)
+			}
 		}
 	})
 	return

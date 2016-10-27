@@ -19,7 +19,7 @@ type MetaClientMock struct {
 	CreateUserFn                        func(name, password string, admin bool) (*meta.UserInfo, error)
 
 	DatabaseFn  func(name string) *meta.DatabaseInfo
-	DatabasesFn func() ([]meta.DatabaseInfo, error)
+	DatabasesFn func() []meta.DatabaseInfo
 
 	DataFn                func() meta.Data
 	DeleteShardGroupFn    func(database string, policy string, id uint64) error
@@ -83,7 +83,7 @@ func (c *MetaClientMock) Database(name string) *meta.DatabaseInfo {
 	return c.DatabaseFn(name)
 }
 
-func (c *MetaClientMock) Databases() ([]meta.DatabaseInfo, error) {
+func (c *MetaClientMock) Databases() []meta.DatabaseInfo {
 	return c.DatabasesFn()
 }
 
