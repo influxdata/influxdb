@@ -29,7 +29,18 @@ const HostsTable = React.createClass({
   },
 
   filterHosts(allHosts, searchTerm) {
-    const hosts = allHosts.filter((h) => h.name.search(searchTerm) !== -1);
+    const hosts = allHosts.filter((h) => {
+      let apps = null;
+      if (h.apps) {
+        apps = h.apps.join(', ');
+      } else {
+        apps = '';
+      }
+      return (
+        h.name.search(searchTerm) !== -1 ||
+        apps.search(searchTerm) !== -1
+      );
+    });
     this.setState({searchTerm, filteredHosts: hosts});
   },
 
