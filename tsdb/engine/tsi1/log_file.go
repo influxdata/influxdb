@@ -217,12 +217,12 @@ func (f *LogFile) measurement(name []byte) logMeasurement {
 func (f *LogFile) MeasurementIterator() MeasurementIterator {
 	var itr measurementIterator
 	for _, mm := range f.mms {
-		itr.mms = append(itr.mms, MeasurementElem{
+		itr.elems = append(itr.elems, MeasurementElem{
 			Name:    mm.name,
 			Deleted: mm.deleted,
 		})
 	}
-	sort.Sort(MeasurementElems(itr.mms))
+	sort.Sort(MeasurementElems(itr.elems))
 	return &itr
 }
 
@@ -334,7 +334,7 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, n *int64) error {
 	for _, tag := range mm.tagSet {
 		// Mark tag deleted.
 		if tag.deleted {
-			tsw.AddTag(tag.name, true)
+			tsw.DeleteTag(tag.name)
 			continue
 		}
 
