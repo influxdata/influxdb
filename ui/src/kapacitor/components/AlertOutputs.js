@@ -1,10 +1,10 @@
 import React, {PropTypes} from 'react';
 import _ from 'lodash';
 import {getKapacitorConfig, updateKapacitorConfigSection, testAlertOutput} from 'shared/apis';
+import AlertaConfig from './AlertaConfig';
 import SlackConfig from './SlackConfig';
 import SMTPConfig from './SMTPConfig';
 import VictoropsConfig from './VictoropsConfig';
-import AlertaConfig from './AlertaConfig';
 
 const AlertOutputs = React.createClass({
   propTypes: {
@@ -22,9 +22,10 @@ const AlertOutputs = React.createClass({
   getInitialState() {
     return {
       selectedEndpoint: 'alerta',
+      alertaConfig: null,
       smtpConfig: null,
       slackConfig: null,
-      alertaConfig: null,
+      telegram: null,
     };
   },
 
@@ -35,10 +36,11 @@ const AlertOutputs = React.createClass({
   refreshKapacitorConfig() {
     getKapacitorConfig(this.props.kapacitor).then(({data: {sections}}) => {
       this.setState({
-        alertaConfig: _.get(sections, ['alerta', 'elements', '0'], null),
-        slackConfig: _.get(sections, ['slack', 'elements', '0'], null),
-        smtpConfig: _.get(sections, ['smtp', 'elements', '0'], null),
-        victoropsConfig: _.get(sections, ['victorops', 'elements', '0'], null),
+        alertaConfig: this.getSection(sections, 'alerta'),
+        slackConfig: this.getSection(sections, 'slack'),
+        smtpConfig: this.getSection(sections, 'smtp'),
+        telegram: this.getSection(sections, 'telegram'),
+        victoropsConfig: this.getSection(sections, 'victorops'),
       });
     });
   },
@@ -96,6 +98,10 @@ const AlertOutputs = React.createClass({
         </div>
       </div>
     );
+  },
+
+  getSection(sections, section) {
+    return _.get(sections, [section, 'elements', '0'], null);
   },
 
   renderAlertConfig(endpoint) {
