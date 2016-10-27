@@ -4,6 +4,7 @@ import {getKapacitorConfig, updateKapacitorConfigSection, testAlertOutput} from 
 import AlertaConfig from './AlertaConfig';
 import SlackConfig from './SlackConfig';
 import SMTPConfig from './SMTPConfig';
+import TelegramConfig from './TelegramConfig';
 import VictoropsConfig from './VictoropsConfig';
 
 const AlertOutputs = React.createClass({
@@ -39,10 +40,14 @@ const AlertOutputs = React.createClass({
         alertaConfig: this.getSection(sections, 'alerta'),
         slackConfig: this.getSection(sections, 'slack'),
         smtpConfig: this.getSection(sections, 'smtp'),
-        telegram: this.getSection(sections, 'telegram'),
+        telegramConfig: this.getSection(sections, 'telegram'),
         victoropsConfig: this.getSection(sections, 'victorops'),
       });
     });
+  },
+
+  getSection(sections, section) {
+    return _.get(sections, [section, 'elements', '0'], null);
   },
 
   handleSaveConfig(section, properties) {
@@ -90,6 +95,7 @@ const AlertOutputs = React.createClass({
               <option value="slack">Slack</option>
               <option value="smtp">SMTP</option>
               <option value="victorops">VictorOps</option>
+              <option value="telegram">Telegram</option>
             </select>
           </div>
         </div>
@@ -98,10 +104,6 @@ const AlertOutputs = React.createClass({
         </div>
       </div>
     );
-  },
-
-  getSection(sections, section) {
-    return _.get(sections, [section, 'elements', '0'], null);
   },
 
   renderAlertConfig(endpoint) {
@@ -123,6 +125,10 @@ const AlertOutputs = React.createClass({
 
     if (endpoint === 'victorops' && this.state.victoropsConfig) {
       return <VictoropsConfig onSave={save} config={this.state.victoropsConfig} />;
+    }
+
+    if (endpoint === 'telegram' && this.state.telegramConfig) {
+      return <TelegramConfig onSave={save} config={this.state.telegramConfig} />;
     }
 
     return <div>This endpoint is not supported yet!</div>;
