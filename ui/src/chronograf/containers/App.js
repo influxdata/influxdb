@@ -21,7 +21,7 @@ const App = React.createClass({
     }).isRequired,
   },
 
-  componentWillMount() {
+  componentDidMount() {
     const {base64ExplorerID} = this.props.params;
     this.props.fetchExplorers({
       source: this.props.source,
