@@ -47,7 +47,8 @@ type kapacitor struct {
 	Links    kapaLinks `json:"links"` // Links are URI locations related to kapacitor
 }
 
-func (h *Store) NewKapacitor(w http.ResponseWriter, r *http.Request) {
+// NewKapacitor adds valid kapacitor store store.
+func (h *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 	srcID, err := paramID("id", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -91,6 +92,7 @@ func (h *Store) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 }
 
 func newKapacitor(srv chronograf.Server) kapacitor {
+	httpAPISrcs := "/chronograf/v1/sources"
 	return kapacitor{
 		ID:       strconv.Itoa(srv.ID),
 		Name:     srv.Name,
@@ -108,7 +110,8 @@ type kapacitors struct {
 	Kapacitors []kapacitor `json:"kapacitors"`
 }
 
-func (h *Store) Kapacitors(w http.ResponseWriter, r *http.Request) {
+// Kapacitors retrieves all kapacitors from store.
+func (h *Service) Kapacitors(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	mrSrvs, err := h.ServersStore.All(ctx)
 	if err != nil {
@@ -128,7 +131,8 @@ func (h *Store) Kapacitors(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
-func (h *Store) KapacitorsID(w http.ResponseWriter, r *http.Request) {
+// KapacitorsID retrieves a kapacitor with ID from store.
+func (h *Service) KapacitorsID(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -152,7 +156,8 @@ func (h *Store) KapacitorsID(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
-func (h *Store) RemoveKapacitor(w http.ResponseWriter, r *http.Request) {
+// RemoveKapacitor deletes kapacitor from store.
+func (h *Service) RemoveKapacitor(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -199,7 +204,8 @@ func (p *patchKapacitorRequest) Valid() error {
 	return nil
 }
 
-func (h *Store) UpdateKapacitor(w http.ResponseWriter, r *http.Request) {
+// UpdateKapacitor incrementally updates a kapacitor definition in the store
+func (h *Service) UpdateKapacitor(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())

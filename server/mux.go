@@ -17,40 +17,18 @@ const (
 	JSONType = "application/json"
 )
 
-var (
-	httpAPIRoot               = "/chronograf/v1/"
-	httpAPILayouts            = "/chronograf/v1/layouts"
-	httpAPILayoutsID          = "/chronograf/v1/layouts/:id"
-	httpAPIMappings           = "/chronograf/v1/mappings"
-	httpAPISrcs               = "/chronograf/v1/sources"
-	httpAPISrcsID             = "/chronograf/v1/sources/:id"
-	httpAPISrcsIDProxy        = "/chronograf/v1/sources/:id/proxy"
-	httpAPISrcsIDKapas        = "/chronograf/v1/sources/:id/kapacitors"
-	httpAPISrcsIDKapasID      = "/chronograf/v1/sources/:id/kapacitors/:kid"
-	httpAPISrcsIDKapasIDProxy = "/chronograf/v1/sources/:id/kapacitors/:kid/proxy"
-	httpAPIUsrs               = "/chronograf/v1/users"
-	httpAPIUsrsID             = "/chronograf/v1/users/:id"
-	httpAPIUsrsIDExps         = "/chronograf/v1/users/:id/explorations"
-	httpAPIUsrsIDExpsID       = "/chronograf/v1/users/:id/explorations/:eid"
-
-	httpOAuth           = "/oauth"
-	httpOAuthLogout     = "/oauth/logout"
-	httpOAuthGHCallback = "/oauth/github/callback"
-
-	httpSwagger = "/swagger.json"
-	httpDocs    = "/docs"
-)
-
+// MuxOpts are the options for the router.  Mostly related to auth.
 type MuxOpts struct {
-	Develop            bool
-	UseAuth            bool
-	TokenSecret        string
-	GithubClientID     string
-	GithubClientSecret string
 	Logger             chronograf.Logger
+	Develop            bool   // Develop loads assets from filesystem instead of bindata
+	UseAuth            bool   // UseAuth turns on Github OAuth and JWT
+	TokenSecret        string // TokenSecret is the JWT secret
+	GithubClientID     string // GithubClientID is the GH OAuth id
+	GithubClientSecret string // GithubClientSecret is the GH OAuth secret
 }
 
-func NewMux(opts MuxOpts, store Store, proxy InfluxProxy) http.Handler {
+// NewMux attaches all the route handlers; handler returned servers chronograf.
+func NewMux(opts MuxOpts, service Service) http.Handler {
 	router := httprouter.New()
 
 	/* React Application */
@@ -64,65 +42,65 @@ func NewMux(opts MuxOpts, store Store, proxy InfluxProxy) http.Handler {
 	router.NotFound = assets
 
 	/* Documentation */
-	router.GET(httpSwagger, Spec())
-	router.GET(httpDocs, Redoc(httpSwagger))
+	router.GET("/swagger.json", Spec())
+	router.GET("/docs", Redoc("/swagger.json"))
 
 	/* API */
 	// Root Routes returns all top-level routes in the API
-	router.GET(httpAPIRoot, AllRoutes(opts.Logger))
+	router.GET("/chronograf/v1/", AllRoutes(opts.Logger))
 
 	// Sources
-	router.GET(httpAPISrcs, store.Sources)
-	router.POST(httpAPISrcs, store.NewSource)
+	router.GET("/chronograf/v1/sources", service.Sources)
+	router.POST("/chronograf/v1/sources", service.NewSource)
 
-	router.GET(httpAPISrcsID, store.SourcesID)
-	router.PATCH(httpAPISrcsID, store.UpdateSource)
-	router.DELETE(httpAPISrcsID, store.RemoveSource)
+	router.GET("/chronograf/v1/sources/:id", service.SourcesID)
+	router.PATCH("/chronograf/v1/sources/:id", service.UpdateSource)
+	router.DELETE("/chronograf/v1/sources/:id", service.RemoveSource)
 
 	// Source Proxy
-	router.POST(httpAPISrcsIDProxy, proxy.Proxy)
+	router.POST("/chronograf/v1/sources/:id/proxy", service.Proxy)
 
 	// Kapacitor
-	router.GET(httpAPISrcsIDKapas, store.Kapacitors)
-	router.POST(httpAPISrcsIDKapas, store.NewKapacitor)
+	router.GET("/chronograf/v1/sources/:id/kapacitors", service.Kapacitors)
+	router.POST("/chronograf/v1/sources/:id/kapacitors", service.NewKapacitor)
 
-	router.GET(httpAPISrcsIDKapasID, store.KapacitorsID)
-	router.PATCH(httpAPISrcsIDKapasID, store.UpdateKapacitor)
-	router.DELETE(httpAPISrcsIDKapasID, store.RemoveKapacitor)
+	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid", service.KapacitorsID)
+	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid", service.UpdateKapacitor)
+	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid", service.RemoveKapacitor)
 
 	// Kapacitor Proxy
-	router.GET(httpAPISrcsIDKapasIDProxy, proxy.KapacitorProxyGet)
-	router.POST(httpAPISrcsIDKapasIDProxy, proxy.KapacitorProxyPost)
-	router.PATCH(httpAPISrcsIDKapasIDProxy, proxy.KapacitorProxyPatch)
-	router.DELETE(httpAPISrcsIDKapasIDProxy, proxy.KapacitorProxyDelete)
+	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", service.KapacitorProxyGet)
+	router.POST("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", service.KapacitorProxyPost)
+	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", service.KapacitorProxyPatch)
+	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", service.KapacitorProxyDelete)
 
 	// Mappings
-	router.GET(httpAPIMappings, store.GetMappings)
+	router.GET("/chronograf/v1/mappings", service.GetMappings)
 
 	// Layouts
-	router.GET(httpAPILayouts, store.Layouts)
-	router.POST(httpAPILayouts, store.NewLayout)
+	router.GET("/chronograf/v1/layouts", service.Layouts)
+	router.POST("/chronograf/v1/layouts", service.NewLayout)
 
-	router.GET(httpAPILayoutsID, store.LayoutsID)
-	router.PUT(httpAPILayoutsID, store.UpdateLayout)
-	router.DELETE(httpAPILayoutsID, store.RemoveLayout)
+	router.GET("/chronograf/v1/layouts/:id", service.LayoutsID)
+	router.PUT("/chronograf/v1/layouts/:id", service.UpdateLayout)
+	router.DELETE("/chronograf/v1/layouts/:id", service.RemoveLayout)
 
 	// Users
 	/*
-		router.GET(httpAPIUsrs, Users)
-		router.POST(httpAPIUsrs, NewUser)
+		router.GET("/chronograf/v1/users", Users)
+		router.POST("/chronograf/v1/users", NewUser)
 
-		router.GET(httpAPIUsrsID, UsersID)
-		router.PATCH(httpAPIUsrsID, UpdateUser)
-		router.DELETE(httpAPIUsrsID, RemoveUser)
+		router.GET("/chronograf/v1/users/:id", UsersID)
+		router.PATCH("/chronograf/v1/users/:id", UpdateUser)
+		router.DELETE("/chronograf/v1/users/:id", RemoveUser)
 	*/
 	// Explorations
-	router.GET(httpAPIUsrsIDExps, store.Explorations)
-	router.POST(httpAPIUsrsIDExps, store.NewExploration)
+	router.GET("/chronograf/v1/users/:id/explorations", service.Explorations)
+	router.POST("/chronograf/v1/users/:id/explorations", service.NewExploration)
 
-	router.GET(httpAPIUsrsIDExpsID, store.ExplorationsID)
-	router.PATCH(httpAPIUsrsIDExpsID, store.UpdateExploration)
-	router.DELETE(httpAPIUsrsIDExpsID, store.RemoveExploration)
+	router.GET("/chronograf/v1/users/:id/explorations/:eid", service.ExplorationsID)
+	router.PATCH("/chronograf/v1/users/:id/explorations/:eid", service.UpdateExploration)
+	router.DELETE("/chronograf/v1/users/:id/explorations/:eid", service.RemoveExploration)
 
 	/* Authentication */
 	if opts.UseAuth {
@@ -132,6 +110,7 @@ func NewMux(opts MuxOpts, store Store, proxy InfluxProxy) http.Handler {
 	return Logger(opts.Logger, router)
 }
 
+// AuthAPI adds the OAuth routes if auth is enabled.
 func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 	auth := jwt.NewJWT(opts.TokenSecret)
 
@@ -146,19 +125,18 @@ func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 		opts.Logger,
 	)
 
-	router.GET(httpOAuth, gh.Login())
-	router.GET(httpOAuthLogout, gh.Logout())
-	router.GET(httpOAuthGHCallback, gh.Callback())
+	router.GET("/oauth", gh.Login())
+	router.GET("/oauth/logout", gh.Logout())
+	router.GET("/oauth/github/callback", gh.Callback())
 
 	tokenMiddleware := AuthorizedToken(&auth, &CookieExtractor{Name: "session"}, opts.Logger, router)
 	// Wrap the API with token validation middleware.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, httpAPIRoot) {
+		if strings.HasPrefix(r.URL.Path, "/chronograf/v1/") {
 			tokenMiddleware.ServeHTTP(w, r)
 			return
-		} else {
-			router.ServeHTTP(w, r)
 		}
+		router.ServeHTTP(w, r)
 	})
 }
 
@@ -170,6 +148,7 @@ func encodeJSON(w http.ResponseWriter, status int, v interface{}, logger chronog
 	}
 }
 
+// Error writes an JSON message
 func Error(w http.ResponseWriter, code int, msg string) {
 	e := struct {
 		Code    int    `json:"code"`

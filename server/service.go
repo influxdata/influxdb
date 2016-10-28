@@ -2,11 +2,12 @@ package server
 
 import "github.com/influxdata/chronograf"
 
-// Store handles REST calls to the persistence
-type Store struct {
+// Service handles REST calls to the persistence
+type Service struct {
 	ExplorationStore chronograf.ExplorationStore
 	SourcesStore     chronograf.SourcesStore
 	ServersStore     chronograf.ServersStore
 	LayoutStore      chronograf.LayoutStore
+	TimeSeries       chronograf.TimeSeries
 	Logger           chronograf.Logger
 }

@@ -15,7 +15,9 @@ import (
 )
 
 const (
-	DefaultCookieName     = "session"
+	// DefaultCookieName is the name of the stored cookie
+	DefaultCookieName = "session"
+	// DefaultCookieDuration is the length of time the cookie is valid
 	DefaultCookieDuration = time.Hour * 24 * 30
 )
 

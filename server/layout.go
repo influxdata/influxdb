@@ -15,6 +15,7 @@ type layoutResponse struct {
 }
 
 func newLayoutResponse(layout chronograf.Layout) layoutResponse {
+	httpAPILayouts := "/chronograf/v1/layouts"
 	href := fmt.Sprintf("%s/%s", httpAPILayouts, layout.ID)
 	rel := "self"
 
@@ -27,7 +28,8 @@ func newLayoutResponse(layout chronograf.Layout) layoutResponse {
 	}
 }
 
-func (h *Store) NewLayout(w http.ResponseWriter, r *http.Request) {
+// NewLayout adds a valid layout to store.
+func (h *Service) NewLayout(w http.ResponseWriter, r *http.Request) {
 	var layout chronograf.Layout
 	if err := json.NewDecoder(r.Body).Decode(&layout); err != nil {
 		invalidJSON(w)
@@ -54,7 +56,8 @@ type getLayoutsResponse struct {
 	Layouts []layoutResponse `json:"layouts"`
 }
 
-func (h *Store) Layouts(w http.ResponseWriter, r *http.Request) {
+// Layouts retrieves all layouts from store
+func (h *Service) Layouts(w http.ResponseWriter, r *http.Request) {
 	// Construct a filter sieve for both applications and measurements
 	filtered := map[string]bool{}
 	for _, a := range r.URL.Query()["app"] {
@@ -93,7 +96,8 @@ func (h *Store) Layouts(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
-func (h *Store) LayoutsID(w http.ResponseWriter, r *http.Request) {
+// LayoutsID retrieves layout with ID from store
+func (h *Service) LayoutsID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := httprouter.GetParamFromContext(ctx, "id")
 
@@ -107,7 +111,8 @@ func (h *Store) LayoutsID(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
-func (h *Store) RemoveLayout(w http.ResponseWriter, r *http.Request) {
+// RemoveLayout deletes layout from store.
+func (h *Service) RemoveLayout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := httprouter.GetParamFromContext(ctx, "id")
 
@@ -123,7 +128,8 @@ func (h *Store) RemoveLayout(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Store) UpdateLayout(w http.ResponseWriter, r *http.Request) {
+// UpdateLayout replaces the layout of ID with new valid layout.
+func (h *Service) UpdateLayout(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := httprouter.GetParamFromContext(ctx, "id")
 
@@ -155,6 +161,7 @@ func (h *Store) UpdateLayout(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
+// ValidLayoutRequest checks if the layout has valid application, measurement and cells.
 func ValidLayoutRequest(l chronograf.Layout) error {
 	if l.Application == "" || l.Measurement == "" || len(l.Cells) == 0 {
 		return fmt.Errorf("app, measurement, and cells required")

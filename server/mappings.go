@@ -11,7 +11,8 @@ type mapping struct {
 	Name        string `json:"name"`        // The application name which will be assigned to the corresponding measurement
 }
 
-func (h *Store) GetMappings(w http.ResponseWriter, r *http.Request) {
+// GetMappings returns the known mappings of measurements to applications
+func (h *Service) GetMappings(w http.ResponseWriter, r *http.Request) {
 	cpu := "cpu"
 	system := "System"
 	mp := getMappingsResponse{

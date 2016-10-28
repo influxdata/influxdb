@@ -28,6 +28,7 @@ const index = `<!DOCTYPE html>
 </html>
 `
 
+// Redoc servers the swagger JSON using the redoc package.
 func Redoc(swagger string) http.HandlerFunc {
 	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Content-Type", "text/html; charset=utf-8")

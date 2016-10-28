@@ -6,6 +6,7 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+// Logger is middleware that logs the request
 func Logger(logger chronograf.Logger, next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		logger.

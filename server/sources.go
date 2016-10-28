@@ -21,6 +21,7 @@ type sourceResponse struct {
 }
 
 func newSourceResponse(src chronograf.Source) sourceResponse {
+	httpAPISrcs := "/chronograf/v1/sources"
 	return sourceResponse{
 		Source: src,
 		Links: sourceLinks{
@@ -31,7 +32,8 @@ func newSourceResponse(src chronograf.Source) sourceResponse {
 	}
 }
 
-func (h *Store) NewSource(w http.ResponseWriter, r *http.Request) {
+// NewSource adds a new valid source to the store
+func (h *Service) NewSource(w http.ResponseWriter, r *http.Request) {
 	var src chronograf.Source
 	if err := json.NewDecoder(r.Body).Decode(&src); err != nil {
 		invalidJSON(w)
@@ -58,7 +60,8 @@ type getSourcesResponse struct {
 	Sources []sourceResponse `json:"sources"`
 }
 
-func (h *Store) Sources(w http.ResponseWriter, r *http.Request) {
+// Sources returns all sources from the store.
+func (h *Service) Sources(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	srcs, err := h.SourcesStore.All(ctx)
 	if err != nil {
@@ -77,7 +80,8 @@ func (h *Store) Sources(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
-func (h *Store) SourcesID(w http.ResponseWriter, r *http.Request) {
+// SourcesID retrieves a source from the store
+func (h *Service) SourcesID(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -95,7 +99,8 @@ func (h *Store) SourcesID(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
-func (h *Store) RemoveSource(w http.ResponseWriter, r *http.Request) {
+// RemoveSource deletes the source from the store
+func (h *Service) RemoveSource(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -112,7 +117,8 @@ func (h *Store) RemoveSource(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Store) UpdateSource(w http.ResponseWriter, r *http.Request) {
+// UpdateSource handles incremental updates of a data source
+func (h *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -162,6 +168,7 @@ func (h *Store) UpdateSource(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, newSourceResponse(src), h.Logger)
 }
 
+// ValidSourceRequest checks if name, url and type are valid
 func ValidSourceRequest(s chronograf.Source) error {
 	// Name and URL areq required
 	if s.Name == "" || s.URL == "" {

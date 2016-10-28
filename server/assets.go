@@ -8,9 +8,13 @@ import (
 )
 
 const (
-	Dir          = "../ui/build"
-	Default      = "../ui/build/index.html"
-	DebugDir     = "ui/build"
+	// Dir is prefix of the assets in the bindata
+	Dir = "../ui/build"
+	// Default is the default item to load if 404
+	Default = "../ui/build/index.html"
+	// DebugDir is the prefix of the assets in development mode
+	DebugDir = "ui/build"
+	// DebugDefault is the default item to load if 404
 	DebugDefault = "ui/build/index.html"
 )
 

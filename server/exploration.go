@@ -24,7 +24,7 @@ type exploration struct {
 
 func newExploration(e *chronograf.Exploration) exploration {
 	rel := "self"
-	href := fmt.Sprintf("%s/%d/explorations/%d", httpAPIUsrs, e.UserID, e.ID)
+	href := fmt.Sprintf("%s/%d/explorations/%d", "/chronograf/v1/users", e.UserID, e.ID)
 	return exploration{
 		Name:      e.Name,
 		Data:      e.Data,
@@ -41,7 +41,8 @@ type explorations struct {
 	Explorations []exploration `json:"explorations"`
 }
 
-func (h *Store) Explorations(w http.ResponseWriter, r *http.Request) {
+// Explorations returns all explorations scoped by user id.
+func (h *Service) Explorations(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -66,7 +67,8 @@ func (h *Store) Explorations(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
-func (h *Store) ExplorationsID(w http.ResponseWriter, r *http.Request) {
+// ExplorationsID retrieves exploration ID scoped under user.
+func (h *Service) ExplorationsID(w http.ResponseWriter, r *http.Request) {
 	eID, err := paramID("eid", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -95,7 +97,8 @@ type patchExplorationRequest struct {
 	Name *string     `json:"name,omitempty"` // Exploration name given by user.
 }
 
-func (h *Store) UpdateExploration(w http.ResponseWriter, r *http.Request) {
+// UpdateExploration incrementally updates exploration
+func (h *Service) UpdateExploration(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("eid", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -149,7 +152,8 @@ type postExplorationRequest struct {
 	Name string      `json:"name,omitempty"` // Exploration name given by user.
 }
 
-func (h *Store) NewExploration(w http.ResponseWriter, r *http.Request) {
+// NewExploration adds valid exploration scoped by user id.
+func (h *Service) NewExploration(w http.ResponseWriter, r *http.Request) {
 	uID, err := paramID("id", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -186,7 +190,8 @@ func (h *Store) NewExploration(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
 }
 
-func (h *Store) RemoveExploration(w http.ResponseWriter, r *http.Request) {
+// RemoveExploration deletes exploration from store.
+func (h *Service) RemoveExploration(w http.ResponseWriter, r *http.Request) {
 	eID, err := paramID("eid", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())

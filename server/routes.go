@@ -13,12 +13,13 @@ type getRoutesResponse struct {
 	Users    string `json:"users"`    // Location of the users endpoint
 }
 
+// AllRoutes returns all top level routes within chronograf
 func AllRoutes(logger chronograf.Logger) http.HandlerFunc {
 	routes := getRoutesResponse{
-		Sources:  httpAPISrcs,
-		Layouts:  httpAPILayouts,
-		Users:    httpAPIUsrs,
-		Mappings: httpAPIMappings,
+		Sources:  "/chronograf/v1/sources",
+		Layouts:  "/chronograf/v1/layouts",
+		Users:    "/chronograf/v1/users",
+		Mappings: "/chronograf/v1/mappings",
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

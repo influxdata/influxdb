@@ -1,11 +1,9 @@
 package server
 
 import (
-	"log"
 	"net"
 	"net/http"
 	"strconv"
-	"sync"
 	"time"
 
 	"github.com/influxdata/chronograf"
@@ -19,7 +17,7 @@ import (
 	"github.com/tylerb/graceful"
 )
 
-var logger chronograf.Logger = clog.New()
+var logger = clog.New()
 
 // Server for the chronograf API
 type Server struct {
@@ -38,73 +36,82 @@ type Server struct {
 	GithubClientID     string `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
 	GithubClientSecret string `short:"s" long:"github-client-secret" description:"Github Client Secret for OAuth 2 support" env:"GH_CLIENT_SECRET"`
 
-	httpServerL net.Listener
-	handler     http.Handler
+	Listener net.Listener
+	handler  http.Handler
 }
 
+func (s *Server) useAuth() bool {
+	return s.TokenSecret != "" && s.GithubClientID != "" && s.GithubClientSecret != ""
+}
+
+// Serve starts and runs the chronograf server
 func (s *Server) Serve() error {
-	c := bolt.NewClient()
-	c.Path = s.BoltPath
-	if err := c.Open(); err != nil {
-		logger.WithField("component", "boltstore").Panic("Unable to open boltdb; is there a mrfusion already running?", err)
-		panic(err)
-	}
-
-	apps := canned.NewApps(s.CannedPath, &uuid.V4{})
-
-	// allLayouts acts as a front-end to both the bolt layouts and the filesystem layouts.
-	allLayouts := &layouts.MultiLayoutStore{
-		Stores: []chronograf.LayoutStore{
-			c.LayoutStore,
-			apps,
-		},
-	}
-	h := Store{
-		ExplorationStore: c.ExplorationStore,
-		SourcesStore:     c.SourcesStore,
-		ServersStore:     c.ServersStore,
-		LayoutStore:      allLayouts,
-	}
-
-	p := InfluxProxy{
-		Srcs:         c.SourcesStore,
-		TimeSeries:   &influx.Client{},
-		ServersStore: c.ServersStore,
-	}
-
-	useAuth := s.TokenSecret != "" && s.GithubClientID != "" && s.GithubClientSecret != ""
+	service := openService(s.BoltPath, s.CannedPath)
 	s.handler = NewMux(MuxOpts{
 		Develop:            s.Develop,
 		TokenSecret:        s.TokenSecret,
 		GithubClientID:     s.GithubClientID,
 		GithubClientSecret: s.GithubClientSecret,
 		Logger:             logger,
-		UseAuth:            useAuth,
-	}, h, p)
+		UseAuth:            s.useAuth(),
+	}, service)
 
-	listener, err := net.Listen("tcp", net.JoinHostPort(s.Host, strconv.Itoa(s.Port)))
+	var err error
+	s.Listener, err = net.Listen("tcp", net.JoinHostPort(s.Host, strconv.Itoa(s.Port)))
 	if err != nil {
+		logger.
+			WithField("component", "server").
+			Error(err)
 		return err
 	}
 
-	s.httpServerL = listener
-	var wg sync.WaitGroup
-
 	httpServer := &graceful.Server{Server: new(http.Server)}
 	httpServer.SetKeepAlivesEnabled(true)
-	httpServer.TCPKeepAlive = 3 * time.Minute
+	httpServer.TCPKeepAlive = 1 * time.Minute
 	httpServer.Handler = s.handler
 
-	wg.Add(1)
-	log.Printf("Serving chronograf at http://%s", s.httpServerL.Addr())
-	go func(l net.Listener) {
-		defer wg.Done()
-		if err := httpServer.Serve(l); err != nil {
-			log.Fatalf("%v", err)
-		}
-		log.Printf("Stopped serving chronograf at http://%s", l.Addr())
-	}(s.httpServerL)
+	logger.
+		WithField("component", "server").
+		Info("Serving chronograf at http://%s", s.Listener.Addr())
 
-	wg.Wait()
+	if err := httpServer.Serve(s.Listener); err != nil {
+		logger.
+			WithField("component", "server").
+			Error(err)
+		return err
+	}
+
+	logger.
+		WithField("component", "server").
+		Info("Stopped serving chronograf at http://%s", s.Listener.Addr())
+
 	return nil
+}
+
+func openService(boltPath, cannedPath string) Service {
+	db := bolt.NewClient()
+	db.Path = boltPath
+	if err := db.Open(); err != nil {
+		logger.
+			WithField("component", "boltstore").
+			Panic("Unable to open boltdb; is there a mrfusion already running?", err)
+		panic(err)
+	}
+
+	apps := canned.NewApps(cannedPath, &uuid.V4{})
+	// Acts as a front-end to both the bolt layouts and the filesystem layouts.
+	layouts := &layouts.MultiLayoutStore{
+		Stores: []chronograf.LayoutStore{
+			db.LayoutStore,
+			apps,
+		},
+	}
+
+	return Service{
+		ExplorationStore: db.ExplorationStore,
+		SourcesStore:     db.SourcesStore,
+		ServersStore:     db.ServersStore,
+		TimeSeries:       &influx.Client{},
+		LayoutStore:      layouts,
+	}
 }

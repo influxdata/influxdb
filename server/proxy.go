@@ -10,13 +10,7 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
-type InfluxProxy struct {
-	Srcs         chronograf.SourcesStore
-	ServersStore chronograf.ServersStore
-	TimeSeries   chronograf.TimeSeries
-	Logger       chronograf.Logger
-}
-
+// ValidProxyRequest checks if queries specify a command.
 func ValidProxyRequest(p chronograf.Query) error {
 	if p.Command == "" {
 		return fmt.Errorf("query field required")
@@ -28,7 +22,8 @@ type postProxyResponse struct {
 	Results interface{} `json:"results"` // results from influx
 }
 
-func (h *InfluxProxy) Proxy(w http.ResponseWriter, r *http.Request) {
+// Proxy proxies requests to infludb.
+func (h *Service) Proxy(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -46,7 +41,7 @@ func (h *InfluxProxy) Proxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	src, err := h.Srcs.Get(ctx, id)
+	src, err := h.SourcesStore.Get(ctx, id)
 	if err != nil {
 		notFound(w, id)
 		return
@@ -76,7 +71,8 @@ func (h *InfluxProxy) Proxy(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
-func (h *InfluxProxy) KapacitorProxy(w http.ResponseWriter, r *http.Request) {
+// KapacitorProxy proxies requests to kapacitor using the path query parameter.
+func (h *Service) KapacitorProxy(w http.ResponseWriter, r *http.Request) {
 	srcID, err := paramID("id", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -123,18 +119,22 @@ func (h *InfluxProxy) KapacitorProxy(w http.ResponseWriter, r *http.Request) {
 	proxy.ServeHTTP(w, r)
 }
 
-func (h *InfluxProxy) KapacitorProxyPost(w http.ResponseWriter, r *http.Request) {
+// KapacitorProxyPost proxies POST to kapacitor
+func (h *Service) KapacitorProxyPost(w http.ResponseWriter, r *http.Request) {
 	h.KapacitorProxy(w, r)
 }
 
-func (h *InfluxProxy) KapacitorProxyPatch(w http.ResponseWriter, r *http.Request) {
+// KapacitorProxyPatch proxies PATCH to kapacitor
+func (h *Service) KapacitorProxyPatch(w http.ResponseWriter, r *http.Request) {
 	h.KapacitorProxy(w, r)
 }
 
-func (h *InfluxProxy) KapacitorProxyGet(w http.ResponseWriter, r *http.Request) {
+// KapacitorProxyGet proxies GET to kapacitor
+func (h *Service) KapacitorProxyGet(w http.ResponseWriter, r *http.Request) {
 	h.KapacitorProxy(w, r)
 }
 
-func (h *InfluxProxy) KapacitorProxyDelete(w http.ResponseWriter, r *http.Request) {
+// KapacitorProxyDelete proxies DELETE to kapacitor
+func (h *Service) KapacitorProxyDelete(w http.ResponseWriter, r *http.Request) {
 	h.KapacitorProxy(w, r)
 }
