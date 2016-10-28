@@ -157,6 +157,7 @@ function stop() {
             echo "Stopping $NAME..."
             # Process still up, send SIGTERM and remove PIDFILE
             kill -s SIGTERM $PID &>/dev/null && rm -f "$PIDFILE" &>/dev/null
+            n=0
             while true; do
                 # Enter loop to ensure process is stopped
                 kill -0 $PID &>/dev/null
