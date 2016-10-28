@@ -43,6 +43,8 @@ message Cell {
     int32 w                 = 3; // Width of Cell in the Layout
     int32 h                 = 4; // Height of Cell in the Layout
     repeated Query queries  = 5; // Time-series data queries for Cell.
+    string i                = 6; // Unique identifier for the cell
+    string name             = 7; // User-facing name for this cell
 }
 
 message Query {
