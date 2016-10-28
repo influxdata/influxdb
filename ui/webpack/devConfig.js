@@ -60,6 +60,9 @@ module.exports = {
       },
     ],
   },
+  sassLoader: {
+    includePaths: [path.resolve(__dirname, "node_modules")],
+  },
   eslint: {
     failOnWarning: false,
     failOnError: false,

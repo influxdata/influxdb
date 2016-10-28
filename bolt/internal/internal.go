@@ -115,6 +115,8 @@ func MarshalLayout(l chronograf.Layout) ([]byte, error) {
 			Y:       c.Y,
 			W:       c.W,
 			H:       c.H,
+			I:       c.I,
+			Name:    c.Name,
 			Queries: queries,
 		}
 	}
@@ -151,6 +153,8 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 			Y:       c.Y,
 			W:       c.W,
 			H:       c.H,
+			I:       c.I,
+			Name:    c.Name,
 			Queries: queries,
 		}
 	}

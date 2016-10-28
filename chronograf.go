@@ -175,12 +175,14 @@ type Cell struct {
 	Y       int32   `json:"y"`
 	W       int32   `json:"w"`
 	H       int32   `json:"h"`
+	I       string  `json:"i"`
+	Name    string  `json:"name"`
 	Queries []Query `json:"queries"`
 }
 
 // Layout is a collection of Cells for visualization
 type Layout struct {
-	ID          string `json:"id,string"`
+	ID          string `json:"id"`
 	Application string `json:"app"`
 	Measurement string `json:"measurement"`
 	Cells       []Cell `json:"cells"`

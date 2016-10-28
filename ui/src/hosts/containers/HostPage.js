@@ -1,9 +1,8 @@
 import React, {PropTypes} from 'react';
 // TODO: move this to a higher level package than chronograf?
-import AutoRefresh from 'shared/components/AutoRefresh';
-import LineGraph from 'shared/components/LineGraph';
-
-const RefreshingLineGraph = AutoRefresh(LineGraph);
+import LayoutRenderer from '../components/LayoutRenderer';
+import {fetchLayouts} from '../apis';
+import _ from 'lodash';
 
 export const HostPage = React.createClass({
   propTypes: {
@@ -17,36 +16,43 @@ export const HostPage = React.createClass({
     }).isRequired,
   },
 
+  getInitialState() {
+    return {layouts: []};
+  },
+
+  componentDidMount() {
+    fetchLayouts().then((ls) => {
+      this.setState({layouts: ls.data.layouts});
+    });
+  },
+
   render() {
     const autoRefreshMs = 15000;
     const source = this.props.source.links.proxy;
     const hostID = this.props.params.hostID;
-    const queries = [
-      {
-        text: `SELECT "usage_user" FROM "telegraf".."cpu" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
-        name: 'CPU',
-      },
-      {
-        text: `SELECT "used_percent" FROM "telegraf".."mem" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
-        name: "Memory",
-      },
-      {
-        text: `SELECT "load1" FROM "telegraf".."system" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
-        name: "Load",
-      },
-      {
-        text: `SELECT "bytes_recv", "bytes_sent" FROM "telegraf".."net" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
-        name: "Network",
-      },
-      {
-        text: `SELECT "io_time" FROM "telegraf".."diskio" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
-        name: "Disk IO",
-      },
-      {
-        text: `SELECT "used_percent" FROM "telegraf".."disk" WHERE host = '${this.props.params.hostID}' AND time > now() - 15m`,
-        name: "Disk Usage",
-      },
-    ];
+
+    const layout = _.head(this.state.layouts);
+
+    let layoutComponent;
+    if (layout) {
+      layout.cells.forEach((cell) => {
+        cell.queries.forEach((q) => {
+          q.text = q.query;
+          q.database = q.db;
+        });
+      });
+
+      layoutComponent = (
+        <LayoutRenderer
+          cells={layout.cells}
+          autoRefreshMs={autoRefreshMs}
+          source={source}
+          host={this.props.params.hostID}
+        />
+      );
+    } else {
+      layoutComponent = <div />;
+    }
 
     return (
       <div className="host-dashboard hosts-page">
@@ -62,22 +68,7 @@ export const HostPage = React.createClass({
         </div>
         <div className="container-fluid hosts-dashboard">
           <div className="row">
-            {
-              queries.map((query) => {
-                const q = Object.assign({}, query, {host: source});
-                return (
-                  <div className="col-xs-12 col-sm-6 col-lg-4" key={q.name}>
-                    <h2 className="hosts-graph-heading">{q.name}</h2>
-                    <div className="hosts-graph graph-panel__graph-container">
-                      <RefreshingLineGraph
-                        queries={[q]}
-                        autoRefresh={autoRefreshMs}
-                      />
-                    </div>
-                  </div>
-                );
-              })
-            }
+            {layoutComponent}
           </div>
         </div>
       </div>
