@@ -261,7 +261,7 @@ func (f *FileStore) Add(files ...TSMFile) {
 	for _, file := range files {
 		atomic.AddInt64(&f.stats.DiskBytes, int64(file.Size()))
 	}
-	f.lastFileStats = f.lastFileStats[:0] // Will need to be recalculated on next call to Stats.
+	f.lastFileStats = nil
 	f.files = append(f.files, files...)
 	sort.Sort(tsmReaders(f.files))
 	atomic.StoreInt64(&f.stats.FileCount, int64(len(f.files)))
@@ -289,7 +289,7 @@ func (f *FileStore) Remove(paths ...string) {
 			atomic.AddInt64(&f.stats.DiskBytes, -int64(file.Size()))
 		}
 	}
-	f.lastFileStats = f.lastFileStats[:0] // Will need to be recalculated on next call to Stats.
+	f.lastFileStats = nil
 	f.files = active
 	sort.Sort(tsmReaders(f.files))
 	atomic.StoreInt64(&f.stats.FileCount, int64(len(f.files)))
@@ -618,7 +618,7 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 	// Tell the purger about our in-use files we need to remove
 	f.purger.add(inuse)
 
-	f.lastFileStats = f.lastFileStats[:0] // Will need to be recalculated on next call to Stats.
+	f.lastFileStats = nil
 	f.files = active
 	sort.Sort(tsmReaders(f.files))
 	atomic.StoreInt64(&f.stats.FileCount, int64(len(f.files)))

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -359,6 +360,80 @@ func TestShardWriteAddNewField(t *testing.T) {
 	if len(index.Measurement("cpu").FieldNames()) != 2 {
 		t.Fatalf("field names wasn't saved to measurement index")
 	}
+}
+
+// Tests concurrently writing to the same shard with different field types which
+// can trigger a panic when the shard is snapshotted to TSM files.
+func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	tmpDir, _ := ioutil.TempDir("", "shard_test")
+	defer os.RemoveAll(tmpDir)
+	tmpShard := path.Join(tmpDir, "shard")
+	tmpWal := path.Join(tmpDir, "wal")
+
+	index := tsdb.NewDatabaseIndex("db")
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+
+	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+	if err := sh.Open(); err != nil {
+		t.Fatalf("error opening shard: %s", err.Error())
+	}
+	defer sh.Close()
+
+	points := make([]models.Point, 0, 1000)
+	for i := 0; i < cap(points); i++ {
+		if i < 500 {
+			points = append(points, models.MustNewPoint(
+				"cpu",
+				models.NewTags(map[string]string{"host": "server"}),
+				map[string]interface{}{"value": 1.0},
+				time.Unix(int64(i), 0),
+			))
+		} else {
+			points = append(points, models.MustNewPoint(
+				"cpu",
+				models.NewTags(map[string]string{"host": "server"}),
+				map[string]interface{}{"value": int64(1)},
+				time.Unix(int64(i), 0),
+			))
+		}
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 50; i++ {
+			if err := sh.DeleteMeasurement("cpu", []string{"cpu,host=server"}); err != nil {
+				t.Fatalf(err.Error())
+			}
+
+			_ = sh.WritePoints(points[:500])
+			if f, err := sh.CreateSnapshot(); err == nil {
+				os.RemoveAll(f)
+			}
+
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 50; i++ {
+			if err := sh.DeleteMeasurement("cpu", []string{"cpu,host=server"}); err != nil {
+				t.Fatalf(err.Error())
+			}
+
+			_ = sh.WritePoints(points[500:])
+			if f, err := sh.CreateSnapshot(); err == nil {
+				os.RemoveAll(f)
+			}
+		}
+	}()
+
+	wg.Wait()
 }
 
 // Ensures that when a shard is closed, it removes any series meta-data

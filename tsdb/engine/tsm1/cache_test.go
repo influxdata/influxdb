@@ -56,6 +56,27 @@ func TestCache_CacheWrite(t *testing.T) {
 	}
 }
 
+func TestCache_CacheWrite_TypeConflict(t *testing.T) {
+	v0 := NewValue(1, 1.0)
+	v1 := NewValue(2, int(64))
+	values := Values{v0, v1}
+	valuesSize := v0.Size() + v1.Size()
+
+	c := NewCache(uint64(2*valuesSize), "")
+
+	if err := c.Write("foo", values[:1]); err != nil {
+		t.Fatalf("failed to write key foo to cache: %s", err.Error())
+	}
+
+	if err := c.Write("foo", values[1:]); err == nil {
+		t.Fatalf("expected field type conflict")
+	}
+
+	if exp, got := uint64(v0.Size()), c.Size(); exp != got {
+		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
+	}
+}
+
 func TestCache_CacheWriteMulti(t *testing.T) {
 	v0 := NewValue(1, 1.0)
 	v1 := NewValue(2, 2.0)
@@ -73,6 +94,28 @@ func TestCache_CacheWriteMulti(t *testing.T) {
 	}
 
 	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
+		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
+	}
+}
+
+func TestCache_CacheWriteMulti_TypeConflict(t *testing.T) {
+	v0 := NewValue(1, 1.0)
+	v1 := NewValue(2, 2.0)
+	v2 := NewValue(3, int64(3))
+	values := Values{v0, v1, v2}
+	valuesSize := uint64(v0.Size() + v1.Size() + v2.Size())
+
+	c := NewCache(3*valuesSize, "")
+
+	if err := c.WriteMulti(map[string][]Value{"foo": values[:1], "bar": values[1:]}); err == nil {
+		t.Fatalf(" expected field type conflict")
+	}
+
+	if exp, got := uint64(v0.Size()), c.Size(); exp != got {
+		t.Fatalf("cache size incorrect after 2 writes, exp %d, got %d", exp, got)
+	}
+
+	if exp, keys := []string{"foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
 	}
 }
