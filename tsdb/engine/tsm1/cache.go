@@ -156,8 +156,9 @@ const (
 	statCachedBytes         = "cachedBytes"         // counter: Total number of bytes written into snapshots.
 	statWALCompactionTimeMs = "WALCompactionTimeMs" // counter: Total number of milliseconds spent compacting snapshots
 
-	writeOK  = "writeOk"
-	writeErr = "writeErr"
+	statCacheWriteOK      = "writeOk"
+	statCacheWriteErr     = "writeErr"
+	statCacheWriteDropped = "writeDropped"
 )
 
 // Cache maintains an in-memory store of Values for a set of keys.
@@ -209,6 +210,7 @@ type CacheStatistics struct {
 	WALCompactionTimeMs int64
 	WriteOK             int64
 	WriteErr            int64
+	WriteDropped        int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -223,6 +225,9 @@ func (c *Cache) Statistics(tags map[string]string) []models.Statistic {
 			statCacheAgeMs:          atomic.LoadInt64(&c.stats.CacheAgeMs),
 			statCachedBytes:         atomic.LoadInt64(&c.stats.CachedBytes),
 			statWALCompactionTimeMs: atomic.LoadInt64(&c.stats.WALCompactionTimeMs),
+			statCacheWriteOK:        atomic.LoadInt64(&c.stats.WriteOK),
+			statCacheWriteErr:       atomic.LoadInt64(&c.stats.WriteErr),
+			statCacheWriteDropped:   atomic.LoadInt64(&c.stats.WriteDropped),
 		},
 	}}
 }
@@ -242,6 +247,7 @@ func (c *Cache) Write(key string, values []Value) error {
 
 	if err := c.write(key, values); err != nil {
 		c.mu.Unlock()
+		atomic.AddInt64(&c.stats.WriteErr, 1)
 		return err
 	}
 	c.size += addedSize
@@ -283,6 +289,13 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	}
 	c.size += totalSz
 	c.mu.Unlock()
+
+	// Some points in the batch were dropped.  An error is returned so
+	// error stat is incremented as well.
+	if werr != nil {
+		atomic.AddInt64(&c.stats.WriteDropped, 1)
+		atomic.AddInt64(&c.stats.WriteErr, 1)
+	}
 
 	// Update the memory size stat
 	c.updateMemSize(int64(totalSz))
