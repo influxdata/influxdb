@@ -17,7 +17,7 @@ import (
 
 const AppExt = ".json"
 
-var logger = clog.New()
+var logger = clog.New(clog.DebugLevel)
 
 // Apps are canned JSON layouts.  Implements LayoutStore.
 type Apps struct {

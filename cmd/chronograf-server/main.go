@@ -10,14 +10,17 @@ import (
 
 // Build flags
 var (
-	Version   = ""
-	Commit    = ""
-	BuildTime = ""
-	Branch    = ""
+	Version = ""
+	Commit  = ""
 )
 
 func main() {
-	srv := server.Server{}
+	srv := server.Server{
+		BuildInfo: server.BuildInfo{
+			Version: Version,
+			Commit:  Commit,
+		},
+	}
 
 	parser := flags.NewParser(&srv, flags.Default)
 	parser.ShortDescription = `Chronograf`
