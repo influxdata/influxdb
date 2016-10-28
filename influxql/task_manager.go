@@ -135,7 +135,7 @@ func (t *TaskManager) AttachQuery(q *Query, database string, interrupt <-chan st
 	}
 
 	if t.MaxConcurrentQueries > 0 && len(t.queries) >= t.MaxConcurrentQueries {
-		return 0, nil, ErrMaxConcurrentQueriesReached
+		return 0, nil, ErrMaxConcurrentQueriesLimitExceeded(len(t.queries), t.MaxConcurrentQueries)
 	}
 
 	qid := t.nextID
@@ -239,7 +239,7 @@ func (t *TaskManager) waitForQuery(qid uint64, interrupt <-chan struct{}, closin
 		if !ok {
 			break
 		}
-		query.setError(ErrQueryTimeoutReached)
+		query.setError(ErrQueryTimeoutLimitExceeded)
 	case <-interrupt:
 		// Query was manually closed so exit the select.
 		return

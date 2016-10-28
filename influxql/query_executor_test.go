@@ -3,6 +3,7 @@ package influxql_test
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -166,7 +167,7 @@ func TestQueryExecutor_Limit_Timeout(t *testing.T) {
 
 	results := e.ExecuteQuery(q, influxql.ExecutionOptions{}, nil)
 	result := <-results
-	if result.Err != influxql.ErrQueryTimeoutReached {
+	if result.Err == nil || !strings.Contains(result.Err.Error(), "query-timeout") {
 		t.Errorf("unexpected error: %s", result.Err)
 	}
 }
@@ -202,7 +203,7 @@ func TestQueryExecutor_Limit_ConcurrentQueries(t *testing.T) {
 		if len(result.Series) != 0 {
 			t.Errorf("expected %d rows, got %d", 0, len(result.Series))
 		}
-		if result.Err != influxql.ErrMaxConcurrentQueriesReached {
+		if result.Err == nil || !strings.Contains(result.Err.Error(), "max-concurrent-queries") {
 			t.Errorf("unexpected error: %s", result.Err)
 		}
 	case <-qid:

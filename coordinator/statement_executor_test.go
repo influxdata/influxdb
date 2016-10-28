@@ -101,7 +101,7 @@ func TestQueryExecutor_ExecuteQuery_MaxSelectBucketsN(t *testing.T) {
 	if a := ReadAllResults(e.ExecuteQuery(`SELECT count(value) FROM cpu WHERE time >= '2000-01-01T00:00:05Z' AND time < '2000-01-01T00:00:35Z' GROUP BY time(10s)`, "db0", 0)); !reflect.DeepEqual(a, []*influxql.Result{
 		{
 			StatementID: 0,
-			Err:         errors.New("max select bucket count exceeded: 4 buckets"),
+			Err:         errors.New("max-select-buckets limit exceeded: (4/3)"),
 		},
 	}) {
 		t.Fatalf("unexpected results: %s", spew.Sdump(a))
