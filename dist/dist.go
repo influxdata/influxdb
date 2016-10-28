@@ -1,5 +1,7 @@
 package dist
 
+//go:generate go-bindata -o dist_gen.go -ignore 'map|go' -pkg dist ../ui/build/...
+
 import (
 	"net/http"
 

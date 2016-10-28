@@ -1,8 +1,9 @@
 package layouts
 
 import (
+	"context"
+
 	"github.com/influxdata/chronograf"
-	"golang.org/x/net/context"
 )
 
 // MultiLayoutStore is a Layoutstore that contains multiple LayoutStores
@@ -18,7 +19,8 @@ func (s *MultiLayoutStore) All(ctx context.Context) ([]chronograf.Layout, error)
 	ok := false
 	var err error
 	for _, store := range s.Stores {
-		layouts, err := store.All(ctx)
+		var layouts []chronograf.Layout
+		layouts, err = store.All(ctx)
 		if err != nil {
 			// Try to load as many layouts as possible
 			continue

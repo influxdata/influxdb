@@ -45,7 +45,7 @@ func TestServerStore(t *testing.T) {
 		if actual, err := s.Get(nil, srcs[i].ID); err != nil {
 			t.Fatal(err)
 		} else if !reflect.DeepEqual(actual, srcs[i]) {
-			t.Fatal("server loaded is different then server saved; actual: %v, expected %v", actual, srcs[i])
+			t.Fatalf("server loaded is different then server saved; actual: %v, expected %v", actual, srcs[i])
 		}
 	}
 

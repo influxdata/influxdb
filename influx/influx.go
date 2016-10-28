@@ -1,14 +1,13 @@
 package influx
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
 
 	"github.com/influxdata/chronograf"
-
-	"golang.org/x/net/context"
 )
 
 // Client is a device for retrieving time series data from an InfluxDB instance
@@ -122,14 +121,8 @@ func (c *Client) Query(ctx context.Context, q chronograf.Query) (chronograf.Resp
 	}
 }
 
-// MonitoredServices returns all services for which this instance of InfluxDB
-// has time series information stored for.
-func (c *Client) MonitoredServices(ctx context.Context) ([]chronograf.MonitoredService, error) {
-	return []chronograf.MonitoredService{}, nil
-}
-
 func (c *Client) Connect(ctx context.Context, src *chronograf.Source) error {
-	u, err := url.Parse(src.URL[0])
+	u, err := url.Parse(src.URL)
 	if err != nil {
 		return err
 	}

@@ -1,10 +1,9 @@
 package jwt
 
 import (
+	"context"
 	"fmt"
 	"time"
-
-	"golang.org/x/net/context"
 
 	gojwt "github.com/dgrijalva/jwt-go"
 	"github.com/influxdata/chronograf"
@@ -80,7 +79,7 @@ func (j *JWT) Authenticate(ctx context.Context, jwtToken string) (chronograf.Pri
 func (j *JWT) Token(ctx context.Context, user chronograf.Principal, duration time.Duration) (string, error) {
 	// Create a new token object, specifying signing method and the claims
 	// you would like it to contain.
-	now := j.Now()
+	now := j.Now().UTC()
 	claims := &Claims{
 		gojwt.StandardClaims{
 			Subject:   string(user),

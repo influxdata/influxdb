@@ -102,7 +102,7 @@ func TestAdd(t *testing.T) {
 		}
 
 		if layout.ID != test.ExpectedID {
-			t.Errorf("Test %d: Layout ID should be equal; expected %d; actual %d", i, test.ExpectedID, layout.ID)
+			t.Errorf("Test %d: Layout ID should be equal; expected %s; actual %s", i, test.ExpectedID, layout.ID)
 		}
 	}
 }

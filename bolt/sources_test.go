@@ -25,7 +25,7 @@ func TestSourceStore(t *testing.T) {
 			Type:     "influx",
 			Username: "marty",
 			Password: "I❤️  jennifer parker",
-			URL:      []string{"toyota-hilux.lyon-estates.local", "lake.hilldale.local"},
+			URL:      "toyota-hilux.lyon-estates.local",
 			Default:  true,
 		},
 		chronograf.Source{
@@ -33,7 +33,7 @@ func TestSourceStore(t *testing.T) {
 			Type:     "influx",
 			Username: "calvinklein",
 			Password: "chuck b3rry",
-			URL:      []string{"toyota-hilux.lyon-estates.local", "lake.hilldale.local"},
+			URL:      "toyota-hilux.lyon-estates.local",
 			Default:  true,
 		},
 	}
@@ -47,7 +47,7 @@ func TestSourceStore(t *testing.T) {
 		if actual, err := s.Get(nil, srcs[i].ID); err != nil {
 			t.Fatal(err)
 		} else if !reflect.DeepEqual(actual, srcs[i]) {
-			t.Fatal("source loaded is different then source saved; actual: %v, expected %v", actual, srcs[i])
+			t.Fatalf("source loaded is different then source saved; actual: %v, expected %v", actual, srcs[i])
 		}
 	}
 

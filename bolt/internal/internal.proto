@@ -17,7 +17,7 @@ message Source {
 	string Type             = 3; // Type specifies which kinds of source (enterprise vs oss)
 	string Username         = 4; // Username is the username to connect to the source
 	string Password         = 5;
-	repeated string URLs    = 6; // URL are the connections to the source
+	string URL              = 6; // URL are the connections to the source
 	bool Default            = 7; // Flags an exploration as the default.
 }
 

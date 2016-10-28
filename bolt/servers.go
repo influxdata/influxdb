@@ -1,10 +1,11 @@
 package bolt
 
 import (
+	"context"
+
 	"github.com/boltdb/bolt"
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt/internal"
-	"golang.org/x/net/context"
 )
 
 // Ensure ServersStore implements chronograf.ServersStore.

@@ -3,6 +3,7 @@ package canned
 //go:generate go-bindata -o apps_gen.go -ignore README|apps -pkg canned .
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/influxdata/chronograf"
 	clog "github.com/influxdata/chronograf/log"
-	"golang.org/x/net/context"
 )
 
 const AppExt = ".json"

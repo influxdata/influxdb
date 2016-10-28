@@ -119,7 +119,11 @@ func Test_Influx_ReportsInfluxErrs(t *testing.T) {
 		t.Fatal("Encountered unexpected error while initializing influx client: err:", err)
 	}
 
-	_, err = cl.Query(context.Background(), chronograf.Query{"show shards", "_internal", "autogen"})
+	_, err = cl.Query(context.Background(), chronograf.Query{
+		Command: "show shards",
+		DB:      "_internal",
+		RP:      "autogen",
+	})
 	if err == nil {
 		t.Fatal("Expected an error but received none")
 	}

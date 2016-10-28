@@ -37,7 +37,7 @@ func TestMarshalSource(t *testing.T) {
 		Type:     "influx",
 		Username: "docbrown",
 		Password: "1 point twenty-one g1g@w@tts",
-		URL:      []string{"http://twin-pines.mall.io:8086", "https://lonepine.mall.io:8086"},
+		URL:      "http://twin-pines.mall.io:8086",
 		Default:  true,
 	}
 
