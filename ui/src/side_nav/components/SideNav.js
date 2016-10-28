@@ -41,8 +41,8 @@ const SideNav = React.createClass({
         </NavBlock>
         <NavBlock matcher="alerts" icon="alert-triangle" link={`${sourcePrefix}/alerts`}>
           <NavHeader link={`${sourcePrefix}/alerts`} title="Alerts" />
-          <NavListItem matcher="view" link={`${sourcePrefix}/alerts`}>View</NavListItem>
-          <NavListItem matcher="rules" link={`${sourcePrefix}/alert/rules`}>Rules</NavListItem>
+          <NavListItem link={`${sourcePrefix}/alerts`}>View</NavListItem>
+          <NavListItem link={`${sourcePrefix}/alert-rules`}>Rules</NavListItem>
         </NavBlock>
       </NavBar>
     );
