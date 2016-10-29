@@ -381,7 +381,7 @@ func (r *FloatElapsedReducer) Emit() []IntegerPoint {
 	return nil
 }
 
-// FloatSampleReduces implements a reservoir sampling to calculate a random subset of points
+// FloatSampleReducer implements a reservoir sampling to calculate a random subset of points
 type FloatSampleReducer struct {
 	count int        // how many points we've iterated over
 	rng   *rand.Rand // random number generator for each reducer
@@ -795,7 +795,7 @@ func (r *IntegerElapsedReducer) Emit() []IntegerPoint {
 	return nil
 }
 
-// IntegerSampleReduces implements a reservoir sampling to calculate a random subset of points
+// IntegerSampleReducer implements a reservoir sampling to calculate a random subset of points
 type IntegerSampleReducer struct {
 	count int        // how many points we've iterated over
 	rng   *rand.Rand // random number generator for each reducer
@@ -1209,7 +1209,7 @@ func (r *StringElapsedReducer) Emit() []IntegerPoint {
 	return nil
 }
 
-// StringSampleReduces implements a reservoir sampling to calculate a random subset of points
+// StringSampleReducer implements a reservoir sampling to calculate a random subset of points
 type StringSampleReducer struct {
 	count int        // how many points we've iterated over
 	rng   *rand.Rand // random number generator for each reducer
@@ -1623,7 +1623,7 @@ func (r *BooleanElapsedReducer) Emit() []IntegerPoint {
 	return nil
 }
 
-// BooleanSampleReduces implements a reservoir sampling to calculate a random subset of points
+// BooleanSampleReducer implements a reservoir sampling to calculate a random subset of points
 type BooleanSampleReducer struct {
 	count int        // how many points we've iterated over
 	rng   *rand.Rand // random number generator for each reducer

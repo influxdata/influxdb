@@ -1236,7 +1236,7 @@ func (s *SelectStatement) RewriteFields(ic IteratorCreator) (*SelectStatement, e
 	return other, nil
 }
 
-// RewriteRegexExprs rewrites regex conditions to make better use of the
+// RewriteRegexConditions rewrites regex conditions to make better use of the
 // database index.
 //
 // Conditions that can currently be simplified are:
