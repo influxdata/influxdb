@@ -1,4 +1,4 @@
-// This is an implementation of the Nelder-Mead optimization method
+// Package neldermead is an implementation of the Nelder-Mead optimization method
 // Based on work by Michael F. Hutt http://www.mikehutt.com/neldermead.html
 package neldermead
 
@@ -14,6 +14,7 @@ const (
 	defaultGamma = 2.0
 )
 
+// Optimizer represents the neder-mead algorithm configuration.
 type Optimizer struct {
 	MaxIterations int
 	// reflection coefficient
@@ -24,6 +25,7 @@ type Optimizer struct {
 	Gamma float64
 }
 
+// New returns a new instance of the neder-mead optimizer.
 func New() *Optimizer {
 	return &Optimizer{
 		MaxIterations: defaultMaxIterations,
@@ -33,6 +35,7 @@ func New() *Optimizer {
 	}
 }
 
+// Optimize returns the neder-mead algorith result.
 func (o *Optimizer) Optimize(
 	objfunc func([]float64) float64,
 	start []float64,
