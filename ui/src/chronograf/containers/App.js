@@ -3,7 +3,6 @@ import {connect} from 'react-redux';
 import {withRouter} from 'react-router';
 import {fetchExplorers} from '../actions/view';
 import DataExplorer from './DataExplorer';
-import {verifySource} from '../api';
 
 const App = React.createClass({
   propTypes: {
@@ -20,23 +19,15 @@ const App = React.createClass({
     params: PropTypes.shape({
       base64ExplorerID: PropTypes.string,
     }).isRequired,
-    addFlashMessage: PropTypes.func,
   },
 
   componentDidMount() {
-    verifySource(this.props.source.links.proxy).then(() => {
-      const {base64ExplorerID} = this.props.params;
-      this.props.fetchExplorers({
-        source: this.props.source,
-        userID: 1, // TODO: get the userID
-        explorerID: base64ExplorerID ? this.decodeID(base64ExplorerID) : null,
-        push: this.props.router.push,
-      });
-    }).catch(() => {
-      this.props.addFlashMessage({
-        type: 'error',
-        text: `Connection error. Check that your server is running.`,
-      });
+    const {base64ExplorerID} = this.props.params;
+    this.props.fetchExplorers({
+      source: this.props.source,
+      userID: 1, // TODO: get the userID
+      explorerID: base64ExplorerID ? this.decodeID(base64ExplorerID) : null,
+      push: this.props.router.push,
     });
   },
 
