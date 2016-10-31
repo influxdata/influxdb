@@ -13,7 +13,7 @@ import RetentionPoliciesPage from 'src/retention_policies';
 import DataExplorer from 'src/chronograf';
 import DatabaseManager from 'src/database_manager';
 import SignUp from 'src/sign_up';
-import {CreateSource, ManageSources} from 'src/sources';
+import {CreateSource, SourceForm, ManageSources} from 'src/sources';
 import {ClusterAccountsPage, ClusterAccountPage} from 'src/cluster_accounts';
 import {RolesPageContainer, RolePageContainer} from 'src/access_control';
 import NotFound from 'src/shared/components/NotFound';
@@ -100,6 +100,8 @@ const Root = React.createClass({
           <Route path="/sources/:sourceID" component={App}>
             <Route component={CheckDataNodes}>
               <Route path="manage-sources" component={ManageSources} />
+              <Route path="manage-sources/new" component={SourceForm} />
+              <Route path="manage-sources/:id/edit" component={SourceForm} />
               <Route path="queries" component={QueriesPage} />
               <Route path="accounts" component={ClusterAccountsPage} />
               <Route path="accounts/:accountID" component={ClusterAccountPage} />

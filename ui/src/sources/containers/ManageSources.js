@@ -81,7 +81,7 @@ export const ManageSources = React.createClass({
                   }
                 </tbody>
               </table>
-              <div className="btn btn-primary">Add</div>
+              <Link to={`/sources/1/manage-sources/new`} className="btn btn-primary">Add</Link>
             </div>
           </div>
         </div>
