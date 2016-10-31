@@ -2,6 +2,8 @@
 
 ### Release Notes
 
+This release is built with go 1.7.3 and provides many performance optimizations, stability changes and a few new query capabilities.  If upgrading from a prior version, please read the configuration changes below section before upgrading.
+
 ### Configuration Changes
 
 The following configuration changes in the `[data]` section may need to changed before upgrading to `1.1.0` from prior versions.
@@ -12,6 +14,13 @@ The following configuration changes in the `[data]` section may need to changed 
 * `compact-full-write-cold-duration` has been decreased from `24h` to `4h`.  The shorter duration allows cold shards to be compacted to an optimal state more quickly.
 
 ### Features
+
+The query language has been extended with a few new features:
+
+* New `cumulative_sum` function - [PR7388](https://github.com/influxdata/influxdb/pull/7388)
+* New `linear` fill option - [PR7408](https://github.com/influxdata/influxdb/pull/7408)
+* Support `ON` for `SHOW` commands - [PR7295](https://github.com/influxdata/influxdb/pull/7295)
+* Support regex on fields keys in select clause - [PR7442](https://github.com/influxdata/influxdb/pull/7442)
 
 - [#7415](https://github.com/influxdata/influxdb/pull/7415): Add sample function to query language.
 - [#7403](https://github.com/influxdata/influxdb/pull/7403): Add `fill(linear)` to query language.
