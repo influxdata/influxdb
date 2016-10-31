@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react';
-// TODO: move this to a higher level package than chronograf?
 import LayoutRenderer from '../components/LayoutRenderer';
+import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 import {fetchLayouts} from '../apis';
 import _ from 'lodash';
 
@@ -63,6 +63,9 @@ export const HostPage = React.createClass({
             </div>
             <div className="enterprise-header__right">
               <p>Uptime: <strong>2d 4h 33m</strong></p>
+            </div>
+            <div className="enterprise-header__right">
+              <TimeRangeDropdown onChooseTimeRange={_.noop} selected="Past 30 minutes" />
             </div>
           </div>
         </div>
