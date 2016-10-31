@@ -1,3 +1,14 @@
+## v1.2.0 [unreleased]
+
+### Release Notes
+
+### Features
+
+- [#7554](https://github.com/influxdata/influxdb/pull/7554): update latest dependencies with Godeps.
+
+### Bugfixes
+
+
 ## v1.1.0 [unreleased]
 
 ### Release Notes
