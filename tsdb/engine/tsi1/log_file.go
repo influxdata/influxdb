@@ -215,14 +215,11 @@ func (f *LogFile) measurement(name []byte) logMeasurement {
 
 // MeasurementIterator returns an iterator over all the measurements in the file.
 func (f *LogFile) MeasurementIterator() MeasurementIterator {
-	var itr measurementIterator
+	var itr logMeasurementIterator
 	for _, mm := range f.mms {
-		itr.elems = append(itr.elems, MeasurementElem{
-			Name:    mm.name,
-			Deleted: mm.deleted,
-		})
+		itr.mms = append(itr.mms, mm)
 	}
-	sort.Sort(MeasurementElems(itr.elems))
+	sort.Sort(logMeasurementSlice(itr.mms))
 	return &itr
 }
 
@@ -553,6 +550,31 @@ type logMeasurement struct {
 	offset    int64    // tagset offset
 	size      int64    // tagset size
 	seriesIDs []uint32 // series offsets
+}
+
+func (m *logMeasurement) Name() []byte                   { return m.name }
+func (m *logMeasurement) Deleted() bool                  { return m.deleted }
+func (m *logMeasurement) TagKeyIterator() TagKeyIterator { panic("TODO") }
+
+// logMeasurementSlice is a sortable list of log measurements.
+type logMeasurementSlice []logMeasurement
+
+func (a logMeasurementSlice) Len() int           { return len(a) }
+func (a logMeasurementSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a logMeasurementSlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[j].name) == -1 }
+
+// logMeasurementIterator represents an iterator over a slice of measurements.
+type logMeasurementIterator struct {
+	mms []logMeasurement
+}
+
+// Next returns the next element in the iterator.
+func (itr *logMeasurementIterator) Next() (e MeasurementElem) {
+	if len(itr.mms) == 0 {
+		return nil
+	}
+	e, itr.mms = &itr.mms[0], itr.mms[1:]
+	return e
 }
 
 type logTagSet struct {

@@ -55,8 +55,8 @@ func (i *Index) measurement(name []byte) *tsdb.Measurement {
 		// TODO: Remove concept of series ids.
 		m.AddSeries(&tsdb.Series{
 			ID:   id,
-			Key:  string(e.Name),
-			Tags: models.CopyTags(e.Tags),
+			Key:  string(e.Name()),
+			Tags: models.CopyTags(e.Tags()),
 		})
 
 		// TEMPORARY: Increment ID.
@@ -74,7 +74,7 @@ func (i *Index) Measurements() (tsdb.Measurements, error) {
 	var mms tsdb.Measurements
 	itr := i.file.MeasurementIterator()
 	for e := itr.Next(); e != nil; e = itr.Next() {
-		mms = append(mms, i.measurement(e.Name))
+		mms = append(mms, i.measurement(e.Name()))
 	}
 	return mms, nil
 }
@@ -164,17 +164,17 @@ func (i *Index) measurementsByNameFilter(op influxql.Token, val string, regex *r
 		var matched bool
 		switch op {
 		case influxql.EQ:
-			matched = string(e.Name) == val
+			matched = string(e.Name()) == val
 		case influxql.NEQ:
-			matched = string(e.Name) != val
+			matched = string(e.Name()) != val
 		case influxql.EQREGEX:
-			matched = regex.Match(e.Name)
+			matched = regex.Match(e.Name())
 		case influxql.NEQREGEX:
-			matched = !regex.Match(e.Name)
+			matched = !regex.Match(e.Name())
 		}
 
 		if matched {
-			mms = append(mms, i.measurement(e.Name))
+			mms = append(mms, i.measurement(e.Name()))
 		}
 	}
 	sort.Sort(mms)
@@ -185,7 +185,7 @@ func (i *Index) measurementsByTagFilter(op influxql.Token, key, val string, rege
 	var mms tsdb.Measurements
 	itr := i.file.MeasurementIterator()
 	for e := itr.Next(); e != nil; e = itr.Next() {
-		mm := i.measurement(e.Name)
+		mm := i.measurement(e.Name())
 
 		tagVals := mm.SeriesByTagKeyValue(key)
 		if tagVals == nil {
@@ -233,8 +233,8 @@ func (i *Index) MeasurementsByName(names []string) ([]*tsdb.Measurement, error) 
 	mms := make([]*tsdb.Measurement, 0, len(names))
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		for _, name := range names {
-			if string(e.Name) == name {
-				mms = append(mms, i.measurement(e.Name))
+			if string(e.Name()) == name {
+				mms = append(mms, i.measurement(e.Name()))
 				break
 			}
 		}
@@ -246,8 +246,8 @@ func (i *Index) MeasurementsByRegex(re *regexp.Regexp) (tsdb.Measurements, error
 	itr := i.file.MeasurementIterator()
 	var mms tsdb.Measurements
 	for e := itr.Next(); e != nil; e = itr.Next() {
-		if re.Match(e.Name) {
-			mms = append(mms, i.measurement(e.Name))
+		if re.Match(e.Name()) {
+			mms = append(mms, i.measurement(e.Name()))
 		}
 	}
 	return mms, nil

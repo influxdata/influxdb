@@ -10,12 +10,12 @@ import (
 
 // Ensure iterator can operate over an in-memory list of elements.
 func TestMeasurementIterator(t *testing.T) {
-	elems := []tsi1.MeasurementElem{
-		{Name: []byte("cpu"), Deleted: true},
-		{Name: []byte("mem")},
+	elems := []MeasurementElem{
+		MeasurementElem{name: []byte("cpu"), deleted: true},
+		MeasurementElem{name: []byte("mem")},
 	}
 
-	itr := tsi1.NewMeasurementIterator(elems)
+	itr := MeasurementIterator{Elems: elems}
 	if e := itr.Next(); !reflect.DeepEqual(&elems[0], e) {
 		t.Fatalf("unexpected elem(0): %#v", e)
 	} else if e := itr.Next(); !reflect.DeepEqual(&elems[1], e) {
@@ -28,26 +28,26 @@ func TestMeasurementIterator(t *testing.T) {
 // Ensure iterator can merge multiple iterators together.
 func TestMergeMeasurementIterators(t *testing.T) {
 	itr := tsi1.MergeMeasurementIterators(
-		tsi1.NewMeasurementIterator([]tsi1.MeasurementElem{
-			{Name: []byte("aaa")},
-			{Name: []byte("bbb"), Deleted: true},
-			{Name: []byte("ccc")},
-		}),
-		tsi1.NewMeasurementIterator(nil),
-		tsi1.NewMeasurementIterator([]tsi1.MeasurementElem{
-			{Name: []byte("bbb")},
-			{Name: []byte("ccc"), Deleted: true},
-			{Name: []byte("ddd")},
-		}),
+		&MeasurementIterator{Elems: []MeasurementElem{
+			{name: []byte("aaa")},
+			{name: []byte("bbb"), deleted: true},
+			{name: []byte("ccc")},
+		}},
+		&MeasurementIterator{},
+		&MeasurementIterator{Elems: []MeasurementElem{
+			{name: []byte("bbb")},
+			{name: []byte("ccc"), deleted: true},
+			{name: []byte("ddd")},
+		}},
 	)
 
-	if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.MeasurementElem{Name: []byte("aaa")}) {
+	if e := itr.Next(); !reflect.DeepEqual(e, &MeasurementElem{name: []byte("aaa")}) {
 		t.Fatalf("unexpected elem(0): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.MeasurementElem{Name: []byte("bbb"), Deleted: true}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, &MeasurementElem{name: []byte("bbb"), deleted: true}) {
 		t.Fatalf("unexpected elem(1): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.MeasurementElem{Name: []byte("ccc")}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, &MeasurementElem{name: []byte("ccc")}) {
 		t.Fatalf("unexpected elem(2): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.MeasurementElem{Name: []byte("ddd")}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, &MeasurementElem{name: []byte("ddd")}) {
 		t.Fatalf("unexpected elem(3): %#v", e)
 	} else if e := itr.Next(); e != nil {
 		t.Fatalf("expected nil elem: %#v", e)
@@ -56,12 +56,12 @@ func TestMergeMeasurementIterators(t *testing.T) {
 
 // Ensure iterator can operate over an in-memory list of tag key elements.
 func TestTagKeyIterator(t *testing.T) {
-	elems := []tsi1.TagKeyElem{
-		{Key: []byte("aaa"), Deleted: true},
-		{Key: []byte("bbb")},
+	elems := []TagKeyElem{
+		{key: []byte("aaa"), deleted: true},
+		{key: []byte("bbb")},
 	}
 
-	itr := tsi1.NewTagKeyIterator(elems)
+	itr := TagKeyIterator{Elems: elems}
 	if e := itr.Next(); !reflect.DeepEqual(&elems[0], e) {
 		t.Fatalf("unexpected elem(0): %#v", e)
 	} else if e := itr.Next(); !reflect.DeepEqual(&elems[1], e) {
@@ -74,26 +74,26 @@ func TestTagKeyIterator(t *testing.T) {
 // Ensure iterator can merge multiple iterators together.
 func TestMergeTagKeyIterators(t *testing.T) {
 	itr := tsi1.MergeTagKeyIterators(
-		tsi1.NewTagKeyIterator([]tsi1.TagKeyElem{
-			{Key: []byte("aaa")},
-			{Key: []byte("bbb"), Deleted: true},
-			{Key: []byte("ccc")},
-		}),
-		tsi1.NewTagKeyIterator(nil),
-		tsi1.NewTagKeyIterator([]tsi1.TagKeyElem{
-			{Key: []byte("bbb")},
-			{Key: []byte("ccc"), Deleted: true},
-			{Key: []byte("ddd")},
-		}),
+		&TagKeyIterator{Elems: []TagKeyElem{
+			{key: []byte("aaa")},
+			{key: []byte("bbb"), deleted: true},
+			{key: []byte("ccc")},
+		}},
+		&TagKeyIterator{},
+		&TagKeyIterator{Elems: []TagKeyElem{
+			{key: []byte("bbb")},
+			{key: []byte("ccc"), deleted: true},
+			{key: []byte("ddd")},
+		}},
 	)
 
-	if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.TagKeyElem{Key: []byte("aaa")}) {
+	if e := itr.Next(); !reflect.DeepEqual(e, &TagKeyElem{key: []byte("aaa")}) {
 		t.Fatalf("unexpected elem(0): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.TagKeyElem{Key: []byte("bbb"), Deleted: true}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, &TagKeyElem{key: []byte("bbb"), deleted: true}) {
 		t.Fatalf("unexpected elem(1): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.TagKeyElem{Key: []byte("ccc")}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, &TagKeyElem{key: []byte("ccc")}) {
 		t.Fatalf("unexpected elem(2): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.TagKeyElem{Key: []byte("ddd")}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, &TagKeyElem{key: []byte("ddd")}) {
 		t.Fatalf("unexpected elem(3): %#v", e)
 	} else if e := itr.Next(); e != nil {
 		t.Fatalf("expected nil elem: %#v", e)
@@ -102,12 +102,12 @@ func TestMergeTagKeyIterators(t *testing.T) {
 
 // Ensure iterator can operate over an in-memory list of tag value elements.
 func TestTagValueIterator(t *testing.T) {
-	elems := []tsi1.TagValueElem{
-		{Value: []byte("aaa"), Deleted: true},
-		{Value: []byte("bbb")},
+	elems := []TagValueElem{
+		{value: []byte("aaa"), deleted: true},
+		{value: []byte("bbb")},
 	}
 
-	itr := tsi1.NewTagValueIterator(elems)
+	itr := &TagValueIterator{Elems: elems}
 	if e := itr.Next(); !reflect.DeepEqual(&elems[0], e) {
 		t.Fatalf("unexpected elem(0): %#v", e)
 	} else if e := itr.Next(); !reflect.DeepEqual(&elems[1], e) {
@@ -120,26 +120,26 @@ func TestTagValueIterator(t *testing.T) {
 // Ensure iterator can merge multiple iterators together.
 func TestMergeTagValueIterators(t *testing.T) {
 	itr := tsi1.MergeTagValueIterators(
-		tsi1.NewTagValueIterator([]tsi1.TagValueElem{
-			{Value: []byte("aaa")},
-			{Value: []byte("bbb"), Deleted: true},
-			{Value: []byte("ccc")},
-		}),
-		tsi1.NewTagValueIterator(nil),
-		tsi1.NewTagValueIterator([]tsi1.TagValueElem{
-			{Value: []byte("bbb")},
-			{Value: []byte("ccc"), Deleted: true},
-			{Value: []byte("ddd")},
-		}),
+		&TagValueIterator{Elems: []TagValueElem{
+			{value: []byte("aaa")},
+			{value: []byte("bbb"), deleted: true},
+			{value: []byte("ccc")},
+		}},
+		&TagValueIterator{},
+		&TagValueIterator{Elems: []TagValueElem{
+			{value: []byte("bbb")},
+			{value: []byte("ccc"), deleted: true},
+			{value: []byte("ddd")},
+		}},
 	)
 
-	if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.TagValueElem{Value: []byte("aaa")}) {
+	if e := itr.Next(); !reflect.DeepEqual(e, &TagValueElem{value: []byte("aaa")}) {
 		t.Fatalf("unexpected elem(0): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.TagValueElem{Value: []byte("bbb"), Deleted: true}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, &TagValueElem{value: []byte("bbb"), deleted: true}) {
 		t.Fatalf("unexpected elem(1): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.TagValueElem{Value: []byte("ccc")}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, &TagValueElem{value: []byte("ccc")}) {
 		t.Fatalf("unexpected elem(2): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.TagValueElem{Value: []byte("ddd")}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, &TagValueElem{value: []byte("ddd")}) {
 		t.Fatalf("unexpected elem(3): %#v", e)
 	} else if e := itr.Next(); e != nil {
 		t.Fatalf("expected nil elem: %#v", e)
@@ -148,12 +148,12 @@ func TestMergeTagValueIterators(t *testing.T) {
 
 // Ensure iterator can operate over an in-memory list of series.
 func TestSeriesIterator(t *testing.T) {
-	elems := []tsi1.SeriesElem{
-		{Name: []byte("cpu"), Tags: models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}, Deleted: true},
-		{Name: []byte("mem")},
+	elems := []SeriesElem{
+		{name: []byte("cpu"), tags: models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}, deleted: true},
+		{name: []byte("mem")},
 	}
 
-	itr := tsi1.NewSeriesIterator(elems)
+	itr := SeriesIterator{Elems: elems}
 	if e := itr.Next(); !reflect.DeepEqual(&elems[0], e) {
 		t.Fatalf("unexpected elem(0): %#v", e)
 	} else if e := itr.Next(); !reflect.DeepEqual(&elems[1], e) {
@@ -166,32 +166,129 @@ func TestSeriesIterator(t *testing.T) {
 // Ensure iterator can merge multiple iterators together.
 func TestMergeSeriesIterators(t *testing.T) {
 	itr := tsi1.MergeSeriesIterators(
-		tsi1.NewSeriesIterator([]tsi1.SeriesElem{
-			{Name: []byte("aaa"), Tags: models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}, Deleted: true},
-			{Name: []byte("bbb"), Deleted: true},
-			{Name: []byte("ccc")},
-		}),
-		tsi1.NewSeriesIterator(nil),
-		tsi1.NewSeriesIterator([]tsi1.SeriesElem{
-			{Name: []byte("aaa"), Tags: models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}},
-			{Name: []byte("aaa"), Tags: models.Tags{{Key: []byte("region"), Value: []byte("us-west")}}},
-			{Name: []byte("bbb")},
-			{Name: []byte("ccc"), Deleted: true},
-			{Name: []byte("ddd")},
-		}),
+		&SeriesIterator{Elems: []SeriesElem{
+			{name: []byte("aaa"), tags: models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}, deleted: true},
+			{name: []byte("bbb"), deleted: true},
+			{name: []byte("ccc")},
+		}},
+		&SeriesIterator{},
+		&SeriesIterator{Elems: []SeriesElem{
+			{name: []byte("aaa"), tags: models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}},
+			{name: []byte("aaa"), tags: models.Tags{{Key: []byte("region"), Value: []byte("us-west")}}},
+			{name: []byte("bbb")},
+			{name: []byte("ccc"), deleted: true},
+			{name: []byte("ddd")},
+		}},
 	)
 
-	if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.SeriesElem{Name: []byte("aaa"), Tags: models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}, Deleted: true}) {
+	if e := itr.Next(); !reflect.DeepEqual(e, &SeriesElem{name: []byte("aaa"), tags: models.Tags{{Key: []byte("region"), Value: []byte("us-east")}}, deleted: true}) {
 		t.Fatalf("unexpected elem(0): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.SeriesElem{Name: []byte("aaa"), Tags: models.Tags{{Key: []byte("region"), Value: []byte("us-west")}}}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, &SeriesElem{name: []byte("aaa"), tags: models.Tags{{Key: []byte("region"), Value: []byte("us-west")}}}) {
 		t.Fatalf("unexpected elem(1): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.SeriesElem{Name: []byte("bbb"), Deleted: true}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, &SeriesElem{name: []byte("bbb"), deleted: true}) {
 		t.Fatalf("unexpected elem(2): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.SeriesElem{Name: []byte("ccc")}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, &SeriesElem{name: []byte("ccc")}) {
 		t.Fatalf("unexpected elem(3): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.SeriesElem{Name: []byte("ddd")}) {
+	} else if e := itr.Next(); !reflect.DeepEqual(e, &SeriesElem{name: []byte("ddd")}) {
 		t.Fatalf("unexpected elem(4): %#v", e)
 	} else if e := itr.Next(); e != nil {
 		t.Fatalf("expected nil elem: %#v", e)
 	}
+}
+
+// MeasurementElem represents a test implementation of tsi1.MeasurementElem.
+type MeasurementElem struct {
+	name    []byte
+	deleted bool
+}
+
+func (e *MeasurementElem) Name() []byte                        { return e.name }
+func (e *MeasurementElem) Deleted() bool                       { return e.deleted }
+func (e *MeasurementElem) TagKeyIterator() tsi1.TagKeyIterator { return nil }
+
+// MeasurementIterator represents an iterator over a slice of measurements.
+type MeasurementIterator struct {
+	Elems []MeasurementElem
+}
+
+// Next returns the next element in the iterator.
+func (itr *MeasurementIterator) Next() (e tsi1.MeasurementElem) {
+	if len(itr.Elems) == 0 {
+		return nil
+	}
+	e, itr.Elems = &itr.Elems[0], itr.Elems[1:]
+	return e
+}
+
+// TagKeyElem represents a test implementation of tsi1.TagKeyElem.
+type TagKeyElem struct {
+	key     []byte
+	deleted bool
+}
+
+func (e *TagKeyElem) Key() []byte                             { return e.key }
+func (e *TagKeyElem) Deleted() bool                           { return e.deleted }
+func (e *TagKeyElem) TagValueIterator() tsi1.TagValueIterator { return nil }
+
+// TagKeyIterator represents an iterator over a slice of tag keys.
+type TagKeyIterator struct {
+	Elems []TagKeyElem
+}
+
+// Next returns the next element in the iterator.
+func (itr *TagKeyIterator) Next() (e tsi1.TagKeyElem) {
+	if len(itr.Elems) == 0 {
+		return nil
+	}
+	e, itr.Elems = &itr.Elems[0], itr.Elems[1:]
+	return e
+}
+
+// TagValueElem represents a test implementation of tsi1.TagValueElem.
+type TagValueElem struct {
+	value   []byte
+	deleted bool
+}
+
+func (e *TagValueElem) Value() []byte                       { return e.value }
+func (e *TagValueElem) Deleted() bool                       { return e.deleted }
+func (e *TagValueElem) SeriesIterator() tsi1.SeriesIterator { return nil }
+
+// TagValueIterator represents an iterator over a slice of tag values.
+type TagValueIterator struct {
+	Elems []TagValueElem
+}
+
+// Next returns the next element in the iterator.
+func (itr *TagValueIterator) Next() (e tsi1.TagValueElem) {
+	if len(itr.Elems) == 0 {
+		return nil
+	}
+	e, itr.Elems = &itr.Elems[0], itr.Elems[1:]
+	return e
+}
+
+// SeriesElem represents a test implementation of tsi1.SeriesElem.
+type SeriesElem struct {
+	name    []byte
+	tags    models.Tags
+	deleted bool
+}
+
+func (e *SeriesElem) Name() []byte      { return e.name }
+func (e *SeriesElem) Tags() models.Tags { return e.tags }
+func (e *SeriesElem) Deleted() bool     { return e.deleted }
+
+// SeriesIterator represents an iterator over a slice of tag values.
+type SeriesIterator struct {
+	Elems []SeriesElem
+}
+
+// Next returns the next element in the iterator.
+func (itr *SeriesIterator) Next() (e tsi1.SeriesElem) {
+	if len(itr.Elems) == 0 {
+		return nil
+	}
+	e, itr.Elems = &itr.Elems[0], itr.Elems[1:]
+	return e
 }

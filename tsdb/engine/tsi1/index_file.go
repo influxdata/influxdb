@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+
+	"github.com/influxdata/influxdb/models"
 )
 
 // IndexFileVersion is the current TSI1 index file version.
@@ -110,8 +112,8 @@ func (i *IndexFile) TagValueElem(name, key, value []byte) (TagSetValueElem, erro
 // tagSetBlock returns a tag set block for a measurement.
 func (i *IndexFile) tagSetBlock(e *MeasurementBlockElem) (TagSet, error) {
 	// Slice tag set data.
-	buf := i.data[e.TagSet.Offset:]
-	buf = buf[:e.TagSet.Size]
+	buf := i.data[e.tagSet.offset:]
+	buf = buf[:e.tagSet.size]
 
 	// Unmarshal block.
 	var blk TagSet
@@ -131,13 +133,13 @@ func (i *IndexFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
 	// Find measurement element.
 	e, ok := i.mblk.Elem(name)
 	if !ok {
-		return &seriesIterator{}
+		return &rawSeriesIterator{n: 0}
 	}
 
 	// Return iterator.
 	return &rawSeriesIterator{
-		n:          e.Series.N,
-		data:       e.Series.Data,
+		n:          e.series.n,
+		data:       e.series.data,
 		seriesList: &i.slist,
 	}
 }
@@ -151,12 +153,12 @@ type rawSeriesIterator struct {
 	seriesList *SeriesList
 
 	// reusable buffer
-	e SeriesElem
+	e rawSeriesElem
 }
 
 // Next returns the next decoded series. Uses name & tags as reusable buffers.
 // Returns nils when the iterator is complete.
-func (itr *rawSeriesIterator) Next() *SeriesElem {
+func (itr *rawSeriesIterator) Next() SeriesElem {
 	// Return nil if we've reached the end.
 	if itr.i == itr.n {
 		return nil
@@ -166,13 +168,23 @@ func (itr *rawSeriesIterator) Next() *SeriesElem {
 	offset := binary.BigEndian.Uint32(itr.data[itr.i*SeriesIDSize:])
 
 	// Read from series list into buffers.
-	itr.seriesList.DecodeSeriesAt(offset, &itr.e.Name, &itr.e.Tags, &itr.e.Deleted)
+	itr.seriesList.DecodeSeriesAt(offset, &itr.e.name, &itr.e.tags, &itr.e.deleted)
 
 	// Move iterator forward.
 	itr.i++
 
 	return &itr.e
 }
+
+type rawSeriesElem struct {
+	name    []byte
+	tags    models.Tags
+	deleted bool
+}
+
+func (e *rawSeriesElem) Name() []byte      { return e.name }
+func (e *rawSeriesElem) Tags() models.Tags { return e.tags }
+func (e *rawSeriesElem) Deleted() bool     { return e.deleted }
 
 // ReadIndexFileTrailer returns the index file trailer from data.
 func ReadIndexFileTrailer(data []byte) (IndexFileTrailer, error) {

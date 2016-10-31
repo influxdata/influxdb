@@ -12,9 +12,10 @@ import (
 )
 
 // MeasurementElem represents a generic measurement element.
-type MeasurementElem struct {
-	Deleted bool
-	Name    []byte
+type MeasurementElem interface {
+	Name() []byte
+	Deleted() bool
+	TagKeyIterator() TagKeyIterator
 }
 
 // MeasurementElems represents a list of MeasurementElem.
@@ -22,30 +23,11 @@ type MeasurementElems []MeasurementElem
 
 func (a MeasurementElems) Len() int           { return len(a) }
 func (a MeasurementElems) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a MeasurementElems) Less(i, j int) bool { return bytes.Compare(a[i].Name, a[j].Name) == -1 }
+func (a MeasurementElems) Less(i, j int) bool { return bytes.Compare(a[i].Name(), a[j].Name()) == -1 }
 
 // MeasurementIterator represents a iterator over a list of measurements.
 type MeasurementIterator interface {
-	Next() *MeasurementElem
-}
-
-// NewMeasurementIterator returns an iterator that operates on an in-memory slice.
-func NewMeasurementIterator(elems []MeasurementElem) MeasurementIterator {
-	return &measurementIterator{elems: elems}
-}
-
-// measurementIterator represents an iterator over a slice of measurements.
-type measurementIterator struct {
-	elems []MeasurementElem
-}
-
-// Next shifts the next element off the list.
-func (itr *measurementIterator) Next() (e *MeasurementElem) {
-	if len(itr.elems) == 0 {
-		return nil
-	}
-	e, itr.elems = &itr.elems[0], itr.elems[1:]
-	return e
+	Next() MeasurementElem
 }
 
 // MergeMeasurementIterators returns an iterator that merges a set of iterators.
@@ -59,9 +41,7 @@ func MergeMeasurementIterators(itrs ...MeasurementIterator) MeasurementIterator 
 
 	// Initialize buffers.
 	for i := range itr.itrs {
-		if e := itr.itrs[i].Next(); e != nil {
-			itr.buf[i] = *e
-		}
+		itr.buf[i] = itr.itrs[i].Next()
 	}
 
 	return itr
@@ -77,16 +57,14 @@ type measurementMergeIterator struct {
 //
 // If multiple iterators contain the same name then the first is returned
 // and the remaining ones are skipped.
-func (itr *measurementMergeIterator) Next() *MeasurementElem {
-	itr.e = MeasurementElem{}
-
+func (itr *measurementMergeIterator) Next() MeasurementElem {
 	// Find next lowest name amongst the buffers.
 	var name []byte
 	for i := range itr.buf {
-		if len(itr.buf[i].Name) == 0 {
+		if itr.buf[i] == nil {
 			continue
-		} else if name == nil || bytes.Compare(itr.buf[i].Name, name) == -1 {
-			name = itr.buf[i].Name
+		} else if name == nil || bytes.Compare(itr.buf[i].Name(), name) == -1 {
+			name = itr.buf[i].Name()
 		}
 	}
 
@@ -96,55 +74,34 @@ func (itr *measurementMergeIterator) Next() *MeasurementElem {
 	}
 
 	// Refill buffer.
-	for i := range itr.buf {
-		if !bytes.Equal(itr.buf[i].Name, name) {
+	var e MeasurementElem
+	for i, buf := range itr.buf {
+		if buf == nil || !bytes.Equal(buf.Name(), name) {
 			continue
 		}
 
 		// Copy first matching buffer to the return buffer.
-		if len(itr.e.Name) == 0 {
-			itr.e = itr.buf[i]
+		if e == nil {
+			e = buf
 		}
 
 		// Fill buffer with next element.
-		if e := itr.itrs[i].Next(); e != nil {
-			itr.buf[i] = *e
-		} else {
-			itr.buf[i] = MeasurementElem{}
-		}
+		itr.buf[i] = itr.itrs[i].Next()
 	}
 
-	return &itr.e
+	return e
 }
 
 // TagKeyElem represents a generic tag key element.
-type TagKeyElem struct {
-	Key     []byte
-	Deleted bool
+type TagKeyElem interface {
+	Key() []byte
+	Deleted() bool
+	TagValueIterator() TagValueIterator
 }
 
 // TagKeyIterator represents a iterator over a list of tag keys.
 type TagKeyIterator interface {
-	Next() *TagKeyElem
-}
-
-// NewTagKeyIterator returns an iterator that operates on an in-memory slice.
-func NewTagKeyIterator(a []TagKeyElem) TagKeyIterator {
-	return &tagKeyIterator{elems: a}
-}
-
-// tagKeyIterator represents an iterator over a slice of tag keys.
-type tagKeyIterator struct {
-	elems []TagKeyElem
-}
-
-// Next returns the next element.
-func (itr *tagKeyIterator) Next() (e *TagKeyElem) {
-	if len(itr.elems) == 0 {
-		return nil
-	}
-	e, itr.elems = &itr.elems[0], itr.elems[1:]
-	return e
+	Next() TagKeyElem
 }
 
 // MergeTagKeyIterators returns an iterator that merges a set of iterators.
@@ -158,9 +115,7 @@ func MergeTagKeyIterators(itrs ...TagKeyIterator) TagKeyIterator {
 
 	// Initialize buffers.
 	for i := range itr.itrs {
-		if e := itr.itrs[i].Next(); e != nil {
-			itr.buf[i] = *e
-		}
+		itr.buf[i] = itr.itrs[i].Next()
 	}
 
 	return itr
@@ -176,16 +131,14 @@ type tagKeyMergeIterator struct {
 //
 // If multiple iterators contain the same key then the first is returned
 // and the remaining ones are skipped.
-func (itr *tagKeyMergeIterator) Next() *TagKeyElem {
-	itr.e = TagKeyElem{}
-
+func (itr *tagKeyMergeIterator) Next() TagKeyElem {
 	// Find next lowest key amongst the buffers.
 	var key []byte
 	for i := range itr.buf {
-		if len(itr.buf[i].Key) == 0 {
+		if itr.buf[i] == nil {
 			continue
-		} else if key == nil || bytes.Compare(itr.buf[i].Key, key) == -1 {
-			key = itr.buf[i].Key
+		} else if key == nil || bytes.Compare(itr.buf[i].Key(), key) == -1 {
+			key = itr.buf[i].Key()
 		}
 	}
 
@@ -195,55 +148,34 @@ func (itr *tagKeyMergeIterator) Next() *TagKeyElem {
 	}
 
 	// Refill buffer.
+	var e TagKeyElem
 	for i := range itr.buf {
-		if !bytes.Equal(itr.buf[i].Key, key) {
+		if itr.buf[i] == nil || !bytes.Equal(itr.buf[i].Key(), key) {
 			continue
 		}
 
 		// Copy first matching buffer to the return buffer.
-		if len(itr.e.Key) == 0 {
-			itr.e = itr.buf[i]
+		if e == nil {
+			e = itr.buf[i]
 		}
 
 		// Fill buffer with next element.
-		if e := itr.itrs[i].Next(); e != nil {
-			itr.buf[i] = *e
-		} else {
-			itr.buf[i] = TagKeyElem{}
-		}
+		itr.buf[i] = itr.itrs[i].Next()
 	}
 
-	return &itr.e
+	return e
 }
 
 // TagValueElem represents a generic tag value element.
-type TagValueElem struct {
-	Value   []byte
-	Deleted bool
+type TagValueElem interface {
+	Value() []byte
+	Deleted() bool
+	SeriesIterator() SeriesIterator
 }
 
 // TagValueIterator represents a iterator over a list of tag values.
 type TagValueIterator interface {
-	Next() *TagValueElem
-}
-
-// NewTagValueIterator returns an iterator that operates on an in-memory slice.
-func NewTagValueIterator(a []TagValueElem) TagValueIterator {
-	return &tagValueIterator{elems: a}
-}
-
-// tagValueIterator represents an iterator over a slice of tag values.
-type tagValueIterator struct {
-	elems []TagValueElem
-}
-
-// Next returns the next element.
-func (itr *tagValueIterator) Next() (e *TagValueElem) {
-	if len(itr.elems) == 0 {
-		return nil
-	}
-	e, itr.elems = &itr.elems[0], itr.elems[1:]
-	return e
+	Next() TagValueElem
 }
 
 // MergeTagValueIterators returns an iterator that merges a set of iterators.
@@ -257,9 +189,7 @@ func MergeTagValueIterators(itrs ...TagValueIterator) TagValueIterator {
 
 	// Initialize buffers.
 	for i := range itr.itrs {
-		if e := itr.itrs[i].Next(); e != nil {
-			itr.buf[i] = *e
-		}
+		itr.buf[i] = itr.itrs[i].Next()
 	}
 
 	return itr
@@ -275,16 +205,14 @@ type tagValueMergeIterator struct {
 //
 // If multiple iterators contain the same value then the first is returned
 // and the remaining ones are skipped.
-func (itr *tagValueMergeIterator) Next() *TagValueElem {
-	itr.e = TagValueElem{}
-
+func (itr *tagValueMergeIterator) Next() TagValueElem {
 	// Find next lowest value amongst the buffers.
 	var value []byte
 	for i := range itr.buf {
-		if len(itr.buf[i].Value) == 0 {
+		if itr.buf[i] == nil {
 			continue
-		} else if value == nil || bytes.Compare(itr.buf[i].Value, value) == -1 {
-			value = itr.buf[i].Value
+		} else if value == nil || bytes.Compare(itr.buf[i].Value(), value) == -1 {
+			value = itr.buf[i].Value()
 		}
 	}
 
@@ -294,56 +222,33 @@ func (itr *tagValueMergeIterator) Next() *TagValueElem {
 	}
 
 	// Refill buffer.
+	var e TagValueElem
 	for i := range itr.buf {
-		if !bytes.Equal(itr.buf[i].Value, value) {
+		if itr.buf[i] == nil || !bytes.Equal(itr.buf[i].Value(), value) {
 			continue
 		}
 
 		// Copy first matching buffer to the return buffer.
-		if len(itr.e.Value) == 0 {
-			itr.e = itr.buf[i]
+		if e == nil {
+			e = itr.buf[i]
 		}
 
 		// Fill buffer with next element.
-		if e := itr.itrs[i].Next(); e != nil {
-			itr.buf[i] = *e
-		} else {
-			itr.buf[i] = TagValueElem{}
-		}
+		itr.buf[i] = itr.itrs[i].Next()
 	}
-
-	return &itr.e
+	return e
 }
 
 // SeriesElem represents a generic series element.
-type SeriesElem struct {
-	Name    []byte
-	Tags    models.Tags
-	Deleted bool
+type SeriesElem interface {
+	Name() []byte
+	Tags() models.Tags
+	Deleted() bool
 }
 
 // SeriesIterator represents a iterator over a list of series.
 type SeriesIterator interface {
-	Next() *SeriesElem
-}
-
-// NewSeriesIterator returns an iterator that operates on an in-memory slice.
-func NewSeriesIterator(a []SeriesElem) SeriesIterator {
-	return &seriesIterator{elems: a}
-}
-
-// seriesIterator represents an iterator over a slice of tag values.
-type seriesIterator struct {
-	elems []SeriesElem
-}
-
-// Next returns the next element.
-func (itr *seriesIterator) Next() (e *SeriesElem) {
-	if len(itr.elems) == 0 {
-		return nil
-	}
-	e, itr.elems = &itr.elems[0], itr.elems[1:]
-	return e
+	Next() SeriesElem
 }
 
 // MergeSeriesIterators returns an iterator that merges a set of iterators.
@@ -357,16 +262,13 @@ func MergeSeriesIterators(itrs ...SeriesIterator) SeriesIterator {
 
 	// Initialize buffers.
 	for i := range itr.itrs {
-		if e := itr.itrs[i].Next(); e != nil {
-			itr.buf[i] = *e
-		}
+		itr.buf[i] = itr.itrs[i].Next()
 	}
 
 	return itr
 }
 
 type seriesMergeIterator struct {
-	e    SeriesElem
 	buf  []SeriesElem
 	itrs []SeriesIterator
 }
@@ -375,27 +277,25 @@ type seriesMergeIterator struct {
 //
 // If multiple iterators contain the same name/tags then the first is returned
 // and the remaining ones are skipped.
-func (itr *seriesMergeIterator) Next() *SeriesElem {
-	itr.e = SeriesElem{}
-
+func (itr *seriesMergeIterator) Next() SeriesElem {
 	// Find next lowest name/tags amongst the buffers.
 	var name []byte
 	var tags models.Tags
 	for i := range itr.buf {
 		// Skip empty buffers.
-		if len(itr.buf[i].Name) == 0 {
+		if itr.buf[i] == nil {
 			continue
 		}
 
 		// If the name is not set the pick the first non-empty name.
 		if name == nil {
-			name, tags = itr.buf[i].Name, itr.buf[i].Tags
+			name, tags = itr.buf[i].Name(), itr.buf[i].Tags()
 			continue
 		}
 
 		// Set name/tags if they are lower than what has been seen.
-		if cmp := bytes.Compare(itr.buf[i].Name, name); cmp == -1 || (cmp == 0 && models.CompareTags(itr.buf[i].Tags, tags) == -1) {
-			name, tags = itr.buf[i].Name, itr.buf[i].Tags
+		if cmp := bytes.Compare(itr.buf[i].Name(), name); cmp == -1 || (cmp == 0 && models.CompareTags(itr.buf[i].Tags(), tags) == -1) {
+			name, tags = itr.buf[i].Name(), itr.buf[i].Tags()
 		}
 	}
 
@@ -405,25 +305,21 @@ func (itr *seriesMergeIterator) Next() *SeriesElem {
 	}
 
 	// Refill buffer.
+	var e SeriesElem
 	for i := range itr.buf {
-		if !bytes.Equal(itr.buf[i].Name, name) || models.CompareTags(itr.buf[i].Tags, tags) != 0 {
+		if itr.buf[i] == nil || !bytes.Equal(itr.buf[i].Name(), name) || models.CompareTags(itr.buf[i].Tags(), tags) != 0 {
 			continue
 		}
 
 		// Copy first matching buffer to the return buffer.
-		if len(itr.e.Name) == 0 {
-			itr.e = itr.buf[i]
+		if e == nil {
+			e = itr.buf[i]
 		}
 
 		// Fill buffer with next element.
-		if e := itr.itrs[i].Next(); e != nil {
-			itr.buf[i] = *e
-		} else {
-			itr.buf[i] = SeriesElem{}
-		}
+		itr.buf[i] = itr.itrs[i].Next()
 	}
-
-	return &itr.e
+	return e
 }
 
 // writeTo writes write v into w. Updates n.

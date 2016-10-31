@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"reflect"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
@@ -27,9 +26,9 @@ func TestLogFile_AddSeries(t *testing.T) {
 
 	// Verify data.
 	itr := f.MeasurementIterator()
-	if e := itr.Next(); e == nil || string(e.Name) != "cpu" {
+	if e := itr.Next(); e == nil || string(e.Name()) != "cpu" {
 		t.Fatalf("unexpected measurement: %#v", e)
-	} else if e := itr.Next(); e == nil || string(e.Name) != "mem" {
+	} else if e := itr.Next(); e == nil || string(e.Name()) != "mem" {
 		t.Fatalf("unexpected measurement: %#v", e)
 	} else if e := itr.Next(); e != nil {
 		t.Fatalf("expected eof, got: %#v", e)
@@ -57,10 +56,10 @@ func TestLogFile_DeleteMeasurement(t *testing.T) {
 
 	// Verify data.
 	itr := f.MeasurementIterator()
-	if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.MeasurementElem{Name: []byte("cpu"), Deleted: true}) {
-		t.Fatalf("unexpected measurement: %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &tsi1.MeasurementElem{Name: []byte("mem")}) {
-		t.Fatalf("unexpected measurement: %#v", e)
+	if e := itr.Next(); string(e.Name()) != "cpu" || !e.Deleted() {
+		t.Fatalf("unexpected measurement: %s/%v", e.Name(), e.Deleted())
+	} else if e := itr.Next(); string(e.Name()) != "mem" || e.Deleted() {
+		t.Fatalf("unexpected measurement: %s/%v", e.Name(), e.Deleted())
 	} else if e := itr.Next(); e != nil {
 		t.Fatalf("expected eof, got: %#v", e)
 	}

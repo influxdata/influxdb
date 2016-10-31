@@ -72,12 +72,12 @@ func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementBlockElem, ok bool)
 			e.UnmarshalBinary(blk.data[offset:])
 
 			// Return if name match.
-			if bytes.Equal(e.Name, name) {
+			if bytes.Equal(e.name, name) {
 				return e, true
 			}
 
 			// Check if we've exceeded the probe distance.
-			if d > dist(hashKey(e.Name), pos, int(n)) {
+			if d > dist(hashKey(e.name), pos, int(n)) {
 				return MeasurementBlockElem{}, false
 			}
 		}
@@ -124,29 +124,22 @@ func (blk *MeasurementBlock) Iterator() MeasurementIterator {
 
 // blockMeasurementIterator iterates over a list measurements in a block.
 type blockMeasurementIterator struct {
-	elem MeasurementElem
+	elem MeasurementBlockElem
 	data []byte
 }
 
 // Next returns the next measurement. Returns nil when iterator is complete.
-func (itr *blockMeasurementIterator) Next() *MeasurementElem {
+func (itr *blockMeasurementIterator) Next() MeasurementElem {
 	// Return nil when we run out of data.
 	if len(itr.data) == 0 {
 		return nil
 	}
 
 	// Unmarshal the element at the current position.
-	var elem MeasurementBlockElem
-	elem.UnmarshalBinary(itr.data)
-
-	// Copy to a generic measurement element.
-	itr.elem = MeasurementElem{
-		Name:    elem.Name,
-		Deleted: elem.Deleted(),
-	}
+	itr.elem.UnmarshalBinary(itr.data)
 
 	// Move the data forward past the record.
-	itr.data = itr.data[elem.Size:]
+	itr.data = itr.data[itr.elem.size:]
 
 	return &itr.elem
 }
@@ -200,37 +193,49 @@ type MeasurementBlockTrailer struct {
 
 // MeasurementBlockElem represents an internal measurement element.
 type MeasurementBlockElem struct {
-	Flag byte   // flag
-	Name []byte // measurement name
+	flag byte   // flag
+	name []byte // measurement name
 
-	TagSet struct {
-		Offset int64
-		Size   int64
+	tagSet struct {
+		offset int64
+		size   int64
 	}
 
-	Series struct {
-		N    uint32 // series count
-		Data []byte // serialized series data
+	series struct {
+		n    uint32 // series count
+		data []byte // serialized series data
 	}
 
-	// Size in bytes, set after unmarshaling.
-	Size int
+	// size in bytes, set after unmarshaling.
+	size int
 }
+
+// Name returns the measurement name.
+func (e *MeasurementBlockElem) Name() []byte { return e.name }
 
 // Deleted returns true if the tombstone flag is set.
 func (e *MeasurementBlockElem) Deleted() bool {
-	return (e.Flag & MeasurementTombstoneFlag) != 0
+	return (e.flag & MeasurementTombstoneFlag) != 0
 }
+
+// TagKeyIterator returns an iterator over the measurement's keys.
+func (e *MeasurementBlockElem) TagKeyIterator() TagKeyIterator { panic("TODO") }
+
+// TagSetOffset returns the offset of the measurement's tagset block.
+func (e *MeasurementBlockElem) TagSetOffset() int64 { return e.tagSet.offset }
+
+// TagSetSize returns the size of the measurement's tagset block.
+func (e *MeasurementBlockElem) TagSetSize() int64 { return e.tagSet.size }
 
 // SeriesID returns series ID at an index.
 func (e *MeasurementBlockElem) SeriesID(i int) uint32 {
-	return binary.BigEndian.Uint32(e.Series.Data[i*SeriesIDSize:])
+	return binary.BigEndian.Uint32(e.series.data[i*SeriesIDSize:])
 }
 
 // SeriesIDs returns a list of decoded series ids.
 func (e *MeasurementBlockElem) SeriesIDs() []uint32 {
-	a := make([]uint32, e.Series.N)
-	for i := 0; i < int(e.Series.N); i++ {
+	a := make([]uint32, e.series.n)
+	for i := 0; i < int(e.series.n); i++ {
 		a[i] = e.SeriesID(i)
 	}
 	return a
@@ -241,23 +246,23 @@ func (e *MeasurementBlockElem) UnmarshalBinary(data []byte) error {
 	start := len(data)
 
 	// Parse flag data.
-	e.Flag, data = data[0], data[1:]
+	e.flag, data = data[0], data[1:]
 
 	// Parse tagset offset.
-	e.TagSet.Offset, data = int64(binary.BigEndian.Uint64(data)), data[8:]
-	e.TagSet.Size, data = int64(binary.BigEndian.Uint64(data)), data[8:]
+	e.tagSet.offset, data = int64(binary.BigEndian.Uint64(data)), data[8:]
+	e.tagSet.size, data = int64(binary.BigEndian.Uint64(data)), data[8:]
 
 	// Parse name.
 	sz, n := binary.Uvarint(data)
-	e.Name, data = data[n:n+int(sz)], data[n+int(sz):]
+	e.name, data = data[n:n+int(sz)], data[n+int(sz):]
 
 	// Parse series data.
 	v, n := binary.Uvarint(data)
-	e.Series.N, data = uint32(v), data[n:]
-	e.Series.Data, data = data[:e.Series.N*SeriesIDSize], data[e.Series.N*SeriesIDSize:]
+	e.series.n, data = uint32(v), data[n:]
+	e.series.data, data = data[:e.series.n*SeriesIDSize], data[e.series.n*SeriesIDSize:]
 
 	// Save length of elem.
-	e.Size = start - len(data)
+	e.size = start - len(data)
 
 	return nil
 }

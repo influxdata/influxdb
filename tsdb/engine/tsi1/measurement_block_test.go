@@ -33,24 +33,24 @@ func TestMeasurementBlockWriter(t *testing.T) {
 	// Verify data in block.
 	if e, ok := blk.Elem([]byte("foo")); !ok {
 		t.Fatal("expected element")
-	} else if e.TagSet.Offset != 100 || e.TagSet.Size != 10 {
-		t.Fatalf("unexpected offset/size: %v/%v", e.TagSet.Offset, e.TagSet.Size)
+	} else if e.TagSetOffset() != 100 || e.TagSetSize() != 10 {
+		t.Fatalf("unexpected offset/size: %v/%v", e.TagSetOffset(), e.TagSetSize())
 	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint32{1, 3, 4}) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}
 
 	if e, ok := blk.Elem([]byte("bar")); !ok {
 		t.Fatal("expected element")
-	} else if e.TagSet.Offset != 200 || e.TagSet.Size != 20 {
-		t.Fatalf("unexpected offset/size: %v/%v", e.TagSet.Offset, e.TagSet.Size)
+	} else if e.TagSetOffset() != 200 || e.TagSetSize() != 20 {
+		t.Fatalf("unexpected offset/size: %v/%v", e.TagSetOffset(), e.TagSetSize())
 	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint32{2}) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}
 
 	if e, ok := blk.Elem([]byte("baz")); !ok {
 		t.Fatal("expected element")
-	} else if e.TagSet.Offset != 300 || e.TagSet.Size != 30 {
-		t.Fatalf("unexpected offset/size: %v/%v", e.TagSet.Offset, e.TagSet.Size)
+	} else if e.TagSetOffset() != 300 || e.TagSetSize() != 30 {
+		t.Fatalf("unexpected offset/size: %v/%v", e.TagSetOffset(), e.TagSetSize())
 	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint32{5, 6}) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}
