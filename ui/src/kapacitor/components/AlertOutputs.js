@@ -4,6 +4,7 @@ import {getKapacitorConfig, updateKapacitorConfigSection, testAlertOutput} from 
 import AlertaConfig from './AlertaConfig';
 import HipchatConfig from './HipchatConfig';
 import PagerdutyConfig from './PagerdutyConfig';
+import SensuConfig from './SensuConfig';
 import SlackConfig from './SlackConfig';
 import SMTPConfig from './SMTPConfig';
 import TelegramConfig from './TelegramConfig';
@@ -30,6 +31,7 @@ const AlertOutputs = React.createClass({
       slackConfig: null,
       telegramConfig: null,
       hipchatConfig: null,
+      sensuConfig: null,
     };
   },
 
@@ -47,6 +49,7 @@ const AlertOutputs = React.createClass({
         smtpConfig: this.getSection(sections, 'smtp'),
         telegramConfig: this.getSection(sections, 'telegram'),
         victoropsConfig: this.getSection(sections, 'victorops'),
+        sensuConfig: this.getSection(sections, 'sensu'),
       });
     });
   },
@@ -99,6 +102,7 @@ const AlertOutputs = React.createClass({
               <option value="alerta">Alerta</option>
               <option value="hipchat">HipChat</option>
               <option value="pagerduty">PagerDuty</option>
+              <option value="sensu">Sensu</option>
               <option value="slack">Slack</option>
               <option value="smtp">SMTP</option>
               <option value="telegram">Telegram</option>
@@ -142,11 +146,15 @@ const AlertOutputs = React.createClass({
       return <PagerdutyConfig onSave={save} config={this.state.pagerdutyConfig} />;
     }
 
-    if (endpoint === 'hipchat' && this.state.pagerdutyConfig) {
+    if (endpoint === 'hipchat' && this.state.hipchatConfig) {
       return <HipchatConfig onSave={save} config={this.state.hipchatConfig} />;
     }
 
-    return <div>This endpoint is not supported yet!</div>;
+    if (endpoint === 'sensu' && this.state.sensuConfig) {
+      return <SensuConfig onSave={save} config={this.state.sensuConfig} />;
+    }
+
+    return <div></div>;
   },
 });
 
