@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react';
 import _ from 'lodash';
 import {getKapacitorConfig, updateKapacitorConfigSection, testAlertOutput} from 'shared/apis';
 import AlertaConfig from './AlertaConfig';
+import HipchatConfig from './HipchatConfig';
 import PagerdutyConfig from './PagerdutyConfig';
 import SlackConfig from './SlackConfig';
 import SMTPConfig from './SMTPConfig';
@@ -27,7 +28,8 @@ const AlertOutputs = React.createClass({
       alertaConfig: null,
       smtpConfig: null,
       slackConfig: null,
-      telegram: null,
+      telegramConfig: null,
+      hipchatConfig: null,
     };
   },
 
@@ -39,6 +41,7 @@ const AlertOutputs = React.createClass({
     getKapacitorConfig(this.props.kapacitor).then(({data: {sections}}) => {
       this.setState({
         alertaConfig: this.getSection(sections, 'alerta'),
+        hipchatConfig: this.getSection(sections, 'hipchat'),
         pagerdutyConfig: this.getSection(sections, 'pagerduty'),
         slackConfig: this.getSection(sections, 'slack'),
         smtpConfig: this.getSection(sections, 'smtp'),
@@ -94,11 +97,12 @@ const AlertOutputs = React.createClass({
             <label htmlFor="alert-endpoint" className="sr-only">Alert Enpoint</label>
             <select className="form-control" id="source" onChange={this.changeSelectedEndpoint}>
               <option value="alerta">Alerta</option>
+              <option value="hipchat">HipChat</option>
+              <option value="pagerduty">PagerDuty</option>
               <option value="slack">Slack</option>
               <option value="smtp">SMTP</option>
-              <option value="victorops">VictorOps</option>
               <option value="telegram">Telegram</option>
-              <option value="pagerduty">PagerDuty</option>
+              <option value="victorops">VictorOps</option>
             </select>
           </div>
         </div>
@@ -136,6 +140,10 @@ const AlertOutputs = React.createClass({
 
     if (endpoint === 'pagerduty' && this.state.pagerdutyConfig) {
       return <PagerdutyConfig onSave={save} config={this.state.pagerdutyConfig} />;
+    }
+
+    if (endpoint === 'hipchat' && this.state.pagerdutyConfig) {
+      return <HipchatConfig onSave={save} config={this.state.hipchatConfig} />;
     }
 
     return <div>This endpoint is not supported yet!</div>;
