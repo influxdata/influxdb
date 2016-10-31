@@ -16,10 +16,13 @@ import (
 )
 
 var (
-	ErrCacheMemoryExceeded    = fmt.Errorf("cache maximum memory size exceeded")
 	ErrCacheInvalidCheckpoint = fmt.Errorf("invalid checkpoint")
 	ErrSnapshotInProgress     = fmt.Errorf("snapshot in progress")
 )
+
+func ErrCacheMemorySizeLimitExceeded(n, limit uint64) error {
+	return fmt.Errorf("cache-max-memory-size exceeded: (%d/%d)", n, limit)
+}
 
 // entry is a set of values and some metadata.
 type entry struct {
@@ -239,10 +242,12 @@ func (c *Cache) Write(key string, values []Value) error {
 
 	// Enough room in the cache?
 	c.mu.Lock()
-	if c.maxSize > 0 && c.size+c.snapshotSize+addedSize > c.maxSize {
+	limit := c.maxSize
+	n := c.size + c.snapshotSize + addedSize
+	if limit > 0 && n > limit {
 		c.mu.Unlock()
 		atomic.AddInt64(&c.stats.WriteErr, 1)
-		return ErrCacheMemoryExceeded
+		return ErrCacheMemorySizeLimitExceeded(n, limit)
 	}
 
 	if err := c.write(key, values); err != nil {
@@ -272,10 +277,12 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 
 	// Enough room in the cache?
 	c.mu.Lock()
-	if c.maxSize > 0 && c.snapshotSize+c.size+totalSz > c.maxSize {
+	limit := c.maxSize
+	n := c.size + c.snapshotSize + totalSz
+	if limit > 0 && n > limit {
 		c.mu.Unlock()
 		atomic.AddInt64(&c.stats.WriteErr, 1)
-		return ErrCacheMemoryExceeded
+		return ErrCacheMemorySizeLimitExceeded(n, limit)
 	}
 
 	var werr error

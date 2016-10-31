@@ -8,6 +8,7 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -423,7 +424,7 @@ func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
 	if exp, keys := []string{"foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after writes, exp %v, got %v", exp, keys)
 	}
-	if err := c.Write("bar", Values{v1}); err != ErrCacheMemoryExceeded {
+	if err := c.Write("bar", Values{v1}); err == nil || !strings.Contains(err.Error(), "cache-max-memory-size") {
 		t.Fatalf("wrong error writing key bar to cache")
 	}
 
@@ -432,7 +433,7 @@ func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to snapshot cache: %v", err)
 	}
-	if err := c.Write("bar", Values{v1}); err != ErrCacheMemoryExceeded {
+	if err := c.Write("bar", Values{v1}); err == nil || !strings.Contains(err.Error(), "cache-max-memory-size") {
 		t.Fatalf("wrong error writing key bar to cache")
 	}
 

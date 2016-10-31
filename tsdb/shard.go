@@ -513,7 +513,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 					n := m.CardinalityBytes(tag.Key)
 					if n >= s.options.Config.MaxValuesPerTag {
 						dropPoint = true
-						reason = fmt.Sprintf("max tag value limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
+						reason = fmt.Sprintf("max-values-per-tag limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
 							n, s.options.Config.MaxValuesPerTag, m.Name, string(tag.Key), string(tag.Key))
 						break
 					}
@@ -566,7 +566,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 			if s.options.Config.MaxSeriesPerDatabase > 0 && s.index.SeriesN()+1 > s.options.Config.MaxSeriesPerDatabase {
 				atomic.AddInt64(&s.stats.WritePointsDropped, 1)
 				dropped += 1
-				reason = fmt.Sprintf("db %s max series limit reached: (%d/%d)",
+				reason = fmt.Sprintf("max-series-per-database limit exceeded: db=%s (%d/%d)",
 					s.database, s.index.SeriesN(), s.options.Config.MaxSeriesPerDatabase)
 				continue
 			}
@@ -862,7 +862,7 @@ func (s *Shard) monitor() {
 
 					// Log at 80, 85, 90-100% levels
 					if perc == 80 || perc == 85 || perc >= 90 {
-						s.logger.Printf("WARN: %d%% of tag values limit reached: (%d/%d), db=%s shard=%d measurement=%s tag=%s",
+						s.logger.Printf("WARN: %d%% of max-values-per-tag limit exceeded: (%d/%d), db=%s shard=%d measurement=%s tag=%s",
 							perc, n, s.options.Config.MaxValuesPerTag, s.database, s.id, m.Name, k)
 					}
 				}
@@ -1008,7 +1008,7 @@ func (ic *shardIteratorCreator) CreateIterator(opt influxql.IteratorOptions) (in
 		stats := itr.Stats()
 		if stats.SeriesN > ic.maxSeriesN {
 			itr.Close()
-			return nil, fmt.Errorf("max select series count exceeded: %d series", stats.SeriesN)
+			return nil, fmt.Errorf("max-select-series limit exceeded: (%d/%d)", stats.SeriesN, ic.maxSeriesN)
 		}
 	}
 

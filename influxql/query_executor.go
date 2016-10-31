@@ -25,20 +25,12 @@ var (
 	// ErrQueryInterrupted is an error returned when the query is interrupted.
 	ErrQueryInterrupted = errors.New("query interrupted")
 
-	// ErrMaxConcurrentQueriesReached is an error when a query cannot be run
-	// because the maximum number of queries has been reached.
-	ErrMaxConcurrentQueriesReached = errors.New("max concurrent queries reached")
-
 	// ErrQueryEngineShutdown is an error sent when the query cannot be
 	// created because the query engine was shutdown.
 	ErrQueryEngineShutdown = errors.New("query engine shutdown")
 
-	// ErrMaxPointsReached is an error when a query hits the maximum number of
-	// points.
-	ErrMaxPointsReached = errors.New("max number of points reached")
-
-	// ErrQueryTimeoutReached is an error when a query hits the timeout.
-	ErrQueryTimeoutReached = errors.New("query timeout reached")
+	// ErrQueryTimeoutLimitExceeded is an error when a query hits the max time allowed to run.
+	ErrQueryTimeoutLimitExceeded = errors.New("query-timeout limit exceeded")
 )
 
 // Statistics for the QueryExecutor
@@ -54,6 +46,17 @@ func ErrDatabaseNotFound(name string) error { return fmt.Errorf("database not fo
 
 // ErrMeasurementNotFound returns a measurement not found error for the given measurement name.
 func ErrMeasurementNotFound(name string) error { return fmt.Errorf("measurement not found: %s", name) }
+
+// ErrMaxSelectPointsLimitExceeded is an error when a query hits the maximum number of points.
+func ErrMaxSelectPointsLimitExceeded(n, limit int) error {
+	return fmt.Errorf("max-select-point limit exceeed: (%d/%d)", n, limit)
+}
+
+// ErrMaxConcurrentQueriesLimitExceeded is an error when a query cannot be run
+// because the maximum number of queries has been reached.
+func ErrMaxConcurrentQueriesLimitExceeded(n, limit int) error {
+	return fmt.Errorf("max-concurrent-queries limit exceeded(%d, %d)", n, limit)
+}
 
 // ExecutionOptions contains the options for executing a query.
 type ExecutionOptions struct {

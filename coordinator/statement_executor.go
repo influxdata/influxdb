@@ -587,7 +587,7 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 			// Determine the number of buckets by finding the time span and dividing by the interval.
 			buckets := int64(max.Sub(min)) / int64(interval)
 			if int(buckets) > e.MaxSelectBucketsN {
-				return nil, stmt, fmt.Errorf("max select bucket count exceeded: %d buckets", buckets)
+				return nil, stmt, fmt.Errorf("max-select-buckets limit exceeded: (%d/%d)", buckets, e.MaxSelectBucketsN)
 			}
 		}
 	}
