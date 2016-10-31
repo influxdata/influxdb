@@ -13,7 +13,7 @@ func (p *IndexFiles) MeasurementNames() [][]byte {
 	itr := p.MeasurementIterator()
 	var names [][]byte
 	for e := itr.Next(); e != nil; e = itr.Next() {
-		names = append(names, copyBytes(e.Name))
+		names = append(names, copyBytes(e.Name()))
 	}
 	sort.Sort(byteSlices(names))
 	return names
@@ -98,7 +98,7 @@ func (p *IndexFiles) writeSeriesListTo(w io.Writer, info *indexCompactInfo, n *i
 	// Write all series.
 	sw := NewSeriesListWriter()
 	for e := itr.Next(); e != nil; e = itr.Next() {
-		if err := sw.Add(e.Name, e.Tags); err != nil {
+		if err := sw.Add(e.Name(), e.Tags()); err != nil {
 			return err
 		}
 	}
@@ -132,18 +132,18 @@ func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactI
 	tsw := NewTagSetWriter()
 	for ke := kitr.Next(); ke != nil; ke = kitr.Next() {
 		// Mark tag deleted.
-		if ke.Deleted {
-			tsw.DeleteTag(ke.Key)
+		if ke.Deleted() {
+			tsw.DeleteTag(ke.Key())
 		}
 
 		// Iterate over tag values.
-		vitr := p.TagValueIterator(name, ke.Key)
+		vitr := ke.TagValueIterator()
 		for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
 			// Look-up series ids.
-			sitr := p.TagValueSeriesIterator(name, ke.Key, ve.Value)
+			sitr := ve.SeriesIterator()
 			var seriesIDs []uint32
 			for se := sitr.Next(); se != nil; se = sitr.Next() {
-				seriesID := info.sw.Offset(se.Name, se.Tags)
+				seriesID := info.sw.Offset(se.Name(), se.Tags())
 				if seriesID == 0 {
 					panic("expected series id")
 				}
@@ -152,7 +152,7 @@ func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactI
 			sort.Sort(uint32Slice(seriesIDs))
 
 			// Insert tag value into writer.
-			tsw.AddTagValue(name, ve.Value, ve.Deleted, seriesIDs)
+			tsw.AddTagValue(name, ve.Value(), ve.Deleted(), seriesIDs)
 		}
 	}
 
@@ -184,7 +184,7 @@ func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo
 		itr := p.MeasurementSeriesIterator(name)
 		var seriesIDs []uint32
 		for e := itr.Next(); e != nil; e = itr.Next() {
-			seriesID := info.sw.Offset(e.Name, e.Tags)
+			seriesID := info.sw.Offset(e.Name(), e.Tags())
 			if seriesID == 0 {
 				panic("expected series id")
 			}
