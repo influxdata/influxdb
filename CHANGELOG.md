@@ -65,6 +65,7 @@ The following configuration changes in the `[data]` section may need to changed 
 - [#7053](https://github.com/influxdata/influxdb/issues/7053): Delete statement returns an error when retention policy or database is specified
 - [#7494](https://github.com/influxdata/influxdb/issues/7494): influx_inspect: export does not escape field keys.
 - [#7526](https://github.com/influxdata/influxdb/issues/7526): Truncate the version string when linking to the documentation.
+- [#7548](https://github.com/influxdata/influxdb/issues/7548): Fix output duration units for SHOW QUERIES.
 
 ## v1.0.2 [2016-10-05]
 
