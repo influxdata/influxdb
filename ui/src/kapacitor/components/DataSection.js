@@ -96,25 +96,24 @@ export const DataSection = React.createClass({
         query: Object.assign({}, oldState.query, {
           fields: oldState.query.fields.concat({field, funcs}),
         }),
-      })
-          return update(queryConfig, {fields: {$push: [fieldFunc]}});
+      });
     });
   },
 
-  handleGroupByTime(time) {
-  },
+  //  handleGroupByTime(time) {
+  //  },
 
-  handleApplyFuncsToField(fieldFunc) {
-  },
+  //  handleApplyFuncsToField(fieldFunc) {
+  //  },
 
-  handleChooseTag(tag) {
-  },
+  //  handleChooseTag(tag) {
+  //  },
 
-  handleToggleTagAcceptance() {
-  },
+  //  handleToggleTagAcceptance() {
+  //  },
 
-  handleGroupByTag(tagKey) {
-  },
+  //  handleGroupByTag(tagKey) {
+  //  },
 
   handleClickTab(tab) {
     this.setState({activeTab: tab});

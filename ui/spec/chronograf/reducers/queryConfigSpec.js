@@ -1,5 +1,5 @@
 import reducer from 'chronograf/reducers/queryConfigs';
-import defaultQueryConfig from 'chronograf/utils/defaultQueryConfig';
+import defaultQueryConfig from 'src/utils/defaultQueryConfig';
 import {
   chooseNamespace,
   chooseMeasurement,

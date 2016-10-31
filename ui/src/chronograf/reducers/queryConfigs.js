@@ -1,4 +1,5 @@
-import defaultQueryConfig from '../utils/defaultQueryConfig';
+import defaultQueryConfig from 'src/utils/defaultQueryConfig';
+import {chooseNamespace, chooseMeasurement, toggleField} from 'src/utils/queryTransitions';
 import update from 'react-addons-update';
 import u from 'updeep';
 
@@ -10,10 +11,7 @@ export default function queryConfigs(state = {}, action) {
 
     case 'CHOOSE_NAMESPACE': {
       const {queryId, database, retentionPolicy} = action.payload;
-      const nextQueryConfig = update(defaultQueryConfig(queryId), {$merge: {
-        database,
-        retentionPolicy,
-      }});
+      const nextQueryConfig = chooseNamespace(defaultQueryConfig(queryId), {database, retentionPolicy});
       const nextState = update(state, {
         [queryId]: {$set: nextQueryConfig},
       });
@@ -22,11 +20,7 @@ export default function queryConfigs(state = {}, action) {
 
     case 'CHOOSE_MEASUREMENT': {
       const {queryId, measurement} = action.payload;
-      const nextQueryConfig = update(defaultQueryConfig(queryId), {$merge: {
-        database: state[queryId].database,
-        retentionPolicy: state[queryId].retentionPolicy,
-        measurement,
-      }});
+      const nextQueryConfig = chooseMeasurement(state[queryId], measurement);
       const nextState = update(state, {
         [queryId]: {$set: nextQueryConfig},
       });
@@ -88,28 +82,11 @@ export default function queryConfigs(state = {}, action) {
 
     case 'TOGGLE_FIELD': {
       const {queryId, fieldFunc} = action.payload;
-      const {field/* funcs */} = fieldFunc;
+      const nextQueryConfig = toggleField(state[queryId], fieldFunc);
 
-      const nextState = update(state, {
-        [queryId]: {$apply: (queryConfig) => {
-          const isSelected = queryConfig.fields.find((f) => f.field === field);
-          if (isSelected) {
-            const nextFields = queryConfig.fields.filter((f) => f.field !== field);
-            if (!nextFields.length) {
-              const nextGroupBy = update(state[queryId].groupBy, {time: {$set: null}});
-              return update(queryConfig, {fields: {$set: nextFields}, groupBy: {$set: nextGroupBy}});
-            }
-
-            return update(queryConfig, {
-              fields: {$set: nextFields},
-            });
-          }
-
-          return update(queryConfig, {fields: {$push: [fieldFunc]}});
-        }},
+      return Object.assign({}, state, {
+        [queryId]: nextQueryConfig,
       });
-
-      return nextState;
     }
 
     case 'APPLY_FUNCS_TO_FIELD': {

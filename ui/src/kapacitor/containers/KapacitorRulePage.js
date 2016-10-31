@@ -1,11 +1,6 @@
 import React, {PropTypes} from 'react';
 import DataSection from '../components/DataSection';
 
-const DATA_SECTION = 'data';
-const VALUES_SECTION = 'values';
-const MESSAGE_SECTION = 'message';
-const ALERTS_SECTION = 'alerts';
-
 export const KapacitorRulePage = React.createClass({
   propTypes: {
     source: PropTypes.shape({
@@ -14,12 +9,6 @@ export const KapacitorRulePage = React.createClass({
       }).isRequired,
     }),
     addFlashMessage: PropTypes.func,
-  },
-
-  getInitialState() {
-    return {
-      activeSection: DATA_SECTION,
-    };
   },
 
   render() {
@@ -88,7 +77,7 @@ export const KapacitorRulePage = React.createClass({
     // hit kapacitor config endpoint and filter sections by the "enabled" property
     const alertOptions = ['Slack', 'VictorOps'].map((destination) => {
       return <option key={destination}>send to {destination}</option>;
-    })
+    });
     return (
       <div className="kapacitor-rule-section">
         <h3>Alerts</h3>

@@ -1,5 +1,5 @@
 import selectStatement from 'chronograf/utils/influxql/select';
-import defaultQueryConfig from 'chronograf/utils/defaultQueryConfig';
+import defaultQueryConfig from 'src/utils/defaultQueryConfig';
 
 function mergeConfig(options) {
   return Object.assign({}, defaultQueryConfig(123), options);
