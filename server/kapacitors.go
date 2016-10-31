@@ -258,3 +258,19 @@ func (h *Service) UpdateKapacitor(w http.ResponseWriter, r *http.Request) {
 	res := newKapacitor(srv)
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
+
+// KapacitorTasksPost proxies POST to kapacitor
+func (h *Service) KapacitorTasksPost(w http.ResponseWriter, r *http.Request) {
+}
+
+// KapacitorTasksPatch proxies PATCH to kapacitor
+func (h *Service) KapacitorTasksPatch(w http.ResponseWriter, r *http.Request) {
+}
+
+// KapacitorTasksGet proxies GET to kapacitor
+func (h *Service) KapacitorTasksGet(w http.ResponseWriter, r *http.Request) {
+}
+
+// KapacitorTasksDelete proxies DELETE to kapacitor
+func (h *Service) KapacitorTasksDelete(w http.ResponseWriter, r *http.Request) {
+}

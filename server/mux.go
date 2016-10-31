@@ -68,6 +68,12 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid", service.UpdateKapacitor)
 	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid", service.RemoveKapacitor)
 
+	// Kapacitor Tasks
+	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/tasks", service.KapacitorTasksGet)
+	router.POST("/chronograf/v1/sources/:id/kapacitors/:kid/tasks", service.KapacitorTasksPost)
+	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid/tasks", service.KapacitorTasksPatch)
+	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/tasks", service.KapacitorTasksDelete)
+
 	// Kapacitor Proxy
 	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", service.KapacitorProxyGet)
 	router.POST("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", service.KapacitorProxyPost)
