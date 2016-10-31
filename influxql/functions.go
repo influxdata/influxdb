@@ -376,7 +376,7 @@ func (r *FloatCumulativeSumReducer) AggregateFloat(p *FloatPoint) {
 	r.curr.Nil = false
 }
 
-// Emit protects of null and emits a point.
+// Emit emits the next point from the reducer.
 func (r *FloatCumulativeSumReducer) Emit() []FloatPoint {
 	var pts []FloatPoint
 	if !r.curr.Nil {
