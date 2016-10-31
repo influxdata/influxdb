@@ -175,6 +175,7 @@ describe('Chronograf.Reducers.queryConfig', () => {
 
       const nextState = reducer(initialState, action);
 
+      console.log('im nextstate :)', nextState)
       expect(nextState[queryId].tags).to.eql({
         k1: ['v0', 'v1'],
         k2: ['foo'],
