@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
-import {getSources} from 'shared/apis';
+import {getSources} from 'src/shared/apis';
+import {showDatabases} from 'src/shared/apis/metaQuery';
 
 const {bool, number, string, node, func, shape} = PropTypes;
 
@@ -39,8 +40,12 @@ const CheckDataNodes = React.createClass({
   },
 
   componentDidMount() {
+    const {params} = this.props;
     getSources().then(({data: {sources}}) => {
       this.setState({sources, isFetching: false});
+      if (params.sourceID) {
+        console.log("the sourceID is", params.sourceID); // eslint-disable-line no-console
+      }
     }).catch((err) => {
       console.error(err); // eslint-disable-line no-console
       this.setState({isFetching: false});
@@ -50,8 +55,13 @@ const CheckDataNodes = React.createClass({
   componentWillUpdate(nextProps, nextState) {
     const {router, location, params} = nextProps;
     const {isFetching, sources} = nextState;
-    if (!isFetching && !sources.find((s) => s.id === params.sourceID)) {
+    const source = sources.find((s) => s.id === params.sourceID);
+    if (!isFetching && !source) {
       return router.push(`/?redirectPath=${location.pathname}`);
+    } else if (!isFetching && !location.pathname.includes("/manage-sources")) {
+      showDatabases(source.links.proxy).catch(() => {
+        window.location = `/sources/${source.id}/manage-sources`; // eslint-disable-line no-console
+      });
     }
   },
 
