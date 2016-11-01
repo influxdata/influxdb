@@ -13,15 +13,25 @@ type mapping struct {
 
 // GetMappings returns the known mappings of measurements to applications
 func (h *Service) GetMappings(w http.ResponseWriter, r *http.Request) {
-	cpu := "cpu"
-	system := "System"
-	mp := getMappingsResponse{
-		Mappings: []mapping{
-			mapping{
-				Measurement: cpu,
-				Name:        system,
-			},
-		},
+	ctx := r.Context()
+	layouts, err := h.LayoutStore.All(ctx)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, "Error loading layouts")
 	}
+
+	mp := getMappingsResponse{
+		Mappings: []mapping{},
+	}
+
+	seen := make(map[string]bool)
+
+	for _, layout := range layouts {
+		if seen[layout.Measurement+layout.ID] {
+			continue
+		}
+		mp.Mappings = append(mp.Mappings, mapping{layout.Measurement, layout.ID})
+		seen[layout.Measurement+layout.ID] = true
+	}
+
 	encodeJSON(w, http.StatusOK, mp, h.Logger)
 }
