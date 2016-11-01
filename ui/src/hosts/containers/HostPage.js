@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react';
-// TODO: move this to a higher level package than chronograf?
 import LayoutRenderer from '../components/LayoutRenderer';
+import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
+import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 import {fetchLayouts} from '../apis';
 import _ from 'lodash';
 
@@ -17,7 +18,12 @@ export const HostPage = React.createClass({
   },
 
   getInitialState() {
-    return {layouts: []};
+    const fifteenMinutesIndex = 1;
+
+    return {
+      layouts: [],
+      timeRange: timeRanges[fifteenMinutesIndex],
+    };
   },
 
   componentDidMount() {
@@ -26,10 +32,16 @@ export const HostPage = React.createClass({
     });
   },
 
+  handleChooseTimeRange({lower}) {
+    const timeRange = timeRanges.find((range) => range.queryValue === lower);
+    this.setState({timeRange});
+  },
+
   render() {
     const autoRefreshMs = 15000;
     const source = this.props.source.links.proxy;
     const hostID = this.props.params.hostID;
+    const {timeRange} = this.state;
 
     const layout = _.head(this.state.layouts);
 
@@ -44,6 +56,7 @@ export const HostPage = React.createClass({
 
       layoutComponent = (
         <LayoutRenderer
+          timeRange={timeRange.queryValue}
           cells={layout.cells}
           autoRefreshMs={autoRefreshMs}
           source={source}
@@ -63,6 +76,9 @@ export const HostPage = React.createClass({
             </div>
             <div className="enterprise-header__right">
               <p>Uptime: <strong>2d 4h 33m</strong></p>
+            </div>
+            <div className="enterprise-header__right">
+              <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={timeRange.inputValue} />
             </div>
           </div>
         </div>

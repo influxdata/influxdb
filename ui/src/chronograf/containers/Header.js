@@ -1,8 +1,8 @@
 import React, {PropTypes} from 'react';
 import moment from 'moment';
 import {withRouter} from 'react-router';
-import TimeRangeDropdown from '../components/TimeRangeDropdown';
-import timeRanges from 'hson!../data/timeRanges.hson';
+import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
+import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 import Dropdown from 'shared/components/Dropdown';
 
 const Header = React.createClass({
