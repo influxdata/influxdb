@@ -857,11 +857,11 @@ func (e *StatementExecutor) executeShowSubscriptionsStatement(stmt *influxql.Sho
 }
 
 func (e *StatementExecutor) executeShowTagValues(q *influxql.ShowTagValuesStatement, ctx *influxql.ExecutionContext) error {
-	if ctx.Database == "" {
+	if q.Database == "" {
 		return ErrDatabaseNameRequired
 	}
 
-	tagValues, err := e.TSDBStore.TagValues(ctx.Database, q.Condition)
+	tagValues, err := e.TSDBStore.TagValues(q.Database, q.Condition)
 	if err != nil {
 		ctx.Results <- &influxql.Result{
 			StatementID: ctx.StatementID,
@@ -1086,6 +1086,10 @@ func (e *StatementExecutor) NormalizeStatement(stmt influxql.Statement, defaultD
 				node.Database = defaultDatabase
 			}
 		case *influxql.ShowMeasurementsStatement:
+			if node.Database == "" {
+				node.Database = defaultDatabase
+			}
+		case *influxql.ShowTagValuesStatement:
 			if node.Database == "" {
 				node.Database = defaultDatabase
 			}

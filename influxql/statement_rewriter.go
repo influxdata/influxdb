@@ -122,6 +122,7 @@ func rewriteShowTagValuesStatement(stmt *ShowTagValuesStatement) (Statement, err
 	condition = rewriteSourcesCondition(stmt.Sources, condition)
 
 	return &ShowTagValuesStatement{
+		Database:   stmt.Database,
 		Op:         stmt.Op,
 		TagKeyExpr: stmt.TagKeyExpr,
 		Condition:  condition,
