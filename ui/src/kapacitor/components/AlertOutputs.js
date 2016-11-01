@@ -1,10 +1,14 @@
 import React, {PropTypes} from 'react';
 import _ from 'lodash';
 import {getKapacitorConfig, updateKapacitorConfigSection, testAlertOutput} from 'shared/apis';
+import AlertaConfig from './AlertaConfig';
+import HipchatConfig from './HipchatConfig';
+import PagerdutyConfig from './PagerdutyConfig';
+import SensuConfig from './SensuConfig';
 import SlackConfig from './SlackConfig';
 import SMTPConfig from './SMTPConfig';
+import TelegramConfig from './TelegramConfig';
 import VictoropsConfig from './VictoropsConfig';
-import AlertaConfig from './AlertaConfig';
 
 const AlertOutputs = React.createClass({
   propTypes: {
@@ -22,9 +26,12 @@ const AlertOutputs = React.createClass({
   getInitialState() {
     return {
       selectedEndpoint: 'alerta',
+      alertaConfig: null,
       smtpConfig: null,
       slackConfig: null,
-      alertaConfig: null,
+      telegramConfig: null,
+      hipchatConfig: null,
+      sensuConfig: null,
     };
   },
 
@@ -35,12 +42,20 @@ const AlertOutputs = React.createClass({
   refreshKapacitorConfig() {
     getKapacitorConfig(this.props.kapacitor).then(({data: {sections}}) => {
       this.setState({
-        alertaConfig: _.get(sections, ['alerta', 'elements', '0'], null),
-        slackConfig: _.get(sections, ['slack', 'elements', '0'], null),
-        smtpConfig: _.get(sections, ['smtp', 'elements', '0'], null),
-        victoropsConfig: _.get(sections, ['victorops', 'elements', '0'], null),
+        alertaConfig: this.getSection(sections, 'alerta'),
+        hipchatConfig: this.getSection(sections, 'hipchat'),
+        pagerdutyConfig: this.getSection(sections, 'pagerduty'),
+        slackConfig: this.getSection(sections, 'slack'),
+        smtpConfig: this.getSection(sections, 'smtp'),
+        telegramConfig: this.getSection(sections, 'telegram'),
+        victoropsConfig: this.getSection(sections, 'victorops'),
+        sensuConfig: this.getSection(sections, 'sensu'),
       });
     });
+  },
+
+  getSection(sections, section) {
+    return _.get(sections, [section, 'elements', '0'], null);
   },
 
   handleSaveConfig(section, properties) {
@@ -85,8 +100,12 @@ const AlertOutputs = React.createClass({
             <label htmlFor="alert-endpoint" className="sr-only">Alert Enpoint</label>
             <select className="form-control" id="source" onChange={this.changeSelectedEndpoint}>
               <option value="alerta">Alerta</option>
+              <option value="hipchat">HipChat</option>
+              <option value="pagerduty">PagerDuty</option>
+              <option value="sensu">Sensu</option>
               <option value="slack">Slack</option>
               <option value="smtp">SMTP</option>
+              <option value="telegram">Telegram</option>
               <option value="victorops">VictorOps</option>
             </select>
           </div>
@@ -119,7 +138,23 @@ const AlertOutputs = React.createClass({
       return <VictoropsConfig onSave={save} config={this.state.victoropsConfig} />;
     }
 
-    return <div>This endpoint is not supported yet!</div>;
+    if (endpoint === 'telegram' && this.state.telegramConfig) {
+      return <TelegramConfig onSave={save} config={this.state.telegramConfig} />;
+    }
+
+    if (endpoint === 'pagerduty' && this.state.pagerdutyConfig) {
+      return <PagerdutyConfig onSave={save} config={this.state.pagerdutyConfig} />;
+    }
+
+    if (endpoint === 'hipchat' && this.state.hipchatConfig) {
+      return <HipchatConfig onSave={save} config={this.state.hipchatConfig} />;
+    }
+
+    if (endpoint === 'sensu' && this.state.sensuConfig) {
+      return <SensuConfig onSave={save} config={this.state.sensuConfig} />;
+    }
+
+    return <div></div>;
   },
 });
 
