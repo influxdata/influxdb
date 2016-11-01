@@ -76,7 +76,7 @@ export const ManageSources = React.createClass({
                           <td><Link className="btn btn-default btn-xs" to={`${pathname}/${source.id}/edit`}>Edit</Link></td>
                           <td><Link className="btn btn-success btn-xs" to={`/sources/${source.id}/hosts`}>Connect</Link></td>
                         </tr>
-                        );
+                      );
                     })
                   }
                 </tbody>

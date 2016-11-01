@@ -36,7 +36,17 @@ export default function queryConfigs(state = {}, action) {
       });
     }
 
+    case 'LOAD_KAPACITOR_QUERY': {
+      const {queryID, query} = action.payload;
+      const nextState = Object.assign({}, state, {
+        [queryID]: query,
+      });
+
+      return nextState;
+    }
+
     case 'CREATE_PANEL':
+    case 'ADD_KAPACITOR_QUERY':
     case 'ADD_QUERY': {
       const {queryId} = action.payload;
       const nextState = Object.assign({}, state, {

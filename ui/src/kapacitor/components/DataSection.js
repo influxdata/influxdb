@@ -20,8 +20,20 @@ export const DataSection = React.createClass({
         kapacitors: PropTypes.string.isRequired,
       }).isRequired,
     }),
-    query: PropTypes.shape({}).isRequired,
+    query: PropTypes.shape({
+      id: PropTypes.string.isRequired,
+    }).isRequired,
     addFlashMessage: PropTypes.func,
+    actions: PropTypes.shape({
+      chooseNamespace: PropTypes.func.isRequired,
+      chooseMeasurement: PropTypes.func.isRequired,
+      applyFuncsToField: PropTypes.func.isRequired,
+      chooseTag: PropTypes.func.isRequired,
+      groupByTag: PropTypes.func.isRequired,
+      toggleField: PropTypes.func.isRequired,
+      groupByTime: PropTypes.func.isRequired,
+      toggleTagAcceptance: PropTypes.func.isRequired,
+    }).isRequired,
   },
 
   childContextTypes: {
@@ -44,27 +56,39 @@ export const DataSection = React.createClass({
   },
 
   handleChooseNamespace(namespace) {
+    this.props.actions.chooseNamespace(this.props.query.id, namespace);
+
+    this.setState({activeTab: MEASUREMENTS_TAB});
   },
 
   handleChooseMeasurement(measurement) {
+    this.props.actions.chooseMeasurement(this.props.query.id, measurement);
+
+    this.setState({activeTab: FIELDS_TAB});
   },
 
-  handleToggleField({field, funcs}) {
+  handleToggleField(field) {
+    this.props.actions.toggleField(this.props.query.id, field);
   },
 
   handleGroupByTime(time) {
+    this.props.actions.groupByTime(this.props.query.id, time);
   },
 
   handleApplyFuncsToField(fieldFunc) {
+    this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc);
   },
 
   handleChooseTag(tag) {
+    this.props.actions.chooseTag(this.props.query.id, tag);
   },
 
   handleToggleTagAcceptance() {
+    this.props.actions.toggleTagAcceptance(this.props.query.id);
   },
 
   handleGroupByTag(tagKey) {
+    this.props.actions.groupByTag(this.props.query.id, tagKey);
   },
 
   handleClickTab(tab) {

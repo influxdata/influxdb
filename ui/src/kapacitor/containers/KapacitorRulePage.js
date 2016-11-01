@@ -1,11 +1,12 @@
 import React, {PropTypes} from 'react';
 import {connect} from 'react-redux';
 import DataSection from '../components/DataSection';
-import defaultQueryConfig from 'src/utils/defaultQueryConfig';
-import * as actionCreators from '../actions/view';
-import {bindActionCreators} from 'redux'
+import ValuesSection from '../components/ValuesSection';
+import * as kapacitorActionCreators from '../actions/view';
+import * as queryActionCreators from '../../chronograf/actions/view';
+import {bindActionCreators} from 'redux';
 
-const TASK_ID = 1; // switch to this.props.params.taskID
+const RULE_ID = 1; // switch to this.props.params.taskID
 
 export const KapacitorRulePage = React.createClass({
   propTypes: {
@@ -15,14 +16,26 @@ export const KapacitorRulePage = React.createClass({
       }).isRequired,
     }),
     addFlashMessage: PropTypes.func,
-    tasks: PropTypes.shape({}).isRequired,
+    rules: PropTypes.shape({}).isRequired,
+    queryConfigs: PropTypes.shape({}).isRequired,
+    kapacitorActions: PropTypes.shape({
+      fetchRule: PropTypes.func.isRequired,
+    }).isRequired,
+    queryActions: PropTypes.shape({}).isRequired,
   },
 
   componentDidMount() {
-    this.props.actions.fetchTask(TASK_ID);
+    this.props.kapacitorActions.fetchRule(RULE_ID);
   },
 
   render() {
+    const rule = this.props.rules[Object.keys(this.props.rules)[0]]; // this.props.params.taskID
+    const query = rule && this.props.queryConfigs[rule.queryID];
+
+    if (!query) { // or somethin like that
+      return null; // or a spinner or somethin
+    }
+
     return (
       <div className="kapacitor-rule-page">
         <div className="enterprise-header">
@@ -35,12 +48,12 @@ export const KapacitorRulePage = React.createClass({
         <div className="container-fluid">
           <div className="row">
             <div className="col-md-12">
-              {this.renderDataSection()}
+              {this.renderDataSection(query)}
             </div>
           </div>
           <div className="row">
             <div className="col-md-12">
-              {this.renderValuesSection()}
+              {this.renderValuesSection(rule)}
             </div>
           </div>
           <div className="row">
@@ -58,21 +71,20 @@ export const KapacitorRulePage = React.createClass({
     );
   },
 
-  renderDataSection() {
-    const task = this.props.tasks[Object.keys(this.props.tasks)[0]]; // this.props.params.taskID
-    const query = (task && task.query) || defaultQueryConfig('');
+  renderDataSection(query) {
     return (
       <div className="kapacitor-rule-section">
         <h3>Data</h3>
-        <DataSection source={this.props.source} query={query} />
+        <DataSection source={this.props.source} query={query} actions={this.props.queryActions} />
       </div>
     );
   },
 
-  renderValuesSection() {
+  renderValuesSection(rule) {
     return (
       <div className="kapacitor-rule-section">
         <h3>Values</h3>
+        <ValuesSection rule={rule} />
       </div>
     );
   },
@@ -102,12 +114,16 @@ export const KapacitorRulePage = React.createClass({
 
 function mapStateToProps(state) {
   return {
-    tasks: state.tasks
+    rules: state.rules,
+    queryConfigs: state.queryConfigs,
   };
 }
 
 function mapDispatchToProps(dispatch) {
-  return {actions: bindActionCreators(actionCreators, dispatch)}
+  return {
+    kapacitorActions: bindActionCreators(kapacitorActionCreators, dispatch),
+    queryActions: bindActionCreators(queryActionCreators, dispatch),
+  };
 }
 
 export default connect(mapStateToProps, mapDispatchToProps)(KapacitorRulePage);

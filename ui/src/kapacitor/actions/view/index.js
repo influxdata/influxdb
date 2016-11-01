@@ -1,96 +1,25 @@
-import defaultQueryConfig from 'src/utils/defaultQueryConfig';
+import uuid from 'node-uuid';
 
-export function fetchTask(taskID) {
-  // do some ajax
-  //
-  return {
-    type: 'K_LOAD_TASK',
-    payload: {
-      taskID,
-      task: {
-        query: defaultQueryConfig(''),
-        otherProperties: {},
+export function fetchRule(ruleID) {
+  return (dispatch) => {
+    // do some ajax
+    const queryID = uuid.v4();
+    dispatch({
+      type: 'LOAD_RULE',
+      payload: {
+        ruleID,
+        rule: {
+          queryID,
+          otherProperties: {},
+        },
       },
-    },
-  };
-}
+    });
 
-export function toggleField(taskId, fieldFunc) {
-  return {
-    type: 'K_TOGGLE_FIELD',
-    payload: {
-      queryId,
-      fieldFunc,
-    },
-  };
-}
-
-export function groupByTime(queryId, time) {
-  return {
-    type: 'K_GROUP_BY_TIME',
-    payload: {
-      queryId,
-      time,
-    },
-  };
-}
-
-export function applyFuncsToField(queryId, fieldFunc) {
-  return {
-    type: 'K_APPLY_FUNCS_TO_FIELD',
-    payload: {
-      queryId,
-      fieldFunc,
-    },
-  };
-}
-
-export function chooseTag(queryId, tag) {
-  return {
-    type: 'K_CHOOSE_TAG',
-    payload: {
-      queryId,
-      tag,
-    },
-  };
-}
-
-export function chooseNamespace(queryId, {database, retentionPolicy}) {
-  return {
-    type: 'K_CHOOSE_NAMESPACE',
-    payload: {
-      queryId,
-      database,
-      retentionPolicy,
-    },
-  };
-}
-
-export function chooseMeasurement(queryId, measurement) {
-  return {
-    type: 'K_CHOOSE_MEASUREMENT',
-    payload: {
-      queryId,
-      measurement,
-    },
-  };
-}
-
-export function groupByTag(queryId, tagKey) {
-  return {
-    type: 'K_GROUP_BY_TAG',
-    payload: {
-      queryId,
-      tagKey,
-    },
-  };
-}
-
-export function toggleTagAcceptance(queryId) {
-  return {
-    type: 'K_TOGGLE_TAG_ACCEPTANCE',
-    payload: {
-      queryId,
-    },
+    dispatch({
+      type: 'ADD_KAPACITOR_QUERY',
+      payload: {
+        queryId: queryID,
+      },
+    });
   };
 }

@@ -101,7 +101,7 @@ const TagList = React.createClass({
               onChooseTag={this.props.onChooseTag}
               onGroupByTag={this.props.onGroupByTag}
             />
-            );
+          );
         })}
       </ul>
     );
