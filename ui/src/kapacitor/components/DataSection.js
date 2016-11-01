@@ -20,6 +20,7 @@ export const DataSection = React.createClass({
         kapacitors: PropTypes.string.isRequired,
       }).isRequired,
     }),
+    query: PropTypes.shape({}).isRequired,
     addFlashMessage: PropTypes.func,
   },
 
@@ -39,88 +40,39 @@ export const DataSection = React.createClass({
   getInitialState() {
     return {
       activeTab: DB_TAB,
-      query: {
-        id: 1,
-        database: null,
-        measurement: null,
-        retentionPolicy: null,
-        fields: [],
-        tags: {},
-        groupBy: {
-          time: null,
-          tags: [],
-        },
-        areTagsAccepted: true,
-        rawText: null,
-      },
     };
   },
 
   handleChooseNamespace(namespace) {
-    this.setState((oldState) => {
-      const newQuery = Object.assign({}, oldState.query, namespace);
-      return Object.assign({}, oldState, {query: newQuery, activeTab: MEASUREMENTS_TAB});
-    });
   },
 
   handleChooseMeasurement(measurement) {
-    this.setState((oldState) => {
-      const newQuery = Object.assign({}, oldState.query, {measurement});
-      return Object.assign({}, oldState, {query: newQuery, activeTab: FIELDS_TAB});
-    });
   },
 
   handleToggleField({field, funcs}) {
-    this.setState((oldState) => {
-      const isSelected = oldState.query.fields.find((f) => f.field === field);
-      if (isSelected) {
-        const nextFields = oldState.query.fields.filter((f) => f.field !== field);
-        if (!nextFields.length) {
-          const nextGroupBy = Object.assign({}, oldState.query.groupBy, {time: null});
-          return Object.assign({}, oldState, {
-            query: Object.assign({}, oldState.query, {
-              fields: nextFields,
-              groupBy: nextGroupBy,
-            }),
-          });
-        }
-
-        return Object.assign({}, oldState, {
-          query: Object.assign({}, oldState.query, {
-            fields: nextFields,
-          }),
-        });
-      }
-
-      return Object.assign({}, oldState, {
-        query: Object.assign({}, oldState.query, {
-          fields: oldState.query.fields.concat({field, funcs}),
-        }),
-      });
-    });
   },
 
-  //  handleGroupByTime(time) {
-  //  },
+  handleGroupByTime(time) {
+  },
 
-  //  handleApplyFuncsToField(fieldFunc) {
-  //  },
+  handleApplyFuncsToField(fieldFunc) {
+  },
 
-  //  handleChooseTag(tag) {
-  //  },
+  handleChooseTag(tag) {
+  },
 
-  //  handleToggleTagAcceptance() {
-  //  },
+  handleToggleTagAcceptance() {
+  },
 
-  //  handleGroupByTag(tagKey) {
-  //  },
+  handleGroupByTag(tagKey) {
+  },
 
   handleClickTab(tab) {
     this.setState({activeTab: tab});
   },
 
   render() {
-    const {query} = this.state;
+    const {query} = this.props;
     const timeRange = {lower: 'now() - 15m', upper: null};
     const statement = query.rawText || selectStatement(timeRange, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
 
@@ -135,7 +87,8 @@ export const DataSection = React.createClass({
   },
 
   renderEditor() {
-    const {query, activeTab} = this.state;
+    const {activeTab} = this.state;
+    const {query} = this.props;
     if (query.rawText) {
       return (
         <div className="generic-empty-state query-editor-empty-state">
@@ -162,7 +115,7 @@ export const DataSection = React.createClass({
   },
 
   renderList() {
-    const {query} = this.state;
+    const {query} = this.props;
 
     switch (this.state.activeTab) {
       case DB_TAB:

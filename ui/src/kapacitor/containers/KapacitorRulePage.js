@@ -1,5 +1,11 @@
 import React, {PropTypes} from 'react';
+import {connect} from 'react-redux';
 import DataSection from '../components/DataSection';
+import defaultQueryConfig from 'src/utils/defaultQueryConfig';
+import * as actionCreators from '../actions/view';
+import {bindActionCreators} from 'redux'
+
+const TASK_ID = 1; // switch to this.props.params.taskID
 
 export const KapacitorRulePage = React.createClass({
   propTypes: {
@@ -9,6 +15,11 @@ export const KapacitorRulePage = React.createClass({
       }).isRequired,
     }),
     addFlashMessage: PropTypes.func,
+    tasks: PropTypes.shape({}).isRequired,
+  },
+
+  componentDidMount() {
+    this.props.actions.fetchTask(TASK_ID);
   },
 
   render() {
@@ -48,10 +59,12 @@ export const KapacitorRulePage = React.createClass({
   },
 
   renderDataSection() {
+    const task = this.props.tasks[Object.keys(this.props.tasks)[0]]; // this.props.params.taskID
+    const query = (task && task.query) || defaultQueryConfig('');
     return (
       <div className="kapacitor-rule-section">
         <h3>Data</h3>
-        <DataSection source={this.props.source} />
+        <DataSection source={this.props.source} query={query} />
       </div>
     );
   },
@@ -87,4 +100,14 @@ export const KapacitorRulePage = React.createClass({
   },
 });
 
-export default KapacitorRulePage;
+function mapStateToProps(state) {
+  return {
+    tasks: state.tasks
+  };
+}
+
+function mapDispatchToProps(dispatch) {
+  return {actions: bindActionCreators(actionCreators, dispatch)}
+}
+
+export default connect(mapStateToProps, mapDispatchToProps)(KapacitorRulePage);
