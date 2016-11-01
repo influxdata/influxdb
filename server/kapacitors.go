@@ -67,7 +67,7 @@ func (h *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 		invalidJSON(w)
 		return
 	}
-	if req.Valid() != nil {
+	if err := req.Valid(); err != nil {
 		invalidData(w, err)
 		return
 	}
