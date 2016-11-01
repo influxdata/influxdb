@@ -18,11 +18,11 @@ export const HostPage = React.createClass({
   },
 
   getInitialState() {
-    const pastHourIndex = 2;
+    const fifteenMinutesIndex = 1;
 
     return {
       layouts: [],
-      timeRange: timeRanges[pastHourIndex],
+      timeRange: timeRanges[fifteenMinutesIndex],
     };
   },
 
