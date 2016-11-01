@@ -17,7 +17,7 @@ export const CreateSource = React.createClass({
   handleNewSource(e) {
     e.preventDefault();
     const source = {
-      url: this.sourceURL.value,
+      url: this.sourceURL.value.trim(),
       name: this.sourceName.value,
       username: this.sourceUser.value,
       password: this.sourcePassword.value,
