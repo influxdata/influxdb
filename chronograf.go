@@ -68,7 +68,7 @@ type Source struct {
 	Name     string `json:"name"`                // Name is the user-defined name for the source
 	Type     string `json:"type,omitempty"`      // Type specifies which kinds of source (enterprise vs oss)
 	Username string `json:"username,omitempty"`  // Username is the username to connect to the source
-	Password string `json:"password,omitempty"`  // Password is in CLEARTEXT FIXME
+	Password string `json:"password,omitempty"`  // Password is in CLEARTEXT // TODO: fixme
 	URL      string `json:"url"`                 // URL are the connections to the source
 	Default  bool   `json:"default"`             // Default specifies the default source for the application
 }
@@ -87,13 +87,22 @@ type SourcesStore interface {
 	Update(context.Context, Source) error
 }
 
+// TickTemplate  task to be used by kapacitor
+type TickTemplate string
+
+// Alert generates tickscript templates for kapacitor
+type Alert interface {
+	// Generate will create the tickscript to be used as a kapacitor template
+	Generate() (TickTemplate, error)
+}
+
 // Server represents a proxy connection to an HTTP server
 type Server struct {
 	ID       int    // ID is the unique ID of the server
 	SrcID    int    // SrcID of the data source
 	Name     string // Name is the user-defined name for the server
 	Username string // Username is the username to connect to the server
-	Password string // Password is in CLEARTEXT FIXME
+	Password string // Password is in CLEARTEXT // TODO: FIXME
 	URL      string // URL are the connections to the server
 }
 

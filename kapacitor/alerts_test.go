@@ -1,6 +1,10 @@
 package tickscripts
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/influxdata/chronograf"
+)
 
 func TestValidateAlert(t *testing.T) {
 	tests := []struct {
@@ -65,7 +69,7 @@ func TestThreshold(t *testing.T) {
 	tests := []struct {
 		name    string
 		alert   Alert
-		want    TickTemplate
+		want    chronograf.TickTemplate
 		wantErr bool
 	}{
 		{
@@ -139,7 +143,7 @@ func TestRelative(t *testing.T) {
 	tests := []struct {
 		name    string
 		alert   Alert
-		want    TickTemplate
+		want    chronograf.TickTemplate
 		wantErr bool
 	}{
 		{
@@ -256,7 +260,7 @@ func TestDeadman(t *testing.T) {
 	tests := []struct {
 		name    string
 		alert   Alert
-		want    TickTemplate
+		want    chronograf.TickTemplate
 		wantErr bool
 	}{
 		{

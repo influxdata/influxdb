@@ -7,23 +7,36 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/influxdata/chronograf"
 	"github.com/influxdata/kapacitor/pipeline"
 	"github.com/influxdata/kapacitor/tick/ast"
 	"github.com/influxdata/kapacitor/tick/stateful"
 )
 
+var _ chronograf.Alert = &Alert{}
+
 // Alert defines alerting strings in template rendering
 type Alert struct {
+	Trigger   string // Specifies the type of alert
 	Service   string // Alerting service
 	Operator  string // Operator for alert comparison
 	Aggregate string // Statistic aggregate over window of data
 }
 
-// TickTemplate  task to be used by kapacitor
-type TickTemplate string
+func (a *Alert) Generate() (chronograf.TickTemplate, error) {
+	switch a.Trigger {
+	case "threshold":
+		return a.Threshold()
+	case "relative":
+		return a.Relative()
+	case "deadman":
+		return a.Deadman()
+	}
+	return "", fmt.Errorf("Unknown tigger mechanism %s", a.Trigger)
+}
 
 // Threshold generates a tickscript template with an alert
-func (a *Alert) Threshold() (TickTemplate, error) {
+func (a *Alert) Threshold() (chronograf.TickTemplate, error) {
 	if err := ValidateAlert(a); err != nil {
 		return "", err
 	}
@@ -41,7 +54,7 @@ func (a *Alert) Threshold() (TickTemplate, error) {
 }
 
 // Relative creates a tickscript that alerts on relative changes over windows of data
-func (a *Alert) Relative() (TickTemplate, error) {
+func (a *Alert) Relative() (chronograf.TickTemplate, error) {
 	if err := ValidateAlert(a); err != nil {
 		return "", err
 	}
@@ -59,7 +72,7 @@ func (a *Alert) Relative() (TickTemplate, error) {
 }
 
 // Deadman creates a tickscript that alerts when no data has been received for a time.
-func (a *Alert) Deadman() (TickTemplate, error) {
+func (a *Alert) Deadman() (chronograf.TickTemplate, error) {
 	if err := ValidateAlert(a); err != nil {
 		return "", err
 	}
@@ -85,7 +98,7 @@ func ValidateAlert(alert *Alert) error {
 	return validateTick(script)
 }
 
-func formatTick(tickscript string) (TickTemplate, error) {
+func formatTick(tickscript string) (chronograf.TickTemplate, error) {
 	node, err := ast.Parse(tickscript)
 	if err != nil {
 		log.Fatalf("parse execution: %s", err)
@@ -94,7 +107,7 @@ func formatTick(tickscript string) (TickTemplate, error) {
 
 	output := new(bytes.Buffer)
 	node.Format(output, "", true)
-	return TickTemplate(output.String()), nil
+	return chronograf.TickTemplate(output.String()), nil
 }
 
 func validateTick(script string) error {
