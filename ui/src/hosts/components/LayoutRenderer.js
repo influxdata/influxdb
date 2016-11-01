@@ -8,6 +8,7 @@ const RefreshingLineGraph = AutoRefresh(LineGraph);
 
 export const LayoutRenderer = React.createClass({
   propTypes: {
+    timeRange: PropTypes.string.isRequired,
     cells: PropTypes.arrayOf(
       PropTypes.shape({
         queries: PropTypes.arrayOf(
@@ -37,10 +38,12 @@ export const LayoutRenderer = React.createClass({
   },
 
   generateGraphs() {
+    const {timeRange, host, autoRefreshMs, source} = this.props;
+
     return this.props.cells.map((cell) => {
       const qs = cell.queries.map((q) => {
-        _.merge(q, {host: this.props.source});
-        q.text += ` where host = '${this.props.host}' and time > now() - 15m`;
+        _.merge(q, {host: source});
+        q.text += ` where host = '${host}' and time > ${timeRange}`;
         return q;
       });
       return (
@@ -49,7 +52,7 @@ export const LayoutRenderer = React.createClass({
           <div className="hosts-graph graph-panel__graph-container">
             <RefreshingLineGraph
               queries={qs}
-              autoRefresh={this.props.autoRefreshMs}
+              autoRefresh={autoRefreshMs}
             />
           </div>
         </div>

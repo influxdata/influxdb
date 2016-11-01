@@ -56,6 +56,7 @@ export const HostPage = React.createClass({
 
       layoutComponent = (
         <LayoutRenderer
+          timeRange={timeRange.queryValue}
           cells={layout.cells}
           autoRefreshMs={autoRefreshMs}
           source={source}
@@ -77,7 +78,7 @@ export const HostPage = React.createClass({
               <p>Uptime: <strong>2d 4h 33m</strong></p>
             </div>
             <div className="enterprise-header__right">
-              <TimeRangeDropdown onChooseTimeRange={handleChooseTimeRange} selected={timeRange.inputValue} />
+              <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={timeRange.inputValue} />
             </div>
           </div>
         </div>
