@@ -109,7 +109,7 @@ const Threshold = React.createClass({
         <Dropdown items={operators} selected={operator} onChoose={this.handleDropdownChange} />
         <input ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
         <Dropdown items={relations} selected={relation} onChoose={this.handleDropdownChange} />
-        <input ref={(r) => this.percentileInput = r} defaultValue={percentile} onKeyUp={this.handleInputChange}></input>
+        {relation === 'once' ? null : <input ref={(r) => this.percentileInput = r} defaultValue={percentile} onKeyUp={this.handleInputChange}></input>}
         during the last
         <Dropdown items={durations} selected={duration} onChoose={this.handleDropdownChange} />
       </div>
