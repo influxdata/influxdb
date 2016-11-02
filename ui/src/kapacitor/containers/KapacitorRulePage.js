@@ -6,8 +6,6 @@ import * as kapacitorActionCreators from '../actions/view';
 import * as queryActionCreators from '../../chronograf/actions/view';
 import {bindActionCreators} from 'redux';
 
-const RULE_ID = 1; // switch to this.props.params.taskID
-
 export const KapacitorRulePage = React.createClass({
   propTypes: {
     source: PropTypes.shape({
@@ -19,13 +17,24 @@ export const KapacitorRulePage = React.createClass({
     rules: PropTypes.shape({}).isRequired,
     queryConfigs: PropTypes.shape({}).isRequired,
     kapacitorActions: PropTypes.shape({
+      loadDefaultRule: PropTypes.func.isRequired,
       fetchRule: PropTypes.func.isRequired,
+      chooseTrigger: PropTypes.func.isRequired,
+      updateRuleValues: PropTypes.func.isRequired,
     }).isRequired,
     queryActions: PropTypes.shape({}).isRequired,
+    params: PropTypes.shape({
+      ruleID: PropTypes.string,
+    }).isRequired,
   },
 
   componentDidMount() {
-    this.props.kapacitorActions.fetchRule(RULE_ID);
+    const {ruleID} = this.props.params;
+    if (ruleID) {
+      this.props.kapacitorActions.fetchRule(ruleID);
+    } else {
+      this.props.kapacitorActions.loadDefaultRule();
+    }
   },
 
   render() {
@@ -81,10 +90,11 @@ export const KapacitorRulePage = React.createClass({
   },
 
   renderValuesSection(rule) {
+    const {chooseTrigger, updateRuleValues} = this.props.kapacitorActions;
     return (
       <div className="kapacitor-rule-section">
         <h3>Values</h3>
-        <ValuesSection rule={rule} />
+        <ValuesSection rule={rule} onChooseTrigger={chooseTrigger} onUpdateValues={updateRuleValues} />
       </div>
     );
   },
