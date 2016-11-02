@@ -10,9 +10,9 @@ import (
 	"github.com/influxdata/influxdb/tsdb/engine/tsi1"
 )
 
-// Ensure series list can be unmarshaled.
-func TestSeriesList_UnmarshalBinary(t *testing.T) {
-	if _, err := CreateSeriesList([]Series{
+// Ensure series block can be unmarshaled.
+func TestSeriesBlock_UnmarshalBinary(t *testing.T) {
+	if _, err := CreateSeriesBlock([]Series{
 		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
 		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
 		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
@@ -21,9 +21,9 @@ func TestSeriesList_UnmarshalBinary(t *testing.T) {
 	}
 }
 
-// Ensure series list contains the correct term count and term encoding.
-func TestSeriesList_Terms(t *testing.T) {
-	l := MustCreateSeriesList([]Series{
+// Ensure series block contains the correct term count and term encoding.
+func TestSeriesBlock_Terms(t *testing.T) {
+	l := MustCreateSeriesBlock([]Series{
 		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
 		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
 		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
@@ -50,14 +50,14 @@ func TestSeriesList_Terms(t *testing.T) {
 	}
 }
 
-// Ensure series list contains the correct set of series.
-func TestSeriesList_Series(t *testing.T) {
+// Ensure series block contains the correct set of series.
+func TestSeriesBlock_Series(t *testing.T) {
 	series := []Series{
 		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
 		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
 		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
 	}
-	l := MustCreateSeriesList(series)
+	l := MustCreateSeriesBlock(series)
 
 	// Verify total number of series is correct.
 	if n := l.SeriesCount(); n != 3 {
@@ -91,34 +91,34 @@ func TestSeriesList_Series(t *testing.T) {
 	}
 }
 
-// CreateSeriesList returns an in-memory SeriesList with a list of series.
-func CreateSeriesList(a []Series) (*tsi1.SeriesList, error) {
+// CreateSeriesBlock returns an in-memory SeriesBlock with a list of series.
+func CreateSeriesBlock(a []Series) (*tsi1.SeriesBlock, error) {
 	// Create writer and add series.
-	w := tsi1.NewSeriesListWriter()
+	w := tsi1.NewSeriesBlockWriter()
 	for i, s := range a {
 		if err := w.Add(s.Name, s.Tags); err != nil {
-			return nil, fmt.Errorf("SeriesListWriter.Add(): i=%d, err=%s", i, err)
+			return nil, fmt.Errorf("SeriesBlockWriter.Add(): i=%d, err=%s", i, err)
 		}
 	}
 
 	// Write to buffer.
 	var buf bytes.Buffer
 	if _, err := w.WriteTo(&buf); err != nil {
-		return nil, fmt.Errorf("SeriesListWriter.WriteTo(): %s", err)
+		return nil, fmt.Errorf("SeriesBlockWriter.WriteTo(): %s", err)
 	}
 
-	// Unpack bytes into series list.
-	var l tsi1.SeriesList
-	if err := l.UnmarshalBinary(buf.Bytes()); err != nil {
-		return nil, fmt.Errorf("SeriesList.UnmarshalBinary(): %s", err)
+	// Unpack bytes into series block.
+	var blk tsi1.SeriesBlock
+	if err := blk.UnmarshalBinary(buf.Bytes()); err != nil {
+		return nil, fmt.Errorf("SeriesBlock.UnmarshalBinary(): %s", err)
 	}
 
-	return &l, nil
+	return &blk, nil
 }
 
-// MustCreateSeriesList calls CreateSeriesList(). Panic on error.
-func MustCreateSeriesList(a []Series) *tsi1.SeriesList {
-	l, err := CreateSeriesList(a)
+// MustCreateSeriesBlock calls CreateSeriesBlock(). Panic on error.
+func MustCreateSeriesBlock(a []Series) *tsi1.SeriesBlock {
+	l, err := CreateSeriesBlock(a)
 	if err != nil {
 		panic(err)
 	}

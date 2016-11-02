@@ -24,7 +24,7 @@ func TestMeasurementBlockWriter(t *testing.T) {
 		t.Fatal("expected bytes written")
 	}
 
-	// Unmarshal into a TagSet.
+	// Unmarshal into a block.
 	var blk tsi1.MeasurementBlock
 	if err := blk.UnmarshalBinary(buf.Bytes()); err != nil {
 		t.Fatal(err)
@@ -33,24 +33,24 @@ func TestMeasurementBlockWriter(t *testing.T) {
 	// Verify data in block.
 	if e, ok := blk.Elem([]byte("foo")); !ok {
 		t.Fatal("expected element")
-	} else if e.TagSetOffset() != 100 || e.TagSetSize() != 10 {
-		t.Fatalf("unexpected offset/size: %v/%v", e.TagSetOffset(), e.TagSetSize())
+	} else if e.TagBlockOffset() != 100 || e.TagBlockSize() != 10 {
+		t.Fatalf("unexpected offset/size: %v/%v", e.TagBlockOffset(), e.TagBlockSize())
 	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint32{1, 3, 4}) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}
 
 	if e, ok := blk.Elem([]byte("bar")); !ok {
 		t.Fatal("expected element")
-	} else if e.TagSetOffset() != 200 || e.TagSetSize() != 20 {
-		t.Fatalf("unexpected offset/size: %v/%v", e.TagSetOffset(), e.TagSetSize())
+	} else if e.TagBlockOffset() != 200 || e.TagBlockSize() != 20 {
+		t.Fatalf("unexpected offset/size: %v/%v", e.TagBlockOffset(), e.TagBlockSize())
 	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint32{2}) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}
 
 	if e, ok := blk.Elem([]byte("baz")); !ok {
 		t.Fatal("expected element")
-	} else if e.TagSetOffset() != 300 || e.TagSetSize() != 30 {
-		t.Fatalf("unexpected offset/size: %v/%v", e.TagSetOffset(), e.TagSetSize())
+	} else if e.TagBlockOffset() != 300 || e.TagBlockSize() != 30 {
+		t.Fatalf("unexpected offset/size: %v/%v", e.TagBlockOffset(), e.TagBlockSize())
 	} else if !reflect.DeepEqual(e.SeriesIDs(), []uint32{5, 6}) {
 		t.Fatalf("unexpected series data: %#v", e.SeriesIDs())
 	}

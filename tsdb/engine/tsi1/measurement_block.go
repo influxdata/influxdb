@@ -122,6 +122,16 @@ func (blk *MeasurementBlock) Iterator() MeasurementIterator {
 	return &blockMeasurementIterator{data: blk.data[MeasurementFillSize:]}
 }
 
+// seriesIDIterator returns an iterator for all series ids in a measurement.
+func (blk *MeasurementBlock) seriesIDIterator(name []byte) seriesIDIterator {
+	// Find measurement element.
+	e, ok := blk.Elem(name)
+	if !ok {
+		return &rawSeriesIDIterator{}
+	}
+	return &rawSeriesIDIterator{data: e.series.data}
+}
+
 // blockMeasurementIterator iterates over a list measurements in a block.
 type blockMeasurementIterator struct {
 	elem MeasurementBlockElem
@@ -142,6 +152,22 @@ func (itr *blockMeasurementIterator) Next() MeasurementElem {
 	itr.data = itr.data[itr.elem.size:]
 
 	return &itr.elem
+}
+
+// rawSeriesIterator iterates over a list of raw series data.
+type rawSeriesIDIterator struct {
+	data []byte
+}
+
+// next returns the next decoded series.
+func (itr *rawSeriesIDIterator) next() uint32 {
+	if len(itr.data) == 0 {
+		return 0
+	}
+
+	id := binary.BigEndian.Uint32(itr.data)
+	itr.data = itr.data[SeriesIDSize:]
+	return id
 }
 
 // ReadMeasurementBlockTrailer returns the trailer from data.
@@ -196,7 +222,7 @@ type MeasurementBlockElem struct {
 	flag byte   // flag
 	name []byte // measurement name
 
-	tagSet struct {
+	tagBlock struct {
 		offset int64
 		size   int64
 	}
@@ -221,11 +247,11 @@ func (e *MeasurementBlockElem) Deleted() bool {
 // TagKeyIterator returns an iterator over the measurement's keys.
 func (e *MeasurementBlockElem) TagKeyIterator() TagKeyIterator { panic("TODO") }
 
-// TagSetOffset returns the offset of the measurement's tagset block.
-func (e *MeasurementBlockElem) TagSetOffset() int64 { return e.tagSet.offset }
+// TagBlockOffset returns the offset of the measurement's tag block.
+func (e *MeasurementBlockElem) TagBlockOffset() int64 { return e.tagBlock.offset }
 
-// TagSetSize returns the size of the measurement's tagset block.
-func (e *MeasurementBlockElem) TagSetSize() int64 { return e.tagSet.size }
+// TagBlockSize returns the size of the measurement's tag block.
+func (e *MeasurementBlockElem) TagBlockSize() int64 { return e.tagBlock.size }
 
 // SeriesID returns series ID at an index.
 func (e *MeasurementBlockElem) SeriesID(i int) uint32 {
@@ -248,9 +274,9 @@ func (e *MeasurementBlockElem) UnmarshalBinary(data []byte) error {
 	// Parse flag data.
 	e.flag, data = data[0], data[1:]
 
-	// Parse tagset offset.
-	e.tagSet.offset, data = int64(binary.BigEndian.Uint64(data)), data[8:]
-	e.tagSet.size, data = int64(binary.BigEndian.Uint64(data)), data[8:]
+	// Parse tag block offset.
+	e.tagBlock.offset, data = int64(binary.BigEndian.Uint64(data)), data[8:]
+	e.tagBlock.size, data = int64(binary.BigEndian.Uint64(data)), data[8:]
 
 	// Parse name.
 	sz, n := binary.Uvarint(data)
@@ -282,8 +308,8 @@ func NewMeasurementBlockWriter() *MeasurementBlockWriter {
 // Add adds a measurement with series and tag set offset/size.
 func (mw *MeasurementBlockWriter) Add(name []byte, offset, size int64, seriesIDs []uint32) {
 	mm := mw.mms[string(name)]
-	mm.tagSet.offset = offset
-	mm.tagSet.size = size
+	mm.tagBlock.offset = offset
+	mm.tagBlock.size = size
 	mm.seriesIDs = seriesIDs
 	mw.mms[string(name)] = mm
 }
@@ -364,13 +390,13 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 
 // writeMeasurementTo encodes a single measurement entry into w.
 func (mw *MeasurementBlockWriter) writeMeasurementTo(w io.Writer, name []byte, mm *measurement, n *int64) error {
-	// Write flag & tagset block offset.
+	// Write flag & tag block offset.
 	if err := writeUint8To(w, mm.flag(), n); err != nil {
 		return err
 	}
-	if err := writeUint64To(w, uint64(mm.tagSet.offset), n); err != nil {
+	if err := writeUint64To(w, uint64(mm.tagBlock.offset), n); err != nil {
 		return err
-	} else if err := writeUint64To(w, uint64(mm.tagSet.size), n); err != nil {
+	} else if err := writeUint64To(w, uint64(mm.tagBlock.size), n); err != nil {
 		return err
 	}
 
@@ -414,8 +440,8 @@ func (mw *MeasurementBlockWriter) writeTrailerTo(w io.Writer, hoff int64, n *int
 }
 
 type measurement struct {
-	deleted bool
-	tagSet  struct {
+	deleted  bool
+	tagBlock struct {
 		offset int64
 		size   int64
 	}

@@ -236,11 +236,11 @@ func (f *LogFile) CompactTo(w io.Writer) (n int64, err error) {
 	}
 
 	// Write series list.
-	t.SeriesList.Offset = n
-	if err := f.writeSeriesListTo(w, &n); err != nil {
+	t.SeriesBlock.Offset = n
+	if err := f.writeSeriesBlockTo(w, &n); err != nil {
 		return n, err
 	}
-	t.SeriesList.Size = n - t.SeriesList.Offset
+	t.SeriesBlock.Size = n - t.SeriesBlock.Offset
 
 	// Sort measurement names.
 	names := f.mms.names()
@@ -267,12 +267,12 @@ func (f *LogFile) CompactTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
-func (f *LogFile) writeSeriesListTo(w io.Writer, n *int64) error {
+func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 	// Ensure series are sorted.
 	sort.Sort(f.series)
 
 	// Write all series.
-	sw := NewSeriesListWriter()
+	sw := NewSeriesBlockWriter()
 	for _, serie := range f.series {
 		if err := sw.Add(serie.name, serie.tags); err != nil {
 			return err
@@ -327,18 +327,18 @@ func (f *LogFile) writeTagsetsTo(w io.Writer, names []string, n *int64) error {
 func (f *LogFile) writeTagsetTo(w io.Writer, name string, n *int64) error {
 	mm := f.mms[name]
 
-	tsw := NewTagSetWriter()
+	tw := NewTagBlockWriter()
 	for _, tag := range mm.tagSet {
 		// Mark tag deleted.
 		if tag.deleted {
-			tsw.DeleteTag(tag.name)
+			tw.DeleteTag(tag.name)
 			continue
 		}
 
 		// Add each value.
 		for _, value := range tag.tagValues {
 			sort.Sort(uint32Slice(value.seriesIDs))
-			tsw.AddTagValue(tag.name, value.name, value.deleted, value.seriesIDs)
+			tw.AddTagValue(tag.name, value.name, value.deleted, value.seriesIDs)
 		}
 	}
 
@@ -346,7 +346,7 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, n *int64) error {
 	mm.offset = *n
 
 	// Write tagset to writer.
-	nn, err := tsw.WriteTo(w)
+	nn, err := tw.WriteTo(w)
 	*n += nn
 	if err != nil {
 		return err
