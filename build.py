@@ -1,4 +1,4 @@
-#!/usr/bin/python2.7 -u
+#!/usr/bin/python -u
 
 import sys
 import os
@@ -24,7 +24,6 @@ DATA_DIR = "/var/lib/chronograf"
 SCRIPT_DIR = "/usr/lib/chronograf/scripts"
 CONFIG_DIR = "/etc/chronograf"
 LOGROTATE_DIR = "/etc/logrotate.d"
-# MAN_DIR = "/usr/share/man"
 
 INIT_SCRIPT = "scripts/init.sh"
 SYSTEMD_SCRIPT = "scripts/chronograf.service"
@@ -69,7 +68,6 @@ fpm_common_args = "-f -s dir --log error \
      MAINTAINER,
      LOG_DIR,
      DATA_DIR,
-     # MAN_DIR,
      DESCRIPTION)
 
 for f in CONFIGURATION_FILES:
@@ -98,11 +96,11 @@ supported_packages = {
 
 def print_banner():
     logging.info("""
-   ___ _                                     __ 
+   ___ _                                     __
   / __| |_  _ _ ___ _ _  ___  __ _ _ _ __ _ / _|
  | (__| ' \| '_/ _ \ ' \/ _ \/ _` | '_/ _` |  _|
-  \___|_||_|_| \___/_||_\___/\__, |_| \__,_|_|  
-                             |___/              
+  \___|_||_|_| \___/_||_\___/\__, |_| \__,_|_|
+                             |___/
   Build Script
 """)
 
@@ -112,13 +110,14 @@ def create_package_fs(build_root):
     logging.debug("Creating package filesystem at location: {}".format(build_root))
     # Using [1:] for the path names due to them being absolute
     # (will overwrite previous paths, per 'os.path.join' documentation)
-    dirs = [ INSTALL_ROOT_DIR[1:],
-             LOG_DIR[1:],
-             DATA_DIR[1:],
-             SCRIPT_DIR[1:],
-             CONFIG_DIR[1:],
-             LOGROTATE_DIR[1:] ]
-             # MAN_DIR[1:]
+    dirs = [
+        INSTALL_ROOT_DIR[1:],
+        LOG_DIR[1:],
+        DATA_DIR[1:],
+        SCRIPT_DIR[1:],
+        CONFIG_DIR[1:],
+        LOGROTATE_DIR[1:]
+    ]
     for d in dirs:
         os.makedirs(os.path.join(build_root, d))
         os.chmod(os.path.join(build_root, d), 0o755)
@@ -139,37 +138,15 @@ def package_scripts(build_root, config_only=False, windows=False):
         os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_SCRIPT.split('/')[1]), 0o644)
         shutil.copyfile(LOGROTATE_SCRIPT, os.path.join(build_root, LOGROTATE_DIR[1:], "chronograf"))
         os.chmod(os.path.join(build_root, LOGROTATE_DIR[1:], "chronograf"), 0o644)
-        shutil.copyfile(DEFAULT_CONFIG, os.path.join(build_root, "chronograf.conf"))
-        os.chmod(os.path.join(build_root, "chronograf.conf"), 0o644)
-
-def package_man_files(build_root):
-    """Copy and gzip man pages to the package filesystem."""
-    # TODO: figure out man file situation
-    # logging.debug("Installing man pages.")
-    # run("make -C man/ clean install DESTDIR={}/usr".format(build_root))
-    # for path, dir, files in os.walk(os.path.join(build_root, MAN_DIR[1:])):
-    #     for f in files:
-    #         run("gzip -9n {}".format(os.path.join(path, f)))
+        shutil.copyfile(DEFAULT_CONFIG, os.path.join(build_root, CONFIG_DIR[1:], "chronograf.conf"))
+        os.chmod(os.path.join(build_root, CONFIG_DIR[1:], "chronograf.conf"), 0o644)
 
 def run_generate():
-    """Run 'go generate' to rebuild any static assets.
+    """Generate static assets.
     """
-    # TODO: figure out static asset generation
+    logging.info("Generating static assets...")
     run("make dep", shell=True)
     run("make assets", shell=True)
-
-    # logging.info("Preparing static assets...")
-    # run("cd ./ui && npm install && npm run build", shell=True, retry=True)
-    # logging.info("Running 'make bindata'...")
-    # if not check_path_for("go-bindata"):
-    #     run("go install github.com/jteeuwen/go-bindata/...")
-    # orig_path = None
-    # if os.path.join(os.environ.get("GOPATH"), "bin") not in os.environ["PATH"].split(os.pathsep):
-    #     orig_path = os.environ["PATH"].split(os.pathsep)
-    #     os.environ["PATH"] = os.environ["PATH"].split(os.pathsep).append(os.path.join(os.environ.get("GOPATH"), "bin"))
-    # run("make bindata")
-    # if orig_path is not None:
-    #     os.environ["PATH"] = orig_path
     return True
 
 def go_get(branch, update=False, no_uncommitted=False):
@@ -610,9 +587,6 @@ def package(build_output, pkg_name, version, nightly=False, iteration=1, static=
                     create_package_fs(build_root)
                     package_scripts(build_root)
 
-                # if platform != "windows":
-                #     package_man_files(build_root)
-
                 for binary in targets:
                     # Copy newly-built binaries to packaging directory
                     if platform == 'windows':
@@ -734,8 +708,9 @@ def package(build_output, pkg_name, version, nightly=False, iteration=1, static=
         logging.debug("Produced package files: {}".format(outfiles))
         return outfiles
     finally:
+        pass
         # Cleanup
-        shutil.rmtree(tmp_build_dir)
+        # shutil.rmtree(tmp_build_dir)
 
 def main(args):
     global PACKAGE_NAME
@@ -959,6 +934,7 @@ if __name__ == '__main__':
                         help='Destination bucket for uploads')
     parser.add_argument('--generate',
                         action='store_true',
+                        default=True,
                         help='Run "go generate" before building')
     parser.add_argument('--build-tags',
                         metavar='<tags>',
