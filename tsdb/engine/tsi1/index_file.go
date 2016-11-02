@@ -5,8 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-
-	"github.com/influxdata/influxdb/models"
 )
 
 // IndexFileVersion is the current TSI1 index file version.
@@ -19,14 +17,14 @@ const FileSignature = "TSI1"
 const (
 	// IndexFile trailer fields
 	IndexFileVersionSize       = 2
-	SeriesListOffsetSize       = 8
-	SeriesListSizeSize         = 8
+	SeriesBlockOffsetSize      = 8
+	SeriesBlockSizeSize        = 8
 	MeasurementBlockOffsetSize = 8
 	MeasurementBlockSizeSize   = 8
 
 	IndexFileTrailerSize = IndexFileVersionSize +
-		SeriesListOffsetSize +
-		SeriesListSizeSize +
+		SeriesBlockOffsetSize +
+		SeriesBlockSizeSize +
 		MeasurementBlockOffsetSize +
 		MeasurementBlockSizeSize
 )
@@ -42,8 +40,8 @@ type IndexFile struct {
 	data []byte
 
 	// Components
-	slist SeriesList
-	mblk  MeasurementBlock
+	sblk SeriesBlock
+	mblk MeasurementBlock
 }
 
 // UnmarshalBinary opens an index from data.
@@ -72,11 +70,11 @@ func (i *IndexFile) UnmarshalBinary(data []byte) error {
 	}
 
 	// Slice series list data.
-	buf = data[t.SeriesList.Offset:]
-	buf = buf[:t.SeriesList.Size]
+	buf = data[t.SeriesBlock.Offset:]
+	buf = buf[:t.SeriesBlock.Size]
 
 	// Unmarshal series list.
-	if err := i.slist.UnmarshalBinary(buf); err != nil {
+	if err := i.sblk.UnmarshalBinary(buf); err != nil {
 		return err
 	}
 
@@ -88,37 +86,37 @@ func (i *IndexFile) UnmarshalBinary(data []byte) error {
 
 // Close closes the index file.
 func (i *IndexFile) Close() error {
-	i.slist = SeriesList{}
+	i.sblk = SeriesBlock{}
 	i.mblk = MeasurementBlock{}
 	return nil
 }
 
 // TagValueElem returns a list of series ids for a measurement/tag/value.
-func (i *IndexFile) TagValueElem(name, key, value []byte) (TagSetValueElem, error) {
+func (i *IndexFile) TagValueElem(name, key, value []byte) (TagBlockValueElem, error) {
 	// Find measurement.
 	e, ok := i.mblk.Elem(name)
 	if !ok {
-		return TagSetValueElem{}, nil
+		return TagBlockValueElem{}, nil
 	}
 
-	// Find tag set block.
-	tblk, err := i.tagSetBlock(&e)
+	// Find tag block.
+	tblk, err := i.tagBlock(&e)
 	if err != nil {
-		return TagSetValueElem{}, err
+		return TagBlockValueElem{}, err
 	}
 	return tblk.TagValueElem(key, value), nil
 }
 
-// tagSetBlock returns a tag set block for a measurement.
-func (i *IndexFile) tagSetBlock(e *MeasurementBlockElem) (TagSet, error) {
-	// Slice tag set data.
-	buf := i.data[e.tagSet.offset:]
-	buf = buf[:e.tagSet.size]
+// tagBlock returns a tag block for a measurement.
+func (i *IndexFile) tagBlock(e *MeasurementBlockElem) (TagBlock, error) {
+	// Slice data.
+	buf := i.data[e.tagBlock.offset:]
+	buf = buf[:e.tagBlock.size]
 
 	// Unmarshal block.
-	var blk TagSet
+	var blk TagBlock
 	if err := blk.UnmarshalBinary(buf); err != nil {
-		return TagSet{}, err
+		return TagBlock{}, err
 	}
 	return blk, nil
 }
@@ -128,63 +126,49 @@ func (i *IndexFile) MeasurementIterator() MeasurementIterator {
 	return i.mblk.Iterator()
 }
 
-// MeasurementSeriesIterator returns an iterator over a measurement's series.
-func (i *IndexFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
+// TagKeyIterator returns an iterator over all tag keys for a measurement.
+func (i *IndexFile) TagKeyIterator(name []byte) (TagKeyIterator, error) {
+	// Create an internal iterator.
+	itr, err := i.tagBlockKeyIterator(name)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode into an externally accessible iterator.
+	return &tagKeyDecodeIterator{
+		itr:  itr,
+		sblk: &i.sblk,
+	}, nil
+}
+
+// tagBlockKeyIterator returns an internal iterator over all tag keys for a measurement.
+func (i *IndexFile) tagBlockKeyIterator(name []byte) (tagBlockKeyIterator, error) {
 	// Find measurement element.
 	e, ok := i.mblk.Elem(name)
 	if !ok {
-		return &rawSeriesIterator{n: 0}
+		return tagBlockKeyIterator{}, nil
 	}
 
-	// Return iterator.
-	return &rawSeriesIterator{
-		n:          e.series.n,
-		data:       e.series.data,
-		seriesList: &i.slist,
+	// Fetch tag block.
+	blk, err := i.tagBlock(&e)
+	if err != nil {
+		return tagBlockKeyIterator{}, err
+	}
+	return blk.tagKeyIterator(), nil
+}
+
+// MeasurementSeriesIterator returns an iterator over a measurement's series.
+func (i *IndexFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
+	return &seriesDecodeIterator{
+		itr:  i.mblk.seriesIDIterator(name),
+		sblk: &i.sblk,
 	}
 }
 
-// rawSeriesIterator iterates over a list of raw data.
-type rawSeriesIterator struct {
-	i, n uint32 // index & total count
-	data []byte // raw data
-
-	// series list used for decoding
-	seriesList *SeriesList
-
-	// reusable buffer
-	e rawSeriesElem
+// SeriesIterator returns an iterator over all series.
+func (i *IndexFile) SeriesIterator() SeriesIterator {
+	return i.sblk.Iterator()
 }
-
-// Next returns the next decoded series. Uses name & tags as reusable buffers.
-// Returns nils when the iterator is complete.
-func (itr *rawSeriesIterator) Next() SeriesElem {
-	// Return nil if we've reached the end.
-	if itr.i == itr.n {
-		return nil
-	}
-
-	// Move forward and retrieved offset.
-	offset := binary.BigEndian.Uint32(itr.data[itr.i*SeriesIDSize:])
-
-	// Read from series list into buffers.
-	itr.seriesList.DecodeSeriesAt(offset, &itr.e.name, &itr.e.tags, &itr.e.deleted)
-
-	// Move iterator forward.
-	itr.i++
-
-	return &itr.e
-}
-
-type rawSeriesElem struct {
-	name    []byte
-	tags    models.Tags
-	deleted bool
-}
-
-func (e *rawSeriesElem) Name() []byte      { return e.name }
-func (e *rawSeriesElem) Tags() models.Tags { return e.tags }
-func (e *rawSeriesElem) Deleted() bool     { return e.deleted }
 
 // ReadIndexFileTrailer returns the index file trailer from data.
 func ReadIndexFileTrailer(data []byte) (IndexFileTrailer, error) {
@@ -200,10 +184,10 @@ func ReadIndexFileTrailer(data []byte) (IndexFileTrailer, error) {
 	buf := data[len(data)-IndexFileTrailerSize:]
 
 	// Read series list info.
-	t.SeriesList.Offset = int64(binary.BigEndian.Uint64(buf[0:SeriesListOffsetSize]))
-	buf = buf[SeriesListOffsetSize:]
-	t.SeriesList.Size = int64(binary.BigEndian.Uint64(buf[0:SeriesListSizeSize]))
-	buf = buf[SeriesListSizeSize:]
+	t.SeriesBlock.Offset = int64(binary.BigEndian.Uint64(buf[0:SeriesBlockOffsetSize]))
+	buf = buf[SeriesBlockOffsetSize:]
+	t.SeriesBlock.Size = int64(binary.BigEndian.Uint64(buf[0:SeriesBlockSizeSize]))
+	buf = buf[SeriesBlockSizeSize:]
 
 	// Read measurement block info.
 	t.MeasurementBlock.Offset = int64(binary.BigEndian.Uint64(buf[0:MeasurementBlockOffsetSize]))
@@ -216,8 +200,8 @@ func ReadIndexFileTrailer(data []byte) (IndexFileTrailer, error) {
 
 // IndexFileTrailer represents meta data written to the end of the index file.
 type IndexFileTrailer struct {
-	Version    int
-	SeriesList struct {
+	Version     int
+	SeriesBlock struct {
 		Offset int64
 		Size   int64
 	}
@@ -230,9 +214,9 @@ type IndexFileTrailer struct {
 // WriteTo writes the trailer to w.
 func (t *IndexFileTrailer) WriteTo(w io.Writer) (n int64, err error) {
 	// Write series list info.
-	if err := writeUint64To(w, uint64(t.SeriesList.Offset), &n); err != nil {
+	if err := writeUint64To(w, uint64(t.SeriesBlock.Offset), &n); err != nil {
 		return n, err
-	} else if err := writeUint64To(w, uint64(t.SeriesList.Size), &n); err != nil {
+	} else if err := writeUint64To(w, uint64(t.SeriesBlock.Size), &n); err != nil {
 		return n, err
 	}
 

@@ -22,7 +22,7 @@ const (
 	SeriesDataOffsetSize = 8
 	SeriesDataSizeSize   = 8
 
-	SeriesListTrailerSize = TermListOffsetSize +
+	SeriesBlockTrailerSize = TermListOffsetSize +
 		TermListSizeSize +
 		SeriesDataOffsetSize +
 		SeriesDataSizeSize
@@ -38,9 +38,9 @@ const (
 	SeriesTombstoneFlag = 0x01
 )
 
-// SeriesList represents the section of the index which holds the term
+// SeriesBlock represents the section of the index which holds the term
 // dictionary and a sorted list of series keys.
-type SeriesList struct {
+type SeriesBlock struct {
 	data       []byte
 	termData   []byte
 	seriesData []byte
@@ -48,11 +48,11 @@ type SeriesList struct {
 
 // SeriesOffset returns offset of the encoded series key.
 // Returns 0 if the key does not exist in the series list.
-func (l *SeriesList) SeriesOffset(key []byte) (offset uint32, deleted bool) {
-	offset = uint32(len(l.termData) + SeriesCountSize)
-	data := l.seriesData[SeriesCountSize:]
+func (blk *SeriesBlock) SeriesOffset(key []byte) (offset uint32, deleted bool) {
+	offset = uint32(len(blk.termData) + SeriesCountSize)
+	data := blk.seriesData[SeriesCountSize:]
 
-	for i, n := uint32(0), l.SeriesCount(); i < n; i++ {
+	for i, n := uint32(0), blk.SeriesCount(); i < n; i++ {
 		// Read series flag.
 		flag := data[0]
 		data = data[1:]
@@ -76,18 +76,18 @@ func (l *SeriesList) SeriesOffset(key []byte) (offset uint32, deleted bool) {
 }
 
 // EncodeSeries returns a dictionary-encoded series key.
-func (l *SeriesList) EncodeSeries(name []byte, tags models.Tags) []byte {
+func (blk *SeriesBlock) EncodeSeries(name []byte, tags models.Tags) []byte {
 	// Build a buffer with the minimum space for the name, tag count, and tags.
 	buf := make([]byte, 2+len(tags))
-	return l.AppendEncodeSeries(buf[:0], name, tags)
+	return blk.AppendEncodeSeries(buf[:0], name, tags)
 }
 
 // AppendEncodeSeries appends an encoded series value to dst and returns the new slice.
-func (l *SeriesList) AppendEncodeSeries(dst []byte, name []byte, tags models.Tags) []byte {
+func (blk *SeriesBlock) AppendEncodeSeries(dst []byte, name []byte, tags models.Tags) []byte {
 	var buf [binary.MaxVarintLen32]byte
 
 	// Append encoded name.
-	n := binary.PutUvarint(buf[:], uint64(l.EncodeTerm(name)))
+	n := binary.PutUvarint(buf[:], uint64(blk.EncodeTerm(name)))
 	dst = append(dst, buf[:n]...)
 
 	// Append encoded tag count.
@@ -96,32 +96,37 @@ func (l *SeriesList) AppendEncodeSeries(dst []byte, name []byte, tags models.Tag
 
 	// Append tags.
 	for _, t := range tags {
-		n := binary.PutUvarint(buf[:], uint64(l.EncodeTerm(t.Key)))
+		n := binary.PutUvarint(buf[:], uint64(blk.EncodeTerm(t.Key)))
 		dst = append(dst, buf[:n]...)
 
-		n = binary.PutUvarint(buf[:], uint64(l.EncodeTerm(t.Value)))
+		n = binary.PutUvarint(buf[:], uint64(blk.EncodeTerm(t.Value)))
 		dst = append(dst, buf[:n]...)
 	}
 
 	return dst
 }
 
-// DecodeSeriesAt decodes the series at a given offset.
-func (l *SeriesList) DecodeSeriesAt(offset uint32, name *[]byte, tags *models.Tags, deleted *bool) {
-	data := l.data[offset:]
+// decodeElemAt decodes a series element at a offset.
+func (blk *SeriesBlock) decodeElemAt(offset uint32, e *seriesBlockElem) {
+	data := blk.data[offset:]
 
 	// Read flag.
-	flag, data := data[0], data[1:]
-	*deleted = (flag & SeriesTombstoneFlag) != 0
+	e.flag, data = data[0], data[1:]
+	e.size = 1
 
-	l.DecodeSeries(data, name, tags)
+	// Read length.
+	n, sz := binary.Uvarint(data)
+	e.size += int64(n)
+
+	// Decode the name and tags into the element.
+	blk.DecodeSeries(data[sz:], &e.name, &e.tags)
 }
 
 // DecodeSeries decodes a dictionary encoded series into a name and tagset.
-func (l *SeriesList) DecodeSeries(v []byte, name *[]byte, tags *models.Tags) {
+func (blk *SeriesBlock) DecodeSeries(v []byte, name *[]byte, tags *models.Tags) {
 	// Read name.
 	offset, n := binary.Uvarint(v)
-	*name, v = l.DecodeTerm(uint32(offset)), v[n:]
+	*name, v = blk.DecodeTerm(uint32(offset)), v[n:]
 
 	// Read tag count.
 	tagN, n := binary.Uvarint(v)
@@ -136,11 +141,11 @@ func (l *SeriesList) DecodeSeries(v []byte, name *[]byte, tags *models.Tags) {
 	for i := 0; i < int(tagN); i++ {
 		// Read key.
 		offset, n := binary.Uvarint(v)
-		key, v := l.DecodeTerm(uint32(offset)), v[n:]
+		key, v := blk.DecodeTerm(uint32(offset)), v[n:]
 
 		// Read value.
 		offset, n = binary.Uvarint(v)
-		value, v := l.DecodeTerm(uint32(offset)), v[n:]
+		value, v := blk.DecodeTerm(uint32(offset)), v[n:]
 
 		// Add to tagset.
 		tags.Set(key, value)
@@ -148,8 +153,8 @@ func (l *SeriesList) DecodeSeries(v []byte, name *[]byte, tags *models.Tags) {
 }
 
 // DecodeTerm returns the term at the given offset.
-func (l *SeriesList) DecodeTerm(offset uint32) []byte {
-	buf := l.termData[offset:]
+func (blk *SeriesBlock) DecodeTerm(offset uint32) []byte {
+	buf := blk.termData[offset:]
 
 	// Read length at offset.
 	i, n := binary.Uvarint(buf)
@@ -160,11 +165,11 @@ func (l *SeriesList) DecodeTerm(offset uint32) []byte {
 }
 
 // EncodeTerm returns the offset of v within data.
-func (l *SeriesList) EncodeTerm(v []byte) uint32 {
+func (blk *SeriesBlock) EncodeTerm(v []byte) uint32 {
 	offset := uint32(TermCountSize)
-	data := l.termData[offset:]
+	data := blk.termData[offset:]
 
-	for i, n := uint32(0), l.TermCount(); i < n; i++ {
+	for i, n := uint32(0), blk.TermCount(); i < n; i++ {
 		// Read term length.
 		ln, sz := binary.Uvarint(data)
 		data = data[sz:]
@@ -183,38 +188,109 @@ func (l *SeriesList) EncodeTerm(v []byte) uint32 {
 }
 
 // TermCount returns the number of terms within the dictionary.
-func (l *SeriesList) TermCount() uint32 {
-	return binary.BigEndian.Uint32(l.termData[:TermCountSize])
+func (blk *SeriesBlock) TermCount() uint32 {
+	return binary.BigEndian.Uint32(blk.termData[:TermCountSize])
 }
 
 // SeriesCount returns the number of series.
-func (l *SeriesList) SeriesCount() uint32 {
-	return binary.BigEndian.Uint32(l.seriesData[:SeriesCountSize])
+func (blk *SeriesBlock) SeriesCount() uint32 {
+	return binary.BigEndian.Uint32(blk.seriesData[:SeriesCountSize])
+}
+
+// Iterator returns an iterator over all the series.
+func (blk *SeriesBlock) Iterator() SeriesIterator {
+	return &seriesBlockIterator{
+		n:      blk.SeriesCount(),
+		offset: uint32(len(blk.termData) + SeriesCountSize),
+		sblk:   blk,
+	}
 }
 
 // UnmarshalBinary unpacks data into the series list.
 //
 // If data is an mmap then it should stay open until the series list is no
 // longer used because data access is performed directly from the byte slice.
-func (l *SeriesList) UnmarshalBinary(data []byte) error {
-	t := ReadSeriesListTrailer(data)
+func (blk *SeriesBlock) UnmarshalBinary(data []byte) error {
+	t := ReadSeriesBlockTrailer(data)
 
 	// Save entire block.
-	l.data = data
+	blk.data = data
 
 	// Slice term list data.
-	l.termData = data[t.TermList.Offset:]
-	l.termData = l.termData[:t.TermList.Size]
+	blk.termData = data[t.TermList.Offset:]
+	blk.termData = blk.termData[:t.TermList.Size]
 
 	// Slice series data data.
-	l.seriesData = data[t.SeriesData.Offset:]
-	l.seriesData = l.seriesData[:t.SeriesData.Size]
+	blk.seriesData = data[t.SeriesData.Offset:]
+	blk.seriesData = blk.seriesData[:t.SeriesData.Size]
 
 	return nil
 }
 
-// SeriesListWriter writes a SeriesDictionary block.
-type SeriesListWriter struct {
+// seriesBlockIterator is an iterator over a series ids in a series list.
+type seriesBlockIterator struct {
+	i, n   uint32
+	offset uint32
+	sblk   *SeriesBlock
+	e      seriesBlockElem // buffer
+}
+
+// Next returns the next series element.
+func (itr *seriesBlockIterator) Next() SeriesElem {
+	// Exit if at the end.
+	if itr.i == itr.n {
+		return nil
+	}
+
+	// Read next element.
+	itr.sblk.decodeElemAt(itr.offset, &itr.e)
+
+	// Move iterator and offset forward.
+	itr.i++
+	itr.offset += uint32(itr.e.size)
+
+	return &itr.e
+}
+
+// seriesDecodeIterator decodes a series id iterator into unmarshaled elements.
+type seriesDecodeIterator struct {
+	itr  seriesIDIterator
+	sblk *SeriesBlock
+	e    seriesBlockElem // buffer
+}
+
+// Next returns the next series element.
+func (itr *seriesDecodeIterator) Next() SeriesElem {
+	// Read next series id.
+	id := itr.itr.next()
+	if id == 0 {
+		return nil
+	}
+
+	// Read next element.
+	itr.sblk.decodeElemAt(id, &itr.e)
+	return &itr.e
+}
+
+// seriesBlockElem represents a series element in the series list.
+type seriesBlockElem struct {
+	flag byte
+	name []byte
+	tags models.Tags
+	size int64
+}
+
+// Deleted returns true if the tombstone flag is set.
+func (e *seriesBlockElem) Deleted() bool { return (e.flag & SeriesTombstoneFlag) != 0 }
+
+// Name returns the measurement name.
+func (e *seriesBlockElem) Name() []byte { return e.name }
+
+// Tags returns the tag set.
+func (e *seriesBlockElem) Tags() models.Tags { return e.tags }
+
+// SeriesBlockWriter writes a SeriesBlock.
+type SeriesBlockWriter struct {
 	terms  map[string]int // term frequency
 	series []serie        // series list
 
@@ -222,25 +298,25 @@ type SeriesListWriter struct {
 	termList *TermList
 }
 
-// NewSeriesListWriter returns a new instance of SeriesListWriter.
-func NewSeriesListWriter() *SeriesListWriter {
-	return &SeriesListWriter{
+// NewSeriesBlockWriter returns a new instance of SeriesBlockWriter.
+func NewSeriesBlockWriter() *SeriesBlockWriter {
+	return &SeriesBlockWriter{
 		terms: make(map[string]int),
 	}
 }
 
 // Add adds a series to the writer's set.
 // Returns an ErrSeriesOverflow if no more series can be held in the writer.
-func (sw *SeriesListWriter) Add(name []byte, tags models.Tags) error {
+func (sw *SeriesBlockWriter) Add(name []byte, tags models.Tags) error {
 	return sw.append(name, tags, false)
 }
 
 // Delete marks a series as tombstoned.
-func (sw *SeriesListWriter) Delete(name []byte, tags models.Tags) error {
+func (sw *SeriesBlockWriter) Delete(name []byte, tags models.Tags) error {
 	return sw.append(name, tags, true)
 }
 
-func (sw *SeriesListWriter) append(name []byte, tags models.Tags, deleted bool) error {
+func (sw *SeriesBlockWriter) append(name []byte, tags models.Tags, deleted bool) error {
 	// Ensure writer doesn't add too many series.
 	if len(sw.series) == math.MaxInt32 {
 		return ErrSeriesOverflow
@@ -260,8 +336,8 @@ func (sw *SeriesListWriter) append(name []byte, tags models.Tags, deleted bool) 
 }
 
 // WriteTo computes the dictionary encoding of the series and writes to w.
-func (sw *SeriesListWriter) WriteTo(w io.Writer) (n int64, err error) {
-	var t SeriesListTrailer
+func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
+	var t SeriesBlockTrailer
 
 	terms := NewTermList(sw.terms)
 
@@ -295,7 +371,7 @@ func (sw *SeriesListWriter) WriteTo(w io.Writer) (n int64, err error) {
 }
 
 // writeTermListTo writes the terms to w.
-func (sw *SeriesListWriter) writeTermListTo(w io.Writer, terms *TermList) (n int64, err error) {
+func (sw *SeriesBlockWriter) writeTermListTo(w io.Writer, terms *TermList) (n int64, err error) {
 	buf := make([]byte, binary.MaxVarintLen32)
 
 	// Write term count.
@@ -334,7 +410,7 @@ func (sw *SeriesListWriter) writeTermListTo(w io.Writer, terms *TermList) (n int
 }
 
 // writeSeriesTo writes dictionary-encoded series to w in sorted order.
-func (sw *SeriesListWriter) writeSeriesTo(w io.Writer, terms *TermList, offset uint32) (n int64, err error) {
+func (sw *SeriesBlockWriter) writeSeriesTo(w io.Writer, terms *TermList, offset uint32) (n int64, err error) {
 	buf := make([]byte, binary.MaxVarintLen32+1)
 
 	// Ensure series are sorted.
@@ -381,7 +457,7 @@ func (sw *SeriesListWriter) writeSeriesTo(w io.Writer, terms *TermList, offset u
 }
 
 // writeTrailerTo writes offsets to the end of the series list.
-func (sw *SeriesListWriter) writeTrailerTo(w io.Writer, t SeriesListTrailer, n *int64) error {
+func (sw *SeriesBlockWriter) writeTrailerTo(w io.Writer, t SeriesBlockTrailer, n *int64) error {
 	if err := writeUint64To(w, uint64(t.TermList.Offset), n); err != nil {
 		return err
 	} else if err := writeUint64To(w, uint64(t.TermList.Size), n); err != nil {
@@ -399,7 +475,7 @@ func (sw *SeriesListWriter) writeTrailerTo(w io.Writer, t SeriesListTrailer, n *
 
 // Offset returns the series offset from the writer.
 // Only valid after the series list has been written to a writer.
-func (sw *SeriesListWriter) Offset(name []byte, tags models.Tags) uint32 {
+func (sw *SeriesBlockWriter) Offset(name []byte, tags models.Tags) uint32 {
 	// Find position of series.
 	i := sort.Search(len(sw.series), func(i int) bool {
 		s := &sw.series[i]
@@ -420,12 +496,12 @@ func (sw *SeriesListWriter) Offset(name []byte, tags models.Tags) uint32 {
 	return sw.series[i].offset
 }
 
-// ReadSeriesListTrailer returns the series list trailer from data.
-func ReadSeriesListTrailer(data []byte) SeriesListTrailer {
-	var t SeriesListTrailer
+// ReadSeriesBlockTrailer returns the series list trailer from data.
+func ReadSeriesBlockTrailer(data []byte) SeriesBlockTrailer {
+	var t SeriesBlockTrailer
 
 	// Slice trailer data.
-	buf := data[len(data)-SeriesListTrailerSize:]
+	buf := data[len(data)-SeriesBlockTrailerSize:]
 
 	// Read term list info.
 	t.TermList.Offset = int64(binary.BigEndian.Uint64(buf[0:TermListOffsetSize]))
@@ -442,8 +518,8 @@ func ReadSeriesListTrailer(data []byte) SeriesListTrailer {
 	return t
 }
 
-// SeriesListTrailer represents meta data written to the end of the series list.
-type SeriesListTrailer struct {
+// SeriesBlockTrailer represents meta data written to the end of the series list.
+type SeriesBlockTrailer struct {
 	TermList struct {
 		Offset int64
 		Size   int64

@@ -34,6 +34,10 @@ type MeasurementIterator interface {
 // Iterators that are first in the list take precendence and a deletion by those
 // early iterators will invalidate elements by later iterators.
 func MergeMeasurementIterators(itrs ...MeasurementIterator) MeasurementIterator {
+	if len(itrs) == 0 {
+		return nil
+	}
+
 	itr := &measurementMergeIterator{
 		buf:  make([]MeasurementElem, len(itrs)),
 		itrs: itrs,
@@ -108,6 +112,10 @@ type TagKeyIterator interface {
 // Iterators that are first in the list take precendence and a deletion by those
 // early iterators will invalidate elements by later iterators.
 func MergeTagKeyIterators(itrs ...TagKeyIterator) TagKeyIterator {
+	if len(itrs) == 0 {
+		return nil
+	}
+
 	itr := &tagKeyMergeIterator{
 		buf:  make([]TagKeyElem, len(itrs)),
 		itrs: itrs,
@@ -182,6 +190,10 @@ type TagValueIterator interface {
 // Iterators that are first in the list take precendence and a deletion by those
 // early iterators will invalidate elements by later iterators.
 func MergeTagValueIterators(itrs ...TagValueIterator) TagValueIterator {
+	if len(itrs) == 0 {
+		return nil
+	}
+
 	itr := &tagValueMergeIterator{
 		buf:  make([]TagValueElem, len(itrs)),
 		itrs: itrs,
@@ -255,6 +267,10 @@ type SeriesIterator interface {
 // Iterators that are first in the list take precendence and a deletion by those
 // early iterators will invalidate elements by later iterators.
 func MergeSeriesIterators(itrs ...SeriesIterator) SeriesIterator {
+	if len(itrs) == 0 {
+		return nil
+	}
+
 	itr := &seriesMergeIterator{
 		buf:  make([]SeriesElem, len(itrs)),
 		itrs: itrs,
@@ -320,6 +336,65 @@ func (itr *seriesMergeIterator) Next() SeriesElem {
 		itr.buf[i] = itr.itrs[i].Next()
 	}
 	return e
+}
+
+// seriesIDIterator represents a iterator over a list of series ids.
+type seriesIDIterator interface {
+	next() uint32
+}
+
+// unionSeriesIDIterators returns an iterator returns a union of iterators.
+func unionSeriesIDIterators(itrs ...seriesIDIterator) seriesIDIterator {
+	if len(itrs) == 0 {
+		return nil
+	}
+
+	itr := &unionIterator{
+		buf:  make([]uint32, len(itrs)),
+		itrs: itrs,
+	}
+
+	// Initialize buffers.
+	for i := range itr.itrs {
+		itr.buf[i] = itr.itrs[i].next()
+	}
+
+	return itr
+}
+
+type unionIterator struct {
+	buf  []uint32
+	itrs []seriesIDIterator
+}
+
+// next returns the next series id. Duplicates are combined.
+func (itr *unionIterator) next() uint32 {
+	// Find next series id in the buffers.
+	var id uint32
+	for i := range itr.buf {
+		// Skip empty buffers.
+		if itr.buf[i] == 0 {
+			continue
+		}
+
+		// If the name is not set the pick the first non-empty name.
+		if id == 0 || itr.buf[i] < id {
+			id = itr.buf[i]
+		}
+	}
+
+	// Return zero if no elements remaining.
+	if id == 0 {
+		return 0
+	}
+
+	// Refill buffer.
+	for i := range itr.buf {
+		if itr.buf[i] == id {
+			itr.buf[i] = itr.itrs[i].next()
+		}
+	}
+	return id
 }
 
 // writeTo writes write v into w. Updates n.

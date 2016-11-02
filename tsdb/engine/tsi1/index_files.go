@@ -20,23 +20,36 @@ func (p *IndexFiles) MeasurementNames() [][]byte {
 }
 
 // MeasurementIterator returns an iterator that merges measurements across all files.
-func (p *IndexFiles) MeasurementIterator() MeasurementIterator {
-	panic("TODO")
+func (p IndexFiles) MeasurementIterator() MeasurementIterator {
+	a := make([]MeasurementIterator, len(p))
+	for i := range p {
+		a[i] = p[i].MeasurementIterator()
+	}
+	return MergeMeasurementIterators(a...)
 }
 
 // TagKeyIterator returns an iterator that merges tag keys across all files.
-func (p *IndexFiles) TagKeyIterator(name []byte) TagKeyIterator {
-	panic("TODO")
-}
-
-// TagValueIterator returns an iterator that merges tag values across all files.
-func (p *IndexFiles) TagValueIterator(name, key []byte) TagValueIterator {
-	panic("TODO")
+func (p *IndexFiles) TagKeyIterator(name []byte) (TagKeyIterator, error) {
+	a := make([]TagKeyIterator, 0, len(*p))
+	for _, f := range *p {
+		itr, err := f.TagKeyIterator(name)
+		if err != nil {
+			return nil, err
+		} else if itr == nil {
+			continue
+		}
+		a = append(a, itr)
+	}
+	return MergeTagKeyIterators(a...), nil
 }
 
 // SeriesIterator returns an iterator that merges series across all files.
-func (p *IndexFiles) SeriesIterator() SeriesIterator {
-	panic("TODO")
+func (p IndexFiles) SeriesIterator() SeriesIterator {
+	a := make([]SeriesIterator, len(p))
+	for i := range p {
+		a[i] = p[i].SeriesIterator()
+	}
+	return MergeSeriesIterators(a...)
 }
 
 // MeasurementSeriesIterator returns an iterator that merges series across all files.
@@ -49,8 +62,8 @@ func (p *IndexFiles) TagValueSeriesIterator(name, key, value []byte) SeriesItera
 	panic("TODO")
 }
 
-// CompactTo merges all index files and writes them to w.
-func (p *IndexFiles) CompactTo(w io.Writer) (n int64, err error) {
+// WriteTo merges all index files and writes them to w.
+func (p *IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 	var t IndexFileTrailer
 
 	// Setup context object to track shared data for this compaction.
@@ -64,11 +77,11 @@ func (p *IndexFiles) CompactTo(w io.Writer) (n int64, err error) {
 	}
 
 	// Write combined series list.
-	t.SeriesList.Offset = n
-	if err := p.writeSeriesListTo(w, &info, &n); err != nil {
+	t.SeriesBlock.Offset = n
+	if err := p.writeSeriesBlockTo(w, &info, &n); err != nil {
 		return n, err
 	}
-	t.SeriesList.Size = n - t.SeriesList.Offset
+	t.SeriesBlock.Size = n - t.SeriesBlock.Offset
 
 	// Write tagset blocks in measurement order.
 	if err := p.writeTagsetsTo(w, &info, &n); err != nil {
@@ -92,11 +105,11 @@ func (p *IndexFiles) CompactTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
-func (p *IndexFiles) writeSeriesListTo(w io.Writer, info *indexCompactInfo, n *int64) error {
+func (p *IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
 	itr := p.SeriesIterator()
 
 	// Write all series.
-	sw := NewSeriesListWriter()
+	sw := NewSeriesBlockWriter()
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		if err := sw.Add(e.Name(), e.Tags()); err != nil {
 			return err
@@ -127,13 +140,16 @@ func (p *IndexFiles) writeTagsetsTo(w io.Writer, info *indexCompactInfo, n *int6
 
 // writeTagsetTo writes a single tagset to w and saves the tagset offset.
 func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactInfo, n *int64) error {
-	kitr := p.TagKeyIterator(name)
+	kitr, err := p.TagKeyIterator(name)
+	if err != nil {
+		return err
+	}
 
-	tsw := NewTagSetWriter()
+	tw := NewTagBlockWriter()
 	for ke := kitr.Next(); ke != nil; ke = kitr.Next() {
 		// Mark tag deleted.
 		if ke.Deleted() {
-			tsw.DeleteTag(ke.Key())
+			tw.DeleteTag(ke.Key())
 		}
 
 		// Iterate over tag values.
@@ -152,7 +168,7 @@ func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactI
 			sort.Sort(uint32Slice(seriesIDs))
 
 			// Insert tag value into writer.
-			tsw.AddTagValue(name, ve.Value(), ve.Deleted(), seriesIDs)
+			tw.AddTagValue(name, ve.Value(), ve.Deleted(), seriesIDs)
 		}
 	}
 
@@ -161,7 +177,7 @@ func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactI
 	pos.offset = *n
 
 	// Write tagset to writer.
-	nn, err := tsw.WriteTo(w)
+	nn, err := tw.WriteTo(w)
 	*n += nn
 	if err != nil {
 		return err
@@ -215,7 +231,7 @@ type indexCompactInfo struct {
 	names [][]byte
 
 	// Saved to look up series offsets.
-	sw *SeriesListWriter
+	sw *SeriesBlockWriter
 
 	// Tracks offset/size for each measurement's tagset.
 	tagSets map[string]indexTagSetPos
