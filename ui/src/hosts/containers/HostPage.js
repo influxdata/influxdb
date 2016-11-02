@@ -2,8 +2,7 @@ import React, {PropTypes} from 'react';
 import LayoutRenderer from '../components/LayoutRenderer';
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
-import {fetchLayouts} from '../apis';
-import _ from 'lodash';
+import {getMappings, getAppsForHosts, fetchLayouts} from '../apis';
 
 export const HostPage = React.createClass({
   propTypes: {
@@ -27,8 +26,25 @@ export const HostPage = React.createClass({
   },
 
   componentDidMount() {
+    const hosts = {[this.props.params.hostID]: {name: this.props.params.hostID}};
+    let apps = null;
+    let host = null;
+    let layouts = null;
+
     fetchLayouts().then((ls) => {
-      this.setState({layouts: ls.data.layouts});
+      layouts = ls.data.layouts;
+    });
+
+    getMappings().then(({data: {mappings}}) => {
+      apps = mappings.concat([{name: 'docker'}, {name: 'influxdb'}]).map((m) => m.name);
+    }).then(() => {
+      getAppsForHosts(this.props.source.links.proxy, hosts, apps).then((newHosts) => {
+        host = newHosts[this.props.params.hostID];
+        const filteredLayouts = layouts.filter((layout) => {
+          return host.apps.includes(layout.app);
+        });
+        this.setState({layouts: filteredLayouts});
+      });
     });
   },
 
@@ -37,35 +53,32 @@ export const HostPage = React.createClass({
     this.setState({timeRange});
   },
 
-  render() {
+  renderLayout(layout) {
     const autoRefreshMs = 15000;
-    const source = this.props.source.links.proxy;
-    const hostID = this.props.params.hostID;
     const {timeRange} = this.state;
+    const source = this.props.source.links.proxy;
 
-    const layout = _.head(this.state.layouts);
-
-    let layoutComponent;
-    if (layout) {
-      layout.cells.forEach((cell) => {
-        cell.queries.forEach((q) => {
-          q.text = q.query;
-          q.database = q.db;
-        });
+    layout.cells.forEach((cell) => {
+      cell.queries.forEach((q) => {
+        q.text = q.query;
+        q.database = q.db;
       });
+    });
 
-      layoutComponent = (
-        <LayoutRenderer
-          timeRange={timeRange.queryValue}
-          cells={layout.cells}
-          autoRefreshMs={autoRefreshMs}
-          source={source}
-          host={this.props.params.hostID}
-        />
-      );
-    } else {
-      layoutComponent = <div />;
-    }
+    return (
+      <LayoutRenderer
+        timeRange={timeRange.queryValue}
+        cells={layout.cells}
+        autoRefreshMs={autoRefreshMs}
+        source={source}
+        host={this.props.params.hostID}
+      />
+    );
+  },
+
+  render() {
+    const hostID = this.props.params.hostID;
+    const {layouts, timeRange} = this.state;
 
     return (
       <div className="host-dashboard hosts-page">
@@ -83,9 +96,15 @@ export const HostPage = React.createClass({
           </div>
         </div>
         <div className="container-fluid hosts-dashboard">
-          <div className="row">
-            {layoutComponent}
-          </div>
+          {
+            layouts.map((layout) => {
+              return (
+                <div key={layout.app} className="row">
+                  {this.renderLayout(layout)}
+                </div>
+              );
+            })
+          }
         </div>
       </div>
     );
