@@ -10,6 +10,7 @@ export default function rules(state = {}, action) {
           queryID,
           trigger: 'threshold',
           values: defaultRuleConfigs.threshold,
+          message: '',
         },
       });
     }
@@ -38,6 +39,15 @@ export default function rules(state = {}, action) {
         [ruleID]: Object.assign({}, state[ruleID], {
           trigger: trigger.toLowerCase(),
           values,
+        }),
+      });
+    }
+
+    case 'UPDATE_RULE_MESSAGE': {
+      const {ruleID, message} = action.payload;
+      return Object.assign({}, state, {
+        [ruleID]: Object.assign({}, state[ruleID], {
+          message,
         }),
       });
     }

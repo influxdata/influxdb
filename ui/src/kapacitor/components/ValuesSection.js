@@ -79,7 +79,8 @@ const Threshold = React.createClass({
   },
 
   handleDropdownChange(item) {
-    this.props.onChange(Object.assign({}, this.props.rule.values, {[item.type]: item.text}));
+    const newValues = Object.assign({}, this.props.rule.values, {[item.type]: item.text});
+    this.props.onChange(newValues);
   },
 
   handleInputChange() {

@@ -21,6 +21,7 @@ export const KapacitorRulePage = React.createClass({
       fetchRule: PropTypes.func.isRequired,
       chooseTrigger: PropTypes.func.isRequired,
       updateRuleValues: PropTypes.func.isRequired,
+      updateMessage: PropTypes.func.isRequired,
     }).isRequired,
     queryActions: PropTypes.shape({}).isRequired,
     params: PropTypes.shape({
@@ -35,6 +36,10 @@ export const KapacitorRulePage = React.createClass({
     } else {
       this.props.kapacitorActions.loadDefaultRule();
     }
+  },
+
+  handleSave() {
+    console.log(this.props.rules); // eslint-disable-line no-console
   },
 
   render() {
@@ -52,6 +57,9 @@ export const KapacitorRulePage = React.createClass({
             <div className="enterprise-header__left">
               <h1>Kapacitor Rules</h1>
             </div>
+            <div className="enterprise-header__right">
+              <button className="btn btn-primary btn-sm" onClick={this.handleSave}>Save</button>
+            </div>
           </div>
         </div>
         <div className="container-fluid">
@@ -67,7 +75,7 @@ export const KapacitorRulePage = React.createClass({
           </div>
           <div className="row">
             <div className="col-md-12">
-              {this.renderMessageSection()}
+              {this.renderMessageSection(rule)}
             </div>
           </div>
           <div className="row">
@@ -99,11 +107,11 @@ export const KapacitorRulePage = React.createClass({
     );
   },
 
-  renderMessageSection() {
+  renderMessageSection(rule) {
     return (
       <div className="kapacitor-rule-section">
         <h3>Message</h3>
-        <textarea />
+        <textarea ref={(r) => this.message = r} onChange={() => this.handleMessageChange(rule)} />
       </div>
     );
   },
@@ -119,6 +127,10 @@ export const KapacitorRulePage = React.createClass({
         <p>The Alert should <select>{alertOptions}</select></p>
       </div>
     );
+  },
+
+  handleMessageChange(rule) {
+    this.props.kapacitorActions.updateMessage(rule.id, this.message.value);
   },
 });
 

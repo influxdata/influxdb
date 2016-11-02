@@ -4,6 +4,7 @@ import {defaultRuleConfigs} from 'src/kapacitor/constants';
 import {
   chooseTrigger,
   updateRuleValues,
+  updateMessage,
 } from 'src/kapacitor/actions/view';
 
 describe('Kapacitor.Reducers.rules', () => {
@@ -49,5 +50,20 @@ describe('Kapacitor.Reducers.rules', () => {
     const finalState = reducer(newState, updateRuleValues(ruleID, 'relative', newRelativeValues));
     expect(finalState[ruleID].trigger).to.equal('relative');
     expect(finalState[ruleID].values).to.equal(newRelativeValues);
+  });
+
+  it('can update the message', () => {
+    const ruleID = 1;
+    const initialState = {
+      [ruleID]: {
+        id: ruleID,
+        queryID: 988,
+        message: '',
+      }
+    };
+
+    const message = 'im a kapacitor rule message';
+    const newState = reducer(initialState, updateMessage(ruleID, message));
+    expect(newState[ruleID].message).to.equal(message);
   });
 });

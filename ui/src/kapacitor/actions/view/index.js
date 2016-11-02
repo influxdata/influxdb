@@ -58,3 +58,13 @@ export function updateRuleValues(ruleID, trigger, values) {
     },
   };
 }
+
+export function updateMessage(ruleID, message) {
+  return {
+    type: 'UPDATE_RULE_MESSAGE',
+    payload: {
+      ruleID,
+      message,
+    },
+  };
+}
