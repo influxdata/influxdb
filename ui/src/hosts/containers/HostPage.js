@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react';
 import LayoutRenderer from '../components/LayoutRenderer';
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
-import {fetchLayouts} from '../apis';
+import {getMappings, getAppsForHosts, fetchLayouts} from '../apis';
 import _ from 'lodash';
 
 export const HostPage = React.createClass({
@@ -27,8 +27,25 @@ export const HostPage = React.createClass({
   },
 
   componentDidMount() {
+    const hosts = {[this.props.params.hostID]: {name: this.props.params.hostID}};
+    let apps = null;
+    let host = null;
+    let layouts = null;
+
     fetchLayouts().then((ls) => {
-      this.setState({layouts: ls.data.layouts});
+      layouts = ls.data.layouts;
+    });
+
+    getMappings().then(({data: {mappings}}) => {
+      apps = mappings.concat([{name: 'docker'}, {name: 'influxdb'}]).map((m) => m.name);
+    }).then(() => {
+      getAppsForHosts(this.props.source.links.proxy, hosts, apps).then((newHosts) => {
+        host = newHosts[this.props.params.hostID];
+        const filteredLayouts = layouts.filter((layout) => {
+          return host.apps.includes(layout.app);
+        });
+        this.setState({layouts: filteredLayouts});
+      });
     });
   },
 
@@ -44,6 +61,7 @@ export const HostPage = React.createClass({
     const {timeRange} = this.state;
 
     const layout = _.head(this.state.layouts);
+    console.log(this.state.layouts); // eslint-disable-line no-console
 
     let layoutComponent;
     if (layout) {
