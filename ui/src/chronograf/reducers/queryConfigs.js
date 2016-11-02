@@ -94,8 +94,9 @@ export default function queryConfigs(state = {}, action) {
     }
 
     case 'TOGGLE_FIELD': {
+      const {isKapacitorRule} = action.meta;
       const {queryId, fieldFunc} = action.payload;
-      const nextQueryConfig = toggleField(state[queryId], fieldFunc);
+      const nextQueryConfig = toggleField(state[queryId], fieldFunc, isKapacitorRule);
 
       return Object.assign({}, state, {
         [queryId]: nextQueryConfig,

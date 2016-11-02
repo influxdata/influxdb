@@ -27,7 +27,10 @@ const Dropdown = React.createClass({
     this.toggleMenu();
     this.props.onChoose(item);
   },
-  toggleMenu() {
+  toggleMenu(e) {
+    if (e) {
+      e.stopPropagation();
+    }
     this.setState({isOpen: !this.state.isOpen});
   },
   handleAction(e, action, item) {

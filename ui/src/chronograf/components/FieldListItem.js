@@ -3,6 +3,7 @@ import classNames from 'classnames';
 import _ from 'lodash';
 
 import MultiSelectDropdown from './MultiSelectDropdown';
+import Dropdown from 'src/shared/components/Dropdown';
 
 import {INFLUXQL_FUNCTIONS} from '../constants';
 
@@ -16,6 +17,7 @@ const FieldListItem = React.createClass({
     isSelected: bool.isRequired,
     onToggleField: func.isRequired,
     onApplyFuncsToField: func.isRequired,
+    isKapacitorRule: bool.isRequired,
   },
 
   handleToggleField() {
@@ -25,19 +27,26 @@ const FieldListItem = React.createClass({
   handleApplyFunctions(selectedFuncs) {
     this.props.onApplyFuncsToField({
       field: this.props.fieldFunc.field,
-      funcs: selectedFuncs,
+      funcs: this.props.isKapacitorRule ? [selectedFuncs.text] : selectedFuncs,
     });
   },
 
   render() {
-    const {fieldFunc, isSelected} = this.props;
+    const {isKapacitorRule, fieldFunc, isSelected} = this.props;
     const {field: fieldText} = fieldFunc;
+    const items = INFLUXQL_FUNCTIONS.map((text) => {
+      return {text};
+    });
 
     return (
       <li className={classNames("query-editor__list-item query-editor__list-checkbox", {checked: isSelected})} key={fieldFunc} onClick={_.wrap(fieldFunc, this.handleToggleField)}>
         <span className="query-editor__list-checkbox__checkbox">{fieldText}</span>
         <div className="query-editor__hidden-dropdown">
-          <MultiSelectDropdown items={INFLUXQL_FUNCTIONS} onApply={this.handleApplyFunctions} selectedItems={fieldFunc.funcs || []} />
+          {
+            isKapacitorRule ?
+              <Dropdown items={items} onChoose={this.handleApplyFunctions} selected={fieldFunc.funcs.length ? fieldFunc.funcs[0] : 'Select a function'} /> :
+                <MultiSelectDropdown items={INFLUXQL_FUNCTIONS} onApply={this.handleApplyFunctions} selectedItems={fieldFunc.funcs || []} />
+          }
         </div>
       </li>
     );

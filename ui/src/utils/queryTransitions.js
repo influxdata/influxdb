@@ -12,7 +12,7 @@ export function chooseMeasurement(query, measurement) {
   });
 }
 
-export function toggleField(query, {field, funcs}) {
+export function toggleField(query, {field, funcs}, isKapacitorRule = false) {
   const isSelected = query.fields.find((f) => f.field === field);
   if (isSelected) {
     const nextFields = query.fields.filter((f) => f.field !== field);
@@ -29,6 +29,11 @@ export function toggleField(query, {field, funcs}) {
     });
   }
 
+  if (isKapacitorRule) {
+    return Object.assign({}, query, {
+      fields: [{field, funcs}],
+    });
+  }
   return Object.assign({}, query, {
     fields: query.fields.concat({field, funcs}),
   });

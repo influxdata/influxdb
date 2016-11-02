@@ -68,7 +68,7 @@ export const DataSection = React.createClass({
   },
 
   handleToggleField(field) {
-    this.props.actions.toggleField(this.props.query.id, field);
+    this.props.actions.toggleField(this.props.query.id, field, true);
   },
 
   handleGroupByTime(time) {
@@ -163,6 +163,7 @@ export const DataSection = React.createClass({
             onToggleField={this.handleToggleField}
             onGroupByTime={this.handleGroupByTime}
             applyFuncsToField={this.handleApplyFuncsToField}
+            isKapacitorRule={true}
           />
         );
       case TAGS_TAB:
