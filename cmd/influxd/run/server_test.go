@@ -2670,6 +2670,48 @@ cpu value=20 1278010021000000000
 	}
 }
 
+func TestServer_Query_SelectGroupByTime_MultipleAggregates(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: fmt.Sprintf(`test,t=a x=1i 1000000000
+test,t=b y=1i 1000000000
+test,t=a x=2i 2000000000
+test,t=b y=2i 2000000000
+test,t=a x=3i 3000000000
+test,t=b y=3i 3000000000
+`)},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "two aggregates with a group by host",
+			command: `SELECT mean(x) as x, mean(y) as y from db0.rp0.test where time >= 1s and time < 4s group by t, time(1s)`,
+			exp:     `{"results":[{"series":[{"name":"test","tags":{"t":"a"},"columns":["time","x","y"],"values":[["1970-01-01T00:00:01Z",1,null],["1970-01-01T00:00:02Z",2,null],["1970-01-01T00:00:03Z",3,null]]},{"name":"test","tags":{"t":"b"},"columns":["time","x","y"],"values":[["1970-01-01T00:00:01Z",null,1],["1970-01-01T00:00:02Z",null,2],["1970-01-01T00:00:03Z",null,3]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 func TestServer_Query_MathWithFill(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())
