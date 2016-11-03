@@ -38,6 +38,7 @@ func (p *postKapacitorRequest) Valid() error {
 type kapaLinks struct {
 	Proxy string `json:"proxy"` // URL location of proxy endpoint for this source
 	Self  string `json:"self"`  // Self link mapping to this resource
+	Tasks string `json:"tasks"` // Tasks link for defining task alerts for kapacitor
 }
 
 type kapacitor struct {
@@ -104,6 +105,7 @@ func newKapacitor(srv chronograf.Server) kapacitor {
 		Links: kapaLinks{
 			Self:  fmt.Sprintf("%s/%d/kapacitors/%d", httpAPISrcs, srv.SrcID, srv.ID),
 			Proxy: fmt.Sprintf("%s/%d/kapacitors/%d/proxy", httpAPISrcs, srv.SrcID, srv.ID),
+			Tasks: fmt.Sprintf("%s/%d/kapacitors/%d/tasks", httpAPISrcs, srv.SrcID, srv.ID),
 		},
 	}
 }
