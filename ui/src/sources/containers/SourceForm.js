@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
 import {getSource, createSource, updateSource} from 'shared/apis';
+import classNames from 'classnames';
 
 export const SourceForm = React.createClass({
   propTypes: {
@@ -86,7 +87,7 @@ export const SourceForm = React.createClass({
             </div>
           </div>
         </div>
-        <div className="container">
+        <div className="container-fluid">
           <div className="row">
             <div className="col-md-8 col-md-offset-2">
               <div className="panel panel-summer">
@@ -121,7 +122,7 @@ export const SourceForm = React.createClass({
                     </div>
 
                     <div className="form-group col-xs-4 col-xs-offset-4">
-                      <button className="btn btn-block btn-success" type="submit">{editMode ? "Save Changes" : "Add Source"}</button>
+                      <button className={classNames('btn btn-block',{'btn-primary' : editMode, 'btn-success' : !editMode})} type="submit">{editMode ? "Save Changes" : "Add Source"}</button>
                     </div>
                   </form>
                 </div>

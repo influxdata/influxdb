@@ -40,6 +40,12 @@ export const ManageSources = React.createClass({
   render() {
     const {sources} = this.state;
     const {pathname} = this.props.location;
+    const numSources = sources.length;
+    let sourcesTitle = numSources + " Sources";
+
+    if (numSources === 1) {
+      sourcesTitle = numSources + " Source";
+    }
 
     return (
       <div id="manage-sources-page">
@@ -56,7 +62,7 @@ export const ManageSources = React.createClass({
 
               <div className="panel panel-minimal">
                 <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-                  <h2 className="panel-title">Manage Sources</h2>
+                  <h2 className="panel-title">{sourcesTitle}</h2>
                   <Link to={`/sources/1/manage-sources/new`} className="btn btn-sm btn-primary">Add New Source</Link>
                 </div>
                 <div className="panel-body">
