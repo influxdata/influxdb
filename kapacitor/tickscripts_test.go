@@ -126,7 +126,7 @@ var field = 'usage_user'
 
 var groupby = ['host', 'cluster_id']
 
-var where_filter = lambda: ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod') AND ("cpu" == 'cpu_total')
+var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
 var id = 'kapacitor/{{ .Name }}/{{ .Group }}'
 
@@ -263,7 +263,7 @@ var field = 'usage_user'
 
 var groupby = ['host', 'cluster_id']
 
-var where_filter = lambda: ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod') AND ("cpu" == 'cpu_total')
+var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
 var id = 'kapacitor/{{ .Name }}/{{ .Group }}'
 
@@ -414,7 +414,7 @@ var field = 'usage_user'
 
 var groupby = ['host', 'cluster_id']
 
-var where_filter = lambda: ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod') AND ("cpu" == 'cpu_total')
+var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
 var id = 'kapacitor/{{ .Name }}/{{ .Group }}'
 

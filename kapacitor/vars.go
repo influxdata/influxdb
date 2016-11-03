@@ -2,6 +2,7 @@ package kapacitor
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/influxdata/chronograf"
@@ -175,6 +176,7 @@ func whereFilter(q chronograf.QueryConfig) string {
 		outer = append(outer, "("+strings.Join(inner, " OR ")+")")
 	}
 	if len(outer) > 0 {
+		sort.Strings(outer)
 		return "lambda: " + strings.Join(outer, " AND ")
 	}
 
