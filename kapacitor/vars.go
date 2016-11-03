@@ -97,6 +97,7 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
         var output_db = '%s'
         var output_rp = '%s'
         var output_mt = '%s'
+        var triggerType = '%s'
     `
 	return fmt.Sprintf(common,
 		rule.Query.Database,
@@ -113,10 +114,11 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
 		LevelField,
 		MessageField,
 		DurationField,
-		metric(rule.Query),
+		metric(rule),
 		Database,
 		RP,
 		Measurement,
+		rule.Trigger,
 	), nil
 }
 
@@ -136,9 +138,12 @@ func field(q chronograf.QueryConfig) (string, error) {
 }
 
 // metric will be metric unless there are no field aggregates. If no aggregates, then it is the field name.
-func metric(q chronograf.QueryConfig) string {
-	for _, field := range q.Fields {
-		if field.Field != "" && len(field.Funcs) == 0 {
+func metric(rule chronograf.AlertRule) string {
+	for _, field := range rule.Query.Fields {
+		// Deadman triggers do not need any aggregate functions
+		if field.Field != "" && rule.Trigger == "deadman" {
+			return field.Field
+		} else if field.Field != "" && len(field.Funcs) == 0 {
 			return field.Field
 		}
 	}

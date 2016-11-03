@@ -36,7 +36,7 @@ func (a *Alert) Generate(rule chronograf.AlertRule) (chronograf.TICKScript, erro
 		return "", err
 	}
 	if err := validateTick(tick); err != nil {
-		return "", err
+		return tick, err
 	}
 	return tick, nil
 }

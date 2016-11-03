@@ -1,6 +1,7 @@
 package kapacitor
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/influxdata/chronograf"
@@ -53,8 +54,9 @@ func TestGenerate(t *testing.T) {
 		},
 	}
 	gen := Alert{}
-	_, err := gen.Generate(alert)
+	tick, err := gen.Generate(alert)
 	if err != nil {
+		fmt.Printf("%s", tick)
 		t.Errorf("Error generating alert: %v", err)
 	}
 }
@@ -154,6 +156,8 @@ var output_rp = 'autogen'
 
 var output_mt = 'alerts'
 
+var triggerType = 'threshold'
+
 var crit = 90
 
 var data = stream
@@ -192,8 +196,8 @@ trigger
         .database(output_db)
         .retentionPolicy(output_rp)
         .measurement(output_mt)
-        .tag('name', 'name')
-        .tag('type', 'stream')
+        .tag('name', name)
+        .tag('triggerType', triggerType)
 `,
 			wantErr: false,
 		},
@@ -306,6 +310,8 @@ var output_rp = 'autogen'
 
 var output_mt = 'alerts'
 
+var triggerType = 'relative'
+
 var shift = -1m
 
 var crit = 90
@@ -358,8 +364,8 @@ trigger
         .database(output_db)
         .retentionPolicy(output_rp)
         .measurement(output_mt)
-        .tag('name', 'name')
-        .tag('type', 'stream')
+        .tag('name', name)
+        .tag('triggerType', triggerType)
 `,
 			wantErr: false,
 		},
@@ -464,13 +470,15 @@ var messagefield = 'message'
 
 var durationfield = 'duration'
 
-var metric = 'metric'
+var metric = 'usage_user'
 
 var output_db = 'chronograf'
 
 var output_rp = 'autogen'
 
 var output_mt = 'alerts'
+
+var triggerType = 'deadman'
 
 var threshold = 0.0
 
@@ -481,12 +489,6 @@ var data = stream
         .measurement(measurement)
         .groupBy(groupby)
         .where(where_filter)
-    |window()
-        .period(period)
-        .every(every)
-        .align()
-    |mean(field)
-        .as(metric)
 
 var trigger = data
     |deadman(threshold, every)
@@ -507,8 +509,8 @@ trigger
         .database(output_db)
         .retentionPolicy(output_rp)
         .measurement(output_mt)
-        .tag('name', 'name')
-        .tag('type', 'stream')
+        .tag('name', name)
+        .tag('triggerType', triggerType)
 `,
 			wantErr: false,
 		},

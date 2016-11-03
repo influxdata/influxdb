@@ -13,6 +13,6 @@ func Trigger(rule chronograf.AlertRule) (string, error) {
 	case "threshold":
 		return execTemplate(ThresholdTrigger, rule)
 	default:
-		return "", fmt.Errorf("Unknown trigger type: %s", rule.Type)
+		return "", fmt.Errorf("Unknown trigger type: %s", rule.Trigger)
 	}
 }

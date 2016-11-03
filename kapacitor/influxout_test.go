@@ -16,8 +16,8 @@ func TestInfluxOut(t *testing.T) {
         .database(output_db)
         .retentionPolicy(output_rp)
         .measurement(output_mt)
-        .tag('name', 'name')
-        .tag('type', 'deadman')
+        .tag('name', name)
+        .tag('triggerType', triggerType)
 `,
 		},
 	}
