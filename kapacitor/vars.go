@@ -32,6 +32,8 @@ func Vars(rule chronograf.AlertRule) (string, error) {
         var groupby = %s
         var where_filter = %s
 
+		var id = 'kapacitor/{{ .Name }}/{{ .Group }}'
+		var message = '%s'
         var period = %s
         var every = %s
         var metric = '%s'
@@ -47,6 +49,7 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 			fld,
 			groupBy(rule.Query),
 			whereFilter(rule.Query),
+			rule.Message,
 			rule.Period,
 			rule.Every,
 			metric(rule.Query),
@@ -64,6 +67,8 @@ func Vars(rule chronograf.AlertRule) (string, error) {
         var groupby = %s
         var where_filter = %s
 
+		var id = 'kapacitor/{{ .Name }}/{{ .Group }}'
+		var message = '%s'
         var period = %s
         var every = %s
         var metric = '%s'
@@ -80,6 +85,7 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 			fld,
 			groupBy(rule.Query),
 			whereFilter(rule.Query),
+			rule.Message,
 			rule.Period,
 			rule.Every,
 			metric(rule.Query),
@@ -98,8 +104,11 @@ func Vars(rule chronograf.AlertRule) (string, error) {
         var groupby = %s
         var where_filter = %s
 
+		var id = 'kapacitor/{{ .Name }}/{{ .Group }}'
+		var message = '%s'
         var period = %s
         var every = %s
+		var metric = '%s'
         var threshold = %s
         var output_db = '%s'
         var output_rp = '%s'
@@ -112,9 +121,11 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 			fld,
 			groupBy(rule.Query),
 			whereFilter(rule.Query),
+			rule.Message,
 			rule.Period,
 			rule.Every,
-			"0", // deadman threshold hardcoded to zero
+			metric(rule.Query),
+			"0.0", // deadman threshold hardcoded to zero
 			Database,
 			RP,
 			Measurement,

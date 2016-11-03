@@ -8,6 +8,7 @@ import (
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/kapacitor/pipeline"
+	"github.com/influxdata/kapacitor/tick"
 	"github.com/influxdata/kapacitor/tick/ast"
 	"github.com/influxdata/kapacitor/tick/stateful"
 )
@@ -18,7 +19,7 @@ func ValidateAlert(service string) error {
 	// If a pipeline cannot be created then we know this is an invalid
 	// service.  At least with this version of kapacitor!
 	script := fmt.Sprintf("stream|from()|alert().%s()", service)
-	return validateTick(script)
+	return validateTick(chronograf.TICKScript(script))
 }
 
 func formatTick(tickscript string) (chronograf.TICKScript, error) {
@@ -33,9 +34,10 @@ func formatTick(tickscript string) (chronograf.TICKScript, error) {
 	return chronograf.TICKScript(output.String()), nil
 }
 
-func validateTick(script string) error {
+func validateTick(script chronograf.TICKScript) error {
 	scope := stateful.NewScope()
-	_, err := pipeline.CreateTemplatePipeline(script, pipeline.StreamEdge, scope, &deadman{})
+	predefinedVars := map[string]tick.Var{}
+	_, err := pipeline.CreatePipeline(string(script), pipeline.StreamEdge, scope, &deadman{}, predefinedVars)
 	return err
 }
 

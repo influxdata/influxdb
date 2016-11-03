@@ -121,6 +121,7 @@ type AlertRule struct {
 	Every         string      `json:"every"`        // Every how often to check for the alerting criteria
 	Critical      string      `json:"critical"`     // Critical is the boundary value when alert goes critical
 	Shift         string      `json:"shift"`        // Shift is the amount of time to look into the past for the alert to compare to the present
+	Message       string      `json:"message"`      // Message included with alert
 }
 
 // AlertRulesStore stores rules for building tickscript alerting tasks

@@ -1,6 +1,7 @@
 package kapacitor
 
 import "testing"
+import "github.com/influxdata/chronograf"
 
 func TestValidateAlert(t *testing.T) {
 	tests := []struct {
@@ -27,31 +28,24 @@ func TestValidateAlert(t *testing.T) {
 }
 
 func Test_validateTick(t *testing.T) {
-	type args struct {
-		script string
-	}
 	tests := []struct {
 		name    string
-		args    args
+		script  chronograf.TICKScript
 		wantErr bool
 	}{
 		{
-			name: "Valid Script",
-			args: args{
-				script: "stream|from()",
-			},
+			name:    "Valid Script",
+			script:  "stream|from()",
 			wantErr: false,
 		},
 		{
-			name: "Invalid Script",
-			args: args{
-				script: "stream|nothing",
-			},
+			name:    "Invalid Script",
+			script:  "stream|nothing",
 			wantErr: true,
 		},
 	}
 	for _, tt := range tests {
-		if err := validateTick(tt.args.script); (err != nil) != tt.wantErr {
+		if err := validateTick(tt.script); (err != nil) != tt.wantErr {
 			t.Errorf("%q. validateTick() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 		}
 	}

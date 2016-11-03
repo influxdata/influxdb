@@ -1,7 +1,6 @@
 package kapacitor
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/influxdata/chronograf"
@@ -73,6 +72,7 @@ func TestThreshold(t *testing.T) {
 		Every:         "30s",
 		Critical:      "90",
 		Shift:         "1m",
+		Message:       "message",
 		Query: chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
@@ -127,6 +127,10 @@ var field = 'usage_user'
 var groupby = ['host', 'cluster_id']
 
 var where_filter = lambda: ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod') AND ("cpu" == 'cpu_total')
+
+var id = 'kapacitor/{{ .Name }}/{{ .Group }}'
+
+var message = 'message'
 
 var period = 10m
 
@@ -205,6 +209,7 @@ func TestRelative(t *testing.T) {
 		Every:         "30s",
 		Critical:      "90",
 		Shift:         "1m",
+		Message:       "message",
 		Query: chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
@@ -259,6 +264,10 @@ var field = 'usage_user'
 var groupby = ['host', 'cluster_id']
 
 var where_filter = lambda: ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod') AND ("cpu" == 'cpu_total')
+
+var id = 'kapacitor/{{ .Name }}/{{ .Group }}'
+
+var message = 'message'
 
 var period = 10m
 
@@ -351,6 +360,7 @@ func TestDeadman(t *testing.T) {
 		Every:         "30s",
 		Critical:      "90",
 		Shift:         "1m",
+		Message:       "message",
 		Query: chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
@@ -404,13 +414,19 @@ var field = 'usage_user'
 
 var groupby = ['host', 'cluster_id']
 
-var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
+var where_filter = lambda: ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod') AND ("cpu" == 'cpu_total')
+
+var id = 'kapacitor/{{ .Name }}/{{ .Group }}'
+
+var message = 'message'
 
 var period = 10m
 
 var every = 30s
 
-var threshold = 0
+var metric = 'metric'
+
+var threshold = 0.0
 
 var output_db = 'chronograf'
 
@@ -455,7 +471,6 @@ trigger
 	for _, tt := range tests {
 		gen := Alert{}
 		got, err := gen.Generate(tt.alert)
-		fmt.Printf("%s", got)
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. Deadman() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue

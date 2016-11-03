@@ -9,12 +9,7 @@ import (
 var _ chronograf.Ticker = &Alert{}
 
 // Alert defines alerting strings in template rendering
-type Alert struct {
-	Trigger   string // Specifies the type of alert
-	Service   string // Alerting service
-	Operator  string // Operator for alert comparison
-	Aggregate string // Statistic aggregate over window of data
-}
+type Alert struct{}
 
 // Generate creates a Tickscript from the alertrule
 func (a *Alert) Generate(rule chronograf.AlertRule) (chronograf.TICKScript, error) {
@@ -36,5 +31,12 @@ func (a *Alert) Generate(rule chronograf.AlertRule) (chronograf.TICKScript, erro
 	}
 	output := InfluxOut(rule)
 	raw := fmt.Sprintf("%s\n%s\n%s%s\n%s", vars, data, trigger, services, output)
-	return formatTick(raw)
+	tick, err := formatTick(raw)
+	if err != nil {
+		return "", err
+	}
+	if err := validateTick(tick); err != nil {
+		return "", err
+	}
+	return tick, nil
 }
