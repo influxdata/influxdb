@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react';
 import {connect} from 'react-redux';
+import _ from 'lodash';
 import DataSection from '../components/DataSection';
 import ValuesSection from '../components/ValuesSection';
 import * as kapacitorActionCreators from '../actions/view';
@@ -9,6 +10,8 @@ import selectStatement from 'src/chronograf/utils/influxql/select';
 import AutoRefresh from 'shared/components/AutoRefresh';
 import LineGraph from 'shared/components/LineGraph';
 const RefreshingLineGraph = AutoRefresh(LineGraph);
+import {getKapacitor, getKapacitorConfig} from 'shared/apis/index';
+import Dropdown from 'shared/components/Dropdown';
 
 export const KapacitorRulePage = React.createClass({
   propTypes: {
@@ -27,11 +30,18 @@ export const KapacitorRulePage = React.createClass({
       chooseTrigger: PropTypes.func.isRequired,
       updateRuleValues: PropTypes.func.isRequired,
       updateMessage: PropTypes.func.isRequired,
+      updateAlerts: PropTypes.func.isRequired,
     }).isRequired,
     queryActions: PropTypes.shape({}).isRequired,
     params: PropTypes.shape({
       ruleID: PropTypes.string,
     }).isRequired,
+  },
+
+  getInitialState() {
+    return {
+      enabledAlerts: [],
+    };
   },
 
   componentDidMount() {
@@ -41,10 +51,27 @@ export const KapacitorRulePage = React.createClass({
     } else {
       this.props.kapacitorActions.loadDefaultRule();
     }
+
+    getKapacitor(this.props.source).then((kapacitor) => {
+      getKapacitorConfig(kapacitor).then(({data: {sections}}) => {
+        const enabledAlerts = Object.keys(sections).filter((section) => {
+          return _.get(sections, [section, 'elements', '0', 'options', 'enabled'], false);
+        });
+        this.setState({enabledAlerts});
+      }).catch(() => {
+        this.props.addFlashMessage({type: 'failure', message: `There was a problem communicating with Kapacitor`});
+      }).catch(() => {
+        this.props.addFlashMessage({type: 'failure', message: `We couldn't find a configured Kapacitor for this source`});
+      });
+    });
   },
 
   handleSave() {
     console.log(this.props.rules); // eslint-disable-line no-console
+  },
+
+  handleChooseAlert(item) {
+    this.props.kapacitorActions.updateAlerts(item.ruleID, [item.text]);
   },
 
   createUnderlayCallback(rule) {
@@ -52,30 +79,28 @@ export const KapacitorRulePage = React.createClass({
       if (rule.trigger !== 'threshold') {
         return;
       }
+
       const theOnePercent = 0.01;
       let highlightStart = 0;
       let highlightEnd = 0;
 
       switch (rule.values.operator) {
+        case 'equal to or greater':
         case 'greater than': {
           highlightStart = rule.values.value;
           highlightEnd = dygraph.yAxisRange()[1];
           break;
         }
 
+        case 'equal to or less than':
         case 'less than': {
           highlightStart = dygraph.yAxisRange()[0];
           highlightEnd = rule.values.value;
           break;
         }
 
+        case 'not equal to':
         case 'equal to': {
-          const width = (theOnePercent) * (dygraph.yAxisRange()[1] - dygraph.yAxisRange()[0]);
-          highlightStart = +rule.values.value - width;
-          highlightEnd = +rule.values.value + width;
-          break;
-        }
-        case 'not equal to': {
           const width = (theOnePercent) * (dygraph.yAxisRange()[1] - dygraph.yAxisRange()[0]);
           highlightStart = +rule.values.value - width;
           highlightEnd = +rule.values.value + width;
@@ -147,7 +172,7 @@ export const KapacitorRulePage = React.createClass({
           </div>
           <div className="row">
             <div className="col-md-12">
-              {this.renderAlertsSection()}
+              {this.renderAlertsSection(rule)}
             </div>
           </div>
         </div>
@@ -183,15 +208,16 @@ export const KapacitorRulePage = React.createClass({
     );
   },
 
-  renderAlertsSection() {
-    // hit kapacitor config endpoint and filter sections by the "enabled" property
-    const alertOptions = ['Slack', 'VictorOps'].map((destination) => {
-      return <option key={destination}>send to {destination}</option>;
+  renderAlertsSection(rule) {
+    const alerts = this.state.enabledAlerts.map((text) => {
+      return {text, ruleID: rule.id};
     });
+
     return (
       <div className="kapacitor-rule-section">
         <h3>Alerts</h3>
-        <p>The Alert should <select>{alertOptions}</select></p>
+        The Alert should
+        <Dropdown selected={rule.alerts[0] || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
       </div>
     );
   },

@@ -68,3 +68,13 @@ export function updateMessage(ruleID, message) {
     },
   };
 }
+
+export function updateAlerts(ruleID, alerts) {
+  return {
+    type: 'UPDATE_RULE_ALERTS',
+    payload: {
+      ruleID,
+      alerts,
+    },
+  };
+}

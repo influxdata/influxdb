@@ -92,7 +92,7 @@ const Threshold = React.createClass({
       });
     }
 
-    const operators = mapToItems(['greater than', 'less than', 'equal to', 'not equal to'], 'operator');
+    const operators = mapToItems(['greater than', 'equal to or greater', 'equal to or less than', 'less than', 'equal to', 'not equal to'], 'operator');
     const relations = mapToItems(['once', 'more than ', 'less than'], 'relation');
     const periods = mapToItems(['1m', '5m', '10m', '30m', '1h', '2h', '1h'], 'period');
 
@@ -144,7 +144,7 @@ const Relative = React.createClass({
     const changes = mapToItems(['change', '% change'], 'change');
     const periods = mapToItems(['1m', '5m', '10m', '30m', '1h', '2h', '1h'], 'period');
     const shifts = mapToItems(['1m', '5m', '10m', '30m', '1h', '2h', '1h'], 'shift');
-    const operators = mapToItems(['greater than', 'less than', 'equal to', 'not equal to'], 'operator');
+    const operators = mapToItems(['greater than', 'equal to or greater', 'equal to or less than', 'less than', 'equal to', 'not equal to'], 'operator');
 
     return (
       <div className="u-flex u-jc-space-around u-ai-center">

@@ -11,6 +11,9 @@ export default function rules(state = {}, action) {
           trigger: 'threshold',
           values: defaultRuleConfigs.threshold,
           message: '',
+          alerts: [],
+          every: '30s',
+          name: 'Random album title',
         },
       });
     }
@@ -48,6 +51,15 @@ export default function rules(state = {}, action) {
       return Object.assign({}, state, {
         [ruleID]: Object.assign({}, state[ruleID], {
           message,
+        }),
+      });
+    }
+
+    case 'UPDATE_RULE_ALERTS': {
+      const {ruleID, alerts} = action.payload;
+      return Object.assign({}, state, {
+        [ruleID]: Object.assign({}, state[ruleID], {
+          alerts,
         }),
       });
     }

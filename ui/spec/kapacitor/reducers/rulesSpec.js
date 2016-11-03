@@ -5,6 +5,7 @@ import {
   chooseTrigger,
   updateRuleValues,
   updateMessage,
+  updateAlerts,
 } from 'src/kapacitor/actions/view';
 
 describe('Kapacitor.Reducers.rules', () => {
@@ -65,5 +66,20 @@ describe('Kapacitor.Reducers.rules', () => {
     const message = 'im a kapacitor rule message';
     const newState = reducer(initialState, updateMessage(ruleID, message));
     expect(newState[ruleID].message).to.equal(message);
+  });
+
+  it('can update the alerts', () => {
+    const ruleID = 1;
+    const initialState = {
+      [ruleID]: {
+        id: ruleID,
+        queryID: 988,
+        alerts: [],
+      }
+    };
+
+    const alerts = ['slack'];
+    const newState = reducer(initialState, updateAlerts(ruleID, alerts));
+    expect(newState[ruleID].alerts).to.equal(alerts);
   });
 });
