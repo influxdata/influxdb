@@ -17,11 +17,15 @@ func TestInfluxOut(t *testing.T) {
         .retentionPolicy(output_rp)
         .measurement(output_mt)
         .tag('name', 'name')
+        .tag('type', 'deadman')
 `,
 		},
 	}
 	for _, tt := range tests {
-		got := InfluxOut(chronograf.AlertRule{Name: "name"})
+		got := InfluxOut(chronograf.AlertRule{
+			Name: "name",
+			Type: "deadman",
+		})
 		formatted, err := formatTick(got)
 		if err != nil {
 			t.Errorf("%q. formatTick() error = %v", tt.name, err)

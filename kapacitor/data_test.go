@@ -43,7 +43,11 @@ func TestData(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error unmarshaling %v", err)
 	}
-	if tick, err := Data(q); err != nil {
+	alert := chronograf.AlertRule{
+		Type:  "deadman",
+		Query: q,
+	}
+	if tick, err := Data(alert); err != nil {
 		t.Errorf("Error creating tick %v", err)
 	} else {
 		formatted, err := formatTick(tick)

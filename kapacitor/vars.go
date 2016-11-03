@@ -15,125 +15,109 @@ var (
 	RP = "autogen"
 	// Measurement will be alerts so that the app knows where to get this data.
 	Measurement = "alerts"
+	// IDTag is the output tag key for the ID of the alert
+	IDTag = "alertID"
+	//LevelField is the output field key for the alert level information
+	LevelField = "level"
+	// MessageField is the output field key for the message in the alert
+	MessageField = "message"
+	// DurationField is the output field key for the duration of the alert
+	DurationField = "duration"
 )
 
 // Vars builds the top level vars for a kapacitor alert script
 func Vars(rule chronograf.AlertRule) (string, error) {
-	fld, err := field(rule.Query)
+	common, err := commonVars(rule)
 	if err != nil {
 		return "", err
 	}
+
 	switch rule.Trigger {
 	case "threshold":
 		vars := `
-        var db = '%s'
-        var rp = '%s'
-        var measurement = '%s'
-        var field = '%s'
-        var groupby = %s
-        var where_filter = %s
-
-		var id = 'kapacitor/{{ .Name }}/{{ .Group }}'
-		var message = '%s'
-        var period = %s
-        var every = %s
-        var metric = '%s'
+		%s
         var crit = %s
-        var output_db = '%s'
-        var output_rp = '%s'
-        var output_mt = '%s'
-    `
+ `
 		return fmt.Sprintf(vars,
-			rule.Query.Database,
-			rule.Query.RetentionPolicy,
-			rule.Query.Measurement,
-			fld,
-			groupBy(rule.Query),
-			whereFilter(rule.Query),
-			rule.Message,
-			rule.Period,
-			rule.Every,
-			metric(rule.Query),
+			common,
 			rule.Critical,
-			Database,
-			RP,
-			Measurement,
 		), nil
 	case "relative":
 		vars := `
-        var db = '%s'
-        var rp = '%s'
-        var measurement = '%s'
-        var field = '%s'
-        var groupby = %s
-        var where_filter = %s
-
-		var id = 'kapacitor/{{ .Name }}/{{ .Group }}'
-		var message = '%s'
-        var period = %s
-        var every = %s
-        var metric = '%s'
+		%s
         var shift = -%s
         var crit = %s
-        var output_db = '%s'
-        var output_rp = '%s'
-        var output_mt = '%s'
-    `
+ `
 		return fmt.Sprintf(vars,
-			rule.Query.Database,
-			rule.Query.RetentionPolicy,
-			rule.Query.Measurement,
-			fld,
-			groupBy(rule.Query),
-			whereFilter(rule.Query),
-			rule.Message,
-			rule.Period,
-			rule.Every,
-			metric(rule.Query),
+			common,
 			rule.Shift,
 			rule.Critical,
-			Database,
-			RP,
-			Measurement,
 		), nil
 	case "deadman":
 		vars := `
-        var db = '%s'
-        var rp = '%s'
-        var measurement = '%s'
-        var field = '%s'
-        var groupby = %s
-        var where_filter = %s
-
-		var id = 'kapacitor/{{ .Name }}/{{ .Group }}'
-		var message = '%s'
-        var period = %s
-        var every = %s
-		var metric = '%s'
+		%s
         var threshold = %s
-        var output_db = '%s'
-        var output_rp = '%s'
-        var output_mt = '%s'
-    `
+ `
 		return fmt.Sprintf(vars,
-			rule.Query.Database,
-			rule.Query.RetentionPolicy,
-			rule.Query.Measurement,
-			fld,
-			groupBy(rule.Query),
-			whereFilter(rule.Query),
-			rule.Message,
-			rule.Period,
-			rule.Every,
-			metric(rule.Query),
+			common,
 			"0.0", // deadman threshold hardcoded to zero
-			Database,
-			RP,
-			Measurement,
 		), nil
 	default:
 		return "", fmt.Errorf("Unknown trigger mechanism")
 	}
+}
+
+func commonVars(rule chronograf.AlertRule) (string, error) {
+	fld, err := field(rule.Query)
+	if err != nil {
+		return "", err
+	}
+
+	common := `
+        var db = '%s'
+        var rp = '%s'
+        var measurement = '%s'
+        var field = '%s'
+        var groupby = %s
+        var where_filter = %s
+
+		var period = %s
+        var every = %s
+
+		var name = '%s'
+		var idVar = name + ':{{.Group}}'
+		var message = '%s'
+		var idtag = '%s'
+		var levelfield = '%s'
+		var messagefield = '%s'
+		var durationfield = '%s'
+
+        var metric = '%s'
+
+        var output_db = '%s'
+        var output_rp = '%s'
+        var output_mt = '%s'
+    `
+	return fmt.Sprintf(common,
+		rule.Query.Database,
+		rule.Query.RetentionPolicy,
+		rule.Query.Measurement,
+		fld,
+		groupBy(rule.Query),
+		whereFilter(rule.Query),
+		rule.Period,
+		rule.Every,
+		rule.Name,
+		rule.Message,
+		IDTag,
+		LevelField,
+		MessageField,
+		DurationField,
+		metric(rule.Query),
+		Database,
+		RP,
+		Measurement,
+	), nil
 }
 
 func groupBy(q chronograf.QueryConfig) string {

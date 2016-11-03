@@ -21,10 +21,14 @@ func TestTrigger(t *testing.T) {
 				Aggregate: "mean",
 			},
 			want: `var trigger = data
-    |deadman(threshold, period)
+    |deadman(threshold, every)
         .stateChangesOnly()
-        .id(id)
         .message(message)
+        .id(idVar)
+        .idTag(idtag)
+        .levelField(levelfield)
+        .messageField(messagefield)
+        .durationField(durationfield)
 `,
 			wantErr: false,
 		},
@@ -52,9 +56,13 @@ var trigger = past
         .as('value')
     |alert()
         .stateChangesOnly()
-        .id(id)
-        .message(message)
         .crit(lambda: "value" > crit)
+        .message(message)
+        .id(idVar)
+        .idTag(idtag)
+        .levelField(levelfield)
+        .messageField(messagefield)
+        .durationField(durationfield)
 `,
 			wantErr: false,
 		},
@@ -70,9 +78,13 @@ var trigger = past
         .as('value')
     |alert()
         .stateChangesOnly()
-        .id(id)
-        .message(message)
         .crit(lambda: "value" > crit)
+        .message(message)
+        .id(idVar)
+        .idTag(idtag)
+        .levelField(levelfield)
+        .messageField(messagefield)
+        .durationField(durationfield)
 `,
 			wantErr: false,
 		},

@@ -17,7 +17,7 @@ func (a *Alert) Generate(rule chronograf.AlertRule) (chronograf.TICKScript, erro
 	if err != nil {
 		return "", nil
 	}
-	data, err := Data(rule.Query)
+	data, err := Data(rule)
 	if err != nil {
 		return "", nil
 	}

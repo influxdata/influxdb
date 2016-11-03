@@ -12,9 +12,14 @@ var ThresholdTrigger = `
     .as('value')
   |alert()
     .stateChangesOnly()
-    .id(id)
+    .crit(lambda: "value" {{ .Operator }} crit)
     .message(message)
-    .crit(lambda: "value" {{ .Operator }} crit)`
+	.id(idVar)
+	.idTag(idtag)
+	.levelField(levelfield)
+	.messageField(messagefield)
+	.durationField(durationfield)
+`
 
 // RelativeTrigger compares one window of data versus another.
 var RelativeTrigger = `
@@ -35,16 +40,25 @@ var trigger = past
 		.as('value')
     |alert()
         .stateChangesOnly()
-        .id(id)
+        .crit(lambda: "value" {{ .Operator }} crit)
         .message(message)
-        .crit(lambda: "value" {{ .Operator }} crit)`
+		.id(idVar)
+		.idTag(idtag)
+		.levelField(levelfield)
+		.messageField(messagefield)
+		.durationField(durationfield)
+`
 
 // DeadmanTrigger checks if any data has been streamed in the last period of time
 var DeadmanTrigger = `
-  var trigger = data|deadman(threshold, period)
+  var trigger = data|deadman(threshold, every)
     .stateChangesOnly()
-    .id(id)
     .message(message)
+	.id(idVar)
+	.idTag(idtag)
+	.levelField(levelfield)
+	.messageField(messagefield)
+	.durationField(durationfield)
 `
 
 func execTemplate(tick string, alert interface{}) (string, error) {

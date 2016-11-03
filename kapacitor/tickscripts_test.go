@@ -128,17 +128,25 @@ var groupby = ['host', 'cluster_id']
 
 var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
-var id = 'kapacitor/{{ .Name }}/{{ .Group }}'
-
-var message = 'message'
-
 var period = 10m
 
 var every = 30s
 
-var metric = 'metric'
+var name = 'name'
 
-var crit = 90
+var idVar = name + ':{{.Group}}'
+
+var message = 'message'
+
+var idtag = 'alertID'
+
+var levelfield = 'level'
+
+var messagefield = 'message'
+
+var durationfield = 'duration'
+
+var metric = 'metric'
 
 var output_db = 'chronograf'
 
@@ -146,28 +154,34 @@ var output_rp = 'autogen'
 
 var output_mt = 'alerts'
 
+var crit = 90
+
 var data = stream
     |from()
         .database(db)
         .retentionPolicy(rp)
         .measurement(measurement)
         .groupBy(groupby)
+        .where(where_filter)
     |window()
         .period(period)
         .every(every)
         .align()
     |mean(field)
         .as(metric)
-    |where(where_filter)
 
 var trigger = data
     |mean(metric)
         .as('value')
     |alert()
         .stateChangesOnly()
-        .id(id)
-        .message(message)
         .crit(lambda: "value" > crit)
+        .message(message)
+        .id(idVar)
+        .idTag(idtag)
+        .levelField(levelfield)
+        .messageField(messagefield)
+        .durationField(durationfield)
         .slack()
         .victorOps()
         .email()
@@ -179,6 +193,7 @@ trigger
         .retentionPolicy(output_rp)
         .measurement(output_mt)
         .tag('name', 'name')
+        .tag('type', 'stream')
 `,
 			wantErr: false,
 		},
@@ -265,19 +280,25 @@ var groupby = ['host', 'cluster_id']
 
 var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
-var id = 'kapacitor/{{ .Name }}/{{ .Group }}'
-
-var message = 'message'
-
 var period = 10m
 
 var every = 30s
 
+var name = 'name'
+
+var idVar = name + ':{{.Group}}'
+
+var message = 'message'
+
+var idtag = 'alertID'
+
+var levelfield = 'level'
+
+var messagefield = 'message'
+
+var durationfield = 'duration'
+
 var metric = 'metric'
-
-var shift = -1m
-
-var crit = 90
 
 var output_db = 'chronograf'
 
@@ -285,19 +306,23 @@ var output_rp = 'autogen'
 
 var output_mt = 'alerts'
 
+var shift = -1m
+
+var crit = 90
+
 var data = stream
     |from()
         .database(db)
         .retentionPolicy(rp)
         .measurement(measurement)
         .groupBy(groupby)
+        .where(where_filter)
     |window()
         .period(period)
         .every(every)
         .align()
     |mean(field)
         .as(metric)
-    |where(where_filter)
 
 var past = data
     |mean(metric)
@@ -316,9 +341,13 @@ var trigger = past
         .as('value')
     |alert()
         .stateChangesOnly()
-        .id(id)
-        .message(message)
         .crit(lambda: "value" > crit)
+        .message(message)
+        .id(idVar)
+        .idTag(idtag)
+        .levelField(levelfield)
+        .messageField(messagefield)
+        .durationField(durationfield)
         .slack()
         .victorOps()
         .email()
@@ -330,6 +359,7 @@ trigger
         .retentionPolicy(output_rp)
         .measurement(output_mt)
         .tag('name', 'name')
+        .tag('type', 'stream')
 `,
 			wantErr: false,
 		},
@@ -416,17 +446,25 @@ var groupby = ['host', 'cluster_id']
 
 var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
-var id = 'kapacitor/{{ .Name }}/{{ .Group }}'
-
-var message = 'message'
-
 var period = 10m
 
 var every = 30s
 
-var metric = 'metric'
+var name = 'name'
 
-var threshold = 0.0
+var idVar = name + ':{{.Group}}'
+
+var message = 'message'
+
+var idtag = 'alertID'
+
+var levelfield = 'level'
+
+var messagefield = 'message'
+
+var durationfield = 'duration'
+
+var metric = 'metric'
 
 var output_db = 'chronograf'
 
@@ -434,25 +472,31 @@ var output_rp = 'autogen'
 
 var output_mt = 'alerts'
 
+var threshold = 0.0
+
 var data = stream
     |from()
         .database(db)
         .retentionPolicy(rp)
         .measurement(measurement)
         .groupBy(groupby)
+        .where(where_filter)
     |window()
         .period(period)
         .every(every)
         .align()
     |mean(field)
         .as(metric)
-    |where(where_filter)
 
 var trigger = data
-    |deadman(threshold, period)
+    |deadman(threshold, every)
         .stateChangesOnly()
-        .id(id)
         .message(message)
+        .id(idVar)
+        .idTag(idtag)
+        .levelField(levelfield)
+        .messageField(messagefield)
+        .durationField(durationfield)
         .slack()
         .victorOps()
         .email()
@@ -464,6 +508,7 @@ trigger
         .retentionPolicy(output_rp)
         .measurement(output_mt)
         .tag('name', 'name')
+        .tag('type', 'stream')
 `,
 			wantErr: false,
 		},
