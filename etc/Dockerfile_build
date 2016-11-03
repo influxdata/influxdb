@@ -1,8 +1,7 @@
 FROM ubuntu:trusty
 
-RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
-    python-software-properties \
-    software-properties-common \
+RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y \
+    python-dev \
     wget \
     git \
     mercurial \
@@ -17,9 +16,9 @@ RUN pip install boto requests python-jose --upgrade
 RUN gem install fpm
 
 # Install node
-RUN wget -q https://nodejs.org/dist/latest-v5.x/node-v5.11.1-linux-x64.tar.gz; \
-   tar -xvf node-v5.11.1-linux-x64.tar.gz -C / --strip-components=1; \
-   rm -f node-v5.11.1-linux-x64.tar.gz
+RUN wget -q https://nodejs.org/dist/latest-v6.x/node-v6.9.1-linux-x64.tar.gz; \
+   tar -xvf node-v6.9.1-linux-x64.tar.gz -C / --strip-components=1; \
+   rm -f node-v6.9.1-linux-x64.tar.gz
 
 # Update npm
 RUN cd $(npm root -g)/npm \
