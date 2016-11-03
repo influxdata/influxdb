@@ -32,7 +32,7 @@ start() {
             return 0
         fi
     fi
-    local CMD="$SCRIPT $SCRIPT_OPTS 2>&1 1>> \"$LOGFILE\" & echo \$!"
+    local CMD="$SCRIPT $SCRIPT_OPTS 1>>\"$LOGFILE\" 2>&1 & echo \$!"
     su -s /bin/sh -c "$CMD" $RUNAS > "$PIDFILE"
     if [[ -f $PIDFILE ]]; then
         # PIDFILE exists

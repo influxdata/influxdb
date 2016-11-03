@@ -125,12 +125,16 @@ def package_scripts(build_root, config_only=False, windows=False):
         pass
     else:
         logging.debug("Copying scripts to build directory.")
-        shutil.copyfile(INIT_SCRIPT, os.path.join(build_root, SCRIPT_DIR[1:], INIT_SCRIPT.split('/')[1]))
-        os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], INIT_SCRIPT.split('/')[1]), 0o644)
-        shutil.copyfile(SYSTEMD_SCRIPT, os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_SCRIPT.split('/')[1]))
-        os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_SCRIPT.split('/')[1]), 0o644)
-        shutil.copyfile(LOGROTATE_SCRIPT, os.path.join(build_root, LOGROTATE_DIR[1:], "chronograf"))
-        os.chmod(os.path.join(build_root, LOGROTATE_DIR[1:], "chronograf"), 0o644)
+        files = [
+            (INIT_SCRIPT, SCRIPT_DIR, "init.sh"),
+            (SYSTEMD_SCRIPT, SCRIPT_DIR, "chronograf.service"),
+            (LOGROTATE_SCRIPT, LOGROTATE_DIR, "chronograf")
+        ]
+        for script, dir, name in files:
+            dest = os.path.join(build_root, dir[1:], name)
+            logging.debug("Moving {} to {}".format(script, dest))
+            shutil.copyfile(script, dest)
+            os.chmod(dest, 0o644)
 
 def run_generate():
     """Generate static assets.
