@@ -32,6 +32,8 @@ if [ -z "$measurement" ]; then
 	exit
 fi
 
+CELLID=$(uuidgen)
+CELLID="$(tr [A-Z] [a-z] <<< "$CELLID")"
 
 UUID=$(uuidgen)
 UUID="$(tr [A-Z] [a-z] <<< "$UUID")"
@@ -47,6 +49,8 @@ cat > $APP_FILE << EOF
  		"y": 0,
  		"w": 10,
  		"h": 10,
+        "i": "$CELLID",
+        "name": "User facing cell Name",
  		"queries": [{
  			"query": "select used_percent from disk",
  			"db": "telegraf",
