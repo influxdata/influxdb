@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react';
 import AlertsTable from '../components/AlertsTable';
 import {getAlerts} from '../apis';
+import _ from 'lodash';
 
 // Kevin: because we were getting strange errors saying
 // "Failed prop type: Required prop `source` was not specified in `AlertsApp`."
@@ -27,7 +28,26 @@ const AlertsApp = React.createClass({
 
   componentDidMount() {
     return getAlerts(this.props.source.links.proxy).then((resp) => {
-      this.setState({alerts: resp.alerts});
+      const results = [];
+
+      const alertSeries = _.get(resp, ['data', 'results', '0', 'series'], []);
+
+      const timeIndex = alertSeries[0].columns.findIndex((col) => col === 'time');
+      const hostIndex = alertSeries[0].columns.findIndex((col) => col === 'host');
+      const valueIndex = alertSeries[0].columns.findIndex((col) => col === 'value');
+      const levelIndex = alertSeries[0].columns.findIndex((col) => col === 'level');
+      const nameIndex = alertSeries[0].columns.findIndex((col) => col === 'alert_name');
+
+      alertSeries[0].values.forEach((s) => {
+        results.push({
+          time: `${s[timeIndex]}`,
+          host: s[hostIndex],
+          value: `${s[valueIndex]}`,
+          level: s[levelIndex],
+          name: `${s[nameIndex]}`,
+        });
+      });
+      this.setState({alerts: results});
     });
   },
 
