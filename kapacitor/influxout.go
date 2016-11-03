@@ -11,7 +11,7 @@ func InfluxOut(rule chronograf.AlertRule) string {
             	.database(output_db)
             	.retentionPolicy(output_rp)
             	.measurement(output_mt)
-				.tag('name', name)
+				.tag('alertName', name)
 				.tag('triggerType', triggerType)
 			`
 }

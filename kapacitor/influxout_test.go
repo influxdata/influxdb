@@ -16,15 +16,15 @@ func TestInfluxOut(t *testing.T) {
         .database(output_db)
         .retentionPolicy(output_rp)
         .measurement(output_mt)
-        .tag('name', name)
+        .tag('alertName', name)
         .tag('triggerType', triggerType)
 `,
 		},
 	}
 	for _, tt := range tests {
 		got := InfluxOut(chronograf.AlertRule{
-			Name: "name",
-			Type: "deadman",
+			Name:    "name",
+			Trigger: "deadman",
 		})
 		formatted, err := formatTick(got)
 		if err != nil {

@@ -16,9 +16,7 @@ func TestTrigger(t *testing.T) {
 		{
 			name: "Test Deadman",
 			rule: chronograf.AlertRule{
-				Trigger:   "deadman",
-				Operator:  ">",
-				Aggregate: "mean",
+				Trigger: "deadman",
 			},
 			want: `var trigger = data
     |deadman(threshold, every)
@@ -26,7 +24,7 @@ func TestTrigger(t *testing.T) {
         .message(message)
         .id(idVar)
         .idTag(idtag)
-        .levelField(levelfield)
+        .levelTag(leveltag)
         .messageField(messagefield)
         .durationField(durationfield)
 `,
@@ -35,23 +33,22 @@ func TestTrigger(t *testing.T) {
 		{
 			name: "Test Relative",
 			rule: chronograf.AlertRule{
-				Trigger:   "relative",
-				Operator:  ">",
-				Aggregate: "mean",
+				Trigger: "relative",
+				TriggerValues: chronograf.TriggerValues{
+					Relative: &chronograf.RelativeValue{
+						Operator: "greater than",
+					},
+				},
 			},
 			want: `var past = data
-    |mean(metric)
-        .as('stat')
     |shift(shift)
 
 var current = data
-    |mean(metric)
-        .as('stat')
 
 var trigger = past
     |join(current)
         .as('past', 'current')
-    |eval(lambda: abs(float("current.stat" - "past.stat")) / float("past.stat"))
+    |eval(lambda: abs(float("current.value" - "past.value")) / float("past.value"))
         .keep()
         .as('value')
     |alert()
@@ -60,7 +57,7 @@ var trigger = past
         .message(message)
         .id(idVar)
         .idTag(idtag)
-        .levelField(levelfield)
+        .levelTag(leveltag)
         .messageField(messagefield)
         .durationField(durationfield)
 `,
@@ -69,20 +66,21 @@ var trigger = past
 		{
 			name: "Test Threshold",
 			rule: chronograf.AlertRule{
-				Trigger:   "threshold",
-				Operator:  ">",
-				Aggregate: "median",
+				Trigger: "threshold",
+				TriggerValues: chronograf.TriggerValues{
+					Threshold: &chronograf.ThresholdValue{
+						Operator: "greater than",
+					},
+				},
 			},
 			want: `var trigger = data
-    |median(metric)
-        .as('value')
     |alert()
         .stateChangesOnly()
         .crit(lambda: "value" > crit)
         .message(message)
         .id(idVar)
         .idTag(idtag)
-        .levelField(levelfield)
+        .levelTag(leveltag)
         .messageField(messagefield)
         .durationField(durationfield)
 `,
@@ -91,7 +89,7 @@ var trigger = past
 		{
 			name: "Test Invalid",
 			rule: chronograf.AlertRule{
-				Type: "invalid",
+				Trigger: "invalid",
 			},
 			want:    ``,
 			wantErr: true,

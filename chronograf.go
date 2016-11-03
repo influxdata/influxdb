@@ -87,41 +87,16 @@ type SourcesStore interface {
 	Update(context.Context, Source) error
 }
 
-// QueryConfig represents UI query from the data explorer
-type QueryConfig struct {
-	ID              string `json:"id,omitempty"`
-	Database        string `json:"database"`
-	Measurement     string `json:"measurement"`
-	RetentionPolicy string `json:"retentionPolicy"`
-	Fields          []struct {
-		Field string   `json:"field"`
-		Funcs []string `json:"funcs"`
-	} `json:"fields"`
-	Tags    map[string][]string `json:"tags"`
-	GroupBy struct {
-		Time string   `json:"time"`
-		Tags []string `json:"tags"`
-	} `json:"groupBy"`
-	AreTagsAccepted bool   `json:"areTagsAccepted"`
-	RawText         string `json:"rawText,omitempty"`
-}
-
 // AlertRule represents rules for building a tickscript alerting task
 type AlertRule struct {
-	ID            string      `json:"id,omitempty"` // ID is the unique ID of the alert
-	Name          string      `json:"name"`         // Name is the user-defined name for the alert
-	Version       string      `json:"version"`      // Version of the alert
-	Query         QueryConfig `json:"query"`        // Query is the filter of data for the alert.
-	Trigger       string      `json:"trigger"`      // Trigger is a type that defines when to trigger the alert
-	AlertServices []string    `json:"alerts"`       // AlertServices name all the services to notify (e.g. pagerduty)
-	Type          string      `json:"type"`         // Type specifies kind of AlertRule (stream, batch)
-	Operator      string      `json:"operator"`     // Operator for alert comparison
-	Aggregate     string      `json:"aggregate"`    // Statistic aggregate over window of data
-	Period        string      `json:"period"`       // Period is the window to search for alerting criteria
-	Every         string      `json:"every"`        // Every how often to check for the alerting criteria
-	Critical      string      `json:"critical"`     // Critical is the boundary value when alert goes critical
-	Shift         string      `json:"shift"`        // Shift is the amount of time to look into the past for the alert to compare to the present
-	Message       string      `json:"message"`      // Message included with alert
+	ID            string        `json:"id,omitempty"` // ID is the unique ID of the alert
+	Query         QueryConfig   `json:"query"`        // Query is the filter of data for the alert.
+	Every         string        `json:"every"`        // Every how often to check for the alerting criteria
+	Alerts        []string      `json:"alerts"`       // AlertServices name all the services to notify (e.g. pagerduty)
+	Message       string        `json:"message"`      // Message included with alert
+	Trigger       string        `json:"trigger"`      // Trigger is a type that defines when to trigger the alert
+	TriggerValues TriggerValues `json:"values"`       // Defines the values that cause the alert to trigger
+	Name          string        `json:"name"`         // Name is the user-defined name for the alert
 }
 
 // AlertRulesStore stores rules for building tickscript alerting tasks
@@ -145,6 +120,55 @@ type TICKScript string
 type Ticker interface {
 	// Generate will create the tickscript to be used as a kapacitor task
 	Generate(AlertRule) (TICKScript, error)
+}
+
+// DeadmanValue specifies the timeout duration of a deadman alert.
+type DeadmanValue struct {
+	Period string `json:"period, omitempty"` // Period is the max time data can be missed before an alert
+}
+
+// RelativeValue specifies the trigger logic for a relative value change alert.
+type RelativeValue struct {
+	Change   string `json:"change,omitempty"`   // Change specifies if the change is a percent or absolute
+	Period   string `json:"period,omitempty"`   // Period is the window to search for alerting criteria
+	Shift    string `json:"shift,omitempty"`    // Shift is the amount of time to look into the past for the alert to compare to the present
+	Operator string `json:"operator,omitempty"` // Operator for alert comparison
+	Value    string `json:"value,omitempty"`    // Value is the boundary value when alert goes critical
+}
+
+// ThresholdValue specifies the trigger logic for a threshold change alert.
+type ThresholdValue struct {
+	Period     string `json:"period,omitempty"`     // Period is the window to search for the alerting criteria
+	Operator   string `json:"operator,omitempty"`   // Operator for alert comparison
+	Percentile string `json:"percentile,omitempty"` // Percentile is defined only when Relation is not "Once"
+	Relation   string `json:"relation,omitempty"`   // Relation defines the logic about how often the threshold is met to be an alert.
+	Value      string `json:"value,omitempty"`      // Value is the boundary value when alert goes critical
+}
+
+// TriggerValues specifies which of the trigger types defines the alerting logic. One of these whould not be nil.
+type TriggerValues struct {
+	Deadman   *DeadmanValue   `json:"deadman,omitempty"`
+	Relative  *RelativeValue  `json:"relative,omitempty"`
+	Threshold *ThresholdValue `json:"threshold,omitempty"`
+}
+
+// QueryConfig represents UI query from the data explorer
+type QueryConfig struct {
+	ID              string `json:"id,omitempty"`
+	Database        string `json:"database"`
+	Measurement     string `json:"measurement"`
+	RetentionPolicy string `json:"retentionPolicy"`
+	Fields          []struct {
+		Field string   `json:"field"`
+		Funcs []string `json:"funcs"`
+	} `json:"fields"`
+	Tags    map[string][]string `json:"tags"`
+	GroupBy struct {
+		Time string   `json:"time"`
+		Tags []string `json:"tags"`
+	} `json:"groupBy"`
+	AreTagsAccepted bool   `json:"areTagsAccepted"`
+	RawText         string `json:"rawText,omitempty"`
 }
 
 // Server represents a proxy connection to an HTTP server

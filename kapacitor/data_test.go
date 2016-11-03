@@ -44,18 +44,17 @@ func TestData(t *testing.T) {
 		t.Errorf("Error unmarshaling %v", err)
 	}
 	alert := chronograf.AlertRule{
-		Type:  "deadman",
-		Query: q,
+		Trigger: "deadman",
+		Query:   q,
 	}
 	if tick, err := Data(alert); err != nil {
 		t.Errorf("Error creating tick %v", err)
 	} else {
-		formatted, err := formatTick(tick)
+		_, err := formatTick(tick)
 		if err != nil {
 			fmt.Printf(tick)
 			t.Errorf("Error formatting tick %v", err)
 		}
-		fmt.Printf("%s", formatted)
 	}
 
 }

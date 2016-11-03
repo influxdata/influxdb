@@ -9,17 +9,19 @@ import (
 
 func TestGenerate(t *testing.T) {
 	alert := chronograf.AlertRule{
-		Name:          "name",
-		Version:       "1.0",
-		Trigger:       "relative",
-		AlertServices: []string{"slack", "victorOps", "email"},
-		Type:          "stream",
-		Operator:      ">",
-		Aggregate:     "mean",
-		Period:        "10m",
-		Every:         "30s",
-		Critical:      "90",
-		Shift:         "1m",
+		Name:    "name",
+		Trigger: "relative",
+		Alerts:  []string{"slack", "victorOps", "email"},
+		TriggerValues: chronograf.TriggerValues{
+			Relative: &chronograf.RelativeValue{
+				Change:   "change",
+				Period:   "10m",
+				Shift:    "1m",
+				Operator: "greater than",
+				Value:    "90",
+			},
+		},
+		Every: "30s",
 		Query: chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
@@ -63,18 +65,20 @@ func TestGenerate(t *testing.T) {
 
 func TestThreshold(t *testing.T) {
 	alert := chronograf.AlertRule{
-		Name:          "name",
-		Version:       "1.0",
-		Trigger:       "threshold",
-		AlertServices: []string{"slack", "victorOps", "email"},
-		Type:          "stream",
-		Operator:      ">",
-		Aggregate:     "mean",
-		Period:        "10m",
-		Every:         "30s",
-		Critical:      "90",
-		Shift:         "1m",
-		Message:       "message",
+		Name:    "name",
+		Trigger: "threshold",
+		Alerts:  []string{"slack", "victorOps", "email"},
+		TriggerValues: chronograf.TriggerValues{
+			Threshold: &chronograf.ThresholdValue{
+				Relation:   "once",
+				Period:     "10m",
+				Percentile: "", // TODO: if relation is not once then this will have a number
+				Operator:   "greater than",
+				Value:      "90",
+			},
+		},
+		Every:   "30s",
+		Message: "message",
 		Query: chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
@@ -130,8 +134,6 @@ var groupby = ['host', 'cluster_id']
 
 var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
-var period = 10m
-
 var every = 30s
 
 var name = 'name'
@@ -142,13 +144,13 @@ var message = 'message'
 
 var idtag = 'alertID'
 
-var levelfield = 'level'
+var leveltag = 'level'
 
 var messagefield = 'message'
 
 var durationfield = 'duration'
 
-var metric = 'metric'
+var value = 'value'
 
 var output_db = 'chronograf'
 
@@ -157,6 +159,8 @@ var output_rp = 'autogen'
 var output_mt = 'alerts'
 
 var triggerType = 'threshold'
+
+var period = 10m
 
 var crit = 90
 
@@ -172,18 +176,16 @@ var data = stream
         .every(every)
         .align()
     |mean(field)
-        .as(metric)
+        .as(value)
 
 var trigger = data
-    |mean(metric)
-        .as('value')
     |alert()
         .stateChangesOnly()
         .crit(lambda: "value" > crit)
         .message(message)
         .id(idVar)
         .idTag(idtag)
-        .levelField(levelfield)
+        .levelTag(leveltag)
         .messageField(messagefield)
         .durationField(durationfield)
         .slack()
@@ -196,7 +198,7 @@ trigger
         .database(output_db)
         .retentionPolicy(output_rp)
         .measurement(output_mt)
-        .tag('name', name)
+        .tag('alertName', name)
         .tag('triggerType', triggerType)
 `,
 			wantErr: false,
@@ -210,6 +212,7 @@ trigger
 			continue
 		}
 		if got != tt.want {
+			fmt.Printf("%s", got)
 			t.Errorf("%q. Threshold() = %v, want %v", tt.name, got, tt.want)
 		}
 	}
@@ -217,18 +220,20 @@ trigger
 
 func TestRelative(t *testing.T) {
 	alert := chronograf.AlertRule{
-		Name:          "name",
-		Version:       "1.0",
-		Trigger:       "relative",
-		AlertServices: []string{"slack", "victorOps", "email"},
-		Type:          "stream",
-		Operator:      ">",
-		Aggregate:     "mean",
-		Period:        "10m",
-		Every:         "30s",
-		Critical:      "90",
-		Shift:         "1m",
-		Message:       "message",
+		Name:    "name",
+		Trigger: "relative",
+		Alerts:  []string{"slack", "victorOps", "email"},
+		TriggerValues: chronograf.TriggerValues{
+			Relative: &chronograf.RelativeValue{
+				Change:   "change",
+				Period:   "10m",
+				Shift:    "1m",
+				Operator: "greater than",
+				Value:    "90",
+			},
+		},
+		Every:   "30s",
+		Message: "message",
 		Query: chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
@@ -284,8 +289,6 @@ var groupby = ['host', 'cluster_id']
 
 var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
-var period = 10m
-
 var every = 30s
 
 var name = 'name'
@@ -296,13 +299,13 @@ var message = 'message'
 
 var idtag = 'alertID'
 
-var levelfield = 'level'
+var leveltag = 'level'
 
 var messagefield = 'message'
 
 var durationfield = 'duration'
 
-var metric = 'metric'
+var value = 'value'
 
 var output_db = 'chronograf'
 
@@ -311,6 +314,8 @@ var output_rp = 'autogen'
 var output_mt = 'alerts'
 
 var triggerType = 'relative'
+
+var period = 10m
 
 var shift = -1m
 
@@ -328,21 +333,17 @@ var data = stream
         .every(every)
         .align()
     |mean(field)
-        .as(metric)
+        .as(value)
 
 var past = data
-    |mean(metric)
-        .as('stat')
     |shift(shift)
 
 var current = data
-    |mean(metric)
-        .as('stat')
 
 var trigger = past
     |join(current)
         .as('past', 'current')
-    |eval(lambda: abs(float("current.stat" - "past.stat")) / float("past.stat"))
+    |eval(lambda: abs(float("current.value" - "past.value")) / float("past.value"))
         .keep()
         .as('value')
     |alert()
@@ -351,7 +352,7 @@ var trigger = past
         .message(message)
         .id(idVar)
         .idTag(idtag)
-        .levelField(levelfield)
+        .levelTag(leveltag)
         .messageField(messagefield)
         .durationField(durationfield)
         .slack()
@@ -364,7 +365,7 @@ trigger
         .database(output_db)
         .retentionPolicy(output_rp)
         .measurement(output_mt)
-        .tag('name', name)
+        .tag('alertName', name)
         .tag('triggerType', triggerType)
 `,
 			wantErr: false,
@@ -378,6 +379,7 @@ trigger
 			continue
 		}
 		if got != tt.want {
+			fmt.Printf("%s", got)
 			t.Errorf("%q. Relative() = %v, want %v", tt.name, got, tt.want)
 		}
 	}
@@ -385,18 +387,16 @@ trigger
 
 func TestDeadman(t *testing.T) {
 	alert := chronograf.AlertRule{
-		Name:          "name",
-		Version:       "1.0",
-		Trigger:       "deadman",
-		AlertServices: []string{"slack", "victorOps", "email"},
-		Type:          "stream",
-		Operator:      ">",
-		Aggregate:     "mean",
-		Period:        "10m",
-		Every:         "30s",
-		Critical:      "90",
-		Shift:         "1m",
-		Message:       "message",
+		Name:    "name",
+		Trigger: "deadman",
+		Alerts:  []string{"slack", "victorOps", "email"},
+		TriggerValues: chronograf.TriggerValues{
+			Deadman: &chronograf.DeadmanValue{
+				Period: "10m",
+			},
+		},
+		Every:   "30s",
+		Message: "message",
 		Query: chronograf.QueryConfig{
 			Database:        "telegraf",
 			Measurement:     "cpu",
@@ -452,8 +452,6 @@ var groupby = ['host', 'cluster_id']
 
 var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
-var period = 10m
-
 var every = 30s
 
 var name = 'name'
@@ -464,13 +462,13 @@ var message = 'message'
 
 var idtag = 'alertID'
 
-var levelfield = 'level'
+var leveltag = 'level'
 
 var messagefield = 'message'
 
 var durationfield = 'duration'
 
-var metric = 'usage_user'
+var value = 'value'
 
 var output_db = 'chronograf'
 
@@ -482,6 +480,8 @@ var triggerType = 'deadman'
 
 var threshold = 0.0
 
+var period = 10m
+
 var data = stream
     |from()
         .database(db)
@@ -489,6 +489,8 @@ var data = stream
         .measurement(measurement)
         .groupBy(groupby)
         .where(where_filter)
+    |eval(lambda: field)
+        .as(value)
 
 var trigger = data
     |deadman(threshold, every)
@@ -496,7 +498,7 @@ var trigger = data
         .message(message)
         .id(idVar)
         .idTag(idtag)
-        .levelField(levelfield)
+        .levelTag(leveltag)
         .messageField(messagefield)
         .durationField(durationfield)
         .slack()
@@ -509,7 +511,7 @@ trigger
         .database(output_db)
         .retentionPolicy(output_rp)
         .measurement(output_mt)
-        .tag('name', name)
+        .tag('alertName', name)
         .tag('triggerType', triggerType)
 `,
 			wantErr: false,
@@ -523,6 +525,7 @@ trigger
 			continue
 		}
 		if got != tt.want {
+			fmt.Printf("%s", got)
 			t.Errorf("%q. Deadman() = %v, want %v", tt.name, got, tt.want)
 		}
 	}

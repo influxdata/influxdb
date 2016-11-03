@@ -16,7 +16,7 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test several valid services",
 			rule: chronograf.AlertRule{
-				AlertServices: []string{"slack", "victorOps", "email"},
+				Alerts: []string{"slack", "victorOps", "email"},
 			},
 			want: `alert()
         .slack()
@@ -27,7 +27,7 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test single invalid services amongst several valid",
 			rule: chronograf.AlertRule{
-				AlertServices: []string{"slack", "invalid", "email"},
+				Alerts: []string{"slack", "invalid", "email"},
 			},
 			want:    ``,
 			wantErr: true,
@@ -35,7 +35,7 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test single invalid service",
 			rule: chronograf.AlertRule{
-				AlertServices: []string{"invalid"},
+				Alerts: []string{"invalid"},
 			},
 			want:    ``,
 			wantErr: true,
@@ -43,7 +43,7 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test single valid service",
 			rule: chronograf.AlertRule{
-				AlertServices: []string{"slack"},
+				Alerts: []string{"slack"},
 			},
 			want: `alert()
         .slack()

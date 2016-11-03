@@ -17,8 +17,8 @@ var (
 	Measurement = "alerts"
 	// IDTag is the output tag key for the ID of the alert
 	IDTag = "alertID"
-	//LevelField is the output field key for the alert level information
-	LevelField = "level"
+	//LevelTag is the output tag key for the alert level information
+	LevelTag = "level"
 	// MessageField is the output field key for the message in the alert
 	MessageField = "message"
 	// DurationField is the output field key for the duration of the alert
@@ -36,31 +36,36 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 	case "threshold":
 		vars := `
 		%s
+		var period = %s
         var crit = %s
  `
 		return fmt.Sprintf(vars,
 			common,
-			rule.Critical,
-		), nil
+			rule.TriggerValues.Threshold.Period,
+			rule.TriggerValues.Threshold.Value), nil
 	case "relative":
 		vars := `
 		%s
+		var period = %s
         var shift = -%s
         var crit = %s
  `
 		return fmt.Sprintf(vars,
 			common,
-			rule.Shift,
-			rule.Critical,
+			rule.TriggerValues.Relative.Period,
+			rule.TriggerValues.Relative.Shift,
+			rule.TriggerValues.Relative.Value,
 		), nil
 	case "deadman":
 		vars := `
 		%s
         var threshold = %s
+		var period = %s
  `
 		return fmt.Sprintf(vars,
 			common,
 			"0.0", // deadman threshold hardcoded to zero
+			rule.TriggerValues.Deadman.Period,
 		), nil
 	default:
 		return "", fmt.Errorf("Unknown trigger mechanism")
@@ -81,18 +86,17 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
         var groupby = %s
         var where_filter = %s
 
-		var period = %s
         var every = %s
 
 		var name = '%s'
 		var idVar = name + ':{{.Group}}'
 		var message = '%s'
 		var idtag = '%s'
-		var levelfield = '%s'
+		var leveltag = '%s'
 		var messagefield = '%s'
 		var durationfield = '%s'
 
-        var metric = '%s'
+        var value = 'value'
 
         var output_db = '%s'
         var output_rp = '%s'
@@ -106,15 +110,13 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
 		fld,
 		groupBy(rule.Query),
 		whereFilter(rule.Query),
-		rule.Period,
 		rule.Every,
 		rule.Name,
 		rule.Message,
 		IDTag,
-		LevelField,
+		LevelTag,
 		MessageField,
 		DurationField,
-		metric(rule),
 		Database,
 		RP,
 		Measurement,
@@ -137,8 +139,8 @@ func field(q chronograf.QueryConfig) (string, error) {
 	return "", fmt.Errorf("No fields set in query")
 }
 
-// metric will be metric unless there are no field aggregates. If no aggregates, then it is the field name.
-func metric(rule chronograf.AlertRule) string {
+// value will be "value"" unless there are no field aggregates. If no aggregates, then it is the field name.
+func value(rule chronograf.AlertRule) string {
 	for _, field := range rule.Query.Fields {
 		// Deadman triggers do not need any aggregate functions
 		if field.Field != "" && rule.Trigger == "deadman" {
@@ -147,7 +149,7 @@ func metric(rule chronograf.AlertRule) string {
 			return field.Field
 		}
 	}
-	return "metric"
+	return "value"
 }
 
 func whereFilter(q chronograf.QueryConfig) string {
