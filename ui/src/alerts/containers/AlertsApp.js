@@ -21,14 +21,14 @@ const AlertsApp = React.createClass({
 
   getInitialState() {
     return {
-      alerts: []
+      alerts: [],
     };
   },
 
   componentDidMount() {
-      return getAlerts(this.props.source.links.proxy).then((resp) => {
-        this.setState({alerts: resp.alerts})
-      });
+    return getAlerts(this.props.source.links.proxy).then((resp) => {
+      this.setState({alerts: resp.alerts});
+    });
   },
 
   render() {
