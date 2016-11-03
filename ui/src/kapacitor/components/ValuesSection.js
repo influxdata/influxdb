@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react';
 import Dropdown from 'src/shared/components/Dropdown';
 import {Tab, TabList, TabPanels, TabPanel, Tabs} from 'shared/components/Tabs';
+import {OPERATORS, RELATIONS, PERIODS, CHANGES, SHIFTS} from 'src/kapacitor/constants';
 
 const TABS = ['Threshold', 'Relative', 'Deadman'];
 export const ValuesSection = React.createClass({
@@ -92,9 +93,9 @@ const Threshold = React.createClass({
       });
     }
 
-    const operators = mapToItems(['greater than', 'equal to or greater', 'equal to or less than', 'less than', 'equal to', 'not equal to'], 'operator');
-    const relations = mapToItems(['once', 'more than ', 'less than'], 'relation');
-    const periods = mapToItems(['1m', '5m', '10m', '30m', '1h', '2h', '1h'], 'period');
+    const operators = mapToItems(OPERATORS, 'operator');
+    const relations = mapToItems(RELATIONS, 'relation');
+    const periods = mapToItems(PERIODS, 'period');
 
     return (
       <div className="u-flex u-jc-space-around u-ai-center">
@@ -141,10 +142,10 @@ const Relative = React.createClass({
       });
     }
 
-    const changes = mapToItems(['change', '% change'], 'change');
-    const periods = mapToItems(['1m', '5m', '10m', '30m', '1h', '2h', '1h'], 'period');
-    const shifts = mapToItems(['1m', '5m', '10m', '30m', '1h', '2h', '1h'], 'shift');
-    const operators = mapToItems(['greater than', 'equal to or greater', 'equal to or less than', 'less than', 'equal to', 'not equal to'], 'operator');
+    const changes = mapToItems(CHANGES, 'change');
+    const periods = mapToItems(PERIODS, 'period');
+    const shifts = mapToItems(SHIFTS, 'shift');
+    const operators = mapToItems(OPERATORS, 'operator');
 
     return (
       <div className="u-flex u-jc-space-around u-ai-center">
@@ -176,7 +177,9 @@ const Deadman = React.createClass({
   },
 
   render() {
-    const periods = [{text: '1m'}, {text: '5m'}, {text: '10m'}, {text: '30m'}, {text: '1h'}, {text: '2h'}, {text: '1h'}];
+    const periods = PERIODS.map((text) => {
+      return {text};
+    });
 
     return (
       <div className="u-flex u-ai-center">
