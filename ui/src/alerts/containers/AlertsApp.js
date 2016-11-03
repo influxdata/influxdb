@@ -1,6 +1,8 @@
 import React, {PropTypes} from 'react';
+import {Link} from 'react-router';
 import AlertsTable from '../components/AlertsTable';
 import {getAlerts} from '../apis';
+import AJAX from 'utils/ajax';
 import _ from 'lodash';
 
 // Kevin: because we were getting strange errors saying
@@ -22,12 +24,30 @@ const AlertsApp = React.createClass({
 
   getInitialState() {
     return {
+      loading: true,
+      hasKapacitor: false,
       alerts: [],
     };
   },
-
+  // TODO: show a loading screen until we figure out if there is a kapacitor and fetch the alerts
   componentDidMount() {
-    return getAlerts(this.props.source.links.proxy).then((resp) => {
+    const {source} = this.props;
+    AJAX({
+      url: source.links.kapacitors,
+      method: 'GET',
+    }).then(({data}) => {
+      if (data.kapacitors[0]) {
+        this.setState({hasKapacitor: true});
+
+        this.fetchAlerts();
+      } else {
+        this.setState({loading: false});
+      }
+    });
+  },
+
+  fetchAlerts() {
+    getAlerts(this.props.source.links.proxy).then((resp) => {
       const results = [];
 
       const alertSeries = _.get(resp, ['data', 'results', '0', 'series'], []);
@@ -47,8 +67,31 @@ const AlertsApp = React.createClass({
           name: `${s[nameIndex]}`,
         });
       });
-      this.setState({alerts: results});
+      this.setState({loading: false, alerts: results});
     });
+  },
+
+  renderSubComponents() {
+    let component;
+    if (this.state.loading) {
+      component = (<p>Loading...</p>);
+    } else {
+      const {source} = this.props;
+      if (this.state.hasKapacitor) {
+        component = (
+          <AlertsTable source={this.props.source} alerts={this.state.alerts} />
+        );
+      } else {
+        const path = `/sources/${source.id}/kapacitor-config`;
+        component = (
+          <div>
+            <p>The current source does not have an associated Kapacitor instance, please configure one.</p>
+            <Link to={path}>Add Kapacitor</Link>
+          </div>
+        );
+      }
+    }
+    return component;
   },
 
   render() {
@@ -69,7 +112,7 @@ const AlertsApp = React.createClass({
         <div className="container-fluid">
           <div className="row">
             <div className="col-md-12">
-              <AlertsTable source={this.props.source} alerts={this.state.alerts} />
+              { this.renderSubComponents() }
             </div>
           </div>
         </div>
