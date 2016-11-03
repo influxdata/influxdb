@@ -39,10 +39,6 @@ const SideNav = React.createClass({
           <NavListItem link={`${sourcePrefix}/databases/manager/_internal`}>Database Manager</NavListItem>
           <NavListItem link={`${sourcePrefix}/databases/retentionpolicies/_internal`}>Retention Policies</NavListItem>
         </NavBlock>
-        <NavBlock icon="cubo-uniform" link={`${sourcePrefix}/kapacitor-tasks`}>
-          <NavHeader link={`${sourcePrefix}/kapacitor-tasks`} title="Alerting" />
-          <NavListItem link={`${sourcePrefix}/kapacitor-tasks`}>Kapacitor Tasks</NavListItem>
-        </NavBlock>
         <NavBlock matcher="alerts" icon="alert-triangle" link={`${sourcePrefix}/alerts`}>
           <NavHeader link={`${sourcePrefix}/alerts`} title="Alerts" />
           <NavListItem matcher="view" link={`${sourcePrefix}/alerts`}>View</NavListItem>
