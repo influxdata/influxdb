@@ -5,11 +5,16 @@ import ValuesSection from '../components/ValuesSection';
 import * as kapacitorActionCreators from '../actions/view';
 import * as queryActionCreators from '../../chronograf/actions/view';
 import {bindActionCreators} from 'redux';
+import selectStatement from 'src/chronograf/utils/influxql/select';
+import AutoRefresh from 'shared/components/AutoRefresh';
+import LineGraph from 'shared/components/LineGraph';
+const RefreshingLineGraph = AutoRefresh(LineGraph);
 
 export const KapacitorRulePage = React.createClass({
   propTypes: {
     source: PropTypes.shape({
       links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
         self: PropTypes.string.isRequired,
       }).isRequired,
     }),
@@ -42,13 +47,62 @@ export const KapacitorRulePage = React.createClass({
     console.log(this.props.rules); // eslint-disable-line no-console
   },
 
+  createUnderlayCallback(rule) {
+    return (canvas, area, dygraph) => {
+      if (rule.trigger !== 'threshold') {
+        return;
+      }
+      const theOnePercent = 0.01;
+      let highlightStart = 0;
+      let highlightEnd = 0;
+
+      switch (rule.values.operator) {
+        case 'greater than': {
+          highlightStart = rule.values.value;
+          highlightEnd = dygraph.yAxisRange()[1];
+          break;
+        }
+
+        case 'less than': {
+          highlightStart = dygraph.yAxisRange()[0];
+          highlightEnd = rule.values.value;
+          break;
+        }
+
+        case 'equal to': {
+          const width = (theOnePercent) * (dygraph.yAxisRange()[1] - dygraph.yAxisRange()[0]);
+          highlightStart = +rule.values.value - width;
+          highlightEnd = +rule.values.value + width;
+          break;
+        }
+        case 'not equal to': {
+          const width = (theOnePercent) * (dygraph.yAxisRange()[1] - dygraph.yAxisRange()[0]);
+          highlightStart = +rule.values.value - width;
+          highlightEnd = +rule.values.value + width;
+          break;
+        }
+      }
+
+      const bottom = dygraph.toDomYCoord(highlightStart);
+      const top = dygraph.toDomYCoord(highlightEnd);
+
+      canvas.fillStyle = 'rgba(220,20,60, 1)';
+      canvas.fillRect(area.x, top, area.w, bottom - top);
+    };
+  },
+
   render() {
-    const rule = this.props.rules[Object.keys(this.props.rules)[0]]; // this.props.params.taskID
-    const query = rule && this.props.queryConfigs[rule.queryID];
+    const {rules, queryConfigs, source} = this.props;
+    const rule = rules[Object.keys(rules)[0]]; // this.props.params.taskID
+    const query = rule && queryConfigs[rule.queryID];
+    const autoRefreshMs = 30000;
 
     if (!query) { // or somethin like that
       return null; // or a spinner or somethin
     }
+
+    const queryText = selectStatement({lower: 'now() - 15m'}, query);
+    const queries = [{host: source.links.proxy, text: queryText}];
 
     return (
       <div className="kapacitor-rule-page">
@@ -63,6 +117,19 @@ export const KapacitorRulePage = React.createClass({
           </div>
         </div>
         <div className="container-fluid">
+          <div className="row">
+            <div className="col-md-12">
+              {
+                queryText ?
+                  <RefreshingLineGraph
+                    queries={queries}
+                    autoRefresh={autoRefreshMs}
+                    underlayCallback={this.createUnderlayCallback(rule)}
+                  />
+                : null
+              }
+            </div>
+          </div>
           <div className="row">
             <div className="col-md-12">
               {this.renderDataSection(query)}

@@ -1,12 +1,11 @@
 export const defaultRuleConfigs = {
   deadman: {
-    duration: '10m',
+    period: '10m',
   },
   relative: {
-    func: 'average',
     change: 'change',
-    duration: '1m',
-    compareDuration: '1m',
+    period: '1m',
+    shift: '1m',
     operator: 'greater than',
     value: '90',
   },
@@ -15,6 +14,6 @@ export const defaultRuleConfigs = {
     value: '90',
     relation: 'more than',
     percentile: '90',
-    duration: '1m',
+    period: '1m',
   },
 };

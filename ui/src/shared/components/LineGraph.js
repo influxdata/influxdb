@@ -14,7 +14,15 @@ export default React.createClass({
     isFetchingInitially: PropTypes.bool,
     isRefreshing: PropTypes.bool,
     yRange: arrayOf(number.isRequired),
+    underlayCallback: PropTypes.func,
   },
+
+  getDefaultProps() {
+    return {
+      underlayCallback: () => {},
+    };
+  },
+
   shouldComponentUpdate(nextProps, nextState) {
     return shallowCompare(this, nextProps, nextState);
   },
@@ -49,6 +57,7 @@ export default React.createClass({
       yRangePad: 10,
       drawAxesAtZero: true,
       fillGraph: true,
+      underlayCallback: this.props.underlayCallback,
     };
 
     return (
@@ -59,4 +68,3 @@ export default React.createClass({
     );
   },
 });
-
