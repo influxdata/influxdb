@@ -54,9 +54,12 @@ export function deleteQuery(panelId, queryId) {
   };
 }
 
-export function toggleField(queryId, fieldFunc) {
+export function toggleField(queryId, fieldFunc, isKapacitorRule) {
   return {
     type: 'TOGGLE_FIELD',
+    meta: {
+      isKapacitorRule,
+    },
     payload: {
       queryId,
       fieldFunc,

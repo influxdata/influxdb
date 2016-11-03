@@ -1,5 +1,5 @@
 import reducer from 'chronograf/reducers/queryConfigs';
-import defaultQueryConfig from 'chronograf/utils/defaultQueryConfig';
+import defaultQueryConfig from 'src/utils/defaultQueryConfig';
 import {
   chooseNamespace,
   chooseMeasurement,
@@ -66,7 +66,7 @@ describe('Chronograf.Reducers.queryConfig', () => {
         retentionPolicy: 'daily',
       }));
       const three = reducer(two, chooseMeasurement(queryId, 'disk'));
-      state = reducer(three, toggleField(queryId, 'a great field'));
+      state = reducer(three, toggleField(queryId, {field: 'a great field', funcs: []}));
     });
 
     describe('choosing a new namespace', () => {
@@ -93,6 +93,18 @@ describe('Chronograf.Reducers.queryConfig', () => {
         expect(state[queryId].database).to.equal(newState[queryId].database);
         expect(state[queryId].retentionPolicy).to.equal(newState[queryId].retentionPolicy);
         expect(newState[queryId].fields.length).to.equal(0);
+      });
+    });
+
+    describe('when the query is part of a kapacitor rule', () => {
+      it('only allows one field', () => {
+        expect(state[queryId].fields.length).to.equal(1);
+
+        const isKapacitorRule = true;
+        const newState = reducer(state, toggleField(queryId, {field: 'a different field', funcs: []}, isKapacitorRule));
+
+        expect(newState[queryId].fields.length).to.equal(1);
+        expect(newState[queryId].fields[0].field).to.equal('a different field');
       });
     });
   });

@@ -16,6 +16,13 @@ const FieldList = React.createClass({
     onToggleField: func.isRequired,
     onGroupByTime: func.isRequired,
     applyFuncsToField: func.isRequired,
+    isKapacitorRule: PropTypes.bool,
+  },
+
+  getDefaultProps() {
+    return {
+      isKapacitorRule: false,
+    };
   },
 
   contextTypes: {
@@ -94,6 +101,7 @@ const FieldList = React.createClass({
             onApplyFuncsToField={this.props.applyFuncsToField}
             isSelected={!!selectedField}
             fieldFunc={selectedField || fieldFunc}
+            isKapacitorRule={this.props.isKapacitorRule}
           />
         );
       })}

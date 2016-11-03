@@ -1,6 +1,16 @@
-import defaultQueryConfig from '../utils/defaultQueryConfig';
+import defaultQueryConfig from 'src/utils/defaultQueryConfig';
+import {
+  applyFuncsToField,
+  chooseMeasurement,
+  chooseNamespace,
+  chooseTag,
+  groupByTag,
+  groupByTime,
+  toggleField,
+  toggleTagAcceptance,
+  updateRawQuery,
+} from 'src/utils/queryTransitions';
 import update from 'react-addons-update';
-import u from 'updeep';
 
 export default function queryConfigs(state = {}, action) {
   switch (action.type) {
@@ -10,30 +20,33 @@ export default function queryConfigs(state = {}, action) {
 
     case 'CHOOSE_NAMESPACE': {
       const {queryId, database, retentionPolicy} = action.payload;
-      const nextQueryConfig = update(defaultQueryConfig(queryId), {$merge: {
-        database,
-        retentionPolicy,
-      }});
-      const nextState = update(state, {
-        [queryId]: {$set: nextQueryConfig},
+      const nextQueryConfig = chooseNamespace(defaultQueryConfig(queryId), {database, retentionPolicy});
+
+      return Object.assign({}, state, {
+        [queryId]: nextQueryConfig,
       });
-      return nextState;
     }
 
     case 'CHOOSE_MEASUREMENT': {
       const {queryId, measurement} = action.payload;
-      const nextQueryConfig = update(defaultQueryConfig(queryId), {$merge: {
-        database: state[queryId].database,
-        retentionPolicy: state[queryId].retentionPolicy,
-        measurement,
-      }});
-      const nextState = update(state, {
-        [queryId]: {$set: nextQueryConfig},
+      const nextQueryConfig = chooseMeasurement(state[queryId], measurement);
+
+      return Object.assign({}, state, {
+        [queryId]: nextQueryConfig,
       });
+    }
+
+    case 'LOAD_KAPACITOR_QUERY': {
+      const {queryID, query} = action.payload;
+      const nextState = Object.assign({}, state, {
+        [queryID]: query,
+      });
+
       return nextState;
     }
 
     case 'CREATE_PANEL':
+    case 'ADD_KAPACITOR_QUERY':
     case 'ADD_QUERY': {
       const {queryId} = action.payload;
       const nextState = Object.assign({}, state, {
@@ -54,26 +67,20 @@ export default function queryConfigs(state = {}, action) {
 
     case 'GROUP_BY_TIME': {
       const {queryId, time} = action.payload;
-      const nextState = update(state, {
-        [queryId]: {
-          groupBy: {
-            time: {$set: time},
-          },
-        },
-      });
+      const nextQueryConfig = groupByTime(state[queryId], time);
 
-      return nextState;
+      return Object.assign({}, state, {
+        [queryId]: nextQueryConfig,
+      });
     }
 
     case 'TOGGLE_TAG_ACCEPTANCE': {
       const {queryId} = action.payload;
-      const nextState = update(state, {
-        [queryId]: {
-          areTagsAccepted: {$set: !state[queryId].areTagsAccepted},
-        },
-      });
+      const nextQueryConfig = toggleTagAcceptance(state[queryId]);
 
-      return nextState;
+      return Object.assign({}, state, {
+        [queryId]: nextQueryConfig,
+      });
     }
 
     case 'DELETE_QUERY': {
@@ -87,142 +94,47 @@ export default function queryConfigs(state = {}, action) {
     }
 
     case 'TOGGLE_FIELD': {
+      const {isKapacitorRule} = action.meta;
       const {queryId, fieldFunc} = action.payload;
-      const {field/* funcs */} = fieldFunc;
+      const nextQueryConfig = toggleField(state[queryId], fieldFunc, isKapacitorRule);
 
-      const nextState = update(state, {
-        [queryId]: {$apply: (queryConfig) => {
-          const isSelected = queryConfig.fields.find((f) => f.field === field);
-          if (isSelected) {
-            const nextFields = queryConfig.fields.filter((f) => f.field !== field);
-            if (!nextFields.length) {
-              const nextGroupBy = update(state[queryId].groupBy, {time: {$set: null}});
-              return update(queryConfig, {fields: {$set: nextFields}, groupBy: {$set: nextGroupBy}});
-            }
-
-            return update(queryConfig, {
-              fields: {$set: nextFields},
-            });
-          }
-
-          return update(queryConfig, {fields: {$push: [fieldFunc]}});
-        }},
+      return Object.assign({}, state, {
+        [queryId]: nextQueryConfig,
       });
-
-      return nextState;
     }
 
     case 'APPLY_FUNCS_TO_FIELD': {
       const {queryId, fieldFunc} = action.payload;
-      const {field, funcs} = fieldFunc;
-      const shouldRemoveFuncs = funcs.length === 0;
+      const nextQueryConfig = applyFuncsToField(state[queryId], fieldFunc);
 
-      const nextState = update(state, {
-        [queryId]: {$apply: (queryConfig) => {
-          const nextFields = queryConfig.fields.map((f) => {
-            // If one field has no funcs, all fields must have no funcs
-            if (shouldRemoveFuncs) {
-              return update(f, {funcs: {$set: []}});
-            }
-
-            if (f.field === field || !f.funcs || !f.funcs.length) {
-              return update(f, {funcs: {$set: funcs}});
-            }
-
-            return f;
-          });
-
-          // If there are no functions, then there should be no GROUP BY time
-          if (shouldRemoveFuncs) {
-            const nextGroupBy = update(state[queryId].groupBy, {time: {$set: null}});
-            return update(queryConfig, {fields: {$set: nextFields}, groupBy: {$set: nextGroupBy}});
-          }
-
-          return update(queryConfig, {fields: {$set: nextFields}});
-        }},
+      return Object.assign({}, state, {
+        [queryId]: nextQueryConfig,
       });
-
-      return nextState;
     }
 
     case 'CHOOSE_TAG': {
       const {queryId, tag} = action.payload;
+      const nextQueryConfig = chooseTag(state[queryId], tag);
 
-      const tagValues = state[queryId].tags[tag.key];
-      const shouldRemoveTag = tagValues && tagValues.length === 1 && tagValues[0] === tag.value;
-      if (shouldRemoveTag) {
-        const nextState = update(state, {
-          [queryId]: {
-            tags: {$apply: (tags) => {
-              const tagsCopy = Object.assign({}, tags);
-              delete tagsCopy[tag.key];
-              return tagsCopy;
-            }},
-          },
-        });
-
-        return nextState;
-      }
-
-      const nextState = update(state, {
-        [queryId]: {
-          tags: {
-            [tag.key]: {$apply: (vals) => {
-              if (!vals) {
-                return [tag.value];
-              }
-
-              // If the tag value is already selected, deselect it by removing it from the list
-              const valsCopy = vals.slice();
-              const i = valsCopy.indexOf(tag.value);
-              if (i > -1) {
-                valsCopy.splice(i, 1);
-                return valsCopy;
-              }
-
-              return update(valsCopy, {$push: [tag.value]});
-            }},
-          },
-        },
+      return Object.assign({}, state, {
+        [queryId]: nextQueryConfig,
       });
-
-      return nextState;
     }
 
     case 'GROUP_BY_TAG': {
       const {queryId, tagKey} = action.payload;
-
-      const nextState = update(state, {
-        [queryId]: {
-          groupBy: {
-            tags: {$apply: (groupByTags) => {
-              // If the tag value is already selected, deselect it by removing it from the list
-              const groupByTagsCopy = groupByTags.slice();
-              const i = groupByTagsCopy.indexOf(tagKey);
-              if (i > -1) {
-                groupByTagsCopy.splice(i, 1);
-                return groupByTagsCopy;
-              }
-
-              return update(groupByTagsCopy, {$push: [tagKey]});
-            }},
-          },
-        },
+      const nextQueryConfig = groupByTag(state[queryId], tagKey);
+      return Object.assign({}, state, {
+        [queryId]: nextQueryConfig,
       });
-
-      return nextState;
     }
 
     case 'UPDATE_RAW_QUERY': {
       const {queryID, text} = action.payload;
-
-      const updateQuery = {
-        [queryID]: {
-          rawText: u.constant(text),
-        },
-      };
-
-      return u(updateQuery, state);
+      const nextQueryConfig = updateRawQuery(state[queryID], text);
+      return Object.assign({}, state, {
+        [queryID]: nextQueryConfig,
+      });
     }
   }
   return state;

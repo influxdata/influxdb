@@ -8,12 +8,16 @@ const Dropdown = React.createClass({
     })).isRequired,
     onChoose: PropTypes.func.isRequired,
     selected: PropTypes.string.isRequired,
-    children: PropTypes.node,
     className: PropTypes.string,
   },
   getInitialState() {
     return {
       isOpen: false,
+    };
+  },
+  getDefaultProps() {
+    return {
+      actions: [],
     };
   },
   handleClickOutside() {
@@ -23,7 +27,10 @@ const Dropdown = React.createClass({
     this.toggleMenu();
     this.props.onChoose(item);
   },
-  toggleMenu() {
+  toggleMenu(e) {
+    if (e) {
+      e.stopPropagation();
+    }
     this.setState({isOpen: !this.state.isOpen});
   },
   handleAction(e, action, item) {
@@ -32,7 +39,7 @@ const Dropdown = React.createClass({
   },
   render() {
     const self = this;
-    const {items, selected, className} = self.props;
+    const {items, selected, className, actions} = self.props;
 
     return (
       <div onClick={this.toggleMenu} className={`dropdown ${className}`}>
@@ -49,7 +56,7 @@ const Dropdown = React.createClass({
                     {item.text}
                   </a>
                   <div className="dropdown-item__actions">
-                    {self.props.actions.map((action) => {
+                    {actions.map((action) => {
                       return (
                         <button key={action.text} data-target={action.target} data-toggle="modal" className="dropdown-item__action" onClick={(e) => self.handleAction(e, action, item)}>
                           <span title={action.text} className={`icon ${action.icon}`}></span>
@@ -60,7 +67,6 @@ const Dropdown = React.createClass({
                 </li>
               );
             })}
-            {this.props.children}
           </ul>
           : null}
       </div>

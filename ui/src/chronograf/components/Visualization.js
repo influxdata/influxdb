@@ -75,7 +75,6 @@ const Visualization = React.createClass({
         <div className="graph-panel__graph-container">
           {isGraphInView ? (
             <RefreshingLineGraph
-              clusterID={this.context.clusterID}
               queries={queries}
               autoRefresh={autoRefreshMs}
               />

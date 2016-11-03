@@ -61,7 +61,7 @@ const UsersTable = React.createClass({
                     {this.renderDeleteButton(user)}
                   </td>
                 </tr>
-                );
+              );
             })
           }
         </tbody>
