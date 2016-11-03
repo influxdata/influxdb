@@ -46,42 +46,51 @@ export const ManageSources = React.createClass({
         <div className="enterprise-header">
           <div className="enterprise-header__container">
             <div className="enterprise-header__left">
-              <h1>
-                Manage Sources
-              </h1>
+              <h1>InfluxDB Sources</h1>
             </div>
           </div>
         </div>
-        <div className="container">
+        <div className="container-fluid">
           <div className="row">
-            <div className="col-md-8 col-md-offset-2">
-              <table className="table v-center">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Host</th>
-                    <th>Kapacitor</th>
-                    <th></th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {
-                    sources.map((source) => {
-                      return (
-                        <tr key={source.id}>
-                          <td>{source.name}{source.default ? <span className="label label-primary">Default</span> : null}</td>
-                          <td>{source.url}</td>
-                          <td>{_.get(source, ['kapacitor', 'name'], '')}</td>
-                          <td><Link className="btn btn-default btn-xs" to={`${pathname}/${source.id}/edit`}>Edit</Link></td>
-                          <td><Link className="btn btn-success btn-xs" to={`/sources/${source.id}/hosts`}>Connect</Link></td>
+            <div className="col-md-12">
+
+              <div className="panel panel-minimal">
+                <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+                  <h2 className="panel-title">Manage Sources</h2>
+                  <Link to={`/sources/1/manage-sources/new`} className="btn btn-sm btn-primary">Add New Source</Link>
+                </div>
+                <div className="panel-body">
+                  <div className="table-responsive margin-bottom-zero">
+                    <table className="table v-center margin-bottom-zero">
+                      <thead>
+                        <tr>
+                          <th>Name</th>
+                          <th>Host</th>
+                          <th>Kapacitor</th>
+                          <th className="text-right"></th>
                         </tr>
-                      );
-                    })
-                  }
-                </tbody>
-              </table>
-              <Link to={`/sources/1/manage-sources/new`} className="btn btn-primary">Add</Link>
+                      </thead>
+                      <tbody>
+                        {
+                          sources.map((source) => {
+                            return (
+                              <tr key={source.id}>
+                                <td>{source.name}{source.default ? <span className="label label-primary">Default</span> : null}</td>
+                                <td>{source.url}</td>
+                                <td>{_.get(source, ['kapacitor', 'name'], '')}</td>
+                                <td className="text-right">
+                                  <Link className="btn btn-default btn-xs" to={`${pathname}/${source.id}/edit`}>Edit</Link>
+                                  <Link className="btn btn-success btn-xs" to={`/sources/${source.id}/hosts`}>Connect</Link>
+                                </td>
+                              </tr>
+                              );
+                          })
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

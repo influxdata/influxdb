@@ -609,6 +609,82 @@ table.table.error-table {
   border-radius: 4px;
   padding: 0 18px;
   line-height: 36px;
+  position: relative;
+
+  input[type="checkbox"] {
+    position: relative;
+    left: -9999px;
+    visibility: hidden;
+    width: 0;
+    height: 0;
+    margin: 0;
+
+    // Faux Checkbox
+    & + label {
+      transition: color 0.25s ease;
+      margin-left: 24px;
+      user-select: none;
+      -ms-user-select: none;
+      -moz-user-selct: none;
+      -webkit-user-select: none;
+
+      &:before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 18px;
+        transform: translateY(-50%);
+        width: 16px;
+        height: 16px;
+        background-color: $g18-cloud;
+        border: 2px solid $g17-whisper;
+        border-radius: 3px;
+        z-index: 2;
+        transition:
+          background-color 0.25s ease;
+      }
+      &:after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: (18px + (16px / 2));
+        transform: translate(-50%,-50%) scale(2,2);
+        opacity: 0;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background-color: $c-pool;
+        z-index: 3;
+        transition:
+          opacity 0.25s ease,
+          transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      }
+      &:hover {
+        cursor: pointer;
+
+        &:before {
+          background-color: $g20-white;
+        }
+      }
+    }
+    // Faux Checkbox (Checked)
+    &:checked + label {
+      color: $c-pool;
+
+      &:after {
+        opacity: 1;
+        transform: translate(-50%,-50%) scale(1,1);
+      }
+    }
+  }
+}
+/*
+    Button alignment in tables
+    ----------------------------------------------
+*/
+
+table .text-right .btn {
+  margin: 0 0 0 6px;
 }
 
 
