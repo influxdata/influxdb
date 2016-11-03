@@ -38,21 +38,15 @@ func MergeMeasurementIterators(itrs ...MeasurementIterator) MeasurementIterator 
 		return nil
 	}
 
-	itr := &measurementMergeIterator{
+	return &measurementMergeIterator{
+		e:    make(measurementMergeElem, 0, len(itrs)),
 		buf:  make([]MeasurementElem, len(itrs)),
 		itrs: itrs,
 	}
-
-	// Initialize buffers.
-	for i := range itr.itrs {
-		itr.buf[i] = itr.itrs[i].Next()
-	}
-
-	return itr
 }
 
 type measurementMergeIterator struct {
-	e    MeasurementElem
+	e    measurementMergeElem
 	buf  []MeasurementElem
 	itrs []MeasurementIterator
 }
@@ -64,36 +58,72 @@ type measurementMergeIterator struct {
 func (itr *measurementMergeIterator) Next() MeasurementElem {
 	// Find next lowest name amongst the buffers.
 	var name []byte
-	for i := range itr.buf {
-		if itr.buf[i] == nil {
-			continue
-		} else if name == nil || bytes.Compare(itr.buf[i].Name(), name) == -1 {
+	for i, buf := range itr.buf {
+		// Fill buffer if empty.
+		if buf == nil {
+			if buf = itr.itrs[i].Next(); buf != nil {
+				itr.buf[i] = buf
+			} else {
+				continue
+			}
+		}
+
+		// Find next lowest name.
+		if name == nil || bytes.Compare(itr.buf[i].Name(), name) == -1 {
 			name = itr.buf[i].Name()
 		}
 	}
 
 	// Return nil if no elements remaining.
-	if len(name) == 0 {
+	if name == nil {
 		return nil
 	}
 
-	// Refill buffer.
-	var e MeasurementElem
+	// Merge all elements together and clear buffers.
+	itr.e = itr.e[:0]
 	for i, buf := range itr.buf {
 		if buf == nil || !bytes.Equal(buf.Name(), name) {
 			continue
 		}
+		itr.e = append(itr.e, buf)
+		itr.buf[i] = nil
+	}
+	return itr.e
+}
 
-		// Copy first matching buffer to the return buffer.
-		if e == nil {
-			e = buf
-		}
+// measurementMergeElem represents a merged measurement element.
+type measurementMergeElem []MeasurementElem
 
-		// Fill buffer with next element.
-		itr.buf[i] = itr.itrs[i].Next()
+// Name returns the name of the first element.
+func (p measurementMergeElem) Name() []byte {
+	if len(p) == 0 {
+		return nil
+	}
+	return p[0].Name()
+}
+
+// Deleted returns the deleted flag of the first element.
+func (p measurementMergeElem) Deleted() bool {
+	if len(p) == 0 {
+		return false
+	}
+	return p[0].Deleted()
+}
+
+// TagKeyIterator returns a merge iterator for all elements until a tombstone occurs.
+func (p measurementMergeElem) TagKeyIterator() TagKeyIterator {
+	if len(p) == 0 {
+		return nil
 	}
 
-	return e
+	a := make([]TagKeyIterator, 0, len(p))
+	for _, e := range p {
+		a = append(a, e.TagKeyIterator())
+		if e.Deleted() {
+			break
+		}
+	}
+	return MergeTagKeyIterators(a...)
 }
 
 // TagKeyElem represents a generic tag key element.
@@ -116,21 +146,15 @@ func MergeTagKeyIterators(itrs ...TagKeyIterator) TagKeyIterator {
 		return nil
 	}
 
-	itr := &tagKeyMergeIterator{
+	return &tagKeyMergeIterator{
+		e:    make(tagKeyMergeElem, 0, len(itrs)),
 		buf:  make([]TagKeyElem, len(itrs)),
 		itrs: itrs,
 	}
-
-	// Initialize buffers.
-	for i := range itr.itrs {
-		itr.buf[i] = itr.itrs[i].Next()
-	}
-
-	return itr
 }
 
 type tagKeyMergeIterator struct {
-	e    TagKeyElem
+	e    tagKeyMergeElem
 	buf  []TagKeyElem
 	itrs []TagKeyIterator
 }
@@ -142,36 +166,73 @@ type tagKeyMergeIterator struct {
 func (itr *tagKeyMergeIterator) Next() TagKeyElem {
 	// Find next lowest key amongst the buffers.
 	var key []byte
-	for i := range itr.buf {
-		if itr.buf[i] == nil {
-			continue
-		} else if key == nil || bytes.Compare(itr.buf[i].Key(), key) == -1 {
-			key = itr.buf[i].Key()
+	for i, buf := range itr.buf {
+		// Fill buffer.
+		if buf == nil {
+			if buf = itr.itrs[i].Next(); buf != nil {
+				itr.buf[i] = buf
+			} else {
+				continue
+			}
+		}
+
+		// Find next lowest key.
+		if key == nil || bytes.Compare(buf.Key(), key) == -1 {
+			key = buf.Key()
 		}
 	}
 
 	// Return nil if no elements remaining.
-	if len(key) == 0 {
+	if key == nil {
 		return nil
 	}
 
-	// Refill buffer.
-	var e TagKeyElem
-	for i := range itr.buf {
-		if itr.buf[i] == nil || !bytes.Equal(itr.buf[i].Key(), key) {
+	// Merge elements together & clear buffer.
+	itr.e = itr.e[:0]
+	for i, buf := range itr.buf {
+		if buf == nil || !bytes.Equal(buf.Key(), key) {
 			continue
 		}
-
-		// Copy first matching buffer to the return buffer.
-		if e == nil {
-			e = itr.buf[i]
-		}
-
-		// Fill buffer with next element.
-		itr.buf[i] = itr.itrs[i].Next()
+		itr.e = append(itr.e, buf)
+		itr.buf[i] = nil
 	}
 
-	return e
+	return itr.e
+}
+
+// tagKeyMergeElem represents a merged tag key element.
+type tagKeyMergeElem []TagKeyElem
+
+// Key returns the key of the first element.
+func (p tagKeyMergeElem) Key() []byte {
+	if len(p) == 0 {
+		return nil
+	}
+	return p[0].Key()
+}
+
+// Deleted returns the deleted flag of the first element.
+func (p tagKeyMergeElem) Deleted() bool {
+	if len(p) == 0 {
+		return false
+	}
+	return p[0].Deleted()
+}
+
+// TagValueIterator returns a merge iterator for all elements until a tombstone occurs.
+func (p tagKeyMergeElem) TagValueIterator() TagValueIterator {
+	if len(p) == 0 {
+		return nil
+	}
+
+	a := make([]TagValueIterator, 0, len(p))
+	for _, e := range p {
+		a = append(a, e.TagValueIterator())
+		if e.Deleted() {
+			break
+		}
+	}
+	return MergeTagValueIterators(a...)
 }
 
 // TagValueElem represents a generic tag value element.
@@ -194,21 +255,15 @@ func MergeTagValueIterators(itrs ...TagValueIterator) TagValueIterator {
 		return nil
 	}
 
-	itr := &tagValueMergeIterator{
+	return &tagValueMergeIterator{
+		e:    make(tagValueMergeElem, 0, len(itrs)),
 		buf:  make([]TagValueElem, len(itrs)),
 		itrs: itrs,
 	}
-
-	// Initialize buffers.
-	for i := range itr.itrs {
-		itr.buf[i] = itr.itrs[i].Next()
-	}
-
-	return itr
 }
 
 type tagValueMergeIterator struct {
-	e    TagValueElem
+	e    tagValueMergeElem
 	buf  []TagValueElem
 	itrs []TagValueIterator
 }
@@ -220,35 +275,72 @@ type tagValueMergeIterator struct {
 func (itr *tagValueMergeIterator) Next() TagValueElem {
 	// Find next lowest value amongst the buffers.
 	var value []byte
-	for i := range itr.buf {
-		if itr.buf[i] == nil {
-			continue
-		} else if value == nil || bytes.Compare(itr.buf[i].Value(), value) == -1 {
-			value = itr.buf[i].Value()
+	for i, buf := range itr.buf {
+		// Fill buffer.
+		if buf == nil {
+			if buf = itr.itrs[i].Next(); buf != nil {
+				itr.buf[i] = buf
+			} else {
+				continue
+			}
+		}
+
+		// Find next lowest value.
+		if value == nil || bytes.Compare(buf.Value(), value) == -1 {
+			value = buf.Value()
 		}
 	}
 
 	// Return nil if no elements remaining.
-	if len(value) == 0 {
+	if value == nil {
 		return nil
 	}
 
-	// Refill buffer.
-	var e TagValueElem
-	for i := range itr.buf {
-		if itr.buf[i] == nil || !bytes.Equal(itr.buf[i].Value(), value) {
+	// Merge elements and clear buffers.
+	itr.e = itr.e[:0]
+	for i, buf := range itr.buf {
+		if buf == nil || !bytes.Equal(buf.Value(), value) {
 			continue
 		}
-
-		// Copy first matching buffer to the return buffer.
-		if e == nil {
-			e = itr.buf[i]
-		}
-
-		// Fill buffer with next element.
-		itr.buf[i] = itr.itrs[i].Next()
+		itr.e = append(itr.e, buf)
+		itr.buf[i] = nil
 	}
-	return e
+	return itr.e
+}
+
+// tagValueMergeElem represents a merged tag value element.
+type tagValueMergeElem []TagValueElem
+
+// Name returns the value of the first element.
+func (p tagValueMergeElem) Value() []byte {
+	if len(p) == 0 {
+		return nil
+	}
+	return p[0].Value()
+}
+
+// Deleted returns the deleted flag of the first element.
+func (p tagValueMergeElem) Deleted() bool {
+	if len(p) == 0 {
+		return false
+	}
+	return p[0].Deleted()
+}
+
+// SeriesIterator returns a merge iterator for all elements until a tombstone occurs.
+func (p tagValueMergeElem) SeriesIterator() SeriesIterator {
+	if len(p) == 0 {
+		return nil
+	}
+
+	a := make([]SeriesIterator, 0, len(p))
+	for _, e := range p {
+		a = append(a, e.SeriesIterator())
+		if e.Deleted() {
+			break
+		}
+	}
+	return MergeSeriesIterators(a...)
 }
 
 // SeriesElem represents a generic series element.
@@ -297,43 +389,47 @@ func (itr *seriesMergeIterator) Next() SeriesElem {
 	// Find next lowest name/tags amongst the buffers.
 	var name []byte
 	var tags models.Tags
-	for i := range itr.buf {
-		// Skip empty buffers.
-		if itr.buf[i] == nil {
-			continue
+	for i, buf := range itr.buf {
+		// Fill buffer.
+		if buf == nil {
+			if buf = itr.itrs[i].Next(); buf != nil {
+				itr.buf[i] = buf
+			} else {
+				continue
+			}
 		}
 
 		// If the name is not set the pick the first non-empty name.
 		if name == nil {
-			name, tags = itr.buf[i].Name(), itr.buf[i].Tags()
+			name, tags = buf.Name(), buf.Tags()
 			continue
 		}
 
 		// Set name/tags if they are lower than what has been seen.
-		if cmp := bytes.Compare(itr.buf[i].Name(), name); cmp == -1 || (cmp == 0 && models.CompareTags(itr.buf[i].Tags(), tags) == -1) {
-			name, tags = itr.buf[i].Name(), itr.buf[i].Tags()
+		if cmp := bytes.Compare(buf.Name(), name); cmp == -1 || (cmp == 0 && models.CompareTags(buf.Tags(), tags) == -1) {
+			name, tags = buf.Name(), buf.Tags()
 		}
 	}
 
 	// Return nil if no elements remaining.
-	if len(name) == 0 {
+	if name == nil {
 		return nil
 	}
 
 	// Refill buffer.
 	var e SeriesElem
-	for i := range itr.buf {
-		if itr.buf[i] == nil || !bytes.Equal(itr.buf[i].Name(), name) || models.CompareTags(itr.buf[i].Tags(), tags) != 0 {
+	for i, buf := range itr.buf {
+		if buf == nil || !bytes.Equal(buf.Name(), name) || models.CompareTags(buf.Tags(), tags) != 0 {
 			continue
 		}
 
 		// Copy first matching buffer to the return buffer.
 		if e == nil {
-			e = itr.buf[i]
+			e = buf
 		}
 
-		// Fill buffer with next element.
-		itr.buf[i] = itr.itrs[i].Next()
+		// Clear buffer.
+		itr.buf[i] = nil
 	}
 	return e
 }
@@ -448,6 +544,7 @@ func writeUvarintTo(w io.Writer, v uint64, n *int64) error {
 }
 
 func Hexdump(data []byte) {
+	var buf bytes.Buffer
 	addr := 0
 	for len(data) > 0 {
 		n := len(data)
@@ -455,12 +552,14 @@ func Hexdump(data []byte) {
 			n = 16
 		}
 
-		fmt.Fprintf(os.Stderr, "%07x % x\n", addr, data[:n])
+		fmt.Fprintf(&buf, "%07x % x\n", addr, data[:n])
 
 		data = data[n:]
 		addr += n
 	}
-	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(&buf, "")
+
+	buf.WriteTo(os.Stderr)
 }
 
 // hashKey hashes a key using murmur3.
@@ -497,4 +596,11 @@ func copyBytes(b []byte) []byte {
 	buf := make([]byte, len(b))
 	copy(buf, b)
 	return buf
+}
+
+// assert will panic with a given formatted message if the given condition is false.
+func assert(condition bool, msg string, v ...interface{}) {
+	if !condition {
+		panic(fmt.Sprintf("assert failed: "+msg, v...))
+	}
 }

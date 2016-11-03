@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"sort"
@@ -116,39 +117,47 @@ func (blk *SeriesBlock) decodeElemAt(offset uint32, e *seriesBlockElem) {
 
 	// Read length.
 	n, sz := binary.Uvarint(data)
-	e.size += int64(n)
+	data = data[sz:]
+	e.size += int64(sz) + int64(n)
 
 	// Decode the name and tags into the element.
-	blk.DecodeSeries(data[sz:], &e.name, &e.tags)
+	blk.DecodeSeries(data[:n], &e.name, &e.tags)
 }
 
 // DecodeSeries decodes a dictionary encoded series into a name and tagset.
-func (blk *SeriesBlock) DecodeSeries(v []byte, name *[]byte, tags *models.Tags) {
+func (blk *SeriesBlock) DecodeSeries(buf []byte, name *[]byte, tags *models.Tags) {
 	// Read name.
-	offset, n := binary.Uvarint(v)
-	*name, v = blk.DecodeTerm(uint32(offset)), v[n:]
+	offset, n := binary.Uvarint(buf)
+	*name, buf = blk.DecodeTerm(uint32(offset)), buf[n:]
 
 	// Read tag count.
-	tagN, n := binary.Uvarint(v)
-	v = v[n:]
+	tagN, n := binary.Uvarint(buf)
+	buf = buf[n:]
 
 	// Clear tags, if necessary.
 	if len(*tags) > 0 {
-		*tags = (*tags)[0:]
+		*tags = (*tags)[:0]
 	}
 
 	// Loop over tag key/values.
 	for i := 0; i < int(tagN); i++ {
 		// Read key.
-		offset, n := binary.Uvarint(v)
-		key, v := blk.DecodeTerm(uint32(offset)), v[n:]
+		offset, n := binary.Uvarint(buf)
+		key := blk.DecodeTerm(uint32(offset))
+		buf = buf[n:]
 
 		// Read value.
-		offset, n = binary.Uvarint(v)
-		value, v := blk.DecodeTerm(uint32(offset)), v[n:]
+		offset, n = binary.Uvarint(buf)
+		value := blk.DecodeTerm(uint32(offset))
+		buf = buf[n:]
 
 		// Add to tagset.
 		tags.Set(key, value)
+	}
+
+	// Ensure that the whole slice was read.
+	if len(buf) != 0 {
+		panic(fmt.Sprintf("remaining unmarshaled data in series: % x", buf))
 	}
 }
 
@@ -197,8 +206,8 @@ func (blk *SeriesBlock) SeriesCount() uint32 {
 	return binary.BigEndian.Uint32(blk.seriesData[:SeriesCountSize])
 }
 
-// Iterator returns an iterator over all the series.
-func (blk *SeriesBlock) Iterator() SeriesIterator {
+// SeriesIterator returns an iterator over all the series.
+func (blk *SeriesBlock) SeriesIterator() SeriesIterator {
 	return &seriesBlockIterator{
 		n:      blk.SeriesCount(),
 		offset: uint32(len(blk.termData) + SeriesCountSize),
@@ -257,6 +266,11 @@ type seriesDecodeIterator struct {
 	itr  seriesIDIterator
 	sblk *SeriesBlock
 	e    seriesBlockElem // buffer
+}
+
+// newSeriesDecodeIterator returns a new instance of seriesDecodeIterator.
+func newSeriesDecodeIterator(sblk *SeriesBlock) seriesDecodeIterator {
+	return seriesDecodeIterator{sblk: sblk}
 }
 
 // Next returns the next series element.
@@ -330,7 +344,11 @@ func (sw *SeriesBlockWriter) append(name []byte, tags models.Tags, deleted bool)
 	}
 
 	// Append series to list.
-	sw.series = append(sw.series, serie{name: name, tags: tags, deleted: deleted})
+	sw.series = append(sw.series, serie{
+		name:    copyBytes(name),
+		tags:    models.CopyTags(tags),
+		deleted: deleted,
+	})
 
 	return nil
 }

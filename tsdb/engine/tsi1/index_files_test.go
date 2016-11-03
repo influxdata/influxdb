@@ -44,5 +44,10 @@ func TestIndexFiles_WriteTo(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// TODO: Verify data in compacted file.
+	// Verify data in compacted file.
+	if e, err := f.TagValueElem([]byte("cpu"), []byte("region"), []byte("west")); err != nil {
+		t.Fatal(err)
+	} else if e.SeriesN() != 1 {
+		t.Fatalf("unexpected series count: %d", e.SeriesN())
+	}
 }

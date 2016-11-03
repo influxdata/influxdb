@@ -195,6 +195,7 @@ func (itr *tagBlockKeyIterator) next() *TagBlockKeyElem {
 	itr.e.unmarshal(itr.keyData, itr.blk.data)
 	itr.keyData = itr.keyData[itr.e.size:]
 
+	assert(len(itr.e.Key()) > 0, "invalid zero-length tag key")
 	return &itr.e
 }
 
@@ -215,6 +216,7 @@ func (itr *tagBlockValueIterator) next() *TagBlockValueElem {
 	itr.e.unmarshal(itr.data)
 	itr.data = itr.data[itr.e.size:]
 
+	assert(len(itr.e.Value()) > 0, "invalid zero-length tag value")
 	return &itr.e
 }
 
@@ -288,9 +290,8 @@ func (e *TagBlockKeyElem) unmarshal(buf, data []byte) {
 
 // tagKeyDecodeElem provides an adapter for tagBlockKeyElem to TagKeyElem.
 type tagKeyDecodeElem struct {
-	e    *TagBlockKeyElem
-	sblk *SeriesBlock
-	itr  tagValueDecodeIterator
+	e   *TagBlockKeyElem
+	itr tagValueDecodeIterator
 }
 
 // Key returns the key from the underlying element.
@@ -301,10 +302,7 @@ func (e *tagKeyDecodeElem) Deleted() bool { return e.e.Deleted() }
 
 // TagValueIterator returns a decode iterator for the underlying value iterator.
 func (e *tagKeyDecodeElem) TagValueIterator() TagValueIterator {
-	e.itr = tagValueDecodeIterator{
-		itr:  e.e.tagValueIterator(),
-		sblk: e.sblk,
-	}
+	e.itr.itr = e.e.tagValueIterator()
 	return &e.itr
 }
 
@@ -313,6 +311,16 @@ type tagKeyDecodeIterator struct {
 	itr  tagBlockKeyIterator
 	sblk *SeriesBlock
 	e    tagKeyDecodeElem
+}
+
+// newTagKeyDecodeIterator returns a new instance of tagKeyDecodeIterator.
+func newTagKeyDecodeIterator(sblk *SeriesBlock) tagKeyDecodeIterator {
+	return tagKeyDecodeIterator{
+		sblk: sblk,
+		e: tagKeyDecodeElem{
+			itr: newTagValueDecodeIterator(sblk),
+		},
+	}
 }
 
 // Next returns the next element in the iterator.
@@ -383,6 +391,7 @@ func (e *TagBlockValueElem) unmarshal(buf []byte) {
 
 	// Save reference to series data.
 	e.series.data = buf[:e.series.n*SeriesIDSize]
+	buf = buf[e.series.n*SeriesIDSize:]
 
 	// Save length of elem.
 	e.size = start - len(buf)
@@ -396,9 +405,8 @@ func (e *TagBlockValueElem) seriesIDIterator() seriesIDIterator {
 
 // tagValueDecodeElem provides an adapter for tagBlockValueElem to TagValueElem.
 type tagValueDecodeElem struct {
-	e    *TagBlockValueElem
-	sblk *SeriesBlock
-	itr  seriesDecodeIterator
+	e   *TagBlockValueElem
+	itr seriesDecodeIterator
 }
 
 // Value returns the value from the underlying element.
@@ -409,10 +417,7 @@ func (e *tagValueDecodeElem) Deleted() bool { return e.e.Deleted() }
 
 // SeriesIterator returns a decode iterator for the underlying value iterator.
 func (e *tagValueDecodeElem) SeriesIterator() SeriesIterator {
-	e.itr = seriesDecodeIterator{
-		itr:  e.e.seriesIDIterator(),
-		sblk: e.sblk,
-	}
+	e.itr.itr = e.e.seriesIDIterator()
 	return &e.itr
 }
 
@@ -421,6 +426,16 @@ type tagValueDecodeIterator struct {
 	itr  tagBlockValueIterator
 	sblk *SeriesBlock
 	e    tagValueDecodeElem
+}
+
+// newTagValueDecodeIterator returns a new instance of tagValueDecodeIterator.
+func newTagValueDecodeIterator(sblk *SeriesBlock) tagValueDecodeIterator {
+	return tagValueDecodeIterator{
+		sblk: sblk,
+		e: tagValueDecodeElem{
+			itr: newSeriesDecodeIterator(sblk),
+		},
+	}
 }
 
 // Next returns the next element in the iterator.
@@ -546,6 +561,8 @@ func NewTagBlockWriter() *TagBlockWriter {
 
 // DeleteTag marks a key as deleted.
 func (tw *TagBlockWriter) DeleteTag(key []byte) {
+	assert(len(key) > 0, "cannot delete zero-length tag")
+
 	ts := tw.sets[string(key)]
 	ts.deleted = true
 	tw.sets[string(key)] = ts
@@ -553,6 +570,10 @@ func (tw *TagBlockWriter) DeleteTag(key []byte) {
 
 // AddTagValue adds a key/value pair with an associated list of series.
 func (tw *TagBlockWriter) AddTagValue(key, value []byte, deleted bool, seriesIDs []uint32) {
+	assert(len(key) > 0, "cannot add zero-length key")
+	assert(len(value) > 0, "cannot add zero-length value")
+	assert(len(seriesIDs) > 0, "cannot add tag value without series ids")
+
 	ts, ok := tw.sets[string(key)]
 	if !ok || ts.values == nil {
 		ts.values = make(map[string]tagValue)
@@ -627,19 +648,18 @@ func (tw *TagBlockWriter) writeTagValueBlockTo(w io.Writer, ts *tagSet, n *int64
 		Capacity:   len(ts.values),
 		LoadFactor: 90,
 	})
-	for value, tv := range ts.values {
-		m.Put([]byte(value), tv)
+	for value := range ts.values {
+		tv := ts.values[value]
+		m.Put([]byte(value), &tv)
 	}
 
 	// Encode value list.
 	ts.data.offset = *n
-	offsets := make([]int64, m.Cap())
-	for i := 0; i < m.Cap(); i++ {
-		k, v := m.Elem(i)
-		tv, _ := v.(tagValue)
+	for _, k := range m.Keys() {
+		tv := m.Get(k).(*tagValue)
 
 		// Save current offset so we can use it in the hash index.
-		offsets[i] = *n
+		tv.offset = *n
 
 		// Write value block.
 		if err := tw.writeTagValueTo(w, k, tv, n); err != nil {
@@ -655,8 +675,15 @@ func (tw *TagBlockWriter) writeTagValueBlockTo(w io.Writer, ts *tagSet, n *int64
 	}
 
 	// Encode hash map offset entries.
-	for i := range offsets {
-		if err := writeUint64To(w, uint64(offsets[i]), n); err != nil {
+	for i := 0; i < m.Cap(); i++ {
+		var offset int64
+
+		_, v := m.Elem(i)
+		if v != nil {
+			offset = v.(*tagValue).offset
+		}
+
+		if err := writeUint64To(w, uint64(offset), n); err != nil {
 			return err
 		}
 	}
@@ -666,7 +693,9 @@ func (tw *TagBlockWriter) writeTagValueBlockTo(w io.Writer, ts *tagSet, n *int64
 }
 
 // writeTagValueTo encodes a single tag value entry into w.
-func (tw *TagBlockWriter) writeTagValueTo(w io.Writer, v []byte, tv tagValue, n *int64) error {
+func (tw *TagBlockWriter) writeTagValueTo(w io.Writer, v []byte, tv *tagValue, n *int64) error {
+	assert(len(v) > 0, "cannot write zero-length tag value")
+
 	// Write flag.
 	if err := writeUint8To(w, tv.flag(), n); err != nil {
 		return err
@@ -696,14 +725,10 @@ func (tw *TagBlockWriter) writeTagValueTo(w io.Writer, v []byte, tv tagValue, n 
 
 // writeTagKeyBlockTo encodes keys from a tag set into w.
 func (tw *TagBlockWriter) writeTagKeyBlockTo(w io.Writer, m *rhh.HashMap, t *TagBlockTrailer, n *int64) error {
-	// Encode key list.
+	// Encode key list in sorted order.
 	t.KeyData.Offset = *n
-	for i := 0; i < m.Cap(); i++ {
-		k, v := m.Elem(i)
-		if v == nil {
-			continue
-		}
-		ts := v.(*tagSet)
+	for _, k := range m.Keys() {
+		ts := m.Get(k).(*tagSet)
 
 		// Save current offset so we can use it in the hash index.
 		ts.offset = *n
@@ -741,6 +766,8 @@ func (tw *TagBlockWriter) writeTagKeyBlockTo(w io.Writer, m *rhh.HashMap, t *Tag
 
 // writeTagKeyTo encodes a single tag key entry into w.
 func (tw *TagBlockWriter) writeTagKeyTo(w io.Writer, k []byte, ts *tagSet, n *int64) error {
+	assert(len(k) > 0, "cannot write zero-length tag key")
+
 	if err := writeUint8To(w, ts.flag(), n); err != nil {
 		return err
 	}
@@ -791,6 +818,8 @@ func (ts tagSet) flag() byte {
 type tagValue struct {
 	seriesIDs []uint32
 	deleted   bool
+
+	offset int64
 }
 
 func (tv tagValue) flag() byte {

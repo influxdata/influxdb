@@ -129,16 +129,15 @@ func (i *IndexFile) MeasurementIterator() MeasurementIterator {
 // TagKeyIterator returns an iterator over all tag keys for a measurement.
 func (i *IndexFile) TagKeyIterator(name []byte) (TagKeyIterator, error) {
 	// Create an internal iterator.
-	itr, err := i.tagBlockKeyIterator(name)
+	bitr, err := i.tagBlockKeyIterator(name)
 	if err != nil {
 		return nil, err
 	}
 
 	// Decode into an externally accessible iterator.
-	return &tagKeyDecodeIterator{
-		itr:  itr,
-		sblk: &i.sblk,
-	}, nil
+	itr := newTagKeyDecodeIterator(&i.sblk)
+	itr.itr = bitr
+	return &itr, nil
 }
 
 // tagBlockKeyIterator returns an internal iterator over all tag keys for a measurement.
@@ -167,7 +166,7 @@ func (i *IndexFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
 
 // SeriesIterator returns an iterator over all series.
 func (i *IndexFile) SeriesIterator() SeriesIterator {
-	return i.sblk.Iterator()
+	return i.sblk.SeriesIterator()
 }
 
 // ReadIndexFileTrailer returns the index file trailer from data.

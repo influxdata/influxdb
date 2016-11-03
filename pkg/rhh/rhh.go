@@ -2,6 +2,7 @@ package rhh
 
 import (
 	"bytes"
+	"sort"
 
 	"github.com/cespare/xxhash"
 )
@@ -178,6 +179,20 @@ func (m *HashMap) dist(hash uint32, i int) int {
 	return int(uint32(i+m.capacity-int(hash&m.mask)) & m.mask)
 }
 
+// Keys returns a list of sorted keys.
+func (m *HashMap) Keys() [][]byte {
+	a := make([][]byte, 0, m.Len())
+	for i := 0; i < m.Cap(); i++ {
+		k, v := m.Elem(i)
+		if v == nil {
+			continue
+		}
+		a = append(a, k)
+	}
+	sort.Sort(byteSlices(a))
+	return a
+}
+
 type hashElem struct {
 	key   []byte
 	value interface{}
@@ -206,3 +221,9 @@ func pow2(v int) int {
 	}
 	panic("unreachable")
 }
+
+type byteSlices [][]byte
+
+func (a byteSlices) Len() int           { return len(a) }
+func (a byteSlices) Less(i, j int) bool { return bytes.Compare(a[i], a[j]) == -1 }
+func (a byteSlices) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
