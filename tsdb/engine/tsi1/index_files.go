@@ -1,6 +1,7 @@
 package tsi1
 
 import (
+	"fmt"
 	"io"
 	"sort"
 )
@@ -53,8 +54,12 @@ func (p IndexFiles) SeriesIterator() SeriesIterator {
 }
 
 // MeasurementSeriesIterator returns an iterator that merges series across all files.
-func (p *IndexFiles) MeasurementSeriesIterator(name []byte) SeriesIterator {
-	panic("TODO")
+func (p IndexFiles) MeasurementSeriesIterator(name []byte) SeriesIterator {
+	a := make([]SeriesIterator, len(p))
+	for i := range p {
+		a[i] = p[i].MeasurementSeriesIterator(name)
+	}
+	return MergeSeriesIterators(a...)
 }
 
 // TagValueSeriesIterator returns an iterator that merges series across all files.
@@ -168,7 +173,7 @@ func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactI
 			sort.Sort(uint32Slice(seriesIDs))
 
 			// Insert tag value into writer.
-			tw.AddTagValue(name, ve.Value(), ve.Deleted(), seriesIDs)
+			tw.AddTagValue(ke.Key(), ve.Value(), ve.Deleted(), seriesIDs)
 		}
 	}
 
@@ -202,7 +207,7 @@ func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo
 		for e := itr.Next(); e != nil; e = itr.Next() {
 			seriesID := info.sw.Offset(e.Name(), e.Tags())
 			if seriesID == 0 {
-				panic("expected series id")
+				panic(fmt.Sprintf("expected series id: %s %s", e.Name(), e.Tags().String()))
 			}
 			seriesIDs = append(seriesIDs, seriesID)
 		}

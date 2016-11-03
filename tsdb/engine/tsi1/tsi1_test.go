@@ -1,6 +1,7 @@
 package tsi1_test
 
 import (
+	"bytes"
 	"reflect"
 	"testing"
 
@@ -41,14 +42,14 @@ func TestMergeMeasurementIterators(t *testing.T) {
 		}},
 	)
 
-	if e := itr.Next(); !reflect.DeepEqual(e, &MeasurementElem{name: []byte("aaa")}) {
-		t.Fatalf("unexpected elem(0): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &MeasurementElem{name: []byte("bbb"), deleted: true}) {
-		t.Fatalf("unexpected elem(1): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &MeasurementElem{name: []byte("ccc")}) {
-		t.Fatalf("unexpected elem(2): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &MeasurementElem{name: []byte("ddd")}) {
-		t.Fatalf("unexpected elem(3): %#v", e)
+	if e := itr.Next(); !bytes.Equal(e.Name(), []byte("aaa")) || e.Deleted() {
+		t.Fatalf("unexpected elem(0): %s/%v", e.Name(), e.Deleted())
+	} else if e := itr.Next(); !bytes.Equal(e.Name(), []byte("bbb")) || !e.Deleted() {
+		t.Fatalf("unexpected elem(1): %s/%v", e.Name(), e.Deleted())
+	} else if e := itr.Next(); !bytes.Equal(e.Name(), []byte("ccc")) || e.Deleted() {
+		t.Fatalf("unexpected elem(2): %s/%v", e.Name(), e.Deleted())
+	} else if e := itr.Next(); !bytes.Equal(e.Name(), []byte("ddd")) || e.Deleted() {
+		t.Fatalf("unexpected elem(3): %s/%v", e.Name(), e.Deleted())
 	} else if e := itr.Next(); e != nil {
 		t.Fatalf("expected nil elem: %#v", e)
 	}
@@ -87,14 +88,14 @@ func TestMergeTagKeyIterators(t *testing.T) {
 		}},
 	)
 
-	if e := itr.Next(); !reflect.DeepEqual(e, &TagKeyElem{key: []byte("aaa")}) {
-		t.Fatalf("unexpected elem(0): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &TagKeyElem{key: []byte("bbb"), deleted: true}) {
-		t.Fatalf("unexpected elem(1): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &TagKeyElem{key: []byte("ccc")}) {
-		t.Fatalf("unexpected elem(2): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &TagKeyElem{key: []byte("ddd")}) {
-		t.Fatalf("unexpected elem(3): %#v", e)
+	if e := itr.Next(); !bytes.Equal(e.Key(), []byte("aaa")) || e.Deleted() {
+		t.Fatalf("unexpected elem(0): %s/%v", e.Key(), e.Deleted())
+	} else if e := itr.Next(); !bytes.Equal(e.Key(), []byte("bbb")) || !e.Deleted() {
+		t.Fatalf("unexpected elem(1): %s/%v", e.Key(), e.Deleted())
+	} else if e := itr.Next(); !bytes.Equal(e.Key(), []byte("ccc")) || e.Deleted() {
+		t.Fatalf("unexpected elem(2): %s/%v", e.Key(), e.Deleted())
+	} else if e := itr.Next(); !bytes.Equal(e.Key(), []byte("ddd")) || e.Deleted() {
+		t.Fatalf("unexpected elem(3): %s/%v", e.Key(), e.Deleted())
 	} else if e := itr.Next(); e != nil {
 		t.Fatalf("expected nil elem: %#v", e)
 	}
@@ -133,14 +134,14 @@ func TestMergeTagValueIterators(t *testing.T) {
 		}},
 	)
 
-	if e := itr.Next(); !reflect.DeepEqual(e, &TagValueElem{value: []byte("aaa")}) {
-		t.Fatalf("unexpected elem(0): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &TagValueElem{value: []byte("bbb"), deleted: true}) {
-		t.Fatalf("unexpected elem(1): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &TagValueElem{value: []byte("ccc")}) {
-		t.Fatalf("unexpected elem(2): %#v", e)
-	} else if e := itr.Next(); !reflect.DeepEqual(e, &TagValueElem{value: []byte("ddd")}) {
-		t.Fatalf("unexpected elem(3): %#v", e)
+	if e := itr.Next(); !bytes.Equal(e.Value(), []byte("aaa")) || e.Deleted() {
+		t.Fatalf("unexpected elem(0): %s/%v", e.Value(), e.Deleted())
+	} else if e := itr.Next(); !bytes.Equal(e.Value(), []byte("bbb")) || !e.Deleted() {
+		t.Fatalf("unexpected elem(1): %s/%v", e.Value(), e.Deleted())
+	} else if e := itr.Next(); !bytes.Equal(e.Value(), []byte("ccc")) || e.Deleted() {
+		t.Fatalf("unexpected elem(2): %s/%v", e.Value(), e.Deleted())
+	} else if e := itr.Next(); !bytes.Equal(e.Value(), []byte("ddd")) || e.Deleted() {
+		t.Fatalf("unexpected elem(3): %s/%v", e.Value(), e.Deleted())
 	} else if e := itr.Next(); e != nil {
 		t.Fatalf("expected nil elem: %#v", e)
 	}

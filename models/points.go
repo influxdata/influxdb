@@ -1617,6 +1617,17 @@ type Tag struct {
 	Value []byte
 }
 
+// String returns the string reprsentation of the tag.
+func (t *Tag) String() string {
+	var buf bytes.Buffer
+	buf.WriteByte('{')
+	buf.WriteString(string(t.Key))
+	buf.WriteByte(' ')
+	buf.WriteString(string(t.Value))
+	buf.WriteByte('}')
+	return buf.String()
+}
+
 // Tags represents a sorted list of tags.
 type Tags []Tag
 
@@ -1633,14 +1644,23 @@ func NewTags(m map[string]string) Tags {
 	return a
 }
 
-// Len implements sort.Interface.
-func (a Tags) Len() int { return len(a) }
+// String returns the string representation of the tags.
+func (a Tags) String() string {
+	var buf bytes.Buffer
+	buf.WriteByte('[')
+	for i := range a {
+		buf.WriteString(a[i].String())
+		if i < len(a)-1 {
+			buf.WriteByte(' ')
+		}
+	}
+	buf.WriteByte(']')
+	return buf.String()
+}
 
-// Less implements sort.Interface.
+func (a Tags) Len() int           { return len(a) }
 func (a Tags) Less(i, j int) bool { return bytes.Compare(a[i].Key, a[j].Key) == -1 }
-
-// Swap implements sort.Interface.
-func (a Tags) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a Tags) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 
 // Equal returns true if a equals other.
 func (a Tags) Equal(other Tags) bool {
