@@ -722,3 +722,16 @@ table .monotype {
     background-color: $c-fire;
   }
 }
+
+/*
+    Sources / Kapacitor Config Pages
+    ----------------------------------------------
+*/
+
+#source-form-page,
+#manage-sources-page,
+.kapacitor {
+  .enterprise-header {
+    margin-bottom: 45px;
+  }
+}
