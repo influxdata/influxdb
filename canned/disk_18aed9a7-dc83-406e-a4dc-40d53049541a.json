@@ -1,18 +1,31 @@
 {
-    "id": "e72c2eb9-d09b-46ea-b5df-0a82769e314d",
-        "measurement": "mem",
-        "app": "docker",
-        "cells": [{
-                "x": 0,
-                "y": 0,
-                "w": 10,
-                "h": 10,
-                "i": "docker_test",
-                "name": "test",
-                "queries": [{
-                        "query": "select used_percent from disk",
-                        "db": "telegraf",
-                        "rp": "autogen"
-                }]
-        }]
- }
+  "id": "18aed9a7-dc83-406e-a4dc-40d53049541a",
+  "measurement": "disk",
+  "app": "User Facing Application Name",
+  "cells": [{
+    "x": 0,
+    "y": 0,
+    "w": 5,
+    "h": 5,
+    "i": "used_percent",
+    "name": "Used Percent",
+    "queries": [{
+      "query": "select used_percent from disk",
+      "db": "telegraf",
+      "rp": "autogen"
+    }]
+  },
+  {
+    "x": 5,
+    "y": 1,
+    "w": 5,
+    "h": 5,
+    "i": "cpu_usage",
+    "name": "CPU Usage",
+    "queries": [{
+      "query": "select 100 - usage_idle from cpu",
+      "db": "telegraf",
+      "rp": "autogen"
+    }]
+  }]
+}
