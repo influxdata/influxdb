@@ -122,7 +122,7 @@ export const SourceForm = React.createClass({
                     </div>
 
                     <div className="form-group col-xs-4 col-xs-offset-4">
-                      <button className={classNames('btn btn-block',{'btn-primary' : editMode, 'btn-success' : !editMode})} type="submit">{editMode ? "Save Changes" : "Add Source"}</button>
+                      <button className={classNames('btn btn-block', {'btn-primary': editMode, 'btn-success': !editMode})} type="submit">{editMode ? "Save Changes" : "Add Source"}</button>
                     </div>
                   </form>
                 </div>

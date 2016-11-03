@@ -41,10 +41,10 @@ export const ManageSources = React.createClass({
     const {sources} = this.state;
     const {pathname} = this.props.location;
     const numSources = sources.length;
-    let sourcesTitle = numSources + " Sources";
+    let sourcesTitle = `${numSources} Sources`;
 
     if (numSources === 1) {
-      sourcesTitle = numSources + " Source";
+      sourcesTitle = `${numSources} Source`;
     }
 
     return (
@@ -89,7 +89,7 @@ export const ManageSources = React.createClass({
                                   <Link className="btn btn-success btn-xs" to={`/sources/${source.id}/hosts`}>Connect</Link>
                                 </td>
                               </tr>
-                              );
+                            );
                           })
                         }
                       </tbody>
