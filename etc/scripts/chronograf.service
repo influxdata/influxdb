@@ -8,10 +8,7 @@ After=network-online.target
 [Service]
 User=chronograf
 Group=chronograf
-LimitNOFILE=65536
-EnvironmentFile=-/etc/default/chronograf
-ExecStart=/usr/bin/chronograf ${CHRONOGRAF_OPTS}
-ExecReload=/bin/kill -HUP $MAINPID
+ExecStart=/usr/bin/chronograf --host localhost --port 10000 -b /var/lib/chronograf/chronograf.db -c /usr/share/chronograf
 KillMode=control-group
 Restart=on-failure
 

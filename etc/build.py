@@ -22,21 +22,18 @@ INSTALL_ROOT_DIR = "/usr/bin"
 LOG_DIR = "/var/log/chronograf"
 DATA_DIR = "/var/lib/chronograf"
 SCRIPT_DIR = "/usr/lib/chronograf/scripts"
-CONFIG_DIR = "/etc/chronograf"
 LOGROTATE_DIR = "/etc/logrotate.d"
 
-INIT_SCRIPT = "scripts/init.sh"
-SYSTEMD_SCRIPT = "scripts/chronograf.service"
-POSTINST_SCRIPT = "scripts/post-install.sh"
-POSTUNINST_SCRIPT = "scripts/post-uninstall.sh"
-LOGROTATE_SCRIPT = "scripts/logrotate"
-DEFAULT_CONFIG = "etc/config.sample.toml"
+INIT_SCRIPT = "etc/scripts/init.sh"
+SYSTEMD_SCRIPT = "etc/scripts/chronograf.service"
+POSTINST_SCRIPT = "etc/scripts/post-install.sh"
+POSTUNINST_SCRIPT = "etc/scripts/post-uninstall.sh"
+LOGROTATE_SCRIPT = "etc/scripts/logrotate"
 
 # Default AWS S3 bucket for uploads
 DEFAULT_BUCKET = "dl.influxdata.com/chronograf/artifacts"
 
 CONFIGURATION_FILES = [
-    CONFIG_DIR + '/chronograf.conf',
     LOGROTATE_DIR + '/chronograf',
 ]
 
@@ -115,7 +112,6 @@ def create_package_fs(build_root):
         LOG_DIR[1:],
         DATA_DIR[1:],
         SCRIPT_DIR[1:],
-        CONFIG_DIR[1:],
         LOGROTATE_DIR[1:]
     ]
     for d in dirs:
@@ -126,10 +122,7 @@ def package_scripts(build_root, config_only=False, windows=False):
     """Copy the necessary scripts to the package filesystem.
     """
     if config_only:
-        # TODO: check whether we'll support a config file at some point
-        logging.debug("Copying configuration to build directory.")
-        shutil.copyfile(DEFAULT_CONFIG, os.path.join(build_root, "chronograf.conf"))
-        os.chmod(os.path.join(build_root, "chronograf.conf"), 0o644)
+        pass
     else:
         logging.debug("Copying scripts to build directory.")
         shutil.copyfile(INIT_SCRIPT, os.path.join(build_root, SCRIPT_DIR[1:], INIT_SCRIPT.split('/')[1]))
@@ -138,8 +131,6 @@ def package_scripts(build_root, config_only=False, windows=False):
         os.chmod(os.path.join(build_root, SCRIPT_DIR[1:], SYSTEMD_SCRIPT.split('/')[1]), 0o644)
         shutil.copyfile(LOGROTATE_SCRIPT, os.path.join(build_root, LOGROTATE_DIR[1:], "chronograf"))
         os.chmod(os.path.join(build_root, LOGROTATE_DIR[1:], "chronograf"), 0o644)
-        shutil.copyfile(DEFAULT_CONFIG, os.path.join(build_root, CONFIG_DIR[1:], "chronograf.conf"))
-        os.chmod(os.path.join(build_root, CONFIG_DIR[1:], "chronograf.conf"), 0o644)
 
 def run_generate():
     """Generate static assets.

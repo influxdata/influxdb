@@ -13,7 +13,7 @@
 # Script to execute when starting
 SCRIPT="/usr/bin/chronograf"
 # Options to pass to the script on startup
-SCRIPT_OPTS="run -c /etc/chronograf/chronograf.conf"
+SCRIPT_OPTS="--host localhost --port 10000 -b /var/lib/chronograf/chronograf.db -c /usr/share/chronograf"
 
 # User to run the process under
 RUNAS=chronograf
@@ -22,7 +22,6 @@ RUNAS=chronograf
 PIDFILE=/var/run/chronograf.pid
 # Where to redirect logging to
 LOGFILE=/var/log/chronograf/chronograf.log
-ERRLOGFILE=/var/log/chronograf/chronograf.log
 
 start() {
     if [[ -f $PIDFILE ]]; then
@@ -33,7 +32,7 @@ start() {
             return 0
         fi
     fi
-    local CMD="$SCRIPT $SCRIPT_OPTS 1>> \"$LOGFILE\" 2>> \"$ERRLOGFILE\" & echo \$!"
+    local CMD="$SCRIPT $SCRIPT_OPTS 2>&1 1>> \"$LOGFILE\" & echo \$!"
     su -s /bin/sh -c "$CMD" $RUNAS > "$PIDFILE"
     if [[ -f $PIDFILE ]]; then
         # PIDFILE exists

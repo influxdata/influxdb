@@ -11,13 +11,21 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     ruby-dev \
     rpm \
     zip \
-    python \
-    python-boto \
-    asciidoc \
-    xmlto \
-    docbook-xsl
+    python-pip
 
+RUN pip install boto requests python-jose --upgrade
 RUN gem install fpm
+
+# Install node
+RUN wget -q https://nodejs.org/dist/latest-v5.x/node-v5.11.1-linux-x64.tar.gz; \
+   tar -xvf node-v5.11.1-linux-x64.tar.gz -C / --strip-components=1; \
+   rm -f node-v5.11.1-linux-x64.tar.gz
+
+# Update npm
+RUN cd $(npm root -g)/npm \
+    && npm install fs-extra \
+    && sed -i -e s/graceful-fs/fs-extra/ -e s/fs.rename/fs.move/ ./lib/utils/rename.js
+RUN npm install npm -g
 
 # Install go
 ENV GOPATH /root/go
@@ -35,4 +43,4 @@ WORKDIR $PROJECT_DIR
 
 VOLUME $PROJECT_DIR
 
-ENTRYPOINT [ "/root/go/src/github.com/influxdata/chronograf/build.py" ]
+ENTRYPOINT [ "/root/go/src/github.com/influxdata/chronograf/etc/build.py" ]
