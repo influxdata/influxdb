@@ -9,7 +9,7 @@ const AlertsTable = React.createClass({
       time: PropTypes.string,
       value: PropTypes.string,
       host: PropTypes.string,
-      severity: PropTypes.string,
+      level: PropTypes.string,
     })),
     source: PropTypes.shape({
       id: PropTypes.string.isRequired,
@@ -73,19 +73,19 @@ const AlertsTable = React.createClass({
                 <th onClick={() => this.changeSort('time')} className="sortable-header">Time</th>
                 <th onClick={() => this.changeSort('value')} className="sortable-header">Value</th>
                 <th onClick={() => this.changeSort('host')} className="sortable-header">Host</th>
-                <th onClick={() => this.changeSort('severity')} className="sortable-header">Severity</th>
+                <th onClick={() => this.changeSort('level')} className="sortable-header">Level</th>
               </tr>
             </thead>
             <tbody>
               {
-                alerts.map(({name, time, value, host, severity}) => {
+                alerts.map(({name, time, value, host, level}) => {
                   return (
                     <tr key={name}>
                       <td className="monotype"><a href={`/sources/${source.id}/alerts/${name}`}>{name}</a></td>
                       <td className="monotype">{time}</td>
                       <td className="monotype">{value}</td>
                       <td className="monotype">{host}</td>
-                      <td className="monotype">{severity}</td>
+                      <td className="monotype">{level}</td>
                     </tr>
                   );
                 })
