@@ -7,7 +7,9 @@ import (
 	"net/url"
 	"strconv"
 
+	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
+	kapa "github.com/influxdata/chronograf/kapacitor"
 )
 
 type postKapacitorRequest struct {
@@ -261,16 +263,170 @@ func (h *Service) UpdateKapacitor(w http.ResponseWriter, r *http.Request) {
 
 // KapacitorTasksPost proxies POST to kapacitor
 func (h *Service) KapacitorTasksPost(w http.ResponseWriter, r *http.Request) {
+	id, err := paramID("kid", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	srcID, err := paramID("id", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	ctx := r.Context()
+	srv, err := h.ServersStore.Get(ctx, id)
+	if err != nil || srv.SrcID != srcID {
+		notFound(w, id)
+		return
+	}
+
+	c := kapa.Client{
+		URL:      srv.URL,
+		Username: srv.Username,
+		Password: srv.Password,
+	}
+
+	var rule chronograf.AlertRule
+	task, err := c.Create(ctx, rule)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	// TODO: Set the tickscript the store
+	// TODO: possibly use the Href in update to the store
+	_ = task.TICKScript
+	_ = task.ID
+	_ = task.Href
+	// TODO: Add the task from the store
+	// TODO: Return POST response
+	w.WriteHeader(http.StatusNoContent)
+
 }
 
-// KapacitorTasksPatch proxies PATCH to kapacitor
-func (h *Service) KapacitorTasksPatch(w http.ResponseWriter, r *http.Request) {
+// KapacitorTasksPut proxies PATCH to kapacitor
+func (h *Service) KapacitorTasksPut(w http.ResponseWriter, r *http.Request) {
+	id, err := paramID("kid", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	srcID, err := paramID("id", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	ctx := r.Context()
+	srv, err := h.ServersStore.Get(ctx, id)
+	if err != nil || srv.SrcID != srcID {
+		notFound(w, id)
+		return
+	}
+
+	tid := httprouter.GetParamFromContext(ctx, "tid")
+	c := kapa.Client{
+		URL:      srv.URL,
+		Username: srv.Username,
+		Password: srv.Password,
+		Ticker:   &kapa.Alert{},
+	}
+	// TODO: Pull rule from PUT parameters
+	var rule chronograf.AlertRule
+	task, err := c.Update(ctx, c.Href(tid), rule)
+	if err != nil {
+		Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	// TODO: Set the tickscript in the update to the store
+	// TODO: possibly use the Href in update to the store
+	_ = task.TICKScript
+	// TODO: Update the task from the store
+	// TODO: Return Patch response
+	w.WriteHeader(http.StatusNoContent)
 }
 
-// KapacitorTasksGet proxies GET to kapacitor
+// KapacitorTasksGet retrieves all tasks
 func (h *Service) KapacitorTasksGet(w http.ResponseWriter, r *http.Request) {
+	id, err := paramID("kid", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	srcID, err := paramID("id", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	ctx := r.Context()
+	srv, err := h.ServersStore.Get(ctx, id)
+	if err != nil || srv.SrcID != srcID {
+		notFound(w, id)
+		return
+	}
+	// TODO: GET tasks from store
+}
+
+// KapacitorTasksGet retrieves specific task
+func (h *Service) KapacitorTasksID(w http.ResponseWriter, r *http.Request) {
+	id, err := paramID("kid", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	srcID, err := paramID("id", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	ctx := r.Context()
+	srv, err := h.ServersStore.Get(ctx, id)
+	if err != nil || srv.SrcID != srcID {
+		notFound(w, id)
+		return
+	}
+	tid := httprouter.GetParamFromContext(ctx, "tid")
+	// TODO: GET task from store
+	_ = tid
 }
 
 // KapacitorTasksDelete proxies DELETE to kapacitor
 func (h *Service) KapacitorTasksDelete(w http.ResponseWriter, r *http.Request) {
+	id, err := paramID("kid", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	srcID, err := paramID("id", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	ctx := r.Context()
+	srv, err := h.ServersStore.Get(ctx, id)
+	if err != nil || srv.SrcID != srcID {
+		notFound(w, id)
+		return
+	}
+
+	// TODO: Delete the task from the store
+	tid := httprouter.GetParamFromContext(ctx, "tid")
+	c := kapa.Client{
+		URL:      srv.URL,
+		Username: srv.Username,
+		Password: srv.Password,
+	}
+	if err := c.Delete(ctx, c.Href(tid)); err != nil {
+		Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

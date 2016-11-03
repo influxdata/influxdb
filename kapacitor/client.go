@@ -28,6 +28,10 @@ type Task struct {
 	TICKScript chronograf.TICKScript // TICKScript is the running script
 }
 
+func (c *Client) Href(ID string) string {
+	return fmt.Sprintf("/kapacitor/v1/tasks/%s", ID)
+}
+
 func (c *Client) Create(ctx context.Context, rule chronograf.AlertRule) (*Task, error) {
 	kapa, err := c.kapaClient(ctx)
 	if err != nil {
