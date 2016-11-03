@@ -1,105 +1,64 @@
-package tickscripts
+package kapacitor
 
-// TODO: I don't think mean is correct here.  It's probably any value.
-// TODO: seems like we should only have statechanges
+import (
+	"bytes"
+	"log"
+	"text/template"
+)
 
-// ThresholdTemplate is a tickscript template template for threshold alerts
-var ThresholdTemplate = `var database = 'telegraf'
-var rp = 'autogen'
-var measurement string
-var metric string
-var groupby = ['host']
-var crit int
-var period duration
-var every duration
-var message string
-var id string
-
-stream
-  |from()
-    .database(database)
-    .retentionPolicy(rp)
-    .measurement(measurement)
-    .groupBy(groupby)
-  |window()
-    .period(period)
-    .every(every)
-  |mean(metric)
-    .as('stat')
+// ThresholdTrigger is the trickscript trigger for alerts that exceed a value
+var ThresholdTrigger = `
+  var trigger = data|{{ .Aggregate }}(metric)
+    .as('value')
   |alert()
+    .stateChangesOnly()
     .id(id)
     .message(message)
-    .crit(lambda: "stat" {{ .Operator }} crit)
-    .{{ .Service }}()`
+    .crit(lambda: "value" {{ .Operator }} crit)`
 
-// RelativeTemplate compares one window of data versus another.
-var RelativeTemplate = `var database = 'telegraf'
-var rp = 'autogen'
-var measurement string
-var metric string
-var groupby = ['host']
-var crit int
-var period duration
-var every duration
-var shift duration
-var message string
-var id string
-
-var data  = stream
-	|from()
-        .database(database)
-        .retentionPolicy(rp)
-		.measurement(measurement)
-		.groupBy(groupby)
-
+// RelativeTrigger compares one window of data versus another.
+var RelativeTrigger = `
 var past = data
-	|window()
-		.period(period)
-		.every(every)
-		.align()
     |{{ .Aggregate }}(metric)
         .as('stat')
 	|shift(shift)
 
 var current = data
-	|window()
-		.period(period)
-		.every(every)
-		.align()
     |{{ .Aggregate }}(metric)
         .as('stat')
 
-past
+var trigger = past
 	|join(current)
 		.as('past', 'current')
 	|eval(lambda: abs(float("current.stat" - "past.stat"))/float("past.stat"))
 		.keep()
-		.as('perc')
+		.as('value')
     |alert()
+        .stateChangesOnly()
         .id(id)
         .message(message)
-        .crit(lambda: "perc" {{ .Operator }} crit)
-        .{{ .Service }}()`
+        .crit(lambda: "value" {{ .Operator }} crit)`
 
-// DeadmanTemplate checks if any data has been streamed in the last period of time
-var DeadmanTemplate = `var database = 'telegraf'
-var rp = 'autogen'
-var measurement string
-var groupby = ['host']
-var threshold float
-var period duration
-
-var id string
-var message string
-
-stream
-  |from()
-    .database(database)
-    .retentionPolicy(rp)
-    .measurement(measurement)
-    .groupBy(groupby)
-  |deadman(threshold, period)
+// DeadmanTrigger checks if any data has been streamed in the last period of time
+var DeadmanTrigger = `
+  var trigger = data|deadman(threshold, period)
+    .stateChangesOnly()
     .id(id)
     .message(message)
-	.{{ .Service }}()
 `
+
+func execTemplate(tick string, alert interface{}) (string, error) {
+	p := template.New("template")
+	t, err := p.Parse(tick)
+	if err != nil {
+		log.Fatalf("template parse: %s", err)
+		return "", err
+	}
+	buf := new(bytes.Buffer)
+	err = t.Execute(buf, alert)
+	if err != nil {
+		log.Fatalf("template execution: %s", err)
+		return "", err
+	}
+	return buf.String(), nil
+}

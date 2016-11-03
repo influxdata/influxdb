@@ -87,13 +87,63 @@ type SourcesStore interface {
 	Update(context.Context, Source) error
 }
 
-// TickTemplate  task to be used by kapacitor
-type TickTemplate string
+// QueryConfig represents UI query from the data explorer
+type QueryConfig struct {
+	ID              string `json:"id,omitempty"`
+	Database        string `json:"database"`
+	Measurement     string `json:"measurement"`
+	RetentionPolicy string `json:"retentionPolicy"`
+	Fields          []struct {
+		Field string   `json:"field"`
+		Funcs []string `json:"funcs"`
+	} `json:"fields"`
+	Tags    map[string][]string `json:"tags"`
+	GroupBy struct {
+		Time string   `json:"time"`
+		Tags []string `json:"tags"`
+	} `json:"groupBy"`
+	AreTagsAccepted bool   `json:"areTagsAccepted"`
+	RawText         string `json:"rawText,omitempty"`
+}
 
-// Alert generates tickscript templates for kapacitor
-type Alert interface {
-	// Generate will create the tickscript to be used as a kapacitor template
-	Generate() (TickTemplate, error)
+// AlertRule represents rules for building a tickscript alerting task
+type AlertRule struct {
+	ID            string      `json:"id,omitempty"` // ID is the unique ID of the alert
+	Name          string      `json:"name"`         // Name is the user-defined name for the alert
+	Version       string      `json:"version"`      // Version of the alert
+	Query         QueryConfig `json:"query"`        // Query is the filter of data for the alert.
+	Trigger       string      `json:"trigger"`      // Trigger is a type that defines when to trigger the alert
+	AlertServices []string    `json:"alerts"`       // AlertServices name all the services to notify (e.g. pagerduty)
+	Type          string      `json:"type"`         // Type specifies kind of AlertRule (stream, batch)
+	Operator      string      `json:"operator"`     // Operator for alert comparison
+	Aggregate     string      `json:"aggregate"`    // Statistic aggregate over window of data
+	Period        string      `json:"period"`       // Period is the window to search for alerting criteria
+	Every         string      `json:"every"`        // Every how often to check for the alerting criteria
+	Critical      string      `json:"critical"`     // Critical is the boundary value when alert goes critical
+	Shift         string      `json:"shift"`        // Shift is the amount of time to look into the past for the alert to compare to the present
+}
+
+// AlertRulesStore stores rules for building tickscript alerting tasks
+type AlertRulesStore interface {
+	// All returns all rules in the store
+	All(context.Context) ([]AlertRule, error)
+	// Add creates a new rule in the AlertRulesStore and returns AlertRule with ID
+	Add(context.Context, AlertRule) (AlertRule, error)
+	// Delete the AlertRule from the store
+	Delete(context.Context, AlertRule) error
+	// Get retrieves AlertRule if `ID` exists
+	Get(ctx context.Context, ID string) (AlertRule, error)
+	// Update the AlertRule in the store.
+	Update(context.Context, AlertRule) error
+}
+
+// TICKScript task to be used by kapacitor
+type TICKScript string
+
+// Ticker generates tickscript tasks for kapacitor
+type Ticker interface {
+	// Generate will create the tickscript to be used as a kapacitor task
+	Generate(AlertRule) (TICKScript, error)
 }
 
 // Server represents a proxy connection to an HTTP server
