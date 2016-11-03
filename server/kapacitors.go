@@ -10,6 +10,7 @@ import (
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
 	kapa "github.com/influxdata/chronograf/kapacitor"
+	"github.com/influxdata/chronograf/uuid"
 )
 
 type postKapacitorRequest struct {
@@ -288,6 +289,8 @@ func (h *Service) KapacitorTasksPost(w http.ResponseWriter, r *http.Request) {
 		URL:      srv.URL,
 		Username: srv.Username,
 		Password: srv.Password,
+		Ticker:   &kapa.Alert{},
+		ID:       &uuid.V4{},
 	}
 
 	var rule chronograf.AlertRule
