@@ -36,7 +36,7 @@ const AlertsApp = React.createClass({
       const hostIndex = alertSeries[0].columns.findIndex((col) => col === 'host');
       const valueIndex = alertSeries[0].columns.findIndex((col) => col === 'value');
       const levelIndex = alertSeries[0].columns.findIndex((col) => col === 'level');
-      const nameIndex = alertSeries[0].columns.findIndex((col) => col === 'alert_name');
+      const nameIndex = alertSeries[0].columns.findIndex((col) => col === 'name');
 
       alertSeries[0].values.forEach((s) => {
         results.push({
