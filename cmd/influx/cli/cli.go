@@ -90,7 +90,10 @@ func (c *CommandLine) Run() error {
 		if err != nil {
 			return err
 		}
-		return c.ExecuteQuery(string(cmd))
+		if string(cmd) != "" {
+			return c.ExecuteQuery(string(cmd))
+		}
+		// no stdin, switch back to meta commands
 	}
 
 	if !c.IgnoreSignals {
