@@ -23,3 +23,4 @@ export const RELATIONS = ['once', 'more than ', 'less than'];
 export const PERIODS = ['1m', '5m', '10m', '30m', '1h', '2h', '1d'];
 export const CHANGES = ['change', '% change'];
 export const SHIFTS = ['1m', '5m', '10m', '30m', '1h', '2h', '1d'];
+export const ALERTS = ['hipchat', 'opsgenie', 'pagerduty', 'sensu', 'slack', 'smtp', 'talk', 'telegram', 'victorops'];
