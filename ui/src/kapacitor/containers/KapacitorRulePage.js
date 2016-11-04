@@ -21,7 +21,7 @@ export const KapacitorRulePage = React.createClass({
       links: PropTypes.shape({
         proxy: PropTypes.string.isRequired,
         self: PropTypes.string.isRequired,
-      }).isRequired,
+      }),
     }),
     addFlashMessage: PropTypes.func,
     rules: PropTypes.shape({}).isRequired,
@@ -50,7 +50,7 @@ export const KapacitorRulePage = React.createClass({
   },
 
   componentDidMount() {
-    const {ruleID} = this.props.params;
+    const {ruleID} = false; // this.props.params;
     if (ruleID) {
       this.props.kapacitorActions.fetchRule(ruleID);
     } else {

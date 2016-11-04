@@ -7,7 +7,7 @@ import App from 'src/App';
 import AlertsApp from 'src/alerts';
 import CheckDataNodes from 'src/CheckDataNodes';
 import {HostsPage, HostPage} from 'src/hosts';
-import {KapacitorPage, KapacitorRulePage, KapacitorTasksPage} from 'src/kapacitor';
+import {KapacitorPage, KapacitorRulePage, KapacitorRulesPage, KapacitorTasksPage} from 'src/kapacitor';
 import QueriesPage from 'src/queries';
 import TasksPage from 'src/tasks';
 import RetentionPoliciesPage from 'src/retention_policies';
@@ -117,7 +117,8 @@ const Root = React.createClass({
               <Route path="kapacitor-config" component={KapacitorPage} />
               <Route path="kapacitor-tasks" component={KapacitorTasksPage} />
               <Route path="alerts" component={AlertsApp} />
-              <Route path="alert-rules" component={KapacitorRulePage} />
+              <Route path="alert-rules" component={KapacitorRulesPage} />
+              <Route path="alert-rules/:ruleID" component={KapacitorRulePage} />
             </Route>
             <Route path="tasks" component={TasksPage} />
             <Route path="*" component={NotFound} />
