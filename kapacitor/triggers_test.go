@@ -46,7 +46,7 @@ var current = data
 var trigger = past
     |join(current)
         .as('past', 'current')
-    |eval(lambda: abs(float("current.value" - "past.value")) / float("past.value"))
+    |eval(lambda: abs(float("current.value" - "past.value")) / float("past.value") * 100.0)
         .keep()
         .as('value')
     |alert()
