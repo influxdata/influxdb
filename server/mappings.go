@@ -29,7 +29,7 @@ func (h *Service) GetMappings(w http.ResponseWriter, r *http.Request) {
 		if seen[layout.Measurement+layout.ID] {
 			continue
 		}
-		mp.Mappings = append(mp.Mappings, mapping{layout.Measurement, layout.ID})
+		mp.Mappings = append(mp.Mappings, mapping{layout.Measurement, layout.Application})
 		seen[layout.Measurement+layout.ID] = true
 	}
 
