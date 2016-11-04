@@ -41,11 +41,7 @@ export const ManageSources = React.createClass({
     const {sources} = this.state;
     const {pathname} = this.props.location;
     const numSources = sources.length;
-    let sourcesTitle = `${numSources} Sources`;
-
-    if (numSources === 1) {
-      sourcesTitle = `${numSources} Source`;
-    }
+    const sourcesTitle = `${numSources} ${numSources === 1 ? 'Source' : 'Sources'}`;
 
     return (
       <div id="manage-sources-page">
