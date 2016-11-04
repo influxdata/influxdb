@@ -68,7 +68,7 @@ const AlertsTable = React.createClass({
           <table className="table v-center">
             <thead>
               <tr>
-                <th onClick={() => this.changeSort('name')} className="sortable-header">Alert</th>
+                <th onClick={() => this.changeSort('name')} className="sortable-header">Name</th>
                 <th onClick={() => this.changeSort('level')} className="sortable-header">Level</th>
                 <th onClick={() => this.changeSort('time')} className="sortable-header">Time</th>
                 <th onClick={() => this.changeSort('host')} className="sortable-header">Host</th>
