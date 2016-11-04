@@ -41,8 +41,8 @@ func Vars(rule chronograf.AlertRule) (string, error) {
  `
 		return fmt.Sprintf(vars,
 			common,
-			rule.TriggerValues.Threshold.Period,
-			rule.TriggerValues.Threshold.Value), nil
+			rule.TriggerValues.Period,
+			rule.TriggerValues.Value), nil
 	case "relative":
 		vars := `
 		%s
@@ -52,9 +52,9 @@ func Vars(rule chronograf.AlertRule) (string, error) {
  `
 		return fmt.Sprintf(vars,
 			common,
-			rule.TriggerValues.Relative.Period,
-			rule.TriggerValues.Relative.Shift,
-			rule.TriggerValues.Relative.Value,
+			rule.TriggerValues.Period,
+			rule.TriggerValues.Shift,
+			rule.TriggerValues.Value,
 		), nil
 	case "deadman":
 		vars := `
@@ -65,7 +65,7 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 		return fmt.Sprintf(vars,
 			common,
 			"0.0", // deadman threshold hardcoded to zero
-			rule.TriggerValues.Deadman.Period,
+			rule.TriggerValues.Period,
 		), nil
 	default:
 		return "", fmt.Errorf("Unknown trigger mechanism")

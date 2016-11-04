@@ -59,13 +59,13 @@ func Trigger(rule chronograf.AlertRule) (string, error) {
 	case "deadman":
 		return DeadmanTrigger, nil
 	case "relative":
-		op, err := kapaOperator(rule.TriggerValues.Relative.Operator)
+		op, err := kapaOperator(rule.TriggerValues.Operator)
 		if err != nil {
 			return "", err
 		}
 		return fmt.Sprintf(RelativeTrigger, op), nil
 	case "threshold":
-		op, err := kapaOperator(rule.TriggerValues.Threshold.Operator)
+		op, err := kapaOperator(rule.TriggerValues.Operator)
 		if err != nil {
 			return "", err
 		}

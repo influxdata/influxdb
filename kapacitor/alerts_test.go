@@ -16,7 +16,7 @@ func TestAlertServices(t *testing.T) {
 		{
 			name: "Test several valid services",
 			rule: chronograf.AlertRule{
-				Alerts: []string{"slack", "victorOps", "email"},
+				Alerts: []string{"slack", "victorops", "email"},
 			},
 			want: `alert()
         .slack()

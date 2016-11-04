@@ -13,6 +13,7 @@ const (
 	ErrSourceNotFound      = Error("source not found")
 	ErrServerNotFound      = Error("server not found")
 	ErrLayoutNotFound      = Error("layout not found")
+	ErrAlertNotFound       = Error("alert not found")
 	ErrAuthentication      = Error("user not authenticated")
 )
 
@@ -122,34 +123,15 @@ type Ticker interface {
 	Generate(AlertRule) (TICKScript, error)
 }
 
-// DeadmanValue specifies the timeout duration of a deadman alert.
-type DeadmanValue struct {
-	Period string `json:"period, omitempty"` // Period is the max time data can be missed before an alert
-}
-
-// RelativeValue specifies the trigger logic for a relative value change alert.
-type RelativeValue struct {
-	Change   string `json:"change,omitempty"`   // Change specifies if the change is a percent or absolute
-	Period   string `json:"period,omitempty"`   // Period is the window to search for alerting criteria
-	Shift    string `json:"shift,omitempty"`    // Shift is the amount of time to look into the past for the alert to compare to the present
-	Operator string `json:"operator,omitempty"` // Operator for alert comparison
-	Value    string `json:"value,omitempty"`    // Value is the boundary value when alert goes critical
-}
-
-// ThresholdValue specifies the trigger logic for a threshold change alert.
-type ThresholdValue struct {
-	Period     string `json:"period,omitempty"`     // Period is the window to search for the alerting criteria
+// TriggerValues specifies the alerting logic for a specific trigger type
+type TriggerValues struct {
+	Change     string `json:"change,omitempty"`     // Change specifies if the change is a percent or absolute
+	Period     string `json:"period,omitempty"`     // Period is the window to search for alerting criteria
+	Shift      string `json:"shift,omitempty"`      // Shift is the amount of time to look into the past for the alert to compare to the present
 	Operator   string `json:"operator,omitempty"`   // Operator for alert comparison
+	Value      string `json:"value,omitempty"`      // Value is the boundary value when alert goes critical
 	Percentile string `json:"percentile,omitempty"` // Percentile is defined only when Relation is not "Once"
 	Relation   string `json:"relation,omitempty"`   // Relation defines the logic about how often the threshold is met to be an alert.
-	Value      string `json:"value,omitempty"`      // Value is the boundary value when alert goes critical
-}
-
-// TriggerValues specifies which of the trigger types defines the alerting logic. One of these whould not be nil.
-type TriggerValues struct {
-	Deadman   *DeadmanValue   `json:"deadman,omitempty"`
-	Relative  *RelativeValue  `json:"relative,omitempty"`
-	Threshold *ThresholdValue `json:"threshold,omitempty"`
 }
 
 // QueryConfig represents UI query from the data explorer

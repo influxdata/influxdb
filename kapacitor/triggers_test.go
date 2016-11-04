@@ -35,9 +35,7 @@ func TestTrigger(t *testing.T) {
 			rule: chronograf.AlertRule{
 				Trigger: "relative",
 				TriggerValues: chronograf.TriggerValues{
-					Relative: &chronograf.RelativeValue{
-						Operator: "greater than",
-					},
+					Operator: "greater than",
 				},
 			},
 			want: `var past = data
@@ -68,9 +66,7 @@ var trigger = past
 			rule: chronograf.AlertRule{
 				Trigger: "threshold",
 				TriggerValues: chronograf.TriggerValues{
-					Threshold: &chronograf.ThresholdValue{
-						Operator: "greater than",
-					},
+					Operator: "greater than",
 				},
 			},
 			want: `var trigger = data

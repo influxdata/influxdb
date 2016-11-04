@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -159,5 +160,31 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 		}
 	}
 	l.Cells = cells
+	return nil
+}
+
+// MarshalAlertRule encodes an alert rule to binary protobuf format.
+func MarshalAlertRule(r *chronograf.AlertRule) ([]byte, error) {
+	j, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+	return proto.Marshal(&AlertRule{
+		ID:   r.ID,
+		JSON: string(j),
+	})
+}
+
+// UnmarshalAlertRule decodes an alert rule from binary protobuf data.
+func UnmarshalAlertRule(data []byte, r *chronograf.AlertRule) error {
+	var pb AlertRule
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+
+	err := json.Unmarshal([]byte(pb.JSON), r)
+	if err != nil {
+		return err
+	}
 	return nil
 }

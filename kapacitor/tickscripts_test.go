@@ -1,6 +1,7 @@
 package kapacitor
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -11,15 +12,13 @@ func TestGenerate(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "relative",
-		Alerts:  []string{"slack", "victorOps", "email"},
+		Alerts:  []string{"slack", "victorops", "email"},
 		TriggerValues: chronograf.TriggerValues{
-			Relative: &chronograf.RelativeValue{
-				Change:   "change",
-				Period:   "10m",
-				Shift:    "1m",
-				Operator: "greater than",
-				Value:    "90",
-			},
+			Change:   "change",
+			Period:   "10m",
+			Shift:    "1m",
+			Operator: "greater than",
+			Value:    "90",
 		},
 		Every: "30s",
 		Query: chronograf.QueryConfig{
@@ -67,15 +66,13 @@ func TestThreshold(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "threshold",
-		Alerts:  []string{"slack", "victorOps", "email"},
+		Alerts:  []string{"slack", "victorops", "email"},
 		TriggerValues: chronograf.TriggerValues{
-			Threshold: &chronograf.ThresholdValue{
-				Relation:   "once",
-				Period:     "10m",
-				Percentile: "", // TODO: if relation is not once then this will have a number
-				Operator:   "greater than",
-				Value:      "90",
-			},
+			Relation:   "once",
+			Period:     "10m",
+			Percentile: "", // TODO: if relation is not once then this will have a number
+			Operator:   "greater than",
+			Value:      "90",
 		},
 		Every:   "30s",
 		Message: "message",
@@ -222,15 +219,13 @@ func TestRelative(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "relative",
-		Alerts:  []string{"slack", "victorOps", "email"},
+		Alerts:  []string{"slack", "victorops", "email"},
 		TriggerValues: chronograf.TriggerValues{
-			Relative: &chronograf.RelativeValue{
-				Change:   "change",
-				Period:   "10m",
-				Shift:    "1m",
-				Operator: "greater than",
-				Value:    "90",
-			},
+			Change:   "change",
+			Period:   "10m",
+			Shift:    "1m",
+			Operator: "greater than",
+			Value:    "90",
 		},
 		Every:   "30s",
 		Message: "message",
@@ -382,6 +377,8 @@ trigger
 			fmt.Printf("%s", got)
 			t.Errorf("%q. Relative() = %v, want %v", tt.name, got, tt.want)
 		}
+		b, _ := json.Marshal(tt.alert)
+		fmt.Printf("%s", string(b))
 	}
 }
 
@@ -389,11 +386,9 @@ func TestDeadman(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
 		Trigger: "deadman",
-		Alerts:  []string{"slack", "victorOps", "email"},
+		Alerts:  []string{"slack", "victorops", "email"},
 		TriggerValues: chronograf.TriggerValues{
-			Deadman: &chronograf.DeadmanValue{
-				Period: "10m",
-			},
+			Period: "10m",
 		},
 		Every:   "30s",
 		Message: "message",
