@@ -1,5 +1,5 @@
-VERSION ?= $$(git describe --always --tags)
-COMMIT ?= $$(git rev-parse --short=8 HEAD)
+VERSION ?= $(shell git describe --always --tags)
+COMMIT ?= $(shell git rev-parse --short=8 HEAD)
 
 SOURCES := $(shell find . -name '*.go')
 
@@ -13,11 +13,11 @@ build: assets ${BINARY}
 dev: dev-assets ${BINARY}
 
 ${BINARY}: $(SOURCES)
-	go build -o ${BINARY} ${LDFLAGS} ./cmd/chronograf-server/main.go
+	go build -o ${BINARY} ${LDFLAGS} ./cmd/chronograf/main.go
 
 docker-${BINARY}: $(SOURCES)
 	CGO_ENABLED=0 GOOS=linux go build -installsuffix cgo -o ${BINARY} ${LDFLAGS} \
-		./cmd/chronograf-server/main.go
+		./cmd/chronograf/main.go
 
 docker: dep assets docker-${BINARY}
 	docker build -t chronograf .
