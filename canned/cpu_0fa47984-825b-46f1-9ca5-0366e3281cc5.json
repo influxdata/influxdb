@@ -5,8 +5,8 @@
  	"cells": [{
  		"x": 0,
  		"y": 0,
- 		"w": 10,
- 		"h": 10,
+ 		"w": 4,
+ 		"h": 4,
         "i": "cc9ba2b6-e398-4396-80dc-819bb7ac7ce1",
         "name": "CPU Usage",
  		"queries": [{
