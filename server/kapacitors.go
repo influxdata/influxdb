@@ -312,12 +312,12 @@ func (h *Service) KapacitorTasksPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.ID = task.ID
-
-	rule, err := h.AlertRulesStore.Add(ctx, req)
+	rule, err := h.AlertRulesStore.Add(ctx, srcID, id, req)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
 	res := alertResponse{
 		AlertRule: rule,
 		Links: alertLinks{
@@ -383,6 +383,16 @@ func (h *Service) KapacitorTasksPut(w http.ResponseWriter, r *http.Request) {
 		}
 	*/
 
+	// Check if the task exists and is scoped correctly
+	if _, err := h.AlertRulesStore.Get(ctx, srcID, id, tid); err != nil {
+		if err == chronograf.ErrAlertNotFound {
+			notFound(w, id)
+			return
+		}
+		Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	req.ID = tid
 	task, err := c.Update(ctx, c.Href(tid), req)
 	if err != nil {
@@ -390,7 +400,7 @@ func (h *Service) KapacitorTasksPut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.AlertRulesStore.Update(ctx, req); err != nil {
+	if err := h.AlertRulesStore.Update(ctx, srcID, id, req); err != nil {
 		Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -427,7 +437,7 @@ func (h *Service) KapacitorTasksGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rules, err := h.AlertRulesStore.All(ctx)
+	rules, err := h.AlertRulesStore.All(ctx, srcID, id)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error())
 		return
@@ -483,8 +493,13 @@ func (h *Service) KapacitorTasksID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tid := httprouter.GetParamFromContext(ctx, "tid")
-	rule, err := h.AlertRulesStore.Get(ctx, tid)
+	// Check if the rule exists within scope
+	rule, err := h.AlertRulesStore.Get(ctx, srcID, id, tid)
 	if err != nil {
+		if err == chronograf.ErrAlertNotFound {
+			notFound(w, id)
+			return
+		}
 		Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -530,6 +545,17 @@ func (h *Service) KapacitorTasksDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tid := httprouter.GetParamFromContext(ctx, "tid")
+
+	// Check if the rule is linked to this server and kapacitor
+	if _, err := h.AlertRulesStore.Get(ctx, srcID, id, tid); err != nil {
+		if err == chronograf.ErrAlertNotFound {
+			notFound(w, id)
+			return
+		}
+		Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	c := kapa.Client{
 		URL:      srv.URL,
 		Username: srv.Username,
@@ -540,7 +566,7 @@ func (h *Service) KapacitorTasksDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.AlertRulesStore.Delete(ctx, chronograf.AlertRule{ID: tid}); err != nil {
+	if err := h.AlertRulesStore.Delete(ctx, srcID, id, chronograf.AlertRule{ID: tid}); err != nil {
 		Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
