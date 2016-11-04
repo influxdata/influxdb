@@ -12,7 +12,8 @@ import LineGraph from 'shared/components/LineGraph';
 const RefreshingLineGraph = AutoRefresh(LineGraph);
 import {getKapacitor, getKapacitorConfig} from 'shared/apis/index';
 import Dropdown from 'shared/components/Dropdown';
-import ALERTS from 'src/kapacitor/constants';
+import {ALERTS} from 'src/kapacitor/constants';
+import {createRule} from 'src/kapacitor/apis';
 
 export const KapacitorRulePage = React.createClass({
   propTypes: {
@@ -37,6 +38,9 @@ export const KapacitorRulePage = React.createClass({
     params: PropTypes.shape({
       ruleID: PropTypes.string,
     }).isRequired,
+    router: PropTypes.shape({
+      push: PropTypes.func.isRequired,
+    }).isRequired,
   },
 
   getInitialState() {
@@ -58,7 +62,7 @@ export const KapacitorRulePage = React.createClass({
         const enabledAlerts = Object.keys(sections).filter((section) => {
           return _.get(sections, [section, 'elements', '0', 'options', 'enabled'], false) && ALERTS.includes(section);
         });
-        this.setState({enabledAlerts});
+        this.setState({kapacitor, enabledAlerts});
       }).catch(() => {
         this.props.addFlashMessage({type: 'failure', message: `There was a problem communicating with Kapacitor`});
       }).catch(() => {
@@ -68,7 +72,17 @@ export const KapacitorRulePage = React.createClass({
   },
 
   handleSave() {
-    console.log(this.props.rules); // eslint-disable-line no-console
+    const {queryConfigs, rules} = this.props;
+    const rule = rules[Object.keys(rules)[0]]; // this.props.params.taskID
+    const newRule = Object.assign({}, rule, {
+      query: queryConfigs[rule.queryID],
+    });
+    delete newRule.queryID;
+    createRule(this.state.kapacitor, newRule).then(() => {
+      // maybe update the default rule in redux state.. and update the URL
+    }).catch(() => {
+      this.props.addFlashMessage({type: 'failure', message: `There was a problem creating the rule`});
+    });
   },
 
   handleChooseAlert(item) {
@@ -119,7 +133,7 @@ export const KapacitorRulePage = React.createClass({
 
   render() {
     const {rules, queryConfigs, source} = this.props;
-    const rule = rules[Object.keys(rules)[0]]; // this.props.params.taskID
+    const rule = rules[Object.keys(rules)[0]]; // this.props.params.ruleID
     const query = rule && queryConfigs[rule.queryID];
     const autoRefreshMs = 30000;
 

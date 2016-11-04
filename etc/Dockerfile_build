@@ -1,0 +1,45 @@
+FROM ubuntu:trusty
+
+RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y \
+    python-dev \
+    wget \
+    git \
+    mercurial \
+    make \
+    ruby \
+    ruby-dev \
+    rpm \
+    zip \
+    python-pip
+
+RUN pip install boto requests python-jose --upgrade
+RUN gem install fpm
+
+# Install node
+RUN wget -q https://nodejs.org/dist/latest-v6.x/node-v6.9.1-linux-x64.tar.gz; \
+   tar -xvf node-v6.9.1-linux-x64.tar.gz -C / --strip-components=1; \
+   rm -f node-v6.9.1-linux-x64.tar.gz
+
+# Update npm
+RUN cd $(npm root -g)/npm \
+    && npm install fs-extra \
+    && sed -i -e s/graceful-fs/fs-extra/ -e s/fs.rename/fs.move/ ./lib/utils/rename.js
+RUN npm install npm -g
+
+# Install go
+ENV GOPATH /root/go
+ENV GO_VERSION 1.7.3
+ENV GO_ARCH amd64
+RUN wget https://storage.googleapis.com/golang/go${GO_VERSION}.linux-${GO_ARCH}.tar.gz; \
+   tar -C /usr/local/ -xf /go${GO_VERSION}.linux-${GO_ARCH}.tar.gz ; \
+   rm /go${GO_VERSION}.linux-${GO_ARCH}.tar.gz
+ENV PATH /usr/local/go/bin:$PATH
+
+ENV PROJECT_DIR $GOPATH/src/github.com/influxdata/chronograf
+ENV PATH $GOPATH/bin:$PATH
+RUN mkdir -p $PROJECT_DIR
+WORKDIR $PROJECT_DIR
+
+VOLUME $PROJECT_DIR
+
+ENTRYPOINT [ "/root/go/src/github.com/influxdata/chronograf/etc/build.py" ]

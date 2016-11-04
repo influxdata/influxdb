@@ -11,6 +11,8 @@ func TestInfluxOut(t *testing.T) {
 		{
 			name: "Test influxDBOut kapacitor node",
 			want: `trigger
+    |eval(lambda: field)
+        .as('value')
     |influxDBOut()
         .create()
         .database(output_db)

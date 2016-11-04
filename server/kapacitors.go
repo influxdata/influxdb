@@ -39,7 +39,7 @@ func (p *postKapacitorRequest) Valid() error {
 type kapaLinks struct {
 	Proxy string `json:"proxy"` // URL location of proxy endpoint for this source
 	Self  string `json:"self"`  // Self link mapping to this resource
-	Tasks string `json:"tasks"` // Tasks link for defining task alerts for kapacitor
+	Rules string `json:"rules"` // Riles link for defining roles alerts for kapacitor
 }
 
 type kapacitor struct {
@@ -106,7 +106,7 @@ func newKapacitor(srv chronograf.Server) kapacitor {
 		Links: kapaLinks{
 			Self:  fmt.Sprintf("%s/%d/kapacitors/%d", httpAPISrcs, srv.SrcID, srv.ID),
 			Proxy: fmt.Sprintf("%s/%d/kapacitors/%d/proxy", httpAPISrcs, srv.SrcID, srv.ID),
-			Tasks: fmt.Sprintf("%s/%d/kapacitors/%d/tasks", httpAPISrcs, srv.SrcID, srv.ID),
+			Rules: fmt.Sprintf("%s/%d/kapacitors/%d/rules", httpAPISrcs, srv.SrcID, srv.ID),
 		},
 	}
 }
@@ -264,8 +264,8 @@ func (h *Service) UpdateKapacitor(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
-// KapacitorTasksPost proxies POST to kapacitor
-func (h *Service) KapacitorTasksPost(w http.ResponseWriter, r *http.Request) {
+// KapacitorRulesPost proxies POST to kapacitor
+func (h *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -312,16 +312,16 @@ func (h *Service) KapacitorTasksPost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.ID = task.ID
-
-	rule, err := h.AlertRulesStore.Add(ctx, req)
+	rule, err := h.AlertRulesStore.Add(ctx, srcID, id, req)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
 	res := alertResponse{
 		AlertRule: rule,
 		Links: alertLinks{
-			Self:      fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/tasks/%s", srv.SrcID, srv.ID, req.ID),
+			Self:      fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/rules/%s", srv.SrcID, srv.ID, req.ID),
 			Kapacitor: fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(task.Href)),
 		},
 		TICKScript: string(task.TICKScript),
@@ -342,8 +342,8 @@ type alertResponse struct {
 	Links      alertLinks `json:"links"`
 }
 
-// KapacitorTasksPut proxies PATCH to kapacitor
-func (h *Service) KapacitorTasksPut(w http.ResponseWriter, r *http.Request) {
+// KapacitorRulesPut proxies PATCH to kapacitor
+func (h *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -383,6 +383,16 @@ func (h *Service) KapacitorTasksPut(w http.ResponseWriter, r *http.Request) {
 		}
 	*/
 
+	// Check if the rule exists and is scoped correctly
+	if _, err := h.AlertRulesStore.Get(ctx, srcID, id, tid); err != nil {
+		if err == chronograf.ErrAlertNotFound {
+			notFound(w, id)
+			return
+		}
+		Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	req.ID = tid
 	task, err := c.Update(ctx, c.Href(tid), req)
 	if err != nil {
@@ -390,7 +400,7 @@ func (h *Service) KapacitorTasksPut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.AlertRulesStore.Update(ctx, req); err != nil {
+	if err := h.AlertRulesStore.Update(ctx, srcID, id, req); err != nil {
 		Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -398,7 +408,7 @@ func (h *Service) KapacitorTasksPut(w http.ResponseWriter, r *http.Request) {
 	res := alertResponse{
 		AlertRule: req,
 		Links: alertLinks{
-			Self:      fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/tasks/%s", srv.SrcID, srv.ID, req.ID),
+			Self:      fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/rules/%s", srv.SrcID, srv.ID, req.ID),
 			Kapacitor: fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(task.Href)),
 		},
 		TICKScript: string(task.TICKScript),
@@ -406,8 +416,8 @@ func (h *Service) KapacitorTasksPut(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
-// KapacitorTasksGet retrieves all tasks
-func (h *Service) KapacitorTasksGet(w http.ResponseWriter, r *http.Request) {
+// KapacitorRulesGet retrieves all rules
+func (h *Service) KapacitorRulesGet(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -427,7 +437,7 @@ func (h *Service) KapacitorTasksGet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rules, err := h.AlertRulesStore.All(ctx)
+	rules, err := h.AlertRulesStore.All(ctx, srcID, id)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, err.Error())
 		return
@@ -436,7 +446,7 @@ func (h *Service) KapacitorTasksGet(w http.ResponseWriter, r *http.Request) {
 	ticker := &kapa.Alert{}
 	c := kapa.Client{}
 	res := allAlertsResponse{
-		Tasks: []alertResponse{},
+		Rules: []alertResponse{},
 	}
 	for _, rule := range rules {
 		tickscript, err := ticker.Generate(rule)
@@ -448,22 +458,22 @@ func (h *Service) KapacitorTasksGet(w http.ResponseWriter, r *http.Request) {
 		ar := alertResponse{
 			AlertRule: rule,
 			Links: alertLinks{
-				Self:      fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/tasks/%s", srv.SrcID, srv.ID, rule.ID),
+				Self:      fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/rules/%s", srv.SrcID, srv.ID, rule.ID),
 				Kapacitor: fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(c.Href(rule.ID))),
 			},
 			TICKScript: string(tickscript),
 		}
-		res.Tasks = append(res.Tasks, ar)
+		res.Rules = append(res.Rules, ar)
 	}
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
 type allAlertsResponse struct {
-	Tasks []alertResponse `json:"tasks"`
+	Rules []alertResponse `json:"rules"`
 }
 
-// KapacitorTasksGet retrieves specific task
-func (h *Service) KapacitorTasksID(w http.ResponseWriter, r *http.Request) {
+// KapacitorRulesGet retrieves specific task
+func (h *Service) KapacitorRulesID(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -483,8 +493,13 @@ func (h *Service) KapacitorTasksID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tid := httprouter.GetParamFromContext(ctx, "tid")
-	rule, err := h.AlertRulesStore.Get(ctx, tid)
+	// Check if the rule exists within scope
+	rule, err := h.AlertRulesStore.Get(ctx, srcID, id, tid)
 	if err != nil {
+		if err == chronograf.ErrAlertNotFound {
+			notFound(w, id)
+			return
+		}
 		Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -500,7 +515,7 @@ func (h *Service) KapacitorTasksID(w http.ResponseWriter, r *http.Request) {
 	res := alertResponse{
 		AlertRule: rule,
 		Links: alertLinks{
-			Self:      fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/tasks/%s", srv.SrcID, srv.ID, rule.ID),
+			Self:      fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/rules/%s", srv.SrcID, srv.ID, rule.ID),
 			Kapacitor: fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(c.Href(rule.ID))),
 		},
 		TICKScript: string(tickscript),
@@ -508,8 +523,8 @@ func (h *Service) KapacitorTasksID(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
-// KapacitorTasksDelete proxies DELETE to kapacitor
-func (h *Service) KapacitorTasksDelete(w http.ResponseWriter, r *http.Request) {
+// KapacitosRulesDelete proxies DELETE to kapacitor
+func (h *Service) KapacitorRulesDelete(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error())
@@ -530,6 +545,17 @@ func (h *Service) KapacitorTasksDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tid := httprouter.GetParamFromContext(ctx, "tid")
+
+	// Check if the rule is linked to this server and kapacitor
+	if _, err := h.AlertRulesStore.Get(ctx, srcID, id, tid); err != nil {
+		if err == chronograf.ErrAlertNotFound {
+			notFound(w, id)
+			return
+		}
+		Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	c := kapa.Client{
 		URL:      srv.URL,
 		Username: srv.Username,
@@ -540,7 +566,7 @@ func (h *Service) KapacitorTasksDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.AlertRulesStore.Delete(ctx, chronograf.AlertRule{ID: tid}); err != nil {
+	if err := h.AlertRulesStore.Delete(ctx, srcID, id, chronograf.AlertRule{ID: tid}); err != nil {
 		Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}

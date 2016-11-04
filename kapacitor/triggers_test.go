@@ -19,7 +19,7 @@ func TestTrigger(t *testing.T) {
 				Trigger: "deadman",
 			},
 			want: `var trigger = data
-    |deadman(threshold, every)
+    |deadman(threshold, period)
         .stateChangesOnly()
         .message(message)
         .id(idVar)

@@ -102,16 +102,16 @@ type AlertRule struct {
 
 // AlertRulesStore stores rules for building tickscript alerting tasks
 type AlertRulesStore interface {
-	// All returns all rules in the store
-	All(context.Context) ([]AlertRule, error)
-	// Add creates a new rule in the AlertRulesStore and returns AlertRule with ID
-	Add(context.Context, AlertRule) (AlertRule, error)
-	// Delete the AlertRule from the store
-	Delete(context.Context, AlertRule) error
-	// Get retrieves AlertRule if `ID` exists
-	Get(ctx context.Context, ID string) (AlertRule, error)
-	// Update the AlertRule in the store.
-	Update(context.Context, AlertRule) error
+	// All returns all rules in the store for the given source and kapacitor id
+	All(ctx context.Context, sourceID, kapaID int) ([]AlertRule, error)
+	// Add creates a new rule in the AlertRulesStore and returns AlertRule with ID for a given source and kapacitor id
+	Add(ctx context.Context, sourceID, kapaID int, rule AlertRule) (AlertRule, error)
+	// Delete the AlertRule from the store for a given source and kapacitor ID
+	Delete(ctx context.Context, sourceID, kapaID int, rule AlertRule) error
+	// Get retrieves AlertRule if `ID` exists within a given source and kapacitor id
+	Get(ctx context.Context, sourceID, kapaID int, ID string) (AlertRule, error)
+	// Update the AlertRule in the store within a given source and kapacitor id
+	Update(ctx context.Context, sourceID, kapaID int, rule AlertRule) error
 }
 
 // TICKScript task to be used by kapacitor
