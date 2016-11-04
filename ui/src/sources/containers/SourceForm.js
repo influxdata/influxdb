@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
 import {getSource, createSource, updateSource} from 'shared/apis';
+import classNames from 'classnames';
 
 export const SourceForm = React.createClass({
   propTypes: {
@@ -81,17 +82,17 @@ export const SourceForm = React.createClass({
           <div className="enterprise-header__container">
             <div className="enterprise-header__left">
               <h1>
-                Source Form
+                {editMode ? "Edit Source" : "Add a New Source"}
               </h1>
             </div>
           </div>
         </div>
-        <div className="container">
+        <div className="container-fluid">
           <div className="row">
             <div className="col-md-8 col-md-offset-2">
               <div className="panel panel-summer">
                 <div className="panel-body">
-                  <h4 className="text-center">{editMode ? "Update Existing Source" : "Connect to a New Source"}</h4>
+                  <h4 className="text-center">Connection Details</h4>
                   <br/>
 
                   <form onSubmit={this.handleSubmit}>
@@ -112,18 +113,16 @@ export const SourceForm = React.createClass({
                         <label htmlFor="password">Password</label>
                         <input type="password" name="password" ref={(r) => this.sourcePassword = r} className="form-control" id="password" onChange={this.onInputChange} value={source.password || ''}></input>
                       </div>
-                      <div className="form-group col-xs-6 col-xs-offset-2">
-                        <div className="checkbox">
-                          <label>
-                            <input type="checkbox" defaultChecked={source.default} ref={(r) => this.sourceDefault = r} />
-                            Default source
-                          </label>
+                      <div className="form-group col-xs-8 col-xs-offset-2">
+                        <div className="form-control-static">
+                          <input type="checkbox" id="defaultSourceCheckbox" defaultChecked={source.default} ref={(r) => this.sourceDefault = r} />
+                          <label htmlFor="defaultSourceCheckbox">Make this the default source</label>
                         </div>
                       </div>
                     </div>
 
-                    <div className="form-group col-xs-12 text-center">
-                      <button className="btn btn-success" type="submit">{editMode ? "Update" : "Create"}</button>
+                    <div className="form-group col-xs-4 col-xs-offset-4">
+                      <button className={classNames('btn btn-block', {'btn-primary': editMode, 'btn-success': !editMode})} type="submit">{editMode ? "Save Changes" : "Add Source"}</button>
                     </div>
                   </form>
                 </div>

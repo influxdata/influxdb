@@ -46,7 +46,7 @@ export const KapacitorPage = React.createClass({
       username: newUsername,
       password: this.kapacitorPassword.value,
     }).then(() => {
-      this.props.addFlashMessage({type: 'success', text: 'Kapacitor saved'});
+      this.props.addFlashMessage({type: 'success', text: 'Kapacitor Created!'});
       this.fetchKapacitor();
     }).catch(() => {
       this.props.addFlashMessage({type: 'error', text: 'There was a problem creating the Kapacitor record'});
@@ -61,7 +61,7 @@ export const KapacitorPage = React.createClass({
       username: newUsername || kapacitor.username,
       password: this.kapacitorPassword.value,
     }).then(() => {
-      this.props.addFlashMessage({type: 'success', text: 'Kapacitor saved'});
+      this.props.addFlashMessage({type: 'success', text: 'Kapacitor Saved!'});
       this.fetchKapacitor();
     }).catch(() => {
       this.props.addFlashMessage({type: 'error', text: 'There was a problem updating the Kapacitor record'});
@@ -93,7 +93,7 @@ export const KapacitorPage = React.createClass({
           <div className="enterprise-header__container">
             <div className="enterprise-header__left">
               <h1>
-                Kapacitor Configuration
+                Configure Kapacitor
               </h1>
             </div>
           </div>
@@ -101,7 +101,7 @@ export const KapacitorPage = React.createClass({
 
         <div className="container-fluid">
           <div className="row">
-            <div className="col-md-8 col-offset-2">
+            <div className="col-md-8 col-md-offset-2">
               <div className="panel panel-minimal">
                 <div className="panel-body">
                   <p>
@@ -109,10 +109,8 @@ export const KapacitorPage = React.createClass({
                     This page will let you configure which Kapacitor to use and
                     set up alert end points like email, Slack, and others.
                   </p>
-                </div>
-
-                <div className="panel-body">
-                  <h4 className="text-center">Kapacitor Connection Information</h4>
+                  <hr/>
+                  <h4 className="text-center">Connection Details</h4>
                   <br/>
                   <form onSubmit={this.handleKapacitorUpdate}>
                     <div>
@@ -134,8 +132,8 @@ export const KapacitorPage = React.createClass({
                       </div>
                     </div>
 
-                    <div className="form-group col-xs-12 text-center">
-                      <button className="btn btn-success" type="submit">&nbsp;&nbsp;Set Connection Details&nbsp;&nbsp;</button>
+                    <div className="form-group col-xs-4 col-xs-offset-4">
+                      <button className="btn btn-block btn-success" type="submit">Connect Kapacitor</button>
                     </div>
                   </form>
                 </div>
@@ -143,7 +141,7 @@ export const KapacitorPage = React.createClass({
             </div>
           </div>
           <div className="row">
-            <div className="col-md-8 col-offset-2">
+            <div className="col-md-8 col-md-offset-2">
               {this.renderAlertOutputs()}
             </div>
           </div>
