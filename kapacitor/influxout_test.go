@@ -11,13 +11,14 @@ func TestInfluxOut(t *testing.T) {
 		{
 			name: "Test influxDBOut kapacitor node",
 			want: `trigger
-    |eval(lambda: "usage_user")
+    |eval(lambda: "emitted")
         .as('value')
+        .keep('value', messageField, durationField)
     |influxDBOut()
         .create()
-        .database(output_db)
-        .retentionPolicy(output_rp)
-        .measurement(output_mt)
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
         .tag('alertName', name)
         .tag('triggerType', triggerType)
 `,

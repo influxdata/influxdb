@@ -13,20 +13,18 @@ func InfluxOut(rule chronograf.AlertRule) (string, error) {
 
 	rename := ""
 	if rule.Trigger == "deadman" {
-		fld, err := field(rule.Query)
-		if err != nil {
-			return "", err
-		}
-		rename = fmt.Sprintf(`|eval(lambda: "%s").as('value')`, fld)
+		rename = `|eval(lambda: "emitted")
+        	.as('value')
+       		.keep('value', messageField, durationField)`
 	}
 	return fmt.Sprintf(`
 			trigger
 			%s
 			|influxDBOut()
             	.create()
-            	.database(output_db)
-            	.retentionPolicy(output_rp)
-            	.measurement(output_mt)
+            	.database(outputDB)
+            	.retentionPolicy(outputRP)
+            	.measurement(outputMeasurement)
 				.tag('alertName', name)
 				.tag('triggerType', triggerType)
 			`, rename), nil

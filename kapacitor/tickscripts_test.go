@@ -124,9 +124,9 @@ var rp = 'autogen'
 
 var measurement = 'cpu'
 
-var groupby = ['host', 'cluster_id']
+var groupBy = ['host', 'cluster_id']
 
-var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
+var whereFilter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
 var period = 10m
 
@@ -136,19 +136,19 @@ var idVar = name + ':{{.Group}}'
 
 var message = 'message'
 
-var idtag = 'alertID'
+var idTag = 'alertID'
 
-var leveltag = 'level'
+var levelTag = 'level'
 
-var messagefield = 'message'
+var messageField = 'message'
 
-var durationfield = 'duration'
+var durationField = 'duration'
 
-var output_db = 'chronograf'
+var outputDB = 'chronograf'
 
-var output_rp = 'autogen'
+var outputRP = 'autogen'
 
-var output_mt = 'alerts'
+var outputMeasurement = 'alerts'
 
 var triggerType = 'threshold'
 
@@ -161,8 +161,8 @@ var data = stream
         .database(db)
         .retentionPolicy(rp)
         .measurement(measurement)
-        .groupBy(groupby)
-        .where(where_filter)
+        .groupBy(groupBy)
+        .where(whereFilter)
     |window()
         .period(period)
         .every(every)
@@ -176,10 +176,10 @@ var trigger = data
         .crit(lambda: "value" > crit)
         .message(message)
         .id(idVar)
-        .idTag(idtag)
-        .levelTag(leveltag)
-        .messageField(messagefield)
-        .durationField(durationfield)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
         .slack()
         .victorOps()
         .email()
@@ -187,9 +187,9 @@ var trigger = data
 trigger
     |influxDBOut()
         .create()
-        .database(output_db)
-        .retentionPolicy(output_rp)
-        .measurement(output_mt)
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
         .tag('alertName', name)
         .tag('triggerType', triggerType)
 `,
@@ -273,9 +273,9 @@ var rp = 'autogen'
 
 var measurement = 'cpu'
 
-var groupby = ['host', 'cluster_id']
+var groupBy = ['host', 'cluster_id']
 
-var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
+var whereFilter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
 var period = 10m
 
@@ -285,19 +285,19 @@ var idVar = name + ':{{.Group}}'
 
 var message = 'message'
 
-var idtag = 'alertID'
+var idTag = 'alertID'
 
-var leveltag = 'level'
+var levelTag = 'level'
 
-var messagefield = 'message'
+var messageField = 'message'
 
-var durationfield = 'duration'
+var durationField = 'duration'
 
-var output_db = 'chronograf'
+var outputDB = 'chronograf'
 
-var output_rp = 'autogen'
+var outputRP = 'autogen'
 
-var output_mt = 'alerts'
+var outputMeasurement = 'alerts'
 
 var triggerType = 'threshold'
 
@@ -310,8 +310,8 @@ var data = stream
         .database(db)
         .retentionPolicy(rp)
         .measurement(measurement)
-        .groupBy(groupby)
-        .where(where_filter)
+        .groupBy(groupBy)
+        .where(whereFilter)
     |eval(lambda: "usage_user")
         .as('value')
 
@@ -321,10 +321,10 @@ var trigger = data
         .crit(lambda: "value" > crit)
         .message(message)
         .id(idVar)
-        .idTag(idtag)
-        .levelTag(leveltag)
-        .messageField(messagefield)
-        .durationField(durationfield)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
         .slack()
         .victorOps()
         .email()
@@ -332,9 +332,9 @@ var trigger = data
 trigger
     |influxDBOut()
         .create()
-        .database(output_db)
-        .retentionPolicy(output_rp)
-        .measurement(output_mt)
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
         .tag('alertName', name)
         .tag('triggerType', triggerType)
 `,
@@ -418,9 +418,9 @@ var rp = 'autogen'
 
 var measurement = 'cpu'
 
-var groupby = ['host', 'cluster_id']
+var groupBy = ['host', 'cluster_id']
 
-var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
+var whereFilter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
 var period = 10m
 
@@ -430,19 +430,19 @@ var idVar = name + ':{{.Group}}'
 
 var message = 'message'
 
-var idtag = 'alertID'
+var idTag = 'alertID'
 
-var leveltag = 'level'
+var levelTag = 'level'
 
-var messagefield = 'message'
+var messageField = 'message'
 
-var durationfield = 'duration'
+var durationField = 'duration'
 
-var output_db = 'chronograf'
+var outputDB = 'chronograf'
 
-var output_rp = 'autogen'
+var outputRP = 'autogen'
 
-var output_mt = 'alerts'
+var outputMeasurement = 'alerts'
 
 var triggerType = 'relative'
 
@@ -457,8 +457,8 @@ var data = stream
         .database(db)
         .retentionPolicy(rp)
         .measurement(measurement)
-        .groupBy(groupby)
-        .where(where_filter)
+        .groupBy(groupBy)
+        .where(whereFilter)
     |window()
         .period(period)
         .every(every)
@@ -482,10 +482,10 @@ var trigger = past
         .crit(lambda: "value" > crit)
         .message(message)
         .id(idVar)
-        .idTag(idtag)
-        .levelTag(leveltag)
-        .messageField(messagefield)
-        .durationField(durationfield)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
         .slack()
         .victorOps()
         .email()
@@ -493,9 +493,9 @@ var trigger = past
 trigger
     |influxDBOut()
         .create()
-        .database(output_db)
-        .retentionPolicy(output_rp)
-        .measurement(output_mt)
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
         .tag('alertName', name)
         .tag('triggerType', triggerType)
 `,
@@ -579,9 +579,9 @@ var rp = 'autogen'
 
 var measurement = 'cpu'
 
-var groupby = ['host', 'cluster_id']
+var groupBy = ['host', 'cluster_id']
 
-var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
+var whereFilter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
 var period = 10m
 
@@ -591,19 +591,19 @@ var idVar = name + ':{{.Group}}'
 
 var message = 'message'
 
-var idtag = 'alertID'
+var idTag = 'alertID'
 
-var leveltag = 'level'
+var levelTag = 'level'
 
-var messagefield = 'message'
+var messageField = 'message'
 
-var durationfield = 'duration'
+var durationField = 'duration'
 
-var output_db = 'chronograf'
+var outputDB = 'chronograf'
 
-var output_rp = 'autogen'
+var outputRP = 'autogen'
 
-var output_mt = 'alerts'
+var outputMeasurement = 'alerts'
 
 var triggerType = 'relative'
 
@@ -618,8 +618,8 @@ var data = stream
         .database(db)
         .retentionPolicy(rp)
         .measurement(measurement)
-        .groupBy(groupby)
-        .where(where_filter)
+        .groupBy(groupBy)
+        .where(whereFilter)
     |window()
         .period(period)
         .every(every)
@@ -643,10 +643,10 @@ var trigger = past
         .crit(lambda: "value" > crit)
         .message(message)
         .id(idVar)
-        .idTag(idtag)
-        .levelTag(leveltag)
-        .messageField(messagefield)
-        .durationField(durationfield)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
         .slack()
         .victorOps()
         .email()
@@ -654,9 +654,9 @@ var trigger = past
 trigger
     |influxDBOut()
         .create()
-        .database(output_db)
-        .retentionPolicy(output_rp)
-        .measurement(output_mt)
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
         .tag('alertName', name)
         .tag('triggerType', triggerType)
 `,
@@ -736,9 +736,9 @@ var rp = 'autogen'
 
 var measurement = 'cpu'
 
-var groupby = ['host', 'cluster_id']
+var groupBy = ['host', 'cluster_id']
 
-var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
+var whereFilter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
 var period = 10m
 
@@ -748,19 +748,19 @@ var idVar = name + ':{{.Group}}'
 
 var message = 'message'
 
-var idtag = 'alertID'
+var idTag = 'alertID'
 
-var leveltag = 'level'
+var levelTag = 'level'
 
-var messagefield = 'message'
+var messageField = 'message'
 
-var durationfield = 'duration'
+var durationField = 'duration'
 
-var output_db = 'chronograf'
+var outputDB = 'chronograf'
 
-var output_rp = 'autogen'
+var outputRP = 'autogen'
 
-var output_mt = 'alerts'
+var outputMeasurement = 'alerts'
 
 var triggerType = 'deadman'
 
@@ -771,30 +771,31 @@ var data = stream
         .database(db)
         .retentionPolicy(rp)
         .measurement(measurement)
-        .groupBy(groupby)
-        .where(where_filter)
+        .groupBy(groupBy)
+        .where(whereFilter)
 
 var trigger = data
     |deadman(threshold, period)
         .stateChangesOnly()
         .message(message)
         .id(idVar)
-        .idTag(idtag)
-        .levelTag(leveltag)
-        .messageField(messagefield)
-        .durationField(durationfield)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
         .slack()
         .victorOps()
         .email()
 
 trigger
-    |eval(lambda: "usage_user")
+    |eval(lambda: "emitted")
         .as('value')
+        .keep('value', messageField, durationField)
     |influxDBOut()
         .create()
-        .database(output_db)
-        .retentionPolicy(output_rp)
-        .measurement(output_mt)
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
         .tag('alertName', name)
         .tag('triggerType', triggerType)
 `,

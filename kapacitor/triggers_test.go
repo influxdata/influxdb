@@ -23,10 +23,10 @@ func TestTrigger(t *testing.T) {
         .stateChangesOnly()
         .message(message)
         .id(idVar)
-        .idTag(idtag)
-        .levelTag(leveltag)
-        .messageField(messagefield)
-        .durationField(durationfield)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
 `,
 			wantErr: false,
 		},
@@ -55,10 +55,10 @@ var trigger = past
         .crit(lambda: "value" > crit)
         .message(message)
         .id(idVar)
-        .idTag(idtag)
-        .levelTag(leveltag)
-        .messageField(messagefield)
-        .durationField(durationfield)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
 `,
 			wantErr: false,
 		},
@@ -87,10 +87,10 @@ var trigger = past
         .crit(lambda: "value" > crit)
         .message(message)
         .id(idVar)
-        .idTag(idtag)
-        .levelTag(leveltag)
-        .messageField(messagefield)
-        .durationField(durationfield)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
 `,
 			wantErr: false,
 		},
@@ -108,10 +108,10 @@ var trigger = past
         .crit(lambda: "value" > crit)
         .message(message)
         .id(idVar)
-        .idTag(idtag)
-        .levelTag(leveltag)
-        .messageField(messagefield)
-        .durationField(durationfield)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
 `,
 			wantErr: false,
 		},
