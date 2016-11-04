@@ -28,15 +28,15 @@ const SideNav = React.createClass({
           <NavHeader link={dataExplorerLink} title={'Chronograf'} />
           <NavListItem link={dataExplorerLink}>Data Explorer</NavListItem>
         </NavBlock>
-        <NavBlock icon="crown" link={`${sourcePrefix}/manage-sources`}>
-          <NavHeader link={`${sourcePrefix}/manage-sources`} title="Sources" />
-          <NavListItem link={`${sourcePrefix}/manage-sources`}>InfluxDB</NavListItem>
-          <NavListItem link={`${sourcePrefix}/kapacitor-config`}>Kapacitor</NavListItem>
-        </NavBlock>
         <NavBlock matcher="alerts" icon="alert-triangle" link={`${sourcePrefix}/alerts`}>
           <NavHeader link={`${sourcePrefix}/alerts`} title="Alerts" />
           <NavListItem link={`${sourcePrefix}/alerts`}>View</NavListItem>
           <NavListItem link={`${sourcePrefix}/alert-rules`}>Rules</NavListItem>
+        </NavBlock>
+        <NavBlock icon="crown" link={`${sourcePrefix}/manage-sources`}>
+          <NavHeader link={`${sourcePrefix}/manage-sources`} title="Sources" />
+          <NavListItem link={`${sourcePrefix}/manage-sources`}>InfluxDB</NavListItem>
+          <NavListItem link={`${sourcePrefix}/kapacitor-config`}>Kapacitor</NavListItem>
         </NavBlock>
       </NavBar>
     );
