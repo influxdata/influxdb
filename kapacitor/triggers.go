@@ -17,8 +17,32 @@ var ThresholdTrigger = `
 	.durationField(durationfield)
 `
 
-// RelativeTrigger compares one window of data versus another.
-var RelativeTrigger = `
+// RelativeAbsoluteTrigger compares one window of data versus another (current - past)
+var RelativeAbsoluteTrigger = `
+var past = data
+	|shift(shift)
+
+var current = data
+
+var trigger = past
+	|join(current)
+		.as('past', 'current')
+	|eval(lambda: float("current.value" - "past.value"))
+		.keep()
+		.as('value')
+    |alert()
+        .stateChangesOnly()
+        .crit(lambda: "value" %s crit)
+        .message(message)
+		.id(idVar)
+		.idTag(idtag)
+		.levelTag(leveltag)
+		.messageField(messagefield)
+		.durationField(durationfield)
+`
+
+// RelativePercentTrigger compares one window of data versus another as a percent change.
+var RelativePercentTrigger = `
 var past = data
 	|shift(shift)
 
@@ -63,7 +87,13 @@ func Trigger(rule chronograf.AlertRule) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		return fmt.Sprintf(RelativeTrigger, op), nil
+		if rule.TriggerValues.Change == "% change" {
+			return fmt.Sprintf(RelativePercentTrigger, op), nil
+		} else if rule.TriggerValues.Change == "change" {
+			return fmt.Sprintf(RelativeAbsoluteTrigger, op), nil
+		} else {
+			return "", fmt.Errorf("Unknown change type %s", rule.TriggerValues.Change)
+		}
 	case "threshold":
 		op, err := kapaOperator(rule.TriggerValues.Operator)
 		if err != nil {

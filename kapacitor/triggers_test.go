@@ -36,6 +36,7 @@ func TestTrigger(t *testing.T) {
 				Trigger: "relative",
 				TriggerValues: chronograf.TriggerValues{
 					Operator: "greater than",
+					Change:   "% change",
 				},
 			},
 			want: `var past = data
@@ -47,6 +48,38 @@ var trigger = past
     |join(current)
         .as('past', 'current')
     |eval(lambda: abs(float("current.value" - "past.value")) / float("past.value") * 100.0)
+        .keep()
+        .as('value')
+    |alert()
+        .stateChangesOnly()
+        .crit(lambda: "value" > crit)
+        .message(message)
+        .id(idVar)
+        .idTag(idtag)
+        .levelTag(leveltag)
+        .messageField(messagefield)
+        .durationField(durationfield)
+`,
+			wantErr: false,
+		},
+		{
+			name: "Test Relative percent change",
+			rule: chronograf.AlertRule{
+				Trigger: "relative",
+				TriggerValues: chronograf.TriggerValues{
+					Operator: "greater than",
+					Change:   "change",
+				},
+			},
+			want: `var past = data
+    |shift(shift)
+
+var current = data
+
+var trigger = past
+    |join(current)
+        .as('past', 'current')
+    |eval(lambda: float("current.value" - "past.value"))
         .keep()
         .as('value')
     |alert()
