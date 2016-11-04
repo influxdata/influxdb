@@ -1,39 +1,36 @@
 import React, {PropTypes} from 'react';
+import {connect} from 'react-redux';
+import {bindActionCreators} from 'redux';
 import {Link} from 'react-router';
-import {getRules} from 'src/kapacitor/apis';
-import {getKapacitor} from 'src/shared/apis';
+import * as kapacitorActionCreators from 'src/kapacitor/actions/view';
 
 export const KapacitorRulesPage = React.createClass({
   propTypes: {
     source: PropTypes.shape({
-      id: PropTypes.string.isRequired,
-      name: PropTypes.string.isRequired,
-      type: PropTypes.string.isRequired, // 'influx-enterprise'
-      username: PropTypes.string.isRequired,
       links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
+        self: PropTypes.string.isRequired,
         kapacitors: PropTypes.string.isRequired,
-      }).isRequired,
+      }),
+    }),
+    rules: PropTypes.arrayOf(PropTypes.shape({
+      name: PropTypes.string.isRequired,
+      trigger: PropTypes.string.isRequired,
+      message: PropTypes.string.isRequired,
+      alerts: PropTypes.arrayOf(PropTypes.string.isRequired).isRequired,
+    })).isRequired,
+    actions: PropTypes.shape({
+      fetchRules: PropTypes.func.isRequired,
     }).isRequired,
     addFlashMessage: PropTypes.func,
   },
 
-  getInitialState() {
-    return {
-      rules: [],
-    };
-  },
-
   componentDidMount() {
-    getKapacitor(this.props.source).then((kapacitor) => {
-      getRules(kapacitor).then(({data: {rules}}) => {
-        this.setState({rules});
-      });
-    });
+    this.props.actions.fetchRules(this.props.source);
   },
 
   render() {
-    const {rules} = this.state;
-    const {source} = this.props;
+    const {source, rules} = this.props;
 
     return (
       <div className="kapacitor-rules-page">
@@ -48,6 +45,7 @@ export const KapacitorRulesPage = React.createClass({
           <div className="panel panel-minimal">
             <div className="panel-heading u-flex u-ai-center u-jc-space-between">
               <h2 className="panel-title">Alert Rules</h2>
+              <Link to={`/sources/${source.id}/alert-rules/new`} className="btn btn-sm btn-primary">Add New Rule</Link>
             </div>
             <div className="panel-body">
               <table className="table v-center">
@@ -82,4 +80,16 @@ export const KapacitorRulesPage = React.createClass({
   },
 });
 
-export default KapacitorRulesPage;
+function mapStateToProps(state) {
+  return {
+    rules: Object.values(state.rules),
+  };
+}
+
+function mapDispatchToProps(dispatch) {
+  return {
+    actions: bindActionCreators(kapacitorActionCreators, dispatch),
+  };
+}
+
+export default connect(mapStateToProps, mapDispatchToProps)(KapacitorRulesPage);

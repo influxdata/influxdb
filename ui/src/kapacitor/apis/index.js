@@ -14,3 +14,18 @@ export function getRules(kapacitor) {
     url: kapacitor.links.rules,
   });
 }
+
+export function getRule(kapacitor, ruleID) {
+  return AJAX({
+    method: 'GET',
+    url: `${kapacitor.links.rules}/${ruleID}`,
+  });
+}
+
+export function editRule(rule) {
+  return AJAX({
+    method: 'PUT',
+    url: rule.links.self,
+    data: rule,
+  });
+}

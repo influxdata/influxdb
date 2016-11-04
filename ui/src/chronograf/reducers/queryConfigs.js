@@ -37,9 +37,9 @@ export default function queryConfigs(state = {}, action) {
     }
 
     case 'LOAD_KAPACITOR_QUERY': {
-      const {queryID, query} = action.payload;
+      const {query} = action.payload;
       const nextState = Object.assign({}, state, {
-        [queryID]: query,
+        [query.id]: query,
       });
 
       return nextState;

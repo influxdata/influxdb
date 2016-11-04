@@ -8,6 +8,13 @@ export const ManageSources = React.createClass({
     location: PropTypes.shape({
       pathname: PropTypes.string.isRequired,
     }).isRequired,
+    source: PropTypes.shape({
+      id: PropTypes.string.isRequired,
+      links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
+        self: PropTypes.string.isRequired,
+      }),
+    }),
   },
   getInitialState() {
     return {
@@ -59,7 +66,7 @@ export const ManageSources = React.createClass({
               <div className="panel panel-minimal">
                 <div className="panel-heading u-flex u-ai-center u-jc-space-between">
                   <h2 className="panel-title">{sourcesTitle}</h2>
-                  <Link to={`/sources/1/manage-sources/new`} className="btn btn-sm btn-primary">Add New Source</Link>
+                  <Link to={`/sources/${this.props.source.id}/manage-sources/new`} className="btn btn-sm btn-primary">Add New Source</Link>
                 </div>
                 <div className="panel-body">
                   <div className="table-responsive margin-bottom-zero">
