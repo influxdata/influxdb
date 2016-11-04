@@ -12,6 +12,7 @@ import LineGraph from 'shared/components/LineGraph';
 const RefreshingLineGraph = AutoRefresh(LineGraph);
 import {getKapacitor, getKapacitorConfig} from 'shared/apis/index';
 import Dropdown from 'shared/components/Dropdown';
+import ALERTS from 'src/kapacitor/constants';
 
 export const KapacitorRulePage = React.createClass({
   propTypes: {
@@ -55,7 +56,7 @@ export const KapacitorRulePage = React.createClass({
     getKapacitor(this.props.source).then((kapacitor) => {
       getKapacitorConfig(kapacitor).then(({data: {sections}}) => {
         const enabledAlerts = Object.keys(sections).filter((section) => {
-          return _.get(sections, [section, 'elements', '0', 'options', 'enabled'], false);
+          return _.get(sections, [section, 'elements', '0', 'options', 'enabled'], false) && ALERTS.includes(section);
         });
         this.setState({enabledAlerts});
       }).catch(() => {
