@@ -72,7 +72,7 @@ export const KapacitorRulePage = React.createClass({
   },
 
   handleSave() {
-    const {queryConfigs, rules} = this.props
+    const {queryConfigs, rules} = this.props;
     const rule = rules[Object.keys(rules)[0]]; // this.props.params.taskID
     const newRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
@@ -81,7 +81,7 @@ export const KapacitorRulePage = React.createClass({
     createRule(this.state.kapacitor, newRule).then(() => {
       // maybe update the default rule in redux state.. and update the URL
     }).catch(() => {
-        this.props.addFlashMessage({type: 'failure', message: `There was a problem creating the rule`});
+      this.props.addFlashMessage({type: 'failure', message: `There was a problem creating the rule`});
     });
   },
 
