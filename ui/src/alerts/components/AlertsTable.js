@@ -70,10 +70,10 @@ const AlertsTable = React.createClass({
             <thead>
               <tr>
                 <th onClick={() => this.changeSort('name')} className="sortable-header">Alert</th>
-                <th onClick={() => this.changeSort('time')} className="sortable-header">Time</th>
-                <th onClick={() => this.changeSort('value')} className="sortable-header">Value</th>
-                <th onClick={() => this.changeSort('host')} className="sortable-header">Host</th>
                 <th onClick={() => this.changeSort('level')} className="sortable-header">Level</th>
+                <th onClick={() => this.changeSort('time')} className="sortable-header">Time</th>
+                <th onClick={() => this.changeSort('host')} className="sortable-header">Host</th>
+                <th onClick={() => this.changeSort('value')} className="sortable-header">Value</th>
               </tr>
             </thead>
             <tbody>
@@ -82,10 +82,10 @@ const AlertsTable = React.createClass({
                   return (
                     <tr key={name}>
                       <td className="monotype"><a href={`/sources/${source.id}/alerts/${name}`}>{name}</a></td>
-                      <td className="monotype">{time}</td>
-                      <td className="monotype">{value}</td>
-                      <td className="monotype">{host}</td>
                       <td className="monotype">{level}</td>
+                      <td className="monotype">{time}</td>
+                      <td className="monotype">{host}</td>
+                      <td className="monotype">{value}</td>
                     </tr>
                   );
                 })
