@@ -19,6 +19,7 @@ type Client struct {
 	SourcesStore     *SourcesStore
 	ServersStore     *ServersStore
 	LayoutStore      *LayoutStore
+	AlertsStore      *AlertsStore
 }
 
 func NewClient() *Client {
@@ -26,6 +27,7 @@ func NewClient() *Client {
 	c.ExplorationStore = &ExplorationStore{client: c}
 	c.SourcesStore = &SourcesStore{client: c}
 	c.ServersStore = &ServersStore{client: c}
+	c.AlertsStore = &AlertsStore{client: c}
 	c.LayoutStore = &LayoutStore{
 		client: c,
 		IDs:    &uuid.V4{},
@@ -59,19 +61,14 @@ func (c *Client) Open() error {
 		if _, err := tx.CreateBucketIfNotExists(LayoutBucket); err != nil {
 			return err
 		}
-
+		// Always create Alerts bucket.
+		if _, err := tx.CreateBucketIfNotExists(AlertsBucket); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		return err
 	}
-
-	// TODO: Ask @gunnar about these
-	/*
-		c.ExplorationStore = &ExplorationStore{client: c}
-		c.SourcesStore = &SourcesStore{client: c}
-		c.ServersStore = &ServersStore{client: c}
-		c.LayoutStore = &LayoutStore{client: c}
-	*/
 
 	return nil
 }
