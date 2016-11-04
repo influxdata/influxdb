@@ -58,7 +58,6 @@ const AlertsTable = React.createClass({
 
   render() {
     const alerts = this.sort(this.state.filteredAlerts, this.state.sortKey, this.state.sortDirection);
-    const {source} = this.props;
     return (
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
@@ -81,7 +80,7 @@ const AlertsTable = React.createClass({
                 alerts.map(({name, time, value, host, level}) => {
                   return (
                     <tr key={name}>
-                      <td className="monotype"><a href={`/sources/${source.id}/alerts/${name}`}>{name}</a></td>
+                      <td className="monotype">{name}</td>
                       <td className="monotype">{level}</td>
                       <td className="monotype">{time}</td>
                       <td className="monotype">{host}</td>
