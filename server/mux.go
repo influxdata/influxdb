@@ -68,13 +68,13 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid", service.UpdateKapacitor)
 	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid", service.RemoveKapacitor)
 
-	// Kapacitor Tasks
-	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/tasks", service.KapacitorTasksGet)
-	router.POST("/chronograf/v1/sources/:id/kapacitors/:kid/tasks", service.KapacitorTasksPost)
+	// Kapacitor rules
+	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/rules", service.KapacitorRulesGet)
+	router.POST("/chronograf/v1/sources/:id/kapacitors/:kid/rules", service.KapacitorRulesPost)
 
-	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/tasks/:tid", service.KapacitorTasksID)
-	router.PUT("/chronograf/v1/sources/:id/kapacitors/:kid/tasks/:tid", service.KapacitorTasksPut)
-	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/tasks/:tid", service.KapacitorTasksDelete)
+	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesID)
+	router.PUT("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesPut)
+	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesDelete)
 
 	// Kapacitor Proxy
 	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/proxy", service.KapacitorProxyGet)
