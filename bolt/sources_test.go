@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/bolt"
 )
 
 // Ensure an SourceStore can store, retrieve, update, and delete sources.
@@ -54,11 +55,8 @@ func TestSourceStore(t *testing.T) {
 	// Update source.
 	srcs[0].Username = "calvinklein"
 	srcs[1].Name = "Enchantment Under the Sea Dance"
-	if err := s.Update(nil, srcs[0]); err != nil {
-		t.Fatal(err)
-	} else if err := s.Update(nil, srcs[1]); err != nil {
-		t.Fatal(err)
-	}
+	mustUpdateSource(t, s, srcs[0])
+	mustUpdateSource(t, s, srcs[1])
 
 	// Confirm sources have updated.
 	if src, err := s.Get(nil, srcs[0].ID); err != nil {
@@ -70,6 +68,18 @@ func TestSourceStore(t *testing.T) {
 		t.Fatal(err)
 	} else if src.Name != "Enchantment Under the Sea Dance" {
 		t.Fatalf("source 1 update error: got %v, expected %v", src.Name, "Enchantment Under the Sea Dance")
+	}
+
+	// Attempt to make two default sources
+	srcs[0].Default = true
+	srcs[1].Default = true
+	mustUpdateSource(t, s, srcs[0])
+	mustUpdateSource(t, s, srcs[1])
+
+	if actual, err := s.Get(nil, srcs[0].ID); err != nil {
+		t.Fatal(err)
+	} else if actual.Default == true {
+		t.Fatal("Able to set two default sources when only one should be permitted")
 	}
 
 	// Delete an source.
@@ -88,5 +98,11 @@ func TestSourceStore(t *testing.T) {
 		t.Fatalf("After delete All returned incorrect number of srcs; got %d, expected %d", len(bsrcs), 1)
 	} else if !reflect.DeepEqual(bsrcs[0], srcs[1]) {
 		t.Fatalf("After delete All returned incorrect source; got %v, expected %v", bsrcs[0], srcs[1])
+	}
+}
+
+func mustUpdateSource(t *testing.T, s *bolt.SourcesStore, src chronograf.Source) {
+	if err := s.Update(nil, src); err != nil {
+		t.Fatal(err)
 	}
 }

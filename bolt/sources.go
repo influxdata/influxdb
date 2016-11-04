@@ -103,6 +103,25 @@ func (s *SourcesStore) Update(ctx context.Context, src chronograf.Source) error 
 			return chronograf.ErrSourceNotFound
 		}
 
+		//Unset any existing defaults if this is a new default
+		if src.Default {
+			srcs, err := s.All(ctx)
+			if err != nil {
+				return err
+			}
+
+			for _, other := range srcs {
+				if other.Default {
+					other.Default = false
+					if v, err := internal.MarshalSource(other); err != nil {
+						return err
+					} else if err := b.Put(itob(other.ID), v); err != nil {
+						return err
+					}
+				}
+			}
+		}
+
 		if v, err := internal.MarshalSource(src); err != nil {
 			return err
 		} else if err := b.Put(itob(src.ID), v); err != nil {
