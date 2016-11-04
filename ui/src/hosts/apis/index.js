@@ -37,7 +37,7 @@ export function getMappings() {
 }
 
 export function getAppsForHosts(proxyLink, hosts, appMappings) {
-  const measurements = appMappings.map((m) => `${m.measurement}$`).join('|');
+  const measurements = appMappings.map((m) => `^${m.measurement}$`).join('|');
   const measurementsToApps = _.zipObject(appMappings.map(m => m.measurement), appMappings.map(m => m.name));
   return proxy({
     source: proxyLink,
