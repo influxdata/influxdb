@@ -35,18 +35,22 @@ func Data(rule chronograf.AlertRule) (string, error) {
 	// Only need aggregate functions for threshold and relative
 
 	if rule.Trigger != "deadman" {
+		fld, err := field(rule.Query)
+		if err != nil {
+			return "", err
+		}
 		value := ""
 		for _, field := range rule.Query.Fields {
 			for _, fnc := range field.Funcs {
 				// Only need a window if we have an aggregate function
 				value = value + "|window().period(period).every(every).align()\n"
-				value = value + fmt.Sprintf(`|%s(field).as('value')`, fnc)
+				value = value + fmt.Sprintf(`|%s('%s').as('value')`, fnc, fld)
 				break // only support a single field
 			}
 			break // only support a single field
 		}
 		if value == "" {
-			value = `|eval(lambda: field).as('value')`
+			value = fmt.Sprintf(`|eval(lambda: "%s").as('value')`, fld)
 		}
 		stream = stream + value
 	}

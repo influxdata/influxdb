@@ -71,16 +71,10 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 }
 
 func commonVars(rule chronograf.AlertRule) (string, error) {
-	fld, err := field(rule.Query)
-	if err != nil {
-		return "", err
-	}
-
 	common := `
         var db = '%s'
         var rp = '%s'
         var measurement = '%s'
-        var field = '%s'
         var groupby = %s
         var where_filter = %s
 		var period = %s
@@ -102,7 +96,6 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
 		rule.Query.Database,
 		rule.Query.RetentionPolicy,
 		rule.Query.Measurement,
-		fld,
 		groupBy(rule.Query),
 		whereFilter(rule.Query),
 		rule.TriggerValues.Period,
