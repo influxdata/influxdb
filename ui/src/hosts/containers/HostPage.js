@@ -10,7 +10,7 @@ export const HostPage = React.createClass({
       links: PropTypes.shape({
         proxy: PropTypes.string.isRequired,
       }).isRequired,
-    }).isRequired,
+    }),
     params: PropTypes.shape({
       hostID: PropTypes.string.isRequired,
     }).isRequired,
@@ -27,23 +27,17 @@ export const HostPage = React.createClass({
 
   componentDidMount() {
     const hosts = {[this.props.params.hostID]: {name: this.props.params.hostID}};
-    let apps = null;
-    let host = null;
-    let layouts = null;
 
-    fetchLayouts().then((ls) => {
-      layouts = ls.data.layouts;
-    });
-
-    getMappings().then(({data: {mappings}}) => {
-      apps = mappings.concat([{name: 'docker'}, {name: 'influxdb'}]).map((m) => m.name);
-    }).then(() => {
-      getAppsForHosts(this.props.source.links.proxy, hosts, apps).then((newHosts) => {
-        host = newHosts[this.props.params.hostID];
-        const filteredLayouts = layouts.filter((layout) => {
-          return host.apps.includes(layout.app);
+    // fetching layouts and mappings can be done at the same time
+    fetchLayouts().then(({data: {layouts}}) => {
+      getMappings().then(({data: {mappings}}) => {
+        getAppsForHosts(this.props.source.links.proxy, hosts, mappings).then((newHosts) => {
+          const host = newHosts[this.props.params.hostID];
+          const filteredLayouts = layouts.filter((layout) => {
+            return host.apps && host.apps.includes(layout.app);
+          });
+          this.setState({layouts: filteredLayouts});
         });
-        this.setState({layouts: filteredLayouts});
       });
     });
   },
