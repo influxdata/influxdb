@@ -75,21 +75,21 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
         var db = '%s'
         var rp = '%s'
         var measurement = '%s'
-        var groupby = %s
-        var where_filter = %s
+        var groupBy = %s
+        var whereFilter = %s
 		var period = %s
 
 		var name = '%s'
 		var idVar = name + ':{{.Group}}'
 		var message = '%s'
-		var idtag = '%s'
-		var leveltag = '%s'
-		var messagefield = '%s'
-		var durationfield = '%s'
+		var idTag = '%s'
+		var levelTag = '%s'
+		var messageField = '%s'
+		var durationField = '%s'
 
-        var output_db = '%s'
-        var output_rp = '%s'
-        var output_mt = '%s'
+        var outputDB = '%s'
+        var outputRP = '%s'
+        var outputMeasurement = '%s'
         var triggerType = '%s'
     `
 	return fmt.Sprintf(common,

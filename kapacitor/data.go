@@ -30,8 +30,8 @@ func Data(rule chronograf.AlertRule) (string, error) {
         .measurement(measurement)
   `
 
-	stream = fmt.Sprintf("%s\n.groupBy(groupby)\n", stream)
-	stream = stream + ".where(where_filter)\n"
+	stream = fmt.Sprintf("%s\n.groupBy(groupBy)\n", stream)
+	stream = stream + ".where(whereFilter)\n"
 	// Only need aggregate functions for threshold and relative
 
 	if rule.Trigger != "deadman" {

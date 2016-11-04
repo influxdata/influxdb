@@ -11,10 +11,10 @@ var ThresholdTrigger = `
     .crit(lambda: "value" %s crit)
     .message(message)
 	.id(idVar)
-	.idTag(idtag)
-	.levelTag(leveltag)
-	.messageField(messagefield)
-	.durationField(durationfield)
+	.idTag(idTag)
+	.levelTag(levelTag)
+	.messageField(messageField)
+	.durationField(durationField)
 `
 
 // RelativeAbsoluteTrigger compares one window of data versus another (current - past)
@@ -35,10 +35,10 @@ var trigger = past
         .crit(lambda: "value" %s crit)
         .message(message)
 		.id(idVar)
-		.idTag(idtag)
-		.levelTag(leveltag)
-		.messageField(messagefield)
-		.durationField(durationfield)
+		.idTag(idTag)
+		.levelTag(levelTag)
+		.messageField(messageField)
+		.durationField(durationField)
 `
 
 // RelativePercentTrigger compares one window of data versus another as a percent change.
@@ -59,10 +59,10 @@ var trigger = past
         .crit(lambda: "value" %s crit)
         .message(message)
 		.id(idVar)
-		.idTag(idtag)
-		.levelTag(leveltag)
-		.messageField(messagefield)
-		.durationField(durationfield)
+		.idTag(idTag)
+		.levelTag(levelTag)
+		.messageField(messageField)
+		.durationField(durationField)
 `
 
 // DeadmanTrigger checks if any data has been streamed in the last period of time
@@ -71,10 +71,10 @@ var DeadmanTrigger = `
     .stateChangesOnly()
     .message(message)
 	.id(idVar)
-	.idTag(idtag)
-	.levelTag(leveltag)
-	.messageField(messagefield)
-	.durationField(durationfield)
+	.idTag(idTag)
+	.levelTag(levelTag)
+	.messageField(messageField)
+	.durationField(durationField)
 `
 
 // Trigger returns the trigger mechanism for a tickscript
