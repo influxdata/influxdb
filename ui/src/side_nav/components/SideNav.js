@@ -32,12 +32,6 @@ const SideNav = React.createClass({
           <NavHeader link={`${sourcePrefix}/manage-sources`} title="Sources" />
           <NavListItem link={`${sourcePrefix}/manage-sources`}>InfluxDB</NavListItem>
           <NavListItem link={`${sourcePrefix}/kapacitor-config`}>Kapacitor</NavListItem>
-          <NavListItem link={`${sourcePrefix}/queries`}>Queries</NavListItem>
-          <NavListItem link={`${sourcePrefix}/tasks`}>Tasks</NavListItem>
-          <NavListItem link={`${sourcePrefix}/roles`}>Roles</NavListItem>
-          <NavListItem link={`${sourcePrefix}/accounts`}>Cluster Accounts</NavListItem>
-          <NavListItem link={`${sourcePrefix}/databases/manager/_internal`}>Database Manager</NavListItem>
-          <NavListItem link={`${sourcePrefix}/databases/retentionpolicies/_internal`}>Retention Policies</NavListItem>
         </NavBlock>
         <NavBlock matcher="alerts" icon="alert-triangle" link={`${sourcePrefix}/alerts`}>
           <NavHeader link={`${sourcePrefix}/alerts`} title="Alerts" />
