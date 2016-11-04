@@ -11,7 +11,7 @@ func TestInfluxOut(t *testing.T) {
 		{
 			name: "Test influxDBOut kapacitor node",
 			want: `trigger
-    |eval(lambda: 'usage_user')
+    |eval(lambda: "usage_user")
         .as('value')
     |influxDBOut()
         .create()

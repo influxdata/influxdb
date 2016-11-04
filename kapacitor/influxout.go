@@ -17,7 +17,7 @@ func InfluxOut(rule chronograf.AlertRule) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		rename = fmt.Sprintf(`|eval(lambda: '%s').as('value')`, fld)
+		rename = fmt.Sprintf(`|eval(lambda: "%s").as('value')`, fld)
 	}
 	return fmt.Sprintf(`
 			trigger

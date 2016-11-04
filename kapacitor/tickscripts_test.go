@@ -482,7 +482,7 @@ var trigger = data
         .email()
 
 trigger
-    |eval(lambda: 'usage_user')
+    |eval(lambda: "usage_user")
         .as('value')
     |influxDBOut()
         .create()
