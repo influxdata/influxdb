@@ -30,8 +30,12 @@ const AlertsTable = React.createClass({
     this.setFilteredAlerts(newProps.alerts, this.state.searchTerm);
   },
 
-  setFilteredAlerts(allAlerts, searchTerm) {
-    const alerts = allAlerts.filter((h) => h.name.search(searchTerm) !== -1);
+  filterAlerts(allAlerts, searchTerm) {
+    const alerts = allAlerts.filter((h) => {
+      return h.name.toLowerCase().search(searchTerm.toLowerCase()) !== -1 ||
+              h.host.toLowerCase().search(searchTerm.toLowerCase()) !== -1 ||
+              h.level.toLowerCase().search(searchTerm.toLowerCase()) !== -1;
+    });
     this.setState({searchTerm, filteredAlerts: alerts});
   },
 
@@ -79,7 +83,7 @@ const AlertsTable = React.createClass({
               {
                 alerts.map(({name, time, value, host, level}) => {
                   return (
-                    <tr key={name}>
+                    <tr key={`${name}-${time}`}>
                       <td className="monotype">{name}</td>
                       <td className="monotype">{level}</td>
                       <td className="monotype">{(new Date(Number(time)).toISOString())}</td>
