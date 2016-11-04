@@ -36,8 +36,9 @@ export function getMappings() {
   });
 }
 
-export function getAppsForHosts(proxyLink, hosts, supportedApps) {
-  const measurements = supportedApps.map((m) => `${m}$`).join('|');
+export function getAppsForHosts(proxyLink, hosts, appMappings) {
+  const measurements = appMappings.map((m) => `${m.measurement}$`).join('|');
+  const measurementsToApps = _.zipObject(appMappings.map(m => m.measurement), appMappings.map(m => m.name));
   return proxy({
     source: proxyLink,
     query: `show series from /${measurements}/`,
@@ -50,7 +51,7 @@ export function getAppsForHosts(proxyLink, hosts, supportedApps) {
       if (!matches || matches.length !== 3) { // eslint-disable-line no-magic-numbers
         return;
       }
-      const app = matches[1];
+      const measurement = matches[1];
       const host = matches[2];
 
       if (!newHosts[host]) {
@@ -59,7 +60,7 @@ export function getAppsForHosts(proxyLink, hosts, supportedApps) {
       if (!newHosts[host].apps) {
         newHosts[host].apps = [];
       }
-      newHosts[host].apps = _.uniq(newHosts[host].apps.concat(app));
+      newHosts[host].apps = _.uniq(newHosts[host].apps.concat(measurementsToApps[measurement]));
     });
 
     return newHosts;

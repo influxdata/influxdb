@@ -29,9 +29,7 @@ export const HostsPage = React.createClass({
       getMappings(),
     ]).then(([hosts, {data: {mappings}}]) => {
       this.setState({hosts});
-      const apps = mappings.concat([{name: 'docker'}, {name: 'influxdb'}]).map((m) => m.name);
-      // concatting docker and influxdb for now
-      getAppsForHosts(source.links.proxy, hosts, apps).then((newHosts) => {
+      getAppsForHosts(source.links.proxy, hosts, mappings).then((newHosts) => {
         this.setState({hosts: newHosts});
       });
     }).catch(() => {
