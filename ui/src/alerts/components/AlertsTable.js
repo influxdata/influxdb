@@ -82,7 +82,7 @@ const AlertsTable = React.createClass({
                     <tr key={name}>
                       <td className="monotype">{name}</td>
                       <td className="monotype">{level}</td>
-                      <td className="monotype">{time}</td>
+                      <td className="monotype">{(new Date(Number(time)).toISOString())}</td>
                       <td className="monotype">{host}</td>
                       <td className="monotype">{value}</td>
                     </tr>
