@@ -11,7 +11,7 @@ func TestInfluxOut(t *testing.T) {
 		{
 			name: "Test influxDBOut kapacitor node",
 			want: `trigger
-    |eval(lambda: field)
+    |eval(lambda: 'usage_user')
         .as('value')
     |influxDBOut()
         .create()
@@ -24,10 +24,25 @@ func TestInfluxOut(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		got := InfluxOut(chronograf.AlertRule{
+		got, err := InfluxOut(chronograf.AlertRule{
 			Name:    "name",
 			Trigger: "deadman",
+			Query: chronograf.QueryConfig{
+				Fields: []struct {
+					Field string   `json:"field"`
+					Funcs []string `json:"funcs"`
+				}{
+					{
+						Field: "usage_user",
+						Funcs: []string{"mean"},
+					},
+				},
+			},
 		})
+		if err != nil {
+			t.Errorf("%q. InfluxOut()) error = %v", tt.name, err)
+			continue
+		}
 		formatted, err := formatTick(got)
 		if err != nil {
 			t.Errorf("%q. formatTick() error = %v", tt.name, err)

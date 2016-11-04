@@ -29,7 +29,10 @@ func (a *Alert) Generate(rule chronograf.AlertRule) (chronograf.TICKScript, erro
 	if err != nil {
 		return "", err
 	}
-	output := InfluxOut(rule)
+	output, err := InfluxOut(rule)
+	if err != nil {
+		return "", err
+	}
 	raw := fmt.Sprintf("%s\n%s\n%s%s\n%s", vars, data, trigger, services, output)
 	tick, err := formatTick(raw)
 	if err != nil {

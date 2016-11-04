@@ -124,8 +124,6 @@ var rp = 'autogen'
 
 var measurement = 'cpu'
 
-var field = 'usage_user'
-
 var groupby = ['host', 'cluster_id']
 
 var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
@@ -169,7 +167,7 @@ var data = stream
         .period(period)
         .every(every)
         .align()
-    |mean(field)
+    |mean('usage_user')
         .as('value')
 
 var trigger = data
@@ -275,8 +273,6 @@ var rp = 'autogen'
 
 var measurement = 'cpu'
 
-var field = 'usage_user'
-
 var groupby = ['host', 'cluster_id']
 
 var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
@@ -322,7 +318,7 @@ var data = stream
         .period(period)
         .every(every)
         .align()
-    |mean(field)
+    |mean('usage_user')
         .as('value')
 
 var past = data
@@ -434,8 +430,6 @@ var rp = 'autogen'
 
 var measurement = 'cpu'
 
-var field = 'usage_user'
-
 var groupby = ['host', 'cluster_id']
 
 var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
@@ -488,7 +482,7 @@ var trigger = data
         .email()
 
 trigger
-    |eval(lambda: field)
+    |eval(lambda: 'usage_user')
         .as('value')
     |influxDBOut()
         .create()
