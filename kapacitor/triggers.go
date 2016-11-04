@@ -43,7 +43,7 @@ var trigger = past
 
 // DeadmanTrigger checks if any data has been streamed in the last period of time
 var DeadmanTrigger = `
-  var trigger = data|deadman(threshold, every)
+  var trigger = data|deadman(threshold, period)
     .stateChangesOnly()
     .message(message)
 	.id(idVar)

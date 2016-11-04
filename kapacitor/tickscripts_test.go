@@ -1,7 +1,6 @@
 package kapacitor
 
 import (
-	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -131,7 +130,7 @@ var groupby = ['host', 'cluster_id']
 
 var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
-var every = 30s
+var period = 10m
 
 var name = 'name'
 
@@ -147,8 +146,6 @@ var messagefield = 'message'
 
 var durationfield = 'duration'
 
-var value = 'value'
-
 var output_db = 'chronograf'
 
 var output_rp = 'autogen'
@@ -157,7 +154,7 @@ var output_mt = 'alerts'
 
 var triggerType = 'threshold'
 
-var period = 10m
+var every = 30s
 
 var crit = 90
 
@@ -173,7 +170,7 @@ var data = stream
         .every(every)
         .align()
     |mean(field)
-        .as(value)
+        .as('value')
 
 var trigger = data
     |alert()
@@ -284,7 +281,7 @@ var groupby = ['host', 'cluster_id']
 
 var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
-var every = 30s
+var period = 10m
 
 var name = 'name'
 
@@ -300,8 +297,6 @@ var messagefield = 'message'
 
 var durationfield = 'duration'
 
-var value = 'value'
-
 var output_db = 'chronograf'
 
 var output_rp = 'autogen'
@@ -310,7 +305,7 @@ var output_mt = 'alerts'
 
 var triggerType = 'relative'
 
-var period = 10m
+var every = 30s
 
 var shift = -1m
 
@@ -328,7 +323,7 @@ var data = stream
         .every(every)
         .align()
     |mean(field)
-        .as(value)
+        .as('value')
 
 var past = data
     |shift(shift)
@@ -377,8 +372,6 @@ trigger
 			fmt.Printf("%s", got)
 			t.Errorf("%q. Relative() = %v, want %v", tt.name, got, tt.want)
 		}
-		b, _ := json.Marshal(tt.alert)
-		fmt.Printf("%s", string(b))
 	}
 }
 
@@ -447,7 +440,7 @@ var groupby = ['host', 'cluster_id']
 
 var where_filter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
-var every = 30s
+var period = 10m
 
 var name = 'name'
 
@@ -463,8 +456,6 @@ var messagefield = 'message'
 
 var durationfield = 'duration'
 
-var value = 'value'
-
 var output_db = 'chronograf'
 
 var output_rp = 'autogen'
@@ -475,8 +466,6 @@ var triggerType = 'deadman'
 
 var threshold = 0.0
 
-var period = 10m
-
 var data = stream
     |from()
         .database(db)
@@ -484,11 +473,9 @@ var data = stream
         .measurement(measurement)
         .groupBy(groupby)
         .where(where_filter)
-    |eval(lambda: field)
-        .as(value)
 
 var trigger = data
-    |deadman(threshold, every)
+    |deadman(threshold, period)
         .stateChangesOnly()
         .message(message)
         .id(idVar)
@@ -501,6 +488,8 @@ var trigger = data
         .email()
 
 trigger
+    |eval(lambda: field)
+        .as('value')
     |influxDBOut()
         .create()
         .database(output_db)

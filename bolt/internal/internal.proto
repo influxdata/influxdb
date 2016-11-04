@@ -56,4 +56,6 @@ message Query {
 message AlertRule {
     string ID               = 1; // ID is the unique ID of this alert rule
     string JSON             = 2; // JSON byte representation of the alert
+    int64 SrcID             = 3; // SrcID is the id of the source this alert is associated with
+    int64 KapaID            = 4; // KapaID is the id of the kapacitor this alert is associated with
 }

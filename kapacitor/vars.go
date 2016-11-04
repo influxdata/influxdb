@@ -36,23 +36,23 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 	case "threshold":
 		vars := `
 		%s
-		var period = %s
+		var every = %s
         var crit = %s
  `
 		return fmt.Sprintf(vars,
 			common,
-			rule.TriggerValues.Period,
+			rule.Every,
 			rule.TriggerValues.Value), nil
 	case "relative":
 		vars := `
 		%s
-		var period = %s
+		var every = %s
         var shift = -%s
         var crit = %s
  `
 		return fmt.Sprintf(vars,
 			common,
-			rule.TriggerValues.Period,
+			rule.Every,
 			rule.TriggerValues.Shift,
 			rule.TriggerValues.Value,
 		), nil
@@ -60,12 +60,10 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 		vars := `
 		%s
         var threshold = %s
-		var period = %s
  `
 		return fmt.Sprintf(vars,
 			common,
 			"0.0", // deadman threshold hardcoded to zero
-			rule.TriggerValues.Period,
 		), nil
 	default:
 		return "", fmt.Errorf("Unknown trigger mechanism")
@@ -85,8 +83,7 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
         var field = '%s'
         var groupby = %s
         var where_filter = %s
-
-        var every = %s
+		var period = %s
 
 		var name = '%s'
 		var idVar = name + ':{{.Group}}'
@@ -95,8 +92,6 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
 		var leveltag = '%s'
 		var messagefield = '%s'
 		var durationfield = '%s'
-
-        var value = 'value'
 
         var output_db = '%s'
         var output_rp = '%s'
@@ -110,7 +105,7 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
 		fld,
 		groupBy(rule.Query),
 		whereFilter(rule.Query),
-		rule.Every,
+		rule.TriggerValues.Period,
 		rule.Name,
 		rule.Message,
 		IDTag,
@@ -137,19 +132,6 @@ func field(q chronograf.QueryConfig) (string, error) {
 		return field.Field, nil
 	}
 	return "", fmt.Errorf("No fields set in query")
-}
-
-// value will be "value"" unless there are no field aggregates. If no aggregates, then it is the field name.
-func value(rule chronograf.AlertRule) string {
-	for _, field := range rule.Query.Fields {
-		// Deadman triggers do not need any aggregate functions
-		if field.Field != "" && rule.Trigger == "deadman" {
-			return field.Field
-		} else if field.Field != "" && len(field.Funcs) == 0 {
-			return field.Field
-		}
-	}
-	return "value"
 }
 
 func whereFilter(q chronograf.QueryConfig) string {
