@@ -13,6 +13,7 @@ const (
 	ErrSourceNotFound      = Error("source not found")
 	ErrServerNotFound      = Error("server not found")
 	ErrLayoutNotFound      = Error("layout not found")
+	ErrAlertNotFound       = Error("alert not found")
 	ErrAuthentication      = Error("user not authenticated")
 )
 
@@ -68,7 +69,7 @@ type Source struct {
 	Name     string `json:"name"`                // Name is the user-defined name for the source
 	Type     string `json:"type,omitempty"`      // Type specifies which kinds of source (enterprise vs oss)
 	Username string `json:"username,omitempty"`  // Username is the username to connect to the source
-	Password string `json:"password,omitempty"`  // Password is in CLEARTEXT FIXME
+	Password string `json:"password,omitempty"`  // Password is in CLEARTEXT // TODO: fixme
 	URL      string `json:"url"`                 // URL are the connections to the source
 	Default  bool   `json:"default"`             // Default specifies the default source for the application
 }
@@ -87,13 +88,78 @@ type SourcesStore interface {
 	Update(context.Context, Source) error
 }
 
+// AlertRule represents rules for building a tickscript alerting task
+type AlertRule struct {
+	ID            string        `json:"id,omitempty"` // ID is the unique ID of the alert
+	Query         QueryConfig   `json:"query"`        // Query is the filter of data for the alert.
+	Every         string        `json:"every"`        // Every how often to check for the alerting criteria
+	Alerts        []string      `json:"alerts"`       // AlertServices name all the services to notify (e.g. pagerduty)
+	Message       string        `json:"message"`      // Message included with alert
+	Trigger       string        `json:"trigger"`      // Trigger is a type that defines when to trigger the alert
+	TriggerValues TriggerValues `json:"values"`       // Defines the values that cause the alert to trigger
+	Name          string        `json:"name"`         // Name is the user-defined name for the alert
+}
+
+// AlertRulesStore stores rules for building tickscript alerting tasks
+type AlertRulesStore interface {
+	// All returns all rules in the store
+	All(context.Context) ([]AlertRule, error)
+	// Add creates a new rule in the AlertRulesStore and returns AlertRule with ID
+	Add(context.Context, AlertRule) (AlertRule, error)
+	// Delete the AlertRule from the store
+	Delete(context.Context, AlertRule) error
+	// Get retrieves AlertRule if `ID` exists
+	Get(ctx context.Context, ID string) (AlertRule, error)
+	// Update the AlertRule in the store.
+	Update(context.Context, AlertRule) error
+}
+
+// TICKScript task to be used by kapacitor
+type TICKScript string
+
+// Ticker generates tickscript tasks for kapacitor
+type Ticker interface {
+	// Generate will create the tickscript to be used as a kapacitor task
+	Generate(AlertRule) (TICKScript, error)
+}
+
+// TriggerValues specifies the alerting logic for a specific trigger type
+type TriggerValues struct {
+	Change     string `json:"change,omitempty"`     // Change specifies if the change is a percent or absolute
+	Period     string `json:"period,omitempty"`     // Period is the window to search for alerting criteria
+	Shift      string `json:"shift,omitempty"`      // Shift is the amount of time to look into the past for the alert to compare to the present
+	Operator   string `json:"operator,omitempty"`   // Operator for alert comparison
+	Value      string `json:"value,omitempty"`      // Value is the boundary value when alert goes critical
+	Percentile string `json:"percentile,omitempty"` // Percentile is defined only when Relation is not "Once"
+	Relation   string `json:"relation,omitempty"`   // Relation defines the logic about how often the threshold is met to be an alert.
+}
+
+// QueryConfig represents UI query from the data explorer
+type QueryConfig struct {
+	ID              string `json:"id,omitempty"`
+	Database        string `json:"database"`
+	Measurement     string `json:"measurement"`
+	RetentionPolicy string `json:"retentionPolicy"`
+	Fields          []struct {
+		Field string   `json:"field"`
+		Funcs []string `json:"funcs"`
+	} `json:"fields"`
+	Tags    map[string][]string `json:"tags"`
+	GroupBy struct {
+		Time string   `json:"time"`
+		Tags []string `json:"tags"`
+	} `json:"groupBy"`
+	AreTagsAccepted bool   `json:"areTagsAccepted"`
+	RawText         string `json:"rawText,omitempty"`
+}
+
 // Server represents a proxy connection to an HTTP server
 type Server struct {
 	ID       int    // ID is the unique ID of the server
 	SrcID    int    // SrcID of the data source
 	Name     string // Name is the user-defined name for the server
 	Username string // Username is the username to connect to the server
-	Password string // Password is in CLEARTEXT FIXME
+	Password string // Password is in CLEARTEXT // TODO: FIXME
 	URL      string // URL are the connections to the server
 }
 

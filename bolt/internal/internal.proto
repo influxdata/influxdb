@@ -52,3 +52,8 @@ message Query {
     string DB               = 2; // DB the database for the query (optional)
     string RP               = 3; // RP is a retention policy and optional;
 }
+
+message AlertRule {
+    string ID               = 1; // ID is the unique ID of this alert rule
+    string JSON             = 2; // JSON byte representation of the alert
+}

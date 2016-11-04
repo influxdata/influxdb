@@ -8,6 +8,7 @@ type Service struct {
 	SourcesStore     chronograf.SourcesStore
 	ServersStore     chronograf.ServersStore
 	LayoutStore      chronograf.LayoutStore
+	AlertRulesStore  chronograf.AlertRulesStore
 	TimeSeries       chronograf.TimeSeries
 	Logger           chronograf.Logger
 }
