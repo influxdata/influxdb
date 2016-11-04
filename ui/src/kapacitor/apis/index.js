@@ -7,3 +7,10 @@ export function createRule(kapacitor, rule) {
     data: rule,
   });
 }
+
+export function getRules(kapacitor) {
+  return AJAX({
+    method: 'GET',
+    url: kapacitor.links.rules,
+  });
+}
