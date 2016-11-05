@@ -47,12 +47,18 @@ export const HostPage = React.createClass({
     this.setState({timeRange});
   },
 
-  renderLayout(layout) {
+  renderLayouts(layouts) {
     const autoRefreshMs = 15000;
     const {timeRange} = this.state;
     const source = this.props.source.links.proxy;
 
-    layout.cells.forEach((cell) => {
+    let layoutCells = [];
+    debugger; // eslint-disable-line no-debugger
+    layouts.forEach((layout) => {
+      layoutCells = layoutCells.concat(layout.cells);
+    });
+
+    layoutCells.forEach((cell) => {
       cell.queries.forEach((q) => {
         q.text = q.query;
         q.database = q.db;
@@ -62,7 +68,7 @@ export const HostPage = React.createClass({
     return (
       <LayoutRenderer
         timeRange={timeRange.queryValue}
-        cells={layout.cells}
+        cells={layoutCells}
         autoRefreshMs={autoRefreshMs}
         source={source}
         host={this.props.params.hostID}
@@ -90,15 +96,9 @@ export const HostPage = React.createClass({
           </div>
         </div>
         <div className="container-fluid hosts-dashboard">
-          {
-            layouts.map((layout) => {
-              return (
-                <div key={layout.app} className="row">
-                  {this.renderLayout(layout)}
-                </div>
-              );
-            })
-          }
+          <div className="row">
+            { (layouts.length > 0) ? this.renderLayouts(layouts) : '' }
+          </div>
         </div>
       </div>
     );
