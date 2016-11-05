@@ -32,6 +32,7 @@ const AlertOutputs = React.createClass({
       telegramConfig: null,
       hipchatConfig: null,
       sensuConfig: null,
+      canConnect: false,
     };
   },
 
@@ -51,6 +52,9 @@ const AlertOutputs = React.createClass({
         victoropsConfig: this.getSection(sections, 'victorops'),
         sensuConfig: this.getSection(sections, 'sensu'),
       });
+      this.setState({canConnect: true});
+    }).catch(() => {
+      this.setState({canConnect: false});
     });
   },
 
@@ -95,26 +99,40 @@ const AlertOutputs = React.createClass({
       <div className="panel-body">
         <h4 className="text-center">Alert Endpoints</h4>
         <br/>
-        <div className="row">
-          <div className="form-group col-xs-7 col-sm-5 col-sm-offset-2">
-            <label htmlFor="alert-endpoint" className="sr-only">Alert Enpoint</label>
-            <select className="form-control" id="source" onChange={this.changeSelectedEndpoint}>
-              <option value="alerta">Alerta</option>
-              <option value="hipchat">HipChat</option>
-              <option value="pagerduty">PagerDuty</option>
-              <option value="sensu">Sensu</option>
-              <option value="slack">Slack</option>
-              <option value="smtp">SMTP</option>
-              <option value="telegram">Telegram</option>
-              <option value="victorops">VictorOps</option>
-            </select>
-          </div>
-        </div>
-        <div className="row">
-          {this.renderAlertConfig(this.state.selectedEndpoint)}
-        </div>
+        { this.renderBody() }
       </div>
     );
+  },
+
+  renderBody() {
+    let body;
+    if (this.state.canConnect) {
+      body = (
+        <div>
+          <div className="row">
+            <div className="form-group col-xs-7 col-sm-5 col-sm-offset-2">
+              <label htmlFor="alert-endpoint" className="sr-only">Alert Enpoint</label>
+              <select className="form-control" id="source" onChange={this.changeSelectedEndpoint}>
+                <option value="alerta">Alerta</option>
+                <option value="hipchat">HipChat</option>
+                <option value="pagerduty">PagerDuty</option>
+                <option value="sensu">Sensu</option>
+                <option value="slack">Slack</option>
+                <option value="smtp">SMTP</option>
+                <option value="telegram">Telegram</option>
+                <option value="victorops">VictorOps</option>
+              </select>
+            </div>
+          </div>
+          <div className="row">
+            {this.renderAlertConfig(this.state.selectedEndpoint)}
+          </div>
+        </div>
+      );
+    } else {
+      body = (<p className="error">Cannot connect.</p>);
+    }
+    return body;
   },
 
   renderAlertConfig(endpoint) {
