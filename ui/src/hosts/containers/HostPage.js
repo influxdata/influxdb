@@ -53,7 +53,6 @@ export const HostPage = React.createClass({
     const source = this.props.source.links.proxy;
 
     let layoutCells = [];
-    debugger; // eslint-disable-line no-debugger
     layouts.forEach((layout) => {
       layoutCells = layoutCells.concat(layout.cells);
     });
