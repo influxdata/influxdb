@@ -25,8 +25,8 @@ const SideNav = React.createClass({
           <NavListItem link={`${sourcePrefix}/hosts`}>Host List</NavListItem>
         </NavBlock>
         <NavBlock icon="graphline" link={dataExplorerLink}>
-          <NavHeader link={dataExplorerLink} title={'Chronograf'} />
-          <NavListItem link={dataExplorerLink}>Data Explorer</NavListItem>
+          <NavHeader link={dataExplorerLink} title={'Data'} />
+          <NavListItem link={dataExplorerLink}>Explorer</NavListItem>
         </NavBlock>
         <NavBlock matcher="alerts" icon="alert-triangle" link={`${sourcePrefix}/alerts`}>
           <NavHeader link={`${sourcePrefix}/alerts`} title="Alerting" />
