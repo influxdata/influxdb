@@ -119,6 +119,7 @@ const Root = React.createClass({
               <Route path="alerts" component={AlertsApp} />
               <Route path="alert-rules" component={KapacitorRulesPage} />
               <Route path="alert-rules/:ruleID" component={KapacitorRulePage} />
+              <Route path="alert-rules/new" component={KapacitorRulePage} />
             </Route>
             <Route path="tasks" component={TasksPage} />
             <Route path="*" component={NotFound} />

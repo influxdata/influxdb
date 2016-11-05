@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react';
+import {withRouter} from 'react-router';
 import {connect} from 'react-redux';
 import _ from 'lodash';
 import DataSection from '../components/DataSection';
@@ -12,8 +13,8 @@ import LineGraph from 'shared/components/LineGraph';
 const RefreshingLineGraph = AutoRefresh(LineGraph);
 import {getKapacitor, getKapacitorConfig} from 'shared/apis/index';
 import Dropdown from 'shared/components/Dropdown';
-import {ALERTS} from 'src/kapacitor/constants';
-import {createRule} from 'src/kapacitor/apis';
+import {ALERTS, DEFAULT_RULE_ID} from 'src/kapacitor/constants';
+import {createRule, editRule} from 'src/kapacitor/apis';
 
 export const KapacitorRulePage = React.createClass({
   propTypes: {
@@ -49,10 +50,15 @@ export const KapacitorRulePage = React.createClass({
     };
   },
 
+  isEditing() {
+    const {params} = this.props;
+    return params.ruleID && params.ruleID !== 'new';
+  },
+
   componentDidMount() {
-    const {ruleID} = false; // this.props.params;
-    if (ruleID) {
-      this.props.kapacitorActions.fetchRule(ruleID);
+    const {ruleID} = this.props.params;
+    if (this.isEditing()) {
+      this.props.kapacitorActions.fetchRule(this.props.source, ruleID);
     } else {
       this.props.kapacitorActions.loadDefaultRule();
     }
@@ -64,25 +70,34 @@ export const KapacitorRulePage = React.createClass({
         });
         this.setState({kapacitor, enabledAlerts});
       }).catch(() => {
-        this.props.addFlashMessage({type: 'failure', message: `There was a problem communicating with Kapacitor`});
+        this.props.addFlashMessage({type: 'failure', text: `There was a problem communicating with Kapacitor`});
       }).catch(() => {
-        this.props.addFlashMessage({type: 'failure', message: `We couldn't find a configured Kapacitor for this source`});
+        this.props.addFlashMessage({type: 'failure', text: `We couldn't find a configured Kapacitor for this source`});
       });
     });
   },
 
   handleSave() {
-    const {queryConfigs, rules} = this.props;
-    const rule = rules[Object.keys(rules)[0]]; // this.props.params.taskID
-    const newRule = Object.assign({}, rule, {
-      query: queryConfigs[rule.queryID],
-    });
-    delete newRule.queryID;
-    createRule(this.state.kapacitor, newRule).then(() => {
-      // maybe update the default rule in redux state.. and update the URL
-    }).catch(() => {
-      this.props.addFlashMessage({type: 'failure', message: `There was a problem creating the rule`});
-    });
+    const {queryConfigs, rules, params, source} = this.props;
+    if (this.isEditing()) { // If we are editing updated rule if not, create a new one
+      editRule(rules[params.ruleID]).then(() => {
+        this.props.addFlashMessage({type: 'success', text: `Rule successfully updated!`});
+      }).catch(() => {
+        this.props.addFlashMessage({type: 'failure', text: `There was a problem updating the rule`});
+      });
+    } else {
+      const rule = rules[DEFAULT_RULE_ID];
+      const newRule = Object.assign({}, rule, {
+        query: queryConfigs[rule.queryID],
+      });
+      delete newRule.queryID;
+      createRule(this.state.kapacitor, newRule).then(() => {
+        this.props.router.push(`sources/${source.id}/alert-rules`);
+        this.props.addFlashMessage({type: 'success', text: `Rule successfully created`});
+      }).catch(() => {
+        this.props.addFlashMessage({type: 'failure', text: `There was a problem creating the rule`});
+      });
+    }
   },
 
   handleChooseAlert(item) {
@@ -132,13 +147,13 @@ export const KapacitorRulePage = React.createClass({
   },
 
   render() {
-    const {rules, queryConfigs, source} = this.props;
-    const rule = rules[Object.keys(rules)[0]]; // this.props.params.ruleID
+    const {rules, queryConfigs, source, params} = this.props;
+    const rule = this.isEditing() ? rules[params.ruleID] : rules[DEFAULT_RULE_ID];
     const query = rule && queryConfigs[rule.queryID];
     const autoRefreshMs = 30000;
 
-    if (!query) { // or somethin like that
-      return null; // or a spinner or somethin
+    if (!query) {
+      return <div className="page-spinner"></div>;
     }
 
     const queryText = selectStatement({lower: 'now() - 15m'}, query);
@@ -218,7 +233,7 @@ export const KapacitorRulePage = React.createClass({
     return (
       <div className="kapacitor-rule-section">
         <h3>Message</h3>
-        <textarea ref={(r) => this.message = r} onChange={() => this.handleMessageChange(rule)} />
+        <textarea ref={(r) => this.message = r} value={rule.message} onChange={() => this.handleMessageChange(rule)} />
       </div>
     );
   },
@@ -256,4 +271,4 @@ function mapDispatchToProps(dispatch) {
   };
 }
 
-export default connect(mapStateToProps, mapDispatchToProps)(KapacitorRulePage);
+export default connect(mapStateToProps, mapDispatchToProps)(withRouter(KapacitorRulePage));

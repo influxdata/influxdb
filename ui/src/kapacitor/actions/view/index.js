@@ -1,14 +1,38 @@
 import uuid from 'node-uuid';
+import {getRules, getRule} from 'src/kapacitor/apis';
+import {getKapacitor} from 'src/shared/apis';
 
-export function fetchRule() { // ruleID
+export function fetchRule(source, ruleID) {
   return (dispatch) => {
-    // do some ajax to get the rule. put it in the payload
+    getKapacitor(source).then((kapacitor) => {
+      getRule(kapacitor, ruleID).then(({data: rule}) => {
+        dispatch({
+          type: 'LOAD_RULE',
+          payload: {
+            rule: Object.assign(rule, {queryID: rule.query.id}),
+          },
+        });
+
+        dispatch({
+          type: 'LOAD_KAPACITOR_QUERY',
+          payload: {
+            query: rule.query,
+          },
+        });
+      });
+    });
+  };
+}
+
+export function loadDefaultRule() {
+  return (dispatch) => {
     const queryID = uuid.v4();
     dispatch({
-      type: 'LOAD_RULE',
-      payload: {},
+      type: 'LOAD_DEFAULT_RULE',
+      payload: {
+        queryID,
+      },
     });
-
     dispatch({
       type: 'ADD_KAPACITOR_QUERY',
       payload: {
@@ -18,22 +42,17 @@ export function fetchRule() { // ruleID
   };
 }
 
-export function loadDefaultRule() {
+export function fetchRules(source) {
   return (dispatch) => {
-    const queryID = uuid.v4();
-    const ruleID = uuid.v4();
-    dispatch({
-      type: 'LOAD_DEFAULT_RULE',
-      payload: {
-        queryID,
-        ruleID,
-      },
-    });
-    dispatch({
-      type: 'ADD_KAPACITOR_QUERY',
-      payload: {
-        queryId: queryID,
-      },
+    getKapacitor(source).then((kapacitor) => {
+      getRules(kapacitor).then(({data: {rules}}) => {
+        dispatch({
+          type: 'LOAD_RULES',
+          payload: {
+            rules,
+          },
+        });
+      });
     });
   };
 }

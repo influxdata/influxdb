@@ -1,12 +1,13 @@
-import {defaultRuleConfigs} from 'src/kapacitor/constants';
+import {defaultRuleConfigs, DEFAULT_RULE_ID} from 'src/kapacitor/constants';
+import _ from 'lodash';
 
 export default function rules(state = {}, action) {
   switch (action.type) {
     case 'LOAD_DEFAULT_RULE': {
-      const {queryID, ruleID} = action.payload;
+      const {queryID} = action.payload;
       return Object.assign({}, state, {
-        [ruleID]: {
-          id: ruleID,
+        [DEFAULT_RULE_ID]: {
+          id: DEFAULT_RULE_ID,
           queryID,
           trigger: 'threshold',
           values: defaultRuleConfigs.threshold,
@@ -18,10 +19,16 @@ export default function rules(state = {}, action) {
       });
     }
 
+    case 'LOAD_RULES': {
+      const theRules = action.payload.rules;
+      const ruleIDs = theRules.map(r => r.id);
+      return _.zipObject(ruleIDs, theRules);
+    }
+
     case 'LOAD_RULE': {
-      const {ruleID, rule} = action.payload;
+      const {rule} = action.payload;
       return Object.assign({}, state, {
-        [ruleID]: rule,
+        [rule.id]: rule,
       });
     }
 
