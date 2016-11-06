@@ -279,7 +279,7 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions, selec
 			opt.Interval = Interval{}
 
 			return newHoltWintersIterator(input, opt, int(h.Val), int(m.Val), includeFitData, interval)
-		case "derivative", "non_negative_derivative", "difference", "moving_average", "elapsed":
+		case "derivative", "non_negative_derivative", "difference", "moving_average", "elapsed", "integral":
 			if !opt.Interval.IsZero() {
 				if opt.Ascending {
 					opt.StartTime -= int64(opt.Interval.Duration)
@@ -301,6 +301,9 @@ func buildExprIterator(expr Expr, ic IteratorCreator, opt IteratorOptions, selec
 			case "elapsed":
 				interval := opt.ElapsedInterval()
 				return newElapsedIterator(input, opt, interval)
+			case "integral":
+				interval := opt.IntegralInterval()
+				return newIntegralIterator(input, opt, interval)
 			case "difference":
 				return newDifferenceIterator(input, opt)
 			case "moving_average":

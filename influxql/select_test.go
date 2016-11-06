@@ -2645,6 +2645,86 @@ func TestSelect_Elapsed_Boolean(t *testing.T) {
 	}
 }
 
+func CheckPoints(t *testing.T, ic *IteratorCreator, query string, expected [][]influxql.Point) {
+	// Helper function for tests: run the query and check that the points returned are as expected
+	itrs, err := influxql.Select(MustParseSelectStatement(query), ic, nil)
+	if err != nil {
+		t.Fatal(err)
+	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, expected) {
+		t.Fatalf("unexpected points, got: %s, expected: %s", spew.Sdump(a), spew.Sdump(expected))
+	}
+}
+
+func TestSelect_Integral_Float(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &FloatIterator{Points: []influxql.FloatPoint{
+			{Name: "cpu", Time: 10 * Second, Value: 20},
+			{Name: "cpu", Time: 15 * Second, Value: 10},
+			{Name: "cpu", Time: 20 * Second, Value: 0},
+			{Name: "cpu", Time: 30 * Second, Value: -10},
+		}}, nil
+	}
+
+	expected := [][]influxql.Point{
+		{&influxql.FloatPoint{Name: "cpu", Time: 10 * Second, Value: 50, Aggregated: 4}},
+	}
+	CheckPoints(t, &ic, `SELECT integral(value) FROM cpu`, expected)
+}
+
+func TestSelect_Integral_Integer(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &IntegerIterator{Points: []influxql.IntegerPoint{
+			{Name: "cpu", Time: 0 * Second, Value: 20},
+			{Name: "cpu", Time: 5 * Second, Value: 10},
+			{Name: "cpu", Time: 10 * Second, Value: 0},
+			{Name: "cpu", Time: 20 * Second, Value: -10},
+		}}, nil
+	}
+
+	expected := [][]influxql.Point{
+		{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 50, Aggregated: 4}},
+	}
+	CheckPoints(t, &ic, `SELECT integral(value) FROM cpu`, expected)
+}
+
+func TestSelect_Integral_Duplicate_Float(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &FloatIterator{Points: []influxql.FloatPoint{
+			{Name: "cpu", Time: 0 * Second, Value: 20},
+			{Name: "cpu", Time: 5 * Second, Value: 10},
+			{Name: "cpu", Time: 5 * Second, Value: 30},
+			{Name: "cpu", Time: 10 * Second, Value: 40},
+		}}, nil
+	}
+
+	expected := [][]influxql.Point{
+		{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 250, Aggregated: 4}},
+	}
+	CheckPoints(t, &ic, `SELECT integral(value) FROM cpu`, expected)
+}
+
+func TestSelect_Integral_Duplicate_Integer(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &IntegerIterator{Points: []influxql.IntegerPoint{
+			{Name: "cpu", Time: 0 * Second, Value: 20},
+			{Name: "cpu", Time: 5 * Second, Value: 10},
+			{Name: "cpu", Time: 5 * Second, Value: 30},
+			{Name: "cpu", Time: 10 * Second, Value: 40},
+		}}, nil
+	}
+
+	expected := [][]influxql.Point{
+		{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 125, Aggregated: 4}},
+	}
+	CheckPoints(t, &ic, `SELECT integral(value, 2s) FROM cpu`, expected)
+}
+
 func TestSelect_MovingAverage_Float(t *testing.T) {
 	var ic IteratorCreator
 	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
