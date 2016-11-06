@@ -2669,9 +2669,27 @@ func TestSelect_Integral_Float(t *testing.T) {
 	}
 
 	expected := [][]influxql.Point{
-		{&influxql.FloatPoint{Name: "cpu", Time: 10 * Second, Value: 50, Aggregated: 4}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 50, Aggregated: 4}},
 	}
 	CheckPoints(t, &ic, `SELECT integral(value) FROM cpu`, expected)
+}
+
+func TestSelect_Integral_Float_GroupByTime(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		return &FloatIterator{Points: []influxql.FloatPoint{
+			{Name: "cpu", Time: 10 * Second, Value: 20},
+			{Name: "cpu", Time: 15 * Second, Value: 10},
+			{Name: "cpu", Time: 20 * Second, Value: 0},
+			{Name: "cpu", Time: 30 * Second, Value: -10},
+		}}, nil
+	}
+
+	expected := [][]influxql.Point{
+		{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 5*15, Aggregated: 2}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 20 * Second, Value: -5*10, Aggregated: 2}},
+	}
+	CheckPoints(t, &ic, `SELECT integral(value) FROM cpu WHERE time > 0s AND time < 60s GROUP BY time(20s)`, expected)
 }
 
 func TestSelect_Integral_Integer(t *testing.T) {

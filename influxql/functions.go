@@ -760,16 +760,17 @@ func (r *FloatHoltWintersReducer) constrain(x []float64) {
 
 // FloatIntegralReducer calculates the time-integral of the aggregated points.
 type FloatIntegralReducer struct {
+	groupByTime bool
 	count     uint32
 	interval  Interval
 	sum       float64
 	prev      FloatPoint
-	startTime int64
 }
 
 // NewFloatIntegralReducer creates a new FloatIntegralReducer.
-func NewFloatIntegralReducer(interval Interval) *FloatIntegralReducer {
+func NewFloatIntegralReducer(interval Interval, groupByTime bool) *FloatIntegralReducer {
 	return &FloatIntegralReducer{
+		groupByTime: groupByTime,
 		interval: interval,
 		prev:     FloatPoint{Nil: true},
 	}
@@ -780,7 +781,6 @@ func (r *FloatIntegralReducer) AggregateFloat(p *FloatPoint) {
 
 	// If this is the first point, just save it
 	if r.prev.Nil {
-		r.startTime = p.Time
 		r.prev = *p
 		r.count++
 		return
@@ -806,26 +806,38 @@ func (r *FloatIntegralReducer) AggregateFloat(p *FloatPoint) {
 }
 
 // Emit emits the time-integral of the aggregated points as a single point.
+// InfluxQL convention dictates that outside a group-by-time clause we return
+// a timestamp of zero.  Within a group-by-time, we can set the time to ZeroTime
+// and a higher level will change it to the start of the time group.
 func (r *FloatIntegralReducer) Emit() []FloatPoint {
-	return []FloatPoint{{
-		Time:       r.startTime,
-		Value:      r.sum,
-		Aggregated: r.count,
-	}}
+	if r.groupByTime {
+		return []FloatPoint{{
+			Time:       ZeroTime,
+			Value:      r.sum,
+			Aggregated: r.count,
+		}}
+	} else {
+		return []FloatPoint{{
+			Time:       0,
+			Value:      r.sum,
+			Aggregated: r.count,
+		}}
+	}
 }
 
 // IntegerIntegralReducer calculates the time-integral of the aggregated points.
 type IntegerIntegralReducer struct {
+	groupByTime bool
 	count     uint32
 	interval  Interval
 	sum       float64
 	prev      IntegerPoint
-	startTime int64
 }
 
 // NewIntegerIntegralReducer creates a new IntegerIntegralReducer.
-func NewIntegerIntegralReducer(interval Interval) *IntegerIntegralReducer {
+func NewIntegerIntegralReducer(interval Interval, groupByTime bool) *IntegerIntegralReducer {
 	return &IntegerIntegralReducer{
+		groupByTime: groupByTime,
 		interval: interval,
 		prev:     IntegerPoint{Nil: true},
 	}
@@ -833,10 +845,10 @@ func NewIntegerIntegralReducer(interval Interval) *IntegerIntegralReducer {
 
 // AggregateInteger aggregates a point into the reducer.
 func (r *IntegerIntegralReducer) AggregateInteger(p *IntegerPoint) {
+
 	// If this is the first point, just save it
 	if r.prev.Nil {
 		r.prev = *p
-		r.startTime = p.Time
 		r.count++
 		return
 	}
@@ -861,10 +873,21 @@ func (r *IntegerIntegralReducer) AggregateInteger(p *IntegerPoint) {
 }
 
 // Emit emits the time-integral of the aggregated points as a single FLOAT point
+// InfluxQL convention dictates that outside a group-by-time clause we return
+// a timestamp of zero.  Within a group-by-time, we can set the time to ZeroTime
+// and a higher level will change it to the start of the time group.
 func (r *IntegerIntegralReducer) Emit() []FloatPoint {
-	return []FloatPoint{{
-		Time:       r.startTime,
-		Value:      r.sum,
-		Aggregated: r.count,
-	}}
+	if r.groupByTime {
+		return []FloatPoint{{
+			Time:       ZeroTime,
+			Value:      r.sum,
+			Aggregated: r.count,
+		}}
+	} else {
+		return []FloatPoint{{
+			Time:       0,
+			Value:      r.sum,
+			Aggregated: r.count,
+		}}
+	}	
 }

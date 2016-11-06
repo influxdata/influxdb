@@ -1295,16 +1295,17 @@ func newSampleIterator(input Iterator, opt IteratorOptions, size int) (Iterator,
 
 // newIntegralIterator returns an iterator for operating on a integral() call.
 func newIntegralIterator(input Iterator, opt IteratorOptions, interval Interval) (Iterator, error) {
+	groupByTime := !opt.Interval.IsZero()
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
-			fn := NewFloatIntegralReducer(interval)
+			fn := NewFloatIntegralReducer(interval, groupByTime)
 			return fn, fn
 		}
 		return &floatReduceFloatIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
 	case IntegerIterator:
 		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
-			fn := NewIntegerIntegralReducer(interval)
+			fn := NewIntegerIntegralReducer(interval, groupByTime)
 			return fn, fn
 		}
 		return &integerReduceFloatIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
