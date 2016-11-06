@@ -761,18 +761,18 @@ func (r *FloatHoltWintersReducer) constrain(x []float64) {
 // FloatIntegralReducer calculates the time-integral of the aggregated points.
 type FloatIntegralReducer struct {
 	groupByTime bool
-	count     uint32
-	interval  Interval
-	sum       float64
-	prev      FloatPoint
+	count       uint32
+	interval    Interval
+	sum         float64
+	prev        FloatPoint
 }
 
 // NewFloatIntegralReducer creates a new FloatIntegralReducer.
 func NewFloatIntegralReducer(interval Interval, groupByTime bool) *FloatIntegralReducer {
 	return &FloatIntegralReducer{
 		groupByTime: groupByTime,
-		interval: interval,
-		prev:     FloatPoint{Nil: true},
+		interval:    interval,
+		prev:        FloatPoint{Nil: true},
 	}
 }
 
@@ -828,18 +828,18 @@ func (r *FloatIntegralReducer) Emit() []FloatPoint {
 // IntegerIntegralReducer calculates the time-integral of the aggregated points.
 type IntegerIntegralReducer struct {
 	groupByTime bool
-	count     uint32
-	interval  Interval
-	sum       float64
-	prev      IntegerPoint
+	count       uint32
+	interval    Interval
+	sum         float64
+	prev        IntegerPoint
 }
 
 // NewIntegerIntegralReducer creates a new IntegerIntegralReducer.
 func NewIntegerIntegralReducer(interval Interval, groupByTime bool) *IntegerIntegralReducer {
 	return &IntegerIntegralReducer{
 		groupByTime: groupByTime,
-		interval: interval,
-		prev:     IntegerPoint{Nil: true},
+		interval:    interval,
+		prev:        IntegerPoint{Nil: true},
 	}
 }
 
@@ -889,5 +889,5 @@ func (r *IntegerIntegralReducer) Emit() []FloatPoint {
 			Value:      r.sum,
 			Aggregated: r.count,
 		}}
-	}	
+	}
 }

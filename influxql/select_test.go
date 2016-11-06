@@ -2686,8 +2686,8 @@ func TestSelect_Integral_Float_GroupByTime(t *testing.T) {
 	}
 
 	expected := [][]influxql.Point{
-		{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 5*15, Aggregated: 2}},
-		{&influxql.FloatPoint{Name: "cpu", Time: 20 * Second, Value: -5*10, Aggregated: 2}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 0, Value: 5 * 15, Aggregated: 2}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 20 * Second, Value: -5 * 10, Aggregated: 2}},
 	}
 	CheckPoints(t, &ic, `SELECT integral(value) FROM cpu WHERE time > 0s AND time < 60s GROUP BY time(20s)`, expected)
 }
