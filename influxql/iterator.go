@@ -919,6 +919,16 @@ func (opt IteratorOptions) ElapsedInterval() Interval {
 	return Interval{Duration: time.Nanosecond}
 }
 
+// IntegralInterval returns the time interval for the integral function.
+func (opt IteratorOptions) IntegralInterval() Interval {
+	// Use the interval on the integral() call, if specified.
+	if expr, ok := opt.Expr.(*Call); ok && len(expr.Args) == 2 {
+		return Interval{Duration: expr.Args[1].(*DurationLiteral).Val}
+	}
+
+	return Interval{Duration: time.Second}
+}
+
 // GetDimensions retrieves the dimensions for this query.
 func (opt IteratorOptions) GetDimensions() []string {
 	if len(opt.GroupBy) > 0 {

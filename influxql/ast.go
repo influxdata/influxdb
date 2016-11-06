@@ -2016,6 +2016,20 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 				if err := s.validSampleAggr(expr); err != nil {
 					return err
 				}
+			case "integral":
+				if err := s.validSelectWithAggregate(); err != nil {
+					return err
+				}
+				if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
+					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
+				}
+				// If a duration arg is passed, make sure it's a duration
+				if len(expr.Args) == 2 {
+					// Second must be a duration .e.g (1h)
+					if _, ok := expr.Args[1].(*DurationLiteral); !ok {
+						return errors.New("second argument must be a duration")
+					}
+				}
 			case "holt_winters", "holt_winters_with_fit":
 				if exp, got := 3, len(expr.Args); got != exp {
 					return fmt.Errorf("invalid number of arguments for %s, expected %d, got %d", expr.Name, exp, got)
@@ -4501,7 +4515,7 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 		return typ
 	case *Call:
 		switch expr.Name {
-		case "mean", "median":
+		case "mean", "median", "integral":
 			return Float
 		case "count":
 			return Integer
