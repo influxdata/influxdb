@@ -3317,47 +3317,6 @@ func (c *Call) String() string {
 	return fmt.Sprintf("%s(%s)", c.Name, strings.Join(str, ", "))
 }
 
-// Fields will extract any field names from the call.  Only specific calls support this.
-func (c *Call) Fields() []string {
-	switch c.Name {
-	case "top", "bottom":
-		// maintain the order the user specified in the query
-		keyMap := make(map[string]struct{})
-		keys := []string{}
-		for i, a := range c.Args {
-			if i == 0 {
-				// special case, first argument is always the name of the function regardless of the field name
-				keys = append(keys, c.Name)
-				continue
-			}
-			switch v := a.(type) {
-			case *VarRef:
-				if _, ok := keyMap[v.Val]; !ok {
-					keyMap[v.Val] = struct{}{}
-					keys = append(keys, v.Val)
-				}
-			}
-		}
-		return keys
-	case "min", "max", "first", "last", "sum", "mean", "mode":
-		// maintain the order the user specified in the query
-		keyMap := make(map[string]struct{})
-		keys := []string{}
-		for _, a := range c.Args {
-			switch v := a.(type) {
-			case *VarRef:
-				if _, ok := keyMap[v.Val]; !ok {
-					keyMap[v.Val] = struct{}{}
-					keys = append(keys, v.Val)
-				}
-			}
-		}
-		return keys
-	default:
-		panic(fmt.Sprintf("*call.Fields is unable to provide information on %s", c.Name))
-	}
-}
-
 // Distinct represents a DISTINCT expression.
 type Distinct struct {
 	// Identifier following DISTINCT
