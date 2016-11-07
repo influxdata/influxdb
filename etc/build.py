@@ -23,12 +23,14 @@ LOG_DIR = "/var/log/chronograf"
 DATA_DIR = "/var/lib/chronograf"
 SCRIPT_DIR = "/usr/lib/chronograf/scripts"
 LOGROTATE_DIR = "/etc/logrotate.d"
+CANNED_DIR = "/usr/share/chronograf/canned"
 
 INIT_SCRIPT = "etc/scripts/init.sh"
 SYSTEMD_SCRIPT = "etc/scripts/chronograf.service"
 POSTINST_SCRIPT = "etc/scripts/post-install.sh"
 POSTUNINST_SCRIPT = "etc/scripts/post-uninstall.sh"
 LOGROTATE_SCRIPT = "etc/scripts/logrotate"
+CANNED_SCRIPTS = "canned/*json"
 
 # Default AWS S3 bucket for uploads
 DEFAULT_BUCKET = "dl.influxdata.com/chronograf/artifacts"
@@ -112,7 +114,8 @@ def create_package_fs(build_root):
         LOG_DIR[1:],
         DATA_DIR[1:],
         SCRIPT_DIR[1:],
-        LOGROTATE_DIR[1:]
+        LOGROTATE_DIR[1:],
+        CANNED_DIR[1:]
     ]
     for d in dirs:
         os.makedirs(os.path.join(build_root, d))
@@ -135,6 +138,10 @@ def package_scripts(build_root, config_only=False, windows=False):
             logging.debug("Moving {} to {}".format(script, dest))
             shutil.copyfile(script, dest)
             os.chmod(dest, 0o644)
+        run("cp {} {} && chmod 644 {}".format(CANNED_SCRIPTS,
+                                              os.path.join(build_root, CANNED_DIR[1:]),
+                                              os.path.join(build_root, CANNED_DIR[1:], "*json")),
+            shell=True)
 
 def run_generate():
     """Generate static assets.
