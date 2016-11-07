@@ -103,9 +103,9 @@ An example usage in Go would be:
 
 ```go
 func ShallIPass(ctx context.Context) (string, error) {
-    principal := ctx.Value(mrfusion.PrincipalKey).(mrfusion.Principal)
+    principal := ctx.Value(chronograf.PrincipalKey).(chronograf.Principal)
     if principal != "gandolf@moria.misty.mt" {
-        return "you shall not pass", mrfusion.ErrAuthentication
+        return "you shall not pass", chronograf.ErrAuthentication
     }
     return "run you fools", nil
 }

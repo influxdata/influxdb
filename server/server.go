@@ -110,8 +110,7 @@ func openService(boltPath, cannedPath string, logger chronograf.Logger) Service 
 	if err := db.Open(); err != nil {
 		logger.
 			WithField("component", "boltstore").
-			Panic("Unable to open boltdb; is there a mrfusion already running?", err)
-		panic(err)
+			Panic("Unable to open boltdb; is there a chronograf already running?", err)
 	}
 
 	apps := canned.NewApps(cannedPath, &uuid.V4{}, logger)
