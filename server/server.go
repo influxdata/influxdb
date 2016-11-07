@@ -16,19 +16,20 @@ import (
 	clog "github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/uuid"
 	client "github.com/influxdata/usage-client/v1"
-	flags "github.com/jessevdk/go-flags"
 	"github.com/tylerb/graceful"
 )
 
 // Server for the chronograf API
 type Server struct {
 	Host string `long:"host" description:"the IP to listen on" default:"localhost" env:"HOST"`
-	Port int    `long:"port" description:"the port to listen on for insecure connections, defaults to a random value" default:"8888" env:"PORT"`
+	Port int    `long:"port" description:"the port to listen on for insecure connections, defaults to a random value" default:"10000" env:"PORT"`
 
+	/* TODO: add in support for TLS
 	TLSHost           string         `long:"tls-host" description:"the IP to listen on for tls, when not specified it's the same as --host" env:"TLS_HOST"`
 	TLSPort           int            `long:"tls-port" description:"the port to listen on for secure connections, defaults to a random value" env:"TLS_PORT"`
 	TLSCertificate    flags.Filename `long:"tls-certificate" description:"the certificate to use for secure connections" env:"TLS_CERTIFICATE"`
 	TLSCertificateKey flags.Filename `long:"tls-key" description:"the private key to use for secure conections" env:"TLS_PRIVATE_KEY"`
+	*/
 
 	Develop            bool   `short:"d" long:"develop" description:"Run server in develop mode."`
 	BoltPath           string `short:"b" long:"bolt-path" description:"Full path to boltDB file (/Users/somebody/chronograf.db)" env:"BOLT_PATH" default:"chronograf.db"`

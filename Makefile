@@ -61,10 +61,10 @@ jstest:
 	cd ui && npm test
 
 run: ${BINARY}
-	./chronograf --port 8888
+	./chronograf
 
 run-dev: ${BINARY}
-	./chronograf -d --port 8888
+	./chronograf -d
 
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi
