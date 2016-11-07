@@ -12,7 +12,8 @@
  		"queries": [{
  			"query": "SELECT \"load1\" FROM \"telegraf\"..\"system\"",
  			"db": "telegraf",
- 			"rp": "autogen"
+ 			"rp": "autogen",
+ 			"groupbys": []
 		}]
  	}]
  }

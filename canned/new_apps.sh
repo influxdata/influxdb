@@ -8,7 +8,7 @@ show_help() {
 cat << EOF
 Usage: ${0##*/} MEASUREMENT
 Generate new layout for MEASUREMENT.  File created will be named
-MEASUREMENT_UUID.json with UUID being generated from the uuidgen command.
+MEASUREMENT.json with UUID being generated from the uuidgen command.
 
     -h          display this help and exit
 EOF
@@ -54,7 +54,8 @@ cat > $APP_FILE << EOF
  		"queries": [{
  			"query": "select used_percent from disk",
  			"db": "telegraf",
- 			"rp": "autogen"
+ 			"rp": "autogen",
+  			"groupbys": []
 		}]
  	}]
  }

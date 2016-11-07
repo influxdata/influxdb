@@ -12,7 +12,8 @@
  		"queries": [{
  			"query": "SELECT \"usage_user\" FROM \"telegraf\"..\"cpu\"",
  			"db": "telegraf",
- 			"rp": "autogen"
+ 			"rp": "autogen",
+  			"groupbys": []
 		}]
  	}]
  }
