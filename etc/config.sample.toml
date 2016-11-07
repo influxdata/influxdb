@@ -182,10 +182,11 @@
 ### Controls the availability of the built-in, web-based admin interface. If HTTPS is
 ### enabled for the admin interface, HTTPS must also be enabled on the [http] service.
 ###
+### NOTE: This interface is deprecated as of 1.1.0 and will be removed in a future release.
 
 # [admin]
   # Determines whether the admin service is enabled.
-  # enabled = true
+  # enabled = false
 
   # The default bind address used by the admin service.
   # bind-address = ":8083"
