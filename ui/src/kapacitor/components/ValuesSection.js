@@ -156,7 +156,8 @@ const Relative = React.createClass({
         <Dropdown items={shifts} selected={shift} onChoose={this.handleDropdownChange} />
         before is
         <Dropdown items={operators} selected={operator} onChoose={this.handleDropdownChange} />
-        <input ref={(r) => this.input = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>%
+        <input ref={(r) => this.input = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
+        { change === CHANGES[1] ? '%' : '' }
       </div>
     );
   },
