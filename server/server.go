@@ -113,7 +113,7 @@ func openService(boltPath, cannedPath string, logger chronograf.Logger) Service 
 		panic(err)
 	}
 
-	apps := canned.NewApps(cannedPath, &uuid.V4{})
+	apps := canned.NewApps(cannedPath, &uuid.V4{}, logger)
 	// Acts as a front-end to both the bolt layouts and the filesystem layouts.
 	layouts := &layouts.MultiLayoutStore{
 		Stores: []chronograf.LayoutStore{

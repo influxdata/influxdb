@@ -13,6 +13,7 @@ const (
 	ErrSourceNotFound      = Error("source not found")
 	ErrServerNotFound      = Error("server not found")
 	ErrLayoutNotFound      = Error("layout not found")
+	ErrLayoutInvalid       = Error("layout is invalid")
 	ErrAlertNotFound       = Error("alert not found")
 	ErrAuthentication      = Error("user not authenticated")
 )

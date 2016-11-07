@@ -37,7 +37,7 @@ CELLID="$(tr [A-Z] [a-z] <<< "$CELLID")"
 
 UUID=$(uuidgen)
 UUID="$(tr [A-Z] [a-z] <<< "$UUID")"
-APP_FILE="$measurement"_"$UUID".json
+APP_FILE="$measurement".json
 echo Creating measurement file $APP_FILE
 cat > $APP_FILE << EOF
  {
