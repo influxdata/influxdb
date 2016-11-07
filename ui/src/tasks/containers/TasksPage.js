@@ -165,12 +165,12 @@ const Tasks = React.createClass({
                       </tbody>
                     </table>
                   </div> :
-                    <div className="panel-body">
-                      <div className="generic-empty-state tasks-empty-state">
-                        <span className="icon cubo-node"></span>
-                        <h4>No tasks running</h4>
-                      </div>
-                    </div>}
+                  <div className="panel-body">
+                    <div className="generic-empty-state tasks-empty-state">
+                      <span className="icon cubo-node"></span>
+                      <h4>No tasks running</h4>
+                    </div>
+                  </div>}
               </div>
             </div>
           </div>
