@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react';
 import Dropdown from 'src/shared/components/Dropdown';
 import {Tab, TabList, TabPanels, TabPanel, Tabs} from 'shared/components/Tabs';
-import {OPERATORS, RELATIONS, PERIODS, CHANGES, SHIFTS} from 'src/kapacitor/constants';
+import {OPERATORS, PERIODS, CHANGES, SHIFTS} from 'src/kapacitor/constants';
 
 const TABS = ['Threshold', 'Relative', 'Deadman'];
 export const ValuesSection = React.createClass({
@@ -64,8 +64,6 @@ const Threshold = React.createClass({
       values: PropTypes.shape({
         operator: PropTypes.string,
         value: PropTypes.string,
-        relation: PropTypes.string,
-        percentile: PropTypes.string,
         period: PropTypes.string,
       }),
     }),
@@ -80,12 +78,11 @@ const Threshold = React.createClass({
   handleInputChange() {
     this.props.onChange(Object.assign({}, this.props.rule.values, {
       value: this.valueInput.value,
-      percentile: this.percentileInput && this.percentileInput.value,
     }));
   },
 
   render() {
-    const {operator, value, relation, percentile, period} = this.props.rule.values;
+    const {operator, value, period} = this.props.rule.values;
 
     function mapToItems(arr, type) {
       return arr.map((text) => {
@@ -94,7 +91,6 @@ const Threshold = React.createClass({
     }
 
     const operators = mapToItems(OPERATORS, 'operator');
-    const relations = mapToItems(RELATIONS, 'relation');
     const periods = mapToItems(PERIODS, 'period');
 
     return (
@@ -102,8 +98,6 @@ const Threshold = React.createClass({
         Value is
         <Dropdown items={operators} selected={operator} onChoose={this.handleDropdownChange} />
         <input ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
-        <Dropdown items={relations} selected={relation} onChoose={this.handleDropdownChange} />
-        {relation === 'once' ? null : <input ref={(r) => this.percentileInput = r} defaultValue={percentile} onKeyUp={this.handleInputChange}></input>}
         during the last
         <Dropdown items={periods} selected={period} onChoose={this.handleDropdownChange} />
       </div>
