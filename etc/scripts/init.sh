@@ -13,7 +13,7 @@
 # Script to execute when starting
 SCRIPT="/usr/bin/chronograf"
 # Options to pass to the script on startup
-SCRIPT_OPTS="--host localhost --port 10000 -b /var/lib/chronograf/chronograf.db -c /usr/share/chronograf"
+SCRIPT_OPTS="--host localhost --port 10000 -b /var/lib/chronograf/chronograf.db -c /usr/share/chronograf/canned"
 
 # User to run the process under
 RUNAS=chronograf
