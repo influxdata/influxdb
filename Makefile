@@ -29,7 +29,6 @@ dev-assets: dev-js bindata
 bindata:
 	go generate -x ./dist
 	go generate -x ./server
-	go generate -x ./canned
 
 js:
 	cd ui && npm run build

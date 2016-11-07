@@ -1,7 +1,5 @@
 package canned
 
-//go:generate go-bindata -o apps_gen.go -ignore README|apps -pkg canned .
-
 import (
 	"context"
 	"encoding/json"
@@ -9,15 +7,11 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"strings"
 
 	"github.com/influxdata/chronograf"
-	clog "github.com/influxdata/chronograf/log"
 )
 
 const AppExt = ".json"
-
-var logger = clog.New(clog.DebugLevel)
 
 // Apps are canned JSON layouts.  Implements LayoutStore.
 type Apps struct {
@@ -28,9 +22,10 @@ type Apps struct {
 	ReadDir  func(dirname string) ([]os.FileInfo, error) // ReadDir reads the directory named by dirname and returns a list of directory entries sorted by filename.
 	Remove   func(name string) error                     // Remove file
 	IDs      chronograf.ID                               // IDs generate unique ids for new application layouts
+	Logger   chronograf.Logger
 }
 
-func NewApps(dir string, ids chronograf.ID) chronograf.LayoutStore {
+func NewApps(dir string, ids chronograf.ID, logger chronograf.Logger) chronograf.LayoutStore {
 	return &Apps{
 		Dir:      dir,
 		Load:     loadFile,
@@ -39,30 +34,23 @@ func NewApps(dir string, ids chronograf.ID) chronograf.LayoutStore {
 		ReadDir:  ioutil.ReadDir,
 		Remove:   os.Remove,
 		IDs:      ids,
+		Logger:   logger,
 	}
 }
 
 func fileName(dir string, layout chronograf.Layout) string {
-	base := fmt.Sprintf("%s_%s%s", layout.Measurement, layout.ID, AppExt)
+	base := fmt.Sprintf("%s%s", layout.Measurement, AppExt)
 	return path.Join(dir, base)
 }
 
 func loadFile(name string) (chronograf.Layout, error) {
 	octets, err := ioutil.ReadFile(name)
 	if err != nil {
-		logger.
-			WithField("component", "apps").
-			WithField("name", name).
-			Error("Unable to read file")
-		return chronograf.Layout{}, err
+		return chronograf.Layout{}, chronograf.ErrLayoutNotFound
 	}
 	var layout chronograf.Layout
 	if err = json.Unmarshal(octets, &layout); err != nil {
-		logger.
-			WithField("component", "apps").
-			WithField("name", name).
-			Error("File is not a layout")
-		return chronograf.Layout{}, err
+		return chronograf.Layout{}, chronograf.ErrLayoutInvalid
 	}
 	return layout, nil
 }
@@ -74,17 +62,9 @@ func createLayout(file string, layout chronograf.Layout) error {
 	}
 	defer h.Close()
 	if octets, err := json.MarshalIndent(layout, "    ", "    "); err != nil {
-		logger.
-			WithField("component", "apps").
-			WithField("name", file).
-			Error("Unable to marshal layout:", err)
-		return err
+		return chronograf.ErrLayoutInvalid
 	} else {
 		if _, err := h.Write(octets); err != nil {
-			logger.
-				WithField("component", "apps").
-				WithField("name", file).
-				Error("Unable to write layout:", err)
 			return err
 		}
 	}
@@ -116,19 +96,30 @@ func (a *Apps) Add(ctx context.Context, layout chronograf.Layout) (chronograf.La
 	layout.ID, err = a.IDs.Generate()
 	file := a.Filename(a.Dir, layout)
 	if err = a.Create(file, layout); err != nil {
+		if err == chronograf.ErrLayoutInvalid {
+			a.Logger.
+				WithField("component", "apps").
+				WithField("name", file).
+				Error("Invalid Layout: ", err)
+		} else {
+			a.Logger.
+				WithField("component", "apps").
+				WithField("name", file).
+				Error("Unable to write layout:", err)
+		}
 		return chronograf.Layout{}, err
 	}
 	return layout, nil
 }
 
 func (a *Apps) Delete(ctx context.Context, layout chronograf.Layout) error {
-	file, err := a.idToFile(layout.ID)
+	_, file, err := a.idToFile(layout.ID)
 	if err != nil {
 		return err
 	}
 
 	if err := a.Remove(file); err != nil {
-		logger.
+		a.Logger.
 			WithField("component", "apps").
 			WithField("name", file).
 			Error("Unable to remove layout:", err)
@@ -138,26 +129,32 @@ func (a *Apps) Delete(ctx context.Context, layout chronograf.Layout) error {
 }
 
 func (a *Apps) Get(ctx context.Context, ID string) (chronograf.Layout, error) {
-	file, err := a.idToFile(ID)
+	l, file, err := a.idToFile(ID)
 	if err != nil {
 		return chronograf.Layout{}, err
 	}
-	l, err := a.Load(file)
+
 	if err != nil {
-		return chronograf.Layout{}, chronograf.ErrLayoutNotFound
+		if err == chronograf.ErrLayoutNotFound {
+			a.Logger.
+				WithField("component", "apps").
+				WithField("name", file).
+				Error("Unable to read file")
+		} else if err == chronograf.ErrLayoutInvalid {
+			a.Logger.
+				WithField("component", "apps").
+				WithField("name", file).
+				Error("File is not a layout")
+		}
+		return chronograf.Layout{}, err
 	}
 	return l, nil
 }
 
 func (a *Apps) Update(ctx context.Context, layout chronograf.Layout) error {
-	file, err := a.idToFile(layout.ID)
+	l, file, err := a.idToFile(layout.ID)
 	if err != nil {
 		return err
-	}
-
-	l, err := a.Load(file)
-	if err != nil {
-		return chronograf.ErrLayoutNotFound
 	}
 
 	if err := a.Delete(ctx, l); err != nil {
@@ -168,22 +165,28 @@ func (a *Apps) Update(ctx context.Context, layout chronograf.Layout) error {
 }
 
 // idToFile takes an id and finds the associated filename
-func (a *Apps) idToFile(ID string) (string, error) {
+func (a *Apps) idToFile(ID string) (chronograf.Layout, string, error) {
 	// Because the entire layout information is not known at this point, we need
-	// to try to find the name of the file through matching.
+	// to try to find the name of the file through matching the ID in the layout
+	// content with the ID passed.
 	files, err := a.ReadDir(a.Dir)
 	if err != nil {
-		return "", err
+		return chronograf.Layout{}, "", err
 	}
 
-	var file string
 	for _, f := range files {
-		if strings.Contains(f.Name(), ID) {
-			file = path.Join(a.Dir, f.Name())
+		if path.Ext(f.Name()) != AppExt {
+			continue
+		}
+		file := path.Join(a.Dir, f.Name())
+		layout, err := a.Load(file)
+		if err != nil {
+			return chronograf.Layout{}, "", err
+		}
+		if layout.ID == ID {
+			return layout, file, nil
 		}
 	}
-	if file == "" {
-		return "", chronograf.ErrLayoutNotFound
-	}
-	return file, nil
+
+	return chronograf.Layout{}, "", chronograf.ErrLayoutNotFound
 }
