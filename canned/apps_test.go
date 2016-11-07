@@ -14,6 +14,7 @@ import (
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/canned"
+	clog "github.com/influxdata/chronograf/log"
 )
 
 func TestAll(t *testing.T) {
@@ -373,5 +374,6 @@ func MockApps(existing []chronograf.Layout, expected error) (canned.Apps, *map[s
 		IDs: &MockID{
 			id: len(existing),
 		},
+		Logger: clog.New(clog.ParseLevel("debug")),
 	}, &layouts
 }

@@ -22,7 +22,7 @@ type Apps struct {
 	ReadDir  func(dirname string) ([]os.FileInfo, error) // ReadDir reads the directory named by dirname and returns a list of directory entries sorted by filename.
 	Remove   func(name string) error                     // Remove file
 	IDs      chronograf.ID                               // IDs generate unique ids for new application layouts
-	logger   chronograf.Logger
+	Logger   chronograf.Logger
 }
 
 func NewApps(dir string, ids chronograf.ID, logger chronograf.Logger) chronograf.LayoutStore {
@@ -34,12 +34,12 @@ func NewApps(dir string, ids chronograf.ID, logger chronograf.Logger) chronograf
 		ReadDir:  ioutil.ReadDir,
 		Remove:   os.Remove,
 		IDs:      ids,
-		logger:   logger,
+		Logger:   logger,
 	}
 }
 
 func fileName(dir string, layout chronograf.Layout) string {
-	base := fmt.Sprintf("%s_%s%s", layout.Measurement, layout.ID, AppExt)
+	base := fmt.Sprintf("%s%s", layout.Measurement, AppExt)
 	return path.Join(dir, base)
 }
 
@@ -97,12 +97,12 @@ func (a *Apps) Add(ctx context.Context, layout chronograf.Layout) (chronograf.La
 	file := a.Filename(a.Dir, layout)
 	if err = a.Create(file, layout); err != nil {
 		if err == chronograf.ErrLayoutInvalid {
-			a.logger.
+			a.Logger.
 				WithField("component", "apps").
 				WithField("name", file).
 				Error("Invalid Layout: ", err)
 		} else {
-			a.logger.
+			a.Logger.
 				WithField("component", "apps").
 				WithField("name", file).
 				Error("Unable to write layout:", err)
@@ -119,7 +119,7 @@ func (a *Apps) Delete(ctx context.Context, layout chronograf.Layout) error {
 	}
 
 	if err := a.Remove(file); err != nil {
-		a.logger.
+		a.Logger.
 			WithField("component", "apps").
 			WithField("name", file).
 			Error("Unable to remove layout:", err)
@@ -136,12 +136,12 @@ func (a *Apps) Get(ctx context.Context, ID string) (chronograf.Layout, error) {
 
 	if err != nil {
 		if err == chronograf.ErrLayoutNotFound {
-			a.logger.
+			a.Logger.
 				WithField("component", "apps").
 				WithField("name", file).
 				Error("Unable to read file")
 		} else if err == chronograf.ErrLayoutInvalid {
-			a.logger.
+			a.Logger.
 				WithField("component", "apps").
 				WithField("name", file).
 				Error("File is not a layout")
