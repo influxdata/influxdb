@@ -42,6 +42,7 @@ func NewService(c Config) *Service {
 // Open starts the service
 func (s *Service) Open() error {
 	s.logger.Printf("Starting admin service")
+	s.logger.Println("DEPRECATED: This plugin is deprecated as of 1.1.0 and will be removed in a future release")
 
 	// Open listener.
 	if s.https {

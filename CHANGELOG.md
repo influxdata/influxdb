@@ -15,9 +15,19 @@
 
 This release is built with go 1.7.3 and provides many performance optimizations, stability changes and a few new query capabilities.  If upgrading from a prior version, please read the configuration changes below section before upgrading.
 
+### Deprecations
+
+The admin interface is deprecated and will be removed in a subsequent release.  The configuration setting to enable the admin UI is now disabled by default, but can be enabled if necessary.  We recommend using [Chronograf](https://github.com/influxdata/chronograf) or [Grafana](https://github.com/grafana/grafana) as a replacement.
+
 ### Configuration Changes
 
-The following configuration changes in the `[data]` section may need to changed before upgrading to `1.1.0` from prior versions.
+The following configuration changes may need to changed before upgrading to `1.1.0` from prior versions.
+
+#### `[admin]` Section
+
+* `enabled` now default to false.  If you are currently using the admin interaface, you will need to change this value to `true` to re-enable it.  The admin interface is currently deprecated and will be removed in a subsequent release.
+
+#### `[data]` Section
 
 * `max-values-per-tag` was added with a default of 100,000, but can be disabled by setting it to `0`.  Existing measurements with tags that exceed this limit will continue to load, but writes that would cause the tags cardinality to increase will be dropped and a `partial write` error will be returned to the caller.  This limit can be used to prevent high cardinality tag values from being written to a measurement.
 * `cache-max-memory-size` has been increased to from `524288000` to `1048576000`.  This setting is the maximum amount of RAM, in bytes, a shard cache can use before it rejects writes with an error.  Setting this value to `0` disables the limit.
@@ -28,10 +38,12 @@ The following configuration changes in the `[data]` section may need to changed 
 
 The query language has been extended with a few new features:
 
-* New `cumulative_sum` function - [PR7388](https://github.com/influxdata/influxdb/pull/7388)
-* New `linear` fill option - [PR7408](https://github.com/influxdata/influxdb/pull/7408)
-* Support `ON` for `SHOW` commands - [PR7295](https://github.com/influxdata/influxdb/pull/7295)
-* Support regex on fields keys in select clause - [PR7442](https://github.com/influxdata/influxdb/pull/7442)
+* New `cumulative_sum` function - [#7388](https://github.com/influxdata/influxdb/pull/7388)
+* New `linear` fill option - [#7408](https://github.com/influxdata/influxdb/pull/7408)
+* Support `ON` for `SHOW` commands - [#7295](https://github.com/influxdata/influxdb/pull/7295)
+* Support regex on fields keys in select clause - [#7442](https://github.com/influxdata/influxdb/pull/7442)
+
+All Changes:
 
 - [#7415](https://github.com/influxdata/influxdb/pull/7415): Add sample function to query language.
 - [#7403](https://github.com/influxdata/influxdb/pull/7403): Add `fill(linear)` to query language.
