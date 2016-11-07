@@ -135,7 +135,7 @@ func (data *Data) RetentionPolicy(database, name string) (*RetentionPolicyInfo, 
 
 // CreateRetentionPolicy creates a new retention policy on a database.
 // Returns an error if name is blank or if a database does not exist.
-func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo) error {
+func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInfo, makeDefault bool) error {
 	// Validate retention policy.
 	if rpi == nil {
 		return ErrRetentionPolicyRequired
@@ -163,11 +163,21 @@ func (data *Data) CreateRetentionPolicy(database string, rpi *RetentionPolicyInf
 		if rp.ReplicaN != rpi.ReplicaN || rp.Duration != rpi.Duration || rp.ShardGroupDuration != rpi.ShardGroupDuration {
 			return ErrRetentionPolicyExists
 		}
+		// if they want to make it default, and it's not the default, it's not an identical command so it's an error
+		if makeDefault && di.DefaultRetentionPolicy != rpi.Name {
+			return ErrRetentionPolicyConflict
+		}
 		return nil
 	}
 
 	// Append copy of new policy.
 	di.RetentionPolicies = append(di.RetentionPolicies, *rpi)
+
+	// Set the default if needed
+	if makeDefault {
+		di.DefaultRetentionPolicy = rpi.Name
+	}
+
 	return nil
 }
 
@@ -212,7 +222,7 @@ func (rpu *RetentionPolicyUpdate) SetReplicaN(v int) { rpu.ReplicaN = &v }
 func (rpu *RetentionPolicyUpdate) SetShardGroupDuration(v time.Duration) { rpu.ShardGroupDuration = &v }
 
 // UpdateRetentionPolicy updates an existing retention policy.
-func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate) error {
+func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPolicyUpdate, makeDefault bool) error {
 	// Find database.
 	di := data.Database(database)
 	if di == nil {
@@ -258,25 +268,9 @@ func (data *Data) UpdateRetentionPolicy(database, name string, rpu *RetentionPol
 		rpi.ShardGroupDuration = normalisedShardDuration(*rpu.ShardGroupDuration, rpi.Duration)
 	}
 
-	return nil
-}
-
-// SetDefaultRetentionPolicy sets the default retention policy for a database.
-func (data *Data) SetDefaultRetentionPolicy(database, name string) error {
-	if name == "" {
-		name = DefaultRetentionPolicyName
+	if di.DefaultRetentionPolicy != rpi.Name && makeDefault {
+		di.DefaultRetentionPolicy = rpi.Name
 	}
-
-	// Find database and verify policy exists.
-	di := data.Database(database)
-	if di == nil {
-		return influxdb.ErrDatabaseNotFound(database)
-	} else if di.RetentionPolicy(name) == nil {
-		return influxdb.ErrRetentionPolicyNotFound(name)
-	}
-
-	// Set default policy.
-	di.DefaultRetentionPolicy = name
 
 	return nil
 }
