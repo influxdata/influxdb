@@ -613,14 +613,10 @@ func (c *Cache) values(key string) Values {
 	return e.values
 }
 
+// ApplyEntryFn applies the function f to each entry in the Cache.
+// ApplyEntryFn calls f on each entry in turn, within the same goroutine.
+// It is safe for use by multiple goroutines.
 func (c *Cache) ApplyEntryFn(f func(key string, entry *entry) error) error {
-	c.mu.RLock()
-	store := c.store
-	c.mu.RUnlock()
-	return store.apply(f)
-}
-
-func (c *Cache) ApplySerialEntryFn(f func(key string, entry *entry) error) error {
 	c.mu.RLock()
 	store := c.store
 	c.mu.RUnlock()
