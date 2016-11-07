@@ -106,8 +106,6 @@ func NewDemoConfig() (*Config, error) {
 	c.Data.Dir = filepath.Join(homeDir, ".influxdb/data")
 	c.Data.WALDir = filepath.Join(homeDir, ".influxdb/wal")
 
-	c.Admin.Enabled = true
-
 	return c, nil
 }
 
