@@ -333,6 +333,8 @@ def get_system_arch():
         arch = "amd64"
     elif arch == "386":
         arch = "i386"
+    elif arch == "aarch64":
+        arch = "arm64"
     elif 'arm' in arch:
         # Prevent uname from reporting full ARM arch (eg 'armv7l')
         arch = "arm"
