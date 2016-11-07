@@ -82,6 +82,32 @@ func TestSourceStore(t *testing.T) {
 		t.Fatal("Able to set two default sources when only one should be permitted")
 	}
 
+	// Attempt to add a new default source
+	srcs = append(srcs, chronograf.Source{
+		Name:     "Biff Tannen",
+		Type:     "influx",
+		Username: "HELLO",
+		Password: "MCFLY",
+		URL:      "anybody.in.there.local",
+		Default:  true,
+	})
+
+	srcs[2] = mustAddSource(t, s, srcs[2])
+	if srcs, err := s.All(nil); err != nil {
+		t.Fatal(err)
+	} else {
+		defaults := 0
+		for _, src := range srcs {
+			if src.Default {
+				defaults++
+			}
+		}
+
+		if defaults != 1 {
+			t.Fatal("Able to add more than one default source")
+		}
+	}
+
 	// Delete an source.
 	if err := s.Delete(nil, srcs[0]); err != nil {
 		t.Fatal(err)
@@ -90,6 +116,11 @@ func TestSourceStore(t *testing.T) {
 	// Confirm source has been deleted.
 	if _, err := s.Get(nil, srcs[0].ID); err != chronograf.ErrSourceNotFound {
 		t.Fatalf("source delete error: got %v, expected %v", err, chronograf.ErrSourceNotFound)
+	}
+
+	// Delete the other source we created
+	if err := s.Delete(nil, srcs[2]); err != nil {
+		t.Fatal(err)
 	}
 
 	if bsrcs, err := s.All(nil); err != nil {
@@ -104,5 +135,14 @@ func TestSourceStore(t *testing.T) {
 func mustUpdateSource(t *testing.T, s *bolt.SourcesStore, src chronograf.Source) {
 	if err := s.Update(nil, src); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func mustAddSource(t *testing.T, s *bolt.SourcesStore, src chronograf.Source) chronograf.Source {
+	if src, err := s.Add(nil, src); err != nil {
+		t.Fatal(err)
+		return src
+	} else {
+		return src
 	}
 }

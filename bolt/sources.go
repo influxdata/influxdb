@@ -50,6 +50,12 @@ func (s *SourcesStore) Add(ctx context.Context, src chronograf.Source) (chronogr
 		}
 		src.ID = int(seq)
 
+		if src.Default {
+			if err := s.resetDefaultSource(b, ctx); err != nil {
+				return err
+			}
+		}
+
 		if v, err := internal.MarshalSource(src); err != nil {
 			return err
 		} else if err := b.Put(itob(src.ID), v); err != nil {
@@ -65,6 +71,32 @@ func (s *SourcesStore) Add(ctx context.Context, src chronograf.Source) (chronogr
 
 // Delete removes the Source from the SourcesStore
 func (s *SourcesStore) Delete(ctx context.Context, src chronograf.Source) error {
+
+	// Check if requested source is the current default
+	if src, err := s.Get(ctx, src.ID); err != nil {
+		return err
+	} else if src.Default {
+		// Locate another source to be the new default
+		if srcs, err := s.All(ctx); err != nil {
+			return err
+		} else {
+			var other *chronograf.Source
+			for idx, _ := range srcs {
+				other = &srcs[idx]
+				// avoid selecting the source we're about to delete as the new default
+				if other.ID != src.ID {
+					break
+				}
+			}
+
+			// set the other to be the default
+			other.Default = true
+			if err := s.Update(ctx, *other); err != nil {
+				return err
+			}
+		}
+	}
+
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		if err := tx.Bucket(SourcesBucket).Delete(itob(src.ID)); err != nil {
 			return err
@@ -103,22 +135,9 @@ func (s *SourcesStore) Update(ctx context.Context, src chronograf.Source) error 
 			return chronograf.ErrSourceNotFound
 		}
 
-		//Unset any existing defaults if this is a new default
 		if src.Default {
-			srcs, err := s.All(ctx)
-			if err != nil {
+			if err := s.resetDefaultSource(b, ctx); err != nil {
 				return err
-			}
-
-			for _, other := range srcs {
-				if other.Default {
-					other.Default = false
-					if v, err := internal.MarshalSource(other); err != nil {
-						return err
-					} else if err := b.Put(itob(other.ID), v); err != nil {
-						return err
-					}
-				}
 			}
 		}
 
@@ -132,5 +151,25 @@ func (s *SourcesStore) Update(ctx context.Context, src chronograf.Source) error 
 		return err
 	}
 
+	return nil
+}
+
+// resetDefaultSource unsets the Default flag on all sources
+func (s *SourcesStore) resetDefaultSource(b *bolt.Bucket, ctx context.Context) error {
+	srcs, err := s.All(ctx)
+	if err != nil {
+		return err
+	}
+
+	for _, other := range srcs {
+		if other.Default {
+			other.Default = false
+			if v, err := internal.MarshalSource(other); err != nil {
+				return err
+			} else if err := b.Put(itob(other.ID), v); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
