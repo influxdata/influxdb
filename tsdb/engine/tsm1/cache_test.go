@@ -741,3 +741,30 @@ func BenchmarkCacheParallelFloatEntries(b *testing.B) {
 		}
 	})
 }
+
+func BenchmarkEntry_add(b *testing.B) {
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			b.StopTimer()
+			values := make([]Value, 10)
+			for i := 0; i < 10; i++ {
+				values[i] = NewValue(int64(i+1), float64(i))
+			}
+
+			otherValues := make([]Value, 10)
+			for i := 0; i < 10; i++ {
+				otherValues[i] = NewValue(1, float64(i))
+			}
+
+			entry, err := newEntryValues(values)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			b.StartTimer()
+			if err := entry.add(otherValues); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
