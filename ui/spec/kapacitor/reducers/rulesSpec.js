@@ -6,6 +6,7 @@ import {
   updateRuleValues,
   updateMessage,
   updateAlerts,
+  updateRuleName,
 } from 'src/kapacitor/actions/view';
 
 describe('Kapacitor.Reducers.rules', () => {
@@ -81,5 +82,20 @@ describe('Kapacitor.Reducers.rules', () => {
     const alerts = ['slack'];
     const newState = reducer(initialState, updateAlerts(ruleID, alerts));
     expect(newState[ruleID].alerts).to.equal(alerts);
+  });
+
+  it('can update the name', () => {
+    const ruleID = 1;
+    const name = 'New name'
+    const initialState = {
+      [ruleID]: {
+        id: ruleID,
+        queryID: 988,
+        name: 'Random album title',
+      }
+    };
+
+    const newState = reducer(initialState, updateRuleName(ruleID, name));
+    expect(newState[ruleID].name).to.equal(name);
   });
 });
