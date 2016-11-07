@@ -164,10 +164,14 @@ const (
 
 // Cache maintains an in-memory store of Values for a set of keys.
 type Cache struct {
+	// TODO(edd): size is protected by mu but due to a bug in atomic  size needs
+	// to be the first word in the struct, as that's the only place where you're
+	// guaranteed to be 64-bit aligned on a 32 bit system. See:
+	// https://golang.org/pkg/sync/atomic/#pkg-note-BUG
+	size    uint64
 	commit  sync.Mutex
 	mu      sync.RWMutex
 	store   *ring
-	size    uint64
 	maxSize uint64
 
 	// snapshots are the cache objects that are currently being written to tsm files
@@ -242,7 +246,7 @@ func (c *Cache) Write(key string, values []Value) error {
 	// Enough room in the cache?
 	c.mu.RLock()
 	limit := c.maxSize
-	n := c.size + c.snapshotSize + addedSize
+	n := c.Size() + c.snapshotSize + addedSize
 	c.mu.RUnlock()
 
 	if limit > 0 && n > limit {
@@ -255,11 +259,8 @@ func (c *Cache) Write(key string, values []Value) error {
 		return err
 	}
 
-	c.mu.Lock()
-	c.size += addedSize
-	c.mu.Unlock()
-
-	// Update the memory size stat
+	// Update the cache size and the memory size stat.
+	c.increaseSize(addedSize)
 	c.updateMemSize(int64(addedSize))
 	atomic.AddInt64(&c.stats.WriteOK, 1)
 
@@ -277,18 +278,16 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 		addedSize += uint64(Values(v).Size())
 	}
 
-	// Enough room in the cache?
-	c.mu.Lock()
-	// Set everything under one lock. We'll optimistially set size here, and
-	// then grab another lock if we need to decrement it due to write error.
-	// This also gives us the store reference without having to take another
-	// lock.
-	c.size += addedSize
+	// Set everything under one RLock. We'll optimistially set size here, and
+	// then decrement it later if there is a write error.
+	c.mu.RLock()
+	c.increaseSize(addedSize)
 	limit := c.maxSize
-	n := c.size + c.snapshotSize + addedSize
+	n := c.Size() + c.snapshotSize + addedSize
 	store := c.store
-	c.mu.Unlock()
+	c.mu.RUnlock()
 
+	// Enough room in the cache?
 	if limit > 0 && n > limit {
 		atomic.AddInt64(&c.stats.WriteErr, 1)
 		return ErrCacheMemorySizeLimitExceeded(n, limit)
@@ -300,10 +299,8 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 		if err := store.write(k, v); err != nil {
 			// The write failed, hold onto the error and adjust the size delta.
 			werr = err
-			c.mu.Lock()
 			addedSize -= uint64(Values(v).Size())
-			c.size -= uint64(Values(v).Size())
-			c.mu.Unlock()
+			c.decreaseSize(uint64(Values(v).Size()))
 		}
 	}
 
@@ -366,13 +363,13 @@ func (c *Cache) Snapshot() (*Cache, error) {
 		return nil, err
 	}
 
-	snapshotSize := c.size // record the number of bytes written into a snapshot
+	snapshotSize := c.Size() // record the number of bytes written into a snapshot
 
 	var err error
 	if c.store, err = newring(ringShards); err != nil {
 		return nil, err
 	}
-	c.size = 0
+	atomic.StoreUint64(&c.size, 0)
 	c.lastSnapshot = time.Now()
 
 	c.updateMemSize(-int64(snapshotSize)) // decrement the number of bytes in cache
@@ -413,9 +410,18 @@ func (c *Cache) ClearSnapshot(success bool) {
 
 // Size returns the number of point-calcuated bytes the cache currently uses.
 func (c *Cache) Size() uint64 {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return c.size
+	return atomic.LoadUint64(&c.size)
+}
+
+// increaseSize increases size by delta.
+func (c *Cache) increaseSize(delta uint64) {
+	atomic.AddUint64(&c.size, delta)
+}
+
+// decreaseSize decreases size by delta.
+func (c *Cache) decreaseSize(delta uint64) {
+	size := atomic.LoadUint64(&c.size)
+	atomic.StoreUint64(&c.size, size-delta)
 }
 
 // MaxSize returns the maximum number of bytes the cache may consume.
@@ -511,6 +517,8 @@ func (c *Cache) Delete(keys []string) {
 
 // DeleteRange will remove the values for all keys containing points
 // between min and max from the cache.
+//
+// TODO(edd): Lock usage could possibly be optimised if necessary.
 func (c *Cache) DeleteRange(keys []string, min, max int64) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -524,7 +532,7 @@ func (c *Cache) DeleteRange(keys []string, min, max int64) {
 
 		origSize := uint64(e.size())
 		if min == math.MinInt64 && max == math.MaxInt64 {
-			c.size -= origSize
+			c.decreaseSize(origSize)
 			c.store.remove(k)
 			continue
 		}
@@ -532,13 +540,13 @@ func (c *Cache) DeleteRange(keys []string, min, max int64) {
 		e.filter(min, max)
 		if e.count() == 0 {
 			c.store.remove(k)
-			c.size -= origSize
+			c.decreaseSize(origSize)
 			continue
 		}
 
-		c.size -= origSize - uint64(e.size())
+		c.decreaseSize(origSize - uint64(e.size()))
 	}
-	atomic.StoreInt64(&c.stats.MemSizeBytes, int64(c.size))
+	atomic.StoreInt64(&c.stats.MemSizeBytes, int64(c.Size()))
 }
 
 func (c *Cache) SetMaxSize(size uint64) {
