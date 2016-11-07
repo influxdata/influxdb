@@ -34,6 +34,7 @@ The commands are:
     export               exports raw data from a shard to line protocol
     help                 display this help message
     report               displays a shard level report
+    verify               verifies integrity of TSM files
 
 "help" is the default command.
 
