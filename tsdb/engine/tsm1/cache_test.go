@@ -746,17 +746,17 @@ func BenchmarkEntry_add(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			b.StopTimer()
-			values := make([]Value, 10)
+			values := make([]Value, 100)
 			for i := 0; i < 10; i++ {
 				values[i] = NewValue(int64(i+1), float64(i))
 			}
 
-			otherValues := make([]Value, 10)
+			otherValues := make([]Value, 100)
 			for i := 0; i < 10; i++ {
 				otherValues[i] = NewValue(1, float64(i))
 			}
 
-			entry, err := newEntryValues(values)
+			entry, err := newEntryValues(values, 0) // Will use default allocation size.
 			if err != nil {
 				b.Fatal(err)
 			}

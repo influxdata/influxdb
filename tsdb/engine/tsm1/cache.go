@@ -38,8 +38,22 @@ type entry struct {
 
 // newEntryValues returns a new instance of entry with the given values.  If the
 // values are not valid, an error is returned.
-func newEntryValues(values []Value) (*entry, error) {
-	e := &entry{values: values}
+//
+// newEntryValues takes an optional hint, which is only respected if it's
+// positive.
+func newEntryValues(values []Value, hint int) (*entry, error) {
+	// Ensure we start off with a reasonably sized values slice.
+	if hint < 32 {
+		hint = 32
+	}
+
+	e := &entry{}
+	if len(values) >= hint {
+		e.values = values
+	} else {
+		e.values = make(Values, 0, hint)
+		e.values = append(e.values, values...)
+	}
 
 	// No values, don't check types and ordering
 	if len(values) == 0 {
@@ -85,13 +99,21 @@ func (e *entry) add(values []Value) error {
 	}
 
 	// entry currently has no values, so add the new ones and we're done.
+	// TODO(edd): I think this branch is unreachable. Need to verify.
 	if len(e.values) == 0 {
 		e.mu.Lock()
 		// Do the values need sorting?
 		if needSort {
 			e.needSort = needSort
 		}
-		e.values = values
+
+		// Ensure we start off with a reasonably sized values slice.
+		if len(values) < 32 {
+			e.values = make(Values, 0, 32)
+			e.values = append(e.values, values...)
+		} else {
+			e.values = values
+		}
 		e.mu.Unlock()
 		return nil
 	}
@@ -119,6 +141,7 @@ func (e *entry) add(values []Value) error {
 	if needSort {
 		e.needSort = true
 	}
+
 	e.values = append(e.values, values...)
 	e.mu.Unlock()
 	return nil
@@ -386,6 +409,9 @@ func (c *Cache) Snapshot() (*Cache, error) {
 	if c.store, err = newring(ringShards); err != nil {
 		return nil, err
 	}
+
+	// Reset the cache store.
+	c.store.reset()
 	atomic.StoreUint64(&c.size, 0)
 	c.lastSnapshot = time.Now()
 
