@@ -8,7 +8,7 @@ After=network-online.target
 [Service]
 User=chronograf
 Group=chronograf
-ExecStart=/usr/bin/chronograf --host localhost --port 10000 -b /var/lib/chronograf/chronograf.db -c /usr/share/chronograf
+ExecStart=/usr/bin/chronograf --host localhost --port 10000 -b /var/lib/chronograf/chronograf.db -c /usr/share/chronograf/canned
 KillMode=control-group
 Restart=on-failure
 
