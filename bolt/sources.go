@@ -42,6 +42,14 @@ func (s *SourcesStore) All(ctx context.Context) ([]chronograf.Source, error) {
 
 // Add creates a new Source in the SourceStore.
 func (s *SourcesStore) Add(ctx context.Context, src chronograf.Source) (chronograf.Source, error) {
+
+	// force first source added to be default
+	if srcs, err := s.All(ctx); err != nil {
+		return chronograf.Source{}, err
+	} else if len(srcs) == 0 {
+		src.Default = true
+	}
+
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(SourcesBucket)
 		seq, err := b.NextSequence()

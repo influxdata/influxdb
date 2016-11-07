@@ -130,6 +130,28 @@ func TestSourceStore(t *testing.T) {
 	} else if !reflect.DeepEqual(bsrcs[0], srcs[1]) {
 		t.Fatalf("After delete All returned incorrect source; got %v, expected %v", bsrcs[0], srcs[1])
 	}
+
+	// Delete the final source
+	if err := s.Delete(nil, srcs[1]); err != nil {
+		t.Fatal(err)
+	}
+
+	// Try to add one source as a non-default and ensure that it becomes a
+	// default
+	src := mustAddSource(t, s, chronograf.Source{
+		Name:     "Biff Tannen",
+		Type:     "influx",
+		Username: "HELLO",
+		Password: "MCFLY",
+		URL:      "anybody.in.there.local",
+		Default:  false,
+	})
+
+	if actual, err := s.Get(nil, src.ID); err != nil {
+		t.Fatal(err)
+	} else if !actual.Default {
+		t.Fatal("Expected first source added to be default but wasn't")
+	}
 }
 
 func mustUpdateSource(t *testing.T, s *bolt.SourcesStore, src chronograf.Source) {
