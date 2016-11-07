@@ -79,7 +79,7 @@ body > #react-root {
   background-size: contain;
 }
 
-.page-wrapper > div:not(.flash-messages):not(.page-spinner) {
+.page-wrapper > div:not(.flash-messages):not(.page-spinner):not(.kapacitor-rule-page):not(.data-explorer-container) {
   position: absolute;
   top: 0;
   left: 0;
@@ -733,5 +733,76 @@ table .monotype {
 .kapacitor {
   .enterprise-header {
     margin-bottom: 45px;
+  }
+}
+
+
+
+
+/*
+    Kapacitor Rule Builder
+    ----------------------------------------------
+*/
+$kapacitor-page-padding: ($enterprise-page-header-height / 2);
+$rule-preview-width: 488px;
+
+.kapacitor-rule-page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: $g2-kevlar;
+  background: -moz-linear-gradient(top, $g2-kevlar 0%, $g0-obsidian 100%);
+  background: -webkit-linear-gradient(top, $g2-kevlar 0%, $g0-obsidian 100%);
+  background: linear-gradient(to bottom, $g2-kevlar 0%, $g0-obsidian 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$g2-kevlar', endColorstr='$g0-obsidian',GradientType=0 );
+  color: $g17-whisper;
+
+  .enterprise-header {
+    background-color: $g0-obsidian;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    margin: 0;
+    padding-left: $kapacitor-page-padding;
+    padding-right: $kapacitor-page-padding;
+
+    &__container {
+      max-width: 100%;
+    }
+  }
+}
+.rule-builder-wrapper {
+  position: absolute;
+  top: $enterprise-page-header-height;
+  left: 0;
+  width: 100%;
+  height: calc(100% - #{$enterprise-page-header-height});
+  display: flex;
+  align-items: stretch;
+}
+.rule-builder {
+  width: calc(100% - #{$rule-preview-width});
+  padding: $kapacitor-page-padding;
+  background: $g2-kevlar;
+  background: -moz-linear-gradient(top, $g5-pepper 0%, $g3-castle 100%);
+  background: -webkit-linear-gradient(top, $g5-pepper 0%, $g3-castle 100%);
+  background: linear-gradient(to bottom, $g5-pepper 0%, $g3-castle 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$g5-pepper', endColorstr='$g3-castle',GradientType=0 );
+}
+.rule-preview {
+  width: $rule-preview-width;
+  padding: $kapacitor-page-padding;
+  display: flex;
+  justify-content: center;
+  align-content: center;
+  align-items: center;
+
+  &--graph {
+    background-color: $g3-castle;
+    border-radius: 4px;
   }
 }

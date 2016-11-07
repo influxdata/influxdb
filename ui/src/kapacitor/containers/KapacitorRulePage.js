@@ -151,13 +151,19 @@ export const KapacitorRulePage = React.createClass({
               {this.renderEditName(rule)}
             </div>
             <div className="enterprise-header__right">
-              <button className="btn btn-primary btn-sm" onClick={this.handleSave}>Save</button>
+              <button className="btn btn-success btn-sm" onClick={this.handleSave}>Save Rule</button>
             </div>
           </div>
         </div>
-        <div className="container-fluid">
-          <div className="row">
-            <div className="col-md-12">
+        <div className="rule-builder-wrapper">
+          <div className="rule-builder">
+            {this.renderDataSection(query)}
+            {this.renderValuesSection(rule)}
+            {this.renderMessageSection(rule)}
+            {this.renderAlertsSection(rule)}
+          </div>
+          <div className="rule-preview">
+            <div className="rule-preview--graph">
               {
                 queryText ?
                   <RefreshingLineGraph
@@ -167,27 +173,7 @@ export const KapacitorRulePage = React.createClass({
                   />
                 : null
               }
-            </div>
-          </div>
-          <div className="row">
-            <div className="col-md-12">
-              {this.renderDataSection(query)}
-            </div>
-          </div>
-          <div className="row">
-            <div className="col-md-12">
-              {this.renderValuesSection(rule)}
-            </div>
-          </div>
-          <div className="row">
-            <div className="col-md-12">
-              {this.renderMessageSection(rule)}
-            </div>
-          </div>
-          <div className="row">
-            <div className="col-md-12">
-              {this.renderAlertsSection(rule)}
-            </div>
+            </div> 
           </div>
         </div>
       </div>
