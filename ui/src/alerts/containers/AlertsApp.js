@@ -51,6 +51,10 @@ const AlertsApp = React.createClass({
       const results = [];
 
       const alertSeries = _.get(resp, ['data', 'results', '0', 'series'], []);
+      if (alertSeries.length === 0) {
+        this.setState({loading: false, alerts: []});
+        return;
+      }
 
       const timeIndex = alertSeries[0].columns.findIndex((col) => col === 'time');
       const hostIndex = alertSeries[0].columns.findIndex((col) => col === 'host');
