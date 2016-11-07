@@ -115,7 +115,7 @@ export const KapacitorRulePage = React.createClass({
       loadRule(Object.assign({}, rule, {
         name,
       }));
-      this.toggleEditName()
+      this.toggleEditName();
     }
 
     if (e.key === 'Escape') {
