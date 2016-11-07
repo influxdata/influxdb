@@ -13,7 +13,7 @@ Chronograf is an open-source web application written in go and react.js that is 
   * Redis
   * NSQ
   * MySQL
-  * Postgres
+  * PostgreSQL
 * Kapacitor alert creation and tracking
 
 ## Installation
@@ -27,7 +27,7 @@ We recommend installing Chrongraf using one of the [pre-built packages](https://
 ## Builds
 
 * Chronograf works with go 1.7.3, npm 3.10.7 and node v6.6.0. Additional version support of these projects will be implemented soon, but these are the only supported versions to date.
-* Chronograf requires Kapcitor 1.1 to create and store alerts.
+* Chronograf requires Kapacitor 1.1 to create and store alerts.
 * To build assets and the go server, run `make`.
 * To run server either `./chronograf --port 8888` or `make run`
 
