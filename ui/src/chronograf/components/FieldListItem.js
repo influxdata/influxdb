@@ -45,7 +45,7 @@ const FieldListItem = React.createClass({
           {
             isKapacitorRule ?
               <Dropdown items={items} onChoose={this.handleApplyFunctions} selected={fieldFunc.funcs.length ? fieldFunc.funcs[0] : 'Select a function'} /> :
-                <MultiSelectDropdown items={INFLUXQL_FUNCTIONS} onApply={this.handleApplyFunctions} selectedItems={fieldFunc.funcs || []} />
+              <MultiSelectDropdown items={INFLUXQL_FUNCTIONS} onApply={this.handleApplyFunctions} selectedItems={fieldFunc.funcs || []} />
           }
         </div>
       </li>
