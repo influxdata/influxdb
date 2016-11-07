@@ -72,29 +72,8 @@ func (s *SourcesStore) Add(ctx context.Context, src chronograf.Source) (chronogr
 // Delete removes the Source from the SourcesStore
 func (s *SourcesStore) Delete(ctx context.Context, src chronograf.Source) error {
 
-	// Check if requested source is the current default
-	if src, err := s.Get(ctx, src.ID); err != nil {
+	if err := s.setRandomDefault(ctx, src); err != nil {
 		return err
-	} else if src.Default {
-		// Locate another source to be the new default
-		if srcs, err := s.All(ctx); err != nil {
-			return err
-		} else {
-			var other *chronograf.Source
-			for idx, _ := range srcs {
-				other = &srcs[idx]
-				// avoid selecting the source we're about to delete as the new default
-				if other.ID != src.ID {
-					break
-				}
-			}
-
-			// set the other to be the default
-			other.Default = true
-			if err := s.Update(ctx, *other); err != nil {
-				return err
-			}
-		}
 	}
 
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
@@ -167,6 +146,38 @@ func (s *SourcesStore) resetDefaultSource(b *bolt.Bucket, ctx context.Context) e
 			if v, err := internal.MarshalSource(other); err != nil {
 				return err
 			} else if err := b.Put(itob(other.ID), v); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// setRandomDefault will locate a source other than the provided
+// chronograf.Source and set it as the default source. If no other sources are
+// available, the provided source will be set to the default source if is not
+// already. It assumes that the provided chronograf.Source has been persisted.
+func (s *SourcesStore) setRandomDefault(ctx context.Context, src chronograf.Source) error {
+	// Check if requested source is the current default
+	if target, err := s.Get(ctx, src.ID); err != nil {
+		return err
+	} else if target.Default {
+		// Locate another source to be the new default
+		if srcs, err := s.All(ctx); err != nil {
+			return err
+		} else {
+			var other *chronograf.Source
+			for idx, _ := range srcs {
+				other = &srcs[idx]
+				// avoid selecting the source we're about to delete as the new default
+				if other.ID != target.ID {
+					break
+				}
+			}
+
+			// set the other to be the default
+			other.Default = true
+			if err := s.Update(ctx, *other); err != nil {
 				return err
 			}
 		}
