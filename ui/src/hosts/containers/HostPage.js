@@ -57,11 +57,13 @@ export const HostPage = React.createClass({
       layoutCells = layoutCells.concat(layout.cells);
     });
 
-    layoutCells.forEach((cell) => {
+    layoutCells.forEach((cell, i) => {
       cell.queries.forEach((q) => {
         q.text = q.query;
         q.database = q.db;
       });
+      cell.x = (i * 4 % 12); // eslint-disable-line no-magic-numbers
+      cell.y = 0;
     });
 
     return (
