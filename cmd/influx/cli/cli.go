@@ -77,26 +77,7 @@ func New(version string) *CommandLine {
 
 // Run executes the CLI
 func (c *CommandLine) Run() error {
-	// If we are not running in an interactive terminal, read stdin completely
-	// and execute a query. Do not allow meta commands.
-	if !c.ForceTTY && !terminal.IsTerminal(int(os.Stdin.Fd())) {
-		if err := c.Connect(""); err != nil {
-			return fmt.Errorf(
-				"Failed to connect to %s\nPlease check your connection settings and ensure 'influxd' is running.",
-				c.Client.Addr())
-		}
-
-		cmd, err := ioutil.ReadAll(os.Stdin)
-		if err != nil {
-			return err
-		}
-		return c.ExecuteQuery(string(cmd))
-	}
-
-	if !c.IgnoreSignals {
-		// register OS signals for graceful termination
-		signal.Notify(c.osSignals, syscall.SIGINT, syscall.SIGTERM)
-	}
+	hasTTY := c.ForceTTY || terminal.IsTerminal(int(os.Stdin.Fd()))
 
 	var promptForPassword bool
 	// determine if they set the password flag but provided no value
@@ -108,26 +89,28 @@ func (c *CommandLine) Run() error {
 		}
 	}
 
-	c.Line = liner.NewLiner()
-	defer c.Line.Close()
-
-	c.Line.SetMultiLineMode(true)
-
-	if promptForPassword {
-		p, e := c.Line.PasswordPrompt("password: ")
-		if e != nil {
-			fmt.Println("Unable to parse password.")
-		} else {
-			c.Password = p
-		}
+	// Check if we will be able to prompt for the password later.
+	if promptForPassword && !hasTTY {
+		return errors.New("Unable to prompt for a password with no TTY.")
 	}
 
 	// Read environment variables for username/password.
 	if c.Username == "" {
 		c.Username = os.Getenv("INFLUX_USERNAME")
 	}
-	// If we prompted for a password, always use the entered password.
-	if !promptForPassword && c.Password == "" {
+	// If we are going to be prompted for a password, always use the entered password.
+	if promptForPassword {
+		// Open the liner (temporarily) and prompt for the password.
+		p, e := func() (string, error) {
+			l := liner.NewLiner()
+			defer l.Close()
+			return l.PasswordPrompt("password: ")
+		}()
+		if e != nil {
+			return errors.New("Unable to parse password")
+		}
+		c.Password = p
+	} else if c.Password == "" {
 		c.Password = os.Getenv("INFLUX_PASSWORD")
 	}
 
@@ -140,17 +123,6 @@ func (c *CommandLine) Run() error {
 	// Modify precision.
 	c.SetPrecision(c.Precision)
 
-	if c.Execute == "" && !c.Import {
-		token, err := c.DatabaseToken()
-		if err != nil {
-			return fmt.Errorf("Failed to check token: %s", err.Error())
-		}
-		if token == "" {
-			fmt.Printf(noTokenMsg)
-		}
-		fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.ServerVersion)
-	}
-
 	if c.Execute != "" {
 		// Make the non-interactive mode send everything through the CLI's parser
 		// the same way the interactive mode works
@@ -160,8 +132,6 @@ func (c *CommandLine) Run() error {
 				return err
 			}
 		}
-
-		c.Line.Close()
 		return nil
 	}
 
@@ -187,12 +157,37 @@ func (c *CommandLine) Run() error {
 		i := v8.NewImporter(config)
 		if err := i.Import(); err != nil {
 			err = fmt.Errorf("ERROR: %s\n", err)
-			c.Line.Close()
 			return err
 		}
-		c.Line.Close()
 		return nil
 	}
+
+	if !hasTTY {
+		cmd, err := ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+		return c.ExecuteQuery(string(cmd))
+	}
+
+	if !c.IgnoreSignals {
+		// register OS signals for graceful termination
+		signal.Notify(c.osSignals, syscall.SIGINT, syscall.SIGTERM)
+	}
+
+	c.Line = liner.NewLiner()
+	defer c.Line.Close()
+
+	c.Line.SetMultiLineMode(true)
+
+	token, err := c.DatabaseToken()
+	if err != nil {
+		return fmt.Errorf("Failed to check token: %s", err.Error())
+	}
+	if token == "" {
+		fmt.Printf(noTokenMsg)
+	}
+	fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.ServerVersion)
 
 	c.Version()
 
