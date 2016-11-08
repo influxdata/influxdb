@@ -16,7 +16,7 @@
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [
-            "pod_name"
+            "\"pod_name\""
           ],
           "wheres": []
         }
@@ -35,7 +35,7 @@
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [
-            "pod_name"
+            "\"pod_name\""
           ],
           "wheres": []
         }
