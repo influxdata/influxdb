@@ -16,7 +16,7 @@
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [
-            "path"
+            "\"path\""
           ],
           "wheres": []
         }
