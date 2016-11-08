@@ -1,7 +1,7 @@
 {
   "id": "05dde59a-a52f-4ede-81fa-0c6011f29287",
   "measurement": "kubernetes_system_container",
-  "app": "k8s system container metrics",
+  "app": "kuberentes",
   "cells": [
     {
       "x": 0,

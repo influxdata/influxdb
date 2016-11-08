@@ -1,7 +1,7 @@
 {
   "id": "45845136-bcb7-41ad-a02e-c63e9d3452de",
   "measurement": "kubernetes_pod_network",
-  "app": "k8s system network metrics",
+  "app": "kubernetes",
   "cells": [
     {
       "x": 0,
