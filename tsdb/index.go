@@ -12,22 +12,22 @@ type Index interface {
 	Open() error
 	Close() error
 
-	CreateMeasurementIndexIfNotExists(name string) (*Measurement, error)
+	CreateMeasurementIndexIfNotExists(name []byte) (*Measurement, error)
 	Measurement(name []byte) (*Measurement, error)
 	Measurements() (Measurements, error)
 	MeasurementsByExpr(expr influxql.Expr) (Measurements, bool, error)
-	MeasurementsByName(names []string) ([]*Measurement, error)
+	MeasurementsByName(names [][]byte) ([]*Measurement, error)
 	MeasurementsByRegex(re *regexp.Regexp) (Measurements, error)
 	DropMeasurement(name []byte) error
 
-	CreateSeriesIndexIfNotExists(measurement string, series *Series) (*Series, error)
+	CreateSeriesIndexIfNotExists(measurement []byte, series *Series) (*Series, error)
 	Series(key []byte) (*Series, error)
-	DropSeries(keys []string) error
+	DropSeries(keys [][]byte) error
 
 	SeriesN() (uint64, error)
 	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 
-	TagsForSeries(key string) (models.Tags, error)
+	TagsForSeries(key []byte) (models.Tags, error)
 	Dereference(b []byte)
 }

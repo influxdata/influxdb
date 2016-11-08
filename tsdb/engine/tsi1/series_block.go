@@ -9,6 +9,7 @@ import (
 	"math"
 	"sort"
 
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 )
 
@@ -302,6 +303,10 @@ func (e *seriesBlockElem) Name() []byte { return e.name }
 
 // Tags returns the tag set.
 func (e *seriesBlockElem) Tags() models.Tags { return e.tags }
+
+// Expr always returns a nil expression.
+// This is only used by higher level query planning.
+func (e *seriesBlockElem) Expr() influxql.Expr { return nil }
 
 // SeriesBlockWriter writes a SeriesBlock.
 type SeriesBlockWriter struct {

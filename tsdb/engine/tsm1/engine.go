@@ -1343,24 +1343,13 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions, aggregate bo
 
 	var itrs []influxql.Iterator
 	if err := func() error {
-		mByName, err := e.index.MeasurementsByName(influxql.Sources(opt.Sources).Names())
-		if err != nil {
-			return err
-		}
-		mms := tsdb.Measurements(mByName)
+		for _, name := range influxql.Sources(opt.Sources).Names() {
+			// Generate tag sets from index.
+			tagSets := e.index.TagSets(name, opt.Dimensions, opt.Condition, opt.SLimit, opt.SOffset)
 
-		for _, mm := range mms {
-			// Determine tagsets for this measurement based on dimensions and filters.
-			tagSets, err := mm.TagSets(opt.Dimensions, opt.Condition)
-			if err != nil {
-				return err
-			}
-
-			// Calculate tag sets and apply SLIMIT/SOFFSET.
-			tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
-
+			// Create iterators for each tagset.
 			for _, t := range tagSets {
-				inputs, err := e.createTagSetIterators(ref, mm, t, opt)
+				inputs, err := e.createTagSetIterators(ref, name, t, opt)
 				if err != nil {
 					return err
 				}
@@ -1382,7 +1371,7 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions, aggregate bo
 }
 
 // createTagSetIterators creates a set of iterators for a tagset.
-func (e *Engine) createTagSetIterators(ref *influxql.VarRef, mm *tsdb.Measurement, t *influxql.TagSet, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
+func (e *Engine) createTagSetIterators(ref *influxql.VarRef, name string, t *influxql.TagSet, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
 	// Set parallelism by number of logical cpus.
 	parallelism := runtime.GOMAXPROCS(0)
 	if parallelism > len(t.SeriesKeys) {
@@ -1419,7 +1408,7 @@ func (e *Engine) createTagSetIterators(ref *influxql.VarRef, mm *tsdb.Measuremen
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			groups[i].itrs, groups[i].err = e.createTagSetGroupIterators(ref, mm, groups[i].keys, t, groups[i].filters, opt)
+			groups[i].itrs, groups[i].err = e.createTagSetGroupIterators(ref, name, groups[i].keys, t, groups[i].filters, opt)
 		}(i)
 	}
 	wg.Wait()
@@ -1450,7 +1439,7 @@ func (e *Engine) createTagSetIterators(ref *influxql.VarRef, mm *tsdb.Measuremen
 }
 
 // createTagSetGroupIterators creates a set of iterators for a subset of a tagset's series.
-func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, mm *tsdb.Measurement, seriesKeys []string, t *influxql.TagSet, filters []influxql.Expr, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
+func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, name string, seriesKeys []string, t *influxql.TagSet, filters []influxql.Expr, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
 	conditionFields := make([]influxql.VarRef, len(influxql.ExprNames(opt.Condition)))
 
 	itrs := make([]influxql.Iterator, 0, len(seriesKeys))
@@ -1464,7 +1453,7 @@ func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, mm *tsdb.Measu
 			}
 		}
 
-		itr, err := e.createVarRefSeriesIterator(ref, mm, seriesKey, t, filters[i], conditionFields[:fields], opt)
+		itr, err := e.createVarRefSeriesIterator(ref, name, seriesKey, t, filters[i], conditionFields[:fields], opt)
 		if err != nil {
 			return itrs, err
 		} else if itr == nil {
@@ -1476,7 +1465,7 @@ func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, mm *tsdb.Measu
 }
 
 // createVarRefSeriesIterator creates an iterator for a variable reference for a series.
-func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measurement, seriesKey string, t *influxql.TagSet, filter influxql.Expr, conditionFields []influxql.VarRef, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, seriesKey string, t *influxql.TagSet, filter influxql.Expr, conditionFields []influxql.VarRef, opt influxql.IteratorOptions) (influxql.Iterator, error) {
 	tfs, err := e.index.TagsForSeries(seriesKey)
 	if err != nil {
 		return nil, err
@@ -1496,7 +1485,7 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 		for i, ref := range opt.Aux {
 			// Create cursor from field if a tag wasn't requested.
 			if ref.Type != influxql.Tag {
-				cur := e.buildCursor(mm.Name, seriesKey, &ref, opt)
+				cur := e.buildCursor(name, seriesKey, &ref, opt)
 				if cur != nil {
 					aux[i] = newBufCursor(cur, opt.Ascending)
 					continue
@@ -1537,7 +1526,7 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 		for i, ref := range conditionFields {
 			// Create cursor from field if a tag wasn't requested.
 			if ref.Type != influxql.Tag {
-				cur := e.buildCursor(mm.Name, seriesKey, &ref, opt)
+				cur := e.buildCursor(name, seriesKey, &ref, opt)
 				if cur != nil {
 					conds[i] = newBufCursor(cur, opt.Ascending)
 					continue
@@ -1576,11 +1565,11 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 
 	// If it's only auxiliary fields then it doesn't matter what type of iterator we use.
 	if ref == nil {
-		return newFloatIterator(mm.Name, tags, itrOpt, nil, aux, conds, condNames), nil
+		return newFloatIterator(name, tags, itrOpt, nil, aux, conds, condNames), nil
 	}
 
 	// Build main cursor.
-	cur := e.buildCursor(mm.Name, seriesKey, ref, opt)
+	cur := e.buildCursor(name, seriesKey, ref, opt)
 
 	// If the field doesn't exist then don't build an iterator.
 	if cur == nil {
@@ -1589,13 +1578,13 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 
 	switch cur := cur.(type) {
 	case floatCursor:
-		return newFloatIterator(mm.Name, tags, itrOpt, cur, aux, conds, condNames), nil
+		return newFloatIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case integerCursor:
-		return newIntegerIterator(mm.Name, tags, itrOpt, cur, aux, conds, condNames), nil
+		return newIntegerIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case stringCursor:
-		return newStringIterator(mm.Name, tags, itrOpt, cur, aux, conds, condNames), nil
+		return newStringIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	case booleanCursor:
-		return newBooleanIterator(mm.Name, tags, itrOpt, cur, aux, conds, condNames), nil
+		return newBooleanIterator(name, tags, itrOpt, cur, aux, conds, condNames), nil
 	default:
 		panic("unreachable")
 	}

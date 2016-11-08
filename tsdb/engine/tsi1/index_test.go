@@ -21,7 +21,7 @@ func TestIndex_Measurement(t *testing.T) {
 
 	// Create an index from the single file.
 	var idx tsi1.Index
-	idx.SetFile(f)
+	idx.SetIndexFiles(f)
 
 	// Verify measurement is correct.
 	if mm, err := idx.Measurement([]byte("cpu")); err != nil {
@@ -52,7 +52,7 @@ func TestIndex_Measurements(t *testing.T) {
 
 	// Create an index from the single file.
 	var idx tsi1.Index
-	idx.SetFile(f)
+	idx.SetIndexFiles(f)
 
 	// Retrieve measurements and verify.
 	if mms, err := idx.Measurements(); err != nil {

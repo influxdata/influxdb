@@ -10,6 +10,7 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/mmap"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 // Log entry flag constants.
@@ -94,6 +95,10 @@ func (f *LogFile) Close() error {
 	}
 	f.entries = nil
 	return nil
+}
+
+func (f *LogFile) CreateMeasurementIndexIfNotExists(name []byte) (*tsdb.Measurement, error) {
+	panic("TODO")
 }
 
 // DeleteMeasurement adds a tombstone for a measurement to the log file.
@@ -221,6 +226,11 @@ func (f *LogFile) MeasurementIterator() MeasurementIterator {
 	}
 	sort.Sort(logMeasurementSlice(itr.mms))
 	return &itr
+}
+
+// MeasurementSeriesIterator returns an iterator over all series in the log file.
+func (f *LogFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
+	panic("TODO")
 }
 
 // CompactTo compacts the log file and writes it to w.
