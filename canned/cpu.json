@@ -1,7 +1,7 @@
 {
   "id": "0fa47984-825b-46f1-9ca5-0366e3281cc5",
   "measurement": "cpu",
-  "app": "cpu",
+  "app": "system",
   "cells": [
     {
       "x": 0,
