@@ -1,0 +1,525 @@
+/*
+    Kapacitor Rule Builder
+    ----------------------------------------------
+*/
+$kapacitor-page-padding: ($enterprise-page-header-height / 2);
+$kapacitor-page-gutter: 46px;
+$kapacitor-dot-size: 18px;
+$kapacitor-line-width: 3px;
+$rule-preview-width: 488px;
+$kap-padding-sm: 8px;
+$kap-padding-md: 13px;
+$kap-padding-lg: 24px;
+$kap-radius-lg: 5px;
+$kap-input-height: 30px;
+
+$kapacitor-graphic-color: $g1-raven;
+$kapacitor-accent: $c-rainforest;
+
+$kapacitor-font-sm: 13px;
+
+.kapacitor-rule-page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: $g2-kevlar;
+  background: -moz-linear-gradient(top, $g2-kevlar 0%, $g0-obsidian 100%);
+  background: -webkit-linear-gradient(top, $g2-kevlar 0%, $g0-obsidian 100%);
+  background: linear-gradient(to bottom, $g2-kevlar 0%, $g0-obsidian 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$g2-kevlar', endColorstr='$g0-obsidian',GradientType=0 );
+  color: $g17-whisper;
+
+  .enterprise-header {
+    background-color: $g0-obsidian;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    margin: 0;
+    padding-left: $kapacitor-page-padding;
+    padding-right: $kapacitor-page-padding;
+
+    &__container {
+      max-width: 100%;
+    }
+  }
+}
+.rule-builder-wrapper {
+  position: absolute;
+  top: $enterprise-page-header-height;
+  left: 0;
+  width: 100%;
+  height: calc(100% - #{$enterprise-page-header-height});
+  display: flex;
+  align-items: stretch;
+}
+.rule-builder {
+  width: calc(100% - #{$rule-preview-width});
+  padding: $kapacitor-page-padding;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  background: $g2-kevlar;
+  background: -moz-linear-gradient(top, $g5-pepper 0%, $g3-castle 100%);
+  background: -webkit-linear-gradient(top, $g5-pepper 0%, $g3-castle 100%);
+  background: linear-gradient(to bottom, $g5-pepper 0%, $g3-castle 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$g5-pepper', endColorstr='$g3-castle',GradientType=0 );
+}
+.rule-preview {
+  width: $rule-preview-width;
+  padding: $kapacitor-page-padding;
+  display: flex;
+  justify-content: center;
+  align-content: center;
+  align-items: center;
+}
+.rule-preview--graph {
+  width: 100%;
+  background-color: $g3-castle;
+  border-radius: 4px;
+}
+.rule-preview--graph-heading {
+  width: 100%;
+  height: 44px;
+  line-height: 44px;
+  padding: 0 $kap-padding-md;
+  font-size: 16px;
+  color: $g17-whisper;
+  background-color: $g5-pepper;
+  border-radius: 4px 4px 0 0;
+  font-weight: 600;
+  margin: 0;
+}
+.rule-preview--graph-container {
+  width: 100%;
+  padding: $kap-padding-sm $kap-padding-md;
+  height: (320px + ($kap-padding-sm * 2));
+  position: relative;
+}
+.rule-preview--graph-empty {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  p {
+    margin: 0;
+    font-size: 16px;
+    line-height: 23px;
+    text-align: center;
+    color: $g12-forge;
+
+    strong {
+      color: $g18-cloud;
+      font-weight: 900;
+    }
+  }
+}
+
+.rule-section-heading {
+  margin: 0;
+  padding: $kapacitor-page-padding 0 $kap-padding-md $kapacitor-page-gutter;
+  font-weight: 400;
+  color: $g13-mist;
+  position: relative;
+
+  &:before,
+  &:after {
+    content: '';
+    display: block;
+    position: absolute;
+    transform: translateX(-50%);
+  }
+  // Vertical Line
+  &:before {
+    width: $kapacitor-line-width;
+    height: 100%;
+    background-color: $kapacitor-graphic-color;
+    top: 0;
+    left: ($kapacitor-dot-size/2);
+  }
+  // Dot
+  &:after {
+    width: $kapacitor-dot-size;
+    height: $kapacitor-dot-size;
+    background-color: $kapacitor-accent;
+    border: 6px solid $kapacitor-graphic-color;
+    border-radius: 50%;
+    top: ($kapacitor-page-padding + 3px);
+    left: ($kapacitor-dot-size / 2);
+  }
+}
+.rule-section-body {
+  padding: 0 0 0 $kapacitor-page-gutter;
+  margin: 0;
+  position: relative;
+
+  // Vertical Line
+  &:before {
+    content: '';
+    display: block;
+    position: absolute;
+    transform: translateX(-50%);
+    width: $kapacitor-line-width;
+    height: 100%;
+    background-color: $kapacitor-graphic-color;
+    top: 0;
+    left: ($kapacitor-dot-size / 2);
+  }
+}
+.kapacitor-rule-section {
+  // Override appearance of lines and dots for first child
+  &:first-of-type {
+    .rule-section-heading:before {
+      top: ($kapacitor-page-padding + 5px);
+      height: calc(100% - #{$kapacitor-page-padding} - 5px);
+    }
+  }
+  // Override appearance of lines and dots for last child
+  &:last-of-type {
+    .rule-section-heading:before {
+      top: 0;
+      height: ($kapacitor-page-padding + 3px + 3px);
+    }
+    .rule-section-body:before {
+      display: none;
+    }
+  }
+}
+
+
+$metric-selector-height: 156px;
+
+div.query-editor.kapacitor-metric-selector {
+  border-radius: 0;
+  background-color: transparent;
+  padding: 0;
+
+  // Query sample
+  .query-editor__code pre {
+    font-size: $kapacitor-font-sm;
+    white-space: pre-wrap;
+    background-color: $kapacitor-graphic-color;
+    color: $kapacitor-accent;
+    border-radius: $kap-radius-lg $kap-radius-lg 0 0;
+    border: 0;
+    padding: $kap-padding-sm $kap-padding-md;
+  }
+
+  // Tabs
+  .query-editor__tabs {
+    background-color: $kapacitor-graphic-color;
+    padding: 0 $kap-padding-md;
+  }
+  .query-editor__tab {
+    background-color: $kapacitor-graphic-color;
+    font-weight: 500;
+    padding-left: $kap-padding-md;
+    padding-right: $kap-padding-md;
+
+    &.active {
+      background-color: $g3-castle;
+    }
+  }
+
+  // Editor List
+  .query-editor__list {
+    background-color: $g3-castle;
+    min-height: $metric-selector-height;
+    max-height: $metric-selector-height;
+    height: $metric-selector-height;
+    border-radius: 0 0 $kap-radius-lg $kap-radius-lg;
+
+    // Custom Scrollbar styles, pretty sure these only work in chrome
+    &::-webkit-scrollbar {
+      width: 14px;
+      border-bottom-right-radius: $radius;
+
+      &-button {
+        background-color: $g3-castle;
+      }
+      &-track {
+        background-color: $g3-castle;
+        border-bottom-right-radius: $radius;
+      }
+      &-track-piece {
+        background-color: $g2-kevlar;
+        border: 4px solid $g3-castle;
+        border-radius: 8px;
+      }
+      &-thumb {
+        background-color: $kapacitor-accent;
+        border: 4px solid $g3-castle;
+        border-radius: 8px;
+      }
+      &-corner {
+        background-color: $g3-castle;
+      }
+    }
+    &::-webkit-resizer {
+      background-color: $g6-smoke;
+    }
+  }
+  .query-editor__list-header {
+    background-color: $g3-castle;
+    padding: $kap-padding-sm $kap-padding-lg 0 $kap-padding-lg;
+  }
+  .query-editor__list-item {
+    font-size: $kapacitor-font-sm;
+    padding-left: $kap-padding-lg;
+    padding-right: $kap-padding-lg;
+
+    &:hover {
+      background-color: $g5-pepper;
+    }
+    &.active {
+      background-color: $g5-pepper;
+      color: $kapacitor-accent;
+    }
+  }
+}
+
+.alert-message {
+  border: 2px solid $g3-castle;
+  border-radius: 4px;
+  background-color: $kapacitor-graphic-color;
+  margin: 0;
+  padding: $kap-padding-sm;
+  color: $kapacitor-accent;
+  width: 100%;
+  height: 100px;
+  min-width: 100%;
+  max-width: 100%;
+  display: block;
+  font-family: Consolas, "Lucida Console", Monaco, monospace;
+  font-weight: 600;
+  font-size: $kapacitor-font-sm;
+  line-height: 17px;
+  transition:
+    color 0.25s ease,
+    border-color 0.25s ease;
+
+  &:hover {
+    border-color: $g4-onyx;
+  }
+  &:focus {
+    outline: none;
+    color: $g20-white;
+    border-color: $kapacitor-accent;
+  }
+  &::-webkit-input-placeholder { color: $g9-mountain; }
+  &::-moz-placeholder { color: $g9-mountain; }
+  &:-ms-input-placeholder { color: $g9-mountain; }
+  &:-moz-placeholder { color: $g9-mountain; }
+}
+.alert-message-key {
+  margin-top: $kap-padding-sm;
+  display: flex;
+  width: 100%;
+  align-items: center;
+
+  label {
+    color: $g13-mist;
+    padding: 0;
+    background-color: transparent;
+    margin: 0 $kap-padding-sm 0 0;
+    font-size: $kapacitor-font-sm;
+    font-weight: 600;
+  }
+  span {
+    background-color: $g3-castle;
+    padding: 3px $kap-padding-sm;
+    border-radius: 3px;
+    display: inline-block;
+    margin-left: ($kap-padding-sm / 2);
+    color: $c-pool;
+    font-family: Consolas, "Lucida Console", Monaco, monospace;
+    font-size: $kapacitor-font-sm;
+    font-weight: 600;
+  }
+}
+
+.rule-section--item {
+  background-color: $kapacitor-graphic-color;
+  padding: $kap-padding-sm $kap-padding-lg;
+  overflow: visible;
+
+  p {
+    margin: 0;
+    font-weight: 600;
+    display: inline-block;
+    color: $g15-platinum;
+    text-transform: capitalize;
+  }
+
+  &:first-of-type {
+    border-top-left-radius: $kap-radius-lg;
+    border-top-right-radius: $kap-radius-lg;
+  }
+  &:last-of-type {
+    border-bottom-left-radius: $kap-radius-lg;
+    border-bottom-right-radius: $kap-radius-lg;
+  }
+}
+.alert-endpoint-dropdown {
+  display: inline-block;
+  position: relative;
+  margin-left: $kap-padding-sm;
+}
+
+.kapacitor-values-tabs,
+.value-selector {
+  background-color: $kapacitor-graphic-color;
+  padding: ($kap-padding-sm / 2) $kap-padding-lg;
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+
+  > * {
+    display: inline-block;
+    margin: ($kap-padding-sm / 2);
+
+    &:first-child {
+      margin-left: 0;
+    }
+  }
+
+  > p {
+    white-space: nowrap;
+    font-weight: 600;
+    color: $g15-platinum;
+    text-transform: capitalize;
+  }
+}
+
+.kapacitor-values-tabs {
+  border-radius: $kap-radius-lg $kap-radius-lg 0 0;
+  margin-bottom: 2px;
+
+  .tab-group {
+    > .btn.tab {
+      padding: 0 $kap-padding-md;
+      height: $kap-input-height;
+      line-height: ($kap-input-height - 4px);
+      font-size: $kapacitor-font-sm;
+      font-weight: 700;
+      background-color: $kapacitor-graphic-color;
+      border-color: $g5-pepper;
+      color: $g11-sidewalk;
+
+      &:hover {
+        background-color: $g3-castle;
+        color: $g20-white;
+      }
+      &.active {
+        background-color: $g5-pepper;
+        color: $kapacitor-accent;
+      }
+    }
+  }
+}
+.value-selector {
+  border-radius: 0 0 $kap-radius-lg $kap-radius-lg;
+}
+
+// Overriding form styles in the builder
+.rule-builder {
+  input[type="text"] {
+    background-color: $kapacitor-graphic-color;
+    color: $kapacitor-accent;
+    border-color: $g5-pepper;
+    font-weight: 600;
+    font-size: $kapacitor-font-sm;
+    font-family: Consolas, "Lucida Console", Monaco, monospace;
+    height: 30px;
+
+    &:focus {
+      border-color: $kapacitor-accent;
+      outline: none;
+      box-shadow: none;
+      color: $g20-white;
+    }
+  }
+  .dropdown-toggle,
+  input[type="text"] {
+    padding-left: $kap-padding-sm;
+    padding-right: $kap-padding-sm;
+    height: $kap-input-height;
+  }
+  .dropdown-toggle {
+    width: 100%;
+    text-align: left;
+    position: relative;
+    color: $kapacitor-accent !important;
+    text-transform: capitalize;
+    font-size: $kapacitor-font-sm;
+
+    .caret {
+      position: absolute;
+      top: 50%;
+      right: $kap-padding-sm;
+      transform: translate(0,-50%);
+    }
+
+    &:hover {
+      color: $c-honeydew !important;
+    }
+  }
+  .size-256 {
+    width: 256px;
+  }
+  .size-176 {
+    width: 176px;
+  }
+  .size-166 {
+    width: 166px;
+  }
+  .size-106 {
+    width: 106px;
+  }
+  .size-66 {
+    width: 66px;
+  }
+  .size-49 {
+    width: 49px;
+  }
+
+  .dropdown-menu {
+    width: 100%;
+    min-width: 100%;
+    padding: 0;
+    margin: 0;
+    border-radius: 4px;
+    @include gradient-v($c-viridian,$c-ocean);
+
+    > li > a {
+      text-transform: capitalize;
+      font-size: $kapacitor-font-sm;
+      padding: ($kap-padding-sm / 2) $kap-padding-sm;
+      font-weight: 600;
+      color: transparentize($g20-white, 0.25); 
+      border-radius: 0;
+
+      &:hover {
+        background-color: $c-rainforest;
+        color: $g20-white;
+      }
+    }
+    > li:first-child > a {
+      border-top-left-radius: 4px;
+      border-top-right-radius: 4px;
+    }
+    > li:last-child > a {
+      border-bottom-left-radius: 4px;
+      border-bottom-right-radius: 4px;
+    }
+  }
+}
