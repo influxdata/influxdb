@@ -120,7 +120,7 @@ func (s *SourcesStore) add(ctx context.Context, src *chronograf.Source, tx *bolt
 	src.ID = int(seq)
 
 	if src.Default {
-		if err := s.resetDefaultSource(tx, ctx); err != nil {
+		if err := s.resetDefaultSource(ctx, tx); err != nil {
 			return err
 		}
 	}
@@ -158,7 +158,7 @@ func (s *SourcesStore) update(ctx context.Context, src chronograf.Source, tx *bo
 	}
 
 	if src.Default {
-		if err := s.resetDefaultSource(tx, ctx); err != nil {
+		if err := s.resetDefaultSource(ctx, tx); err != nil {
 			return err
 		}
 	}
@@ -172,7 +172,7 @@ func (s *SourcesStore) update(ctx context.Context, src chronograf.Source, tx *bo
 }
 
 // resetDefaultSource unsets the Default flag on all sources
-func (s *SourcesStore) resetDefaultSource(tx *bolt.Tx, ctx context.Context) error {
+func (s *SourcesStore) resetDefaultSource(ctx context.Context, tx *bolt.Tx) error {
 	b := tx.Bucket(SourcesBucket)
 	srcs, err := s.all(ctx, tx)
 	if err != nil {
