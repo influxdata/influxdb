@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react';
 import cx from 'classnames';
 
-const {node, func, bool, number} = PropTypes;
+const {node, func, bool, number, string} = PropTypes;
 export const Tab = React.createClass({
   propTypes: {
     children: node.isRequired,
@@ -27,6 +27,13 @@ export const TabList = React.createClass({
     children: node.isRequired,
     activeIndex: number,
     onActivate: func,
+    isKapacitorTabs: string,
+  },
+
+  getDefaultProps() {
+    return {
+      isKapacitorTabs: '',
+    };
   },
 
   render() {
@@ -37,7 +44,18 @@ export const TabList = React.createClass({
       });
     });
 
-    return <div className="btn-group btn-group-lg tab-group" >{children}</div>;
+    if (this.props.isKapacitorTabs === "true") {
+      return (
+        <div className="kapacitor-values-tabs">
+          <p>Alert Type</p>
+          <div className="btn-group btn-group-lg tab-group">{children}</div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="btn-group btn-group-lg tab-group">{children}</div>
+    );
   },
 });
 
@@ -70,11 +88,14 @@ export const Tabs = React.createClass({
   propTypes: {
     children: node.isRequired,
     onSelect: func,
+    tabContentsClass: string,
+    tabsClass: string,
   },
 
   getDefaultProps() {
     return {
       onSelect() {},
+      tabContentsClass: '',
     };
   },
 
@@ -105,6 +126,6 @@ export const Tabs = React.createClass({
       return child;
     });
 
-    return <div>{children}</div>;
+    return <div className={this.props.tabContentsClass}>{children}</div>;
   },
 });
