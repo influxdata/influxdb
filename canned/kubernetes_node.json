@@ -12,7 +12,7 @@
       "name": "Node cpu usage millicores",
       "queries": [
         {
-          "query": "select \"cpu_usage_nanocores\" / 1000000  from kubernetes_node",
+          "query": "select \"cpu_usage_nanocores\" / 1000000  as cpu_usage_millicores from kubernetes_node",
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [

@@ -12,7 +12,7 @@
       "name": "Kubelet cpu usage millicores",
       "queries": [
         {
-          "query": "select \"cpu_usage_nanocores\" / 1000000  from kubernetes_system_container",
+          "query": "select \"cpu_usage_nanocores\" / 1000000 as cpu_usage_nanocores from kubernetes_system_container",
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [],
