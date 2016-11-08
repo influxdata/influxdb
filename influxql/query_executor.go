@@ -25,6 +25,9 @@ var (
 	// ErrQueryInterrupted is an error returned when the query is interrupted.
 	ErrQueryInterrupted = errors.New("query interrupted")
 
+	// ErrQueryAborted is an error returned when the query is aborted.
+	ErrQueryAborted = errors.New("query aborted")
+
 	// ErrQueryEngineShutdown is an error sent when the query cannot be
 	// created because the query engine was shutdown.
 	ErrQueryEngineShutdown = errors.New("query engine shutdown")
@@ -74,6 +77,9 @@ type ExecutionOptions struct {
 
 	// Quiet suppresses non-essential output from the query executor.
 	Quiet bool
+
+	// AbortCh is a channel that signals when results are no longer desired by the caller.
+	AbortCh <-chan struct{}
 }
 
 // ExecutionContext contains state that the query is currently executing with.
@@ -98,6 +104,30 @@ type ExecutionContext struct {
 
 	// Options used to start this query.
 	ExecutionOptions
+}
+
+// send sends a Result to the Results channel and will exit if the query has
+// been aborted.
+func (ctx *ExecutionContext) send(result *Result) error {
+	select {
+	case <-ctx.AbortCh:
+		return ErrQueryAborted
+	case ctx.Results <- result:
+	}
+	return nil
+}
+
+// Send sends a Result to the Results channel and will exit if the query has
+// been interrupted or aborted.
+func (ctx *ExecutionContext) Send(result *Result) error {
+	select {
+	case <-ctx.InterruptCh:
+		return ErrQueryInterrupted
+	case <-ctx.AbortCh:
+		return ErrQueryAborted
+	case ctx.Results <- result:
+	}
+	return nil
 }
 
 // StatementExecutor executes a statement within the QueryExecutor.
@@ -194,7 +224,10 @@ func (e *QueryExecutor) executeQuery(query *Query, opt ExecutionOptions, closing
 
 	qid, task, err := e.TaskManager.AttachQuery(query, opt.Database, closing)
 	if err != nil {
-		results <- &Result{Err: err}
+		select {
+		case results <- &Result{Err: err}:
+		case <-opt.AbortCh:
+		}
 		return
 	}
 	defer e.TaskManager.KillQuery(qid)
@@ -265,7 +298,9 @@ LOOP:
 		// Normalize each statement if possible.
 		if normalizer, ok := e.StatementExecutor.(StatementNormalizer); ok {
 			if err := normalizer.NormalizeStatement(stmt, defaultDB); err != nil {
-				results <- &Result{Err: err}
+				if err := ctx.send(&Result{Err: err}); err == ErrQueryAborted {
+					return
+				}
 				break
 			}
 		}
@@ -287,9 +322,11 @@ LOOP:
 
 		// Send an error for this result if it failed for some reason.
 		if err != nil {
-			results <- &Result{
+			if err := ctx.send(&Result{
 				StatementID: i,
 				Err:         err,
+			}); err == ErrQueryAborted {
+				return
 			}
 			// Stop after the first error.
 			break
@@ -313,9 +350,11 @@ LOOP:
 
 	// Send error results for any statements which were not executed.
 	for ; i < len(query.Statements)-1; i++ {
-		results <- &Result{
+		if err := ctx.send(&Result{
 			StatementID: i,
 			Err:         ErrNotExecuted,
+		}); err == ErrQueryAborted {
+			return
 		}
 	}
 }

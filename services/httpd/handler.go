@@ -377,6 +377,13 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 	// Parse whether this is an async command.
 	async := r.FormValue("async") == "true"
 
+	opts := influxql.ExecutionOptions{
+		Database:  db,
+		ChunkSize: chunkSize,
+		ReadOnly:  r.Method == "GET",
+		NodeID:    nodeID,
+	}
+
 	// Make sure if the client disconnects we signal the query to abort
 	var closing chan struct{}
 	if !async {
@@ -398,6 +405,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 					close(closing)
 				}
 			}()
+			opts.AbortCh = done
 		} else {
 			defer close(closing)
 		}
@@ -405,12 +413,7 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 
 	// Execute query.
 	rw.Header().Add("Connection", "close")
-	results := h.QueryExecutor.ExecuteQuery(query, influxql.ExecutionOptions{
-		Database:  db,
-		ChunkSize: chunkSize,
-		ReadOnly:  r.Method == "GET",
-		NodeID:    nodeID,
-	}, closing)
+	results := h.QueryExecutor.ExecuteQuery(query, opts, closing)
 
 	// If we are running in async mode, open a goroutine to drain the results
 	// and return with a StatusNoContent.
