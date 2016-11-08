@@ -57,7 +57,7 @@ func (s *SourcesStore) Add(ctx context.Context, src chronograf.Source) (chronogr
 // Delete removes the Source from the SourcesStore
 func (s *SourcesStore) Delete(ctx context.Context, src chronograf.Source) error {
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
-		if err := s.setRandomDefault(ctx, tx, src); err != nil {
+		if err := s.setRandomDefault(ctx, src, tx); err != nil {
 			return err
 		}
 		return s.delete(ctx, src, tx)
@@ -196,7 +196,7 @@ func (s *SourcesStore) resetDefaultSource(ctx context.Context, tx *bolt.Tx) erro
 // chronograf.Source and set it as the default source. If no other sources are
 // available, the provided source will be set to the default source if is not
 // already. It assumes that the provided chronograf.Source has been persisted.
-func (s *SourcesStore) setRandomDefault(ctx context.Context, tx *bolt.Tx, src chronograf.Source) error {
+func (s *SourcesStore) setRandomDefault(ctx context.Context, src chronograf.Source, tx *bolt.Tx) error {
 	// Check if requested source is the current default
 	if target, err := s.get(ctx, src.ID, tx); err != nil {
 		return err
