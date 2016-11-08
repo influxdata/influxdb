@@ -1,0 +1,26 @@
+{
+  "id": "0b75be4e-3454-4d5d-9a98-ca77c81397f6",
+  "measurement": "disk",
+  "app": "Host disk metrics",
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "5825a4dd-df97-4e99-a99d-67b68833c183",
+      "name": "Disk used %",
+      "queries": [
+        {
+          "query": "select used_percent from disk",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [
+            "\"path\""
+          ],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}
