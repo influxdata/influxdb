@@ -17,8 +17,8 @@
           "rp": "autogen",
           "groupbys": [
             "time(10s)",
-            "pod_name",
-            "host"
+            "\"pod_name\"",
+            "\"host\""
           ],
           "wheres": []
         }
@@ -38,8 +38,8 @@
           "rp": "autogen",
           "groupbys": [
             "time(10s)",
-            "pod_name",
-            "host"
+            "\"pod_name\"",
+            "\"host\""
           ],
           "wheres": []
         }
