@@ -119,6 +119,13 @@ export const KapacitorRulePage = React.createClass({
     }
   },
 
+  handleEditNameBlur(rule) {
+    const {updateRuleName} = this.props.kapacitorActions;
+    const name = this.ruleName.value;
+    updateRuleName(rule.id, name);
+    this.toggleEditName();
+  },
+
   toggleEditName() {
     this.setState({isEditingName: !this.state.isEditingName});
   },
@@ -200,7 +207,7 @@ export const KapacitorRulePage = React.createClass({
       <input
         autoFocus={true}
         defaultValue={rule.name}
-        ref={r => this.ruleName = r} onKeyDown={(e) => this.handleEditName(e, rule)} onBlur={this.toggleEditName}
+        ref={r => this.ruleName = r} onKeyDown={(e) => this.handleEditName(e, rule)} onBlur={() => this.handleEditNameBlur(rule)}
       />
     );
   },
