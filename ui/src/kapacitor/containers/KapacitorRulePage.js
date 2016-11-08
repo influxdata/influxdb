@@ -28,7 +28,6 @@ export const KapacitorRulePage = React.createClass({
     rules: PropTypes.shape({}).isRequired,
     queryConfigs: PropTypes.shape({}).isRequired,
     kapacitorActions: PropTypes.shape({
-      loadRule: PropTypes.func.isRequired,
       loadDefaultRule: PropTypes.func.isRequired,
       fetchRule: PropTypes.func.isRequired,
       chooseTrigger: PropTypes.func.isRequired,
@@ -109,12 +108,9 @@ export const KapacitorRulePage = React.createClass({
 
   handleEditName(e, rule) {
     if (e.key === 'Enter') {
-      const {updateRuleName, loadRule} = this.props.kapacitorActions;
+      const {updateRuleName} = this.props.kapacitorActions;
       const name = this.ruleName.value;
       updateRuleName(rule.id, name);
-      loadRule(Object.assign({}, rule, {
-        name,
-      }));
       this.toggleEditName();
     }
 

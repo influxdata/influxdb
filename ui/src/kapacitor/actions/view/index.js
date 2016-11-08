@@ -24,15 +24,6 @@ export function fetchRule(source, ruleID) {
   };
 }
 
-export function loadRule(rule) {
-  return {
-    type: 'LOAD_RULE',
-    payload: {
-      rule,
-    },
-  };
-}
-
 export function loadDefaultRule() {
   return (dispatch) => {
     const queryID = uuid.v4();
