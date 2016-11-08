@@ -1,0 +1,38 @@
+{
+  "id": "c7644755-505d-46f0-b278-5c29268293b2",
+  "measurement": "win_websvc",
+  "app": "IIS",
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "i": "3539e3c3-ac15-49d3-9de8-64cd514588ca",
+      "name": "Web Service",
+      "queries": [
+        {
+          "query": "select Get_Requests_persec from win_websvc",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [],
+          "wheres": []
+        },
+        {
+          "query": "select Post_Requests_persec from win_websvc",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [],
+          "wheres": []
+        },
+        {
+          "query": "select Current_Connections from win_websvc",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}
