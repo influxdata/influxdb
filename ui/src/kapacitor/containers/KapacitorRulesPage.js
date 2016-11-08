@@ -67,7 +67,7 @@ export const KapacitorRulesPage = React.createClass({
                           <td className="monotype">{rule.message}</td>
                           <td className="monotype">{rule.alerts.join(', ')}</td>
                         </tr>
-                        );
+                      );
                     })
                   }
                 </tbody>
