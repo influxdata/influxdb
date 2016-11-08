@@ -1,0 +1,39 @@
+ {
+  "id": "4a1efaec-57cf-4aeb-8dea-8a015f8ec3c5",
+  "measurement": "kubernetes_node",
+  "app": "k8s node container metrics",
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "i": "5f406919-14b8-4c01-b0ce-f8ed75310805",
+      "name": "Node cpu usage millicores",
+      "queries": [
+        {
+          "query": "select \"cpu_usage_nanocores\" / 1000000  from kubernetes_node",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": ["node_name"]
+        }
+      ]
+    },
+    {
+      "x": 10,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "i": "042d47cc-fcfd-4b26-a690-d81c0321d408",
+      "name": "Node memory usage bytes",
+      "queries": [
+        {
+          "query": "select \"memory_usage_bytes\" from kubernetes_node",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": ["node_name"]
+        }
+      ]
+    }
+  ]
+}
