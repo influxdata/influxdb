@@ -17,7 +17,8 @@
           "rp": "autogen",
           "groupbys": [
             "pod_name"
-          ]
+          ],
+          "wheres": []
         }
       ]
     },
@@ -35,7 +36,8 @@
           "rp": "autogen",
           "groupbys": [
             "pod_name"
-          ]
+          ],
+          "wheres": []
         }
       ]
     }

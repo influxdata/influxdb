@@ -12,10 +12,15 @@
       "name": "TX bytes/second",
       "queries": [
         {
-          "query": "select non_negative_derivative(last(\"tx_bytes\"), 10) from kubernetes_pod_network where namespace=\"kube-system\"",
+          "query": "select non_negative_derivative(last(\"tx_bytes\"), 10) from kubernetes_pod_network",
           "db": "telegraf",
           "rp": "autogen",
-          "groupbys": ["time"]
+          "groupbys": [
+            "time"
+          ],
+          "wheres": [
+            "\"namespace\" = 'kube-system'\""
+          ]
         }
       ]
     },
@@ -28,10 +33,15 @@
       "name": "RX bytes/second ",
       "queries": [
         {
-          "query": "select non_negative_derivative(last(\"rx_bytes\"), 10) from kubernetes_pod_network where namespace=\"kube-system\"",
+          "query": "select non_negative_derivative(last(\"rx_bytes\"), 10) from kubernetes_pod_network",
           "db": "telegraf",
           "rp": "autogen",
-          "groupbys": ["time"]
+          "groupbys": [
+            "time"
+          ],
+          "wheres": [
+            "\"namespace\" = 'kube-system'\""
+          ]
         }
       ]
     }

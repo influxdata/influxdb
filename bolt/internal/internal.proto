@@ -52,6 +52,7 @@ message Query {
     string DB               = 2; // DB the database for the query (optional)
     string RP               = 3; // RP is a retention policy and optional;
     repeated string GroupBys= 4; // GroupBys define the groups to combine in the query
+    repeated string Wheres  = 5; // Wheres define the restrictions on the query
 }
 
 message AlertRule {

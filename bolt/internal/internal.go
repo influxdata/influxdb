@@ -110,6 +110,7 @@ func MarshalLayout(l chronograf.Layout) ([]byte, error) {
 				DB:       q.DB,
 				RP:       q.RP,
 				GroupBys: q.GroupBys,
+				Wheres:   q.Wheres,
 			}
 		}
 		cells[i] = &Cell{
@@ -149,6 +150,7 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 				DB:       q.DB,
 				RP:       q.RP,
 				GroupBys: q.GroupBys,
+				Wheres:   q.Wheres,
 			}
 		}
 		cells[i] = chronograf.Cell{
