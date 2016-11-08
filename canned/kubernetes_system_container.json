@@ -1,0 +1,39 @@
+{
+  "id": "05dde59a-a52f-4ede-81fa-0c6011f29287",
+  "measurement": "kubernetes_system_container",
+  "app": "k8s system container metrics",
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "i": "64cf0f60-e157-4c03-9d7e-c280a7e2695f",
+      "name": "Kubelet cpu usage millicores",
+      "queries": [
+        {
+          "query": "select \"cpu_usage_nanocores\" / 1000000  from kubernetes_system_container where \"container_name\" = 'kubelet'",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": []
+        }
+      ]
+    },
+    {
+      "x": 10,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "i": "4a7454d1-4d60-4077-9e7b-8c915a00fe66",
+      "name": "Kubelet memory usage bytes",
+      "queries": [
+        {
+          "query": "select \"memory_usage_bytes\" from kubernetes_system_container where \"container_name\" = 'kubelet'",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": []
+        }
+      ]
+    }
+  ]
+}
