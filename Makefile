@@ -69,5 +69,6 @@ run-dev: ${BINARY}
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi
 	cd ui && npm run clean
+	cd ui && rm -rf node_modules
 
 .PHONY: clean test jstest gotest run

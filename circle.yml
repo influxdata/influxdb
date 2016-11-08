@@ -13,6 +13,8 @@ dependencies:
         - git config --global url."git@github.com:".insteadOf "https://github.com/"
         - mkdir -p ${HOME}/.go_workspace/src/github.com/influxdata
         - ln -sf ${HOME}/chronograf ${HOME}/.go_workspace/src/github.com/influxdata
+        - "make clean":
+            pwd: ../.go_workspace/src/github.com/influxdata/chronograf
         - "make":
             pwd: ../.go_workspace/src/github.com/influxdata/chronograf
 
