@@ -45,7 +45,7 @@ export const LayoutRenderer = React.createClass({
       const qs = cell.queries.map((q) => {
         _.merge(q, {host: source});
         if (q.groupBys && q.groupBys.length > 0) {
-          q.text += ` group by ${q.groupBys.join(' ')}`;
+          q.text += ` group by ${q.groupBys.join(',')}`;
         }
         q.text += ` where host = '${host}' and time > ${timeRange}`;
         return q;
