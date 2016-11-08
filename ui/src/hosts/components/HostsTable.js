@@ -106,7 +106,11 @@ const HostsTable = React.createClass({
                       <td className="text-center"><div className="table-dot dot-success"></div></td>
                       <td className="monotype">{`${cpu.toFixed(2)}%`}</td>
                       <td className="monotype">{`${load.toFixed(2)}`}</td>
-                      <td className="monotype">{`${apps.join(', ')}`}</td>
+                      <td className="monotype">
+                        {apps.map((app) => {
+                          return <a key={app} href={`/sources/${source.id}/hosts/${name}?app=${app}`}>{app}</a>;
+                        })}
+                      </td>
                     </tr>
                   );
                 })

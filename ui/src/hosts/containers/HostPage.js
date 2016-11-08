@@ -14,6 +14,11 @@ export const HostPage = React.createClass({
     params: PropTypes.shape({
       hostID: PropTypes.string.isRequired,
     }).isRequired,
+    location: PropTypes.shape({
+      query: PropTypes.shape({
+        app: PropTypes.string,
+      }),
+    }),
   },
 
   getInitialState() {
@@ -34,6 +39,10 @@ export const HostPage = React.createClass({
         getAppsForHosts(this.props.source.links.proxy, hosts, mappings).then((newHosts) => {
           const host = newHosts[this.props.params.hostID];
           const filteredLayouts = layouts.filter((layout) => {
+            const focusedApp = this.props.location.query.app;
+            if (focusedApp) {
+              return layout.app === focusedApp;
+            }
             return host.apps && host.apps.includes(layout.app);
           });
           this.setState({layouts: filteredLayouts});
