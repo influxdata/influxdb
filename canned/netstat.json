@@ -1,7 +1,7 @@
 {
   "id": "ff41d044-f61a-4522-8de7-9e39e3a1b5de",
   "measurement": "netstat",
-  "app": "Network metrics",
+  "app": "net",
   "cells": [
     {
       "x": 0,
@@ -36,20 +36,20 @@
       "name": "Sockets created/second ",
       "queries": [
         {
-          "query": "select derivative(last(\"tcp_established\"), 10)  from netstat",
+          "query": "select derivative(last(\"tcp_established\"), 10s)  from netstat",
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [
-            "time"
+            "time(10s)"
           ],
           "wheres": []
         },
         {
-          "query": "select derivative(last(\"udp_socket\"), 10)  from netstat",
+          "query": "select derivative(last(\"udp_socket\"), 10s)  from netstat",
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [
-            "time"
+            "time(10s)"
           ],
           "wheres": []
         }
