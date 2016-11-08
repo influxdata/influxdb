@@ -11,6 +11,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -772,6 +773,74 @@ func benchmarkEngine_WritePoints(b *testing.B, batchSize int) {
 		if err != nil {
 			b.Fatal(err)
 		}
+	}
+}
+
+func BenchmarkEngine_WritePoints_Parallel_1000(b *testing.B) {
+	benchmarkEngine_WritePoints(b, 1000)
+}
+
+func BenchmarkEngine_WritePoints_Parallel_5000(b *testing.B) {
+	benchmarkEngine_WritePoints_Parallel(b, 5000)
+}
+
+func BenchmarkEngine_WritePoints_Parallel_10000(b *testing.B) {
+	benchmarkEngine_WritePoints_Parallel(b, 10000)
+}
+
+func BenchmarkEngine_WritePoints_Parallel_25000(b *testing.B) {
+	benchmarkEngine_WritePoints_Parallel(b, 25000)
+}
+
+func BenchmarkEngine_WritePoints_Parallel_50000(b *testing.B) {
+	benchmarkEngine_WritePoints_Parallel(b, 50000)
+}
+
+func BenchmarkEngine_WritePoints_Parallel_75000(b *testing.B) {
+	benchmarkEngine_WritePoints_Parallel(b, 75000)
+}
+
+func BenchmarkEngine_WritePoints_Parallel_100000(b *testing.B) {
+	benchmarkEngine_WritePoints_Parallel(b, 100000)
+}
+
+func BenchmarkEngine_WritePoints_Parallel_200000(b *testing.B) {
+	benchmarkEngine_WritePoints_Parallel(b, 200000)
+}
+
+func benchmarkEngine_WritePoints_Parallel(b *testing.B, batchSize int) {
+	e := MustOpenEngine()
+	defer e.Close()
+
+	e.Index().CreateMeasurementIndexIfNotExists("cpu")
+	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+
+		b.StopTimer()
+		cpus := runtime.GOMAXPROCS(0)
+		pp := make([]models.Point, 0, batchSize*cpus)
+		for i := 0; i < batchSize*cpus; i++ {
+			p := MustParsePointString(fmt.Sprintf("cpu,host=%d value=1.2,other=%di", i, i))
+			pp = append(pp, p)
+		}
+		b.StartTimer()
+
+		var wg sync.WaitGroup
+		for i := 0; i < cpus; i++ {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				from, to := i*batchSize, (i+1)*batchSize
+				err := e.WritePoints(pp[from:to])
+				if err != nil {
+					b.Fatal(err)
+				}
+			}(i)
+		}
+		wg.Wait()
 	}
 }
 
