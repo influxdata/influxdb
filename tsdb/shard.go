@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1227,29 +1226,33 @@ func (itr *seriesIterator) Next() (*influxql.FloatPoint, error) {
 
 // nextKeys reads all keys for the next measurement.
 func (itr *seriesIterator) nextKeys() error {
-	for {
-		// Ensure previous keys are cleared out.
-		itr.keys.i, itr.keys.buf = 0, itr.keys.buf[:0]
+	panic("MOVE TO TSI")
 
-		// Read next measurement.
-		if len(itr.mms) == 0 {
+	/*
+		for {
+			// Ensure previous keys are cleared out.
+			itr.keys.i, itr.keys.buf = 0, itr.keys.buf[:0]
+
+			// Read next measurement.
+			if len(itr.mms) == 0 {
+				return nil
+			}
+			mm := itr.mms[0]
+			itr.mms = itr.mms[1:]
+
+			// Read all series keys.
+			ids, err := mm.seriesIDsAllOrByExpr(itr.opt.Condition)
+			if err != nil {
+				return err
+			} else if len(ids) == 0 {
+				continue
+			}
+			itr.keys.buf = mm.AppendSeriesKeysByID(itr.keys.buf, ids)
+			sort.Strings(itr.keys.buf)
+
 			return nil
 		}
-		mm := itr.mms[0]
-		itr.mms = itr.mms[1:]
-
-		// Read all series keys.
-		ids, err := mm.seriesIDsAllOrByExpr(itr.opt.Condition)
-		if err != nil {
-			return err
-		} else if len(ids) == 0 {
-			continue
-		}
-		itr.keys.buf = mm.AppendSeriesKeysByID(itr.keys.buf, ids)
-		sort.Strings(itr.keys.buf)
-
-		return nil
-	}
+	*/
 }
 
 // NewTagKeysIterator returns a new instance of TagKeysIterator.
@@ -1273,82 +1276,86 @@ type tagValuesIterator struct {
 
 // NewTagValuesIterator returns a new instance of TagValuesIterator.
 func NewTagValuesIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	if opt.Condition == nil {
-		return nil, errors.New("a condition is required")
-	}
+	panic("MOVE")
 
-	measurementExpr := influxql.CloneExpr(opt.Condition)
-	measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
-		switch e := e.(type) {
-		case *influxql.BinaryExpr:
-			switch e.Op {
-			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || tag.Val != "_name" {
-					return nil
+	/*
+		if opt.Condition == nil {
+			return nil, errors.New("a condition is required")
+		}
+
+		measurementExpr := influxql.CloneExpr(opt.Condition)
+		measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
+			switch e := e.(type) {
+			case *influxql.BinaryExpr:
+				switch e.Op {
+				case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+					tag, ok := e.LHS.(*influxql.VarRef)
+					if !ok || tag.Val != "_name" {
+						return nil
+					}
 				}
 			}
-		}
-		return e
-	}), nil)
+			return e
+		}), nil)
 
-	mms, ok, err := sh.engine.MeasurementsByExpr(measurementExpr)
-	if err != nil {
-		return nil, err
-	} else if !ok {
-		if mms, err = sh.engine.Measurements(); err != nil {
-			return nil, err
-		}
-		sort.Sort(mms)
-	}
-
-	// If there are no measurements, return immediately.
-	if len(mms) == 0 {
-		return &tagValuesIterator{}, nil
-	}
-
-	filterExpr := influxql.CloneExpr(opt.Condition)
-	filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
-		switch e := e.(type) {
-		case *influxql.BinaryExpr:
-			switch e.Op {
-			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || strings.HasPrefix(tag.Val, "_") {
-					return nil
-				}
-			}
-		}
-		return e
-	}), nil)
-
-	var series []*Series
-	keys := newStringSet()
-	for _, mm := range mms {
-		ss, ok, err := mm.TagKeysByExpr(opt.Condition)
+		mms, ok, err := sh.engine.MeasurementsByExpr(measurementExpr)
 		if err != nil {
 			return nil, err
 		} else if !ok {
-			keys.add(mm.TagKeys()...)
-		} else {
-			keys = keys.union(ss)
+			if mms, err = sh.engine.Measurements(); err != nil {
+				return nil, err
+			}
+			sort.Sort(mms)
 		}
 
-		ids, err := mm.seriesIDsAllOrByExpr(filterExpr)
-		if err != nil {
-			return nil, err
+		// If there are no measurements, return immediately.
+		if len(mms) == 0 {
+			return &tagValuesIterator{}, nil
 		}
 
-		for _, id := range ids {
-			series = append(series, mm.SeriesByID(id))
-		}
-	}
+		filterExpr := influxql.CloneExpr(opt.Condition)
+		filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
+			switch e := e.(type) {
+			case *influxql.BinaryExpr:
+				switch e.Op {
+				case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+					tag, ok := e.LHS.(*influxql.VarRef)
+					if !ok || strings.HasPrefix(tag.Val, "_") {
+						return nil
+					}
+				}
+			}
+			return e
+		}), nil)
 
-	return &tagValuesIterator{
-		series: series,
-		keys:   keys.list(),
-		fields: influxql.VarRefs(opt.Aux).Strings(),
-	}, nil
+		var series []*Series
+		keys := newStringSet()
+		for _, mm := range mms {
+			ss, ok, err := mm.TagKeysByExpr(opt.Condition)
+			if err != nil {
+				return nil, err
+			} else if !ok {
+				keys.add(mm.TagKeys()...)
+			} else {
+				keys = keys.union(ss)
+			}
+
+			ids, err := mm.seriesIDsAllOrByExpr(filterExpr)
+			if err != nil {
+				return nil, err
+			}
+
+			for _, id := range ids {
+				series = append(series, mm.SeriesByID(id))
+			}
+		}
+
+		return &tagValuesIterator{
+			series: series,
+			keys:   keys.list(),
+			fields: influxql.VarRefs(opt.Aux).Strings(),
+		}, nil
+	*/
 }
 
 // Stats returns stats about the points processed.

@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/engine/tsi1"
 )
@@ -274,11 +275,13 @@ type SeriesElem struct {
 	name    []byte
 	tags    models.Tags
 	deleted bool
+	expr    influxql.Expr
 }
 
-func (e *SeriesElem) Name() []byte      { return e.name }
-func (e *SeriesElem) Tags() models.Tags { return e.tags }
-func (e *SeriesElem) Deleted() bool     { return e.deleted }
+func (e *SeriesElem) Name() []byte        { return e.name }
+func (e *SeriesElem) Tags() models.Tags   { return e.tags }
+func (e *SeriesElem) Deleted() bool       { return e.deleted }
+func (e *SeriesElem) Expr() influxql.Expr { return e.expr }
 
 // SeriesIterator represents an iterator over a slice of tag values.
 type SeriesIterator struct {
