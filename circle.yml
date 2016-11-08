@@ -15,8 +15,6 @@ dependencies:
         - ln -sf ${HOME}/chronograf ${HOME}/.go_workspace/src/github.com/influxdata
         - "make":
             pwd: ../.go_workspace/src/github.com/influxdata/chronograf
-    cache_directories:
-        - ../../../../../chronograf/ui/node_modules
 
 test:
     override:
@@ -24,7 +22,7 @@ test:
 
 deployment:
     heroku:
-        branch: develop
+        branch: master
         commands:
             - make docker
             - docker login -e $HEROKU_EMAIL -u $HEROKU_EMAIL -p $HEROKU_PASS registry.heroku.com
