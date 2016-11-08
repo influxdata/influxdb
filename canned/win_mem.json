@@ -1,0 +1,20 @@
+ {
+    "id": "d795c66f-0d8a-4fc0-b7bf-2cef1d2f4519",
+ 	"measurement": "win_mem",
+ 	"app": "Windows Host memory metrics",
+ 	"cells": [{
+ 		"x": 0,
+ 		"y": 0,
+ 		"w": 10,
+ 		"h": 10,
+        "i": "ff51a6a0-c58c-44b8-a6ed-e35f652bb524",
+        "name": "Available bytes",
+ 		"queries": [{
+ 			"query": "select Available_Bytes from win_mem",
+ 			"db": "telegraf",
+ 			"rp": "autogen",
+  			"groupbys": [],
+  			"wheres": []
+		}]
+ 	}]
+ }
