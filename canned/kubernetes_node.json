@@ -6,8 +6,8 @@
     {
       "x": 0,
       "y": 0,
-      "w": 10,
-      "h": 10,
+      "w": 4,
+      "h": 4,
       "i": "5f406919-14b8-4c01-b0ce-f8ed75310805",
       "name": "Node cpu usage millicores",
       "queries": [
@@ -25,8 +25,8 @@
     {
       "x": 10,
       "y": 0,
-      "w": 10,
-      "h": 10,
+      "w": 4,
+      "h": 4,
       "i": "042d47cc-fcfd-4b26-a690-d81c0321d408",
       "name": "Node memory usage bytes",
       "queries": [

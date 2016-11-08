@@ -6,8 +6,8 @@
     {
       "x": 0,
       "y": 0,
-      "w": 10,
-      "h": 10,
+      "w": 4,
+      "h": 4,
       "i": "e2427235-c81b-42a1-afdf-80d340fc01f8",
       "name": "Pod cpu usage millicores",
       "queries": [
@@ -25,8 +25,8 @@
     {
       "x": 0,
       "y": 0,
-      "w": 10,
-      "h": 10,
+      "w": 4,
+      "h": 4,
       "i": "6edb8c61-f723-47ce-a7eb-904fc6fe066e",
       "name": "Pod memory usage bytes",
       "queries": [
