@@ -59,15 +59,18 @@ const SlackConfig = React.createClass({
                 <label htmlFor="slack-channel">Slack Channel (optional)</label>
                 <input className="form-control" id="slack-channel" type="text" placeholder="#alerts" ref={(r) => this.channel = r} defaultValue={channel || ''}></input>
               </div>
+            </div>
 
-              <a className="btn btn-warning" onClick={this.props.onTest} disabled={!this.state.testEnabled}>Send Test Message</a>
+            <div className="form-group col-xs-5 col-sm-3 col-sm-offset-2">
+              <button className="btn btn-block btn-primary" type="submit">Save</button>
             </div>
           </div>
 
           <hr />
+
           <div className="row">
             <div className="form-group col-xs-5 col-sm-3 col-sm-offset-2">
-              <button className="btn btn-block btn-primary" type="submit">Save</button>
+              <a className="btn btn-warning" onClick={this.props.onSave} disabled={!this.state.testEnabled}>Send Test Message</a>
             </div>
           </div>
         </form>
