@@ -88,6 +88,7 @@ All Changes:
 - [#7526](https://github.com/influxdata/influxdb/issues/7526): Truncate the version string when linking to the documentation.
 - [#7548](https://github.com/influxdata/influxdb/issues/7548): Fix output duration units for SHOW QUERIES.
 - [#7564](https://github.com/influxdata/influxdb/issues/7564): Fix incorrect grouping when multiple aggregates are used with sparse data.
+- [#7606](https://github.com/influxdata/influxdb/pull/7606): Avoid deadlock when `max-row-limit` is hit.
 
 ## v1.0.2 [2016-10-05]
 
