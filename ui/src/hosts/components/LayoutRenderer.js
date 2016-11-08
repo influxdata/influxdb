@@ -16,7 +16,7 @@ export const LayoutRenderer = React.createClass({
             rp: PropTypes.string.isRequired,
             text: PropTypes.string.isRequired,
             database: PropTypes.string.isRequired,
-            groupBys: PropTypes.arrayOf(PropTypes.string),
+            groupbys: PropTypes.arrayOf(PropTypes.string),
           }).isRequired
         ).isRequired,
         x: PropTypes.number.isRequired,
@@ -45,7 +45,7 @@ export const LayoutRenderer = React.createClass({
       const qs = cell.queries.map((q) => {
         _.merge(q, {host: source});
         q.text += ` where host = '${host}' and time > ${timeRange}`;
-        if (q.groupBys && q.groupBys.length > 0) {
+        if (q.groupbys && q.groupbys.length > 0) {
           q.text += ` group by ${q.groupBys.join(',')}`;
         }
         return q;
