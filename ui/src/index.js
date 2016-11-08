@@ -8,15 +8,9 @@ import AlertsApp from 'src/alerts';
 import CheckDataNodes from 'src/CheckDataNodes';
 import {HostsPage, HostPage} from 'src/hosts';
 import {KapacitorPage, KapacitorRulePage, KapacitorRulesPage, KapacitorTasksPage} from 'src/kapacitor';
-import QueriesPage from 'src/queries';
 import TasksPage from 'src/tasks';
-import RetentionPoliciesPage from 'src/retention_policies';
 import DataExplorer from 'src/chronograf';
-import DatabaseManager from 'src/database_manager';
-import SignUp from 'src/sign_up';
 import {CreateSource, SourceForm, ManageSources} from 'src/sources';
-import {ClusterAccountsPage, ClusterAccountPage} from 'src/cluster_accounts';
-import {RolesPageContainer, RolePageContainer} from 'src/access_control';
 import NotFound from 'src/shared/components/NotFound';
 import NoClusterError from 'src/shared/components/NoClusterError';
 import configureStore from 'src/store/configureStore';
@@ -96,22 +90,14 @@ const Root = React.createClass({
     return (
       <Provider store={store}>
         <Router history={browserHistory}>
-          <Route path="/signup/admin/:step" component={SignUp} />
           <Route path="/" component={CreateSource} onEnter={this.redirectToHosts} />
           <Route path="/sources/:sourceID" component={App}>
             <Route component={CheckDataNodes}>
               <Route path="manage-sources" component={ManageSources} />
               <Route path="manage-sources/new" component={SourceForm} />
               <Route path="manage-sources/:id/edit" component={SourceForm} />
-              <Route path="queries" component={QueriesPage} />
-              <Route path="accounts" component={ClusterAccountsPage} />
-              <Route path="accounts/:accountID" component={ClusterAccountPage} />
-              <Route path="databases/manager/:database" component={DatabaseManager} />
-              <Route path="databases/retentionpolicies/:database" component={RetentionPoliciesPage} />
               <Route path="chronograf/data-explorer" component={DataExplorer} />
               <Route path="chronograf/data-explorer/:base64ExplorerID" component={DataExplorer} />
-              <Route path="roles" component={RolesPageContainer} />
-              <Route path="roles/:roleSlug" component={RolePageContainer} />
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
               <Route path="kapacitor-config" component={KapacitorPage} />
