@@ -21,8 +21,8 @@ import (
 
 // Server for the chronograf API
 type Server struct {
-	Host string `long:"host" description:"the IP to listen on" default:"localhost" env:"HOST"`
-	Port int    `long:"port" description:"the port to listen on for insecure connections, defaults to a random value" default:"10000" env:"PORT"`
+	Host string `long:"host" description:"the IP to listen on" default:"0.0.0.0" env:"HOST"`
+	Port int    `long:"port" description:"the port to listen on for insecure connections, defaults to a random value" default:"8888" env:"PORT"`
 
 	/* TODO: add in support for TLS
 	TLSHost           string         `long:"tls-host" description:"the IP to listen on for tls, when not specified it's the same as --host" env:"TLS_HOST"`
@@ -32,7 +32,7 @@ type Server struct {
 	*/
 
 	Develop            bool   `short:"d" long:"develop" description:"Run server in develop mode."`
-	BoltPath           string `short:"b" long:"bolt-path" description:"Full path to boltDB file (/Users/somebody/chronograf.db)" env:"BOLT_PATH" default:"chronograf.db"`
+	BoltPath           string `short:"b" long:"bolt-path" description:"Full path to boltDB file (/var/lib/chronograf/chronograf-v1.db)" env:"BOLT_PATH" default:"chronograf-v1.db"`
 	CannedPath         string `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts" env:"CANNED_PATH" default:"canned"`
 	TokenSecret        string `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
 	GithubClientID     string `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
@@ -110,7 +110,7 @@ func openService(boltPath, cannedPath string, logger chronograf.Logger) Service 
 	if err := db.Open(); err != nil {
 		logger.
 			WithField("component", "boltstore").
-			Panic("Unable to open boltdb; is there a chronograf already running?", err)
+			Fatal("Unable to open boltdb; is there a chronograf already running?  ", err)
 	}
 
 	apps := canned.NewApps(cannedPath, &uuid.V4{}, logger)
