@@ -57,6 +57,7 @@ type Query struct {
 	Command  string   `json:"query"`    // Command is the query itself
 	DB       string   `json:"db"`       // DB is optional and if empty will not be used.
 	RP       string   `json:"rp"`       // RP is a retention policy and optional; if empty will not be used.
+	Wheres   []string `json:"wheres"`   // Wheres restricts the query to certain attributes
 	GroupBys []string `json:"groupbys"` // GroupBys collate the query by these tags
 }
 

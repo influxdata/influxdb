@@ -1,19 +1,24 @@
- {
-    "id": "0fa47984-825b-46f1-9ca5-0366e3281cc5",
- 	"measurement": "cpu",
- 	"app": "cpu",
- 	"cells": [{
- 		"x": 0,
- 		"y": 0,
- 		"w": 4,
- 		"h": 4,
-        "i": "cc9ba2b6-e398-4396-80dc-819bb7ac7ce1",
-        "name": "CPU Usage",
- 		"queries": [{
- 			"query": "SELECT \"usage_user\" FROM \"telegraf\"..\"cpu\"",
- 			"db": "telegraf",
- 			"rp": "autogen",
-  			"groupbys": []
-		}]
- 	}]
- }
+{
+  "id": "0fa47984-825b-46f1-9ca5-0366e3281cc5",
+  "measurement": "cpu",
+  "app": "cpu",
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "cc9ba2b6-e398-4396-80dc-819bb7ac7ce1",
+      "name": "CPU Usage",
+      "queries": [
+        {
+          "query": "SELECT \"usage_user\" FROM \"telegraf\"..\"cpu\"",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}
