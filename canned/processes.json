@@ -1,0 +1,24 @@
+{
+  "id": "ffad2dff-d263-412e-806a-1e836af87942",
+  "measurement": "processes",
+  "app": "Host processes",
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "i": "84048146-f93d-4d6c-b7dd-c8e2a68abb27",
+      "name": "Total Processes",
+      "queries": [
+        {
+          "query": "select total from processes",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

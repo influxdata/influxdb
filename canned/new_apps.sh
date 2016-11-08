@@ -55,7 +55,8 @@ cat > $APP_FILE << EOF
  			"query": "select used_percent from disk",
  			"db": "telegraf",
  			"rp": "autogen",
-  			"groupbys": []
+  			"groupbys": [],
+  			"wheres": []
 		}]
  	}]
  }

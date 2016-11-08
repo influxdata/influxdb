@@ -1,0 +1,41 @@
+{
+  "id": "d795c66f-0d8a-4fc0-b7bf-2cef1d2f4519",
+  "measurement": "win_net",
+  "app": "Windows Host network metrics",
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "i": "ff51a6a0-c58c-44b8-a6ed-e35f652bb524",
+      "name": "TX bytes/second",
+      "queries": [
+        {
+          "query": "select Bytes_Sent_persec from win_net",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 10,
+      "y": 0,
+      "w": 10,
+      "h": 10,
+      "i": "ff51a6a0-c58c-44b8-a6ed-e35f652bb524",
+      "name": "RX bytes/second",
+      "queries": [
+        {
+          "query": "select Bytes_Received_persec from win_net",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}
