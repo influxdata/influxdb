@@ -8,5 +8,6 @@ chronograf
 node_modules/
 build/
 chronograf.db
+chronograf-v1.db
 npm-debug.log
 .vscode

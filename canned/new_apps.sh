@@ -47,8 +47,8 @@ cat > $APP_FILE << EOF
  	"cells": [{
  		"x": 0,
  		"y": 0,
- 		"w": 10,
- 		"h": 10,
+ 		"w": 4,
+ 		"h": 4,
         "i": "$CELLID",
         "name": "User facing cell Name",
  		"queries": [{
