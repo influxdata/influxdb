@@ -34,6 +34,7 @@ export const KapacitorRulePage = React.createClass({
       updateRuleValues: PropTypes.func.isRequired,
       updateMessage: PropTypes.func.isRequired,
       updateAlerts: PropTypes.func.isRequired,
+      updateRuleName: PropTypes.func.isRequired,
     }).isRequired,
     queryActions: PropTypes.shape({}).isRequired,
     params: PropTypes.shape({
@@ -47,6 +48,7 @@ export const KapacitorRulePage = React.createClass({
   getInitialState() {
     return {
       enabledAlerts: [],
+      isEditingName: false,
     };
   },
 
@@ -104,46 +106,28 @@ export const KapacitorRulePage = React.createClass({
     this.props.kapacitorActions.updateAlerts(item.ruleID, [item.text]);
   },
 
-  createUnderlayCallback(rule) {
-    return (canvas, area, dygraph) => {
-      if (rule.trigger !== 'threshold') {
-        return;
-      }
+  handleEditName(e, rule) {
+    if (e.key === 'Enter') {
+      const {updateRuleName} = this.props.kapacitorActions;
+      const name = this.ruleName.value;
+      updateRuleName(rule.id, name);
+      this.toggleEditName();
+    }
 
-      const theOnePercent = 0.01;
-      let highlightStart = 0;
-      let highlightEnd = 0;
+    if (e.key === 'Escape') {
+      this.toggleEditName();
+    }
+  },
 
-      switch (rule.values.operator) {
-        case 'equal to or greater':
-        case 'greater than': {
-          highlightStart = rule.values.value;
-          highlightEnd = dygraph.yAxisRange()[1];
-          break;
-        }
+  handleEditNameBlur(rule) {
+    const {updateRuleName} = this.props.kapacitorActions;
+    const name = this.ruleName.value;
+    updateRuleName(rule.id, name);
+    this.toggleEditName();
+  },
 
-        case 'equal to or less than':
-        case 'less than': {
-          highlightStart = dygraph.yAxisRange()[0];
-          highlightEnd = rule.values.value;
-          break;
-        }
-
-        case 'not equal to':
-        case 'equal to': {
-          const width = (theOnePercent) * (dygraph.yAxisRange()[1] - dygraph.yAxisRange()[0]);
-          highlightStart = +rule.values.value - width;
-          highlightEnd = +rule.values.value + width;
-          break;
-        }
-      }
-
-      const bottom = dygraph.toDomYCoord(highlightStart);
-      const top = dygraph.toDomYCoord(highlightEnd);
-
-      canvas.fillStyle = 'rgba(220,20,60, 1)';
-      canvas.fillRect(area.x, top, area.w, bottom - top);
-    };
+  toggleEditName() {
+    this.setState({isEditingName: !this.state.isEditingName});
   },
 
   render() {
@@ -164,7 +148,7 @@ export const KapacitorRulePage = React.createClass({
         <div className="enterprise-header">
           <div className="enterprise-header__container">
             <div className="enterprise-header__left">
-              <h1>Kapacitor Rules</h1>
+              {this.renderEditName(rule)}
             </div>
             <div className="enterprise-header__right">
               <button className="btn btn-primary btn-sm" onClick={this.handleSave}>Save</button>
@@ -207,6 +191,24 @@ export const KapacitorRulePage = React.createClass({
           </div>
         </div>
       </div>
+    );
+  },
+
+  renderEditName(rule) {
+    if (!this.state.isEditingName) {
+      return (
+        <h1 onClick={this.toggleEditName}>
+          {rule.name}
+        </h1>
+      );
+    }
+
+    return (
+      <input
+        autoFocus={true}
+        defaultValue={rule.name}
+        ref={r => this.ruleName = r} onKeyDown={(e) => this.handleEditName(e, rule)} onBlur={() => this.handleEditNameBlur(rule)}
+      />
     );
   },
 
@@ -255,6 +257,49 @@ export const KapacitorRulePage = React.createClass({
   handleMessageChange(rule) {
     this.props.kapacitorActions.updateMessage(rule.id, this.message.value);
   },
+
+  createUnderlayCallback(rule) {
+    return (canvas, area, dygraph) => {
+      if (rule.trigger !== 'threshold') {
+        return;
+      }
+
+      const theOnePercent = 0.01;
+      let highlightStart = 0;
+      let highlightEnd = 0;
+
+      switch (rule.values.operator) {
+        case 'equal to or greater':
+        case 'greater than': {
+          highlightStart = rule.values.value;
+          highlightEnd = dygraph.yAxisRange()[1];
+          break;
+        }
+
+        case 'equal to or less than':
+        case 'less than': {
+          highlightStart = dygraph.yAxisRange()[0];
+          highlightEnd = rule.values.value;
+          break;
+        }
+
+        case 'not equal to':
+        case 'equal to': {
+          const width = (theOnePercent) * (dygraph.yAxisRange()[1] - dygraph.yAxisRange()[0]);
+          highlightStart = +rule.values.value - width;
+          highlightEnd = +rule.values.value + width;
+          break;
+        }
+      }
+
+      const bottom = dygraph.toDomYCoord(highlightStart);
+      const top = dygraph.toDomYCoord(highlightEnd);
+
+      canvas.fillStyle = 'rgba(220,20,60, 1)';
+      canvas.fillRect(area.x, top, area.w, bottom - top);
+    };
+  },
+
 });
 
 function mapStateToProps(state) {

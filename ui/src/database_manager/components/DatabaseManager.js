@@ -120,10 +120,10 @@ const DatabaseManager = React.createClass({
                 <div className="panel-body continuous-queries">
                   {
                     queries.length ? queries.map((query, i) => <pre key={i}><code>{query}</code></pre>) : (
-                    <div className="continuous-queries__empty">
-                      <img src="/assets/images/continuous-query-empty.svg" />
-                      <h4>No queries to display</h4>
-                    </div>
+                      <div className="continuous-queries__empty">
+                        <img src="/assets/images/continuous-query-empty.svg" />
+                        <h4>No queries to display</h4>
+                      </div>
                     )
                   }
                 </div>

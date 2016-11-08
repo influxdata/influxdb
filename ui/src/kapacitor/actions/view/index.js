@@ -97,3 +97,13 @@ export function updateAlerts(ruleID, alerts) {
     },
   };
 }
+
+export function updateRuleName(ruleID, name) {
+  return {
+    type: 'UPDATE_RULE_NAME',
+    payload: {
+      ruleID,
+      name,
+    },
+  };
+}

@@ -14,7 +14,7 @@ export default function rules(state = {}, action) {
           message: '',
           alerts: [],
           every: '30s',
-          name: 'Random album title',
+          name: 'My Rule',
         },
       });
     }
@@ -67,6 +67,15 @@ export default function rules(state = {}, action) {
       return Object.assign({}, state, {
         [ruleID]: Object.assign({}, state[ruleID], {
           alerts,
+        }),
+      });
+    }
+
+    case 'UPDATE_RULE_NAME': {
+      const {ruleID, name} = action.payload;
+      return Object.assign({}, state, {
+        [ruleID]: Object.assign({}, state[ruleID], {
+          name,
         }),
       });
     }
