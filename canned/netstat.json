@@ -1,0 +1,49 @@
+ {
+    "id": "ff41d044-f61a-4522-8de7-9e39e3a1b5de",
+ 	"measurement": "netstat",
+ 	"app": "Network metrics",
+ 	"cells": [{
+ 		"x": 0,
+ 		"y": 0,
+ 		"w": 10,
+ 		"h": 10,
+        "i": "cf5d0608-b513-4244-a55f-accf520da3a1",
+        "name": "Open sockets",
+ 		"queries": [{
+ 			"query": "select tcp_established from netstat",
+ 			"db": "telegraf",
+ 			"rp": "autogen",
+  			"groupbys": [],
+            "wheres": []
+		},
+        {
+ 			"query": "select udp_socket from netstat",
+ 			"db": "telegraf",
+ 			"rp": "autogen",
+  			"groupbys": [],
+            "wheres": []
+		}]
+ 	},
+    {
+ 		"x": 0,
+ 		"y": 0,
+ 		"w": 10,
+ 		"h": 10,
+        "i": "cf5d0608-b513-4244-a55f-accf520da3a1",
+        "name": "Sockets created/second ",
+ 		"queries": [{
+ 			"query": "select derivative(last(\"tcp_established\"), 10)  from netstat",
+ 			"db": "telegraf",
+ 			"rp": "autogen",
+  			"groupbys": ["time"],
+            "wheres": []
+		},
+        {
+ 			"query": "select derivative(last(\"udp_socket\"), 10)  from netstat",
+ 			"db": "telegraf",
+ 			"rp": "autogen",
+  			"groupbys": ["time"],
+            "wheres": []
+		}]
+ 	}]
+ }
