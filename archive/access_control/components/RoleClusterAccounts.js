@@ -43,12 +43,12 @@ const RoleClusterAccounts = React.createClass({
               clusterID={this.props.clusterID}
               onRemoveClusterAccount={this.handleRemoveClusterAccount}
             />
-          ) : (
+            ) : (
             <div className="generic-empty-state">
               <span className="icon alert-triangle"></span>
               <h4>No Cluster Accounts found</h4>
             </div>
-          )}
+            )}
         </div>
       </div>
     );
