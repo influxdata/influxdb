@@ -25,7 +25,7 @@ const AlertOutputs = React.createClass({
 
   getInitialState() {
     return {
-      selectedEndpoint: 'alerta',
+      selectedEndpoint: 'smtp',
       alertaConfig: null,
       smtpConfig: null,
       slackConfig: null,
@@ -112,8 +112,7 @@ const AlertOutputs = React.createClass({
           <div className="row">
             <div className="form-group col-xs-7 col-sm-5 col-sm-offset-2">
               <label htmlFor="alert-endpoint" className="sr-only">Alert Enpoint</label>
-              <select className="form-control" id="source" onChange={this.changeSelectedEndpoint}>
-                <option value="alerta">Alerta</option>
+              <select value={this.state.selectedEndpoint} className="form-control" id="source" onChange={this.changeSelectedEndpoint}>
                 <option value="hipchat">HipChat</option>
                 <option value="pagerduty">PagerDuty</option>
                 <option value="sensu">Sensu</option>
