@@ -207,6 +207,8 @@ export const KapacitorRulePage = React.createClass({
         queries={queries}
         autoRefresh={autoRefreshMs}
         underlayCallback={underlayCallback}
+        isGraphFilled={false}
+        overrideLineColors={kapacitorLineColors}
       />
     );
   },

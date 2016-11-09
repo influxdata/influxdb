@@ -4,7 +4,7 @@ import shallowCompare from 'react-addons-shallow-compare';
 
 import timeSeriesToDygraph from 'utils/timeSeriesToDygraph';
 
-const {array, string, arrayOf, number} = PropTypes;
+const {array, string, arrayOf, number, bool} = PropTypes;
 
 export default React.createClass({
   displayName: 'LineGraph',
@@ -15,11 +15,15 @@ export default React.createClass({
     isRefreshing: PropTypes.bool,
     yRange: arrayOf(number.isRequired),
     underlayCallback: PropTypes.func,
+    isGraphFilled: bool,
+    overrideLineColors: array,
   },
 
   getDefaultProps() {
     return {
       underlayCallback: () => {},
+      isGraphFilled: true,
+      overrideLineColors: null,
     };
   },
 
@@ -56,14 +60,13 @@ export default React.createClass({
       rightGap: 0,
       yRangePad: 10,
       drawAxesAtZero: true,
-      fillGraph: true,
       underlayCallback: this.props.underlayCallback,
     };
 
     return (
       <div>
         {this.props.isRefreshing ? <h3 className="graph-panel__spinner--small" /> : null}
-        <Dygraph containerStyle={{width: '100%'}} timeSeries={timeSeries} fields={fields} options={options} />
+        <Dygraph containerStyle={{width: '100%'}} overrideLineColors={this.props.overrideLineColors} isGraphFilled={this.props.isGraphFilled} timeSeries={timeSeries} fields={fields} options={options} />
       </div>
     );
   },
