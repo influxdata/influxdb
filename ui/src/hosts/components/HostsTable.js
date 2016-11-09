@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react';
+import {Link} from 'react-router';
 import _ from 'lodash';
 
 const HostsTable = React.createClass({
@@ -106,7 +107,11 @@ const HostsTable = React.createClass({
                       <td className="text-center"><div className="table-dot dot-success"></div></td>
                       <td className="monotype">{`${cpu.toFixed(2)}%`}</td>
                       <td className="monotype">{`${load.toFixed(2)}`}</td>
-                      <td className="monotype">{`${apps.join(', ')}`}</td>
+                      <td className="monotype">
+                        {apps.map((app) => {
+                          return <Link key={app} to={{pathname: `/sources/${source.id}/hosts/${name}`, query: {app}}}>{app}</Link>;
+                        })}
+                      </td>
                     </tr>
                   );
                 })
