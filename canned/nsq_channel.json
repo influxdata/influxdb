@@ -1,0 +1,47 @@
+{
+  "id": "7b035812-182a-4a94-ba2e-902dfb81e0a2",
+  "measurement": "nsq_channel",
+  "app": "nsq",
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "89dad9c8-3391-400e-a44a-b5d4a2c53bf1",
+      "name": "NSQ channel client count",
+      "queries": [
+        {
+          "query": "select client_count from nsq_channel",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [
+            "\"topic\"",
+            "\"channel\""
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 4,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "e3eb48c0-8283-4445-b174-f4f8e4182e45",
+      "name": "NSQ channel messages count",
+      "queries": [
+        {
+          "query": "select message_count from nsq_channel",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [
+            "\"topic\"",
+            "\"channel\""
+          ],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}
