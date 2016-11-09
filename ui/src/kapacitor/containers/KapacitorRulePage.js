@@ -192,7 +192,7 @@ export const KapacitorRulePage = React.createClass({
         ref={r => this.ruleName = r}
         onKeyDown={(e) => this.handleEditName(e, rule)}
         onBlur={() => this.handleEditNameBlur(rule)}
-        placeholder="Name your Alert"
+        placeholder="Name your rule"
       />
     );
   },
