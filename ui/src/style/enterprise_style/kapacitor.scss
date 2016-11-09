@@ -47,6 +47,10 @@ $kapacitor-font-sm: 13px;
   height: calc(100% - #{$enterprise-page-header-height});
   overflow: auto;
   @include custom-scrollbar($g0-obsidian,$kapacitor-accent);
+
+  .container-fluid {
+    padding-bottom: $enterprise-page-header-height;
+  }
 }
 .rule-builder {
   width: 100%;
