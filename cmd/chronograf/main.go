@@ -36,6 +36,11 @@ func main() {
 		os.Exit(code)
 	}
 
+	if srv.ShowVersion {
+		log.Printf("Chronograf %s (git: %s)\n", Version, Commit)
+		os.Exit(0)
+	}
+
 	if err := srv.Serve(); err != nil {
 		log.Fatalln(err)
 	}

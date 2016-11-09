@@ -40,7 +40,8 @@ type Server struct {
 	ReportingDisabled  bool   `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id) once every 24hr" env:"REPORTING_DISABLED"`
 	LogLevel           string `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"warn" choice:"error" choice:"fatal" choice:"panic" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
 
-	BuildInfo BuildInfo
+	ShowVersion bool `short:"v" long:"version" description:"Show Chronograf version info"`
+	BuildInfo   BuildInfo
 
 	Listener net.Listener
 	handler  http.Handler
