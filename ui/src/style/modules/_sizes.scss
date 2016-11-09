@@ -28,3 +28,33 @@ $explorer-page-padding: 18px;
 	background: linear-gradient(to right,  $startColor 0%,$endColor 100%);
 	filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=1 );
 }
+@mixin custom-scrollbar($trackColor, $handleColor) {
+	&::-webkit-scrollbar {
+		width: 14px;
+		border-bottom-right-radius: $radius;
+
+		&-button {
+			background-color: $trackColor;
+		}
+		&-track {
+			background-color: $trackColor;
+			border-bottom-right-radius: $radius;
+		}
+		&-track-piece {
+			background-color: $trackColor;
+			border: 4px solid $trackColor;
+			border-radius: 8px;
+		}
+		&-thumb {
+			background-color: $handleColor;
+			border: 4px solid $trackColor;
+			border-radius: 8px;
+		}
+		&-corner {
+			background-color: $trackColor;
+		}
+	}
+	&::-webkit-resizer {
+	background-color: $trackColor;
+	}
+}
