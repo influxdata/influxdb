@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react';
+import {Link} from 'react-router';
 import _ from 'lodash';
 
 const HostsTable = React.createClass({
@@ -108,7 +109,7 @@ const HostsTable = React.createClass({
                       <td className="monotype">{`${load.toFixed(2)}`}</td>
                       <td className="monotype">
                         {apps.map((app) => {
-                          return <a key={app} href={`/sources/${source.id}/hosts/${name}?app=${app}`}>{app}</a>;
+                          return <Link key={app} to={{pathname: `/sources/${source.id}/hosts/${name}`, query: {app}}}>{app}</Link>;
                         })}
                       </td>
                     </tr>
