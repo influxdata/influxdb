@@ -44,15 +44,18 @@ export const LayoutRenderer = React.createClass({
 
     return this.props.cells.map((cell) => {
       const qs = cell.queries.map((q) => {
-        _.merge(q, {host: source});
-        q.text += ` where \"host\" = '${host}' and time > ${timeRange}`;
+        let text = q.text;
+        text += ` where \"host\" = '${host}' and time > ${timeRange}`;
         if (q.wheres && q.wheres.length > 0) {
-          q.text += ` and ${q.wheres.join(' and ')}`;
+          text += ` and ${q.wheres.join(' and ')}`;
         }
         if (q.groupbys && q.groupbys.length > 0) {
-          q.text += ` group by ${q.groupbys.join(',')}`;
+          text += ` group by ${q.groupbys.join(',')}`;
         }
-        return q;
+        return {
+          host: source,
+          text,
+        };
       });
       return (
         <div key={cell.i}>
