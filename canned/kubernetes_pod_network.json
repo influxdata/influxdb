@@ -12,11 +12,10 @@
       "name": "TX bytes/second",
       "queries": [
         {
-          "query": "select non_negative_derivative(last(\"tx_bytes\"), 10s) / 10.0 as tx_bytes_second from kubernetes_pod_network",
+          "query": "select non_negative_derivative(\"tx_bytes\") as tx_bytes_per_second from kubernetes_pod_network",
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [
-            "time(10s)",
             "\"pod_name\"",
             "\"host\""
           ],
@@ -33,11 +32,10 @@
       "name": "RX bytes/second ",
       "queries": [
         {
-          "query": "select non_negative_derivative(last(\"rx_bytes\"), 10s) / 10.0 as rx_bytes_per_second from kubernetes_pod_network",
+          "query": "select non_negative_derivative(\"rx_bytes\") as rx_bytes_per_second from kubernetes_pod_network",
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [
-            "time(10s)",
             "\"pod_name\"",
             "\"host\""
           ],

@@ -36,21 +36,17 @@
       "name": "Sockets created/second ",
       "queries": [
         {
-          "query": "select derivative(last(\"tcp_established\"), 10s)  from netstat",
+          "query": "select derivative(\"tcp_established\") from netstat",
           "db": "telegraf",
           "rp": "autogen",
-          "groupbys": [
-            "time(10s)"
-          ],
+          "groupbys": [],
           "wheres": []
         },
         {
-          "query": "select derivative(last(\"udp_socket\"), 10s)  from netstat",
+          "query": "select derivative(\"udp_socket\") from netstat",
           "db": "telegraf",
           "rp": "autogen",
-          "groupbys": [
-            "time(10s)"
-          ],
+          "groupbys": [],
           "wheres": []
         }
       ]
