@@ -11,34 +11,30 @@ export const ValuesSection = React.createClass({
     }).isRequired,
     onChooseTrigger: PropTypes.func.isRequired,
     onUpdateValues: PropTypes.func.isRequired,
+    query: PropTypes.shape({}).isRequired,
   },
 
   render() {
-    const {rule} = this.props;
-
+    const {rule, query} = this.props;
     return (
-      <div className="container-fluid">
-        <div className="row">
-          <div className="col-md-12">
-            <Tabs onSelect={this.handleChooseTrigger}>
-              <TabList>
-                {TABS.map(tab => <Tab key={tab}>{tab}</Tab>)}
-              </TabList>
+      <div>
+        <Tabs onSelect={this.handleChooseTrigger}>
+          <TabList isKapacitorTabs="true">
+            {TABS.map(tab => <Tab key={tab}>{tab}</Tab>)}
+          </TabList>
 
-              <TabPanels>
-                <TabPanel>
-                  <Threshold rule={rule} onChange={this.handleValuesChange} />
-                </TabPanel>
-                <TabPanel>
-                  <Relative rule={rule} onChange={this.handleValuesChange} />
-                </TabPanel>
-                <TabPanel>
-                  <Deadman rule={rule} onChange={this.handleValuesChange} />
-                </TabPanel>
-              </TabPanels>
-            </Tabs>
-          </div>
-        </div>
+          <TabPanels>
+            <TabPanel>
+              <Threshold rule={rule} query={query} onChange={this.handleValuesChange} />
+            </TabPanel>
+            <TabPanel>
+              <Relative rule={rule} onChange={this.handleValuesChange} />
+            </TabPanel>
+            <TabPanel>
+              <Deadman rule={rule} onChange={this.handleValuesChange} />
+            </TabPanel>
+          </TabPanels>
+        </Tabs>
       </div>
     );
   },
@@ -68,7 +64,9 @@ const Threshold = React.createClass({
       }),
     }),
     onChange: PropTypes.func.isRequired,
+    query: PropTypes.shape({}).isRequired,
   },
+
 
   handleDropdownChange(item) {
     const newValues = Object.assign({}, this.props.rule.values, {[item.type]: item.text});
@@ -83,6 +81,7 @@ const Threshold = React.createClass({
 
   render() {
     const {operator, value, period} = this.props.rule.values;
+    const {query} = this.props;
 
     function mapToItems(arr, type) {
       return arr.map((text) => {
@@ -94,12 +93,14 @@ const Threshold = React.createClass({
     const periods = mapToItems(PERIODS, 'period');
 
     return (
-      <div className="u-flex u-jc-space-around u-ai-center">
-        Value is
-        <Dropdown items={operators} selected={operator} onChoose={this.handleDropdownChange} />
-        <input ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
-        during the last
-        <Dropdown items={periods} selected={period} onChoose={this.handleDropdownChange} />
+      <div className="value-selector">
+        <p>Send Alert where</p>
+        <span>{query.fields.length ? query.fields[0].field : 'Select a Metric'}</span>
+        <p>is</p>
+        <Dropdown className="size-176" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
+        <input className="form-control input-sm size-166" placeholder="00000000000" type="text" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
+        <p>during the last</p>
+        <Dropdown className="size-66" items={periods} selected={period} onChoose={this.handleDropdownChange} />
       </div>
     );
   },
@@ -142,16 +143,17 @@ const Relative = React.createClass({
     const operators = mapToItems(OPERATORS, 'operator');
 
     return (
-      <div className="u-flex u-jc-space-around u-ai-center">
-        <Dropdown items={changes} selected={change} onChoose={this.handleDropdownChange} />
-        over
-        <Dropdown items={periods} selected={period} onChoose={this.handleDropdownChange} />
-        compared to
-        <Dropdown items={shifts} selected={shift} onChoose={this.handleDropdownChange} />
-        before is
-        <Dropdown items={operators} selected={operator} onChoose={this.handleDropdownChange} />
-        <input ref={(r) => this.input = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
-        { change === CHANGES[1] ? '%' : '' }
+      <div className="value-selector">
+        <p>Send Alert when</p>
+        <Dropdown className="size-106"items={changes} selected={change} onChoose={this.handleDropdownChange} />
+        <p>over</p>
+        <Dropdown className="size-66" items={periods} selected={period} onChoose={this.handleDropdownChange} />
+        <p>compared to previous</p>
+        <Dropdown className="size-66" items={shifts} selected={shift} onChoose={this.handleDropdownChange} />
+        <p>is</p>
+        <Dropdown className="size-176" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
+        <input className="form-control input-sm size-49" type="text" ref={(r) => this.input = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
+        <p>{ change === CHANGES[1] ? '%' : '' }</p>
       </div>
     );
   },
@@ -177,9 +179,9 @@ const Deadman = React.createClass({
     });
 
     return (
-      <div className="u-flex u-ai-center">
-        Create an alert if data is missing for
-        <Dropdown items={periods} selected={this.props.rule.values.period} onChoose={this.handleChange} />
+      <div className="value-selector">
+        <p>Send Alert if Data is missing for</p>
+        <Dropdown className="size-66" items={periods} selected={this.props.rule.values.period} onChoose={this.handleChange} />
       </div>
     );
   },

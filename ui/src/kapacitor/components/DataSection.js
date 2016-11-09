@@ -101,7 +101,7 @@ export const DataSection = React.createClass({
     const statement = query.rawText || selectStatement(timeRange, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
 
     return (
-      <div className="query-editor">
+      <div className="query-editor kapacitor-metric-selector">
         <div className="query-editor__code">
           <pre className={classNames("", {"rq-mode": query.rawText})}><code>{statement}</code></pre>
         </div>
@@ -127,7 +127,6 @@ export const DataSection = React.createClass({
     return (
       <div>
         <div className="query-editor__tabs">
-          <div className="query-editor__tabs-heading">Schema Explorer</div>
           <div onClick={_.wrap(DB_TAB, this.handleClickTab)} className={classNames("query-editor__tab", {active: activeTab === DB_TAB})}>Databases</div>
           <div onClick={_.wrap(MEASUREMENTS_TAB, this.handleClickTab)} className={classNames("query-editor__tab", {active: activeTab === MEASUREMENTS_TAB})}>Measurements</div>
           <div onClick={_.wrap(FIELDS_TAB, this.handleClickTab)} className={classNames("query-editor__tab", {active: activeTab === FIELDS_TAB})}>Fields</div>

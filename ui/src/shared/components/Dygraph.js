@@ -3,7 +3,7 @@ import React, {PropTypes} from 'react';
 import Dygraph from '../../external/dygraph';
 import 'style/_Graph.css';
 
-const {arrayOf, object, array, number} = PropTypes;
+const {arrayOf, object, array, number, bool} = PropTypes;
 
 const LINE_COLORS = [
   '#00C9FF',
@@ -30,11 +30,15 @@ export default React.createClass({
     fields: array.isRequired, // eslint-disable-line react/forbid-prop-types
     options: object, // eslint-disable-line react/forbid-prop-types
     containerStyle: object, // eslint-disable-line react/forbid-prop-types
+    isGraphFilled: bool,
+    overrideLineColors: array,
   },
 
   getDefaultProps() {
     return {
       containerStyle: {},
+      isGraphFilled: true,
+      overrideLineColors: null,
     };
   },
 
@@ -53,6 +57,11 @@ export default React.createClass({
     const graphContainerNode = refs.graphContainer;
     const legendContainerNode = refs.legendContainer;
     const markerNode = refs.graphVerticalMarker;
+    let finalLineColors = this.props.overrideLineColors;
+
+    if (finalLineColors === null) {
+      finalLineColors = LINE_COLORS;
+    }
 
     const defaultOptions = {
       labelsSeparateLines: false,
@@ -61,12 +70,12 @@ export default React.createClass({
       rightGap: 0,
       leftGap: 0,
       highlightSeriesBackgroundAlpha: 1,
-      fillGraph: true,
+      fillGraph: this.props.isGraphFilled,
       axisLineWidth: 2,
       gridLineWidth: 1,
       strokeWidth: 1.5,
       highlightCircleSize: 3,
-      colors: LINE_COLORS,
+      colors: finalLineColors,
       valueRange: getRange(timeSeries, yRange),
       highlightSeriesOpts: {
         strokeWidth: 2,

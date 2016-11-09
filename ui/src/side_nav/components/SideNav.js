@@ -28,12 +28,12 @@ const SideNav = React.createClass({
           <NavHeader link={dataExplorerLink} title={'Data'} />
           <NavListItem link={dataExplorerLink}>Explorer</NavListItem>
         </NavBlock>
-        <NavBlock matcher="alerts" icon="alert-triangle" link={`${sourcePrefix}/alerts`}>
+        <NavBlock matcher="alerts" icon="pulse-b" link={`${sourcePrefix}/alerts`}>
           <NavHeader link={`${sourcePrefix}/alerts`} title="Alerting" />
           <NavListItem link={`${sourcePrefix}/alerts`}>View</NavListItem>
           <NavListItem link={`${sourcePrefix}/alert-rules`}>Rules</NavListItem>
         </NavBlock>
-        <NavBlock icon="crown" link={`${sourcePrefix}/manage-sources`}>
+        <NavBlock icon="access-key" link={`${sourcePrefix}/manage-sources`}>
           <NavHeader link={`${sourcePrefix}/manage-sources`} title="Sources" />
           <NavListItem link={`${sourcePrefix}/manage-sources`}>InfluxDB</NavListItem>
           <NavListItem link={`${sourcePrefix}/kapacitor-config`}>Kapacitor</NavListItem>

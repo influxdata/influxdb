@@ -79,7 +79,7 @@ body > #react-root {
   background-size: contain;
 }
 
-.page-wrapper > div:not(.flash-messages):not(.page-spinner) {
+.page-wrapper > div:not(.flash-messages):not(.page-spinner):not(.kapacitor-rule-page):not(.data-explorer-container) {
   position: absolute;
   top: 0;
   left: 0;

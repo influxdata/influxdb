@@ -12,3 +12,49 @@ $sidebar-tier1-height:  56px;
 
 // Data Explorer
 $explorer-page-padding: 18px;
+
+// Mixins
+@mixin gradient-v($startColor, $endColor) {
+	background: $startColor;
+	background: -moz-linear-gradient(top,  $startColor 0%, $endColor 100%);
+	background: -webkit-linear-gradient(top,  $startColor 0%,$endColor 100%);
+	background: linear-gradient(to bottom,  $startColor 0%,$endColor 100%);
+	filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=0 );
+}
+@mixin gradient-h($startColor, $endColor) {
+	background: $startColor;
+	background: -moz-linear-gradient(left,  $startColor 0%, $endColor 100%);
+	background: -webkit-linear-gradient(left,  $startColor 0%,$endColor 100%);
+	background: linear-gradient(to right,  $startColor 0%,$endColor 100%);
+	filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=1 );
+}
+@mixin custom-scrollbar($trackColor, $handleColor) {
+	&::-webkit-scrollbar {
+		width: 14px;
+		border-bottom-right-radius: $radius;
+
+		&-button {
+			background-color: $trackColor;
+		}
+		&-track {
+			background-color: $trackColor;
+			border-bottom-right-radius: $radius;
+		}
+		&-track-piece {
+			background-color: $trackColor;
+			border: 4px solid $trackColor;
+			border-radius: 8px;
+		}
+		&-thumb {
+			background-color: $handleColor;
+			border: 4px solid $trackColor;
+			border-radius: 8px;
+		}
+		&-corner {
+			background-color: $trackColor;
+		}
+	}
+	&::-webkit-resizer {
+	background-color: $trackColor;
+	}
+}

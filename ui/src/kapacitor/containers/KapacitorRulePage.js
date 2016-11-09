@@ -131,17 +131,13 @@ export const KapacitorRulePage = React.createClass({
   },
 
   render() {
-    const {rules, queryConfigs, source, params} = this.props;
+    const {rules, queryConfigs, params} = this.props;
     const rule = this.isEditing() ? rules[params.ruleID] : rules[DEFAULT_RULE_ID];
     const query = rule && queryConfigs[rule.queryID];
-    const autoRefreshMs = 30000;
 
     if (!query) {
       return <div className="page-spinner"></div>;
     }
-
-    const queryText = selectStatement({lower: 'now() - 15m'}, query);
-    const queries = [{host: source.links.proxy, text: queryText}];
 
     return (
       <div className="kapacitor-rule-page">
@@ -151,42 +147,23 @@ export const KapacitorRulePage = React.createClass({
               {this.renderEditName(rule)}
             </div>
             <div className="enterprise-header__right">
-              <button className="btn btn-primary btn-sm" onClick={this.handleSave}>Save</button>
+              <button className="btn btn-success btn-sm" onClick={this.handleSave}>Save Rule</button>
             </div>
           </div>
         </div>
-        <div className="container-fluid">
-          <div className="row">
-            <div className="col-md-12">
-              {
-                queryText ?
-                  <RefreshingLineGraph
-                    queries={queries}
-                    autoRefresh={autoRefreshMs}
-                    underlayCallback={this.createUnderlayCallback(rule)}
-                  />
-                : null
-              }
-            </div>
-          </div>
-          <div className="row">
-            <div className="col-md-12">
-              {this.renderDataSection(query)}
-            </div>
-          </div>
-          <div className="row">
-            <div className="col-md-12">
-              {this.renderValuesSection(rule)}
-            </div>
-          </div>
-          <div className="row">
-            <div className="col-md-12">
-              {this.renderMessageSection(rule)}
-            </div>
-          </div>
-          <div className="row">
-            <div className="col-md-12">
-              {this.renderAlertsSection(rule)}
+        <div className="rule-builder-wrapper">
+          <div className="container-fluid">
+            <div className="row">
+              <div className="col-xs-12">
+                <div className="rule-builder">
+                  {this.renderDataSection(query)}
+                  {this.renderValuesSection(rule)}
+                  <div className="rule-builder--graph">
+                    {this.renderGraph(query, this.createUnderlayCallback(rule))}
+                  </div>
+                  {this.renderMessageSection(rule)}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -197,7 +174,7 @@ export const KapacitorRulePage = React.createClass({
   renderEditName(rule) {
     if (!this.state.isEditingName) {
       return (
-        <h1 onClick={this.toggleEditName}>
+        <h1 className="enterprise-header__editable" onClick={this.toggleEditName}>
           {rule.name}
         </h1>
       );
@@ -205,9 +182,37 @@ export const KapacitorRulePage = React.createClass({
 
     return (
       <input
+        className="enterprise-header__editing"
         autoFocus={true}
         defaultValue={rule.name}
-        ref={r => this.ruleName = r} onKeyDown={(e) => this.handleEditName(e, rule)} onBlur={() => this.handleEditNameBlur(rule)}
+        ref={r => this.ruleName = r}
+        onKeyDown={(e) => this.handleEditName(e, rule)}
+        onBlur={() => this.handleEditNameBlur(rule)}
+        placeholder="Name your Alert"
+      />
+    );
+  },
+
+  renderGraph(query, underlayCallback) {
+    const autoRefreshMs = 30000;
+    const queryText = selectStatement({lower: 'now() - 15m'}, query);
+    const queries = [{host: this.props.source.links.proxy, text: queryText}];
+    const kapacitorLineColors = ["#4ED8A0"];
+
+    if (!queryText) {
+      return (
+        <div className="rule-preview--graph-empty">
+          <p>Select a <strong>Metric</strong> to preview on a graph</p>
+        </div>
+      );
+    }
+    return (
+      <RefreshingLineGraph
+        queries={queries}
+        autoRefresh={autoRefreshMs}
+        underlayCallback={underlayCallback}
+        isGraphFilled={false}
+        overrideLineColors={kapacitorLineColors}
       />
     );
   },
@@ -215,8 +220,10 @@ export const KapacitorRulePage = React.createClass({
   renderDataSection(query) {
     return (
       <div className="kapacitor-rule-section">
-        <h3>Data</h3>
-        <DataSection source={this.props.source} query={query} actions={this.props.queryActions} />
+        <h3 className="rule-section-heading">Select a Metric</h3>
+        <div className="rule-section-body">
+          <DataSection source={this.props.source} query={query} actions={this.props.queryActions} />
+        </div>
       </div>
     );
   },
@@ -225,31 +232,40 @@ export const KapacitorRulePage = React.createClass({
     const {chooseTrigger, updateRuleValues} = this.props.kapacitorActions;
     return (
       <div className="kapacitor-rule-section">
-        <h3>Values</h3>
-        <ValuesSection rule={rule} onChooseTrigger={chooseTrigger} onUpdateValues={updateRuleValues} />
+        <h3 className="rule-section-heading">Values</h3>
+        <div className="rule-section-body">
+          <ValuesSection rule={rule} query={this.props.queryConfigs[rule.queryID]} onChooseTrigger={chooseTrigger} onUpdateValues={updateRuleValues} />
+        </div>
       </div>
     );
   },
 
   renderMessageSection(rule) {
-    return (
-      <div className="kapacitor-rule-section">
-        <h3>Message</h3>
-        <textarea ref={(r) => this.message = r} value={rule.message} onChange={() => this.handleMessageChange(rule)} />
-      </div>
-    );
-  },
-
-  renderAlertsSection(rule) {
     const alerts = this.state.enabledAlerts.map((text) => {
       return {text, ruleID: rule.id};
     });
 
     return (
       <div className="kapacitor-rule-section">
-        <h3>Alerts</h3>
-        The Alert should
-        <Dropdown selected={rule.alerts[0] || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
+        <h3 className="rule-section-heading">Alert Message</h3>
+        <div className="rule-section-body">
+          <textarea className="alert-message" ref={(r) => this.message = r} onChange={() => this.handleMessageChange(rule)} placeholder="Compose your alert message here"/>
+          <div className="rule-section--item bottom">
+            {/* For future use, will be very handy to users
+            <div className="alert-message-key">
+              <label>ACTIONS:</label>
+              <div>
+                <span>&#123;&#123;host&#125;&#125;</span>
+                <span>&#123;&#123;cpu&#125;&#125;</span>
+                <span>&#123;&#123;timestamp&#125;&#125;</span>
+              </div>
+            </div> */}
+            <div className="alert-message-endpoint">
+              <p>Send this Alert to:</p>
+              <Dropdown className="size-256" selected={rule.alerts[0] || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
+            </div>
+          </div>
+        </div>
       </div>
     );
   },
@@ -295,7 +311,7 @@ export const KapacitorRulePage = React.createClass({
       const bottom = dygraph.toDomYCoord(highlightStart);
       const top = dygraph.toDomYCoord(highlightEnd);
 
-      canvas.fillStyle = 'rgba(220,20,60, 1)';
+      canvas.fillStyle = 'rgba(78,216,160,0.3)';
       canvas.fillRect(area.x, top, area.w, bottom - top);
     };
   },
