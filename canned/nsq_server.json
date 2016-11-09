@@ -1,0 +1,41 @@
+{
+  "id": "6c351881-05ec-48f1-b11b-9c36d2c7cc80",
+  "measurement": "nsq_server",
+  "app": "nsq",
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "c376a3d8-cd2a-4212-bf1d-da776b75feeb",
+      "name": "NSQ topic count",
+      "queries": [
+        {
+          "query": "select topic_count from nsq_server",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 4,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "aa1aa20a-48aa-4a42-aaa0-426aa6a58aa8",
+      "name": "NSQ server count",
+      "queries": [
+        {
+          "query": "select server_count from nsq_server",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}
