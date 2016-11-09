@@ -8,14 +8,16 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"collectd.org/api"
+	"collectd.org/network"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/kimor79/gollectd"
 )
 
 // statistics gathered by the collectd service.
@@ -40,6 +42,16 @@ type metaClient interface {
 	CreateDatabase(name string) (*meta.DatabaseInfo, error)
 }
 
+// Reads a collectd types db from a file.
+func TypesDBFile(path string) (typesdb *api.TypesDB, err error) {
+	var reader *os.File
+	reader, err = os.Open(path)
+	if err == nil {
+		typesdb, err = api.NewTypesDB(reader)
+	}
+	return
+}
+
 // Service represents a UDP server which receives metrics in collectd's binary
 // protocol and stores them in InfluxDB.
 type Service struct {
@@ -51,7 +63,7 @@ type Service struct {
 	wg      sync.WaitGroup
 	conn    *net.UDPConn
 	batcher *tsdb.PointBatcher
-	typesdb gollectd.Types
+	popts   network.ParseOpts
 	addr    net.Addr
 
 	mu    sync.RWMutex
@@ -97,12 +109,12 @@ func (s *Service) Open() error {
 		return fmt.Errorf("PointsWriter is nil")
 	}
 
-	if s.typesdb == nil {
+	if s.popts.TypesDB == nil {
 		// Open collectd types.
 		if stat, err := os.Stat(s.Config.TypesDB); err != nil {
 			return fmt.Errorf("Stat(): %s", err)
 		} else if stat.IsDir() {
-			alltypesdb := make(gollectd.Types)
+			alltypesdb := new(api.TypesDB)
 			var readdir func(path string)
 			readdir = func(path string) {
 				files, err := ioutil.ReadDir(path)
@@ -119,33 +131,43 @@ func (s *Service) Open() error {
 					}
 
 					s.Logger.Printf("Loading %s\n", fullpath)
-					types, err := gollectd.TypesDBFile(fullpath)
+					types, err := TypesDBFile(fullpath)
 					if err != nil {
 						s.Logger.Printf("Unable to parse collectd types file: %s\n", f.Name())
 						continue
 					}
 
-					for k, t := range types {
-						a, ok := alltypesdb[k]
-						if ok {
-							alltypesdb[k] = t
-						} else {
-							alltypesdb[k] = append(a, t...)
-						}
-					}
+					alltypesdb.Merge(types)
 				}
 			}
 			readdir(s.Config.TypesDB)
-			s.typesdb = alltypesdb
+			s.popts.TypesDB = alltypesdb
 		} else {
 			s.Logger.Printf("Loading %s\n", s.Config.TypesDB)
-			typesdb, err := gollectd.TypesDBFile(s.Config.TypesDB)
+			types, err := TypesDBFile(s.Config.TypesDB)
 			if err != nil {
 				return fmt.Errorf("Open(): %s", err)
 			}
-			s.typesdb = typesdb
+			s.popts.TypesDB = types
 		}
 	}
+
+	// Sets the security level according to the config.
+	// Default not necessary because we validate the config.
+	switch s.Config.SecurityLevel {
+	case "none":
+		s.popts.SecurityLevel = network.None
+	case "sign":
+		s.popts.SecurityLevel = network.Sign
+	case "encrypt":
+		s.popts.SecurityLevel = network.Encrypt
+	}
+
+	// Sets the auth file according to the config.
+	if s.popts.PasswordLookup == nil {
+		s.popts.PasswordLookup = network.NewAuthFile(s.Config.AuthFile)
+	}
+
 	// Resolve our address.
 	addr, err := net.ResolveUDPAddr("udp", s.Config.BindAddress)
 	if err != nil {
@@ -278,7 +300,8 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 
 // SetTypes sets collectd types db.
 func (s *Service) SetTypes(types string) (err error) {
-	s.typesdb, err = gollectd.TypesDB([]byte(types))
+	reader := strings.NewReader(types)
+	s.popts.TypesDB, err = api.NewTypesDB(reader)
 	return
 }
 
@@ -321,14 +344,14 @@ func (s *Service) serve() {
 }
 
 func (s *Service) handleMessage(buffer []byte) {
-	packets, err := gollectd.Packets(buffer, s.typesdb)
+	valueLists, err := network.Parse(buffer, s.popts)
 	if err != nil {
 		atomic.AddInt64(&s.stats.PointsParseFail, 1)
 		s.Logger.Printf("Collectd parse error: %s", err)
 		return
 	}
-	for _, packet := range *packets {
-		points := s.UnmarshalCollectd(&packet)
+	for _, valueList := range valueLists {
+		points := s.UnmarshalValueList(valueList)
 		for _, p := range points {
 			s.batcher.In() <- p
 		}
@@ -359,41 +382,38 @@ func (s *Service) writePoints() {
 	}
 }
 
-// Unmarshal translates a collectd packet into InfluxDB data points.
-func (s *Service) UnmarshalCollectd(packet *gollectd.Packet) []models.Point {
-	// Prefer high resolution timestamp.
-	var timestamp time.Time
-	if packet.TimeHR > 0 {
-		// TimeHR is "near" nanosecond measurement, but not exactly nanasecond time
-		// Since we store time in microseconds, we round here (mostly so tests will work easier)
-		sec := packet.TimeHR >> 30
-		// Shifting, masking, and dividing by 1 billion to get nanoseconds.
-		nsec := ((packet.TimeHR & 0x3FFFFFFF) << 30) / 1000 / 1000 / 1000
-		timestamp = time.Unix(int64(sec), int64(nsec)).UTC().Round(time.Microsecond)
-	} else {
-		// If we don't have high resolution time, fall back to basic unix time
-		timestamp = time.Unix(int64(packet.Time), 0).UTC()
-	}
+// Unmarshal translates a ValueList into InfluxDB data points.
+func (s *Service) UnmarshalValueList(vl *api.ValueList) []models.Point {
+	timestamp := vl.Time.UTC()
 
 	var points []models.Point
-	for i := range packet.Values {
-		name := fmt.Sprintf("%s_%s", packet.Plugin, packet.Values[i].Name)
+	for i := range vl.Values {
+		var name string
+		name = fmt.Sprintf("%s_%s", vl.Identifier.Plugin, vl.DSName(i))
 		tags := make(map[string]string)
 		fields := make(map[string]interface{})
 
-		fields["value"] = packet.Values[i].Value
+		// Convert interface back to actual type, then to float64
+		switch value := vl.Values[i].(type) {
+		case api.Gauge:
+			fields["value"] = float64(value)
+		case api.Derive:
+			fields["value"] = float64(value)
+		case api.Counter:
+			fields["value"] = float64(value)
+		}
 
-		if packet.Hostname != "" {
-			tags["host"] = packet.Hostname
+		if vl.Identifier.Host != "" {
+			tags["host"] = vl.Identifier.Host
 		}
-		if packet.PluginInstance != "" {
-			tags["instance"] = packet.PluginInstance
+		if vl.Identifier.PluginInstance != "" {
+			tags["instance"] = vl.Identifier.PluginInstance
 		}
-		if packet.Type != "" {
-			tags["type"] = packet.Type
+		if vl.Identifier.Type != "" {
+			tags["type"] = vl.Identifier.Type
 		}
-		if packet.TypeInstance != "" {
-			tags["type_instance"] = packet.TypeInstance
+		if vl.Identifier.TypeInstance != "" {
+			tags["type_instance"] = vl.Identifier.TypeInstance
 		}
 
 		// Drop invalid points
