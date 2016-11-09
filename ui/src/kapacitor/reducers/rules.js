@@ -14,7 +14,7 @@ export default function rules(state = {}, action) {
           message: '',
           alerts: [],
           every: '30s',
-          name: 'My Rule',
+          name: 'Untitled Rule',
         },
       });
     }
