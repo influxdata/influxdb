@@ -6,15 +6,17 @@ $kapacitor-page-padding: ($enterprise-page-header-height / 2);
 $kapacitor-page-gutter: 46px;
 $kapacitor-dot-size: 18px;
 $kapacitor-line-width: 3px;
-$rule-preview-width: 488px;
+$metric-selector-height: 156px;
 $kap-padding-sm: 8px;
 $kap-padding-md: 13px;
 $kap-padding-lg: 24px;
 $kap-radius-lg: 5px;
 $kap-input-height: 30px;
 
-$kapacitor-graphic-color: $g1-raven;
+$kapacitor-graphic-color: $g3-castle;
 $kapacitor-accent: $c-rainforest;
+$kap-line-color: $g5-pepper;
+$kap-dot-color: $c-rainforest;
 
 $kapacitor-font-sm: 13px;
 
@@ -25,11 +27,7 @@ $kapacitor-font-sm: 13px;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: $g2-kevlar;
-  background: -moz-linear-gradient(top, $g2-kevlar 0%, $g0-obsidian 100%);
-  background: -webkit-linear-gradient(top, $g2-kevlar 0%, $g0-obsidian 100%);
-  background: linear-gradient(to bottom, $g2-kevlar 0%, $g0-obsidian 100%);
-  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$g2-kevlar', endColorstr='$g0-obsidian',GradientType=0 );
+  @include gradient-v($g2-kevlar,$g1-raven);
   color: $g17-whisper;
 
   .enterprise-header {
@@ -39,12 +37,6 @@ $kapacitor-font-sm: 13px;
     left: 0;
     width: 100%;
     margin: 0;
-    padding-left: $kapacitor-page-padding;
-    padding-right: $kapacitor-page-padding;
-
-    &__container {
-      max-width: 100%;
-    }
   }
 }
 .rule-builder-wrapper {
@@ -53,52 +45,43 @@ $kapacitor-font-sm: 13px;
   left: 0;
   width: 100%;
   height: calc(100% - #{$enterprise-page-header-height});
-  display: flex;
-  align-items: stretch;
+  overflow: auto;
+  @include custom-scrollbar($g0-obsidian,$kapacitor-accent);
 }
 .rule-builder {
-  width: calc(100% - #{$rule-preview-width});
-  padding: $kapacitor-page-padding;
+  width: 100%;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
-  background: $g2-kevlar;
-  background: -moz-linear-gradient(top, $g5-pepper 0%, $g3-castle 100%);
-  background: -webkit-linear-gradient(top, $g5-pepper 0%, $g3-castle 100%);
-  background: linear-gradient(to bottom, $g5-pepper 0%, $g3-castle 100%);
-  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$g5-pepper', endColorstr='$g3-castle',GradientType=0 );
 }
-.rule-preview {
-  width: $rule-preview-width;
-  padding: $kapacitor-page-padding;
-  display: flex;
-  justify-content: center;
-  align-content: center;
-  align-items: center;
-}
-.rule-preview--graph {
-  width: 100%;
-  background-color: $g3-castle;
-  border-radius: 4px;
-}
-.rule-preview--graph-heading {
-  width: 100%;
-  height: 44px;
-  line-height: 44px;
-  padding: 0 $kap-padding-md;
-  font-size: 16px;
-  color: $g17-whisper;
-  background-color: $g5-pepper;
-  border-radius: 4px 4px 0 0;
-  font-weight: 600;
-  margin: 0;
-}
-.rule-preview--graph-container {
-  width: 100%;
-  padding: $kap-padding-sm $kap-padding-md;
+.rule-builder--graph {
+  margin-left: $kapacitor-page-gutter;
+  width: calc(100% - #{$kapacitor-page-gutter});
+  background-color: $kapacitor-graphic-color;
+  border-radius: 0 0 $kap-radius-lg $kap-radius-lg;
+  padding: $kap-padding-sm ($kap-padding-lg + 2px) $kap-padding-sm $kap-padding-lg;
   height: (320px + ($kap-padding-sm * 2));
   position: relative;
+
+  &:before {
+    content: '';
+    display: block;
+    position: absolute;
+    transform: translateX(-50%);
+    width: $kapacitor-line-width;
+    height: 100%;
+    background-color: $kap-line-color;
+    top: 0;
+    left: (($kapacitor-dot-size / 2) - $kapacitor-page-gutter);
+  }
+  .container--dygraph-legend {
+    background-color: $g5-pepper;
+
+    > span:first-child {
+      border-top-color: $g7-graphite;
+    }
+  }
 }
 .rule-preview--graph-empty {
   position: absolute;
@@ -142,7 +125,7 @@ $kapacitor-font-sm: 13px;
   &:before {
     width: $kapacitor-line-width;
     height: 100%;
-    background-color: $kapacitor-graphic-color;
+    background-color: $kap-line-color;
     top: 0;
     left: ($kapacitor-dot-size/2);
   }
@@ -150,8 +133,8 @@ $kapacitor-font-sm: 13px;
   &:after {
     width: $kapacitor-dot-size;
     height: $kapacitor-dot-size;
-    background-color: $kapacitor-accent;
-    border: 6px solid $kapacitor-graphic-color;
+    background-color: $kap-dot-color;
+    border: 6px solid $kap-line-color;
     border-radius: 50%;
     top: ($kapacitor-page-padding + 3px);
     left: ($kapacitor-dot-size / 2);
@@ -170,7 +153,7 @@ $kapacitor-font-sm: 13px;
     transform: translateX(-50%);
     width: $kapacitor-line-width;
     height: 100%;
-    background-color: $kapacitor-graphic-color;
+    background-color: $kap-line-color;
     top: 0;
     left: ($kapacitor-dot-size / 2);
   }
@@ -196,7 +179,6 @@ $kapacitor-font-sm: 13px;
 }
 
 
-$metric-selector-height: 156px;
 
 div.query-editor.kapacitor-metric-selector {
   border-radius: 0;
@@ -211,62 +193,58 @@ div.query-editor.kapacitor-metric-selector {
     color: $kapacitor-accent;
     border-radius: $kap-radius-lg $kap-radius-lg 0 0;
     border: 0;
-    padding: $kap-padding-sm $kap-padding-md;
+    padding: $kap-padding-md $kap-padding-lg 0 $kap-padding-lg;
   }
 
   // Tabs
   .query-editor__tabs {
     background-color: $kapacitor-graphic-color;
-    padding: 0 $kap-padding-md;
+    padding: $kap-padding-sm $kap-padding-lg 0 $kap-padding-lg;
+    margin-top: 2px;
   }
   .query-editor__tab {
-    background-color: $kapacitor-graphic-color;
-    font-weight: 500;
-    padding-left: $kap-padding-md;
-    padding-right: $kap-padding-md;
+    font-size: $kapacitor-font-sm;
+    background-color: $g3-castle;
+    font-weight: 700;
+    padding: 0 $kap-padding-md;
+    height: $kap-input-height;
+    line-height: ($kap-input-height - 4px);
+    margin: 0;
+    border-radius: 0;
+    border-style: solid;
+    border-color: $g5-pepper;
+    border-width: 2px 0 2px 2px;
+    color: $g11-sidewalk;
+
+    &:first-child {
+      border-top-left-radius: 4px;
+      border-bottom-left-radius: 4px;
+    }
+    &:last-child {
+      border-top-right-radius: 4px;
+      border-bottom-right-radius: 4px;
+      border-right-width: 2px;
+    }
+    &:hover {
+      background-color: $g4-onyx;
+      color: $g20-white;
+    }
 
     &.active {
-      background-color: $g3-castle;
+      background-color: $g5-pepper;
+      color: $kapacitor-accent;
     }
   }
 
   // Editor List
   .query-editor__list {
-    background-color: $g3-castle;
+    padding-top: $kap-padding-sm;
+    background-color: $kapacitor-graphic-color;
     min-height: $metric-selector-height;
     max-height: $metric-selector-height;
     height: $metric-selector-height;
     border-radius: 0 0 $kap-radius-lg $kap-radius-lg;
-
-    // Custom Scrollbar styles, pretty sure these only work in chrome
-    &::-webkit-scrollbar {
-      width: 14px;
-      border-bottom-right-radius: $radius;
-
-      &-button {
-        background-color: $g3-castle;
-      }
-      &-track {
-        background-color: $g3-castle;
-        border-bottom-right-radius: $radius;
-      }
-      &-track-piece {
-        background-color: $g2-kevlar;
-        border: 4px solid $g3-castle;
-        border-radius: 8px;
-      }
-      &-thumb {
-        background-color: $kapacitor-accent;
-        border: 4px solid $g3-castle;
-        border-radius: 8px;
-      }
-      &-corner {
-        background-color: $g3-castle;
-      }
-    }
-    &::-webkit-resizer {
-      background-color: $g6-smoke;
-    }
+    @include custom-scrollbar($kapacitor-graphic-color,$kapacitor-accent);
   }
   .query-editor__list-header {
     background-color: $g3-castle;
@@ -274,25 +252,37 @@ div.query-editor.kapacitor-metric-selector {
   }
   .query-editor__list-item {
     font-size: $kapacitor-font-sm;
+    font-weight: 600;
     padding-left: $kap-padding-lg;
     padding-right: $kap-padding-lg;
+    color: $g11-sidewalk;
 
     &:hover {
-      background-color: $g5-pepper;
+      background-color: $g3-castle;
+      color: $g20-white;
     }
     &.active {
+      font-weight: 600;
       background-color: $g5-pepper;
       color: $kapacitor-accent;
     }
+  }
+
+  // Empty State
+  .query-editor__empty {
+    background-color: $kapacitor-graphic-color;
+    height: $metric-selector-height;
+    min-height: $metric-selector-height;
+    max-height: $metric-selector-height;
   }
 }
 
 .alert-message {
   border: 2px solid $g3-castle;
-  border-radius: 4px;
+  border-radius: $kap-radius-lg $kap-radius-lg 0 0;
   background-color: $kapacitor-graphic-color;
-  margin: 0;
-  padding: $kap-padding-sm;
+  margin: 0 0 2px 0;
+  padding: $kap-padding-sm $kap-padding-lg;
   color: $kapacitor-accent;
   width: 100%;
   height: 100px;
@@ -307,6 +297,8 @@ div.query-editor.kapacitor-metric-selector {
     color 0.25s ease,
     border-color 0.25s ease;
 
+  @include custom-scrollbar($kapacitor-graphic-color,$kapacitor-accent);
+
   &:hover {
     border-color: $g4-onyx;
   }
@@ -319,6 +311,15 @@ div.query-editor.kapacitor-metric-selector {
   &::-moz-placeholder { color: $g9-mountain; }
   &:-ms-input-placeholder { color: $g9-mountain; }
   &:-moz-placeholder { color: $g9-mountain; }
+}
+.alert-message-endpoint {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+
+  > p {
+    margin-right: $kap-padding-sm !important;
+  }
 }
 .alert-message-key {
   margin-top: $kap-padding-sm;
@@ -357,22 +358,16 @@ div.query-editor.kapacitor-metric-selector {
     font-weight: 600;
     display: inline-block;
     color: $g15-platinum;
-    text-transform: capitalize;
   }
 
-  &:first-of-type {
+  &.top {
     border-top-left-radius: $kap-radius-lg;
     border-top-right-radius: $kap-radius-lg;
   }
-  &:last-of-type {
+  &.bottom {
     border-bottom-left-radius: $kap-radius-lg;
     border-bottom-right-radius: $kap-radius-lg;
   }
-}
-.alert-endpoint-dropdown {
-  display: inline-block;
-  position: relative;
-  margin-left: $kap-padding-sm;
 }
 
 .kapacitor-values-tabs,
@@ -396,7 +391,23 @@ div.query-editor.kapacitor-metric-selector {
     white-space: nowrap;
     font-weight: 600;
     color: $g15-platinum;
-    text-transform: capitalize;
+  }
+  > span {
+    color: $kapacitor-accent;
+    height: $kap-input-height;
+    line-height: $kap-input-height;
+    display: inline-block;
+    vertical-align: middle;
+    border-radius: 4px;
+    background-color: $g5-pepper;
+    margin: ($kap-padding-sm / 2);
+    padding: 0 $kap-padding-sm;
+    font-weight: 700;
+    font-size: $kapacitor-font-sm;
+
+    &:hover {
+      cursor: default;
+    }
   }
 }
 
@@ -416,7 +427,7 @@ div.query-editor.kapacitor-metric-selector {
       color: $g11-sidewalk;
 
       &:hover {
-        background-color: $g3-castle;
+        background-color: $g4-onyx;
         color: $g20-white;
       }
       &.active {
@@ -425,9 +436,6 @@ div.query-editor.kapacitor-metric-selector {
       }
     }
   }
-}
-.value-selector {
-  border-radius: 0 0 $kap-radius-lg $kap-radius-lg;
 }
 
 // Overriding form styles in the builder
@@ -439,7 +447,7 @@ div.query-editor.kapacitor-metric-selector {
     font-weight: 600;
     font-size: $kapacitor-font-sm;
     font-family: Consolas, "Lucida Console", Monaco, monospace;
-    height: 30px;
+    height: $kap-input-height;
 
     &:focus {
       border-color: $kapacitor-accent;
@@ -482,6 +490,9 @@ div.query-editor.kapacitor-metric-selector {
   .size-166 {
     width: 166px;
   }
+  .size-136 {
+    width: 136px;
+  }
   .size-106 {
     width: 106px;
   }
@@ -500,6 +511,9 @@ div.query-editor.kapacitor-metric-selector {
     border-radius: 4px;
     @include gradient-v($c-viridian,$c-ocean);
 
+    > li {
+      width: 100%;
+    }
     > li > a {
       text-transform: capitalize;
       font-size: $kapacitor-font-sm;
@@ -522,4 +536,29 @@ div.query-editor.kapacitor-metric-selector {
       border-bottom-right-radius: 4px;
     }
   }
+}
+
+.enterprise-header__editable {
+  transition: color 0.25s ease;
+
+  &:hover {
+    color: $g13-mist;
+  }
+}
+.enterprise-header__editing {
+  border: 0;
+  outline: none;
+  background-color: $g0-obsidian;
+  font-size: 20px;
+  font-weight: 400;
+  padding: 0;
+  width: 466px;
+
+  &:focus {
+    color: $kapacitor-accent;
+  }
+  &::-webkit-input-placeholder { color: $g9-mountain; }
+  &::-moz-placeholder { color: $g9-mountain; }
+  &:-ms-input-placeholder { color: $g9-mountain; }
+  &:-moz-placeholder { color: $g9-mountain; }
 }

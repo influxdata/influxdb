@@ -152,17 +152,17 @@ export const KapacitorRulePage = React.createClass({
           </div>
         </div>
         <div className="rule-builder-wrapper">
-          <div className="rule-builder">
-            {this.renderDataSection(query)}
-            {this.renderValuesSection(rule)}
-            {this.renderMessageSection(rule)}
-            {this.renderAlertsSection(rule)}
-          </div>
-          <div className="rule-preview">
-            <div className="rule-preview--graph">
-              <h1 className="rule-preview--graph-heading">Alert Preview</h1>
-              <div className="rule-preview--graph-container">
-                {this.renderGraph(query, this.createUnderlayCallback(rule))}
+          <div className="container-fluid">
+            <div className="row">
+              <div className="col-xs-12">
+                <div className="rule-builder">
+                  {this.renderDataSection(query)}
+                  {this.renderValuesSection(rule)}
+                  <div className="rule-builder--graph">
+                    {this.renderGraph(query, this.createUnderlayCallback(rule))}
+                  </div>
+                  {this.renderMessageSection(rule)}
+                </div>
               </div>
             </div>
           </div>
@@ -174,7 +174,7 @@ export const KapacitorRulePage = React.createClass({
   renderEditName(rule) {
     if (!this.state.isEditingName) {
       return (
-        <h1 onClick={this.toggleEditName}>
+        <h1 className="enterprise-header__editable" onClick={this.toggleEditName}>
           {rule.name}
         </h1>
       );
@@ -182,11 +182,13 @@ export const KapacitorRulePage = React.createClass({
 
     return (
       <input
+        className="enterprise-header__editing"
         autoFocus={true}
         defaultValue={rule.name}
         ref={r => this.ruleName = r}
         onKeyDown={(e) => this.handleEditName(e, rule)}
         onBlur={() => this.handleEditNameBlur(rule)}
+        placeholder="Name your Alert"
       />
     );
   },
@@ -195,10 +197,12 @@ export const KapacitorRulePage = React.createClass({
     const autoRefreshMs = 30000;
     const queryText = selectStatement({lower: 'now() - 15m'}, query);
     const queries = [{host: this.props.source.links.proxy, text: queryText}];
+    const kapacitorLineColors = ["#4ED8A0"];
+
     if (!queryText) {
       return (
         <div className="rule-preview--graph-empty">
-          <p>Select a metric from<br/>the <strong>Data</strong> section on the left</p>
+          <p>Select a <strong>Metric</strong> to preview on a graph</p>
         </div>
       );
     }
@@ -216,7 +220,7 @@ export const KapacitorRulePage = React.createClass({
   renderDataSection(query) {
     return (
       <div className="kapacitor-rule-section">
-        <h3 className="rule-section-heading">Choose a Metric</h3>
+        <h3 className="rule-section-heading">Select a Metric</h3>
         <div className="rule-section-body">
           <DataSection source={this.props.source} query={query} actions={this.props.queryActions} />
         </div>
@@ -230,19 +234,24 @@ export const KapacitorRulePage = React.createClass({
       <div className="kapacitor-rule-section">
         <h3 className="rule-section-heading">Values</h3>
         <div className="rule-section-body">
-          <ValuesSection rule={rule} onChooseTrigger={chooseTrigger} onUpdateValues={updateRuleValues} />
+          <ValuesSection rule={rule} query={this.props.queryConfigs[rule.queryID]} onChooseTrigger={chooseTrigger} onUpdateValues={updateRuleValues} />
         </div>
       </div>
     );
   },
 
   renderMessageSection(rule) {
+    const alerts = this.state.enabledAlerts.map((text) => {
+      return {text, ruleID: rule.id};
+    });
+
     return (
       <div className="kapacitor-rule-section">
         <h3 className="rule-section-heading">Alert Message</h3>
         <div className="rule-section-body">
-          <div className="rule-section--item">
-            <textarea className="alert-message" ref={(r) => this.message = r} onChange={() => this.handleMessageChange(rule)} placeholder="Compose your alert message here"/>
+          <textarea className="alert-message" ref={(r) => this.message = r} onChange={() => this.handleMessageChange(rule)} placeholder="Compose your alert message here"/>
+          <div className="rule-section--item bottom">
+            {/* For future use, will be very handy to users
             <div className="alert-message-key">
               <label>ACTIONS:</label>
               <div>
@@ -250,25 +259,11 @@ export const KapacitorRulePage = React.createClass({
                 <span>&#123;&#123;cpu&#125;&#125;</span>
                 <span>&#123;&#123;timestamp&#125;&#125;</span>
               </div>
+            </div> */}
+            <div className="alert-message-endpoint">
+              <p>Send this Alert to:</p>
+              <Dropdown className="size-256" selected={rule.alerts[0] || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
             </div>
-          </div>
-        </div>
-      </div>
-    );
-  },
-
-  renderAlertsSection(rule) {
-    const alerts = this.state.enabledAlerts.map((text) => {
-      return {text, ruleID: rule.id};
-    });
-
-    return (
-      <div className="kapacitor-rule-section">
-        <h3 className="rule-section-heading">Alert Endpoint</h3>
-        <div className="rule-section-body">
-          <div className="rule-section--item">
-            <p>Send this Alert to:</p>
-            <Dropdown className="alert-endpoint-dropdown size-256" selected={rule.alerts[0] || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
           </div>
         </div>
       </div>
@@ -316,7 +311,7 @@ export const KapacitorRulePage = React.createClass({
       const bottom = dygraph.toDomYCoord(highlightStart);
       const top = dygraph.toDomYCoord(highlightEnd);
 
-      canvas.fillStyle = 'rgba(220,20,60, 1)';
+      canvas.fillStyle = 'rgba(78,216,160,0.3)';
       canvas.fillRect(area.x, top, area.w, bottom - top);
     };
   },

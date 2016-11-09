@@ -11,11 +11,11 @@ export const ValuesSection = React.createClass({
     }).isRequired,
     onChooseTrigger: PropTypes.func.isRequired,
     onUpdateValues: PropTypes.func.isRequired,
+    query: PropTypes.shape({}).isRequired,
   },
 
   render() {
-    const {rule} = this.props;
-
+    const {rule, query} = this.props;
     return (
       <div>
         <Tabs onSelect={this.handleChooseTrigger}>
@@ -25,7 +25,7 @@ export const ValuesSection = React.createClass({
 
           <TabPanels>
             <TabPanel>
-              <Threshold rule={rule} onChange={this.handleValuesChange} />
+              <Threshold rule={rule} query={query} onChange={this.handleValuesChange} />
             </TabPanel>
             <TabPanel>
               <Relative rule={rule} onChange={this.handleValuesChange} />
@@ -64,7 +64,9 @@ const Threshold = React.createClass({
       }),
     }),
     onChange: PropTypes.func.isRequired,
+    query: PropTypes.shape({}).isRequired,
   },
+
 
   handleDropdownChange(item) {
     const newValues = Object.assign({}, this.props.rule.values, {[item.type]: item.text});
@@ -79,6 +81,7 @@ const Threshold = React.createClass({
 
   render() {
     const {operator, value, period} = this.props.rule.values;
+    const {query} = this.props;
 
     function mapToItems(arr, type) {
       return arr.map((text) => {
@@ -91,9 +94,11 @@ const Threshold = React.createClass({
 
     return (
       <div className="value-selector">
-        <p>Send Alert when Value is</p>
+        <p>Send Alert where</p>
+        <span>{query.fields.length ? query.fields[0].field : 'Select a Metric'}</span>
+        <p>is</p>
         <Dropdown className="size-176" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
-        <input className="form-control input-sm size-49" placeholder="000" type="text" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
+        <input className="form-control input-sm size-166" placeholder="00000000000" type="text" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
         <p>during the last</p>
         <Dropdown className="size-66" items={periods} selected={period} onChoose={this.handleDropdownChange} />
       </div>
