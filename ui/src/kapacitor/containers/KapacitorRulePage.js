@@ -82,7 +82,11 @@ export const KapacitorRulePage = React.createClass({
   handleSave() {
     const {queryConfigs, rules, params, source} = this.props;
     if (this.isEditing()) { // If we are editing updated rule if not, create a new one
-      editRule(rules[params.ruleID]).then(() => {
+      const rule = rules[params.ruleID];
+      const updatedRule = Object.assign({}, rule, {
+        query: queryConfigs[rule.queryID],
+      });
+      editRule(updatedRule).then(() => {
         this.props.addFlashMessage({type: 'success', text: `Rule successfully updated!`});
       }).catch(() => {
         this.props.addFlashMessage({type: 'failure', text: `There was a problem updating the rule`});
