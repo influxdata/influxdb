@@ -919,6 +919,73 @@ func TestMetaClient_CreateShardGroupIdempotent(t *testing.T) {
 	}
 }
 
+func TestMetaClient_PruneShardGroups(t *testing.T) {
+	t.Parallel()
+
+	d, c := newClient()
+	defer os.RemoveAll(d)
+	defer c.Close()
+
+	if _, err := c.CreateDatabase("db0"); err != nil {
+		t.Fatal(err)
+	}
+
+	duration := 1 * time.Hour
+	replicaN := 1
+
+	if _, err := c.CreateRetentionPolicy("db0", &meta.RetentionPolicySpec{
+		Name:     "rp0",
+		Duration: &duration,
+		ReplicaN: &replicaN,
+	}, true); err != nil {
+		t.Fatal(err)
+	}
+
+	sg, err := c.CreateShardGroup("db0", "autogen", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	} else if sg == nil {
+		t.Fatalf("expected ShardGroup")
+	}
+
+	sg, err = c.CreateShardGroup("db0", "rp0", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	} else if sg == nil {
+		t.Fatalf("expected ShardGroup")
+	}
+
+	expiration := time.Now().Add(-2 * 7 * 24 * time.Hour).Add(-1 * time.Hour)
+
+	data := c.Data()
+	data.Databases[0].RetentionPolicies[0].ShardGroups[0].DeletedAt = expiration
+
+	if err := c.SetData(&data); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := c.PruneShardGroups(); err != nil {
+		t.Fatal(err)
+	}
+
+	data = c.Data()
+	rp, err := data.RetentionPolicy("db0", "autogen")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, exp := len(rp.ShardGroups), 0; got != exp {
+		t.Fatalf("failed to prune shard group. got: %d, exp: %d", got, exp)
+	}
+
+	rp, err = data.RetentionPolicy("db0", "rp0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, exp := len(rp.ShardGroups), 1; got != exp {
+		t.Fatalf("failed to prune shard group. got: %d, exp: %d", got, exp)
+	}
+}
+
 func TestMetaClient_PersistClusterIDAfterRestart(t *testing.T) {
 	t.Parallel()
 
