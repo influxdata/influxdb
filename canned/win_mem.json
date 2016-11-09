@@ -1,5 +1,5 @@
 {
-  "id": "d795c66f-0d8a-4fc0-b7bf-2cef1d2f4519",
+  "id": "cef6c954-f066-4348-9425-4132429fe817",
   "measurement": "win_mem",
   "app": "Windows Host memory metrics",
   "cells": [
@@ -8,7 +8,7 @@
       "y": 0,
       "w": 10,
       "h": 10,
-      "i": "ff51a6a0-c58c-44b8-a6ed-e35f652bb524",
+      "i": "1c275ca5-84a7-4146-9cf0-8ed654abb627",
       "name": "Available bytes",
       "queries": [
         {
