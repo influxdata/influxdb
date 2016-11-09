@@ -1,0 +1,84 @@
+{
+  "id": "0975a073-9eb8-471c-aaf2-692b65f9fe5c",
+  "measurement": "postgresql",
+  "app": "PostgreSQL",
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "",
+      "i": "b417bc9f-b16d-4691-91a7-85adfdd3e8ec",
+      "name": "PostgreSQL Rows",
+      "queries": [
+        {
+          "query": "select non_negative_derivative(mean(tup_fetched)) as fetched, non_negative_derivative(mean(tup_returned)) as returned, non_negative_derivative(mean(tup_inserted)) as inserted, non_negative_derivative(mean(tup_updated)) as updated from postgresql",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [
+            "time(1m)"
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 10,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "4762130d-7005-467f-80ad-8c7f6dfe822e",
+      "name": "PostgreSQL Buffers",
+      "queries": [
+        {
+          "query": "select mean(buffers_alloc) as buffers_allocated, mean(buffers_backend) as buffers_backend, mean(buffers_backend_fsync) as buffers_backend_fsync, mean(buffers_checkpoint) as buffers_checkpoint, mean(buffers_clean) as buffers_clean from postgresql",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [
+            "time(1m)"
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 20,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "95e73bda-7527-4aca-89dd-109cb6bb4294",
+      "name": "PostgreSQL Conflicts/Deadlocks",
+      "queries": [
+        {
+          "query": "select mean(conflicts) as conflicts, mean(deadlocks) as deadlocks from postgresql",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [
+            "time(1m)"
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 20,
+      "y": 10,
+      "w": 15,
+      "h": 10,
+      "i": "230d5baa-9376-438c-9a55-6f97f8c68e69",
+      "name": "PostgreSQL QPS",
+      "queries": [
+        {
+          "query": "select mean(xact_commit) as xact_commit from postgresql",
+          "db": "telegraf",
+          "rp": "autogen",
+          "groupbys": [
+            "time(1m)"
+          ],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}
