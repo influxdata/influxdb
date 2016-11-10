@@ -2,7 +2,6 @@ import React, {PropTypes} from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import {Link} from 'react-router';
-import {deleteRule} from 'src/kapacitor/apis';
 import * as kapacitorActionCreators from 'src/kapacitor/actions/view';
 
 export const KapacitorRulesPage = React.createClass({
@@ -32,14 +31,8 @@ export const KapacitorRulesPage = React.createClass({
   },
 
   handleDeleteRule(rule) {
-    const {addFlashMessage, actions} = this.props;
-
-    deleteRule(rule).then(() => {
-      actions.deleteRule(rule.id);
-      addFlashMessage({type: 'success', text: `${rule.name} deleted successfully`});
-    }).catch(() => {
-      addFlashMessage({type: 'error', text: `Could not delete ${rule.name}`});
-    });
+    const {actions} = this.props;
+    actions.deleteRule(rule);
   },
 
   render() {
