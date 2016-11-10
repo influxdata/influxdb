@@ -48,6 +48,12 @@ type SeriesBlock struct {
 	seriesData []byte
 }
 
+// Series returns a series element.
+func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
+	panic("TODO: Add hashmap to series block")
+	panic("TODO: Lookup series by hashmap")
+}
+
 // SeriesOffset returns offset of the encoded series key.
 // Returns 0 if the key does not exist in the series list.
 func (blk *SeriesBlock) SeriesOffset(key []byte) (offset uint32, deleted bool) {

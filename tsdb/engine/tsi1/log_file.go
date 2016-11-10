@@ -5,9 +5,11 @@ import (
 	"encoding/binary"
 	"hash/crc32"
 	"io"
+	"io/ioutil"
 	"os"
 	"sort"
 
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/tsdb"
@@ -59,6 +61,18 @@ func (f *LogFile) open() error {
 		return err
 	}
 	f.file = file
+
+	// Finish opening if file is empty.
+	fi, err := file.Stat()
+	if err != nil {
+		return err
+	} else if fi.Size() == 0 {
+		return nil
+	}
+	println("FI", fi.Size())
+
+	buf, _ := ioutil.ReadFile(f.Path)
+	Hexdump(buf)
 
 	// Open a read-only memory map of the existing data.
 	data, err := mmap.Map(f.Path)
@@ -126,6 +140,26 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 	return f.append(LogEntry{Flag: LogEntryTagValueTombstoneFlag, Name: name, Tags: models.Tags{{Key: key, Value: value}}})
 }
 
+// Series returns a series reference.
+func (f *LogFile) Series(name []byte, tags models.Tags) SeriesElem {
+	mm, ok := f.mms[string(name)]
+	if !ok {
+		return nil
+	}
+
+	// Find index of series in measurement.
+	i := sort.Search(len(mm.series), func(i int) bool {
+		return models.CompareTags(mm.series[i].tags, tags) != -1
+	})
+
+	// Return if match found. Otherwise return nil.
+	if i < len(mm.series) && mm.series[i].tags.Equal(tags) {
+		e := mm.series[i]
+		return &e
+	}
+	return nil
+}
+
 // AddSeries adds a series to the log file.
 func (f *LogFile) AddSeries(name []byte, tags models.Tags) error {
 	return f.insertSeries(LogEntry{Name: name, Tags: tags})
@@ -171,6 +205,10 @@ func (f *LogFile) insertSeries(e LogEntry) error {
 		// Save key.
 		mm.tagSet[string(t.Key)] = ts
 	}
+
+	// Insert series to list.
+	// TODO: Remove global series list.
+	mm.series.insert(e.Name, e.Tags, deleted)
 
 	// Save measurement.
 	f.mms[string(e.Name)] = mm
@@ -230,7 +268,10 @@ func (f *LogFile) MeasurementIterator() MeasurementIterator {
 
 // MeasurementSeriesIterator returns an iterator over all series in the log file.
 func (f *LogFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
-	panic("TODO")
+	mm := f.mms[string(name)]
+	itr := logSeriesIterator{series: make(logSeries, len(mm.series))}
+	copy(itr.series, mm.series)
+	return &itr
 }
 
 // CompactTo compacts the log file and writes it to w.
@@ -506,6 +547,11 @@ type logSerie struct {
 	offset  uint32
 }
 
+func (s *logSerie) Name() []byte        { return s.name }
+func (s *logSerie) Tags() models.Tags   { return s.tags }
+func (s *logSerie) Deleted() bool       { return s.deleted }
+func (s *logSerie) Expr() influxql.Expr { return nil }
+
 type logSeries []logSerie
 
 func (a logSeries) Len() int      { return len(a) }
@@ -555,6 +601,7 @@ type logMeasurement struct {
 	name    []byte
 	tagSet  map[string]logTagSet
 	deleted bool
+	series  logSeries
 
 	// Compaction fields.
 	offset    int64    // tagset offset
@@ -622,4 +669,18 @@ func (tv *logTagValue) insertEntry(e LogEntry) {
 	tv.entries = append(tv.entries, LogEntry{})
 	copy(tv.entries[i+1:], tv.entries[i:])
 	tv.entries[i] = e
+}
+
+// logSeriesIterator represents an iterator over a slice of series.
+type logSeriesIterator struct {
+	series logSeries
+}
+
+// Next returns the next element in the iterator.
+func (itr *logSeriesIterator) Next() (e SeriesElem) {
+	if len(itr.series) == 0 {
+		return nil
+	}
+	e, itr.series = &itr.series[0], itr.series[1:]
+	return e
 }

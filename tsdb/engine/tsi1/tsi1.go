@@ -362,6 +362,18 @@ func CompareSeriesElem(a, b SeriesElem) int {
 	return models.CompareTags(a.Tags(), b.Tags())
 }
 
+// seriesElem represents an in-memory implementation of SeriesElem.
+type seriesElem struct {
+	name    []byte
+	tags    models.Tags
+	deleted bool
+}
+
+func (e *seriesElem) Name() []byte        { return e.name }
+func (e *seriesElem) Tags() models.Tags   { return e.tags }
+func (e *seriesElem) Deleted() bool       { return e.deleted }
+func (e *seriesElem) Expr() influxql.Expr { return nil }
+
 // SeriesIterator represents a iterator over a list of series.
 type SeriesIterator interface {
 	Next() SeriesElem

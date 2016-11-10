@@ -22,6 +22,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/engine/tsi1"
 )
 
 //go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl
@@ -424,6 +425,13 @@ func (e *Engine) Open() error {
 		e.SetCompactionsEnabled(true)
 	}
 
+	// Open index.
+	index := &tsi1.Index{Path: e.path}
+	if err := index.Open(); err != nil {
+		return err
+	}
+	e.index = index
+
 	return nil
 }
 
@@ -666,8 +674,8 @@ func (e *Engine) addToIndexFromKey(shardID uint64, key []byte, fieldType influxq
 	seriesKey, field := SeriesAndFieldFromCompositeKey(key)
 	measurement := tsdb.MeasurementFromSeriesKey(string(seriesKey))
 
-	m, _ := index.CreateMeasurementIndexIfNotExists(measurement)
-	m.SetFieldName(field)
+	// m, _ := index.CreateMeasurementIndexIfNotExists([]byte(measurement))
+	// m.SetFieldName(field)
 
 	mf := e.measurementFields[measurement]
 	if mf == nil {
@@ -679,21 +687,11 @@ func (e *Engine) addToIndexFromKey(shardID uint64, key []byte, fieldType influxq
 		return err
 	}
 
-	// Have we already indexed this series?
-	ss, err := index.Series(seriesKey)
-	if err != nil {
-		return err
-	} else if ss != nil {
-		return nil
-	}
+	// // ignore error because ParseKey returns "missing fields" and we don't have
+	// // fields (in line protocol format) in the series key
+	// _, tags, _ := models.ParseKey(seriesKey)
 
-	// ignore error because ParseKey returns "missing fields" and we don't have
-	// fields (in line protocol format) in the series key
-	_, tags, _ := models.ParseKey(seriesKey)
-
-	s := tsdb.NewSeries(seriesKey, tags)
-	index.CreateSeriesIndexIfNotExists(measurement, s)
-
+	// return index.CreateSeriesIfNotExists([]byte(measurement), tags)
 	return nil
 }
 
@@ -848,18 +846,13 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		return err
 	}
 
-	var toDelete []string
+	var toDelete [][]byte
 	for k, exists := range existing {
 		if !exists {
-			toDelete = append(toDelete, k)
+			toDelete = append(toDelete, []byte(k))
 		}
 	}
 	return e.index.DropSeries(toDelete)
-}
-
-// CreateMeasurement creates a measurement on the index.
-func (e *Engine) CreateMeasurement(name string) (*tsdb.Measurement, error) {
-	return e.index.CreateMeasurementIndexIfNotExists(name)
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
@@ -876,13 +869,8 @@ func (e *Engine) DeleteMeasurement(name []byte, seriesKeys [][]byte) error {
 	return e.index.DropMeasurement(name)
 }
 
-func (e *Engine) CreateSeries(measurment string, series *tsdb.Series) (*tsdb.Series, error) {
-	return e.index.CreateSeriesIndexIfNotExists(measurment, series)
-}
-
-// Series returns a series from the index.
-func (e *Engine) Series(key []byte) (*tsdb.Series, error) {
-	return e.index.Series(key)
+func (e *Engine) CreateSeriesIfNotExists(name []byte, tags models.Tags) error {
+	return e.index.CreateSeriesIfNotExists(name, tags)
 }
 
 func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
@@ -1345,7 +1333,11 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions, aggregate bo
 	if err := func() error {
 		for _, name := range influxql.Sources(opt.Sources).Names() {
 			// Generate tag sets from index.
-			tagSets := e.index.TagSets(name, opt.Dimensions, opt.Condition, opt.SLimit, opt.SOffset)
+			tagSets, err := e.index.TagSets([]byte(name), opt.Dimensions, opt.Condition)
+			if err != nil {
+				return err
+			}
+			tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
 
 			// Create iterators for each tagset.
 			for _, t := range tagSets {
@@ -1466,11 +1458,7 @@ func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, name string, s
 
 // createVarRefSeriesIterator creates an iterator for a variable reference for a series.
 func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, seriesKey string, t *influxql.TagSet, filter influxql.Expr, conditionFields []influxql.VarRef, opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	tfs, err := e.index.TagsForSeries(seriesKey)
-	if err != nil {
-		return nil, err
-	}
-
+	tfs := models.ParseSeriesTags([]byte(seriesKey))
 	tags := influxql.NewTags(tfs.Map())
 
 	// Create options specific for this series.

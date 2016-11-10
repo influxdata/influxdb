@@ -1914,6 +1914,11 @@ func (p *point) Reset() {
 	p.it.end = 0
 }
 
+// ParseSeriesTags parses tags from a series key.
+func ParseSeriesTags(key []byte) Tags {
+	panic("TODO")
+}
+
 // MarshalBinary encodes all the fields to their proper type and returns the binary
 // represenation
 // NOTE: uint64 is specifically not supported due to potential overflow when we decode
