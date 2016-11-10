@@ -9,10 +9,10 @@
       "w": 4,
       "h": 4,
       "i": "e6e5063c-43d5-409b-a0ab-68da51ed3f28",
-      "name": "Memory usage",
+      "name": "Memory bytes used",
       "queries": [
         {
-          "query": "SELECT \"used_percent\" FROM \"telegraf\"..\"mem\"",
+          "query": "SELECT \"used\", \"available\" FROM \"telegraf\"..\"mem\"",
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [],

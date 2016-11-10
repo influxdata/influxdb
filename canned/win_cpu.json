@@ -6,10 +6,10 @@
     {
       "x": 0,
       "y": 0,
-      "w": 10,
-      "h": 10,
+      "w": 4,
+      "h": 4,
       "i": "6921e19a-951e-42ef-b304-2b8b661fcc81",
-      "name": "Processor",
+      "name": "CPU Usage",
       "queries": [
         {
           "query": "select Percent_Processor_Time from win_cpu",

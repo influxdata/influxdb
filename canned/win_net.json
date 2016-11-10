@@ -6,8 +6,8 @@
     {
       "x": 0,
       "y": 0,
-      "w": 10,
-      "h": 10,
+      "w": 4,
+      "h": 4,
       "i": "3bf8c678-5904-46e7-9c9f-d0d16f0c3fc4",
       "name": "TX bytes/second",
       "queries": [
@@ -21,10 +21,10 @@
       ]
     },
     {
-      "x": 10,
+      "x": 4,
       "y": 0,
-      "w": 10,
-      "h": 10,
+      "w": 4,
+      "h": 4,
       "i": "46963ea2-b09b-4dcf-b08b-7cbcd8766f77",
       "name": "RX bytes/second",
       "queries": [

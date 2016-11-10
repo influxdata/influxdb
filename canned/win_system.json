@@ -1,6 +1,6 @@
 {
-  "id": "cef6c954-f066-4348-9425-4132429fe817",
-  "measurement": "win_mem",
+  "id": "96bd0303-19b6-4f87-a0f9-2755c6178ba7",
+  "measurement": "win_system",
   "app": "system",
   "cells": [
     {
@@ -8,11 +8,11 @@
       "y": 0,
       "w": 4,
       "h": 4,
-      "i": "1c275ca5-84a7-4146-9cf0-8ed654abb627",
-      "name": "Available bytes",
+      "i": "d959c815-16a8-4a2b-a6ea-e37af38d4e2f",
+      "name": "System Load",
       "queries": [
         {
-          "query": "select Available_Bytes from win_mem",
+          "query": "select Processor_Queue_Length from win_system",
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [],

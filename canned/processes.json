@@ -6,8 +6,8 @@
     {
       "x": 0,
       "y": 0,
-      "w": 10,
-      "h": 10,
+      "w": 4,
+      "h": 4,
       "i": "84048146-f93d-4d6c-b7dd-c8e2a68abb27",
       "name": "Total Processes",
       "queries": [
