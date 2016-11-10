@@ -2,13 +2,13 @@ import React, {PropTypes} from 'react';
 import _ from 'lodash';
 import {getKapacitorConfig, updateKapacitorConfigSection, testAlertOutput} from 'shared/apis';
 import AlertaConfig from './AlertaConfig';
-import HipchatConfig from './HipchatConfig';
-import PagerdutyConfig from './PagerdutyConfig';
+import HipChatConfig from './HipChatConfig';
+import PagerDutyConfig from './PagerDutyConfig';
 import SensuConfig from './SensuConfig';
 import SlackConfig from './SlackConfig';
 import SMTPConfig from './SMTPConfig';
 import TelegramConfig from './TelegramConfig';
-import VictoropsConfig from './VictoropsConfig';
+import VictorOpsConfig from './VictorOpsConfig';
 
 const AlertOutputs = React.createClass({
   propTypes: {
@@ -138,16 +138,16 @@ const AlertOutputs = React.createClass({
         return <SlackConfig onSave={save} onTest={test} config={this.getSection(configSections, endpoint)} />;
       }
       case 'victorops': {
-        return <VictoropsConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
+        return <VictorOpsConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
       }
       case 'telegram': {
         return <TelegramConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
       }
       case 'pagerduty': {
-        return <PagerdutyConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
+        return <PagerDutyConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
       }
       case 'hipchat': {
-        return <HipchatConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
+        return <HipChatConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
       }
       case 'sensu': {
         return <SensuConfig onSave={save} config={this.getSection(configSections, endpoint)} />;

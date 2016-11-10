@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react';
 
-const PagerdutyConfig = React.createClass({
+const PagerDutyConfig = React.createClass({
   propTypes: {
     config: PropTypes.shape({
       options: PropTypes.shape({
@@ -75,4 +75,4 @@ const PagerdutyConfig = React.createClass({
   },
 });
 
-export default PagerdutyConfig;
+export default PagerDutyConfig;

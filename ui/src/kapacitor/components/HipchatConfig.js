@@ -35,7 +35,7 @@ const HipchatConfig = React.createClass({
 
     return (
       <div className="panel-body">
-        <h4 className="text-center">VictorOps Alert</h4>
+        <h4 className="text-center">HipChat Alert</h4>
         <br/>
         <form onSubmit={this.handleSaveAlert}>
           <div className="row">
