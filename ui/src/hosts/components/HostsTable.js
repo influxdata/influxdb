@@ -103,10 +103,10 @@ const HostsTable = React.createClass({
                 hosts.map(({name, cpu, load, apps = []}) => {
                   return (
                     <tr key={name}>
-                      <td className="monotype"><a href={`/sources/${source.id}/hosts/${name}`}>{name}</a></td>
+                      <td className="monotype"><Link to={`/sources/${source.id}/hosts/${name}`}>{name}</Link></td>
                       <td className="text-center"><div className="table-dot dot-success"></div></td>
-                      <td className="monotype">{`${cpu.toFixed(2)}%`}</td>
-                      <td className="monotype">{`${load.toFixed(2)}`}</td>
+                      <td className="monotype">{isNaN(cpu) ? 'N/A' : `${cpu.toFixed(2)}%`}</td>
+                      <td className="monotype">{isNaN(load) ? 'N/A' : `${load.toFixed(2)}`}</td>
                       <td className="monotype">
                         {apps.map((app) => {
                           return <Link key={app} to={{pathname: `/sources/${source.id}/hosts/${name}`, query: {app}}}>{app}</Link>;
