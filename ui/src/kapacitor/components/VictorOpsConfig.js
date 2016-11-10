@@ -1,12 +1,11 @@
 import React, {PropTypes} from 'react';
 
-const VictoropsConfig = React.createClass({
+const VictorOpsConfig = React.createClass({
   propTypes: {
     config: PropTypes.shape({
       options: PropTypes.shape({
         'api-key': PropTypes.bool,
         'routing-key': PropTypes.string,
-        global: PropTypes.bool,
         url: PropTypes.string,
       }).isRequired,
     }).isRequired,
@@ -20,7 +19,6 @@ const VictoropsConfig = React.createClass({
       'api-key': this.apiKey.value,
       'routing-key': this.routingKey.value,
       url: this.url.value,
-      global: this.global.checked,
     };
 
     this.props.onSave(properties);
@@ -30,7 +28,7 @@ const VictoropsConfig = React.createClass({
     const {options} = this.props.config;
     const apiKey = options['api-key'];
     const routingKey = options['routing-key'];
-    const {url, global} = options;
+    const {url} = options;
 
     return (
       <div className="panel-body">
@@ -58,11 +56,6 @@ const VictoropsConfig = React.createClass({
                 <label htmlFor="url">VictorOps URL</label>
                 <input className="form-control" id="url" type="text" ref={(r) => this.url = r} defaultValue={url || ''}></input>
               </div>
-
-              <div className="form-group u-flex">
-                <input className="u-flex" id="global" type="checkbox" ref={(r) => this.global = r} defaultChecked={global}/>
-                <label htmlFor="global">This should be showing up next to the shit</label>
-              </div>
             </div>
           </div>
 
@@ -78,4 +71,4 @@ const VictoropsConfig = React.createClass({
   },
 });
 
-export default VictoropsConfig;
+export default VictorOpsConfig;
