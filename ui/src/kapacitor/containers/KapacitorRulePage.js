@@ -266,7 +266,7 @@ export const KapacitorRulePage = React.createClass({
             </div> */}
             <div className="alert-message-endpoint">
               <p>Send this Alert to:</p>
-              <Dropdown className="size-256" selected={rule.alerts[0] || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
+              <Dropdown className="size-256" selected={rule.alerts[0] || 'Choose an Endpoint'} items={alerts} onChoose={this.handleChooseAlert} />
             </div>
           </div>
         </div>
