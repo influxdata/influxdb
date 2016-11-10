@@ -79,6 +79,12 @@ export default function rules(state = {}, action) {
         }),
       });
     }
+
+    case 'DELETE_RULE': {
+      const {ruleID} = action.payload;
+      delete state[ruleID];
+      return Object.assign({}, state);
+    }
   }
   return state;
 }

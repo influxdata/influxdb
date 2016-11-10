@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import {Link} from 'react-router';
+import {deleteRule} from 'src/kapacitor/apis';
 import * as kapacitorActionCreators from 'src/kapacitor/actions/view';
 
 export const KapacitorRulesPage = React.createClass({
@@ -21,12 +22,24 @@ export const KapacitorRulesPage = React.createClass({
     })).isRequired,
     actions: PropTypes.shape({
       fetchRules: PropTypes.func.isRequired,
+      deleteRule: PropTypes.func.isRequired,
     }).isRequired,
     addFlashMessage: PropTypes.func,
   },
 
   componentDidMount() {
     this.props.actions.fetchRules(this.props.source);
+  },
+
+  handleDeleteRule(rule) {
+    const {addFlashMessage, actions} = this.props;
+
+    deleteRule(rule).then(() => {
+      actions.deleteRule(rule.id);
+      addFlashMessage({type: 'success', text: `${rule.name} deleted successfully`});
+    }).catch(() => {
+      addFlashMessage({type: 'error', text: `Could not delete ${rule.name}`});
+    });
   },
 
   render() {
@@ -55,6 +68,7 @@ export const KapacitorRulesPage = React.createClass({
                     <th>Trigger</th>
                     <th>Message</th>
                     <th>Alerts</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -66,6 +80,7 @@ export const KapacitorRulesPage = React.createClass({
                           <td className="monotype">{rule.trigger}</td>
                           <td className="monotype">{rule.message}</td>
                           <td className="monotype">{rule.alerts.join(', ')}</td>
+                          <td><button className="btn btn-danger btn-xs" onClick={() => this.handleDeleteRule(rule)}>Delete</button></td>
                         </tr>
                       );
                     })

@@ -107,3 +107,12 @@ export function updateRuleName(ruleID, name) {
     },
   };
 }
+
+export function deleteRule(ruleID) {
+  return {
+    type: 'DELETE_RULE',
+    payload: {
+      ruleID,
+    },
+  };
+}
