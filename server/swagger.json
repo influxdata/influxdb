@@ -1385,11 +1385,11 @@
 				},
 				"username": {
 					"type": "string",
-					"description": "Username for authentication to kapacitor"
+					"description": "Username for authentication to kapacitor."
 				},
 				"password": {
 					"type": "string",
-					"description": "Password in cleartext!"
+					"description": "Password is in cleartext."
 				},
 				"url": {
 					"type": "string",
@@ -1470,7 +1470,7 @@
 				},
 				"password": {
 					"type": "string",
-					"description": "Password in cleartext!"
+					"description": "Password is in cleartext."
 				},
 				"url": {
 					"type": "string",
