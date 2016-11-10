@@ -8,7 +8,7 @@ const {bool, number, string, node, func, shape} = PropTypes;
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data nodes, but not every page requires them to function.
 // Routes that do require data nodes can be nested under this component.
-const CheckDataNodes = React.createClass({
+const CheckSources = React.createClass({
   propTypes: {
     addFlashMessage: func,
     children: node,
@@ -80,4 +80,4 @@ const CheckDataNodes = React.createClass({
   },
 });
 
-export default withRouter(CheckDataNodes);
+export default withRouter(CheckSources);

@@ -5,7 +5,7 @@ import {Router, Route, browserHistory} from 'react-router';
 
 import App from 'src/App';
 import AlertsApp from 'src/alerts';
-import CheckDataNodes from 'src/CheckDataNodes';
+import CheckSources from 'src/CheckSources';
 import {HostsPage, HostPage} from 'src/hosts';
 import {KapacitorPage, KapacitorRulePage, KapacitorRulesPage, KapacitorTasksPage} from 'src/kapacitor';
 import TasksPage from 'src/tasks';
@@ -92,7 +92,7 @@ const Root = React.createClass({
         <Router history={browserHistory}>
           <Route path="/" component={CreateSource} onEnter={this.redirectToHosts} />
           <Route path="/sources/:sourceID" component={App}>
-            <Route component={CheckDataNodes}>
+            <Route component={CheckSources}>
               <Route path="manage-sources" component={ManageSources} />
               <Route path="manage-sources/new" component={SourceForm} />
               <Route path="manage-sources/:id/edit" component={SourceForm} />
