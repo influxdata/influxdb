@@ -1,7 +1,7 @@
 {
   "id": "cef6c954-f066-4348-9425-4132429fe817",
   "measurement": "win_mem",
-  "app": "Windows Host memory metrics",
+  "app": "system",
   "cells": [
     {
       "x": 0,

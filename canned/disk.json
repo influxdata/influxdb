@@ -1,7 +1,7 @@
 {
   "id": "0b75be4e-3454-4d5d-9a98-ca77c81397f6",
   "measurement": "disk",
-  "app": "Host disk metrics",
+  "app": "system",
   "cells": [
     {
       "x": 0,
