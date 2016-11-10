@@ -5,13 +5,15 @@ import _ from 'lodash';
 export function getCpuAndLoadForHosts(proxyLink) {
   return proxy({
     source: proxyLink,
-    query: `select mean(usage_user) from cpu where cpu = 'cpu-total' and time > now() - 10m group by host; select mean("load1") from "telegraf".."system" where time > now() - 10m group by host`,
+    query: `select mean(usage_user) from cpu where cpu = 'cpu-total' and time > now() - 10m group by host; select mean("load1") from "telegraf".."system" where time > now() - 10m group by host; select mean("Percent_Processor_Time") from win_cpu where time > now() - 10m group by host; select mean("Processor_Queue_Length") from win_system where time > now() - 10s group by host`,
     db: 'telegraf',
   }).then((resp) => {
     const hosts = {};
     const precision = 100;
     const cpuSeries = _.get(resp, ['data', 'results', '0', 'series'], []);
     const loadSeries = _.get(resp, ['data', 'results', '1', 'series'], []);
+    const winCPUSeries = _.get(resp, ['data', 'results', '2', 'series'], []);
+    const winLoadSeries = _.get(resp, ['data', 'results', '3', 'series'], []);
     cpuSeries.forEach((s) => {
       const meanIndex = s.columns.findIndex((col) => col === 'mean');
       hosts[s.tags.host] = {
@@ -21,6 +23,19 @@ export function getCpuAndLoadForHosts(proxyLink) {
     });
 
     loadSeries.forEach((s) => {
+      const meanIndex = s.columns.findIndex((col) => col === 'mean');
+      hosts[s.tags.host].load = (Math.round(s.values[0][meanIndex] * precision) / precision);
+    });
+
+    winCPUSeries.forEach((s) => {
+      const meanIndex = s.columns.findIndex((col) => col === 'mean');
+      hosts[s.tags.host] = {
+        name: s.tags.host,
+        cpu: (Math.round(s.values[0][meanIndex] * precision) / precision),
+      };
+    });
+
+    winLoadSeries.forEach((s) => {
       const meanIndex = s.columns.findIndex((col) => col === 'mean');
       hosts[s.tags.host].load = (Math.round(s.values[0][meanIndex] * precision) / precision);
     });
