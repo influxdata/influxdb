@@ -47,7 +47,7 @@ export function getAppsForHosts(proxyLink, hosts, appMappings) {
     const newHosts = Object.assign({}, hosts);
     const allSeries = _.get(resp, ['data', 'results', '0', 'series', '0', 'values'], []);
     allSeries.forEach(([series]) => {
-      const matches = series.match(/(\w*),.*,host=([^,]*)/);
+      const matches = series.match(/(\w*).*,host=([^,]*)/);
       if (!matches || matches.length !== 3) { // eslint-disable-line no-magic-numbers
         return;
       }

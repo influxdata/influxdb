@@ -1,8 +1,29 @@
+<<<<<<< 3c7df654e402ea2066b2b8b33d1aaa0a706be099
 {
   "id": "793e6cca-7d7f-48e4-8db2-7b81761cc6ff",
   "measurement": "redis_keyspace",
   "app": "redis",
   "cells": [
+=======
+ {
+    "id": "793e6cca-7d7f-48e4-8db2-7b81761cc6ff",
+ 	"measurement": "redis",
+ 	"app": "redis",
+ 	"cells": [{
+ 		"x": 0,
+ 		"y": 0,
+ 		"w": 4,
+ 		"h": 4,
+        "i": "9c168ac8-2985-4883-bdf2-938ea9f065b9",
+        "name": "Redis - Connected Clients",
+ 		"queries": [{
+ 			"query": "select clients from redis",
+ 			"db": "telegraf",
+ 			"rp": "autogen",
+  			"groupbys": []
+		}]
+ 	},
+>>>>>>> Fix regex bug
     {
       "x": 0,
       "y": 0,
