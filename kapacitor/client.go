@@ -3,7 +3,6 @@ package kapacitor
 import (
 	"context"
 	"fmt"
-	"path"
 
 	"github.com/influxdata/chronograf"
 	client "github.com/influxdata/kapacitor/client/v1"
@@ -34,6 +33,11 @@ type Task struct {
 // Href returns the link to a kapacitor task given an id
 func (c *Client) Href(ID string) string {
 	return fmt.Sprintf("/kapacitor/v1/tasks/%s", ID)
+}
+
+// HrefOutput returns the link to a kapacitor task httpOut Node given an id
+func (c *Client) HrefOutput(ID string) string {
+	return fmt.Sprintf("/kapacitor/v1/tasks/%s/%s", ID, HTTPEndpoint)
 }
 
 // Create builds and POSTs a tickscript to kapacitor
@@ -68,7 +72,7 @@ func (c *Client) Create(ctx context.Context, rule chronograf.AlertRule) (*Task, 
 	return &Task{
 		ID:         kapaID,
 		Href:       task.Link.Href,
-		HrefOutput: path.Join(task.Link.Href, HTTPEndpoint),
+		HrefOutput: c.HrefOutput(kapaID),
 		TICKScript: script,
 	}, nil
 }
@@ -80,6 +84,39 @@ func (c *Client) Delete(ctx context.Context, href string) error {
 		return err
 	}
 	return kapa.DeleteTask(client.Link{Href: href})
+}
+
+func (c *Client) updateStatus(ctx context.Context, href string, status client.TaskStatus) (*Task, error) {
+	kapa, err := c.kapaClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := client.UpdateTaskOptions{
+		Status: status,
+	}
+
+	task, err := kapa.UpdateTask(client.Link{Href: href}, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Task{
+		ID:         task.ID,
+		Href:       task.Link.Href,
+		HrefOutput: c.HrefOutput(task.ID),
+		TICKScript: chronograf.TICKScript(task.TICKscript),
+	}, nil
+}
+
+// Disable changes the tickscript status to disabled for a given href.
+func (c *Client) Disable(ctx context.Context, href string) (*Task, error) {
+	return c.updateStatus(ctx, href, client.Disabled)
+}
+
+// Enable changes the tickscript status to disabled for a given href.
+func (c *Client) Enable(ctx context.Context, href string) (*Task, error) {
+	return c.updateStatus(ctx, href, client.Enabled)
 }
 
 // Update changes the tickscript of a given id.
@@ -94,9 +131,10 @@ func (c *Client) Update(ctx context.Context, href string, rule chronograf.AlertR
 		return nil, err
 	}
 
+	// We need to disable the kapacitor task followed by enabling it during update.
 	opts := client.UpdateTaskOptions{
 		TICKscript: string(script),
-		Status:     client.Enabled,
+		Status:     client.Disabled,
 		Type:       toTask(rule.Query),
 		DBRPs: []client.DBRP{
 			{
@@ -111,9 +149,15 @@ func (c *Client) Update(ctx context.Context, href string, rule chronograf.AlertR
 		return nil, err
 	}
 
+	// Now enable the task.
+	if _, err := c.Enable(ctx, href); err != nil {
+		return nil, err
+	}
+
 	return &Task{
 		ID:         task.ID,
 		Href:       task.Link.Href,
+		HrefOutput: c.HrefOutput(task.ID),
 		TICKScript: script,
 	}, nil
 }

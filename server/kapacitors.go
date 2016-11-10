@@ -412,6 +412,7 @@ func (h *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 		Links: alertLinks{
 			Self:      fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/rules/%s", srv.SrcID, srv.ID, req.ID),
 			Kapacitor: fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(task.Href)),
+			Output:    fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(task.HrefOutput)),
 		},
 		TICKScript: string(task.TICKScript),
 	}
@@ -462,6 +463,7 @@ func (h *Service) KapacitorRulesGet(w http.ResponseWriter, r *http.Request) {
 			Links: alertLinks{
 				Self:      fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/rules/%s", srv.SrcID, srv.ID, rule.ID),
 				Kapacitor: fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(c.Href(rule.ID))),
+				Output:    fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(c.HrefOutput(rule.ID))),
 			},
 			TICKScript: string(tickscript),
 		}
@@ -519,6 +521,7 @@ func (h *Service) KapacitorRulesID(w http.ResponseWriter, r *http.Request) {
 		Links: alertLinks{
 			Self:      fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/rules/%s", srv.SrcID, srv.ID, rule.ID),
 			Kapacitor: fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(c.Href(rule.ID))),
+			Output:    fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(c.HrefOutput(rule.ID))),
 		},
 		TICKScript: string(tickscript),
 	}
