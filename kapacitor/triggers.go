@@ -3,18 +3,31 @@ package kapacitor
 import "github.com/influxdata/chronograf"
 import "fmt"
 
-// ThresholdTrigger is the trickscript trigger for alerts that exceed a value
-var ThresholdTrigger = `
-  var trigger = data
-  |alert()
+const (
+	// Deadman triggers when data is missing for a period of time
+	Deadman = "deadman"
+	// Relative triggers when the value has changed compared to the past
+	Relative = "relative"
+	// Threshold triggers when value crosses a threshold
+	Threshold = "threshold"
+)
+
+// AllAlerts are properties all alert types will have
+var AllAlerts = `
     .stateChangesOnly()
-    .crit(lambda: "value" %s crit)
     .message(message)
 	.id(idVar)
 	.idTag(idTag)
 	.levelTag(levelTag)
 	.messageField(messageField)
 	.durationField(durationField)
+`
+
+// ThresholdTrigger is the trickscript trigger for alerts that exceed a value
+var ThresholdTrigger = `
+  var trigger = data
+  |alert()
+    .crit(lambda: "value" %s crit)
 `
 
 // RelativeAbsoluteTrigger compares one window of data versus another (current - past)
@@ -31,14 +44,7 @@ var trigger = past
 		.keep()
 		.as('value')
     |alert()
-        .stateChangesOnly()
         .crit(lambda: "value" %s crit)
-        .message(message)
-		.id(idVar)
-		.idTag(idTag)
-		.levelTag(levelTag)
-		.messageField(messageField)
-		.durationField(durationField)
 `
 
 // RelativePercentTrigger compares one window of data versus another as a percent change.
@@ -55,72 +61,54 @@ var trigger = past
 		.keep()
 		.as('value')
     |alert()
-        .stateChangesOnly()
         .crit(lambda: "value" %s crit)
-        .message(message)
-		.id(idVar)
-		.idTag(idTag)
-		.levelTag(levelTag)
-		.messageField(messageField)
-		.durationField(durationField)
 `
 
 // DeadmanTrigger checks if any data has been streamed in the last period of time
 var DeadmanTrigger = `
   var trigger = data|deadman(threshold, period)
-    .stateChangesOnly()
-    .message(message)
-	.id(idVar)
-	.idTag(idTag)
-	.levelTag(levelTag)
-	.messageField(messageField)
-	.durationField(durationField)
 `
 
 // Trigger returns the trigger mechanism for a tickscript
 func Trigger(rule chronograf.AlertRule) (string, error) {
+	var trigger string
+	var err error
 	switch rule.Trigger {
-	case "deadman":
-		return DeadmanTrigger, nil
-	case "relative":
-		op, err := kapaOperator(rule.TriggerValues.Operator)
-		if err != nil {
-			return "", err
-		}
-		if rule.TriggerValues.Change == "% change" {
-			return fmt.Sprintf(RelativePercentTrigger, op), nil
-		} else if rule.TriggerValues.Change == "change" {
-			return fmt.Sprintf(RelativeAbsoluteTrigger, op), nil
-		} else {
-			return "", fmt.Errorf("Unknown change type %s", rule.TriggerValues.Change)
-		}
-	case "threshold":
-		op, err := kapaOperator(rule.TriggerValues.Operator)
-		if err != nil {
-			return "", err
-		}
-		return fmt.Sprintf(ThresholdTrigger, op), nil
+	case Deadman:
+		trigger, err = DeadmanTrigger, nil
+	case Relative:
+		trigger, err = relativeTrigger(rule)
+	case Threshold:
+		trigger, err = thresholdTrigger(rule)
 	default:
-		return "", fmt.Errorf("Unknown trigger type: %s", rule.Trigger)
+		trigger, err = "", fmt.Errorf("Unknown trigger type: %s", rule.Trigger)
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	return trigger + AllAlerts, nil
+}
+
+func relativeTrigger(rule chronograf.AlertRule) (string, error) {
+	op, err := kapaOperator(rule.TriggerValues.Operator)
+	if err != nil {
+		return "", err
+	}
+	if rule.TriggerValues.Change == "% change" {
+		return fmt.Sprintf(RelativePercentTrigger, op), nil
+	} else if rule.TriggerValues.Change == "change" {
+		return fmt.Sprintf(RelativeAbsoluteTrigger, op), nil
+	} else {
+		return "", fmt.Errorf("Unknown change type %s", rule.TriggerValues.Change)
 	}
 }
 
-// kapaOperator converts UI strings to kapacitor operators
-func kapaOperator(operator string) (string, error) {
-	switch operator {
-	case "greater than":
-		return ">", nil
-	case "less than":
-		return "<", nil
-	case "equal to or less than":
-		return "<=", nil
-	case "equal to or greater than":
-		return ">=", nil
-	case "equal":
-		return "==", nil
-	case "not equal":
-		return "!=", nil
-	default:
-		return "", fmt.Errorf("invalid operator: %s is unknown", operator)
+func thresholdTrigger(rule chronograf.AlertRule) (string, error) {
+	op, err := kapaOperator(rule.TriggerValues.Operator)
+	if err != nil {
+		return "", err
 	}
+	return fmt.Sprintf(ThresholdTrigger, op), nil
 }

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/chronograf"
+	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
 func TestGenerate(t *testing.T) {
@@ -14,7 +15,6 @@ func TestGenerate(t *testing.T) {
 		Alerts:  []string{"slack", "victorops", "email"},
 		TriggerValues: chronograf.TriggerValues{
 			Change:   "change",
-			Period:   "10m",
 			Shift:    "1m",
 			Operator: "greater than",
 			Value:    "90",
@@ -24,10 +24,7 @@ func TestGenerate(t *testing.T) {
 			Database:        "telegraf",
 			Measurement:     "cpu",
 			RetentionPolicy: "autogen",
-			Fields: []struct {
-				Field string   `json:"field"`
-				Funcs []string `json:"funcs"`
-			}{
+			Fields: []chronograf.Field{
 				{
 					Field: "usage_user",
 					Funcs: []string{"mean"},
@@ -42,11 +39,8 @@ func TestGenerate(t *testing.T) {
 					"cpu_total",
 				},
 			},
-			GroupBy: struct {
-				Time string   `json:"time"`
-				Tags []string `json:"tags"`
-			}{
-				Time: "",
+			GroupBy: chronograf.GroupBy{
+				Time: "10m",
 				Tags: []string{"host", "cluster_id"},
 			},
 			AreTagsAccepted: true,
@@ -57,7 +51,7 @@ func TestGenerate(t *testing.T) {
 	tick, err := gen.Generate(alert)
 	if err != nil {
 		fmt.Printf("%s", tick)
-		t.Errorf("Error generating alert: %v", err)
+		t.Errorf("Error generating alert: %v %s", err, tick)
 	}
 }
 
@@ -67,11 +61,8 @@ func TestThreshold(t *testing.T) {
 		Trigger: "threshold",
 		Alerts:  []string{"slack", "victorops", "email"},
 		TriggerValues: chronograf.TriggerValues{
-			Relation:   "once",
-			Period:     "10m",
-			Percentile: "", // TODO: if relation is not once then this will have a number
-			Operator:   "greater than",
-			Value:      "90",
+			Operator: "greater than",
+			Value:    "90",
 		},
 		Every:   "30s",
 		Message: "message",
@@ -79,10 +70,7 @@ func TestThreshold(t *testing.T) {
 			Database:        "telegraf",
 			Measurement:     "cpu",
 			RetentionPolicy: "autogen",
-			Fields: []struct {
-				Field string   `json:"field"`
-				Funcs []string `json:"funcs"`
-			}{
+			Fields: []chronograf.Field{
 				{
 					Field: "usage_user",
 					Funcs: []string{"mean"},
@@ -97,11 +85,8 @@ func TestThreshold(t *testing.T) {
 					"cpu_total",
 				},
 			},
-			GroupBy: struct {
-				Time string   `json:"time"`
-				Tags []string `json:"tags"`
-			}{
-				Time: "",
+			GroupBy: chronograf.GroupBy{
+				Time: "10m",
 				Tags: []string{"host", "cluster_id"},
 			},
 			AreTagsAccepted: true,
@@ -130,6 +115,8 @@ var whereFilter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu
 
 var period = 10m
 
+var every = 30s
+
 var name = 'name'
 
 var idVar = name + ':{{.Group}}'
@@ -151,8 +138,6 @@ var outputRP = 'autogen'
 var outputMeasurement = 'alerts'
 
 var triggerType = 'threshold'
-
-var every = 30s
 
 var crit = 90
 
@@ -172,8 +157,8 @@ var data = stream
 
 var trigger = data
     |alert()
-        .stateChangesOnly()
         .crit(lambda: "value" > crit)
+        .stateChangesOnly()
         .message(message)
         .id(idVar)
         .idTag(idTag)
@@ -192,6 +177,9 @@ trigger
         .measurement(outputMeasurement)
         .tag('alertName', name)
         .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
 `,
 			wantErr: false,
 		},
@@ -204,8 +192,9 @@ trigger
 			continue
 		}
 		if got != tt.want {
-			fmt.Printf("%s", got)
-			t.Errorf("%q. Threshold() = %v, want %v", tt.name, got, tt.want)
+			diff := diffmatchpatch.New()
+			delta := diff.DiffMain(string(tt.want), string(got), true)
+			t.Errorf("%q\n%s", tt.name, diff.DiffPrettyText(delta))
 		}
 	}
 }
@@ -216,11 +205,8 @@ func TestThresholdNoAggregate(t *testing.T) {
 		Trigger: "threshold",
 		Alerts:  []string{"slack", "victorops", "email"},
 		TriggerValues: chronograf.TriggerValues{
-			Relation:   "once",
-			Period:     "10m",
-			Percentile: "", // TODO: if relation is not once then this will have a number
-			Operator:   "greater than",
-			Value:      "90",
+			Operator: "greater than",
+			Value:    "90",
 		},
 		Every:   "30s",
 		Message: "message",
@@ -228,10 +214,7 @@ func TestThresholdNoAggregate(t *testing.T) {
 			Database:        "telegraf",
 			Measurement:     "cpu",
 			RetentionPolicy: "autogen",
-			Fields: []struct {
-				Field string   `json:"field"`
-				Funcs []string `json:"funcs"`
-			}{
+			Fields: []chronograf.Field{
 				{
 					Field: "usage_user",
 					Funcs: []string{},
@@ -246,11 +229,8 @@ func TestThresholdNoAggregate(t *testing.T) {
 					"cpu_total",
 				},
 			},
-			GroupBy: struct {
-				Time string   `json:"time"`
-				Tags []string `json:"tags"`
-			}{
-				Time: "",
+			GroupBy: chronograf.GroupBy{
+				Time: "10m",
 				Tags: []string{"host", "cluster_id"},
 			},
 			AreTagsAccepted: true,
@@ -276,8 +256,6 @@ var measurement = 'cpu'
 var groupBy = ['host', 'cluster_id']
 
 var whereFilter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
-
-var period = 10m
 
 var name = 'name'
 
@@ -301,8 +279,6 @@ var outputMeasurement = 'alerts'
 
 var triggerType = 'threshold'
 
-var every = 30s
-
 var crit = 90
 
 var data = stream
@@ -317,8 +293,8 @@ var data = stream
 
 var trigger = data
     |alert()
-        .stateChangesOnly()
         .crit(lambda: "value" > crit)
+        .stateChangesOnly()
         .message(message)
         .id(idVar)
         .idTag(idTag)
@@ -337,6 +313,9 @@ trigger
         .measurement(outputMeasurement)
         .tag('alertName', name)
         .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
 `,
 			wantErr: false,
 		},
@@ -349,8 +328,9 @@ trigger
 			continue
 		}
 		if got != tt.want {
-			fmt.Printf("%s", got)
-			t.Errorf("%q. Threshold() = %v, want %v", tt.name, got, tt.want)
+			diff := diffmatchpatch.New()
+			delta := diff.DiffMain(string(tt.want), string(got), true)
+			t.Errorf("%q\n%s", tt.name, diff.DiffPrettyText(delta))
 		}
 	}
 }
@@ -362,7 +342,6 @@ func TestRelative(t *testing.T) {
 		Alerts:  []string{"slack", "victorops", "email"},
 		TriggerValues: chronograf.TriggerValues{
 			Change:   "% change",
-			Period:   "10m",
 			Shift:    "1m",
 			Operator: "greater than",
 			Value:    "90",
@@ -373,10 +352,7 @@ func TestRelative(t *testing.T) {
 			Database:        "telegraf",
 			Measurement:     "cpu",
 			RetentionPolicy: "autogen",
-			Fields: []struct {
-				Field string   `json:"field"`
-				Funcs []string `json:"funcs"`
-			}{
+			Fields: []chronograf.Field{
 				{
 					Field: "usage_user",
 					Funcs: []string{"mean"},
@@ -391,11 +367,8 @@ func TestRelative(t *testing.T) {
 					"cpu_total",
 				},
 			},
-			GroupBy: struct {
-				Time string   `json:"time"`
-				Tags []string `json:"tags"`
-			}{
-				Time: "",
+			GroupBy: chronograf.GroupBy{
+				Time: "10m",
 				Tags: []string{"host", "cluster_id"},
 			},
 			AreTagsAccepted: true,
@@ -423,6 +396,8 @@ var groupBy = ['host', 'cluster_id']
 var whereFilter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
 
 var period = 10m
+
+var every = 30s
 
 var name = 'name'
 
@@ -445,8 +420,6 @@ var outputRP = 'autogen'
 var outputMeasurement = 'alerts'
 
 var triggerType = 'relative'
-
-var every = 30s
 
 var shift = -1m
 
@@ -478,8 +451,8 @@ var trigger = past
         .keep()
         .as('value')
     |alert()
-        .stateChangesOnly()
         .crit(lambda: "value" > crit)
+        .stateChangesOnly()
         .message(message)
         .id(idVar)
         .idTag(idTag)
@@ -498,6 +471,9 @@ trigger
         .measurement(outputMeasurement)
         .tag('alertName', name)
         .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
 `,
 			wantErr: false,
 		},
@@ -510,8 +486,9 @@ trigger
 			continue
 		}
 		if got != tt.want {
-			fmt.Printf("%s", got)
-			t.Errorf("%q. Relative() = %v, want %v", tt.name, got, tt.want)
+			diff := diffmatchpatch.New()
+			delta := diff.DiffMain(string(tt.want), string(got), true)
+			t.Errorf("%q\n%s", tt.name, diff.DiffPrettyText(delta))
 		}
 	}
 }
@@ -523,7 +500,6 @@ func TestRelativeChange(t *testing.T) {
 		Alerts:  []string{"slack", "victorops", "email"},
 		TriggerValues: chronograf.TriggerValues{
 			Change:   "change",
-			Period:   "10m",
 			Shift:    "1m",
 			Operator: "greater than",
 			Value:    "90",
@@ -534,10 +510,7 @@ func TestRelativeChange(t *testing.T) {
 			Database:        "telegraf",
 			Measurement:     "cpu",
 			RetentionPolicy: "autogen",
-			Fields: []struct {
-				Field string   `json:"field"`
-				Funcs []string `json:"funcs"`
-			}{
+			Fields: []chronograf.Field{
 				{
 					Field: "usage_user",
 					Funcs: []string{"mean"},
@@ -552,11 +525,8 @@ func TestRelativeChange(t *testing.T) {
 					"cpu_total",
 				},
 			},
-			GroupBy: struct {
-				Time string   `json:"time"`
-				Tags []string `json:"tags"`
-			}{
-				Time: "",
+			GroupBy: chronograf.GroupBy{
+				Time: "10m",
 				Tags: []string{"host", "cluster_id"},
 			},
 			AreTagsAccepted: true,
@@ -585,6 +555,8 @@ var whereFilter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu
 
 var period = 10m
 
+var every = 30s
+
 var name = 'name'
 
 var idVar = name + ':{{.Group}}'
@@ -606,8 +578,6 @@ var outputRP = 'autogen'
 var outputMeasurement = 'alerts'
 
 var triggerType = 'relative'
-
-var every = 30s
 
 var shift = -1m
 
@@ -639,8 +609,8 @@ var trigger = past
         .keep()
         .as('value')
     |alert()
-        .stateChangesOnly()
         .crit(lambda: "value" > crit)
+        .stateChangesOnly()
         .message(message)
         .id(idVar)
         .idTag(idTag)
@@ -659,6 +629,9 @@ trigger
         .measurement(outputMeasurement)
         .tag('alertName', name)
         .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
 `,
 			wantErr: false,
 		},
@@ -671,8 +644,9 @@ trigger
 			continue
 		}
 		if got != tt.want {
-			fmt.Printf("%s", got)
-			t.Errorf("%q. Relative() = %v, want %v", tt.name, got, tt.want)
+			diff := diffmatchpatch.New()
+			delta := diff.DiffMain(string(tt.want), string(got), true)
+			t.Errorf("%q\n%s", tt.name, diff.DiffPrettyText(delta))
 		}
 	}
 }
@@ -691,10 +665,7 @@ func TestDeadman(t *testing.T) {
 			Database:        "telegraf",
 			Measurement:     "cpu",
 			RetentionPolicy: "autogen",
-			Fields: []struct {
-				Field string   `json:"field"`
-				Funcs []string `json:"funcs"`
-			}{
+			Fields: []chronograf.Field{
 				{
 					Field: "usage_user",
 					Funcs: []string{"mean"},
@@ -709,10 +680,7 @@ func TestDeadman(t *testing.T) {
 					"cpu_total",
 				},
 			},
-			GroupBy: struct {
-				Time string   `json:"time"`
-				Tags []string `json:"tags"`
-			}{
+			GroupBy: chronograf.GroupBy{
 				Time: "",
 				Tags: []string{"host", "cluster_id"},
 			},
@@ -798,6 +766,9 @@ trigger
         .measurement(outputMeasurement)
         .tag('alertName', name)
         .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
 `,
 			wantErr: false,
 		},
@@ -810,8 +781,9 @@ trigger
 			continue
 		}
 		if got != tt.want {
-			fmt.Printf("%s", got)
-			t.Errorf("%q. Deadman() = %v, want %v", tt.name, got, tt.want)
+			diff := diffmatchpatch.New()
+			delta := diff.DiffMain(string(tt.want), string(got), true)
+			t.Errorf("%q\n%s", tt.name, diff.DiffPrettyText(delta))
 		}
 	}
 }

@@ -10,6 +10,7 @@ github.com/influxdata/kapacitor 0eb8c348b210dd3d32cb240a417f9e6ded1b691d
 github.com/influxdata/usage-client 6d3895376368aa52a3a81d2a16e90f0f52371967
 github.com/jessevdk/go-flags 4cc2832a6e6d1d3b815e2b9d544b2a4dfb3ce8fa
 github.com/satori/go.uuid b061729afc07e77a8aa4fad0a2fd840958f1942a
+github.com/sergi/go-diff 1d28411638c1e67fe1930830df207bef72496ae9
 github.com/tylerb/graceful 50a48b6e73fcc75b45e22c05b79629a67c79e938
 golang.org/x/net 749a502dd1eaf3e5bfd4f8956748c502357c0bbe
 golang.org/x/oauth2 1e695b1c8febf17aad3bfa7bf0a819ef94b98ad5
