@@ -9,7 +9,7 @@ Chronograf is an open-source web application written in go and react.js that is 
   * System stats
   * InfluxDB
   * Docker Containers
-  * Kuberentes
+  * Kubernetes
   * Redis
   * NSQ
   * MySQL
