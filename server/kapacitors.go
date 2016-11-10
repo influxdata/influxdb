@@ -39,7 +39,7 @@ func (p *postKapacitorRequest) Valid() error {
 type kapaLinks struct {
 	Proxy string `json:"proxy"` // URL location of proxy endpoint for this source
 	Self  string `json:"self"`  // Self link mapping to this resource
-	Rules string `json:"rules"` // Riles link for defining roles alerts for kapacitor
+	Rules string `json:"rules"` // Rules link for defining roles alerts for kapacitor
 }
 
 type kapacitor struct {
@@ -323,6 +323,7 @@ func (h *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 		Links: alertLinks{
 			Self:      fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/rules/%s", srv.SrcID, srv.ID, req.ID),
 			Kapacitor: fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(task.Href)),
+			Output:    fmt.Sprintf("/chronograf/v1/sources/%d/kapacitors/%d/proxy?path=%s", srv.SrcID, srv.ID, url.QueryEscape(task.HrefOutput)),
 		},
 		TICKScript: string(task.TICKScript),
 	}
@@ -334,6 +335,7 @@ func (h *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 type alertLinks struct {
 	Self      string `json:"self"`
 	Kapacitor string `json:"kapacitor"`
+	Output    string `json:"output"`
 }
 
 type alertResponse struct {

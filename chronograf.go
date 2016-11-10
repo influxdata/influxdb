@@ -128,32 +128,36 @@ type Ticker interface {
 
 // TriggerValues specifies the alerting logic for a specific trigger type
 type TriggerValues struct {
-	Change     string `json:"change,omitempty"`     // Change specifies if the change is a percent or absolute
-	Period     string `json:"period,omitempty"`     // Period is the window to search for alerting criteria
-	Shift      string `json:"shift,omitempty"`      // Shift is the amount of time to look into the past for the alert to compare to the present
-	Operator   string `json:"operator,omitempty"`   // Operator for alert comparison
-	Value      string `json:"value,omitempty"`      // Value is the boundary value when alert goes critical
-	Percentile string `json:"percentile,omitempty"` // Percentile is defined only when Relation is not "Once"
-	Relation   string `json:"relation,omitempty"`   // Relation defines the logic about how often the threshold is met to be an alert.
+	Change   string `json:"change,omitempty"`   // Change specifies if the change is a percent or absolute
+	Period   string `json:"period,omitempty"`   // Period length of time before deadman is alerted
+	Shift    string `json:"shift,omitempty"`    // Shift is the amount of time to look into the past for the alert to compare to the present
+	Operator string `json:"operator,omitempty"` // Operator for alert comparison
+	Value    string `json:"value,omitempty"`    // Value is the boundary value when alert goes critical
+}
+
+// Field represent influxql fields and functions from the UI
+type Field struct {
+	Field string   `json:"field"`
+	Funcs []string `json:"funcs"`
+}
+
+// GroupBy represents influxql group by tags from the UI
+type GroupBy struct {
+	Time string   `json:"time"`
+	Tags []string `json:"tags"`
 }
 
 // QueryConfig represents UI query from the data explorer
 type QueryConfig struct {
-	ID              string `json:"id,omitempty"`
-	Database        string `json:"database"`
-	Measurement     string `json:"measurement"`
-	RetentionPolicy string `json:"retentionPolicy"`
-	Fields          []struct {
-		Field string   `json:"field"`
-		Funcs []string `json:"funcs"`
-	} `json:"fields"`
-	Tags    map[string][]string `json:"tags"`
-	GroupBy struct {
-		Time string   `json:"time"`
-		Tags []string `json:"tags"`
-	} `json:"groupBy"`
-	AreTagsAccepted bool   `json:"areTagsAccepted"`
-	RawText         string `json:"rawText,omitempty"`
+	ID              string              `json:"id,omitempty"`
+	Database        string              `json:"database"`
+	Measurement     string              `json:"measurement"`
+	RetentionPolicy string              `json:"retentionPolicy"`
+	Fields          []Field             `json:"fields"`
+	Tags            map[string][]string `json:"tags"`
+	GroupBy         GroupBy             `json:"groupBy"`
+	AreTagsAccepted bool                `json:"areTagsAccepted"`
+	RawText         string              `json:"rawText,omitempty"`
 }
 
 // Server represents a proxy connection to an HTTP server

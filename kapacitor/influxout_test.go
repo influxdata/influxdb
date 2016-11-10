@@ -29,10 +29,7 @@ func TestInfluxOut(t *testing.T) {
 			Name:    "name",
 			Trigger: "deadman",
 			Query: chronograf.QueryConfig{
-				Fields: []struct {
-					Field string   `json:"field"`
-					Funcs []string `json:"funcs"`
-				}{
+				Fields: []chronograf.Field{
 					{
 						Field: "usage_user",
 						Funcs: []string{"mean"},

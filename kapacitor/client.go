@@ -3,6 +3,7 @@ package kapacitor
 import (
 	"context"
 	"fmt"
+	"path"
 
 	"github.com/influxdata/chronograf"
 	client "github.com/influxdata/kapacitor/client/v1"
@@ -26,6 +27,7 @@ const (
 type Task struct {
 	ID         string                // Kapacitor ID
 	Href       string                // Kapacitor relative URI
+	HrefOutput string                // Kapacitor relative URI to HTTPOutNode
 	TICKScript chronograf.TICKScript // TICKScript is the running script
 }
 
@@ -66,6 +68,7 @@ func (c *Client) Create(ctx context.Context, rule chronograf.AlertRule) (*Task, 
 	return &Task{
 		ID:         kapaID,
 		Href:       task.Link.Href,
+		HrefOutput: path.Join(task.Link.Href, HTTPEndpoint),
 		TICKScript: script,
 	}, nil
 }

@@ -33,30 +33,26 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 	}
 
 	switch rule.Trigger {
-	case "threshold":
+	case Threshold:
 		vars := `
 		%s
-		var every = %s
         var crit = %s
  `
 		return fmt.Sprintf(vars,
 			common,
-			rule.Every,
 			rule.TriggerValues.Value), nil
-	case "relative":
+	case Relative:
 		vars := `
 		%s
-		var every = %s
         var shift = -%s
         var crit = %s
  `
 		return fmt.Sprintf(vars,
 			common,
-			rule.Every,
 			rule.TriggerValues.Shift,
 			rule.TriggerValues.Value,
 		), nil
-	case "deadman":
+	case Deadman:
 		vars := `
 		%s
         var threshold = %s
@@ -77,7 +73,7 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
         var measurement = '%s'
         var groupBy = %s
         var whereFilter = %s
-		var period = %s
+		%s
 
 		var name = '%s'
 		var idVar = name + ':{{.Group}}'
@@ -98,7 +94,7 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
 		rule.Query.Measurement,
 		groupBy(rule.Query),
 		whereFilter(rule.Query),
-		rule.TriggerValues.Period,
+		window(rule),
 		rule.Name,
 		rule.Message,
 		IDTag,
@@ -110,6 +106,21 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
 		Measurement,
 		rule.Trigger,
 	), nil
+}
+
+// window is only used if deadman or threshold/relative with aggregate.  Will return empty
+// if no period.
+func window(rule chronograf.AlertRule) string {
+	if rule.Trigger == Deadman {
+		return fmt.Sprintf("var period = %s", rule.TriggerValues.Period)
+	}
+	// Period only makes sense if the field has a been grouped via a time duration.
+	for _, field := range rule.Query.Fields {
+		if len(field.Funcs) > 0 {
+			return fmt.Sprintf("var period = %s\nvar every = %s", rule.Query.GroupBy.Time, rule.Every)
+		}
+	}
+	return ""
 }
 
 func groupBy(q chronograf.QueryConfig) string {
