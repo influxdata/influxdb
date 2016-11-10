@@ -98,7 +98,7 @@ export const KapacitorRulePage = React.createClass({
       });
       delete newRule.queryID;
       createRule(this.state.kapacitor, newRule).then(() => {
-        this.props.router.push(`sources/${source.id}/alert-rules`);
+        this.props.router.push(`/sources/${source.id}/alert-rules`);
         this.props.addFlashMessage({type: 'success', text: `Rule successfully created`});
       }).catch(() => {
         this.props.addFlashMessage({type: 'failure', text: `There was a problem creating the rule`});
