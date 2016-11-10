@@ -72,7 +72,7 @@ type Source struct {
 	Name     string `json:"name"`                // Name is the user-defined name for the source
 	Type     string `json:"type,omitempty"`      // Type specifies which kinds of source (enterprise vs oss)
 	Username string `json:"username,omitempty"`  // Username is the username to connect to the source
-	Password string `json:"password,omitempty"`  // Password is in CLEARTEXT // TODO: fixme
+	Password string `json:"password,omitempty"`  // Password is in CLEARTEXT
 	URL      string `json:"url"`                 // URL are the connections to the source
 	Default  bool   `json:"default"`             // Default specifies the default source for the application
 }
@@ -166,7 +166,7 @@ type Server struct {
 	SrcID    int    // SrcID of the data source
 	Name     string // Name is the user-defined name for the server
 	Username string // Username is the username to connect to the server
-	Password string // Password is in CLEARTEXT // TODO: FIXME
+	Password string // Password is in CLEARTEXT
 	URL      string // URL are the connections to the server
 }
 
