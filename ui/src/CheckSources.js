@@ -40,27 +40,24 @@ const CheckSources = React.createClass({
   },
 
   componentDidMount() {
-    const {params} = this.props;
     getSources().then(({data: {sources}}) => {
       this.setState({sources, isFetching: false});
-      if (params.sourceID) {
-        console.log("the sourceID is", params.sourceID); // eslint-disable-line no-console
-      }
-    }).catch((err) => {
-      console.error(err); // eslint-disable-line no-console
+    }).catch(() => {
+      this.props.addFlashMessage({type: 'error', text: "Unable to connect to Chronograf server"});
       this.setState({isFetching: false});
     });
   },
 
   componentWillUpdate(nextProps, nextState) {
-    const {router, location, params} = nextProps;
+    const {router, location, params, addFlashMessage} = nextProps;
     const {isFetching, sources} = nextState;
     const source = sources.find((s) => s.id === params.sourceID);
     if (!isFetching && !source) {
       return router.push(`/?redirectPath=${location.pathname}`);
     } else if (!isFetching && !location.pathname.includes("/manage-sources")) {
       showDatabases(source.links.proxy).catch(() => {
-        window.location = `/sources/${source.id}/manage-sources`; // eslint-disable-line no-console
+        router.push(`/sources/${source.id}/manage-sources`);
+        addFlashMessage({type: 'error', text: `Unable to connect to source`});
       });
     }
   },

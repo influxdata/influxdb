@@ -23,7 +23,7 @@ export const HostsPage = React.createClass({
   },
 
   componentDidMount() {
-    const {source} = this.props;
+    const {source, addFlashMessage} = this.props;
     Promise.all([
       getCpuAndLoadForHosts(source.links.proxy),
       getMappings(),
@@ -31,11 +31,8 @@ export const HostsPage = React.createClass({
       this.setState({hosts});
       getAppsForHosts(source.links.proxy, hosts, mappings).then((newHosts) => {
         this.setState({hosts: newHosts});
-      });
-    }).catch(() => {
-      this.props.addFlashMessage({
-        type: 'error',
-        text: `There was an error finding hosts. Check that your server is running.`,
+      }).catch(() => {
+        addFlashMessage({type: 'error', text: 'Unable to get apps for hosts'});
       });
     });
   },

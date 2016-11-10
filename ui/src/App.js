@@ -29,6 +29,10 @@ const App = React.createClass({
   },
 
   handleNotification({type, text}) {
+    const validTypes = ['error', 'success'];
+    if (!validTypes.includes(type) || text === undefined) {
+      console.error("handleNotification must have a valid type and text"); // eslint-disable-line no-console
+    }
     this.props.publishNotification(type, text);
   },
 

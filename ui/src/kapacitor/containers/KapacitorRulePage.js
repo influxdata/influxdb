@@ -72,9 +72,9 @@ export const KapacitorRulePage = React.createClass({
         });
         this.setState({kapacitor, enabledAlerts});
       }).catch(() => {
-        this.props.addFlashMessage({type: 'failure', text: `There was a problem communicating with Kapacitor`});
+        this.props.addFlashMessage({type: 'error', text: `There was a problem communicating with Kapacitor`});
       }).catch(() => {
-        this.props.addFlashMessage({type: 'failure', text: `We couldn't find a configured Kapacitor for this source`});
+        this.props.addFlashMessage({type: 'error', text: `We couldn't find a configured Kapacitor for this source`});
       });
     });
   },
@@ -89,7 +89,7 @@ export const KapacitorRulePage = React.createClass({
       editRule(updatedRule).then(() => {
         this.props.addFlashMessage({type: 'success', text: `Rule successfully updated!`});
       }).catch(() => {
-        this.props.addFlashMessage({type: 'failure', text: `There was a problem updating the rule`});
+        this.props.addFlashMessage({type: 'error', text: `There was a problem updating the rule`});
       });
     } else {
       const rule = rules[DEFAULT_RULE_ID];
@@ -101,7 +101,7 @@ export const KapacitorRulePage = React.createClass({
         this.props.router.push(`/sources/${source.id}/alert-rules`);
         this.props.addFlashMessage({type: 'success', text: `Rule successfully created`});
       }).catch(() => {
-        this.props.addFlashMessage({type: 'failure', text: `There was a problem creating the rule`});
+        this.props.addFlashMessage({type: 'error', text: `There was a problem creating the rule`});
       });
     }
   },
