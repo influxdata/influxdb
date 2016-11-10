@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react';
 import _ from 'lodash';
 import {withRouter, Link} from 'react-router';
-import {getSources, getKapacitor} from 'shared/apis';
+import {getSources, getKapacitor, deleteSource} from 'shared/apis';
 
 export const ManageSources = React.createClass({
   propTypes: {
@@ -15,6 +15,7 @@ export const ManageSources = React.createClass({
         self: PropTypes.string.isRequired,
       }),
     }),
+    addFlashMessage: PropTypes.func,
   },
   getInitialState() {
     return {
@@ -41,6 +42,18 @@ export const ManageSources = React.createClass({
           });
         });
       });
+    });
+  },
+
+  handleDeleteSource(source) {
+    const {addFlashMessage} = this.props;
+
+    deleteSource(source).then(() => {
+      const updatedSourceList = this.state.sources.filter((s) => s.id !== source.id);
+      this.setState({sources: updatedSourceList});
+      addFlashMessage({type: 'success', text: 'Source removed from Chronograf'});
+    }).catch(() => {
+      addFlashMessage({type: 'error', text: 'Could not remove source from Chronograf'});
     });
   },
 
@@ -90,6 +103,7 @@ export const ManageSources = React.createClass({
                                 <td className="text-right">
                                   <Link className="btn btn-default btn-xs" to={`${pathname}/${source.id}/edit`}>Edit</Link>
                                   <Link className="btn btn-success btn-xs" to={`/sources/${source.id}/hosts`}>Connect</Link>
+                                  <button className="btn btn-danger btn-xs" onClick={() => this.handleDeleteSource(source)}>Delete</button>
                                 </td>
                               </tr>
                             );

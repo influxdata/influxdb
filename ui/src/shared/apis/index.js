@@ -28,6 +28,13 @@ export function updateSource(newSource) {
   });
 }
 
+export function deleteSource(source) {
+  return AJAX({
+    url: source.links.self,
+    method: 'DELETE',
+  });
+}
+
 export function updateCluster(clusterID, displayName) {
   return AJAX({
     url: `/api/int/v1/clusters/${clusterID}`,
