@@ -1,7 +1,7 @@
 {
   "id": "188b7f23-648f-4c54-99f6-6a0e2e90a2fc",
   "measurement": "win_cpu",
-  "app": "system",
+  "app": "win_systemn",
   "cells": [
     {
       "x": 0,

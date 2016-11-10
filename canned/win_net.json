@@ -1,7 +1,7 @@
 {
   "id": "d795c66f-0d8a-4fc0-b7bf-2cef1d2f4519",
   "measurement": "win_net",
-  "app": "system",
+  "app": "win_system",
   "cells": [
     {
       "x": 0,

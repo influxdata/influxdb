@@ -1,0 +1,36 @@
+ {
+    "id": "0e980b97-c162-487b-a815-3f955df6243f",
+ 	"measurement": "docker",
+ 	"app": "docker",
+ 	"cells": [{
+ 		"x": 0,
+ 		"y": 0,
+ 		"w": 4,
+ 		"h": 4,
+        "i": "4c79cefb-5152-410c-9b88-74f9bff7ef22",
+        "name": "Docker - Container CPU",
+ 		"queries": [{
+ 			"query": "SELECT \"usage_percent\" FROM \"docker_container_cpu\"",
+ 			"db": "telegraf",
+ 			"rp": "autogen",
+  			"groupbys": ["\"container_name\""],
+  			"wheres": []
+		}]
+ 	},
+ 	{
+ 		"x": 0,
+ 		"y": 0,
+ 		"w": 4,
+ 		"h": 4,
+        "i": "4c79cefb-5152-410c-9b88-74f9bff7ef00",
+        "name": "Docker - Container Memory",
+ 		"queries": [{
+ 			"query": "SELECT \"usage\" FROM \"docker_container_mem\"",
+ 			"db": "telegraf",
+ 			"rp": "autogen",
+  			"groupbys": ["\"container_name\""],
+  			"wheres": []
+        }]
+    }]
+
+ }
