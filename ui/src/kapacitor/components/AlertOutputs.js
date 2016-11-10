@@ -27,7 +27,6 @@ const AlertOutputs = React.createClass({
     return {
       selectedEndpoint: 'smtp',
       configSections: null,
-      canConnect: false,
     };
   },
 
@@ -37,12 +36,9 @@ const AlertOutputs = React.createClass({
 
   refreshKapacitorConfig() {
     getKapacitorConfig(this.props.kapacitor).then(({data: {sections}}) => {
-      this.setState({
-        configSections: sections,
-        canConnect: true,
-      });
+      this.setState({configSections: sections});
     }).catch(() => {
-      this.setState({canConnect: false});
+      this.props.addFlashMessage({type: 'error', text: `There was an error getting the kapacitor config`});
     });
   },
 
@@ -95,33 +91,24 @@ const AlertOutputs = React.createClass({
       <div className="panel-body">
         <h4 className="text-center">Alert Endpoints</h4>
         <br/>
-        {this.renderBody()}
-      </div>
-    );
-  },
-
-  renderBody() {
-    if (!this.state.canConnect) {
-      return <p className="error">Cannot connect.</p>;
-    }
-    return (
-      <div>
-        <div className="row">
-          <div className="form-group col-xs-7 col-sm-5 col-sm-offset-2">
-            <label htmlFor="alert-endpoint" className="sr-only">Alert Enpoint</label>
-            <select value={this.state.selectedEndpoint} className="form-control" id="source" onChange={this.changeSelectedEndpoint}>
-              <option value="hipchat">HipChat</option>
-              <option value="pagerduty">PagerDuty</option>
-              <option value="sensu">Sensu</option>
-              <option value="slack">Slack</option>
-              <option value="smtp">SMTP</option>
-              <option value="telegram">Telegram</option>
-              <option value="victorops">VictorOps</option>
-            </select>
+        <div>
+          <div className="row">
+            <div className="form-group col-xs-7 col-sm-5 col-sm-offset-2">
+              <label htmlFor="alert-endpoint" className="sr-only">Alert Enpoint</label>
+              <select value={this.state.selectedEndpoint} className="form-control" id="source" onChange={this.changeSelectedEndpoint}>
+                <option value="hipchat">HipChat</option>
+                <option value="pagerduty">PagerDuty</option>
+                <option value="sensu">Sensu</option>
+                <option value="slack">Slack</option>
+                <option value="smtp">SMTP</option>
+                <option value="telegram">Telegram</option>
+                <option value="victorops">VictorOps</option>
+              </select>
+            </div>
           </div>
-        </div>
-        <div className="row">
-          {this.renderAlertConfig(this.state.selectedEndpoint)}
+          <div className="row">
+            {this.renderAlertConfig(this.state.selectedEndpoint)}
+          </div>
         </div>
       </div>
     );
@@ -136,7 +123,7 @@ const AlertOutputs = React.createClass({
     };
 
     const {configSections} = this.state;
-    if (!configSections) {
+    if (!configSections) { // could use this state to conditionally render spinner or error message
       return null;
     }
 
