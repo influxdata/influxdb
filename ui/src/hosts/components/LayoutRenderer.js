@@ -52,10 +52,11 @@ export const LayoutRenderer = React.createClass({
         if (q.groupbys && q.groupbys.length > 0) {
           text += ` group by ${q.groupbys.join(',')}`;
         }
-        return {
+
+        return Object.assign({}, q, {
           host: source,
           text,
-        };
+        });
       });
       return (
         <div key={cell.i}>
