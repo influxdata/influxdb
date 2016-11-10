@@ -9,7 +9,7 @@
       "w": 4,
       "h": 4,
       "i": "5f406919-14b8-4c01-b0ce-f8ed75310805",
-      "name": "Node cpu usage millicores",
+      "name": "K8s node millicores",
       "queries": [
         {
           "query": "select \"cpu_usage_nanocores\" / 1000000  as cpu_usage_millicores from kubernetes_node",
@@ -23,12 +23,12 @@
       ]
     },
     {
-      "x": 10,
+      "x": 4,
       "y": 0,
       "w": 4,
       "h": 4,
       "i": "042d47cc-fcfd-4b26-a690-d81c0321d408",
-      "name": "Node memory usage bytes",
+      "name": "K8s node memory bytes",
       "queries": [
         {
           "query": "select \"memory_usage_bytes\" from kubernetes_node",
