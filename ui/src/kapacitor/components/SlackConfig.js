@@ -35,6 +35,14 @@ const SlackConfig = React.createClass({
     this.props.onSave(properties);
   },
 
+  handleTest(e) {
+    e.preventDefault();
+    this.props.onTest({
+      url: this.url.value,
+      channel: this.channel.value,
+    });
+  },
+
   render() {
     const {url, channel} = this.props.config.options;
 
@@ -70,7 +78,7 @@ const SlackConfig = React.createClass({
 
           <div className="row">
             <div className="form-group col-xs-5 col-sm-3 col-sm-offset-2">
-              <a className="btn btn-warning" onClick={this.props.onSave} disabled={!this.state.testEnabled}>Send Test Message</a>
+              <a className="btn btn-warning" onClick={this.handleTest} disabled={!this.state.testEnabled}>Send Test Message</a>
             </div>
           </div>
         </form>

@@ -513,34 +513,10 @@ export function updateKapacitorConfigSection(kapacitor, section, properties) {
   });
 }
 
-export function testAlertOutput(kapacitor, outputName) {
-  const script = `
-    batch
-      |query('''
-        SELECT count(usage_system)
-        FROM "telegraf".""."cpu"
-      ''')
-        .period(1m)
-        .every(1s)
-        .groupBy(time(1m))
-      |alert()
-        .crit(lambda: "count" > 0)
-        .stateChangesOnly()
-        .${outputName}()
-  `;
-
-  const taskName = `test_${outputName}`;
-  const telegrafRPs = [
-    {
-      db: 'telegraf',
-      rp: '',
-    },
-  ];
-
-  return createKapacitorTask(kapacitor, taskName, 'batch', telegrafRPs, script).then(() => {
-    const onePointFiveSeconds = 1500;
-    // Im not sure what is ghetto here but something is ghetto
-    setTimeout(() => deleteKapacitorTask(kapacitor, taskName), onePointFiveSeconds);
+export function testAlertOutput(kapacitor, outputName, properties) {
+  return kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/service-tests').then(({data: {services}}) => {
+    const service = services.find(s => s.name === outputName);
+    return kapacitorProxy(kapacitor, 'POST', service.link.href, Object.assign({}, service.options, properties));
   });
 }
 

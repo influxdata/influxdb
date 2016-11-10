@@ -26,13 +26,7 @@ const AlertOutputs = React.createClass({
   getInitialState() {
     return {
       selectedEndpoint: 'smtp',
-      alertaConfig: null,
-      smtpConfig: null,
-      slackConfig: null,
-      telegramConfig: null,
-      hipchatConfig: null,
-      sensuConfig: null,
-      canConnect: false,
+      configSections: null,
     };
   },
 
@@ -42,19 +36,9 @@ const AlertOutputs = React.createClass({
 
   refreshKapacitorConfig() {
     getKapacitorConfig(this.props.kapacitor).then(({data: {sections}}) => {
-      this.setState({
-        alertaConfig: this.getSection(sections, 'alerta'),
-        hipchatConfig: this.getSection(sections, 'hipchat'),
-        pagerdutyConfig: this.getSection(sections, 'pagerduty'),
-        slackConfig: this.getSection(sections, 'slack'),
-        smtpConfig: this.getSection(sections, 'smtp'),
-        telegramConfig: this.getSection(sections, 'telegram'),
-        victoropsConfig: this.getSection(sections, 'victorops'),
-        sensuConfig: this.getSection(sections, 'sensu'),
-      });
-      this.setState({canConnect: true});
+      this.setState({configSections: sections});
     }).catch(() => {
-      this.setState({canConnect: false});
+      this.props.addFlashMessage({type: 'error', text: `There was an error getting the kapacitor config`});
     });
   },
 
@@ -64,17 +48,12 @@ const AlertOutputs = React.createClass({
 
   handleSaveConfig(section, properties) {
     if (section !== '') {
-      updateKapacitorConfigSection(this.props.kapacitor, section, Object.assign({}, properties, {enabled: true})).then(() => {
+      const propsToSend = this.sanitizeProperties(section, properties);
+      updateKapacitorConfigSection(this.props.kapacitor, section, propsToSend).then(() => {
         this.refreshKapacitorConfig();
-        this.props.addFlashMessage({
-          type: 'success',
-          text: `Alert for ${section} successfully saved`,
-        });
+        this.props.addFlashMessage({type: 'success', text: `Alert for ${section} successfully saved`});
       }).catch(() => {
-        this.props.addFlashMessage({
-          type: 'error',
-          text: `There was an error saving the kapacitor config`,
-        });
+        this.props.addFlashMessage({type: 'error', text: `There was an error saving the kapacitor config`});
       });
     }
   },
@@ -85,13 +64,26 @@ const AlertOutputs = React.createClass({
     });
   },
 
-  testSlack(e) {
-    e.preventDefault();
-    testAlertOutput(this.props.kapacitor, 'slack').then(() => {
+  handleTest(section, properties) {
+    const propsToSend = this.sanitizeProperties(section, properties);
+    testAlertOutput(this.props.kapacitor, section, propsToSend).then(() => {
       this.props.addFlashMessage({type: 'success', text: 'Slack test message sent'});
     }).catch(() => {
       this.props.addFlashMessage({type: 'error', text: `There was an error testing the slack alert`});
     });
+  },
+
+  sanitizeProperties(section, properties) {
+    const cleanProps = Object.assign({}, properties, {enabled: true});
+    const {redacted} = this.getSection(this.state.configSections, section);
+    if (redacted && redacted.length) {
+      redacted.forEach((badProp) => {
+        if (properties[badProp] === 'true') {
+          delete cleanProps[badProp];
+        }
+      });
+    }
+    return cleanProps;
   },
 
   render() {
@@ -99,15 +91,6 @@ const AlertOutputs = React.createClass({
       <div className="panel-body">
         <h4 className="text-center">Alert Endpoints</h4>
         <br/>
-        { this.renderBody() }
-      </div>
-    );
-  },
-
-  renderBody() {
-    let body;
-    if (this.state.canConnect) {
-      body = (
         <div>
           <div className="row">
             <div className="form-group col-xs-7 col-sm-5 col-sm-offset-2">
@@ -127,51 +110,49 @@ const AlertOutputs = React.createClass({
             {this.renderAlertConfig(this.state.selectedEndpoint)}
           </div>
         </div>
-      );
-    } else {
-      body = (<p className="error">Cannot connect.</p>);
-    }
-    return body;
+      </div>
+    );
   },
 
   renderAlertConfig(endpoint) {
     const save = (properties) => {
       this.handleSaveConfig(endpoint, properties);
     };
+    const test = (properties) => {
+      this.handleTest(endpoint, properties);
+    };
 
-    if (endpoint === 'alerta' && this.state.alertaConfig) {
-      return <AlertaConfig onSave={save} config={this.state.alertaConfig} />;
+    const {configSections} = this.state;
+    if (!configSections) { // could use this state to conditionally render spinner or error message
+      return null;
     }
 
-    if (endpoint === 'smtp' && this.state.smtpConfig) {
-      return <SMTPConfig onSave={save} config={this.state.smtpConfig} />;
+    switch (endpoint) {
+      case 'alerta': {
+        return <AlertaConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
+      }
+      case 'smtp': {
+        return <SMTPConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
+      }
+      case 'slack': {
+        return <SlackConfig onSave={save} onTest={test} config={this.getSection(configSections, endpoint)} />;
+      }
+      case 'victorops': {
+        return <VictoropsConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
+      }
+      case 'telegram': {
+        return <TelegramConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
+      }
+      case 'pagerduty': {
+        return <PagerdutyConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
+      }
+      case 'hipchat': {
+        return <HipchatConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
+      }
+      case 'sensu': {
+        return <SensuConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
+      }
     }
-
-    if (endpoint === 'slack' && this.state.slackConfig) {
-      return <SlackConfig onSave={save} onTest={this.testSlack} config={this.state.slackConfig} />;
-    }
-
-    if (endpoint === 'victorops' && this.state.victoropsConfig) {
-      return <VictoropsConfig onSave={save} config={this.state.victoropsConfig} />;
-    }
-
-    if (endpoint === 'telegram' && this.state.telegramConfig) {
-      return <TelegramConfig onSave={save} config={this.state.telegramConfig} />;
-    }
-
-    if (endpoint === 'pagerduty' && this.state.pagerdutyConfig) {
-      return <PagerdutyConfig onSave={save} config={this.state.pagerdutyConfig} />;
-    }
-
-    if (endpoint === 'hipchat' && this.state.hipchatConfig) {
-      return <HipchatConfig onSave={save} config={this.state.hipchatConfig} />;
-    }
-
-    if (endpoint === 'sensu' && this.state.sensuConfig) {
-      return <SensuConfig onSave={save} config={this.state.sensuConfig} />;
-    }
-
-    return <div></div>;
   },
 });
 
