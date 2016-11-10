@@ -41,15 +41,14 @@ type Engine interface {
 	CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
 	WritePoints(points []models.Point) error
 
-	CreateSeries(measurment string, series *Series) (*Series, error)
+	CreateSeriesIfNotExists(name []byte, tags models.Tags) error
 	DeleteSeriesRange(keys [][]byte, min, max int64) error
-	Series(key []byte) (*Series, error)
 
 	SeriesN() (uint64, error)
 	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 
-	CreateMeasurement(name string) (*Measurement, error)
+	// CreateMeasurement(name string) (*Measurement, error)
 	DeleteMeasurement(name []byte, seriesKeys [][]byte) error
 	Measurement(name []byte) (*Measurement, error)
 	Measurements() (Measurements, error)

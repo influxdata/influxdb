@@ -3,6 +3,8 @@ package tsi1
 import (
 	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 
@@ -12,20 +14,101 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
+// File extensions.
+const (
+	LogFileExt   = ".tsi.log"
+	IndexFileExt = ".tsi"
+)
+
 // Ensure index implements the interface.
 var _ tsdb.Index = &Index{}
 
 // Index represents a collection of layered index files and WAL.
 type Index struct {
+	Path string
+
 	logFiles   []*LogFile
 	indexFiles IndexFiles
 }
 
 // Open opens the index.
-func (i *Index) Open() error { panic("TODO") }
+func (i *Index) Open() error {
+	// Open root index directory.
+	f, err := os.Open(i.Path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Open all log & index files.
+	names, err := f.Readdirnames(-1)
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		switch filepath.Ext(name) {
+		case LogFileExt:
+			if err := i.openLogFile(name); err != nil {
+				return err
+			}
+		case IndexFileExt:
+			if err := i.openIndexFile(name); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Ensure at least one log file exists.
+	if len(i.logFiles) == 0 {
+		path := filepath.Join(i.Path, fmt.Sprintf("%08x%s", 0, LogFileExt))
+		if err := i.openLogFile(path); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// openLogFile opens a log file and appends it to the index.
+func (i *Index) openLogFile(path string) error {
+	f := NewLogFile()
+	f.Path = path
+	if err := f.Open(); err != nil {
+		return err
+	}
+
+	i.logFiles = append(i.logFiles, f)
+	return nil
+}
+
+// openIndexFile opens a log file and appends it to the index.
+func (i *Index) openIndexFile(path string) error {
+	f := NewIndexFile()
+	f.Path = path
+	if err := f.Open(); err != nil {
+		return err
+	}
+
+	i.indexFiles = append(i.indexFiles, f)
+	return nil
+}
 
 // Close closes the index.
-func (i *Index) Close() error { panic("TODO") }
+func (i *Index) Close() error {
+	// Close log files.
+	for _, f := range i.logFiles {
+		f.Close()
+	}
+	i.logFiles = nil
+
+	// Close index files.
+	for _, f := range i.indexFiles {
+		f.Close()
+	}
+	i.indexFiles = nil
+
+	return nil
+}
 
 // SetLogFiles explicitly sets log files.
 // TEMPORARY: For testing only.
@@ -37,6 +120,20 @@ func (i *Index) SetIndexFiles(a ...*IndexFile) { i.indexFiles = IndexFiles(a) }
 
 // FileN returns the number of log and index files within the index.
 func (i *Index) FileN() int { return len(i.logFiles) + len(i.indexFiles) }
+
+// files returns a list of all log & index files.
+//
+// OPTIMIZE(benbjohnson): Convert to an iterator to remove allocation.
+func (i *Index) files() []File {
+	a := make([]File, 0, len(i.logFiles)+len(i.indexFiles))
+	for _, f := range i.logFiles {
+		a = append(a, f)
+	}
+	for _, f := range i.indexFiles {
+		a = append(a, f)
+	}
+	return a
+}
 
 func (i *Index) CreateMeasurementIndexIfNotExists(name []byte) (*tsdb.Measurement, error) {
 	// FIXME(benbjohnson): Read lock log file during lookup.
@@ -287,16 +384,27 @@ func (i *Index) MeasurementsByRegex(re *regexp.Regexp) (tsdb.Measurements, error
 	return mms, nil
 }
 
+// DropMeasurement deletes a measurement from the index.
 func (i *Index) DropMeasurement(name []byte) error {
-	panic("TODO: Requires WAL")
+	return i.logFiles[0].DeleteMeasurement(name)
 }
 
-func (i *Index) CreateSeriesIndexIfNotExists(measurement []byte, series *tsdb.Series) (*tsdb.Series, error) {
-	panic("TODO: Requires WAL")
+// CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
+func (i *Index) CreateSeriesIfNotExists(name []byte, tags models.Tags) error {
+	if e := i.Series(name, tags); e != nil && !e.Deleted() {
+		return nil
+	}
+	return i.logFiles[0].AddSeries(name, tags)
 }
 
-func (i *Index) Series(key []byte) (*tsdb.Series, error) {
-	panic("TODO")
+// Series returns the series element from the index.
+func (i *Index) Series(name []byte, tags models.Tags) SeriesElem {
+	for _, f := range i.files() {
+		if e := f.Series(name, tags); e != nil {
+			return e
+		}
+	}
+	return nil
 }
 
 func (i *Index) DropSeries(keys [][]byte) error {
@@ -304,21 +412,8 @@ func (i *Index) DropSeries(keys [][]byte) error {
 }
 
 func (i *Index) SeriesN() (n uint64, err error) {
-	panic("TODO: Use sketches")
-
-	// itr := i.file.MeasurementIterator()
-	// for e := itr.Next(); e != nil; e = itr.Next() {
-	// 	n += uint64(e.SeriesN)
-	// }
-	// return n, nil
-}
-
-func (i *Index) TagsForSeries(key []byte) (models.Tags, error) {
-	ss, err := i.Series([]byte(key))
-	if err != nil {
-		return nil, err
-	}
-	return ss.Tags, nil
+	// TODO(edd): Use sketches.
+	return 0, nil
 }
 
 func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
@@ -407,6 +502,7 @@ func (i *Index) MatchTagValueSeriesIterator(name, key []byte, value *regexp.Rege
 func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
 	var tagSets []*influxql.TagSet
 	// TODO(benbjohnson): Iterate over filtered series and build tag sets.
+	panic("TODO")
 	return tagSets, nil
 }
 
@@ -570,6 +666,11 @@ func (i *Index) seriesByBinaryExprVarRefIterator(name, key []byte, value *influx
 		i.TagKeySeriesIterator(name, key),
 		i.TagKeySeriesIterator(name, []byte(value.Val)),
 	), nil
+}
+
+// File represents a log or index file.
+type File interface {
+	Series(name []byte, tags models.Tags) SeriesElem
 }
 
 // FilterExprs represents a map of series IDs to filter expressions.

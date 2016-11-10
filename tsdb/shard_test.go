@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -68,18 +67,8 @@ func TestShardWriteAndIndex(t *testing.T) {
 		cnt, err := sh.SeriesN()
 		if err != nil {
 			t.Fatal(err)
-		}
-
-		if got, exp := cnt, uint64(1); got != exp {
+		} else if got, exp := cnt, uint64(1); got != exp {
 			t.Fatalf("got %v series, exp %v series in index", got, exp)
-		}
-
-		seriesTags := sh.Series(pt.Key()).Tags
-		if len(seriesTags) != len(pt.Tags()) || pt.Tags().GetString("host") != seriesTags.GetString("host") {
-			t.Fatalf("tags weren't properly saved to series index: %v, %v", pt.Tags(), seriesTags)
-		}
-		if !reflect.DeepEqual(sh.Measurement([]byte("cpu")).TagKeys(), []string{"host"}) {
-			t.Fatalf("tag key wasn't saved to measurement index")
 		}
 	}
 
@@ -296,14 +285,6 @@ func TestWriteTimeField(t *testing.T) {
 	} else if got, exp := buf.String(), "dropping tag 'time'"; !strings.Contains(got, exp) {
 		t.Fatalf("unexpected log message: %s", strings.TrimSpace(got))
 	}
-
-	key := models.MakeKey([]byte("cpu"), nil)
-	series := sh.Series(key)
-	if series == nil {
-		t.Fatal("expected series")
-	} else if len(series.Tags) != 0 {
-		t.Fatalf("unexpected number of tags: got=%v exp=%v", len(series.Tags), 0)
-	}
 }
 
 func TestShardWriteAddNewField(t *testing.T) {
@@ -351,18 +332,6 @@ func TestShardWriteAddNewField(t *testing.T) {
 	}
 	if got, exp := cnt, uint64(1); got != exp {
 		t.Fatalf("got %d series, exp %d series in index", got, exp)
-	}
-
-	seriesTags := sh.Series(pt.Key()).Tags
-	if len(seriesTags) != len(pt.Tags()) || pt.Tags().GetString("host") != seriesTags.GetString("host") {
-		t.Fatalf("tags weren't properly saved to series index: %v, %v", pt.Tags(), seriesTags)
-	}
-	if !reflect.DeepEqual(sh.Measurement([]byte("cpu")).TagKeys(), []string{"host"}) {
-		t.Fatalf("tag key wasn't saved to measurement index")
-	}
-
-	if len(sh.Measurement([]byte("cpu")).FieldNames()) != 2 {
-		t.Fatalf("field names wasn't saved to measurement index")
 	}
 }
 

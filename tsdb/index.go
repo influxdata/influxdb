@@ -20,14 +20,14 @@ type Index interface {
 	MeasurementsByRegex(re *regexp.Regexp) (Measurements, error)
 	DropMeasurement(name []byte) error
 
-	CreateSeriesIndexIfNotExists(measurement []byte, series *Series) (*Series, error)
-	Series(key []byte) (*Series, error)
+	CreateSeriesIfNotExists(name []byte, tags models.Tags) error
 	DropSeries(keys [][]byte) error
 
 	SeriesN() (uint64, error)
 	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 
-	TagsForSeries(key []byte) (models.Tags, error)
 	Dereference(b []byte)
+
+	TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error)
 }

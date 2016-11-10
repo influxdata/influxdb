@@ -5,6 +5,9 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
+
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/mmap"
 )
 
 // IndexFileVersion is the current TSI1 index file version.
@@ -42,11 +45,35 @@ type IndexFile struct {
 	// Components
 	sblk SeriesBlock
 	mblk MeasurementBlock
+
+	// Path to data file.
+	Path string
+}
+
+// NewIndexFile returns a new instance of IndexFile.
+func NewIndexFile() *IndexFile {
+	return &IndexFile{}
+}
+
+// Open memory maps the data file at the file's path.
+func (f *IndexFile) Open() error {
+	data, err := mmap.Map(f.Path)
+	if err != nil {
+		return err
+	}
+	return f.UnmarshalBinary(data)
+}
+
+// Close unmaps the data file.
+func (f *IndexFile) Close() error {
+	f.sblk = SeriesBlock{}
+	f.mblk = MeasurementBlock{}
+	return mmap.Unmap(f.data)
 }
 
 // UnmarshalBinary opens an index from data.
 // The byte slice is retained so it must be kept open.
-func (i *IndexFile) UnmarshalBinary(data []byte) error {
+func (f *IndexFile) UnmarshalBinary(data []byte) error {
 	// Ensure magic number exists at the beginning.
 	if len(data) < len(FileSignature) {
 		return io.ErrShortBuffer
@@ -65,7 +92,7 @@ func (i *IndexFile) UnmarshalBinary(data []byte) error {
 	buf = buf[:t.MeasurementBlock.Size]
 
 	// Unmarshal measurement block.
-	if err := i.mblk.UnmarshalBinary(buf); err != nil {
+	if err := f.mblk.UnmarshalBinary(buf); err != nil {
 		return err
 	}
 
@@ -74,33 +101,57 @@ func (i *IndexFile) UnmarshalBinary(data []byte) error {
 	buf = buf[:t.SeriesBlock.Size]
 
 	// Unmarshal series list.
-	if err := i.sblk.UnmarshalBinary(buf); err != nil {
+	if err := f.sblk.UnmarshalBinary(buf); err != nil {
 		return err
 	}
 
 	// Save reference to entire data block.
-	i.data = data
+	f.data = data
 
 	return nil
 }
 
-// Close closes the index file.
-func (i *IndexFile) Close() error {
-	i.sblk = SeriesBlock{}
-	i.mblk = MeasurementBlock{}
-	return nil
+// Series returns a series element.
+func (f *IndexFile) Series(name []byte, tags models.Tags) SeriesElem {
+	// Find measurement.
+	me, ok := f.mblk.Elem(name)
+	if !ok {
+		return nil
+	} else if me.Deleted() {
+		return &seriesElem{name: name, tags: tags, deleted: true}
+	}
+
+	// Open tag block.
+	tblk, err := f.tagBlock(&me)
+	if err != nil {
+		// TODO: Initialize tag blocks on open.
+		panic("corrupt tag block")
+	}
+
+	// Verify each tag value exists.
+	for _, tag := range tags {
+		ve := tblk.TagValueElem(tag.Key, tag.Value)
+		if len(ve.value) == 0 {
+			return nil
+		} else if ve.Deleted() {
+			return &seriesElem{name: name, tags: tags, deleted: true}
+		}
+	}
+
+	// Return series element in series block.
+	return f.sblk.Series(name, tags)
 }
 
 // TagValueElem returns a list of series ids for a measurement/tag/value.
-func (i *IndexFile) TagValueElem(name, key, value []byte) (TagBlockValueElem, error) {
+func (f *IndexFile) TagValueElem(name, key, value []byte) (TagBlockValueElem, error) {
 	// Find measurement.
-	e, ok := i.mblk.Elem(name)
+	e, ok := f.mblk.Elem(name)
 	if !ok {
 		return TagBlockValueElem{}, nil
 	}
 
 	// Find tag block.
-	tblk, err := i.tagBlock(&e)
+	tblk, err := f.tagBlock(&e)
 	if err != nil {
 		return TagBlockValueElem{}, err
 	}
@@ -108,9 +159,9 @@ func (i *IndexFile) TagValueElem(name, key, value []byte) (TagBlockValueElem, er
 }
 
 // tagBlock returns a tag block for a measurement.
-func (i *IndexFile) tagBlock(e *MeasurementBlockElem) (TagBlock, error) {
+func (f *IndexFile) tagBlock(e *MeasurementBlockElem) (TagBlock, error) {
 	// Slice data.
-	buf := i.data[e.tagBlock.offset:]
+	buf := f.data[e.tagBlock.offset:]
 	buf = buf[:e.tagBlock.size]
 
 	// Unmarshal block.
@@ -122,34 +173,34 @@ func (i *IndexFile) tagBlock(e *MeasurementBlockElem) (TagBlock, error) {
 }
 
 // MeasurementIterator returns an iterator over all measurements.
-func (i *IndexFile) MeasurementIterator() MeasurementIterator {
-	return i.mblk.Iterator()
+func (f *IndexFile) MeasurementIterator() MeasurementIterator {
+	return f.mblk.Iterator()
 }
 
 // TagKeyIterator returns an iterator over all tag keys for a measurement.
-func (i *IndexFile) TagKeyIterator(name []byte) (TagKeyIterator, error) {
+func (f *IndexFile) TagKeyIterator(name []byte) (TagKeyIterator, error) {
 	// Create an internal iterator.
-	bitr, err := i.tagBlockKeyIterator(name)
+	bitr, err := f.tagBlockKeyIterator(name)
 	if err != nil {
 		return nil, err
 	}
 
 	// Decode into an externally accessible iterator.
-	itr := newTagKeyDecodeIterator(&i.sblk)
+	itr := newTagKeyDecodeIterator(&f.sblk)
 	itr.itr = bitr
 	return &itr, nil
 }
 
 // tagBlockKeyIterator returns an internal iterator over all tag keys for a measurement.
-func (i *IndexFile) tagBlockKeyIterator(name []byte) (tagBlockKeyIterator, error) {
+func (f *IndexFile) tagBlockKeyIterator(name []byte) (tagBlockKeyIterator, error) {
 	// Find measurement element.
-	e, ok := i.mblk.Elem(name)
+	e, ok := f.mblk.Elem(name)
 	if !ok {
 		return tagBlockKeyIterator{}, nil
 	}
 
 	// Fetch tag block.
-	blk, err := i.tagBlock(&e)
+	blk, err := f.tagBlock(&e)
 	if err != nil {
 		return tagBlockKeyIterator{}, err
 	}
@@ -157,16 +208,16 @@ func (i *IndexFile) tagBlockKeyIterator(name []byte) (tagBlockKeyIterator, error
 }
 
 // MeasurementSeriesIterator returns an iterator over a measurement's series.
-func (i *IndexFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
+func (f *IndexFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
 	return &seriesDecodeIterator{
-		itr:  i.mblk.seriesIDIterator(name),
-		sblk: &i.sblk,
+		itr:  f.mblk.seriesIDIterator(name),
+		sblk: &f.sblk,
 	}
 }
 
 // SeriesIterator returns an iterator over all series.
-func (i *IndexFile) SeriesIterator() SeriesIterator {
-	return i.sblk.SeriesIterator()
+func (f *IndexFile) SeriesIterator() SeriesIterator {
+	return f.sblk.SeriesIterator()
 }
 
 // ReadIndexFileTrailer returns the index file trailer from data.

@@ -462,12 +462,12 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 			return err
 		}
 
-		// ensure the measurement is in the index and the field is there
-		measurement, err := s.engine.CreateMeasurement(f.Measurement)
-		if err != nil {
-			return err
-		}
-		measurement.SetFieldName(f.Field.Name)
+		// // ensure the measurement is in the index and the field is there
+		// measurement, err := s.engine.CreateMeasurement(f.Measurement)
+		// if err != nil {
+		// 	return err
+		// }
+		// measurement.SetFieldName(f.Field.Name)
 	}
 
 	return nil
@@ -547,29 +547,32 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 
 		iter.Reset()
 
-		// see if the series should be added to the index
-		ss, err := s.engine.Series(p.Key())
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if ss == nil {
-			sn, err := s.engine.SeriesN()
+		// TODO(benbjohnson): Reimplement MaxSeriesPerDatabase?
+		/*
+			// see if the series should be added to the index
+			ss, err := s.engine.Series(p.Key())
 			if err != nil {
 				return nil, nil, err
 			}
 
-			if s.options.Config.MaxSeriesPerDatabase > 0 && sn+1 > uint64(s.options.Config.MaxSeriesPerDatabase) {
-				atomic.AddInt64(&s.stats.WritePointsDropped, 1)
-				dropped++
-				reason = fmt.Sprintf("db %s max series limit reached: (%d/%d)", s.database, sn, s.options.Config.MaxSeriesPerDatabase)
-				continue
+			if ss == nil {
+				sn, err := s.engine.SeriesN()
+				if err != nil {
+					return nil, nil, err
+				}
+
+				if s.options.Config.MaxSeriesPerDatabase > 0 && sn+1 > uint64(s.options.Config.MaxSeriesPerDatabase) {
+					atomic.AddInt64(&s.stats.WritePointsDropped, 1)
+					dropped += 1
+					reason = fmt.Sprintf("db %s max series limit reached: (%d/%d)", s.database, sn, s.options.Config.MaxSeriesPerDatabase)
+					continue
+				}
+
+				ss = NewSeries(p.Key(), tags)
 			}
+		*/
 
-			ss = NewSeries(p.Key(), tags)
-		}
-
-		if ss, err = s.engine.CreateSeries(p.Name(), ss); err != nil {
+		if err := s.engine.CreateSeriesIfNotExists([]byte(p.Name()), tags); err != nil {
 			return nil, nil, err
 		}
 
@@ -660,12 +663,6 @@ func (s *Shard) SeriesN() (uint64, error) {
 		return 0, err
 	}
 	return s.engine.SeriesN()
-}
-
-// Series returns a series by key.
-func (s *Shard) Series(key []byte) *Series {
-	series, _ := s.engine.Series(key)
-	return series
 }
 
 // WriteTo writes the shard's data to w.
