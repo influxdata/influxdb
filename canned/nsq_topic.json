@@ -1,5 +1,5 @@
 {
-  "id": "7b035812-182a-4a94-ba2e-902dfb81e0a2",
+  "id": "912f337b-3af2-42af-9352-b31a5bc3b431",
   "measurement": "nsq_topic",
   "app": "nsq",
   "cells": [
@@ -27,7 +27,7 @@
       "y": 0,
       "w": 4,
       "h": 4,
-      "i": "e3eb48c0-8283-4445-b174-f4f8e4182e45",
+      "i": "912f337b-3af2-42af-9352-b31a5bc3b431",
       "name": "NSQ topic messages on disk",
       "queries": [
         {
