@@ -54,8 +54,10 @@ export const LayoutRenderer = React.createClass({
     if (groupbys) {
       if (groupbys.find((g) => g.includes("time"))) {
         text += ` group by ${groupbys.join(',')}`;
-      } else {
+      } else if (groupbys.length > 0) {
         text += ` group by time(${timeRange.defaultGroupBy}),${groupbys.join(',')}`;
+      } else {
+        text += ` group by time(${timeRange.defaultGroupBy})`;
       }
     } else {
       text += ` group by time(${timeRange.defaultGroupBy})`;
