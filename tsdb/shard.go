@@ -853,7 +853,7 @@ func (s *Shard) monitor() {
 			}
 
 			for _, m := range s.index.Measurements() {
-				for _, k := range m.TagKeys() {
+				m.WalkTagKeys(func(k string) {
 					n := m.Cardinality(k)
 					perc := int(float64(n) / float64(s.options.Config.MaxValuesPerTag) * 100)
 					if perc > 100 {
@@ -865,7 +865,7 @@ func (s *Shard) monitor() {
 						s.logger.Printf("WARN: %d%% of max-values-per-tag limit exceeded: (%d/%d), db=%s shard=%d measurement=%s tag=%s",
 							perc, n, s.options.Config.MaxValuesPerTag, s.database, s.id, m.Name, k)
 					}
-				}
+				})
 			}
 		}
 	}
