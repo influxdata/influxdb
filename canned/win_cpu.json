@@ -9,12 +9,12 @@
       "w": 4,
       "h": 4,
       "i": "6921e19a-951e-42ef-b304-2b8b661fcc81",
-      "name": "CPU Usage",
+      "name": "System - CPU Usage",
       "queries": [
         {
-          "query": "select Percent_Processor_Time from win_cpu",
+          "query": "SELECT mean(\"Percent_Processor_Time\") AS \"percent_processor_time\" FROM win_cpu",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [],
           "wheres": []
         }

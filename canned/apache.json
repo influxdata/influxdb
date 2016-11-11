@@ -9,10 +9,10 @@
       "w": 4,
       "h": 4,
       "i": "0246e457-916b-43e3-be99-211c4cbc03e8",
-      "name": "Apache bytes/s",
+      "name": "Apache Bytes/Second",
       "queries": [
         {
-          "query": "select mean(\"BytesPerSec\") AS \"bytes_per_sec\" from apache",
+          "query": "SELECT mean(\"BytesPerSec\") AS \"bytes_per_sec\" FROM apache",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
@@ -28,10 +28,10 @@
       "w": 4,
       "h": 4,
       "i": "37f2e4bb-9fa5-4891-a424-9df5ce7458bb",
-      "name": "Apache requests/s",
+      "name": "Apache - Requests/Second",
       "queries": [
         {
-          "query": "select mean(\"ReqPerSec\") as req_per_sec from apache",
+          "query": "SELECT mean(\"ReqPerSec\") AS \"req_per_sec\" FROM apache",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
@@ -47,10 +47,10 @@
       "w": 4,
       "h": 4,
       "i": "ea9174b3-2b56-4e80-a37d-064507c6775a",
-      "name": "Apache total accesses",
+      "name": "Apache - Total Accesses",
       "queries": [
         {
-          "query": "select mean(\"TotalAccesses\") as tot_access from apache",
+          "query": "SELECT mean(\"TotalAccesses\") AS \"tot_access\" FROM apache",
           "db": "telegraf",
           "rp": "",
           "groupbys": [

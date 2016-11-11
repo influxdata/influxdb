@@ -9,12 +9,12 @@
       "w": 4,
       "h": 4,
       "i": "c376a3d8-cd2a-4212-bf1d-da776b75feeb",
-      "name": "NSQ topic count",
+      "name": "NSQ - Topic Count",
       "queries": [
         {
-          "query": "select topic_count from nsq_server",
+          "query": "SELECT mean(\"topic_count\") AS \"topic_count\" FROM nsq_server",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -26,12 +26,12 @@
       "w": 4,
       "h": 4,
       "i": "aa1aa20a-48aa-4a42-aaa0-426aa6a58aa8",
-      "name": "NSQ server count",
+      "name": "NSQ - Server Count",
       "queries": [
         {
-          "query": "select server_count from nsq_server",
+          "query": "SELECT mean(\"server_count\") AS \"server_count\" FROM nsq_server",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [],
           "wheres": []
         }

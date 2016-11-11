@@ -12,9 +12,9 @@
       "name": "Redis - Connected Clients",
       "queries": [
         {
-          "query": "select clients from redis",
+          "query": "SELECT mean(\"clients\") AS \"clients\" FROM redis",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": []
         }
       ]
@@ -28,9 +28,9 @@
       "name": "Redis - Blocked Clients",
       "queries": [
         {
-          "query": "select blocked_clients from redis",
+          "query": "SELECT mean(\"blocked_clients\") AS \"blocked_clients\" FROM redis",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": []
         }
       ]
@@ -44,9 +44,9 @@
       "name": "Redis - CPU",
       "queries": [
         {
-          "query": "select non_negative_derivative(\"used_cpu_user\") as used_cpu_per_second from redis",
+          "query": "SELECT non_negative_derivative(\"used_cpu_user\") AS \"used_cpu_per_second\" FROM redis",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": []
         }
       ]
@@ -60,9 +60,9 @@
       "name": "Redis - Memory",
       "queries": [
         {
-          "query": "select non_negative_derivative(\"used_memory\") as used_memory_per_second from redis",
+          "query": "SELECT non_negative_derivative(\"used_memory\") AS \"used_memory_per_second\" FROM redis",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": []
         }
       ]

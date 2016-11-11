@@ -9,12 +9,12 @@
       "w": 4,
       "h": 4,
       "i": "5f406919-14b8-4c01-b0ce-f8ed75310805",
-      "name": "K8s node millicores",
+      "name": "K8s - Node Millicores",
       "queries": [
         {
-          "query": "select \"cpu_usage_nanocores\" / 1000000  as cpu_usage_millicores from kubernetes_node",
+          "query": "SELECT mean(\"cpu_usage_nanocores\") / 1000000  AS \"cpu_usage_millicores\" FROM kubernetes_node",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
             "\"node_name\""
           ],
@@ -28,12 +28,12 @@
       "w": 4,
       "h": 4,
       "i": "042d47cc-fcfd-4b26-a690-d81c0321d408",
-      "name": "K8s node memory bytes",
+      "name": "K8s - Node Memory Bytes",
       "queries": [
         {
-          "query": "select \"memory_usage_bytes\" from kubernetes_node",
+          "query": "SELECT mean(\"memory_usage_bytes\") AS \"memory_usage_bytes\" FROM kubernetes_node",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
             "\"node_name\""
           ],
