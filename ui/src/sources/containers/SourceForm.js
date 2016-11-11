@@ -39,7 +39,7 @@ export const SourceForm = React.createClass({
     e.preventDefault();
     const {router, params, addFlashMessage} = this.props;
     const newSource = Object.assign({}, this.state.source, {
-      url: this.sourceURL.value,
+      url: this.sourceURL.value.trim(),
       name: this.sourceName.value,
       username: this.sourceUsername.value,
       password: this.sourcePassword.value,
