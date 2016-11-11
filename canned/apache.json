@@ -12,9 +12,9 @@
       "name": "Apache bytes/s",
       "queries": [
         {
-          "query": "select BytesPerSec from apache",
+          "query": "select mean(\"BytesPerSec\") AS \"bytes_per_sec\" from apache",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
             "\"server\""
           ],
@@ -31,9 +31,9 @@
       "name": "Apache requests/s",
       "queries": [
         {
-          "query": "select ReqPerSec from apache",
+          "query": "select mean(\"ReqPerSec\") as req_per_sec from apache",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
             "\"server\""
           ],
@@ -50,9 +50,9 @@
       "name": "Apache total accesses",
       "queries": [
         {
-          "query": "select TotalAccesses from apache",
+          "query": "select mean(\"TotalAccesses\") as tot_access from apache",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
             "\"server\""
           ],

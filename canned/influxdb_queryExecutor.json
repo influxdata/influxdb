@@ -12,20 +12,18 @@
       "name": "InfluxDB - Query Performance",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(max(\"queryDurationNs\"), 1s) AS \"Duration\" FROM \"influxdb_queryExecutor\"",
+          "query": "SELECT non_negative_derivative(max(\"queryDurationNs\"), 1s) AS \"duration\" FROM \"influxdb_queryExecutor\"",
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [
-            "time(10s)"
           ],
           "wheres": []
         },
         {
-          "query": "SELECT non_negative_derivative(max(\"queriesExecuted\"), 1s) AS \"Queries Executed\" FROM \"influxdb_queryExecutor\"",
+          "query": "SELECT non_negative_derivative(max(\"queriesExecuted\"), 1s) AS \"queries_executed\" FROM \"influxdb_queryExecutor\"",
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [
-            "time(10s)"
           ],
           "wheres": []
         }

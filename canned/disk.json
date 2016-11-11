@@ -12,9 +12,9 @@
       "name": "Disk used %",
       "queries": [
         {
-          "query": "select mean(used_percent) from disk",
+          "query": "select mean(\"used_percent\") AS \"used_percent\" from disk",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
             "\"path\""
           ],

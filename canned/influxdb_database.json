@@ -12,20 +12,18 @@
       "name": "InfluxDB - Cardinality",
       "queries": [
         {
-          "query": "SELECT max(\"numMeasurements\") AS \"Measurements\" FROM \"influxdb_database\"",
+          "query": "SELECT max(\"numMeasurements\") AS \"measurements\" FROM \"influxdb_database\"",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
-            "time(10s)"
           ],
           "wheres": []
         },
         {
-          "query": "SELECT max(\"numSeries\") AS \"Series\" FROM \"influxdb_database\"",
+          "query": "SELECT max(\"numSeries\") AS \"series\" FROM \"influxdb_database\"",
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [
-            "time(10s)"
           ],
           "wheres": []
         }
