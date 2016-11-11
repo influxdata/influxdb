@@ -32,11 +32,8 @@ if [ -z "$measurement" ]; then
 	exit
 fi
 
-CELLID=$(uuidgen)
-CELLID="$(tr [A-Z] [a-z] <<< "$CELLID")"
-
-UUID=$(uuidgen)
-UUID="$(tr [A-Z] [a-z] <<< "$UUID")"
+CELLID=$(uuidgen | tr A-Z a-z)
+UUID=$(uuidgen | tr A-Z a-z)
 APP_FILE="$measurement".json
 echo Creating measurement file $APP_FILE
 cat > $APP_FILE << EOF
