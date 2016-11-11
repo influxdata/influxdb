@@ -61,7 +61,6 @@
 
 .panels {
   padding: $explorer-page-padding;
-  // overflow-x: hidden;
   overflow: scroll;
   user-select: none;
   -webkit-touch-callout: none;
@@ -70,37 +69,6 @@
   -moz-user-select: none;
   -ms-user-select: none;
   width: 100%;
-  background: $g2-kevlar;
-  background: -moz-linear-gradient(top,  $g2-kevlar 0%, $g0-obsidian 100%);
-  background: -webkit-linear-gradient(top,  $g2-kevlar 0%,$g0-obsidian 100%);
-  background: linear-gradient(to bottom,  $g2-kevlar 0%,$g0-obsidian 100%);
-  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$g2-kevlar', endColorstr='$g0-obsidian',GradientType=0 );
-
-  &::-webkit-scrollbar {
-    width: 16px;
-    height: 16px;
-    border-left: 2px solid $g2-kevlar;
-
-    &-button {
-      background-color: $g0-obsidian;
-    }
-    &-track {
-      background-color: $g0-obsidian;
-    }
-    &-track-piece {
-      width: 10px;
-      background: $g0-obsidian;
-    }
-    &-thumb {
-      background-color: $c-pool;
-      border: 6px solid $g0-obsidian;
-      border-radius: 7px;
-    }
-    &-corner {
-      background-color: $g0-obsidian;
-    }
-    &-resizer {
-      background-color: #00f;
-    }
-  }
+  @include gradient-v($g2-kevlar,$g0-obsidian);
+  @include custom-scrollbar($g2-kevlar,$c-pool);
 }
