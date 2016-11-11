@@ -254,7 +254,7 @@ export const KapacitorRulePage = React.createClass({
       <div className="kapacitor-rule-section">
         <h3 className="rule-section-heading">Alert Message</h3>
         <div className="rule-section-body">
-          <textarea className="alert-message" ref={(r) => this.message = r} onChange={() => this.handleMessageChange(rule)} placeholder="Compose your alert message here"/>
+          <textarea className="alert-message" ref={(r) => this.message = r} value={rule.message} onChange={() => this.handleMessageChange(rule)} placeholder="Compose your alert message here"/>
           <div className="alert-message--formatting">
             <p>Templates:</p>
             <code data-tip="The ID of the alert">&#123;&#123; .ID &#125;&#125;</code>
