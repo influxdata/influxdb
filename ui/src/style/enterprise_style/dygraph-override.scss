@@ -1,0 +1,79 @@
+// Dygraph styles. Needs a home.
+.dygraph-axis-label {
+  color: $g11-sidewalk;
+  font-weight: 500;
+}
+.graph-vertical-marker {
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(16px - 1px);
+  position: absolute;
+  pointer-events: none;
+  display: none;
+  background: fade-out($g20-white, 1);
+  background: -moz-linear-gradient(top,  fade-out($g20-white, 1) 0%, fade-out($g20-white, 0.71) 6%, fade-out($g20-white, 0.71) 80%, fade-out($g20-white, 1) 100%);
+  background: -webkit-linear-gradient(top,  fade-out($g20-white, 1) 0%,fade-out($g20-white, 0.71) 6%,fade-out($g20-white, 0.71) 80%,fade-out($g20-white, 1) 100%);
+  background: linear-gradient(to bottom,  fade-out($g20-white, 1) 0%,fade-out($g20-white, 0.71) 6%,fade-out($g20-white, 0.71) 80%,fade-out($g20-white, 1) 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='fade-out($g20-white, 0.71)', endColorstr='fade-out($g20-white, 0.71)',GradientType=0 );
+}
+.container--dygraph-legend {
+  background-color: $g1-raven;
+  display: block;
+  position: fixed;
+  padding: 11px;
+  z-index: 500;
+  font-size: 13px;
+  color: $g12-forge;
+  border-radius: 3px;
+  font-weight: 600;
+  line-height: 13px;
+
+  &.hidden {
+    display: none;
+  }
+
+  /*
+   * Only animate position that's controlled during rendering.
+   * See http://stackoverflow.com/a/17117992
+   */
+  transition: all 0.25s ease;
+  transition-property: top, right, bottom, left;
+
+  /* Row */
+  /* Styles for Key go here, get overrided by > b */
+  > span {
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+    display: flex;
+    opacity: 0.5;
+    padding-top: 4px;
+    font-size: 13px;
+    line-height: 13px;
+    font-weight: 600 !important;
+    color: $g19-ghost;
+    margin: 0;
+
+    /* Border on top of first row */
+    &:first-child {
+      border-top: 2px solid $g4-onyx;
+      padding-top: 6px;
+      margin-top: 6px;
+    }
+
+    /* Legend Key */
+    > b {
+      font-weight: 600 !important;
+    }
+  }
+
+  .highlight {
+    font-weight: 600;
+    opacity: 1;
+
+    > b {
+     font-weight: 600;
+    }
+  }
+}
