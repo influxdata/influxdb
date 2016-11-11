@@ -109,16 +109,19 @@ export function updateRuleName(ruleID, name) {
   };
 }
 
+export function deleteRuleSuccess(ruleID) {
+  return {
+    type: 'DELETE_RULE_SUCCESS',
+    payload: {
+      ruleID,
+    },
+  };
+}
+
 export function deleteRule(rule) {
   return (dispatch) => {
     deleteRuleAPI(rule).then(() => {
-      dispatch({
-        type: 'DELETE_RULE',
-        payload: {
-          ruleID: rule.id,
-        },
-      });
-
+      dispatch(deleteRuleSuccess(rule.id));
       dispatch(publishNotification('success', `${rule.name} deleted successfully`));
     }).catch(() => {
       dispatch(publishNotification('error', `${rule.name} deleted successfully`));

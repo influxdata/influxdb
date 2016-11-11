@@ -7,7 +7,7 @@ import {
   updateMessage,
   updateAlerts,
   updateRuleName,
-  deleteRule,
+  deleteRuleSuccess,
 } from 'src/kapacitor/actions/view';
 
 describe('Kapacitor.Reducers.rules', () => {
@@ -113,7 +113,7 @@ describe('Kapacitor.Reducers.rules', () => {
     };
 
     expect(Object.keys(initialState).length).to.equal(2);
-    const newState = reducer(initialState, deleteRule(rule2));
+    const newState = reducer(initialState, deleteRuleSuccess(rule2));
     expect(Object.keys(newState).length).to.equal(1);
     expect(newState[rule1]).to.equal(initialState[rule1]);
   });

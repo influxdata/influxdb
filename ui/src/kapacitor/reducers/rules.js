@@ -80,7 +80,7 @@ export default function rules(state = {}, action) {
       });
     }
 
-    case 'DELETE_RULE': {
+    case 'DELETE_RULE_SUCCESS': {
       const {ruleID} = action.payload;
       delete state[ruleID];
       return Object.assign({}, state);
