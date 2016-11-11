@@ -56,23 +56,23 @@ export const KapacitorRulePage = React.createClass({
   },
 
   componentDidMount() {
-    const {ruleID} = this.props.params;
+    const {params, source, kapacitorActions, addFlashMessage} = this.props;
     if (this.isEditing()) {
-      this.props.kapacitorActions.fetchRule(this.props.source, ruleID);
+      kapacitorActions.fetchRule(source, params.ruleID);
     } else {
-      this.props.kapacitorActions.loadDefaultRule();
+      kapacitorActions.loadDefaultRule();
     }
 
-    getKapacitor(this.props.source).then((kapacitor) => {
+    getKapacitor(source).then((kapacitor) => {
       getKapacitorConfig(kapacitor).then(({data: {sections}}) => {
         const enabledAlerts = Object.keys(sections).filter((section) => {
           return _.get(sections, [section, 'elements', '0', 'options', 'enabled'], false) && ALERTS.includes(section);
         });
         this.setState({kapacitor, enabledAlerts});
       }).catch(() => {
-        this.props.addFlashMessage({type: 'error', text: `There was a problem communicating with Kapacitor`});
+        addFlashMessage({type: 'error', text: `There was a problem communicating with Kapacitor`});
       }).catch(() => {
-        this.props.addFlashMessage({type: 'error', text: `We couldn't find a configured Kapacitor for this source`});
+        addFlashMessage({type: 'error', text: `We couldn't find a configured Kapacitor for this source`});
       });
     });
   },
