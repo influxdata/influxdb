@@ -12,11 +12,7 @@
       "name": "NGINX – Client Connections",
       "queries": [
         {
-<<<<<<< 521c294017a685ca2118a74bd4942829ad04f30f
-          "query": "select non_negative_derivative(max(\"accepts\"), 1s) as \"accepts\", non_negative_derivative(max(\"handled\"), 1s) as \"handled\", non_negative_derivative(max(\"active\"), 1s) as \"active\" from nginx",
-=======
-          "query": "SELECT mean(\"accepts\") AS \"accepts\", mean(\"handled\") AS \"handled\", mean(\"active\") AS \"active\" FROM nginx",
->>>>>>> Cleanup and aggregates of templates
+          "query": "SELECT non_negative_derivative(max(\"accepts\"), 1s) AS \"accepts\", non_negative_derivative(max(\"handled\"), 1s) AS \"handled\", non_negative_derivative(max(\"active\"), 1s) AS \"active\" FROM nginx",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
@@ -35,11 +31,7 @@
       "name": "NGINX – Client Errors",
       "queries": [
         {
-<<<<<<< 521c294017a685ca2118a74bd4942829ad04f30f
-          "query": "select non_negative_derivative(max(\"accepts\")) - non_negative_derivative(max(\"handled\")) from nginx",
-=======
-          "query": "SELECT mean(\"accepts\") - mean(\"handled\") AS \"dropped\" FROM nginx",
->>>>>>> Cleanup and aggregates of templates
+          "query": "SELECT non_negative_derivative(max(\"accepts\")) - non_negative_derivative(max(\"handled\")) FROM nginx",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
