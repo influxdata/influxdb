@@ -73,6 +73,13 @@ type DefaultPlanner struct {
 
 	// lastPlanCheck is the last time Plan was called
 	lastPlanCheck time.Time
+
+	mu sync.RWMutex
+	// lastFindGenerations is the last time findGenerations was run
+	lastFindGenerations time.Time
+
+	// lastGenerations is the last set of generations found by findGenerations
+	lastGenerations tsmGenerations
 }
 
 // tsmGeneration represents the TSM files within a generation.
@@ -458,6 +465,16 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 // findGenerations groups all the TSM files by they generation based
 // on their filename then returns the generations in descending order (newest first)
 func (c *DefaultPlanner) findGenerations() tsmGenerations {
+	c.mu.RLock()
+	last := c.lastFindGenerations
+	lastGen := c.lastGenerations
+	c.mu.RUnlock()
+
+	if !last.IsZero() && c.FileStore.LastModified().Equal(last) {
+		return lastGen
+	}
+
+	genTime := c.FileStore.LastModified()
 	tsmStats := c.FileStore.Stats()
 	generations := make(map[int]*tsmGeneration, len(tsmStats))
 	for _, f := range tsmStats {
@@ -477,7 +494,15 @@ func (c *DefaultPlanner) findGenerations() tsmGenerations {
 	for _, g := range generations {
 		orderedGenerations = append(orderedGenerations, g)
 	}
-	sort.Sort(orderedGenerations)
+	if !orderedGenerations.IsSorted() {
+		sort.Sort(orderedGenerations)
+	}
+
+	c.mu.Lock()
+	c.lastFindGenerations = genTime
+	c.lastGenerations = orderedGenerations
+	c.mu.Unlock()
+
 	return orderedGenerations
 }
 
@@ -1322,4 +1347,17 @@ func (a tsmGenerations) chunk(size int) []tsmGenerations {
 		}
 	}
 	return chunks
+}
+
+func (a tsmGenerations) IsSorted() bool {
+	if len(a) == 1 {
+		return true
+	}
+
+	for i := 1; i < len(a); i++ {
+		if a.Less(i, i-1) {
+			return false
+		}
+	}
+	return true
 }
