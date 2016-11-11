@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react';
 import Dropdown from 'src/shared/components/Dropdown';
 import {Tab, TabList, TabPanels, TabPanel, Tabs} from 'shared/components/Tabs';
 import {OPERATORS, PERIODS, CHANGES, SHIFTS} from 'src/kapacitor/constants';
+import _ from 'lodash';
 
 const TABS = ['Threshold', 'Relative', 'Deadman'];
 export const ValuesSection = React.createClass({
@@ -16,9 +17,11 @@ export const ValuesSection = React.createClass({
 
   render() {
     const {rule, query} = this.props;
+    const forcedActiveIndex = TABS.indexOf(_.startCase(rule.trigger));
+
     return (
       <div>
-        <Tabs onSelect={this.handleChooseTrigger}>
+        <Tabs forceActiveIndex={forcedActiveIndex} onSelect={this.handleChooseTrigger}>
           <TabList isKapacitorTabs="true">
             {TABS.map(tab => <Tab key={tab}>{tab}</Tab>)}
           </TabList>

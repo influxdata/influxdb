@@ -84,11 +84,21 @@ export const KapacitorRulePage = React.createClass({
     return rule.trigger === 'threshold' && rule.values.value === '';
   },
 
+  handleSave() {
+    const {rules, params} = this.props;
+    if (this.isEditing()) { // If we are editing updated rule if not, create a new one
+      this.saveOnEdit(rules[params.ruleID]);
+    } else {
+      this.saveNew(rules[DEFAULT_RULE_ID]);
+    }
+  },
+
   saveOnEdit(rule) {
     const {addFlashMessage, queryConfigs} = this.props;
 
     if (this.thresholdValueEmpty(rule)) {
-      return addFlashMessage({type: 'error', text: 'Please add a Treshold value to save'});
+      addFlashMessage({type: 'error', text: 'Please add a Treshold value to save'});
+      return;
     }
 
     const updatedRule = Object.assign({}, rule, {
@@ -106,7 +116,8 @@ export const KapacitorRulePage = React.createClass({
     const {addFlashMessage, router, queryConfigs, source} = this.props;
 
     if (this.thresholdValueEmpty(rule)) {
-      return addFlashMessage({type: 'error', text: 'Please add a Treshold value to save'});
+      addFlashMessage({type: 'error', text: 'Please add a Treshold value to save'});
+      return;
     }
 
     const newRule = Object.assign({}, rule, {
@@ -122,14 +133,6 @@ export const KapacitorRulePage = React.createClass({
     });
   },
 
-  handleSave() {
-    const {rules, params} = this.props;
-    if (this.isEditing()) { // If we are editing updated rule if not, create a new one
-      this.saveOnEdit(rules[params.ruleID]);
-    } else {
-      this.saveNew(rules[DEFAULT_RULE_ID]);
-    }
-  },
 
   handleChooseAlert(item) {
     this.props.kapacitorActions.updateAlerts(item.ruleID, [item.text]);

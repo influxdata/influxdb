@@ -90,6 +90,7 @@ export const Tabs = React.createClass({
     onSelect: func,
     tabContentsClass: string,
     tabsClass: string,
+    forceActiveIndex: number,
   },
 
   getDefaultProps() {
@@ -100,8 +101,10 @@ export const Tabs = React.createClass({
   },
 
   getInitialState() {
+    // forceActiveIndex allows the user to enable a Tab and TabPanel
+    // other than 0 on initial render.
     return {
-      activeIndex: 0,
+      activeIndex: this.props.forceActiveIndex ? this.props.forceActiveIndex : 0,
     };
   },
 
