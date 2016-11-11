@@ -54,9 +54,11 @@ const CheckSources = React.createClass({
     const source = sources.find((s) => s.id === params.sourceID);
     if (!isFetching && !source) {
       return router.push(`/?redirectPath=${location.pathname}`);
-    } else if (!isFetching && !location.pathname.includes("/manage-sources")) {
+    }
+
+    if (!isFetching && !location.pathname.includes("/manage-sources")) {
+      // Do simple query to proxy to see if the source is up.
       showDatabases(source.links.proxy).catch(() => {
-        router.push(`/sources/${source.id}/manage-sources`);
         addFlashMessage({type: 'error', text: `Unable to connect to source`});
       });
     }
