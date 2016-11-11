@@ -80,7 +80,7 @@ const Threshold = React.createClass({
   },
 
   render() {
-    const {operator, value, period} = this.props.rule.values;
+    const {operator, value} = this.props.rule.values;
     const {query} = this.props;
 
     function mapToItems(arr, type) {
@@ -90,7 +90,6 @@ const Threshold = React.createClass({
     }
 
     const operators = mapToItems(OPERATORS, 'operator');
-    const periods = mapToItems(PERIODS, 'period');
 
     return (
       <div className="value-selector">
@@ -98,9 +97,7 @@ const Threshold = React.createClass({
         <span>{query.fields.length ? query.fields[0].field : 'Select a Metric'}</span>
         <p>is</p>
         <Dropdown className="size-176" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
-        <input className="form-control input-sm size-166" placeholder="00000000000" type="text" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
-        <p>during the last</p>
-        <Dropdown className="size-66" items={periods} selected={period} onChoose={this.handleDropdownChange} />
+        <input className="form-control input-sm size-166" type="text" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
       </div>
     );
   },

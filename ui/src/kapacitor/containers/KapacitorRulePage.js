@@ -80,30 +80,54 @@ export const KapacitorRulePage = React.createClass({
     });
   },
 
+  thresholdValueEmpty(rule) {
+    return rule.trigger === 'threshold' && rule.values.value === '';
+  },
+
+  saveOnEdit(rule) {
+    const {addFlashMessage, queryConfigs} = this.props;
+
+    if (this.thresholdValueEmpty(rule)) {
+      return addFlashMessage({type: 'error', text: 'Please add a Treshold value to save'});
+    }
+
+    const updatedRule = Object.assign({}, rule, {
+      query: queryConfigs[rule.queryID],
+    });
+
+    editRule(updatedRule).then(() => {
+      addFlashMessage({type: 'success', text: `Rule successfully updated!`});
+    }).catch(() => {
+      addFlashMessage({type: 'error', text: `There was a problem updating the rule`});
+    });
+  },
+
+  saveNew(rule) {
+    const {addFlashMessage, router, queryConfigs, source} = this.props;
+
+    if (this.thresholdValueEmpty(rule)) {
+      return addFlashMessage({type: 'error', text: 'Please add a Treshold value to save'});
+    }
+
+    const newRule = Object.assign({}, rule, {
+      query: queryConfigs[rule.queryID],
+    });
+    delete newRule.queryID;
+
+    createRule(this.state.kapacitor, newRule).then(() => {
+      router.push(`/sources/${source.id}/alert-rules`);
+      addFlashMessage({type: 'success', text: `Rule successfully created`});
+    }).catch(() => {
+      addFlashMessage({type: 'error', text: `There was a problem creating the rule`});
+    });
+  },
+
   handleSave() {
-    const {queryConfigs, rules, params, source} = this.props;
+    const {rules, params} = this.props;
     if (this.isEditing()) { // If we are editing updated rule if not, create a new one
-      const rule = rules[params.ruleID];
-      const updatedRule = Object.assign({}, rule, {
-        query: queryConfigs[rule.queryID],
-      });
-      editRule(updatedRule).then(() => {
-        this.props.addFlashMessage({type: 'success', text: `Rule successfully updated!`});
-      }).catch(() => {
-        this.props.addFlashMessage({type: 'error', text: `There was a problem updating the rule`});
-      });
+      this.saveOnEdit(rules[params.ruleID]);
     } else {
-      const rule = rules[DEFAULT_RULE_ID];
-      const newRule = Object.assign({}, rule, {
-        query: queryConfigs[rule.queryID],
-      });
-      delete newRule.queryID;
-      createRule(this.state.kapacitor, newRule).then(() => {
-        this.props.router.push(`/sources/${source.id}/alert-rules`);
-        this.props.addFlashMessage({type: 'success', text: `Rule successfully created`});
-      }).catch(() => {
-        this.props.addFlashMessage({type: 'error', text: `There was a problem creating the rule`});
-      });
+      this.saveNew(rules[DEFAULT_RULE_ID]);
     }
   },
 
@@ -282,7 +306,7 @@ export const KapacitorRulePage = React.createClass({
 
   createUnderlayCallback(rule) {
     return (canvas, area, dygraph) => {
-      if (rule.trigger !== 'threshold') {
+      if (rule.trigger !== 'threshold' || rule.values.value === '') {
         return;
       }
 
