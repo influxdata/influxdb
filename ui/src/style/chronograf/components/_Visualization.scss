@@ -86,23 +86,6 @@ $dygraphs-legend-offset: 32px;
       color: $g20-white;
     }
   }
-  &__options {
-    width: $graph-panel__tab-height - 16px;
-    height: $graph-panel__tab-height - 16px;
-    border-radius: 3px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-left: 9.5px;
-    transition:
-      background-color 0.25s ease,
-      color 0.25s ease;
-    &:hover {
-      cursor: pointer;
-      color: $g13-mist;
-      background-color: $g6-smoke;
-    }
-  }
   &__graph-container {
     background-color: $g3-castle;
     border-radius: 0 0 4px 4px;
