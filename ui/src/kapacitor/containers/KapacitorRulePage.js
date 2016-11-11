@@ -132,6 +132,8 @@ export const KapacitorRulePage = React.createClass({
 
   render() {
     const {rules, queryConfigs, params, kapacitorActions, source} = this.props;
+    const {chooseTrigger, updateRuleValues} = this.props.kapacitorActions;
+
     const rule = this.isEditing() ? rules[params.ruleID] : rules[DEFAULT_RULE_ID];
     const query = rule && queryConfigs[rule.queryID];
 
@@ -147,37 +149,19 @@ export const KapacitorRulePage = React.createClass({
             <div className="row">
               <div className="col-xs-12">
                 <div className="rule-builder">
-                  {this.renderDataSection(query)}
-                  {this.renderValuesSection(rule)}
+                  <DataSection source={this.props.source} query={query} actions={this.props.queryActions} />
+                  <ValuesSection
+                    rule={rule}
+                    query={queryConfigs[rule.queryID]}
+                    onChooseTrigger={chooseTrigger}
+                    onUpdateValues={updateRuleValues}
+                  />
                   <RuleGraph source={source} query={query} rule={rule} />
                   <RuleMessage rule={rule} actions={kapacitorActions} enabledAlerts={this.state.enabledAlerts} />
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>
-    );
-  },
-
-  renderDataSection(query) {
-    return (
-      <div className="kapacitor-rule-section">
-        <h3 className="rule-section-heading">Select a Metric</h3>
-        <div className="rule-section-body">
-          <DataSection source={this.props.source} query={query} actions={this.props.queryActions} />
-        </div>
-      </div>
-    );
-  },
-
-  renderValuesSection(rule) {
-    const {chooseTrigger, updateRuleValues} = this.props.kapacitorActions;
-    return (
-      <div className="kapacitor-rule-section">
-        <h3 className="rule-section-heading">Values</h3>
-        <div className="rule-section-body">
-          <ValuesSection rule={rule} query={this.props.queryConfigs[rule.queryID]} onChooseTrigger={chooseTrigger} onUpdateValues={updateRuleValues} />
         </div>
       </div>
     );

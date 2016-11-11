@@ -20,24 +20,27 @@ export const ValuesSection = React.createClass({
     const forcedActiveIndex = TABS.indexOf(_.startCase(rule.trigger));
 
     return (
-      <div>
-        <Tabs forceActiveIndex={forcedActiveIndex} onSelect={this.handleChooseTrigger}>
-          <TabList isKapacitorTabs="true">
-            {TABS.map(tab => <Tab key={tab}>{tab}</Tab>)}
-          </TabList>
+      <div className="kapacitor-rule-section">
+        <h3 className="rule-section-heading">Values</h3>
+        <div className="rule-section-body">
+          <Tabs forceActiveIndex={forcedActiveIndex} onSelect={this.handleChooseTrigger}>
+            <TabList isKapacitorTabs="true">
+              {TABS.map(tab => <Tab key={tab}>{tab}</Tab>)}
+            </TabList>
 
-          <TabPanels>
-            <TabPanel>
-              <Threshold rule={rule} query={query} onChange={this.handleValuesChange} />
-            </TabPanel>
-            <TabPanel>
-              <Relative rule={rule} onChange={this.handleValuesChange} />
-            </TabPanel>
-            <TabPanel>
-              <Deadman rule={rule} onChange={this.handleValuesChange} />
-            </TabPanel>
-          </TabPanels>
-        </Tabs>
+            <TabPanels>
+              <TabPanel>
+                <Threshold rule={rule} query={query} onChange={this.handleValuesChange} />
+              </TabPanel>
+              <TabPanel>
+                <Relative rule={rule} onChange={this.handleValuesChange} />
+              </TabPanel>
+              <TabPanel>
+                <Deadman rule={rule} onChange={this.handleValuesChange} />
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
+        </div>
       </div>
     );
   },
