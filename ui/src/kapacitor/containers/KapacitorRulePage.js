@@ -8,11 +8,8 @@ import ValuesSection from '../components/ValuesSection';
 import * as kapacitorActionCreators from '../actions/view';
 import * as queryActionCreators from '../../chronograf/actions/view';
 import {bindActionCreators} from 'redux';
-import selectStatement from 'src/chronograf/utils/influxql/select';
-import AutoRefresh from 'shared/components/AutoRefresh';
-import LineGraph from 'shared/components/LineGraph';
-const RefreshingLineGraph = AutoRefresh(LineGraph);
 import RuleHeader from 'src/kapacitor/components/RuleHeader';
+import RuleGraph from 'src/kapacitor/components/RuleGraph';
 import {getKapacitor, getKapacitorConfig} from 'shared/apis/index';
 import Dropdown from 'shared/components/Dropdown';
 import {ALERTS, DEFAULT_RULE_ID} from 'src/kapacitor/constants';
@@ -139,7 +136,7 @@ export const KapacitorRulePage = React.createClass({
   },
 
   render() {
-    const {rules, queryConfigs, params, kapacitorActions} = this.props;
+    const {rules, queryConfigs, params, kapacitorActions, source} = this.props;
     const rule = this.isEditing() ? rules[params.ruleID] : rules[DEFAULT_RULE_ID];
     const query = rule && queryConfigs[rule.queryID];
 
@@ -157,9 +154,7 @@ export const KapacitorRulePage = React.createClass({
                 <div className="rule-builder">
                   {this.renderDataSection(query)}
                   {this.renderValuesSection(rule)}
-                  <div className="rule-builder--graph">
-                    {this.renderGraph(query, this.createUnderlayCallback(rule))}
-                  </div>
+                  <RuleGraph source={source} query={query} rule={rule} />
                   {this.renderMessageSection(rule)}
                 </div>
               </div>
@@ -167,30 +162,6 @@ export const KapacitorRulePage = React.createClass({
           </div>
         </div>
       </div>
-    );
-  },
-
-  renderGraph(query, underlayCallback) {
-    const autoRefreshMs = 30000;
-    const queryText = selectStatement({lower: 'now() - 15m'}, query);
-    const queries = [{host: this.props.source.links.proxy, text: queryText}];
-    const kapacitorLineColors = ["#4ED8A0"];
-
-    if (!queryText) {
-      return (
-        <div className="rule-preview--graph-empty">
-          <p>Select a <strong>Metric</strong> to preview on a graph</p>
-        </div>
-      );
-    }
-    return (
-      <RefreshingLineGraph
-        queries={queries}
-        autoRefresh={autoRefreshMs}
-        underlayCallback={underlayCallback}
-        isGraphFilled={false}
-        overrideLineColors={kapacitorLineColors}
-      />
     );
   },
 
@@ -252,47 +223,6 @@ export const KapacitorRulePage = React.createClass({
     this.props.kapacitorActions.updateMessage(rule.id, this.message.value);
   },
 
-  createUnderlayCallback(rule) {
-    return (canvas, area, dygraph) => {
-      if (rule.trigger !== 'threshold' || rule.values.value === '') {
-        return;
-      }
-
-      const theOnePercent = 0.01;
-      let highlightStart = 0;
-      let highlightEnd = 0;
-
-      switch (rule.values.operator) {
-        case 'equal to or greater':
-        case 'greater than': {
-          highlightStart = rule.values.value;
-          highlightEnd = dygraph.yAxisRange()[1];
-          break;
-        }
-
-        case 'equal to or less than':
-        case 'less than': {
-          highlightStart = dygraph.yAxisRange()[0];
-          highlightEnd = rule.values.value;
-          break;
-        }
-
-        case 'not equal to':
-        case 'equal to': {
-          const width = (theOnePercent) * (dygraph.yAxisRange()[1] - dygraph.yAxisRange()[0]);
-          highlightStart = +rule.values.value - width;
-          highlightEnd = +rule.values.value + width;
-          break;
-        }
-      }
-
-      const bottom = dygraph.toDomYCoord(highlightStart);
-      const top = dygraph.toDomYCoord(highlightEnd);
-
-      canvas.fillStyle = 'rgba(78,216,160,0.3)';
-      canvas.fillRect(area.x, top, area.w, bottom - top);
-    };
-  },
 
 });
 
