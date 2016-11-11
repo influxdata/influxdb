@@ -1,7 +1,6 @@
 import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
 import {connect} from 'react-redux';
-import ReactTooltip from 'react-tooltip';
 import _ from 'lodash';
 import DataSection from '../components/DataSection';
 import ValuesSection from '../components/ValuesSection';
@@ -10,8 +9,8 @@ import * as queryActionCreators from '../../chronograf/actions/view';
 import {bindActionCreators} from 'redux';
 import RuleHeader from 'src/kapacitor/components/RuleHeader';
 import RuleGraph from 'src/kapacitor/components/RuleGraph';
+import RuleMessage from 'src/kapacitor/components/RuleMessage';
 import {getKapacitor, getKapacitorConfig} from 'shared/apis/index';
-import Dropdown from 'shared/components/Dropdown';
 import {ALERTS, DEFAULT_RULE_ID} from 'src/kapacitor/constants';
 import {createRule, editRule} from 'src/kapacitor/apis';
 
@@ -131,10 +130,6 @@ export const KapacitorRulePage = React.createClass({
   },
 
 
-  handleChooseAlert(item) {
-    this.props.kapacitorActions.updateAlerts(item.ruleID, [item.text]);
-  },
-
   render() {
     const {rules, queryConfigs, params, kapacitorActions, source} = this.props;
     const rule = this.isEditing() ? rules[params.ruleID] : rules[DEFAULT_RULE_ID];
@@ -155,7 +150,7 @@ export const KapacitorRulePage = React.createClass({
                   {this.renderDataSection(query)}
                   {this.renderValuesSection(rule)}
                   <RuleGraph source={source} query={query} rule={rule} />
-                  {this.renderMessageSection(rule)}
+                  <RuleMessage rule={rule} actions={kapacitorActions} enabledAlerts={this.state.enabledAlerts} />
                 </div>
               </div>
             </div>
@@ -187,43 +182,6 @@ export const KapacitorRulePage = React.createClass({
       </div>
     );
   },
-
-  renderMessageSection(rule) {
-    const alerts = this.state.enabledAlerts.map((text) => {
-      return {text, ruleID: rule.id};
-    });
-
-    return (
-      <div className="kapacitor-rule-section">
-        <h3 className="rule-section-heading">Alert Message</h3>
-        <div className="rule-section-body">
-          <textarea className="alert-message" ref={(r) => this.message = r} value={rule.message} onChange={() => this.handleMessageChange(rule)} placeholder="Compose your alert message here"/>
-          <div className="alert-message--formatting">
-            <p>Templates:</p>
-            <code data-tip="The ID of the alert">&#123;&#123; .ID &#125;&#125;</code>
-            <code data-tip="Measurement name">&#123;&#123; .Name &#125;&#125;</code>
-            <code data-tip="The name of the task">&#123;&#123; .TaskName &#125;&#125;</code>
-            <code data-tip="Concatenation of all group-by tags of the form <code>&#91;key=value,&#93;+</code>. If no groupBy is performed equal to literal &quot;nil&quot;">&#123;&#123; .Group &#125;&#125;</code>
-            <code data-tip="Map of tags. Use <code>&#123;&#123; index .Tags &quot;key&quot; &#125;&#125;</code> to get a specific tag value">&#123;&#123; .Tags &#125;&#125;</code>
-            <code data-tip="Alert Level, one of: <code>INFO</code><code>WARNING</code><code>CRITICAL</code>">&#123;&#123; .Level &#125;&#125;</code>
-            <code data-tip="Map of fields. Use <code>&#123;&#123; index .Fields &quot;key&quot; &#125;&#125;</code> to get a specific field value">&#123;&#123; .Fields &#125;&#125;</code>
-            <code data-tip="The time of the point that triggered the event">&#123;&#123; .Time &#125;&#125;</code>
-            <ReactTooltip effect="solid" html={true} offset={{top: -4}} class="influx-tooltip kapacitor-tooltip" />
-          </div>
-          <div className="rule-section--item bottom alert-message--endpoint">
-            <p>Send this Alert to:</p>
-            <Dropdown className="size-256" selected={rule.alerts[0] || 'Choose an Endpoint'} items={alerts} onChoose={this.handleChooseAlert} />
-          </div>
-        </div>
-      </div>
-    );
-  },
-
-  handleMessageChange(rule) {
-    this.props.kapacitorActions.updateMessage(rule.id, this.message.value);
-  },
-
-
 });
 
 function mapStateToProps(state) {
