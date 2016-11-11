@@ -17,6 +17,7 @@ func (h *Service) GetMappings(w http.ResponseWriter, r *http.Request) {
 	layouts, err := h.LayoutStore.All(ctx)
 	if err != nil {
 		Error(w, http.StatusInternalServerError, "Error loading layouts")
+		return
 	}
 
 	mp := getMappingsResponse{
