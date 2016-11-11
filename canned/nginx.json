@@ -1,0 +1,87 @@
+{
+  "id": "b805d661-e5a3-45e4-af18-de0e9360e6e7",
+  "measurement": "nginx",
+  "app": "nginx",
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "a209be7f-33c6-4612-88b2-848ae402c66a",
+      "name": "NGINX – Client connections",
+      "queries": [
+        {
+          "query": "select mean(\"accepts\") as \"accepts\", mean(\"handled\") as \"handled\", mean(\"active\") as \"active\" from nginx",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [
+              "time(10s)",
+              "\"server\""
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "0fc591ad-8541-4de3-a36e-4ae69ff954c4",
+      "name": "NGINX – Client errors",
+      "queries": [
+        {
+          "query": "select mean(\"accepts\") - mean(\"handled\") as \"dropped\" from nginx",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [
+              "time(10s)",
+            "\"server\""
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "a1f37574-b86e-4278-8acc-ba78d3ac2e4e",
+      "name": "NGINX – Client requests",
+      "queries": [
+        {
+          "query": "select mean(\"requests\") as \"requests\" from nginx",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [
+              "time(10s)",
+            "\"server\""
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "5b91c5b0-d270-4d03-aeae-007f2351c80c",
+      "name": "NGINX – Active Client state",
+      "queries": [
+        {
+          "query": "select mean(\"waiting\") as \"waiting\", mean(\"reading\") as \"reading\", mean(\"writing\") as \"writing\" from nginx",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [
+              "time(10s)",
+            "\"server\""
+          ],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}
