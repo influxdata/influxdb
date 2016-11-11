@@ -61,7 +61,7 @@
 
 .panels {
   padding: $explorer-page-padding;
-  overflow: scroll;
+  overflow: auto;
   user-select: none;
   -webkit-touch-callout: none;
   -webkit-user-select: none;
