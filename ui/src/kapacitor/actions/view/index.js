@@ -1,6 +1,7 @@
 import uuid from 'node-uuid';
-import {getRules, getRule} from 'src/kapacitor/apis';
+import {getRules, getRule, deleteRule as deleteRuleAPI} from 'src/kapacitor/apis';
 import {getKapacitor} from 'src/shared/apis';
+import {publishNotification} from 'src/shared/actions/notifications';
 
 export function fetchRule(source, ruleID) {
   return (dispatch) => {
@@ -105,5 +106,25 @@ export function updateRuleName(ruleID, name) {
       ruleID,
       name,
     },
+  };
+}
+
+export function deleteRuleSuccess(ruleID) {
+  return {
+    type: 'DELETE_RULE_SUCCESS',
+    payload: {
+      ruleID,
+    },
+  };
+}
+
+export function deleteRule(rule) {
+  return (dispatch) => {
+    deleteRuleAPI(rule).then(() => {
+      dispatch(deleteRuleSuccess(rule.id));
+      dispatch(publishNotification('success', `${rule.name} deleted successfully`));
+    }).catch(() => {
+      dispatch(publishNotification('error', `${rule.name} could not be deleted`));
+    });
   };
 }

@@ -21,12 +21,18 @@ export const KapacitorRulesPage = React.createClass({
     })).isRequired,
     actions: PropTypes.shape({
       fetchRules: PropTypes.func.isRequired,
+      deleteRule: PropTypes.func.isRequired,
     }).isRequired,
     addFlashMessage: PropTypes.func,
   },
 
   componentDidMount() {
     this.props.actions.fetchRules(this.props.source);
+  },
+
+  handleDeleteRule(rule) {
+    const {actions} = this.props;
+    actions.deleteRule(rule);
   },
 
   render() {
@@ -55,6 +61,7 @@ export const KapacitorRulesPage = React.createClass({
                     <th>Trigger</th>
                     <th>Message</th>
                     <th>Alerts</th>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -66,6 +73,7 @@ export const KapacitorRulesPage = React.createClass({
                           <td className="monotype">{rule.trigger}</td>
                           <td className="monotype">{rule.message}</td>
                           <td className="monotype">{rule.alerts.join(', ')}</td>
+                          <td><button className="btn btn-danger btn-xs" onClick={() => this.handleDeleteRule(rule)}>Delete</button></td>
                         </tr>
                       );
                     })

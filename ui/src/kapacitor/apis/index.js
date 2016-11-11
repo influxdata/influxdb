@@ -29,3 +29,10 @@ export function editRule(rule) {
     data: rule,
   });
 }
+
+export function deleteRule(rule) {
+  return AJAX({
+    method: 'DELETE',
+    url: rule.links.self,
+  });
+}
