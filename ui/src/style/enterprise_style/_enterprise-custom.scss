@@ -735,3 +735,27 @@ table .monotype {
     margin-bottom: 45px;
   }
 }
+
+
+/*
+    Empty State for Tables
+    ----------------------------------------------
+*/
+.table-empty-state {
+  > th {
+    text-align: center;
+
+    > p {
+      font-weight: 400;
+      font-size: 18px;
+      color: $g9-mountain;
+      margin-bottom: 16px;
+    }
+    > *:first-child {
+      margin-top: 75px; 
+    }
+    > *:last-child {
+      margin-bottom: 75px;
+    }
+  }
+}
