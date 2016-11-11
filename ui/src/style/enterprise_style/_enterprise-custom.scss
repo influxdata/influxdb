@@ -117,17 +117,21 @@ body > #react-root {
     display: inline-block;
     vertical-align: middle;
   }
-  &__left {
+  &__left,
+  &__right {
     display: flex;
-    flex-direction: column;
+    align-items: center;
 
-    > * {
+    > *:only-child {
       margin: 0;
+    }
+  }
+  &__left {
+    > * {
+      margin: 0 4px 0 0;
     }
   } 
   &__right {
-    font-size: 0;
-
     > * {
       margin: 0 0 0 4px;
     }
