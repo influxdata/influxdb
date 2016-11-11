@@ -12,7 +12,7 @@
       "name": "System Load",
       "queries": [
         {
-          "query": "SELECT \"load1\" FROM \"telegraf\"..\"system\"",
+          "query": "SELECT mean(\"load1\") FROM \"telegraf\"..\"system\"",
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [],

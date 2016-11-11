@@ -77,7 +77,7 @@ export const HostPage = React.createClass({
 
     return (
       <LayoutRenderer
-        timeRange={timeRange.queryValue}
+        timeRange={timeRange}
         cells={layoutCells}
         autoRefreshMs={autoRefreshMs}
         source={source}

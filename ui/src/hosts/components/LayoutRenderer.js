@@ -8,7 +8,10 @@ const RefreshingLineGraph = AutoRefresh(LineGraph);
 
 export const LayoutRenderer = React.createClass({
   propTypes: {
-    timeRange: PropTypes.string.isRequired,
+    timeRange: PropTypes.shape({
+      defaultGroupBy: PropTypes.string.isRequired,
+      queryValue: PropTypes.string.isRequired,
+    }).isRequired,
     cells: PropTypes.arrayOf(
       PropTypes.shape({
         queries: PropTypes.arrayOf(
@@ -45,12 +48,13 @@ export const LayoutRenderer = React.createClass({
     return this.props.cells.map((cell) => {
       const qs = cell.queries.map((q) => {
         let text = q.text;
-        text += ` where \"host\" = '${host}' and time > ${timeRange}`;
+        text += ` where \"host\" = '${host}' and time > ${timeRange.queryValue}`;
         if (q.wheres && q.wheres.length > 0) {
           text += ` and ${q.wheres.join(' and ')}`;
         }
+        text += ` group by time(${timeRange.defaultGroupBy})`;
         if (q.groupbys && q.groupbys.length > 0) {
-          text += ` group by ${q.groupbys.join(',')}`;
+          text += `,${q.groupbys.join(',')}`;
         }
 
         return Object.assign({}, q, {

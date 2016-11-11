@@ -12,7 +12,7 @@
       "name": "CPU Usage",
       "queries": [
         {
-          "query": "SELECT \"usage_user\" FROM \"telegraf\"..\"cpu\"",
+          "query": "SELECT mean(\"usage_user\") FROM \"telegraf\"..\"cpu\"",
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [],
