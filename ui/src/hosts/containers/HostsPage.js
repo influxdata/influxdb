@@ -23,7 +23,7 @@ export const HostsPage = React.createClass({
   },
 
   componentDidMount() {
-    const {source} = this.props;
+    const {source, addFlashMessage} = this.props;
     Promise.all([
       getCpuAndLoadForHosts(source.links.proxy),
       getMappings(),
@@ -31,12 +31,13 @@ export const HostsPage = React.createClass({
       this.setState({hosts});
       getAppsForHosts(source.links.proxy, hosts, mappings).then((newHosts) => {
         this.setState({hosts: newHosts});
+      }).catch(() => {
+        addFlashMessage({type: 'error', text: 'Unable to get apps for hosts'});
       });
-    }).catch(() => {
-      this.props.addFlashMessage({
-        type: 'error',
-        text: `There was an error finding hosts. Check that your server is running.`,
-      });
+    }).catch((reason) => {
+      // TODO: this isn't reachable at the moment, because getCpuAndLoadForHosts doesn't fail when it should.
+      // (like with a bogus proxy link). We should provide better messaging to the user in this catch after that's fixed.
+      console.error(reason); // eslint-disable-line no-console
     });
   },
 

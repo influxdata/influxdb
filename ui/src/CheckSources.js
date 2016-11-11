@@ -1,13 +1,14 @@
 import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
-import {getSources} from 'shared/apis';
+import {getSources} from 'src/shared/apis';
+import {showDatabases} from 'src/shared/apis/metaQuery';
 
 const {bool, number, string, node, func, shape} = PropTypes;
 
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data nodes, but not every page requires them to function.
 // Routes that do require data nodes can be nested under this component.
-const CheckDataNodes = React.createClass({
+const CheckSources = React.createClass({
   propTypes: {
     addFlashMessage: func,
     children: node,
@@ -41,17 +42,25 @@ const CheckDataNodes = React.createClass({
   componentDidMount() {
     getSources().then(({data: {sources}}) => {
       this.setState({sources, isFetching: false});
-    }).catch((err) => {
-      console.error(err); // eslint-disable-line no-console
+    }).catch(() => {
+      this.props.addFlashMessage({type: 'error', text: "Unable to connect to Chronograf server"});
       this.setState({isFetching: false});
     });
   },
 
   componentWillUpdate(nextProps, nextState) {
-    const {router, location, params} = nextProps;
+    const {router, location, params, addFlashMessage} = nextProps;
     const {isFetching, sources} = nextState;
-    if (!isFetching && !sources.find((s) => s.id === params.sourceID)) {
+    const source = sources.find((s) => s.id === params.sourceID);
+    if (!isFetching && !source) {
       return router.push(`/?redirectPath=${location.pathname}`);
+    }
+
+    if (!isFetching && !location.pathname.includes("/manage-sources")) {
+      // Do simple query to proxy to see if the source is up.
+      showDatabases(source.links.proxy).catch(() => {
+        addFlashMessage({type: 'error', text: `Unable to connect to source`});
+      });
     }
   },
 
@@ -70,4 +79,4 @@ const CheckDataNodes = React.createClass({
   },
 });
 
-export default withRouter(CheckDataNodes);
+export default withRouter(CheckSources);
