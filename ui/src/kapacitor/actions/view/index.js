@@ -124,7 +124,7 @@ export function deleteRule(rule) {
       dispatch(deleteRuleSuccess(rule.id));
       dispatch(publishNotification('success', `${rule.name} deleted successfully`));
     }).catch(() => {
-      dispatch(publishNotification('error', `${rule.name} deleted successfully`));
+      dispatch(publishNotification('error', `${rule.name} could not be deleted`));
     });
   };
 }
