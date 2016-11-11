@@ -293,8 +293,8 @@ func (e *Engine) MeasurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool
 	return e.index.MeasurementsByExpr(expr)
 }
 
-func (e *Engine) MeasurementsByRegex(re *regexp.Regexp) (tsdb.Measurements, error) {
-	return e.index.MeasurementsByRegex(re)
+func (e *Engine) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
+	return e.index.MeasurementNamesByRegex(re)
 }
 
 // MeasurementFields returns the measurement fields for a measurement.
@@ -1458,7 +1458,7 @@ func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, name string, s
 
 // createVarRefSeriesIterator creates an iterator for a variable reference for a series.
 func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, seriesKey string, t *influxql.TagSet, filter influxql.Expr, conditionFields []influxql.VarRef, opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	tfs := models.ParseSeriesTags([]byte(seriesKey))
+	_, tfs, _ := models.ParseKey([]byte(seriesKey))
 	tags := influxql.NewTags(tfs.Map())
 
 	// Create options specific for this series.
