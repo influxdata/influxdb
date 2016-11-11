@@ -1,0 +1,67 @@
+/*
+    Custom Tooltips
+    ----------------------------------------------
+
+    Using npm/react-tooltip
+    http://wwayne.com/react-tooltip/
+*/
+
+$tooltip-max-width: 260px;
+$tooltip-padding: 8px;
+$tooltip-radius: 5px;
+$tooltip-font: 13px;
+
+$tooltip-bg: $g5-pepper;
+$tooltip-text: $g19-ghost;
+$tooltip-accent: $c-pool;
+
+$tooltip-code-bg: $g2-kevlar;
+$tooltip-code-color: $c-potassium;
+
+.influx-tooltip {
+  background-color: $tooltip-bg !important;
+  color: $tooltip-text !important;
+  font-size: $tooltip-font !important;
+  font-weight: 500 !important;
+  line-height: 1.3em !important;
+  padding: $tooltip-padding !important;
+  max-width: $tooltip-max-width !important;
+  white-space: pre-wrap !important;
+  word-break: keep-all !important;
+  border: 2px solid $tooltip-accent !important;
+  border-radius: $tooltip-radius !important;
+
+  code {
+    background-color: $tooltip-code-bg !important;
+    border: 0 !important;
+    padding: 2px ($tooltip-padding / 2) !important;
+    font-size: ($tooltip-font - 2px) !important;
+    border-radius: 3px !important;
+    margin: 1px 2px 1px 0 !important;
+    color: $tooltip-code-color !important;
+    white-space: nowrap !important;
+    display: inline-block !important;
+  }
+  &:after {
+    margin: 0 !important;
+    transform: translateX(-50%) !important;
+    top: initial !important;
+    left: 50% !important;
+    bottom: -16px !important;
+    border-style: solid !important;
+    border-width: $tooltip-padding !important;
+    border-color: $tooltip-accent transparent transparent transparent !important;
+  }
+
+  /* Kapacitor Style Tooltip */
+  &.kapacitor-tooltip {
+    border-color: $c-rainforest !important;
+
+    code {
+      color: $c-pool !important;
+    }
+    &:after {
+      border-top-color: $c-rainforest !important;
+    }
+  }
+}
