@@ -32,7 +32,7 @@
       "name": "K8s - Pod RX Bytes/Second ",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(\"rx_bytes\") AS \"rx_bytes_per_second\" fROM kubernetes_pod_network",
+          "query": "SELECT non_negative_derivative(\"rx_bytes\") AS \"rx_bytes_per_second\" FROM kubernetes_pod_network",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
