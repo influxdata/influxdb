@@ -1,4 +1,4 @@
-## v1.1.0 [unreleased]
+## v1.1.0 [2016-11-14]
 
 ### Release Notes
 
