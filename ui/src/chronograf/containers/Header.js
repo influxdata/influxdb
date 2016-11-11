@@ -110,7 +110,7 @@ const Header = React.createClass({
     return (
       <div className="enterprise-header data-explorer__header">
         <div className="enterprise-header__left">
-          <h1 className="dropdown-title">Exploration: </h1>
+          <h1 className="dropdown-title">Exploration:</h1>
           <Dropdown
             className="sessions-dropdown"
             items={dropdownItems}
@@ -120,10 +120,13 @@ const Header = React.createClass({
           />
           <div className="btn btn-sm btn-primary sessions-dropdown__btn" onClick={this.handleCreateExploration}>New Exploration</div>
         </div>
-        <div className="source-indicator">
-          Source: {this.context.source.name}
-        </div>
         <div className="enterprise-header__right">
+          <h1>Source:</h1>
+          <div className="source-indicator">
+            <span className="icon cpu"></span>
+            {this.context.source.name}
+          </div>
+          <h1>Range:</h1>
           <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={this.findSelected(timeRange)} />
           {/* Placeholder for export functionality
               <a href="#" className="btn btn-sm btn-info">Export</a> */}
