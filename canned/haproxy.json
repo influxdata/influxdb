@@ -1,0 +1,270 @@
+{
+  "id": "45c064fd-ebf7-45a1-bf8d-f53746d38a03",
+  "measurement": "haproxy",
+  "app": "haproxy",
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "b846eda3-e068-4a34-91e9-c108c962a572",
+      "name": "HAProxy – Number of servers",
+      "queries": [
+        {
+          "query": "select mean(\"act\") as active, mean(\"bck\") as backup from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "a5070a99-c65a-4dfd-b486-2d3a2582d9eb",
+      "name": "HAProxy – Sum HTTP 2xx",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(last(\"hrsp_2xx\"), 1s) as \"2xx\" active from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "ab80deab-f9be-4506-b547-6f8286cb7660",
+      "name": "HAProxy – Sum HTTP 4xx",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(last(\"hrsp_4xx\"), 1s) as \"4xx\" from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "9754391d-3464-49cc-b3ef-de9332d3bc20",
+      "name": "HAProxy – Sum HTTP 5xx",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(last(\"hrsp_5xx\"), 1s) as \"5xx\" from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "c836d118-6b03-436c-af60-0f95a5df0c89",
+      "name": "HAProxy – Frontend HTTP requests/s ",
+      "queries": [
+        {
+          "query": "SELECT mean(\"req_rate\") as \"requests_per_second\" from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "cc411bc8-8f14-43bb-865b-4b921310aef3",
+      "name": "HAProxy – Frontend sessions/s ",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"rate\")) as \"sessions_per_second\" from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "082a4e23-9256-441c-8414-db253a2c6d94",
+      "name": "HAProxy – Frontend session usage %",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"scur\")) / non_negative_derivative(max(\"slim\")) * 100 as \"session_usage_percent\" from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "724db2a3-f23d-46d6-aa5b-f9e44cac1ee2",
+      "name": "HAProxy – Frontend security denials/s",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"dreq\")) as \"denials_per_second\" from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "082a4e23-9256-441c-8414-db253a2c6d94",
+      "name": "HAProxy – Frontend request errors/s",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"ereq\")) as \"errors_per_second\" from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "c7de430d-5684-494d-b735-0c87e7ea14e3",
+      "name": "HAProxy – Frontend bytes/s",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"bin\")) as \"bytes_in_per_second\" from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        },
+{
+          "query": "SELECT non_negative_derivative(max(\"bout\")) as \"bytes_out_per_second\" from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        }
+
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "b3bcca49-7118-4f7e-921d-a8d47505795a",
+      "name": "HAProxy – Backend average response time (ms)",
+      "queries": [
+        {
+          "query": "SELECT max(\"rtime\") as \"response_time\" from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "2e8ef243-c993-4a53-b010-32de4beb1f81",
+      "name": "HAProxy – Backend connection errors / s",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"econ\")) as \"errors_per_second\" from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "f4223249-d2fa-4778-bb27-449bf8863ea3",
+      "name": "HAProxy – Backend queued requests / s",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"qcur\")) as \"queued_per_second\" from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "b3bcca49-7118-4f7e-921d-a8d47505795a",
+      "name": "HAProxy – Backend average request queue time (ms)",
+      "queries": [
+        {
+          "query": "SELECT max(\"qtime\") as \"queue_time\" from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "dd925132-3419-4677-9f21-a3d34cf25c99",
+      "name": "HAProxy – Backend error responses/s",
+      "queries": [
+        {
+          "query": "SELECT max(\"eresp\") as \"error_response_rate\" from haproxy",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}
