@@ -183,6 +183,7 @@ func (h *Service) NewExploration(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		msg := fmt.Errorf("Error: Failed to save Exploration")
 		unknownErrorWithMessage(w, msg)
+		return
 	}
 
 	res := newExploration(e)

@@ -45,6 +45,7 @@ func (h *Service) NewLayout(w http.ResponseWriter, r *http.Request) {
 	if layout, err = h.LayoutStore.Add(r.Context(), layout); err != nil {
 		msg := fmt.Errorf("Error storing layout %v: %v", layout, err)
 		unknownErrorWithMessage(w, msg)
+		return
 	}
 
 	res := newLayoutResponse(layout)
