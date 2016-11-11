@@ -9,12 +9,12 @@
       "w": 4,
       "h": 4,
       "i": "d959c815-16a8-4a2b-a6ea-e37af38d4e2f",
-      "name": "System Load",
+      "name": "System - Load",
       "queries": [
         {
-          "query": "select Processor_Queue_Length from win_system",
+          "query": "SELECT mean(\"Processor_Queue_Length\") AS \"load\" FROM win_system",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [],
           "wheres": []
         }

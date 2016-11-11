@@ -9,26 +9,26 @@
       "w": 4,
       "h": 4,
       "i": "3539e3c3-ac15-49d3-9de8-64cd514588ca",
-      "name": "Web Service",
+      "name": "IIS - Service",
       "queries": [
         {
-          "query": "select Get_Requests_persec from win_websvc",
+          "query": "SELECT mean(\"Get_Requests_persec\") AS \"gets\" FROM win_websvc",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [],
           "wheres": []
         },
         {
-          "query": "select Post_Requests_persec from win_websvc",
+          "query": "SELECT mean(\"Post_Requests_persec\") AS \"posts\" FROM win_websvc",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [],
           "wheres": []
         },
         {
-          "query": "select Current_Connections from win_websvc",
+          "query": "SELECT mean(\"Current_Connections\") AS \"connections\" FROM win_websvc",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [],
           "wheres": []
         }
