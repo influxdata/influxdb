@@ -242,9 +242,13 @@ div.query-editor.kapacitor-metric-selector {
   }
 
   // Editor List
+  .kapacitor-tab-list {
+    background-color: $kapacitor-graphic-color;
+    border-radius: 0 0 $kap-radius-lg $kap-radius-lg;
+  }
   .query-editor__list {
     padding-top: $kap-padding-sm;
-    background-color: $kapacitor-graphic-color;
+    background-color: transparent;
     min-height: $metric-selector-height;
     max-height: $metric-selector-height;
     height: $metric-selector-height;
@@ -252,8 +256,30 @@ div.query-editor.kapacitor-metric-selector {
     @include custom-scrollbar($kapacitor-graphic-color,$kapacitor-accent);
   }
   .query-editor__list-header {
-    background-color: $g3-castle;
+    background-color: transparent;
     padding: $kap-padding-sm $kap-padding-lg 0 $kap-padding-lg;
+
+    .query-editor__filter {
+      border-radius: 4px;
+      padding-left: ($kap-input-height + ($kap-padding-sm / 2));
+      font-family: 'Roboto', Helvetica, Arial, Tahoma, Verdana, sans-serif;
+
+      &::-webkit-input-placeholder { color: $g11-sidewalk; font-weight: 600; }
+      &::-moz-placeholder { color: $g11-sidewalk; font-weight: 600; }
+      &:-ms-input-placeholder { color: $g11-sidewalk; font-weight: 600; }
+      &:-moz-placeholder { color: $g11-sidewalk; font-weight: 600; }
+
+      & + .icon {
+        left: ((($kap-input-height + ($kap-padding-sm / 2)) / 2) + $kap-padding-lg + 3px);
+        top: calc(50% + #{($kap-padding-sm / 2)});
+        font-size: ($kapacitor-font-sm + 1px);
+        transform: translate(-50%,-50%);
+        color: $g11-sidewalk;
+      }
+      &:focus + .icon {
+        color: $kapacitor-accent;
+      }
+    }
   }
   .query-editor__list-item {
     font-size: $kapacitor-font-sm;
