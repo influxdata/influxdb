@@ -89,7 +89,7 @@ $dygraphs-legend-offset: 32px;
   &__graph-container {
     background-color: $g3-castle;
     border-radius: 0 0 4px 4px;
-    padding: 9.5px;
+    padding: 8px 16px;
     position: relative;
   }
   &__graph-empty {
@@ -181,11 +181,15 @@ $dygraphs-legend-offset: 32px;
   top: 0;
   bottom: 0;
   width: 2px;
-  background-color: $g8-storm;
+  transform: translateX(16px - 1px);
   position: absolute;
   pointer-events: none;
   display: none;
-  transform: translateX(9px);
+  background: fade-out($g20-white, 1);
+  background: -moz-linear-gradient(top,  fade-out($g20-white, 1) 0%, fade-out($g20-white, 0.71) 6%, fade-out($g20-white, 0.71) 80%, fade-out($g20-white, 1) 100%);
+  background: -webkit-linear-gradient(top,  fade-out($g20-white, 1) 0%,fade-out($g20-white, 0.71) 6%,fade-out($g20-white, 0.71) 80%,fade-out($g20-white, 1) 100%);
+  background: linear-gradient(to bottom,  fade-out($g20-white, 1) 0%,fade-out($g20-white, 0.71) 6%,fade-out($g20-white, 0.71) 80%,fade-out($g20-white, 1) 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='fade-out($g20-white, 0.71)', endColorstr='fade-out($g20-white, 0.71)',GradientType=0 );
 }
 .container--dygraph-legend {
   background-color: $g1-raven;
