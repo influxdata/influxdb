@@ -54,6 +54,7 @@ export default React.createClass({
       labels: fields,
       connectSeparatedPoints: true,
       labelsKMB: true,
+      height: 300,
       axisLineColor: '#383846',
       gridLineColor: '#383846',
       title: this.props.title,
