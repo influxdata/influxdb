@@ -12,7 +12,7 @@
       "name": "K8s - Kubelet Millicores",
       "queries": [
         {
-          "query": "SELECT mean(\"cpu_usage_nanocores\"\) / 1000000 AS \"cpu_usage_millicores\" FROM kubernetes_system_container",
+          "query": "SELECT mean(\"cpu_usage_nanocores\") / 1000000 AS \"cpu_usage_millicores\" FROM kubernetes_system_container",
           "db": "telegraf",
           "rp": "",
           "groupbys": [],
@@ -31,7 +31,7 @@
       "name": "K8s - Kubelet Memory Bytes",
       "queries": [
         {
-          "query": "select mean(\"memory_usage_bytes\") AS \"memory_usage_bytes\" FROM kubernetes_system_container",
+          "query": "SELECT mean(\"memory_usage_bytes\") AS \"memory_usage_bytes\" FROM kubernetes_system_container",
           "db": "telegraf",
           "rp": "",
           "groupbys": [],
