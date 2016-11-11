@@ -30,8 +30,8 @@ const SideNav = React.createClass({
         </NavBlock>
         <NavBlock matcher="alerts" icon="pulse-b" link={`${sourcePrefix}/alerts`}>
           <NavHeader link={`${sourcePrefix}/alerts`} title="Alerting" />
-          <NavListItem link={`${sourcePrefix}/alerts`}>View</NavListItem>
-          <NavListItem link={`${sourcePrefix}/alert-rules`}>Rules</NavListItem>
+          <NavListItem link={`${sourcePrefix}/alerts`}>Alert History</NavListItem>
+          <NavListItem link={`${sourcePrefix}/alert-rules`}>Kapacitor Rules</NavListItem>
         </NavBlock>
         <NavBlock icon="access-key" link={`${sourcePrefix}/manage-sources`}>
           <NavHeader link={`${sourcePrefix}/manage-sources`} title="Sources" />
