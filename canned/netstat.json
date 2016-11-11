@@ -36,14 +36,14 @@
       "name": "System - Sockets Created/Second ",
       "queries": [
         {
-          "query": "SELECT derivative(\"tcp_established\") AS \"tcp_established\" FROM netstat",
+          "query": "SELECT non_negative_derivative(max(\"tcp_established\")) AS \"tcp_established\" FROM netstat",
           "db": "telegraf",
           "rp": "",
           "groupbys": [],
           "wheres": []
         },
         {
-          "query": "SELECT derivative(\"udp_socket\") AS \"udp_socket\" FROM netstat",
+          "query": "SELECT non_negative_derivative(max(\"udp_socket\")) AS \"udp_socket\" FROM netstat",
           "db": "telegraf",
           "rp": "",
           "groupbys": [],

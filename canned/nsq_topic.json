@@ -50,7 +50,7 @@
       "name": "NSQ - Topic Ingress",
       "queries": [
         {
-          "query": "select derivative(\"message_count\") AS \"messages_per_second\" FROM nsq_topic",
+          "query": "select non_negative_derivative(max(\"message_count\")) AS \"messages_per_second\" FROM nsq_topic",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
@@ -70,9 +70,9 @@
       "name": "NSQ topic egress",
       "queries": [
         {
-          "query": "select derivative(\"message_count\") - derivative(\"depth\") as messages_per_second from nsq_topic",
+          "query": "SELECT non_negative_derivative(max(\"message_count\")) - non_negative_derivative(max(\"depth\")) AS \"messages_per_second\" FROM nsq_topic",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
             "\"topic\"",
             "\"host\""

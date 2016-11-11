@@ -44,7 +44,7 @@
       "name": "Redis - CPU",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(\"used_cpu_user\") AS \"used_cpu_per_second\" FROM redis",
+          "query": "SELECT non_negative_derivative(max(\"used_cpu_user\")) AS \"used_cpu_per_second\" FROM redis",
           "db": "telegraf",
           "rp": "",
           "groupbys": []
@@ -60,7 +60,7 @@
       "name": "Redis - Memory",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(\"used_memory\") AS \"used_memory_per_second\" FROM redis",
+          "query": "SELECT non_negative_derivative(max(\"used_memory\")) AS \"used_memory_per_second\" FROM redis",
           "db": "telegraf",
           "rp": "",
           "groupbys": []
