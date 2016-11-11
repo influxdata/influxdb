@@ -14,6 +14,7 @@ $kap-radius-lg: 5px;
 $kap-input-height: 30px;
 
 $kapacitor-graphic-color: $g3-castle;
+$kapacitor-divider-color: $g2-kevlar;
 $kapacitor-accent: $c-rainforest;
 $kap-line-color: $g5-pepper;
 $kap-dot-color: $c-rainforest;
@@ -27,7 +28,7 @@ $kapacitor-font-sm: 13px;
   width: 100%;
   height: 100%;
   overflow: hidden;
-  @include gradient-v($g2-kevlar,$g1-raven);
+  @include gradient-v($g2-kevlar,$g0-obsidian);
   color: $g17-whisper;
 
   .enterprise-header {
@@ -197,14 +198,14 @@ div.query-editor.kapacitor-metric-selector {
     color: $kapacitor-accent;
     border-radius: $kap-radius-lg $kap-radius-lg 0 0;
     border: 0;
-    padding: $kap-padding-md $kap-padding-lg 0 $kap-padding-lg;
+    padding: $kap-padding-md $kap-padding-lg;
   }
 
   // Tabs
   .query-editor__tabs {
     background-color: $kapacitor-graphic-color;
     padding: $kap-padding-sm $kap-padding-lg 0 $kap-padding-lg;
-    margin-top: 2px;
+    border-top: 2px solid $kapacitor-divider-color;
   }
   .query-editor__tab {
     font-size: $kapacitor-font-sm;
@@ -241,9 +242,13 @@ div.query-editor.kapacitor-metric-selector {
   }
 
   // Editor List
+  .kapacitor-tab-list {
+    background-color: $kapacitor-graphic-color;
+    border-radius: 0 0 $kap-radius-lg $kap-radius-lg;
+  }
   .query-editor__list {
     padding-top: $kap-padding-sm;
-    background-color: $kapacitor-graphic-color;
+    background-color: transparent;
     min-height: $metric-selector-height;
     max-height: $metric-selector-height;
     height: $metric-selector-height;
@@ -251,8 +256,37 @@ div.query-editor.kapacitor-metric-selector {
     @include custom-scrollbar($kapacitor-graphic-color,$kapacitor-accent);
   }
   .query-editor__list-header {
-    background-color: $g3-castle;
+    background-color: transparent;
     padding: $kap-padding-sm $kap-padding-lg 0 $kap-padding-lg;
+  }
+  .query-editor__filter,
+  .tag-value-list__filter {
+    border-radius: 4px;
+    padding-left: ($kap-input-height + ($kap-padding-sm / 2));
+    font-family: 'Roboto', Helvetica, Arial, Tahoma, Verdana, sans-serif;
+
+    &::-webkit-input-placeholder { color: $g11-sidewalk; font-weight: 600; }
+    &::-moz-placeholder { color: $g11-sidewalk; font-weight: 600; }
+    &:-ms-input-placeholder { color: $g11-sidewalk; font-weight: 600; }
+    &:-moz-placeholder { color: $g11-sidewalk; font-weight: 600; }
+
+    & + .icon {
+      left: ((($kap-input-height + ($kap-padding-sm / 2)) / 2) + $kap-padding-lg + 3px);
+      top: calc(50% + #{($kap-padding-sm / 2)});
+      font-size: ($kapacitor-font-sm + 1px);
+      transform: translate(-50%,-50%);
+      color: $g11-sidewalk;
+    }
+    &:focus + .icon {
+      color: $kapacitor-accent;
+    }
+  }
+  .tag-value-list__filter-container {
+    padding: $kap-padding-sm $kap-padding-lg;
+
+    .tag-value-list__filter + .icon {
+      top: 50%;
+    }
   }
   .query-editor__list-item {
     font-size: $kapacitor-font-sm;
@@ -271,6 +305,61 @@ div.query-editor.kapacitor-metric-selector {
       color: $kapacitor-accent;
     }
   }
+  .query-editor__hidden-dropdown {
+    .btn.dropdown-toggle {
+      width: 260px;
+    }
+  }
+  .query-editor__list-checkbox__checkbox {
+    &:before {
+      background-color: $kapacitor-accent;
+    }
+  }
+  .group-by-time-dropdown-label {
+    font-weight: 600;
+    font-size: $kapacitor-font-sm;
+  }
+  .tag-list__title .badge {
+    color: $kapacitor-accent;
+  }
+  .tag-value-list__checkbox:after {
+    background-color: $kapacitor-accent;
+  }
+  .tag-value-list__item.query-editor__list-item.active {
+    background-color: transparent;
+  }
+  .btn.tag-list__group-by.active {
+    background-color: $kapacitor-accent;
+    border-color: $kapacitor-accent;
+
+    &:hover {
+      background-color: $c-honeydew;
+      border-color: $c-honeydew;
+    }
+  }
+  .tag-list__toggle {
+    width: auto;
+
+    .tag-list__toggle-btn {
+      border-color: $g5-pepper;
+      background-color: $kapacitor-graphic-color;
+      color: $g11-sidewalk;
+      font-size: $kapacitor-font-sm;
+      font-weight: 700;
+      width: auto;
+      padding: 0 $kap-padding-md;
+
+      &:hover {
+        background-color: $g4-onyx;
+        color: $g20-white;
+      }
+      &.active {
+        background-color: $g5-pepper;
+        border-color: $g5-pepper;
+        color: $kapacitor-accent;
+      }
+    }
+  }
 
   // Empty State
   .query-editor__empty {
@@ -285,7 +374,7 @@ div.query-editor.kapacitor-metric-selector {
   border: 2px solid $g3-castle;
   border-radius: $kap-radius-lg $kap-radius-lg 0 0;
   background-color: $kapacitor-graphic-color;
-  margin: 0 0 2px 0;
+  margin: 0;
   padding: $kap-padding-sm $kap-padding-lg;
   color: $kapacitor-accent;
   width: 100%;
@@ -316,39 +405,48 @@ div.query-editor.kapacitor-metric-selector {
   &:-ms-input-placeholder { color: $g9-mountain; }
   &:-moz-placeholder { color: $g9-mountain; }
 }
-.alert-message-endpoint {
+
+.alert-message--endpoint {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  width: auto;
+  border-top: 2px solid $kapacitor-divider-color;
 
   > p {
     margin-right: $kap-padding-sm !important;
-  }
+  } 
 }
-.alert-message-key {
-  margin-top: $kap-padding-sm;
+.alert-message--formatting {
+  padding: $kap-padding-sm $kap-padding-lg;
+  background-color: $kapacitor-graphic-color;
   display: flex;
-  width: 100%;
   align-items: center;
+  border-top: 2px solid $kapacitor-divider-color;
 
-  label {
-    color: $g13-mist;
-    padding: 0;
-    background-color: transparent;
-    margin: 0 $kap-padding-sm 0 0;
-    font-size: $kapacitor-font-sm;
+  > p {
+    margin: 0 ($kap-padding-sm - 2px) 0 0;
     font-weight: 600;
+    display: inline-block;
+    color: $g15-platinum;
   }
-  span {
-    background-color: $g3-castle;
-    padding: 3px $kap-padding-sm;
+  > code {
+    background-color: $g2-kevlar;
+    height: $kap-input-height;
+    line-height: $kap-input-height;
+    padding: 0 ($kap-padding-sm - 2px);
+    border: 0;
     border-radius: 3px;
     display: inline-block;
-    margin-left: ($kap-padding-sm / 2);
+    margin-left: 2px;
     color: $c-pool;
-    font-family: Consolas, "Lucida Console", Monaco, monospace;
-    font-size: $kapacitor-font-sm;
+    font-size: ($kapacitor-font-sm - 2px);
     font-weight: 600;
+    transition: color 0.25s ease;
+
+    &:hover {
+      color: $c-rainforest;
+      cursor: pointer;
+    }
   }
 }
 
@@ -417,7 +515,7 @@ div.query-editor.kapacitor-metric-selector {
 
 .kapacitor-values-tabs {
   border-radius: $kap-radius-lg $kap-radius-lg 0 0;
-  margin-bottom: 2px;
+  border-bottom: 2px solid $kapacitor-divider-color;
 
   .tab-group {
     > .btn.tab {
@@ -466,7 +564,9 @@ div.query-editor.kapacitor-metric-selector {
     padding-right: $kap-padding-sm;
     height: $kap-input-height;
   }
-  .dropdown-toggle {
+  .dropdown-toggle,
+  .dropdown.group-by-time-dropdown .btn.dropdown-toggle,
+  .query-editor__list-checkbox .dropdown .btn.dropdown-toggle {
     width: 100%;
     text-align: left;
     position: relative;

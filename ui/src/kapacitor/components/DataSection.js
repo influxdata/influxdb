@@ -125,7 +125,7 @@ export const DataSection = React.createClass({
     }
 
     return (
-      <div>
+      <div className="kapacitor-tab-list">
         <div className="query-editor__tabs">
           <div onClick={_.wrap(DB_TAB, this.handleClickTab)} className={classNames("query-editor__tab", {active: activeTab === DB_TAB})}>Databases</div>
           <div onClick={_.wrap(MEASUREMENTS_TAB, this.handleClickTab)} className={classNames("query-editor__tab", {active: activeTab === MEASUREMENTS_TAB})}>Measurements</div>
