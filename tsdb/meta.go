@@ -1,7 +1,6 @@
 package tsdb
 
 import (
-	"bytes"
 	"fmt"
 	"regexp"
 	"sort"
@@ -392,15 +391,15 @@ func (d *DatabaseIndex) measurementsByTagFilters(filters []*TagFilter) Measureme
 	return measurements
 }
 
-// MeasurementsByRegex returns the measurements that match the regex.
-func (d *DatabaseIndex) MeasurementsByRegex(re *regexp.Regexp) (Measurements, error) {
+// MeasurementNamesByRegex returns the measurements that match the regex.
+func (d *DatabaseIndex) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
-	var matches Measurements
+	var matches [][]byte
 	for _, m := range d.measurements {
 		if re.MatchString(m.Name) {
-			matches = append(matches, m)
+			matches = append(matches,[]byte(m.Name))
 		}
 	}
 	return matches, nil
@@ -1696,9 +1695,3 @@ func MeasurementFromSeriesKey(key string) string {
 	k, _, _ := models.ParseKey([]byte(key))
 	return escape.UnescapeString(k)
 }
-
-type byTagKey []*influxql.TagSet
-
-func (t byTagKey) Len() int           { return len(t) }
-func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
-func (t byTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }

@@ -481,14 +481,15 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		dropped, n     int
 		reason         string
 	)
+
 	if s.options.Config.MaxValuesPerTag > 0 {
 		// Validate that all the new points would not exceed any limits, if so, we drop them
 		// and record why/increment counters
 		for i, p := range points {
 			tags := p.Tags()
 
-			m := s.Measurement([]byte(p.Name()))
 			// Measurement doesn't exist yet, can't check the limit
+			m := s.Measurement([]byte(p.Name()))
 			if m != nil {
 				var dropPoint bool
 				for _, tag := range tags {
@@ -789,16 +790,16 @@ func (s *Shard) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 			}
 
 			// Loop over matching measurements.
-			measurements, err := s.engine.MeasurementsByRegex(src.Regex.Val)
+			names, err := s.engine.MeasurementNamesByRegex(src.Regex.Val)
 			if err != nil {
 				return nil, err
 			}
 
-			for _, m := range measurements {
+			for _, name := range names {
 				other := &influxql.Measurement{
 					Database:        src.Database,
 					RetentionPolicy: src.RetentionPolicy,
-					Name:            m.Name,
+					Name:            string(name),
 				}
 				set[other.String()] = other
 			}

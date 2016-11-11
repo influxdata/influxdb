@@ -33,6 +33,21 @@ func TestLogFile_AddSeries(t *testing.T) {
 	} else if e := itr.Next(); e != nil {
 		t.Fatalf("expected eof, got: %#v", e)
 	}
+
+	// Reopen file and re-verify.
+	if err := f.Reopen(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify data.
+	itr = f.MeasurementIterator()
+	if e := itr.Next(); e == nil || string(e.Name()) != "cpu" {
+		t.Fatalf("unexpected measurement: %#v", e)
+	} else if e := itr.Next(); e == nil || string(e.Name()) != "mem" {
+		t.Fatalf("unexpected measurement: %#v", e)
+	} else if e := itr.Next(); e != nil {
+		t.Fatalf("expected eof, got: %#v", e)
+	}
 }
 
 // Ensure log file can delete an existing measurement.
@@ -97,6 +112,17 @@ func MustOpenLogFile() *LogFile {
 func (f *LogFile) Close() error {
 	defer os.Remove(f.Path)
 	return f.LogFile.Close()
+}
+
+// Reopen closes and reopens the file.
+func (f *LogFile) Reopen() error {
+	if err := f.LogFile.Close(); err != nil {
+		return err
+	}
+	if err := f.LogFile.Open(); err != nil {
+		return err
+	}
+	return nil
 }
 
 // CreateLogFile creates a new temporary log file and adds a list of series.

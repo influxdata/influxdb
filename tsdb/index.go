@@ -12,12 +12,11 @@ type Index interface {
 	Open() error
 	Close() error
 
-	CreateMeasurementIndexIfNotExists(name []byte) (*Measurement, error)
 	Measurement(name []byte) (*Measurement, error)
 	Measurements() (Measurements, error)
 	MeasurementsByExpr(expr influxql.Expr) (Measurements, bool, error)
 	MeasurementsByName(names [][]byte) ([]*Measurement, error)
-	MeasurementsByRegex(re *regexp.Regexp) (Measurements, error)
+	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	DropMeasurement(name []byte) error
 
 	CreateSeriesIfNotExists(name []byte, tags models.Tags) error

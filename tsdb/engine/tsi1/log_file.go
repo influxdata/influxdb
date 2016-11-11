@@ -3,16 +3,20 @@ package tsi1
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"hash/crc32"
 	"io"
-	"io/ioutil"
 	"os"
 	"sort"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/mmap"
-	"github.com/influxdata/influxdb/tsdb"
+)
+
+// Log errors.
+var (
+	ErrLogEntryChecksumMismatch = errors.New("log entry checksum mismatch")
 )
 
 // Log entry flag constants.
@@ -31,8 +35,7 @@ type LogFile struct {
 	entries []LogEntry // parsed entries
 
 	// In-memory index.
-	series logSeries
-	mms    logMeasurements
+	mms logMeasurements
 
 	// Filepath to the log file.
 	Path string
@@ -69,10 +72,6 @@ func (f *LogFile) open() error {
 	} else if fi.Size() == 0 {
 		return nil
 	}
-	println("FI", fi.Size())
-
-	buf, _ := ioutil.ReadFile(f.Path)
-	Hexdump(buf)
 
 	// Open a read-only memory map of the existing data.
 	data, err := mmap.Map(f.Path)
@@ -91,6 +90,9 @@ func (f *LogFile) open() error {
 		}
 		f.entries = append(f.entries, e)
 
+		// Execute entry against in-memory index.
+		f.execEntry(&e)
+
 		// Move buffer forward.
 		buf = buf[e.Size:]
 	}
@@ -107,37 +109,78 @@ func (f *LogFile) Close() error {
 	if f.data != nil {
 		mmap.Unmap(f.data)
 	}
+
 	f.entries = nil
+	f.mms = make(logMeasurements)
+
 	return nil
 }
 
-func (f *LogFile) CreateMeasurementIndexIfNotExists(name []byte) (*tsdb.Measurement, error) {
-	panic("TODO")
+// MeasurementNames returns an ordered list of measurement names.
+func (f *LogFile) MeasurementNames() []string {
+	a := make([]string, 0, len(f.mms))
+	for name := range f.mms {
+		a = append(a, name)
+	}
+	return a
 }
 
 // DeleteMeasurement adds a tombstone for a measurement to the log file.
 func (f *LogFile) DeleteMeasurement(name []byte) error {
-	// Append log entry.
-	if err := f.append(LogEntry{Flag: LogEntryMeasurementTombstoneFlag, Name: name}); err != nil {
+	e := LogEntry{Flag: LogEntryMeasurementTombstoneFlag, Name: name}
+	if err := f.appendEntry(&e); err != nil {
 		return err
 	}
-
-	// Delete measurement from index.
-	mm := f.measurement(name)
-	mm.deleted = true
-	f.mms[string(name)] = mm
-
+	f.execEntry(&e)
 	return nil
 }
 
 // DeleteTagKey adds a tombstone for a tag key to the log file.
 func (f *LogFile) DeleteTagKey(name, key []byte) error {
-	return f.append(LogEntry{Flag: LogEntryTagKeyTombstoneFlag, Name: name, Tags: models.Tags{{Key: key}}})
+	e := LogEntry{Flag: LogEntryTagKeyTombstoneFlag, Name: name, Tags: models.Tags{{Key: key}}}
+	if err := f.appendEntry(&e); err != nil {
+		return err
+	}
+	f.execEntry(&e)
+	return nil
 }
 
 // DeleteTagValue adds a tombstone for a tag value to the log file.
 func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
-	return f.append(LogEntry{Flag: LogEntryTagValueTombstoneFlag, Name: name, Tags: models.Tags{{Key: key, Value: value}}})
+	e := LogEntry{Flag: LogEntryTagValueTombstoneFlag, Name: name, Tags: models.Tags{{Key: key, Value: value}}}
+	if err := f.appendEntry(&e); err != nil {
+		return err
+	}
+	f.execEntry(&e)
+	return nil
+}
+
+// AddSeries adds a series to the log file.
+func (f *LogFile) AddSeries(name []byte, tags models.Tags) error {
+	e := LogEntry{Name: name, Tags: tags}
+	if err := f.appendEntry(&e); err != nil {
+		return err
+	}
+	f.execEntry(&e)
+	return nil
+}
+
+// DeleteSeries adds a tombstone for a series to the log file.
+func (f *LogFile) DeleteSeries(name []byte, tags models.Tags) error {
+	e := LogEntry{Flag: LogEntrySeriesTombstoneFlag, Name: name, Tags: tags}
+	if err := f.appendEntry(&e); err != nil {
+		return err
+	}
+	f.execEntry(&e)
+	return nil
+}
+
+// SeriesN returns the total number of series in the file.
+func (f *LogFile) SeriesN() (n uint64) {
+	for _, mm := range f.mms {
+		n += uint64(len(mm.series))
+	}
+	return n
 }
 
 // Series returns a series reference.
@@ -160,71 +203,10 @@ func (f *LogFile) Series(name []byte, tags models.Tags) SeriesElem {
 	return nil
 }
 
-// AddSeries adds a series to the log file.
-func (f *LogFile) AddSeries(name []byte, tags models.Tags) error {
-	return f.insertSeries(LogEntry{Name: name, Tags: tags})
-}
-
-// DeleteSeries adds a tombstone for a series to the log file.
-func (f *LogFile) DeleteSeries(name []byte, tags models.Tags) error {
-	return f.insertSeries(LogEntry{Flag: LogEntrySeriesTombstoneFlag, Name: name, Tags: tags})
-}
-
-// insertSeries inserts a series entry.
-func (f *LogFile) insertSeries(e LogEntry) error {
-	// Append log entry.
-	if err := f.append(e); err != nil {
-		return err
-	}
-
-	// Check if series is deleted.
-	deleted := (e.Flag & LogEntrySeriesTombstoneFlag) != 0
-
-	// Insert series to list.
-	f.series.insert(e.Name, e.Tags, deleted)
-
-	// Fetch measurement.
-	mm := f.measurement(e.Name)
-
-	// Save tags.
-	for _, t := range e.Tags {
-		// Fetch key.
-		ts, ok := mm.tagSet[string(t.Key)]
-		if !ok {
-			ts = logTagSet{name: t.Key, tagValues: make(map[string]logTagValue)}
-		}
-
-		// Fetch value.
-		tv, ok := ts.tagValues[string(t.Value)]
-		if !ok {
-			tv.name = t.Value
-		}
-		tv.insertEntry(e)
-		ts.tagValues[string(t.Value)] = tv
-
-		// Save key.
-		mm.tagSet[string(t.Key)] = ts
-	}
-
-	// Insert series to list.
-	// TODO: Remove global series list.
-	mm.series.insert(e.Name, e.Tags, deleted)
-
-	// Save measurement.
-	f.mms[string(e.Name)] = mm
-
-	return nil
-}
-
-// append adds a generic entry to the end of the file.
-func (f *LogFile) append(e LogEntry) error {
+// appendEntry adds a log entry to the end of the file.
+func (f *LogFile) appendEntry(e *LogEntry) error {
 	// Marshal entry to the local buffer.
-	f.buf = appendLogEntry(f.buf[0:], &e)
-
-	// Append checksum.
-	var buf [4]byte
-	binary.BigEndian.PutUint32(buf[:], e.Checksum)
-	f.buf = append(f.buf, buf[:]...)
+	f.buf = appendLogEntry(f.buf[0:], e)
 
 	// Save the size of the record.
 	e.Size = len(f.buf)
@@ -242,9 +224,84 @@ func (f *LogFile) append(e LogEntry) error {
 	}
 
 	// Save entry to in-memory list.
-	f.entries = append(f.entries, e)
+	f.entries = append(f.entries, *e)
 
 	return nil
+}
+
+// execEntry executes a log entry against the in-memory index.
+// This is done after appending and on replay of the log.
+func (f *LogFile) execEntry(e *LogEntry) {
+	switch e.Flag {
+	case LogEntryMeasurementTombstoneFlag:
+		f.execDeleteMeasurementEntry(e)
+	case LogEntryTagKeyTombstoneFlag:
+		f.execDeleteTagKeyEntry(e)
+	case LogEntryTagValueTombstoneFlag:
+		f.execDeleteTagValueEntry(e)
+	default:
+		f.execSeriesEntry(e)
+	}
+}
+
+func (f *LogFile) execDeleteMeasurementEntry(e *LogEntry) {
+	mm := f.measurement(e.Name)
+	mm.deleted = true
+	mm.tagSet = make(map[string]logTagSet)
+	mm.series = nil
+	f.mms[string(e.Name)] = mm
+}
+
+func (f *LogFile) execDeleteTagKeyEntry(e *LogEntry) {
+	key := e.Tags[0].Key
+
+	mm := f.measurement(e.Name)
+	ts := mm.createTagSetIfNotExists(key)
+
+	ts.deleted = true
+
+	mm.tagSet[string(key)] = ts
+	f.mms[string(e.Name)] = mm
+}
+
+func (f *LogFile) execDeleteTagValueEntry(e *LogEntry) {
+	key, value := e.Tags[0].Key, e.Tags[0].Value
+
+	mm := f.measurement(e.Name)
+	ts := mm.createTagSetIfNotExists(key)
+	tv := ts.createTagValueIfNotExists(value)
+
+	tv.deleted = true
+
+	ts.tagValues[string(value)] = tv
+	mm.tagSet[string(key)] = ts
+	f.mms[string(e.Name)] = mm
+}
+
+func (f *LogFile) execSeriesEntry(e *LogEntry) {
+	// Check if series is deleted.
+	deleted := (e.Flag & LogEntrySeriesTombstoneFlag) != 0
+
+	// Fetch measurement.
+	mm := f.measurement(e.Name)
+
+	// Save tags.
+	for _, t := range e.Tags {
+		ts := mm.createTagSetIfNotExists(t.Key)
+		tv := ts.createTagValueIfNotExists(t.Value)
+
+		tv.insertEntry(e)
+
+		ts.tagValues[string(t.Value)] = tv
+		mm.tagSet[string(t.Key)] = ts
+	}
+
+	// Insert series to list.
+	// TODO: Remove global series list.
+	mm.series.insert(e.Name, e.Tags, deleted)
+
+	// Save measurement.
+	f.mms[string(e.Name)] = mm
 }
 
 // measurement returns a measurement by name.
@@ -319,14 +376,23 @@ func (f *LogFile) CompactTo(w io.Writer) (n int64, err error) {
 }
 
 func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
-	// Ensure series are sorted.
-	sort.Sort(f.series)
-
 	// Write all series.
 	sw := NewSeriesBlockWriter()
-	for _, serie := range f.series {
-		if err := sw.Add(serie.name, serie.tags); err != nil {
-			return err
+
+	// Retreve measurement names in order.
+	names := f.MeasurementNames()
+
+	// Add series from measurements in order.
+	for _, name := range names {
+		mm := f.mms[name]
+
+		// Ensure series are sorted.
+		sort.Sort(mm.series)
+
+		for _, serie := range mm.series {
+			if err := sw.Add(serie.name, serie.tags); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -338,28 +404,32 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 	}
 
 	// Add series to each measurement and key/value.
-	for i := range f.series {
-		serie := &f.series[i]
+	for _, name := range names {
+		mm := f.mms[name]
 
-		// Lookup series offset.
-		serie.offset = sw.Offset(serie.name, serie.tags)
-		if serie.offset == 0 {
-			panic("series not found")
+		for i := range mm.series {
+			serie := &mm.series[i]
+
+			// Lookup series offset.
+			serie.offset = sw.Offset(serie.name, serie.tags)
+			if serie.offset == 0 {
+				panic("series not found")
+			}
+
+			// Add series id to measurement, tag key, and tag value.
+			mm.seriesIDs = append(mm.seriesIDs, serie.offset)
+
+			// Add series id to each tag value.
+			for _, tag := range serie.tags {
+				t := mm.tagSet[string(tag.Key)]
+
+				v := t.tagValues[string(tag.Value)]
+				v.seriesIDs = append(v.seriesIDs, serie.offset)
+				t.tagValues[string(tag.Value)] = v
+			}
 		}
 
-		// Add series id to measurement, tag key, and tag value.
-		mm := f.mms[string(serie.name)]
-		mm.seriesIDs = append(mm.seriesIDs, serie.offset)
-		f.mms[string(serie.name)] = mm
-
-		// Add series id to each tag value.
-		for _, tag := range serie.tags {
-			t := mm.tagSet[string(tag.Key)]
-
-			v := t.tagValues[string(tag.Value)]
-			v.seriesIDs = append(v.seriesIDs, serie.offset)
-			t.tagValues[string(tag.Value)] = v
-		}
+		f.mms[string(name)] = mm
 	}
 
 	return nil
@@ -431,13 +501,11 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, n *int64)
 
 // reset clears all the compaction fields on the in-memory index.
 func (f *LogFile) reset() {
-	// Clear series compaction fields.
-	for i := range f.series {
-		f.series[i].offset = 0
-	}
-
-	// Clear measurement compaction fields.
 	for name, mm := range f.mms {
+		for i := range mm.series {
+			mm.series[i].offset = 0
+		}
+
 		mm.offset, mm.size, mm.seriesIDs = 0, 0, nil
 		for key, tagSet := range mm.tagSet {
 			for value, tagValue := range tagSet.tagValues {
@@ -461,6 +529,7 @@ type LogEntry struct {
 
 // UnmarshalBinary unmarshals data into e.
 func (e *LogEntry) UnmarshalBinary(data []byte) error {
+	orig := data
 	start := len(data)
 
 	// Parse flag data.
@@ -488,8 +557,16 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 		tag.Value, data = data[n:n+int(sz)], data[n+int(sz):]
 	}
 
+	// Compute checksum.
+	chk := crc32.ChecksumIEEE(orig[:start-len(data)])
+
 	// Parse checksum.
 	e.Checksum, data = binary.BigEndian.Uint32(data[:4]), data[4:]
+
+	// Verify checksum.
+	if chk != e.Checksum {
+		return ErrLogEntryChecksumMismatch
+	}
 
 	// Save length of elem.
 	e.Size = start - len(data)
@@ -613,6 +690,14 @@ func (m *logMeasurement) Name() []byte                   { return m.name }
 func (m *logMeasurement) Deleted() bool                  { return m.deleted }
 func (m *logMeasurement) TagKeyIterator() TagKeyIterator { panic("TODO") }
 
+func (m *logMeasurement) createTagSetIfNotExists(key []byte) logTagSet {
+	ts, ok := m.tagSet[string(key)]
+	if !ok {
+		ts = logTagSet{name: key, tagValues: make(map[string]logTagValue)}
+	}
+	return ts
+}
+
 // logMeasurementSlice is a sortable list of log measurements.
 type logMeasurementSlice []logMeasurement
 
@@ -636,8 +721,16 @@ func (itr *logMeasurementIterator) Next() (e MeasurementElem) {
 
 type logTagSet struct {
 	name      []byte
-	tagValues map[string]logTagValue
 	deleted   bool
+	tagValues map[string]logTagValue
+}
+
+func (ts *logTagSet) createTagValueIfNotExists(value []byte) logTagValue {
+	tv, ok := ts.tagValues[string(value)]
+	if !ok {
+		tv = logTagValue{name: value}
+	}
+	return tv
 }
 
 type logTagValue struct {
@@ -651,7 +744,7 @@ type logTagValue struct {
 
 // insertEntry inserts an entry into the tag value in sorted order.
 // If another entry matches the name/tags then it is overrwritten.
-func (tv *logTagValue) insertEntry(e LogEntry) {
+func (tv *logTagValue) insertEntry(e *LogEntry) {
 	i := sort.Search(len(tv.entries), func(i int) bool {
 		if cmp := bytes.Compare(tv.entries[i].Name, e.Name); cmp != 0 {
 			return cmp != -1
@@ -661,14 +754,14 @@ func (tv *logTagValue) insertEntry(e LogEntry) {
 
 	// Update entry if it already exists.
 	if i < len(tv.entries) && bytes.Equal(tv.entries[i].Name, e.Name) && tv.entries[i].Tags.Equal(e.Tags) {
-		tv.entries[i] = e
+		tv.entries[i] = *e
 		return
 	}
 
 	// Otherwise insert new entry.
 	tv.entries = append(tv.entries, LogEntry{})
 	copy(tv.entries[i+1:], tv.entries[i:])
-	tv.entries[i] = e
+	tv.entries[i] = *e
 }
 
 // logSeriesIterator represents an iterator over a slice of series.

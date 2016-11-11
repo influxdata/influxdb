@@ -135,14 +135,6 @@ func (i *Index) files() []File {
 	return a
 }
 
-func (i *Index) CreateMeasurementIndexIfNotExists(name []byte) (*tsdb.Measurement, error) {
-	// FIXME(benbjohnson): Read lock log file during lookup.
-	if mm := i.measurement(name); mm == nil {
-		return mm, nil
-	}
-	return i.logFiles[0].CreateMeasurementIndexIfNotExists(name)
-}
-
 // Measurement retrieves a measurement by name.
 func (i *Index) Measurement(name []byte) (*tsdb.Measurement, error) {
 	return i.measurement(name), nil
@@ -373,15 +365,15 @@ func (i *Index) MeasurementsByName(names [][]byte) ([]*tsdb.Measurement, error) 
 	return mms, nil
 }
 
-func (i *Index) MeasurementsByRegex(re *regexp.Regexp) (tsdb.Measurements, error) {
+func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	itr := i.MeasurementIterator()
-	var mms tsdb.Measurements
+	var a [][]byte
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		if re.Match(e.Name()) {
-			mms = append(mms, i.measurement(e.Name()))
+			a = append(a, e.Name())
 		}
 	}
-	return mms, nil
+	return a, nil
 }
 
 // DropMeasurement deletes a measurement from the index.
@@ -408,20 +400,32 @@ func (i *Index) Series(name []byte, tags models.Tags) SeriesElem {
 }
 
 func (i *Index) DropSeries(keys [][]byte) error {
-	panic("TODO: Requires WAL")
+	for _, key := range keys {
+		name, tags, err := models.ParseKey(key)
+		if err != nil {
+			return err
+		}
+
+		if err := i.logFiles[0].DeleteSeries([]byte(name), tags); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (i *Index) SeriesN() (n uint64, err error) {
 	// TODO(edd): Use sketches.
-	return 0, nil
+
+	// HACK(benbjohnson): Use first log file until edd adds sketches.
+	return i.logFiles[0].SeriesN(), nil
 }
 
 func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	panic("TODO")
+	panic("TODO(edd)")
 }
 
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	panic("TODO")
+	panic("TODO(edd)")
 }
 
 // Dereference is a nop.
@@ -500,10 +504,59 @@ func (i *Index) MatchTagValueSeriesIterator(name, key []byte, value *regexp.Rege
 // TagSets returns an ordered list of tag sets for a measurement by dimension
 // and filtered by an optional conditional expression.
 func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
-	var tagSets []*influxql.TagSet
-	// TODO(benbjohnson): Iterate over filtered series and build tag sets.
-	panic("TODO")
-	return tagSets, nil
+	itr, err := i.MeasurementSeriesByExprIterator(name, condition)
+	if err != nil {
+		return nil, err
+	} else if itr == nil {
+		return nil, nil
+	}
+
+	// For every series, get the tag values for the requested tag keys i.e.
+	// dimensions. This is the TagSet for that series. Series with the same
+	// TagSet are then grouped together, because for the purpose of GROUP BY
+	// they are part of the same composite series.
+	tagSets := make(map[string]*influxql.TagSet, 64)
+
+	for e := itr.Next(); e != nil; e = itr.Next() {
+		tags := make(map[string]string, len(dimensions))
+
+		// Build the TagSet for this series.
+		for _, dim := range dimensions {
+			tags[dim] = e.Tags().GetString(dim)
+		}
+
+		// Convert the TagSet to a string, so it can be added to a map
+		// allowing TagSets to be handled as a set.
+		tagsAsKey := tsdb.MarshalTags(tags)
+		tagSet, ok := tagSets[string(tagsAsKey)]
+		if !ok {
+			// This TagSet is new, create a new entry for it.
+			tagSet = &influxql.TagSet{
+				Tags: tags,
+				Key:  tagsAsKey,
+			}
+		}
+		// Associate the series and filter with the Tagset.
+		tagSet.AddFilter(string(SeriesElemKey(e)), e.Expr())
+
+		// Ensure it's back in the map.
+		tagSets[string(tagsAsKey)] = tagSet
+	}
+
+	// Sort the series in each tag set.
+	for _, t := range tagSets {
+		sort.Sort(t)
+	}
+
+	// The TagSets have been created, as a map of TagSets. Just send
+	// the values back as a slice, sorting for consistency.
+	sortedTagsSets := make([]*influxql.TagSet, 0, len(tagSets))
+	for _, v := range tagSets {
+		sortedTagsSets = append(sortedTagsSets, v)
+	}
+	sort.Sort(byTagKey(sortedTagsSets))
+
+	return sortedTagsSets, nil
 }
 
 // MeasurementSeriesByExprIterator returns a series iterator for a measurement
@@ -580,6 +633,7 @@ func (i *Index) seriesByBinaryExprIterator(name []byte, n *influxql.BinaryExpr) 
 		return newSeriesExprIterator(i.MeasurementSeriesIterator(name), &influxql.BooleanLiteral{Val: true}), nil
 	}
 
+	// FIXME(benbjohnson): Require measurement field info.
 	/*
 		// For fields, return all series from this measurement.
 		if key.Val != "_name" && ((key.Type == influxql.Unknown && i.hasField(key.Val)) || key.Type == influxql.AnyField || (key.Type != influxql.Tag && key.Type != influxql.Unknown)) {

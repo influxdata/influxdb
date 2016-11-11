@@ -498,8 +498,8 @@ cpu,host=serverB,region=uswest value=25  0
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer itr.Close()
 	fitr := itr.(influxql.FloatIterator)
+	defer itr.Close()
 
 	// Read values from iterator.
 	if p, err := fitr.Next(); err != nil {

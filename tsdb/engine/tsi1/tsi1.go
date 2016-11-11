@@ -354,6 +354,24 @@ type SeriesElem interface {
 	Expr() influxql.Expr
 }
 
+// SeriesElemKey encodes e as a series key.
+func SeriesElemKey(e SeriesElem) []byte {
+	name, tags := e.Name(), e.Tags()
+
+	// TODO: Precompute allocation size.
+	// FIXME: Handle escaping.
+
+	var buf []byte
+	buf = append(buf, name...)
+	for _, t := range tags {
+		buf = append(buf, ',')
+		buf = append(buf, t.Key...)
+		buf = append(buf, '=')
+		buf = append(buf, t.Value...)
+	}
+	return buf
+}
+
 // CompareSeriesElem returns -1 if a < b, 1 if a > b, and 0 if equal.
 func CompareSeriesElem(a, b SeriesElem) int {
 	if cmp := bytes.Compare(a.Name(), b.Name()); cmp != 0 {
@@ -789,3 +807,9 @@ func assert(condition bool, msg string, v ...interface{}) {
 		panic(fmt.Sprintf("assert failed: "+msg, v...))
 	}
 }
+
+type byTagKey []*influxql.TagSet
+
+func (t byTagKey) Len() int           { return len(t) }
+func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
+func (t byTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }

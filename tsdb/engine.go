@@ -53,7 +53,7 @@ type Engine interface {
 	Measurement(name []byte) (*Measurement, error)
 	Measurements() (Measurements, error)
 	MeasurementsByExpr(expr influxql.Expr) (Measurements, bool, error)
-	MeasurementsByRegex(re *regexp.Regexp) (Measurements, error)
+	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	MeasurementFields(measurement string) *MeasurementFields
 
 	// Statistics will return statistics relevant to this engine.
