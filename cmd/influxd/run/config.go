@@ -159,9 +159,15 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	for _, g := range c.GraphiteInputs {
-		if err := g.Validate(); err != nil {
+	for _, graphite := range c.GraphiteInputs {
+		if err := graphite.Validate(); err != nil {
 			return fmt.Errorf("invalid graphite config: %v", err)
+		}
+	}
+
+	for _, collectd := range c.CollectdInputs {
+		if err := collectd.Validate(); err != nil {
+			return fmt.Errorf("invalid collectd config: %v", err)
 		}
 	}
 

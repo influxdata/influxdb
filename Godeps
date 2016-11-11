@@ -10,7 +10,6 @@ github.com/gogo/protobuf a9cd0c35b97daf74d0ebf3514c5254814b2703b4
 github.com/golang/snappy d9eb7a3d35ec988b8585d4a0068e462c27d28380
 github.com/influxdata/usage-client 6d3895376368aa52a3a81d2a16e90f0f52371967
 github.com/jwilder/encoding 4dada27c33277820fe35c7ee71ed34fbc9477d00
-github.com/kimor79/gollectd b5dddb1667dcc1e6355b9305e2c1608a2db6983c
 github.com/paulbellamy/ratecounter 5a11f585a31379765c190c033b6ad39956584447
 github.com/peterh/liner 8975875355a81d612fafb9f5a6037bdcc2d9b073
 github.com/rakyll/statik e383bbf6b2ec1a2fb8492dfd152d945fb88919b6

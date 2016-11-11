@@ -32,4 +32,6 @@ Please note that UDP packets larger than the standard size of 1452 are dropped a
   batch-timeout = "10s"
   read-buffer = 0 # UDP read buffer size, 0 means to use OS default
   typesdb = "/usr/share/collectd/types.db"
+  security-level = "none" # "none", "sign", or "encrypt"
+  auth-file = "/etc/collectd/auth_file"
 ```
