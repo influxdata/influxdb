@@ -2,16 +2,16 @@
 
 Chronograf is a user interface that makes owning the monitoring and alerting for your infrastructure easy to setup and maintain. Chronograf is also the interface that ties together the other three components of InfluxData's TICK stack. In order to get the most out of Chronograf you will need to set up all four packages of the TICK stack. This guide will help you get each going as quickly as possible so you can begin monitoring with as little configuration and code as possible. This guide will point you directly to the downloads for each package involved and will give sample configurations for each. If you would like to read more about each you can follow the links here.
 
-[Telegraf](https://github.com/influxdata/telegraf)
+[Telegraf](https://github.com/influxdata/telegraf)<br>
 [Telegraf Documentation](https://docs.influxdata.com/telegraf/v1.1)
 
-[InfluxDB](https://github.com/influxdata/influxdb)
+[InfluxDB](https://github.com/influxdata/influxdb)<br>
 [InfluxDB Documentation](https://docs.influxdata.com/influxdb/v1.0)
 
-[Chronograf](https://github.com/influxdata/chronograf)
+[Chronograf](https://github.com/influxdata/chronograf)<br>
 [Chronograf Documentation](https://docs.influxdata.com/chronograf/v1.1)
 
-[Kapacitor](https://github.com/influxdata/kapacitor)
+[Kapacitor](https://github.com/influxdata/kapacitor)<br>
 [Kapactior Documentation](https://docs.influxdata.com/kapacitor/v1.1)
 
 ## Operating System Support
