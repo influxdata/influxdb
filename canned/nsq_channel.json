@@ -9,12 +9,12 @@
       "w": 4,
       "h": 4,
       "i": "89dad9c8-3391-400e-a44a-b5d4a2c53bf1",
-      "name": "NSQ channel client count",
+      "name": "NSQ - Channel Client Count",
       "queries": [
         {
-          "query": "select client_count from nsq_channel",
+          "query": "SELECT mean(\"client_count\") AS \"client_count\" FROM nsq_channel",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
             "\"topic\"",
             "\"channel\""
@@ -29,12 +29,12 @@
       "w": 4,
       "h": 4,
       "i": "e3eb48c0-8283-4445-b174-f4f8e4182e45",
-      "name": "NSQ channel messages count",
+      "name": "NSQ - Channel Messages Count",
       "queries": [
         {
-          "query": "select message_count from nsq_channel",
+          "query": "SELECT mean(\"message_count\") AS \"message_count\" FROM nsq_channel",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
             "\"topic\"",
             "\"channel\""

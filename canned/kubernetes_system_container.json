@@ -9,12 +9,12 @@
       "w": 4,
       "h": 4,
       "i": "64cf0f60-e157-4c03-9d7e-c280a7e2695f",
-      "name": "K8s Kubelet millicores",
+      "name": "K8s - Kubelet Millicores",
       "queries": [
         {
-          "query": "select \"cpu_usage_nanocores\" / 1000000 as cpu_usage_millicores from kubernetes_system_container",
+          "query": "SELECT mean(\"cpu_usage_nanocores\") / 1000000 AS \"cpu_usage_millicores\" FROM kubernetes_system_container",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [],
           "wheres": [
             "\"container_name\" = 'kubelet'"
@@ -28,12 +28,12 @@
       "w": 4,
       "h": 4,
       "i": "4a7454d1-4d60-4077-9e7b-8c915a00fe66",
-      "name": "K8s Kubelet memory bytes",
+      "name": "K8s - Kubelet Memory Bytes",
       "queries": [
         {
-          "query": "select \"memory_usage_bytes\" from kubernetes_system_container",
+          "query": "SELECT mean(\"memory_usage_bytes\") AS \"memory_usage_bytes\" FROM kubernetes_system_container",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [],
           "wheres": [
             "\"container_name\" = 'kubelet'"

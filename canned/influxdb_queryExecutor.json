@@ -14,7 +14,7 @@
         {
           "query": "SELECT non_negative_derivative(max(\"queryDurationNs\"), 1s) AS \"duration\" FROM \"influxdb_queryExecutor\"",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
           ],
           "wheres": []
@@ -22,7 +22,7 @@
         {
           "query": "SELECT non_negative_derivative(max(\"queriesExecuted\"), 1s) AS \"queries_executed\" FROM \"influxdb_queryExecutor\"",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
           ],
           "wheres": []

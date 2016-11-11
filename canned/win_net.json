@@ -9,12 +9,12 @@
       "w": 4,
       "h": 4,
       "i": "3bf8c678-5904-46e7-9c9f-d0d16f0c3fc4",
-      "name": "TX bytes/second",
+      "name": "System - TX Bytes/Second",
       "queries": [
         {
-          "query": "select Bytes_Sent_persec from win_net",
+          "query": "SELECT mean(\"Bytes_Sent_persec\") AS \"bytes_sent\" FROM win_net",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -26,12 +26,12 @@
       "w": 4,
       "h": 4,
       "i": "46963ea2-b09b-4dcf-b08b-7cbcd8766f77",
-      "name": "RX bytes/second",
+      "name": "RX Bytes/Second",
       "queries": [
         {
-          "query": "select Bytes_Received_persec from win_net",
+          "query": "SELECT mean(\"Bytes_Received_persec\") AS \"bytes_received\" FROM win_net",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [],
           "wheres": []
         }

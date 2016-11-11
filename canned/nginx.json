@@ -9,14 +9,13 @@
       "w": 4,
       "h": 4,
       "i": "a209be7f-33c6-4612-88b2-848ae402c66a",
-      "name": "NGINX – Client connections",
+      "name": "NGINX – Client Connections",
       "queries": [
         {
-          "query": "select non_negative_derivative(max(\"accepts\"), 1s) as \"accepts\", non_negative_derivative(max(\"handled\"), 1s) as \"handled\", non_negative_derivative(max(\"active\"), 1s) as \"active\" from nginx",
+          "query": "SELECT non_negative_derivative(max(\"accepts\"), 1s) AS \"accepts\", non_negative_derivative(max(\"handled\"), 1s) AS \"handled\", non_negative_derivative(max(\"active\"), 1s) AS \"active\" FROM nginx",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
-              "time(10s)",
               "\"server\""
           ],
           "wheres": []
@@ -29,14 +28,13 @@
       "w": 4,
       "h": 4,
       "i": "0fc591ad-8541-4de3-a36e-4ae69ff954c4",
-      "name": "NGINX – Client errors",
+      "name": "NGINX – Client Errors",
       "queries": [
         {
-          "query": "select non_negative_derivative(max(\"accepts\")) - non_negative_derivative(max(\"handled\")) from nginx",
+          "query": "SELECT non_negative_derivative(max(\"accepts\")) - non_negative_derivative(max(\"handled\")) FROM nginx",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
-              "time(10s)",
             "\"server\""
           ],
           "wheres": []
@@ -49,14 +47,13 @@
       "w": 4,
       "h": 4,
       "i": "a1f37574-b86e-4278-8acc-ba78d3ac2e4e",
-      "name": "NGINX – Client requests",
+      "name": "NGINX – Client Requests",
       "queries": [
         {
-          "query": "select non_negative_derivative(max(\"requests\"), 1s) as \"requests\" from nginx",
+          "query": "SELECT non_negative_derivative(max(\"requests\"), 1s) AS \"requests\" FROM nginx",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
-              "time(10s)",
             "\"server\""
           ],
           "wheres": []
@@ -69,14 +66,13 @@
       "w": 4,
       "h": 4,
       "i": "5b91c5b0-d270-4d03-aeae-007f2351c80c",
-      "name": "NGINX – Active Client state",
+      "name": "NGINX – Active Client State",
       "queries": [
         {
-          "query": "select non_negative_derivative(max(\"waiting\"), 1s) as \"waiting\", non_negative_derivative(max(\"reading\"), 1s) as \"reading\", non_negative_derivative(max(\"writing\"), 1s) as \"writing\" from nginx",
+          "query": "SELECT non_negative_derivative(max(\"waiting\"), 1s) AS \"waiting\", non_negative_derivative(max(\"reading\"), 1s) AS \"reading\", non_negative_derivative(max(\"writing\"), 1s) AS \"writing\" FROM nginx",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
-              "time(10s)",
             "\"server\""
           ],
           "wheres": []

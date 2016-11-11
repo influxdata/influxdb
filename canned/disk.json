@@ -9,10 +9,10 @@
       "w": 4,
       "h": 4,
       "i": "5825a4dd-df97-4e99-a99d-67b68833c183",
-      "name": "Disk used %",
+      "name": "System - Disk used %",
       "queries": [
         {
-          "query": "select mean(\"used_percent\") AS \"used_percent\" from disk",
+          "query": "SELECT mean(\"used_percent\") AS \"used_percent\" FROM disk",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
