@@ -12,7 +12,7 @@
       "name": "Memory bytes used",
       "queries": [
         {
-          "query": "SELECT \"used\", \"available\" FROM \"telegraf\"..\"mem\"",
+          "query": "SELECT mean(\"used\"), mean(\"available\") FROM \"telegraf\"..\"mem\"",
           "db": "telegraf",
           "rp": "autogen",
           "groupbys": [],
