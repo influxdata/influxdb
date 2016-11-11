@@ -12,6 +12,7 @@ import selectStatement from 'src/chronograf/utils/influxql/select';
 import AutoRefresh from 'shared/components/AutoRefresh';
 import LineGraph from 'shared/components/LineGraph';
 const RefreshingLineGraph = AutoRefresh(LineGraph);
+import RuleHeader from 'src/kapacitor/components/RuleHeader';
 import {getKapacitor, getKapacitorConfig} from 'shared/apis/index';
 import Dropdown from 'shared/components/Dropdown';
 import {ALERTS, DEFAULT_RULE_ID} from 'src/kapacitor/constants';
@@ -49,7 +50,6 @@ export const KapacitorRulePage = React.createClass({
   getInitialState() {
     return {
       enabledAlerts: [],
-      isEditingName: false,
     };
   },
 
@@ -138,32 +138,8 @@ export const KapacitorRulePage = React.createClass({
     this.props.kapacitorActions.updateAlerts(item.ruleID, [item.text]);
   },
 
-  handleEditName(e, rule) {
-    if (e.key === 'Enter') {
-      const {updateRuleName} = this.props.kapacitorActions;
-      const name = this.ruleName.value;
-      updateRuleName(rule.id, name);
-      this.toggleEditName();
-    }
-
-    if (e.key === 'Escape') {
-      this.toggleEditName();
-    }
-  },
-
-  handleEditNameBlur(rule) {
-    const {updateRuleName} = this.props.kapacitorActions;
-    const name = this.ruleName.value;
-    updateRuleName(rule.id, name);
-    this.toggleEditName();
-  },
-
-  toggleEditName() {
-    this.setState({isEditingName: !this.state.isEditingName});
-  },
-
   render() {
-    const {rules, queryConfigs, params} = this.props;
+    const {rules, queryConfigs, params, kapacitorActions} = this.props;
     const rule = this.isEditing() ? rules[params.ruleID] : rules[DEFAULT_RULE_ID];
     const query = rule && queryConfigs[rule.queryID];
 
@@ -173,16 +149,7 @@ export const KapacitorRulePage = React.createClass({
 
     return (
       <div className="kapacitor-rule-page">
-        <div className="enterprise-header">
-          <div className="enterprise-header__container">
-            <div className="enterprise-header__left">
-              {this.renderEditName(rule)}
-            </div>
-            <div className="enterprise-header__right">
-              <button className="btn btn-success btn-sm" onClick={this.handleSave}>Save Rule</button>
-            </div>
-          </div>
-        </div>
+        <RuleHeader rule={rule} actions={kapacitorActions} onSave={this.handleSave} />
         <div className="rule-builder-wrapper">
           <div className="container-fluid">
             <div className="row">
@@ -200,28 +167,6 @@ export const KapacitorRulePage = React.createClass({
           </div>
         </div>
       </div>
-    );
-  },
-
-  renderEditName(rule) {
-    if (!this.state.isEditingName) {
-      return (
-        <h1 className="enterprise-header__editable" onClick={this.toggleEditName}>
-          {rule.name}
-        </h1>
-      );
-    }
-
-    return (
-      <input
-        className="enterprise-header__editing"
-        autoFocus={true}
-        defaultValue={rule.name}
-        ref={r => this.ruleName = r}
-        onKeyDown={(e) => this.handleEditName(e, rule)}
-        onBlur={() => this.handleEditNameBlur(rule)}
-        placeholder="Name your rule"
-      />
     );
   },
 
