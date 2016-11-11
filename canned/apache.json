@@ -12,7 +12,7 @@
       "name": "Apache Bytes/Second",
       "queries": [
         {
-          "query": "SELECT mean(\"BytesPerSec\") AS \"bytes_per_sec\" FROM apache",
+          "query": "SELECT non_negative_derivative(max(\"BytesPerSec\")) AS \"bytes_per_sec\" FROM apache",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
@@ -31,7 +31,7 @@
       "name": "Apache - Requests/Second",
       "queries": [
         {
-          "query": "SELECT mean(\"ReqPerSec\") AS \"req_per_sec\" FROM apache",
+          "query": "SELECT non_negative_derivative(max(\"ReqPerSec\")) AS \"req_per_sec\" FROM apache",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
@@ -50,7 +50,7 @@
       "name": "Apache - Total Accesses",
       "queries": [
         {
-          "query": "SELECT mean(\"TotalAccesses\") AS \"tot_access\" FROM apache",
+          "query": "SELECT non_negative_derivative(max(\"TotalAccesses\")) AS \"tot_access\" FROM apache",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
