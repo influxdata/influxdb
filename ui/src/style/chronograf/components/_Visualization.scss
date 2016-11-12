@@ -86,27 +86,10 @@ $dygraphs-legend-offset: 32px;
       color: $g20-white;
     }
   }
-  &__options {
-    width: $graph-panel__tab-height - 16px;
-    height: $graph-panel__tab-height - 16px;
-    border-radius: 3px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-left: 9.5px;
-    transition:
-      background-color 0.25s ease,
-      color 0.25s ease;
-    &:hover {
-      cursor: pointer;
-      color: $g13-mist;
-      background-color: $g6-smoke;
-    }
-  }
   &__graph-container {
     background-color: $g3-castle;
     border-radius: 0 0 4px 4px;
-    padding: 9.5px;
+    padding: 8px 16px;
     position: relative;
   }
   &__graph-empty {
@@ -186,81 +169,5 @@ $dygraphs-legend-offset: 32px;
     font-weight: 700;
     background-color: $g6-smoke;
     color: $g14-chromium;
-  }
-}
-
-// Dygraph styles. Needs a home.
-.dygraph-axis-label {
-  color: $g11-sidewalk;
-  font-weight: 500;
-}
-.graph-vertical-marker {
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background-color: $g8-storm;
-  position: absolute;
-  pointer-events: none;
-  display: none;
-  transform: translateX(9px);
-}
-.container--dygraph-legend {
-  background-color: $g1-raven;
-  display: block;
-  position: fixed;
-  padding: 11px;
-  z-index: 500;
-  font-size: 13px;
-  color: $g12-forge;
-  border-radius: 3px;
-  font-weight: 600;
-  line-height: 13px;
-
-  &.hidden {
-    display: none;
-  }
-
-  /*
-   * Only animate position that's controlled during rendering.
-   * See http://stackoverflow.com/a/17117992
-   */
-  transition: all 0.25s ease;
-  transition-property: top, right, bottom, left;
-
-  /* Row */
-  /* Styles for Key go here, get overrided by > b */
-  > span {
-    width: 100%;
-    justify-content: space-between;
-    align-items: center;
-    display: flex;
-    opacity: 0.5;
-    padding-top: 4px;
-    font-size: 13px;
-    line-height: 13px;
-    font-weight: 600 !important;
-    color: $g19-ghost;
-    margin: 0;
-
-    /* Border on top of first row */
-    &:first-child {
-      border-top: 2px solid $g4-onyx;
-      padding-top: 6px;
-      margin-top: 6px;
-    }
-
-    /* Legend Key */
-    > b {
-      font-weight: 600 !important;
-    }
-  }
-
-  .highlight {
-    font-weight: 600;
-    opacity: 1;
-
-    > b {
-     font-weight: 600;
-    }
   }
 }

@@ -150,17 +150,16 @@
   max-width: 100%;
 }
 .graph-panel__graph-container.hosts-graph {
-  margin-bottom: 15px;
-  padding: 9.5px 16px;
+  padding: 8px 16px;
 }
 .hosts-graph-heading {
   display: block;
   width: 100%;
-  margin: 15px 0 0 0;
-  background-color: $g5-pepper;
-  padding: 9.5px 16px;
-  font-weight: 500;
-  font-size: 16px;
+  margin: 0;
+  background-color: $g3-castle;
+  padding: 8px 16px;
+  font-weight: 600;
+  font-size: 13px;
   color: $g14-chromium;
   border-radius: 4px 4px 0 0;
 }
@@ -247,4 +246,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+/* Hacky way to ensure that legends cannot be obscured by neighboring graphs */
+.react-grid-item {
+  &:hover {
+    z-index: 9999;
+  }
 }

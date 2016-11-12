@@ -65,9 +65,14 @@ $kapacitor-font-sm: 13px;
   width: calc(100% - #{$kapacitor-page-gutter});
   background-color: $kapacitor-graphic-color;
   border-radius: 0 0 $kap-radius-lg $kap-radius-lg;
-  padding: $kap-padding-sm ($kap-padding-lg + 2px) $kap-padding-sm $kap-padding-lg;
-  height: (320px + ($kap-padding-sm * 2));
+  padding: 0 $kap-padding-sm;
+  height: (300px + ($kap-padding-sm * 2));
   position: relative;
+
+  > div {
+    padding: 8px 16px;
+    position: relative;
+  }
 
   &:before {
     content: '';

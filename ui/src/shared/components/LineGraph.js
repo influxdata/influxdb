@@ -54,6 +54,7 @@ export default React.createClass({
       labels: fields,
       connectSeparatedPoints: true,
       labelsKMB: true,
+      height: 300,
       axisLineColor: '#383846',
       gridLineColor: '#383846',
       title: this.props.title,
@@ -66,7 +67,7 @@ export default React.createClass({
     return (
       <div>
         {this.props.isRefreshing ? <h3 className="graph-panel__spinner--small" /> : null}
-        <Dygraph containerStyle={{width: '100%'}} overrideLineColors={this.props.overrideLineColors} isGraphFilled={this.props.isGraphFilled} timeSeries={timeSeries} fields={fields} options={options} />
+        <Dygraph containerStyle={{width: '100%', height: '300px'}} overrideLineColors={this.props.overrideLineColors} isGraphFilled={this.props.isGraphFilled} timeSeries={timeSeries} fields={fields} options={options} />
       </div>
     );
   },
