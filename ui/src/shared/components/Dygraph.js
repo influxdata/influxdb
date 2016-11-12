@@ -53,7 +53,6 @@ export default React.createClass({
     const {yRange} = this.props;
 
     const refs = this.refs;
-    const selfNode = refs.self;
     const graphContainerNode = refs.graphContainer;
     const legendContainerNode = refs.legendContainer;
     const markerNode = refs.graphVerticalMarker;
