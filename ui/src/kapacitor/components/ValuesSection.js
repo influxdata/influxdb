@@ -17,13 +17,13 @@ export const ValuesSection = React.createClass({
 
   render() {
     const {rule, query} = this.props;
-    const forcedActiveIndex = TABS.indexOf(_.startCase(rule.trigger));
+    const initialIndex = TABS.indexOf(_.startCase(rule.trigger));
 
     return (
       <div className="kapacitor-rule-section">
         <h3 className="rule-section-heading">Values</h3>
         <div className="rule-section-body">
-          <Tabs forceActiveIndex={forcedActiveIndex} onSelect={this.handleChooseTrigger}>
+          <Tabs initialIndex={initialIndex} onSelect={this.handleChooseTrigger}>
             <TabList isKapacitorTabs="true">
               {TABS.map(tab => <Tab key={tab}>{tab}</Tab>)}
             </TabList>
