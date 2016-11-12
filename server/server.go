@@ -127,9 +127,11 @@ func openService(boltPath, cannedPath string, logger chronograf.Logger) Service 
 		ExplorationStore: db.ExplorationStore,
 		SourcesStore:     db.SourcesStore,
 		ServersStore:     db.ServersStore,
-		TimeSeries:       &influx.Client{},
-		LayoutStore:      layouts,
-		AlertRulesStore:  db.AlertsStore,
+		TimeSeries: &influx.Client{
+			Logger: logger,
+		},
+		LayoutStore:     layouts,
+		AlertRulesStore: db.AlertsStore,
 	}
 }
 
