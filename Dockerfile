@@ -6,5 +6,7 @@ RUN apk add --update ca-certificates && \
 
 ADD chronograf /usr/bin/chronograf
 ADD canned/*.json /usr/share/chronograf/canned/
+ADD LICENSE /usr/share/chronograf/LICENSE
+ADD agpl-3.0.md /usr/share/chronograf/agpl-3.0.md
 
 CMD ["/usr/bin/chronograf", "-b", "/var/lib/chronograf/chronograf-v1.db", "-c", "/usr/share/chronograf/canned"]
