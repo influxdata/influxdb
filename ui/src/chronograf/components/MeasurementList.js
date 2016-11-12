@@ -71,7 +71,7 @@ const MeasurementList = React.createClass({
     return (
       <div className="measurement-list">
         <div className="query-editor__list-header">
-          <input className="query-editor__filter" ref="filterText" placeholder="Filter measurements..." type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
+          <input className="query-editor__filter" ref="filterText" placeholder="Filter Measurements..." type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
           <span className="icon search"></span>
         </div>
         {this.renderList()}

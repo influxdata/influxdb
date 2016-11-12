@@ -12,11 +12,10 @@
       "name": "InfluxDB - Write Points",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(max(\"pointReq\"), 1s) AS \"Points Written\" FROM \"influxdb_write\"",
+          "query": "SELECT non_negative_derivative(max(\"pointReq\"), 1s) AS \"points_written\" FROM \"influxdb_write\"",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
-            "time(10s)"
           ],
           "wheres": []
         }
@@ -31,20 +30,18 @@
       "name": "InfluxDB - Write Errors",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(max(\"writeError\"), 1s) AS \"Shard Write Error\" FROM \"influxdb_write\"",
+          "query": "SELECT non_negative_derivative(max(\"writeError\"), 1s) AS \"shard_write_error\" FROM \"influxdb_write\"",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
-            "time(10s)"
           ],
           "wheres": []
         },
         {
-          "query": "SELECT non_negative_derivative(max(\"serveError\"), 1s) AS \"HTTP Error\" FROM \"influxdb_httpd\"",
+          "query": "SELECT non_negative_derivative(max(\"serveError\"), 1s) AS \"http_error\" FROM \"influxdb_httpd\"",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
-            "time(10s)"
           ],
           "wheres": []
         }

@@ -9,12 +9,12 @@
       "w": 12,
       "h": 4,
       "i": "b417bc9f-b16d-4691-91a7-85adfdd3e8ec",
-      "name": "PostgreSQL Rows",
+      "name": "PostgreSQL - Rows",
       "queries": [
         {
-          "query": "select non_negative_derivative(tup_fetched) as fetched, non_negative_derivative(tup_returned) as returned, non_negative_derivative(tup_inserted) as inserted, non_negative_derivative(tup_updated) as updated from postgresql",
+          "query": "SELECT non_negative_derivative(\"tup_fetched\") AS \"fetched\", non_negative_derivative(\"tup_returned\") AS \"returned\", non_negative_derivative(\"tup_inserted\") AS \"inserted\", non_negative_derivative(\"tup_updated\") AS \"updated\" FROM postgresql",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
             "db"
           ],
@@ -28,12 +28,12 @@
       "w": 12,
       "h": 4,
       "i": "230d5baa-9376-438c-9a55-6f97f8c68e69",
-      "name": "PostgreSQL QPS",
+      "name": "PostgreSQL - QPS",
       "queries": [
         {
-          "query": "select non_negative_derivative(xact_commit) as xact_commit from postgresql",
+          "query": "SELECT non_negative_derivative(\"xact_commit\") AS \"xact_commit\" FROM postgresql",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
             "db"
           ],
@@ -47,14 +47,13 @@
       "w": 6,
       "h": 4,
       "i": "4762130d-7005-467f-80ad-8c7f6dfe822e",
-      "name": "PostgreSQL Buffers",
+      "name": "PostgreSQL - Buffers",
       "queries": [
         {
-          "query": "select mean(buffers_alloc) as buffers_allocated, mean(buffers_backend) as buffers_backend, mean(buffers_backend_fsync) as buffers_backend_fsync, mean(buffers_checkpoint) as buffers_checkpoint, mean(buffers_clean) as buffers_clean from postgresql",
+          "query": "SELECT mean(\"buffers_alloc\") AS \"buffers_allocated\", mean(\"buffers_backend\") AS \"buffers_backend\", mean(\"buffers_backend_fsync\") AS \"buffers_backend_fsync\", mean(\"buffers_checkpoint\") AS \"buffers_checkpoint\", mean(\"buffers_clean\") AS \"buffers_clean\" FROM postgresql",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
-            "time(1m)"
           ],
           "wheres": []
         }
@@ -66,14 +65,13 @@
       "w": 6,
       "h": 4,
       "i": "95e73bda-7527-4aca-89dd-109cb6bb4294",
-      "name": "PostgreSQL Conflicts/Deadlocks",
+      "name": "PostgreSQL - Conflicts/Deadlocks",
       "queries": [
         {
-          "query": "select mean(conflicts) as conflicts, mean(deadlocks) as deadlocks from postgresql",
+          "query": "SELECT mean(\"conflicts\") AS \"conflicts\", mean(\"deadlocks\") AS \"deadlocks\" FROM postgresql",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
-            "time(1m)"
           ],
           "wheres": []
         }

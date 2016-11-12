@@ -1,5 +1,5 @@
 {
-  "id": "543aa120-14ba-46a2-8ef9-6e6c7be3d60e",
+  "id": "543aa120-14ba-46a2-8ef9-6e6c7be3d600",
   "measurement": "influxdb_database",
   "app": "influxdb",
   "cells": [
@@ -12,20 +12,18 @@
       "name": "InfluxDB - Cardinality",
       "queries": [
         {
-          "query": "SELECT max(\"numMeasurements\") AS \"Measurements\" FROM \"influxdb_database\"",
+          "query": "SELECT max(\"numMeasurements\") AS \"measurements\" FROM \"influxdb_database\"",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
-            "time(10s)"
           ],
           "wheres": []
         },
         {
-          "query": "SELECT max(\"numSeries\") AS \"Series\" FROM \"influxdb_database\"",
+          "query": "SELECT max(\"numSeries\") AS \"series\" FROM \"influxdb_database\"",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
-            "time(10s)"
           ],
           "wheres": []
         }

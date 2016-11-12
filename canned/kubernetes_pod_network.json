@@ -9,12 +9,12 @@
       "w": 4,
       "h": 4,
       "i": "0e06ddcd-05dd-493f-9dba-a382300a7190",
-      "name": "K8s pod TX bytes/second",
+      "name": "K8s - Pod TX Bytes/Second",
       "queries": [
         {
-          "query": "select non_negative_derivative(\"tx_bytes\") as tx_bytes_per_second from kubernetes_pod_network",
+          "query": "SELECT non_negative_derivative(max(\"tx_bytes\")) AS \"tx_bytes_per_second\" FROM kubernetes_pod_network",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
             "\"pod_name\"",
             "\"host\""
@@ -29,12 +29,12 @@
       "w": 4,
       "h": 4,
       "i": "cc062b4c-70ca-4bd7-b372-398e734feb49",
-      "name": "K8s pod RX bytes/second ",
+      "name": "K8s - Pod RX Bytes/Second ",
       "queries": [
         {
-          "query": "select non_negative_derivative(\"rx_bytes\") as rx_bytes_per_second from kubernetes_pod_network",
+          "query": "SELECT non_negative_derivative(max(\"rx_bytes\")) AS \"rx_bytes_per_second\" FROM kubernetes_pod_network",
           "db": "telegraf",
-          "rp": "autogen",
+          "rp": "",
           "groupbys": [
             "\"pod_name\"",
             "\"host\""
