@@ -82,21 +82,22 @@ export default React.createClass({
         highlightCircleSize: 5,
       },
       highlightCallback(e, x, points) {
+        // Move the Legend on hover
         const graphRect = graphContainerNode.getBoundingClientRect();
-        const legendHeight = legendContainerNode.offsetHeight;
-        if (graphRect.bottom + legendHeight > document.documentElement.clientHeight) {
-          // The legend would be at least partially beyond the bottom of the viewport,
-          // so try to place it at the top of the graph, but don't let it go above the top of the viewport.
-          const newTop = Math.max(0, selfNode.getBoundingClientRect().top - legendHeight);
-          legendContainerNode.style.top = `${newTop}px`;
-        } else {
-          legendContainerNode.style.top = `${graphRect.bottom}px`;
+        const legendRect = legendContainerNode.getBoundingClientRect();
+        const graphWidth = graphRect.width + 32; // Factoring in padding from parent
+        const legendWidth = legendRect.width;
+        const legendMaxLeft = graphWidth - (legendWidth / 2);
+        const trueGraphX = (e.pageX - graphRect.left);
+        let legendLeft = trueGraphX;
+        // Enforcing max & min legend offsets
+        if (trueGraphX < (legendWidth / 2)) {
+          legendLeft = legendWidth / 2;
+        } else if (trueGraphX > legendMaxLeft) {
+          legendLeft = legendMaxLeft;
         }
 
-        const legendWidth = legendContainerNode.offsetWidth;
-        const leftOffset = Math.min(e.pageX, graphRect.right - legendWidth);
-        legendContainerNode.style.left = `${leftOffset}px`;
-
+        legendContainerNode.style.left = `${legendLeft}px`;
         setMarker(points);
       },
       unhighlightCallback() {
