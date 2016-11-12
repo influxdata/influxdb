@@ -98,9 +98,6 @@ export const HostPage = React.createClass({
               <h1>{hostID}</h1>
             </div>
             <div className="enterprise-header__right">
-              <p>Uptime: <strong>2d 4h 33m</strong></p>
-            </div>
-            <div className="enterprise-header__right">
               <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={timeRange.inputValue} />
             </div>
           </div>
