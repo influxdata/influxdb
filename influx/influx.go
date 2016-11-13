@@ -14,7 +14,7 @@ import (
 type Client struct {
 	URL *url.URL
 
-	lg chronograf.Logger
+	Logger chronograf.Logger
 }
 
 // NewClient initializes an HTTP Client for InfluxDB. UDP, although supported
@@ -28,8 +28,8 @@ func NewClient(host string, lg chronograf.Logger) (*Client, error) {
 		return nil, err
 	}
 	return &Client{
-		URL: u,
-		lg:  l,
+		URL:    u,
+		Logger: l,
 	}, nil
 }
 
@@ -44,12 +44,19 @@ func (r Response) MarshalJSON() ([]byte, error) {
 
 func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, error) {
 	u.Path = "query"
-
 	req, err := http.NewRequest("POST", u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
+
+	c.Logger.
+		WithField("component", "proxy").
+		WithField("host", req.Host).
+		WithField("command", q.Command).
+		WithField("db", q.DB).
+		WithField("rp", q.RP).
+		Debug("query")
 
 	params := req.URL.Query()
 	params.Set("q", q.Command)
@@ -78,7 +85,12 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 
 	// If we got a valid decode error, send that back
 	if decErr != nil {
-		c.lg.
+		c.Logger.
+			WithField("component", "proxy").
+			WithField("host", req.Host).
+			WithField("command", q.Command).
+			WithField("db", q.DB).
+			WithField("rp", q.RP).
 			WithField("influx_status", resp.StatusCode).
 			Error("Error parsing results from influxdb: err:", decErr)
 		return nil, decErr
@@ -87,7 +99,12 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 	// If we don't have an error in our json response, and didn't get statusOK
 	// then send back an error
 	if resp.StatusCode != http.StatusOK && response.Err != "" {
-		c.lg.
+		c.Logger.
+			WithField("component", "proxy").
+			WithField("host", req.Host).
+			WithField("command", q.Command).
+			WithField("db", q.DB).
+			WithField("rp", q.RP).
 			WithField("influx_status", resp.StatusCode).
 			Error("Received non-200 response from influxdb")
 
