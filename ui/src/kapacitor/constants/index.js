@@ -6,7 +6,8 @@ export const defaultRuleConfigs = {
     change: 'change',
     shift: '1m',
     operator: 'greater than',
-    value: '90',
+    value: '',
+    period: '1m',
   },
   threshold: {
     operator: 'greater than',

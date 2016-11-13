@@ -7,6 +7,7 @@ export const RuleHeader = React.createClass({
     actions: PropTypes.shape({
       updateRuleName: PropTypes.func.isRequired,
     }).isRequired,
+    validationError: PropTypes.string.isRequired,
   },
 
   getInitialState() {
@@ -48,9 +49,24 @@ export const RuleHeader = React.createClass({
             {this.renderEditName()}
           </div>
           <div className="enterprise-header__right">
-            <button className="btn btn-success btn-sm" onClick={this.props.onSave}>Save Rule</button>
+            {this.renderSave()}
           </div>
         </div>
+      </div>
+    );
+  },
+
+  renderSave() {
+    const {validationError, onSave} = this.props;
+    if (!validationError) {
+      return <button className="btn btn-success btn-sm" onClick={onSave}>Save Rule</button>;
+    }
+
+    return (
+      <div>
+        <button className="btn btn-sm btn-default disabled" title={validationError}>
+          Save Rule
+        </button>
       </div>
     );
   },

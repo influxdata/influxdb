@@ -5,6 +5,7 @@ import RuleHeader from 'src/kapacitor/components/RuleHeader';
 import RuleGraph from 'src/kapacitor/components/RuleGraph';
 import RuleMessage from 'src/kapacitor/components/RuleMessage';
 import {createRule, editRule} from 'src/kapacitor/apis';
+import selectStatement from '../../chronograf/utils/influxql/select';
 
 export const KapacitorRule = React.createClass({
   propTypes: {
@@ -29,7 +30,12 @@ export const KapacitorRule = React.createClass({
 
     return (
       <div className="kapacitor-rule-page">
-        <RuleHeader rule={rule} actions={kapacitorActions} onSave={isEditing ? this.handleEdit : this.handleCreate} />
+        <RuleHeader
+          rule={rule}
+          actions={kapacitorActions}
+          onSave={isEditing ? this.handleEdit : this.handleCreate}
+          validationError={this.validationError()}
+        />
         <div className="rule-builder-wrapper">
           <div className="container-fluid">
             <div className="row">
@@ -56,11 +62,6 @@ export const KapacitorRule = React.createClass({
   handleCreate() {
     const {addFlashMessage, queryConfigs, rule, source, router} = this.props;
 
-    if (this.thresholdValueEmpty()) {
-      addFlashMessage({type: 'error', text: 'Please add a Treshold value to save'});
-      return;
-    }
-
     const newRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
     });
@@ -74,14 +75,8 @@ export const KapacitorRule = React.createClass({
     });
   },
 
-
   handleEdit() {
     const {addFlashMessage, queryConfigs, rule} = this.props;
-
-    if (this.thresholdValueEmpty()) {
-      addFlashMessage({type: 'error', text: 'Please add a Treshold value to save'});
-      return;
-    }
 
     const updatedRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
@@ -94,10 +89,26 @@ export const KapacitorRule = React.createClass({
     });
   },
 
+  validationError() {
+    if (!selectStatement({}, this.props.query)) {
+      return 'Please select a database, measurement, and field';
+    }
+
+    if (this.thresholdValueEmpty() || this.relativeValueEmpty()) {
+      return 'Please enter a value in the Values section';
+    }
+
+    return '';
+  },
 
   thresholdValueEmpty() {
     const {rule} = this.props;
     return rule.trigger === 'threshold' && rule.values.value === '';
+  },
+
+  relativeValueEmpty() {
+    const {rule} = this.props;
+    return rule.trigger === 'relative' && rule.values.value === '';
   },
 });
 
