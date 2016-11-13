@@ -42,7 +42,7 @@ export const RuleGraph = React.createClass({
       <RefreshingLineGraph
         queries={queries}
         autoRefresh={autoRefreshMs}
-        underlayCallback={this.createUnderlayCallback}
+        underlayCallback={this.createUnderlayCallback()}
         isGraphFilled={false}
         overrideLineColors={kapacitorLineColors}
       />
