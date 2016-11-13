@@ -53,11 +53,12 @@ export const HostsPage = React.createClass({
             </div>
           </div>
         </div>
-
-        <div className="container-fluid">
-          <div className="row">
-            <div className="col-md-12">
-              <HostsTable source={this.props.source} hosts={_.values(this.state.hosts)} />
+        <div className="hosts-page-scroll-container">
+          <div className="container-fluid">
+            <div className="row">
+              <div className="col-md-12">
+                <HostsTable source={this.props.source} hosts={_.values(this.state.hosts)} />
+              </div>
             </div>
           </div>
         </div>

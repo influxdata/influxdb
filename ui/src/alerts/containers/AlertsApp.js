@@ -107,16 +107,17 @@ const AlertsApp = React.createClass({
           <div className="enterprise-header__container">
             <div className="enterprise-header__left">
               <h1>
-                Alerting
+                Alert History
               </h1>
             </div>
           </div>
         </div>
-
-        <div className="container-fluid">
-          <div className="row">
-            <div className="col-md-12">
-              { this.renderSubComponents() }
+        <div className="hosts-page-scroll-container">
+          <div className="container-fluid">
+            <div className="row">
+              <div className="col-md-12">
+                { this.renderSubComponents() }
+              </div>
             </div>
           </div>
         </div>

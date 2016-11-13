@@ -117,17 +117,21 @@ body > #react-root {
     display: inline-block;
     vertical-align: middle;
   }
-  &__left {
+  &__left,
+  &__right {
     display: flex;
-    flex-direction: column;
+    align-items: center;
 
-    > * {
+    > *:only-child {
       margin: 0;
+    }
+  }
+  &__left {
+    > * {
+      margin: 0 4px 0 0;
     }
   } 
   &__right {
-    font-size: 0;
-
     > * {
       margin: 0 0 0 4px;
     }
@@ -733,5 +737,29 @@ table .monotype {
 .kapacitor {
   .enterprise-header {
     margin-bottom: 45px;
+  }
+}
+
+
+/*
+    Empty State for Tables
+    ----------------------------------------------
+*/
+.table-empty-state {
+  > th {
+    text-align: center;
+
+    > p {
+      font-weight: 400;
+      font-size: 18px;
+      color: $g9-mountain;
+      margin-bottom: 16px;
+    }
+    > *:first-child {
+      margin-top: 75px; 
+    }
+    > *:last-child {
+      margin-bottom: 75px;
+    }
   }
 }

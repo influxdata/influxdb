@@ -98,16 +98,16 @@ export const HostPage = React.createClass({
               <h1>{hostID}</h1>
             </div>
             <div className="enterprise-header__right">
-              <p>Uptime: <strong>2d 4h 33m</strong></p>
-            </div>
-            <div className="enterprise-header__right">
+              <h1>Range:</h1>
               <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={timeRange.inputValue} />
             </div>
           </div>
         </div>
-        <div className="container-fluid hosts-dashboard">
-          <div className="row">
-            { (layouts.length > 0) ? this.renderLayouts(layouts) : '' }
+        <div className="hosts-page-scroll-container">
+          <div className="container-fluid hosts-dashboard">
+            <div className="row">
+              { (layouts.length > 0) ? this.renderLayouts(layouts) : '' }
+            </div>
           </div>
         </div>
       </div>

@@ -128,5 +128,19 @@
 }
 
 .source-indicator {
-  width: 640px;
+  padding: 4px 8px;
+  border: 2px solid $g5-pepper;
+  background-color: $g5-pepper;
+  color: $g13-mist;
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1.5;
+  border-radius: 3px;
+  margin-right: 18px;
+
+  > .icon {
+    display: inline-block;
+    font-size: 16px;
+    margin: 0 5px 0 0;
+  }
 }
