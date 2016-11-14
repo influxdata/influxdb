@@ -1,6 +1,7 @@
 package bolt_test
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
@@ -37,12 +38,13 @@ func TestServerStore(t *testing.T) {
 	}
 
 	// Add new srcs.
+	ctx := context.Background()
 	for i, src := range srcs {
-		if srcs[i], err = s.Add(nil, src); err != nil {
+		if srcs[i], err = s.Add(ctx, src); err != nil {
 			t.Fatal(err)
 		}
 		// Confirm first src in the store is the same as the original.
-		if actual, err := s.Get(nil, srcs[i].ID); err != nil {
+		if actual, err := s.Get(ctx, srcs[i].ID); err != nil {
 			t.Fatal(err)
 		} else if !reflect.DeepEqual(actual, srcs[i]) {
 			t.Fatalf("server loaded is different then server saved; actual: %v, expected %v", actual, srcs[i])
@@ -52,35 +54,35 @@ func TestServerStore(t *testing.T) {
 	// Update server.
 	srcs[0].Username = "calvinklein"
 	srcs[1].Name = "Enchantment Under the Sea Dance"
-	if err := s.Update(nil, srcs[0]); err != nil {
+	if err := s.Update(ctx, srcs[0]); err != nil {
 		t.Fatal(err)
-	} else if err := s.Update(nil, srcs[1]); err != nil {
+	} else if err := s.Update(ctx, srcs[1]); err != nil {
 		t.Fatal(err)
 	}
 
 	// Confirm servers have updated.
-	if src, err := s.Get(nil, srcs[0].ID); err != nil {
+	if src, err := s.Get(ctx, srcs[0].ID); err != nil {
 		t.Fatal(err)
 	} else if src.Username != "calvinklein" {
 		t.Fatalf("server 0 update error: got %v, expected %v", src.Username, "calvinklein")
 	}
-	if src, err := s.Get(nil, srcs[1].ID); err != nil {
+	if src, err := s.Get(ctx, srcs[1].ID); err != nil {
 		t.Fatal(err)
 	} else if src.Name != "Enchantment Under the Sea Dance" {
 		t.Fatalf("server 1 update error: got %v, expected %v", src.Name, "Enchantment Under the Sea Dance")
 	}
 
 	// Delete an server.
-	if err := s.Delete(nil, srcs[0]); err != nil {
+	if err := s.Delete(ctx, srcs[0]); err != nil {
 		t.Fatal(err)
 	}
 
 	// Confirm server has been deleted.
-	if _, err := s.Get(nil, srcs[0].ID); err != chronograf.ErrServerNotFound {
+	if _, err := s.Get(ctx, srcs[0].ID); err != chronograf.ErrServerNotFound {
 		t.Fatalf("server delete error: got %v, expected %v", err, chronograf.ErrServerNotFound)
 	}
 
-	if bsrcs, err := s.All(nil); err != nil {
+	if bsrcs, err := s.All(ctx); err != nil {
 		t.Fatal(err)
 	} else if len(bsrcs) != 1 {
 		t.Fatalf("After delete All returned incorrect number of srcs; got %d, expected %d", len(bsrcs), 1)
