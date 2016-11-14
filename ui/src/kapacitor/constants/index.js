@@ -7,14 +7,12 @@ export const defaultRuleConfigs = {
     shift: '1m',
     operator: 'greater than',
     value: '',
-    period: '1m',
   },
   threshold: {
     operator: 'greater than',
     value: '',
     relation: 'once',
     percentile: '90',
-    period: '1m',
   },
 };
 

@@ -66,7 +66,6 @@ const Threshold = React.createClass({
       values: PropTypes.shape({
         operator: PropTypes.string,
         value: PropTypes.string,
-        period: PropTypes.string,
       }),
     }),
     onChange: PropTypes.func.isRequired,
@@ -114,7 +113,6 @@ const Relative = React.createClass({
     rule: PropTypes.shape({
       values: PropTypes.shape({
         change: PropTypes.string,
-        period: PropTypes.string,
         shift: PropTypes.string,
         operator: PropTypes.string,
         value: PropTypes.string,
@@ -132,7 +130,7 @@ const Relative = React.createClass({
   },
 
   render() {
-    const {change, period, shift, operator, value} = this.props.rule.values;
+    const {change, shift, operator, value} = this.props.rule.values;
 
     function mapToItems(arr, type) {
       return arr.map((text) => {
@@ -141,7 +139,6 @@ const Relative = React.createClass({
     }
 
     const changes = mapToItems(CHANGES, 'change');
-    const periods = mapToItems(PERIODS, 'period');
     const shifts = mapToItems(SHIFTS, 'shift');
     const operators = mapToItems(OPERATORS, 'operator');
 
@@ -149,8 +146,6 @@ const Relative = React.createClass({
       <div className="value-selector">
         <p>Send Alert when</p>
         <Dropdown className="size-106"items={changes} selected={change} onChoose={this.handleDropdownChange} />
-        <p>over</p>
-        <Dropdown className="size-66" items={periods} selected={period} onChoose={this.handleDropdownChange} />
         <p>compared to previous</p>
         <Dropdown className="size-66" items={shifts} selected={shift} onChoose={this.handleDropdownChange} />
         <p>is</p>
