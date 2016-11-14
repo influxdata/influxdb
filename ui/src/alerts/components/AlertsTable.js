@@ -27,7 +27,7 @@ const AlertsTable = React.createClass({
   },
 
   componentWillReceiveProps(newProps) {
-    this.setFilteredAlerts(newProps.alerts, this.state.searchTerm);
+    this.filterAlerts(newProps.alerts, this.state.searchTerm);
   },
 
   filterAlerts(allAlerts, searchTerm) {
