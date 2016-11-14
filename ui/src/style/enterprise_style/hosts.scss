@@ -27,6 +27,8 @@
     width: 100%;
     height: calc(100% - #{$enterprise-page-header-height});
     overflow: auto;
+    overflow-x: hidden;
+    overflow-y: scroll;
     @include custom-scrollbar($g2-kevlar,$c-pool);
 
     .container-fluid {

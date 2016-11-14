@@ -81,7 +81,9 @@ body > #react-root {
   left: 0;
   width: 100%;
   height: 100%;
-  overflow: scroll;
+  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: scroll;
 }
 
 /*
@@ -92,7 +94,7 @@ body > #react-root {
   background-color: $g20-white;
   height: $enterprise-page-header-height;
   margin-bottom: 15px;
-  padding: 0 $page-wrapper-padding;
+  padding: 0 ($page-wrapper-padding + $scrollbar-width) 0 $page-wrapper-padding;
   display: flex;
   justify-content: center;
   align-items: center;
