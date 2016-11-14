@@ -7,6 +7,7 @@ import App from 'src/App';
 import AlertsApp from 'src/alerts';
 import CheckSources from 'src/CheckSources';
 import {HostsPage, HostPage} from 'src/hosts';
+import {KubernetesPage} from 'src/kubernetes';
 import {KapacitorPage, KapacitorRulePage, KapacitorRulesPage, KapacitorTasksPage} from 'src/kapacitor';
 import TasksPage from 'src/tasks';
 import DataExplorer from 'src/chronograf';
@@ -100,6 +101,7 @@ const Root = React.createClass({
               <Route path="chronograf/data-explorer/:base64ExplorerID" component={DataExplorer} />
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
+              <Route path="kubernetes" component={KubernetesPage} />
               <Route path="kapacitor-config" component={KapacitorPage} />
               <Route path="kapacitor-tasks" component={KapacitorTasksPage} />
               <Route path="alerts" component={AlertsApp} />

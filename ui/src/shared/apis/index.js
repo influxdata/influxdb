@@ -1,4 +1,5 @@
 import AJAX from 'utils/ajax';
+import {proxy} from 'utils/queryUrlGenerator';
 
 export function getSources() {
   return AJAX({
