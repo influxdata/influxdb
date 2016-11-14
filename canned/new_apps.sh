@@ -40,7 +40,7 @@ cat > $APP_FILE << EOF
  {
     "id": "$UUID",
  	"measurement": "$measurement",
- 	"app": "User Facing Application Name",
+ 	"app": "$measurement",
  	"cells": [{
  		"x": 0,
  		"y": 0,
@@ -49,7 +49,7 @@ cat > $APP_FILE << EOF
         "i": "$CELLID",
         "name": "User facing cell Name",
  		"queries": [{
- 			"query": "select used_percent from disk",
+        "query": "select mean(\"used_percent from\") from disk",
  			"db": "telegraf",
  			"rp": "",
   			"groupbys": [],
