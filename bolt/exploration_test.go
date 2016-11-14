@@ -1,6 +1,7 @@
 package bolt_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/influxdata/chronograf"
@@ -36,15 +37,16 @@ func TestExplorationStore_CRUD(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	// Add new explorations.
 	for i := range explorations {
-		if _, err := s.Add(nil, explorations[i]); err != nil {
+		if _, err := s.Add(ctx, explorations[i]); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	// Confirm first exploration in the store is the same as the original.
-	if e, err := s.Get(nil, explorations[0].ID); err != nil {
+	if e, err := s.Get(ctx, explorations[0].ID); err != nil {
 		t.Fatal(err)
 	} else if e.ID != explorations[0].ID {
 		t.Fatalf("exploration ID error: got %v, expected %v", e.ID, explorations[1].ID)
@@ -59,31 +61,31 @@ func TestExplorationStore_CRUD(t *testing.T) {
 	// Update explorations.
 	explorations[1].Name = "Francis Drake"
 	explorations[2].UserID = 4
-	if err := s.Update(nil, explorations[1]); err != nil {
+	if err := s.Update(ctx, explorations[1]); err != nil {
 		t.Fatal(err)
-	} else if err := s.Update(nil, explorations[2]); err != nil {
+	} else if err := s.Update(ctx, explorations[2]); err != nil {
 		t.Fatal(err)
 	}
 
 	// Confirm explorations are updated.
-	if e, err := s.Get(nil, explorations[1].ID); err != nil {
+	if e, err := s.Get(ctx, explorations[1].ID); err != nil {
 		t.Fatal(err)
 	} else if e.Name != "Francis Drake" {
 		t.Fatalf("exploration 1 update error: got %v, expected %v", e.Name, "Francis Drake")
 	}
-	if e, err := s.Get(nil, explorations[2].ID); err != nil {
+	if e, err := s.Get(ctx, explorations[2].ID); err != nil {
 		t.Fatal(err)
 	} else if e.UserID != 4 {
 		t.Fatalf("exploration 2 update error: got %v, expected %v", e.UserID, 4)
 	}
 
 	// Delete an exploration.
-	if err := s.Delete(nil, explorations[2]); err != nil {
+	if err := s.Delete(ctx, explorations[2]); err != nil {
 		t.Fatal(err)
 	}
 
 	// Confirm exploration has been deleted.
-	if e, err := s.Get(nil, explorations[2].ID); err != chronograf.ErrExplorationNotFound {
+	if e, err := s.Get(ctx, explorations[2].ID); err != chronograf.ErrExplorationNotFound {
 		t.Fatalf("exploration delete error: got %v, expected %v", e, chronograf.ErrExplorationNotFound)
 	}
 }
@@ -118,15 +120,16 @@ func TestExplorationStore_Query(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	// Add new explorations.
 	for i := range explorations {
-		if _, err := s.Add(nil, explorations[i]); err != nil {
+		if _, err := s.Add(ctx, explorations[i]); err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	// Query for explorations.
-	if e, err := s.Query(nil, 3); err != nil {
+	if e, err := s.Query(ctx, 3); err != nil {
 		t.Fatal(err)
 	} else if len(e) != 2 {
 		t.Fatalf("exploration query length error: got %v, expected %v", len(explorations), len(e))

@@ -47,7 +47,9 @@ func Data(rule chronograf.AlertRule) (string, error) {
 				value = value + fmt.Sprintf(`|%s('%s').as('value')`, fnc, fld)
 				break // only support a single field
 			}
-			break // only support a single field
+			if value != "" {
+				break // only support a single field
+			}
 		}
 		if value == "" {
 			value = fmt.Sprintf(`|eval(lambda: "%s").as('value')`, fld)
