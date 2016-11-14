@@ -481,14 +481,15 @@ div.query-editor.kapacitor-metric-selector {
 .kapacitor-values-tabs,
 .value-selector {
   background-color: $kapacitor-graphic-color;
-  padding: ($kap-padding-sm / 2) $kap-padding-lg;
+  padding: ($kap-padding-sm - 2px) $kap-padding-lg;
   display: flex;
   justify-content: flex-start;
   align-items: center;
+  flex-wrap: wrap;
 
   > * {
     display: inline-block;
-    margin: ($kap-padding-sm / 2);
+    margin: 2px;
 
     &:first-child {
       margin-left: 0;
@@ -499,6 +500,8 @@ div.query-editor.kapacitor-metric-selector {
     white-space: nowrap;
     font-weight: 600;
     color: $g15-platinum;
+    margin-left: ($kap-padding-sm / 2);
+    margin-right: ($kap-padding-sm / 2);
   }
   > span {
     color: $kapacitor-accent;
@@ -508,7 +511,7 @@ div.query-editor.kapacitor-metric-selector {
     vertical-align: middle;
     border-radius: 4px;
     background-color: $g5-pepper;
-    margin: ($kap-padding-sm / 2);
+    margin: 2px;
     padding: 0 $kap-padding-sm;
     font-weight: 700;
     font-size: $kapacitor-font-sm;
