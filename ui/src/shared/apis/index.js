@@ -38,7 +38,7 @@ export function deleteSource(source) {
 export function pingKapacitor(kapacitor) {
   return AJAX({
     method: 'GET',
-    url: `${kapacitor.links.proxy}?path=/kapacitor/v1/config/influxdb`,
+    url: `${kapacitor.links.proxy}?path=/kapacitor/v1/ping`,
   });
 }
 
@@ -79,6 +79,10 @@ export function updateKapacitor(kapacitor, {url, name = 'My Kapacitor', username
 
 export function getKapacitorConfig(kapacitor) {
   return kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/config', '');
+}
+
+export function getKapacitorConfigSection(kapacitor, section) {
+  return kapacitorProxy(kapacitor, 'GET', `/kapacitor/v1/config/${section}`, '');
 }
 
 export function updateKapacitorConfigSection(kapacitor, section, properties) {

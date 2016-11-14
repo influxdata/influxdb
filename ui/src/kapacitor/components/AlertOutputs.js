@@ -16,6 +16,7 @@ const AlertOutputs = React.createClass({
       id: PropTypes.string.isRequired,
     }).isRequired,
     kapacitor: PropTypes.shape({
+      url: PropTypes.string.isRequired,
       links: PropTypes.shape({
         proxy: PropTypes.string.isRequired,
       }).isRequired,
@@ -31,14 +32,21 @@ const AlertOutputs = React.createClass({
   },
 
   componentDidMount() {
-    this.refreshKapacitorConfig();
+    this.refreshKapacitorConfig(this.props.kapacitor);
   },
 
-  refreshKapacitorConfig() {
-    getKapacitorConfig(this.props.kapacitor).then(({data: {sections}}) => {
+  componentWillReceiveProps(nextProps) {
+    if (this.props.kapacitor.url !== nextProps.kapacitor.url) {
+      this.refreshKapacitorConfig(nextProps.kapacitor);
+    }
+  },
+
+  refreshKapacitorConfig(kapacitor) {
+    getKapacitorConfig(kapacitor).then(({data: {sections}}) => {
       this.setState({configSections: sections});
     }).catch(() => {
-      this.props.addFlashMessage({type: 'error', text: `There was an error getting the kapacitor config`});
+      this.setState({configSections: null});
+      this.props.addFlashMessage({type: 'error', text: `There was an error getting the Kapacitor config`});
     });
   },
 
@@ -50,7 +58,7 @@ const AlertOutputs = React.createClass({
     if (section !== '') {
       const propsToSend = this.sanitizeProperties(section, properties);
       updateKapacitorConfigSection(this.props.kapacitor, section, propsToSend).then(() => {
-        this.refreshKapacitorConfig();
+        this.refreshKapacitorConfig(this.props.kapacitor);
         this.props.addFlashMessage({type: 'success', text: `Alert for ${section} successfully saved`});
       }).catch(() => {
         this.props.addFlashMessage({type: 'error', text: `There was an error saving the kapacitor config`});
@@ -87,6 +95,11 @@ const AlertOutputs = React.createClass({
   },
 
   render() {
+    const {configSections, selectedEndpoint} = this.state;
+    if (!configSections) { // could use this state to conditionally render spinner or error message
+      return null;
+    }
+
     return (
       <div className="panel-body">
         <h4 className="text-center">Alert Endpoints</h4>
@@ -107,7 +120,7 @@ const AlertOutputs = React.createClass({
             </div>
           </div>
           <div className="row">
-            {this.renderAlertConfig(this.state.selectedEndpoint)}
+            {this.renderAlertConfig(selectedEndpoint)}
           </div>
         </div>
       </div>
@@ -115,17 +128,13 @@ const AlertOutputs = React.createClass({
   },
 
   renderAlertConfig(endpoint) {
+    const {configSections} = this.state;
     const save = (properties) => {
       this.handleSaveConfig(endpoint, properties);
     };
     const test = (properties) => {
       this.handleTest(endpoint, properties);
     };
-
-    const {configSections} = this.state;
-    if (!configSections) { // could use this state to conditionally render spinner or error message
-      return null;
-    }
 
     switch (endpoint) {
       case 'alerta': {

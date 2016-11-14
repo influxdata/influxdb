@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react';
-import {getKapacitor, createKapacitor, updateKapacitor, pingKapacitor} from 'shared/apis';
+import {getKapacitor, getKapacitorConfigSection, createKapacitor, updateKapacitor, pingKapacitor} from 'shared/apis';
 import AlertOutputs from '../components/AlertOutputs';
 
 export const KapacitorPage = React.createClass({
@@ -35,6 +35,27 @@ export const KapacitorPage = React.createClass({
     });
   },
 
+  componentDidUpdate(prevProps, prevState) {
+    if (!prevState.kapacitor || !this.state.kapacitor) {
+      return;
+    }
+    if (prevState.kapacitor.url !== this.state.kapacitor.url) {
+      this.checkKapacitorSetup();
+    }
+  },
+
+  checkKapacitorSetup() {
+    const {addFlashMessage, source} = this.props;
+    getKapacitorConfigSection(this.state.kapacitor, 'influxdb').then(({data: {elements}}) => {
+      const sourceMatch = elements[0].options.urls.some((url) => url === source.url);
+      if (!sourceMatch) {
+        addFlashMessage({type: 'warning', text: `Warning: Kapacitor is configured to use an instance of InfluxDB which does not match the URL of your current source. Please ensure your InfluxDB source and Kapacitor's InfluxDB configuration point to the same server.`});
+      }
+    }).catch(() => {
+      addFlashMessage({type: 'error', text: `Could not connect to Kapacitor. Check connection settings.`});
+    });
+  },
+
   handleKapacitorUpdate(e) {
     e.preventDefault();
     if (this.state.kapacitor) {
@@ -45,7 +66,7 @@ export const KapacitorPage = React.createClass({
   },
 
   handleCreateKapacitor() {
-    const {source} = this.props;
+    const {addFlashMessage, source} = this.props;
     const {newURL, newName, newUsername} = this.state;
     createKapacitor(source, {
       url: newURL.trim(),
@@ -53,7 +74,7 @@ export const KapacitorPage = React.createClass({
       username: newUsername,
       password: this.kapacitorPassword.value,
     }).then(({data: createdKapacitor}) => {
-      this.props.addFlashMessage({type: 'success', text: 'Kapacitor Created!'});
+      addFlashMessage({type: 'success', text: 'Kapacitor Created!'});
       this.setState({kapacitor: createdKapacitor});
     }).catch(() => {
       this.props.addFlashMessage({type: 'error', text: 'There was a problem creating the Kapacitor record'});
@@ -61,7 +82,7 @@ export const KapacitorPage = React.createClass({
   },
 
   handleUpdateKapacitor() {
-    const {addFlashMessage, source} = this.props;
+    const {addFlashMessage} = this.props;
     const {kapacitor, newURL, newName, newUsername} = this.state;
     updateKapacitor(kapacitor, {
       url: (newURL || kapacitor.url).trim(),
@@ -69,16 +90,8 @@ export const KapacitorPage = React.createClass({
       username: newUsername || kapacitor.username,
       password: this.kapacitorPassword.value,
     }).then(({data: newKapacitor}) => {
-      pingKapacitor(kapacitor).then(({data: {elements}}) => {
-        this.setState({kapacitor: newKapacitor});
-        const sourceMatch = elements[0].options.urls.some((url) => url === source.url);
-        if (!sourceMatch && kapacitor.url !== newKapacitor.url) {
-          addFlashMessage({type: 'warning', text: `Warning: Kapacitor is configured to use an instance of InfluxDB which does not match the URL of your current source. Please ensure your InfluxDB source and Kapacitor's InfluxDB configuration point to the same server.`});
-        }
-        addFlashMessage({type: 'success', text: 'Kapacitor Saved!'});
-      }).catch(() => {
-        this.props.addFlashMessage({type: 'error', text: 'Kapacitor Saved, but cannot connect. Check settings.'});
-      });
+      addFlashMessage({type: 'success', text: 'Kapacitor Updated!'});
+      this.setState({kapacitor: newKapacitor});
     }).catch(() => {
       addFlashMessage({type: 'error', text: 'There was a problem updating the Kapacitor record'});
     });
