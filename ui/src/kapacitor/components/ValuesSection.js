@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react';
 import Dropdown from 'src/shared/components/Dropdown';
 import {Tab, TabList, TabPanels, TabPanel, Tabs} from 'shared/components/Tabs';
 import {OPERATORS, PERIODS, CHANGES, SHIFTS} from 'src/kapacitor/constants';
+import _ from 'lodash';
 
 const TABS = ['Threshold', 'Relative', 'Deadman'];
 export const ValuesSection = React.createClass({
@@ -16,25 +17,30 @@ export const ValuesSection = React.createClass({
 
   render() {
     const {rule, query} = this.props;
-    return (
-      <div>
-        <Tabs onSelect={this.handleChooseTrigger}>
-          <TabList isKapacitorTabs="true">
-            {TABS.map(tab => <Tab key={tab}>{tab}</Tab>)}
-          </TabList>
+    const initialIndex = TABS.indexOf(_.startCase(rule.trigger));
 
-          <TabPanels>
-            <TabPanel>
-              <Threshold rule={rule} query={query} onChange={this.handleValuesChange} />
-            </TabPanel>
-            <TabPanel>
-              <Relative rule={rule} onChange={this.handleValuesChange} />
-            </TabPanel>
-            <TabPanel>
-              <Deadman rule={rule} onChange={this.handleValuesChange} />
-            </TabPanel>
-          </TabPanels>
-        </Tabs>
+    return (
+      <div className="kapacitor-rule-section">
+        <h3 className="rule-section-heading">Values</h3>
+        <div className="rule-section-body">
+          <Tabs initialIndex={initialIndex} onSelect={this.handleChooseTrigger}>
+            <TabList isKapacitorTabs="true">
+              {TABS.map(tab => <Tab key={tab}>{tab}</Tab>)}
+            </TabList>
+
+            <TabPanels>
+              <TabPanel>
+                <Threshold rule={rule} query={query} onChange={this.handleValuesChange} />
+              </TabPanel>
+              <TabPanel>
+                <Relative rule={rule} onChange={this.handleValuesChange} />
+              </TabPanel>
+              <TabPanel>
+                <Deadman rule={rule} onChange={this.handleValuesChange} />
+              </TabPanel>
+            </TabPanels>
+          </Tabs>
+        </div>
       </div>
     );
   },
@@ -80,7 +86,7 @@ const Threshold = React.createClass({
   },
 
   render() {
-    const {operator, value, period} = this.props.rule.values;
+    const {operator, value} = this.props.rule.values;
     const {query} = this.props;
 
     function mapToItems(arr, type) {
@@ -90,7 +96,6 @@ const Threshold = React.createClass({
     }
 
     const operators = mapToItems(OPERATORS, 'operator');
-    const periods = mapToItems(PERIODS, 'period');
 
     return (
       <div className="value-selector">
@@ -98,9 +103,7 @@ const Threshold = React.createClass({
         <span>{query.fields.length ? query.fields[0].field : 'Select a Metric'}</span>
         <p>is</p>
         <Dropdown className="size-176" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
-        <input className="form-control input-sm size-166" placeholder="00000000000" type="text" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
-        <p>during the last</p>
-        <Dropdown className="size-66" items={periods} selected={period} onChoose={this.handleDropdownChange} />
+        <input className="form-control input-sm size-166" type="text" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
       </div>
     );
   },
@@ -152,7 +155,14 @@ const Relative = React.createClass({
         <Dropdown className="size-66" items={shifts} selected={shift} onChoose={this.handleDropdownChange} />
         <p>is</p>
         <Dropdown className="size-176" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
-        <input className="form-control input-sm size-49" type="text" ref={(r) => this.input = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
+        <input
+          className="form-control input-sm size-166"
+          ref={(r) => this.input = r}
+          defaultValue={value}
+          onKeyUp={this.handleInputChange}
+          required={true}
+          type="text"
+        />
         <p>{ change === CHANGES[1] ? '%' : '' }</p>
       </div>
     );
