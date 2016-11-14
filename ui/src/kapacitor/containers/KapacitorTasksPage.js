@@ -5,7 +5,7 @@ export const KapacitorTasksPage = React.createClass({
     source: PropTypes.shape({
       id: PropTypes.string.isRequired,
       name: PropTypes.string.isRequired,
-      type: PropTypes.string.isRequired, // 'influx-enterprise'
+      type: PropTypes.string.isRequired, // 'influx-chronograf'
       username: PropTypes.string.isRequired,
       links: PropTypes.shape({
         kapacitors: PropTypes.string.isRequired,

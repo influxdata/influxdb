@@ -13,7 +13,7 @@ const NoClusterLinksError = React.createClass({
                 </h2>
               </div>
               <div className="panel-body text-center">
-                <p>Many features in EnterpriseWeb require your user to be associated with a cluster account.</p>
+                <p>Many features in Chronograf require your user to be associated with a cluster account.</p>
                 <p>Ask an administrator to associate your user with a cluster account.</p>
               </div>
             </div>

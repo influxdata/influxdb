@@ -39,7 +39,7 @@
     justify-content: center;
   }
   /* Sessions Dropdown Styles */
-  .enterprise-header__left {
+  .chronograf-header__left {
     flex-direction: row;
     align-items: center;
   }
@@ -54,8 +54,8 @@
   align-items: stretch;
   position: absolute;
   left: 0;
-  top: $enterprise-page-header-height;
-  height: calc(100% - #{$enterprise-page-header-height});
+  top: $chronograf-page-header-height;
+  height: calc(100% - #{$chronograf-page-header-height});
   width: 100%;
 }
 

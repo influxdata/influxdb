@@ -44,12 +44,12 @@ export const RuleHeader = React.createClass({
 
   render() {
     return (
-      <div className="enterprise-header">
-        <div className="enterprise-header__container">
-          <div className="enterprise-header__left">
+      <div className="chronograf-header">
+        <div className="chronograf-header__container">
+          <div className="chronograf-header__left">
             {this.renderEditName()}
           </div>
-          <div className="enterprise-header__right">
+          <div className="chronograf-header__right">
             {this.renderSave()}
           </div>
         </div>
@@ -78,7 +78,7 @@ export const RuleHeader = React.createClass({
 
     if (!this.state.isEditingName) {
       return (
-        <h1 className="enterprise-header__editable" onClick={this.toggleEditName} data-for="rename-kapacitor-tooltip" data-tip="Click to Rename">
+        <h1 className="chronograf-header__editable" onClick={this.toggleEditName} data-for="rename-kapacitor-tooltip" data-tip="Click to Rename">
           {rule.name}
           <ReactTooltip id="rename-kapacitor-tooltip" delayShow="200" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
         </h1>
@@ -87,7 +87,7 @@ export const RuleHeader = React.createClass({
 
     return (
       <input
-        className="enterprise-header__editing"
+        className="chronograf-header__editing"
         autoFocus={true}
         defaultValue={rule.name}
         ref={r => this.ruleName = r}

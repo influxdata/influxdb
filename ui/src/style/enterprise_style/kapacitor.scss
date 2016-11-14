@@ -2,7 +2,7 @@
     Kapacitor Rule Builder
     ----------------------------------------------
 */
-$kapacitor-page-padding: ($enterprise-page-header-height / 2);
+$kapacitor-page-padding: ($chronograf-page-header-height / 2);
 $kapacitor-page-gutter: 46px;
 $kapacitor-dot-size: 18px;
 $kapacitor-line-width: 3px;
@@ -31,7 +31,7 @@ $kapacitor-font-sm: 13px;
   @include gradient-v($g2-kevlar,$g0-obsidian);
   color: $g17-whisper;
 
-  .enterprise-header {
+  .chronograf-header {
     background-color: $g0-obsidian;
     position: absolute;
     top: 0;
@@ -42,15 +42,15 @@ $kapacitor-font-sm: 13px;
 }
 .rule-builder-wrapper {
   position: absolute;
-  top: $enterprise-page-header-height;
+  top: $chronograf-page-header-height;
   left: 0;
   width: 100%;
-  height: calc(100% - #{$enterprise-page-header-height});
+  height: calc(100% - #{$chronograf-page-header-height});
   overflow: auto;
   @include custom-scrollbar($g0-obsidian,$kapacitor-accent);
 
   .container-fluid {
-    padding-bottom: $enterprise-page-header-height;
+    padding-bottom: $chronograf-page-header-height;
   }
 }
 .rule-builder {
@@ -651,14 +651,14 @@ div.query-editor.kapacitor-metric-selector {
   }
 }
 
-.enterprise-header__editable {
+.chronograf-header__editable {
   transition: color 0.25s ease;
 
   &:hover {
     color: $g13-mist;
   }
 }
-.enterprise-header__editing {
+.chronograf-header__editing {
   border: 0;
   outline: none;
   background-color: $g0-obsidian;
