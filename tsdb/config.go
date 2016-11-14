@@ -12,6 +12,9 @@ const (
 	// DefaultEngine is the default engine for new shards
 	DefaultEngine = "tsm1"
 
+	// DefaultIndex is the default index for new shards
+	DefaultIndex = "inmem"
+
 	// tsdb/engine/wal configuration options
 
 	// Default settings for TSM
@@ -48,6 +51,7 @@ const (
 type Config struct {
 	Dir    string `toml:"dir"`
 	Engine string `toml:"-"`
+	Index  string `toml:"-"`
 
 	// General WAL configuration options
 	WALDir string `toml:"wal-dir"`
@@ -80,6 +84,7 @@ type Config struct {
 func NewConfig() Config {
 	return Config{
 		Engine: DefaultEngine,
+		Index:  DefaultIndex,
 
 		QueryLogEnabled: true,
 

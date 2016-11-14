@@ -345,11 +345,10 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	index := tsdb.NewDatabaseIndex("db")
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
 
-	sh := tsdb.NewShard(1, index, tmpShard, tmpWal, opts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
 	}
@@ -379,7 +378,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
-			if err := sh.DeleteMeasurement("cpu", []string{"cpu,host=server"}); err != nil {
+			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
 				t.Fatalf(err.Error())
 			}
 
@@ -394,7 +393,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
-			if err := sh.DeleteMeasurement("cpu", []string{"cpu,host=server"}); err != nil {
+			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
 				t.Fatalf(err.Error())
 			}
 
