@@ -247,4 +247,4 @@ section below the `Connection Details` section:
 ![Alert Endpoints](https://github.com/influxdata/chronograf/blob/rk-doc-edits/docs/images/alert-endpoints.png)
 
 That's it! You've successfully downloaded, installed, and configured each component of the TICK stack.
-Check out the [Getting Started](TODO) guide to familiarize yourself with Chronograf and see all that it can do for you!
+Check out the [Getting Started](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md) guide to familiarize yourself with Chronograf and see all that it can do for you!
