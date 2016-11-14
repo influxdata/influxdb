@@ -102,7 +102,7 @@ export const DataSection = React.createClass({
 
     return (
       <div className="kapacitor-rule-section">
-        <h3 className="rule-section-heading">Select a Metric</h3>
+        <h3 className="rule-section-heading">Select a Time Series</h3>
         <div className="rule-section-body">
           <div className="query-editor kapacitor-metric-selector">
             <div className="query-editor__code">
