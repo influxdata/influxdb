@@ -1,0 +1,83 @@
+{
+  "id": "c1aa88c7-a047-4b52-85c4-0eec21b357ef",
+  "measurement": "mysql",
+  "app": "mysql",
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "531192d3-f183-4481-afea-79103d56875a",
+      "name": "MySQL – Reads/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"commands_select\")) AS selects_per_second FROM mysql",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [
+            "\"server\""
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "2dc5e60e-6ddb-43cb-80c5-dfc9294dad97",
+      "name": "MySQL – Writes/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"commands_insert\")) AS inserts_per_second, non_negative_derivative(max(\"commands_update\")) AS updates_per_second, non_negative_derivative(max(\"commands_delete\")) AS deletes_per_second FROM mysql",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [
+            "\"server\""
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "2179fd37-6380-47dc-a1f3-959b69d8f9ec",
+      "name": "MySQL – Connections/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"threads_connected\")) AS cxn_per_second, non_negative_derivative(max(\"threads_running\")) AS threads_running_per_second FROM mysql",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [
+            "\"server\""
+          ],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "b13816b7-041d-4387-b593-86898aa379ab",
+      "name": "MySQL – Connections Errors/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"connection_errors_max_connections\")) AS cxn_errors_per_second, non_negative_derivative(max(\"connection_errors_internal\")) AS internal_cxn_errors_per_second, non_negative_derivative(max(\"aborted_connects\")) AS cxn_aborted_per_second FROM mysql",
+          "db": "telegraf",
+          "rp": "",
+          "groupbys": [
+            "\"server\""
+          ],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}
