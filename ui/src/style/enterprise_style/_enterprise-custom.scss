@@ -66,11 +66,7 @@ body > #react-root {
   position: relative;
   flex-grow: 1;
   overflow: hidden;
-  background: $g18-cloud;
-  background: -moz-linear-gradient(top,  $g18-cloud 0%, $g19-ghost 100%);
-  background: -webkit-linear-gradient(top,  $g18-cloud 0%,$g19-ghost 100%);
-  background: linear-gradient(to bottom,  $g18-cloud 0%,$g19-ghost 100%);
-  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$g18-cloud', endColorstr='$g19-ghost',GradientType=0 );
+  @include gradient-v($g18-cloud, $g19-ghost);
 }
 .signup-flow-bg {
   background-image: url(/assets/images/signup-bg.png);
