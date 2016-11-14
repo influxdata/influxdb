@@ -503,7 +503,7 @@ func (i *Index) MatchTagValueSeriesIterator(name, key []byte, value *regexp.Rege
 
 // TagSets returns an ordered list of tag sets for a measurement by dimension
 // and filtered by an optional conditional expression.
-func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
+func (i *Index) TagSets(shardID uint64, name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
 	itr, err := i.MeasurementSeriesByExprIterator(name, condition)
 	if err != nil {
 		return nil, err

@@ -1341,7 +1341,7 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions, aggregate bo
 	if err := func() error {
 		for _, name := range influxql.Sources(opt.Sources).Names() {
 			// Generate tag sets from index.
-			tagSets, err := e.index.TagSets([]byte(name), opt.Dimensions, opt.Condition)
+			tagSets, err := e.index.TagSets(e.id, []byte(name), opt.Dimensions, opt.Condition)
 			if err != nil {
 				return err
 			}
