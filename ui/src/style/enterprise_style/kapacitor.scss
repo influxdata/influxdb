@@ -422,10 +422,11 @@ div.query-editor.kapacitor-metric-selector {
   } 
 }
 .alert-message--formatting {
-  padding: $kap-padding-sm $kap-padding-lg;
+  padding: ($kap-padding-sm - 2px) $kap-padding-lg;
   background-color: $kapacitor-graphic-color;
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   border-top: 2px solid $kapacitor-divider-color;
 
   > p {
@@ -442,7 +443,7 @@ div.query-editor.kapacitor-metric-selector {
     border: 0;
     border-radius: 3px;
     display: inline-block;
-    margin-left: 2px;
+    margin: 2px;
     color: $c-pool;
     font-size: ($kapacitor-font-sm - 2px);
     font-weight: 600;
