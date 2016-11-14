@@ -49,11 +49,15 @@ export const SourceForm = React.createClass({
       updateSource(newSource).then(() => {
         router.push(`/sources/${params.sourceID}/manage-sources`);
         addFlashMessage({type: 'success', text: 'The source was successfully updated'});
+      }).catch(() => {
+        addFlashMessage({type: 'error', text: 'There was a problem updating the source. Check the settings'});
       });
     } else {
       createSource(newSource).then(() => {
         router.push(`/sources/${params.sourceID}/manage-sources`);
         addFlashMessage({type: 'success', text: 'The source was successfully created'});
+      }).catch(() => {
+        addFlashMessage({type: 'error', text: 'There was a problem creating the source. Check the settings'});
       });
     }
   },
