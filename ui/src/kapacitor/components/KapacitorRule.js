@@ -21,6 +21,7 @@ export const KapacitorRule = React.createClass({
     router: PropTypes.shape({
       push: PropTypes.func.isRequired,
     }).isRequired,
+    kapacitor: PropTypes.shape({}).isRequired,
   },
 
   render() {
@@ -60,14 +61,14 @@ export const KapacitorRule = React.createClass({
   },
 
   handleCreate() {
-    const {addFlashMessage, queryConfigs, rule, source, router} = this.props;
+    const {addFlashMessage, queryConfigs, rule, source, router, kapacitor} = this.props;
 
     const newRule = Object.assign({}, rule, {
       query: queryConfigs[rule.queryID],
     });
     delete newRule.queryID;
 
-    createRule(this.state.kapacitor, newRule).then(() => {
+    createRule(kapacitor, newRule).then(() => {
       router.push(`/sources/${source.id}/alert-rules`);
       addFlashMessage({type: 'success', text: `Rule successfully created`});
     }).catch(() => {

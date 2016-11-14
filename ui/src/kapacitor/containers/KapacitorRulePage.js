@@ -41,6 +41,7 @@ export const KapacitorRulePage = React.createClass({
   getInitialState() {
     return {
       enabledAlerts: [],
+      kapacitor: {},
     };
   },
 
@@ -53,11 +54,12 @@ export const KapacitorRulePage = React.createClass({
     }
 
     getKapacitor(source).then((kapacitor) => {
+      this.setState({kapacitor});
       getKapacitorConfig(kapacitor).then(({data: {sections}}) => {
         const enabledAlerts = Object.keys(sections).filter((section) => {
           return _.get(sections, [section, 'elements', '0', 'options', 'enabled'], false) && ALERTS.includes(section);
         });
-        this.setState({kapacitor, enabledAlerts});
+        this.setState({enabledAlerts});
       }).catch(() => {
         addFlashMessage({type: 'error', text: `There was a problem communicating with Kapacitor`});
       }).catch(() => {
@@ -69,6 +71,7 @@ export const KapacitorRulePage = React.createClass({
   render() {
     const {rules, queryConfigs, params, kapacitorActions,
       source, queryActions, addFlashMessage, router} = this.props;
+    const {enabledAlerts, kapacitor} = this.state;
 
     const rule = this.isEditing() ? rules[params.ruleID] : rules[DEFAULT_RULE_ID];
     const query = rule && queryConfigs[rule.queryID];
@@ -86,9 +89,10 @@ export const KapacitorRulePage = React.createClass({
         queryActions={queryActions}
         kapacitorActions={kapacitorActions}
         addFlashMessage={addFlashMessage}
-        enabledAlerts={this.state.enabledAlerts}
+        enabledAlerts={enabledAlerts}
         isEditing={this.isEditing()}
         router={router}
+        kapacitor={kapacitor}
       />
     );
   },
