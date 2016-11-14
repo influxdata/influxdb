@@ -50,7 +50,7 @@ export const RuleMessage = React.createClass({
             <code data-tip="The time of the point that triggered the event">&#123;&#123;.Time&#125;&#125;</code>
             <ReactTooltip effect="solid" html={true} offset={{top: -4}} class="influx-tooltip kapacitor-tooltip" />
           </div>
-          <div className="rule-section--item bottom alert-message-endpoint">
+          <div className="rule-section--item bottom alert-message--endpoint">
             <p>Send this Alert to:</p>
             <Dropdown className="size-256" selected={rule.alerts[0] || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
           </div>
