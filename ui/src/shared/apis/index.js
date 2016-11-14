@@ -35,6 +35,13 @@ export function deleteSource(source) {
   });
 }
 
+export function pingKapacitor(kapacitor) {
+  return AJAX({
+    method: 'GET',
+    url: `${kapacitor.links.proxy}?path=/kapacitor/v1/config/influxdb`,
+  });
+}
+
 export function getKapacitor(source) {
   return AJAX({
     url: source.links.kapacitors,
