@@ -10,6 +10,10 @@ const (
 	Relative = "relative"
 	// Threshold triggers when value crosses a threshold
 	Threshold = "threshold"
+	// ChangePercent triggers a relative alert when value changed by a percentage
+	ChangePercent = "% change"
+	// ChangeAmount triggers a relative alert when the value change by some amount
+	ChangeAmount = "change"
 )
 
 // AllAlerts are properties all alert types will have
@@ -96,9 +100,9 @@ func relativeTrigger(rule chronograf.AlertRule) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if rule.TriggerValues.Change == "% change" {
+	if rule.TriggerValues.Change == ChangePercent {
 		return fmt.Sprintf(RelativePercentTrigger, op), nil
-	} else if rule.TriggerValues.Change == "change" {
+	} else if rule.TriggerValues.Change == ChangeAmount {
 		return fmt.Sprintf(RelativeAbsoluteTrigger, op), nil
 	} else {
 		return "", fmt.Errorf("Unknown change type %s", rule.TriggerValues.Change)
