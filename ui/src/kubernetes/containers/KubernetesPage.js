@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react';
-import {fetchLayouts} from '../apis';
+import {fetchLayouts} from 'shared/apis';
 import KubernetesDashboard from 'src/kubernetes/components/KubernetesDashboard';
 
 export const KubernetesPage = React.createClass({

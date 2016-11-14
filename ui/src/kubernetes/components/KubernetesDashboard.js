@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react';
-import LayoutRenderer from '../components/LayoutRenderer';
+import LayoutRenderer from 'shared/components/LayoutRenderer';
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
@@ -57,13 +57,19 @@ export const KubernetesPage = React.createClass({
   render() {
     const {layouts} = this.props;
     const {timeRange} = this.state;
+    const emptyState = (
+      <div className="generic-empty-state">
+        <span className="icon alert-triangle"></span>
+        <h4>No Kubernetes configuration found</h4>
+      </div>
+    );
 
     return (
       <div className="host-dashboard hosts-page">
         <div className="enterprise-header hosts-dashboard-header">
           <div className="enterprise-header__container">
             <div className="enterprise-header__left">
-              <h2>Kubernetes Dashboard</h2>
+              <h1>Kubernetes Dashboard</h1>
             </div>
             <div className="enterprise-header__right">
               <h1>Range:</h1>
@@ -74,7 +80,7 @@ export const KubernetesPage = React.createClass({
         <div className="hosts-page-scroll-container">
           <div className="container-fluid hosts-dashboard">
             <div className="row">
-              { (layouts.length > 0) ? this.renderLayouts(layouts) : '' }
+              {layouts.length ? this.renderLayouts(layouts) : emptyState}
             </div>
           </div>
         </div>

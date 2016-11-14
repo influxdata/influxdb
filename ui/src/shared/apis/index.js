@@ -1,5 +1,11 @@
 import AJAX from 'utils/ajax';
-import {proxy} from 'utils/queryUrlGenerator';
+
+export function fetchLayouts() {
+  return AJAX({
+    url: `/chronograf/v1/layouts`,
+    method: 'GET',
+  });
+}
 
 export function getSources() {
   return AJAX({

@@ -1,8 +1,9 @@
 import React, {PropTypes} from 'react';
-import LayoutRenderer from '../components/LayoutRenderer';
+import LayoutRenderer from 'shared/components/LayoutRenderer';
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
-import {getMappings, getAppsForHosts, fetchLayouts} from '../apis';
+import {getMappings, getAppsForHosts} from '../apis';
+import {fetchLayouts} from 'shared/apis';
 
 export const HostPage = React.createClass({
   propTypes: {
