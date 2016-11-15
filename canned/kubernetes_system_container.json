@@ -2,6 +2,7 @@
   "id": "05dde59a-a52f-4ede-81fa-0c6011f29287",
   "measurement": "kubernetes_system_container",
   "app": "kubernetes",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

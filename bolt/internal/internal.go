@@ -129,6 +129,7 @@ func MarshalLayout(l chronograf.Layout) ([]byte, error) {
 		ID:          l.ID,
 		Measurement: l.Measurement,
 		Application: l.Application,
+		Autoflow:    l.Autoflow,
 		Cells:       cells,
 	})
 }
@@ -143,6 +144,7 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 	l.ID = pb.ID
 	l.Measurement = pb.Measurement
 	l.Application = pb.Application
+	l.Autoflow = pb.Autoflow
 	cells := make([]chronograf.Cell, len(pb.Cells))
 	for i, c := range pb.Cells {
 		queries := make([]chronograf.Query, len(c.Queries))

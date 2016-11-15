@@ -2,9 +2,10 @@
   "id": "0b75be4e-3454-4d5d-9a98-ca77c81397f6",
   "measurement": "disk",
   "app": "system",
+  "autoflow": true,
   "cells": [
     {
-      "x": 0,
+      "x": 4,
       "y": 0,
       "w": 4,
       "h": 4,

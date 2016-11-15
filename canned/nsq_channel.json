@@ -2,6 +2,7 @@
   "id": "7b035812-182a-4a94-ba2e-902dfb81e0a2",
   "measurement": "nsq_channel",
   "app": "nsq",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

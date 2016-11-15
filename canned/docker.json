@@ -2,6 +2,7 @@
   "id": "0e980b97-c162-487b-a815-3f955df6243f",
   "measurement": "docker",
   "app": "docker",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

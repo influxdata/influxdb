@@ -2,6 +2,7 @@
   "id": "f280c8c7-0530-425c-b281-788d8ded7676",
   "measurement": "memcached",
   "app": "memcached",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

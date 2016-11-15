@@ -2,7 +2,27 @@
   "id": "921298ad-0cdd-44f4-839b-10c319e7fcc7",
   "measurement": "mongodb",
   "app": "mongodb",
+  "autoflow": true,
   "cells": [
+ {
+    "id": "921298ad-0cdd-44f4-839b-10c319e7fcc7",
+ 	"measurement": "mongodb",
+ 	"app": "mongodb",
+ 	"cells": [{
+ 		"x": 0,
+ 		"y": 0,
+ 		"w": 4,
+ 		"h": 4,
+        "i": "b2631fd5-7d32-4a31-9edf-98362fd3626e",
+        "name": "MongoDB – Read/Second",
+ 		"queries": [{
+ 			"query": "SELECT mean(queries_per_sec) AS queries_per_second, mean(getmores_per_sec) AS getmores_per_second FROM mongodb",
+ 			"db": "telegraf",
+ 			"rp": "",
+  			"groupbys": [],
+  			"wheres": []
+		}]
+ 	},
     {
       "x": 0,
       "y": 0,

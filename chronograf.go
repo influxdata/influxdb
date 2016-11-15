@@ -259,6 +259,7 @@ type Layout struct {
 	ID          string `json:"id"`
 	Application string `json:"app"`
 	Measurement string `json:"measurement"`
+	Autoflow    bool   `json:"autoflow"`
 	Cells       []Cell `json:"cells"`
 }
 
