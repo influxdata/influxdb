@@ -117,7 +117,7 @@ func openService(boltPath, cannedPath string, logger chronograf.Logger) Service 
 	// These apps are those handled from a directory
 	apps := canned.NewApps(cannedPath, &uuid.V4{}, logger)
 	// These apps are statically compiled into chronograf
-	_ = &canned.BinLayoutStore{
+	binApps := &canned.BinLayoutStore{
 		Logger: logger,
 	}
 
@@ -128,6 +128,7 @@ func openService(boltPath, cannedPath string, logger chronograf.Logger) Service 
 		Stores: []chronograf.LayoutStore{
 			db.LayoutStore,
 			apps,
+			binApps,
 		},
 	}
 

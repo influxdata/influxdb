@@ -16,6 +16,7 @@ type MultiLayoutStore struct {
 // All returns the set of all layouts
 func (s *MultiLayoutStore) All(ctx context.Context) ([]chronograf.Layout, error) {
 	all := []chronograf.Layout{}
+	layoutSet := map[string]chronograf.Layout{}
 	ok := false
 	var err error
 	for _, store := range s.Stores {
@@ -26,7 +27,14 @@ func (s *MultiLayoutStore) All(ctx context.Context) ([]chronograf.Layout, error)
 			continue
 		}
 		ok = true
-		all = append(all, layouts...)
+		for _, l := range layouts {
+			// Enforce that the layout has a unique ID
+			// If the layout has been seen before then skip
+			if _, okay := layoutSet[l.ID]; !okay {
+				layoutSet[l.ID] = l
+				all = append(all, l)
+			}
+		}
 	}
 	if !ok {
 		return nil, err
