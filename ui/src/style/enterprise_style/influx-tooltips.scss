@@ -30,6 +30,7 @@ $tooltip-code-color: $c-potassium;
   word-break: keep-all !important;
   border: 2px solid $tooltip-accent !important;
   border-radius: $tooltip-radius !important;
+  text-transform: none !important;
 
   code {
     background-color: $tooltip-code-bg !important;
