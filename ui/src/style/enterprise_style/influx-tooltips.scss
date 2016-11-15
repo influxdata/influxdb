@@ -30,6 +30,7 @@ $tooltip-code-color: $c-potassium;
   word-break: keep-all !important;
   border: 2px solid $tooltip-accent !important;
   border-radius: $tooltip-radius !important;
+  text-transform: none !important;
 
   code {
     background-color: $tooltip-code-bg !important;
@@ -42,6 +43,8 @@ $tooltip-code-color: $c-potassium;
     white-space: nowrap !important;
     display: inline-block !important;
   }
+
+  // Top placement by default
   &:after {
     margin: 0 !important;
     transform: translateX(-50%) !important;
@@ -52,6 +55,13 @@ $tooltip-code-color: $c-potassium;
     border-width: $tooltip-padding !important;
     border-color: $tooltip-accent transparent transparent transparent !important;
   }
+  // Bottom placement
+  &.place-bottom:after {
+    top: -16px !important;
+    bottom: initial !important;
+    border-color: transparent transparent $tooltip-accent transparent !important;
+  }
+
 
   /* Kapacitor Style Tooltip */
   &.kapacitor-tooltip {
@@ -61,7 +71,11 @@ $tooltip-code-color: $c-potassium;
       color: $c-pool !important;
     }
     &:after {
-      border-top-color: $c-rainforest !important;
+      border-color: $c-rainforest transparent transparent transparent !important;
+    }
+    // Bottom placement
+    &.place-bottom:after {
+      border-color: transparent transparent $c-rainforest transparent !important;
     }
   }
 }

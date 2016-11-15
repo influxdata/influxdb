@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react';
+import ReactTooltip from 'react-tooltip';
 
 export const RuleHeader = React.createClass({
   propTypes: {
@@ -64,9 +65,10 @@ export const RuleHeader = React.createClass({
 
     return (
       <div>
-        <button className="btn btn-sm btn-default disabled" title={validationError}>
+        <button className="btn btn-sm btn-default disabled" data-for="save-kapacitor-tooltip" data-tip={validationError}>
           Save Rule
         </button>
+        <ReactTooltip id="save-kapacitor-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
       </div>
     );
   },
@@ -76,8 +78,9 @@ export const RuleHeader = React.createClass({
 
     if (!this.state.isEditingName) {
       return (
-        <h1 className="enterprise-header__editable" onClick={this.toggleEditName}>
+        <h1 className="enterprise-header__editable" onClick={this.toggleEditName} data-for="rename-kapacitor-tooltip" data-tip="Click to Rename">
           {rule.name}
+          <ReactTooltip id="rename-kapacitor-tooltip" delayShow="200" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
         </h1>
       );
     }
