@@ -20,7 +20,7 @@ To create a new layout use the `new_apps.sh` script in the `canned` directory. T
         "query": "SELECT mean(\"zombo\") FROM zombocomd",
             "db": "telegraf",
             "rp": "",
-            "groupbys": [\"pod\"],
+            "groupbys": ["\"pod\""],
             "wheres": []
         }]
     },
