@@ -29,7 +29,7 @@ const App = React.createClass({
   },
 
   handleNotification({type, text}) {
-    const validTypes = ['error', 'success'];
+    const validTypes = ['error', 'success', 'warning'];
     if (!validTypes.includes(type) || text === undefined) {
       console.error("handleNotification must have a valid type and text"); // eslint-disable-line no-console
     }
@@ -63,14 +63,15 @@ const App = React.createClass({
   },
 
   renderNotifications() {
-    const {success, error} = this.props.notifications;
-    if (!success && !error) {
+    const {success, error, warning} = this.props.notifications;
+    if (!success && !error && !warning) {
       return null;
     }
     return (
       <div className="flash-messages">
         {this.renderNotification('success', success)}
         {this.renderNotification('error', error)}
+        {this.renderNotification('warning', warning)}
       </div>
     );
   },
@@ -82,6 +83,7 @@ const App = React.createClass({
     const cls = classnames('alert', {
       'alert-danger': type === 'error',
       'alert-success': type === 'success',
+      'alert-warning': type === 'warning',
     });
     return (
       <div className={cls} role="alert">

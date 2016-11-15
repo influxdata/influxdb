@@ -1,7 +1,6 @@
 import React, {PropTypes} from 'react';
-import {createKapacitor, updateKapacitor} from 'shared/apis';
+import {getKapacitor, getKapacitorConfigSection, createKapacitor, updateKapacitor, pingKapacitor} from 'shared/apis';
 import AlertOutputs from '../components/AlertOutputs';
-import AJAX from 'utils/ajax';
 
 export const KapacitorPage = React.createClass({
   propTypes: {
@@ -23,22 +22,37 @@ export const KapacitorPage = React.createClass({
   },
 
   fetchKapacitor() {
-    let kapacitor;
     const {source} = this.props;
-    AJAX({
-      url: source.links.kapacitors,
-      method: 'GET',
-    }).then(({data}) => {
-      kapacitor = data.kapacitors[0];
-      this.setState({kapacitor});
-      this.pingKapacitor().then(() => {
-        // do nothing. It works :)
-      }).catch(() => {
-        this.props.addFlashMessage({type: 'error', text: 'Kapacitor found but cannot connect. Check settings.'});
+    getKapacitor(source).then((kapacitor) => {
+      if (!kapacitor) {
+        return;
+      }
+      this.setState({kapacitor}, () => {
+        pingKapacitor(kapacitor).catch(() => {
+          this.props.addFlashMessage({type: 'error', text: 'Could not connect to Kapacitor. Check settings.'});
+        });
       });
-    }).catch(function(_) {
-      console.error("error fetching kapacitors"); // eslint-disable-line no-console
-      // do nothing for now
+    });
+  },
+
+  componentDidUpdate(prevProps, prevState) {
+    if (!prevState.kapacitor || !this.state.kapacitor) {
+      return;
+    }
+    if (prevState.kapacitor.url !== this.state.kapacitor.url) {
+      this.checkKapacitorSetup();
+    }
+  },
+
+  checkKapacitorSetup() {
+    const {addFlashMessage, source} = this.props;
+    getKapacitorConfigSection(this.state.kapacitor, 'influxdb').then(({data: {elements}}) => {
+      const sourceMatch = elements[0].options.urls.some((url) => url === source.url);
+      if (!sourceMatch) {
+        addFlashMessage({type: 'warning', text: `Warning: Kapacitor is configured to use an instance of InfluxDB which does not match the URL of your current source. Please ensure your InfluxDB source and Kapacitor's InfluxDB configuration point to the same server.`});
+      }
+    }).catch(() => {
+      addFlashMessage({type: 'error', text: `Could not connect to Kapacitor. Check connection settings.`});
     });
   },
 
@@ -52,50 +66,34 @@ export const KapacitorPage = React.createClass({
   },
 
   handleCreateKapacitor() {
-    const {source} = this.props;
+    const {addFlashMessage, source} = this.props;
     const {newURL, newName, newUsername} = this.state;
     createKapacitor(source, {
-      url: newURL,
-      name: newName,
+      url: newURL.trim(),
+      name: newName.trim(),
       username: newUsername,
       password: this.kapacitorPassword.value,
-    }).then(() => {
-      this.props.addFlashMessage({type: 'success', text: 'Kapacitor Created!'});
-      this.fetchKapacitor();
+    }).then(({data: createdKapacitor}) => {
+      addFlashMessage({type: 'success', text: 'Kapacitor Created!'});
+      this.setState({kapacitor: createdKapacitor});
     }).catch(() => {
       this.props.addFlashMessage({type: 'error', text: 'There was a problem creating the Kapacitor record'});
     });
   },
 
-  pingKapacitor() {
-    const {kapacitor} = this.state;
-    return AJAX({
-      method: 'GET',
-      url: `${kapacitor.links.proxy}/?path=/kapacitor/v1/ping`,
-    });
-  },
-
   handleUpdateKapacitor() {
+    const {addFlashMessage} = this.props;
     const {kapacitor, newURL, newName, newUsername} = this.state;
     updateKapacitor(kapacitor, {
-      url: newURL || kapacitor.url,
-      name: newName || kapacitor.name,
+      url: (newURL || kapacitor.url).trim(),
+      name: (newName || kapacitor.name).trim(),
       username: newUsername || kapacitor.username,
       password: this.kapacitorPassword.value,
-    }).then(() => {
-      this.pingKapacitor().then(() => {
-        this.props.addFlashMessage({type: 'success', text: 'Kapacitor Saved!'});
-        this.fetchKapacitor();
-      }).catch(() => {
-        this.props.addFlashMessage({type: 'error', text: 'Kapacitor Saved, but cannot connect. Check settings.'});
-      });
-      // this.canPing().then(() => {
-      // }).catch(() => {
-        // this.props.addFlashMessage({type: 'error', text: 'Kapacitor Saved, but cannot connect. Check settings.'});
-      // });
+    }).then(({data: newKapacitor}) => {
+      addFlashMessage({type: 'success', text: 'Kapacitor Updated!'});
+      this.setState({kapacitor: newKapacitor});
     }).catch(() => {
-      console.error(arguments); // eslint-disable-line no-console
-      this.props.addFlashMessage({type: 'error', text: 'There was a problem updating the Kapacitor record'});
+      addFlashMessage({type: 'error', text: 'There was a problem updating the Kapacitor record'});
     });
   },
 
