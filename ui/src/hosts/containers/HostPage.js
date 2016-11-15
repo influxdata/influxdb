@@ -74,12 +74,15 @@ export const HostPage = React.createClass({
     let autoflowCells = [];
 
     const cellWidth = 4;
+    const cellHeight = 4;
     const pageWidth = 12;
 
     autoflowLayouts.forEach((layout, i) => {
       layout.cells.forEach((cell, j) => {
+        cell.w = cellWidth;
+        cell.h = cellHeight;
         cell.x = ((i + j) * cellWidth % pageWidth);
-        cell.y = Math.floor(((i + j) * cellWidth / pageWidth));
+        cell.y = Math.floor(((i + j) * cellWidth / pageWidth)) * cellHeight;
         autoflowCells = autoflowCells.concat(cell);
       });
     });
