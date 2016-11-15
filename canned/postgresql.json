@@ -12,7 +12,7 @@
       "name": "PostgreSQL - Rows",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(\"tup_fetched\") AS \"fetched\", non_negative_derivative(\"tup_returned\") AS \"returned\", non_negative_derivative(\"tup_inserted\") AS \"inserted\", non_negative_derivative(\"tup_updated\") AS \"updated\" FROM postgresql",
+          "query": "SELECT non_negative_derivative(mean(\"tup_fetched\")) AS \"fetched\", non_negative_derivative(mean(\"tup_returned\")) AS \"returned\", non_negative_derivative(mean(\"tup_inserted\")) AS \"inserted\", non_negative_derivative(mean(\"tup_updated\")) AS \"updated\" FROM postgresql",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
@@ -31,7 +31,7 @@
       "name": "PostgreSQL - QPS",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(\"xact_commit\") AS \"xact_commit\" FROM postgresql",
+          "query": "SELECT non_negative_derivative(mean(\"xact_commit\")) AS \"xact_commit\" FROM postgresql",
           "db": "telegraf",
           "rp": "",
           "groupbys": [
