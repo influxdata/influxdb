@@ -78,8 +78,9 @@ export const RuleHeader = React.createClass({
 
     if (!this.state.isEditingName) {
       return (
-        <h1 className="enterprise-header__editable" onClick={this.toggleEditName}>
+        <h1 className="enterprise-header__editable" onClick={this.toggleEditName} data-for="rename-kapacitor-tooltip" data-tip="Click to Rename">
           {rule.name}
+          <ReactTooltip id="rename-kapacitor-tooltip" delayShow="200" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
         </h1>
       );
     }
