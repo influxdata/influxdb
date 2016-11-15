@@ -56,7 +56,7 @@ The meaning of the fields are as follows:
 * queries - An array of InfluxQL queries. Note: queries must use an aggregate function since chronograf adds a group by time function to keep the data points manageable.
 * db - The name of the database for the query
 * rp - The [retention policy](https://docs.influxdata.com/influxdb/v1.1/concepts/glossary/#retention-policy-rp) for the database
-* groupbys - An array of GROUP BY claues to use on the query
+* groupbys - An array of GROUP BY clauses to use on the query
 * wheres - An array of WHERE clauses to add to the query
 
 The above example will create two graphs. The first graph will show the mean number of zombos created then group the zombos by pod and by time. It is important to note that all queries have a `GROUP BY` time(x) appended to them. In this case `x` is determined by the duration of the query. The second graph will show the number of the "anything" [field](https://docs.influxdata.com/influxdb/v1.1/concepts/glossary/#field) per second average.
