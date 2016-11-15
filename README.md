@@ -36,7 +36,7 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
 * Processes
 * Redis
 * Riak
-* Windows System
+* Windows Performance Counters
 * IIS
 * etcd
 * Elastic
@@ -69,18 +69,24 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 
 Check out the [INSTALLATION](https://github.com/influxdata/chronograf/blob/master/docs/INSTALLATION.md) guide to get up and running with Chronograf with as little configuration and code as possible.
 
-We recommend installing Chrongraf using one of the [pre-built packages](https://influxdata.com/downloads/#chronograf). Then start Chronograf using:
+We recommend installing Chronograf using one of the [pre-built packages](https://influxdata.com/downloads/#chronograf). Then start Chronograf using:
 
 * `service chronograf start` if you have installed Chronograf using an official Debian or RPM package.
 * `systemctl start chronograf` if you have installed Chronograf using an official Debian or RPM package, and are running a distro with `systemd`. For example, Ubuntu 15 or later.
 * `$GOPATH/bin/chronograf` if you have built Chronograf from source.
 
-## Build Requirements
+### From Source
 
 * Chronograf works with go 1.7.3, npm 3.10.7 and node v6.6.0. Additional version support of these projects will be implemented soon, but these are the only supported versions to date.
 * Chronograf requires [Kapacitor](https://github.com/influxdata/kapacitor) 1.1 to create and store alerts.
-* To build assets and the go server, run `make`.
-* To run server either `./chronograf --port 8888` or `make run`
+
+1. [Install Go](https://golang.org/doc/install)
+1. [Install Node and NPM](https://nodejs.org/en/download/)
+1. [Setup your GOPATH](https://golang.org/doc/code.html#GOPATH)
+1. Run `go get github.com/influxdata/chronograf`
+1. Run `cd $GOPATH/src/github.com/influxdata/chronograf`
+1. Run `make`
+1. To install run `go install github.com/influxdata/chronograf/cmd/chronograf`
 
 ## Documentation
 
