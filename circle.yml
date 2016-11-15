@@ -4,7 +4,7 @@ machine:
         - docker
     post:
         - go version
-        - go version | grep 1.7.1 || (sudo rm -rf /usr/local/go && wget https://storage.googleapis.com/golang/go1.7.1.linux-amd64.tar.gz && sudo tar -C /usr/local -xzf go1.7.1.linux-amd64.tar.gz)
+        - go version | grep 1.7.3 || (sudo rm -rf /usr/local/go && wget https://storage.googleapis.com/golang/go1.7.3.linux-amd64.tar.gz && sudo tar -C /usr/local -xzf go1.7.3.linux-amd64.tar.gz)
         - go version
 
 dependencies:
@@ -23,10 +23,10 @@ test:
         - make test
 
 deployment:
-    heroku:
+    quayio:
         branch: master
         commands:
             - make docker
-            - docker login -e $HEROKU_EMAIL -u $HEROKU_EMAIL -p $HEROKU_PASS registry.heroku.com
-            - docker tag chronograf registry.heroku.com/mrfusion-acc/web
-            - docker push registry.heroku.com/mrfusion-acc/web
+            - docker login -e $QUAY_EMAIL -u "$QUAY_USER" -p $QUAY_PASS quay.io
+            - docker tag chronograf quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
+            - docker push quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
