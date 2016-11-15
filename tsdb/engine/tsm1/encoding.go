@@ -100,31 +100,31 @@ type Value interface {
 func NewValue(t int64, value interface{}) Value {
 	switch v := value.(type) {
 	case int64:
-		return &IntegerValue{unixnano: t, value: v}
+		return IntegerValue{unixnano: t, value: v}
 	case float64:
-		return &FloatValue{unixnano: t, value: v}
+		return FloatValue{unixnano: t, value: v}
 	case bool:
-		return &BooleanValue{unixnano: t, value: v}
+		return BooleanValue{unixnano: t, value: v}
 	case string:
-		return &StringValue{unixnano: t, value: v}
+		return StringValue{unixnano: t, value: v}
 	}
 	return EmptyValue{}
 }
 
 func NewIntegerValue(t int64, v int64) Value {
-	return &IntegerValue{unixnano: t, value: v}
+	return IntegerValue{unixnano: t, value: v}
 }
 
 func NewFloatValue(t int64, v float64) Value {
-	return &FloatValue{unixnano: t, value: v}
+	return FloatValue{unixnano: t, value: v}
 }
 
 func NewBooleanValue(t int64, v bool) Value {
-	return &BooleanValue{unixnano: t, value: v}
+	return BooleanValue{unixnano: t, value: v}
 }
 
 func NewStringValue(t int64, v string) Value {
-	return &StringValue{unixnano: t, value: v}
+	return StringValue{unixnano: t, value: v}
 }
 
 type EmptyValue struct{}
@@ -134,11 +134,11 @@ func (e EmptyValue) Value() interface{} { return nil }
 func (e EmptyValue) Size() int          { return 0 }
 func (e EmptyValue) String() string     { return "" }
 
-func (_ EmptyValue) internalOnly()    {}
-func (_ *StringValue) internalOnly()  {}
-func (_ *IntegerValue) internalOnly() {}
-func (_ *BooleanValue) internalOnly() {}
-func (_ *FloatValue) internalOnly()   {}
+func (_ EmptyValue) internalOnly()   {}
+func (_ StringValue) internalOnly()  {}
+func (_ IntegerValue) internalOnly() {}
+func (_ BooleanValue) internalOnly() {}
+func (_ FloatValue) internalOnly()   {}
 
 // Encode converts the values to a byte slice.  If there are no values,
 // this function panics.
@@ -148,13 +148,13 @@ func (a Values) Encode(buf []byte) ([]byte, error) {
 	}
 
 	switch a[0].(type) {
-	case *FloatValue:
+	case FloatValue:
 		return encodeFloatBlock(buf, a)
-	case *IntegerValue:
+	case IntegerValue:
 		return encodeIntegerBlock(buf, a)
-	case *BooleanValue:
+	case BooleanValue:
 		return encodeBooleanBlock(buf, a)
-	case *StringValue:
+	case StringValue:
 		return encodeStringBlock(buf, a)
 	}
 
@@ -168,13 +168,13 @@ func (a Values) InfluxQLType() (influxql.DataType, error) {
 	}
 
 	switch a[0].(type) {
-	case *FloatValue:
+	case FloatValue:
 		return influxql.Float, nil
-	case *IntegerValue:
+	case IntegerValue:
 		return influxql.Integer, nil
-	case *BooleanValue:
+	case BooleanValue:
 		return influxql.Boolean, nil
-	case *StringValue:
+	case StringValue:
 		return influxql.String, nil
 	}
 
@@ -225,7 +225,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 			vals = make([]Value, len(decoded))
 		}
 		for i := range decoded {
-			vals[i] = &decoded[i]
+			vals[i] = decoded[i]
 		}
 		return vals[:len(decoded)], err
 	case BlockInteger:
@@ -235,7 +235,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 			vals = make([]Value, len(decoded))
 		}
 		for i := range decoded {
-			vals[i] = &decoded[i]
+			vals[i] = decoded[i]
 		}
 		return vals[:len(decoded)], err
 
@@ -246,7 +246,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 			vals = make([]Value, len(decoded))
 		}
 		for i := range decoded {
-			vals[i] = &decoded[i]
+			vals[i] = decoded[i]
 		}
 		return vals[:len(decoded)], err
 
@@ -257,7 +257,7 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 			vals = make([]Value, len(decoded))
 		}
 		for i := range decoded {
-			vals[i] = &decoded[i]
+			vals[i] = decoded[i]
 		}
 		return vals[:len(decoded)], err
 
@@ -271,19 +271,19 @@ type FloatValue struct {
 	value    float64
 }
 
-func (f *FloatValue) UnixNano() int64 {
+func (f FloatValue) UnixNano() int64 {
 	return f.unixnano
 }
 
-func (f *FloatValue) Value() interface{} {
+func (f FloatValue) Value() interface{} {
 	return f.value
 }
 
-func (f *FloatValue) Size() int {
+func (f FloatValue) Size() int {
 	return 16
 }
 
-func (f *FloatValue) String() string {
+func (f FloatValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.value)
 }
 
@@ -306,7 +306,7 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	err := func() error {
 		for _, v := range values {
 			tsenc.Write(v.UnixNano())
-			venc.Push(v.(*FloatValue).value)
+			venc.Push(v.(FloatValue).value)
 		}
 		venc.Finish()
 
@@ -398,19 +398,19 @@ type BooleanValue struct {
 	value    bool
 }
 
-func (b *BooleanValue) Size() int {
+func (b BooleanValue) Size() int {
 	return 9
 }
 
-func (b *BooleanValue) UnixNano() int64 {
+func (b BooleanValue) UnixNano() int64 {
 	return b.unixnano
 }
 
-func (b *BooleanValue) Value() interface{} {
+func (b BooleanValue) Value() interface{} {
 	return b.value
 }
 
-func (f *BooleanValue) String() string {
+func (f BooleanValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
 }
 
@@ -430,7 +430,7 @@ func encodeBooleanBlock(buf []byte, values []Value) ([]byte, error) {
 	err := func() error {
 		for _, v := range values {
 			tsenc.Write(v.UnixNano())
-			venc.Write(v.(*BooleanValue).value)
+			venc.Write(v.(BooleanValue).value)
 		}
 
 		// Encoded timestamp values
@@ -516,19 +516,19 @@ type IntegerValue struct {
 	value    int64
 }
 
-func (v *IntegerValue) Value() interface{} {
+func (v IntegerValue) Value() interface{} {
 	return v.value
 }
 
-func (v *IntegerValue) UnixNano() int64 {
+func (v IntegerValue) UnixNano() int64 {
 	return v.unixnano
 }
 
-func (v *IntegerValue) Size() int {
+func (v IntegerValue) Size() int {
 	return 16
 }
 
-func (f *IntegerValue) String() string {
+func (f IntegerValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
 }
 
@@ -540,7 +540,7 @@ func encodeIntegerBlock(buf []byte, values []Value) ([]byte, error) {
 	err := func() error {
 		for _, v := range values {
 			tsEnc.Write(v.UnixNano())
-			vEnc.Write(v.(*IntegerValue).value)
+			vEnc.Write(v.(IntegerValue).value)
 		}
 
 		// Encoded timestamp values
@@ -626,31 +626,31 @@ type StringValue struct {
 	value    string
 }
 
-func (v *StringValue) Value() interface{} {
+func (v StringValue) Value() interface{} {
 	return v.value
 }
 
-func (v *StringValue) UnixNano() int64 {
+func (v StringValue) UnixNano() int64 {
 	return v.unixnano
 }
 
-func (v *StringValue) Size() int {
+func (v StringValue) Size() int {
 	return 8 + len(v.value)
 }
 
-func (f *StringValue) String() string {
+func (f StringValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
 }
 
 func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 	tsEnc := getTimeEncoder(len(values))
-	vEnc := getStringEncoder(len(values) * len(values[0].(*StringValue).value))
+	vEnc := getStringEncoder(len(values) * len(values[0].(StringValue).value))
 
 	var b []byte
 	err := func() error {
 		for _, v := range values {
 			tsEnc.Write(v.UnixNano())
-			vEnc.Write(v.(*StringValue).value)
+			vEnc.Write(v.(StringValue).value)
 		}
 
 		// Encoded timestamp values
