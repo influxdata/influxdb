@@ -2,7 +2,7 @@
 
 Chronograf's applications are built by layout configurations that can be found in the `canned` directory of the repository or the directory specified in with the `--canned-path` of the binary distribution. This document will cover how to create new layouts or modify existing ones to better fill your environment.
 
-To create a new layout use the `new_apps.sh` script in the `canned` directory. This script takes an argument, which is the name of the layout you want, often this will map to the InfluxDB measurement, but it does not have to. For this example I will be creatiting a layout for the zombocom daemon zombocomd. So first step is the run `new_app.sh zombocomd` this will create a file called `zombocomd.json`. The file will look something like:
+To create a new layout use the `new_apps.sh` script in the `canned` directory. This script takes an argument, which is the name of the layout you want, often this will map to the InfluxDB measurement, but it does not have to. For this example I will be creating a layout for the zombocom daemon zombocomd. So first step is the run `new_app.sh zombocomd` this will create a file called `zombocomd.json`. The file will look something like:
 
 ```json
  {
@@ -42,18 +42,18 @@ To create a new layout use the `new_apps.sh` script in the `canned` directory. T
  }
 ```
 
-The meanin of the fields are as follows:
+The meaning of the fields are as follows:
 * id - A unique identifier for this file. Because apps can have more than one file, this needs to be unique or your layout will not show up.
 * measurement - The name of the [measurement](https://docs.influxdata.com/influxdb/v1.1/concepts/glossary/#measurement) to search. This is used to indicate to chronograf whether the application should be listed for a host.
 * app - The name of the application, this does not need to be unique. All layouts for an app will be displayed when the layout is requested.
 * cell - An array of graphs
 * x - Not currently used
 * y - Not currently used
-* w - The width of the graph
-* h - The height of the graph
+* w - The width of the graph, for the initial release set to 4 to make everything line up properly.
+* h - The height of the graph, for the initial release set to 4 to make everything line up properly
 * i - A unique ID for the graph
 * name - The displayed name of the graph
-* queries - An array of InfluxQL queries
+* queries - An array of InfluxQL queries. Note: queries must use an aggregate function since chronograf adds a group by time function to keep the data points manageable.
 * db - The name of the database for the query
 * rp - The [retention policy](https://docs.influxdata.com/influxdb/v1.1/concepts/glossary/#retention-policy-rp) for the database
 * groupbys - An array of GROUP BY claues to use on the query
