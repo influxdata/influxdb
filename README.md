@@ -29,14 +29,14 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
 * MongoDB
 * MySQL
 * Network
-* Nginx
+* NGINX
 * NSQ
 * Ping
 * PostgreSQL
 * Processes
 * Redis
 * Riak
-* Win_system
+* Windows System
 * IIS
 * etcd
 * Elastic
