@@ -22,7 +22,6 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/influxdata/influxdb/tsdb/engine/tsi1"
 	"go.uber.org/zap"
 )
 
@@ -129,7 +128,7 @@ type Engine struct {
 }
 
 // NewEngine returns a new instance of Engine.
-func NewEngine(id uint64, path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
+func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
 	w := NewWAL(walPath)
 	fs := NewFileStore(path)
 	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize), path)
@@ -143,8 +142,10 @@ func NewEngine(id uint64, path string, walPath string, opt tsdb.EngineOptions) t
 	e := &Engine{
 		id:           id,
 		path:         path,
+		index:        idx,
 		logger:       logger,
 		traceLogger:  logger,
+		logOutput:    os.Stderr,
 		traceLogging: opt.Config.TraceLoggingEnabled,
 
 		measurementFields: make(map[string]*tsdb.MeasurementFields),
@@ -426,13 +427,6 @@ func (e *Engine) Open() error {
 		e.SetCompactionsEnabled(true)
 	}
 
-	// Open index.
-	index := &tsi1.Index{Path: e.path}
-	if err := index.Open(); err != nil {
-		return err
-	}
-	e.index = index
-
 	return nil
 }
 
@@ -444,12 +438,6 @@ func (e *Engine) Close() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.done = nil // Ensures that the channel will not be closed again.
-
-	if e.index != nil {
-		if err := e.index.Close(); err != nil {
-			return err
-		}
-	}
 
 	if err := e.FileStore.Close(); err != nil {
 		return err
@@ -488,7 +476,7 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 			return err
 		}
 
-		if err := e.addToIndexFromKey(shardID, key, fieldType, index); err != nil {
+		if err := e.addToIndexFromKey(key, fieldType, index); err != nil {
 			return err
 		}
 		return nil
@@ -503,9 +491,9 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 			e.logger.Info(fmt.Sprintf("error getting the data type of values for key %s: %s", key, err.Error()))
 		}
 
-		return e.addToIndexFromKey(shardID, []byte(key), fieldType, index)
-	}); err != nil {
-		return err
+		if err := e.addToIndexFromKey([]byte(key), fieldType, index); err != nil {
+			return err
+		}
 	}
 
 	e.traceLogger.Info(fmt.Sprintf("Meta data index for shard %d loaded in %v", shardID, time.Since(now)))
@@ -662,30 +650,21 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string) er
 
 // addToIndexFromKey will pull the measurement name, series key, and field name from a composite key and add it to the
 // database index and measurement fields
-func (e *Engine) addToIndexFromKey(shardID uint64, key []byte, fieldType influxql.DataType, index tsdb.Index) error {
+func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType, index tsdb.Index) error {
 	seriesKey, field := SeriesAndFieldFromCompositeKey(key)
-	measurement := tsdb.MeasurementFromSeriesKey(string(seriesKey))
-
-	// m, _ := index.CreateMeasurementIndexIfNotExists([]byte(measurement))
-	// m.SetFieldName(field)
+	name := tsdb.MeasurementFromSeriesKey(string(seriesKey))
 
 	e.fieldsMu.Lock()
-	mf := e.measurementFields[measurement]
+	mf := e.measurementFields[name]
 	if mf == nil {
 		mf = tsdb.NewMeasurementFields()
-		e.measurementFields[measurement] = mf
+		e.measurementFields[name] = mf
 	}
 	e.fieldsMu.Unlock()
 
 	if err := mf.CreateFieldIfNotExists(field, fieldType, false); err != nil {
 		return err
 	}
-
-	// // ignore error because ParseKey returns "missing fields" and we don't have
-	// // fields (in line protocol format) in the series key
-	// _, tags, _ := models.ParseKey(seriesKey)
-
-	// return index.CreateSeriesIfNotExists([]byte(measurement), tags)
 	return nil
 }
 
@@ -1341,7 +1320,7 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions, aggregate bo
 	if err := func() error {
 		for _, name := range influxql.Sources(opt.Sources).Names() {
 			// Generate tag sets from index.
-			tagSets, err := e.index.TagSets(e.id, []byte(name), opt.Dimensions, opt.Condition)
+			tagSets, err := e.index.TagSets([]byte(name), opt.Dimensions, opt.Condition)
 			if err != nil {
 				return err
 			}

@@ -1,3 +1,14 @@
+/*
+Package inmem implements a shared, in-memory index for each database.
+
+The in-memory index is the original index implementation and provides fast
+access to index data. However, it also forces high memory usage for large
+datasets and can cause OOM errors.
+
+Index is the shared index structure that provides most of the functionality.
+However, ShardIndex is a light per-shard wrapper that adapts this original
+shared index format to the new per-shard format.
+*/
 package inmem
 
 import (
@@ -14,8 +25,13 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
-// Ensure index implements interface.
-var _ tsdb.Index = &Index{}
+func init() {
+	// Inject shared index constructor into tsdb to avoid circular dependency.
+	tsdb.NewInmemIndex = func(name string) (interface{}, error) { return NewIndex(name) }
+
+	// Register index format.
+	tsdb.RegisterIndex("inmem", NewShardIndex)
+}
 
 // Index is the in memory index of a collection of measurements, time
 // series, and their tags. Exported functions are goroutine safe while
@@ -72,11 +88,6 @@ func (i *Index) SeriesN() (uint64, error) {
 	return uint64(len(i.series)), nil
 }
 
-// CreateSeriesIfNotExists creates a series if it doesn't already exist.
-func (i *Index) CreateSeriesIfNotExists(name []byte, tags models.Tags) error {
-	panic("TODO")
-}
-
 // SeriesSketch returns the sketch for the series.
 func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 	i.mu.RLock()
@@ -112,46 +123,63 @@ func (i *Index) MeasurementsByName(names [][]byte) ([]*tsdb.Measurement, error) 
 	return a, nil
 }
 
-// CreateSeriesIndexIfNotExists adds the series for the given measurement to the
+// CreateSeriesIfNotExists adds the series for the given measurement to the
 // index and sets its ID or returns the existing series object
-func (i *Index) CreateSeriesIndexIfNotExists(measurementName string, series *tsdb.Series) (*tsdb.Series, error) {
+func (i *Index) CreateSeriesIfNotExists(shardID uint64, name []byte, tags models.Tags, opt *tsdb.EngineOptions) error {
+	key := models.MakeKey(name, tags)
+
 	i.mu.RLock()
 	// if there is a measurement for this id, it's already been added
-	ss := i.series[series.Key]
+	ss := i.series[string(key)]
 	if ss != nil {
+		ss.AssignShard(shardID)
 		i.mu.RUnlock()
-		return ss, nil
+		return nil
 	}
 	i.mu.RUnlock()
 
-	// get or create the measurement index
-	m, err := i.CreateMeasurementIndexIfNotExists(measurementName)
+	// Check for series count.
+	n, err := i.SeriesN()
 	if err != nil {
-		return nil, err
+		return err
+	}
+	if opt.Config.MaxSeriesPerDatabase > 0 && sn+1 > uint64(opt.Config.MaxSeriesPerDatabase) {
+		return &tsdb.LimitError{
+			Reason: fmt.Sprintf("max series limit reached: (%d/%d)", sn, opt.Config.MaxSeriesPerDatabase),
+		}
+	}
+
+	// get or create the measurement index
+	m, err := i.CreateMeasurementIndexIfNotExists(string(name))
+	if err != nil {
+		return err
 	}
 
 	i.mu.Lock()
 	// Check for the series again under a write lock
-	ss = i.series[series.Key]
+	ss = i.series[string(key)]
 	if ss != nil {
+		ss.AssignShard(shardID)
 		i.mu.Unlock()
-		return ss, nil
+		return nil
 	}
 
 	// set the in memory ID for query processing on this shard
+	series := tsdb.NewSeries(key, tags)
 	series.ID = i.lastID + 1
 	i.lastID++
 
 	series.SetMeasurement(m)
-	i.series[series.Key] = series
+	i.series[string(key)] = series
 
 	m.AddSeries(series)
+	series.AssignShard(shardID)
 
 	// Add the series to the series sketch.
-	i.seriesSketch.Add([]byte(series.Key))
+	i.seriesSketch.Add(key)
 	i.mu.Unlock()
 
-	return series, nil
+	return nil
 }
 
 // CreateMeasurementIndexIfNotExists creates or retrieves an in memory index
@@ -480,5 +508,37 @@ func (i *Index) TagSets(shardID uint64, name []byte, dimensions []string, condit
 	if mm == nil {
 		return nil, nil
 	}
-	return mm.TagSets(shardID, dimensions, condition)
+
+	tagSets, err := mm.TagSets(shardID, dimensions, condition)
+	if err != nil {
+		return nil, err
+	}
+
+	return tagSets, nil
+}
+
+// Ensure index implements interface.
+var _ tsdb.Index = &ShardIndex{}
+
+// ShardIndex represents a wrapper around the shared Index.
+type ShardIndex struct {
+	*Index
+	id uint64
+}
+
+func (i *ShardIndex) CreateSeriesIfNotExists(name []byte, tags models.Tags) error {
+	return i.Index.CreateSeriesIfNotExists(i.id, name, tags)
+}
+
+// TagSets returns a list of tag sets based on series filtering.
+func (i *ShardIndex) TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
+	return i.Index.TagSets(i.id, name, dimensions, condition)
+}
+
+// NewShardIndex returns a new index for a shard.
+func NewShardIndex(id uint64, path string, options tsdb.IndexOptions) tsdb.Index {
+	return &ShardIndex{
+		Index: options.InmemIndex.(*Index),
+		id:    id,
+	}
 }

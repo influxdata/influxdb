@@ -18,7 +18,6 @@ import (
 
 //go:generate protoc --gogo_out=. internal/meta.proto
 
-
 // Measurement represents a collection of time series in a database. It also
 // contains in memory structures for indexing tags. Exported functions are
 // goroutine safe while un-exported functions assume the caller will use the
@@ -107,17 +106,6 @@ func (m *Measurement) HasTagKey(k string) bool {
 	return hasTag
 }
 
-<<<<<<< HEAD
-// HasTagKeyValue returns true if at least one series in this measurement has written a value the given tag key and tag value.
-=======
-func (m *Measurement) SeriesByTagValue(key string) map[string]SeriesIDs {
-	m.mu.RLock()
-	tagVals := m.seriesByTagKeyValue[key]
-	m.mu.RUnlock()
-	return tagVals
-}
-
->>>>>>> ee54c3e... intermediate
 func (m *Measurement) HasTagKeyValue(k, v []byte) bool {
 	m.mu.RLock()
 	if vals, ok := m.seriesByTagKeyValue[string(k)]; ok {

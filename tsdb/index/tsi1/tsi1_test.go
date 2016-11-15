@@ -7,7 +7,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb/engine/tsi1"
+	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
 // Ensure iterator can operate over an in-memory list of elements.

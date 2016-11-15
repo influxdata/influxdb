@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/influxdb/tsdb/engine/tsi1"
+	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
 // Ensure measurement blocks can be written and opened.

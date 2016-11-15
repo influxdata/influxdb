@@ -233,7 +233,8 @@ func TestEngine_CreateIterator_Cache_Ascending(t *testing.T) {
 
 	e.CreateMeasurement("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-	e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
+	si, _ := e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
+	si.AssignShard(1)
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A value=1.2 2000000000`,
