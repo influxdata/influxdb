@@ -683,13 +683,13 @@ func (c *Cache) updateMemSize(b int64) {
 
 func valueType(v Value) int {
 	switch v.(type) {
-	case *FloatValue:
+	case FloatValue:
 		return 1
-	case *IntegerValue:
+	case IntegerValue:
 		return 2
-	case *StringValue:
+	case StringValue:
 		return 3
-	case *BooleanValue:
+	case BooleanValue:
 		return 4
 	default:
 		return 0

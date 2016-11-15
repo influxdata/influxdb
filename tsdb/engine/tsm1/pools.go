@@ -39,7 +39,7 @@ func getFloat64Values(size int) []Value {
 
 	for i, v := range buf {
 		if v == nil {
-			buf[i] = &FloatValue{}
+			buf[i] = FloatValue{}
 		}
 	}
 	return buf[:size]
@@ -65,7 +65,7 @@ func getIntegerValues(size int) []Value {
 
 	for i, v := range buf {
 		if v == nil {
-			buf[i] = &IntegerValue{}
+			buf[i] = IntegerValue{}
 		}
 	}
 	return buf[:size]
@@ -91,7 +91,7 @@ func getBooleanValues(size int) []Value {
 
 	for i, v := range buf {
 		if v == nil {
-			buf[i] = &BooleanValue{}
+			buf[i] = BooleanValue{}
 		}
 	}
 	return buf[:size]
@@ -117,7 +117,7 @@ func getStringValues(size int) []Value {
 
 	for i, v := range buf {
 		if v == nil {
-			buf[i] = &StringValue{}
+			buf[i] = StringValue{}
 		}
 	}
 	return buf[:size]
@@ -130,13 +130,13 @@ func putBooleanValues(buf []Value) {
 func putValue(buf []Value) {
 	if len(buf) > 0 {
 		switch buf[0].(type) {
-		case *FloatValue:
+		case FloatValue:
 			putFloat64Values(buf)
-		case *IntegerValue:
+		case IntegerValue:
 			putIntegerValues(buf)
-		case *BooleanValue:
+		case BooleanValue:
 			putBooleanValues(buf)
-		case *StringValue:
+		case StringValue:
 			putStringValues(buf)
 		}
 	}
