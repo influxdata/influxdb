@@ -2,59 +2,22 @@ import React, {PropTypes} from 'react';
 import LayoutRenderer from 'shared/components/LayoutRenderer';
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
-import {getMappings, getAppsForHosts} from '../apis';
-import {fetchLayouts} from 'shared/apis';
 
-export const HostPage = React.createClass({
+export const KubernetesPage = React.createClass({
   propTypes: {
     source: PropTypes.shape({
       links: PropTypes.shape({
         proxy: PropTypes.string.isRequired,
       }).isRequired,
     }),
-    params: PropTypes.shape({
-      hostID: PropTypes.string.isRequired,
-    }).isRequired,
-    location: PropTypes.shape({
-      query: PropTypes.shape({
-        app: PropTypes.string,
-      }),
-    }),
+    layouts: PropTypes.arrayOf(PropTypes.shape().isRequired).isRequired,
   },
 
   getInitialState() {
     const fifteenMinutesIndex = 1;
-
     return {
-      layouts: [],
       timeRange: timeRanges[fifteenMinutesIndex],
     };
-  },
-
-  componentDidMount() {
-    const hosts = {[this.props.params.hostID]: {name: this.props.params.hostID}};
-
-    // fetching layouts and mappings can be done at the same time
-    fetchLayouts().then(({data: {layouts}}) => {
-      getMappings().then(({data: {mappings}}) => {
-        getAppsForHosts(this.props.source.links.proxy, hosts, mappings).then((newHosts) => {
-          const host = newHosts[this.props.params.hostID];
-          const filteredLayouts = layouts.filter((layout) => {
-            const focusedApp = this.props.location.query.app;
-            if (focusedApp) {
-              return layout.app === focusedApp;
-            }
-            return host.apps && host.apps.includes(layout.app);
-          });
-          this.setState({layouts: filteredLayouts});
-        });
-      });
-    });
-  },
-
-  handleChooseTimeRange({lower}) {
-    const timeRange = timeRanges.find((range) => range.queryValue === lower);
-    this.setState({timeRange});
   },
 
   renderLayouts(layouts) {
@@ -82,21 +45,31 @@ export const HostPage = React.createClass({
         cells={layoutCells}
         autoRefreshMs={autoRefreshMs}
         source={source}
-        host={this.props.params.hostID}
       />
     );
   },
 
+  handleChooseTimeRange({lower}) {
+    const timeRange = timeRanges.find((range) => range.queryValue === lower);
+    this.setState({timeRange});
+  },
+
   render() {
-    const hostID = this.props.params.hostID;
-    const {layouts, timeRange} = this.state;
+    const {layouts} = this.props;
+    const {timeRange} = this.state;
+    const emptyState = (
+      <div className="generic-empty-state">
+        <span className="icon alert-triangle"></span>
+        <h4>No Kubernetes configuration found</h4>
+      </div>
+    );
 
     return (
       <div className="host-dashboard hosts-page">
         <div className="enterprise-header hosts-dashboard-header">
           <div className="enterprise-header__container">
             <div className="enterprise-header__left">
-              <h1>{hostID}</h1>
+              <h1>Kubernetes Dashboard</h1>
             </div>
             <div className="enterprise-header__right">
               <h1>Range:</h1>
@@ -107,7 +80,7 @@ export const HostPage = React.createClass({
         <div className="hosts-page-scroll-container">
           <div className="container-fluid hosts-dashboard">
             <div className="row">
-              { (layouts.length > 0) ? this.renderLayouts(layouts) : '' }
+              {layouts.length ? this.renderLayouts(layouts) : emptyState}
             </div>
           </div>
         </div>
@@ -115,5 +88,4 @@ export const HostPage = React.createClass({
     );
   },
 });
-
-export default HostPage;
+export default KubernetesPage;

@@ -23,6 +23,7 @@ const SideNav = React.createClass({
         <NavBlock icon="cpu" link={`${sourcePrefix}/hosts`}>
           <NavHeader link={`${sourcePrefix}/hosts`} title="Infrastructure" />
           <NavListItem link={`${sourcePrefix}/hosts`}>Host List</NavListItem>
+          <NavListItem link={`${sourcePrefix}/kubernetes`}>Kubernetes Dashboard</NavListItem>
         </NavBlock>
         <NavBlock icon="graphline" link={dataExplorerLink}>
           <NavHeader link={dataExplorerLink} title={'Data'} />

@@ -32,7 +32,7 @@ export const LayoutRenderer = React.createClass({
       }).isRequired
     ),
     autoRefreshMs: PropTypes.number.isRequired,
-    host: PropTypes.string.isRequired,
+    host: PropTypes.string,
     source: PropTypes.string,
   },
 
@@ -47,10 +47,17 @@ export const LayoutRenderer = React.createClass({
     const {wheres, groupbys} = q;
 
     let text = q.text;
-    text += ` where \"host\" = '${host}' and time > ${timeRange.queryValue}`;
+
+    text += ` where time > ${timeRange.queryValue}`;
+
+    if (host) {
+      text += ` and \"host\" = '${host}'`;
+    }
+
     if (wheres && wheres.length > 0) {
       text += ` and ${wheres.join(' and ')}`;
     }
+
     if (groupbys) {
       if (groupbys.find((g) => g.includes("time"))) {
         text += ` group by ${groupbys.join(',')}`;
@@ -62,6 +69,7 @@ export const LayoutRenderer = React.createClass({
     } else {
       text += ` group by time(${timeRange.defaultGroupBy})`;
     }
+
     return text;
   },
 
