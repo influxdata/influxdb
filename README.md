@@ -2,7 +2,7 @@
 
 Chronograf is an open-source web application written in Go and React.js that provides the tools to visualize your monitoring data and easily create alerting and automation rules.
 
-![Chronograf](https://github.com/influxdata/chronograf/blob/rk-doc-edits/docs/images/overview-readme.png)
+![Chronograf](https://github.com/influxdata/chronograf/blob/master/docs/images/overview-readme.png)
 
 ## Features
 
