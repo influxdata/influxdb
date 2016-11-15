@@ -8,7 +8,6 @@ import AlertsApp from 'src/alerts';
 import CheckSources from 'src/CheckSources';
 import {HostsPage, HostPage} from 'src/hosts';
 import {KapacitorPage, KapacitorRulePage, KapacitorRulesPage, KapacitorTasksPage} from 'src/kapacitor';
-import TasksPage from 'src/tasks';
 import DataExplorer from 'src/chronograf';
 import {CreateSource, SourceForm, ManageSources} from 'src/sources';
 import NotFound from 'src/shared/components/NotFound';
@@ -107,7 +106,6 @@ const Root = React.createClass({
               <Route path="alert-rules/:ruleID" component={KapacitorRulePage} />
               <Route path="alert-rules/new" component={KapacitorRulePage} />
             </Route>
-            <Route path="tasks" component={TasksPage} />
             <Route path="*" component={NotFound} />
           </Route>
         </Router>
