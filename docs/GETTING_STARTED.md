@@ -25,7 +25,7 @@ Here's the visualization layout for Telegraf's [system stats](https://github.com
 
 Notice that you can hover over the graphs to get additional information about the data, and you select alternative time ranges for the graphs by using the time selector in the top right corner.
 
-See [TODO]() for a complete list of the apps supported by Chronograf.
+See the [README](https://github.com/influxdata/chronograf#dashboard-templates) for a complete list of the apps supported by Chronograf.
 
 ## Data Explorer
 
