@@ -18,8 +18,8 @@ It has two configured apps: `system` and `processes`.
 Apps are Telegraf [input plugins](https://github.com/influxdata/telegraf#input-plugins) that have dashboard templates in Chronograf.
 
 Click on the app on the `HOST LIST` page to access its dashboard template.
-The visualization layout offers pre-canned graphs of the input's data that are currently in InfluxDB.
-Here's the visualization layout for Telegraf's [system stats](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/system) input plugin:
+The dashboard offers [pre-canned](https://github.com/influxdata/chronograf/tree/master/canned) graphs of the input's data that are currently in InfluxDB.
+Here's the dashboard template for Telegraf's [system stats](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/system) input plugin:
 
 ![System Graph Layout](https://github.com/influxdata/chronograf/blob/master/docs/images/system-layout-gs.gif)
 
@@ -52,7 +52,7 @@ The example rule shown below operates on data from Telegraf's [system stats](htt
 
 ![Example Rule](https://github.com/influxdata/chronograf/blob/master/docs/images/example-rule-gs.png)
 
-The `Select a Time Series` section includes an [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) query builder which allows us to specify the target data for the alert rule.
+The `Select a Time Series` section includes an [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) query builder which allows you to specify the target data for the alert rule.
 The example shown above is working with the system stat's `usage_idle` [field](https://docs.influxdata.com/influxdb/v1.1/concepts/glossary/#field) in the `cpu` [measurement](https://docs.influxdata.com/influxdb/v1.1/concepts/glossary/#measurement).
 
 The `Values` section defines the alert rule.
