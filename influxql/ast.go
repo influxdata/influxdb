@@ -1178,7 +1178,7 @@ func (s *SelectStatement) RewriteFields(ic IteratorCreator) (*SelectStatement, e
 
 				// Add additional types for certain functions.
 				switch call.Name {
-				case "count", "first", "last", "distinct", "elapsed", "mode":
+				case "count", "first", "last", "distinct", "elapsed", "mode", "sample":
 					supportedTypes[String] = struct{}{}
 					fallthrough
 				case "min", "max":
