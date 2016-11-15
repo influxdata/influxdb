@@ -19,10 +19,9 @@ Check out the [downloads](https://www.influxdata.com/downloads/) page for links 
 [InfluxDB](https://docs.influxdata.com/influxdb/latest/) is the time series database that serves as the data storage component of the TICK stack.
 
 #### 1. Download and Install InfluxDB
-Download and install the deb package for InfluxDB 1.1.0rc1:
 ```
-wget https://dl.influxdata.com/influxdb/releases/influxdb_1.1.0~rc1_amd64.deb
-sudo dpkg -i influxdb_1.1.0~rc1_amd64.deb
+wget https://dl.influxdata.com/influxdb/releases/influxdb_1.1.0_amd64.deb
+sudo dpkg -i influxdb_1.1.0_amd64.deb
 ```
 
 #### 2. Start InfluxDB
@@ -50,8 +49,8 @@ Kapacitor is responsible for creating and sending alerts in Chronograf.
 
 #### 1. Download and Install Kapacitor
 ```
-wget https://dl.influxdata.com/kapacitor/releases/kapacitor_1.1.0~rc2_amd64.deb
-sudo dpkg -i kapacitor_1.1.0~rc2_amd64.deb
+wget https://dl.influxdata.com/kapacitor/releases/kapacitor_1.1.0_amd64.deb
+sudo dpkg -i kapacitor_1.1.0_amd64.deb
 ```
 
 #### 2. Start Kapacitor
@@ -86,8 +85,8 @@ At the end of this guide we provide sample configurations for additional applica
 
 #### 1. Download and Install Telegraf
 ```
-wget https://dl.influxdata.com/telegraf/releases/telegraf_1.1.0~rc1_amd64.deb
-sudo dpkg -i telegraf_1.1.0~rc1_amd64.deb
+wget https://dl.influxdata.com/telegraf/releases/telegraf_1.1.1_amd64.deb
+sudo dpkg -i telegraf_1.1.1_amd64.deb
 ```
 
 #### 2. Start Telegraf
