@@ -1,5 +1,5 @@
 npm-debug.log
-dist/dist_gen.go
+*_gen.go
 canned/apps_gen.go
 server/swagger_gen.go
 .pull-request

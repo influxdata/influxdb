@@ -28,6 +28,7 @@ dev-assets: dev-js bindata
 
 bindata:
 	go generate -x ./dist
+	go generate -x ./canned
 	go generate -x ./server
 
 js:

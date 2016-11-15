@@ -114,12 +114,21 @@ func openService(boltPath, cannedPath string, logger chronograf.Logger) Service 
 			Fatal("Unable to open boltdb; is there a chronograf already running?  ", err)
 	}
 
+	// These apps are those handled from a directory
 	apps := canned.NewApps(cannedPath, &uuid.V4{}, logger)
-	// Acts as a front-end to both the bolt layouts and the filesystem layouts.
+	// These apps are statically compiled into chronograf
+	binApps := &canned.BinLayoutStore{
+		Logger: logger,
+	}
+
+	// Acts as a front-end to both the bolt layouts, filesystem layouts and binary statically compiled layouts.
+	// The idea here is that these stores form a hierarchy in which each is tried sequentially until
+	// the operation has success.  So, the database is preferred over filesystem over binary data.
 	layouts := &layouts.MultiLayoutStore{
 		Stores: []chronograf.LayoutStore{
 			db.LayoutStore,
 			apps,
+			binApps,
 		},
 	}
 
