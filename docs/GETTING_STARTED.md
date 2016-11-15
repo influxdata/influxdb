@@ -5,64 +5,78 @@ In the next sections, we'll show you how Chronograf makes the monitoring and ale
 
 If you haven't installed Chronograf check out the [Installation Guide](https://github.com/influxdata/chronograf/blob/master/docs/INSTALLATION.md).
 
-### Host List
+## Host List
 
 The `HOST LIST` page is essentially Chronograf's home page.
 It lists every host that is sending [Telegraf](https://github.com/influxdata/telegraf) data to your [InfluxDB](https://github.com/influxdata/influxdb) instance as well a some information about each host's CPU usage, load, and configured apps.
 
-![IMAGE]()
+![Host List](https://github.com/influxdata/chronograf/blob/master/docs/images/host-list-gs.png)
 
 The Chronograf instance shown above is connected to three hosts (`telegraf-region-neverland`, `telegraf-region-narnia`, and `telegraf-region-howardsend`).
-The first host `telegraf-region-neverland` is using 4.63%	of its total CPU and has a load of 0.05.
-It has one configured app: `system`.
-Apps are Telegraf [input plugins](https://github.com/influxdata/telegraf#input-plugins) that have visualization layouts in Chronograf.
+The first host is using 9.96%	of its total CPU and has a load of 0.15.
+It has two configured apps: `system` and `processes`.
+Apps are Telegraf [input plugins](https://github.com/influxdata/telegraf#input-plugins) that have dashboard templates in Chronograf.
 
-Click on the app on the `HOST LIST` page to access its visualization layout.
+Click on the app on the `HOST LIST` page to access its dashboard template.
 The visualization layout offers pre-canned graphs of the input's data that are currently in InfluxDB.
-Here's the visualization layout for Telegraf's system input plugin:
+Here's the visualization layout for Telegraf's [system stats](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/system) input plugin:
 
-![GIF]()
+![System Graph Layout](https://github.com/influxdata/chronograf/blob/master/docs/images/system-layout-gs.gif)
 
-Notice that you can hover over the graphs to get additional information about the data, and you select alternative time ranges for the graphs using the time selector in the top right corner.
+Notice that you can hover over the graphs to get additional information about the data, and you select alternative time ranges for the graphs by using the time selector in the top right corner.
 
-Currently Chronograf supports eight apps (we will be increasing this number with every release!):
+See the [README](https://github.com/influxdata/chronograf#dashboard-templates) for a complete list of the apps supported by Chronograf.
 
-* [InfluxDB Input Plugin](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/influxdb)
-* [Kubernetes Input Plugin](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/kubernetes)
-* [Docker Input Plugin](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/docker)
-* [Redis Input Plugin](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/redis)
-* [Postgres Input Plugin](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/postgresql)
-* [System Input Plugin](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/system)
-* [Consul Input Plugin](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/consul)
-* [NSQ Input Plugin](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/nsq)
-
-### Data Explorer
+## Data Explorer
 
 Chronograf's Data Explorer gives you the tools to dig in and create personalized visualizations of your data.
 
 Use the query builder to easily generate [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) queries and create beautiful visualizations:
 
-![GIF]
+![Data Exploration](https://github.com/influxdata/chronograf/blob/master/docs/images/data-exploration-gs.gif)
 
-View those same query results in tabular format:
+You can also view those same query results in tabular format (1), easily alter the query's time range with the time range selector (2), and save your graphs in individual exploration sessions (3):
 
-![IMAGE]
+![Data Exploration Extras](https://github.com/influxdata/chronograf/blob/master/docs/images/data-exploration-extras-gs.png)
 
-Easily alter your query's time range with the time selector in the top right corner:
+## Create and View Alerts
 
-![IMAGE]
+Chronograf also offers a UI for generating [Kapacitor](https://github.com/influxdata/kapacitor) alerting rules and viewing those alerts as they occur.
 
-Finally, group your graphs into saved exploration sessions:
+### Create an Alert Rule
+Easily create a Kapacitor alert rule on the `KAPACITOR RULES` page.
+Access the `KAPACITOR RULES` page by hovering over the third item in the left navigation menu and selecting `Rules`.
+Then, click on the `Add New Rule` button to create a new alert rule.
 
-![GIF]
+The example rule shown below operates on data from Telegraf's [system stats](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/system) input plugin and sends a simple threshold alert to Slack:
 
-### Alerting
+![Example Rule](https://github.com/influxdata/chronograf/blob/master/docs/images/example-rule-gs.png)
 
-* Easily generate kapacitor alerts using the Rules UI
-* Alert destinations can be configured and tested (for example, email, slack, pagerduty, etc).
-* Simply generate threshold, relative and deadman alerts!
-    * threshold: if the data crosses a boundary alert
-    * relative: if the data changes over time alert
-    * deadman: if no data is received for some length of time, alert!
-* Preview data and alert boundaries while making an alert.
-* See all active alerts at a glance at the alerting dashboard
+The `Select a Time Series` section includes an [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) query builder which allows us to specify the target data for the alert rule.
+The example shown above is working with the system stat's `usage_idle` [field](https://docs.influxdata.com/influxdb/v1.1/concepts/glossary/#field) in the `cpu` [measurement](https://docs.influxdata.com/influxdb/v1.1/concepts/glossary/#measurement).
+
+The `Values` section defines the alert rule.
+It supports three rule types:
+
+* Threshold Rule - alert if the data cross a boundary
+* Relative Rule - alert if the data change relative to the data in a different time range
+* Deadman Rule - alert if no data are received for the specified time range
+
+The example above creates a simple threshold rule that sends an alert when `usage_idle` values are less than 86% within the past minute.
+Notice that the graph provides a preview of the target data and the configured rule boundary.
+
+Lastly, the `Alert Message` section allows you to personalize the alert message and select an alert endpoint.
+The rule shown above sends alert messages to a Slack channel.
+Here's an example of the alert messages in Slack:
+
+![Slack Alert](https://github.com/influxdata/chronograf/blob/master/docs/images/slack-alert-gs.png)
+
+Currently, Chronograf supports the following alert endpoints: HipChat, PagerDuty, Sensu, Slack, SMTP, Telegram, and VictorOps.
+You can configure your alert endpoints on the `CONFIGURE KAPACITOR` page.
+
+### View all Active Alerts
+
+See all active alerts on the `ALERTING` page, and filter them by `Name`,
+`Level`, and `Host`:
+
+![Alert View](https://github.com/influxdata/chronograf/blob/master/docs/images/alert-view-gs.gif)

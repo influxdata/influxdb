@@ -19,10 +19,9 @@ Check out the [downloads](https://www.influxdata.com/downloads/) page for links 
 [InfluxDB](https://docs.influxdata.com/influxdb/latest/) is the time series database that serves as the data storage component of the TICK stack.
 
 #### 1. Download and Install InfluxDB
-Download and install the deb package for InfluxDB 1.1.0rc1:
 ```
-wget https://dl.influxdata.com/influxdb/releases/influxdb_1.1.0~rc1_amd64.deb
-sudo dpkg -i influxdb_1.1.0~rc1_amd64.deb
+wget https://dl.influxdata.com/influxdb/releases/influxdb_1.1.0_amd64.deb
+sudo dpkg -i influxdb_1.1.0_amd64.deb
 ```
 
 #### 2. Start InfluxDB
@@ -50,8 +49,8 @@ Kapacitor is responsible for creating and sending alerts in Chronograf.
 
 #### 1. Download and Install Kapacitor
 ```
-wget https://dl.influxdata.com/kapacitor/releases/kapacitor_1.1.0~rc2_amd64.deb
-sudo dpkg -i kapacitor_1.1.0~rc2_amd64.deb
+wget https://dl.influxdata.com/kapacitor/releases/kapacitor_1.1.0_amd64.deb
+sudo dpkg -i kapacitor_1.1.0_amd64.deb
 ```
 
 #### 2. Start Kapacitor
@@ -86,8 +85,8 @@ At the end of this guide we provide sample configurations for additional applica
 
 #### 1. Download and Install Telegraf
 ```
-wget https://dl.influxdata.com/telegraf/releases/telegraf_1.1.0~rc1_amd64.deb
-sudo dpkg -i telegraf_1.1.0~rc1_amd64.deb
+wget https://dl.influxdata.com/telegraf/releases/telegraf_1.1.1_amd64.deb
+sudo dpkg -i telegraf_1.1.1_amd64.deb
 ```
 
 #### 2. Start Telegraf
@@ -208,8 +207,7 @@ Point your web browser to `http://localhost:8888` (replace `localhost` with your
 
 You should see a welcome page:
 
-![Chronograf Welcome Page](https://github.com/influxdata/chronograf/blob/rk-doc-edits/docs/images/welcome.png)
-
+![Chronograf Welcome Page](https://github.com/influxdata/chronograf/blob/master/docs/images/welcome.png)
 
 The next steps connect Chronograf to your InfluxDB instance.
 For the `Connection String`, enter the hostname or IP of the machine that InfluxDB is running on, and be sure to include InfluxDB's default port: `8086`.
@@ -218,14 +216,14 @@ Finally, there's no need to enter any information for the `Username` and `Passwo
 
 Click `Create New Server` to move on to the `HOST LIST` page:
 
-![Chronograf Host List Page](https://github.com/influxdata/chronograf/blob/rk-doc-edits/docs/images/host-list.png)
+![Chronograf Host List Page](https://github.com/influxdata/chronograf/blob/master/docs/images/host-list.png)
 
 You should see your machine's hostname on the page along with information about its CPU usage and load.
 Assuming you've configured Telegraf's system stats input plugin, `system` should appear in the `Apps` column.
 Go ahead and click on the hostname to see a series of system level graphs about
 your host:
 
-![System Stats Graphs](https://github.com/influxdata/chronograf/blob/rk-doc-edits/docs/images/system.png)
+![System Stats Graphs](https://github.com/influxdata/chronograf/blob/master/docs/images/system.png)
 
 #### 4. Connect Chronograf to Kapacitor
 
@@ -233,7 +231,7 @@ The final step in the installation process is to connect Chronograf to Kapacitor
 Hover over the last item in the left navigation menu and click `Kapacitor` to
 get to the `CONFIGURE KAPACITOR` page.
 
-![Configure Kapacitor](https://github.com/influxdata/chronograf/blob/rk-doc-edits/docs/images/configure-kapacitor.png)
+![Configure Kapacitor](https://github.com/influxdata/chronograf/blob/master/docs/images/configure-kapacitor.png)
 
 For the `Connection String`, enter the hostname or IP of the machine that Kapacitor is running on, and be sure to include Kapacitor's default port: `9092`.
 Next, name the connection string; this can be anything you want.
@@ -244,7 +242,7 @@ If Kapacitor successfully connects you'll see an
 [Alert Endpoints](https://docs.influxdata.com/kapacitor/v1.0/nodes/alert_node/)
 section below the `Connection Details` section:
 
-![Alert Endpoints](https://github.com/influxdata/chronograf/blob/rk-doc-edits/docs/images/alert-endpoints.png)
+![Alert Endpoints](https://github.com/influxdata/chronograf/blob/master/docs/images/alert-endpoints.png)
 
 That's it! You've successfully downloaded, installed, and configured each component of the TICK stack.
 Check out the [Getting Started](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md) guide to familiarize yourself with Chronograf and see all that it can do for you!
