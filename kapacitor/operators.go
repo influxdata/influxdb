@@ -6,9 +6,9 @@ const (
 	GreaterThan      = "greater than"
 	LessThan         = "less than"
 	LessThanEqual    = "equal to or less than"
-	GreaterThanEqual = "equal to or greater than"
-	Equal            = "equal"
-	NotEqual         = "not equal"
+	GreaterThanEqual = "equal to or greater"
+	Equal            = "equal to"
+	NotEqual         = "not equal to"
 )
 
 // kapaOperator converts UI strings to kapacitor operators

@@ -52,7 +52,7 @@ func TestData(t *testing.T) {
 	} else {
 		_, err := formatTick(tick)
 		if err != nil {
-			fmt.Printf(tick)
+			fmt.Print(tick)
 			t.Errorf("Error formatting tick %v", err)
 		}
 	}

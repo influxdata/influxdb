@@ -92,7 +92,7 @@ export const KapacitorRulesPage = React.createClass({
       );
     }
 
-    rules.map((rule) => {
+    return rules.map((rule) => {
       return (
         <tr key={rule.id}>
           <td className="monotype"><Link to={`/sources/${source.id}/alert-rules/${rule.id}`}>{rule.name}</Link></td>

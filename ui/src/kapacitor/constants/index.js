@@ -4,17 +4,15 @@ export const defaultRuleConfigs = {
   },
   relative: {
     change: 'change',
-    period: '1m',
     shift: '1m',
     operator: 'greater than',
-    value: '90',
+    value: '',
   },
   threshold: {
     operator: 'greater than',
-    value: '90',
+    value: '',
     relation: 'once',
     percentile: '90',
-    period: '1m',
   },
 };
 

@@ -101,11 +101,16 @@ export const DataSection = React.createClass({
     const statement = query.rawText || selectStatement(timeRange, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
 
     return (
-      <div className="query-editor kapacitor-metric-selector">
-        <div className="query-editor__code">
-          <pre className={classNames("", {"rq-mode": query.rawText})}><code>{statement}</code></pre>
+      <div className="kapacitor-rule-section">
+        <h3 className="rule-section-heading">Select a Time Series</h3>
+        <div className="rule-section-body">
+          <div className="query-editor kapacitor-metric-selector">
+            <div className="query-editor__code">
+              <pre className={classNames("", {"rq-mode": query.rawText})}><code>{statement}</code></pre>
+            </div>
+            {this.renderEditor()}
+          </div>
         </div>
-        {this.renderEditor()}
       </div>
     );
   },
