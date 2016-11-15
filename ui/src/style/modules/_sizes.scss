@@ -28,9 +28,10 @@ $explorer-page-padding: 18px;
 	background: linear-gradient(to right,  $startColor 0%,$endColor 100%);
 	filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=1 );
 }
+$scrollbar-width: 16px;
 @mixin custom-scrollbar($trackColor, $handleColor) {
 	&::-webkit-scrollbar {
-		width: 14px;
+		width: $scrollbar-width;
 		border-bottom-right-radius: $radius;
 
 		&-button {
@@ -42,13 +43,13 @@ $explorer-page-padding: 18px;
 		}
 		&-track-piece {
 			background-color: $trackColor;
-			border: 4px solid $trackColor;
-			border-radius: 8px;
+			border: ($scrollbar-width / 4) solid $trackColor;
+			border-radius: ($scrollbar-width / 2);
 		}
 		&-thumb {
 			background-color: $handleColor;
-			border: 4px solid $trackColor;
-			border-radius: 8px;
+			border: ($scrollbar-width / 4) solid $trackColor;
+			border-radius: ($scrollbar-width / 2);
 		}
 		&-corner {
 			background-color: $trackColor;
