@@ -41,10 +41,14 @@ type Store struct {
 
 	path string
 
+	// shared per-database indexes, only if using "inmem".
+	indexes map[string]interface{}
+
 	// shards is a map of shard IDs to the associated Shard.
 	shards map[uint64]*Shard
 
 	EngineOptions EngineOptions
+	IndexOptions  IndexOptions
 	Logger        *log.Logger
 
 	// logOutput is where output from the underlying databases will go.
@@ -58,12 +62,12 @@ type Store struct {
 // NewStore returns a new store with the given path and a default configuration.
 // The returned store must be initialized by calling Open before using it.
 func NewStore(path string) *Store {
-	opts := NewEngineOptions()
-
 	return &Store{
 		databases:     make(map[string]struct{}),
 		path:          path,
-		EngineOptions: opts,
+		indexes:       make(map[string]interface{}),
+		EngineOptions: NewEngineOptions(),
+		IndexOptions:  NewIndexOptions(),
 		Logger:        log.New(os.Stderr, "[store] ", log.LstdFlags),
 		logOutput:     os.Stderr,
 	}
@@ -171,6 +175,12 @@ func (s *Store) loadShards() error {
 			continue
 		}
 
+		// Retrieve database index.
+		idx, err := s.CreateIndexIfNotExists(db.Name())
+		if err != nil {
+			return err
+		}
+
 		// Load each retention policy within the database directory.
 		rpDirs, err := ioutil.ReadDir(filepath.Join(s.path, db.Name()))
 		if err != nil {
@@ -204,7 +214,12 @@ func (s *Store) loadShards() error {
 						return
 					}
 
-					shard := NewShard(shardID, path, walPath, s.EngineOptions)
+					// Copy index options and assign shared index.
+					idxopt := s.IndexOptions
+					idxopt.InmemIndex = idx
+
+					// Open engine.
+					shard := NewShard(shardID, path, walPath, s.EngineOptions, idxopt)
 					shard.SetLogOutput(s.logOutput)
 
 					err = shard.Open()
@@ -257,6 +272,23 @@ func (s *Store) Close() error {
 	s.shards = nil
 
 	return nil
+}
+
+// CreateIndexIfNotExists returns an in-memory index for a database.
+func (s *Store) CreateIndexIfNotExists(name string) (interface{}, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if idx := s.indexes[name]; idx != nil {
+		return idx, nil
+	}
+
+	idx, err := NewInmemIndex(name)
+	if err != nil {
+		return nil, err
+	}
+
+	s.indexes[name] = idx
+	return idx, nil
 }
 
 // Shard returns a shard by id.
@@ -319,8 +351,18 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 		return err
 	}
 
+	// Retrieve shared index, if needed.
+	idx, err := s.CreateIndexIfNotExists(database)
+	if err != nil {
+		return err
+	}
+
+	// Copy index options and pass in shared index.
+	idxopt := s.IndexOptions
+	idxopt.InmemIndex = idx
+
 	path := filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
-	shard := NewShard(shardID, path, walPath, s.EngineOptions)
+	shard := NewShard(shardID, path, walPath, s.EngineOptions, s.IndexOptions)
 	shard.SetLogOutput(s.logOutput)
 	shard.EnableOnOpen = enabled
 

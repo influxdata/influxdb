@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb/engine/tsi1"
+	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
 // Ensure a simple index file can be built and opened.

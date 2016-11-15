@@ -107,10 +107,12 @@ type Shard struct {
 	database        string
 	retentionPolicy string
 
-	options EngineOptions
+	engineOptions EngineOptions
+	indexOptions  IndexOptions
 
 	mu      sync.RWMutex
 	engine  Engine
+	index   Index
 	closing chan struct{}
 	enabled bool
 
@@ -126,14 +128,15 @@ type Shard struct {
 }
 
 // NewShard returns a new initialized Shard. walPath doesn't apply to the b1 type index
-func NewShard(id uint64, path string, walPath string, options EngineOptions) *Shard {
+func NewShard(id uint64, path string, walPath string, engineOptions EngineOptions, indexOptions IndexOptions) *Shard {
 	db, rp := decodeStorePath(path)
 	s := &Shard{
-		id:      id,
-		path:    path,
-		walPath: walPath,
-		options: options,
-		closing: make(chan struct{}),
+		id:            id,
+		path:          path,
+		walPath:       walPath,
+		engineOptions: engineOptions,
+		indexOptions:  indexOptions,
+		closing:       make(chan struct{}),
 
 		stats: &ShardStatistics{},
 		defaultTags: models.StatisticTags{
@@ -142,7 +145,7 @@ func NewShard(id uint64, path string, walPath string, options EngineOptions) *Sh
 			"id":              fmt.Sprintf("%d", id),
 			"database":        db,
 			"retentionPolicy": rp,
-			"engine":          options.EngineVersion,
+			"engine":          engineOptions.EngineVersion,
 		},
 
 		database:        db,
@@ -242,8 +245,21 @@ func (s *Shard) Open() error {
 			return nil
 		}
 
+		// Initialize underlying index.
+		ipath := filepath.Join(s.path, "index")
+		idx, err := NewIndex(s.id, ipath, s.indexOptions)
+		if err != nil {
+			return err
+		}
+
+		// Open index.
+		if err := idx.Open(); err != nil {
+			return err
+		}
+		s.index = idx
+
 		// Initialize underlying engine.
-		e, err := NewEngine(s.id, s.path, s.walPath, s.options)
+		e, err := NewEngine(s.id, idx, s.path, s.walPath, s.engineOptions)
 		if err != nil {
 			return err
 		}
@@ -298,6 +314,10 @@ func (s *Shard) close() error {
 	err := s.engine.Close()
 	if err == nil {
 		s.engine = nil
+	}
+
+	if e := s.index.Close(); e == nil {
+		s.index = nil
 	}
 	return err
 }
@@ -446,19 +466,10 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 
 	// add fields
 	for _, f := range fieldsToCreate {
-		m := s.engine.MeasurementFields(f.Measurement)
-
-		// Add the field to the in memory index
-		if err := m.CreateFieldIfNotExists(f.Field.Name, f.Field.Type, false); err != nil {
+		mf := s.engine.MeasurementFields(f.Measurement)
+		if err := mf.CreateFieldIfNotExists(f.Field.Name, f.Field.Type, false); err != nil {
 			return err
 		}
-
-		// // ensure the measurement is in the index and the field is there
-		// measurement, err := s.engine.CreateMeasurement(f.Measurement)
-		// if err != nil {
-		// 	return err
-		// }
-		// measurement.SetFieldName(f.Field.Name)
 	}
 
 	return nil
@@ -473,7 +484,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		reason         string
 	)
 
-	if s.options.Config.MaxValuesPerTag > 0 {
+	if s.engineOptions.Config.MaxValuesPerTag > 0 {
 		// Validate that all the new points would not exceed any limits, if so, we drop them
 		// and record why/increment counters
 		for i, p := range points {
@@ -490,10 +501,10 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 					}
 
 					n := m.CardinalityBytes(tag.Key)
-					if n >= s.options.Config.MaxValuesPerTag {
+					if n >= s.engineOptions.Config.MaxValuesPerTag {
 						dropPoint = true
 						reason = fmt.Sprintf("max-values-per-tag limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
-							n, s.options.Config.MaxValuesPerTag, m.Name, string(tag.Key), string(tag.Key))
+							n, s.engineOptions.Config.MaxValuesPerTag, m.Name, string(tag.Key), string(tag.Key))
 						break
 					}
 				}
@@ -539,32 +550,13 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 
 		iter.Reset()
 
-		// TODO(benbjohnson): Reimplement MaxSeriesPerDatabase?
-		/*
-			// see if the series should be added to the index
-			ss, err := s.engine.Series(p.Key())
-			if err != nil {
-				return nil, nil, err
-			}
-
-			if ss == nil {
-				sn, err := s.engine.SeriesN()
-				if err != nil {
-					return nil, nil, err
-				}
-
-				if s.options.Config.MaxSeriesPerDatabase > 0 && sn+1 > uint64(s.options.Config.MaxSeriesPerDatabase) {
-					atomic.AddInt64(&s.stats.WritePointsDropped, 1)
-					dropped += 1
-					reason = fmt.Sprintf("db %s max series limit reached: (%d/%d)", s.database, sn, s.options.Config.MaxSeriesPerDatabase)
-					continue
-				}
-
-				ss = NewSeries(p.Key(), tags)
-			}
-		*/
-
 		if err := s.engine.CreateSeriesIfNotExists([]byte(p.Name()), tags); err != nil {
+			if err, ok := err.(*LimitError); ok {
+				atomic.AddInt64(&s.stats.WritePointsDropped, 1)
+				dropped += 1
+				reason = err.Reason
+				continue
+			}
 			return nil, nil, err
 		}
 
@@ -863,14 +855,14 @@ func (s *Shard) monitor() {
 			}
 			atomic.StoreInt64(&s.stats.DiskBytes, size)
 		case <-t2.C:
-			if s.options.Config.MaxValuesPerTag == 0 {
+			if s.engineOptions.Config.MaxValuesPerTag == 0 {
 				continue
 			}
 
 			for _, m := range s.Measurements() {
 				for _, k := range m.TagKeys() {
 					n := m.Cardinality(k)
-					perc := int(float64(n) / float64(s.options.Config.MaxValuesPerTag) * 100)
+					perc := int(float64(n) / float64(s.engineOptions.Config.MaxValuesPerTag) * 100)
 					if perc > 100 {
 						perc = 100
 					}
@@ -878,7 +870,7 @@ func (s *Shard) monitor() {
 					// Log at 80, 85, 90-100% levels
 					if perc == 80 || perc == 85 || perc >= 90 {
 						s.logger.Printf("WARN: %d%% of max-values-per-tag limit exceeded: (%d/%d), db=%s shard=%d measurement=%s tag=%s",
-							perc, n, s.options.Config.MaxValuesPerTag, s.database, s.id, m.Name, k)
+							perc, n, s.engineOptions.Config.MaxValuesPerTag, s.database, s.id, m.Name, k)
 					}
 				})
 			}
@@ -1450,3 +1442,10 @@ func (itr *measurementKeysIterator) Next() (*influxql.FloatPoint, error) {
 		return p, nil
 	}
 }
+
+// LimitError represents an error caused by a configurable limit.
+type LimitError struct {
+	Reason string
+}
+
+func (e *LimitError) Error() string { return e.Reason }
