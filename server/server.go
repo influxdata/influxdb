@@ -150,7 +150,7 @@ func reportUsageStats(bi BuildInfo, logger chronograf.Logger) {
 	serverID := strconv.FormatUint(uint64(rand.Int63()), 10)
 	reporter := client.New("")
 	u := &client.Usage{
-		Product: "chronograf",
+		Product: "chronograf-ng",
 		Data: []client.UsageData{
 			{
 				Values: client.Values{
