@@ -11,7 +11,7 @@
 
 - [#7621](https://github.com/influxdata/influxdb/issues/7621): Expand string and boolean fields when using a wildcard with `sample()`.
 
-## v1.1.0 [unreleased]
+## v1.1.0 [2016-11-14]
 
 ### Release Notes
 
