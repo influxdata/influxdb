@@ -1,7 +1,8 @@
 import React, {PropTypes} from 'react';
 import AutoRefresh from 'shared/components/AutoRefresh';
 import LineGraph from 'shared/components/LineGraph';
-import ReactGridLayout from 'react-grid-layout';
+import ReactGridLayout, {WidthProvider} from 'react-grid-layout';
+const GridLayout = WidthProvider(ReactGridLayout);
 import _ from 'lodash';
 
 const RefreshingLineGraph = AutoRefresh(LineGraph);
@@ -99,9 +100,9 @@ export const LayoutRenderer = React.createClass({
 
   render() {
     return (
-      <ReactGridLayout layout={this.state.layout} isDraggable={false} isResizable={false} cols={12} rowHeight={90} width={1200}>
+      <GridLayout layout={this.state.layout} isDraggable={false} isResizable={false} cols={12} rowHeight={90} width={1200}>
         {this.generateGraphs()}
-      </ReactGridLayout>
+      </GridLayout>
     );
   },
 });
