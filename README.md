@@ -40,6 +40,7 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
 * IIS
 * etcd
 * Elastic
+* Varnish
 
 ### Data Explorer
 
