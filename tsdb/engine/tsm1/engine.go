@@ -784,8 +784,8 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 	// find the keys in the cache and remove them
 	walKeys := deleteKeys[:0]
 
-	// ApplyEntryFn cannot return an error in this invocation.
-	_ = e.Cache.ApplyEntryFn(func(k string, _ *entry) error {
+	// ApplySerialEntryFn cannot return an error in this invocation.
+	_ = e.Cache.ApplySerialEntryFn(func(k string, _ *entry) error {
 		seriesKey, _ := SeriesAndFieldFromCompositeKey([]byte(k))
 		if _, ok := keyMap[string(seriesKey)]; ok {
 			walKeys = append(walKeys, k)

@@ -99,8 +99,10 @@ func (e *entry) add(values []Value) error {
 	}
 
 	// entry currently has no values, so add the new ones and we're done.
-	// TODO(edd): I think this branch is unreachable. Need to verify.
-	if len(e.values) == 0 {
+	e.mu.RLock()
+	empty := len(e.values) == 0
+	e.mu.RUnlock()
+	if empty {
 		e.mu.Lock()
 		// Do the values need sorting?
 		if needSort {
@@ -121,7 +123,7 @@ func (e *entry) add(values []Value) error {
 	e.mu.RLock()
 	// What's the type of the values in the entry?
 	vtype := valueType(e.values[0])
-	// Are the new values occuring after the existing ones?
+	// Are the new values occurring after the existing ones?
 	if !needSort && e.values[len(e.values)-1].UnixNano() >= values[0].UnixNano() {
 		needSort = true
 	}
@@ -383,8 +385,11 @@ func (c *Cache) Snapshot() (*Cache, error) {
 		}
 	}
 
-	// Append the current cache values to the snapshot.
-	if err := c.store.apply(func(k string, e *entry) error {
+	// Append the current cache values to the snapshot. Because we're accessing
+	// the Cache we need to call f on each partition in serial.
+	if err := c.store.applySerial(func(k string, e *entry) error {
+		e.mu.RLock()
+		defer e.mu.RUnlock()
 		snapshotEntry, ok := c.snapshot.store.entry(k)
 		if ok {
 			if err := snapshotEntry.add(e.values); err != nil {
@@ -613,6 +618,13 @@ func (c *Cache) ApplyEntryFn(f func(key string, entry *entry) error) error {
 	store := c.store
 	c.mu.RUnlock()
 	return store.apply(f)
+}
+
+func (c *Cache) ApplySerialEntryFn(f func(key string, entry *entry) error) error {
+	c.mu.RLock()
+	store := c.store
+	c.mu.RUnlock()
+	return store.applySerial(f)
 }
 
 // CacheLoader processes a set of WAL segment files, and loads a cache with the data

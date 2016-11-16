@@ -137,9 +137,10 @@ func (r *ring) keys(sorted bool) []string {
 }
 
 // apply applies the provided function to every entry in the ring under a read
-// lock. The provided function will be called with each key and the
-// corresponding entry. The first error encountered will be returned, if any.
-// apply is safe for use by multiple goroutines.
+// lock using a separate goroutine for each partition. The provided function
+// will be called with each key and the corresponding entry. The first error
+// encountered will be returned, if any. apply is safe for use by multiple
+// goroutines.
 func (r *ring) apply(f func(string, *entry) error) error {
 
 	var (
@@ -175,6 +176,23 @@ func (r *ring) apply(f func(string, *entry) error) error {
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// applySerial is similar to apply, but invokes f on each partition in the same
+// goroutine.
+// apply is safe for use by multiple goroutines.
+func (r *ring) applySerial(f func(string, *entry) error) error {
+	for _, p := range r.partitions {
+		p.mu.RLock()
+		for k, e := range p.store {
+			if err := f(k, e); err != nil {
+				p.mu.RUnlock()
+				return err
+			}
+		}
+		p.mu.RUnlock()
 	}
 	return nil
 }
