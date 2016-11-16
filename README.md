@@ -66,6 +66,14 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
   * VictorOps
 * View all active alerts at a glance on the alerting dashboard
 
+## Versions
+
+Chronograf v1.1.0-alpha is an [alpha release](https://www.influxdata.com/announcing-the-new-chronograf-a-ui-for-the-tick-stack-and-a-complete-open-source-monitoring-solution/).
+We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
+
+Spotted a bug or have a feature request?
+Please open [an issue](https://github.com/influxdata/chronograf/issues/new)!
+
 ## Installation
 
 Check out the [INSTALLATION](https://github.com/influxdata/chronograf/blob/master/docs/INSTALLATION.md) guide to get up and running with Chronograf with as little configuration and code as possible.
