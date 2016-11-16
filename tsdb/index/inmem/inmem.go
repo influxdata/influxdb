@@ -16,6 +16,7 @@ import (
 	"regexp"
 	"sort"
 	"sync"
+	// "sync/atomic"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -143,17 +144,14 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, name []byte, tags models
 	if err != nil {
 		return err
 	}
-	if opt.Config.MaxSeriesPerDatabase > 0 && sn+1 > uint64(opt.Config.MaxSeriesPerDatabase) {
+	if opt.Config.MaxSeriesPerDatabase > 0 && n+1 > uint64(opt.Config.MaxSeriesPerDatabase) {
 		return &tsdb.LimitError{
-			Reason: fmt.Sprintf("max series limit reached: (%d/%d)", sn, opt.Config.MaxSeriesPerDatabase),
+			Reason: fmt.Sprintf("max-series-per-database limit exceeded: (%d/%d)", n, opt.Config.MaxSeriesPerDatabase),
 		}
 	}
 
 	// get or create the measurement index
-	m, err := i.CreateMeasurementIndexIfNotExists(string(name))
-	if err != nil {
-		return err
-	}
+	m := i.CreateMeasurementIndexIfNotExists(string(name))
 
 	i.mu.Lock()
 	// Check for the series again under a write lock
@@ -184,7 +182,7 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, name []byte, tags models
 
 // CreateMeasurementIndexIfNotExists creates or retrieves an in memory index
 // object for the measurement
-func (i *Index) CreateMeasurementIndexIfNotExists(name string) (*tsdb.Measurement, error) {
+func (i *Index) CreateMeasurementIndexIfNotExists(name string) *tsdb.Measurement {
 	name = escape.UnescapeString(name)
 
 	// See if the measurement exists using a read-lock
@@ -192,7 +190,7 @@ func (i *Index) CreateMeasurementIndexIfNotExists(name string) (*tsdb.Measuremen
 	m := i.measurements[name]
 	if m != nil {
 		i.mu.RUnlock()
-		return m, nil
+		return m
 	}
 	i.mu.RUnlock()
 
@@ -210,7 +208,7 @@ func (i *Index) CreateMeasurementIndexIfNotExists(name string) (*tsdb.Measuremen
 		// Add the measurement to the measurements sketch.
 		i.measurementsSketch.Add([]byte(name))
 	}
-	return m, nil
+	return m
 }
 
 // TagsForSeries returns the tag map for the passed in series
@@ -517,17 +515,82 @@ func (i *Index) TagSets(shardID uint64, name []byte, dimensions []string, condit
 	return tagSets, nil
 }
 
+// AssignShard update the index to indicate that series k exists in the given shardID.
+func (i *Index) AssignShard(k string, shardID uint64) {
+	ss, _ := i.Series([]byte(k))
+	if ss != nil {
+		ss.AssignShard(shardID)
+	}
+}
+
+// UnassignShard updates the index to indicate that series k does not exist in
+// the given shardID.
+func (i *Index) UnassignShard(k string, shardID uint64) {
+	ss, _ := i.Series([]byte(k))
+	if ss != nil {
+		if ss.Assigned(shardID) {
+			// Remove the shard from any series
+			ss.UnassignShard(shardID)
+
+			// If this series no longer has shards assigned, remove the series
+			if ss.ShardN() == 0 {
+				// Remove the series the measurements
+				ss.Measurement().DropSeries(ss)
+
+				// If the measurement no longer has any series, remove it as well
+				if !ss.Measurement().HasSeries() {
+					i.mu.Lock()
+					i.dropMeasurement(ss.Measurement().Name)
+					i.mu.Unlock()
+				}
+
+				// Remove the series key from the series index
+				i.mu.Lock()
+				delete(i.series, k)
+				// atomic.AddInt64(&i.stats.NumSeries, -1)
+				i.mu.Unlock()
+			}
+		}
+	}
+}
+
+func (i *Index) SeriesKeys() []string {
+	i.mu.RLock()
+	s := make([]string, 0, len(i.series))
+	for k := range i.series {
+		s = append(s, k)
+	}
+	i.mu.RUnlock()
+	return s
+}
+
+// SetFieldName adds a field name to a measurement.
+func (i *Index) SetFieldName(measurement, name string) {
+	m := i.CreateMeasurementIndexIfNotExists(measurement)
+	m.SetFieldName(name)
+}
+
+// RemoveShard removes all references to shardID from any series or measurements
+// in the index.  If the shard was the only owner of data for the series, the series
+// is removed from the index.
+func (i *Index) RemoveShard(shardID uint64) {
+	for _, k := range i.SeriesKeys() {
+		i.UnassignShard(k, shardID)
+	}
+}
+
 // Ensure index implements interface.
 var _ tsdb.Index = &ShardIndex{}
 
 // ShardIndex represents a wrapper around the shared Index.
 type ShardIndex struct {
 	*Index
-	id uint64
+	id  uint64
+	opt tsdb.EngineOptions
 }
 
 func (i *ShardIndex) CreateSeriesIfNotExists(name []byte, tags models.Tags) error {
-	return i.Index.CreateSeriesIfNotExists(i.id, name, tags)
+	return i.Index.CreateSeriesIfNotExists(i.id, name, tags, &i.opt)
 }
 
 // TagSets returns a list of tag sets based on series filtering.
@@ -536,9 +599,10 @@ func (i *ShardIndex) TagSets(name []byte, dimensions []string, condition influxq
 }
 
 // NewShardIndex returns a new index for a shard.
-func NewShardIndex(id uint64, path string, options tsdb.IndexOptions) tsdb.Index {
+func NewShardIndex(id uint64, path string, opt tsdb.EngineOptions) tsdb.Index {
 	return &ShardIndex{
-		Index: options.InmemIndex.(*Index),
+		Index: opt.InmemIndex.(*Index),
 		id:    id,
+		opt:   opt,
 	}
 }

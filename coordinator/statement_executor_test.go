@@ -233,7 +233,7 @@ type TSDBStore struct {
 	DeleteRetentionPolicyFn func(database, name string) error
 	DeleteShardFn           func(id uint64) error
 	DeleteSeriesFn          func(database string, sources []influxql.Source, condition influxql.Expr) error
-	DatabaseIndexFn         func(name string) *tsdb.DatabaseIndex
+	DatabaseIndexFn         func(name string) tsdb.Index
 	ShardIteratorCreatorFn  func(id uint64) influxql.IteratorCreator
 }
 
@@ -301,7 +301,7 @@ func (s *TSDBStore) ShardIteratorCreator(id uint64) influxql.IteratorCreator {
 	return s.ShardIteratorCreatorFn(id)
 }
 
-func (s *TSDBStore) DatabaseIndex(name string) *tsdb.DatabaseIndex {
+func (s *TSDBStore) DatabaseIndex(name string) tsdb.Index {
 	return s.DatabaseIndexFn(name)
 }
 

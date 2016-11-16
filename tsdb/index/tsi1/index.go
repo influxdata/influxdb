@@ -722,6 +722,11 @@ func (i *Index) seriesByBinaryExprVarRefIterator(name, key []byte, value *influx
 	), nil
 }
 
+func (i *Index) SetFieldName(measurement, name string)  {}
+func (i *Index) RemoveShard(shardID uint64)             {}
+func (i *Index) AssignShard(k string, shardID uint64)   {}
+func (i *Index) UnassignShard(k string, shardID uint64) {}
+
 // File represents a log or index file.
 type File interface {
 	Series(name []byte, tags models.Tags) SeriesElem

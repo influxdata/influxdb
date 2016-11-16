@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,7 +49,6 @@ type Store struct {
 	shards map[uint64]*Shard
 
 	EngineOptions EngineOptions
-	IndexOptions  IndexOptions
 	Logger        *log.Logger
 
 	// logOutput is where output from the underlying databases will go.
@@ -67,7 +67,6 @@ func NewStore(path string) *Store {
 		path:          path,
 		indexes:       make(map[string]interface{}),
 		EngineOptions: NewEngineOptions(),
-		IndexOptions:  NewIndexOptions(),
 		Logger:        log.New(os.Stderr, "[store] ", log.LstdFlags),
 		logOutput:     os.Stderr,
 	}
@@ -176,7 +175,7 @@ func (s *Store) loadShards() error {
 		}
 
 		// Retrieve database index.
-		idx, err := s.CreateIndexIfNotExists(db.Name())
+		idx, err := s.createIndexIfNotExists(db.Name())
 		if err != nil {
 			return err
 		}
@@ -214,12 +213,12 @@ func (s *Store) loadShards() error {
 						return
 					}
 
-					// Copy index options and assign shared index.
-					idxopt := s.IndexOptions
-					idxopt.InmemIndex = idx
+					// Copy options and assign shared index.
+					opt := s.EngineOptions
+					opt.InmemIndex = idx
 
 					// Open engine.
-					shard := NewShard(shardID, path, walPath, s.EngineOptions, idxopt)
+					shard := NewShard(shardID, path, walPath, opt)
 					shard.SetLogOutput(s.logOutput)
 
 					err = shard.Open()
@@ -278,6 +277,10 @@ func (s *Store) Close() error {
 func (s *Store) CreateIndexIfNotExists(name string) (interface{}, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.createIndexIfNotExists(name)
+}
+
+func (s *Store) createIndexIfNotExists(name string) (interface{}, error) {
 	if idx := s.indexes[name]; idx != nil {
 		return idx, nil
 	}
@@ -352,17 +355,17 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 	}
 
 	// Retrieve shared index, if needed.
-	idx, err := s.CreateIndexIfNotExists(database)
+	idx, err := s.createIndexIfNotExists(database)
 	if err != nil {
 		return err
 	}
 
 	// Copy index options and pass in shared index.
-	idxopt := s.IndexOptions
-	idxopt.InmemIndex = idx
+	opt := s.EngineOptions
+	opt.InmemIndex = idx
 
 	path := filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
-	shard := NewShard(shardID, path, walPath, s.EngineOptions, s.IndexOptions)
+	shard := NewShard(shardID, path, walPath, opt)
 	shard.SetLogOutput(s.logOutput)
 	shard.EnableOnOpen = enabled
 
@@ -403,6 +406,11 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	if sh == nil {
 		return nil
 	}
+
+	// Remove the shard from the database indexes before closing the shard.
+	// Closing the shard will do this as well, but it will unload it while
+	// the shard is locked which can block stats collection and other calls.
+	sh.UnloadIndex()
 
 	if err := sh.Close(); err != nil {
 		return err
@@ -740,82 +748,78 @@ func (s *Store) ShardRelativePath(id uint64) (string, error) {
 // DeleteSeries loops through the local shards and deletes the series data for
 // the passed in series keys.
 func (s *Store) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error {
-	panic("MOVE TO TSI")
+	// Expand regex expressions in the FROM clause.
+	a, err := s.ExpandSources(sources)
+	if err != nil {
+		return err
+	} else if sources != nil && len(sources) != 0 && len(a) == 0 {
+		return nil
+	}
+	sources = a
 
-	/*
-		// Expand regex expressions in the FROM clause.
-		a, err := s.ExpandSources(sources)
-		if err != nil {
-			return err
-		} else if sources != nil && len(sources) != 0 && len(a) == 0 {
-			return nil
+	// Determine deletion time range.
+	min, max, err := influxql.TimeRangeAsEpochNano(condition)
+	if err != nil {
+		return err
+	}
+
+	s.mu.RLock()
+	shards := s.filterShards(byDatabase(database))
+	s.mu.RUnlock()
+
+	mMap := make(map[string]*Measurement)
+	for _, shard := range shards {
+		shardMeasures := shard.Measurements()
+		for _, m := range shardMeasures {
+			mMap[m.Name] = m
 		}
-		sources = a
+	}
 
-		// Determine deletion time range.
-		min, max, err := influxql.TimeRangeAsEpochNano(condition)
-		if err != nil {
-			return err
-		}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
-		s.mu.RLock()
-		shards := s.filterShards(byDatabase(database))
-		s.mu.RUnlock()
+	measurements, err := measurementsFromSourcesOrDB(mMap, sources...)
+	if err != nil {
+		return err
+	}
 
-		mMap := make(map[string]*Measurement)
-		for _, shard := range shards {
-			shardMeasures := shard.Measurements()
-			for _, m := range shardMeasures {
-				mMap[m.Name] = m
-			}
-		}
-
-		s.mu.RLock()
-		defer s.mu.RUnlock()
-
-		measurements, err := measurementsFromSourcesOrDB(mMap, sources...)
-		if err != nil {
-			return err
-		}
-
-		var seriesKeys [][]byte
-		for _, m := range measurements {
-			var ids SeriesIDs
-			var filters FilterExprs
-			if condition != nil {
-				// Get series IDs that match the WHERE clause.
-				ids, filters, err = m.walkWhereForSeriesIds(condition)
-				if err != nil {
-					return err
-				}
-
-				// Delete boolean literal true filter expressions.
-				// These are returned for `WHERE tagKey = 'tagVal'` type expressions and are okay.
-				filters.DeleteBoolLiteralTrues()
-
-				// Check for unsupported field filters.
-				// Any remaining filters means there were fields (e.g., `WHERE value = 1.2`).
-				if filters.Len() > 0 {
-					return errors.New("fields not supported in WHERE clause during deletion")
-				}
-			} else {
-				// No WHERE clause so get all series IDs for this measurement.
-				ids = m.seriesIDs
-			}
-
-			for _, id := range ids {
-				seriesKeys = append(seriesKeys, []byte(m.seriesByID[id].Key))
-			}
-		}
-
-		// delete the raw series data.
-		return s.walkShards(shards, func(sh *Shard) error {
-			if err := sh.DeleteSeriesRange(seriesKeys, min, max); err != nil {
+	var seriesKeys [][]byte
+	for _, m := range measurements {
+		var ids SeriesIDs
+		var filters FilterExprs
+		if condition != nil {
+			// Get series IDs that match the WHERE clause.
+			ids, filters, err = m.walkWhereForSeriesIds(condition)
+			if err != nil {
 				return err
 			}
-			return nil
-		})
-	*/
+
+			// Delete boolean literal true filter expressions.
+			// These are returned for `WHERE tagKey = 'tagVal'` type expressions and are okay.
+			filters.DeleteBoolLiteralTrues()
+
+			// Check for unsupported field filters.
+			// Any remaining filters means there were fields (e.g., `WHERE value = 1.2`).
+			if filters.Len() > 0 {
+				return errors.New("fields not supported in WHERE clause during deletion")
+			}
+		} else {
+			// No WHERE clause so get all series IDs for this measurement.
+			ids = m.seriesIDs
+		}
+
+		for _, id := range ids {
+			seriesKeys = append(seriesKeys, []byte(m.seriesByID[id].Key))
+		}
+	}
+
+	// delete the raw series data.
+	return s.walkShards(shards, func(sh *Shard) error {
+		if err := sh.DeleteSeriesRange(seriesKeys, min, max); err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 // ExpandSources expands sources against all local shards.
@@ -926,114 +930,110 @@ type TagValues struct {
 }
 
 func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, error) {
-	panic("MOVE TO TSI")
+	if cond == nil {
+		return nil, errors.New("a condition is required")
+	}
 
-	/*
-		if cond == nil {
-			return nil, errors.New("a condition is required")
-		}
-
-		measurementExpr := influxql.CloneExpr(cond)
-		measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
-			switch e := e.(type) {
-			case *influxql.BinaryExpr:
-				switch e.Op {
-				case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-					tag, ok := e.LHS.(*influxql.VarRef)
-					if !ok || tag.Val != "_name" {
-						return nil
-					}
+	measurementExpr := influxql.CloneExpr(cond)
+	measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				if !ok || tag.Val != "_name" {
+					return nil
 				}
 			}
-			return e
-		}), nil)
+		}
+		return e
+	}), nil)
 
-		// Get all measurements for the shards we're interested in.
-		s.mu.RLock()
-		shards := s.filterShards(byDatabase(database))
-		s.mu.RUnlock()
+	// Get all measurements for the shards we're interested in.
+	s.mu.RLock()
+	shards := s.filterShards(byDatabase(database))
+	s.mu.RUnlock()
 
-		var measures Measurements
-		for _, sh := range shards {
-			mms, ok, err := sh.MeasurementsByExpr(measurementExpr)
-			if err != nil {
-				return nil, err
-			} else if !ok {
-				// TODO(edd): can we simplify this so we don't have to check the
-				// ok value, and we can call sh.measurements with a shard filter
-				// instead?
-				mms = sh.Measurements()
-			}
-
-			measures = append(measures, mms...)
+	var measures Measurements
+	for _, sh := range shards {
+		mms, ok, err := sh.MeasurementsByExpr(measurementExpr)
+		if err != nil {
+			return nil, err
+		} else if !ok {
+			// TODO(edd): can we simplify this so we don't have to check the
+			// ok value, and we can call sh.measurements with a shard filter
+			// instead?
+			mms = sh.Measurements()
 		}
 
-		// If there are no measurements, return immediately.
-		if len(measures) == 0 {
-			return nil, nil
-		}
-		sort.Sort(measures)
+		measures = append(measures, mms...)
+	}
 
-		filterExpr := influxql.CloneExpr(cond)
-		filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
-			switch e := e.(type) {
-			case *influxql.BinaryExpr:
-				switch e.Op {
-				case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-					tag, ok := e.LHS.(*influxql.VarRef)
-					if !ok || strings.HasPrefix(tag.Val, "_") {
-						return nil
-					}
+	// If there are no measurements, return immediately.
+	if len(measures) == 0 {
+		return nil, nil
+	}
+	sort.Sort(measures)
+
+	filterExpr := influxql.CloneExpr(cond)
+	filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
+		switch e := e.(type) {
+		case *influxql.BinaryExpr:
+			switch e.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+				tag, ok := e.LHS.(*influxql.VarRef)
+				if !ok || strings.HasPrefix(tag.Val, "_") {
+					return nil
 				}
 			}
-			return e
-		}), nil)
+		}
+		return e
+	}), nil)
 
-		tagValues := make([]TagValues, len(measures))
-		for i, mm := range measures {
-			tagValues[i].Measurement = mm.Name
+	tagValues := make([]TagValues, len(measures))
+	for i, mm := range measures {
+		tagValues[i].Measurement = mm.Name
 
-			ids, err := mm.SeriesIDsAllOrByExpr(filterExpr)
-			if err != nil {
-				return nil, err
-			}
-			ss := mm.SeriesByIDSlice(ids)
+		ids, err := mm.SeriesIDsAllOrByExpr(filterExpr)
+		if err != nil {
+			return nil, err
+		}
+		ss := mm.SeriesByIDSlice(ids)
 
-			// Determine a list of keys from condition.
-			keySet, ok, err := mm.TagKeysByExpr(cond)
-			if err != nil {
-				return nil, err
-			}
-
-			// Loop over all keys for each series.
-			m := make(map[KeyValue]struct{}, len(ss))
-			for _, series := range ss {
-				for _, t := range series.Tags {
-					if !ok {
-						// nop
-					} else if _, exists := keySet[string(t.Key)]; !exists {
-						continue
-					}
-					m[KeyValue{string(t.Key), string(t.Value)}] = struct{}{}
-				}
-			}
-
-			// Return an empty slice if there are no key/value matches.
-			if len(m) == 0 {
-				continue
-			}
-
-			// Sort key/value set.
-			a := make([]KeyValue, 0, len(m))
-			for kv := range m {
-				a = append(a, kv)
-			}
-			sort.Sort(KeyValues(a))
-			tagValues[i].Values = a
+		// Determine a list of keys from condition.
+		keySet, ok, err := mm.TagKeysByExpr(cond)
+		if err != nil {
+			return nil, err
 		}
 
-		return tagValues, nil
-	*/
+		// Loop over all keys for each series.
+		m := make(map[KeyValue]struct{}, len(ss))
+		for _, series := range ss {
+			for _, t := range series.Tags {
+				if !ok {
+					// nop
+				} else if _, exists := keySet[string(t.Key)]; !exists {
+					continue
+				}
+				m[KeyValue{string(t.Key), string(t.Value)}] = struct{}{}
+			}
+		}
+
+		// Return an empty slice if there are no key/value matches.
+		if len(m) == 0 {
+			continue
+		}
+
+		// Sort key/value set.
+		a := make([]KeyValue, 0, len(m))
+		for kv := range m {
+			a = append(a, kv)
+		}
+		sort.Sort(KeyValues(a))
+		tagValues[i].Values = a
+	}
+
+	return tagValues, nil
 }
 
 type KeyValue struct {

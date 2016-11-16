@@ -31,8 +31,10 @@ import (
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
 	client "github.com/influxdata/usage-client/v1"
-	// Initialize the engine packages
+
+	// Initialize the engine & index packages
 	_ "github.com/influxdata/influxdb/tsdb/engine"
+	_ "github.com/influxdata/influxdb/tsdb/index"
 )
 
 var startTime time.Time

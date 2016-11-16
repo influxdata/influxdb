@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
+	"github.com/influxdata/influxdb/tsdb/index/inmem"
 )
 
 /*
@@ -156,7 +157,7 @@ func TestEngine_Backup(t *testing.T) {
 	p3 := MustParsePointString("cpu,host=C value=1.3 3000000000")
 
 	// Write those points to the engine.
-	e := tsm1.NewEngine(1, f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
+	e := tsm1.NewEngine(1, NewIndex(), f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -230,10 +231,9 @@ func TestEngine_CreateIterator_Cache_Ascending(t *testing.T) {
 	e := MustOpenEngine()
 	defer e.Close()
 
-	e.CreateMeasurement("cpu")
+	// e.CreateMeasurement("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-	si, _ := e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
-	si.AssignShard(1)
+	e.CreateSeriesIfNotExists([]byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A value=1.2 2000000000`,
@@ -284,9 +284,8 @@ func TestEngine_CreateIterator_Cache_Descending(t *testing.T) {
 	e := MustOpenEngine()
 	defer e.Close()
 
-	e.CreateMeasurement("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-	e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
+	e.CreateSeriesIfNotExists([]byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A value=1.2 2000000000`,
@@ -337,9 +336,8 @@ func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 	e := MustOpenEngine()
 	defer e.Close()
 
-	e.CreateMeasurement("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-	e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
+	e.CreateSeriesIfNotExists([]byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A value=1.2 2000000000`,
@@ -391,9 +389,8 @@ func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 	e := MustOpenEngine()
 	defer e.Close()
 
-	e.CreateMeasurement("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-	e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
+	e.CreateSeriesIfNotExists([]byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A value=1.2 2000000000`,
@@ -445,10 +442,9 @@ func TestEngine_CreateIterator_Aux(t *testing.T) {
 	e := MustOpenEngine()
 	defer e.Close()
 
-	e.CreateMeasurement("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("F", influxql.Float, false)
-	e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
+	e.CreateSeriesIfNotExists([]byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A F=100 1000000000`,
@@ -502,14 +498,13 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 	e := MustOpenEngine()
 	defer e.Close()
 
-	e.CreateMeasurement("cpu")
 	e.MustMeasurement("cpu").SetFieldName("X")
 	e.MustMeasurement("cpu").SetFieldName("Y")
 
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("X", influxql.Float, false)
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("Y", influxql.Float, false)
-	e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
+	e.CreateSeriesIfNotExists([]byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A X=10 1000000000`,
@@ -572,7 +567,7 @@ func TestEngine_DeleteSeries(t *testing.T) {
 	p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
 	// Write those points to the engine.
-	e := tsm1.NewEngine(f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
+	e := tsm1.NewEngine(1, NewIndex(), f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
 	// e.LoadMetadataIndex(1, MustNewDatabaseIndex("db0")) // Initialise an index
 
 	// mock the planner so compactions don't run during the test
@@ -700,7 +695,6 @@ func benchmarkEngine_WritePoints(b *testing.B, batchSize int) {
 	e := MustOpenEngine()
 	defer e.Close()
 
-	e.CreateMeasurement("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
 
 	pp := make([]models.Point, 0, batchSize)
@@ -774,9 +768,8 @@ func MustInitBenchmarkEngine(pointN int) *Engine {
 	e := MustOpenEngine()
 
 	// Initialize metadata.
-	e.CreateMeasurement("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-	e.CreateSeries("cpu", tsdb.NewSeries([]byte("cpu,host=A"), models.NewTags(map[string]string{"host": "A"})))
+	e.CreateSeriesIfNotExists([]byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 
 	// Generate time ascending points with jitterred time & value.
 	rand := rand.New(rand.NewSource(0))
@@ -826,6 +819,7 @@ func NewEngine() *Engine {
 	}
 	return &Engine{
 		Engine: tsm1.NewEngine(1,
+			NewIndex(),
 			filepath.Join(root, "data"),
 			filepath.Join(root, "wal"),
 			tsdb.NewEngineOptions()).(*tsm1.Engine),
@@ -858,6 +852,7 @@ func (e *Engine) Reopen() error {
 	}
 
 	e.Engine = tsm1.NewEngine(1,
+		NewIndex(),
 		filepath.Join(e.root, "data"),
 		filepath.Join(e.root, "wal"),
 		tsdb.NewEngineOptions()).(*tsm1.Engine)
@@ -928,4 +923,13 @@ func ParseTags(s string) influxql.Tags {
 		m[a[0]] = a[1]
 	}
 	return influxql.NewTags(m)
+}
+
+func NewIndex() tsdb.Index {
+	idx, err := inmem.NewIndex("db")
+	if err != nil {
+		panic(err)
+	}
+	opt := tsdb.NewEngineOptions()
+	return &inmem.NewShardIndex(1, "", opt)
 }

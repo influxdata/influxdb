@@ -670,6 +670,11 @@ func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType, inde
 	if err := mf.CreateFieldIfNotExists(field, fieldType, false); err != nil {
 		return err
 	}
+
+	_, tags, _ := models.ParseKey(key)
+	if err := e.index.CreateSeriesIfNotExists([]byte(name), tags); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -824,27 +829,37 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		return err
 	}
 
-	var toDelete [][]byte
 	for k, exists := range existing {
 		if !exists {
-			toDelete = append(toDelete, []byte(k))
+			e.index.UnassignShard(k, e.id)
 		}
 	}
-	return e.index.DropSeries(toDelete)
+
+	return nil
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
-func (e *Engine) DeleteMeasurement(name []byte, seriesKeys [][]byte) error {
+func (e *Engine) DeleteMeasurement(name []byte) error {
 	e.mu.Lock()
 	delete(e.measurementFields, string(name))
 	e.mu.Unlock()
 
-	if err := e.deleteSeries(seriesKeys); err != nil {
+	// Attempt to find the series keys.
+	m, err := e.Measurement(name)
+	if err != nil {
 		return err
+	} else if m != nil {
+		if err := e.deleteSeries(m.SeriesKeys()); err != nil {
+			return err
+		}
+		return nil
 	}
 
 	// Remove the measurement from the index.
-	return e.index.DropMeasurement(name)
+	if err := e.index.DropMeasurement(name); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (e *Engine) CreateSeriesIfNotExists(name []byte, tags models.Tags) error {
