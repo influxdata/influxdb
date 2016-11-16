@@ -32,6 +32,12 @@ type Index interface {
 	Dereference(b []byte)
 
 	TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error)
+
+	// To be removed w/ tsi1.
+	SetFieldName(measurement, name string)
+	AssignShard(k string, shardID uint64)
+	UnassignShard(k string, shardID uint64)
+	RemoveShard(shardID uint64)
 }
 
 // IndexFormat represents the format for an index.
@@ -46,7 +52,7 @@ const (
 )
 
 // NewIndexFunc creates a new index.
-type NewIndexFunc func(id uint64, path string, options IndexOptions) Index
+type NewIndexFunc func(id uint64, path string, options EngineOptions) Index
 
 // newIndexFuncs is a lookup of index constructors by name.
 var newIndexFuncs = make(map[string]NewIndexFunc)
@@ -71,7 +77,7 @@ func RegisteredIndexes() []string {
 
 // NewIndex returns an instance of an index based on its format.
 // If the path does not exist then the DefaultFormat is used.
-func NewIndex(id uint64, path string, options IndexOptions) (Index, error) {
+func NewIndex(id uint64, path string, options EngineOptions) (Index, error) {
 	// Create a new index.
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return newIndexFuncs[options.IndexVersion](id, path, options), nil
@@ -87,23 +93,6 @@ func NewIndex(id uint64, path string, options IndexOptions) (Index, error) {
 	}
 
 	return fn(id, path, options), nil
-}
-
-// IndexOptions represents the options used to initialize the index.
-type IndexOptions struct {
-	IndexVersion string
-	ShardID      uint64
-	InmemIndex   interface{} // shared in-memory index
-
-	Config Config
-}
-
-// NewIndexOptions returns the default options.
-func NewIndexOptions() IndexOptions {
-	return IndexOptions{
-		IndexVersion: DefaultIndex,
-		Config:       NewConfig(),
-	}
 }
 
 // NewInmemIndex returns a new "inmem" index type.

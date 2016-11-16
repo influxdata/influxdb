@@ -30,13 +30,11 @@ func TestShardWriteAndIndex(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	eopts := tsdb.NewEngineOptions()
-	eopts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.InmemIndex = MustNewInmemIndex("db")
 
-	iopts := tsdb.NewIndexOptions()
-	iopts.InmemIndex = MustNewInmemIndex("db")
-
-	sh := tsdb.NewShard(1, tmpShard, tmpWal, eopts, iopts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 
 	// Calling WritePoints when the engine is not open will return
 	// ErrEngineClosed.
@@ -80,7 +78,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 	// ensure the index gets loaded after closing and opening the shard
 	sh.Close()
 
-	sh = tsdb.NewShard(1, tmpShard, tmpWal, eopts, iopts)
+	sh = tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
 	}
@@ -101,13 +99,12 @@ func TestMaxSeriesLimit(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "db", "rp", "1")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	eopts := tsdb.NewEngineOptions()
-	eopts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	eopts.Config.MaxSeriesPerDatabase = 1000
-	iopts := tsdb.NewIndexOptions()
-	iopts.InmemIndex = MustNewInmemIndex("db")
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.Config.MaxSeriesPerDatabase = 1000
+	opts.InmemIndex = MustNewInmemIndex("db")
 
-	sh := tsdb.NewShard(1, tmpShard, tmpWal, eopts, iopts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
@@ -142,7 +139,7 @@ func TestMaxSeriesLimit(t *testing.T) {
 	err = sh.WritePoints([]models.Point{pt})
 	if err == nil {
 		t.Fatal("expected error")
-	} else if exp, got := `max-series-per-database limit exceeded: db=db (1000/1000) dropped=1`, err.Error(); exp != got {
+	} else if exp, got := `db=db: max-series-per-database limit exceeded: (1000/1000) dropped=1`, err.Error(); exp != got {
 		t.Fatalf("unexpected error message:\n\texp = %s\n\tgot = %s", exp, got)
 	}
 
@@ -155,13 +152,12 @@ func TestShard_MaxTagValuesLimit(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "db", "rp", "1")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	eopts := tsdb.NewEngineOptions()
-	eopts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	eopts.Config.MaxValuesPerTag = 1000
-	iopts := tsdb.NewIndexOptions()
-	iopts.InmemIndex = MustNewInmemIndex("db")
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.Config.MaxValuesPerTag = 1000
+	opts.InmemIndex = MustNewInmemIndex("db")
 
-	sh := tsdb.NewShard(1, tmpShard, tmpWal, eopts, iopts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
@@ -209,12 +205,11 @@ func TestWriteTimeTag(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	eopts := tsdb.NewEngineOptions()
-	eopts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	iopts := tsdb.NewIndexOptions()
-	iopts.InmemIndex = MustNewInmemIndex("db")
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.InmemIndex = MustNewInmemIndex("db")
 
-	sh := tsdb.NewShard(1, tmpShard, tmpWal, eopts, iopts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
 	}
@@ -255,12 +250,12 @@ func TestWriteTimeTag(t *testing.T) {
 		t.Fatalf("unexpected log message: %s", strings.TrimSpace(got))
 	}
 
-	m = sh.Measurement([]byte("cpu"))
-	if m == nil {
-		t.Fatal("expected cpu measurement")
+	mf := sh.MeasurementFields([]byte("cpu"))
+	if mf == nil {
+		t.Fatal("expected cpu measurement fields")
 	}
 
-	if got, exp := len(m.FieldNames()), 1; got != exp {
+	if got, exp := mf.FieldN(), 1; got != exp {
 		t.Fatalf("invalid number of field names: got=%v exp=%v", got, exp)
 	}
 }
@@ -271,12 +266,11 @@ func TestWriteTimeField(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	eopts := tsdb.NewEngineOptions()
-	eopts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	iopts := tsdb.NewIndexOptions()
-	iopts.InmemIndex = MustNewInmemIndex("db")
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.InmemIndex = MustNewInmemIndex("db")
 
-	sh := tsdb.NewShard(1, tmpShard, tmpWal, eopts, iopts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
 	}
@@ -304,12 +298,11 @@ func TestShardWriteAddNewField(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	eopts := tsdb.NewEngineOptions()
-	eopts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	iopts := tsdb.NewIndexOptions()
-	iopts.InmemIndex = MustNewInmemIndex("db")
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.InmemIndex = MustNewInmemIndex("db")
 
-	sh := tsdb.NewShard(1, tmpShard, tmpWal, eopts, iopts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
 	}
@@ -359,12 +352,11 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	eopts := tsdb.NewEngineOptions()
-	eopts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	iopts := tsdb.NewIndexOptions()
-	iopts.InmemIndex = MustNewInmemIndex("db")
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.InmemIndex = MustNewInmemIndex("db")
 
-	sh := tsdb.NewShard(1, tmpShard, tmpWal, eopts, iopts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
 	}
@@ -431,12 +423,11 @@ func TestShard_Close_RemoveIndex(t *testing.T) {
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
 
-	eopts := tsdb.NewEngineOptions()
-	eopts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	iopts := tsdb.NewIndexOptions()
-	iopts.InmemIndex = MustNewInmemIndex("db")
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.InmemIndex = MustNewInmemIndex("db")
 
-	sh := tsdb.NewShard(1, tmpShard, tmpWal, eopts, iopts)
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 	if err := sh.Open(); err != nil {
 		t.Fatalf("error opening shard: %s", err.Error())
 	}
@@ -835,7 +826,7 @@ func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 		tmpDir, _ := ioutil.TempDir("", "shard_test")
 		tmpShard := path.Join(tmpDir, "shard")
 		tmpWal := path.Join(tmpDir, "wal")
-		shard := tsdb.NewShard(1, tmpShard, tmpWal, tsdb.NewEngineOptions(), tsdb.NewIndexOptions())
+		shard := tsdb.NewShard(1, tmpShard, tmpWal, tsdb.NewEngineOptions())
 		shard.Open()
 
 		b.StartTimer()
@@ -869,7 +860,7 @@ func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt
 	defer os.RemoveAll(tmpDir)
 	tmpShard := path.Join(tmpDir, "shard")
 	tmpWal := path.Join(tmpDir, "wal")
-	shard := tsdb.NewShard(1, tmpShard, tmpWal, tsdb.NewEngineOptions(), tsdb.NewIndexOptions())
+	shard := tsdb.NewShard(1, tmpShard, tmpWal, tsdb.NewEngineOptions())
 	shard.Open()
 	defer shard.Close()
 	chunkedWrite(shard, points)
@@ -925,16 +916,15 @@ func NewShard() *Shard {
 	}
 
 	// Build engine options.
-	eopt := tsdb.NewEngineOptions()
-	eopt.Config.WALDir = filepath.Join(path, "wal")
-	iopt := tsdb.NewIndexOptions()
-	iopt.InmemIndex = MustNewInmemIndex("db")
+	opt := tsdb.NewEngineOptions()
+	opt.Config.WALDir = filepath.Join(path, "wal")
+	opt.InmemIndex = MustNewInmemIndex("db")
 
 	return &Shard{
 		Shard: tsdb.NewShard(0,
 			filepath.Join(path, "data", "db0", "rp0", "1"),
 			filepath.Join(path, "wal", "db0", "rp0", "1"),
-			eopt, iopt,
+			opt,
 		),
 		path: path,
 	}

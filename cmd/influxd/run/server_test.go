@@ -5684,7 +5684,7 @@ func TestServer_Query_DropAndRecreateMeasurement(t *testing.T) {
 		&Query{
 			name:    "Drop non-existant measurement",
 			command: `DROP MEASUREMENT doesntexist`,
-			exp:     `{"results":[{"statement_id":0,"error":"shard 1: measurement not found: doesntexist"}]}`,
+			exp:     `{"results":[{}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)

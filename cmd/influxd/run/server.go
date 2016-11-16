@@ -32,8 +32,10 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	client "github.com/influxdata/usage-client/v1"
 	"go.uber.org/zap"
-	// Initialize the engine packages
+
+	// Initialize the engine & index packages
 	_ "github.com/influxdata/influxdb/tsdb/engine"
+	_ "github.com/influxdata/influxdb/tsdb/index"
 )
 
 var startTime time.Time

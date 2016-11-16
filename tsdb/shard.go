@@ -109,8 +109,7 @@ type Shard struct {
 	database        string
 	retentionPolicy string
 
-	engineOptions EngineOptions
-	indexOptions  IndexOptions
+	options EngineOptions
 
 	mu      sync.RWMutex
 	engine  Engine
@@ -129,17 +128,16 @@ type Shard struct {
 }
 
 // NewShard returns a new initialized Shard. walPath doesn't apply to the b1 type index
-func NewShard(id uint64, path string, walPath string, engineOptions EngineOptions, indexOptions IndexOptions) *Shard {
+func NewShard(id uint64, path string, walPath string, opt EngineOptions) *Shard {
 	db, rp := decodeStorePath(path)
 	logger := zap.New(zap.NullEncoder())
 
 	s := &Shard{
-		id:            id,
-		path:          path,
-		walPath:       walPath,
-		engineOptions: engineOptions,
-		indexOptions:  indexOptions,
-		closing:       make(chan struct{}),
+		id:      id,
+		path:    path,
+		walPath: walPath,
+		options: opt,
+		closing: make(chan struct{}),
 
 		stats: &ShardStatistics{},
 		defaultTags: models.StatisticTags{
@@ -148,7 +146,7 @@ func NewShard(id uint64, path string, walPath string, engineOptions EngineOption
 			"id":              fmt.Sprintf("%d", id),
 			"database":        db,
 			"retentionPolicy": rp,
-			"engine":          engineOptions.EngineVersion,
+			"engine":          opt.EngineVersion,
 		},
 
 		database:        db,
@@ -247,7 +245,7 @@ func (s *Shard) Open() error {
 
 		// Initialize underlying index.
 		ipath := filepath.Join(s.path, "index")
-		idx, err := NewIndex(s.id, ipath, s.indexOptions)
+		idx, err := NewIndex(s.id, ipath, s.options)
 		if err != nil {
 			return err
 		}
@@ -259,7 +257,7 @@ func (s *Shard) Open() error {
 		s.index = idx
 
 		// Initialize underlying engine.
-		e, err := NewEngine(s.id, idx, s.path, s.walPath, s.engineOptions)
+		e, err := NewEngine(s.id, idx, s.path, s.walPath, s.options)
 		if err != nil {
 			return err
 		}
@@ -274,8 +272,21 @@ func (s *Shard) Open() error {
 		if err := e.Open(); err != nil {
 			return err
 		}
+
+		// Load metadata index.
+		start := time.Now()
+		if err := e.LoadMetadataIndex(s.id, s.index); err != nil {
+			return err
+		}
+
+		// TODO(benbjohnson):
+		// count := s.index.SeriesShardN(s.id)
+		// atomic.AddInt64(&s.stats.SeriesCreated, int64(count))
+
 		s.engine = e
 		s.logger.Info(fmt.Sprintf("%s database index loaded in %s", s.path, time.Now().Sub(start)))
+
+		s.logger.Printf("%s database index loaded in %s", s.path, time.Now().Sub(start))
 
 		go s.monitor()
 
@@ -312,6 +323,8 @@ func (s *Shard) close() error {
 		close(s.closing)
 	}
 
+	s.UnloadIndex()
+
 	err := s.engine.Close()
 	if err == nil {
 		s.engine = nil
@@ -346,7 +359,12 @@ func (s *Shard) LastModified() time.Time {
 	return s.engine.LastModified()
 }
 
-// DiskSize returns the size on disk of this shard.
+// UnloadIndex removes all references to this shard from the DatabaseIndex
+func (s *Shard) UnloadIndex() {
+	s.index.RemoveShard(s.id)
+}
+
+// DiskSize returns the size on disk of this shard
 func (s *Shard) DiskSize() (int64, error) {
 	var size int64
 	err := filepath.Walk(s.path, func(_ string, fi os.FileInfo, err error) error {
@@ -453,19 +471,7 @@ func (s *Shard) DeleteMeasurement(name []byte) error {
 	if err := s.ready(); err != nil {
 		return err
 	}
-
-	// Attempt to find the series keys.
-	m, err := s.engine.Measurement(name)
-	if err != nil {
-		return err
-	}
-
-	if m == nil {
-		return influxql.ErrMeasurementNotFound(string(name))
-	}
-
-	// Remove the measurement from the engine.
-	return s.engine.DeleteMeasurement(name, m.SeriesKeys())
+	return s.engine.DeleteMeasurement(name)
 }
 
 func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error {
@@ -479,6 +485,8 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 		if err := mf.CreateFieldIfNotExists(f.Field.Name, f.Field.Type, false); err != nil {
 			return err
 		}
+
+		s.index.SetFieldName(f.Measurement, f.Field.Name)
 	}
 
 	return nil
@@ -493,7 +501,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		reason         string
 	)
 
-	if s.engineOptions.Config.MaxValuesPerTag > 0 {
+	if s.options.Config.MaxValuesPerTag > 0 {
 		// Validate that all the new points would not exceed any limits, if so, we drop them
 		// and record why/increment counters
 		for i, p := range points {
@@ -510,10 +518,10 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 					}
 
 					n := m.CardinalityBytes(tag.Key)
-					if n >= s.engineOptions.Config.MaxValuesPerTag {
+					if n >= s.options.Config.MaxValuesPerTag {
 						dropPoint = true
 						reason = fmt.Sprintf("max-values-per-tag limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
-							n, s.engineOptions.Config.MaxValuesPerTag, m.Name, string(tag.Key), string(tag.Key))
+							n, s.options.Config.MaxValuesPerTag, m.Name, string(tag.Key), string(tag.Key))
 						break
 					}
 				}
@@ -563,7 +571,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 			if err, ok := err.(*LimitError); ok {
 				atomic.AddInt64(&s.stats.WritePointsDropped, 1)
 				dropped += 1
-				reason = err.Reason
+				reason = fmt.Sprintf("db=%s: %s", s.database, err.Reason)
 				continue
 			}
 			return nil, nil, err
@@ -648,6 +656,11 @@ func (s *Shard) Measurements() []*Measurement {
 // slice of matching measurements.
 func (s *Shard) MeasurementsByExpr(cond influxql.Expr) (Measurements, bool, error) {
 	return s.engine.MeasurementsByExpr(cond)
+}
+
+// MeasurementFields returns fields for a measurement.
+func (s *Shard) MeasurementFields(name []byte) *MeasurementFields {
+	return s.engine.MeasurementFields(string(name))
 }
 
 // SeriesN returns the exact number of series in the shard.
@@ -864,14 +877,14 @@ func (s *Shard) monitor() {
 			}
 			atomic.StoreInt64(&s.stats.DiskBytes, size)
 		case <-t2.C:
-			if s.engineOptions.Config.MaxValuesPerTag == 0 {
+			if s.options.Config.MaxValuesPerTag == 0 {
 				continue
 			}
 
 			for _, m := range s.Measurements() {
 				for _, k := range m.TagKeys() {
 					n := m.Cardinality(k)
-					perc := int(float64(n) / float64(s.engineOptions.Config.MaxValuesPerTag) * 100)
+					perc := int(float64(n) / float64(s.options.Config.MaxValuesPerTag) * 100)
 					if perc > 100 {
 						perc = 100
 					}
@@ -879,7 +892,7 @@ func (s *Shard) monitor() {
 					// Log at 80, 85, 90-100% levels
 					if perc == 80 || perc == 85 || perc >= 90 {
 						s.logger.Info(fmt.Sprintf("WARN: %d%% of max-values-per-tag limit exceeded: (%d/%d), db=%s shard=%d measurement=%s tag=%s",
-							perc, n, s.engineOptions.Config.MaxValuesPerTag, s.database, s.id, m.Name, k))
+							perc, n, s.options.Config.MaxValuesPerTag, s.database, s.id, m.Name, k))
 					}
 				})
 			}
@@ -974,6 +987,13 @@ func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.Dat
 	m.fields[name] = f
 
 	return nil
+}
+
+func (m *MeasurementFields) FieldN() int {
+	m.mu.RLock()
+	n := len(m.fields)
+	m.mu.RUnlock()
+	return n
 }
 
 // Field returns the field for name, or nil if there is no field for name.
@@ -1216,33 +1236,29 @@ func (itr *seriesIterator) Next() (*influxql.FloatPoint, error) {
 
 // nextKeys reads all keys for the next measurement.
 func (itr *seriesIterator) nextKeys() error {
-	panic("MOVE TO TSI")
+	for {
+		// Ensure previous keys are cleared out.
+		itr.keys.i, itr.keys.buf = 0, itr.keys.buf[:0]
 
-	/*
-		for {
-			// Ensure previous keys are cleared out.
-			itr.keys.i, itr.keys.buf = 0, itr.keys.buf[:0]
-
-			// Read next measurement.
-			if len(itr.mms) == 0 {
-				return nil
-			}
-			mm := itr.mms[0]
-			itr.mms = itr.mms[1:]
-
-			// Read all series keys.
-			ids, err := mm.seriesIDsAllOrByExpr(itr.opt.Condition)
-			if err != nil {
-				return err
-			} else if len(ids) == 0 {
-				continue
-			}
-			itr.keys.buf = mm.AppendSeriesKeysByID(itr.keys.buf, ids)
-			sort.Strings(itr.keys.buf)
-
+		// Read next measurement.
+		if len(itr.mms) == 0 {
 			return nil
 		}
-	*/
+		mm := itr.mms[0]
+		itr.mms = itr.mms[1:]
+
+		// Read all series keys.
+		ids, err := mm.seriesIDsAllOrByExpr(itr.opt.Condition)
+		if err != nil {
+			return err
+		} else if len(ids) == 0 {
+			continue
+		}
+		itr.keys.buf = mm.AppendSeriesKeysByID(itr.keys.buf, ids)
+		sort.Strings(itr.keys.buf)
+
+		return nil
+	}
 }
 
 // NewTagKeysIterator returns a new instance of TagKeysIterator.

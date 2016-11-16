@@ -48,8 +48,7 @@ type Engine interface {
 	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 
-	// CreateMeasurement(name string) (*Measurement, error)
-	DeleteMeasurement(name []byte, seriesKeys [][]byte) error
+	DeleteMeasurement(name []byte) error
 	Measurement(name []byte) (*Measurement, error)
 	Measurements() (Measurements, error)
 	MeasurementsByExpr(expr influxql.Expr) (Measurements, bool, error)
@@ -125,7 +124,9 @@ func NewEngine(id uint64, i Index, path string, walPath string, options EngineOp
 // EngineOptions represents the options used to initialize the engine.
 type EngineOptions struct {
 	EngineVersion string
+	IndexVersion  string
 	ShardID       uint64
+	InmemIndex    interface{} // shared in-memory index
 
 	Config Config
 }
@@ -134,6 +135,7 @@ type EngineOptions struct {
 func NewEngineOptions() EngineOptions {
 	return EngineOptions{
 		EngineVersion: DefaultEngine,
+		IndexVersion:  DefaultIndex,
 		Config:        NewConfig(),
 	}
 }

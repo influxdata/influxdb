@@ -751,6 +751,32 @@ func expandExprWithValues(expr influxql.Expr, keys []string, tagExprs []tagExpr,
 	return exprs
 }
 
+// SeriesIDsAllOrByExpr walks an expressions for matching series IDs
+// or, if no expressions is given, returns all series IDs for the measurement.
+func (m *Measurement) SeriesIDsAllOrByExpr(expr influxql.Expr) (SeriesIDs, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.seriesIDsAllOrByExpr(expr)
+}
+
+func (m *Measurement) seriesIDsAllOrByExpr(expr influxql.Expr) (SeriesIDs, error) {
+	// If no expression given or the measurement has no series,
+	// we can take just return the ids or nil accordingly.
+	if expr == nil {
+		return m.seriesIDs, nil
+	} else if len(m.seriesIDs) == 0 {
+		return nil, nil
+	}
+
+	// Get series IDs that match the WHERE clause.
+	ids, _, err := m.walkWhereForSeriesIds(expr)
+	if err != nil {
+		return nil, err
+	}
+
+	return ids, nil
+}
+
 // tagKeysByExpr extracts the tag keys wanted by the expression.
 func (m *Measurement) TagKeysByExpr(expr influxql.Expr) (stringSet, bool, error) {
 	switch e := expr.(type) {
@@ -1042,6 +1068,13 @@ func (s *Series) Assigned(shardID uint64) bool {
 func (s *Series) assigned(shardID uint64) bool {
 	i := sort.Search(len(s.shardIDs), func(i int) bool { return s.shardIDs[i] >= shardID })
 	return i < len(s.shardIDs) && s.shardIDs[i] == shardID
+}
+
+func (s *Series) ShardN() int {
+	s.mu.RLock()
+	n := len(s.shardIDs)
+	s.mu.RUnlock()
+	return n
 }
 
 // Measurement returns the measurement on the series.
