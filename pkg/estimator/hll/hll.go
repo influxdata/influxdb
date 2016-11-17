@@ -86,6 +86,15 @@ func NewPlus(p uint8) (*Plus, error) {
 	return hll, nil
 }
 
+// MustNewPlus returns a new Plus with precision p. Panic on error.
+func MustNewPlus(p uint8) *Plus {
+	hll, err := NewPlus(p)
+	if err != nil {
+		panic(err)
+	}
+	return hll
+}
+
 // Add adds a new value to the HLL.
 func (h *Plus) Add(v []byte) {
 	x := h.hash(v)

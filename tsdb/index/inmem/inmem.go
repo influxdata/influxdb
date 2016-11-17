@@ -27,48 +27,48 @@ import (
 )
 
 func init() {
-	// Inject shared index constructor into tsdb to avoid circular dependency.
-	tsdb.NewInmemIndex = func(name string) (interface{}, error) { return NewIndex(name) }
-
-	// Register index format.
-	tsdb.RegisterIndex("inmem", NewShardIndex)
+	tsdb.RegisterIndex("inmem", func(id uint64, path string, opt tsdb.EngineOptions) tsdb.Index {
+		return NewIndex(id, path, opt)
+	})
 }
+
+// Ensure index implements interface.
+var _ tsdb.Index = &Index{}
 
 // Index is the in memory index of a collection of measurements, time
 // series, and their tags. Exported functions are goroutine safe while
 // un-exported functions assume the caller will use the appropriate locks.
 type Index struct {
+	mu sync.RWMutex
+
+	id  uint64 // shard id
+	opt tsdb.EngineOptions
+
 	// In-memory metadata index, built on load and updated when new series come in
-	mu           sync.RWMutex
 	measurements map[string]*tsdb.Measurement // measurement name to object and index
 	series       map[string]*tsdb.Series      // map series key to the Series object
 	lastID       uint64                       // last used series ID. They're in memory only for this shard
 
 	seriesSketch, seriesTSSketch             *hll.Plus
 	measurementsSketch, measurementsTSSketch *hll.Plus
-
-	name string // name of the database represented by this index
 }
 
 // NewIndex returns a new initialized Index.
-func NewIndex(name string) (index *Index, err error) {
-	index = &Index{
+func NewIndex(id uint64, path string, opt tsdb.EngineOptions) *Index {
+	index := &Index{
+		id:  id,
+		opt: opt,
+
 		measurements: make(map[string]*tsdb.Measurement),
 		series:       make(map[string]*tsdb.Series),
-		name:         name,
 	}
 
-	if index.seriesSketch, err = hll.NewPlus(16); err != nil {
-		return nil, err
-	} else if index.seriesTSSketch, err = hll.NewPlus(16); err != nil {
-		return nil, err
-	} else if index.measurementsSketch, err = hll.NewPlus(16); err != nil {
-		return nil, err
-	} else if index.measurementsTSSketch, err = hll.NewPlus(16); err != nil {
-		return nil, err
-	}
+	index.seriesSketch = hll.MustNewPlus(16)
+	index.seriesTSSketch = hll.MustNewPlus(16)
+	index.measurementsSketch = hll.MustNewPlus(16)
+	index.measurementsTSSketch = hll.MustNewPlus(16)
 
-	return index, nil
+	return index
 }
 
 func (i *Index) Open() (err error) { return nil }
@@ -126,14 +126,13 @@ func (i *Index) MeasurementsByName(names [][]byte) ([]*tsdb.Measurement, error) 
 
 // CreateSeriesIfNotExists adds the series for the given measurement to the
 // index and sets its ID or returns the existing series object
-func (i *Index) CreateSeriesIfNotExists(shardID uint64, name []byte, tags models.Tags, opt *tsdb.EngineOptions) error {
+func (i *Index) CreateSeriesIfNotExists(name []byte, tags models.Tags) error {
 	key := models.MakeKey(name, tags)
 
 	i.mu.RLock()
 	// if there is a measurement for this id, it's already been added
 	ss := i.series[string(key)]
 	if ss != nil {
-		ss.AssignShard(shardID)
 		i.mu.RUnlock()
 		return nil
 	}
@@ -144,9 +143,9 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, name []byte, tags models
 	if err != nil {
 		return err
 	}
-	if opt.Config.MaxSeriesPerDatabase > 0 && n+1 > uint64(opt.Config.MaxSeriesPerDatabase) {
+	if i.opt.Config.MaxSeriesPerDatabase > 0 && n+1 > uint64(i.opt.Config.MaxSeriesPerDatabase) {
 		return &tsdb.LimitError{
-			Reason: fmt.Sprintf("max-series-per-database limit exceeded: (%d/%d)", n, opt.Config.MaxSeriesPerDatabase),
+			Reason: fmt.Sprintf("max-series-per-database limit exceeded: (%d/%d)", n, i.opt.Config.MaxSeriesPerDatabase),
 		}
 	}
 
@@ -157,7 +156,6 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, name []byte, tags models
 	// Check for the series again under a write lock
 	ss = i.series[string(key)]
 	if ss != nil {
-		ss.AssignShard(shardID)
 		i.mu.Unlock()
 		return nil
 	}
@@ -171,7 +169,6 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, name []byte, tags models
 	i.series[string(key)] = series
 
 	m.AddSeries(series)
-	series.AssignShard(shardID)
 
 	// Add the series to the series sketch.
 	i.seriesSketch.Add(key)
@@ -498,7 +495,7 @@ func (i *Index) Dereference(b []byte) {
 }
 
 // TagSets returns a list of tag sets.
-func (i *Index) TagSets(shardID uint64, name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
+func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
@@ -507,51 +504,12 @@ func (i *Index) TagSets(shardID uint64, name []byte, dimensions []string, condit
 		return nil, nil
 	}
 
-	tagSets, err := mm.TagSets(shardID, dimensions, condition)
+	tagSets, err := mm.TagSets(dimensions, condition)
 	if err != nil {
 		return nil, err
 	}
 
 	return tagSets, nil
-}
-
-// AssignShard update the index to indicate that series k exists in the given shardID.
-func (i *Index) AssignShard(k string, shardID uint64) {
-	ss, _ := i.Series([]byte(k))
-	if ss != nil {
-		ss.AssignShard(shardID)
-	}
-}
-
-// UnassignShard updates the index to indicate that series k does not exist in
-// the given shardID.
-func (i *Index) UnassignShard(k string, shardID uint64) {
-	ss, _ := i.Series([]byte(k))
-	if ss != nil {
-		if ss.Assigned(shardID) {
-			// Remove the shard from any series
-			ss.UnassignShard(shardID)
-
-			// If this series no longer has shards assigned, remove the series
-			if ss.ShardN() == 0 {
-				// Remove the series the measurements
-				ss.Measurement().DropSeries(ss)
-
-				// If the measurement no longer has any series, remove it as well
-				if !ss.Measurement().HasSeries() {
-					i.mu.Lock()
-					i.dropMeasurement(ss.Measurement().Name)
-					i.mu.Unlock()
-				}
-
-				// Remove the series key from the series index
-				i.mu.Lock()
-				delete(i.series, k)
-				// atomic.AddInt64(&i.stats.NumSeries, -1)
-				i.mu.Unlock()
-			}
-		}
-	}
 }
 
 func (i *Index) SeriesKeys() []string {
@@ -568,41 +526,4 @@ func (i *Index) SeriesKeys() []string {
 func (i *Index) SetFieldName(measurement, name string) {
 	m := i.CreateMeasurementIndexIfNotExists(measurement)
 	m.SetFieldName(name)
-}
-
-// RemoveShard removes all references to shardID from any series or measurements
-// in the index.  If the shard was the only owner of data for the series, the series
-// is removed from the index.
-func (i *Index) RemoveShard(shardID uint64) {
-	for _, k := range i.SeriesKeys() {
-		i.UnassignShard(k, shardID)
-	}
-}
-
-// Ensure index implements interface.
-var _ tsdb.Index = &ShardIndex{}
-
-// ShardIndex represents a wrapper around the shared Index.
-type ShardIndex struct {
-	*Index
-	id  uint64
-	opt tsdb.EngineOptions
-}
-
-func (i *ShardIndex) CreateSeriesIfNotExists(name []byte, tags models.Tags) error {
-	return i.Index.CreateSeriesIfNotExists(i.id, name, tags, &i.opt)
-}
-
-// TagSets returns a list of tag sets based on series filtering.
-func (i *ShardIndex) TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
-	return i.Index.TagSets(i.id, name, dimensions, condition)
-}
-
-// NewShardIndex returns a new index for a shard.
-func NewShardIndex(id uint64, path string, opt tsdb.EngineOptions) tsdb.Index {
-	return &ShardIndex{
-		Index: opt.InmemIndex.(*Index),
-		id:    id,
-		opt:   opt,
-	}
 }

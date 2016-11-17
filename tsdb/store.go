@@ -174,12 +174,6 @@ func (s *Store) loadShards() error {
 			continue
 		}
 
-		// Retrieve database index.
-		idx, err := s.createIndexIfNotExists(db.Name())
-		if err != nil {
-			return err
-		}
-
 		// Load each retention policy within the database directory.
 		rpDirs, err := ioutil.ReadDir(filepath.Join(s.path, db.Name()))
 		if err != nil {
@@ -213,12 +207,8 @@ func (s *Store) loadShards() error {
 						return
 					}
 
-					// Copy options and assign shared index.
-					opt := s.EngineOptions
-					opt.InmemIndex = idx
-
 					// Open engine.
-					shard := NewShard(shardID, path, walPath, opt)
+					shard := NewShard(shardID, path, walPath, s.EngineOptions)
 					shard.SetLogOutput(s.logOutput)
 
 					err = shard.Open()
@@ -271,27 +261,6 @@ func (s *Store) Close() error {
 	s.shards = nil
 
 	return nil
-}
-
-// CreateIndexIfNotExists returns an in-memory index for a database.
-func (s *Store) CreateIndexIfNotExists(name string) (interface{}, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.createIndexIfNotExists(name)
-}
-
-func (s *Store) createIndexIfNotExists(name string) (interface{}, error) {
-	if idx := s.indexes[name]; idx != nil {
-		return idx, nil
-	}
-
-	idx, err := NewInmemIndex(name)
-	if err != nil {
-		return nil, err
-	}
-
-	s.indexes[name] = idx
-	return idx, nil
 }
 
 // Shard returns a shard by id.
@@ -354,18 +323,8 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 		return err
 	}
 
-	// Retrieve shared index, if needed.
-	idx, err := s.createIndexIfNotExists(database)
-	if err != nil {
-		return err
-	}
-
-	// Copy index options and pass in shared index.
-	opt := s.EngineOptions
-	opt.InmemIndex = idx
-
 	path := filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
-	shard := NewShard(shardID, path, walPath, opt)
+	shard := NewShard(shardID, path, walPath, s.EngineOptions)
 	shard.SetLogOutput(s.logOutput)
 	shard.EnableOnOpen = enabled
 
@@ -406,11 +365,6 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	if sh == nil {
 		return nil
 	}
-
-	// Remove the shard from the database indexes before closing the shard.
-	// Closing the shard will do this as well, but it will unload it while
-	// the shard is locked which can block stats collection and other calls.
-	sh.UnloadIndex()
 
 	if err := sh.Close(); err != nil {
 		return err

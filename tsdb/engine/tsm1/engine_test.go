@@ -20,7 +20,6 @@ import (
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
-	"github.com/influxdata/influxdb/tsdb/index/inmem"
 )
 
 /*
@@ -157,7 +156,7 @@ func TestEngine_Backup(t *testing.T) {
 	p3 := MustParsePointString("cpu,host=C value=1.3 3000000000")
 
 	// Write those points to the engine.
-	e := tsm1.NewEngine(1, NewIndex(), f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
+	e := tsm1.NewEngine(1, tsdb.MustNewIndex(1, "", tsdb.NewEngineOptions()), f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -498,13 +497,12 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 	e := MustOpenEngine()
 	defer e.Close()
 
-	e.MustMeasurement("cpu").SetFieldName("X")
-	e.MustMeasurement("cpu").SetFieldName("Y")
-
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("X", influxql.Float, false)
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("Y", influxql.Float, false)
 	e.CreateSeriesIfNotExists([]byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+	e.MustMeasurement("cpu").SetFieldName("X")
+	e.MustMeasurement("cpu").SetFieldName("Y")
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A X=10 1000000000`,
@@ -567,7 +565,7 @@ func TestEngine_DeleteSeries(t *testing.T) {
 	p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
 	// Write those points to the engine.
-	e := tsm1.NewEngine(1, NewIndex(), f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
+	e := tsm1.NewEngine(1, tsdb.MustNewIndex(1, "", tsdb.NewEngineOptions()), f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
 	// e.LoadMetadataIndex(1, MustNewDatabaseIndex("db0")) // Initialise an index
 
 	// mock the planner so compactions don't run during the test
@@ -819,7 +817,7 @@ func NewEngine() *Engine {
 	}
 	return &Engine{
 		Engine: tsm1.NewEngine(1,
-			NewIndex(),
+			tsdb.MustNewIndex(1, "", tsdb.NewEngineOptions()),
 			filepath.Join(root, "data"),
 			filepath.Join(root, "wal"),
 			tsdb.NewEngineOptions()).(*tsm1.Engine),
@@ -852,7 +850,7 @@ func (e *Engine) Reopen() error {
 	}
 
 	e.Engine = tsm1.NewEngine(1,
-		NewIndex(),
+		tsdb.MustNewIndex(1, "", tsdb.NewEngineOptions()),
 		filepath.Join(e.root, "data"),
 		filepath.Join(e.root, "wal"),
 		tsdb.NewEngineOptions()).(*tsm1.Engine)
@@ -879,18 +877,6 @@ func (e *Engine) MustMeasurement(name string) *tsdb.Measurement {
 	}
 	return m
 }
-
-/*
-// MustNewDatabaseIndex creates a tsdb.DatabaseIndex, panicking if there is an
-// error doing do.
-func MustNewDatabaseIndex(name string) *tsdb.DatabaseIndex {
-	index, err := tsdb.NewDatabaseIndex(name)
-	if err != nil {
-		panic(err)
-	}
-	return index
-}
-*/
 
 // WritePointsString parses a string buffer and writes the points.
 func (e *Engine) WritePointsString(buf ...string) error {
@@ -923,13 +909,4 @@ func ParseTags(s string) influxql.Tags {
 		m[a[0]] = a[1]
 	}
 	return influxql.NewTags(m)
-}
-
-func NewIndex() tsdb.Index {
-	idx, err := inmem.NewIndex("db")
-	if err != nil {
-		panic(err)
-	}
-	opt := tsdb.NewEngineOptions()
-	return &inmem.NewShardIndex(1, "", opt)
 }

@@ -35,9 +35,6 @@ type Index interface {
 
 	// To be removed w/ tsi1.
 	SetFieldName(measurement, name string)
-	AssignShard(k string, shardID uint64)
-	UnassignShard(k string, shardID uint64)
-	RemoveShard(shardID uint64)
 }
 
 // IndexFormat represents the format for an index.
@@ -95,5 +92,10 @@ func NewIndex(id uint64, path string, options EngineOptions) (Index, error) {
 	return fn(id, path, options), nil
 }
 
-// NewInmemIndex returns a new "inmem" index type.
-var NewInmemIndex func(name string) (interface{}, error)
+func MustNewIndex(id uint64, path string, options EngineOptions) Index {
+	idx, err := NewIndex(id, path, options)
+	if err != nil {
+		panic(err)
+	}
+	return idx
+}

@@ -322,8 +322,6 @@ func (s *Shard) close() error {
 		close(s.closing)
 	}
 
-	s.UnloadIndex()
-
 	err := s.engine.Close()
 	if err == nil {
 		s.engine = nil
@@ -348,11 +346,6 @@ func (s *Shard) ready() error {
 	}
 	s.mu.RUnlock()
 	return err
-}
-
-// UnloadIndex removes all references to this shard from the DatabaseIndex
-func (s *Shard) UnloadIndex() {
-	s.index.RemoveShard(s.id)
 }
 
 // DiskSize returns the size on disk of this shard
