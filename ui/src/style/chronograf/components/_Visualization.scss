@@ -91,16 +91,18 @@ $dygraphs-legend-offset: 32px;
     border-radius: 0 0 4px 4px;
     padding: 8px 16px;
     position: relative;
+    height: 316px;
   }
   &__graph-empty {
     width: 100%;
-    height: 140px;
+    height: 300px;
     display: flex;
     align-items: center;
     justify-content: center;
 
     > * {
       margin: 0;
+      color: $g8-storm;
     }
   }
   &__graph-fetching {
