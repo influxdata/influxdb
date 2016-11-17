@@ -282,7 +282,7 @@ func TestIndex_TagKeyIterator(t *testing.T) {
 		} else if e := itr.Next(); string(e.Key()) != `type` {
 			t.Fatalf("unexpected key(%s): %s", state, e.Key())
 		} else if e := itr.Next(); e != nil {
-			t.Fatalf("expected nil key(%s): %s/%s", state, e.Key())
+			t.Fatalf("expected nil key(%s): %s", state, e.Key())
 		}
 	}); err != nil {
 		t.Fatal(err)
