@@ -24,10 +24,10 @@ const (
 	MeasurementFillSize = 1
 
 	// Measurement trailer fields
-	MeasurementBlockVersionSize = 2
-	MeasurementBlockSize        = 8
-	MeasurementHashOffsetSize   = 8
-	MeasurementTrailerSize      = MeasurementBlockVersionSize + MeasurementBlockSize + MeasurementHashOffsetSize
+	MeasurementTrailerSize = 0 +
+		2 + // version
+		8 + 8 + // data offset/size
+		8 + 8 // hash index offset/size
 
 	// Measurement key block fields.
 	MeasurementNSize      = 4
@@ -101,11 +101,6 @@ func (blk *MeasurementBlock) UnmarshalBinary(data []byte) error {
 		return err
 	}
 
-	// Verify data size is correct.
-	if int64(len(data)) != t.Size {
-		return ErrMeasurementBlockSizeMismatch
-	}
-
 	// Save data section.
 	blk.data = data[t.Data.Offset:]
 	blk.data = blk.data[:t.Data.Size]
@@ -170,39 +165,9 @@ func (itr *rawSeriesIDIterator) next() uint32 {
 	return id
 }
 
-// ReadMeasurementBlockTrailer returns the trailer from data.
-func ReadMeasurementBlockTrailer(data []byte) (MeasurementBlockTrailer, error) {
-	var t MeasurementBlockTrailer
-
-	// Read version.
-	versionOffset := len(data) - MeasurementBlockVersionSize
-	t.Version = int(binary.BigEndian.Uint16(data[versionOffset:]))
-
-	if t.Version != MeasurementBlockVersion {
-		return t, ErrUnsupportedMeasurementBlockVersion
-	}
-
-	// Parse total size.
-	szOffset := versionOffset - MeasurementBlockSize
-	sz := int64(binary.BigEndian.Uint64(data[szOffset:]))
-	t.Size = int64(sz + MeasurementTrailerSize)
-
-	// Parse hash index offset.
-	hoffOffset := szOffset - MeasurementHashOffsetSize
-	t.HashIndex.Offset = int64(binary.BigEndian.Uint64(data[hoffOffset:]))
-	t.HashIndex.Size = int64(hoffOffset) - t.HashIndex.Offset
-
-	// Compute data size.
-	t.Data.Offset = 0
-	t.Data.Size = t.HashIndex.Offset
-
-	return t, nil
-}
-
 // MeasurementBlockTrailer represents meta data at the end of a MeasurementBlock.
 type MeasurementBlockTrailer struct {
-	Version int   // Encoding version
-	Size    int64 // Total size w/ trailer
+	Version int // Encoding version
 
 	// Offset & size of data section.
 	Data struct {
@@ -215,6 +180,54 @@ type MeasurementBlockTrailer struct {
 		Offset int64
 		Size   int64
 	}
+}
+
+// ReadMeasurementBlockTrailer returns the block trailer from data.
+func ReadMeasurementBlockTrailer(data []byte) (MeasurementBlockTrailer, error) {
+	var t MeasurementBlockTrailer
+
+	// Read version.
+	t.Version = int(binary.BigEndian.Uint16(data[len(data)-2:]))
+	if t.Version != MeasurementBlockVersion {
+		return t, ErrUnsupportedIndexFileVersion
+	}
+
+	// Slice trailer data.
+	buf := data[len(data)-IndexFileTrailerSize:]
+
+	// Read data section info.
+	t.Data.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.Data.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+
+	// Read measurement block info.
+	t.HashIndex.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.HashIndex.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+
+	return t, nil
+}
+
+// WriteTo writes the trailer to w.
+func (t *MeasurementBlockTrailer) WriteTo(w io.Writer) (n int64, err error) {
+	// Write data section info.
+	if err := writeUint64To(w, uint64(t.Data.Offset), &n); err != nil {
+		return n, err
+	} else if err := writeUint64To(w, uint64(t.Data.Size), &n); err != nil {
+		return n, err
+	}
+
+	// Write hash index section info.
+	if err := writeUint64To(w, uint64(t.HashIndex.Offset), &n); err != nil {
+		return n, err
+	} else if err := writeUint64To(w, uint64(t.HashIndex.Size), &n); err != nil {
+		return n, err
+	}
+
+	// Write index file encoding version.
+	if err := writeUint16To(w, MeasurementBlockVersion, &n); err != nil {
+		return n, err
+	}
+
+	return n, nil
 }
 
 // MeasurementBlockElem represents an internal measurement element.
@@ -323,10 +336,7 @@ func (mw *MeasurementBlockWriter) Delete(name []byte) {
 
 // WriteTo encodes the measurements to w.
 func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
-	// Write padding byte so no offsets are zero.
-	if err := writeUint8To(w, 0, &n); err != nil {
-		return n, err
-	}
+	var t MeasurementBlockTrailer
 
 	// Sort names.
 	names := make([]string, 0, len(mw.mms))
@@ -334,6 +344,14 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 		names = append(names, name)
 	}
 	sort.Strings(names)
+
+	// Begin data section.
+	t.Data.Offset = n
+
+	// Write padding byte so no offsets are zero.
+	if err := writeUint8To(w, 0, &n); err != nil {
+		return n, err
+	}
 
 	// Encode key list.
 	for _, name := range names {
@@ -347,9 +365,7 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 			return n, err
 		}
 	}
-
-	// Save starting offset of hash index.
-	hoff := n
+	t.Data.Size = n - t.Data.Offset
 
 	// Build key hash map
 	m := rhh.NewHashMap(rhh.Options{
@@ -360,6 +376,8 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 		mm := mw.mms[name]
 		m.Put([]byte(name), &mm)
 	}
+
+	t.HashIndex.Offset = n
 
 	// Encode hash map length.
 	if err := writeUint32To(w, uint32(m.Cap()), &n); err != nil {
@@ -379,9 +397,12 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 			return n, err
 		}
 	}
+	t.HashIndex.Size = n - t.HashIndex.Offset
 
 	// Write trailer.
-	if err = mw.writeTrailerTo(w, hoff, &n); err != nil {
+	nn, err := t.WriteTo(w)
+	n += nn
+	if err != nil {
 		return n, err
 	}
 
@@ -418,24 +439,6 @@ func (mw *MeasurementBlockWriter) writeMeasurementTo(w io.Writer, name []byte, m
 		}
 	}
 
-	return nil
-}
-
-// writeTrailerTo encodes the trailer containing sizes and offsets to w.
-func (mw *MeasurementBlockWriter) writeTrailerTo(w io.Writer, hoff int64, n *int64) error {
-	// Save current size of the write.
-	sz := *n
-
-	// Write hash index offset, total size, and v
-	if err := writeUint64To(w, uint64(hoff), n); err != nil {
-		return err
-	}
-	if err := writeUint64To(w, uint64(sz), n); err != nil {
-		return err
-	}
-	if err := writeUint16To(w, MeasurementBlockVersion, n); err != nil {
-		return err
-	}
 	return nil
 }
 
