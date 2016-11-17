@@ -28,6 +28,9 @@ import (
 // Current version of HLL implementation.
 const version uint8 = 1
 
+// DefaultPrecision is the default precision.
+const DefaultPrecision = 16
+
 // Plus implements the Hyperloglog++ algorithm, described in the following
 // paper: http://static.googleusercontent.com/media/research.google.com/en//pubs/archive/40671.pdf
 //

@@ -101,8 +101,6 @@ func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
 			return nil
 		}
 	}
-
-	return nil
 }
 
 // SeriesOffset returns offset of the encoded series key.
@@ -269,8 +267,6 @@ func (blk *SeriesBlock) EncodeTerm(v []byte) uint32 {
 			return 0
 		}
 	}
-
-	return 0
 }
 
 // TermCount returns the number of terms within the dictionary.
