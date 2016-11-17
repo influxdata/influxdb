@@ -14,7 +14,6 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7356](https://github.com/influxdata/influxdb/issues/7356): Use X-Forwarded-For IP address in HTTP logger if present.
 - [#7601](https://github.com/influxdata/influxdb/issues/7601): Prune data in meta store for deleted shards.
 - [#7669](https://github.com/influxdata/influxdb/issues/7669): Uncomment section headers from the default configuration file.
-- [#7684](https://github.com/influxdata/influxdb/issues/7684): Update Go version to 1.7.4.
 - [#7036](https://github.com/influxdata/influxdb/issues/7036): Switch logging to use structured logging everywhere.
 - [#7723](https://github.com/influxdata/influxdb/pull/7723): Remove the override of GOMAXPROCS.
 - [#7633](https://github.com/influxdata/influxdb/pull/7633): improve write performance significantly.
@@ -33,12 +32,21 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7615](https://github.com/influxdata/influxdb/issues/7615): Reject invalid subscription urls @allenpetersen
 - [#7741](https://github.com/influxdata/influxdb/pull/7741): Fix string quoting and significantly improve performance of `influx_inspect export`.
 
-## v1.1.1 [unreleased]
+## v1.1.1 [2016-12-06]
+
+### Features
+
+- [#7684](https://github.com/influxdata/influxdb/issues/7684): Update Go version to 1.7.4.
 
 ### Bugfixes
 
 - [#7625](https://github.com/influxdata/influxdb/issues/7625): Fix incorrect tag value in error message.
-- [#7634](https://github.com/influxdata/influxdb/issues/7634): Return the time from a percentile call on an integer.
+- [#7661](https://github.com/influxdata/influxdb/pull/7661): Quote the empty string as an ident.
+- [#7679](https://github.com/influxdata/influxdb/pull/7679): Fix string fields w/ trailing slashes
+
+### Security
+
+[Go 1.7.4](https://golang.org/doc/devel/release.html#go1.7.minor) was released to address two security issues.  This release includes these security fixes.
 
 ## v1.1.0 [2016-11-14]
 
