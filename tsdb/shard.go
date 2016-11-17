@@ -514,7 +514,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 					if n >= s.options.Config.MaxValuesPerTag {
 						dropPoint = true
 						reason = fmt.Sprintf("max-values-per-tag limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
-							n, s.options.Config.MaxValuesPerTag, m.Name, string(tag.Key), string(tag.Key))
+							n, s.options.Config.MaxValuesPerTag, m.Name, tag.Key, tag.Value)
 						break
 					}
 				}
