@@ -121,7 +121,7 @@ function start() {
     echo "Starting $NAME..."
     if which start-stop-daemon &>/dev/null; then
         start-stop-daemon \
-            --chuid $GROUP:$USER \
+            --chuid $USER:$GROUP \
             --start \
             --quiet \
             --pidfile $PIDFILE \
