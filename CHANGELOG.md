@@ -10,6 +10,7 @@
 ### Bugfixes
 
 - [#7621](https://github.com/influxdata/influxdb/issues/7621): Expand string and boolean fields when using a wildcard with `sample()`.
+- [#7616](https://github.com/influxdata/influxdb/pull/7616): Fix chuid argument order in init script @ccasey
 
 ## v1.1.0 [2016-11-14]
 
