@@ -106,9 +106,7 @@ export const HostPage = React.createClass({
         </div>
         <div className="hosts-page-scroll-container">
           <div className="container-fluid hosts-dashboard">
-            <div className="row">
-              { (layouts.length > 0) ? this.renderLayouts(layouts) : '' }
-            </div>
+            { (layouts.length > 0) ? this.renderLayouts(layouts) : '' }
           </div>
         </div>
       </div>

@@ -79,9 +79,7 @@ export const KubernetesPage = React.createClass({
         </div>
         <div className="hosts-page-scroll-container">
           <div className="container-fluid hosts-dashboard">
-            <div className="row">
-              {layouts.length ? this.renderLayouts(layouts) : emptyState}
-            </div>
+            {layouts.length ? this.renderLayouts(layouts) : emptyState}
           </div>
         </div>
       </div>
