@@ -103,9 +103,9 @@ const AlertsApp = React.createClass({
       // I stole this from the Hosts page.
       // Perhaps we should create an abstraction?
       <div className="hosts hosts-page">
-        <div className="enterprise-header">
-          <div className="enterprise-header__container">
-            <div className="enterprise-header__left">
+        <div className="chronograf-header">
+          <div className="chronograf-header__container">
+            <div className="chronograf-header__left">
               <h1>
                 Alert History
               </h1>

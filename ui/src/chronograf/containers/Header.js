@@ -108,8 +108,8 @@ const Header = React.createClass({
       {text: 'Delete', icon: 'trash', target: '#deleteExplorerModal', handler: this.openDeleteExplorerModal},
     ];
     return (
-      <div className="enterprise-header data-explorer__header">
-        <div className="enterprise-header__left">
+      <div className="chronograf-header data-explorer__header">
+        <div className="chronograf-header__left">
           <h1 className="dropdown-title">Exploration:</h1>
           <Dropdown
             className="sessions-dropdown"
@@ -120,7 +120,7 @@ const Header = React.createClass({
           />
           <div className="btn btn-sm btn-primary sessions-dropdown__btn" onClick={this.handleCreateExploration}>New Exploration</div>
         </div>
-        <div className="enterprise-header__right">
+        <div className="chronograf-header__right">
           <h1>Source:</h1>
           <div className="source-indicator">
             <span className="icon cpu"></span>

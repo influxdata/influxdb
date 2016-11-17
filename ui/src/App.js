@@ -50,7 +50,7 @@ const App = React.createClass({
     const {sourceID, base64ExplorerID} = this.props.params;
 
     return (
-      <div className="enterprise-wrapper--flex">
+      <div className="chronograf-wrapper--flex">
         <SideNavContainer sourceID={sourceID} explorationID={base64ExplorerID} addFlashMessage={this.handleNotification} currentLocation={this.props.location.pathname} />
         <div className="page-wrapper">
           {this.renderNotifications()}

@@ -82,9 +82,9 @@ export const SourceForm = React.createClass({
 
     return (
       <div id="source-form-page">
-        <div className="enterprise-header">
-          <div className="enterprise-header__container">
-            <div className="enterprise-header__left">
+        <div className="chronograf-header">
+          <div className="chronograf-header__container">
+            <div className="chronograf-header__left">
               <h1>
                 {editMode ? "Edit Source" : "Add a New Source"}
               </h1>

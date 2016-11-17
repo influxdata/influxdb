@@ -65,9 +65,9 @@ export const ManageSources = React.createClass({
 
     return (
       <div id="manage-sources-page">
-        <div className="enterprise-header">
-          <div className="enterprise-header__container">
-            <div className="enterprise-header__left">
+        <div className="chronograf-header">
+          <div className="chronograf-header__container">
+            <div className="chronograf-header__left">
               <h1>InfluxDB Sources</h1>
             </div>
           </div>

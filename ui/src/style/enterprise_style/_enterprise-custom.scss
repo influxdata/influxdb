@@ -1,5 +1,5 @@
 /*
-	This is a bunch of stuff built on top of the bootstrap theme for the Enterprise app.
+	This is a bunch of stuff built on top of the bootstrap theme for the Chronograf app.
 */
 
 body {
@@ -29,7 +29,7 @@ body > #react-root {
     ----------------------------------------------
 */
 
-.enterprise-wrapper {
+.chronograf-wrapper {
   width: 100%;
   position: relative;
 
@@ -87,12 +87,12 @@ body > #react-root {
 }
 
 /*
-    Enterprise Page Header
+    Chronograf Page Header
     ----------------------------------------------
 */
-.enterprise-header {
+.chronograf-header {
   background-color: $g20-white;
-  height: $enterprise-page-header-height;
+  height: $chronograf-page-header-height;
   margin-bottom: 15px;
   padding: 0 ($page-wrapper-padding + $scrollbar-width) 0 $page-wrapper-padding;
   display: flex;
@@ -128,7 +128,7 @@ body > #react-root {
     > * {
       margin: 0 4px 0 0;
     }
-  } 
+  }
   &__right {
     > * {
       margin: 0 0 0 4px;
@@ -452,7 +452,7 @@ a {
     }
     &.alert-warning {
       background-color: $c-comet;
-      
+
     }
     &.alert-danger {
       background-color: $c-dreamsicle;
@@ -733,7 +733,7 @@ table .monotype {
 #source-form-page,
 #manage-sources-page,
 .kapacitor {
-  .enterprise-header {
+  .chronograf-header {
     margin-bottom: 45px;
   }
 }
@@ -754,7 +754,7 @@ table .monotype {
       margin-bottom: 16px;
     }
     > *:first-child {
-      margin-top: 75px; 
+      margin-top: 75px;
     }
     > *:last-child {
       margin-bottom: 75px;

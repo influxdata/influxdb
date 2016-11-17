@@ -13,7 +13,7 @@
   @include gradient-v($g2-kevlar,$g0-obsidian);
   color: $g17-whisper;
 
-  .enterprise-header {
+  .chronograf-header {
     position: absolute;
     top: 0;
     width: 100%;
@@ -22,17 +22,17 @@
   }
   .hosts-page-scroll-container {
     position: absolute;
-    top: $enterprise-page-header-height;
+    top: $chronograf-page-header-height;
     left: 0;
     width: 100%;
-    height: calc(100% - #{$enterprise-page-header-height});
+    height: calc(100% - #{$chronograf-page-header-height});
     overflow: auto;
     overflow-x: hidden;
     overflow-y: scroll;
     @include custom-scrollbar($g2-kevlar,$c-pool);
 
     .container-fluid {
-      padding-bottom: $enterprise-page-header-height;
+      padding-bottom: $chronograf-page-header-height;
     }
   }
 
@@ -154,10 +154,10 @@
   border-radius: 4px 4px 0 0;
 }
 .hosts-dashboard-header {
-  .enterprise-header__container {
+  .chronograf-header__container {
     max-width: 100%;
   }
-  .enterprise-header__left {
+  .chronograf-header__left {
     flex-direction: row;
     align-items: center;
 
@@ -168,7 +168,7 @@
       }
     }
   }
-  .enterprise-header__right {
+  .chronograf-header__right {
     font-size: inherit;
   }
 }
