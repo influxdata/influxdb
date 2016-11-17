@@ -66,12 +66,12 @@ export const KubernetesPage = React.createClass({
 
     return (
       <div className="host-dashboard hosts-page">
-        <div className="enterprise-header hosts-dashboard-header">
-          <div className="enterprise-header__container">
-            <div className="enterprise-header__left">
+        <div className="chronograf-header hosts-dashboard-header">
+          <div className="chronograf-header__container">
+            <div className="chronograf-header__left">
               <h1>Kubernetes Dashboard</h1>
             </div>
-            <div className="enterprise-header__right">
+            <div className="chronograf-header__right">
               <h1>Range:</h1>
               <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={timeRange.inputValue} />
             </div>
