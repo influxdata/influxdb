@@ -23,6 +23,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
+	_ "github.com/influxdata/influxdb/tsdb/index"
 )
 
 //go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl
@@ -838,7 +839,7 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 
 	for k, exists := range existing {
 		if !exists {
-			e.index.UnassignShard(k, e.id)
+			e.index.DropSeries([][]byte{[]byte(k)})
 		}
 	}
 
