@@ -19,6 +19,7 @@ type Client struct {
 	SourcesStore     *SourcesStore
 	ServersStore     *ServersStore
 	LayoutStore      *LayoutStore
+	UsersStore       *UsersStore
 	AlertsStore      *AlertsStore
 }
 
@@ -28,6 +29,7 @@ func NewClient() *Client {
 	c.SourcesStore = &SourcesStore{client: c}
 	c.ServersStore = &ServersStore{client: c}
 	c.AlertsStore = &AlertsStore{client: c}
+	c.UsersStore = &UsersStore{client: c}
 	c.LayoutStore = &LayoutStore{
 		client: c,
 		IDs:    &uuid.V4{},
@@ -63,6 +65,10 @@ func (c *Client) Open() error {
 		}
 		// Always create Alerts bucket.
 		if _, err := tx.CreateBucketIfNotExists(AlertsBucket); err != nil {
+			return err
+		}
+		// Always create Users bucket.
+		if _, err := tx.CreateBucketIfNotExists(UsersBucket); err != nil {
 			return err
 		}
 		return nil

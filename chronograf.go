@@ -13,6 +13,7 @@ const (
 	ErrSourceNotFound      = Error("source not found")
 	ErrServerNotFound      = Error("server not found")
 	ErrLayoutNotFound      = Error("layout not found")
+	ErrUserNotFound        = Error("user not found")
 	ErrLayoutInvalid       = Error("layout is invalid")
 	ErrAlertNotFound       = Error("alert not found")
 	ErrAuthentication      = Error("user not authenticated")
@@ -196,23 +197,22 @@ type UserID int
 
 // User represents an authenticated user.
 type User struct {
-	ID   UserID
-	Name string
+	ID    UserID `json:"id"`
+	Email string `json:"email"`
 }
 
-// AuthStore is the Storage and retrieval of authentication information
-type AuthStore struct {
-	// User management for the AuthStore
-	Users interface {
-		// Create a new User in the AuthStore
-		Add(context.Context, User) error
-		// Delete the User from the AuthStore
-		Delete(context.Context, User) error
-		// Retrieve a user if `ID` exists.
-		Get(ctx context.Context, ID int) error
-		// Update the user's permissions or roles
-		Update(context.Context, User) error
-	}
+// UsersStore is the Storage and retrieval of authentication information
+type UsersStore interface {
+	// Create a new User in the UsersStore
+	Add(context.Context, *User) (*User, error)
+	// Delete the User from the UsersStore
+	Delete(context.Context, *User) error
+	// Get retrieves a user if `ID` exists.
+	Get(ctx context.Context, ID UserID) (*User, error)
+	// Update the user's permissions or roles
+	Update(context.Context, *User) error
+	// FindByEmail will retrieve a user by email address.
+	FindByEmail(ctx context.Context, Email string) (*User, error)
 }
 
 // ExplorationID is a unique ID for an Exploration.

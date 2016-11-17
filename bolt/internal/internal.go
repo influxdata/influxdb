@@ -205,3 +205,23 @@ func UnmarshalAlertRule(data []byte, r *ScopedAlert) error {
 	r.KapaID = int(pb.KapaID)
 	return nil
 }
+
+// MarshalUser encodes a user to binary protobuf format.
+func MarshalUser(u *chronograf.User) ([]byte, error) {
+	return proto.Marshal(&User{
+		ID:    uint64(u.ID),
+		Email: u.Email,
+	})
+}
+
+// UnmarshalUser decodes a user from binary protobuf data.
+func UnmarshalUser(data []byte, u *chronograf.User) error {
+	var pb User
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+
+	u.ID = chronograf.UserID(pb.ID)
+	u.Email = pb.Email
+	return nil
+}
