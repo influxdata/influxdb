@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"Percent_Processor_Time\") AS \"percent_processor_time\" FROM win_cpu",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }

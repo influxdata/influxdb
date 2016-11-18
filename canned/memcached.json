@@ -1,201 +1,202 @@
- {
-    "id": "f280c8c7-0530-425c-b281-788d8ded7676",
- 	"measurement": "memcached",
- 	"app": "memcached",
- 	"cells": [{
- 		"x": 0,
- 		"y": 0,
- 		"w": 4,
- 		"h": 4,
-        "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af490",
-        "name": "Memcached - Current Connections",
- 		"queries": [{
- 			"query": "SELECT max(\"curr_connections\") AS \"current_connections\" FROM memcached",
- 			"db": "telegraf",
- 			"rp": "",
-  			"groupbys": [],
-  			"wheres": []
-		}]
- 	},
- 	{
- 		"x": 0,
- 		"y": 0,
- 		"w": 4,
- 		"h": 4,
-        "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af400",
-        "name": "Memcached - Get Hits/Second",
- 		"queries": [{
- 			"query": "SELECT non_negative_derivative(max(\"get_hits\"), 1s) AS \"get_hits\" FROM memcached",
- 			"db": "telegraf",
- 			"rp": "",
-  			"groupbys": [],
-  			"wheres": []
-		}]
- 	},
- 	{
- 		"x": 0,
- 		"y": 0,
- 		"w": 4,
- 		"h": 4,
-        "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af405",
-        "name": "Memcached - Get Misses/Second",
- 		"queries": [{
- 			"query": "SELECT non_negative_derivative(max(\"get_misses\"), 1s) AS \"get_misses\" FROM memcached",
- 			"db": "telegraf",
- 			"rp": "",
-  			"groupbys": [],
-  			"wheres": []
-		}]
- 	},
- 	{
- 		"x": 0,
- 		"y": 0,
- 		"w": 4,
- 		"h": 4,
-        "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af413",
-        "name": "Memcached - Delete Hits/Second",
- 		"queries": [{
- 			"query": "SELECT non_negative_derivative(max(\"delete_hits\"), 1s) AS \"delete_hits\" FROM memcached",
- 			"db": "telegraf",
- 			"rp": "",
-  			"groupbys": [],
-  			"wheres": []
-		}]
- 	},
- 	{
- 		"x": 0,
- 		"y": 0,
- 		"w": 4,
- 		"h": 4,
-        "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af412",
-        "name": "Memcached - Delete Misses/Second",
- 		"queries": [{
- 			"query": "SELECT non_negative_derivative(max(\"delete_misses\"), 1s) AS \"delete_misses\" FROM memcached",
- 			"db": "telegraf",
- 			"rp": "",
-  			"groupbys": [],
-  			"wheres": []
-		}]
- 	},
- 	{
- 		"x": 0,
- 		"y": 0,
- 		"w": 4,
- 		"h": 4,
-        "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af411",
-        "name": "Memcached - Incr Hits/Second",
- 		"queries": [{
- 			"query": "SELECT non_negative_derivative(max(\"incr_hits\"), 1s) AS \"incr_hits\" FROM memcached",
- 			"db": "telegraf",
- 			"rp": "",
-  			"groupbys": [],
-  			"wheres": []
-		}]
- 	},
- 	{
- 		"x": 0,
- 		"y": 0,
- 		"w": 4,
- 		"h": 4,
-        "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af510",
-        "name": "Memcached - Incr Misses/Second",
- 		"queries": [{
- 			"query": "SELECT non_negative_derivative(max(\"incr_misses\"), 1s) AS \"incr_misses\" FROM memcached",
- 			"db": "telegraf",
- 			"rp": "",
-  			"groupbys": [],
-  			"wheres": []
-		}]
- 	},
- 	{
- 		"x": 0,
- 		"y": 0,
- 		"w": 4,
- 		"h": 4,
-        "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af402",
-        "name": "Memcached - Current Items",
- 		"queries": [{
- 			"query": "SELECT max(\"curr_items\") AS \"current_items\" FROM memcached",
- 			"db": "telegraf",
- 			"rp": "",
-  			"groupbys": [],
-  			"wheres": []
-		}]
- 	},
- 	{
- 		"x": 0,
- 		"y": 0,
- 		"w": 4,
- 		"h": 4,
-        "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af403",
-        "name": "Memcached - Total Items",
- 		"queries": [{
- 			"query": "SELECT max(\"total_items\") AS \"total_items\" FROM memcached",
- 			"db": "telegraf",
- 			"rp": "",
-  			"groupbys": [],
-  			"wheres": []
-		}]
- 	},
- 	{
- 		"x": 0,
- 		"y": 0,
- 		"w": 4,
- 		"h": 4,
-        "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af404",
-        "name": "Memcached - Bytes Stored",
- 		"queries": [{
- 			"query": "SELECT max(\"bytes\") AS \"bytes\" FROM memcached",
- 			"db": "telegraf",
- 			"rp": "",
-  			"groupbys": [],
-  			"wheres": []
-		}]
- 	},
- 	{
- 		"x": 0,
- 		"y": 0,
- 		"w": 4,
- 		"h": 4,
-        "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af406",
-        "name": "Memcached - Bytes Read/Sec",
- 		"queries": [{
- 			"query": "SELECT non_negative_derivative(max(\"bytes_read\"), 1s) AS \"bytes_read\" FROM memcached",
- 			"db": "telegraf",
- 			"rp": "",
-  			"groupbys": [],
-  			"wheres": []
-		}]
- 	},
- 	{
- 		"x": 0,
- 		"y": 0,
- 		"w": 4,
- 		"h": 4,
-        "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af407",
-        "name": "Memcached - Bytes Written/Sec",
- 		"queries": [{
- 			"query": "SELECT non_negative_derivative(max(\"bytes_written\"), 1s) AS \"bytes_written\" FROM memcached",
- 			"db": "telegraf",
- 			"rp": "",
-  			"groupbys": [],
-  			"wheres": []
-		}]
- 	},
- 	{
- 		"x": 0,
- 		"y": 0,
- 		"w": 4,
- 		"h": 4,
-        "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af401",
-        "name": "Memcached - Evictions/10 Seconds",
- 		"queries": [{
- 			"query": "SELECT non_negative_derivative(max(\"evictions\"), 10s) AS \"evictions\" FROM memcached",
- 			"db": "telegraf",
- 			"rp": "",
-  			"groupbys": [],
-  			"wheres": []
-		}]
- 	}
-    ]
- }
+{
+  "id": "f280c8c7-0530-425c-b281-788d8ded7676",
+  "measurement": "memcached",
+  "app": "memcached",
+  "cells": [
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af490",
+      "name": "Memcached - Current Connections",
+      "queries": [
+        {
+          "query": "SELECT max(\"curr_connections\") AS \"current_connections\" FROM memcached",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af400",
+      "name": "Memcached - Get Hits/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"get_hits\"), 1s) AS \"get_hits\" FROM memcached",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af405",
+      "name": "Memcached - Get Misses/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"get_misses\"), 1s) AS \"get_misses\" FROM memcached",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af413",
+      "name": "Memcached - Delete Hits/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"delete_hits\"), 1s) AS \"delete_hits\" FROM memcached",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af412",
+      "name": "Memcached - Delete Misses/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"delete_misses\"), 1s) AS \"delete_misses\" FROM memcached",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af411",
+      "name": "Memcached - Incr Hits/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"incr_hits\"), 1s) AS \"incr_hits\" FROM memcached",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af510",
+      "name": "Memcached - Incr Misses/Second",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"incr_misses\"), 1s) AS \"incr_misses\" FROM memcached",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af402",
+      "name": "Memcached - Current Items",
+      "queries": [
+        {
+          "query": "SELECT max(\"curr_items\") AS \"current_items\" FROM memcached",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af403",
+      "name": "Memcached - Total Items",
+      "queries": [
+        {
+          "query": "SELECT max(\"total_items\") AS \"total_items\" FROM memcached",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af404",
+      "name": "Memcached - Bytes Stored",
+      "queries": [
+        {
+          "query": "SELECT max(\"bytes\") AS \"bytes\" FROM memcached",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af406",
+      "name": "Memcached - Bytes Read/Sec",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"bytes_read\"), 1s) AS \"bytes_read\" FROM memcached",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af407",
+      "name": "Memcached - Bytes Written/Sec",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"bytes_written\"), 1s) AS \"bytes_written\" FROM memcached",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "1b5716f1-b9d1-4a8b-b3bb-6e7d120af401",
+      "name": "Memcached - Evictions/10 Seconds",
+      "queries": [
+        {
+          "query": "SELECT non_negative_derivative(max(\"evictions\"), 10s) AS \"evictions\" FROM memcached",
+          "groupbys": [],
+          "wheres": []
+        }
+      ]
+    }
+  ]
+}

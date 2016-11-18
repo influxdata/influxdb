@@ -11,6 +11,7 @@ export const HostPage = React.createClass({
       links: PropTypes.shape({
         proxy: PropTypes.string.isRequired,
       }).isRequired,
+      telegraf: PropTypes.string.isRequired,
     }),
     params: PropTypes.shape({
       hostID: PropTypes.string.isRequired,
@@ -33,11 +34,12 @@ export const HostPage = React.createClass({
 
   componentDidMount() {
     const hosts = {[this.props.params.hostID]: {name: this.props.params.hostID}};
+    const {source} = this.props;
 
     // fetching layouts and mappings can be done at the same time
     fetchLayouts().then(({data: {layouts}}) => {
       getMappings().then(({data: {mappings}}) => {
-        getAppsForHosts(this.props.source.links.proxy, hosts, mappings).then((newHosts) => {
+        getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf).then((newHosts) => {
           const host = newHosts[this.props.params.hostID];
           const filteredLayouts = layouts.filter((layout) => {
             const focusedApp = this.props.location.query.app;
@@ -60,7 +62,7 @@ export const HostPage = React.createClass({
   renderLayouts(layouts) {
     const autoRefreshMs = 15000;
     const {timeRange} = this.state;
-    const source = this.props.source.links.proxy;
+    const {source} = this.props;
 
     let layoutCells = [];
     layouts.forEach((layout) => {
@@ -70,7 +72,7 @@ export const HostPage = React.createClass({
     layoutCells.forEach((cell, i) => {
       cell.queries.forEach((q) => {
         q.text = q.query;
-        q.database = q.db;
+        q.database = source.telegraf;
       });
       cell.x = (i * 4 % 12); // eslint-disable-line no-magic-numbers
       cell.y = 0;
@@ -81,7 +83,7 @@ export const HostPage = React.createClass({
         timeRange={timeRange}
         cells={layoutCells}
         autoRefreshMs={autoRefreshMs}
-        source={source}
+        source={source.links.proxy}
         host={this.props.params.hostID}
       />
     );

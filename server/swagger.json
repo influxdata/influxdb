@@ -57,14 +57,16 @@
 			},
 			"post": {
 				"summary": "Create new data source",
-				"parameters": [{
-					"name": "source",
-					"in": "body",
-					"description": "Configuration options for data source",
-					"schema": {
-						"$ref": "#/definitions/Source"
+				"parameters": [
+					{
+						"name": "source",
+						"in": "body",
+						"description": "Configuration options for data source",
+						"schema": {
+							"$ref": "#/definitions/Source"
+						}
 					}
-				}],
+				],
 				"responses": {
 					"201": {
 						"description": "Successfully create data source",
@@ -90,13 +92,15 @@
 		},
 		"/sources/{id}": {
 			"get": {
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the data source",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					}
+				],
 				"summary": "Configured data sources",
 				"description": "These data sources store time series data.",
 				"responses": {
@@ -122,21 +126,24 @@
 			},
 			"patch": {
 				"summary": "Update data source configuration",
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of a data source",
-					"required": true
-				}, {
-					"name": "config",
-					"in": "body",
-					"description": "data source configuration",
-					"schema": {
-						"$ref": "#/definitions/Source"
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of a data source",
+						"required": true
 					},
-					"required": true
-				}],
+					{
+						"name": "config",
+						"in": "body",
+						"description": "data source configuration",
+						"schema": {
+							"$ref": "#/definitions/Source"
+						},
+						"required": true
+					}
+				],
 				"responses": {
 					"200": {
 						"description": "Data source's configuration was changed",
@@ -159,13 +166,15 @@
 				}
 			},
 			"delete": {
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
+					}
+				],
 				"summary": "This specific data source will be removed from the data store",
 				"responses": {
 					"204": {
@@ -189,21 +198,24 @@
 		"/sources/{id}/proxy": {
 			"post": {
 				"description": "Query the backend time series data source and return the response according to `format`",
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the data source",
-					"required": true
-				}, {
-					"name": "query",
-					"in": "body",
-					"description": "Query Parameters",
-					"schema": {
-						"$ref": "#/definitions/Proxy"
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
 					},
-					"required": true
-				}],
+					{
+						"name": "query",
+						"in": "body",
+						"description": "Query Parameters",
+						"schema": {
+							"$ref": "#/definitions/Proxy"
+						},
+						"required": true
+					}
+				],
 				"responses": {
 					"200": {
 						"description": "Result of the query from the backend time series data source.",
@@ -258,14 +270,16 @@
 			},
 			"post": {
 				"summary": "Create new user for this data source",
-				"parameters": [{
-					"name": "user",
-					"in": "body",
-					"description": "Configuration options for new user",
-					"schema": {
-						"$ref": "#/definitions/User"
+				"parameters": [
+					{
+						"name": "user",
+						"in": "body",
+						"description": "Configuration options for new user",
+						"schema": {
+							"$ref": "#/definitions/User"
+						}
 					}
-				}],
+				],
 				"responses": {
 					"201": {
 						"description": "Successfully created new user",
@@ -291,13 +305,15 @@
 		},
 		"/users/{user_id}": {
 			"get": {
-				"parameters": [{
-					"name": "user_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the specific user",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the specific user",
+						"required": true
+					}
+				],
 				"summary": "Returns information about a specific user",
 				"description": "Specific User.\n",
 				"responses": {
@@ -323,21 +339,24 @@
 			},
 			"patch": {
 				"summary": "Update user configuration",
-				"parameters": [{
-					"name": "user_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the specific user",
-					"required": true
-				}, {
-					"name": "config",
-					"in": "body",
-					"description": "user configuration",
-					"schema": {
-						"$ref": "#/definitions/User"
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the specific user",
+						"required": true
 					},
-					"required": true
-				}],
+					{
+						"name": "config",
+						"in": "body",
+						"description": "user configuration",
+						"schema": {
+							"$ref": "#/definitions/User"
+						},
+						"required": true
+					}
+				],
 				"responses": {
 					"200": {
 						"description": "Users's configuration was changed",
@@ -360,13 +379,15 @@
 				}
 			},
 			"delete": {
-				"parameters": [{
-					"name": "user_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the specific user",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the specific user",
+						"required": true
+					}
+				],
 				"summary": "This specific user will be removed from the data store",
 				"responses": {
 					"204": {
@@ -389,13 +410,15 @@
 		},
 		"/users/{user_id}/explorations": {
 			"get": {
-				"parameters": [{
-					"name": "user_id",
-					"in": "path",
-					"type": "string",
-					"description": "All Data Explorations returned only for this user.",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "path",
+						"type": "string",
+						"description": "All Data Explorations returned only for this user.",
+						"required": true
+					}
+				],
 				"responses": {
 					"200": {
 						"description": "Data Explorations saved sessions for user are returned.",
@@ -419,20 +442,23 @@
 			},
 			"post": {
 				"summary": "Create new named exploration for this user",
-				"parameters": [{
-					"name": "user_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of user to associate this exploration with.",
-					"required": true
-				}, {
-					"name": "exploration",
-					"in": "body",
-					"description": "Exploration session to save",
-					"schema": {
-						"$ref": "#/definitions/Exploration"
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of user to associate this exploration with.",
+						"required": true
+					},
+					{
+						"name": "exploration",
+						"in": "body",
+						"description": "Exploration session to save",
+						"schema": {
+							"$ref": "#/definitions/Exploration"
+						}
 					}
-				}],
+				],
 				"responses": {
 					"201": {
 						"description": "Successfully created new Exploration session",
@@ -464,19 +490,22 @@
 		},
 		"/users/{user_id}/explorations/{exploration_id}": {
 			"get": {
-				"parameters": [{
-					"name": "user_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of user to associate this exploration with.",
-					"required": true
-				}, {
-					"name": "exploration_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the specific exploration.",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of user to associate this exploration with.",
+						"required": true
+					},
+					{
+						"name": "exploration_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the specific exploration.",
+						"required": true
+					}
+				],
 				"summary": "Returns the specified data exploration session",
 				"description": "A data exploration session specifies query information.\n",
 				"responses": {
@@ -502,27 +531,31 @@
 			},
 			"patch": {
 				"summary": "Update exploration configuration",
-				"parameters": [{
-					"name": "user_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of user",
-					"required": true
-				}, {
-					"name": "exploration_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the specific exploration.",
-					"required": true
-				}, {
-					"name": "exploration",
-					"in": "body",
-					"description": "Update the exploration information to this.",
-					"required": true,
-					"schema": {
-						"$ref": "#/definitions/Exploration"
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of user",
+						"required": true
+					},
+					{
+						"name": "exploration_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the specific exploration.",
+						"required": true
+					},
+					{
+						"name": "exploration",
+						"in": "body",
+						"description": "Update the exploration information to this.",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/Exploration"
+						}
 					}
-				}],
+				],
 				"responses": {
 					"200": {
 						"description": "Exploration's configuration was changed",
@@ -545,19 +578,22 @@
 				}
 			},
 			"delete": {
-				"parameters": [{
-					"name": "user_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of user to associate this exploration with.",
-					"required": true
-				}, {
-					"name": "exploration_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the specific exploration.",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "user_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of user to associate this exploration with.",
+						"required": true
+					},
+					{
+						"name": "exploration_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the specific exploration.",
+						"required": true
+					}
+				],
 				"summary": "This specific exporer session will be removed.",
 				"responses": {
 					"204": {
@@ -580,13 +616,15 @@
 		},
 		"/sources/{id}/kapacitors": {
 			"get": {
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
+					}
+				],
 				"summary": "Configured kapacitors",
 				"responses": {
 					"200": {
@@ -605,20 +643,23 @@
 			},
 			"post": {
 				"summary": "Create new kapacitor backend",
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}, {
-					"name": "kapacitor",
-					"in": "body",
-					"description": "Configuration options for kapacitor",
-					"schema": {
-						"$ref": "#/definitions/Kapacitor"
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
+					},
+					{
+						"name": "kapacitor",
+						"in": "body",
+						"description": "Configuration options for kapacitor",
+						"schema": {
+							"$ref": "#/definitions/Kapacitor"
+						}
 					}
-				}],
+				],
 				"responses": {
 					"201": {
 						"description": "Successfully created kapacitor source",
@@ -644,19 +685,22 @@
 		},
 		"/sources/{id}/kapacitors/{kapa_id}": {
 			"get": {
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}, {
-					"name": "kapa_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the kapacitor",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
+					},
+					{
+						"name": "kapa_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the kapacitor",
+						"required": true
+					}
+				],
 				"summary": "Configured kapacitors",
 				"description": "These kapacitors are used for monitoring and alerting.",
 				"responses": {
@@ -682,27 +726,31 @@
 			},
 			"patch": {
 				"summary": "Update kapacitor configuration",
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}, {
-					"name": "kapa_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of a kapacitor backend",
-					"required": true
-				}, {
-					"name": "config",
-					"in": "body",
-					"description": "kapacitor configuration",
-					"schema": {
-						"$ref": "#/definitions/Kapacitor"
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
 					},
-					"required": true
-				}],
+					{
+						"name": "kapa_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of a kapacitor backend",
+						"required": true
+					},
+					{
+						"name": "config",
+						"in": "body",
+						"description": "kapacitor configuration",
+						"schema": {
+							"$ref": "#/definitions/Kapacitor"
+						},
+						"required": true
+					}
+				],
 				"responses": {
 					"200": {
 						"description": "Kapacitor's configuration was changed",
@@ -725,19 +773,22 @@
 				}
 			},
 			"delete": {
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}, {
-					"name": "kapa_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the kapacitor",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
+					},
+					{
+						"name": "kapa_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the kapacitor",
+						"required": true
+					}
+				],
 				"summary": "This specific kapacitor will be removed.",
 				"responses": {
 					"204": {
@@ -761,19 +812,22 @@
 		"/sources/{id}/kapacitors/{kapa_id}/tasks": {
 			"get": {
 				"description": "Get all defined alert tasks.",
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}, {
-					"name": "kapa_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the kapacitor backend.",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
+					},
+					{
+						"name": "kapa_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the kapacitor backend.",
+						"required": true
+					}
+				],
 				"responses": {
 					"200": {
 						"description": "All alert tasks for this specific kapacitor are returned",
@@ -797,27 +851,31 @@
 			},
 			"post": {
 				"description": "Create kapacitor alert task",
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}, {
-					"name": "kapa_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the kapacitor backend.",
-					"required": true
-				}, {
-					"name": "task",
-					"in": "body",
-					"description": "Rule to generate alert task",
-					"schema": {
-						"$ref": "#/definitions/Task"
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
 					},
-					"required": true
-				}],
+					{
+						"name": "kapa_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the kapacitor backend.",
+						"required": true
+					},
+					{
+						"name": "task",
+						"in": "body",
+						"description": "Rule to generate alert task",
+						"schema": {
+							"$ref": "#/definitions/Task"
+						},
+						"required": true
+					}
+				],
 				"responses": {
 					"201": {
 						"description": "Successfully created new kapacitor alert task",
@@ -849,25 +907,29 @@
 		},
 		"/sources/{id}/kapacitors/{kapa_id}/tasks/{task_id}": {
 			"get": {
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}, {
-					"name": "kapa_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the kapacitor",
-					"required": true
-				}, {
-					"name": "task_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the task",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
+					},
+					{
+						"name": "kapa_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the kapacitor",
+						"required": true
+					},
+					{
+						"name": "task_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the task",
+						"required": true
+					}
+				],
 				"summary": "Specific kapacitor alert task",
 				"description": "Alerting task for kapacitor",
 				"responses": {
@@ -893,26 +955,28 @@
 			},
 			"put": {
 				"summary": "Update rule alert task configuration",
-				"parameters": [{
+				"parameters": [
+					{
 						"name": "id",
 						"in": "path",
 						"type": "string",
 						"description": "ID of the source",
 						"required": true
-					}, {
+					},
+					{
 						"name": "kapa_id",
 						"in": "path",
 						"type": "string",
 						"description": "ID of a kapacitor backend",
 						"required": true
-					}, {
+					},
+					{
 						"name": "task_id",
 						"in": "path",
 						"type": "string",
 						"description": "ID of a task",
 						"required": true
 					},
-
 					{
 						"name": "task",
 						"in": "body",
@@ -945,26 +1009,28 @@
 				}
 			},
 			"delete": {
-				"parameters": [{
+				"parameters": [
+					{
 						"name": "id",
 						"in": "path",
 						"type": "string",
 						"description": "ID of the source",
 						"required": true
-					}, {
+					},
+					{
 						"name": "kapa_id",
 						"in": "path",
 						"type": "string",
 						"description": "ID of the kapacitor",
 						"required": true
-					}, {
+					},
+					{
 						"name": "task_id",
 						"in": "path",
 						"type": "string",
 						"description": "ID of the task",
 						"required": true
 					}
-
 				],
 				"summary": "This specific alert task will be removed.",
 				"responses": {
@@ -989,25 +1055,29 @@
 		"/sources/{id}/kapacitors/{kapa_id}/proxy": {
 			"get": {
 				"description": "GET to `path` of kapacitor.  The response and status code from kapacitor is directly returned.",
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}, {
-					"name": "kapa_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the kapacitor backend.",
-					"required": true
-				}, {
-					"name": "path",
-					"in": "query",
-					"type": "string",
-					"description": "The kapacitor API path to use in the proxy redirect",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
+					},
+					{
+						"name": "kapa_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the kapacitor backend.",
+						"required": true
+					},
+					{
+						"name": "path",
+						"in": "query",
+						"type": "string",
+						"description": "The kapacitor API path to use in the proxy redirect",
+						"required": true
+					}
+				],
 				"responses": {
 					"204": {
 						"description": "Kapacitor returned no content"
@@ -1028,25 +1098,29 @@
 			},
 			"delete": {
 				"description": "DELETE to `path` of kapacitor.  The response and status code from kapacitor is directly returned.",
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}, {
-					"name": "kapa_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the kapacitor backend.",
-					"required": true
-				}, {
-					"name": "path",
-					"in": "query",
-					"type": "string",
-					"description": "The kapacitor API path to use in the proxy redirect",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
+					},
+					{
+						"name": "kapa_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the kapacitor backend.",
+						"required": true
+					},
+					{
+						"name": "path",
+						"in": "query",
+						"type": "string",
+						"description": "The kapacitor API path to use in the proxy redirect",
+						"required": true
+					}
+				],
 				"responses": {
 					"204": {
 						"description": "Kapacitor returned no content"
@@ -1067,33 +1141,38 @@
 			},
 			"patch": {
 				"description": "PATCH body directly to configured kapacitor.  The response and status code from kapacitor is directly returned.",
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}, {
-					"name": "kapa_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the kapacitor backend.",
-					"required": true
-				}, {
-					"name": "path",
-					"in": "query",
-					"type": "string",
-					"description": "The kapacitor API path to use in the proxy redirect",
-					"required": true
-				}, {
-					"name": "query",
-					"in": "body",
-					"description": "Kapacitor body",
-					"schema": {
-						"$ref": "#/definitions/KapacitorProxy"
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
 					},
-					"required": true
-				}],
+					{
+						"name": "kapa_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the kapacitor backend.",
+						"required": true
+					},
+					{
+						"name": "path",
+						"in": "query",
+						"type": "string",
+						"description": "The kapacitor API path to use in the proxy redirect",
+						"required": true
+					},
+					{
+						"name": "query",
+						"in": "body",
+						"description": "Kapacitor body",
+						"schema": {
+							"$ref": "#/definitions/KapacitorProxy"
+						},
+						"required": true
+					}
+				],
 				"responses": {
 					"204": {
 						"description": "Kapacitor returned no content"
@@ -1114,33 +1193,38 @@
 			},
 			"post": {
 				"description": "POST body directly to configured kapacitor.  The response and status code from kapacitor is directly returned.",
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}, {
-					"name": "kapa_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the kapacitor backend.",
-					"required": true
-				}, {
-					"name": "path",
-					"in": "query",
-					"type": "string",
-					"description": "The kapacitor API path to use in the proxy redirect",
-					"required": true
-				}, {
-					"name": "query",
-					"in": "body",
-					"description": "Kapacitor body",
-					"schema": {
-						"$ref": "#/definitions/KapacitorProxy"
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
 					},
-					"required": true
-				}],
+					{
+						"name": "kapa_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the kapacitor backend.",
+						"required": true
+					},
+					{
+						"name": "path",
+						"in": "query",
+						"type": "string",
+						"description": "The kapacitor API path to use in the proxy redirect",
+						"required": true
+					},
+					{
+						"name": "query",
+						"in": "body",
+						"description": "Kapacitor body",
+						"schema": {
+							"$ref": "#/definitions/KapacitorProxy"
+						},
+						"required": true
+					}
+				],
 				"responses": {
 					"204": {
 						"description": "Kapacitor returned no content"
@@ -1183,27 +1267,30 @@
 		"/layouts": {
 			"get": {
 				"summary": "Pre-configured layouts",
-				"parameters": [{
-					"name": "measurement",
-					"in": "query",
-					"description": "Returns layouts with this measurement",
-					"required": false,
-					"type": "array",
-					"items": {
-						"type": "string"
+				"parameters": [
+					{
+						"name": "measurement",
+						"in": "query",
+						"description": "Returns layouts with this measurement",
+						"required": false,
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"collectionFormat": "multi"
 					},
-					"collectionFormat": "multi"
-				}, {
-					"name": "app",
-					"in": "query",
-					"description": "Returns layouts with this app",
-					"required": false,
-					"type": "array",
-					"items": {
-						"type": "string"
-					},
-					"collectionFormat": "multi"
-				}],
+					{
+						"name": "app",
+						"in": "query",
+						"description": "Returns layouts with this app",
+						"required": false,
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"collectionFormat": "multi"
+					}
+				],
 				"description": "Layouts are a collection of `Cells` that visualize time-series data.\n",
 				"responses": {
 					"200": {
@@ -1222,14 +1309,16 @@
 			},
 			"post": {
 				"summary": "Create new layout",
-				"parameters": [{
-					"name": "layout",
-					"in": "body",
-					"description": "Defines the layout and queries of the cells within the layout.",
-					"schema": {
-						"$ref": "#/definitions/Layout"
+				"parameters": [
+					{
+						"name": "layout",
+						"in": "body",
+						"description": "Defines the layout and queries of the cells within the layout.",
+						"schema": {
+							"$ref": "#/definitions/Layout"
+						}
 					}
-				}],
+				],
 				"responses": {
 					"201": {
 						"description": "Successfully created new layout",
@@ -1255,13 +1344,15 @@
 		},
 		"/layouts/{id}": {
 			"get": {
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the layout",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the layout",
+						"required": true
+					}
+				],
 				"summary": "Specific pre-configured layout containing cells and queries.",
 				"description": "layouts will hold information about how to layout the page of graphs.\n",
 				"responses": {
@@ -1286,13 +1377,15 @@
 				}
 			},
 			"delete": {
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the layout",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the layout",
+						"required": true
+					}
+				],
 				"summary": "This specific layout will be removed from the data store",
 				"responses": {
 					"204": {
@@ -1314,21 +1407,24 @@
 			},
 			"put": {
 				"summary": "Replace layout configuration.",
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of a layout",
-					"required": true
-				}, {
-					"name": "config",
-					"in": "body",
-					"description": "layout  configuration update parameters",
-					"schema": {
-						"$ref": "#/definitions/Layout"
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of a layout",
+						"required": true
 					},
-					"required": true
-				}],
+					{
+						"name": "config",
+						"in": "body",
+						"description": "layout  configuration update parameters",
+						"schema": {
+							"$ref": "#/definitions/Layout"
+						},
+						"required": true
+					}
+				],
 				"responses": {
 					"200": {
 						"description": "Layout has been replaced and the new layout is returned.",
@@ -1480,6 +1576,11 @@
 				"default": {
 					"type": "boolean",
 					"description": "Indicates whether this source is the default source"
+				},
+				"telegraf": {
+					"type": "string",
+					"description": "Database where telegraf information is stored for this source",
+					"default": "telegraf"
 				},
 				"links": {
 					"type": "object",
@@ -1711,7 +1812,32 @@
 					"description": "Time-series data queries for Cell.",
 					"type": "array",
 					"items": {
-						"$ref": "#/definitions/Proxy"
+						"$ref": "#/definitions/LayoutQuery"
+					}
+				}
+			}
+		},
+		"LayoutQuery": {
+			"type": "object",
+			"required": [
+				"query"
+			],
+			"properties": {
+				"query": {
+					"type": "string"
+				},
+				"wheres": {
+					"description": "Defines the condition clauses for influxdb",
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				"groupbys": {
+					"description": "Defines the group by clauses for influxdb",
+					"type": "array",
+					"items": {
+						"type": "string"
 					}
 				}
 			}

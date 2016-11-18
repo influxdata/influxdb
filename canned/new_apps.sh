@@ -37,24 +37,22 @@ UUID=$(uuidgen | tr A-Z a-z)
 APP_FILE="$measurement".json
 echo Creating measurement file $APP_FILE
 cat > $APP_FILE << EOF
- {
-    "id": "$UUID",
- 	"measurement": "$measurement",
- 	"app": "$measurement",
- 	"cells": [{
- 		"x": 0,
- 		"y": 0,
- 		"w": 4,
- 		"h": 4,
-        "i": "$CELLID",
-        "name": "User facing cell Name",
- 		"queries": [{
-        "query": "select mean(\"used_percent from\") from disk",
- 			"db": "telegraf",
- 			"rp": "",
-  			"groupbys": [],
-  			"wheres": []
-		}]
- 	}]
- }
+{
+	"id": "$UUID",
+	"measurement": "$measurement",
+	"app": "$measurement",
+			"cells": [{
+		"x": 0,
+		"y": 0,
+		"w": 4,
+		"h": 4,
+		"i": "$CELLID",
+		"name": "User facing cell Name",
+		"queries": [{
+			"query": "select mean(\"used_percent from\") from disk",
+			"groupbys": [],
+			"wheres": []
+				}]
+			}]
+}
 EOF

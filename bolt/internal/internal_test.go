@@ -39,6 +39,7 @@ func TestMarshalSource(t *testing.T) {
 		Password: "1 point twenty-one g1g@w@tts",
 		URL:      "http://twin-pines.mall.io:8086",
 		Default:  true,
+		Telegraf: "telegraf",
 	}
 
 	var vv chronograf.Source

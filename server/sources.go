@@ -21,6 +21,11 @@ type sourceResponse struct {
 }
 
 func newSourceResponse(src chronograf.Source) sourceResponse {
+	// If telegraf is not set, we'll set it to the default value.
+	if src.Telegraf == "" {
+		src.Telegraf = "telegraf"
+	}
+
 	httpAPISrcs := "/chronograf/v1/sources"
 	return sourceResponse{
 		Source: src,
@@ -39,9 +44,15 @@ func (h *Service) NewSource(w http.ResponseWriter, r *http.Request) {
 		invalidJSON(w)
 		return
 	}
+
 	if err := ValidSourceRequest(src); err != nil {
 		invalidData(w, err)
 		return
+	}
+
+	// By default the telegraf database will be telegraf
+	if src.Telegraf == "" {
+		src.Telegraf = "telegraf"
 	}
 
 	var err error
@@ -153,6 +164,9 @@ func (h *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Type != "" {
 		src.Type = req.Type
+	}
+	if req.Telegraf != "" {
+		src.Telegraf = req.Telegraf
 	}
 
 	if err := ValidSourceRequest(src); err != nil {

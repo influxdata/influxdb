@@ -22,6 +22,7 @@ export const CreateSource = React.createClass({
       username: this.sourceUser.value,
       password: this.sourcePassword.value,
       isDefault: true,
+      telegraf: this.sourceTelegraf.value,
     };
     createSource(source).then(({data: sourceFromServer}) => {
       this.redirectToApp(sourceFromServer);
@@ -71,7 +72,10 @@ export const CreateSource = React.createClass({
                         <input ref={(r) => this.sourcePassword = r} className="form-control" id="password" type="password"></input>
                       </div>
                     </div>
-
+                    <div className="form-group col-xs-8 col-xs-offset-2">
+                      <label htmlFor="telegraf">Telegraf database</label>
+                      <input ref={(r) => this.sourceTelegraf = r} className="form-control" id="telegraf" type="text" value="telegraf"></input>
+                    </div>
                     <div className="form-group col-xs-12 text-center">
                       <button className="btn btn-success" type="submit">Create New Server</button>
                     </div>

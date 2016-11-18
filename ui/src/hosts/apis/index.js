@@ -5,8 +5,8 @@ import _ from 'lodash';
 export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
   return proxy({
     source: proxyLink,
-    query: `select mean(usage_user) from cpu where cpu = 'cpu-total' and time > now() - 10m group by host; select mean("load1") from "${telegrafDB}".."system" where time > now() - 10m group by host; select mean("Percent_Processor_Time") from win_cpu where time > now() - 10m group by host; select mean("Processor_Queue_Length") from win_system where time > now() - 10s group by host`,
-    db: 'telegraf',
+    query: `select mean(usage_user) from cpu where cpu = 'cpu-total' and time > now() - 10m group by host; select mean("load1") from "system" where time > now() - 10m group by host; select mean("Percent_Processor_Time") from win_cpu where time > now() - 10m group by host; select mean("Processor_Queue_Length") from win_system where time > now() - 10s group by host`,
+    db: telegrafDB,
   }).then((resp) => {
     const hosts = {};
     const precision = 100;
@@ -51,13 +51,13 @@ export function getMappings() {
   });
 }
 
-export function getAppsForHosts(proxyLink, hosts, appMappings) {
+export function getAppsForHosts(proxyLink, hosts, appMappings, telegrafDB) {
   const measurements = appMappings.map((m) => `^${m.measurement}$`).join('|');
   const measurementsToApps = _.zipObject(appMappings.map(m => m.measurement), appMappings.map(m => m.name));
   return proxy({
     source: proxyLink,
     query: `show series from /${measurements}/`,
-    db: 'telegraf',
+    db: telegrafDB,
   }).then((resp) => {
     const newHosts = Object.assign({}, hosts);
     const allSeries = _.get(resp, ['data', 'results', '0', 'series', '0', 'values'], []);

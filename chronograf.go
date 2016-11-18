@@ -54,11 +54,11 @@ type TimeSeries interface {
 
 // Query retrieves a Response from a TimeSeries.
 type Query struct {
-	Command  string   `json:"query"`    // Command is the query itself
-	DB       string   `json:"db"`       // DB is optional and if empty will not be used.
-	RP       string   `json:"rp"`       // RP is a retention policy and optional; if empty will not be used.
-	Wheres   []string `json:"wheres"`   // Wheres restricts the query to certain attributes
-	GroupBys []string `json:"groupbys"` // GroupBys collate the query by these tags
+	Command  string   `json:"query"`        // Command is the query itself
+	DB       string   `json:"db,omitempty"` // DB is optional and if empty will not be used.
+	RP       string   `json:"rp,omitempty"` // RP is a retention policy and optional; if empty will not be used.
+	Wheres   []string `json:"wheres"`       // Wheres restricts the query to certain attributes
+	GroupBys []string `json:"groupbys"`     // GroupBys collate the query by these tags
 }
 
 // Response is the result of a query against a TimeSeries
@@ -75,6 +75,7 @@ type Source struct {
 	Password string `json:"password,omitempty"`  // Password is in CLEARTEXT
 	URL      string `json:"url"`                 // URL are the connections to the source
 	Default  bool   `json:"default"`             // Default specifies the default source for the application
+	Telegraf string `json:"telegraf"`            // Telegraf is the db telegraf is written to.  By default it is "telegraf"
 }
 
 // SourcesStore stores connection information for a `TimeSeries`

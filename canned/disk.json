@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"used_percent\") AS \"used_percent\" FROM disk",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
             "\"path\""
           ],

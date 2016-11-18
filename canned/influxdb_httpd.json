@@ -13,10 +13,7 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"writeReq\"), 1s) AS \"http_requests\" FROM \"influxdb_httpd\"",
-          "db": "telegraf",
-          "rp": "",
-          "groupbys": [
-          ],
+          "groupbys": [],
           "wheres": []
         }
       ]
@@ -31,10 +28,7 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"queryReq\"), 1s) AS \"query_requests\" FROM \"influxdb_httpd\"",
-          "db": "telegraf",
-          "rp": "",
-          "groupbys": [
-          ],
+          "groupbys": [],
           "wheres": []
         }
       ]
@@ -49,18 +43,12 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"clientError\"), 1s) AS \"client_errors\" FROM \"influxdb_httpd\"",
-          "db": "telegraf",
-          "rp": "",
-          "groupbys": [
-          ],
+          "groupbys": [],
           "wheres": []
         },
         {
           "query": "SELECT non_negative_derivative(max(\"authFail\"), 1s) AS \"auth_fail\" FROM \"influxdb_httpd\"",
-          "db": "telegraf",
-          "rp": "",
-          "groupbys": [
-          ],
+          "groupbys": [],
           "wheres": []
         }
       ]

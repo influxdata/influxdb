@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"Bytes_Sent_persec\") AS \"bytes_sent\" FROM win_net",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -30,8 +28,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"Bytes_Received_persec\") AS \"bytes_received\" FROM win_net",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }

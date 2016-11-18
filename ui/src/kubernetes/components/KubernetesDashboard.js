@@ -9,6 +9,7 @@ export const KubernetesPage = React.createClass({
       links: PropTypes.shape({
         proxy: PropTypes.string.isRequired,
       }).isRequired,
+      telegraf: PropTypes.string.isRequired,
     }),
     layouts: PropTypes.arrayOf(PropTypes.shape().isRequired).isRequired,
   },
@@ -23,7 +24,7 @@ export const KubernetesPage = React.createClass({
   renderLayouts(layouts) {
     const autoRefreshMs = 15000;
     const {timeRange} = this.state;
-    const source = this.props.source.links.proxy;
+    const {source} = this.props;
 
     let layoutCells = [];
     layouts.forEach((layout) => {
@@ -33,7 +34,7 @@ export const KubernetesPage = React.createClass({
     layoutCells.forEach((cell, i) => {
       cell.queries.forEach((q) => {
         q.text = q.query;
-        q.database = q.db;
+        q.database = source.telegraf;
       });
       cell.x = (i * 4 % 12); // eslint-disable-line no-magic-numbers
       cell.y = 0;
@@ -44,7 +45,7 @@ export const KubernetesPage = React.createClass({
         timeRange={timeRange}
         cells={layoutCells}
         autoRefreshMs={autoRefreshMs}
-        source={source}
+        source={source.links.proxy}
       />
     );
   },

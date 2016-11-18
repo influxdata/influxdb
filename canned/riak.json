@@ -13,9 +13,9 @@
       "queries": [
         {
           "query": "SELECT max(\"memory_total\") as memory_total_bytes FROM riak",
-          "db": "telegraf",
-          "rp": "",
-          "groupbys": ["\"nodename\""],
+          "groupbys": [
+            "\"nodename\""
+          ],
           "wheres": []
         }
       ]
@@ -30,9 +30,9 @@
       "queries": [
         {
           "query": "SELECT max(\"node_get_fsm_objsize_median\") AS \"median\", max(\"node_get_fsm_objsize_100\") AS \"100th-percentile\", max(\"node_get_fsm_objsize_99\") AS \"99th-percentile\", max(\"node_get_fsm_objsize_mean\") AS \"mean\", max(\"node_get_fsm_objsize_95\") AS \"95th-percentile\" FROM riak",
-          "db": "telegraf",
-          "rp": "",
-          "groupbys": ["\"nodename\""],
+          "groupbys": [
+            "\"nodename\""
+          ],
           "wheres": []
         }
       ]
@@ -47,9 +47,9 @@
       "queries": [
         {
           "query": "SELECT max(\"node_get_fsm_siblings_median\") AS \"median\", max(\"node_get_fsm_siblings_mean\") AS \"mean\", max(\"node_get_fsm_siblings_99\") AS \"99th-percentile\", max(\"node_get_fsm_siblings_95\") AS \"95h-percentile\", max(\"node_get_fsm_siblings_100\") AS \"100th-percentile\" FROM riak",
-          "db": "telegraf",
-          "rp": "",
-          "groupbys": ["\"nodename\""],
+          "groupbys": [
+            "\"nodename\""
+          ],
           "wheres": []
         }
       ]
@@ -64,9 +64,9 @@
       "queries": [
         {
           "query": "SELECT max(\"node_put_fsm_time_median\") / 1000 AS \"median_put_milliseconds\", max(\"node_get_fsm_time_median\") / 1000 AS \"median_get_milliseconds\" FROM riak",
-          "db": "telegraf",
-          "rp": "",
-          "groupbys": ["\"nodename\""],
+          "groupbys": [
+            "\"nodename\""
+          ],
           "wheres": []
         }
       ]
@@ -81,9 +81,9 @@
       "queries": [
         {
           "query": "SELECT max(\"node_puts\") AS \"puts_per_minute\", max(\"node_gets\") AS \"gets_per_minute\" FROM riak",
-          "db": "telegraf",
-          "rp": "",
-          "groupbys": ["\"nodename\""],
+          "groupbys": [
+            "\"nodename\""
+          ],
           "wheres": []
         }
       ]
@@ -98,9 +98,9 @@
       "queries": [
         {
           "query": "SELECT max(\"pbc_active\") AS \"active_protobuf_connections\" FROM riak",
-          "db": "telegraf",
-          "rp": "",
-          "groupbys": ["\"nodename\""],
+          "groupbys": [
+            "\"nodename\""
+          ],
           "wheres": []
         }
       ]
@@ -115,9 +115,9 @@
       "queries": [
         {
           "query": "SELECT max(\"read_repairs\") AS \"read_repairs_per_minute\" FROM riak",
-          "db": "telegraf",
-          "rp": "",
-          "groupbys": ["\"nodename\""],
+          "groupbys": [
+            "\"nodename\""
+          ],
           "wheres": []
         }
       ]

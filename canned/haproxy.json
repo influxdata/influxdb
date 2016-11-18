@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "select mean(\"active_servers\") AS active_servers, mean(\"backup_servers\") AS backup_servers FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -30,8 +28,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(last(\"http_response.2xx\"), 1s) AS \"2xx\" FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -47,8 +43,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(last(\"http_response.4xx\"), 1s) AS \"4xx\" FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -64,8 +58,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(last(\"http_response.5xx\"), 1s) AS \"5xx\" FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -81,8 +73,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"req_rate\") AS \"requests_per_second\" FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -98,8 +88,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"rate\")) AS \"sessions_per_second\" FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -115,8 +103,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"scur\")) / non_negative_derivative(max(\"slim\")) * 100 AS \"session_usage_percent\" FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -132,8 +118,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"dreq\")) AS \"denials_per_second\" FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -149,8 +133,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"ereq\")) AS \"errors_per_second\" FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -166,15 +148,11 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"bin\")) AS \"bytes_in_per_second\" FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         },
         {
           "query": "SELECT non_negative_derivative(max(\"bout\")) AS \"bytes_out_per_second\" FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -190,8 +168,6 @@
       "queries": [
         {
           "query": "SELECT max(\"rtime\") AS \"response_time\" FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -207,8 +183,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"econ\")) AS \"errors_per_second\" FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -224,8 +198,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"qcur\")) AS \"queued_per_second\" FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -241,8 +213,6 @@
       "queries": [
         {
           "query": "SELECT max(\"qtime\") AS \"queue_time\" FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -258,8 +228,6 @@
       "queries": [
         {
           "query": "SELECT max(\"eresp\") AS \"error_response_rate\" FROM haproxy",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
