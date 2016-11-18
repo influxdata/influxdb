@@ -2853,7 +2853,8 @@ func QuoteIdent(segments ...string) string {
 	var buf bytes.Buffer
 	for i, segment := range segments {
 		needQuote := IdentNeedsQuotes(segment) ||
-			((i < len(segments)-1) && segment != "") // not last segment && not ""
+			((i < len(segments)-1) && segment != "") || // not last segment && not ""
+			((i == 0 || i == len(segments)-1) && segment == "") // the first or last segment and an empty string
 
 		if needQuote {
 			_ = buf.WriteByte('"')
