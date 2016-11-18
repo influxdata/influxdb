@@ -100,7 +100,7 @@ export const LayoutRenderer = React.createClass({
 
   render() {
     return (
-      <GridLayout layout={this.state.layout} isDraggable={false} isResizable={false} cols={12} rowHeight={90} width={1200}>
+      <GridLayout useCSSTransforms={false} layout={this.state.layout} isDraggable={false} isResizable={false} cols={12} rowHeight={90} width={1200}>
         {this.generateGraphs()}
       </GridLayout>
     );
