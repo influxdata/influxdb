@@ -75,6 +75,7 @@ type Source struct {
 	Password string `json:"password,omitempty"`  // Password is in CLEARTEXT
 	URL      string `json:"url"`                 // URL are the connections to the source
 	Default  bool   `json:"default"`             // Default specifies the default source for the application
+	Telegraf string `json:"telegraf"`            // Telegraf is the db telegraf is written to.  By default it is "telegraf"
 }
 
 // SourcesStore stores connection information for a `TimeSeries`

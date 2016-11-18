@@ -1481,6 +1481,11 @@
 					"type": "boolean",
 					"description": "Indicates whether this source is the default source"
 				},
+                "telegraf": {
+                    "type": "string",
+                    "description": "Database where telegraf information is stored for this source",
+                    "default": "telegraf"                
+                },
 				"links": {
 					"type": "object",
 					"properties": {
