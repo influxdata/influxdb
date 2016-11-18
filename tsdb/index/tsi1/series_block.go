@@ -50,8 +50,9 @@ type SeriesBlock struct {
 
 // Series returns a series element.
 func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
-	panic("TODO: Add hashmap to series block")
-	panic("TODO: Lookup series by hashmap")
+	// panic("TODO: Add hashmap to series block")
+	// panic("TODO: Lookup series by hashmap")
+	return nil
 }
 
 // SeriesOffset returns offset of the encoded series key.
