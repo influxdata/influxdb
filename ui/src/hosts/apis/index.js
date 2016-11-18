@@ -2,10 +2,10 @@ import {proxy} from 'utils/queryUrlGenerator';
 import AJAX from 'utils/ajax';
 import _ from 'lodash';
 
-export function getCpuAndLoadForHosts(proxyLink) {
+export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
   return proxy({
     source: proxyLink,
-    query: `select mean(usage_user) from cpu where cpu = 'cpu-total' and time > now() - 10m group by host; select mean("load1") from "telegraf".."system" where time > now() - 10m group by host; select mean("Percent_Processor_Time") from win_cpu where time > now() - 10m group by host; select mean("Processor_Queue_Length") from win_system where time > now() - 10s group by host`,
+    query: `select mean(usage_user) from cpu where cpu = 'cpu-total' and time > now() - 10m group by host; select mean("load1") from "${telegrafDB}".."system" where time > now() - 10m group by host; select mean("Percent_Processor_Time") from win_cpu where time > now() - 10m group by host; select mean("Processor_Queue_Length") from win_system where time > now() - 10s group by host`,
     db: 'telegraf',
   }).then((resp) => {
     const hosts = {};
