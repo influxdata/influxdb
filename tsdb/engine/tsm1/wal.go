@@ -516,13 +516,13 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 		encLen += 8 * len(v) // timestamps (8)
 
 		switch v[0].(type) {
-		case *FloatValue, *IntegerValue:
+		case FloatValue, IntegerValue:
 			encLen += 8 * len(v)
-		case *BooleanValue:
+		case BooleanValue:
 			encLen += 1 * len(v)
-		case *StringValue:
+		case StringValue:
 			for _, vv := range v {
-				str, ok := vv.(*StringValue)
+				str, ok := vv.(StringValue)
 				if !ok {
 					return nil, fmt.Errorf("non-string found in string value slice: %T", vv)
 				}
@@ -546,13 +546,13 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 
 	for k, v := range w.Values {
 		switch v[0].(type) {
-		case *FloatValue:
+		case FloatValue:
 			curType = float64EntryType
-		case *IntegerValue:
+		case IntegerValue:
 			curType = integerEntryType
-		case *BooleanValue:
+		case BooleanValue:
 			curType = booleanEntryType
-		case *StringValue:
+		case StringValue:
 			curType = stringEntryType
 		default:
 			return nil, fmt.Errorf("unsupported value type: %T", v[0])
@@ -572,19 +572,19 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 			n += 8
 
 			switch vv := vv.(type) {
-			case *FloatValue:
+			case FloatValue:
 				if curType != float64EntryType {
 					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
 				}
 				binary.BigEndian.PutUint64(dst[n:n+8], math.Float64bits(vv.value))
 				n += 8
-			case *IntegerValue:
+			case IntegerValue:
 				if curType != integerEntryType {
 					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
 				}
 				binary.BigEndian.PutUint64(dst[n:n+8], uint64(vv.value))
 				n += 8
-			case *BooleanValue:
+			case BooleanValue:
 				if curType != booleanEntryType {
 					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
 				}
@@ -594,7 +594,7 @@ func (w *WriteWALEntry) Encode(dst []byte) ([]byte, error) {
 					dst[n] = 0
 				}
 				n++
-			case *StringValue:
+			case StringValue:
 				if curType != stringEntryType {
 					return nil, fmt.Errorf("incorrect value found in %T slice: %T", v[0].Value(), vv)
 				}
@@ -647,19 +647,19 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 		switch typ {
 		case float64EntryType:
 			for i := 0; i < nvals; i++ {
-				values[i] = &FloatValue{}
+				values[i] = FloatValue{}
 			}
 		case integerEntryType:
 			for i := 0; i < nvals; i++ {
-				values[i] = &IntegerValue{}
+				values[i] = IntegerValue{}
 			}
 		case booleanEntryType:
 			for i := 0; i < nvals; i++ {
-				values[i] = &BooleanValue{}
+				values[i] = BooleanValue{}
 			}
 		case stringEntryType:
 			for i := 0; i < nvals; i++ {
-				values[i] = &StringValue{}
+				values[i] = StringValue{}
 			}
 
 		default:
@@ -682,9 +682,11 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 
 				v := math.Float64frombits((binary.BigEndian.Uint64(b[i : i+8])))
 				i += 8
-				if fv, ok := values[j].(*FloatValue); ok {
-					fv.unixnano = un
-					fv.value = v
+				if fv, ok := values[j].(FloatValue); ok {
+					x := (&fv)
+					x.unixnano = un
+					x.value = v
+					values[j] = *x
 				}
 			case integerEntryType:
 				if i+8 > len(b) {
@@ -693,9 +695,11 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 
 				v := int64(binary.BigEndian.Uint64(b[i : i+8]))
 				i += 8
-				if fv, ok := values[j].(*IntegerValue); ok {
-					fv.unixnano = un
-					fv.value = v
+				if fv, ok := values[j].(IntegerValue); ok {
+					x := (&fv)
+					x.unixnano = un
+					x.value = v
+					values[j] = *x
 				}
 			case booleanEntryType:
 				if i >= len(b) {
@@ -704,13 +708,16 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 
 				v := b[i]
 				i += 1
-				if fv, ok := values[j].(*BooleanValue); ok {
+				if fv, ok := values[j].(BooleanValue); ok {
+					x := (&fv)
+					x.unixnano = un
 					fv.unixnano = un
 					if v == 1 {
-						fv.value = true
+						x.value = true
 					} else {
-						fv.value = false
+						x.value = false
 					}
+					values[j] = *x
 				}
 			case stringEntryType:
 				if i+4 > len(b) {
@@ -730,9 +737,11 @@ func (w *WriteWALEntry) UnmarshalBinary(b []byte) error {
 
 				v := string(b[i : i+length])
 				i += length
-				if fv, ok := values[j].(*StringValue); ok {
-					fv.unixnano = un
-					fv.value = v
+				if fv, ok := values[j].(StringValue); ok {
+					x := (&fv)
+					x.unixnano = un
+					x.value = v
+					values[j] = *x
 				}
 			default:
 				return fmt.Errorf("unsupported value type: %#v", typ)
