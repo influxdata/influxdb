@@ -875,7 +875,7 @@ func (s *Shard) monitor() {
 			}
 
 			for _, m := range s.Measurements() {
-				for _, k := range m.TagKeys() {
+				m.WalkTagKeys(func(k string) {
 					n := m.Cardinality(k)
 					perc := int(float64(n) / float64(s.options.Config.MaxValuesPerTag) * 100)
 					if perc > 100 {
