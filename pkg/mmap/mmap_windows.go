@@ -1,11 +1,7 @@
 package mmap
 
 import (
-	"errors"
-	"fmt"
-	"io"
 	"os"
-	"runtime"
 	"syscall"
 	"unsafe"
 )
@@ -25,18 +21,18 @@ func Map(path string) ([]byte, error) {
 		return nil, nil
 	}
 
-	lo, hi := uint32(size), uint32(size>>32)
+	lo, hi := uint32(fi.Size()), uint32(fi.Size()>>32)
 	fmap, err := syscall.CreateFileMapping(syscall.Handle(f.Fd()), nil, syscall.PAGE_READONLY, hi, lo, nil)
 	if err != nil {
 		return nil, err
 	}
 	defer syscall.CloseHandle(fmap)
 
-	ptr, err := syscall.MapViewOfFile(fmap, syscall.FILE_MAP_READ, 0, 0, uintptr(size))
+	ptr, err := syscall.MapViewOfFile(fmap, syscall.FILE_MAP_READ, 0, 0, uintptr(fi.Size()))
 	if err != nil {
 		return nil, err
 	}
-	data := (*[1 << 30]byte)(unsafe.Pointer(ptr))[:size]
+	data := (*[1 << 30]byte)(unsafe.Pointer(ptr))[:fi.Size()]
 
 	return data, nil
 }
