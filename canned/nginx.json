@@ -14,7 +14,7 @@
         {
           "query": "SELECT non_negative_derivative(max(\"accepts\"), 1s) AS \"accepts\", non_negative_derivative(max(\"handled\"), 1s) AS \"handled\", non_negative_derivative(max(\"active\"), 1s) AS \"active\" FROM nginx",
           "groupbys": [
-              "\"server\""
+            "\"server\""
           ],
           "wheres": []
         }

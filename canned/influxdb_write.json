@@ -13,8 +13,7 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"pointReq\"), 1s) AS \"points_written\" FROM \"influxdb_write\"",
-          "groupbys": [
-          ],
+          "groupbys": [],
           "wheres": []
         }
       ]
@@ -29,14 +28,12 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"writeError\"), 1s) AS \"shard_write_error\" FROM \"influxdb_write\"",
-          "groupbys": [
-          ],
+          "groupbys": [],
           "wheres": []
         },
         {
           "query": "SELECT non_negative_derivative(max(\"serveError\"), 1s) AS \"http_error\" FROM \"influxdb_httpd\"",
-          "groupbys": [
-          ],
+          "groupbys": [],
           "wheres": []
         }
       ]

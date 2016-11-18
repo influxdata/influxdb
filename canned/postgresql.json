@@ -47,8 +47,7 @@
       "queries": [
         {
           "query": "SELECT mean(\"buffers_alloc\") AS \"buffers_allocated\", mean(\"buffers_backend\") AS \"buffers_backend\", mean(\"buffers_backend_fsync\") AS \"buffers_backend_fsync\", mean(\"buffers_checkpoint\") AS \"buffers_checkpoint\", mean(\"buffers_clean\") AS \"buffers_clean\" FROM postgresql",
-          "groupbys": [
-          ],
+          "groupbys": [],
           "wheres": []
         }
       ]
@@ -63,8 +62,7 @@
       "queries": [
         {
           "query": "SELECT mean(\"conflicts\") AS \"conflicts\", mean(\"deadlocks\") AS \"deadlocks\" FROM postgresql",
-          "groupbys": [
-          ],
+          "groupbys": [],
           "wheres": []
         }
       ]
