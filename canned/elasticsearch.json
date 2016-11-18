@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "select non_negative_derivative(mean(search_query_total)) as searches_per_min, non_negative_derivative(mean(search_scroll_total)) as scrolls_per_min, non_negative_derivative(mean(search_fetch_total)) as fetches_per_min, non_negative_derivative(mean(search_suggest_total)) as suggests_per_min from elasticsearch_indices",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -30,8 +28,6 @@
       "queries": [
         {
           "query": "select mean(current_open) from elasticsearch_http",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -47,8 +43,6 @@
       "queries": [
         {
           "query": "select non_negative_derivative(mean(search_query_time_in_millis)) as mean, non_negative_derivative(median(search_query_time_in_millis)) as median, non_negative_derivative(percentile(search_query_time_in_millis, 95)) as ninety_fifth from elasticsearch_indices",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -64,8 +58,6 @@
       "queries": [
         {
           "query": "select non_negative_derivative(mean(search_fetch_time_in_millis)) as mean, non_negative_derivative(median(search_fetch_time_in_millis)) as median, non_negative_derivative(percentile(search_fetch_time_in_millis, 95)) as ninety_fifth from elasticsearch_indices",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -81,8 +73,6 @@
       "queries": [
         {
           "query": "select non_negative_derivative(mean(search_suggest_time_in_millis)) as mean, non_negative_derivative(median(search_suggest_time_in_millis)) as median, non_negative_derivative(percentile(search_suggest_time_in_millis, 95)) as ninety_fifth from elasticsearch_indices",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -98,8 +88,6 @@
       "queries": [
         {
           "query": "select non_negative_derivative(mean(search_scroll_time_in_millis)) as mean, non_negative_derivative(median(search_scroll_time_in_millis)) as median, non_negative_derivative(percentile(search_scroll_time_in_millis, 95)) as ninety_fifth from elasticsearch_indices",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -115,8 +103,6 @@
       "queries": [
         {
           "query": "select non_negative_derivative(mean(indexing_index_time_in_millis)) as mean from elasticsearch_indices",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -132,8 +118,6 @@
       "queries": [
         {
           "query": "select mean(gc_collectors_old_collection_count) as old_count, mean(gc_collectors_young_collection_count) as young_count from elasticsearch_jvm",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -149,8 +133,6 @@
       "queries": [
         {
           "query": "select non_negative_derivative(mean(gc_collectors_old_collection_time_in_millis)) as mean_old_time, non_negative_derivative(mean(gc_collectors_young_collection_time_in_millis)) as mean_young_time from elasticsearch_jvm",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -166,8 +148,6 @@
       "queries": [
         {
           "query": "select mean(mem_heap_used_percent) from elasticsearch_jvm",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }

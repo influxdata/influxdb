@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"tx_bytes\")) AS \"tx_bytes_per_second\" FROM kubernetes_pod_network",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
             "\"pod_name\"",
             "\"host\""
@@ -33,8 +31,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"rx_bytes\")) AS \"rx_bytes_per_second\" FROM kubernetes_pod_network",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
             "\"pod_name\"",
             "\"host\""

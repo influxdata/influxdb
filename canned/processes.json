@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"total\") AS \"total\" FROM processes",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }

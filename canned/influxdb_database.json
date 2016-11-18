@@ -13,16 +13,12 @@
       "queries": [
         {
           "query": "SELECT max(\"numMeasurements\") AS \"measurements\" FROM \"influxdb_database\"",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
           ],
           "wheres": []
         },
         {
           "query": "SELECT max(\"numSeries\") AS \"series\" FROM \"influxdb_database\"",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
           ],
           "wheres": []

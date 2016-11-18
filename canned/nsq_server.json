@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"topic_count\") AS \"topic_count\" FROM nsq_server",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -30,8 +28,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"server_count\") AS \"server_count\" FROM nsq_server",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }

@@ -13,22 +13,16 @@
       "queries": [
         {
           "query": "SELECT mean(\"Get_Requests_persec\") AS \"gets\" FROM win_websvc",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         },
         {
           "query": "SELECT mean(\"Post_Requests_persec\") AS \"posts\" FROM win_websvc",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         },
         {
           "query": "SELECT mean(\"Current_Connections\") AS \"connections\" FROM win_websvc",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }

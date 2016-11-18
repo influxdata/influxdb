@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(mean(\"tup_fetched\")) AS \"fetched\", non_negative_derivative(mean(\"tup_returned\")) AS \"returned\", non_negative_derivative(mean(\"tup_inserted\")) AS \"inserted\", non_negative_derivative(mean(\"tup_updated\")) AS \"updated\" FROM postgresql",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
             "db"
           ],
@@ -32,8 +30,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(mean(\"xact_commit\")) AS \"xact_commit\" FROM postgresql",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
             "db"
           ],
@@ -51,8 +47,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"buffers_alloc\") AS \"buffers_allocated\", mean(\"buffers_backend\") AS \"buffers_backend\", mean(\"buffers_backend_fsync\") AS \"buffers_backend_fsync\", mean(\"buffers_checkpoint\") AS \"buffers_checkpoint\", mean(\"buffers_clean\") AS \"buffers_clean\" FROM postgresql",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
           ],
           "wheres": []
@@ -69,8 +63,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"conflicts\") AS \"conflicts\", mean(\"deadlocks\") AS \"deadlocks\" FROM postgresql",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
           ],
           "wheres": []

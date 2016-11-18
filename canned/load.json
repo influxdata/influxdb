@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"load1\") AS \"load\" FROM \"system\"",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }

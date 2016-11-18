@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"clients\") AS \"clients\" FROM redis",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": []
         }
       ]
@@ -29,8 +27,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"blocked_clients\") AS \"blocked_clients\" FROM redis",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": []
         }
       ]
@@ -45,8 +41,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"used_cpu_user\")) AS \"used_cpu_per_second\" FROM redis",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": []
         }
       ]
@@ -61,8 +55,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"used_memory\")) AS \"used_memory_per_second\" FROM redis",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": []
         }
       ]

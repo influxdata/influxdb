@@ -11,8 +11,6 @@
         "name": "MongoDB – Read/Second",
  		"queries": [{
  			"query": "SELECT mean(queries_per_sec) AS queries_per_second, mean(getmores_per_sec) AS getmores_per_second FROM mongodb",
- 			"db": "telegraf",
- 			"rp": "",
   			"groupbys": [],
   			"wheres": []
 		}]
@@ -26,8 +24,6 @@
         "name": "MongoDB – Writes/Second",
  		"queries": [{
  			"query": "SELECT mean(inserts_per_sec) AS inserts_per_second, mean(updates_per_sec) AS updates_per_second, mean(deletes_per_sec) AS deletes_per_second FROM mongodb",
- 			"db": "telegraf",
- 			"rp": "",
   			"groupbys": [],
   			"wheres": []
 		}]
@@ -41,8 +37,6 @@
         "name": "MongoDB – Active Connections",
  		"queries": [{
  			"query": "SELECT mean(open_connections) AS open_connections FROM mongodb",
- 			"db": "telegraf",
- 			"rp": "",
   			"groupbys": [],
   			"wheres": []
 		}]
@@ -57,8 +51,6 @@
         "name": "MongoDB – Reads/Writes Waiting in Queue",
  		"queries": [{
  			"query": "SELECT max(queued_reads) AS queued_reads, max(queued_writes) as queued_writes FROM mongodb",
- 			"db": "telegraf",
- 			"rp": "",
   			"groupbys": [],
   			"wheres": []
 		}]
@@ -72,8 +64,6 @@
         "name": "MongoDB – Network Bytes/Second",
  		"queries": [{
  			"query": "SELECT mean(net_in_bytes) AS net_in_bytes, mean(net_out_bytes) as net_out_bytes FROM mongodb",
- 			"db": "telegraf",
- 			"rp": "",
   			"groupbys": [],
   			"wheres": []
 		}]
@@ -88,8 +78,6 @@
         "name": "MongoDB – Page Faults",
  		"queries": [{
  			"query": "SELECT mean(page_faults_per_sec) AS page_faults_per_second FROM mongodb",
- 			"db": "telegraf",
- 			"rp": "",
   			"groupbys": [],
   			"wheres": []
 		}
@@ -105,8 +93,6 @@
         "name": "MongoDB – Memory Usage (MB)",
  		"queries": [{
  			"query": "SELECT mean(vsize_megabytes) AS virtual_memory_megabytes, mean(resident_megabytes) as resident_memory_megabytes FROM mongodb",
- 			"db": "telegraf",
- 			"rp": "",
   			"groupbys": [],
   			"wheres": []
 		}
