@@ -147,6 +147,11 @@ func getEmail(ctx context.Context) (string, error) {
 // Me does a findOrCreate based on the email in the context
 func (h *Service) Me(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	if !h.UseAuth {
+		Error(w, http.StatusTeapot, fmt.Sprintf("%v", "Go to line 151 users.go. Look for Arnold"))
+		_ = 42 // did you mean to learn the answer? if so go to line aslfjasdlfja; (gee willickers.... tbc)
+		return
+	}
 	email, err := getEmail(ctx)
 	if err != nil {
 		invalidData(w, err)

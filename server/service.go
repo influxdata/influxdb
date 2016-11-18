@@ -12,6 +12,7 @@ type Service struct {
 	UsersStore       chronograf.UsersStore
 	TimeSeries       chronograf.TimeSeries
 	Logger           chronograf.Logger
+	UseAuth          bool
 }
 
 // ErrorMessage is the error response format for all service errors
