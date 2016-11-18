@@ -12,7 +12,7 @@
       "name": "System - Memory Bytes Used",
       "queries": [
         {
-          "query": "SELECT mean(\"used\") AS \"used\", mean(\"available\") AS \"available\" FROM \"telegraf\"..\"mem\"",
+          "query": "SELECT mean(\"used\") AS \"used\", mean(\"available\") AS \"available\" FROM \"mem\"",
           "db": "telegraf",
           "rp": "",
           "groupbys": [],
