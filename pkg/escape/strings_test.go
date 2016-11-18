@@ -34,9 +34,9 @@ func BenchmarkManyStringEscape(b *testing.B) {
 
 func BenchmarkManyStringUnescape(b *testing.B) {
 	tests := []string{
-		"this\\ is\\ my\\ special\\ string",
-		"a\\ field\\ w\\=i\\ th\\ \\=\\=\\ tons\\ of\\ escapes",
-		"some\\,commas\\,here",
+		`this\ is\ my\ special\ string`,
+		`a\ field\ w\=i\ th\ \=\=\ tons\ of\ escapes`,
+		`some\,commas\,here`,
 	}
 
 	for n := 0; n < b.N; n++ {
@@ -57,11 +57,11 @@ func TestStringEscape(t *testing.T) {
 		},
 		{
 			in:       "this is my special string",
-			expected: "this\\ is\\ my\\ special\\ string",
+			expected: `this\ is\ my\ special\ string`,
 		},
 		{
 			in:       "a field w=i th == tons of escapes",
-			expected: "a\\ field\\ w\\=i\\ th\\ \\=\\=\\ tons\\ of\\ escapes",
+			expected: `a\ field\ w\=i\ th\ \=\=\ tons\ of\ escapes`,
 		},
 		{
 			in:       "no_escapes",
@@ -69,7 +69,7 @@ func TestStringEscape(t *testing.T) {
 		},
 		{
 			in:       "some,commas,here",
-			expected: "some\\,commas\\,here",
+			expected: `some\,commas\,here`,
 		},
 	}
 
@@ -90,11 +90,11 @@ func TestStringUnescape(t *testing.T) {
 			expected: "",
 		},
 		{
-			in:       "this\\ is\\ my\\ special\\ string",
+			in:       `this\ is\ my\ special\ string`,
 			expected: "this is my special string",
 		},
 		{
-			in:       "a\\ field\\ w\\=i\\ th\\ \\=\\=\\ tons\\ of\\ escapes",
+			in:       `a\ field\ w\=i\ th\ \=\=\ tons\ of\ escapes`,
 			expected: "a field w=i th == tons of escapes",
 		},
 		{
@@ -102,7 +102,7 @@ func TestStringUnescape(t *testing.T) {
 			expected: "no_escapes",
 		},
 		{
-			in:       "some\\,commas\\,here",
+			in:       `some\,commas\,here`,
 			expected: "some,commas,here",
 		},
 	}

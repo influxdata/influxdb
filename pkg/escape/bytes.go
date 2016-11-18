@@ -5,6 +5,13 @@ import (
 	"strings"
 )
 
+var Codes = map[byte][]byte{
+	',': []byte(`\,`),
+	'"': []byte(`\"`),
+	' ': []byte(`\ `),
+	'=': []byte(`\=`),
+}
+
 func Bytes(in []byte) []byte {
 	for b, esc := range Codes {
 		in = bytes.Replace(in, []byte{b}, esc, -1)
