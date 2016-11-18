@@ -34,11 +34,12 @@ export const HostPage = React.createClass({
 
   componentDidMount() {
     const hosts = {[this.props.params.hostID]: {name: this.props.params.hostID}};
+    const {source} = this.props;
 
     // fetching layouts and mappings can be done at the same time
     fetchLayouts().then(({data: {layouts}}) => {
       getMappings().then(({data: {mappings}}) => {
-        getAppsForHosts(this.props.source.links.proxy, hosts, mappings).then((newHosts) => {
+        getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf).then((newHosts) => {
           const host = newHosts[this.props.params.hostID];
           const filteredLayouts = layouts.filter((layout) => {
             const focusedApp = this.props.location.query.app;

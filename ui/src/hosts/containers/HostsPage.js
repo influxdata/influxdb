@@ -30,7 +30,7 @@ export const HostsPage = React.createClass({
       getMappings(),
     ]).then(([hosts, {data: {mappings}}]) => {
       this.setState({hosts});
-      getAppsForHosts(source.links.proxy, hosts, mappings).then((newHosts) => {
+      getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf).then((newHosts) => {
         this.setState({hosts: newHosts});
       }).catch(() => {
         addFlashMessage({type: 'error', text: 'Unable to get apps for hosts'});
