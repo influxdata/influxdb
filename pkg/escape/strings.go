@@ -11,6 +11,9 @@ var (
 	}
 
 	codesStr = map[string]string{}
+
+	// escaper   = strings.NewReplacer(`,`, `\,`, `"`, `\"`, ` `, `\ `, `=`, `\=`)
+	// unescaper = strings.NewReplacer(`\,`, `,`, `\"`, `"`, `\ `, ` `, `\=`, `=`)
 )
 
 func init() {
