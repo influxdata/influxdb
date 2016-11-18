@@ -120,7 +120,7 @@ export const SourceForm = React.createClass({
                       </div>
                       <div className="form-group col-xs-8 col-xs-offset-2">
                         <label htmlFor="telegraf">Telegraf database</label>
-                        <input type="text" name="telegraf" ref={(r) => this.sourceTelegraf = r} className="form-control" id="telegraf" placeholder="telegraf" onChange={this.onInputChange} value={source.telegraf || ''}></input>
+                        <input type="text" name="telegraf" ref={(r) => this.sourceTelegraf = r} className="form-control" id="telegraf" onChange={this.onInputChange} value={source.telegraf || 'telegraf'}></input>
                       </div>
                       <div className="form-group col-xs-8 col-xs-offset-2">
                         <div className="form-control-static">
