@@ -45,14 +45,14 @@ type explorations struct {
 func (h *Service) Explorations(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	mrExs, err := h.ExplorationStore.Query(ctx, chronograf.UserID(id))
 	if err != nil {
-		unknownErrorWithMessage(w, err)
+		unknownErrorWithMessage(w, err, h.Logger)
 		return
 	}
 
@@ -71,20 +71,20 @@ func (h *Service) Explorations(w http.ResponseWriter, r *http.Request) {
 func (h *Service) ExplorationsID(w http.ResponseWriter, r *http.Request) {
 	eID, err := paramID("eid", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	uID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	e, err := h.ExplorationStore.Get(ctx, chronograf.ExplorationID(eID))
 	if err != nil || e.UserID != chronograf.UserID(uID) {
-		notFound(w, eID)
+		notFound(w, eID, h.Logger)
 		return
 	}
 
@@ -101,26 +101,26 @@ type patchExplorationRequest struct {
 func (h *Service) UpdateExploration(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("eid", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	uID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	e, err := h.ExplorationStore.Get(ctx, chronograf.ExplorationID(id))
 	if err != nil || e.UserID != chronograf.UserID(uID) {
-		notFound(w, id)
+		notFound(w, id, h.Logger)
 		return
 	}
 
 	var req patchExplorationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w)
+		invalidJSON(w, h.Logger)
 		return
 	}
 
@@ -128,7 +128,7 @@ func (h *Service) UpdateExploration(w http.ResponseWriter, r *http.Request) {
 		var ok bool
 		if e.Data, ok = req.Data.(string); !ok {
 			err := fmt.Errorf("Error: Exploration data is not a string")
-			invalidData(w, err)
+			invalidData(w, err, h.Logger)
 			return
 		}
 	}
@@ -139,7 +139,7 @@ func (h *Service) UpdateExploration(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.ExplorationStore.Update(ctx, e); err != nil {
 		msg := "Error: Failed to update Exploration"
-		Error(w, http.StatusInternalServerError, msg)
+		Error(w, http.StatusInternalServerError, msg, h.Logger)
 		return
 	}
 
@@ -156,14 +156,14 @@ type postExplorationRequest struct {
 func (h *Service) NewExploration(w http.ResponseWriter, r *http.Request) {
 	uID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	// TODO: Check user if user exists.
 	var req postExplorationRequest
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w)
+		invalidJSON(w, h.Logger)
 		return
 	}
 
@@ -182,7 +182,7 @@ func (h *Service) NewExploration(w http.ResponseWriter, r *http.Request) {
 	e, err = h.ExplorationStore.Add(ctx, e)
 	if err != nil {
 		msg := fmt.Errorf("Error: Failed to save Exploration")
-		unknownErrorWithMessage(w, msg)
+		unknownErrorWithMessage(w, msg, h.Logger)
 		return
 	}
 
@@ -195,25 +195,25 @@ func (h *Service) NewExploration(w http.ResponseWriter, r *http.Request) {
 func (h *Service) RemoveExploration(w http.ResponseWriter, r *http.Request) {
 	eID, err := paramID("eid", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	uID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	e, err := h.ExplorationStore.Get(ctx, chronograf.ExplorationID(eID))
 	if err != nil || e.UserID != chronograf.UserID(uID) {
-		notFound(w, eID)
+		notFound(w, eID, h.Logger)
 		return
 	}
 
 	if err := h.ExplorationStore.Delete(ctx, &chronograf.Exploration{ID: chronograf.ExplorationID(eID)}); err != nil {
-		unknownErrorWithMessage(w, err)
+		unknownErrorWithMessage(w, err, h.Logger)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

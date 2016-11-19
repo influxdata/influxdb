@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/bouk/httprouter"
-	"github.com/influxdata/chronograf" // When julienschmidt/httprouter v2 w/ context is out, switch "github.com/influxdata/chronograf
+	"github.com/influxdata/chronograf" // When julienschmidt/httprouter v2 w/ context is out, switch
 	"github.com/influxdata/chronograf/jwt"
 )
 
@@ -152,44 +152,45 @@ func encodeJSON(w http.ResponseWriter, status int, v interface{}, logger chronog
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
-		unknownErrorWithMessage(w, err)
+		unknownErrorWithMessage(w, err, logger)
 	}
 }
 
 // Error writes an JSON message
-func Error(w http.ResponseWriter, code int, msg string) {
-	e := struct {
-		Code    int    `json:"code"`
-		Message string `json:"message"`
-	}{
+func Error(w http.ResponseWriter, code int, msg string, logger chronograf.Logger) {
+	e := ErrorMessage{
 		Code:    code,
 		Message: msg,
 	}
 	b, err := json.Marshal(e)
 	if err != nil {
-		//log.Print("go-oidc: failed to marshal %#v: %v", e, err)
 		code = http.StatusInternalServerError
 		b = []byte(`{"code": 500, "message":"server_error"}`)
 	}
+
+	logger.
+		WithField("component", "server").
+		WithField("http_status ", code).
+		Error("Error message ", msg)
 	w.Header().Set("Content-Type", JSONType)
 	w.WriteHeader(code)
 	w.Write(b)
 }
 
-func invalidData(w http.ResponseWriter, err error) {
-	Error(w, http.StatusUnprocessableEntity, fmt.Sprintf("%v", err))
+func invalidData(w http.ResponseWriter, err error, logger chronograf.Logger) {
+	Error(w, http.StatusUnprocessableEntity, fmt.Sprintf("%v", err), logger)
 }
 
-func invalidJSON(w http.ResponseWriter) {
-	Error(w, http.StatusBadRequest, "Unparsable JSON")
+func invalidJSON(w http.ResponseWriter, logger chronograf.Logger) {
+	Error(w, http.StatusBadRequest, "Unparsable JSON", logger)
 }
 
-func unknownErrorWithMessage(w http.ResponseWriter, err error) {
-	Error(w, http.StatusInternalServerError, fmt.Sprintf("Unknown error: %v", err))
+func unknownErrorWithMessage(w http.ResponseWriter, err error, logger chronograf.Logger) {
+	Error(w, http.StatusInternalServerError, fmt.Sprintf("Unknown error: %v", err), logger)
 }
 
-func notFound(w http.ResponseWriter, id int) {
-	Error(w, http.StatusNotFound, fmt.Sprintf("ID %d not found", id))
+func notFound(w http.ResponseWriter, id int, logger chronograf.Logger) {
+	Error(w, http.StatusNotFound, fmt.Sprintf("ID %d not found", id), logger)
 }
 
 func paramID(key string, r *http.Request) (int, error) {
