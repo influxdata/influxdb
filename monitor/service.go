@@ -441,7 +441,7 @@ type Statistic struct {
 	models.Statistic
 }
 
-// valueNames returns a sorted list of the value names, if any.
+// ValueNames returns a sorted list of the value names, if any.
 func (s *Statistic) ValueNames() []string {
 	a := make([]string, 0, len(s.Values))
 	for k := range s.Values {
