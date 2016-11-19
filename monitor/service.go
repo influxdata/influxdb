@@ -451,6 +451,7 @@ func (s *Statistic) ValueNames() []string {
 	return a
 }
 
+// Statistics ....
 type Statistics []*Statistic
 
 func (a Statistics) Len() int { return len(a) }
