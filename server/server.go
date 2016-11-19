@@ -47,6 +47,7 @@ type Server struct {
 	handler  http.Handler
 }
 
+// BuildInfo is sent to the usage client to track versions and commits
 type BuildInfo struct {
 	Version string
 	Commit  string
@@ -141,6 +142,7 @@ func openService(boltPath, cannedPath string, logger chronograf.Logger) Service 
 		},
 		LayoutStore:     layouts,
 		AlertRulesStore: db.AlertsStore,
+		Logger:          logger,
 	}
 }
 

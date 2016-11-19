@@ -32,19 +32,19 @@ func newLayoutResponse(layout chronograf.Layout) layoutResponse {
 func (h *Service) NewLayout(w http.ResponseWriter, r *http.Request) {
 	var layout chronograf.Layout
 	if err := json.NewDecoder(r.Body).Decode(&layout); err != nil {
-		invalidJSON(w)
+		invalidJSON(w, h.Logger)
 		return
 	}
 
 	if err := ValidLayoutRequest(layout); err != nil {
-		invalidData(w, err)
+		invalidData(w, err, h.Logger)
 		return
 	}
 
 	var err error
 	if layout, err = h.LayoutStore.Add(r.Context(), layout); err != nil {
 		msg := fmt.Errorf("Error storing layout %v: %v", layout, err)
-		unknownErrorWithMessage(w, msg)
+		unknownErrorWithMessage(w, msg, h.Logger)
 		return
 	}
 
@@ -72,7 +72,7 @@ func (h *Service) Layouts(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	layouts, err := h.LayoutStore.All(ctx)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "Error loading layouts")
+		Error(w, http.StatusInternalServerError, "Error loading layouts", h.Logger)
 		return
 	}
 
@@ -104,7 +104,7 @@ func (h *Service) LayoutsID(w http.ResponseWriter, r *http.Request) {
 
 	layout, err := h.LayoutStore.Get(ctx, id)
 	if err != nil {
-		Error(w, http.StatusNotFound, fmt.Sprintf("ID %s not found", id))
+		Error(w, http.StatusNotFound, fmt.Sprintf("ID %s not found", id), h.Logger)
 		return
 	}
 
@@ -122,7 +122,7 @@ func (h *Service) RemoveLayout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.LayoutStore.Delete(ctx, layout); err != nil {
-		unknownErrorWithMessage(w, err)
+		unknownErrorWithMessage(w, err, h.Logger)
 		return
 	}
 
@@ -136,25 +136,25 @@ func (h *Service) UpdateLayout(w http.ResponseWriter, r *http.Request) {
 
 	_, err := h.LayoutStore.Get(ctx, id)
 	if err != nil {
-		Error(w, http.StatusNotFound, fmt.Sprintf("ID %s not found", id))
+		Error(w, http.StatusNotFound, fmt.Sprintf("ID %s not found", id), h.Logger)
 		return
 	}
 
 	var req chronograf.Layout
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w)
+		invalidJSON(w, h.Logger)
 		return
 	}
 	req.ID = id
 
 	if err := ValidLayoutRequest(req); err != nil {
-		invalidData(w, err)
+		invalidData(w, err, h.Logger)
 		return
 	}
 
 	if err := h.LayoutStore.Update(ctx, req); err != nil {
 		msg := fmt.Sprintf("Error updating layout ID %s: %v", id, err)
-		Error(w, http.StatusInternalServerError, msg)
+		Error(w, http.StatusInternalServerError, msg, h.Logger)
 		return
 	}
 

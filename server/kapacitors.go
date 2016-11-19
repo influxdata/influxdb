@@ -55,24 +55,24 @@ type kapacitor struct {
 func (h *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 	srcID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	_, err = h.SourcesStore.Get(ctx, srcID)
 	if err != nil {
-		notFound(w, srcID)
+		notFound(w, srcID, h.Logger)
 		return
 	}
 
 	var req postKapacitorRequest
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w)
+		invalidJSON(w, h.Logger)
 		return
 	}
 	if err := req.Valid(); err != nil {
-		invalidData(w, err)
+		invalidData(w, err, h.Logger)
 		return
 	}
 
@@ -86,7 +86,7 @@ func (h *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 
 	if srv, err = h.ServersStore.Add(ctx, srv); err != nil {
 		msg := fmt.Errorf("Error storing kapacitor %v: %v", req, err)
-		unknownErrorWithMessage(w, msg)
+		unknownErrorWithMessage(w, msg, h.Logger)
 		return
 	}
 
@@ -120,7 +120,7 @@ func (h *Service) Kapacitors(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	mrSrvs, err := h.ServersStore.All(ctx)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "Error loading kapacitors")
+		Error(w, http.StatusInternalServerError, "Error loading kapacitors", h.Logger)
 		return
 	}
 
@@ -140,20 +140,20 @@ func (h *Service) Kapacitors(w http.ResponseWriter, r *http.Request) {
 func (h *Service) KapacitorsID(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	srcID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	srv, err := h.ServersStore.Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
-		notFound(w, id)
+		notFound(w, id, h.Logger)
 		return
 	}
 
@@ -165,25 +165,25 @@ func (h *Service) KapacitorsID(w http.ResponseWriter, r *http.Request) {
 func (h *Service) RemoveKapacitor(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	srcID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	srv, err := h.ServersStore.Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
-		notFound(w, id)
+		notFound(w, id, h.Logger)
 		return
 	}
 
 	if err = h.ServersStore.Delete(ctx, srv); err != nil {
-		unknownErrorWithMessage(w, err)
+		unknownErrorWithMessage(w, err, h.Logger)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -213,31 +213,31 @@ func (p *patchKapacitorRequest) Valid() error {
 func (h *Service) UpdateKapacitor(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	srcID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	srv, err := h.ServersStore.Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
-		notFound(w, id)
+		notFound(w, id, h.Logger)
 		return
 	}
 
 	var req patchKapacitorRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w)
+		invalidJSON(w, h.Logger)
 		return
 	}
 
 	if err := req.Valid(); err != nil {
-		invalidData(w, err)
+		invalidData(w, err, h.Logger)
 		return
 	}
 
@@ -256,7 +256,7 @@ func (h *Service) UpdateKapacitor(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.ServersStore.Update(ctx, srv); err != nil {
 		msg := fmt.Sprintf("Error updating kapacitor ID %d", id)
-		Error(w, http.StatusInternalServerError, msg)
+		Error(w, http.StatusInternalServerError, msg, h.Logger)
 		return
 	}
 
@@ -268,20 +268,20 @@ func (h *Service) UpdateKapacitor(w http.ResponseWriter, r *http.Request) {
 func (h *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	srcID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	srv, err := h.ServersStore.Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
-		notFound(w, id)
+		notFound(w, id, h.Logger)
 		return
 	}
 
@@ -295,7 +295,7 @@ func (h *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 
 	var req chronograf.AlertRule
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w)
+		invalidJSON(w, h.Logger)
 		return
 	}
 	// TODO: validate this data
@@ -308,13 +308,13 @@ func (h *Service) KapacitorRulesPost(w http.ResponseWriter, r *http.Request) {
 
 	task, err := c.Create(ctx, req)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, err.Error())
+		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 		return
 	}
 	req.ID = task.ID
 	rule, err := h.AlertRulesStore.Add(ctx, srcID, id, req)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, err.Error())
+		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 		return
 	}
 
@@ -348,20 +348,20 @@ type alertResponse struct {
 func (h *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	srcID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	srv, err := h.ServersStore.Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
-		notFound(w, id)
+		notFound(w, id, h.Logger)
 		return
 	}
 
@@ -374,7 +374,7 @@ func (h *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 	}
 	var req chronograf.AlertRule
 	if err = json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w)
+		invalidJSON(w, h.Logger)
 		return
 	}
 	// TODO: validate this data
@@ -388,22 +388,22 @@ func (h *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 	// Check if the rule exists and is scoped correctly
 	if _, err := h.AlertRulesStore.Get(ctx, srcID, id, tid); err != nil {
 		if err == chronograf.ErrAlertNotFound {
-			notFound(w, id)
+			notFound(w, id, h.Logger)
 			return
 		}
-		Error(w, http.StatusInternalServerError, err.Error())
+		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 		return
 	}
 
 	req.ID = tid
 	task, err := c.Update(ctx, c.Href(tid), req)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, err.Error())
+		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 		return
 	}
 
 	if err := h.AlertRulesStore.Update(ctx, srcID, id, req); err != nil {
-		Error(w, http.StatusInternalServerError, err.Error())
+		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 		return
 	}
 
@@ -423,26 +423,26 @@ func (h *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 func (h *Service) KapacitorRulesGet(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	srcID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	srv, err := h.ServersStore.Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
-		notFound(w, id)
+		notFound(w, id, h.Logger)
 		return
 	}
 
 	rules, err := h.AlertRulesStore.All(ctx, srcID, id)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, err.Error())
+		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 		return
 	}
 
@@ -454,7 +454,7 @@ func (h *Service) KapacitorRulesGet(w http.ResponseWriter, r *http.Request) {
 	for _, rule := range rules {
 		tickscript, err := ticker.Generate(rule)
 		if err != nil {
-			Error(w, http.StatusInternalServerError, err.Error())
+			Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 			return
 		}
 
@@ -476,24 +476,24 @@ type allAlertsResponse struct {
 	Rules []alertResponse `json:"rules"`
 }
 
-// KapacitorRulesGet retrieves specific task
+// KapacitorRulesID retrieves specific task
 func (h *Service) KapacitorRulesID(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	srcID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	srv, err := h.ServersStore.Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
-		notFound(w, id)
+		notFound(w, id, h.Logger)
 		return
 	}
 	tid := httprouter.GetParamFromContext(ctx, "tid")
@@ -501,10 +501,10 @@ func (h *Service) KapacitorRulesID(w http.ResponseWriter, r *http.Request) {
 	rule, err := h.AlertRulesStore.Get(ctx, srcID, id, tid)
 	if err != nil {
 		if err == chronograf.ErrAlertNotFound {
-			notFound(w, id)
+			notFound(w, id, h.Logger)
 			return
 		}
-		Error(w, http.StatusInternalServerError, err.Error())
+		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 		return
 	}
 
@@ -512,7 +512,7 @@ func (h *Service) KapacitorRulesID(w http.ResponseWriter, r *http.Request) {
 	c := kapa.Client{}
 	tickscript, err := ticker.Generate(rule)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, err.Error())
+		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 		return
 	}
 
@@ -528,24 +528,24 @@ func (h *Service) KapacitorRulesID(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
-// KapacitosRulesDelete proxies DELETE to kapacitor
+// KapacitorRulesDelete proxies DELETE to kapacitor
 func (h *Service) KapacitorRulesDelete(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("kid", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	srcID, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	srv, err := h.ServersStore.Get(ctx, id)
 	if err != nil || srv.SrcID != srcID {
-		notFound(w, id)
+		notFound(w, id, h.Logger)
 		return
 	}
 
@@ -554,10 +554,10 @@ func (h *Service) KapacitorRulesDelete(w http.ResponseWriter, r *http.Request) {
 	// Check if the rule is linked to this server and kapacitor
 	if _, err := h.AlertRulesStore.Get(ctx, srcID, id, tid); err != nil {
 		if err == chronograf.ErrAlertNotFound {
-			notFound(w, id)
+			notFound(w, id, h.Logger)
 			return
 		}
-		Error(w, http.StatusInternalServerError, err.Error())
+		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 		return
 	}
 
@@ -567,12 +567,12 @@ func (h *Service) KapacitorRulesDelete(w http.ResponseWriter, r *http.Request) {
 		Password: srv.Password,
 	}
 	if err := c.Delete(ctx, c.Href(tid)); err != nil {
-		Error(w, http.StatusInternalServerError, err.Error())
+		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 		return
 	}
 
 	if err := h.AlertRulesStore.Delete(ctx, srcID, id, chronograf.AlertRule{ID: tid}); err != nil {
-		Error(w, http.StatusInternalServerError, err.Error())
+		Error(w, http.StatusInternalServerError, err.Error(), h.Logger)
 		return
 	}
 

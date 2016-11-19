@@ -12,3 +12,9 @@ type Service struct {
 	TimeSeries       chronograf.TimeSeries
 	Logger           chronograf.Logger
 }
+
+// ErrorMessage is the error response format for all service errors
+type ErrorMessage struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+}
