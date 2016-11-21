@@ -1,32 +1,61 @@
 ---
 machine:
-    services:
-        - docker
-    post:
-        - go version
-        - go version | grep 1.7.3 || (sudo rm -rf /usr/local/go && wget https://storage.googleapis.com/golang/go1.7.3.linux-amd64.tar.gz && sudo tar -C /usr/local -xzf go1.7.3.linux-amd64.tar.gz)
-        - go version
+  services:
+    - docker
+  environment:
+    DOCKER_TAG: chronograf-20161121
 
 dependencies:
-    pre:
-        - npm install -g node-sass
-        - git config --global url."git@github.com:".insteadOf "https://github.com/"
-        - mkdir -p ${HOME}/.go_workspace/src/github.com/influxdata
-        - ln -sf ${HOME}/chronograf ${HOME}/.go_workspace/src/github.com/influxdata
-        - "make clean":
-            pwd: ../.go_workspace/src/github.com/influxdata/chronograf
-        - "make":
-            pwd: ../.go_workspace/src/github.com/influxdata/chronograf
+  override:
+    - ./etc/scripts/docker/pull.sh
 
 test:
-    override:
-        - make test
+  override:
+    - >
+      ./etc/scripts/docker/run.sh
+      --test
+      --no-build
 
 deployment:
-    quayio:
-        branch: master
-        commands:
-            - make docker
-            - docker login -e $QUAY_EMAIL -u "$QUAY_USER" -p $QUAY_PASS quay.io
-            - docker tag chronograf quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
-            - docker push quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
+  master:
+    branch: master
+    commands:
+      - make docker
+      - docker login -e $QUAY_EMAIL -u "$QUAY_USER" -p $QUAY_PASS quay.io
+      - docker tag chronograf quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
+      - docker push quay.io/influxdb/chronograf:${CIRCLE_SHA1:0:7}
+      - >
+        ./etc/scripts/docker/run.sh
+        --clean
+        --package
+        --platform all
+        --arch all
+        --upload
+      - mv ./build/* $CIRCLE_ARTIFACTS
+  pre-release:
+    tag: /^[0-9]+(\.[0-9]+)*(\S*)([a|rc|beta]([0-9]+))+$/
+    commands:
+      - >
+        ./etc/scripts/docker/run.sh
+        --clean
+        --release
+        --package
+        --platform all
+        --arch all
+        --upload
+        --bucket dl.influxdata.com/chronograf/releases
+      - mv ./build/* $CIRCLE_ARTIFACTS
+  release:
+    tag: /^[0-9]+(\.[0-9]+)*$/
+    commands:
+      - >
+        ./etc/scripts/docker/run.sh
+        --clean
+        --release
+        --package
+        --platform all
+        --arch all
+        --upload
+        --bucket dl.influxdata.com/chronograf/releases
+        --outdir $CIRCLE_ARTIFACTS
+      - mv ./build/* $CIRCLE_ARTIFACTS
