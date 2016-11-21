@@ -588,6 +588,7 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 		sz, n = binary.Uvarint(data)
 		tag.Value, data = data[n:n+int(sz)], data[n+int(sz):]
 	}
+	e.Tags = tags
 
 	// Compute checksum.
 	chk := crc32.ChecksumIEEE(orig[:start-len(data)])
