@@ -126,9 +126,7 @@ func (i *Index) MeasurementsByName(names [][]byte) ([]*tsdb.Measurement, error) 
 
 // CreateSeriesIfNotExists adds the series for the given measurement to the
 // index and sets its ID or returns the existing series object
-func (i *Index) CreateSeriesIfNotExists(name []byte, tags models.Tags) error {
-	key := models.MakeKey(name, tags)
-
+func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
 	i.mu.RLock()
 	// if there is a measurement for this id, it's already been added
 	ss := i.series[string(key)]

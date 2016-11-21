@@ -668,7 +668,7 @@ func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType, inde
 	}
 
 	_, tags, _ := models.ParseKey(key)
-	if err := e.index.CreateSeriesIfNotExists([]byte(name), tags); err != nil {
+	if err := e.index.CreateSeriesIfNotExists(key, []byte(name), tags); err != nil {
 		return err
 	}
 	return nil
@@ -870,8 +870,8 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 	return nil
 }
 
-func (e *Engine) CreateSeriesIfNotExists(name []byte, tags models.Tags) error {
-	return e.index.CreateSeriesIfNotExists(name, tags)
+func (e *Engine) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
+	return e.index.CreateSeriesIfNotExists(key, name, tags)
 }
 
 // WriteTo is not implemented.

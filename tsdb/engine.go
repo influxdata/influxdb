@@ -41,7 +41,7 @@ type Engine interface {
 	CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
 	WritePoints(points []models.Point) error
 
-	CreateSeriesIfNotExists(name []byte, tags models.Tags) error
+	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	DeleteSeriesRange(keys [][]byte, min, max int64) error
 
 	SeriesN() (uint64, error)
