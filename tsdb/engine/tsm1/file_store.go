@@ -171,7 +171,7 @@ func NewFileStore(dir string) *FileStore {
 	logger := log.New(os.Stderr, "[filestore] ", log.LstdFlags)
 	fs := &FileStore{
 		dir:          dir,
-		lastModified: time.Now(),
+		lastModified: time.Time{},
 		logger:       logger,
 		traceLogger:  log.New(ioutil.Discard, "[filestore] ", log.LstdFlags),
 		logOutput:    os.Stderr,
@@ -347,7 +347,7 @@ func (f *FileStore) Delete(keys []string) error {
 // DeleteRange removes the values for keys between min and max.
 func (f *FileStore) DeleteRange(keys []string, min, max int64) error {
 	f.mu.Lock()
-	f.lastModified = time.Now()
+	f.lastModified = time.Now().UTC()
 	f.mu.Unlock()
 
 	return f.walkFiles(func(tsm TSMFile) error {
@@ -411,8 +411,12 @@ func (f *FileStore) Open() error {
 		}
 
 		// Accumulate file store size stat
-		if fi, err := file.Stat(); err == nil {
+		fi, err := file.Stat()
+		if err == nil {
 			atomic.AddInt64(&f.stats.DiskBytes, fi.Size())
+			if fi.ModTime().UTC().After(f.lastModified) {
+				f.lastModified = fi.ModTime().UTC()
+			}
 		}
 
 		go func(idx int, file *os.File) {
@@ -515,10 +519,14 @@ func (f *FileStore) Stats() []FileStat {
 }
 
 func (f *FileStore) Replace(oldFiles, newFiles []string) error {
+	if len(oldFiles) == 0 && len(newFiles) == 0 {
+		return nil
+	}
+
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	f.lastModified = time.Now()
+	maxTime := f.lastModified
 
 	// Copy the current set of active files while we rename
 	// and load the new files.  We copy the pointers here to minimize
@@ -543,6 +551,13 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 		fd, err := os.Open(newName)
 		if err != nil {
 			return err
+		}
+
+		// Keep track of the new mod time
+		if stat, err := fd.Stat(); err == nil {
+			if stat.ModTime().UTC().After(maxTime) {
+				maxTime = stat.ModTime().UTC()
+			}
 		}
 
 		tsm, err := NewTSMReader(fd)
@@ -617,6 +632,15 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 
 	// Tell the purger about our in-use files we need to remove
 	f.purger.add(inuse)
+
+	// If times didn't change (which can happen since file mod times are second level),
+	// then add a ns to the time to ensure that lastModified changes since files on disk
+	// actually did change
+	if maxTime.Equal(f.lastModified) {
+		maxTime = maxTime.UTC().Add(1)
+	}
+
+	f.lastModified = maxTime.UTC()
 
 	f.lastFileStats = nil
 	f.files = active

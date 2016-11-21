@@ -335,6 +335,14 @@ func (s *Shard) ready() error {
 	return err
 }
 
+// LastModified returns the time when this shard was last modified
+func (s *Shard) LastModified() time.Time {
+	if err := s.ready(); err != nil {
+		return time.Time{}
+	}
+	return s.engine.LastModified()
+}
+
 // DiskSize returns the size on disk of this shard
 func (s *Shard) DiskSize() (int64, error) {
 	var size int64
