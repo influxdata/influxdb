@@ -382,7 +382,7 @@ func (i *Index) DropMeasurement(name []byte) error {
 }
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
-func (i *Index) CreateSeriesIfNotExists(name []byte, tags models.Tags) error {
+func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
 	if e := i.Series(name, tags); e != nil && !e.Deleted() {
 		return nil
 	}

@@ -22,7 +22,7 @@ type Index interface {
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	DropMeasurement(name []byte) error
 
-	CreateSeriesIfNotExists(name []byte, tags models.Tags) error
+	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	DropSeries(keys [][]byte) error
 
 	SeriesN() (uint64, error)

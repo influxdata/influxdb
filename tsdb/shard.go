@@ -551,7 +551,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 
 		iter.Reset()
 
-		if err := s.engine.CreateSeriesIfNotExists([]byte(p.Name()), tags); err != nil {
+		if err := s.engine.CreateSeriesIfNotExists(p.Key(), []byte(p.Name()), tags); err != nil {
 			if err, ok := err.(*LimitError); ok {
 				atomic.AddInt64(&s.stats.WritePointsDropped, 1)
 				dropped += 1
