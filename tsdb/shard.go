@@ -211,16 +211,16 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 		Name: "shard",
 		Tags: tags,
 		Values: map[string]interface{}{
-			statWriteReq:       atomic.LoadInt64(&s.stats.WriteReq),
-			statWriteReqOK:     atomic.LoadInt64(&s.stats.WriteReqOK),
-			statWriteReqErr:    atomic.LoadInt64(&s.stats.WriteReqErr),
-			statSeriesCreate:   int64(seriesN),
-			statFieldsCreate:   atomic.LoadInt64(&s.stats.FieldsCreated),
-			statWritePointsErr: atomic.LoadInt64(&s.stats.WritePointsErr),
+			statWriteReq:           atomic.LoadInt64(&s.stats.WriteReq),
+			statWriteReqOK:         atomic.LoadInt64(&s.stats.WriteReqOK),
+			statWriteReqErr:        atomic.LoadInt64(&s.stats.WriteReqErr),
+			statSeriesCreate:       int64(seriesN),
+			statFieldsCreate:       atomic.LoadInt64(&s.stats.FieldsCreated),
+			statWritePointsErr:     atomic.LoadInt64(&s.stats.WritePointsErr),
 			statWritePointsDropped: atomic.LoadInt64(&s.stats.WritePointsDropped),
-			statWritePointsOK:  atomic.LoadInt64(&s.stats.WritePointsOK),
-			statWriteBytes:     atomic.LoadInt64(&s.stats.BytesWritten),
-			statDiskBytes:      atomic.LoadInt64(&s.stats.DiskBytes),
+			statWritePointsOK:      atomic.LoadInt64(&s.stats.WritePointsOK),
+			statWriteBytes:         atomic.LoadInt64(&s.stats.BytesWritten),
+			statDiskBytes:          atomic.LoadInt64(&s.stats.DiskBytes),
 		},
 	}}
 
@@ -499,43 +499,44 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		reason         string
 	)
 
-	if s.options.Config.MaxValuesPerTag > 0 {
-		// Validate that all the new points would not exceed any limits, if so, we drop them
-		// and record why/increment counters
-		for i, p := range points {
-			tags := p.Tags()
+	// FIXME(jwilder): This is too slow due to the way that index.Measurement is currently implemented.
+	// if s.options.Config.MaxValuesPerTag > 0 {
+	// 	// Validate that all the new points would not exceed any limits, if so, we drop them
+	// 	// and record why/increment counters
+	// 	for i, p := range points {
+	// 		tags := p.Tags()
 
-			// Measurement doesn't exist yet, can't check the limit
-			m := s.Measurement([]byte(p.Name()))
-			if m != nil {
-				var dropPoint bool
-				for _, tag := range tags {
-					// If the tag value already exists, skip the limit check
-					if m.HasTagKeyValue(tag.Key, tag.Value) {
-						continue
-					}
+	// 		// Measurement doesn't exist yet, can't check the limit
+	// 		m := s.Measurement([]byte(p.Name()))
+	// 		if m != nil {
+	// 			var dropPoint bool
+	// 			for _, tag := range tags {
+	// 				// If the tag value already exists, skip the limit check
+	// 				if m.HasTagKeyValue(tag.Key, tag.Value) {
+	// 					continue
+	// 				}
 
-					n := m.CardinalityBytes(tag.Key)
-					if n >= s.options.Config.MaxValuesPerTag {
-						dropPoint = true
-						reason = fmt.Sprintf("max-values-per-tag limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
-							n, s.options.Config.MaxValuesPerTag, m.Name, string(tag.Key), string(tag.Key))
-						break
-					}
-				}
-				if dropPoint {
-					atomic.AddInt64(&s.stats.WritePointsDropped, 1)
-					dropped++
+	// 				n := m.CardinalityBytes(tag.Key)
+	// 				if n >= s.options.Config.MaxValuesPerTag {
+	// 					dropPoint = true
+	// 					reason = fmt.Sprintf("max-values-per-tag limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
+	// 						n, s.options.Config.MaxValuesPerTag, m.Name, string(tag.Key), string(tag.Key))
+	// 					break
+	// 				}
+	// 			}
+	// 			if dropPoint {
+	// 				atomic.AddInt64(&s.stats.WritePointsDropped, 1)
+	// 				dropped += 1
 
-					// This causes n below to not be increment allowing the point to be dropped
-					continue
-				}
-			}
-			points[n] = points[i]
-			n++
-		}
-		points = points[:n]
-	}
+	// 				// This causes n below to not be increment allowing the point to be dropped
+	// 				continue
+	// 			}
+	// 		}
+	// 		points[n] = points[i]
+	// 		n += 1
+	// 	}
+	// 	points = points[:n]
+	// }
 
 	// get the shard mutex for locally defined fields
 	n = 0
