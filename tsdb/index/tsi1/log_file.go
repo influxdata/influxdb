@@ -232,7 +232,7 @@ func (f *LogFile) Series(name []byte, tags models.Tags) SeriesElem {
 // appendEntry adds a log entry to the end of the file.
 func (f *LogFile) appendEntry(e *LogEntry) error {
 	// Marshal entry to the local buffer.
-	f.buf = appendLogEntry(f.buf[0:], e)
+	f.buf = appendLogEntry(f.buf[:0], e)
 
 	// Save the size of the record.
 	e.Size = len(f.buf)
