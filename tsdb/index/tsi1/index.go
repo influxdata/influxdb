@@ -14,6 +14,12 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
+func init() {
+	tsdb.RegisterIndex("tsi1", func(id uint64, path string, opt tsdb.EngineOptions) tsdb.Index {
+		return &Index{Path: path}
+	})
+}
+
 // File extensions.
 const (
 	LogFileExt   = ".tsi.log"
