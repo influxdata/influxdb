@@ -19,22 +19,23 @@ type UsersStore struct {
 
 // FindByEmail searches the UsersStore for all users owned with the email
 func (s *UsersStore) FindByEmail(ctx context.Context, email string) (*chronograf.User, error) {
-	var user *chronograf.User
+	var user chronograf.User
 	err := s.client.db.View(func(tx *bolt.Tx) error {
 		err := tx.Bucket(UsersBucket).ForEach(func(k, v []byte) error {
-			var u *chronograf.User
-			if err := internal.UnmarshalUser(v, u); err != nil {
+			var u chronograf.User
+			if err := internal.UnmarshalUser(v, &u); err != nil {
 				return err
 			} else if u.Email != email {
 				return nil
 			}
-			user = u
+			user.Email = u.Email
+			user.ID = u.ID
 			return nil
 		})
 		if err != nil {
 			return err
 		}
-		if user == nil {
+		if user.ID == 0 {
 			return chronograf.ErrUserNotFound
 		}
 		return nil
@@ -43,7 +44,7 @@ func (s *UsersStore) FindByEmail(ctx context.Context, email string) (*chronograf
 		return nil, err
 	}
 
-	return user, nil
+	return &user, nil
 }
 
 // Create a new Users in the UsersStore.
