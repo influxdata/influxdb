@@ -35,18 +35,18 @@ func newUserResponse(usr *chronograf.User) userResponse {
 func (h *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 	var usr *chronograf.User
 	if err := json.NewDecoder(r.Body).Decode(usr); err != nil {
-		invalidJSON(w)
+		invalidJSON(w, h.Logger)
 		return
 	}
 	if err := ValidUserRequest(usr); err != nil {
-		invalidData(w, err)
+		invalidData(w, err, h.Logger)
 		return
 	}
 
 	var err error
 	if usr, err = h.UsersStore.Add(r.Context(), usr); err != nil {
 		msg := fmt.Errorf("error storing user %v: %v", *usr, err)
-		unknownErrorWithMessage(w, msg)
+		unknownErrorWithMessage(w, msg, h.Logger)
 		return
 	}
 
@@ -59,14 +59,14 @@ func (h *Service) NewUser(w http.ResponseWriter, r *http.Request) {
 func (h *Service) UserID(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	usr, err := h.UsersStore.Get(ctx, chronograf.UserID(id))
 	if err != nil {
-		notFound(w, id)
+		notFound(w, id, h.Logger)
 		return
 	}
 
@@ -78,14 +78,14 @@ func (h *Service) UserID(w http.ResponseWriter, r *http.Request) {
 func (h *Service) RemoveUser(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	usr := &chronograf.User{ID: chronograf.UserID(id)}
 	ctx := r.Context()
 	if err = h.UsersStore.Delete(ctx, usr); err != nil {
-		unknownErrorWithMessage(w, err)
+		unknownErrorWithMessage(w, err, h.Logger)
 		return
 	}
 
@@ -96,32 +96,32 @@ func (h *Service) RemoveUser(w http.ResponseWriter, r *http.Request) {
 func (h *Service) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	usr, err := h.UsersStore.Get(ctx, chronograf.UserID(id))
 	if err != nil {
-		notFound(w, id)
+		notFound(w, id, h.Logger)
 		return
 	}
 
 	var req chronograf.User
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w)
+		invalidJSON(w, h.Logger)
 		return
 	}
 
 	usr.Email = req.Email
 	if err := ValidUserRequest(usr); err != nil {
-		invalidData(w, err)
+		invalidData(w, err, h.Logger)
 		return
 	}
 
 	if err := h.UsersStore.Update(ctx, usr); err != nil {
 		msg := fmt.Sprintf("Error updating user ID %d", id)
-		Error(w, http.StatusInternalServerError, msg)
+		Error(w, http.StatusInternalServerError, msg, h.Logger)
 		return
 	}
 	encodeJSON(w, http.StatusOK, newUserResponse(usr), h.Logger)
@@ -148,13 +148,13 @@ func getEmail(ctx context.Context) (string, error) {
 func (h *Service) Me(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !h.UseAuth {
-		Error(w, http.StatusTeapot, fmt.Sprintf("%v", "Go to line 151 users.go. Look for Arnold"))
+		Error(w, http.StatusTeapot, fmt.Sprintf("%v", "Go to line 151 users.go. Look for Arnold"), h.Logger)
 		_ = 42 // did you mean to learn the answer? if so go to line aslfjasdlfja; (gee willickers.... tbc)
 		return
 	}
 	email, err := getEmail(ctx)
 	if err != nil {
-		invalidData(w, err)
+		invalidData(w, err, h.Logger)
 		return
 	}
 	usr, err := h.UsersStore.FindByEmail(ctx, email)
@@ -171,7 +171,7 @@ func (h *Service) Me(w http.ResponseWriter, r *http.Request) {
 	user, err = h.UsersStore.Add(ctx, user)
 	if err != nil {
 		msg := fmt.Errorf("error storing user %v: %v", user, err)
-		unknownErrorWithMessage(w, msg)
+		unknownErrorWithMessage(w, msg, h.Logger)
 		return
 	}
 
