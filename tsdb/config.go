@@ -51,7 +51,7 @@ const (
 type Config struct {
 	Dir    string `toml:"dir"`
 	Engine string `toml:"-"`
-	Index  string `toml:"-"`
+	Index  string `toml:"index-version"`
 
 	// General WAL configuration options
 	WALDir string `toml:"wal-dir"`

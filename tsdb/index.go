@@ -76,12 +76,12 @@ func RegisteredIndexes() []string {
 // If the path does not exist then the DefaultFormat is used.
 func NewIndex(id uint64, path string, options EngineOptions) (Index, error) {
 	// Create a new index.
-	if _, err := os.Stat(path); os.IsNotExist(err) {
+	if _, err := os.Stat(path); os.IsNotExist(err) && options.Config.Index != "inmem" {
 		return newIndexFuncs[options.IndexVersion](id, path, options), nil
 	}
 
 	// Use default format.
-	format := DefaultIndex
+	format := options.Config.Index
 
 	// Lookup index by format.
 	fn := newIndexFuncs[format]

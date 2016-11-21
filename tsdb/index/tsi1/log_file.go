@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"sync"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -29,6 +30,7 @@ const (
 
 // LogFile represents an on-disk write-ahead log file.
 type LogFile struct {
+	mu      sync.RWMutex
 	data    []byte     // mmap
 	file    *os.File   // writer
 	buf     []byte     // marshaling buffer
@@ -118,6 +120,9 @@ func (f *LogFile) Close() error {
 
 // MeasurementNames returns an ordered list of measurement names.
 func (f *LogFile) MeasurementNames() []string {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
 	a := make([]string, 0, len(f.mms))
 	for name := range f.mms {
 		a = append(a, name)
@@ -127,6 +132,9 @@ func (f *LogFile) MeasurementNames() []string {
 
 // DeleteMeasurement adds a tombstone for a measurement to the log file.
 func (f *LogFile) DeleteMeasurement(name []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	e := LogEntry{Flag: LogEntryMeasurementTombstoneFlag, Name: name}
 	if err := f.appendEntry(&e); err != nil {
 		return err
@@ -137,6 +145,9 @@ func (f *LogFile) DeleteMeasurement(name []byte) error {
 
 // DeleteTagKey adds a tombstone for a tag key to the log file.
 func (f *LogFile) DeleteTagKey(name, key []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	e := LogEntry{Flag: LogEntryTagKeyTombstoneFlag, Name: name, Tags: models.Tags{{Key: key}}}
 	if err := f.appendEntry(&e); err != nil {
 		return err
@@ -147,6 +158,9 @@ func (f *LogFile) DeleteTagKey(name, key []byte) error {
 
 // DeleteTagValue adds a tombstone for a tag value to the log file.
 func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	e := LogEntry{Flag: LogEntryTagValueTombstoneFlag, Name: name, Tags: models.Tags{{Key: key, Value: value}}}
 	if err := f.appendEntry(&e); err != nil {
 		return err
@@ -157,6 +171,9 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 
 // AddSeries adds a series to the log file.
 func (f *LogFile) AddSeries(name []byte, tags models.Tags) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	e := LogEntry{Name: name, Tags: tags}
 	if err := f.appendEntry(&e); err != nil {
 		return err
@@ -167,6 +184,9 @@ func (f *LogFile) AddSeries(name []byte, tags models.Tags) error {
 
 // DeleteSeries adds a tombstone for a series to the log file.
 func (f *LogFile) DeleteSeries(name []byte, tags models.Tags) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
 	e := LogEntry{Flag: LogEntrySeriesTombstoneFlag, Name: name, Tags: tags}
 	if err := f.appendEntry(&e); err != nil {
 		return err
@@ -177,6 +197,9 @@ func (f *LogFile) DeleteSeries(name []byte, tags models.Tags) error {
 
 // SeriesN returns the total number of series in the file.
 func (f *LogFile) SeriesN() (n uint64) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
 	for _, mm := range f.mms {
 		n += uint64(len(mm.series))
 	}
@@ -185,6 +208,9 @@ func (f *LogFile) SeriesN() (n uint64) {
 
 // Series returns a series reference.
 func (f *LogFile) Series(name []byte, tags models.Tags) SeriesElem {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
 	mm, ok := f.mms[string(name)]
 	if !ok {
 		return nil
@@ -206,7 +232,7 @@ func (f *LogFile) Series(name []byte, tags models.Tags) SeriesElem {
 // appendEntry adds a log entry to the end of the file.
 func (f *LogFile) appendEntry(e *LogEntry) error {
 	// Marshal entry to the local buffer.
-	f.buf = appendLogEntry(f.buf[0:], e)
+	f.buf = appendLogEntry(f.buf[:0], e)
 
 	// Save the size of the record.
 	e.Size = len(f.buf)
@@ -315,6 +341,9 @@ func (f *LogFile) measurement(name []byte) logMeasurement {
 
 // MeasurementIterator returns an iterator over all the measurements in the file.
 func (f *LogFile) MeasurementIterator() MeasurementIterator {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
 	var itr logMeasurementIterator
 	for _, mm := range f.mms {
 		itr.mms = append(itr.mms, mm)
@@ -325,6 +354,9 @@ func (f *LogFile) MeasurementIterator() MeasurementIterator {
 
 // MeasurementSeriesIterator returns an iterator over all series in the log file.
 func (f *LogFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
 	mm := f.mms[string(name)]
 	itr := logSeriesIterator{series: make(logSeries, len(mm.series))}
 	copy(itr.series, mm.series)
@@ -556,6 +588,7 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 		sz, n = binary.Uvarint(data)
 		tag.Value, data = data[n:n+int(sz)], data[n+int(sz):]
 	}
+	e.Tags = tags
 
 	// Compute checksum.
 	chk := crc32.ChecksumIEEE(orig[:start-len(data)])

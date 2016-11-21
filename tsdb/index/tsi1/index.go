@@ -7,12 +7,19 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"sync"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/tsdb"
 )
+
+func init() {
+	tsdb.RegisterIndex("tsi1", func(id uint64, path string, opt tsdb.EngineOptions) tsdb.Index {
+		return &Index{Path: path}
+	})
+}
 
 // File extensions.
 const (
@@ -27,12 +34,16 @@ var _ tsdb.Index = &Index{}
 type Index struct {
 	Path string
 
+	mu         sync.RWMutex
 	logFiles   []*LogFile
 	indexFiles IndexFiles
 }
 
 // Open opens the index.
 func (i *Index) Open() error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	// Open root index directory.
 	f, err := os.Open(i.Path)
 	if err != nil {
@@ -95,6 +106,9 @@ func (i *Index) openIndexFile(path string) error {
 
 // Close closes the index.
 func (i *Index) Close() error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	// Close log files.
 	for _, f := range i.logFiles {
 		f.Close()
@@ -414,18 +428,22 @@ func (i *Index) DropSeries(keys [][]byte) error {
 }
 
 func (i *Index) SeriesN() (n uint64, err error) {
-	// TODO(edd): Use sketches.
+	// FIXME(edd): Use sketches.
 
 	// HACK(benbjohnson): Use first log file until edd adds sketches.
 	return i.logFiles[0].SeriesN(), nil
 }
 
 func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	panic("TODO(edd)")
+	//FIXME(edd)
+	return nil, nil, fmt.Errorf("SeriesSketches not implemented")
+
 }
 
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	panic("TODO(edd)")
+	//FIXME(edd)
+	return nil, nil, fmt.Errorf("MeasurementSketches not implemented")
+
 }
 
 // Dereference is a nop.
@@ -433,18 +451,20 @@ func (i *Index) Dereference([]byte) {}
 
 // TagKeySeriesIterator returns a series iterator for all values across a single key.
 func (i *Index) TagKeySeriesIterator(name, key []byte) SeriesIterator {
-	panic("TODO")
+	//FIXME(edd)
+	return fmt.Errorf("TagKeySeriesIterator not implemented")
 }
 
 // TagValueSeriesIterator returns a series iterator for a single tag value.
 func (i *Index) TagValueSeriesIterator(name, key, value []byte) SeriesIterator {
-	panic("TODO")
+	//panic("TODO")
+	return fmt.Errorf("TagValueSeriesIterator not implemented")
 }
 
 // MatchTagValueSeriesIterator returns a series iterator for tags which match value.
 // If matches is false, returns iterators which do not match value.
 func (i *Index) MatchTagValueSeriesIterator(name, key []byte, value *regexp.Regexp, matches bool) SeriesIterator {
-	panic("TODO")
+	panic("FIXME: MatchTagValueSeriesIterator not implemented")
 
 	/*
 		// Check if we match the empty string to see if we should include series
