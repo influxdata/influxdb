@@ -14,6 +14,7 @@ export default React.createClass({
     isFetchingInitially: PropTypes.bool,
     isRefreshing: PropTypes.bool,
     yRange: arrayOf(number.isRequired),
+    ylabels: arrayOf(string.isRequired),
     underlayCallback: PropTypes.func,
     isGraphFilled: bool,
     overrideLineColors: array,
@@ -39,10 +40,11 @@ export default React.createClass({
     }
   },
   render() {
+    const {isFetchingInitially, title, underlayCallback, ylabels} = this.props;
     const {fields, timeSeries} = this._timeSeries;
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
-    if (this.props.isFetchingInitially) {
+    if (isFetchingInitially) {
       return (
         <div className="graph-panel__graph-fetching">
           <h3 className="graph-panel__spinner" />
@@ -57,11 +59,12 @@ export default React.createClass({
       height: 300,
       axisLineColor: '#383846',
       gridLineColor: '#383846',
-      title: this.props.title,
+      title,
       rightGap: 0,
       yRangePad: 10,
       drawAxesAtZero: true,
-      underlayCallback: this.props.underlayCallback,
+      underlayCallback,
+      ylabel: ylabels && ylabels[0],
     };
 
     return (
