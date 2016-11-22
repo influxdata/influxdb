@@ -49,6 +49,8 @@ The meaning of the fields are as follows:
 * cell - An array of graphs
 * x - Not currently used
 * y - Not currently used
+* yranges - Optional key specifying the default y-axes ranges (must come in pairs)
+* ylabels - Optional key specifying the user-facing names of the y-axes.  Indices in ylabels correspond with yrange pairs
 * w - The width of the graph, for the initial release set to 4 to make everything line up properly.
 * h - The height of the graph, for the initial release set to 4 to make everything line up properly
 * i - A unique ID for the graph

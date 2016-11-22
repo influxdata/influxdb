@@ -245,13 +245,15 @@ type ExplorationStore interface {
 
 // Cell is a rectangle and multiple time series queries to visualize.
 type Cell struct {
-	X       int32   `json:"x"`
-	Y       int32   `json:"y"`
-	W       int32   `json:"w"`
-	H       int32   `json:"h"`
-	I       string  `json:"i"`
-	Name    string  `json:"name"`
-	Queries []Query `json:"queries"`
+	X       int32    `json:"x"`
+	Y       int32    `json:"y"`
+	W       int32    `json:"w"`
+	H       int32    `json:"h"`
+	I       string   `json:"i"`
+	YRanges []int64  `json:"yranges"` // YRanges are the initial limits of the y-axes
+	YLabels []string `json:"ylabels"` // YLabels are the labels of the y-axes (possible to have more than one)
+	Name    string   `json:"name"`
+	Queries []Query  `json:"queries"`
 }
 
 // Layout is a collection of Cells for visualization

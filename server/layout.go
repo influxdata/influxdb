@@ -18,7 +18,14 @@ func newLayoutResponse(layout chronograf.Layout) layoutResponse {
 	httpAPILayouts := "/chronograf/v1/layouts"
 	href := fmt.Sprintf("%s/%s", httpAPILayouts, layout.ID)
 	rel := "self"
-
+	for i, c := range layout.Cells {
+		if c.YLabels == nil {
+			layout.Cells[i].YLabels = make([]string, 0)
+		}
+		if c.YRanges == nil {
+			layout.Cells[i].YRanges = make([]int64, 0)
+		}
+	}
 	return layoutResponse{
 		Layout: layout,
 		Link: link{
@@ -171,6 +178,10 @@ func ValidLayoutRequest(l chronograf.Layout) error {
 	for _, c := range l.Cells {
 		if c.W == 0 || c.H == 0 {
 			return fmt.Errorf("w, and h required")
+		}
+		// Y-Range must come in pairs (I'm leaving the option open for multiple y-axes)
+		if len(c.YRanges)%2 != 0 {
+			return fmt.Errorf("Incorrect length of yrange: %d", len(c.YRanges))
 		}
 		for _, q := range c.Queries {
 			if q.Command == "" {

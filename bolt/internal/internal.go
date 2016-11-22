@@ -115,12 +115,15 @@ func MarshalLayout(l chronograf.Layout) ([]byte, error) {
 				Wheres:   q.Wheres,
 			}
 		}
+
 		cells[i] = &Cell{
 			X:       c.X,
 			Y:       c.Y,
 			W:       c.W,
 			H:       c.H,
 			I:       c.I,
+			Yranges: c.YRanges,
+			Ylabels: c.YLabels,
 			Name:    c.Name,
 			Queries: queries,
 		}
@@ -157,12 +160,15 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 				Wheres:   q.Wheres,
 			}
 		}
+
 		cells[i] = chronograf.Cell{
 			X:       c.X,
 			Y:       c.Y,
 			W:       c.W,
 			H:       c.H,
 			I:       c.I,
+			YRanges: c.Yranges,
+			YLabels: c.Ylabels,
 			Name:    c.Name,
 			Queries: queries,
 		}
