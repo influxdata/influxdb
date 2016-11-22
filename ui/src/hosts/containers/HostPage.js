@@ -34,7 +34,7 @@ export const HostPage = React.createClass({
   },
 
   componentDidMount() {
-    const {source, params} = this.props;
+    const {source, params, location} = this.props;
     const hosts = {[params.hostID]: {name: params.hostID}};
 
     // fetching layouts and mappings can be done at the same time
@@ -44,7 +44,7 @@ export const HostPage = React.createClass({
           getMeasurementsForHost(source, params.hostID).then((measurements) => {
             const host = newHosts[this.props.params.hostID];
             const filteredLayouts = layouts.filter((layout) => {
-              const focusedApp = this.props.location.query.app;
+              const focusedApp = location.query.app;
               if (focusedApp) {
                 return layout.app === focusedApp;
               }
