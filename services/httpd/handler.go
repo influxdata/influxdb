@@ -457,13 +457,33 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 			continue
 		}
 
-		// Limit the number of rows that can be returned in a non-chunked response.
-		// This is to prevent the server from going OOM when returning a large response.
-		// If you want to return more than the default chunk size, then use chunking
-		// to process multiple blobs.
-		rows += len(r.Series)
-		if h.Config.MaxRowLimit > 0 && rows > h.Config.MaxRowLimit {
-			break
+		// Limit the number of rows that can be returned in a non-chunked
+		// response.  This is to prevent the server from going OOM when
+		// returning a large response.  If you want to return more than the
+		// default chunk size, then use chunking to process multiple blobs.
+		// Iterate through the series in this result to count the rows and
+		// truncate any rows we shouldn't return.
+		if h.Config.MaxRowLimit > 0 {
+			for i, series := range r.Series {
+				n := h.Config.MaxRowLimit - rows
+				if n < len(series.Values) {
+					// We have reached the maximum number of values. Truncate
+					// the values within this row.
+					series.Values = series.Values[:n]
+					// Since this was truncated, it will always be a partial return.
+					// Add this so the client knows we truncated the response.
+					series.Partial = true
+				}
+				rows += len(series.Values)
+
+				if rows >= h.Config.MaxRowLimit {
+					// Drop any remaining series since we have already reached the row limit.
+					if i < len(r.Series) {
+						r.Series = r.Series[:i+1]
+					}
+					break
+				}
+			}
 		}
 
 		// It's not chunked so buffer results in memory.
@@ -499,8 +519,23 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 			r.Series = r.Series[rowsMerged:]
 			cr.Series = append(cr.Series, r.Series...)
 			cr.Messages = append(cr.Messages, r.Messages...)
+			cr.Partial = r.Partial
 		} else {
 			resp.Results = append(resp.Results, r)
+		}
+
+		// Drop out of this loop and do not process further results when we hit the row limit.
+		if h.Config.MaxRowLimit > 0 && rows >= h.Config.MaxRowLimit {
+			// If the result is marked as partial, remove that partial marking
+			// here. While the series is partial and we would normally have
+			// tried to return the rest in the next chunk, we are not using
+			// chunking and are truncating the series so we don't want to
+			// signal to the client that we plan on sending another JSON blob
+			// with another result.  The series, on the other hand, still
+			// returns partial true if it was truncated or had more data to
+			// send in a future chunk.
+			r.Partial = false
+			break
 		}
 	}
 

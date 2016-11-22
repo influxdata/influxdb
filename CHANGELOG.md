@@ -6,6 +6,7 @@
 
 - [#7066](https://github.com/influxdata/influxdb/issues/7066): Add support for secure transmission via collectd.
 - [#7554](https://github.com/influxdata/influxdb/pull/7554): update latest dependencies with Godeps.
+- [#7368](https://github.com/influxdata/influxdb/pull/7368): Introduce syntax for marking a partial response with chunking.
 
 ### Bugfixes
 
@@ -13,6 +14,7 @@
 - [#7616](https://github.com/influxdata/influxdb/pull/7616): Fix chuid argument order in init script @ccasey
 
 ## v1.1.0 [2016-11-14]
+## v1.1.0 [unreleased]
 
 ### Release Notes
 

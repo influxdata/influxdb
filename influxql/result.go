@@ -58,9 +58,10 @@ func ReadOnlyWarning(stmt string) *Message {
 type Result struct {
 	// StatementID is just the statement's position in the query. It's used
 	// to combine statement results if they're being buffered in memory.
-	StatementID int `json:"-"`
+	StatementID int
 	Series      models.Rows
 	Messages    []*Message
+	Partial     bool
 	Err         error
 }
 
@@ -68,14 +69,18 @@ type Result struct {
 func (r *Result) MarshalJSON() ([]byte, error) {
 	// Define a struct that outputs "error" as a string.
 	var o struct {
-		Series   []*models.Row `json:"series,omitempty"`
-		Messages []*Message    `json:"messages,omitempty"`
-		Err      string        `json:"error,omitempty"`
+		StatementID int           `json:"statement_id"`
+		Series      []*models.Row `json:"series,omitempty"`
+		Messages    []*Message    `json:"messages,omitempty"`
+		Partial     bool          `json:"partial,omitempty"`
+		Err         string        `json:"error,omitempty"`
 	}
 
 	// Copy fields to output struct.
+	o.StatementID = r.StatementID
 	o.Series = r.Series
 	o.Messages = r.Messages
+	o.Partial = r.Partial
 	if r.Err != nil {
 		o.Err = r.Err.Error()
 	}
@@ -86,17 +91,21 @@ func (r *Result) MarshalJSON() ([]byte, error) {
 // UnmarshalJSON decodes the data into the Result struct
 func (r *Result) UnmarshalJSON(b []byte) error {
 	var o struct {
-		Series   []*models.Row `json:"series,omitempty"`
-		Messages []*Message    `json:"messages,omitempty"`
-		Err      string        `json:"error,omitempty"`
+		StatementID int           `json:"statement_id"`
+		Series      []*models.Row `json:"series,omitempty"`
+		Messages    []*Message    `json:"messages,omitempty"`
+		Partial     bool          `json:"partial,omitempty"`
+		Err         string        `json:"error,omitempty"`
 	}
 
 	err := json.Unmarshal(b, &o)
 	if err != nil {
 		return err
 	}
+	r.StatementID = o.StatementID
 	r.Series = o.Series
 	r.Messages = o.Messages
+	r.Partial = o.Partial
 	if o.Err != "" {
 		r.Err = errors.New(o.Err)
 	}
