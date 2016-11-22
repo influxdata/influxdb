@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react';
 import LayoutRenderer from 'shared/components/LayoutRenderer';
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
-import {getMappings, getAppsForHosts} from '../apis';
+import {getMappings, getAppsForHosts, getMeasurementsForHost} from 'src/hosts/apis';
 import {fetchLayouts} from 'shared/apis';
 
 export const HostPage = React.createClass({
@@ -33,22 +33,25 @@ export const HostPage = React.createClass({
   },
 
   componentDidMount() {
-    const hosts = {[this.props.params.hostID]: {name: this.props.params.hostID}};
-    const {source} = this.props;
+    const {source, params} = this.props;
+    const hosts = {[params.hostID]: {name: params.hostID}};
 
     // fetching layouts and mappings can be done at the same time
     fetchLayouts().then(({data: {layouts}}) => {
       getMappings().then(({data: {mappings}}) => {
         getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf).then((newHosts) => {
-          const host = newHosts[this.props.params.hostID];
-          const filteredLayouts = layouts.filter((layout) => {
-            const focusedApp = this.props.location.query.app;
-            if (focusedApp) {
-              return layout.app === focusedApp;
-            }
-            return host.apps && host.apps.includes(layout.app);
+          getMeasurementsForHost(source, params.hostID).then((measurements) => {
+            const host = newHosts[this.props.params.hostID];
+            const filteredLayouts = layouts.filter((layout) => {
+              const focusedApp = this.props.location.query.app;
+              if (focusedApp) {
+                return layout.app === focusedApp;
+              }
+
+              return host.apps && host.apps.includes(layout.app) && measurements.includes(layout.measurement);
+            });
+            this.setState({layouts: filteredLayouts});
           });
-          this.setState({layouts: filteredLayouts});
         });
       });
     });
