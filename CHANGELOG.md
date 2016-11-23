@@ -20,6 +20,7 @@
 - [#6257](https://github.com/influxdata/influxdb/issues/6257): CreateShardGroup was incrementing meta data index even when it was idempotent.
 - [#6223](https://github.com/influxdata/influxdb/issues/6223): Failure to start/run on Windows. Thanks @mvadu
 - [#6229](https://github.com/influxdata/influxdb/issues/6229): Fixed aggregate queries with no GROUP BY to include the end time.
+- [#6377](https://github.com/influxdata/influxdb/issues/6377): Fix panic in transform iterator on division. @thbourlove
 
 ## v0.12.0 [2016-04-05]
 
