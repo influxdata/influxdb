@@ -381,7 +381,7 @@ func (r *FloatElapsedReducer) Emit() []IntegerPoint {
 	return nil
 }
 
-// FloatSampleReduces implements a reservoir sampling to calculate a random subset of points
+// FloatSampleReducer implements a reservoir sampling to calculate a random subset of points
 type FloatSampleReducer struct {
 	count int        // how many points we've iterated over
 	rng   *rand.Rand // random number generator for each reducer
@@ -402,7 +402,7 @@ func (r *FloatSampleReducer) AggregateFloat(p *FloatPoint) {
 	r.count++
 	// Fill the reservoir with the first n points
 	if r.count-1 < len(r.points) {
-		r.points[r.count-1] = *p
+		p.CopyTo(&r.points[r.count-1])
 		return
 	}
 
@@ -411,7 +411,7 @@ func (r *FloatSampleReducer) AggregateFloat(p *FloatPoint) {
 	// replace the point at that index rnd with p.
 	rnd := r.rng.Intn(r.count)
 	if rnd < len(r.points) {
-		r.points[rnd] = *p
+		p.CopyTo(&r.points[rnd])
 	}
 }
 
@@ -795,7 +795,7 @@ func (r *IntegerElapsedReducer) Emit() []IntegerPoint {
 	return nil
 }
 
-// IntegerSampleReduces implements a reservoir sampling to calculate a random subset of points
+// IntegerSampleReducer implements a reservoir sampling to calculate a random subset of points
 type IntegerSampleReducer struct {
 	count int        // how many points we've iterated over
 	rng   *rand.Rand // random number generator for each reducer
@@ -816,7 +816,7 @@ func (r *IntegerSampleReducer) AggregateInteger(p *IntegerPoint) {
 	r.count++
 	// Fill the reservoir with the first n points
 	if r.count-1 < len(r.points) {
-		r.points[r.count-1] = *p
+		p.CopyTo(&r.points[r.count-1])
 		return
 	}
 
@@ -825,7 +825,7 @@ func (r *IntegerSampleReducer) AggregateInteger(p *IntegerPoint) {
 	// replace the point at that index rnd with p.
 	rnd := r.rng.Intn(r.count)
 	if rnd < len(r.points) {
-		r.points[rnd] = *p
+		p.CopyTo(&r.points[rnd])
 	}
 }
 
@@ -1209,7 +1209,7 @@ func (r *StringElapsedReducer) Emit() []IntegerPoint {
 	return nil
 }
 
-// StringSampleReduces implements a reservoir sampling to calculate a random subset of points
+// StringSampleReducer implements a reservoir sampling to calculate a random subset of points
 type StringSampleReducer struct {
 	count int        // how many points we've iterated over
 	rng   *rand.Rand // random number generator for each reducer
@@ -1230,7 +1230,7 @@ func (r *StringSampleReducer) AggregateString(p *StringPoint) {
 	r.count++
 	// Fill the reservoir with the first n points
 	if r.count-1 < len(r.points) {
-		r.points[r.count-1] = *p
+		p.CopyTo(&r.points[r.count-1])
 		return
 	}
 
@@ -1239,7 +1239,7 @@ func (r *StringSampleReducer) AggregateString(p *StringPoint) {
 	// replace the point at that index rnd with p.
 	rnd := r.rng.Intn(r.count)
 	if rnd < len(r.points) {
-		r.points[rnd] = *p
+		p.CopyTo(&r.points[rnd])
 	}
 }
 
@@ -1623,7 +1623,7 @@ func (r *BooleanElapsedReducer) Emit() []IntegerPoint {
 	return nil
 }
 
-// BooleanSampleReduces implements a reservoir sampling to calculate a random subset of points
+// BooleanSampleReducer implements a reservoir sampling to calculate a random subset of points
 type BooleanSampleReducer struct {
 	count int        // how many points we've iterated over
 	rng   *rand.Rand // random number generator for each reducer
@@ -1644,7 +1644,7 @@ func (r *BooleanSampleReducer) AggregateBoolean(p *BooleanPoint) {
 	r.count++
 	// Fill the reservoir with the first n points
 	if r.count-1 < len(r.points) {
-		r.points[r.count-1] = *p
+		p.CopyTo(&r.points[r.count-1])
 		return
 	}
 
@@ -1653,7 +1653,7 @@ func (r *BooleanSampleReducer) AggregateBoolean(p *BooleanPoint) {
 	// replace the point at that index rnd with p.
 	rnd := r.rng.Intn(r.count)
 	if rnd < len(r.points) {
-		r.points[rnd] = *p
+		p.CopyTo(&r.points[rnd])
 	}
 }
 

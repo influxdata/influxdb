@@ -283,6 +283,15 @@ func decodeAux(pb []*internal.Aux) []interface{} {
 	return aux
 }
 
+func cloneAux(src []interface{}) []interface{} {
+	if src == nil {
+		return src
+	}
+	dest := make([]interface{}, len(src))
+	copy(dest, src)
+	return dest
+}
+
 // PointDecoder decodes generic points from a reader.
 type PointDecoder struct {
 	r     io.Reader

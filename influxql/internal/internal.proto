@@ -1,3 +1,4 @@
+syntax = "proto2";
 package influxql;
 
 message Point {
@@ -31,6 +32,7 @@ message IteratorOptions {
     repeated Measurement Sources    = 3;
     optional Interval    Interval   = 4;
     repeated string      Dimensions = 5;
+    repeated string      GroupBy    = 19;
     optional int32       Fill       = 6;
     optional double      FillValue  = 7;
     optional string      Condition  = 8;
@@ -42,6 +44,8 @@ message IteratorOptions {
     optional int64       SLimit     = 14;
     optional int64       SOffset    = 15;
     optional bool        Dedupe     = 16;
+    optional int64       MaxSeriesN = 18;
+    optional bool        Ordered    = 20;
 }
 
 message Measurements {
