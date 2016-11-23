@@ -609,6 +609,63 @@ func TestEngine_DeleteSeries(t *testing.T) {
 
 }
 
+func TestEngine_LastModified(t *testing.T) {
+	// Generate temporary file.
+	dir, _ := ioutil.TempDir("", "tsm")
+	walPath := filepath.Join(dir, "wal")
+	os.MkdirAll(walPath, 0777)
+	defer os.RemoveAll(dir)
+
+	// Create a few points.
+	p1 := MustParsePointString("cpu,host=A value=1.1 1000000000")
+	p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
+	p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
+
+	// Write those points to the engine.
+	e := tsm1.NewEngine(1, dir, walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
+
+	// mock the planner so compactions don't run during the test
+	e.CompactionPlan = &mockPlanner{}
+
+	if lm := e.LastModified(); !lm.IsZero() {
+		t.Fatalf("expected zero time, got %v", lm.UTC())
+	}
+
+	e.SetEnabled(false)
+	if err := e.Open(); err != nil {
+		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
+	}
+
+	if err := e.WritePoints([]models.Point{p1, p2, p3}); err != nil {
+		t.Fatalf("failed to write points: %s", err.Error())
+	}
+
+	lm := e.LastModified()
+	if lm.IsZero() {
+		t.Fatalf("expected non-zero time, got %v", lm.UTC())
+	}
+	e.SetEnabled(true)
+
+	if err := e.WriteSnapshot(); err != nil {
+		t.Fatalf("failed to snapshot: %s", err.Error())
+	}
+
+	lm2 := e.LastModified()
+
+	if got, exp := lm.Equal(lm2), false; exp != got {
+		t.Fatalf("expected time change, got %v, exp %v", got, exp)
+	}
+
+	if err := e.DeleteSeries([]string{"cpu,host=A"}); err != nil {
+		t.Fatalf("failed to delete series: %v", err)
+	}
+
+	lm3 := e.LastModified()
+	if got, exp := lm2.Equal(lm3), false; exp != got {
+		t.Fatalf("expected time change, got %v, exp %v", got, exp)
+	}
+}
+
 func BenchmarkEngine_CreateIterator_Count_1K(b *testing.B) {
 	benchmarkEngineCreateIteratorCount(b, 1000)
 }

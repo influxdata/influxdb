@@ -49,6 +49,7 @@ type Engine interface {
 
 	// Statistics will return statistics relevant to this engine.
 	Statistics(tags map[string]string) []models.Statistic
+	LastModified() time.Time
 
 	io.WriterTo
 }

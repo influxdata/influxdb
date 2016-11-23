@@ -827,6 +827,18 @@ func (e *Engine) SeriesCount() (n int, err error) {
 	return e.index.SeriesN(), nil
 }
 
+// LastModified returns the time when this shard was last modified
+func (e *Engine) LastModified() time.Time {
+	walTime := e.WAL.LastWriteTime()
+	fsTime := e.FileStore.LastModified()
+
+	if walTime.After(fsTime) {
+		return walTime
+	}
+
+	return fsTime
+}
+
 func (e *Engine) WriteTo(w io.Writer) (n int64, err error) { panic("not implemented") }
 
 // WriteSnapshot will snapshot the cache and write a new TSM file with its contents, releasing the snapshot when done.
