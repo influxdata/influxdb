@@ -168,7 +168,7 @@ func (mux *Mux) Listen(header byte) net.Listener {
 	return ln
 }
 
-// DefaultListener() will return a net.Listener that will pass-through any
+// DefaultListener will return a net.Listener that will pass-through any
 // connections with non-registered values for the first byte of the connection.
 // The connections returned from this listener's Accept() method will replay the
 // first byte of the connection as a short first Read().
