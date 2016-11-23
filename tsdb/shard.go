@@ -84,7 +84,7 @@ func (e ShardError) Error() string {
 	return fmt.Sprintf("[shard %d] %s", e.id, e.Err)
 }
 
-// PartialWriteErrors indicates a write request could only write a portion of the
+// PartialWriteError indicates a write request could only write a portion of the
 // requested values.
 type PartialWriteError struct {
 	Reason  string
@@ -419,6 +419,9 @@ func (s *Shard) WritePoints(points []models.Point) error {
 	return writeError
 }
 
+// ContainsSeries determines if the shard contains the provided series keys. The
+// returned map contains all the provided keys that are in the shard, and the
+// value for each key will be true if the shard has values for that key.
 func (s *Shard) ContainsSeries(seriesKeys []string) (map[string]bool, error) {
 	if err := s.ready(); err != nil {
 		return nil, err
@@ -514,20 +517,20 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 					if n >= s.options.Config.MaxValuesPerTag {
 						dropPoint = true
 						reason = fmt.Sprintf("max-values-per-tag limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
-							n, s.options.Config.MaxValuesPerTag, m.Name, string(tag.Key), string(tag.Key))
+							n, s.options.Config.MaxValuesPerTag, m.Name, tag.Key, tag.Value)
 						break
 					}
 				}
 				if dropPoint {
 					atomic.AddInt64(&s.stats.WritePointsDropped, 1)
-					dropped += 1
+					dropped++
 
 					// This causes n below to not be increment allowing the point to be dropped
 					continue
 				}
 			}
 			points[n] = points[i]
-			n += 1
+			n++
 		}
 		points = points[:n]
 	}
@@ -565,7 +568,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		if ss == nil {
 			if s.options.Config.MaxSeriesPerDatabase > 0 && s.index.SeriesN()+1 > s.options.Config.MaxSeriesPerDatabase {
 				atomic.AddInt64(&s.stats.WritePointsDropped, 1)
-				dropped += 1
+				dropped++
 				reason = fmt.Sprintf("max-series-per-database limit exceeded: db=%s (%d/%d)",
 					s.database, s.index.SeriesN(), s.options.Config.MaxSeriesPerDatabase)
 				continue
@@ -631,7 +634,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 			fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &Field{Name: string(iter.FieldKey()), Type: fieldType}})
 		}
 		points[n] = points[i]
-		n += 1
+		n++
 	}
 	points = points[:n]
 
@@ -885,6 +888,7 @@ type MeasurementFields struct {
 	fields map[string]*Field
 }
 
+// NewMeasurementFields returns an initialised *MeasurementFields value.
 func NewMeasurementFields() *MeasurementFields {
 	return &MeasurementFields{fields: make(map[string]*Field)}
 }
@@ -954,6 +958,7 @@ func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.Dat
 	return nil
 }
 
+// Field returns the field for name, or nil if there is no field for name.
 func (m *MeasurementFields) Field(name string) *Field {
 	m.mu.RLock()
 	f := m.fields[name]
@@ -961,6 +966,10 @@ func (m *MeasurementFields) Field(name string) *Field {
 	return f
 }
 
+// FieldBytes returns the field for name, or nil if there is no field for name.
+// FieldBytes should be preferred to Field when the caller has a []byte, because
+// it avoids a string allocation, which can't be avoided if the caller converts
+// the []byte to a string and calls Field.
 func (m *MeasurementFields) FieldBytes(name []byte) *Field {
 	m.mu.RLock()
 	f := m.fields[string(name)]
@@ -968,6 +977,7 @@ func (m *MeasurementFields) FieldBytes(name []byte) *Field {
 	return f
 }
 
+// FieldSet returns the set of fields and their types for the measurement.
 func (m *MeasurementFields) FieldSet() map[string]influxql.DataType {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -1021,6 +1031,8 @@ func (ic *shardIteratorCreator) ExpandSources(sources influxql.Sources) (influxq
 	return ic.sh.ExpandSources(sources)
 }
 
+// NewFieldKeysIterator returns an iterator that can be iterated over to
+// retrieve field keys.
 func NewFieldKeysIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Iterator, error) {
 	itr := &fieldKeysIterator{sh: sh}
 
