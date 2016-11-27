@@ -1326,8 +1326,18 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions, aggregate bo
 	var itrs []influxql.Iterator
 	if err := func() error {
 		for _, name := range influxql.Sources(opt.Sources).Names() {
+			// Retrieve measurement fields.
+			e.mu.Lock()
+			mf := e.measurementFields[name]
+			e.mu.Unlock()
+
+			// Skip if there are no fields.
+			if mf == nil {
+				continue
+			}
+
 			// Generate tag sets from index.
-			tagSets, err := e.index.TagSets([]byte(name), opt.Dimensions, opt.Condition)
+			tagSets, err := e.index.TagSets([]byte(name), opt.Dimensions, opt.Condition, mf)
 			if err != nil {
 				return err
 			}

@@ -140,6 +140,29 @@ func (f *IndexFile) Measurement(name []byte) MeasurementElem {
 	return &e
 }
 
+// TagValueIterator returns a value iterator for a tag key and a flag
+// indicating if a tombstone exists on the measurement or key.
+func (f *IndexFile) TagValueIterator(name, key []byte) (itr TagValueIterator, deleted bool) {
+	// Find measurement.
+	mm, ok := f.mblk.Elem(name)
+	if !ok {
+		return nil, deleted
+	} else if mm.Deleted() {
+		deleted = true
+	}
+
+	// Find key element.
+	ke := f.tblks[string(name)].TagKeyElem(key)
+	if ke == nil {
+		return nil, deleted
+	} else if ke.Deleted() {
+		deleted = true
+	}
+
+	// Merge all value series iterators together.
+	return ke.TagValueIterator(), deleted
+}
+
 // TagKeySeriesIterator returns a series iterator for a tag key and a flag
 // indicating if a tombstone exists on the measurement or key.
 func (f *IndexFile) TagKeySeriesIterator(name, key []byte) (itr SeriesIterator, deleted bool) {

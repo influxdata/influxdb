@@ -987,6 +987,13 @@ func (m *MeasurementFields) Field(name string) *Field {
 	return f
 }
 
+func (m *MeasurementFields) HasField(name string) bool {
+	m.mu.RLock()
+	f := m.fields[name]
+	m.mu.RUnlock()
+	return f != nil
+}
+
 func (m *MeasurementFields) FieldBytes(name []byte) *Field {
 	m.mu.RLock()
 	f := m.fields[string(name)]
