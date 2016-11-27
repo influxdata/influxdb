@@ -272,10 +272,8 @@ type TestSeries struct {
 }
 
 func genTestSeries(mCnt, tCnt, vCnt int) []*TestSeries {
-	println(">", mCnt, tCnt, vCnt)
 	measurements := genStrList("measurement", mCnt)
 	tagSets := NewTagSetGenerator(tCnt, vCnt).AllSets()
-	println(len(measurements), len(tagSets))
 	series := []*TestSeries{}
 	for _, m := range measurements {
 		for _, ts := range tagSets {

@@ -277,8 +277,8 @@ type seriesDecodeIterator struct {
 }
 
 // newSeriesDecodeIterator returns a new instance of seriesDecodeIterator.
-func newSeriesDecodeIterator(sblk *SeriesBlock) seriesDecodeIterator {
-	return seriesDecodeIterator{sblk: sblk}
+func newSeriesDecodeIterator(sblk *SeriesBlock, itr seriesIDIterator) *seriesDecodeIterator {
+	return &seriesDecodeIterator{sblk: sblk, itr: itr}
 }
 
 // Next returns the next series element.

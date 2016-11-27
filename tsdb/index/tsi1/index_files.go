@@ -22,9 +22,13 @@ func (p *IndexFiles) MeasurementNames() [][]byte {
 
 // MeasurementIterator returns an iterator that merges measurements across all files.
 func (p IndexFiles) MeasurementIterator() MeasurementIterator {
-	a := make([]MeasurementIterator, len(p))
+	a := make([]MeasurementIterator, 0, len(p))
 	for i := range p {
-		a[i] = p[i].MeasurementIterator()
+		itr := p[i].MeasurementIterator()
+		if itr == nil {
+			continue
+		}
+		a = append(a, itr)
 	}
 	return MergeMeasurementIterators(a...)
 }
@@ -33,10 +37,8 @@ func (p IndexFiles) MeasurementIterator() MeasurementIterator {
 func (p *IndexFiles) TagKeyIterator(name []byte) (TagKeyIterator, error) {
 	a := make([]TagKeyIterator, 0, len(*p))
 	for _, f := range *p {
-		itr, err := f.TagKeyIterator(name)
-		if err != nil {
-			return nil, err
-		} else if itr == nil {
+		itr := f.TagKeyIterator(name)
+		if itr == nil {
 			continue
 		}
 		a = append(a, itr)
@@ -46,25 +48,43 @@ func (p *IndexFiles) TagKeyIterator(name []byte) (TagKeyIterator, error) {
 
 // SeriesIterator returns an iterator that merges series across all files.
 func (p IndexFiles) SeriesIterator() SeriesIterator {
-	a := make([]SeriesIterator, len(p))
-	for i := range p {
-		a[i] = p[i].SeriesIterator()
+	a := make([]SeriesIterator, 0, len(p))
+	for _, f := range p {
+		itr := f.SeriesIterator()
+		if itr == nil {
+			continue
+		}
+		a = append(a, itr)
 	}
 	return MergeSeriesIterators(a...)
 }
 
 // MeasurementSeriesIterator returns an iterator that merges series across all files.
 func (p IndexFiles) MeasurementSeriesIterator(name []byte) SeriesIterator {
-	a := make([]SeriesIterator, len(p))
-	for i := range p {
-		a[i] = p[i].MeasurementSeriesIterator(name)
+	a := make([]SeriesIterator, 0, len(p))
+	for _, f := range p {
+		itr := f.MeasurementSeriesIterator(name)
+		if itr == nil {
+			continue
+		}
+		a = append(a, itr)
 	}
 	return MergeSeriesIterators(a...)
 }
 
 // TagValueSeriesIterator returns an iterator that merges series across all files.
-func (p *IndexFiles) TagValueSeriesIterator(name, key, value []byte) SeriesIterator {
-	panic("TODO")
+func (p IndexFiles) TagValueSeriesIterator(name, key, value []byte) SeriesIterator {
+	a := make([]SeriesIterator, 0, len(p))
+	for i := range p {
+		itr, deleted := p[i].TagValueSeriesIterator(name, key, value)
+		if itr != nil {
+			a = append(a, itr)
+		}
+		if deleted {
+			break
+		}
+	}
+	return MergeSeriesIterators(a...)
 }
 
 // WriteTo merges all index files and writes them to w.
@@ -160,8 +180,8 @@ func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactI
 		// Iterate over tag values.
 		vitr := ke.TagValueIterator()
 		for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
-			// Look-up series ids.
-			sitr := ve.SeriesIterator()
+			// Merge all series together.
+			sitr := p.TagValueSeriesIterator(name, ke.Key(), ve.Value())
 			var seriesIDs []uint32
 			for se := sitr.Next(); se != nil; se = sitr.Next() {
 				seriesID := info.sw.Offset(se.Name(), se.Tags())
