@@ -31,7 +31,7 @@ type Index interface {
 
 	Dereference(b []byte)
 
-	TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error)
+	TagSets(name []byte, dimensions []string, condition influxql.Expr, mf *MeasurementFields) ([]*influxql.TagSet, error)
 
 	// To be removed w/ tsi1.
 	SetFieldName(measurement, name string)

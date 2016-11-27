@@ -183,6 +183,33 @@ func (f *LogFile) TagKeySeriesIterator(name, key []byte) (itr SeriesIterator, de
 	return MergeSeriesIterators(itrs...), deleted
 }
 
+// TagValueIterator returns a value iterator for a tag key and a flag
+// indicating if a tombstone exists on the measurement.
+func (f *LogFile) TagValueIterator(name, key []byte) (itr TagValueIterator, deleted bool) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	mm, ok := f.mms[string(name)]
+	if !ok {
+		return nil, deleted
+	} else if mm.deleted {
+		deleted = true
+	}
+
+	tk, ok := mm.tagSet[string(key)]
+	if !ok {
+		return nil, deleted
+	} else if tk.deleted {
+		deleted = true
+	}
+
+	a := make([]logTagValue, 0, len(tk.tagValues))
+	for _, v := range tk.tagValues {
+		a = append(a, v)
+	}
+	return newLogTagValueIterator(a), deleted
+}
+
 // DeleteTagKey adds a tombstone for a tag key to the log file.
 func (f *LogFile) DeleteTagKey(name, key []byte) error {
 	f.mu.Lock()
@@ -845,6 +872,16 @@ type logTagValue struct {
 	seriesIDs []uint32
 }
 
+func (v *logTagValue) Value() []byte { return v.name }
+func (v *logTagValue) Deleted() bool { return v.deleted }
+
+// logTagValue is a sortable list of log tag values.
+type logTagValueSlice []logTagValue
+
+func (a logTagValueSlice) Len() int           { return len(a) }
+func (a logTagValueSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a logTagValueSlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[j].name) == -1 }
+
 /*
 // insertEntry inserts an entry into the tag value in sorted order.
 // If another entry matches the name/tags then it is overrwritten.
@@ -868,6 +905,26 @@ func (tv *logTagValue) insertEntry(e *LogEntry) {
 	tv.entries[i] = *e
 }
 */
+
+// logTagValueIterator represents an iterator over a slice of tag values.
+type logTagValueIterator struct {
+	a []logTagValue
+}
+
+// newLogTagValueIterator returns a new instance of logTagValueIterator.
+func newLogTagValueIterator(a []logTagValue) *logTagValueIterator {
+	sort.Sort(logTagValueSlice(a))
+	return &logTagValueIterator{a: a}
+}
+
+// Next returns the next element in the iterator.
+func (itr *logTagValueIterator) Next() (e TagValueElem) {
+	if len(itr.a) == 0 {
+		return nil
+	}
+	e, itr.a = &itr.a[0], itr.a[1:]
+	return e
+}
 
 // logSeriesIterator represents an iterator over a slice of series.
 type logSeriesIterator struct {

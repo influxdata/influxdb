@@ -667,7 +667,7 @@ func newSeriesExprIterator(itr SeriesIterator, expr influxql.Expr) *seriesExprIt
 
 // Next returns the next element in the iterator.
 func (itr *seriesExprIterator) Next() SeriesElem {
-	itr.e.SeriesElem = itr.Next()
+	itr.e.SeriesElem = itr.itr.Next()
 	if itr.e.SeriesElem == nil {
 		return nil
 	}

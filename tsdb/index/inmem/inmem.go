@@ -493,7 +493,7 @@ func (i *Index) Dereference(b []byte) {
 }
 
 // TagSets returns a list of tag sets.
-func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
+func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Expr, mf *tsdb.MeasurementFields) ([]*influxql.TagSet, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 

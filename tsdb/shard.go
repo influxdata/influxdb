@@ -1003,6 +1003,13 @@ func (m *MeasurementFields) Field(name string) *Field {
 	return f
 }
 
+func (m *MeasurementFields) HasField(name string) bool {
+	m.mu.RLock()
+	f := m.fields[name]
+	m.mu.RUnlock()
+	return f != nil
+}
+
 // FieldBytes returns the field for name, or nil if there is no field for name.
 // FieldBytes should be preferred to Field when the caller has a []byte, because
 // it avoids a string allocation, which can't be avoided if the caller converts
