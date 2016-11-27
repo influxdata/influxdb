@@ -240,7 +240,6 @@ func (p tagKeyMergeElem) TagValueIterator() TagValueIterator {
 type TagValueElem interface {
 	Value() []byte
 	Deleted() bool
-	SeriesIterator() SeriesIterator
 }
 
 // TagValueIterator represents a iterator over a list of tag values.
@@ -326,22 +325,6 @@ func (p tagValueMergeElem) Deleted() bool {
 		return false
 	}
 	return p[0].Deleted()
-}
-
-// SeriesIterator returns a merge iterator for all elements until a tombstone occurs.
-func (p tagValueMergeElem) SeriesIterator() SeriesIterator {
-	if len(p) == 0 {
-		return nil
-	}
-
-	a := make([]SeriesIterator, 0, len(p))
-	for _, e := range p {
-		a = append(a, e.SeriesIterator())
-		if e.Deleted() {
-			break
-		}
-	}
-	return MergeSeriesIterators(a...)
 }
 
 // SeriesElem represents a generic series element.

@@ -397,17 +397,22 @@ func (i *Index) DropMeasurement(name []byte) error {
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	if e := i.Series(name, tags); e != nil && !e.Deleted() {
+	if e := i.Series(name, tags); e != nil {
 		return nil
 	}
 	return i.logFiles[0].AddSeries(name, tags)
 }
 
-// Series returns the series element from the index.
+// Series returns a series by name/tags. Returns nil if the series has been tombstoned.
 func (i *Index) Series(name []byte, tags models.Tags) SeriesElem {
 	for _, f := range i.files() {
-		if e := f.Series(name, tags); e != nil {
+		if e, deleted := f.Series(name, tags); e != nil {
+			if e.Deleted() {
+				return nil
+			}
 			return e
+		} else if deleted {
+			return nil
 		}
 	}
 	return nil
@@ -451,14 +456,32 @@ func (i *Index) Dereference([]byte) {}
 
 // TagKeySeriesIterator returns a series iterator for all values across a single key.
 func (i *Index) TagKeySeriesIterator(name, key []byte) SeriesIterator {
-	//FIXME(edd)
-	return fmt.Errorf("TagKeySeriesIterator not implemented")
+	a := make([]SeriesIterator, 0, i.FileN())
+	for _, f := range i.files() {
+		itr, deleted := f.TagKeySeriesIterator(name, key)
+		if itr != nil {
+			a = append(a, itr)
+		}
+		if deleted {
+			break
+		}
+	}
+	return MergeSeriesIterators(a...)
 }
 
 // TagValueSeriesIterator returns a series iterator for a single tag value.
 func (i *Index) TagValueSeriesIterator(name, key, value []byte) SeriesIterator {
-	//panic("TODO")
-	return fmt.Errorf("TagValueSeriesIterator not implemented")
+	a := make([]SeriesIterator, 0, i.FileN())
+	for _, f := range i.files() {
+		itr, deleted := f.TagValueSeriesIterator(name, key, value)
+		if itr != nil {
+			a = append(a, itr)
+		}
+		if deleted {
+			break
+		}
+	}
+	return MergeSeriesIterators(a...)
 }
 
 // MatchTagValueSeriesIterator returns a series iterator for tags which match value.
@@ -749,7 +772,10 @@ func (i *Index) UnassignShard(k string, shardID uint64) {}
 
 // File represents a log or index file.
 type File interface {
-	Series(name []byte, tags models.Tags) SeriesElem
+	Measurement(name []byte) MeasurementElem
+	TagKeySeriesIterator(name, key []byte) (itr SeriesIterator, deleted bool)
+	TagValueSeriesIterator(name, key, value []byte) (itr SeriesIterator, deleted bool)
+	Series(name []byte, tags models.Tags) (e SeriesElem, deleted bool)
 }
 
 // FilterExprs represents a map of series IDs to filter expressions.

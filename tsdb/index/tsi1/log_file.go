@@ -118,6 +118,18 @@ func (f *LogFile) Close() error {
 	return nil
 }
 
+// Measurement returns a measurement element.
+func (f *LogFile) Measurement(name []byte) MeasurementElem {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	mm, ok := f.mms[string(name)]
+	if !ok {
+		return nil
+	}
+	return &mm
+}
+
 // MeasurementNames returns an ordered list of measurement names.
 func (f *LogFile) MeasurementNames() []string {
 	f.mu.RLock()
@@ -143,6 +155,34 @@ func (f *LogFile) DeleteMeasurement(name []byte) error {
 	return nil
 }
 
+// TagKeySeriesIterator returns a series iterator for a tag key and a flag
+// indicating if a tombstone exists on the measurement or key.
+func (f *LogFile) TagKeySeriesIterator(name, key []byte) (itr SeriesIterator, deleted bool) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	mm, ok := f.mms[string(name)]
+	if !ok {
+		return nil, deleted
+	} else if mm.deleted {
+		deleted = true
+	}
+
+	tk, ok := mm.tagSet[string(key)]
+	if !ok {
+		return nil, deleted
+	} else if tk.deleted {
+		deleted = true
+	}
+
+	// Combine iterators across all tag keys.
+	itrs := make([]SeriesIterator, 0, len(tk.tagValues))
+	for _, tv := range tk.tagValues {
+		itrs = append(itrs, newLogSeriesIterator(tv.series))
+	}
+	return MergeSeriesIterators(itrs...), deleted
+}
+
 // DeleteTagKey adds a tombstone for a tag key to the log file.
 func (f *LogFile) DeleteTagKey(name, key []byte) error {
 	f.mu.Lock()
@@ -154,6 +194,36 @@ func (f *LogFile) DeleteTagKey(name, key []byte) error {
 	}
 	f.execEntry(&e)
 	return nil
+}
+
+// TagValueSeriesIterator returns a series iterator for a tag value and a flag
+// indicating if a tombstone exists on the measurement, key, or value.
+func (f *LogFile) TagValueSeriesIterator(name, key, value []byte) (itr SeriesIterator, deleted bool) {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	mm, ok := f.mms[string(name)]
+	if !ok {
+		return nil, deleted
+	} else if mm.deleted {
+		deleted = true
+	}
+
+	tk, ok := mm.tagSet[string(key)]
+	if !ok {
+		return nil, deleted
+	} else if tk.deleted {
+		deleted = true
+	}
+
+	tv, ok := tk.tagValues[string(value)]
+	if !ok {
+		return nil, deleted
+	} else if tv.deleted {
+		deleted = true
+	}
+
+	return newLogSeriesIterator(tv.series), deleted
 }
 
 // DeleteTagValue adds a tombstone for a tag value to the log file.
@@ -206,14 +276,16 @@ func (f *LogFile) SeriesN() (n uint64) {
 	return n
 }
 
-// Series returns a series reference.
-func (f *LogFile) Series(name []byte, tags models.Tags) SeriesElem {
+// Series returns a series and a flag indicating if it is tombstoned by the measurement.
+func (f *LogFile) Series(name []byte, tags models.Tags) (e SeriesElem, deleted bool) {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
 	mm, ok := f.mms[string(name)]
 	if !ok {
-		return nil
+		return nil, false
+	} else if mm.deleted {
+		deleted = true
 	}
 
 	// Find index of series in measurement.
@@ -224,9 +296,9 @@ func (f *LogFile) Series(name []byte, tags models.Tags) SeriesElem {
 	// Return if match found. Otherwise return nil.
 	if i < len(mm.series) && mm.series[i].tags.Equal(tags) {
 		e := mm.series[i]
-		return &e
+		return &e, deleted
 	}
-	return nil
+	return nil, deleted
 }
 
 // appendEntry adds a log entry to the end of the file.
@@ -316,7 +388,7 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 		ts := mm.createTagSetIfNotExists(t.Key)
 		tv := ts.createTagValueIfNotExists(t.Value)
 
-		tv.insertEntry(e)
+		tv.series.insert(e.Name, e.Tags, deleted)
 
 		ts.tagValues[string(t.Value)] = tv
 		mm.tagSet[string(t.Key)] = ts
@@ -358,9 +430,7 @@ func (f *LogFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
 	defer f.mu.RUnlock()
 
 	mm := f.mms[string(name)]
-	itr := logSeriesIterator{series: make(logSeries, len(mm.series))}
-	copy(itr.series, mm.series)
-	return &itr
+	return newLogSeriesIterator(mm.series)
 }
 
 // CompactTo compacts the log file and writes it to w.
@@ -769,12 +839,13 @@ func (ts *logTagSet) createTagValueIfNotExists(value []byte) logTagValue {
 type logTagValue struct {
 	name    []byte
 	deleted bool
-	entries []LogEntry
+	series  logSeries
 
 	// Compaction fields.
 	seriesIDs []uint32
 }
 
+/*
 // insertEntry inserts an entry into the tag value in sorted order.
 // If another entry matches the name/tags then it is overrwritten.
 func (tv *logTagValue) insertEntry(e *LogEntry) {
@@ -796,10 +867,19 @@ func (tv *logTagValue) insertEntry(e *LogEntry) {
 	copy(tv.entries[i+1:], tv.entries[i:])
 	tv.entries[i] = *e
 }
+*/
 
 // logSeriesIterator represents an iterator over a slice of series.
 type logSeriesIterator struct {
 	series logSeries
+}
+
+// newLogSeriesIterator returns a new instance of logSeriesIterator.
+// All series are copied to the iterator.
+func newLogSeriesIterator(a logSeries) *logSeriesIterator {
+	itr := logSeriesIterator{series: make(logSeries, len(a))}
+	copy(itr.series, a)
+	return &itr
 }
 
 // Next returns the next element in the iterator.

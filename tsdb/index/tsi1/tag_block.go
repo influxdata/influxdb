@@ -88,7 +88,7 @@ func (blk *TagBlock) UnmarshalBinary(data []byte) error {
 
 // TagKeyElem returns an element for a tag key.
 // Returns an element with a nil key if not found.
-func (blk *TagBlock) TagKeyElem(key []byte) TagBlockKeyElem {
+func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
 	keyN := binary.BigEndian.Uint32(blk.hashData[:TagKeyNSize])
 	hash := hashKey(key)
 	pos := int(hash % keyN)
@@ -108,12 +108,12 @@ func (blk *TagBlock) TagKeyElem(key []byte) TagBlockKeyElem {
 
 			// Return if keys match.
 			if bytes.Equal(e.key, key) {
-				return e
+				return &e
 			}
 
 			// Check if we've exceeded the probe distance.
 			if d > dist(hashKey(e.key), pos, int(keyN)) {
-				return TagBlockKeyElem{}
+				return nil
 			}
 		}
 
@@ -125,11 +125,13 @@ func (blk *TagBlock) TagKeyElem(key []byte) TagBlockKeyElem {
 
 // TagValueElem returns an element for a tag value.
 // Returns an element with a nil value if not found.
-func (blk *TagBlock) TagValueElem(key, value []byte) TagBlockValueElem {
+func (blk *TagBlock) TagValueElem(key, value []byte) (ve TagValueElem, deleted bool) {
 	// Find key element, exit if not found.
-	kelem := blk.TagKeyElem(key)
-	if len(kelem.key) == 0 {
-		return TagBlockValueElem{}
+	kelem, _ := blk.TagKeyElem(key).(*TagBlockKeyElem)
+	if kelem == nil {
+		return nil, false
+	} else if kelem.Deleted() {
+		deleted = true
 	}
 
 	// Slice hash index data.
@@ -154,12 +156,12 @@ func (blk *TagBlock) TagValueElem(key, value []byte) TagBlockValueElem {
 
 			// Return if values match.
 			if bytes.Equal(e.value, value) {
-				return e
+				return &e, deleted
 			}
 
 			// Check if we've exceeded the probe distance.
 			if d > dist(hashKey(e.value), pos, int(valueN)) {
-				return TagBlockValueElem{}
+				return nil, deleted
 			}
 		}
 
@@ -169,9 +171,9 @@ func (blk *TagBlock) TagValueElem(key, value []byte) TagBlockValueElem {
 	}
 }
 
-// tagKeyIterator returns an iterator over all the keys in the block.
-func (blk *TagBlock) tagKeyIterator() tagBlockKeyIterator {
-	return tagBlockKeyIterator{
+// TagKeyIterator returns an iterator over all the keys in the block.
+func (blk *TagBlock) TagKeyIterator() TagKeyIterator {
+	return &tagBlockKeyIterator{
 		blk:     blk,
 		keyData: blk.keyData,
 	}
@@ -185,7 +187,7 @@ type tagBlockKeyIterator struct {
 }
 
 // Next returns the next element in the iterator.
-func (itr *tagBlockKeyIterator) next() *TagBlockKeyElem {
+func (itr *tagBlockKeyIterator) Next() TagKeyElem {
 	// Exit when there is no data left.
 	if len(itr.keyData) == 0 {
 		return nil
@@ -205,8 +207,8 @@ type tagBlockValueIterator struct {
 	e    TagBlockValueElem
 }
 
-// next returns the next element in the iterator.
-func (itr *tagBlockValueIterator) next() *TagBlockValueElem {
+// Next returns the next element in the iterator.
+func (itr *tagBlockValueIterator) Next() TagValueElem {
 	// Exit when there is no data left.
 	if len(itr.data) == 0 {
 		return nil
@@ -251,9 +253,9 @@ func (e *TagBlockKeyElem) Deleted() bool { return (e.flag & TagKeyTombstoneFlag)
 // Key returns the key name of the element.
 func (e *TagBlockKeyElem) Key() []byte { return e.key }
 
-// tagValueIterator returns an iterator over the key's values.
-func (e *TagBlockKeyElem) tagValueIterator() tagBlockValueIterator {
-	return tagBlockValueIterator{data: e.data.buf}
+// TagValueIterator returns an iterator over the key's values.
+func (e *TagBlockKeyElem) TagValueIterator() TagValueIterator {
+	return &tagBlockValueIterator{data: e.data.buf}
 }
 
 // unmarshal unmarshals buf into e.
@@ -288,6 +290,7 @@ func (e *TagBlockKeyElem) unmarshal(buf, data []byte) {
 	e.size = start - len(buf)
 }
 
+/*
 // tagKeyDecodeElem provides an adapter for tagBlockKeyElem to TagKeyElem.
 type tagKeyDecodeElem struct {
 	e   *TagBlockKeyElem
@@ -335,6 +338,7 @@ func (itr *tagKeyDecodeIterator) Next() TagKeyElem {
 	itr.e.e = e
 	return &itr.e
 }
+*/
 
 // TagBlockValueElem represents a tag value element.
 type TagBlockValueElem struct {
@@ -346,9 +350,6 @@ type TagBlockValueElem struct {
 	}
 
 	size int
-
-	// Reusable iterator.
-	itr rawSeriesIDIterator
 }
 
 // Deleted returns true if the element has been tombstoned.
@@ -397,12 +398,7 @@ func (e *TagBlockValueElem) unmarshal(buf []byte) {
 	e.size = start - len(buf)
 }
 
-// SeriesIterator returns an iterator over all series for the tag value.
-func (e *TagBlockValueElem) seriesIDIterator() seriesIDIterator {
-	e.itr.data = e.series.data
-	return &e.itr
-}
-
+/*
 // tagValueDecodeElem provides an adapter for tagBlockValueElem to TagValueElem.
 type tagValueDecodeElem struct {
 	e   *TagBlockValueElem
@@ -450,6 +446,7 @@ func (itr *tagValueDecodeIterator) Next() TagValueElem {
 	itr.e.e = e
 	return &itr.e
 }
+*/
 
 // TagBlockTrailerSize is the total size of the on-disk trailer.
 const TagBlockTrailerSize = 0 +
