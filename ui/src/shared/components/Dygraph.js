@@ -3,7 +3,7 @@ import React, {PropTypes} from 'react';
 import Dygraph from '../../external/dygraph';
 import 'style/_Graph.css';
 
-const {arrayOf, object, array, number, bool} = PropTypes;
+const {arrayOf, object, array, number, bool, shape} = PropTypes;
 
 const LINE_COLORS = [
   '#00C9FF',
@@ -32,6 +32,7 @@ export default React.createClass({
     containerStyle: object, // eslint-disable-line react/forbid-prop-types
     isGraphFilled: bool,
     overrideLineColors: array,
+    dygraphSeries: shape({}).isRequired,
   },
 
   getDefaultProps() {
