@@ -638,17 +638,47 @@ func (i *Index) sketches(nextSketches func(*IndexFile) (estimator.Sketch, estima
 // SeriesSketches returns the two sketches for the index by merging all
 // instances of the type sketch types in all the indexes files.
 func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	return i.sketches(func(i *IndexFile) (estimator.Sketch, estimator.Sketch) {
+	sketch, tsketch, err := i.sketches(func(i *IndexFile) (estimator.Sketch, estimator.Sketch) {
 		return i.sblk.sketch, i.sblk.tsketch
 	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Merge in any current log file sketches.
+	for _, f := range i.logFiles {
+		if err := sketch.Merge(f.sSketch); err != nil {
+			return nil, nil, err
+		}
+		if err := tsketch.Merge(f.sTSketch); err != nil {
+			return nil, nil, err
+		}
+	}
+	return sketch, tsketch, err
 }
 
 // MeasurementsSketches returns the two sketches for the index by merging all
 // instances of the type sketch types in all the indexes files.
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	return i.sketches(func(i *IndexFile) (estimator.Sketch, estimator.Sketch) {
+	sketch, tsketch, err := i.sketches(func(i *IndexFile) (estimator.Sketch, estimator.Sketch) {
 		return i.mblk.sketch, i.mblk.tsketch
 	})
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Merge in any current log file sketches.
+	for _, f := range i.logFiles {
+		if err := sketch.Merge(f.mSketch); err != nil {
+			return nil, nil, err
+		}
+		if err := tsketch.Merge(f.mTSketch); err != nil {
+			return nil, nil, err
+		}
+	}
+	return sketch, tsketch, err
 }
 
 // Dereference is a nop.

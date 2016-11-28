@@ -511,13 +511,6 @@ func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	}
 	t.Series.Index.Size = n - t.Series.Index.Offset
 
-	// Write trailer.
-	nn, err = t.WriteTo(w)
-	n += nn
-	if err != nil {
-		return n, err
-	}
-
 	// Write the sketches out.
 	t.Sketch.Offset = n
 	if err := writeSketchTo(w, sw.sketch, &n); err != nil {
@@ -530,6 +523,13 @@ func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 		return n, err
 	}
 	t.TSketch.Size = n - t.TSketch.Offset
+
+	// Write trailer.
+	nn, err = t.WriteTo(w)
+	n += nn
+	if err != nil {
+		return n, err
+	}
 
 	// Save term list for future encoding.
 	sw.termList = terms

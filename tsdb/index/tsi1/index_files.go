@@ -5,6 +5,7 @@ import (
 	"io"
 	"sort"
 
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 )
 
@@ -151,9 +152,9 @@ func (p *IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *
 		}
 
 		if e.Deleted() {
-			sw.tsketch.Add(e.SeriesKey())
+			sw.tsketch.Add(models.MakeKey(e.Name(), e.Tags()))
 		} else {
-			sw.sketch.Add(e.SeriesKey())
+			sw.sketch.Add(models.MakeKey(e.Name(), e.Tags()))
 		}
 	}
 
