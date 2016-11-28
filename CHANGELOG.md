@@ -6,6 +6,7 @@
 
 - [#7066](https://github.com/influxdata/influxdb/issues/7066): Add support for secure transmission via collectd.
 - [#7554](https://github.com/influxdata/influxdb/pull/7554): update latest dependencies with Godeps.
+- [#7619](https://github.com/influxdata/influxdb/issues/7619): Update Elapsed function to return zero, when only one point was aggregated.
 
 ### Bugfixes
 

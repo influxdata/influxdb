@@ -166,6 +166,10 @@ func (r *{{$k.Name}}ElapsedReducer) Emit() []IntegerPoint {
 		return []IntegerPoint{
 			{Time: r.curr.Time, Value: elapsed},
 		}
+	} else if !r.curr.Nil {
+		return []IntegerPoint{
+			{Time: r.curr.Time, Value: 0},
+		}
 	}
 	return nil
 }

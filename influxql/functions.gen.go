@@ -377,6 +377,10 @@ func (r *FloatElapsedReducer) Emit() []IntegerPoint {
 		return []IntegerPoint{
 			{Time: r.curr.Time, Value: elapsed},
 		}
+	} else if !r.curr.Nil {
+		return []IntegerPoint{
+			{Time: r.curr.Time, Value: 0},
+		}
 	}
 	return nil
 }
@@ -790,6 +794,10 @@ func (r *IntegerElapsedReducer) Emit() []IntegerPoint {
 		elapsed := (r.curr.Time - r.prev.Time) / r.unitConversion
 		return []IntegerPoint{
 			{Time: r.curr.Time, Value: elapsed},
+		}
+	} else if !r.curr.Nil {
+		return []IntegerPoint{
+			{Time: r.curr.Time, Value: 0},
 		}
 	}
 	return nil
@@ -1205,6 +1213,10 @@ func (r *StringElapsedReducer) Emit() []IntegerPoint {
 		return []IntegerPoint{
 			{Time: r.curr.Time, Value: elapsed},
 		}
+	} else if !r.curr.Nil {
+		return []IntegerPoint{
+			{Time: r.curr.Time, Value: 0},
+		}
 	}
 	return nil
 }
@@ -1618,6 +1630,10 @@ func (r *BooleanElapsedReducer) Emit() []IntegerPoint {
 		elapsed := (r.curr.Time - r.prev.Time) / r.unitConversion
 		return []IntegerPoint{
 			{Time: r.curr.Time, Value: elapsed},
+		}
+	} else if !r.curr.Nil {
+		return []IntegerPoint{
+			{Time: r.curr.Time, Value: 0},
 		}
 	}
 	return nil
