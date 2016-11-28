@@ -62,10 +62,10 @@ const Root = React.createClass({
       store.dispatch(receiveMe(me));
       this.setState({loggedIn: true});
     }).catch((err) => {
-      const ImATeapot = 418;
-      if (err.response.status === ImATeapot) { // This means authentication is not set up!
+      const AUTH_DISABLED = 418;
+      if (err.response.status === AUTH_DISABLED) {
         return this.setState({loggedIn: true});
-        // may be good to store this info somewhere. So that pages know whether they can use me or not
+        // Could store a boolean indicating auth is not set up
       }
 
       this.setState({loggedIn: false});

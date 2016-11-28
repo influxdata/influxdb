@@ -1,36 +1,21 @@
 import React, {PropTypes} from 'react';
+import {connect} from 'react-redux';
 import SideNav from '../components/SideNav';
-import {getMe} from 'src/shared/apis';
 
-const {func, string} = PropTypes;
+const {func, string, shape} = PropTypes;
 const SideNavApp = React.createClass({
   propTypes: {
     currentLocation: string.isRequired,
     addFlashMessage: func.isRequired,
     sourceID: string.isRequired,
     explorationID: string,
-  },
-
-  getInitialState() {
-    return {
-      me: null,
-    };
-  },
-
-  componentDidMount() {
-    getMe().then(({data: me}) => {
-      this.setState({me});
-    }).catch(({response: {status}}) => {
-      const NO_AUTH_ENABLED = 418;
-      if (status !== NO_AUTH_ENABLED) {
-        this.props.addFlashMessage({type: 'error', text: 'There was a network problem while retrieving the user'});
-      }
-    });
+    me: shape({
+      email: string.isRequired,
+    }),
   },
 
   render() {
-    const {currentLocation, sourceID, explorationID} = this.props;
-    const {me} = this.state;
+    const {me, currentLocation, sourceID, explorationID} = this.props;
 
     return (
       <SideNav
@@ -44,4 +29,10 @@ const SideNavApp = React.createClass({
 
 });
 
-export default SideNavApp;
+function mapStateToProps(state) {
+  return {
+    me: state.me,
+  };
+}
+
+export default connect(mapStateToProps)(SideNavApp);
