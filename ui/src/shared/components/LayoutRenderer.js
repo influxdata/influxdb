@@ -17,7 +17,7 @@ export const LayoutRenderer = React.createClass({
       PropTypes.shape({
         queries: PropTypes.arrayOf(
           PropTypes.shape({
-            rp: PropTypes.string,
+            rp: PropTypes.string.isRequired,
             text: PropTypes.string.isRequired,
             database: PropTypes.string.isRequired,
             groupbys: PropTypes.arrayOf(PropTypes.string),
