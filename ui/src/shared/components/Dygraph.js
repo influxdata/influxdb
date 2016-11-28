@@ -50,7 +50,8 @@ export default React.createClass({
 
   componentDidMount() {
     const timeSeries = this.getTimeSeries();
-    const {yRange} = this.props;
+    // dygraphSeries is a legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
+    const {yRange, dygraphSeries} = this.props;
 
     const refs = this.refs;
     const graphContainerNode = refs.graphContainer;
@@ -75,6 +76,7 @@ export default React.createClass({
       strokeWidth: 1.5,
       highlightCircleSize: 3,
       colors: finalLineColors,
+      series: dygraphSeries,
       valueRange: getRange(timeSeries, yRange),
       highlightSeriesOpts: {
         strokeWidth: 2,

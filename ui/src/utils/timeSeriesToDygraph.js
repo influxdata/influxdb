@@ -7,6 +7,7 @@ export default function timeSeriesToDygraph(raw = []) {
   const fields = ['time']; // all of the effective field names (i.e. <measurement>.<field>)
   const fieldToIndex = {}; // see parseSeries
   const dates = {}; // map of date as string to date value to minimize string coercion
+  const dygraphSeries = {}; // dygraphSeries is a graph legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
 
   /**
    * dateToFieldValue will look like:
@@ -26,7 +27,7 @@ export default function timeSeriesToDygraph(raw = []) {
    */
   const dateToFieldValue = {};
 
-  raw.forEach(({response}) => {
+  raw.forEach(({response}, queryIndex) => {
     // If a response is an empty result set or a query returned an error
     // from InfluxDB, don't try and parse.
     if (response.results.length) {
@@ -89,6 +90,7 @@ export default function timeSeriesToDygraph(raw = []) {
         // ex given this timeSeries [Date, 10, 20, 30] field index at 2 would correspond to value 20
         fieldToIndex[effectiveFieldName] = fields.length;
         fields.push(effectiveFieldName);
+        dygraphSeries[effectiveFieldName] = {axis: queryIndex === 0 ? 'y' : 'y2'};
       });
 
       (series.values || []).forEach(parseRow);
@@ -140,6 +142,7 @@ export default function timeSeriesToDygraph(raw = []) {
   return {
     fields,
     timeSeries: buildTimeSeries(),
+    dygraphSeries,
   };
 }
 
