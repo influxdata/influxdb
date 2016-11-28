@@ -4,7 +4,7 @@ import shallowCompare from 'react-addons-shallow-compare';
 
 import timeSeriesToDygraph from 'utils/timeSeriesToDygraph';
 
-const {array, string, arrayOf, number, bool} = PropTypes;
+const {array, string, arrayOf, number, bool, shape} = PropTypes;
 
 export default React.createClass({
   displayName: 'LineGraph',
@@ -18,6 +18,7 @@ export default React.createClass({
     underlayCallback: PropTypes.func,
     isGraphFilled: bool,
     overrideLineColors: array,
+    queries: arrayOf(shape({}).isRequired),
   },
 
   getDefaultProps() {
@@ -31,18 +32,20 @@ export default React.createClass({
   shouldComponentUpdate(nextProps, nextState) {
     return shallowCompare(this, nextProps, nextState);
   },
+
   componentWillMount() {
     this._timeSeries = timeSeriesToDygraph(this.props.data);
   },
+
   componentWillUpdate(nextProps) {
     if (this.props.data !== nextProps.data) {
       this._timeSeries = timeSeriesToDygraph(nextProps.data);
     }
   },
+
   render() {
     const {isFetchingInitially, title, underlayCallback, ylabels} = this.props;
     const {labels, timeSeries, dygraphSeries} = this._timeSeries;
-
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
     if (isFetchingInitially) {
       return (
@@ -78,8 +81,28 @@ export default React.createClass({
           labels={labels}
           options={options}
           dygraphSeries={dygraphSeries}
+          ranges={this.getRanges()}
         />
       </div>
     );
+  },
+
+  getRanges() {
+    const {queries} = this.props;
+    const ranges = {};
+
+    if (queries) {
+      queries.forEach((q, i) => {
+        if (i === 0 && q.range) {
+          ranges.y = q.range;
+        }
+
+        if (i === 1 && q.range) {
+          ranges.y2 = q.range;
+        }
+      });
+    }
+
+    return ranges;
   },
 });

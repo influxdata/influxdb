@@ -25,7 +25,10 @@ export default React.createClass({
   displayName: 'Dygraph',
 
   propTypes: {
-    yRange: arrayOf(number.isRequired),
+    ranges: shape({
+      y: arrayOf(number.isRequired),
+      y2: arrayOf(number.isRequired),
+    }),
     timeSeries: array.isRequired, // eslint-disable-line react/forbid-prop-types
     labels: array.isRequired, // eslint-disable-line react/forbid-prop-types
     options: object, // eslint-disable-line react/forbid-prop-types
@@ -52,7 +55,7 @@ export default React.createClass({
   componentDidMount() {
     const timeSeries = this.getTimeSeries();
     // dygraphSeries is a legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
-    const {yRange, dygraphSeries} = this.props;
+    const {ranges, dygraphSeries} = this.props;
 
     const refs = this.refs;
     const graphContainerNode = refs.graphContainer;
@@ -78,7 +81,14 @@ export default React.createClass({
       highlightCircleSize: 3,
       colors: finalLineColors,
       series: dygraphSeries,
-      valueRange: getRange(timeSeries, yRange),
+      axes: {
+        y: {
+          valueRange: getRange(timeSeries, ranges.y),
+        },
+        y2: {
+          valueRange: getRange(timeSeries, ranges.y2),
+        },
+      },
       highlightSeriesOpts: {
         strokeWidth: 2,
         highlightCircleSize: 5,
@@ -133,12 +143,19 @@ export default React.createClass({
     }
 
     const timeSeries = this.getTimeSeries();
-    const {labels, yRange} = this.props;
+    const {labels, ranges} = this.props;
 
     dygraph.updateOptions({
       labels,
       file: timeSeries,
-      valueRange: getRange(timeSeries, yRange),
+      axes: {
+        y: {
+          valueRange: getRange(timeSeries, ranges.y),
+        },
+        y2: {
+          valueRange: getRange(timeSeries, ranges.y2),
+        },
+      },
       underlayCallback: this.props.options.underlayCallback,
     });
 
