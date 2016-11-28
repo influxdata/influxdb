@@ -55,6 +55,9 @@ type Engine interface {
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	MeasurementFields(measurement string) *MeasurementFields
 
+	// InfluxQL system iterators
+	SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
+
 	// Statistics will return statistics relevant to this engine.
 	Statistics(tags map[string]string) []models.Statistic
 	LastModified() time.Time

@@ -101,9 +101,8 @@ type Engine struct {
 	traceLogger  zap.Logger // Logger to be used when trace-logging is on.
 	traceLogging bool
 
-	index             tsdb.Index
-	fieldsMu          sync.RWMutex
-	measurementFields map[string]*tsdb.MeasurementFields
+	index    tsdb.Index
+	fieldset *tsdb.MeasurementFieldSet
 
 	WAL            *WAL
 	Cache          *Cache
@@ -149,7 +148,7 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, opt tsdb.
 		logOutput:    os.Stderr,
 		traceLogging: opt.Config.TraceLoggingEnabled,
 
-		measurementFields: make(map[string]*tsdb.MeasurementFields),
+		fieldset: tsdb.NewMeasurementFieldSet(),
 
 		WAL:   w,
 		Cache: cache,
@@ -166,6 +165,9 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, opt tsdb.
 		enableCompactionsOnOpen:       true,
 		stats: &EngineStatistics{},
 	}
+
+	// Attach fieldset to index.
+	e.index.SetFieldSet(e.fieldset)
 
 	if e.traceLogging {
 		fs.enableTraceLogging(true)
@@ -302,22 +304,7 @@ func (e *Engine) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 
 // MeasurementFields returns the measurement fields for a measurement.
 func (e *Engine) MeasurementFields(measurement string) *tsdb.MeasurementFields {
-	e.fieldsMu.RLock()
-	m := e.measurementFields[measurement]
-	e.fieldsMu.RUnlock()
-
-	if m != nil {
-		return m
-	}
-
-	e.fieldsMu.Lock()
-	m = e.measurementFields[measurement]
-	if m == nil {
-		m = tsdb.NewMeasurementFields()
-		e.measurementFields[measurement] = m
-	}
-	e.fieldsMu.Unlock()
-	return m
+	return e.fieldset.CreateFieldsIfNotExists(measurement)
 }
 
 func (e *Engine) SeriesN() (uint64, error) {
@@ -655,14 +642,7 @@ func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType, inde
 	seriesKey, field := SeriesAndFieldFromCompositeKey(key)
 	name := tsdb.MeasurementFromSeriesKey(string(seriesKey))
 
-	e.fieldsMu.Lock()
-	mf := e.measurementFields[name]
-	if mf == nil {
-		mf = tsdb.NewMeasurementFields()
-		e.measurementFields[name] = mf
-	}
-	e.fieldsMu.Unlock()
-
+	mf := e.fieldset.CreateFieldsIfNotExists(name)
 	if err := mf.CreateFieldIfNotExists(field, fieldType, false); err != nil {
 		return err
 	}
@@ -848,9 +828,7 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *Engine) DeleteMeasurement(name []byte) error {
-	e.mu.Lock()
-	delete(e.measurementFields, string(name))
-	e.mu.Unlock()
+	e.fieldset.Delete(string(name))
 
 	// Attempt to find the series keys.
 	m, err := e.Measurement(name)
@@ -1335,18 +1313,8 @@ func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions, aggregate bo
 	var itrs []influxql.Iterator
 	if err := func() error {
 		for _, name := range influxql.Sources(opt.Sources).Names() {
-			// Retrieve measurement fields.
-			e.mu.Lock()
-			mf := e.measurementFields[name]
-			e.mu.Unlock()
-
-			// Skip if there are no fields.
-			if mf == nil {
-				continue
-			}
-
 			// Generate tag sets from index.
-			tagSets, err := e.index.TagSets([]byte(name), opt.Dimensions, opt.Condition, mf)
+			tagSets, err := e.index.TagSets([]byte(name), opt.Dimensions, opt.Condition)
 			if err != nil {
 				return err
 			}
@@ -1594,10 +1562,7 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 // buildCursor creates an untyped cursor for a field.
 func (e *Engine) buildCursor(measurement, seriesKey string, ref *influxql.VarRef, opt influxql.IteratorOptions) cursor {
 	// Look up fields for measurement.
-	e.fieldsMu.RLock()
-	mf := e.measurementFields[measurement]
-	e.fieldsMu.RUnlock()
-
+	mf := e.fieldset.Fields(measurement)
 	if mf == nil {
 		return nil
 	}
@@ -1669,6 +1634,10 @@ func (e *Engine) buildBooleanCursor(measurement, seriesKey, field string, opt in
 	cacheValues := e.Cache.Values(SeriesFieldKey(seriesKey, field))
 	keyCursor := e.KeyCursor(SeriesFieldKey(seriesKey, field), opt.SeekTime(), opt.Ascending)
 	return newBooleanCursor(opt.SeekTime(), opt.Ascending, cacheValues, keyCursor)
+}
+
+func (e *Engine) SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	return e.index.SeriesPointIterator(opt)
 }
 
 // SeriesFieldKey combine a series key and field name for a unique string to be hashed to a numeric ID.

@@ -705,12 +705,34 @@ func (s *Shard) createSystemIterator(opt influxql.IteratorOptions) (influxql.Ite
 	case "_fieldKeys":
 		return NewFieldKeysIterator(s, opt)
 	case "_series":
-		return NewSeriesIterator(s, opt)
+		return s.createSeriesIterator(opt)
 	case "_tagKeys":
 		return NewTagKeysIterator(s, opt)
 	default:
 		return nil, fmt.Errorf("unknown system source: %s", m.Name)
 	}
+}
+
+// createSeriesIterator returns a new instance of SeriesIterator.
+func (s *Shard) createSeriesIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	// Only equality operators are allowed.
+	var err error
+	influxql.WalkFunc(opt.Condition, func(n influxql.Node) {
+		switch n := n.(type) {
+		case *influxql.BinaryExpr:
+			switch n.Op {
+			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX,
+				influxql.OR, influxql.AND:
+			default:
+				err = errors.New("invalid tag comparison operator")
+			}
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return s.engine.SeriesPointIterator(opt)
 }
 
 // FieldDimensions returns unique sets of fields and dimensions across a list of sources.
@@ -1033,6 +1055,55 @@ func (m *MeasurementFields) FieldSet() map[string]influxql.DataType {
 	return fields
 }
 
+// MeasurementFieldSet represents a collection of fields by measurement.
+// This safe for concurrent use.
+type MeasurementFieldSet struct {
+	mu     sync.RWMutex
+	fields map[string]*MeasurementFields
+}
+
+// NewMeasurementFieldSet returns a new instance of MeasurementFieldSet.
+func NewMeasurementFieldSet() *MeasurementFieldSet {
+	return &MeasurementFieldSet{
+		fields: make(map[string]*MeasurementFields),
+	}
+}
+
+// Fields returns fields for a measurement by name.
+func (fs *MeasurementFieldSet) Fields(name string) *MeasurementFields {
+	fs.mu.RLock()
+	mf := fs.fields[name]
+	fs.mu.RUnlock()
+	return mf
+}
+
+// CreateFieldsIfNotExists returns fields for a measurement by name.
+func (fs *MeasurementFieldSet) CreateFieldsIfNotExists(name string) *MeasurementFields {
+	fs.mu.RLock()
+	mf := fs.fields[name]
+	fs.mu.RUnlock()
+
+	if mf != nil {
+		return mf
+	}
+
+	fs.mu.Lock()
+	mf = fs.fields[name]
+	if mf == nil {
+		mf = NewMeasurementFields()
+		fs.fields[name] = mf
+	}
+	fs.mu.Unlock()
+	return mf
+}
+
+// Delete removes a field set for a measurement.
+func (fs *MeasurementFieldSet) Delete(name string) {
+	fs.mu.Lock()
+	delete(fs.fields, name)
+	fs.mu.Unlock()
+}
+
 // Field represents a series field.
 type Field struct {
 	ID   uint8             `json:"id,omitempty"`
@@ -1156,114 +1227,6 @@ func (itr *fieldKeysIterator) Next() (*influxql.FloatPoint, error) {
 		itr.buf.fields = itr.buf.fields[1:]
 
 		return p, nil
-	}
-}
-
-// seriesIterator emits series ids.
-type seriesIterator struct {
-	mms  Measurements
-	keys struct {
-		buf []string
-		i   int
-	}
-
-	point influxql.FloatPoint // reusable point
-	opt   influxql.IteratorOptions
-}
-
-// NewSeriesIterator returns a new instance of SeriesIterator.
-func NewSeriesIterator(sh *Shard, opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	// Only equality operators are allowed.
-	var err error
-	influxql.WalkFunc(opt.Condition, func(n influxql.Node) {
-		switch n := n.(type) {
-		case *influxql.BinaryExpr:
-			switch n.Op {
-			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX,
-				influxql.OR, influxql.AND:
-			default:
-				err = errors.New("invalid tag comparison operator")
-			}
-		}
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Read and sort all measurements.
-	mms, err := sh.engine.Measurements()
-	if err != nil {
-		return nil, err
-	}
-	sort.Sort(mms)
-
-	return &seriesIterator{
-		mms: mms,
-		point: influxql.FloatPoint{
-			Aux: make([]interface{}, len(opt.Aux)),
-		},
-		opt: opt,
-	}, nil
-}
-
-// Stats returns stats about the points processed.
-func (itr *seriesIterator) Stats() influxql.IteratorStats { return influxql.IteratorStats{} }
-
-// Close closes the iterator.
-func (itr *seriesIterator) Close() error { return nil }
-
-// Next emits the next point in the iterator.
-func (itr *seriesIterator) Next() (*influxql.FloatPoint, error) {
-	for {
-		// Load next measurement's keys if there are no more remaining.
-		if itr.keys.i >= len(itr.keys.buf) {
-			if err := itr.nextKeys(); err != nil {
-				return nil, err
-			}
-			if len(itr.keys.buf) == 0 {
-				return nil, nil
-			}
-		}
-
-		// Read the next key.
-		key := itr.keys.buf[itr.keys.i]
-		itr.keys.i++
-
-		// Write auxiliary fields.
-		for i, f := range itr.opt.Aux {
-			switch f.Val {
-			case "key":
-				itr.point.Aux[i] = key
-			}
-		}
-		return &itr.point, nil
-	}
-}
-
-// nextKeys reads all keys for the next measurement.
-func (itr *seriesIterator) nextKeys() error {
-	for {
-		// Ensure previous keys are cleared out.
-		itr.keys.i, itr.keys.buf = 0, itr.keys.buf[:0]
-
-		// Read next measurement.
-		if len(itr.mms) == 0 {
-			return nil
-		}
-		mm := itr.mms[0]
-		itr.mms = itr.mms[1:]
-
-		// Read all series keys.
-		ids, err := mm.seriesIDsAllOrByExpr(itr.opt.Condition)
-		if err != nil {
-			return err
-		} else if len(ids) == 0 {
-			continue
-		}
-		itr.keys.buf = mm.AppendSeriesKeysByID(itr.keys.buf, ids)
-		sort.Strings(itr.keys.buf)
-
-		return nil
 	}
 }
 
