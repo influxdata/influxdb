@@ -41,7 +41,7 @@ export default React.createClass({
   },
   render() {
     const {isFetchingInitially, title, underlayCallback, ylabels} = this.props;
-    const {fields, timeSeries, dygraphSeries} = this._timeSeries;
+    const {labels, timeSeries, dygraphSeries} = this._timeSeries;
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
     if (isFetchingInitially) {
@@ -53,7 +53,7 @@ export default React.createClass({
     }
 
     const options = {
-      labels: fields,
+      labels,
       connectSeparatedPoints: true,
       labelsKMB: true,
       height: 300,
@@ -75,7 +75,7 @@ export default React.createClass({
           overrideLineColors={this.props.overrideLineColors}
           isGraphFilled={this.props.isGraphFilled}
           timeSeries={timeSeries}
-          fields={fields}
+          labels={labels}
           options={options}
           dygraphSeries={dygraphSeries}
         />

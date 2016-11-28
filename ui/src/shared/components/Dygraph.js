@@ -27,7 +27,7 @@ export default React.createClass({
   propTypes: {
     yRange: arrayOf(number.isRequired),
     timeSeries: array.isRequired, // eslint-disable-line react/forbid-prop-types
-    fields: array.isRequired, // eslint-disable-line react/forbid-prop-types
+    labels: array.isRequired, // eslint-disable-line react/forbid-prop-types
     options: object, // eslint-disable-line react/forbid-prop-types
     containerStyle: object, // eslint-disable-line react/forbid-prop-types
     isGraphFilled: bool,
@@ -132,10 +132,10 @@ export default React.createClass({
     }
 
     const timeSeries = this.getTimeSeries();
-    const {fields, yRange} = this.props;
+    const {labels, yRange} = this.props;
 
     dygraph.updateOptions({
-      labels: fields,
+      labels,
       file: timeSeries,
       valueRange: getRange(timeSeries, yRange),
       underlayCallback: this.props.options.underlayCallback,
