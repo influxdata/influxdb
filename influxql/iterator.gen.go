@@ -472,7 +472,7 @@ func (itr *floatParallelIterator) Close() error {
 func (itr *floatParallelIterator) Next() (*FloatPoint, error) {
 	v, ok := <-itr.ch
 	if !ok {
-		return nil, io.EOF
+		return nil, nil
 	}
 	return v.point, v.err
 }
@@ -490,6 +490,9 @@ func (itr *floatParallelIterator) monitor() {
 		case <-itr.closing:
 			return
 		case itr.ch <- floatPointError{point: p, err: err}:
+			if p == nil || err != nil {
+				return
+			}
 		}
 	}
 }
@@ -2834,7 +2837,7 @@ func (itr *integerParallelIterator) Close() error {
 func (itr *integerParallelIterator) Next() (*IntegerPoint, error) {
 	v, ok := <-itr.ch
 	if !ok {
-		return nil, io.EOF
+		return nil, nil
 	}
 	return v.point, v.err
 }
@@ -2852,6 +2855,9 @@ func (itr *integerParallelIterator) monitor() {
 		case <-itr.closing:
 			return
 		case itr.ch <- integerPointError{point: p, err: err}:
+			if p == nil || err != nil {
+				return
+			}
 		}
 	}
 }
@@ -5193,7 +5199,7 @@ func (itr *stringParallelIterator) Close() error {
 func (itr *stringParallelIterator) Next() (*StringPoint, error) {
 	v, ok := <-itr.ch
 	if !ok {
-		return nil, io.EOF
+		return nil, nil
 	}
 	return v.point, v.err
 }
@@ -5211,6 +5217,9 @@ func (itr *stringParallelIterator) monitor() {
 		case <-itr.closing:
 			return
 		case itr.ch <- stringPointError{point: p, err: err}:
+			if p == nil || err != nil {
+				return
+			}
 		}
 	}
 }
@@ -7537,7 +7546,7 @@ func (itr *booleanParallelIterator) Close() error {
 func (itr *booleanParallelIterator) Next() (*BooleanPoint, error) {
 	v, ok := <-itr.ch
 	if !ok {
-		return nil, io.EOF
+		return nil, nil
 	}
 	return v.point, v.err
 }
@@ -7555,6 +7564,9 @@ func (itr *booleanParallelIterator) monitor() {
 		case <-itr.closing:
 			return
 		case itr.ch <- booleanPointError{point: p, err: err}:
+			if p == nil || err != nil {
+				return
+			}
 		}
 	}
 }

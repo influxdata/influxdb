@@ -470,7 +470,7 @@ func (itr *{{$k.name}}ParallelIterator) Close() error {
 func (itr *{{$k.name}}ParallelIterator) Next() (*{{$k.Name}}Point, error) {
 	v, ok := <-itr.ch
 	if !ok {
-		return nil, io.EOF
+		return nil, nil
 	}
 	return v.point, v.err
 }
@@ -488,6 +488,9 @@ func (itr *{{$k.name}}ParallelIterator) monitor()  {
 		case <-itr.closing:
 			return
 		case itr.ch <- {{$k.name}}PointError{point: p, err: err}:
+			if p == nil || err != nil {
+				return
+			}
 		}
 	}
 }
