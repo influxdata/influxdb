@@ -451,7 +451,7 @@ func (s *Statistic) ValueNames() []string {
 	return a
 }
 
-// Statistics is a list of sortable statistics
+// Statistics is a slice of sortable statistics
 type Statistics []*Statistic
 
 func (a Statistics) Len() int { return len(a) }
