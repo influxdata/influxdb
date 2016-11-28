@@ -9,8 +9,10 @@ type Service struct {
 	ServersStore     chronograf.ServersStore
 	LayoutStore      chronograf.LayoutStore
 	AlertRulesStore  chronograf.AlertRulesStore
+	UsersStore       chronograf.UsersStore
 	TimeSeries       chronograf.TimeSeries
 	Logger           chronograf.Logger
+	UseAuth          bool
 }
 
 // ErrorMessage is the error response format for all service errors

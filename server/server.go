@@ -60,7 +60,7 @@ func (s *Server) useAuth() bool {
 // Serve starts and runs the chronograf server
 func (s *Server) Serve() error {
 	logger := clog.New(clog.ParseLevel(s.LogLevel))
-	service := openService(s.BoltPath, s.CannedPath, logger)
+	service := openService(s.BoltPath, s.CannedPath, logger, s.useAuth())
 	s.handler = NewMux(MuxOpts{
 		Develop:            s.Develop,
 		TokenSecret:        s.TokenSecret,
@@ -106,7 +106,7 @@ func (s *Server) Serve() error {
 	return nil
 }
 
-func openService(boltPath, cannedPath string, logger chronograf.Logger) Service {
+func openService(boltPath, cannedPath string, logger chronograf.Logger, useAuth bool) Service {
 	db := bolt.NewClient()
 	db.Path = boltPath
 	if err := db.Open(); err != nil {
@@ -137,12 +137,14 @@ func openService(boltPath, cannedPath string, logger chronograf.Logger) Service 
 		ExplorationStore: db.ExplorationStore,
 		SourcesStore:     db.SourcesStore,
 		ServersStore:     db.ServersStore,
+		UsersStore:       db.UsersStore,
 		TimeSeries: &influx.Client{
 			Logger: logger,
 		},
 		LayoutStore:     layouts,
 		AlertRulesStore: db.AlertsStore,
 		Logger:          logger,
+		UseAuth:         useAuth,
 	}
 }
 

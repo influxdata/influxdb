@@ -94,14 +94,13 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.DELETE("/chronograf/v1/layouts/:id", service.RemoveLayout)
 
 	// Users
-	/*
-		router.GET("/chronograf/v1/users", Users)
-		router.POST("/chronograf/v1/users", NewUser)
+	router.GET("/chronograf/v1/me", service.Me)
+	router.POST("/chronograf/v1/users", service.NewUser)
 
-		router.GET("/chronograf/v1/users/:id", UsersID)
-		router.PATCH("/chronograf/v1/users/:id", UpdateUser)
-		router.DELETE("/chronograf/v1/users/:id", RemoveUser)
-	*/
+	router.GET("/chronograf/v1/users/:id", service.UserID)
+	router.PATCH("/chronograf/v1/users/:id", service.UpdateUser)
+	router.DELETE("/chronograf/v1/users/:id", service.RemoveUser)
+
 	// Explorations
 	router.GET("/chronograf/v1/users/:id/explorations", service.Explorations)
 	router.POST("/chronograf/v1/users/:id/explorations", service.NewExploration)
@@ -133,7 +132,7 @@ func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 		opts.Logger,
 	)
 
-	router.GET("/oauth", gh.Login())
+	router.GET("/oauth/github", gh.Login())
 	router.GET("/oauth/logout", gh.Logout())
 	router.GET("/oauth/github/callback", gh.Callback())
 

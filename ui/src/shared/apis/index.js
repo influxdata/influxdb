@@ -7,6 +7,13 @@ export function fetchLayouts() {
   });
 }
 
+export function getMe() {
+  return AJAX({
+    url: `/chronograf/v1/me`,
+    method: 'GET',
+  });
+}
+
 export function getSources() {
   return AJAX({
     url: '/chronograf/v1/sources',
