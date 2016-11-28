@@ -1,19 +1,24 @@
 import React, {PropTypes} from 'react';
 import {NavBar, NavBlock, NavHeader, NavListItem} from 'src/side_nav/components/NavItems';
 
-const {string} = PropTypes;
+const {string, shape} = PropTypes;
 const SideNav = React.createClass({
   propTypes: {
     location: string.isRequired,
     sourceID: string.isRequired,
     explorationID: string,
+    me: shape({
+      email: string.isRequired,
+    }),
   },
 
   render() {
-    const {location, sourceID, explorationID} = this.props;
+    const {me, location, sourceID, explorationID} = this.props;
     const sourcePrefix = `/sources/${sourceID}`;
     const explorationSuffix = explorationID ? `/${explorationID}` : '';
     const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer${explorationSuffix}`;
+
+    const loggedIn = !!(me && me.email);
 
     return (
       <NavBar location={location}>
@@ -39,6 +44,11 @@ const SideNav = React.createClass({
           <NavListItem link={`${sourcePrefix}/manage-sources`}>InfluxDB</NavListItem>
           <NavListItem link={`${sourcePrefix}/kapacitor-config`}>Kapacitor</NavListItem>
         </NavBlock>
+        {loggedIn ? (
+        <NavBlock icon="user-outline" className="sidebar__square-last">
+          <a className="sidebar__menu-item" href="/oauth/logout">Logout</a>
+        </NavBlock>
+        ) : null}
       </NavBar>
     );
   },
