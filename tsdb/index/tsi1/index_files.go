@@ -131,12 +131,29 @@ func (p *IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 
 func (p *IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
 	itr := p.SeriesIterator()
+	sw := NewSeriesBlockWriter()
+
+	// As the index files are merged together, it's possible that series were
+	// added, removed and then added again over time. Since sketches cannot have
+	// values removed from them, the series would be in both the resulting
+	// series and tombstoned series sketches. So that a series only appears in
+	// one of the sketches, we rebuild some fresh sketches during the
+	// compaction.
+	//
+	// We update these sketches below as we iterate through the series in these
+	// index files.
+	sw.sketch, sw.tsketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 
 	// Write all series.
-	sw := NewSeriesBlockWriter()
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		if err := sw.Add(e.Name(), e.Tags()); err != nil {
 			return err
+		}
+
+		if e.Deleted() {
+			sw.tsketch.Add(e.SeriesKey())
+		} else {
+			sw.sketch.Add(e.SeriesKey())
 		}
 	}
 

@@ -618,30 +618,37 @@ func (i *Index) SeriesN() (n uint64, err error) {
 	return i.logFiles[0].SeriesN(), nil
 }
 
-func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	//FIXME(edd)
-	return nil, nil, fmt.Errorf("SeriesSketches not implemented")
+func (i *Index) sketches(nextSketches func(*IndexFile) (estimator.Sketch, estimator.Sketch)) (estimator.Sketch, estimator.Sketch, error) {
+	sketch, tsketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
 
+	// Iterate over all the index files and merge all the sketches.
+	for _, f := range i.indexFiles {
+		s, t := nextSketches(f)
+		if err := sketch.Merge(s); err != nil {
+			return nil, nil, err
+		}
+
+		if err := tsketch.Merge(t); err != nil {
+			return nil, nil, err
+		}
+	}
+	return sketch, tsketch, nil
+}
+
+// SeriesSketches returns the two sketches for the index by merging all
+// instances of the type sketch types in all the indexes files.
+func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
+	return i.sketches(func(i *IndexFile) (estimator.Sketch, estimator.Sketch) {
+		return i.sblk.sketch, i.sblk.tsketch
+	})
 }
 
 // MeasurementsSketches returns the two sketches for the index by merging all
 // instances of the type sketch types in all the indexes files.
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	var (
-		sketch  estimator.Sketch = hll.NewDefaultPlus()
-		tsketch estimator.Sketch = hll.NewDefaultPlus()
-	)
-
-	// Iterate over all the index files and merge all the sketches.
-	for _, f := range i.indexFiles {
-		if err := sketch.Merge(f.mblk.sketch); err != nil {
-			return nil, nil, err
-		}
-		if err := tsketch.Merge(f.mblk.tsketch); err != nil {
-			return nil, nil, err
-		}
-	}
-	return sketch, tsketch, nil
+	return i.sketches(func(i *IndexFile) (estimator.Sketch, estimator.Sketch) {
+		return i.mblk.sketch, i.mblk.tsketch
+	})
 }
 
 // Dereference is a nop.
