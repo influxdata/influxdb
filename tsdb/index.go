@@ -31,7 +31,13 @@ type Index interface {
 
 	Dereference(b []byte)
 
-	TagSets(name []byte, dimensions []string, condition influxql.Expr, mf *MeasurementFields) ([]*influxql.TagSet, error)
+	TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error)
+
+	// InfluxQL system iterators
+	SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
+
+	// Sets a shared fieldset from the engine.
+	SetFieldSet(fs *MeasurementFieldSet)
 
 	// To be removed w/ tsi1.
 	SetFieldName(measurement, name string)

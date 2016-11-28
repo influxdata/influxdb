@@ -493,7 +493,7 @@ func (i *Index) Dereference(b []byte) {
 }
 
 // TagSets returns a list of tag sets.
-func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Expr, mf *tsdb.MeasurementFields) ([]*influxql.TagSet, error) {
+func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
@@ -520,8 +520,102 @@ func (i *Index) SeriesKeys() []string {
 	return s
 }
 
+// SetFieldSet sets a shared field set from the engine.
+func (i *Index) SetFieldSet(*tsdb.MeasurementFieldSet) {}
+
 // SetFieldName adds a field name to a measurement.
 func (i *Index) SetFieldName(measurement, name string) {
 	m := i.CreateMeasurementIndexIfNotExists(measurement)
 	m.SetFieldName(name)
+}
+
+// SeriesPointIterator returns an influxql iterator over all series.
+func (i *Index) SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	// Read and sort all measurements.
+	mms := make(tsdb.Measurements, 0, len(i.measurements))
+	for _, mm := range i.measurements {
+		mms = append(mms, mm)
+	}
+	sort.Sort(mms)
+
+	return &seriesPointIterator{
+		mms: mms,
+		point: influxql.FloatPoint{
+			Aux: make([]interface{}, len(opt.Aux)),
+		},
+		opt: opt,
+	}, nil
+}
+
+// seriesPointIterator emits series as influxql points.
+type seriesPointIterator struct {
+	mms  tsdb.Measurements
+	keys struct {
+		buf []string
+		i   int
+	}
+
+	point influxql.FloatPoint // reusable point
+	opt   influxql.IteratorOptions
+}
+
+// Stats returns stats about the points processed.
+func (itr *seriesPointIterator) Stats() influxql.IteratorStats { return influxql.IteratorStats{} }
+
+// Close closes the iterator.
+func (itr *seriesPointIterator) Close() error { return nil }
+
+// Next emits the next point in the iterator.
+func (itr *seriesPointIterator) Next() (*influxql.FloatPoint, error) {
+	for {
+		// Load next measurement's keys if there are no more remaining.
+		if itr.keys.i >= len(itr.keys.buf) {
+			if err := itr.nextKeys(); err != nil {
+				return nil, err
+			}
+			if len(itr.keys.buf) == 0 {
+				return nil, nil
+			}
+		}
+
+		// Read the next key.
+		key := itr.keys.buf[itr.keys.i]
+		itr.keys.i++
+
+		// Write auxiliary fields.
+		for i, f := range itr.opt.Aux {
+			switch f.Val {
+			case "key":
+				itr.point.Aux[i] = key
+			}
+		}
+		return &itr.point, nil
+	}
+}
+
+// nextKeys reads all keys for the next measurement.
+func (itr *seriesPointIterator) nextKeys() error {
+	for {
+		// Ensure previous keys are cleared out.
+		itr.keys.i, itr.keys.buf = 0, itr.keys.buf[:0]
+
+		// Read next measurement.
+		if len(itr.mms) == 0 {
+			return nil
+		}
+		mm := itr.mms[0]
+		itr.mms = itr.mms[1:]
+
+		// Read all series keys.
+		ids, err := mm.SeriesIDsAllOrByExpr(itr.opt.Condition)
+		if err != nil {
+			return err
+		} else if len(ids) == 0 {
+			continue
+		}
+		itr.keys.buf = mm.AppendSeriesKeysByID(itr.keys.buf, ids)
+		sort.Strings(itr.keys.buf)
+
+		return nil
+	}
 }

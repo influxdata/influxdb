@@ -37,6 +37,10 @@ type Index struct {
 	mu         sync.RWMutex
 	logFiles   []*LogFile
 	indexFiles IndexFiles
+
+	// Fieldset shared with engine.
+	// TODO: Move field management into index.
+	fieldset *tsdb.MeasurementFieldSet
 }
 
 // Open opens the index.
@@ -124,6 +128,13 @@ func (i *Index) Close() error {
 	return nil
 }
 
+// SetFieldSet sets a shared field set from the engine.
+func (i *Index) SetFieldSet(fs *tsdb.MeasurementFieldSet) {
+	i.mu.Lock()
+	i.fieldset = fs
+	i.mu.Unlock()
+}
+
 // SetLogFiles explicitly sets log files.
 // TEMPORARY: For testing only.
 func (i *Index) SetLogFiles(a ...*LogFile) { i.logFiles = a }
@@ -147,6 +158,19 @@ func (i *Index) files() []File {
 		a = append(a, f)
 	}
 	return a
+}
+
+// SeriesIterator returns an iterator over all series in the index.
+func (i *Index) SeriesIterator() SeriesIterator {
+	a := make([]SeriesIterator, 0, i.FileN())
+	for _, f := range i.files() {
+		itr := f.SeriesIterator()
+		if itr == nil {
+			continue
+		}
+		a = append(a, itr)
+	}
+	return MergeSeriesIterators(a...)
 }
 
 // Measurement retrieves a measurement by name.
@@ -587,8 +611,8 @@ func (i *Index) matchTagValueNotEqualNotEmptySeriesIterator(name, key []byte, va
 
 // TagSets returns an ordered list of tag sets for a measurement by dimension
 // and filtered by an optional conditional expression.
-func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Expr, mf *tsdb.MeasurementFields) ([]*influxql.TagSet, error) {
-	itr, err := i.MeasurementSeriesByExprIterator(name, condition, mf)
+func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
+	itr, err := i.MeasurementSeriesByExprIterator(name, condition)
 	if err != nil {
 		return nil, err
 	} else if itr == nil {
@@ -646,12 +670,12 @@ func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Exp
 // MeasurementSeriesByExprIterator returns a series iterator for a measurement
 // that is filtered by expr. If expr only contains time expressions then this
 // call is equivalent to MeasurementSeriesIterator().
-func (i *Index) MeasurementSeriesByExprIterator(name []byte, expr influxql.Expr, mf *tsdb.MeasurementFields) (SeriesIterator, error) {
+func (i *Index) MeasurementSeriesByExprIterator(name []byte, expr influxql.Expr) (SeriesIterator, error) {
 	// Return all series for the measurement if there are no tag expressions.
 	if expr == nil || influxql.OnlyTimeExpr(expr) {
 		return i.MeasurementSeriesIterator(name), nil
 	}
-	return i.seriesByExprIterator(name, expr, mf)
+	return i.seriesByExprIterator(name, expr, i.fieldset.CreateFieldsIfNotExists(string(name)))
 }
 
 func (i *Index) seriesByExprIterator(name []byte, expr influxql.Expr, mf *tsdb.MeasurementFields) (SeriesIterator, error) {
@@ -808,6 +832,11 @@ func (i *Index) RemoveShard(shardID uint64)             {}
 func (i *Index) AssignShard(k string, shardID uint64)   {}
 func (i *Index) UnassignShard(k string, shardID uint64) {}
 
+// SeriesPointIterator returns an influxql iterator over all series.
+func (i *Index) SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	return newSeriesPointIterator(i, opt), nil
+}
+
 // File represents a log or index file.
 type File interface {
 	Measurement(name []byte) MeasurementElem
@@ -815,6 +844,8 @@ type File interface {
 
 	TagValueIterator(name, key []byte) (itr TagValueIterator, deleted bool)
 
+	SeriesIterator() SeriesIterator
+	MeasurementSeriesIterator(name []byte) SeriesIterator
 	TagKeySeriesIterator(name, key []byte) (itr SeriesIterator, deleted bool)
 	TagValueSeriesIterator(name, key, value []byte) (itr SeriesIterator, deleted bool)
 }
@@ -837,4 +868,73 @@ func (fe FilterExprs) Len() int {
 		return 0
 	}
 	return len(fe)
+}
+
+// seriesPointIterator adapts SeriesIterator to an influxql.Iterator.
+type seriesPointIterator struct {
+	index *Index
+	mitr  MeasurementIterator
+	sitr  SeriesIterator
+	opt   influxql.IteratorOptions
+
+	point influxql.FloatPoint // reusable point
+}
+
+// newSeriesPointIterator returns a new instance of seriesPointIterator.
+func newSeriesPointIterator(index *Index, opt influxql.IteratorOptions) *seriesPointIterator {
+	return &seriesPointIterator{
+		index: index,
+		mitr:  index.MeasurementIterator(),
+		point: influxql.FloatPoint{
+			Aux: make([]interface{}, len(opt.Aux)),
+		},
+		opt: opt,
+	}
+}
+
+// Stats returns stats about the points processed.
+func (itr *seriesPointIterator) Stats() influxql.IteratorStats { return influxql.IteratorStats{} }
+
+// Close closes the iterator.
+func (itr *seriesPointIterator) Close() error { return nil }
+
+// Next emits the next point in the iterator.
+func (itr *seriesPointIterator) Next() (*influxql.FloatPoint, error) {
+	for {
+		// Create new series iterator, if necessary.
+		// Exit if there are no measurements remaining.
+		if itr.sitr == nil {
+			m := itr.mitr.Next()
+			if m == nil {
+				return nil, nil
+			}
+
+			sitr, err := itr.index.MeasurementSeriesByExprIterator(m.Name(), itr.opt.Condition)
+			if err != nil {
+				return nil, err
+			} else if sitr == nil {
+				continue
+			}
+			itr.sitr = sitr
+		}
+
+		// Read next series element.
+		e := itr.sitr.Next()
+		if e == nil {
+			itr.sitr = nil
+			continue
+		}
+
+		// Convert to a key.
+		key := string(models.MakeKey(e.Name(), e.Tags()))
+
+		// Write auxiliary fields.
+		for i, f := range itr.opt.Aux {
+			switch f.Val {
+			case "key":
+				itr.point.Aux[i] = key
+			}
+		}
+		return &itr.point, nil
+	}
 }

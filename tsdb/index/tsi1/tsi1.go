@@ -473,48 +473,50 @@ type seriesIntersectIterator struct {
 
 // Next returns the next element which occurs in both iterators.
 func (itr *seriesIntersectIterator) Next() (e SeriesElem) {
-	// Fill buffers.
-	if itr.buf[0] == nil {
-		itr.buf[0] = itr.itrs[0].Next()
-	}
-	if itr.buf[1] == nil {
-		itr.buf[1] = itr.itrs[1].Next()
-	}
-
-	// Exit if either buffer is still empty.
-	if itr.buf[0] == nil || itr.buf[1] == nil {
-		return nil
-	}
-
-	// Return lesser series.
-	if cmp := CompareSeriesElem(itr.buf[0], itr.buf[1]); cmp == -1 {
-		e, itr.buf[0] = itr.buf[0], nil
-		return e
-	} else if cmp == 1 {
-		e, itr.buf[1] = itr.buf[1], nil
-		return e
-	}
-
-	// Merge series together if equal.
-	itr.e.SeriesElem = itr.buf[0]
-
-	// Attach expression.
-	expr0 := itr.buf[0].Expr()
-	expr1 := itr.buf[0].Expr()
-	if expr0 == nil {
-		itr.e.expr = expr1
-	} else if expr1 == nil {
-		itr.e.expr = expr0
-	} else {
-		itr.e.expr = &influxql.BinaryExpr{
-			Op:  influxql.AND,
-			LHS: expr0,
-			RHS: expr1,
+	for {
+		// Fill buffers.
+		if itr.buf[0] == nil {
+			itr.buf[0] = itr.itrs[0].Next()
 		}
-	}
+		if itr.buf[1] == nil {
+			itr.buf[1] = itr.itrs[1].Next()
+		}
 
-	itr.buf[0], itr.buf[1] = nil, nil
-	return &itr.e
+		// Exit if either buffer is still empty.
+		if itr.buf[0] == nil || itr.buf[1] == nil {
+			return nil
+		}
+
+		// Skip if both series are not equal.
+		if cmp := CompareSeriesElem(itr.buf[0], itr.buf[1]); cmp == -1 {
+			itr.buf[0] = nil
+			continue
+		} else if cmp == 1 {
+			itr.buf[1] = nil
+			continue
+		}
+
+		// Merge series together if equal.
+		itr.e.SeriesElem = itr.buf[0]
+
+		// Attach expression.
+		expr0 := itr.buf[0].Expr()
+		expr1 := itr.buf[0].Expr()
+		if expr0 == nil {
+			itr.e.expr = expr1
+		} else if expr1 == nil {
+			itr.e.expr = expr0
+		} else {
+			itr.e.expr = &influxql.BinaryExpr{
+				Op:  influxql.AND,
+				LHS: expr0,
+				RHS: expr1,
+			}
+		}
+
+		itr.buf[0], itr.buf[1] = nil, nil
+		return &itr.e
+	}
 }
 
 // UnionSeriesIterators returns an iterator that returns series from both

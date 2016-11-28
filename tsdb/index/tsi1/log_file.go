@@ -429,6 +429,29 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	f.mms[string(e.Name)] = mm
 }
 
+// SeriesIterator returns an iterator over all series in the log file.
+func (f *LogFile) SeriesIterator() SeriesIterator {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	// Sort measurement names determine total series count.
+	var n int
+	names := make([][]byte, 0, len(f.mms))
+	for _, mm := range f.mms {
+		names = append(names, mm.name)
+		n += len(mm.series)
+	}
+	sort.Sort(byteSlices(names))
+
+	// Combine series across all measurements.
+	series := make(logSeries, 0, n)
+	for _, name := range names {
+		series = append(series, f.mms[string(name)].series...)
+	}
+
+	return newLogSeriesIterator(series)
+}
+
 // measurement returns a measurement by name.
 func (f *LogFile) measurement(name []byte) logMeasurement {
 	mm, ok := f.mms[string(name)]
@@ -451,7 +474,7 @@ func (f *LogFile) MeasurementIterator() MeasurementIterator {
 	return &itr
 }
 
-// MeasurementSeriesIterator returns an iterator over all series in the log file.
+// MeasurementSeriesIterator returns an iterator over all series for a measurement.
 func (f *LogFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
