@@ -378,7 +378,6 @@ type seriesElem struct {
 	deleted bool
 }
 
-func (e *seriesElem) SeriesKey() []byte   { return models.MakeKey(e.name, e.tags) }
 func (e *seriesElem) Name() []byte        { return e.name }
 func (e *seriesElem) Tags() models.Tags   { return e.tags }
 func (e *seriesElem) Deleted() bool       { return e.deleted }

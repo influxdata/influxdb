@@ -11,8 +11,11 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/influxdata/influxdb/pkg/estimator/hll"
+
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/mmap"
 )
 
@@ -37,6 +40,9 @@ type LogFile struct {
 	buf  []byte   // marshaling buffer
 	size int64    // tracks current file size
 
+	mSketch, mTSketch estimator.Sketch // Measurement sketches
+	sSketch, sTSketch estimator.Sketch // Series sketche
+
 	// In-memory index.
 	mms logMeasurements
 
@@ -47,7 +53,11 @@ type LogFile struct {
 // NewLogFile returns a new instance of LogFile.
 func NewLogFile() *LogFile {
 	return &LogFile{
-		mms: make(logMeasurements),
+		mms:      make(logMeasurements),
+		mSketch:  hll.NewDefaultPlus(),
+		mTSketch: hll.NewDefaultPlus(),
+		sSketch:  hll.NewDefaultPlus(),
+		sTSketch: hll.NewDefaultPlus(),
 	}
 }
 
@@ -407,6 +417,9 @@ func (f *LogFile) execDeleteMeasurementEntry(e *LogEntry) {
 	mm.tagSet = make(map[string]logTagKey)
 	mm.series = nil
 	f.mms[string(e.Name)] = mm
+
+	// Update measurement tombstone sketch.
+	f.mTSketch.Add(e.Name)
 }
 
 func (f *LogFile) execDeleteTagKeyEntry(e *LogEntry) {
@@ -463,6 +476,20 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 
 	// Save measurement.
 	f.mms[string(e.Name)] = mm
+
+	// Update the sketches...
+
+	if deleted {
+		f.sTSketch.Add(models.MakeKey(e.Name, e.Tags)) // Deleting series so update tombstone sketch.
+
+		// TODO(edd): If this is the last series in the measurement, how will
+		// we update the measurement tombstone sketch?
+		// f.mTSketch.Add([]byte("FIXME"))
+		return
+	}
+
+	f.sSketch.Add(models.MakeKey(e.Name, e.Tags)) // Add series to sketch.
+	f.mSketch.Add(e.Name)                         // Add measurement to sketch.
 }
 
 // SeriesIterator returns an iterator over all series in the log file.
@@ -593,6 +620,16 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 		}
 	}
 
+	// As the log file is created it's possible that series were added, removed
+	// and then added again. Since sketches cannot have values removed from them
+	// the series would be in both the series and tombstoned series sketches. So
+	// that a series only appears in one of the sketches we rebuild some fresh
+	// sketches for the compaction to a TSI file.
+	//
+	// We update these sketches below as we iterate through the series in this
+	// log file.
+	sw.sketch, sw.tsketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
+
 	// Flush series list.
 	nn, err := sw.WriteTo(w)
 	*n += nn
@@ -624,11 +661,19 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 				v.seriesIDs = append(v.seriesIDs, serie.offset)
 				t.tagValues[string(tag.Value)] = v
 			}
+
+			if serie.Deleted() {
+				sw.tsketch.Add(models.MakeKey(serie.name, serie.tags))
+			} else {
+				sw.sketch.Add(models.MakeKey(serie.name, serie.tags))
+			}
 		}
 
 		f.mms[string(name)] = mm
 	}
 
+	// Set log file sketches to updated versions.
+	f.sSketch, f.sTSketch = sw.sketch, sw.tsketch
 	return nil
 }
 
@@ -681,9 +726,25 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, n *int64) error {
 func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, n *int64) error {
 	mw := NewMeasurementBlockWriter()
 
+	// As the log file is created it's possible that measurements were added,
+	// removed and then added again. Since sketches cannot have values removed
+	// from them, the measurement would be in both the measurement and
+	// tombstoned measurement sketches. So that a measurement only appears in
+	// one of the sketches, we rebuild some fresh sketches for the compaction to
+	// a TSI file.
+	//
+	// We update these sketches below as we iterate through the measurements in
+	// this log file.
+	mw.sketch, mw.tsketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
+
 	// Add measurement data.
 	for _, mm := range f.mms {
 		mw.Add(mm.name, mm.offset, mm.size, mm.seriesIDs)
+		if mm.Deleted() {
+			mw.tsketch.Add(mm.Name())
+		} else {
+			mw.sketch.Add(mm.Name())
+		}
 	}
 
 	// Write data to writer.
@@ -693,6 +754,8 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, n *int64)
 		return err
 	}
 
+	// Set the updated sketches
+	f.mSketch, f.mTSketch = mw.sketch, mw.tsketch
 	return nil
 }
 
