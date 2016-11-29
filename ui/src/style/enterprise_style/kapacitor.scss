@@ -21,38 +21,6 @@ $kap-dot-color: $c-rainforest;
 
 $kapacitor-font-sm: 13px;
 
-.kapacitor-rule-page {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  @include gradient-v($g2-kevlar,$g0-obsidian);
-  color: $g17-whisper;
-
-  .chronograf-header {
-    background-color: $g0-obsidian;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    margin: 0;
-  }
-}
-.rule-builder-wrapper {
-  position: absolute;
-  top: $chronograf-page-header-height;
-  left: 0;
-  width: 100%;
-  height: calc(100% - #{$chronograf-page-header-height});
-  overflow: auto;
-  @include custom-scrollbar($g0-obsidian,$kapacitor-accent);
-
-  .container-fluid {
-    padding-bottom: $chronograf-page-header-height;
-  }
-}
 .rule-builder {
   width: 100%;
   display: flex;

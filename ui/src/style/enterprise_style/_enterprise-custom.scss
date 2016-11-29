@@ -1,7 +1,9 @@
 /*
 	This is a bunch of stuff built on top of the bootstrap theme for the Chronograf app.
 */
-
+html, body {
+  background-color: $g0-obsidian;
+}
 body {
   display: flex;
   padding: 0;
@@ -9,9 +11,7 @@ body {
   height: 100%;
   position: absolute;
   align-items: stretch;
-  /* Ensures sidebar and page-wrapper go full-height */
   overflow: hidden;
-  background-color: $g0-obsidian;
 }
 
 /*
@@ -35,75 +35,59 @@ body > #react-root {
     ----------------------------------------------
 */
 
-.chronograf-wrapper {
+.chronograf-root {
+  display: flex;
+  align-items: stretch;
+  position: absolute;
   width: 100%;
-  position: relative;
-
-  > div {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    top: 0;
-    left: 0;
-  }
-
-  &--flex {
-    display: flex;
-    align-items: stretch;
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    top: 0;
-    left: 0;
-  }
+  height: 100%;
+  top: 0;
+  left: 0;
+  color: $g17-whisper;
 }
-
-.container-fluid {
-  /* Overriding left and right padding from the theme to be more spacious */
-  padding-left: $page-wrapper-padding;
-  padding-right: $page-wrapper-padding;
-  max-width: $page-wrapper-max-width;
-}
-.page-wrapper,
-.sidebar {
-  display: block;
-}
-.page-wrapper {
+.page {
   position: relative;
   flex-grow: 1;
   overflow: hidden;
-  @include gradient-v($g18-cloud, $g19-ghost);
 }
-.signup-flow-bg {
-  background-image: url(/assets/images/signup-bg.png);
-  background-position: center top;
-  background-repeat: no-repeat;
-  background-size: contain;
-}
-
-.page-wrapper > div:not(.flash-messages):not(.page-spinner):not(.kapacitor-rule-page):not(.data-explorer-container) {
+.page-contents {
   position: absolute;
-  top: 0;
+  top: $chronograf-page-header-height;
   left: 0;
   width: 100%;
-  height: 100%;
+  height: calc(100% - #{$chronograf-page-header-height});
   overflow: auto;
   overflow-x: hidden;
   overflow-y: scroll;
+  @include custom-scrollbar($g2-kevlar,$c-pool);
+  @include gradient-v($g2-kevlar,$g0-obsidian);
+}
+.container-fluid {
+  padding: ($chronograf-page-header-height / 2) $page-wrapper-padding ($chronograf-page-header-height / 2) $page-wrapper-padding;
+  max-width: $page-wrapper-max-width;
+
+  &.full-width {
+    max-width: 100%;
+  }
 }
 
 /*
-    Chronograf Page Header
+    Page Header
     ----------------------------------------------
 */
-.chronograf-header {
-  background-color: $g20-white;
+.page-header {
   height: $chronograf-page-header-height;
-  margin-bottom: 15px;
+  width: 100%;
   padding: 0 ($page-wrapper-padding + $scrollbar-width) 0 $page-wrapper-padding;
   display: flex;
   justify-content: center;
   align-items: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background-color: $g0-obsidian;
+  border: none;
+  margin: 0;
 
   &__container {
     width: 100%;
@@ -139,6 +123,123 @@ body > #react-root {
     > * {
       margin: 0 0 0 4px;
     }
+  }
+  &.full-width .page-header__container {
+    max-width: 100%;
+  }
+}
+
+
+/*
+    Dark Panel Styles
+    ----------------------------------------------
+*/
+.panel:only-child,
+.panel:last-child {
+  margin-bottom: 0;
+}
+.panel-minimal {
+  border: 0;
+
+  .panel-title {
+    color: $g10-wolf !important;
+  }
+
+  .panel-body {
+    padding: 30px;
+    background-color: $g3-castle;
+    border: 0;
+    color: $g17-whisper;
+
+    > *:first-child {
+      margin-top: 0;
+    }
+    > *:last-child {
+      margin-bottom: 0;
+    }
+
+    table {
+      th,td {
+        border-color: $g5-pepper;
+      }
+      th {
+        color: $g17-whisper;
+      }
+      td {
+        color: $g14-chromium;
+      }
+      tbody tr:last-child td {
+        border-bottom: 2px solid $g5-pepper;
+      }
+    }
+  }
+}
+
+/*
+    Custom Search Widget
+    ----------------------------------------------
+*/
+.users__search-widget {
+  position: relative;
+
+  input.form-control {
+    position: relative;
+    width: 100%;
+    z-index: 1;
+    background-color: $g2-kevlar;
+    border-color: $g5-pepper;
+    color: $g17-whisper;
+    border-radius: 4px;
+    padding-left: 34px;
+
+    &:focus {
+      border-color: $c-pool !important;
+      color: $c-pool;
+
+      &::-webkit-input-placeholder {
+      color: $c-pool;
+      }
+      &::-moz-placeholder {
+        color: $c-pool;
+      }
+      &:-ms-input-placeholder {
+        color: $c-pool;
+      }
+      &:-moz-placeholder {
+        color: $c-pool;
+      }
+
+      & + .input-group-addon {
+        color: $c-pool;
+      }
+    }
+    &::-webkit-input-placeholder {
+      color: $g11-sidewalk;
+    }
+    &::-moz-placeholder {
+      color: $g11-sidewalk;
+    }
+    &:-ms-input-placeholder {
+      color: $g11-sidewalk;
+    }
+    &:-moz-placeholder {
+      color: $g11-sidewalk;
+    }
+  }
+  .input-group-addon {
+    padding: 0;
+    text-align: center;
+    line-height: 38px;
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    z-index: 2;
+    border: 0;
+    width: 40px;
+    background-color: transparent;
+    transition:
+      color 0.25s ease;
   }
 }
 
@@ -730,20 +831,6 @@ table .monotype {
     background-color: $c-fire;
   }
 }
-
-/*
-    Sources / Kapacitor Config Pages
-    ----------------------------------------------
-*/
-
-#source-form-page,
-#manage-sources-page,
-.kapacitor {
-  .chronograf-header {
-    margin-bottom: 45px;
-  }
-}
-
 
 /*
     Empty State for Tables
