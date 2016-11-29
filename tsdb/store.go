@@ -43,9 +43,6 @@ type Store struct {
 
 	path string
 
-	// shared per-database indexes, only if using "inmem".
-	indexes map[string]interface{}
-
 	// shards is a map of shard IDs to the associated Shard.
 	shards map[uint64]*Shard
 
@@ -67,7 +64,6 @@ func NewStore(path string) *Store {
 	return &Store{
 		databases:     make(map[string]struct{}),
 		path:          path,
-		indexes:       make(map[string]interface{}),
 		EngineOptions: NewEngineOptions(),
 		Logger:        logger,
 		baseLogger:    logger,
@@ -818,6 +814,11 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	s.mu.RUnlock()
 
 	return sh.WritePoints(points)
+}
+
+func (s *Store) CanWrite(n int) bool {
+	// if s.
+	return false
 }
 
 // MeasurementNames returns a slice of all measurements. Measurements accepts an

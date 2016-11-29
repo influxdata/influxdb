@@ -49,7 +49,12 @@ type IndexFile struct {
 	mblk  MeasurementBlock
 
 	// Sortable identifier & filepath to the log file.
-	ID   int
+	ID int
+
+	// Counters
+	seriesN int64 // Number of unique series in this indexFile.
+
+	// Path to data file.
 	Path string
 }
 
@@ -78,6 +83,7 @@ func (f *IndexFile) Close() error {
 	f.sblk = SeriesBlock{}
 	f.tblks = nil
 	f.mblk = MeasurementBlock{}
+	f.seriesN = 0
 	return mmap.Unmap(f.data)
 }
 
@@ -109,6 +115,7 @@ func (f *IndexFile) UnmarshalBinary(data []byte) error {
 	// Unmarshal each tag block.
 	f.tblks = make(map[string]*TagBlock)
 	itr := f.mblk.Iterator()
+
 	for m := itr.Next(); m != nil; m = itr.Next() {
 		e := m.(*MeasurementBlockElem)
 
@@ -267,6 +274,11 @@ func (f *IndexFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
 		itr:  f.mblk.seriesIDIterator(name),
 		sblk: &f.sblk,
 	}
+}
+
+// SeriesN returns the total number of non-tombstoned series for the index file.
+func (f *IndexFile) SeriesN() uint64 {
+	return uint64(f.sblk.seriesN - f.sblk.tombstoneN)
 }
 
 // SeriesIterator returns an iterator over all series.

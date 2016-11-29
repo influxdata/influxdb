@@ -84,18 +84,18 @@ func (i *Index) Series(key []byte) (*tsdb.Series, error) {
 	return s, nil
 }
 
-// SeriesN returns the exact number of series in the index.
-func (i *Index) SeriesN() (uint64, error) {
-	i.mu.RLock()
-	defer i.mu.RUnlock()
-	return uint64(len(i.series)), nil
-}
-
-// SeriesSketch returns the sketch for the series.
+// SeriesSketches returns the sketches for the series.
 func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 	return i.seriesSketch, i.seriesTSSketch, nil
+}
+
+// SeriesN returns the number of unique non-tombstoned series in the index.
+// Since indexes are not shared across shards, the count returned by SeriesN
+// cannot be combined with other shards' counts.
+func (i *Index) SeriesN() int64 {
+	return int64(len(i.series))
 }
 
 // Measurement returns the measurement object from the index by the name
@@ -105,7 +105,7 @@ func (i *Index) Measurement(name []byte) (*tsdb.Measurement, error) {
 	return i.measurements[string(name)], nil
 }
 
-// MeasurementsSketch returns the sketch for the series.
+// MeasurementsSketches returns the sketches for the measurements.
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
@@ -130,7 +130,7 @@ func (i *Index) MeasurementsByName(names [][]byte) ([]*tsdb.Measurement, error) 
 // index and sets its ID or returns the existing series object
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
 	i.mu.RLock()
-	// if there is a measurement for this id, it's already been added
+	// if there is a series for this id, it's already been added
 	ss := i.series[string(key)]
 	if ss != nil {
 		i.mu.RUnlock()
@@ -138,16 +138,17 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 	}
 	i.mu.RUnlock()
 
+	// FIXME(edd): this needs to be higher up to work across shards
 	// Check for series count.
-	n, err := i.SeriesN()
-	if err != nil {
-		return err
-	}
-	if i.opt.Config.MaxSeriesPerDatabase > 0 && n+1 > uint64(i.opt.Config.MaxSeriesPerDatabase) {
-		return &tsdb.LimitError{
-			Reason: fmt.Sprintf("max-series-per-database limit exceeded: (%d/%d)", n, i.opt.Config.MaxSeriesPerDatabase),
-		}
-	}
+	// n, err := i.SeriesN()
+	// if err != nil {
+	// 	return err
+	// }
+	// if i.opt.Config.MaxSeriesPerDatabase > 0 && n+1 > uint64(i.opt.Config.MaxSeriesPerDatabase) {
+	// 	return &tsdb.LimitError{
+	// 		Reason: fmt.Sprintf("max-series-per-database limit exceeded: (%d/%d)", n, i.opt.Config.MaxSeriesPerDatabase),
+	// 	}
+	// }
 
 	// get or create the measurement index
 	m := i.CreateMeasurementIndexIfNotExists(string(name))
