@@ -2,11 +2,14 @@ import React, {PropTypes} from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import {Link} from 'react-router';
-import * as kapacitorActionCreators from 'src/kapacitor/actions/view';
+import {getKapacitor} from 'src/shared/apis';
+import * as kapacitorActionCreators from '../actions/view';
+import NoKapacitorError from '../../shared/components/NoKapacitorError';
 
 export const KapacitorRulesPage = React.createClass({
   propTypes: {
     source: PropTypes.shape({
+      id: PropTypes.string.isRequired,
       links: PropTypes.shape({
         proxy: PropTypes.string.isRequired,
         self: PropTypes.string.isRequired,
@@ -26,8 +29,20 @@ export const KapacitorRulesPage = React.createClass({
     addFlashMessage: PropTypes.func,
   },
 
+  getInitialState() {
+    return {
+      hasKapacitor: false,
+      loading: true,
+    };
+  },
+
   componentDidMount() {
-    this.props.actions.fetchRules(this.props.source);
+    getKapacitor(this.props.source).then((kapacitor) => {
+      if (kapacitor) {
+        this.props.actions.fetchRules(kapacitor);
+      }
+      this.setState({loading: false, hasKapacitor: !!kapacitor});
+    });
   },
 
   handleDeleteRule(rule) {
@@ -35,9 +50,45 @@ export const KapacitorRulesPage = React.createClass({
     actions.deleteRule(rule);
   },
 
-  render() {
+  renderSubComponent() {
     const {source} = this.props;
+    const {hasKapacitor, loading} = this.state;
 
+    let component;
+    if (loading) {
+      component = (<p>Loading...</p>);
+    } else if (hasKapacitor) {
+      component = (
+        <div className="panel panel-minimal">
+          <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+            <h2 className="panel-title">Alert Rules</h2>
+            <Link to={`/sources/${source.id}/alert-rules/new`} className="btn btn-sm btn-primary">Create New Rule</Link>
+          </div>
+          <div className="panel-body">
+            <table className="table v-center">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Trigger</th>
+                  <th>Message</th>
+                  <th>Alerts</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {this.renderAlertsTableRows()}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    } else {
+      component = <NoKapacitorError source={source} />;
+    }
+    return component;
+  },
+
+  render() {
     return (
       <div className="kapacitor-rules-page">
         <div className="chronograf-header">
@@ -49,28 +100,7 @@ export const KapacitorRulesPage = React.createClass({
         </div>
         <div className="hosts-page-scroll-container">
           <div className="container-fluid">
-            <div className="panel panel-minimal">
-              <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-                <h2 className="panel-title">Alert Rules</h2>
-                <Link to={`/sources/${source.id}/alert-rules/new`} className="btn btn-sm btn-primary">Create New Rule</Link>
-              </div>
-              <div className="panel-body">
-                <table className="table v-center">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Trigger</th>
-                      <th>Message</th>
-                      <th>Alerts</th>
-                      <th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {this.renderAlertsTableRows()}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            {this.renderSubComponent()}
           </div>
         </div>
       </div>

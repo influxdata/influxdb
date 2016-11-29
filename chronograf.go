@@ -13,6 +13,7 @@ const (
 	ErrSourceNotFound      = Error("source not found")
 	ErrServerNotFound      = Error("server not found")
 	ErrLayoutNotFound      = Error("layout not found")
+	ErrUserNotFound        = Error("user not found")
 	ErrLayoutInvalid       = Error("layout is invalid")
 	ErrAlertNotFound       = Error("alert not found")
 	ErrAuthentication      = Error("user not authenticated")
@@ -54,11 +55,11 @@ type TimeSeries interface {
 
 // Query retrieves a Response from a TimeSeries.
 type Query struct {
-	Command  string   `json:"query"`    // Command is the query itself
-	DB       string   `json:"db"`       // DB is optional and if empty will not be used.
-	RP       string   `json:"rp"`       // RP is a retention policy and optional; if empty will not be used.
-	Wheres   []string `json:"wheres"`   // Wheres restricts the query to certain attributes
-	GroupBys []string `json:"groupbys"` // GroupBys collate the query by these tags
+	Command  string   `json:"query"`        // Command is the query itself
+	DB       string   `json:"db,omitempty"` // DB is optional and if empty will not be used.
+	RP       string   `json:"rp,omitempty"` // RP is a retention policy and optional; if empty will not be used.
+	Wheres   []string `json:"wheres"`       // Wheres restricts the query to certain attributes
+	GroupBys []string `json:"groupbys"`     // GroupBys collate the query by these tags
 }
 
 // Response is the result of a query against a TimeSeries
@@ -75,6 +76,7 @@ type Source struct {
 	Password string `json:"password,omitempty"`  // Password is in CLEARTEXT
 	URL      string `json:"url"`                 // URL are the connections to the source
 	Default  bool   `json:"default"`             // Default specifies the default source for the application
+	Telegraf string `json:"telegraf"`            // Telegraf is the db telegraf is written to.  By default it is "telegraf"
 }
 
 // SourcesStore stores connection information for a `TimeSeries`
@@ -195,23 +197,22 @@ type UserID int
 
 // User represents an authenticated user.
 type User struct {
-	ID   UserID
-	Name string
+	ID    UserID `json:"id"`
+	Email string `json:"email"`
 }
 
-// AuthStore is the Storage and retrieval of authentication information
-type AuthStore struct {
-	// User management for the AuthStore
-	Users interface {
-		// Create a new User in the AuthStore
-		Add(context.Context, User) error
-		// Delete the User from the AuthStore
-		Delete(context.Context, User) error
-		// Retrieve a user if `ID` exists.
-		Get(ctx context.Context, ID int) error
-		// Update the user's permissions or roles
-		Update(context.Context, User) error
-	}
+// UsersStore is the Storage and retrieval of authentication information
+type UsersStore interface {
+	// Create a new User in the UsersStore
+	Add(context.Context, *User) (*User, error)
+	// Delete the User from the UsersStore
+	Delete(context.Context, *User) error
+	// Get retrieves a user if `ID` exists.
+	Get(ctx context.Context, ID UserID) (*User, error)
+	// Update the user's permissions or roles
+	Update(context.Context, *User) error
+	// FindByEmail will retrieve a user by email address.
+	FindByEmail(ctx context.Context, Email string) (*User, error)
 }
 
 // ExplorationID is a unique ID for an Exploration.

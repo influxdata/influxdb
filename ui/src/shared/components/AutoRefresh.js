@@ -60,7 +60,7 @@ export default function AutoRefresh(ComposedComponent) {
       const newSeries = [];
       queries.forEach(({host, database, rp, text}) => {
         _fetchTimeSeries(host, database, rp, text).then((resp) => {
-          newSeries.push({identifier: host, response: resp.data});
+          newSeries.push({response: resp.data});
           count += 1;
           if (count === queries.length) {
             this.setState({

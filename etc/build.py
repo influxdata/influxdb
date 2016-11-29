@@ -11,6 +11,7 @@ import hashlib
 import re
 import logging
 import argparse
+import json
 
 ################
 #### Chronograf Variables
@@ -147,7 +148,6 @@ def run_generate():
     """Generate static assets.
     """
     logging.info("Generating static assets...")
-    run("make dep", shell=True)
     run("make assets", shell=True)
     return True
 
@@ -157,75 +157,46 @@ def go_get(branch, update=False, no_uncommitted=False):
     if local_changes() and no_uncommitted:
         logging.error("There are uncommitted changes in the current directory.")
         return False
-    if not check_path_for("gdm"):
-        logging.info("Downloading `gdm`...")
-        get_command = "go get github.com/sparrc/gdm"
-        run(get_command)
-    logging.info("Retrieving dependencies with `gdm`...")
-    sys.stdout.flush()
-    run("{}/bin/gdm restore -v".format(os.environ.get("GOPATH")))
+    run("make dep", shell=True)
     return True
 
 def run_tests(race, parallel, timeout, no_vet):
     """Run the Go test suite on binary output.
     """
-    logging.info("Starting tests...")
-    if race:
-        logging.info("Race is enabled.")
-    if parallel is not None:
-        logging.info("Using parallel: {}".format(parallel))
-    if timeout is not None:
-        logging.info("Using timeout: {}".format(timeout))
-    out = run("go fmt ./...")
-    if len(out) > 0:
-        logging.error("Code not formatted. Please use 'go fmt ./...' to fix formatting errors.")
-        logging.error("{}".format(out))
-        return False
-    if not no_vet:
-        logging.info("Running 'go vet'...")
-        out = run(go_vet_command)
-        if len(out) > 0:
-            logging.error("Go vet failed. Please run 'go vet ./...' and fix any errors.")
-            logging.error("{}".format(out))
-            return False
-    else:
-        logging.info("Skipping 'go vet' call...")
-    test_command = "go test -v"
-    if race:
-        test_command += " -race"
-    if parallel is not None:
-        test_command += " -parallel {}".format(parallel)
-    if timeout is not None:
-        test_command += " -timeout {}".format(timeout)
-    test_command += " ./..."
     logging.info("Running tests...")
-    output = run(test_command)
-    logging.debug("Test output:\n{}".format(output.encode('ascii', 'ignore')))
+    run("make test", shell=True, print_output=True)
     return True
 
 ################
 #### All Chronograf-specific content above this line
 ################
 
-def run(command, allow_failure=False, shell=False):
+def run(command, allow_failure=False, shell=False, print_output=False):
     """Run shell command (convenience wrapper around subprocess).
     """
     out = None
     logging.debug("{}".format(command))
     try:
-        if shell:
-            out = subprocess.check_output(command, stderr=subprocess.STDOUT, shell=shell)
-        else:
-            out = subprocess.check_output(command.split(), stderr=subprocess.STDOUT)
-        out = out.decode('utf-8').strip()
-        # logging.debug("Command output: {}".format(out))
-    except subprocess.CalledProcessError as e:
-        if allow_failure:
-            logging.warn("Command '{}' failed with error: {}".format(command, e.output))
-            return None
-        else:
-            logging.error("Command '{}' failed with error: {}".format(command, e.output))
-            sys.exit(1)
+        cmd = command
+        if not shell:
+            cmd = command.split()
+            
+        stdout = subprocess.PIPE
+        stderr = subprocess.STDOUT
+        if print_output:
+            stdout = None
+
+        p = subprocess.Popen(cmd, shell=shell, stdout=stdout, stderr=stderr)
+        out, _ = p.communicate()
+        if out is not None:
+            out = out.decode('utf-8').strip()
+        if p.returncode != 0:
+            if allow_failure:
+                logging.warn(u"Command '{}' failed with error: {}".format(command, out))
+                return None
+            else:
+                logging.error(u"Command '{}' failed with error: {}".format(command, out))
+                sys.exit(1)
     except OSError as e:
         if allow_failure:
             logging.warn("Command '{}' failed with error: {}".format(command, e))
@@ -767,6 +738,9 @@ def main(args):
         if not run_tests(args.race, args.parallel, args.timeout, args.no_vet):
             return 1
 
+    if args.no_build:
+        return 0
+    
     platforms = []
     single_build = True
     if args.platform == 'all':
@@ -828,10 +802,54 @@ def main(args):
                 args.upload_overwrite = True
             if not upload_packages(packages, bucket_name=args.bucket, overwrite=args.upload_overwrite):
                 return 1
-        logging.info("Packages created:")
+        package_output = {}
+        package_output["version"] = args.version
         for p in packages:
-            logging.info("{} (MD5={})".format(p.split('/')[-1:][0],
-                                              generate_md5_from_file(p)))
+            p_name = p.split('/')[-1:][0]
+            if ".asc" in p_name:
+                # Skip public keys
+                continue
+
+            arch = None
+            type = None
+            regex = None
+            if ".deb" in p_name:
+                type = "ubuntu"
+                regex = r"^.+_(.+)\.deb$"
+            elif ".rpm" in p_name:
+                type = "centos"
+                regex = r"^.+\.(.+)\.rpm$"
+            elif ".tar.gz" in p_name:
+                if "linux" in p_name:
+                    if "static" in p_name:
+                        type = "linux_static"
+                    else:
+                        type = "linux"
+                elif "darwin" in p_name:
+                    type = "darwin"
+                regex = r"^.+_(.+)\.tar.gz$"
+            elif ".zip" in p_name:
+                if "windows" in p_name:
+                    type = "windows"
+                regex = r"^.+_(.+)\.zip$"
+
+            if regex is None or type is None:
+                logging.error("Could not determine package type for: {}".format(p))
+                return 1
+            match = re.search(regex, p_name)
+            arch = match.groups()[0]
+            if arch is None:
+                logging.error("Could not determine arch for: {}".format(p))
+                return 1
+            if arch == "x86_64":
+                arch = "amd64"
+            elif arch == "x86_32":
+                arch = "i386"
+            package_output[str(arch) + "_" + str(type)] = {
+                "md5": generate_md5_from_file(p),
+                "filename": p_name,
+            }
+        logging.info(json.dumps(package_output, sort_keys=True, indent=4))
     if orig_branch != get_current_branch():
         logging.info("Moving back to original git branch: {}".format(orig_branch))
         run("git checkout {}".format(orig_branch))
@@ -964,6 +982,9 @@ if __name__ == '__main__':
                         metavar='<timeout>',
                         type=str,
                         help='Timeout for tests before failing')
+    parser.add_argument('--no-build',
+                        action='store_true',
+                        help='Dont build anything.')
     args = parser.parse_args()
     print_banner()
     sys.exit(main(args))

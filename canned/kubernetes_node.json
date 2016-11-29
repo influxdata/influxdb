@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"cpu_usage_nanocores\") / 1000000  AS \"cpu_usage_millicores\" FROM kubernetes_node",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
             "\"node_name\""
           ],
@@ -32,8 +30,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"memory_usage_bytes\") AS \"memory_usage_bytes\" FROM kubernetes_node",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
             "\"node_name\""
           ],

@@ -1,5 +1,7 @@
 ## v1.1.0 [unreleased]
 
+- #586: Allow telegraf database in non-default locations
+- #576: Fix broken zoom on graphs that aren't the first.
 - #575: Add Varnish Layout
 - #574: Fix broken graphs on Postgres Layouts by adding aggregates.
 

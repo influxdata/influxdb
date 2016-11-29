@@ -21,6 +21,11 @@ type sourceResponse struct {
 }
 
 func newSourceResponse(src chronograf.Source) sourceResponse {
+	// If telegraf is not set, we'll set it to the default value.
+	if src.Telegraf == "" {
+		src.Telegraf = "telegraf"
+	}
+
 	httpAPISrcs := "/chronograf/v1/sources"
 	return sourceResponse{
 		Source: src,
@@ -36,18 +41,24 @@ func newSourceResponse(src chronograf.Source) sourceResponse {
 func (h *Service) NewSource(w http.ResponseWriter, r *http.Request) {
 	var src chronograf.Source
 	if err := json.NewDecoder(r.Body).Decode(&src); err != nil {
-		invalidJSON(w)
+		invalidJSON(w, h.Logger)
 		return
 	}
+
 	if err := ValidSourceRequest(src); err != nil {
-		invalidData(w, err)
+		invalidData(w, err, h.Logger)
 		return
+	}
+
+	// By default the telegraf database will be telegraf
+	if src.Telegraf == "" {
+		src.Telegraf = "telegraf"
 	}
 
 	var err error
 	if src, err = h.SourcesStore.Add(r.Context(), src); err != nil {
 		msg := fmt.Errorf("Error storing source %v: %v", src, err)
-		unknownErrorWithMessage(w, msg)
+		unknownErrorWithMessage(w, msg, h.Logger)
 		return
 	}
 
@@ -65,7 +76,7 @@ func (h *Service) Sources(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	srcs, err := h.SourcesStore.All(ctx)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "Error loading sources")
+		Error(w, http.StatusInternalServerError, "Error loading sources", h.Logger)
 		return
 	}
 
@@ -84,14 +95,14 @@ func (h *Service) Sources(w http.ResponseWriter, r *http.Request) {
 func (h *Service) SourcesID(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	src, err := h.SourcesStore.Get(ctx, id)
 	if err != nil {
-		notFound(w, id)
+		notFound(w, id, h.Logger)
 		return
 	}
 
@@ -103,14 +114,14 @@ func (h *Service) SourcesID(w http.ResponseWriter, r *http.Request) {
 func (h *Service) RemoveSource(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	src := chronograf.Source{ID: id}
 	ctx := r.Context()
 	if err = h.SourcesStore.Delete(ctx, src); err != nil {
-		unknownErrorWithMessage(w, err)
+		unknownErrorWithMessage(w, err, h.Logger)
 		return
 	}
 
@@ -121,20 +132,20 @@ func (h *Service) RemoveSource(w http.ResponseWriter, r *http.Request) {
 func (h *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error())
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
 	}
 
 	ctx := r.Context()
 	src, err := h.SourcesStore.Get(ctx, id)
 	if err != nil {
-		notFound(w, id)
+		notFound(w, id, h.Logger)
 		return
 	}
 
 	var req chronograf.Source
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		invalidJSON(w)
+		invalidJSON(w, h.Logger)
 		return
 	}
 
@@ -154,15 +165,18 @@ func (h *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 	if req.Type != "" {
 		src.Type = req.Type
 	}
+	if req.Telegraf != "" {
+		src.Telegraf = req.Telegraf
+	}
 
 	if err := ValidSourceRequest(src); err != nil {
-		invalidData(w, err)
+		invalidData(w, err, h.Logger)
 		return
 	}
 
 	if err := h.SourcesStore.Update(ctx, src); err != nil {
 		msg := fmt.Sprintf("Error updating source ID %d", id)
-		Error(w, http.StatusInternalServerError, msg)
+		Error(w, http.StatusInternalServerError, msg, h.Logger)
 		return
 	}
 	encodeJSON(w, http.StatusOK, newSourceResponse(src), h.Logger)

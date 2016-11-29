@@ -1,7 +1,7 @@
 {
   "id": "ff41d044-f61a-4522-8de7-9e39e3a1b5de",
   "measurement": "netstat",
-  "app": "network",
+  "app": "system",
   "cells": [
     {
       "x": 0,
@@ -13,15 +13,11 @@
       "queries": [
         {
           "query": "SELECT mean(\"tcp_established\") AS \"tcp_established\" FROM netstat",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         },
         {
           "query": "SELECT mean(\"udp_socket\") AS \"udp_socket\" FROM netstat",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }
@@ -37,15 +33,11 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"tcp_established\")) AS \"tcp_established\" FROM netstat",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         },
         {
           "query": "SELECT non_negative_derivative(max(\"udp_socket\")) AS \"udp_socket\" FROM netstat",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }

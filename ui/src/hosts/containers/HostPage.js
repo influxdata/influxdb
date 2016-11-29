@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react';
 import LayoutRenderer from 'shared/components/LayoutRenderer';
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
-import {getMappings, getAppsForHosts} from '../apis';
+import {getMappings, getAppsForHosts, getMeasurementsForHost} from 'src/hosts/apis';
 import {fetchLayouts} from 'shared/apis';
 
 export const HostPage = React.createClass({
@@ -11,6 +11,7 @@ export const HostPage = React.createClass({
       links: PropTypes.shape({
         proxy: PropTypes.string.isRequired,
       }).isRequired,
+      telegraf: PropTypes.string.isRequired,
     }),
     params: PropTypes.shape({
       hostID: PropTypes.string.isRequired,
@@ -32,21 +33,25 @@ export const HostPage = React.createClass({
   },
 
   componentDidMount() {
-    const hosts = {[this.props.params.hostID]: {name: this.props.params.hostID}};
+    const {source, params} = this.props;
+    const hosts = {[params.hostID]: {name: params.hostID}};
 
     // fetching layouts and mappings can be done at the same time
     fetchLayouts().then(({data: {layouts}}) => {
       getMappings().then(({data: {mappings}}) => {
-        getAppsForHosts(this.props.source.links.proxy, hosts, mappings).then((newHosts) => {
-          const host = newHosts[this.props.params.hostID];
-          const filteredLayouts = layouts.filter((layout) => {
-            const focusedApp = this.props.location.query.app;
-            if (focusedApp) {
-              return layout.app === focusedApp;
-            }
-            return host.apps && host.apps.includes(layout.app);
+        getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf).then((newHosts) => {
+          getMeasurementsForHost(source, params.hostID).then((measurements) => {
+            const host = newHosts[this.props.params.hostID];
+            const filteredLayouts = layouts.filter((layout) => {
+              const focusedApp = this.props.location.query.app;
+              if (focusedApp) {
+                return layout.app === focusedApp;
+              }
+
+              return host.apps && host.apps.includes(layout.app) && measurements.includes(layout.measurement);
+            });
+            this.setState({layouts: filteredLayouts});
           });
-          this.setState({layouts: filteredLayouts});
         });
       });
     });
@@ -60,7 +65,7 @@ export const HostPage = React.createClass({
   renderLayouts(layouts) {
     const autoRefreshMs = 15000;
     const {timeRange} = this.state;
-    const source = this.props.source.links.proxy;
+    const {source} = this.props;
 
     let layoutCells = [];
     layouts.forEach((layout) => {
@@ -70,7 +75,7 @@ export const HostPage = React.createClass({
     layoutCells.forEach((cell, i) => {
       cell.queries.forEach((q) => {
         q.text = q.query;
-        q.database = q.db;
+        q.database = source.telegraf;
       });
       cell.x = (i * 4 % 12); // eslint-disable-line no-magic-numbers
       cell.y = 0;
@@ -81,7 +86,7 @@ export const HostPage = React.createClass({
         timeRange={timeRange}
         cells={layoutCells}
         autoRefreshMs={autoRefreshMs}
-        source={source}
+        source={source.links.proxy}
         host={this.props.params.hostID}
       />
     );

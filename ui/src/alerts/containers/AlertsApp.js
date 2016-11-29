@@ -1,9 +1,9 @@
 import React, {PropTypes} from 'react';
-import {Link} from 'react-router';
 import AlertsTable from '../components/AlertsTable';
 import {getAlerts} from '../apis';
 import AJAX from 'utils/ajax';
 import _ from 'lodash';
+import NoKapacitorError from '../../shared/components/NoKapacitorError';
 
 // Kevin: because we were getting strange errors saying
 // "Failed prop type: Required prop `source` was not specified in `AlertsApp`."
@@ -83,16 +83,10 @@ const AlertsApp = React.createClass({
       const {source} = this.props;
       if (this.state.hasKapacitor) {
         component = (
-          <AlertsTable source={this.props.source} alerts={this.state.alerts} />
+          <AlertsTable source={source} alerts={this.state.alerts} />
         );
       } else {
-        const path = `/sources/${source.id}/kapacitor-config`;
-        component = (
-          <div>
-            <p>The current source does not have an associated Kapacitor instance, please configure one.</p>
-            <Link to={path}>Add Kapacitor</Link>
-          </div>
-        );
+        component = <NoKapacitorError source={source} />;
       }
     }
     return component;

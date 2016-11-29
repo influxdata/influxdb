@@ -101,7 +101,7 @@ export const LayoutRenderer = React.createClass({
   render() {
     const layoutMargin = 4;
     return (
-      <GridLayout layout={this.state.layout} isDraggable={false} isResizable={false} cols={12} rowHeight={83.5} margin={[layoutMargin, layoutMargin]} containerPadding={[0, 0]}>
+      <GridLayout layout={this.state.layout} isDraggable={false} isResizable={false} cols={12} rowHeight={83.5} margin={[layoutMargin, layoutMargin]} containerPadding={[0, 0]} useCSSTransforms={false} >
         {this.generateGraphs()}
       </GridLayout>
     );

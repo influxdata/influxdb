@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"Available_Bytes\") AS \"available_bytes\" FROM win_mem",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }

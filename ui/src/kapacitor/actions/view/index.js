@@ -43,16 +43,14 @@ export function loadDefaultRule() {
   };
 }
 
-export function fetchRules(source) {
+export function fetchRules(kapacitor) {
   return (dispatch) => {
-    getKapacitor(source).then((kapacitor) => {
-      getRules(kapacitor).then(({data: {rules}}) => {
-        dispatch({
-          type: 'LOAD_RULES',
-          payload: {
-            rules,
-          },
-        });
+    getRules(kapacitor).then(({data: {rules}}) => {
+      dispatch({
+        type: 'LOAD_RULES',
+        payload: {
+          rules,
+        },
       });
     });
   };

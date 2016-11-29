@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"Processor_Queue_Length\") AS \"load\" FROM win_system",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [],
           "wheres": []
         }

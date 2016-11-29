@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"depth\") AS \"depth\" FROM nsq_topic",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
             "\"topic\""
           ],
@@ -32,8 +30,6 @@
       "queries": [
         {
           "query": "SELECT mean(\"backend_depth\") AS \"backend_depth\" FROM nsq_topic",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
             "\"topic\""
           ],
@@ -51,8 +47,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"message_count\")) AS \"messages_per_second\" FROM nsq_topic",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
             "\"topic\"",
             "\"host\""
@@ -71,8 +65,6 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"message_count\")) - non_negative_derivative(max(\"depth\")) AS \"messages_per_second\" FROM nsq_topic",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
             "\"topic\"",
             "\"host\""

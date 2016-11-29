@@ -44,6 +44,7 @@ export const SourceForm = React.createClass({
       username: this.sourceUsername.value,
       password: this.sourcePassword.value,
       'default': this.sourceDefault.checked,
+      telegraf: this.sourceTelegraf.value,
     });
     if (this.state.editMode) {
       updateSource(newSource).then(() => {
@@ -116,6 +117,10 @@ export const SourceForm = React.createClass({
                       <div className="form-group col-xs-6 col-sm-4">
                         <label htmlFor="password">Password</label>
                         <input type="password" name="password" ref={(r) => this.sourcePassword = r} className="form-control" id="password" onChange={this.onInputChange} value={source.password || ''}></input>
+                      </div>
+                      <div className="form-group col-xs-8 col-xs-offset-2">
+                        <label htmlFor="telegraf">Telegraf database</label>
+                        <input type="text" name="telegraf" ref={(r) => this.sourceTelegraf = r} className="form-control" id="telegraf" onChange={this.onInputChange} value={source.telegraf || 'telegraf'}></input>
                       </div>
                       <div className="form-group col-xs-8 col-xs-offset-2">
                         <div className="form-control-static">

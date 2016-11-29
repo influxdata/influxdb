@@ -131,6 +131,7 @@ export default React.createClass({
 
     const timeSeries = this.getTimeSeries();
     const {fields, yRange} = this.props;
+
     dygraph.updateOptions({
       labels: fields,
       file: timeSeries,

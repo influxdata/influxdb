@@ -13,8 +13,6 @@
       "queries": [
         {
           "query": "select max(\"percent_packet_loss\") as \"packet_loss\" from ping",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
             "\"server\""
           ],
@@ -32,8 +30,6 @@
       "queries": [
         {
           "query": "select mean(\"average_response_ms\") as \"average\", mean(\"minimum_response_ms\") as \"min\", mean(\"maximum_response_ms\") as \"max\" from ping",
-          "db": "telegraf",
-          "rp": "",
           "groupbys": [
             "\"server\""
           ],

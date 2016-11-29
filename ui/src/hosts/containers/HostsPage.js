@@ -12,6 +12,7 @@ export const HostsPage = React.createClass({
       links: PropTypes.shape({
         proxy: PropTypes.string.isRequired,
       }).isRequired,
+      telegraf: PropTypes.string.isRequired,
     }),
     addFlashMessage: PropTypes.func,
   },
@@ -25,11 +26,11 @@ export const HostsPage = React.createClass({
   componentDidMount() {
     const {source, addFlashMessage} = this.props;
     Promise.all([
-      getCpuAndLoadForHosts(source.links.proxy),
+      getCpuAndLoadForHosts(source.links.proxy, source.telegraf),
       getMappings(),
     ]).then(([hosts, {data: {mappings}}]) => {
       this.setState({hosts});
-      getAppsForHosts(source.links.proxy, hosts, mappings).then((newHosts) => {
+      getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf).then((newHosts) => {
         this.setState({hosts: newHosts});
       }).catch(() => {
         addFlashMessage({type: 'error', text: 'Unable to get apps for hosts'});

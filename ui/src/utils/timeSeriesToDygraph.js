@@ -26,7 +26,7 @@ export default function timeSeriesToDygraph(raw = []) {
    */
   const dateToFieldValue = {};
 
-  raw.forEach(({identifier = '', response}) => {
+  raw.forEach(({response}) => {
     // If a response is an empty result set or a query returned an error
     // from InfluxDB, don't try and parse.
     if (response.results.length) {
@@ -83,8 +83,7 @@ export default function timeSeriesToDygraph(raw = []) {
       }).sort().join('');
 
       columns.slice(1).forEach((fieldName) => {
-        const identString = identifier ? `(${identifier})` : '';
-        const effectiveFieldName = `${measurementName}.${fieldName}${tags}${identString}`;
+        const effectiveFieldName = `${measurementName}.${fieldName}${tags}`;
 
         // Given a field name, identify which column in the timeSeries result should hold the field's value
         // ex given this timeSeries [Date, 10, 20, 30] field index at 2 would correspond to value 20
@@ -112,8 +111,7 @@ export default function timeSeriesToDygraph(raw = []) {
           }
 
           const fieldName = columns[index];
-          const identString = identifier ? `(${identifier})` : '';
-          const effectiveFieldName = `${measurementName}.${fieldName}${tags}${identString}`;
+          const effectiveFieldName = `${measurementName}.${fieldName}${tags}`;
           dateToFieldValue[dateString][effectiveFieldName] = value;
         });
       }
