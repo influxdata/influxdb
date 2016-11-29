@@ -242,6 +242,9 @@ body {
     Unsorted
     ----------------------------------------------
 */
+.text-right .btn {
+  margin: 0 0 0 4px;
+}
 .progress-label {
   margin-bottom: 4px;
   color: $g11-sidewalk;
@@ -251,17 +254,6 @@ body {
     font-weight: 500;
     color: $g8-storm;
   }
-}
-.flex-group {
-  margin: 0;
-
-  .flex-space {
-    display: inline-block;
-    width: 20px;
-  }
-}
-.main {
-  margin-top: 60px;
 }
 .btn-block.dropdown-toggle {
   text-align: left;
@@ -338,55 +330,6 @@ body {
   }
 }
 
-.flash-messages {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 570px;
-  top: 36px;
-  z-index: 9999;
-
-  .alert {
-    font-size: 16px;
-    font-weight: 500;
-    border-width: 0;
-    color: $g20-white;
-
-    &.alert-success {
-      background-color: $c-rainforest;
-    }
-    &.alert-primary {
-      background-color: $c-pool;
-    }
-    &.alert-warning {
-      background-color: $c-comet;
-
-    }
-    &.alert-danger {
-      background-color: $c-dreamsicle;
-    }
-
-    button.close {
-      position: absolute;
-      top: 50%;
-      right: 13px;
-      transform: translateY(-50%);
-      font-size: 16px;
-      text-shadow: none;
-      opacity: 0.6;
-      transition: opacity 0.25s ease;
-
-      .icon {
-        color: $g20-white;
-        text-shadow: none;
-      }
-      &:hover {
-        opacity: 1;
-      }
-    }
-  }
-}
-
 
 /*
     Error Pages
@@ -431,64 +374,6 @@ table.table.error-table {
 }
 
 /*
-    Database Manager polish
-    ----------------------------------------------
-*/
-.db-manager-stats {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  h4 {
-    margin-bottom: 4px;
-  }
-  p {
-    color: $g12-forge;
-  }
-}
-
-/*
-    Cluster Renaming UI
-    ----------------------------------------------
-*/
-.cluster-dropdown {
-  &__item {
-    position: relative;
-
-    &:hover {
-      .cluster-dropdown__rename {
-        opacity: 1;
-      }
-      a {
-        background-color: $c-laser;
-        color: $g20-white;
-      }
-    }
-  }
-  &__rename {
-    z-index: 2;
-    opacity: 0;
-    position: absolute;
-    top: 50%;
-    right: 0;
-    width: 34px;
-    height: 100%;
-    transform: translateY(-50%);
-    border: 0;
-    background-color: transparent;
-    color: $c-hydrogen;
-    transition:
-      opacity 0.25s ease,
-      color 0.25s ease;
-
-    &:hover {
-      color: $g20-white;
-      cursor: pointer;
-    }
-  }
-}
-
-/*
     Generic Empty State
     ----------------------------------------------
 */
@@ -503,10 +388,6 @@ table.table.error-table {
   .icon {
     margin-bottom: 11px;
   }
-}
-
-.cluster-accounts > *:not(:last-child) {
-  margin-bottom: 12px;
 }
 
 /*
@@ -588,15 +469,6 @@ table.table.error-table {
     }
   }
 }
-/*
-    Button alignment in tables
-    ----------------------------------------------
-*/
-
-table .text-right .btn {
-  margin: 0 0 0 6px;
-}
-
 
 /*
     Stuff for making Tables of Data more readable
