@@ -257,9 +257,6 @@ func (e *MeasurementBlockElem) Deleted() bool {
 	return (e.flag & MeasurementTombstoneFlag) != 0
 }
 
-// TagKeyIterator returns an iterator over the measurement's keys.
-func (e *MeasurementBlockElem) TagKeyIterator() TagKeyIterator { panic("TODO") }
-
 // TagBlockOffset returns the offset of the measurement's tag block.
 func (e *MeasurementBlockElem) TagBlockOffset() int64 { return e.tagBlock.offset }
 

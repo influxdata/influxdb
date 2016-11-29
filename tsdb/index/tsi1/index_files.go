@@ -76,12 +76,9 @@ func (p IndexFiles) MeasurementSeriesIterator(name []byte) SeriesIterator {
 func (p IndexFiles) TagValueSeriesIterator(name, key, value []byte) SeriesIterator {
 	a := make([]SeriesIterator, 0, len(p))
 	for i := range p {
-		itr, deleted := p[i].TagValueSeriesIterator(name, key, value)
+		itr := p[i].TagValueSeriesIterator(name, key, value)
 		if itr != nil {
 			a = append(a, itr)
-		}
-		if deleted {
-			break
 		}
 	}
 	return MergeSeriesIterators(a...)

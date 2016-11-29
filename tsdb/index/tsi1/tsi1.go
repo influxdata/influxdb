@@ -16,7 +16,6 @@ import (
 type MeasurementElem interface {
 	Name() []byte
 	Deleted() bool
-	TagKeyIterator() TagKeyIterator
 }
 
 // MeasurementElems represents a list of MeasurementElem.
@@ -109,22 +108,6 @@ func (p measurementMergeElem) Deleted() bool {
 		return false
 	}
 	return p[0].Deleted()
-}
-
-// TagKeyIterator returns a merge iterator for all elements until a tombstone occurs.
-func (p measurementMergeElem) TagKeyIterator() TagKeyIterator {
-	if len(p) == 0 {
-		return nil
-	}
-
-	a := make([]TagKeyIterator, 0, len(p))
-	for _, e := range p {
-		a = append(a, e.TagKeyIterator())
-		if e.Deleted() {
-			break
-		}
-	}
-	return MergeTagKeyIterators(a...)
 }
 
 // TagKeyElem represents a generic tag key element.
@@ -384,8 +367,10 @@ type SeriesIterator interface {
 // Iterators that are first in the list take precendence and a deletion by those
 // early iterators will invalidate elements by later iterators.
 func MergeSeriesIterators(itrs ...SeriesIterator) SeriesIterator {
-	if len(itrs) == 0 {
+	if n := len(itrs); n == 0 {
 		return nil
+	} else if n == 1 {
+		return itrs[0]
 	}
 
 	return &seriesMergeIterator{
@@ -501,17 +486,17 @@ func (itr *seriesIntersectIterator) Next() (e SeriesElem) {
 
 		// Attach expression.
 		expr0 := itr.buf[0].Expr()
-		expr1 := itr.buf[0].Expr()
+		expr1 := itr.buf[1].Expr()
 		if expr0 == nil {
 			itr.e.expr = expr1
 		} else if expr1 == nil {
 			itr.e.expr = expr0
 		} else {
-			itr.e.expr = &influxql.BinaryExpr{
+			itr.e.expr = influxql.Reduce(&influxql.BinaryExpr{
 				Op:  influxql.AND,
 				LHS: expr0,
 				RHS: expr1,
-			}
+			}, nil)
 		}
 
 		itr.buf[0], itr.buf[1] = nil, nil
@@ -573,17 +558,15 @@ func (itr *seriesUnionIterator) Next() (e SeriesElem) {
 
 	// Attach expression.
 	expr0 := itr.buf[0].Expr()
-	expr1 := itr.buf[0].Expr()
-	if expr0 == nil {
-		itr.e.expr = expr1
-	} else if expr1 == nil {
-		itr.e.expr = expr0
-	} else {
-		itr.e.expr = &influxql.BinaryExpr{
+	expr1 := itr.buf[1].Expr()
+	if expr0 != nil && expr1 != nil {
+		itr.e.expr = influxql.Reduce(&influxql.BinaryExpr{
 			Op:  influxql.OR,
 			LHS: expr0,
 			RHS: expr1,
-		}
+		}, nil)
+	} else {
+		itr.e.expr = nil
 	}
 
 	itr.buf[0], itr.buf[1] = nil, nil
@@ -798,3 +781,11 @@ type byTagKey []*influxql.TagSet
 func (t byTagKey) Len() int           { return len(t) }
 func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
 func (t byTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
+
+// exprString returns the string value of an expression.
+func exprString(expr influxql.Expr) string {
+	if expr == nil {
+		return ""
+	}
+	return expr.String()
+}

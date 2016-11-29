@@ -45,7 +45,7 @@ func TestIndexFiles_WriteTo(t *testing.T) {
 	}
 
 	// Verify data in compacted file.
-	if e, _ := f.TagValueElem([]byte("cpu"), []byte("region"), []byte("west")); e == nil {
+	if e := f.TagValueElem([]byte("cpu"), []byte("region"), []byte("west")); e == nil {
 		t.Fatal("expected element")
 	} else if n := e.(*tsi1.TagBlockValueElem).SeriesN(); n != 1 {
 		t.Fatalf("unexpected series count: %d", n)

@@ -124,14 +124,11 @@ func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
 }
 
 // TagValueElem returns an element for a tag value.
-// Returns an element with a nil value if not found.
-func (blk *TagBlock) TagValueElem(key, value []byte) (ve TagValueElem, deleted bool) {
+func (blk *TagBlock) TagValueElem(key, value []byte) TagValueElem {
 	// Find key element, exit if not found.
 	kelem, _ := blk.TagKeyElem(key).(*TagBlockKeyElem)
 	if kelem == nil {
-		return nil, false
-	} else if kelem.Deleted() {
-		deleted = true
+		return nil
 	}
 
 	// Slice hash index data.
@@ -156,12 +153,12 @@ func (blk *TagBlock) TagValueElem(key, value []byte) (ve TagValueElem, deleted b
 
 			// Return if values match.
 			if bytes.Equal(e.value, value) {
-				return &e, deleted
+				return &e
 			}
 
 			// Check if we've exceeded the probe distance.
 			if d > dist(hashKey(e.value), pos, int(valueN)) {
-				return nil, deleted
+				return nil
 			}
 		}
 

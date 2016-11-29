@@ -19,7 +19,7 @@ func TestCreateIndexFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if e, _ := f.TagValueElem([]byte("cpu"), []byte("region"), []byte("west")); e == nil {
+	if e := f.TagValueElem([]byte("cpu"), []byte("region"), []byte("west")); e == nil {
 		t.Fatal("expected element")
 	} else if n := e.(*tsi1.TagBlockValueElem).SeriesN(); n != 1 {
 		t.Fatalf("unexpected series count: %d", n)
@@ -35,7 +35,7 @@ func TestGenerateIndexFile(t *testing.T) {
 	}
 
 	// Verify that tag/value series can be fetched.
-	if e, _ := f.TagValueElem([]byte("measurement0"), []byte("key0"), []byte("value0")); e == nil {
+	if e := f.TagValueElem([]byte("measurement0"), []byte("key0"), []byte("value0")); e == nil {
 		t.Fatal("expected element")
 	} else if n := e.(*tsi1.TagBlockValueElem).SeriesN(); n == 0 {
 		t.Fatal("expected series")
@@ -59,7 +59,7 @@ func benchmarkIndexFile_TagValueSeries(b *testing.B, idx *tsi1.IndexFile) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		if e, _ := idx.TagValueElem([]byte("measurement0"), []byte("key0"), []byte("value0")); e == nil {
+		if e := idx.TagValueElem([]byte("measurement0"), []byte("key0"), []byte("value0")); e == nil {
 			b.Fatal("expected element")
 		} else if e.(*tsi1.TagBlockValueElem).SeriesN() == 0 {
 			b.Fatal("expected series")

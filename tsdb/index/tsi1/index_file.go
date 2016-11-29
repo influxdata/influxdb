@@ -142,44 +142,34 @@ func (f *IndexFile) Measurement(name []byte) MeasurementElem {
 
 // TagValueIterator returns a value iterator for a tag key and a flag
 // indicating if a tombstone exists on the measurement or key.
-func (f *IndexFile) TagValueIterator(name, key []byte) (itr TagValueIterator, deleted bool) {
-	// Find measurement.
-	mm, ok := f.mblk.Elem(name)
-	if !ok {
-		return nil, deleted
-	} else if mm.Deleted() {
-		deleted = true
+func (f *IndexFile) TagValueIterator(name, key []byte) TagValueIterator {
+	tblk := f.tblks[string(name)]
+	if tblk == nil {
+		return nil
 	}
 
 	// Find key element.
-	ke := f.tblks[string(name)].TagKeyElem(key)
+	ke := tblk.TagKeyElem(key)
 	if ke == nil {
-		return nil, deleted
-	} else if ke.Deleted() {
-		deleted = true
+		return nil
 	}
 
 	// Merge all value series iterators together.
-	return ke.TagValueIterator(), deleted
+	return ke.TagValueIterator()
 }
 
 // TagKeySeriesIterator returns a series iterator for a tag key and a flag
 // indicating if a tombstone exists on the measurement or key.
-func (f *IndexFile) TagKeySeriesIterator(name, key []byte) (itr SeriesIterator, deleted bool) {
-	// Find measurement.
-	mm, ok := f.mblk.Elem(name)
-	if !ok {
-		return nil, deleted
-	} else if mm.Deleted() {
-		deleted = true
+func (f *IndexFile) TagKeySeriesIterator(name, key []byte) SeriesIterator {
+	tblk := f.tblks[string(name)]
+	if tblk == nil {
+		return nil
 	}
 
 	// Find key element.
-	ke := f.tblks[string(name)].TagKeyElem(key)
+	ke := tblk.TagKeyElem(key)
 	if ke == nil {
-		return nil, deleted
-	} else if ke.Deleted() {
-		deleted = true
+		return nil
 	}
 
 	// Merge all value series iterators together.
@@ -190,97 +180,66 @@ func (f *IndexFile) TagKeySeriesIterator(name, key []byte) (itr SeriesIterator, 
 		itrs = append(itrs, newSeriesDecodeIterator(&f.sblk, sitr))
 	}
 
-	return MergeSeriesIterators(itrs...), deleted
+	return MergeSeriesIterators(itrs...)
 }
 
 // TagValueSeriesIterator returns a series iterator for a tag value and a flag
 // indicating if a tombstone exists on the measurement, key, or value.
-func (f *IndexFile) TagValueSeriesIterator(name, key, value []byte) (itr SeriesIterator, deleted bool) {
-	// Find measurement.
-	mm, ok := f.mblk.Elem(name)
-	if !ok {
-		return nil, deleted
-	} else if mm.Deleted() {
-		deleted = true
+func (f *IndexFile) TagValueSeriesIterator(name, key, value []byte) SeriesIterator {
+	tblk := f.tblks[string(name)]
+	if tblk == nil {
+		return nil
 	}
 
 	// Find value element.
-	ve, del := f.tblks[string(name)].TagValueElem(key, value)
-	if del {
-		deleted = true
-	}
-	if ve.Value() == nil {
-		return nil, deleted
-	} else if ve.Deleted() {
-		deleted = true
+	ve := tblk.TagValueElem(key, value)
+	if ve == nil {
+		return nil
 	}
 
 	// Create an iterator over value's series.
-	sitr := newSeriesDecodeIterator(&f.sblk, &rawSeriesIDIterator{data: ve.(*TagBlockValueElem).series.data})
-	return sitr, deleted
+	return newSeriesDecodeIterator(
+		&f.sblk,
+		&rawSeriesIDIterator{
+			data: ve.(*TagBlockValueElem).series.data,
+		},
+	)
 }
 
 // TagKey returns a tag key and flag indicating if tombstoned by measurement.
-func (f *IndexFile) TagKey(name, key []byte) (e TagKeyElem, deleted bool) {
-	// Find measurement.
-	mm, ok := f.mblk.Elem(name)
-	if !ok {
-		return nil, deleted
-	} else if mm.Deleted() {
-		deleted = true
+func (f *IndexFile) TagKey(name, key []byte) TagKeyElem {
+	tblk := f.tblks[string(name)]
+	if tblk == nil {
+		return nil
 	}
-
-	// Find key element.
-	ke := f.tblks[string(name)].TagKeyElem(key)
-	if ke == nil {
-		return nil, deleted
-	}
-	return ke, deleted
+	return tblk.TagKeyElem(key)
 }
 
 /*
 // TagValue returns a tag key and flag indicating if tombstoned by measurement or key.
-func (f *IndexFile) TagValue(name, key, value []byte) (e TagKeyValue, deleted bool) {
+func (f *IndexFile) TagValue(name, key, value []byte) TagKeyValue {
 	// Find measurement.
 	mm, ok := f.mblk.Elem(name)
 	if !ok {
-		return nil, deleted
-	} else if mm.Deleted() {
-		deleted = true
+		return nil
 	}
 
 	// Find key element.
-	ve, del := f.tblks[string(name)].TagValueElem(key, value)
-	if del {
-		deleted = true
-	}
-	if ve.value == nil {
-		return nil, deleted
-	}
-	return &ve, deleted
+	return f.tblks[string(name)].TagValueElem(key, value)
 }
 */
 
 // Series returns the series and a flag indicating if the series has been
 // tombstoned by the measurement.
-func (f *IndexFile) Series(name []byte, tags models.Tags) (e SeriesElem, deleted bool) {
-	// Find measurement.
-	me, ok := f.mblk.Elem(name)
-	if !ok {
-		return nil, false
-	} else if me.Deleted() {
-		deleted = true
-	}
-
-	// Return series element in series block.
-	return f.sblk.Series(name, tags), deleted
+func (f *IndexFile) Series(name []byte, tags models.Tags) SeriesElem {
+	return f.sblk.Series(name, tags)
 }
 
 // TagValueElem returns an element for a measurement/tag/value.
-func (f *IndexFile) TagValueElem(name, key, value []byte) (e TagValueElem, deleted bool) {
+func (f *IndexFile) TagValueElem(name, key, value []byte) TagValueElem {
 	tblk, ok := f.tblks[string(name)]
 	if !ok {
-		return nil, false
+		return nil
 	}
 	return tblk.TagValueElem(key, value)
 }
