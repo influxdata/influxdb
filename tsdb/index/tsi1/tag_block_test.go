@@ -34,28 +34,28 @@ func TestTagBlockWriter(t *testing.T) {
 	}
 
 	// Verify data.
-	if e, _ := blk.TagValueElem([]byte("region"), []byte("us-east")); e == nil {
+	if e := blk.TagValueElem([]byte("region"), []byte("us-east")); e == nil {
 		t.Fatal("expected element")
 	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint32{1, 2}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
 
-	if e, _ := blk.TagValueElem([]byte("region"), []byte("us-west")); e == nil {
+	if e := blk.TagValueElem([]byte("region"), []byte("us-west")); e == nil {
 		t.Fatal("expected element")
 	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint32{3}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
-	if e, _ := blk.TagValueElem([]byte("host"), []byte("server0")); e == nil {
+	if e := blk.TagValueElem([]byte("host"), []byte("server0")); e == nil {
 		t.Fatal("expected element")
 	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint32{1}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
-	if e, _ := blk.TagValueElem([]byte("host"), []byte("server1")); e == nil {
+	if e := blk.TagValueElem([]byte("host"), []byte("server1")); e == nil {
 		t.Fatal("expected element")
 	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint32{2}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
-	if e, _ := blk.TagValueElem([]byte("host"), []byte("server2")); e == nil {
+	if e := blk.TagValueElem([]byte("host"), []byte("server2")); e == nil {
 		t.Fatal("expected element")
 	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint32{3}) {
 		t.Fatalf("unexpected series ids: %#v", a)
@@ -114,7 +114,7 @@ func benchmarkTagBlock_SeriesN(b *testing.B, tagN, valueN int, blk **tsi1.TagBlo
 
 	key, value := []byte("0"), []byte("0")
 	for i := 0; i < b.N; i++ {
-		if e, _ := (*blk).TagValueElem(key, value); e == nil {
+		if e := (*blk).TagValueElem(key, value); e == nil {
 			b.Fatal("expected element")
 		} else if n := e.(*tsi1.TagBlockValueElem).SeriesN(); n != 1 {
 			b.Fatalf("unexpected series count: %d", n)

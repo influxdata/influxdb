@@ -155,24 +155,19 @@ func (f *LogFile) DeleteMeasurement(name []byte) error {
 	return nil
 }
 
-// TagKeySeriesIterator returns a series iterator for a tag key and a flag
-// indicating if a tombstone exists on the measurement or key.
-func (f *LogFile) TagKeySeriesIterator(name, key []byte) (itr SeriesIterator, deleted bool) {
+// TagKeySeriesIterator returns a series iterator for a tag key.
+func (f *LogFile) TagKeySeriesIterator(name, key []byte) SeriesIterator {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
 	mm, ok := f.mms[string(name)]
 	if !ok {
-		return nil, deleted
-	} else if mm.deleted {
-		deleted = true
+		return nil
 	}
 
 	tk, ok := mm.tagSet[string(key)]
 	if !ok {
-		return nil, deleted
-	} else if tk.deleted {
-		deleted = true
+		return nil
 	}
 
 	// Combine iterators across all tag keys.
@@ -180,34 +175,41 @@ func (f *LogFile) TagKeySeriesIterator(name, key []byte) (itr SeriesIterator, de
 	for _, tv := range tk.tagValues {
 		itrs = append(itrs, newLogSeriesIterator(tv.series))
 	}
-	return MergeSeriesIterators(itrs...), deleted
+	return MergeSeriesIterators(itrs...)
 }
 
-// TagValueIterator returns a value iterator for a tag key and a flag
-// indicating if a tombstone exists on the measurement.
-func (f *LogFile) TagValueIterator(name, key []byte) (itr TagValueIterator, deleted bool) {
+// TagKeyIterator returns a value iterator for a measurement.
+func (f *LogFile) TagKeyIterator(name []byte) TagKeyIterator {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
 	mm, ok := f.mms[string(name)]
 	if !ok {
-		return nil, deleted
-	} else if mm.deleted {
-		deleted = true
+		return nil
+	}
+
+	a := make([]logTagKey, 0, len(mm.tagSet))
+	for _, k := range mm.tagSet {
+		a = append(a, k)
+	}
+	return newLogTagKeyIterator(a)
+}
+
+// TagValueIterator returns a value iterator for a tag key.
+func (f *LogFile) TagValueIterator(name, key []byte) TagValueIterator {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	mm, ok := f.mms[string(name)]
+	if !ok {
+		return nil
 	}
 
 	tk, ok := mm.tagSet[string(key)]
 	if !ok {
-		return nil, deleted
-	} else if tk.deleted {
-		deleted = true
+		return nil
 	}
-
-	a := make([]logTagValue, 0, len(tk.tagValues))
-	for _, v := range tk.tagValues {
-		a = append(a, v)
-	}
-	return newLogTagValueIterator(a), deleted
+	return tk.TagValueIterator()
 }
 
 // DeleteTagKey adds a tombstone for a tag key to the log file.
@@ -223,34 +225,26 @@ func (f *LogFile) DeleteTagKey(name, key []byte) error {
 	return nil
 }
 
-// TagValueSeriesIterator returns a series iterator for a tag value and a flag
-// indicating if a tombstone exists on the measurement, key, or value.
-func (f *LogFile) TagValueSeriesIterator(name, key, value []byte) (itr SeriesIterator, deleted bool) {
+// TagValueSeriesIterator returns a series iterator for a tag value.
+func (f *LogFile) TagValueSeriesIterator(name, key, value []byte) SeriesIterator {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
 	mm, ok := f.mms[string(name)]
 	if !ok {
-		return nil, deleted
-	} else if mm.deleted {
-		deleted = true
+		return nil
 	}
 
 	tk, ok := mm.tagSet[string(key)]
 	if !ok {
-		return nil, deleted
-	} else if tk.deleted {
-		deleted = true
+		return nil
 	}
 
 	tv, ok := tk.tagValues[string(value)]
 	if !ok {
-		return nil, deleted
-	} else if tv.deleted {
-		deleted = true
+		return nil
 	}
-
-	return newLogSeriesIterator(tv.series), deleted
+	return newLogSeriesIterator(tv.series)
 }
 
 // DeleteTagValue adds a tombstone for a tag value to the log file.
@@ -303,16 +297,14 @@ func (f *LogFile) SeriesN() (n uint64) {
 	return n
 }
 
-// Series returns a series and a flag indicating if it is tombstoned by the measurement.
-func (f *LogFile) Series(name []byte, tags models.Tags) (e SeriesElem, deleted bool) {
+// Series returns a series by name/tags.
+func (f *LogFile) Series(name []byte, tags models.Tags) SeriesElem {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
 	mm, ok := f.mms[string(name)]
 	if !ok {
-		return nil, false
-	} else if mm.deleted {
-		deleted = true
+		return nil
 	}
 
 	// Find index of series in measurement.
@@ -322,10 +314,9 @@ func (f *LogFile) Series(name []byte, tags models.Tags) (e SeriesElem, deleted b
 
 	// Return if match found. Otherwise return nil.
 	if i < len(mm.series) && mm.series[i].tags.Equal(tags) {
-		e := mm.series[i]
-		return &e, deleted
+		return &mm.series[i]
 	}
-	return nil, deleted
+	return nil
 }
 
 // appendEntry adds a log entry to the end of the file.
@@ -372,7 +363,7 @@ func (f *LogFile) execEntry(e *LogEntry) {
 func (f *LogFile) execDeleteMeasurementEntry(e *LogEntry) {
 	mm := f.measurement(e.Name)
 	mm.deleted = true
-	mm.tagSet = make(map[string]logTagSet)
+	mm.tagSet = make(map[string]logTagKey)
 	mm.series = nil
 	f.mms[string(e.Name)] = mm
 }
@@ -456,7 +447,7 @@ func (f *LogFile) SeriesIterator() SeriesIterator {
 func (f *LogFile) measurement(name []byte) logMeasurement {
 	mm, ok := f.mms[string(name)]
 	if !ok {
-		mm = logMeasurement{name: name, tagSet: make(map[string]logTagSet)}
+		mm = logMeasurement{name: name, tagSet: make(map[string]logTagKey)}
 	}
 	return mm
 }
@@ -829,7 +820,7 @@ func (m logMeasurements) names() []string {
 
 type logMeasurement struct {
 	name    []byte
-	tagSet  map[string]logTagSet
+	tagSet  map[string]logTagKey
 	deleted bool
 	series  logSeries
 
@@ -839,14 +830,13 @@ type logMeasurement struct {
 	seriesIDs []uint32 // series offsets
 }
 
-func (m *logMeasurement) Name() []byte                   { return m.name }
-func (m *logMeasurement) Deleted() bool                  { return m.deleted }
-func (m *logMeasurement) TagKeyIterator() TagKeyIterator { panic("TODO") }
+func (m *logMeasurement) Name() []byte  { return m.name }
+func (m *logMeasurement) Deleted() bool { return m.deleted }
 
-func (m *logMeasurement) createTagSetIfNotExists(key []byte) logTagSet {
+func (m *logMeasurement) createTagSetIfNotExists(key []byte) logTagKey {
 	ts, ok := m.tagSet[string(key)]
 	if !ok {
-		ts = logTagSet{name: key, tagValues: make(map[string]logTagValue)}
+		ts = logTagKey{name: key, tagValues: make(map[string]logTagValue)}
 	}
 	return ts
 }
@@ -872,19 +862,37 @@ func (itr *logMeasurementIterator) Next() (e MeasurementElem) {
 	return e
 }
 
-type logTagSet struct {
+type logTagKey struct {
 	name      []byte
 	deleted   bool
 	tagValues map[string]logTagValue
 }
 
-func (ts *logTagSet) createTagValueIfNotExists(value []byte) logTagValue {
-	tv, ok := ts.tagValues[string(value)]
+func (tk *logTagKey) Key() []byte   { return tk.name }
+func (tk *logTagKey) Deleted() bool { return tk.deleted }
+
+func (tk *logTagKey) TagValueIterator() TagValueIterator {
+	a := make([]logTagValue, 0, len(tk.tagValues))
+	for _, v := range tk.tagValues {
+		a = append(a, v)
+	}
+	return newLogTagValueIterator(a)
+}
+
+func (tk *logTagKey) createTagValueIfNotExists(value []byte) logTagValue {
+	tv, ok := tk.tagValues[string(value)]
 	if !ok {
 		tv = logTagValue{name: value}
 	}
 	return tv
 }
+
+// logTagKey is a sortable list of log tag keys.
+type logTagKeySlice []logTagKey
+
+func (a logTagKeySlice) Len() int           { return len(a) }
+func (a logTagKeySlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a logTagKeySlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[j].name) == -1 }
 
 type logTagValue struct {
 	name    []byte
@@ -895,8 +903,8 @@ type logTagValue struct {
 	seriesIDs []uint32
 }
 
-func (v *logTagValue) Value() []byte { return v.name }
-func (v *logTagValue) Deleted() bool { return v.deleted }
+func (tv *logTagValue) Value() []byte { return tv.name }
+func (tv *logTagValue) Deleted() bool { return tv.deleted }
 
 // logTagValue is a sortable list of log tag values.
 type logTagValueSlice []logTagValue
@@ -928,6 +936,26 @@ func (tv *logTagValue) insertEntry(e *LogEntry) {
 	tv.entries[i] = *e
 }
 */
+
+// logTagKeyIterator represents an iterator over a slice of tag keys.
+type logTagKeyIterator struct {
+	a []logTagKey
+}
+
+// newLogTagKeyIterator returns a new instance of logTagKeyIterator.
+func newLogTagKeyIterator(a []logTagKey) *logTagKeyIterator {
+	sort.Sort(logTagKeySlice(a))
+	return &logTagKeyIterator{a: a}
+}
+
+// Next returns the next element in the iterator.
+func (itr *logTagKeyIterator) Next() (e TagKeyElem) {
+	if len(itr.a) == 0 {
+		return nil
+	}
+	e, itr.a = &itr.a[0], itr.a[1:]
+	return e
+}
 
 // logTagValueIterator represents an iterator over a slice of tag values.
 type logTagValueIterator struct {

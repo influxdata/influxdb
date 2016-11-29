@@ -209,13 +209,25 @@ func (i *Index) measurement(name []byte) *tsdb.Measurement {
 // MeasurementSeriesIterator returns an iterator over all series in the index.
 func (i *Index) MeasurementSeriesIterator(name []byte) SeriesIterator {
 	a := make([]SeriesIterator, 0, i.FileN())
-	for _, f := range i.logFiles {
-		a = append(a, f.MeasurementSeriesIterator(name))
-	}
-	for _, f := range i.indexFiles {
-		a = append(a, f.MeasurementSeriesIterator(name))
+	for _, f := range i.files() {
+		itr := f.MeasurementSeriesIterator(name)
+		if itr != nil {
+			a = append(a, itr)
+		}
 	}
 	return MergeSeriesIterators(a...)
+}
+
+// TagKeyIterator returns an iterator over all tag keys for a measurement.
+func (i *Index) TagKeyIterator(name []byte) TagKeyIterator {
+	a := make([]TagKeyIterator, 0, i.FileN())
+	for _, f := range i.files() {
+		itr := f.TagKeyIterator(name)
+		if itr != nil {
+			a = append(a, itr)
+		}
+	}
+	return MergeTagKeyIterators(a...)
 }
 
 // Measurements returns a list of all measurements.
@@ -416,6 +428,41 @@ func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 
 // DropMeasurement deletes a measurement from the index.
 func (i *Index) DropMeasurement(name []byte) error {
+	// Delete all keys and values.
+	if kitr := i.TagKeyIterator(name); kitr != nil {
+		for k := kitr.Next(); k != nil; k = kitr.Next() {
+			// Delete key if not already deleted.
+			if !k.Deleted() {
+				if err := i.logFiles[0].DeleteTagKey(name, k.Key()); err != nil {
+					return err
+				}
+			}
+
+			// Delete each value in key.
+			if vitr := k.TagValueIterator(); vitr != nil {
+				for v := vitr.Next(); v != nil; v = vitr.Next() {
+					if !v.Deleted() {
+						if err := i.logFiles[0].DeleteTagValue(name, k.Key(), v.Value()); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Delete all series in measurement.
+	if sitr := i.MeasurementSeriesIterator(name); sitr != nil {
+		for s := sitr.Next(); s != nil; s = sitr.Next() {
+			if !s.Deleted() {
+				if err := i.logFiles[0].DeleteSeries(s.Name(), s.Tags()); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	// Mark measurement as deleted.
 	return i.logFiles[0].DeleteMeasurement(name)
 }
 
@@ -427,16 +474,11 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 	return i.logFiles[0].AddSeries(name, tags)
 }
 
-// Series returns a series by name/tags. Returns nil if the series has been tombstoned.
+// Series returns a series by name/tags.
 func (i *Index) Series(name []byte, tags models.Tags) SeriesElem {
 	for _, f := range i.files() {
-		if e, deleted := f.Series(name, tags); e != nil {
-			if e.Deleted() {
-				return nil
-			}
+		if e := f.Series(name, tags); e != nil && !e.Deleted() {
 			return e
-		} else if deleted {
-			return nil
 		}
 	}
 	return nil
@@ -482,12 +524,9 @@ func (i *Index) Dereference([]byte) {}
 func (i *Index) TagKeySeriesIterator(name, key []byte) SeriesIterator {
 	a := make([]SeriesIterator, 0, i.FileN())
 	for _, f := range i.files() {
-		itr, deleted := f.TagKeySeriesIterator(name, key)
+		itr := f.TagKeySeriesIterator(name, key)
 		if itr != nil {
 			a = append(a, itr)
-		}
-		if deleted {
-			break
 		}
 	}
 	return MergeSeriesIterators(a...)
@@ -497,12 +536,9 @@ func (i *Index) TagKeySeriesIterator(name, key []byte) SeriesIterator {
 func (i *Index) TagValueIterator(name, key []byte) TagValueIterator {
 	a := make([]TagValueIterator, 0, i.FileN())
 	for _, f := range i.files() {
-		itr, deleted := f.TagValueIterator(name, key)
+		itr := f.TagValueIterator(name, key)
 		if itr != nil {
 			a = append(a, itr)
-		}
-		if deleted {
-			break
 		}
 	}
 	return MergeTagValueIterators(a...)
@@ -512,12 +548,9 @@ func (i *Index) TagValueIterator(name, key []byte) TagValueIterator {
 func (i *Index) TagValueSeriesIterator(name, key, value []byte) SeriesIterator {
 	a := make([]SeriesIterator, 0, i.FileN())
 	for _, f := range i.files() {
-		itr, deleted := f.TagValueSeriesIterator(name, key, value)
+		itr := f.TagValueSeriesIterator(name, key, value)
 		if itr != nil {
 			a = append(a, itr)
-		}
-		if deleted {
-			break
 		}
 	}
 	return MergeSeriesIterators(a...)
@@ -840,14 +873,17 @@ func (i *Index) SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iter
 // File represents a log or index file.
 type File interface {
 	Measurement(name []byte) MeasurementElem
-	Series(name []byte, tags models.Tags) (e SeriesElem, deleted bool)
+	Series(name []byte, tags models.Tags) SeriesElem
 
-	TagValueIterator(name, key []byte) (itr TagValueIterator, deleted bool)
+	// Tag key & value iteration.
+	TagKeyIterator(name []byte) TagKeyIterator
+	TagValueIterator(name, key []byte) TagValueIterator
 
+	// Series iteration.
 	SeriesIterator() SeriesIterator
 	MeasurementSeriesIterator(name []byte) SeriesIterator
-	TagKeySeriesIterator(name, key []byte) (itr SeriesIterator, deleted bool)
-	TagValueSeriesIterator(name, key, value []byte) (itr SeriesIterator, deleted bool)
+	TagKeySeriesIterator(name, key []byte) SeriesIterator
+	TagValueSeriesIterator(name, key, value []byte) SeriesIterator
 }
 
 // FilterExprs represents a map of series IDs to filter expressions.
