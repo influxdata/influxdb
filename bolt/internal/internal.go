@@ -107,12 +107,18 @@ func MarshalLayout(l chronograf.Layout) ([]byte, error) {
 	for i, c := range l.Cells {
 		queries := make([]*Query, len(c.Queries))
 		for j, q := range c.Queries {
+			r := new(Range)
+			if q.Range != nil {
+				r.Upper, r.Lower = q.Range.Upper, q.Range.Lower
+			}
 			queries[j] = &Query{
 				Command:  q.Command,
 				DB:       q.DB,
 				RP:       q.RP,
 				GroupBys: q.GroupBys,
 				Wheres:   q.Wheres,
+				Label:    q.Label,
+				Range:    r,
 			}
 		}
 
@@ -122,8 +128,6 @@ func MarshalLayout(l chronograf.Layout) ([]byte, error) {
 			W:       c.W,
 			H:       c.H,
 			I:       c.I,
-			Yranges: c.YRanges,
-			Ylabels: c.YLabels,
 			Name:    c.Name,
 			Queries: queries,
 		}
@@ -158,6 +162,13 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 				RP:       q.RP,
 				GroupBys: q.GroupBys,
 				Wheres:   q.Wheres,
+				Label:    q.Label,
+			}
+			if q.Range.Upper != q.Range.Lower {
+				queries[j].Range = &chronograf.Range{
+					Upper: q.Range.Upper,
+					Lower: q.Range.Lower,
+				}
 			}
 		}
 
@@ -167,8 +178,6 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 			W:       c.W,
 			H:       c.H,
 			I:       c.I,
-			YRanges: c.Yranges,
-			YLabels: c.Ylabels,
 			Name:    c.Name,
 			Queries: queries,
 		}

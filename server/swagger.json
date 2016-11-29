@@ -18,7 +18,9 @@
 	"paths": {
 		"/": {
 			"get": {
-                "tags": ["routes"],
+				"tags": [
+					"routes"
+				],
 				"summary": "Lists all the endpoints",
 				"description": "List of the endpoints.",
 				"responses": {
@@ -39,7 +41,9 @@
 		},
 		"/sources": {
 			"get": {
-                "tags": ["sources"],
+				"tags": [
+					"sources"
+				],
 				"summary": "Configured data sources",
 				"description": "These data sources store time series data.",
 				"responses": {
@@ -58,7 +62,9 @@
 				}
 			},
 			"post": {
-                "tags": ["sources"],
+				"tags": [
+					"sources"
+				],
 				"summary": "Create new data source",
 				"parameters": [
 					{
@@ -95,7 +101,9 @@
 		},
 		"/sources/{id}": {
 			"get": {
-                "tags": ["sources"],
+				"tags": [
+					"sources"
+				],
 				"parameters": [
 					{
 						"name": "id",
@@ -129,7 +137,9 @@
 				}
 			},
 			"patch": {
-                "tags": ["sources"],
+				"tags": [
+					"sources"
+				],
 				"summary": "Update data source configuration",
 				"parameters": [
 					{
@@ -171,7 +181,9 @@
 				}
 			},
 			"delete": {
-                "tags": ["sources"],
+				"tags": [
+					"sources"
+				],
 				"parameters": [
 					{
 						"name": "id",
@@ -203,7 +215,10 @@
 		},
 		"/sources/{id}/proxy": {
 			"post": {
-                "tags": ["sources", "proxy"],
+				"tags": [
+					"sources",
+					"proxy"
+				],
 				"description": "Query the backend time series data source and return the response according to `format`",
 				"parameters": [
 					{
@@ -259,7 +274,9 @@
 		},
 		"/users": {
 			"get": {
-                "tags": ["users"],
+				"tags": [
+					"users"
+				],
 				"summary": "List of all users on this data source",
 				"responses": {
 					"200": {
@@ -277,7 +294,9 @@
 				}
 			},
 			"post": {
-                "tags": ["users"],
+				"tags": [
+					"users"
+				],
 				"summary": "Create new user for this data source",
 				"parameters": [
 					{
@@ -314,7 +333,9 @@
 		},
 		"/users/{user_id}": {
 			"get": {
-                "tags": ["users"],
+				"tags": [
+					"users"
+				],
 				"parameters": [
 					{
 						"name": "user_id",
@@ -348,7 +369,9 @@
 				}
 			},
 			"patch": {
-                "tags": ["users"],
+				"tags": [
+					"users"
+				],
 				"summary": "Update user configuration",
 				"parameters": [
 					{
@@ -390,7 +413,9 @@
 				}
 			},
 			"delete": {
-                "tags": ["users"],
+				"tags": [
+					"users"
+				],
 				"parameters": [
 					{
 						"name": "user_id",
@@ -422,8 +447,11 @@
 		},
 		"/users/{user_id}/explorations": {
 			"get": {
-                "tags": ["users", "explorations"],
-                "summary": "Returns all explorations for specified user",
+				"tags": [
+					"users",
+					"explorations"
+				],
+				"summary": "Returns all explorations for specified user",
 				"parameters": [
 					{
 						"name": "user_id",
@@ -455,7 +483,10 @@
 				}
 			},
 			"post": {
-                "tags": ["users", "explorations"],
+				"tags": [
+					"users",
+					"explorations"
+				],
 				"summary": "Create new named exploration for this user",
 				"parameters": [
 					{
@@ -505,7 +536,10 @@
 		},
 		"/users/{user_id}/explorations/{exploration_id}": {
 			"get": {
-                "tags": ["users", "explorations"],
+				"tags": [
+					"users",
+					"explorations"
+				],
 				"parameters": [
 					{
 						"name": "user_id",
@@ -546,7 +580,10 @@
 				}
 			},
 			"patch": {
-                "tags": ["users", "explorations"],
+				"tags": [
+					"users",
+					"explorations"
+				],
 				"summary": "Update exploration configuration",
 				"parameters": [
 					{
@@ -595,7 +632,10 @@
 				}
 			},
 			"delete": {
-                "tags": ["users", "explorations"],
+				"tags": [
+					"users",
+					"explorations"
+				],
 				"parameters": [
 					{
 						"name": "user_id",
@@ -634,7 +674,10 @@
 		},
 		"/sources/{id}/kapacitors": {
 			"get": {
-                "tags": ["sources", "kapacitors"],
+				"tags": [
+					"sources",
+					"kapacitors"
+				],
 				"parameters": [
 					{
 						"name": "id",
@@ -661,7 +704,10 @@
 				}
 			},
 			"post": {
-                "tags": ["sources", "kapacitors"],
+				"tags": [
+					"sources",
+					"kapacitors"
+				],
 				"summary": "Create new kapacitor backend",
 				"parameters": [
 					{
@@ -705,7 +751,10 @@
 		},
 		"/sources/{id}/kapacitors/{kapa_id}": {
 			"get": {
-                "tags": ["sources", "kapacitors"],
+				"tags": [
+					"sources",
+					"kapacitors"
+				],
 				"parameters": [
 					{
 						"name": "id",
@@ -746,7 +795,10 @@
 				}
 			},
 			"patch": {
-                "tags": ["sources", "kapacitors"],
+				"tags": [
+					"sources",
+					"kapacitors"
+				],
 				"summary": "Update kapacitor configuration",
 				"parameters": [
 					{
@@ -795,7 +847,10 @@
 				}
 			},
 			"delete": {
-                "tags": ["sources", "kapacitors"],
+				"tags": [
+					"sources",
+					"kapacitors"
+				],
 				"parameters": [
 					{
 						"name": "id",
@@ -834,21 +889,28 @@
 		},
 		"/sources/{id}/kapacitors/{kapa_id}/rules": {
 			"get": {
-                "tags": ["sources", "kapacitors", "rules"],
+				"tags": [
+					"sources",
+					"kapacitors",
+					"rules"
+				],
 				"description": "Get all defined alert rules.",
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}, {
-					"name": "kapa_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the kapacitor backend.",
-					"required": true
-				}],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
+					},
+					{
+						"name": "kapa_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the kapacitor backend.",
+						"required": true
+					}
+				],
 				"responses": {
 					"200": {
 						"description": "All alert rules for this specific kapacitor are returned",
@@ -871,29 +933,37 @@
 				}
 			},
 			"post": {
-                "tags": ["sources", "kapacitors", "rules"],
+				"tags": [
+					"sources",
+					"kapacitors",
+					"rules"
+				],
 				"description": "Create kapacitor alert rule",
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}, {
-					"name": "kapa_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the kapacitor backend.",
-					"required": true
-				}, {
-					"name": "rule",
-					"in": "body",
-					"description": "Rule to generate alert rule",
-					"schema": {
-						"$ref": "#/definitions/Rule"
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
 					},
-					"required": true
-				}],
+					{
+						"name": "kapa_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the kapacitor backend.",
+						"required": true
+					},
+					{
+						"name": "rule",
+						"in": "body",
+						"description": "Rule to generate alert rule",
+						"schema": {
+							"$ref": "#/definitions/Rule"
+						},
+						"required": true
+					}
+				],
 				"responses": {
 					"201": {
 						"description": "Successfully created new kapacitor alert rule",
@@ -914,7 +984,7 @@
 							"$ref": "#/definitions/Error"
 						}
 					},
-                    "422": {
+					"422": {
 						"description": "Source ID , Kapacitor ID or alert are unprocessable",
 						"schema": {
 							"$ref": "#/definitions/Error"
@@ -931,26 +1001,34 @@
 		},
 		"/sources/{id}/kapacitors/{kapa_id}/rules/{rule_id}": {
 			"get": {
-                "tags": ["sources", "kapacitors", "rules"],
-				"parameters": [{
-					"name": "id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the source",
-					"required": true
-				}, {
-					"name": "kapa_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the kapacitor",
-					"required": true
-				}, {
-					"name": "rule_id",
-					"in": "path",
-					"type": "string",
-					"description": "ID of the rule",
-					"required": true
-				}],
+				"tags": [
+					"sources",
+					"kapacitors",
+					"rules"
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the source",
+						"required": true
+					},
+					{
+						"name": "kapa_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the kapacitor",
+						"required": true
+					},
+					{
+						"name": "rule_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the rule",
+						"required": true
+					}
+				],
 				"summary": "Specific kapacitor alert rule",
 				"description": "Alerting rule for kapacitor",
 				"responses": {
@@ -975,9 +1053,14 @@
 				}
 			},
 			"put": {
-                "tags": ["sources", "kapacitors", "rules"],
+				"tags": [
+					"sources",
+					"kapacitors",
+					"rules"
+				],
 				"summary": "Update rule alert rule configuration",
-				"parameters": [{
+				"parameters": [
+					{
 						"name": "id",
 						"in": "path",
 						"type": "string",
@@ -990,7 +1073,8 @@
 						"type": "string",
 						"description": "ID of a kapacitor backend",
 						"required": true
-					}, {
+					},
+					{
 						"name": "rule_id",
 						"in": "path",
 						"type": "string",
@@ -1029,7 +1113,11 @@
 				}
 			},
 			"delete": {
-                "tags": ["sources", "kapacitors", "rules"],
+				"tags": [
+					"sources",
+					"kapacitors",
+					"rules"
+				],
 				"parameters": [
 					{
 						"name": "id",
@@ -1044,7 +1132,8 @@
 						"type": "string",
 						"description": "ID of the kapacitor",
 						"required": true
-					}, {
+					},
+					{
 						"name": "rule_id",
 						"in": "path",
 						"type": "string",
@@ -1074,7 +1163,11 @@
 		},
 		"/sources/{id}/kapacitors/{kapa_id}/proxy": {
 			"get": {
-                "tags": ["sources", "kapacitors", "proxy"],
+				"tags": [
+					"sources",
+					"kapacitors",
+					"proxy"
+				],
 				"description": "GET to `path` of kapacitor.  The response and status code from kapacitor is directly returned.",
 				"parameters": [
 					{
@@ -1118,7 +1211,11 @@
 				}
 			},
 			"delete": {
-                "tags": ["sources", "kapacitors", "proxy"],
+				"tags": [
+					"sources",
+					"kapacitors",
+					"proxy"
+				],
 				"description": "DELETE to `path` of kapacitor.  The response and status code from kapacitor is directly returned.",
 				"parameters": [
 					{
@@ -1162,7 +1259,11 @@
 				}
 			},
 			"patch": {
-                "tags": ["sources", "kapacitors", "proxy"],
+				"tags": [
+					"sources",
+					"kapacitors",
+					"proxy"
+				],
 				"description": "PATCH body directly to configured kapacitor.  The response and status code from kapacitor is directly returned.",
 				"parameters": [
 					{
@@ -1215,7 +1316,11 @@
 				}
 			},
 			"post": {
-                "tags": ["sources", "kapacitors", "proxy"],
+				"tags": [
+					"sources",
+					"kapacitors",
+					"proxy"
+				],
 				"description": "POST body directly to configured kapacitor.  The response and status code from kapacitor is directly returned.",
 				"parameters": [
 					{
@@ -1270,7 +1375,10 @@
 		},
 		"/mappings": {
 			"get": {
-                "tags": ["layouts", "mappings"],
+				"tags": [
+					"layouts",
+					"mappings"
+				],
 				"summary": "Mappings between app names and measurements",
 				"description": "Mappings provide a means to alias measurement names found within a telegraf database and application layouts found within Chronograf\n",
 				"responses": {
@@ -1291,7 +1399,9 @@
 		},
 		"/layouts": {
 			"get": {
-                "tags": ["layouts"],
+				"tags": [
+					"layouts"
+				],
 				"summary": "Pre-configured layouts",
 				"parameters": [
 					{
@@ -1334,7 +1444,9 @@
 				}
 			},
 			"post": {
-                "tags": ["layouts"],
+				"tags": [
+					"layouts"
+				],
 				"summary": "Create new layout",
 				"parameters": [
 					{
@@ -1371,7 +1483,9 @@
 		},
 		"/layouts/{id}": {
 			"get": {
-                "tags": ["layouts"],
+				"tags": [
+					"layouts"
+				],
 				"parameters": [
 					{
 						"name": "id",
@@ -1405,7 +1519,9 @@
 				}
 			},
 			"delete": {
-                "tags": ["layouts"],
+				"tags": [
+					"layouts"
+				],
 				"parameters": [
 					{
 						"name": "id",
@@ -1435,7 +1551,9 @@
 				}
 			},
 			"put": {
-                "tags": ["layouts"],
+				"tags": [
+					"layouts"
+				],
 				"summary": "Replace layout configuration.",
 				"parameters": [
 					{
@@ -1552,9 +1670,9 @@
 			"description": "Entire response from the kapacitor backend.",
 			"type": "object"
 		},
-        "Rules": {
+		"Rules": {
 			"type": "object",
-        	"required": [
+			"required": [
 				"rules"
 			],
 			"properties": {
@@ -1570,85 +1688,83 @@
 			"type": "object",
 			"required": [
 				"every",
-                "trigger"
+				"trigger"
 			],
 			"properties": {
-                "id": {
-                    "type": "string",
-                    "description": "ID for this rule; the ID is shared with kapacitor"
-                },
-                "name": {
-                    "type": "string",
-                    "description": "User facing name of the alerting rule"
-                },
-                "every" : {
-                    "type": "string",
-                    "description": "Golang duration string specifying how often the alert condition is checked"
-                },
-                "alerts": {
-                    "type": "array",
-                    "description": "Array of alerting services to warn if the alert is triggered",
-                    "items": {
+				"id": {
+					"type": "string",
+					"description": "ID for this rule; the ID is shared with kapacitor"
+				},
+				"name": {
+					"type": "string",
+					"description": "User facing name of the alerting rule"
+				},
+				"every": {
+					"type": "string",
+					"description": "Golang duration string specifying how often the alert condition is checked"
+				},
+				"alerts": {
+					"type": "array",
+					"description": "Array of alerting services to warn if the alert is triggered",
+					"items": {
 						"type": "string",
-                        "enum": [
-                           "hipchat",
-                           "opsgenie",
-                           "pagerduty",
-                           "victorops",
-                           "smtp",
-                           "email",
-                           "sensu",
-                           "slack",
-                           "talk",
-                           "telegram"
-                        ]
+						"enum": [
+							"hipchat",
+							"opsgenie",
+							"pagerduty",
+							"victorops",
+							"smtp",
+							"email",
+							"sensu",
+							"slack",
+							"talk",
+							"telegram"
+						]
 					}
-                },
-                "message": {
-                    "type": "string",
-                    "description": "Message to send when alert occurs."
-                },
-                "trigger": {
-                    "type": "string",
-                    "description": "Trigger defines the alerting structure; deadman alert if no data are received for the specified time range; relative alert if the data change relative to the data in a different time range; threshold alert if the data cross a boundary",
-                    "enum": [
+				},
+				"message": {
+					"type": "string",
+					"description": "Message to send when alert occurs."
+				},
+				"trigger": {
+					"type": "string",
+					"description": "Trigger defines the alerting structure; deadman alert if no data are received for the specified time range; relative alert if the data change relative to the data in a different time range; threshold alert if the data cross a boundary",
+					"enum": [
 						"deadman",
 						"relative",
-                        "threshold"
+						"threshold"
 					]
-                },
-                "tickscript": {
-                    "type": "string",
-                    "description": "TICKscript representing this rule"
-                },
+				},
+				"tickscript": {
+					"type": "string",
+					"description": "TICKscript representing this rule"
+				},
 				"links": {
-                    "type": "object",
-                    "required": [
-                        "self",
-                        "kapacitor"
-                    ],
-                    "properties": {
-                        "self": {
-                            "description": "Self link pointing to this rule resource",
-                            "type": "string",
-                            "format": "uri"
-                        },
-                        "kapacitor": {
-                            "description": "Link pointing to the kapacitor proxy for this rule including the path query parameter.",
-                            "type": "string",
-                            "format": "uri"
-                        },
-                        "output": {
-                            "description": "Link pointing to the kapacitor httpOut node of the tickscript; includes the path query argument",
-                            "type": "string",
-                            "format": "uri"
-                        }
-
-                    }
+					"type": "object",
+					"required": [
+						"self",
+						"kapacitor"
+					],
+					"properties": {
+						"self": {
+							"description": "Self link pointing to this rule resource",
+							"type": "string",
+							"format": "uri"
+						},
+						"kapacitor": {
+							"description": "Link pointing to the kapacitor proxy for this rule including the path query parameter.",
+							"type": "string",
+							"format": "uri"
+						},
+						"output": {
+							"description": "Link pointing to the kapacitor httpOut node of the tickscript; includes the path query argument",
+							"type": "string",
+							"format": "uri"
+						}
+					}
 				}
 			}
 		},
-
 		"Sources": {
 			"type": "object",
 			"required": [
@@ -1909,18 +2025,18 @@
 		"Cell": {
 			"type": "object",
 			"required": [
-                "i",
+				"i",
 				"x",
 				"y",
 				"w",
 				"h"
 			],
 			"properties": {
-                "i": {
-                    "description": "Unique ID of Cell",
-                    "type": "string",
-                    "format": "uuid4"
-                },
+				"i": {
+					"description": "Unique ID of Cell",
+					"type": "string",
+					"format": "uuid4"
+				},
 				"x": {
 					"description": "X-coordinate of Cell in the Layout",
 					"type": "integer",
@@ -1947,22 +2063,7 @@
 					"items": {
 						"$ref": "#/definitions/LayoutQuery"
 					}
-				},
-                "ylabels": {
-                    "description": "Optional Y-axis user-facing label",
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "yranges": {
-                    "description": "Optional default range of the Y-axis; Must come in pairs.",
-                    "type": "array",
-                    "items": {
-                        "type": "integer",
-                        "format": "int64"
-                    }
-                }
+				}
 			}
 		},
 		"LayoutQuery": {
@@ -1971,6 +2072,30 @@
 				"query"
 			],
 			"properties": {
+				"label": {
+					"description": "Optional Y-axis user-facing label for this query",
+					"type": "string"
+				},
+				"range": {
+					"description": "Optional default range of the Y-axis",
+					"type": "object",
+					"required": [
+						"upper",
+						"lower"
+					],
+					"properties": {
+						"upper": {
+							"description": "Upper bound of the display range of the Y-axis",
+							"type": "integer",
+							"format": "int64"
+						},
+						"lower": {
+							"description": "Lower bound of the display range of the Y-axis",
+							"type": "integer",
+							"format": "int64"
+						}
+					}
+				},
 				"query": {
 					"type": "string"
 				},
@@ -1998,7 +2123,7 @@
 					"type": "string",
 					"format": "url"
 				},
-            	"me": {
+				"me": {
 					"description": "Location of the me endpoint.",
 					"type": "string",
 					"format": "url"

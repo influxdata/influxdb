@@ -57,6 +57,13 @@ message Query {
     string RP               = 3; // RP is a retention policy and optional;
     repeated string GroupBys= 4; // GroupBys define the groups to combine in the query
     repeated string Wheres  = 5; // Wheres define the restrictions on the query
+    string Label            = 6; // Label is the name of the Y-Axis
+    Range Range             = 7; // Range is the upper and lower bound of the Y-Axis    
+}
+
+message Range {
+    int64 Upper             = 1; // Upper is the upper-bound of the range
+    int64 Lower             = 2; // Lower is the lower-bound of the range
 }
 
 message AlertRule {

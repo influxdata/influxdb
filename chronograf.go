@@ -53,13 +53,21 @@ type TimeSeries interface {
 	Connect(context.Context, *Source) error
 }
 
+// Range represents an upper and lower bound for data
+type Range struct {
+	Upper int64 `json:"upper,omitempty"` // Upper is the upper bound
+	Lower int64 `json:"lower,omitempty"` // Lower is the lower bound
+}
+
 // Query retrieves a Response from a TimeSeries.
 type Query struct {
-	Command  string   `json:"query"`        // Command is the query itself
-	DB       string   `json:"db,omitempty"` // DB is optional and if empty will not be used.
-	RP       string   `json:"rp,omitempty"` // RP is a retention policy and optional; if empty will not be used.
-	Wheres   []string `json:"wheres"`       // Wheres restricts the query to certain attributes
-	GroupBys []string `json:"groupbys"`     // GroupBys collate the query by these tags
+	Command  string   `json:"query"`              // Command is the query itself
+	DB       string   `json:"db,omitempty"`       // DB is optional and if empty will not be used.
+	RP       string   `json:"rp,omitempty"`       // RP is a retention policy and optional; if empty will not be used.
+	Wheres   []string `json:"wheres,omitempty"`   // Wheres restricts the query to certain attributes
+	GroupBys []string `json:"groupbys,omitempty"` // GroupBys collate the query by these tags
+	Label    string   `json:"label,omitempty"`    // Label is the Y-Axis label for the data
+	Range    *Range   `json:"range,omitempty"`    // Range is the default Y-Axis range for the data
 }
 
 // Response is the result of a query against a TimeSeries
@@ -245,15 +253,13 @@ type ExplorationStore interface {
 
 // Cell is a rectangle and multiple time series queries to visualize.
 type Cell struct {
-	X       int32    `json:"x"`
-	Y       int32    `json:"y"`
-	W       int32    `json:"w"`
-	H       int32    `json:"h"`
-	I       string   `json:"i"`
-	YRanges []int64  `json:"yranges"` // YRanges are the initial limits of the y-axes
-	YLabels []string `json:"ylabels"` // YLabels are the labels of the y-axes (possible to have more than one)
-	Name    string   `json:"name"`
-	Queries []Query  `json:"queries"`
+	X       int32   `json:"x"`
+	Y       int32   `json:"y"`
+	W       int32   `json:"w"`
+	H       int32   `json:"h"`
+	I       string  `json:"i"`
+	Name    string  `json:"name"`
+	Queries []Query `json:"queries"`
 }
 
 // Layout is a collection of Cells for visualization

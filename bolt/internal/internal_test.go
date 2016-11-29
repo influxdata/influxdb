@@ -79,16 +79,19 @@ func TestMarshalLayout(t *testing.T) {
 		Application: "app",
 		Cells: []chronograf.Cell{
 			{
-				X:       1,
-				Y:       1,
-				W:       4,
-				H:       4,
-				I:       "anotherid",
-				YRanges: []int64{1, 2},
-				YLabels: []string{"y1", "y2"},
-				Name:    "cell1",
+				X:    1,
+				Y:    1,
+				W:    4,
+				H:    4,
+				I:    "anotherid",
+				Name: "cell1",
 				Queries: []chronograf.Query{
 					{
+						Range: &chronograf.Range{
+							Lower: 1,
+							Upper: 2,
+						},
+						Label:   "y1",
 						Command: "select mean(usage_user) as usage_user from cpu",
 						Wheres: []string{
 							`"host"="myhost"`,
