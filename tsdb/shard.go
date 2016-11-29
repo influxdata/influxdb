@@ -109,9 +109,18 @@ type Shard struct {
 
 	options EngineOptions
 
-	mu      sync.RWMutex
-	engine  Engine
-	index   Index
+	mu     sync.RWMutex
+	engine Engine
+	index  Index
+
+	// TODO(edd): I can't think of a better way of doing this for the moment.
+	// We need to be able to get the series cardinality for an entire DB so that
+	// we can check if we can add a new series or if we're going to go over the
+	// series-per-db limit. However, it's not simple to move this check out of
+	// the shard because we need to check every time we add a single series,
+	// rather than a batch of points.
+	dbSeriesCardinality func() (int64, error)
+
 	closing chan struct{}
 	enabled bool
 
@@ -201,7 +210,10 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 		return nil
 	}
 
-	seriesN, err := s.engine.SeriesN()
+	// TODO(edd): Should statSeriesCreate be the current number of series in the
+	// shard, or the total number of series ever created?
+	sSketch, tSketch, err := s.engine.SeriesSketches()
+	seriesN := int64(sSketch.Count() - tSketch.Count())
 	if err != nil {
 		s.logger.Print(err)
 		seriesN = 0
@@ -215,7 +227,7 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 			statWriteReq:       atomic.LoadInt64(&s.stats.WriteReq),
 			statWriteReqOK:     atomic.LoadInt64(&s.stats.WriteReqOK),
 			statWriteReqErr:    atomic.LoadInt64(&s.stats.WriteReqErr),
-			statSeriesCreate:   int64(seriesN),
+			statSeriesCreate:   seriesN,
 			statFieldsCreate:   atomic.LoadInt64(&s.stats.FieldsCreated),
 			statWritePointsErr: atomic.LoadInt64(&s.stats.WritePointsErr),
 			statWritePointsOK:  atomic.LoadInt64(&s.stats.WritePointsOK),
@@ -558,13 +570,19 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 
 		iter.Reset()
 
+		// TODO(edd): we need to use the fast-series-check to determine if
+		// adding the series would send us over the limit for the shard.
+		//
+		// Replace false with the predicate that determines if p.Key() already
+		// exists in the shard.
+		if s.options.Config.MaxSeriesPerShard > 0 && false && s.engine.SeriesN()+1 > int64(s.options.Config.MaxSeriesPerShard) {
+			atomic.AddInt64(&s.stats.WritePointsDropped, 1)
+			dropped++
+			reason = fmt.Sprintf("max-series-per-shard limit (%d) will be exceeded: db=%s, shard=%d", s.options.Config.MaxSeriesPerShard, s.database, s.id)
+			continue
+		}
+
 		if err := s.engine.CreateSeriesIfNotExists(p.Key(), []byte(p.Name()), tags); err != nil {
-			if err, ok := err.(*LimitError); ok {
-				atomic.AddInt64(&s.stats.WritePointsDropped, 1)
-				dropped += 1
-				reason = fmt.Sprintf("db=%s: %s", s.database, err.Reason)
-				continue
-			}
 			return nil, nil, err
 		}
 
@@ -640,14 +658,6 @@ func (s *Shard) MeasurementNamesByExpr(cond influxql.Expr) ([][]byte, error) {
 // MeasurementFields returns fields for a measurement.
 func (s *Shard) MeasurementFields(name []byte) *MeasurementFields {
 	return s.engine.MeasurementFields(string(name))
-}
-
-// SeriesN returns the exact number of series in the shard.
-func (s *Shard) SeriesN() (uint64, error) {
-	if err := s.ready(); err != nil {
-		return 0, err
-	}
-	return s.engine.SeriesN()
 }
 
 // WriteTo writes the shard's data to w.

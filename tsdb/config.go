@@ -40,8 +40,8 @@ const (
 	// block in a TSM file
 	DefaultMaxPointsPerBlock = 1000
 
-	// DefaultMaxSeriesPerDatabase is the maximum number of series a node can hold per database.
-	DefaultMaxSeriesPerDatabase = 1000000
+	// DefaultMaxSeriesPerShard is the maximum number of series a node can hold per shard.
+	DefaultMaxSeriesPerShard = 100000
 
 	// DefaultMaxValuesPerTag is the maximum number of values a tag can have within a measurement.
 	DefaultMaxValuesPerTag = 100000
@@ -67,10 +67,10 @@ type Config struct {
 
 	// Limits
 
-	// MaxSeriesPerDatabase is the maximum number of series a node can hold per database.
-	// When this limit is exceeded, writes return a 'max series per database exceeded' error.
+	// MaxSeriesPerShard is the maximum number of series a node can hold per shard.
+	// When this limit is exceeded, writes return a 'max series per shard exceeded' error.
 	// A value of 0 disables the limit.
-	MaxSeriesPerDatabase int `toml:"max-series-per-database"`
+	MaxSeriesPerShard int `toml:"max-series-per-shard"`
 
 	// MaxValuesPerTag is the maximum number of tag values a single tag key can have within
 	// a measurement.  When the limit is execeeded, writes return an error.
@@ -93,8 +93,8 @@ func NewConfig() Config {
 		CacheSnapshotWriteColdDuration: toml.Duration(DefaultCacheSnapshotWriteColdDuration),
 		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
 
-		MaxSeriesPerDatabase: DefaultMaxSeriesPerDatabase,
-		MaxValuesPerTag:      DefaultMaxValuesPerTag,
+		MaxSeriesPerShard: DefaultMaxSeriesPerShard,
+		MaxValuesPerTag:   DefaultMaxValuesPerTag,
 
 		TraceLoggingEnabled: false,
 	}

@@ -22,11 +22,6 @@ var ErrSeriesOverflow = errors.New("series overflow")
 // Series list field size constants.
 const (
 	// Series list trailer field sizes.
-	TermListOffsetSize   = 8
-	TermListSizeSize     = 8
-	SeriesDataOffsetSize = 8
-	SeriesDataSizeSize   = 8
-
 	SeriesBlockTrailerSize = 0 +
 		8 + 8 + // term data offset/size
 		8 + 8 + // series data offset/size
@@ -34,6 +29,7 @@ const (
 		8 + 8 + // series index offset/size
 		8 + 8 + // series sketch offset/size
 		8 + 8 + // tombstone series sketch offset/size
+		8 + 8 + // series count and tombstone count
 		0
 
 	// Other field sizes
@@ -62,6 +58,10 @@ type SeriesBlock struct {
 	seriesData   []byte
 	seriesIndex  []byte
 	seriesIndexN uint32
+
+	// Series counts.
+	seriesN    int64
+	tombstoneN int64
 
 	// Series block sketch and tombstone sketch for cardinality
 	// estimation.
@@ -338,6 +338,9 @@ func (blk *SeriesBlock) UnmarshalBinary(data []byte) error {
 	}
 	blk.tsketch = ts
 
+	// Set the series and tombstone counts
+	blk.seriesN, blk.tombstoneN = t.SeriesN, t.TombstoneN
+
 	return nil
 }
 
@@ -469,6 +472,13 @@ func (sw *SeriesBlockWriter) append(name []byte, tags models.Tags, deleted bool)
 // WriteTo computes the dictionary encoding of the series and writes to w.
 func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	var t SeriesBlockTrailer
+	for _, s := range sw.series {
+		if s.deleted {
+			t.TombstoneN++
+		} else {
+			t.SeriesN++
+		}
+	}
 
 	// The sketches must be set before calling WriteTo.
 	if sw.sketch == nil {
@@ -772,6 +782,9 @@ type SeriesBlockTrailer struct {
 		Offset int64
 		Size   int64
 	}
+
+	SeriesN    int64
+	TombstoneN int64
 }
 
 func (t SeriesBlockTrailer) WriteTo(w io.Writer) (n int64, err error) {
@@ -799,7 +812,7 @@ func (t SeriesBlockTrailer) WriteTo(w io.Writer) (n int64, err error) {
 		return n, err
 	}
 
-	// Write measurement sketch info.s
+	// Write measurement sketch info.
 	if err := writeUint64To(w, uint64(t.Sketch.Offset), &n); err != nil {
 		return n, err
 	} else if err := writeUint64To(w, uint64(t.Sketch.Size), &n); err != nil {
@@ -812,7 +825,12 @@ func (t SeriesBlockTrailer) WriteTo(w io.Writer) (n int64, err error) {
 	} else if err := writeUint64To(w, uint64(t.TSketch.Size), &n); err != nil {
 		return n, err
 	}
-	return n, nil
+
+	// Write series and tombstone count.
+	if err := writeUint64To(w, uint64(t.SeriesN), &n); err != nil {
+		return n, err
+	}
+	return n, writeUint64To(w, uint64(t.TombstoneN), &n)
 }
 
 type serie struct {
