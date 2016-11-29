@@ -41,10 +41,10 @@ func (e *Emitter) Close() error {
 }
 
 // Emit returns the next row from the iterators.
-func (e *Emitter) Emit() (*models.Row, error) {
+func (e *Emitter) Emit() (*models.Row, bool, error) {
 	// Immediately end emission if there are no iterators.
 	if len(e.itrs) == 0 {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	// Continually read from iterators until they are exhausted.
@@ -52,11 +52,11 @@ func (e *Emitter) Emit() (*models.Row, error) {
 		// Fill buffer. Return row if no more points remain.
 		t, name, tags, err := e.loadBuf()
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		} else if t == ZeroTime {
 			row := e.row
 			e.row = nil
-			return row, nil
+			return row, false, nil
 		}
 
 		// Read next set of values from all iterators at a given time/name/tags.
@@ -65,7 +65,7 @@ func (e *Emitter) Emit() (*models.Row, error) {
 		if values == nil {
 			row := e.row
 			e.row = nil
-			return row, nil
+			return row, false, nil
 		}
 
 		// If there's no row yet then create one.
@@ -74,12 +74,18 @@ func (e *Emitter) Emit() (*models.Row, error) {
 		// Otherwise return existing row and add values to next emitted row.
 		if e.row == nil {
 			e.createRow(name, tags, values)
-		} else if e.row.Name == name && e.tags.Equals(&tags) && (e.chunkSize <= 0 || len(e.row.Values) < e.chunkSize) {
+		} else if e.row.Name == name && e.tags.Equals(&tags) {
+			if e.chunkSize > 0 && len(e.row.Values) >= e.chunkSize {
+				row := e.row
+				row.Partial = true
+				e.createRow(name, tags, values)
+				return row, true, nil
+			}
 			e.row.Values = append(e.row.Values, values)
 		} else {
 			row := e.row
 			e.createRow(name, tags, values)
-			return row, nil
+			return row, true, nil
 		}
 	}
 }
