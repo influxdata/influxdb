@@ -238,43 +238,6 @@ body {
   }
 }
 
-.minimal-dropdown {
-  .dropdown-toggle {
-    font-size: 20px;
-    font-weight: 400;
-    background-color: transparent;
-    border: none;
-
-    &:hover {
-      .button-text {
-        color: $g10-wolf;
-      }
-      .caret {
-        color: $g10-wolf;
-      }
-    }
-  }
-  .button-text,
-  .caret {
-    display: inline-block;
-    vertical-align: middle;
-  }
-  .button-text {
-    transition: color 0.25s ease;
-  }
-  .caret {
-    transition: color 0.25s ease;
-  }
-  &.open {
-    .button-text {
-      color: $g10-wolf;
-    }
-    .caret {
-      color: $g10-wolf;
-    }
-  }
-}
-
 /*
     Unsorted
     ----------------------------------------------
@@ -300,20 +263,6 @@ body {
 .main {
   margin-top: 60px;
 }
-.fake-panel-title {
-  margin-top: 25px;
-  margin-bottom: 25px;
-  &.match-search {
-    padding-top: 7px;
-    padding-bottom: 7px;
-  }
-}
-.modal#dbModal {
-  .modal-body {
-    width: 100%;
-    display: inline-block;
-  }
-}
 .btn-block.dropdown-toggle {
   text-align: left;
   position: relative;
@@ -329,9 +278,6 @@ body {
     width: 100%;
   }
 }
-.pointer {
-  cursor: pointer;
-}
 .modal {
   form {
     padding: 0;
@@ -346,146 +292,6 @@ body {
       padding-top: 15px;
     }
   }
-}
-#accordion {
-  .panel-heading {
-    color: gray;
-    align-items: center;
-
-    .progress {
-      width: 200px;
-      margin: 0 20px;
-    }
-  }
-}
-
-.continuous-queries {
-  h1, h2, h3, h4, h5, h6 {
-    padding-bottom: 10px;
-    border-bottom: 1px solid whitesmoke;
-  }
-  pre code {
-    white-space: normal;
-  }
-
-  &__empty {
-    text-align: center;
-    padding: 60px 0;
-    color: $g15-platinum;
-
-    h1, h2, h3, h4, h5, h6 {
-      padding-bottom: 0;
-      border-bottom: none;
-      font-weight: 400;
-    }
-
-    img {
-      width: 100px;
-      height: auto;
-      margin-bottom: 30px;
-    }
-  }
-}
-
-.product-buttons {
-  margin-bottom: 20px;
-}
-
-
-
-$telegraf: #f95f53;
-$influxdb: #4591ED;
-$kapacitor: #4ED8A0;
-$chronograf: #C557FF;
-
-.influxdb-bg {
-  background-color: $influxdb;
-}
-
-.telegraf-bg {
-  background-color: $telegraf;
-}
-
-.chronograf-bg {
-  background-color: $chronograf;
-}
-
-.kapacitor-bg {
-  background-color: $kapacitor;
-}
-
-.btn-telegraf {
-  @extend .telegraf-bg;
-
-  &.inactive {
-    background-color: lighten($telegraf, 25%);
-    color: #000000;
-  }
-}
-
-.btn-influxdb {
-  @extend .influxdb-bg;
-
-  &.inactive {
-    background-color: lighten($influxdb, 25%);
-    color: #000000;
-  }
-}
-
-.btn-chronograf {
-  @extend .chronograf-bg;
-
-  &.inactive {
-    background-color: lighten($chronograf, 25%);
-    color: #000000;
-  }
-}
-
-.btn-kapacitor {
-  @extend .kapacitor-bg;
-
-  &.inactive {
-    background-color: lighten($kapacitor, 25%);
-    color: #000000;
-  }
-}
-
-.pinger {
-  color: #fff;
-}
-
-.ping-pending {
-  color: yellow;
-  animation: blinker 1s linear infinite;
-}
-
-.ping-success {
-  color: green;
-}
-
-.ping-failure {
-  color: red;
-}
-
-@keyframes blinker {
-  50% {
-    opacity: 0.0;
-  }
-}
-
-.profile-info {
-  color: #fff;
-  text-align: right;
-}
-
-a {
-  &.btn {
-    color: #fff;
-  }
-}
-
-.caret {
-  cursor: pointer;
 }
 
 /*
