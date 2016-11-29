@@ -81,3 +81,28 @@ export function getAppsForHosts(proxyLink, hosts, appMappings, telegrafDB) {
     return newHosts;
   });
 }
+
+export function getMeasurementsForHost(source, host) {
+  return proxy({
+    source: source.links.proxy,
+    query: `SHOW MEASUREMENTS WHERE "host" = '${host}'`,
+    db: source.telegraf,
+  }).then(({data}) => {
+    if (_isEmpty(data) || _hasError(data)) {
+      return [];
+    }
+
+    const series = data.results[0].series[0];
+    return series.values.map((measurement) => {
+      return measurement[0];
+    });
+  });
+}
+
+function _isEmpty(resp) {
+  return !resp.results[0].series;
+}
+
+function _hasError(resp) {
+  return !!resp.results[0].error;
+}
