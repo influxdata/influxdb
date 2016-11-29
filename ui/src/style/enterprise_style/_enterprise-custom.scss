@@ -10,7 +10,8 @@ body {
   position: absolute;
   align-items: stretch;
   /* Ensures sidebar and page-wrapper go full-height */
-  overflow: auto; /* plz halp alex I need this 4 the signup pages */
+  overflow: hidden;
+  background-color: $g0-obsidian;
 }
 
 /*
@@ -19,6 +20,11 @@ body {
 */
 body > #react-root {
   width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+
   .container {
     margin-top: 60px;
   }
