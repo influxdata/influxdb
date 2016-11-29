@@ -309,7 +309,8 @@ func (cmd *Command) unpackTar(tarFile string) error {
 
 // unpackFile will copy the current file from the tar archive to the data dir
 func (cmd *Command) unpackFile(tr *tar.Reader, fileName string) error {
-	fn := filepath.Join(cmd.datadir, fileName)
+	nativeFileName := filepath.FromSlash(fileName)
+	fn := filepath.Join(cmd.datadir, nativeFileName)
 	fmt.Printf("unpacking %s\n", fn)
 
 	if err := os.MkdirAll(filepath.Dir(fn), 0777); err != nil {

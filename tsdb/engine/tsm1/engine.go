@@ -540,7 +540,7 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 // in their names. This should be the <db>/<retention policy>/<id> part of the path
 func (e *Engine) writeFileToBackup(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error {
 	h := &tar.Header{
-		Name:    filepath.Join(shardRelativePath, f.Name()),
+		Name:    filepath.ToSlash(filepath.Join(shardRelativePath, f.Name())),
 		ModTime: f.ModTime(),
 		Size:    f.Size(),
 		Mode:    int64(f.Mode()),
@@ -595,11 +595,13 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string) er
 		return err
 	}
 
+	nativeFileName := filepath.FromSlash(hdr.Name)
+
 	// Skip file if it does not have a matching prefix.
-	if !filepath.HasPrefix(hdr.Name, shardRelativePath) {
+	if !filepath.HasPrefix(nativeFileName, shardRelativePath) {
 		return nil
 	}
-	path, err := filepath.Rel(shardRelativePath, hdr.Name)
+	path, err := filepath.Rel(shardRelativePath, nativeFileName)
 	if err != nil {
 		return err
 	}
