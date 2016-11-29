@@ -82,58 +82,60 @@ export const SourceForm = React.createClass({
     }
 
     return (
-      <div id="source-form-page">
-        <div className="chronograf-header">
-          <div className="chronograf-header__container">
-            <div className="chronograf-header__left">
+      <div className="page" id="source-form-page">
+        <div className="page-header">
+          <div className="page-header__container">
+            <div className="page-header__left">
               <h1>
                 {editMode ? "Edit Source" : "Add a New Source"}
               </h1>
             </div>
           </div>
         </div>
-        <div className="container-fluid">
-          <div className="row">
-            <div className="col-md-8 col-md-offset-2">
-              <div className="panel panel-summer">
-                <div className="panel-body">
-                  <h4 className="text-center">Connection Details</h4>
-                  <br/>
+        <div className="page-contents">
+          <div className="container-fluid">
+            <div className="row">
+              <div className="col-md-8 col-md-offset-2">
+                <div className="panel panel-summer">
+                  <div className="panel-body">
+                    <h4 className="text-center">Connection Details</h4>
+                    <br/>
 
-                  <form onSubmit={this.handleSubmit}>
-                    <div>
-                      <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
-                        <label htmlFor="connect-string">Connection String</label>
-                        <input type="text" name="url" ref={(r) => this.sourceURL = r} className="form-control" id="connect-string" placeholder="http://localhost:8086" onChange={this.onInputChange} value={source.url || ''}></input>
-                      </div>
-                      <div className="form-group col-xs-6 col-sm-4">
-                        <label htmlFor="name">Name</label>
-                        <input type="text" name="name" ref={(r) => this.sourceName = r} className="form-control" id="name" placeholder="Influx 1" onChange={this.onInputChange} value={source.name || ''}></input>
-                      </div>
-                      <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
-                        <label htmlFor="username">Username</label>
-                        <input type="text" name="username" ref={(r) => this.sourceUsername = r} className="form-control" id="username" onChange={this.onInputChange} value={source.username || ''}></input>
-                      </div>
-                      <div className="form-group col-xs-6 col-sm-4">
-                        <label htmlFor="password">Password</label>
-                        <input type="password" name="password" ref={(r) => this.sourcePassword = r} className="form-control" id="password" onChange={this.onInputChange} value={source.password || ''}></input>
-                      </div>
-                      <div className="form-group col-xs-8 col-xs-offset-2">
-                        <label htmlFor="telegraf">Telegraf database</label>
-                        <input type="text" name="telegraf" ref={(r) => this.sourceTelegraf = r} className="form-control" id="telegraf" onChange={this.onInputChange} value={source.telegraf || 'telegraf'}></input>
-                      </div>
-                      <div className="form-group col-xs-8 col-xs-offset-2">
-                        <div className="form-control-static">
-                          <input type="checkbox" id="defaultSourceCheckbox" defaultChecked={source.default} ref={(r) => this.sourceDefault = r} />
-                          <label htmlFor="defaultSourceCheckbox">Make this the default source</label>
+                    <form onSubmit={this.handleSubmit}>
+                      <div>
+                        <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
+                          <label htmlFor="connect-string">Connection String</label>
+                          <input type="text" name="url" ref={(r) => this.sourceURL = r} className="form-control" id="connect-string" placeholder="http://localhost:8086" onChange={this.onInputChange} value={source.url || ''}></input>
+                        </div>
+                        <div className="form-group col-xs-6 col-sm-4">
+                          <label htmlFor="name">Name</label>
+                          <input type="text" name="name" ref={(r) => this.sourceName = r} className="form-control" id="name" placeholder="Influx 1" onChange={this.onInputChange} value={source.name || ''}></input>
+                        </div>
+                        <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
+                          <label htmlFor="username">Username</label>
+                          <input type="text" name="username" ref={(r) => this.sourceUsername = r} className="form-control" id="username" onChange={this.onInputChange} value={source.username || ''}></input>
+                        </div>
+                        <div className="form-group col-xs-6 col-sm-4">
+                          <label htmlFor="password">Password</label>
+                          <input type="password" name="password" ref={(r) => this.sourcePassword = r} className="form-control" id="password" onChange={this.onInputChange} value={source.password || ''}></input>
+                        </div>
+                        <div className="form-group col-xs-8 col-xs-offset-2">
+                          <label htmlFor="telegraf">Telegraf database</label>
+                          <input type="text" name="telegraf" ref={(r) => this.sourceTelegraf = r} className="form-control" id="telegraf" onChange={this.onInputChange} value={source.telegraf || 'telegraf'}></input>
+                        </div>
+                        <div className="form-group col-xs-8 col-xs-offset-2">
+                          <div className="form-control-static">
+                            <input type="checkbox" id="defaultSourceCheckbox" defaultChecked={source.default} ref={(r) => this.sourceDefault = r} />
+                            <label htmlFor="defaultSourceCheckbox">Make this the default source</label>
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="form-group col-xs-4 col-xs-offset-4">
-                      <button className={classNames('btn btn-block', {'btn-primary': editMode, 'btn-success': !editMode})} type="submit">{editMode ? "Save Changes" : "Add Source"}</button>
-                    </div>
-                  </form>
+                      <div className="form-group col-xs-4 col-xs-offset-4">
+                        <button className={classNames('btn btn-block', {'btn-primary': editMode, 'btn-success': !editMode})} type="submit">{editMode ? "Save Changes" : "Add Source"}</button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
               </div>
             </div>

@@ -97,20 +97,20 @@ export const HostPage = React.createClass({
     const {layouts, timeRange} = this.state;
 
     return (
-      <div className="host-dashboard hosts-page">
-        <div className="chronograf-header hosts-dashboard-header">
-          <div className="chronograf-header__container">
-            <div className="chronograf-header__left">
+      <div className="page">
+        <div className="page-header full-width">
+          <div className="page-header__container">
+            <div className="page-header__left">
               <h1>{hostID}</h1>
             </div>
-            <div className="chronograf-header__right">
+            <div className="page-header__right">
               <h1>Range:</h1>
               <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={timeRange.inputValue} />
             </div>
           </div>
         </div>
-        <div className="hosts-page-scroll-container">
-          <div className="container-fluid hosts-dashboard">
+        <div className="page-contents">
+          <div className="container-fluid full-width">
             { (layouts.length > 0) ? this.renderLayouts(layouts) : '' }
           </div>
         </div>

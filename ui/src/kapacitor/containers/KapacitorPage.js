@@ -117,61 +117,62 @@ export const KapacitorPage = React.createClass({
     const username = newUsername === undefined ? kapacitor && kapacitor.username || '' : newUsername;
 
     return (
-      <div className="kapacitor">
-        <div className="chronograf-header">
-          <div className="chronograf-header__container">
-            <div className="chronograf-header__left">
+      <div className="page">
+        <div className="page-header">
+          <div className="page-header__container">
+            <div className="page-header__left">
               <h1>
                 Configure Kapacitor
               </h1>
             </div>
           </div>
         </div>
+        <div className="page-contents">
+          <div className="container-fluid">
+            <div className="row">
+              <div className="col-md-8 col-md-offset-2">
+                <div className="panel panel-minimal">
+                  <div className="panel-body">
+                    <p>
+                      Kapacitor is used as the monitoring and alerting agent.
+                      This page will let you configure which Kapacitor to use and
+                      set up alert end points like email, Slack, and others.
+                    </p>
+                    <hr/>
+                    <h4 className="text-center">Connection Details</h4>
+                    <br/>
+                    <form onSubmit={this.handleKapacitorUpdate}>
+                      <div>
+                        <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
+                          <label htmlFor="connect-string">Connection String</label>
+                          <input ref={(r) => this.kapacitorURL = r} className="form-control" id="connect-string" placeholder="http://localhost:9092" value={url} onChange={this.updateURL}></input>
+                        </div>
+                        <div className="form-group col-xs-6 col-sm-4">
+                          <label htmlFor="name">Name</label>
+                          <input ref={(r) => this.kapacitorName = r} className="form-control" id="name" placeholder="My Kapacitor" value={name} onChange={this.updateName}></input>
+                        </div>
+                        <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
+                          <label htmlFor="username">Username</label>
+                          <input ref={(r) => this.kapacitorUser = r} className="form-control" id="username" value={username} onChange={this.updateUsername}></input>
+                        </div>
+                        <div className="form-group col-xs-6 col-sm-4">
+                          <label htmlFor="password">Password</label>
+                          <input ref={(r) => this.kapacitorPassword = r} className="form-control" id="password" type="password"></input>
+                        </div>
+                      </div>
 
-        <div className="container-fluid">
-          <div className="row">
-            <div className="col-md-8 col-md-offset-2">
-              <div className="panel panel-minimal">
-                <div className="panel-body">
-                  <p>
-                    Kapacitor is used as the monitoring and alerting agent.
-                    This page will let you configure which Kapacitor to use and
-                    set up alert end points like email, Slack, and others.
-                  </p>
-                  <hr/>
-                  <h4 className="text-center">Connection Details</h4>
-                  <br/>
-                  <form onSubmit={this.handleKapacitorUpdate}>
-                    <div>
-                      <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
-                        <label htmlFor="connect-string">Connection String</label>
-                        <input ref={(r) => this.kapacitorURL = r} className="form-control" id="connect-string" placeholder="http://localhost:9092" value={url} onChange={this.updateURL}></input>
+                      <div className="form-group col-xs-4 col-xs-offset-4">
+                        <button className="btn btn-block btn-success" type="submit">Connect Kapacitor</button>
                       </div>
-                      <div className="form-group col-xs-6 col-sm-4">
-                        <label htmlFor="name">Name</label>
-                        <input ref={(r) => this.kapacitorName = r} className="form-control" id="name" placeholder="My Kapacitor" value={name} onChange={this.updateName}></input>
-                      </div>
-                      <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
-                        <label htmlFor="username">Username</label>
-                        <input ref={(r) => this.kapacitorUser = r} className="form-control" id="username" value={username} onChange={this.updateUsername}></input>
-                      </div>
-                      <div className="form-group col-xs-6 col-sm-4">
-                        <label htmlFor="password">Password</label>
-                        <input ref={(r) => this.kapacitorPassword = r} className="form-control" id="password" type="password"></input>
-                      </div>
-                    </div>
-
-                    <div className="form-group col-xs-4 col-xs-offset-4">
-                      <button className="btn btn-block btn-success" type="submit">Connect Kapacitor</button>
-                    </div>
-                  </form>
+                    </form>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-          <div className="row">
-            <div className="col-md-8 col-md-offset-2">
-              {this.renderAlertOutputs()}
+            <div className="row">
+              <div className="col-md-8 col-md-offset-2">
+                {this.renderAlertOutputs()}
+              </div>
             </div>
           </div>
         </div>

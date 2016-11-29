@@ -44,12 +44,12 @@ export const RuleHeader = React.createClass({
 
   render() {
     return (
-      <div className="chronograf-header">
-        <div className="chronograf-header__container">
-          <div className="chronograf-header__left">
+      <div className="page-header">
+        <div className="page-header__container">
+          <div className="page-header__left">
             {this.renderEditName()}
           </div>
-          <div className="chronograf-header__right">
+          <div className="page-header__right">
             {this.renderSave()}
           </div>
         </div>

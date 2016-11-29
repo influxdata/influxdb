@@ -30,14 +30,14 @@ export const KapacitorRule = React.createClass({
     const {chooseTrigger, updateRuleValues} = kapacitorActions;
 
     return (
-      <div className="kapacitor-rule-page">
+      <div className="page">
         <RuleHeader
           rule={rule}
           actions={kapacitorActions}
           onSave={isEditing ? this.handleEdit : this.handleCreate}
           validationError={this.validationError()}
         />
-        <div className="rule-builder-wrapper">
+        <div className="page-contents">
           <div className="container-fluid">
             <div className="row">
               <div className="col-xs-12">
