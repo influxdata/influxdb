@@ -32,7 +32,7 @@
     @include custom-scrollbar($g2-kevlar,$c-pool);
 
     .container-fluid {
-      padding-bottom: $chronograf-page-header-height;
+      padding-bottom: ($chronograf-page-header-height / 2);
     }
   }
 
@@ -138,6 +138,8 @@
 }
 .hosts-dashboard {
   max-width: 100%;
+  padding-top: 30px;
+  padding-bottom: 30px;
 }
 .graph-panel__graph-container.hosts-graph {
   padding: 8px 16px;
@@ -147,7 +149,7 @@
   width: 100%;
   margin: 0;
   background-color: $g3-castle;
-  padding: 8px 16px;
+  padding: 14px 16px 2px 16px;
   font-weight: 600;
   font-size: 13px;
   color: $g14-chromium;
