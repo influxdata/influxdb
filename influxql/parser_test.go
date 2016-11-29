@@ -2806,7 +2806,7 @@ func TestQuoteIdent(t *testing.T) {
 		ident []string
 		s     string
 	}{
-		{[]string{``}, ``},
+		{[]string{``}, `""`},
 		{[]string{`select`}, `"select"`},
 		{[]string{`in-bytes`}, `"in-bytes"`},
 		{[]string{`foo`, `bar`}, `"foo".bar`},
