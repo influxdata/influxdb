@@ -4,7 +4,6 @@ import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 import {getMappings, getAppsForHosts, getMeasurementsForHost} from 'src/hosts/apis';
 import {fetchLayouts} from 'shared/apis';
-import _ from 'lodash';
 
 export const HostPage = React.createClass({
   propTypes: {
@@ -68,38 +67,28 @@ export const HostPage = React.createClass({
     const {timeRange} = this.state;
     const {source} = this.props;
 
-    const autoflowLayouts = _.remove(layouts, (layout) => {
-      return layout.autoflow === true;
-    });
-    let autoflowCells = [];
+    const autoflowLayouts = layouts.filter((layout) => !!layout.autoflow);
 
     const cellWidth = 4;
     const cellHeight = 4;
     const pageWidth = 12;
 
-    autoflowLayouts.forEach((layout, i) => {
-      layout.cells.forEach((cell, j) => {
-        cell.w = cellWidth;
-        cell.h = cellHeight;
-        cell.x = ((i + j) * cellWidth % pageWidth);
-        cell.y = Math.floor(((i + j) * cellWidth / pageWidth)) * cellHeight;
-        autoflowCells = autoflowCells.concat(cell);
-      });
-    });
+    const autoflowCells = autoflowLayouts.reduce((allCells, layout, i) => {
+      return allCells.concat(layout.cells.map((cell, j) => {
+        return Object.assign(cell, {
+          w: cellWidth,
+          h: cellHeight,
+          x: ((i + j) * cellWidth % pageWidth),
+          y: Math.floor(((i + j) * cellWidth / pageWidth)) * cellHeight,
+        });
+      }));
+    }, []);
 
-    const autoflowLayout = {
-      cells: autoflowCells,
-      autoflow: false,
-    };
+    const staticLayouts = layouts.filter((layout) => !layout.autoflow);
+    staticLayouts.unshift({cells: autoflowCells});
 
-    const staticLayouts = _.remove(layouts, (layout) => {
-      return layout.autoflow === false;
-    });
-    staticLayouts.unshift(autoflowLayout);
-
-    let layoutCells = [];
     let translateY = 0;
-    staticLayouts.forEach((layout) => {
+    const layoutCells = staticLayouts.reduce((allCells, layout) => {
       let maxY = 0;
       layout.cells.forEach((cell) => {
         cell.y += translateY;
@@ -113,9 +102,8 @@ export const HostPage = React.createClass({
       });
       translateY = maxY;
 
-      layoutCells = layoutCells.concat(layout.cells);
-    });
-
+      return allCells.concat(layout.cells);
+    }, []);
 
     return (
       <LayoutRenderer
