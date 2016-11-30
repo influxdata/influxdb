@@ -56,6 +56,13 @@ body {
   overflow-y: scroll;
   @include custom-scrollbar($g2-kevlar,$c-pool);
   @include gradient-v($g2-kevlar,$g0-obsidian);
+
+  &--green-scrollbar {
+    @include custom-scrollbar($g2-kevlar,$c-rainforest);
+  }
+  &--purple-scrollbar {
+    @include custom-scrollbar($g2-kevlar,$c-comet);
+  }
 }
 .container-fluid {
   padding: ($chronograf-page-header-height / 2) $page-wrapper-padding ($chronograf-page-header-height / 2) $page-wrapper-padding;
