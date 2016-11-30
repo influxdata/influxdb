@@ -2,6 +2,7 @@
   "id": "f3bec493-0bc1-49d5-a40a-a09bd5cfb60c",
   "measurement": "consul_health_checks",
   "app": "consul",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

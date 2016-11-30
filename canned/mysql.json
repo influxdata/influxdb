@@ -2,6 +2,7 @@
   "id": "c1aa88c7-a047-4b52-85c4-0eec21b357ef",
   "measurement": "mysql",
   "app": "mysql",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

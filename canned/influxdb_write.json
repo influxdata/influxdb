@@ -2,6 +2,7 @@
   "id": "74fe93bf-14d6-40d4-af8f-335554f4acf3",
   "measurement": "influxdb_write",
   "app": "influxdb",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

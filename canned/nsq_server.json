@@ -2,6 +2,7 @@
   "id": "6c351881-05ec-48f1-b11b-9c36d2c7cc80",
   "measurement": "nsq_server",
   "app": "nsq",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

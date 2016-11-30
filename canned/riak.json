@@ -2,6 +2,7 @@
   "id": "f56fd522-3e9c-492d-88fe-34e05d6d2462",
   "measurement": "riak",
   "app": "riak",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

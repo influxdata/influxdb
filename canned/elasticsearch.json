@@ -2,6 +2,7 @@
   "id": "1f3ac9d0-bfb3-4e13-91a6-8949f7643ee9",
   "measurement": "elasticsearch_indices",
   "app": "elasticsearch",
+  "autoflow": false,
   "cells": [
     {
       "x": 0,

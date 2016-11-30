@@ -2,6 +2,7 @@
   "id": "b805d661-e5a3-45e4-af18-de0e9360e6e7",
   "measurement": "nginx",
   "app": "nginx",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

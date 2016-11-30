@@ -2,6 +2,7 @@
   "id": "e0d70dc9-538a-4b29-8d27-4a76d5fc8a09",
   "measurement": "influxdb_httpd",
   "app": "influxdb",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

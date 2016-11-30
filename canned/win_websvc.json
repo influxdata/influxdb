@@ -2,6 +2,7 @@
   "id": "c7644755-505d-46f0-b278-5c29268293b2",
   "measurement": "win_websvc",
   "app": "iis",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

@@ -2,6 +2,7 @@
   "id": "45c064fd-ebf7-45a1-bf8d-f53746d38a03",
   "measurement": "haproxy",
   "app": "haproxy",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,
