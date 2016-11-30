@@ -107,6 +107,10 @@
   > li {
     width: 100%;
     font-size: 0px;
+
+    &:hover {
+      @include gradient-h($c-laser,$c-pool);
+    }
   }
   > li > a {
     width: 100%;
@@ -123,7 +127,7 @@
 
     &:hover {
       cursor: pointer;
-      @include gradient-h($c-laser,$c-pool);
+      background-color: transparent;
       color: $g20-white !important;
     }
   }
@@ -138,11 +142,13 @@
   @include custom-scrollbar($c-rainforest,$c-honeydew);
   @include gradient-h($c-pool,$c-rainforest);
 
+  > li:hover {
+    @include gradient-h($c-laser,$c-rainforest);
+  }
   > li > a {
     color: $c-mint !important;
     &:hover {
       color: $g20-white !important;
-      @include gradient-h($c-laser,$c-rainforest);
     }
   }
 }
@@ -150,11 +156,13 @@
   @include custom-scrollbar($c-comet,$c-potassium);
   @include gradient-h($c-ocean,$c-comet);
 
+  > li:hover {
+    @include gradient-h($c-laser,$c-comet);
+  }
   > li > a {
     color: $c-cremedeviolette !important;
     &:hover {
       color: $g20-white !important;
-      @include gradient-h($c-laser,$c-comet);
     }
   }
 }
