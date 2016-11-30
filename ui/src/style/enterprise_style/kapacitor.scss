@@ -593,8 +593,10 @@ div.query-editor.kapacitor-metric-selector {
 
   &:hover {
     color: $g13-mist;
+    cursor: text !important;
   }
   .icon {
+    cursor: inherit;
     margin-left: 5px;
     position: relative;
     top: -1.5px;
