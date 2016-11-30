@@ -21,8 +21,8 @@
 }
 .btn.btn-sm {
   font-size: 13px;
-  line-height: 28px !important;
-  height: 28px !important;
+  line-height: 30px !important;
+  height: 30px !important;
   padding: 0 9px !important;
 }
 
@@ -100,8 +100,6 @@
   min-height: 70px;
   max-height: 290px;
   overflow: auto;
-  overflow-x: hidden;
-  overflow-y: scroll; 
   @include custom-scrollbar($c-pool,$c-laser);
   @include gradient-h($c-ocean,$c-pool);
 
@@ -135,7 +133,7 @@
     border-radius: 3px 3px 0 0;
   }
 }
-.dropdown-menu--kapacitor {
+.dropdown.dropdown-kapacitor .dropdown-menu {
   @include custom-scrollbar($c-rainforest,$c-honeydew);
   @include gradient-h($c-pool,$c-rainforest);
 
@@ -147,7 +145,7 @@
     }
   }
 }
-.dropdown-menu--chronograf {
+.dropdown.dropdown-chronograf .dropdown-menu {
   @include custom-scrollbar($c-comet,$c-potassium);
   @include gradient-h($c-ocean,$c-comet);
 

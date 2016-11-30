@@ -172,6 +172,10 @@ div.query-editor.kapacitor-metric-selector {
     border-radius: $kap-radius-lg $kap-radius-lg 0 0;
     border: 0;
     padding: $kap-padding-md $kap-padding-lg;
+
+    code {
+      line-height: 1.5em;
+    }
   }
 
   // Tabs
@@ -521,8 +525,7 @@ div.query-editor.kapacitor-metric-selector {
 .rule-builder {
   input[type="text"] {
     background-color: $kapacitor-graphic-color;
-    color: $kapacitor-accent;
-    border-color: $g5-pepper;
+    color: $kapacitor-accent !important;
     font-weight: 600;
     font-size: $kapacitor-font-sm;
     font-family: Consolas, "Lucida Console", Monaco, monospace;
@@ -532,7 +535,7 @@ div.query-editor.kapacitor-metric-selector {
       border-color: $kapacitor-accent;
       outline: none;
       box-shadow: none;
-      color: $g20-white;
+      color: $g20-white !important;
     }
   }
   .dropdown-toggle,
@@ -582,40 +585,6 @@ div.query-editor.kapacitor-metric-selector {
   }
   .size-49 {
     width: 49px;
-  }
-
-  .dropdown-menu {
-    width: 100%;
-    min-width: 100%;
-    padding: 0;
-    margin: 0;
-    border-radius: 4px;
-    @include gradient-v($c-viridian,$c-ocean);
-
-    > li {
-      width: 100%;
-    }
-    > li > a {
-      text-transform: capitalize;
-      font-size: $kapacitor-font-sm;
-      padding: ($kap-padding-sm / 2) $kap-padding-sm;
-      font-weight: 600;
-      color: transparentize($g20-white, 0.25); 
-      border-radius: 0;
-
-      &:hover {
-        background-color: $c-rainforest;
-        color: $g20-white;
-      }
-    }
-    > li:first-child > a {
-      border-top-left-radius: 4px;
-      border-top-right-radius: 4px;
-    }
-    > li:last-child > a {
-      border-bottom-left-radius: 4px;
-      border-bottom-right-radius: 4px;
-    }
   }
 }
 

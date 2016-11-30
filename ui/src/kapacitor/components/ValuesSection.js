@@ -101,8 +101,8 @@ const Threshold = React.createClass({
         <p>Send Alert where</p>
         <span>{query.fields.length ? query.fields[0].field : 'Select a Metric'}</span>
         <p>is</p>
-        <Dropdown className="size-176" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
-        <input className="form-control input-sm size-166" type="text" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
+        <Dropdown className="size-176 dropdown-kapacitor" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
+        <input className="form-control input-sm size-166 form-control--green" type="text" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
       </div>
     );
   },
@@ -145,13 +145,13 @@ const Relative = React.createClass({
     return (
       <div className="value-selector">
         <p>Send Alert when</p>
-        <Dropdown className="size-106"items={changes} selected={change} onChoose={this.handleDropdownChange} />
+        <Dropdown className="size-106 dropdown-kapacitor"items={changes} selected={change} onChoose={this.handleDropdownChange} />
         <p>compared to previous</p>
-        <Dropdown className="size-66" items={shifts} selected={shift} onChoose={this.handleDropdownChange} />
+        <Dropdown className="size-66 dropdown-kapacitor" items={shifts} selected={shift} onChoose={this.handleDropdownChange} />
         <p>is</p>
-        <Dropdown className="size-176" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
+        <Dropdown className="size-176 dropdown-kapacitor" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
         <input
-          className="form-control input-sm size-166"
+          className="form-control input-sm size-166 form-control--green"
           ref={(r) => this.input = r}
           defaultValue={value}
           onKeyUp={this.handleInputChange}
@@ -186,7 +186,7 @@ const Deadman = React.createClass({
     return (
       <div className="value-selector">
         <p>Send Alert if Data is missing for</p>
-        <Dropdown className="size-66" items={periods} selected={this.props.rule.values.period} onChoose={this.handleChange} />
+        <Dropdown className="size-66 dropdown-kapacitor" items={periods} selected={this.props.rule.values.period} onChoose={this.handleChange} />
       </div>
     );
   },
