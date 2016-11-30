@@ -12,6 +12,7 @@ shared index format to the new per-shard format.
 package inmem
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"sort"
@@ -527,6 +528,58 @@ func (i *Index) SetFieldSet(*tsdb.MeasurementFieldSet) {}
 func (i *Index) SetFieldName(measurement, name string) {
 	m := i.CreateMeasurementIndexIfNotExists(measurement)
 	m.SetFieldName(name)
+}
+
+// ForEachMeasurement iterates over each measurement
+func (i *Index) ForEachMeasurement(fn func(name []byte) error) error {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	mms := make(tsdb.Measurements, 0, len(i.measurements))
+	for _, m := range i.measurements {
+		mms = append(mms, m)
+	}
+	sort.Sort(mms)
+
+	for _, m := range mms {
+		if err := fn([]byte(m.Name)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (i *Index) MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	m := i.measurements[string(name)]
+	if m == nil {
+		return nil, nil
+	}
+
+	// Return all series if no condition specified.
+	if condition == nil {
+		return m.SeriesKeys(), nil
+	}
+
+	// Get series IDs that match the WHERE clause.
+	ids, filters, err := m.WalkWhereForSeriesIds(condition)
+	if err != nil {
+		return nil, err
+	}
+
+	// Delete boolean literal true filter expressions.
+	// These are returned for `WHERE tagKey = 'tagVal'` type expressions and are okay.
+	filters.DeleteBoolLiteralTrues()
+
+	// Check for unsupported field filters.
+	// Any remaining filters means there were fields (e.g., `WHERE value = 1.2`).
+	if filters.Len() > 0 {
+		return nil, errors.New("fields not supported in WHERE clause during deletion")
+	}
+
+	return m.SeriesKeysByID(ids), nil
 }
 
 // SeriesPointIterator returns an influxql iterator over all series.

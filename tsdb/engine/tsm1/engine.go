@@ -826,6 +826,11 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	return nil
 }
 
+// ForEachMeasurement iterates over each measurement name in the engine.
+func (e *Engine) ForEachMeasurement(fn func(name []byte) error) error {
+	return e.index.ForEachMeasurement(fn)
+}
+
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *Engine) DeleteMeasurement(name []byte) error {
 	e.fieldset.Delete(string(name))
@@ -846,6 +851,11 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 		return err
 	}
 	return nil
+}
+
+// MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
+func (e *Engine) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
+	return e.index.MeasurementSeriesKeysByExpr(name, expr)
 }
 
 func (e *Engine) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {

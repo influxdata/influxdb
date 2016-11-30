@@ -625,6 +625,31 @@ func (itr *seriesDifferenceIterator) Next() (e SeriesElem) {
 	}
 }
 
+// filterUndeletedSeriesIterator returns all series which are not deleted.
+type filterUndeletedSeriesIterator struct {
+	itr SeriesIterator
+}
+
+// FilterUndeletedSeriesIterator returns an iterator which filters all deleted series.
+func FilterUndeletedSeriesIterator(itr SeriesIterator) SeriesIterator {
+	if itr == nil {
+		return nil
+	}
+	return &filterUndeletedSeriesIterator{itr: itr}
+}
+
+func (itr *filterUndeletedSeriesIterator) Next() SeriesElem {
+	for {
+		e := itr.itr.Next()
+		if e == nil {
+			return nil
+		} else if e.Deleted() {
+			continue
+		}
+		return e
+	}
+}
+
 // seriesExprElem holds a series and its associated filter expression.
 type seriesExprElem struct {
 	SeriesElem
