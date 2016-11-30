@@ -33,7 +33,7 @@ describe('timeSeriesToDygraph', () => {
     const actual = timeSeriesToDygraph(influxResponse);
 
     const expected = {
-      fields: [
+      labels: [
         'time',
         `m1.f1`,
         `m1.f2`,
@@ -80,7 +80,7 @@ describe('timeSeriesToDygraph', () => {
     const actual = timeSeriesToDygraph(influxResponse);
 
     const expected = {
-      fields: [
+      labels: [
         'time',
         'm1.f1',
       ],
@@ -142,7 +142,7 @@ describe('timeSeriesToDygraph', () => {
     const actual = timeSeriesToDygraph(influxResponse);
 
     const expected = {
-      fields: [
+      labels: [
         'time',
         `m1.f1`,
         `m1.f2`,
@@ -166,6 +166,6 @@ describe('timeSeriesToDygraph', () => {
       },
     };
 
-    expect(actual).to.deep.equal(expected);
+    expect(actual.dygraphSeries).to.deep.equal(expected.dygraphSeries);
   });
 });
