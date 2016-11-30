@@ -55,6 +55,11 @@
     box-shadow: 0 0 6px 0px $c-pool !important;
     color: $g20-white !important;
   }
+
+  &--green:focus {
+    border-color: $c-rainforest !important;
+    box-shadow: 0 0 6px 0px $c-rainforest !important;
+  }
 }
 .form-helper {
   margin: 4px 0 !important;
