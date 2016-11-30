@@ -2059,6 +2059,26 @@ func TestParser_ParseStatement(t *testing.T) {
 				ShardGroupDuration: 30 * time.Minute,
 			},
 		},
+		{
+			s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 2 SHARD DURATION 0s`,
+			stmt: &influxql.CreateRetentionPolicyStatement{
+				Name:               "policy1",
+				Database:           "testdb",
+				Duration:           time.Hour,
+				Replication:        2,
+				ShardGroupDuration: 0,
+			},
+		},
+		{
+			s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 2 SHARD DURATION 1s`,
+			stmt: &influxql.CreateRetentionPolicyStatement{
+				Name:               "policy1",
+				Database:           "testdb",
+				Duration:           time.Hour,
+				Replication:        2,
+				ShardGroupDuration: time.Second,
+			},
+		},
 
 		// ALTER RETENTION POLICY
 		{
@@ -2109,6 +2129,11 @@ func TestParser_ParseStatement(t *testing.T) {
 		{
 			s:    `ALTER RETENTION POLICY default ON testdb DURATION 0s REPLICATION 4 SHARD DURATION 10m DEFAULT`,
 			stmt: newAlterRetentionPolicyStatement("default", "testdb", time.Duration(0), 10*time.Minute, 4, true),
+		},
+		// ALTER RETENTION POLICY with 0s shard duration
+		{
+			s:    `ALTER RETENTION POLICY default ON testdb DURATION 0s REPLICATION 1 SHARD DURATION 0s`,
+			stmt: newAlterRetentionPolicyStatement("default", "testdb", time.Duration(0), 0, 1, false),
 		},
 
 		// SHOW STATS
@@ -2462,6 +2487,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 3.14`, err: `found 3.14, expected integer at line 1, char 67`},
 		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 0`, err: `invalid value 0: must be 1 <= n <= 2147483647 at line 1, char 67`},
 		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION bad`, err: `found bad, expected integer at line 1, char 67`},
+		{s: `CREATE RETENTION POLICY policy1 ON testdb DURATION 1h REPLICATION 2 SHARD DURATION INF`, err: `invalid duration INF for shard duration at line 1, char 84`},
 		{s: `ALTER`, err: `found EOF, expected RETENTION at line 1, char 7`},
 		{s: `ALTER RETENTION`, err: `found EOF, expected POLICY at line 1, char 17`},
 		{s: `ALTER RETENTION POLICY`, err: `found EOF, expected identifier at line 1, char 24`},
@@ -2469,6 +2495,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `ALTER RETENTION POLICY policy1 ON testdb`, err: `found EOF, expected DURATION, REPLICATION, SHARD, DEFAULT at line 1, char 42`},
 		{s: `ALTER RETENTION POLICY policy1 ON testdb REPLICATION 1 REPLICATION 2`, err: `found duplicate REPLICATION option at line 1, char 56`},
 		{s: `ALTER RETENTION POLICY policy1 ON testdb DURATION 15251w`, err: `overflowed duration 15251w: choose a smaller duration or INF at line 1, char 51`},
+		{s: `ALTER RETENTION POLICY policy1 ON testdb DURATION INF SHARD DURATION INF`, err: `invalid duration INF for shard duration at line 1, char 70`},
 		{s: `SET`, err: `found EOF, expected PASSWORD at line 1, char 5`},
 		{s: `SET PASSWORD`, err: `found EOF, expected FOR at line 1, char 14`},
 		{s: `SET PASSWORD something`, err: `found something, expected FOR at line 1, char 14`},

@@ -426,7 +426,7 @@ func init() {
 			&Query{
 				name:    "show retention policy should show both with custom shard",
 				command: `SHOW RETENTION POLICIES ON db0`,
-				exp:     `{"results":[{"statement_id":0,"series":[{"columns":["name","duration","shardGroupDuration","replicaN","default"],"values":[["rp0","2h0m0s","1h0m0s",3,true],["rp3","1h0m0s","30m0s",1,false]]}]}]}`,
+				exp:     `{"results":[{"statement_id":0,"series":[{"columns":["name","duration","shardGroupDuration","replicaN","default"],"values":[["rp0","2h0m0s","1h0m0s",3,true],["rp3","1h0m0s","1h0m0s",1,false]]}]}]}`,
 			},
 			&Query{
 				name:    "dropping non-default custom shard retention policy succeed",
@@ -455,6 +455,37 @@ func init() {
 				command: `CREATE RETENTION POLICY rp0 ON nodb DURATION 1h REPLICATION 1`,
 				exp:     `{"results":[{"statement_id":0,"error":"database not found: nodb"}]}`,
 				once:    true,
+			},
+			&Query{
+				name:    "drop rp0",
+				command: `DROP RETENTION POLICY rp0 ON db0`,
+				exp:     `{"results":[{"statement_id":0}]}`,
+			},
+			// INF Shard Group Duration will normalize to the Retention Policy Duration Default
+			&Query{
+				name:    "create retention policy with inf shard group duration",
+				command: `CREATE RETENTION POLICY rpinf ON db0 DURATION INF REPLICATION 1 SHARD DURATION 0s`,
+				exp:     `{"results":[{"statement_id":0}]}`,
+				once:    true,
+			},
+			// 0s Shard Group Duration will normalize to the Replication Policy Duration
+			&Query{
+				name:    "create retention policy with 0s shard group duration",
+				command: `CREATE RETENTION POLICY rpzero ON db0 DURATION 1h REPLICATION 1 SHARD DURATION 0s`,
+				exp:     `{"results":[{"statement_id":0}]}`,
+				once:    true,
+			},
+			// 1s Shard Group Duration will normalize to the MinDefaultRetentionPolicyDuration
+			&Query{
+				name:    "create retention policy with 1s shard group duration",
+				command: `CREATE RETENTION POLICY rponesecond ON db0 DURATION 2h REPLICATION 1 SHARD DURATION 1s`,
+				exp:     `{"results":[{"statement_id":0}]}`,
+				once:    true,
+			},
+			&Query{
+				name:    "show retention policy: validate normalized shard group durations are working",
+				command: `SHOW RETENTION POLICIES ON db0`,
+				exp:     `{"results":[{"statement_id":0,"series":[{"columns":["name","duration","shardGroupDuration","replicaN","default"],"values":[["rpinf","0s","168h0m0s",1,false],["rpzero","1h0m0s","1h0m0s",1,false],["rponesecond","2h0m0s","1h0m0s",1,false]]}]}]}`,
 			},
 		},
 	}

@@ -428,6 +428,17 @@ func (p *Parser) parseCreateRetentionPolicyStatement() (*CreateRetentionPolicySt
 		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != DURATION {
 			return nil, newParseError(tokstr(tok, lit), []string{"DURATION"}, pos)
 		}
+
+		// Check to see if they used the INF keyword
+		tok, pos, _ := p.scanIgnoreWhitespace()
+		if tok == INF {
+			return nil, &ParseError{
+				Message: "invalid duration INF for shard duration",
+				Pos:     pos,
+			}
+		}
+		p.unscan()
+
 		d, err := p.parseDuration()
 		if err != nil {
 			return nil, err
@@ -502,6 +513,16 @@ Loop:
 		case SHARD:
 			tok, pos, lit := p.scanIgnoreWhitespace()
 			if tok == DURATION {
+				// Check to see if they used the INF keyword
+				tok, pos, _ := p.scanIgnoreWhitespace()
+				if tok == INF {
+					return nil, &ParseError{
+						Message: "invalid duration INF for shard duration",
+						Pos:     pos,
+					}
+				}
+				p.unscan()
+
 				d, err := p.parseDuration()
 				if err != nil {
 					return nil, err
