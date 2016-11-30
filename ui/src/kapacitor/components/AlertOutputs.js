@@ -101,12 +101,12 @@ const AlertOutputs = React.createClass({
     }
 
     return (
-      <div className="panel-body">
-        <h4 className="text-center">Alert Endpoints</h4>
-        <br/>
-        <div>
+      <div className="panel panel-minimal">
+        <div className="panel-body">
+          <h4 className="text-center">Configure Alert Endpoints</h4>
+          <br/>
           <div className="row">
-            <div className="form-group col-xs-7 col-sm-5 col-sm-offset-2">
+            <div className="form-group col-xs-12 col-sm-8 col-sm-offset-2">
               <label htmlFor="alert-endpoint" className="sr-only">Alert Enpoint</label>
               <select value={this.state.selectedEndpoint} className="form-control" id="source" onChange={this.changeSelectedEndpoint}>
                 <option value="hipchat">HipChat</option>
@@ -120,7 +120,12 @@ const AlertOutputs = React.createClass({
             </div>
           </div>
           <div className="row">
-            {this.renderAlertConfig(selectedEndpoint)}
+            <div className="col-xs-12 col-sm-8 col-sm-offset-2">
+              <hr/>
+            </div>
+            <div className="col-xs-12 col-sm-8 col-sm-offset-2">
+              {this.renderAlertConfig(selectedEndpoint)}
+            </div>
           </div>
         </div>
       </div>

@@ -129,9 +129,12 @@ body {
     Dark Panel Styles
     ----------------------------------------------
 */
-.panel:only-child,
-.panel:last-child {
+.row:only-child .panel,
+.row:last-child .panel {
   margin-bottom: 0;
+}
+.panel hr {
+  background-color: $g5-pepper;
 }
 .panel-minimal {
   border: 0;
@@ -144,7 +147,7 @@ body {
     padding: 30px;
     background-color: $g3-castle;
     border: 0;
-    color: $g17-whisper;
+    color: $g13-mist;
 
     > *:first-child {
       margin-top: 0;
@@ -244,6 +247,9 @@ body {
 */
 .text-right .btn {
   margin: 0 0 0 4px;
+}
+.text-center .btn {
+  margin: 0 2px;
 }
 .progress-label {
   margin-bottom: 4px;
@@ -394,12 +400,12 @@ table.table.error-table {
     Static Form Controls
     ----------------------------------------------
 */
+$form-static-checkbox-size: 16px;
 .form-control-static {
-  border: 2px solid $g17-whisper;
-  height: 40px;
+  border: 2px solid $g5-pepper;
+  height: auto;
   border-radius: 4px;
-  padding: 0 18px;
-  line-height: 36px;
+  padding: 7px 12px;
   position: relative;
 
   input[type="checkbox"] {
@@ -412,8 +418,13 @@ table.table.error-table {
 
     // Faux Checkbox
     & + label {
+      font-size: 14px !important;
+      line-height: 16px;
+      color: $g11-sidewalk;
+      font-weight: 500;
       transition: color 0.25s ease;
-      margin-left: 24px;
+      margin: 0;
+      padding: 0 0 0 (12px + $form-static-checkbox-size + 6px);
       user-select: none;
       -ms-user-select: none;
       -moz-user-selct: none;
@@ -423,22 +434,22 @@ table.table.error-table {
         content: '';
         position: absolute;
         top: 50%;
-        left: 18px;
+        left: 12px;
         transform: translateY(-50%);
-        width: 16px;
-        height: 16px;
-        background-color: $g18-cloud;
-        border: 2px solid $g17-whisper;
+        width: $form-static-checkbox-size;
+        height: $form-static-checkbox-size;
+        background-color: $g2-kevlar;
+        border: 2px solid $g5-pepper;
         border-radius: 3px;
         z-index: 2;
         transition:
-          background-color 0.25s ease;
+          border-color 0.25s ease;
       }
       &:after {
         content: '';
         position: absolute;
         top: 50%;
-        left: (18px + (16px / 2));
+        left: (12px + ($form-static-checkbox-size / 2));
         transform: translate(-50%,-50%) scale(2,2);
         opacity: 0;
         width: 6px;
@@ -452,15 +463,16 @@ table.table.error-table {
       }
       &:hover {
         cursor: pointer;
+        color: $g20-white;
 
         &:before {
-          background-color: $g20-white;
+          border-color: $g6-smoke;
         }
       }
     }
     // Faux Checkbox (Checked)
     &:checked + label {
-      color: $c-pool;
+      color: $g20-white;
 
       &:after {
         opacity: 1;
@@ -526,4 +538,46 @@ table .monotype {
       margin-bottom: 75px;
     }
   }
+}
+
+/*
+    Dark Inputs
+    ----------------------------------------------
+    Using a ton of !important to override styles from
+    the bootstrap theme. #designdebt
+*/
+.form-group {
+  margin-bottom: 9px;
+}
+.form-group label {
+  font-size: 12px;
+  line-height: 12px;
+  font-weight: 600;
+  margin-bottom: 4px;
+  padding: 0 13px;
+}
+.form-control {
+  padding: 0 13px;
+  background-color: $g2-kevlar !important;
+  border-color: $g5-pepper !important;
+  color: $g15-platinum !important;
+
+  &:hover {
+    border-color: $g6-smoke !important;
+  }
+
+  &:focus {
+    border-color: $c-pool !important;
+    box-shadow: 0 0 6px 0px $c-pool !important;
+    color: $g20-white !important;
+  }
+}
+.form-helper {
+  margin: 4px 0 !important;
+  font-weight: 400 !important;
+  font-style: italic;
+  line-height: 16px !important;
+}
+.form-group-submit {
+  margin-top: 30px;
 }

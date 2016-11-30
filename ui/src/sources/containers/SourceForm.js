@@ -96,7 +96,7 @@ export const SourceForm = React.createClass({
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-8 col-md-offset-2">
-                <div className="panel panel-summer">
+                <div className="panel panel-minimal">
                   <div className="panel-body">
                     <h4 className="text-center">Connection Details</h4>
                     <br/>
