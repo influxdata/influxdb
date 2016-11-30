@@ -87,6 +87,21 @@ func (m *Measurement) AppendSeriesKeysByID(dst []string, ids []uint64) []string 
 	return dst
 }
 
+// SeriesKeysByID returns the a list of keys for a set of ids.
+func (m *Measurement) SeriesKeysByID(ids SeriesIDs) [][]byte {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	keys := make([][]byte, 0, len(ids))
+	for _, id := range ids {
+		s := m.seriesByID[id]
+		if s == nil {
+			continue
+		}
+		keys = append(keys, []byte(s.Key))
+	}
+	return keys
+}
+
 // SeriesKeys returns the keys of every series in this measurement
 func (m *Measurement) SeriesKeys() [][]byte {
 	m.mu.RLock()
@@ -236,7 +251,7 @@ func (m *Measurement) filters(condition influxql.Expr) ([]uint64, map[uint64]inf
 	if condition == nil || influxql.OnlyTimeExpr(condition) {
 		return m.seriesIDs, nil, nil
 	}
-	return m.walkWhereForSeriesIds(condition)
+	return m.WalkWhereForSeriesIds(condition)
 }
 
 // TagSets returns the unique tag sets that exist for the given tag keys. This is used to determine
@@ -630,10 +645,10 @@ func (fe FilterExprs) Len() int {
 	return len(fe)
 }
 
-// walkWhereForSeriesIds recursively walks the WHERE clause and returns an ordered set of series IDs and
+// WalkWhereForSeriesIds recursively walks the WHERE clause and returns an ordered set of series IDs and
 // a map from those series IDs to filter expressions that should be used to limit points returned in
 // the final query result.
-func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr) (SeriesIDs, FilterExprs, error) {
+func (m *Measurement) WalkWhereForSeriesIds(expr influxql.Expr) (SeriesIDs, FilterExprs, error) {
 	switch n := expr.(type) {
 	case *influxql.BinaryExpr:
 		switch n.Op {
@@ -664,13 +679,13 @@ func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr) (SeriesIDs, Filt
 			return ids, filters, nil
 		case influxql.AND, influxql.OR:
 			// Get the series IDs and filter expressions for the LHS.
-			lids, lfilters, err := m.walkWhereForSeriesIds(n.LHS)
+			lids, lfilters, err := m.WalkWhereForSeriesIds(n.LHS)
 			if err != nil {
 				return nil, nil, err
 			}
 
 			// Get the series IDs and filter expressions for the RHS.
-			rids, rfilters, err := m.walkWhereForSeriesIds(n.RHS)
+			rids, rfilters, err := m.WalkWhereForSeriesIds(n.RHS)
 			if err != nil {
 				return nil, nil, err
 			}
@@ -689,7 +704,7 @@ func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr) (SeriesIDs, Filt
 		return ids, nil, err
 	case *influxql.ParenExpr:
 		// walk down the tree
-		return m.walkWhereForSeriesIds(n.Expr)
+		return m.WalkWhereForSeriesIds(n.Expr)
 	default:
 		return nil, nil, nil
 	}
@@ -771,7 +786,7 @@ func (m *Measurement) seriesIDsAllOrByExpr(expr influxql.Expr) (SeriesIDs, error
 	}
 
 	// Get series IDs that match the WHERE clause.
-	ids, _, err := m.walkWhereForSeriesIds(expr)
+	ids, _, err := m.WalkWhereForSeriesIds(expr)
 	if err != nil {
 		return nil, err
 	}

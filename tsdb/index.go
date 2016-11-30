@@ -21,6 +21,7 @@ type Index interface {
 	MeasurementsByName(names [][]byte) ([]*Measurement, error)
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	DropMeasurement(name []byte) error
+	ForEachMeasurement(fn func(name []byte) error) error
 
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	DropSeries(keys [][]byte) error
@@ -34,6 +35,7 @@ type Index interface {
 	TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error)
 
 	// InfluxQL system iterators
+	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
 	SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
 
 	// Sets a shared fieldset from the engine.

@@ -721,55 +721,39 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
 
-	mMap := make(map[string]*Measurement)
-	for _, shard := range shards {
-		shardMeasures := shard.Measurements()
-		for _, m := range shardMeasures {
-			mMap[m.Name] = m
-		}
-	}
-
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	measurements, err := measurementsFromSourcesOrDB(mMap, sources...)
-	if err != nil {
-		return err
-	}
+	return s.walkShards(shards, func(sh *Shard) error {
+		// Determine list of measurements from sources.
+		// Use all measurements if no FROM clause was provided.
+		var names []string
+		if len(sources) > 0 {
+			for _, source := range sources {
+				names = append(names, source.(*influxql.Measurement).Name)
+			}
+		} else {
+			if err := sh.engine.ForEachMeasurement(func(name []byte) error {
+				names = append(names, string(name))
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		sort.Strings(names)
 
-	var seriesKeys [][]byte
-	for _, m := range measurements {
-		var ids SeriesIDs
-		var filters FilterExprs
-		if condition != nil {
-			// Get series IDs that match the WHERE clause.
-			ids, filters, err = m.walkWhereForSeriesIds(condition)
+		// Find matching series keys for each measurement.
+		var keys [][]byte
+		for _, name := range names {
+			a, err := sh.engine.MeasurementSeriesKeysByExpr([]byte(name), condition)
 			if err != nil {
 				return err
 			}
-
-			// Delete boolean literal true filter expressions.
-			// These are returned for `WHERE tagKey = 'tagVal'` type expressions and are okay.
-			filters.DeleteBoolLiteralTrues()
-
-			// Check for unsupported field filters.
-			// Any remaining filters means there were fields (e.g., `WHERE value = 1.2`).
-			if filters.Len() > 0 {
-				return errors.New("fields not supported in WHERE clause during deletion")
-			}
-		} else {
-			// No WHERE clause so get all series IDs for this measurement.
-			ids = m.seriesIDs
+			keys = append(keys, a...)
 		}
 
-		for _, id := range ids {
-			seriesKeys = append(seriesKeys, []byte(m.seriesByID[id].Key))
-		}
-	}
-
-	// delete the raw series data.
-	return s.walkShards(shards, func(sh *Shard) error {
-		if err := sh.DeleteSeriesRange(seriesKeys, min, max); err != nil {
+		// Delete all matching keys.
+		if err := sh.DeleteSeriesRange(keys, min, max); err != nil {
 			return err
 		}
 		return nil
@@ -1068,35 +1052,4 @@ func relativePath(storePath, shardPath string) (string, error) {
 	}
 
 	return name, nil
-}
-
-// measurementsFromSourcesOrDB returns a list of measurements from the
-// sources passed in or, if sources is empty, a list of all
-// measurement names from the measurement map passed in.
-func measurementsFromSourcesOrDB(measurements map[string]*Measurement, sources ...influxql.Source) (Measurements, error) {
-	var all Measurements
-	if len(sources) > 0 {
-		for _, source := range sources {
-			if m, ok := source.(*influxql.Measurement); ok {
-				measurement := measurements[m.Name]
-				if measurement == nil {
-					continue
-				}
-
-				all = append(all, measurement)
-			} else {
-				return nil, errors.New("identifiers in FROM clause must be measurement names")
-			}
-		}
-	} else {
-		// No measurements specified in FROM clause so get all measurements that have series.
-		for _, m := range measurements {
-			if m.HasSeries() {
-				all = append(all, m)
-			}
-		}
-	}
-	sort.Sort(all)
-
-	return all, nil
 }

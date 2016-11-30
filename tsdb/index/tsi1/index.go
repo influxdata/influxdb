@@ -2,6 +2,7 @@ package tsi1
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -170,7 +171,7 @@ func (i *Index) SeriesIterator() SeriesIterator {
 		}
 		a = append(a, itr)
 	}
-	return MergeSeriesIterators(a...)
+	return FilterUndeletedSeriesIterator(MergeSeriesIterators(a...))
 }
 
 // Measurement retrieves a measurement by name.
@@ -206,6 +207,22 @@ func (i *Index) measurement(name []byte) *tsdb.Measurement {
 	return m
 }
 
+// ForEachMeasurement iterates over all measurements in the index.
+func (i *Index) ForEachMeasurement(fn func(name []byte) error) error {
+	itr := i.MeasurementIterator()
+	if itr == nil {
+		return nil
+	}
+
+	for e := itr.Next(); e != nil; e = itr.Next() {
+		if err := fn(e.Name()); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // MeasurementSeriesIterator returns an iterator over all series in the index.
 func (i *Index) MeasurementSeriesIterator(name []byte) SeriesIterator {
 	a := make([]SeriesIterator, 0, i.FileN())
@@ -215,7 +232,7 @@ func (i *Index) MeasurementSeriesIterator(name []byte) SeriesIterator {
 			a = append(a, itr)
 		}
 	}
-	return MergeSeriesIterators(a...)
+	return FilterUndeletedSeriesIterator(MergeSeriesIterators(a...))
 }
 
 // TagKeyIterator returns an iterator over all tag keys for a measurement.
@@ -529,7 +546,7 @@ func (i *Index) TagKeySeriesIterator(name, key []byte) SeriesIterator {
 			a = append(a, itr)
 		}
 	}
-	return MergeSeriesIterators(a...)
+	return FilterUndeletedSeriesIterator(MergeSeriesIterators(a...))
 }
 
 // TagValueIterator returns a value iterator for a tag key.
@@ -553,7 +570,7 @@ func (i *Index) TagValueSeriesIterator(name, key, value []byte) SeriesIterator {
 			a = append(a, itr)
 		}
 	}
-	return MergeSeriesIterators(a...)
+	return FilterUndeletedSeriesIterator(MergeSeriesIterators(a...))
 }
 
 // MatchTagValueSeriesIterator returns a series iterator for tags which match value.
@@ -563,15 +580,15 @@ func (i *Index) MatchTagValueSeriesIterator(name, key []byte, value *regexp.Rege
 
 	if matches {
 		if matchEmpty {
-			return i.matchTagValueEqualEmptySeriesIterator(name, key, value)
+			return FilterUndeletedSeriesIterator(i.matchTagValueEqualEmptySeriesIterator(name, key, value))
 		}
-		return i.matchTagValueEqualNotEmptySeriesIterator(name, key, value)
+		return FilterUndeletedSeriesIterator(i.matchTagValueEqualNotEmptySeriesIterator(name, key, value))
 	}
 
 	if matchEmpty {
-		return i.matchTagValueNotEqualEmptySeriesIterator(name, key, value)
+		return FilterUndeletedSeriesIterator(i.matchTagValueNotEqualEmptySeriesIterator(name, key, value))
 	}
-	return i.matchTagValueNotEqualNotEmptySeriesIterator(name, key, value)
+	return FilterUndeletedSeriesIterator(i.matchTagValueNotEqualNotEmptySeriesIterator(name, key, value))
 }
 
 func (i *Index) matchTagValueEqualEmptySeriesIterator(name, key []byte, value *regexp.Regexp) SeriesIterator {
@@ -709,6 +726,30 @@ func (i *Index) MeasurementSeriesByExprIterator(name []byte, expr influxql.Expr)
 		return i.MeasurementSeriesIterator(name), nil
 	}
 	return i.seriesByExprIterator(name, expr, i.fieldset.CreateFieldsIfNotExists(string(name)))
+}
+
+// MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
+func (i *Index) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
+	// Create iterator for all matching series.
+	itr, err := i.MeasurementSeriesByExprIterator(name, expr)
+	if err != nil {
+		return nil, err
+	} else if itr == nil {
+		return nil, nil
+	}
+
+	// Iterate over all series and generate keys.
+	var keys [][]byte
+	for e := itr.Next(); e != nil; e = itr.Next() {
+		// Check for unsupported field filters.
+		// Any remaining filters means there were fields (e.g., `WHERE value = 1.2`).
+		if e.Expr() != nil {
+			return nil, errors.New("fields not supported in WHERE clause during deletion")
+		}
+
+		keys = append(keys, models.MakeKey(e.Name(), e.Tags()))
+	}
+	return keys, nil
 }
 
 func (i *Index) seriesByExprIterator(name []byte, expr influxql.Expr, mf *tsdb.MeasurementFields) (SeriesIterator, error) {

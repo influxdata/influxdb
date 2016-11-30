@@ -346,7 +346,7 @@ func init() {
 			&Query{
 				name:    "Drop series with WHERE field should error",
 				command: `DROP SERIES FROM c WHERE val > 50.0`,
-				exp:     `{"results":[{"error":"fields not supported in WHERE clause during deletion"}]}`,
+				exp:     `{"results":[{"error":"shard 1: fields not supported in WHERE clause during deletion"}]}`,
 				params:  url.Values{"db": []string{"db0"}},
 			},
 			&Query{

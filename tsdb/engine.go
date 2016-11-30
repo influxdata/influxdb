@@ -54,8 +54,10 @@ type Engine interface {
 	MeasurementsByExpr(expr influxql.Expr) (Measurements, bool, error)
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	MeasurementFields(measurement string) *MeasurementFields
+	ForEachMeasurement(fn func(name []byte) error) error
 
-	// InfluxQL system iterators
+	// InfluxQL iterators
+	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
 	SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
 
 	// Statistics will return statistics relevant to this engine.
