@@ -128,10 +128,6 @@ const Header = React.createClass({
           </div>
           <h1>Range:</h1>
           <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={this.findSelected(timeRange)} />
-          {/* Placeholder for export functionality
-              <a href="#" className="btn btn-sm btn-info">Export</a> */}
-          {/* Placeholder for create graph functionality
-              <a href="#" className="btn btn-sm btn-primary"><span className="icon graphline"></span>&nbsp;&nbsp;Create Graph</a> */}
         </div>
         <DeleteExplorerModal onConfirm={this.confirmDeleteExplorer} />
         <EditExplorerModal onConfirm={this.confirmEditExplorer} />
