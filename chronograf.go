@@ -55,8 +55,8 @@ type TimeSeries interface {
 
 // Range represents an upper and lower bound for data
 type Range struct {
-	Upper int64 `json:"upper,omitempty"` // Upper is the upper bound
-	Lower int64 `json:"lower,omitempty"` // Lower is the lower bound
+	Upper int64 `json:"upper"` // Upper is the upper bound
+	Lower int64 `json:"lower"` // Lower is the lower bound
 }
 
 // Query retrieves a Response from a TimeSeries.
