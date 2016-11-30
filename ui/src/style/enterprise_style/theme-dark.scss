@@ -154,3 +154,19 @@
     }
   }
 }
+
+/*
+    Dark Code Styles
+    ----------------------------------------------
+*/
+
+code {
+  display: inline-block;
+  background-color: $g0-obsidian;
+  color: $c-comet;
+  border: 0 !important;
+  border-radius: 2px;
+  padding: 2.5px 5px 2.5px 4px;
+  margin: 0 1px 0 2px;
+  line-height: 11px;
+}
