@@ -1,75 +1,18 @@
 .sessions-dropdown {
-  margin: 0 0 0 4px !important;
-
-  &__item {
-    position: relative;
-
-    &:hover {
-      a {
-        background-color: $g7-graphite;
-      }
-      .dropdown-item__actions {
-        opacity: 1;
-      }
-    }
-
-    > a {
-      padding: 8px 65px 8px 11px !important;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-  }
+  margin: 0 0 0 4px;
 
   .dropdown-toggle {
-    width: 206px;
+    width: 227px;
     border-radius: 3px 0 0 3px;
-  }
-  .dropdown-item__actions {
-    position: absolute;
-    top: 50%;
-    right: 11px;
-    transform: translateY(-50%);
-    display: flex;
-    justify-content: flex-end;
-    align-items: center;
-    transition: opacity 0.25s ease;
-    opacity: 0;
-  }
-  .dropdown-item__action {
-    border: 0;
-    margin-left: 4px;
-    border-radius: $radius;
-    width: 24px;
-    height: 24px;
-    background-color: transparent;
-    color: $g10-wolf;
-    transition:
-      background-color 0.25s ease,
-      color 0.25s ease;
-
-    &:hover {
-      cursor: pointer;
-      color: $g20-white;
-      background-color: $g9-mountain;
-    }
-
-    .icon {
-      font-size: 12px;
-      position: relative;
-      top: -2px;
-    }
   }
 }
 .sessions-dropdown__btn {
   margin: 0;
   border-radius: 0 3px 3px 0;
 }
-
 .group-by-time-dropdown .dropdown-toggle {
   width: $group-by-time-dropdown-width;
 }
-
 .source-indicator {
   padding: 3px 9px;
   border: 2px solid $g5-pepper;
