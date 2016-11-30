@@ -17,6 +17,11 @@ export const LayoutRenderer = React.createClass({
       PropTypes.shape({
         queries: PropTypes.arrayOf(
           PropTypes.shape({
+            label: PropTypes.string,
+            range: PropTypes.shape({
+              upper: PropTypes.number,
+              lower: PropTypes.number,
+            }),
             rp: PropTypes.string,
             text: PropTypes.string.isRequired,
             database: PropTypes.string.isRequired,
@@ -24,7 +29,6 @@ export const LayoutRenderer = React.createClass({
             wheres: PropTypes.arrayOf(PropTypes.string),
           }).isRequired
         ).isRequired,
-        ylabels: PropTypes.arrayOf(PropTypes.string.isRequired).isRequired,
         x: PropTypes.number.isRequired,
         y: PropTypes.number.isRequired,
         w: PropTypes.number.isRequired,
@@ -92,7 +96,6 @@ export const LayoutRenderer = React.createClass({
             <RefreshingLineGraph
               queries={qs}
               autoRefresh={autoRefreshMs}
-              ylabels={cell.ylabels || []}
             />
           </div>
         </div>

@@ -1,24 +1,23 @@
 import React, {PropTypes} from 'react';
 import Dygraph from './Dygraph';
 import shallowCompare from 'react-addons-shallow-compare';
+import _ from 'lodash';
 
 import timeSeriesToDygraph from 'utils/timeSeriesToDygraph';
 
-const {array, string, arrayOf, number, bool, shape} = PropTypes;
+const {array, string, arrayOf, bool, shape} = PropTypes;
 
 export default React.createClass({
   displayName: 'LineGraph',
   propTypes: {
-    data: array.isRequired, // eslint-disable-line react/forbid-prop-types
+    data: arrayOf(shape({}).isRequired).isRequired,
     title: string,
     isFetchingInitially: PropTypes.bool,
     isRefreshing: PropTypes.bool,
-    yRange: arrayOf(number.isRequired),
-    ylabels: arrayOf(string.isRequired),
     underlayCallback: PropTypes.func,
     isGraphFilled: bool,
     overrideLineColors: array,
-    queries: arrayOf(shape({}).isRequired),
+    queries: arrayOf(shape({}).isRequired).isRequired,
   },
 
   getDefaultProps() {
@@ -44,7 +43,7 @@ export default React.createClass({
   },
 
   render() {
-    const {isFetchingInitially, title, underlayCallback, ylabels} = this.props;
+    const {isFetchingInitially, title, underlayCallback, queries} = this.props;
     const {labels, timeSeries, dygraphSeries} = this._timeSeries;
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
     if (isFetchingInitially) {
@@ -67,7 +66,8 @@ export default React.createClass({
       yRangePad: 10,
       drawAxesAtZero: true,
       underlayCallback,
-      ylabel: ylabels && ylabels[0],
+      ylabel: _.get(queries, ['0', 'label'], ''),
+      y2label: _.get(queries, ['1', 'label'], ''),
     };
 
     return (
@@ -89,18 +89,20 @@ export default React.createClass({
 
   getRanges() {
     const {queries} = this.props;
+    if (!queries) {
+      return {};
+    }
+
     const ranges = {};
+    const q0 = queries[0];
+    const q1 = queries[1];
 
-    if (queries) {
-      queries.forEach((q, i) => {
-        if (i === 0 && q.range) {
-          ranges.y = q.range;
-        }
+    if (q0 && q0.range) {
+      ranges.y = [q0.range.lower, q0.range.upper];
+    }
 
-        if (i === 1 && q.range) {
-          ranges.y2 = q.range;
-        }
-      });
+    if (q1 && q1.range) {
+      ranges.y2 = [q1.range.lower, q1.range.upper];
     }
 
     return ranges;
