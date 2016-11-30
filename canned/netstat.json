@@ -2,6 +2,7 @@
   "id": "ff41d044-f61a-4522-8de7-9e39e3a1b5de",
   "measurement": "netstat",
   "app": "system",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

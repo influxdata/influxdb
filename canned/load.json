@@ -2,6 +2,7 @@
   "id": "ec6c48f4-48ca-4ba7-a842-5b700e19f274",
   "measurement": "system",
   "app": "system",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

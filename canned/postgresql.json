@@ -2,6 +2,7 @@
   "id": "0975a073-9eb8-471c-aaf2-692b65f9fe5c",
   "measurement": "postgresql",
   "app": "postgresql",
+  "autoflow": false,
   "cells": [
     {
       "x": 0,

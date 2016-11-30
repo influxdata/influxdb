@@ -2,6 +2,7 @@
   "id": "793e6cca-7d7f-48e4-8db2-7b81761cc6ff",
   "measurement": "redis",
   "app": "redis",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

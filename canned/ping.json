@@ -2,6 +2,7 @@
   "id": "6fba9b06-b9d3-4e67-a41e-177d585dfe28",
   "measurement": "ping",
   "app": "ping",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,

@@ -2,6 +2,7 @@
   "id": "6dfb4d49-20dc-4157-9018-2b1b1cb75c2d",
   "measurement": "apache",
   "app": "apache",
+  "autoflow": false,
   "cells": [
     {
       "x": 0,

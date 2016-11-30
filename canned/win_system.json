@@ -2,6 +2,7 @@
   "id": "96bd0303-19b6-4f87-a0f9-2755c6178ba7",
   "measurement": "win_system",
   "app": "win_system",
+  "autoflow": true,
   "cells": [
     {
       "x": 0,
