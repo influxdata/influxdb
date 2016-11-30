@@ -37,7 +37,7 @@ export const KapacitorRule = React.createClass({
           onSave={isEditing ? this.handleEdit : this.handleCreate}
           validationError={this.validationError()}
         />
-        <div className="page-contents">
+        <div className="page-contents page-contents--green-scrollbar">
           <div className="container-fluid">
             <div className="row">
               <div className="col-xs-12">
