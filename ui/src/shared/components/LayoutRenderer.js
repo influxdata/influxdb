@@ -79,10 +79,21 @@ export const LayoutRenderer = React.createClass({
     return text;
   },
 
-  generateGraphs() {
-    const {autoRefreshMs, source} = this.props;
+  generateVisualizations() {
+    const {autoRefreshMs, source, cells} = this.props;
 
-    return this.props.cells.map((cell) => {
+    return cells.map((cell) => {
+      if (cell.type === 'number') {
+        return (
+          <div key={cell.i}>
+            <h2 className="hosts-graph-heading">{cell.name}</h2>
+            <div className="">
+              50
+            </div>
+          </div>
+        );
+      }
+
       const qs = cell.queries.map((q) => {
         return Object.assign({}, q, {
           host: source,
@@ -107,7 +118,7 @@ export const LayoutRenderer = React.createClass({
     const layoutMargin = 4;
     return (
       <GridLayout layout={this.state.layout} isDraggable={false} isResizable={false} cols={12} rowHeight={83.5} margin={[layoutMargin, layoutMargin]} containerPadding={[0, 0]} useCSSTransforms={false} >
-        {this.generateGraphs()}
+        {this.generateVisualizations()}
       </GridLayout>
     );
   },
