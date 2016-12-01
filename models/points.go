@@ -1038,8 +1038,8 @@ func scanFieldValue(buf []byte, i int) (int, []byte) {
 	start := i
 	quoted := false
 	for i < len(buf) {
-		// Only escape char for a field value is a double-quote
-		if buf[i] == '\\' && i+1 < len(buf) && buf[i+1] == '"' {
+		// Only escape char for a field value is a double-quote and backslash
+		if buf[i] == '\\' && i+1 < len(buf) && (buf[i+1] == '"' || buf[i+1] == '\\') {
 			i += 2
 			continue
 		}
