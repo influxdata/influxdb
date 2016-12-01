@@ -142,44 +142,11 @@ body {
     position: relative;
     width: 100%;
     z-index: 1;
-    background-color: $g2-kevlar;
-    border-color: $g5-pepper;
-    color: $g17-whisper;
-    border-radius: 4px;
     padding-left: 34px;
+    border-radius: 4px !important;
 
-    &:focus {
-      border-color: $c-pool !important;
+    &:focus + .input-group-addon {
       color: $c-pool;
-
-      &::-webkit-input-placeholder {
-      color: $c-pool;
-      }
-      &::-moz-placeholder {
-        color: $c-pool;
-      }
-      &:-ms-input-placeholder {
-        color: $c-pool;
-      }
-      &:-moz-placeholder {
-        color: $c-pool;
-      }
-
-      & + .input-group-addon {
-        color: $c-pool;
-      }
-    }
-    &::-webkit-input-placeholder {
-      color: $g11-sidewalk;
-    }
-    &::-moz-placeholder {
-      color: $g11-sidewalk;
-    }
-    &:-ms-input-placeholder {
-      color: $g11-sidewalk;
-    }
-    &:-moz-placeholder {
-      color: $g11-sidewalk;
     }
   }
   .input-group-addon {
@@ -187,10 +154,11 @@ body {
     text-align: center;
     line-height: 38px;
     position: absolute;
+    color: $g10-wolf;
     top: 0;
     left: 0;
     height: 100%;
-    z-index: 2;
+    z-index: 4;
     border: 0;
     width: 40px;
     background-color: transparent;

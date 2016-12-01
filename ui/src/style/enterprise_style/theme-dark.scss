@@ -100,6 +100,11 @@
   border-color: $g5-pepper !important;
   color: $g15-platinum !important;
 
+  &::-webkit-input-placeholder { color: $g10-wolf; }
+  &::-moz-placeholder { color: $g10-wolf; }
+  &:-ms-input-placeholder { color: $g10-wolf; }
+  &:-moz-placeholder { color: $g10-wolf; }
+
   &:hover {
     border-color: $g6-smoke !important;
   }
