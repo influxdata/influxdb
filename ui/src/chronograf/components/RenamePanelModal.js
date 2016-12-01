@@ -40,7 +40,7 @@ const RenamePanelModal = React.createClass({
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-default" data-dismiss="modal">Cancel</button>
+              <button className="btn btn-info" data-dismiss="modal">Cancel</button>
               <button onClick={this.handleConfirm} className="btn btn-success">Rename</button>
             </div>
           </div>

@@ -227,3 +227,68 @@ code {
   margin: 0 1px 0 2px;
   line-height: 11px;
 }
+
+
+/*
+    Dark Modals
+    ----------------------------------------------
+*/
+
+.modal-backdrop {
+  background: $c-pool;
+  background: -moz-linear-gradient(-45deg,  $c-pool 0%, $c-comet 100%);
+  background: -webkit-linear-gradient(-45deg,  $c-pool 0%,$c-comet 100%);
+  background: linear-gradient(135deg,  $c-pool 0%,$c-comet 100%);
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$c-pool', endColorstr='$c-comet',GradientType=1 );
+}
+
+.modal-content {
+  background-color: $g3-castle;
+}
+.modal-header,
+.modal-body,
+.modal-footer {
+  background-color: transparent;
+  color: $g13-mist;
+  padding-left: ($sidebar-width / 2);
+  padding-right: ($sidebar-width / 2);
+}
+.modal-body {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.modal-title {
+  color: $g18-cloud !important;
+}
+.modal-header .close {
+  transition: none;
+  outline: none;
+
+  &:before,
+  &:after {
+    display: block;
+    content: '';
+    width: 20px;
+    height: 2px;
+    border-radius: 1px;
+    background-color: $g7-graphite;
+    transition: background-color 0.25s ease;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+  }
+  &:before { transform: translate(-50%,-50%) rotate(45deg); }
+  &:after { transform: translate(-50%,-50%) rotate(-45deg); }
+
+  &:hover {
+    cursor: pointer;
+
+    &:before,
+    &:after {
+      background-color: $g13-mist;
+    }
+  }
+  span {
+    display: none;
+  }
+}

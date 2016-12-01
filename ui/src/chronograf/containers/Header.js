@@ -153,7 +153,7 @@ const DeleteExplorerModal = React.createClass({
               <h4 className="modal-title">Are you sure?</h4>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-default" type="button" data-dismiss="modal">Cancel</button>
+              <button className="btn btn-info" type="button" data-dismiss="modal">Cancel</button>
               <button onClick={this.handleConfirm} className="btn btn-danger" type="button" data-dismiss="modal">Confirm</button>
             </div>
           </div>
@@ -199,7 +199,7 @@ const EditExplorerModal = React.createClass({
                 </div>
               </div>
               <div className="modal-footer">
-                <button className="btn btn-default" onClick={this.handleCancel}>Cancel</button>
+                <button className="btn btn-info" onClick={this.handleCancel}>Cancel</button>
                 <input type="submit" value="Rename" className="btn btn-success" />
               </div>
             </form>
