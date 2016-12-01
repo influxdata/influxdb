@@ -21,6 +21,7 @@
 ### Bugfixes
 
 - [#7625](https://github.com/influxdata/influxdb/issues/7625): Fix incorrect tag value in error message.
+- [#7634](https://github.com/influxdata/influxdb/issues/7634): Return the time from a percentile call on an integer.
 
 ## v1.1.0 [2016-11-14]
 ## v1.1.0 [unreleased]
