@@ -15,6 +15,7 @@ type Service struct {
 	MetaClient interface {
 		Databases() []meta.DatabaseInfo
 		DeleteShardGroup(database, policy string, id uint64) error
+		PruneShardGroups() error
 	}
 	TSDBStore interface {
 		ShardIDs() []uint64
@@ -129,6 +130,9 @@ func (s *Service) deleteShards() {
 					s.logger.Printf("shard ID %d from database %s, retention policy %s, deleted",
 						id, di.db, di.rp)
 				}
+			}
+			if err := s.MetaClient.PruneShardGroups(); err != nil {
+				s.logger.Printf("error pruning shard groups: %s", err)
 			}
 		}
 	}

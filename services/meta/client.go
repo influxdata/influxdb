@@ -28,6 +28,10 @@ const (
 	SaltBytes = 32
 
 	metaFile = "meta.db"
+
+	// ShardGroupDeletedExpiration is the amount of time before a shard group info will be removed from cached
+	// data after it has been marked deleted (2 weeks)
+	ShardGroupDeletedExpiration = -2 * 7 * 24 * time.Hour
 )
 
 var (
@@ -652,6 +656,32 @@ func (c *Client) DropShard(id uint64) error {
 	data := c.cacheData.Clone()
 	data.DropShard(id)
 	return c.commit(data)
+}
+
+// PruneShardGroups remove deleted shard groups from the data store
+func (c *Client) PruneShardGroups() error {
+	var changed bool
+	expiration := time.Now().Add(ShardGroupDeletedExpiration)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	data := c.cacheData.Clone()
+	for i, d := range data.Databases {
+		for j, rp := range d.RetentionPolicies {
+			for _, sgi := range rp.ShardGroups {
+				if sgi.DeletedAt.IsZero() || !expiration.After(sgi.DeletedAt) {
+					continue
+				}
+				// we are safe to delete the shard group as it's been marked deleted for the required expiration
+				s := append(rp.ShardGroups[:i], rp.ShardGroups[i+1:]...)
+				data.Databases[i].RetentionPolicies[j].ShardGroups = s
+				changed = true
+			}
+		}
+	}
+	if changed {
+		return c.commit(data)
+	}
+	return nil
 }
 
 // CreateShardGroup creates a shard group on a database and policy for a given timestamp.
