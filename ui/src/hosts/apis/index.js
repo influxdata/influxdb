@@ -62,12 +62,9 @@ export function getAppsForHosts(proxyLink, hosts, appMappings, telegrafDB) {
     const newHosts = Object.assign({}, hosts);
     const allSeries = _.get(resp, ['data', 'results', '0', 'series', '0', 'values'], []);
     allSeries.forEach(([series]) => {
-      const matches = series.match(/(\w*).*,host=([^,]*)/);
-      if (!matches || matches.length !== 3) { // eslint-disable-line no-magic-numbers
-        return;
-      }
-      const measurement = matches[1];
-      const host = matches[2];
+      const seriesObj = parseSeries(series);
+      const measurement = seriesObj.measurement;
+      const host = seriesObj.tags.host;
 
       if (!newHosts[host]) {
         return;
@@ -75,7 +72,11 @@ export function getAppsForHosts(proxyLink, hosts, appMappings, telegrafDB) {
       if (!newHosts[host].apps) {
         newHosts[host].apps = [];
       }
+      if (!newHosts[host].tags) {
+        newHosts[host].tags = {};
+      }
       newHosts[host].apps = _.uniq(newHosts[host].apps.concat(measurementsToApps[measurement]));
+      _.assign(newHosts[host].tags, seriesObj.tags);
     });
 
     return newHosts;
@@ -97,6 +98,49 @@ export function getMeasurementsForHost(source, host) {
       return measurement[0];
     });
   });
+}
+
+function parseSeries(series) {
+  const ident = /\w+/;
+  const tag = /,?([^=]+)=([^,]+)/;
+
+  function parseMeasurement(s, obj) {
+    const match = ident.exec(s);
+    const measurement = match[0];
+    if (measurement) {
+      obj.measurement = measurement;
+    }
+    return s.slice(match.index + measurement.length);
+  }
+
+  function parseTag(s, obj) {
+    const match = tag.exec(s);
+
+    const kv = match[0];
+    const key = match[1];
+    const value = match[2];
+
+    if (key) {
+      if (!obj.tags) {
+        obj.tags = {};
+      }
+      obj.tags[key] = value;
+    }
+    return s.slice(match.index + kv.length);
+  }
+
+  let workStr = series.slice();
+  const out = {};
+
+  // Consume measurement
+  workStr = parseMeasurement(workStr, out);
+
+  // Consume tags
+  while (workStr.length > 0) {
+    workStr = parseTag(workStr, out);
+  }
+
+  return out;
 }
 
 function _isEmpty(resp) {
