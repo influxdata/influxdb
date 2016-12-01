@@ -1,0 +1,52 @@
+/*
+    Styles for Flash Messages
+    ----------------------------------------------
+*/
+.flash-messages {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 570px;
+  top: 36px;
+  z-index: 9999;
+
+  .alert {
+    font-size: 16px;
+    font-weight: 500;
+    border-width: 0;
+    color: $g20-white;
+
+    &.alert-success {
+      background-color: $c-rainforest;
+    }
+    &.alert-primary {
+      background-color: $c-pool;
+    }
+    &.alert-warning {
+      background-color: $c-comet;
+
+    }
+    &.alert-danger {
+      background-color: $c-dreamsicle;
+    }
+
+    button.close {
+      position: absolute;
+      top: 50%;
+      right: 13px;
+      transform: translateY(-50%);
+      font-size: 16px;
+      text-shadow: none;
+      opacity: 0.6;
+      transition: opacity 0.25s ease;
+
+      .icon {
+        color: $g20-white;
+        text-shadow: none;
+      }
+      &:hover {
+        opacity: 1;
+      }
+    }
+  }
+}

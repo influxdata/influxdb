@@ -1,7 +1,9 @@
 /*
 	This is a bunch of stuff built on top of the bootstrap theme for the Chronograf app.
 */
-
+html, body {
+  background-color: $g0-obsidian;
+}
 body {
   display: flex;
   padding: 0;
@@ -9,24 +11,18 @@ body {
   height: 100%;
   position: absolute;
   align-items: stretch;
-  /* Ensures sidebar and page-wrapper go full-height */
   overflow: hidden;
-  background-color: $g0-obsidian;
-}
 
-/*
-    Chronograf Select Host Page
-    ----------------------------------------------
-*/
-body > #react-root {
-  width: 100%;
-  height: 100%;
-  position: absolute;
-  top: 0;
-  left: 0;
+  > #react-root {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
 
-  .container {
-    margin-top: 60px;
+    .container {
+      margin-top: 60px;
+    }
   }
 }
 
@@ -34,76 +30,66 @@ body > #react-root {
     Layout
     ----------------------------------------------
 */
-
-.chronograf-wrapper {
+.chronograf-root {
+  display: flex;
+  align-items: stretch;
+  position: absolute;
   width: 100%;
-  position: relative;
-
-  > div {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    top: 0;
-    left: 0;
-  }
-
-  &--flex {
-    display: flex;
-    align-items: stretch;
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    top: 0;
-    left: 0;
-  }
+  height: 100%;
+  top: 0;
+  left: 0;
+  color: $g17-whisper;
 }
-
-.container-fluid {
-  /* Overriding left and right padding from the theme to be more spacious */
-  padding-left: $page-wrapper-padding;
-  padding-right: $page-wrapper-padding;
-  max-width: $page-wrapper-max-width;
-}
-.page-wrapper,
-.sidebar {
-  display: block;
-}
-.page-wrapper {
+.page {
   position: relative;
   flex-grow: 1;
   overflow: hidden;
-  @include gradient-v($g18-cloud, $g19-ghost);
 }
-.signup-flow-bg {
-  background-image: url(/assets/images/signup-bg.png);
-  background-position: center top;
-  background-repeat: no-repeat;
-  background-size: contain;
-}
-
-.page-wrapper > div:not(.flash-messages):not(.page-spinner):not(.kapacitor-rule-page):not(.data-explorer-container) {
+.page-contents {
   position: absolute;
-  top: 0;
+  top: $chronograf-page-header-height;
   left: 0;
   width: 100%;
-  height: 100%;
+  height: calc(100% - #{$chronograf-page-header-height});
   overflow: auto;
   overflow-x: hidden;
   overflow-y: scroll;
+  @include custom-scrollbar($g2-kevlar,$c-pool);
+  @include gradient-v($g2-kevlar,$g0-obsidian);
+
+  &--green-scrollbar {
+    @include custom-scrollbar($g2-kevlar,$c-rainforest);
+  }
+  &--purple-scrollbar {
+    @include custom-scrollbar($g2-kevlar,$c-comet);
+  }
+}
+.container-fluid {
+  padding: ($chronograf-page-header-height / 2) $page-wrapper-padding ($chronograf-page-header-height / 2) $page-wrapper-padding;
+  max-width: $page-wrapper-max-width;
+
+  &.full-width {
+    max-width: 100%;
+  }
 }
 
 /*
-    Chronograf Page Header
+    Page Header
     ----------------------------------------------
 */
-.chronograf-header {
-  background-color: $g20-white;
+.page-header {
   height: $chronograf-page-header-height;
-  margin-bottom: 15px;
+  width: 100%;
   padding: 0 ($page-wrapper-padding + $scrollbar-width) 0 $page-wrapper-padding;
   display: flex;
   justify-content: center;
   align-items: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background-color: $g0-obsidian;
+  border: none;
+  margin: 0;
 
   &__container {
     width: 100%;
@@ -115,7 +101,7 @@ body > #react-root {
   }
   h1 {
     text-transform: uppercase;
-    font-size: 20px;
+    font-size: 17px;
     font-weight: 400;
     margin: 0;
     display: inline-block;
@@ -140,42 +126,44 @@ body > #react-root {
       margin: 0 0 0 4px;
     }
   }
+  &.full-width .page-header__container {
+    max-width: 100%;
+  }
 }
 
-.minimal-dropdown {
-  .dropdown-toggle {
-    font-size: 20px;
-    font-weight: 400;
-    background-color: transparent;
-    border: none;
+/*
+    Custom Search Widget
+    ----------------------------------------------
+*/
+.users__search-widget {
+  position: relative;
 
-    &:hover {
-      .button-text {
-        color: $g10-wolf;
-      }
-      .caret {
-        color: $g10-wolf;
-      }
+  input.form-control {
+    position: relative;
+    width: 100%;
+    z-index: 1;
+    padding-left: 34px;
+    border-radius: 4px !important;
+
+    &:focus + .input-group-addon {
+      color: $c-pool;
     }
   }
-  .button-text,
-  .caret {
-    display: inline-block;
-    vertical-align: middle;
-  }
-  .button-text {
-    transition: color 0.25s ease;
-  }
-  .caret {
-    transition: color 0.25s ease;
-  }
-  &.open {
-    .button-text {
-      color: $g10-wolf;
-    }
-    .caret {
-      color: $g10-wolf;
-    }
+  .input-group-addon {
+    padding: 0;
+    text-align: center;
+    line-height: 38px;
+    position: absolute;
+    color: $g10-wolf;
+    top: 0;
+    left: 0;
+    height: 100%;
+    z-index: 4;
+    border: 0;
+    width: 40px;
+    background-color: transparent;
+    transition:
+      color 0.25s ease;
   }
 }
 
@@ -183,6 +171,33 @@ body > #react-root {
     Unsorted
     ----------------------------------------------
 */
+.select-source-page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  @include custom-scrollbar($g2-kevlar, $c-pool);
+  @include gradient-v($g2-kevlar, $g0-obsidian);
+}
+.text-right .btn {
+  margin: 0 0 0 4px;
+}
+.text-center .btn {
+  margin: 0 2px;
+}
+.default-source-label {
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 13px;
+  font-weight: 500;
+  background-color: $g5-pepper;
+  color: $c-pool;
+  border-radius: 3px;
+  padding: 2px 6px;
+  margin-left: 4px;
+}
 .progress-label {
   margin-bottom: 4px;
   color: $g11-sidewalk;
@@ -191,31 +206,6 @@ body > #react-root {
   strong {
     font-weight: 500;
     color: $g8-storm;
-  }
-}
-.flex-group {
-  margin: 0;
-
-  .flex-space {
-    display: inline-block;
-    width: 20px;
-  }
-}
-.main {
-  margin-top: 60px;
-}
-.fake-panel-title {
-  margin-top: 25px;
-  margin-bottom: 25px;
-  &.match-search {
-    padding-top: 7px;
-    padding-bottom: 7px;
-  }
-}
-.modal#dbModal {
-  .modal-body {
-    width: 100%;
-    display: inline-block;
   }
 }
 .btn-block.dropdown-toggle {
@@ -233,9 +223,6 @@ body > #react-root {
     width: 100%;
   }
 }
-.pointer {
-  cursor: pointer;
-}
 .modal {
   form {
     padding: 0;
@@ -250,146 +237,6 @@ body > #react-root {
       padding-top: 15px;
     }
   }
-}
-#accordion {
-  .panel-heading {
-    color: gray;
-    align-items: center;
-
-    .progress {
-      width: 200px;
-      margin: 0 20px;
-    }
-  }
-}
-
-.continuous-queries {
-  h1, h2, h3, h4, h5, h6 {
-    padding-bottom: 10px;
-    border-bottom: 1px solid whitesmoke;
-  }
-  pre code {
-    white-space: normal;
-  }
-
-  &__empty {
-    text-align: center;
-    padding: 60px 0;
-    color: $g15-platinum;
-
-    h1, h2, h3, h4, h5, h6 {
-      padding-bottom: 0;
-      border-bottom: none;
-      font-weight: 400;
-    }
-
-    img {
-      width: 100px;
-      height: auto;
-      margin-bottom: 30px;
-    }
-  }
-}
-
-.product-buttons {
-  margin-bottom: 20px;
-}
-
-
-
-$telegraf: #f95f53;
-$influxdb: #4591ED;
-$kapacitor: #4ED8A0;
-$chronograf: #C557FF;
-
-.influxdb-bg {
-  background-color: $influxdb;
-}
-
-.telegraf-bg {
-  background-color: $telegraf;
-}
-
-.chronograf-bg {
-  background-color: $chronograf;
-}
-
-.kapacitor-bg {
-  background-color: $kapacitor;
-}
-
-.btn-telegraf {
-  @extend .telegraf-bg;
-
-  &.inactive {
-    background-color: lighten($telegraf, 25%);
-    color: #000000;
-  }
-}
-
-.btn-influxdb {
-  @extend .influxdb-bg;
-
-  &.inactive {
-    background-color: lighten($influxdb, 25%);
-    color: #000000;
-  }
-}
-
-.btn-chronograf {
-  @extend .chronograf-bg;
-
-  &.inactive {
-    background-color: lighten($chronograf, 25%);
-    color: #000000;
-  }
-}
-
-.btn-kapacitor {
-  @extend .kapacitor-bg;
-
-  &.inactive {
-    background-color: lighten($kapacitor, 25%);
-    color: #000000;
-  }
-}
-
-.pinger {
-  color: #fff;
-}
-
-.ping-pending {
-  color: yellow;
-  animation: blinker 1s linear infinite;
-}
-
-.ping-success {
-  color: green;
-}
-
-.ping-failure {
-  color: red;
-}
-
-@keyframes blinker {
-  50% {
-    opacity: 0.0;
-  }
-}
-
-.profile-info {
-  color: #fff;
-  text-align: right;
-}
-
-a {
-  &.btn {
-    color: #fff;
-  }
-}
-
-.caret {
-  cursor: pointer;
 }
 
 /*
@@ -432,55 +279,6 @@ a {
     &.active {
       background-color: white;
       color: $g8-storm;
-    }
-  }
-}
-
-.flash-messages {
-  position: fixed;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 570px;
-  top: 36px;
-  z-index: 9999;
-
-  .alert {
-    font-size: 16px;
-    font-weight: 500;
-    border-width: 0;
-    color: $g20-white;
-
-    &.alert-success {
-      background-color: $c-rainforest;
-    }
-    &.alert-primary {
-      background-color: $c-pool;
-    }
-    &.alert-warning {
-      background-color: $c-comet;
-
-    }
-    &.alert-danger {
-      background-color: $c-dreamsicle;
-    }
-
-    button.close {
-      position: absolute;
-      top: 50%;
-      right: 13px;
-      transform: translateY(-50%);
-      font-size: 16px;
-      text-shadow: none;
-      opacity: 0.6;
-      transition: opacity 0.25s ease;
-
-      .icon {
-        color: $g20-white;
-        text-shadow: none;
-      }
-      &:hover {
-        opacity: 1;
-      }
     }
   }
 }
@@ -529,64 +327,6 @@ table.table.error-table {
 }
 
 /*
-    Database Manager polish
-    ----------------------------------------------
-*/
-.db-manager-stats {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-
-  h4 {
-    margin-bottom: 4px;
-  }
-  p {
-    color: $g12-forge;
-  }
-}
-
-/*
-    Cluster Renaming UI
-    ----------------------------------------------
-*/
-.cluster-dropdown {
-  &__item {
-    position: relative;
-
-    &:hover {
-      .cluster-dropdown__rename {
-        opacity: 1;
-      }
-      a {
-        background-color: $c-laser;
-        color: $g20-white;
-      }
-    }
-  }
-  &__rename {
-    z-index: 2;
-    opacity: 0;
-    position: absolute;
-    top: 50%;
-    right: 0;
-    width: 34px;
-    height: 100%;
-    transform: translateY(-50%);
-    border: 0;
-    background-color: transparent;
-    color: $c-hydrogen;
-    transition:
-      opacity 0.25s ease,
-      color 0.25s ease;
-
-    &:hover {
-      color: $g20-white;
-      cursor: pointer;
-    }
-  }
-}
-
-/*
     Generic Empty State
     ----------------------------------------------
 */
@@ -603,20 +343,16 @@ table.table.error-table {
   }
 }
 
-.cluster-accounts > *:not(:last-child) {
-  margin-bottom: 12px;
-}
-
 /*
     Static Form Controls
     ----------------------------------------------
 */
+$form-static-checkbox-size: 16px;
 .form-control-static {
-  border: 2px solid $g17-whisper;
-  height: 40px;
+  border: 2px solid $g5-pepper;
+  height: auto;
   border-radius: 4px;
-  padding: 0 18px;
-  line-height: 36px;
+  padding: 7px 12px;
   position: relative;
 
   input[type="checkbox"] {
@@ -629,8 +365,13 @@ table.table.error-table {
 
     // Faux Checkbox
     & + label {
+      font-size: 14px !important;
+      line-height: 16px;
+      color: $g11-sidewalk;
+      font-weight: 500;
       transition: color 0.25s ease;
-      margin-left: 24px;
+      margin: 0;
+      padding: 0 0 0 (12px + $form-static-checkbox-size + 6px);
       user-select: none;
       -ms-user-select: none;
       -moz-user-selct: none;
@@ -640,22 +381,22 @@ table.table.error-table {
         content: '';
         position: absolute;
         top: 50%;
-        left: 18px;
+        left: 12px;
         transform: translateY(-50%);
-        width: 16px;
-        height: 16px;
-        background-color: $g18-cloud;
-        border: 2px solid $g17-whisper;
+        width: $form-static-checkbox-size;
+        height: $form-static-checkbox-size;
+        background-color: $g2-kevlar;
+        border: 2px solid $g5-pepper;
         border-radius: 3px;
         z-index: 2;
         transition:
-          background-color 0.25s ease;
+          border-color 0.25s ease;
       }
       &:after {
         content: '';
         position: absolute;
         top: 50%;
-        left: (18px + (16px / 2));
+        left: (12px + ($form-static-checkbox-size / 2));
         transform: translate(-50%,-50%) scale(2,2);
         opacity: 0;
         width: 6px;
@@ -669,15 +410,16 @@ table.table.error-table {
       }
       &:hover {
         cursor: pointer;
+        color: $g20-white;
 
         &:before {
-          background-color: $g20-white;
+          border-color: $g6-smoke;
         }
       }
     }
     // Faux Checkbox (Checked)
     &:checked + label {
-      color: $c-pool;
+      color: $g20-white;
 
       &:after {
         opacity: 1;
@@ -686,15 +428,6 @@ table.table.error-table {
     }
   }
 }
-/*
-    Button alignment in tables
-    ----------------------------------------------
-*/
-
-table .text-right .btn {
-  margin: 0 0 0 6px;
-}
-
 
 /*
     Stuff for making Tables of Data more readable
@@ -730,20 +463,6 @@ table .monotype {
     background-color: $c-fire;
   }
 }
-
-/*
-    Sources / Kapacitor Config Pages
-    ----------------------------------------------
-*/
-
-#source-form-page,
-#manage-sources-page,
-.kapacitor {
-  .chronograf-header {
-    margin-bottom: 45px;
-  }
-}
-
 
 /*
     Empty State for Tables

@@ -81,10 +81,19 @@ const HostsTable = React.createClass({
     const hostCount = hosts.length;
     const {source} = this.props;
 
+    let hostsTitle;
+    if (hostCount === 1) {
+      hostsTitle = `${hostCount} Host`;
+    } else if (hostCount > 1) {
+      hostsTitle = `${hostCount} Hosts`;
+    } else {
+      hostsTitle = `Loading Hosts...`;
+    }
+
     return (
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-          <h2 className="panel-title">{hostCount ? `${hostCount} Hosts` : ''}</h2>
+          <h2 className="panel-title">{hostsTitle}</h2>
           <SearchBar onSearch={_.wrap(this.props.hosts, this.filterHosts)} />
         </div>
         <div className="panel-body">
@@ -148,7 +157,7 @@ const SearchBar = React.createClass({
         <input
           type="text"
           className="form-control"
-          placeholder="Filter Hosts"
+          placeholder="Filter by Hostname..."
           ref="searchInput"
           onChange={this.handleChange}
         />

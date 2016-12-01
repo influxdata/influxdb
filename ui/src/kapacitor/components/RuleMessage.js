@@ -52,7 +52,7 @@ export const RuleMessage = React.createClass({
           </div>
           <div className="rule-section--item bottom alert-message--endpoint">
             <p>Send this Alert to:</p>
-            <Dropdown className="size-256" selected={rule.alerts[0] || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
+            <Dropdown className="size-256 dropdown-kapacitor" selected={rule.alerts[0] || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
           </div>
         </div>
       </div>

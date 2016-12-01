@@ -108,8 +108,8 @@ const Header = React.createClass({
       {text: 'Delete', icon: 'trash', target: '#deleteExplorerModal', handler: this.openDeleteExplorerModal},
     ];
     return (
-      <div className="chronograf-header data-explorer__header">
-        <div className="chronograf-header__left">
+      <div className="page-header data-explorer__header">
+        <div className="page-header__left">
           <h1 className="dropdown-title">Exploration:</h1>
           <Dropdown
             className="sessions-dropdown"
@@ -120,7 +120,7 @@ const Header = React.createClass({
           />
           <div className="btn btn-sm btn-primary sessions-dropdown__btn" onClick={this.handleCreateExploration}>New Exploration</div>
         </div>
-        <div className="chronograf-header__right">
+        <div className="page-header__right">
           <h1>Source:</h1>
           <div className="source-indicator">
             <span className="icon cpu"></span>
@@ -128,10 +128,6 @@ const Header = React.createClass({
           </div>
           <h1>Range:</h1>
           <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={this.findSelected(timeRange)} />
-          {/* Placeholder for export functionality
-              <a href="#" className="btn btn-sm btn-info">Export</a> */}
-          {/* Placeholder for create graph functionality
-              <a href="#" className="btn btn-sm btn-primary"><span className="icon graphline"></span>&nbsp;&nbsp;Create Graph</a> */}
         </div>
         <DeleteExplorerModal onConfirm={this.confirmDeleteExplorer} />
         <EditExplorerModal onConfirm={this.confirmEditExplorer} />
@@ -157,7 +153,7 @@ const DeleteExplorerModal = React.createClass({
               <h4 className="modal-title">Are you sure?</h4>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-default" type="button" data-dismiss="modal">Cancel</button>
+              <button className="btn btn-info" type="button" data-dismiss="modal">Cancel</button>
               <button onClick={this.handleConfirm} className="btn btn-danger" type="button" data-dismiss="modal">Confirm</button>
             </div>
           </div>
@@ -203,7 +199,7 @@ const EditExplorerModal = React.createClass({
                 </div>
               </div>
               <div className="modal-footer">
-                <button className="btn btn-default" onClick={this.handleCancel}>Cancel</button>
+                <button className="btn btn-info" onClick={this.handleCancel}>Cancel</button>
                 <input type="submit" value="Rename" className="btn btn-success" />
               </div>
             </form>

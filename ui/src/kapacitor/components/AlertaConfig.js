@@ -30,7 +30,7 @@ const AlertaConfig = React.createClass({
     const {environment, origin, token, url} = this.props.config.options;
 
     return (
-      <div className="panel-body">
+      <div className="col-xs-12 col-sm-8 col-sm-offset-2">
         <h4 className="text-center">Alerta Alert</h4>
         <br/>
         <form onSubmit={this.handleSaveAlert}>
