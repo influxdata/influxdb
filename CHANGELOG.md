@@ -15,6 +15,7 @@
 - [#7621](https://github.com/influxdata/influxdb/issues/7621): Expand string and boolean fields when using a wildcard with `sample()`.
 - [#7616](https://github.com/influxdata/influxdb/pull/7616): Fix chuid argument order in init script @ccasey
 - [#7656](https://github.com/influxdata/influxdb/issues/7656): Fix cross-platform backup/restore
+- [#7650](https://github.com/influxdata/influxdb/issues/7650): Ensures that all user privileges associated with a database are removed when the database is dropped.
 
 ## v1.1.1 [unreleased]
 
@@ -23,7 +24,6 @@
 - [#7625](https://github.com/influxdata/influxdb/issues/7625): Fix incorrect tag value in error message.
 
 ## v1.1.0 [2016-11-14]
-## v1.1.0 [unreleased]
 
 ### Release Notes
 
