@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -590,6 +591,23 @@ func TestHandler_HandleBadRequestBody(t *testing.T) {
 	h.ServeHTTP(w, MustNewRequest("POST", "/write", b))
 	if w.Code != http.StatusBadRequest {
 		t.Fatalf("unexpected status: %d", w.Code)
+	}
+}
+
+// Ensure X-Forwarded-For header writes the correct log message.
+func TestHandler_XForwardedFor(t *testing.T) {
+	var buf bytes.Buffer
+	h := NewHandler(false)
+	h.CLFLogger = log.New(&buf, "", 0)
+
+	req := MustNewRequest("GET", "/query", nil)
+	req.Header.Set("X-Forwarded-For", "192.168.0.1")
+	req.RemoteAddr = "127.0.0.1"
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	parts := strings.Split(buf.String(), " ")
+	if parts[0] != "192.168.0.1,127.0.0.1" {
+		t.Errorf("unexpected host ip address: %s", parts[0])
 	}
 }
 
