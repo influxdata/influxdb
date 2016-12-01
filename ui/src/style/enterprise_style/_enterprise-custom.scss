@@ -209,6 +209,17 @@ body {
 .text-center .btn {
   margin: 0 2px;
 }
+.default-source-label {
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 13px;
+  font-weight: 500;
+  background-color: $g5-pepper;
+  color: $c-pool;
+  border-radius: 3px;
+  padding: 2px 6px;
+  margin-left: 4px;
+}
 .progress-label {
   margin-bottom: 4px;
   color: $g11-sidewalk;
