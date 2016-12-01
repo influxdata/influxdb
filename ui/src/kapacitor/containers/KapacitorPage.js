@@ -143,25 +143,25 @@ export const KapacitorPage = React.createClass({
                     <br/>
                     <form onSubmit={this.handleKapacitorUpdate}>
                       <div>
-                        <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
+                        <div className="form-group col-xs-12 col-sm-8 col-sm-offset-2 col-md-4 col-md-offset-2">
                           <label htmlFor="connect-string">Connection String</label>
                           <input ref={(r) => this.kapacitorURL = r} className="form-control" id="connect-string" placeholder="http://localhost:9092" value={url} onChange={this.updateURL}></input>
                         </div>
-                        <div className="form-group col-xs-6 col-sm-4">
+                        <div className="form-group col-xs-12 col-sm-8 col-sm-offset-2 col-md-4 col-md-offset-0">
                           <label htmlFor="name">Name</label>
                           <input ref={(r) => this.kapacitorName = r} className="form-control" id="name" placeholder="My Kapacitor" value={name} onChange={this.updateName}></input>
                         </div>
-                        <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
+                        <div className="form-group col-xs-12 col-sm-4 col-sm-offset-2 col-md-4 col-md-offset-2">
                           <label htmlFor="username">Username</label>
                           <input ref={(r) => this.kapacitorUser = r} className="form-control" id="username" value={username} onChange={this.updateUsername}></input>
                         </div>
-                        <div className="form-group col-xs-6 col-sm-4">
+                        <div className="form-group col-xs-12 col-sm-4 col-md-4">
                           <label htmlFor="password">Password</label>
                           <input ref={(r) => this.kapacitorPassword = r} className="form-control" id="password" type="password"></input>
                         </div>
                       </div>
 
-                      <div className="form-group col-xs-4 col-xs-offset-4">
+                      <div className="form-group form-group-submit col-xs-4 col-xs-offset-4">
                         <button className="btn btn-block btn-success" type="submit">Connect Kapacitor</button>
                       </div>
                     </form>
