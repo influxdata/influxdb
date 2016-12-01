@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -16,6 +15,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/uber-go/zap"
 )
 
 type TSMFile interface {
@@ -133,9 +133,9 @@ type FileStore struct {
 
 	files []TSMFile
 
-	logger       *log.Logger // Logger to be used for important messages
-	traceLogger  *log.Logger // Logger to be used when trace-logging is on.
-	logOutput    io.Writer   // Writer to be logger and traceLogger if active.
+	logger       zap.Logger // Logger to be used for important messages
+	traceLogger  zap.Logger // Logger to be used when trace-logging is on.
+	logOutput    io.Writer  // Writer to be logger and traceLogger if active.
 	traceLogging bool
 
 	stats  *FileStoreStatistics
@@ -168,13 +168,12 @@ func (f FileStat) ContainsKey(key string) bool {
 }
 
 func NewFileStore(dir string) *FileStore {
-	logger := log.New(os.Stderr, "[filestore] ", log.LstdFlags)
+	logger := zap.New(zap.NullEncoder())
 	fs := &FileStore{
 		dir:          dir,
 		lastModified: time.Time{},
 		logger:       logger,
-		traceLogger:  log.New(ioutil.Discard, "[filestore] ", log.LstdFlags),
-		logOutput:    os.Stderr,
+		traceLogger:  logger,
 		stats:        &FileStoreStatistics{},
 		purger: &purger{
 			files:  map[string]TSMFile{},
@@ -189,23 +188,17 @@ func NewFileStore(dir string) *FileStore {
 func (f *FileStore) enableTraceLogging(enabled bool) {
 	f.traceLogging = enabled
 	if enabled {
-		f.traceLogger.SetOutput(f.logOutput)
+		f.traceLogger = f.logger
 	}
 }
 
-// SetLogOutput sets the logger used for all messages. It is safe for concurrent
-// use.
-func (f *FileStore) SetLogOutput(w io.Writer) {
-	f.logger.SetOutput(w)
+func (f *FileStore) WithLogger(log zap.Logger) {
+	f.logger = log.With(zap.String("service", "filestore"))
+	f.purger.logger = f.logger
 
-	// Set the trace logger's output only if trace logging is enabled.
 	if f.traceLogging {
-		f.traceLogger.SetOutput(w)
+		f.traceLogger = f.logger
 	}
-
-	f.mu.Lock()
-	f.logOutput = w
-	f.mu.Unlock()
 }
 
 // FileStoreStatistics keeps statistics about the file store.
@@ -422,7 +415,7 @@ func (f *FileStore) Open() error {
 		go func(idx int, file *os.File) {
 			start := time.Now()
 			df, err := NewTSMReader(file)
-			f.logger.Printf("%s (#%d) opened in %v", file.Name(), idx, time.Now().Sub(start))
+			f.logger.Info(fmt.Sprintf("%s (#%d) opened in %v", file.Name(), idx, time.Now().Sub(start)))
 
 			if err != nil {
 				readerC <- &res{r: df, err: fmt.Errorf("error opening memory map for file %s: %v", file.Name(), err)}
@@ -802,7 +795,7 @@ func (f *FileStore) locations(key string, t int64, ascending bool) []*location {
 // CreateSnapshot will create hardlinks for all tsm and tombstone files
 // in the path provided
 func (f *FileStore) CreateSnapshot() (string, error) {
-	f.traceLogger.Printf("Creating snapshot in %s", f.dir)
+	f.traceLogger.Info(fmt.Sprintf("Creating snapshot in %s", f.dir))
 	files := f.Files()
 
 	f.mu.Lock()
@@ -1160,7 +1153,7 @@ type purger struct {
 	files     map[string]TSMFile
 	running   bool
 
-	logger *log.Logger
+	logger zap.Logger
 }
 
 func (p *purger) add(files []TSMFile) {
@@ -1192,12 +1185,12 @@ func (p *purger) purge() {
 					}
 
 					if err := v.Close(); err != nil {
-						p.logger.Printf("purge: close file: %v", err)
+						p.logger.Info(fmt.Sprintf("purge: close file: %v", err))
 						continue
 					}
 
 					if err := v.Remove(); err != nil {
-						p.logger.Printf("purge: remove file: %v", err)
+						p.logger.Info(fmt.Sprintf("purge: remove file: %v", err))
 						continue
 					}
 					delete(p.files, k)

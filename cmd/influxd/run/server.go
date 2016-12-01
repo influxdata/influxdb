@@ -31,6 +31,7 @@ import (
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
 	client "github.com/influxdata/usage-client/v1"
+	"github.com/uber-go/zap"
 	// Initialize the engine packages
 	_ "github.com/influxdata/influxdb/tsdb/engine"
 )
@@ -61,7 +62,7 @@ type Server struct {
 	BindAddress string
 	Listener    net.Listener
 
-	Logger *log.Logger
+	Logger zap.Logger
 
 	MetaClient *meta.Client
 
@@ -94,10 +95,6 @@ type Server struct {
 	tcpAddr string
 
 	config *Config
-
-	// logOutput is the writer to which all services should be configured to
-	// write logs to after appension.
-	logOutput io.Writer
 }
 
 // NewServer returns a new instance of Server built from a config.
@@ -143,7 +140,10 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		BindAddress: bind,
 
-		Logger: log.New(os.Stderr, "", log.LstdFlags),
+		Logger: zap.New(
+			zap.NewTextEncoder(),
+			zap.Output(os.Stderr),
+		),
 
 		MetaClient: meta.NewClient(c.Meta),
 
@@ -153,8 +153,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		httpUseTLS:  c.HTTPD.HTTPSEnabled,
 		tcpAddr:     bind,
 
-		config:    c,
-		logOutput: os.Stderr,
+		config: c,
 	}
 	s.Monitor = monitor.New(s, c.Monitor)
 
@@ -227,8 +226,7 @@ func (s *Server) appendSnapshotterService() {
 // SetLogOutput sets the logger used for all messages. It must not be called
 // after the Open method has been called.
 func (s *Server) SetLogOutput(w io.Writer) {
-	s.Logger = log.New(os.Stderr, "", log.LstdFlags)
-	s.logOutput = w
+	s.Logger = zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(w)))
 }
 
 func (s *Server) appendMonitorService() {
@@ -396,21 +394,20 @@ func (s *Server) Open() error {
 	s.SnapshotterService.Listener = mux.Listen(snapshotter.MuxHeader)
 
 	// Configure logging for all services and clients.
-	w := s.logOutput
 	if s.config.Meta.LoggingEnabled {
-		s.MetaClient.SetLogOutput(w)
+		s.MetaClient.WithLogger(s.Logger)
 	}
-	s.TSDBStore.SetLogOutput(w)
+	s.TSDBStore.WithLogger(s.Logger)
 	if s.config.Data.QueryLogEnabled {
-		s.QueryExecutor.SetLogOutput(w)
+		s.QueryExecutor.WithLogger(s.Logger)
 	}
-	s.PointsWriter.SetLogOutput(w)
-	s.Subscriber.SetLogOutput(w)
+	s.PointsWriter.WithLogger(s.Logger)
+	s.Subscriber.WithLogger(s.Logger)
 	for _, svc := range s.Services {
-		svc.SetLogOutput(w)
+		svc.WithLogger(s.Logger)
 	}
-	s.SnapshotterService.SetLogOutput(w)
-	s.Monitor.SetLogOutput(w)
+	s.SnapshotterService.WithLogger(s.Logger)
+	s.Monitor.WithLogger(s.Logger)
 
 	// Open TSDB store.
 	if err := s.TSDBStore.Open(); err != nil {
@@ -539,7 +536,7 @@ func (s *Server) reportServer() {
 		},
 	}
 
-	s.Logger.Printf("Sending usage statistics to usage.influxdata.com")
+	s.Logger.Info("Sending usage statistics to usage.influxdata.com")
 
 	go cl.Save(usage)
 }
@@ -561,7 +558,7 @@ func (s *Server) monitorErrorChan(ch <-chan error) {
 
 // Service represents a service attached to the server.
 type Service interface {
-	SetLogOutput(w io.Writer)
+	WithLogger(log zap.Logger)
 	Open() error
 	Close() error
 }

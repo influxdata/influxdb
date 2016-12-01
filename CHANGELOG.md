@@ -15,6 +15,7 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7601](https://github.com/influxdata/influxdb/issues/7601): Prune data in meta store for deleted shards.
 - [#7669](https://github.com/influxdata/influxdb/issues/7669): Uncomment section headers from the default configuration file.
 - [#7684](https://github.com/influxdata/influxdb/issues/7684): Update Go version to 1.7.4.
+- [#7036](https://github.com/influxdata/influxdb/issues/7036): Switch logging to use structured logging everywhere.
 
 ### Bugfixes
 

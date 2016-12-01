@@ -14,4 +14,6 @@ github.com/paulbellamy/ratecounter 5a11f585a31379765c190c033b6ad39956584447
 github.com/peterh/liner 8975875355a81d612fafb9f5a6037bdcc2d9b073
 github.com/rakyll/statik e383bbf6b2ec1a2fb8492dfd152d945fb88919b6
 github.com/retailnext/hllpp 38a7bb71b483e855d35010808143beaf05b67f9d
+github.com/uber-go/atomic 9e99152552a6ce13fa3b2ce4a9c4fb117cca4506
+github.com/uber-go/zap fbae0281ffd546fa6d1959fec6075ac5da7fb577
 golang.org/x/crypto 9477e0b78b9ac3d0b03822fd95422e2fe07627cd

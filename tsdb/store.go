@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/limiter"
+	"github.com/uber-go/zap"
 )
 
 var (
@@ -38,10 +38,8 @@ type Store struct {
 	shards map[uint64]*Shard
 
 	EngineOptions EngineOptions
-	Logger        *log.Logger
-
-	// logOutput is where output from the underlying databases will go.
-	logOutput io.Writer
+	baseLogger    zap.Logger
+	Logger        zap.Logger
 
 	closing chan struct{}
 	wg      sync.WaitGroup
@@ -53,25 +51,21 @@ type Store struct {
 func NewStore(path string) *Store {
 	opts := NewEngineOptions()
 
+	logger := zap.New(zap.NullEncoder())
 	return &Store{
 		path:          path,
 		EngineOptions: opts,
-		Logger:        log.New(os.Stderr, "[store] ", log.LstdFlags),
-		logOutput:     os.Stderr,
+		Logger:        logger,
+		baseLogger:    logger,
 	}
 }
 
-// SetLogOutput sets the writer to which all logs are written. It is safe for
-// concurrent use.
-func (s *Store) SetLogOutput(w io.Writer) {
-	s.Logger.SetOutput(w)
-	for _, s := range s.shards {
-		s.SetLogOutput(w)
+func (s *Store) WithLogger(log zap.Logger) {
+	s.baseLogger = log
+	s.Logger = log.With(zap.String("service", "store"))
+	for _, sh := range s.shards {
+		sh.WithLogger(s.baseLogger)
 	}
-
-	s.mu.Lock()
-	s.logOutput = w
-	s.mu.Unlock()
 }
 
 func (s *Store) Statistics(tags map[string]string) []models.Statistic {
@@ -107,7 +101,7 @@ func (s *Store) Open() error {
 	s.shards = map[uint64]*Shard{}
 	s.databaseIndexes = map[string]*DatabaseIndex{}
 
-	s.Logger.Printf("Using data dir: %v", s.Path())
+	s.Logger.Info(fmt.Sprintf("Using data dir: %v", s.Path()))
 
 	// Create directory.
 	if err := os.MkdirAll(s.path, 0777); err != nil {
@@ -135,7 +129,7 @@ func (s *Store) loadIndexes() error {
 	}
 	for _, db := range dbs {
 		if !db.IsDir() {
-			s.Logger.Printf("Skipping database dir: %s. Not a directory", db.Name())
+			s.Logger.Info(fmt.Sprintf("Skipping database dir: %s. Not a directory", db.Name()))
 			continue
 		}
 		s.databaseIndexes[db.Name()] = NewDatabaseIndex(db.Name())
@@ -165,7 +159,7 @@ func (s *Store) loadShards() error {
 		for _, rp := range rps {
 			// retention policies should be directories.  Skip anything that is not a dir.
 			if !rp.IsDir() {
-				s.Logger.Printf("Skipping retention policy dir: %s. Not a directory", rp.Name())
+				s.Logger.Info(fmt.Sprintf("Skipping retention policy dir: %s. Not a directory", rp.Name()))
 				continue
 			}
 
@@ -191,7 +185,7 @@ func (s *Store) loadShards() error {
 					}
 
 					shard := NewShard(shardID, s.databaseIndexes[db], path, walPath, s.EngineOptions)
-					shard.SetLogOutput(s.logOutput)
+					shard.WithLogger(s.baseLogger)
 
 					err = shard.Open()
 					if err != nil {
@@ -200,7 +194,7 @@ func (s *Store) loadShards() error {
 					}
 
 					resC <- &res{s: shard}
-					s.Logger.Printf("%s opened in %s", path, time.Now().Sub(start))
+					s.Logger.Info(fmt.Sprintf("%s opened in %s", path, time.Now().Sub(start)))
 				}(s.databaseIndexes[db], db, rp.Name(), sh.Name())
 			}
 		}
@@ -209,7 +203,7 @@ func (s *Store) loadShards() error {
 	for i := 0; i < n; i++ {
 		res := <-resC
 		if res.err != nil {
-			s.Logger.Println(res.err)
+			s.Logger.Info(res.err.Error())
 			continue
 		}
 		s.shards[res.s.id] = res.s
@@ -319,7 +313,7 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 
 	path := filepath.Join(s.path, database, retentionPolicy, strconv.FormatUint(shardID, 10))
 	shard := NewShard(shardID, db, path, walPath, s.EngineOptions)
-	shard.SetLogOutput(s.logOutput)
+	shard.WithLogger(s.baseLogger)
 	shard.EnableOnOpen = enabled
 
 	if err := shard.Open(); err != nil {

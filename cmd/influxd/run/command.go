@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"strconv"
 	"time"
+
+	"github.com/uber-go/zap"
 )
 
 const logo = `
@@ -38,6 +40,7 @@ type Command struct {
 	Stdin  io.Reader
 	Stdout io.Writer
 	Stderr io.Writer
+	Logger zap.Logger
 
 	Server *Server
 }
@@ -50,6 +53,7 @@ func NewCommand() *Command {
 		Stdin:   os.Stdin,
 		Stdout:  os.Stdout,
 		Stderr:  os.Stderr,
+		Logger:  zap.New(zap.NullEncoder()),
 	}
 }
 
@@ -64,17 +68,13 @@ func (cmd *Command) Run(args ...string) error {
 	// Print sweet InfluxDB logo.
 	fmt.Print(logo)
 
-	// Configure default logging.
-	log.SetPrefix("[run] ")
-	log.SetFlags(log.LstdFlags)
-
 	// Set parallelism.
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	// Mark start-up in log.
-	log.Printf("InfluxDB starting, version %s, branch %s, commit %s",
-		cmd.Version, cmd.Branch, cmd.Commit)
-	log.Printf("Go version %s, GOMAXPROCS set to %d", runtime.Version(), runtime.GOMAXPROCS(0))
+	cmd.Logger.Info(fmt.Sprintf("InfluxDB starting, version %s, branch %s, commit %s",
+		cmd.Version, cmd.Branch, cmd.Commit))
+	cmd.Logger.Info(fmt.Sprintf("Go version %s, GOMAXPROCS set to %d", runtime.Version(), runtime.GOMAXPROCS(0)))
 
 	// Write the PID file.
 	if err := cmd.writePIDFile(options.PIDFile); err != nil {
@@ -113,6 +113,7 @@ func (cmd *Command) Run(args ...string) error {
 	if err != nil {
 		return fmt.Errorf("create server: %s", err)
 	}
+	s.Logger = cmd.Logger
 	s.CPUProfile = options.CPUProfile
 	s.MemProfile = options.MemProfile
 	if err := s.Open(); err != nil {
@@ -192,11 +193,11 @@ func (cmd *Command) writePIDFile(path string) error {
 func (cmd *Command) ParseConfig(path string) (*Config, error) {
 	// Use demo configuration if no config path is specified.
 	if path == "" {
-		log.Println("no configuration provided, using default settings")
+		cmd.Logger.Info("no configuration provided, using default settings")
 		return NewDemoConfig()
 	}
 
-	log.Printf("Using configuration at: %s\n", path)
+	cmd.Logger.Info(fmt.Sprintf("Using configuration at: %s\n", path))
 
 	config := NewConfig()
 	if err := config.FromTomlFile(path); err != nil {

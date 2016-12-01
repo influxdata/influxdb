@@ -3,15 +3,13 @@ package influxql
 import (
 	"errors"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"log"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/uber-go/zap"
 )
 
 var (
@@ -97,7 +95,7 @@ type ExecutionContext struct {
 	Results chan *Result
 
 	// Hold the query executor's logger.
-	Log *log.Logger
+	Log zap.Logger
 
 	// A channel that is closed when the query is interrupted.
 	InterruptCh <-chan struct{}
@@ -154,7 +152,7 @@ type QueryExecutor struct {
 
 	// Logger to use for all logging.
 	// Defaults to discarding all log output.
-	Logger *log.Logger
+	Logger zap.Logger
 
 	// expvar-based stats.
 	stats *QueryStatistics
@@ -164,7 +162,7 @@ type QueryExecutor struct {
 func NewQueryExecutor() *QueryExecutor {
 	return &QueryExecutor{
 		TaskManager: NewTaskManager(),
-		Logger:      log.New(ioutil.Discard, "[query] ", log.LstdFlags),
+		Logger:      zap.New(zap.NullEncoder()),
 		stats:       &QueryStatistics{},
 	}
 }
@@ -198,8 +196,8 @@ func (e *QueryExecutor) Close() error {
 
 // SetLogOutput sets the writer to which all logs are written. It must not be
 // called after Open is called.
-func (e *QueryExecutor) SetLogOutput(w io.Writer) {
-	e.Logger = log.New(w, "[query] ", log.LstdFlags)
+func (e *QueryExecutor) WithLogger(log zap.Logger) {
+	e.Logger = log.With(zap.String("service", "query"))
 	e.TaskManager.Logger = e.Logger
 }
 
@@ -307,7 +305,7 @@ LOOP:
 
 		// Log each normalized statement.
 		if !ctx.Quiet {
-			e.Logger.Println(stmt.String())
+			e.Logger.Info(stmt.String())
 		}
 
 		// Send any other statements to the underlying statement executor.
@@ -361,7 +359,7 @@ LOOP:
 
 func (e *QueryExecutor) recover(query *Query, results chan *Result) {
 	if err := recover(); err != nil {
-		e.Logger.Printf("%s [panic:%s] %s", query.String(), err, debug.Stack())
+		e.Logger.Error(fmt.Sprintf("%s [panic:%s] %s", query.String(), err, debug.Stack()))
 		results <- &Result{
 			StatementID: -1,
 			Err:         fmt.Errorf("%s [panic:%s]", query.String(), err),

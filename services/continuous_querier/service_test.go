@@ -3,8 +3,7 @@ package continuous_querier
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"log"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/uber-go/zap"
 )
 
 var (
@@ -391,8 +391,11 @@ func NewTestService(t *testing.T) *Service {
 	s.RunInterval = time.Millisecond
 
 	// Set Logger to write to dev/null so stdout isn't polluted.
-	if !testing.Verbose() {
-		s.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+	if testing.Verbose() {
+		s.WithLogger(zap.New(
+			zap.NewTextEncoder(),
+			zap.Output(os.Stderr),
+		))
 	}
 
 	// Add a couple test databases and CQs.

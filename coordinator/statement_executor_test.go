@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"log"
 	"os"
 	"reflect"
 	"testing"
@@ -17,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/uber-go/zap"
 )
 
 const (
@@ -200,7 +200,10 @@ func NewQueryExecutor() *QueryExecutor {
 	if testing.Verbose() {
 		out = io.MultiWriter(out, os.Stderr)
 	}
-	e.QueryExecutor.Logger = log.New(out, "[query] ", log.LstdFlags)
+	e.QueryExecutor.WithLogger(zap.New(
+		zap.NewTextEncoder(),
+		zap.Output(os.Stderr),
+	))
 
 	return e
 }
