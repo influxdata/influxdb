@@ -131,55 +131,6 @@ body {
   }
 }
 
-
-/*
-    Dark Panel Styles
-    ----------------------------------------------
-*/
-.row:only-child .panel,
-.row:last-child .panel {
-  margin-bottom: 0;
-}
-.panel hr {
-  background-color: $g5-pepper;
-}
-.panel-minimal {
-  border: 0;
-
-  .panel-title {
-    color: $g10-wolf !important;
-  }
-
-  .panel-body {
-    padding: 30px;
-    background-color: $g3-castle;
-    border: 0;
-    color: $g13-mist;
-
-    > *:first-child {
-      margin-top: 0;
-    }
-    > *:last-child {
-      margin-bottom: 0;
-    }
-
-    table {
-      th,td {
-        border-color: $g5-pepper;
-      }
-      th {
-        color: $g17-whisper;
-      }
-      td {
-        color: $g14-chromium;
-      }
-      tbody tr:last-child td {
-        border-bottom: 2px solid $g5-pepper;
-      }
-    }
-  }
-}
-
 /*
     Custom Search Widget
     ----------------------------------------------
