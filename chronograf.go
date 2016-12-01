@@ -53,13 +53,21 @@ type TimeSeries interface {
 	Connect(context.Context, *Source) error
 }
 
+// Range represents an upper and lower bound for data
+type Range struct {
+	Upper int64 `json:"upper"` // Upper is the upper bound
+	Lower int64 `json:"lower"` // Lower is the lower bound
+}
+
 // Query retrieves a Response from a TimeSeries.
 type Query struct {
-	Command  string   `json:"query"`        // Command is the query itself
-	DB       string   `json:"db,omitempty"` // DB is optional and if empty will not be used.
-	RP       string   `json:"rp,omitempty"` // RP is a retention policy and optional; if empty will not be used.
-	Wheres   []string `json:"wheres"`       // Wheres restricts the query to certain attributes
-	GroupBys []string `json:"groupbys"`     // GroupBys collate the query by these tags
+	Command  string   `json:"query"`              // Command is the query itself
+	DB       string   `json:"db,omitempty"`       // DB is optional and if empty will not be used.
+	RP       string   `json:"rp,omitempty"`       // RP is a retention policy and optional; if empty will not be used.
+	Wheres   []string `json:"wheres,omitempty"`   // Wheres restricts the query to certain attributes
+	GroupBys []string `json:"groupbys,omitempty"` // GroupBys collate the query by these tags
+	Label    string   `json:"label,omitempty"`    // Label is the Y-Axis label for the data
+	Range    *Range   `json:"range,omitempty"`    // Range is the default Y-Axis range for the data
 }
 
 // Response is the result of a query against a TimeSeries
