@@ -4163,6 +4163,84 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 	}
 }
 
+func TestServer_Query_Selectors(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`network,host=server01,region=west,core=1 rx=10i,tx=20i,core=2i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`network,host=server02,region=west,core=2 rx=40i,tx=50i,core=3i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`network,host=server03,region=east,core=3 rx=40i,tx=55i,core=4i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+		fmt.Sprintf(`network,host=server04,region=east,core=4 rx=40i,tx=60i,core=1i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+		fmt.Sprintf(`network,host=server05,region=west,core=1 rx=50i,tx=70i,core=2i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
+		fmt.Sprintf(`network,host=server06,region=east,core=2 rx=50i,tx=40i,core=3i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
+		fmt.Sprintf(`network,host=server07,region=west,core=3 rx=70i,tx=30i,core=4i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+		fmt.Sprintf(`network,host=server08,region=east,core=4 rx=90i,tx=10i,core=1i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+		fmt.Sprintf(`network,host=server09,region=east,core=1 rx=5i,tx=4i,core=2i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:20Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "max - tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT max(tx) FROM network`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","max"],"values":[["2000-01-01T00:00:40Z",70]]}]}]}`,
+		},
+		&Query{
+			name:    "min - tx",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT min(tx) FROM network`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","min"],"values":[["2000-01-01T00:01:20Z",4]]}]}]}`,
+		},
+		&Query{
+			name:    "first",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT first(tx) FROM network`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","first"],"values":[["2000-01-01T00:00:00Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "last",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT last(tx) FROM network`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","last"],"values":[["2000-01-01T00:01:20Z",4]]}]}]}`,
+		},
+		&Query{
+			name:    "percentile",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT percentile(tx, 50) FROM network`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","percentile"],"values":[["2000-01-01T00:00:50Z",40]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 func TestServer_Query_TopInt(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())
