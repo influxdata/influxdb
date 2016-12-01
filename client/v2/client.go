@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/influxdata/influxdb/models"
@@ -80,6 +81,10 @@ func NewHTTPClient(conf HTTPConfig) (Client, error) {
 		conf.UserAgent = "InfluxDBClient"
 	}
 
+	if !strings.HasSuffix(conf.Addr, "/") {
+		conf.Addr += "/"
+	}
+
 	u, err := url.Parse(conf.Addr)
 	if err != nil {
 		return nil, err
@@ -115,7 +120,7 @@ func NewHTTPClient(conf HTTPConfig) (Client, error) {
 func (c *client) Ping(timeout time.Duration) (time.Duration, string, error) {
 	now := time.Now()
 	u := c.url
-	u.Path = "ping"
+	u.Path += "ping"
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
@@ -361,7 +366,7 @@ func (c *client) Write(bp BatchPoints) error {
 	}
 
 	u := c.url
-	u.Path = "write"
+	u.Path += "write"
 	req, err := http.NewRequest("POST", u.String(), &b)
 	if err != nil {
 		return err
@@ -452,7 +457,7 @@ type Result struct {
 // Query sends a command to the server and returns the Response
 func (c *client) Query(q Query) (*Response, error) {
 	u := c.url
-	u.Path = "query"
+	u.Path += "query"
 
 	req, err := http.NewRequest("POST", u.String(), nil)
 	if err != nil {
