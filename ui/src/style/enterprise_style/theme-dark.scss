@@ -256,9 +256,9 @@
   border: none !important;
   font-size: 13px;
   transition:
-    background-color 0.25s ease,
+    text-shadow 0.25s ease,
     color 0.25s ease;
-  color: $c-neutrino;
+  color: $c-sapphire;
 
   &[data-target="#deleteExplorerModal"] .icon {
     position: relative;
@@ -267,7 +267,11 @@
 
   &:hover {
     color: $g20-white;
-    background-color: $c-ocean;
+    text-shadow:
+      0 0 2px $c-hydrogen,
+      0 0 3px $c-laser,
+      0 0 6px $c-ocean;
+    background-color: transparent;
   }
 }
 
