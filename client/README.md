@@ -230,7 +230,7 @@ The **InfluxDB** client also supports writing over UDP.
 ```go
 func WriteUDP() {
 	// Make client
-	c := client.NewUDPClient("localhost:8089")
+	c, _ := client.NewUDPClient("localhost:8089")
 
 	// Create a new point batch
 	bp, _ := client.NewBatchPoints(client.BatchPointsConfig{
