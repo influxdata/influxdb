@@ -98,13 +98,13 @@ export const ManageSources = React.createClass({
                             sources.map((source) => {
                               return (
                                 <tr key={source.id}>
-                                  <td>{source.name}{source.default ? <span className="label label-primary">Default</span> : null}</td>
+                                  <td>{source.name}{source.default ? <span className="default-source-label">Default</span> : null}</td>
                                   <td>{source.url}</td>
                                   <td>{_.get(source, ['kapacitor', 'name'], '')}</td>
                                   <td className="text-right">
-                                    <Link className="btn btn-default btn-xs" to={`${pathname}/${source.id}/edit`}>Edit</Link>
+                                    <Link className="btn btn-info btn-xs" to={`${pathname}/${source.id}/edit`}><span className="icon pencil"></span></Link>
                                     <Link className="btn btn-success btn-xs" to={`/sources/${source.id}/hosts`}>Connect</Link>
-                                    <button className="btn btn-danger btn-xs" onClick={() => this.handleDeleteSource(source)}>Delete</button>
+                                    <button className="btn btn-danger btn-xs" onClick={() => this.handleDeleteSource(source)}><span className="icon trash"></span></button>
                                   </td>
                                 </tr>
                               );
