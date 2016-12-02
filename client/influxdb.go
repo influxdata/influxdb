@@ -87,14 +87,15 @@ func ParseConnectionString(path string, ssl bool) (url.URL, error) {
 // UserAgent: If not provided, will default "InfluxDBClient",
 // Timeout: If not provided, will default to 0 (no timeout)
 type Config struct {
-	URL        url.URL
-	UnixSocket string
-	Username   string
-	Password   string
-	UserAgent  string
-	Timeout    time.Duration
-	Precision  string
-	UnsafeSsl  bool
+	URL              url.URL
+	UnixSocket       string
+	Username         string
+	Password         string
+	UserAgent        string
+	Timeout          time.Duration
+	Precision        string
+	WriteConsistency string
+	UnsafeSsl        bool
 }
 
 // NewConfig will create a config to be used in connecting to the client

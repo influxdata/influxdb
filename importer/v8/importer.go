@@ -17,11 +17,10 @@ const batchSize = 5000
 
 // Config is the config used to initialize a Importer importer
 type Config struct {
-	Path             string
-	Version          string
-	Compressed       bool
-	WriteConsistency string
-	PPS              int
+	Path       string // Path to import data.
+	Version    string
+	Compressed bool // Whether import data is gzipped.
+	PPS        int  // points per second importer imports with.
 
 	client.Config
 }
