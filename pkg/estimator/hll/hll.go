@@ -86,6 +86,15 @@ func NewPlus(p uint8) (*Plus, error) {
 	return hll, nil
 }
 
+// NewDefaultPlus creates a new Plus with the default precision.
+func NewDefaultPlus() *Plus {
+	p, err := NewPlus(DefaultPrecision)
+	if err != nil {
+		panic(err)
+	}
+	return p
+}
+
 // MustNewPlus returns a new Plus with precision p. Panic on error.
 func MustNewPlus(p uint8) *Plus {
 	hll, err := NewPlus(p)
