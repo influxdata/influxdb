@@ -153,6 +153,8 @@ func (c *CommandLine) Run() error {
 		config.URL = u
 		config.Compressed = c.Compressed
 		config.PPS = c.PPS
+		config.UnixSocket = c.UnixSocket
+		config.UnsafeSsl = c.UnsafeSsl
 		config.Precision = c.Precision
 
 		i := v8.NewImporter(config)
