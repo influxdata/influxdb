@@ -148,6 +148,14 @@
     right: 8px;
     transform: translateY(-50%);
   }
+  > .icon {
+    font-size: 16px;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 6px;
+    position: relative;
+    top: -1px;
+  }
 }
 .dropdown-menu {
   float: none !important;

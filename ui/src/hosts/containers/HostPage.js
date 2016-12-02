@@ -128,7 +128,6 @@ export const HostPage = React.createClass({
               <h1>{hostID}</h1>
             </div>
             <div className="page-header__right">
-              <h1>Range:</h1>
               <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={timeRange.inputValue} />
             </div>
           </div>

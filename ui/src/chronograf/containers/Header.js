@@ -126,7 +126,6 @@ const Header = React.createClass({
             <span className="icon cpu"></span>
             {this.context.source.name}
           </div>
-          <h1>Range:</h1>
           <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={this.findSelected(timeRange)} />
         </div>
         <DeleteExplorerModal onConfirm={this.confirmDeleteExplorer} />
