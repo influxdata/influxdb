@@ -16,6 +16,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"runtime"
 
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/models"
@@ -60,6 +61,7 @@ const (
 var (
 	ErrWALClosed  = fmt.Errorf("WAL closed")
 	ErrWALCorrupt = fmt.Errorf("corrupted WAL entry")
+	defaultWaitingWALWrites = runtime.NumCPU()
 )
 
 // Statistics gathered by the WAL.
@@ -68,7 +70,6 @@ const (
 	statWALCurrentBytes     = "currentSegmentDiskBytes"
 	statWriteOk             = "writeOk"
 	statWriteErr            = "writeErr"
-	defaultWaitingWALWrites = 10
 )
 
 type WAL struct {
