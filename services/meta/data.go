@@ -112,6 +112,11 @@ func (data *Data) DropDatabase(name string) error {
 	for i := range data.Databases {
 		if data.Databases[i].Name == name {
 			data.Databases = append(data.Databases[:i], data.Databases[i+1:]...)
+
+			// Remove all user privileges associated with this database.
+			for i := range data.Users {
+				delete(data.Users[i].Privileges, name)
+			}
 			break
 		}
 	}
