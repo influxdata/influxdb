@@ -51,7 +51,7 @@ const Dropdown = React.createClass({
           <ul className="dropdown-menu show">
             {items.map((item, i) => {
               return (
-                <li className={`dropdown ${className}__item`} key={i}>
+                <li className="dropdown-item" key={i}>
                   <a href="#" onClick={() => self.handleSelection(item)}>
                     {item.text}
                   </a>

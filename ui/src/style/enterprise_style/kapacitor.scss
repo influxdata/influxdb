@@ -21,38 +21,6 @@ $kap-dot-color: $c-rainforest;
 
 $kapacitor-font-sm: 13px;
 
-.kapacitor-rule-page {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  @include gradient-v($g2-kevlar,$g0-obsidian);
-  color: $g17-whisper;
-
-  .chronograf-header {
-    background-color: $g0-obsidian;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    margin: 0;
-  }
-}
-.rule-builder-wrapper {
-  position: absolute;
-  top: $chronograf-page-header-height;
-  left: 0;
-  width: 100%;
-  height: calc(100% - #{$chronograf-page-header-height});
-  overflow: auto;
-  @include custom-scrollbar($g0-obsidian,$kapacitor-accent);
-
-  .container-fluid {
-    padding-bottom: $chronograf-page-header-height;
-  }
-}
 .rule-builder {
   width: 100%;
   display: flex;
@@ -204,6 +172,10 @@ div.query-editor.kapacitor-metric-selector {
     border-radius: $kap-radius-lg $kap-radius-lg 0 0;
     border: 0;
     padding: $kap-padding-md $kap-padding-lg;
+
+    code {
+      line-height: 1.5em;
+    }
   }
 
   // Tabs
@@ -553,8 +525,7 @@ div.query-editor.kapacitor-metric-selector {
 .rule-builder {
   input[type="text"] {
     background-color: $kapacitor-graphic-color;
-    color: $kapacitor-accent;
-    border-color: $g5-pepper;
+    color: $kapacitor-accent !important;
     font-weight: 600;
     font-size: $kapacitor-font-sm;
     font-family: Consolas, "Lucida Console", Monaco, monospace;
@@ -564,7 +535,7 @@ div.query-editor.kapacitor-metric-selector {
       border-color: $kapacitor-accent;
       outline: none;
       box-shadow: none;
-      color: $g20-white;
+      color: $g20-white !important;
     }
   }
   .dropdown-toggle,
@@ -615,40 +586,6 @@ div.query-editor.kapacitor-metric-selector {
   .size-49 {
     width: 49px;
   }
-
-  .dropdown-menu {
-    width: 100%;
-    min-width: 100%;
-    padding: 0;
-    margin: 0;
-    border-radius: 4px;
-    @include gradient-v($c-viridian,$c-ocean);
-
-    > li {
-      width: 100%;
-    }
-    > li > a {
-      text-transform: capitalize;
-      font-size: $kapacitor-font-sm;
-      padding: ($kap-padding-sm / 2) $kap-padding-sm;
-      font-weight: 600;
-      color: transparentize($g20-white, 0.25); 
-      border-radius: 0;
-
-      &:hover {
-        background-color: $c-rainforest;
-        color: $g20-white;
-      }
-    }
-    > li:first-child > a {
-      border-top-left-radius: 4px;
-      border-top-right-radius: 4px;
-    }
-    > li:last-child > a {
-      border-bottom-left-radius: 4px;
-      border-bottom-right-radius: 4px;
-    }
-  }
 }
 
 .chronograf-header__editable {
@@ -656,6 +593,13 @@ div.query-editor.kapacitor-metric-selector {
 
   &:hover {
     color: $g13-mist;
+    cursor: text !important;
+  }
+  .icon {
+    cursor: inherit;
+    margin-left: 5px;
+    position: relative;
+    top: -1.5px;
   }
 }
 .chronograf-header__editing {

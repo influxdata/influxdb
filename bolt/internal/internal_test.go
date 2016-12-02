@@ -71,3 +71,46 @@ func TestMarshalServer(t *testing.T) {
 		t.Fatalf("source protobuf copy error: got %#v, expected %#v", vv, v)
 	}
 }
+
+func TestMarshalLayout(t *testing.T) {
+	layout := chronograf.Layout{
+		ID:          "id",
+		Measurement: "measurement",
+		Application: "app",
+		Cells: []chronograf.Cell{
+			{
+				X:    1,
+				Y:    1,
+				W:    4,
+				H:    4,
+				I:    "anotherid",
+				Name: "cell1",
+				Queries: []chronograf.Query{
+					{
+						Range: &chronograf.Range{
+							Lower: 1,
+							Upper: 2,
+						},
+						Label:   "y1",
+						Command: "select mean(usage_user) as usage_user from cpu",
+						Wheres: []string{
+							`"host"="myhost"`,
+						},
+						GroupBys: []string{
+							`"cpu"`,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	var vv chronograf.Layout
+	if buf, err := internal.MarshalLayout(layout); err != nil {
+		t.Fatal(err)
+	} else if err := internal.UnmarshalLayout(buf, &vv); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(layout, vv) {
+		t.Fatalf("source protobuf copy error: got %#v, expected %#v", vv, layout)
+	}
+}

@@ -50,14 +50,12 @@ const App = React.createClass({
     const {sourceID, base64ExplorerID} = this.props.params;
 
     return (
-      <div className="chronograf-wrapper--flex">
+      <div className="chronograf-root">
         <SideNavContainer sourceID={sourceID} explorationID={base64ExplorerID} addFlashMessage={this.handleNotification} currentLocation={this.props.location.pathname} />
-        <div className="page-wrapper">
-          {this.renderNotifications()}
-          {this.props.children && React.cloneElement(this.props.children, {
-            addFlashMessage: this.handleNotification,
-          })}
-        </div>
+        {this.renderNotifications()}
+        {this.props.children && React.cloneElement(this.props.children, {
+          addFlashMessage: this.handleNotification,
+        })}
       </div>
     );
   },

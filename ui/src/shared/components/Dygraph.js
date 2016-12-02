@@ -3,7 +3,7 @@ import React, {PropTypes} from 'react';
 import Dygraph from '../../external/dygraph';
 import 'style/_Graph.css';
 
-const {arrayOf, object, array, number, bool} = PropTypes;
+const {arrayOf, object, array, number, bool, shape} = PropTypes;
 
 const LINE_COLORS = [
   '#00C9FF',
@@ -25,13 +25,17 @@ export default React.createClass({
   displayName: 'Dygraph',
 
   propTypes: {
-    yRange: arrayOf(number.isRequired),
+    ranges: shape({
+      y: arrayOf(number.isRequired),
+      y2: arrayOf(number.isRequired),
+    }),
     timeSeries: array.isRequired, // eslint-disable-line react/forbid-prop-types
-    fields: array.isRequired, // eslint-disable-line react/forbid-prop-types
+    labels: array.isRequired, // eslint-disable-line react/forbid-prop-types
     options: object, // eslint-disable-line react/forbid-prop-types
     containerStyle: object, // eslint-disable-line react/forbid-prop-types
     isGraphFilled: bool,
     overrideLineColors: array,
+    dygraphSeries: shape({}).isRequired,
   },
 
   getDefaultProps() {
@@ -50,7 +54,8 @@ export default React.createClass({
 
   componentDidMount() {
     const timeSeries = this.getTimeSeries();
-    const {yRange} = this.props;
+    // dygraphSeries is a legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
+    const {ranges, dygraphSeries} = this.props;
 
     const refs = this.refs;
     const graphContainerNode = refs.graphContainer;
@@ -75,7 +80,15 @@ export default React.createClass({
       strokeWidth: 1.5,
       highlightCircleSize: 3,
       colors: finalLineColors,
-      valueRange: getRange(timeSeries, yRange),
+      series: dygraphSeries,
+      axes: {
+        y: {
+          valueRange: getRange(timeSeries, ranges.y),
+        },
+        y2: {
+          valueRange: getRange(timeSeries, ranges.y2),
+        },
+      },
       highlightSeriesOpts: {
         strokeWidth: 2,
         highlightCircleSize: 5,
@@ -130,12 +143,19 @@ export default React.createClass({
     }
 
     const timeSeries = this.getTimeSeries();
-    const {fields, yRange} = this.props;
+    const {labels, ranges} = this.props;
 
     dygraph.updateOptions({
-      labels: fields,
+      labels,
       file: timeSeries,
-      valueRange: getRange(timeSeries, yRange),
+      axes: {
+        y: {
+          valueRange: getRange(timeSeries, ranges.y),
+        },
+        y2: {
+          valueRange: getRange(timeSeries, ranges.y2),
+        },
+      },
       underlayCallback: this.props.options.underlayCallback,
     });
 

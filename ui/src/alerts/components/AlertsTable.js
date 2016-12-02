@@ -116,7 +116,7 @@ const SearchBar = React.createClass({
         <input
           type="text"
           className="form-control"
-          placeholder="Filter Alerts"
+          placeholder="Filter Alerts by Name..."
           ref="searchInput"
           onChange={this.handleChange}
         />

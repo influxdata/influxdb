@@ -44,12 +44,12 @@ export const RuleHeader = React.createClass({
 
   render() {
     return (
-      <div className="chronograf-header">
-        <div className="chronograf-header__container">
-          <div className="chronograf-header__left">
+      <div className="page-header">
+        <div className="page-header__container">
+          <div className="page-header__left">
             {this.renderEditName()}
           </div>
-          <div className="chronograf-header__right">
+          <div className="page-header__right">
             {this.renderSave()}
           </div>
         </div>
@@ -80,6 +80,7 @@ export const RuleHeader = React.createClass({
       return (
         <h1 className="chronograf-header__editable" onClick={this.toggleEditName} data-for="rename-kapacitor-tooltip" data-tip="Click to Rename">
           {rule.name}
+          <span className="icon pencil"></span>
           <ReactTooltip id="rename-kapacitor-tooltip" delayShow="200" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
         </h1>
       );

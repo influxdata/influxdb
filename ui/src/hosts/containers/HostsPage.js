@@ -44,17 +44,17 @@ export const HostsPage = React.createClass({
 
   render() {
     return (
-      <div className="hosts hosts-page">
-        <div className="chronograf-header">
-          <div className="chronograf-header__container">
-            <div className="chronograf-header__left">
+      <div className="page">
+        <div className="page-header">
+          <div className="page-header__container">
+            <div className="page-header__left">
               <h1>
                 Host List
               </h1>
             </div>
           </div>
         </div>
-        <div className="hosts-page-scroll-container">
+        <div className="page-contents">
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-12">

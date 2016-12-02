@@ -44,85 +44,64 @@ const TelegramConfig = React.createClass({
     const stateChangesOnly = options['state-changes-only'];
 
     return (
-      <div className="panel-body">
+      <div>
         <h4 className="text-center">Telegram Alert</h4>
         <br/>
+        <p>You can have alerts sent to Telegram by entering info below.</p>
         <form onSubmit={this.handleSaveAlert}>
-          <div className="row">
-            <div className="col-xs-7 col-sm-8 col-sm-offset-2">
-              <p>
-                You can have alerts sent to Telegram by entering info below.
-              </p>
+          <div className="form-group col-xs-12">
+            <label htmlFor="url">Telegram URL</label>
+            <input className="form-control" id="url" type="text" ref={(r) => this.url = r} defaultValue={url || ''}></input>
+          </div>
 
-              <div className="form-group">
-                <label htmlFor="url">Telegram URL</label>
-                <input className="form-control" id="url" type="text" ref={(r) => this.url = r} defaultValue={url || ''}></input>
-              </div>
+          <div className="form-group col-xs-12">
+            <label htmlFor="token">Token</label>
+            <input className="form-control" id="token" type="text" ref={(r) => this.token = r} defaultValue={token || ''}></input>
+            <label className="form-helper">Note: a value of <code>true</code> indicates the Telegram token has been set</label>
+          </div>
 
-              <div className="form-group">
-                <label htmlFor="token">Token</label>
-                <input className="form-control" id="token" type="text" ref={(r) => this.token = r} defaultValue={token || ''}></input>
-                <span>Note: a value of <code>true</code> indicates the Telegram token has been set</span>
-              </div>
+          <div className="form-group col-xs-12">
+            <label htmlFor="chat-id">Chat ID</label>
+            <input className="form-control" id="chat-id" type="text" ref={(r) => this.chatID = r} defaultValue={chatID || ''}></input>
+          </div>
 
-              <div className="form-group">
-                <label htmlFor="chat-id">Chat ID</label>
-                <input className="form-control" id="chat-id" type="text" ref={(r) => this.chatID = r} defaultValue={chatID || ''}></input>
-              </div>
-
-              <div className="form-group col-xs-12">
-                <div className="checkbox">
-                  <label>
-                    <input type="checkbox" defaultChecked={parseMode} ref={(r) => this.parseMode = r} />
-                    Enable Parse Mode
-                  </label>
-                </div>
-              </div>
-
-              <div className="form-group col-xs-12">
-                <div className="checkbox">
-                  <label>
-                    <input type="checkbox" defaultChecked={disableWebPagePreview} ref={(r) => this.disableWebPagePreview = r} />
-                    Disable Web Page Preview
-                  </label>
-                </div>
-              </div>
-
-              <div className="form-group col-xs-12">
-                <div className="checkbox">
-                  <label>
-                    <input type="checkbox" defaultChecked={disableNotification} ref={(r) => this.disableNotification = r} />
-                    Disable Notification
-                  </label>
-                </div>
-              </div>
-
-              <div className="form-group col-xs-12">
-                <div className="checkbox">
-                  <label>
-                    <input type="checkbox" defaultChecked={global} ref={(r) => this.global = r} />
-                    Send all alerts without marking them explicitly in TICKscript
-                  </label>
-                </div>
-              </div>
-
-              <div className="form-group col-xs-12">
-                <div className="checkbox">
-                  <label>
-                    <input type="checkbox" defaultChecked={stateChangesOnly} ref={(r) => this.stateChangesOnly = r} />
-                    Send alerts on state change only
-                  </label>
-                </div>
-              </div>
-
+          <div className="form-group col-xs-12">
+            <div className="form-control-static">
+              <input id="enableParseMode" type="checkbox" defaultChecked={parseMode} ref={(r) => this.parseMode = r} />
+              <label htmlFor="enableParseMode">Enable Parse Mode</label>
             </div>
           </div>
 
-          <hr />
-          <div className="row">
-            <div className="form-group col-xs-5 col-sm-3 col-sm-offset-2">
-              <button className="btn btn-block btn-primary" type="submit">Save</button>
+          <div className="form-group col-xs-12">
+            <div className="form-control-static">
+              <input id="disableWebPagePreview" type="checkbox" defaultChecked={disableWebPagePreview} ref={(r) => this.disableWebPagePreview = r} />
+              <label htmlFor="disableWebPagePreview">Disable Web Page Preview</label>
             </div>
+          </div>
+
+          <div className="form-group col-xs-12">
+            <div className="form-control-static">
+              <input id="disableNotification" type="checkbox" defaultChecked={disableNotification} ref={(r) => this.disableNotification = r} />
+              <label htmlFor="disableNotification">Disable Notification</label>
+            </div>
+          </div>
+
+          <div className="form-group col-xs-12">
+            <div className="form-control-static">
+              <input id="sendAllAlertsWithoutMarking" type="checkbox" defaultChecked={global} ref={(r) => this.global = r} />
+              <label htmlFor="sendAllAlertsWithoutMarking">Send all alerts without marking them explicitly in TICKscript</label>
+            </div>
+          </div>
+
+          <div className="form-group col-xs-12">
+            <div className="form-control-static">
+              <input id="stateChangesOnly" type="checkbox" defaultChecked={stateChangesOnly} ref={(r) => this.stateChangesOnly = r} />
+              <label htmlFor="stateChangesOnly">Send alerts on state change only</label>
+            </div>
+          </div>
+
+          <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
+            <button className="btn btn-block btn-primary" type="submit">Save</button>
           </div>
         </form>
       </div>

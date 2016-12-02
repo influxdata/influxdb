@@ -18,7 +18,6 @@ func newLayoutResponse(layout chronograf.Layout) layoutResponse {
 	httpAPILayouts := "/chronograf/v1/layouts"
 	href := fmt.Sprintf("%s/%s", httpAPILayouts, layout.ID)
 	rel := "self"
-
 	return layoutResponse{
 		Layout: layout,
 		Link: link{

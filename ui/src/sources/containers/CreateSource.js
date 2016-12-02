@@ -41,27 +41,27 @@ export const CreateSource = React.createClass({
 
   render() {
     return (
-      <div id="select-source-page">
+      <div className="select-source-page" id="select-source-page">
         <div className="container-fluid">
           <div className="row">
             <div className="col-md-8 col-md-offset-2">
-              <div className="panel panel-summer">
+              <div className="panel panel-minimal">
                 <div className="panel-heading text-center">
                   <h2 className="deluxe">Welcome to Chronograf</h2>
                 </div>
                 <div className="panel-body">
-                  <h4 className="text-center">Connect to a New Server</h4>
+                  <h4 className="text-center">Connect to a New Source</h4>
                   <br/>
 
                   <form onSubmit={this.handleNewSource}>
                     <div>
                       <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
                         <label htmlFor="connect-string">Connection String</label>
-                        <input ref={(r) => this.sourceURL = r} className="form-control" id="connect-string" placeholder="http://localhost:8086"></input>
+                        <input ref={(r) => this.sourceURL = r} className="form-control" id="connect-string" defaultValue="http://localhost:8086"></input>
                       </div>
                       <div className="form-group col-xs-6 col-sm-4">
                         <label htmlFor="name">Name</label>
-                        <input ref={(r) => this.sourceName = r} className="form-control" id="name" placeholder="Influx 1"></input>
+                        <input ref={(r) => this.sourceName = r} className="form-control" id="name" defaultValue="Influx 1"></input>
                       </div>
                       <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
                         <label htmlFor="username">Username</label>
@@ -73,11 +73,11 @@ export const CreateSource = React.createClass({
                       </div>
                     </div>
                     <div className="form-group col-xs-8 col-xs-offset-2">
-                      <label htmlFor="telegraf">Telegraf database</label>
-                      <input ref={(r) => this.sourceTelegraf = r} className="form-control" id="telegraf" type="text" value="telegraf"></input>
+                      <label htmlFor="telegraf">Telegraf Database</label>
+                      <input ref={(r) => this.sourceTelegraf = r} className="form-control" id="telegraf" type="text" defaultValue="telegraf"></input>
                     </div>
-                    <div className="form-group col-xs-12 text-center">
-                      <button className="btn btn-success" type="submit">Create New Server</button>
+                    <div className="form-group form-group-submit col-xs-12 text-center">
+                      <button className="btn btn-success" type="submit">Connect New Source</button>
                     </div>
                   </form>
                 </div>

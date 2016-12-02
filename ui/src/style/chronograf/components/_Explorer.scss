@@ -137,20 +137,6 @@
 
 	.dropdown-toggle {
 		width: 160px;
-		text-align: left;
-		position: relative;
-
-		.caret {
-			position: absolute;
-			top: calc(50% + 1px);
-			right: 13px;
-			transform: translateY(-50%);
-		}
-	}
-	.dropdown-menu {
-		width: 100%;
-		min-width: 100%;
-		max-width: 100%;
 	}
 }
 

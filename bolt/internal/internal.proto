@@ -47,6 +47,8 @@ message Cell {
     repeated Query queries  = 5; // Time-series data queries for Cell.
     string i                = 6; // Unique identifier for the cell
     string name             = 7; // User-facing name for this cell
+    repeated int64 yranges  = 8; // Limits of the y-axes
+    repeated string ylabels = 9; // Labels of the y-axes
 }
 
 message Query {
@@ -55,6 +57,13 @@ message Query {
     string RP               = 3; // RP is a retention policy and optional;
     repeated string GroupBys= 4; // GroupBys define the groups to combine in the query
     repeated string Wheres  = 5; // Wheres define the restrictions on the query
+    string Label            = 6; // Label is the name of the Y-Axis
+    Range Range             = 7; // Range is the upper and lower bound of the Y-Axis    
+}
+
+message Range {
+    int64 Upper             = 1; // Upper is the upper-bound of the range
+    int64 Lower             = 2; // Lower is the lower-bound of the range
 }
 
 message AlertRule {
