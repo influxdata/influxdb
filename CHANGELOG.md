@@ -9,6 +9,7 @@
 - [#7368](https://github.com/influxdata/influxdb/pull/7368): Introduce syntax for marking a partial response with chunking.
 - [#7356](https://github.com/influxdata/influxdb/issues/7356): Use X-Forwarded-For IP address in HTTP logger if present.
 - [#7601](https://github.com/influxdata/influxdb/issues/7601): Prune data in meta store for deleted shards.
+- [#7669](https://github.com/influxdata/influxdb/issues/7669): Uncomment section headers from the default configuration file.
 
 ### Bugfixes
 
