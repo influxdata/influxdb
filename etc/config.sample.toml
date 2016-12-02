@@ -93,7 +93,7 @@
 ### Controls the clustering service configuration.
 ###
 
-# [coordinator]
+[coordinator]
   # The default time a write request will wait until a "timeout" error is returned to the caller.
   # write-timeout = "10s"
 
@@ -131,7 +131,7 @@
 ### Controls the enforcement of retention policies for evicting old data.
 ###
 
-# [retention]
+[retention]
   # Determines whether retention policy enforcment enabled.
   # enabled = true
 
@@ -146,7 +146,7 @@
 ### future, will ever be created. Shards are never precreated that would be wholly
 ### or partially in the past.
 
-# [shard-precreation]
+[shard-precreation]
   # Determines whether shard pre-creation service is enabled.
   # enabled = true
 
@@ -166,7 +166,7 @@
 ### and a replication factor of 1, if it does not exist. In all cases the
 ### this retention policy is configured as the default for the database.
 
-# [monitor]
+[monitor]
   # Whether to record statistics internally.
   # store-enabled = true
 
@@ -184,7 +184,7 @@
 ###
 ### NOTE: This interface is deprecated as of 1.1.0 and will be removed in a future release.
 
-# [admin]
+[admin]
   # Determines whether the admin service is enabled.
   # enabled = false
 
@@ -204,7 +204,7 @@
 ### mechanism for getting data into and out of InfluxDB.
 ###
 
-# [http]
+[http]
   # Determines whether HTTP endpoint is enabled.
   # enabled = true
 
@@ -259,7 +259,7 @@
 ### received by the InfluxDB host.
 ###
 
-# [subscriber]
+[subscriber]
   # Determines whether the subscriber service is enabled.
   # enabled = true
 
@@ -286,7 +286,7 @@
 ### Controls one or many listeners for Graphite data.
 ###
 
-# [[graphite]]
+[[graphite]]
   # Determines whether the graphite endpoint is enabled.
   # enabled = false
   # database = "graphite"
@@ -334,7 +334,7 @@
 ### Controls one or many listeners for collectd data.
 ###
 
-# [[collectd]]
+[[collectd]]
   # enabled = false
   # bind-address = ":25826"
   # database = "collectd"
@@ -365,7 +365,7 @@
 ### Controls one or many listeners for OpenTSDB data.
 ###
 
-# [[opentsdb]]
+[[opentsdb]]
   # enabled = false
   # bind-address = ":4242"
   # database = "opentsdb"
@@ -396,7 +396,7 @@
 ### Controls the listeners for InfluxDB line protocol data via UDP.
 ###
 
-# [[udp]]
+[[udp]]
   # enabled = false
   # bind-address = ":8089"
   # database = "udp"
@@ -424,7 +424,7 @@
 ### Controls how continuous queries are run within InfluxDB.
 ###
 
-# [continuous_queries]
+[continuous_queries]
   # Determiens whether the continuous query service is enabled.
   # enabled = true
 
