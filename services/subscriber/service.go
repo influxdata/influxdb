@@ -192,11 +192,11 @@ func (s *Service) createSubscription(se subEntry, mode string, destinations []st
 	for _, dest := range destinations {
 		u, err := url.Parse(dest)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to parse subscription url: %s", dest)
+			return nil, fmt.Errorf("failed to parse destination: %s", dest)
 		}
 		w, err := s.NewPointsWriter(*u)
 		if err != nil {
-			return nil, fmt.Errorf("Failed to create PointsWriter for subscription url: %s", dest)
+			return nil, fmt.Errorf("failed to create writer for destination: %s", dest)
 		}
 		writers = append(writers, w)
 		stats = append(stats, writerStats{dest: dest})
@@ -288,7 +288,7 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) {
 				sub, err := s.createSubscription(se, si.Mode, si.Destinations)
 				if err != nil {
 					atomic.AddInt64(&s.stats.CreateFailures, 1)
-					s.Logger.Println(err)
+					s.Logger.Printf("Subscription creation failed for '%s' with error: %s", si.Name, err)
 					continue
 				}
 				cw := chanWriter{
