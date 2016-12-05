@@ -10,7 +10,7 @@ const SideNavApp = React.createClass({
     sourceID: string.isRequired,
     explorationID: string,
     me: shape({
-      email: string.isRequired,
+      email: string,
     }),
   },
 
