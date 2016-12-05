@@ -38,6 +38,10 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 
 - [#7684](https://github.com/influxdata/influxdb/issues/7684): Update Go version to 1.7.4.
 
+### Features
+
+- [#7684](https://github.com/influxdata/influxdb/issues/7684): Update Go version to 1.7.4.
+
 ### Bugfixes
 
 - [#7625](https://github.com/influxdata/influxdb/issues/7625): Fix incorrect tag value in error message.
