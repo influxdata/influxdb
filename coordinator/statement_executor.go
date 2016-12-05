@@ -667,8 +667,8 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(q *influxql.ShowMea
 		return ErrDatabaseNameRequired
 	}
 
-	measurements, err := e.TSDBStore.Measurements(q.Database, q.Condition)
-	if err != nil || len(measurements) == 0 {
+	names, err := e.TSDBStore.MeasurementNames(q.Database, q.Condition)
+	if err != nil || len(names) == 0 {
 		return ctx.Send(&influxql.Result{
 			StatementID: ctx.StatementID,
 			Err:         err,
@@ -676,22 +676,22 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(q *influxql.ShowMea
 	}
 
 	if q.Offset > 0 {
-		if q.Offset >= len(measurements) {
-			measurements = nil
+		if q.Offset >= len(names) {
+			names = nil
 		} else {
-			measurements = measurements[q.Offset:]
+			names = names[q.Offset:]
 		}
 	}
 
 	if q.Limit > 0 {
-		if q.Limit < len(measurements) {
-			measurements = measurements[:q.Limit]
+		if q.Limit < len(names) {
+			names = names[:q.Limit]
 		}
 	}
 
-	values := make([][]interface{}, len(measurements))
-	for i, m := range measurements {
-		values[i] = []interface{}{m}
+	values := make([][]interface{}, len(names))
+	for i, name := range names {
+		values[i] = []interface{}{string(name)}
 	}
 
 	if len(values) == 0 {
@@ -1142,7 +1142,7 @@ type TSDBStore interface {
 	DeleteShard(id uint64) error
 	IteratorCreator(shards []meta.ShardInfo, opt *influxql.SelectOptions) (influxql.IteratorCreator, error)
 
-	Measurements(database string, cond influxql.Expr) ([]string, error)
+	MeasurementNames(database string, cond influxql.Expr) ([][]byte, error)
 	TagValues(database string, cond influxql.Expr) ([]tsdb.TagValues, error)
 }
 

@@ -206,7 +206,7 @@ func (f *IndexFile) TagValueSeriesIterator(name, key, value []byte) SeriesIterat
 	)
 }
 
-// TagKey returns a tag key and flag indicating if tombstoned by measurement.
+// TagKey returns a tag key.
 func (f *IndexFile) TagKey(name, key []byte) TagKeyElem {
 	tblk := f.tblks[string(name)]
 	if tblk == nil {
@@ -215,19 +215,14 @@ func (f *IndexFile) TagKey(name, key []byte) TagKeyElem {
 	return tblk.TagKeyElem(key)
 }
 
-/*
-// TagValue returns a tag key and flag indicating if tombstoned by measurement or key.
-func (f *IndexFile) TagValue(name, key, value []byte) TagKeyValue {
-	// Find measurement.
-	mm, ok := f.mblk.Elem(name)
-	if !ok {
+// TagValue returns a tag value.
+func (f *IndexFile) TagValue(name, key, value []byte) TagValueElem {
+	tblk := f.tblks[string(name)]
+	if tblk == nil {
 		return nil
 	}
-
-	// Find key element.
-	return f.tblks[string(name)].TagValueElem(key, value)
+	return tblk.TagValueElem(key, value)
 }
-*/
 
 // Series returns the series and a flag indicating if the series has been
 // tombstoned by the measurement.

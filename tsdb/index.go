@@ -15,10 +15,7 @@ type Index interface {
 	Open() error
 	Close() error
 
-	Measurement(name []byte) (*Measurement, error)
-	Measurements() (Measurements, error)
-	MeasurementsByExpr(expr influxql.Expr) (Measurements, bool, error)
-	MeasurementsByName(names [][]byte) ([]*Measurement, error)
+	MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	DropMeasurement(name []byte) error
 	ForEachMeasurement(fn func(name []byte) error) error
@@ -33,9 +30,12 @@ type Index interface {
 	Dereference(b []byte)
 
 	TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error)
+	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error)
+	ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error
 
 	// InfluxQL system iterators
 	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
+	ForEachMeasurementSeriesByExpr(name []byte, expr influxql.Expr, fn func(tags models.Tags) error) error
 	SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
 
 	// Sets a shared fieldset from the engine.

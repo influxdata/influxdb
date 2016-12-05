@@ -17,6 +17,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/limiter"
 )
@@ -819,40 +820,26 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	return sh.WritePoints(points)
 }
 
-// Measurements returns a slice of all measurements. Measurements accepts an
+// MeasurementNames returns a slice of all measurements. Measurements accepts an
 // optional condition expression. If cond is nil, then all measurements for the
 // database will be returned.
-func (s *Store) Measurements(database string, cond influxql.Expr) ([]string, error) {
+func (s *Store) MeasurementNames(database string, cond influxql.Expr) ([][]byte, error) {
 	s.mu.RLock()
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
 
-	var m Measurements
+	var names [][]byte
 	for _, sh := range shards {
-		var mms Measurements
-		// Retrieve measurements from database index. Filter if condition specified.
-		if cond == nil {
-			mms = sh.Measurements()
-		} else {
-			var err error
-			mms, _, err = sh.MeasurementsByExpr(cond)
-			if err != nil {
-				return nil, err
-			}
+		a, err := sh.MeasurementNamesByExpr(cond)
+		if err != nil {
+			return nil, err
 		}
-
-		m = append(m, mms...)
+		names = append(names, a...)
+		continue
 	}
+	bytesutil.Sort(names)
 
-	// Sort measurements by name.
-	sort.Sort(m)
-
-	measurements := make([]string, 0, len(m))
-	for _, m := range m {
-		measurements = append(measurements, m.Name)
-	}
-
-	return measurements, nil
+	return names, nil
 }
 
 // MeasurementSeriesCounts returns the number of measurements and series in all
@@ -887,32 +874,6 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 		return e
 	}), nil)
 
-	// Get all measurements for the shards we're interested in.
-	s.mu.RLock()
-	shards := s.filterShards(byDatabase(database))
-	s.mu.RUnlock()
-
-	var measures Measurements
-	for _, sh := range shards {
-		mms, ok, err := sh.MeasurementsByExpr(measurementExpr)
-		if err != nil {
-			return nil, err
-		} else if !ok {
-			// TODO(edd): can we simplify this so we don't have to check the
-			// ok value, and we can call sh.measurements with a shard filter
-			// instead?
-			mms = sh.Measurements()
-		}
-
-		measures = append(measures, mms...)
-	}
-
-	// If there are no measurements, return immediately.
-	if len(measures) == 0 {
-		return nil, nil
-	}
-	sort.Sort(measures)
-
 	filterExpr := influxql.CloneExpr(cond)
 	filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
 		switch e := e.(type) {
@@ -928,47 +889,53 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 		return e
 	}), nil)
 
-	tagValues := make([]TagValues, len(measures))
-	for i, mm := range measures {
-		tagValues[i].Measurement = mm.Name
+	// Get all measurements for the shards we're interested in.
+	s.mu.RLock()
+	shards := s.filterShards(byDatabase(database))
+	s.mu.RUnlock()
 
-		ids, err := mm.SeriesIDsAllOrByExpr(filterExpr)
-		if err != nil {
-			return nil, err
-		}
-		ss := mm.SeriesByIDSlice(ids)
-
-		// Determine a list of keys from condition.
-		keySet, ok, err := mm.TagKeysByExpr(cond)
+	var tagValues []TagValues
+	for _, sh := range shards {
+		names, err := sh.MeasurementNamesByExpr(measurementExpr)
 		if err != nil {
 			return nil, err
 		}
 
-		// Loop over all keys for each series.
-		m := make(map[KeyValue]struct{}, len(ss))
-		for _, series := range ss {
-			for _, t := range series.Tags {
-				if !ok {
-					// nop
-				} else if _, exists := keySet[string(t.Key)]; !exists {
-					continue
+		for _, name := range names {
+			/*
+				// Determine a list of keys from condition.
+				keySet, err := sh.engine.MeasurementTagKeysByExpr(name, cond)
+				if err != nil {
+					return nil, err
 				}
-				m[KeyValue{string(t.Key), string(t.Value)}] = struct{}{}
+			*/
+
+			// Loop over all keys for each series.
+			m := make(map[KeyValue]struct{})
+			if err := sh.engine.ForEachMeasurementSeriesByExpr(name, filterExpr, func(tags models.Tags) error {
+				for _, t := range tags {
+					m[KeyValue{string(t.Key), string(t.Value)}] = struct{}{}
+				}
+				return nil
+			}); err != nil {
+				return nil, err
 			}
-		}
 
-		// Return an empty slice if there are no key/value matches.
-		if len(m) == 0 {
-			continue
-		}
+			// Sort key/value set.
+			var a []KeyValue
+			if len(m) > 0 {
+				a = make([]KeyValue, 0, len(m))
+				for kv := range m {
+					a = append(a, kv)
+				}
+				sort.Sort(KeyValues(a))
+			}
 
-		// Sort key/value set.
-		a := make([]KeyValue, 0, len(m))
-		for kv := range m {
-			a = append(a, kv)
+			tagValues = append(tagValues, TagValues{
+				Measurement: string(name),
+				Values:      a,
+			})
 		}
-		sort.Sort(KeyValues(a))
-		tagValues[i].Values = a
 	}
 
 	return tagValues, nil

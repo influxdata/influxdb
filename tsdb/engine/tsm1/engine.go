@@ -285,16 +285,8 @@ func (e *Engine) disableSnapshotCompactions() {
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
-func (e *Engine) Measurement(name []byte) (*tsdb.Measurement, error) {
-	return e.index.Measurement(name)
-}
-
-func (e *Engine) Measurements() (tsdb.Measurements, error) {
-	return e.index.Measurements()
-}
-
-func (e *Engine) MeasurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool, error) {
-	return e.index.MeasurementsByExpr(expr)
+func (e *Engine) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+	return e.index.MeasurementNamesByExpr(expr)
 }
 
 func (e *Engine) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
@@ -308,6 +300,18 @@ func (e *Engine) MeasurementFields(measurement string) *tsdb.MeasurementFields {
 
 func (e *Engine) SeriesN() (uint64, error) {
 	return e.index.SeriesN()
+}
+
+func (e *Engine) ForEachMeasurementSeriesByExpr(name []byte, condition influxql.Expr, fn func(tags models.Tags) error) error {
+	return e.index.ForEachMeasurementSeriesByExpr(name, condition, fn)
+}
+
+func (e *Engine) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
+	return e.index.MeasurementTagKeysByExpr(name, expr)
+}
+
+func (e *Engine) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
+	return e.index.ForEachMeasurementTagKey(name, fn)
 }
 
 func (e *Engine) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
@@ -832,14 +836,13 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 	e.fieldset.Delete(string(name))
 
 	// Attempt to find the series keys.
-	m, err := e.Measurement(name)
+	keys, err := e.index.MeasurementSeriesKeysByExpr(name, nil)
 	if err != nil {
 		return err
-	} else if m != nil {
-		if err := e.deleteSeries(m.SeriesKeys()); err != nil {
+	} else if len(keys) > 0 {
+		if err := e.deleteSeries(keys); err != nil {
 			return err
 		}
-		return nil
 	}
 
 	// Remove the measurement from the index.

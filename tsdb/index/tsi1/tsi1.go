@@ -110,6 +110,31 @@ func (p measurementMergeElem) Deleted() bool {
 	return p[0].Deleted()
 }
 
+// filterUndeletedMeasurementIterator returns all measurements which are not deleted.
+type filterUndeletedMeasurementIterator struct {
+	itr MeasurementIterator
+}
+
+// FilterUndeletedMeasurementIterator returns an iterator which filters all deleted measurement.
+func FilterUndeletedMeasurementIterator(itr MeasurementIterator) MeasurementIterator {
+	if itr == nil {
+		return nil
+	}
+	return &filterUndeletedMeasurementIterator{itr: itr}
+}
+
+func (itr *filterUndeletedMeasurementIterator) Next() MeasurementElem {
+	for {
+		e := itr.itr.Next()
+		if e == nil {
+			return nil
+		} else if e.Deleted() {
+			continue
+		}
+		return e
+	}
+}
+
 // TagKeyElem represents a generic tag key element.
 type TagKeyElem interface {
 	Key() []byte

@@ -226,11 +226,6 @@ func TestWriteTimeTag(t *testing.T) {
 		t.Fatalf("unexpected log message: %s", strings.TrimSpace(got))
 	}
 
-	m := sh.Measurement([]byte("cpu"))
-	if m != nil {
-		t.Fatal("unexpected cpu measurement")
-	}
-
 	pt = models.MustNewPoint(
 		"cpu",
 		models.NewTags(map[string]string{}),

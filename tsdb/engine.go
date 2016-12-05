@@ -48,16 +48,19 @@ type Engine interface {
 	SeriesSketches() (estimator.Sketch, estimator.Sketch, error)
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 
-	DeleteMeasurement(name []byte) error
-	Measurement(name []byte) (*Measurement, error)
-	Measurements() (Measurements, error)
-	MeasurementsByExpr(expr influxql.Expr) (Measurements, bool, error)
+	MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	MeasurementFields(measurement string) *MeasurementFields
 	ForEachMeasurement(fn func(name []byte) error) error
+	DeleteMeasurement(name []byte) error
+
+	// TagKeys(name []byte) ([][]byte, error)
+	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error)
+	ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error
 
 	// InfluxQL iterators
 	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)
+	ForEachMeasurementSeriesByExpr(name []byte, expr influxql.Expr, fn func(tags models.Tags) error) error
 	SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
 
 	// Statistics will return statistics relevant to this engine.
