@@ -4,6 +4,14 @@
 */
 .graph-panel__graph-container.hosts-graph {
   padding: 8px 16px;
+
+  .single-stat {
+    font-size: 32px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+  }
 }
 .hosts-graph-heading {
   display: block;
