@@ -9,6 +9,7 @@ import (
 // Default values for aspects of interval computation.
 const (
 	DefaultRunInterval = time.Second
+	DefaultCQTimeout   = time.Hour
 )
 
 // Config represents a configuration for the continuous query service.

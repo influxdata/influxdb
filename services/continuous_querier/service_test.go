@@ -51,7 +51,9 @@ func TestContinuousQueryService_Run(t *testing.T) {
 	// Set a callback for ExecuteStatement.
 	s.QueryExecutor.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
+			s.mu.Lock()
 			callCnt++
+			s.mu.Unlock()
 			if callCnt >= expectCallCnt {
 				done <- struct{}{}
 			}

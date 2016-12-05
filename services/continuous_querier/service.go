@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/limiter"
 	"github.com/influxdata/influxdb/services/meta"
 )
 
@@ -68,6 +70,22 @@ func (rr *RunRequest) matches(cq *meta.ContinuousQueryInfo) bool {
 	return false
 }
 
+// CQMeta contains the last run and lock channel for a CQ
+type CQMeta struct {
+	// Last tells the CQ service when it last ran
+	Last time.Time
+	// Next tells the CQ service when we are expected to run next
+	Next time.Time
+	// Lock is the lock channel
+	Lock chan struct{}
+}
+
+// Reset the last run variable to the time constant (essentially zero)
+func (cqm *CQMeta) ResetTime() {
+	cqm.Last = time.Time{}
+	cqm.Next = time.Time{}
+}
+
 // Service manages continuous query execution.
 type Service struct {
 	MetaClient    metaClient
@@ -80,22 +98,26 @@ type Service struct {
 	loggingEnabled bool
 	stats          *Statistics
 	// lastRuns maps CQ name to last time it was run.
-	mu       sync.RWMutex
-	lastRuns map[string]time.Time
-	stop     chan struct{}
-	wg       *sync.WaitGroup
+	mu   sync.RWMutex
+	stop chan struct{}
+	wg   *sync.WaitGroup
+	// Limit of CQs to run concurrently
+	concurrentLimit int
+	// cqMeta is the associated lock and last run time of the CQ
+	cqMeta map[string]*CQMeta
 }
 
 // NewService returns a new instance of Service.
 func NewService(c Config) *Service {
 	s := &Service{
-		Config:         &c,
-		RunInterval:    time.Duration(c.RunInterval),
-		RunCh:          make(chan *RunRequest),
-		loggingEnabled: c.LogEnabled,
-		Logger:         log.New(os.Stderr, "[continuous_querier] ", log.LstdFlags),
-		stats:          &Statistics{},
-		lastRuns:       map[string]time.Time{},
+		Config:          &c,
+		RunInterval:     time.Duration(c.RunInterval),
+		RunCh:           make(chan *RunRequest),
+		loggingEnabled:  c.LogEnabled,
+		Logger:          log.New(os.Stderr, "[continuous_querier] ", log.LstdFlags),
+		stats:           &Statistics{},
+		cqMeta:          map[string]*CQMeta{},
+		concurrentLimit: runtime.NumCPU(),
 	}
 
 	return s
@@ -180,8 +202,8 @@ func (s *Service) Run(database, name string, t time.Time) error {
 			if name == "" || cq.Name == name {
 				// Remove the last run time for the CQ
 				id := fmt.Sprintf("%s%s%s", db.Name, idDelimiter, cq.Name)
-				if _, ok := s.lastRuns[id]; ok {
-					delete(s.lastRuns, id)
+				if cqm, ok := s.cqMeta[id]; ok {
+					cqm.ResetTime()
 				}
 			}
 		}
@@ -225,6 +247,27 @@ func (s *Service) backgroundLoop() {
 	}
 }
 
+// lock the continuous query by the unique 'database:cq_name' string
+func (s *Service) lockCq(id string) error {
+	s.mu.RLock()
+	cqm := s.cqMeta[id]
+	s.mu.RUnlock()
+
+	select {
+	case <-cqm.Lock:
+		return nil
+	case <-time.After(cqm.Next.Sub(time.Now())):
+		return fmt.Errorf("CQ is already locked")
+	}
+}
+
+// unlock the continuous query by the unique 'database:cq_name' string
+func (s *Service) unlockCq(id string) {
+	s.mu.Lock()
+	s.cqMeta[id].Lock <- struct{}{}
+	s.mu.Unlock()
+}
+
 // hasContinuousQueries returns true if any CQs exist.
 func (s *Service) hasContinuousQueries() bool {
 	// Get list of all databases.
@@ -238,24 +281,32 @@ func (s *Service) hasContinuousQueries() bool {
 	return false
 }
 
-// runContinuousQueries gets CQs from the meta store and runs them.
+// runContinuousQueries gets CQs from the meta store and runs them in parallel
 func (s *Service) runContinuousQueries(req *RunRequest) {
 	// Get list of all databases.
 	dbs := s.MetaClient.Databases()
+	// Create a limiter to limit concurrent CQ runs
+	limitr := limiter.NewFixed(s.concurrentLimit)
 	// Loop through all databases executing CQs.
-	for _, db := range dbs {
-		// TODO: distribute across nodes
-		for _, cq := range db.ContinuousQueries {
-			if !req.matches(&cq) {
-				continue
-			}
-			if err := s.ExecuteContinuousQuery(&db, &cq, req.Now); err != nil {
-				s.Logger.Printf("error executing query: %s: err = %s", cq.Query, err)
-				atomic.AddInt64(&s.stats.QueryFail, 1)
-			} else {
-				atomic.AddInt64(&s.stats.QueryOK, 1)
-			}
+	for dbi := range dbs {
+		for cqi := range dbs[dbi].ContinuousQueries {
+			limitr.Take()
+			go s.runContinuousQuery(&dbs[dbi], &dbs[dbi].ContinuousQueries[cqi], req, &limitr)
 		}
+	}
+}
+
+// Run the specified query
+func (s *Service) runContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.ContinuousQueryInfo, req *RunRequest, limitr *limiter.Fixed) {
+	defer limitr.Release()
+	if !req.matches(cqi) {
+		return
+	}
+	if err := s.ExecuteContinuousQuery(dbi, cqi, req.Now); err != nil {
+		s.Logger.Printf("error executing query: %s: err = %s", cqi.Query, err)
+		atomic.AddInt64(&s.stats.QueryFail, 1)
+	} else {
+		atomic.AddInt64(&s.stats.QueryOK, 1)
 	}
 }
 
@@ -272,10 +323,24 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 
 	// Get the last time this CQ was run from the service's cache.
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	id := fmt.Sprintf("%s%s%s", dbi.Name, idDelimiter, cqi.Name)
-	cq.LastRun, cq.HasRun = s.lastRuns[id]
-
+	if _, ok := s.cqMeta[id]; !ok {
+		// If we have not seen this CQ before, give it some metadata
+		s.cqMeta[id] = &CQMeta{
+			Lock: make(chan struct{}, 1),
+		}
+		s.cqMeta[id].Lock <- struct{}{}
+		s.cqMeta[id].ResetTime()
+		cq.HasRun = false
+	} else {
+		if s.cqMeta[id].Last.IsZero() {
+			cq.HasRun = false
+		} else {
+			cq.HasRun = true
+		}
+	}
+	cq.LastRun = s.cqMeta[id].Last
+	s.mu.Unlock()
 	// Set the retention policy to default if it wasn't specified in the query.
 	if cq.intoRP() == "" {
 		cq.setIntoRP(dbi.DefaultRetentionPolicy)
@@ -311,7 +376,10 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 	// We're about to run the query so store the current time closest to the nearest interval.
 	// If all is going well, this time should be the same as nextRun.
 	cq.LastRun = now.Add(-offset).Truncate(resampleEvery).Add(offset)
-	s.lastRuns[id] = cq.LastRun
+	s.mu.Lock()
+	s.cqMeta[id].Next = nextRun
+	s.cqMeta[id].Last = cq.LastRun
+	s.mu.Unlock()
 
 	// Retrieve the oldest interval we should calculate based on the next time
 	// interval. We do this instead of using the current time just in case any
@@ -349,14 +417,20 @@ func (s *Service) ExecuteContinuousQuery(dbi *meta.DatabaseInfo, cqi *meta.Conti
 		start = time.Now()
 	}
 
+	err = s.lockCq(id)
+	if err != nil {
+		return err
+	}
+	defer s.unlockCq(id)
+
 	// Do the actual processing of the query & writing of results.
 	if err := s.runContinuousQueryAndWriteResult(cq); err != nil {
 		s.Logger.Printf("error: %s. running: %s\n", err, cq.q.String())
 		return err
 	}
-
 	if s.loggingEnabled {
 		s.Logger.Printf("finished continuous query %s (%v to %v) in %s", cq.Info.Name, startTime, endTime, time.Now().Sub(start))
+
 	}
 	return nil
 }
