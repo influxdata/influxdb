@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	bufPool          = pool.NewBytes(1024)
+	bufPool          = pool.NewBytes(10)
 	float64ValuePool sync.Pool
 	integerValuePool sync.Pool
 	booleanValuePool sync.Pool
