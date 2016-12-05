@@ -21,6 +21,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/escape"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
@@ -207,6 +208,50 @@ func (i *Index) CreateMeasurementIndexIfNotExists(name string) *tsdb.Measurement
 	return m
 }
 
+// MeasurementTagKeyByExpr returns an ordered set of tag keys filtered by an expression.
+func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	mm := i.measurements[string(name)]
+	if mm == nil {
+		return nil, nil
+	}
+
+	keySet, _, err := mm.TagKeysByExpr(expr)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert string set to byte slice list.
+	a := make([][]byte, 0, len(keySet))
+	for key := range keySet {
+		a = append(a, []byte(key))
+	}
+	bytesutil.Sort(a)
+
+	return a, nil
+}
+
+// ForEachMeasurementTagKey iterates over all tag keys for a measurement.
+func (i *Index) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	mm := i.measurements[string(name)]
+	if mm == nil {
+		return nil
+	}
+
+	for _, key := range mm.TagKeys() {
+		if err := fn([]byte(key)); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // TagsForSeries returns the tag map for the passed in series
 func (i *Index) TagsForSeries(key string) (models.Tags, error) {
 	i.mu.RLock()
@@ -219,21 +264,17 @@ func (i *Index) TagsForSeries(key string) (models.Tags, error) {
 	return ss.Tags, nil
 }
 
-// MeasurementsByExpr takes an expression containing only tags and returns a
-// list of matching *tsdb.Measurement. The bool return argument returns if the
-// expression was a measurement expression. It is used to differentiate a list
-// of no measurements because all measurements were filtered out (when the bool
-// is true) against when there are no measurements because the expression
-// wasn't evaluated (when the bool is false).
-func (i *Index) MeasurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool, error) {
+// MeasurementNamesByExpr takes an expression containing only tags and returns a
+// list of matching meaurement names.
+func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
-	return i.measurementsByExpr(expr)
+	return i.measurementNamesByExpr(expr)
 }
 
-func (i *Index) measurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool, error) {
+func (i *Index) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 	if expr == nil {
-		return nil, false, nil
+		return nil, nil
 	}
 
 	switch e := expr.(type) {
@@ -242,7 +283,7 @@ func (i *Index) measurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool,
 		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 			tag, ok := e.LHS.(*influxql.VarRef)
 			if !ok {
-				return nil, false, fmt.Errorf("left side of '%s' must be a tag key", e.Op.String())
+				return nil, fmt.Errorf("left side of '%s' must be a tag key", e.Op.String())
 			}
 
 			tf := &tsdb.TagFilter{
@@ -253,60 +294,52 @@ func (i *Index) measurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool,
 			if influxql.IsRegexOp(e.Op) {
 				re, ok := e.RHS.(*influxql.RegexLiteral)
 				if !ok {
-					return nil, false, fmt.Errorf("right side of '%s' must be a regular expression", e.Op.String())
+					return nil, fmt.Errorf("right side of '%s' must be a regular expression", e.Op.String())
 				}
 				tf.Regex = re.Val
 			} else {
 				s, ok := e.RHS.(*influxql.StringLiteral)
 				if !ok {
-					return nil, false, fmt.Errorf("right side of '%s' must be a tag value string", e.Op.String())
+					return nil, fmt.Errorf("right side of '%s' must be a tag value string", e.Op.String())
 				}
 				tf.Value = s.Val
 			}
 
 			// Match on name, if specified.
 			if tag.Val == "_name" {
-				return i.measurementsByNameFilter(tf.Op, tf.Value, tf.Regex), true, nil
+				return i.measurementNamesByNameFilter(tf.Op, tf.Value, tf.Regex), nil
 			} else if influxql.IsSystemName(tag.Val) {
-				return nil, false, nil
+				return nil, nil
 			}
 
-			return i.measurementsByTagFilters([]*tsdb.TagFilter{tf}), true, nil
+			return i.measurementNamesByTagFilters(tf), nil
 		case influxql.OR, influxql.AND:
-			lhsIDs, lhsOk, err := i.measurementsByExpr(e.LHS)
+			lhs, err := i.measurementNamesByExpr(e.LHS)
 			if err != nil {
-				return nil, false, err
+				return nil, err
 			}
 
-			rhsIDs, rhsOk, err := i.measurementsByExpr(e.RHS)
+			rhs, err := i.measurementNamesByExpr(e.RHS)
 			if err != nil {
-				return nil, false, err
+				return nil, err
 			}
 
-			if lhsOk && rhsOk {
-				if e.Op == influxql.OR {
-					return lhsIDs.Union(rhsIDs), true, nil
-				}
-
-				return lhsIDs.Intersect(rhsIDs), true, nil
-			} else if lhsOk {
-				return lhsIDs, true, nil
-			} else if rhsOk {
-				return rhsIDs, true, nil
+			if e.Op == influxql.OR {
+				return bytesutil.Union(lhs, rhs), nil
 			}
-			return nil, false, nil
+			return bytesutil.Intersect(lhs, rhs), nil
 		default:
-			return nil, false, fmt.Errorf("invalid tag comparison operator")
+			return nil, fmt.Errorf("invalid tag comparison operator")
 		}
 	case *influxql.ParenExpr:
-		return i.measurementsByExpr(e.Expr)
+		return i.measurementNamesByExpr(e.Expr)
 	}
-	return nil, false, fmt.Errorf("%#v", expr)
+	return nil, fmt.Errorf("%#v", expr)
 }
 
-// measurementsByNameFilter returns the sorted measurements matching a name.
-func (i *Index) measurementsByNameFilter(op influxql.Token, val string, regex *regexp.Regexp) tsdb.Measurements {
-	var measurements tsdb.Measurements
+// measurementNamesByNameFilter returns the sorted measurements matching a name.
+func (i *Index) measurementNamesByNameFilter(op influxql.Token, val string, regex *regexp.Regexp) [][]byte {
+	var names [][]byte
 	for _, m := range i.measurements {
 		var matched bool
 		switch op {
@@ -323,75 +356,60 @@ func (i *Index) measurementsByNameFilter(op influxql.Token, val string, regex *r
 		if !matched {
 			continue
 		}
-		measurements = append(measurements, m)
+		names = append(names, []byte(m.Name))
 	}
-	sort.Sort(measurements)
-	return measurements
+	bytesutil.Sort(names)
+	return names
 }
 
-// measurementsByTagFilters returns the sorted measurements matching the filters on tag values.
-func (i *Index) measurementsByTagFilters(filters []*tsdb.TagFilter) tsdb.Measurements {
-	// If no filters, then return all measurements.
-	if len(filters) == 0 {
-		measurements := make(tsdb.Measurements, 0, len(i.measurements))
-		for _, m := range i.measurements {
-			measurements = append(measurements, m)
-		}
-		return measurements
-	}
-
+// measurementNamesByTagFilters returns the sorted measurements matching the filters on tag values.
+func (i *Index) measurementNamesByTagFilters(filter *tsdb.TagFilter) [][]byte {
 	// Build a list of measurements matching the filters.
-	var measurements tsdb.Measurements
+	var names [][]byte
 	var tagMatch bool
 
 	// Iterate through all measurements in the database.
 	for _, m := range i.measurements {
-		// Iterate filters seeing if the measurement has a matching tag.
-		for _, f := range filters {
-			tagVals := m.SeriesByTagKeyValue(f.Key)
-			if tagVals == nil {
-				continue
+		tagVals := m.SeriesByTagKeyValue(filter.Key)
+		if tagVals == nil {
+			continue
+		}
+
+		tagMatch = false
+
+		// If the operator is non-regex, only check the specified value.
+		if filter.Op == influxql.EQ || filter.Op == influxql.NEQ {
+			if _, ok := tagVals[filter.Value]; ok {
+				tagMatch = true
 			}
-
-			tagMatch = false
-
-			// If the operator is non-regex, only check the specified value.
-			if f.Op == influxql.EQ || f.Op == influxql.NEQ {
-				if _, ok := tagVals[f.Value]; ok {
+		} else {
+			// Else, the operator is a regex and we have to check all tag
+			// values against the regular expression.
+			for tagVal := range tagVals {
+				if filter.Regex.MatchString(tagVal) {
 					tagMatch = true
-				}
-			} else {
-				// Else, the operator is a regex and we have to check all tag
-				// values against the regular expression.
-				for tagVal := range tagVals {
-					if f.Regex.MatchString(tagVal) {
-						tagMatch = true
-						break
-					}
+					continue
 				}
 			}
+		}
 
-			isEQ := (f.Op == influxql.EQ || f.Op == influxql.EQREGEX)
-
-			//
-			// XNOR gate
-			//
-			// tags match | operation is EQ | measurement matches
-			// --------------------------------------------------
-			//     True   |       True      |      True
-			//     True   |       False     |      False
-			//     False  |       True      |      False
-			//     False  |       False     |      True
-
-			if tagMatch == isEQ {
-				measurements = append(measurements, m)
-				break
-			}
+		//
+		// XNOR gate
+		//
+		// tags match | operation is EQ | measurement matches
+		// --------------------------------------------------
+		//     True   |       True      |      True
+		//     True   |       False     |      False
+		//     False  |       True      |      False
+		//     False  |       False     |      True
+		if tagMatch == (filter.Op == influxql.EQ || filter.Op == influxql.EQREGEX) {
+			names = append(names, []byte(m.Name))
+			continue
 		}
 	}
 
-	sort.Sort(measurements)
-	return measurements
+	bytesutil.Sort(names)
+	return names
 }
 
 // MeasurementNamesByRegex returns the measurements that match the regex.
@@ -406,18 +424,6 @@ func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 		}
 	}
 	return matches, nil
-}
-
-// Measurements returns a list of all measurements.
-func (i *Index) Measurements() (tsdb.Measurements, error) {
-	i.mu.RLock()
-	measurements := make(tsdb.Measurements, 0, len(i.measurements))
-	for _, m := range i.measurements {
-		measurements = append(measurements, m)
-	}
-	i.mu.RUnlock()
-
-	return measurements, nil
 }
 
 // DropMeasurement removes the measurement and all of its underlying
@@ -491,6 +497,23 @@ func (i *Index) Dereference(b []byte) {
 	for _, s := range i.series {
 		s.Dereference(b)
 	}
+}
+
+// ForEachMeasurementSeriesByExpr iterates over all series in a measurement filtered by an expression.
+func (i *Index) ForEachMeasurementSeriesByExpr(name []byte, expr influxql.Expr, fn func(tags models.Tags) error) error {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	mm := i.measurements[string(name)]
+	if mm == nil {
+		return nil
+	}
+
+	if err := mm.ForEachSeriesByExpr(expr, fn); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // TagSets returns a list of tag sets.

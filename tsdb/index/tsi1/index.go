@@ -12,6 +12,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/tsdb"
 )
@@ -266,16 +267,27 @@ func (i *Index) MeasurementIterator() MeasurementIterator {
 	for _, f := range i.indexFiles {
 		a = append(a, f.MeasurementIterator())
 	}
-	return MergeMeasurementIterators(a...)
+	return FilterUndeletedMeasurementIterator(MergeMeasurementIterators(a...))
 }
 
-func (i *Index) MeasurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool, error) {
-	return i.measurementsByExpr(expr)
+func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
+	// Return filtered list if expression exists.
+	if expr != nil {
+		return i.measurementNamesByExpr(expr)
+	}
+
+	// Iterate over all measurements if no condition exists.
+	var names [][]byte
+	itr := i.MeasurementIterator()
+	for e := itr.Next(); e != nil; e = itr.Next() {
+		names = append(names, e.Name())
+	}
+	return names, nil
 }
 
-func (i *Index) measurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool, error) {
+func (i *Index) measurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 	if expr == nil {
-		return nil, false, nil
+		return nil, nil
 	}
 
 	switch e := expr.(type) {
@@ -284,7 +296,7 @@ func (i *Index) measurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool,
 		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 			tag, ok := e.LHS.(*influxql.VarRef)
 			if !ok {
-				return nil, false, fmt.Errorf("left side of '%s' must be a tag key", e.Op.String())
+				return nil, fmt.Errorf("left side of '%s' must be a tag key", e.Op.String())
 			}
 
 			// Retrieve value or regex expression from RHS.
@@ -293,62 +305,55 @@ func (i *Index) measurementsByExpr(expr influxql.Expr) (tsdb.Measurements, bool,
 			if influxql.IsRegexOp(e.Op) {
 				re, ok := e.RHS.(*influxql.RegexLiteral)
 				if !ok {
-					return nil, false, fmt.Errorf("right side of '%s' must be a regular expression", e.Op.String())
+					return nil, fmt.Errorf("right side of '%s' must be a regular expression", e.Op.String())
 				}
 				regex = re.Val
 			} else {
 				s, ok := e.RHS.(*influxql.StringLiteral)
 				if !ok {
-					return nil, false, fmt.Errorf("right side of '%s' must be a tag value string", e.Op.String())
+					return nil, fmt.Errorf("right side of '%s' must be a tag value string", e.Op.String())
 				}
 				value = s.Val
 			}
 
 			// Match on name, if specified.
 			if tag.Val == "_name" {
-				return i.measurementsByNameFilter(e.Op, value, regex), true, nil
+				return i.measurementNamesByNameFilter(e.Op, value, regex), nil
 			} else if influxql.IsSystemName(tag.Val) {
-				return nil, false, nil
+				return nil, nil
 			}
-			return i.measurementsByTagFilter(e.Op, tag.Val, value, regex), true, nil
+			return i.measurementNamesByTagFilter(e.Op, tag.Val, value, regex), nil
 
 		case influxql.OR, influxql.AND:
-			lhsIDs, lhsOk, err := i.measurementsByExpr(e.LHS)
+			lhs, err := i.measurementNamesByExpr(e.LHS)
 			if err != nil {
-				return nil, false, err
+				return nil, err
 			}
 
-			rhsIDs, rhsOk, err := i.measurementsByExpr(e.RHS)
+			rhs, err := i.measurementNamesByExpr(e.RHS)
 			if err != nil {
-				return nil, false, err
+				return nil, err
 			}
 
-			if lhsOk && rhsOk {
-				if e.Op == influxql.OR {
-					return lhsIDs.Union(rhsIDs), true, nil
-				}
-				return lhsIDs.Intersect(rhsIDs), true, nil
-			} else if lhsOk {
-				return lhsIDs, true, nil
-			} else if rhsOk {
-				return rhsIDs, true, nil
+			if e.Op == influxql.OR {
+				return bytesutil.Union(lhs, rhs), nil
 			}
-			return nil, false, nil
+			return bytesutil.Intersect(lhs, rhs), nil
 
 		default:
-			return nil, false, fmt.Errorf("invalid tag comparison operator")
+			return nil, fmt.Errorf("invalid tag comparison operator")
 		}
 
 	case *influxql.ParenExpr:
-		return i.measurementsByExpr(e.Expr)
+		return i.measurementNamesByExpr(e.Expr)
 	default:
-		return nil, false, fmt.Errorf("%#v", expr)
+		return nil, fmt.Errorf("%#v", expr)
 	}
 }
 
-// measurementsByNameFilter returns the sorted measurements matching a name.
-func (i *Index) measurementsByNameFilter(op influxql.Token, val string, regex *regexp.Regexp) tsdb.Measurements {
-	var mms tsdb.Measurements
+// measurementNamesByNameFilter returns matching measurement names in sorted order.
+func (i *Index) measurementNamesByNameFilter(op influxql.Token, val string, regex *regexp.Regexp) [][]byte {
+	var names [][]byte
 	itr := i.MeasurementIterator()
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		var matched bool
@@ -364,35 +369,30 @@ func (i *Index) measurementsByNameFilter(op influxql.Token, val string, regex *r
 		}
 
 		if matched {
-			mms = append(mms, i.measurement(e.Name()))
+			names = append(names, e.Name())
 		}
 	}
-	sort.Sort(mms)
-	return mms
+	bytesutil.Sort(names)
+	return names
 }
 
-func (i *Index) measurementsByTagFilter(op influxql.Token, key, val string, regex *regexp.Regexp) tsdb.Measurements {
-	var mms tsdb.Measurements
-	itr := i.MeasurementIterator()
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		mm := i.measurement(e.Name())
+func (i *Index) measurementNamesByTagFilter(op influxql.Token, key, val string, regex *regexp.Regexp) [][]byte {
+	var names [][]byte
 
-		tagVals := mm.SeriesByTagKeyValue(key)
-		if tagVals == nil {
-			continue
-		}
-
+	mitr := i.MeasurementIterator()
+	for me := mitr.Next(); me != nil; me = mitr.Next() {
 		// If the operator is non-regex, only check the specified value.
 		var tagMatch bool
 		if op == influxql.EQ || op == influxql.NEQ {
-			if _, ok := tagVals[val]; ok {
+			if i.HasTagValue(me.Name(), []byte(key), []byte(val)) {
 				tagMatch = true
 			}
 		} else {
 			// Else, the operator is a regex and we have to check all tag
 			// values against the regular expression.
-			for tagVal := range tagVals {
-				if regex.MatchString(tagVal) {
+			vitr := i.TagValueIterator(me.Name(), []byte(key))
+			for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
+				if regex.Match(ve.Value()) {
 					tagMatch = true
 					break
 				}
@@ -409,27 +409,13 @@ func (i *Index) measurementsByTagFilter(op influxql.Token, key, val string, rege
 		//     False  |       True      |      False
 		//     False  |       False     |      True
 		if tagMatch == (op == influxql.EQ || op == influxql.EQREGEX) {
-			mms = append(mms, mm)
-			break
+			names = append(names, me.Name())
+			continue
 		}
 	}
 
-	sort.Sort(mms)
-	return mms
-}
-
-func (i *Index) MeasurementsByName(names [][]byte) ([]*tsdb.Measurement, error) {
-	itr := i.MeasurementIterator()
-	mms := make([]*tsdb.Measurement, 0, len(names))
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		for _, name := range names {
-			if bytes.Equal(e.Name(), name) {
-				mms = append(mms, i.measurement(e.Name()))
-				break
-			}
-		}
-	}
-	return mms, nil
+	bytesutil.Sort(names)
+	return names
 }
 
 func (i *Index) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
@@ -537,6 +523,11 @@ func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, erro
 // Dereference is a nop.
 func (i *Index) Dereference([]byte) {}
 
+// MeasurementTagKeyByExpr returns an ordered set of tag keys filtered by an expression.
+func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
+	panic("TODO")
+}
+
 // TagKeySeriesIterator returns a series iterator for all values across a single key.
 func (i *Index) TagKeySeriesIterator(name, key []byte) SeriesIterator {
 	a := make([]SeriesIterator, 0, i.FileN())
@@ -547,6 +538,16 @@ func (i *Index) TagKeySeriesIterator(name, key []byte) SeriesIterator {
 		}
 	}
 	return FilterUndeletedSeriesIterator(MergeSeriesIterators(a...))
+}
+
+// HasTagValue returns true if the tag value exists.
+func (i *Index) HasTagValue(name, key, value []byte) bool {
+	for _, f := range i.files() {
+		if e := f.TagValue(name, key, value); e != nil {
+			return !e.Deleted()
+		}
+	}
+	return false
 }
 
 // TagValueIterator returns a value iterator for a tag key.
@@ -657,6 +658,40 @@ func (i *Index) matchTagValueNotEqualNotEmptySeriesIterator(name, key []byte, va
 		i.MeasurementSeriesIterator(name),
 		MergeSeriesIterators(itrs...),
 	)
+}
+
+// ForEachMeasurementSeriesByExpr iterates over all series in a measurement filtered by an expression.
+func (i *Index) ForEachMeasurementSeriesByExpr(name []byte, condition influxql.Expr, fn func(tags models.Tags) error) error {
+	itr, err := i.MeasurementSeriesByExprIterator(name, condition)
+	if err != nil {
+		return err
+	} else if itr == nil {
+		return nil
+	}
+
+	for e := itr.Next(); e != nil; e = itr.Next() {
+		if err := fn(e.Tags()); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// ForEachMeasurementTagKey iterates over all tag keys in a measurement.
+func (i *Index) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error {
+	itr := i.TagKeyIterator(name)
+	if itr == nil {
+		return nil
+	}
+
+	for e := itr.Next(); e != nil; e = itr.Next() {
+		if err := fn(e.Key()); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // TagSets returns an ordered list of tag sets for a measurement by dimension
@@ -916,8 +951,9 @@ type File interface {
 	Measurement(name []byte) MeasurementElem
 	Series(name []byte, tags models.Tags) SeriesElem
 
-	// Tag key & value iteration.
 	TagKeyIterator(name []byte) TagKeyIterator
+
+	TagValue(name, key, value []byte) TagValueElem
 	TagValueIterator(name, key []byte) TagValueIterator
 
 	// Series iteration.

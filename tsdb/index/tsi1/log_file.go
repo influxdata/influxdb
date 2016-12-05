@@ -195,6 +195,29 @@ func (f *LogFile) TagKeyIterator(name []byte) TagKeyIterator {
 	return newLogTagKeyIterator(a)
 }
 
+// TagValue returns a tag value element.
+func (f *LogFile) TagValue(name, key, value []byte) TagValueElem {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	mm, ok := f.mms[string(name)]
+	if !ok {
+		return nil
+	}
+
+	tk, ok := mm.tagSet[string(key)]
+	if !ok {
+		return nil
+	}
+
+	tv, ok := tk.tagValues[string(value)]
+	if !ok {
+		return nil
+	}
+
+	return &tv
+}
+
 // TagValueIterator returns a value iterator for a tag key.
 func (f *LogFile) TagValueIterator(name, key []byte) TagValueIterator {
 	f.mu.RLock()
@@ -400,6 +423,11 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 
 	// Fetch measurement.
 	mm := f.measurement(e.Name)
+
+	// Undelete measurement if it's been tombstoned previously.
+	if !deleted && mm.deleted {
+		mm.deleted = false
+	}
 
 	// Save tags.
 	for _, t := range e.Tags {

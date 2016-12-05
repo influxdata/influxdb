@@ -248,6 +248,28 @@ func (m *Measurement) filters(condition influxql.Expr) ([]uint64, map[uint64]inf
 	return m.WalkWhereForSeriesIds(condition)
 }
 
+// ForEachSeriesByExpr iterates over all series filtered by condition.
+func (m *Measurement) ForEachSeriesByExpr(condition influxql.Expr, fn func(tags models.Tags) error) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	// Retrieve matching series ids.
+	ids, _, err := m.filters(condition)
+	if err != nil {
+		return err
+	}
+
+	// Iterate over each series.
+	for _, id := range ids {
+		s := m.seriesByID[id]
+		if err := fn(s.Tags); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // TagSets returns the unique tag sets that exist for the given tag keys. This is used to determine
 // what composite series will be created by a group by. i.e. "group by region" should return:
 // {"region":"uswest"}, {"region":"useast"}
