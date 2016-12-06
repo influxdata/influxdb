@@ -9,7 +9,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -36,35 +35,29 @@ var ErrBlankCommand = errors.New("empty input")
 
 // CommandLine holds CLI configuration and state
 type CommandLine struct {
-	Client           *client.Client
-	Line             *liner.State
-	Host             string
-	Port             int
-	UnixSocket       string
-	Username         string
-	Password         string
-	Database         string
-	Ssl              bool
-	UnsafeSsl        bool
-	RetentionPolicy  string
-	ClientVersion    string
-	ServerVersion    string
-	Pretty           bool   // controls pretty print for json
-	Format           string // controls the output format.  Valid values are json, csv, or column
-	Precision        string
-	WriteConsistency string
-	Execute          string
-	ShowVersion      bool
-	Import           bool
-	PPS              int // Controls how many points per second the import will allow via throttling
-	Path             string
-	Compressed       bool
-	Chunked          bool
-	Quit             chan struct{}
-	IgnoreSignals    bool // Ignore signals normally caught by this process (used primarily for testing)
-	ForceTTY         bool // Force the CLI to act as if it were connected to a TTY
-	osSignals        chan os.Signal
-	historyFilePath  string
+	Line            *liner.State
+	Host            string
+	Port            int
+	Database        string
+	Ssl             bool
+	RetentionPolicy string
+	ClientVersion   string
+	ServerVersion   string
+	Pretty          bool   // controls pretty print for json
+	Format          string // controls the output format.  Valid values are json, csv, or column
+	Execute         string
+	ShowVersion     bool
+	Import          bool
+	Chunked         bool
+	Quit            chan struct{}
+	IgnoreSignals   bool // Ignore signals normally caught by this process (used primarily for testing)
+	ForceTTY        bool // Force the CLI to act as if it were connected to a TTY
+	osSignals       chan os.Signal
+	historyFilePath string
+
+	Client         *client.Client
+	ClientConfig   client.Config // Client config options.
+	ImporterConfig v8.Config     // Importer configuration options.
 }
 
 // New returns an instance of CommandLine
@@ -84,7 +77,7 @@ func (c *CommandLine) Run() error {
 	// determine if they set the password flag but provided no value
 	for _, v := range os.Args {
 		v = strings.ToLower(v)
-		if (strings.HasPrefix(v, "-password") || strings.HasPrefix(v, "--password")) && c.Password == "" {
+		if (strings.HasPrefix(v, "-password") || strings.HasPrefix(v, "--password")) && c.ClientConfig.Password == "" {
 			promptForPassword = true
 			break
 		}
@@ -96,8 +89,8 @@ func (c *CommandLine) Run() error {
 	}
 
 	// Read environment variables for username/password.
-	if c.Username == "" {
-		c.Username = os.Getenv("INFLUX_USERNAME")
+	if c.ClientConfig.Username == "" {
+		c.ClientConfig.Username = os.Getenv("INFLUX_USERNAME")
 	}
 	// If we are going to be prompted for a password, always use the entered password.
 	if promptForPassword {
@@ -110,9 +103,9 @@ func (c *CommandLine) Run() error {
 		if e != nil {
 			return errors.New("Unable to parse password")
 		}
-		c.Password = p
-	} else if c.Password == "" {
-		c.Password = os.Getenv("INFLUX_PASSWORD")
+		c.ClientConfig.Password = p
+	} else if c.ClientConfig.Password == "" {
+		c.ClientConfig.Password = os.Getenv("INFLUX_PASSWORD")
 	}
 
 	if err := c.Connect(""); err != nil {
@@ -122,7 +115,7 @@ func (c *CommandLine) Run() error {
 	}
 
 	// Modify precision.
-	c.SetPrecision(c.Precision)
+	c.SetPrecision(c.ClientConfig.Precision)
 
 	if c.Execute != "" {
 		// Make the non-interactive mode send everything through the CLI's parser
@@ -137,23 +130,17 @@ func (c *CommandLine) Run() error {
 	}
 
 	if c.Import {
-		path := net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
-		u, e := client.ParseConnectionString(path, c.Ssl)
+		addr := net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
+		u, e := client.ParseConnectionString(addr, c.Ssl)
 		if e != nil {
 			return e
 		}
 
-		config := v8.NewConfig()
-		config.Username = c.Username
-		config.Password = c.Password
-		config.Precision = "ns"
-		config.WriteConsistency = "any"
-		config.Path = c.Path
-		config.Version = c.ClientVersion
+		// Copy the latest importer config and inject the latest client config
+		// into it.
+		config := c.ImporterConfig
+		config.Config = c.ClientConfig
 		config.URL = u
-		config.Compressed = c.Compressed
-		config.PPS = c.PPS
-		config.Precision = c.Precision
 
 		i := v8.NewImporter(config)
 		if err := i.Import(); err != nil {
@@ -282,46 +269,39 @@ func (c *CommandLine) ParseCommand(cmd string) error {
 
 // Connect connects client to a server
 func (c *CommandLine) Connect(cmd string) error {
-	var cl *client.Client
-	var u url.URL
-
 	// Remove the "connect" keyword if it exists
-	path := strings.TrimSpace(strings.Replace(cmd, "connect", "", -1))
-
-	// If they didn't provide a connection string, use the current settings
-	if path == "" {
-		path = net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
+	addr := strings.TrimSpace(strings.Replace(cmd, "connect", "", -1))
+	if addr == "" {
+		// If they didn't provide a connection string, use the current settings
+		addr = net.JoinHostPort(c.Host, strconv.Itoa(c.Port))
 	}
 
-	var e error
-	u, e = client.ParseConnectionString(path, c.Ssl)
-	if e != nil {
-		return e
+	URL, err := client.ParseConnectionString(addr, c.Ssl)
+	if err != nil {
+		return err
 	}
 
-	config := client.NewConfig()
-	config.URL = u
-	config.UnixSocket = c.UnixSocket
-	config.Username = c.Username
-	config.Password = c.Password
-	config.UserAgent = "InfluxDBShell/" + c.ClientVersion
-	config.Precision = c.Precision
-	config.UnsafeSsl = c.UnsafeSsl
-	cl, err := client.NewClient(config)
+	// Create copy of the current client config and create a new client.
+	ClientConfig := c.ClientConfig
+	ClientConfig.UserAgent = "InfluxDBShell/" + c.ClientVersion
+	ClientConfig.URL = URL
+
+	client, err := client.NewClient(ClientConfig)
 	if err != nil {
 		return fmt.Errorf("Could not create client %s", err)
 	}
-	c.Client = cl
+	c.Client = client
 
-	var v string
-	if _, v, e = c.Client.Ping(); e != nil {
-		return fmt.Errorf("Failed to connect to %s: %s\n", c.Client.Addr(), e.Error())
+	_, v, err := c.Client.Ping()
+	if err != nil {
+		return fmt.Errorf("Failed to connect to %s: %v\n", c.Client.Addr(), err)
 	}
 	c.ServerVersion = v
+
 	// Update the command with the current connection information
-	if h, p, err := net.SplitHostPort(config.URL.Host); err == nil {
-		c.Host = h
-		if i, err := strconv.Atoi(p); err == nil {
+	if host, port, err := net.SplitHostPort(ClientConfig.URL.Host); err == nil {
+		c.Host = host
+		if i, err := strconv.Atoi(port); err == nil {
 			c.Port = i
 		}
 	}
@@ -341,25 +321,25 @@ func (c *CommandLine) SetAuth(cmd string) {
 	}
 
 	if len(args) == 2 {
-		c.Username = args[0]
-		c.Password = args[1]
+		c.ClientConfig.Username = args[0]
+		c.ClientConfig.Password = args[1]
 	} else {
 		u, e := c.Line.Prompt("username: ")
 		if e != nil {
 			fmt.Printf("Unable to process input: %s", e)
 			return
 		}
-		c.Username = strings.TrimSpace(u)
+		c.ClientConfig.Username = strings.TrimSpace(u)
 		p, e := c.Line.PasswordPrompt("password: ")
 		if e != nil {
 			fmt.Printf("Unable to process input: %s", e)
 			return
 		}
-		c.Password = p
+		c.ClientConfig.Password = p
 	}
 
 	// Update the client as well
-	c.Client.SetAuth(c.Username, c.Password)
+	c.Client.SetAuth(c.ClientConfig.Username, c.ClientConfig.Password)
 }
 
 func (c *CommandLine) use(cmd string) {
@@ -376,7 +356,7 @@ func (c *CommandLine) use(cmd string) {
 		fmt.Printf("ERR: %s\n", err)
 		return
 	} else if err := response.Error(); err != nil {
-		if c.Username == "" {
+		if c.ClientConfig.Username == "" {
 			fmt.Printf("ERR: %s\n", err)
 			return
 		}
@@ -421,11 +401,11 @@ func (c *CommandLine) SetPrecision(cmd string) {
 
 	switch cmd {
 	case "h", "m", "s", "ms", "u", "ns":
-		c.Precision = cmd
-		c.Client.SetPrecision(c.Precision)
+		c.ClientConfig.Precision = cmd
+		c.Client.SetPrecision(c.ClientConfig.Precision)
 	case "rfc3339":
-		c.Precision = ""
-		c.Client.SetPrecision(c.Precision)
+		c.ClientConfig.Precision = ""
+		c.Client.SetPrecision(c.ClientConfig.Precision)
 	default:
 		fmt.Printf("Unknown precision %q. Please use rfc3339, h, m, s, ms, u or ns.\n", cmd)
 	}
@@ -458,7 +438,7 @@ func (c *CommandLine) SetWriteConsistency(cmd string) {
 		fmt.Printf("Unknown consistency level %q. Please use any, one, quorum, or all.\n", cmd)
 		return
 	}
-	c.WriteConsistency = cmd
+	c.ClientConfig.WriteConsistency = cmd
 }
 
 // isWhitespace returns true if the rune is a space, tab, or newline.
@@ -547,8 +527,8 @@ func (c *CommandLine) Insert(stmt string) error {
 		},
 		Database:         c.Database,
 		RetentionPolicy:  c.RetentionPolicy,
-		Precision:        c.Precision,
-		WriteConsistency: c.WriteConsistency,
+		Precision:        c.ClientConfig.Precision,
+		WriteConsistency: c.ClientConfig.WriteConsistency,
 	})
 	if err != nil {
 		fmt.Printf("ERR: %s\n", err)
@@ -774,11 +754,11 @@ func (c *CommandLine) Settings() {
 	} else {
 		fmt.Fprintf(w, "Host\t%s\n", c.Host)
 	}
-	fmt.Fprintf(w, "Username\t%s\n", c.Username)
+	fmt.Fprintf(w, "Username\t%s\n", c.ClientConfig.Username)
 	fmt.Fprintf(w, "Database\t%s\n", c.Database)
 	fmt.Fprintf(w, "Pretty\t%v\n", c.Pretty)
 	fmt.Fprintf(w, "Format\t%s\n", c.Format)
-	fmt.Fprintf(w, "Write Consistency\t%s\n", c.WriteConsistency)
+	fmt.Fprintf(w, "Write Consistency\t%s\n", c.ClientConfig.WriteConsistency)
 	fmt.Fprintln(w)
 	w.Flush()
 }
