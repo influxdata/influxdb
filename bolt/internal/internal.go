@@ -130,6 +130,7 @@ func MarshalLayout(l chronograf.Layout) ([]byte, error) {
 			I:       c.I,
 			Name:    c.Name,
 			Queries: queries,
+			Type:    c.Type,
 		}
 	}
 	return proto.Marshal(&Layout{
@@ -180,6 +181,7 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 			I:       c.I,
 			Name:    c.Name,
 			Queries: queries,
+			Type:    c.Type,
 		}
 	}
 	l.Cells = cells
