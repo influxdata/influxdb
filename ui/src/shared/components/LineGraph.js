@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react';
 import Dygraph from './Dygraph';
+import classNames from 'classnames';
 import shallowCompare from 'react-addons-shallow-compare';
 import _ from 'lodash';
 
@@ -83,6 +84,10 @@ export default React.createClass({
       ylabel: _.get(queries, ['0', 'label'], ''),
       y2label: _.get(queries, ['1', 'label'], ''),
     };
+    let hasyLabel = false;
+    if (options.ylabel || options.y2label) {
+      hasyLabel = true;
+    }
 
     let roundedValue;
     if (showSingleStat) {
@@ -93,7 +98,7 @@ export default React.createClass({
     }
 
     return (
-      <div>
+      <div className={classNames({"graph--hasYLabel": hasyLabel})}>
         {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
           containerStyle={{width: '100%', height: '300px'}}
