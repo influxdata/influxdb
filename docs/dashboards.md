@@ -1,4 +1,5 @@
 ## Dashboard API
+The dashboard API will support collections of resizable InfluxQL visualizations.
 
 ### TL; DR 
 Here are the objects we are thinking about; dashboards contain layouts which
@@ -55,8 +56,28 @@ contain explorations.
 }
 
 ```
+## Older Chronograf dashboards
+Older chronograf dashboards had the following features:
+
+* View Dashboard
+* Add new visualization to dashboard
+* Add existing visualization to dashboard
+* Remove visualizatoin from dashboard
+* Naming of dashboards
+* Delete dashboard
+* Edit visualization in dashboard
 
 ## API
+This API supports a user defined grid layout by specifying `x`, `y`, `w`, `h`.
+These fields align with the [react-grid-layout](https://github.com/STRML/react-grid-layout#usage)
+methodology.
+
+This layout style has:
+
+* Draggable query cells
+* Resizable query cells
+* Vertical auto-packing
+
 ### /dashboards
 #### GET /dashboards
 
@@ -136,7 +157,8 @@ Returns a list of dashboards
 ```
 #### GET /dashboards/myid
 
-Returns an single dashboard object
+Returns an single dashboard object.  The fields `x`, `y`, `w`, `h`, default to 
+not existing unless a user has modified the particular cell.
 
 ```json
 {
