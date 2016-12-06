@@ -73,7 +73,6 @@ export const ManageSources = React.createClass({
             <div className="row">
               <div className="col-md-12">
 
-<<<<<<< 60ca43b70ec2ae1ead2eceaa430ada03642e025c
                 <div className="panel panel-minimal">
                   <div className="panel-heading u-flex u-ai-center u-jc-space-between">
                     <h2 className="panel-title">{sourcesTitle}</h2>
