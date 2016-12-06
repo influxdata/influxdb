@@ -95,6 +95,7 @@ export default React.createClass({
 
     return (
       <div className={classNames({"graph--hasYLabel": options.ylabel || options.y2label})}>
+      <div>
         {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
           containerStyle={{width: '100%', height: '300px'}}
@@ -107,6 +108,16 @@ export default React.createClass({
           ranges={this.getRanges()}
         />
         {showSingleStat ? <div className="graph-single-stat single-stat">{roundedValue}</div> : null}
+      </div>
+    );
+  },
+
+  renderSpinner() {
+    return (
+      <div className="graph-panel__refreshing">
+        <div></div>
+        <div></div>
+        <div></div>
       </div>
     );
   },
