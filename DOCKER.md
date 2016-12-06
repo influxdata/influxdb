@@ -11,12 +11,12 @@ To build a docker image for InfluxDB from your current checkout, run the followi
 $ ./build-docker.sh
 ```
 
-This script uses the `golang:1.7.3` image to build a fully static binary of `influxd` and then adds it to a minimal `scratch` image.
+This script uses the `golang:1.7.4` image to build a fully static binary of `influxd` and then adds it to a minimal `scratch` image.
 
 To build the image using a different version of go:
 
 ```
-$ GO_VER=1.7.3 ./build-docker.sh
+$ GO_VER=1.7.4 ./build-docker.sh
 ```
 
 Available version can be found [here](https://hub.docker.com/_/golang/).
