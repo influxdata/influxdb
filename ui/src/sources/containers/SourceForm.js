@@ -6,7 +6,6 @@ import {
   updateSource as updateSourceAction,
 } from 'shared/actions/sources';
 import classNames from 'classnames';
-import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 
 export const SourceForm = React.createClass({
@@ -157,11 +156,4 @@ function mapStateToProps(_) {
   return {};
 }
 
-function mapDispatchToProps(dispatch) {
-  return {
-    addSourceAction: bindActionCreators(addSourceAction, dispatch),
-    updateSourceAction: bindActionCreators(updateSourceAction, dispatch),
-  };
-}
-
-export default connect(mapStateToProps, mapDispatchToProps)(withRouter(SourceForm));
+export default connect(mapStateToProps, {addSourceAction, updateSourceAction})(withRouter(SourceForm));

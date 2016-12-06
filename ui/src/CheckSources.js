@@ -4,7 +4,6 @@ import {connect} from 'react-redux';
 import {getSources} from 'src/shared/apis';
 import {loadSources as loadSourcesAction} from 'src/shared/actions/sources';
 import {showDatabases} from 'src/shared/apis/metaQuery';
-import {bindActionCreators} from 'redux';
 
 const {bool, number, string, node, func, shape} = PropTypes;
 
@@ -90,10 +89,4 @@ function mapStateToProps(state) {
   };
 }
 
-function mapDispatchToProps(dispatch) {
-  return {
-    loadSourcesAction: bindActionCreators(loadSourcesAction, dispatch),
-  };
-}
-
-export default connect(mapStateToProps, mapDispatchToProps)(withRouter(CheckSources));
+export default connect(mapStateToProps, {loadSourcesAction})(withRouter(CheckSources));

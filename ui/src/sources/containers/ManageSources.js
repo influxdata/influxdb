@@ -5,7 +5,6 @@ import {
   loadSources as loadSourcesAction,
   removeSource as removeSourceAction,
 } from 'src/shared/actions/sources';
-import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 
 export const ManageSources = React.createClass({
@@ -127,11 +126,4 @@ function mapStateToProps(state) {
   };
 }
 
-function mapDispatchToProps(dispatch) {
-  return {
-    loadSourcesAction: bindActionCreators(loadSourcesAction, dispatch),
-    removeSourceAction: bindActionCreators(removeSourceAction, dispatch),
-  };
-}
-
-export default connect(mapStateToProps, mapDispatchToProps)(withRouter(ManageSources));
+export default connect(mapStateToProps, {loadSourcesAction, removeSourceAction})(withRouter(ManageSources));

@@ -2,7 +2,6 @@ import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
 import {addSource as addSourceAction} from 'src/shared/actions/sources';
 import {createSource} from 'shared/apis';
-import {bindActionCreators} from 'redux';
 import {connect} from 'react-redux';
 
 export const CreateSource = React.createClass({
@@ -99,10 +98,4 @@ function mapStateToProps(_) {
   return {};
 }
 
-function mapDispatchToProps(dispatch) {
-  return {
-    addSourceAction: bindActionCreators(addSourceAction, dispatch),
-  };
-}
-
-export default connect(mapStateToProps, mapDispatchToProps)(withRouter(CreateSource));
+export default connect(mapStateToProps, {addSourceAction})(withRouter(CreateSource));
