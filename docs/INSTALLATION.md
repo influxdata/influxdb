@@ -20,8 +20,8 @@ Check out the [downloads](https://www.influxdata.com/downloads/) page for links 
 
 #### 1. Download and Install InfluxDB
 ```
-wget https://dl.influxdata.com/influxdb/releases/influxdb_1.1.0_amd64.deb
-sudo dpkg -i influxdb_1.1.0_amd64.deb
+wget https://dl.influxdata.com/influxdb/releases/influxdb_1.1.1_amd64.deb
+sudo dpkg -i influxdb_1.1.1_amd64.deb
 ```
 
 #### 2. Start InfluxDB
@@ -49,8 +49,8 @@ Kapacitor is responsible for creating and sending alerts in Chronograf.
 
 #### 1. Download and Install Kapacitor
 ```
-wget https://dl.influxdata.com/kapacitor/releases/kapacitor_1.1.0_amd64.deb
-sudo dpkg -i kapacitor_1.1.0_amd64.deb
+wget https://dl.influxdata.com/kapacitor/releases/kapacitor_1.1.1_amd64.deb
+sudo dpkg -i kapacitor_1.1.1_amd64.deb
 ```
 
 #### 2. Start Kapacitor
@@ -83,10 +83,14 @@ In a production environment, Telegraf would be installed on your servers and wou
 Ultimately, you will configure a Telegraf input plugin for each application that you want to monitor.
 At the end of this guide we provide sample configurations for additional applications.
 
+> Note:
+Currently, Chronograf requires users to run Telegraf's [CPU](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/CPU_README.md) and [system](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/SYSTEM_README.md) plugins to ensure that all Apps appear on the [HOST LIST](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#host-list) page.
+This is a known issue.
+
 #### 1. Download and Install Telegraf
 ```
-wget https://dl.influxdata.com/telegraf/releases/telegraf_1.1.1_amd64.deb
-sudo dpkg -i telegraf_1.1.1_amd64.deb
+wget https://dl.influxdata.com/telegraf/releases/telegraf_1.1.2_amd64.deb
+sudo dpkg -i telegraf_1.1.2_amd64.deb
 ```
 
 #### 2. Start Telegraf

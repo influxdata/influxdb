@@ -19,12 +19,13 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
 
 * Apache
 * Consul
-* System
 * Docker
+* Elastic
+* etcd
 * HAProxy
+* IIS
 * InfluxDB
 * Kubernetes
-* System
 * Memcached
 * MongoDB
 * MySQL
@@ -36,11 +37,9 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
 * Processes
 * Redis
 * Riak
-* Windows Performance Counters
-* IIS
-* etcd
-* Elastic
+* System
 * Varnish
+* Windows Performance Counters
 
 ### Data Explorer
 
@@ -66,13 +65,26 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
   * VictorOps
 * View all active alerts at a glance on the alerting dashboard
 
+### GitHub OAuth Login
+See [Chronograf with OAuth 2.0](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) for more information.
+
 ## Versions
 
-Chronograf v1.1.0-alpha is an [alpha release](https://www.influxdata.com/announcing-the-new-chronograf-a-ui-for-the-tick-stack-and-a-complete-open-source-monitoring-solution/).
+Chronograf v1.1.0-beta1 is a [beta release](https://www.influxdata.com/now-in-beta-chronograf-a-ui-for-the-tick-stack-a-complete-open-source-monitoring-solution/).
 We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
 
 Spotted a bug or have a feature request?
 Please open [an issue](https://github.com/influxdata/chronograf/issues/new)!
+
+### Known Issues
+
+The Chronograf team has identified and is working on the following issues:
+
+* Chronograf v1.1.0-beta1 does not support creating and editing raw queries in the [Data Explorer](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#data-explorer).
+Currently, users must create all queries with the Data Explorer's query builder.
+* Chronograf's [OAuth 2.0 Style Authentication](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) allows all users to authenticate with their GitHub account.
+It does not yet offer any security or allow administrators to filter users.
+* Currently, Chronograf requires users to run Telegraf's [CPU](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/CPU_README.md) and [system](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/SYSTEM_README.md) plugins to ensure that all Apps appear on the [HOST LIST](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#host-list) page.
 
 ## Installation
 
@@ -94,7 +106,7 @@ docker pull quay.io/influxdb/chronograf:latest
 ### From Source
 
 * Chronograf works with go 1.7.4, npm 3.10.7 and node v6.6.0. Additional version support of these projects will be implemented soon, but these are the only supported versions to date.
-* Chronograf requires [Kapacitor](https://github.com/influxdata/kapacitor) 1.1 to create and store alerts.
+* Chronograf requires [Kapacitor](https://github.com/influxdata/kapacitor) 1.1.x to create and store alerts.
 
 1. [Install Go](https://golang.org/doc/install)
 1. [Install Node and NPM](https://nodejs.org/en/download/)
