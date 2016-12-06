@@ -44,7 +44,7 @@ export const ManageSources = React.createClass({
     const {addFlashMessage} = this.props;
 
     deleteSource(source).then(() => {
-      removeSourceAction(source);
+      this.props.removeSourceAction(source);
       addFlashMessage({type: 'success', text: 'Source removed from Chronograf'});
     }).catch(() => {
       addFlashMessage({type: 'error', text: 'Could not remove source from Chronograf'});
