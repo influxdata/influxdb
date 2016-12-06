@@ -26,13 +26,16 @@ const (
 	SeriesDataSizeSize   = 8
 
 	SeriesBlockTrailerSize = 0 +
-		8 + 8 + // term list offset/size
+		8 + 8 + // term data offset/size
 		8 + 8 + // series data offset/size
-		8 + 8 // hash index offset/size
+		8 + 8 + // term index offset/size
+		8 + 8 + // series index offset/size
+		0
 
 	// Other field sizes
 	TermCountSize   = 4
 	SeriesCountSize = 4
+	TermOffsetSize  = 4
 	SeriesIDSize    = 4
 )
 
@@ -44,11 +47,15 @@ const (
 // SeriesBlock represents the section of the index which holds the term
 // dictionary and a sorted list of series keys.
 type SeriesBlock struct {
-	data       []byte
-	termData   []byte
-	seriesData []byte
+	data []byte
 
-	// Series hash index data and capacity.
+	// Term data & index/capacity.
+	termData   []byte
+	termIndex  []byte
+	termIndexN uint32
+
+	// Series data & index/capacity.
+	seriesData   []byte
 	seriesIndex  []byte
 	seriesIndexN uint32
 }
@@ -224,24 +231,43 @@ func (blk *SeriesBlock) DecodeTerm(offset uint32) []byte {
 	return buf[:i]
 }
 
-// EncodeTerm returns the offset of v within data.
+// EncodeTerm returns the offset of v within data. Returns 0 if not found.
 func (blk *SeriesBlock) EncodeTerm(v []byte) uint32 {
-	offset := uint32(TermCountSize)
-	data := blk.termData[offset:]
+	n := blk.termIndexN
+	hash := hashKey(v)
+	pos := int(hash % n)
 
-	for i, n := uint32(0), blk.TermCount(); i < n; i++ {
-		// Read term length.
-		ln, sz := binary.Uvarint(data)
-		data = data[sz:]
+	// Track current distance
+	var d int
+	for {
+		// Find offset of term.
+		offset := binary.BigEndian.Uint32(blk.termIndex[pos*TermOffsetSize:])
 
-		// Return offset if the term matches.
-		if bytes.Equal(v, data[:ln]) {
-			return offset
+		// Evaluate encoded value matches expected.
+		if offset > 0 {
+			// Parse term.
+			data := blk.data[offset:]
+			i, sz := binary.Uvarint(data)
+			data = data[sz : int(i)+sz]
+
+			// Return if term matches.
+			if bytes.Equal(data, v) {
+				return offset
+			}
+
+			// Check if we've exceeded the probe distance.
+			if d > dist(hashKey(data), pos, int(n)) {
+				return 0
+			}
 		}
 
-		// Update offset & move data forward.
-		data = data[ln:]
-		offset += uint32(ln) + uint32(sz)
+		// Move position forward.
+		pos = (pos + 1) % int(n)
+		d++
+
+		if uint32(d) > n {
+			return 0
+		}
 	}
 
 	return 0
@@ -277,18 +303,22 @@ func (blk *SeriesBlock) UnmarshalBinary(data []byte) error {
 	blk.data = data
 
 	// Slice term list data.
-	blk.termData = data[t.TermList.Offset:]
-	blk.termData = blk.termData[:t.TermList.Size]
+	blk.termData = data[t.Term.Data.Offset:]
+	blk.termData = blk.termData[:t.Term.Data.Size]
 
-	// Slice series data data.
+	// Slice term list index.
+	blk.termIndex = data[t.Term.Index.Offset:]
+	blk.termIndex = blk.termIndex[:t.Term.Index.Size]
+	blk.termIndexN = binary.BigEndian.Uint32(blk.termIndex[:4])
+	blk.termIndex = blk.termIndex[4:]
+
+	// Slice series data.
 	blk.seriesData = data[t.Series.Data.Offset:]
 	blk.seriesData = blk.seriesData[:t.Series.Data.Size]
 
 	// Slice series hash index.
 	blk.seriesIndex = data[t.Series.Index.Offset:]
 	blk.seriesIndex = blk.seriesIndex[:t.Series.Index.Size]
-
-	// Read series index capacity.
 	blk.seriesIndexN = binary.BigEndian.Uint32(blk.seriesIndex[:4])
 	blk.seriesIndex = blk.seriesIndex[4:]
 
@@ -423,13 +453,13 @@ func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	terms := NewTermList(sw.terms)
 
 	// Write term dictionary.
-	t.TermList.Offset = n
+	t.Term.Data.Offset = n
 	nn, err := sw.writeTermListTo(w, terms)
 	n += nn
 	if err != nil {
 		return n, err
 	}
-	t.TermList.Size = n - t.TermList.Offset
+	t.Term.Data.Size = n - t.Term.Data.Offset
 
 	// Write dictionary-encoded series list.
 	t.Series.Data.Offset = n
@@ -440,6 +470,13 @@ func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	}
 	t.Series.Data.Size = n - t.Series.Data.Offset
 
+	// Write term index.
+	t.Term.Index.Offset = n
+	if err := sw.writeTermIndexTo(w, terms, &n); err != nil {
+		return n, err
+	}
+	t.Term.Index.Size = n - t.Term.Index.Offset
+
 	// Write dictionary-encoded series hash index.
 	t.Series.Index.Offset = n
 	if err := sw.writeSeriesIndexTo(w, terms, &n); err != nil {
@@ -448,7 +485,9 @@ func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	t.Series.Index.Size = n - t.Series.Index.Offset
 
 	// Write trailer.
-	if err := sw.writeTrailerTo(w, t, &n); err != nil {
+	nn, err = t.WriteTo(w)
+	n += nn
+	if err != nil {
 		return n, err
 	}
 
@@ -544,6 +583,35 @@ func (sw *SeriesBlockWriter) writeSeriesTo(w io.Writer, terms *TermList, offset 
 	return n, nil
 }
 
+// writeTermIndexTo writes hash map lookup of terms to w.
+func (sw *SeriesBlockWriter) writeTermIndexTo(w io.Writer, terms *TermList, n *int64) error {
+	// Build hash map of series.
+	m := rhh.NewHashMap(rhh.Options{
+		Capacity:   terms.Len(),
+		LoadFactor: 90,
+	})
+	for _, e := range terms.a {
+		m.Put([]byte(e.term), e.offset)
+	}
+
+	// Encode hash map length.
+	if err := writeUint32To(w, uint32(m.Cap()), n); err != nil {
+		return err
+	}
+
+	// Encode hash map offset entries.
+	for i := 0; i < m.Cap(); i++ {
+		_, v := m.Elem(i)
+		offset, _ := v.(uint32)
+
+		if err := writeUint32To(w, offset, n); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // writeSeriesIndexTo writes hash map lookup of series to w.
 func (sw *SeriesBlockWriter) writeSeriesIndexTo(w io.Writer, terms *TermList, n *int64) error {
 	// Build hash map of series.
@@ -568,29 +636,6 @@ func (sw *SeriesBlockWriter) writeSeriesIndexTo(w io.Writer, terms *TermList, n 
 		if err := writeUint32To(w, uint32(offset), n); err != nil {
 			return err
 		}
-	}
-
-	return nil
-}
-
-// writeTrailerTo writes offsets to the end of the series list.
-func (sw *SeriesBlockWriter) writeTrailerTo(w io.Writer, t SeriesBlockTrailer, n *int64) error {
-	if err := writeUint64To(w, uint64(t.TermList.Offset), n); err != nil {
-		return err
-	} else if err := writeUint64To(w, uint64(t.TermList.Size), n); err != nil {
-		return err
-	}
-
-	if err := writeUint64To(w, uint64(t.Series.Data.Offset), n); err != nil {
-		return err
-	} else if err := writeUint64To(w, uint64(t.Series.Data.Size), n); err != nil {
-		return err
-	}
-
-	if err := writeUint64To(w, uint64(t.Series.Index.Offset), n); err != nil {
-		return err
-	} else if err := writeUint64To(w, uint64(t.Series.Index.Size), n); err != nil {
-		return err
 	}
 
 	return nil
@@ -626,9 +671,13 @@ func ReadSeriesBlockTrailer(data []byte) SeriesBlockTrailer {
 	// Slice trailer data.
 	buf := data[len(data)-SeriesBlockTrailerSize:]
 
-	// Read term list info.
-	t.TermList.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
-	t.TermList.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	// Read term data info.
+	t.Term.Data.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.Term.Data.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+
+	// Read term index info.
+	t.Term.Index.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.Term.Index.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
 	// Read series data info.
 	t.Series.Data.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
@@ -643,9 +692,15 @@ func ReadSeriesBlockTrailer(data []byte) SeriesBlockTrailer {
 
 // SeriesBlockTrailer represents meta data written to the end of the series list.
 type SeriesBlockTrailer struct {
-	TermList struct {
-		Offset int64
-		Size   int64
+	Term struct {
+		Data struct {
+			Offset int64
+			Size   int64
+		}
+		Index struct {
+			Offset int64
+			Size   int64
+		}
 	}
 
 	Series struct {
@@ -658,6 +713,34 @@ type SeriesBlockTrailer struct {
 			Size   int64
 		}
 	}
+}
+
+func (t SeriesBlockTrailer) WriteTo(w io.Writer) (n int64, err error) {
+	if err := writeUint64To(w, uint64(t.Term.Data.Offset), &n); err != nil {
+		return n, err
+	} else if err := writeUint64To(w, uint64(t.Term.Data.Size), &n); err != nil {
+		return n, err
+	}
+
+	if err := writeUint64To(w, uint64(t.Term.Index.Offset), &n); err != nil {
+		return n, err
+	} else if err := writeUint64To(w, uint64(t.Term.Index.Size), &n); err != nil {
+		return n, err
+	}
+
+	if err := writeUint64To(w, uint64(t.Series.Data.Offset), &n); err != nil {
+		return n, err
+	} else if err := writeUint64To(w, uint64(t.Series.Data.Size), &n); err != nil {
+		return n, err
+	}
+
+	if err := writeUint64To(w, uint64(t.Series.Index.Offset), &n); err != nil {
+		return n, err
+	} else if err := writeUint64To(w, uint64(t.Series.Index.Size), &n); err != nil {
+		return n, err
+	}
+
+	return n, nil
 }
 
 type serie struct {
