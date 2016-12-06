@@ -5,7 +5,7 @@ import QueryTabItem from './QueryTabItem';
 import RenamePanelModal from './RenamePanelModal';
 
 const {shape, func, bool, arrayOf} = PropTypes;
-const Explorer = React.createClass({
+const Panel = React.createClass({
   propTypes: {
     panel: shape({}).isRequired,
     queries: arrayOf(shape({})).isRequired,
@@ -14,7 +14,7 @@ const Explorer = React.createClass({
       lower: PropTypes.string,
     }).isRequired,
     isExpanded: bool.isRequired,
-    onToggleExplorer: func.isRequired,
+    onTogglePanel: func.isRequired,
     actions: shape({
       chooseNamespace: func.isRequired,
       chooseMeasurement: func.isRequired,
@@ -32,6 +32,7 @@ const Explorer = React.createClass({
 
   getInitialState() {
     return {
+      showAddQueryOptions: false,
       activeQueryId: null,
     };
   },
@@ -40,16 +41,28 @@ const Explorer = React.createClass({
     this.setState({activeQueryId: query.id});
   },
 
+  handleClickPlus() {
+    this.setState({
+      showAddQueryOptions: true,
+    });
+  },
+
   handleAddQuery() {
     this.props.actions.addQuery();
+    this.setState({showAddQueryOptions: false});
+  },
+
+  handleAddRawQuery() {
+    this.props.actions.addQuery({rawText: "Select foo from bar"});
+    this.setState({showAddQueryOptions: false});
   },
 
   handleDeleteQuery(query) {
     this.props.actions.deleteQuery(query.id);
   },
 
-  handleSelectExplorer() {
-    this.props.onToggleExplorer(this.props.panel);
+  handleSelectPanel() {
+    this.props.onTogglePanel(this.props.panel);
   },
 
   handleDeletePanel(e) {
@@ -80,7 +93,7 @@ const Explorer = React.createClass({
 
     return (
       <div className={classNames('explorer', {active: isExpanded})}>
-        <div className="explorer--header" onClick={this.handleSelectExplorer}>
+        <div className="explorer--header" onClick={this.handleSelectPanel}>
           <div className="explorer--name">
             <span className="icon caret-right"></span>
             {panel.name || "Graph"}
@@ -127,12 +140,13 @@ const Explorer = React.createClass({
   },
 
   renderQueryTabList() {
-    if (!this.props.isExpanded) {
+    const {isExpanded, queries} = this.props;
+    if (!isExpanded) {
       return null;
     }
     return (
       <div className="explorer--tabs">
-        {this.props.queries.map((q) => {
+        {queries.map((q) => {
           const queryTabText = (q.measurement && q.fields.length !== 0) ? `${q.measurement}.${q.fields[0].field}` : 'Query';
           return (
             <QueryTabItem
@@ -145,12 +159,29 @@ const Explorer = React.createClass({
             />
           );
         })}
-        <div className="explorer--tab" onClick={this.handleAddQuery}>
-          <span className="icon plus"></span>
+
+        {this.renderAddQuery()}
+      </div>
+    );
+  },
+
+  renderAddQuery() {
+    const {showAddQueryOptions} = this.state;
+    if (showAddQueryOptions) {
+      return (
+        <div className="btn-group btn-group-sm">
+          <button type="button" className="btn btn-default" onClick={this.handleAddQuery}>Builder</button>
+          <button type="button" className="btn btn-default" onClick={this.handleAddRawQuery}>Raw</button>
         </div>
+      );
+    }
+
+    return (
+      <div className="explorer--tab" onClick={this.handleClickPlus}>
+        <span className="icon plus"></span>
       </div>
     );
   },
 });
 
-export default Explorer;
+export default Panel;

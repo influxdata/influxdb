@@ -48,9 +48,9 @@ export default function queryConfigs(state = {}, action) {
     case 'CREATE_PANEL':
     case 'ADD_KAPACITOR_QUERY':
     case 'ADD_QUERY': {
-      const {queryId} = action.payload;
+      const {queryId, options} = action.payload;
       const nextState = Object.assign({}, state, {
-        [queryId]: defaultQueryConfig(queryId),
+        [queryId]: Object.assign({}, defaultQueryConfig(queryId), options),
       });
 
       return nextState;

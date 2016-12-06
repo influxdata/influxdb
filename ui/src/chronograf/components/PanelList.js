@@ -2,10 +2,10 @@ import React, {PropTypes} from 'react';
 import {connect} from 'react-redux';
 import _ from 'lodash';
 
-import Explorer from './Explorer';
+import Panel from './Panel';
 
 const {func, string, shape} = PropTypes;
-const ExplorerList = React.createClass({
+const PanelList = React.createClass({
   propTypes: {
     timeRange: shape({
       upper: string,
@@ -18,9 +18,9 @@ const ExplorerList = React.createClass({
     activePanelID: string,
   },
 
-  handleToggleExplorer(panel) {
-    // If the explorer being toggled is currently active, it means we should
-    // close everything by setting `activeExplorerIndex` to null.
+  handleTogglePanel(panel) {
+    // If the panel being toggled is currently active, it means we should
+    // close everything by setting `activePanelID` to null.
     const activePanelID = panel.id === this.props.activePanelID ?
       null : panel.id;
 
@@ -45,12 +45,12 @@ const ExplorerList = React.createClass({
           });
 
           return (
-            <Explorer
+            <Panel
               key={panelID}
               panel={panel}
               queries={queries}
               timeRange={timeRange}
-              onToggleExplorer={this.handleToggleExplorer}
+              onTogglePanel={this.handleTogglePanel}
               isExpanded={panelID === activePanelID}
               actions={allActions}
             />
@@ -69,4 +69,4 @@ function mapStateToProps(state) {
   };
 }
 
-export default connect(mapStateToProps)(ExplorerList);
+export default connect(mapStateToProps)(PanelList);

@@ -34,12 +34,13 @@ export function deletePanel(panelId) {
   };
 }
 
-export function addQuery(panelId) {
+export function addQuery(panelId, options) {
   return {
     type: 'ADD_QUERY',
     payload: {
       panelId,
       queryId: uuid.v4(),
+      options,
     },
   };
 }
