@@ -44,6 +44,16 @@ export default React.createClass({
     }
   },
 
+  renderSpinner() {
+    return (
+      <div className="graph-panel__refreshing">
+        <div></div>
+        <div></div>
+        <div></div>
+      </div>
+    );
+  },
+
   render() {
     const {data, isFetchingInitially, isRefreshing, isGraphFilled, overrideLineColors, title, underlayCallback, queries, showSingleStat} = this.props;
     const {labels, timeSeries, dygraphSeries} = this._timeSeries;
@@ -84,7 +94,7 @@ export default React.createClass({
 
     return (
       <div>
-        {isRefreshing ? <h3 className="graph-panel__spinner--small" /> : null}
+        {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
           containerStyle={{width: '100%', height: '300px'}}
           overrideLineColors={overrideLineColors}
