@@ -3,6 +3,8 @@ package meta
 import (
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -470,8 +472,33 @@ func (data *Data) DropContinuousQuery(database, name string) error {
 	return ErrContinuousQueryNotFound
 }
 
+// validateURL returns an error if the URL does not have a port or uses a scheme other than UDP or TCP.
+func validateURL(input string) error {
+	u, err := url.Parse(input)
+	if err != nil {
+		return ErrInvalidSubscriptionURL(input)
+	}
+
+	if u.Scheme != "udp" && u.Scheme != "http" && u.Scheme != "https" {
+		return ErrInvalidSubscriptionURL(input)
+	}
+
+	_, port, err := net.SplitHostPort(u.Host)
+	if err != nil || port == "" {
+		return ErrInvalidSubscriptionURL(input)
+	}
+
+	return nil
+}
+
 // CreateSubscription adds a named subscription to a database and retention policy.
 func (data *Data) CreateSubscription(database, rp, name, mode string, destinations []string) error {
+	for _, d := range destinations {
+		if err := validateURL(d); err != nil {
+			return err
+		}
+	}
+
 	rpi, err := data.RetentionPolicy(database, rp)
 	if err != nil {
 		return err

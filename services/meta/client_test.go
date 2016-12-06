@@ -8,6 +8,7 @@ import (
 	"path"
 	"reflect"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -754,12 +755,35 @@ func TestMetaClient_Subscriptions_Create(t *testing.T) {
 	}
 
 	// Re-create a subscription
-	if err := c.CreateSubscription("db0", "autogen", "sub0", "ALL", []string{"udp://example.com:9090"}); err == nil || err.Error() != `subscription already exists` {
+	err := c.CreateSubscription("db0", "autogen", "sub0", "ALL", []string{"udp://example.com:9090"})
+	if err == nil || err.Error() != `subscription already exists` {
 		t.Fatalf("unexpected error: %s", err)
 	}
 
 	// Create another subscription.
 	if err := c.CreateSubscription("db0", "autogen", "sub1", "ALL", []string{"udp://example.com:6060"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a subscription with invalid scheme
+	err = c.CreateSubscription("db0", "autogen", "sub2", "ALL", []string{"bad://example.com:9191"})
+	if err == nil || !strings.HasPrefix(err.Error(), "invalid subscription URL") {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// Create a subscription without port number
+	err = c.CreateSubscription("db0", "autogen", "sub2", "ALL", []string{"udp://example.com"})
+	if err == nil || !strings.HasPrefix(err.Error(), "invalid subscription URL") {
+		t.Fatalf("unexpected error: %s", err)
+	}
+
+	// Create an HTTP subscription.
+	if err := c.CreateSubscription("db0", "autogen", "sub3", "ALL", []string{"http://example.com:9092"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create an HTTPS subscription.
+	if err := c.CreateSubscription("db0", "autogen", "sub4", "ALL", []string{"https://example.com:9092"}); err != nil {
 		t.Fatal(err)
 	}
 }
