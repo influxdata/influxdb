@@ -84,7 +84,7 @@ export default React.createClass({
     }
 
     return (
-      <div className={classNames({"graph--hasYLabel": options.ylabel || options.y2label})}>
+      <div className={classNames({"graph--hasYLabel": !!(options.ylabel || options.y2label)})}>
         {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
           containerStyle={{width: '100%', height: '300px'}}
