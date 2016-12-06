@@ -1,7 +1,12 @@
 import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
 import {getSource, createSource, updateSource} from 'shared/apis';
+import {
+  addSource as addSourceAction,
+  updateSource as updateSourceAction,
+} from 'shared/actions/sources';
 import classNames from 'classnames';
+import {connect} from 'react-redux';
 
 export const SourceForm = React.createClass({
   propTypes: {
@@ -17,6 +22,8 @@ export const SourceForm = React.createClass({
       }).isRequired,
     }).isRequired,
     addFlashMessage: PropTypes.func.isRequired,
+    addSourceAction: PropTypes.func,
+    updateSourceAction: PropTypes.func,
   },
 
   getInitialState() {
@@ -47,14 +54,16 @@ export const SourceForm = React.createClass({
       telegraf: this.sourceTelegraf.value,
     });
     if (this.state.editMode) {
-      updateSource(newSource).then(() => {
+      updateSource(newSource).then(({data: sourceFromServer}) => {
+        this.props.updateSourceAction(sourceFromServer);
         router.push(`/sources/${params.sourceID}/manage-sources`);
         addFlashMessage({type: 'success', text: 'The source was successfully updated'});
       }).catch(() => {
         addFlashMessage({type: 'error', text: 'There was a problem updating the source. Check the settings'});
       });
     } else {
-      createSource(newSource).then(() => {
+      createSource(newSource).then(({data: sourceFromServer}) => {
+        this.props.addSourceAction(sourceFromServer);
         router.push(`/sources/${params.sourceID}/manage-sources`);
         addFlashMessage({type: 'success', text: 'The source was successfully created'});
       }).catch(() => {
@@ -142,4 +151,9 @@ export const SourceForm = React.createClass({
     );
   },
 });
-export default withRouter(SourceForm);
+
+function mapStateToProps(_) {
+  return {};
+}
+
+export default connect(mapStateToProps, {addSourceAction, updateSourceAction})(withRouter(SourceForm));

@@ -1,6 +1,8 @@
 import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
+import {connect} from 'react-redux';
 import {getSources} from 'src/shared/apis';
+import {loadSources as loadSourcesAction} from 'src/shared/actions/sources';
 import {showDatabases} from 'src/shared/apis/metaQuery';
 
 const {bool, number, string, node, func, shape} = PropTypes;
@@ -21,6 +23,8 @@ const CheckSources = React.createClass({
     location: PropTypes.shape({
       pathname: PropTypes.string.isRequired,
     }).isRequired,
+    sources: PropTypes.array.isRequired,
+    loadSourcesAction: PropTypes.func.isRequired,
   },
 
   contextTypes: {
@@ -35,13 +39,13 @@ const CheckSources = React.createClass({
   getInitialState() {
     return {
       isFetching: true,
-      sources: [],
     };
   },
 
   componentDidMount() {
     getSources().then(({data: {sources}}) => {
-      this.setState({sources, isFetching: false});
+      this.props.loadSourcesAction(sources);
+      this.setState({isFetching: false});
     }).catch(() => {
       this.props.addFlashMessage({type: 'error', text: "Unable to connect to Chronograf server"});
       this.setState({isFetching: false});
@@ -49,8 +53,8 @@ const CheckSources = React.createClass({
   },
 
   componentWillUpdate(nextProps, nextState) {
-    const {router, location, params, addFlashMessage} = nextProps;
-    const {isFetching, sources} = nextState;
+    const {router, location, params, addFlashMessage, sources} = nextProps;
+    const {isFetching} = nextState;
     const source = sources.find((s) => s.id === params.sourceID);
     if (!isFetching && !source) {
       return router.push(`/sources/new?redirectPath=${location.pathname}`);
@@ -65,8 +69,8 @@ const CheckSources = React.createClass({
   },
 
   render() {
-    const {params} = this.props;
-    const {isFetching, sources} = this.state;
+    const {params, sources} = this.props;
+    const {isFetching} = this.state;
     const source = sources.find((s) => s.id === params.sourceID);
 
     if (isFetching || !source) {
@@ -79,4 +83,10 @@ const CheckSources = React.createClass({
   },
 });
 
-export default withRouter(CheckSources);
+function mapStateToProps(state) {
+  return {
+    sources: state.sources,
+  };
+}
+
+export default connect(mapStateToProps, {loadSourcesAction})(withRouter(CheckSources));

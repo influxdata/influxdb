@@ -28,4 +28,3 @@ export default function configureStore(initialState) {
     initialState,
   );
 }
-

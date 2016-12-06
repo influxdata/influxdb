@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react';
 import LayoutRenderer from 'shared/components/LayoutRenderer';
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
+import ReactTooltip from 'react-tooltip';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
 export const KubernetesPage = React.createClass({
@@ -73,7 +74,11 @@ export const KubernetesPage = React.createClass({
               <h1>Kubernetes Dashboard</h1>
             </div>
             <div className="page-header__right">
-              <h1>Range:</h1>
+              <div className="btn btn-info btn-sm" data-for="graph-tips-tooltip" data-tip="<p><code>Click + Drag</code> Zoom in (X or Y)</p><p><code>Shift + Click</code> Pan Graph Window</p><p><code>Double Click</code> Reset Graph Window</p>">
+                <span className="icon heart"></span>
+                Graph Tips
+              </div>
+              <ReactTooltip id="graph-tips-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
               <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={timeRange.inputValue} />
             </div>
           </div>

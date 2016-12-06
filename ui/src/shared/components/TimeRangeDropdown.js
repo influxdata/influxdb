@@ -44,7 +44,7 @@ const TimeRangeDropdown = React.createClass({
     return (
       <div className="dropdown time-range-dropdown">
         <div className="btn btn-sm btn-info dropdown-toggle" onClick={() => self.toggleMenu()}>
-          <span className="icon-clock"></span>
+          <span className="icon clock"></span>
           <span className="selected-time-range">{selected}</span>
           <span className="caret" />
         </div>
