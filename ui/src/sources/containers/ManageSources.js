@@ -56,7 +56,7 @@ export const ManageSources = React.createClass({
     const {kapacitors} = this.state;
     const {sources} = this.props;
     const {pathname} = this.props.location;
-    const numSources = sources ? sources.length : 0;
+    const numSources = sources.length;
     const sourcesTitle = `${numSources} ${numSources === 1 ? 'Source' : 'Sources'}`;
 
     return (
