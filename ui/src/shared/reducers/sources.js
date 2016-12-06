@@ -7,9 +7,8 @@ export default function sources(state = [], action) {
     case 'SOURCE_UPDATED': {
       const {source} = action.payload;
       const updatedIndex = state.findIndex((s) => s.id === source.id);
-      const updatedSources = Object.assign({}, state, {
-        [updatedIndex]: source,
-      });
+      const updatedSources = Object.assign([], state);
+      updatedSources[updatedIndex] = source;
       return updatedSources;
     }
 
