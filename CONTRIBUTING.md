@@ -58,8 +58,8 @@ After installing gvm you can install and set the default go version by
 running the following:
 
 ```bash
-  gvm install go1.7.1
-  gvm use go1.7.1 --default
+  gvm install go1.7.4
+  gvm use go1.7.4 --default
 ```
 
 Installing GDM
