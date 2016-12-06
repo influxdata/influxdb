@@ -70,7 +70,7 @@ See [Chronograf with OAuth 2.0](https://github.com/influxdata/chronograf/blob/ma
 
 ## Versions
 
-Chronograf v1.1.0-beta is a [beta release](https://www.influxdata.com/now-in-beta-chronograf-a-ui-for-the-tick-stack-a-complete-open-source-monitoring-solution/).
+Chronograf v1.1.0-beta1 is a [beta release](https://www.influxdata.com/now-in-beta-chronograf-a-ui-for-the-tick-stack-a-complete-open-source-monitoring-solution/).
 We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
 
 Spotted a bug or have a feature request?
@@ -80,7 +80,7 @@ Please open [an issue](https://github.com/influxdata/chronograf/issues/new)!
 
 The Chronograf team has identified and is working on the following issues:
 
-* Chronograf v1.1.0-beta does not support creating and editing raw queries in the [Data Explorer](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#data-explorer).
+* Chronograf v1.1.0-beta1 does not support creating and editing raw queries in the [Data Explorer](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#data-explorer).
 Currently, users must create all queries with the Data Explorer's query builder.
 * Chronograf's [OAuth 2.0 Style Authentication](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) allows all users to authenticate with their GitHub account.
 It does not yet offer any security or allow administrators to filter users.
