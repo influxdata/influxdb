@@ -92,7 +92,8 @@ export const LayoutRenderer = React.createClass({
         });
       });
 
-      if (cell.type === 'single_stat') {
+
+      if (cell.type === 'single-stat') {
         return (
           <div key={cell.i}>
             <h2 className="hosts-graph-heading">{cell.name}</h2>
@@ -107,7 +108,7 @@ export const LayoutRenderer = React.createClass({
         <div key={cell.i}>
           <h2 className="hosts-graph-heading">{cell.name}</h2>
           <div className="hosts-graph graph-panel__graph-container">
-            <RefreshingLineGraph queries={qs} autoRefresh={autoRefreshMs} />
+            <RefreshingLineGraph queries={qs} autoRefresh={autoRefreshMs} showSingleStat={cell.type === "graph-plus-single-stat"} />
           </div>
         </div>
       );

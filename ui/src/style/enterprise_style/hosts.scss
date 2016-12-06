@@ -11,6 +11,12 @@
     justify-content: center;
     align-items: center;
     height: 100%;
+
+    &.graph-single-stat {
+      position: absolute;
+      width: 100%;
+      top: 0;
+    }
   }
 }
 .hosts-graph-heading {

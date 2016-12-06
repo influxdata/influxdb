@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react';
 import shallowCompare from 'react-addons-shallow-compare';
-import _ from 'lodash';
+import lastValues from 'src/shared/parsing/lastValues';
 
 export default React.createClass({
   displayName: 'LineGraph',
@@ -9,7 +9,6 @@ export default React.createClass({
     title: PropTypes.string,
     isFetchingInitially: PropTypes.bool,
   },
-
 
   shouldComponentUpdate(nextProps, nextState) {
     return shallowCompare(this, nextProps, nextState);
@@ -27,8 +26,7 @@ export default React.createClass({
       );
     }
 
-    const values = _.get(data, ['0', 'response', 'results', '0', 'series', '0', 'values'], [['', '']]);
-    const lastValue = values[values.length - 1][1];
+    const lastValue = lastValues(data)[1];
 
     const precision = 100.0;
     const roundedValue = Math.round(+lastValue * precision) / precision;
