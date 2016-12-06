@@ -817,68 +817,63 @@ func (m *Measurement) seriesIDsAllOrByExpr(expr influxql.Expr) (SeriesIDs, error
 }
 
 // tagKeysByExpr extracts the tag keys wanted by the expression.
-func (m *Measurement) TagKeysByExpr(expr influxql.Expr) (stringSet, bool, error) {
+func (m *Measurement) TagKeysByExpr(expr influxql.Expr) (map[string]struct{}, error) {
 	switch e := expr.(type) {
 	case *influxql.BinaryExpr:
 		switch e.Op {
 		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 			tag, ok := e.LHS.(*influxql.VarRef)
 			if !ok {
-				return nil, false, fmt.Errorf("left side of '%s' must be a tag key", e.Op.String())
-			}
-
-			if tag.Val != "_tagKey" {
-				return nil, false, nil
-			}
-
-			tf := TagFilter{
-				Op: e.Op,
+				return nil, fmt.Errorf("left side of '%s' must be a tag key", e.Op.String())
+			} else if tag.Val != "_tagKey" {
+				return nil, nil
 			}
 
 			if influxql.IsRegexOp(e.Op) {
 				re, ok := e.RHS.(*influxql.RegexLiteral)
 				if !ok {
-					return nil, false, fmt.Errorf("right side of '%s' must be a regular expression", e.Op.String())
+					return nil, fmt.Errorf("right side of '%s' must be a regular expression", e.Op.String())
 				}
-				tf.Regex = re.Val
-			} else {
-				s, ok := e.RHS.(*influxql.StringLiteral)
-				if !ok {
-					return nil, false, fmt.Errorf("right side of '%s' must be a tag value string", e.Op.String())
-				}
-				tf.Value = s.Val
+				return m.tagKeysByFilter(e.Op, "", re.Val), nil
 			}
-			return m.tagKeysByFilter(tf.Op, tf.Value, tf.Regex), true, nil
+
+			s, ok := e.RHS.(*influxql.StringLiteral)
+			if !ok {
+				return nil, fmt.Errorf("right side of '%s' must be a tag value string", e.Op.String())
+			}
+			return m.tagKeysByFilter(e.Op, s.Val, nil), nil
+
 		case influxql.AND, influxql.OR:
-			lhsKeys, lhsOk, err := m.TagKeysByExpr(e.LHS)
+			lhs, err := m.TagKeysByExpr(e.LHS)
 			if err != nil {
-				return nil, false, err
+				return nil, err
 			}
 
-			rhsKeys, rhsOk, err := m.TagKeysByExpr(e.RHS)
+			rhs, err := m.TagKeysByExpr(e.RHS)
 			if err != nil {
-				return nil, false, err
+				return nil, err
 			}
 
-			if lhsOk && rhsOk {
+			if lhs != nil && rhs != nil {
 				if e.Op == influxql.OR {
-					return lhsKeys.union(rhsKeys), true, nil
+					return stringSet(lhs).union(rhs), nil
 				}
-
-				return lhsKeys.intersect(rhsKeys), true, nil
-			} else if lhsOk {
-				return lhsKeys, true, nil
-			} else if rhsOk {
-				return rhsKeys, true, nil
+				return stringSet(lhs).intersect(rhs), nil
+			} else if lhs != nil {
+				return lhs, nil
+			} else if rhs != nil {
+				return rhs, nil
 			}
-			return nil, false, nil
+			return nil, nil
 		default:
-			return nil, false, fmt.Errorf("invalid operator")
+			return nil, fmt.Errorf("invalid operator")
 		}
+
 	case *influxql.ParenExpr:
 		return m.TagKeysByExpr(e.Expr)
 	}
-	return nil, false, fmt.Errorf("%#v", expr)
+
+	return nil, fmt.Errorf("%#v", expr)
 }
 
 // tagKeysByFilter will filter the tag keys for the measurement.

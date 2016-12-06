@@ -209,7 +209,7 @@ func (i *Index) CreateMeasurementIndexIfNotExists(name string) *tsdb.Measurement
 }
 
 // MeasurementTagKeyByExpr returns an ordered set of tag keys filtered by an expression.
-func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
+func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
@@ -217,20 +217,7 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) ([][]b
 	if mm == nil {
 		return nil, nil
 	}
-
-	keySet, _, err := mm.TagKeysByExpr(expr)
-	if err != nil {
-		return nil, err
-	}
-
-	// Convert string set to byte slice list.
-	a := make([][]byte, 0, len(keySet))
-	for key := range keySet {
-		a = append(a, []byte(key))
-	}
-	bytesutil.Sort(a)
-
-	return a, nil
+	return mm.TagKeysByExpr(expr)
 }
 
 // ForEachMeasurementTagKey iterates over all tag keys for a measurement.

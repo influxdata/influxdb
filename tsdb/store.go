@@ -902,19 +902,19 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 		}
 
 		for _, name := range names {
-			/*
-				// Determine a list of keys from condition.
-				keySet, err := sh.engine.MeasurementTagKeysByExpr(name, cond)
-				if err != nil {
-					return nil, err
-				}
-			*/
+			// Determine a list of keys from condition.
+			keySet, err := sh.engine.MeasurementTagKeysByExpr(name, cond)
+			if err != nil {
+				return nil, err
+			}
 
 			// Loop over all keys for each series.
 			m := make(map[KeyValue]struct{})
 			if err := sh.engine.ForEachMeasurementSeriesByExpr(name, filterExpr, func(tags models.Tags) error {
 				for _, t := range tags {
-					m[KeyValue{string(t.Key), string(t.Value)}] = struct{}{}
+					if _, ok := keySet[string(t.Key)]; ok {
+						m[KeyValue{string(t.Key), string(t.Value)}] = struct{}{}
+					}
 				}
 				return nil
 			}); err != nil {

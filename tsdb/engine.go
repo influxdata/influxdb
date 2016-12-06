@@ -55,7 +55,7 @@ type Engine interface {
 	DeleteMeasurement(name []byte) error
 
 	// TagKeys(name []byte) ([][]byte, error)
-	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error)
+	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)
 	ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error
 
 	// InfluxQL iterators
