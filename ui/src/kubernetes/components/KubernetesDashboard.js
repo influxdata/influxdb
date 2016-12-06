@@ -56,14 +56,6 @@ export const KubernetesPage = React.createClass({
     this.setState({timeRange});
   },
 
-  renderGraphTips() {
-    return (
-      `<p><code>Click + Drag</code> Zoom in (X or Y)</p>
-      <p><code>Shift + Click</code> Pan Graph Window</p>
-      <p><code>Double Click</code> Reset Graph Window</p>`
-    );
-  },
-
   render() {
     const {layouts} = this.props;
     const {timeRange} = this.state;
@@ -82,7 +74,7 @@ export const KubernetesPage = React.createClass({
               <h1>Kubernetes Dashboard</h1>
             </div>
             <div className="page-header__right">
-              <div className="btn btn-info btn-sm" data-for="graph-tips-tooltip" data-tip={this.renderGraphTips()}>
+              <div className="btn btn-info btn-sm" data-for="graph-tips-tooltip" data-tip="<p><code>Click + Drag</code> Zoom in (X or Y)</p><p><code>Shift + Click</code> Pan Graph Window</p><p><code>Double Click</code> Reset Graph Window</p>">
                 <span className="icon heart"></span>
                 Graph Tips
               </div>

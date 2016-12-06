@@ -117,14 +117,6 @@ export const HostPage = React.createClass({
     );
   },
 
-  renderGraphTips() {
-    return (
-      `<p><code>Click + Drag</code> Zoom in (X or Y)</p>
-      <p><code>Shift + Click</code> Pan Graph Window</p>
-      <p><code>Double Click</code> Reset Graph Window</p>`
-    );
-  },
-
   render() {
     const hostID = this.props.params.hostID;
     const {layouts, timeRange} = this.state;
@@ -137,7 +129,7 @@ export const HostPage = React.createClass({
               <h1>{hostID}</h1>
             </div>
             <div className="page-header__right">
-              <div className="btn btn-info btn-sm" data-for="graph-tips-tooltip" data-tip={this.renderGraphTips()}>
+              <div className="btn btn-info btn-sm" data-for="graph-tips-tooltip" data-tip="<p><code>Click + Drag</code> Zoom in (X or Y)</p><p><code>Shift + Click</code> Pan Graph Window</p><p><code>Double Click</code> Reset Graph Window</p>">
                 <span className="icon heart"></span>
                 Graph Tips
               </div>

@@ -84,10 +84,6 @@ export default React.createClass({
       ylabel: _.get(queries, ['0', 'label'], ''),
       y2label: _.get(queries, ['1', 'label'], ''),
     };
-    let hasyLabel = false;
-    if (options.ylabel || options.y2label) {
-      hasyLabel = true;
-    }
 
     let roundedValue;
     if (showSingleStat) {
@@ -98,7 +94,7 @@ export default React.createClass({
     }
 
     return (
-      <div className={classNames({"graph--hasYLabel": hasyLabel})}>
+      <div className={classNames({"graph--hasYLabel": options.ylabel || options.y2label})}>
         {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
           containerStyle={{width: '100%', height: '300px'}}
