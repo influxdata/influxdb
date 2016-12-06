@@ -1,4 +1,4 @@
-## v1.1.1 [unreleased]
+## v1.1.1 [2016-12-06]
 
 ### Features
 
@@ -9,6 +9,10 @@
 - [#7625](https://github.com/influxdata/influxdb/issues/7625): Fix incorrect tag value in error message.
 - [#7661](https://github.com/influxdata/influxdb/pull/7661): Quote the empty string as an ident.
 - [#7679](https://github.com/influxdata/influxdb/pull/7679): Fix string fields w/ trailing slashes
+
+### Security
+
+[Go 1.7.4](https://golang.org/doc/devel/release.html#go1.7.minor) was released to address two security issues.  This release includes these security fixes.
 
 ## v1.1.0 [2016-11-14]
 
