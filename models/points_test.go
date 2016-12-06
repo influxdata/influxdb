@@ -1086,6 +1086,21 @@ func TestParsePointWithStringWithCommas(t *testing.T) {
 			},
 			time.Unix(1, 0)),
 	)
+
+	// string w/ trailing escape chars
+	test(t, `cpu,host=serverA,region=us-east str="foo\\",str2="bar" 1000000000`,
+		NewTestPoint(
+			"cpu",
+			models.NewTags(map[string]string{
+				"host":   "serverA",
+				"region": "us-east",
+			}),
+			models.Fields{
+				"str":  "foo\\", // trailing escape char
+				"str2": "bar",
+			},
+			time.Unix(1, 0)),
+	)
 }
 
 func TestParsePointQuotedMeasurement(t *testing.T) {

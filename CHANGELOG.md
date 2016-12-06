@@ -1,17 +1,3 @@
-## v1.2.0 [unreleased]
-
-### Release Notes
-
-### Features
-
-- [#7066](https://github.com/influxdata/influxdb/issues/7066): Add support for secure transmission via collectd.
-- [#7554](https://github.com/influxdata/influxdb/pull/7554): update latest dependencies with Godeps.
-
-### Bugfixes
-
-- [#7621](https://github.com/influxdata/influxdb/issues/7621): Expand string and boolean fields when using a wildcard with `sample()`.
-- [#7616](https://github.com/influxdata/influxdb/pull/7616): Fix chuid argument order in init script @ccasey
-
 ## v1.1.1 [unreleased]
 
 ### Features
@@ -22,6 +8,7 @@
 
 - [#7625](https://github.com/influxdata/influxdb/issues/7625): Fix incorrect tag value in error message.
 - [#7661](https://github.com/influxdata/influxdb/pull/7661): Quote the empty string as an ident.
+- [#7679](https://github.com/influxdata/influxdb/pull/7679): Fix string fields w/ trailing slashes
 
 ## v1.1.0 [2016-11-14]
 
