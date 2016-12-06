@@ -7,3 +7,5 @@ go get github.com/gogo/protobuf/jsonpb
 go get github.com/gogo/protobuf/protoc-gen-gogo
 go get github.com/gogo/protobuf/gogoproto
 ```
+
+now, you can regenerate the `.proto` file: `protoc --gogo_out=. internal.proto`
