@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react';
 import ReactTooltip from 'react-tooltip';
+import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 
 export const RuleHeader = React.createClass({
   propTypes: {
@@ -9,6 +10,8 @@ export const RuleHeader = React.createClass({
       updateRuleName: PropTypes.func.isRequired,
     }).isRequired,
     validationError: PropTypes.string.isRequired,
+    onChooseTimeRange: PropTypes.func.isRequired,
+    timeRange: PropTypes.shape({}).isRequired,
   },
 
   getInitialState() {
@@ -41,7 +44,6 @@ export const RuleHeader = React.createClass({
     this.setState({isEditingName: !this.state.isEditingName});
   },
 
-
   render() {
     return (
       <div className="page-header">
@@ -49,22 +51,22 @@ export const RuleHeader = React.createClass({
           <div className="page-header__left">
             {this.renderEditName()}
           </div>
-          <div className="page-header__right">
-            {this.renderSave()}
-          </div>
+          {this.renderSave()}
         </div>
       </div>
     );
   },
 
   renderSave() {
-    const {validationError, onSave} = this.props;
+    const {validationError, onSave, timeRange, onChooseTimeRange} = this.props;
+
     if (!validationError) {
       return <button className="btn btn-success btn-sm" onClick={onSave}>Save Rule</button>;
     }
 
     return (
-      <div>
+      <div className="page-header__right">
+        <TimeRangeDropdown onChooseTimeRange={onChooseTimeRange} selected={timeRange.inputValue} />
         <button className="btn btn-sm btn-default disabled" data-for="save-kapacitor-tooltip" data-tip={validationError}>
           Save Rule
         </button>
