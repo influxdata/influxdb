@@ -10,7 +10,7 @@ This section describes a simple setup for monitoring CPU, disk, and memory usage
 
 ### Architecture Overview
 
-![Setup Diagram](https://github.com/influxdata/chronograf/blob/use-case/docs/images/set-up-diagram.png)
+![Setup Diagram](https://github.com/influxdata/chronograf/blob/master/docs/images/set-up-diagram.png)
 
 Each of the three servers has its own [Telegraf](https://github.com/influxdata/telegraf) instance.
 Those instances are configured to collect CPU, disk, and memory data using Telegraf's [system stats](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/system) input plugin.
@@ -106,15 +106,15 @@ Finally, we [install and start](https://github.com/influxdata/chronograf/blob/ma
 Once we [connect](https://github.com/influxdata/chronograf/blob/master/docs/INSTALLATION.md#3-connect-to-chronograf) Chronograf to our InfluxDB
 instance, Chronograf uses Telegraf's `host` tag to populate the [HOST LIST](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#host-list) page:
 
-![Host List](https://github.com/influxdata/chronograf/blob/use-case/docs/images/host-list-usecase.png)
+![Host List](https://github.com/influxdata/chronograf/blob/master/docs/images/host-list-usecase.png)
 
 The system stats dashboard template shows the CPU, Disk, and Memory metrics for the selected hostname:
 
-![Dashboard Template](https://github.com/influxdata/chronograf/blob/use-case/docs/images/template-dashboard-usecase.png)
+![Dashboard Template](https://github.com/influxdata/chronograf/blob/master/docs/images/template-dashboard-usecase.png)
 
 Finally, you can create queries in the [Data Explorer](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#data-explorer) that graph results per hostname:
 
-![Dashboard Template](https://github.com/influxdata/chronograf/blob/use-case/docs/images/group-by-usecase.png)
+![Dashboard Template](https://github.com/influxdata/chronograf/blob/master/docs/images/group-by-usecase.png)
 
 ## Use Case 2: Setup the TICK Stack in a Kubernetes Instance
 
