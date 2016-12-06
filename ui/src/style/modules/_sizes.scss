@@ -43,12 +43,12 @@ $scrollbar-width: 16px;
 		}
 		&-track-piece {
 			background-color: $trackColor;
-			border: ($scrollbar-width / 4) solid $trackColor;
+			border: 6px solid $trackColor;
 			border-radius: ($scrollbar-width / 2);
 		}
 		&-thumb {
 			background-color: $handleColor;
-			border: ($scrollbar-width / 4) solid $trackColor;
+			border: 6px solid $trackColor;
 			border-radius: ($scrollbar-width / 2);
 		}
 		&-corner {
@@ -56,6 +56,6 @@ $scrollbar-width: 16px;
 		}
 	}
 	&::-webkit-resizer {
-	background-color: $trackColor;
+		background-color: $trackColor;
 	}
 }
