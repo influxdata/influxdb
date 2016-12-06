@@ -108,7 +108,7 @@ export const LayoutRenderer = React.createClass({
         <div key={cell.i}>
           <h2 className="hosts-graph-heading">{cell.name}</h2>
           <div className="hosts-graph graph-panel__graph-container">
-            <RefreshingLineGraph queries={qs} autoRefresh={autoRefreshMs} showSingleStat={cell.type === "graph-plus-single-stat"} />
+            <RefreshingLineGraph queries={qs} autoRefresh={autoRefreshMs} showSingleStat={cell.type === "line-plus-single-stat"} />
           </div>
         </div>
       );
