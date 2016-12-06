@@ -17,6 +17,7 @@ To create a new layout use the `new_apps.sh` script in the `canned` directory. T
       "h": 4,
       "i": "b75694f1-5764-4d1d-9d67-564455985894",
       "name": "Running Zombo Average",
+      "type": "line-plus-single-stat",
       "queries": [
         {
           "query": "SELECT mean(\"zombo\") FROM zombocomd",
@@ -58,6 +59,10 @@ The meaning of the fields are as follows:
 * measurement - The name of the [measurement](https://docs.influxdata.com/influxdb/v1.1/concepts/glossary/#measurement) to search. This is used to indicate to chronograf whether the application should be listed for a host.
 * app - The name of the application, this does not need to be unique. All layouts for an app will be displayed when the layout is requested.
 * cell - An array of graphs
+* type - The layout visualization type. All layouts default to `line` if a type is not specified. Current visualization types include:
+  - `single-stat` (use `last()` in your query to optimize performance)
+  - `line`
+  - `line-plus-single-stat`
 * x - Not currently used
 * y - Not currently used
 * w - The width of the graph, for the initial release set to 4 to make everything line up properly.

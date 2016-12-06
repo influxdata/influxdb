@@ -1,4 +1,5 @@
 ## v1.1.0 [unreleased]
+- #605: Introduce Single Stat visualization type
 - #635: Add the ability to filter hosts by any tag associated with that host
 - #573: Provide more control over layout rendering when needed with
   "autolayout" flag on templates

@@ -4,6 +4,20 @@
 */
 .graph-panel__graph-container.hosts-graph {
   padding: 8px 16px;
+
+  .single-stat {
+    font-size: 32px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+
+    &.graph-single-stat {
+      position: absolute;
+      width: 100%;
+      top: 0;
+    }
+  }
 }
 .hosts-graph-heading {
   display: block;
