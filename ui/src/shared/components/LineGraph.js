@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react';
 import Dygraph from './Dygraph';
+import classNames from 'classnames';
 import shallowCompare from 'react-addons-shallow-compare';
 import _ from 'lodash';
 
@@ -67,6 +68,7 @@ export default React.createClass({
       title,
       rightGap: 0,
       yRangePad: 10,
+      axisLabelWidth: 38,
       drawAxesAtZero: true,
       underlayCallback,
       ylabel: _.get(queries, ['0', 'label'], ''),
@@ -82,8 +84,8 @@ export default React.createClass({
     }
 
     return (
-      <div>
-        {isRefreshing ? <h3 className="graph-panel__spinner--small" /> : null}
+      <div className={classNames({"graph--hasYLabel": !!(options.ylabel || options.y2label)})}>
+        {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
           containerStyle={{width: '100%', height: '300px'}}
           overrideLineColors={overrideLineColors}
@@ -95,6 +97,16 @@ export default React.createClass({
           ranges={this.getRanges()}
         />
         {showSingleStat ? <div className="graph-single-stat single-stat">{roundedValue}</div> : null}
+      </div>
+    );
+  },
+
+  renderSpinner() {
+    return (
+      <div className="graph-panel__refreshing">
+        <div></div>
+        <div></div>
+        <div></div>
       </div>
     );
   },

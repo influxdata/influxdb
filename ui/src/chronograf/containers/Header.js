@@ -111,7 +111,10 @@ const Header = React.createClass({
       <div className="page-header">
         <div className="page-header__container">
           <div className="page-header__left">
-            <h1 className="dropdown-title">Exploration:</h1>
+            <h1>Explorer</h1>
+          </div>
+          <div className="page-header__right">
+            <h1>Session:</h1>
             <Dropdown
               className="sessions-dropdown"
               items={dropdownItems}
@@ -119,15 +122,12 @@ const Header = React.createClass({
               onChoose={this.handleChooseExplorer}
               selected={this.getName(selectedExplorer)}
             />
-            <div className="btn btn-sm btn-primary sessions-dropdown__btn" onClick={this.handleCreateExploration}>New Exploration</div>
-          </div>
-          <div className="page-header__right">
+            <div className="btn btn-sm btn-primary sessions-dropdown__btn" onClick={this.handleCreateExploration}>New</div>
             <h1>Source:</h1>
             <div className="source-indicator">
               <span className="icon cpu"></span>
               {this.context.source.name}
             </div>
-            <h1>Range:</h1>
             <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={this.findSelected(timeRange)} />
           </div>
         </div>

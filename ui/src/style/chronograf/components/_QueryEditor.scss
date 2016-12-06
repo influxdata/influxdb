@@ -19,7 +19,7 @@ $query-editor-height: 300px;
     font-weight: 600;
     color: $c-comet;
     border-radius: $radius-small $radius-small 0 0;
-    border-bottom: 2px solid $query-editor-tab-active;
+    border-bottom: 2px solid $g6-smoke;
     margin-bottom: 0;
     overflow: auto;
     min-height: 3.25em;
@@ -27,6 +27,7 @@ $query-editor-height: 300px;
 
     code {
       white-space: pre-wrap;
+      line-height: 1.5em;
     }
 
     &.rq-mode {

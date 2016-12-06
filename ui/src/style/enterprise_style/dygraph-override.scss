@@ -3,6 +3,10 @@
   color: $g11-sidewalk;
   font-weight: 500;
 }
+.dygraph-axis-label-y2 {
+  padding: 0 0 0 0.3em !important;
+  text-align: right !important;
+}
 .graph-vertical-marker {
   top: 0;
   bottom: 0;
@@ -77,5 +81,36 @@
     > b {
      font-weight: 600;
     }
+  }
+}
+
+.dygraph-ylabel,
+.dygraph-y2label {
+  position: absolute;
+  width: 100%;
+  text-align: center;
+  font-size: 12px;
+  top: -12px !important;
+  color: $g11-sidewalk;
+  font-weight: 500;
+  padding:0 0 2px 0 !important;
+  border-bottom: 2px solid $g4-onyx !important;
+}
+.dygraph-ylabel {
+}
+.dygraph-y2label {
+}
+
+
+
+
+.graph--hasYLabel {
+  // background-color: #f00 !important;
+
+  .dygraph-axis-label-y {
+    padding: 0 1px 0 12px !important;
+  }
+  .dygraph-axis-label-y2 {
+    padding: 0 12px 0 1px !important;
   }
 }

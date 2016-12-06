@@ -32,6 +32,13 @@ $tooltip-code-color: $c-potassium;
   border-radius: $tooltip-radius !important;
   text-transform: none !important;
 
+  p {
+    margin: 0;
+    width: 100%;
+    display: inline-block;
+    padding: 0;
+  }
+
   code {
     background-color: $tooltip-code-bg !important;
     border: 0 !important;
