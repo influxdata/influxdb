@@ -2,6 +2,10 @@
 
 ### Release Notes
 
+### Deprecations
+
+The stress tool `influx_stress` will be removed in a subsequent release. We recommend using [`influx-stress`](https://github.com/influxdata/influx-stress) as a replacement.
+
 ### Features
 
 - [#7066](https://github.com/influxdata/influxdb/issues/7066): Add support for secure transmission via collectd.
