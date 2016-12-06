@@ -76,18 +76,18 @@ func TestSeriesBlock_Series(t *testing.T) {
 
 	// Verify all series exist.
 	for i, s := range series {
-		if offset, deleted := l.SeriesOffset(l.EncodeSeries(s.Name, s.Tags)); offset == 0 {
+		if e := l.Series(s.Name, s.Tags); e == nil {
 			t.Fatalf("series does not exist: i=%d", i)
-		} else if deleted {
+		} else if !bytes.Equal(e.Name(), s.Name) || models.CompareTags(e.Tags(), s.Tags) != 0 {
+			t.Fatalf("series element does not match: i=%d, %s (%s) != %s (%s)", i, e.Name(), e.Tags().String(), s.Name, s.Tags.String())
+		} else if e.Deleted() {
 			t.Fatalf("series deleted: i=%d", i)
 		}
 	}
 
 	// Verify non-existent series doesn't exist.
-	if offset, deleted := l.SeriesOffset(l.EncodeSeries([]byte("foo"), models.NewTags(map[string]string{"region": "north"}))); offset != 0 {
-		t.Fatalf("series should not exist: offset=%d", offset)
-	} else if deleted {
-		t.Fatalf("series should not be deleted")
+	if e := l.Series([]byte("foo"), models.NewTags(map[string]string{"region": "north"})); e != nil {
+		t.Fatalf("series should not exist: %#v", e)
 	}
 }
 

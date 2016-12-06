@@ -11,6 +11,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/rhh"
 )
 
 // ErrSeriesOverflow is returned when too many series are added to a series writer.
@@ -24,10 +25,10 @@ const (
 	SeriesDataOffsetSize = 8
 	SeriesDataSizeSize   = 8
 
-	SeriesBlockTrailerSize = TermListOffsetSize +
-		TermListSizeSize +
-		SeriesDataOffsetSize +
-		SeriesDataSizeSize
+	SeriesBlockTrailerSize = 0 +
+		8 + 8 + // term list offset/size
+		8 + 8 + // series data offset/size
+		8 + 8 // hash index offset/size
 
 	// Other field sizes
 	TermCountSize   = 4
@@ -46,12 +47,54 @@ type SeriesBlock struct {
 	data       []byte
 	termData   []byte
 	seriesData []byte
+
+	// Series hash index data and capacity.
+	seriesIndex  []byte
+	seriesIndexN uint32
 }
 
 // Series returns a series element.
 func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
-	// panic("TODO: Add hashmap to series block")
-	// panic("TODO: Lookup series by hashmap")
+	// Dictionary encode series.
+	buf := make([]byte, 20)
+	buf = blk.AppendEncodeSeries(buf[:0], name, tags)
+
+	n := blk.seriesIndexN
+	hash := hashKey(buf)
+	pos := int(hash % n)
+
+	// Track current distance
+	var d int
+	for {
+		// Find offset of series.
+		offset := binary.BigEndian.Uint32(blk.seriesIndex[pos*SeriesIDSize:])
+
+		// Evaluate encoded value matches expected.
+		if offset > 0 {
+			// Parse into element.
+			var e SeriesBlockElem
+			blk.decodeElemAt(offset, &e)
+
+			// Return if name match.
+			if bytes.Equal(e.name, name) && models.CompareTags(e.tags, tags) == 0 {
+				return &e
+			}
+
+			// Check if we've exceeded the probe distance.
+			if d > dist(hashKey(buf), pos, int(n)) {
+				return nil
+			}
+		}
+
+		// Move position forward.
+		pos = (pos + 1) % int(n)
+		d++
+
+		if uint32(d) > n {
+			return nil
+		}
+	}
+
 	return nil
 }
 
@@ -116,7 +159,7 @@ func (blk *SeriesBlock) AppendEncodeSeries(dst []byte, name []byte, tags models.
 }
 
 // decodeElemAt decodes a series element at a offset.
-func (blk *SeriesBlock) decodeElemAt(offset uint32, e *seriesBlockElem) {
+func (blk *SeriesBlock) decodeElemAt(offset uint32, e *SeriesBlockElem) {
 	data := blk.data[offset:]
 
 	// Read flag.
@@ -238,8 +281,16 @@ func (blk *SeriesBlock) UnmarshalBinary(data []byte) error {
 	blk.termData = blk.termData[:t.TermList.Size]
 
 	// Slice series data data.
-	blk.seriesData = data[t.SeriesData.Offset:]
-	blk.seriesData = blk.seriesData[:t.SeriesData.Size]
+	blk.seriesData = data[t.Series.Data.Offset:]
+	blk.seriesData = blk.seriesData[:t.Series.Data.Size]
+
+	// Slice series hash index.
+	blk.seriesIndex = data[t.Series.Index.Offset:]
+	blk.seriesIndex = blk.seriesIndex[:t.Series.Index.Size]
+
+	// Read series index capacity.
+	blk.seriesIndexN = binary.BigEndian.Uint32(blk.seriesIndex[:4])
+	blk.seriesIndex = blk.seriesIndex[4:]
 
 	return nil
 }
@@ -249,7 +300,7 @@ type seriesBlockIterator struct {
 	i, n   uint32
 	offset uint32
 	sblk   *SeriesBlock
-	e      seriesBlockElem // buffer
+	e      SeriesBlockElem // buffer
 }
 
 // Next returns the next series element.
@@ -273,7 +324,7 @@ func (itr *seriesBlockIterator) Next() SeriesElem {
 type seriesDecodeIterator struct {
 	itr  seriesIDIterator
 	sblk *SeriesBlock
-	e    seriesBlockElem // buffer
+	e    SeriesBlockElem // buffer
 }
 
 // newSeriesDecodeIterator returns a new instance of seriesDecodeIterator.
@@ -294,8 +345,8 @@ func (itr *seriesDecodeIterator) Next() SeriesElem {
 	return &itr.e
 }
 
-// seriesBlockElem represents a series element in the series list.
-type seriesBlockElem struct {
+// SeriesBlockElem represents a series element in the series list.
+type SeriesBlockElem struct {
 	flag byte
 	name []byte
 	tags models.Tags
@@ -303,17 +354,17 @@ type seriesBlockElem struct {
 }
 
 // Deleted returns true if the tombstone flag is set.
-func (e *seriesBlockElem) Deleted() bool { return (e.flag & SeriesTombstoneFlag) != 0 }
+func (e *SeriesBlockElem) Deleted() bool { return (e.flag & SeriesTombstoneFlag) != 0 }
 
 // Name returns the measurement name.
-func (e *seriesBlockElem) Name() []byte { return e.name }
+func (e *SeriesBlockElem) Name() []byte { return e.name }
 
 // Tags returns the tag set.
-func (e *seriesBlockElem) Tags() models.Tags { return e.tags }
+func (e *SeriesBlockElem) Tags() models.Tags { return e.tags }
 
 // Expr always returns a nil expression.
 // This is only used by higher level query planning.
-func (e *seriesBlockElem) Expr() influxql.Expr { return nil }
+func (e *SeriesBlockElem) Expr() influxql.Expr { return nil }
 
 // SeriesBlockWriter writes a SeriesBlock.
 type SeriesBlockWriter struct {
@@ -381,13 +432,20 @@ func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	t.TermList.Size = n - t.TermList.Offset
 
 	// Write dictionary-encoded series list.
-	t.SeriesData.Offset = n
+	t.Series.Data.Offset = n
 	nn, err = sw.writeSeriesTo(w, terms, uint32(n))
 	n += nn
 	if err != nil {
 		return n, err
 	}
-	t.SeriesData.Size = n - t.SeriesData.Offset
+	t.Series.Data.Size = n - t.Series.Data.Offset
+
+	// Write dictionary-encoded series hash index.
+	t.Series.Index.Offset = n
+	if err := sw.writeSeriesIndexTo(w, terms, &n); err != nil {
+		return n, err
+	}
+	t.Series.Index.Size = n - t.Series.Index.Offset
 
 	// Write trailer.
 	if err := sw.writeTrailerTo(w, t, &n); err != nil {
@@ -486,6 +544,35 @@ func (sw *SeriesBlockWriter) writeSeriesTo(w io.Writer, terms *TermList, offset 
 	return n, nil
 }
 
+// writeSeriesIndexTo writes hash map lookup of series to w.
+func (sw *SeriesBlockWriter) writeSeriesIndexTo(w io.Writer, terms *TermList, n *int64) error {
+	// Build hash map of series.
+	m := rhh.NewHashMap(rhh.Options{
+		Capacity:   len(sw.series),
+		LoadFactor: 90,
+	})
+	for _, s := range sw.series {
+		m.Put(terms.AppendEncodedSeries(nil, s.name, s.tags), s.offset)
+	}
+
+	// Encode hash map length.
+	if err := writeUint32To(w, uint32(m.Cap()), n); err != nil {
+		return err
+	}
+
+	// Encode hash map offset entries.
+	for i := 0; i < m.Cap(); i++ {
+		_, v := m.Elem(i)
+		offset, _ := v.(uint32)
+
+		if err := writeUint32To(w, uint32(offset), n); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // writeTrailerTo writes offsets to the end of the series list.
 func (sw *SeriesBlockWriter) writeTrailerTo(w io.Writer, t SeriesBlockTrailer, n *int64) error {
 	if err := writeUint64To(w, uint64(t.TermList.Offset), n); err != nil {
@@ -494,9 +581,15 @@ func (sw *SeriesBlockWriter) writeTrailerTo(w io.Writer, t SeriesBlockTrailer, n
 		return err
 	}
 
-	if err := writeUint64To(w, uint64(t.SeriesData.Offset), n); err != nil {
+	if err := writeUint64To(w, uint64(t.Series.Data.Offset), n); err != nil {
 		return err
-	} else if err := writeUint64To(w, uint64(t.SeriesData.Size), n); err != nil {
+	} else if err := writeUint64To(w, uint64(t.Series.Data.Size), n); err != nil {
+		return err
+	}
+
+	if err := writeUint64To(w, uint64(t.Series.Index.Offset), n); err != nil {
+		return err
+	} else if err := writeUint64To(w, uint64(t.Series.Index.Size), n); err != nil {
 		return err
 	}
 
@@ -534,16 +627,16 @@ func ReadSeriesBlockTrailer(data []byte) SeriesBlockTrailer {
 	buf := data[len(data)-SeriesBlockTrailerSize:]
 
 	// Read term list info.
-	t.TermList.Offset = int64(binary.BigEndian.Uint64(buf[0:TermListOffsetSize]))
-	buf = buf[TermListOffsetSize:]
-	t.TermList.Size = int64(binary.BigEndian.Uint64(buf[0:TermListSizeSize]))
-	buf = buf[TermListSizeSize:]
+	t.TermList.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.TermList.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
 	// Read series data info.
-	t.SeriesData.Offset = int64(binary.BigEndian.Uint64(buf[0:SeriesDataOffsetSize]))
-	buf = buf[SeriesDataOffsetSize:]
-	t.SeriesData.Size = int64(binary.BigEndian.Uint64(buf[0:SeriesDataSizeSize]))
-	buf = buf[SeriesDataSizeSize:]
+	t.Series.Data.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.Series.Data.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+
+	// Read series hash index info.
+	t.Series.Index.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.Series.Index.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
 	return t
 }
@@ -554,9 +647,16 @@ type SeriesBlockTrailer struct {
 		Offset int64
 		Size   int64
 	}
-	SeriesData struct {
-		Offset int64
-		Size   int64
+
+	Series struct {
+		Data struct {
+			Offset int64
+			Size   int64
+		}
+		Index struct {
+			Offset int64
+			Size   int64
+		}
 	}
 }
 
