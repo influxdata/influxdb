@@ -260,6 +260,7 @@ type Cell struct {
 	I       string  `json:"i"`
 	Name    string  `json:"name"`
 	Queries []Query `json:"queries"`
+	Type    string	`json:"type"`
 }
 
 // Layout is a collection of Cells for visualization
