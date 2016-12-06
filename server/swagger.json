@@ -2063,6 +2063,11 @@
 					"items": {
 						"$ref": "#/definitions/LayoutQuery"
 					}
+				},
+				"type": {
+					"description": "Cell visualization type",
+					"type": "string",
+					"format": "uuid4"
 				}
 			}
 		},

@@ -49,6 +49,7 @@ message Cell {
     string name             = 7; // User-facing name for this cell
     repeated int64 yranges  = 8; // Limits of the y-axes
     repeated string ylabels = 9; // Labels of the y-axes
+    string type             = 10; // Cell visualization type
 }
 
 message Query {

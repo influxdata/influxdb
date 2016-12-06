@@ -35,7 +35,7 @@ Set a [JWT](https://tools.ietf.org/html/rfc7519) signature to a random string.
 *Keep this random string around!* 
 
 You'll need it each time you start a chronograf server because it is used to verify 
-user authorization.
+user authorization. If you are running multiple chronograf servers in an HA configuration set the `TOKEN_SECRET` on each to allow users to stay logged in.
 
 ```sh
 export TOKEN_SECRET=supersupersecret

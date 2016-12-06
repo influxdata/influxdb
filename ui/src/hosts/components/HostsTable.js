@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react';
+import shallowCompare from 'react-addons-shallow-compare';
 import {Link} from 'react-router';
 import _ from 'lodash';
 
@@ -140,12 +141,13 @@ const HostRow = React.createClass({
   },
 
   shouldComponentUpdate(nextProps) {
-    return this.props.host !== nextProps.host;
+    return shallowCompare(this, nextProps);
   },
 
   render() {
     const {host, source} = this.props;
     const {name, cpu, load, apps = []} = host;
+
     return (
       <tr>
         <td className="monotype"><Link to={`/sources/${source.id}/hosts/${name}`}>{name}</Link></td>
