@@ -19,12 +19,13 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
 
 * Apache
 * Consul
-* System
 * Docker
+* Elastic
+* etcd
 * HAProxy
+* IIS
 * InfluxDB
 * Kubernetes
-* System
 * Memcached
 * MongoDB
 * MySQL
@@ -36,11 +37,9 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
 * Processes
 * Redis
 * Riak
-* Windows Performance Counters
-* IIS
-* etcd
-* Elastic
+* System
 * Varnish
+* Windows Performance Counters
 
 ### Data Explorer
 
@@ -65,6 +64,9 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
   * Telegram
   * VictorOps
 * View all active alerts at a glance on the alerting dashboard
+
+### GitHub OAuth Login
+See [Chronograf with OAuth 2.0](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) for more information.
 
 ## Versions
 
