@@ -30,7 +30,7 @@ type Index interface {
 	Dereference(b []byte)
 
 	TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error)
-	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error)
+	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)
 	ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error
 
 	// InfluxQL system iterators

@@ -523,9 +523,89 @@ func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, erro
 // Dereference is a nop.
 func (i *Index) Dereference([]byte) {}
 
-// MeasurementTagKeyByExpr returns an ordered set of tag keys filtered by an expression.
-func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
-	panic("TODO")
+// MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
+func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
+	switch e := expr.(type) {
+	case *influxql.BinaryExpr:
+		switch e.Op {
+		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+			tag, ok := e.LHS.(*influxql.VarRef)
+			if !ok {
+				return nil, fmt.Errorf("left side of '%s' must be a tag key", e.Op.String())
+			} else if tag.Val != "_tagKey" {
+				return nil, nil
+			}
+
+			if influxql.IsRegexOp(e.Op) {
+				re, ok := e.RHS.(*influxql.RegexLiteral)
+				if !ok {
+					return nil, fmt.Errorf("right side of '%s' must be a regular expression", e.Op.String())
+				}
+				return i.tagKeysByFilter(name, e.Op, nil, re.Val), nil
+			}
+
+			s, ok := e.RHS.(*influxql.StringLiteral)
+			if !ok {
+				return nil, fmt.Errorf("right side of '%s' must be a tag value string", e.Op.String())
+			}
+			return i.tagKeysByFilter(name, e.Op, []byte(s.Val), nil), nil
+
+		case influxql.AND, influxql.OR:
+			lhs, err := i.MeasurementTagKeysByExpr(name, e.LHS)
+			if err != nil {
+				return nil, err
+			}
+
+			rhs, err := i.MeasurementTagKeysByExpr(name, e.RHS)
+			if err != nil {
+				return nil, err
+			}
+
+			if lhs != nil && rhs != nil {
+				if e.Op == influxql.OR {
+					return unionStringSets(lhs, rhs), nil
+				}
+				return intersectStringSets(lhs, rhs), nil
+			} else if lhs != nil {
+				return lhs, nil
+			} else if rhs != nil {
+				return rhs, nil
+			}
+			return nil, nil
+		default:
+			return nil, fmt.Errorf("invalid operator")
+		}
+
+	case *influxql.ParenExpr:
+		return i.MeasurementTagKeysByExpr(name, e.Expr)
+	}
+
+	return nil, fmt.Errorf("%#v", expr)
+}
+
+// tagKeysByFilter will filter the tag keys for the measurement.
+func (i *Index) tagKeysByFilter(name []byte, op influxql.Token, val []byte, regex *regexp.Regexp) map[string]struct{} {
+	ss := make(map[string]struct{})
+	itr := i.TagKeyIterator(name)
+	for e := itr.Next(); e != nil; e = itr.Next() {
+		var matched bool
+		switch op {
+		case influxql.EQ:
+			matched = bytes.Equal(e.Key(), val)
+		case influxql.NEQ:
+			matched = !bytes.Equal(e.Key(), val)
+		case influxql.EQREGEX:
+			matched = regex.Match(e.Key())
+		case influxql.NEQREGEX:
+			matched = !regex.Match(e.Key())
+		}
+
+		if !matched {
+			continue
+		}
+		ss[string(e.Key())] = struct{}{}
+	}
+	return ss
 }
 
 // TagKeySeriesIterator returns a series iterator for all values across a single key.
@@ -1050,4 +1130,31 @@ func (itr *seriesPointIterator) Next() (*influxql.FloatPoint, error) {
 		}
 		return &itr.point, nil
 	}
+}
+
+// unionStringSets returns the union of two sets
+func unionStringSets(a, b map[string]struct{}) map[string]struct{} {
+	other := make(map[string]struct{})
+	for k := range a {
+		other[k] = struct{}{}
+	}
+	for k := range b {
+		other[k] = struct{}{}
+	}
+	return other
+}
+
+// intersectStringSets returns the intersection of two sets.
+func intersectStringSets(a, b map[string]struct{}) map[string]struct{} {
+	if len(a) < len(b) {
+		a, b = b, a
+	}
+
+	other := make(map[string]struct{})
+	for k := range a {
+		if _, ok := b[k]; ok {
+			other[k] = struct{}{}
+		}
+	}
+	return other
 }

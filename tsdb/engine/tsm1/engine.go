@@ -307,7 +307,7 @@ func (e *Engine) ForEachMeasurementSeriesByExpr(name []byte, condition influxql.
 	return e.index.ForEachMeasurementSeriesByExpr(name, condition, fn)
 }
 
-func (e *Engine) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
+func (e *Engine) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
 	return e.index.MeasurementTagKeysByExpr(name, expr)
 }
 
