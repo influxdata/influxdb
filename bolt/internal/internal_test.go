@@ -84,6 +84,7 @@ func TestMarshalLayout(t *testing.T) {
 				W:    4,
 				H:    4,
 				I:    "anotherid",
+				Type: "line",
 				Name: "cell1",
 				Queries: []chronograf.Query{
 					{
