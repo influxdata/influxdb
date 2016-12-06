@@ -13,50 +13,20 @@
   left: 0;
   background-color: $g1-raven;
 
-  &__header {
-    margin-bottom: 0;
-    background-color: $g0-obsidian;
-    color: $g15-platinum;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
+  .page-header {
     padding-left: $explorer-page-padding;
-    padding-right: $explorer-page-padding;
-    justify-content: space-between;
+    padding-right: ($explorer-page-padding + $scrollbar-width);
   }
-
-  &-container {
-    height: 100%;
-    position: absolute;
-    width: 100%;
-  }
-
-  .controls {
-    padding: 5px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  /* Sessions Dropdown Styles */
-  .chronograf-header__left {
-    flex-direction: row;
-    align-items: center;
-  }
-  .dropdown-title {
-    white-space: nowrap;
+  .page-header__container {
+    max-width: 100%;
   }
 }
 
-.main-content {
+.resize-container.page-contents {
+  overflow: hidden;
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  position: absolute;
-  left: 0;
-  top: $chronograf-page-header-height;
-  height: calc(100% - #{$chronograf-page-header-height});
-  width: 100%;
 }
 
 .panels {

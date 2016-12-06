@@ -62,7 +62,7 @@ const ResizeContainer = React.createClass({
     const handle = <ResizeHandle isDragging={isDragging} onHandleStartDrag={this.handleStartDrag} />;
 
     return (
-      <div className="resize-container main-content" onMouseLeave={this.handleMouseLeave} onMouseUp={this.handleStopDrag} onMouseMove={this.handleDrag} ref="resizeContainer" >
+      <div className="resize-container page-contents" onMouseLeave={this.handleMouseLeave} onMouseUp={this.handleStopDrag} onMouseMove={this.handleDrag} ref="resizeContainer" >
         {left}
         {handle}
         {right}
