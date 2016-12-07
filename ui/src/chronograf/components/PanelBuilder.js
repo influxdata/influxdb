@@ -12,6 +12,7 @@ const PanelBuilder = React.createClass({
       createPanel: func.isRequired,
       deleteQuery: func.isRequired,
       addQuery: func.isRequired,
+      editRawText: func.isRequired,
       chooseNamespace: func.isRequired,
       chooseMeasurement: func.isRequired,
       toggleField: func.isRequired,

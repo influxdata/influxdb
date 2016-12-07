@@ -119,6 +119,16 @@ export function chooseMeasurement(queryId, measurement) {
   };
 }
 
+export function editRawText(queryId, rawText) {
+  return {
+    type: 'EDIT_RAW_TEXT',
+    payload: {
+      queryId,
+      rawText,
+    },
+  };
+}
+
 export function setTimeRange(range) {
   window.localStorage.setItem('timeRange', JSON.stringify(range));
 

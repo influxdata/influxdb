@@ -86,37 +86,39 @@ const QueryEditor = React.createClass({
     this.props.actions.groupByTag(this.props.query.id, tagKey);
   },
 
+  handleEditRawText(_queryID, text) {
+    this.props.actions.editRawText(this.props.query.id, text);
+  },
+
   handleClickTab(tab) {
     this.setState({activeTab: tab});
   },
 
   render() {
-    const {query, timeRange} = this.props;
-
-    const statement = query.rawText || selectStatement(timeRange, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
-
     return (
       <div className="explorer--tab-contents">
-        <div className="qeditor--query-preview">
-          <pre className={classNames("", {"rq-mode": query.rawText})}><code>{statement}</code></pre>
-        </div>
-        {this.renderEditor()}
+        {this.renderQuery()}
+        {this.renderLists()}
       </div>
     );
   },
 
-  renderEditor() {
-    if (this.props.query.rawText) {
+  renderQuery() {
+    const {query, timeRange} = this.props;
+    const statement = query.rawText || selectStatement(timeRange, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
+
+    if (!query.rawText) {
       return (
-        <div className="qeditor--empty">
-          <p className="margin-bottom-zero">
-            <span className="icon alert-triangle"></span>
-            &nbsp;Only editable in the <strong>Raw Query</strong> tab.
-          </p>
+        <div className="qeditor--query-preview">
+          <pre><code>{statement}</code></pre>
         </div>
       );
     }
 
+    return <RawQueryEditor query={query} onUpdate={this.handleEditRawText} defaultValue={query.rawText} />;
+  },
+
+  renderLists() {
     const {activeTab} = this.state;
     return (
       <div>
@@ -171,6 +173,49 @@ const QueryEditor = React.createClass({
       default:
         return <ul className="qeditor--list"></ul>;
     }
+  },
+});
+
+const ENTER = 13;
+const RawQueryEditor = React.createClass({
+  propTypes: {
+    query: PropTypes.shape({
+      rawText: PropTypes.string,
+      id: PropTypes.string.isRequired,
+    }).isRequired,
+    onUpdate: PropTypes.func.isRequired,
+    defaultValue: PropTypes.string.isRequired,
+  },
+
+  handleKeyDown(e) {
+    e.stopPropagation();
+    if (e.keyCode !== ENTER) {
+      return;
+    }
+    e.preventDefault();
+    this.editor.blur();
+  },
+
+  handleUpdate() {
+    const text = this.editor.value;
+    this.props.onUpdate(this.props.query.id, text);
+  },
+
+  render() {
+    const {defaultValue} = this.props;
+
+    return (
+      <div className="raw-query-editor-wrapper rq-mode">
+        <textarea
+          className="raw-query-editor"
+          onKeyDown={this.handleKeyDown}
+          onBlur={this.handleUpdate}
+          ref={(editor) => this.editor = editor}
+          defaultValue={defaultValue}
+          placeholder="Blank query"
+        />
+      </div>
+    );
   },
 });
 
