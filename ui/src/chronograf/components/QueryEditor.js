@@ -7,6 +7,7 @@ import DatabaseList from './DatabaseList';
 import MeasurementList from './MeasurementList';
 import FieldList from './FieldList';
 import TagList from './TagList';
+import RawQueryEditor from './RawQueryEditor';
 
 const DB_TAB = 'databases';
 const MEASUREMENTS_TAB = 'measurments';
@@ -86,7 +87,7 @@ const QueryEditor = React.createClass({
     this.props.actions.groupByTag(this.props.query.id, tagKey);
   },
 
-  handleEditRawText(_queryID, text) {
+  handleEditRawText(text) {
     this.props.actions.editRawText(this.props.query.id, text);
   },
 
@@ -115,7 +116,7 @@ const QueryEditor = React.createClass({
       );
     }
 
-    return <RawQueryEditor query={query} onUpdate={this.handleEditRawText} defaultValue={query.rawText} />;
+    return <RawQueryEditor query={query} onUpdate={this.handleEditRawText} />;
   },
 
   renderLists() {
@@ -173,49 +174,6 @@ const QueryEditor = React.createClass({
       default:
         return <ul className="qeditor--list"></ul>;
     }
-  },
-});
-
-const ENTER = 13;
-const RawQueryEditor = React.createClass({
-  propTypes: {
-    query: PropTypes.shape({
-      rawText: PropTypes.string,
-      id: PropTypes.string.isRequired,
-    }).isRequired,
-    onUpdate: PropTypes.func.isRequired,
-    defaultValue: PropTypes.string.isRequired,
-  },
-
-  handleKeyDown(e) {
-    e.stopPropagation();
-    if (e.keyCode !== ENTER) {
-      return;
-    }
-    e.preventDefault();
-    this.editor.blur();
-  },
-
-  handleUpdate() {
-    const text = this.editor.value;
-    this.props.onUpdate(this.props.query.id, text);
-  },
-
-  render() {
-    const {defaultValue} = this.props;
-
-    return (
-      <div className="raw-query-editor-wrapper rq-mode">
-        <textarea
-          className="raw-query-editor"
-          onKeyDown={this.handleKeyDown}
-          onBlur={this.handleUpdate}
-          ref={(editor) => this.editor = editor}
-          defaultValue={defaultValue}
-          placeholder="Blank query"
-        />
-      </div>
-    );
   },
 });
 

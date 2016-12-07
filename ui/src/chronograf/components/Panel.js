@@ -41,10 +41,8 @@ const Panel = React.createClass({
     this.setState({activeQueryId: query.id});
   },
 
-  handleClickPlus() {
-    this.setState({
-      showAddQueryOptions: true,
-    });
+  toggleAddQueryOptions() {
+    this.setState({showAddQueryOptions: !this.state.showAddQueryOptions});
   },
 
   handleAddQuery() {
@@ -53,7 +51,7 @@ const Panel = React.createClass({
   },
 
   handleAddRawQuery() {
-    this.props.actions.addQuery({rawText: "Select foo from bar"});
+    this.props.actions.addQuery({rawText: `SELECT "fields" from "db"."rp"."measurement"`});
     this.setState({showAddQueryOptions: false});
   },
 
@@ -172,12 +170,13 @@ const Panel = React.createClass({
         <div className="btn-group btn-group-sm">
           <button type="button" className="btn btn-default" onClick={this.handleAddQuery}>Builder</button>
           <button type="button" className="btn btn-default" onClick={this.handleAddRawQuery}>Raw</button>
+          <button type="button" className="btn btn-default" onClick={this.toggleAddQueryOptions}>X</button>
         </div>
       );
     }
 
     return (
-      <div className="explorer--tab" onClick={this.handleClickPlus}>
+      <div className="explorer--tab" onClick={this.toggleAddQueryOptions}>
         <span className="icon plus"></span>
       </div>
     );
