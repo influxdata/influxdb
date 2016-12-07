@@ -86,6 +86,7 @@ const Explorer = React.createClass({
             {panel.name || "Graph"}
           </div>
           <div className="explorer--actions">
+            <div title="Export Queries to Dashboard" className="explorer--action"><span className="icon export"></span></div>
             <div title="Rename Graph" className="explorer--action" onClick={this.openRenamePanelModal}><span className="icon pencil"></span></div>
             <div title="Delete Graph" className="explorer--action" onClick={this.handleDeletePanel}><span className="icon trash"></span></div>
           </div>
