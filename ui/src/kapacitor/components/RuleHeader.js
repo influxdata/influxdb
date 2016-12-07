@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react';
 import ReactTooltip from 'react-tooltip';
+import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 
 export const RuleHeader = React.createClass({
   propTypes: {
@@ -9,6 +10,8 @@ export const RuleHeader = React.createClass({
       updateRuleName: PropTypes.func.isRequired,
     }).isRequired,
     validationError: PropTypes.string.isRequired,
+    onChooseTimeRange: PropTypes.func.isRequired,
+    timeRange: PropTypes.shape({}).isRequired,
   },
 
   getInitialState() {
@@ -41,33 +44,29 @@ export const RuleHeader = React.createClass({
     this.setState({isEditingName: !this.state.isEditingName});
   },
 
-
   render() {
     return (
       <div className="page-header">
         <div className="page-header__container">
-          <div className="page-header__left">
-            {this.renderEditName()}
-          </div>
-          <div className="page-header__right">
-            {this.renderSave()}
-          </div>
+          {this.renderEditName()}
+          {this.renderSave()}
         </div>
       </div>
     );
   },
 
   renderSave() {
-    const {validationError, onSave} = this.props;
-    if (!validationError) {
-      return <button className="btn btn-success btn-sm" onClick={onSave}>Save Rule</button>;
-    }
+    const {validationError, onSave, timeRange, onChooseTimeRange} = this.props;
+    const saveButton = validationError ?
+      <button className="btn btn-sm btn-default disabled" data-for="save-kapacitor-tooltip" data-tip={validationError}>
+        Save Rule
+      </button> :
+      <button className="btn btn-success btn-sm" onClick={onSave}>Save Rule</button>;
 
     return (
-      <div>
-        <button className="btn btn-sm btn-default disabled" data-for="save-kapacitor-tooltip" data-tip={validationError}>
-          Save Rule
-        </button>
+      <div className="page-header__right">
+        <TimeRangeDropdown onChooseTimeRange={onChooseTimeRange} selected={timeRange.inputValue} />
+        {saveButton}
         <ReactTooltip id="save-kapacitor-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
       </div>
     );
@@ -75,18 +74,9 @@ export const RuleHeader = React.createClass({
 
   renderEditName() {
     const {rule} = this.props;
+    const {isEditingName} = this.state;
 
-    if (!this.state.isEditingName) {
-      return (
-        <h1 className="chronograf-header__editable" onClick={this.toggleEditName} data-for="rename-kapacitor-tooltip" data-tip="Click to Rename">
-          {rule.name}
-          <span className="icon pencil"></span>
-          <ReactTooltip id="rename-kapacitor-tooltip" delayShow="200" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
-        </h1>
-      );
-    }
-
-    return (
+    const name = isEditingName ?
       <input
         className="chronograf-header__editing"
         autoFocus={true}
@@ -95,7 +85,17 @@ export const RuleHeader = React.createClass({
         onKeyDown={(e) => this.handleEditName(e, rule)}
         onBlur={() => this.handleEditNameBlur(rule)}
         placeholder="Name your rule"
-      />
+      /> :
+      <h1 className="chronograf-header__editable" onClick={this.toggleEditName} data-for="rename-kapacitor-tooltip" data-tip="Click to Rename">
+        {rule.name}
+        <span className="icon pencil"></span>
+        <ReactTooltip id="rename-kapacitor-tooltip" delayShow={200} effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
+      </h1>;
+
+    return (
+      <div className="page-header__left">
+        {name}
+      </div>
     );
   },
 

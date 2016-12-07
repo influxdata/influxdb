@@ -13,6 +13,7 @@ export const RuleGraph = React.createClass({
     }).isRequired,
     query: PropTypes.shape({}).isRequired,
     rule: PropTypes.shape({}).isRequired,
+    timeRange: PropTypes.shape({}).isRequired,
   },
 
   render() {
@@ -24,9 +25,9 @@ export const RuleGraph = React.createClass({
   },
 
   renderGraph() {
-    const {query, source} = this.props;
+    const {query, source, timeRange} = this.props;
     const autoRefreshMs = 30000;
-    const queryText = selectStatement({lower: 'now() - 15m'}, query);
+    const queryText = selectStatement({lower: timeRange.queryValue}, query);
     const queries = [{host: source.links.proxy, text: queryText}];
     const kapacitorLineColors = ["#4ED8A0"];
 
