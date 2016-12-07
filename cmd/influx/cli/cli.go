@@ -394,10 +394,11 @@ func (c *CommandLine) use(cmd string) {
 
 // SetPrecision sets client precision
 func (c *CommandLine) SetPrecision(cmd string) {
-	// Remove the "precision" keyword if it exists
-	cmd = strings.TrimSpace(strings.Replace(cmd, "precision", "", -1))
 	// normalize cmd
 	cmd = strings.ToLower(cmd)
+
+	// Remove the "precision" keyword if it exists
+	cmd = strings.TrimSpace(strings.Replace(cmd, "precision", "", -1))
 
 	switch cmd {
 	case "h", "m", "s", "ms", "u", "ns":
