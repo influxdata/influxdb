@@ -89,7 +89,7 @@ export const RuleHeader = React.createClass({
       <h1 className="chronograf-header__editable" onClick={this.toggleEditName} data-for="rename-kapacitor-tooltip" data-tip="Click to Rename">
         {rule.name}
         <span className="icon pencil"></span>
-        <ReactTooltip id="rename-kapacitor-tooltip" delayShow="200" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
+        <ReactTooltip id="rename-kapacitor-tooltip" delayShow={200} effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
       </h1>;
 
     return (
