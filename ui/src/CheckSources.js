@@ -5,15 +5,13 @@ import {getSources} from 'src/shared/apis';
 import {loadSources as loadSourcesAction} from 'src/shared/actions/sources';
 import {showDatabases} from 'src/shared/apis/metaQuery';
 
-const {bool, number, string, node, func, shape} = PropTypes;
-
 // Acts as a 'router middleware'. The main `App` component is responsible for
 // getting the list of data nodes, but not every page requires them to function.
 // Routes that do require data nodes can be nested under this component.
 const CheckSources = React.createClass({
   propTypes: {
-    addFlashMessage: func,
-    children: node,
+    addFlashMessage: PropTypes.func,
+    children: PropTypes.node,
     params: PropTypes.shape({
       sourceID: PropTypes.string,
     }).isRequired,
@@ -25,15 +23,6 @@ const CheckSources = React.createClass({
     }).isRequired,
     sources: PropTypes.array.isRequired,
     loadSourcesAction: PropTypes.func.isRequired,
-  },
-
-  contextTypes: {
-    me: shape({
-      id: number.isRequired,
-      name: string.isRequired,
-      email: string.isRequired,
-      admin: bool.isRequired,
-    }),
   },
 
   getInitialState() {
