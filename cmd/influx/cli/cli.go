@@ -649,7 +649,7 @@ func (c *CommandLine) writeCSV(response *client.Response, w io.Writer) {
 func (c *CommandLine) writeColumns(response *client.Response, w io.Writer) {
 	// Create a tabbed writer for each result as they won't always line up
 	writer := new(tabwriter.Writer)
-	writer.Init(w, 0, 8, 1, '\t', 0)
+	writer.Init(w, 0, 8, 1, ' ', 0)
 
 	for _, result := range response.Results {
 		// Print out all messages first

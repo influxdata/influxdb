@@ -25,6 +25,7 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7659](https://github.com/influxdata/influxdb/issues/7659): Fix CLI import bug when using self-signed SSL certificates.
 - [#7698](https://github.com/influxdata/influxdb/pull/7698): CLI was caching db/rp for insert into statements.
 
+- [#7396](https://github.com/influxdata/influxdb/issues/7396): CLI should use spaces for alignment, not tabs.
 
 ## v1.1.1 [unreleased]
 
