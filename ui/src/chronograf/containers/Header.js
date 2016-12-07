@@ -99,6 +99,10 @@ const Header = React.createClass({
     const {timeRange, explorers, explorerID} = this.props;
 
     const selectedExplorer = explorers[explorerID];
+    if (!selectedExplorer) {
+      return null;
+    }
+
     const dropdownItems = Object.keys(explorers).map((id) => {
       const ex = explorers[id];
       return {text: this.getName(ex), id: ex.id};
