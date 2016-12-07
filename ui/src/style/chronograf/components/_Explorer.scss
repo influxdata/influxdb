@@ -61,11 +61,18 @@
   align-items: center;
 }
 .explorer--action {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   border: 0;
-  background-color: #000;
-  color: $c-pool;
+  background-color: transparent;
+  color: $g9-mountain;
+  margin-left: 2px;
+  transition: color 0.25s ease;
+
+  &:hover {
+    cursor: pointer;
+    color: $g18-cloud;
+  }
 }
 
 // Tabs
