@@ -1,3 +1,4 @@
+
 .explorer {
   display: block;
   background-color: $g3-castle;
@@ -11,7 +12,7 @@
 
   // For when an explorer item is open
   &.active {
-    background-color: $g5-pepper;
+    background-color: $g4-onyx;
     .explorer__header {
       &-name {
         color: $g20-white;
@@ -71,13 +72,13 @@
 // Tabs
 .explorer__tabs {
   display: flex;
-  background-color: $g5-pepper;
+  background-color: $g4-onyx;
   padding: 0 11px;
 }
 .explorer__tab {
   white-space: nowrap;
   color: $g11-sidewalk;
-  background: $g6-smoke;
+  background: $g5-pepper;
   height: 28px;
   font-size: 12px;
   font-weight: 600;
@@ -92,10 +93,10 @@
 
   &:hover {
     color: $g18-cloud;
-    background-color: $g7-graphite;
+    background-color: $g6-smoke;
   }
   &.active {
-    background: $g7-graphite;
+    background: $g6-smoke;
     color: $g15-platinum;
   }
 

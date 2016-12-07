@@ -74,9 +74,11 @@ const FieldList = React.createClass({
       <div>
         {
           hasAggregates ?
-            <div className="query-editor__list-header group-by-time">
-              <div className="group-by-time-dropdown-label">Group by Time:</div>
-              <GroupByTimeDropdown isOpen={!hasGroupByTime} selected={query.groupBy.time} onChooseGroupByTime={this.handleGroupByTime} />
+            <div className="query-editor__list-header">
+              <div className="group-by-time">
+                <p>Group by Time</p>
+                <GroupByTimeDropdown isOpen={!hasGroupByTime} selected={query.groupBy.time} onChooseGroupByTime={this.handleGroupByTime} />
+              </div>
             </div>
             : null
         }
