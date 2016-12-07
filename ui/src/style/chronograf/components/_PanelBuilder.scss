@@ -5,35 +5,6 @@
   @include gradient-v($g2-kevlar,$g0-obsidian);
   @include custom-scrollbar($g2-kevlar,$c-pool);
 }
-.panel-builder__tabs {
-  display: flex;
-  text-align: center;
-  padding: $explorer-page-padding $explorer-page-padding 0 $explorer-page-padding;
-  background: $g3-castle;
-}
-.panel-builder__tab {
-  padding: 18px 0 9px 0px;
-  flex: 1;
-  background: $g3-castle;
-  cursor: pointer;
-  font-weight: 400;
-  font-size: 20px;
-  color: $g12-forge;
-  line-height: calc(60px - $explorer-page-padding - 2px);
-  border-radius: 4px 4px 0 0;
-  transition: color 0.25s ease;
-
-  &:hover {
-    color: $g20-white;
-  }
-  &.active {
-    background-color: $g5-pepper;
-    color: $g20-white;
-  }
-  &-content {
-    padding: $explorer-page-padding;
-  }
-}
 .panel-builder__item {
   margin-bottom: 6px;
 }
