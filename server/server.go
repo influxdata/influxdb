@@ -81,7 +81,7 @@ func (s *Server) Serve() error {
 
 	httpServer := &graceful.Server{Server: new(http.Server)}
 	httpServer.SetKeepAlivesEnabled(true)
-	httpServer.TCPKeepAlive = 1 * time.Minute
+	httpServer.TCPKeepAlive = 5 * time.Second
 	httpServer.Handler = s.handler
 
 	if !s.ReportingDisabled {
