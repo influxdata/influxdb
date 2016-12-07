@@ -13,7 +13,7 @@ const (
 	DefaultEngine = "tsm1"
 
 	// DefaultIndex is the default index for new shards
-	DefaultIndex = "tsi1" // "inmem"
+	DefaultIndex = "inmem"
 
 	// tsdb/engine/wal configuration options
 

@@ -256,6 +256,17 @@ func (i *Index) TagsForSeries(key string) (models.Tags, error) {
 func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
+
+	// Return all measurement names if no expression is provided.
+	if expr == nil {
+		a := make([][]byte, 0, len(i.measurements))
+		for name := range i.measurements {
+			a = append(a, []byte(name))
+		}
+		bytesutil.Sort(a)
+		return a, nil
+	}
+
 	return i.measurementNamesByExpr(expr)
 }
 
