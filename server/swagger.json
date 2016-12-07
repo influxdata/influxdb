@@ -1594,7 +1594,180 @@
 					}
 				}
 			}
-		}
+		},
+		"/dashboards": {
+			"get": {
+				"tags": [
+					"dashboards"
+				],
+				"summary": "List of all dashboards",
+				"responses": {
+					"200": {
+						"description": "An array of dashboards",
+						"schema": {
+							"$ref": "#/definitions/Dashboards"
+						}
+					},
+					"default": {
+						"description": "Unexpected internal service error",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			},
+			"post": {
+				"tags": [
+					"dashboards"
+				],
+				"summary": "Create new dashboard",
+				"parameters": [
+					{
+						"name": "dashboard",
+						"in": "body",
+						"description": "Configuration options for new dashboard",
+						"schema": {
+							"$ref": "#/definitions/Dashboard"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Successfully created new dashboard",
+						"headers": {
+							"Location": {
+								"type": "string",
+								"format": "url",
+								"description": "Location of the newly created dashboard resource."
+							}
+						},
+						"schema": {
+							"$ref": "#/definitions/Dashboard"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			}
+		},
+		"/dashboards/{id}": {
+			"get": {
+				"tags": [
+					"dashboards"
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "integer",
+						"description": "ID of the dashboard",
+						"required": true
+					}
+				],
+				"summary": "Specific dashboard",
+				"description": "Dashboards contain visual display information as well as links to queries",
+				"responses": {
+					"200": {
+						"description": "Returns the specified dashboard with links to queries.",
+						"schema": {
+							"$ref": "#/definitions/Dashboard"
+						}
+					},
+					"404": {
+						"description": "Unknown dashboard id",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "Unexpected internal service error",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			},
+			"delete": {
+				"tags": [
+					"dashboards"
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "integer",
+						"description": "ID of the layout",
+						"required": true
+					}
+				],
+				"summary": "Deletes the specified dashboard",
+				"responses": {
+					"204": {
+						"description": "Dashboard has been removed."
+					},
+					"404": {
+						"description": "Unknown dashboard id",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "Unexpected internal service error",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			},
+			"put": {
+				"tags": [
+					"layouts"
+				],
+				"summary": "Replace dashboard information.",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "integer",
+						"description": "ID of a dashboard",
+						"required": true
+					},
+					{
+						"name": "config",
+						"in": "body",
+						"description": "dashboard configuration update parameters",
+						"schema": {
+							"$ref": "#/definitions/Dashboard"
+						},
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Dashboard has been replaced and the new dashboard is returned.",
+						"schema": {
+							"$ref": "#/definitions/Dashboard"
+						}
+					},
+					"404": {
+						"description": "Happens when trying to access a non-existent dashboard.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			}
+		},
 	},
 	"definitions": {
 		"Kapacitors": {
@@ -2120,6 +2293,94 @@
 				}
 			}
 		},
+		"Dashboards": {
+			"description": "a list of dashboards",
+			"type": "object",
+			"properties": {
+				"dashboards": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/Dashboard"
+					}
+				}
+			}
+		},
+		"Dashboard": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"description": "the unique dashboard id",
+					"type": "integer",
+					"format": "int64"
+				},
+				"cells": {
+					"description": "a list of dashboard visualizations",
+					"type": "array",
+					"items": {
+						"description": "cell visualization information",
+						"type": "object",
+						"required": [
+							"queries"
+						],
+						"properties": {
+							"x": {
+								"description": "X-coordinate of Cell in the Dashboard",
+								"type": "integer",
+								"format": "int32"
+							},
+							"y": {
+								"description": "Y-coordinate of Cell in the Dashboard",
+								"type": "integer",
+								"format": "int32"
+							},
+							"w": {
+								"description": "Width of Cell in the Dashboard",
+								"type": "integer",
+								"format": "int32"
+							},
+							"h": {
+								"description": "Height of Cell in the Dashboard",
+								"type": "integer",
+								"format": "int32"
+							},
+							"queries": {
+								"description": "Time-series data queries for Cell.",
+								"type": "array",
+								"items": {
+									"description": "links to the queries to visualize",
+									"type": "string",
+									"format": "url"
+								}
+							},
+							"type": {
+								"description": "Cell visualization type",
+								"type": "string",
+								"enum": [
+									"single-stat",
+									"line",
+									"line-plus-single-stat"
+								],
+								"default": "line"
+							}
+						}
+					}
+				},
+				"name": {
+					"description": "the user-facing name of the dashboard",
+					"type": "string"
+				},
+				"links": {
+					"type": "object",
+					"properties": {
+						"self": {
+							"type": "string",
+							"description": "Self link mapping to this resource",
+							"format": "url"
+						}
+					}
+				}
+			}
+		},
 		"Routes": {
 			"type": "object",
 			"properties": {
@@ -2145,6 +2406,11 @@
 				},
 				"mappings": {
 					"description": "Location of the application mappings endpoint",
+					"type": "string",
+					"format": "url"
+				},
+				"dashboards": {
+					"description": "location of the dashboards endpoint",
 					"type": "string",
 					"format": "url"
 				}
