@@ -148,8 +148,8 @@ func getEmail(ctx context.Context) (string, error) {
 func (h *Service) Me(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !h.UseAuth {
-		Error(w, http.StatusTeapot, fmt.Sprintf("%v", "Go to line 151 users.go. Look for Arnold"), h.Logger)
-		_ = 42 // did you mean to learn the answer? if so go to line aslfjasdlfja; (gee willickers.... tbc)
+		// Using status code to signal no need for authentication
+		w.WriteHeader(http.StatusTeapot)
 		return
 	}
 	email, err := getEmail(ctx)
