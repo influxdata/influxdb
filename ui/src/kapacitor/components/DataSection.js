@@ -34,6 +34,7 @@ export const DataSection = React.createClass({
       groupByTime: PropTypes.func.isRequired,
       toggleTagAcceptance: PropTypes.func.isRequired,
     }).isRequired,
+    timeRange: PropTypes.shape({}).isRequired,
   },
 
   childContextTypes: {
@@ -96,9 +97,8 @@ export const DataSection = React.createClass({
   },
 
   render() {
-    const {query} = this.props;
-    const timeRange = {lower: 'now() - 15m', upper: null};
-    const statement = query.rawText || selectStatement(timeRange, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
+    const {query, timeRange} = this.props;
+    const statement = query.rawText || selectStatement({lower: timeRange.queryValue}, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
 
     return (
       <div className="kapacitor-rule-section">
