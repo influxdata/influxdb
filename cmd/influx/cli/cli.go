@@ -496,32 +496,39 @@ func parseNextIdentifier(stmt string) (ident, remainder string) {
 	return "", stmt
 }
 
-func (c *CommandLine) parseInto(stmt string) string {
+func (c *CommandLine) parseInto(stmt string) *client.BatchPoints {
 	ident, stmt := parseNextIdentifier(stmt)
+	db, rp := c.Database, c.RetentionPolicy
 	if strings.HasPrefix(stmt, ".") {
-		c.Database = ident
-		fmt.Printf("Using database %s\n", c.Database)
+		db = ident
 		ident, stmt = parseNextIdentifier(stmt[1:])
 	}
 	if strings.HasPrefix(stmt, " ") {
-		c.RetentionPolicy = ident
-		fmt.Printf("Using retention policy %s\n", c.RetentionPolicy)
-		return stmt[1:]
+		rp = ident
+		stmt = stmt[1:]
 	}
-	return stmt
+
+	return &client.BatchPoints{
+		Points: []client.Point{
+			client.Point{Raw: stmt},
+		},
+		Database:         db,
+		RetentionPolicy:  rp,
+		Precision:        c.ClientConfig.Precision,
+		WriteConsistency: c.ClientConfig.WriteConsistency,
+	}
 }
 
-// Insert runs an INSERT statement
-func (c *CommandLine) Insert(stmt string) error {
+func (c *CommandLine) parseInsert(stmt string) (*client.BatchPoints, error) {
 	i, point := parseNextIdentifier(stmt)
 	if !strings.EqualFold(i, "insert") {
-		fmt.Printf("ERR: found %s, expected INSERT\n", i)
-		return nil
+		return nil, fmt.Errorf("found %s, expected INSERT\n", i)
 	}
 	if i, r := parseNextIdentifier(point); strings.EqualFold(i, "into") {
-		point = c.parseInto(r)
+		bp := c.parseInto(r)
+		return bp, nil
 	}
-	_, err := c.Client.Write(client.BatchPoints{
+	return &client.BatchPoints{
 		Points: []client.Point{
 			client.Point{Raw: point},
 		},
@@ -529,15 +536,23 @@ func (c *CommandLine) Insert(stmt string) error {
 		RetentionPolicy:  c.RetentionPolicy,
 		Precision:        c.ClientConfig.Precision,
 		WriteConsistency: c.ClientConfig.WriteConsistency,
-	})
+	}, nil
+}
+
+// Insert runs an INSERT statement
+func (c *CommandLine) Insert(stmt string) error {
+	bp, err := c.parseInsert(stmt)
 	if err != nil {
+		fmt.Printf("ERR: %s\n", err)
+		return nil
+	}
+	if _, err := c.Client.Write(*bp); err != nil {
 		fmt.Printf("ERR: %s\n", err)
 		if c.Database == "" {
 			fmt.Println("Note: error may be due to not setting a database or retention policy.")
 			fmt.Println(`Please set a database with the command "use <database>" or`)
 			fmt.Println("INSERT INTO <database>.<retention-policy> <point>")
 		}
-		return err
 	}
 	return nil
 }
