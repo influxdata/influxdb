@@ -411,67 +411,6 @@ func TestParseCommand_Insert(t *testing.T) {
 	}
 }
 
-func TestParseCommand_InsertInto(t *testing.T) {
-	t.Parallel()
-	ts := emptyTestServer()
-	defer ts.Close()
-
-	u, _ := url.Parse(ts.URL)
-	config := client.Config{URL: *u}
-	c, err := client.NewClient(config)
-	if err != nil {
-		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
-	}
-	m := cli.CommandLine{Client: c}
-
-	tests := []struct {
-		cmd, db, rp string
-	}{
-		{
-			cmd: `INSERT INTO test cpu,host=serverA,region=us-west value=1.0`,
-			db:  "",
-			rp:  "test",
-		},
-		{
-			cmd: ` INSERT INTO .test cpu,host=serverA,region=us-west value=1.0`,
-			db:  "",
-			rp:  "test",
-		},
-		{
-			cmd: `INSERT INTO   "test test" cpu,host=serverA,region=us-west value=1.0`,
-			db:  "",
-			rp:  "test test",
-		},
-		{
-			cmd: `Insert iNTO test.test cpu,host=serverA,region=us-west value=1.0`,
-			db:  "test",
-			rp:  "test",
-		},
-		{
-			cmd: `insert into "test test" cpu,host=serverA,region=us-west value=1.0`,
-			db:  "test",
-			rp:  "test test",
-		},
-		{
-			cmd: `insert into "d b"."test test" cpu,host=serverA,region=us-west value=1.0`,
-			db:  "d b",
-			rp:  "test test",
-		},
-	}
-
-	for _, test := range tests {
-		if err := m.ParseCommand(test.cmd); err != nil {
-			t.Fatalf(`Got error %v for command %q, expected nil.`, err, test.cmd)
-		}
-		if m.Database != test.db {
-			t.Fatalf(`Command "insert into" db parsing failed, expected: %q, actual: %q`, test.db, m.Database)
-		}
-		if m.RetentionPolicy != test.rp {
-			t.Fatalf(`Command "insert into" rp parsing failed, expected: %q, actual: %q`, test.rp, m.RetentionPolicy)
-		}
-	}
-}
-
 func TestParseCommand_History(t *testing.T) {
 	t.Parallel()
 	c := cli.CommandLine{Line: liner.NewLiner()}
