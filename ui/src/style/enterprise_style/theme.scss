@@ -272,8 +272,17 @@
 .icon.triangle:before {
   content: "\e92c";
 }
+.icon.square:before {
+  content: "\e93e";
+}
+.icon.diamond:before {
+  content: "\e93f";
+}
 .icon.octagon:before {
   content: "\e92d";
+}
+.icon.circle:before {
+  content: "\e940";
 }
 .icon.cube:before {
   content: "\e92e";
@@ -307,6 +316,24 @@
 }
 .icon.pulse-e:before {
   content: "\e938";
+}
+.icon.brush:before {
+  content: "\e939";
+}
+.icon.keynote:before {
+  content: "\e93a";
+}
+.icon.polaroid:before {
+  content: "\e93b";
+}
+.icon.alpha-a:before {
+  content: "\e93c";
+}
+.icon.alpha-b:before {
+  content: "\e93d";
+}
+.icon.export:before {
+  content: "\e941";
 }
 .icon.alert-triangle:before {
   content: "\f02d";
