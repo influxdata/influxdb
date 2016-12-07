@@ -74,7 +74,7 @@ const FieldList = React.createClass({
       <div>
         {
           hasAggregates ?
-            <div className="query-editor__list-header">
+            <div className="qeditor--list-header">
               <div className="group-by-time">
                 <p>Group by Time</p>
                 <GroupByTimeDropdown isOpen={!hasGroupByTime} selected={query.groupBy.time} onChooseGroupByTime={this.handleGroupByTime} />
@@ -90,10 +90,10 @@ const FieldList = React.createClass({
   renderList() {
     const {database, measurement} = this.props.query;
     if (!database || !measurement) {
-      return <div className="query-editor__empty">No measurement selected.</div>;
+      return <div className="qeditor--empty">No <strong>Measurement</strong> selected</div>;
     }
 
-    return (<ul className="query-editor__list">
+    return (<ul className="qeditor--list">
       {this.state.fields.map((fieldFunc) => {
         const selectedField = this.props.query.fields.find((f) => f.field === fieldFunc.field);
         return (

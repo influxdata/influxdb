@@ -368,3 +368,59 @@ code {
     display: none;
   }
 }
+
+/*
+    Dark Toggles
+    ----------------------------------------------
+*/
+$toggle-height-sm: 30px;
+$toggle-font-sm: 13px;
+$toggle-padding-sm: 9px;
+
+$toggle-height-md: 30px;
+$toggle-font-md: 13px;
+$toggle-padding-md: 9px;
+
+$toggle-border: 2px;
+
+.toggle {
+  display: inline-block;
+  width: auto;
+  padding: $toggle-border;
+  border-radius: 3px;
+  background-color: $g5-pepper;
+  font-size: 0;
+}
+.toggle-btn {
+  border: 0;
+  border-radius: 1px;
+  display: inline-block;
+  vertical-align: middle;
+  width: auto;
+  background-color: $g3-castle;
+  color: $g11-sidewalk;
+  transition:
+    background-color 0.25s,
+    color 0.25s;
+
+  &:hover {
+    cursor: pointer;
+    color: $g14-chromium;
+    background-color: $g4-onyx;
+  }
+  &.active {
+    background-color: $g5-pepper;
+    color: $g18-cloud;
+  }
+}
+.toggle-sm {
+  height: $toggle-height-sm;
+
+  .toggle-btn {
+    height: ($toggle-height-sm - ($toggle-border * 2));
+    line-height: ($toggle-height-sm - ($toggle-border * 2));
+    padding: 0 $toggle-padding-sm;
+    font-size: $toggle-font-sm;
+    font-weight: 600;
+  }
+}

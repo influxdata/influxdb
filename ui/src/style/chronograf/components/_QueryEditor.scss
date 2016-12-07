@@ -1,14 +1,16 @@
+/*
+
+  Query Editor Styles
+  -------------------------------------------------
+  Abbreviated as "qeditor"
+
+*/
 $query-editor-gutter: 16px;
 $query-editor-tab-inactive: $g2-kevlar;
 $query-editor-tab-active: $g3-castle;
 $query-editor-height: 300px;
 
-.query-editor {
-  padding: 6px;
-  background-color: $g6-smoke;
-  border-radius: 0 0 $radius $radius;
-}
-.query-editor__code {
+.qeditor--query-preview {
   position: relative;
 
   pre {
@@ -37,7 +39,7 @@ $query-editor-height: 300px;
   }
 }
 // Tabs for switching between queries
-.query-editor__tabs {
+.qeditor--tabs {
   display: flex;
   width: 100%;
   justify-content: flex-start;
@@ -56,7 +58,7 @@ $query-editor-height: 300px;
     letter-spacing: 0.3px;
   }
 }
-.query-editor__tab {
+.qeditor--tab {
   text-align: center;
   background-color: $query-editor-tab-inactive;
   color: $g13-mist;
@@ -82,7 +84,7 @@ $query-editor-height: 300px;
 }
 
 // List of options
-.query-editor__list {
+.qeditor--list {
   margin: 0;
   padding: 9.5px 0 0 0;
   background-color: $query-editor-tab-active;
@@ -122,14 +124,14 @@ $query-editor-height: 300px;
       font-weight: 600;
 
       // Animate checked state
-      .query-editor__list-checkbox__checkbox {
+      .qeditor--list-checkbox__checkbox {
         &:before {
           opacity: 1;
           transform: translate(-50%,-50%) scale(0.4,0.4);
         }
       }
       // Fade in & out dropdowns when checked
-      .query-editor__hidden-dropdown {
+      .qeditor--hidden-dropdown {
         visibility: visible;
 
         .dropdown {
@@ -250,7 +252,7 @@ $query-editor-height: 300px;
 }
 
 // List empty state
-.query-editor__empty {
+.qeditor--empty {
   text-align: center;
   color: $g10-wolf;
   display: inline-block;
@@ -262,7 +264,7 @@ $query-editor-height: 300px;
 }
 
 // Hidden dropdowns
-.query-editor__hidden-dropdown {
+.qeditor--hidden-dropdown {
   visibility: hidden;
   transition: all 0.3s all;
 
@@ -273,7 +275,7 @@ $query-editor-height: 300px;
 }
 
 // Filter list results
-.query-editor__filter {
+.qeditor--filter {
   position: relative;
   width: 100%;
   display: block;
@@ -324,13 +326,5 @@ $query-editor-height: 300px;
     transition: color 0.25s ease;
     font-size: 12px;
     z-index: 2;
-  }
-}
-
-.query-editor-empty-state {
-  color: $g17-whisper;
-
-  .icon {
-    font-size: 1em;
   }
 }

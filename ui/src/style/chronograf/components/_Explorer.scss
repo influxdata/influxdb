@@ -24,7 +24,8 @@
     }
   }
 }
-.explorer__header {
+// Explorer Header Bar
+.explorer--header {
   align-items: center;
   text-align: center;
   display: flex;
@@ -34,48 +35,47 @@
   align-items: center;
   justify-content: space-between;
   border-radius: $radius;
+}
+.explorer--name {
+  color: $g13-mist;
+  font-weight: 600;
+  font-size: 14px;
+  position: relative;
+  padding-left: 16px;
+  transition: color 0.25s ease;
 
-  &-name {
-    color: $g13-mist;
-    font-weight: 600;
-    font-size: 14px;
-    position: relative;
-    padding-left: 16px;
-    transition: color 0.25s ease;
+  .icon.caret-right {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%) rotate(0deg);
+    font-size: 0.75em;
+    transition: transform 0.25s ease;
+  }
 
-    .icon {
-      position: absolute;
-      left: 0;
-      top: 50%;
-      transform: translateY(-50%) rotate(0deg);
-      font-size: 0.75em;
-      transition: transform 0.25s ease;
-    }
-
-    &:hover {
-      color: $g17-whisper;
-    }
+  &:hover {
+    color: $g17-whisper;
   }
-  &-delete,
-    &-rename {
-    color: $g9-mountain;
-    transition: color 0.25s ease;
-  }
-  &-delete:hover {
-    color: $c-dreamsicle;
-  }
-  &-rename:hover {
-    color: $g20-white;
-  }
+}
+.explorer--actions {
+  display: flex;
+  align-items: center;
+}
+.explorer--action {
+  width: 20px;
+  height: 20px;
+  border: 0;
+  background-color: #000;
+  color: $c-pool;
 }
 
 // Tabs
-.explorer__tabs {
+.explorer--tabs {
   display: flex;
   background-color: $g4-onyx;
   padding: 0 11px;
 }
-.explorer__tab {
+.explorer--tab {
   white-space: nowrap;
   color: $g11-sidewalk;
   background: $g5-pepper;
@@ -107,8 +107,6 @@
   }
 
   &-delete {
-    right: -2px;
-    font-size: 10px;
     margin-left: 0px;
     width: 16px;
     height: 16px;
@@ -122,18 +120,20 @@
       color 0.25s ease,
       background-color 0.25s ease;
 
-    span.icon {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-54%,-50%);
-    }
-
     &:hover {
       background-color: $c-dreamsicle;
       color: $g20-white;
     }
   }
+}
+/*
+  Tab Contents
+  -------------------------------------------
+*/
+.explorer--tab-contents {
+  padding: 6px;
+  background-color: $g6-smoke;
+  border-radius: 0 0 $radius $radius;
 }
 
 

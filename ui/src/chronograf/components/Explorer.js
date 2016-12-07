@@ -80,14 +80,14 @@ const Explorer = React.createClass({
 
     return (
       <div className={classNames('explorer', {active: isExpanded})}>
-        <div className="explorer__header" onClick={this.handleSelectExplorer}>
-          <div className="explorer__header-name">
+        <div className="explorer--header" onClick={this.handleSelectExplorer}>
+          <div className="explorer--name">
             <span className="icon caret-right"></span>
             {panel.name || "Graph"}
           </div>
-          <div className="explorer__header-actions">
-            <div title="Rename" className="explorer__header-rename" onClick={this.openRenamePanelModal}><span className="icon pencil"></span></div>
-            <div title="Delete" className="explorer__header-delete" onClick={this.handleDeletePanel}><span className="icon trash"></span></div>
+          <div className="explorer--actions">
+            <div title="Rename Graph" className="explorer--action" onClick={this.openRenamePanelModal}><span className="icon pencil"></span></div>
+            <div title="Delete Graph" className="explorer--action" onClick={this.handleDeletePanel}><span className="icon trash"></span></div>
           </div>
         </div>
         {this.renderQueryTabList()}
@@ -131,7 +131,7 @@ const Explorer = React.createClass({
     }
 
     return (
-      <div className="explorer__tabs">
+      <div className="explorer--tabs">
         {this.props.queries.map((q) => {
           return (
             <QueryTabItem
@@ -143,7 +143,7 @@ const Explorer = React.createClass({
             />
           );
         })}
-        <div className="explorer__tab" onClick={this.handleAddQuery}>
+        <div className="explorer--tab" onClick={this.handleAddQuery}>
           <span className="icon plus"></span>
         </div>
       </div>

@@ -22,8 +22,9 @@ const QueryTabItem = React.createClass({
 
   render() {
     return (
-      <div className={classNames('explorer__tab', {active: this.props.isActive})} onClick={this.handleSelect}>
-        {this.props.query.rawText ? 'Raw Query' : 'Query'} <span className="explorer__tab-delete" onClick={this.handleDelete}><span className="icon remove"></span></span>
+      <div className={classNames('explorer--tab', {active: this.props.isActive})} onClick={this.handleSelect}>
+        {this.props.query.rawText ? 'Raw Text' : 'Query'}
+        <span className="explorer--tab-delete" onClick={this.handleDelete}></span>
       </div>
     );
   },

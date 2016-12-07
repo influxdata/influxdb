@@ -96,8 +96,8 @@ const QueryEditor = React.createClass({
     const statement = query.rawText || selectStatement(timeRange, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
 
     return (
-      <div className="query-editor">
-        <div className="query-editor__code">
+      <div className="explorer--tab-contents">
+        <div className="qeditor--query-preview">
           <pre className={classNames("", {"rq-mode": query.rawText})}><code>{statement}</code></pre>
         </div>
         {this.renderEditor()}
@@ -108,7 +108,7 @@ const QueryEditor = React.createClass({
   renderEditor() {
     if (this.props.query.rawText) {
       return (
-        <div className="generic-empty-state query-editor-empty-state">
+        <div className="qeditor--empty">
           <p className="margin-bottom-zero">
             <span className="icon alert-triangle"></span>
             &nbsp;Only editable in the <strong>Raw Query</strong> tab.
@@ -120,12 +120,12 @@ const QueryEditor = React.createClass({
     const {activeTab} = this.state;
     return (
       <div>
-        <div className="query-editor__tabs">
-          <div className="query-editor__tabs-heading">Schema Explorer</div>
-          <div onClick={_.wrap(DB_TAB, this.handleClickTab)} className={classNames("query-editor__tab", {active: activeTab === DB_TAB})}>Databases</div>
-          <div onClick={_.wrap(MEASUREMENTS_TAB, this.handleClickTab)} className={classNames("query-editor__tab", {active: activeTab === MEASUREMENTS_TAB})}>Measurements</div>
-          <div onClick={_.wrap(FIELDS_TAB, this.handleClickTab)} className={classNames("query-editor__tab", {active: activeTab === FIELDS_TAB})}>Fields</div>
-          <div onClick={_.wrap(TAGS_TAB, this.handleClickTab)} className={classNames("query-editor__tab", {active: activeTab === TAGS_TAB})}>Tags</div>
+        <div className="qeditor--tabs">
+          <div className="qeditor--tabs-heading">Schema Explorer</div>
+          <div onClick={_.wrap(DB_TAB, this.handleClickTab)} className={classNames("qeditor--tab", {active: activeTab === DB_TAB})}>Databases</div>
+          <div onClick={_.wrap(MEASUREMENTS_TAB, this.handleClickTab)} className={classNames("qeditor--tab", {active: activeTab === MEASUREMENTS_TAB})}>Measurements</div>
+          <div onClick={_.wrap(FIELDS_TAB, this.handleClickTab)} className={classNames("qeditor--tab", {active: activeTab === FIELDS_TAB})}>Fields</div>
+          <div onClick={_.wrap(TAGS_TAB, this.handleClickTab)} className={classNames("qeditor--tab", {active: activeTab === TAGS_TAB})}>Tags</div>
         </div>
         {this.renderList()}
       </div>
@@ -169,7 +169,7 @@ const QueryEditor = React.createClass({
           />
         );
       default:
-        return <ul className="query-editor__list"></ul>;
+        return <ul className="qeditor--list"></ul>;
     }
   },
 });

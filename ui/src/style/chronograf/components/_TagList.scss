@@ -174,39 +174,3 @@
     }
   }
 }
-
-.tag-list__toggle {
-  
-  
-  width: 170px;
-  display: flex;
-
-  &-btn {
-    border: 2px solid $g7-graphite;
-    background-color: $g5-pepper;
-    color: $g10-wolf;
-    border-radius: 3px 0 0 3px;
-    &:last-child {
-      border-radius: 0 3px 3px 0;
-      border-left: 0;
-    }
-    width: 50%;
-    height: 30px;
-    line-height: 26px;
-    text-align: center;
-    transition:
-      color 0.25s ease,
-      background-color 0.25s ease;
-
-    &:hover {
-      color: $g20-white;
-      background-color: $g6-smoke;
-      cursor: pointer;
-    }
-    &.active {
-      background-color: $g7-graphite;
-      color: $g20-white;
-      font-weight: 600;
-    }
-  }
-}
