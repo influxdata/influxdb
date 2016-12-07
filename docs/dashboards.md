@@ -13,7 +13,7 @@ contain explorations.
 		"self": "/chronograf/v1/dashboards/myid"
 	},
 	"id": "myid",
-	"queries": [
+	"cells": [
 		{
 			"x": 0,
 			"y": 0,
@@ -24,7 +24,7 @@ contain explorations.
 				"upper": 100,
 				"lower": 10
 			},
-			"link": "/chronograf/v1/queries/1"
+			"queries": ["/chronograf/v1/queries/1"]
 		},
 		{
 			"x": 2,
@@ -36,7 +36,7 @@ contain explorations.
 				"upper": 10,
 				"lower": 0
 			},
-			"link": "/chronograf/v1/queries/2"
+			"queries": ["/chronograf/v1/queries/2"]
 		}
 	],
 	"name": "This is my dashboard",
@@ -91,7 +91,7 @@ Returns a list of dashboards
                 "self": "/chronograf/v1/dashboards/myid"
             },
             "id": "myid",
-            "queries": [
+            "cells": [
                 {
                     "x": 0,
                     "y": 0,
@@ -102,7 +102,7 @@ Returns a list of dashboards
                         "upper": 100,
                         "lower": 10
                     },
-                    "link": "/chronograf/v1/queries/1"
+                    "queries": ["/chronograf/v1/queries/1"]
                 },
                 {
                     "x": 2,
@@ -114,7 +114,7 @@ Returns a list of dashboards
                         "upper": 10,
                         "lower": 0
                     },
-                    "link": "/chronograf/v1/queries/2"
+                    "queries": ["/chronograf/v1/queries/2"]
                 }
             ],
             "name": "This is my dashboard"
@@ -124,7 +124,7 @@ Returns a list of dashboards
                 "self": "/chronograf/v1/dashboards/myid"
             },
             "id": "myid",
-            "queries": [
+            "cells": [
                 {
                     "x": 0,
                     "y": 0,
@@ -135,7 +135,7 @@ Returns a list of dashboards
                         "upper": 100,
                         "lower": 10
                     },
-                    "link": "/chronograf/v1/queries/1"
+                    "queries": ["/chronograf/v1/queries/1"]
                 },
                 {
                     "x": 2,
@@ -147,7 +147,7 @@ Returns a list of dashboards
                         "upper": 10,
                         "lower": 0
                     },
-                    "link": "/chronograf/v1/queries/2"
+                    "queries": ["/chronograf/v1/queries/2"]
                 }
             ],
             "name": "This is my dashboard"
@@ -166,7 +166,7 @@ not existing unless a user has modified the particular cell.
         "self": "/chronograf/v1/dashboards/myid"
     },
     "id": "myid",
-    "queries": [
+    "cells": [
         {
             "x": 0,
             "y": 0,
@@ -177,7 +177,7 @@ not existing unless a user has modified the particular cell.
                 "upper": 100,
                 "lower": 10
             },
-            "link": "/chronograf/v1/queries/1"
+            "queries": ["/chronograf/v1/queries/1"]
         },
         {
             "x": 2,
@@ -189,7 +189,7 @@ not existing unless a user has modified the particular cell.
                 "upper": 10,
                 "lower": 0
             },
-            "link": "/chronograf/v1/queries/2"
+            "queries": ["/chronograf/v1/queries/2"]
         }
     ],
     "name": "This is my dashboard"
