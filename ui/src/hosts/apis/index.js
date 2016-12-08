@@ -51,6 +51,22 @@ export function getMappings() {
   });
 }
 
+export function getHostStatus(proxyLink, telegrafDB) {
+  return proxy({
+    source: proxyLink,
+    query: `select non_negative_derivative(mean(uptime)) as upRate from system where time > now() - 1h group by host, time(1m) fill(0)`,
+    db: telegrafDB,
+  }).then((resp) => {
+    const series = _.get(resp, ['data', 'results', '0', 'series']);
+    return Array.prototype.slice.call(series).reduce((acc, s) => {
+      const idx = s.columns.indexOf('upRate');
+      const host = s.tags.host;
+      acc[host] = s.values[s.values.length - 1][idx];
+      return acc;
+    }, {});
+  });
+}
+
 export function getAppsForHosts(proxyLink, hosts, appMappings, telegrafDB) {
   const measurements = appMappings.map((m) => `^${m.measurement}$`).join('|');
   const measurementsToApps = _.zipObject(appMappings.map(m => m.measurement), appMappings.map(m => m.name));

@@ -14,6 +14,7 @@ const HostsTable = React.createClass({
       id: PropTypes.string.isRequired,
       name: PropTypes.string.isRequired,
     }).isRequired,
+    up: PropTypes.object.isRequired,
   },
 
   getInitialState() {
@@ -81,7 +82,11 @@ const HostsTable = React.createClass({
 
   render() {
     const {searchTerm, sortKey, sortDirection} = this.state;
-    const {hosts, source} = this.props;
+    const {hosts, source, up} = this.props;
+    hosts.forEach((host) => {
+      const isUp = up[host.name];
+      host.isUp = isUp;
+    });
     const sortedHosts = this.sort(this.filter(hosts, searchTerm), sortKey, sortDirection);
     const hostCount = sortedHosts.length;
 
@@ -114,7 +119,7 @@ const HostsTable = React.createClass({
             <tbody>
               {
                 sortedHosts.map((h) => {
-                  return <HostRow key={h.name} host={h} source={source} />;
+                  return <HostRow key={h.name} host={h} source={source} awake={h.isUp} />;
                 })
               }
             </tbody>
@@ -137,6 +142,7 @@ const HostRow = React.createClass({
       load: PropTypes.number,
       apps: PropTypes.arrayOf(PropTypes.string.isRequired),
     }),
+    awake: PropTypes.boolean,
   },
 
   shouldComponentUpdate(nextProps) {
@@ -146,10 +152,11 @@ const HostRow = React.createClass({
   render() {
     const {host, source} = this.props;
     const {name, cpu, load, apps = []} = host;
+    const stateStr = this.props.awake ? "table-dot dot-success" : "table-dot dot-critical";
     return (
       <tr>
         <td className="monotype"><Link to={`/sources/${source.id}/hosts/${name}`}>{name}</Link></td>
-        <td className="text-center"><div className="table-dot dot-success"></div></td>
+        <td className="text-center"><div className={stateStr}></div></td>
         <td className="monotype">{isNaN(cpu) ? 'N/A' : `${cpu.toFixed(2)}%`}</td>
         <td className="monotype">{isNaN(load) ? 'N/A' : `${load.toFixed(2)}`}</td>
         <td className="monotype">

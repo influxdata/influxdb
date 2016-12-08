@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react';
 import _ from 'lodash';
 import HostsTable from '../components/HostsTable';
-import {getCpuAndLoadForHosts, getMappings, getAppsForHosts} from '../apis';
+import {getCpuAndLoadForHosts, getMappings, getAppsForHosts, getHostStatus} from '../apis';
 
 export const HostsPage = React.createClass({
   propTypes: {
@@ -20,6 +20,7 @@ export const HostsPage = React.createClass({
   getInitialState() {
     return {
       hosts: {},
+      up: {},
     };
   },
 
@@ -28,8 +29,9 @@ export const HostsPage = React.createClass({
     Promise.all([
       getCpuAndLoadForHosts(source.links.proxy, source.telegraf),
       getMappings(),
-    ]).then(([hosts, {data: {mappings}}]) => {
-      this.setState({hosts});
+      getHostStatus(source.links.proxy, source.telegraf),
+    ]).then(([hosts, {data: {mappings}}, up]) => {
+      this.setState({hosts, up});
       getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf).then((newHosts) => {
         this.setState({hosts: newHosts});
       }).catch(() => {
@@ -58,7 +60,7 @@ export const HostsPage = React.createClass({
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-12">
-                <HostsTable source={this.props.source} hosts={_.values(this.state.hosts)} />
+                <HostsTable source={this.props.source} hosts={_.values(this.state.hosts)} up={this.state.up} />
               </div>
             </div>
           </div>
