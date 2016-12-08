@@ -273,26 +273,6 @@
 			}
 		},
 		"/users": {
-			"get": {
-				"tags": [
-					"users"
-				],
-				"summary": "List of all users on this data source",
-				"responses": {
-					"200": {
-						"description": "An array of users",
-						"schema": {
-							"$ref": "#/definitions/Users"
-						}
-					},
-					"default": {
-						"description": "Unexpected internal service error",
-						"schema": {
-							"$ref": "#/definitions/Error"
-						}
-					}
-				}
-			},
 			"post": {
 				"tags": [
 					"users"
