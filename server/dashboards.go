@@ -2,6 +2,25 @@ package server
 
 import "net/http"
 
+type dashboardLinks struct {
+  Self         string `json:"self"` // Self link mapping to this resource
+}
+
+type dashboardResponse struct {
+  *chronograf.Dashboard
+  Links dashboardLinks `json:"links"`
+}
+
+func newDashboardResponse(d *chronograf.Dashboard) dashboardResponse {
+  base := "/chronograf/v1/dashboards"
+  return dashboardResponse{
+    Dashboard: d,
+    Links: dashboardLinks{
+      Self: fmt.Sprintf("%s/%d", base, d.ID),
+    }
+  }
+}
+
 // Dashboards returns all dashboards within the store
 func (s *Service) Dashboards(w http.ResponseWriter, r *http.Request) {
 

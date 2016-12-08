@@ -223,6 +223,39 @@ type UsersStore interface {
 	FindByEmail(ctx context.Context, Email string) (*User, error)
 }
 
+// DashboardID is the dashboard ID
+type DashboardID int
+
+// Dashboard represents all visual and query data for a dashboard
+type Dashboard struct {
+	ID  	DashboardID `json:"id"`
+	Cells []DashboardCell `json:"cells"`
+	Name	string `json:"name"`
+}
+
+// DashboardCell holds visual and query information for a cell
+type DashboardCell struct {
+	X       int32   `json:"x"`
+	Y       int32   `json:"y"`
+	W       int32   `json:"w"`
+	H       int32   `json:"h"`
+	Name    string  `json:"name"`
+	Queries []string `json:"queries"`
+	Type    string	`json:"type"`
+}
+
+// DashboardStore is the storage and retrieval of dashboards
+type DashboardStore interface {
+	// Create a new Dashboard in the DashboardStore
+	Add(context.Context, *Dashboard) (*Dashboard, error)
+	// Delete the Dashboard from the DashboardStore
+	Delete(context.Context, *Dashboard) error
+	// Get retrieves a dashboard if `ID` exists.
+	Get(ctx context.Context, ID DashboardID) (*Dashboard, error)
+	// Update replaces the dashboard information
+	Update(context.Context, *Dashboard) error
+}
+
 // ExplorationID is a unique ID for an Exploration.
 type ExplorationID int
 
