@@ -63,16 +63,19 @@ const MultiSelectDropdown = React.createClass({
 
   render() {
     const {localSelectedItems} = this.state;
+    const {isOpen} = this.state;
+
+    const labelText = isOpen ? "0 Selected" : "Apply Function";
 
     return (
-      <div className="dropdown multi-select-dropdown">
-        <div onClick={this.toggleMenu} className="btn btn-xs btn-info dropdown-toggle multi-select-dropdown__toggle" type="button">
+      <div className={classNames('dropdown multi-select-dropdown', {open: isOpen})}>
+        <div onClick={this.toggleMenu} className="btn btn-xs btn-info dropdown-toggle" type="button">
           <span className="multi-select-dropdown__label">
             {
-              localSelectedItems.length ? localSelectedItems.map((s) => s).join(', ') : 'Apply Function'
+              localSelectedItems.length ? localSelectedItems.map((s) => s).join(', ') : labelText
             }
           </span>
-          <span className="caret multi-select-dropdown__caret"></span>
+          <span className="caret"></span>
         </div>
         {this.renderMenu()}
       </div>
@@ -81,14 +84,12 @@ const MultiSelectDropdown = React.createClass({
 
   renderMenu() {
     const {items} = this.props;
-    const {isOpen} = this.state;
-
-    if (!isOpen) {
-      return null;
-    }
 
     return (
       <div className="dropdown-options">
+        <li className="multi-select-dropdown__apply" onClick={this.onApplyFunctions}>
+          <div className="btn btn-xs btn-info btn-block">Apply</div>
+        </li>
         <ul className="dropdown-menu multi-select-dropdown__menu" aria-labelledby="dropdownMenu1">
           {items.map((listItem, i) => {
             return (
@@ -97,9 +98,6 @@ const MultiSelectDropdown = React.createClass({
               </li>
             );
           })}
-          <li className="multi-select-dropdown__apply" onClick={this.onApplyFunctions}>
-            <div className="btn btn-sm btn-primary btn-block">Apply</div>
-          </li>
         </ul>
       </div>
     );
