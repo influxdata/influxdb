@@ -19,8 +19,9 @@ import (
 
 // Statistics for the Subscriber service.
 const (
-	statPointsWritten = "pointsWritten"
-	statWriteFailures = "writeFailures"
+	statCreateFailures = "createFailures"
+	statPointsWritten  = "pointsWritten"
+	statWriteFailures  = "writeFailures"
 )
 
 // PointsWriter is an interface for writing points to a subscription destination.
@@ -123,8 +124,9 @@ func (s *Service) SetLogOutput(w io.Writer) {
 
 // Statistics maintains the statistics for the subscriber service.
 type Statistics struct {
-	WriteFailures int64
-	PointsWritten int64
+	CreateFailures int64
+	PointsWritten  int64
+	WriteFailures  int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -133,8 +135,9 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 		Name: "subscriber",
 		Tags: tags,
 		Values: map[string]interface{}{
-			statPointsWritten: atomic.LoadInt64(&s.stats.PointsWritten),
-			statWriteFailures: atomic.LoadInt64(&s.stats.WriteFailures),
+			statCreateFailures: atomic.LoadInt64(&s.stats.CreateFailures),
+			statPointsWritten:  atomic.LoadInt64(&s.stats.PointsWritten),
+			statWriteFailures:  atomic.LoadInt64(&s.stats.WriteFailures),
 		},
 	}}
 
@@ -183,20 +186,22 @@ func (s *Service) createSubscription(se subEntry, mode string, destinations []st
 	default:
 		return nil, fmt.Errorf("unknown balance mode %q", mode)
 	}
-	writers := make([]PointsWriter, len(destinations))
-	stats := make([]writerStats, len(writers))
-	for i, dest := range destinations {
+	writers := make([]PointsWriter, 0, len(destinations))
+	stats := make([]writerStats, 0, len(destinations))
+	// add only valid destinations
+	for _, dest := range destinations {
 		u, err := url.Parse(dest)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse destination: %s", dest)
 		}
 		w, err := s.NewPointsWriter(*u)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create writer for destination: %s", dest)
 		}
-		writers[i] = w
-		stats[i].dest = dest
+		writers = append(writers, w)
+		stats = append(stats, writerStats{dest: dest})
 	}
+
 	return &balancewriter{
 		bm:      bm,
 		writers: writers,
@@ -224,10 +229,7 @@ func (s *Service) run() {
 	for {
 		select {
 		case <-s.update:
-			err := s.updateSubs(&wg)
-			if err != nil {
-				s.Logger.Println("failed to update subscriptions:", err)
-			}
+			s.updateSubs(&wg)
 		case p, ok := <-s.points:
 			if !ok {
 				// Close out all chanWriters
@@ -260,7 +262,7 @@ func (s *Service) close(wg *sync.WaitGroup) {
 	s.subs = nil
 }
 
-func (s *Service) updateSubs(wg *sync.WaitGroup) error {
+func (s *Service) updateSubs(wg *sync.WaitGroup) {
 	s.subMu.Lock()
 	defer s.subMu.Unlock()
 
@@ -285,7 +287,9 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) error {
 				}
 				sub, err := s.createSubscription(se, si.Mode, si.Destinations)
 				if err != nil {
-					return err
+					atomic.AddInt64(&s.stats.CreateFailures, 1)
+					s.Logger.Printf("Subscription creation failed for '%s' with error: %s", si.Name, err)
+					continue
 				}
 				cw := chanWriter{
 					writeRequests: make(chan *coordinator.WritePointsRequest, s.conf.WriteBufferSize),
@@ -318,8 +322,6 @@ func (s *Service) updateSubs(wg *sync.WaitGroup) error {
 			s.Logger.Println("deleted old subscription for", se.db, se.rp)
 		}
 	}
-
-	return nil
 }
 
 // Creates a PointsWriter from the given URL

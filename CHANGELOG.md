@@ -20,13 +20,14 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 
 - [#7621](https://github.com/influxdata/influxdb/issues/7621): Expand string and boolean fields when using a wildcard with `sample()`.
 - [#7616](https://github.com/influxdata/influxdb/pull/7616): Fix chuid argument order in init script @ccasey
-- [#7656](https://github.com/influxdata/influxdb/issues/7656): Fix cross-platform backup/restore
+- [#7656](https://github.com/influxdata/influxdb/issues/7656): Fix cross-platform backup/restore @allenpetersen
 - [#7650](https://github.com/influxdata/influxdb/issues/7650): Ensures that all user privileges associated with a database are removed when the database is dropped.
 - [#7659](https://github.com/influxdata/influxdb/issues/7659): Fix CLI import bug when using self-signed SSL certificates.
 - [#7698](https://github.com/influxdata/influxdb/pull/7698): CLI was caching db/rp for insert into statements.
 - [#6527](https://github.com/influxdata/influxdb/issues/6527): 0.12.2 Influx CLI client PRECISION returns "Unknown precision....
 
 - [#7396](https://github.com/influxdata/influxdb/issues/7396): CLI should use spaces for alignment, not tabs.
+- [#7615](https://github.com/influxdata/influxdb/issues/7615): Reject invalid subscription urls @allenpetersen
 
 ## v1.1.1 [unreleased]
 

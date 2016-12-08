@@ -93,6 +93,11 @@ var (
 	ErrSubscriptionNotFound = errors.New("subscription not found")
 )
 
+// ErrInvalidSubscriptionURL is returned when the destication url is invalid.
+func ErrInvalidSubscriptionURL(url string) error {
+	return fmt.Errorf("invalid subscription URL: %s", url)
+}
+
 var (
 	// ErrUserExists is returned when creating an already existing user.
 	ErrUserExists = errors.New("user already exists")
