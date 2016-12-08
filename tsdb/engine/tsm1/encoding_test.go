@@ -493,8 +493,14 @@ func TestValues_MergeFloat(t *testing.T) {
 			t.Fatalf("test(%d): value length mismatch: exp %v, got %v", i, exp, got)
 		}
 
+		dedup := tsm1.Values(append(test.a, test.b...)).Deduplicate()
+
 		for i := range test.exp {
 			if exp, got := test.exp[i].String(), got[i].String(); exp != got {
+				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
+			}
+
+			if exp, got := test.exp[i].String(), dedup[i].String(); exp != got {
 				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
 			}
 		}
@@ -626,8 +632,14 @@ func TestIntegerValues_Merge(t *testing.T) {
 			t.Fatalf("test(%d): value length mismatch: exp %v, got %v", i, exp, got)
 		}
 
+		dedup := tsm1.IntegerValues(append(test.a, test.b...)).Deduplicate()
+
 		for i := range test.exp {
 			if exp, got := test.exp[i].String(), got[i].String(); exp != got {
+				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
+			}
+
+			if exp, got := test.exp[i].String(), dedup[i].String(); exp != got {
 				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
 			}
 		}
@@ -755,8 +767,14 @@ func TestFloatValues_Merge(t *testing.T) {
 			t.Fatalf("test(%d): value length mismatch: exp %v, got %v", i, exp, got)
 		}
 
+		dedup := tsm1.FloatValues(append(test.a, test.b...)).Deduplicate()
+
 		for i := range test.exp {
 			if exp, got := test.exp[i].String(), got[i].String(); exp != got {
+				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
+			}
+
+			if exp, got := test.exp[i].String(), dedup[i].String(); exp != got {
 				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
 			}
 		}
@@ -884,8 +902,14 @@ func TestBooleanValues_Merge(t *testing.T) {
 			t.Fatalf("test(%d): value length mismatch: exp %v, got %v", i, exp, got)
 		}
 
+		dedup := tsm1.BooleanValues(append(test.a, test.b...)).Deduplicate()
+
 		for i := range test.exp {
 			if exp, got := test.exp[i].String(), got[i].String(); exp != got {
+				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
+			}
+
+			if exp, got := test.exp[i].String(), dedup[i].String(); exp != got {
 				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
 			}
 		}
@@ -1017,8 +1041,14 @@ func TestStringValues_Merge(t *testing.T) {
 			t.Fatalf("test(%d): value length mismatch: exp %v, got %v", i, exp, got)
 		}
 
+		dedup := tsm1.StringValues(append(test.a, test.b...)).Deduplicate()
+
 		for i := range test.exp {
 			if exp, got := test.exp[i].String(), got[i].String(); exp != got {
+				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
+			}
+
+			if exp, got := test.exp[i].String(), dedup[i].String(); exp != got {
 				t.Fatalf("value mismatch:\n exp %v\n got %v", exp, got)
 			}
 		}

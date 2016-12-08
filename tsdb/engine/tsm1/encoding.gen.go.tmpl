@@ -53,18 +53,20 @@ func (a {{.Name}}Values) assertOrdered() {
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.
 func (a {{.Name}}Values) Deduplicate() {{.Name}}Values {
-	m := make(map[int64]{{.Name}}Value)
-	for _, val := range a {
-		m[val.UnixNano()] = val
+	if len(a) == 0 {
+		return a
 	}
+	sort.Stable(a)
+	var i int
+	for j := 1; j < len(a); j++ {
+		v := a[j]
+		if v.UnixNano() != a[i].UnixNano() {
+			i++
+		}
+		a[i] = v
 
-	other := make({{.Name}}Values, 0, len(m))
-	for _, val := range m {
-		other = append(other, val)
 	}
-
-	sort.Sort(other)
-	return other
+	return a[:i+1]
 }
 
 //  Exclude returns the subset of values not in [min, max]
