@@ -82,13 +82,11 @@
   padding: 0 11px;
 }
 .explorer--tab {
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
   color: $g11-sidewalk;
   background: $g5-pepper;
   height: 28px;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 28px;
   margin-right: 2px;
   border-radius: $radius $radius 0 0;
   cursor: pointer;
@@ -149,6 +147,16 @@
     }
   }
 }
+.explorer--tab-label {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 177px;
+  text-overflow: ellipsis;
+}
+
 /*
   Tab Contents
   -------------------------------------------
