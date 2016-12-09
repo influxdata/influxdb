@@ -56,18 +56,20 @@ func (a Values) assertOrdered() {
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.
 func (a Values) Deduplicate() Values {
-	m := make(map[int64]Value)
-	for _, val := range a {
-		m[val.UnixNano()] = val
+	if len(a) == 0 {
+		return a
 	}
+	sort.Stable(a)
+	var i int
+	for j := 1; j < len(a); j++ {
+		v := a[j]
+		if v.UnixNano() != a[i].UnixNano() {
+			i++
+		}
+		a[i] = v
 
-	other := make(Values, 0, len(m))
-	for _, val := range m {
-		other = append(other, val)
 	}
-
-	sort.Sort(other)
-	return other
+	return a[:i+1]
 }
 
 //  Exclude returns the subset of values not in [min, max]
@@ -227,18 +229,20 @@ func (a FloatValues) assertOrdered() {
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.
 func (a FloatValues) Deduplicate() FloatValues {
-	m := make(map[int64]FloatValue)
-	for _, val := range a {
-		m[val.UnixNano()] = val
+	if len(a) == 0 {
+		return a
 	}
+	sort.Stable(a)
+	var i int
+	for j := 1; j < len(a); j++ {
+		v := a[j]
+		if v.UnixNano() != a[i].UnixNano() {
+			i++
+		}
+		a[i] = v
 
-	other := make(FloatValues, 0, len(m))
-	for _, val := range m {
-		other = append(other, val)
 	}
-
-	sort.Sort(other)
-	return other
+	return a[:i+1]
 }
 
 //  Exclude returns the subset of values not in [min, max]
@@ -398,18 +402,20 @@ func (a IntegerValues) assertOrdered() {
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.
 func (a IntegerValues) Deduplicate() IntegerValues {
-	m := make(map[int64]IntegerValue)
-	for _, val := range a {
-		m[val.UnixNano()] = val
+	if len(a) == 0 {
+		return a
 	}
+	sort.Stable(a)
+	var i int
+	for j := 1; j < len(a); j++ {
+		v := a[j]
+		if v.UnixNano() != a[i].UnixNano() {
+			i++
+		}
+		a[i] = v
 
-	other := make(IntegerValues, 0, len(m))
-	for _, val := range m {
-		other = append(other, val)
 	}
-
-	sort.Sort(other)
-	return other
+	return a[:i+1]
 }
 
 //  Exclude returns the subset of values not in [min, max]
@@ -569,18 +575,20 @@ func (a StringValues) assertOrdered() {
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.
 func (a StringValues) Deduplicate() StringValues {
-	m := make(map[int64]StringValue)
-	for _, val := range a {
-		m[val.UnixNano()] = val
+	if len(a) == 0 {
+		return a
 	}
+	sort.Stable(a)
+	var i int
+	for j := 1; j < len(a); j++ {
+		v := a[j]
+		if v.UnixNano() != a[i].UnixNano() {
+			i++
+		}
+		a[i] = v
 
-	other := make(StringValues, 0, len(m))
-	for _, val := range m {
-		other = append(other, val)
 	}
-
-	sort.Sort(other)
-	return other
+	return a[:i+1]
 }
 
 //  Exclude returns the subset of values not in [min, max]
@@ -740,18 +748,20 @@ func (a BooleanValues) assertOrdered() {
 // Deduplicate returns a new slice with any values that have the same timestamp removed.
 // The Value that appears last in the slice is the one that is kept.
 func (a BooleanValues) Deduplicate() BooleanValues {
-	m := make(map[int64]BooleanValue)
-	for _, val := range a {
-		m[val.UnixNano()] = val
+	if len(a) == 0 {
+		return a
 	}
+	sort.Stable(a)
+	var i int
+	for j := 1; j < len(a); j++ {
+		v := a[j]
+		if v.UnixNano() != a[i].UnixNano() {
+			i++
+		}
+		a[i] = v
 
-	other := make(BooleanValues, 0, len(m))
-	for _, val := range m {
-		other = append(other, val)
 	}
-
-	sort.Sort(other)
-	return other
+	return a[:i+1]
 }
 
 //  Exclude returns the subset of values not in [min, max]
