@@ -64,7 +64,6 @@ const MultiSelectDropdown = React.createClass({
   render() {
     const {localSelectedItems} = this.state;
     const {isOpen} = this.state;
-
     const labelText = isOpen ? "0 Selected" : "Apply Function";
 
     return (
