@@ -4,7 +4,7 @@ canned/apps_gen.go
 server/swagger_gen.go
 .pull-request
 node_modules
-chronograf
+/chronograf
 node_modules/
 build/
 chronograf.db
