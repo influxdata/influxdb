@@ -115,8 +115,8 @@ export default function AutoRefresh(ComposedComponent) {
       }
 
       return (
-        <div className="graph-panel__graph-empty">
-          <h3 className="deluxe">No results</h3>
+        <div className="graph-empty">
+          <p>No Results</p>
         </div>
       );
     },

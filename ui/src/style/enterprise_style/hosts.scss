@@ -21,7 +21,7 @@
   66% { transform: translate(-50%,-50%) scale(1.75); background-color: $g7-graphite; }
   100% { transform: translate(-50%,-50%) scale(1,1); }
 }
-.graph-panel__graph-container.hosts-graph {
+.graph-container.hosts-graph {
   padding: 8px 16px;
 
   .single-stat {

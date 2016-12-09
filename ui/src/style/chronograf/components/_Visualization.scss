@@ -1,142 +1,114 @@
-$graph-panel__tab-height: 44px;
-$graph-panel__tab-offset: 8px;
+$graph-bg-color: $g3-castle;
+$graph-active-color: $g4-onyx;
+$graph-radius: 4px;
 
 $dygraphs-legend-offset: 32px;
 
-.graph-panel {
+.graph {
   position: relative;
   margin-bottom: 18px;
-  transition: box-shadow 0.3s ease;
-
-  &.active {
-    .graph-panel__title {
-      color: $g20-white;
-    }
-  }
 
   &:last-child {
     margin-bottom: 100%;
   }
+}
+.graph-heading {
+  background-color: $graph-bg-color;
+  border-radius: $graph-radius $graph-radius 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  padding: 0 16px;
+  transition:
+    background-color 0.25s ease;
 
-  &__view-selector {
-    cursor: pointer;
-
-    &.active {
-      color: $g20-white;
-    }
-  }
-
-  &__bar {
-    background-color: $g5-pepper;
-    border-radius: 4px 4px 0 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: $graph-panel__tab-height;
-    padding: 0 16px;
-    transition:
-      background-color 0.25s ease;
-
-  }
-  &__left {
-    display: flex;
-    align-items: center;
-  }
-  &__title {
-    font-size: 16px;
-    color: $g13-mist;
-    font-weight: 500;
-    margin-right: 16px;
-    transition:
-      color 0.25s ease;
-
-    .icon {
-      font-size: 12px;
-      margin-right: 8px;
-      position: relative;
-      top: -1px;
-    }
-  }
-  &__tabs {
-    padding: 0;
-    margin: $graph-panel__tab-offset 0 0 0;
-    list-style: none;
-    display: flex;
-  }
-  &__tab {
-    background-color: $g5-pepper;
-    color: $g10-wolf;
-    height: $graph-panel__tab-height - $graph-panel__tab-offset;
-    line-height: $graph-panel__tab-height - $graph-panel__tab-offset - 5px;
-    border-radius: 4px 4px 0 0;
-    margin-right: 2px;
-    padding: 0 14px;
-    font-weight: 500;
-    transition:
-      background-color 0.25s ease,
-      color 0.25s ease;
-
-    &:hover {
-      cursor: pointer;
-      color: $g13-mist;
-      background-color: $g4-onyx;
-    }
-    &.active {
-      background-color: $g3-castle;
-      color: $g20-white;
-    }
-  }
-  &__graph-container {
-    background-color: $g3-castle;
-    border-radius: 0 0 4px 4px;
-    padding: 8px 16px;
-    position: relative;
-    height: 316px;
-  }
-  &__graph-empty {
-    width: 100%;
-    height: 300px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    > * {
-      margin: 0;
-      color: $g8-storm;
-    }
-  }
-  &__graph-fetching {
-    width: 100%;
-    height: 320px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  &__spinner {
-    width: 121px;
-    height: 121px;
-    background-image: url(assets/images/laser-spinner.png);
-    background-size: 100% 100%;
-    background-position: center center;
-    background-repeat: no-repeat;
-    animation: graph-panel-spinner 1s infinite linear;
-  }
-  &__spinner--small {
-    width: 58px;
-    height: 58px;
-    background-image: url(assets/images/laser-spinner.png);
-    background-size: 100% 100%;
-    background-position: center center;
-    background-repeat: no-repeat;
-    animation: graph-panel-spinner 1s infinite linear;
-    position: absolute;
-    left: 0;
-    bottom: 0;
-    right: 0;
-    top: 0;
-    margin: auto;
+  .toggle {
+    margin: 0;
   }
 }
+.graph-title {
+  font-size: 14px;
+  color: $g13-mist;
+  font-weight: 600;
+  margin-right: 16px;
+  transition:
+    color 0.25s ease;
+}
+.graph-actions {
+  display: flex;
+  align-items: center;
+}
+.graph-container {
+  background-color: $graph-bg-color;
+  border-radius: 0 0 $graph-radius $graph-radius;
+  padding: 8px 16px;
+  position: relative;
+  height: 316px;
+  transition:
+    background-color 0.25s ease;
+}
+
+
+/* Active State */
+.graph.active {
+  .graph-heading,
+  .graph-container {
+    background-color: $graph-active-color;
+  }
+  .graph-title {
+    color: $g20-white;
+  }
+}
+
+.graph-empty {
+  width: 100%;
+  height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-content: center;
+
+  > p {
+    font-size: 28px;
+    font-weight: 300;
+    margin: 0;
+    text-align: center;
+    color: $g8-storm;
+  }
+}
+.graph-fetching {
+  width: 100%;
+  height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.graph-spinner {
+  width: 121px;
+  height: 121px;
+  background-image: url(assets/images/laser-spinner.png);
+  background-size: 100% 100%;
+  background-position: center center;
+  background-repeat: no-repeat;
+  animation: graph-panel-spinner 1s infinite linear;
+}
+.graph-spinner--small {
+  width: 58px;
+  height: 58px;
+  background-image: url(assets/images/laser-spinner.png);
+  background-size: 100% 100%;
+  background-position: center center;
+  background-repeat: no-repeat;
+  animation: graph-panel-spinner 1s infinite linear;
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  right: 0;
+  top: 0;
+  margin: auto;
+}
+
 @keyframes graph-panel-spinner {
   0% {
     transform: rotate(0deg);
