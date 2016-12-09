@@ -113,22 +113,39 @@
   }
 
   &-delete {
-    margin-left: 0px;
+    margin: 0 -4px 0 1px;
     width: 16px;
     height: 16px;
-    border-radius: 50%;
     background-color: transparent;
     display: inline-block;
     vertical-align: text-top;
     position: relative;
-    color: $g10-wolf;
-    transition:
-      color 0.25s ease,
-      background-color 0.25s ease;
+
+    &:before,
+    &:after {
+      display: block;
+      content: '';
+      width: 8px;
+      height: 2px;
+      background-color: $g8-storm;
+      transition:
+        background-color 0.25s ease;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+    }
+    &:before {
+      transform: translate(-50%,-50%) rotate(45deg);
+    }
+    &:after {
+      transform: translate(-50%,-50%) rotate(-45deg);
+    }
 
     &:hover {
-      background-color: $c-dreamsicle;
-      color: $g20-white;
+      &:before,
+      &:after {
+        background-color: $c-dreamsicle;
+      }
     }
   }
 }
