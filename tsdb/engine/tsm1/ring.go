@@ -86,6 +86,7 @@ func (r *ring) reset() {
 	for _, partition := range r.partitions {
 		partition.reset()
 	}
+	r.keysHint = 0
 }
 
 // getPartition retrieves the hash ring partition associated with the provided
@@ -230,19 +231,22 @@ func (p *partition) write(key string, values Values) error {
 		return e.add(values)
 	}
 
-	// Create a new entry using a preallocated size if we have a hint available.
-	p.mu.RLock()
-	hint, _ := p.entrySizeHints[xxhash.Sum64([]byte(key))]
-	p.mu.RUnlock()
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
+	// Check again.
+	if e, ok = p.store[key]; ok {
+		return e.add(values)
+	}
+
+	// Create a new entry using a preallocated size if we have a hint available.
+	hint, _ := p.entrySizeHints[xxhash.Sum64([]byte(key))]
 	e, err := newEntryValues(values, hint)
 	if err != nil {
 		return err
 	}
 
-	p.mu.Lock()
 	p.store[key] = e
-	p.mu.Unlock()
 	return nil
 }
 
@@ -265,7 +269,7 @@ func (p *partition) remove(key string) {
 func (p *partition) keys() []string {
 	p.mu.RLock()
 	keys := make([]string, 0, len(p.store))
-	for k, _ := range p.store {
+	for k := range p.store {
 		keys = append(keys, k)
 	}
 	p.mu.RUnlock()
