@@ -19,14 +19,24 @@ func (d *DebugAssets) Handler() http.Handler {
 	return http.FileServer(NewDir(d.Dir, d.Default))
 }
 
-// BindataAssets serves assets from go-bindata
+// BindataAssets serves assets from go-bindata, but, also serves Default if assent doesn't exist
+// This is to support single-page react-apps with its own router.
 type BindataAssets struct {
-	Prefix  string // Prefix is prepended to the http file request
-	Default string // Default is the file to serve if the file is not found
+	Prefix             string // Prefix is prepended to the http file request
+	Default            string // Default is the file to serve if the file is not found
+	DefaultContentType string // DefaultContentType is the content type of the default file
 }
 
 // Handler serves go-bindata using a go-bindata-assetfs façade
 func (b *BindataAssets) Handler() http.Handler {
+	return b
+}
+
+// ServeHTTP wraps http.FileServer by returning a default asset if the asset
+// doesn't exist.  This supports single-page react-apps with its own
+// built-in router.  Additionally, we override the content-type if the
+// Default file is used.
+func (b *BindataAssets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// def wraps the assets to return the default file if the file doesn't exist
 	def := func(name string) ([]byte, error) {
 		// If the named asset exists, then return it directly.
@@ -39,6 +49,9 @@ func (b *BindataAssets) Handler() http.Handler {
 			}
 			// If this is anything other than slash, we just return the default
 			// asset.  This default asset will handle the routing.
+			// Additionally, because we know we are returning the default asset,
+			// we need to set the default asset's content-type.
+			w.Header().Set("Content-Type", b.DefaultContentType)
 			return Asset(b.Default)
 		}
 		return octets, nil
@@ -49,5 +62,5 @@ func (b *BindataAssets) Handler() http.Handler {
 		AssetInfo: AssetInfo,
 		Prefix:    b.Prefix,
 	}
-	return http.FileServer(dir)
+	http.FileServer(dir).ServeHTTP(w, r)
 }

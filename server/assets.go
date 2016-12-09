@@ -16,6 +16,8 @@ const (
 	DebugDir = "ui/build"
 	// DebugDefault is the default item to load if 404
 	DebugDefault = "ui/build/index.html"
+	// DefaultContentType is the content-type to return for the Default file
+	DefaultContentType = "text/html; charset=utf-8"
 )
 
 // AssetsOpts configures the asset middleware
@@ -36,8 +38,9 @@ func Assets(opts AssetsOpts) http.Handler {
 		}
 	} else {
 		assets = &dist.BindataAssets{
-			Prefix:  Dir,
-			Default: Default,
+			Prefix:             Dir,
+			Default:            Default,
+			DefaultContentType: DefaultContentType,
 		}
 	}
 
