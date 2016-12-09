@@ -1,6 +1,10 @@
 ## v1.1.0 [unreleased]
 
-## v1.1.0-beta2 []
+## v1.1.0-beta2 [2016-12-09]
+
+### Features
+  1. [#624](https://github.com/influxdata/chronograf/issues/624): Add time range selection to kapacitor alert rules
+  1. Update Go to 1.7.4
 
 ### Bug Fixes
   1. [#664](https://github.com/influxdata/chronograf/issues/664): Fix Content-Type of single-page app to always be text/html
