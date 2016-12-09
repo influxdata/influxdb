@@ -21,6 +21,7 @@ type Client struct {
 	LayoutStore      *LayoutStore
 	UsersStore       *UsersStore
 	AlertsStore      *AlertsStore
+	DashboardsStore  *DashboardsStore
 }
 
 func NewClient() *Client {
@@ -34,6 +35,7 @@ func NewClient() *Client {
 		client: c,
 		IDs:    &uuid.V4{},
 	}
+	c.DashboardsStore = &DashboardsStore{client: c}
 	return c
 }
 

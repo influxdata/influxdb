@@ -188,6 +188,12 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 	return nil
 }
 
+func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
+	return proto.Marshal(&Dashboard{
+
+	})
+}
+
 // ScopedAlert contains the source and the kapacitor id
 type ScopedAlert struct {
 	chronograf.AlertRule

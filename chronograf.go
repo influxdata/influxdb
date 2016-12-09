@@ -244,8 +244,8 @@ type DashboardCell struct {
 	Type    string	`json:"type"`
 }
 
-// DashboardStore is the storage and retrieval of dashboards
-type DashboardStore interface {
+// DashboardsStore is the storage and retrieval of dashboards
+type DashboardsStore interface {
 	// Create a new Dashboard in the DashboardStore
 	Add(context.Context, *Dashboard) (*Dashboard, error)
 	// Delete the Dashboard from the DashboardStore
