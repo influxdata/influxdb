@@ -20,7 +20,7 @@
     justify-content: flex-start;
 
     .badge {
-      background-color: $g5-pepper;
+      background-color: $g2-kevlar;
       color: $c-pool;
       margin-left: 5px;
     }
@@ -46,7 +46,7 @@
   &__checkbox {
     width: 16px;
     height: 16px;
-    background-color: $g5-pepper;
+    background-color: $g2-kevlar;
     border-radius: 3px;
     position: relative;
     margin-right: 8px;
@@ -76,7 +76,7 @@
     align-items: center;
 
     &.active {
-      background: $g7-graphite;
+      background: $g4-onyx;
       color: $g20-white;
       font-weight: 600;
 
@@ -90,7 +90,7 @@
     position: relative;
     width: 100%;
     display: block;
-    background-color: $g5-pepper;
+    background-color: $g3-castle;
     border: 2px solid $g5-pepper;
     color: $g13-mist;
     height: 24px;
