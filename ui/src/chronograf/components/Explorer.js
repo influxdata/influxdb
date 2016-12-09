@@ -108,7 +108,7 @@ const Explorer = React.createClass({
 
     if (!query) {
       return (
-        <div className="query-editor__empty">
+        <div className="qeditor--empty">
           <h5>This Graph has no Queries</h5>
           <br/>
           <div className="btn btn-primary" role="button" onClick={this.handleAddQuery}>Add a Query</div>
@@ -130,10 +130,10 @@ const Explorer = React.createClass({
     if (!this.props.isExpanded) {
       return null;
     }
-
     return (
       <div className="explorer--tabs">
         {this.props.queries.map((q) => {
+          const queryTabText = (q.measurement && q.fields.length !== 0) ? `${q.measurement}.${q.fields[0].field}` : 'Query';
           return (
             <QueryTabItem
               isActive={this.getActiveQuery().id === q.id}
@@ -141,6 +141,7 @@ const Explorer = React.createClass({
               query={q}
               onSelect={this.handleSetActiveQuery}
               onDelete={this.handleDeleteQuery}
+              queryTabText={queryTabText}
             />
           );
         })}
