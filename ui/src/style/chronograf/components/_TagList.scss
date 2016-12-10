@@ -20,7 +20,7 @@
     justify-content: flex-start;
 
     .badge {
-      background-color: $g5-pepper;
+      background-color: $g2-kevlar;
       color: $c-pool;
       margin-left: 5px;
     }
@@ -46,7 +46,7 @@
   &__checkbox {
     width: 16px;
     height: 16px;
-    background-color: $g5-pepper;
+    background-color: $g2-kevlar;
     border-radius: 3px;
     position: relative;
     margin-right: 8px;
@@ -76,7 +76,7 @@
     align-items: center;
 
     &.active {
-      background: $g7-graphite;
+      background: $g4-onyx;
       color: $g20-white;
       font-weight: 600;
 
@@ -90,7 +90,7 @@
     position: relative;
     width: 100%;
     display: block;
-    background-color: $g5-pepper;
+    background-color: $g3-castle;
     border: 2px solid $g5-pepper;
     color: $g13-mist;
     height: 24px;
@@ -171,42 +171,6 @@
     &:hover {
       background: $c-laser;
       border-color: $c-laser;
-    }
-  }
-}
-
-.tag-list__toggle {
-  
-  
-  width: 170px;
-  display: flex;
-
-  &-btn {
-    border: 2px solid $g7-graphite;
-    background-color: $g5-pepper;
-    color: $g10-wolf;
-    border-radius: 3px 0 0 3px;
-    &:last-child {
-      border-radius: 0 3px 3px 0;
-      border-left: 0;
-    }
-    width: 50%;
-    height: 30px;
-    line-height: 26px;
-    text-align: center;
-    transition:
-      color 0.25s ease,
-      background-color 0.25s ease;
-
-    &:hover {
-      color: $g20-white;
-      background-color: $g6-smoke;
-      cursor: pointer;
-    }
-    &.active {
-      background-color: $g7-graphite;
-      color: $g20-white;
-      font-weight: 600;
     }
   }
 }

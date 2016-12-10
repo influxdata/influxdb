@@ -1,108 +1,53 @@
-.checkbox.checked {
-  background-color: gainsboro !important;
-}
+/*
+
+  Query Editor Styles
+  -------------------------------------------------
+  Abbreviated as "qeditor"
+
+*/
 $query-editor-gutter: 16px;
-$query-editor-tab-inactive: $g5-pepper;
-$query-editor-tab-active: $g6-smoke;
-$query-editor-height: 35vh;
+$query-editor-tab-inactive: $g2-kevlar;
+$query-editor-tab-active: $g3-castle;
+$query-editor-height: 250px;
 
-.query-editor {
-  padding: 0.5em;
-  background-color: $g8-storm;
-  border-radius: 0 0 $radius $radius;
+.qeditor--query-preview {
+  position: relative;
 
-  &__code {
-    position: relative;
-
-    pre {
-      white-space: pre-wrap;
-      border: 0;
-      background-color: $query-editor-tab-inactive;
-      font-weight: 600;
-      color: $c-comet;
-      border-radius: $radius-small $radius-small 0 0;
-      border-bottom: 2px solid $g6-smoke;
-      margin-bottom: 0;
-      overflow: auto;
-      min-height: 3.25em;
-
-      code {
-        white-space: pre-wrap;
-        line-height: 1.5em;
-      }
-
-      // Custom Scrollbar styles, pretty sure these only work in chrome
-      &::-webkit-scrollbar {
-        width: 14px;
-        border-top-right-radius: $radius;
-
-        &-button {
-          background-color: $query-editor-tab-inactive;
-        }
-        &-track {
-          background-color: $query-editor-tab-inactive;
-          border-top-right-radius: $radius;
-        }
-        &-track-piece {
-          background-color: $query-editor-tab-inactive;
-          border-top-right-radius: $radius;
-        }
-        &-thumb {
-          background-color: $c-comet;
-          border: 4px solid $query-editor-tab-inactive;
-          border-radius: 7px;
-        }
-        &-corner {
-          background-color: $query-editor-tab-inactive;
-        }
-      }
-      &::-webkit-resizer {
-        background-color: $query-editor-tab-inactive;
-      }
-
-      &.rq-mode {
-        color: $c-honeydew;
-        &::-webkit-scrollbar-thumb {
-          background-color: $c-honeydew;
-        }
-      }
-    }
-  }
-
-  // Tabs for switching between queries
-  &__tab {
-    text-align: center;
+  pre {
+    padding: 9px;
+    white-space: pre-wrap;
+    border: 0;
     background-color: $query-editor-tab-inactive;
-    color: $g13-mist;
-    height: 30px;
-    padding: 0 9.5px;
-    line-height: 30px;
-    font-size: 14px;
+    font-weight: 600;
+    color: $c-comet;
     border-radius: $radius-small $radius-small 0 0;
-    margin-right: 2px;
-    transition:
-      color 0.25s ease,
-      background-color 0.25s ease;
+    border-bottom: 2px solid $query-editor-tab-active;
+    margin-bottom: 0;
+    overflow: auto;
+    min-height: 3.25em;
+    @include custom-scrollbar($query-editor-tab-inactive, $c-pool);
 
-    &.active {
-      background-color: $query-editor-tab-active;
-      color: $g20-white;
+    code {
+      white-space: pre-wrap;
+      line-height: 1.5em;
     }
 
-    &:hover {
-      cursor: pointer;
-      color: $g20-white;
+    &.rq-mode {
+      color: $c-rainforest;
+      @include custom-scrollbar($query-editor-tab-inactive, $c-rainforest);
     }
   }
-  &__tabs {
-    display: flex;
-    width: 100%;
-    justify-content: flex-start;
-    padding: 8px 9.5px 0 9.5px;
-    background-color: $query-editor-tab-inactive;
-    flex-wrap: wrap;
-  }
-  &__tabs-heading {
+}
+// Tabs for switching between queries
+.qeditor--tabs {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+  padding: 8px 9px 0 9px;
+  background-color: $query-editor-tab-inactive;
+  flex-wrap: wrap;
+
+  &-heading {
     flex-basis: 100%;
     width: 100%;
     font-size: 12px;
@@ -112,392 +57,205 @@ $query-editor-height: 35vh;
     text-transform: uppercase;
     letter-spacing: 0.3px;
   }
+}
+.qeditor--tab {
+  text-align: center;
+  background-color: $query-editor-tab-inactive;
+  color: $g13-mist;
+  height: 28px;
+  padding: 0 9px;
+  line-height: 28px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: $radius-small $radius-small 0 0;
+  margin-right: 2px;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease;
 
-  // List of options
-  &__list {
-    margin: 0;
-    padding: 9.5px 0 0 0;
-    background-color: $g6-smoke;
-    border-radius: 0 0 $radius-small $radius-small;
-    min-height: $query-editor-height;
-    max-height: 80vh;
-    overflow: auto;
-
-    // Custom Scrollbar styles, pretty sure these only work in chrome
-    &::-webkit-scrollbar {
-      width: 14px;
-      border-bottom-right-radius: $radius;
-
-      &-button {
-        background-color: $g6-smoke;
-      }
-      &-track {
-        background-color: $g6-smoke;
-        border-bottom-right-radius: $radius;
-      }
-      &-track-piece {
-        background-color: $g5-pepper;
-        border: 4px solid $g6-smoke;
-        border-radius: 7px;
-      }
-      &-thumb {
-        background-color: $g8-storm;
-        border: 4px solid $g6-smoke;
-        border-radius: 7px;
-      }
-      &-corner {
-        background-color: $g6-smoke;
-      }
-    }
-    &::-webkit-resizer {
-      background-color: $g6-smoke;
-    }
-
-    &-item {
-      color: $g13-mist;
-      list-style-type: none;
-      margin: 0;
-      font-size: 13px;
-      padding: 4px 9.5px 4px 19px;
-      transition:
-        color 0.25s ease,
-        background-color 0.25s ease;
-
-      &:hover {
-        background-color: $g7-graphite;
-        color: $g20-white;
-        cursor: pointer;
-      }
-    }
-    &-radio {
-      &.active {
-        color: $g20-white;
-        background-color: $g7-graphite;
-        font-weight: 600;
-      }
-    }
-    &-checkbox {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-
-      &.checked {
-        color: $g20-white;
-        font-weight: 600;
-
-        // Animate checked state
-        .query-editor__list-checkbox__checkbox {
-          &:before {
-            opacity: 1;
-            transform: translate(-50%,-50%) scale(0.4,0.4);
-          }
-        }
-        // Fade in & out dropdowns when checked
-        .query-editor__hidden-dropdown {
-          visibility: visible;
-
-          .dropdown {
-            opacity: 1;
-          }
-        }
-      }
-
-      .dropdown {
-        .btn.dropdown-toggle {
-          text-align: left;
-          background-color: $g5-pepper;
-          border-color: $g5-pepper;
-          color: $g13-mist !important;
-
-          &:hover {
-            background-color: $g6-smoke;
-            border-color: $g6-smoke;
-            color: $g20-white !important;
-          }
-          &:active,
-          &:active:hover,
-          &:active:focus,
-          &.active {
-            color: $g20-white !important;
-            background-color: $g7-graphite;
-            border-color: $g6-smoke;
-          }
-        }
-        .dropdown-menu {
-          width: 100%;
-          min-width: 100%;
-          max-width: 100%;
-          background-color: $g5-pepper;
-
-          li {
-            margin-bottom: 2px;
-            &:last-child {
-              margin-bottom: 0;
-            }
-          }
-          li > a {
-            font-size: 13px;
-            padding-left: 31px;
-            position: relative;
-
-            &:hover {
-              background-color: $g6-smoke;
-            }
-            // Checkbox background
-            &:after {
-              content: '';
-              position: absolute;
-              top: 50%;
-              left: 5px;
-              transform: translateY(-50%);
-              background-color: $g4-onyx;
-              border-radius: 2px;
-              width: 16px;
-              height: 16px;
-              z-index: 1;
-              transition: background-color 0.25s ease;
-            }
-            // Checkbox check
-            &:before {
-              opacity: 0;
-              content: '';
-              position: absolute;
-              top: 50%;
-              left: 13px;
-              transform: translate(-50%,-50%);
-              background-color: $c-pool;
-              border-radius: 50%;
-              width: 20px;
-              height: 20px;
-              z-index: 2;
-              transition: all 0.25s ease;
-            }
-
-          }
-          li.active > a {
-            background: none;
-            background-color: $g7-graphite;
-
-            // Checkbox background
-            &:after {
-              background-color: $g6-smoke;
-            }
-            // Checkbox check
-            &:before {
-              opacity: 1;
-              transform: translate(-50%,-50%) scale(0.4,0.4);
-            }
-          }
-        }
-      }
-
-      &__checkbox {
-        position: relative;
-        padding-left: 24px;
-
-        &:before {
-          z-index: 2;
-          content: '';
-          position: absolute;
-          top: 50%;
-          left: 8px;
-          transform: translate(-50%,-50%);
-          width: 20px;
-          height: 20px;
-          opacity: 0;
-          background-color: $c-pool;
-          border-radius: 50%;
-          transition:
-            transform 0.25s ease,
-            opacity 0.25s ease;
-        }
-
-        &:after {
-          content: '';
-          position: absolute;
-          top: 50%;
-          left: 0;
-          transform: translateY(-50%);
-          width: 16px;
-          height: 16px;
-          background-color: $g5-pepper;
-          border-radius: 3px;
-          z-index: 1;
-        }
-      }
-    }
-    &-header {
-      position: relative;
-      background-color: $g6-smoke;
-        padding: 9.5px 19px 0px 19px;
-    }
-  }
-
-  // List empty state
-  &__empty {
-    text-align: center;
-    color: $g13-mist;
-    display: inline-block;
-    width: 100%;
-    padding: 18px 0;
-    min-height: $query-editor-height;
-    max-height: 80vh;
-    background-color: $g7-graphite;
-    border-radius: 0 0 $radius $radius;
-  }
-
-  // Hidden dropdowns
-  &__hidden-dropdown {
-    visibility: hidden;
-    transition: all 0.3s all;
-
-    .dropdown {
-      transition: opacity 0.3s ease;
-      opacity: 0;
-    }
-  }
-
-  // Filter list results
-  &__filter {
-    position: relative;
-    width: 100%;
-    display: block;
-    background-color: $g5-pepper;
-    border: 2px solid $g5-pepper;
-    color: $g13-mist;
-    height: 30px;
-    border-radius: 15px;
-    font-size: 13px;
-    padding-left: 38px;
-    outline: none;
+  &:hover {
+    cursor: pointer;
     color: $g20-white;
-    font-weight: 700;
+  }
+  &.active {
+    background-color: $query-editor-tab-active;
+    color: $g20-white;
+  }
+}
+
+// List of options
+.qeditor--list {
+  margin: 0;
+  padding: 9.5px 0 0 0;
+  background-color: $query-editor-tab-active;
+  border-radius: 0 0 $radius-small $radius-small;
+  min-height: $query-editor-height;
+
+  &-item {
+    color: $g11-sidewalk;
+    list-style-type: none;
+    margin: 0;
+    font-size: 12px;
+    padding: 4px 9px 4px 18px;
     transition:
-      border-color 0.25s ease,
       color 0.25s ease,
       background-color 0.25s ease;
 
-    &:focus {
-      border-color: $c-pool;
-      & + .icon {
-        color: $g20-white;
+    &:hover {
+      background-color: $g4-onyx;
+      color: $g17-whisper;
+      cursor: pointer;
+    }
+  }
+  &-radio {
+    &.active {
+      color: $g20-white;
+      background-color: $g4-onyx;
+      font-weight: 600;
+    }
+  }
+  &-checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 
+    &.checked {
+      color: $g20-white;
+      font-weight: 600;
+
+      // Animate checked state
+      .qeditor--list-checkbox__checkbox {
+        &:before {
+          opacity: 1;
+          transform: translate(-50%,-50%) scale(0.4,0.4);
+        }
+      }
+      // Fade in & out dropdowns when checked
+      .qeditor--hidden-dropdown {
+        visibility: visible;
+
+        .dropdown {
+          opacity: 1;
+        }
       }
     }
-    &::-webkit-input-placeholder {
-      color: $g10-wolf;
-      font-weight: 500;
-    }
-    &:-moz-placeholder { /* Firefox 18- */
-      color: $g10-wolf;
-      font-weight: 500;
-    }
-    &::-moz-placeholder {  /* Firefox 19+ */
-      color: $g10-wolf;
-      font-weight: 500;
-    }
-    &:-ms-input-placeholder {
-      color: $g10-wolf;
-      font-weight: 500;
-    }
-    + .icon {
-      position: absolute;
-      top: calc(50% + 5px);
-      left: calc(19px * 2);
-      transform: translateY(-50%);
-      color: $g10-wolf;
-      transition: color 0.25s ease;
-      font-size: 12px;
-      z-index: 2;
+
+    &__checkbox {
+      position: relative;
+      padding-left: 24px;
+
+      &:before {
+        z-index: 2;
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 8px;
+        transform: translate(-50%,-50%);
+        width: 20px;
+        height: 20px;
+        opacity: 0;
+        background-color: $c-pool;
+        border-radius: 50%;
+        transition:
+          transform 0.25s ease,
+          opacity 0.25s ease;
+      }
+
+      &:after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 0;
+        transform: translateY(-50%);
+        width: 16px;
+        height: 16px;
+        background-color: $g2-kevlar;
+        border-radius: 3px;
+        z-index: 1;
+      }
     }
   }
+  &-header {
+    position: relative;
+    background-color: $query-editor-tab-active;
+      padding: 8px 18px 0px 18px;
+  }
+}
 
-  // Warning for converting to raw query
-  &__warning {
+// List empty state
+.qeditor--empty {
+  text-align: center;
+  color: $g10-wolf;
+  display: inline-block;
+  width: 100%;
+  padding: 18px 0;
+  height: $query-editor-height;
+  background-color: $query-editor-tab-active;
+  border-radius: 0 0 $radius $radius;
+}
+
+// Hidden dropdowns
+.qeditor--hidden-dropdown {
+  visibility: hidden;
+  transition: all 0.3s all;
+
+  .dropdown {
+    transition: opacity 0.3s ease;
     opacity: 0;
-    transition: opacity 0.35s ease;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(56,56,70,0.8);
-    z-index: 999;
-    border-radius: $radius-small $radius-small 0 0;
-    border-bottom: 2px solid $g6-smoke;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-
-    &:hover {
-      opacity: 1;
-    }
   }
 }
 
-.field {
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  &.active {
-    background-color: gainsboro !important;
-  }
-}
-
-.group-by-time {
-  display: flex;
-  align-items: baseline;
-}
-
-.group-by-time-dropdown {
-  width: $group-by-time-dropdown-width;
-
-  .caret {
-    position: absolute;
-    top: calc(50% + 1px);
-    right: 13px;
-    transform: translateY(-50%);
-  }
-
-  .dropdown-toggle {
-    text-align: left;
-    width: 100%;
-    background-color: $g5-pepper;
-    border-color: $g5-pepper;
-    color: $g13-mist !important;
-
-    &:hover {
-      color: $g20-white !important;
-      background-color: $g7-graphite;
-      border-color: $g6-smoke;
-    }
-    &:active,
-    &:active:hover,
-    &:active:focus,
-    &.active {
-      color: $g20-white !important;
-      background-color: $g7-graphite;
-      border-color: $g6-smoke;
-    }
-  }
-
-  .dropdown-menu {
-    width: $group-by-time-dropdown-width;
-    min-width: 2em; // Override bootstrap min-width
-  }
-}
-
-.group-by-time-dropdown-label {
+// Filter list results
+.qeditor--filter {
+  position: relative;
+  width: 100%;
+  display: block;
+  background-color: $g3-castle;
+  border: 2px solid $g6-smoke;
   color: $g13-mist;
-  margin-right: 4px;
-}
+  height: 30px;
+  border-radius: 15px;
+  font-size: 13px;
+  padding-left: 38px;
+  outline: none;
+  color: $g20-white;
+  font-weight: 700;
+  transition:
+    border-color 0.25s ease,
+    color 0.25s ease,
+    background-color 0.25s ease;
 
-.query-editor-empty-state {
-  color: $g17-whisper;
+  &:focus {
+    border-color: $c-pool;
+    & + .icon {
+      color: $g20-white;
 
-  .icon {
-    font-size: 1em;
+    }
+  }
+  &::-webkit-input-placeholder {
+    color: $g10-wolf;
+    font-weight: 500;
+  }
+  &:-moz-placeholder { /* Firefox 18- */
+    color: $g10-wolf;
+    font-weight: 500;
+  }
+  &::-moz-placeholder {  /* Firefox 19+ */
+    color: $g10-wolf;
+    font-weight: 500;
+  }
+  &:-ms-input-placeholder {
+    color: $g10-wolf;
+    font-weight: 500;
+  }
+  + .icon {
+    position: absolute;
+    top: calc(50% + 5px);
+    left: calc(19px * 2);
+    transform: translateY(-50%);
+    color: $g10-wolf;
+    transition: color 0.25s ease;
+    font-size: 12px;
+    z-index: 2;
   }
 }

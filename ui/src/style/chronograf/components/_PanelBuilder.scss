@@ -1,42 +1,12 @@
 .panel-builder {
+  width: 399px;
   overflow-x: hidden;
   background: $g1-raven;
-  background: -moz-linear-gradient(top,  $g5-pepper 0%, $g1-raven 100%);
-  background: -webkit-linear-gradient(top,  $g5-pepper 0%,$g1-raven 100%);
-  background: linear-gradient(to bottom,  $g5-pepper 0%,$g1-raven 100%);
-  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$g5-pepper', endColorstr='$g1-raven',GradientType=0 );
+  padding: $explorer-page-padding;
+  @include gradient-v($g2-kevlar,$g0-obsidian);
+  @include custom-scrollbar($g2-kevlar,$c-pool);
 
-  &__tabs {
-    display: flex;
-    text-align: center;
-    padding: $explorer-page-padding $explorer-page-padding 0 $explorer-page-padding;
-    background: $g3-castle;
-  }
-  &__tab {
-    padding: 18px 0 9px 0px;
-    flex: 1;
-    background: $g3-castle;
-    cursor: pointer;
-    font-weight: 400;
-    font-size: 20px;
-    color: $g12-forge;
-    line-height: calc(60px - $explorer-page-padding - 2px);
-    border-radius: 4px 4px 0 0;
-    transition: color 0.25s ease;
-
-    &:hover {
-      color: $g20-white;
-    }
-
-    &.active {
-      background-color: $g5-pepper;
-      color: $g20-white;
-    }
-  }
-  &__tab-content {
-    padding: $explorer-page-padding;
-  }
-  &__item {
+  > .btn {
     margin-bottom: 6px;
   }
 }

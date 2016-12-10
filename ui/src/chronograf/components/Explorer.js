@@ -80,14 +80,15 @@ const Explorer = React.createClass({
 
     return (
       <div className={classNames('explorer', {active: isExpanded})}>
-        <div className="explorer__header" onClick={this.handleSelectExplorer}>
-          <div className="explorer__header-name">
+        <div className="explorer--header" onClick={this.handleSelectExplorer}>
+          <div className="explorer--name">
             <span className="icon caret-right"></span>
             {panel.name || "Graph"}
           </div>
-          <div className="explorer__header-actions">
-            <div title="Rename" className="explorer__header-rename" onClick={this.openRenamePanelModal}><span className="icon pencil"></span></div>
-            <div title="Delete" className="explorer__header-delete" onClick={this.handleDeletePanel}><span className="icon trash"></span></div>
+          <div className="explorer--actions">
+            <div title="Export Queries to Dashboard" className="explorer--action"><span className="icon export"></span></div>
+            <div title="Rename Graph" className="explorer--action" onClick={this.openRenamePanelModal}><span className="icon pencil"></span></div>
+            <div title="Delete Graph" className="explorer--action" onClick={this.handleDeletePanel}><span className="icon trash"></span></div>
           </div>
         </div>
         {this.renderQueryTabList()}
@@ -107,7 +108,7 @@ const Explorer = React.createClass({
 
     if (!query) {
       return (
-        <div className="query-editor__empty">
+        <div className="qeditor--empty">
           <h5>This Graph has no Queries</h5>
           <br/>
           <div className="btn btn-primary" role="button" onClick={this.handleAddQuery}>Add a Query</div>
@@ -129,10 +130,10 @@ const Explorer = React.createClass({
     if (!this.props.isExpanded) {
       return null;
     }
-
     return (
-      <div className="explorer__tabs">
+      <div className="explorer--tabs">
         {this.props.queries.map((q) => {
+          const queryTabText = (q.measurement && q.fields.length !== 0) ? `${q.measurement}.${q.fields[0].field}` : 'Query';
           return (
             <QueryTabItem
               isActive={this.getActiveQuery().id === q.id}
@@ -140,10 +141,11 @@ const Explorer = React.createClass({
               query={q}
               onSelect={this.handleSetActiveQuery}
               onDelete={this.handleDeleteQuery}
+              queryTabText={queryTabText}
             />
           );
         })}
-        <div className="explorer__tab" onClick={this.handleAddQuery}>
+        <div className="explorer--tab" onClick={this.handleAddQuery}>
           <span className="icon plus"></span>
         </div>
       </div>
