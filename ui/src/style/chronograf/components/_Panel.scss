@@ -1,18 +1,19 @@
-.explorer {
+.panel {
   display: block;
   background-color: $g3-castle;
   border-radius: $radius;
   margin-bottom: 6px;
   transition: background-color 0.25s ease;
+  border: 0;
 
   &:hover {
     background-color: $g4-onyx;
   }
 
-  // For when an explorer item is open
+  // For when an panel item is open
   &.active {
     background-color: $g4-onyx;
-    .explorer__header {
+    .panel__header {
       &-name {
         color: $g20-white;
 
@@ -23,8 +24,8 @@
     }
   }
 }
-// Explorer Header Bar
-.explorer--header {
+// panel Header Bar
+.panel--header {
   align-items: center;
   text-align: center;
   display: flex;
@@ -35,7 +36,7 @@
   justify-content: space-between;
   border-radius: $radius;
 }
-.explorer--name {
+.panel--name {
   color: $g13-mist;
   font-weight: 600;
   font-size: 14px;
@@ -56,11 +57,11 @@
     color: $g17-whisper;
   }
 }
-.explorer--actions {
+.panel--actions {
   display: flex;
   align-items: center;
 }
-.explorer--action {
+.panel--action {
   width: 24px;
   height: 24px;
   border: 0;
@@ -76,12 +77,12 @@
 }
 
 // Tabs
-.explorer--tabs {
+.panel--tabs {
   display: flex;
   background-color: $g4-onyx;
   padding: 0 11px;
 }
-.explorer--tab {
+.panel--tab {
   display: flex;
   align-items: center;
   color: $g11-sidewalk;
@@ -147,7 +148,7 @@
     }
   }
 }
-.explorer--tab-label {
+.panel--tab-label {
   display: inline-block;
   font-size: 12px;
   font-weight: 600;
@@ -161,7 +162,7 @@
   Tab Contents
   -------------------------------------------
 */
-.explorer--tab-contents {
+.panel--tab-contents {
   padding: 6px;
   background-color: $g6-smoke;
   border-radius: 0 0 $radius $radius;
@@ -177,7 +178,7 @@
   }
 }
 
-.explorer__header-actions {
+.panel__header-actions {
   display: flex;
 
   * {
