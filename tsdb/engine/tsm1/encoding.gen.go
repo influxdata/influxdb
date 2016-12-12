@@ -59,6 +59,20 @@ func (a Values) Deduplicate() Values {
 	if len(a) == 0 {
 		return a
 	}
+
+	// See if we're already sorted and deduped
+	var needSort bool
+	for i := 1; i < len(a); i++ {
+		if a[i-1].UnixNano() >= a[i].UnixNano() {
+			needSort = true
+			break
+		}
+	}
+
+	if !needSort {
+		return a
+	}
+
 	sort.Stable(a)
 	var i int
 	for j := 1; j < len(a); j++ {
@@ -115,13 +129,8 @@ func (a Values) Merge(b Values) Values {
 	// Normally, both a and b should not contain duplicates.  Due to a bug in older versions, it's
 	// possible stored blocks might contain duplicate values.  Remove them if they exists before
 	// merging.
-	if !a.ordered() {
-		a = a.Deduplicate()
-	}
-
-	if !b.ordered() {
-		b = b.Deduplicate()
-	}
+	a = a.Deduplicate()
+	b = b.Deduplicate()
 
 	if a[len(a)-1].UnixNano() < b[0].UnixNano() {
 		return append(a, b...)
@@ -232,6 +241,20 @@ func (a FloatValues) Deduplicate() FloatValues {
 	if len(a) == 0 {
 		return a
 	}
+
+	// See if we're already sorted and deduped
+	var needSort bool
+	for i := 1; i < len(a); i++ {
+		if a[i-1].UnixNano() >= a[i].UnixNano() {
+			needSort = true
+			break
+		}
+	}
+
+	if !needSort {
+		return a
+	}
+
 	sort.Stable(a)
 	var i int
 	for j := 1; j < len(a); j++ {
@@ -288,13 +311,8 @@ func (a FloatValues) Merge(b FloatValues) FloatValues {
 	// Normally, both a and b should not contain duplicates.  Due to a bug in older versions, it's
 	// possible stored blocks might contain duplicate values.  Remove them if they exists before
 	// merging.
-	if !a.ordered() {
-		a = a.Deduplicate()
-	}
-
-	if !b.ordered() {
-		b = b.Deduplicate()
-	}
+	a = a.Deduplicate()
+	b = b.Deduplicate()
 
 	if a[len(a)-1].UnixNano() < b[0].UnixNano() {
 		return append(a, b...)
@@ -405,6 +423,20 @@ func (a IntegerValues) Deduplicate() IntegerValues {
 	if len(a) == 0 {
 		return a
 	}
+
+	// See if we're already sorted and deduped
+	var needSort bool
+	for i := 1; i < len(a); i++ {
+		if a[i-1].UnixNano() >= a[i].UnixNano() {
+			needSort = true
+			break
+		}
+	}
+
+	if !needSort {
+		return a
+	}
+
 	sort.Stable(a)
 	var i int
 	for j := 1; j < len(a); j++ {
@@ -461,13 +493,8 @@ func (a IntegerValues) Merge(b IntegerValues) IntegerValues {
 	// Normally, both a and b should not contain duplicates.  Due to a bug in older versions, it's
 	// possible stored blocks might contain duplicate values.  Remove them if they exists before
 	// merging.
-	if !a.ordered() {
-		a = a.Deduplicate()
-	}
-
-	if !b.ordered() {
-		b = b.Deduplicate()
-	}
+	a = a.Deduplicate()
+	b = b.Deduplicate()
 
 	if a[len(a)-1].UnixNano() < b[0].UnixNano() {
 		return append(a, b...)
@@ -578,6 +605,20 @@ func (a StringValues) Deduplicate() StringValues {
 	if len(a) == 0 {
 		return a
 	}
+
+	// See if we're already sorted and deduped
+	var needSort bool
+	for i := 1; i < len(a); i++ {
+		if a[i-1].UnixNano() >= a[i].UnixNano() {
+			needSort = true
+			break
+		}
+	}
+
+	if !needSort {
+		return a
+	}
+
 	sort.Stable(a)
 	var i int
 	for j := 1; j < len(a); j++ {
@@ -634,13 +675,8 @@ func (a StringValues) Merge(b StringValues) StringValues {
 	// Normally, both a and b should not contain duplicates.  Due to a bug in older versions, it's
 	// possible stored blocks might contain duplicate values.  Remove them if they exists before
 	// merging.
-	if !a.ordered() {
-		a = a.Deduplicate()
-	}
-
-	if !b.ordered() {
-		b = b.Deduplicate()
-	}
+	a = a.Deduplicate()
+	b = b.Deduplicate()
 
 	if a[len(a)-1].UnixNano() < b[0].UnixNano() {
 		return append(a, b...)
@@ -751,6 +787,20 @@ func (a BooleanValues) Deduplicate() BooleanValues {
 	if len(a) == 0 {
 		return a
 	}
+
+	// See if we're already sorted and deduped
+	var needSort bool
+	for i := 1; i < len(a); i++ {
+		if a[i-1].UnixNano() >= a[i].UnixNano() {
+			needSort = true
+			break
+		}
+	}
+
+	if !needSort {
+		return a
+	}
+
 	sort.Stable(a)
 	var i int
 	for j := 1; j < len(a); j++ {
@@ -807,13 +857,8 @@ func (a BooleanValues) Merge(b BooleanValues) BooleanValues {
 	// Normally, both a and b should not contain duplicates.  Due to a bug in older versions, it's
 	// possible stored blocks might contain duplicate values.  Remove them if they exists before
 	// merging.
-	if !a.ordered() {
-		a = a.Deduplicate()
-	}
-
-	if !b.ordered() {
-		b = b.Deduplicate()
-	}
+	a = a.Deduplicate()
+	b = b.Deduplicate()
 
 	if a[len(a)-1].UnixNano() < b[0].UnixNano() {
 		return append(a, b...)
