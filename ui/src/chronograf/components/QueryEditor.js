@@ -97,7 +97,7 @@ const QueryEditor = React.createClass({
 
   render() {
     return (
-      <div className="explorer--tab-contents">
+      <div className="panel--tab-contents">
         {this.renderQuery()}
         {this.renderLists()}
       </div>

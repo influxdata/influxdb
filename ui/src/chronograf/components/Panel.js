@@ -90,16 +90,16 @@ const Panel = React.createClass({
     const {panel, isExpanded} = this.props;
 
     return (
-      <div className={classNames('explorer', {active: isExpanded})}>
-        <div className="explorer--header" onClick={this.handleSelectPanel}>
-          <div className="explorer--name">
+      <div className={classNames('panel', {active: isExpanded})}>
+        <div className="panel--header" onClick={this.handleSelectPanel}>
+          <div className="panel--name">
             <span className="icon caret-right"></span>
             {panel.name || "Graph"}
           </div>
-          <div className="explorer--actions">
-            <div title="Export Queries to Dashboard" className="explorer--action"><span className="icon export"></span></div>
-            <div title="Rename Graph" className="explorer--action" onClick={this.openRenamePanelModal}><span className="icon pencil"></span></div>
-            <div title="Delete Graph" className="explorer--action" onClick={this.handleDeletePanel}><span className="icon trash"></span></div>
+          <div className="panel--actions">
+            <div title="Export Queries to Dashboard" className="panel--action"><span className="icon export"></span></div>
+            <div title="Rename Graph" className="panel--action" onClick={this.openRenamePanelModal}><span className="icon pencil"></span></div>
+            <div title="Delete Graph" className="panel--action" onClick={this.handleDeletePanel}><span className="icon trash"></span></div>
           </div>
         </div>
         {this.renderQueryTabList()}
@@ -143,7 +143,7 @@ const Panel = React.createClass({
       return null;
     }
     return (
-      <div className="explorer--tabs">
+      <div className="panel--tabs">
         {queries.map((q) => {
           const queryTabText = (q.measurement && q.fields.length !== 0) ? `${q.measurement}.${q.fields[0].field}` : 'Query';
           return (
@@ -176,7 +176,7 @@ const Panel = React.createClass({
     }
 
     return (
-      <div className="explorer--tab" onClick={this.toggleAddQueryOptions}>
+      <div className="panel--tab" onClick={this.toggleAddQueryOptions}>
         <span className="icon plus"></span>
       </div>
     );
