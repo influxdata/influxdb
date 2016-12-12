@@ -36,14 +36,12 @@ const PanelBuilder = React.createClass({
 
     return (
       <div className="panel-builder" style={{width}}>
-        <div className="panel-builder__tab-content">
-          <div className="btn btn-block btn-primary" onClick={this.handleCreateExploer}><span className="icon graphline"></span>&nbsp;&nbsp;Create Graph</div>
-          <PanelList
-            actions={actions}
-            setActivePanel={setActivePanel}
-            activePanelID={activePanelID}
-          />
-        </div>
+        <div className="btn btn-block btn-primary" onClick={this.handleCreateExploer}><span className="icon graphline"></span>&nbsp;&nbsp;Create Graph</div>
+        <PanelList
+          actions={actions}
+          setActivePanel={setActivePanel}
+          activePanelID={activePanelID}
+        />
       </div>
     );
   },
