@@ -22,6 +22,22 @@ message Source {
 	string Telegraf           = 8; // Telegraf is the db telegraf is written to. By default it is "telegraf"
 }
 
+message Dashboard {
+	int64 ID                     = 1; // ID is the unique ID of the dashboard
+	string Name                  = 2; // Name is the user-defined name of the dashboard
+	repeated DashboardCell cells = 3; // a representation of all visual data required for rendering the dashboard
+}
+
+message DashboardCell {
+	int32 x                 = 1; // X-coordinate of Cell in the Dashboard
+	int32 y                 = 2; // Y-coordinate of Cell in the Dashboard
+	int32 w                 = 3; // Width of Cell in the Dashboard
+	int32 h                 = 4; // Height of Cell in the Dashboard
+	repeated string queries = 5; // Time-series data queries for Dashboard
+	string name             = 7; // User-facing name for this Dashboard
+	string type             = 10; // Dashboard visualization type
+}
+
 message Server {
 	int64 ID                  = 1; // ID is the unique ID of the server
 	string Name               = 2; // Name is the user-defined name for the server
@@ -59,7 +75,7 @@ message Query {
     repeated string GroupBys= 4; // GroupBys define the groups to combine in the query
     repeated string Wheres  = 5; // Wheres define the restrictions on the query
     string Label            = 6; // Label is the name of the Y-Axis
-    Range Range             = 7; // Range is the upper and lower bound of the Y-Axis    
+    Range Range             = 7; // Range is the upper and lower bound of the Y-Axis
 }
 
 message Range {

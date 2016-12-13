@@ -190,10 +190,10 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 
 // MarshalDashboard encodes a dashboard to binary protobuf format.
 func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
-	cells := make([]*DashboardCell, len(l.Cells))
-	for i, c := range l.Cells {
+	cells := make([]*chronograf.DashboardCell, len(d.Cells))
+	for i, c := range d.Cells {
 
-		cells[i] = &DashboardCell{
+		cells[i] = &chronograf.DashboardCell{
 			X:       c.X,
 			Y:       c.Y,
 			W:       c.W,
@@ -205,14 +205,14 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 	}
 
 	return proto.Marshal(&Dashboard{
-		ID:   d.ID,
+		ID:   int64(d.ID),
     Cells: cells,
 		Name: d.Name,
 	})
 }
 
 // UnmarshalDashboard decodes a layout from binary protobuf data.
-func UnmarshalDashboard(data []byte, d *chonograf.Dashboard) error {
+func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 	var pb Dashboard
 	if err := proto.Unmarshal(data, &pb); err != nil {
 		return err
