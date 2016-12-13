@@ -1,5 +1,7 @@
 import React from 'react';
 
+import {getDashboards} from '../apis';
+
 const DashboardsPage = React.createClass({
   getInitialState() {
     return {
@@ -8,22 +10,28 @@ const DashboardsPage = React.createClass({
   },
 
   componentDidMount() {
-    // getDashboards().then((dashboards) => {
-    const dashboards = [];
-    this.state({
-      dashboards,
+    getDashboards().then((dashboards) => {
+      this.setState({
+        dashboards,
+      });
     });
-    // });
   },
 
   render() {
+    let tableHeader;
+    if (this.state.dashboards.length === 0) {
+      tableHeader = "Loading Dashboards...";
+    } else {
+      tableHeader = `${this.state.dashboards.length} Dashboards`;
+    }
+
     return (
       <div className="page">
         <div className="page-header">
           <div className="page-header__container">
             <div className="page-header__left">
               <h1>
-                Bond Villain Dashboards
+                Dashboards
               </h1>
             </div>
           </div>
@@ -34,7 +42,7 @@ const DashboardsPage = React.createClass({
               <div className="col-md-12">
                 <div className="panel panel-minimal">
                   <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-                    <h2 className="panel-title">4 Doomsday Devices</h2>
+                    <h2 className="panel-title">{tableHeader}</h2>
                   </div>
                   <div className="panel-body">
                     <table className="table v-center">
@@ -44,18 +52,15 @@ const DashboardsPage = React.createClass({
                         </tr>
                       </thead>
                       <tbody>
-                        <tr>
-                          <td className="monotype">Goldeneye System Status</td>
-                        </tr>
-                        <tr>
-                          <td className="monotype">Carver Media Group Broadcast System Status</td>
-                        </tr>
-                        <tr>
-                          <td className="monotype">King Oil Pipeline Status</td>
-                        </tr>
-                        <tr>
-                          <td className="monotype">Icarus Space Program Status</td>
-                        </tr>
+                          {
+                            this.state.dashboards.map((dashboard) => {
+                              return (
+                                <tr key={dashboard.name}>
+                                  <td className="monotype">{dashboard.name}</td>
+                                </tr>
+                              );
+                            })
+                          }
                       </tbody>
                     </table>
                   </div>
