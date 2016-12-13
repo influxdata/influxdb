@@ -10,15 +10,15 @@ import (
 
 // Build flags
 var (
-	Version = ""
-	Commit  = ""
+	version = ""
+	commit  = ""
 )
 
 func main() {
 	srv := server.Server{
 		BuildInfo: server.BuildInfo{
-			Version: Version,
-			Commit:  Commit,
+			Version: version,
+			Commit:  commit,
 		},
 	}
 
@@ -37,7 +37,7 @@ func main() {
 	}
 
 	if srv.ShowVersion {
-		log.Printf("Chronograf %s (git: %s)\n", Version, Commit)
+		log.Printf("Chronograf %s (git: %s)\n", version, commit)
 		os.Exit(0)
 	}
 
