@@ -409,7 +409,7 @@ func (r *FloatSampleReducer) AggregateFloat(p *FloatPoint) {
 	// Generate a random integer between 1 and the count and
 	// if that number is less than the length of the slice
 	// replace the point at that index rnd with p.
-	rnd := rand.Intn(r.count)
+	rnd := r.rng.Intn(r.count)
 	if rnd < len(r.points) {
 		r.points[rnd] = *p
 	}
@@ -823,7 +823,7 @@ func (r *IntegerSampleReducer) AggregateInteger(p *IntegerPoint) {
 	// Generate a random integer between 1 and the count and
 	// if that number is less than the length of the slice
 	// replace the point at that index rnd with p.
-	rnd := rand.Intn(r.count)
+	rnd := r.rng.Intn(r.count)
 	if rnd < len(r.points) {
 		r.points[rnd] = *p
 	}
@@ -1237,7 +1237,7 @@ func (r *StringSampleReducer) AggregateString(p *StringPoint) {
 	// Generate a random integer between 1 and the count and
 	// if that number is less than the length of the slice
 	// replace the point at that index rnd with p.
-	rnd := rand.Intn(r.count)
+	rnd := r.rng.Intn(r.count)
 	if rnd < len(r.points) {
 		r.points[rnd] = *p
 	}
@@ -1651,7 +1651,7 @@ func (r *BooleanSampleReducer) AggregateBoolean(p *BooleanPoint) {
 	// Generate a random integer between 1 and the count and
 	// if that number is less than the length of the slice
 	// replace the point at that index rnd with p.
-	rnd := rand.Intn(r.count)
+	rnd := r.rng.Intn(r.count)
 	if rnd < len(r.points) {
 		r.points[rnd] = *p
 	}
