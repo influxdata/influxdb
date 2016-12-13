@@ -246,10 +246,8 @@ func (c *Cache) Write(key string, values []Value) error {
 	addedSize := uint64(Values(values).Size())
 
 	// Enough room in the cache?
-	c.mu.RLock()
 	limit := c.maxSize
-	n := c.Size() + c.snapshotSize + addedSize
-	c.mu.RUnlock()
+	n := c.Size() + atomic.LoadUint64(&c.snapshotSize) + addedSize
 
 	if limit > 0 && n > limit {
 		atomic.AddInt64(&c.stats.WriteErr, 1)
@@ -282,12 +280,9 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 
 	// Set everything under one RLock. We'll optimistially set size here, and
 	// then decrement it later if there is a write error.
-	c.mu.RLock()
 	c.increaseSize(addedSize)
 	limit := c.maxSize
-	n := c.Size() + c.snapshotSize + addedSize
-	store := c.store
-	c.mu.RUnlock()
+	n := c.Size() + atomic.LoadUint64(&c.snapshotSize) + addedSize
 
 	// Enough room in the cache?
 	if limit > 0 && n > limit {
@@ -296,6 +291,9 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	}
 
 	var werr error
+	c.mu.RLock()
+	store := c.store
+	c.mu.RUnlock()
 
 	for k, v := range values {
 		if err := store.write(k, v); err != nil {
@@ -359,7 +357,7 @@ func (c *Cache) Snapshot() (*Cache, error) {
 			c.snapshot.store.add(k, e)
 			snapshotEntry = e
 		}
-		c.snapshotSize += uint64(Values(e.values).Size())
+		atomic.AddUint64(&c.snapshotSize, uint64(Values(e.values).Size()))
 		return nil
 	}); err != nil {
 		return nil, err
@@ -401,7 +399,7 @@ func (c *Cache) ClearSnapshot(success bool) {
 
 	if success {
 		c.snapshotAttempts = 0
-		c.snapshotSize = 0
+		atomic.StoreUint64(&c.snapshotSize, 0)
 
 		// Reset the snapshot's store, and reset the snapshot to a fresh Cache.
 		c.snapshot.store.reset()
@@ -688,6 +686,6 @@ func valueType(v Value) int {
 // Update the snapshotsCount and the diskSize levels
 func (c *Cache) updateSnapshots() {
 	// Update disk stats
-	atomic.StoreInt64(&c.stats.DiskSizeBytes, int64(c.snapshotSize))
+	atomic.StoreInt64(&c.stats.DiskSizeBytes, int64(atomic.LoadUint64(&c.snapshotSize)))
 	atomic.StoreInt64(&c.stats.SnapshotCount, int64(c.snapshotAttempts))
 }
