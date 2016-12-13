@@ -1,19 +1,43 @@
-.raw-query-editor {
+/*
+  Dropping the metaphorical CSS nuke here,
+  was experiencing some weird typographic jank
+  between builder / raw tabs
+*/
+.raw-text--field,
+.qeditor--query-preview pre,
+.qeditor--query-preview pre code {
+  font-style: normal !important;
+  letter-spacing: 0.02em !important;
+  font-size: 12px !important;
+  font-family: 'RobotoMono', monospace !important;
+  font-weight: 600 !important;
+  word-wrap: break-word !important;
+  word-break: break-all !important;
+  white-space: pre-wrap !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+$raw-text-color: $c-comet;
+
+.raw-text {
+  border-bottom: 2px solid $g4-onyx;
+}
+.raw-text--field {
+  @include custom-scrollbar($g2-kevlar, $raw-text-color);
+  display: block;
   width: 100%;
-  height: 84px;
-  background-color: transparent;
-  border: 0;
-  color: $c-comet;
-  padding: 6px 6px 6px 12px;
-  border-radius: 0 3px 3px 0;
-  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
-  font-size: 13px;
-  border-left: 2px solid $g6-smoke;
+  height: 100px;
+  background-color: $g2-kevlar;
+  border: 2px solid $g2-kevlar;
+  color: $raw-text-color;
+  padding: (9px - 2px);
+  border-radius: 3px 3px 0 0;
+  line-height: 1.5em;
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
   resize: none;
-  margin: 0 0 4px 0;
+  margin: 0;
   transition:
     color 0.25s ease,
     background-color 0.25s ease,
@@ -31,113 +55,13 @@
   &:-moz-placeholder { /* Firefox 18- */
     color: $g8-storm;
   }
+  &:hover {
+    background-color: $g3-castle;
+    border-color: $g3-castle;
+  }
   &:focus {
     outline: none;
-    background-color: $g6-smoke !important;
-    color: $g18-cloud !important;
-    border-color: $g8-storm !important;
+    color: $raw-text-color !important;
+    border-color: $c-pool;
   }
-}
-.raw-query-editor-wrapper {
-  position: relative;
-
-  &:hover {
-    .raw-query-editor {
-      background-color: fade-out($g5-pepper, 0.5);
-    }
-    .raw-query-editor-delete {
-      opacity: 1;
-    }
-  }
-  &.rq-mode {
-    .raw-query-editor {
-      color: $c-honeydew;
-    }
-    &:after {
-      content: 'RQ';
-      position: absolute;
-      width: 24px;
-      height: 24px;
-      background-color: $c-honeydew;
-      color: $g6-smoke;
-      z-index: 3;
-      bottom: 12px;
-      right: 2px;
-      border-radius: 3px;
-      text-align: center;
-      line-height: 25px;
-      font-size: 13px;
-      font-weight: 700;
-    }
-  }
-}
-.raw-query-editor-delete {
-  position: absolute;
-  top: 0;
-  right: 0;
-  z-index: 2;
-  width: 24px;
-  height: 24px;
-  background-color: transparent;
-  transition:
-    opacity 0.25s ease,
-    color 0.25s ease;
-  border: 0;
-  color: $g8-storm;
-  opacity: 0;
-  font-size: 13px;
-
-  > .icon {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%,-50%);
-  }
-
-  &:hover {
-    color: $g20-white;
-  }
-
-}
-.raw-editor {
-  &__header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-
-    &-name {
-      color: $g20-white;
-      font-weight: 700;
-      font-size: 16px;
-    }
-    &-actions {
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-
-      > * {
-        transition:
-          color 0.25s ease;
-          margin-left: 10px;
-        color: $g8-storm;
-        &:hover {
-          cursor: pointer;
-          color: $g20-white;
-        }
-      }
-      .raw-editor__header-delete:hover {
-        color: $c-dreamsicle;
-      }
-    }
-  }
-  &__panel {
-    margin-top: 20px;
-    padding-top: 5px;
-
-    &:first-child {
-      border: none;
-      padding-top: 0;
-    }
-  }
-}
+} 

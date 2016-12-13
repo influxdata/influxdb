@@ -48,9 +48,9 @@ const RawQueryEditor = React.createClass({
     const {value} = this.state;
 
     return (
-      <div className="raw-query-editor-wrapper rq-mode">
+      <div className="raw-text">
         <textarea
-          className="raw-query-editor"
+          className="raw-text--field"
           onChange={this.handleChange}
           onKeyDown={this.handleKeyDown}
           onBlur={this.handleUpdate}
