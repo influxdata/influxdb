@@ -15,6 +15,7 @@ const PanelList = React.createClass({
     queryConfigs: PropTypes.shape({}),
     actions: shape({}).isRequired,
     setActivePanel: func.isRequired,
+    setActiveQuery: func.isRequired,
     activePanelID: string,
   },
 
@@ -25,10 +26,12 @@ const PanelList = React.createClass({
       null : panel.id;
 
     this.props.setActivePanel(activePanelID);
+    // Reset the activeQueryID when toggling Exporations
+    this.props.setActiveQuery(null);
   },
 
   render() {
-    const {actions, panels, timeRange, queryConfigs} = this.props;
+    const {actions, panels, timeRange, queryConfigs, setActiveQuery} = this.props;
 
     const activePanelID = this.props.activePanelID;
 
@@ -51,6 +54,7 @@ const PanelList = React.createClass({
               queries={queries}
               timeRange={timeRange}
               onTogglePanel={this.handleTogglePanel}
+              setActiveQuery={setActiveQuery}
               isExpanded={panelID === activePanelID}
               actions={allActions}
             />

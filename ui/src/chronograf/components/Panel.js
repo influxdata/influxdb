@@ -29,6 +29,7 @@ const Panel = React.createClass({
       applyFuncsToField: func.isRequired,
       deletePanel: func.isRequired,
     }).isRequired,
+    setActiveQuery: func.isRequired,
   },
 
   getInitialState() {
@@ -38,7 +39,9 @@ const Panel = React.createClass({
   },
 
   handleSetActiveQuery(query) {
+    // TODO: maybe remove this from explorer state since it is being passed up to the parent?
     this.setState({activeQueryId: query.id});
+    this.props.setActiveQuery(query.id);
   },
 
   handleAddQuery() {

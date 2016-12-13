@@ -7,20 +7,19 @@ import _ from 'lodash';
 import timeSeriesToDygraph from 'utils/timeSeriesToDygraph';
 import lastValues from 'src/shared/parsing/lastValues';
 
-const {array, string, arrayOf, bool, shape} = PropTypes;
-
 export default React.createClass({
   displayName: 'LineGraph',
   propTypes: {
-    data: arrayOf(shape({}).isRequired).isRequired,
-    title: string,
+    data: PropTypes.arrayOf(PropTypes.shape({}).isRequired).isRequired,
+    title: PropTypes.string,
     isFetchingInitially: PropTypes.bool,
     isRefreshing: PropTypes.bool,
     underlayCallback: PropTypes.func,
-    isGraphFilled: bool,
-    overrideLineColors: array,
-    queries: arrayOf(shape({}).isRequired).isRequired,
-    showSingleStat: bool,
+    isGraphFilled: PropTypes.bool,
+    overrideLineColors: PropTypes.array,
+    queries: PropTypes.arrayOf(PropTypes.shape({}).isRequired).isRequired,
+    showSingleStat: PropTypes.bool,
+    activeQueryIndex: PropTypes.number,
   },
 
   getDefaultProps() {
@@ -36,12 +35,13 @@ export default React.createClass({
   },
 
   componentWillMount() {
-    this._timeSeries = timeSeriesToDygraph(this.props.data);
+    this._timeSeries = timeSeriesToDygraph(this.props.data, this.props.activeQueryIndex);
   },
 
   componentWillUpdate(nextProps) {
-    if (this.props.data !== nextProps.data) {
-      this._timeSeries = timeSeriesToDygraph(nextProps.data);
+    const {data, activeQueryIndex} = this.props;
+    if (data !== nextProps.data || activeQueryIndex !== nextProps.activeQueryIndex) {
+      this._timeSeries = timeSeriesToDygraph(nextProps.data, nextProps.activeQueryIndex);
     }
   },
 

@@ -14,6 +14,7 @@ const Visualizations = React.createClass({
     queryConfigs: shape({}).isRequired,
     width: string,
     activePanelID: string,
+    activeQueryID: string,
   },
 
   render() {
@@ -22,7 +23,9 @@ const Visualizations = React.createClass({
     const visualizations = Object.keys(panels).map((panelID) => {
       const panel = panels[panelID];
       const queries = panel.queryIds.map((id) => queryConfigs[id]);
-      return <Visualization name={panel.name} key={panelID} queryConfigs={queries} timeRange={timeRange} isActive={panelID === activePanelID} />;
+      const isActive = panelID === activePanelID;
+
+      return <Visualization activeQueryIndex={this.getActiveQueryIndex(panelID)} name={panel.name} key={panelID} queryConfigs={queries} timeRange={timeRange} isActive={isActive} />;
     });
 
     return (
@@ -30,6 +33,21 @@ const Visualizations = React.createClass({
         {visualizations}
       </div>
     );
+  },
+
+  getActiveQueryIndex(panelID) {
+    const {activeQueryID, activePanelID, panels} = this.props;
+    const isPanelActive = panelID === activePanelID;
+
+    if (!isPanelActive) {
+      return -1;
+    }
+
+    if (activeQueryID === null) {
+      return 0;
+    }
+
+    return panels[panelID].queryIds.indexOf(activeQueryID);
   },
 });
 

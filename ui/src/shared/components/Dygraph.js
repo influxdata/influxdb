@@ -77,7 +77,6 @@ export default React.createClass({
       fillGraph: this.props.isGraphFilled,
       axisLineWidth: 2,
       gridLineWidth: 1,
-      strokeWidth: 1.5,
       highlightCircleSize: 3,
       colors: finalLineColors,
       series: dygraphSeries,
@@ -143,7 +142,7 @@ export default React.createClass({
     }
 
     const timeSeries = this.getTimeSeries();
-    const {labels, ranges} = this.props;
+    const {labels, ranges, options, dygraphSeries} = this.props;
 
     dygraph.updateOptions({
       labels,
@@ -156,7 +155,8 @@ export default React.createClass({
           valueRange: getRange(timeSeries, ranges.y2),
         },
       },
-      underlayCallback: this.props.options.underlayCallback,
+      underlayCallback: options.underlayCallback,
+      series: dygraphSeries,
     });
 
     dygraph.resize();

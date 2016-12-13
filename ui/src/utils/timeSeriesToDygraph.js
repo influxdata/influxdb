@@ -3,7 +3,7 @@
  * that Dygraph understands.
  */
 
-export default function timeSeriesToDygraph(raw = []) {
+export default function timeSeriesToDygraph(raw = [], activeQueryIndex) {
   const labels = ['time']; // all of the effective field names (i.e. <measurement>.<field>)
   const fieldToIndex = {}; // see parseSeries
   const dates = {}; // map of date as string to date value to minimize string coercion
@@ -88,9 +88,14 @@ export default function timeSeriesToDygraph(raw = []) {
 
         // Given a field name, identify which column in the timeSeries result should hold the field's value
         // ex given this timeSeries [Date, 10, 20, 30] field index at 2 would correspond to value 20
+        const lightStroke = 1.5;
+        const heavyStroke = 3.5;
         fieldToIndex[effectiveFieldName] = labels.length;
         labels.push(effectiveFieldName);
-        dygraphSeries[effectiveFieldName] = {axis: queryIndex === 0 ? 'y' : 'y2'};
+        dygraphSeries[effectiveFieldName] = {
+          axis: queryIndex === 0 ? 'y' : 'y2',
+          strokeWidth: queryIndex === activeQueryIndex ? heavyStroke : lightStroke,
+        };
       });
 
       (series.values || []).forEach(parseRow);

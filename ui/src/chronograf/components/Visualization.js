@@ -6,22 +6,22 @@ import LineGraph from 'shared/components/LineGraph';
 import MultiTable from './MultiTable';
 const RefreshingLineGraph = AutoRefresh(LineGraph);
 
-const {bool, shape, string, arrayOf} = PropTypes;
 const Visualization = React.createClass({
   propTypes: {
-    timeRange: shape({
-      upper: string,
-      lower: string,
+    timeRange: PropTypes.shape({
+      upper: PropTypes.string,
+      lower: PropTypes.string,
     }).isRequired,
-    queryConfigs: arrayOf(shape({})).isRequired,
-    isActive: bool.isRequired,
-    name: string,
+    queryConfigs: PropTypes.arrayOf(PropTypes.shape({})).isRequired,
+    isActive: PropTypes.bool.isRequired,
+    name: PropTypes.string,
+    activeQueryIndex: PropTypes.number,
   },
 
   contextTypes: {
-    source: shape({
-      links: shape({
-        proxy: string.isRequired,
+    source: PropTypes.shape({
+      links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
       }).isRequired,
     }).isRequired,
   },
@@ -45,7 +45,7 @@ const Visualization = React.createClass({
   },
 
   render() {
-    const {queryConfigs, timeRange, isActive, name} = this.props;
+    const {queryConfigs, timeRange, isActive, name, activeQueryIndex} = this.props;
     const {source} = this.context;
     const proxyLink = source.links.proxy;
 
@@ -77,6 +77,7 @@ const Visualization = React.createClass({
             <RefreshingLineGraph
               queries={queries}
               autoRefresh={autoRefreshMs}
+              activeQueryIndex={activeQueryIndex}
               />
           ) : <MultiTable queries={queries} />}
         </div>
