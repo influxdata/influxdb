@@ -5,7 +5,7 @@ import _ from 'lodash';
 export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
   return proxy({
     source: proxyLink,
-    query: `select mean(usage_user) from cpu where cpu = 'cpu-total' and time > now() - 10m group by host; select mean("load1") from "system" where time > now() - 10m group by host; select mean("Percent_Processor_Time") from win_cpu where time > now() - 10m group by host; select mean("Processor_Queue_Length") from win_system where time > now() - 10s group by host`,
+    query: `select mean(usage_user) from cpu where cpu = 'cpu-total' and time > now() - 10m group by host; select mean("load1") from "system" where time > now() - 10m group by host;  select mean("Percent_Processor_Time") from win_cpu where time > now() - 10m group by host; select mean("Processor_Queue_Length") from win_system where time > now() - 10s group by host; select non_negative_derivative(mean(uptime)) as deltaUptime from "system" where time > now() - 10m group by host, time(10m) fill(0); show tag values from system with key = "host"`,
     db: telegrafDB,
   }).then((resp) => {
     const hosts = {};
@@ -14,6 +14,20 @@ export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
     const loadSeries = _.get(resp, ['data', 'results', '1', 'series'], []);
     const winCPUSeries = _.get(resp, ['data', 'results', '2', 'series'], []);
     const winLoadSeries = _.get(resp, ['data', 'results', '3', 'series'], []);
+    const uptimeSeries = _.get(resp, ['data', 'results', '4', 'series'], []);
+    const allHostsSeries = _.get(resp, ['data', 'results', '5', 'series', '0'], []);
+
+    const hostnameIndex = allHostsSeries.columns.findIndex((col) => col === 'value');
+    allHostsSeries.values.forEach((v) => {
+      const hostname = v[hostnameIndex];
+      hosts[hostname] = {
+        name: hostname,
+        deltaUptime: 0,
+        cpu: 0.0,
+        load: 0.0,
+      };
+    });
+
     cpuSeries.forEach((s) => {
       const meanIndex = s.columns.findIndex((col) => col === 'mean');
       hosts[s.tags.host] = {
@@ -25,6 +39,11 @@ export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
     loadSeries.forEach((s) => {
       const meanIndex = s.columns.findIndex((col) => col === 'mean');
       hosts[s.tags.host].load = (Math.round(s.values[0][meanIndex] * precision) / precision);
+    });
+
+    uptimeSeries.forEach((s) => {
+      const uptimeIndex = s.columns.findIndex((col) => col === 'deltaUptime');
+      hosts[s.tags.host].deltaUptime = s.values[0][uptimeIndex];
     });
 
     winCPUSeries.forEach((s) => {
@@ -48,22 +67,6 @@ export function getMappings() {
   return AJAX({
     method: 'GET',
     url: `/chronograf/v1/mappings`,
-  });
-}
-
-export function getHostStatus(proxyLink, telegrafDB) {
-  return proxy({
-    source: proxyLink,
-    query: `select non_negative_derivative(mean(uptime)) as upRate from system where time > now() - 1h group by host, time(1m) fill(0)`,
-    db: telegrafDB,
-  }).then((resp) => {
-    const series = _.get(resp, ['data', 'results', '0', 'series']);
-    return Array.prototype.slice.call(series).reduce((acc, s) => {
-      const idx = s.columns.indexOf('upRate');
-      const host = s.tags.host;
-      acc[host] = s.values[s.values.length - 1][idx];
-      return acc;
-    }, {});
   });
 }
 

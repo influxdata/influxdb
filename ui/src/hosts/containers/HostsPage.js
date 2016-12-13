@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react';
 import _ from 'lodash';
 import HostsTable from '../components/HostsTable';
-import {getCpuAndLoadForHosts, getMappings, getAppsForHosts, getHostStatus} from '../apis';
+import {getCpuAndLoadForHosts, getMappings, getAppsForHosts} from '../apis';
 
 export const HostsPage = React.createClass({
   propTypes: {
@@ -29,7 +29,6 @@ export const HostsPage = React.createClass({
     Promise.all([
       getCpuAndLoadForHosts(source.links.proxy, source.telegraf),
       getMappings(),
-      getHostStatus(source.links.proxy, source.telegraf),
     ]).then(([hosts, {data: {mappings}}, up]) => {
       this.setState({hosts, up});
       getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf).then((newHosts) => {

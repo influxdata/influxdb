@@ -14,7 +14,6 @@ const HostsTable = React.createClass({
       id: PropTypes.string.isRequired,
       name: PropTypes.string.isRequired,
     }).isRequired,
-    up: PropTypes.object.isRequired,
   },
 
   getInitialState() {
@@ -82,11 +81,7 @@ const HostsTable = React.createClass({
 
   render() {
     const {searchTerm, sortKey, sortDirection} = this.state;
-    const {hosts, source, up} = this.props;
-    hosts.forEach((host) => {
-      const isUp = up[host.name];
-      host.isUp = isUp;
-    });
+    const {hosts, source} = this.props;
     const sortedHosts = this.sort(this.filter(hosts, searchTerm), sortKey, sortDirection);
     const hostCount = sortedHosts.length;
 
@@ -119,7 +114,7 @@ const HostsTable = React.createClass({
             <tbody>
               {
                 sortedHosts.map((h) => {
-                  return <HostRow key={h.name} host={h} source={source} awake={h.isUp} />;
+                  return <HostRow key={h.name} host={h} source={source} />;
                 })
               }
             </tbody>
@@ -140,9 +135,9 @@ const HostRow = React.createClass({
       name: PropTypes.string,
       cpu: PropTypes.number,
       load: PropTypes.number,
+      deltaUptime: PropTypes.number.required,
       apps: PropTypes.arrayOf(PropTypes.string.isRequired),
     }),
-    awake: PropTypes.boolean,
   },
 
   shouldComponentUpdate(nextProps) {
@@ -152,7 +147,7 @@ const HostRow = React.createClass({
   render() {
     const {host, source} = this.props;
     const {name, cpu, load, apps = []} = host;
-    const stateStr = this.props.awake ? "table-dot dot-success" : "table-dot dot-critical";
+    const stateStr = host.deltaUptime > 0 ? "table-dot dot-success" : "table-dot dot-critical";
     return (
       <tr>
         <td className="monotype"><Link to={`/sources/${source.id}/hosts/${name}`}>{name}</Link></td>
