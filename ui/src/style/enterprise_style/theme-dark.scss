@@ -299,7 +299,9 @@
     Dark Code Samples
     ----------------------------------------------
 */
-
+code, pre {
+  font-family: 'RobotoMono', monospace !important;
+}
 code {
   display: inline-block;
   background-color: $g2-kevlar;
