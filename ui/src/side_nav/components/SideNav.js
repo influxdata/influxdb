@@ -40,7 +40,7 @@ const SideNav = React.createClass({
           <NavListItem link={`${sourcePrefix}/alert-rules`}>Kapacitor Rules</NavListItem>
         </NavBlock>
         <NavBlock icon="access-key" link={`${sourcePrefix}/manage-sources`}>
-          <NavHeader link={`${sourcePrefix}/manage-sources`} title="Sources" />
+          <NavHeader link={`${sourcePrefix}/manage-sources`} title="Configuration" />
           <NavListItem link={`${sourcePrefix}/manage-sources`}>InfluxDB</NavListItem>
           <NavListItem link={`${sourcePrefix}/kapacitor-config`}>Kapacitor</NavListItem>
         </NavBlock>
