@@ -82,6 +82,7 @@ const DataExplorer = React.createClass({
           <PanelBuilder
             timeRange={timeRange}
             activePanelID={this.state.activePanelID}
+            activeQueryID={this.state.activeQueryID}
             setActiveQuery={this.handleSetActiveQuery}
             setActivePanel={this.handleSetActivePanel}
           />

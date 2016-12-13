@@ -33,7 +33,7 @@ const PanelBuilder = React.createClass({
   },
 
   render() {
-    const {width, actions, setActivePanel, setActiveQuery, activePanelID} = this.props;
+    const {width, actions, setActivePanel, setActiveQuery, activePanelID, activeQueryID} = this.props;
 
     return (
       <div className="panel-builder" style={{width}}>
@@ -43,6 +43,7 @@ const PanelBuilder = React.createClass({
           setActivePanel={setActivePanel}
           setActiveQuery={setActiveQuery}
           activePanelID={activePanelID}
+          activeQueryID={activeQueryID}
         />
       </div>
     );

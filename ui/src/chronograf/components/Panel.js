@@ -5,42 +5,39 @@ import QueryTabItem from './QueryTabItem';
 import RenamePanelModal from './RenamePanelModal';
 import SimpleDropdown from 'src/shared/components/SimpleDropdown';
 
+<<<<<<< HEAD:ui/src/chronograf/components/Panel.js
 const {shape, func, bool, arrayOf} = PropTypes;
 const Panel = React.createClass({
+=======
+const Explorer = React.createClass({
+>>>>>>> Move activeQueryID state to DE container:ui/src/chronograf/components/Explorer.js
   propTypes: {
-    panel: shape({}).isRequired,
-    queries: arrayOf(shape({})).isRequired,
+    panel: PropTypes.shape({}).isRequired,
+    queries: PropTypes.arrayOf(PropTypes.shape({})).isRequired,
     timeRange: PropTypes.shape({
       upper: PropTypes.string,
       lower: PropTypes.string,
     }).isRequired,
-    isExpanded: bool.isRequired,
-    onTogglePanel: func.isRequired,
-    actions: shape({
-      chooseNamespace: func.isRequired,
-      chooseMeasurement: func.isRequired,
-      chooseTag: func.isRequired,
-      groupByTag: func.isRequired,
-      addQuery: func.isRequired,
-      deleteQuery: func.isRequired,
-      toggleField: func.isRequired,
-      groupByTime: func.isRequired,
-      toggleTagAcceptance: func.isRequired,
-      applyFuncsToField: func.isRequired,
-      deletePanel: func.isRequired,
+    isExpanded: PropTypes.bool.isRequired,
+    onToggleExplorer: PropTypes.func.isRequired,
+    actions: PropTypes.shape({
+      chooseNamespace: PropTypes.func.isRequired,
+      chooseMeasurement: PropTypes.func.isRequired,
+      chooseTag: PropTypes.func.isRequired,
+      groupByTag: PropTypes.func.isRequired,
+      addQuery: PropTypes.func.isRequired,
+      deleteQuery: PropTypes.func.isRequired,
+      toggleField: PropTypes.func.isRequired,
+      groupByTime: PropTypes.func.isRequired,
+      toggleTagAcceptance: PropTypes.func.isRequired,
+      applyFuncsToField: PropTypes.func.isRequired,
+      deletePanel: PropTypes.func.isRequired,
     }).isRequired,
-    setActiveQuery: func.isRequired,
-  },
-
-  getInitialState() {
-    return {
-      activeQueryId: null,
-    };
+    setActiveQuery: PropTypes.func.isRequired,
+    activeQueryID: PropTypes.string,
   },
 
   handleSetActiveQuery(query) {
-    // TODO: maybe remove this from explorer state since it is being passed up to the parent?
-    this.setState({activeQueryId: query.id});
     this.props.setActiveQuery(query.id);
   },
 
@@ -66,8 +63,8 @@ const Panel = React.createClass({
   },
 
   getActiveQuery() {
-    const {queries} = this.props;
-    const activeQuery = queries.find((query) => query.id === this.state.activeQueryId);
+    const {queries, activeQueryID} = this.props;
+    const activeQuery = queries.find((query) => query.id === this.props.activeQueryID);
     const defaultQuery = queries[0];
 
     return activeQuery || defaultQuery;
