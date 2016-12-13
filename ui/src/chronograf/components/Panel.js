@@ -3,6 +3,7 @@ import classNames from 'classnames';
 import QueryEditor from './QueryEditor';
 import QueryTabItem from './QueryTabItem';
 import RenamePanelModal from './RenamePanelModal';
+import SimpleDropdown from 'src/shared/components/SimpleDropdown';
 
 const {shape, func, bool, arrayOf} = PropTypes;
 const Panel = React.createClass({
@@ -32,7 +33,6 @@ const Panel = React.createClass({
 
   getInitialState() {
     return {
-      showAddQueryOptions: false,
       activeQueryId: null,
     };
   },
@@ -41,18 +41,12 @@ const Panel = React.createClass({
     this.setState({activeQueryId: query.id});
   },
 
-  toggleAddQueryOptions() {
-    this.setState({showAddQueryOptions: !this.state.showAddQueryOptions});
-  },
-
   handleAddQuery() {
     this.props.actions.addQuery();
-    this.setState({showAddQueryOptions: false});
   },
 
   handleAddRawQuery() {
     this.props.actions.addQuery({rawText: `SELECT "fields" from "db"."rp"."measurement"`});
-    this.setState({showAddQueryOptions: false});
   },
 
   handleDeleteQuery(query) {
@@ -163,22 +157,24 @@ const Panel = React.createClass({
     );
   },
 
-  renderAddQuery() {
-    const {showAddQueryOptions} = this.state;
-    if (showAddQueryOptions) {
-      return (
-        <div className="btn-group btn-group-sm">
-          <button type="button" className="btn btn-default" onClick={this.handleAddQuery}>Builder</button>
-          <button type="button" className="btn btn-default" onClick={this.handleAddRawQuery}>Raw</button>
-          <button type="button" className="btn btn-default" onClick={this.toggleAddQueryOptions}>X</button>
-        </div>
-      );
+  onChoose(item) {
+    switch (item.text) {
+      case 'Builder':
+        this.handleAddQuery();
+        break;
+      case 'Raw':
+        this.handleAddRawQuery();
+        break;
     }
+  },
 
+  renderAddQuery() {
     return (
-      <div className="panel--tab" onClick={this.toggleAddQueryOptions}>
-        <span className="icon plus"></span>
-      </div>
+      <SimpleDropdown onChoose={this.onChoose} items={[{text: 'Builder'}, {text: 'Raw'}]} className="editor-chooser">
+        <div className="panel--tab">
+          <span className="icon plus"></span>
+        </div>
+      </SimpleDropdown>
     );
   },
 });
