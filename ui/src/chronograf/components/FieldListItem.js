@@ -39,9 +39,9 @@ const FieldListItem = React.createClass({
     });
 
     return (
-      <li className={classNames("query-editor__list-item query-editor__list-checkbox", {checked: isSelected})} key={fieldFunc} onClick={_.wrap(fieldFunc, this.handleToggleField)}>
-        <span className="query-editor__list-checkbox__checkbox">{fieldText}</span>
-        <div className="query-editor__hidden-dropdown">
+      <li className={classNames("qeditor--list-item qeditor--list-checkbox", {checked: isSelected})} key={fieldFunc} onClick={_.wrap(fieldFunc, this.handleToggleField)}>
+        <span className="qeditor--list-checkbox__checkbox">{fieldText}</span>
+        <div className="qeditor--hidden-dropdown">
           {
             isKapacitorRule ?
               <Dropdown items={items} onChoose={this.handleApplyFunctions} selected={fieldFunc.funcs.length ? fieldFunc.funcs[0] : 'Select a function'} /> :

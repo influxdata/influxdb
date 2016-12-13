@@ -1,9 +1,11 @@
 import React, {PropTypes} from 'react';
 import Dygraph from './Dygraph';
+import classNames from 'classnames';
 import shallowCompare from 'react-addons-shallow-compare';
 import _ from 'lodash';
 
 import timeSeriesToDygraph from 'utils/timeSeriesToDygraph';
+import lastValues from 'src/shared/parsing/lastValues';
 
 const {array, string, arrayOf, bool, shape} = PropTypes;
 
@@ -18,6 +20,7 @@ export default React.createClass({
     isGraphFilled: bool,
     overrideLineColors: array,
     queries: arrayOf(shape({}).isRequired).isRequired,
+    showSingleStat: bool,
   },
 
   getDefaultProps() {
@@ -43,13 +46,14 @@ export default React.createClass({
   },
 
   render() {
-    const {isFetchingInitially, title, underlayCallback, queries} = this.props;
+    const {data, isFetchingInitially, isRefreshing, isGraphFilled, overrideLineColors, title, underlayCallback, queries, showSingleStat} = this.props;
     const {labels, timeSeries, dygraphSeries} = this._timeSeries;
+
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
     if (isFetchingInitially) {
       return (
-        <div className="graph-panel__graph-fetching">
-          <h3 className="graph-panel__spinner" />
+        <div className="graph-fetching">
+          <h3 className="graph-spinner" />
         </div>
       );
     }
@@ -64,25 +68,45 @@ export default React.createClass({
       title,
       rightGap: 0,
       yRangePad: 10,
+      axisLabelWidth: 38,
       drawAxesAtZero: true,
       underlayCallback,
       ylabel: _.get(queries, ['0', 'label'], ''),
       y2label: _.get(queries, ['1', 'label'], ''),
     };
 
+    let roundedValue;
+    if (showSingleStat) {
+      const lastValue = lastValues(data)[1];
+
+      const precision = 100.0;
+      roundedValue = Math.round(+lastValue * precision) / precision;
+    }
+
     return (
-      <div>
-        {this.props.isRefreshing ? <h3 className="graph-panel__spinner--small" /> : null}
+      <div className={classNames({"graph--hasYLabel": !!(options.ylabel || options.y2label)})}>
+        {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
           containerStyle={{width: '100%', height: '300px'}}
-          overrideLineColors={this.props.overrideLineColors}
-          isGraphFilled={this.props.isGraphFilled}
+          overrideLineColors={overrideLineColors}
+          isGraphFilled={isGraphFilled}
           timeSeries={timeSeries}
           labels={labels}
           options={options}
           dygraphSeries={dygraphSeries}
           ranges={this.getRanges()}
         />
+        {showSingleStat ? <div className="graph-single-stat single-stat">{roundedValue}</div> : null}
+      </div>
+    );
+  },
+
+  renderSpinner() {
+    return (
+      <div className="graph-panel__refreshing">
+        <div></div>
+        <div></div>
+        <div></div>
       </div>
     );
   },

@@ -1,24 +1,57 @@
 .multi-select-dropdown {
-  &__menu {
-    display: block !important;
-  }
-  &__toggle {
-    display: block !important;
-    width: 14em;
-  }
-  &__label {
-    text-overflow: ellipsis;
-    width: 85%;
-    display: block;
-    overflow: hidden;
-  }
-  &__caret {
-    position: absolute;
-    right: 9px;
-    top: 50%;
-    transform: translateY(-50%);
+  .dropdown-toggle {
+    width: 150px;
   }
   &__apply {
-    margin: 10px 0 0 0;
+    margin: 0;
+    transition:
+      opacity 0.25s ease;
+    opacity: 0;
+    @include gradient-h($c-ocean, $c-pool);
+    border-radius: 3px 3px 0 0;
+    padding: 9px;
+
+    & + .dropdown-menu {
+      border-top-left-radius: 0;
+      border-top-right-radius: 0;
+    }
+  }
+  .dropdown-menu {
+    opacity: 0;
+    display: block !important;
+    transition: opacity 0.25s ease;
+  }
+  .dropdown-options {
+    width: 100%;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    visibility: hidden;
+    transition-property: all;
+  }
+  /* Styling Active State of items */
+  .dropdown-menu > li.active > a {
+    outline: none;
+    &,
+    &:focus,
+    &:active,
+    &:active:focus {
+      color: $g20-white !important;
+      background: $c-sapphire;
+      background: -moz-linear-gradient(left,  $c-sapphire 0%, $c-pool 100%) !important;
+      background: -webkit-linear-gradient(left,  $c-sapphire 0%,$c-pool 100%) !important;
+      background: linear-gradient(to right,  $c-sapphire 0%,$c-pool 100%) !important;
+      filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$c-sapphire', endColorstr='$c-pool',GradientType=1 ) !important;
+    }
+  }
+}
+/* Open State */
+.multi-select-dropdown.open {
+  .dropdown-options {
+    visibility: visible;
+  }
+  .dropdown-menu,
+  .multi-select-dropdown__apply {
+    opacity: 1;
   }
 }

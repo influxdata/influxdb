@@ -99,6 +99,10 @@ const Header = React.createClass({
     const {timeRange, explorers, explorerID} = this.props;
 
     const selectedExplorer = explorers[explorerID];
+    if (!selectedExplorer) {
+      return null;
+    }
+
     const dropdownItems = Object.keys(explorers).map((id) => {
       const ex = explorers[id];
       return {text: this.getName(ex), id: ex.id};
@@ -108,26 +112,28 @@ const Header = React.createClass({
       {text: 'Delete', icon: 'trash', target: '#deleteExplorerModal', handler: this.openDeleteExplorerModal},
     ];
     return (
-      <div className="page-header data-explorer__header">
-        <div className="page-header__left">
-          <h1 className="dropdown-title">Exploration:</h1>
-          <Dropdown
-            className="sessions-dropdown"
-            items={dropdownItems}
-            actions={dropdownActions}
-            onChoose={this.handleChooseExplorer}
-            selected={this.getName(selectedExplorer)}
-          />
-          <div className="btn btn-sm btn-primary sessions-dropdown__btn" onClick={this.handleCreateExploration}>New Exploration</div>
-        </div>
-        <div className="page-header__right">
-          <h1>Source:</h1>
-          <div className="source-indicator">
-            <span className="icon cpu"></span>
-            {this.context.source.name}
+      <div className="page-header">
+        <div className="page-header__container">
+          <div className="page-header__left">
+            <h1>Explorer</h1>
           </div>
-          <h1>Range:</h1>
-          <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={this.findSelected(timeRange)} />
+          <div className="page-header__right">
+            <h1>Session:</h1>
+            <Dropdown
+              className="sessions-dropdown"
+              items={dropdownItems}
+              actions={dropdownActions}
+              onChoose={this.handleChooseExplorer}
+              selected={this.getName(selectedExplorer)}
+            />
+            <div className="btn btn-sm btn-primary sessions-dropdown__btn" onClick={this.handleCreateExploration}>New</div>
+            <h1>Source:</h1>
+            <div className="source-indicator">
+              <span className="icon cpu"></span>
+              {this.context.source.name}
+            </div>
+            <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={this.findSelected(timeRange)} />
+          </div>
         </div>
         <DeleteExplorerModal onConfirm={this.confirmDeleteExplorer} />
         <EditExplorerModal onConfirm={this.confirmEditExplorer} />

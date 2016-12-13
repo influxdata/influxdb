@@ -60,19 +60,19 @@ const Visualization = React.createClass({
     const autoRefreshMs = 10000;
 
     return (
-      <div ref={(p) => this.panel = p} className={classNames("graph-panel", {active: isActive})}>
-        <div className="graph-panel__bar">
-          <div className="graph-panel__title">
-            {/* <span className="icon caret-right"></span> */}{name || "Graph"}
+      <div ref={(p) => this.panel = p} className={classNames("graph", {active: isActive})}>
+        <div className="graph-heading">
+          <div className="graph-title">
+            {name || "Graph"}
           </div>
-          <div className="graph-panel__left">
-            <ul className="graph-panel__tabs">
-              <li onClick={this.handleToggleView} className={classNames("graph-panel__tab", {active: isGraphInView})}>Graph</li>
-              <li onClick={this.handleToggleView} className={classNames("graph-panel__tab", {active: !isGraphInView})}>Table</li>
+          <div className="graph-actions">
+            <ul className="toggle toggle-sm">
+              <li onClick={this.handleToggleView} className={classNames("toggle-btn ", {active: isGraphInView})}>Graph</li>
+              <li onClick={this.handleToggleView} className={classNames("toggle-btn ", {active: !isGraphInView})}>Table</li>
             </ul>
           </div>
         </div>
-        <div className="graph-panel__graph-container">
+        <div className="graph-container">
           {isGraphInView ? (
             <RefreshingLineGraph
               queries={queries}

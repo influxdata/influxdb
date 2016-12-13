@@ -7,20 +7,18 @@
   }
 }
 .sessions-dropdown__btn {
-  margin: 0;
+  margin: 0 16px 0 0;
   border-radius: 0 3px 3px 0;
 }
-.group-by-time-dropdown .dropdown-toggle {
-  width: $group-by-time-dropdown-width;
-}
 .source-indicator {
-  padding: 3px 9px;
-  border: 2px solid $g5-pepper;
+  padding: 0 9px;
+  border: 0;
   background-color: $g5-pepper;
+  height: 30px;
+  line-height: 30px;
   color: $g13-mist;
   font-weight: 700;
   font-size: 12px;
-  line-height: 1.5;
   border-radius: 3px;
   margin-right: 16px;
 

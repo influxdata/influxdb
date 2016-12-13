@@ -1,143 +1,180 @@
 .explorer {
-	display: block;
-	background-color: $g6-smoke;
-	border-radius: $radius;
-	margin-bottom: 6px;
+  display: block;
+  background-color: $g3-castle;
+  border-radius: $radius;
+  margin-bottom: 6px;
+  transition: background-color 0.25s ease;
 
-	&__header {
-		background-color: $g6-smoke;
-		align-items: center;
-		text-align: center;
-		display: flex;
-		height: 3em;
-		padding: 1em;
-		cursor: pointer;
-		justify-content: space-between;
-		border-radius: $radius;
+  &:hover {
+    background-color: $g4-onyx;
+  }
 
-		&-name {
-			color: $g13-mist;
-			font-weight: 400;
-			font-size: 16px;
-			position: relative;
-			padding-left: 24px;
-			transition: color 0.25s ease;
+  // For when an explorer item is open
+  &.active {
+    background-color: $g4-onyx;
+    .explorer__header {
+      &-name {
+        color: $g20-white;
 
-			.icon {
-				position: absolute;
-				left: 0;
-				top: 50%;
-				transform: translateY(-50%) rotate(0deg);
-				font-size: 0.75em;
-				transition: transform 0.25s ease;
-			}
-
-			&:hover {
-				color: $g20-white;
-			}
-		}
-		&-delete,
-    	&-rename {
-			color: $g9-mountain;
-			transition: color 0.25s ease;
-		}
-		&-delete:hover {
-			color: $c-dreamsicle;
-		}
-		&-rename:hover {
-			color: $g20-white;
-		}
-	}
-
-	// For when an explorer item is open
-	&.active {
-		.explorer__header {
-			&-name {
-				color: $g20-white;
-				font-weight: 600;
-
-				.icon {
-					transform: translateY(-50%) rotate(90deg);
-				}
-			}
-		}
-	}
-
-	// Tabs
-	&__tabs {
-		display: flex;
-		background-color: $g6-smoke;
-		padding: 2px 1em 0 1em;
-	}
-	&__tab {
-		white-space: nowrap;
-		color: $g13-mist;
-		background: $g7-graphite;
-		height: 30px;
-		line-height: 30px;
-		margin-right: 2px;
-		border-radius: $radius $radius 0 0;
-		cursor: pointer;
-		padding: 0 8px 0 8px;
-		transition:
-				color 0.25s ease,
-				background-color 0.25s ease;
-
-		&.active {
-			background: $g8-storm;
-			color: $g18-cloud;
-			font-weight: 600;
-		}
-
-		> span.icon.plus {
-			font-size: 12px;
-			position: relative;
-			top: -1px;
-		}
-
-		&:hover {
-			color: $g18-cloud;
-			background-color: $g8-storm;
-		}
-
-		&-delete {
-			right: -2px;
-			font-size: 10px;
-			margin-left: 0px;
-			width: 16px;
-			height: 16px;
-			border-radius: 50%;
-			background-color: transparent;
-			display: inline-block;
-			vertical-align: text-top;
-			position: relative;
-			color: $g10-wolf;
-			transition:
-				color 0.25s ease,
-				background-color 0.25s ease;
-
-			span.icon {
-				position: absolute;
-				top: 50%;
-				left: 50%;
-				transform: translate(-54%,-50%);
-			}
-
-			&:hover {
-				background-color: $c-dreamsicle;
-				color: $g20-white;
-			}
-		}
-	}
+        .icon {
+          transform: translateY(-50%) rotate(90deg);
+        }
+      }
+    }
+  }
 }
+// Explorer Header Bar
+.explorer--header {
+  align-items: center;
+  text-align: center;
+  display: flex;
+  height: 36px;
+  padding: 0 11px;
+  cursor: pointer;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: $radius;
+}
+.explorer--name {
+  color: $g13-mist;
+  font-weight: 600;
+  font-size: 14px;
+  position: relative;
+  padding-left: 16px;
+  transition: color 0.25s ease;
+
+  .icon.caret-right {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%) rotate(0deg);
+    font-size: 0.75em;
+    transition: transform 0.25s ease;
+  }
+
+  &:hover {
+    color: $g17-whisper;
+  }
+}
+.explorer--actions {
+  display: flex;
+  align-items: center;
+}
+.explorer--action {
+  width: 24px;
+  height: 24px;
+  border: 0;
+  background-color: transparent;
+  color: $g9-mountain;
+  margin-left: 2px;
+  transition: color 0.25s ease;
+
+  &:hover {
+    cursor: pointer;
+    color: $g18-cloud;
+  }
+}
+
+// Tabs
+.explorer--tabs {
+  display: flex;
+  background-color: $g4-onyx;
+  padding: 0 11px;
+}
+.explorer--tab {
+  display: flex;
+  align-items: center;
+  color: $g11-sidewalk;
+  background: $g5-pepper;
+  height: 28px;
+  margin-right: 2px;
+  border-radius: $radius $radius 0 0;
+  cursor: pointer;
+  padding: 0 8px 0 8px;
+  transition:
+      color 0.25s ease,
+      background-color 0.25s ease;
+
+  &:hover {
+    color: $g18-cloud;
+    background-color: $g6-smoke;
+  }
+  &.active {
+    background: $g6-smoke;
+    color: $g15-platinum;
+  }
+
+  > span.icon.plus {
+    font-size: 12px;
+    position: relative;
+    top: -1px;
+  }
+
+  &-delete {
+    margin: 0 -4px 0 1px;
+    width: 16px;
+    height: 16px;
+    background-color: transparent;
+    display: inline-block;
+    vertical-align: text-top;
+    position: relative;
+
+    &:before,
+    &:after {
+      display: block;
+      content: '';
+      width: 8px;
+      height: 2px;
+      background-color: $g8-storm;
+      transition:
+        background-color 0.25s ease;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+    }
+    &:before {
+      transform: translate(-50%,-50%) rotate(45deg);
+    }
+    &:after {
+      transform: translate(-50%,-50%) rotate(-45deg);
+    }
+
+    &:hover {
+      &:before,
+      &:after {
+        background-color: $c-dreamsicle;
+      }
+    }
+  }
+}
+.explorer--tab-label {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  max-width: 177px;
+  text-overflow: ellipsis;
+}
+
+/*
+  Tab Contents
+  -------------------------------------------
+*/
+.explorer--tab-contents {
+  padding: 6px;
+  background-color: $g6-smoke;
+  border-radius: 0 0 $radius $radius;
+}
+
 
 /* Time Range Selector */
 .time-range-dropdown {
-	display: inline-block;
+  display: inline-block;
 
-	.dropdown-toggle {
-		width: 160px;
-	}
+  .dropdown-toggle {
+    width: 160px;
+  }
 }
 
 .explorer__header-actions {
@@ -149,7 +186,7 @@
 }
 
 .alert.alert-rawquery {
-	border-color: $g5-pepper;
-	border-color: $g6-smoke;
-	color: $g12-forge;
+  border-color: $g5-pepper;
+  border-color: $g6-smoke;
+  color: $g12-forge;
 }

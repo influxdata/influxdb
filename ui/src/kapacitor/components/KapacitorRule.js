@@ -6,6 +6,7 @@ import RuleGraph from 'src/kapacitor/components/RuleGraph';
 import RuleMessage from 'src/kapacitor/components/RuleMessage';
 import {createRule, editRule} from 'src/kapacitor/apis';
 import selectStatement from '../../chronograf/utils/influxql/select';
+import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
 export const KapacitorRule = React.createClass({
   propTypes: {
@@ -24,10 +25,18 @@ export const KapacitorRule = React.createClass({
     kapacitor: PropTypes.shape({}).isRequired,
   },
 
+  getInitialState() {
+    const fifteenMinutesIndex = 1;
+    return {
+      timeRange: timeRanges[fifteenMinutesIndex],
+    };
+  },
+
   render() {
     const {queryActions, source, enabledAlerts, queryConfigs, query,
       rule, kapacitorActions, isEditing} = this.props;
     const {chooseTrigger, updateRuleValues} = kapacitorActions;
+    const {timeRange} = this.state;
 
     return (
       <div className="page">
@@ -35,21 +44,23 @@ export const KapacitorRule = React.createClass({
           rule={rule}
           actions={kapacitorActions}
           onSave={isEditing ? this.handleEdit : this.handleCreate}
+          onChooseTimeRange={this.handleChooseTimeRange}
           validationError={this.validationError()}
+          timeRange={timeRange}
         />
         <div className="page-contents page-contents--green-scrollbar">
           <div className="container-fluid">
             <div className="row">
               <div className="col-xs-12">
                 <div className="rule-builder">
-                  <DataSection source={source} query={query} actions={queryActions} />
+                  <DataSection timeRange={timeRange} source={source} query={query} actions={queryActions} />
                   <ValuesSection
                     rule={rule}
                     query={queryConfigs[rule.queryID]}
                     onChooseTrigger={chooseTrigger}
                     onUpdateValues={updateRuleValues}
                   />
-                  <RuleGraph source={source} query={query} rule={rule} />
+                  <RuleGraph timeRange={timeRange} source={source} query={query} rule={rule} />
                   <RuleMessage rule={rule} actions={kapacitorActions} enabledAlerts={enabledAlerts} />
                 </div>
               </div>
@@ -58,6 +69,11 @@ export const KapacitorRule = React.createClass({
         </div>
       </div>
     );
+  },
+
+  handleChooseTimeRange({lower}) {
+    const timeRange = timeRanges.find((range) => range.queryValue === lower);
+    this.setState({timeRange});
   },
 
   handleCreate() {

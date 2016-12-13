@@ -1,6 +1,8 @@
 import React, {PropTypes} from 'react';
 import {withRouter} from 'react-router';
+import {addSource as addSourceAction} from 'src/shared/actions/sources';
 import {createSource} from 'shared/apis';
+import {connect} from 'react-redux';
 
 export const CreateSource = React.createClass({
   propTypes: {
@@ -12,6 +14,7 @@ export const CreateSource = React.createClass({
         redirectPath: PropTypes.string,
       }).isRequired,
     }).isRequired,
+    addSourceAction: PropTypes.func,
   },
 
   handleNewSource(e) {
@@ -25,6 +28,7 @@ export const CreateSource = React.createClass({
       telegraf: this.sourceTelegraf.value,
     };
     createSource(source).then(({data: sourceFromServer}) => {
+      this.props.addSourceAction(sourceFromServer);
       this.redirectToApp(sourceFromServer);
     });
   },
@@ -90,4 +94,8 @@ export const CreateSource = React.createClass({
   },
 });
 
-export default withRouter(CreateSource);
+function mapStateToProps(_) {
+  return {};
+}
+
+export default connect(mapStateToProps, {addSourceAction})(withRouter(CreateSource));

@@ -71,12 +71,12 @@ const TagList = React.createClass({
 
     return (
       <div>
-        <div className="query-editor__list-header">
-          <div className="tag-list__toggle">
-            <div onClick={this.handleAcceptReject} className={cx("tag-list__toggle-btn", {active: query.areTagsAccepted})}>Accept</div>
-            <div onClick={this.handleAcceptReject} className={cx("tag-list__toggle-btn", {active: !query.areTagsAccepted})}>Reject</div>
+        {(!query.database || !query.measurement || !query.retentionPolicy) ? null : <div className="qeditor--list-header">
+          <div className="toggle toggle-sm">
+            <div onClick={this.handleAcceptReject} className={cx("toggle-btn", {active: query.areTagsAccepted})}>Accept</div>
+            <div onClick={this.handleAcceptReject} className={cx("toggle-btn", {active: !query.areTagsAccepted})}>Reject</div>
           </div>
-        </div>
+        </div>}
         {this.renderList()}
       </div>
     );
@@ -85,11 +85,11 @@ const TagList = React.createClass({
   renderList() {
     const {database, measurement, retentionPolicy} = this.props.query;
     if (!database || !measurement || !retentionPolicy) {
-      return <div className="query-editor__empty">No measurement selected.</div>;
+      return <div className="qeditor--empty">No <strong>Measurement</strong> selected</div>;
     }
 
     return (
-      <ul className="query-editor__list">
+      <ul className="qeditor--list">
         {_.map(this.state.tags, (tagValues, tagKey) => {
           return (
             <TagListItem

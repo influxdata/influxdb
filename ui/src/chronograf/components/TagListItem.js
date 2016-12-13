@@ -62,7 +62,7 @@ const TagListItem = React.createClass({
         </div>
         <ul className="tag-value-list">
           {filtered.map((v) => {
-            const cx = classNames('tag-value-list__item query-editor__list-item', {active: selectedTagValues.indexOf(v) > -1});
+            const cx = classNames('tag-value-list__item qeditor--list-item', {active: selectedTagValues.indexOf(v) > -1});
             return (
               <li className={cx} onClick={_.wrap(v, this.handleChoose)} key={v}>
                 <div className="tag-value-list__checkbox"></div>
@@ -81,7 +81,7 @@ const TagListItem = React.createClass({
   },
 
   render() {
-    const itemClasses = classNames("query-editor__list-item tag-list__item", {open: this.state.isOpen});
+    const itemClasses = classNames("qeditor--list-item tag-list__item", {open: this.state.isOpen});
     return (
       <div>
         <li className={itemClasses} onClick={this.handleClickKey}>

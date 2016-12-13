@@ -24,8 +24,7 @@ const GroupByTimeDropdown = React.createClass({
         <ul className={classNames("dropdown-menu", {show: isOpen})} aria-labelledby="group-by-dropdown">
           {groupByTimeOptions.map((groupBy) => {
             return (
-              <li className="dropdown-option"
-                key={groupBy.menuOption}>
+              <li key={groupBy.menuOption}>
                 <a href="#" onClick={() => onChooseGroupByTime(groupBy)}>
                   {groupBy.menuOption}
                 </a>

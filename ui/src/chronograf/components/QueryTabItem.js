@@ -9,6 +9,7 @@ const QueryTabItem = React.createClass({
     }).isRequired,
     onSelect: PropTypes.func.isRequired,
     onDelete: PropTypes.func.isRequired,
+    queryTabText: PropTypes.string,
   },
 
   handleSelect() {
@@ -22,8 +23,9 @@ const QueryTabItem = React.createClass({
 
   render() {
     return (
-      <div className={classNames('explorer__tab', {active: this.props.isActive})} onClick={this.handleSelect}>
-        {this.props.query.rawText ? 'Raw Query' : 'Query'} <span className="explorer__tab-delete" onClick={this.handleDelete}><span className="icon remove"></span></span>
+      <div className={classNames('explorer--tab', {active: this.props.isActive})} onClick={this.handleSelect}>
+        <span className="explorer--tab-label">{this.props.query.rawText ? 'Raw Text' : this.props.queryTabText}</span>
+        <span className="explorer--tab-delete" onClick={this.handleDelete}></span>
       </div>
     );
   },
