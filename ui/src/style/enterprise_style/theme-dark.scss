@@ -110,6 +110,15 @@
   &:-ms-input-placeholder { color: $g10-wolf; }
   &:-moz-placeholder { color: $g10-wolf; }
 
+  &::selection {
+    background-color: $c-laser;
+    color: $g20-white;
+  }
+  &::-moz-selection {
+    background-color: $c-laser;
+    color: $g20-white;
+  }
+
   &:hover {
     border-color: $g6-smoke !important;
   }
