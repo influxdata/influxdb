@@ -110,6 +110,15 @@
   &:-ms-input-placeholder { color: $g10-wolf; }
   &:-moz-placeholder { color: $g10-wolf; }
 
+  &::selection {
+    background-color: $c-laser;
+    color: $g20-white;
+  }
+  &::-moz-selection {
+    background-color: $c-laser;
+    color: $g20-white;
+  }
+
   &:hover {
     border-color: $g6-smoke !important;
   }
@@ -133,6 +142,21 @@
 }
 .form-group-submit {
   margin-top: 30px;
+}
+textarea {
+  &::-webkit-input-placeholder { color: $g10-wolf; }
+  &::-moz-placeholder { color: $g10-wolf; }
+  &:-ms-input-placeholder { color: $g10-wolf; }
+  &:-moz-placeholder { color: $g10-wolf; }
+
+  &::selection {
+    background-color: $c-laser;
+    color: $g20-white;
+  }
+  &::-moz-selection {
+    background-color: $c-laser;
+    color: $g20-white;
+  }
 }
 
 
