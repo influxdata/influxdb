@@ -17,6 +17,7 @@ const PanelList = React.createClass({
     setActivePanel: func.isRequired,
     setActiveQuery: func.isRequired,
     activePanelID: string,
+    activeQueryID: string,
   },
 
   handleTogglePanel(panel) {
