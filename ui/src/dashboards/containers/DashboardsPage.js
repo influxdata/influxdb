@@ -55,7 +55,7 @@ const DashboardsPage = React.createClass({
                           {
                             this.state.dashboards.map((dashboard) => {
                               return (
-                                <tr key={dashboard.name}>
+                                <tr key={dashboard.id}>
                                   <td className="monotype">{dashboard.name}</td>
                                 </tr>
                               );
