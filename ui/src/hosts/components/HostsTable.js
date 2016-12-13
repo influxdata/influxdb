@@ -147,7 +147,16 @@ const HostRow = React.createClass({
   render() {
     const {host, source} = this.props;
     const {name, cpu, load, apps = []} = host;
-    const stateStr = host.deltaUptime > 0 ? "table-dot dot-success" : "table-dot dot-critical";
+
+    let stateStr = "";
+    if (host.deltaUptime < 0) {
+      stateStr = "table-dot dot-critical";
+    } else if (host.deltaUptime > 0) {
+      stateStr = "table-dot dot-success";
+    } else {
+      stateStr = "table-dot dot-danger";
+    }
+
     return (
       <tr>
         <td className="monotype"><Link to={`/sources/${source.id}/hosts/${name}`}>{name}</Link></td>
