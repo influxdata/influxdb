@@ -1,5 +1,8 @@
 ## v1.1.0 [unreleased]
 
+### Features
+  1. [#610](https://github.com/influxdata/chronograf/issues/610): Add Ability to edit raw text queries in the Data Explorer
+
 ## v1.1.0-beta2 [2016-12-09]
 
 ### Features
