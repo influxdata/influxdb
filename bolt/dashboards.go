@@ -45,12 +45,9 @@ func (s *DashboardsStore) All(ctx context.Context) ([]chronograf.Dashboard, erro
 func (d *DashboardsStore) Add(ctx context.Context, src *chronograf.Dashboard) (*chronograf.Dashboard, error) {
   if err := d.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(DashboardBucket)
-		id, err := d.IDs.Generate()
-		if err != nil {
-			return err
-		}
+		id, _ := b.NextSequence()
 
-		src.ID = id
+		src.ID = chronograf.DashboardID(id)
     strID := strconv.Itoa(int(id))
 		if v, err := internal.MarshalDashboard(*src); err != nil {
 			return err
@@ -84,7 +81,7 @@ func (d *DashboardsStore) Get(ctx context.Context, id chronograf.DashboardID) (*
 }
 
 // Delete the dashboard from DashboardsStore
-func (s *DashboardsStore) Delete(ctx context.Context, d chronograf.Dashboard) error {
+func (s *DashboardsStore) Delete(ctx context.Context, d *chronograf.Dashboard) error {
   if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		if err := tx.Bucket(DashboardBucket).Delete(itob(int(d.ID))); err != nil {
 			return err
@@ -95,4 +92,9 @@ func (s *DashboardsStore) Delete(ctx context.Context, d chronograf.Dashboard) er
 	}
 
 	return nil
+}
+
+// Update the dashboard in DashboardsStore
+func (s *DashboardsStore) Update(ctx context.Context, d *chronograf.Dashboard) error {
+  return nil
 }
