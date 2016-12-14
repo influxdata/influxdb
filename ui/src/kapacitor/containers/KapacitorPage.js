@@ -189,7 +189,9 @@ export const KapacitorPage = React.createClass({
     return (
       <div className="panel panel-minimal">
         <div className="panel-body">
-          <p>Set your Kapacitor connection info to configure alerting endpoints.</p>
+          <h4 className="text-center">Configure Alert Endpoints</h4>
+          <br/>
+          <p className="text-center">Set your Kapacitor connection info to configure alerting endpoints.</p>
         </div>
       </div>
     );
