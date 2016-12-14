@@ -1,6 +1,7 @@
 package server
 
 import (
+  "encoding/json"
 	"fmt"
 	"net/http"
 
@@ -65,25 +66,35 @@ func (s *Service) DashboardID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := newDashboardResponse(e)
+	res := newDashboardResponse(*e)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
-// type postDashboardRequest struct {
-// 	Data interface{} `json:"data"`           // Serialization of config.
-// 	Name string      `json:"name,omitempty"` // Exploration name given by user.
-// }
-
 // NewDashboard creates and returns a new dashboard object
 func (s *Service) NewDashboard(w http.ResponseWriter, r *http.Request) {
+	var dashboard *chronograf.Dashboard
+	if err := json.NewDecoder(r.Body).Decode(&dashboard); err != nil {
+		invalidJSON(w, s.Logger)
+		return
+	}
 
+	var err error
+	if dashboard, err = s.DashboardsStore.Add(r.Context(), dashboard); err != nil {
+		msg := fmt.Errorf("Error storing layout %v: %v", dashboard, err)
+		unknownErrorWithMessage(w, msg, s.Logger)
+		return
+	}
+
+	res := newDashboardResponse(*dashboard)
+	w.Header().Add("Location", res.Links.Self)
+	encodeJSON(w, http.StatusCreated, res, s.Logger)
 }
 
 // RemoveDashboard deletes a dashboard
 func (s *Service) RemoveDashboard(w http.ResponseWriter, r *http.Request) {
 	id, err := paramID("id", r)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		Error(w, http.StatusUnprocessableEntity, err.Error(), s.Logger)
 		return
 	}
 
@@ -94,7 +105,7 @@ func (s *Service) RemoveDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.DashboardsStore.Delete(ctx, &chronograf.Dashboard{ID: chronograf.DashboardID(id)}); err != nil {
+	if err := s.DashboardsStore.Delete(ctx, e); err != nil {
 		unknownErrorWithMessage(w, err, s.Logger)
 		return
 	}
