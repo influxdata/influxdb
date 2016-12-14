@@ -434,10 +434,10 @@ $form-static-checkbox-size: 16px;
     ----------------------------------------------
 */
 table .monotype {
-  font-family: Consolas, "Lucida Console", Monaco, monospace;
+  font-family: 'RobotoMono', monospace !important;
   letter-spacing: 0.69px;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 500;
   color: $g9-mountain;
 }
 .table-dot {

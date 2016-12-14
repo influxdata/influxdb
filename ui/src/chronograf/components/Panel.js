@@ -3,9 +3,10 @@ import classNames from 'classnames';
 import QueryEditor from './QueryEditor';
 import QueryTabItem from './QueryTabItem';
 import RenamePanelModal from './RenamePanelModal';
+import SimpleDropdown from 'src/shared/components/SimpleDropdown';
 
 const {shape, func, bool, arrayOf} = PropTypes;
-const Explorer = React.createClass({
+const Panel = React.createClass({
   propTypes: {
     panel: shape({}).isRequired,
     queries: arrayOf(shape({})).isRequired,
@@ -14,7 +15,7 @@ const Explorer = React.createClass({
       lower: PropTypes.string,
     }).isRequired,
     isExpanded: bool.isRequired,
-    onToggleExplorer: func.isRequired,
+    onTogglePanel: func.isRequired,
     actions: shape({
       chooseNamespace: func.isRequired,
       chooseMeasurement: func.isRequired,
@@ -44,12 +45,16 @@ const Explorer = React.createClass({
     this.props.actions.addQuery();
   },
 
+  handleAddRawQuery() {
+    this.props.actions.addQuery({rawText: `SELECT "fields" from "db"."rp"."measurement"`});
+  },
+
   handleDeleteQuery(query) {
     this.props.actions.deleteQuery(query.id);
   },
 
-  handleSelectExplorer() {
-    this.props.onToggleExplorer(this.props.panel);
+  handleSelectPanel() {
+    this.props.onTogglePanel(this.props.panel);
   },
 
   handleDeletePanel(e) {
@@ -79,16 +84,16 @@ const Explorer = React.createClass({
     const {panel, isExpanded} = this.props;
 
     return (
-      <div className={classNames('explorer', {active: isExpanded})}>
-        <div className="explorer--header" onClick={this.handleSelectExplorer}>
-          <div className="explorer--name">
+      <div className={classNames('panel', {active: isExpanded})}>
+        <div className="panel--header" onClick={this.handleSelectPanel}>
+          <div className="panel--name">
             <span className="icon caret-right"></span>
             {panel.name || "Graph"}
           </div>
-          <div className="explorer--actions">
-            <div title="Export Queries to Dashboard" className="explorer--action"><span className="icon export"></span></div>
-            <div title="Rename Graph" className="explorer--action" onClick={this.openRenamePanelModal}><span className="icon pencil"></span></div>
-            <div title="Delete Graph" className="explorer--action" onClick={this.handleDeletePanel}><span className="icon trash"></span></div>
+          <div className="panel--actions">
+            {/* <div title="Export Queries to Dashboard" className="panel--action"><span className="icon export"></span></div> */}
+            <div title="Rename Graph" className="panel--action" onClick={this.openRenamePanelModal}><span className="icon pencil"></span></div>
+            <div title="Delete Graph" className="panel--action" onClick={this.handleDeletePanel}><span className="icon trash"></span></div>
           </div>
         </div>
         {this.renderQueryTabList()}
@@ -127,12 +132,13 @@ const Explorer = React.createClass({
   },
 
   renderQueryTabList() {
-    if (!this.props.isExpanded) {
+    const {isExpanded, queries} = this.props;
+    if (!isExpanded) {
       return null;
     }
     return (
-      <div className="explorer--tabs">
-        {this.props.queries.map((q) => {
+      <div className="panel--tabs">
+        {queries.map((q) => {
           const queryTabText = (q.measurement && q.fields.length !== 0) ? `${q.measurement}.${q.fields[0].field}` : 'Query';
           return (
             <QueryTabItem
@@ -145,12 +151,30 @@ const Explorer = React.createClass({
             />
           );
         })}
-        <div className="explorer--tab" onClick={this.handleAddQuery}>
-          <span className="icon plus"></span>
-        </div>
+
+        {this.renderAddQuery()}
       </div>
+    );
+  },
+
+  onChoose(item) {
+    switch (item.text) {
+      case 'Query Builder':
+        this.handleAddQuery();
+        break;
+      case 'Raw Text':
+        this.handleAddRawQuery();
+        break;
+    }
+  },
+
+  renderAddQuery() {
+    return (
+      <SimpleDropdown onChoose={this.onChoose} items={[{text: 'Query Builder'}, {text: 'Raw Text'}]} className="panel--tab-new">
+        <span className="icon plus"></span>
+      </SimpleDropdown>
     );
   },
 });
 
-export default Explorer;
+export default Panel;

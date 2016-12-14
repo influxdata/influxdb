@@ -34,3 +34,9 @@
   font-weight: 700;
   src: url('fonts/Roboto-Black.ttf');
 }
+@font-face {
+  font-family: 'RobotoMono';
+  font-style: normal;
+  font-weight: 500;
+  src: url('fonts/RobotoMono-Medium.ttf');
+}

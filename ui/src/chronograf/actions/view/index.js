@@ -34,12 +34,13 @@ export function deletePanel(panelId) {
   };
 }
 
-export function addQuery(panelId) {
+export function addQuery(panelId, options) {
   return {
     type: 'ADD_QUERY',
     payload: {
       panelId,
       queryId: uuid.v4(),
+      options,
     },
   };
 }
@@ -114,6 +115,16 @@ export function chooseMeasurement(queryId, measurement) {
     payload: {
       queryId,
       measurement,
+    },
+  };
+}
+
+export function editRawText(queryId, rawText) {
+  return {
+    type: 'EDIT_RAW_TEXT',
+    payload: {
+      queryId,
+      rawText,
     },
   };
 }
