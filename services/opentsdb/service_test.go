@@ -20,7 +20,9 @@ import (
 )
 
 func Test_Service_OpenClose(t *testing.T) {
-	service := NewTestService("db0", "127.0.0.1:45362")
+	// Let the OS assign a random port since we are only opening and closing the service,
+	// not actually connecting to it.
+	service := NewTestService("db0", "127.0.0.1:0")
 
 	// Closing a closed service is fine.
 	if err := service.Service.Close(); err != nil {
