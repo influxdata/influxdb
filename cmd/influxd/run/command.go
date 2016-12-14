@@ -68,9 +68,6 @@ func (cmd *Command) Run(args ...string) error {
 	// Print sweet InfluxDB logo.
 	fmt.Print(logo)
 
-	// Set parallelism.
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	// Mark start-up in log.
 	cmd.Logger.Info(fmt.Sprintf("InfluxDB starting, version %s, branch %s, commit %s",
 		cmd.Version, cmd.Branch, cmd.Commit))
