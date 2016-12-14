@@ -31,6 +31,7 @@ import (
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
 	client "github.com/influxdata/usage-client/v1"
+	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"go.uber.org/zap"
 	// Initialize the engine packages
 	_ "github.com/influxdata/influxdb/tsdb/engine"
@@ -141,7 +142,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		BindAddress: bind,
 
 		Logger: zap.New(
-			zap.NewTextEncoder(),
+			zaplogfmt.NewEncoder(),
 			zap.Output(os.Stderr),
 		),
 
@@ -226,7 +227,7 @@ func (s *Server) appendSnapshotterService() {
 // SetLogOutput sets the logger used for all messages. It must not be called
 // after the Open method has been called.
 func (s *Server) SetLogOutput(w io.Writer) {
-	s.Logger = zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(w)))
+	s.Logger = zap.New(zaplogfmt.NewEncoder(), zap.Output(zap.AddSync(w)))
 }
 
 func (s *Server) appendMonitorService() {
