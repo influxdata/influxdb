@@ -249,10 +249,10 @@ type DashboardCell struct {
 type DashboardsStore interface {
 	// Create a new Dashboard in the DashboardStore
 	Add(context.Context, *Dashboard) (*Dashboard, error)
-	// Delete the Dashboard from the DashboardStore
-	Delete(context.Context, *Dashboard) error
+	// Delete the Dashboard from the DashboardStore if `ID` exists.
+	Delete(context.Context, Dashboard) error
 	// Get retrieves a dashboard if `ID` exists.
-	Get(ctx context.Context, ID DashboardID) (*Dashboard, error)
+	Get(ctx context.Context, id DashboardID) (*Dashboard, error)
 	// Update replaces the dashboard information
 	Update(context.Context, *Dashboard) error
 }

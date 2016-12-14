@@ -11,6 +11,10 @@ type dashboardResponse struct {
   Links dashboardLinks `json:"links"`
 }
 
+type getDashboardsResponse struct {
+	Dashboards []ldashboardResponse `json:"dashboards"`
+}
+
 func newDashboardResponse(d *chronograf.Dashboard) dashboardResponse {
   base := "/chronograf/v1/dashboards"
   return dashboardResponse{
@@ -23,7 +27,13 @@ func newDashboardResponse(d *chronograf.Dashboard) dashboardResponse {
 
 // Dashboards returns all dashboards within the store
 func (s *Service) Dashboards(w http.ResponseWriter, r *http.Request) {
+  dashboards, err := s.DashboardsStore.All(ctx)
+  if err != nil {
+    Error(w, http.StatusInternalServerError, "Error loading layouts", s.Logger)
+    return
+  }
 
+  encodeJSON(w, http.StatusOK, getDashboardsResponse{Dashboards: []dashboardResponse{}}, s.Logger)
 }
 
 // DashboardID returns a single specified dashboard
