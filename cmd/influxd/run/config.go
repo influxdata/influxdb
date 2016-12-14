@@ -140,7 +140,7 @@ func (c *Config) FromToml(input string) error {
 		log.Printf("deprecated config option %s replaced with %s; %s will not be supported in a future release\n", in, out, in)
 		return out
 	})
-	_, err := toml.Decode(input, c)
+	_, err := toml.DecodeFile(input, c)
 	return err
 }
 
