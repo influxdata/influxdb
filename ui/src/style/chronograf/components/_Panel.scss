@@ -105,12 +105,6 @@
     color: $g15-platinum;
   }
 
-  > span.icon.plus {
-    font-size: 12px;
-    position: relative;
-    top: -1px;
-  }
-
   &-delete {
     margin: 0 -4px 0 1px;
     width: 16px;
@@ -146,6 +140,24 @@
         background-color: $c-dreamsicle;
       }
     }
+  }
+}
+.panel--tab-new {
+  > .dropdown-toggle {
+    height: 28px !important;
+    border-radius: $radius $radius 0 0;
+
+    > .icon {
+      margin: 0;
+      font-size: 12px;
+      position: relative;
+      top: -1px;
+    }
+  }
+  > .dropdown-menu {
+    width: 90px !important;
+    min-width: 90px !important;
+    max-width: 90px !important;
   }
 }
 .panel--tab-label {

@@ -159,10 +159,10 @@ const Panel = React.createClass({
 
   onChoose(item) {
     switch (item.text) {
-      case 'Builder':
+      case 'Query Builder':
         this.handleAddQuery();
         break;
-      case 'Raw':
+      case 'Raw Text':
         this.handleAddRawQuery();
         break;
     }
@@ -170,7 +170,7 @@ const Panel = React.createClass({
 
   renderAddQuery() {
     return (
-      <SimpleDropdown onChoose={this.onChoose} items={[{text: 'Builder'}, {text: 'Raw'}]} className="editor-chooser">
+      <SimpleDropdown onChoose={this.onChoose} items={[{text: 'Query Builder'}, {text: 'Raw Text'}]} className="panel--tab-new">
         <span className="icon plus"></span>
       </SimpleDropdown>
     );
