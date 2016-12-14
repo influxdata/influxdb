@@ -1,11 +1,11 @@
 package precreator // import "github.com/influxdata/influxdb/services/precreator"
 
 import (
-	"io"
-	"log"
-	"os"
+	"fmt"
 	"sync"
 	"time"
+
+	"github.com/uber-go/zap"
 )
 
 // Service manages the shard precreation service.
@@ -13,7 +13,7 @@ type Service struct {
 	checkInterval time.Duration
 	advancePeriod time.Duration
 
-	Logger *log.Logger
+	Logger zap.Logger
 
 	done chan struct{}
 	wg   sync.WaitGroup
@@ -28,16 +28,14 @@ func NewService(c Config) (*Service, error) {
 	s := Service{
 		checkInterval: time.Duration(c.CheckInterval),
 		advancePeriod: time.Duration(c.AdvancePeriod),
-		Logger:        log.New(os.Stderr, "[shard-precreation] ", log.LstdFlags),
+		Logger:        zap.New(zap.NullEncoder()),
 	}
 
 	return &s, nil
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
-// called after Open is called.
-func (s *Service) SetLogOutput(w io.Writer) {
-	s.Logger = log.New(w, "[shard-precreation] ", log.LstdFlags)
+func (s *Service) WithLogger(log zap.Logger) {
+	s.Logger = log.With(zap.String("service", "shard-precreation"))
 }
 
 // Open starts the precreation service.
@@ -46,8 +44,8 @@ func (s *Service) Open() error {
 		return nil
 	}
 
-	s.Logger.Printf("Starting precreation service with check interval of %s, advance period of %s",
-		s.checkInterval, s.advancePeriod)
+	s.Logger.Info(fmt.Sprintf("Starting precreation service with check interval of %s, advance period of %s",
+		s.checkInterval, s.advancePeriod))
 
 	s.done = make(chan struct{})
 
@@ -77,10 +75,10 @@ func (s *Service) runPrecreation() {
 		select {
 		case <-time.After(s.checkInterval):
 			if err := s.precreate(time.Now().UTC()); err != nil {
-				s.Logger.Printf("failed to precreate shards: %s", err.Error())
+				s.Logger.Info(fmt.Sprintf("failed to precreate shards: %s", err.Error()))
 			}
 		case <-s.done:
-			s.Logger.Println("Precreation service terminating")
+			s.Logger.Info("Precreation service terminating")
 			return
 		}
 	}

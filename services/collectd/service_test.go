@@ -3,9 +3,8 @@ package collectd
 import (
 	"encoding/hex"
 	"errors"
-	"io/ioutil"
-	"log"
 	"net"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
+	"github.com/uber-go/zap"
 )
 
 func TestService_OpenClose(t *testing.T) {
@@ -299,8 +299,11 @@ func NewTestService(batchSize int, batchDuration time.Duration) *TestService {
 		panic(err)
 	}
 
-	if !testing.Verbose() {
-		s.Service.Logger = log.New(ioutil.Discard, "", log.LstdFlags)
+	if testing.Verbose() {
+		s.Service.WithLogger(zap.New(
+			zap.NewTextEncoder(),
+			zap.Output(os.Stderr),
+		))
 	}
 
 	return s

@@ -19,6 +19,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/engine"
+	"github.com/uber-go/zap"
 )
 
 // DefaultPrecision is the precision used by the MustWritePointsString() function.
@@ -229,7 +230,7 @@ func TestWriteTimeTag(t *testing.T) {
 	)
 
 	buf := bytes.NewBuffer(nil)
-	sh.SetLogOutput(buf)
+	sh.WithLogger(zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(buf))))
 	if err := sh.WritePoints([]models.Point{pt}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if got, exp := buf.String(), "dropping field 'time'"; !strings.Contains(got, exp) {
@@ -249,7 +250,7 @@ func TestWriteTimeTag(t *testing.T) {
 	)
 
 	buf = bytes.NewBuffer(nil)
-	sh.SetLogOutput(buf)
+	sh.WithLogger(zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(buf))))
 	if err := sh.WritePoints([]models.Point{pt}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if got, exp := buf.String(), "dropping field 'time'"; !strings.Contains(got, exp) {
@@ -290,7 +291,7 @@ func TestWriteTimeField(t *testing.T) {
 	)
 
 	buf := bytes.NewBuffer(nil)
-	sh.SetLogOutput(buf)
+	sh.WithLogger(zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(buf))))
 	if err := sh.WritePoints([]models.Point{pt}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if got, exp := buf.String(), "dropping tag 'time'"; !strings.Contains(got, exp) {

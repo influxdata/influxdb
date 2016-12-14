@@ -3,8 +3,6 @@ package httpd // import "github.com/influxdata/influxdb/services/httpd"
 import (
 	"crypto/tls"
 	"fmt"
-	"io"
-	"log"
 	"net"
 	"net/http"
 	"os"
@@ -15,6 +13,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/uber-go/zap"
 )
 
 // statistics gathered by the httpd package.
@@ -55,7 +54,7 @@ type Service struct {
 
 	Handler *Handler
 
-	Logger *log.Logger
+	Logger zap.Logger
 }
 
 // NewService returns a new instance of Service.
@@ -70,7 +69,7 @@ func NewService(c Config) *Service {
 		unixSocket: c.UnixSocketEnabled,
 		bindSocket: c.BindSocket,
 		Handler:    NewHandler(c),
-		Logger:     log.New(os.Stderr, "[httpd] ", log.LstdFlags),
+		Logger:     zap.New(zap.NullEncoder()),
 	}
 	if s.key == "" {
 		s.key = s.cert
@@ -81,8 +80,8 @@ func NewService(c Config) *Service {
 
 // Open starts the service
 func (s *Service) Open() error {
-	s.Logger.Println("Starting HTTP service")
-	s.Logger.Println("Authentication enabled:", s.Handler.Config.AuthEnabled)
+	s.Logger.Info("Starting HTTP service")
+	s.Logger.Info(fmt.Sprint("Authentication enabled:", s.Handler.Config.AuthEnabled))
 
 	// Open listener.
 	if s.https {
@@ -98,7 +97,7 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		s.Logger.Println("Listening on HTTPS:", listener.Addr().String())
+		s.Logger.Info(fmt.Sprint("Listening on HTTPS:", listener.Addr().String()))
 		s.ln = listener
 	} else {
 		listener, err := net.Listen("tcp", s.addr)
@@ -106,7 +105,7 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		s.Logger.Println("Listening on HTTP:", listener.Addr().String())
+		s.Logger.Info(fmt.Sprint("Listening on HTTP:", listener.Addr().String()))
 		s.ln = listener
 	}
 
@@ -127,7 +126,7 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		s.Logger.Println("Listening on unix socket:", listener.Addr().String())
+		s.Logger.Info(fmt.Sprint("Listening on unix socket:", listener.Addr().String()))
 		s.unixSocketListener = listener
 
 		go s.serveUnixSocket()
@@ -173,10 +172,9 @@ func (s *Service) Close() error {
 
 // SetLogOutput sets the writer to which all logs are written. It must not be
 // called after Open is called.
-func (s *Service) SetLogOutput(w io.Writer) {
-	l := log.New(w, "[httpd] ", log.LstdFlags)
-	s.Logger = l
-	s.Handler.Logger = l
+func (s *Service) WithLogger(log zap.Logger) {
+	s.Logger = log.With(zap.String("service", "httpd"))
+	s.Handler.Logger = s.Logger
 }
 
 // Err returns a channel for fatal errors that occur on the listener.

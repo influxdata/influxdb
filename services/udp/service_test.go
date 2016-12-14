@@ -2,13 +2,14 @@ package udp
 
 import (
 	"errors"
-	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/uber-go/zap"
 )
 
 func TestService_OpenClose(t *testing.T) {
@@ -142,8 +143,11 @@ func NewTestService(c *Config) *TestService {
 		MetaClient: &internal.MetaClientMock{},
 	}
 
-	if !testing.Verbose() {
-		service.Service.SetLogOutput(ioutil.Discard)
+	if testing.Verbose() {
+		service.Service.WithLogger(zap.New(
+			zap.NewTextEncoder(),
+			zap.Output(os.Stderr),
+		))
 	}
 
 	service.Service.MetaClient = service.MetaClient

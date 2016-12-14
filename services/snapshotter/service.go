@@ -6,10 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
+	"github.com/uber-go/zap"
 )
 
 const (
@@ -43,20 +41,20 @@ type Service struct {
 	TSDBStore *tsdb.Store
 
 	Listener net.Listener
-	Logger   *log.Logger
+	Logger   zap.Logger
 }
 
 // NewService returns a new instance of Service.
 func NewService() *Service {
 	return &Service{
 		err:    make(chan error),
-		Logger: log.New(os.Stderr, "[snapshot] ", log.LstdFlags),
+		Logger: zap.New(zap.NullEncoder()),
 	}
 }
 
 // Open starts the service.
 func (s *Service) Open() error {
-	s.Logger.Println("Starting snapshot service")
+	s.Logger.Info("Starting snapshot service")
 
 	s.wg.Add(1)
 	go s.serve()
@@ -72,10 +70,8 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
-// called after Open is called.
-func (s *Service) SetLogOutput(w io.Writer) {
-	s.Logger = log.New(w, "[snapshot] ", log.LstdFlags)
+func (s *Service) WithLogger(log zap.Logger) {
+	s.Logger = log.With(zap.String("service", "snapshot"))
 }
 
 // Err returns a channel for fatal out-of-band errors.
@@ -89,10 +85,10 @@ func (s *Service) serve() {
 		// Wait for next connection.
 		conn, err := s.Listener.Accept()
 		if err != nil && strings.Contains(err.Error(), "connection closed") {
-			s.Logger.Println("snapshot listener closed")
+			s.Logger.Info("snapshot listener closed")
 			return
 		} else if err != nil {
-			s.Logger.Println("error accepting snapshot request: ", err.Error())
+			s.Logger.Info(fmt.Sprint("error accepting snapshot request: ", err.Error()))
 			continue
 		}
 
@@ -102,7 +98,7 @@ func (s *Service) serve() {
 			defer s.wg.Done()
 			defer conn.Close()
 			if err := s.handleConn(conn); err != nil {
-				s.Logger.Println(err)
+				s.Logger.Info(err.Error())
 			}
 		}(conn)
 	}

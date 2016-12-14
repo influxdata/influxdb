@@ -3,16 +3,14 @@ package admin // import "github.com/influxdata/influxdb/services/admin"
 import (
 	"crypto/tls"
 	"fmt"
-	"io"
-	"log"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 
 	// Register static assets via statik.
 	_ "github.com/influxdata/influxdb/services/admin/statik"
 	"github.com/rakyll/statik/fs"
+	"github.com/uber-go/zap"
 )
 
 // Service manages the listener for an admin endpoint.
@@ -24,7 +22,7 @@ type Service struct {
 	err      chan error
 	version  string
 
-	logger *log.Logger
+	logger zap.Logger
 }
 
 // NewService returns a new instance of Service.
@@ -35,14 +33,14 @@ func NewService(c Config) *Service {
 		cert:    c.HTTPSCertificate,
 		err:     make(chan error),
 		version: c.Version,
-		logger:  log.New(os.Stderr, "[admin] ", log.LstdFlags),
+		logger:  zap.New(zap.NullEncoder()),
 	}
 }
 
 // Open starts the service
 func (s *Service) Open() error {
-	s.logger.Printf("Starting admin service")
-	s.logger.Println("DEPRECATED: This plugin is deprecated as of 1.1.0 and will be removed in a future release")
+	s.logger.Info("Starting admin service")
+	s.logger.Info("DEPRECATED: This plugin is deprecated as of 1.1.0 and will be removed in a future release")
 
 	// Open listener.
 	if s.https {
@@ -58,7 +56,7 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		s.logger.Println("Listening on HTTPS:", listener.Addr().String())
+		s.logger.Info(fmt.Sprint("Listening on HTTPS: ", listener.Addr().String()))
 		s.listener = listener
 	} else {
 		listener, err := net.Listen("tcp", s.addr)
@@ -66,7 +64,7 @@ func (s *Service) Open() error {
 			return err
 		}
 
-		s.logger.Println("Listening on HTTP:", listener.Addr().String())
+		s.logger.Info(fmt.Sprint("Listening on HTTP: ", listener.Addr().String()))
 		s.listener = listener
 	}
 
@@ -83,10 +81,8 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
-// called after Open is called.
-func (s *Service) SetLogOutput(w io.Writer) {
-	s.logger = log.New(w, "[admin] ", log.LstdFlags)
+func (s *Service) WithLogger(log zap.Logger) {
+	s.logger = log.With(zap.String("service", "admin"))
 }
 
 // Err returns a channel for fatal errors that occur on the listener.

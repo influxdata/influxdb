@@ -4,8 +4,6 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
-	"io"
-	"log"
 	"os"
 	"runtime"
 	"sort"
@@ -16,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/uber-go/zap"
 )
 
 // Policy constants.
@@ -58,7 +57,7 @@ type Monitor struct {
 	// Writer for pushing stats back into the database.
 	PointsWriter PointsWriter
 
-	Logger *log.Logger
+	Logger zap.Logger
 }
 
 // PointsWriter is a simplified interface for writing the points the monitor gathers
@@ -76,7 +75,7 @@ func New(r Reporter, c Config) *Monitor {
 		storeDatabase:        c.StoreDatabase,
 		storeInterval:        time.Duration(c.StoreInterval),
 		storeRetentionPolicy: MonitorRetentionPolicy,
-		Logger:               log.New(os.Stderr, "[monitor] ", log.LstdFlags),
+		Logger:               zap.New(zap.NullEncoder()),
 	}
 }
 
@@ -90,11 +89,11 @@ func (m *Monitor) open() bool {
 // for identification purpose.
 func (m *Monitor) Open() error {
 	if m.open() {
-		m.Logger.Println("Monitor is already open")
+		m.Logger.Info("Monitor is already open")
 		return nil
 	}
 
-	m.Logger.Printf("Starting monitor system")
+	m.Logger.Info("Starting monitor system")
 
 	// Self-register various stats and diagnostics.
 	m.RegisterDiagnosticsClient("build", &build{
@@ -124,11 +123,11 @@ func (m *Monitor) Open() error {
 // Close closes the monitor system.
 func (m *Monitor) Close() error {
 	if !m.open() {
-		m.Logger.Println("Monitor is already closed.")
+		m.Logger.Info("Monitor is already closed.")
 		return nil
 	}
 
-	m.Logger.Println("shutting down monitor system")
+	m.Logger.Info("shutting down monitor system")
 	m.mu.Lock()
 	close(m.done)
 	m.mu.Unlock()
@@ -177,10 +176,8 @@ func (m *Monitor) SetPointsWriter(pw PointsWriter) error {
 	return m.Open()
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
-// called after Open is called.
-func (m *Monitor) SetLogOutput(w io.Writer) {
-	m.Logger = log.New(w, "[monitor] ", log.LstdFlags)
+func (m *Monitor) WithLogger(log zap.Logger) {
+	m.Logger = log.With(zap.String("service", "monitor"))
 }
 
 // RegisterDiagnosticsClient registers a diagnostics client with the given name and tags.
@@ -188,7 +185,7 @@ func (m *Monitor) RegisterDiagnosticsClient(name string, client diagnostics.Clie
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.diagRegistrations[name] = client
-	m.Logger.Printf(`'%s' registered for diagnostics monitoring`, name)
+	m.Logger.Info(fmt.Sprintf(`'%s' registered for diagnostics monitoring`, name))
 }
 
 // DeregisterDiagnosticsClient deregisters a diagnostics client by name.
@@ -352,8 +349,8 @@ func (m *Monitor) createInternalStorage() {
 		}
 
 		if _, err := m.MetaClient.CreateDatabaseWithRetentionPolicy(m.storeDatabase, &spec); err != nil {
-			m.Logger.Printf("failed to create database '%s', failed to create storage: %s",
-				m.storeDatabase, err.Error())
+			m.Logger.Info(fmt.Sprintf("failed to create database '%s', failed to create storage: %s",
+				m.storeDatabase, err.Error()))
 			return
 		}
 	}
@@ -380,8 +377,8 @@ func (m *Monitor) waitUntilInterval(d time.Duration) error {
 // storeStatistics writes the statistics to an InfluxDB system.
 func (m *Monitor) storeStatistics() {
 	defer m.wg.Done()
-	m.Logger.Printf("Storing statistics in database '%s' retention policy '%s', at interval %s",
-		m.storeDatabase, m.storeRetentionPolicy, m.storeInterval)
+	m.Logger.Info(fmt.Sprintf("Storing statistics in database '%s' retention policy '%s', at interval %s",
+		m.storeDatabase, m.storeRetentionPolicy, m.storeInterval))
 
 	hostname, _ := os.Hostname()
 	m.SetGlobalTag("hostname", hostname)
@@ -407,7 +404,7 @@ func (m *Monitor) storeStatistics() {
 
 			stats, err := m.Statistics(m.globalTags)
 			if err != nil {
-				m.Logger.Printf("failed to retrieve registered statistics: %s", err)
+				m.Logger.Info(fmt.Sprintf("failed to retrieve registered statistics: %s", err))
 				return
 			}
 
@@ -415,7 +412,7 @@ func (m *Monitor) storeStatistics() {
 			for _, s := range stats {
 				pt, err := models.NewPoint(s.Name, models.NewTags(s.Tags), s.Values, now)
 				if err != nil {
-					m.Logger.Printf("Dropping point %v: %v", s.Name, err)
+					m.Logger.Info(fmt.Sprintf("Dropping point %v: %v", s.Name, err))
 					return
 				}
 				points = append(points, pt)
@@ -426,11 +423,11 @@ func (m *Monitor) storeStatistics() {
 				defer m.mu.RUnlock()
 
 				if err := m.PointsWriter.WritePoints(m.storeDatabase, m.storeRetentionPolicy, points); err != nil {
-					m.Logger.Printf("failed to store statistics: %s", err)
+					m.Logger.Info(fmt.Sprintf("failed to store statistics: %s", err))
 				}
 			}()
 		case <-m.done:
-			m.Logger.Printf("terminating storage of statistics")
+			m.Logger.Info(fmt.Sprintf("terminating storage of statistics"))
 			return
 		}
 	}

@@ -3,8 +3,8 @@ package graphite
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
+	"github.com/uber-go/zap"
 )
 
 func Test_Service_OpenClose(t *testing.T) {
@@ -287,8 +288,11 @@ func NewTestService(c *Config) *TestService {
 		return nil, nil
 	}
 
-	if !testing.Verbose() {
-		service.Service.SetLogOutput(ioutil.Discard)
+	if testing.Verbose() {
+		service.Service.WithLogger(zap.New(
+			zap.NewTextEncoder(),
+			zap.Output(os.Stderr),
+		))
 	}
 
 	// Set the Meta Client and PointsWriter.
