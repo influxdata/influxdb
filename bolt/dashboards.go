@@ -20,9 +20,9 @@ type DashboardsStore struct {
 }
 
 // All returns all known dashboards
-func (s *DashboardsStore) All(ctx context.Context) ([]chronograf.Dashboard, error) {
+func (d *DashboardsStore) All(ctx context.Context) ([]chronograf.Dashboard, error) {
   var srcs []chronograf.Dashboard
-  if err := s.client.db.View(func(tx *bolt.Tx) error {
+  if err := d.client.db.View(func(tx *bolt.Tx) error {
     if err := tx.Bucket(DashboardBucket).ForEach(func(k, v []byte) error {
       var src chronograf.Dashboard
       if err := internal.UnmarshalDashboard(v, &src); err != nil {
