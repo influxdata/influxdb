@@ -462,3 +462,8 @@ export const DEFAULT_LINE_COLORS = [
     ],
   ],
 ];
+
+export const STROKE_WIDTH = {
+  heavy: 3.5,
+  light: 1.5,
+};
