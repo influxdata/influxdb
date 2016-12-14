@@ -96,5 +96,23 @@ func (s *DashboardsStore) Delete(ctx context.Context, d *chronograf.Dashboard) e
 
 // Update the dashboard in DashboardsStore
 func (s *DashboardsStore) Update(ctx context.Context, d *chronograf.Dashboard) error {
+  if err := s.client.db.Update(func(tx *bolt.Tx) error {
+    // Get an existing dashboard with the same ID.
+    b := tx.Bucket(DashboardBucket)
+    strID := strconv.Itoa(int(d.ID))
+    if v := b.Get([]byte(strID)); v == nil {
+      return chronograf.ErrDashboardNotFound
+    }
+
+    if v, err := internal.MarshalDashboard(*d); err != nil {
+      return err
+    } else if err := b.Put([]byte(strID), v); err != nil {
+      return err
+    }
+    return nil
+  }); err != nil {
+    return err
+  }
+
   return nil
 }
