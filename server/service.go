@@ -10,7 +10,7 @@ type Service struct {
 	LayoutStore      chronograf.LayoutStore
 	AlertRulesStore  chronograf.AlertRulesStore
 	UsersStore       chronograf.UsersStore
-	DashboardsStore	 chronograf.DashboardsStore
+	DashboardsStore  chronograf.DashboardsStore
 	TimeSeries       chronograf.TimeSeries
 	Logger           chronograf.Logger
 	UseAuth          bool

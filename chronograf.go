@@ -229,20 +229,20 @@ type DashboardID int
 
 // Dashboard represents all visual and query data for a dashboard
 type Dashboard struct {
-	ID  	DashboardID `json:"id"`
+	ID    DashboardID     `json:"id"`
 	Cells []DashboardCell `json:"cells"`
-	Name	string `json:"name"`
+	Name  string          `json:"name"`
 }
 
 // DashboardCell holds visual and query information for a cell
 type DashboardCell struct {
-	X       int32   `json:"x"`
-	Y       int32   `json:"y"`
-	W       int32   `json:"w"`
-	H       int32   `json:"h"`
-	Name    string  `json:"name"`
+	X       int32    `json:"x"`
+	Y       int32    `json:"y"`
+	W       int32    `json:"w"`
+	H       int32    `json:"h"`
+	Name    string   `json:"name"`
 	Queries []string `json:"queries"`
-	Type    string	`json:"type"`
+	Type    string   `json:"type"`
 }
 
 // DashboardsStore is the storage and retrieval of dashboards
@@ -295,7 +295,7 @@ type Cell struct {
 	I       string  `json:"i"`
 	Name    string  `json:"name"`
 	Queries []Query `json:"queries"`
-	Type    string	`json:"type"`
+	Type    string  `json:"type"`
 }
 
 // Layout is a collection of Cells for visualization

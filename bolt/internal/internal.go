@@ -205,9 +205,9 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 	}
 
 	return proto.Marshal(&Dashboard{
-		ID:   int64(d.ID),
-    Cells: cells,
-		Name: d.Name,
+		ID:    int64(d.ID),
+		Cells: cells,
+		Name:  d.Name,
 	})
 }
 
@@ -231,9 +231,9 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 		}
 	}
 
-	d.ID    = chronograf.DashboardID(pb.ID)
+	d.ID = chronograf.DashboardID(pb.ID)
 	d.Cells = cells
-	d.Name  = pb.Name
+	d.Name = pb.Name
 
 	return nil
 }
