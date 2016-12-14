@@ -42,7 +42,9 @@ const Dropdown = React.createClass({
             {items.map((item, i) => {
               return (
                 <li className="dropdown-item" key={i} onClick={() => self.handleSelection(item)}>
-                  {item.text}
+                  <a href="#">
+                    {item.text}
+                  </a>
                 </li>
               );
             })}

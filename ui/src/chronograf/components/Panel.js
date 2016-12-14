@@ -171,9 +171,7 @@ const Panel = React.createClass({
   renderAddQuery() {
     return (
       <SimpleDropdown onChoose={this.onChoose} items={[{text: 'Builder'}, {text: 'Raw'}]} className="editor-chooser">
-        <div className="panel--tab">
-          <span className="icon plus"></span>
-        </div>
+        <span className="icon plus"></span>
       </SimpleDropdown>
     );
   },
