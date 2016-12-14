@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react';
+import classNames from 'classnames';
 import OnClickOutside from 'shared/components/OnClickOutside';
 
 const Dropdown = React.createClass({
@@ -33,7 +34,7 @@ const Dropdown = React.createClass({
     const {items, className} = self.props;
 
     return (
-      <div onClick={this.toggleMenu} className={`dropdown ${className}`}>
+      <div onClick={this.toggleMenu} className={classNames(`dropdown ${className}`, {open: self.state.isOpen})}>
         <div className="btn btn-sm btn-info dropdown-toggle">
           {this.props.children}
         </div>
