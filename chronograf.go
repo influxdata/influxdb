@@ -13,6 +13,7 @@ const (
 	ErrSourceNotFound      = Error("source not found")
 	ErrServerNotFound      = Error("server not found")
 	ErrLayoutNotFound      = Error("layout not found")
+	ErrDashboardNotFound   = Error("dashboard not found")
 	ErrUserNotFound        = Error("user not found")
 	ErrLayoutInvalid       = Error("layout is invalid")
 	ErrAlertNotFound       = Error("alert not found")
@@ -223,6 +224,41 @@ type UsersStore interface {
 	FindByEmail(ctx context.Context, Email string) (*User, error)
 }
 
+// DashboardID is the dashboard ID
+type DashboardID int
+
+// Dashboard represents all visual and query data for a dashboard
+type Dashboard struct {
+	ID    DashboardID     `json:"id"`
+	Cells []DashboardCell `json:"cells"`
+	Name  string          `json:"name"`
+}
+
+// DashboardCell holds visual and query information for a cell
+type DashboardCell struct {
+	X       int32    `json:"x"`
+	Y       int32    `json:"y"`
+	W       int32    `json:"w"`
+	H       int32    `json:"h"`
+	Name    string   `json:"name"`
+	Queries []string `json:"queries"`
+	Type    string   `json:"type"`
+}
+
+// DashboardsStore is the storage and retrieval of dashboards
+type DashboardsStore interface {
+  // All lists all dashboards from the DashboardStore
+	All(context.Context) ([]Dashboard, error)
+	// Create a new Dashboard in the DashboardStore
+	Add(context.Context, Dashboard) (Dashboard, error)
+	// Delete the Dashboard from the DashboardStore if `ID` exists.
+	Delete(context.Context, Dashboard) error
+	// Get retrieves a dashboard if `ID` exists.
+	Get(ctx context.Context, id DashboardID) (Dashboard, error)
+	// Update replaces the dashboard information
+	Update(context.Context, Dashboard) error
+}
+
 // ExplorationID is a unique ID for an Exploration.
 type ExplorationID int
 
@@ -260,7 +296,7 @@ type Cell struct {
 	I       string  `json:"i"`
 	Name    string  `json:"name"`
 	Queries []Query `json:"queries"`
-	Type    string	`json:"type"`
+	Type    string  `json:"type"`
 }
 
 // Layout is a collection of Cells for visualization

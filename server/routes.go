@@ -7,21 +7,23 @@ import (
 )
 
 type getRoutesResponse struct {
-	Layouts  string `json:"layouts"`  // Location of the layouts endpoint
-	Mappings string `json:"mappings"` // Location of the application mappings endpoint
-	Sources  string `json:"sources"`  // Location of the sources endpoint
-	Users    string `json:"users"`    // Location of the users endpoint
-	Me       string `json:"me"`       // Location of the me endpoint
+	Layouts    string `json:"layouts"`    // Location of the layouts endpoint
+	Mappings   string `json:"mappings"`   // Location of the application mappings endpoint
+	Sources    string `json:"sources"`    // Location of the sources endpoint
+	Users      string `json:"users"`      // Location of the users endpoint
+	Me         string `json:"me"`         // Location of the me endpoint
+	Dashboards string `json:"dashboards"` // Location of the dashboards endpoint
 }
 
 // AllRoutes returns all top level routes within chronograf
 func AllRoutes(logger chronograf.Logger) http.HandlerFunc {
 	routes := getRoutesResponse{
-		Sources:  "/chronograf/v1/sources",
-		Layouts:  "/chronograf/v1/layouts",
-		Users:    "/chronograf/v1/users",
-		Me:       "/chronograf/v1/me",
-		Mappings: "/chronograf/v1/mappings",
+		Sources:    "/chronograf/v1/sources",
+		Layouts:    "/chronograf/v1/layouts",
+		Users:      "/chronograf/v1/users",
+		Me:         "/chronograf/v1/me",
+		Mappings:   "/chronograf/v1/mappings",
+		Dashboards: "/chronograf/v1/dashboards",
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
