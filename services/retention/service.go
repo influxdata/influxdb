@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // Service represents the retention policy enforcement service.

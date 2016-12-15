@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 type TSMFile interface {

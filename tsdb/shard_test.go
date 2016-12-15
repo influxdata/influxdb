@@ -19,7 +19,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/engine"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // DefaultPrecision is the precision used by the MustWritePointsString() function.

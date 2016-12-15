@@ -15,7 +15,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influxd/help"
 	"github.com/influxdata/influxdb/cmd/influxd/restore"
 	"github.com/influxdata/influxdb/cmd/influxd/run"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // These variables are populated via the Go linker.
