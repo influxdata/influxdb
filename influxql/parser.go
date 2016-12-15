@@ -2539,6 +2539,14 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 		switch v := v.(type) {
 		case float64:
 			return &NumberLiteral{Val: v}, nil
+		case int:
+			return &IntegerLiteral{Val: int64(v)}, nil
+		case int8:
+			return &IntegerLiteral{Val: int64(v)}, nil
+		case int16:
+			return &IntegerLiteral{Val: int64(v)}, nil
+		case int32:
+			return &IntegerLiteral{Val: int64(v)}, nil
 		case int64:
 			return &IntegerLiteral{Val: v}, nil
 		case string:
