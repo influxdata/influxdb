@@ -13,13 +13,12 @@
   // For when an panel item is open
   &.active {
     background-color: $g4-onyx;
-    .panel__header {
-      &-name {
-        color: $g20-white;
+    
+    .panel--name {
+      color: $g20-white;
 
-        .icon {
-          transform: translateY(-50%) rotate(90deg);
-        }
+      .icon {
+        transform: translateY(-50%) rotate(90deg);
       }
     }
   }
