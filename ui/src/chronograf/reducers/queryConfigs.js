@@ -1,5 +1,6 @@
 import defaultQueryConfig from 'src/utils/defaultQueryConfig';
 import {
+  editRawText,
   applyFuncsToField,
   chooseMeasurement,
   chooseNamespace,
@@ -20,10 +21,10 @@ export default function queryConfigs(state = {}, action) {
 
     case 'CHOOSE_NAMESPACE': {
       const {queryId, database, retentionPolicy} = action.payload;
-      const nextQueryConfig = chooseNamespace(defaultQueryConfig(queryId), {database, retentionPolicy});
+      const nextQueryConfig = chooseNamespace(state[queryId], {database, retentionPolicy});
 
       return Object.assign({}, state, {
-        [queryId]: nextQueryConfig,
+        [queryId]: Object.assign(nextQueryConfig, {rawText: state[queryId].rawText}),
       });
     }
 
@@ -32,7 +33,7 @@ export default function queryConfigs(state = {}, action) {
       const nextQueryConfig = chooseMeasurement(state[queryId], measurement);
 
       return Object.assign({}, state, {
-        [queryId]: nextQueryConfig,
+        [queryId]: Object.assign(nextQueryConfig, {rawText: state[queryId].rawText}),
       });
     }
 
@@ -48,9 +49,9 @@ export default function queryConfigs(state = {}, action) {
     case 'CREATE_PANEL':
     case 'ADD_KAPACITOR_QUERY':
     case 'ADD_QUERY': {
-      const {queryId} = action.payload;
+      const {queryId, options} = action.payload;
       const nextState = Object.assign({}, state, {
-        [queryId]: defaultQueryConfig(queryId),
+        [queryId]: Object.assign({}, defaultQueryConfig(queryId), options),
       });
 
       return nextState;
@@ -63,6 +64,15 @@ export default function queryConfigs(state = {}, action) {
       });
 
       return nextState;
+    }
+
+    case 'EDIT_RAW_TEXT': {
+      const {queryId, rawText} = action.payload;
+      const nextQueryConfig = editRawText(state[queryId], rawText);
+
+      return Object.assign({}, state, {
+        [queryId]: nextQueryConfig,
+      });
     }
 
     case 'GROUP_BY_TIME': {

@@ -7,6 +7,7 @@ import DatabaseList from './DatabaseList';
 import MeasurementList from './MeasurementList';
 import FieldList from './FieldList';
 import TagList from './TagList';
+import RawQueryEditor from './RawQueryEditor';
 
 const DB_TAB = 'databases';
 const MEASUREMENTS_TAB = 'measurments';
@@ -86,37 +87,39 @@ const QueryEditor = React.createClass({
     this.props.actions.groupByTag(this.props.query.id, tagKey);
   },
 
+  handleEditRawText(text) {
+    this.props.actions.editRawText(this.props.query.id, text);
+  },
+
   handleClickTab(tab) {
     this.setState({activeTab: tab});
   },
 
   render() {
-    const {query, timeRange} = this.props;
-
-    const statement = query.rawText || selectStatement(timeRange, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
-
     return (
-      <div className="explorer--tab-contents">
-        <div className="qeditor--query-preview">
-          <pre className={classNames("", {"rq-mode": query.rawText})}><code>{statement}</code></pre>
-        </div>
-        {this.renderEditor()}
+      <div className="panel--tab-contents">
+        {this.renderQuery()}
+        {this.renderLists()}
       </div>
     );
   },
 
-  renderEditor() {
-    if (this.props.query.rawText) {
+  renderQuery() {
+    const {query, timeRange} = this.props;
+    const statement = query.rawText || selectStatement(timeRange, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
+
+    if (!query.rawText) {
       return (
-        <div className="qeditor--empty">
-          <p className="margin-bottom-zero">
-            <span className="icon alert-triangle"></span>
-            &nbsp;Only editable in the <strong>Raw Query</strong> tab.
-          </p>
+        <div className="qeditor--query-preview">
+          <pre><code>{statement}</code></pre>
         </div>
       );
     }
 
+    return <RawQueryEditor query={query} onUpdate={this.handleEditRawText} />;
+  },
+
+  renderLists() {
     const {activeTab} = this.state;
     return (
       <div>

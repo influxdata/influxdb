@@ -15,11 +15,9 @@ $query-editor-height: 250px;
 
   pre {
     padding: 9px;
-    white-space: pre-wrap;
     border: 0;
     background-color: $query-editor-tab-inactive;
-    font-weight: 600;
-    color: $c-comet;
+    color: $c-pool;
     border-radius: $radius-small $radius-small 0 0;
     border-bottom: 2px solid $query-editor-tab-active;
     margin-bottom: 0;
@@ -30,11 +28,7 @@ $query-editor-height: 250px;
     code {
       white-space: pre-wrap;
       line-height: 1.5em;
-    }
-
-    &.rq-mode {
-      color: $c-rainforest;
-      @include custom-scrollbar($query-editor-tab-inactive, $c-rainforest);
+      margin: 0;
     }
   }
 }
