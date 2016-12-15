@@ -390,10 +390,9 @@ func TestHoltWinters_MaxTime(t *testing.T) {
 // TestSample_AllSamplesSeen attempts to verify that it is possible
 // to get every subsample in a reasonable number of iterations.
 //
-// The idea here is that 6 iterations should be enough to hit every possible
-// sequence atleast once.
+// The idea here is that 30 iterations should be enough to hit every possible
+// sequence at least once.
 func TestSample_AllSamplesSeen(t *testing.T) {
-
 	ps := []influxql.FloatPoint{
 		{Time: 1, Value: 1},
 		{Time: 2, Value: 2},
@@ -416,9 +415,9 @@ func TestSample_AllSamplesSeen(t *testing.T) {
 		},
 	}
 
-	// 6 iterations should be more than sufficient to garentee that
+	// 30 iterations should be sufficient to guarantee that
 	// we hit every possible subsample.
-	for i := 0; i < 6; i++ {
+	for i := 0; i < 30; i++ {
 		s := influxql.NewFloatSampleReducer(2)
 		for _, p := range ps {
 			s.AggregateFloat(&p)
@@ -426,26 +425,32 @@ func TestSample_AllSamplesSeen(t *testing.T) {
 
 		points := s.Emit()
 
-		// if samples is empty we've seen every sample, so we're done
-		if len(samples) == 0 {
-			return
-		}
-
 		for i, sample := range samples {
 			// if we find a sample that it matches, remove it from
 			// this list of possible samples
 			if deep.Equal(sample, points) {
 				samples = append(samples[:i], samples[i+1:]...)
+				break
 			}
 		}
 
+		// if samples is empty we've seen every sample, so we're done
+		if len(samples) == 0 {
+			return
+		}
+
+		// The FloatSampleReducer is seeded with time.Now().UnixNano(), and without this sleep,
+		// this test will fail on machines where UnixNano doesn't return full resolution.
+		// Specifically, some Windows machines will only return timestamps accurate to 100ns.
+		// While iterating through this test without an explicit sleep,
+		// we would only see one or two unique seeds across all the calls to NewFloatSampleReducer.
+		time.Sleep(time.Millisecond)
 	}
 
 	// If we missed a sample, report the error
-	if exp, got := 0, len(samples); exp != got {
-		t.Fatalf("expected to get every sample: got %d, exp %d", got, exp)
+	if len(samples) != 0 {
+		t.Fatalf("expected all samples to be seen; unseen samples: %#v", samples)
 	}
-
 }
 
 func TestSample_SampleSizeLessThanNumPoints(t *testing.T) {

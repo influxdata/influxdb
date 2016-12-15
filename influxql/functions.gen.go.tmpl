@@ -198,7 +198,7 @@ func (r *{{$k.Name}}SampleReducer) Aggregate{{$k.Name}}(p *{{$k.Name}}Point) {
 	// Generate a random integer between 1 and the count and
 	// if that number is less than the length of the slice
 	// replace the point at that index rnd with p.
-	rnd := rand.Intn(r.count)
+	rnd := r.rng.Intn(r.count)
 	if rnd < len(r.points) {
 		r.points[rnd] = *p
 	}
