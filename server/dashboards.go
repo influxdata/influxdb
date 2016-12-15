@@ -68,14 +68,14 @@ func (s *Service) DashboardID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := newDashboardResponse(*e)
+	res := newDashboardResponse(e)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
 // NewDashboard creates and returns a new dashboard object
 func (s *Service) NewDashboard(w http.ResponseWriter, r *http.Request) {
-	var dashboard *chronograf.Dashboard
-	if err := json.NewDecoder(r.Body).Decode(&dashboard); err != nil {
+	var dashboard chronograf.Dashboard
+	if err := json.NewDecoder(r.Body).Decode(dashboard); err != nil {
 		invalidJSON(w, s.Logger)
 		return
 	}
@@ -92,7 +92,7 @@ func (s *Service) NewDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := newDashboardResponse(*dashboard)
+	res := newDashboardResponse(dashboard)
 	w.Header().Add("Location", res.Links.Self)
 	encodeJSON(w, http.StatusCreated, res, s.Logger)
 }
@@ -135,14 +135,14 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var req *chronograf.Dashboard
+	var req chronograf.Dashboard
 	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
 		invalidJSON(w, s.Logger)
 		return
 	}
 	req.ID = id
 
-	if err := ValidDashboardRequest(dashboard); err != nil {
+	if err := ValidDashboardRequest(req); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
@@ -153,7 +153,7 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := newDashboardResponse(*req)
+	res := newDashboardResponse(req)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
@@ -166,7 +166,7 @@ func ValidDashboardRequest(d chronograf.Dashboard) error {
 	for _, c := range d.Cells {
 		for _, q := range c.Queries {
 			if len(q) == 0 {
-				return ftm.Errorf("query required")
+				return fmt.Errorf("query required")
 			}
 		}
 	}

@@ -250,13 +250,13 @@ type DashboardsStore interface {
   // All lists all dashboards from the DashboardStore
 	All(context.Context) ([]Dashboard, error)
 	// Create a new Dashboard in the DashboardStore
-	Add(context.Context, *Dashboard) (*Dashboard, error)
+	Add(context.Context, Dashboard) (Dashboard, error)
 	// Delete the Dashboard from the DashboardStore if `ID` exists.
-	Delete(context.Context, *Dashboard) error
+	Delete(context.Context, Dashboard) error
 	// Get retrieves a dashboard if `ID` exists.
-	Get(ctx context.Context, id DashboardID) (*Dashboard, error)
+	Get(ctx context.Context, id DashboardID) (Dashboard, error)
 	// Update replaces the dashboard information
-	Update(context.Context, *Dashboard) error
+	Update(context.Context, Dashboard) error
 }
 
 // ExplorationID is a unique ID for an Exploration.
