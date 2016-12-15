@@ -158,33 +158,30 @@ $kapacitor-font-sm: 13px;
 
 
 
-div.query-editor.kapacitor-metric-selector {
+div.qeditor.kapacitor-metric-selector {
   border-radius: 0;
   background-color: transparent;
   padding: 0;
 
   // Query sample
-  .query-editor__code pre {
+  .qeditor--query-preview pre {
     font-size: $kapacitor-font-sm;
-    white-space: pre-wrap;
     background-color: $kapacitor-graphic-color;
     color: $kapacitor-accent;
     border-radius: $kap-radius-lg $kap-radius-lg 0 0;
     border: 0;
+    margin: 0;
     padding: $kap-padding-md $kap-padding-lg;
-
-    code {
-      line-height: 1.5em;
-    }
+    @include custom-scrollbar($kapacitor-graphic-color, $kapacitor-accent);
   }
 
   // Tabs
-  .query-editor__tabs {
+  .qeditor--tabs {
     background-color: $kapacitor-graphic-color;
     padding: $kap-padding-sm $kap-padding-lg 0 $kap-padding-lg;
     border-top: 2px solid $kapacitor-divider-color;
   }
-  .query-editor__tab {
+  .qeditor--tab {
     font-size: $kapacitor-font-sm;
     background-color: $g3-castle;
     font-weight: 700;
@@ -223,20 +220,21 @@ div.query-editor.kapacitor-metric-selector {
     background-color: $kapacitor-graphic-color;
     border-radius: 0 0 $kap-radius-lg $kap-radius-lg;
   }
-  .query-editor__list {
+  .qeditor--list {
+    overflow: auto;
     padding-top: $kap-padding-sm;
     background-color: transparent;
     min-height: $metric-selector-height;
-    max-height: $metric-selector-height;
-    height: $metric-selector-height;
+    max-height: ($metric-selector-height * 2);
+    // height: $metric-selector-height;
     border-radius: 0 0 $kap-radius-lg $kap-radius-lg;
     @include custom-scrollbar($kapacitor-graphic-color,$kapacitor-accent);
   }
-  .query-editor__list-header {
+  .qeditor--list-header {
     background-color: transparent;
     padding: $kap-padding-sm $kap-padding-lg 0 $kap-padding-lg;
   }
-  .query-editor__filter,
+  .qeditor--filter,
   .tag-value-list__filter {
     border-radius: 4px;
     padding-left: ($kap-input-height + ($kap-padding-sm / 2));
@@ -265,7 +263,7 @@ div.query-editor.kapacitor-metric-selector {
       top: 50%;
     }
   }
-  .query-editor__list-item {
+  .qeditor--list-item {
     font-size: $kapacitor-font-sm;
     font-weight: 600;
     padding-left: $kap-padding-lg;
@@ -282,12 +280,12 @@ div.query-editor.kapacitor-metric-selector {
       color: $kapacitor-accent;
     }
   }
-  .query-editor__hidden-dropdown {
+  .qeditor--hidden-dropdown {
     .btn.dropdown-toggle {
       width: 260px;
     }
   }
-  .query-editor__list-checkbox__checkbox {
+  .qeditor--list-checkbox__checkbox {
     &:before {
       background-color: $kapacitor-accent;
     }
@@ -302,7 +300,7 @@ div.query-editor.kapacitor-metric-selector {
   .tag-value-list__checkbox:after {
     background-color: $kapacitor-accent;
   }
-  .tag-value-list__item.query-editor__list-item.active {
+  .tag-value-list__item.qeditor--list-item.active {
     background-color: transparent;
   }
   .btn.tag-list__group-by.active {
@@ -339,7 +337,7 @@ div.query-editor.kapacitor-metric-selector {
   }
 
   // Empty State
-  .query-editor__empty {
+  .qeditor--empty {
     background-color: $kapacitor-graphic-color;
     height: $metric-selector-height;
     min-height: $metric-selector-height;
@@ -546,7 +544,7 @@ div.query-editor.kapacitor-metric-selector {
   }
   .dropdown-toggle,
   .dropdown.group-by-time-dropdown .btn.dropdown-toggle,
-  .query-editor__list-checkbox .dropdown .btn.dropdown-toggle {
+  .qeditor--list-checkbox .dropdown .btn.dropdown-toggle {
     width: 100%;
     text-align: left;
     position: relative;
