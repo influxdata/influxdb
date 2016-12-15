@@ -21,6 +21,9 @@
   font-size: 12px;
   border-radius: 3px;
   margin-right: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 
   > .icon {
     display: inline-block;
