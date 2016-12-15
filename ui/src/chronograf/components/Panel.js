@@ -5,12 +5,7 @@ import QueryTabItem from './QueryTabItem';
 import RenamePanelModal from './RenamePanelModal';
 import SimpleDropdown from 'src/shared/components/SimpleDropdown';
 
-<<<<<<< HEAD:ui/src/chronograf/components/Panel.js
-const {shape, func, bool, arrayOf} = PropTypes;
 const Panel = React.createClass({
-=======
-const Explorer = React.createClass({
->>>>>>> Move activeQueryID state to DE container:ui/src/chronograf/components/Explorer.js
   propTypes: {
     panel: PropTypes.shape({
       id: PropTypes.string.isRequired,
@@ -21,7 +16,7 @@ const Explorer = React.createClass({
       lower: PropTypes.string,
     }).isRequired,
     isExpanded: PropTypes.bool.isRequired,
-    onToggleExplorer: PropTypes.func.isRequired,
+    onTogglePanel: PropTypes.func.isRequired,
     actions: PropTypes.shape({
       chooseNamespace: PropTypes.func.isRequired,
       chooseMeasurement: PropTypes.func.isRequired,
