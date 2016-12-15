@@ -38,7 +38,7 @@ func (s *Service) Dashboards(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	dashboards, err := s.DashboardsStore.All(ctx)
 	if err != nil {
-		Error(w, http.StatusInternalServerError, "Error loading layouts", s.Logger)
+		Error(w, http.StatusInternalServerError, "Error loading dashboards", s.Logger)
 		return
 	}
 
@@ -82,7 +82,7 @@ func (s *Service) NewDashboard(w http.ResponseWriter, r *http.Request) {
 
 	var err error
 	if dashboard, err = s.DashboardsStore.Add(r.Context(), dashboard); err != nil {
-		msg := fmt.Errorf("Error storing layout %v: %v", dashboard, err)
+		msg := fmt.Errorf("Error storing dashboard %v: %v", dashboard, err)
 		unknownErrorWithMessage(w, msg, s.Logger)
 		return
 	}
