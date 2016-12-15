@@ -733,7 +733,7 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 				names = append(names, source.(*influxql.Measurement).Name)
 			}
 		} else {
-			if err := sh.engine.ForEachMeasurement(func(name []byte) error {
+			if err := sh.engine.ForEachMeasurementName(func(name []byte) error {
 				names = append(names, string(name))
 				return nil
 			}); err != nil {

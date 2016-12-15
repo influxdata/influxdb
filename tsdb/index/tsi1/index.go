@@ -2,13 +2,18 @@ package tsi1
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -17,32 +22,80 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
+// Default compaction thresholds.
+const (
+	DefaultMaxLogFileSize = 1 * 1024 * 1024 // 10MB
+
+	DefaultCompactionMonitorInterval = 30 * time.Second
+)
+
 func init() {
 	tsdb.RegisterIndex("tsi1", func(id uint64, path string, opt tsdb.EngineOptions) tsdb.Index {
-		return &Index{Path: path}
+		idx := NewIndex()
+		idx.ShardID = id
+		idx.Path = path
+		return idx
 	})
 }
 
 // File extensions.
 const (
-	LogFileExt   = ".tsi.log"
+	LogFileExt   = ".tsl"
 	IndexFileExt = ".tsi"
+
+	CompactingExt = ".compacting"
 )
+
+// ManifestFileName is the name of the index manifest file.
+const ManifestFileName = "MANIFEST"
 
 // Ensure index implements the interface.
 var _ tsdb.Index = &Index{}
 
 // Index represents a collection of layered index files and WAL.
 type Index struct {
-	Path string
-
 	mu         sync.RWMutex
+	opened     bool
 	logFiles   []*LogFile
 	indexFiles IndexFiles
 
+	// Compaction management.
+	manualCompactNotify chan compactNotify
+	fastCompactNotify   chan struct{}
+
+	// Close management.
+	closing chan struct{}
+	wg      sync.WaitGroup
+
 	// Fieldset shared with engine.
-	// TODO: Move field management into index.
 	fieldset *tsdb.MeasurementFieldSet
+
+	// Associated shard info.
+	ShardID uint64
+
+	// Root directory of the index files.
+	Path string
+
+	// Log file compaction thresholds.
+	MaxLogFileSize int64
+
+	// Frequency of compaction checks.
+	CompactionMonitorInterval time.Duration
+}
+
+// NewIndex returns a new instance of Index.
+func NewIndex() *Index {
+	return &Index{
+		manualCompactNotify: make(chan compactNotify),
+		fastCompactNotify:   make(chan struct{}),
+
+		closing: make(chan struct{}),
+
+		// Default compaction thresholds.
+		MaxLogFileSize: DefaultMaxLogFileSize,
+
+		CompactionMonitorInterval: DefaultCompactionMonitorInterval,
+	}
 }
 
 // Open opens the index.
@@ -50,63 +103,110 @@ func (i *Index) Open() error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
-	// Open root index directory.
-	f, err := os.Open(i.Path)
-	if err != nil {
-		return err
+	if i.opened {
+		return errors.New("index already open")
 	}
-	defer f.Close()
 
-	// Open all log & index files.
-	names, err := f.Readdirnames(-1)
-	if err != nil {
+	// Create directory if it doesn't exist.
+	if err := os.MkdirAll(i.Path, 0777); err != nil {
 		return err
 	}
-	for _, name := range names {
-		switch filepath.Ext(name) {
-		case LogFileExt:
-			if err := i.openLogFile(name); err != nil {
-				return err
-			}
-		case IndexFileExt:
-			if err := i.openIndexFile(name); err != nil {
-				return err
-			}
-		}
+
+	// Read manifest file.
+	m, err := ReadManifestFile(filepath.Join(i.Path, ManifestFileName))
+	if os.IsNotExist(err) {
+		m = &Manifest{}
+	} else if err != nil {
+		return err
 	}
 
 	// Ensure at least one log file exists.
-	if len(i.logFiles) == 0 {
-		path := filepath.Join(i.Path, fmt.Sprintf("%08x%s", 0, LogFileExt))
-		if err := i.openLogFile(path); err != nil {
+	if len(m.LogFiles) == 0 {
+		m.LogFiles = []string{FormatLogFileName(1)}
+
+		if err := i.writeManifestFile(); err != nil {
 			return err
 		}
 	}
+
+	// Open each log file in the manifest.
+	for _, filename := range m.LogFiles {
+		f, err := i.openLogFile(filepath.Join(i.Path, filename))
+		if err != nil {
+			return err
+		}
+		i.logFiles = append(i.logFiles, f)
+	}
+
+	// Open each index file in the manifest.
+	for _, filename := range m.IndexFiles {
+		f, err := i.openIndexFile(filepath.Join(i.Path, filename))
+		if err != nil {
+			return err
+		}
+		i.indexFiles = append(i.indexFiles, f)
+	}
+
+	// Delete any files not in the manifest.
+	if err := i.deleteNonManifestFiles(m); err != nil {
+		return err
+	}
+
+	// Start compaction monitor.
+	i.wg.Add(1)
+	go func() { defer i.wg.Done(); i.monitorCompaction() }()
+
+	// Mark opened.
+	i.opened = true
 
 	return nil
 }
 
 // openLogFile opens a log file and appends it to the index.
-func (i *Index) openLogFile(path string) error {
+func (i *Index) openLogFile(path string) (*LogFile, error) {
 	f := NewLogFile()
 	f.Path = path
 	if err := f.Open(); err != nil {
-		return err
+		return nil, err
 	}
-
-	i.logFiles = append(i.logFiles, f)
-	return nil
+	return f, nil
 }
 
 // openIndexFile opens a log file and appends it to the index.
-func (i *Index) openIndexFile(path string) error {
+func (i *Index) openIndexFile(path string) (*IndexFile, error) {
 	f := NewIndexFile()
 	f.Path = path
 	if err := f.Open(); err != nil {
+		return nil, err
+	}
+	return f, nil
+}
+
+// deleteNonManifestFiles removes all files not in the manifest.
+func (i *Index) deleteNonManifestFiles(m *Manifest) error {
+	dir, err := os.Open(i.Path)
+	if err != nil {
+		return err
+	}
+	defer dir.Close()
+
+	fis, err := dir.Readdir(-1)
+	if err != nil {
 		return err
 	}
 
-	i.indexFiles = append(i.indexFiles, f)
+	// Loop over all files and remove any not in the manifest.
+	for _, fi := range fis {
+		filename := filepath.Base(fi.Name())
+		if filename == ManifestFileName || m.HasFile(filename) {
+			continue
+		}
+
+		if err := os.RemoveAll(filename); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -130,20 +230,55 @@ func (i *Index) Close() error {
 	return nil
 }
 
+// ManifestPath returns the path to the index's manifest file.
+func (i *Index) ManifestPath() string {
+	return filepath.Join(i.Path, ManifestFileName)
+}
+
+// Manifest returns a manifest for the index.
+func (i *Index) Manifest() *Manifest {
+	m := &Manifest{
+		LogFiles:   make([]string, len(i.logFiles)),
+		IndexFiles: make([]string, len(i.indexFiles)),
+	}
+
+	for j, f := range i.logFiles {
+		m.LogFiles[j] = filepath.Base(f.Path)
+	}
+	for j, f := range i.indexFiles {
+		m.IndexFiles[j] = filepath.Base(f.Path)
+	}
+
+	return m
+}
+
+// writeManifestFile writes the manifest to the appropriate file path.
+func (i *Index) writeManifestFile() error {
+	return WriteManifestFile(i.ManifestPath(), i.Manifest())
+}
+
+// maxFileID returns the highest file id from the index.
+func (i *Index) maxFileID() int {
+	var max int
+	for _, f := range i.logFiles {
+		if i := ParseFileID(f.Path); i > max {
+			max = i
+		}
+	}
+	for _, f := range i.indexFiles {
+		if i := ParseFileID(f.Path); i > max {
+			max = i
+		}
+	}
+	return max
+}
+
 // SetFieldSet sets a shared field set from the engine.
 func (i *Index) SetFieldSet(fs *tsdb.MeasurementFieldSet) {
 	i.mu.Lock()
 	i.fieldset = fs
 	i.mu.Unlock()
 }
-
-// SetLogFiles explicitly sets log files.
-// TEMPORARY: For testing only.
-func (i *Index) SetLogFiles(a ...*LogFile) { i.logFiles = a }
-
-// SetIndexFiles explicitly sets index files
-// TEMPORARY: For testing only.
-func (i *Index) SetIndexFiles(a ...*IndexFile) { i.indexFiles = IndexFiles(a) }
 
 // FileN returns the number of log and index files within the index.
 func (i *Index) FileN() int { return len(i.logFiles) + len(i.indexFiles) }
@@ -175,41 +310,8 @@ func (i *Index) SeriesIterator() SeriesIterator {
 	return FilterUndeletedSeriesIterator(MergeSeriesIterators(a...))
 }
 
-// Measurement retrieves a measurement by name.
-func (i *Index) Measurement(name []byte) (*tsdb.Measurement, error) {
-	return i.measurement(name), nil
-}
-
-func (i *Index) measurement(name []byte) *tsdb.Measurement {
-	m := tsdb.NewMeasurement(string(name))
-
-	// Iterate over measurement series.
-	itr := i.MeasurementSeriesIterator(name)
-
-	var id uint64 // TEMPORARY
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		// TODO: Handle deleted series.
-
-		// Append series to to measurement.
-		// TODO: Remove concept of series ids.
-		m.AddSeries(&tsdb.Series{
-			ID:   id,
-			Key:  string(e.Name()),
-			Tags: models.CopyTags(e.Tags()),
-		})
-
-		// TEMPORARY: Increment ID.
-		id++
-	}
-
-	if !m.HasSeries() {
-		return nil
-	}
-	return m
-}
-
-// ForEachMeasurement iterates over all measurements in the index.
-func (i *Index) ForEachMeasurement(fn func(name []byte) error) error {
+// ForEachMeasurementName iterates over all measurement names in the index.
+func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 	itr := i.MeasurementIterator()
 	if itr == nil {
 		return nil
@@ -246,16 +348,6 @@ func (i *Index) TagKeyIterator(name []byte) TagKeyIterator {
 		}
 	}
 	return MergeTagKeyIterators(a...)
-}
-
-// Measurements returns a list of all measurements.
-func (i *Index) Measurements() (tsdb.Measurements, error) {
-	var mms tsdb.Measurements
-	itr := i.MeasurementIterator()
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		mms = append(mms, i.measurement(e.Name()))
-	}
-	return mms, nil
 }
 
 // MeasurementIterator returns an iterator over all measurements in the index.
@@ -466,19 +558,33 @@ func (i *Index) DropMeasurement(name []byte) error {
 	}
 
 	// Mark measurement as deleted.
-	return i.logFiles[0].DeleteMeasurement(name)
+	if err := i.logFiles[0].DeleteMeasurement(name); err != nil {
+		return err
+	}
+
+	i.CheckFastCompaction()
+	return nil
 }
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	if e := i.Series(name, tags); e != nil {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	if e := i.series(name, tags); e != nil {
 		return nil
 	}
-	return i.logFiles[0].AddSeries(name, tags)
+
+	if err := i.logFiles[0].AddSeries(name, tags); err != nil {
+		return err
+	}
+
+	i.checkFastCompaction()
+	return nil
 }
 
-// Series returns a series by name/tags.
-func (i *Index) Series(name []byte, tags models.Tags) SeriesElem {
+// series returns a series by name/tags.
+func (i *Index) series(name []byte, tags models.Tags) SeriesElem {
 	for _, f := range i.files() {
 		if e := f.Series(name, tags); e != nil && !e.Deleted() {
 			return e
@@ -498,6 +604,8 @@ func (i *Index) DropSeries(keys [][]byte) error {
 			return err
 		}
 	}
+
+	i.CheckFastCompaction()
 	return nil
 }
 
@@ -1026,6 +1134,280 @@ func (i *Index) SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iter
 	return newSeriesPointIterator(i, opt), nil
 }
 
+// Compact runs a compaction check. Returns once the check is complete.
+// If force is true then all files are compacted into a single index file regardless of size.
+func (i *Index) Compact(force bool) error {
+	info := compactNotify{force: force, ch: make(chan error)}
+	i.manualCompactNotify <- info
+
+	select {
+	case err := <-info.ch:
+		return err
+	case <-i.closing:
+		return nil
+	}
+}
+
+// monitorCompaction periodically checks for files that need to be compacted.
+func (i *Index) monitorCompaction() {
+	// Ignore full compaction if interval is unset.
+	var c <-chan time.Time
+	if i.CompactionMonitorInterval > 0 {
+		ticker := time.NewTicker(i.CompactionMonitorInterval)
+		c = ticker.C
+		defer ticker.Stop()
+	}
+
+	// Wait for compaction checks or for the index to close.
+	for {
+		select {
+		case <-i.closing:
+			return
+		case <-i.fastCompactNotify:
+			if err := i.compactLogFile(); err != nil {
+				log.Printf("fast compaction error: %s", err)
+			}
+		case <-c:
+			if err := i.checkFullCompaction(false); err != nil {
+				log.Printf("full compaction error: %s", err)
+			}
+		case info := <-i.manualCompactNotify:
+			if err := i.compactLogFile(); err != nil {
+				info.ch <- err
+				continue
+			} else if err := i.checkFullCompaction(info.force); err != nil {
+				info.ch <- err
+				continue
+			}
+			info.ch <- nil
+		}
+	}
+}
+
+// compactLogFile starts a new log file and compacts the previous one.
+func (i *Index) compactLogFile() error {
+	if err := i.prependNewLogFile(); err != nil {
+		return err
+	}
+	if err := i.compactSecondaryLogFile(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// prependNewLogFile adds a new log file so that the current log file can be compacted.
+// This function is a no-op if there is currently more than one log file.
+func (i *Index) prependNewLogFile() error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	// Ignore if there is already a secondary log file that needs compacting.
+	if len(i.logFiles) == 2 {
+		return nil
+	} else if len(i.logFiles) > 2 {
+		panic("should not have more than two log files at a time")
+	}
+
+	// Generate new file identifier.
+	id := i.maxFileID() + 1
+
+	// Open file and insert it into the first position.
+	f, err := i.openLogFile(filepath.Join(i.Path, FormatLogFileName(id)))
+	if err != nil {
+		return err
+	}
+	i.logFiles = append([]*LogFile{f}, i.logFiles...)
+
+	// Write new manifest.
+	if err := i.writeManifestFile(); err != nil {
+		// TODO: Close index if write fails.
+		return err
+	}
+
+	return nil
+}
+
+// compactSecondaryLogFile compacts the secondary log file into an index file.
+func (i *Index) compactSecondaryLogFile() error {
+	id, logFile := func() (int, *LogFile) {
+		i.mu.Lock()
+		defer i.mu.Unlock()
+
+		if len(i.logFiles) < 2 {
+			return 0, nil
+		}
+		return i.maxFileID() + 1, i.logFiles[1]
+	}()
+
+	// Exit if there is no secondary log file.
+	if logFile == nil {
+		return nil
+	}
+
+	// Create new index file.
+	path := filepath.Join(i.Path, FormatIndexFileName(id))
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Compact log file to new index file.
+	if _, err := logFile.WriteTo(f); err != nil {
+		return err
+	}
+
+	// Close file.
+	if err := f.Close(); err != nil {
+		return err
+	}
+
+	// Reopen as an index file.
+	file := NewIndexFile()
+	file.Path = path
+	if err := file.Open(); err != nil {
+		return err
+	}
+
+	// Obtain lock to swap in index file and write manifest.
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	// Remove old log file and prepend new index file.
+	i.logFiles = []*LogFile{i.logFiles[0]}
+	i.indexFiles = append(IndexFiles{file}, i.indexFiles...)
+
+	// TODO: Close old log file.
+
+	// Write new manifest.
+	if err := i.writeManifestFile(); err != nil {
+		// TODO: Close index if write fails.
+		return err
+	}
+
+	return nil
+}
+
+// checkFullCompaction compacts all index files if the total size of index files
+// is double the size of the largest index file. If force is true then all files
+// are compacted regardless of size.
+func (i *Index) checkFullCompaction(force bool) error {
+	// Only perform size check if compaction check is not forced.
+	if !force {
+		// Calculate total & max file sizes.
+		maxN, totalN, err := i.indexFileStats()
+		if err != nil {
+			return err
+		}
+
+		// Ignore if total is not twice the size of the largest index file.
+		if maxN*2 < totalN {
+			return nil
+		}
+	}
+
+	// Retrieve list of index files under lock.
+	i.mu.Lock()
+	indexFiles := i.indexFiles
+	id := i.maxFileID() + 1
+	i.mu.Unlock()
+
+	// Ignore if there are not at least two index files.
+	if len(indexFiles) < 2 {
+		return nil
+	}
+
+	// Create new index file.
+	path := filepath.Join(i.Path, FormatIndexFileName(id))
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	// Compact all index files to new index file.
+	if _, err := indexFiles.WriteTo(f); err != nil {
+		return err
+	}
+
+	// Close file.
+	if err := f.Close(); err != nil {
+		return err
+	}
+
+	// Reopen as an index file.
+	file := NewIndexFile()
+	file.Path = path
+	if err := file.Open(); err != nil {
+		return err
+	}
+
+	// Obtain lock to swap in index file and write manifest.
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	// Replace index files with new index file.
+	i.indexFiles = IndexFiles{file}
+
+	// TODO: Close old index files.
+
+	// Write new manifest.
+	if err := i.writeManifestFile(); err != nil {
+		// TODO: Close index if write fails.
+		return err
+	}
+
+	return nil
+}
+
+// indexFileStats returns the max index file size and the total file size for all index files.
+func (i *Index) indexFileStats() (maxN, totalN int64, err error) {
+	// Retrieve index file list under lock.
+	i.mu.Lock()
+	indexFiles := i.indexFiles
+	i.mu.Unlock()
+
+	// Iterate over each file and determine size.
+	for _, f := range indexFiles {
+		fi, err := os.Stat(f.Path)
+		if os.IsNotExist(err) {
+			continue
+		} else if err != nil {
+			return 0, 0, err
+		} else if fi.Size() > maxN {
+			maxN = fi.Size()
+		}
+		totalN += fi.Size()
+	}
+	return maxN, totalN, nil
+}
+
+// CheckFastCompaction notifies the index to begin compacting log file if the
+// log file is above the max log file size.
+func (i *Index) CheckFastCompaction() {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.checkFastCompaction()
+}
+
+func (i *Index) checkFastCompaction() {
+	if i.logFiles[0].Size() < i.MaxLogFileSize {
+		return
+	}
+
+	// Send signal to begin compaction of current log file.
+	select {
+	case i.fastCompactNotify <- struct{}{}:
+	default:
+	}
+}
+
+// compactNotify represents a manual compaction notification.
+type compactNotify struct {
+	force bool
+	ch    chan error
+}
+
 // File represents a log or index file.
 type File interface {
 	Measurement(name []byte) MeasurementElem
@@ -1157,4 +1539,70 @@ func intersectStringSets(a, b map[string]struct{}) map[string]struct{} {
 		}
 	}
 	return other
+}
+
+var fileIDRegex = regexp.MustCompile(`^(\d+)\..+$`)
+
+// ParseFileID extracts the numeric id from a log or index file path.
+// Returns 0 if it cannot be parsed.
+func ParseFileID(name string) int {
+	a := fileIDRegex.FindStringSubmatch(filepath.Base(name))
+	if a == nil {
+		return 0
+	}
+
+	i, _ := strconv.Atoi(a[1])
+	return i
+}
+
+// Manifest represents the list of log & index files that make up the index.
+// The files are listed in time order, not necessarily ID order.
+type Manifest struct {
+	LogFiles   []string `json:"logs,omitempty"`
+	IndexFiles []string `json:"indexes,omitempty"`
+}
+
+// HasFile returns true if name is listed in the log files or index files.
+func (m *Manifest) HasFile(name string) bool {
+	for _, filename := range m.LogFiles {
+		if filename == name {
+			return true
+		}
+	}
+	for _, filename := range m.IndexFiles {
+		if filename == name {
+			return true
+		}
+	}
+	return false
+}
+
+// ReadManifestFile reads a manifest from a file path.
+func ReadManifestFile(path string) (*Manifest, error) {
+	buf, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// Decode manifest.
+	var m Manifest
+	if err := json.Unmarshal(buf, &m); err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+// WriteManifestFile writes a manifest to a file path.
+func WriteManifestFile(path string, m *Manifest) error {
+	buf, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		return err
+	}
+	buf = append(buf, '\n')
+
+	if err := ioutil.WriteFile(path, buf, 0666); err != nil {
+		return err
+	}
+
+	return nil
 }

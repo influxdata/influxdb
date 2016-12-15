@@ -51,7 +51,7 @@ type Engine interface {
 	MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	MeasurementFields(measurement string) *MeasurementFields
-	ForEachMeasurement(fn func(name []byte) error) error
+	ForEachMeasurementName(fn func(name []byte) error) error
 	DeleteMeasurement(name []byte) error
 
 	// TagKeys(name []byte) ([][]byte, error)

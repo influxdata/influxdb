@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/influxdata/influxdb/models"
@@ -47,7 +48,8 @@ type IndexFile struct {
 	tblks map[string]*TagBlock // tag blocks by measurement name
 	mblk  MeasurementBlock
 
-	// Path to data file.
+	// Sortable identifier & filepath to the log file.
+	ID   int
 	Path string
 }
 
@@ -58,10 +60,16 @@ func NewIndexFile() *IndexFile {
 
 // Open memory maps the data file at the file's path.
 func (f *IndexFile) Open() error {
+	// Extract identifier from path name, if possible.
+	if id := ParseFileID(f.Path); id > 0 {
+		f.ID = id
+	}
+
 	data, err := mmap.Map(f.Path)
 	if err != nil {
 		return err
 	}
+
 	return f.UnmarshalBinary(data)
 }
 
@@ -329,4 +337,9 @@ func (t *IndexFileTrailer) WriteTo(w io.Writer) (n int64, err error) {
 	}
 
 	return n, nil
+}
+
+// FormatIndexFileName generates an index filename for the given index.
+func FormatIndexFileName(i int) string {
+	return fmt.Sprintf("%08d%s", i, IndexFileExt)
 }

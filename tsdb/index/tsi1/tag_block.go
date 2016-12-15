@@ -120,6 +120,10 @@ func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
 		// Move position forward.
 		pos = (pos + 1) % int(keyN)
 		d++
+
+		if uint32(d) > keyN {
+			return nil
+		}
 	}
 }
 
@@ -165,6 +169,10 @@ func (blk *TagBlock) TagValueElem(key, value []byte) TagValueElem {
 		// Move position forward.
 		pos = (pos + 1) % int(valueN)
 		d++
+
+		if uint32(d) > valueN {
+			return nil
+		}
 	}
 }
 

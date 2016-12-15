@@ -18,7 +18,7 @@ type Index interface {
 	MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	DropMeasurement(name []byte) error
-	ForEachMeasurement(fn func(name []byte) error) error
+	ForEachMeasurementName(fn func(name []byte) error) error
 
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	DropSeries(keys [][]byte) error

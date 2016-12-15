@@ -457,11 +457,6 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	e.index = index
 	e.FileStore.dereferencer = index
 
-	// Open the index if it's not already open.
-	if err := index.Open(); err != nil {
-		return err
-	}
-
 	if err := e.FileStore.WalkKeys(func(key []byte, typ byte) error {
 		fieldType, err := tsmFieldTypeToInfluxQLDataType(typ)
 		if err != nil {
@@ -830,9 +825,9 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	return nil
 }
 
-// ForEachMeasurement iterates over each measurement name in the engine.
-func (e *Engine) ForEachMeasurement(fn func(name []byte) error) error {
-	return e.index.ForEachMeasurement(fn)
+// ForEachMeasurementName iterates over each measurement name in the engine.
+func (e *Engine) ForEachMeasurementName(fn func(name []byte) error) error {
+	return e.index.ForEachMeasurementName(fn)
 }
 
 // DeleteMeasurement deletes a measurement and all related series.

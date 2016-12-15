@@ -568,7 +568,7 @@ func (sw *SeriesBlockWriter) writeSeriesTo(w io.Writer, terms *TermList, offset 
 		seriesBuf = terms.AppendEncodedSeries(seriesBuf[:0], s.name, s.tags)
 
 		// Join flag, varint(length), & dictionary-encoded series in buffer.
-		buf[0] = 0 // TODO(benbjohnson): series tombstone
+		buf[0] = s.flag()
 		sz := binary.PutUvarint(buf[1:], uint64(len(seriesBuf)))
 		buf = append(buf[:1+sz], seriesBuf...)
 
@@ -748,6 +748,14 @@ type serie struct {
 	tags    models.Tags
 	deleted bool
 	offset  uint32
+}
+
+func (s *serie) flag() uint8 {
+	var flag byte
+	if s.deleted {
+		flag |= SeriesTombstoneFlag
+	}
+	return flag
 }
 
 type series []serie

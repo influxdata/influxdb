@@ -2,6 +2,7 @@ package tsi1_test
 
 import (
 	"bytes"
+	"io/ioutil"
 	"reflect"
 	"testing"
 
@@ -295,4 +296,13 @@ func (itr *SeriesIterator) Next() (e tsi1.SeriesElem) {
 	}
 	e, itr.Elems = &itr.Elems[0], itr.Elems[1:]
 	return e
+}
+
+// MustTempDir returns a temporary directory. Panic on error.
+func MustTempDir() string {
+	path, err := ioutil.TempDir("", "tsi-")
+	if err != nil {
+		panic(err)
+	}
+	return path
 }
