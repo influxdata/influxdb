@@ -65,6 +65,10 @@ func (c *Client) Open() error {
 		if _, err := tx.CreateBucketIfNotExists(LayoutBucket); err != nil {
 			return err
 		}
+		// Always create Dashboards bucket.
+		if _, err := tx.CreateBucketIfNotExists(DashboardsBucket); err != nil {
+			return err
+		}
 		// Always create Alerts bucket.
 		if _, err := tx.CreateBucketIfNotExists(AlertsBucket); err != nil {
 			return err
