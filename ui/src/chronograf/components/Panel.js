@@ -137,7 +137,12 @@ const Panel = React.createClass({
     return (
       <div className="panel--tabs">
         {queries.map((q) => {
-          const queryTabText = (q.measurement && q.fields.length !== 0) ? `${q.measurement}.${q.fields[0].field}` : 'Query';
+          let queryTabText;
+          if (q.rawText) {
+            queryTabText = 'InfluxQL';
+          } else {
+            queryTabText = (q.measurement && q.fields.length !== 0) ? `${q.measurement}.${q.fields[0].field}` : 'Query';
+          }
           return (
             <QueryTabItem
               isActive={this.getActiveQuery().id === q.id}
@@ -160,7 +165,7 @@ const Panel = React.createClass({
       case 'Query Builder':
         this.handleAddQuery();
         break;
-      case 'Raw Text':
+      case 'InfluxQL':
         this.handleAddRawQuery();
         break;
     }
@@ -168,7 +173,7 @@ const Panel = React.createClass({
 
   renderAddQuery() {
     return (
-      <SimpleDropdown onChoose={this.onChoose} items={[{text: 'Query Builder'}, {text: 'Raw Text'}]} className="panel--tab-new">
+      <SimpleDropdown onChoose={this.onChoose} items={[{text: 'Query Builder'}, {text: 'InfluxQL'}]} className="panel--tab-new">
         <span className="icon plus"></span>
       </SimpleDropdown>
     );
