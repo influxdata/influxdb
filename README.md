@@ -41,6 +41,8 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
 * Varnish
 * Windows Performance Counters
 
+> Note: If a `telegraf` instance isn't running the `system` and `cpu` plugins the canned dashboards from that instance won't be generated.
+
 ### Data Explorer
 
 Chronograf's graphing tool that allows you to dig in and create personalized visualizations of your data.

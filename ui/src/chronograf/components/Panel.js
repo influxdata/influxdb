@@ -5,40 +5,38 @@ import QueryTabItem from './QueryTabItem';
 import RenamePanelModal from './RenamePanelModal';
 import SimpleDropdown from 'src/shared/components/SimpleDropdown';
 
-const {shape, func, bool, arrayOf} = PropTypes;
 const Panel = React.createClass({
   propTypes: {
-    panel: shape({}).isRequired,
-    queries: arrayOf(shape({})).isRequired,
+    panel: PropTypes.shape({
+      id: PropTypes.string.isRequired,
+    }).isRequired,
+    queries: PropTypes.arrayOf(PropTypes.shape({})).isRequired,
     timeRange: PropTypes.shape({
       upper: PropTypes.string,
       lower: PropTypes.string,
     }).isRequired,
-    isExpanded: bool.isRequired,
-    onTogglePanel: func.isRequired,
-    actions: shape({
-      chooseNamespace: func.isRequired,
-      chooseMeasurement: func.isRequired,
-      chooseTag: func.isRequired,
-      groupByTag: func.isRequired,
-      addQuery: func.isRequired,
-      deleteQuery: func.isRequired,
-      toggleField: func.isRequired,
-      groupByTime: func.isRequired,
-      toggleTagAcceptance: func.isRequired,
-      applyFuncsToField: func.isRequired,
-      deletePanel: func.isRequired,
+    isExpanded: PropTypes.bool.isRequired,
+    onTogglePanel: PropTypes.func.isRequired,
+    actions: PropTypes.shape({
+      chooseNamespace: PropTypes.func.isRequired,
+      chooseMeasurement: PropTypes.func.isRequired,
+      chooseTag: PropTypes.func.isRequired,
+      groupByTag: PropTypes.func.isRequired,
+      addQuery: PropTypes.func.isRequired,
+      deleteQuery: PropTypes.func.isRequired,
+      toggleField: PropTypes.func.isRequired,
+      groupByTime: PropTypes.func.isRequired,
+      toggleTagAcceptance: PropTypes.func.isRequired,
+      applyFuncsToField: PropTypes.func.isRequired,
+      deletePanel: PropTypes.func.isRequired,
+      renamePanel: PropTypes.func.isRequired,
     }).isRequired,
-  },
-
-  getInitialState() {
-    return {
-      activeQueryId: null,
-    };
+    setActiveQuery: PropTypes.func.isRequired,
+    activeQueryID: PropTypes.string,
   },
 
   handleSetActiveQuery(query) {
-    this.setState({activeQueryId: query.id});
+    this.props.setActiveQuery(query.id);
   },
 
   handleAddQuery() {
@@ -63,8 +61,8 @@ const Panel = React.createClass({
   },
 
   getActiveQuery() {
-    const {queries} = this.props;
-    const activeQuery = queries.find((query) => query.id === this.state.activeQueryId);
+    const {queries, activeQueryID} = this.props;
+    const activeQuery = queries.find((query) => query.id === activeQueryID);
     const defaultQuery = queries[0];
 
     return activeQuery || defaultQuery;

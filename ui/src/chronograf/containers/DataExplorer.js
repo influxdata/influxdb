@@ -49,14 +49,17 @@ const DataExplorer = React.createClass({
 
   getInitialState() {
     return {
-      activePanelId: null,
+      activePanelID: null,
+      activeQueryID: null,
     };
   },
 
   handleSetActivePanel(id) {
-    this.setState({
-      activePanelID: id,
-    });
+    this.setState({activePanelID: id});
+  },
+
+  handleSetActiveQuery(id) {
+    this.setState({activeQueryID: id});
   },
 
   render() {
@@ -76,8 +79,18 @@ const DataExplorer = React.createClass({
           explorerID={explorerID}
         />
         <ResizeContainer>
-          <PanelBuilder timeRange={timeRange} activePanelID={this.state.activePanelID} setActivePanel={this.handleSetActivePanel} />
-          <Visualizations timeRange={timeRange} activePanelID={this.state.activePanelID} />
+          <PanelBuilder
+            timeRange={timeRange}
+            activePanelID={this.state.activePanelID}
+            activeQueryID={this.state.activeQueryID}
+            setActiveQuery={this.handleSetActiveQuery}
+            setActivePanel={this.handleSetActivePanel}
+          />
+          <Visualizations
+            timeRange={timeRange}
+            activePanelID={this.state.activePanelID}
+            activeQueryID={this.state.activeQueryID}
+          />
         </ResizeContainer>
       </div>
     );

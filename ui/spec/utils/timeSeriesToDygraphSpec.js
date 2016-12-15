@@ -1,4 +1,7 @@
 import timeSeriesToDygraph from 'src/utils/timeSeriesToDygraph';
+import {STROKE_WIDTH} from 'src/shared/constants';
+
+const {light: strokeWidth} = STROKE_WIDTH;
 
 describe('timeSeriesToDygraph', () => {
   it('parses a raw InfluxDB response into a dygraph friendly data format', () => {
@@ -46,9 +49,11 @@ describe('timeSeriesToDygraph', () => {
       dygraphSeries: {
         'm1.f1': {
           axis: 'y',
+          strokeWidth,
         },
         'm1.f2': {
           axis: 'y',
+          strokeWidth,
         },
       },
     };
@@ -156,12 +161,15 @@ describe('timeSeriesToDygraph', () => {
       dygraphSeries: {
         'm1.f1': {
           axis: 'y',
+          strokeWidth,
         },
         'm1.f2': {
           axis: 'y',
+          strokeWidth,
         },
         'm3.f3': {
           axis: 'y2',
+          strokeWidth,
         },
       },
     };
