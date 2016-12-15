@@ -18,6 +18,7 @@
 @import 'hosts';
 @import 'kapacitor';
 @import 'influx-tooltips';
+@import 'alerts';
 
 // Because of some issues with sharing styles across multiple webpack bundles,
 // we have to import other scss files here instead of in their corresponding
