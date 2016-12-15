@@ -24,7 +24,9 @@ const PanelBuilder = React.createClass({
       deletePanel: func.isRequired,
     }).isRequired,
     setActivePanel: func.isRequired,
+    setActiveQuery: func.isRequired,
     activePanelID: string,
+    activeQueryID: string,
   },
 
   handleCreateExploer() {
@@ -32,7 +34,7 @@ const PanelBuilder = React.createClass({
   },
 
   render() {
-    const {activePanelID, width, actions, setActivePanel} = this.props;
+    const {width, actions, setActivePanel, setActiveQuery, activePanelID, activeQueryID} = this.props;
 
     return (
       <div className="panel-builder" style={{width}}>
@@ -40,7 +42,9 @@ const PanelBuilder = React.createClass({
         <PanelList
           actions={actions}
           setActivePanel={setActivePanel}
+          setActiveQuery={setActiveQuery}
           activePanelID={activePanelID}
+          activeQueryID={activeQueryID}
         />
       </div>
     );

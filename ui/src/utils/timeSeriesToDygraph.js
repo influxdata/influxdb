@@ -1,9 +1,12 @@
+import {STROKE_WIDTH} from 'src/shared/constants';
 /**
  * Accepts an array of raw influxdb responses and returns a format
  * that Dygraph understands.
  */
 
-export default function timeSeriesToDygraph(raw = []) {
+// activeQueryIndex is an optional argument that indicated which query's series
+// we want highlighted.
+export default function timeSeriesToDygraph(raw = [], activeQueryIndex) {
   const labels = ['time']; // all of the effective field names (i.e. <measurement>.<field>)
   const fieldToIndex = {}; // see parseSeries
   const dates = {}; // map of date as string to date value to minimize string coercion
@@ -90,7 +93,13 @@ export default function timeSeriesToDygraph(raw = []) {
         // ex given this timeSeries [Date, 10, 20, 30] field index at 2 would correspond to value 20
         fieldToIndex[effectiveFieldName] = labels.length;
         labels.push(effectiveFieldName);
-        dygraphSeries[effectiveFieldName] = {axis: queryIndex === 0 ? 'y' : 'y2'};
+
+        const {light, heavy} = STROKE_WIDTH;
+
+        dygraphSeries[effectiveFieldName] = {
+          axis: queryIndex === 0 ? 'y' : 'y2',
+          strokeWidth: queryIndex === activeQueryIndex ? heavy : light,
+        };
       });
 
       (series.values || []).forEach(parseRow);
