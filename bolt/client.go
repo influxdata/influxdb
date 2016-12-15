@@ -21,6 +21,7 @@ type Client struct {
 	LayoutStore      *LayoutStore
 	UsersStore       *UsersStore
 	AlertsStore      *AlertsStore
+	DashboardsStore  *DashboardsStore
 }
 
 func NewClient() *Client {
@@ -34,6 +35,7 @@ func NewClient() *Client {
 		client: c,
 		IDs:    &uuid.V4{},
 	}
+	c.DashboardsStore = &DashboardsStore{client: c}
 	return c
 }
 
@@ -61,6 +63,10 @@ func (c *Client) Open() error {
 		}
 		// Always create Layouts bucket.
 		if _, err := tx.CreateBucketIfNotExists(LayoutBucket); err != nil {
+			return err
+		}
+		// Always create Dashboards bucket.
+		if _, err := tx.CreateBucketIfNotExists(DashboardBucket); err != nil {
 			return err
 		}
 		// Always create Alerts bucket.

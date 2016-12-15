@@ -188,6 +188,56 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 	return nil
 }
 
+// MarshalDashboard encodes a dashboard to binary protobuf format.
+func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
+	cells := make([]*DashboardCell, len(d.Cells))
+	for i, c := range d.Cells {
+
+		cells[i] = &DashboardCell{
+			X:       c.X,
+			Y:       c.Y,
+			W:       c.W,
+			H:       c.H,
+			Name:    c.Name,
+			Queries: c.Queries,
+			Type:    c.Type,
+		}
+	}
+
+	return proto.Marshal(&Dashboard{
+		ID:    int64(d.ID),
+		Cells: cells,
+		Name:  d.Name,
+	})
+}
+
+// UnmarshalDashboard decodes a layout from binary protobuf data.
+func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
+	var pb Dashboard
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+
+	cells := make([]chronograf.DashboardCell, len(d.Cells))
+	for i, c := range d.Cells {
+		cells[i] = chronograf.DashboardCell{
+			X:       c.X,
+			Y:       c.Y,
+			W:       c.W,
+			H:       c.H,
+			Name:    c.Name,
+			Queries: c.Queries,
+			Type:    c.Type,
+		}
+	}
+
+	d.ID = chronograf.DashboardID(pb.ID)
+	d.Cells = cells
+	d.Name = pb.Name
+
+	return nil
+}
+
 // ScopedAlert contains the source and the kapacitor id
 type ScopedAlert struct {
 	chronograf.AlertRule

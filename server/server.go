@@ -81,7 +81,7 @@ func (s *Server) Serve() error {
 
 	httpServer := &graceful.Server{Server: new(http.Server)}
 	httpServer.SetKeepAlivesEnabled(true)
-	httpServer.TCPKeepAlive = 1 * time.Minute
+	httpServer.TCPKeepAlive = 5 * time.Second
 	httpServer.Handler = s.handler
 
 	if !s.ReportingDisabled {
@@ -142,6 +142,7 @@ func openService(boltPath, cannedPath string, logger chronograf.Logger, useAuth 
 			Logger: logger,
 		},
 		LayoutStore:     layouts,
+		DashboardsStore: db.DashboardsStore,
 		AlertRulesStore: db.AlertsStore,
 		Logger:          logger,
 		UseAuth:         useAuth,
