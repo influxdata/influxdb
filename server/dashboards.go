@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
+	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
 )
 
@@ -112,7 +114,35 @@ func (s *Service) RemoveDashboard(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// UpdateDashboard updates a dashboard
+// UpdateDashboard replaces a dashboard
 func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	idParam, err := strconv.Atoi(httprouter.GetParamFromContext(ctx, "id"))
+	if err != nil {
+		msg := fmt.Sprintf("Could not parse dashboard ID: %s", err)
+		Error(w, http.StatusInternalServerError, msg, s.Logger)
+	}
+	id := chronograf.DashboardID(idParam)
 
+	_, err = s.DashboardsStore.Get(ctx, id)
+	if err != nil {
+		Error(w, http.StatusNotFound, fmt.Sprintf("ID %s not found", id), s.Logger)
+		return
+	}
+
+	var req *chronograf.Dashboard
+	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+		invalidJSON(w, s.Logger)
+		return
+	}
+	req.ID = id
+
+	if err := s.DashboardsStore.Update(ctx, req); err != nil {
+		msg := fmt.Sprintf("Error updating dashboard ID %s: %v", id, err)
+		Error(w, http.StatusInternalServerError, msg, s.Logger)
+		return
+	}
+
+	res := newDashboardResponse(*req)
+	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
