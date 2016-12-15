@@ -75,7 +75,7 @@ func (s *Service) DashboardID(w http.ResponseWriter, r *http.Request) {
 // NewDashboard creates and returns a new dashboard object
 func (s *Service) NewDashboard(w http.ResponseWriter, r *http.Request) {
 	var dashboard chronograf.Dashboard
-	if err := json.NewDecoder(r.Body).Decode(dashboard); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&dashboard); err != nil {
 		invalidJSON(w, s.Logger)
 		return
 	}
@@ -136,7 +136,7 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req chronograf.Dashboard
-	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		invalidJSON(w, s.Logger)
 		return
 	}
