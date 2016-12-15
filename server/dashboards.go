@@ -80,6 +80,11 @@ func (s *Service) NewDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := ValidDashboardRequest(dashboard); err != nil {
+		invalidData(w, err, s.Logger)
+		return
+	}
+
 	var err error
 	if dashboard, err = s.DashboardsStore.Add(r.Context(), dashboard); err != nil {
 		msg := fmt.Errorf("Error storing dashboard %v: %v", dashboard, err)
@@ -137,6 +142,11 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	req.ID = id
 
+	if err := ValidDashboardRequest(dashboard); err != nil {
+		invalidData(w, err, s.Logger)
+		return
+	}
+
 	if err := s.DashboardsStore.Update(ctx, req); err != nil {
 		msg := fmt.Sprintf("Error updating dashboard ID %s: %v", id, err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
@@ -145,4 +155,21 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 
 	res := newDashboardResponse(*req)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
+}
+
+// ValidDashboardRequest verifies that the dashboard cells have a query
+func ValidDashboardRequest(d chronograf.Dashboard) error {
+	if len(d.Cells) == 0 {
+		return fmt.Errorf("cells are required")
+	}
+
+	for _, c := range d.Cells {
+		for _, q := range c.Queries {
+			if len(q) == 0 {
+				return ftm.Errorf("query required")
+			}
+		}
+	}
+
+	return nil
 }
