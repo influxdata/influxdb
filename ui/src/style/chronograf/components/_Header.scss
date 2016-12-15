@@ -1,9 +1,24 @@
+$sessions-dropdown-width: 227px;
+
 .sessions-dropdown {
   margin: 0 0 0 4px;
 
   .dropdown-toggle {
     width: 227px;
     border-radius: 3px 0 0 3px;
+  }
+  .dropdown-selected {
+    display: inline-block;
+    width: ($sessions-dropdown-width - 28px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  li.dropdown-item > a {
+    width: ($sessions-dropdown-width - 48px); // 48 is width of 2 actions
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 .sessions-dropdown__btn {
