@@ -551,8 +551,8 @@ func (i *Index) SetFieldName(measurement, name string) {
 	m.SetFieldName(name)
 }
 
-// ForEachMeasurement iterates over each measurement
-func (i *Index) ForEachMeasurement(fn func(name []byte) error) error {
+// ForEachMeasurementName iterates over each measurement name.
+func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 

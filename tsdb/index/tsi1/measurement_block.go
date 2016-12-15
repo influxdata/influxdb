@@ -87,7 +87,7 @@ func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementBlockElem, ok bool)
 		d++
 
 		if uint32(d) > n {
-			panic("empty hash data block")
+			return MeasurementBlockElem{}, false
 		}
 	}
 }
