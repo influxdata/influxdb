@@ -142,6 +142,7 @@ func openService(boltPath, cannedPath string, logger chronograf.Logger, useAuth 
 			Logger: logger,
 		},
 		LayoutStore:     layouts,
+		DashboardsStore: db.DashboardsStore,
 		AlertRulesStore: db.AlertsStore,
 		Logger:          logger,
 		UseAuth:         useAuth,

@@ -247,6 +247,7 @@ type DashboardCell struct {
 
 // DashboardsStore is the storage and retrieval of dashboards
 type DashboardsStore interface {
+  // All lists all dashboards from the DashboardStore
 	All(context.Context) ([]Dashboard, error)
 	// Create a new Dashboard in the DashboardStore
 	Add(context.Context, *Dashboard) (*Dashboard, error)
