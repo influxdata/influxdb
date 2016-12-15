@@ -18,7 +18,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"golang.org/x/crypto/bcrypt"
 )

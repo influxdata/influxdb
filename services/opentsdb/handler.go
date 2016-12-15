@@ -15,7 +15,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // Handler is an http.Handler for the service.

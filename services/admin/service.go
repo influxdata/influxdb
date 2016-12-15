@@ -10,7 +10,7 @@ import (
 	// Register static assets via statik.
 	_ "github.com/influxdata/influxdb/services/admin/statik"
 	"github.com/rakyll/statik/fs"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // Service manages the listener for an admin endpoint.
