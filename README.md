@@ -48,6 +48,7 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
 Chronograf's graphing tool that allows you to dig in and create personalized visualizations of your data.
 
 * Generate [InfluxQL](https://docs.influxdata.com/influxdb/v1.1/query_language/) statements with the query builder
+* Generate and edit [InfluxQL](https://docs.influxdata.com/influxdb/v1.1/query_language/) statements with the raw query editor
 * Create visualizations and view query results in tabular format
 * Manage visualizations with exploration sessions
 
@@ -72,7 +73,7 @@ See [Chronograf with OAuth 2.0](https://github.com/influxdata/chronograf/blob/ma
 
 ## Versions
 
-Chronograf v1.1.0-beta2 is a [beta release](https://www.influxdata.com/now-in-beta-chronograf-a-ui-for-the-tick-stack-a-complete-open-source-monitoring-solution/).
+Chronograf v1.1.0-beta3 is a beta release.
 We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
 
 Spotted a bug or have a feature request?
@@ -82,10 +83,8 @@ Please open [an issue](https://github.com/influxdata/chronograf/issues/new)!
 
 The Chronograf team has identified and is working on the following issues:
 
-* Chronograf v1.1.0-beta2 does not support creating and editing raw queries in the [Data Explorer](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#data-explorer).
-Currently, users must create all queries with the Data Explorer's query builder.
-* Chronograf's [OAuth 2.0 Style Authentication](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) allows all users to authenticate with their GitHub account.
-It does not yet offer any security or allow administrators to filter users.
+* Chronograf's [OAuth 2.0 Style Authentication](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) allows all users to authenticate with any GitHub account.
+It does not yet offer any additional security or allow administrators to whitelist users or organizations.
 * Currently, Chronograf requires users to run Telegraf's [CPU](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/CPU_README.md) and [system](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/SYSTEM_README.md) plugins to ensure that all Apps appear on the [HOST LIST](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#host-list) page.
 
 ## Installation
