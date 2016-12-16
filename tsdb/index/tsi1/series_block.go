@@ -327,7 +327,7 @@ func (blk *SeriesBlock) UnmarshalBinary(data []byte) error {
 	blk.seriesIndex = blk.seriesIndex[4:]
 
 	// Initialise sketches. We're currently using HLL+.
-	var s, ts *hll.Plus
+	var s, ts = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	if err := s.UnmarshalBinary(data[t.Sketch.Offset:][:t.Sketch.Size]); err != nil {
 		return err
 	}
@@ -425,7 +425,7 @@ type SeriesBlockWriter struct {
 
 	// Series sketch and tombstoned series sketch. These must be
 	// set before calling WriteTo.
-	sketch, tsketch estimator.Sketch
+	Sketch, TSketch estimator.Sketch
 }
 
 // NewSeriesBlockWriter returns a new instance of SeriesBlockWriter.
@@ -481,9 +481,9 @@ func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	}
 
 	// The sketches must be set before calling WriteTo.
-	if sw.sketch == nil {
+	if sw.Sketch == nil {
 		return 0, errors.New("series sketch not set")
-	} else if sw.tsketch == nil {
+	} else if sw.TSketch == nil {
 		return 0, errors.New("series tombstone sketch not set")
 	}
 
@@ -523,13 +523,13 @@ func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 
 	// Write the sketches out.
 	t.Sketch.Offset = n
-	if err := writeSketchTo(w, sw.sketch, &n); err != nil {
+	if err := writeSketchTo(w, sw.Sketch, &n); err != nil {
 		return n, err
 	}
 	t.Sketch.Size = n - t.Sketch.Offset
 
 	t.TSketch.Offset = n
-	if err := writeSketchTo(w, sw.tsketch, &n); err != nil {
+	if err := writeSketchTo(w, sw.TSketch, &n); err != nil {
 		return n, err
 	}
 	t.TSketch.Size = n - t.TSketch.Offset

@@ -15,6 +15,7 @@ type Index interface {
 	Open() error
 	Close() error
 
+	Measurement(name []byte) (*Measurement, error)
 	MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error)
 	MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error)
 	DropMeasurement(name []byte) error

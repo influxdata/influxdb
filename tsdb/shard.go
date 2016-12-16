@@ -485,6 +485,11 @@ func (s *Shard) DeleteMeasurement(name []byte) error {
 	return s.engine.DeleteMeasurement(name)
 }
 
+// SeriesN returns the unique number of series in the shard.
+func (s *Shard) SeriesN() int64 {
+	return s.engine.SeriesN()
+}
+
 func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error {
 	if len(fieldsToCreate) == 0 {
 		return nil

@@ -143,7 +143,7 @@ func (p *IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *
 	//
 	// We update these sketches below as we iterate through the series in these
 	// index files.
-	sw.sketch, sw.tsketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
+	sw.Sketch, sw.TSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 
 	// Write all series.
 	for e := itr.Next(); e != nil; e = itr.Next() {
@@ -152,9 +152,9 @@ func (p *IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *
 		}
 
 		if e.Deleted() {
-			sw.tsketch.Add(models.MakeKey(e.Name(), e.Tags()))
+			sw.TSketch.Add(models.MakeKey(e.Name(), e.Tags()))
 		} else {
-			sw.sketch.Add(models.MakeKey(e.Name(), e.Tags()))
+			sw.Sketch.Add(models.MakeKey(e.Name(), e.Tags()))
 		}
 	}
 
@@ -242,13 +242,13 @@ func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo
 	// resulting measurements and tombstoned measurements sketches. So that a
 	// measurements only appears in one of the sketches, we rebuild some fresh
 	// sketches during the compaction.
-	mw.sketch, mw.tsketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
+	mw.Sketch, mw.TSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	itr := p.MeasurementIterator()
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		if e.Deleted() {
-			mw.tsketch.Add(e.Name())
+			mw.TSketch.Add(e.Name())
 		} else {
-			mw.sketch.Add(e.Name())
+			mw.Sketch.Add(e.Name())
 		}
 	}
 
@@ -276,16 +276,16 @@ func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo
 
 	// merge all the sketches in the index files together.
 	for _, idx := range *p {
-		if err := sketch.Merge(idx.mblk.sketch); err != nil {
+		if err := sketch.Merge(idx.mblk.Sketch); err != nil {
 			return err
 		}
-		if err := tsketch.Merge(idx.mblk.tsketch); err != nil {
+		if err := tsketch.Merge(idx.mblk.TSketch); err != nil {
 			return err
 		}
 	}
 
 	// Set the merged sketches on the measurement block writer.
-	mw.sketch, mw.tsketch = sketch, tsketch
+	mw.Sketch, mw.TSketch = sketch, tsketch
 
 	// Write data to writer.
 	nn, err := mw.WriteTo(w)

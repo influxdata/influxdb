@@ -29,8 +29,8 @@ func TestMain(m *testing.M) {
 	c.Admin.Enabled = false
 	c.Subscriber.Enabled = false
 	c.ContinuousQuery.Enabled = false
-	c.Data.MaxSeriesPerDatabase = 10000000 // 10M
-	c.Data.MaxValuesPerTag = 1000000       // 1M
+	c.Data.MaxSeriesPerShard = 100000 // 100K
+	c.Data.MaxValuesPerTag = 1000000  // 1M
 	benchServer = OpenDefaultServer(c)
 
 	// Run suite.

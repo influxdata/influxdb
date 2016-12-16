@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
@@ -103,11 +104,19 @@ func TestMeasurementBlockTrailer_WriteTo(t *testing.T) {
 
 // Ensure measurement blocks can be written and opened.
 func TestMeasurementBlockWriter(t *testing.T) {
-	// Write 3 measurements to writer.
+	ms := Measurements{
+		NewMeasurement([]byte("foo"), 100, 10, []uint32{1, 3, 4}),
+		NewMeasurement([]byte("bar"), 200, 20, []uint32{2}),
+		NewMeasurement([]byte("baz"), 300, 30, []uint32{5, 6}),
+	}
+
+	// Write the measurements to writer.
 	mw := tsi1.NewMeasurementBlockWriter()
-	mw.Add([]byte("foo"), 100, 10, []uint32{1, 3, 4})
-	mw.Add([]byte("bar"), 200, 20, []uint32{2})
-	mw.Add([]byte("baz"), 300, 30, []uint32{5, 6})
+	mw.Sketch, mw.TSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
+	for _, m := range ms {
+		mw.Add(m.Name, m.Offset, m.Size, m.ids)
+		mw.Sketch.Add(m.Name)
+	}
 
 	// Encode into buffer.
 	var buf bytes.Buffer
@@ -151,5 +160,23 @@ func TestMeasurementBlockWriter(t *testing.T) {
 	// Verify non-existent measurement doesn't exist.
 	if _, ok := blk.Elem([]byte("BAD_MEASUREMENT")); ok {
 		t.Fatal("expected no element")
+	}
+}
+
+type Measurements []Measurement
+
+type Measurement struct {
+	Name   []byte
+	Offset int64
+	Size   int64
+	ids    []uint32
+}
+
+func NewMeasurement(name []byte, offset, size int64, ids []uint32) Measurement {
+	return Measurement{
+		Name:   name,
+		Offset: offset,
+		Size:   size,
+		ids:    ids,
 	}
 }

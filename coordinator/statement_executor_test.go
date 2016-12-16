@@ -312,6 +312,10 @@ func (s *TSDBStore) Measurements(database string, cond influxql.Expr) ([]string,
 	return nil, nil
 }
 
+func (s *TSDBStore) MeasurementNames(database string, cond influxql.Expr) ([][]byte, error) {
+	return nil, nil
+}
+
 func (s *TSDBStore) TagValues(database string, cond influxql.Expr) ([]tsdb.TagValues, error) {
 	return nil, nil
 }

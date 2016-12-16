@@ -625,7 +625,7 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 	//
 	// We update these sketches below as we iterate through the series in this
 	// log file.
-	sw.sketch, sw.tsketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
+	sw.Sketch, sw.TSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 
 	// Flush series list.
 	nn, err := sw.WriteTo(w)
@@ -660,9 +660,9 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 			}
 
 			if serie.Deleted() {
-				sw.tsketch.Add(models.MakeKey(serie.name, serie.tags))
+				sw.TSketch.Add(models.MakeKey(serie.name, serie.tags))
 			} else {
-				sw.sketch.Add(models.MakeKey(serie.name, serie.tags))
+				sw.Sketch.Add(models.MakeKey(serie.name, serie.tags))
 			}
 		}
 
@@ -670,7 +670,7 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 	}
 
 	// Set log file sketches to updated versions.
-	f.sSketch, f.sTSketch = sw.sketch, sw.tsketch
+	f.sSketch, f.sTSketch = sw.Sketch, sw.TSketch
 	return nil
 }
 
@@ -732,15 +732,15 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, n *int64)
 	//
 	// We update these sketches below as we iterate through the measurements in
 	// this log file.
-	mw.sketch, mw.tsketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
+	mw.Sketch, mw.TSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 
 	// Add measurement data.
 	for _, mm := range f.mms {
 		mw.Add(mm.name, mm.offset, mm.size, mm.seriesIDs)
 		if mm.Deleted() {
-			mw.tsketch.Add(mm.Name())
+			mw.TSketch.Add(mm.Name())
 		} else {
-			mw.sketch.Add(mm.Name())
+			mw.Sketch.Add(mm.Name())
 		}
 	}
 
@@ -752,7 +752,7 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, n *int64)
 	}
 
 	// Set the updated sketches
-	f.mSketch, f.mTSketch = mw.sketch, mw.tsketch
+	f.mSketch, f.mTSketch = mw.Sketch, mw.TSketch
 	return nil
 }
 
