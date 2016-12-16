@@ -129,7 +129,7 @@ export const KapacitorRulesPage = React.createClass({
           <td className="monotype">{rule.trigger}</td>
           <td className="monotype">{rule.message}</td>
           <td className="monotype">{rule.alerts.join(', ')}</td>
-          <td><button className="btn btn-danger btn-xs" onClick={() => this.handleDeleteRule(rule)}>Delete</button></td>
+          <td className="text-right"><button className="btn btn-danger btn-xs" onClick={() => this.handleDeleteRule(rule)}>Delete</button></td>
         </tr>
       );
     });

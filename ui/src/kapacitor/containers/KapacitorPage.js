@@ -1,6 +1,9 @@
 import React, {PropTypes} from 'react';
 import {getKapacitor, getKapacitorConfigSection, createKapacitor, updateKapacitor, pingKapacitor} from 'shared/apis';
 import AlertOutputs from '../components/AlertOutputs';
+// default values for name & url
+const defaultKapacitorName = "My Kapacitor";
+const defaultKapacitorUrl = "http://localhost:9092";
 
 export const KapacitorPage = React.createClass({
   propTypes: {
@@ -109,12 +112,21 @@ export const KapacitorPage = React.createClass({
     this.setState({newUsername: this.kapacitorUser.value});
   },
 
+  handleResetToDefaults(e) {
+    e.preventDefault();
+    this.setState({
+      newURL: defaultKapacitorUrl,
+      newName: defaultKapacitorName,
+    });
+  },
+
   render() {
     const {kapacitor, newName, newURL, newUsername} = this.state;
     // if the fields in state are defined, use them. otherwise use the defaults
     const name = newName === undefined ? kapacitor && kapacitor.name || '' : newName;
     const url = newURL === undefined ? kapacitor && kapacitor.url || '' : newURL;
     const username = newUsername === undefined ? kapacitor && kapacitor.username || '' : newUsername;
+
 
     return (
       <div className="page">
@@ -145,11 +157,11 @@ export const KapacitorPage = React.createClass({
                       <div>
                         <div className="form-group col-xs-12 col-sm-8 col-sm-offset-2 col-md-4 col-md-offset-2">
                           <label htmlFor="connect-string">Connection String</label>
-                          <input ref={(r) => this.kapacitorURL = r} className="form-control" id="connect-string" placeholder="http://localhost:9092" value={url} onChange={this.updateURL}></input>
+                          <input ref={(r) => this.kapacitorURL = r} className="form-control" id="connect-string" placeholder={defaultKapacitorUrl} value={url} onChange={this.updateURL}></input>
                         </div>
                         <div className="form-group col-xs-12 col-sm-8 col-sm-offset-2 col-md-4 col-md-offset-0">
                           <label htmlFor="name">Name</label>
-                          <input ref={(r) => this.kapacitorName = r} className="form-control" id="name" placeholder="My Kapacitor" value={name} onChange={this.updateName}></input>
+                          <input ref={(r) => this.kapacitorName = r} className="form-control" id="name" placeholder={defaultKapacitorName} value={name} onChange={this.updateName}></input>
                         </div>
                         <div className="form-group col-xs-12 col-sm-4 col-sm-offset-2 col-md-4 col-md-offset-2">
                           <label htmlFor="username">Username</label>
@@ -161,8 +173,9 @@ export const KapacitorPage = React.createClass({
                         </div>
                       </div>
 
-                      <div className="form-group form-group-submit col-xs-4 col-xs-offset-4">
-                        <button className="btn btn-block btn-success" type="submit">Connect Kapacitor</button>
+                      <div className="form-group form-group-submit col-xs-12 text-center">
+                        <button className="btn btn-info" onClick={this.handleResetToDefaults}>Reset to Default</button>
+                        <button className="btn btn-success" type="submit">Connect Kapacitor</button>
                       </div>
                     </form>
                   </div>
@@ -189,7 +202,9 @@ export const KapacitorPage = React.createClass({
     return (
       <div className="panel panel-minimal">
         <div className="panel-body">
-          <p>Set your Kapacitor connection info to configure alerting endpoints.</p>
+          <h4 className="text-center">Configure Alert Endpoints</h4>
+          <br/>
+          <p className="text-center">Set your Kapacitor connection info to configure alerting endpoints.</p>
         </div>
       </div>
     );

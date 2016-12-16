@@ -95,8 +95,8 @@ export const ManageSources = React.createClass({
                               return (
                                 <tr key={source.id}>
                                   <td>{source.name}{source.default ? <span className="default-source-label">Default</span> : null}</td>
-                                  <td>{source.url}</td>
-                                  <td>{kapacitorName}</td>
+                                  <td className="monotype">{source.url}</td>
+                                  <td>{kapacitorName ? kapacitorName : "--"}</td>
                                   <td className="text-right">
                                     <Link className="btn btn-info btn-xs" to={`${pathname}/${source.id}/edit`}><span className="icon pencil"></span></Link>
                                     <Link className="btn btn-success btn-xs" to={`/sources/${source.id}/hosts`}>Connect</Link>

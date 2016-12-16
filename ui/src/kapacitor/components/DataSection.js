@@ -104,8 +104,8 @@ export const DataSection = React.createClass({
       <div className="kapacitor-rule-section">
         <h3 className="rule-section-heading">Select a Time Series</h3>
         <div className="rule-section-body">
-          <div className="query-editor kapacitor-metric-selector">
-            <div className="query-editor__code">
+          <div className="qeditor kapacitor-metric-selector">
+            <div className="qeditor--query-preview">
               <pre className={classNames("", {"rq-mode": query.rawText})}><code>{statement}</code></pre>
             </div>
             {this.renderEditor()}
@@ -131,11 +131,11 @@ export const DataSection = React.createClass({
 
     return (
       <div className="kapacitor-tab-list">
-        <div className="query-editor__tabs">
-          <div onClick={_.wrap(DB_TAB, this.handleClickTab)} className={classNames("query-editor__tab", {active: activeTab === DB_TAB})}>Databases</div>
-          <div onClick={_.wrap(MEASUREMENTS_TAB, this.handleClickTab)} className={classNames("query-editor__tab", {active: activeTab === MEASUREMENTS_TAB})}>Measurements</div>
-          <div onClick={_.wrap(FIELDS_TAB, this.handleClickTab)} className={classNames("query-editor__tab", {active: activeTab === FIELDS_TAB})}>Fields</div>
-          <div onClick={_.wrap(TAGS_TAB, this.handleClickTab)} className={classNames("query-editor__tab", {active: activeTab === TAGS_TAB})}>Tags</div>
+        <div className="qeditor--tabs">
+          <div onClick={_.wrap(DB_TAB, this.handleClickTab)} className={classNames("qeditor--tab", {active: activeTab === DB_TAB})}>Databases</div>
+          <div onClick={_.wrap(MEASUREMENTS_TAB, this.handleClickTab)} className={classNames("qeditor--tab", {active: activeTab === MEASUREMENTS_TAB})}>Measurements</div>
+          <div onClick={_.wrap(FIELDS_TAB, this.handleClickTab)} className={classNames("qeditor--tab", {active: activeTab === FIELDS_TAB})}>Fields</div>
+          <div onClick={_.wrap(TAGS_TAB, this.handleClickTab)} className={classNames("qeditor--tab", {active: activeTab === TAGS_TAB})}>Tags</div>
         </div>
         {this.renderList()}
       </div>
@@ -180,7 +180,7 @@ export const DataSection = React.createClass({
           />
         );
       default:
-        return <ul className="query-editor__list"></ul>;
+        return <ul className="qeditor--list"></ul>;
     }
   },
 });
