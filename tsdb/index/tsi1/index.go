@@ -328,6 +328,24 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 	return nil
 }
 
+// Measurement returns a measurement by name.
+func (i *Index) Measurement(name []byte) (*tsdb.Measurement, error) {
+	if m := i.measurement(name); m != nil {
+		return tsdb.NewMeasurement(string(name)), nil
+	}
+	return nil, nil
+}
+
+// measurement returns a measurement by name.
+func (i *Index) measurement(name []byte) MeasurementElem {
+	for _, f := range i.files() {
+		if e := f.Measurement(name); e != nil && !e.Deleted() {
+			return e
+		}
+	}
+	return nil
+}
+
 // MeasurementSeriesIterator returns an iterator over all non-tombstoned series
 // in the index for the provided measurement.
 func (i *Index) MeasurementSeriesIterator(name []byte) SeriesIterator {
@@ -677,7 +695,7 @@ func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 // instances of the type sketch types in all the indexes files.
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	sketch, tsketch, err := i.sketches(func(i *IndexFile) (estimator.Sketch, estimator.Sketch) {
-		return i.mblk.sketch, i.mblk.tsketch
+		return i.mblk.Sketch, i.mblk.TSketch
 	})
 
 	if err != nil {

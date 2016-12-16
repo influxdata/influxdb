@@ -51,7 +51,7 @@ type MeasurementBlock struct {
 
 	// Measurement block sketch and tombstone sketch for cardinality
 	// estimation.
-	sketch, tsketch estimator.Sketch
+	Sketch, TSketch estimator.Sketch
 
 	version int // block version
 }
@@ -118,16 +118,16 @@ func (blk *MeasurementBlock) UnmarshalBinary(data []byte) error {
 	blk.hashData = blk.hashData[:t.HashIndex.Size]
 
 	// Initialise sketches. We're currently using HLL+.
-	var s, ts *hll.Plus
+	var s, ts = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	if err := s.UnmarshalBinary(data[t.Sketch.Offset:][:t.Sketch.Size]); err != nil {
 		return err
 	}
-	blk.sketch = s
+	blk.Sketch = s
 
 	if err := ts.UnmarshalBinary(data[t.TSketch.Offset:][:t.TSketch.Size]); err != nil {
 		return err
 	}
-	blk.tsketch = ts
+	blk.TSketch = ts
 
 	return nil
 }
@@ -363,7 +363,7 @@ type MeasurementBlockWriter struct {
 
 	// Measurement sketch and tombstoned measurement sketch. These must be
 	// set before calling WriteTo.
-	sketch, tsketch estimator.Sketch
+	Sketch, TSketch estimator.Sketch
 }
 
 // NewMeasurementBlockWriter returns a new MeasurementBlockWriter.
@@ -387,9 +387,9 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	var t MeasurementBlockTrailer
 
 	// The sketches must be set before calling WriteTo.
-	if mw.sketch == nil {
+	if mw.Sketch == nil {
 		return 0, errors.New("measurement sketch not set")
-	} else if mw.tsketch == nil {
+	} else if mw.TSketch == nil {
 		return 0, errors.New("measurement tombstone sketch not set")
 	}
 
@@ -456,13 +456,13 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 
 	// Write the sketches out.
 	t.Sketch.Offset = n
-	if err := writeSketchTo(w, mw.sketch, &n); err != nil {
+	if err := writeSketchTo(w, mw.Sketch, &n); err != nil {
 		return n, err
 	}
 	t.Sketch.Size = n - t.Sketch.Offset
 
 	t.TSketch.Offset = n
-	if err := writeSketchTo(w, mw.tsketch, &n); err != nil {
+	if err := writeSketchTo(w, mw.TSketch, &n); err != nil {
 		return n, err
 	}
 	t.TSketch.Size = n - t.TSketch.Offset

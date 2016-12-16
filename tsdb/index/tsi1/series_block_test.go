@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
@@ -93,12 +94,14 @@ func TestSeriesBlock_Series(t *testing.T) {
 
 // CreateSeriesBlock returns an in-memory SeriesBlock with a list of series.
 func CreateSeriesBlock(a []Series) (*tsi1.SeriesBlock, error) {
-	// Create writer and add series.
+	// Create writer and sketches. Add series.
 	w := tsi1.NewSeriesBlockWriter()
+	w.Sketch, w.TSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	for i, s := range a {
 		if err := w.Add(s.Name, s.Tags); err != nil {
 			return nil, fmt.Errorf("SeriesBlockWriter.Add(): i=%d, err=%s", i, err)
 		}
+		w.Sketch.Add(models.MakeKey(s.Name, s.Tags))
 	}
 
 	// Write to buffer.

@@ -138,18 +138,6 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 	}
 	i.mu.RUnlock()
 
-	// FIXME(edd): this needs to be higher up to work across shards
-	// Check for series count.
-	// n, err := i.SeriesN()
-	// if err != nil {
-	// 	return err
-	// }
-	// if i.opt.Config.MaxSeriesPerDatabase > 0 && n+1 > uint64(i.opt.Config.MaxSeriesPerDatabase) {
-	// 	return &tsdb.LimitError{
-	// 		Reason: fmt.Sprintf("max-series-per-database limit exceeded: (%d/%d)", n, i.opt.Config.MaxSeriesPerDatabase),
-	// 	}
-	// }
-
 	// get or create the measurement index
 	m := i.CreateMeasurementIndexIfNotExists(string(name))
 

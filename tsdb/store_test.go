@@ -436,22 +436,17 @@ func TestStore_SeriesCardinality_Tombstoning(t *testing.T) {
 		}
 	}
 
-	// TODO(benbjohnson)
-	/*
-		// Delete all the series for each measurement.
-		measurements, err := store.Measurements("db", nil)
-		if err != nil {
+	// Delete all the series for each measurement.
+	mnames, err := store.MeasurementNames("db", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, name := range mnames {
+		if err := store.DeleteSeries("db", []influxql.Source{&influxql.Measurement{Name: string(name)}}, nil); err != nil {
 			t.Fatal(err)
 		}
-
-		done := map[string]struct{}{}
-		for _, k := range measurements {
-			if _, ok := done[k]; !ok {
-				store.DeleteSeries("db", []influxql.Source{&influxql.Measurement{Name: k}}, nil)
-				done[k] = struct{}{}
-			}
-		}
-	*/
+	}
 
 	// Estimate the series cardinality...
 	cardinality, err := store.Store.SeriesCardinality("db")
@@ -459,10 +454,10 @@ func TestStore_SeriesCardinality_Tombstoning(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Estimated cardinality should be well within 20 of the actual cardinality.
-	// TODO(edd): this is totally arbitrary. How can I make it better?
-	if got, exp := math.Abs(float64(cardinality)-0.0), 20.0; got > exp {
-		t.Fatalf("got cardinality %v (expected within %v), which is larger than expected %v", got, 10.0, 0)
+	// Estimated cardinality should be well within 10 of the actual cardinality.
+	// TODO(edd): this epsilon is arbitrary. How can I make it better?
+	if got, exp := math.Abs(float64(cardinality)-0.0), 10.0; got > exp {
+		t.Fatalf("cardinality out by %v (expected within %v), estimation was: %d", got, exp, cardinality)
 	}
 
 	// Since all the series have been deleted, all the measurements should have
@@ -474,7 +469,7 @@ func TestStore_SeriesCardinality_Tombstoning(t *testing.T) {
 	// Estimated cardinality should be well within 2 of the actual cardinality.
 	// TODO(edd): this is totally arbitrary. How can I make it better?
 	if got, exp := math.Abs(float64(cardinality)-0.0), 2.0; got > exp {
-		t.Fatalf("got cardinality %v (expected within %v), which is larger than expected %v", got, 10.0, 0)
+		t.Fatalf("cardinality out by %v (expected within %v), estimation was: %d", got, exp, cardinality)
 	}
 
 }
