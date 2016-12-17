@@ -1,7 +1,25 @@
 ## v1.1.0 [unreleased]
 
+### Upcoming Features
+  1. [#691](https://github.com/influxdata/chronograf/issues/691): Add server-side dashboard API
+  1. [#609](https://github.com/influxdata/chronograf/issues/609): Add singlestat graph type to the Data Explorer
+
+## v1.1.0-beta3 [2016-12-16]
+
 ### Features
-  1. [#610](https://github.com/influxdata/chronograf/issues/610): Add Ability to edit raw text queries in the Data Explorer
+  1. [#610](https://github.com/influxdata/chronograf/issues/610): Add ability to edit raw text queries in the Data Explorer
+
+### UI Improvements
+  1. [#688](https://github.com/influxdata/chronograf/issues/688): Add ability to visually distinguish queries in the Data Explorer
+  1. [#618](https://github.com/influxdata/chronograf/issues/618): Add measurement name and field key to the query tab in the Data Explorer
+  1. [#698](https://github.com/influxdata/chronograf/issues/698): Add color differentiation for Kapacitor alert levels
+  1. [#698](https://github.com/influxdata/chronograf/issues/698): Clarify an empty Kapacitor configuration on the InfluxDB Sources page
+  1. [#676](https://github.com/influxdata/chronograf/issues/676): Streamline the function selector in the Data Explorer
+
+### Bug Fixes
+  1. [#652](https://github.com/influxdata/chronograf/issues/652),[#670](https://github.com/influxdata/chronograf/issues/670): Allow text selecting in text box inputs
+  2. [#679](https://github.com/influxdata/chronograf/issues/679): Add version information to the nightly builds
+  3. [#675](https://github.com/influxdata/chronograf/issues/675): Fix user flow for Kapacitor connect
 
 ## v1.1.0-beta2 [2016-12-09]
 
@@ -23,8 +41,8 @@
   2. [#487](https://github.com/influxdata/chronograf/issues/487): Warn users if they are using a kapacitor instance that is configured to use an influxdb instance that does not match the current source
   3. [#597](https://github.com/influxdata/chronograf/issues/597): Filter host by series tags
   4. [#568](https://github.com/influxdata/chronograf/issues/568): [#569](https://github.com/influxdata/chronograf/issues/569): Add support for multiple y-axis, labels, and ranges
-  5. [#605](https://github.com/influxdata/chronograf/issues/605): Number visualization type in host view
-  5. [#607](https://github.com/influxdata/chronograf/issues/607): Number and line graph visualization type in host view
+  5. [#605](https://github.com/influxdata/chronograf/issues/605): Singlestat visualization type in host view
+  5. [#607](https://github.com/influxdata/chronograf/issues/607): Singlestat and line graph visualization type in host view
 
 ### Bug Fixes
   1. [#536](https://github.com/influxdata/chronograf/issues/536) Redirect the user to the kapacitor config screen if they are attempting to view or edit alerts without a configured kapacitor
