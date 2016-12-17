@@ -31,11 +31,20 @@ See the [README](https://github.com/influxdata/chronograf#dashboard-templates) f
 
 Chronograf's Data Explorer gives you the tools to dig in and create personalized visualizations of your data.
 
+### Generate Visualizations with the Query Builder
+
 Use the query builder to easily generate [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) queries and create beautiful visualizations:
 
 ![Data Exploration](https://github.com/influxdata/chronograf/blob/master/docs/images/data-exploration-gs.gif)
 
-You can also view those same query results in tabular format (1), easily alter the query's time range with the time range selector (2), and save your graphs in individual exploration sessions (3):
+### Generate Visualizations with the Raw Query Editor
+
+Paste an existing [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) query or write a query from scratch with the `InfluxQL` editor:
+
+![Raw Editor](https://github.com/influxdata/chronograf/blob/master/docs/images/raw-editor-gs.gif)
+
+### Other Features
+View query results in tabular format (1), easily alter the query's time range with the time range selector (2), and save your graphs in individual exploration sessions (3):
 
 ![Data Exploration Extras](https://github.com/influxdata/chronograf/blob/master/docs/images/data-exploration-extras-gs.png)
 
