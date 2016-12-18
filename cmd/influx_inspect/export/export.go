@@ -1,15 +1,16 @@
 package export
 
 import (
+	"bufio"
 	"compress/gzip"
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -187,15 +188,24 @@ func (cmd *Command) walkWALFiles() error {
 
 func (cmd *Command) write() error {
 	// open our output file and create an output buffer
-	var w io.WriteCloser
-	w, err := os.Create(cmd.out)
+	f, err := os.Create(cmd.out)
 	if err != nil {
 		return err
 	}
-	defer w.Close()
+	defer f.Close()
+
+	// Because calling (*os.File).Write is relatively expensive,
+	// and we don't *need* to sync to disk on every written line of export,
+	// use a sized buffered writer so that we only sync the file every megabyte.
+	bw := bufio.NewWriterSize(f, 1024*1024)
+	defer bw.Flush()
+
+	var w io.Writer = bw
+
 	if cmd.compress {
-		w = gzip.NewWriter(w)
-		defer w.Close()
+		gzw := gzip.NewWriter(w)
+		defer gzw.Close()
+		w = gzw
 	}
 
 	s, e := time.Unix(0, cmd.startTime).Format(time.RFC3339), time.Unix(0, cmd.endTime).Format(time.RFC3339)
@@ -256,7 +266,7 @@ func (cmd *Command) exportTSMFile(tsmFilePath string, w io.Writer) error {
 
 	r, err := tsm1.NewTSMReader(f)
 	if err != nil {
-		log.Printf("unable to read %s, skipping: %s\n", f, err.Error())
+		fmt.Fprintf(cmd.Stderr, "unable to read %s, skipping: %s\n", tsmFilePath, err.Error())
 		return nil
 	}
 	defer r.Close()
@@ -266,32 +276,18 @@ func (cmd *Command) exportTSMFile(tsmFilePath string, w io.Writer) error {
 	}
 
 	for i := 0; i < r.KeyCount(); i++ {
-		var pairs string
-		key, typ := r.KeyAt(i)
-		values, _ := r.ReadAll(string(key))
+		key, _ := r.KeyAt(i)
+		values, err := r.ReadAll(string(key))
+		if err != nil {
+			fmt.Fprintf(cmd.Stderr, "unable to read key %q in %s, skipping: %s\n", string(key), tsmFilePath, err.Error())
+			continue
+		}
 		measurement, field := tsm1.SeriesAndFieldFromCompositeKey(key)
-		// measurements are stored escaped, field names are not
 		field = escape.String(field)
 
-		for _, value := range values {
-			if (value.UnixNano() < cmd.startTime) || (value.UnixNano() > cmd.endTime) {
-				continue
-			}
-
-			switch typ {
-			case tsm1.BlockFloat64:
-				pairs = field + "=" + fmt.Sprintf("%v", value.Value())
-			case tsm1.BlockInteger:
-				pairs = field + "=" + fmt.Sprintf("%vi", value.Value())
-			case tsm1.BlockBoolean:
-				pairs = field + "=" + fmt.Sprintf("%v", value.Value())
-			case tsm1.BlockString:
-				pairs = field + "=" + fmt.Sprintf("%q", models.EscapeStringField(fmt.Sprintf("%s", value.Value())))
-			default:
-				pairs = field + "=" + fmt.Sprintf("%v", value.Value())
-			}
-
-			fmt.Fprintln(w, string(measurement), pairs, value.UnixNano())
+		if err := cmd.writeValues(w, measurement, field, values); err != nil {
+			// An error from writeValues indicates an IO error, which should be returned.
+			return err
 		}
 	}
 	return nil
@@ -348,34 +344,62 @@ func (cmd *Command) exportWALFile(walFilePath string, w io.Writer, warnDelete fu
 			warnDelete()
 			continue
 		case *tsm1.WriteWALEntry:
-			var pairs string
-
 			for key, values := range t.Values {
 				measurement, field := tsm1.SeriesAndFieldFromCompositeKey([]byte(key))
 				// measurements are stored escaped, field names are not
 				field = escape.String(field)
 
-				for _, value := range values {
-					if (value.UnixNano() < cmd.startTime) || (value.UnixNano() > cmd.endTime) {
-						continue
-					}
-
-					switch value.Value().(type) {
-					case float64:
-						pairs = field + "=" + fmt.Sprintf("%v", value.Value())
-					case int64:
-						pairs = field + "=" + fmt.Sprintf("%vi", value.Value())
-					case bool:
-						pairs = field + "=" + fmt.Sprintf("%v", value.Value())
-					case string:
-						pairs = field + "=" + fmt.Sprintf("%q", models.EscapeStringField(fmt.Sprintf("%s", value.Value())))
-					default:
-						pairs = field + "=" + fmt.Sprintf("%v", value.Value())
-					}
-					fmt.Fprintln(w, string(measurement), pairs, value.UnixNano())
+				if err := cmd.writeValues(w, measurement, field, values); err != nil {
+					// An error from writeValues indicates an IO error, which should be returned.
+					return err
 				}
 			}
 		}
 	}
+	return nil
+}
+
+// writeValues writes every value in values to w, using the given series key and field name.
+// If any call to w.Write fails, that error is returned.
+func (cmd *Command) writeValues(w io.Writer, seriesKey []byte, field string, values []tsm1.Value) error {
+	buf := []byte(string(seriesKey) + " " + field + "=")
+	prefixLen := len(buf)
+
+	for _, value := range values {
+		ts := value.UnixNano()
+		if (ts < cmd.startTime) || (ts > cmd.endTime) {
+			continue
+		}
+
+		// Re-slice buf to be "<series_key> <field>=".
+		buf = buf[:prefixLen]
+
+		// Append the correct representation of the value.
+		switch v := value.Value().(type) {
+		case float64:
+			buf = strconv.AppendFloat(buf, v, 'g', -1, 64)
+		case int64:
+			buf = strconv.AppendInt(buf, v, 10)
+			buf = append(buf, 'i')
+		case bool:
+			buf = strconv.AppendBool(buf, v)
+		case string:
+			buf = strconv.AppendQuote(buf, models.EscapeStringField(v))
+		default:
+			// This shouldn't be possible, but we'll format it anyway.
+			buf = append(buf, fmt.Sprintf("%v", v)...)
+		}
+
+		// Now buf has "<series_key> <field>=<value>".
+		// Append the timestamp and a newline, then write it.
+		buf = append(buf, ' ')
+		buf = strconv.AppendInt(buf, ts, 10)
+		buf = append(buf, '\n')
+		if _, err := w.Write(buf); err != nil {
+			// Underlying IO error needs to be returned.
+			return err
+		}
+	}
+
 	return nil
 }
