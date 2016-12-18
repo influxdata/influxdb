@@ -384,7 +384,9 @@ func (cmd *Command) writeValues(w io.Writer, seriesKey []byte, field string, val
 		case bool:
 			buf = strconv.AppendBool(buf, v)
 		case string:
-			buf = strconv.AppendQuote(buf, models.EscapeStringField(v))
+			buf = append(buf, '"')
+			buf = append(buf, models.EscapeStringField(v)...)
+			buf = append(buf, '"')
 		default:
 			// This shouldn't be possible, but we'll format it anyway.
 			buf = append(buf, fmt.Sprintf("%v", v)...)

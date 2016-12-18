@@ -18,7 +18,6 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7036](https://github.com/influxdata/influxdb/issues/7036): Switch logging to use structured logging everywhere.
 - [#7723](https://github.com/influxdata/influxdb/pull/7723): Remove the override of GOMAXPROCS.
 - [#7633](https://github.com/influxdata/influxdb/pull/7633): improve write performance significantly.
-- [#7741](https://github.com/influxdata/influxdb/pull/7741): Significantly improve performance of `influx_inspect export`.
 
 ### Bugfixes
 
@@ -32,6 +31,7 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 
 - [#7396](https://github.com/influxdata/influxdb/issues/7396): CLI should use spaces for alignment, not tabs.
 - [#7615](https://github.com/influxdata/influxdb/issues/7615): Reject invalid subscription urls @allenpetersen
+- [#7741](https://github.com/influxdata/influxdb/pull/7741): Fix string quoting and significantly improve performance of `influx_inspect export`.
 
 ## v1.1.1 [unreleased]
 

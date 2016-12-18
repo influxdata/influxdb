@@ -48,53 +48,84 @@ var (
 		`strings,k=s s="1k" 1000`,
 		`strings,k=s s="2k" 2000`,
 	}
+
+	escapeStringCorpus = corpus{
+		tsm1.SeriesFieldKey("t", "s"): []tsm1.Value{
+			tsm1.NewValue(1, `1. "quotes"`),
+			tsm1.NewValue(2, `2. back\slash`),
+			tsm1.NewValue(3, `3. bs\q"`),
+		},
+	}
+
+	escCorpusExpLines = []string{
+		`t s="1. \"quotes\"" 1`,
+		`t s="2. back\\slash" 2`,
+		`t s="3. bs\\q\"" 3`,
+	}
 )
 
 func Test_exportWALFile(t *testing.T) {
-	walFile := writeCorpusToWALFile(basicCorpus)
+	for _, c := range []struct {
+		corpus corpus
+		lines  []string
+	}{
+		{corpus: basicCorpus, lines: basicCorpusExpLines},
+		{corpus: escapeStringCorpus, lines: escCorpusExpLines},
+	} {
+		walFile := writeCorpusToWALFile(c.corpus)
+		defer os.Remove(walFile.Name())
 
-	var out bytes.Buffer
-	if err := newCommand().exportWALFile(walFile.Name(), &out, func() {}); err != nil {
-		t.Fatal(err)
-	}
-
-	lines := strings.Split(out.String(), "\n")
-	for _, exp := range basicCorpusExpLines {
-		found := false
-		for _, l := range lines {
-			if exp == l {
-				found = true
-				break
-			}
+		var out bytes.Buffer
+		if err := newCommand().exportWALFile(walFile.Name(), &out, func() {}); err != nil {
+			t.Fatal(err)
 		}
 
-		if !found {
-			t.Fatalf("expected line %q to be in exported output:\n%s", exp, out.String())
+		lines := strings.Split(out.String(), "\n")
+		for _, exp := range c.lines {
+			found := false
+			for _, l := range lines {
+				if exp == l {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				t.Fatalf("expected line %q to be in exported output:\n%s", exp, out.String())
+			}
 		}
 	}
 }
 
 func Test_exportTSMFile(t *testing.T) {
-	tsmFile := writeCorpusToTSMFile(basicCorpus)
-	defer os.Remove(tsmFile.Name())
+	for _, c := range []struct {
+		corpus corpus
+		lines  []string
+	}{
+		{corpus: basicCorpus, lines: basicCorpusExpLines},
+		{corpus: escapeStringCorpus, lines: escCorpusExpLines},
+	} {
+		tsmFile := writeCorpusToTSMFile(c.corpus)
+		defer os.Remove(tsmFile.Name())
 
-	var out bytes.Buffer
-	if err := newCommand().exportTSMFile(tsmFile.Name(), &out); err != nil {
-		t.Fatal(err)
-	}
-
-	lines := strings.Split(out.String(), "\n")
-	for _, exp := range basicCorpusExpLines {
-		found := false
-		for _, l := range lines {
-			if exp == l {
-				found = true
-				break
-			}
+		var out bytes.Buffer
+		if err := newCommand().exportTSMFile(tsmFile.Name(), &out); err != nil {
+			t.Fatal(err)
 		}
 
-		if !found {
-			t.Fatalf("expected line %q to be in exported output:\n%s", exp, out.String())
+		lines := strings.Split(out.String(), "\n")
+		for _, exp := range c.lines {
+			found := false
+			for _, l := range lines {
+				if exp == l {
+					found = true
+					break
+				}
+			}
+
+			if !found {
+				t.Fatalf("expected line %q to be in exported output:\n%s", exp, out.String())
+			}
 		}
 	}
 }
