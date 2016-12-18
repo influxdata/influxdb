@@ -8,7 +8,6 @@ import (
 	"log"
 	"math"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -62,8 +61,8 @@ func (cmd *Command) Run(args ...string) error {
 	fs.StringVar(&cmd.out, "out", os.Getenv("HOME")+"/.influxdb/export", "Destination file to export to")
 	fs.StringVar(&cmd.database, "database", "", "Optional: the database to export")
 	fs.StringVar(&cmd.retentionPolicy, "retention", "", "Optional: the retention policy to export (requires -database)")
-	fs.StringVar(&start, "start", "", "Optional: the start time to export")
-	fs.StringVar(&end, "end", "", "Optional: the end time to export")
+	fs.StringVar(&start, "start", "", "Optional: the start time to export (RFC3339 format)")
+	fs.StringVar(&end, "end", "", "Optional: the end time to export (RFC3339 format)")
 	fs.BoolVar(&cmd.compress, "compress", false, "Compress the output")
 
 	fs.SetOutput(cmd.Stdout)
@@ -106,7 +105,6 @@ func (cmd *Command) Run(args ...string) error {
 }
 
 func (cmd *Command) validate() error {
-	// validate args
 	if cmd.retentionPolicy != "" && cmd.database == "" {
 		return fmt.Errorf("must specify a db")
 	}
@@ -123,84 +121,71 @@ func (cmd *Command) export() error {
 	if err := cmd.walkWALFiles(); err != nil {
 		return err
 	}
-	return cmd.writeFiles()
+	return cmd.write()
 }
 
 func (cmd *Command) walkTSMFiles() error {
-	err := filepath.Walk(cmd.dataDir, func(dir string, f os.FileInfo, err error) error {
+	return filepath.Walk(cmd.dataDir, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// check to see if this is a tsm file
-		ext := fmt.Sprintf(".%s", tsm1.TSMFileExtension)
-		if filepath.Ext(dir) != ext {
+		if filepath.Ext(path) != "."+tsm1.TSMFileExtension {
 			return nil
 		}
 
-		relPath, _ := filepath.Rel(cmd.dataDir, dir)
+		relPath, err := filepath.Rel(cmd.dataDir, path)
+		if err != nil {
+			return err
+		}
 		dirs := strings.Split(relPath, string(byte(os.PathSeparator)))
 		if len(dirs) < 2 {
-			return fmt.Errorf("invalid directory structure for %s", dir)
+			return fmt.Errorf("invalid directory structure for %s", path)
 		}
 		if dirs[0] == cmd.database || cmd.database == "" {
 			if dirs[1] == cmd.retentionPolicy || cmd.retentionPolicy == "" {
 				key := filepath.Join(dirs[0], dirs[1])
-				files := cmd.tsmFiles[key]
-				if files == nil {
-					files = []string{}
-				}
 				cmd.manifest[key] = struct{}{}
-				cmd.tsmFiles[key] = append(files, dir)
+				cmd.tsmFiles[key] = append(cmd.tsmFiles[key], path)
 			}
 		}
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
 func (cmd *Command) walkWALFiles() error {
-	err := filepath.Walk(cmd.walDir, func(dir string, f os.FileInfo, err error) error {
+	return filepath.Walk(cmd.walDir, func(path string, f os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// check to see if this is a wal file
-		prefix := tsm1.WALFilePrefix
-		ext := fmt.Sprintf(".%s", tsm1.WALFileExtension)
-		_, fileName := path.Split(dir)
-		if filepath.Ext(dir) != ext || !strings.HasPrefix(fileName, prefix) {
+		fileName := filepath.Base(path)
+		if filepath.Ext(path) != "."+tsm1.WALFileExtension || !strings.HasPrefix(fileName, tsm1.WALFilePrefix) {
 			return nil
 		}
 
-		relPath, _ := filepath.Rel(cmd.walDir, dir)
+		relPath, err := filepath.Rel(cmd.walDir, path)
+		if err != nil {
+			return err
+		}
 		dirs := strings.Split(relPath, string(byte(os.PathSeparator)))
 		if len(dirs) < 2 {
-			return fmt.Errorf("invalid directory structure for %s", dir)
+			return fmt.Errorf("invalid directory structure for %s", path)
 		}
 		if dirs[0] == cmd.database || cmd.database == "" {
 			if dirs[1] == cmd.retentionPolicy || cmd.retentionPolicy == "" {
 				key := filepath.Join(dirs[0], dirs[1])
-				files := cmd.walFiles[key]
-				if files == nil {
-					files = []string{}
-				}
 				cmd.manifest[key] = struct{}{}
-				cmd.walFiles[key] = append(files, dir)
+				cmd.walFiles[key] = append(cmd.walFiles[key], path)
 			}
 		}
 		return nil
 	})
-	if err != nil {
-		return err
-	}
-	return nil
 }
 
-func (cmd *Command) writeFiles() error {
+func (cmd *Command) write() error {
 	// open our output file and create an output buffer
 	var w io.WriteCloser
 	w, err := os.Create(cmd.out)
@@ -219,92 +204,42 @@ func (cmd *Command) writeFiles() error {
 	// Write out all the DDL
 	fmt.Fprintln(w, "# DDL")
 	for key := range cmd.manifest {
-		keys := strings.Split(key, string(byte(os.PathSeparator)))
+		keys := strings.Split(key, string(os.PathSeparator))
 		db, rp := influxql.QuoteIdent(keys[0]), influxql.QuoteIdent(keys[1])
 		fmt.Fprintf(w, "CREATE DATABASE %s WITH NAME %s\n", db, rp)
 	}
 
 	fmt.Fprintln(w, "# DML")
 	for key := range cmd.manifest {
-		keys := strings.Split(key, string(byte(os.PathSeparator)))
+		keys := strings.Split(key, string(os.PathSeparator))
 		fmt.Fprintf(w, "# CONTEXT-DATABASE:%s\n", keys[0])
 		fmt.Fprintf(w, "# CONTEXT-RETENTION-POLICY:%s\n", keys[1])
 		if files, ok := cmd.tsmFiles[key]; ok {
-			fmt.Printf("writing out tsm file data for %s...", key)
+			fmt.Fprintf(cmd.Stdout, "writing out tsm file data for %s...", key)
 			if err := cmd.writeTsmFiles(w, files); err != nil {
 				return err
 			}
-			fmt.Println("complete.")
+			fmt.Fprintln(cmd.Stdout, "complete.")
 		}
 		if _, ok := cmd.walFiles[key]; ok {
-			fmt.Printf("writing out wal file data for %s...", key)
+			fmt.Fprintf(cmd.Stdout, "writing out wal file data for %s...", key)
 			if err := cmd.writeWALFiles(w, cmd.walFiles[key], key); err != nil {
 				return err
 			}
-			fmt.Println("complete.")
+			fmt.Fprintln(cmd.Stdout, "complete.")
 		}
 	}
 	return nil
 }
 
-func (cmd *Command) writeTsmFiles(w io.WriteCloser, files []string) error {
+func (cmd *Command) writeTsmFiles(w io.Writer, files []string) error {
 	fmt.Fprintln(w, "# writing tsm data")
 
 	// we need to make sure we write the same order that the files were written
 	sort.Strings(files)
 
-	// use a function here to close the files in the defers and not let them accumulate in the loop
-	write := func(f string) error {
-		file, err := os.OpenFile(f, os.O_RDONLY, 0600)
-		if err != nil {
-			return fmt.Errorf("%v", err)
-		}
-		defer file.Close()
-		reader, err := tsm1.NewTSMReader(file)
-		if err != nil {
-			log.Printf("unable to read %s, skipping\n", f)
-			return nil
-		}
-		defer reader.Close()
-
-		if sgStart, sgEnd := reader.TimeRange(); sgStart > cmd.endTime || sgEnd < cmd.startTime {
-			return nil
-		}
-
-		for i := 0; i < reader.KeyCount(); i++ {
-			var pairs string
-			key, typ := reader.KeyAt(i)
-			values, _ := reader.ReadAll(string(key))
-			measurement, field := tsm1.SeriesAndFieldFromCompositeKey(key)
-			// measurements are stored escaped, field names are not
-			field = escape.String(field)
-
-			for _, value := range values {
-				if (value.UnixNano() < cmd.startTime) || (value.UnixNano() > cmd.endTime) {
-					continue
-				}
-
-				switch typ {
-				case tsm1.BlockFloat64:
-					pairs = field + "=" + fmt.Sprintf("%v", value.Value())
-				case tsm1.BlockInteger:
-					pairs = field + "=" + fmt.Sprintf("%vi", value.Value())
-				case tsm1.BlockBoolean:
-					pairs = field + "=" + fmt.Sprintf("%v", value.Value())
-				case tsm1.BlockString:
-					pairs = field + "=" + fmt.Sprintf("%q", models.EscapeStringField(fmt.Sprintf("%s", value.Value())))
-				default:
-					pairs = field + "=" + fmt.Sprintf("%v", value.Value())
-				}
-
-				fmt.Fprintln(w, string(measurement), pairs, value.UnixNano())
-			}
-		}
-		return nil
-	}
-
 	for _, f := range files {
-		if err := write(f); err != nil {
+		if err := cmd.exportTSMFile(f, w); err != nil {
 			return err
 		}
 	}
@@ -312,85 +247,135 @@ func (cmd *Command) writeTsmFiles(w io.WriteCloser, files []string) error {
 	return nil
 }
 
-func (cmd *Command) writeWALFiles(w io.WriteCloser, files []string, key string) error {
+func (cmd *Command) exportTSMFile(tsmFilePath string, w io.Writer) error {
+	f, err := os.Open(tsmFilePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	r, err := tsm1.NewTSMReader(f)
+	if err != nil {
+		log.Printf("unable to read %s, skipping: %s\n", f, err.Error())
+		return nil
+	}
+	defer r.Close()
+
+	if sgStart, sgEnd := r.TimeRange(); sgStart > cmd.endTime || sgEnd < cmd.startTime {
+		return nil
+	}
+
+	for i := 0; i < r.KeyCount(); i++ {
+		var pairs string
+		key, typ := r.KeyAt(i)
+		values, _ := r.ReadAll(string(key))
+		measurement, field := tsm1.SeriesAndFieldFromCompositeKey(key)
+		// measurements are stored escaped, field names are not
+		field = escape.String(field)
+
+		for _, value := range values {
+			if (value.UnixNano() < cmd.startTime) || (value.UnixNano() > cmd.endTime) {
+				continue
+			}
+
+			switch typ {
+			case tsm1.BlockFloat64:
+				pairs = field + "=" + fmt.Sprintf("%v", value.Value())
+			case tsm1.BlockInteger:
+				pairs = field + "=" + fmt.Sprintf("%vi", value.Value())
+			case tsm1.BlockBoolean:
+				pairs = field + "=" + fmt.Sprintf("%v", value.Value())
+			case tsm1.BlockString:
+				pairs = field + "=" + fmt.Sprintf("%q", models.EscapeStringField(fmt.Sprintf("%s", value.Value())))
+			default:
+				pairs = field + "=" + fmt.Sprintf("%v", value.Value())
+			}
+
+			fmt.Fprintln(w, string(measurement), pairs, value.UnixNano())
+		}
+	}
+	return nil
+}
+
+func (cmd *Command) writeWALFiles(w io.Writer, files []string, key string) error {
 	fmt.Fprintln(w, "# writing wal data")
 
 	// we need to make sure we write the same order that the wal received the data
 	sort.Strings(files)
 
 	var once sync.Once
-	warn := func() {
-		msg := fmt.Sprintf(`WARNING: detected deletes in wal file.
-		Some series for %q may be brought back by replaying this data.
-		To resolve, you can either let the shard snapshot prior to exporting the data
-		or manually editing the exported file.
-		`, key)
-		fmt.Fprintln(cmd.Stderr, msg)
-	}
-
-	// use a function here to close the files in the defers and not let them accumulate in the loop
-	write := func(f string) error {
-		file, err := os.OpenFile(f, os.O_RDONLY, 0600)
-		if err != nil {
-			return fmt.Errorf("%v", err)
-		}
-		defer file.Close()
-
-		reader := tsm1.NewWALSegmentReader(file)
-		defer reader.Close()
-		for reader.Next() {
-			entry, err := reader.Read()
-			if err != nil {
-				n := reader.Count()
-				fmt.Fprintf(os.Stderr, "file %s corrupt at position %d", file.Name(), n)
-				break
-			}
-
-			switch t := entry.(type) {
-			case *tsm1.DeleteWALEntry:
-				once.Do(warn)
-				continue
-			case *tsm1.DeleteRangeWALEntry:
-				once.Do(warn)
-				continue
-			case *tsm1.WriteWALEntry:
-				var pairs string
-
-				for key, values := range t.Values {
-					measurement, field := tsm1.SeriesAndFieldFromCompositeKey([]byte(key))
-					// measurements are stored escaped, field names are not
-					field = escape.String(field)
-
-					for _, value := range values {
-						if (value.UnixNano() < cmd.startTime) || (value.UnixNano() > cmd.endTime) {
-							continue
-						}
-
-						switch value.Value().(type) {
-						case float64:
-							pairs = field + "=" + fmt.Sprintf("%v", value.Value())
-						case int64:
-							pairs = field + "=" + fmt.Sprintf("%vi", value.Value())
-						case bool:
-							pairs = field + "=" + fmt.Sprintf("%v", value.Value())
-						case string:
-							pairs = field + "=" + fmt.Sprintf("%q", models.EscapeStringField(fmt.Sprintf("%s", value.Value())))
-						default:
-							pairs = field + "=" + fmt.Sprintf("%v", value.Value())
-						}
-						fmt.Fprintln(w, string(measurement), pairs, value.UnixNano())
-					}
-				}
-			}
-		}
-		return nil
+	warnDelete := func() {
+		once.Do(func() {
+			msg := fmt.Sprintf(`WARNING: detected deletes in wal file.
+Some series for %q may be brought back by replaying this data.
+To resolve, you can either let the shard snapshot prior to exporting the data
+or manually editing the exported file.
+			`, key)
+			fmt.Fprintln(cmd.Stderr, msg)
+		})
 	}
 
 	for _, f := range files {
-		if err := write(f); err != nil {
+		if err := cmd.exportWALFile(f, w, warnDelete); err != nil {
 			return err
 		}
 	}
 
+	return nil
+}
+
+// exportWAL reads every WAL entry from r and exports it to w.
+func (cmd *Command) exportWALFile(walFilePath string, w io.Writer, warnDelete func()) error {
+	f, err := os.Open(walFilePath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	r := tsm1.NewWALSegmentReader(f)
+	defer r.Close()
+
+	for r.Next() {
+		entry, err := r.Read()
+		if err != nil {
+			n := r.Count()
+			fmt.Fprintf(cmd.Stderr, "file %s corrupt at position %d", walFilePath, n)
+			break
+		}
+
+		switch t := entry.(type) {
+		case *tsm1.DeleteWALEntry, *tsm1.DeleteRangeWALEntry:
+			warnDelete()
+			continue
+		case *tsm1.WriteWALEntry:
+			var pairs string
+
+			for key, values := range t.Values {
+				measurement, field := tsm1.SeriesAndFieldFromCompositeKey([]byte(key))
+				// measurements are stored escaped, field names are not
+				field = escape.String(field)
+
+				for _, value := range values {
+					if (value.UnixNano() < cmd.startTime) || (value.UnixNano() > cmd.endTime) {
+						continue
+					}
+
+					switch value.Value().(type) {
+					case float64:
+						pairs = field + "=" + fmt.Sprintf("%v", value.Value())
+					case int64:
+						pairs = field + "=" + fmt.Sprintf("%vi", value.Value())
+					case bool:
+						pairs = field + "=" + fmt.Sprintf("%v", value.Value())
+					case string:
+						pairs = field + "=" + fmt.Sprintf("%q", models.EscapeStringField(fmt.Sprintf("%s", value.Value())))
+					default:
+						pairs = field + "=" + fmt.Sprintf("%v", value.Value())
+					}
+					fmt.Fprintln(w, string(measurement), pairs, value.UnixNano())
+				}
+			}
+		}
+	}
 	return nil
 }
