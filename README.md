@@ -73,7 +73,7 @@ See [Chronograf with OAuth 2.0](https://github.com/influxdata/chronograf/blob/ma
 
 ## Versions
 
-Chronograf v1.1.0-beta3 is a beta release.
+Chronograf v1.1.0-beta3 is a [beta release](https://www.influxdata.com/beta3-of-chronograf/).
 We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
 
 Spotted a bug or have a feature request?
