@@ -13,6 +13,9 @@ func (c *KeyCursor) Read{{.Name}}Block(buf *[]{{.Name}}Value) ([]{{.Name}}Value,
 	first := c.current[0]
 	*buf = (*buf)[:0]
 	values, err := first.r.Read{{.Name}}BlockAt(&first.entry, buf)
+	if err != nil {
+		return nil, err
+	}
 
 	// Remove values we already read
 	values = {{.Name}}Values(values).Exclude(first.readMin, first.readMax)
