@@ -87,7 +87,7 @@ func (c *MetaClientMock) Databases() []meta.DatabaseInfo {
 }
 
 func (c *MetaClientMock) DeleteShardGroup(database string, policy string, id uint64) error {
-	return c.DeleteShardGroup(database, policy, id)
+	return c.DeleteShardGroupFn(database, policy, id)
 }
 
 func (c *MetaClientMock) DropContinuousQuery(database, name string) error {

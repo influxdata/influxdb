@@ -842,7 +842,7 @@ func (e *Engine) WriteSnapshot() error {
 
 	defer func() {
 		if started != nil {
-			e.Cache.UpdateCompactTime(time.Now().Sub(*started))
+			e.Cache.UpdateCompactTime(time.Since(*started))
 			e.logger.Info(fmt.Sprintf("Snapshot for path %s written in %v", e.path, time.Since(*started)))
 		}
 	}()
@@ -970,7 +970,7 @@ func (e *Engine) ShouldCompactCache(lastWriteTime time.Time) bool {
 	}
 
 	return sz > e.CacheFlushMemorySizeThreshold ||
-		time.Now().Sub(lastWriteTime) > e.CacheFlushWriteColdDuration
+		time.Since(lastWriteTime) > e.CacheFlushWriteColdDuration
 }
 
 func (e *Engine) compactTSMLevel(fast bool, level int, quit <-chan struct{}) {

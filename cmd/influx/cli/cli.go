@@ -174,7 +174,7 @@ func (c *CommandLine) Run() error {
 		return fmt.Errorf("Failed to check token: %s", err.Error())
 	}
 	if token == "" {
-		fmt.Printf(noTokenMsg)
+		fmt.Print(noTokenMsg)
 	}
 	fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.ServerVersion)
 
@@ -803,9 +803,7 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 			}
 		}
 
-		for _, column := range row.Columns {
-			columnNames = append(columnNames, column)
-		}
+		columnNames = append(columnNames, row.Columns...)
 
 		// Output a line separator if we have more than one set or results and format is column
 		if i > 0 && c.Format == "column" {

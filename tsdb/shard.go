@@ -262,7 +262,7 @@ func (s *Shard) Open() error {
 
 		s.engine = e
 
-		s.logger.Info(fmt.Sprintf("%s database index loaded in %s", s.path, time.Now().Sub(start)))
+		s.logger.Info(fmt.Sprintf("%s database index loaded in %s", s.path, time.Since(start)))
 
 		go s.monitor()
 
@@ -1169,30 +1169,28 @@ func (itr *seriesIterator) Close() error { return nil }
 
 // Next emits the next point in the iterator.
 func (itr *seriesIterator) Next() (*influxql.FloatPoint, error) {
-	for {
-		// Load next measurement's keys if there are no more remaining.
-		if itr.keys.i >= len(itr.keys.buf) {
-			if err := itr.nextKeys(); err != nil {
-				return nil, err
-			}
-			if len(itr.keys.buf) == 0 {
-				return nil, nil
-			}
+	// Load next measurement's keys if there are no more remaining.
+	if itr.keys.i >= len(itr.keys.buf) {
+		if err := itr.nextKeys(); err != nil {
+			return nil, err
 		}
-
-		// Read the next key.
-		key := itr.keys.buf[itr.keys.i]
-		itr.keys.i++
-
-		// Write auxiliary fields.
-		for i, f := range itr.opt.Aux {
-			switch f.Val {
-			case "key":
-				itr.point.Aux[i] = key
-			}
+		if len(itr.keys.buf) == 0 {
+			return nil, nil
 		}
-		return &itr.point, nil
 	}
+
+	// Read the next key.
+	key := itr.keys.buf[itr.keys.i]
+	itr.keys.i++
+
+	// Write auxiliary fields.
+	for i, f := range itr.opt.Aux {
+		switch f.Val {
+		case "key":
+			itr.point.Aux[i] = key
+		}
+	}
+	return &itr.point, nil
 }
 
 // nextKeys reads all keys for the next measurement.

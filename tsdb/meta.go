@@ -1143,7 +1143,7 @@ type FilterExprs map[uint64]influxql.Expr
 // DeleteBoolLiteralTrues deletes all elements whose filter expression is a boolean literal true.
 func (fe FilterExprs) DeleteBoolLiteralTrues() {
 	for id, expr := range fe {
-		if e, ok := expr.(*influxql.BooleanLiteral); ok && e.Val == true {
+		if e, ok := expr.(*influxql.BooleanLiteral); ok && e.Val {
 			delete(fe, id)
 		}
 	}
@@ -1262,7 +1262,7 @@ func expandExprWithValues(expr influxql.Expr, keys []string, tagExprs []tagExpr,
 		// Reduce using the current tag key/value set.
 		// Ignore it if reduces down to "false".
 		e := influxql.Reduce(expr, &tagValuer{tags: m})
-		if e, ok := e.(*influxql.BooleanLiteral); ok && e.Val == false {
+		if e, ok := e.(*influxql.BooleanLiteral); ok && !e.Val {
 			return nil
 		}
 

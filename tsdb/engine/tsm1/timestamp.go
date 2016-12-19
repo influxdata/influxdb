@@ -142,7 +142,9 @@ func (e *encoder) Bytes() ([]byte, error) {
 
 func (e *encoder) encodePacked(div uint64, dts []uint64) ([]byte, error) {
 	for _, v := range dts[1:] {
-		e.enc.Write(uint64(v) / div)
+		if err := e.enc.Write(uint64(v) / div); err != nil {
+			return nil, err
+		}
 	}
 
 	// The compressed deltas
