@@ -77,92 +77,93 @@ The following configuration changes may need to changed before upgrading to `1.1
 
 The query language has been extended with a few new features:
 
-- [#7388](https://github.com/influxdata/influxdb/pull/7388): New `cumulative_sum` function 
-- [#7408](https://github.com/influxdata/influxdb/pull/7408): New `linear` fill option 
-- [#7295](https://github.com/influxdata/influxdb/pull/7295): Support `ON` for `SHOW` commands 
 - [#7442](https://github.com/influxdata/influxdb/pull/7442): Support regex on fields keys in select clause
+- [#7408](https://github.com/influxdata/influxdb/pull/7408): New `linear` fill option
+- [#7388](https://github.com/influxdata/influxdb/pull/7388): New `cumulative_sum` function
+- [#7295](https://github.com/influxdata/influxdb/pull/7295): Support `ON` for `SHOW` commands 
+
 
 All Changes:
 
+- [#7496](https://github.com/influxdata/influxdb/pull/7496): Filter out series within shards that do not have data for that series.
+- [#7495](https://github.com/influxdata/influxdb/pull/7495): Rewrite regexes of the form host = /^server-a$/ to host = 'server-a', to take advantage of the tsdb index.
+- [#7480](https://github.com/influxdata/influxdb/pull/7480): Improve compaction planning performance by caching tsm file stats.
+- [#7473](https://github.com/influxdata/influxdb/pull/7473): Align binary math expression streams by time.
+- [#7470](https://github.com/influxdata/influxdb/pull/7470): Reduce map allocations when computing the TagSet of a measurement.
+- [#7463](https://github.com/influxdata/influxdb/pull/7463): Make input plugin services open/close idempotent.
+- [#7441](https://github.com/influxdata/influxdb/pull/7441): Speed up shutdown by closing shards concurrently.
 - [#7415](https://github.com/influxdata/influxdb/pull/7415): Add sample function to query language.
 - [#7403](https://github.com/influxdata/influxdb/pull/7403): Add `fill(linear)` to query language.
-- [#7120](https://github.com/influxdata/influxdb/issues/7120): Add additional statistics to query executor.
+- [#7388](https://github.com/influxdata/influxdb/pull/7388): Implement cumulative_sum() function.
+- [#7320](https://github.com/influxdata/influxdb/issues/7320): Update defaults in config for latest best practices
+- [#7305](https://github.com/influxdata/influxdb/pull/7305): UDP Client: Split large points. Thanks @vlasad
+- [#7281](https://github.com/influxdata/influxdb/pull/7281): Add stats for active compactions, compaction errors.
+- [#7268](https://github.com/influxdata/influxdb/pull/7268): More man pages for the other tools we package and compress man pages fully.
+- [#7146](https://github.com/influxdata/influxdb/issues/7146): Add max-values-per-tag to limit high tag cardinality data
+- [#7136](https://github.com/influxdata/influxdb/pull/7136): Update jwt-go dependency to version 3.
 - [#7135](https://github.com/influxdata/influxdb/pull/7135): Support enable HTTP service over unix domain socket. Thanks @oiooj
-- [#3634](https://github.com/influxdata/influxdb/issues/3634): Support mixed duration units.
+- [#7120](https://github.com/influxdata/influxdb/issues/7120): Add additional statistics to query executor.
+- [#7115](https://github.com/influxdata/influxdb/issues/7115): Feature request: `influx inspect -export` should dump WAL files.
 - [#7099](https://github.com/influxdata/influxdb/pull/7099): Implement text/csv content encoding for the response writer.
 - [#6992](https://github.com/influxdata/influxdb/issues/6992): Support tools for running async queries.
-- [#7136](https://github.com/influxdata/influxdb/pull/7136): Update jwt-go dependency to version 3.
 - [#6962](https://github.com/influxdata/influxdb/issues/6962): Support ON and use default database for SHOW commands.
-- [#7268](https://github.com/influxdata/influxdb/pull/7268): More man pages for the other tools we package and compress man pages fully.
-- [#7305](https://github.com/influxdata/influxdb/pull/7305): UDP Client: Split large points. Thanks @vlasad
-- [#7115](https://github.com/influxdata/influxdb/issues/7115): Feature request: `influx inspect -export` should dump WAL files.
-- [#7388](https://github.com/influxdata/influxdb/pull/7388): Implement cumulative_sum() function.
-- [#7441](https://github.com/influxdata/influxdb/pull/7441): Speed up shutdown by closing shards concurrently.
-- [#7146](https://github.com/influxdata/influxdb/issues/7146): Add max-values-per-tag to limit high tag cardinality data
-- [#5955](https://github.com/influxdata/influxdb/issues/5955): Make regex work on field and dimension keys in SELECT clause.
-- [#7470](https://github.com/influxdata/influxdb/pull/7470): Reduce map allocations when computing the TagSet of a measurement.
-- [#6894](https://github.com/influxdata/influxdb/issues/6894): Support `INFLUX_USERNAME` and `INFLUX_PASSWORD` for setting username/password in the CLI.
 - [#6896](https://github.com/influxdata/influxdb/issues/6896): Correctly read in input from a non-interactive stream for the CLI.
-- [#7463](https://github.com/influxdata/influxdb/pull/7463): Make input plugin services open/close idempotent.
-- [#7473](https://github.com/influxdata/influxdb/pull/7473): Align binary math expression streams by time.
-- [#7281](https://github.com/influxdata/influxdb/pull/7281): Add stats for active compactions, compaction errors.
-- [#7496](https://github.com/influxdata/influxdb/pull/7496): Filter out series within shards that do not have data for that series.
-- [#7480](https://github.com/influxdata/influxdb/pull/7480): Improve compaction planning performance by caching tsm file stats.
-- [#7320](https://github.com/influxdata/influxdb/issues/7320): Update defaults in config for latest best practices
-- [#7495](https://github.com/influxdata/influxdb/pull/7495): Rewrite regexes of the form host = /^server-a$/ to host = 'server-a', to take advantage of the tsdb index.
+- [#6894](https://github.com/influxdata/influxdb/issues/6894): Support `INFLUX_USERNAME` and `INFLUX_PASSWORD` for setting username/password in the CLI.
 - [#6704](https://github.com/influxdata/influxdb/issues/6704): Optimize first/last when no group by interval is present.
+- [#5955](https://github.com/influxdata/influxdb/issues/5955): Make regex work on field and dimension keys in SELECT clause.
 - [#4461](https://github.com/influxdata/influxdb/issues/4461): Change default time boundaries for raw queries.
+- [#3634](https://github.com/influxdata/influxdb/issues/3634): Support mixed duration units.
 
 ### Bugfixes
 
-- [#7392](https://github.com/influxdata/influxdb/pull/7392): Enable https subscriptions to work with custom CA certificates.
-- [#1834](https://github.com/influxdata/influxdb/issues/1834): Drop time when used as a tag or field key.
-- [#7152](https://github.com/influxdata/influxdb/issues/7152): Decrement number of measurements only once when deleting the last series from a measurement.
-- [#7177](https://github.com/influxdata/influxdb/issues/7177): Fix base64 encoding issue with /debug/vars stats.
-- [#7196](https://github.com/influxdata/influxdb/issues/7196): Fix mmap dereferencing, fixes #7183, #7180
-- [#7013](https://github.com/influxdata/influxdb/issues/7013): Fix the dollar sign so it properly handles reserved keywords.
-- [#7297](https://github.com/influxdata/influxdb/issues/7297): Use consistent column output from the CLI for column formatted responses.
-- [#7231](https://github.com/influxdata/influxdb/issues/7231): Duplicate parsing bug in ALTER RETENTION POLICY.
-- [#7285](https://github.com/influxdata/influxdb/issues/7285): Correctly use password-type field in Admin UI. Thanks @dandv!
-- [#2792](https://github.com/influxdata/influxdb/issues/2792): Exceeding max retention policy duration gives incorrect error message
-- [#7226](https://github.com/influxdata/influxdb/issues/7226): Fix database locked up when deleting shards
-- [#7382](https://github.com/influxdata/influxdb/issues/7382): Shard stats include wal path tag so disk bytes make more sense.
-- [#7385](https://github.com/influxdata/influxdb/pull/7385): Reduce query planning allocations
-- [#7436](https://github.com/influxdata/influxdb/issues/7436): Remove accidentally added string support for the stddev call.
-- [#7161](https://github.com/influxdata/influxdb/issues/7161): Drop measurement causes cache max memory exceeded error.
-- [#7334](https://github.com/influxdata/influxdb/issues/7334): Panic with unread show series iterators during drop database
-- [#7482](https://github.com/influxdata/influxdb/issues/7482): Fix issue where point would be written to wrong shard.
-- [#7431](https://github.com/influxdata/influxdb/issues/7431): Remove /data/process_continuous_queries endpoint.
-- [#7053](https://github.com/influxdata/influxdb/issues/7053): Delete statement returns an error when retention policy or database is specified
-- [#7494](https://github.com/influxdata/influxdb/issues/7494): influx_inspect: export does not escape field keys.
-- [#7526](https://github.com/influxdata/influxdb/issues/7526): Truncate the version string when linking to the documentation.
-- [#7548](https://github.com/influxdata/influxdb/issues/7548): Fix output duration units for SHOW QUERIES.
-- [#7564](https://github.com/influxdata/influxdb/issues/7564): Fix incorrect grouping when multiple aggregates are used with sparse data.
-- [#7448](https://github.com/influxdata/influxdb/pull/7448): Fix Retention Policy Inconsistencies
 - [#7606](https://github.com/influxdata/influxdb/pull/7606): Avoid deadlock when `max-row-limit` is hit.
+- [#7564](https://github.com/influxdata/influxdb/issues/7564): Fix incorrect grouping when multiple aggregates are used with sparse data.
+- [#7548](https://github.com/influxdata/influxdb/issues/7548): Fix output duration units for SHOW QUERIES.
+- [#7526](https://github.com/influxdata/influxdb/issues/7526): Truncate the version string when linking to the documentation.
+- [#7494](https://github.com/influxdata/influxdb/issues/7494): influx_inspect: export does not escape field keys.
+- [#7482](https://github.com/influxdata/influxdb/issues/7482): Fix issue where point would be written to wrong shard.
+- [#7448](https://github.com/influxdata/influxdb/pull/7448): Fix Retention Policy Inconsistencies
+- [#7436](https://github.com/influxdata/influxdb/issues/7436): Remove accidentally added string support for the stddev call.
+- [#7431](https://github.com/influxdata/influxdb/issues/7431): Remove /data/process_continuous_queries endpoint.
+- [#7392](https://github.com/influxdata/influxdb/pull/7392): Enable https subscriptions to work with custom CA certificates.
+- [#7385](https://github.com/influxdata/influxdb/pull/7385): Reduce query planning allocations
+- [#7382](https://github.com/influxdata/influxdb/issues/7382): Shard stats include wal path tag so disk bytes make more sense.
+- [#7334](https://github.com/influxdata/influxdb/issues/7334): Panic with unread show series iterators during drop database
+- [#7297](https://github.com/influxdata/influxdb/issues/7297): Use consistent column output from the CLI for column formatted responses.
+- [#7285](https://github.com/influxdata/influxdb/issues/7285): Correctly use password-type field in Admin UI. Thanks @dandv!
+- [#7231](https://github.com/influxdata/influxdb/issues/7231): Duplicate parsing bug in ALTER RETENTION POLICY.
+- [#7226](https://github.com/influxdata/influxdb/issues/7226): Fix database locked up when deleting shards
+- [#7196](https://github.com/influxdata/influxdb/issues/7196): Fix mmap dereferencing, fixes #7183, #7180
+- [#7177](https://github.com/influxdata/influxdb/issues/7177): Fix base64 encoding issue with /debug/vars stats.
+- [#7161](https://github.com/influxdata/influxdb/issues/7161): Drop measurement causes cache max memory exceeded error.
+- [#7152](https://github.com/influxdata/influxdb/issues/7152): Decrement number of measurements only once when deleting the last series from a measurement.
+- [#7053](https://github.com/influxdata/influxdb/issues/7053): Delete statement returns an error when retention policy or database is specified
+- [#7013](https://github.com/influxdata/influxdb/issues/7013): Fix the dollar sign so it properly handles reserved keywords.
+- [#2792](https://github.com/influxdata/influxdb/issues/2792): Exceeding max retention policy duration gives incorrect error message
+- [#1834](https://github.com/influxdata/influxdb/issues/1834): Drop time when used as a tag or field key.
 
 ## v1.0.2 [2016-10-05]
 
 ### Bugfixes
 
-- [#7150](https://github.com/influxdata/influxdb/issues/7150): Do not automatically reset the shard duration when using ALTER RETENTION POLICY
-- [#5878](https://github.com/influxdata/influxdb/issues/5878): Ensure correct shard groups created when retention policy has been altered.
 - [#7391](https://github.com/influxdata/influxdb/issues/7391): Fix RLE integer decoding producing negative numbers
 - [#7335](https://github.com/influxdata/influxdb/pull/7335): Avoid stat syscall when planning compactions
 - [#7330](https://github.com/influxdata/influxdb/issues/7330): Subscription data loss under high write load
+- [#7150](https://github.com/influxdata/influxdb/issues/7150): Do not automatically reset the shard duration when using ALTER RETENTION POLICY
+- [#5878](https://github.com/influxdata/influxdb/issues/5878): Ensure correct shard groups created when retention policy has been altered.
 
 ## v1.0.1 [2016-09-26]
 
 ### Bugfixes
 
+- [#7315](https://github.com/influxdata/influxdb/issues/7315): Prevent users from manually using system queries since incorrect use would result in a panic.
+- [#7299](https://github.com/influxdata/influxdb/ssues/7299): Ensure fieldsCreated stat available in shard measurement.
+- [#7272](https://github.com/influxdata/influxdb/issues/7272): Report cmdline and memstats in /debug/vars.
 - [#7271](https://github.com/influxdata/influxdb/issues/7271): Fixing typo within example configuration file. Thanks @andyfeller!
 - [#7270](https://github.com/influxdata/influxdb/issues/7270): Implement time math for lazy time literals.
-- [#7272](https://github.com/influxdata/influxdb/issues/7272): Report cmdline and memstats in /debug/vars.
-- [#7299](https://github.com/influxdata/influxdb/ssues/7299): Ensure fieldsCreated stat available in shard measurement.
-- [#6846](https://github.com/influxdata/influxdb/issues/6846): Read an invalid JSON response as an error in the influx client.
-- [#7110](https://github.com/influxdata/influxdb/issues/7110): Skip past points at the same time in derivative call within a merged series.
 - [#7226](https://github.com/influxdata/influxdb/issues/7226): Fix database locked up when deleting shards
-- [#7315](https://github.com/influxdata/influxdb/issues/7315): Prevent users from manually using system queries since incorrect use would result in a panic.
+- [#7110](https://github.com/influxdata/influxdb/issues/7110): Skip past points at the same time in derivative call within a merged series.
+- [#6846](https://github.com/influxdata/influxdb/issues/6846): Read an invalid JSON response as an error in the influx client.
 
 ## v1.0.0 [2016-09-08]
 
@@ -181,124 +182,124 @@ With this release the systemd configuration files for InfluxDB will use the syst
 
 ### Features
 
-- [#3541](https://github.com/influxdata/influxdb/issues/3451): Update SHOW FIELD KEYS to return the field type with the field key.
-- [#6609](https://github.com/influxdata/influxdb/pull/6609): Add support for JWT token authentication.
-- [#6559](https://github.com/influxdata/influxdb/issues/6559): Teach the http service how to enforce connection limits.
-- [#6623](https://github.com/influxdata/influxdb/pull/6623): Speed up drop database
-- [#6519](https://github.com/influxdata/influxdb/issues/6519): Support cast syntax for selecting a specific type.
-- [#6654](https://github.com/influxdata/influxdb/pull/6654): Add new HTTP statistics to monitoring
-- [#6664](https://github.com/influxdata/influxdb/pull/6664): Adds monitoring statistic for on-disk shard size.
-- [#2926](https://github.com/influxdata/influxdb/issues/2926): Support bound parameters in the parser.
-- [#1310](https://github.com/influxdata/influxdb/issues/1310): Add https-private-key option to httpd config.
-- [#6621](https://github.com/influxdata/influxdb/pull/6621): Add Holt-Winter forecasting function.
-- [#6655](https://github.com/influxdata/influxdb/issues/6655): Add HTTP(s) based subscriptions.
-- [#5906](https://github.com/influxdata/influxdb/issues/5906): Dynamically update the documentation link in the admin UI.
-- [#6686](https://github.com/influxdata/influxdb/pull/6686): Optimize timestamp run-length decoding
-- [#6713](https://github.com/influxdata/influxdb/pull/6713): Reduce allocations during query parsing.
-- [#3733](https://github.com/influxdata/influxdb/issues/3733): Modify the default retention policy name and make it configurable.
-- [#6812](https://github.com/influxdata/influxdb/pull/6812): Make httpd logger closer to Common (& combined) Log Format.
-- [#5655](https://github.com/influxdata/influxdb/issues/5655): Support specifying a retention policy for the graphite service.
-- [#6820](https://github.com/influxdata/influxdb/issues/6820): Add NodeID to execution options
-- [#4532](https://github.com/influxdata/influxdb/issues/4532): Support regex selection in SHOW TAG VALUES for the key.
-- [#6889](https://github.com/influxdata/influxdb/pull/6889): Update help and remove unused config options from the configuration file.
-- [#6900](https://github.com/influxdata/influxdb/pull/6900): Trim BOM from Windows Notepad-saved config files.
-- [#6938](https://github.com/influxdata/influxdb/issues/6938): Added favicon
-- [#6507](https://github.com/influxdata/influxdb/issues/6507): Refactor monitor service to avoid expvar and write monitor statistics on a truncated time interval.
-- [#6805](https://github.com/influxdata/influxdb/issues/6805): Allow any variant of the help option to trigger the help.
-- [#5499](https://github.com/influxdata/influxdb/issues/5499): Add stats and diagnostics to the TSM engine.
-- [#6959](https://github.com/influxdata/influxdb/issues/6959): Return 403 Forbidden when authentication succeeds but authorization fails.
-- [#1110](https://github.com/influxdata/influxdb/issues/1110): Support loading a folder for collectd typesdb files.
-- [#6928](https://github.com/influxdata/influxdb/issues/6928): Run continuous query for multiple buckets rather than one per bucket.
-- [#5500](https://github.com/influxdata/influxdb/issues/5500): Add extra trace logging to tsm engine.
-- [#6909](https://github.com/influxdata/influxdb/issues/6909): Log the CQ execution time when continuous query logging is enabled.
-- [#7046](https://github.com/influxdata/influxdb/pull/7046): Add tsm file export to influx_inspect tool.
-- [#7011](https://github.com/influxdata/influxdb/issues/7011): Create man pages for commands.
-- [#7050](https://github.com/influxdata/influxdb/pull/7050): Update go package library dependencies.
-- [#5750](https://github.com/influxdata/influxdb/issues/5750): Support wildcards in aggregate functions.
-- [#7065](https://github.com/influxdata/influxdb/issues/7065): Remove IF EXISTS/IF NOT EXISTS from influxql language.
-- [#7095](https://github.com/influxdata/influxdb/pull/7095): Add MaxSeriesPerDatabase config setting.
 - [#7199](https://github.com/influxdata/influxdb/pull/7199): Add mode function. Thanks @agaurav.
 - [#7194](https://github.com/influxdata/influxdb/issues/7194): Support negative timestamps for the query engine.
 - [#7172](https://github.com/influxdata/influxdb/pull/7172): Write path stats
+- [#7095](https://github.com/influxdata/influxdb/pull/7095): Add MaxSeriesPerDatabase config setting.
+- [#7065](https://github.com/influxdata/influxdb/issues/7065): Remove IF EXISTS/IF NOT EXISTS from influxql language.
+- [#7050](https://github.com/influxdata/influxdb/pull/7050): Update go package library dependencies.
+- [#7046](https://github.com/influxdata/influxdb/pull/7046): Add tsm file export to influx_inspect tool.
+- [#7011](https://github.com/influxdata/influxdb/issues/7011): Create man pages for commands.
+- [#6959](https://github.com/influxdata/influxdb/issues/6959): Return 403 Forbidden when authentication succeeds but authorization fails.
+- [#6938](https://github.com/influxdata/influxdb/issues/6938): Added favicon
+- [#6928](https://github.com/influxdata/influxdb/issues/6928): Run continuous query for multiple buckets rather than one per bucket.
+- [#6909](https://github.com/influxdata/influxdb/issues/6909): Log the CQ execution time when continuous query logging is enabled.
+- [#6900](https://github.com/influxdata/influxdb/pull/6900): Trim BOM from Windows Notepad-saved config files.
+- [#6889](https://github.com/influxdata/influxdb/pull/6889): Update help and remove unused config options from the configuration file.
+- [#6820](https://github.com/influxdata/influxdb/issues/6820): Add NodeID to execution options
+- [#6812](https://github.com/influxdata/influxdb/pull/6812): Make httpd logger closer to Common (& combined) Log Format.
+- [#6805](https://github.com/influxdata/influxdb/issues/6805): Allow any variant of the help option to trigger the help.
+- [#6713](https://github.com/influxdata/influxdb/pull/6713): Reduce allocations during query parsing.
+- [#6686](https://github.com/influxdata/influxdb/pull/6686): Optimize timestamp run-length decoding
+- [#6664](https://github.com/influxdata/influxdb/pull/6664): Adds monitoring statistic for on-disk shard size.
+- [#6655](https://github.com/influxdata/influxdb/issues/6655): Add HTTP(s) based subscriptions.
+- [#6654](https://github.com/influxdata/influxdb/pull/6654): Add new HTTP statistics to monitoring
+- [#6623](https://github.com/influxdata/influxdb/pull/6623): Speed up drop database
+- [#6621](https://github.com/influxdata/influxdb/pull/6621): Add Holt-Winter forecasting function.
+- [#6609](https://github.com/influxdata/influxdb/pull/6609): Add support for JWT token authentication.
+- [#6559](https://github.com/influxdata/influxdb/issues/6559): Teach the http service how to enforce connection limits.
+- [#6519](https://github.com/influxdata/influxdb/issues/6519): Support cast syntax for selecting a specific type.
+- [#6507](https://github.com/influxdata/influxdb/issues/6507): Refactor monitor service to avoid expvar and write monitor statistics on a truncated time interval.
+- [#5906](https://github.com/influxdata/influxdb/issues/5906): Dynamically update the documentation link in the admin UI.
+- [#5750](https://github.com/influxdata/influxdb/issues/5750): Support wildcards in aggregate functions.
+- [#5655](https://github.com/influxdata/influxdb/issues/5655): Support specifying a retention policy for the graphite service.
+- [#5500](https://github.com/influxdata/influxdb/issues/5500): Add extra trace logging to tsm engine.
+- [#5499](https://github.com/influxdata/influxdb/issues/5499): Add stats and diagnostics to the TSM engine.
+- [#4532](https://github.com/influxdata/influxdb/issues/4532): Support regex selection in SHOW TAG VALUES for the key.
+- [#3733](https://github.com/influxdata/influxdb/issues/3733): Modify the default retention policy name and make it configurable.
+- [#3541](https://github.com/influxdata/influxdb/issues/3451): Update SHOW FIELD KEYS to return the field type with the field key.
+- [#2926](https://github.com/influxdata/influxdb/issues/2926): Support bound parameters in the parser.
+- [#1310](https://github.com/influxdata/influxdb/issues/1310): Add https-private-key option to httpd config.
+- [#1110](https://github.com/influxdata/influxdb/issues/1110): Support loading a folder for collectd typesdb files.
 
 ### Bugfixes
 
-- [#6604](https://github.com/influxdata/influxdb/pull/6604): Remove old cluster code
-- [#6618](https://github.com/influxdata/influxdb/pull/6618): Optimize shard loading
-- [#6629](https://github.com/influxdata/influxdb/issues/6629): query-log-enabled in config not ignored anymore.
-- [#6607](https://github.com/influxdata/influxdb/issues/6607): SHOW TAG VALUES accepts != and !~ in WHERE clause.
-- [#6649](https://github.com/influxdata/influxdb/issues/6649): Make sure admin exists before authenticating query.
-- [#6644](https://github.com/influxdata/influxdb/issues/6644): Print the query executor's stack trace on a panic to the log.
-- [#6650](https://github.com/influxdata/influxdb/issues/6650): Data race when dropping a database immediately after writing to it
-- [#6235](https://github.com/influxdata/influxdb/issues/6235): Fix measurement field panic in tsm1 engine.
-- [#6663](https://github.com/influxdata/influxdb/issues/6663): Fixing panic in SHOW FIELD KEYS.
-- [#6624](https://github.com/influxdata/influxdb/issues/6624): Ensure clients requesting gzip encoded bodies don't receive empty body
-- [#6652](https://github.com/influxdata/influxdb/issues/6652): Fix panic: interface conversion: tsm1.Value is \*tsm1.StringValue, not \*tsm1.FloatValue
-- [#6406](https://github.com/influxdata/influxdb/issues/6406): Max index entries exceeded
-- [#6557](https://github.com/influxdata/influxdb/issues/6557): Overwriting points on large series can cause memory spikes during compactions
-- [#6611](https://github.com/influxdata/influxdb/issues/6611): Queries slow down hundreds times after overwriting points
-- [#6641](https://github.com/influxdata/influxdb/issues/6641): Fix read tombstones: EOF
-- [#6661](https://github.com/influxdata/influxdb/issues/6661): Disable limit optimization when using an aggregate.
-- [#6676](https://github.com/influxdata/influxdb/issues/6676): Ensures client sends correct precision when inserting points.
-- [#2048](https://github.com/influxdata/influxdb/issues/2048): Check that retention policies exist before creating CQ
-- [#6702](https://github.com/influxdata/influxdb/issues/6702): Fix SELECT statement required privileges.
-- [#6701](https://github.com/influxdata/influxdb/issues/6701): Filter out sources that do not match the shard database/retention policy.
-- [#6683](https://github.com/influxdata/influxdb/issues/6683): Fix compaction planning re-compacting large TSM files
-- [#6693](https://github.com/influxdata/influxdb/pull/6693): Truncate the shard group end time if it exceeds MaxNanoTime.
-- [#6672](https://github.com/influxdata/influxdb/issues/6672): Accept points with trailing whitespace.
-- [#6599](https://github.com/influxdata/influxdb/issues/6599): Ensure that future points considered in SHOW queries.
-- [#6720](https://github.com/influxdata/influxdb/issues/6720): Concurrent map read write panic. Thanks @arussellsaw
-- [#6727](https://github.com/influxdata/influxdb/issues/6727): queries with strings that look like dates end up with date types, not string types
-- [#6250](https://github.com/influxdata/influxdb/issues/6250): Slow startup time
-- [#6753](https://github.com/influxdata/influxdb/issues/6753): Prevent panic if there are no values.
-- [#6685](https://github.com/influxdata/influxdb/issues/6685): Batch SELECT INTO / CQ writes
-- [#6756](https://github.com/influxdata/influxdb/issues/6756): Set X-Influxdb-Version header on every request (even 404 requests).
-- [#6760](https://github.com/influxdata/influxdb/issues/6760): Prevent panic in concurrent auth cache write
-- [#6771](https://github.com/influxdata/influxdb/issues/6771): Fix the point validation parser to identify and sort tags correctly.
-- [#6835](https://github.com/influxdata/influxdb/pull/6835): Include sysvinit-tools as an rpm dependency.
-- [#6834](https://github.com/influxdata/influxdb/pull/6834): Add port to all graphite log output to help with debugging multiple endpoints
-- [#6850](https://github.com/influxdata/influxdb/pull/6850): Modify the max nanosecond time to be one nanosecond less.
-- [#6824](https://github.com/influxdata/influxdb/issues/6824): Remove systemd output redirection.
-- [#6859](https://github.com/influxdata/influxdb/issues/6859): Set the condition cursor instead of aux iterator when creating a nil condition cursor.
-- [#6869](https://github.com/influxdata/influxdb/issues/6869): Remove FieldCodec from tsdb package.
-- [#6882](https://github.com/influxdata/influxdb/pull/6882): Remove a double lock in the tsm1 index writer.
-- [#6883](https://github.com/influxdata/influxdb/pull/6883): Rename dumptsmdev to dumptsm in influx_inspect.
-- [#6864](https://github.com/influxdata/influxdb/pull/6864): Allow a non-admin to call "use" for the influx cli.
-- [#6855](https://github.com/influxdata/influxdb/pull/6855): Update `stress/v2` to work with clusters, ssl, and username/password auth. Code cleanup
-- [#6738](https://github.com/influxdata/influxdb/issues/6738): Time sorting broken with overwritten points
-- [#6829](https://github.com/influxdata/influxdb/issues/6829): Fix panic: runtime error: index out of range
-- [#6911](https://github.com/influxdata/influxdb/issues/6911): Fix fill(previous) when used with math operators.
-- [#6934](https://github.com/influxdata/influxdb/pull/6934): Fix regex binary encoding for a measurement.
-- [#6942](https://github.com/influxdata/influxdb/pull/6942): Fix panic: truncate the slice when merging the caches.
-- [#6708](https://github.com/influxdata/influxdb/issues/6708): Drop writes from before the retention policy time window.
-- [#6968](https://github.com/influxdata/influxdb/issues/6968): Always use the demo config when outputting a new config.
-- [#6986](https://github.com/influxdata/influxdb/pull/6986): update connection settings when changing hosts in cli.
-- [#6965](https://github.com/influxdata/influxdb/pull/6965): Minor improvements to init script. Removes sysvinit-utils as package dependency.
-- [#6952](https://github.com/influxdata/influxdb/pull/6952): Fix compaction planning with large TSM files
-- [#6819](https://github.com/influxdata/influxdb/issues/6819): Database unresponsive after DROP MEASUREMENT
-- [#6796](https://github.com/influxdata/influxdb/issues/6796): Out of Memory Error when Dropping Measurement
-- [#6946](https://github.com/influxdata/influxdb/issues/6946): Duplicate data for the same timestamp
-- [#7043](https://github.com/influxdata/influxdb/pull/7043): Remove limiter from walkShards
-- [#5501](https://github.com/influxdata/influxdb/issues/5501): Queries against files that have just been compacted need to point to new files
-- [#6595](https://github.com/influxdata/influxdb/issues/6595): Fix full compactions conflicting with level compactions
-- [#7081](https://github.com/influxdata/influxdb/issues/7081): Hardcode auto generated RP names to autogen
+- [#7243](https://github.com/influxdata/influxdb/issues/7243): Optimize queries that compare a tag value to an empty string.
+- [#7240](https://github.com/influxdata/influxdb/issues/7240): Allow blank lines in the line protocol input.
+- [#7225](https://github.com/influxdata/influxdb/issues/7225): runtime: goroutine stack exceeds 1000000000-byte limit
+- [#7218](https://github.com/influxdata/influxdb/issues/7218): Fix alter retention policy when all options are used.
+- [#7127](https://github.com/influxdata/influxdb/pull/7127): Concurrent series limit
+- [#7125](https://github.com/influxdata/influxdb/pull/7125): Ensure gzip writer is closed in influx_inspect export
+- [#7119](https://github.com/influxdata/influxdb/pull/7119): Fix CREATE DATABASE when dealing with default values.
+- [#7119](https://github.com/influxdata/influxdb/pull/7119): Fix CREATE DATABASE when dealing with default values.
 - [#7088](https://github.com/influxdata/influxdb/pull/7088): Fix UDP pointsRx being incremented twice.
-- [#7080](https://github.com/influxdata/influxdb/pull/7080): Ensure IDs can't clash when managing Continuous Queries.
-- [#6990](https://github.com/influxdata/influxdb/issues/6990): Fix panic parsing empty key
 - [#7084](https://github.com/influxdata/influxdb/pull/7084): Tombstone memory improvements
-- [#6543](https://github.com/influxdata/influxdb/issues/6543): Fix parseFill to check for fill ident before attempting to parse an expression.
+- [#7081](https://github.com/influxdata/influxdb/issues/7081): Hardcode auto generated RP names to autogen
+- [#7080](https://github.com/influxdata/influxdb/pull/7080): Ensure IDs can't clash when managing Continuous Queries.
+- [#7074](https://github.com/influxdata/influxdb/issues/7074): Continuous full compactions
+- [#7043](https://github.com/influxdata/influxdb/pull/7043): Remove limiter from walkShards
 - [#7032](https://github.com/influxdata/influxdb/pull/7032): Copy tags in influx_stress to avoid a concurrent write panic on a map.
 - [#7028](https://github.com/influxdata/influxdb/pull/7028): Do not run continuous queries that have no time span.
 - [#7025](https://github.com/influxdata/influxdb/issues/7025): Move the CQ interval by the group by offset.
-- [#7125](https://github.com/influxdata/influxdb/pull/7125): Ensure gzip writer is closed in influx_inspect export
-- [#7127](https://github.com/influxdata/influxdb/pull/7127): Concurrent series limit
-- [#7119](https://github.com/influxdata/influxdb/pull/7119): Fix CREATE DATABASE when dealing with default values.
-- [#7218](https://github.com/influxdata/influxdb/issues/7218): Fix alter retention policy when all options are used.
-- [#7225](https://github.com/influxdata/influxdb/issues/7225): runtime: goroutine stack exceeds 1000000000-byte limit
-- [#7240](https://github.com/influxdata/influxdb/issues/7240): Allow blank lines in the line protocol input.
-- [#7119](https://github.com/influxdata/influxdb/pull/7119): Fix CREATE DATABASE when dealing with default values.
-- [#7243](https://github.com/influxdata/influxdb/issues/7243): Optimize queries that compare a tag value to an empty string.
-- [#7074](https://github.com/influxdata/influxdb/issues/7074): Continuous full compactions
+- [#6990](https://github.com/influxdata/influxdb/issues/6990): Fix panic parsing empty key
+- [#6986](https://github.com/influxdata/influxdb/pull/6986): update connection settings when changing hosts in cli.
+- [#6968](https://github.com/influxdata/influxdb/issues/6968): Always use the demo config when outputting a new config.
+- [#6965](https://github.com/influxdata/influxdb/pull/6965): Minor improvements to init script. Removes sysvinit-utils as package dependency.
+- [#6952](https://github.com/influxdata/influxdb/pull/6952): Fix compaction planning with large TSM files
+- [#6946](https://github.com/influxdata/influxdb/issues/6946): Duplicate data for the same timestamp
+- [#6942](https://github.com/influxdata/influxdb/pull/6942): Fix panic: truncate the slice when merging the caches.
+- [#6934](https://github.com/influxdata/influxdb/pull/6934): Fix regex binary encoding for a measurement.
+- [#6911](https://github.com/influxdata/influxdb/issues/6911): Fix fill(previous) when used with math operators.
+- [#6883](https://github.com/influxdata/influxdb/pull/6883): Rename dumptsmdev to dumptsm in influx_inspect.
+- [#6882](https://github.com/influxdata/influxdb/pull/6882): Remove a double lock in the tsm1 index writer.
+- [#6869](https://github.com/influxdata/influxdb/issues/6869): Remove FieldCodec from tsdb package.
+- [#6864](https://github.com/influxdata/influxdb/pull/6864): Allow a non-admin to call "use" for the influx cli.
+- [#6859](https://github.com/influxdata/influxdb/issues/6859): Set the condition cursor instead of aux iterator when creating a nil condition cursor.
+- [#6855](https://github.com/influxdata/influxdb/pull/6855): Update `stress/v2` to work with clusters, ssl, and username/password auth. Code cleanup
+- [#6850](https://github.com/influxdata/influxdb/pull/6850): Modify the max nanosecond time to be one nanosecond less.
+- [#6835](https://github.com/influxdata/influxdb/pull/6835): Include sysvinit-tools as an rpm dependency.
+- [#6834](https://github.com/influxdata/influxdb/pull/6834): Add port to all graphite log output to help with debugging multiple endpoints
+- [#6829](https://github.com/influxdata/influxdb/issues/6829): Fix panic: runtime error: index out of range
+- [#6824](https://github.com/influxdata/influxdb/issues/6824): Remove systemd output redirection.
+- [#6819](https://github.com/influxdata/influxdb/issues/6819): Database unresponsive after DROP MEASUREMENT
+- [#6796](https://github.com/influxdata/influxdb/issues/6796): Out of Memory Error when Dropping Measurement
+- [#6771](https://github.com/influxdata/influxdb/issues/6771): Fix the point validation parser to identify and sort tags correctly.
+- [#6760](https://github.com/influxdata/influxdb/issues/6760): Prevent panic in concurrent auth cache write
+- [#6756](https://github.com/influxdata/influxdb/issues/6756): Set X-Influxdb-Version header on every request (even 404 requests).
+- [#6753](https://github.com/influxdata/influxdb/issues/6753): Prevent panic if there are no values.
+- [#6738](https://github.com/influxdata/influxdb/issues/6738): Time sorting broken with overwritten points
+- [#6727](https://github.com/influxdata/influxdb/issues/6727): queries with strings that look like dates end up with date types, not string types
+- [#6720](https://github.com/influxdata/influxdb/issues/6720): Concurrent map read write panic. Thanks @arussellsaw
+- [#6708](https://github.com/influxdata/influxdb/issues/6708): Drop writes from before the retention policy time window.
+- [#6702](https://github.com/influxdata/influxdb/issues/6702): Fix SELECT statement required privileges.
+- [#6701](https://github.com/influxdata/influxdb/issues/6701): Filter out sources that do not match the shard database/retention policy.
+- [#6693](https://github.com/influxdata/influxdb/pull/6693): Truncate the shard group end time if it exceeds MaxNanoTime.
+- [#6685](https://github.com/influxdata/influxdb/issues/6685): Batch SELECT INTO / CQ writes
+- [#6683](https://github.com/influxdata/influxdb/issues/6683): Fix compaction planning re-compacting large TSM files
+- [#6676](https://github.com/influxdata/influxdb/issues/6676): Ensures client sends correct precision when inserting points.
+- [#6672](https://github.com/influxdata/influxdb/issues/6672): Accept points with trailing whitespace.
+- [#6663](https://github.com/influxdata/influxdb/issues/6663): Fixing panic in SHOW FIELD KEYS.
+- [#6661](https://github.com/influxdata/influxdb/issues/6661): Disable limit optimization when using an aggregate.
+- [#6652](https://github.com/influxdata/influxdb/issues/6652): Fix panic: interface conversion: tsm1.Value is \*tsm1.StringValue, not \*tsm1.FloatValue
+- [#6650](https://github.com/influxdata/influxdb/issues/6650): Data race when dropping a database immediately after writing to it
+- [#6649](https://github.com/influxdata/influxdb/issues/6649): Make sure admin exists before authenticating query.
+- [#6644](https://github.com/influxdata/influxdb/issues/6644): Print the query executor's stack trace on a panic to the log.
+- [#6641](https://github.com/influxdata/influxdb/issues/6641): Fix read tombstones: EOF
+- [#6629](https://github.com/influxdata/influxdb/issues/6629): query-log-enabled in config not ignored anymore.
+- [#6624](https://github.com/influxdata/influxdb/issues/6624): Ensure clients requesting gzip encoded bodies don't receive empty body
+- [#6618](https://github.com/influxdata/influxdb/pull/6618): Optimize shard loading
+- [#6611](https://github.com/influxdata/influxdb/issues/6611): Queries slow down hundreds times after overwriting points
+- [#6607](https://github.com/influxdata/influxdb/issues/6607): SHOW TAG VALUES accepts != and !~ in WHERE clause.
+- [#6604](https://github.com/influxdata/influxdb/pull/6604): Remove old cluster code
+- [#6599](https://github.com/influxdata/influxdb/issues/6599): Ensure that future points considered in SHOW queries.
+- [#6595](https://github.com/influxdata/influxdb/issues/6595): Fix full compactions conflicting with level compactions
+- [#6557](https://github.com/influxdata/influxdb/issues/6557): Overwriting points on large series can cause memory spikes during compactions
+- [#6543](https://github.com/influxdata/influxdb/issues/6543): Fix parseFill to check for fill ident before attempting to parse an expression.
+- [#6406](https://github.com/influxdata/influxdb/issues/6406): Max index entries exceeded
+- [#6250](https://github.com/influxdata/influxdb/issues/6250): Slow startup time
+- [#6235](https://github.com/influxdata/influxdb/issues/6235): Fix measurement field panic in tsm1 engine.
+- [#5501](https://github.com/influxdata/influxdb/issues/5501): Queries against files that have just been compacted need to point to new files
+- [#2048](https://github.com/influxdata/influxdb/issues/2048): Check that retention policies exist before creating CQ
 
 ## v0.13.0 [2016-05-12]
 
