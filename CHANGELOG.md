@@ -77,10 +77,10 @@ The following configuration changes may need to changed before upgrading to `1.1
 
 The query language has been extended with a few new features:
 
-* New `cumulative_sum` function - [#7388](https://github.com/influxdata/influxdb/pull/7388)
-* New `linear` fill option - [#7408](https://github.com/influxdata/influxdb/pull/7408)
-* Support `ON` for `SHOW` commands - [#7295](https://github.com/influxdata/influxdb/pull/7295)
-* Support regex on fields keys in select clause - [#7442](https://github.com/influxdata/influxdb/pull/7442)
+- [#7388](https://github.com/influxdata/influxdb/pull/7388): New `cumulative_sum` function 
+- [#7408](https://github.com/influxdata/influxdb/pull/7408): New `linear` fill option 
+- [#7295](https://github.com/influxdata/influxdb/pull/7295): Support `ON` for `SHOW` commands 
+- [#7442](https://github.com/influxdata/influxdb/pull/7442): Support regex on fields keys in select clause
 
 All Changes:
 
