@@ -1095,34 +1095,17 @@ func unescapeTag(in []byte) []byte {
 	return in
 }
 
+// escapeStringFieldReplacer replaces double quotes and backslashes
+// with the same character preceded by a backslash.
+// As of Go 1.7 this benchmarked better in allocations and CPU time
+// compared to iterating through a string byte-by-byte and appending to a new byte slice,
+// calling strings.Replace twice, and better than (*Regex).ReplaceAllString.
+var escapeStringFieldReplacer = strings.NewReplacer(`"`, `\"`, `\`, `\\`)
+
 // EscapeStringField returns a copy of in with any double quotes or
 // backslashes with escaped values
 func EscapeStringField(in string) string {
-	var out []byte
-	i := 0
-	for {
-		if i >= len(in) {
-			break
-		}
-		// escape double-quotes
-		if in[i] == '\\' {
-			out = append(out, '\\')
-			out = append(out, '\\')
-			i++
-			continue
-		}
-		// escape double-quotes
-		if in[i] == '"' {
-			out = append(out, '\\')
-			out = append(out, '"')
-			i++
-			continue
-		}
-		out = append(out, in[i])
-		i++
-
-	}
-	return string(out)
+	return escapeStringFieldReplacer.Replace(in)
 }
 
 // unescapeStringField returns a copy of in with any escaped double-quotes

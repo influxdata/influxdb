@@ -31,6 +31,7 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 
 - [#7396](https://github.com/influxdata/influxdb/issues/7396): CLI should use spaces for alignment, not tabs.
 - [#7615](https://github.com/influxdata/influxdb/issues/7615): Reject invalid subscription urls @allenpetersen
+- [#7741](https://github.com/influxdata/influxdb/pull/7741): Fix string quoting and significantly improve performance of `influx_inspect export`.
 
 ## v1.1.1 [unreleased]
 

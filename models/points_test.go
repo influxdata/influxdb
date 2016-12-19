@@ -26,6 +26,8 @@ var (
 	}
 	maxFloat64 = strconv.FormatFloat(math.MaxFloat64, 'f', 1, 64)
 	minFloat64 = strconv.FormatFloat(-math.MaxFloat64, 'f', 1, 64)
+
+	sink interface{}
 )
 
 func TestMarshal(t *testing.T) {
@@ -2166,5 +2168,63 @@ func TestPoint_FieldIterator_Delete_Twice(t *testing.T) {
 
 	if !reflect.DeepEqual(got, exp) {
 		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
+	}
+}
+
+func TestEscapeStringField(t *testing.T) {
+	cases := []struct {
+		in     string
+		expOut string
+	}{
+		{in: "abcdefg", expOut: "abcdefg"},
+		{in: `one double quote " .`, expOut: `one double quote \" .`},
+		{in: `quote " then backslash \ .`, expOut: `quote \" then backslash \\ .`},
+		{in: `backslash \ then quote " .`, expOut: `backslash \\ then quote \" .`},
+	}
+
+	for _, c := range cases {
+		// Unescapes as expected.
+		got := models.EscapeStringField(c.in)
+		if got != c.expOut {
+			t.Errorf("unexpected result from EscapeStringField(%s)\ngot [%s]\nexp [%s]\n", c.in, got, c.expOut)
+			continue
+		}
+
+		pointLine := fmt.Sprintf(`t s="%s"`, got)
+		test(t, pointLine, NewTestPoint(
+			"t",
+			models.NewTags(nil),
+			models.Fields{"s": c.in},
+			time.Unix(0, 0),
+		))
+	}
+}
+
+func BenchmarkEscapeStringField_Plain(b *testing.B) {
+	s := "nothing special"
+	for i := 0; i < b.N; i++ {
+		sink = models.EscapeStringField(s)
+	}
+}
+
+func BenchmarkEscapeString_Quotes(b *testing.B) {
+	s := `Hello, "world"`
+	for i := 0; i < b.N; i++ {
+		sink = models.EscapeStringField(s)
+	}
+}
+
+func BenchmarkEscapeString_Backslashes(b *testing.B) {
+	s := `C:\windows\system32`
+	for i := 0; i < b.N; i++ {
+		sink = models.EscapeStringField(s)
+	}
+}
+
+func BenchmarkEscapeString_QuotesAndBackslashes(b *testing.B) {
+	s1 := `a quote " then backslash \ .`
+	s2 := `a backslash \ then quote " .`
+	for i := 0; i < b.N; i++ {
+		sink = [...]string{models.EscapeStringField(s1), models.EscapeStringField(s2)}
 	}
 }
