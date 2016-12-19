@@ -43,7 +43,7 @@ type Server struct {
 	TokenSecret        string `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
 	GithubClientID     string `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
 	GithubClientSecret string `short:"s" long:"github-client-secret" description:"Github Client Secret for OAuth 2 support" env:"GH_CLIENT_SECRET"`
-	ReportingDisabled  bool   `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id) once every 24hr" env:"REPORTING_DISABLED"`
+	ReportingDisabled  bool   `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id,uptime) once every 24hr" env:"REPORTING_DISABLED"`
 	LogLevel           string `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"warn" choice:"error" choice:"fatal" choice:"panic" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
 
 	ShowVersion bool `short:"v" long:"version" description:"Show Chronograf version info"`
@@ -168,7 +168,7 @@ func reportUsageStats(bi BuildInfo, logger chronograf.Logger) {
 					"arch":       runtime.GOARCH,
 					"version":    bi.Version,
 					"cluster_id": serverID,
-					"uptime": time.Since(startTime).Seconds(),
+					"uptime":     time.Since(startTime).Seconds(),
 				},
 			},
 		},
@@ -176,7 +176,7 @@ func reportUsageStats(bi BuildInfo, logger chronograf.Logger) {
 	l := logger.WithField("component", "usage").
 		WithField("reporting_addr", reporter.URL).
 		WithField("freq", "24h").
-		WithField("stats", "os,arch,version,cluster_id")
+		WithField("stats", "os,arch,version,cluster_id,uptime")
 	l.Info("Reporting usage stats")
 	reporter.Save(u)
 
