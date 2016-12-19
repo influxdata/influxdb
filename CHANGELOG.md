@@ -40,9 +40,9 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 
 ### Bugfixes
 
-- [#7625](https://github.com/influxdata/influxdb/issues/7625): Fix incorrect tag value in error message.
-- [#7661](https://github.com/influxdata/influxdb/pull/7661): Quote the empty string as an ident.
 - [#7679](https://github.com/influxdata/influxdb/pull/7679): Fix string fields w/ trailing slashes
+- [#7661](https://github.com/influxdata/influxdb/pull/7661): Quote the empty string as an ident.
+- [#7625](https://github.com/influxdata/influxdb/issues/7625): Fix incorrect tag value in error message.
 
 ### Security
 
