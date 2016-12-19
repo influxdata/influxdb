@@ -287,9 +287,11 @@ func (p *partition) reset() {
 	for k, entry := range p.store {
 		// If the capacity is large then there are many values in the entry.
 		// Store a hint to pre-allocate the next time we see the same entry.
+		entry.mu.RLock()
 		if cap(entry.values) > 128 { // 4 x the default entry capacity size.
 			p.entrySizeHints[xxhash.Sum64([]byte(k))] = cap(entry.values)
 		}
+		entry.mu.RUnlock()
 	}
 
 	// Reset the store.

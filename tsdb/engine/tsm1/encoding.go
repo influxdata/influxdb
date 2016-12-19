@@ -305,8 +305,9 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	var b []byte
 	err := func() error {
 		for _, v := range values {
-			tsenc.Write(v.UnixNano())
-			venc.Push(v.(FloatValue).value)
+			vv := v.(FloatValue)
+			tsenc.Write(vv.unixnano)
+			venc.Push(vv.value)
 		}
 		venc.Finish()
 
@@ -429,8 +430,9 @@ func encodeBooleanBlock(buf []byte, values []Value) ([]byte, error) {
 	var b []byte
 	err := func() error {
 		for _, v := range values {
-			tsenc.Write(v.UnixNano())
-			venc.Write(v.(BooleanValue).value)
+			vv := v.(BooleanValue)
+			tsenc.Write(vv.unixnano)
+			venc.Write(vv.value)
 		}
 
 		// Encoded timestamp values
@@ -539,8 +541,9 @@ func encodeIntegerBlock(buf []byte, values []Value) ([]byte, error) {
 	var b []byte
 	err := func() error {
 		for _, v := range values {
-			tsEnc.Write(v.UnixNano())
-			vEnc.Write(v.(IntegerValue).value)
+			vv := v.(IntegerValue)
+			tsEnc.Write(vv.unixnano)
+			vEnc.Write(vv.value)
 		}
 
 		// Encoded timestamp values
@@ -649,8 +652,9 @@ func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 	var b []byte
 	err := func() error {
 		for _, v := range values {
-			tsEnc.Write(v.UnixNano())
-			vEnc.Write(v.(StringValue).value)
+			vv := v.(StringValue)
+			tsEnc.Write(vv.unixnano)
+			vEnc.Write(vv.value)
 		}
 
 		// Encoded timestamp values

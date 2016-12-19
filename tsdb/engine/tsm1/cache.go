@@ -31,9 +31,8 @@ func ErrCacheMemorySizeLimitExceeded(n, limit uint64) error {
 
 // entry is a set of values and some metadata.
 type entry struct {
-	mu       sync.RWMutex
-	values   Values // All stored values.
-	needSort bool   // true if the values are out of order and require deduping.
+	mu     sync.RWMutex
+	values Values // All stored values.
 
 	// The type of values stored. Read only so doesn't need to be protected by
 	// mu.
@@ -64,14 +63,8 @@ func newEntryValues(values []Value, hint int) (*entry, error) {
 		return e, nil
 	}
 
-	var prevTime int64
 	et := valueType(values[0])
 	for _, v := range values {
-		if v.UnixNano() <= prevTime {
-			e.needSort = true
-		}
-		prevTime = v.UnixNano()
-
 		// Make sure all the values are the same type
 		if et != valueType(v) {
 			return nil, tsdb.ErrFieldTypeConflict
@@ -86,37 +79,20 @@ func newEntryValues(values []Value, hint int) (*entry, error) {
 
 // add adds the given values to the entry.
 func (e *entry) add(values []Value) error {
-	// See if the new values are sorted or contain duplicate timestamps
-	var (
-		prevTime int64
-		needSort bool
-	)
-
 	if len(values) == 0 {
 		return nil // Nothing to do.
 	}
 
-	// Are any of the new values out of order or the wrong type?
+	// Are any of the new values the wrong type?
 	for _, v := range values {
 		if e.vtype != valueType(v) {
 			return tsdb.ErrFieldTypeConflict
 		}
-
-		if v.UnixNano() <= prevTime {
-			needSort = true
-			break
-		}
-		prevTime = v.UnixNano()
 	}
 
 	// entry currently has no values, so add the new ones and we're done.
 	e.mu.Lock()
 	if len(e.values) == 0 {
-		// Do the values need sorting?
-		if needSort {
-			e.needSort = needSort
-		}
-
 		// Ensure we start off with a reasonably sized values slice.
 		if len(values) < 32 {
 			e.values = make(Values, 0, 32)
@@ -128,18 +104,7 @@ func (e *entry) add(values []Value) error {
 		return nil
 	}
 
-	if !needSort && e.values[len(e.values)-1].UnixNano() >= values[0].UnixNano() {
-		// The new values occurring after the existing ones?
-		needSort = true
-	}
-
 	// Append the new values to the existing ones...
-
-	// Do the values need sorting?
-	if needSort {
-		e.needSort = true
-	}
-
 	e.values = append(e.values, values...)
 	e.mu.Unlock()
 	return nil
@@ -151,11 +116,10 @@ func (e *entry) deduplicate() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if !e.needSort || len(e.values) == 0 {
+	if len(e.values) == 0 {
 		return
 	}
 	e.values = e.values.Deduplicate()
-	e.needSort = false
 }
 
 // count returns number of values for this entry
@@ -282,10 +246,8 @@ func (c *Cache) Write(key string, values []Value) error {
 	addedSize := uint64(Values(values).Size())
 
 	// Enough room in the cache?
-	c.mu.RLock()
 	limit := c.maxSize
-	n := c.Size() + c.snapshotSize + addedSize
-	c.mu.RUnlock()
+	n := c.Size() + atomic.LoadUint64(&c.snapshotSize) + addedSize
 
 	if limit > 0 && n > limit {
 		atomic.AddInt64(&c.stats.WriteErr, 1)
@@ -318,12 +280,9 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 
 	// Set everything under one RLock. We'll optimistially set size here, and
 	// then decrement it later if there is a write error.
-	c.mu.RLock()
 	c.increaseSize(addedSize)
 	limit := c.maxSize
-	n := c.Size() + c.snapshotSize + addedSize
-	store := c.store
-	c.mu.RUnlock()
+	n := c.Size() + atomic.LoadUint64(&c.snapshotSize) + addedSize
 
 	// Enough room in the cache?
 	if limit > 0 && n > limit {
@@ -332,6 +291,9 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	}
 
 	var werr error
+	c.mu.RLock()
+	store := c.store
+	c.mu.RUnlock()
 
 	for k, v := range values {
 		if err := store.write(k, v); err != nil {
@@ -395,10 +357,7 @@ func (c *Cache) Snapshot() (*Cache, error) {
 			c.snapshot.store.add(k, e)
 			snapshotEntry = e
 		}
-		c.snapshotSize += uint64(Values(e.values).Size())
-		if e.needSort {
-			snapshotEntry.needSort = true
-		}
+		atomic.AddUint64(&c.snapshotSize, uint64(Values(e.values).Size()))
 		return nil
 	}); err != nil {
 		return nil, err
@@ -440,7 +399,7 @@ func (c *Cache) ClearSnapshot(success bool) {
 
 	if success {
 		c.snapshotAttempts = 0
-		c.snapshotSize = 0
+		atomic.StoreUint64(&c.snapshotSize, 0)
 
 		// Reset the snapshot's store, and reset the snapshot to a fresh Cache.
 		c.snapshot.store.reset()
@@ -534,22 +493,15 @@ func (c *Cache) Values(key string) Values {
 	// Create the buffer, and copy all hot values and snapshots. Individual
 	// entries are sorted at this point, so now the code has to check if the
 	// resultant buffer will be sorted from start to finish.
-	var needSort bool
 	values := make(Values, sz)
 	n := 0
 	for _, e := range entries {
 		e.mu.RLock()
-		if !needSort && n > 0 && len(e.values) > 0 {
-			needSort = values[n-1].UnixNano() >= e.values[0].UnixNano()
-		}
 		n += copy(values[n:], e.values)
 		e.mu.RUnlock()
 	}
 	values = values[:n]
-
-	if needSort {
-		values = values.Deduplicate()
-	}
+	values = values.Deduplicate()
 
 	return values
 }
@@ -734,6 +686,6 @@ func valueType(v Value) int {
 // Update the snapshotsCount and the diskSize levels
 func (c *Cache) updateSnapshots() {
 	// Update disk stats
-	atomic.StoreInt64(&c.stats.DiskSizeBytes, int64(c.snapshotSize))
+	atomic.StoreInt64(&c.stats.DiskSizeBytes, int64(atomic.LoadUint64(&c.snapshotSize)))
 	atomic.StoreInt64(&c.stats.SnapshotCount, int64(c.snapshotAttempts))
 }
