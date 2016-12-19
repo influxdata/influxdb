@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influxd/help"
 	"github.com/influxdata/influxdb/cmd/influxd/restore"
 	"github.com/influxdata/influxdb/cmd/influxd/run"
+	zaplogfmt "github.com/jsternberg/zap-logfmt"
 	"go.uber.org/zap"
 )
 
@@ -61,7 +62,7 @@ type Main struct {
 func NewMain() *Main {
 	return &Main{
 		Logger: zap.New(
-			zap.NewTextEncoder(),
+			zaplogfmt.NewEncoder(),
 			zap.Output(os.Stderr),
 		),
 		Stdin:  os.Stdin,

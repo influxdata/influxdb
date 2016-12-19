@@ -10,6 +10,7 @@ github.com/dgryski/go-bitstream 7d46cd22db7004f0cceb6f7975824b560cf0e486
 github.com/gogo/protobuf a9cd0c35b97daf74d0ebf3514c5254814b2703b4
 github.com/golang/snappy d9eb7a3d35ec988b8585d4a0068e462c27d28380
 github.com/influxdata/usage-client 6d3895376368aa52a3a81d2a16e90f0f52371967
+github.com/jsternberg/zap-logfmt 593cb68c7620469eb58b478c821b01b784ac368c
 github.com/jwilder/encoding 4dada27c33277820fe35c7ee71ed34fbc9477d00
 github.com/paulbellamy/ratecounter 5a11f585a31379765c190c033b6ad39956584447
 github.com/peterh/liner 8975875355a81d612fafb9f5a6037bdcc2d9b073
