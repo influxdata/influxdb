@@ -83,7 +83,7 @@ func (e *entry) add(values []Value) error {
 		return nil // Nothing to do.
 	}
 
-	// Are any of the new values out of order or the wrong type?
+	// Are any of the new values the wrong type?
 	for _, v := range values {
 		if e.vtype != valueType(v) {
 			return tsdb.ErrFieldTypeConflict
