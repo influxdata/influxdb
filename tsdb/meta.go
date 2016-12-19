@@ -278,7 +278,7 @@ func (m *Measurement) ForEachSeriesByExpr(condition influxql.Expr, fn func(tags 
 // This will also populate the TagSet objects with the series IDs that match each tagset and any
 // influx filter expression that goes with the series
 // TODO: this shouldn't be exported. However, until tx.go and the engine get refactored into tsdb, we need it.
-func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
+func (m *Measurement) TagSets(shardID uint64, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
 	m.mu.RLock()
 
 	// get the unique set of series ids and the filters that should be applied to each
@@ -294,6 +294,9 @@ func (m *Measurement) TagSets(dimensions []string, condition influxql.Expr) ([]*
 	tagSets := make(map[string]*influxql.TagSet, 64)
 	for _, id := range ids {
 		s := m.seriesByID[id]
+		if !s.Assigned(shardID) {
+			continue
+		}
 		tags := make(map[string]string, len(dimensions))
 
 		// Build the TagSet for this series.
@@ -1056,6 +1059,7 @@ type Series struct {
 	Tags        models.Tags
 	ID          uint64
 	measurement *Measurement
+	shardIDs    []uint64 // shards that have this series defined
 }
 
 // NewSeries returns an initialized series struct
@@ -1064,6 +1068,45 @@ func NewSeries(key []byte, tags models.Tags) *Series {
 		Key:  string(key),
 		Tags: tags,
 	}
+}
+
+func (s *Series) AssignShard(shardID uint64) {
+	s.mu.Lock()
+	if !s.assigned(shardID) {
+		s.shardIDs = append(s.shardIDs, shardID)
+		sort.Sort(uint64Slice(s.shardIDs))
+	}
+	s.mu.Unlock()
+}
+
+func (s *Series) UnassignShard(shardID uint64) {
+	s.mu.Lock()
+	for i, v := range s.shardIDs {
+		if v == shardID {
+			s.shardIDs = append(s.shardIDs[:i], s.shardIDs[i+1:]...)
+			break
+		}
+	}
+	s.mu.Unlock()
+}
+
+func (s *Series) Assigned(shardID uint64) bool {
+	s.mu.RLock()
+	b := s.assigned(shardID)
+	s.mu.RUnlock()
+	return b
+}
+
+func (s *Series) assigned(shardID uint64) bool {
+	i := sort.Search(len(s.shardIDs), func(i int) bool { return s.shardIDs[i] >= shardID })
+	return i < len(s.shardIDs) && s.shardIDs[i] == shardID
+}
+
+func (s *Series) ShardN() int {
+	s.mu.RLock()
+	n := len(s.shardIDs)
+	s.mu.RUnlock()
+	return n
 }
 
 // Measurement returns the measurement on the series.

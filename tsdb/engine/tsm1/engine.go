@@ -823,6 +823,7 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 
 	for k, exists := range existing {
 		if !exists {
+			e.index.UnassignShard(k, e.id)
 			e.index.DropSeries([][]byte{[]byte(k)})
 		}
 	}

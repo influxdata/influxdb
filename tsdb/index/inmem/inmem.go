@@ -29,22 +29,18 @@ import (
 )
 
 func init() {
+	tsdb.NewInmemIndex = func(name string) (interface{}, error) { return NewIndex(), nil }
+
 	tsdb.RegisterIndex("inmem", func(id uint64, path string, opt tsdb.EngineOptions) tsdb.Index {
-		return NewIndex(id, path, opt)
+		return NewShardIndex(id, path, opt)
 	})
 }
-
-// Ensure index implements interface.
-var _ tsdb.Index = &Index{}
 
 // Index is the in memory index of a collection of measurements, time
 // series, and their tags. Exported functions are goroutine safe while
 // un-exported functions assume the caller will use the appropriate locks.
 type Index struct {
 	mu sync.RWMutex
-
-	id  uint64 // shard id
-	opt tsdb.EngineOptions
 
 	// In-memory metadata index, built on load and updated when new series come in
 	measurements map[string]*tsdb.Measurement // measurement name to object and index
@@ -56,11 +52,8 @@ type Index struct {
 }
 
 // NewIndex returns a new initialized Index.
-func NewIndex(id uint64, path string, opt tsdb.EngineOptions) *Index {
+func NewIndex() *Index {
 	index := &Index{
-		id:  id,
-		opt: opt,
-
 		measurements: make(map[string]*tsdb.Measurement),
 		series:       make(map[string]*tsdb.Series),
 	}
@@ -128,11 +121,12 @@ func (i *Index) MeasurementsByName(names [][]byte) ([]*tsdb.Measurement, error) 
 
 // CreateSeriesIfNotExists adds the series for the given measurement to the
 // index and sets its ID or returns the existing series object
-func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
+func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags models.Tags, opt *tsdb.EngineOptions) error {
 	i.mu.RLock()
 	// if there is a series for this id, it's already been added
 	ss := i.series[string(key)]
 	if ss != nil {
+		ss.AssignShard(shardID)
 		i.mu.RUnlock()
 		return nil
 	}
@@ -145,6 +139,7 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 	// Check for the series again under a write lock
 	ss = i.series[string(key)]
 	if ss != nil {
+		ss.AssignShard(shardID)
 		i.mu.Unlock()
 		return nil
 	}
@@ -158,6 +153,7 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 	i.series[string(key)] = series
 
 	m.AddSeries(series)
+	series.AssignShard(shardID)
 
 	// Add the series to the series sketch.
 	i.seriesSketch.Add(key)
@@ -504,7 +500,7 @@ func (i *Index) ForEachMeasurementSeriesByExpr(name []byte, expr influxql.Expr, 
 }
 
 // TagSets returns a list of tag sets.
-func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
+func (i *Index) TagSets(shardID uint64, name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
@@ -513,7 +509,7 @@ func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Exp
 		return nil, nil
 	}
 
-	tagSets, err := mm.TagSets(dimensions, condition)
+	tagSets, err := mm.TagSets(shardID, dimensions, condition)
 	if err != nil {
 		return nil, err
 	}
@@ -608,6 +604,85 @@ func (i *Index) SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iter
 		},
 		opt: opt,
 	}, nil
+}
+
+// AssignShard update the index to indicate that series k exists in the given shardID.
+func (i *Index) AssignShard(k string, shardID uint64) {
+	ss, _ := i.Series([]byte(k))
+	if ss != nil {
+		ss.AssignShard(shardID)
+	}
+}
+
+// UnassignShard updates the index to indicate that series k does not exist in
+// the given shardID.
+func (i *Index) UnassignShard(k string, shardID uint64) {
+	ss, _ := i.Series([]byte(k))
+	if ss != nil {
+		if ss.Assigned(shardID) {
+			// Remove the shard from any series
+			ss.UnassignShard(shardID)
+
+			// If this series no longer has shards assigned, remove the series
+			if ss.ShardN() == 0 {
+				// Remove the series the measurements
+				ss.Measurement().DropSeries(ss)
+
+				// If the measurement no longer has any series, remove it as well
+				if !ss.Measurement().HasSeries() {
+					i.mu.Lock()
+					i.dropMeasurement(ss.Measurement().Name)
+					i.mu.Unlock()
+				}
+
+				// Remove the series key from the series index
+				i.mu.Lock()
+				delete(i.series, k)
+				// atomic.AddInt64(&i.stats.NumSeries, -1)
+				i.mu.Unlock()
+			}
+		}
+	}
+}
+
+// RemoveShard removes all references to shardID from any series or measurements
+// in the index.  If the shard was the only owner of data for the series, the series
+// is removed from the index.
+func (i *Index) RemoveShard(shardID uint64) {
+	for _, k := range i.SeriesKeys() {
+		i.UnassignShard(k, shardID)
+	}
+}
+
+// Ensure index implements interface.
+var _ tsdb.Index = &ShardIndex{}
+
+// ShardIndex represents a shim between the TSDB index interface and the shared
+// in-memory index. This is required because per-shard in-memory indexes will
+// grow the heap size too large.
+type ShardIndex struct {
+	*Index
+
+	id  uint64 // shard id
+	opt tsdb.EngineOptions
+}
+
+func (i *ShardIndex) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
+	return i.Index.CreateSeriesIfNotExists(i.id, key, name, tags, &i.opt)
+}
+
+// TagSets returns a list of tag sets based on series filtering.
+func (i *ShardIndex) TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
+	return i.Index.TagSets(i.id, name, dimensions, condition)
+}
+
+// NewShardIndex returns a new index for a shard.
+func NewShardIndex(id uint64, path string, opt tsdb.EngineOptions) tsdb.Index {
+	return &ShardIndex{
+		Index: opt.InmemIndex.(*Index),
+		id:    id,
+		opt:   opt,
+	}
 }
 
 // seriesPointIterator emits series as influxql points.

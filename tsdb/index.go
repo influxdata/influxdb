@@ -44,6 +44,9 @@ type Index interface {
 
 	// To be removed w/ tsi1.
 	SetFieldName(measurement, name string)
+	AssignShard(k string, shardID uint64)
+	UnassignShard(k string, shardID uint64)
+	RemoveShard(shardID uint64)
 }
 
 // IndexFormat represents the format for an index.
