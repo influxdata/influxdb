@@ -19,6 +19,12 @@ import (
 	"github.com/tylerb/graceful"
 )
 
+var startTime time.Time
+
+func init() {
+	startTime = time.Now().UTC()
+}
+
 // Server for the chronograf API
 type Server struct {
 	Host string `long:"host" description:"the IP to listen on" default:"0.0.0.0" env:"HOST"`
@@ -162,6 +168,7 @@ func reportUsageStats(bi BuildInfo, logger chronograf.Logger) {
 					"arch":       runtime.GOARCH,
 					"version":    bi.Version,
 					"cluster_id": serverID,
+					"uptime": time.Since(startTime).Seconds(),
 				},
 			},
 		},
