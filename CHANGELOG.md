@@ -157,7 +157,7 @@ All Changes:
 ### Bugfixes
 
 - [#7315](https://github.com/influxdata/influxdb/issues/7315): Prevent users from manually using system queries since incorrect use would result in a panic.
-- [#7299](https://github.com/influxdata/influxdb/ssues/7299): Ensure fieldsCreated stat available in shard measurement.
+- [#7299](https://github.com/influxdata/influxdb/issues/7299): Ensure fieldsCreated stat available in shard measurement.
 - [#7272](https://github.com/influxdata/influxdb/issues/7272): Report cmdline and memstats in /debug/vars.
 - [#7271](https://github.com/influxdata/influxdb/issues/7271): Fixing typo within example configuration file. Thanks @andyfeller!
 - [#7270](https://github.com/influxdata/influxdb/issues/7270): Implement time math for lazy time literals.
