@@ -45,7 +45,7 @@ type Index interface {
 	// To be removed w/ tsi1.
 	SetFieldName(measurement, name string)
 	AssignShard(k string, shardID uint64)
-	UnassignShard(k string, shardID uint64)
+	UnassignShard(k string, shardID uint64) error
 	RemoveShard(shardID uint64)
 }
 

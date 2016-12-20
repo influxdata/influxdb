@@ -616,7 +616,7 @@ func (i *Index) AssignShard(k string, shardID uint64) {
 
 // UnassignShard updates the index to indicate that series k does not exist in
 // the given shardID.
-func (i *Index) UnassignShard(k string, shardID uint64) {
+func (i *Index) UnassignShard(k string, shardID uint64) error {
 	ss, _ := i.Series([]byte(k))
 	if ss != nil {
 		if ss.Assigned(shardID) {
@@ -643,6 +643,7 @@ func (i *Index) UnassignShard(k string, shardID uint64) {
 			}
 		}
 	}
+	return nil
 }
 
 // RemoveShard removes all references to shardID from any series or measurements

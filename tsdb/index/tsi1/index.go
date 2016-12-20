@@ -1210,10 +1210,14 @@ func (i *Index) seriesByBinaryExprVarRefIterator(name, key []byte, value *influx
 	), nil
 }
 
-func (i *Index) SetFieldName(measurement, name string)  {}
-func (i *Index) RemoveShard(shardID uint64)             {}
-func (i *Index) AssignShard(k string, shardID uint64)   {}
-func (i *Index) UnassignShard(k string, shardID uint64) {}
+func (i *Index) SetFieldName(measurement, name string) {}
+func (i *Index) RemoveShard(shardID uint64)            {}
+func (i *Index) AssignShard(k string, shardID uint64)  {}
+
+func (i *Index) UnassignShard(k string, shardID uint64) error {
+	// This can be called directly once inmem is gone.
+	return i.DropSeries([][]byte{[]byte(k)})
+}
 
 // SeriesPointIterator returns an influxql iterator over all series.
 func (i *Index) SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
