@@ -775,6 +775,20 @@ func (f *LogFile) reset() {
 	}
 }
 
+// MergeSeriesSketches merges the series sketches within a mutex.
+func (f *LogFile) MergeSeriesSketches(sketch, tsketch estimator.Sketch) error {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	if err := sketch.Merge(f.sSketch); err != nil {
+		return err
+	}
+	if err := tsketch.Merge(f.sTSketch); err != nil {
+		return err
+	}
+	return nil
+}
+
 // LogEntry represents a single log entry in the write-ahead log.
 type LogEntry struct {
 	Flag     byte        // flag

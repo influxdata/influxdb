@@ -681,10 +681,7 @@ func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 
 	// Merge in any current log file sketches.
 	for _, f := range i.logFiles {
-		if err := sketch.Merge(f.sSketch); err != nil {
-			return nil, nil, err
-		}
-		if err := tsketch.Merge(f.sTSketch); err != nil {
+		if err := f.MergeSeriesSketches(sketch, tsketch); err != nil {
 			return nil, nil, err
 		}
 	}
