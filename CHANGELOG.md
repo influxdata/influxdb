@@ -281,7 +281,7 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6661](https://github.com/influxdata/influxdb/issues/6661): Disable limit optimization when using an aggregate.
 - [#6652](https://github.com/influxdata/influxdb/issues/6652): Fix panic: interface conversion: tsm1.Value is \*tsm1.StringValue, not \*tsm1.FloatValue
 - [#6650](https://github.com/influxdata/influxdb/issues/6650): Data race when dropping a database immediately after writing to it
-- [#6649](https://github.com/influxdata/influxdb/issues/6649): Make sure admin exists before authenticating query.
+- [#6648](https://github.com/influxdata/influxdb/issues/6648): Make sure admin exists before authenticating query.
 - [#6644](https://github.com/influxdata/influxdb/issues/6644): Print the query executor's stack trace on a panic to the log.
 - [#6641](https://github.com/influxdata/influxdb/issues/6641): Fix read tombstones: EOF
 - [#6629](https://github.com/influxdata/influxdb/issues/6629): query-log-enabled in config not ignored anymore.
