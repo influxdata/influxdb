@@ -85,7 +85,7 @@ func TestMetaClient_CreateDatabaseWithRetentionPolicy(t *testing.T) {
 		Name:               "rp0",
 		Duration:           &duration,
 		ReplicaN:           &replicaN,
-		ShardGroupDuration: 30 * time.Minute,
+		ShardGroupDuration: 60 * time.Minute,
 	}
 	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &spec); err != nil {
 		t.Fatal(err)
@@ -105,7 +105,7 @@ func TestMetaClient_CreateDatabaseWithRetentionPolicy(t *testing.T) {
 		t.Fatalf("rp duration wrong: %v", rp.Duration)
 	} else if rp.ReplicaN != 1 {
 		t.Fatalf("rp replication wrong: %d", rp.ReplicaN)
-	} else if rp.ShardGroupDuration != 30*time.Minute {
+	} else if rp.ShardGroupDuration != 60*time.Minute {
 		t.Fatalf("rp shard duration wrong: %v", rp.ShardGroupDuration)
 	}
 
@@ -240,8 +240,8 @@ func TestMetaClient_CreateRetentionPolicy(t *testing.T) {
 	rp0 := meta.RetentionPolicyInfo{
 		Name:               "rp0",
 		ReplicaN:           1,
-		Duration:           time.Hour,
-		ShardGroupDuration: time.Hour,
+		Duration:           2 * time.Hour,
+		ShardGroupDuration: 2 * time.Hour,
 	}
 
 	if _, err := c.CreateRetentionPolicy("db0", &meta.RetentionPolicySpec{

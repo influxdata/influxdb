@@ -1126,8 +1126,14 @@ func shardGroupDuration(d time.Duration) time.Duration {
 
 // normalisedShardDuration returns normalised shard duration based on a policy duration.
 func normalisedShardDuration(sgd, d time.Duration) time.Duration {
+	// If it is zero, it likely wasn't specified, so we default to the shard group duration
 	if sgd == 0 {
 		return shardGroupDuration(d)
+	}
+	// If it was specified, but it's less than the MinRetentionPolicyDuration, then normalize
+	// to the MinRetentionPolicyDuration
+	if sgd < MinRetentionPolicyDuration {
+		return shardGroupDuration(MinRetentionPolicyDuration)
 	}
 	return sgd
 }
