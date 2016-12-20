@@ -360,6 +360,7 @@ With this release InfluxDB is moving to Go v1.6.
 - [#6294](https://github.com/influxdata/influxdb/issues/6294): Fix panic running influx_inspect info.
 - [#6287](https://github.com/influxdata/influxdb/issues/6287): Fix data race in Influx Client.
 - [#6283](https://github.com/influxdata/influxdb/pull/6283): Fix GROUP BY tag to produce consistent results when a series has no tags.
+- [#6277](https://github.com/influxdata/influxdb/pull/6277): Fix deadlock in tsm1/file_store
 - [#6270](https://github.com/influxdata/influxdb/issues/6270): tsm1 query engine alloc reduction
 - [#6261](https://github.com/influxdata/influxdb/issues/6261): High CPU usage and slow query with DISTINCT
 - [#6252](https://github.com/influxdata/influxdb/pull/6252): Remove TSDB listener accept message @simnv
