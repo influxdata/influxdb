@@ -1,0 +1,88 @@
+/*
+    Unsorted
+    ----------------------------------------------
+*/
+.select-source-page {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  @include custom-scrollbar($g2-kevlar, $c-pool);
+  @include gradient-v($g2-kevlar, $g0-obsidian);
+}
+.text-right .btn {
+  margin: 0 0 0 4px;
+}
+.text-center .btn {
+  margin: 0 2px;
+}
+.default-source-label {
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 13px;
+  font-weight: 500;
+  background-color: $g5-pepper;
+  color: $c-pool;
+  border-radius: 3px;
+  padding: 2px 6px;
+  margin-left: 4px;
+}
+.progress-label {
+  margin-bottom: 4px;
+  color: $g11-sidewalk;
+  width: 100%;
+
+  strong {
+    font-weight: 500;
+    color: $g8-storm;
+  }
+}
+.btn-block.dropdown-toggle {
+  text-align: left;
+  position: relative;
+
+  .caret {
+    position: absolute;
+    top: 50%;
+    right: 18px;
+    transform: translateY(-50%);
+  }
+
+  & + .dropdown-menu {
+    width: 100%;
+  }
+}
+.modal {
+  form {
+    padding: 0;
+    margin: 0;
+    background-color: transparent;
+  }
+  .form-grid {
+    width: 100%;
+    display: inline-block;
+
+    &.padding-top {
+      padding-top: 15px;
+    }
+  }
+}
+
+/*
+    Generic Empty State
+    ----------------------------------------------
+*/
+.generic-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: $g12-forge;
+  padding: 20px 0;
+
+  .icon {
+    margin-bottom: 11px;
+  }
+}

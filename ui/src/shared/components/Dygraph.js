@@ -1,7 +1,6 @@
 /* eslint-disable no-magic-numbers */
 import React, {PropTypes} from 'react';
 import Dygraph from '../../external/dygraph';
-import 'style/_Graph.css';
 
 const {arrayOf, object, array, number, bool, shape} = PropTypes;
 

@@ -1,0 +1,57 @@
+/*
+    Stuff for making Tables of Data more readable
+    ----------------------------------------------
+*/
+table .monotype {
+  font-family: 'RobotoMono', monospace !important;
+  letter-spacing: 0.69px;
+  font-size: 12px;
+  font-weight: 500;
+  color: $g9-mountain;
+}
+.table-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: $g17-whisper;
+
+  &.dot-success {
+    background-color: $c-rainforest;
+  }
+  &.dot-primary {
+    background-color: $c-pool;
+  }
+  &.dot-warning {
+    background-color: $c-comet;
+  }
+  &.dot-danger {
+    background-color: $c-dreamsicle;
+  }
+  &.dot-critical {
+    background-color: $c-fire;
+  }
+}
+
+/*
+    Empty State for Tables
+    ----------------------------------------------
+*/
+.table-empty-state {
+  > th {
+    text-align: center;
+
+    > p {
+      font-weight: 400;
+      font-size: 18px;
+      color: $g9-mountain;
+      margin-bottom: 16px;
+    }
+    > *:first-child {
+      margin-top: 75px;
+    }
+    > *:last-child {
+      margin-bottom: 75px;
+    }
+  }
+}

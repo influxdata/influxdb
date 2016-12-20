@@ -1,0 +1,35 @@
+/*
+    Custom Search Widget
+    ----------------------------------------------
+*/
+.users__search-widget {
+  position: relative;
+
+  input.form-control {
+    position: relative;
+    width: 100%;
+    z-index: 1;
+    padding-left: 34px;
+    border-radius: 4px !important;
+
+    &:focus + .input-group-addon {
+      color: $c-pool;
+    }
+  }
+  .input-group-addon {
+    padding: 0;
+    text-align: center;
+    line-height: 38px;
+    position: absolute;
+    color: $g10-wolf;
+    top: 0;
+    left: 0;
+    height: 100%;
+    z-index: 4;
+    border: 0;
+    width: 40px;
+    background-color: transparent;
+    transition:
+      color 0.25s ease;
+  }
+}

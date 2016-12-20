@@ -1,0 +1,57 @@
+/*
+    Page Header
+    ----------------------------------------------
+*/
+.page-header {
+  height: $chronograf-page-header-height;
+  width: 100%;
+  padding: 0 ($page-wrapper-padding + $scrollbar-width) 0 $page-wrapper-padding;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background-color: $g0-obsidian;
+  border: none;
+  margin: 0;
+
+  &__container {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: ($page-wrapper-max-width - $page-wrapper-padding - $page-wrapper-padding);
+  }
+  h1 {
+    text-transform: uppercase;
+    font-size: 17px;
+    font-weight: 400;
+    margin: 0;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  &__left,
+  &__right {
+    display: flex;
+    align-items: center;
+
+    > *:only-child {
+      margin: 0;
+    }
+  }
+  &__left {
+    > * {
+      margin: 0 4px 0 0;
+    }
+  }
+  &__right {
+    > * {
+      margin: 0 0 0 4px;
+    }
+  }
+  &.full-width .page-header__container {
+    max-width: 100%;
+  }
+}
