@@ -207,6 +207,8 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#6623](https://github.com/influxdata/influxdb/pull/6623): Speed up drop database
 - [#6621](https://github.com/influxdata/influxdb/pull/6621): Add Holt-Winter forecasting function.
 - [#6609](https://github.com/influxdata/influxdb/pull/6609): Add support for JWT token authentication.
+- [#6593](https://github.com/influxdata/influxdb/pull/6593): Add ability to create snapshots of shards.
+- [#6585](https://github.com/influxdata/influxdb/pull/6585): Parallelize iterators
 - [#6559](https://github.com/influxdata/influxdb/issues/6559): Teach the http service how to enforce connection limits.
 - [#6519](https://github.com/influxdata/influxdb/issues/6519): Support cast syntax for selecting a specific type.
 - [#6507](https://github.com/influxdata/influxdb/issues/6507): Refactor monitor service to avoid expvar and write monitor statistics on a truncated time interval.
@@ -308,8 +310,6 @@ With this release InfluxDB is moving to Go v1.6.
 
 ### Features
 
-- [#6593](https://github.com/influxdata/influxdb/pull/6593): Add ability to create snapshots of shards.
-- [#6585](https://github.com/influxdata/influxdb/pull/6585): Parallelize iterators
 - [#6534](https://github.com/influxdata/influxdb/pull/6534): Move to Go v1.6.2 (over Go v1.4.3)
 - [#6533](https://github.com/influxdata/influxdb/issues/6533): Optimize SHOW SERIES
 - [#6522](https://github.com/influxdata/influxdb/pull/6522): Dump TSM files to line protocol
