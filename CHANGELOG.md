@@ -346,7 +346,6 @@ With this release InfluxDB is moving to Go v1.6.
 - [#6477](https://github.com/influxdata/influxdb/pull/6477): Don't catch SIGQUIT or SIGHUP signals.
 - [#6470](https://github.com/influxdata/influxdb/pull/6470): Remove SHOW SERVERS & DROP SERVER support
 - [#6468](https://github.com/influxdata/influxdb/issues/6468): Panic with truncated wal segments
-- [#6468](https://github.com/influxdata/influxdb/issues/6468): Panic with truncated wal segments
 - [#6462](https://github.com/influxdata/influxdb/pull/6462): Add safer locking to CreateFieldIfNotExists
 - [#6458](https://github.com/influxdata/influxdb/pull/6458): Make it clear when the CLI version is unknown.
 - [#6457](https://github.com/influxdata/influxdb/issues/6457): Retention policy cleanup does not remove series
