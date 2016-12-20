@@ -231,7 +231,6 @@ With this release the systemd configuration files for InfluxDB will use the syst
 - [#7127](https://github.com/influxdata/influxdb/pull/7127): Concurrent series limit
 - [#7125](https://github.com/influxdata/influxdb/pull/7125): Ensure gzip writer is closed in influx_inspect export
 - [#7119](https://github.com/influxdata/influxdb/pull/7119): Fix CREATE DATABASE when dealing with default values.
-- [#7119](https://github.com/influxdata/influxdb/pull/7119): Fix CREATE DATABASE when dealing with default values.
 - [#7088](https://github.com/influxdata/influxdb/pull/7088): Fix UDP pointsRx being incremented twice.
 - [#7084](https://github.com/influxdata/influxdb/pull/7084): Tombstone memory improvements
 - [#7081](https://github.com/influxdata/influxdb/issues/7081): Hardcode auto generated RP names to autogen
