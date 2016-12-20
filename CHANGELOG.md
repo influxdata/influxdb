@@ -17,6 +17,7 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7356](https://github.com/influxdata/influxdb/issues/7356): Use X-Forwarded-For IP address in HTTP logger if present.
 - [#7066](https://github.com/influxdata/influxdb/issues/7066): Add support for secure transmission via collectd.
 - [#7036](https://github.com/influxdata/influxdb/issues/7036): Switch logging to use structured logging everywhere.
+- [#3188](https://github.com/influxdata/influxdb/issues/3188): [CLI feature request] USE retention policy for queries.
 - [#7709](https://github.com/influxdata/influxdb/pull/7709): Add clear command to cli.
 
 ### Bugfixes
