@@ -352,6 +352,7 @@ With this release InfluxDB is moving to Go v1.6.
 - [#6439](https://github.com/influxdata/influxdb/issues/6439): Overwriting points returning old values
 - [#6427](https://github.com/influxdata/influxdb/pull/6427): Fix setting uint config options via env vars
 - [#6425](https://github.com/influxdata/influxdb/pull/6425): Close idle tcp connections in HTTP client to prevent tcp conn leak.
+- [#6419](https://github.com/influxdata/influxdb/issues/6419): Fix panic in transform iterator on division. @thbourlove
 - [#6398](https://github.com/influxdata/influxdb/issues/6398): Fix CREATE RETENTION POLICY parsing so it doesn't consume tokens it shouldn't.
 - [#6382](https://github.com/influxdata/influxdb/pull/6382): Removed dead code from the old query engine.
 - [#6361](https://github.com/influxdata/influxdb/pull/6361): Fix cluster/pool release of connection
@@ -373,7 +374,7 @@ With this release InfluxDB is moving to Go v1.6.
 
 ### Bugfixes
 
-- [#6419](https://github.com/influxdata/influxdb/issues/6419): Fix panic in transform iterator on division. @thbourlove
+- [#6431](https://github.com/influxdata/influxdb/pull/6431): Fix panic in transform iterator on division. @thbourlove
 - [#6414](https://github.com/influxdata/influxdb/pull/6414): Send "Connection: close" header for queries.
 - [#6413](https://github.com/influxdata/influxdb/pull/6413): Prevent goroutine leak from persistent http connections. Thanks @aaronknister.
 - [#6383](https://github.com/influxdata/influxdb/pull/6383): Recover from a panic during query execution.
