@@ -258,6 +258,8 @@ func (c *CommandLine) ParseCommand(cmd string) error {
 			c.use(cmd)
 		case "insert":
 			return c.Insert(cmd)
+		case "clear":
+			c.clear(cmd)
 		default:
 			return c.ExecuteQuery(cmd)
 		}
@@ -340,6 +342,34 @@ func (c *CommandLine) SetAuth(cmd string) {
 
 	// Update the client as well
 	c.Client.SetAuth(c.ClientConfig.Username, c.ClientConfig.Password)
+}
+
+func (c *CommandLine) clear(cmd string) {
+	args := strings.Split(strings.TrimSuffix(strings.TrimSpace(cmd), ";"), " ")
+	v := strings.ToLower(strings.Join(args[1:], " "))
+	switch v {
+	case "database", "db":
+		c.Database = ""
+		fmt.Println("database context cleared")
+		return
+	case "retention policy", "rp":
+		c.RetentionPolicy = ""
+		fmt.Println("retention policy context cleared")
+		return
+	default:
+		if len(args) > 1 {
+			fmt.Printf("invalid command %q.\n", v)
+		}
+		fmt.Println(`Possible commands for 'clear' are:
+    # Clear the database context
+    clear database
+    clear db
+
+    # Clear the retention policy context
+    clear retention policy
+    clear rp
+		`)
+	}
 }
 
 func (c *CommandLine) use(cmd string) {
@@ -790,6 +820,7 @@ func (c *CommandLine) help() {
         consistency <level>   sets write consistency level: any, one, quorum, or all
         history               displays command history
         settings              outputs the current settings for the shell
+        clear                 clears settings such as database or retention policy.  run 'clear' for help
         exit/quit/ctrl+d      quits the influx shell
 
         show databases        show database names
