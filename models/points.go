@@ -1031,6 +1031,9 @@ func scanTagValue(buf []byte, i int) (int, []byte) {
 		}
 		i++
 	}
+	if i > len(buf) {
+		return i, nil
+	}
 	return i, buf[start:i]
 }
 
