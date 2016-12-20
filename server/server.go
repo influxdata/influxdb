@@ -179,15 +179,13 @@ func reportUsageStats(bi BuildInfo, logger chronograf.Logger) {
 		WithField("freq", "24h").
 		WithField("stats", "os,arch,version,cluster_id,uptime")
 	l.Info("Reporting usage stats")
-	reporter.Save(u)
+	_, _ = reporter.Save(u)
 
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 	for {
-		select {
-		case <-ticker.C:
-			l.Debug("Reporting usage stats")
-			go reporter.Save(u)
-		}
+		<-ticker.C
+		l.Debug("Reporting usage stats")
+		go reporter.Save(u)
 	}
 }

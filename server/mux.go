@@ -181,7 +181,7 @@ func Error(w http.ResponseWriter, code int, msg string, logger chronograf.Logger
 		Error("Error message ", msg)
 	w.Header().Set("Content-Type", JSONType)
 	w.WriteHeader(code)
-	w.Write(b)
+	_, _ = w.Write(b)
 }
 
 func invalidData(w http.ResponseWriter, err error, logger chronograf.Logger) {
