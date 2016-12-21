@@ -339,7 +339,11 @@
   # bind-address = ":25826"
   # database = "collectd"
   # retention-policy = ""
-  # typesdb = "/usr/share/collectd/types.db"
+  #
+  # The collectd service supports either scanning a directory for multiple types
+  # db files, or specifying a single db file.
+  # typesdb = "/usr/local/share/collectd"
+  #
   # security-level = "none"
   # auth-file = "/etc/collectd/auth_file"
 
