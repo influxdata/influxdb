@@ -82,54 +82,6 @@
     font-weight: 900;
   }
 }
-
-.sortable-header {
-  transition:
-    color 0.25s ease,
-    background-color 0.25s ease;
-  position: relative;
-
-  &:after {
-    content: '\e910';
-    display: block;
-    position: absolute;
-    top: 50%;
-    right: 8px;
-    color: #fff;
-    font-family: 'icomoon';
-    opacity: 0;
-    transform: translateY(-50%);
-    transition:
-      opacity 0.25s ease,
-      color 0.25s ease,
-      transform 0.35s ease;
-  }
-
-  &:hover {
-    cursor: pointer;
-    color: $g19-ghost;
-    background-color: $g5-pepper;
-
-    &:after {
-      opacity: 1;
-    }
-  }
-  &.sorting-down,
-  &.sorting-up {
-    background-color: $g5-pepper;
-    color: $g19-ghost;
-
-    &:after {
-      opacity: 1;
-    }
-  }
-  &.sorting-down {
-
-    &:after {
-      transform: translateY(-50%) rotate(180deg);
-    }
-  }
-}
 .host-table-header {
   display: flex;
   align-items: center;
