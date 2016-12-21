@@ -1,12 +1,5 @@
-// Dygraph styles. Needs a home.
-.dygraph-axis-label {
-  color: $g11-sidewalk;
-  font-weight: 500;
-}
-.dygraph-axis-label-y2 {
-  padding: 0 0 0 0.3em !important;
-  text-align: right !important;
-}
+// Overrides default Dygraphs styles
+
 .graph-vertical-marker {
   top: 0;
   bottom: 0;
@@ -84,6 +77,24 @@
   }
 }
 
+
+/* Axis Labels */
+.dygraph-axis-label {
+  color: $g11-sidewalk !important;
+  font-weight: 500 !important;
+}
+.dygraph-axis-label-y {
+  padding: 0 9px 0 0 !important;
+  text-align: left !important;
+  left: 0 !important;
+}
+.dygraph-axis-label-y2 {
+  padding: 0 0 0 9px !important;
+  text-align: right !important;
+}
+.graph-container > div > div > div > div {}
+
+/* Vertical Axis Labels */
 .dygraph-ylabel,
 .dygraph-y2label {
   position: absolute;
@@ -101,11 +112,7 @@
 .dygraph-y2label {
 }
 
-
-
-
 .graph--hasYLabel {
-  // background-color: #f00 !important;
 
   .dygraph-axis-label-y {
     padding: 0 1px 0 12px !important;
