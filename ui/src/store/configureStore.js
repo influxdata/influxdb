@@ -13,8 +13,10 @@ const rootReducer = combineReducers({
   rules: rulesReducer,
 });
 
+const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
+
 export default function configureStore(initialState) {
-  const createPersistentStore = compose(
+  const createPersistentStore = composeEnhancers(
     persistStateEnhancer(),
     applyMiddleware(thunkMiddleware, makeQueryExecuter()),
   )(createStore);

@@ -143,9 +143,9 @@ type TriggerValues struct {
 	Period        string `json:"period,omitempty"`         // Period length of time before deadman is alerted
 	Shift         string `json:"shift,omitempty"`          // Shift is the amount of time to look into the past for the alert to compare to the present
 	Operator      string `json:"operator,omitempty"`       // Operator for alert comparison
-	RangeOperator string `json:"range_operator,omitempty"` // RangeOperator is an optional operator for range comparisons
+	RangeOperator string `json:"rangeOperator,omitempty"` // RangeOperator is an optional operator for range comparisons
 	Value         string `json:"value,omitempty"`          // Value is the boundary value when alert goes critical
-	RangeValue    string `json:"range_value,omitempty"`    // RangeValue is an optional value for range comparisons
+	RangeValue    string `json:"rangeValue,omitempty"`    // RangeValue is an optional value for range comparisons
 }
 
 // Field represent influxql fields and functions from the UI
