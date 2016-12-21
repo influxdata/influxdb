@@ -539,7 +539,23 @@ func (c *Client) Authenticate(username, password string) (*UserInfo, error) {
 	userInfo := c.cacheData.User(username)
 	c.mu.RUnlock()
 	if userInfo == nil {
-		return nil, ErrUserNotFound
+		// Instead of instantly returning when the username is not found, compare against a valid bcrypt hash
+		// so that we don't leak whether the username was valid via how quickly the server responds.
+		// See https://cwe.mitre.org/data/definitions/208.html for more details.
+
+		// Create fake bcrypt hash with Version=2, Cost=<current cost setting>, Salt+Hash=<doesn't really matter>.
+		fakeHash := fmt.Sprintf("$2$%02d$00000000000000000000000000000000000000000000000000000", bcryptCost)
+
+		// Compare the password against the fake bcrypt hash so we eat up the right time according to bcryptCost.
+		err := bcrypt.CompareHashAndPassword([]byte(fakeHash), []byte(password))
+
+		// If we get an error other than ErrMismatchedHashAndPassword, there's a bug in how we generated fakeHash, so return that error.
+		if err != nil && err != bcrypt.ErrMismatchedHashAndPassword {
+			return nil, err
+		}
+
+		// Now that we've spent the right amount of time calculating the hash, return an authentication error.
+		return nil, ErrAuthenticate
 	}
 
 	// Check the local auth cache first.
