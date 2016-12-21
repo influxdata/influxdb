@@ -3,8 +3,8 @@
     ----------------------------------------------
 */
 table .monotype {
-  font-family: 'RobotoMono', monospace !important;
   letter-spacing: 0.69px;
+  font-family: $code-font;
   font-size: 12px;
   font-weight: 500;
   color: $g9-mountain;
