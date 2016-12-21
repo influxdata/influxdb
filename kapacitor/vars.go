@@ -34,13 +34,25 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 
 	switch rule.Trigger {
 	case Threshold:
-		vars := `
+		if rule.TriggerValues.RangeOperator == "" || rule.TriggerValues.RangeValue == "" {
+			vars := `
 		%s
         var crit = %s
  `
-		return fmt.Sprintf(vars,
-			common,
-			rule.TriggerValues.Value), nil
+			return fmt.Sprintf(vars,
+				common,
+				rule.TriggerValues.Value), nil
+		} else {
+			vars := `
+			%s
+					var lower = %s
+					var upper = %s
+	 `
+			return fmt.Sprintf(vars,
+				common,
+				rule.TriggerValues.Value,
+				rule.TriggerValues.RangeValue), nil
+		}
 	case Relative:
 		vars := `
 		%s

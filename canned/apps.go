@@ -94,6 +94,12 @@ func (a *Apps) All(ctx context.Context) ([]chronograf.Layout, error) {
 func (a *Apps) Add(ctx context.Context, layout chronograf.Layout) (chronograf.Layout, error) {
 	var err error
 	layout.ID, err = a.IDs.Generate()
+	if err != nil {
+		a.Logger.
+			WithField("component", "apps").
+			Error("Unable to generate ID")
+		return chronograf.Layout{}, err
+	}
 	file := a.Filename(a.Dir, layout)
 	if err = a.Create(file, layout); err != nil {
 		if err == chronograf.ErrLayoutInvalid {
@@ -152,7 +158,7 @@ func (a *Apps) Get(ctx context.Context, ID string) (chronograf.Layout, error) {
 }
 
 func (a *Apps) Update(ctx context.Context, layout chronograf.Layout) error {
-	l, file, err := a.idToFile(layout.ID)
+	l, _, err := a.idToFile(layout.ID)
 	if err != nil {
 		return err
 	}
@@ -160,7 +166,7 @@ func (a *Apps) Update(ctx context.Context, layout chronograf.Layout) error {
 	if err := a.Delete(ctx, l); err != nil {
 		return err
 	}
-	file = a.Filename(a.Dir, layout)
+	file := a.Filename(a.Dir, layout)
 	return a.Create(file, layout)
 }
 
