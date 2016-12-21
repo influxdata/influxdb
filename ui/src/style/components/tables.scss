@@ -107,3 +107,16 @@ table .monotype {
     }
   }
 }
+
+/*
+    Responsive Tables
+    ----------------------------------------------
+*/
+
+@media screen and (max-width: 767px) {
+  .table-responsive {
+    border-radius: 3px;
+    border-color: $g5-pepper;
+    @include custom-scrollbar($g5-pepper, $c-pool);
+  }
+}
