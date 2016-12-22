@@ -931,6 +931,38 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 		return nil, err
 	}
 
+	// Parse optional join: "JOIN".
+	if tok, _, _ := p.scanIgnoreWhitespace(); tok == JOIN {
+		if err := p.parseTokens([]Token{SERIES}); err != nil {
+			return nil, err
+		}
+		stmt.JoinSeries = true
+
+		// Parse optional dimensions: "ON".
+		if tok, _, _ := p.scanIgnoreWhitespace(); tok == ON {
+			for {
+				// Parse the dimension.
+				d, err := p.parseIdent()
+				if err != nil {
+					return nil, err
+				}
+
+				// Add new dimension.
+				stmt.JoinSeriesDimensions = append(stmt.JoinSeriesDimensions, d)
+
+				// If there's not a comma next then stop parsing dimensions.
+				if tok, _, _ := p.scan(); tok != COMMA {
+					p.unscan()
+					break
+				}
+			}
+		} else {
+			p.unscan()
+		}
+	} else {
+		p.unscan()
+	}
+
 	// Parse condition: "WHERE EXPR".
 	if stmt.Condition, err = p.parseCondition(); err != nil {
 		return nil, err
@@ -978,6 +1010,21 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 			stmt.IsRawQuery = false
 		}
 	})
+
+	// Rewrite VarRef's if JOIN MEASUREMENTS was not specified.
+	// We assume JOIN MEASUREMENTS is specified when parsing variables because
+	// it is easier to go in this direction than the other because we will
+	// throw out information about the position of quotes and ident separators.
+	if !stmt.JoinSeries {
+		WalkFunc(stmt, func(n Node) {
+			if ref, ok := n.(*VarRef); ok {
+				if ref.Measurement != "" {
+					ref.Val = strings.Join([]string{ref.Measurement, ref.Val}, ".")
+					ref.Measurement = ""
+				}
+			}
+		})
+	}
 
 	if err := stmt.validate(tr); err != nil {
 		return nil, err
@@ -2397,7 +2444,11 @@ func (p *Parser) parseVarRef() (*VarRef, error) {
 		p.unscan()
 	}
 
-	vr := &VarRef{Val: strings.Join(segments, "."), Type: dtype}
+	vr := &VarRef{Type: dtype}
+	if len(segments) > 1 {
+		vr.Measurement = strings.Join(segments[:len(segments)-1], ".")
+	}
+	vr.Val = segments[len(segments)-1]
 
 	return vr, nil
 }
@@ -2540,12 +2591,6 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 			p.unscan()
 		}
 		return wc, nil
-	case REGEX:
-		re, err := regexp.Compile(lit)
-		if err != nil {
-			return nil, &ParseError{Message: err.Error(), Pos: pos}
-		}
-		return &RegexLiteral{Val: re}, nil
 	case BOUNDPARAM:
 		k := strings.TrimPrefix(lit, "$")
 		if len(k) == 0 {

@@ -1103,6 +1103,56 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT statement without JOIN but with periods in the field
+		{
+			s: `SELECT cpu.value, mem.value FROM systemdata`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.VarRef{Val: "cpu.value"}},
+					{Expr: &influxql.VarRef{Val: "mem.value"}},
+				},
+				Sources: []influxql.Source{
+					&influxql.Measurement{Name: "systemdata"},
+				},
+			},
+		},
+
+		// SELECT statement with JOIN SERIES
+		{
+			s: `SELECT cpu.value, mem.value FROM cpu, mem JOIN SERIES`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.VarRef{Measurement: "cpu", Val: "value"}},
+					{Expr: &influxql.VarRef{Measurement: "mem", Val: "value"}},
+				},
+				Sources: []influxql.Source{
+					&influxql.Measurement{Name: "cpu"},
+					&influxql.Measurement{Name: "mem"},
+				},
+				JoinSeries: true,
+			},
+		},
+
+		// SELECT statement with JOIN SERIES ON
+		{
+			s: `SELECT cpu.value, mem.value FROM cpu, mem JOIN SERIES ON host, region`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.VarRef{Measurement: "cpu", Val: "value"}},
+					{Expr: &influxql.VarRef{Measurement: "mem", Val: "value"}},
+				},
+				Sources: []influxql.Source{
+					&influxql.Measurement{Name: "cpu"},
+					&influxql.Measurement{Name: "mem"},
+				},
+				JoinSeries:           true,
+				JoinSeriesDimensions: []string{"host", "region"},
+			},
+		},
+
 		// See issues https://github.com/influxdata/influxdb/issues/1647
 		// and https://github.com/influxdata/influxdb/issues/4404
 		// DELETE statement

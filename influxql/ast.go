@@ -935,6 +935,12 @@ type SelectStatement struct {
 	// if it's a query for raw data values (i.e. not an aggregate)
 	IsRawQuery bool
 
+	// Marks that series should be joined across measurements.
+	JoinSeries bool
+
+	// The dimensions to use when joining series.
+	JoinSeriesDimensions []string
+
 	// What fill option the select statement uses, if any
 	Fill FillOption
 
@@ -1450,6 +1456,18 @@ func (s *SelectStatement) String() string {
 	if len(s.Sources) > 0 {
 		_, _ = buf.WriteString(" FROM ")
 		_, _ = buf.WriteString(s.Sources.String())
+	}
+	if s.JoinSeries {
+		_, _ = buf.WriteString(" JOIN SERIES")
+		if len(s.JoinSeriesDimensions) > 0 {
+			_, _ = buf.WriteString(" ON ")
+			for i, dim := range s.JoinSeriesDimensions {
+				if i > 0 {
+					_, _ = buf.WriteString(", ")
+				}
+				_, _ = buf.WriteString(dim)
+			}
+		}
 	}
 	if s.Condition != nil {
 		_, _ = buf.WriteString(" WHERE ")
@@ -3264,16 +3282,22 @@ func decodeMeasurement(pb *internal.Measurement) (*Measurement, error) {
 
 // VarRef represents a reference to a variable.
 type VarRef struct {
-	Val  string
-	Type DataType
+	Measurement string
+	Val         string
+	Type        DataType
 }
 
 // String returns a string representation of the variable reference.
 func (r *VarRef) String() string {
-	buf := bytes.NewBufferString(QuoteIdent(r.Val))
+	var buf bytes.Buffer
+	if r.Measurement != "" {
+		_, _ = buf.WriteString(QuoteIdent(r.Measurement))
+		_, _ = buf.WriteString(".")
+	}
+	_, _ = buf.WriteString(QuoteIdent(r.Val))
 	if r.Type != Unknown {
-		buf.WriteString("::")
-		buf.WriteString(r.Type.String())
+		_, _ = buf.WriteString("::")
+		_, _ = buf.WriteString(r.Type.String())
 	}
 	return buf.String()
 }
@@ -3285,6 +3309,9 @@ func (a VarRefs) Len() int { return len(a) }
 func (a VarRefs) Less(i, j int) bool {
 	if a[i].Val != a[j].Val {
 		return a[i].Val < a[j].Val
+	}
+	if a[i].Measurement != a[j].Measurement {
+		return a[i].Measurement < a[j].Measurement
 	}
 	return a[i].Type < a[j].Type
 }

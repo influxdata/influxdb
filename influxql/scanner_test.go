@@ -136,6 +136,7 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `GROUPS`, tok: influxql.GROUPS},
 		{s: `INSERT`, tok: influxql.INSERT},
 		{s: `INTO`, tok: influxql.INTO},
+		{s: `JOIN`, tok: influxql.JOIN},
 		{s: `KEY`, tok: influxql.KEY},
 		{s: `KEYS`, tok: influxql.KEYS},
 		{s: `KILL`, tok: influxql.KILL},
