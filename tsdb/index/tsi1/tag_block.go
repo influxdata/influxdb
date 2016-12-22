@@ -95,10 +95,12 @@ func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
 
 	// Track current distance
 	var d int
-
 	for {
 		// Find offset of tag key.
 		offset := binary.BigEndian.Uint64(blk.hashData[TagKeyNSize+(pos*TagKeyOffsetSize):])
+		if offset == 0 {
+			return nil
+		}
 
 		// Evaluate key if offset is not empty.
 		if offset > 0 {
@@ -115,6 +117,7 @@ func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
 			if d > dist(hashKey(e.key), pos, int(keyN)) {
 				return nil
 			}
+
 		}
 
 		// Move position forward.

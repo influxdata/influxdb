@@ -1,6 +1,7 @@
 package tsi1
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/binary"
 	"errors"
@@ -35,10 +36,11 @@ const (
 // LogFile represents an on-disk write-ahead log file.
 type LogFile struct {
 	mu   sync.RWMutex
-	data []byte   // mmap
-	file *os.File // writer
-	buf  []byte   // marshaling buffer
-	size int64    // tracks current file size
+	data []byte        // mmap
+	file *os.File      // writer
+	w    *bufio.Writer // buffered writer
+	buf  []byte        // marshaling buffer
+	size int64         // tracks current file size
 
 	mSketch, mTSketch estimator.Sketch // Measurement sketches
 	sSketch, sTSketch estimator.Sketch // Series sketche
@@ -77,6 +79,7 @@ func (f *LogFile) open() error {
 		return err
 	}
 	f.file = file
+	f.w = bufio.NewWriter(f.file)
 
 	// Finish opening if file is empty.
 	fi, err := file.Stat()
@@ -114,10 +117,16 @@ func (f *LogFile) open() error {
 
 // Close shuts down the file handle and mmap.
 func (f *LogFile) Close() error {
+	if f.w != nil {
+		f.w.Flush()
+		f.w = nil
+	}
+
 	if f.file != nil {
 		f.file.Close()
 		f.file = nil
 	}
+
 	if f.data != nil {
 		mmap.Unmap(f.data)
 	}
@@ -310,6 +319,21 @@ func (f *LogFile) DeleteTagValue(name, key, value []byte) error {
 	return nil
 }
 
+// AddSeriesList adds a list of series to the log file in bulk.
+func (f *LogFile) AddSeriesList(names [][]byte, tagsSlice []models.Tags) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	for i := range names {
+		e := LogEntry{Name: names[i], Tags: tagsSlice[i]}
+		if err := f.appendEntry(&e); err != nil {
+			return err
+		}
+		f.execEntry(&e)
+	}
+	return nil
+}
+
 // AddSeries adds a series to the log file.
 func (f *LogFile) AddSeries(name []byte, tags models.Tags) error {
 	f.mu.Lock()
@@ -347,6 +371,15 @@ func (f *LogFile) SeriesN() (n uint64) {
 	return n
 }
 
+// HasSeries returns flags indicating if the series exists and if it is tombstoned.
+func (f *LogFile) HasSeries(name []byte, tags models.Tags) (exists, tombstoned bool) {
+	e := f.Series(name, tags)
+	if e == nil {
+		return false, false
+	}
+	return true, e.Deleted()
+}
+
 // Series returns a series by name/tags.
 func (f *LogFile) Series(name []byte, tags models.Tags) SeriesElem {
 	f.mu.RLock()
@@ -378,11 +411,12 @@ func (f *LogFile) appendEntry(e *LogEntry) error {
 	e.Size = len(f.buf)
 
 	// Write record to file.
-	n, err := f.file.Write(f.buf)
+	n, err := f.w.Write(f.buf)
 	if err != nil {
 		// Move position backwards over partial entry.
 		// Log should be reopened if seeking cannot be completed.
 		if n > 0 {
+			f.w.Reset(f.file)
 			if _, err := f.file.Seek(int64(-n), os.SEEK_CUR); err != nil {
 				f.Close()
 			}
@@ -950,7 +984,7 @@ type logMeasurement struct {
 	name    []byte
 	tagSet  map[string]logTagKey
 	deleted bool
-	series  logSeries
+	series  logSeriesMap
 
 	// Compaction fields.
 	offset    int64    // tagset offset
@@ -1025,7 +1059,7 @@ func (a logTagKeySlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[
 type logTagValue struct {
 	name    []byte
 	deleted bool
-	series  logSeries
+	series  logSeriesMap
 
 	// Compaction fields.
 	seriesIDs []uint32

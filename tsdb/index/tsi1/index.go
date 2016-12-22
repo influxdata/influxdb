@@ -26,7 +26,7 @@ import (
 
 // Default compaction thresholds.
 const (
-	DefaultMaxLogFileSize = 1 * 1024 * 1024 // 10MB
+	DefaultMaxLogFileSize = 5 * 1024 * 1024 // 5MB
 
 	DefaultCompactionMonitorInterval = 30 * time.Second
 )
@@ -587,12 +587,49 @@ func (i *Index) DropMeasurement(name []byte) error {
 	return nil
 }
 
+// CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
+func (i *Index) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []models.Tags) error {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	// All slices must be of equal length.
+	if len(names) != len(tagsSlice) {
+		return errors.New("names/tags length mismatch")
+	}
+
+	// Filter out existing series.
+	names, tagsSlice = i.filterNamesTags(names, tagsSlice)
+
+	if err := i.logFiles[0].AddSeriesList(names, tagsSlice); err != nil {
+		return err
+	}
+
+	i.checkFastCompaction()
+	return nil
+}
+
+func (i *Index) filterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags) {
+	n := len(names)
+	newNames := make([][]byte, 0, n)
+	newTagsSlice := make([]models.Tags, 0, n)
+
+	for j := 0; j < n; j++ {
+		if i.hasSeries(names[j], tagsSlice[j]) {
+			continue
+		}
+		newNames = append(newNames, names[j])
+		newTagsSlice = append(newTagsSlice, tagsSlice[j])
+	}
+
+	return newNames, newTagsSlice
+}
+
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
-	if e := i.series(name, tags); e != nil {
+	if i.hasSeries(name, tags) {
 		return nil
 	}
 
@@ -604,14 +641,14 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 	return nil
 }
 
-// series returns a series by name/tags.
-func (i *Index) series(name []byte, tags models.Tags) SeriesElem {
+// hasSeries returns true if the series exists and is not tombstoned.
+func (i *Index) hasSeries(name []byte, tags models.Tags) bool {
 	for _, f := range i.files() {
-		if e := f.Series(name, tags); e != nil && !e.Deleted() {
-			return e
+		if exists, tombstoned := f.HasSeries(name, tags); exists {
+			return !tombstoned
 		}
 	}
-	return nil
+	return false
 }
 
 func (i *Index) DropSeries(keys [][]byte) error {
@@ -1387,8 +1424,8 @@ func (i *Index) checkFullCompaction(force bool) error {
 			return err
 		}
 
-		// Ignore if total is not twice the size of the largest index file.
-		if maxN*2 < totalN {
+		// Ignore if largest file is larger than all other files.
+		if (totalN - maxN) < maxN {
 			return nil
 		}
 	}
@@ -1498,6 +1535,7 @@ type compactNotify struct {
 // File represents a log or index file.
 type File interface {
 	Measurement(name []byte) MeasurementElem
+	HasSeries(name []byte, tags models.Tags) (exists, tombstoned bool)
 	Series(name []byte, tags models.Tags) SeriesElem
 	SeriesN() uint64
 	TagKeyIterator(name []byte) TagKeyIterator

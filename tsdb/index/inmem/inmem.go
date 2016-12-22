@@ -668,6 +668,16 @@ type ShardIndex struct {
 	opt tsdb.EngineOptions
 }
 
+// CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
+func (i *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
+	for j := range keys {
+		if err := i.CreateSeriesIfNotExists(keys[j], names[j], tagsSlice[j]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (i *ShardIndex) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
 	return i.Index.CreateSeriesIfNotExists(i.id, key, name, tags, &i.opt)
 }

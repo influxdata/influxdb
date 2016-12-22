@@ -68,10 +68,12 @@ func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementBlockElem, ok bool)
 
 	// Track current distance
 	var d int
-
 	for {
 		// Find offset of measurement.
 		offset := binary.BigEndian.Uint64(blk.hashData[MeasurementNSize+(pos*MeasurementOffsetSize):])
+		if offset == 0 {
+			return MeasurementBlockElem{}, false
+		}
 
 		// Evaluate name if offset is not empty.
 		if offset > 0 {

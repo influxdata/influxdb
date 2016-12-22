@@ -3,7 +3,6 @@ package tsi1_test
 import (
 	"bytes"
 	"fmt"
-	"reflect"
 	"testing"
 
 	"github.com/influxdata/influxdb/models"
@@ -22,35 +21,6 @@ func TestSeriesBlock_UnmarshalBinary(t *testing.T) {
 	}
 }
 
-// Ensure series block contains the correct term count and term encoding.
-func TestSeriesBlock_Terms(t *testing.T) {
-	l := MustCreateSeriesBlock([]Series{
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
-		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
-		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
-	})
-
-	// Verify term count is correct.
-	if n := l.TermCount(); n != 5 {
-		t.Fatalf("unexpected term count: %d", n)
-	}
-
-	// Encode & decode all terms.
-	for _, term := range []string{"cpu", "mem", "region", "east", "west"} {
-		// Encode term.
-		offset := l.EncodeTerm([]byte(term))
-		if offset == 0 {
-			t.Errorf("term not found: %s", term)
-			continue
-		}
-
-		// Decode term offset.
-		if v := l.DecodeTerm(offset); !bytes.Equal([]byte(term), v) {
-			t.Errorf("decode mismatch: got=%s, exp=%s", term, v)
-		}
-	}
-}
-
 // Ensure series block contains the correct set of series.
 func TestSeriesBlock_Series(t *testing.T) {
 	series := []Series{
@@ -63,16 +33,6 @@ func TestSeriesBlock_Series(t *testing.T) {
 	// Verify total number of series is correct.
 	if n := l.SeriesCount(); n != 3 {
 		t.Fatalf("unexpected series count: %d", n)
-	}
-
-	// Ensure series can encode & decode correctly.
-	var name []byte
-	var tags models.Tags
-	for _, series := range series {
-		l.DecodeSeries(l.EncodeSeries(series.Name, series.Tags), &name, &tags)
-		if !bytes.Equal(name, series.Name) || !reflect.DeepEqual(tags, series.Tags) {
-			t.Fatalf("encoding mismatch: got=%s/%#v, exp=%s/%#v", name, tags, series.Name, series.Tags)
-		}
 	}
 
 	// Verify all series exist.

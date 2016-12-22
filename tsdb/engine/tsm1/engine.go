@@ -863,6 +863,10 @@ func (e *Engine) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([
 	return e.index.MeasurementSeriesKeysByExpr(name, expr)
 }
 
+func (e *Engine) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
+	return e.index.CreateSeriesListIfNotExists(keys, names, tagsSlice)
+}
+
 func (e *Engine) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
 	return e.index.CreateSeriesIfNotExists(key, name, tags)
 }

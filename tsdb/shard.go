@@ -562,17 +562,32 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 	// 	points = points[:n]
 	// }
 
-	// get the shard mutex for locally defined fields
-	n = 0
+	// Create all series against the index in bulk.
+	keys := make([][]byte, len(points))
+	names := make([][]byte, len(points))
+	tagsSlice := make([]models.Tags, len(points))
+
 	for i, p := range points {
-		// verify the tags and fields
+		keys[i] = p.Key()
+		names[i] = []byte(p.Name())
+
+		// Clean up tags.
 		tags := p.Tags()
 		if v := tags.Get(timeBytes); v != nil {
 			s.logger.Info(fmt.Sprintf("dropping tag 'time' from '%s'\n", p.PrecisionString("")))
 			tags.Delete(timeBytes)
 			p.SetTags(tags)
 		}
+		tagsSlice[i] = tags
+	}
 
+	if err := s.engine.CreateSeriesListIfNotExists(keys, names, tagsSlice); err != nil {
+		return nil, nil, err
+	}
+
+	// get the shard mutex for locally defined fields
+	n = 0
+	for i, p := range points {
 		var validField bool
 		iter := p.FieldIterator()
 		for iter.Next() {
@@ -600,10 +615,6 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 			dropped++
 			reason = fmt.Sprintf("max-series-per-shard limit (%d) will be exceeded: db=%s, shard=%d", s.options.Config.MaxSeriesPerShard, s.database, s.id)
 			continue
-		}
-
-		if err := s.engine.CreateSeriesIfNotExists(p.Key(), []byte(p.Name()), tags); err != nil {
-			return nil, nil, err
 		}
 
 		// see if the field definitions need to be saved to the shard

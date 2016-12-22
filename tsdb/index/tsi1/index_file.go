@@ -239,6 +239,11 @@ func (f *IndexFile) TagValue(name, key, value []byte) TagValueElem {
 	return tblk.TagValueElem(key, value)
 }
 
+// HasSeries returns flags indicating if the series exists and if it is tombstoned.
+func (f *IndexFile) HasSeries(name []byte, tags models.Tags) (exists, tombstoned bool) {
+	return f.sblk.HasSeries(name, tags)
+}
+
 // Series returns the series and a flag indicating if the series has been
 // tombstoned by the measurement.
 func (f *IndexFile) Series(name []byte, tags models.Tags) SeriesElem {
