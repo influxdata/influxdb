@@ -1103,6 +1103,57 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT statement with a subquery
+		{
+			s: `SELECT sum(derivative) FROM (SELECT derivative(value) FROM cpu GROUP BY host) WHERE time >= now() - 1d GROUP BY time(1h)`,
+			stmt: &influxql.SelectStatement{
+				Fields: []*influxql.Field{{
+					Expr: &influxql.Call{
+						Name: "sum",
+						Args: []influxql.Expr{
+							&influxql.VarRef{Val: "derivative"},
+						}},
+				}},
+				Dimensions: []*influxql.Dimension{{
+					Expr: &influxql.Call{
+						Name: "time",
+						Args: []influxql.Expr{
+							&influxql.DurationLiteral{Val: time.Hour},
+						},
+					},
+				}},
+				Sources: []influxql.Source{
+					&influxql.SubQuery{
+						Statement: &influxql.SelectStatement{
+							Fields: []*influxql.Field{{
+								Expr: &influxql.Call{
+									Name: "derivative",
+									Args: []influxql.Expr{
+										&influxql.VarRef{Val: "value"},
+									},
+								},
+							}},
+							Dimensions: []*influxql.Dimension{{
+								Expr: &influxql.VarRef{Val: "host"},
+							}},
+							Sources: []influxql.Source{
+								&influxql.Measurement{Name: "cpu"},
+							},
+						},
+					},
+				},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.GTE,
+					LHS: &influxql.VarRef{Val: "time"},
+					RHS: &influxql.BinaryExpr{
+						Op:  influxql.SUB,
+						LHS: &influxql.Call{Name: "now"},
+						RHS: &influxql.DurationLiteral{Val: 24 * time.Hour},
+					},
+				},
+			},
+		},
+
 		// See issues https://github.com/influxdata/influxdb/issues/1647
 		// and https://github.com/influxdata/influxdb/issues/4404
 		// DELETE statement
