@@ -956,6 +956,11 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 		return nil, err
 	}
 
+	// Parse timezone: "TZ(<timezone>)".
+	if stmt.Location, err = p.parseLocation(); err != nil {
+		return nil, err
+	}
+
 	// Set if the query is a raw data query or one with an aggregate
 	stmt.IsRawQuery = true
 	WalkFunc(stmt.Fields, func(n Node) {
@@ -2215,6 +2220,39 @@ func (p *Parser) parseFill() (FillOption, interface{}, error) {
 			return NullFill, nil, fmt.Errorf("expected number argument in fill()")
 		}
 	}
+}
+
+// parseLocation parses the timezone call and its arguments.
+func (p *Parser) parseLocation() (*time.Location, error) {
+	// Parse the expression first.
+	tok, _, lit := p.scanIgnoreWhitespace()
+	p.unscan()
+	if tok != IDENT || strings.ToLower(lit) != "tz" {
+		return nil, nil
+	}
+
+	expr, err := p.ParseExpr()
+	if err != nil {
+		return nil, err
+	}
+	tz, ok := expr.(*Call)
+	if !ok {
+		return nil, errors.New("tz must be a function call")
+	} else if len(tz.Args) != 1 {
+		return nil, errors.New("tz requires exactly one argument")
+	}
+
+	tzname, ok := tz.Args[0].(*StringLiteral)
+	if !ok {
+		return nil, errors.New("expected string argument in tz()")
+	}
+
+	loc, err := time.LoadLocation(tzname.Val)
+	if err != nil {
+		// Do not pass the same error message as the error may contain sensitive pathnames.
+		return nil, fmt.Errorf("unable to find time zone %s", tzname.Val)
+	}
+	return loc, nil
 }
 
 // parseOptionalTokenAndInt parses the specified token followed

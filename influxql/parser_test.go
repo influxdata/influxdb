@@ -1358,6 +1358,35 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT statement with a time zone
+		{
+			s: `SELECT mean(value) FROM cpu WHERE time >= now() - 7d GROUP BY time(1d) TZ('America/Los_Angeles')`,
+			stmt: &influxql.SelectStatement{
+				Fields: []*influxql.Field{{
+					Expr: &influxql.Call{
+						Name: "mean",
+						Args: []influxql.Expr{
+							&influxql.VarRef{Val: "value"}},
+					}}},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.GTE,
+					LHS: &influxql.VarRef{Val: "time"},
+					RHS: &influxql.BinaryExpr{
+						Op:  influxql.SUB,
+						LHS: &influxql.Call{Name: "now"},
+						RHS: &influxql.DurationLiteral{Val: 7 * 24 * time.Hour},
+					},
+				},
+				Dimensions: []*influxql.Dimension{{
+					Expr: &influxql.Call{
+						Name: "time",
+						Args: []influxql.Expr{
+							&influxql.DurationLiteral{Val: 24 * time.Hour}}}}},
+				Location: LosAngeles,
+			},
+		},
+
 		// See issues https://github.com/influxdata/influxdb/issues/1647
 		// and https://github.com/influxdata/influxdb/issues/4404
 		// DELETE statement
@@ -3366,6 +3395,16 @@ func mustParseDuration(s string) time.Duration {
 	}
 	return d
 }
+
+func mustLoadLocation(s string) *time.Location {
+	l, err := time.LoadLocation(s)
+	if err != nil {
+		panic(err)
+	}
+	return l
+}
+
+var LosAngeles = mustLoadLocation("America/Los_Angeles")
 
 func duration(v time.Duration) *time.Duration {
 	return &v
