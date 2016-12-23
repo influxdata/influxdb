@@ -153,6 +153,47 @@ func TestClient_Query(t *testing.T) {
 	}
 }
 
+func TestClient_BoundParameters(t *testing.T) {
+	var parameterString string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data Response
+		r.ParseForm()
+		parameterString = r.FormValue("params")
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	defer ts.Close()
+
+	config := HTTPConfig{Addr: ts.URL}
+	c, _ := NewHTTPClient(config)
+	defer c.Close()
+
+	expectedParameters := map[string]interface{}{
+		"testStringParameter": "testStringValue",
+		"testNumberParameter": 12.3,
+	}
+
+	query := Query{
+		Parameters: expectedParameters,
+	}
+
+	_, err := c.Query(query)
+	if err != nil {
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	var actualParameters map[string]interface{}
+
+	err = json.Unmarshal([]byte(parameterString), &actualParameters)
+	if err != nil {
+		t.Errorf("unexpected error. expected %v, actual %v", nil, err)
+	}
+
+	if !reflect.DeepEqual(expectedParameters, actualParameters) {
+		t.Errorf("unexpected parameters. expected %v, actual %v", expectedParameters, actualParameters)
+	}
+}
+
 func TestClient_BasicAuth(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		u, p, ok := r.BasicAuth()
