@@ -390,16 +390,12 @@ func (f *LogFile) Series(name []byte, tags models.Tags) SeriesElem {
 		return nil
 	}
 
-	// Find index of series in measurement.
-	i := sort.Search(len(mm.series), func(i int) bool {
-		return models.CompareTags(mm.series[i].tags, tags) != -1
-	})
-
-	// Return if match found. Otherwise return nil.
-	if i < len(mm.series) && mm.series[i].tags.Equal(tags) {
-		return &mm.series[i]
+	key := models.MakeKey(name, tags)
+	serie := mm.series[string(key)]
+	if serie == nil {
+		return nil
 	}
-	return nil
+	return serie
 }
 
 // appendEntry adds a log entry to the end of the file.
@@ -494,19 +490,24 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 		mm.deleted = false
 	}
 
+	// Generate key & series, if not exists.
+	key := models.MakeKey(e.Name, e.Tags)
+	serie := mm.series[string(key)]
+	if serie == nil {
+		serie = &logSerie{name: e.Name, tags: e.Tags, deleted: deleted}
+	}
+	mm.series[string(key)] = serie
+
 	// Save tags.
 	for _, t := range e.Tags {
 		ts := mm.createTagSetIfNotExists(t.Key)
 		tv := ts.createTagValueIfNotExists(t.Value)
 
-		tv.series.insert(e.Name, e.Tags, deleted)
+		tv.series[string(key)] = serie
 
 		ts.tagValues[string(t.Value)] = tv
 		mm.tagSet[string(t.Key)] = ts
 	}
-
-	// Insert series to list.
-	mm.series.insert(e.Name, e.Tags, deleted)
 
 	// Save measurement.
 	f.mms[string(e.Name)] = mm
@@ -540,20 +541,27 @@ func (f *LogFile) SeriesIterator() SeriesIterator {
 	// Combine series across all measurements.
 	series := make(logSeries, 0, n)
 	for _, name := range names {
-		series = append(series, f.mms[string(name)].series...)
+		for _, serie := range f.mms[string(name)].series {
+			series = append(series, *serie)
+		}
 	}
+	sort.Sort(series)
 
 	if len(series) == 0 {
 		return nil
 	}
-	return newLogSeriesIterator(series)
+	return &logSeriesIterator{series: series}
 }
 
 // measurement returns a measurement by name.
 func (f *LogFile) measurement(name []byte) logMeasurement {
 	mm, ok := f.mms[string(name)]
 	if !ok {
-		mm = logMeasurement{name: name, tagSet: make(map[string]logTagKey)}
+		mm = logMeasurement{
+			name:   name,
+			tagSet: make(map[string]logTagKey),
+			series: make(map[string]*logSerie),
+		}
 	}
 	return mm
 }
@@ -588,19 +596,21 @@ func (f *LogFile) WriteTo(w io.Writer) (n int64, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	var t IndexFileTrailer
+	// Wrap in bufferred writer.
+	bw := bufio.NewWriter(w)
 
 	// Reset compaction fields.
+	var t IndexFileTrailer
 	f.reset()
 
 	// Write magic number.
-	if err := writeTo(w, []byte(FileSignature), &n); err != nil {
+	if err := writeTo(bw, []byte(FileSignature), &n); err != nil {
 		return n, err
 	}
 
 	// Write series list.
 	t.SeriesBlock.Offset = n
-	if err := f.writeSeriesBlockTo(w, &n); err != nil {
+	if err := f.writeSeriesBlockTo(bw, &n); err != nil {
 		return n, err
 	}
 	t.SeriesBlock.Size = n - t.SeriesBlock.Offset
@@ -609,21 +619,26 @@ func (f *LogFile) WriteTo(w io.Writer) (n int64, err error) {
 	names := f.mms.names()
 
 	// Write tagset blocks in measurement order.
-	if err := f.writeTagsetsTo(w, names, &n); err != nil {
+	if err := f.writeTagsetsTo(bw, names, &n); err != nil {
 		return n, err
 	}
 
 	// Write measurement block.
 	t.MeasurementBlock.Offset = n
-	if err := f.writeMeasurementBlockTo(w, names, &n); err != nil {
+	if err := f.writeMeasurementBlockTo(bw, names, &n); err != nil {
 		return n, err
 	}
 	t.MeasurementBlock.Size = n - t.MeasurementBlock.Offset
 
 	// Write trailer.
-	nn, err := t.WriteTo(w)
+	nn, err := t.WriteTo(bw)
 	n += nn
 	if err != nil {
+		return n, err
+	}
+
+	// Flush buffer.
+	if err := bw.Flush(); err != nil {
 		return n, err
 	}
 
@@ -642,9 +657,13 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 		mm := f.mms[name]
 
 		// Ensure series are sorted.
-		sort.Sort(mm.series)
-
+		a := make(logSeries, 0, len(mm.series))
 		for _, serie := range mm.series {
+			a = append(a, *serie)
+		}
+		sort.Sort(a)
+
+		for _, serie := range a {
 			if err := sw.Add(serie.name, serie.tags); err != nil {
 				return err
 			}
@@ -673,7 +692,7 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 		mm := f.mms[name]
 
 		for i := range mm.series {
-			serie := &mm.series[i]
+			serie := mm.series[i]
 
 			// Lookup series offset.
 			serie.offset = sw.Offset(serie.name, serie.tags)
@@ -946,27 +965,6 @@ func (a logSeries) Less(i, j int) bool {
 	return models.CompareTags(a[i].tags, a[j].tags) == -1
 }
 
-// insert adds or updates a series in the list.
-func (a *logSeries) insert(name []byte, tags models.Tags, deleted bool) {
-	i := sort.Search(len(*a), func(i int) bool {
-		if cmp := bytes.Compare((*a)[i].name, name); cmp != 0 {
-			return cmp != -1
-		}
-		return models.CompareTags((*a)[i].tags, tags) != -1
-	})
-
-	// Update entry if it already exists.
-	if i < len(*a) && bytes.Equal((*a)[i].name, name) && (*a)[i].tags.Equal(tags) {
-		(*a)[i].deleted = deleted
-		return
-	}
-
-	// Otherwise insert new entry.
-	(*a) = append(*a, logSerie{})
-	copy((*a)[i+1:], (*a)[i:])
-	(*a)[i] = logSerie{name: name, tags: tags, deleted: deleted}
-}
-
 // logMeasurements represents a map of measurement names to measurements.
 type logMeasurements map[string]logMeasurement
 
@@ -984,7 +982,7 @@ type logMeasurement struct {
 	name    []byte
 	tagSet  map[string]logTagKey
 	deleted bool
-	series  logSeriesMap
+	series  map[string]*logSerie
 
 	// Compaction fields.
 	offset    int64    // tagset offset
@@ -1044,7 +1042,7 @@ func (tk *logTagKey) TagValueIterator() TagValueIterator {
 func (tk *logTagKey) createTagValueIfNotExists(value []byte) logTagValue {
 	tv, ok := tk.tagValues[string(value)]
 	if !ok {
-		tv = logTagValue{name: value}
+		tv = logTagValue{name: value, series: make(map[string]*logSerie)}
 	}
 	return tv
 }
@@ -1059,7 +1057,7 @@ func (a logTagKeySlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[
 type logTagValue struct {
 	name    []byte
 	deleted bool
-	series  logSeriesMap
+	series  map[string]*logSerie
 
 	// Compaction fields.
 	seriesIDs []uint32
@@ -1122,13 +1120,16 @@ type logSeriesIterator struct {
 
 // newLogSeriesIterator returns a new instance of logSeriesIterator.
 // All series are copied to the iterator.
-func newLogSeriesIterator(a logSeries) *logSeriesIterator {
-	if len(a) == 0 {
+func newLogSeriesIterator(m map[string]*logSerie) *logSeriesIterator {
+	if len(m) == 0 {
 		return nil
 	}
 
-	itr := logSeriesIterator{series: make(logSeries, len(a))}
-	copy(itr.series, a)
+	itr := logSeriesIterator{series: make(logSeries, 0, len(m))}
+	for _, serie := range m {
+		itr.series = append(itr.series, *serie)
+	}
+	sort.Sort(itr.series)
 	return &itr
 }
 
