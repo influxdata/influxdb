@@ -1,6 +1,4 @@
-const source = ({
-
-}) => {
+const source = () => {
   return ({
     "id": "2",
     "name": "test-user",

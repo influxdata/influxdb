@@ -1,6 +1,4 @@
-const kapacitor = ({
-
-}) => {
+const kapacitor = () => {
   return ({
     "id": "\"1\"",
     "name": "kapa",
