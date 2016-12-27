@@ -36,6 +36,7 @@ const (
 	SUB // -
 	MUL // *
 	DIV // /
+	MOD // %
 
 	AND // AND
 	OR  // OR
