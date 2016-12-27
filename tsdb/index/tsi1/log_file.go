@@ -390,8 +390,7 @@ func (f *LogFile) Series(name []byte, tags models.Tags) SeriesElem {
 		return nil
 	}
 
-	key := models.MakeKey(name, tags)
-	serie := mm.series[string(key)]
+	serie := mm.series[string(AppendSeriesKey(make([]byte, 0, 256), name, tags))]
 	if serie == nil {
 		return nil
 	}
@@ -491,7 +490,7 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	}
 
 	// Generate key & series, if not exists.
-	key := models.MakeKey(e.Name, e.Tags)
+	key := AppendSeriesKey(make([]byte, 0, 256), e.Name, e.Tags)
 	serie := mm.series[string(key)]
 	if serie == nil {
 		serie = &logSerie{name: e.Name, tags: e.Tags, deleted: deleted}
@@ -515,13 +514,13 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	// Update the sketches...
 	if deleted {
 		// TODO(edd) decrement series count...
-		f.sTSketch.Add(models.MakeKey(e.Name, e.Tags)) // Deleting series so update tombstone sketch.
+		f.sTSketch.Add(key) // Deleting series so update tombstone sketch.
 		return
 	}
 
 	// TODO(edd) increment series count....
-	f.sSketch.Add(models.MakeKey(e.Name, e.Tags)) // Add series to sketch.
-	f.mSketch.Add(e.Name)                         // Add measurement to sketch as this may be the fist series for the measurement.
+	f.sSketch.Add(key)    // Add series to sketch.
+	f.mSketch.Add(e.Name) // Add measurement to sketch as this may be the fist series for the measurement.
 }
 
 // SeriesIterator returns an iterator over all series in the log file.
@@ -593,8 +592,8 @@ func (f *LogFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
 
 // WriteTo compacts the log file and writes it to w.
 func (f *LogFile) WriteTo(w io.Writer) (n int64, err error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
+	f.mu.RLock()
+	defer f.mu.RUnlock()
 
 	// Wrap in bufferred writer.
 	bw := bufio.NewWriter(w)
@@ -712,10 +711,11 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 				t.tagValues[string(tag.Value)] = v
 			}
 
+			key := AppendSeriesKey(make([]byte, 0, 256), serie.name, serie.tags)
 			if serie.Deleted() {
-				sw.TSketch.Add(models.MakeKey(serie.name, serie.tags))
+				sw.TSketch.Add(key)
 			} else {
-				sw.Sketch.Add(models.MakeKey(serie.name, serie.tags))
+				sw.Sketch.Add(key)
 			}
 		}
 

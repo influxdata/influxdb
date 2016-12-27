@@ -59,7 +59,7 @@ type SeriesBlock struct {
 
 // HasSeries returns flags indicating if the series exists and if it is tombstoned.
 func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags) (exists, tombstoned bool) {
-	buf := AppendSeriesKey(nil, name, tags)
+	buf := AppendSeriesKey(make([]byte, 0, 256), name, tags)
 	bufN := uint32(len(buf))
 
 	n := blk.seriesIndexN
