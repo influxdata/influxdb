@@ -2,12 +2,21 @@ const rule = ({
   trigger,
   range,
 }) => {
-  let values
+  let values = {
+    "rangeOperator": "greater than",
+    "change": "change",
+    "operator": "greater than",
+    "shift": "1m",
+    "value": "10",
+    "rangeValue": "20",
+    "period": "10m",
+  };
 
   switch (trigger) {
     case 'threshold':
       if (range) {
         values = {
+          ...values,
           "operator": "within range",
           "rangeOperator": "greater than",
           "value": "10",
@@ -16,6 +25,7 @@ const rule = ({
       }
       else {
         values = {
+          ...values,
           "operator": "less than",
           "rangeOperator": "greater than",
           "value": "10",
@@ -25,6 +35,7 @@ const rule = ({
       break;
     case 'relative':
       values = {
+        ...values,
         "change": "change",
         "operator": "greater than",
         "shift": "1m",
@@ -33,6 +44,7 @@ const rule = ({
       break;
     case 'deadman':
       values = {
+        ...values,
         "period": "10m",
       };
       break;
