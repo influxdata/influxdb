@@ -1,5 +1,4 @@
 import React, {PropTypes} from 'react';
-import shallowCompare from 'react-addons-shallow-compare';
 import {Link} from 'react-router';
 import _ from 'lodash';
 
@@ -136,22 +135,32 @@ const HostRow = React.createClass({
       name: PropTypes.string,
       cpu: PropTypes.number,
       load: PropTypes.number,
+      deltaUptime: PropTypes.number.required,
       apps: PropTypes.arrayOf(PropTypes.string.isRequired),
     }),
   },
 
   shouldComponentUpdate(nextProps) {
-    return shallowCompare(this, nextProps);
+    return this.props.host !== nextProps.host;
   },
 
   render() {
     const {host, source} = this.props;
     const {name, cpu, load, apps = []} = host;
 
+    let stateStr = "";
+    if (host.deltaUptime < 0) {
+      stateStr = "table-dot dot-critical";
+    } else if (host.deltaUptime > 0) {
+      stateStr = "table-dot dot-success";
+    } else {
+      stateStr = "table-dot dot-danger";
+    }
+
     return (
       <tr>
         <td className="monotype"><Link to={`/sources/${source.id}/hosts/${name}`}>{name}</Link></td>
-        <td className="text-center"><div className="table-dot dot-success"></div></td>
+        <td className="text-center"><div className={stateStr}></div></td>
         <td className="monotype">{isNaN(cpu) ? 'N/A' : `${cpu.toFixed(2)}%`}</td>
         <td className="monotype">{isNaN(load) ? 'N/A' : `${load.toFixed(2)}`}</td>
         <td className="monotype">

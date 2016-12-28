@@ -70,13 +70,14 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("received status code %d from server", resp.StatusCode)
-	}
 
 	var response Response
 	dec := json.NewDecoder(resp.Body)
 	decErr := dec.Decode(&response)
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("received status code %d from server: err: %s", resp.StatusCode, response.Err)
+	}
 
 	// ignore this error if we got an invalid status code
 	if decErr != nil && decErr.Error() == "EOF" && resp.StatusCode != http.StatusOK {
