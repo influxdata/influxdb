@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/mmap"
@@ -41,6 +42,7 @@ var (
 
 // IndexFile represents a collection of measurement, tag, and series data.
 type IndexFile struct {
+	wg   sync.WaitGroup // ref count
 	data []byte
 
 	// Components
@@ -86,6 +88,12 @@ func (f *IndexFile) Close() error {
 	f.seriesN = 0
 	return mmap.Unmap(f.data)
 }
+
+// Retain adds a reference count to the file.
+func (f *IndexFile) Retain() { f.wg.Add(1) }
+
+// Release removes a reference count from the file.
+func (f *IndexFile) Release() { f.wg.Done() }
 
 // UnmarshalBinary opens an index from data.
 // The byte slice is retained so it must be kept open.

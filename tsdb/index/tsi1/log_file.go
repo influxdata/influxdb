@@ -36,11 +36,12 @@ const (
 // LogFile represents an on-disk write-ahead log file.
 type LogFile struct {
 	mu   sync.RWMutex
-	data []byte        // mmap
-	file *os.File      // writer
-	w    *bufio.Writer // buffered writer
-	buf  []byte        // marshaling buffer
-	size int64         // tracks current file size
+	wg   sync.WaitGroup // ref count
+	data []byte         // mmap
+	file *os.File       // writer
+	w    *bufio.Writer  // buffered writer
+	buf  []byte         // marshaling buffer
+	size int64          // tracks current file size
 
 	mSketch, mTSketch estimator.Sketch // Measurement sketches
 	sSketch, sTSketch estimator.Sketch // Series sketche
@@ -135,6 +136,12 @@ func (f *LogFile) Close() error {
 
 	return nil
 }
+
+// Retain adds a reference count to the file.
+func (f *LogFile) Retain() { f.wg.Add(1) }
+
+// Release removes a reference count from the file.
+func (f *LogFile) Release() { f.wg.Done() }
 
 // Size returns the tracked in-memory file size of the log file.
 func (f *LogFile) Size() int64 {

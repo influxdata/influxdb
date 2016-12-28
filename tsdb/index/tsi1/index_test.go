@@ -26,7 +26,10 @@ func TestIndex_SeriesIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	if err := idx.MultiInvoke(func(state string) {
-		itr := idx.SeriesIterator()
+		fs := idx.RetainFileSet()
+		defer fs.Release()
+
+		itr := fs.SeriesIterator()
 		if itr == nil {
 			t.Fatalf("expected iterator(%s)", state)
 		}
@@ -55,7 +58,10 @@ func TestIndex_SeriesIterator(t *testing.T) {
 
 	// Verify additional series.
 	if err := idx.MultiInvoke(func(state string) {
-		itr := idx.SeriesIterator()
+		fs := idx.RetainFileSet()
+		defer fs.Release()
+
+		itr := fs.SeriesIterator()
 		if itr == nil {
 			t.Fatalf("expected iterator(%s)", state)
 		}
@@ -151,7 +157,10 @@ func TestIndex_MeasurementSeriesIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	if err := idx.MultiInvoke(func(state string) {
-		itr := idx.MeasurementSeriesIterator([]byte("cpu"))
+		fs := idx.RetainFileSet()
+		defer fs.Release()
+
+		itr := fs.MeasurementSeriesIterator([]byte("cpu"))
 		if itr == nil {
 			t.Fatalf("expected iterator(%s)", state)
 		}
@@ -177,7 +186,10 @@ func TestIndex_MeasurementSeriesIterator(t *testing.T) {
 
 	// Verify additional series.
 	if err := idx.MultiInvoke(func(state string) {
-		itr := idx.MeasurementSeriesIterator([]byte("cpu"))
+		fs := idx.RetainFileSet()
+		defer fs.Release()
+
+		itr := fs.MeasurementSeriesIterator([]byte("cpu"))
 		if itr == nil {
 			t.Fatalf("expected iterator(%s)", state)
 		}
@@ -211,7 +223,10 @@ func TestIndex_MeasurementIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	if err := idx.MultiInvoke(func(state string) {
-		itr := idx.MeasurementIterator()
+		fs := idx.RetainFileSet()
+		defer fs.Release()
+
+		itr := fs.MeasurementIterator()
 		if itr == nil {
 			t.Fatalf("expected iterator(%s)", state)
 		}
@@ -237,7 +252,10 @@ func TestIndex_MeasurementIterator(t *testing.T) {
 
 	// Verify additional series.
 	if err := idx.MultiInvoke(func(state string) {
-		itr := idx.MeasurementIterator()
+		fs := idx.RetainFileSet()
+		defer fs.Release()
+
+		itr := fs.MeasurementIterator()
 		if itr == nil {
 			t.Fatalf("expected iterator(%s)", state)
 		}
@@ -272,7 +290,10 @@ func TestIndex_TagKeyIterator(t *testing.T) {
 
 	// Verify initial set of series.
 	if err := idx.MultiInvoke(func(state string) {
-		itr := idx.TagKeyIterator([]byte("cpu"))
+		fs := idx.RetainFileSet()
+		defer fs.Release()
+
+		itr := fs.TagKeyIterator([]byte("cpu"))
 		if itr == nil {
 			t.Fatalf("expected iterator(%s)", state)
 		}
@@ -298,7 +319,10 @@ func TestIndex_TagKeyIterator(t *testing.T) {
 
 	// Verify additional series.
 	if err := idx.MultiInvoke(func(state string) {
-		itr := idx.TagKeyIterator([]byte("cpu"))
+		fs := idx.RetainFileSet()
+		defer fs.Release()
+
+		itr := fs.TagKeyIterator([]byte("cpu"))
 		if itr == nil {
 			t.Fatalf("expected iterator(%s)", state)
 		}
