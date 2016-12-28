@@ -1406,6 +1406,10 @@ func (p *point) StringSize() int {
 }
 
 func (p *point) MarshalBinary() ([]byte, error) {
+	if len(p.fields) == 0 {
+		return nil, ErrPointMustHaveAField
+	}
+
 	tb, err := p.time.MarshalBinary()
 	if err != nil {
 		return nil, err
