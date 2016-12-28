@@ -1,3 +1,4 @@
+// The influx command is a CLI client to InfluxDB.
 package main
 
 import (

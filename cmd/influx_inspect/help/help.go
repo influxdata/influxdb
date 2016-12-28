@@ -1,3 +1,4 @@
+// Package help contains the help for the influx_inspect command.
 package help
 
 import (

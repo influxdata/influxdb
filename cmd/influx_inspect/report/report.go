@@ -1,3 +1,4 @@
+// Package report reports statistics about TSM files.
 package report
 
 import (

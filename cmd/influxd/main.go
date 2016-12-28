@@ -1,3 +1,4 @@
+// Command influxd is the InfluxDB server.
 package main
 
 import (

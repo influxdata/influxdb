@@ -1,3 +1,4 @@
+// Package stats contains statistics for converting non-TSM shards to TSM.
 package stats
 
 import (
