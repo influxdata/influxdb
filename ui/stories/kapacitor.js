@@ -1,6 +1,8 @@
 import React from 'react';
 import {storiesOf, action, linkTo} from '@kadira/storybook';
 
+import {spyActions} from './shared'
+
 // Stubs
 import kapacitor from './stubs/kapacitor';
 import source from './stubs/source';
