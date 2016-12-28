@@ -1,8 +1,8 @@
 const rule = ({
   trigger,
-  range,
+  values,
 }) => {
-  let values = {
+  values = {
     "rangeOperator": "greater than",
     "change": "change",
     "operator": "greater than",
@@ -10,45 +10,8 @@ const rule = ({
     "value": "10",
     "rangeValue": "20",
     "period": "10m",
+    ...values,
   };
-
-  switch (trigger) {
-    case 'threshold':
-      if (range) {
-        values = {
-          ...values,
-          "operator": "within range",
-          "rangeOperator": "greater than",
-          "value": "10",
-          "rangeValue": "20",
-        };
-      }
-      else {
-        values = {
-          ...values,
-          "operator": "less than",
-          "rangeOperator": "greater than",
-          "value": "10",
-          "rangeValue": "20",
-        };
-      }
-      break;
-    case 'relative':
-      values = {
-        ...values,
-        "change": "change",
-        "operator": "greater than",
-        "shift": "1m",
-        "value": "10",
-      };
-      break;
-    case 'deadman':
-      values = {
-        ...values,
-        "period": "10m",
-      };
-      break;
-  }
 
   return ({
     "id": "chronograf-v1-08cdb16b-7874-4c8f-858d-1c07043cb2f5",

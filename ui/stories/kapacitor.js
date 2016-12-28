@@ -18,12 +18,12 @@ import * as queryActions from 'src/chronograf/actions/view';
 import KapacitorRule from 'src/kapacitor/components/KapacitorRule';
 import ValuesSection from 'src/kapacitor/components/ValuesSection';
 
-const valuesSection = (trigger, range = false) => (
+const valuesSection = (trigger, values) => (
   <div className="rule-builder">
     <ValuesSection
       rule={rule({
         trigger,
-        range,
+        values,
       })}
       query={query()}
       onChooseTrigger={action('chooseTrigger')}
@@ -34,16 +34,41 @@ const valuesSection = (trigger, range = false) => (
 
 storiesOf('ValuesSection', module)
   .add('Threshold', () => (
-    valuesSection('threshold')
+    valuesSection('threshold', {
+      "operator": "less than",
+      "rangeOperator": "greater than",
+      "value": "10",
+      "rangeValue": "20",
+    })
   ))
-  .add('Threshold with Range', () => (
-    valuesSection('threshold', true)
+  .add('Threshold within Range', () => (
+    valuesSection('threshold', {
+      "operator": "within range",
+      "rangeOperator": "greater than",
+      "value": "10",
+      "rangeValue": "20",
+    })
   ))
+  // .add('Threshold outside of Range', () => (
+  //   valuesSection('threshold', {
+  //     "operator": "otuside of range",
+  //     "rangeOperator": "less than",
+  //     "value": "10",
+  //     "rangeValue": "20",
+  //   })
+  // ))
   .add('Relative', () => (
-    valuesSection('relative')
+    valuesSection('relative', {
+      "change": "change",
+      "operator": "greater than",
+      "shift": "1m",
+      "value": "10",
+    })
   ))
   .add('Deadman', () => (
-    valuesSection('deadman')
+    valuesSection('deadman', {
+      "period": "10m",
+    })
   ));
 
 storiesOf('KapacitorRule', module)
