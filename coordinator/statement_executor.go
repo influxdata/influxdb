@@ -17,6 +17,8 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
+// ErrDatabaseNameRequired is returned when executing statements that require a database,
+// when a database has not been provided.
 var ErrDatabaseNameRequired = errors.New("database name required")
 
 type pointsWriter interface {
@@ -45,6 +47,7 @@ type StatementExecutor struct {
 	MaxSelectBucketsN int
 }
 
+// ExecuteStatement executes the given statement with the given execution context.
 func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
 	// Select statements are handled separately so that they can be streamed.
 	if stmt, ok := stmt.(*influxql.SelectStatement); ok {
@@ -906,6 +909,8 @@ func (e *StatementExecutor) executeShowUsersStatement(q *influxql.ShowUsersState
 	return []*models.Row{row}, nil
 }
 
+// BufferedPointsWriter adds buffering to a pointsWriter so that SELECT INTO queries
+// write their points to the destination in batches.
 type BufferedPointsWriter struct {
 	w               pointsWriter
 	buf             []models.Point
@@ -913,6 +918,7 @@ type BufferedPointsWriter struct {
 	retentionPolicy string
 }
 
+// NewBufferedPointsWriter returns a new BufferedPointsWriter.
 func NewBufferedPointsWriter(w pointsWriter, database, retentionPolicy string, capacity int) *BufferedPointsWriter {
 	return &BufferedPointsWriter{
 		w:               w,
@@ -922,6 +928,7 @@ func NewBufferedPointsWriter(w pointsWriter, database, retentionPolicy string, c
 	}
 }
 
+// WritePointsInto implements pointsWriter for BufferedPointsWriter.
 func (w *BufferedPointsWriter) WritePointsInto(req *IntoWriteRequest) error {
 	// Make sure we're buffering points only for the expected destination.
 	if req.Database != w.database || req.RetentionPolicy != w.retentionPolicy {
@@ -1147,10 +1154,15 @@ type TSDBStore interface {
 	TagValues(database string, cond influxql.Expr) ([]tsdb.TagValues, error)
 }
 
+var _ TSDBStore = LocalTSDBStore{}
+
+// LocalTSDBStore embeds a tsdb.Store and implements IteratorCreator
+// to satisfy the TSDBStore interface.
 type LocalTSDBStore struct {
 	*tsdb.Store
 }
 
+// IteratorCreator returns an influxql.IteratorCreator for the given shards, with the given select options.
 func (s LocalTSDBStore) IteratorCreator(shards []meta.ShardInfo, opt *influxql.SelectOptions) (influxql.IteratorCreator, error) {
 	shardIDs := make([]uint64, len(shards))
 	for i, sh := range shards {
