@@ -1,3 +1,4 @@
+// Package v8 contains code for importing data from 0.8 instances of InfluxDB.
 package v8 // import "github.com/influxdata/influxdb/importer/v8"
 
 import (
