@@ -680,7 +680,7 @@ func TestApplyTemplateField(t *testing.T) {
 
 	measurement, _, field, err := p.ApplyTemplate("current.users.logged_in")
 	if err != nil {
-		t.Fatalf(err)
+		t.Fatal(err)
 	}
 
 	if measurement != "current_users" {
