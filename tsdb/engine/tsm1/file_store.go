@@ -845,6 +845,10 @@ func ParseTSMFileName(name string) (int, int, error) {
 	}
 
 	generation, err := strconv.ParseUint(id[:idx], 10, 32)
+	if err != nil {
+		return 0, 0, err
+	}
+
 	sequence, err := strconv.ParseUint(id[idx+1:], 10, 32)
 
 	return int(generation), int(sequence), err

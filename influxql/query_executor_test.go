@@ -143,7 +143,7 @@ func TestQueryExecutor_Abort(t *testing.T) {
 }
 
 func TestQueryExecutor_ShowQueries(t *testing.T) {
-	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
+	_, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestQueryExecutor_ShowQueries(t *testing.T) {
 		},
 	}
 
-	q, err = influxql.ParseQuery(`SHOW QUERIES`)
+	q, err := influxql.ParseQuery(`SHOW QUERIES`)
 	if err != nil {
 		t.Fatal(err)
 	}

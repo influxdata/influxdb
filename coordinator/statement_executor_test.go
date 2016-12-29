@@ -198,7 +198,7 @@ func NewQueryExecutor() *QueryExecutor {
 
 	var out io.Writer = &e.LogOutput
 	if testing.Verbose() {
-		out = io.MultiWriter(out, os.Stderr)
+		io.MultiWriter(out, os.Stderr)
 	}
 	e.QueryExecutor.WithLogger(zap.New(
 		zap.NewTextEncoder(),

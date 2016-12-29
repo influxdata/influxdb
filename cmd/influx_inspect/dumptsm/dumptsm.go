@@ -113,12 +113,9 @@ func (cmd *Command) dump() error {
 				pos++
 				split := strings.Split(string(key), "#!~#")
 
-				// We dont' know know if we have fields so use an informative default
-				var measurement, field string = "UNKNOWN", "UNKNOWN"
-
 				// Possible corruption? Try to read as much as we can and point to the problem.
-				measurement = split[0]
-				field = split[1]
+				measurement := split[0]
+				field := split[1]
 
 				if cmd.filterKey != "" && !strings.Contains(string(key), cmd.filterKey) {
 					continue

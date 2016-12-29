@@ -173,12 +173,12 @@ func TestTombstoner_ReadV1(t *testing.T) {
 
 	ts := &tsm1.Tombstoner{Path: f.Name()}
 
-	entries, err := ts.ReadAll()
+	_, err := ts.ReadAll()
 	if err != nil {
 		fatal(t, "ReadAll", err)
 	}
 
-	entries, err = ts.ReadAll()
+	entries, err := ts.ReadAll()
 	if err != nil {
 		fatal(t, "ReadAll", err)
 	}
@@ -220,12 +220,12 @@ func TestTombstoner_ReadEmptyV1(t *testing.T) {
 
 	ts := &tsm1.Tombstoner{Path: f.Name()}
 
-	entries, err := ts.ReadAll()
+	_, err := ts.ReadAll()
 	if err != nil {
 		fatal(t, "ReadAll", err)
 	}
 
-	entries, err = ts.ReadAll()
+	entries, err := ts.ReadAll()
 	if err != nil {
 		fatal(t, "ReadAll", err)
 	}

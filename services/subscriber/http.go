@@ -24,6 +24,10 @@ func NewHTTP(addr string, timeout time.Duration) (*HTTP, error) {
 func NewHTTPS(addr string, timeout time.Duration, unsafeSsl bool, caCerts string) (*HTTP, error) {
 	tlsConfig, err := createTlsConfig(caCerts)
 
+	if err != nil {
+		return nil, err
+	}
+
 	conf := client.HTTPConfig{
 		Addr:               addr,
 		Timeout:            timeout,
