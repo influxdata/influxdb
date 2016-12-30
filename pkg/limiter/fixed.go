@@ -16,3 +16,7 @@ func (t Fixed) Take() {
 func (t Fixed) Release() {
 	<-t
 }
+
+func (t Fixed) InUse() int {
+	return len(t)
+}

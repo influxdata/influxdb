@@ -300,6 +300,16 @@ func (l *WAL) LastWriteTime() time.Time {
 }
 
 func (l *WAL) writeToLog(entry WALEntry) (int, error) {
+	id, ch, err := l.writeToLogDo(entry)
+	if err != nil {
+		return -1, err
+	}
+	// wait for writer is synced
+	<-ch
+	return id, nil
+}
+
+func (l *WAL) writeToLogDo(entry WALEntry) (int, chan struct{}, error) {
 	// limit how many concurrent encodings can be in flight.  Since we can only
 	// write one at a time to disk, a slow disk can cause the allocations below
 	// to increase quickly.  If we're backed up, wait until others have completed.
@@ -312,7 +322,7 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 
 	b, err := entry.Encode(bytes)
 	if err != nil {
-		return -1, err
+		return -1, nil, err
 	}
 
 	encBuf := getBuf(snappy.MaxEncodedLen(len(b)))
@@ -325,18 +335,18 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	// Make sure the log has not been closed
 	select {
 	case <-l.closing:
-		return -1, ErrWALClosed
+		return -1, nil, ErrWALClosed
 	default:
 	}
 
 	// roll the segment file if needed
 	if err := l.rollSegment(); err != nil {
-		return -1, fmt.Errorf("error rolling WAL segment: %v", err)
+		return -1, nil, fmt.Errorf("error rolling WAL segment: %v", err)
 	}
 
 	// write and sync
 	if err := l.currentSegmentWriter.Write(entry.Type(), compressed); err != nil {
-		return -1, fmt.Errorf("error writing WAL entry: %v", err)
+		return -1, nil, fmt.Errorf("error writing WAL entry: %v", err)
 	}
 
 	// Update stats for current segment size
@@ -344,7 +354,11 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 
 	l.lastWriteTime = time.Now()
 
-	return l.currentSegmentID, l.currentSegmentWriter.sync()
+	ch := l.currentSegmentWriter.syncChan()
+	if err := l.currentSegmentWriter.sync(l.limiter.InUse() == 1); err != nil {
+		return -1, nil, err
+	}
+	return l.currentSegmentID, ch, nil
 }
 
 // rollSegment closes the current segment and opens a new one if the current segment is over
@@ -855,13 +869,16 @@ func (w *DeleteRangeWALEntry) Type() WalEntryType {
 
 // WALSegmentWriter writes WAL segments.
 type WALSegmentWriter struct {
-	w    io.WriteCloser
-	size int
+	w                     io.WriteCloser
+	size                  int
+	syncWaiter            chan struct{}
+	lastUnsyncedWriteTime time.Time
 }
 
 func NewWALSegmentWriter(w io.WriteCloser) *WALSegmentWriter {
 	return &WALSegmentWriter{
-		w: w,
+		w:          w,
+		syncWaiter: make(chan struct{}),
 	}
 }
 
@@ -888,11 +905,25 @@ func (w *WALSegmentWriter) Write(entryType WalEntryType, compressed []byte) erro
 
 	w.size += len(buf) + len(compressed)
 
+	if w.lastUnsyncedWriteTime.IsZero() {
+		w.lastUnsyncedWriteTime = time.Now()
+	}
 	return nil
 }
 
+func (w *WALSegmentWriter) syncChan() chan struct{} {
+	return w.syncWaiter
+}
+
 // Sync flushes the file systems in-memory copy of recently written data to disk.
-func (w *WALSegmentWriter) sync() error {
+func (w *WALSegmentWriter) sync(force bool) error {
+	if !force && time.Since(w.lastUnsyncedWriteTime) < 100*time.Millisecond {
+		return nil
+	}
+
+	defer close(w.syncWaiter)
+	w.syncWaiter = make(chan struct{})
+	w.lastUnsyncedWriteTime = time.Time{}
 	if f, ok := w.w.(*os.File); ok {
 		return f.Sync()
 	}
@@ -900,6 +931,9 @@ func (w *WALSegmentWriter) sync() error {
 }
 
 func (w *WALSegmentWriter) close() error {
+	if err := w.sync(true); err != nil {
+		return err
+	}
 	return w.w.Close()
 }
 
