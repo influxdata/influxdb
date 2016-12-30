@@ -158,7 +158,8 @@ func (cmd *Command) unpackMeta() error {
 
 	// Size of the node.json bytes
 	i += 8
-	nodeBytes := b[i:]
+	length = int(binary.BigEndian.Uint64(b[i : i+8]))
+	nodeBytes := b[i : i+length]
 
 	// Unpack into metadata.
 	var data meta.Data
