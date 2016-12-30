@@ -202,7 +202,7 @@ func NewQueryExecutor() *QueryExecutor {
 	}
 	e.QueryExecutor.WithLogger(zap.New(
 		zap.NewTextEncoder(),
-		zap.Output(os.Stderr),
+		zap.Output(zap.AddSync(out)),
 	))
 
 	return e

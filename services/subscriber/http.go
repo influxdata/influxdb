@@ -23,6 +23,9 @@ func NewHTTP(addr string, timeout time.Duration) (*HTTP, error) {
 // NewHTTPS returns a new HTTPS points writer with default options and HTTPS configured
 func NewHTTPS(addr string, timeout time.Duration, unsafeSsl bool, caCerts string) (*HTTP, error) {
 	tlsConfig, err := createTlsConfig(caCerts)
+	if err != nil {
+		return nil, err
+	}
 
 	conf := client.HTTPConfig{
 		Addr:               addr,

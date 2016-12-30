@@ -44,7 +44,6 @@ func (c *Client) MetastoreBackup() (*meta.Data, error) {
 	length := int(binary.BigEndian.Uint64(b[i : i+8]))
 	i += 8
 	metaBytes := b[i : i+length]
-	i += int(length)
 
 	// Unpack meta data.
 	var data meta.Data

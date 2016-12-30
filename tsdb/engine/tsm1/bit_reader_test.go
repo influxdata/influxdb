@@ -17,6 +17,9 @@ func TestBitStreamEOF(t *testing.T) {
 	br := tsm1.NewBitReader([]byte("0"))
 
 	b, err := br.ReadBits(8)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if b != '0' {
 		t.Error("ReadBits(8) didn't return first byte")
 	}
