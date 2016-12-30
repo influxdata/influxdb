@@ -1,8 +1,17 @@
 ## v1.1.0 [unreleased]
 
 ### Upcoming Features
+
+## v1.1.0-beta4 [2016-12-30]
+
+### Features
   1. [#691](https://github.com/influxdata/chronograf/issues/691): Add server-side dashboard API
-  1. [#609](https://github.com/influxdata/chronograf/issues/609): Add singlestat graph type to the Data Explorer
+  2. [#709](https://github.com/influxdata/chronograf/pull/709): Add kapacitor range alerting to API
+  3. [#672(https://github.com/influxdata/chronograf/pull/672): Added visual indicator for down hosts
+  4. [#612](https://github.com/influxdata/chronograf/issues/612): Add dashboard menu
+
+### Bug Fixes
+  1. [679](https://github.com/influxdata/chronograf/issues/679): Fix version display
 
 ## v1.1.0-beta3 [2016-12-16]
 
