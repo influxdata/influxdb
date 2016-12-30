@@ -21,9 +21,9 @@ type DataType int
 const (
 	// Unknown primitive data type.
 	Unknown DataType = 0
-	// Float means the data type is a float
+	// Float means the data type is a float.
 	Float = 1
-	// Integer means the data type is a integer
+	// Integer means the data type is an integer.
 	Integer = 2
 	// String means the data type is a string of text.
 	String = 3
@@ -74,6 +74,7 @@ func InspectDataTypes(a []interface{}) []DataType {
 	return dta
 }
 
+// String returns the human-readable string representation of the DataType.
 func (d DataType) String() string {
 	switch d {
 	case Float:
@@ -98,6 +99,8 @@ func (d DataType) String() string {
 
 // Node represents a node in the InfluxDB abstract syntax tree.
 type Node interface {
+	// node is unexported to ensure implementations of Node
+	// can only originate in this package.
 	node()
 	String() string
 }
@@ -194,6 +197,8 @@ func (a Statements) String() string {
 // Statement represents a single command in InfluxQL.
 type Statement interface {
 	Node
+	// stmt is unexported to ensure implementations of Statement
+	// can only originate in this package.
 	stmt()
 	RequiredPrivileges() (ExecutionPrivileges, error)
 }
@@ -201,6 +206,8 @@ type Statement interface {
 // HasDefaultDatabase provides an interface to get the default database from a Statement.
 type HasDefaultDatabase interface {
 	Node
+	// stmt is unexported to ensure implementations of HasDefaultDatabase
+	// can only originate in this package.
 	stmt()
 	DefaultDatabase() string
 }
@@ -264,6 +271,8 @@ func (*SetPasswordUserStatement) stmt()       {}
 // Expr represents an expression that can be evaluated to a value.
 type Expr interface {
 	Node
+	// expr is unexported to ensure implementations of Expr
+	// can only originate in this package.
 	expr()
 }
 
@@ -286,6 +295,8 @@ func (*Wildcard) expr()        {}
 // Literal represents a static literal.
 type Literal interface {
 	Expr
+	// literal is unexported to ensure implementations of Literal
+	// can only originate in this package.
 	literal()
 }
 
@@ -302,6 +313,8 @@ func (*TimeLiteral) literal()     {}
 // Source represents a source of data for a statement.
 type Source interface {
 	Node
+	// source is unexported to ensure implementations of Source
+	// can only originate in this package.
 	source()
 }
 
@@ -420,14 +433,14 @@ func IsSystemName(name string) bool {
 
 // SortField represents a field to sort results by.
 type SortField struct {
-	// Name of the field
+	// Name of the field.
 	Name string
 
 	// Sort order.
 	Ascending bool
 }
 
-// String returns a string representation of a sort field
+// String returns a string representation of a sort field.
 func (field *SortField) String() string {
 	var buf bytes.Buffer
 	if field.Name != "" {
@@ -442,10 +455,10 @@ func (field *SortField) String() string {
 	return buf.String()
 }
 
-// SortFields represents an ordered list of ORDER BY fields
+// SortFields represents an ordered list of ORDER BY fields.
 type SortFields []*SortField
 
-// String returns a string representation of sort fields
+// String returns a string representation of sort fields.
 func (a SortFields) String() string {
 	fields := make([]string, 0, len(a))
 	for _, field := range a {
@@ -459,19 +472,19 @@ type CreateDatabaseStatement struct {
 	// Name of the database to be created.
 	Name string
 
-	// RetentionPolicyCreate indicates whether the user explicitly wants to create a retention policy
+	// RetentionPolicyCreate indicates whether the user explicitly wants to create a retention policy.
 	RetentionPolicyCreate bool
 
-	// RetentionPolicyDuration indicates retention duration for the new database
+	// RetentionPolicyDuration indicates retention duration for the new database.
 	RetentionPolicyDuration *time.Duration
 
-	// RetentionPolicyReplication indicates retention replication for the new database
+	// RetentionPolicyReplication indicates retention replication for the new database.
 	RetentionPolicyReplication *int
 
-	// RetentionPolicyName indicates retention name for the new database
+	// RetentionPolicyName indicates retention name for the new database.
 	RetentionPolicyName string
 
-	// RetentionPolicyShardGroupDuration indicates shard group duration for the new database
+	// RetentionPolicyShardGroupDuration indicates shard group duration for the new database.
 	RetentionPolicyShardGroupDuration time.Duration
 }
 
@@ -708,7 +721,7 @@ func (s *KillQueryStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 
 // SetPasswordUserStatement represents a command for changing user password.
 type SetPasswordUserStatement struct {
-	// Plain Password
+	// Plain-text password.
 	Password string
 
 	// Who to grant the privilege to.
@@ -795,7 +808,7 @@ type CreateRetentionPolicyStatement struct {
 	// Should this policy be set as default for the database?
 	Default bool
 
-	// Shard Duration
+	// Shard Duration.
 	ShardGroupDuration time.Duration
 }
 
@@ -842,7 +855,7 @@ type AlterRetentionPolicyStatement struct {
 	// Should this policy be set as defalut for the database?
 	Default bool
 
-	// Duration of the Shard
+	// Duration of the Shard.
 	ShardGroupDuration *time.Duration
 }
 
@@ -881,7 +894,7 @@ func (s *AlterRetentionPolicyStatement) RequiredPrivileges() (ExecutionPrivilege
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
 }
 
-// FillOption represents different options for aggregate windows.
+// FillOption represents different options for filling aggregate windows.
 type FillOption int
 
 const (
@@ -889,11 +902,11 @@ const (
 	NullFill FillOption = iota
 	// NoFill means that empty aggregate windows will be purged from the result.
 	NoFill
-	// NumberFill means that empty aggregate windows will be filled with the given number
+	// NumberFill means that empty aggregate windows will be filled with a provided number.
 	NumberFill
-	// PreviousFill means that empty aggregate windows will be filled with whatever the previous aggregate window had
+	// PreviousFill means that empty aggregate windows will be filled with whatever the previous aggregate window had.
 	PreviousFill
-	// LinearFill means that empty aggregate windows will be filled with whatever a linear value between non null windows
+	// LinearFill means that empty aggregate windows will be filled with whatever a linear value between non null windows.
 	LinearFill
 )
 
@@ -902,19 +915,19 @@ type SelectStatement struct {
 	// Expressions returned from the selection.
 	Fields Fields
 
-	// Target (destination) for the result of the select.
+	// Target (destination) for the result of a SELECT INTO query.
 	Target *Target
 
 	// Expressions used for grouping the selection.
 	Dimensions Dimensions
 
-	// Data sources that fields are extracted from.
+	// Data sources (measurements) that fields are extracted from.
 	Sources Sources
 
 	// An expression evaluated on data point.
 	Condition Expr
 
-	// Fields to sort results by
+	// Fields to sort results by.
 	SortFields SortFields
 
 	// Maximum number of rows to be returned. Unlimited if zero.
@@ -929,16 +942,16 @@ type SelectStatement struct {
 	// Returns series starting at an offset from the first one.
 	SOffset int
 
-	// memoize the group by interval
+	// Memoized group by interval from GroupBy().
 	groupByInterval time.Duration
 
-	// if it's a query for raw data values (i.e. not an aggregate)
+	// Whether it's a query for raw data values (i.e. not an aggregate).
 	IsRawQuery bool
 
-	// What fill option the select statement uses, if any
+	// What fill option the select statement uses, if any.
 	Fill FillOption
 
-	// The value to fill empty aggregate buckets with, if any
+	// The value to fill empty aggregate buckets with, if any.
 	FillValue interface{}
 
 	// Renames the implicit time field name.
@@ -951,8 +964,8 @@ type SelectStatement struct {
 	Dedupe bool
 }
 
-// HasDerivative returns true if one of the function calls in the statement is a
-// derivative aggregate
+// HasDerivative returns true if any function call in the statement is a
+// derivative aggregate.
 func (s *SelectStatement) HasDerivative() bool {
 	for _, f := range s.FunctionCalls() {
 		if f.Name == "derivative" || f.Name == "non_negative_derivative" {
@@ -962,8 +975,8 @@ func (s *SelectStatement) HasDerivative() bool {
 	return false
 }
 
-// IsSimpleDerivative return true if one of the function call is a derivative function with a
-// variable ref as the first arg
+// IsSimpleDerivative return true if any function call is a derivative function with a
+// variable ref as the first arg.
 func (s *SelectStatement) IsSimpleDerivative() bool {
 	for _, f := range s.FunctionCalls() {
 		if f.Name == "derivative" || f.Name == "non_negative_derivative" {
@@ -1236,7 +1249,7 @@ func (s *SelectStatement) RewriteFields(ic IteratorCreator) (*SelectStatement, e
 	return other, nil
 }
 
-// RewriteRegexExprs rewrites regex conditions to make better use of the
+// RewriteRegexConditions rewrites regex conditions to make better use of the
 // database index.
 //
 // Conditions that can currently be simplified are:
@@ -1323,8 +1336,8 @@ func matchExactRegex(v string) (string, bool) {
 	return "", true
 }
 
-// RewriteDistinct rewrites the expression to be a call for map/reduce to work correctly
-// This method assumes all validation has passed
+// RewriteDistinct rewrites the expression to be a call for map/reduce to work correctly.
+// This method assumes all validation has passed.
 func (s *SelectStatement) RewriteDistinct() {
 	WalkFunc(s.Fields, func(n Node) {
 		switch n := n.(type) {
@@ -1357,7 +1370,7 @@ func (s *SelectStatement) RewriteTimeFields() {
 }
 
 // ColumnNames will walk all fields and functions and return the appropriate field names for the select statement
-// while maintaining order of the field names
+// while maintaining order of the field names.
 func (s *SelectStatement) ColumnNames() []string {
 	// First walk each field to determine the number of columns.
 	columnFields := Fields{}
@@ -1426,8 +1439,8 @@ func (s *SelectStatement) ColumnNames() []string {
 	return columnNames
 }
 
-// HasTimeFieldSpecified will walk all fields and determine if the user explicitly asked for time
-// This is needed to determine re-write behaviors for functions like TOP and BOTTOM
+// HasTimeFieldSpecified will walk all fields and determine if the user explicitly asked for time.
+// This is needed to determine re-write behaviors for functions like TOP and BOTTOM.
 func (s *SelectStatement) HasTimeFieldSpecified() bool {
 	for _, f := range s.Fields {
 		if f.Name() == "time" {
@@ -1515,12 +1528,12 @@ func (s *SelectStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ep, nil
 }
 
-// HasWildcard returns whether or not the select statement has at least 1 wildcard
+// HasWildcard returns whether or not the select statement has at least 1 wildcard.
 func (s *SelectStatement) HasWildcard() bool {
 	return s.HasFieldWildcard() || s.HasDimensionWildcard()
 }
 
-// HasFieldWildcard returns whether or not the select statement has at least 1 wildcard in the fields
+// HasFieldWildcard returns whether or not the select statement has at least 1 wildcard in the fields.
 func (s *SelectStatement) HasFieldWildcard() (hasWildcard bool) {
 	WalkFunc(s.Fields, func(n Node) {
 		if hasWildcard {
@@ -1535,7 +1548,7 @@ func (s *SelectStatement) HasFieldWildcard() (hasWildcard bool) {
 }
 
 // HasDimensionWildcard returns whether or not the select statement has
-// at least 1 wildcard in the dimensions aka `GROUP BY`
+// at least 1 wildcard in the dimensions aka `GROUP BY`.
 func (s *SelectStatement) HasDimensionWildcard() bool {
 	for _, d := range s.Dimensions {
 		switch d.Expr.(type) {
@@ -1698,7 +1711,7 @@ func (s *SelectStatement) validTopBottomAggr(expr *Call) error {
 	return nil
 }
 
-// validPercentileAggr determines if PERCENTILE have valid arguments.
+// validPercentileAggr determines if the call to PERCENTILE has valid arguments.
 func (s *SelectStatement) validPercentileAggr(expr *Call) error {
 	if err := s.validSelectWithAggregate(); err != nil {
 		return err
@@ -1722,7 +1735,7 @@ func (s *SelectStatement) validPercentileAggr(expr *Call) error {
 	}
 }
 
-// validPercentileAggr determines if PERCENTILE have valid arguments.
+// validPercentileAggr determines if the call to SAMPLE has valid arguments.
 func (s *SelectStatement) validSampleAggr(expr *Call) error {
 	if err := s.validSelectWithAggregate(); err != nil {
 		return err
@@ -1917,9 +1930,8 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	return nil
 }
 
-// HasDistinct checks if a select statement contains DISTINCT
+// HasDistinct checks if a select statement contains a call to DISTINCT.
 func (s *SelectStatement) HasDistinct() bool {
-	// determine if we have a call named distinct
 	for _, f := range s.Fields {
 		switch c := f.Expr.(type) {
 		case *Call:
@@ -2029,13 +2041,13 @@ func (s *SelectStatement) SetTimeRange(start, end time.Time) error {
 		return err
 	}
 
-	// fold out any previously replaced time dimensios and set the condition
+	// Fold out any previously replaced time dimensions and set the condition.
 	s.Condition = Reduce(expr, nil)
 
 	return nil
 }
 
-// rewriteWithoutTimeDimensions will remove any WHERE time... clauses from the select statement
+// rewriteWithoutTimeDimensions will remove any WHERE time... clauses from the select statement.
 // This is necessary when setting an explicit time range to override any that previously existed.
 func (s *SelectStatement) rewriteWithoutTimeDimensions() string {
 	n := RewriteFunc(s.Condition, func(n Node) Node {
@@ -2055,7 +2067,7 @@ func (s *SelectStatement) rewriteWithoutTimeDimensions() string {
 	return n.String()
 }
 
-// NamesInWhere returns the field and tag names (idents) referenced in the where clause
+// NamesInWhere returns the field and tag names (idents) referenced in the where clause.
 func (s *SelectStatement) NamesInWhere() []string {
 	var a []string
 	if s.Condition != nil {
@@ -2064,7 +2076,7 @@ func (s *SelectStatement) NamesInWhere() []string {
 	return a
 }
 
-// NamesInSelect returns the field and tag names (idents) in the select clause
+// NamesInSelect returns the field and tag names (idents) in the select clause.
 func (s *SelectStatement) NamesInSelect() []string {
 	var a []string
 
@@ -2075,7 +2087,7 @@ func (s *SelectStatement) NamesInSelect() []string {
 	return a
 }
 
-// NamesInDimension returns the field and tag names (idents) in the group by
+// NamesInDimension returns the field and tag names (idents) in the group by clause.
 func (s *SelectStatement) NamesInDimension() []string {
 	var a []string
 
@@ -2105,7 +2117,7 @@ func LimitTagSets(a []*TagSet, slimit, soffset int) []*TagSet {
 	return a[soffset : soffset+slimit]
 }
 
-// walkNames will walk the Expr and return the database fields
+// walkNames will walk the Expr and return the identifier names used.
 func walkNames(exp Expr) []string {
 	switch expr := exp.(type) {
 	case *VarRef:
@@ -2130,7 +2142,7 @@ func walkNames(exp Expr) []string {
 	return nil
 }
 
-// walkRefs will walk the Expr and return the database fields
+// walkRefs will walk the Expr and return the var refs used.
 func walkRefs(exp Expr) []VarRef {
 	switch expr := exp.(type) {
 	case *VarRef:
@@ -2176,7 +2188,7 @@ func ExprNames(expr Expr) []VarRef {
 	return a
 }
 
-// FunctionCalls returns the Call objects from the query
+// FunctionCalls returns the Call objects from the query.
 func (s *SelectStatement) FunctionCalls() []*Call {
 	var a []*Call
 	for _, f := range s.Fields {
@@ -2185,7 +2197,7 @@ func (s *SelectStatement) FunctionCalls() []*Call {
 	return a
 }
 
-// FunctionCallsByPosition returns the Call objects from the query in the order they appear in the select statement
+// FunctionCallsByPosition returns the Call objects from the query in the order they appear in the select statement.
 func (s *SelectStatement) FunctionCallsByPosition() [][]*Call {
 	var a [][]*Call
 	for _, f := range s.Fields {
@@ -2194,7 +2206,7 @@ func (s *SelectStatement) FunctionCallsByPosition() [][]*Call {
 	return a
 }
 
-// walkFunctionCalls walks the Field of a query for any function calls made
+// walkFunctionCalls walks the Expr and returns any function calls made.
 func walkFunctionCalls(exp Expr) []*Call {
 	switch expr := exp.(type) {
 	case *VarRef:
@@ -2213,7 +2225,7 @@ func walkFunctionCalls(exp Expr) []*Call {
 	return nil
 }
 
-// filters an expression to exclude expressions unrelated to a source.
+// filterExprBySource filters an expression to exclude expressions unrelated to a source.
 func filterExprBySource(name string, expr Expr) Expr {
 	switch expr := expr.(type) {
 	case *VarRef:
@@ -2253,7 +2265,7 @@ func filterExprBySource(name string, expr Expr) Expr {
 }
 
 // MatchSource returns the source name that matches a field name.
-// Returns a blank string if no sources match.
+// It returns a blank string if no sources match.
 func MatchSource(sources Sources, name string) string {
 	for _, src := range sources {
 		switch src := src.(type) {
@@ -2288,7 +2300,7 @@ func (t *Target) String() string {
 	return buf.String()
 }
 
-// DeleteStatement represents a command for removing data from the database.
+// DeleteStatement represents a command for deleting data from the database.
 type DeleteStatement struct {
 	// Data source that values are removed from.
 	Source Source
@@ -2461,7 +2473,7 @@ func (s *DropShardStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 // ShowContinuousQueriesStatement represents a command for listing continuous queries.
 type ShowContinuousQueriesStatement struct{}
 
-// String returns a string representation of the list continuous queries statement.
+// String returns a string representation of the show continuous queries statement.
 func (s *ShowContinuousQueriesStatement) String() string { return "SHOW CONTINUOUS QUERIES" }
 
 // RequiredPrivileges returns the privilege required to execute a ShowContinuousQueriesStatement.
@@ -2492,10 +2504,10 @@ func (s *ShowGrantsForUserStatement) RequiredPrivileges() (ExecutionPrivileges, 
 // ShowDatabasesStatement represents a command for listing all databases in the cluster.
 type ShowDatabasesStatement struct{}
 
-// String returns a string representation of the list databases command.
+// String returns a string representation of the show databases command.
 func (s *ShowDatabasesStatement) String() string { return "SHOW DATABASES" }
 
-// RequiredPrivileges returns the privilege required to execute a ShowDatabasesStatement
+// RequiredPrivileges returns the privilege required to execute a ShowDatabasesStatement.
 func (s *ShowDatabasesStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
 }
@@ -2511,10 +2523,10 @@ type CreateContinuousQueryStatement struct {
 	// Source of data (SELECT statement).
 	Source *SelectStatement
 
-	// Interval to resample previous queries
+	// Interval to resample previous queries.
 	ResampleEvery time.Duration
 
-	// Maximum duration to resample previous queries
+	// Maximum duration to resample previous queries.
 	ResampleFor time.Duration
 }
 
@@ -2654,7 +2666,7 @@ func (s *ShowMeasurementsStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivileges returns the privilege(s) required to execute a ShowMeasurementsStatement
+// RequiredPrivileges returns the privilege(s) required to execute a ShowMeasurementsStatement.
 func (s *ShowMeasurementsStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
 }
@@ -2715,7 +2727,6 @@ func (s *ShowRetentionPoliciesStatement) RequiredPrivileges() (ExecutionPrivileg
 
 // ShowStatsStatement displays statistics for a given module.
 type ShowStatsStatement struct {
-	// Module
 	Module string
 }
 
@@ -2779,7 +2790,7 @@ func (s *ShowDiagnosticsStatement) RequiredPrivileges() (ExecutionPrivileges, er
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
 }
 
-// CreateSubscriptionStatement represents a command to add a subscription to the incoming data stream
+// CreateSubscriptionStatement represents a command to add a subscription to the incoming data stream.
 type CreateSubscriptionStatement struct {
 	Name            string
 	Database        string
@@ -2810,7 +2821,7 @@ func (s *CreateSubscriptionStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivileges returns the privilege required to execute a CreateSubscriptionStatement
+// RequiredPrivileges returns the privilege required to execute a CreateSubscriptionStatement.
 func (s *CreateSubscriptionStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
 }
@@ -2836,12 +2847,12 @@ func (s *DropSubscriptionStatement) RequiredPrivileges() (ExecutionPrivileges, e
 type ShowSubscriptionsStatement struct {
 }
 
-// String returns a string representation of the ShowSubscriptionStatement.
+// String returns a string representation of the ShowSubscriptionsStatement.
 func (s *ShowSubscriptionsStatement) String() string {
 	return "SHOW SUBSCRIPTIONS"
 }
 
-// RequiredPrivileges returns the privilege required to execute a ShowSubscriptionStatement
+// RequiredPrivileges returns the privilege required to execute a ShowSubscriptionsStatement.
 func (s *ShowSubscriptionsStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
 }
@@ -2858,7 +2869,7 @@ type ShowTagKeysStatement struct {
 	// An expression evaluated on data point.
 	Condition Expr
 
-	// Fields to sort results by
+	// Fields to sort results by.
 	SortFields SortFields
 
 	// Maximum number of tag keys per measurement. Unlimited if zero.
@@ -2914,7 +2925,7 @@ func (s *ShowTagKeysStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivileges returns the privilege(s) required to execute a ShowTagKeysStatement
+// RequiredPrivileges returns the privilege(s) required to execute a ShowTagKeysStatement.
 func (s *ShowTagKeysStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
 }
@@ -2937,7 +2948,7 @@ type ShowTagValuesStatement struct {
 	// An expression evaluated on data point.
 	Condition Expr
 
-	// Fields to sort results by
+	// Fields to sort results by.
 	SortFields SortFields
 
 	// Maximum number of rows to be returned.
@@ -2988,7 +2999,7 @@ func (s *ShowTagValuesStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivileges returns the privilege(s) required to execute a ShowTagValuesStatement
+// RequiredPrivileges returns the privilege(s) required to execute a ShowTagValuesStatement.
 func (s *ShowTagValuesStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
 }
@@ -3054,7 +3065,7 @@ func (s *ShowFieldKeysStatement) String() string {
 	return buf.String()
 }
 
-// RequiredPrivileges returns the privilege(s) required to execute a ShowFieldKeysStatement
+// RequiredPrivileges returns the privilege(s) required to execute a ShowFieldKeysStatement.
 func (s *ShowFieldKeysStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: ReadPrivilege}}, nil
 }
@@ -3140,10 +3151,14 @@ func (f *Field) String() string {
 	return fmt.Sprintf("%s AS %s", str, QuoteIdent(f.Alias))
 }
 
-// Sort Interface for Fields
-func (a Fields) Len() int           { return len(a) }
+// Len implements sort.Interface.
+func (a Fields) Len() int { return len(a) }
+
+// Less implements sort.Interface.
 func (a Fields) Less(i, j int) bool { return a[i].Name() < a[j].Name() }
-func (a Fields) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// Swap implements sort.Interface.
+func (a Fields) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 // Dimensions represents a list of dimensions.
 type Dimensions []*Dimension
@@ -3281,13 +3296,18 @@ func (r *VarRef) String() string {
 // VarRefs represents a slice of VarRef types.
 type VarRefs []VarRef
 
+// Len implements sort.Interface.
 func (a VarRefs) Len() int { return len(a) }
+
+// Less implements sort.Interface.
 func (a VarRefs) Less(i, j int) bool {
 	if a[i].Val != a[j].Val {
 		return a[i].Val < a[j].Val
 	}
 	return a[i].Type < a[j].Type
 }
+
+// Swap implements sort.Interface.
 func (a VarRefs) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 // Strings returns a slice of the variable names.
@@ -3383,7 +3403,7 @@ func isFalseLiteral(expr Expr) bool {
 	return false
 }
 
-// ListLiteral represents a list of strings literal.
+// ListLiteral represents a list of tag key literals.
 type ListLiteral struct {
 	Vals []string
 }
@@ -3677,7 +3697,7 @@ func OnlyTimeExpr(expr Expr) bool {
 }
 
 // TimeRange returns the minimum and maximum times specified by an expression.
-// Returns zero times if there is no bound.
+// It returns zero times if there is no bound.
 func TimeRange(expr Expr) (min, max time.Time, err error) {
 	WalkFunc(expr, func(n Node) {
 		if err != nil {
@@ -4713,9 +4733,8 @@ func reduceVarRef(expr *VarRef, valuer Valuer) Expr {
 }
 
 // Valuer is the interface that wraps the Value() method.
-//
-// Value returns the value and existence flag for a given key.
 type Valuer interface {
+	// Value returns the value and existence flag for a given key.
 	Value(key string) (interface{}, bool)
 }
 

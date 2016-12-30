@@ -502,7 +502,6 @@ func IntegerMedianReduceSlice(a []IntegerPoint) []FloatPoint {
 
 // newModeIterator returns an iterator for operating on a mode() call.
 func NewModeIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
-
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
@@ -540,7 +539,6 @@ func FloatModeReduceSlice(a []FloatPoint) []FloatPoint {
 		return a
 	}
 
-	// fmt.Println(a[0])
 	sort.Sort(floatPointsByValue(a))
 
 	mostFreq := 0
@@ -1236,7 +1234,7 @@ func newCumulativeSumIterator(input Iterator, opt IteratorOptions) (Iterator, er
 	}
 }
 
-// newHoltWintersIterator returns an iterator for operating on a elapsed() call.
+// newHoltWintersIterator returns an iterator for operating on a holt_winters() call.
 func newHoltWintersIterator(input Iterator, opt IteratorOptions, h, m int, includeFitData bool, interval time.Duration) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
@@ -1256,12 +1254,12 @@ func newHoltWintersIterator(input Iterator, opt IteratorOptions, h, m int, inclu
 	}
 }
 
-// NewSampleIterator returns an iterator
+// NewSampleIterator returns an iterator for operating on a sample() call (exported for use in test).
 func NewSampleIterator(input Iterator, opt IteratorOptions, size int) (Iterator, error) {
 	return newSampleIterator(input, opt, size)
 }
 
-// newSampleIterator returns an iterator
+// newSampleIterator returns an iterator for operating on a sample() call.
 func newSampleIterator(input Iterator, opt IteratorOptions, size int) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:

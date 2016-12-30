@@ -320,7 +320,7 @@ func (p *Parser) parseKillQueryStatement() (*KillQueryStatement, error) {
 	return &KillQueryStatement{QueryID: qid, Host: host}, nil
 }
 
-// parseCreateSubscriptionStatement parses a string and returns a CreatesubScriptionStatement.
+// parseCreateSubscriptionStatement parses a string and returns a CreateSubscriptionStatement.
 // This function assumes the "CREATE SUBSCRIPTION" tokens have already been consumed.
 func (p *Parser) parseCreateSubscriptionStatement() (*CreateSubscriptionStatement, error) {
 	stmt := &CreateSubscriptionStatement{}
@@ -546,7 +546,8 @@ Loop:
 	return stmt, nil
 }
 
-// parseInt parses a string and returns an integer literal.
+// parseInt parses a string representing a base 10 integer and returns the number.
+// It returns an error if the parsed number is outside the range [min, max].
 func (p *Parser) parseInt(min, max int) (int, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok != INTEGER {
@@ -697,7 +698,7 @@ func (p *Parser) parseSegmentedIdents() ([]string, error) {
 	return idents, nil
 }
 
-// parserString parses a string.
+// parseString parses a string.
 func (p *Parser) parseString() (string, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	if tok != STRING {
@@ -706,7 +707,7 @@ func (p *Parser) parseString() (string, error) {
 	return lit, nil
 }
 
-// parserString parses a string.
+// parseStringList parses a list of strings separated by commas.
 func (p *Parser) parseStringList() ([]string, error) {
 	// Parse first (required) string.
 	str, err := p.parseString()
@@ -888,7 +889,7 @@ func (p *Parser) parseGrantAdminStatement() (*GrantAdminStatement, error) {
 	return stmt, nil
 }
 
-// parsePrivilege parses a string and returns a Privilege
+// parsePrivilege parses a string and returns a Privilege.
 func (p *Parser) parsePrivilege() (Privilege, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
 	switch tok {
@@ -2009,7 +2010,7 @@ func (p *Parser) parseField() (*Field, error) {
 }
 
 // validateField checks if the Expr is a valid field. We disallow all binary expression
-// that return a boolean
+// that return a boolean.
 type validateField struct {
 	foundInvalid bool
 	badToken     Token
@@ -2860,7 +2861,10 @@ func (p *Parser) parseTokenMaybe(expected Token) bool {
 }
 
 var (
+	// Quote String replacer.
 	qsReplacer = strings.NewReplacer("\n", `\n`, `\`, `\\`, `'`, `\'`)
+
+	// Quote Ident replacer.
 	qiReplacer = strings.NewReplacer("\n", `\n`, `\`, `\\`, `"`, `\"`)
 )
 
@@ -2928,7 +2932,7 @@ func isDateTimeString(s string) bool { return dateTimeStringRegexp.MatchString(s
 var dateStringRegexp = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
 var dateTimeStringRegexp = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}.+`)
 
-// ErrInvalidDuration is returned when parsing a malformatted duration.
+// ErrInvalidDuration is returned when parsing a malformed duration.
 var ErrInvalidDuration = errors.New("invalid duration")
 
 // ParseError represents an error that occurred during parsing.

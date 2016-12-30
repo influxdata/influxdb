@@ -99,9 +99,9 @@ func Select(stmt *SelectStatement, ic IteratorCreator, sopt *SelectOptions) ([]I
 	return buildFieldIterators(fields, ic, opt, selector)
 }
 
-// buildAuxIterators creates a set of iterators from a single combined auxilary iterator.
+// buildAuxIterators creates a set of iterators from a single combined auxiliary iterator.
 func buildAuxIterators(fields Fields, ic IteratorCreator, opt IteratorOptions) ([]Iterator, error) {
-	// Create iterator to read auxilary fields.
+	// Create iterator to read auxiliary fields.
 	input, err := ic.CreateIterator(opt)
 	if err != nil {
 		return nil, err

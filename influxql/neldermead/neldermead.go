@@ -1,5 +1,5 @@
-// This is an implementation of the Nelder-Mead optimization method
-// Based on work by Michael F. Hutt http://www.mikehutt.com/neldermead.html
+// Package neldermead is an implementation of the Nelder-Mead optimization method.
+// Based on work by Michael F. Hutt: http://www.mikehutt.com/neldermead.html
 package neldermead
 
 import "math"
@@ -14,16 +14,19 @@ const (
 	defaultGamma = 2.0
 )
 
+// Optimizer represents the parameters to the Nelder-Mead simplex method.
 type Optimizer struct {
+	// Maximum number of iterations.
 	MaxIterations int
-	// reflection coefficient
+	// Reflection coefficient.
 	Alpha,
-	// contraction coefficient
+	// Contraction coefficient.
 	Beta,
-	// expansion coefficient
+	// Expansion coefficient.
 	Gamma float64
 }
 
+// New returns a new instance of Optimizer with all values set to the defaults.
 func New() *Optimizer {
 	return &Optimizer{
 		MaxIterations: defaultMaxIterations,
@@ -33,6 +36,7 @@ func New() *Optimizer {
 	}
 }
 
+// Optimize applies the Nelder-Mead simplex method with the Optimizer's settings.
 func (o *Optimizer) Optimize(
 	objfunc func([]float64) float64,
 	start []float64,
