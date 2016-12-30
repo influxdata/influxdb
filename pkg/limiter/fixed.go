@@ -1,7 +1,8 @@
+// Package limiter provides concurrency limiters.
 package limiter
 
-// Fixed is a simple channel based concurrency limiter.  It uses a fixed
-// size channel to limit callers from proceeding until there is a value avalable
+// Fixed is a simple channel-based concurrency limiter.  It uses a fixed
+// size channel to limit callers from proceeding until there is a value available
 // in the channel.  If all are in-use, the caller blocks until one is freed.
 type Fixed chan struct{}
 
