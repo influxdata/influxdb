@@ -846,12 +846,15 @@ func ParseTSMFileName(name string) (int, int, error) {
 
 	generation, err := strconv.ParseUint(id[:idx], 10, 32)
 	if err != nil {
-		return 0, 0, err
+		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
 	}
 
 	sequence, err := strconv.ParseUint(id[idx+1:], 10, 32)
+	if err != nil {
+		return 0, 0, fmt.Errorf("file %s is named incorrectly", name)
+	}
 
-	return int(generation), int(sequence), err
+	return int(generation), int(sequence), nil
 }
 
 type KeyCursor struct {
