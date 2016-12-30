@@ -12,7 +12,7 @@ const (
 	// an InfluxDB system for historical analysis.
 	DefaultStoreEnabled = true
 
-	// DefaultStoreDatabase is the name of the database where gathered information is written
+	// DefaultStoreDatabase is the name of the database where gathered information is written.
 	DefaultStoreDatabase = "_internal"
 
 	// DefaultStoreInterval is the period between storing gathered information.

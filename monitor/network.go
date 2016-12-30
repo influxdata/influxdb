@@ -6,7 +6,7 @@ import (
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 )
 
-// network captures network diagnostics
+// network captures network diagnostics.
 type network struct{}
 
 func (n *network) Diagnostics() (*diagnostics.Diagnostics, error) {
