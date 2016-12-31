@@ -43,7 +43,10 @@ type AuthenticationMethod int
 
 // Supported authentication methods.
 const (
+	// Authenticate using basic authentication.
 	UserAuthentication AuthenticationMethod = iota
+
+	// Authenticate with jwt.
 	BearerAuthentication
 )
 
@@ -225,7 +228,6 @@ func (h *Handler) AddRoutes(routes ...Route) {
 		handler = h.recovery(handler, r.Name) // make sure recovery is always last
 
 		h.mux.Add(r.Method, r.Pattern, handler)
-
 	}
 }
 
@@ -692,7 +694,7 @@ func (h *Handler) servePing(w http.ResponseWriter, r *http.Request) {
 	h.writeHeader(w, http.StatusNoContent)
 }
 
-// serveStatus has been deprecated
+// serveStatus has been deprecated.
 func (h *Handler) serveStatus(w http.ResponseWriter, r *http.Request) {
 	h.Logger.Info("WARNING: /status has been deprecated.  Use /ping instead.")
 	atomic.AddInt64(&h.stats.StatusRequests, 1)
@@ -795,7 +797,7 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintln(w, "\n}")
 }
 
-// h.httpError writes an error to the client in a standard format.
+// httpError writes an error to the client in a standard format.
 func (h *Handler) httpError(w http.ResponseWriter, error string, code int) {
 	if code == http.StatusUnauthorized {
 		// If an unauthorized header will be sent back, add a WWW-Authenticate header
@@ -1008,7 +1010,7 @@ func (w gzipResponseWriter) CloseNotify() <-chan bool {
 	return w.ResponseWriter.(http.CloseNotifier).CloseNotify()
 }
 
-// determines if the client can accept compressed responses, and encodes accordingly
+// gzipFilter determines if the client can accept compressed responses, and encodes accordingly.
 func gzipFilter(inner http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
@@ -1126,7 +1128,7 @@ func (r Response) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&o)
 }
 
-// UnmarshalJSON decodes the data into the Response struct
+// UnmarshalJSON decodes the data into the Response struct.
 func (r *Response) UnmarshalJSON(b []byte) error {
 	var o struct {
 		Results []*influxql.Result `json:"results,omitempty"`

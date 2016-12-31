@@ -11,9 +11,14 @@ import (
 )
 
 const (
-	DefaultHTTPTimeout      = 30 * time.Second
+	// DefaultHTTPTimeout is the default HTTP timeout for a Config.
+	DefaultHTTPTimeout = 30 * time.Second
+
+	// DefaultWriteConcurrency is the default write concurrency for a Config.
 	DefaultWriteConcurrency = 40
-	DefaultWriteBufferSize  = 1000
+
+	// DefaultWriteBufferSize is the default write buffer size for a Config.
+	DefaultWriteBufferSize = 1000
 )
 
 // Config represents a configuration of the subscriber service.
@@ -50,6 +55,7 @@ func NewConfig() Config {
 	}
 }
 
+// Validate returns an error if the config is invalid.
 func (c Config) Validate() error {
 	if c.HTTPTimeout <= 0 {
 		return errors.New("http-timeout must be greater than 0")

@@ -1,3 +1,4 @@
+// Package opentsdb provides a service for InfluxDB to ingest data via the opentsdb protocol.
 package opentsdb // import "github.com/influxdata/influxdb/services/opentsdb"
 
 import (
@@ -100,7 +101,7 @@ func NewService(c Config) (*Service, error) {
 	return s, nil
 }
 
-// Open starts the service
+// Open starts the service.
 func (s *Service) Open() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -154,7 +155,7 @@ func (s *Service) Open() error {
 	return nil
 }
 
-// Close closes the openTSDB service
+// Close closes the openTSDB service.
 func (s *Service) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -219,6 +220,7 @@ func (s *Service) createInternalStorage() error {
 	return nil
 }
 
+// WithLogger sets the logger for the service.
 func (s *Service) WithLogger(log zap.Logger) {
 	s.Logger = log.With(zap.String("service", "opentsdb"))
 }
@@ -268,9 +270,6 @@ func (s *Service) Statistics(tags map[string]string) []models.Statistic {
 		},
 	}}
 }
-
-// Err returns a channel for fatal errors that occur on the listener.
-// func (s *Service) Err() <-chan error { return s.err }
 
 // Addr returns the listener's address. Returns nil if listener is closed.
 func (s *Service) Addr() net.Addr {

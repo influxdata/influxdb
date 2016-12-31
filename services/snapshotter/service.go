@@ -1,3 +1,4 @@
+// Package snapshotter provides the meta snapshot service.
 package snapshotter // import "github.com/influxdata/influxdb/services/snapshotter"
 
 import (
@@ -70,6 +71,7 @@ func (s *Service) Close() error {
 	return nil
 }
 
+// WithLogger sets the logger on the service.
 func (s *Service) WithLogger(log zap.Logger) {
 	s.Logger = log.With(zap.String("service", "snapshot"))
 }
@@ -169,7 +171,7 @@ func (s *Service) writeMetaStore(conn net.Conn) error {
 }
 
 // writeDatabaseInfo will write the relative paths of all shards in the database on
-// this server into the connection
+// this server into the connection.
 func (s *Service) writeDatabaseInfo(conn net.Conn, database string) error {
 	res := Response{}
 	db := s.MetaClient.Database(database)
@@ -247,7 +249,7 @@ func (s *Service) writeRetentionPolicyInfo(conn net.Conn, database, retentionPol
 	return nil
 }
 
-// readRequest Unmarshals a request object from the conn
+// readRequest unmarshals a request object from the conn.
 func (s *Service) readRequest(conn net.Conn) (Request, error) {
 	var r Request
 	if err := json.NewDecoder(conn).Decode(&r); err != nil {
@@ -256,17 +258,25 @@ func (s *Service) readRequest(conn net.Conn) (Request, error) {
 	return r, nil
 }
 
+// RequestType indicates the typeof snapshot request.
 type RequestType uint8
 
 const (
+	// RequestShardBackup represents a request for a shard backup.
 	RequestShardBackup RequestType = iota
+
+	// RequestMetastoreBackup represents a request to back up the metastore.
 	RequestMetastoreBackup
+
+	// RequestDatabaseInfo represents a request for database info.
 	RequestDatabaseInfo
+
+	// RequestRetentionPolicyInfo represents a request for retention policy info.
 	RequestRetentionPolicyInfo
 )
 
 // Request represents a request for a specific backup or for information
-// about the shards on this server for a database or retention policy
+// about the shards on this server for a database or retention policy.
 type Request struct {
 	Type            RequestType
 	Database        string
@@ -276,7 +286,7 @@ type Request struct {
 }
 
 // Response contains the relative paths for all the shards on this server
-// that are in the requested database or retention policy
+// that are in the requested database or retention policy.
 type Response struct {
 	Paths []string
 }

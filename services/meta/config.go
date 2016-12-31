@@ -9,7 +9,7 @@ const (
 	// DefaultLeaseDuration is the default duration for leases.
 	DefaultLeaseDuration = 60 * time.Second
 
-	// DefaultLoggingEnabled determines if log messages are printed for the meta service
+	// DefaultLoggingEnabled determines if log messages are printed for the meta service.
 	DefaultLoggingEnabled = true
 )
 
@@ -29,6 +29,7 @@ func NewConfig() *Config {
 	}
 }
 
+// Validate returns an error if the config is invalid.
 func (c *Config) Validate() error {
 	if c.Dir == "" {
 		return errors.New("Meta.Dir must be specified")

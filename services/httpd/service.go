@@ -1,3 +1,4 @@
+// Package httpd implements the HTTP service and REST API for InfluxDB.
 package httpd // import "github.com/influxdata/influxdb/services/httpd"
 
 import (
@@ -78,7 +79,7 @@ func NewService(c Config) *Service {
 	return s
 }
 
-// Open starts the service
+// Open starts the service.
 func (s *Service) Open() error {
 	s.Logger.Info("Starting HTTP service")
 	s.Logger.Info(fmt.Sprint("Authentication enabled:", s.Handler.Config.AuthEnabled))
@@ -170,8 +171,7 @@ func (s *Service) Close() error {
 	return nil
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
-// called after Open is called.
+// WithLogger sets the logger for the service.
 func (s *Service) WithLogger(log zap.Logger) {
 	s.Logger = log.With(zap.String("service", "httpd"))
 	s.Handler.Logger = s.Logger

@@ -1,3 +1,4 @@
+// Package retention provides the retention policy enforcement service.
 package retention // import "github.com/influxdata/influxdb/services/retention"
 
 import (
@@ -55,6 +56,7 @@ func (s *Service) Close() error {
 	return nil
 }
 
+// WithLogger sets the logger on the service.
 func (s *Service) WithLogger(log zap.Logger) {
 	s.logger = log.With(zap.String("service", "retention"))
 }

@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Handler is an http.Handler for the service.
+// Handler is an http.Handler for the OpenTSDB service.
 type Handler struct {
 	Database        string
 	RetentionPolicy string
@@ -32,6 +32,7 @@ type Handler struct {
 	stats *Statistics
 }
 
+// ServeHTTP handles an HTTP request of the OpenTSDB REST API.
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/api/metadata/put":
@@ -43,7 +44,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ServeHTTP implements OpenTSDB's HTTP /api/put endpoint
+// servePut implements OpenTSDB's HTTP /api/put endpoint.
 func (h *Handler) servePut(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 

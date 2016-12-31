@@ -1,3 +1,4 @@
+// Package udp provides the UDP input service for InfluxDB.
 package udp // import "github.com/influxdata/influxdb/services/udp"
 
 import (
@@ -18,6 +19,7 @@ const (
 	// Arbitrary, testing indicated that this doesn't typically get over 10
 	parserChanLen = 1000
 
+	// MAX_UDP_PAYLOAD is largest payload size the UDP service will accept.
 	MAX_UDP_PAYLOAD = 64 * 1024
 )
 
@@ -32,11 +34,7 @@ const (
 	statBatchesTransmitFail = "batchesTxFail"
 )
 
-//
-// Service represents here an UDP service
-// that will listen for incoming packets
-// formatted with the inline protocol
-//
+// Service is a UDP service that will listen for incoming packets of line protocol.
 type Service struct {
 	conn *net.UDPConn
 	addr *net.UDPAddr
@@ -76,7 +74,7 @@ func NewService(c Config) *Service {
 	}
 }
 
-// Open starts the service
+// Open starts the service.
 func (s *Service) Open() (err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -184,7 +182,6 @@ func (s *Service) serve() {
 	buf := make([]byte, MAX_UDP_PAYLOAD)
 	s.batcher.Start()
 	for {
-
 		select {
 		case <-s.done:
 			// We closed the connection, time to go.
@@ -229,7 +226,7 @@ func (s *Service) parser() {
 	}
 }
 
-// Close closes the underlying listener.
+// Close closes the service and the underlying listener.
 func (s *Service) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -292,11 +289,12 @@ func (s *Service) createInternalStorage() error {
 	return nil
 }
 
+// WithLogger sets the logger on the service.
 func (s *Service) WithLogger(log zap.Logger) {
 	s.Logger = log.With(zap.String("service", "udp"))
 }
 
-// Addr returns the listener's address
+// Addr returns the listener's address.
 func (s *Service) Addr() net.Addr {
 	return s.addr
 }

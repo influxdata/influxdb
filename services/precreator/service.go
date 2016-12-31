@@ -1,3 +1,4 @@
+// Package precreator provides the shard precreation service.
 package precreator // import "github.com/influxdata/influxdb/services/precreator"
 
 import (
@@ -34,6 +35,7 @@ func NewService(c Config) (*Service, error) {
 	return &s, nil
 }
 
+// WithLogger sets the logger for the service.
 func (s *Service) WithLogger(log zap.Logger) {
 	s.Logger = log.With(zap.String("service", "shard-precreation"))
 }
