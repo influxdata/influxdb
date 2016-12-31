@@ -21,9 +21,9 @@ import (
 )
 
 var (
-	// ErrShardNotFound gets returned when trying to get a non existing shard.
+	// ErrShardNotFound is returned when trying to get a non existing shard.
 	ErrShardNotFound = fmt.Errorf("shard not found")
-	// ErrStoreClosed gets returned when trying to use a closed Store.
+	// ErrStoreClosed is returned when trying to use a closed Store.
 	ErrStoreClosed = fmt.Errorf("store is closed")
 )
 
@@ -60,6 +60,7 @@ func NewStore(path string) *Store {
 	}
 }
 
+// WithLogger sets the logger for the store.
 func (s *Store) WithLogger(log zap.Logger) {
 	s.baseLogger = log
 	s.Logger = log.With(zap.String("service", "store"))
@@ -68,6 +69,7 @@ func (s *Store) WithLogger(log zap.Logger) {
 	}
 }
 
+// Statistics returns statistics for period monitoring.
 func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 	var statistics []models.Statistic
 
@@ -237,7 +239,7 @@ func (s *Store) Close() error {
 	return nil
 }
 
-// DatabaseIndexN returns the number of databases indicies in the store.
+// DatabaseIndexN returns the number of databases indices in the store.
 func (s *Store) DatabaseIndexN() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -325,8 +327,8 @@ func (s *Store) CreateShard(database, retentionPolicy string, shardID uint64, en
 	return nil
 }
 
-// CreateShardSnapShot will create a hard link to the underlying shard and return a path
-// The caller is responsible for cleaning up (removing) the file path returned
+// CreateShardSnapShot will create a hard link to the underlying shard and return a path.
+// The caller is responsible for cleaning up (removing) the file path returned.
 func (s *Store) CreateShardSnapshot(id uint64) (string, error) {
 	sh := s.Shard(id)
 	if sh == nil {
@@ -336,7 +338,7 @@ func (s *Store) CreateShardSnapshot(id uint64) (string, error) {
 	return sh.CreateSnapshot()
 }
 
-// SetShardEnabled enables or disables a shard for read and writes
+// SetShardEnabled enables or disables a shard for read and writes.
 func (s *Store) SetShardEnabled(shardID uint64, enabled bool) error {
 	sh := s.Shard(shardID)
 	if sh == nil {
@@ -550,7 +552,7 @@ func (s *Store) walkShards(shards []*Shard, fn func(sh *Shard) error) error {
 	return err
 }
 
-// ShardIDs returns a slice of all ShardIDs under management.
+// ShardIDs returns a slice of all ShardIDs under management, in arbitrary order.
 func (s *Store) ShardIDs() []uint64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -582,7 +584,7 @@ func (s *Store) DatabaseIndex(name string) *DatabaseIndex {
 	return s.databaseIndexes[name]
 }
 
-// Databases returns all the databases in the indexes
+// Databases returns all the databases in the indexes.
 func (s *Store) Databases() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -620,7 +622,7 @@ func (s *Store) DiskSize() (int64, error) {
 	return size, nil
 }
 
-// BackupShard will get the shard and have the engine backup since the passed in time to the writer
+// BackupShard will get the shard and have the engine backup since the passed in time to the writer.
 func (s *Store) BackupShard(id uint64, since time.Time, w io.Writer) error {
 	shard := s.Shard(id)
 	if shard == nil {
@@ -651,7 +653,7 @@ func (s *Store) RestoreShard(id uint64, r io.Reader) error {
 	return shard.Restore(r, path)
 }
 
-// ShardRelativePath will return the relative path to the shard. i.e. <database>/<retention>/<id>
+// ShardRelativePath will return the relative path to the shard. i.e. <database>/<retention>/<id>.
 func (s *Store) ShardRelativePath(id uint64) (string, error) {
 	shard := s.Shard(id)
 	if shard == nil {
@@ -660,7 +662,7 @@ func (s *Store) ShardRelativePath(id uint64) (string, error) {
 	return relativePath(s.path, shard.path)
 }
 
-// DeleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys
+// DeleteSeries loops through the local shards and deletes the series data and metadata for the passed in series keys.
 func (s *Store) DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error {
 	// Expand regex expressions in the FROM clause.
 	a, err := s.ExpandSources(sources)
@@ -782,6 +784,7 @@ func (s *Store) IteratorCreators() influxql.IteratorCreators {
 	return a
 }
 
+// IteratorCreator returns an iterator creator for all shards in the given shard IDs.
 func (s *Store) IteratorCreator(shards []uint64, opt *influxql.SelectOptions) (influxql.IteratorCreator, error) {
 	// Generate iterators for each node.
 	ics := make([]influxql.IteratorCreator, 0)
@@ -824,6 +827,8 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	return sh.WritePoints(points)
 }
 
+// Measurements returns a slice of sorted measurement names in the given database,
+// matching the given condition.
 func (s *Store) Measurements(database string, cond influxql.Expr) ([]string, error) {
 	dbi := s.DatabaseIndex(database)
 	if dbi == nil {
@@ -853,11 +858,13 @@ func (s *Store) Measurements(database string, cond influxql.Expr) ([]string, err
 	return measurements, nil
 }
 
+// TagValues represents the tag keys and values in a measurement.
 type TagValues struct {
 	Measurement string
 	Values      []KeyValue
 }
 
+// TagValues returns the tag keys and values in the given database, matching the condition.
 func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, error) {
 	if cond == nil {
 		return nil, errors.New("a condition is required")
@@ -957,14 +964,21 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 	return tagValues, nil
 }
 
+// KeyValue holds a string key and a string value.
 type KeyValue struct {
 	Key, Value string
 }
 
+// KeyValues is a sortable slice of KeyValue.
 type KeyValues []KeyValue
 
-func (a KeyValues) Len() int      { return len(a) }
+// Len implements sort.Interface.
+func (a KeyValues) Len() int { return len(a) }
+
+// Swap implements sort.Interface.
 func (a KeyValues) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+// Less implements sort.Interface. Keys are compared before values.
 func (a KeyValues) Less(i, j int) bool {
 	ki, kj := a[i].Key, a[j].Key
 	if ki == kj {
