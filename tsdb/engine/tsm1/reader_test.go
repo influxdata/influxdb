@@ -763,6 +763,9 @@ func TestIndirectIndex_Type(t *testing.T) {
 	index.Add("cpu", tsm1.BlockInteger, 0, 1, 10, 20)
 
 	b, err := index.MarshalBinary()
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	ind := tsm1.NewIndirectIndex()
 	if err := ind.UnmarshalBinary(b); err != nil {

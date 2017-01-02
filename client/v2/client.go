@@ -400,9 +400,10 @@ func (c *client) Write(bp BatchPoints) error {
 
 // Query defines a query to send to the server
 type Query struct {
-	Command   string
-	Database  string
-	Precision string
+	Command    string
+	Database   string
+	Precision  string
+	Parameters map[string]interface{}
 }
 
 // NewQuery returns a query object
@@ -410,9 +411,24 @@ type Query struct {
 // for the query.
 func NewQuery(command, database, precision string) Query {
 	return Query{
-		Command:   command,
-		Database:  database,
-		Precision: precision,
+		Command:    command,
+		Database:   database,
+		Precision:  precision,
+		Parameters: make(map[string]interface{}),
+	}
+}
+
+// NewQueryWithParameters returns a query object
+// database and precision strings can be empty strings if they are not needed
+// for the query.
+// parameters is a map of the parameter names used in the command to their
+// values.
+func NewQueryWithParameters(command, database, precision string, parameters map[string]interface{}) Query {
+	return Query{
+		Command:    command,
+		Database:   database,
+		Precision:  precision,
+		Parameters: parameters,
 	}
 }
 
@@ -454,12 +470,20 @@ func (c *client) Query(q Query) (*Response, error) {
 	u := c.url
 	u.Path = "query"
 
+	jsonParameters, err := json.Marshal(q.Parameters)
+
+	if err != nil {
+		return nil, err
+	}
+
 	req, err := http.NewRequest("POST", u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
+
 	req.Header.Set("Content-Type", "")
 	req.Header.Set("User-Agent", c.useragent)
+
 	if c.username != "" {
 		req.SetBasicAuth(c.username, c.password)
 	}
@@ -467,6 +491,8 @@ func (c *client) Query(q Query) (*Response, error) {
 	params := req.URL.Query()
 	params.Set("q", q.Command)
 	params.Set("db", q.Database)
+	params.Set("params", string(jsonParameters))
+
 	if q.Precision != "" {
 		params.Set("epoch", q.Precision)
 	}

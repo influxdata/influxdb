@@ -143,11 +143,6 @@ func TestQueryExecutor_Abort(t *testing.T) {
 }
 
 func TestQueryExecutor_ShowQueries(t *testing.T) {
-	q, err := influxql.ParseQuery(`SELECT count(value) FROM cpu`)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	e := NewQueryExecutor()
 	e.StatementExecutor = &StatementExecutor{
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx influxql.ExecutionContext) error {
@@ -161,7 +156,7 @@ func TestQueryExecutor_ShowQueries(t *testing.T) {
 		},
 	}
 
-	q, err = influxql.ParseQuery(`SHOW QUERIES`)
+	q, err := influxql.ParseQuery(`SHOW QUERIES`)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -657,7 +657,6 @@ func (r *FloatHoltWintersReducer) forecast(h int, params []float64) []float64 {
 
 	lT := params[4]
 	bT := params[5]
-	sT := 0.0
 
 	// seasonals is a ring buffer of past sT values
 	var seasonals []float64
@@ -683,6 +682,7 @@ func (r *FloatHoltWintersReducer) forecast(h int, params []float64) []float64 {
 			stm = seasonals[(t-m+so)%m]
 			stmh = seasonals[(t-m+hm+so)%m]
 		}
+		var sT float64
 		yT, lT, bT, sT = r.next(
 			params[0], // alpha
 			params[1], // beta
