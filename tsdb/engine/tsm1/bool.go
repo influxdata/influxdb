@@ -41,6 +41,7 @@ func NewBooleanEncoder(sz int) BooleanEncoder {
 	}
 }
 
+// Reset sets the encoder to its initial state.
 func (e *BooleanEncoder) Reset() {
 	e.bytes = e.bytes[:0]
 	e.b = 0
@@ -48,6 +49,7 @@ func (e *BooleanEncoder) Reset() {
 	e.n = 0
 }
 
+// Write encodes b to the underlying buffer.
 func (e *BooleanEncoder) Write(b bool) {
 	// If we have filled the current byte, flush it
 	if e.i >= 8 {
@@ -82,6 +84,7 @@ func (e *BooleanEncoder) flush() {
 	}
 }
 
+// Bytes returns a new byte slice containing the encoded booleans from previous calls to Write.
 func (e *BooleanEncoder) Bytes() ([]byte, error) {
 	// Ensure the current byte is flushed
 	e.flush()
@@ -132,6 +135,9 @@ func (e *BooleanDecoder) SetBytes(b []byte) {
 	}
 }
 
+// Next returns whether there are any bits remaining in the decoder.
+// It returns false if there was an error decoding.
+// The error is available on the Error method.
 func (e *BooleanDecoder) Next() bool {
 	if e.err != nil {
 		return false
@@ -141,6 +147,7 @@ func (e *BooleanDecoder) Next() bool {
 	return e.i < e.n
 }
 
+// Read returns the next bit from the decoder.
 func (e *BooleanDecoder) Read() bool {
 	// Index into the byte slice
 	idx := e.i >> 3 // integer division by 8
@@ -158,6 +165,7 @@ func (e *BooleanDecoder) Read() bool {
 	return v&mask == mask
 }
 
+// Error returns the error encountered during decoding, if one occurred.
 func (e *BooleanDecoder) Error() error {
 	return e.err
 }

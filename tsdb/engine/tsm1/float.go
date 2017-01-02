@@ -30,7 +30,7 @@ const (
 // uvnan is the constant returned from math.NaN().
 const uvnan = 0x7FF8000000000001
 
-// FloatEncoder encodes multiple float64s into a byte slice
+// FloatEncoder encodes multiple float64s into a byte slice.
 type FloatEncoder struct {
 	val float64
 	err error
@@ -45,6 +45,7 @@ type FloatEncoder struct {
 	finished bool
 }
 
+// NewFloatEncoder returns a new FloatEncoder.
 func NewFloatEncoder() *FloatEncoder {
 	s := FloatEncoder{
 		first:   true,
@@ -55,9 +56,9 @@ func NewFloatEncoder() *FloatEncoder {
 	s.buf.WriteByte(floatCompressedGorilla << 4)
 
 	return &s
-
 }
 
+// Reset sets the encoder back to its initial state.
 func (s *FloatEncoder) Reset() {
 	s.val = 0
 	s.err = nil
@@ -72,10 +73,12 @@ func (s *FloatEncoder) Reset() {
 	s.first = true
 }
 
+// Bytes returns a copy of the underlying byte buffer used in the encoder.
 func (s *FloatEncoder) Bytes() ([]byte, error) {
 	return s.buf.Bytes(), s.err
 }
 
+// Finish indicates there are no more values to encode.
 func (s *FloatEncoder) Finish() {
 	if !s.finished {
 		// write an end-of-stream record
@@ -85,6 +88,7 @@ func (s *FloatEncoder) Finish() {
 	}
 }
 
+// Push encodes v to the underlying buffer.
 func (s *FloatEncoder) Push(v float64) {
 	// Only allow NaN as a sentinel value
 	if math.IsNaN(v) && !s.finished {
@@ -139,7 +143,7 @@ func (s *FloatEncoder) Push(v float64) {
 	s.val = v
 }
 
-// FloatDecoder decodes a byte slice into multipe float64 values
+// FloatDecoder decodes a byte slice into multiple float64 values.
 type FloatDecoder struct {
 	val uint64
 
@@ -184,6 +188,7 @@ func (it *FloatDecoder) SetBytes(b []byte) error {
 	return nil
 }
 
+// Next returns true if there are remaining values to read.
 func (it *FloatDecoder) Next() bool {
 	if it.err != nil || it.finished {
 		return false
@@ -269,10 +274,12 @@ func (it *FloatDecoder) Next() bool {
 	return true
 }
 
+// Values returns the current float64 value.
 func (it *FloatDecoder) Values() float64 {
 	return math.Float64frombits(it.val)
 }
 
+// Error returns the current decoding error.
 func (it *FloatDecoder) Error() error {
 	return it.err
 }

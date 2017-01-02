@@ -16,6 +16,7 @@ const (
 	v2headerSize = 4
 )
 
+// Tombstoner records tombstones when entries are deleted.
 type Tombstoner struct {
 	mu sync.RWMutex
 
@@ -30,16 +31,17 @@ type Tombstoner struct {
 	statsLoaded bool
 }
 
+// Tombstone represents an individual deletion.
 type Tombstone struct {
-	// Key is the tombstoned series key
+	// Key is the tombstoned series key.
 	Key string
 
 	// Min and Max are the min and max unix nanosecond time ranges of Key that are deleted.  If
-	// the full range is deleted, both values are -1
+	// the full range is deleted, both values are -1.
 	Min, Max int64
 }
 
-// Add add the all keys to the tombstone
+// Add adds the all keys, across all timestamps, to the tombstone.
 func (t *Tombstoner) Add(keys []string) error {
 	return t.AddRange(keys, math.MinInt64, math.MaxInt64)
 }
@@ -77,10 +79,12 @@ func (t *Tombstoner) AddRange(keys []string, min, max int64) error {
 	return t.writeTombstone(tombstones)
 }
 
+// ReadAll returns all the tombstones in the Tombstoner's directory.
 func (t *Tombstoner) ReadAll() ([]Tombstone, error) {
 	return t.readTombstone()
 }
 
+// Delete removes all the tombstone files from disk.
 func (t *Tombstoner) Delete() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -97,7 +101,7 @@ func (t *Tombstoner) HasTombstones() bool {
 	return len(files) > 0 && files[0].Size > 0
 }
 
-// TombstoneFiles returns any tombstone files associated with this TSM file.
+// TombstoneFiles returns any tombstone files associated with Tombstoner's TSM file.
 func (t *Tombstoner) TombstoneFiles() []FileStat {
 	t.mu.RLock()
 	if t.statsLoaded {
@@ -131,6 +135,7 @@ func (t *Tombstoner) TombstoneFiles() []FileStat {
 	return stats
 }
 
+// Walk calls fn for every Tombstone under the Tombstoner.
 func (t *Tombstoner) Walk(fn func(t Tombstone) error) error {
 	f, err := os.Open(t.tombstonePath())
 	if os.IsNotExist(err) {
