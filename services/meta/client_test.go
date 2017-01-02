@@ -573,8 +573,8 @@ func TestMetaClient_CreateUser(t *testing.T) {
 
 	// Auth for unkonwn user should fail
 	u, err = c.Authenticate("foo", "")
-	if u != nil || err != meta.ErrUserNotFound {
-		t.Fatalf("authentication should fail with %s", meta.ErrUserNotFound)
+	if u != nil || err != meta.ErrAuthenticate {
+		t.Fatalf("authentication should fail with %s", meta.ErrAuthenticate)
 	}
 
 	u, err = c.User("wilma")
@@ -1036,6 +1036,54 @@ func TestMetaClient_PersistClusterIDAfterRestart(t *testing.T) {
 		t.Fatal("cluster ID can't be zero")
 	} else if idAfter != id {
 		t.Fatalf("cluster id not the same: %d, %d", idAfter, id)
+	}
+}
+
+func BenchmarkAuthenticate_CorrectCredentials(b *testing.B) {
+	d, c := newClient()
+	defer os.RemoveAll(d)
+	defer c.Close()
+
+	if _, err := c.CreateUser("bob", "hunter2", false); err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		u, err := c.Authenticate("bob", "hunter2")
+		if u == nil || err != nil || u.Name != "bob" {
+			b.Fatal("failed to authenticate")
+		}
+	}
+}
+
+func BenchmarkAuthenticate_IncorrectPassword(b *testing.B) {
+	d, c := newClient()
+	defer os.RemoveAll(d)
+	defer c.Close()
+
+	if _, err := c.CreateUser("bob", "hunter2", false); err != nil {
+		b.Fatal(err)
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := c.Authenticate("bob", "password"); err != meta.ErrAuthenticate {
+			b.Fatal("authenticated with incorrect password")
+		}
+	}
+}
+
+func BenchmarkAuthenticate_InvalidUser(b *testing.B) {
+	d, c := newClient()
+	defer os.RemoveAll(d)
+	defer c.Close()
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := c.Authenticate("bob", "password"); err != meta.ErrAuthenticate {
+			b.Fatalf("invalid user incorrectly authenticated: %s", err)
+		}
 	}
 }
 
