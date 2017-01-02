@@ -118,6 +118,9 @@ func (f *LogFile) open() error {
 
 // Close shuts down the file handle and mmap.
 func (f *LogFile) Close() error {
+	// Wait until the file has no more references.
+	f.wg.Wait()
+
 	if f.w != nil {
 		f.w.Flush()
 		f.w = nil
@@ -160,7 +163,7 @@ func (f *LogFile) Measurement(name []byte) MeasurementElem {
 	if !ok {
 		return nil
 	}
-	return &mm
+	return mm
 }
 
 // MeasurementNames returns an ordered list of measurement names.
@@ -452,7 +455,6 @@ func (f *LogFile) execDeleteMeasurementEntry(e *LogEntry) {
 	mm.deleted = true
 	mm.tagSet = make(map[string]logTagKey)
 	mm.series = nil
-	f.mms[string(e.Name)] = mm
 
 	// Update measurement tombstone sketch.
 	f.mTSketch.Add(e.Name)
@@ -467,7 +469,6 @@ func (f *LogFile) execDeleteTagKeyEntry(e *LogEntry) {
 	ts.deleted = true
 
 	mm.tagSet[string(key)] = ts
-	f.mms[string(e.Name)] = mm
 }
 
 func (f *LogFile) execDeleteTagValueEntry(e *LogEntry) {
@@ -481,7 +482,6 @@ func (f *LogFile) execDeleteTagValueEntry(e *LogEntry) {
 
 	ts.tagValues[string(value)] = tv
 	mm.tagSet[string(key)] = ts
-	f.mms[string(e.Name)] = mm
 }
 
 func (f *LogFile) execSeriesEntry(e *LogEntry) {
@@ -514,9 +514,6 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 		ts.tagValues[string(t.Value)] = tv
 		mm.tagSet[string(t.Key)] = ts
 	}
-
-	// Save measurement.
-	f.mms[string(e.Name)] = mm
 
 	// Update the sketches...
 	if deleted {
@@ -560,14 +557,15 @@ func (f *LogFile) SeriesIterator() SeriesIterator {
 }
 
 // measurement returns a measurement by name.
-func (f *LogFile) measurement(name []byte) logMeasurement {
-	mm, ok := f.mms[string(name)]
-	if !ok {
-		mm = logMeasurement{
+func (f *LogFile) measurement(name []byte) *logMeasurement {
+	mm := f.mms[string(name)]
+	if mm == nil {
+		mm = &logMeasurement{
 			name:   name,
 			tagSet: make(map[string]logTagKey),
 			series: make(map[string]*logSerie),
 		}
+		f.mms[string(name)] = mm
 	}
 	return mm
 }
@@ -579,7 +577,7 @@ func (f *LogFile) MeasurementIterator() MeasurementIterator {
 
 	var itr logMeasurementIterator
 	for _, mm := range f.mms {
-		itr.mms = append(itr.mms, mm)
+		itr.mms = append(itr.mms, *mm)
 	}
 	sort.Sort(logMeasurementSlice(itr.mms))
 	return &itr
@@ -591,7 +589,7 @@ func (f *LogFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
 	defer f.mu.RUnlock()
 
 	mm := f.mms[string(name)]
-	if len(mm.series) == 0 {
+	if mm == nil || len(mm.series) == 0 {
 		return nil
 	}
 	return newLogSeriesIterator(mm.series)
@@ -658,18 +656,10 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 	// Retreve measurement names in order.
 	names := f.measurementNames()
 
-	// Add series from measurements in order.
+	// Add series from measurements.
 	for _, name := range names {
 		mm := f.mms[name]
-
-		// Ensure series are sorted.
-		a := make(logSeries, 0, len(mm.series))
 		for _, serie := range mm.series {
-			a = append(a, *serie)
-		}
-		sort.Sort(a)
-
-		for _, serie := range a {
 			if err := sw.Add(serie.name, serie.tags); err != nil {
 				return err
 			}
@@ -694,6 +684,7 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 	}
 
 	// Add series to each measurement and key/value.
+	buf := make([]byte, 0, 1024)
 	for _, name := range names {
 		mm := f.mms[name]
 
@@ -718,15 +709,13 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 				t.tagValues[string(tag.Value)] = v
 			}
 
-			key := AppendSeriesKey(make([]byte, 0, 256), serie.name, serie.tags)
+			key := AppendSeriesKey(buf[:0], serie.name, serie.tags)
 			if serie.Deleted() {
 				sw.TSketch.Add(key)
 			} else {
 				sw.Sketch.Add(key)
 			}
 		}
-
-		f.mms[string(name)] = mm
 	}
 
 	// Set log file sketches to updated versions.
@@ -775,8 +764,6 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, n *int64) error {
 	// Save tagset offset to measurement.
 	mm.size = *n - mm.offset
 
-	f.mms[name] = mm
-
 	return nil
 }
 
@@ -818,7 +805,7 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, n *int64)
 
 // reset clears all the compaction fields on the in-memory index.
 func (f *LogFile) reset() {
-	for name, mm := range f.mms {
+	for _, mm := range f.mms {
 		for i := range mm.series {
 			mm.series[i].offset = 0
 		}
@@ -831,7 +818,6 @@ func (f *LogFile) reset() {
 			}
 			mm.tagSet[key] = tagSet
 		}
-		f.mms[name] = mm
 	}
 }
 
@@ -973,7 +959,7 @@ func (a logSeries) Less(i, j int) bool {
 }
 
 // logMeasurements represents a map of measurement names to measurements.
-type logMeasurements map[string]logMeasurement
+type logMeasurements map[string]*logMeasurement
 
 // names returns a sorted list of measurement names.
 func (m logMeasurements) names() []string {

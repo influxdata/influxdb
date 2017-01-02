@@ -385,6 +385,9 @@ func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 		return 0, errors.New("series tombstone sketch not set")
 	}
 
+	// Ensure series are sorted.
+	sort.Sort(series(sw.series))
+
 	// Write dictionary-encoded series list.
 	t.Series.Data.Offset = n
 	if err := sw.writeSeriesTo(w, &n); err != nil {
@@ -424,9 +427,6 @@ func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 
 // writeSeriesTo writes series to w in sorted order.
 func (sw *SeriesBlockWriter) writeSeriesTo(w io.Writer, n *int64) error {
-	// Ensure series are sorted.
-	sort.Sort(series(sw.series))
-
 	// Write series count.
 	if err := writeUint32To(w, uint32(len(sw.series)), n); err != nil {
 		return err

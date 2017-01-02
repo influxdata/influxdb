@@ -98,6 +98,13 @@ func (i *Index) Measurement(name []byte) (*tsdb.Measurement, error) {
 	return i.measurements[string(name)], nil
 }
 
+// MeasurementExists returns true if the measurement exists.
+func (i *Index) MeasurementExists(name []byte) (bool, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+	return i.measurements[string(name)] != nil, nil
+}
+
 // MeasurementsSketches returns the sketches for the measurements.
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	i.mu.RLock()

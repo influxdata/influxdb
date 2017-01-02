@@ -286,8 +286,8 @@ func (e *Engine) disableSnapshotCompactions() {
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
-func (e *Engine) Measurement(name []byte) (*tsdb.Measurement, error) {
-	return e.index.Measurement(name)
+func (e *Engine) MeasurementExists(name []byte) (bool, error) {
+	return e.index.MeasurementExists(name)
 }
 
 func (e *Engine) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {

@@ -82,6 +82,9 @@ func (f *IndexFile) Open() error {
 
 // Close unmaps the data file.
 func (f *IndexFile) Close() error {
+	// Wait until all references are released.
+	f.wg.Wait()
+
 	f.sblk = SeriesBlock{}
 	f.tblks = nil
 	f.mblk = MeasurementBlock{}
