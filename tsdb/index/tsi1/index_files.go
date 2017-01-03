@@ -1,6 +1,7 @@
 package tsi1
 
 import (
+	"bufio"
 	"fmt"
 	"io"
 	"sort"
@@ -91,6 +92,10 @@ func (p IndexFiles) TagValueSeriesIterator(name, key, value []byte) SeriesIterat
 func (p *IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 	var t IndexFileTrailer
 
+	// Wrap writer in buffered I/O.
+	bw := bufio.NewWriter(w)
+	w = bw
+
 	// Setup context object to track shared data for this compaction.
 	var info indexCompactInfo
 	info.tagSets = make(map[string]indexTagSetPos)
@@ -124,6 +129,11 @@ func (p *IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 	nn, err := t.WriteTo(w)
 	n += nn
 	if err != nil {
+		return n, err
+	}
+
+	// Flush file.
+	if err := bw.Flush(); err != nil {
 		return n, err
 	}
 

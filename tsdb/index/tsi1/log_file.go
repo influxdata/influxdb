@@ -11,6 +11,7 @@ import (
 	"os"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 
@@ -41,7 +42,9 @@ type LogFile struct {
 	file *os.File       // writer
 	w    *bufio.Writer  // buffered writer
 	buf  []byte         // marshaling buffer
-	size int64          // tracks current file size
+
+	size    int64     // tracks current file size
+	modTime time.Time // tracks last time write occurred
 
 	mSketch, mTSketch estimator.Sketch // Measurement sketches
 	sSketch, sTSketch estimator.Sketch // Series sketche
@@ -90,6 +93,7 @@ func (f *LogFile) open() error {
 		return nil
 	}
 	f.size = fi.Size()
+	f.modTime = fi.ModTime()
 
 	// Open a read-only memory map of the existing data.
 	data, err := mmap.Map(f.Path)
@@ -146,12 +150,12 @@ func (f *LogFile) Retain() { f.wg.Add(1) }
 // Release removes a reference count from the file.
 func (f *LogFile) Release() { f.wg.Done() }
 
-// Size returns the tracked in-memory file size of the log file.
-func (f *LogFile) Size() int64 {
+// Stat returns size and last modification time of the file.
+func (f *LogFile) Stat() (int64, time.Time) {
 	f.mu.Lock()
-	n := f.size
+	size, modTime := f.size, f.modTime
 	f.mu.Unlock()
-	return n
+	return size, modTime
 }
 
 // Measurement returns a measurement element.
@@ -429,8 +433,9 @@ func (f *LogFile) appendEntry(e *LogEntry) error {
 		return err
 	}
 
-	// Update in-memory file size.
+	// Update in-memory file size & modification time.
 	f.size += int64(n)
+	f.modTime = time.Now()
 
 	return nil
 }
