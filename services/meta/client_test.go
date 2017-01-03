@@ -680,6 +680,19 @@ func TestMetaClient_CreateUser(t *testing.T) {
 	}
 }
 
+func TestMetaClient_UpdateUser(t *testing.T) {
+	t.Parallel()
+
+	d, c := newClient()
+	defer os.RemoveAll(d)
+	defer c.Close()
+
+	// UpdateUser that doesn't exist should return an error.
+	if err := c.UpdateUser("foo", "bar"); err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+}
+
 func TestMetaClient_ContinuousQueries(t *testing.T) {
 	t.Parallel()
 
@@ -728,6 +741,11 @@ func TestMetaClient_ContinuousQueries(t *testing.T) {
 	// Drop a single CQ
 	if err := c.DropContinuousQuery("db0", "cq1"); err != nil {
 		t.Fatal(err)
+	}
+
+	// Dropping a nonexistent CQ should return an error.
+	if err := c.DropContinuousQuery("db0", "not-a-cq"); err == nil {
+		t.Fatal("expected an error, got nil")
 	}
 }
 
