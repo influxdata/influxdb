@@ -25,8 +25,8 @@ export default React.createClass({
 
   propTypes: {
     ranges: shape({
-      y: arrayOf(number.isRequired),
-      y2: arrayOf(number.isRequired),
+      y: arrayOf(number),
+      y2: arrayOf(number),
     }),
     timeSeries: array.isRequired, // eslint-disable-line react/forbid-prop-types
     labels: array.isRequired, // eslint-disable-line react/forbid-prop-types

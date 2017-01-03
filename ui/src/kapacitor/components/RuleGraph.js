@@ -4,6 +4,7 @@ import AutoRefresh from 'shared/components/AutoRefresh';
 import LineGraph from 'shared/components/LineGraph';
 const RefreshingLineGraph = AutoRefresh(LineGraph);
 
+const OUT_OF_RANGE = "out of range";
 export const RuleGraph = React.createClass({
   propTypes: {
     source: PropTypes.shape({
@@ -25,7 +26,7 @@ export const RuleGraph = React.createClass({
   },
 
   renderGraph() {
-    const {query, source, timeRange} = this.props;
+    const {query, source, timeRange, rule} = this.props;
     const autoRefreshMs = 30000;
     const queryText = selectStatement({lower: timeRange.queryValue}, query);
     const queries = [{host: source.links.proxy, text: queryText}];
@@ -39,8 +40,27 @@ export const RuleGraph = React.createClass({
       );
     }
 
+    const {value, rangeValue, operator} = rule.values;
+    const tenPercent = 0.1;
+    let lower, upper;
+    let upperRange, lowerRange;
+
+    if (value !== "" && operator === OUT_OF_RANGE) {
+      lower = Math.min(+rule.values.rangeValue, +rule.values.value);
+      lowerRange = lower ? lower + lower * tenPercent : null;
+    }
+
+    if (rangeValue !== "" && operator === OUT_OF_RANGE) {
+      upper = Math.max(+rule.values.rangeValue, +rule.values.value);
+      upperRange = upper ? upper + upper * tenPercent : null;
+    }
+
+    // if either value is null, Dygraph will choose a sensible default
+    const range = {y: [lowerRange, upperRange]};
+
     return (
       <RefreshingLineGraph
+        ranges={range}
         queries={queries}
         autoRefresh={autoRefreshMs}
         underlayCallback={this.createUnderlayCallback()}
@@ -84,7 +104,15 @@ export const RuleGraph = React.createClass({
           break;
         }
 
-        case 'out of range':
+        case 'out of range': {
+          const {rangeValue, value} = rule.values;
+          highlightStart = Math.min(+value, +rangeValue);
+          highlightEnd = Math.max(+value, +rangeValue);
+
+          canvas.fillStyle = 'rgba(78, 216, 160, 0.3)';
+          canvas.fillRect(area.x, area.y, area.w, area.h);
+          break;
+        }
         case 'within range': {
           const {rangeValue, value} = rule.values;
           highlightStart = Math.min(+value, +rangeValue);
@@ -96,7 +124,7 @@ export const RuleGraph = React.createClass({
       const bottom = dygraph.toDomYCoord(highlightStart);
       const top = dygraph.toDomYCoord(highlightEnd);
 
-      canvas.fillStyle = 'rgba(78,216,160,0.3)';
+      canvas.fillStyle = rule.values.operator === 'out of range' ? 'rgba(41, 41, 51, 1)' : 'rgba(78, 216, 160, 0.3)';
       canvas.fillRect(area.x, top, area.w, bottom - top);
     };
   },

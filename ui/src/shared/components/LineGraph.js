@@ -11,6 +11,10 @@ export default React.createClass({
   displayName: 'LineGraph',
   propTypes: {
     data: PropTypes.arrayOf(PropTypes.shape({}).isRequired).isRequired,
+    ranges: PropTypes.shape({
+      y: PropTypes.arrayOf(PropTypes.number),
+      y2: PropTypes.arrayOf(PropTypes.number),
+    }),
     title: PropTypes.string,
     isFetchingInitially: PropTypes.bool,
     isRefreshing: PropTypes.bool,
@@ -46,7 +50,7 @@ export default React.createClass({
   },
 
   render() {
-    const {data, isFetchingInitially, isRefreshing, isGraphFilled, overrideLineColors, title, underlayCallback, queries, showSingleStat} = this.props;
+    const {data, ranges, isFetchingInitially, isRefreshing, isGraphFilled, overrideLineColors, title, underlayCallback, queries, showSingleStat} = this.props;
     const {labels, timeSeries, dygraphSeries} = this._timeSeries;
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
@@ -94,7 +98,7 @@ export default React.createClass({
           labels={labels}
           options={options}
           dygraphSeries={dygraphSeries}
-          ranges={this.getRanges()}
+          ranges={ranges || this.getRanges()}
         />
         {showSingleStat ? <div className="graph-single-stat single-stat">{roundedValue}</div> : null}
       </div>
