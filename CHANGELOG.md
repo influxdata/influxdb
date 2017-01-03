@@ -23,6 +23,7 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 
 ### Bugfixes
 
+- [#7784](https://github.com/influxdata/influxdb/pull/7784): Fix broken error return on meta client's UpdateUser and DropContinuousQuery methods.
 - [#7741](https://github.com/influxdata/influxdb/pull/7741): Fix string quoting and significantly improve performance of `influx_inspect export`.
 - [#7698](https://github.com/influxdata/influxdb/pull/7698): CLI was caching db/rp for insert into statements.
 - [#7659](https://github.com/influxdata/influxdb/issues/7659): Fix CLI import bug when using self-signed SSL certificates.
