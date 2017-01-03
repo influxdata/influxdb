@@ -2146,7 +2146,11 @@ func assertEqual(t *testing.T, a tsm1.Value, b models.Point, field string) {
 	if got, exp := a.UnixNano(), b.UnixNano(); got != exp {
 		t.Fatalf("time mismatch: got %v, exp %v", got, exp)
 	}
-	if got, exp := a.Value(), b.Fields()[field]; got != exp {
+	fields, err := b.Fields()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, exp := a.Value(), fields[field]; got != exp {
 		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
 	}
 }

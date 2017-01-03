@@ -9,7 +9,10 @@ func TestNewResponse(t *testing.T) {
 	tr := NewTracer(map[string]string{})
 	r := NewResponse(pt, tr)
 	expected := "another_tag_value"
-	test := r.AddTags(map[string]string{"another_tag": "another_tag_value"})
+	test, err := r.AddTags(map[string]string{"another_tag": "another_tag_value"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	got := test.Tags()["another_tag"]
 	if expected != got {
 		t.Errorf("expected: %v\ngot: %v\n", expected, got)
