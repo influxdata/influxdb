@@ -83,6 +83,14 @@ export const RuleGraph = React.createClass({
           highlightEnd = +rule.values.value + width;
           break;
         }
+
+        case 'out of range':
+        case 'within range': {
+          const {rangeValue, value} = rule.values;
+          highlightStart = Math.min(+value, +rangeValue);
+          highlightEnd = Math.max(+value, +rangeValue);
+          break;
+        }
       }
 
       const bottom = dygraph.toDomYCoord(highlightStart);
