@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react';
+import shallowCompare from 'react-addons-shallow-compare';
 import {Link} from 'react-router';
 import _ from 'lodash';
 
@@ -141,7 +142,7 @@ const HostRow = React.createClass({
   },
 
   shouldComponentUpdate(nextProps) {
-    return this.props.host !== nextProps.host;
+    return shallowCompare(this, nextProps);
   },
 
   render() {
