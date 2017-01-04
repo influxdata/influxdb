@@ -107,7 +107,10 @@ func (st *StressTest) resultsListen() {
 				resp.Tracer.Done()
 			default:
 				// Add the StressTest tags
-				pt := resp.AddTags(st.tags())
+				pt, err := resp.AddTags(st.tags())
+				if err != nil {
+					panic(err)
+				}
 				// Add the point to the batch
 				bp = st.batcher(pt, bp)
 				resp.Tracer.Done()

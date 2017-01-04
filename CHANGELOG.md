@@ -37,6 +37,7 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#6527](https://github.com/influxdata/influxdb/issues/6527): 0.12.2 Influx CLI client PRECISION returns "Unknown precision....
 - [#7740](https://github.com/influxdata/influxdb/issues/7740): Fix parse key panic when missing tag value @oiooj
 - [#7563](https://github.com/influxdata/influxdb/issues/7563): RP should not allow `INF` or `0` as a shard duration.
+- [#7585](https://github.com/influxdata/influxdb/pull/7585): Return Error instead of panic when decoding point values.
 
 ## v1.1.1 [2016-12-06]
 

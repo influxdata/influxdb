@@ -459,9 +459,13 @@ func TestClient_PointFields(t *testing.T) {
 	fields := map[string]interface{}{"idle": 10.1, "system": 50.9, "user": 39.0}
 	p, _ := NewPoint("cpu_usage", tags, fields)
 
-	if !reflect.DeepEqual(fields, p.Fields()) {
+	pfields, err := p.Fields()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(fields, pfields) {
 		t.Errorf("Error, got %v, expected %v",
-			p.Fields(), fields)
+			pfields, fields)
 	}
 }
 

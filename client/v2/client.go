@@ -338,7 +338,7 @@ func (p *Point) UnixNano() int64 {
 }
 
 // Fields returns the fields for the point
-func (p *Point) Fields() map[string]interface{} {
+func (p *Point) Fields() (map[string]interface{}, error) {
 	return p.pt.Fields()
 }
 

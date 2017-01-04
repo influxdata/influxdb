@@ -45,7 +45,7 @@ type Point interface {
 	AddTag(key, value string)
 	SetTags(tags Tags)
 
-	Fields() Fields
+	Fields() (Fields, error)
 
 	Time() time.Time
 	SetTime(t time.Time)
@@ -110,9 +110,9 @@ type FieldIterator interface {
 	FieldKey() []byte
 	Type() FieldType
 	StringValue() string
-	IntegerValue() int64
-	BooleanValue() bool
-	FloatValue() float64
+	IntegerValue() (int64, error)
+	BooleanValue() (bool, error)
+	FloatValue() (float64, error)
 
 	Delete()
 	Reset()
@@ -1203,7 +1203,11 @@ func NewPointFromBytes(b []byte) (Point, error) {
 	if err := p.UnmarshalBinary(b); err != nil {
 		return nil, err
 	}
-	if len(p.Fields()) == 0 {
+	fields, err := p.Fields()
+	if err != nil {
+		return nil, err
+	}
+	if len(fields) == 0 {
 		return nil, ErrPointMustHaveAField
 	}
 	return p, nil
@@ -1338,12 +1342,16 @@ func (p *point) AddTag(key, value string) {
 }
 
 // Fields returns the fields for the point
-func (p *point) Fields() Fields {
+func (p *point) Fields() (Fields, error) {
 	if p.cachedFields != nil {
-		return p.cachedFields
+		return p.cachedFields, nil
 	}
-	p.cachedFields = p.unmarshalBinary()
-	return p.cachedFields
+	cf, err := p.unmarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	p.cachedFields = cf
+	return p.cachedFields, nil
 }
 
 // SetPrecision will round a time to the specified precision
@@ -1467,7 +1475,7 @@ func (p *point) RoundedString(d time.Duration) string {
 		p.time.Round(d).UnixNano())
 }
 
-func (p *point) unmarshalBinary() Fields {
+func (p *point) unmarshalBinary() (Fields, error) {
 	iter := p.FieldIterator()
 	fields := make(Fields, 8)
 	for iter.Next() {
@@ -1476,16 +1484,28 @@ func (p *point) unmarshalBinary() Fields {
 		}
 		switch iter.Type() {
 		case Float:
-			fields[string(iter.FieldKey())] = iter.FloatValue()
+			v, err := iter.FloatValue()
+			if err != nil {
+				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
+			}
+			fields[string(iter.FieldKey())] = v
 		case Integer:
-			fields[string(iter.FieldKey())] = iter.IntegerValue()
+			v, err := iter.IntegerValue()
+			if err != nil {
+				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
+			}
+			fields[string(iter.FieldKey())] = v
 		case String:
 			fields[string(iter.FieldKey())] = iter.StringValue()
 		case Boolean:
-			fields[string(iter.FieldKey())] = iter.BooleanValue()
+			v, err := iter.BooleanValue()
+			if err != nil {
+				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
+			}
+			fields[string(iter.FieldKey())] = v
 		}
 	}
-	return fields
+	return fields, nil
 }
 
 func (p *point) HashID() uint64 {
@@ -1762,29 +1782,28 @@ func (p *point) StringValue() string {
 	return unescapeStringField(string(p.it.valueBuf[1 : len(p.it.valueBuf)-1]))
 }
 
-func (p *point) IntegerValue() int64 {
+func (p *point) IntegerValue() (int64, error) {
 	n, err := parseIntBytes(p.it.valueBuf, 10, 64)
 	if err != nil {
-		panic(fmt.Sprintf("unable to parse integer value %q: %v", p.it.valueBuf, err))
+		return 0, fmt.Errorf("unable to parse integer value %q: %v", p.it.valueBuf, err)
 	}
-	return n
+	return n, nil
 }
 
-func (p *point) BooleanValue() bool {
+func (p *point) BooleanValue() (bool, error) {
 	b, err := parseBoolBytes(p.it.valueBuf)
 	if err != nil {
-		panic(fmt.Sprintf("unable to parse bool value %q: %v", p.it.valueBuf, err))
+		return false, fmt.Errorf("unable to parse bool value %q: %v", p.it.valueBuf, err)
 	}
-	return b
+	return b, nil
 }
 
-func (p *point) FloatValue() float64 {
+func (p *point) FloatValue() (float64, error) {
 	f, err := parseFloatBytes(p.it.valueBuf, 64)
 	if err != nil {
-		// panic because that's what the non-iterator code does
-		panic(fmt.Sprintf("unable to parse floating point value %q: %v", p.it.valueBuf, err))
+		return 0, fmt.Errorf("unable to parse floating point value %q: %v", p.it.valueBuf, err)
 	}
-	return f
+	return f, nil
 }
 
 func (p *point) Delete() {
