@@ -1,3 +1,4 @@
+// Package collectd provides a service for InfluxDB to ingest data via the collectd protocol.
 package collectd // import "github.com/influxdata/influxdb/services/collectd"
 
 import (
@@ -36,12 +37,12 @@ type pointsWriter interface {
 	WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 }
 
-// metaStore is an internal interface to make testing easier.
+// metaClient is an internal interface to make testing easier.
 type metaClient interface {
 	CreateDatabase(name string) (*meta.DatabaseInfo, error)
 }
 
-// Reads a collectd types db from a file.
+// TypesDBFile reads a collectd types db from a file.
 func TypesDBFile(path string) (typesdb *api.TypesDB, err error) {
 	var reader *os.File
 	reader, err = os.Open(path)
@@ -261,6 +262,7 @@ func (s *Service) createInternalStorage() error {
 	return nil
 }
 
+// WithLogger sets the service's logger.
 func (s *Service) WithLogger(log zap.Logger) {
 	s.Logger = log.With(zap.String("service", "collectd"))
 }
@@ -302,7 +304,7 @@ func (s *Service) SetTypes(types string) (err error) {
 	return
 }
 
-// Addr returns the listener's address. Returns nil if listener is closed.
+// Addr returns the listener's address. It returns nil if listener is closed.
 func (s *Service) Addr() net.Addr {
 	return s.conn.LocalAddr()
 }
@@ -379,7 +381,7 @@ func (s *Service) writePoints() {
 	}
 }
 
-// Unmarshal translates a ValueList into InfluxDB data points.
+// UnmarshalValueList translates a ValueList into InfluxDB data points.
 func (s *Service) UnmarshalValueList(vl *api.ValueList) []models.Point {
 	timestamp := vl.Time.UTC()
 

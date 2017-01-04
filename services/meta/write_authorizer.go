@@ -6,10 +6,12 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 )
 
+// WriteAuthorizer determines whether a user is authorized to write to a given database.
 type WriteAuthorizer struct {
 	Client *Client
 }
 
+// NewWriteAuthorizer returns a new instance of WriteAuthorizer.
 func NewWriteAuthorizer(c *Client) *WriteAuthorizer {
 	return &WriteAuthorizer{Client: c}
 }

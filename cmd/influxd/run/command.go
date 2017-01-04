@@ -1,3 +1,4 @@
+// Package run is the run (default) subcommand for the influxd command.
 package run
 
 import (
@@ -186,7 +187,7 @@ func (cmd *Command) writePIDFile(path string) error {
 }
 
 // ParseConfig parses the config at path.
-// Returns a demo configuration if path is blank.
+// It returns a demo configuration if path is blank.
 func (cmd *Command) ParseConfig(path string) (*Config, error) {
 	// Use demo configuration if no config path is specified.
 	if path == "" {
@@ -204,7 +205,7 @@ func (cmd *Command) ParseConfig(path string) (*Config, error) {
 	return config, nil
 }
 
-var usage = `Runs the InfluxDB server.
+const usage = `Runs the InfluxDB server.
 
 Usage: influxd run [flags]
 

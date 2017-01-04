@@ -93,7 +93,7 @@ var (
 	ErrSubscriptionNotFound = errors.New("subscription not found")
 )
 
-// ErrInvalidSubscriptionURL is returned when the destication url is invalid.
+// ErrInvalidSubscriptionURL is returned when the subscription's destination URL is invalid.
 func ErrInvalidSubscriptionURL(url string) error {
 	return fmt.Errorf("invalid subscription URL: %s", url)
 }

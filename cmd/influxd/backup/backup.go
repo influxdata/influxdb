@@ -1,3 +1,4 @@
+// Package backup is the backup subcommand for the influxd command.
 package backup
 
 import (

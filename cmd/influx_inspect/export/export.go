@@ -1,3 +1,4 @@
+// Package export exports TSM files into InfluxDB line protocol format.
 package export
 
 import (

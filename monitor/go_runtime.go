@@ -6,7 +6,7 @@ import (
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 )
 
-// goRuntime captures Go runtime diagnostics
+// goRuntime captures Go runtime diagnostics.
 type goRuntime struct{}
 
 func (g *goRuntime) Diagnostics() (*diagnostics.Diagnostics, error) {

@@ -19,10 +19,10 @@ const (
 	// DefaultConsistencyLevel is the default write consistency level.
 	DefaultConsistencyLevel = "one"
 
-	// DefaultBatchSize is the default Graphite batch size.
+	// DefaultBatchSize is the default OpenTSDB batch size.
 	DefaultBatchSize = 1000
 
-	// DefaultBatchTimeout is the default Graphite batch timeout.
+	// DefaultBatchTimeout is the default OpenTSDB batch timeout.
 	DefaultBatchTimeout = time.Second
 
 	// DefaultBatchPending is the default number of batches that can be in the queue.

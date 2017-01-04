@@ -12,16 +12,16 @@ import (
 )
 
 const (
-	// BlockFloat64 designates a block encodes float64 values
+	// BlockFloat64 designates a block encodes float64 values.
 	BlockFloat64 = byte(0)
 
-	// BlockInteger designates a block encodes int64 values
+	// BlockInteger designates a block encodes int64 values.
 	BlockInteger = byte(1)
 
-	// BlockBoolean designates a block encodes boolean values
+	// BlockBoolean designates a block encodes boolean values.
 	BlockBoolean = byte(2)
 
-	// BlockString designates a block encodes string values
+	// BlockString designates a block encodes string values.
 	BlockString = byte(3)
 
 	// encodedBlockHeaderSize is the size of the header for an encoded block.  There is one
@@ -30,7 +30,7 @@ const (
 )
 
 func init() {
-	// Prime the pools with with at one encoder/decoder for each available CPU
+	// Prime the pools with one encoder/decoder for each available CPU.
 	vals := make([]interface{}, 0, runtime.NumCPU())
 	for _, p := range []*pool.Generic{
 		timeEncoderPool, timeDecoderPool,
@@ -54,6 +54,7 @@ func init() {
 
 var (
 	// encoder pools
+
 	timeEncoderPool = pool.NewGeneric(runtime.NumCPU(), func(sz int) interface{} {
 		return NewTimeEncoder(sz)
 	})
@@ -71,6 +72,7 @@ var (
 	})
 
 	// decoder pools
+
 	timeDecoderPool = pool.NewGeneric(runtime.NumCPU(), func(sz int) interface{} {
 		return &TimeDecoder{}
 	})
@@ -88,15 +90,26 @@ var (
 	})
 )
 
+// Value represents a TSM-encoded value.
 type Value interface {
+	// UnixNano returns the timestamp of the value in nanoseconds since unix epoch.
 	UnixNano() int64
+
+	// Value returns the underlying value.
 	Value() interface{}
+
+	// Size returns the number of bytes necessary to represent the value and its timestamp.
 	Size() int
+
+	// String returns the string representation of the value and its timestamp.
 	String() string
 
+	// internalOnly is unexported to ensure implementations of Value
+	// can only originate in this package.
 	internalOnly()
 }
 
+// NewValue returns a new Value with the underlying type dependent on value.
 func NewValue(t int64, value interface{}) Value {
 	switch v := value.(type) {
 	case int64:
@@ -111,28 +124,40 @@ func NewValue(t int64, value interface{}) Value {
 	return EmptyValue{}
 }
 
+// NewIntegerValue returns a new integer value.
 func NewIntegerValue(t int64, v int64) Value {
 	return IntegerValue{unixnano: t, value: v}
 }
 
+// NewFloatValue returns a new float value.
 func NewFloatValue(t int64, v float64) Value {
 	return FloatValue{unixnano: t, value: v}
 }
 
+// NewBooleanValue returns a new boolean value.
 func NewBooleanValue(t int64, v bool) Value {
 	return BooleanValue{unixnano: t, value: v}
 }
 
+// NewStringValue returns a new string value.
 func NewStringValue(t int64, v string) Value {
 	return StringValue{unixnano: t, value: v}
 }
 
+// EmptyValue is used when there is no appropriate other value.
 type EmptyValue struct{}
 
-func (e EmptyValue) UnixNano() int64    { return tsdb.EOF }
+// UnixNano returns tsdb.EOF.
+func (e EmptyValue) UnixNano() int64 { return tsdb.EOF }
+
+// Value returns nil.
 func (e EmptyValue) Value() interface{} { return nil }
-func (e EmptyValue) Size() int          { return 0 }
-func (e EmptyValue) String() string     { return "" }
+
+// Size returns 0.
+func (e EmptyValue) Size() int { return 0 }
+
+// String returns the empty string.
+func (e EmptyValue) String() string { return "" }
 
 func (_ EmptyValue) internalOnly()   {}
 func (_ StringValue) internalOnly()  {}
@@ -193,6 +218,7 @@ func BlockType(block []byte) (byte, error) {
 	}
 }
 
+// BlockCount returns the number of timestamps encoded in block.
 func BlockCount(block []byte) int {
 	if len(block) <= encodedBlockHeaderSize {
 		panic(fmt.Sprintf("count of short block: got %v, exp %v", len(block), encodedBlockHeaderSize))
@@ -205,7 +231,7 @@ func BlockCount(block []byte) int {
 	return CountTimestamps(tb)
 }
 
-// DecodeBlock takes a byte array and will decode into values of the appropriate type
+// DecodeBlock takes a byte slice and decodes it into values of the appropriate type
 // based on the block.
 func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 	if len(block) <= encodedBlockHeaderSize {
@@ -266,23 +292,28 @@ func DecodeBlock(block []byte, vals []Value) ([]Value, error) {
 	}
 }
 
+// FloatValue represents a float64 value.
 type FloatValue struct {
 	unixnano int64
 	value    float64
 }
 
+// UnixNano returns the timestamp of the value.
 func (f FloatValue) UnixNano() int64 {
 	return f.unixnano
 }
 
+// Value returns the underlying float64 value.
 func (f FloatValue) Value() interface{} {
 	return f.value
 }
 
+// Size returns the number of bytes necessary to represent the value and its timestamp.
 func (f FloatValue) Size() int {
 	return 16
 }
 
+// String returns the string representation of the value and its timestamp.
 func (f FloatValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.value)
 }
@@ -335,6 +366,8 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	return b, err
 }
 
+// DecodeFloatBlock decodes the float block from the byte slice
+// and appends the float values to a.
 func DecodeFloatBlock(block []byte, a *[]FloatValue) ([]FloatValue, error) {
 	// Block type is the next block, make sure we actually have a float block
 	blockType := block[0]
@@ -394,23 +427,28 @@ func DecodeFloatBlock(block []byte, a *[]FloatValue) ([]FloatValue, error) {
 	return (*a)[:i], err
 }
 
+// BooleanValue represents a boolean value.
 type BooleanValue struct {
 	unixnano int64
 	value    bool
 }
 
+// Size returns the number of bytes necessary to represent the value and its timestamp.
 func (b BooleanValue) Size() int {
 	return 9
 }
 
+// UnixNano returns the timestamp of the value in nanoseconds since unix epoch.
 func (b BooleanValue) UnixNano() int64 {
 	return b.unixnano
 }
 
+// Value returns the underlying boolean value.
 func (b BooleanValue) Value() interface{} {
 	return b.value
 }
 
+// String returns the string representation of the value and its timestamp.
 func (f BooleanValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
 }
@@ -458,6 +496,8 @@ func encodeBooleanBlock(buf []byte, values []Value) ([]byte, error) {
 	return b, err
 }
 
+// DecodeBooleanBlock decodes the boolean block from the byte slice
+// and appends the boolean values to a.
 func DecodeBooleanBlock(block []byte, a *[]BooleanValue) ([]BooleanValue, error) {
 	// Block type is the next block, make sure we actually have a float block
 	blockType := block[0]
@@ -513,23 +553,28 @@ func DecodeBooleanBlock(block []byte, a *[]BooleanValue) ([]BooleanValue, error)
 	return (*a)[:i], err
 }
 
+// FloatValue represents an int64 value.
 type IntegerValue struct {
 	unixnano int64
 	value    int64
 }
 
+// Value returns the underlying int64 value.
 func (v IntegerValue) Value() interface{} {
 	return v.value
 }
 
+// UnixNano returns the timestamp of the value.
 func (v IntegerValue) UnixNano() int64 {
 	return v.unixnano
 }
 
+// Size returns the number of bytes necessary to represent the value and its timestamp.
 func (v IntegerValue) Size() int {
 	return 16
 }
 
+// String returns the string representation of the value and its timestamp.
 func (f IntegerValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
 }
@@ -568,6 +613,8 @@ func encodeIntegerBlock(buf []byte, values []Value) ([]byte, error) {
 	return b, err
 }
 
+// DecodeIntegerBlock decodes the integer block from the byte slice
+// and appends the integer values to a.
 func DecodeIntegerBlock(block []byte, a *[]IntegerValue) ([]IntegerValue, error) {
 	blockType := block[0]
 	if blockType != BlockInteger {
@@ -624,23 +671,28 @@ func DecodeIntegerBlock(block []byte, a *[]IntegerValue) ([]IntegerValue, error)
 	return (*a)[:i], err
 }
 
+// StringValue represents a string value.
 type StringValue struct {
 	unixnano int64
 	value    string
 }
 
+// Value returns the underlying string value.
 func (v StringValue) Value() interface{} {
 	return v.value
 }
 
+// UnixNano returns the timestamp of the value.
 func (v StringValue) UnixNano() int64 {
 	return v.unixnano
 }
 
+// Size returns the number of bytes necessary to represent the value and its timestamp.
 func (v StringValue) Size() int {
 	return 8 + len(v.value)
 }
 
+// String returns the string representation of the value and its timestamp.
 func (f StringValue) String() string {
 	return fmt.Sprintf("%v %v", time.Unix(0, f.unixnano), f.Value())
 }
@@ -680,6 +732,8 @@ func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 	return b, err
 }
 
+// DecodeStringBlock decodes the string block from the byte slice
+// and appends the string values to a.
 func DecodeStringBlock(block []byte, a *[]StringValue) ([]StringValue, error) {
 	blockType := block[0]
 	if blockType != BlockString {
@@ -781,12 +835,12 @@ func unpackBlock(buf []byte) (ts, values []byte, err error) {
 }
 
 // ZigZagEncode converts a int64 to a uint64 by zig zagging negative and positive values
-// across even and odd numbers.  Eg. [0,-1,1,-2] becomes [0, 1, 2, 3]
+// across even and odd numbers.  Eg. [0,-1,1,-2] becomes [0, 1, 2, 3].
 func ZigZagEncode(x int64) uint64 {
 	return uint64(uint64(x<<1) ^ uint64((int64(x) >> 63)))
 }
 
-// ZigZagDecode converts a previously zigzag encoded uint64 back to a int64
+// ZigZagDecode converts a previously zigzag encoded uint64 back to a int64.
 func ZigZagDecode(v uint64) int64 {
 	return int64((v >> 1) ^ uint64((int64(v&1)<<63)>>63))
 }

@@ -13,7 +13,7 @@ func init() {
 	startTime = time.Now().UTC()
 }
 
-// system captures system-level diagnostics
+// system captures system-level diagnostics.
 type system struct{}
 
 func (s *system) Diagnostics() (*diagnostics.Diagnostics, error) {

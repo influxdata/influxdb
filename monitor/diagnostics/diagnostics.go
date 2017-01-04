@@ -1,3 +1,5 @@
+// Package diagnostics provides the diagnostics type so that
+// other packages can provide diagnostics without depending on the monitor package.
 package diagnostics // import "github.com/influxdata/influxdb/monitor/diagnostics"
 
 // Client is the interface modules implement if they register diagnostics with monitor.

@@ -47,7 +47,8 @@ func (r *BitReader) ReadBit() (bool, error) {
 	return v != 0, err
 }
 
-// ReadBits reads nbits from the underlying data.
+// ReadBits reads nbits from the underlying data into a uint64.
+// nbits must be from 1 to 64, inclusive.
 func (r *BitReader) ReadBits(nbits uint) (uint64, error) {
 	// Return EOF if there is no more data.
 	if r.buf.n == 0 {

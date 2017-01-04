@@ -326,8 +326,8 @@ func NewIntervalIterator(input Iterator, opt IteratorOptions) Iterator {
 	}
 }
 
-// NewInterruptIterator returns an iterator that will stop producing output when a channel
-// has been closed on the passed in channel.
+// NewInterruptIterator returns an iterator that will stop producing output
+// when the passed-in channel is closed.
 func NewInterruptIterator(input Iterator, closing <-chan struct{}) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
@@ -344,7 +344,7 @@ func NewInterruptIterator(input Iterator, closing <-chan struct{}) Iterator {
 }
 
 // NewCloseInterruptIterator returns an iterator that will invoke the Close() method on an
-// iterator when a channel has been closed.
+// iterator when the passed-in channel has been closed.
 func NewCloseInterruptIterator(input Iterator, closing <-chan struct{}) Iterator {
 	switch input := input.(type) {
 	case FloatIterator:
@@ -360,7 +360,7 @@ func NewCloseInterruptIterator(input Iterator, closing <-chan struct{}) Iterator
 	}
 }
 
-// AuxIterator represents an iterator that can split off separate auxilary iterators.
+// AuxIterator represents an iterator that can split off separate auxiliary iterators.
 type AuxIterator interface {
 	Iterator
 	IteratorCreator
@@ -515,7 +515,7 @@ func (a auxIteratorFields) sendError(err error) {
 	}
 }
 
-// DrainIterator reads all points from an iterator.
+// DrainIterator reads and discards all points from itr.
 func DrainIterator(itr Iterator) {
 	defer itr.Close()
 	switch itr := itr.(type) {
@@ -536,7 +536,7 @@ func DrainIterator(itr Iterator) {
 	}
 }
 
-// DrainIterators reads all points from all iterators.
+// DrainIterators reads and discards all points from itrs.
 func DrainIterators(itrs []Iterator) {
 	defer Iterators(itrs).Close()
 	for {
@@ -588,7 +588,7 @@ func NewReaderIterator(r io.Reader, typ DataType, stats IteratorStats) Iterator 
 	}
 }
 
-// IteratorCreator represents an interface for objects that can create Iterators.
+// IteratorCreator is an interface to create Iterators.
 type IteratorCreator interface {
 	// Creates a simple iterator for use in an InfluxQL query.
 	CreateIterator(opt IteratorOptions) (Iterator, error)

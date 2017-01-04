@@ -1,3 +1,4 @@
+// Package continuous_querier provides the continuous query service.
 package continuous_querier // import "github.com/influxdata/influxdb/services/continuous_querier"
 
 import (
@@ -129,6 +130,7 @@ func (s *Service) Close() error {
 	return nil
 }
 
+// WithLogger sets the logger on the service.
 func (s *Service) WithLogger(log zap.Logger) {
 	s.Logger = log.With(zap.String("service", "continuous_querier"))
 }
@@ -396,7 +398,7 @@ type ContinuousQuery struct {
 func (cq *ContinuousQuery) intoRP() string      { return cq.q.Target.Measurement.RetentionPolicy }
 func (cq *ContinuousQuery) setIntoRP(rp string) { cq.q.Target.Measurement.RetentionPolicy = rp }
 
-// Customizes the resampling intervals and duration of this continuous query.
+// ResampleOptions controls the resampling intervals and duration of this continuous query.
 type ResampleOptions struct {
 	// The query will be resampled at this time interval. The first query will be
 	// performed at this time interval. If this option is not given, the resample
@@ -411,7 +413,7 @@ type ResampleOptions struct {
 	For time.Duration
 }
 
-// NewContinuousQuery returns a ContinuousQuery object with a parsed influxql.CreateContinuousQueryStatement
+// NewContinuousQuery returns a ContinuousQuery object with a parsed influxql.CreateContinuousQueryStatement.
 func NewContinuousQuery(database string, cqi *meta.ContinuousQueryInfo) (*ContinuousQuery, error) {
 	stmt, err := influxql.NewParser(strings.NewReader(cqi.Query)).ParseStatement()
 	if err != nil {
@@ -438,7 +440,7 @@ func NewContinuousQuery(database string, cqi *meta.ContinuousQueryInfo) (*Contin
 
 // shouldRunContinuousQuery returns true if the CQ should be schedule to run. It will use the
 // lastRunTime of the CQ and the rules for when to run set through the query to determine
-// if this CQ should be run
+// if this CQ should be run.
 func (cq *ContinuousQuery) shouldRunContinuousQuery(now time.Time) (bool, time.Time, error) {
 	// if it's not aggregated we don't run it
 	if cq.q.IsRawQuery {

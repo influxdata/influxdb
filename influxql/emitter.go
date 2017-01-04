@@ -7,7 +7,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 )
 
-// Emitter groups values together by name,
+// Emitter groups values together by name, tags, and time.
 type Emitter struct {
 	buf       []Point
 	itrs      []Iterator

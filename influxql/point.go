@@ -78,7 +78,7 @@ func NewTags(m map[string]string) Tags {
 	}
 }
 
-// newTagsID returns a new instance of Tags parses from a tag id.
+// newTagsID returns a new instance of Tags by parsing the given tag ID.
 func newTagsID(id string) Tags {
 	m := decodeTags([]byte(id))
 	if len(m) == 0 {

@@ -1,3 +1,5 @@
+// Package restore is the restore subcommand for the influxd command,
+// for restoring from a backup.
 package restore
 
 import (

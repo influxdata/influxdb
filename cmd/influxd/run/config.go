@@ -110,8 +110,8 @@ func NewDemoConfig() (*Config, error) {
 }
 
 // trimBOM trims the Byte-Order-Marks from the beginning of the file.
-// this is for Windows compatability only.
-// see https://github.com/influxdata/telegraf/issues/1378
+// This is for Windows compatability only.
+// See https://github.com/influxdata/telegraf/issues/1378.
 func trimBOM(f []byte) []byte {
 	return bytes.TrimPrefix(f, []byte("\xef\xbb\xbf"))
 }

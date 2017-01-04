@@ -1,3 +1,4 @@
+// Package graphite provides a service for InfluxDB to ingest data via the graphite protocol.
 package graphite // import "github.com/influxdata/influxdb/services/graphite"
 
 import (
@@ -250,6 +251,7 @@ func (s *Service) createInternalStorage() error {
 	return nil
 }
 
+// WithLogger sets the logger on the service.
 func (s *Service) WithLogger(log zap.Logger) {
 	s.logger = log.With(
 		zap.String("service", "graphite"),

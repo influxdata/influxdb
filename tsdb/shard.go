@@ -80,6 +80,7 @@ func NewShardError(id uint64, err error) error {
 	return ShardError{id: id, Err: err}
 }
 
+// Error returns the string representation of the error, to satisfy the error interface.
 func (e ShardError) Error() string {
 	return fmt.Sprintf("[shard %d] %s", e.id, e.Err)
 }
@@ -125,7 +126,7 @@ type Shard struct {
 	EnableOnOpen bool
 }
 
-// NewShard returns a new initialized Shard. walPath doesn't apply to the b1 type index
+// NewShard returns a new initialized Shard.
 func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, options EngineOptions) *Shard {
 	db, rp := DecodeStorePath(path)
 	logger := zap.New(zap.NullEncoder())
@@ -157,6 +158,7 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 	return s
 }
 
+// WithLogger sets the logger on the shard.
 func (s *Shard) WithLogger(log zap.Logger) {
 	s.baseLogger = log
 	if err := s.ready(); err == nil {
@@ -330,7 +332,7 @@ func (s *Shard) ready() error {
 	return err
 }
 
-// LastModified returns the time when this shard was last modified
+// LastModified returns the time when this shard was last modified.
 func (s *Shard) LastModified() time.Time {
 	if err := s.ready(); err != nil {
 		return time.Time{}
@@ -338,7 +340,7 @@ func (s *Shard) LastModified() time.Time {
 	return s.engine.LastModified()
 }
 
-// DiskSize returns the size on disk of this shard
+// DiskSize returns the size on disk of this shard.
 func (s *Shard) DiskSize() (int64, error) {
 	var size int64
 	err := filepath.Walk(s.path, func(_ string, fi os.FileInfo, err error) error {
@@ -369,19 +371,19 @@ func (s *Shard) DiskSize() (int64, error) {
 	return size, err
 }
 
-// FieldCreate holds information for a field to create on a measurement
+// FieldCreate holds information for a field to create on a measurement.
 type FieldCreate struct {
 	Measurement string
 	Field       *Field
 }
 
-// SeriesCreate holds information for a series to create
+// SeriesCreate holds information for a series to create.
 type SeriesCreate struct {
 	Measurement string
 	Series      *Series
 }
 
-// WritePoints will write the raw data points and any new metadata to the index in the shard
+// WritePoints will write the raw data points and any new metadata to the index in the shard.
 func (s *Shard) WritePoints(points []models.Point) error {
 	if err := s.ready(); err != nil {
 		return err
@@ -444,7 +446,7 @@ func (s *Shard) DeleteSeries(seriesKeys []string) error {
 	return nil
 }
 
-// DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
+// DeleteSeriesRange deletes all values from seriesKeys with timestamps between min and max (inclusive).
 func (s *Shard) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 	if err := s.ready(); err != nil {
 		return err
@@ -492,7 +494,7 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 	return nil
 }
 
-// validateSeriesAndFields checks which series and fields are new and whose metadata should be saved and indexed
+// validateSeriesAndFields checks which series and fields are new and whose metadata should be saved and indexed.
 func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, []*FieldCreate, error) {
 	var (
 		fieldsToCreate []*FieldCreate
@@ -830,7 +832,7 @@ func (s *Shard) Restore(r io.Reader, basePath string) error {
 }
 
 // CreateSnapshot will return a path to a temp directory
-// containing hard links to the underlying shard files
+// containing hard links to the underlying shard files.
 func (s *Shard) CreateSnapshot() (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -880,9 +882,14 @@ func (s *Shard) monitor() {
 // Shards represents a sortable list of shards.
 type Shards []*Shard
 
-func (a Shards) Len() int           { return len(a) }
+// Len implements sort.Interface.
+func (a Shards) Len() int { return len(a) }
+
+// Less implements sort.Interface.
 func (a Shards) Less(i, j int) bool { return a[i].id < a[j].id }
-func (a Shards) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+// Swap implements sort.Interface.
+func (a Shards) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
 
 // MeasurementFields holds the fields of a measurement and their codec.
 type MeasurementFields struct {

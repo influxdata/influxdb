@@ -1,3 +1,5 @@
+// Command influx_tsm converts b1 or bz1 shards (from InfluxDB releases earlier than v0.11)
+// to the current tsm1 format.
 package main
 
 import (

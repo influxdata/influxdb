@@ -1,11 +1,13 @@
 package models
 
+// Statistic is the representation of a statistic used by the monitoring service.
 type Statistic struct {
 	Name   string                 `json:"name"`
 	Tags   map[string]string      `json:"tags"`
 	Values map[string]interface{} `json:"values"`
 }
 
+// NewStatistic returns an initialized Statistic.
 func NewStatistic(name string) Statistic {
 	return Statistic{
 		Name:   name,

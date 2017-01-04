@@ -1,3 +1,4 @@
+// Package dumptsm inspects low-level details about tsm1 files.
 package dumptsm
 
 import (

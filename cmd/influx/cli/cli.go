@@ -1,3 +1,4 @@
+// Package cli contains the logic of the influx command line client.
 package cli // import "github.com/influxdata/influxdb/cmd/influx/cli"
 
 import (
@@ -34,7 +35,7 @@ const (
 // ErrBlankCommand is returned when a parsed command is empty.
 var ErrBlankCommand = errors.New("empty input")
 
-// CommandLine holds CLI configuration and state
+// CommandLine holds CLI configuration and state.
 type CommandLine struct {
 	Line            *liner.State
 	Host            string
@@ -61,7 +62,7 @@ type CommandLine struct {
 	ImporterConfig v8.Config     // Importer configuration options.
 }
 
-// New returns an instance of CommandLine
+// New returns an instance of CommandLine with the specified client version.
 func New(version string) *CommandLine {
 	return &CommandLine{
 		ClientVersion: version,
@@ -70,7 +71,7 @@ func New(version string) *CommandLine {
 	}
 }
 
-// Run executes the CLI
+// Run executes the CLI.
 func (c *CommandLine) Run() error {
 	hasTTY := c.ForceTTY || terminal.IsTerminal(int(os.Stdin.Fd()))
 
@@ -221,7 +222,8 @@ func (c *CommandLine) mainLoop() error {
 	}
 }
 
-// ParseCommand parses an instruction and calls related method, if any
+// ParseCommand parses an instruction and calls the related method
+// or executes the command as a query against InfluxDB.
 func (c *CommandLine) ParseCommand(cmd string) error {
 	lcmd := strings.TrimSpace(strings.ToLower(cmd))
 	tokens := strings.Fields(lcmd)
@@ -270,7 +272,7 @@ func (c *CommandLine) ParseCommand(cmd string) error {
 	return ErrBlankCommand
 }
 
-// Connect connects client to a server
+// Connect connects to a server.
 func (c *CommandLine) Connect(cmd string) error {
 	// Remove the "connect" keyword if it exists
 	addr := strings.TrimSpace(strings.Replace(cmd, "connect", "", -1))
@@ -312,7 +314,7 @@ func (c *CommandLine) Connect(cmd string) error {
 	return nil
 }
 
-// SetAuth sets client authentication credentials
+// SetAuth sets client authentication credentials.
 func (c *CommandLine) SetAuth(cmd string) {
 	// If they pass in the entire command, we should parse it
 	// auth <username> <password>
@@ -482,7 +484,7 @@ func (c *CommandLine) retentionPolicyExists(db, rp string) bool {
 	return true
 }
 
-// SetPrecision sets client precision
+// SetPrecision sets client precision.
 func (c *CommandLine) SetPrecision(cmd string) {
 	// normalize cmd
 	cmd = strings.ToLower(cmd)
@@ -502,7 +504,7 @@ func (c *CommandLine) SetPrecision(cmd string) {
 	}
 }
 
-// SetFormat sets output format
+// SetFormat sets output format.
 func (c *CommandLine) SetFormat(cmd string) {
 	// Remove the "format" keyword if it exists
 	cmd = strings.TrimSpace(strings.Replace(cmd, "format", "", -1))
@@ -517,7 +519,7 @@ func (c *CommandLine) SetFormat(cmd string) {
 	}
 }
 
-// SetWriteConsistency sets cluster consistency level
+// SetWriteConsistency sets write consistency level.
 func (c *CommandLine) SetWriteConsistency(cmd string) {
 	// Remove the "consistency" keyword if it exists
 	cmd = strings.TrimSpace(strings.Replace(cmd, "consistency", "", -1))
@@ -630,7 +632,7 @@ func (c *CommandLine) parseInsert(stmt string) (*client.BatchPoints, error) {
 	}, nil
 }
 
-// Insert runs an INSERT statement
+// Insert runs an INSERT statement.
 func (c *CommandLine) Insert(stmt string) error {
 	bp, err := c.parseInsert(stmt)
 	if err != nil {
@@ -657,7 +659,7 @@ func (c *CommandLine) query(query string) client.Query {
 	}
 }
 
-// ExecuteQuery runs any query statement
+// ExecuteQuery runs any query statement.
 func (c *CommandLine) ExecuteQuery(query string) error {
 	// If we have a retention policy, we need to rewrite the statement sources
 	if c.RetentionPolicy != "" {
@@ -699,7 +701,7 @@ func (c *CommandLine) ExecuteQuery(query string) error {
 	return nil
 }
 
-// DatabaseToken retrieves database token
+// DatabaseToken retrieves database token.
 func (c *CommandLine) DatabaseToken() (string, error) {
 	response, err := c.Client.Query(c.query("SHOW DIAGNOSTICS for 'registration'"))
 	if err != nil {
@@ -719,7 +721,7 @@ func (c *CommandLine) DatabaseToken() (string, error) {
 	return "", nil
 }
 
-// FormatResponse formats output to previsouly chosen format
+// FormatResponse formats output to the previously chosen format.
 func (c *CommandLine) FormatResponse(response *client.Response, w io.Writer) {
 	switch c.Format {
 	case "json":
@@ -874,7 +876,7 @@ func interfaceToString(v interface{}) string {
 	}
 }
 
-// Settings prints current settings
+// Settings prints current settings.
 func (c *CommandLine) Settings() {
 	w := new(tabwriter.Writer)
 	w.Init(os.Stdout, 0, 1, 1, ' ', 0)
@@ -992,7 +994,7 @@ func (c *CommandLine) gopher() {
 `)
 }
 
-// Version prints CLI version
+// Version prints the CLI version.
 func (c *CommandLine) Version() {
 	fmt.Println("InfluxDB shell version:", c.ClientVersion)
 }

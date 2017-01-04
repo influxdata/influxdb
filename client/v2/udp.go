@@ -13,7 +13,7 @@ const (
 	UDPPayloadSize = 512
 )
 
-// UDPConfig is the config data needed to create a UDP Client
+// UDPConfig is the config data needed to create a UDP Client.
 type UDPConfig struct {
 	// Addr should be of the form "host:port"
 	// or "[ipv6-host%zone]:port".

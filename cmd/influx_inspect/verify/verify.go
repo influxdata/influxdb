@@ -1,3 +1,4 @@
+// Package verify verifies integrity of TSM files.
 package verify
 
 import (

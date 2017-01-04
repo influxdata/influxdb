@@ -8,10 +8,10 @@ package tsm1
 // https://developers.google.com/protocol-buffers/docs/encoding?hl=en#signed-integers
 // for more information.
 //
-// If all the zig zag encoded values less than 1 << 60 - 1, they are compressed using
-// simple8b encoding.  If any values is larger than 1 << 60 - 1, the values are stored uncompressed.
+// If all the zig zag encoded values are less than 1 << 60 - 1, they are compressed using
+// simple8b encoding.  If any value is larger than 1 << 60 - 1, the values are stored uncompressed.
 //
-// Each encoded byte slice, contains a 1 byte header followed by multiple 8 byte packed integers
+// Each encoded byte slice contains a 1 byte header followed by multiple 8 byte packed integers
 // or 8 byte uncompressed integers.  The 4 high bits of the first byte indicate the encoding type
 // for the remaining bytes.
 //
@@ -36,13 +36,14 @@ const (
 	intCompressedRLE = 2
 )
 
-// IntegerEncoder encoders int64 into byte slices
+// IntegerEncoder encodes int64s into byte slices.
 type IntegerEncoder struct {
 	prev   int64
 	rle    bool
 	values []uint64
 }
 
+// NewIntegerEncoder returns a new integer encoder with an initial buffer of values sized at sz.
 func NewIntegerEncoder(sz int) IntegerEncoder {
 	return IntegerEncoder{
 		rle:    true,
@@ -50,12 +51,14 @@ func NewIntegerEncoder(sz int) IntegerEncoder {
 	}
 }
 
+// Reset sets the encoder back to its initial state.
 func (e *IntegerEncoder) Reset() {
 	e.prev = 0
 	e.rle = true
 	e.values = e.values[:0]
 }
 
+// Write encodes v to the underlying buffers.
 func (e *IntegerEncoder) Write(v int64) {
 	// Delta-encode each value as it's written.  This happens before
 	// ZigZagEncoding because the deltas could be negative.
@@ -69,8 +72,9 @@ func (e *IntegerEncoder) Write(v int64) {
 	e.values = append(e.values, enc)
 }
 
+// Bytes returns a copy of the underlying buffer.
 func (e *IntegerEncoder) Bytes() ([]byte, error) {
-	// Only run-length encode if it could be reduce storage size
+	// Only run-length encode if it could reduce storage size.
 	if e.rle && len(e.values) > 2 {
 		return e.encodeRLE()
 	}
@@ -165,6 +169,7 @@ type IntegerDecoder struct {
 	err      error
 }
 
+// SetBytes sets the underlying byte slice of the decoder.
 func (d *IntegerDecoder) SetBytes(b []byte) {
 	if len(b) > 0 {
 		d.encoding = b[0] >> 4
@@ -184,6 +189,7 @@ func (d *IntegerDecoder) SetBytes(b []byte) {
 	d.err = nil
 }
 
+// Next returns true if there are any values remaining to be decoded.
 func (d *IntegerDecoder) Next() bool {
 	if d.i >= d.n && len(d.bytes) == 0 {
 		return false
@@ -206,10 +212,12 @@ func (d *IntegerDecoder) Next() bool {
 	return d.err == nil && d.i < d.n
 }
 
+// Error returns the last error encountered by the decoder.
 func (d *IntegerDecoder) Error() error {
 	return d.err
 }
 
+// Read returns the next value from the decoder.
 func (d *IntegerDecoder) Read() int64 {
 	switch d.encoding {
 	case intCompressedRLE:
@@ -220,7 +228,6 @@ func (d *IntegerDecoder) Read() int64 {
 		v = v + d.prev
 		d.prev = v
 		return v
-
 	}
 }
 

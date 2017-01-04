@@ -8,6 +8,7 @@ import (
 
 // Default values for aspects of interval computation.
 const (
+	// The default value of how often to check whether any CQs need to be run.
 	DefaultRunInterval = time.Second
 )
 

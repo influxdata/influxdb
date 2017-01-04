@@ -76,7 +76,7 @@ func redactPassword(r *http.Request) {
 // buildLogLine creates a common log format
 // in addition to the common fields, we also append referrer, user agent,
 // request ID and response time (microseconds)
-//  ie, in apache mod_log_config terms:
+// ie, in apache mod_log_config terms:
 //     %h %l %u %t \"%r\" %>s %b \"%{Referer}i\" \"%{User-agent}i\"" %L %D
 func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 
@@ -156,7 +156,7 @@ func parseUsername(r *http.Request) string {
 	return username
 }
 
-// Sanitize passwords from query string for logging.
+// sanitize redacts passwords from query string for logging.
 func sanitize(r *http.Request) {
 	values := r.URL.Query()
 	for i, q := range values["q"] {
