@@ -54,9 +54,6 @@ type Point interface {
 	HashID() uint64
 	Key() []byte
 
-	Data() []byte
-	SetData(buf []byte)
-
 	// String returns a string representation of the point, if there is a
 	// timestamp associated with the point then it will be specified with the default
 	// precision of nanoseconds
@@ -139,9 +136,6 @@ type point struct {
 
 	// text encoding of timestamp
 	ts []byte
-
-	// binary encoded field data
-	data []byte
 
 	// cached version of parsed fields from data
 	cachedFields map[string]interface{}
@@ -1221,14 +1215,6 @@ func MustNewPoint(name string, tags Tags, fields Fields, time time.Time) Point {
 		panic(err.Error())
 	}
 	return pt
-}
-
-func (p *point) Data() []byte {
-	return p.data
-}
-
-func (p *point) SetData(b []byte) {
-	p.data = b
 }
 
 func (p *point) Key() []byte {
