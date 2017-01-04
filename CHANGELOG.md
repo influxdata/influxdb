@@ -20,6 +20,7 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#3188](https://github.com/influxdata/influxdb/issues/3188): [CLI feature request] USE retention policy for queries.
 - [#7709](https://github.com/influxdata/influxdb/pull/7709): Add clear command to cli.
 - [#7688](https://github.com/influxdata/influxdb/pull/7688): Adding ability to use parameters in queries in the v2 client using the `Parameters` map in the `Query` struct.
+- [#7323](https://github.com/influxdata/influxdb/pull/7323): Allow add items to array config via ENV
 
 ### Bugfixes
 

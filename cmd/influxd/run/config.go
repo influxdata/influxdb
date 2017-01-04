@@ -176,117 +176,119 @@ func (c *Config) Validate() error {
 
 // ApplyEnvOverrides apply the environment configuration on top of the config.
 func (c *Config) ApplyEnvOverrides() error {
-	return c.applyEnvOverrides("INFLUXDB", reflect.ValueOf(c))
+	return c.applyEnvOverrides("INFLUXDB", reflect.ValueOf(c), "")
 }
 
-func (c *Config) applyEnvOverrides(prefix string, spec reflect.Value) error {
+func (c *Config) applyEnvOverrides(prefix string, spec reflect.Value, structKey string) error {
 	// If we have a pointer, dereference it
-	s := spec
+	element := spec
 	if spec.Kind() == reflect.Ptr {
-		s = spec.Elem()
+		element = spec.Elem()
 	}
 
-	// Make sure we have struct
-	if s.Kind() != reflect.Struct {
-		return nil
-	}
+	value := os.Getenv(prefix)
 
-	typeOfSpec := s.Type()
-	for i := 0; i < s.NumField(); i++ {
-		f := s.Field(i)
-		// Get the toml tag to determine what env var name to use
-		configName := typeOfSpec.Field(i).Tag.Get("toml")
-		// Replace hyphens with underscores to avoid issues with shells
-		configName = strings.Replace(configName, "-", "_", -1)
-		fieldKey := typeOfSpec.Field(i).Name
+	switch element.Kind() {
+	case reflect.String:
+		if len(value) == 0 {
+			return nil
+		}
+		element.SetString(value)
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		var intValue int64
 
-		// Skip any fields that we cannot set
-		if f.CanSet() || f.Kind() == reflect.Slice {
-
-			// Use the upper-case prefix and toml name for the env var
-			key := strings.ToUpper(configName)
-			if prefix != "" {
-				key = strings.ToUpper(fmt.Sprintf("%s_%s", prefix, configName))
+		// Handle toml.Duration
+		if element.Type().Name() == "Duration" {
+			dur, err := time.ParseDuration(value)
+			if err != nil {
+				return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", prefix, structKey, element.Type().String(), value)
 			}
-			value := os.Getenv(key)
+			intValue = dur.Nanoseconds()
+		} else {
+			var err error
+			intValue, err = strconv.ParseInt(value, 0, element.Type().Bits())
+			if err != nil {
+				return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", prefix, structKey, element.Type().String(), value)
+			}
+		}
+		element.SetInt(intValue)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		intValue, err := strconv.ParseUint(value, 0, element.Type().Bits())
+		if err != nil {
+			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", prefix, structKey, element.Type().String(), value)
+		}
+		element.SetUint(intValue)
+	case reflect.Bool:
+		boolValue, err := strconv.ParseBool(value)
+		if err != nil {
+			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", prefix, structKey, element.Type().String(), value)
+		}
+		element.SetBool(boolValue)
+	case reflect.Float32, reflect.Float64:
+		floatValue, err := strconv.ParseFloat(value, element.Type().Bits())
+		if err != nil {
+			return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", prefix, structKey, element.Type().String(), value)
+		}
+		element.SetFloat(floatValue)
+	case reflect.Slice:
+		// If the type is s slice, apply to each using the index as a suffix, e.g. GRAPHITE_0, GRAPHITE_0_TEMPLATES_0 or GRAPHITE_0_TEMPLATES="item1,item2"
+		for j := 0; j < element.Len(); j++ {
+			f := element.Index(j)
+			if err := c.applyEnvOverrides(prefix, f, structKey); err != nil {
+				return err
+			}
 
-			// If the type is s slice, apply to each using the index as a suffix
-			// e.g. GRAPHITE_0
-			if f.Kind() == reflect.Slice || f.Kind() == reflect.Array {
-				for i := 0; i < f.Len(); i++ {
-					if err := c.applyEnvOverrides(key, f.Index(i)); err != nil {
-						return err
-					}
-					if err := c.applyEnvOverrides(fmt.Sprintf("%s_%d", key, i), f.Index(i)); err != nil {
-						return err
-					}
-				}
+			if err := c.applyEnvOverrides(fmt.Sprintf("%s_%d", prefix, j), f, structKey); err != nil {
+				return err
+			}
+		}
+
+		// If the type is s slice but have value not parsed as slice e.g. GRAPHITE_0_TEMPLATES="item1,item2"
+		if element.Len() == 0 && len(value) > 0 {
+			rules := strings.Split(value, ",")
+
+			for _, rule := range rules {
+				element.Set(reflect.Append(element, reflect.ValueOf(rule)))
+			}
+		}
+	case reflect.Struct:
+		typeOfSpec := element.Type()
+		for i := 0; i < element.NumField(); i++ {
+			field := element.Field(i)
+
+			// Skip any fields that we cannot set
+			if !field.CanSet() && field.Kind() != reflect.Slice {
 				continue
+			}
+
+			fieldName := typeOfSpec.Field(i).Name
+
+			configName := typeOfSpec.Field(i).Tag.Get("toml")
+			// Replace hyphens with underscores to avoid issues with shells
+			configName = strings.Replace(configName, "-", "_", -1)
+
+			envKey := strings.ToUpper(configName)
+			if prefix != "" {
+				envKey = strings.ToUpper(fmt.Sprintf("%s_%s", prefix, configName))
 			}
 
 			// If it's a sub-config, recursively apply
-			if f.Kind() == reflect.Struct || f.Kind() == reflect.Ptr {
-				if err := c.applyEnvOverrides(key, f); err != nil {
+			if field.Kind() == reflect.Struct || field.Kind() == reflect.Ptr ||
+				field.Kind() == reflect.Slice || field.Kind() == reflect.Array {
+				if err := c.applyEnvOverrides(envKey, field, fieldName); err != nil {
 					return err
 				}
 				continue
 			}
 
+			value := os.Getenv(envKey)
 			// Skip any fields we don't have a value to set
-			if value == "" {
+			if len(value) == 0 {
 				continue
 			}
 
-			switch f.Kind() {
-			case reflect.String:
-				f.SetString(value)
-			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-
-				var intValue int64
-
-				// Handle toml.Duration
-				if f.Type().Name() == "Duration" {
-					dur, err := time.ParseDuration(value)
-					if err != nil {
-						return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
-					}
-					intValue = dur.Nanoseconds()
-				} else {
-					var err error
-					intValue, err = strconv.ParseInt(value, 0, f.Type().Bits())
-					if err != nil {
-						return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
-					}
-				}
-
-				f.SetInt(intValue)
-			case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-				var intValue uint64
-				var err error
-				intValue, err = strconv.ParseUint(value, 0, f.Type().Bits())
-				if err != nil {
-					return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
-				}
-
-				f.SetUint(intValue)
-			case reflect.Bool:
-				boolValue, err := strconv.ParseBool(value)
-				if err != nil {
-					return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
-
-				}
-				f.SetBool(boolValue)
-			case reflect.Float32, reflect.Float64:
-				floatValue, err := strconv.ParseFloat(value, f.Type().Bits())
-				if err != nil {
-					return fmt.Errorf("failed to apply %v to %v using type %v and value '%v'", key, fieldKey, f.Type().String(), value)
-
-				}
-				f.SetFloat(floatValue)
-			default:
-				if err := c.applyEnvOverrides(key, f); err != nil {
-					return err
-				}
+			if err := c.applyEnvOverrides(envKey, field, fieldName); err != nil {
+				return err
 			}
 		}
 	}
