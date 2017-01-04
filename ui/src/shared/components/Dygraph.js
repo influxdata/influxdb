@@ -220,7 +220,7 @@ function getRange(timeSeries, override, value = null, rangeValue = null) {
         min = val;
       }
 
-      if (val) {
+      if (typeof val === "number") {
         min = Math.min(min, val);
         max = Math.max(max, val);
       }
