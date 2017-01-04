@@ -1,0 +1,33 @@
+/**
+ * Page-wide layout specific styles.
+ */
+.public_fixedDataTable_main {
+  width: 100% !important;
+}
+
+.data-explorer {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background-color: $g1-raven;
+
+  .page-header {
+    padding-left: $explorer-page-padding;
+    padding-right: ($explorer-page-padding + $scrollbar-width);
+  }
+  .page-header__container {
+    max-width: 100%;
+  }
+}
+
+
+// DE Specific components
+@import 'data-explorer/page-header';
+@import 'data-explorer/panel-builder';
+@import 'data-explorer/panel';
+@import 'data-explorer/query-editor';
+@import 'data-explorer/raw-text';
+@import 'data-explorer/tag-list';
+@import 'data-explorer/visualization';

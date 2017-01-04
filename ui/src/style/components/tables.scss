@@ -1,0 +1,122 @@
+/*
+    Stuff for making Tables of Data more readable
+    ----------------------------------------------
+*/
+table .monotype {
+  font-family: $code-font;
+  letter-spacing: 0px;
+  font-size: 12px;
+  font-weight: 500;
+  color: $g9-mountain;
+}
+.table-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: $g17-whisper;
+
+  &.dot-success {
+    background-color: $c-rainforest;
+  }
+  &.dot-primary {
+    background-color: $c-pool;
+  }
+  &.dot-warning {
+    background-color: $c-comet;
+  }
+  &.dot-danger {
+    background-color: $c-dreamsicle;
+  }
+  &.dot-critical {
+    background-color: $c-fire;
+  }
+}
+
+/*
+    Sortable Tables
+    ----------------------------------------------
+*/
+.sortable-header {
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease;
+  position: relative;
+
+  &:after {
+    content: '\e910';
+    display: block;
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    color: #fff;
+    font-family: 'icomoon';
+    opacity: 0;
+    transform: translateY(-50%);
+    transition:
+      opacity 0.25s ease,
+      color 0.25s ease,
+      transform 0.35s ease;
+  }
+
+  &:hover {
+    cursor: pointer;
+    color: $g19-ghost;
+    background-color: $g5-pepper;
+
+    &:after {
+      opacity: 1;
+    }
+  }
+  &.sorting-down,
+  &.sorting-up {
+    background-color: $g5-pepper;
+    color: $g19-ghost;
+
+    &:after {
+      opacity: 1;
+    }
+  }
+  &.sorting-down {
+
+    &:after {
+      transform: translateY(-50%) rotate(180deg);
+    }
+  }
+}
+
+/*
+    Empty State for Tables
+    ----------------------------------------------
+*/
+.table-empty-state {
+  > th {
+    text-align: center;
+
+    > p {
+      font-weight: 400;
+      font-size: 18px;
+      color: $g9-mountain;
+      margin-bottom: 16px;
+    }
+    > *:first-child {
+      margin-top: 75px;
+    }
+    > *:last-child {
+      margin-bottom: 75px;
+    }
+  }
+}
+
+/*
+    Responsive Tables
+    ----------------------------------------------
+*/
+
+@media screen and (max-width: 767px) {
+  .table-responsive {
+    border-radius: 3px;
+    border-color: $g5-pepper;
+    @include custom-scrollbar($g5-pepper, $c-pool);
+  }
+}

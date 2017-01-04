@@ -1,0 +1,67 @@
+/*
+  Dropping the metaphorical CSS nuke here,
+  was experiencing some weird typographic jank
+  between builder / raw tabs
+*/
+.raw-text--field,
+.qeditor--query-preview pre,
+.qeditor--query-preview pre code {
+  font-style: normal !important;
+  letter-spacing: 0.02em !important;
+  font-size: 12px !important;
+  font-family: $code-font !important;
+  font-weight: 600 !important;
+  word-wrap: break-word !important;
+  word-break: break-all !important;
+  white-space: pre-wrap !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+$raw-text-color: $c-comet;
+
+.raw-text {
+  border-bottom: 2px solid $g4-onyx;
+}
+.raw-text--field {
+  @include custom-scrollbar($g2-kevlar, $raw-text-color);
+  display: block;
+  width: 100%;
+  height: 100px;
+  background-color: $g2-kevlar;
+  border: 2px solid $g2-kevlar;
+  color: $raw-text-color;
+  padding: (9px - 2px);
+  border-radius: 3px 3px 0 0;
+  line-height: 1.5em;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  resize: none;
+  margin: 0;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+
+  &::-webkit-input-placeholder { /* Chrome/Opera/Safari */
+    color: $g8-storm;
+  }
+  &::-moz-placeholder { /* Firefox 19+ */
+    color: $g8-storm;
+  }
+  &:-ms-input-placeholder { /* IE 10+ */
+    color: $g8-storm;
+  }
+  &:-moz-placeholder { /* Firefox 18- */
+    color: $g8-storm;
+  }
+  &:hover {
+    background-color: $g3-castle;
+    border-color: $g3-castle;
+  }
+  &:focus {
+    outline: none;
+    color: $raw-text-color !important;
+    border-color: $c-pool;
+  }
+} 

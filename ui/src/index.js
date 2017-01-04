@@ -18,7 +18,7 @@ import configureStore from 'src/store/configureStore';
 import {getMe, getSources} from 'shared/apis';
 import {receiveMe} from 'shared/actions/me';
 
-import 'src/style/enterprise_style/application.scss';
+import 'src/style/chronograf.scss';
 
 const defaultTimeRange = {upper: null, lower: 'now() - 15m'};
 const lsTimeRange = window.localStorage.getItem('timeRange');
