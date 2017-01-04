@@ -1,6 +1,7 @@
 /* eslint-disable no-magic-numbers */
 import React, {PropTypes} from 'react';
 import Dygraph from '../../external/dygraph';
+import _ from 'lodash';
 
 const {
   array,
@@ -88,7 +89,7 @@ export default React.createClass({
       series: dygraphSeries,
       axes: {
         y: {
-          valueRange: getRange(timeSeries, ranges.y, ruleValues.value, ruleValues.rangeValue),
+          valueRange: getRange(timeSeries, ranges.y, _.get(ruleValues, 'value', null), _.get(ruleValues, 'rangeValue', null)),
         },
         y2: {
           valueRange: getRange(timeSeries, ranges.y2),
@@ -155,7 +156,7 @@ export default React.createClass({
       file: timeSeries,
       axes: {
         y: {
-          valueRange: getRange(timeSeries, ranges.y, ruleValues.value, ruleValues.rangeValue),
+          valueRange: getRange(timeSeries, ranges.y, _.get(ruleValues, 'value', null), _.get(ruleValues, 'rangeValue', null)),
         },
         y2: {
           valueRange: getRange(timeSeries, ranges.y2),
