@@ -201,7 +201,7 @@ If generating the protobuf code is failing for you, check each of the following:
 Generated Go Templates
 ----------------------
 
-The query engine requires optimizes data structures for each data type so
+The query engine requires optimized data structures for each data type so
 instead of writing each implementation several times we use templates. _Do not
 change code that ends in a `.gen.go` extension!_ Instead you must edit the
 `.gen.go.tmpl` file that was used to generate it.

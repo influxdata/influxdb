@@ -681,13 +681,25 @@ func (e *Engine) WritePoints(points []models.Point) error {
 			var v Value
 			switch iter.Type() {
 			case models.Float:
-				v = NewFloatValue(t, iter.FloatValue())
+				fv, err := iter.FloatValue()
+				if err != nil {
+					return err
+				}
+				v = NewFloatValue(t, fv)
 			case models.Integer:
-				v = NewIntegerValue(t, iter.IntegerValue())
+				iv, err := iter.IntegerValue()
+				if err != nil {
+					return err
+				}
+				v = NewIntegerValue(t, iv)
 			case models.String:
 				v = NewStringValue(t, iter.StringValue())
 			case models.Boolean:
-				v = NewBooleanValue(t, iter.BooleanValue())
+				bv, err := iter.BooleanValue()
+				if err != nil {
+					return err
+				}
+				v = NewBooleanValue(t, bv)
 			default:
 				return fmt.Errorf("unknown field type for %s: %s", string(iter.FieldKey()), p.String())
 			}

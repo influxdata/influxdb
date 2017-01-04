@@ -442,7 +442,7 @@ func (c *Client) UpdateUser(name, password string) error {
 	}
 
 	if err := data.UpdateUser(name, string(hash)); err != nil {
-		return nil
+		return err
 	}
 
 	delete(c.authCache, name)
@@ -869,7 +869,7 @@ func (c *Client) DropContinuousQuery(database, name string) error {
 	data := c.cacheData.Clone()
 
 	if err := data.DropContinuousQuery(database, name); err != nil {
-		return nil
+		return err
 	}
 
 	if err := c.commit(data); err != nil {

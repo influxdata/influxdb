@@ -23,7 +23,7 @@ func NewResponse(pt *influx.Point, tr *Tracer) Response {
 }
 
 // AddTags adds additional tags to the point held in Response and returns the point
-func (resp Response) AddTags(newTags map[string]string) *influx.Point {
+func (resp Response) AddTags(newTags map[string]string) (*influx.Point, error) {
 
 	// Pull off the current tags
 	tags := resp.Point.Tags()
@@ -34,12 +34,17 @@ func (resp Response) AddTags(newTags map[string]string) *influx.Point {
 	}
 
 	// Make a new point
-	pt, err := influx.NewPoint(resp.Point.Name(), tags, resp.Point.Fields(), resp.Point.Time())
+	fields, err := resp.Point.Fields()
+	if err != nil {
+		return nil, err
+
+	}
+	pt, err := influx.NewPoint(resp.Point.Name(), tags, fields, resp.Point.Time())
 
 	// panic on error
 	if err != nil {
 		log.Fatalf("Error adding tags to response point\n  point: %v\n  tags:%v\n  error: %v\n", resp.Point, newTags, err)
 	}
 
-	return pt
+	return pt, nil
 }

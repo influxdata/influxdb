@@ -60,7 +60,7 @@ type Point interface {
 	SetTags(tags Tags)
 
 	// Fields returns the fields for the point.
-	Fields() Fields
+	Fields() (Fields, error)
 
 	// Time return the timestamp for the point.
 	Time() time.Time
@@ -76,9 +76,6 @@ type Point interface {
 
 	// Key returns the key (measurement joined with tags) of the point.
 	Key() []byte
-
-	Data() []byte
-	SetData(buf []byte)
 
 	// String returns a string representation of the point. If there is a
 	// timestamp associated with the point then it will be specified with the default
@@ -153,13 +150,13 @@ type FieldIterator interface {
 	StringValue() string
 
 	// IntegerValue returns the integer value of the current field.
-	IntegerValue() int64
+	IntegerValue() (int64, error)
 
 	// BooleanValue returns the boolean value of the current field.
-	BooleanValue() bool
+	BooleanValue() (bool, error)
 
 	// FloatValue returns the float value of the current field.
-	FloatValue() float64
+	FloatValue() (float64, error)
 
 	// Delete deletes the current field.
 	Delete()
@@ -194,9 +191,6 @@ type point struct {
 
 	// text encoding of timestamp
 	ts []byte
-
-	// binary encoded field data
-	data []byte
 
 	// cached version of parsed fields from data
 	cachedFields map[string]interface{}
@@ -1257,7 +1251,11 @@ func NewPointFromBytes(b []byte) (Point, error) {
 	if err := p.UnmarshalBinary(b); err != nil {
 		return nil, err
 	}
-	if len(p.Fields()) == 0 {
+	fields, err := p.Fields()
+	if err != nil {
+		return nil, err
+	}
+	if len(fields) == 0 {
 		return nil, ErrPointMustHaveAField
 	}
 	return p, nil
@@ -1271,14 +1269,6 @@ func MustNewPoint(name string, tags Tags, fields Fields, time time.Time) Point {
 		panic(err.Error())
 	}
 	return pt
-}
-
-func (p *point) Data() []byte {
-	return p.data
-}
-
-func (p *point) SetData(b []byte) {
-	p.data = b
 }
 
 // Key returns the key (measurement joined with tags) of the point.
@@ -1393,12 +1383,16 @@ func (p *point) AddTag(key, value string) {
 }
 
 // Fields returns the fields for the point.
-func (p *point) Fields() Fields {
+func (p *point) Fields() (Fields, error) {
 	if p.cachedFields != nil {
-		return p.cachedFields
+		return p.cachedFields, nil
 	}
-	p.cachedFields = p.unmarshalBinary()
-	return p.cachedFields
+	cf, err := p.unmarshalBinary()
+	if err != nil {
+		return nil, err
+	}
+	p.cachedFields = cf
+	return p.cachedFields, nil
 }
 
 // SetPrecision will round a time to the specified precision.
@@ -1532,7 +1526,7 @@ func (p *point) RoundedString(d time.Duration) string {
 		p.time.Round(d).UnixNano())
 }
 
-func (p *point) unmarshalBinary() Fields {
+func (p *point) unmarshalBinary() (Fields, error) {
 	iter := p.FieldIterator()
 	fields := make(Fields, 8)
 	for iter.Next() {
@@ -1541,16 +1535,28 @@ func (p *point) unmarshalBinary() Fields {
 		}
 		switch iter.Type() {
 		case Float:
-			fields[string(iter.FieldKey())] = iter.FloatValue()
+			v, err := iter.FloatValue()
+			if err != nil {
+				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
+			}
+			fields[string(iter.FieldKey())] = v
 		case Integer:
-			fields[string(iter.FieldKey())] = iter.IntegerValue()
+			v, err := iter.IntegerValue()
+			if err != nil {
+				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
+			}
+			fields[string(iter.FieldKey())] = v
 		case String:
 			fields[string(iter.FieldKey())] = iter.StringValue()
 		case Boolean:
-			fields[string(iter.FieldKey())] = iter.BooleanValue()
+			v, err := iter.BooleanValue()
+			if err != nil {
+				return nil, fmt.Errorf("unable to unmarshal field %s: %s", string(iter.FieldKey()), err)
+			}
+			fields[string(iter.FieldKey())] = v
 		}
 	}
-	return fields
+	return fields, nil
 }
 
 // HashID returns a non-cryptographic checksum of the point's key.
@@ -1844,31 +1850,30 @@ func (p *point) StringValue() string {
 }
 
 // IntegerValue returns the integer value of the current field.
-func (p *point) IntegerValue() int64 {
+func (p *point) IntegerValue() (int64, error) {
 	n, err := parseIntBytes(p.it.valueBuf, 10, 64)
 	if err != nil {
-		panic(fmt.Sprintf("unable to parse integer value %q: %v", p.it.valueBuf, err))
+		return 0, fmt.Errorf("unable to parse integer value %q: %v", p.it.valueBuf, err)
 	}
-	return n
+	return n, nil
 }
 
 // BooleanValue returns the boolean value of the current field.
-func (p *point) BooleanValue() bool {
+func (p *point) BooleanValue() (bool, error) {
 	b, err := parseBoolBytes(p.it.valueBuf)
 	if err != nil {
-		panic(fmt.Sprintf("unable to parse bool value %q: %v", p.it.valueBuf, err))
+		return false, fmt.Errorf("unable to parse bool value %q: %v", p.it.valueBuf, err)
 	}
-	return b
+	return b, nil
 }
 
 // FloatValue returns the float value of the current field.
-func (p *point) FloatValue() float64 {
+func (p *point) FloatValue() (float64, error) {
 	f, err := parseFloatBytes(p.it.valueBuf, 64)
 	if err != nil {
-		// panic because that's what the non-iterator code does
-		panic(fmt.Sprintf("unable to parse floating point value %q: %v", p.it.valueBuf, err))
+		return 0, fmt.Errorf("unable to parse floating point value %q: %v", p.it.valueBuf, err)
 	}
-	return f
+	return f, nil
 }
 
 // Delete deletes the current field.

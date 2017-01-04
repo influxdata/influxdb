@@ -40,5 +40,8 @@ func (c Config) Validate() error {
 	if c.StoreInterval <= 0 {
 		return errors.New("monitor store interval must be positive")
 	}
+	if c.StoreDatabase == "" {
+		return errors.New("monitor store database name must not be empty")
+	}
 	return nil
 }
