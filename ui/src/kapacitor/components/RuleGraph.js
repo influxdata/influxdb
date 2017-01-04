@@ -4,7 +4,6 @@ import AutoRefresh from 'shared/components/AutoRefresh';
 import LineGraph from 'shared/components/LineGraph';
 const RefreshingLineGraph = AutoRefresh(LineGraph);
 
-const OUT_OF_RANGE = "out of range";
 export const RuleGraph = React.createClass({
   propTypes: {
     source: PropTypes.shape({
@@ -40,32 +39,14 @@ export const RuleGraph = React.createClass({
       );
     }
 
-    const {value, rangeValue, operator} = rule.values;
-    const tenPercent = 0.1;
-    let lower, upper;
-    let upperRange, lowerRange;
-
-    if (value !== "" && operator === OUT_OF_RANGE) {
-      lower = Math.min(+rule.values.rangeValue, +rule.values.value);
-      lowerRange = lower ? lower + lower * tenPercent : null;
-    }
-
-    if (rangeValue !== "" && operator === OUT_OF_RANGE) {
-      upper = Math.max(+rule.values.rangeValue, +rule.values.value);
-      upperRange = upper ? upper + upper * tenPercent : null;
-    }
-
-    // if either value is null, Dygraph will choose a sensible default
-    const range = {y: [lowerRange, upperRange]};
-
     return (
       <RefreshingLineGraph
-        ranges={range}
         queries={queries}
         autoRefresh={autoRefreshMs}
         underlayCallback={this.createUnderlayCallback()}
         isGraphFilled={false}
         overrideLineColors={kapacitorLineColors}
+        ruleValues={rule.values}
       />
     );
   },

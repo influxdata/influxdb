@@ -7,23 +7,34 @@ import _ from 'lodash';
 import timeSeriesToDygraph from 'utils/timeSeriesToDygraph';
 import lastValues from 'src/shared/parsing/lastValues';
 
+const {
+  array,
+  arrayOf,
+  number,
+  bool,
+  shape,
+  string,
+  func,
+} = PropTypes;
+
 export default React.createClass({
   displayName: 'LineGraph',
   propTypes: {
-    data: PropTypes.arrayOf(PropTypes.shape({}).isRequired).isRequired,
-    ranges: PropTypes.shape({
-      y: PropTypes.arrayOf(PropTypes.number),
-      y2: PropTypes.arrayOf(PropTypes.number),
+    data: arrayOf(shape({}).isRequired).isRequired,
+    ranges: shape({
+      y: arrayOf(number),
+      y2: arrayOf(number),
     }),
-    title: PropTypes.string,
-    isFetchingInitially: PropTypes.bool,
-    isRefreshing: PropTypes.bool,
-    underlayCallback: PropTypes.func,
-    isGraphFilled: PropTypes.bool,
-    overrideLineColors: PropTypes.array,
-    queries: PropTypes.arrayOf(PropTypes.shape({}).isRequired).isRequired,
-    showSingleStat: PropTypes.bool,
-    activeQueryIndex: PropTypes.number,
+    title: string,
+    isFetchingInitially: bool,
+    isRefreshing: bool,
+    underlayCallback: func,
+    isGraphFilled: bool,
+    overrideLineColors: array,
+    queries: arrayOf(shape({}).isRequired).isRequired,
+    showSingleStat: bool,
+    activeQueryIndex: number,
+    ruleValues: shape({}),
   },
 
   getDefaultProps() {
@@ -50,7 +61,7 @@ export default React.createClass({
   },
 
   render() {
-    const {data, ranges, isFetchingInitially, isRefreshing, isGraphFilled, overrideLineColors, title, underlayCallback, queries, showSingleStat} = this.props;
+    const {data, ranges, isFetchingInitially, isRefreshing, isGraphFilled, overrideLineColors, title, underlayCallback, queries, showSingleStat, ruleValues} = this.props;
     const {labels, timeSeries, dygraphSeries} = this._timeSeries;
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
@@ -99,6 +110,7 @@ export default React.createClass({
           options={options}
           dygraphSeries={dygraphSeries}
           ranges={ranges || this.getRanges()}
+          ruleValues={ruleValues}
         />
         {showSingleStat ? <div className="graph-single-stat single-stat">{roundedValue}</div> : null}
       </div>
