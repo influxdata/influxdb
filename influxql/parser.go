@@ -2739,7 +2739,7 @@ func ParseDuration(s string) (time.Duration, error) {
 	}
 
 	// Split string into individual runes.
-	a := split(s)
+	a := []rune(s)
 
 	// Start with a zero duration.
 	var d time.Duration
@@ -2909,14 +2909,6 @@ func IdentNeedsQuotes(ident string) bool {
 		}
 	}
 	return false
-}
-
-// split splits a string into a slice of runes.
-func split(s string) (a []rune) {
-	for _, ch := range s {
-		a = append(a, ch)
-	}
-	return
 }
 
 // isDateString returns true if the string looks like a date-only time literal.
