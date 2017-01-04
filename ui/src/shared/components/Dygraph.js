@@ -186,33 +186,26 @@ function getRange(timeSeries, override, value = null, rangeValue = null) {
     return override;
   }
 
-  const checkEmpty = (val) => val === null || val === '';
+  const subtractPadding = (val) => +val - val * PADDING_FACTOR;
+  const addPadding = (val) => +val + val * PADDING_FACTOR;
 
-  const addTopPadding = (val) => {
-    if (checkEmpty(val)) {
+  const pad = (val, side) => {
+    if (val === null || val === '') {
       return null;
     }
 
     if (val < 0) {
-      return +val - val * PADDING_FACTOR;
+      return side === "top" ? subtractPadding(val) : addPadding(val);
     }
 
-    return +val + val * PADDING_FACTOR;
+    return side === "top" ? addPadding(val) : subtractPadding(val);
   };
 
-  const addBottomPadding = (val) => {
-    if (checkEmpty(val)) {
-      return null;
-    }
-
-    if (val < 0) {
-      return +val + val * PADDING_FACTOR;
-    }
-
-    return +val - val * PADDING_FACTOR;
-  };
-
-  const points = [...timeSeries, [null, addBottomPadding(value)], [null, addTopPadding(rangeValue)]];
+  const points = [
+    ...timeSeries,
+    [null, pad(value)],
+    [null, pad(rangeValue, "top")],
+  ];
 
   const range = points.reduce(([min, max], series) => {
     for (let i = 1; i < series.length; i++) {
