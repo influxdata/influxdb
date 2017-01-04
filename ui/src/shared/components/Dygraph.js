@@ -179,26 +179,40 @@ export default React.createClass({
   },
 });
 
-const TEN_PERCENT = 0.1;
+const PADDING_FACTOR = 0.1;
 
 function getRange(timeSeries, override, value = null, rangeValue = null) {
   if (override) {
     return override;
   }
 
-  const addPadding = (val) => {
-    if (val === null || val === '') {
+  const checkEmpty = (val) => val === null || val === '';
+
+  const addTopPadding = (val) => {
+    if (checkEmpty(val)) {
       return null;
     }
 
     if (val < 0) {
-      return val - val * TEN_PERCENT;
+      return +val - val * PADDING_FACTOR;
     }
 
-    return val + val * TEN_PERCENT;
+    return +val + val * PADDING_FACTOR;
   };
 
-  const points = [...timeSeries, [null, addPadding(value)], [null, addPadding(rangeValue)]];
+  const addBottomPadding = (val) => {
+    if (checkEmpty(val)) {
+      return null;
+    }
+
+    if (val < 0) {
+      return +val + val * PADDING_FACTOR;
+    }
+
+    return +val - val * PADDING_FACTOR;
+  };
+
+  const points = [...timeSeries, [null, addBottomPadding(value)], [null, addTopPadding(rangeValue)]];
 
   const range = points.reduce(([min, max], series) => {
     for (let i = 1; i < series.length; i++) {
