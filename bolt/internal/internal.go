@@ -44,14 +44,15 @@ func UnmarshalExploration(data []byte, e *chronograf.Exploration) error {
 // MarshalSource encodes a source to binary protobuf format.
 func MarshalSource(s chronograf.Source) ([]byte, error) {
 	return proto.Marshal(&Source{
-		ID:       int64(s.ID),
-		Name:     s.Name,
-		Type:     s.Type,
-		Username: s.Username,
-		Password: s.Password,
-		URL:      s.URL,
-		Default:  s.Default,
-		Telegraf: s.Telegraf,
+		ID:                 int64(s.ID),
+		Name:               s.Name,
+		Type:               s.Type,
+		Username:           s.Username,
+		Password:           s.Password,
+		URL:                s.URL,
+		InsecureSkipVerify: s.InsecureSkipVerify,
+		Default:            s.Default,
+		Telegraf:           s.Telegraf,
 	})
 }
 
@@ -68,6 +69,7 @@ func UnmarshalSource(data []byte, s *chronograf.Source) error {
 	s.Username = pb.Username
 	s.Password = pb.Password
 	s.URL = pb.URL
+	s.InsecureSkipVerify = pb.InsecureSkipVerify
 	s.Default = pb.Default
 	s.Telegraf = pb.Telegraf
 	return nil

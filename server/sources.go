@@ -150,6 +150,7 @@ func (h *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	src.Default = req.Default
+	src.InsecureSkipVerify = req.InsecureSkipVerify
 	if req.Name != "" {
 		src.Name = req.Name
 	}

@@ -1747,7 +1747,7 @@
 					}
 				}
 			}
-		},
+		}
 	},
 	"definitions": {
 		"Kapacitors": {
@@ -1969,6 +1969,10 @@
 					"format": "url",
 					"description": "URL for the time series data source backend (e.g. http://localhost:8086)"
 				},
+                "insecureSkipVerify": {
+                    "type": "boolean",
+	                "description": "True means any certificate presented by the source is accepted.  Typically used for self-signed certs. Probably should only be used for testing."
+                },
 				"default": {
 					"type": "boolean",
 					"description": "Indicates whether this source is the default source"
