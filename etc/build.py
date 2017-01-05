@@ -180,7 +180,7 @@ def run(command, allow_failure=False, shell=False, print_output=False):
         cmd = command
         if not shell:
             cmd = command.split()
-            
+
         stdout = subprocess.PIPE
         stderr = subprocess.STDOUT
         if print_output:
@@ -740,7 +740,7 @@ def main(args):
 
     if args.no_build:
         return 0
-    
+
     platforms = []
     single_build = True
     if args.platform == 'all':
@@ -803,7 +803,6 @@ def main(args):
             if not upload_packages(packages, bucket_name=args.bucket, overwrite=args.upload_overwrite):
                 return 1
         package_output = {}
-        package_output["version"] = args.version
         for p in packages:
             p_name = p.split('/')[-1:][0]
             if ".asc" in p_name:
@@ -849,6 +848,19 @@ def main(args):
                 "md5": generate_md5_from_file(p),
                 "filename": p_name,
             }
+        # Print the downloads in Markdown format for the release
+        if args.release:
+            lines = []
+            for arch, v in package_output.items():
+                line = arch + " | [" + v['filename'] +"](https://dl.influxdata.com/chronograf/releases/" + v['filename'].rsplit('/', 1)[-1] + ") | `" + v['md5'] + "`"
+                lines.append(line)
+            lines.sort()
+
+            print("Arch | Package | MD5")
+            print("--- | --- | ---")
+            for line in lines:
+                print(line)
+        package_output["version"] = args.version
         logging.info(json.dumps(package_output, sort_keys=True, indent=4))
     if orig_branch != get_current_branch():
         logging.info("Moving back to original git branch: {}".format(orig_branch))
