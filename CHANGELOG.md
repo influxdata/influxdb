@@ -1,12 +1,14 @@
 ## v1.1.0 [unreleased]
 
 ### Upcoming Bug Fixes
+### Upcoming Features
+
+## v1.1.0-beta5 [2017-01-05]
+
+### Bug Fixes
   1. [#693](https://github.com/influxdata/chronograf/issues/693): Fix corrupted MongoDB pre-canned layout.
   1. [#714](https://github.com/influxdata/chronograf/issues/714): Relative rules check data in the wrong direction
   1. [#718](https://github.com/influxdata/chronograf/issues/718): Fix bug that stopped apps from displaying
-
-### Upcoming Features
-  1. [#660](https://github.com/influxdata/chronograf/issues/660): Add option to accept any certificate from InfluxDB.
 
 ## v1.1.0-beta4 [2016-12-30]
 
