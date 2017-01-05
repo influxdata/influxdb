@@ -87,7 +87,12 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
       }).sort().join('');
 
       columns.slice(1).forEach((fieldName) => {
-        const effectiveFieldName = `${measurementName}.${fieldName}${tags}`;
+        let effectiveFieldName = `${measurementName}.${fieldName}${tags}`;
+
+        // If there are duplicate effectiveFieldNames identify them by their queryIndex
+        if (effectiveFieldName in dygraphSeries) {
+          effectiveFieldName = `${effectiveFieldName}-${queryIndex}`;
+        }
 
         // Given a field name, identify which column in the timeSeries result should hold the field's value
         // ex given this timeSeries [Date, 10, 20, 30] field index at 2 would correspond to value 20
@@ -129,7 +134,13 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
           }
 
           const fieldName = columns[index];
-          const effectiveFieldName = `${measurementName}.${fieldName}${tags}`;
+          let effectiveFieldName = `${measurementName}.${fieldName}${tags}`;
+
+          // If there are duplicate effectiveFieldNames identify them by their queryIndex
+          if (effectiveFieldName in dateToFieldValue[dateString]) {
+            effectiveFieldName = `${effectiveFieldName}-${queryIndex}`;
+          }
+
           dateToFieldValue[dateString][effectiveFieldName] = value;
         });
       }
