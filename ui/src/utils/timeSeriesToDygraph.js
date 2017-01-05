@@ -6,7 +6,7 @@ import {STROKE_WIDTH} from 'src/shared/constants';
 
 // activeQueryIndex is an optional argument that indicated which query's series
 // we want highlighted.
-export default function timeSeriesToDygraph(raw = [], activeQueryIndex) {
+export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInDataExplorer) {
   const labels = []; // all of the effective field names (i.e. <measurement>.<field>)
   const fieldToIndex = {}; // see parseSeries
   const dates = {}; // map of date as string to date value to minimize string coercion
@@ -96,10 +96,17 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex) {
 
         const {light, heavy} = STROKE_WIDTH;
 
-        dygraphSeries[effectiveFieldName] = {
-          axis: queryIndex === 0 ? 'y' : 'y2',
-          strokeWidth: queryIndex === activeQueryIndex ? heavy : light,
-        };
+        // only want to set multiple axes for precanned dashboards
+        if (isInDataExplorer) {
+          dygraphSeries[effectiveFieldName] = {
+            strokeWidth: queryIndex === activeQueryIndex ? heavy : light,
+          };
+        } else {
+          dygraphSeries[effectiveFieldName] = {
+            axis: queryIndex === 0 ? 'y' : 'y2',
+            strokeWidth: queryIndex === activeQueryIndex ? heavy : light,
+          };
+        }
       });
 
       (series.values || []).forEach(parseRow);

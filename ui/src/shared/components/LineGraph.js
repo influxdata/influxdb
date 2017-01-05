@@ -50,13 +50,14 @@ export default React.createClass({
   },
 
   componentWillMount() {
-    this._timeSeries = timeSeriesToDygraph(this.props.data, this.props.activeQueryIndex);
+    const {data, activeQueryIndex, isInDataExplorer} = this.props;
+    this._timeSeries = timeSeriesToDygraph(data, activeQueryIndex, isInDataExplorer);
   },
 
   componentWillUpdate(nextProps) {
     const {data, activeQueryIndex} = this.props;
     if (data !== nextProps.data || activeQueryIndex !== nextProps.activeQueryIndex) {
-      this._timeSeries = timeSeriesToDygraph(nextProps.data, nextProps.activeQueryIndex);
+      this._timeSeries = timeSeriesToDygraph(nextProps.data, nextProps.activeQueryIndex, nextProps.isInDataExplorer);
     }
   },
 
