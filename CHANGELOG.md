@@ -5,6 +5,12 @@
 ## v1.1.0-beta4 [2016-12-30]
 
 ### Features
+
+### Bug Fixes
+  1. [#714](https://github.com/influxdata/chronograf/issues/714): Relative rules check data in the wrong direction
+  2. [#718](https://github.com/influxdata/chronograf/issues/718): Fix bug that stopped apps from displaying
+
+### Features
   1. [#691](https://github.com/influxdata/chronograf/issues/691): Add server-side dashboard API
   2. [#709](https://github.com/influxdata/chronograf/pull/709): Add kapacitor range alerting to API
   3. [#672(https://github.com/influxdata/chronograf/pull/672): Added visual indicator for down hosts

@@ -569,7 +569,7 @@ var outputMeasurement = 'alerts'
 
 var triggerType = 'relative'
 
-var shift = -1m
+var shift = 1m
 
 var crit = 90
 
@@ -727,7 +727,7 @@ var outputMeasurement = 'alerts'
 
 var triggerType = 'relative'
 
-var shift = -1m
+var shift = 1m
 
 var crit = 90
 
