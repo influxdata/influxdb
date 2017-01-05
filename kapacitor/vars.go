@@ -34,7 +34,7 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 
 	switch rule.Trigger {
 	case Threshold:
-		if rule.TriggerValues.RangeOperator == "" || rule.TriggerValues.RangeValue == "" {
+		if rule.TriggerValues.RangeValue == "" {
 			vars := `
 		%s
         var crit = %s
