@@ -10,11 +10,11 @@ import lastValues from 'src/shared/parsing/lastValues';
 const {
   array,
   arrayOf,
-  number,
   bool,
+  func,
+  number,
   shape,
   string,
-  func,
 } = PropTypes;
 
 export default React.createClass({
@@ -35,6 +35,7 @@ export default React.createClass({
     showSingleStat: bool,
     activeQueryIndex: number,
     ruleValues: shape({}),
+    isInDataExplorer: bool,
   },
 
   getDefaultProps() {
