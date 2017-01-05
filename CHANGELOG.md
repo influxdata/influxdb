@@ -2,7 +2,9 @@
 
 ### Upcoming Bug Fixes
 ### Upcoming Features
-
+  1. [#660](https://github.com/influxdata/chronograf/issues/660): Add option to accept any certificate from InfluxDB.
+  1. [#733](https://github.com/influxdata/chronograf/pull/733): Add optional Github organization membership checks to authentication
+ 
 ## v1.1.0-beta5 [2017-01-05]
 
 ### Bug Fixes

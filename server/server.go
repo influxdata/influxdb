@@ -37,20 +37,19 @@ type Server struct {
 	TLSCertificateKey flags.Filename `long:"tls-key" description:"the private key to use for secure conections" env:"TLS_PRIVATE_KEY"`
 	*/
 
-	Develop            bool   `short:"d" long:"develop" description:"Run server in develop mode."`
-	BoltPath           string `short:"b" long:"bolt-path" description:"Full path to boltDB file (/var/lib/chronograf/chronograf-v1.db)" env:"BOLT_PATH" default:"chronograf-v1.db"`
-	CannedPath         string `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
-	TokenSecret        string `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
-	GithubClientID     string `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
-	GithubClientSecret string `short:"s" long:"github-client-secret" description:"Github Client Secret for OAuth 2 support" env:"GH_CLIENT_SECRET"`
-	ReportingDisabled  bool   `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id,uptime) once every 24hr" env:"REPORTING_DISABLED"`
-	LogLevel           string `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"warn" choice:"error" choice:"fatal" choice:"panic" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
-
-	ShowVersion bool `short:"v" long:"version" description:"Show Chronograf version info"`
-	BuildInfo   BuildInfo
-
-	Listener net.Listener
-	handler  http.Handler
+	Develop            bool     `short:"d" long:"develop" description:"Run server in develop mode."`
+	BoltPath           string   `short:"b" long:"bolt-path" description:"Full path to boltDB file (/var/lib/chronograf/chronograf-v1.db)" env:"BOLT_PATH" default:"chronograf-v1.db"`
+	CannedPath         string   `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
+	TokenSecret        string   `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
+	GithubClientID     string   `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
+	GithubClientSecret string   `short:"s" long:"github-client-secret" description:"Github Client Secret for OAuth 2 support" env:"GH_CLIENT_SECRET"`
+	GithubOrgs         []string `short:"o" long:"github-organization" description:"Github organization user is required to have active membership" env:"GH_ORGS" env-delim:","`
+	ReportingDisabled  bool     `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id,uptime) once every 24hr" env:"REPORTING_DISABLED"`
+	LogLevel           string   `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"warn" choice:"error" choice:"fatal" choice:"panic" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
+	ShowVersion        bool     `short:"v" long:"version" description:"Show Chronograf version info"`
+	BuildInfo          BuildInfo
+	Listener           net.Listener
+	handler            http.Handler
 }
 
 // BuildInfo is sent to the usage client to track versions and commits
@@ -72,6 +71,7 @@ func (s *Server) Serve() error {
 		TokenSecret:        s.TokenSecret,
 		GithubClientID:     s.GithubClientID,
 		GithubClientSecret: s.GithubClientSecret,
+		GithubOrgs:         s.GithubOrgs,
 		Logger:             logger,
 		UseAuth:            s.useAuth(),
 	}, service)

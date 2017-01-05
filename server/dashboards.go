@@ -131,7 +131,7 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 
 	_, err = s.DashboardsStore.Get(ctx, id)
 	if err != nil {
-		Error(w, http.StatusNotFound, fmt.Sprintf("ID %s not found", id), s.Logger)
+		Error(w, http.StatusNotFound, fmt.Sprintf("ID %d not found", id), s.Logger)
 		return
 	}
 
@@ -148,7 +148,7 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.DashboardsStore.Update(ctx, req); err != nil {
-		msg := fmt.Sprintf("Error updating dashboard ID %s: %v", id, err)
+		msg := fmt.Sprintf("Error updating dashboard ID %d: %v", id, err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
 		return
 	}

@@ -44,19 +44,25 @@ type Github struct {
 	ClientID      string
 	ClientSecret  string
 	Scopes        []string
-	SuccessURL    string // SuccessURL is redirect location after successful authorization
-	FailureURL    string // FailureURL is redirect location after authorization failure
+	SuccessURL    string   // SuccessURL is redirect location after successful authorization
+	FailureURL    string   // FailureURL is redirect location after authorization failure
+	Orgs          []string // Optional github organization checking
 	Now           func() time.Time
 	Logger        chronograf.Logger
 }
 
 // NewGithub constructs a Github with default cookie behavior and scopes.
-func NewGithub(clientID, clientSecret, successURL, failureURL string, auth chronograf.Authenticator, log chronograf.Logger) Github {
+func NewGithub(clientID, clientSecret, successURL, failureURL string, orgs []string, auth chronograf.Authenticator, log chronograf.Logger) Github {
+	scopes := []string{"user:email"}
+	if len(orgs) > 0 {
+		scopes = append(scopes, "read:org")
+	}
 	return Github{
 		ClientID:      clientID,
 		ClientSecret:  clientSecret,
 		Cookie:        NewCookie(),
-		Scopes:        []string{"user:email"},
+		Scopes:        scopes,
+		Orgs:          orgs,
 		SuccessURL:    successURL,
 		FailureURL:    failureURL,
 		Authenticator: auth,
@@ -151,24 +157,26 @@ func (g *Github) Callback() http.HandlerFunc {
 
 		oauthClient := conf.Client(r.Context(), token)
 		client := github.NewClient(oauthClient)
-
-		emails, resp, err := client.Users.ListEmails(nil)
-		if err != nil {
-			switch resp.StatusCode {
-			case http.StatusUnauthorized, http.StatusForbidden:
-				log.Error("OAuth access to email address forbidden ", err.Error())
-			default:
-				log.Error("Unable to retrieve Github email ", err.Error())
+		// If we need to restrict to a set of organizations, we first get the org
+		// and filter.
+		if len(g.Orgs) > 0 {
+			orgs, err := getOrganizations(client, log)
+			if err != nil {
+				http.Redirect(w, r, g.FailureURL, http.StatusTemporaryRedirect)
+				return
 			}
-
-			http.Redirect(w, r, g.FailureURL, http.StatusTemporaryRedirect)
-			return
+			// Not a member, so, deny permission
+			if ok := isMember(g.Orgs, orgs); !ok {
+				log.Error("Not a member of required github organization")
+				http.Redirect(w, r, g.FailureURL, http.StatusTemporaryRedirect)
+				return
+			}
 		}
 
-		email, err := primaryEmail(emails)
+		email, err := getPrimaryEmail(client, log)
 		if err != nil {
-			log.Error("Unable to retrieve primary Github email ", err.Error())
 			http.Redirect(w, r, g.FailureURL, http.StatusTemporaryRedirect)
+			return
 		}
 
 		// We create an auth token that will be used by all other endpoints to validate the principal has a claim
@@ -176,6 +184,7 @@ func (g *Github) Callback() http.HandlerFunc {
 		if err != nil {
 			log.Error("Unable to create cookie auth token ", err.Error())
 			http.Redirect(w, r, g.FailureURL, http.StatusTemporaryRedirect)
+			return
 		}
 
 		expireCookie := time.Now().UTC().Add(g.Cookie.Duration)
@@ -198,6 +207,66 @@ func randomString(length int) string {
 		return ""
 	}
 	return base64.StdEncoding.EncodeToString(k)
+}
+
+func logResponseError(log chronograf.Logger, resp *github.Response, err error) {
+	switch resp.StatusCode {
+	case http.StatusUnauthorized, http.StatusForbidden:
+		log.Error("OAuth access to email address forbidden ", err.Error())
+	default:
+		log.Error("Unable to retrieve Github email ", err.Error())
+	}
+}
+
+// isMember makes sure that the user is in one of the required organizations
+func isMember(requiredOrgs []string, userOrgs []*github.Organization) bool {
+	for _, requiredOrg := range requiredOrgs {
+		for _, userOrg := range userOrgs {
+			if userOrg.Login != nil && *userOrg.Login == requiredOrg {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// getOrganizations gets all organization for the currently authenticated user
+func getOrganizations(client *github.Client, log chronograf.Logger) ([]*github.Organization, error) {
+	// Get all pages of results
+	var allOrgs []*github.Organization
+	for {
+		opt := &github.ListOptions{
+			PerPage: 10,
+		}
+		// Get the organizations for the current authenticated user.
+		orgs, resp, err := client.Organizations.List("", opt)
+		if err != nil {
+			logResponseError(log, resp, err)
+			return nil, err
+		}
+		allOrgs = append(allOrgs, orgs...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+	return allOrgs, nil
+}
+
+// getPrimaryEmail gets the primary email account for the authenticated user.
+func getPrimaryEmail(client *github.Client, log chronograf.Logger) (string, error) {
+	emails, resp, err := client.Users.ListEmails(nil)
+	if err != nil {
+		logResponseError(log, resp, err)
+		return "", err
+	}
+
+	email, err := primaryEmail(emails)
+	if err != nil {
+		log.Error("Unable to retrieve primary Github email ", err.Error())
+		return "", err
+	}
+	return email, nil
 }
 
 func primaryEmail(emails []*github.UserEmail) (string, error) {

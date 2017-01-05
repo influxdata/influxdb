@@ -83,8 +83,6 @@ Please open [an issue](https://github.com/influxdata/chronograf/issues/new)!
 
 The Chronograf team has identified and is working on the following issues:
 
-* Chronograf's [OAuth 2.0 Style Authentication](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) allows all users to authenticate with any GitHub account.
-It does not yet offer any additional security or allow administrators to whitelist users or organizations.
 * Currently, Chronograf requires users to run Telegraf's [CPU](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/CPU_README.md) and [system](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/SYSTEM_README.md) plugins to ensure that all Apps appear on the [HOST LIST](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#host-list) page.
 
 ## Installation
