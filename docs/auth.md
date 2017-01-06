@@ -41,6 +41,21 @@ user authorization. If you are running multiple chronograf servers in an HA conf
 export TOKEN_SECRET=supersupersecret
 ```
 
+#### Optional Github Organizations
+
+To require an organization membership for a user, set the `GH_ORGS` environment variables
+```sh
+export GH_ORGS=biffs-gang
+```
+
+If the user is not a member, then the user will not be allowed access.
+
+To support multiple organizations use a comma delimted list like so:
+
+```sh
+export GH_ORGS=hill-valley-preservation-sociey,the-pinheads
+```
+
 ### Design
 
 The Chronograf authentication scheme is a standard [web application](https://developer.github.com/v3/oauth/#web-application-flow) OAuth flow.

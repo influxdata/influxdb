@@ -20,11 +20,12 @@ const (
 // MuxOpts are the options for the router.  Mostly related to auth.
 type MuxOpts struct {
 	Logger             chronograf.Logger
-	Develop            bool   // Develop loads assets from filesystem instead of bindata
-	UseAuth            bool   // UseAuth turns on Github OAuth and JWT
-	TokenSecret        string // TokenSecret is the JWT secret
-	GithubClientID     string // GithubClientID is the GH OAuth id
-	GithubClientSecret string // GithubClientSecret is the GH OAuth secret
+	Develop            bool     // Develop loads assets from filesystem instead of bindata
+	UseAuth            bool     // UseAuth turns on Github OAuth and JWT
+	TokenSecret        string   // TokenSecret is the JWT secret
+	GithubClientID     string   // GithubClientID is the GH OAuth id
+	GithubClientSecret string   // GithubClientSecret is the GH OAuth secret
+	GithubOrgs         []string // GithubOrgs is the list of organizations a user my be a member of
 }
 
 // NewMux attaches all the route handlers; handler returned servers chronograf.
@@ -136,6 +137,7 @@ func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 		opts.GithubClientSecret,
 		successURL,
 		failureURL,
+		opts.GithubOrgs,
 		&auth,
 		opts.Logger,
 	)
