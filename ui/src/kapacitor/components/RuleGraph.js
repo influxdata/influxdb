@@ -85,7 +85,7 @@ export const RuleGraph = React.createClass({
           break;
         }
 
-        case 'out of range': {
+        case 'outside range': {
           const {rangeValue, value} = rule.values;
           highlightStart = Math.min(+value, +rangeValue);
           highlightEnd = Math.max(+value, +rangeValue);
@@ -94,7 +94,7 @@ export const RuleGraph = React.createClass({
           canvas.fillRect(area.x, area.y, area.w, area.h);
           break;
         }
-        case 'within range': {
+        case 'inside range': {
           const {rangeValue, value} = rule.values;
           highlightStart = Math.min(+value, +rangeValue);
           highlightEnd = Math.max(+value, +rangeValue);

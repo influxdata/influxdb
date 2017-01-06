@@ -1,20 +1,11 @@
 import AJAX from 'utils/ajax';
 
 function rangeRule(rule) {
-  const {value, rangeValue} = rule.values;
+  const {value, rangeValue, operator} = rule.values;
 
-  if (rule.values.operator === 'within range') {
-    rule.values.operator = 'less than';
-    rule.values.rangeOperator = 'greater than';
+  if (operator === 'inside range' || operator === 'outside range') {
     rule.values.value = Math.min(value, rangeValue).toString();
     rule.values.rangeValue = Math.max(value, rangeValue).toString();
-  }
-
-  if (rule.values.operator === 'out of range') {
-    rule.values.operator = 'greater than';
-    rule.values.rangeOperator = 'less than';
-    rule.values.value = Math.max(value, rangeValue).toString();
-    rule.values.rangeValue = Math.min(value, rangeValue).toString();
   }
 
   return rule;

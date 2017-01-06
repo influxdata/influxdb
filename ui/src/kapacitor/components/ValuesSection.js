@@ -102,7 +102,7 @@ const Threshold = React.createClass({
         <p>is</p>
         <Dropdown className="size-176 dropdown-kapacitor" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
         <input className="form-control input-sm size-166 form-control--green" type="text" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange} />
-        { (operator === 'within range' || operator === 'out of range') &&
+        { (operator === 'inside range' || operator === 'outside range') &&
           <input className="form-control input-sm size-166 form-control--green" type="text" ref={(r) => this.valueRangeInput = r} defaultValue={rangeValue} onKeyUp={this.handleInputChange} />
         }
       </div>

@@ -41,9 +41,9 @@ storiesOf('ValuesSection', module)
       "rangeValue": "20",
     })
   ))
-  .add('Threshold within Range', () => (
+  .add('Threshold inside Range', () => (
     valuesSection('threshold', {
-      "operator": "within range",
+      "operator": "inside range",
       "rangeOperator": "greater than",
       "value": "10",
       "rangeValue": "20",
