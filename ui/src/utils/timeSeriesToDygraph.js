@@ -148,8 +148,15 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex) {
     });
   }
 
+  function sortLabels() {
+    const time = labels.shift();
+    labels.sort();
+    labels.unshift(time);
+    return labels;
+  }
+
   return {
-    labels,
+    labels: sortLabels(labels),
     timeSeries: buildTimeSeries(),
     dygraphSeries,
   };
