@@ -1,5 +1,5 @@
 // CSS
-import 'src/style/enterprise_style/application.scss';
+import 'src/style/chronograf.scss';
 
 // Kapacitor Stories
 import './kapacitor'
