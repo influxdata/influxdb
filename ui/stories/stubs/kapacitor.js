@@ -3,8 +3,8 @@ const kapacitor = () => {
     "id": "\"1\"",
     "name": "kapa",
     "url": "http://chronograf.influxcloud.net:9092",
-    "username": "hunter",
-    "password": "TMnN5JyM35H9m6Hc",
+    "username": "testuser",
+    "password": "hunter2",
     "links": {
       "proxy": "http://localhost:3888/chronograf/v1/sources/2/kapacitors/1/proxy",
       "self": "http://localhost:3888/chronograf/v1/sources/2/kapacitors/1",

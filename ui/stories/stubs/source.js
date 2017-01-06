@@ -2,8 +2,8 @@ const source = () => {
   return ({
     "id": "2",
     "name": "test-user",
-    "username": "admin",
-    "password": "admin",
+    "username": "test-user",
+    "password": "hunter2",
     "url": "http://chronograf.influxcloud.net:8086",
     "default": true,
     "telegraf": "telegraf",
