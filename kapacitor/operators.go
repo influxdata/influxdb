@@ -9,8 +9,8 @@ const (
 	GreaterThanEqual = "equal to or greater"
 	Equal            = "equal to"
 	NotEqual         = "not equal to"
-	InsideRange      = "is inside range"
-	OutsideRange     = "is outside range"
+	InsideRange      = "inside range"
+	OutsideRange     = "outside range"
 )
 
 // kapaOperator converts UI strings to kapacitor operators

@@ -205,7 +205,7 @@ func TestThresholdInsideRange(t *testing.T) {
 		Trigger: "threshold",
 		Alerts:  []string{"slack", "victorops", "email"},
 		TriggerValues: chronograf.TriggerValues{
-			Operator:   "is inside range",
+			Operator:   "inside range",
 			Value:      "90",
 			RangeValue: "100",
 		},
@@ -352,7 +352,7 @@ func TestThresholdOutsideRange(t *testing.T) {
 		Trigger: "threshold",
 		Alerts:  []string{"slack", "victorops", "email"},
 		TriggerValues: chronograf.TriggerValues{
-			Operator:   "is outside range",
+			Operator:   "outside range",
 			Value:      "90",
 			RangeValue: "100",
 		},

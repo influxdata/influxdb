@@ -1997,8 +1997,8 @@
 								"equal to or greater",
 								"equal to",
 								"not equal to",
-								"is inside range",
-								"is outside range"
+								"inside range",
+								"outside range"
 							]
 						},
 						"value": {
