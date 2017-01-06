@@ -14,7 +14,10 @@
     "start": "node_modules/webpack/bin/webpack.js -w --config ./webpack/devConfig.js",
     "lint": "node_modules/eslint/bin/eslint.js src/",
     "test": "karma start",
-    "clean": "rm -rf build"
+    "clean": "rm -rf build",
+    "storybook": "start-storybook -p 6006",
+    "build-storybook": "build-storybook",
+    "proxy": "node ./corsless"
   },
   "author": "",
   "eslintConfig": {
@@ -23,6 +26,7 @@
     }
   },
   "devDependencies": {
+    "@kadira/storybook": "^2.21.0",
     "autoprefixer": "^6.3.1",
     "babel-core": "^6.5.1",
     "babel-eslint": "6.1.2",
@@ -46,6 +50,7 @@
     "eslint": "3.9.1",
     "eslint-loader": "1.6.1",
     "eslint-plugin-react": "6.6.0",
+    "express": "^4.14.0",
     "extract-text-webpack-plugin": "^1.0.1",
     "file-loader": "^0.8.5",
     "hanson": "^1.1.1",

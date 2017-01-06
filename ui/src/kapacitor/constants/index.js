@@ -11,12 +11,13 @@ export const defaultRuleConfigs = {
   threshold: {
     operator: 'greater than',
     value: '',
+    rangeValue: '',
     relation: 'once',
     percentile: '90',
   },
 };
 
-export const OPERATORS = ['greater than', 'equal to or greater', 'equal to or less than', 'less than', 'equal to', 'not equal to'];
+export const OPERATORS = ['greater than', 'equal to or greater', 'equal to or less than', 'less than', 'equal to', 'not equal to', 'inside range', 'outside range'];
 // export const RELATIONS = ['once', 'more than ', 'less than'];
 export const PERIODS = ['1m', '5m', '10m', '30m', '1h', '2h', '24h'];
 export const CHANGES = ['change', '% change'];

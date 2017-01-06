@@ -1,8 +1,15 @@
 /* eslint-disable no-magic-numbers */
 import React, {PropTypes} from 'react';
 import Dygraph from '../../external/dygraph';
+import _ from 'lodash';
 
-const {arrayOf, object, array, number, bool, shape} = PropTypes;
+const {
+  array,
+  arrayOf,
+  number,
+  bool,
+  shape,
+} = PropTypes;
 
 const LINE_COLORS = [
   '#00C9FF',
@@ -25,16 +32,17 @@ export default React.createClass({
 
   propTypes: {
     ranges: shape({
-      y: arrayOf(number.isRequired),
-      y2: arrayOf(number.isRequired),
+      y: arrayOf(number),
+      y2: arrayOf(number),
     }),
-    timeSeries: array.isRequired, // eslint-disable-line react/forbid-prop-types
-    labels: array.isRequired, // eslint-disable-line react/forbid-prop-types
-    options: object, // eslint-disable-line react/forbid-prop-types
-    containerStyle: object, // eslint-disable-line react/forbid-prop-types
+    timeSeries: array.isRequired,
+    labels: array.isRequired,
+    options: shape({}),
+    containerStyle: shape({}),
     isGraphFilled: bool,
     overrideLineColors: array,
     dygraphSeries: shape({}).isRequired,
+    ruleValues: shape({}),
   },
 
   getDefaultProps() {
@@ -54,7 +62,7 @@ export default React.createClass({
   componentDidMount() {
     const timeSeries = this.getTimeSeries();
     // dygraphSeries is a legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
-    const {ranges, dygraphSeries} = this.props;
+    const {ranges, dygraphSeries, ruleValues} = this.props;
 
     const refs = this.refs;
     const graphContainerNode = refs.graphContainer;
@@ -81,7 +89,7 @@ export default React.createClass({
       series: dygraphSeries,
       axes: {
         y: {
-          valueRange: getRange(timeSeries, ranges.y),
+          valueRange: getRange(timeSeries, ranges.y, _.get(ruleValues, 'value', null), _.get(ruleValues, 'rangeValue', null)),
         },
         y2: {
           valueRange: getRange(timeSeries, ranges.y2),
@@ -141,14 +149,14 @@ export default React.createClass({
     }
 
     const timeSeries = this.getTimeSeries();
-    const {labels, ranges, options, dygraphSeries} = this.props;
+    const {labels, ranges, options, dygraphSeries, ruleValues} = this.props;
 
     dygraph.updateOptions({
       labels,
       file: timeSeries,
       axes: {
         y: {
-          valueRange: getRange(timeSeries, ranges.y),
+          valueRange: getRange(timeSeries, ranges.y, _.get(ruleValues, 'value', null), _.get(ruleValues, 'rangeValue', null)),
         },
         y2: {
           valueRange: getRange(timeSeries, ranges.y2),
@@ -172,15 +180,35 @@ export default React.createClass({
   },
 });
 
-function getRange(timeSeries, override) {
+const PADDING_FACTOR = 0.1;
+
+function getRange(timeSeries, override, value = null, rangeValue = null) {
   if (override) {
     return override;
   }
 
-  let max = null;
-  let min = null;
+  const subtractPadding = (val) => +val - val * PADDING_FACTOR;
+  const addPadding = (val) => +val + val * PADDING_FACTOR;
 
-  timeSeries.forEach((series) => {
+  const pad = (val, side) => {
+    if (val === null || val === '') {
+      return null;
+    }
+
+    if (val < 0) {
+      return side === "top" ? subtractPadding(val) : addPadding(val);
+    }
+
+    return side === "top" ? addPadding(val) : subtractPadding(val);
+  };
+
+  const points = [
+    ...timeSeries,
+    [null, pad(value)],
+    [null, pad(rangeValue, "top")],
+  ];
+
+  const range = points.reduce(([min, max], series) => {
     for (let i = 1; i < series.length; i++) {
       const val = series[i];
 
@@ -192,17 +220,19 @@ function getRange(timeSeries, override) {
         min = val;
       }
 
-      if (val) {
+      if (typeof val === "number") {
         min = Math.min(min, val);
         max = Math.max(max, val);
       }
+
+      return [min, max];
     }
-  });
+  }, [null, null]);
 
   // Dygraph will not reliably plot X / Y axis labels if min and max are both 0
-  if (min === 0 && max === 0) {
+  if (range[0] === 0 && range[1] === 0) {
     return [null, null];
   }
 
-  return [min, max];
+  return range;
 }

@@ -5,6 +5,8 @@ import {OPERATORS, PERIODS, CHANGES, SHIFTS} from 'src/kapacitor/constants';
 import _ from 'lodash';
 
 const TABS = ['Threshold', 'Relative', 'Deadman'];
+const mapToItems = (arr, type) => arr.map((text) => ({text, type}));
+
 export const ValuesSection = React.createClass({
   propTypes: {
     rule: PropTypes.shape({
@@ -65,7 +67,9 @@ const Threshold = React.createClass({
     rule: PropTypes.shape({
       values: PropTypes.shape({
         operator: PropTypes.string,
+        rangeOperator: PropTypes.string,
         value: PropTypes.string,
+        rangeValue: PropTypes.string,
       }),
     }),
     onChange: PropTypes.func.isRequired,
@@ -74,25 +78,20 @@ const Threshold = React.createClass({
 
 
   handleDropdownChange(item) {
-    const newValues = Object.assign({}, this.props.rule.values, {[item.type]: item.text});
-    this.props.onChange(newValues);
+    this.props.onChange({...this.props.rule.values, [item.type]: item.text});
   },
 
   handleInputChange() {
-    this.props.onChange(Object.assign({}, this.props.rule.values, {
+    this.props.onChange({
+      ...this.props.rule.values,
       value: this.valueInput.value,
-    }));
+      rangeValue: this.valueRangeInput ? this.valueRangeInput.value : '',
+    });
   },
 
   render() {
-    const {operator, value} = this.props.rule.values;
+    const {operator, value, rangeValue} = this.props.rule.values;
     const {query} = this.props;
-
-    function mapToItems(arr, type) {
-      return arr.map((text) => {
-        return {text, type};
-      });
-    }
 
     const operators = mapToItems(OPERATORS, 'operator');
 
@@ -102,7 +101,10 @@ const Threshold = React.createClass({
         <span>{query.fields.length ? query.fields[0].field : 'Select a Metric'}</span>
         <p>is</p>
         <Dropdown className="size-176 dropdown-kapacitor" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
-        <input className="form-control input-sm size-166 form-control--green" type="text" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange}></input>
+        <input className="form-control input-sm size-166 form-control--green" type="text" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange} />
+        { (operator === 'inside range' || operator === 'outside range') &&
+          <input className="form-control input-sm size-166 form-control--green" type="text" ref={(r) => this.valueRangeInput = r} defaultValue={rangeValue} onKeyUp={this.handleInputChange} />
+        }
       </div>
     );
   },
@@ -122,21 +124,15 @@ const Relative = React.createClass({
   },
 
   handleDropdownChange(item) {
-    this.props.onChange(Object.assign({}, this.props.rule.values, {[item.type]: item.text}));
+    this.props.onChange({...this.props.rule.values, [item.type]: item.text});
   },
 
   handleInputChange() {
-    this.props.onChange(Object.assign({}, this.props.rule.values, {value: this.input.value}));
+    this.props.onChange({...this.props.rule.values, value: this.input.value});
   },
 
   render() {
     const {change, shift, operator, value} = this.props.rule.values;
-
-    function mapToItems(arr, type) {
-      return arr.map((text) => {
-        return {text, type};
-      });
-    }
 
     const changes = mapToItems(CHANGES, 'change');
     const shifts = mapToItems(SHIFTS, 'shift');

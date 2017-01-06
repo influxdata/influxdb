@@ -25,7 +25,7 @@ export const RuleGraph = React.createClass({
   },
 
   renderGraph() {
-    const {query, source, timeRange} = this.props;
+    const {query, source, timeRange, rule} = this.props;
     const autoRefreshMs = 30000;
     const queryText = selectStatement({lower: timeRange.queryValue}, query);
     const queries = [{host: source.links.proxy, text: queryText}];
@@ -46,6 +46,7 @@ export const RuleGraph = React.createClass({
         underlayCallback={this.createUnderlayCallback()}
         isGraphFilled={false}
         overrideLineColors={kapacitorLineColors}
+        ruleValues={rule.values}
       />
     );
   },
@@ -83,12 +84,28 @@ export const RuleGraph = React.createClass({
           highlightEnd = +rule.values.value + width;
           break;
         }
+
+        case 'outside range': {
+          const {rangeValue, value} = rule.values;
+          highlightStart = Math.min(+value, +rangeValue);
+          highlightEnd = Math.max(+value, +rangeValue);
+
+          canvas.fillStyle = 'rgba(78, 216, 160, 0.3)';
+          canvas.fillRect(area.x, area.y, area.w, area.h);
+          break;
+        }
+        case 'inside range': {
+          const {rangeValue, value} = rule.values;
+          highlightStart = Math.min(+value, +rangeValue);
+          highlightEnd = Math.max(+value, +rangeValue);
+          break;
+        }
       }
 
       const bottom = dygraph.toDomYCoord(highlightStart);
       const top = dygraph.toDomYCoord(highlightEnd);
 
-      canvas.fillStyle = 'rgba(78,216,160,0.3)';
+      canvas.fillStyle = rule.values.operator === 'out of range' ? 'rgba(41, 41, 51, 1)' : 'rgba(78, 216, 160, 0.3)';
       canvas.fillRect(area.x, top, area.w, bottom - top);
     };
   },
