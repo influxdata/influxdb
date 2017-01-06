@@ -541,7 +541,7 @@ func (i *Index) DropSeries(keys [][]byte) error {
 		}
 	}
 
-	i.CheckFastCompaction()
+	i.checkFastCompaction()
 	return nil
 }
 

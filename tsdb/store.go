@@ -50,7 +50,6 @@ type Store struct {
 	shards map[uint64]*Shard
 
 	EngineOptions EngineOptions
-	Logger        *log.Logger
 
 	baseLogger zap.Logger
 	Logger     zap.Logger
@@ -95,13 +94,13 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 	for _, database := range databases {
 		sc, err := s.SeriesCardinality(database)
 		if err != nil {
-			s.Logger.Print(err)
+			s.Logger.Error("cannot retrieve series cardinality", zap.Error(err))
 			continue
 		}
 
 		mc, err := s.MeasurementsCardinality(database)
 		if err != nil {
-			s.Logger.Print(err)
+			s.Logger.Error("cannot retrieve measurement cardinality", zap.Error(err))
 			continue
 		}
 
@@ -170,7 +169,7 @@ func (s *Store) loadShards() error {
 
 	for _, db := range dbDirs {
 		if !db.IsDir() {
-			s.Logger.Printf("Not loading %s. Not a database directory.", db.Name())
+			s.Logger.Info("Not loading. Not a database directory.", zap.String("name", db.Name()))
 			continue
 		}
 
@@ -229,7 +228,7 @@ func (s *Store) loadShards() error {
 
 					resC <- &res{s: shard}
 					s.Logger.Info(fmt.Sprintf("%s opened in %s", path, time.Now().Sub(start)))
-				}(db, rp.Name(), sh.Name())
+				}(db.Name(), rp.Name(), sh.Name())
 			}
 		}
 	}

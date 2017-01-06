@@ -662,12 +662,6 @@ func NewStore() *Store {
 // MustOpenStore returns a new, open Store at a temporary path.
 func MustOpenStore() *Store {
 	s := NewStore()
-
-	// Quieten the logs.
-	if !testing.Verbose() {
-		s.SetLogOutput(ioutil.Discard)
-	}
-
 	if err := s.Open(); err != nil {
 		panic(err)
 	}

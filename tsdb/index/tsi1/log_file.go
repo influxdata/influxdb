@@ -459,7 +459,7 @@ func (f *LogFile) execDeleteMeasurementEntry(e *LogEntry) {
 	mm := f.measurement(e.Name)
 	mm.deleted = true
 	mm.tagSet = make(map[string]logTagKey)
-	mm.series = nil
+	mm.series = make(map[string]*logSerie)
 
 	// Update measurement tombstone sketch.
 	f.mTSketch.Add(e.Name)
@@ -506,8 +506,8 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	serie := mm.series[string(key)]
 	if serie == nil {
 		serie = &logSerie{name: e.Name, tags: e.Tags, deleted: deleted}
+		mm.series[string(key)] = serie
 	}
-	mm.series[string(key)] = serie
 
 	// Save tags.
 	for _, t := range e.Tags {
@@ -571,6 +571,9 @@ func (f *LogFile) measurement(name []byte) *logMeasurement {
 			series: make(map[string]*logSerie),
 		}
 		f.mms[string(name)] = mm
+	}
+	if mm.series == nil {
+		panic("NO SERIES? " + string(mm.name))
 	}
 	return mm
 }

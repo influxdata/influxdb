@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"os"
 	"path/filepath"
@@ -214,7 +213,7 @@ func (s *Shard) Statistics(tags map[string]string) []models.Statistic {
 	sSketch, tSketch, err := s.engine.SeriesSketches()
 	seriesN := int64(sSketch.Count() - tSketch.Count())
 	if err != nil {
-		s.logger.Print(err)
+		s.logger.Error("cannot compute series sketch", zap.Error(err))
 		seriesN = 0
 	}
 
@@ -302,8 +301,6 @@ func (s *Shard) Open() error {
 
 		s.engine = e
 		s.logger.Info(fmt.Sprintf("%s database index loaded in %s", s.path, time.Now().Sub(start)))
-
-		s.logger.Printf("%s database index loaded in %s", s.path, time.Now().Sub(start))
 
 		go s.monitor()
 
@@ -920,7 +917,7 @@ func (s *Shard) monitor() {
 
 			names, err := s.MeasurementNamesByExpr(nil)
 			if err != nil {
-				s.logger.Printf("WARN: cannot retrieve measurement names: %s", err)
+				s.logger.Warn("cannot retrieve measurement names", zap.Error(err))
 				continue
 			}
 

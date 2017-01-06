@@ -22,8 +22,8 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/tsdb"
-	"go.uber.org/zap"
 	_ "github.com/influxdata/influxdb/tsdb/index"
+	"go.uber.org/zap"
 )
 
 //go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl
@@ -145,7 +145,6 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, opt tsdb.
 		index:        idx,
 		logger:       logger,
 		traceLogger:  logger,
-		logOutput:    os.Stderr,
 		traceLogging: opt.Config.TraceLoggingEnabled,
 
 		fieldset: tsdb.NewMeasurementFieldSet(),
@@ -328,6 +327,18 @@ func (e *Engine) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, err
 	return e.index.MeasurementsSketches()
 }
 
+// LastModified returns the time when this shard was last modified.
+func (e *Engine) LastModified() time.Time {
+	walTime := e.WAL.LastWriteTime()
+	fsTime := e.FileStore.LastModified()
+
+	if walTime.After(fsTime) {
+		return walTime
+	}
+
+	return fsTime
+}
+
 // EngineStatistics maintains statistics for the engine.
 type EngineStatistics struct {
 	CacheCompactions        int64 // Counter of cache compactions that have ever run.
@@ -486,6 +497,9 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 		if err := e.addToIndexFromKey([]byte(key), fieldType, index); err != nil {
 			return err
 		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	e.traceLogger.Info(fmt.Sprintf("Meta data index for shard %d loaded in %v", shardID, time.Since(now)))
@@ -655,6 +669,7 @@ func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType, inde
 	if err := e.index.CreateSeriesIfNotExists(seriesKey, []byte(name), tags); err != nil {
 		return err
 	}
+
 	return nil
 }
 
