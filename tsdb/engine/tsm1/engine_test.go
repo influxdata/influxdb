@@ -502,8 +502,8 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("X", influxql.Float, false)
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("Y", influxql.Float, false)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
-	e.MustMeasurement("cpu").SetFieldName("X")
-	e.MustMeasurement("cpu").SetFieldName("Y")
+	e.SetFieldName("cpu", "X")
+	e.SetFieldName("cpu", "Y")
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A X=10 1000000000`,
@@ -617,7 +617,7 @@ func TestEngine_LastModified(t *testing.T) {
 	p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
 	// Write those points to the engine.
-	e := tsm1.NewEngine(1, dir, walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
+	e := tsm1.NewEngine(1, tsdb.MustNewIndex(1, "", tsdb.NewEngineOptions()), dir, walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -651,7 +651,7 @@ func TestEngine_LastModified(t *testing.T) {
 		t.Fatalf("expected time change, got %v, exp %v", got, exp)
 	}
 
-	if err := e.DeleteSeries([]string{"cpu,host=A"}); err != nil {
+	if err := e.DeleteSeriesRange([][]byte{[]byte("cpu,host=A")}, math.MinInt64, math.MaxInt64); err != nil {
 		t.Fatalf("failed to delete series: %v", err)
 	}
 
@@ -807,7 +807,7 @@ func benchmarkEngine_WritePoints_Parallel(b *testing.B, batchSize int) {
 	e := MustOpenEngine()
 	defer e.Close()
 
-	e.Index().CreateMeasurementIndexIfNotExists("cpu")
+	// e.Index().CreateMeasurementIndexIfNotExists("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
 
 	b.ResetTimer()
@@ -994,16 +994,6 @@ func (e *Engine) MustWriteSnapshot() {
 	if err := e.WriteSnapshot(); err != nil {
 		panic(err)
 	}
-}
-
-// MustMeasurement calls Measurement on the underlying tsdb.Engine, and panics
-// if it returns an error.
-func (e *Engine) MustMeasurement(name string) *tsdb.Measurement {
-	m, err := e.Engine.Measurement([]byte(name))
-	if err != nil {
-		panic(err)
-	}
-	return m
 }
 
 // WritePointsString parses a string buffer and writes the points.

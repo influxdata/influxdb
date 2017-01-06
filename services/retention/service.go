@@ -122,12 +122,12 @@ func (s *Service) deleteShards() {
 			for _, id := range s.TSDBStore.ShardIDs() {
 				if info, ok := deletedShardIDs[id]; ok {
 					if err := s.TSDBStore.DeleteShard(id); err != nil {
-						s.logger.Printf("failed to delete shard ID %d from database %s, retention policy %s: %s",
-							id, info.db, info.rp, err.Error())
+						s.logger.Error(fmt.Sprintf("failed to delete shard ID %d from database %s, retention policy %s: %s",
+							id, info.db, info.rp, err.Error()))
 						continue
 					}
-					s.logger.Printf("shard ID %d from database %s, retention policy %s, deleted",
-						id, info.db, info.rp)
+					s.logger.Info(fmt.Sprintf("shard ID %d from database %s, retention policy %s, deleted",
+						id, info.db, info.rp))
 				}
 			}
 			if err := s.MetaClient.PruneShardGroups(); err != nil {

@@ -285,6 +285,10 @@ func (e *Engine) disableSnapshotCompactions() {
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
+func (e *Engine) SetFieldName(measurement, name string) {
+	e.index.SetFieldName(measurement, name)
+}
+
 func (e *Engine) MeasurementExists(name []byte) (bool, error) {
 	return e.index.MeasurementExists(name)
 }
@@ -665,7 +669,7 @@ func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType, inde
 		return err
 	}
 
-	_, tags, _ := models.ParseKey(key)
+	_, tags, _ := models.ParseKey(seriesKey)
 	if err := e.index.CreateSeriesIfNotExists(seriesKey, []byte(name), tags); err != nil {
 		return err
 	}

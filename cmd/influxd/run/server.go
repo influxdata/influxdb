@@ -511,14 +511,14 @@ func (s *Server) reportServer() {
 		name := db.Name
 		n, err := s.TSDBStore.SeriesCardinality(name)
 		if err != nil {
-			s.Logger.Printf("Unable to get series cardinality for database %s: %v", name, err)
+			s.Logger.Error(fmt.Sprintf("Unable to get series cardinality for database %s: %v", name, err))
 		} else {
 			numSeries += n
 		}
 
 		n, err = s.TSDBStore.MeasurementsCardinality(name)
 		if err != nil {
-			s.Logger.Printf("Unable to get measurement cardinality for database %s: %v", name, err)
+			s.Logger.Error(fmt.Sprintf("Unable to get measurement cardinality for database %s: %v", name, err))
 		} else {
 			numMeasurements += n
 		}
