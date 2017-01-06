@@ -38,6 +38,15 @@ func TestSourceStore(t *testing.T) {
 			URL:      "toyota-hilux.lyon-estates.local",
 			Default:  true,
 		},
+		chronograf.Source{
+			Name:               "HipToBeSquare",
+			Type:               "influx",
+			Username:           "calvinklein",
+			Password:           "chuck b3rry",
+			URL:                "https://toyota-hilux.lyon-estates.local",
+			InsecureSkipVerify: true,
+			Default:            false,
+		},
 	}
 
 	ctx := context.Background()
@@ -94,7 +103,7 @@ func TestSourceStore(t *testing.T) {
 		Default:  true,
 	})
 
-	srcs[2] = mustAddSource(t, s, srcs[2])
+	srcs[3] = mustAddSource(t, s, srcs[3])
 	if srcs, err := s.All(ctx); err != nil {
 		t.Fatal(err)
 	} else {
@@ -121,20 +130,23 @@ func TestSourceStore(t *testing.T) {
 	}
 
 	// Delete the other source we created
-	if err := s.Delete(ctx, srcs[2]); err != nil {
+	if err := s.Delete(ctx, srcs[3]); err != nil {
 		t.Fatal(err)
 	}
 
 	if bsrcs, err := s.All(ctx); err != nil {
 		t.Fatal(err)
-	} else if len(bsrcs) != 1 {
-		t.Fatalf("After delete All returned incorrect number of srcs; got %d, expected %d", len(bsrcs), 1)
+	} else if len(bsrcs) != 2 {
+		t.Fatalf("After delete All returned incorrect number of srcs; got %d, expected %d", len(bsrcs), 2)
 	} else if !reflect.DeepEqual(bsrcs[0], srcs[1]) {
 		t.Fatalf("After delete All returned incorrect source; got %v, expected %v", bsrcs[0], srcs[1])
 	}
 
-	// Delete the final source
+	// Delete the final sources
 	if err := s.Delete(ctx, srcs[1]); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Delete(ctx, srcs[2]); err != nil {
 		t.Fatal(err)
 	}
 

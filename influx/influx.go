@@ -2,6 +2,7 @@ package influx
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,7 +13,8 @@ import (
 
 // Client is a device for retrieving time series data from an InfluxDB instance
 type Client struct {
-	URL *url.URL
+	URL                *url.URL
+	InsecureSkipVerify bool
 
 	Logger chronograf.Logger
 }
@@ -64,8 +66,15 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 	params.Set("rp", q.RP)
 	params.Set("epoch", "ms")
 	req.URL.RawQuery = params.Encode()
-	httpClient := &http.Client{}
-	resp, err := httpClient.Do(req)
+
+	hc := &http.Client{}
+	if c.InsecureSkipVerify {
+		tr := &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		}
+		hc.Transport = tr
+	}
+	resp, err := hc.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -145,6 +154,10 @@ func (c *Client) Connect(ctx context.Context, src *chronograf.Source) error {
 		return err
 	}
 	u.User = url.UserPassword(src.Username, src.Password)
+	// Only allow acceptance of all certs if the scheme is https AND the user opted into to the setting.
+	if u.Scheme == "https" && src.InsecureSkipVerify {
+		c.InsecureSkipVerify = src.InsecureSkipVerify
+	}
 	c.URL = u
 	return nil
 }

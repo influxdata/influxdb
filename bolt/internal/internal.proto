@@ -20,6 +20,7 @@ message Source {
 	string URL                = 6; // URL are the connections to the source
 	bool Default              = 7; // Flags an exploration as the default.
 	string Telegraf           = 8; // Telegraf is the db telegraf is written to. By default it is "telegraf"
+	bool InsecureSkipVerify   = 9; // InsecureSkipVerify accepts any certificate from the influx server
 }
 
 message Dashboard {

@@ -44,6 +44,82 @@ func Test_Influx_MakesRequestsToQueryEndpoint(t *testing.T) {
 	}
 }
 
+func Test_Influx_HTTPS_Failure(t *testing.T) {
+	called := false
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		called = true
+	}))
+	defer ts.Close()
+
+	ctx := context.Background()
+	var series chronograf.TimeSeries
+	series, err := influx.NewClient(ts.URL, log.New(log.DebugLevel))
+	if err != nil {
+		t.Fatal("Unexpected error initializing client: err:", err)
+	}
+
+	src := chronograf.Source{
+		URL: ts.URL,
+	}
+	if err := series.Connect(ctx, &src); err != nil {
+		t.Fatal("Unexpected error connecting to client: err:", err)
+	}
+
+	query := chronograf.Query{
+		Command: "show databases",
+	}
+	_, err = series.Query(ctx, query)
+	if err == nil {
+		t.Error("Expected error but was successful")
+	}
+
+	if called == true {
+		t.Error("Expected http request to fail, but, succeeded")
+	}
+
+}
+
+func Test_Influx_HTTPS_InsecureSkipVerify(t *testing.T) {
+	t.Parallel()
+	called := false
+	ts := httptest.NewTLSServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusOK)
+		rw.Write([]byte(`{}`))
+		called = true
+		if path := r.URL.Path; path != "/query" {
+			t.Error("Expected the path to contain `/query` but was", path)
+		}
+	}))
+	defer ts.Close()
+
+	ctx := context.Background()
+	var series chronograf.TimeSeries
+	series, err := influx.NewClient(ts.URL, log.New(log.DebugLevel))
+	if err != nil {
+		t.Fatal("Unexpected error initializing client: err:", err)
+	}
+
+	src := chronograf.Source{
+		URL:                ts.URL,
+		InsecureSkipVerify: true,
+	}
+	if err := series.Connect(ctx, &src); err != nil {
+		t.Fatal("Unexpected error connecting to client: err:", err)
+	}
+
+	query := chronograf.Query{
+		Command: "show databases",
+	}
+	_, err = series.Query(ctx, query)
+	if err != nil {
+		t.Fatal("Expected no error but was", err)
+	}
+
+	if called == false {
+		t.Error("Expected http request to Influx but there was none")
+	}
+}
+
 func Test_Influx_CancelsInFlightRequests(t *testing.T) {
 	t.Parallel()
 

@@ -9,6 +9,8 @@ const (
 	GreaterThanEqual = "equal to or greater"
 	Equal            = "equal to"
 	NotEqual         = "not equal to"
+	InsideRange      = "is inside range"
+	OutsideRange     = "is outside range"
 )
 
 // kapaOperator converts UI strings to kapacitor operators
@@ -28,5 +30,16 @@ func kapaOperator(operator string) (string, error) {
 		return "!=", nil
 	default:
 		return "", fmt.Errorf("invalid operator: %s is unknown", operator)
+	}
+}
+
+func rangeOperators(operator string) ([]string, error) {
+	switch operator {
+	case InsideRange:
+		return []string{">=", "AND", "<="}, nil
+	case OutsideRange:
+		return []string{"<", "OR", ">"}, nil
+	default:
+		return nil, fmt.Errorf("invalid operator: %s is unknown", operator)
 	}
 }

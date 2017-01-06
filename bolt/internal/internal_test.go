@@ -50,6 +50,16 @@ func TestMarshalSource(t *testing.T) {
 	} else if !reflect.DeepEqual(v, vv) {
 		t.Fatalf("source protobuf copy error: got %#v, expected %#v", vv, v)
 	}
+
+	// Test if the new insecureskipverify works
+	v.InsecureSkipVerify = true
+	if buf, err := internal.MarshalSource(v); err != nil {
+		t.Fatal(err)
+	} else if err := internal.UnmarshalSource(buf, &vv); err != nil {
+		t.Fatal(err)
+	} else if !reflect.DeepEqual(v, vv) {
+		t.Fatalf("source protobuf copy error: got %#v, expected %#v", vv, v)
+	}
 }
 
 func TestMarshalServer(t *testing.T) {

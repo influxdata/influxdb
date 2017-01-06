@@ -1747,7 +1747,7 @@
 					}
 				}
 			}
-		},
+		}
 	},
 	"definitions": {
 		"Kapacitors": {
@@ -1837,9 +1837,84 @@
 				}
 			}
 		},
+		"QueryConfig": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string"
+				},
+				"database": {
+					"type": "string"
+				},
+				"measurement": {
+					"type": "string"
+				},
+				"retentionPolicy": {
+					"type": "string"
+				},
+				"areTagsAccepted": {
+					"type": "boolean"
+				},
+				"rawText": {
+					"type": "string"
+				},
+				"tags": {
+					"type": "object"
+				},
+				"groupBy": {
+					"type": "object",
+					"properties": {
+						"time": {
+							"type": "string"
+						},
+						"tags": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					},
+					"required": [
+						"time",
+						"tags"
+					]
+				},
+				"fields": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"field": {
+								"type": "string"
+							},
+							"funcs": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							}
+						},
+						"required": [
+							"field",
+							"funcs"
+						]
+					}
+				}
+			},
+			"required": [
+				"database",
+				"measurement",
+				"retentionPolicy",
+				"areTagsAccepted",
+				"tags",
+				"groupBy",
+				"fields"
+			]
+		},
 		"Rule": {
 			"type": "object",
 			"required": [
+				"query",
 				"every",
 				"trigger"
 			],
@@ -1847,6 +1922,10 @@
 				"id": {
 					"type": "string",
 					"description": "ID for this rule; the ID is shared with kapacitor"
+				},
+				"query": {
+					"description": "Query config structure is historical from chronograf 1.0",
+					"$ref": "#/definitions/QueryConfig"
 				},
 				"name": {
 					"type": "string",
@@ -1887,6 +1966,50 @@
 						"relative",
 						"threshold"
 					]
+				},
+				"values": {
+					"type": "object",
+					"description": "Alerting logic for trigger type",
+					"properties": {
+						"change": {
+							"description": "Specifies if the change is percent or absolute",
+							"type": "string",
+							"enum": [
+								"% change",
+								"change"
+							]
+						},
+						"period": {
+							"description": "Length of time before deadman is alerted (golang duration)",
+							"type": "string"
+						},
+						"shift": {
+							"description": "Amount of time to look into the past to compare to the present (golang duration)",
+							"type": "string"
+						},
+						"operator": {
+							"description": "Operator for alert comparison",
+							"type": "string",
+							"enum": [
+								"greater than",
+								"less than",
+								"equal to or less than",
+								"equal to or greater",
+								"equal to",
+								"not equal to",
+								"is inside range",
+								"is outside range"
+							]
+						},
+						"value": {
+							"description": "Value is the boundary value when alert goes critical",
+							"type": "string"
+						},
+						"rangeValue": {
+							"description": "Optional value for range comparisions",
+							"type": "string"
+						}
+					}
 				},
 				"tickscript": {
 					"type": "string",
@@ -1968,6 +2091,10 @@
 					"type": "string",
 					"format": "url",
 					"description": "URL for the time series data source backend (e.g. http://localhost:8086)"
+				},
+				"insecureSkipVerify": {
+					"type": "boolean",
+					"description": "True means any certificate presented by the source is accepted.  Typically used for self-signed certs. Probably should only be used for testing."
 				},
 				"default": {
 					"type": "boolean",

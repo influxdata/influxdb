@@ -78,14 +78,15 @@ type Response interface {
 
 // Source is connection information to a time-series data store.
 type Source struct {
-	ID       int    `json:"id,omitempty,string"` // ID is the unique ID of the source
-	Name     string `json:"name"`                // Name is the user-defined name for the source
-	Type     string `json:"type,omitempty"`      // Type specifies which kinds of source (enterprise vs oss)
-	Username string `json:"username,omitempty"`  // Username is the username to connect to the source
-	Password string `json:"password,omitempty"`  // Password is in CLEARTEXT
-	URL      string `json:"url"`                 // URL are the connections to the source
-	Default  bool   `json:"default"`             // Default specifies the default source for the application
-	Telegraf string `json:"telegraf"`            // Telegraf is the db telegraf is written to.  By default it is "telegraf"
+	ID                 int    `json:"id,omitempty,string"`          // ID is the unique ID of the source
+	Name               string `json:"name"`                         // Name is the user-defined name for the source
+	Type               string `json:"type,omitempty"`               // Type specifies which kinds of source (enterprise vs oss)
+	Username           string `json:"username,omitempty"`           // Username is the username to connect to the source
+	Password           string `json:"password,omitempty"`           // Password is in CLEARTEXT
+	URL                string `json:"url"`                          // URL are the connections to the source
+	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the source is accepted.
+	Default            bool   `json:"default"`                      // Default specifies the default source for the application
+	Telegraf           string `json:"telegraf"`                     // Telegraf is the db telegraf is written to.  By default it is "telegraf"
 }
 
 // SourcesStore stores connection information for a `TimeSeries`
