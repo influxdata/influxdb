@@ -1,6 +1,6 @@
 const kapacitor = () => {
   return ({
-    "id": "\"1\"",
+    "id": "1",
     "name": "kapa",
     "url": "http://chronograf.influxcloud.net:9092",
     "username": "testuser",
