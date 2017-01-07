@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"time"
@@ -40,6 +41,12 @@ type HTTPConfig struct {
 	// TLSConfig allows the user to set their own TLS config for the HTTP
 	// Client. If set, this option overrides InsecureSkipVerify.
 	TLSConfig *tls.Config
+
+	// InsecureFollowRedirect if true, will result in Ping() being called before
+	// any query is sent, and if a redirect is given it will use the default
+	// behavior of net/http to follow up to 10 redirects max, and set the
+	// URL for influx to the last found redirect.
+	InsecureFollowRedirect bool
 }
 
 // BatchPointsConfig is the config data needed to create an instance of the BatchPoints struct.
@@ -99,10 +106,11 @@ func NewHTTPClient(conf HTTPConfig) (Client, error) {
 		tr.TLSClientConfig = conf.TLSConfig
 	}
 	return &client{
-		url:       *u,
-		username:  conf.Username,
-		password:  conf.Password,
-		useragent: conf.UserAgent,
+		url:            *u,
+		username:       conf.Username,
+		password:       conf.Password,
+		useragent:      conf.UserAgent,
+		followredirect: conf.InsecureFollowRedirect,
 		httpClient: &http.Client{
 			Timeout:   conf.Timeout,
 			Transport: tr,
@@ -117,6 +125,16 @@ func (c *client) Ping(timeout time.Duration) (time.Duration, string, error) {
 	now := time.Now()
 	u := c.url
 	u.Path = "ping"
+
+	// Only enable CheckRedirect function if InsecureFollowRedirect is set to true.
+	if c.followredirect {
+
+		c.httpClient.CheckRedirect = func(nextRequest *http.Request, previousRequests []*http.Request) error {
+			log.Printf("W! InfluxDB being redirected from : %s -> %s\n", c.url.String(), nextRequest.URL.String())
+			c.url = *nextRequest.URL
+			return nil
+		}
+	}
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
@@ -166,12 +184,13 @@ func (c *client) Close() error {
 type client struct {
 	// N.B - if url.UserInfo is accessed in future modifications to the
 	// methods on client, you will need to syncronise access to url.
-	url        url.URL
-	username   string
-	password   string
-	useragent  string
-	httpClient *http.Client
-	transport  *http.Transport
+	url            url.URL
+	username       string
+	password       string
+	useragent      string
+	followredirect bool
+	httpClient     *http.Client
+	transport      *http.Transport
 }
 
 // BatchPoints is an interface into a batched grouping of points to write into
