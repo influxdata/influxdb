@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -36,6 +37,21 @@ func TestUDPClient_Ping(t *testing.T) {
 	rtt, version, err := c.Ping(0)
 	if rtt != 0 || version != "" || err != nil {
 		t.Errorf("unexpected error.  expected (%v, '%v', %v), actual (%v, '%v', %v)", 0, "", nil, rtt, version, err)
+	}
+}
+
+// TestUDPClient_CheckHTTPRedirect this is noop, so verify it.
+func TestUDPClient_CheckHTTPRedirect(t *testing.T) {
+	config := UDPConfig{Addr: "localhost:8089"}
+	c, err := NewUDPClient(config)
+	if err != nil {
+		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+	defer c.Close()
+
+	result, err := c.CheckHTTPRedirect()
+	if result {
+		t.Errorf("Got an unexpected redirect : %v\n", err)
 	}
 }
 
@@ -239,6 +255,40 @@ func TestClient_Ping(t *testing.T) {
 	_, _, err := c.Ping(0)
 	if err != nil {
 		t.Errorf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}
+
+func TestClient_CheckHTTP301Redirect(t *testing.T) {
+
+	// The influxDB HTTP server
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintln(w, `{"results":[{}]}`)
+	}))
+	defer ts.Close()
+
+	// A intermediate HTTP server which sends a redirect
+	redirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "test/html")
+		w.Header().Set("Location", ts.URL)
+		w.WriteHeader(http.StatusMovedPermanently)
+		fmt.Fprintln(w, `<html><head><title>301 Moved Permanently</title></head>`)
+		fmt.Fprintln(w, `<body bgcolor="white"><center><h1>301 Moved Permanently</h1></center><hr><center>nginx/1.10.0 (Ubuntu)</center></body></html>`)
+	}))
+	defer redirectServer.Close()
+
+	config := HTTPConfig{
+		Addr: redirectServer.URL,
+		InsecureFollowRedirect: true,
+	}
+	c, _ := NewHTTPClient(config)
+	defer c.Close()
+
+	// Call CheckHTTPRedirect. Should get a redirect.
+	redirected, err := c.CheckHTTPRedirect()
+	if !redirected {
+		t.Errorf("HTTP Redirect not encountered : %v : %v\n", redirected, err)
 	}
 }
 

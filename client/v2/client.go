@@ -77,6 +77,8 @@ type Client interface {
 	// the UDP client.
 	Query(q Query) (*Response, error)
 
+	CheckHTTPRedirect() (bool, error)
+
 	// Close releases any resources a Client may be using.
 	Close() error
 }
@@ -119,22 +121,53 @@ func NewHTTPClient(conf HTTPConfig) (Client, error) {
 	}, nil
 }
 
+// CheckHTTPRedirect will make an initial GET call to influxDB server and check for
+//  redirects. If any are found it will follow the redirects and update the
+//  client with the address of the last redirct.
+
+func (c *client) CheckHTTPRedirect() (bool, error) {
+	u := c.url
+
+	// Set net/http CheckRedirect function which will get called on a redirect.
+	c.httpClient.CheckRedirect = func(nextRequest *http.Request, previousRequests []*http.Request) error {
+		log.Printf("W! InfluxDB being redirected from : %s -> %s\n", c.url.String(), nextRequest.URL.String())
+		c.url = *nextRequest.URL
+		return errors.New("HTTP REDIRECT FOUND") // Need to return non-nil else doesn't return 301 error code in resp
+	}
+
+	// Setup HTTP call
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return false, err
+	}
+	req.Header.Set("User-Agent", c.useragent)
+
+	if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+
+	// Make the HTTP call
+	resp, err := c.httpClient.Do(req)
+	// Look for redirect first, CheckRedirect will return an error
+	if resp.StatusCode == 301 {
+		return true, nil
+	}
+	// If did not get a redirect then look for an error
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	// No redirect and no error
+	return false, nil
+}
+
 // Ping will check to see if the server is up with an optional timeout on waiting for leader.
 // Ping returns how long the request took, the version of the server it connected to, and an error if one occurred.
 func (c *client) Ping(timeout time.Duration) (time.Duration, string, error) {
 	now := time.Now()
 	u := c.url
 	u.Path = "ping"
-
-	// Only enable CheckRedirect function if InsecureFollowRedirect is set to true.
-	if c.followredirect {
-
-		c.httpClient.CheckRedirect = func(nextRequest *http.Request, previousRequests []*http.Request) error {
-			log.Printf("W! InfluxDB being redirected from : %s -> %s\n", c.url.String(), nextRequest.URL.String())
-			c.url = *nextRequest.URL
-			return nil
-		}
-	}
 
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
