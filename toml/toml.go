@@ -38,7 +38,7 @@ func (d *Duration) UnmarshalText(text []byte) error {
 
 // MarshalText converts a duration to a string for decoding toml
 func (d Duration) MarshalText() (text []byte, err error) {
-	return []byte(d.String()), nil
+	return []byte(fmt.Sprintf(`"%s"`, d.String())), nil
 }
 
 // Size represents a TOML parseable file size.

@@ -1,12 +1,29 @@
 package run_test
 
 import (
+	"bytes"
 	"os"
 	"testing"
 
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/cmd/influxd/run"
 )
+
+// Ensure the demo configuration can be parsed.
+func TestConfig_Parse_Demo(t *testing.T) {
+	config, err := run.NewDemoConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf := new(bytes.Buffer)
+	if err := toml.NewEncoder(buf).Encode(config); err != nil {
+		t.Fatal(err)
+	}
+	_, err = toml.Decode(buf.String(), &config)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
 
 // Ensure the configuration can be parsed.
 func TestConfig_Parse(t *testing.T) {
