@@ -554,14 +554,18 @@ func (c *Cache) SetMaxSize(size uint64) {
 	c.mu.Unlock()
 }
 
-// values returns the values for the key. It doesn't lock and assumes the data is
-// already sorted. Should only be used in compact.go in the CacheKeyIterator
+// values returns the values for the key. It assumes the data is already sorted.
+// It doesn't lock the cache but it does read-lock the entry if there is one for the key.
+// values should only be used in compact.go in the CacheKeyIterator.
 func (c *Cache) values(key string) Values {
 	e, _ := c.store.entry(key)
 	if e == nil {
 		return nil
 	}
-	return e.values
+	e.mu.RLock()
+	v := e.values
+	e.mu.RUnlock()
+	return v
 }
 
 // ApplyEntryFn applies the function f to each entry in the Cache.
