@@ -489,6 +489,9 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 		return err
 	}
 
+	tw := tar.NewWriter(w)
+	defer tw.Close()
+
 	// Remove the temporary snapshot dir
 	defer os.RemoveAll(path)
 
@@ -514,9 +517,6 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 	if len(files) == 0 {
 		return nil
 	}
-
-	tw := tar.NewWriter(w)
-	defer tw.Close()
 
 	for _, f := range files {
 		if err := e.writeFileToBackup(f, basePath, filepath.Join(path, f.Name()), tw); err != nil {
