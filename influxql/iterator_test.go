@@ -940,6 +940,15 @@ func TestIteratorOptions_ElapsedInterval_Call(t *testing.T) {
 	}
 }
 
+func TestIteratorOptions_IntegralInterval_Default(t *testing.T) {
+	opt := influxql.IteratorOptions{}
+	expected := influxql.Interval{Duration: time.Second}
+	actual := opt.IntegralInterval()
+	if actual != expected {
+		t.Errorf("expected default integral interval to be %v, got %v", expected, actual)
+	}
+}
+
 // Ensure iterator options can be marshaled to and from a binary format.
 func TestIteratorOptions_MarshalBinary(t *testing.T) {
 	opt := &influxql.IteratorOptions{
