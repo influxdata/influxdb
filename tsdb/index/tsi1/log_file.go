@@ -507,6 +507,9 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	if serie == nil {
 		serie = &logSerie{name: e.Name, tags: e.Tags, deleted: deleted}
 		mm.series[string(key)] = serie
+	} else if deleted {
+		serie.deleted = true
+		mm.series[string(key)] = serie
 	}
 
 	// Save tags.
@@ -790,7 +793,10 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, n *int64)
 	mw.Sketch, mw.TSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 
 	// Add measurement data.
-	for _, mm := range f.mms {
+	for _, name := range names {
+		mm := f.mms[name]
+
+		sort.Sort(uint32Slice(mm.seriesIDs))
 		mw.Add(mm.name, mm.offset, mm.size, mm.seriesIDs)
 		if mm.Deleted() {
 			mw.TSketch.Add(mm.Name())

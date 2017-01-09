@@ -691,7 +691,11 @@ type seriesExprIterator struct {
 }
 
 // newSeriesExprIterator returns a new instance of seriesExprIterator.
-func newSeriesExprIterator(itr SeriesIterator, expr influxql.Expr) *seriesExprIterator {
+func newSeriesExprIterator(itr SeriesIterator, expr influxql.Expr) SeriesIterator {
+	if itr == nil {
+		return nil
+	}
+
 	return &seriesExprIterator{
 		itr: itr,
 		e: seriesExprElem{

@@ -688,30 +688,32 @@ func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Exp
 	// they are part of the same composite series.
 	tagSets := make(map[string]*influxql.TagSet, 64)
 
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		tags := make(map[string]string, len(dimensions))
+	if itr != nil {
+		for e := itr.Next(); e != nil; e = itr.Next() {
+			tags := make(map[string]string, len(dimensions))
 
-		// Build the TagSet for this series.
-		for _, dim := range dimensions {
-			tags[dim] = e.Tags().GetString(dim)
-		}
-
-		// Convert the TagSet to a string, so it can be added to a map
-		// allowing TagSets to be handled as a set.
-		tagsAsKey := tsdb.MarshalTags(tags)
-		tagSet, ok := tagSets[string(tagsAsKey)]
-		if !ok {
-			// This TagSet is new, create a new entry for it.
-			tagSet = &influxql.TagSet{
-				Tags: tags,
-				Key:  tagsAsKey,
+			// Build the TagSet for this series.
+			for _, dim := range dimensions {
+				tags[dim] = e.Tags().GetString(dim)
 			}
-		}
-		// Associate the series and filter with the Tagset.
-		tagSet.AddFilter(string(SeriesElemKey(e)), e.Expr())
 
-		// Ensure it's back in the map.
-		tagSets[string(tagsAsKey)] = tagSet
+			// Convert the TagSet to a string, so it can be added to a map
+			// allowing TagSets to be handled as a set.
+			tagsAsKey := tsdb.MarshalTags(tags)
+			tagSet, ok := tagSets[string(tagsAsKey)]
+			if !ok {
+				// This TagSet is new, create a new entry for it.
+				tagSet = &influxql.TagSet{
+					Tags: tags,
+					Key:  tagsAsKey,
+				}
+			}
+			// Associate the series and filter with the Tagset.
+			tagSet.AddFilter(string(SeriesElemKey(e)), e.Expr())
+
+			// Ensure it's back in the map.
+			tagSets[string(tagsAsKey)] = tagSet
+		}
 	}
 
 	// Sort the series in each tag set.
