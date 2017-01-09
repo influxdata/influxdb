@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
@@ -43,7 +42,7 @@ type kapaLinks struct {
 }
 
 type kapacitor struct {
-	ID       string    `json:"id,string"`          // Unique identifier representing a kapacitor instance.
+	ID       int       `json:"id,string"`          // Unique identifier representing a kapacitor instance.
 	Name     string    `json:"name"`               // User facing name of kapacitor instance.
 	URL      string    `json:"url"`                // URL for the kapacitor backend (e.g. http://localhost:9092)
 	Username string    `json:"username,omitempty"` // Username for authentication to kapacitor
@@ -98,7 +97,7 @@ func (h *Service) NewKapacitor(w http.ResponseWriter, r *http.Request) {
 func newKapacitor(srv chronograf.Server) kapacitor {
 	httpAPISrcs := "/chronograf/v1/sources"
 	return kapacitor{
-		ID:       strconv.Itoa(srv.ID),
+		ID:       srv.ID,
 		Name:     srv.Name,
 		Username: srv.Username,
 		Password: srv.Password,
@@ -117,6 +116,12 @@ type kapacitors struct {
 
 // Kapacitors retrieves all kapacitors from store.
 func (h *Service) Kapacitors(w http.ResponseWriter, r *http.Request) {
+	srcID, err := paramID("id", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		return
+	}
+
 	ctx := r.Context()
 	mrSrvs, err := h.ServersStore.All(ctx)
 	if err != nil {
@@ -124,9 +129,11 @@ func (h *Service) Kapacitors(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	srvs := make([]kapacitor, len(mrSrvs))
-	for i, srv := range mrSrvs {
-		srvs[i] = newKapacitor(srv)
+	srvs := []kapacitor{}
+	for _, srv := range mrSrvs {
+		if srv.SrcID == srcID {
+			srvs = append(srvs, newKapacitor(srv))
+		}
 	}
 
 	res := kapacitors{
@@ -186,6 +193,22 @@ func (h *Service) RemoveKapacitor(w http.ResponseWriter, r *http.Request) {
 		unknownErrorWithMessage(w, err, h.Logger)
 		return
 	}
+
+	// Now delete all the associated rules
+	rules, err := h.AlertRulesStore.All(ctx, srcID, id)
+	if err != nil {
+		unknownErrorWithMessage(w, err, h.Logger)
+		return
+	}
+
+	for _, rule := range rules {
+		h.Logger.Debug("Deleting kapacitor rule resource id ", rule.ID)
+		if err := h.AlertRulesStore.Delete(ctx, srcID, id, rule); err != nil {
+			unknownErrorWithMessage(w, err, h.Logger)
+			return
+		}
+	}
+
 	w.WriteHeader(http.StatusNoContent)
 }
 

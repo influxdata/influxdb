@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -125,7 +126,55 @@ func (h *Service) RemoveSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Remove all the associated kapacitors for this source
+	if err = h.removeSrcsKapa(ctx, id); err != nil {
+		unknownErrorWithMessage(w, err, h.Logger)
+		return
+	}
+
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// removeSrcsKapa will remove all kapacitors and kapacitor rules from the stores.
+// However, it will not remove the kapacitor tickscript from kapacitor itself.
+func (h *Service) removeSrcsKapa(ctx context.Context, srcID int) error {
+	kapas, err := h.ServersStore.All(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Filter the kapacitors to delete by matching the source id
+	deleteKapa := []int{}
+	for _, kapa := range kapas {
+		if kapa.SrcID == srcID {
+			deleteKapa = append(deleteKapa, kapa.ID)
+		}
+	}
+
+	for _, kapaID := range deleteKapa {
+		kapa := chronograf.Server{
+			ID: kapaID,
+		}
+		h.Logger.Debug("Deleting kapacitor resource id ", kapa.ID)
+
+		if err := h.ServersStore.Delete(ctx, kapa); err != nil {
+			return err
+		}
+		// Now delete all the associated rules
+		rules, err := h.AlertRulesStore.All(ctx, srcID, kapaID)
+		if err != nil {
+			return err
+		}
+
+		for _, rule := range rules {
+			h.Logger.Debug("Deleting kapacitor rule resource id ", rule.ID)
+			if err := h.AlertRulesStore.Delete(ctx, srcID, kapaID, rule); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 // UpdateSource handles incremental updates of a data source

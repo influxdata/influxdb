@@ -193,7 +193,7 @@
 						"required": true
 					}
 				],
-				"summary": "This specific data source will be removed from the data store",
+				"summary": "This specific data source will be removed from the data store.  All associated kapacitor resources and kapacitor rules resources are also removed.",
 				"responses": {
 					"204": {
 						"description": "data source has been removed"
@@ -847,7 +847,7 @@
 						"required": true
 					}
 				],
-				"summary": "This specific kapacitor will be removed.",
+				"summary": "This specific kapacitor will be removed. All associated rule resources will also be removed from the store.",
 				"responses": {
 					"204": {
 						"description": "kapacitor has been removed."
