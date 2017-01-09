@@ -3,15 +3,17 @@
 ### Upcoming Bug Fixes
 ### Upcoming Features
   1. [#660](https://github.com/influxdata/chronograf/issues/660): Add option to accept any certificate from InfluxDB.
-  1. [#733](https://github.com/influxdata/chronograf/pull/733): Add optional Github organization membership checks to authentication
-  1. [#564](https://github.com/influxdata/chronograf/issues/564): Add RabbitMQ pre-canned layout.
- 
+  2. [#733](https://github.com/influxdata/chronograf/pull/733): Add optional Github organization membership checks to authentication
+  3. [#564](https://github.com/influxdata/chronograf/issues/564): Add RabbitMQ pre-canned layout.
+  4. [#706](https://github.com/influxdata/chronograf/issues/706): Alerts on threshold where value is inside of range
+  5. [#707](https://github.com/influxdata/chronograf/issues/707): Alerts on threshold where value is outside of range
+
 ## v1.1.0-beta5 [2017-01-05]
 
 ### Bug Fixes
   1. [#693](https://github.com/influxdata/chronograf/issues/693): Fix corrupted MongoDB pre-canned layout.
-  1. [#714](https://github.com/influxdata/chronograf/issues/714): Relative rules check data in the wrong direction
-  1. [#718](https://github.com/influxdata/chronograf/issues/718): Fix bug that stopped apps from displaying
+  2. [#714](https://github.com/influxdata/chronograf/issues/714): Relative rules check data in the wrong direction
+  3. [#718](https://github.com/influxdata/chronograf/issues/718): Fix bug that stopped apps from displaying
 
 ## v1.1.0-beta4 [2016-12-30]
 
