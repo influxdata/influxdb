@@ -34,16 +34,16 @@ type MetaClientMock struct {
 
 	RetentionPolicyFn func(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
 
-	SetAdminPrivilegeFn     func(username string, admin bool) error
-	SetDataFn               func(*meta.Data) error
-	SetPrivilegeFn          func(username, database string, p influxql.Privilege) error
-	ShardsByTimeRangeFn     func(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error)
-	ShardOwnerFn            func(shardID uint64) (database, policy string, sgi *meta.ShardGroupInfo)
-	UpdateRetentionPolicyFn func(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
-	UpdateUserFn            func(name, password string) error
-	UserPrivilegeFn         func(username, database string) (*influxql.Privilege, error)
-	UserPrivilegesFn        func(username string) (map[string]influxql.Privilege, error)
-	UsersFn                 func() []meta.UserInfo
+	SetAdminPrivilegeFn      func(username string, admin bool) error
+	SetDataFn                func(*meta.Data) error
+	SetPrivilegeFn           func(username, database string, p influxql.Privilege) error
+	ShardGroupsByTimeRangeFn func(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
+	ShardOwnerFn             func(shardID uint64) (database, policy string, sgi *meta.ShardGroupInfo)
+	UpdateRetentionPolicyFn  func(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
+	UpdateUserFn             func(name, password string) error
+	UserPrivilegeFn          func(username, database string) (*influxql.Privilege, error)
+	UserPrivilegesFn         func(username string) (map[string]influxql.Privilege, error)
+	UsersFn                  func() []meta.UserInfo
 }
 
 func (c *MetaClientMock) Close() error {
@@ -126,8 +126,8 @@ func (c *MetaClientMock) SetPrivilege(username, database string, p influxql.Priv
 	return c.SetPrivilegeFn(username, database, p)
 }
 
-func (c *MetaClientMock) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error) {
-	return c.ShardsByTimeRangeFn(sources, tmin, tmax)
+func (c *MetaClientMock) ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error) {
+	return c.ShardGroupsByTimeRangeFn(database, policy, min, max)
 }
 
 func (c *MetaClientMock) ShardOwner(shardID uint64) (database, policy string, sgi *meta.ShardGroupInfo) {

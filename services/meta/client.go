@@ -637,12 +637,7 @@ func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.T
 // ShardsByTimeRange returns a slice of shards that may contain data in the time range.
 func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []ShardInfo, err error) {
 	m := make(map[*ShardInfo]struct{})
-	for _, src := range sources {
-		mm, ok := src.(*influxql.Measurement)
-		if !ok {
-			return nil, fmt.Errorf("invalid source type: %#v", src)
-		}
-
+	for _, mm := range sources.Measurements() {
 		groups, err := c.ShardGroupsByTimeRange(mm.Database, mm.RetentionPolicy, tmin, tmax)
 		if err != nil {
 			return nil, err

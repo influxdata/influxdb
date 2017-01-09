@@ -1243,8 +1243,8 @@ func (e *Engine) KeyCursor(key string, t int64, ascending bool) *KeyCursor {
 	return e.FileStore.KeyCursor(key, t, ascending)
 }
 
-// CreateIterator returns an iterator based on opt.
-func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+// CreateIterator returns an iterator for the measurement based on opt.
+func (e *Engine) CreateIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
 	if call, ok := opt.Expr.(*influxql.Call); ok {
 		refOpt := opt
 		refOpt.Expr = call.Args[0].(*influxql.VarRef)
@@ -1256,14 +1256,16 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 				aggregate = false
 				refOpt.Limit = 1
 				refOpt.Ascending = true
+				refOpt.Ordered = true
 			case "last":
 				aggregate = false
 				refOpt.Limit = 1
 				refOpt.Ascending = false
+				refOpt.Ordered = true
 			}
 		}
 
-		inputs, err := e.createVarRefIterator(refOpt, aggregate)
+		inputs, err := e.createVarRefIterator(measurement, refOpt, aggregate)
 		if err != nil {
 			return nil, err
 		} else if len(inputs) == 0 {
@@ -1286,7 +1288,7 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 		return influxql.NewParallelMergeIterator(inputs, opt, runtime.GOMAXPROCS(0)), nil
 	}
 
-	itrs, err := e.createVarRefIterator(opt, false)
+	itrs, err := e.createVarRefIterator(measurement, opt, false)
 	if err != nil {
 		return nil, err
 	}
@@ -1301,35 +1303,43 @@ func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator
 // createVarRefIterator creates an iterator for a variable reference.
 // The aggregate argument determines this is being created for an aggregate.
 // If this is an aggregate, the limit optimization is disabled temporarily. See #6661.
-func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions, aggregate bool) ([]influxql.Iterator, error) {
+func (e *Engine) createVarRefIterator(measurement string, opt influxql.IteratorOptions, aggregate bool) ([]influxql.Iterator, error) {
 	ref, _ := opt.Expr.(*influxql.VarRef)
 
-	var itrs []influxql.Iterator
-	if err := func() error {
-		mms := tsdb.Measurements(e.index.MeasurementsByName(influxql.Sources(opt.Sources).Names()))
+	mm := e.index.Measurement(measurement)
+	if mm == nil {
+		return nil, nil
+	}
 
-		for _, mm := range mms {
-			// Determine tagsets for this measurement based on dimensions and filters.
-			tagSets, err := mm.TagSets(e.id, opt.Dimensions, opt.Condition)
+	// Determine tagsets for this measurement based on dimensions and filters.
+	tagSets, err := mm.TagSets(e.id, opt.Dimensions, opt.Condition)
+	if err != nil {
+		return nil, err
+	}
+
+	// Calculate tag sets and apply SLIMIT/SOFFSET.
+	tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
+
+	itrs := make([]influxql.Iterator, 0, len(tagSets))
+	if err := func() error {
+		for _, t := range tagSets {
+			inputs, err := e.createTagSetIterators(ref, mm, t, opt)
 			if err != nil {
+				return err
+			} else if len(inputs) == 0 {
+				continue
+			}
+
+			itr, err := influxql.Iterators(inputs).Merge(opt)
+			if err != nil {
+				influxql.Iterators(inputs).Close()
 				return err
 			}
 
-			// Calculate tag sets and apply SLIMIT/SOFFSET.
-			tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
-
-			for _, t := range tagSets {
-				inputs, err := e.createTagSetIterators(ref, mm, t, opt)
-				if err != nil {
-					return err
-				}
-
-				if !aggregate && len(inputs) > 0 && (opt.Limit > 0 || opt.Offset > 0) {
-					itrs = append(itrs, newLimitIterator(influxql.NewSortedMergeIterator(inputs, opt), opt))
-				} else {
-					itrs = append(itrs, inputs...)
-				}
+			if !aggregate && len(inputs) > 0 && (opt.Limit > 0 || opt.Offset > 0) {
+				itr = newLimitIterator(itr, opt)
 			}
+			itrs = append(itrs, itr)
 		}
 		return nil
 	}(); err != nil {
@@ -1526,7 +1536,8 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, mm *tsdb.Measu
 	condNames := influxql.VarRefs(conditionFields).Strings()
 
 	// Limit tags to only the dimensions selected.
-	tags = tags.Subset(opt.Dimensions)
+	dimensions := opt.GetDimensions()
+	tags = tags.Subset(dimensions)
 
 	// If it's only auxiliary fields then it doesn't matter what type of iterator we use.
 	if ref == nil {

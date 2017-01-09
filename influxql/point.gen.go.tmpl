@@ -54,6 +54,15 @@ func (v *{{.Name}}Point) Clone() *{{.Name}}Point {
 	return &other
 }
 
+// CopyTo makes a deep copy into the point.
+func (v *{{.Name}}Point) CopyTo(other *{{.Name}}Point) {
+	*other = *v
+	if v.Aux != nil {
+		other.Aux = make([]interface{}, len(v.Aux))
+		copy(other.Aux, v.Aux)
+	}
+}
+
 func encode{{.Name}}Point(p *{{.Name}}Point) *internal.Point {
   return &internal.Point{
     Name:       proto.String(p.Name),

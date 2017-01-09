@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -669,27 +670,20 @@ func (s *Shard) WriteTo(w io.Writer) (int64, error) {
 }
 
 // CreateIterator returns an iterator for the data in the shard.
-func (s *Shard) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+func (s *Shard) CreateIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
 	if err := s.ready(); err != nil {
 		return nil, err
 	}
 
-	if influxql.Sources(opt.Sources).HasSystemSource() {
-		return s.createSystemIterator(opt)
+	if strings.HasPrefix(measurement, "_") {
+		return s.createSystemIterator(measurement, opt)
 	}
-	opt.Sources = influxql.Sources(opt.Sources).Filter(s.database, s.retentionPolicy)
-	return s.engine.CreateIterator(opt)
+	return s.engine.CreateIterator(measurement, opt)
 }
 
 // createSystemIterator returns an iterator for a system source.
-func (s *Shard) createSystemIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	// Only support a single system source.
-	if len(opt.Sources) > 1 {
-		return nil, errors.New("cannot select from multiple system sources")
-	}
-
-	m := opt.Sources[0].(*influxql.Measurement)
-	switch m.Name {
+func (s *Shard) createSystemIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	switch measurement {
 	case "_fieldKeys":
 		return NewFieldKeysIterator(s, opt)
 	case "_series":
@@ -697,69 +691,110 @@ func (s *Shard) createSystemIterator(opt influxql.IteratorOptions) (influxql.Ite
 	case "_tagKeys":
 		return NewTagKeysIterator(s, opt)
 	default:
-		return nil, fmt.Errorf("unknown system source: %s", m.Name)
+		return nil, fmt.Errorf("unknown system source: %s", measurement)
 	}
 }
 
 // FieldDimensions returns unique sets of fields and dimensions across a list of sources.
-func (s *Shard) FieldDimensions(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+func (s *Shard) FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
 	if err := s.ready(); err != nil {
 		return nil, nil, err
-	}
-
-	if sources.HasSystemSource() {
-		// Only support a single system source.
-		if len(sources) > 1 {
-			return nil, nil, errors.New("cannot select from multiple system sources")
-		}
-
-		switch m := sources[0].(type) {
-		case *influxql.Measurement:
-			switch m.Name {
-			case "_fieldKeys":
-				return map[string]influxql.DataType{
-					"fieldKey":  influxql.String,
-					"fieldType": influxql.String,
-				}, nil, nil
-			case "_series":
-				return map[string]influxql.DataType{
-					"key": influxql.String,
-				}, nil, nil
-			case "_tagKeys":
-				return map[string]influxql.DataType{
-					"tagKey": influxql.String,
-				}, nil, nil
-			}
-		}
-		return nil, nil, nil
 	}
 
 	fields = make(map[string]influxql.DataType)
 	dimensions = make(map[string]struct{})
 
-	for _, src := range sources {
-		switch m := src.(type) {
-		case *influxql.Measurement:
-			// Retrieve measurement.
-			mm := s.index.Measurement(m.Name)
-			if mm == nil {
-				continue
+	for _, name := range measurements {
+		// Handle system sources.
+		if strings.HasPrefix(name, "_") {
+			var keys []string
+			switch name {
+			case "_fieldKeys":
+				keys = []string{"fieldKey", "fieldType"}
+			case "_series":
+				keys = []string{"key"}
+			case "_tagKeys":
+				keys = []string{"tagKey"}
 			}
 
-			// Append fields and dimensions.
-			mf := s.engine.MeasurementFields(m.Name)
-			if mf != nil {
-				for name, typ := range mf.FieldSet() {
-					fields[name] = typ
+			for _, k := range keys {
+				if _, ok := fields[k]; !ok || influxql.String < fields[k] {
+					fields[k] = influxql.String
 				}
 			}
-			for _, key := range mm.TagKeys() {
-				dimensions[key] = struct{}{}
+			continue
+		}
+
+		// Retrieve measurement.
+		mm := s.index.Measurement(name)
+		if mm == nil {
+			continue
+		}
+
+		// Append fields and dimensions.
+		mf := s.engine.MeasurementFields(name)
+		if mf != nil {
+			for k, typ := range mf.FieldSet() {
+				if _, ok := fields[k]; !ok || typ < fields[k] {
+					fields[k] = typ
+				}
 			}
+		}
+		for _, key := range mm.TagKeys() {
+			dimensions[key] = struct{}{}
 		}
 	}
 
 	return
+}
+
+func (s *Shard) MeasurementsByRegex(re *regexp.Regexp) []string {
+	mms := s.index.MeasurementsByRegex(re)
+	names := make([]string, len(mms))
+	for i, mm := range mms {
+		names[i] = mm.Name
+	}
+	return names
+}
+
+// MapType returns the data type for the field within the measurement.
+func (s *Shard) MapType(measurement, field string) influxql.DataType {
+	// Process system measurements.
+	if strings.HasPrefix(measurement, "_") {
+		switch measurement {
+		case "_fieldKeys":
+			if field == "fieldKey" || field == "fieldType" {
+				return influxql.String
+			}
+		case "_series":
+			if field == "key" {
+				return influxql.String
+			}
+		case "_tagKeys":
+			if field == "tagKey" {
+				return influxql.String
+			}
+		}
+		return influxql.Unknown
+	}
+
+	mm := s.index.Measurement(measurement)
+	if mm == nil {
+		return influxql.Unknown
+	}
+
+	mf := s.engine.MeasurementFields(measurement)
+	if mf != nil {
+		f := mf.Field(field)
+		if f != nil {
+			return f.Type
+		}
+	}
+
+	if mm.HasTagKey(field) {
+		return influxql.Tag
+	}
+	return influxql.Unknown
 }
 
 // ExpandSources expands regex sources and removes duplicates.
@@ -879,6 +914,14 @@ func (s *Shard) monitor() {
 	}
 }
 
+type ShardGroup interface {
+	MeasurementsByRegex(re *regexp.Regexp) []string
+	FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error)
+	MapType(measurement, field string) influxql.DataType
+	CreateIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error)
+	ExpandSources(sources influxql.Sources) (influxql.Sources, error)
+}
+
 // Shards represents a sortable list of shards.
 type Shards []*Shard
 
@@ -890,6 +933,119 @@ func (a Shards) Less(i, j int) bool { return a[i].id < a[j].id }
 
 // Swap implements sort.Interface.
 func (a Shards) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a Shards) MeasurementsByRegex(re *regexp.Regexp) []string {
+	m := make(map[string]struct{})
+	for _, sh := range a {
+		names := sh.MeasurementsByRegex(re)
+		for _, name := range names {
+			m[name] = struct{}{}
+		}
+	}
+
+	if len(m) == 0 {
+		return nil
+	}
+
+	names := make([]string, 0, len(m))
+	for key := range m {
+		names = append(names, key)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func (a Shards) FieldDimensions(measurements []string) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
+	fields = make(map[string]influxql.DataType)
+	dimensions = make(map[string]struct{})
+
+	for _, sh := range a {
+		f, d, err := sh.FieldDimensions(measurements)
+		if err != nil {
+			return nil, nil, err
+		}
+		for k, typ := range f {
+			if _, ok := fields[k]; typ != influxql.Unknown && (!ok || typ < fields[k]) {
+				fields[k] = typ
+			}
+		}
+		for k := range d {
+			dimensions[k] = struct{}{}
+		}
+	}
+	return
+}
+
+func (a Shards) MapType(measurement, field string) influxql.DataType {
+	var typ influxql.DataType
+	for _, sh := range a {
+		t := sh.MapType(measurement, field)
+		if typ == influxql.Unknown || (t != influxql.Unknown && t < typ) {
+			typ = t
+		}
+	}
+	return typ
+}
+
+func (a Shards) CreateIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+	itrs := make([]influxql.Iterator, 0, len(a))
+	for _, sh := range a {
+		itr, err := sh.CreateIterator(measurement, opt)
+		if err != nil {
+			influxql.Iterators(itrs).Close()
+			return nil, err
+		} else if itr == nil {
+			continue
+		}
+		itrs = append(itrs, itr)
+
+		// Enforce series limit at creation time.
+		if opt.MaxSeriesN > 0 {
+			stats := itr.Stats()
+			if stats.SeriesN > opt.MaxSeriesN {
+				influxql.Iterators(itrs).Close()
+				return nil, fmt.Errorf("max-select-series limit exceeded: (%d/%d)", stats.SeriesN, opt.MaxSeriesN)
+			}
+		}
+	}
+	return influxql.Iterators(itrs).Merge(opt)
+}
+
+func (a Shards) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
+	// Use a map as a set to prevent duplicates.
+	set := map[string]influxql.Source{}
+
+	// Iterate through every shard and expand the sources.
+	for _, sh := range a {
+		expanded, err := sh.ExpandSources(sources)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, src := range expanded {
+			switch src := src.(type) {
+			case *influxql.Measurement:
+				set[src.String()] = src
+			default:
+				return nil, fmt.Errorf("Store.ExpandSources: unsupported source type: %T", src)
+			}
+		}
+	}
+
+	// Convert set to sorted slice.
+	names := make([]string, 0, len(set))
+	for name := range set {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	// Convert set to a list of Sources.
+	sorted := make([]influxql.Source, 0, len(set))
+	for _, name := range names {
+		sorted = append(sorted, set[name])
+	}
+	return sorted, nil
+}
 
 // MeasurementFields holds the fields of a measurement and their codec.
 type MeasurementFields struct {
@@ -1004,41 +1160,6 @@ type Field struct {
 	ID   uint8             `json:"id,omitempty"`
 	Name string            `json:"name,omitempty"`
 	Type influxql.DataType `json:"type,omitempty"`
-}
-
-// shardIteratorCreator creates iterators for a local shard.
-// This simply wraps the shard so that Close() does not close the underlying shard.
-type shardIteratorCreator struct {
-	sh         *Shard
-	maxSeriesN int
-}
-
-func (ic *shardIteratorCreator) Close() error { return nil }
-
-func (ic *shardIteratorCreator) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
-	itr, err := ic.sh.CreateIterator(opt)
-	if err != nil {
-		return nil, err
-	} else if itr == nil {
-		return nil, nil
-	}
-
-	// Enforce series limit at creation time.
-	if ic.maxSeriesN > 0 {
-		stats := itr.Stats()
-		if stats.SeriesN > ic.maxSeriesN {
-			itr.Close()
-			return nil, fmt.Errorf("max-select-series limit exceeded: (%d/%d)", stats.SeriesN, ic.maxSeriesN)
-		}
-	}
-
-	return itr, nil
-}
-func (ic *shardIteratorCreator) FieldDimensions(sources influxql.Sources) (fields map[string]influxql.DataType, dimensions map[string]struct{}, err error) {
-	return ic.sh.FieldDimensions(sources)
-}
-func (ic *shardIteratorCreator) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
-	return ic.sh.ExpandSources(sources)
 }
 
 // NewFieldKeysIterator returns an iterator that can be iterated over to

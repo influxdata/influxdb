@@ -2,7 +2,6 @@ package influxql
 
 import (
 	"container/heap"
-	"errors"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -131,7 +130,7 @@ func new{{$k.Name}}MergeIterator(inputs []{{$k.Name}}Iterator, opt IteratorOptio
 		inputs: inputs,
 		heap: &{{$k.name}}MergeHeap{
 			items: make([]*{{$k.name}}MergeHeapItem, 0, len(inputs)),
-			opt: opt,
+			opt:   opt,
 		},
 	}
 
@@ -202,7 +201,8 @@ func (itr *{{$k.name}}MergeIterator) Next() (*{{$k.Name}}Point, error) {
 			if err != nil {
 				return nil, err
 			}
-			itr.window.name, itr.window.tags = p.Name, p.Tags.ID()
+			tags := p.Tags.Subset(itr.heap.opt.Dimensions)
+			itr.window.name, itr.window.tags = p.Name, tags.ID()
 			itr.window.startTime, itr.window.endTime = itr.heap.opt.Window(p.Time)
 			return p, nil
 		}
@@ -223,7 +223,7 @@ func (itr *{{$k.name}}MergeIterator) Next() (*{{$k.Name}}Point, error) {
 		inWindow := true
 		if window := itr.window; window.name != p.Name {
 			inWindow = false
-		} else if window.tags != p.Tags.ID() {
+		} else if tags := p.Tags.Subset(itr.heap.opt.Dimensions); window.tags != tags.ID() {
 			inWindow = false
 		} else if opt := itr.heap.opt; opt.Ascending && p.Time >= window.endTime {
 			inWindow = false
@@ -250,9 +250,9 @@ type {{$k.name}}MergeHeap struct {
 	items []*{{$k.name}}MergeHeapItem
 }
 
-func (h {{$k.name}}MergeHeap) Len() int      { return len(h.items) }
-func (h {{$k.name}}MergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
-func (h {{$k.name}}MergeHeap) Less(i, j int) bool {
+func (h *{{$k.name}}MergeHeap) Len() int      { return len(h.items) }
+func (h *{{$k.name}}MergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
+func (h *{{$k.name}}MergeHeap) Less(i, j int) bool {
 	x, err := h.items[i].itr.peek()
 	if err != nil {
 		return true
@@ -265,14 +265,14 @@ func (h {{$k.name}}MergeHeap) Less(i, j int) bool {
 	if h.opt.Ascending {
 		if x.Name != y.Name {
 			return x.Name < y.Name
-		} else if x.Tags.ID() != y.Tags.ID() {
-			return x.Tags.ID() < y.Tags.ID()
+		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
+			return xTags.ID() < yTags.ID()
 		}
 	} else {
 		if x.Name != y.Name {
 			return x.Name > y.Name
-		} else if x.Tags.ID() != y.Tags.ID() {
-			return x.Tags.ID() > y.Tags.ID()
+		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); xTags.ID() != yTags.ID() {
+			return xTags.ID() > yTags.ID()
 		}
 	}
 
@@ -305,8 +305,7 @@ type {{$k.name}}MergeHeapItem struct {
 // {{$k.name}}SortedMergeIterator is an iterator that sorts and merges multiple iterators into one.
 type {{$k.name}}SortedMergeIterator struct {
 	inputs []{{$k.Name}}Iterator
-	opt    IteratorOptions
-	heap   {{$k.name}}SortedMergeHeap
+	heap   *{{$k.name}}SortedMergeHeap
 	init   bool
 }
 
@@ -314,14 +313,16 @@ type {{$k.name}}SortedMergeIterator struct {
 func new{{$k.Name}}SortedMergeIterator(inputs []{{$k.Name}}Iterator, opt IteratorOptions) Iterator {
 	itr := &{{$k.name}}SortedMergeIterator{
 		inputs: inputs,
-		heap:   make({{$k.name}}SortedMergeHeap, 0, len(inputs)),
-		opt:    opt,
+		heap:   &{{$k.name}}SortedMergeHeap{
+			items: make([]*{{$k.name}}SortedMergeHeapItem, 0, len(inputs)),
+			opt:   opt,
+		},
 	}
 
 	// Initialize heap items.
 	for _, input := range inputs {
 		// Append to the heap.
-		itr.heap = append(itr.heap, &{{$k.name}}SortedMergeHeapItem{itr: input, ascending: opt.Ascending})
+		itr.heap.items = append(itr.heap.items, &{{$k.name}}SortedMergeHeapItem{itr: input})
 	}
 
 	return itr
@@ -352,8 +353,8 @@ func (itr *{{$k.name}}SortedMergeIterator) Next() (*{{$k.Name}}Point, error) { r
 func (itr *{{$k.name}}SortedMergeIterator) pop() (*{{$k.Name}}Point, error) {
 	// Initialize the heap. See the MergeIterator to see why this has to be done lazily.
 	if !itr.init {
-		items := itr.heap
-		itr.heap = make([]*{{$k.name}}SortedMergeHeapItem, 0, len(items))
+		items := itr.heap.items
+		itr.heap.items = make([]*{{$k.name}}SortedMergeHeapItem, 0, len(items))
 		for _, item := range items {
 			var err error
 			if item.point, err = item.itr.Next(); err != nil {
@@ -361,18 +362,18 @@ func (itr *{{$k.name}}SortedMergeIterator) pop() (*{{$k.Name}}Point, error) {
 			} else if item.point == nil {
 				continue
 			}
-			itr.heap = append(itr.heap, item)
+			itr.heap.items = append(itr.heap.items, item)
 		}
-		heap.Init(&itr.heap)
+		heap.Init(itr.heap)
 		itr.init = true
 	}
 
-	if len(itr.heap) == 0 {
+	if len(itr.heap.items) == 0 {
 		return nil, nil
 	}
 
 	// Read the next item from the heap.
-	item := heap.Pop(&itr.heap).(*{{$k.name}}SortedMergeHeapItem)
+	item := heap.Pop(itr.heap).(*{{$k.name}}SortedMergeHeapItem)
 	if item.err != nil {
 		return nil, item.err
 	} else if item.point == nil {
@@ -384,46 +385,49 @@ func (itr *{{$k.name}}SortedMergeIterator) pop() (*{{$k.Name}}Point, error) {
 
 	// Read the next item from the cursor. Push back to heap if one exists.
 	if item.point, item.err = item.itr.Next(); item.point != nil {
-		heap.Push(&itr.heap, item)
+		heap.Push(itr.heap, item)
 	}
 
 	return p, nil
 }
 
 // {{$k.name}}SortedMergeHeap represents a heap of {{$k.name}}SortedMergeHeapItems.
-type {{$k.name}}SortedMergeHeap []*{{$k.name}}SortedMergeHeapItem
+type {{$k.name}}SortedMergeHeap struct {
+	opt   IteratorOptions
+	items []*{{$k.name}}SortedMergeHeapItem
+}
 
-func (h {{$k.name}}SortedMergeHeap) Len() int      { return len(h) }
-func (h {{$k.name}}SortedMergeHeap) Swap(i, j int) { h[i], h[j] = h[j], h[i] }
-func (h {{$k.name}}SortedMergeHeap) Less(i, j int) bool {
-	x, y := h[i].point, h[j].point
+func (h *{{$k.name}}SortedMergeHeap) Len() int      { return len(h.items) }
+func (h *{{$k.name}}SortedMergeHeap) Swap(i, j int) { h.items[i], h.items[j] = h.items[j], h.items[i] }
+func (h *{{$k.name}}SortedMergeHeap) Less(i, j int) bool {
+	x, y := h.items[i].point, h.items[j].point
 
-	if h[i].ascending {
+	if h.opt.Ascending {
 		if x.Name != y.Name {
 			return x.Name < y.Name
-		} else if !x.Tags.Equals(&y.Tags) {
-			return x.Tags.ID() < y.Tags.ID()
+		} else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
+			return xTags.ID() < yTags.ID()
 		}
 		return x.Time < y.Time
 	}
 
 	if x.Name != y.Name {
 		return x.Name > y.Name
-	} else if !x.Tags.Equals(&y.Tags) {
-		return x.Tags.ID() > y.Tags.ID()
+  } else if xTags, yTags := x.Tags.Subset(h.opt.Dimensions), y.Tags.Subset(h.opt.Dimensions); !xTags.Equals(&yTags) {
+		return xTags.ID() > yTags.ID()
 	}
 	return x.Time > y.Time
 }
 
 func (h *{{$k.name}}SortedMergeHeap) Push(x interface{}) {
-	*h = append(*h, x.(*{{$k.name}}SortedMergeHeapItem))
+	h.items = append(h.items, x.(*{{$k.name}}SortedMergeHeapItem))
 }
 
 func (h *{{$k.name}}SortedMergeHeap) Pop() interface{} {
-	old := *h
+	old := h.items
 	n := len(old)
 	item := old[n-1]
-	*h = old[0 : n-1]
+	h.items = old[0 : n-1]
 	return item
 }
 
@@ -431,7 +435,6 @@ type {{$k.name}}SortedMergeHeapItem struct {
 	point     *{{$k.Name}}Point
 	err       error
 	itr       {{$k.Name}}Iterator
-	ascending bool
 }
 
 // {{$k.name}}ParallelIterator represents an iterator that pulls data in a separate goroutine.
@@ -548,10 +551,6 @@ func (itr *{{$k.name}}LimitIterator) Next() (*{{$k.Name}}Point, error) {
 
 		// Read next point if we're beyond the limit.
 		if itr.opt.Limit > 0 && (itr.n-itr.opt.Offset) > itr.opt.Limit {
-			// If there's no interval, no groups, and a single source then simply exit.
-			if itr.opt.Interval.IsZero() && len(itr.opt.Dimensions) == 0 && len(itr.opt.Sources) == 1 {
-				return nil, nil
-			}
 			continue
 		}
 
@@ -841,7 +840,7 @@ type aux{{$k.Name}}Point struct {
 type {{$k.name}}AuxIterator struct {
 	input      *buf{{$k.Name}}Iterator
 	output     chan aux{{$k.Name}}Point
-	fields     auxIteratorFields
+	fields     *auxIteratorFields
 	background bool
 }
 
@@ -867,28 +866,6 @@ func (itr *{{$k.name}}AuxIterator) Next() (*{{$k.Name}}Point, error) {
 	return p.point, p.err
 }
 func (itr *{{$k.name}}AuxIterator) Iterator(name string, typ DataType) Iterator    { return itr.fields.iterator(name, typ) }
-
-func (itr *{{$k.name}}AuxIterator) CreateIterator(opt IteratorOptions) (Iterator, error) {
-	expr := opt.Expr
-	if expr == nil {
-		panic("unable to create an iterator with no expression from an aux iterator")
-	}
-
-	switch expr := expr.(type) {
-	case *VarRef:
-		return itr.Iterator(expr.Val, expr.Type), nil
-	default:
-		panic(fmt.Sprintf("invalid expression type for an aux iterator: %T", expr))
-	}
-}
-
-func (itr *{{$k.name}}AuxIterator) FieldDimensions(sources Sources) (fields map[string]DataType, dimensions map[string]struct{}, err error) {
-	return nil, nil, errors.New("not implemented")
-}
-
-func (itr *{{$k.name}}AuxIterator) ExpandSources(sources Sources) (Sources, error) {
-	return nil, errors.New("not implemented")
-}
 
 func (itr *{{.name}}AuxIterator) stream() {
 	for {
@@ -1016,8 +993,18 @@ func (itr *{{$k.name}}ChanIterator) Next() (*{{$k.Name}}Point, error) {
 type {{$k.name}}Reduce{{$v.Name}}Iterator struct {
 	input    *buf{{$k.Name}}Iterator
 	create   func() ({{$k.Name}}PointAggregator, {{$v.Name}}PointEmitter)
+	dims     []string
 	opt      IteratorOptions
 	points   []{{$v.Name}}Point
+}
+
+func new{{$k.Name}}Reduce{{$v.Name}}Iterator(input {{$k.Name}}Iterator, opt IteratorOptions, createFn func() ({{$k.Name}}PointAggregator, {{$v.Name}}PointEmitter)) *{{$k.name}}Reduce{{$v.Name}}Iterator {
+	return &{{$k.name}}Reduce{{$v.Name}}Iterator{
+		input:  newBuf{{$k.Name}}Iterator(input),
+		create: createFn,
+		dims:   opt.GetDimensions(),
+		opt:    opt,
+	}
 }
 
 // Stats returns stats from the input iterator.
@@ -1055,11 +1042,20 @@ type {{$k.name}}Reduce{{$v.Name}}Point struct {
 // The previous value for the dimension is passed to fn.
 func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, error) {
 	// Calculate next window.
-	t, err := itr.input.peekTime()
-	if err != nil {
-		return nil, err
+	var startTime, endTime int64
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		} else if p.Nil {
+			continue
+		}
+
+		// Unread the point so it can be processed.
+		itr.input.unread(p)
+		startTime, endTime = itr.opt.Window(p.Time)
+		break
 	}
-	startTime, endTime := itr.opt.Window(t)
 
 	// Create points by tags.
 	m := make(map[string]*{{$k.name}}Reduce{{$v.Name}}Point)
@@ -1073,7 +1069,7 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 		} else if curr.Nil {
 			continue
 		}
-		tags := curr.Tags.Subset(itr.opt.Dimensions)
+		tags := curr.Tags.Subset(itr.dims)
 
 		id := curr.Name
 		if len(tags.m) > 0 {
@@ -1084,7 +1080,7 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 		rp := m[id]
 		if rp == nil {
 			aggregator, emitter := itr.create()
-			rp = &{{$k.name}}Reduce{{.Name}}Point{
+			rp = &{{$k.name}}Reduce{{$v.Name}}Point{
 				Name:       curr.Name,
 				Tags:       tags,
 				Aggregator: aggregator,
@@ -1104,6 +1100,8 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 		sort.Sort(reverseStringSlice(keys))
 	}
 
+	// Assume the points are already sorted until proven otherwise.
+	sortedByTime := true
 	a := make([]{{$v.Name}}Point, 0, len(m))
 	for _, k := range keys {
 		rp := m[k]
@@ -1114,9 +1112,16 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 			// Set the points time to the interval time if the reducer didn't provide one.
 			if points[i].Time == ZeroTime {
 				points[i].Time = startTime
+			} else {
+				sortedByTime = false
 			}
 			a = append(a, points[i])
 		}
+	}
+
+	// Points may be out of order. Perform a stable sort by time if requested.
+	if !sortedByTime && itr.opt.Ordered {
+		sort.Stable(sort.Reverse({{$v.name}}PointsByTime(a)))
 	}
 
 	return a, nil
@@ -1126,6 +1131,7 @@ func (itr *{{$k.name}}Reduce{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 type {{$k.name}}Stream{{$v.Name}}Iterator struct {
 	input  *buf{{$k.Name}}Iterator
 	create func() ({{$k.Name}}PointAggregator, {{$v.Name}}PointEmitter)
+	dims   []string
 	opt    IteratorOptions
 	m      map[string]*{{$k.name}}Reduce{{$v.Name}}Point
 	points []{{$v.Name}}Point
@@ -1136,6 +1142,7 @@ func new{{$k.Name}}Stream{{$v.Name}}Iterator(input {{$k.Name}}Iterator, createFn
 	return &{{$k.name}}Stream{{$v.Name}}Iterator{
 		input:  newBuf{{$k.Name}}Iterator(input),
 		create: createFn,
+		dims:   opt.GetDimensions(),
 		opt:    opt,
 		m:      make(map[string]*{{$k.name}}Reduce{{$v.Name}}Point),
 	}
@@ -1175,7 +1182,7 @@ func (itr *{{$k.name}}Stream{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 		} else if curr.Nil {
 			continue
 		}
-		tags := curr.Tags.Subset(itr.opt.Dimensions)
+		tags := curr.Tags.Subset(itr.dims)
 
 		id := curr.Name
 		if len(tags.m) > 0 {
