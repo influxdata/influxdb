@@ -4,6 +4,7 @@
 ### Upcoming Features
   1. [#660](https://github.com/influxdata/chronograf/issues/660): Add option to accept any certificate from InfluxDB.
   1. [#733](https://github.com/influxdata/chronograf/pull/733): Add optional Github organization membership checks to authentication
+  1. [#564](https://github.com/influxdata/chronograf/issues/564): Add RabbitMQ pre-canned layout.
  
 ## v1.1.0-beta5 [2017-01-05]
 
