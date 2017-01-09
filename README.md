@@ -35,6 +35,7 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
 * Ping
 * PostgreSQL
 * Processes
+* RabbitMQ
 * Redis
 * Riak
 * System
