@@ -101,17 +101,15 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
 
         const {light, heavy} = STROKE_WIDTH;
 
-        // only want to set multiple axes for precanned dashboards
-        if (isInDataExplorer) {
-          dygraphSeries[effectiveFieldName] = {
-            strokeWidth: queryIndex === activeQueryIndex ? heavy : light,
-          };
-        } else {
-          dygraphSeries[effectiveFieldName] = {
-            axis: queryIndex === 0 ? 'y' : 'y2',
-            strokeWidth: queryIndex === activeQueryIndex ? heavy : light,
-          };
+        const dygraphSeriesStyles = {
+          strokeWidth: queryIndex === activeQueryIndex ? heavy : light,
+        };
+
+        if (!isInDataExplorer) {
+          dygraphSeriesStyles.axis = queryIndex === 0 ? 'y' : 'y2';
         }
+
+        dygraphSeries[effectiveFieldName] = dygraphSeriesStyles;
       });
 
       (series.values || []).forEach(parseRow);
