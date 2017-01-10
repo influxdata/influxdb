@@ -31,12 +31,16 @@ export const ManageSources = React.createClass({
   },
 
   componentDidMount() {
+    const updates = [];
+    const kapas = {};
     this.props.sources.forEach((source) => {
-      const kapacitors = {};
-      getKapacitor(source).then((kapacitor) => {
-        kapacitors[source.id] = kapacitor;
+      const prom = getKapacitor(source).then((kapacitor) => {
+        kapas[source.id] = kapacitor;
       });
-      this.setState(kapacitors);
+      updates.push(prom);
+    });
+    Promise.all(updates).then(() => {
+      this.setState({kapacitors: kapas});
     });
   },
 

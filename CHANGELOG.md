@@ -1,6 +1,7 @@
 ## v1.1.0 [unreleased]
 
 ### Upcoming Bug Fixes
+  1. [#748](https://github.com/influxdata/chronograf/pull/748): Fix missing kapacitors on source index page
   1. [#755](https://github.com/influxdata/chronograf/pull/755): Fix kapacitor basic auth proxying
 
 ### Upcoming Features
