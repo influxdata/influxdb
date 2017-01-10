@@ -111,9 +111,26 @@ func (c *CommandLine) Run() error {
 	}
 
 	if err := c.Connect(""); err != nil {
-		return fmt.Errorf(
-			"Failed to connect to %s: %s\nPlease check your connection settings and ensure 'influxd' is running.",
-			c.Client.Addr(), err.Error())
+		msg := "Please check your connection settings and ensure 'influxd' is running."
+		if !c.Ssl && strings.Contains(err.Error(), "malformed HTTP response") {
+			// Attempt to connect with SSL and disable secure SSL for this test.
+			c.Ssl = true
+			unsafeSsl := c.ClientConfig.UnsafeSsl
+			c.ClientConfig.UnsafeSsl = true
+			if err := c.Connect(""); err == nil {
+				msg = "Please use the -ssl flag to connect using SSL."
+			}
+			c.Ssl = false
+			c.ClientConfig.UnsafeSsl = unsafeSsl
+		} else if c.Ssl && !c.ClientConfig.UnsafeSsl && strings.Contains(err.Error(), "certificate is valid for") {
+			// Attempt to connect with an insecure connection just to see if it works.
+			c.ClientConfig.UnsafeSsl = true
+			if err := c.Connect(""); err == nil {
+				msg = "You may use -unsafeSsl to connect anyway, but the SSL connection will not be secure."
+			}
+			c.ClientConfig.UnsafeSsl = false
+		}
+		return fmt.Errorf("Failed to connect to %s: %s\n%s", c.Client.Addr(), err.Error(), msg)
 	}
 
 	// Modify precision.
@@ -299,7 +316,7 @@ func (c *CommandLine) Connect(cmd string) error {
 
 	_, v, err := c.Client.Ping()
 	if err != nil {
-		return fmt.Errorf("Failed to connect to %s: %v\n", c.Client.Addr(), err)
+		return err
 	}
 	c.ServerVersion = v
 
