@@ -10,11 +10,11 @@ import lastValues from 'src/shared/parsing/lastValues';
 const {
   array,
   arrayOf,
-  number,
   bool,
+  func,
+  number,
   shape,
   string,
-  func,
 } = PropTypes;
 
 export default React.createClass({
@@ -35,6 +35,7 @@ export default React.createClass({
     showSingleStat: bool,
     activeQueryIndex: number,
     ruleValues: shape({}),
+    isInDataExplorer: bool,
   },
 
   getDefaultProps() {
@@ -50,13 +51,14 @@ export default React.createClass({
   },
 
   componentWillMount() {
-    this._timeSeries = timeSeriesToDygraph(this.props.data, this.props.activeQueryIndex);
+    const {data, activeQueryIndex, isInDataExplorer} = this.props;
+    this._timeSeries = timeSeriesToDygraph(data, activeQueryIndex, isInDataExplorer);
   },
 
   componentWillUpdate(nextProps) {
     const {data, activeQueryIndex} = this.props;
     if (data !== nextProps.data || activeQueryIndex !== nextProps.activeQueryIndex) {
-      this._timeSeries = timeSeriesToDygraph(nextProps.data, nextProps.activeQueryIndex);
+      this._timeSeries = timeSeriesToDygraph(nextProps.data, nextProps.activeQueryIndex, nextProps.isInDataExplorer);
     }
   },
 

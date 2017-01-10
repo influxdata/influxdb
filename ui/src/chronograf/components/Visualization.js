@@ -58,6 +58,7 @@ const Visualization = React.createClass({
       return {host: [proxyLink], text: s.text, id: s.id};
     });
     const autoRefreshMs = 10000;
+    const isInDataExplorer = true;
 
     return (
       <div ref={(p) => this.panel = p} className={classNames("graph", {active: isActive})}>
@@ -78,6 +79,7 @@ const Visualization = React.createClass({
               queries={queries}
               autoRefresh={autoRefreshMs}
               activeQueryIndex={activeQueryIndex}
+              isInDataExplorer={isInDataExplorer}
               />
           ) : <MultiTable queries={queries} />}
         </div>
