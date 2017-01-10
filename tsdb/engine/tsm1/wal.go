@@ -175,8 +175,8 @@ func (l *WAL) Open() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	l.traceLogger.Info(fmt.Sprintf("tsm1 WAL starting with %d segment size\n", l.SegmentSize))
-	l.traceLogger.Info(fmt.Sprintf("tsm1 WAL writing to %s\n", l.path))
+	l.traceLogger.Info(fmt.Sprintf("tsm1 WAL starting with %d segment size", l.SegmentSize))
+	l.traceLogger.Info(fmt.Sprintf("tsm1 WAL writing to %s", l.path))
 
 	if err := os.MkdirAll(l.path, 0777); err != nil {
 		return err
