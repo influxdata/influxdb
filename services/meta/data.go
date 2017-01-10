@@ -1248,8 +1248,16 @@ func (sgi *ShardGroupInfo) marshal() *internal.ShardGroupInfo {
 // unmarshal deserializes from a protobuf representation.
 func (sgi *ShardGroupInfo) unmarshal(pb *internal.ShardGroupInfo) {
 	sgi.ID = pb.GetID()
-	sgi.StartTime = UnmarshalTime(pb.GetStartTime())
-	sgi.EndTime = UnmarshalTime(pb.GetEndTime())
+	if i := pb.GetStartTime(); i == 0 {
+		sgi.StartTime = time.Unix(0, 0).UTC()
+	} else {
+		sgi.StartTime = UnmarshalTime(i)
+	}
+	if i := pb.GetEndTime(); i == 0 {
+		sgi.EndTime = time.Unix(0, 0).UTC()
+	} else {
+		sgi.EndTime = UnmarshalTime(i)
+	}
 	sgi.DeletedAt = UnmarshalTime(pb.GetDeletedAt())
 
 	if pb != nil && pb.TruncatedAt != nil {
