@@ -7,7 +7,7 @@ import {STROKE_WIDTH} from 'src/shared/constants';
 // activeQueryIndex is an optional argument that indicated which query's series
 // we want highlighted.
 export default function timeSeriesToDygraph(raw = [], activeQueryIndex) {
-  const labels = ['time']; // all of the effective field names (i.e. <measurement>.<field>)
+  const labels = []; // all of the effective field names (i.e. <measurement>.<field>)
   const fieldToIndex = {}; // see parseSeries
   const dates = {}; // map of date as string to date value to minimize string coercion
   const dygraphSeries = {}; // dygraphSeries is a graph legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
@@ -91,7 +91,7 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex) {
 
         // Given a field name, identify which column in the timeSeries result should hold the field's value
         // ex given this timeSeries [Date, 10, 20, 30] field index at 2 would correspond to value 20
-        fieldToIndex[effectiveFieldName] = labels.length;
+        fieldToIndex[effectiveFieldName] = labels.length + 1;
         labels.push(effectiveFieldName);
 
         const {light, heavy} = STROKE_WIDTH;
@@ -132,7 +132,7 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex) {
   function buildTimeSeries() {
     const allDates = Object.keys(dateToFieldValue);
     allDates.sort((a, b) => a - b);
-    const rowLength = labels.length;
+    const rowLength = labels.length + 1;
     return allDates.map((date) => {
       const row = new Array(rowLength);
 
@@ -148,15 +148,8 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex) {
     });
   }
 
-  function sortLabels() {
-    const time = labels.shift();
-    labels.sort();
-    labels.unshift(time);
-    return labels;
-  }
-
   return {
-    labels: sortLabels(labels),
+    labels: ['time', ...labels.sort()],
     timeSeries: buildTimeSeries(),
     dygraphSeries,
   };
