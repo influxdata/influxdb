@@ -1,6 +1,7 @@
 package continuous_querier
 
 import (
+	"errors"
 	"time"
 
 	"github.com/influxdata/influxdb/toml"
@@ -34,4 +35,19 @@ func NewConfig() Config {
 		Enabled:     true,
 		RunInterval: toml.Duration(DefaultRunInterval),
 	}
+}
+
+// Validate returns an error if the Config is invalid.
+func (c Config) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+
+	// TODO: Should we enforce a minimum interval?
+	// Polling every nanosecond, for instance, will greatly impact performance.
+	if c.RunInterval <= 0 {
+		return errors.New("run-interval must be positive")
+	}
+
+	return nil
 }

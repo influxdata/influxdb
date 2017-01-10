@@ -155,6 +155,18 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := c.ContinuousQuery.Validate(); err != nil {
+		return err
+	}
+
+	if err := c.Retention.Validate(); err != nil {
+		return err
+	}
+
+	if err := c.Precreator.Validate(); err != nil {
+		return err
+	}
+
 	if err := c.Subscriber.Validate(); err != nil {
 		return err
 	}
