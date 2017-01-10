@@ -176,4 +176,64 @@ describe('timeSeriesToDygraph', () => {
 
     expect(actual.dygraphSeries).to.deep.equal(expected.dygraphSeries);
   });
+
+  it('parses a raw InfluxDB response into a dygraph friendly data format', () => {
+    const influxResponse = [
+      {
+        "response":
+        {
+          "results": [
+            {
+              "series": [
+                {
+                  "name":"mb",
+                  "columns": ["time","f1"],
+                  "values": [[1000, 1],[2000, 2]],
+                },
+              ]
+            },
+            {
+              "series": [
+                {
+                  "name":"ma",
+                  "columns": ["time","f1"],
+                  "values": [[1000, 1],[2000, 2]],
+                },
+              ]
+            },
+            {
+              "series": [
+                {
+                  "name":"mc",
+                  "columns": ["time","f2"],
+                  "values": [[2000, 3],[4000, 4]],
+                },
+              ]
+            },
+            {
+              "series": [
+                {
+                  "name":"mc",
+                  "columns": ["time","f1"],
+                  "values": [[2000, 3],[4000, 4]],
+                },
+              ]
+            },
+          ],
+        },
+      }
+    ];
+
+    const actual = timeSeriesToDygraph(influxResponse);
+
+    const expected = [
+      'time',
+      `ma.f1`,
+      `mb.f1`,
+      `mc.f1`,
+      `mc.f2`,
+    ];
+
+    expect(actual.labels).to.deep.equal(expected);
+  });
 });
