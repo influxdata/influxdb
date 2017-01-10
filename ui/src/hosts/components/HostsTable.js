@@ -106,7 +106,7 @@ const HostsTable = React.createClass({
             <thead>
               <tr>
                 <th onClick={() => this.updateSort('name')} className={this.sortableClasses('name')}>Hostname</th>
-                <th className="text-center">Status</th>
+                <th onClick={() => this.updateSort('deltaUptime')} className={this.sortableClasses('deltaUptime')}>Status</th>
                 <th onClick={() => this.updateSort('cpu')} className={this.sortableClasses('cpu')}>CPU</th>
                 <th onClick={() => this.updateSort('load')} className={this.sortableClasses('load')}>Load</th>
                 <th>Apps</th>
