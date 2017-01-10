@@ -676,15 +676,15 @@ func (c *Client) PruneShardGroups() error {
 	data := c.cacheData.Clone()
 	for i, d := range data.Databases {
 		for j, rp := range d.RetentionPolicies {
+			var remainingShardGroups []ShardGroupInfo
 			for _, sgi := range rp.ShardGroups {
 				if sgi.DeletedAt.IsZero() || !expiration.After(sgi.DeletedAt) {
+					remainingShardGroups = append(remainingShardGroups, sgi)
 					continue
 				}
-				// we are safe to delete the shard group as it's been marked deleted for the required expiration
-				s := append(rp.ShardGroups[:i], rp.ShardGroups[i+1:]...)
-				data.Databases[i].RetentionPolicies[j].ShardGroups = s
 				changed = true
 			}
+			data.Databases[i].RetentionPolicies[j].ShardGroups = remainingShardGroups
 		}
 	}
 	if changed {
