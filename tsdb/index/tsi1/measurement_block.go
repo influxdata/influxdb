@@ -34,7 +34,7 @@ const (
 		8 + 8 // tombstone measurement sketch offset/size
 
 	// Measurement key block fields.
-	MeasurementNSize      = 4
+	MeasurementNSize      = 8
 	MeasurementOffsetSize = 8
 )
 
@@ -62,7 +62,7 @@ func (blk *MeasurementBlock) Version() int { return blk.version }
 
 // Elem returns an element for a measurement.
 func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementBlockElem, ok bool) {
-	n := binary.BigEndian.Uint32(blk.hashData[:MeasurementNSize])
+	n := binary.BigEndian.Uint64(blk.hashData[:MeasurementNSize])
 	hash := hashKey(name)
 	pos := int(hash % n)
 
@@ -96,7 +96,7 @@ func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementBlockElem, ok bool)
 		pos = (pos + 1) % int(n)
 		d++
 
-		if uint32(d) > n {
+		if uint64(d) > n {
 			return MeasurementBlockElem{}, false
 		}
 	}
@@ -177,12 +177,12 @@ type rawSeriesIDIterator struct {
 }
 
 // next returns the next decoded series.
-func (itr *rawSeriesIDIterator) next() uint32 {
+func (itr *rawSeriesIDIterator) next() uint64 {
 	if len(itr.data) == 0 {
 		return 0
 	}
 
-	id := binary.BigEndian.Uint32(itr.data)
+	id := binary.BigEndian.Uint64(itr.data)
 	itr.data = itr.data[SeriesIDSize:]
 	return id
 }
@@ -297,7 +297,7 @@ type MeasurementBlockElem struct {
 	}
 
 	series struct {
-		n    uint32 // series count
+		n    uint64 // series count
 		data []byte // serialized series data
 	}
 
@@ -320,13 +320,13 @@ func (e *MeasurementBlockElem) TagBlockOffset() int64 { return e.tagBlock.offset
 func (e *MeasurementBlockElem) TagBlockSize() int64 { return e.tagBlock.size }
 
 // SeriesID returns series ID at an index.
-func (e *MeasurementBlockElem) SeriesID(i int) uint32 {
-	return binary.BigEndian.Uint32(e.series.data[i*SeriesIDSize:])
+func (e *MeasurementBlockElem) SeriesID(i int) uint64 {
+	return binary.BigEndian.Uint64(e.series.data[i*SeriesIDSize:])
 }
 
 // SeriesIDs returns a list of decoded series ids.
-func (e *MeasurementBlockElem) SeriesIDs() []uint32 {
-	a := make([]uint32, e.series.n)
+func (e *MeasurementBlockElem) SeriesIDs() []uint64 {
+	a := make([]uint64, e.series.n)
 	for i := 0; i < int(e.series.n); i++ {
 		a[i] = e.SeriesID(i)
 	}
@@ -350,7 +350,7 @@ func (e *MeasurementBlockElem) UnmarshalBinary(data []byte) error {
 
 	// Parse series data.
 	v, n := binary.Uvarint(data)
-	e.series.n, data = uint32(v), data[n:]
+	e.series.n, data = uint64(v), data[n:]
 	e.series.data, data = data[:e.series.n*SeriesIDSize], data[e.series.n*SeriesIDSize:]
 
 	// Save length of elem.
@@ -376,7 +376,7 @@ func NewMeasurementBlockWriter() *MeasurementBlockWriter {
 }
 
 // Add adds a measurement with series and tag set offset/size.
-func (mw *MeasurementBlockWriter) Add(name []byte, offset, size int64, seriesIDs []uint32) {
+func (mw *MeasurementBlockWriter) Add(name []byte, offset, size int64, seriesIDs []uint64) {
 	mm := mw.mms[string(name)]
 	mm.tagBlock.offset = offset
 	mm.tagBlock.size = size
@@ -437,7 +437,7 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	t.HashIndex.Offset = n
 
 	// Encode hash map length.
-	if err := writeUint32To(w, uint32(m.Cap()), &n); err != nil {
+	if err := writeUint64To(w, uint64(m.Cap()), &n); err != nil {
 		return n, err
 	}
 
@@ -504,7 +504,7 @@ func (mw *MeasurementBlockWriter) writeMeasurementTo(w io.Writer, name []byte, m
 		return err
 	}
 	for _, seriesID := range mm.seriesIDs {
-		if err := writeUint32To(w, seriesID, n); err != nil {
+		if err := writeUint64To(w, seriesID, n); err != nil {
 			return err
 		}
 	}
@@ -532,7 +532,7 @@ type measurement struct {
 		offset int64
 		size   int64
 	}
-	seriesIDs []uint32
+	seriesIDs []uint64
 	offset    int64
 }
 

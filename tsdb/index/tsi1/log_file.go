@@ -757,7 +757,7 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, n *int64) error {
 
 		// Add each value.
 		for _, value := range tag.tagValues {
-			sort.Sort(uint32Slice(value.seriesIDs))
+			sort.Sort(uint64Slice(value.seriesIDs))
 			tw.AddTagValue(tag.name, value.name, value.deleted, value.seriesIDs)
 		}
 	}
@@ -796,7 +796,7 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, n *int64)
 	for _, name := range names {
 		mm := f.mms[name]
 
-		sort.Sort(uint32Slice(mm.seriesIDs))
+		sort.Sort(uint64Slice(mm.seriesIDs))
 		mw.Add(mm.name, mm.offset, mm.size, mm.seriesIDs)
 		if mm.Deleted() {
 			mw.TSketch.Add(mm.Name())
@@ -953,7 +953,7 @@ type logSerie struct {
 	name    []byte
 	tags    models.Tags
 	deleted bool
-	offset  uint32
+	offset  uint64
 }
 
 func (s *logSerie) Name() []byte        { return s.name }
@@ -994,7 +994,7 @@ type logMeasurement struct {
 	// Compaction fields.
 	offset    int64    // tagset offset
 	size      int64    // tagset size
-	seriesIDs []uint32 // series offsets
+	seriesIDs []uint64 // series offsets
 }
 
 func (m *logMeasurement) Name() []byte  { return m.name }
@@ -1067,7 +1067,7 @@ type logTagValue struct {
 	series  map[string]*logSerie
 
 	// Compaction fields.
-	seriesIDs []uint32
+	seriesIDs []uint64
 }
 
 func (tv *logTagValue) Value() []byte { return tv.name }

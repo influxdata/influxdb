@@ -715,7 +715,7 @@ func (itr *seriesExprIterator) Next() SeriesElem {
 
 // seriesIDIterator represents a iterator over a list of series ids.
 type seriesIDIterator interface {
-	next() uint32
+	next() uint64
 }
 
 // writeTo writes write v into w. Updates n.
@@ -788,24 +788,24 @@ func Hexdump(data []byte) {
 }
 
 // hashKey hashes a key using murmur3.
-func hashKey(key []byte) uint32 {
+func hashKey(key []byte) uint64 {
 	h := xxhash.Sum64(key)
 	if h == 0 {
 		h = 1
 	}
-	return uint32(h)
+	return h
 }
 
 // dist returns the probe distance for a hash in a slot index.
-func dist(hash uint32, i, capacity int) int {
+func dist(hash uint64, i, capacity int) int {
 	return (i + capacity - (int(hash) % capacity)) % capacity
 }
 
-type uint32Slice []uint32
+type uint64Slice []uint64
 
-func (a uint32Slice) Len() int           { return len(a) }
-func (a uint32Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a uint32Slice) Less(i, j int) bool { return a[i] < a[j] }
+func (a uint64Slice) Len() int           { return len(a) }
+func (a uint64Slice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a uint64Slice) Less(i, j int) bool { return a[i] < a[j] }
 
 type byteSlices [][]byte
 

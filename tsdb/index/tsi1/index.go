@@ -1033,26 +1033,6 @@ type compactNotify struct {
 	ch    chan error
 }
 
-// FilterExprs represents a map of series IDs to filter expressions.
-type FilterExprs map[uint64]influxql.Expr
-
-// DeleteBoolLiteralTrues deletes all elements whose filter expression is a boolean literal true.
-func (fe FilterExprs) DeleteBoolLiteralTrues() {
-	for id, expr := range fe {
-		if e, ok := expr.(*influxql.BooleanLiteral); ok && e.Val == true {
-			delete(fe, id)
-		}
-	}
-}
-
-// Len returns the number of elements.
-func (fe FilterExprs) Len() int {
-	if fe == nil {
-		return 0
-	}
-	return len(fe)
-}
-
 // seriesPointIterator adapts SeriesIterator to an influxql.Iterator.
 type seriesPointIterator struct {
 	once     sync.Once

@@ -13,11 +13,11 @@ import (
 func TestTagBlockWriter(t *testing.T) {
 	// Write 3 series to writer.
 	tsw := tsi1.NewTagBlockWriter()
-	tsw.AddTagValue([]byte("region"), []byte("us-east"), false, []uint32{1, 2})
-	tsw.AddTagValue([]byte("region"), []byte("us-west"), false, []uint32{3})
-	tsw.AddTagValue([]byte("host"), []byte("server0"), false, []uint32{1})
-	tsw.AddTagValue([]byte("host"), []byte("server1"), false, []uint32{2})
-	tsw.AddTagValue([]byte("host"), []byte("server2"), false, []uint32{3})
+	tsw.AddTagValue([]byte("region"), []byte("us-east"), false, []uint64{1, 2})
+	tsw.AddTagValue([]byte("region"), []byte("us-west"), false, []uint64{3})
+	tsw.AddTagValue([]byte("host"), []byte("server0"), false, []uint64{1})
+	tsw.AddTagValue([]byte("host"), []byte("server1"), false, []uint64{2})
+	tsw.AddTagValue([]byte("host"), []byte("server2"), false, []uint64{3})
 
 	// Encode into buffer.
 	var buf bytes.Buffer
@@ -36,28 +36,28 @@ func TestTagBlockWriter(t *testing.T) {
 	// Verify data.
 	if e := blk.TagValueElem([]byte("region"), []byte("us-east")); e == nil {
 		t.Fatal("expected element")
-	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint32{1, 2}) {
+	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint64{1, 2}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
 
 	if e := blk.TagValueElem([]byte("region"), []byte("us-west")); e == nil {
 		t.Fatal("expected element")
-	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint32{3}) {
+	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint64{3}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
 	if e := blk.TagValueElem([]byte("host"), []byte("server0")); e == nil {
 		t.Fatal("expected element")
-	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint32{1}) {
+	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint64{1}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
 	if e := blk.TagValueElem([]byte("host"), []byte("server1")); e == nil {
 		t.Fatal("expected element")
-	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint32{2}) {
+	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint64{2}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
 	if e := blk.TagValueElem([]byte("host"), []byte("server2")); e == nil {
 		t.Fatal("expected element")
-	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint32{3}) {
+	} else if a := e.(*tsi1.TagBlockValueElem).SeriesIDs(); !reflect.DeepEqual(a, []uint64{3}) {
 		t.Fatalf("unexpected series ids: %#v", a)
 	}
 }
@@ -90,7 +90,7 @@ func benchmarkTagBlock_SeriesN(b *testing.B, tagN, valueN int, blk **tsi1.TagBlo
 			for j := 0; j < valueN; j++ {
 				k := strconv.AppendInt(kbuf[:0], int64(i), 10)
 				v := strconv.AppendInt(vbuf[:0], int64(j), 10)
-				tw.AddTagValue(k, v, false, []uint32{1})
+				tw.AddTagValue(k, v, false, []uint64{1})
 			}
 		}
 

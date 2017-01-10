@@ -209,7 +209,7 @@ func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactI
 		for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
 			// Merge all series together.
 			sitr := p.TagValueSeriesIterator(name, ke.Key(), ve.Value())
-			var seriesIDs []uint32
+			var seriesIDs []uint64
 			for se := sitr.Next(); se != nil; se = sitr.Next() {
 				seriesID := info.sw.Offset(se.Name(), se.Tags())
 				if seriesID == 0 {
@@ -217,7 +217,7 @@ func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactI
 				}
 				seriesIDs = append(seriesIDs, seriesID)
 			}
-			sort.Sort(uint32Slice(seriesIDs))
+			sort.Sort(uint64Slice(seriesIDs))
 
 			// Insert tag value into writer.
 			tw.AddTagValue(ke.Key(), ve.Value(), ve.Deleted(), seriesIDs)
@@ -266,7 +266,7 @@ func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo
 	for _, name := range info.names {
 		// Look-up series ids.
 		itr := p.MeasurementSeriesIterator(name)
-		var seriesIDs []uint32
+		var seriesIDs []uint64
 		for e := itr.Next(); e != nil; e = itr.Next() {
 			seriesID := info.sw.Offset(e.Name(), e.Tags())
 			if seriesID == 0 {
@@ -274,7 +274,7 @@ func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo
 			}
 			seriesIDs = append(seriesIDs, seriesID)
 		}
-		sort.Sort(uint32Slice(seriesIDs))
+		sort.Sort(uint64Slice(seriesIDs))
 
 		// Add measurement to writer.
 		pos := info.tagSets[string(name)]

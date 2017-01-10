@@ -25,11 +25,11 @@ const (
 // TagBlock variable size constants.
 const (
 	// TagBlock key block fields.
-	TagKeyNSize      = 4
+	TagKeyNSize      = 8
 	TagKeyOffsetSize = 8
 
 	// TagBlock value block fields.
-	TagValueNSize      = 4
+	TagValueNSize      = 8
 	TagValueOffsetSize = 8
 )
 
@@ -89,7 +89,7 @@ func (blk *TagBlock) UnmarshalBinary(data []byte) error {
 // TagKeyElem returns an element for a tag key.
 // Returns an element with a nil key if not found.
 func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
-	keyN := binary.BigEndian.Uint32(blk.hashData[:TagKeyNSize])
+	keyN := binary.BigEndian.Uint64(blk.hashData[:TagKeyNSize])
 	hash := hashKey(key)
 	pos := int(hash % keyN)
 
@@ -124,7 +124,7 @@ func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
 		pos = (pos + 1) % int(keyN)
 		d++
 
-		if uint32(d) > keyN {
+		if uint64(d) > keyN {
 			return nil
 		}
 	}
@@ -141,7 +141,7 @@ func (blk *TagBlock) TagValueElem(key, value []byte) TagValueElem {
 	// Slice hash index data.
 	hashData := kelem.hashIndex.buf
 
-	valueN := binary.BigEndian.Uint32(hashData[:TagValueNSize])
+	valueN := binary.BigEndian.Uint64(hashData[:TagValueNSize])
 	hash := hashKey(value)
 	pos := int(hash % valueN)
 
@@ -173,7 +173,7 @@ func (blk *TagBlock) TagValueElem(key, value []byte) TagValueElem {
 		pos = (pos + 1) % int(valueN)
 		d++
 
-		if uint32(d) > valueN {
+		if uint64(d) > valueN {
 			return nil
 		}
 	}
@@ -370,13 +370,13 @@ func (e *TagBlockValueElem) Value() []byte { return e.value }
 func (e *TagBlockValueElem) SeriesN() uint64 { return e.series.n }
 
 // SeriesID returns series ID at an index.
-func (e *TagBlockValueElem) SeriesID(i int) uint32 {
-	return binary.BigEndian.Uint32(e.series.data[i*SeriesIDSize:])
+func (e *TagBlockValueElem) SeriesID(i int) uint64 {
+	return binary.BigEndian.Uint64(e.series.data[i*SeriesIDSize:])
 }
 
 // SeriesIDs returns a list decoded series ids.
-func (e *TagBlockValueElem) SeriesIDs() []uint32 {
-	a := make([]uint32, e.series.n)
+func (e *TagBlockValueElem) SeriesIDs() []uint64 {
+	a := make([]uint64, e.series.n)
 	for i := 0; i < int(e.series.n); i++ {
 		a[i] = e.SeriesID(i)
 	}
@@ -574,7 +574,7 @@ func (tw *TagBlockWriter) DeleteTag(key []byte) {
 }
 
 // AddTagValue adds a key/value pair with an associated list of series.
-func (tw *TagBlockWriter) AddTagValue(key, value []byte, deleted bool, seriesIDs []uint32) {
+func (tw *TagBlockWriter) AddTagValue(key, value []byte, deleted bool, seriesIDs []uint64) {
 	assert(len(key) > 0, "cannot add zero-length key")
 	assert(len(value) > 0, "cannot add zero-length value")
 	assert(len(seriesIDs) > 0, "cannot add tag value without series ids")
@@ -675,7 +675,7 @@ func (tw *TagBlockWriter) writeTagValueBlockTo(w io.Writer, ts *tagSet, n *int64
 
 	// Encode hash map length.
 	ts.hashIndex.offset = *n
-	if err := writeUint32To(w, uint32(m.Cap()), n); err != nil {
+	if err := writeUint64To(w, uint64(m.Cap()), n); err != nil {
 		return err
 	}
 
@@ -720,7 +720,7 @@ func (tw *TagBlockWriter) writeTagValueTo(w io.Writer, v []byte, tv *tagValue, n
 
 	// Write series ids.
 	for _, seriesID := range tv.seriesIDs {
-		if err := writeUint32To(w, seriesID, n); err != nil {
+		if err := writeUint64To(w, seriesID, n); err != nil {
 			return err
 		}
 	}
@@ -747,7 +747,7 @@ func (tw *TagBlockWriter) writeTagKeyBlockTo(w io.Writer, m *rhh.HashMap, t *Tag
 
 	// Encode hash map length.
 	t.HashIndex.Offset = *n
-	if err := writeUint32To(w, uint32(m.Cap()), n); err != nil {
+	if err := writeUint64To(w, uint64(m.Cap()), n); err != nil {
 		return err
 	}
 
@@ -821,7 +821,7 @@ func (ts tagSet) flag() byte {
 }
 
 type tagValue struct {
-	seriesIDs []uint32
+	seriesIDs []uint64
 	deleted   bool
 
 	offset int64

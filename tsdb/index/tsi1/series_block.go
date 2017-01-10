@@ -30,8 +30,8 @@ const (
 		0
 
 	// Other field sizes
-	SeriesCountSize = 4
-	SeriesIDSize    = 4
+	SeriesCountSize = 8
+	SeriesIDSize    = 8
 )
 
 // Series flag constants.
@@ -46,7 +46,7 @@ type SeriesBlock struct {
 	// Series data & index/capacity.
 	seriesData   []byte
 	seriesIndex  []byte
-	seriesIndexN uint32
+	seriesIndexN uint64
 
 	// Series counts.
 	seriesN    int64
@@ -60,7 +60,7 @@ type SeriesBlock struct {
 // HasSeries returns flags indicating if the series exists and if it is tombstoned.
 func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags) (exists, tombstoned bool) {
 	buf := AppendSeriesKey(make([]byte, 0, 256), name, tags)
-	bufN := uint32(len(buf))
+	bufN := uint64(len(buf))
 
 	n := blk.seriesIndexN
 	hash := hashKey(buf)
@@ -70,7 +70,7 @@ func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags) (exists, tombst
 	var d int
 	for {
 		// Find offset of series.
-		offset := binary.BigEndian.Uint32(blk.seriesIndex[pos*SeriesIDSize:])
+		offset := binary.BigEndian.Uint64(blk.seriesIndex[pos*SeriesIDSize:])
 		if offset == 0 {
 			return false, false
 		}
@@ -91,7 +91,7 @@ func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags) (exists, tombst
 		pos = (pos + 1) % int(n)
 		d++
 
-		if uint32(d) > n {
+		if uint64(d) > n {
 			return false, false
 		}
 	}
@@ -100,7 +100,7 @@ func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags) (exists, tombst
 // Series returns a series element.
 func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
 	buf := AppendSeriesKey(nil, name, tags)
-	bufN := uint32(len(buf))
+	bufN := uint64(len(buf))
 
 	n := blk.seriesIndexN
 	hash := hashKey(buf)
@@ -110,7 +110,7 @@ func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
 	var d int
 	for {
 		// Find offset of series.
-		offset := binary.BigEndian.Uint32(blk.seriesIndex[pos*SeriesIDSize:])
+		offset := binary.BigEndian.Uint64(blk.seriesIndex[pos*SeriesIDSize:])
 		if offset == 0 {
 			return nil
 		}
@@ -132,22 +132,22 @@ func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
 		pos = (pos + 1) % int(n)
 		d++
 
-		if uint32(d) > n {
+		if uint64(d) > n {
 			return nil
 		}
 	}
 }
 
 // SeriesCount returns the number of series.
-func (blk *SeriesBlock) SeriesCount() uint32 {
-	return binary.BigEndian.Uint32(blk.seriesData[:SeriesCountSize])
+func (blk *SeriesBlock) SeriesCount() uint64 {
+	return binary.BigEndian.Uint64(blk.seriesData[:SeriesCountSize])
 }
 
 // SeriesIterator returns an iterator over all the series.
 func (blk *SeriesBlock) SeriesIterator() SeriesIterator {
 	return &seriesBlockIterator{
 		n:      blk.SeriesCount(),
-		offset: uint32(SeriesCountSize),
+		offset: uint64(SeriesCountSize),
 		sblk:   blk,
 	}
 }
@@ -169,8 +169,8 @@ func (blk *SeriesBlock) UnmarshalBinary(data []byte) error {
 	// Slice series hash index.
 	blk.seriesIndex = data[t.Series.Index.Offset:]
 	blk.seriesIndex = blk.seriesIndex[:t.Series.Index.Size]
-	blk.seriesIndexN = binary.BigEndian.Uint32(blk.seriesIndex[:4])
-	blk.seriesIndex = blk.seriesIndex[4:]
+	blk.seriesIndexN = binary.BigEndian.Uint64(blk.seriesIndex[:8])
+	blk.seriesIndex = blk.seriesIndex[8:]
 
 	// Initialise sketches. We're currently using HLL+.
 	var s, ts = hll.NewDefaultPlus(), hll.NewDefaultPlus()
@@ -192,8 +192,8 @@ func (blk *SeriesBlock) UnmarshalBinary(data []byte) error {
 
 // seriesBlockIterator is an iterator over a series ids in a series list.
 type seriesBlockIterator struct {
-	i, n   uint32
-	offset uint32
+	i, n   uint64
+	offset uint64
 	sblk   *SeriesBlock
 	e      SeriesBlockElem // buffer
 }
@@ -210,7 +210,7 @@ func (itr *seriesBlockIterator) Next() SeriesElem {
 
 	// Move iterator and offset forward.
 	itr.i++
-	itr.offset += uint32(itr.e.size)
+	itr.offset += uint64(itr.e.size)
 
 	return &itr.e
 }
@@ -428,7 +428,7 @@ func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 // writeSeriesTo writes series to w in sorted order.
 func (sw *SeriesBlockWriter) writeSeriesTo(w io.Writer, n *int64) error {
 	// Write series count.
-	if err := writeUint32To(w, uint32(len(sw.series)), n); err != nil {
+	if err := writeUint64To(w, uint64(len(sw.series)), n); err != nil {
 		return err
 	}
 
@@ -437,13 +437,8 @@ func (sw *SeriesBlockWriter) writeSeriesTo(w io.Writer, n *int64) error {
 	for i := range sw.series {
 		s := &sw.series[i]
 
-		// Ensure that we can reference the series using a uint32.
-		if *n > math.MaxUint32 {
-			return errors.New("series list exceeded max size")
-		}
-
 		// Track offset of the series.
-		s.offset = uint32(*n)
+		s.offset = uint64(*n)
 
 		// Write series to buffer.
 		buf = AppendSeriesElem(buf[:0], s.flag(), s.name, s.tags)
@@ -469,16 +464,16 @@ func (sw *SeriesBlockWriter) writeSeriesIndexTo(w io.Writer, n *int64) error {
 	}
 
 	// Encode hash map length.
-	if err := writeUint32To(w, uint32(m.Cap()), n); err != nil {
+	if err := writeUint64To(w, uint64(m.Cap()), n); err != nil {
 		return err
 	}
 
 	// Encode hash map offset entries.
 	for i := 0; i < m.Cap(); i++ {
 		_, v := m.Elem(i)
-		offset, _ := v.(uint32)
+		offset, _ := v.(uint64)
 
-		if err := writeUint32To(w, uint32(offset), n); err != nil {
+		if err := writeUint64To(w, uint64(offset), n); err != nil {
 			return err
 		}
 	}
@@ -487,7 +482,7 @@ func (sw *SeriesBlockWriter) writeSeriesIndexTo(w io.Writer, n *int64) error {
 
 // Offset returns the series offset from the writer.
 // Only valid after the series list has been written to a writer.
-func (sw *SeriesBlockWriter) Offset(name []byte, tags models.Tags) uint32 {
+func (sw *SeriesBlockWriter) Offset(name []byte, tags models.Tags) uint64 {
 	// Find position of series.
 	i := sort.Search(len(sw.series), func(i int) bool {
 		s := &sw.series[i]
@@ -601,7 +596,7 @@ type serie struct {
 	name    []byte
 	tags    models.Tags
 	deleted bool
-	offset  uint32
+	offset  uint64
 }
 
 func (s *serie) flag() uint8 {
