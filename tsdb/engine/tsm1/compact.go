@@ -287,7 +287,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 	generations := c.findGenerations()
 
 	// first check if we should be doing a full compaction because nothing has been written in a long time
-	if c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration && len(generations) > 1 {
+	if c.CompactFullWriteColdDuration > 0 && time.Since(lastWrite) > c.CompactFullWriteColdDuration && len(generations) > 1 {
 		var tsmFiles []string
 		var genCount int
 		for i, group := range generations {
@@ -1221,7 +1221,7 @@ func (k *tsmKeyIterator) combine(dedup bool) blocks {
 }
 
 func (k *tsmKeyIterator) chunk(dst blocks) blocks {
-	for len(k.mergedValues) > k.size {
+	if len(k.mergedValues) > k.size {
 		values := k.mergedValues[:k.size]
 		cb, err := Values(values).Encode(nil)
 		if err != nil {

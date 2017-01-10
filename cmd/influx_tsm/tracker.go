@@ -53,7 +53,7 @@ func (t *tracker) Run() error {
 				if err != nil {
 					log.Fatalf("Backup of database %v failed: %v\n", db, err)
 				}
-				log.Printf("Database %v backed up (%v)\n", db, time.Now().Sub(start))
+				log.Printf("Database %v backed up (%v)\n", db, time.Since(start))
 			})
 		}
 		t.wg.Wait()

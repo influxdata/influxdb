@@ -908,10 +908,7 @@ func (s *RetentionPolicySpec) Matches(rpi *RetentionPolicyInfo) bool {
 	// Normalize with the retention policy info's duration instead of the spec
 	// since they should be the same and we're performing a comparison.
 	sgDuration := normalisedShardDuration(s.ShardGroupDuration, rpi.Duration)
-	if sgDuration != rpi.ShardGroupDuration {
-		return false
-	}
-	return true
+	return sgDuration == rpi.ShardGroupDuration
 }
 
 // marshal serializes to a protobuf representation.

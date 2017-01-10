@@ -657,7 +657,7 @@ func (cl *CacheLoader) WithLogger(log zap.Logger) {
 func (c *Cache) UpdateAge() {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	ageStat := int64(time.Now().Sub(c.lastSnapshot) / time.Millisecond)
+	ageStat := int64(time.Since(c.lastSnapshot) / time.Millisecond)
 	atomic.StoreInt64(&c.stats.CacheAgeMs, ageStat)
 }
 

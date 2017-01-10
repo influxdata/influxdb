@@ -196,7 +196,7 @@ func (s *Store) loadShards() error {
 					}
 
 					resC <- &res{s: shard}
-					s.Logger.Info(fmt.Sprintf("%s opened in %s", path, time.Now().Sub(start)))
+					s.Logger.Info(fmt.Sprintf("%s opened in %s", path, time.Since(start)))
 				}(s.databaseIndexes[db], db, rp.Name(), sh.Name())
 			}
 		}
