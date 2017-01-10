@@ -117,8 +117,11 @@ func (a Iterators) cast() interface{} {
 // Merge combines all iterators into a single iterator.
 // A sorted merge iterator or a merge iterator can be used based on opt.
 func (a Iterators) Merge(opt IteratorOptions) (Iterator, error) {
+	// Check if this is a call expression.
+	call, ok := opt.Expr.(*Call)
+
 	// Merge into a single iterator.
-	if opt.MergeSorted() {
+	if !ok && opt.MergeSorted() {
 		itr := NewSortedMergeIterator(a, opt)
 		if itr != nil && opt.InterruptCh != nil {
 			itr = NewInterruptIterator(itr, opt.InterruptCh)
@@ -126,6 +129,7 @@ func (a Iterators) Merge(opt IteratorOptions) (Iterator, error) {
 		return itr, nil
 	}
 
+	// We do not need an ordered output so use a merge iterator.
 	itr := NewMergeIterator(a, opt)
 	if itr == nil {
 		return nil, nil
@@ -135,7 +139,6 @@ func (a Iterators) Merge(opt IteratorOptions) (Iterator, error) {
 		itr = NewInterruptIterator(itr, opt.InterruptCh)
 	}
 
-	call, ok := opt.Expr.(*Call)
 	if !ok {
 		// This is not a call expression so do not use a call iterator.
 		return itr, nil
@@ -780,11 +783,7 @@ func newIteratorOptionsSubstatement(stmt *SelectStatement, opt IteratorOptions) 
 
 // MergeSorted returns true if the options require a sorted merge.
 func (opt IteratorOptions) MergeSorted() bool {
-	if opt.Expr == nil {
-		return true
-	}
-	_, ok := opt.Expr.(*VarRef)
-	return ok
+	return opt.Ordered
 }
 
 // SeekTime returns the time the iterator should start from.
