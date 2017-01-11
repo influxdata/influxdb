@@ -29,3 +29,34 @@ advance-period = "10m"
 		t.Fatalf("unexpected advance period: %s", c.AdvancePeriod)
 	}
 }
+
+func TestConfig_Validate(t *testing.T) {
+	c := precreator.NewConfig()
+	if err := c.Validate(); err != nil {
+		t.Fatalf("unexpected validation fail from NewConfig: %s", err)
+	}
+
+	c = precreator.NewConfig()
+	c.CheckInterval = 0
+	if err := c.Validate(); err == nil {
+		t.Fatal("expected error for check-interval = 0, got nil")
+	}
+
+	c = precreator.NewConfig()
+	c.CheckInterval *= -1
+	if err := c.Validate(); err == nil {
+		t.Fatal("expected error for negative check-interval, got nil")
+	}
+
+	c = precreator.NewConfig()
+	c.AdvancePeriod = 0
+	if err := c.Validate(); err == nil {
+		t.Fatal("expected error for advance-period = 0, got nil")
+	}
+
+	c = precreator.NewConfig()
+	c.AdvancePeriod *= -1
+	if err := c.Validate(); err == nil {
+		t.Fatal("expected error for negative advance-period, got nil")
+	}
+}
