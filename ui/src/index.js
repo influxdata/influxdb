@@ -12,7 +12,7 @@ import {Login} from 'src/auth';
 import {KapacitorPage, KapacitorRulePage, KapacitorRulesPage, KapacitorTasksPage} from 'src/kapacitor';
 import DataExplorer from 'src/chronograf';
 import {DashboardsPage} from 'src/dashboards';
-import {CreateSource, SourceForm, ManageSources} from 'src/sources';
+import {CreateSource, SourcePage, ManageSources} from 'src/sources';
 import NotFound from 'src/shared/components/NotFound';
 import configureStore from 'src/store/configureStore';
 import {getMe, getSources} from 'shared/apis';
@@ -95,8 +95,8 @@ const Root = React.createClass({
           <Route path="/sources/:sourceID" component={App}>
             <Route component={CheckSources}>
               <Route path="manage-sources" component={ManageSources} />
-              <Route path="manage-sources/new" component={SourceForm} />
-              <Route path="manage-sources/:id/edit" component={SourceForm} />
+              <Route path="manage-sources/new" component={SourcePage} />
+              <Route path="manage-sources/:id/edit" component={SourcePage} />
               <Route path="chronograf/data-explorer" component={DataExplorer} />
               <Route path="chronograf/data-explorer/:base64ExplorerID" component={DataExplorer} />
               <Route path="hosts" component={HostsPage} />
