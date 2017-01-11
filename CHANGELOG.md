@@ -1,6 +1,8 @@
 ## v1.1.0 [unreleased]
 
 ### Upcoming Bug Fixes
+  1. [#755](https://github.com/influxdata/chronograf/pull/755): Fix kapacitor basic auth proxying
+
 ### Upcoming Features
   1. [#660](https://github.com/influxdata/chronograf/issues/660): Add option to accept any certificate from InfluxDB.
   2. [#733](https://github.com/influxdata/chronograf/pull/733): Add optional Github organization membership checks to authentication
