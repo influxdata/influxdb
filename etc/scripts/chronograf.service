@@ -14,4 +14,3 @@ Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
-Alias=chronograf.service

@@ -12,6 +12,9 @@ function install_init {
 }
 
 function install_systemd {
+    # Remove any existing symlinks
+    rm -f /etc/systemd/system/chronograf.service
+
     cp -f $SCRIPT_DIR/chronograf.service /lib/systemd/system/chronograf.service
     systemctl enable chronograf || true
     systemctl daemon-reload || true
