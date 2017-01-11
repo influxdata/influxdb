@@ -345,27 +345,19 @@ func (c *Cache) Snapshot() (*Cache, error) {
 		}
 	}
 
-	// Append the current cache values to the snapshot. Because we're accessing
-	// the Cache we need to call f on each partition in serial.
-	if err := c.store.applySerial(func(k string, e *entry) error {
-		e.mu.RLock()
-		defer e.mu.RUnlock()
-		snapshotEntry, ok := c.snapshot.store.entry(k)
-		if ok {
-			if err := snapshotEntry.add(e.values); err != nil {
-				return err
-			}
-		} else {
-			c.snapshot.store.add(k, e)
-			snapshotEntry = e
-		}
-		atomic.AddUint64(&c.snapshotSize, uint64(Values(e.values).Size()))
-		return nil
-	}); err != nil {
-		return nil, err
+	// Did a prior snapshot exist that failed?  If so, return the existing
+	// snapshot to retry.
+	if c.snapshot.Size() > 0 {
+		return c.snapshot, nil
 	}
 
-	snapshotSize := c.Size() // record the number of bytes written into a snapshot
+	c.snapshot.store, c.store = c.store, c.snapshot.store
+	snapshotSize := c.Size()
+
+	// Save the size of the snapshot on the snapshot cache
+	c.snapshot.size = snapshotSize
+	// Save the size of the snapshot on the live cache
+	c.snapshotSize = snapshotSize
 
 	// Reset the cache's store.
 	c.store.reset()

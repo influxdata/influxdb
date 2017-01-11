@@ -425,7 +425,7 @@ func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
 		t.Fatalf("cache keys incorrect after writes, exp %v, got %v", exp, keys)
 	}
 	if err := c.Write("bar", Values{v1}); err == nil || !strings.Contains(err.Error(), "cache-max-memory-size") {
-		t.Fatalf("wrong error writing key bar to cache")
+		t.Fatalf("wrong error writing key bar to cache: %v", err)
 	}
 
 	// Grab snapshot, write should still fail since we're still using the memory.
@@ -434,7 +434,7 @@ func TestCache_CacheWriteMemoryExceeded(t *testing.T) {
 		t.Fatalf("failed to snapshot cache: %v", err)
 	}
 	if err := c.Write("bar", Values{v1}); err == nil || !strings.Contains(err.Error(), "cache-max-memory-size") {
-		t.Fatalf("wrong error writing key bar to cache")
+		t.Fatalf("wrong error writing key bar to cache: %v", err)
 	}
 
 	// Clear the snapshot and the write should now succeed.
