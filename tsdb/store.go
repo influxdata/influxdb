@@ -196,7 +196,9 @@ func (s *Store) loadShards() error {
 					}
 
 					resC <- &res{s: shard}
-					s.Logger.Info(fmt.Sprintf("%s opened in %s", path, time.Since(start)))
+					s.Logger.Info("opened store",
+						zap.String("path", path),
+						zap.Duration("duration", time.Since(start)))
 				}(s.databaseIndexes[db], db, rp.Name(), sh.Name())
 			}
 		}
@@ -205,7 +207,7 @@ func (s *Store) loadShards() error {
 	for i := 0; i < n; i++ {
 		res := <-resC
 		if res.err != nil {
-			s.Logger.Info(res.err.Error())
+			s.Logger.Error(res.err.Error())
 			continue
 		}
 		s.shards[res.s.id] = res.s

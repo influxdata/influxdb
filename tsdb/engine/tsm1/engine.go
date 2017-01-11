@@ -244,7 +244,7 @@ func (e *Engine) disableLevelCompactions(wait bool) {
 
 	if old == 0 { // first to disable should cleanup
 		if err := e.cleanup(); err != nil {
-			e.logger.Info(fmt.Sprintf("error cleaning up temp file: %v", err))
+			e.logger.Error("error cleaning up temp file", zap.Error(err))
 		}
 	}
 }
@@ -464,7 +464,7 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index *tsdb.DatabaseIndex) er
 	if err := e.Cache.ApplyEntryFn(func(key string, entry *entry) error {
 		fieldType, err := entry.values.InfluxQLType()
 		if err != nil {
-			e.logger.Info(fmt.Sprintf("error getting the data type of values for key %s: %s", key, err.Error()))
+			e.logger.Error("error getting the data type of values", zap.String("key", key), zap.Error(err))
 		}
 
 		return e.addToIndexFromKey(shardID, []byte(key), fieldType, index)
@@ -472,7 +472,7 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index *tsdb.DatabaseIndex) er
 		return err
 	}
 
-	e.traceLogger.Info(fmt.Sprintf("Meta data index for shard %d loaded in %v", shardID, time.Since(now)))
+	e.traceLogger.Info("meta data index loaded", zap.Duration("duration", time.Since(now)))
 	return nil
 }
 
@@ -859,7 +859,7 @@ func (e *Engine) WriteSnapshot() error {
 	defer func() {
 		if started != nil {
 			e.Cache.UpdateCompactTime(time.Since(*started))
-			e.logger.Info(fmt.Sprintf("Snapshot for path %s written in %v", e.path, time.Since(*started)))
+			e.logger.Info("snapshot written", zap.String("path", e.path), zap.Duration("duration", time.Since(*started)))
 		}
 	}()
 
@@ -896,7 +896,7 @@ func (e *Engine) WriteSnapshot() error {
 	// holding the engine write lock.
 	dedup := time.Now()
 	snapshot.Deduplicate()
-	e.traceLogger.Info(fmt.Sprintf("Snapshot for path %s deduplicated in %v", e.path, time.Since(dedup)))
+	e.traceLogger.Info("snapshot deduplicated", zap.String("path", e.path), zap.Duration("duration", time.Since(dedup)))
 
 	return e.writeSnapshotAndCommit(closedFiles, snapshot)
 }
@@ -960,10 +960,10 @@ func (e *Engine) compactCache(quit <-chan struct{}) {
 			e.Cache.UpdateAge()
 			if e.ShouldCompactCache(e.WAL.LastWriteTime()) {
 				start := time.Now()
-				e.traceLogger.Info(fmt.Sprintf("Compacting cache for %s", e.path))
+				e.traceLogger.Info("compacting cache", zap.String("path", e.path))
 				err := e.WriteSnapshot()
 				if err != nil && err != errCompactionsDisabled {
-					e.logger.Info(fmt.Sprintf("error writing snapshot: %v", err))
+					e.logger.Error("error writing snapshot", zap.Error(err))
 					atomic.AddInt64(&e.stats.CacheCompactionErrors, 1)
 				} else {
 					atomic.AddInt64(&e.stats.CacheCompactions, 1)
@@ -1065,9 +1065,17 @@ func (s *compactionStrategy) Apply() {
 func (s *compactionStrategy) compactGroup(groupNum int) {
 	group := s.compactionGroups[groupNum]
 	start := time.Now()
-	s.logger.Info(fmt.Sprintf("beginning %s compaction of group %d, %d TSM files", s.description, groupNum, len(group)))
+	s.logger.Info("beginning compaction",
+		zap.String("description", s.description),
+		zap.Int("groups", groupNum),
+		zap.Int("files", len(group)))
 	for i, f := range group {
-		s.logger.Info(fmt.Sprintf("compacting %s group (%d) %s (#%d)", s.description, groupNum, f, i))
+		s.logger.Info("compacting group",
+			zap.String("description", s.description),
+			zap.Int("group", groupNum),
+			zap.String("file", f),
+			zap.Int("index", i),
+		)
 	}
 
 	files, err := func() ([]string, error) {
@@ -1084,7 +1092,10 @@ func (s *compactionStrategy) compactGroup(groupNum int) {
 
 	if err != nil {
 		if err == errCompactionsDisabled || err == errCompactionInProgress {
-			s.logger.Info(fmt.Sprintf("aborted %s compaction group (%d). %v", s.description, groupNum, err))
+			s.logger.Info("aborted compaction",
+				zap.String("description", s.description),
+				zap.Int("group", groupNum),
+				zap.Error(err))
 
 			if err == errCompactionInProgress {
 				time.Sleep(time.Second)
@@ -1092,23 +1103,31 @@ func (s *compactionStrategy) compactGroup(groupNum int) {
 			return
 		}
 
-		s.logger.Info(fmt.Sprintf("error compacting TSM files: %v", err))
+		s.logger.Error("error compacting TSM files", zap.Error(err))
 		atomic.AddInt64(s.errorStat, 1)
 		time.Sleep(time.Second)
 		return
 	}
 
 	if err := s.fileStore.Replace(group, files); err != nil {
-		s.logger.Info(fmt.Sprintf("error replacing new TSM files: %v", err))
+		s.logger.Error("error replacing new TSM files", zap.Error(err))
 		atomic.AddInt64(s.errorStat, 1)
 		time.Sleep(time.Second)
 		return
 	}
 
 	for i, f := range files {
-		s.logger.Info(fmt.Sprintf("compacted %s group (%d) into %s (#%d)", s.description, groupNum, f, i))
+		s.logger.Info("compacted",
+			zap.String("description", s.description),
+			zap.Int("group", groupNum),
+			zap.String("file", f),
+			zap.Int("index", i))
 	}
-	s.logger.Info(fmt.Sprintf("compacted %s %d files into %d files in %s", s.description, len(group), len(files), time.Since(start)))
+	s.logger.Info("compacted groups",
+		zap.String("description", s.description),
+		zap.Int("start", len(group)),
+		zap.Int("end", len(files)),
+		zap.Duration("duration", time.Since(start)))
 	atomic.AddInt64(s.successStat, 1)
 }
 
@@ -1198,7 +1217,7 @@ func (e *Engine) reloadCache() error {
 		return err
 	}
 
-	e.traceLogger.Info(fmt.Sprintf("Reloaded WAL cache %s in %v", e.WAL.Path(), time.Since(now)))
+	e.traceLogger.Info("reloaded WAL cache", zap.String("path", e.WAL.Path()), zap.Duration("duration", time.Since(now)))
 	return nil
 }
 

@@ -427,7 +427,10 @@ func (f *FileStore) Open() error {
 		go func(idx int, file *os.File) {
 			start := time.Now()
 			df, err := NewTSMReader(file)
-			f.logger.Info(fmt.Sprintf("%s (#%d) opened in %v", file.Name(), idx, time.Since(start)))
+			f.logger.Info("opened filestore",
+				zap.String("path", file.Name()),
+				zap.Int("idx", idx),
+				zap.Duration("duration", time.Since(start)))
 
 			if err != nil {
 				readerC <- &res{r: df, err: fmt.Errorf("error opening memory map for file %s: %v", file.Name(), err)}

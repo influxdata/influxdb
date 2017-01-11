@@ -161,7 +161,7 @@ func NewShard(id uint64, index *DatabaseIndex, path string, walPath string, opti
 
 // WithLogger sets the logger on the shard.
 func (s *Shard) WithLogger(log zap.Logger) {
-	s.baseLogger = log
+	s.baseLogger = log.With(zap.Uint64("shard", s.id))
 	if err := s.ready(); err == nil {
 		s.engine.WithLogger(s.baseLogger)
 	}
@@ -265,7 +265,9 @@ func (s *Shard) Open() error {
 
 		s.engine = e
 
-		s.logger.Info(fmt.Sprintf("%s database index loaded in %s", s.path, time.Since(start)))
+		s.logger.Info("database index loaded",
+			zap.String("path", s.path),
+			zap.Duration("duration", time.Since(start)))
 
 		go s.monitor()
 
@@ -547,7 +549,9 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		// verify the tags and fields
 		tags := p.Tags()
 		if v := tags.Get(timeBytes); v != nil {
-			s.logger.Info(fmt.Sprintf("dropping tag 'time' from '%s'\n", p.PrecisionString("")))
+			s.logger.Info("dropping tag",
+				zap.String("key", "time"),
+				zap.String("point", p.PrecisionString("")))
 			tags.Delete(timeBytes)
 			p.SetTags(tags)
 		}
@@ -556,7 +560,10 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		iter := p.FieldIterator()
 		for iter.Next() {
 			if bytes.Equal(iter.FieldKey(), timeBytes) {
-				s.logger.Info(fmt.Sprintf("dropping field 'time' from '%s'\n", p.PrecisionString("")))
+				s.logger.Info("dropping field",
+					zap.String("key", "time"),
+					zap.String("point", p.PrecisionString("")),
+				)
 				iter.Delete()
 				continue
 			}
@@ -886,7 +893,7 @@ func (s *Shard) monitor() {
 		case <-t.C:
 			size, err := s.DiskSize()
 			if err != nil {
-				s.logger.Info(fmt.Sprintf("Error collecting shard size: %v", err))
+				s.logger.Error("error collecting shard size", zap.Error(err))
 				continue
 			}
 			atomic.StoreInt64(&s.stats.DiskBytes, size)
