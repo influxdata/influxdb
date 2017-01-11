@@ -7,7 +7,6 @@ const TelegramConfig = React.createClass({
         'chat-id': PropTypes.string.isRequired,
         'disable-notification': PropTypes.bool.isRequired,
         'disable-web-page-preview': PropTypes.bool.isRequired,
-        global: PropTypes.bool.isRequired,
         'parse-mode': PropTypes.string.isRequired,
         'state-changes-only': PropTypes.bool.isRequired,
         token: PropTypes.bool.isRequired,
@@ -24,7 +23,6 @@ const TelegramConfig = React.createClass({
       chatID: this.chatID.value,
       disableNotification: this.disableNotification.checked,
       disableWebPagePreview: this.disableWebPagePreview.checked,
-      global: this.global.checked,
       parseMode: this.parseMode.checked,
       stateChangesOnly: this.stateChangesOnly.checked,
       token: this.token.value,
@@ -36,7 +34,7 @@ const TelegramConfig = React.createClass({
 
   render() {
     const {options} = this.props.config;
-    const {global, url, token} = options;
+    const {url, token} = options;
     const chatID = options['chat-id'];
     const disableNotification = options['chat-id'];
     const disableWebPagePreview = options['disable-web-page-preview'];
@@ -83,13 +81,6 @@ const TelegramConfig = React.createClass({
             <div className="form-control-static">
               <input id="disableNotification" type="checkbox" defaultChecked={disableNotification} ref={(r) => this.disableNotification = r} />
               <label htmlFor="disableNotification">Disable Notification</label>
-            </div>
-          </div>
-
-          <div className="form-group col-xs-12">
-            <div className="form-control-static">
-              <input id="sendAllAlertsWithoutMarking" type="checkbox" defaultChecked={global} ref={(r) => this.global = r} />
-              <label htmlFor="sendAllAlertsWithoutMarking">Send all alerts without marking them explicitly in TICKscript</label>
             </div>
           </div>
 
