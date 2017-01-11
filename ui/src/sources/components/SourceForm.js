@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react';
 import classNames from 'classnames';
+import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText';
 
 const {
   bool,
@@ -27,6 +28,7 @@ export const SourceForm = React.createClass({
       password: this.sourcePassword.value,
       'default': this.sourceDefault.checked,
       telegraf: this.sourceTelegraf.value,
+      insecureSkipVerify: this.sourceInsecureSkipVerify ? this.sourceInsecureSkipVerify.checked : false,
     });
     this.props.onSubmit(newSource);
   },
@@ -85,6 +87,14 @@ export const SourceForm = React.createClass({
                           <label htmlFor="defaultSourceCheckbox">Make this the default source</label>
                         </div>
                       </div>
+                      {source.url.startsWith("https") ?
+                        <div className="form-group col-xs-12">
+                          <div className="form-control-static">
+                            <input type="checkbox" id="insecureSkipVerifyCheckbox" defaultChecked={source.insecureSkipVerify} ref={(r) => this.sourceInsecureSkipVerify = r} />
+                            <label htmlFor="insecureSkipVerifyCheckbox">Unsafe SSL</label>
+                          </div>
+                          <label className="form-helper">{insecureSkipVerifyText}</label>
+                        </div> : null}
                       <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
                         <button className={classNames('btn btn-block', {'btn-primary': editMode, 'btn-success': !editMode})} type="submit">{editMode ? "Save Changes" : "Add Source"}</button>
                       </div>
