@@ -364,9 +364,9 @@ func (c *Cache) Snapshot() (*Cache, error) {
 	snapshotSize := c.Size()
 
 	// Save the size of the snapshot on the snapshot cache
-	c.snapshot.size = snapshotSize
+	atomic.StoreUint64(&c.snapshot.size, snapshotSize)
 	// Save the size of the snapshot on the live cache
-	c.snapshotSize = snapshotSize
+	atomic.StoreUint64(&c.snapshotSize, snapshotSize)
 
 	// Reset the cache's store.
 	c.store.reset()

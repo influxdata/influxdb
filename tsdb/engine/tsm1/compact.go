@@ -1320,14 +1320,12 @@ func NewCacheKeyIterator(cache *Cache, size int) KeyIterator {
 }
 
 func (c *cacheKeyIterator) encode() {
-	concurrency := runtime.NumCPU()
+	concurrency := runtime.GOMAXPROCS(0)
 	n := len(c.ready)
 
 	// Divide the keyset across each CPU
 	chunkSize := 128
 	idx := uint64(0)
-	var wg sync.WaitGroup
-	wg.Add(concurrency)
 	for i := 0; i < concurrency; i++ {
 		// Run one goroutine per CPU and encode a section of the key space concurrently
 		go func() {
@@ -1342,10 +1340,8 @@ func (c *cacheKeyIterator) encode() {
 				}
 				c.encodeRange(start, end)
 			}
-			wg.Done()
 		}()
 	}
-	wg.Wait()
 }
 
 func (c *cacheKeyIterator) encodeRange(start, stop int) {
@@ -1373,7 +1369,7 @@ func (c *cacheKeyIterator) encodeRange(start, stop int) {
 				err:     err,
 			})
 		}
-		// Notify this key is full encoded
+		// Notify this key is fully encoded
 		c.ready[i] <- struct{}{}
 	}
 }
@@ -1387,7 +1383,7 @@ func (c *cacheKeyIterator) Next() bool {
 	}
 	c.i++
 
-	if c.i >= len(c.order) {
+	if c.i >= len(c.ready) {
 		return false
 	}
 
