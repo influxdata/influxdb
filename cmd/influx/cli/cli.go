@@ -28,10 +28,6 @@ import (
 	"github.com/peterh/liner"
 )
 
-const (
-	noTokenMsg = "Visit https://enterprise.influxdata.com to register for updates, InfluxDB server management, and monitoring.\n"
-)
-
 // ErrBlankCommand is returned when a parsed command is empty.
 var ErrBlankCommand = errors.New("empty input")
 
@@ -187,13 +183,6 @@ func (c *CommandLine) Run() error {
 
 	c.Line.SetMultiLineMode(true)
 
-	token, err := c.DatabaseToken()
-	if err != nil {
-		return fmt.Errorf("Failed to check token: %s", err.Error())
-	}
-	if token == "" {
-		fmt.Print(noTokenMsg)
-	}
 	fmt.Printf("Connected to %s version %s\n", c.Client.Addr(), c.ServerVersion)
 
 	c.Version()
@@ -716,26 +705,6 @@ func (c *CommandLine) ExecuteQuery(query string) error {
 		return err
 	}
 	return nil
-}
-
-// DatabaseToken retrieves database token.
-func (c *CommandLine) DatabaseToken() (string, error) {
-	response, err := c.Client.Query(c.query("SHOW DIAGNOSTICS for 'registration'"))
-	if err != nil {
-		return "", err
-	}
-
-	if response.Error() != nil || len(response.Results) == 0 || len(response.Results[0].Series) == 0 {
-		return "", nil
-	}
-
-	// Look for position of "token" column.
-	for i, s := range (*response).Results[0].Series[0].Columns {
-		if s == "token" {
-			return (*response).Results[0].Series[0].Values[0][i].(string), nil
-		}
-	}
-	return "", nil
 }
 
 // FormatResponse formats output to the previously chosen format.
