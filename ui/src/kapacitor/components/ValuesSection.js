@@ -98,7 +98,7 @@ const Threshold = React.createClass({
     return (
       <div className="value-selector">
         <p>Send Alert where</p>
-        <span>{query.fields.length ? query.fields[0].field : 'Select a Metric'}</span>
+        <span>{query.fields.length ? query.fields[0].field : 'Select a Time-Series'}</span>
         <p>is</p>
         <Dropdown className="size-176 dropdown-kapacitor" items={operators} selected={operator} onChoose={this.handleDropdownChange} />
         <input className="form-control input-sm size-166 form-control--green" type="text" ref={(r) => this.valueInput = r} defaultValue={value} onKeyUp={this.handleInputChange} />

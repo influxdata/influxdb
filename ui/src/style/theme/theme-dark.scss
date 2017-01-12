@@ -105,20 +105,6 @@
   border-color: $g5-pepper !important;
   color: $g15-platinum !important;
 
-  &::-webkit-input-placeholder { color: $g10-wolf; }
-  &::-moz-placeholder { color: $g10-wolf; }
-  &:-ms-input-placeholder { color: $g10-wolf; }
-  &:-moz-placeholder { color: $g10-wolf; }
-
-  &::selection {
-    background-color: $c-laser;
-    color: $g20-white;
-  }
-  &::-moz-selection {
-    background-color: $c-laser;
-    color: $g20-white;
-  }
-
   &:hover {
     border-color: $g6-smoke !important;
   }
@@ -143,20 +129,25 @@
 .form-group-submit {
   margin-top: 30px;
 }
-textarea {
+
+/* Placeholder Text */
+.form-control,
+textarea,
+input {
   &::-webkit-input-placeholder { color: $g10-wolf; }
   &::-moz-placeholder { color: $g10-wolf; }
   &:-ms-input-placeholder { color: $g10-wolf; }
   &:-moz-placeholder { color: $g10-wolf; }
+}
 
-  &::selection {
-    background-color: $c-laser;
-    color: $g20-white;
-  }
-  &::-moz-selection {
-    background-color: $c-laser;
-    color: $g20-white;
-  }
+/* Text Selection Styling */
+::selection {
+  background-color: $c-pool !important;
+  color: $g20-white !important;
+}
+::-moz-selection {
+  background-color: $c-pool !important;
+  color: $g20-white !important;
 }
 
 

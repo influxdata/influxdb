@@ -34,7 +34,7 @@ export const RuleGraph = React.createClass({
     if (!queryText) {
       return (
         <div className="rule-preview--graph-empty">
-          <p>Select a <strong>Metric</strong> to preview on a graph</p>
+          <p>Select a <strong>Time-Series</strong> to preview on a graph</p>
         </div>
       );
     }
