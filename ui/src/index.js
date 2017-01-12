@@ -10,7 +10,7 @@ import {HostsPage, HostPage} from 'src/hosts';
 import {KubernetesPage} from 'src/kubernetes';
 import {Login} from 'src/auth';
 import {KapacitorPage, KapacitorRulePage, KapacitorRulesPage, KapacitorTasksPage} from 'src/kapacitor';
-import DataExplorer from 'src/chronograf';
+import DataExplorer from 'src/data_explorer';
 import {DashboardsPage} from 'src/dashboards';
 import {CreateSource, SourceForm, ManageSources} from 'src/sources';
 import NotFound from 'src/shared/components/NotFound';

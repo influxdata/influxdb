@@ -3,7 +3,7 @@ import {withRouter} from 'react-router';
 import {connect} from 'react-redux';
 import _ from 'lodash';
 import * as kapacitorActionCreators from '../actions/view';
-import * as queryActionCreators from '../../chronograf/actions/view';
+import * as queryActionCreators from '../../data_explorer/actions/view';
 import {bindActionCreators} from 'redux';
 import {getKapacitor, getKapacitorConfig} from 'shared/apis/index';
 import {ALERTS, DEFAULT_RULE_ID} from 'src/kapacitor/constants';
