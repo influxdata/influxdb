@@ -305,6 +305,10 @@ func (e *StatementExecutor) executeDropContinuousQueryStatement(q *influxql.Drop
 // It does not return an error if the database was not found on any of
 // the nodes, or in the Meta store.
 func (e *StatementExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabaseStatement) error {
+	if e.MetaClient.Database(stmt.Name) == nil {
+		return nil
+	}
+
 	// Locally delete the datababse.
 	if err := e.TSDBStore.DeleteDatabase(stmt.Name); err != nil {
 		return err
@@ -348,6 +352,16 @@ func (e *StatementExecutor) executeDropShardStatement(stmt *influxql.DropShardSt
 }
 
 func (e *StatementExecutor) executeDropRetentionPolicyStatement(stmt *influxql.DropRetentionPolicyStatement) error {
+
+	dbi := e.MetaClient.Database(stmt.Database)
+	if dbi == nil {
+		return nil
+	}
+
+	if dbi.RetentionPolicy(stmt.Name) == nil {
+		return nil
+	}
+
 	// Locally drop the retention policy.
 	if err := e.TSDBStore.DeleteRetentionPolicy(stmt.Database, stmt.Name); err != nil {
 		return err

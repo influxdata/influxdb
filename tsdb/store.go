@@ -387,6 +387,11 @@ func (s *Store) DeleteShard(shardID uint64) error {
 // DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
 func (s *Store) DeleteDatabase(name string) error {
 	s.mu.RLock()
+	if s.databaseIndexes[name] == nil {
+		s.mu.RUnlock()
+		// no files locally, so nothing to do
+		return nil
+	}
 	shards := s.filterShards(func(sh *Shard) bool {
 		return sh.database == name
 	})
@@ -402,7 +407,15 @@ func (s *Store) DeleteDatabase(name string) error {
 		return err
 	}
 
-	if err := os.RemoveAll(filepath.Join(s.path, name)); err != nil {
+	dbPath := filepath.Clean(filepath.Join(s.path, name))
+
+	// extra sanity check to make sure that even if someone named their database "../.."
+	// that we don't delete everything because of it, they'll just have extra files forever
+	if filepath.Clean(s.path) != filepath.Dir(dbPath) {
+		return fmt.Errorf("invalid database directory location for database '%s': %s", name, dbPath)
+	}
+
+	if err := os.RemoveAll(dbPath); err != nil {
 		return err
 	}
 	if err := os.RemoveAll(filepath.Join(s.EngineOptions.Config.WALDir, name)); err != nil {
@@ -424,6 +437,10 @@ func (s *Store) DeleteDatabase(name string) error {
 // both the DB and WAL, and remove all shard files from disk.
 func (s *Store) DeleteRetentionPolicy(database, name string) error {
 	s.mu.RLock()
+	if s.databaseIndexes[database] == nil {
+		// unknown database, nothing to do
+		return nil
+	}
 	shards := s.filterShards(func(sh *Shard) bool {
 		return sh.database == database && sh.retentionPolicy == name
 	})
@@ -439,6 +456,13 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 		return sh.Close()
 	}); err != nil {
 		return err
+	}
+
+	rpPath := filepath.Clean(filepath.Join(s.path, database, name))
+
+	// ensure Store's path is the grandparent of the retention policy
+	if filepath.Clean(s.path) != filepath.Dir(filepath.Dir(rpPath)) {
+		return fmt.Errorf("invalid path for database '%s', retention policy '%s': %s", database, name, rpPath)
 	}
 
 	// Remove the rentention policy folder.

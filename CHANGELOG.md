@@ -44,6 +44,7 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7563](https://github.com/influxdata/influxdb/issues/7563): RP should not allow `INF` or `0` as a shard duration.
 - [#7585](https://github.com/influxdata/influxdb/pull/7585): Return Error instead of panic when decoding point values.
 - [#7812](https://github.com/influxdata/influxdb/issues/7812): Fix slice out of bounds panic when pruning shard groups. Thanks @vladlopes
+- [#7822](https://github.com/influxdata/influxdb/issues/7822): Drop database will delete /influxdb/data directory
 
 ## v1.1.1 [2016-12-06]
 
