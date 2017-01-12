@@ -1,4 +1,4 @@
-import selectStatement from 'chronograf/utils/influxql/select';
+import selectStatement from 'src/data_explorer/utils/influxql/select';
 import defaultQueryConfig from 'src/utils/defaultQueryConfig';
 
 function mergeConfig(options) {

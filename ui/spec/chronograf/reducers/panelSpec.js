@@ -1,5 +1,5 @@
-import reducer from 'chronograf/reducers/panels';
-import {deletePanel} from 'chronograf/actions/view';
+import reducer from 'src/data_explorer/reducers/panels';
+import {deletePanel} from 'src/data_explorer/actions/view';
 
 const fakeAddPanelAction = (panelId, queryId) => {
   return {
