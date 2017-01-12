@@ -2,7 +2,7 @@ import {createStore, applyMiddleware, compose} from 'redux';
 import {combineReducers} from 'redux';
 import thunkMiddleware from 'redux-thunk';
 import makeQueryExecuter from 'src/shared/middleware/queryExecuter';
-import * as chronografReducers from 'src/chronograf/reducers';
+import * as chronografReducers from 'src/data_explorer/reducers';
 import * as sharedReducers from 'src/shared/reducers';
 import rulesReducer from 'src/kapacitor/reducers/rules';
 import persistStateEnhancer from './persistStateEnhancer';

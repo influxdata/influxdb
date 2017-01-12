@@ -1,12 +1,12 @@
 import React, {PropTypes} from 'react';
 import classNames from 'classnames';
 import _ from 'lodash';
-import selectStatement from '../../chronograf/utils/influxql/select';
+import selectStatement from '../../data_explorer/utils/influxql/select';
 
-import DatabaseList from '../../chronograf/components/DatabaseList';
-import MeasurementList from '../../chronograf/components/MeasurementList';
-import FieldList from '../../chronograf/components/FieldList';
-import TagList from '../../chronograf/components/TagList';
+import DatabaseList from '../../data_explorer/components/DatabaseList';
+import MeasurementList from '../../data_explorer/components/MeasurementList';
+import FieldList from '../../data_explorer/components/FieldList';
+import TagList from '../../data_explorer/components/TagList';
 
 const DB_TAB = 'databases';
 const MEASUREMENTS_TAB = 'measurments';

@@ -1,4 +1,4 @@
-import reducer from 'chronograf/reducers/queryConfigs';
+import reducer from 'src/data_explorer/reducers/queryConfigs';
 import defaultQueryConfig from 'src/utils/defaultQueryConfig';
 import {
   chooseNamespace,
@@ -10,7 +10,7 @@ import {
   groupByTime,
   toggleTagAcceptance,
   updateRawQuery,
-} from 'chronograf/actions/view';
+} from 'src/data_explorer/actions/view';
 
 const fakeAddQueryAction = (panelId, queryId) => {
   return {

@@ -1,4 +1,4 @@
-import {saveExplorer} from 'src/chronograf/api';
+import {saveExplorer} from 'src/data_explorer/api';
 
 /**
  * Redux store enhancer (https://github.com/reactjs/redux/blob/master/docs/Glossary.md)
@@ -52,4 +52,3 @@ export default function persistState() {
     return store;
   };
 }
-

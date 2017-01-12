@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react';
-import selectStatement from 'src/chronograf/utils/influxql/select';
+import selectStatement from 'src/data_explorer/utils/influxql/select';
 import AutoRefresh from 'shared/components/AutoRefresh';
 import LineGraph from 'shared/components/LineGraph';
 const RefreshingLineGraph = AutoRefresh(LineGraph);
