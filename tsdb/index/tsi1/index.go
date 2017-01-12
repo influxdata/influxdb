@@ -381,7 +381,8 @@ func (i *Index) ForEachMeasurementName(fn func(name []byte) error) error {
 func (i *Index) MeasurementExists(name []byte) (bool, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
-	return fs.Measurement(name) != nil, nil
+	m := fs.Measurement(name)
+	return m != nil && !m.Deleted(), nil
 }
 
 func (i *Index) MeasurementNamesByExpr(expr influxql.Expr) ([][]byte, error) {
@@ -514,9 +515,6 @@ func (i *Index) DropSeries(keys [][]byte) error {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
-	fs := i.retainFileSet()
-	defer fs.Release()
-
 	for _, key := range keys {
 		name, tags, err := models.ParseKey(key)
 		if err != nil {
@@ -529,11 +527,21 @@ func (i *Index) DropSeries(keys [][]byte) error {
 				return err
 			}
 
+			// Obtain file set after deletion because that may add a new log file.
+			fs := i.retainFileSet()
+			defer fs.Release()
+
 			// Check if that was the last series for the measurement in the entire index.
-			if itr := fs.MeasurementSeriesIterator(mname); itr == nil || itr.Next() == nil {
-				if err := f.DeleteMeasurement(mname); err != nil {
-					return err
-				}
+			itr := fs.MeasurementSeriesIterator(mname)
+			if itr == nil {
+				return nil
+			} else if e := itr.Next(); e != nil {
+				return nil
+			}
+
+			// If no more series exist in the measurement then delete the measurement.
+			if err := f.DeleteMeasurement(mname); err != nil {
+				return err
 			}
 			return nil
 		}); err != nil {

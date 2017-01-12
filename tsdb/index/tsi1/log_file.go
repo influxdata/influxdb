@@ -167,6 +167,7 @@ func (f *LogFile) Measurement(name []byte) MeasurementElem {
 	if !ok {
 		return nil
 	}
+
 	return mm
 }
 
@@ -671,7 +672,7 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 	for _, name := range names {
 		mm := f.mms[name]
 		for _, serie := range mm.series {
-			if err := sw.Add(serie.name, serie.tags); err != nil {
+			if err := sw.Add(serie.name, serie.tags, serie.deleted); err != nil {
 				return err
 			}
 		}
@@ -797,7 +798,7 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, n *int64)
 		mm := f.mms[name]
 
 		sort.Sort(uint64Slice(mm.seriesIDs))
-		mw.Add(mm.name, mm.offset, mm.size, mm.seriesIDs)
+		mw.Add(mm.name, mm.deleted, mm.offset, mm.size, mm.seriesIDs)
 		if mm.Deleted() {
 			mw.TSketch.Add(mm.Name())
 		} else {

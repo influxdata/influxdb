@@ -58,7 +58,7 @@ func CreateSeriesBlock(a []Series) (*tsi1.SeriesBlock, error) {
 	w := tsi1.NewSeriesBlockWriter()
 	w.Sketch, w.TSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	for i, s := range a {
-		if err := w.Add(s.Name, s.Tags); err != nil {
+		if err := w.Add(s.Name, s.Tags, s.Deleted); err != nil {
 			return nil, fmt.Errorf("SeriesBlockWriter.Add(): i=%d, err=%s", i, err)
 		}
 		w.Sketch.Add(models.MakeKey(s.Name, s.Tags))
@@ -90,6 +90,7 @@ func MustCreateSeriesBlock(a []Series) *tsi1.SeriesBlock {
 
 // Series represents name/tagset pairs that are used in testing.
 type Series struct {
-	Name []byte
-	Tags models.Tags
+	Name    []byte
+	Tags    models.Tags
+	Deleted bool
 }

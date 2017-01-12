@@ -376,8 +376,9 @@ func NewMeasurementBlockWriter() *MeasurementBlockWriter {
 }
 
 // Add adds a measurement with series and tag set offset/size.
-func (mw *MeasurementBlockWriter) Add(name []byte, offset, size int64, seriesIDs []uint64) {
+func (mw *MeasurementBlockWriter) Add(name []byte, deleted bool, offset, size int64, seriesIDs []uint64) {
 	mm := mw.mms[string(name)]
+	mm.deleted = deleted
 	mm.tagBlock.offset = offset
 	mm.tagBlock.size = size
 	mm.seriesIDs = seriesIDs

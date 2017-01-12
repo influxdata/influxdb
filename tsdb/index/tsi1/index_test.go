@@ -67,6 +67,63 @@ func TestIndex_ForEachMeasurementName(t *testing.T) {
 	}
 }
 
+// Ensure index can return whether a measurement exists.
+func TestIndex_MeasurementExists(t *testing.T) {
+	idx := MustOpenIndex()
+	defer idx.Close()
+
+	// Add series to index.
+	if err := idx.CreateSeriesSliceIfNotExists([]Series{
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify measurement exists.
+	if err := idx.MultiInvoke(func(state string) {
+		if v, err := idx.MeasurementExists([]byte("cpu")); err != nil {
+			t.Fatalf("%s: %s", state, err)
+		} else if !v {
+			t.Fatalf("%s: expected measurement to exist", state)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Delete one series.
+	if err := idx.DropSeries([][]byte{models.MakeKey([]byte("cpu"), models.NewTags(map[string]string{"region": "east"}))}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify measurement still exists.
+	if err := idx.MultiInvoke(func(state string) {
+		if v, err := idx.MeasurementExists([]byte("cpu")); err != nil {
+			t.Fatalf("%s: %s", state, err)
+		} else if !v {
+			t.Fatalf("%s: expected measurement to still exist", state)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Delete second series.
+	if err := idx.DropSeries([][]byte{models.MakeKey([]byte("cpu"), models.NewTags(map[string]string{"region": "west"}))}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify measurement is now deleted.
+	if err := idx.MultiInvoke(func(state string) {
+		if v, err := idx.MeasurementExists([]byte("cpu")); err != nil {
+			t.Fatalf("%s: %s", state, err)
+		} else if v {
+			t.Fatalf("%s: expected measurement to be deleted", state)
+		}
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // Index is a test wrapper for tsi1.Index.
 type Index struct {
 	*tsi1.Index

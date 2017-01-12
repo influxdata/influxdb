@@ -342,16 +342,7 @@ func NewSeriesBlockWriter() *SeriesBlockWriter {
 
 // Add adds a series to the writer's set.
 // Returns an ErrSeriesOverflow if no more series can be held in the writer.
-func (sw *SeriesBlockWriter) Add(name []byte, tags models.Tags) error {
-	return sw.append(name, tags, false)
-}
-
-// Delete marks a series as tombstoned.
-func (sw *SeriesBlockWriter) Delete(name []byte, tags models.Tags) error {
-	return sw.append(name, tags, true)
-}
-
-func (sw *SeriesBlockWriter) append(name []byte, tags models.Tags, deleted bool) error {
+func (sw *SeriesBlockWriter) Add(name []byte, tags models.Tags, deleted bool) error {
 	// Ensure writer doesn't add too many series.
 	if len(sw.series) == math.MaxInt32 {
 		return ErrSeriesOverflow

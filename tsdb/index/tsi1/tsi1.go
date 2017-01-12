@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/influxql"
@@ -768,25 +767,6 @@ func writeUvarintTo(w io.Writer, v uint64, n *int64) error {
 	return err
 }
 
-func Hexdump(data []byte) {
-	var buf bytes.Buffer
-	addr := 0
-	for len(data) > 0 {
-		n := len(data)
-		if n > 16 {
-			n = 16
-		}
-
-		fmt.Fprintf(&buf, "%07x % x\n", addr, data[:n])
-
-		data = data[n:]
-		addr += n
-	}
-	fmt.Fprintln(&buf, "")
-
-	buf.WriteTo(os.Stderr)
-}
-
 // hashKey hashes a key using murmur3.
 func hashKey(key []byte) uint64 {
 	h := xxhash.Sum64(key)
@@ -835,11 +815,3 @@ type byTagKey []*influxql.TagSet
 func (t byTagKey) Len() int           { return len(t) }
 func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
 func (t byTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-
-// exprString returns the string value of an expression.
-func exprString(expr influxql.Expr) string {
-	if expr == nil {
-		return ""
-	}
-	return expr.String()
-}

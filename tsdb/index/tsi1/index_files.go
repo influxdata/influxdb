@@ -99,7 +99,6 @@ func (p *IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 	// Setup context object to track shared data for this compaction.
 	var info indexCompactInfo
 	info.tagSets = make(map[string]indexTagSetPos)
-	info.names = p.MeasurementNames()
 
 	// Write magic number.
 	if err := writeTo(w, []byte(FileSignature), &n); err != nil {
@@ -157,7 +156,7 @@ func (p *IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *
 
 	// Write all series.
 	for e := itr.Next(); e != nil; e = itr.Next() {
-		if err := sw.Add(e.Name(), e.Tags()); err != nil {
+		if err := sw.Add(e.Name(), e.Tags(), e.Deleted()); err != nil {
 			return err
 		}
 
@@ -182,8 +181,9 @@ func (p *IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *
 }
 
 func (p *IndexFiles) writeTagsetsTo(w io.Writer, info *indexCompactInfo, n *int64) error {
-	for _, name := range info.names {
-		if err := p.writeTagsetTo(w, name, info, n); err != nil {
+	mitr := p.MeasurementIterator()
+	for m := mitr.Next(); m != nil; m = mitr.Next() {
+		if err := p.writeTagsetTo(w, m.Name(), info, n); err != nil {
 			return err
 		}
 	}
@@ -246,24 +246,24 @@ func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactI
 func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
 	mw := NewMeasurementBlockWriter()
 
-	// As the index files are merged together, it's possible that measurements
-	// were added, removed and then added again over time. Since sketches cannot
-	// have values removed from them, the measurements would be in both the
-	// resulting measurements and tombstoned measurements sketches. So that a
-	// measurements only appears in one of the sketches, we rebuild some fresh
-	// sketches during the compaction.
+	// Add measurement data & compute sketches.
+	mitr := p.MeasurementIterator()
 	mw.Sketch, mw.TSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
-	itr := p.MeasurementIterator()
-	for e := itr.Next(); e != nil; e = itr.Next() {
-		if e.Deleted() {
-			mw.TSketch.Add(e.Name())
-		} else {
-			mw.Sketch.Add(e.Name())
-		}
-	}
+	for m := mitr.Next(); m != nil; m = mitr.Next() {
+		name := m.Name()
 
-	// Add measurement data.
-	for _, name := range info.names {
+		// As the index files are merged together, it's possible that measurements
+		// were added, removed and then added again over time. Since sketches cannot
+		// have values removed from them, the measurements would be in both the
+		// resulting measurements and tombstoned measurements sketches. So that a
+		// measurements only appears in one of the sketches, we rebuild some fresh
+		// sketches during the compaction.
+		if m.Deleted() {
+			mw.TSketch.Add(m.Name())
+		} else {
+			mw.Sketch.Add(m.Name())
+		}
+
 		// Look-up series ids.
 		itr := p.MeasurementSeriesIterator(name)
 		var seriesIDs []uint64
@@ -278,7 +278,7 @@ func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo
 
 		// Add measurement to writer.
 		pos := info.tagSets[string(name)]
-		mw.Add(name, pos.offset, pos.size, seriesIDs)
+		mw.Add(name, m.Deleted(), pos.offset, pos.size, seriesIDs)
 	}
 
 	// Generate merged sketches to write out.
@@ -310,10 +310,6 @@ func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo
 // indexCompactInfo is a context object used for tracking position information
 // during the compaction of index files.
 type indexCompactInfo struct {
-	// Sorted list of all measurements.
-	// This is stored so it doesn't have to be recomputed.
-	names [][]byte
-
 	// Saved to look up series offsets.
 	sw *SeriesBlockWriter
 

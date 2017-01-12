@@ -47,7 +47,11 @@ func (fs FileSet) SeriesIterator() SeriesIterator {
 // Measurement returns a measurement by name.
 func (fs FileSet) Measurement(name []byte) MeasurementElem {
 	for _, f := range fs {
-		if e := f.Measurement(name); e != nil && !e.Deleted() {
+		if e := f.Measurement(name); e == nil {
+			continue
+		} else if e.Deleted() {
+			return nil
+		} else {
 			return e
 		}
 	}

@@ -105,16 +105,16 @@ func TestMeasurementBlockTrailer_WriteTo(t *testing.T) {
 // Ensure measurement blocks can be written and opened.
 func TestMeasurementBlockWriter(t *testing.T) {
 	ms := Measurements{
-		NewMeasurement([]byte("foo"), 100, 10, []uint64{1, 3, 4}),
-		NewMeasurement([]byte("bar"), 200, 20, []uint64{2}),
-		NewMeasurement([]byte("baz"), 300, 30, []uint64{5, 6}),
+		NewMeasurement([]byte("foo"), false, 100, 10, []uint64{1, 3, 4}),
+		NewMeasurement([]byte("bar"), false, 200, 20, []uint64{2}),
+		NewMeasurement([]byte("baz"), false, 300, 30, []uint64{5, 6}),
 	}
 
 	// Write the measurements to writer.
 	mw := tsi1.NewMeasurementBlockWriter()
 	mw.Sketch, mw.TSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	for _, m := range ms {
-		mw.Add(m.Name, m.Offset, m.Size, m.ids)
+		mw.Add(m.Name, m.Deleted, m.Offset, m.Size, m.ids)
 		mw.Sketch.Add(m.Name)
 	}
 
@@ -166,17 +166,19 @@ func TestMeasurementBlockWriter(t *testing.T) {
 type Measurements []Measurement
 
 type Measurement struct {
-	Name   []byte
-	Offset int64
-	Size   int64
-	ids    []uint64
+	Name    []byte
+	Deleted bool
+	Offset  int64
+	Size    int64
+	ids     []uint64
 }
 
-func NewMeasurement(name []byte, offset, size int64, ids []uint64) Measurement {
+func NewMeasurement(name []byte, deleted bool, offset, size int64, ids []uint64) Measurement {
 	return Measurement{
-		Name:   name,
-		Offset: offset,
-		Size:   size,
-		ids:    ids,
+		Name:    name,
+		Deleted: deleted,
+		Offset:  offset,
+		Size:    size,
+		ids:     ids,
 	}
 }
