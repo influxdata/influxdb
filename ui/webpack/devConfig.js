@@ -72,7 +72,7 @@ module.exports = {
       $: "jquery",
       jQuery: "jquery",
     }),
-    new ExtractTextPlugin("style.css"),
+    new ExtractTextPlugin("chronograf.css"),
     new HtmlWebpackPlugin({
       template: path.resolve(__dirname, '..', 'src', 'index.template.html'),
       inject: 'body',
