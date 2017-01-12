@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb"
@@ -1552,4 +1553,18 @@ func UnmarshalTime(v int64) time.Time {
 		return time.Time{}
 	}
 	return time.Unix(0, v).UTC()
+}
+
+// ValidName checks to see if the given name can would be valid for DB/RP name
+func ValidName(name string) bool {
+	for _, r := range name {
+		if !unicode.IsPrint(r) {
+			return false
+		}
+	}
+
+	return name != "" &&
+		name != "." &&
+		name != ".." &&
+		!strings.ContainsAny(name, `/\`)
 }
