@@ -26,7 +26,7 @@ export default function getRange(timeSeries, override, value = null, rangeValue 
     [null, pad(rangeValue, "top")],
   ];
 
-  const range = points.reduce(([min, max], series) => {
+  const range = points.reduce(([min, max] = [], series) => {
     for (let i = 1; i < series.length; i++) {
       const val = series[i];
 
