@@ -244,6 +244,12 @@ func (e *StatementExecutor) executeCreateContinuousQueryStatement(q *influxql.Cr
 }
 
 func (e *StatementExecutor) executeCreateDatabaseStatement(stmt *influxql.CreateDatabaseStatement) error {
+	if !meta.ValidName(stmt.Name) {
+		// TODO This should probably be in `(*meta.Data).CreateDatabase`
+		// but can't go there until 1.1 is used everywhere
+		return meta.ErrInvalidName
+	}
+
 	if !stmt.RetentionPolicyCreate {
 		_, err := e.MetaClient.CreateDatabase(stmt.Name)
 		return err
@@ -260,6 +266,12 @@ func (e *StatementExecutor) executeCreateDatabaseStatement(stmt *influxql.Create
 }
 
 func (e *StatementExecutor) executeCreateRetentionPolicyStatement(stmt *influxql.CreateRetentionPolicyStatement) error {
+	if !meta.ValidName(stmt.Name) {
+		// TODO This should probably be in `(*meta.Data).CreateRetentionPolicy`
+		// but can't go there until 1.1 is used everywhere
+		return meta.ErrInvalidName
+	}
+
 	spec := meta.RetentionPolicySpec{
 		Name:               stmt.Name,
 		Duration:           &stmt.Duration,
@@ -352,7 +364,6 @@ func (e *StatementExecutor) executeDropShardStatement(stmt *influxql.DropShardSt
 }
 
 func (e *StatementExecutor) executeDropRetentionPolicyStatement(stmt *influxql.DropRetentionPolicyStatement) error {
-
 	dbi := e.MetaClient.Database(stmt.Database)
 	if dbi == nil {
 		return nil

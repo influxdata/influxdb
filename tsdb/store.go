@@ -438,6 +438,7 @@ func (s *Store) DeleteDatabase(name string) error {
 func (s *Store) DeleteRetentionPolicy(database, name string) error {
 	s.mu.RLock()
 	if s.databaseIndexes[database] == nil {
+		s.mu.RUnlock()
 		// unknown database, nothing to do
 		return nil
 	}
