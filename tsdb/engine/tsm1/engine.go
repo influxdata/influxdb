@@ -495,13 +495,7 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 	// Remove the temporary snapshot dir
 	defer os.RemoveAll(path)
 
-	snapDir, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer snapDir.Close()
-
-	snapshotFiles, err := snapDir.Readdir(0)
+	snapshotFiles, err := ioutil.ReadDir(path)
 	if err != nil {
 		return err
 	}
