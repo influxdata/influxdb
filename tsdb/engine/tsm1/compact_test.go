@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
@@ -2142,36 +2141,6 @@ func assertValueEqual(t *testing.T, a, b tsm1.Value) {
 	}
 }
 
-func assertEqual(t *testing.T, a tsm1.Value, b models.Point, field string) {
-	if got, exp := a.UnixNano(), b.UnixNano(); got != exp {
-		t.Fatalf("time mismatch: got %v, exp %v", got, exp)
-	}
-	fields, err := b.Fields()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, exp := a.Value(), fields[field]; got != exp {
-		t.Fatalf("value mismatch: got %v, exp %v", got, exp)
-	}
-}
-
-func MustWALSegment(dir string, entries []tsm1.WALEntry) *tsm1.WALSegmentReader {
-	f := MustTempFile(dir)
-	w := tsm1.NewWALSegmentWriter(f)
-
-	for _, e := range entries {
-		if err := w.Write(mustMarshalEntry(e)); err != nil {
-			panic(fmt.Sprintf("write WAL entry: %v", err))
-		}
-	}
-
-	if _, err := f.Seek(0, os.SEEK_SET); err != nil {
-		panic(fmt.Sprintf("seek WAL: %v", err))
-	}
-
-	return tsm1.NewWALSegmentReader(f)
-}
-
 func MustTSMWriter(dir string, gen int) (tsm1.TSMWriter, string) {
 	f := MustTempFile(dir)
 	oldName := f.Name()
@@ -2236,14 +2205,6 @@ func MustOpenTSMReader(name string) *tsm1.TSMReader {
 		panic(fmt.Sprintf("new reader: %v", err))
 	}
 	return r
-}
-
-type fakeWAL struct {
-	ClosedSegmentsFn func() ([]string, error)
-}
-
-func (w *fakeWAL) ClosedSegments() ([]string, error) {
-	return w.ClosedSegmentsFn()
 }
 
 type fakeFileStore struct {

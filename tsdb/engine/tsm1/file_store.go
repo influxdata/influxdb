@@ -2,7 +2,6 @@ package tsm1
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
 	"math"
 	"os"
@@ -137,7 +136,6 @@ type FileStore struct {
 
 	logger       zap.Logger // Logger to be used for important messages
 	traceLogger  zap.Logger // Logger to be used when trace-logging is on.
-	logOutput    io.Writer  // Writer to be logger and traceLogger if active.
 	traceLogging bool
 
 	stats  *FileStoreStatistics

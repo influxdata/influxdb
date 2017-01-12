@@ -114,16 +114,6 @@ func (t *tsmGeneration) level() int {
 	return 4
 }
 
-func (t *tsmGeneration) lastModified() int64 {
-	var max int64
-	for _, f := range t.files {
-		if f.LastModified > max {
-			max = f.LastModified
-		}
-	}
-	return max
-}
-
 // count returns the number of files in the generation.
 func (t *tsmGeneration) count() int {
 	return len(t.files)
@@ -867,8 +857,6 @@ type tsmKeyIterator struct {
 	// pos is the current key postion within the corresponding readers slice.  A value of
 	// pos[0] = 1, means the reader[0] is currently at key 1 in its ordered index.
 	pos []int
-
-	keys []string
 
 	// err is any error we received while iterating values.
 	err error

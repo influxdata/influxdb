@@ -85,9 +85,11 @@ func TestCacheRace(t *testing.T) {
 			c.Values(s)
 		}(s)
 	}
+
+	errC := make(chan error, 1)
 	wg.Add(1)
 	go func() {
-		wg.Done()
+		defer wg.Done()
 		<-ch
 		s, err := c.Snapshot()
 		if err == tsm1.ErrSnapshotInProgress {
@@ -95,13 +97,21 @@ func TestCacheRace(t *testing.T) {
 		}
 
 		if err != nil {
-			t.Fatalf("failed to snapshot cache: %v", err)
+			errC <- fmt.Errorf("failed to snapshot cache: %v", err)
+			return
 		}
+
 		s.Deduplicate()
 		c.ClearSnapshot(true)
 	}()
+
 	close(ch)
 	wg.Wait()
+
+	close(errC)
+	if err := <-errC; err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestCacheRace2Compacters(t *testing.T) {
@@ -138,10 +148,11 @@ func TestCacheRace2Compacters(t *testing.T) {
 	fileCounter := 0
 	mapFiles := map[int]bool{}
 	mu := sync.Mutex{}
+	errC := make(chan error, 1000)
 	for i := 0; i < 2; i++ {
 		wg.Add(1)
 		go func() {
-			wg.Done()
+			defer wg.Done()
 			<-ch
 			s, err := c.Snapshot()
 			if err == tsm1.ErrSnapshotInProgress {
@@ -149,7 +160,8 @@ func TestCacheRace2Compacters(t *testing.T) {
 			}
 
 			if err != nil {
-				t.Fatalf("failed to snapshot cache: %v", err)
+				errC <- fmt.Errorf("failed to snapshot cache: %v", err)
+				return
 			}
 
 			mu.Lock()
@@ -166,7 +178,8 @@ func TestCacheRace2Compacters(t *testing.T) {
 			defer mu.Unlock()
 			for k, _ := range myFiles {
 				if _, ok := mapFiles[k]; !ok {
-					t.Fatalf("something else deleted one of my files")
+					errC <- fmt.Errorf("something else deleted one of my files")
+					return
 				} else {
 					delete(mapFiles, k)
 				}
@@ -175,4 +188,9 @@ func TestCacheRace2Compacters(t *testing.T) {
 	}
 	close(ch)
 	wg.Wait()
+
+	close(errC)
+	if err := <-errC; err != nil {
+		t.Fatal(err)
+	}
 }

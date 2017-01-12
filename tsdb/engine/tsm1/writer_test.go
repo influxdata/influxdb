@@ -3,6 +3,7 @@ package tsm1_test
 import (
 	"bytes"
 	"encoding/binary"
+	"io"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -86,7 +87,7 @@ func TestTSMWriter_Write_Single(t *testing.T) {
 		t.Fatalf("magic number mismatch: got %v, exp %v", got, tsm1.MagicNumber)
 	}
 
-	if _, err := fd.Seek(0, os.SEEK_SET); err != nil {
+	if _, err := fd.Seek(0, io.SeekStart); err != nil {
 		t.Fatalf("unexpected error seeking: %v", err)
 	}
 
@@ -546,7 +547,7 @@ func TestTSMWriter_WriteBlock_Multiple(t *testing.T) {
 		t.Fatalf("magic number mismatch: got %v, exp %v", got, tsm1.MagicNumber)
 	}
 
-	if _, err := fd.Seek(0, os.SEEK_SET); err != nil {
+	if _, err := fd.Seek(0, io.SeekStart); err != nil {
 		t.Fatalf("error seeking: %v", err)
 	}
 
