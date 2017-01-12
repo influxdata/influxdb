@@ -183,7 +183,8 @@ type Cache struct {
 	// Due to a bug in atomic  size needs to be the first word in the struct, as
 	// that's the only place where you're guaranteed to be 64-bit aligned on a
 	// 32 bit system. See: https://golang.org/pkg/sync/atomic/#pkg-note-BUG
-	size uint64
+	size         uint64
+	snapshotSize uint64
 
 	mu      sync.RWMutex
 	store   storer
@@ -193,7 +194,6 @@ type Cache struct {
 	// they're kept in memory while flushing so they can be queried along with the cache.
 	// they are read only and should never be modified
 	snapshot     *Cache
-	snapshotSize uint64
 	snapshotting bool
 
 	// This number is the number of pending or failed WriteSnaphot attempts since the last successful one.
