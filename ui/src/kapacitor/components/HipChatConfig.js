@@ -4,7 +4,6 @@ const HipchatConfig = React.createClass({
   propTypes: {
     config: PropTypes.shape({
       options: PropTypes.shape({
-        global: PropTypes.bool.isRequired,
         room: PropTypes.string.isRequired,
         'state-changes-only': PropTypes.bool.isRequired,
         token: PropTypes.bool.isRequired,
@@ -22,7 +21,6 @@ const HipchatConfig = React.createClass({
       url: this.url.value,
       token: this.token.value,
       'state-changes-only': this.stateChangesOnly.checked,
-      global: this.global.checked,
     };
 
     this.props.onSave(properties);
@@ -31,7 +29,7 @@ const HipchatConfig = React.createClass({
   render() {
     const {options} = this.props.config;
     const stateChangesOnly = options['state-changes-only'];
-    const {url, global, room, token} = options;
+    const {url, room, token} = options;
 
     return (
       <div>
@@ -53,13 +51,6 @@ const HipchatConfig = React.createClass({
             <label htmlFor="token">Token</label>
             <input className="form-control" id="token" type="text" ref={(r) => this.token = r} defaultValue={token || ''}></input>
             <label className="form-helper">Note: a value of <code>true</code> indicates the HipChat token has been set</label>
-          </div>
-
-          <div className="form-group col-xs-12">
-            <div className="form-control-static">
-                <input id="sendAllAlertsWithoutMarking" type="checkbox" defaultChecked={global} ref={(r) => this.global = r} />
-                <label htmlFor="sendAllAlertsWithoutMarking">Send all alerts without marking them explicitly in TICKscript</label>
-            </div>
           </div>
 
           <div className="form-group col-xs-12">

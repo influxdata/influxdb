@@ -4,7 +4,6 @@ const PagerDutyConfig = React.createClass({
   propTypes: {
     config: PropTypes.shape({
       options: PropTypes.shape({
-        global: PropTypes.bool.isRequired,
         'service-key': PropTypes.bool.isRequired,
         url: PropTypes.string.isRequired,
       }).isRequired,
@@ -16,7 +15,6 @@ const PagerDutyConfig = React.createClass({
     e.preventDefault();
 
     const properties = {
-      global: this.global.checked,
       serviceKey: this.serviceKey.value,
       url: this.url.value,
     };
@@ -26,7 +24,7 @@ const PagerDutyConfig = React.createClass({
 
   render() {
     const {options} = this.props.config;
-    const {global, url} = options;
+    const {url} = options;
     const serviceKey = options['service-key'];
 
     return (
@@ -44,13 +42,6 @@ const PagerDutyConfig = React.createClass({
           <div className="form-group col-xs-12">
             <label htmlFor="url">PagerDuty URL</label>
             <input className="form-control" id="url" type="text" ref={(r) => this.url = r} defaultValue={url || ''}></input>
-          </div>
-
-          <div className="form-group col-xs-12">
-            <div className="form-control-static">
-              <input id="sendAllAlertsWithoutMarking" type="checkbox" defaultChecked={global} ref={(r) => this.global = r} />
-              <label htmlFor="sendAllAlertsWithoutMarking">Send all alerts without marking them explicitly in TICKscript</label>
-            </div>
           </div>
 
           <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
