@@ -1,9 +1,12 @@
 import React, {PropTypes} from 'react';
+import ReactTooltip from 'react-tooltip';
+import {Link} from 'react-router';
+import _ from 'lodash';
+
 import LayoutRenderer from 'shared/components/LayoutRenderer';
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
-import ReactTooltip from 'react-tooltip';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
-import {getMappings, getAppsForHosts, getMeasurementsForHost} from 'src/hosts/apis';
+import {getMappings, getAppsForHosts, getMeasurementsForHost, getAllHosts} from 'src/hosts/apis';
 import {fetchLayouts} from 'shared/apis';
 
 export const HostPage = React.createClass({
@@ -13,6 +16,7 @@ export const HostPage = React.createClass({
         proxy: PropTypes.string.isRequired,
       }).isRequired,
       telegraf: PropTypes.string.isRequired,
+      id: PropTypes.string.isRequired,
     }),
     params: PropTypes.shape({
       hostID: PropTypes.string.isRequired,
@@ -29,33 +33,41 @@ export const HostPage = React.createClass({
 
     return {
       layouts: [],
+      hosts: [],
       timeRange: timeRanges[fifteenMinutesIndex],
     };
   },
 
-  componentDidMount() {
+  async componentDidMount() {
     const {source, params, location} = this.props;
-    const hosts = {[params.hostID]: {name: params.hostID}};
 
     // fetching layouts and mappings can be done at the same time
-    fetchLayouts().then(({data: {layouts}}) => {
-      getMappings().then(({data: {mappings}}) => {
-        getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf).then((newHosts) => {
-          getMeasurementsForHost(source, params.hostID).then((measurements) => {
-            const host = newHosts[this.props.params.hostID];
-            const filteredLayouts = layouts.filter((layout) => {
-              const focusedApp = location.query.app;
-              if (focusedApp) {
-                return layout.app === focusedApp;
-              }
+    const {data: {layouts}} = await fetchLayouts();
+    const {data: {mappings}} = await getMappings();
+    const hosts = await getAllHosts(source.links.proxy, source.telegraf);
+    const newHosts = await getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf);
+    const measurements = await getMeasurementsForHost(source, params.hostID);
 
-              return host.apps && host.apps.includes(layout.app) && measurements.includes(layout.measurement);
-            });
-            this.setState({layouts: filteredLayouts});
-          });
-        });
-      });
+    const host = newHosts[this.props.params.hostID];
+    const focusedApp = location.query.app;
+
+    const filteredLayouts = layouts.filter((layout) => {
+      if (focusedApp) {
+        return layout.app === focusedApp;
+      }
+
+      return host.apps && host.apps.includes(layout.app) && measurements.includes(layout.measurement);
     });
+
+    // only display hosts in the list if they match the current app
+    let filteredHosts = hosts;
+    if (focusedApp) {
+      filteredHosts = _.pickBy(hosts, (val, __, ___) => {
+        return val.apps.includes(focusedApp);
+      });
+    }
+
+    this.setState({layouts: filteredLayouts, hosts: filteredHosts}); // eslint-disable-line react/no-did-mount-set-state
   },
 
   handleChooseTimeRange({lower}) {
@@ -119,14 +131,31 @@ export const HostPage = React.createClass({
 
   render() {
     const hostID = this.props.params.hostID;
-    const {layouts, timeRange} = this.state;
+    const {layouts, timeRange, hosts} = this.state;
+    const appParam = this.props.location.query.app ? `?app=${this.props.location.query.app}` : '';
 
     return (
       <div className="page">
         <div className="page-header full-width">
           <div className="page-header__container">
             <div className="page-header__left">
-              <h1>{hostID}</h1>
+              <div className="dropdown page-header-dropdown">
+                <button className="dropdown-toggle" type="button" data-toggle="dropdown">
+                  <span className="button-text">{hostID}</span>
+                  <span className="caret"></span>
+                </button>
+                <ul className="dropdown-menu" aria-labelledby="dropdownMenu1">
+                  {Object.keys(hosts).map((host, i) => {
+                    return (
+                      <li key={i}>
+                        <Link to={`/sources/${this.props.source.id}/hosts/${host + appParam}`} className="role-option">
+                          {host}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
             </div>
             <div className="page-header__right">
               <div className="btn btn-info btn-sm" data-for="graph-tips-tooltip" data-tip="<p><code>Click + Drag</code> Zoom in (X or Y)</p><p><code>Shift + Click</code> Pan Graph Window</p><p><code>Double Click</code> Reset Graph Window</p>">
