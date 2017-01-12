@@ -4,7 +4,6 @@ import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 import ReactTooltip from 'react-tooltip';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 import {getMappings, getAppsForHosts, getMeasurementsForHost, getHosts} from 'src/hosts/apis';
-import {Link} from 'react-router';
 import {fetchLayouts} from 'shared/apis';
 
 export const HostPage = React.createClass({
@@ -135,16 +134,16 @@ export const HostPage = React.createClass({
             <div className="page-header__left">
               <div className="dropdown minimal-dropdown">
                 <button className="dropdown-toggle" type="button" data-toggle="dropdown">
-                  <span className="button-text">{hostID}</span>
+                  <span className="button-text btn-info">{hostID}</span>
                   <span className="caret"></span>
                 </button>
                 <ul className="dropdown-menu" aria-labelledby="dropdownMenu1">
                   {hosts.map((host, i) => {
                     return (
                       <li key={i}>
-                        <Link to={`/sources/${this.props.source.id}/hosts/${host}`} className="role-option">
+                        <a href={`/sources/${this.props.source.id}/hosts/${host}`} className="role-option">
                           {host}
-                        </Link>
+                        </a>
                       </li>
                     );
                   })}
