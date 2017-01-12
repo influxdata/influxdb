@@ -166,23 +166,34 @@ const (
 	statCacheWriteDropped = "writeDropped"
 )
 
+// storer is the interface that descibes a cache's store.
+type storer interface {
+	entry(key string) (*entry, bool)                // Get an entry by its key.
+	write(key string, values Values) error          // Write an entry to the store.
+	add(key string, entry *entry)                   // Add a new entry to the store.
+	remove(key string)                              // Remove an entry from the store.
+	keys(sorted bool) []string                      // Return an optionally sorted slice of entry keys.
+	apply(f func(string, *entry) error) error       // Apply f to all entries in the store in parallel.
+	applySerial(f func(string, *entry) error) error // Apply f to all entries in serial.
+	reset()                                         // Reset the store to an initial unused state.
+}
+
 // Cache maintains an in-memory store of Values for a set of keys.
 type Cache struct {
-	// TODO(edd): size is protected by mu but due to a bug in atomic  size needs
-	// to be the first word in the struct, as that's the only place where you're
-	// guaranteed to be 64-bit aligned on a 32 bit system. See:
-	// https://golang.org/pkg/sync/atomic/#pkg-note-BUG
-	size    uint64
-	commit  sync.Mutex
+	// Due to a bug in atomic  size needs to be the first word in the struct, as
+	// that's the only place where you're guaranteed to be 64-bit aligned on a
+	// 32 bit system. See: https://golang.org/pkg/sync/atomic/#pkg-note-BUG
+	size         uint64
+	snapshotSize uint64
+
 	mu      sync.RWMutex
-	store   *ring
+	store   storer
 	maxSize uint64
 
 	// snapshots are the cache objects that are currently being written to tsm files
 	// they're kept in memory while flushing so they can be queried along with the cache.
 	// they are read only and should never be modified
 	snapshot     *Cache
-	snapshotSize uint64
 	snapshotting bool
 
 	// This number is the number of pending or failed WriteSnaphot attempts since the last successful one.
@@ -280,13 +291,9 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 		addedSize += uint64(Values(v).Size())
 	}
 
-	// Set everything under one RLock. We'll optimistially set size here, and
-	// then decrement it later if there is a write error.
-	c.increaseSize(addedSize)
-	limit := c.maxSize
-	n := c.Size() + atomic.LoadUint64(&c.snapshotSize) + addedSize
-
 	// Enough room in the cache?
+	limit := c.maxSize // maxSize is safe for reading without a lock.
+	n := c.Size() + atomic.LoadUint64(&c.snapshotSize) + addedSize
 	if limit > 0 && n > limit {
 		atomic.AddInt64(&c.stats.WriteErr, 1)
 		return ErrCacheMemorySizeLimitExceeded(n, limit)
@@ -297,6 +304,8 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 	store := c.store
 	c.mu.RUnlock()
 
+	// We'll optimistially set size here, and then decrement it for write errors.
+	c.increaseSize(addedSize)
 	for k, v := range values {
 		if err := store.write(k, v); err != nil {
 			// The write failed, hold onto the error and adjust the size delta.
@@ -345,35 +354,26 @@ func (c *Cache) Snapshot() (*Cache, error) {
 		}
 	}
 
-	// Append the current cache values to the snapshot. Because we're accessing
-	// the Cache we need to call f on each partition in serial.
-	if err := c.store.applySerial(func(k string, e *entry) error {
-		e.mu.RLock()
-		defer e.mu.RUnlock()
-		snapshotEntry, ok := c.snapshot.store.entry(k)
-		if ok {
-			if err := snapshotEntry.add(e.values); err != nil {
-				return err
-			}
-		} else {
-			c.snapshot.store.add(k, e)
-			snapshotEntry = e
-		}
-		atomic.AddUint64(&c.snapshotSize, uint64(Values(e.values).Size()))
-		return nil
-	}); err != nil {
-		return nil, err
+	// Did a prior snapshot exist that failed?  If so, return the existing
+	// snapshot to retry.
+	if c.snapshot.Size() > 0 {
+		return c.snapshot, nil
 	}
 
-	snapshotSize := c.Size() // record the number of bytes written into a snapshot
+	c.snapshot.store, c.store = c.store, c.snapshot.store
+	snapshotSize := c.Size()
+
+	// Save the size of the snapshot on the snapshot cache
+	atomic.StoreUint64(&c.snapshot.size, snapshotSize)
+	// Save the size of the snapshot on the live cache
+	atomic.StoreUint64(&c.snapshotSize, snapshotSize)
 
 	// Reset the cache's store.
 	c.store.reset()
 	atomic.StoreUint64(&c.size, 0)
 	c.lastSnapshot = time.Now()
 
-	c.updateMemSize(-int64(snapshotSize)) // decrement the number of bytes in cache
-	c.updateCachedBytes(snapshotSize)     // increment the number of bytes added to the snapshot
+	c.updateCachedBytes(snapshotSize) // increment the number of bytes added to the snapshot
 	c.updateSnapshots()
 
 	return c.snapshot, nil
@@ -401,7 +401,7 @@ func (c *Cache) ClearSnapshot(success bool) {
 
 	if success {
 		c.snapshotAttempts = 0
-		atomic.StoreUint64(&c.snapshotSize, 0)
+		c.updateMemSize(-int64(atomic.LoadUint64(&c.snapshotSize))) // decrement the number of bytes in cache
 
 		// Reset the snapshot's store, and reset the snapshot to a fresh Cache.
 		c.snapshot.store.reset()
@@ -409,6 +409,7 @@ func (c *Cache) ClearSnapshot(success bool) {
 			store: c.snapshot.store,
 		}
 
+		atomic.StoreUint64(&c.snapshotSize, 0)
 		c.updateSnapshots()
 	}
 }

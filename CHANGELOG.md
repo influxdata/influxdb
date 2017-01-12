@@ -23,6 +23,7 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7323](https://github.com/influxdata/influxdb/pull/7323): Allow add items to array config via ENV
 - [#4619](https://github.com/influxdata/influxdb/issues/4619): Support subquery execution in the query language.
 - [#7326](https://github.com/influxdata/influxdb/issues/7326): Verbose output for SSL connection errors.
+- [#7830](https://github.com/influxdata/influxdb/pull/7830): Cache snapshotting performance improvements
 
 ### Bugfixes
 
