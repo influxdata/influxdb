@@ -930,7 +930,7 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (
 
 // compactCache continually checks if the WAL cache should be written to disk
 func (e *Engine) compactCache(quit <-chan struct{}) {
-	t := time.NewTimer(time.Second)
+	t := time.NewTicker(time.Second)
 	defer t.Stop()
 	for {
 		select {
@@ -952,7 +952,6 @@ func (e *Engine) compactCache(quit <-chan struct{}) {
 				atomic.AddInt64(&e.stats.CacheCompactionDuration, time.Since(start).Nanoseconds())
 			}
 		}
-		t.Reset(time.Second)
 	}
 }
 
@@ -970,7 +969,7 @@ func (e *Engine) ShouldCompactCache(lastWriteTime time.Time) bool {
 }
 
 func (e *Engine) compactTSMLevel(fast bool, level int, quit <-chan struct{}) {
-	t := time.NewTimer(time.Second)
+	t := time.NewTicker(time.Second)
 	defer t.Stop()
 
 	for {
@@ -984,12 +983,11 @@ func (e *Engine) compactTSMLevel(fast bool, level int, quit <-chan struct{}) {
 				s.Apply()
 			}
 		}
-		t.Reset(time.Second)
 	}
 }
 
 func (e *Engine) compactTSMFull(quit <-chan struct{}) {
-	t := time.NewTimer(time.Second)
+	t := time.NewTicker(time.Second)
 	defer t.Stop()
 
 	for {
@@ -1004,7 +1002,6 @@ func (e *Engine) compactTSMFull(quit <-chan struct{}) {
 			}
 
 		}
-		t.Reset(time.Second)
 	}
 }
 
