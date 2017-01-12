@@ -2,7 +2,7 @@
 
 ### Upcoming Bug Fixes
   1. [#755](https://github.com/influxdata/chronograf/pull/755): Fix kapacitor basic auth proxying
-  2. [#704](https://github.com/influxdata/chronograf/issue/704): Fix RPM install script and systemd unit file
+  2. [#704](https://github.com/influxdata/chronograf/issues/704): Fix RPM and DEB install script and systemd unit file
 
 ### Upcoming Features
   1. [#660](https://github.com/influxdata/chronograf/issues/660): Add option to accept any certificate from InfluxDB.
