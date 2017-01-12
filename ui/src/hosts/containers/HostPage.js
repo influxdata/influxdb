@@ -139,9 +139,9 @@ export const HostPage = React.createClass({
         <div className="page-header full-width">
           <div className="page-header__container">
             <div className="page-header__left">
-              <div className="dropdown minimal-dropdown">
+              <div className="dropdown page-header-dropdown">
                 <button className="dropdown-toggle" type="button" data-toggle="dropdown">
-                  <span className="button-text btn-info">{hostID}</span>
+                  <span className="button-text">{hostID}</span>
                   <span className="caret"></span>
                 </button>
                 <ul className="dropdown-menu" aria-labelledby="dropdownMenu1">

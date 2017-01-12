@@ -1,0 +1,27 @@
+.page-header-dropdown {
+  .dropdown-toggle {
+    height: 38px;
+    padding-left: 0;
+    min-width: 50px;
+    width: auto;
+    border: 0;
+    background-color: transparent;
+    text-transform: uppercase;
+    padding-right: (11px + 12px); // caret width + offset
+    font-size: 17px;
+    font-weight: 400;
+    transition: color 0.25s ease;
+  }
+  .dropdown-toggle > .caret {
+    right: 0;
+  }
+  .dropdown-toggle > .caret:after {
+    content: "\e910";
+    font-size: 17px;
+  }
+  /* Hover & Open State */
+  &.open .dropdown-toggle,
+  .dropdown-toggle:hover {
+    color: $c-pool;
+  }
+}
