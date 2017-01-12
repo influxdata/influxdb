@@ -63,24 +63,27 @@ export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
   });
 }
 
-export function getAllHosts(proxyLink, telegrafDB) {
-  return proxy({
-    source: proxyLink,
-    query: 'show tag values from system with key = "host"',
-    db: telegrafDB,
-  }).then((resp) => {
+export async function getAllHosts(proxyLink, telegrafDB) {
+  try {
+    const resp = await proxy({
+      source: proxyLink,
+      query: 'show tag values from system with key = "host"',
+      db: telegrafDB,
+    });
     const allHostsSeries = _.get(resp, ['data', 'results', '0', 'series', '0'], []);
     const hostnameIndex = allHostsSeries.columns.findIndex((col) => col === 'value');
-    const hosts = {};
-    allHostsSeries.values.forEach((v) => {
+    return allHostsSeries.values.reduce((hosts, v) => {
       const hostname = v[hostnameIndex];
       hosts[hostname] = {
         name: hostname,
       };
-    });
-    return hosts;
-  });
+      return hosts;
+    }, {});
+  } catch (error) {
+    console.error(error); // eslint-disable-line no-console
+  }
 }
+
 export function getMappings() {
   return AJAX({
     method: 'GET',

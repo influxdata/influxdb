@@ -1,11 +1,13 @@
 import React, {PropTypes} from 'react';
+import ReactTooltip from 'react-tooltip';
+import {Link} from 'react-router';
+import _ from 'lodash';
+
 import LayoutRenderer from 'shared/components/LayoutRenderer';
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
-import ReactTooltip from 'react-tooltip';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 import {getMappings, getAppsForHosts, getMeasurementsForHost, getAllHosts} from 'src/hosts/apis';
 import {fetchLayouts} from 'shared/apis';
-import _ from 'lodash';
 
 export const HostPage = React.createClass({
   propTypes: {
@@ -36,39 +38,36 @@ export const HostPage = React.createClass({
     };
   },
 
-  componentDidMount() {
+  async componentDidMount() {
     const {source, params, location} = this.props;
 
     // fetching layouts and mappings can be done at the same time
-    fetchLayouts().then(({data: {layouts}}) => {
-      getMappings().then(({data: {mappings}}) => {
-        getAllHosts(source.links.proxy, source.telegraf).then((hosts) => {
-          getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf).then((newHosts) => {
-            getMeasurementsForHost(source, params.hostID).then((measurements) => {
-              const host = newHosts[this.props.params.hostID];
-              const focusedApp = location.query.app;
+    const {data: {layouts}} = await fetchLayouts();
+    const {data: {mappings}} = await getMappings();
+    const hosts = await getAllHosts(source.links.proxy, source.telegraf);
+    const newHosts = await getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf);
+    const measurements = await getMeasurementsForHost(source, params.hostID);
 
-              const filteredLayouts = layouts.filter((layout) => {
-                if (focusedApp) {
-                  return layout.app === focusedApp;
-                }
+    const host = newHosts[this.props.params.hostID];
+    const focusedApp = location.query.app;
 
-                return host.apps && host.apps.includes(layout.app) && measurements.includes(layout.measurement);
-              });
+    const filteredLayouts = layouts.filter((layout) => {
+      if (focusedApp) {
+        return layout.app === focusedApp;
+      }
 
-              // only display hosts in the list if they match the current app
-              let filteredHosts = hosts;
-              if (focusedApp) {
-                filteredHosts = _.pickBy(hosts, (val, __, ___) => {
-                  return val.apps.includes(focusedApp);
-                });
-              }
-              this.setState({layouts: filteredLayouts, hosts: filteredHosts});
-            });
-          });
-        });
-      });
+      return host.apps && host.apps.includes(layout.app) && measurements.includes(layout.measurement);
     });
+
+    // only display hosts in the list if they match the current app
+    let filteredHosts = hosts;
+    if (focusedApp) {
+      filteredHosts = _.pickBy(hosts, (val, __, ___) => {
+        return val.apps.includes(focusedApp);
+      });
+    }
+
+    this.setState({layouts: filteredLayouts, hosts: filteredHosts}); // eslint-disable-line react/no-did-mount-set-state
   },
 
   handleChooseTimeRange({lower}) {
@@ -149,9 +148,9 @@ export const HostPage = React.createClass({
                   {Object.keys(hosts).map((host, i) => {
                     return (
                       <li key={i}>
-                        <a href={`/sources/${this.props.source.id}/hosts/${host + appParam}`} className="role-option">
+                        <Link to={`/sources/${this.props.source.id}/hosts/${host + appParam}`} className="role-option">
                           {host}
-                        </a>
+                        </Link>
                       </li>
                     );
                   })}

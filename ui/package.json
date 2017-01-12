@@ -40,6 +40,7 @@
     "babel-polyfill": "^6.13.0",
     "babel-preset-es2015": "^6.5.0",
     "babel-preset-react": "^6.5.0",
+    "babel-preset-stage-0": "^6.16.0",
     "babel-runtime": "^6.5.0",
     "bower": "^1.7.7",
     "chai": "^3.5.0",
