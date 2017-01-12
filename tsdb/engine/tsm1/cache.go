@@ -280,9 +280,6 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 		addedSize += uint64(Values(v).Size())
 	}
 
-	// Set everything under one RLock. We'll optimistially set size here, and
-	// then decrement it later if there is a write error.
-	c.increaseSize(addedSize)
 	limit := c.maxSize
 	n := c.Size() + atomic.LoadUint64(&c.snapshotSize) + addedSize
 
@@ -291,6 +288,10 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 		atomic.AddInt64(&c.stats.WriteErr, 1)
 		return ErrCacheMemorySizeLimitExceeded(n, limit)
 	}
+
+	// Set everything under one RLock. We'll optimistially set size here, and
+	// then decrement it later if there is a write error.
+	c.increaseSize(addedSize)
 
 	var werr error
 	c.mu.RLock()
@@ -364,8 +365,7 @@ func (c *Cache) Snapshot() (*Cache, error) {
 	atomic.StoreUint64(&c.size, 0)
 	c.lastSnapshot = time.Now()
 
-	c.updateMemSize(-int64(snapshotSize)) // decrement the number of bytes in cache
-	c.updateCachedBytes(snapshotSize)     // increment the number of bytes added to the snapshot
+	c.updateCachedBytes(snapshotSize) // increment the number of bytes added to the snapshot
 	c.updateSnapshots()
 
 	return c.snapshot, nil
@@ -393,7 +393,7 @@ func (c *Cache) ClearSnapshot(success bool) {
 
 	if success {
 		c.snapshotAttempts = 0
-		atomic.StoreUint64(&c.snapshotSize, 0)
+		c.updateMemSize(-int64(atomic.LoadUint64(&c.snapshotSize))) // decrement the number of bytes in cache
 
 		// Reset the snapshot's store, and reset the snapshot to a fresh Cache.
 		c.snapshot.store.reset()
@@ -401,6 +401,7 @@ func (c *Cache) ClearSnapshot(success bool) {
 			store: c.snapshot.store,
 		}
 
+		atomic.StoreUint64(&c.snapshotSize, 0)
 		c.updateSnapshots()
 	}
 }
