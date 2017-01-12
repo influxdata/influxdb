@@ -1,6 +1,7 @@
 package tsm1
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -96,6 +97,49 @@ func TestCache_CacheWriteMulti(t *testing.T) {
 
 	if exp, keys := []string{"bar", "foo"}, c.Keys(); !reflect.DeepEqual(keys, exp) {
 		t.Fatalf("cache keys incorrect after 2 writes, exp %v, got %v", exp, keys)
+	}
+}
+
+// Tests that the cache stats and size are correctly maintained during writes.
+func TestCache_WriteMulti_Stats(t *testing.T) {
+	limit := uint64(1)
+	c := NewCache(limit, "")
+	ms := NewTestStore()
+	c.store = ms
+
+	// Not enough room in the cache.
+	v := NewValue(1, 1.0)
+	values := map[string][]Value{"foo": []Value{v, v}}
+	if got, exp := c.WriteMulti(values), ErrCacheMemorySizeLimitExceeded(uint64(v.Size()*2), limit); !reflect.DeepEqual(got, exp) {
+		t.Fatalf("got %q, expected %q", got, exp)
+	}
+
+	// Fail one of the values in the write.
+	c = NewCache(50, "")
+	c.store = ms
+
+	ms.writef = func(key string, v Values) error {
+		if key == "foo" {
+			return errors.New("write failed")
+		}
+		return nil
+	}
+
+	values = map[string][]Value{"foo": []Value{v, v}, "bar": []Value{v}}
+	if got, exp := c.WriteMulti(values), errors.New("write failed"); !reflect.DeepEqual(got, exp) {
+		t.Fatalf("got %v, expected %v", got, exp)
+	}
+
+	// Cache size decreased correctly.
+	if got, exp := c.Size(), uint64(16); got != exp {
+		t.Fatalf("got %v, expected %v", got, exp)
+	}
+
+	// Write stats updated
+	if got, exp := c.stats.WriteDropped, int64(1); got != exp {
+		t.Fatalf("got %v, expected %v", got, exp)
+	} else if got, exp := c.stats.WriteErr, int64(1); got != exp {
+		t.Fatalf("got %v, expected %v", got, exp)
 	}
 }
 
@@ -385,6 +429,32 @@ func TestCache_CacheSnapshot(t *testing.T) {
 	expValues = Values{v5, v7, v4, v6}
 	if deduped := c.Values("foo"); !reflect.DeepEqual(expValues, deduped) {
 		t.Fatalf("post-snapshot out-of-order write values for foo incorrect, exp: %v, got %v", expValues, deduped)
+	}
+}
+
+// Tests that Snapshot updates statistics correctly.
+func TestCache_Snapshot_Stats(t *testing.T) {
+	limit := uint64(16)
+	c := NewCache(limit, "")
+
+	values := map[string][]Value{"foo": []Value{NewValue(1, 1.0)}}
+	if err := c.WriteMulti(values); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := c.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Store size should have been reset.
+	if got, exp := c.Size(), uint64(0); got != exp {
+		t.Fatalf("got %v, expected %v", got, exp)
+	}
+
+	// Cached bytes should have been increased.
+	if got, exp := c.stats.CachedBytes, int64(16); got != exp {
+		t.Fatalf("got %v, expected %v", got, exp)
 	}
 }
 
@@ -694,6 +764,29 @@ func mustMarshalEntry(entry WALEntry) (WalEntryType, []byte) {
 
 	return entry.Type(), snappy.Encode(b, b)
 }
+
+// TestStore implements the storer interface and can be used to mock out a
+// Cache's storer implememation.
+type TestStore struct {
+	entryf       func(key string) (*entry, bool)
+	writef       func(key string, values Values) error
+	addf         func(key string, entry *entry)
+	removef      func(key string)
+	keysf        func(sorted bool) []string
+	applyf       func(f func(string, *entry) error) error
+	applySerialf func(f func(string, *entry) error) error
+	resetf       func()
+}
+
+func NewTestStore() *TestStore                                      { return &TestStore{} }
+func (s *TestStore) entry(key string) (*entry, bool)                { return s.entryf(key) }
+func (s *TestStore) write(key string, values Values) error          { return s.writef(key, values) }
+func (s *TestStore) add(key string, entry *entry)                   { s.addf(key, entry) }
+func (s *TestStore) remove(key string)                              { s.removef(key) }
+func (s *TestStore) keys(sorted bool) []string                      { return s.keysf(sorted) }
+func (s *TestStore) apply(f func(string, *entry) error) error       { return s.applyf(f) }
+func (s *TestStore) applySerial(f func(string, *entry) error) error { return s.applySerialf(f) }
+func (s *TestStore) reset()                                         { s.resetf() }
 
 var fvSize = uint64(NewValue(1, float64(1)).Size())
 

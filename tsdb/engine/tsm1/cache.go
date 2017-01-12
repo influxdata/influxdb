@@ -166,16 +166,27 @@ const (
 	statCacheWriteDropped = "writeDropped"
 )
 
+// storer is the interface that descibes a cache's store.
+type storer interface {
+	entry(key string) (*entry, bool)                // Get an entry by its key.
+	write(key string, values Values) error          // Write an entry to the store.
+	add(key string, entry *entry)                   // Add a new entry to the store.
+	remove(key string)                              // Remove an entry from the store.
+	keys(sorted bool) []string                      // Return an optionally sorted slice of entry keys.
+	apply(f func(string, *entry) error) error       // Apply f to all entries in the store in parallel.
+	applySerial(f func(string, *entry) error) error // Apply f to all entries in serial.
+	reset()                                         // Reset the store to an initial unused state.
+}
+
 // Cache maintains an in-memory store of Values for a set of keys.
 type Cache struct {
-	// TODO(edd): size is protected by mu but due to a bug in atomic  size needs
-	// to be the first word in the struct, as that's the only place where you're
-	// guaranteed to be 64-bit aligned on a 32 bit system. See:
-	// https://golang.org/pkg/sync/atomic/#pkg-note-BUG
-	size    uint64
-	commit  sync.Mutex
+	// Due to a bug in atomic  size needs to be the first word in the struct, as
+	// that's the only place where you're guaranteed to be 64-bit aligned on a
+	// 32 bit system. See: https://golang.org/pkg/sync/atomic/#pkg-note-BUG
+	size uint64
+
 	mu      sync.RWMutex
-	store   *ring
+	store   storer
 	maxSize uint64
 
 	// snapshots are the cache objects that are currently being written to tsm files
@@ -280,24 +291,21 @@ func (c *Cache) WriteMulti(values map[string][]Value) error {
 		addedSize += uint64(Values(v).Size())
 	}
 
-	limit := c.maxSize
-	n := c.Size() + atomic.LoadUint64(&c.snapshotSize) + addedSize
-
 	// Enough room in the cache?
+	limit := c.maxSize // maxSize is safe for reading without a lock.
+	n := c.Size() + atomic.LoadUint64(&c.snapshotSize) + addedSize
 	if limit > 0 && n > limit {
 		atomic.AddInt64(&c.stats.WriteErr, 1)
 		return ErrCacheMemorySizeLimitExceeded(n, limit)
 	}
-
-	// Set everything under one RLock. We'll optimistially set size here, and
-	// then decrement it later if there is a write error.
-	c.increaseSize(addedSize)
 
 	var werr error
 	c.mu.RLock()
 	store := c.store
 	c.mu.RUnlock()
 
+	// We'll optimistially set size here, and then decrement it for write errors.
+	c.increaseSize(addedSize)
 	for k, v := range values {
 		if err := store.write(k, v); err != nil {
 			// The write failed, hold onto the error and adjust the size delta.
