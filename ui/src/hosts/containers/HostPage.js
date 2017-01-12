@@ -3,7 +3,7 @@ import LayoutRenderer from 'shared/components/LayoutRenderer';
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 import ReactTooltip from 'react-tooltip';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
-import {getMappings, getAppsForHosts, getMeasurementsForHost, getHosts} from 'src/hosts/apis';
+import {getMappings, getAppsForHosts, getMeasurementsForHost, getAllHosts} from 'src/hosts/apis';
 import {fetchLayouts} from 'shared/apis';
 
 export const HostPage = React.createClass({
@@ -37,30 +37,27 @@ export const HostPage = React.createClass({
 
   componentDidMount() {
     const {source, params, location} = this.props;
-    const hostsToGet = {[params.hostID]: {name: params.hostID}};
 
     // fetching layouts and mappings can be done at the same time
     fetchLayouts().then(({data: {layouts}}) => {
       getMappings().then(({data: {mappings}}) => {
-        getAppsForHosts(source.links.proxy, hostsToGet, mappings, source.telegraf).then((newHosts) => {
-          getMeasurementsForHost(source, params.hostID).then((measurements) => {
-            const host = newHosts[this.props.params.hostID];
-            const filteredLayouts = layouts.filter((layout) => {
-              const focusedApp = location.query.app;
-              if (focusedApp) {
-                return layout.app === focusedApp;
-              }
+        getAllHosts(source.links.proxy, source.telegraf).then((hosts) => {
+          getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf).then((newHosts) => {
+            getMeasurementsForHost(source, params.hostID).then((measurements) => {
+              const host = newHosts[this.props.params.hostID];
+              const filteredLayouts = layouts.filter((layout) => {
+                const focusedApp = location.query.app;
+                if (focusedApp) {
+                  return layout.app === focusedApp;
+                }
 
-              return host.apps && host.apps.includes(layout.app) && measurements.includes(layout.measurement);
+                return host.apps && host.apps.includes(layout.app) && measurements.includes(layout.measurement);
+              });
+              this.setState({layouts: filteredLayouts, hosts});
             });
-            this.setState({layouts: filteredLayouts});
           });
         });
       });
-    });
-
-    getHosts(source.links.proxy, source.telegraf).then((hosts) => {
-      this.setState({hosts});
     });
   },
 
@@ -138,7 +135,7 @@ export const HostPage = React.createClass({
                   <span className="caret"></span>
                 </button>
                 <ul className="dropdown-menu" aria-labelledby="dropdownMenu1">
-                  {hosts.map((host, i) => {
+                  {Object.keys(hosts).map((host, i) => {
                     return (
                       <li key={i}>
                         <a href={`/sources/${this.props.source.id}/hosts/${host}`} className="role-option">
