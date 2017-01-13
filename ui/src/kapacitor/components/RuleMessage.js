@@ -43,7 +43,7 @@ export const RuleMessage = React.createClass({
             className="alert-message"
             ref={(r) => this.message = r}
             onChange={() => actions.updateMessage(rule.id, this.message.value)}
-            placeholder="Compose your alert message here"
+            placeholder='Example: {{ .ID }} is {{ .Level }} value: {{ index .Fields "value" }}'
             value={rule.message}
           />
 
