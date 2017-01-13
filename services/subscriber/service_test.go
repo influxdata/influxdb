@@ -320,7 +320,7 @@ func TestService_Multiple(t *testing.T) {
 		expURL, _ := url.Parse(expURLStr)
 		select {
 		case u = <-urls:
-		case <-time.After(10 * time.Millisecond):
+		case <-time.After(100 * time.Millisecond):
 			t.Fatal("expected urls")
 		}
 		if expURL.String() != u.String() {
@@ -349,7 +349,7 @@ func TestService_Multiple(t *testing.T) {
 	var pr *coordinator.WritePointsRequest
 	select {
 	case pr = <-prs:
-	case <-time.After(10 * time.Millisecond):
+	case <-time.After(100 * time.Millisecond):
 		t.Fatal("expected points request")
 	}
 	if pr != expPR {
@@ -374,7 +374,7 @@ func TestService_Multiple(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		select {
 		case pr = <-prs:
-		case <-time.After(10 * time.Millisecond):
+		case <-time.After(100 * time.Millisecond):
 			t.Fatalf("expected points request: got %d exp 2", i)
 		}
 		if pr != expPR {
