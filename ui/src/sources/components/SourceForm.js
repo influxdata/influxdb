@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react';
 import classNames from 'classnames';
 import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText';
+import _ from 'lodash';
 
 const {
   bool,
@@ -87,7 +88,7 @@ export const SourceForm = React.createClass({
                           <label htmlFor="defaultSourceCheckbox">Make this the default source</label>
                         </div>
                       </div>
-                      {source.url.startsWith("https") ?
+                      {_.get(source, 'url', '').startsWith("https") ?
                         <div className="form-group col-xs-12">
                           <div className="form-control-static">
                             <input type="checkbox" id="insecureSkipVerifyCheckbox" defaultChecked={source.insecureSkipVerify} ref={(r) => this.sourceInsecureSkipVerify = r} />
