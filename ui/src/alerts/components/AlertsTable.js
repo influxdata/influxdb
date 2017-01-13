@@ -1,6 +1,6 @@
-// TODO: make with real data
 import React, {PropTypes} from 'react';
 import _ from 'lodash';
+import {Link} from 'react-router';
 
 const AlertsTable = React.createClass({
   propTypes: {
@@ -61,6 +61,7 @@ const AlertsTable = React.createClass({
   },
 
   render() {
+    const {id} = this.props.source;
     const alerts = this.sort(this.state.filteredAlerts, this.state.sortKey, this.state.sortDirection);
     return (
       <div className="panel panel-minimal">
@@ -87,7 +88,11 @@ const AlertsTable = React.createClass({
                       <td className="monotype">{name}</td>
                       <td className={`monotype alert-level-${level.toLowerCase()}`}>{level}</td>
                       <td className="monotype">{(new Date(Number(time)).toISOString())}</td>
-                      <td className="monotype">{host}</td>
+                      <td className="monotype">
+                        <Link to={`/sources/${id}/hosts/${host}`}>
+                          {host}
+                        </Link>
+                      </td>
                       <td className="monotype">{value}</td>
                     </tr>
                   );
