@@ -2,7 +2,7 @@
 
 # The values in this file override the default values used by the system if
 # a config option is not specified. The commented out lines are the configuration
-# field and the default value used. Uncommentting a line and changing the value
+# field and the default value used. Uncommenting a line and changing the value
 # will change the value used at runtime when the process is restarted.
 
 # Once every 24 hours InfluxDB will report usage data to usage.influxdata.com
@@ -11,10 +11,8 @@
 # Change this option to true to disable reporting.
 # reporting-disabled = false
 
-# we'll try to get the hostname automatically, but if it the os returns something
-# that isn't resolvable by other servers in the cluster, use this option to
-# manually set the hostname
-# hostname = "localhost"
+# Bind address to use for the RPC service for backup and restore.
+# bind-address = "127.0.0.1:8088"
 
 ###
 ### [meta]
@@ -123,7 +121,7 @@
   # can help prevent run away queries.  Setting the value to 0 disables the limit.
   # query-timeout = "0s"
 
-  # The the time threshold when a query will be logged as a slow query.  This limit can be set to help
+  # The time threshold when a query will be logged as a slow query.  This limit can be set to help
   # discover slow or resource intensive queries.  Setting the value to 0 disables the slow query logging.
   # log-queries-after = "0s"
 
@@ -135,7 +133,7 @@
   # count unlimited.
   # max-select-series = 0
 
-  # The maxium number of group by time bucket a SELECt can create.  A value of zero will max the maximum
+  # The maxium number of group by time bucket a SELECT can create.  A value of zero will max the maximum
   # number of buckets unlimited.
   # max-select-buckets = 0
 
