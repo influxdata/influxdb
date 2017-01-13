@@ -193,6 +193,23 @@ func (s *Server) HTTPPost(url string, content []byte) (results string, err error
 	}
 }
 
+type WriteError struct {
+	body       string
+	statusCode int
+}
+
+func (wr WriteError) StatusCode() int {
+	return wr.statusCode
+}
+
+func (wr WriteError) Body() string {
+	return wr.body
+}
+
+func (wr WriteError) Error() string {
+	return fmt.Sprintf("invalid status code: code=%d, body=%s", wr.statusCode, wr.body)
+}
+
 // Write executes a write against the server and returns the results.
 func (s *Server) Write(db, rp, body string, params url.Values) (results string, err error) {
 	if params == nil {
@@ -208,7 +225,7 @@ func (s *Server) Write(db, rp, body string, params url.Values) (results string, 
 	if err != nil {
 		return "", err
 	} else if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		return "", fmt.Errorf("invalid status code: code=%d, body=%s", resp.StatusCode, MustReadAll(resp.Body))
+		return "", WriteError{statusCode: resp.StatusCode, body: string(MustReadAll(resp.Body))}
 	}
 	return string(MustReadAll(resp.Body)), nil
 }
