@@ -51,7 +51,13 @@ export const RuleMessage = React.createClass({
             <p>Templates:</p>
             {
               Object.keys(templates).map(t => {
-                return <CodeData key={t} template={templates[t]} />;
+                return (
+                <CodeData
+                  key={t}
+                  template={templates[t]}
+                  onClickTemplate={() => actions.updateMessage(rule.id, `${this.message.value} ${templates[t].label}`)}
+                />
+                );
               })
             }
             <ReactTooltip effect="solid" html={true} offset={{top: -4}} class="influx-tooltip kapacitor-tooltip" />
@@ -76,10 +82,11 @@ const CodeData = React.createClass({
   },
 
   render() {
-    const {label, text} = this.props.template;
+    const {onClickTemplate, template} = this.props;
+    const {label, text} = template;
 
     return (
-      <code data-tip={text}>{label}</code>
+      <code data-tip={text} onClick={onClickTemplate}>{label}</code>
     );
   },
 });
