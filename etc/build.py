@@ -813,23 +813,23 @@ def main(args):
             type = None
             regex = None
             if ".deb" in p_name:
-                type = "ubuntu"
+                type = "Ubuntu"
                 regex = r"^.+_(.+)\.deb$"
             elif ".rpm" in p_name:
-                type = "centos"
+                type = "CentOS"
                 regex = r"^.+\.(.+)\.rpm$"
             elif ".tar.gz" in p_name:
                 if "linux" in p_name:
                     if "static" in p_name:
-                        type = "linux_static"
+                        type = "linux static"
                     else:
                         type = "linux"
                 elif "darwin" in p_name:
-                    type = "darwin"
+                    type = "Mac OS X"
                 regex = r"^.+_(.+)\.tar.gz$"
             elif ".zip" in p_name:
                 if "windows" in p_name:
-                    type = "windows"
+                    type = "Windows"
                 regex = r"^.+_(.+)\.zip$"
 
             if regex is None or type is None:
@@ -844,7 +844,8 @@ def main(args):
                 arch = "amd64"
             elif arch == "x86_32":
                 arch = "i386"
-            package_output[str(arch) + "_" + str(type)] = {
+            
+            package_output[str(type).capitalize() + " " + str(arch)] = {
                 "md5": generate_md5_from_file(p),
                 "filename": p_name,
             }
@@ -856,6 +857,11 @@ def main(args):
                 lines.append(line)
             lines.sort()
 
+            print ("## Docker")
+            print("docker pull quay.io/influxdb/chronograf:"+get_current_version_tag())
+            print("")
+            print("## Packages")
+            print("")
             print("Arch | Package | MD5")
             print("--- | --- | ---")
             for line in lines:
