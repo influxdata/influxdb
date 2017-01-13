@@ -172,6 +172,9 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 	d.lastID++
 
 	series.measurement = m
+
+	// Clone the tags to dereference any short-term buffers
+	series.Tags = series.Tags.Clone()
 	d.series[series.Key] = series
 
 	m.AddSeries(series)
