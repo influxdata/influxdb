@@ -574,6 +574,10 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 				continue
 			}
 
+			// If the tags were created by models.ParsePointsWithPrecision,
+			// they refer to subslices of the buffer containing line protocol.
+			// To ensure we don't refer to that buffer, preventing that buffer from being garbage collected, clone the tags.
+			tags = tags.Clone()
 			ss = s.index.CreateSeriesIndexIfNotExists(p.Name(), NewSeries(string(p.Key()), tags))
 			atomic.AddInt64(&s.stats.SeriesCreated, 1)
 		}
