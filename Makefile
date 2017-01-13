@@ -3,7 +3,7 @@ COMMIT ?= $(shell git rev-parse --short=8 HEAD)
 
 SOURCES := $(shell find . -name '*.go')
 
-LDFLAGS=-ldflags "-s -X main.Version=${VERSION} -X main.Commit=${COMMIT}"
+LDFLAGS=-ldflags "-s -X main.version=${VERSION} -X main.commit=${COMMIT}"
 BINARY=chronograf
 
 default: dep build
