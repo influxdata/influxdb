@@ -48,13 +48,10 @@ type Monitor struct {
 	done              chan struct{}
 	storeCreated      bool
 	storeEnabled      bool
-	storeAddress      string
 
-	storeDatabase          string
-	storeRetentionPolicy   string
-	storeRetentionDuration time.Duration
-	storeReplicationFactor int
-	storeInterval          time.Duration
+	storeDatabase        string
+	storeRetentionPolicy string
+	storeInterval        time.Duration
 
 	MetaClient interface {
 		CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)

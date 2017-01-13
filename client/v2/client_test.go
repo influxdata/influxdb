@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -257,16 +258,19 @@ func TestClient_Concurrent_Use(t *testing.T) {
 	wg.Add(3)
 	n := 1000
 
+	errC := make(chan error, 3)
 	go func() {
 		defer wg.Done()
 		bp, err := NewBatchPoints(BatchPointsConfig{})
 		if err != nil {
-			t.Errorf("got error %v", err)
+			errC <- fmt.Errorf("got error %v", err)
+			return
 		}
 
 		for i := 0; i < n; i++ {
 			if err = c.Write(bp); err != nil {
-				t.Fatalf("got error %v", err)
+				errC <- fmt.Errorf("got error %v", err)
+				return
 			}
 		}
 	}()
@@ -276,7 +280,8 @@ func TestClient_Concurrent_Use(t *testing.T) {
 		var q Query
 		for i := 0; i < n; i++ {
 			if _, err := c.Query(q); err != nil {
-				t.Fatalf("got error %v", err)
+				errC <- fmt.Errorf("got error %v", err)
+				return
 			}
 		}
 	}()
@@ -287,7 +292,13 @@ func TestClient_Concurrent_Use(t *testing.T) {
 			c.Ping(time.Second)
 		}
 	}()
+
 	wg.Wait()
+
+	close(errC)
+	if err := <-errC; err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestClient_Write(t *testing.T) {

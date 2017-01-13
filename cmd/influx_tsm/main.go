@@ -302,7 +302,7 @@ func backupDatabase(db string) error {
 			if err := out.Truncate(0); err != nil {
 				return err
 			}
-			if _, err := out.Seek(0, os.SEEK_SET); err != nil {
+			if _, err := out.Seek(0, io.SeekStart); err != nil {
 				return err
 			}
 		}
@@ -311,11 +311,11 @@ func backupDatabase(db string) error {
 			log.Printf("Resuming backup of file %v, starting at %v bytes", path, dstInfo.Size())
 		}
 
-		off, err := out.Seek(0, os.SEEK_END)
+		off, err := out.Seek(0, io.SeekEnd)
 		if err != nil {
 			return err
 		}
-		if _, err := in.Seek(off, os.SEEK_SET); err != nil {
+		if _, err := in.Seek(off, io.SeekStart); err != nil {
 			return err
 		}
 

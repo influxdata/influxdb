@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -21,8 +20,6 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
 )
-
-const emptyResults = `{"results":[{}]}`
 
 // Server represents a test wrapper for run.Server.
 type Server struct {
@@ -248,11 +245,6 @@ func NewConfig() *run.Config {
 
 func newRetentionPolicySpec(name string, rf int, duration time.Duration) *meta.RetentionPolicySpec {
 	return &meta.RetentionPolicySpec{Name: name, ReplicaN: &rf, Duration: &duration}
-}
-
-func maxFloat64() string {
-	maxFloat64, _ := json.Marshal(math.MaxFloat64)
-	return string(maxFloat64)
 }
 
 func maxInt64() string {
