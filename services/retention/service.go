@@ -22,7 +22,6 @@ type Service struct {
 		DeleteShard(shardID uint64) error
 	}
 
-	enabled       bool
 	checkInterval time.Duration
 	wg            sync.WaitGroup
 	done          chan struct{}

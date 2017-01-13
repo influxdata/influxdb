@@ -54,9 +54,6 @@ type Config struct {
 	ReadBuffer      int           `toml:"read-buffer"`
 	BatchTimeout    toml.Duration `toml:"batch-timeout"`
 	Precision       string        `toml:"precision"`
-
-	// Deprecated config option
-	udpPayloadSize int `toml:"udp-payload-size"`
 }
 
 // NewConfig returns a new instance of Config with defaults.

@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -611,10 +610,6 @@ func TestHandler_XForwardedFor(t *testing.T) {
 	}
 }
 
-type invalidJSON struct{}
-
-func (*invalidJSON) MarshalJSON() ([]byte, error) { return nil, errors.New("marker") }
-
 // NewHandler represents a test wrapper for httpd.Handler.
 type Handler struct {
 	*httpd.Handler
@@ -705,21 +700,6 @@ func MustNewJSONRequest(method, urlStr string, body io.Reader) *http.Request {
 	r := MustNewRequest(method, urlStr, body)
 	r.Header.Set("Accept", "application/json")
 	return r
-}
-
-// matchRegex returns true if a s matches pattern.
-func matchRegex(pattern, s string) bool {
-	return regexp.MustCompile(pattern).MatchString(s)
-}
-
-// NewResultChan returns a channel that sends all results and then closes.
-func NewResultChan(results ...*influxql.Result) <-chan *influxql.Result {
-	ch := make(chan *influxql.Result, len(results))
-	for _, r := range results {
-		ch <- r
-	}
-	close(ch)
-	return ch
 }
 
 // MustJWTToken returns a new JWT token and signed string or panics trying.

@@ -133,13 +133,6 @@ func (c *Client) AcquireLease(name string) (*Lease, error) {
 	return &l, nil
 }
 
-func (c *Client) data() *Data {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	data := c.cacheData.Clone()
-	return data
-}
-
 // ClusterID returns the ID of the cluster it's connected to.
 func (c *Client) ClusterID() uint64 {
 	c.mu.RLock()
@@ -978,21 +971,6 @@ func (c *Client) WithLogger(log zap.Logger) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.logger = log.With(zap.String("service", "metaclient"))
-}
-
-func (c *Client) updateAuthCache() {
-	// copy cached user info for still-present users
-	newCache := make(map[string]authUser, len(c.authCache))
-
-	for _, userInfo := range c.cacheData.Users {
-		if cached, ok := c.authCache[userInfo.Name]; ok {
-			if cached.bhash == userInfo.Hash {
-				newCache[userInfo.Name] = cached
-			}
-		}
-	}
-
-	c.authCache = newCache
 }
 
 // snapshot saves the current meta data to disk.

@@ -1,9 +1,7 @@
 package meta_test
 
 import (
-	"encoding/json"
 	"io/ioutil"
-	"net"
 	"os"
 	"path"
 	"reflect"
@@ -1097,34 +1095,4 @@ func testTempDir(skip int) string {
 		panic(err)
 	}
 	return dir
-}
-
-func mustParseStatement(s string) influxql.Statement {
-	stmt, err := influxql.ParseStatement(s)
-	if err != nil {
-		panic(err)
-	}
-	return stmt
-}
-
-func mustMarshalJSON(v interface{}) string {
-	b, e := json.Marshal(v)
-	if e != nil {
-		panic(e)
-	}
-	return string(b)
-}
-
-func freePort() string {
-	l, _ := net.Listen("tcp", "127.0.0.1:0")
-	defer l.Close()
-	return l.Addr().String()
-}
-
-func freePorts(i int) []string {
-	var ports []string
-	for j := 0; j < i; j++ {
-		ports = append(ports, freePort())
-	}
-	return ports
 }
