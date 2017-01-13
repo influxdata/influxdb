@@ -49,6 +49,13 @@ deployment:
         --upload
         --bucket dl.influxdata.com/chronograf/releases
       - sudo chown -R ubuntu:ubuntu /home/ubuntu
+      - cp build/linux/static_amd64/chronograf .
+      - docker build -t chronograf .
+      - docker login -e $QUAY_EMAIL -u "$QUAY_USER" -p $QUAY_PASS quay.io
+      - docker tag chronograf quay.io/influxdb/chronograf::${CIRCLE_SHA1:0:7}
+      - docker push quay.io/influxdb/chronograf::${CIRCLE_SHA1:0:7}
+      - docker tag chronograf quay.io/influxdb/chronograf:${CIRCLE_TAG}
+      - docker push quay.io/influxdb/chronograf:${CIRCLE_TAG}
       - mv ./build/* $CIRCLE_ARTIFACTS
   release:
     tag: /^[0-9]+(\.[0-9]+)*$/
@@ -63,4 +70,11 @@ deployment:
         --upload
         --bucket dl.influxdata.com/chronograf/releases
       - sudo chown -R ubuntu:ubuntu /home/ubuntu
+      - cp build/linux/static_amd64/chronograf .
+      - docker build -t chronograf .
+      - docker login -e $QUAY_EMAIL -u "$QUAY_USER" -p $QUAY_PASS quay.io
+      - docker tag chronograf quay.io/influxdb/chronograf::${CIRCLE_SHA1:0:7}
+      - docker push quay.io/influxdb/chronograf::${CIRCLE_SHA1:0:7}
+      - docker tag chronograf quay.io/influxdb/chronograf:${CIRCLE_TAG}
+      - docker push quay.io/influxdb/chronograf:${CIRCLE_TAG}
       - mv ./build/* $CIRCLE_ARTIFACTS
