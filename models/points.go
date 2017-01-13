@@ -233,6 +233,9 @@ func ParsePointsString(buf string) ([]Point, error) {
 }
 
 // ParseKey returns the measurement name and tags from a point.
+//
+// NOTE: to minimize heap allocations, the returned Tags will refer to subslices of buf.
+// This can have the unintended effect preventing buf from being garbage collected.
 func ParseKey(buf []byte) (string, Tags, error) {
 	// Ignore the error because scanMeasurement returns "missing fields" which we ignore
 	// when just parsing a key
@@ -249,6 +252,9 @@ func ParseKey(buf []byte) (string, Tags, error) {
 
 // ParsePointsWithPrecision is similar to ParsePoints, but allows the
 // caller to provide a precision for time.
+//
+// NOTE: to minimize heap allocations, the returned Points will refer to subslices of buf.
+// This can have the unintended effect preventing buf from being garbage collected.
 func ParsePointsWithPrecision(buf []byte, defaultTime time.Time, precision string) ([]Point, error) {
 	points := make([]Point, 0, bytes.Count(buf, []byte{'\n'})+1)
 	var (
@@ -1617,6 +1623,22 @@ type Tag struct {
 	Value []byte
 }
 
+// Clone returns a shallow copy of Tag.
+//
+// Tags associated with a Point created by ParsePointsWithPrecision will hold references to the byte slice that was parsed.
+// Use Clone to create a Tag with new byte slices that do not refer to the argument to ParsePointsWithPrecision.
+func (t Tag) Clone() Tag {
+	other := Tag{
+		Key:   make([]byte, len(t.Key)),
+		Value: make([]byte, len(t.Value)),
+	}
+
+	copy(other.Key, t.Key)
+	copy(other.Value, t.Value)
+
+	return other
+}
+
 // Tags represents a sorted list of tags.
 type Tags []Tag
 
@@ -1631,6 +1653,19 @@ func NewTags(m map[string]string) Tags {
 	}
 	sort.Sort(a)
 	return a
+}
+
+// Clone returns a shallow copy of Tags.
+//
+// Tags associated with a Point created by ParsePointsWithPrecision will hold references to the byte slice that was parsed.
+// Use Clone to create Tags with new byte slices that do not refer to the argument to ParsePointsWithPrecision.
+func (a Tags) Clone() Tags {
+	others := make(Tags, len(a))
+	for i := range a {
+		others[i] = a[i].Clone()
+	}
+
+	return others
 }
 
 // Len implements sort.Interface.
