@@ -467,14 +467,3 @@ export const STROKE_WIDTH = {
   heavy: 3.5,
   light: 1.5,
 };
-
-export const RULE_MESSAGE_TEMPLATES = {
-  id: {label: "{{.ID}}", text: "The ID of the alert"},
-  name: {label: "{{.Name}}", text: "Measurement name"},
-  taskName: {label: "{{.TaskName}}", text: "The name of the task"},
-  group: {label: "{{.Group}}", text: "Concatenation of all group-by tags of the form <code>&#91;key=value,&#93;+</code>. If no groupBy is performed equal to literal &quot;nil&quot;"},
-  tags: {label: "{{.Tags}}", text: "Map of tags. Use <code>&#123;&#123; index .Tags &quot;key&quot; &#125;&#125;</code> to get a specific tag value"},
-  level: {label: "{{.Level}}", text: "Alert Level, one of: <code>INFO</code><code>WARNING</code><code>CRITICAL</code>"},
-  fields: {label: "{{.Fields}}", text: "Map of fields. Use <code>&#123;&#123; index .Fields &quot;key&quot; &#125;&#125;</code> to get a specific field value"},
-  time: {label: "{{.Time}}", text: "The time of the point that triggered the event"},
-};

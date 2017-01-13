@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react';
 import Dropdown from 'shared/components/Dropdown';
 import ReactTooltip from 'react-tooltip';
-import {RULE_MESSAGE_TEMPLATES as templates} from 'src/shared/constants/index.js';
+import {RULE_MESSAGE_TEMPLATES as templates} from '../constants/index.js';
 
 const {
   arrayOf,
