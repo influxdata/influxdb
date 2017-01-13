@@ -1,17 +1,24 @@
 ## v1.1.0 [unreleased]
 
 ### Upcoming Bug Fixes
+### Upcoming Features
+### Upcoming UI Improvements
+
+## v1.1.0-beta6 [2017-01-13]
+### Bug Fixes
   1. [#748](https://github.com/influxdata/chronograf/pull/748): Fix missing kapacitors on source index page
   1. [#755](https://github.com/influxdata/chronograf/pull/755): Fix kapacitor basic auth proxying
   2. [#704](https://github.com/influxdata/chronograf/issues/704): Fix RPM and DEB install script and systemd unit file
 
-### Upcoming Features
+### Features
   1. [#660](https://github.com/influxdata/chronograf/issues/660): Add option to accept any certificate from InfluxDB.
   2. [#733](https://github.com/influxdata/chronograf/pull/733): Add optional Github organization membership checks to authentication
   3. [#564](https://github.com/influxdata/chronograf/issues/564): Add RabbitMQ pre-canned layout.
   4. [#706](https://github.com/influxdata/chronograf/issues/706): Alerts on threshold where value is inside of range
   5. [#707](https://github.com/influxdata/chronograf/issues/707): Alerts on threshold where value is outside of range
-  6. [#766](https://github.com/influxdata/chronograf/pull/766): Add click-to-insert functionality to rule message templates
+
+### UI Improvements
+  1. [#766](https://github.com/influxdata/chronograf/pull/766): Add click-to-insert functionality to rule message templates
 
 ## v1.1.0-beta5 [2017-01-05]
 
