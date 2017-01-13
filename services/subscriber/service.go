@@ -75,6 +75,10 @@ func NewService(c Config) *Service {
 
 // Open starts the subscription service.
 func (s *Service) Open() error {
+	if !s.conf.Enabled {
+		return nil // Service disabled.
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.MetaClient == nil {
@@ -106,6 +110,11 @@ func (s *Service) Open() error {
 func (s *Service) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.closed {
+		return nil // Already closed.
+	}
+
 	s.closed = true
 
 	close(s.points)
