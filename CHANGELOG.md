@@ -2,7 +2,7 @@
 
 ### Upcoming Bug Fixes
 ### Upcoming Features
-  1. [#776](https://github.com/influxdata/chronograf/issues/776): Add layout for telegraf's diskio system plugin
+  1. [#779](https://github.com/influxdata/chronograf/issues/779): Add layout for telegraf's diskio system plugin
 
 ### Upcoming UI Improvements
 
