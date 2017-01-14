@@ -1,8 +1,22 @@
-import React from 'react';
+import React, {PropTypes} from 'react';
+import {Link} from 'react-router';
 
 import {getDashboards} from '../apis';
 
 const DashboardsPage = React.createClass({
+  propTypes: {
+    source: PropTypes.shape({
+      id: PropTypes.string.isRequired,
+      name: PropTypes.string.isRequired,
+      type: PropTypes.string,
+      links: PropTypes.shape({
+        proxy: PropTypes.string.isRequired,
+      }).isRequired,
+      telegraf: PropTypes.string.isRequired,
+    }),
+    addFlashMessage: PropTypes.func,
+  },
+
   getInitialState() {
     return {
       dashboards: [],
@@ -56,7 +70,11 @@ const DashboardsPage = React.createClass({
                             this.state.dashboards.map((dashboard) => {
                               return (
                                 <tr key={dashboard.id}>
-                                  <td className="monotype">{dashboard.name}</td>
+                                  <td className="monotype">
+                                    <Link to={`/sources/${this.props.source.id}/dashboards/${dashboard.id}`}>
+                                      {dashboard.name}
+                                    </Link>
+                                  </td>
                                 </tr>
                               );
                             })
