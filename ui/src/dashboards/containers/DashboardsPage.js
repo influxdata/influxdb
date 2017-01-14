@@ -10,9 +10,9 @@ const DashboardsPage = React.createClass({
   },
 
   componentDidMount() {
-    getDashboards().then((dashboards) => {
+    getDashboards().then((resp) => {
       this.setState({
-        dashboards,
+        dashboards: resp.data.dashboards,
       });
     });
   },
