@@ -47,6 +47,7 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7812](https://github.com/influxdata/influxdb/issues/7812): Fix slice out of bounds panic when pruning shard groups. Thanks @vladlopes
 - [#7822](https://github.com/influxdata/influxdb/issues/7822): Drop database will delete /influxdb/data directory
 - [#7838](https://github.com/influxdata/influxdb/issues/7838): Ensure Subscriber service can be disabled.
+- [#7845](https://github.com/influxdata/influxdb/issues/7845): Fix race in storage engine.
 
 ## v1.1.1 [2016-12-06]
 
@@ -96,7 +97,7 @@ The query language has been extended with a few new features:
 - [#7442](https://github.com/influxdata/influxdb/pull/7442): Support regex on fields keys in select clause
 - [#7403](https://github.com/influxdata/influxdb/pull/7403): New `linear` fill option
 - [#7388](https://github.com/influxdata/influxdb/pull/7388): New `cumulative_sum` function
-- [#7295](https://github.com/influxdata/influxdb/pull/7295): Support `ON` for `SHOW` commands 
+- [#7295](https://github.com/influxdata/influxdb/pull/7295): Support `ON` for `SHOW` commands
 
 
 All Changes:
