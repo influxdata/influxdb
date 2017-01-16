@@ -896,8 +896,10 @@ func (s *Shard) monitor() {
 			}
 
 			for _, m := range s.index.Measurements() {
+				// WalkTagKeys takes an RLock on m so nothing in this function
+				// can take a lock.
 				m.WalkTagKeys(func(k string) {
-					n := m.Cardinality(k)
+					n := m.cardinality(k)
 					perc := int(float64(n) / float64(s.options.Config.MaxValuesPerTag) * 100)
 					if perc > 100 {
 						perc = 100

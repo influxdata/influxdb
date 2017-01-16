@@ -664,9 +664,13 @@ func (m *Measurement) HasSeries() bool {
 func (m *Measurement) Cardinality(key string) int {
 	var n int
 	m.mu.RLock()
-	n = len(m.seriesByTagKeyValue[key])
+	n = m.cardinality(key)
 	m.mu.RUnlock()
 	return n
+}
+
+func (m *Measurement) cardinality(key string) int {
+	return len(m.seriesByTagKeyValue[key])
 }
 
 // CardinalityBytes returns the number of values associated with the given tag key.
