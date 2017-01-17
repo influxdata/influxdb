@@ -2,6 +2,8 @@
 // other packages can provide diagnostics without depending on the monitor package.
 package diagnostics // import "github.com/influxdata/influxdb/monitor/diagnostics"
 
+import "sort"
+
 // Client is the interface modules implement if they register diagnostics with monitor.
 type Client interface {
 	Diagnostics() (*Diagnostics, error)
@@ -40,4 +42,23 @@ func NewDiagnostics(columns []string) *Diagnostics {
 // AddRow appends the provided row to the Diagnostics' rows.
 func (d *Diagnostics) AddRow(r []interface{}) {
 	d.Rows = append(d.Rows, r)
+}
+
+// RowFromMap returns a new one-row Diagnostics from a map.
+func RowFromMap(m map[string]interface{}) *Diagnostics {
+	// Display columns in deterministic order.
+	sortedKeys := make([]string, 0, len(m))
+	for k := range m {
+		sortedKeys = append(sortedKeys, k)
+	}
+	sort.Strings(sortedKeys)
+
+	d := NewDiagnostics(sortedKeys)
+	row := make([]interface{}, len(sortedKeys))
+	for i, k := range sortedKeys {
+		row[i] = m[k]
+	}
+	d.AddRow(row)
+
+	return d
 }
