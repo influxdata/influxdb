@@ -258,7 +258,7 @@ func TestClient_Concurrent_Use(t *testing.T) {
 	wg.Add(3)
 	n := 1000
 
-	errC := make(chan error, 3)
+	errC := make(chan error)
 	go func() {
 		defer wg.Done()
 		bp, err := NewBatchPoints(BatchPointsConfig{})
@@ -293,11 +293,15 @@ func TestClient_Concurrent_Use(t *testing.T) {
 		}
 	}()
 
-	wg.Wait()
+	go func() {
+		wg.Wait()
+		close(errC)
+	}()
 
-	close(errC)
-	if err := <-errC; err != nil {
-		t.Fatal(err)
+	for err := range errC {
+		if err != nil {
+			t.Error(err)
+		}
 	}
 }
 

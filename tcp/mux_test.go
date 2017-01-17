@@ -43,7 +43,7 @@ func TestMux(t *testing.T) {
 			mux.Logger = log.New(ioutil.Discard, "", 0)
 		}
 
-		errC := make(chan error, n)
+		errC := make(chan error)
 		for i := uint8(0); i < n; i++ {
 			ln := mux.Listen(byte(i))
 
@@ -121,14 +121,21 @@ func TestMux(t *testing.T) {
 
 		// Close original TCP listener and wait for all goroutines to close.
 		tcpListener.Close()
-		wg.Wait()
 
-		close(errC)
-		if err := <-errC; err != nil {
-			t.Fatal(err)
+		go func() {
+			wg.Wait()
+			close(errC)
+		}()
+
+		ok := true
+		for err := range errC {
+			if err != nil {
+				ok = false
+				t.Error(err)
+			}
 		}
 
-		return true
+		return ok
 	}, nil); err != nil {
 		t.Error(err)
 	}

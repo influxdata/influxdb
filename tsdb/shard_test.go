@@ -402,7 +402,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-	errC := make(chan error, 2)
+	errC := make(chan error)
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
@@ -434,12 +434,16 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 		}
 	}()
 
-	wg.Wait()
-	close(errC)
-	if err := <-errC; err != nil {
-		t.Fatal(err)
-	}
+	go func() {
+		wg.Wait()
+		close(errC)
+	}()
 
+	for err := range errC {
+		if err != nil {
+			t.Error(err)
+		}
+	}
 }
 
 // Ensures that when a shard is closed, it removes any series meta-data

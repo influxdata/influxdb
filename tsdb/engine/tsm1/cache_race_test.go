@@ -86,7 +86,7 @@ func TestCacheRace(t *testing.T) {
 		}(s)
 	}
 
-	errC := make(chan error, 1)
+	errC := make(chan error)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -106,11 +106,16 @@ func TestCacheRace(t *testing.T) {
 	}()
 
 	close(ch)
-	wg.Wait()
 
-	close(errC)
-	if err := <-errC; err != nil {
-		t.Fatal(err)
+	go func() {
+		wg.Wait()
+		close(errC)
+	}()
+
+	for err := range errC {
+		if err != nil {
+			t.Error(err)
+		}
 	}
 }
 
@@ -148,7 +153,7 @@ func TestCacheRace2Compacters(t *testing.T) {
 	fileCounter := 0
 	mapFiles := map[int]bool{}
 	mu := sync.Mutex{}
-	errC := make(chan error, 1000)
+	errC := make(chan error)
 	for i := 0; i < 2; i++ {
 		wg.Add(1)
 		go func() {
@@ -187,10 +192,15 @@ func TestCacheRace2Compacters(t *testing.T) {
 		}()
 	}
 	close(ch)
-	wg.Wait()
 
-	close(errC)
-	if err := <-errC; err != nil {
-		t.Fatal(err)
+	go func() {
+		wg.Wait()
+		close(errC)
+	}()
+
+	for err := range errC {
+		if err != nil {
+			t.Error(err)
+		}
 	}
 }
