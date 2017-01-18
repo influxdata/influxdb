@@ -29,7 +29,7 @@ We recommend installing InfluxDB using one of the [pre-built packages](https://i
 ### Create your first database
 
 ```
-curl -G 'http://localhost:8086/query' --data-urlencode "q=CREATE DATABASE mydb"
+curl -XPOST 'http://localhost:8086/query' --data-urlencode "q=CREATE DATABASE mydb"
 ```
 
 ### Insert some data
