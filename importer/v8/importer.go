@@ -125,6 +125,17 @@ func (i *Importer) Import() error {
 		return fmt.Errorf("reading standard input: %s", err)
 	}
 
+	// If there were any failed inserts then return an error so that a non-zero
+	// exit code can be returned.
+	if i.failedInserts > 0 {
+		plural := " was"
+		if i.failedInserts > 1 {
+			plural = "s were"
+		}
+
+		return fmt.Errorf("%d point%s not inserted", i.failedInserts, plural)
+	}
+
 	return nil
 }
 
