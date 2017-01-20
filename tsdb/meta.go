@@ -20,8 +20,10 @@ import (
 //go:generate protoc --gogo_out=. internal/meta.proto
 
 const (
-	statDatabaseSeries       = "numSeries"       // number of series in this database
-	statDatabaseMeasurements = "numMeasurements" // number of measurements in this database
+	statDatabaseSeries              = "numSeries"              // number of series in this database
+	statDatabaseMeasurements        = "numMeasurements"        // number of measurements in this database
+	statDatabaseSeriesDropped       = "numSeriesDropped"       // number of series dropped from database
+	statDatabaseMeasurementsDropped = "numMeasurementsDropped" // number of measurements dropped from database
 )
 
 // DatabaseIndex is the in memory index of a collection of measurements, time series, and their tags.
@@ -52,8 +54,10 @@ func NewDatabaseIndex(name string) *DatabaseIndex {
 
 // IndexStatistics maintains statistics for the index.
 type IndexStatistics struct {
-	NumSeries       int64
-	NumMeasurements int64
+	NumSeries              int64
+	NumMeasurements        int64
+	NumSeriesDropped       int64
+	NumMeasurementsDropped int64
 }
 
 // Statistics returns statistics for periodic monitoring.
@@ -62,8 +66,10 @@ func (d *DatabaseIndex) Statistics(tags map[string]string) []models.Statistic {
 		Name: "database",
 		Tags: d.defaultTags.Merge(tags),
 		Values: map[string]interface{}{
-			statDatabaseSeries:       atomic.LoadInt64(&d.stats.NumSeries),
-			statDatabaseMeasurements: atomic.LoadInt64(&d.stats.NumMeasurements),
+			statDatabaseSeries:              atomic.LoadInt64(&d.stats.NumSeries),
+			statDatabaseMeasurements:        atomic.LoadInt64(&d.stats.NumMeasurements),
+			statDatabaseSeriesDropped:       atomic.LoadInt64(&d.stats.NumSeriesDropped),
+			statDatabaseMeasurementsDropped: atomic.LoadInt64(&d.stats.NumMeasurementsDropped),
 		},
 	}}
 }
@@ -248,6 +254,7 @@ func (d *DatabaseIndex) UnassignShard(k string, shardID uint64) {
 				d.mu.Lock()
 				delete(d.series, k)
 				atomic.AddInt64(&d.stats.NumSeries, -1)
+				atomic.AddInt64(&d.stats.NumSeriesDropped, 1)
 				d.mu.Unlock()
 			}
 		}
@@ -495,7 +502,9 @@ func (d *DatabaseIndex) dropMeasurement(name string) {
 	}
 
 	atomic.AddInt64(&d.stats.NumSeries, int64(-len(m.seriesByID)))
+	atomic.AddInt64(&d.stats.NumSeriesDropped, int64(len(m.seriesByID)))
 	atomic.AddInt64(&d.stats.NumMeasurements, -1)
+	atomic.AddInt64(&d.stats.NumMeasurementsDropped, 1)
 }
 
 // DropSeries removes the series keys and their tags from the index.
@@ -528,6 +537,7 @@ func (d *DatabaseIndex) DropSeries(keys []string) {
 		d.dropMeasurement(mname)
 	}
 	atomic.AddInt64(&d.stats.NumSeries, -nDeleted)
+	atomic.AddInt64(&d.stats.NumSeriesDropped, nDeleted)
 }
 
 // Dereference removes all references to data within b and moves them to the heap.
