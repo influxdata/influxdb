@@ -71,7 +71,7 @@ const AlertsTable = React.createClass({
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
           <h2 className="panel-title">{this.props.alerts.length} Alerts</h2>
-          <SearchBar onSearch={this.filterAlerts} />
+          <SearchBar onSearch={this.filterAlerts} searchTerm={this.state.searchTerm}/>
         </div>
         <div className="panel-body">
           <table className="table v-center">
@@ -113,6 +113,7 @@ const AlertsTable = React.createClass({
 const SearchBar = React.createClass({
   propTypes: {
     onSearch: PropTypes.func.isRequired,
+    searchTerm: PropTypes.string.isRequired,
   },
 
   handleChange(e) {
@@ -127,6 +128,7 @@ const SearchBar = React.createClass({
           className="form-control"
           placeholder="Filter Alerts by Name..."
           onChange={this.handleChange}
+          value={this.props.searchTerm}
         />
         <div className="input-group-addon">
           <span className="icon search" aria-hidden="true"></span>
