@@ -86,9 +86,9 @@ const AlertsTable = React.createClass({
             </thead>
             <tbody>
               {
-                alerts.map(({name, time, value, host, level}) => {
+                alerts.map(({name, level, time, value, host}) => {
                   return (
-                    <tr key={`${name}-${time}-${host}-${value}`}>
+                    <tr key={`${name}-${level}-${time}-${host}-${value}`}>
                       <td className="monotype">{name}</td>
                       <td className={`monotype alert-level-${level.toLowerCase()}`}>{level}</td>
                       <td className="monotype">{(new Date(Number(time)).toISOString())}</td>
