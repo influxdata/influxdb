@@ -281,6 +281,28 @@ func NewLimitIterator(input Iterator, opt IteratorOptions) Iterator {
 	}
 }
 
+// NewFilterIterator returns an iterator that filters the points based on the
+// condition. This iterator is not nearly as efficient as filtering points
+// within the query engine and is only used when filtering subqueries.
+func NewFilterIterator(input Iterator, cond Expr, opt IteratorOptions) Iterator {
+	if input == nil {
+		return nil
+	}
+
+	switch input := input.(type) {
+	case FloatIterator:
+		return newFloatFilterIterator(input, cond, opt)
+	case IntegerIterator:
+		return newIntegerFilterIterator(input, cond, opt)
+	case StringIterator:
+		return newStringFilterIterator(input, cond, opt)
+	case BooleanIterator:
+		return newBooleanFilterIterator(input, cond, opt)
+	default:
+		panic(fmt.Sprintf("unsupported filter iterator type: %T", input))
+	}
+}
+
 // NewDedupeIterator returns an iterator that only outputs unique points.
 // This iterator maintains a serialized copy of each row so it is inefficient
 // to use on large datasets. It is intended for small datasets such as meta queries.
