@@ -71,8 +71,8 @@ export function dropShard(host, shard, clusterID) {
   return proxy(url, clusterID);
 }
 
-export function showFieldKeys(source, db, measurement) {
-  const query = `SHOW FIELD KEYS FROM "${measurement}"`;
+export function showFieldKeys(source, db, measurement, rp) {
+  const query = `SHOW FIELD KEYS FROM "${rp}"."${measurement}"`;
 
   return proxy({source, query, db});
 }

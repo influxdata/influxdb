@@ -11,6 +11,7 @@ const FieldList = React.createClass({
   propTypes: {
     query: shape({
       database: string,
+      retentionPolicy: string,
       measurement: string,
     }).isRequired,
     onToggleField: func.isRequired,
@@ -40,14 +41,14 @@ const FieldList = React.createClass({
   },
 
   componentDidMount() {
-    const {database, measurement} = this.props.query;
+    const {database, measurement, retentionPolicy} = this.props.query;
     if (!database || !measurement) {
       return;
     }
 
     const {source} = this.context;
     const proxySource = source.links.proxy;
-    showFieldKeys(proxySource, database, measurement).then((resp) => {
+    showFieldKeys(proxySource, database, measurement, retentionPolicy).then((resp) => {
       const {errors, fieldSets} = showFieldKeysParser(resp.data);
       if (errors.length) {
         // TODO: do something
