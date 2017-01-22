@@ -10,7 +10,6 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"net/http/pprof"
 	"os"
 	"runtime/debug"
 	"strconv"
@@ -252,16 +251,7 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("X-Influxdb-Version", h.Version)
 
 	if strings.HasPrefix(r.URL.Path, "/debug/pprof") && h.Config.PprofEnabled {
-		switch r.URL.Path {
-		case "/debug/pprof/cmdline":
-			pprof.Cmdline(w, r)
-		case "/debug/pprof/profile":
-			pprof.Profile(w, r)
-		case "/debug/pprof/symbol":
-			pprof.Symbol(w, r)
-		default:
-			pprof.Index(w, r)
-		}
+		handleProfiles(w, r)
 	} else if strings.HasPrefix(r.URL.Path, "/debug/vars") {
 		h.serveExpvar(w, r)
 	} else if strings.HasPrefix(r.URL.Path, "/debug/requests") {
