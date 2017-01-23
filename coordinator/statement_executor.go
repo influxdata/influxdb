@@ -255,6 +255,14 @@ func (e *StatementExecutor) executeCreateDatabaseStatement(stmt *influxql.Create
 		return err
 	}
 
+	// If we're doing, for example, CREATE DATABASE "db" WITH DURATION 1d then
+	// the name will not yet be set. We only need to validate non-empty
+	// retention policy names, such as in the statement:
+	// 	CREATE DATABASE "db" WITH DURATION 1d NAME "xyz"
+	if stmt.RetentionPolicyName != "" && !meta.ValidName(stmt.RetentionPolicyName) {
+		return meta.ErrInvalidName
+	}
+
 	spec := meta.RetentionPolicySpec{
 		Name:               stmt.RetentionPolicyName,
 		Duration:           stmt.RetentionPolicyDuration,
