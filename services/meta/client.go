@@ -206,8 +206,23 @@ func (c *Client) CreateDatabase(name string) (*DatabaseInfo, error) {
 	return db, nil
 }
 
-// CreateDatabaseWithRetentionPolicy creates a database with the specified retention policy.
+// CreateDatabaseWithRetentionPolicy creates a database with the specified
+// retention policy.
+//
+// When creating a database with a retention policy, the retention policy will
+// always be set to default. Therefore if the caller provides a retention policy
+// that already exists on the database, but that retention policy is not the
+// default one, an error will be returned.
+//
+// This call is only idempotent when the caller provides the exact same
+// retention policy, and that retention policy is already the default for the
+// database.
+//
 func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *RetentionPolicySpec) (*DatabaseInfo, error) {
+	if spec == nil {
+		return nil, errors.New("CreateDatabaseWithRetentionPolicy called with nil spec")
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -225,26 +240,29 @@ func (c *Client) CreateDatabaseWithRetentionPolicy(name string, spec *RetentionP
 		db = data.Database(name)
 	}
 
+	// No existing retention policies, so we can create the provided policy as
+	// the new default policy.
 	rpi := spec.NewRetentionPolicyInfo()
-	if rp := db.RetentionPolicy(rpi.Name); rp == nil {
+	if len(db.RetentionPolicies) == 0 {
 		if err := data.CreateRetentionPolicy(name, rpi, true); err != nil {
 			return nil, err
 		}
-	} else if !spec.Matches(rp) {
-		// Verify that the retention policy with this name matches
-		// the one already created.
+	} else if !spec.Matches(db.RetentionPolicy(rpi.Name)) {
+		// In this case we already have a retention policy on the database and
+		// the provided retention policy does not match it. Therefore, this call
+		// is not idempotent and we need to return an error.
 		return nil, ErrRetentionPolicyConflict
 	}
 
-	// If no default retention policy has been set, set it to the retention
-	// policy we just created. If the default is different from what we are
-	// trying to create, record it as a conflict and abandon with an error.
-	if db.DefaultRetentionPolicy == "" {
-		db.DefaultRetentionPolicy = rpi.Name
-	} else if rpi.Name != db.DefaultRetentionPolicy {
+	// If a non-default retention policy was passed in that already exists then
+	// it's an error regardless of if the exact same retention policy is
+	// provided. CREATE DATABASE WITH RETENTION POLICY should only be used to
+	// create DEFAULT retention policies.
+	if db.DefaultRetentionPolicy != rpi.Name {
 		return nil, ErrRetentionPolicyConflict
 	}
 
+	// Commit the changes.
 	if err := c.commit(data); err != nil {
 		return nil, err
 	}
