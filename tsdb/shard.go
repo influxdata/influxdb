@@ -484,6 +484,9 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 
 		// Add the field to the in memory index
 		if err := m.CreateFieldIfNotExists(f.Field.Name, f.Field.Type, false); err != nil {
+			if err == ErrFieldTypeConflict {
+				return nil
+			}
 			return err
 		}
 
@@ -543,7 +546,9 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 
 	// get the shard mutex for locally defined fields
 	n = 0
+	var skip bool
 	for i, p := range points {
+		skip = false
 		// verify the tags and fields
 		tags := p.Tags()
 		if v := tags.Get(timeBytes); v != nil {
@@ -631,16 +636,24 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 			if f := mf.FieldBytes(iter.FieldKey()); f != nil {
 				// Field present in shard metadata, make sure there is no type conflict.
 				if f.Type != fieldType {
-					return points, nil, fmt.Errorf("%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s", ErrFieldTypeConflict, iter.FieldKey(), p.Name(), fieldType, f.Type)
+					atomic.AddInt64(&s.stats.WritePointsDropped, 1)
+					dropped++
+					reason = fmt.Sprintf("%s: input field \"%s\" on measurement \"%s\" is type %s, already exists as type %s", ErrFieldTypeConflict, iter.FieldKey(), p.Name(), fieldType, f.Type)
+					skip = true
+				} else {
+					continue // Field is present, and it's of the same type. Nothing more to do.
 				}
-
-				continue // Field is present, and it's of the same type. Nothing more to do.
 			}
 
-			fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &Field{Name: string(iter.FieldKey()), Type: fieldType}})
+			if !skip {
+				fieldsToCreate = append(fieldsToCreate, &FieldCreate{p.Name(), &Field{Name: string(iter.FieldKey()), Type: fieldType}})
+			}
 		}
-		points[n] = points[i]
-		n++
+
+		if !skip {
+			points[n] = points[i]
+			n++
+		}
 	}
 	points = points[:n]
 
