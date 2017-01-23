@@ -1,6 +1,8 @@
 ## v1.1.0 [unreleased]
 
 ### Upcoming Bug Fixes
+  1. [#788](https://github.com/influxdata/chronograf/pull/788): Fix missing fields in data explorer when using non-default retention policy
+
 ### Upcoming Features
 ### Upcoming UI Improvements
 
