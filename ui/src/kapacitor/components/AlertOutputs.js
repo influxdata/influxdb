@@ -7,6 +7,7 @@ import PagerDutyConfig from './PagerDutyConfig';
 import SensuConfig from './SensuConfig';
 import SlackConfig from './SlackConfig';
 import SMTPConfig from './SMTPConfig';
+import TalkConfig from './TalkConfig';
 import TelegramConfig from './TelegramConfig';
 import VictorOpsConfig from './VictorOpsConfig';
 
@@ -114,6 +115,7 @@ const AlertOutputs = React.createClass({
                 <option value="sensu">Sensu</option>
                 <option value="slack">Slack</option>
                 <option value="smtp">SMTP</option>
+                <option value="talk">Talk</option>
                 <option value="telegram">Telegram</option>
                 <option value="victorops">VictorOps</option>
               </select>
@@ -165,6 +167,9 @@ const AlertOutputs = React.createClass({
       }
       case 'sensu': {
         return <SensuConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
+      }
+      case 'talk': {
+        return <TalkConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
       }
     }
   },
