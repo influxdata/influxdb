@@ -79,6 +79,12 @@ func TestMetaClient_CreateDatabaseWithRetentionPolicy(t *testing.T) {
 	defer os.RemoveAll(d)
 	defer c.Close()
 
+	// Calling CreateDatabaseWithRetentionPolicy with a nil spec should return
+	// an error
+	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", nil); err == nil {
+		t.Fatal("expected error")
+	}
+
 	duration := 1 * time.Hour
 	replicaN := 1
 	spec := meta.RetentionPolicySpec{
@@ -115,8 +121,46 @@ func TestMetaClient_CreateDatabaseWithRetentionPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// If the rp's duration is different, an error should be returned.
+	// If create database is used by itself, no error should be returned and
+	// the default retention policy should not be changed.
+	if dbi, err := c.CreateDatabase("db0"); err != nil {
+		t.Fatalf("got %v, but expected %v", err, nil)
+	} else if dbi.DefaultRetentionPolicy != "rp0" {
+		t.Fatalf("got %v, but expected %v", dbi.DefaultRetentionPolicy, "rp0")
+	} else if got, exp := len(dbi.RetentionPolicies), 1; got != exp {
+		// Ensure no additional retention policies were created.
+		t.Fatalf("got %v, but expected %v", got, exp)
+	}
+}
+
+func TestMetaClient_CreateDatabaseWithRetentionPolicy_Conflict_Fields(t *testing.T) {
+	t.Parallel()
+
+	d, c := newClient()
+	defer os.RemoveAll(d)
+	defer c.Close()
+
+	duration := 1 * time.Hour
+	replicaN := 1
+	spec := meta.RetentionPolicySpec{
+		Name:               "rp0",
+		Duration:           &duration,
+		ReplicaN:           &replicaN,
+		ShardGroupDuration: 60 * time.Minute,
+	}
+	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &spec); err != nil {
+		t.Fatal(err)
+	}
+
+	// If the rp's name is different, and error should be returned.
 	spec2 := spec
+	spec2.Name = spec.Name + "1"
+	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &spec2); err != meta.ErrRetentionPolicyConflict {
+		t.Fatalf("got %v, but expected %v", err, meta.ErrRetentionPolicyConflict)
+	}
+
+	// If the rp's duration is different, an error should be returned.
+	spec2 = spec
 	duration2 := *spec.Duration + time.Minute
 	spec2.Duration = &duration2
 	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &spec2); err != meta.ErrRetentionPolicyConflict {
@@ -137,16 +181,40 @@ func TestMetaClient_CreateDatabaseWithRetentionPolicy(t *testing.T) {
 	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &spec2); err != meta.ErrRetentionPolicyConflict {
 		t.Fatalf("got %v, but expected %v", err, meta.ErrRetentionPolicyConflict)
 	}
+}
 
-	// If create database is used by itself, no error should be returned and
-	// the default retention policy should not be changed.
-	if dbi, err := c.CreateDatabase("db0"); err != nil {
-		t.Fatalf("got %v, but expected %v", err, nil)
-	} else if dbi.DefaultRetentionPolicy != "rp0" {
-		t.Fatalf("got %v, but expected %v", dbi.DefaultRetentionPolicy, "rp0")
-	} else if got, exp := len(dbi.RetentionPolicies), 1; got != exp {
-		// Ensure no additional retention policies were created.
-		t.Fatalf("got %v, but expected %v", got, exp)
+func TestMetaClient_CreateDatabaseWithRetentionPolicy_Conflict_NonDefault(t *testing.T) {
+	t.Parallel()
+
+	d, c := newClient()
+	defer os.RemoveAll(d)
+	defer c.Close()
+
+	duration := 1 * time.Hour
+	replicaN := 1
+	spec := meta.RetentionPolicySpec{
+		Name:               "rp0",
+		Duration:           &duration,
+		ReplicaN:           &replicaN,
+		ShardGroupDuration: 60 * time.Minute,
+	}
+
+	// Create a default retention policy.
+	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &spec); err != nil {
+		t.Fatal(err)
+	}
+
+	// Let's create a non-default retention policy.
+	spec2 := spec
+	spec2.Name = "rp1"
+	if _, err := c.CreateRetentionPolicy("db0", &spec2, false); err != nil {
+		t.Fatal(err)
+	}
+
+	// If we try to create a database with the non-default retention policy then
+	// it's an error.
+	if _, err := c.CreateDatabaseWithRetentionPolicy("db0", &spec2); err != meta.ErrRetentionPolicyConflict {
+		t.Fatalf("got %v, but expected %v", err, meta.ErrRetentionPolicyConflict)
 	}
 }
 
