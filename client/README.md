@@ -131,9 +131,8 @@ func writePoints(clnt client.Client) {
 		log.Fatal(err)
 	}
 
+    rand.Seed(time.Now().UnixNano())
 	for i := 0; i < sampleSize; i++ {
-		rand.Seed(uint64(i))
-
 		regions := []string{"us-west1", "us-west2", "us-west3", "us-east1"}
 		tags := map[string]string{
 			"cpu":    "cpu-total",
