@@ -503,24 +503,29 @@ func (c *client) Query(q Query) (*Response, error) {
 	}
 	defer resp.Body.Close()
 
+	// check status code before doing any JSON marshalling.
+	// if the status code is >= 400, there won't be any valid json to marshal so
+	// return immediately.
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("Received bad status code from server: %d (%s)",
+			resp.StatusCode, resp.Status)
+	}
+
 	var response Response
 	dec := json.NewDecoder(resp.Body)
 	dec.UseNumber()
-	decErr := dec.Decode(&response)
+	err = dec.Decode(&response)
 
-	// ignore this error if we got an invalid status code
-	if decErr != nil && decErr.Error() == "EOF" && resp.StatusCode != http.StatusOK {
-		decErr = nil
+	// If we got a JSON decode error, send that back
+	if err != nil {
+		return nil, fmt.Errorf("Unable to decode json: received status code %d err: %s",
+			resp.StatusCode, err)
 	}
-	// If we got a valid decode error, send that back
-	if decErr != nil {
-		return nil, fmt.Errorf("unable to decode json: received status code %d err: %s", resp.StatusCode, decErr)
-	}
+
 	// If we don't have an error in our json response, and didn't get statusOK
 	// then send back an error
-	if resp.StatusCode != http.StatusOK && response.Error() == nil {
-		return &response, fmt.Errorf("received status code %d from server",
-			resp.StatusCode)
+	if response.Error() != nil {
+		return &response, fmt.Errorf("Error executing query: %s", response.Error())
 	}
 	return &response, nil
 }
