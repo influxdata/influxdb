@@ -29,9 +29,20 @@ func init() {
 				once:    true,
 			},
 			&Query{
-				name:    "create database should error with bad name",
+				name:    "create database with retention policy should fail with invalid name",
+				command: `CREATE DATABASE db1 WITH NAME "."`,
+				exp:     `{"results":[{"statement_id":0,"error":"invalid name"}]}`,
+				once:    true,
+			},
+			&Query{
+				name:    "create database should error with some unquoted names",
 				command: `CREATE DATABASE 0xdb0`,
 				exp:     `{"error":"error parsing query: found 0xdb0, expected identifier at line 1, char 17"}`,
+			},
+			&Query{
+				name:    "create database should error with invalid characters",
+				command: `CREATE DATABASE "."`,
+				exp:     `{"results":[{"statement_id":0,"error":"invalid name"}]}`,
 			},
 			&Query{
 				name:    "create database with retention duration should error with bad retention duration",
@@ -367,6 +378,12 @@ func init() {
 	tests["retention_policy_commands"] = Test{
 		db: "db0",
 		queries: []*Query{
+			&Query{
+				name:    "create retention policy with invalid name should return an error",
+				command: `CREATE RETENTION POLICY "." ON db0 DURATION 1d REPLICATION 1`,
+				exp:     `{"results":[{"statement_id":0,"error":"invalid name"}]}`,
+				once:    true,
+			},
 			&Query{
 				name:    "create retention policy should succeed",
 				command: `CREATE RETENTION POLICY rp0 ON db0 DURATION 1h REPLICATION 1`,
