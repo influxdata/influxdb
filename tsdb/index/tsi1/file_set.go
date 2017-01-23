@@ -433,10 +433,12 @@ func (fs FileSet) measurementNamesByTagFilter(op influxql.Token, key, val string
 			// Else, the operator is a regex and we have to check all tag
 			// values against the regular expression.
 			vitr := fs.TagValueIterator(me.Name(), []byte(key))
-			for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
-				if regex.Match(ve.Value()) {
-					tagMatch = true
-					break
+			if vitr != nil {
+				for ve := vitr.Next(); ve != nil; ve = vitr.Next() {
+					if regex.Match(ve.Value()) {
+						tagMatch = true
+						break
+					}
 				}
 			}
 		}

@@ -298,56 +298,6 @@ func (e *TagBlockKeyElem) unmarshal(buf, data []byte) {
 	e.size = start - len(buf)
 }
 
-/*
-// tagKeyDecodeElem provides an adapter for tagBlockKeyElem to TagKeyElem.
-type tagKeyDecodeElem struct {
-	e   *TagBlockKeyElem
-	itr tagValueDecodeIterator
-}
-
-// Key returns the key from the underlying element.
-func (e *tagKeyDecodeElem) Key() []byte { return e.e.key }
-
-// Deleted returns the deleted flag from the underlying element.
-func (e *tagKeyDecodeElem) Deleted() bool { return e.e.Deleted() }
-
-// TagValueIterator returns a decode iterator for the underlying value iterator.
-func (e *tagKeyDecodeElem) TagValueIterator() TagValueIterator {
-	e.itr.itr = e.e.tagValueIterator()
-	return &e.itr
-}
-
-// tagKeyDecodeIterator represents a iterator that decodes a tagKeyIterator.
-type tagKeyDecodeIterator struct {
-	itr  tagBlockKeyIterator
-	sblk *SeriesBlock
-	e    tagKeyDecodeElem
-}
-
-// newTagKeyDecodeIterator returns a new instance of tagKeyDecodeIterator.
-func newTagKeyDecodeIterator(sblk *SeriesBlock) tagKeyDecodeIterator {
-	return tagKeyDecodeIterator{
-		sblk: sblk,
-		e: tagKeyDecodeElem{
-			itr: newTagValueDecodeIterator(sblk),
-		},
-	}
-}
-
-// Next returns the next element in the iterator.
-func (itr *tagKeyDecodeIterator) Next() TagKeyElem {
-	// Find next internal element.
-	e := itr.itr.next()
-	if e == nil {
-		return nil
-	}
-
-	// Wrap element inside decode element.
-	itr.e.e = e
-	return &itr.e
-}
-*/
-
 // TagBlockValueElem represents a tag value element.
 type TagBlockValueElem struct {
 	flag   byte
@@ -361,7 +311,7 @@ type TagBlockValueElem struct {
 }
 
 // Deleted returns true if the element has been tombstoned.
-func (e *TagBlockValueElem) Deleted() bool { return (e.flag & TagValueTombstoneFlag) != 1 }
+func (e *TagBlockValueElem) Deleted() bool { return (e.flag & TagValueTombstoneFlag) != 0 }
 
 // Value returns the value for the element.
 func (e *TagBlockValueElem) Value() []byte { return e.value }
@@ -405,56 +355,6 @@ func (e *TagBlockValueElem) unmarshal(buf []byte) {
 	// Save length of elem.
 	e.size = start - len(buf)
 }
-
-/*
-// tagValueDecodeElem provides an adapter for tagBlockValueElem to TagValueElem.
-type tagValueDecodeElem struct {
-	e   *TagBlockValueElem
-	itr seriesDecodeIterator
-}
-
-// Value returns the value from the underlying element.
-func (e *tagValueDecodeElem) Value() []byte { return e.e.value }
-
-// Deleted returns the deleted flag from the underlying element.
-func (e *tagValueDecodeElem) Deleted() bool { return e.e.Deleted() }
-
-// SeriesIterator returns a decode iterator for the underlying value iterator.
-func (e *tagValueDecodeElem) SeriesIterator() SeriesIterator {
-	e.itr.itr = e.e.seriesIDIterator()
-	return &e.itr
-}
-
-// tagValueDecodeIterator represents a iterator that decodes a tagValueIterator.
-type tagValueDecodeIterator struct {
-	itr  tagBlockValueIterator
-	sblk *SeriesBlock
-	e    tagValueDecodeElem
-}
-
-// newTagValueDecodeIterator returns a new instance of tagValueDecodeIterator.
-func newTagValueDecodeIterator(sblk *SeriesBlock) tagValueDecodeIterator {
-	return tagValueDecodeIterator{
-		sblk: sblk,
-		e: tagValueDecodeElem{
-			itr: newSeriesDecodeIterator(sblk),
-		},
-	}
-}
-
-// Next returns the next element in the iterator.
-func (itr *tagValueDecodeIterator) Next() TagValueElem {
-	// Find next internal element.
-	e := itr.itr.next()
-	if e == nil {
-		return nil
-	}
-
-	// Wrap element inside decode element.
-	itr.e.e = e
-	return &itr.e
-}
-*/
 
 // TagBlockTrailerSize is the total size of the on-disk trailer.
 const TagBlockTrailerSize = 0 +

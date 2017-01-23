@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"regexp"
 	"testing"
 
+	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
@@ -25,7 +27,7 @@ func TestIndex_ForEachMeasurementName(t *testing.T) {
 	}
 
 	// Verify measurements are returned.
-	if err := idx.MultiInvoke(func(state string) {
+	idx.Run(t, func(t *testing.T) {
 		var names []string
 		if err := idx.ForEachMeasurementName(func(name []byte) error {
 			names = append(names, string(name))
@@ -37,9 +39,7 @@ func TestIndex_ForEachMeasurementName(t *testing.T) {
 		if !reflect.DeepEqual(names, []string{"cpu", "mem"}) {
 			t.Fatalf("unexpected names: %#v", names)
 		}
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 
 	// Add more series.
 	if err := idx.CreateSeriesSliceIfNotExists([]Series{
@@ -50,7 +50,7 @@ func TestIndex_ForEachMeasurementName(t *testing.T) {
 	}
 
 	// Verify new measurements.
-	if err := idx.MultiInvoke(func(state string) {
+	idx.Run(t, func(t *testing.T) {
 		var names []string
 		if err := idx.ForEachMeasurementName(func(name []byte) error {
 			names = append(names, string(name))
@@ -62,9 +62,7 @@ func TestIndex_ForEachMeasurementName(t *testing.T) {
 		if !reflect.DeepEqual(names, []string{"cpu", "disk", "mem"}) {
 			t.Fatalf("unexpected names: %#v", names)
 		}
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 }
 
 // Ensure index can return whether a measurement exists.
@@ -81,15 +79,13 @@ func TestIndex_MeasurementExists(t *testing.T) {
 	}
 
 	// Verify measurement exists.
-	if err := idx.MultiInvoke(func(state string) {
+	idx.Run(t, func(t *testing.T) {
 		if v, err := idx.MeasurementExists([]byte("cpu")); err != nil {
-			t.Fatalf("%s: %s", state, err)
+			t.Fatal(err)
 		} else if !v {
-			t.Fatalf("%s: expected measurement to exist", state)
+			t.Fatal("expected measurement to exist")
 		}
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 
 	// Delete one series.
 	if err := idx.DropSeries([][]byte{models.MakeKey([]byte("cpu"), models.NewTags(map[string]string{"region": "east"}))}); err != nil {
@@ -97,15 +93,13 @@ func TestIndex_MeasurementExists(t *testing.T) {
 	}
 
 	// Verify measurement still exists.
-	if err := idx.MultiInvoke(func(state string) {
+	idx.Run(t, func(t *testing.T) {
 		if v, err := idx.MeasurementExists([]byte("cpu")); err != nil {
-			t.Fatalf("%s: %s", state, err)
+			t.Fatal(err)
 		} else if !v {
-			t.Fatalf("%s: expected measurement to still exist", state)
+			t.Fatal("expected measurement to still exist")
 		}
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 
 	// Delete second series.
 	if err := idx.DropSeries([][]byte{models.MakeKey([]byte("cpu"), models.NewTags(map[string]string{"region": "west"}))}); err != nil {
@@ -113,15 +107,137 @@ func TestIndex_MeasurementExists(t *testing.T) {
 	}
 
 	// Verify measurement is now deleted.
-	if err := idx.MultiInvoke(func(state string) {
+	idx.Run(t, func(t *testing.T) {
 		if v, err := idx.MeasurementExists([]byte("cpu")); err != nil {
-			t.Fatalf("%s: %s", state, err)
+			t.Fatal(err)
 		} else if v {
-			t.Fatalf("%s: expected measurement to be deleted", state)
+			t.Fatal("expected measurement to be deleted")
 		}
+	})
+}
+
+// Ensure index can return a list of matching measurements.
+func TestIndex_MeasurementNamesByExpr(t *testing.T) {
+	idx := MustOpenIndex()
+	defer idx.Close()
+
+	// Add series to index.
+	if err := idx.CreateSeriesSliceIfNotExists([]Series{
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
+		{Name: []byte("disk"), Tags: models.NewTags(map[string]string{"region": "north"})},
+		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "west", "country": "us"})},
 	}); err != nil {
 		t.Fatal(err)
 	}
+
+	// Retrieve measurements by expression
+	idx.Run(t, func(t *testing.T) {
+		t.Run("EQ", func(t *testing.T) {
+			names, err := idx.MeasurementNamesByExpr(influxql.MustParseExpr(`region = 'west'`))
+			if err != nil {
+				t.Fatal(err)
+			} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("mem")}) {
+				t.Fatal("unexpected names: %v", names)
+			}
+		})
+
+		t.Run("NEQ", func(t *testing.T) {
+			names, err := idx.MeasurementNamesByExpr(influxql.MustParseExpr(`region != 'east'`))
+			if err != nil {
+				t.Fatal(err)
+			} else if !reflect.DeepEqual(names, [][]byte{[]byte("disk"), []byte("mem")}) {
+				t.Fatalf("unexpected names: %v", names)
+			}
+		})
+
+		t.Run("EQREGEX", func(t *testing.T) {
+			names, err := idx.MeasurementNamesByExpr(influxql.MustParseExpr(`region =~ /east|west/`))
+			if err != nil {
+				t.Fatal(err)
+			} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("mem")}) {
+				t.Fatal("unexpected names: %v", names)
+			}
+		})
+
+		t.Run("NEQREGEX", func(t *testing.T) {
+			names, err := idx.MeasurementNamesByExpr(influxql.MustParseExpr(`country !~ /^u/`))
+			if err != nil {
+				t.Fatal(err)
+			} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("disk")}) {
+				t.Fatal("unexpected names: %v", names)
+			}
+		})
+	})
+}
+
+// Ensure index can return a list of matching measurements.
+func TestIndex_MeasurementNamesByRegex(t *testing.T) {
+	idx := MustOpenIndex()
+	defer idx.Close()
+
+	// Add series to index.
+	if err := idx.CreateSeriesSliceIfNotExists([]Series{
+		{Name: []byte("cpu")},
+		{Name: []byte("disk")},
+		{Name: []byte("mem")},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Retrieve measurements by regex.
+	idx.Run(t, func(t *testing.T) {
+		names, err := idx.MeasurementNamesByRegex(regexp.MustCompile(`cpu|mem`))
+		if err != nil {
+			t.Fatal(err)
+		} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("mem")}) {
+			t.Fatal("unexpected names: %v", names)
+		}
+	})
+}
+
+// Ensure index can delete a measurement and all related keys, values, & series.
+func TestIndex_DropMeasurement(t *testing.T) {
+	idx := MustOpenIndex()
+	defer idx.Close()
+
+	// Add series to index.
+	if err := idx.CreateSeriesSliceIfNotExists([]Series{
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "east"})},
+		{Name: []byte("cpu"), Tags: models.NewTags(map[string]string{"region": "west"})},
+		{Name: []byte("disk"), Tags: models.NewTags(map[string]string{"region": "north"})},
+		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "west", "country": "us"})},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Drop measurement.
+	if err := idx.DropMeasurement([]byte("cpu")); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify data is gone in each stage.
+	idx.Run(t, func(t *testing.T) {
+		// Verify measurement is gone.
+		if v, err := idx.MeasurementExists([]byte("cpu")); err != nil {
+			t.Fatal(err)
+		} else if v {
+			t.Fatal("expected no measurement")
+		}
+
+		// Obtain file set to perform lower level checks.
+		fs := idx.RetainFileSet()
+		defer fs.Release()
+
+		// Verify tags & values are gone.
+		if e := fs.TagKeyIterator([]byte("cpu")).Next(); e != nil && !e.Deleted() {
+			t.Fatal("expected deleted tag key")
+		}
+		if itr := fs.TagValueIterator([]byte("cpu"), []byte("region")); itr != nil {
+			t.Fatal("expected nil tag value iterator")
+		}
+
+	})
 }
 
 // Index is a test wrapper for tsi1.Index.
@@ -166,7 +282,7 @@ func (idx *Index) Reopen() error {
 	return nil
 }
 
-// MultiInvoke executes fn in several different states:
+// Run executes a subtest for each of several different states:
 //
 // - Immediately
 // - After reopen
@@ -176,41 +292,27 @@ func (idx *Index) Reopen() error {
 // The index should always respond in the same fashion regardless of
 // how data is stored. This helper allows the index to be easily tested
 // in all major states.
-func (idx *Index) MultiInvoke(fn func(state string)) error {
+func (idx *Index) Run(t *testing.T, fn func(t *testing.T)) {
 	// Invoke immediately.
-	fn("initial")
-
-	if testing.Verbose() {
-		println("[index] reopening")
-	}
+	t.Run("state=initial", fn)
 
 	// Reopen and invoke again.
 	if err := idx.Reopen(); err != nil {
-		return fmt.Errorf("reopen error: %s", err)
+		t.Fatalf("reopen error: %s", err)
 	}
-	fn("reopen")
-
-	if testing.Verbose() {
-		println("[index] forcing compaction")
-	}
+	t.Run("state=reopen", fn)
 
 	// Force a compaction
 	if err := idx.Compact(true); err != nil {
-		return err
+		t.Fatalf("compact error: %s", err)
 	}
-	fn("post-compaction")
-
-	if testing.Verbose() {
-		println("[index] reopening after compaction")
-	}
+	t.Run("state=post-compaction", fn)
 
 	// Reopen and invoke again.
 	if err := idx.Reopen(); err != nil {
-		return fmt.Errorf("post-compaction reopen error: %s", err)
+		t.Fatalf("post-compaction reopen error: %s", err)
 	}
-	fn("post-compaction-reopen")
-
-	return nil
+	t.Run("state=post-compaction-reopen", fn)
 }
 
 // CreateSeriesSliceIfNotExists creates multiple series at a time.

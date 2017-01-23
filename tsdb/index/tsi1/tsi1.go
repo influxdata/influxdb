@@ -3,8 +3,10 @@ package tsi1
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/influxql"
@@ -815,3 +817,6 @@ type byTagKey []*influxql.TagSet
 func (t byTagKey) Len() int           { return len(t) }
 func (t byTagKey) Less(i, j int) bool { return bytes.Compare(t[i].Key, t[j].Key) < 0 }
 func (t byTagKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
+
+// hexdump is a helper for dumping binary data to stderr.
+func hexdump(data []byte) { os.Stderr.Write([]byte(hex.Dump(data))) }

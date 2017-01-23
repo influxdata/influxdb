@@ -21,27 +21,25 @@ func TestFileSet_SeriesIterator(t *testing.T) {
 	}
 
 	// Verify initial set of series.
-	if err := idx.MultiInvoke(func(state string) {
+	idx.Run(t, func(t *testing.T) {
 		fs := idx.RetainFileSet()
 		defer fs.Release()
 
 		itr := fs.SeriesIterator()
 		if itr == nil {
-			t.Fatalf("expected iterator(%s)", state)
+			t.Fatal("expected iterator")
 		}
 
 		if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region east}]` {
-			t.Fatalf("unexpected series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
 		} else if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region west}]` {
-			t.Fatalf("unexpected series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
 		} else if e := itr.Next(); string(e.Name()) != `mem` || e.Tags().String() != `[{region east}]` {
-			t.Fatalf("unexpected series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
 		} else if e := itr.Next(); e != nil {
-			t.Fatalf("expected nil series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("expected nil series: %s/%s", e.Name(), e.Tags().String())
 		}
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 
 	// Add more series.
 	if err := idx.CreateSeriesSliceIfNotExists([]Series{
@@ -53,31 +51,29 @@ func TestFileSet_SeriesIterator(t *testing.T) {
 	}
 
 	// Verify additional series.
-	if err := idx.MultiInvoke(func(state string) {
+	idx.Run(t, func(t *testing.T) {
 		fs := idx.RetainFileSet()
 		defer fs.Release()
 
 		itr := fs.SeriesIterator()
 		if itr == nil {
-			t.Fatalf("expected iterator(%s)", state)
+			t.Fatal("expected iterator")
 		}
 
 		if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region east}]` {
-			t.Fatalf("unexpected series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
 		} else if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region north}]` {
-			t.Fatalf("unexpected series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
 		} else if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region west}]` {
-			t.Fatalf("unexpected series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
 		} else if e := itr.Next(); string(e.Name()) != `disk` || len(e.Tags()) != 0 {
-			t.Fatalf("unexpected series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
 		} else if e := itr.Next(); string(e.Name()) != `mem` || e.Tags().String() != `[{region east}]` {
-			t.Fatalf("unexpected series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
 		} else if e := itr.Next(); e != nil {
-			t.Fatalf("expected nil series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("expected nil series: %s/%s", e.Name(), e.Tags().String())
 		}
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 }
 
 // Ensure fileset can return an iterator over all series for one measurement.
@@ -95,25 +91,23 @@ func TestFileSet_MeasurementSeriesIterator(t *testing.T) {
 	}
 
 	// Verify initial set of series.
-	if err := idx.MultiInvoke(func(state string) {
+	idx.Run(t, func(t *testing.T) {
 		fs := idx.RetainFileSet()
 		defer fs.Release()
 
 		itr := fs.MeasurementSeriesIterator([]byte("cpu"))
 		if itr == nil {
-			t.Fatalf("expected iterator(%s)", state)
+			t.Fatal("expected iterator")
 		}
 
 		if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region east}]` {
-			t.Fatalf("unexpected series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
 		} else if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region west}]` {
-			t.Fatalf("unexpected series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
 		} else if e := itr.Next(); e != nil {
-			t.Fatalf("expected nil series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("expected nil series: %s/%s", e.Name(), e.Tags().String())
 		}
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 
 	// Add more series.
 	if err := idx.CreateSeriesSliceIfNotExists([]Series{
@@ -124,27 +118,25 @@ func TestFileSet_MeasurementSeriesIterator(t *testing.T) {
 	}
 
 	// Verify additional series.
-	if err := idx.MultiInvoke(func(state string) {
+	idx.Run(t, func(t *testing.T) {
 		fs := idx.RetainFileSet()
 		defer fs.Release()
 
 		itr := fs.MeasurementSeriesIterator([]byte("cpu"))
 		if itr == nil {
-			t.Fatalf("expected iterator(%s)", state)
+			t.Fatalf("expected iterator")
 		}
 
 		if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region east}]` {
-			t.Fatalf("unexpected series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
 		} else if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region north}]` {
-			t.Fatalf("unexpected series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
 		} else if e := itr.Next(); string(e.Name()) != `cpu` || e.Tags().String() != `[{region west}]` {
-			t.Fatalf("unexpected series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("unexpected series: %s/%s", e.Name(), e.Tags().String())
 		} else if e := itr.Next(); e != nil {
-			t.Fatalf("expected nil series(%s): %s/%s", state, e.Name(), e.Tags().String())
+			t.Fatalf("expected nil series: %s/%s", e.Name(), e.Tags().String())
 		}
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 }
 
 // Ensure fileset can return an iterator over all measurements for the index.
@@ -161,25 +153,23 @@ func TestFileSet_MeasurementIterator(t *testing.T) {
 	}
 
 	// Verify initial set of series.
-	if err := idx.MultiInvoke(func(state string) {
+	idx.Run(t, func(t *testing.T) {
 		fs := idx.RetainFileSet()
 		defer fs.Release()
 
 		itr := fs.MeasurementIterator()
 		if itr == nil {
-			t.Fatalf("expected iterator(%s)", state)
+			t.Fatal("expected iterator")
 		}
 
 		if e := itr.Next(); string(e.Name()) != `cpu` {
-			t.Fatalf("unexpected measurement(%s): %s", state, e.Name())
+			t.Fatalf("unexpected measurement: %s", e.Name())
 		} else if e := itr.Next(); string(e.Name()) != `mem` {
-			t.Fatalf("unexpected measurement(%s): %s", state, e.Name())
+			t.Fatalf("unexpected measurement: %s", e.Name())
 		} else if e := itr.Next(); e != nil {
-			t.Fatalf("expected nil measurement(%s): %s", state, e.Name())
+			t.Fatalf("expected nil measurement: %s", e.Name())
 		}
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 
 	// Add more series.
 	if err := idx.CreateSeriesSliceIfNotExists([]Series{
@@ -190,27 +180,25 @@ func TestFileSet_MeasurementIterator(t *testing.T) {
 	}
 
 	// Verify additional series.
-	if err := idx.MultiInvoke(func(state string) {
+	idx.Run(t, func(t *testing.T) {
 		fs := idx.RetainFileSet()
 		defer fs.Release()
 
 		itr := fs.MeasurementIterator()
 		if itr == nil {
-			t.Fatalf("expected iterator(%s)", state)
+			t.Fatal("expected iterator")
 		}
 
 		if e := itr.Next(); string(e.Name()) != `cpu` {
-			t.Fatalf("unexpected measurement(%s): %s", state, e.Name())
+			t.Fatalf("unexpected measurement: %s", e.Name())
 		} else if e := itr.Next(); string(e.Name()) != `disk` {
-			t.Fatalf("unexpected measurement(%s): %s", state, e.Name())
+			t.Fatalf("unexpected measurement: %s", e.Name())
 		} else if e := itr.Next(); string(e.Name()) != `mem` {
-			t.Fatalf("unexpected measurement(%s): %s", state, e.Name())
+			t.Fatalf("unexpected measurement: %s", e.Name())
 		} else if e := itr.Next(); e != nil {
-			t.Fatalf("expected nil measurement(%s): %s", state, e.Name())
+			t.Fatalf("expected nil measurement: %s", e.Name())
 		}
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 }
 
 // Ensure fileset can return an iterator over all keys for one measurement.
@@ -228,25 +216,23 @@ func TestFileSet_TagKeyIterator(t *testing.T) {
 	}
 
 	// Verify initial set of series.
-	if err := idx.MultiInvoke(func(state string) {
+	idx.Run(t, func(t *testing.T) {
 		fs := idx.RetainFileSet()
 		defer fs.Release()
 
 		itr := fs.TagKeyIterator([]byte("cpu"))
 		if itr == nil {
-			t.Fatalf("expected iterator(%s)", state)
+			t.Fatalf("expected iterator")
 		}
 
 		if e := itr.Next(); string(e.Key()) != `region` {
-			t.Fatalf("unexpected key(%s): %s", state, e.Key())
+			t.Fatalf("unexpected key: %s", e.Key())
 		} else if e := itr.Next(); string(e.Key()) != `type` {
-			t.Fatalf("unexpected key(%s): %s", state, e.Key())
+			t.Fatalf("unexpected key: %s", e.Key())
 		} else if e := itr.Next(); e != nil {
-			t.Fatalf("expected nil key(%s): %s", state, e.Key())
+			t.Fatalf("expected nil key: %s", e.Key())
 		}
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 
 	// Add more series.
 	if err := idx.CreateSeriesSliceIfNotExists([]Series{
@@ -257,25 +243,23 @@ func TestFileSet_TagKeyIterator(t *testing.T) {
 	}
 
 	// Verify additional series.
-	if err := idx.MultiInvoke(func(state string) {
+	idx.Run(t, func(t *testing.T) {
 		fs := idx.RetainFileSet()
 		defer fs.Release()
 
 		itr := fs.TagKeyIterator([]byte("cpu"))
 		if itr == nil {
-			t.Fatalf("expected iterator(%s)", state)
+			t.Fatal("expected iterator")
 		}
 
 		if e := itr.Next(); string(e.Key()) != `region` {
-			t.Fatalf("unexpected key(%s): %s", state, e.Key())
+			t.Fatalf("unexpected key: %s", e.Key())
 		} else if e := itr.Next(); string(e.Key()) != `type` {
-			t.Fatalf("unexpected key(%s): %s", state, e.Key())
+			t.Fatalf("unexpected key: %s", e.Key())
 		} else if e := itr.Next(); string(e.Key()) != `x` {
-			t.Fatalf("unexpected key(%s): %s", state, e.Key())
+			t.Fatalf("unexpected key: %s", e.Key())
 		} else if e := itr.Next(); e != nil {
-			t.Fatalf("expected nil key(%s): %s", state, e.Key())
+			t.Fatalf("expected nil key: %s", e.Key())
 		}
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 }
