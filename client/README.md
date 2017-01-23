@@ -142,12 +142,19 @@ func writePoints(clnt client.Client) {
 			"busy": 100.0 - idle,
 		}
 
-		bp.AddPoint(client.NewPoint(
+		pt, err := client.NewPoint(
 			"cpu_usage",
 			tags,
 			fields,
 			time.Now(),
-		))
+		)
+		
+		if err != nil {
+			log.Fatalln("Error: ", err)
+		}
+
+		bp.AddPoint(pt)
+
 	}
 
 	err := clnt.Write(bp)
