@@ -86,7 +86,7 @@ const AlertsTable = React.createClass({
             </thead>
             <tbody>
               {
-                alerts.map(({name, level, time, value, host}) => {
+                alerts.map(({name, level, time, host, value}) => {
                   return (
                     <tr key={`${name}-${level}-${time}-${host}-${value}`}>
                       <td className="monotype">{name}</td>
