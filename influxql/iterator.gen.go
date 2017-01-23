@@ -2403,6 +2403,65 @@ type floatDedupeIterator struct {
 	m     map[string]struct{} // lookup of points already sent
 }
 
+type floatFilterIterator struct {
+	input FloatIterator
+	cond  Expr
+	opt   IteratorOptions
+	m     map[string]interface{}
+}
+
+func newFloatFilterIterator(input FloatIterator, cond Expr, opt IteratorOptions) FloatIterator {
+	// Strip out time conditions from the WHERE clause.
+	// TODO(jsternberg): This should really be done for us when creating the IteratorOptions struct.
+	n := RewriteFunc(CloneExpr(cond), func(n Node) Node {
+		switch n := n.(type) {
+		case *BinaryExpr:
+			if n.LHS.String() == "time" {
+				return &BooleanLiteral{Val: true}
+			}
+		}
+		return n
+	})
+
+	cond, _ = n.(Expr)
+	if cond == nil {
+		return input
+	} else if n, ok := cond.(*BooleanLiteral); ok && n.Val {
+		return input
+	}
+
+	return &floatFilterIterator{
+		input: input,
+		cond:  cond,
+		opt:   opt,
+		m:     make(map[string]interface{}),
+	}
+}
+
+func (itr *floatFilterIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *floatFilterIterator) Close() error         { return itr.input.Close() }
+
+func (itr *floatFilterIterator) Next() (*FloatPoint, error) {
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		}
+
+		for i, ref := range itr.opt.Aux {
+			itr.m[ref.Val] = p.Aux[i]
+		}
+		for k, v := range p.Tags.KeyValues() {
+			itr.m[k] = v
+		}
+
+		if !EvalBool(itr.cond, itr.m) {
+			continue
+		}
+		return p, nil
+	}
+}
+
 // newFloatDedupeIterator returns a new instance of floatDedupeIterator.
 func newFloatDedupeIterator(input FloatIterator) *floatDedupeIterator {
 	return &floatDedupeIterator{
@@ -4860,6 +4919,65 @@ type integerDedupeIterator struct {
 	m     map[string]struct{} // lookup of points already sent
 }
 
+type integerFilterIterator struct {
+	input IntegerIterator
+	cond  Expr
+	opt   IteratorOptions
+	m     map[string]interface{}
+}
+
+func newIntegerFilterIterator(input IntegerIterator, cond Expr, opt IteratorOptions) IntegerIterator {
+	// Strip out time conditions from the WHERE clause.
+	// TODO(jsternberg): This should really be done for us when creating the IteratorOptions struct.
+	n := RewriteFunc(CloneExpr(cond), func(n Node) Node {
+		switch n := n.(type) {
+		case *BinaryExpr:
+			if n.LHS.String() == "time" {
+				return &BooleanLiteral{Val: true}
+			}
+		}
+		return n
+	})
+
+	cond, _ = n.(Expr)
+	if cond == nil {
+		return input
+	} else if n, ok := cond.(*BooleanLiteral); ok && n.Val {
+		return input
+	}
+
+	return &integerFilterIterator{
+		input: input,
+		cond:  cond,
+		opt:   opt,
+		m:     make(map[string]interface{}),
+	}
+}
+
+func (itr *integerFilterIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *integerFilterIterator) Close() error         { return itr.input.Close() }
+
+func (itr *integerFilterIterator) Next() (*IntegerPoint, error) {
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		}
+
+		for i, ref := range itr.opt.Aux {
+			itr.m[ref.Val] = p.Aux[i]
+		}
+		for k, v := range p.Tags.KeyValues() {
+			itr.m[k] = v
+		}
+
+		if !EvalBool(itr.cond, itr.m) {
+			continue
+		}
+		return p, nil
+	}
+}
+
 // newIntegerDedupeIterator returns a new instance of integerDedupeIterator.
 func newIntegerDedupeIterator(input IntegerIterator) *integerDedupeIterator {
 	return &integerDedupeIterator{
@@ -7302,6 +7420,65 @@ type stringDedupeIterator struct {
 	m     map[string]struct{} // lookup of points already sent
 }
 
+type stringFilterIterator struct {
+	input StringIterator
+	cond  Expr
+	opt   IteratorOptions
+	m     map[string]interface{}
+}
+
+func newStringFilterIterator(input StringIterator, cond Expr, opt IteratorOptions) StringIterator {
+	// Strip out time conditions from the WHERE clause.
+	// TODO(jsternberg): This should really be done for us when creating the IteratorOptions struct.
+	n := RewriteFunc(CloneExpr(cond), func(n Node) Node {
+		switch n := n.(type) {
+		case *BinaryExpr:
+			if n.LHS.String() == "time" {
+				return &BooleanLiteral{Val: true}
+			}
+		}
+		return n
+	})
+
+	cond, _ = n.(Expr)
+	if cond == nil {
+		return input
+	} else if n, ok := cond.(*BooleanLiteral); ok && n.Val {
+		return input
+	}
+
+	return &stringFilterIterator{
+		input: input,
+		cond:  cond,
+		opt:   opt,
+		m:     make(map[string]interface{}),
+	}
+}
+
+func (itr *stringFilterIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *stringFilterIterator) Close() error         { return itr.input.Close() }
+
+func (itr *stringFilterIterator) Next() (*StringPoint, error) {
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		}
+
+		for i, ref := range itr.opt.Aux {
+			itr.m[ref.Val] = p.Aux[i]
+		}
+		for k, v := range p.Tags.KeyValues() {
+			itr.m[k] = v
+		}
+
+		if !EvalBool(itr.cond, itr.m) {
+			continue
+		}
+		return p, nil
+	}
+}
+
 // newStringDedupeIterator returns a new instance of stringDedupeIterator.
 func newStringDedupeIterator(input StringIterator) *stringDedupeIterator {
 	return &stringDedupeIterator{
@@ -9742,6 +9919,65 @@ type booleanBoolTransformFunc func(p *BooleanPoint) *BooleanPoint
 type booleanDedupeIterator struct {
 	input BooleanIterator
 	m     map[string]struct{} // lookup of points already sent
+}
+
+type booleanFilterIterator struct {
+	input BooleanIterator
+	cond  Expr
+	opt   IteratorOptions
+	m     map[string]interface{}
+}
+
+func newBooleanFilterIterator(input BooleanIterator, cond Expr, opt IteratorOptions) BooleanIterator {
+	// Strip out time conditions from the WHERE clause.
+	// TODO(jsternberg): This should really be done for us when creating the IteratorOptions struct.
+	n := RewriteFunc(CloneExpr(cond), func(n Node) Node {
+		switch n := n.(type) {
+		case *BinaryExpr:
+			if n.LHS.String() == "time" {
+				return &BooleanLiteral{Val: true}
+			}
+		}
+		return n
+	})
+
+	cond, _ = n.(Expr)
+	if cond == nil {
+		return input
+	} else if n, ok := cond.(*BooleanLiteral); ok && n.Val {
+		return input
+	}
+
+	return &booleanFilterIterator{
+		input: input,
+		cond:  cond,
+		opt:   opt,
+		m:     make(map[string]interface{}),
+	}
+}
+
+func (itr *booleanFilterIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *booleanFilterIterator) Close() error         { return itr.input.Close() }
+
+func (itr *booleanFilterIterator) Next() (*BooleanPoint, error) {
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		}
+
+		for i, ref := range itr.opt.Aux {
+			itr.m[ref.Val] = p.Aux[i]
+		}
+		for k, v := range p.Tags.KeyValues() {
+			itr.m[k] = v
+		}
+
+		if !EvalBool(itr.cond, itr.m) {
+			continue
+		}
+		return p, nil
+	}
 }
 
 // newBooleanDedupeIterator returns a new instance of booleanDedupeIterator.

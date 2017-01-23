@@ -208,6 +208,10 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, sources Sources, opt I
 
 				// Construct the iterators for the subquery.
 				input := NewIteratorMapper(itrs, indexes, opt)
+				// If there is a condition, filter it now.
+				if opt.Condition != nil {
+					input = NewFilterIterator(input, opt.Condition, opt)
+				}
 				inputs = append(inputs, input)
 			}
 		}
@@ -480,7 +484,15 @@ func (b *exprIteratorBuilder) buildVarRefIterator(expr *VarRef) (Iterator, error
 								}
 							}
 						}
-						return buildExprIterator(e, b.ic, source.Statement.Sources, subOpt, false)
+						itr, err := buildExprIterator(e, b.ic, source.Statement.Sources, subOpt, false)
+						if err != nil {
+							return nil, err
+						}
+
+						if b.opt.Condition != nil {
+							itr = NewFilterIterator(itr, b.opt.Condition, subOpt)
+						}
+						return itr, nil
 					}
 
 					switch e := e.(type) {
@@ -534,6 +546,11 @@ func (b *exprIteratorBuilder) buildVarRefIterator(expr *VarRef) (Iterator, error
 							return nil, err
 						}
 
+						// Filter the iterator.
+						if b.opt.Condition != nil {
+							input = NewFilterIterator(input, b.opt.Condition, subOpt)
+						}
+
 						// Create an auxiliary iterator.
 						aitr := NewAuxIterator(input, subOpt)
 						itr := aitr.Iterator(e.Val, e.Type)
@@ -574,7 +591,15 @@ func (b *exprIteratorBuilder) buildVarRefIterator(expr *VarRef) (Iterator, error
 						// Check if this is a selector or not and
 						// create the iterator directly.
 						selector := len(info.calls) == 1 && IsSelector(e)
-						return buildExprIterator(e, b.ic, source.Statement.Sources, subOpt, selector)
+						itr, err := buildExprIterator(e, b.ic, source.Statement.Sources, subOpt, selector)
+						if err != nil {
+							return nil, err
+						}
+
+						if b.opt.Condition != nil {
+							itr = NewFilterIterator(itr, b.opt.Condition, subOpt)
+						}
+						return itr, nil
 					case *BinaryExpr:
 						// Retrieve the calls and references for this binary expression.
 						// There should be no mixing of calls and refs.
@@ -783,6 +808,10 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 						input, err := buildExprIterator(arg0, b.ic, []Source{source}, b.opt, b.selector)
 						if err != nil {
 							return err
+						}
+
+						if b.opt.Condition != nil {
+							input = NewFilterIterator(input, b.opt.Condition, b.opt)
 						}
 
 						// Wrap the result in a call iterator.
