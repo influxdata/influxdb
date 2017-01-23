@@ -387,6 +387,58 @@ func TestServer_UserCommands(t *testing.T) {
 	}
 }
 
+// Ensure the server will write all points possible with exception to the field type conflict.
+// This should return a partial write and a status of 400
+func TestServer_Write_FieldTypeConflict(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	if res, err := s.Write("db0", "rp0", fmt.Sprintf("cpu value=1i %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:01Z").UnixNano()), nil); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu`); err != nil {
+		t.Fatal(err)
+	} else if exp := `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-01-01T00:00:01Z",1]]}]}]}`; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	writes := []string{
+		fmt.Sprintf("cpu value=2i %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:02Z").UnixNano()),
+		fmt.Sprintf("cpu value=3  %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:03Z").UnixNano()),
+		fmt.Sprintf("cpu value=4i %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:04Z").UnixNano()),
+	}
+	res, err := s.Write("db0", "rp0", strings.Join(writes, "\n"), nil)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	wr, ok := err.(WriteError)
+	if !ok {
+		t.Fatalf("wrong error type %v", err)
+	}
+	if exp, got := http.StatusBadRequest, wr.StatusCode(); exp != got {
+		t.Fatalf("unexpected status code\nexp: %d\ngot: %d\n", exp, got)
+	}
+	if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu`); err != nil {
+		t.Fatal(err)
+	} else if exp := `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-01-01T00:00:01Z",1],["2015-01-01T00:00:02Z",2],["2015-01-01T00:00:04Z",4]]}]}]}`; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+}
+
 // Ensure the server can create a single point via line protocol with float type and read it back.
 func TestServer_Write_LineProtocol_Float(t *testing.T) {
 	t.Parallel()

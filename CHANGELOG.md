@@ -48,6 +48,7 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7822](https://github.com/influxdata/influxdb/issues/7822): Drop database will delete /influxdb/data directory
 - [#7838](https://github.com/influxdata/influxdb/issues/7838): Ensure Subscriber service can be disabled.
 - [#7845](https://github.com/influxdata/influxdb/issues/7845): Fix race in storage engine.
+- [#7814](https://github.com/influxdata/influxdb/issues/7814): InfluxDB should do a partial write on mismatched type errors.
 
 ## v1.1.1 [2016-12-06]
 

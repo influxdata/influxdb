@@ -353,6 +353,12 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 		return nil
 	}
 
+	// If this is a partial write error, that is also ok.
+	if _, ok := err.(tsdb.PartialWriteError); ok {
+		atomic.AddInt64(&w.stats.WriteErr, 1)
+		return err
+	}
+
 	// If we've written to shard that should exist on the current node, but the store has
 	// not actually created this shard, tell it to create it and retry the write
 	if err == tsdb.ErrShardNotFound {
