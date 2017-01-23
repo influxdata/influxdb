@@ -1922,7 +1922,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					return fmt.Errorf("invalid group interval: %v", err)
 				}
 
-				if c, ok := expr.Args[0].(*Call); ok && groupByInterval == 0 {
+				if c, ok := expr.Args[0].(*Call); ok && groupByInterval == 0 && tr != targetSubquery {
 					return fmt.Errorf("%s aggregate requires a GROUP BY interval", expr.Name)
 				} else if !ok && groupByInterval > 0 {
 					return fmt.Errorf("aggregate function required inside the call to %s", expr.Name)
@@ -1983,7 +1983,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					return fmt.Errorf("invalid group interval: %v", err)
 				}
 
-				if _, ok := expr.Args[0].(*Call); ok && groupByInterval == 0 {
+				if _, ok := expr.Args[0].(*Call); ok && groupByInterval == 0 && tr != targetSubquery {
 					return fmt.Errorf("%s aggregate requires a GROUP BY interval", expr.Name)
 				} else if !ok {
 					return fmt.Errorf("must use aggregate function with %s", expr.Name)
@@ -2043,6 +2043,11 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 
 	// If we have an aggregate function with a group by time without a where clause, it's an invalid statement
 	if tr == targetNotRequired { // ignore create continuous query statements
+		if err := s.validateTimeExpression(); err != nil {
+			return err
+		}
+	}
+	if tr != targetSubquery {
 		if err := s.validateGroupByInterval(); err != nil {
 			return err
 		}
@@ -2050,10 +2055,10 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	return nil
 }
 
-// validateGroupByInterval ensures that any select statements that have a group
+// validateTimeExpression ensures that any select statements that have a group
 // by interval either have a time expression limiting the time range or have a
 // parent query that does that.
-func (s *SelectStatement) validateGroupByInterval() error {
+func (s *SelectStatement) validateTimeExpression() error {
 	// If we have a time expression, we and all subqueries are fine.
 	if HasTimeExpr(s.Condition) {
 		return nil
@@ -2072,6 +2077,44 @@ func (s *SelectStatement) validateGroupByInterval() error {
 	// statement, we don't need to do this because parent time ranges propagate
 	// to children. So we only execute this when there is no time condition in
 	// the parent.
+	for _, source := range s.Sources {
+		switch source := source.(type) {
+		case *SubQuery:
+			if err := source.Statement.validateTimeExpression(); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// validateGroupByInterval ensures that a select statement is grouped by an
+// interval if it contains certain functions.
+func (s *SelectStatement) validateGroupByInterval() error {
+	interval, err := s.GroupByInterval()
+	if err != nil {
+		return err
+	} else if interval > 0 {
+		// If we have an interval here, that means the interval will propagate
+		// into any subqueries and we can just stop looking.
+		return nil
+	}
+
+	// Check inside of the fields for any of the specific functions that ned a group by interval.
+	for _, f := range s.Fields {
+		switch expr := f.Expr.(type) {
+		case *Call:
+			switch expr.Name {
+			case "derivative", "non_negative_derivative", "difference", "moving_average", "cumulative_sum", "elapsed", "holt_winters", "holt_winters_with_fit":
+				// If the first argument is a call, we needed a group by interval and we don't have one.
+				if _, ok := expr.Args[0].(*Call); ok {
+					return fmt.Errorf("%s aggregate requires a GROUP BY interval", expr.Name)
+				}
+			}
+		}
+	}
+
+	// Validate the subqueries.
 	for _, source := range s.Sources {
 		switch source := source.(type) {
 		case *SubQuery:
@@ -4503,11 +4546,14 @@ func FieldDimensions(sources Sources, m FieldMapper) (fields map[string]DataType
 					fields[k] = typ
 				}
 			}
-			for _, d := range src.Statement.Dimensions {
-				switch d := d.Expr.(type) {
-				case *VarRef:
-					dimensions[d.Val] = struct{}{}
-				}
+
+			_, d, err := FieldDimensions(src.Statement.Sources, m)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			for k := range d {
+				dimensions[k] = struct{}{}
 			}
 		}
 	}

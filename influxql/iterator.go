@@ -755,7 +755,11 @@ func newIteratorOptionsSubstatement(stmt *SelectStatement, opt IteratorOptions) 
 	if subOpt.EndTime > opt.EndTime {
 		subOpt.EndTime = opt.EndTime
 	}
+	// Propagate the dimensions to the inner subquery.
 	subOpt.Dimensions = opt.Dimensions
+	for d := range opt.GroupBy {
+		subOpt.GroupBy[d] = struct{}{}
+	}
 	subOpt.InterruptCh = opt.InterruptCh
 
 	// Propagate the SLIMIT and SOFFSET from the outer query.
@@ -778,6 +782,12 @@ func newIteratorOptionsSubstatement(stmt *SelectStatement, opt IteratorOptions) 
 		return IteratorOptions{}, err
 	}
 	subOpt.Ordered = opt.Ordered && (interval == 0 && stmt.HasSelector())
+
+	// If there is no interval for this subquery, but the outer query has an
+	// interval, inherit the parent interval.
+	if interval == 0 {
+		subOpt.Interval = opt.Interval
+	}
 	return subOpt, nil
 }
 
