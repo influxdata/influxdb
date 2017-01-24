@@ -1,10 +1,11 @@
-## v1.2.0 [unreleased]
+## v1.2.0 [2017-01-24]
 
 ### Release Notes
 
 ### Deprecations
 
 The stress tool `influx_stress` will be removed in a subsequent release. We recommend using [`influx-stress`](https://github.com/influxdata/influx-stress) as a replacement.
+
 
 ### Features
 
