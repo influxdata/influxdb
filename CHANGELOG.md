@@ -1,23 +1,32 @@
 ## v1.1.0 [unreleased]
 
 ### Upcoming Bug Fixes
+  1. [#788](https://github.com/influxdata/chronograf/pull/788): Fix missing fields in data explorer when using non-default retention policy
+
+### Upcoming Features
+### Upcoming UI Improvements
+
+## v1.1.0-beta6 [2017-01-13]
+### Bug Fixes
   1. [#748](https://github.com/influxdata/chronograf/pull/748): Fix missing kapacitors on source index page
   1. [#755](https://github.com/influxdata/chronograf/pull/755): Fix kapacitor basic auth proxying
   2. [#704](https://github.com/influxdata/chronograf/issues/704): Fix RPM and DEB install script and systemd unit file
 
-### Upcoming Features
-  1. [#660](https://github.com/influxdata/chronograf/issues/660): Add option to accept any certificate from InfluxDB.
+### Features
+  1. [#660](https://github.com/influxdata/chronograf/issues/660): Add option to accept any certificate from InfluxDB
   2. [#733](https://github.com/influxdata/chronograf/pull/733): Add optional Github organization membership checks to authentication
-  3. [#564](https://github.com/influxdata/chronograf/issues/564): Add RabbitMQ pre-canned layout.
+  3. [#564](https://github.com/influxdata/chronograf/issues/564): Add RabbitMQ pre-canned layout
   4. [#706](https://github.com/influxdata/chronograf/issues/706): Alerts on threshold where value is inside of range
   5. [#707](https://github.com/influxdata/chronograf/issues/707): Alerts on threshold where value is outside of range
-  6. [#766](https://github.com/influxdata/chronograf/pull/766): Add click-to-insert functionality to rule message templates
-  7. [#766](https://github.com/influxdata/chronograf/pull/772): Add X-Chronograf-Version header to all requests
+  6. [#772](https://github.com/influxdata/chronograf/pull/772): Add X-Chronograf-Version header to all requests
+
+### UI Improvements
+  1. [#766](https://github.com/influxdata/chronograf/pull/766): Add click-to-insert functionality to rule message templates
 
 ## v1.1.0-beta5 [2017-01-05]
 
 ### Bug Fixes
-  1. [#693](https://github.com/influxdata/chronograf/issues/693): Fix corrupted MongoDB pre-canned layout.
+  1. [#693](https://github.com/influxdata/chronograf/issues/693): Fix corrupted MongoDB pre-canned layout
   2. [#714](https://github.com/influxdata/chronograf/issues/714): Relative rules check data in the wrong direction
   3. [#718](https://github.com/influxdata/chronograf/issues/718): Fix bug that stopped apps from displaying
 

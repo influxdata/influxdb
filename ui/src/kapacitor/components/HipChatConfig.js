@@ -5,7 +5,6 @@ const HipchatConfig = React.createClass({
     config: PropTypes.shape({
       options: PropTypes.shape({
         room: PropTypes.string.isRequired,
-        'state-changes-only': PropTypes.bool.isRequired,
         token: PropTypes.bool.isRequired,
         url: PropTypes.string.isRequired,
       }).isRequired,
@@ -20,7 +19,6 @@ const HipchatConfig = React.createClass({
       room: this.room.value,
       url: this.url.value,
       token: this.token.value,
-      'state-changes-only': this.stateChangesOnly.checked,
     };
 
     this.props.onSave(properties);
@@ -28,7 +26,6 @@ const HipchatConfig = React.createClass({
 
   render() {
     const {options} = this.props.config;
-    const stateChangesOnly = options['state-changes-only'];
     const {url, room, token} = options;
 
     return (
@@ -51,13 +48,6 @@ const HipchatConfig = React.createClass({
             <label htmlFor="token">Token</label>
             <input className="form-control" id="token" type="text" ref={(r) => this.token = r} defaultValue={token || ''}></input>
             <label className="form-helper">Note: a value of <code>true</code> indicates the HipChat token has been set</label>
-          </div>
-
-          <div className="form-group col-xs-12">
-            <div className="form-control-static">
-              <input id="stateChangesOnly" type="checkbox" defaultChecked={stateChangesOnly} ref={(r) => this.stateChangesOnly = r} />
-              <label htmlFor="stateChangesOnly">Send alerts on state change only</label>
-            </div>
           </div>
 
           <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">

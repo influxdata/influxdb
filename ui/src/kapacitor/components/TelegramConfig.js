@@ -8,7 +8,6 @@ const TelegramConfig = React.createClass({
         'disable-notification': PropTypes.bool.isRequired,
         'disable-web-page-preview': PropTypes.bool.isRequired,
         'parse-mode': PropTypes.string.isRequired,
-        'state-changes-only': PropTypes.bool.isRequired,
         token: PropTypes.bool.isRequired,
         url: PropTypes.string.isRequired,
       }).isRequired,
@@ -24,7 +23,6 @@ const TelegramConfig = React.createClass({
       disableNotification: this.disableNotification.checked,
       disableWebPagePreview: this.disableWebPagePreview.checked,
       parseMode: this.parseMode.checked,
-      stateChangesOnly: this.stateChangesOnly.checked,
       token: this.token.value,
       url: this.url.value,
     };
@@ -39,7 +37,6 @@ const TelegramConfig = React.createClass({
     const disableNotification = options['chat-id'];
     const disableWebPagePreview = options['disable-web-page-preview'];
     const parseMode = options['parse-mode'];
-    const stateChangesOnly = options['state-changes-only'];
 
     return (
       <div>
@@ -81,13 +78,6 @@ const TelegramConfig = React.createClass({
             <div className="form-control-static">
               <input id="disableNotification" type="checkbox" defaultChecked={disableNotification} ref={(r) => this.disableNotification = r} />
               <label htmlFor="disableNotification">Disable Notification</label>
-            </div>
-          </div>
-
-          <div className="form-group col-xs-12">
-            <div className="form-control-static">
-              <input id="stateChangesOnly" type="checkbox" defaultChecked={stateChangesOnly} ref={(r) => this.stateChangesOnly = r} />
-              <label htmlFor="stateChangesOnly">Send alerts on state change only</label>
             </div>
           </div>
 
