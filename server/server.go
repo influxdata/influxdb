@@ -76,6 +76,8 @@ func (s *Server) Serve() error {
 		UseAuth:            s.useAuth(),
 	}, service)
 
+	s.handler = Version(s.BuildInfo.Version, s.handler)
+
 	var err error
 	s.Listener, err = net.Listen("tcp", net.JoinHostPort(s.Host, strconv.Itoa(s.Port)))
 	if err != nil {

@@ -18,6 +18,7 @@
   3. [#564](https://github.com/influxdata/chronograf/issues/564): Add RabbitMQ pre-canned layout
   4. [#706](https://github.com/influxdata/chronograf/issues/706): Alerts on threshold where value is inside of range
   5. [#707](https://github.com/influxdata/chronograf/issues/707): Alerts on threshold where value is outside of range
+  6. [#772](https://github.com/influxdata/chronograf/pull/772): Add X-Chronograf-Version header to all requests
 
 ### UI Improvements
   1. [#766](https://github.com/influxdata/chronograf/pull/766): Add click-to-insert functionality to rule message templates
