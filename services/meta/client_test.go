@@ -972,10 +972,14 @@ func TestMetaClient_PruneShardGroups(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if _, err := c.CreateDatabase("db1"); err != nil {
+		t.Fatal(err)
+	}
+
 	duration := 1 * time.Hour
 	replicaN := 1
 
-	if _, err := c.CreateRetentionPolicy("db0", &meta.RetentionPolicySpec{
+	if _, err := c.CreateRetentionPolicy("db1", &meta.RetentionPolicySpec{
 		Name:     "rp0",
 		Duration: &duration,
 		ReplicaN: &replicaN,
@@ -983,14 +987,21 @@ func TestMetaClient_PruneShardGroups(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sg, err := c.CreateShardGroup("db0", "autogen", time.Now())
+	sg, err := c.CreateShardGroup("db1", "autogen", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	} else if sg == nil {
 		t.Fatalf("expected ShardGroup")
 	}
 
-	sg, err = c.CreateShardGroup("db0", "rp0", time.Now())
+	sg, err = c.CreateShardGroup("db1", "autogen", time.Now().Add(15*24*time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	} else if sg == nil {
+		t.Fatalf("expected ShardGroup")
+	}
+
+	sg, err = c.CreateShardGroup("db1", "rp0", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	} else if sg == nil {
@@ -1000,7 +1011,8 @@ func TestMetaClient_PruneShardGroups(t *testing.T) {
 	expiration := time.Now().Add(-2 * 7 * 24 * time.Hour).Add(-1 * time.Hour)
 
 	data := c.Data()
-	data.Databases[0].RetentionPolicies[0].ShardGroups[0].DeletedAt = expiration
+	data.Databases[1].RetentionPolicies[0].ShardGroups[0].DeletedAt = expiration
+	data.Databases[1].RetentionPolicies[0].ShardGroups[1].DeletedAt = expiration
 
 	if err := c.SetData(&data); err != nil {
 		t.Fatal(err)
@@ -1011,7 +1023,7 @@ func TestMetaClient_PruneShardGroups(t *testing.T) {
 	}
 
 	data = c.Data()
-	rp, err := data.RetentionPolicy("db0", "autogen")
+	rp, err := data.RetentionPolicy("db1", "autogen")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1019,7 +1031,7 @@ func TestMetaClient_PruneShardGroups(t *testing.T) {
 		t.Fatalf("failed to prune shard group. got: %d, exp: %d", got, exp)
 	}
 
-	rp, err = data.RetentionPolicy("db0", "rp0")
+	rp, err = data.RetentionPolicy("db1", "rp0")
 	if err != nil {
 		t.Fatal(err)
 	}

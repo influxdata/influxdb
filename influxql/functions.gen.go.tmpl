@@ -170,7 +170,7 @@ func (r *{{$k.Name}}ElapsedReducer) Emit() []IntegerPoint {
 	return nil
 }
 
-// {{$k.Name}}SampleReduces implements a reservoir sampling to calculate a random subset of points
+// {{$k.Name}}SampleReducer implements a reservoir sampling to calculate a random subset of points
 type {{$k.Name}}SampleReducer struct {
 	count int // how many points we've iterated over
 	rng   *rand.Rand // random number generator for each reducer
@@ -191,7 +191,7 @@ func (r *{{$k.Name}}SampleReducer) Aggregate{{$k.Name}}(p *{{$k.Name}}Point) {
 	r.count++
 	// Fill the reservoir with the first n points
 	if r.count-1 < len(r.points) {
-		r.points[r.count-1] = *p
+		p.CopyTo(&r.points[r.count-1])
 		return
 	}
 
@@ -200,7 +200,7 @@ func (r *{{$k.Name}}SampleReducer) Aggregate{{$k.Name}}(p *{{$k.Name}}Point) {
 	// replace the point at that index rnd with p.
 	rnd := r.rng.Intn(r.count)
 	if rnd < len(r.points) {
-		r.points[rnd] = *p
+		p.CopyTo(&r.points[rnd])
 	}
 }
 

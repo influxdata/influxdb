@@ -637,12 +637,7 @@ func (c *Client) ShardGroupsByTimeRange(database, policy string, min, max time.T
 // ShardsByTimeRange returns a slice of shards that may contain data in the time range.
 func (c *Client) ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []ShardInfo, err error) {
 	m := make(map[*ShardInfo]struct{})
-	for _, src := range sources {
-		mm, ok := src.(*influxql.Measurement)
-		if !ok {
-			return nil, fmt.Errorf("invalid source type: %#v", src)
-		}
-
+	for _, mm := range sources.Measurements() {
 		groups, err := c.ShardGroupsByTimeRange(mm.Database, mm.RetentionPolicy, tmin, tmax)
 		if err != nil {
 			return nil, err
@@ -681,15 +676,15 @@ func (c *Client) PruneShardGroups() error {
 	data := c.cacheData.Clone()
 	for i, d := range data.Databases {
 		for j, rp := range d.RetentionPolicies {
+			var remainingShardGroups []ShardGroupInfo
 			for _, sgi := range rp.ShardGroups {
 				if sgi.DeletedAt.IsZero() || !expiration.After(sgi.DeletedAt) {
+					remainingShardGroups = append(remainingShardGroups, sgi)
 					continue
 				}
-				// we are safe to delete the shard group as it's been marked deleted for the required expiration
-				s := append(rp.ShardGroups[:i], rp.ShardGroups[i+1:]...)
-				data.Databases[i].RetentionPolicies[j].ShardGroups = s
 				changed = true
 			}
+			data.Databases[i].RetentionPolicies[j].ShardGroups = remainingShardGroups
 		}
 	}
 	if changed {

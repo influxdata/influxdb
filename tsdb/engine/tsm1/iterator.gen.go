@@ -271,24 +271,22 @@ func (itr *floatLimitIterator) Stats() influxql.IteratorStats { return itr.input
 func (itr *floatLimitIterator) Close() error                  { return itr.input.Close() }
 
 func (itr *floatLimitIterator) Next() (*influxql.FloatPoint, error) {
-	for {
-		// Check if we are beyond the limit.
-		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
-			return nil, nil
-		}
-
-		// Read the next point.
-		p, err := itr.input.Next()
-		if p == nil || err != nil {
-			return nil, err
-		}
-
-		// Increment counter.
-		itr.n++
-
-		// Offsets are handled by a higher level iterator so return all points.
-		return p, nil
+	// Check if we are beyond the limit.
+	if (itr.n - itr.opt.Offset) > itr.opt.Limit {
+		return nil, nil
 	}
+
+	// Read the next point.
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		return nil, err
+	}
+
+	// Increment counter.
+	itr.n++
+
+	// Offsets are handled by a higher level iterator so return all points.
+	return p, nil
 }
 
 // floatCursor represents an object for iterating over a single float field.
@@ -714,24 +712,22 @@ func (itr *integerLimitIterator) Stats() influxql.IteratorStats { return itr.inp
 func (itr *integerLimitIterator) Close() error                  { return itr.input.Close() }
 
 func (itr *integerLimitIterator) Next() (*influxql.IntegerPoint, error) {
-	for {
-		// Check if we are beyond the limit.
-		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
-			return nil, nil
-		}
-
-		// Read the next point.
-		p, err := itr.input.Next()
-		if p == nil || err != nil {
-			return nil, err
-		}
-
-		// Increment counter.
-		itr.n++
-
-		// Offsets are handled by a higher level iterator so return all points.
-		return p, nil
+	// Check if we are beyond the limit.
+	if (itr.n - itr.opt.Offset) > itr.opt.Limit {
+		return nil, nil
 	}
+
+	// Read the next point.
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		return nil, err
+	}
+
+	// Increment counter.
+	itr.n++
+
+	// Offsets are handled by a higher level iterator so return all points.
+	return p, nil
 }
 
 // integerCursor represents an object for iterating over a single integer field.
@@ -1157,24 +1153,22 @@ func (itr *stringLimitIterator) Stats() influxql.IteratorStats { return itr.inpu
 func (itr *stringLimitIterator) Close() error                  { return itr.input.Close() }
 
 func (itr *stringLimitIterator) Next() (*influxql.StringPoint, error) {
-	for {
-		// Check if we are beyond the limit.
-		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
-			return nil, nil
-		}
-
-		// Read the next point.
-		p, err := itr.input.Next()
-		if p == nil || err != nil {
-			return nil, err
-		}
-
-		// Increment counter.
-		itr.n++
-
-		// Offsets are handled by a higher level iterator so return all points.
-		return p, nil
+	// Check if we are beyond the limit.
+	if (itr.n - itr.opt.Offset) > itr.opt.Limit {
+		return nil, nil
 	}
+
+	// Read the next point.
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		return nil, err
+	}
+
+	// Increment counter.
+	itr.n++
+
+	// Offsets are handled by a higher level iterator so return all points.
+	return p, nil
 }
 
 // stringCursor represents an object for iterating over a single string field.
@@ -1600,24 +1594,22 @@ func (itr *booleanLimitIterator) Stats() influxql.IteratorStats { return itr.inp
 func (itr *booleanLimitIterator) Close() error                  { return itr.input.Close() }
 
 func (itr *booleanLimitIterator) Next() (*influxql.BooleanPoint, error) {
-	for {
-		// Check if we are beyond the limit.
-		if (itr.n - itr.opt.Offset) > itr.opt.Limit {
-			return nil, nil
-		}
-
-		// Read the next point.
-		p, err := itr.input.Next()
-		if p == nil || err != nil {
-			return nil, err
-		}
-
-		// Increment counter.
-		itr.n++
-
-		// Offsets are handled by a higher level iterator so return all points.
-		return p, nil
+	// Check if we are beyond the limit.
+	if (itr.n - itr.opt.Offset) > itr.opt.Limit {
+		return nil, nil
 	}
+
+	// Read the next point.
+	p, err := itr.input.Next()
+	if p == nil || err != nil {
+		return nil, err
+	}
+
+	// Increment counter.
+	itr.n++
+
+	// Offsets are handled by a higher level iterator so return all points.
+	return p, nil
 }
 
 // booleanCursor represents an object for iterating over a single boolean field.

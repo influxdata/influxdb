@@ -327,7 +327,7 @@ func (t *TSMReader) Close() error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	if t.refs > 0 {
+	if t.InUse() {
 		return ErrFileInUse
 	}
 

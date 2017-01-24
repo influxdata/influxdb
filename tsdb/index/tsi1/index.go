@@ -623,6 +623,13 @@ func (i *Index) SeriesN() int64 {
 // Dereference is a nop.
 func (i *Index) Dereference([]byte) {}
 
+// HasTagKey returns true if tag key exists.
+func (i *Index) HasTagKey(name, key []byte) (bool, error) {
+	fs := i.RetainFileSet()
+	defer fs.Release()
+	return fs.HasTagKey(name, key), nil
+}
+
 // MeasurementTagKeysByExpr extracts the tag keys wanted by the expression.
 func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
 	fs := i.RetainFileSet()

@@ -243,6 +243,24 @@ func (f *LogFile) TagKeyIterator(name []byte) TagKeyIterator {
 	return newLogTagKeyIterator(a)
 }
 
+// TagKey returns a tag key element.
+func (f *LogFile) TagKey(name, key []byte) TagKeyElem {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	mm, ok := f.mms[string(name)]
+	if !ok {
+		return nil
+	}
+
+	tk, ok := mm.tagSet[string(key)]
+	if !ok {
+		return nil
+	}
+
+	return &tk
+}
+
 // TagValue returns a tag value element.
 func (f *LogFile) TagValue(name, key, value []byte) TagValueElem {
 	f.mu.RLock()

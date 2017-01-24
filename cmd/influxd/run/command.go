@@ -195,7 +195,7 @@ func (cmd *Command) ParseConfig(path string) (*Config, error) {
 		return NewDemoConfig()
 	}
 
-	cmd.Logger.Info(fmt.Sprintf("Using configuration at: %s\n", path))
+	cmd.Logger.Info(fmt.Sprintf("Using configuration at: %s", path))
 
 	config := NewConfig()
 	if err := config.FromTomlFile(path); err != nil {

@@ -1,6 +1,7 @@
 package run_test
 
 import (
+	"fmt"
 	"os"
 	"testing"
 
@@ -272,5 +273,45 @@ max-select-point = 100
 	if c.Coordinator.MaxSelectPointN != 100 {
 		t.Fatalf("unexpected coordinator max select points: %d", c.Coordinator.MaxSelectPointN)
 
+	}
+}
+
+// Ensure that Config.Validate correctly validates the individual subsections.
+func TestConfig_InvalidSubsections(t *testing.T) {
+	// Precondition: NewDemoConfig must validate correctly.
+	c, err := run.NewDemoConfig()
+	if err != nil {
+		t.Fatalf("error creating demo config: %s", err)
+	}
+	if err := c.Validate(); err != nil {
+		t.Fatalf("new demo config failed validation: %s", err)
+	}
+
+	// For each subsection, load a config with a single invalid setting.
+	for _, tc := range []struct {
+		section string
+		kv      string
+	}{
+		{"meta", `dir = ""`},
+		{"data", `dir = ""`},
+		{"monitor", `store-database = ""`},
+		{"continuous_queries", `run-interval = "0s"`},
+		{"subscriber", `http-timeout = "0s"`},
+		{"retention", `check-interval = "0s"`},
+		{"shard-precreation", `advance-period = "0s"`},
+	} {
+		c, err := run.NewDemoConfig()
+		if err != nil {
+			t.Fatalf("error creating demo config: %s", err)
+		}
+
+		s := fmt.Sprintf("\n[%s]\n%s\n", tc.section, tc.kv)
+		if err := c.FromToml(s); err != nil {
+			t.Fatalf("error loading toml %q: %s", s, err)
+		}
+
+		if err := c.Validate(); err == nil {
+			t.Fatalf("expected error but got nil for config: %s", s)
+		}
 	}
 }

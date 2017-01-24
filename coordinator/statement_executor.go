@@ -35,6 +35,9 @@ type StatementExecutor struct {
 	// TSDB storage for local node.
 	TSDBStore TSDBStore
 
+	// ShardMapper for mapping shards when executing a SELECT statement.
+	ShardMapper ShardMapper
+
 	// Holds monitoring data for SHOW STATS and SHOW DIAGNOSTICS.
 	Monitor *monitor.Monitor
 
@@ -241,6 +244,12 @@ func (e *StatementExecutor) executeCreateContinuousQueryStatement(q *influxql.Cr
 }
 
 func (e *StatementExecutor) executeCreateDatabaseStatement(stmt *influxql.CreateDatabaseStatement) error {
+	if !meta.ValidName(stmt.Name) {
+		// TODO This should probably be in `(*meta.Data).CreateDatabase`
+		// but can't go there until 1.1 is used everywhere
+		return meta.ErrInvalidName
+	}
+
 	if !stmt.RetentionPolicyCreate {
 		_, err := e.MetaClient.CreateDatabase(stmt.Name)
 		return err
@@ -257,6 +266,12 @@ func (e *StatementExecutor) executeCreateDatabaseStatement(stmt *influxql.Create
 }
 
 func (e *StatementExecutor) executeCreateRetentionPolicyStatement(stmt *influxql.CreateRetentionPolicyStatement) error {
+	if !meta.ValidName(stmt.Name) {
+		// TODO This should probably be in `(*meta.Data).CreateRetentionPolicy`
+		// but can't go there until 1.1 is used everywhere
+		return meta.ErrInvalidName
+	}
+
 	spec := meta.RetentionPolicySpec{
 		Name:               stmt.Name,
 		Duration:           &stmt.Duration,
@@ -302,6 +317,10 @@ func (e *StatementExecutor) executeDropContinuousQueryStatement(q *influxql.Drop
 // It does not return an error if the database was not found on any of
 // the nodes, or in the Meta store.
 func (e *StatementExecutor) executeDropDatabaseStatement(stmt *influxql.DropDatabaseStatement) error {
+	if e.MetaClient.Database(stmt.Name) == nil {
+		return nil
+	}
+
 	// Locally delete the datababse.
 	if err := e.TSDBStore.DeleteDatabase(stmt.Name); err != nil {
 		return err
@@ -345,6 +364,15 @@ func (e *StatementExecutor) executeDropShardStatement(stmt *influxql.DropShardSt
 }
 
 func (e *StatementExecutor) executeDropRetentionPolicyStatement(stmt *influxql.DropRetentionPolicyStatement) error {
+	dbi := e.MetaClient.Database(stmt.Database)
+	if dbi == nil {
+		return nil
+	}
+
+	if dbi.RetentionPolicy(stmt.Name) == nil {
+		return nil
+	}
+
 	// Locally drop the retention policy.
 	if err := e.TSDBStore.DeleteRetentionPolicy(stmt.Database, stmt.Name); err != nil {
 		return err
@@ -495,11 +523,7 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 
 	// Replace instances of "now()" with the current time, and check the resultant times.
 	nowValuer := influxql.NowValuer{Now: now}
-	stmt.Condition = influxql.Reduce(stmt.Condition, &nowValuer)
-	// Replace instances of "now()" with the current time in the dimensions.
-	for _, d := range stmt.Dimensions {
-		d.Expr = influxql.Reduce(d.Expr, &nowValuer)
-	}
+	stmt = stmt.Reduce(&nowValuer)
 
 	var err error
 	opt.MinTime, opt.MaxTime, err = influxql.TimeRange(stmt.Condition)
@@ -508,21 +532,7 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 	}
 
 	if opt.MaxTime.IsZero() {
-		// In the case that we're executing a meta query where the user cannot
-		// specify a time condition, then we expand the default max time
-		// to the maximum possible value, to ensure that data where all points
-		// are in the future are returned.
-		if influxql.Sources(stmt.Sources).HasSystemSource() {
-			opt.MaxTime = time.Unix(0, influxql.MaxTime).UTC()
-		} else {
-			if interval, err := stmt.GroupByInterval(); err != nil {
-				return nil, stmt, err
-			} else if interval > 0 {
-				opt.MaxTime = now
-			} else {
-				opt.MaxTime = time.Unix(0, influxql.MaxTime).UTC()
-			}
-		}
+		opt.MaxTime = time.Unix(0, influxql.MaxTime)
 	}
 	if opt.MinTime.IsZero() {
 		opt.MinTime = time.Unix(0, influxql.MinTime).UTC()
@@ -534,23 +544,20 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 	// Remove "time" from fields list.
 	stmt.RewriteTimeFields()
 
+	// Rewrite time condition.
+	if err := stmt.RewriteTimeCondition(now); err != nil {
+		return nil, stmt, err
+	}
+
 	// Rewrite any regex conditions that could make use of the index.
 	stmt.RewriteRegexConditions()
 
 	// Create an iterator creator based on the shards in the cluster.
-	ic, err := e.iteratorCreator(stmt, &opt)
+	ic, err := e.ShardMapper.MapShards(stmt.Sources, &opt)
 	if err != nil {
 		return nil, stmt, err
 	}
-
-	// Expand regex sources to their actual source names.
-	if stmt.Sources.HasRegex() {
-		sources, err := ic.ExpandSources(stmt.Sources)
-		if err != nil {
-			return nil, stmt, err
-		}
-		stmt.Sources = sources
-	}
+	defer ic.Close()
 
 	// Rewrite wildcards, if any exist.
 	tmp, err := stmt.RewriteFields(ic)
@@ -589,16 +596,6 @@ func (e *StatementExecutor) createIterators(stmt *influxql.SelectStatement, ctx 
 		ctx.Query.Monitor(monitor)
 	}
 	return itrs, stmt, nil
-}
-
-// iteratorCreator returns a new instance of IteratorCreator based on stmt.
-func (e *StatementExecutor) iteratorCreator(stmt *influxql.SelectStatement, opt *influxql.SelectOptions) (influxql.IteratorCreator, error) {
-	// Retrieve a list of shard IDs.
-	shards, err := e.MetaClient.ShardsByTimeRange(stmt.Sources, opt.MinTime, opt.MaxTime)
-	if err != nil {
-		return nil, err
-	}
-	return e.TSDBStore.IteratorCreator(shards, opt)
 }
 
 func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql.ShowContinuousQueriesStatement) (models.Rows, error) {
@@ -1148,7 +1145,6 @@ type TSDBStore interface {
 	DeleteRetentionPolicy(database, name string) error
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShard(id uint64) error
-	IteratorCreator(shards []meta.ShardInfo, opt *influxql.SelectOptions) (influxql.IteratorCreator, error)
 
 	MeasurementNames(database string, cond influxql.Expr) ([][]byte, error)
 	TagValues(database string, cond influxql.Expr) ([]tsdb.TagValues, error)
@@ -1160,15 +1156,6 @@ var _ TSDBStore = LocalTSDBStore{}
 // to satisfy the TSDBStore interface.
 type LocalTSDBStore struct {
 	*tsdb.Store
-}
-
-// IteratorCreator returns an influxql.IteratorCreator for the given shards, with the given select options.
-func (s LocalTSDBStore) IteratorCreator(shards []meta.ShardInfo, opt *influxql.SelectOptions) (influxql.IteratorCreator, error) {
-	shardIDs := make([]uint64, len(shards))
-	for i, sh := range shards {
-		shardIDs[i] = sh.ID
-	}
-	return s.Store.IteratorCreator(shardIDs, opt)
 }
 
 // ShardIteratorCreator is an interface for creating an IteratorCreator to access a specific shard.

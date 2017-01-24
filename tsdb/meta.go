@@ -143,12 +143,16 @@ func (m *Measurement) HasSeries() bool {
 func (m *Measurement) Cardinality(key string) int {
 	var n int
 	m.mu.RLock()
-	n = len(m.seriesByTagKeyValue[key])
+	n = m.cardinality(key)
 	m.mu.RUnlock()
 	return n
 }
 
-// CardinalityBytes returns the number of values associated with tag key
+func (m *Measurement) cardinality(key string) int {
+	return len(m.seriesByTagKeyValue[key])
+}
+
+// CardinalityBytes returns the number of values associated with the given tag key.
 func (m *Measurement) CardinalityBytes(key []byte) int {
 	var n int
 	m.mu.RLock()
@@ -651,7 +655,7 @@ type FilterExprs map[uint64]influxql.Expr
 // DeleteBoolLiteralTrues deletes all elements whose filter expression is a boolean literal true.
 func (fe FilterExprs) DeleteBoolLiteralTrues() {
 	for id, expr := range fe {
-		if e, ok := expr.(*influxql.BooleanLiteral); ok && e.Val == true {
+		if e, ok := expr.(*influxql.BooleanLiteral); ok && e.Val {
 			delete(fe, id)
 		}
 	}
@@ -771,7 +775,7 @@ func expandExprWithValues(expr influxql.Expr, keys []string, tagExprs []tagExpr,
 		// Reduce using the current tag key/value set.
 		// Ignore it if reduces down to "false".
 		e := influxql.Reduce(expr, &tagValuer{tags: m})
-		if e, ok := e.(*influxql.BooleanLiteral); ok && e.Val == false {
+		if e, ok := e.(*influxql.BooleanLiteral); ok && !e.Val {
 			return nil
 		}
 

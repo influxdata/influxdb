@@ -21,9 +21,14 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7709](https://github.com/influxdata/influxdb/pull/7709): Add clear command to cli.
 - [#7688](https://github.com/influxdata/influxdb/pull/7688): Adding ability to use parameters in queries in the v2 client using the `Parameters` map in the `Query` struct.
 - [#7323](https://github.com/influxdata/influxdb/pull/7323): Allow add items to array config via ENV
+- [#4619](https://github.com/influxdata/influxdb/issues/4619): Support subquery execution in the query language.
+- [#7326](https://github.com/influxdata/influxdb/issues/7326): Verbose output for SSL connection errors.
+- [#7830](https://github.com/influxdata/influxdb/pull/7830): Cache snapshotting performance improvements
 
 ### Bugfixes
 
+- [#7832](https://github.com/influxdata/influxdb/pull/7832): Fix memory leak when writing new series over HTTP
+- [#7786](https://github.com/influxdata/influxdb/pull/7786): Fix potential race condition in correctness of tsm1_cache memBytes statistic.
 - [#7784](https://github.com/influxdata/influxdb/pull/7784): Fix broken error return on meta client's UpdateUser and DropContinuousQuery methods.
 - [#7741](https://github.com/influxdata/influxdb/pull/7741): Fix string quoting and significantly improve performance of `influx_inspect export`.
 - [#7698](https://github.com/influxdata/influxdb/pull/7698): CLI was caching db/rp for insert into statements.
@@ -39,6 +44,10 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7740](https://github.com/influxdata/influxdb/issues/7740): Fix parse key panic when missing tag value @oiooj
 - [#7563](https://github.com/influxdata/influxdb/issues/7563): RP should not allow `INF` or `0` as a shard duration.
 - [#7585](https://github.com/influxdata/influxdb/pull/7585): Return Error instead of panic when decoding point values.
+- [#7812](https://github.com/influxdata/influxdb/issues/7812): Fix slice out of bounds panic when pruning shard groups. Thanks @vladlopes
+- [#7822](https://github.com/influxdata/influxdb/issues/7822): Drop database will delete /influxdb/data directory
+- [#7838](https://github.com/influxdata/influxdb/issues/7838): Ensure Subscriber service can be disabled.
+- [#7845](https://github.com/influxdata/influxdb/issues/7845): Fix race in storage engine.
 
 ## v1.1.1 [2016-12-06]
 
@@ -88,7 +97,7 @@ The query language has been extended with a few new features:
 - [#7442](https://github.com/influxdata/influxdb/pull/7442): Support regex on fields keys in select clause
 - [#7403](https://github.com/influxdata/influxdb/pull/7403): New `linear` fill option
 - [#7388](https://github.com/influxdata/influxdb/pull/7388): New `cumulative_sum` function
-- [#7295](https://github.com/influxdata/influxdb/pull/7295): Support `ON` for `SHOW` commands 
+- [#7295](https://github.com/influxdata/influxdb/pull/7295): Support `ON` for `SHOW` commands
 
 
 All Changes:

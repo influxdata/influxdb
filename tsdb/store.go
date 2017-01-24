@@ -227,7 +227,7 @@ func (s *Store) loadShards() error {
 					}
 
 					resC <- &res{s: shard}
-					s.Logger.Info(fmt.Sprintf("%s opened in %s", path, time.Now().Sub(start)))
+					s.Logger.Info(fmt.Sprintf("%s opened in %s", path, time.Since(start)))
 				}(db.Name(), rp.Name(), sh.Name())
 			}
 		}
@@ -317,6 +317,11 @@ func (s *Store) Shards(ids []uint64) []*Shard {
 		a = append(a, sh)
 	}
 	return a
+}
+
+// ShardGroup returns a ShardGroup with a list of shards by id.
+func (s *Store) ShardGroup(ids []uint64) ShardGroup {
+	return Shards(s.Shards(ids))
 }
 
 // ShardN returns the number of shards in the store.
@@ -430,22 +435,17 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	return nil
 }
 
-// ShardIteratorCreator returns an iterator creator for a shard.
-func (s *Store) ShardIteratorCreator(id uint64, opt *influxql.SelectOptions) influxql.IteratorCreator {
-	sh := s.Shard(id)
-	if sh == nil {
-		return nil
-	}
-	return &shardIteratorCreator{
-		sh:         sh,
-		maxSeriesN: opt.MaxSeriesN,
-	}
-}
-
 // DeleteDatabase will close all shards associated with a database and remove the directory and files from disk.
 func (s *Store) DeleteDatabase(name string) error {
 	s.mu.RLock()
-	shards := s.filterShards(byDatabase(name))
+	if _, ok := s.databases[name]; !ok {
+		s.mu.RUnlock()
+		// no files locally, so nothing to do
+		return nil
+	}
+	shards := s.filterShards(func(sh *Shard) bool {
+		return sh.database == name
+	})
 	s.mu.RUnlock()
 
 	if err := s.walkShards(shards, func(sh *Shard) error {
@@ -458,7 +458,15 @@ func (s *Store) DeleteDatabase(name string) error {
 		return err
 	}
 
-	if err := os.RemoveAll(filepath.Join(s.path, name)); err != nil {
+	dbPath := filepath.Clean(filepath.Join(s.path, name))
+
+	// extra sanity check to make sure that even if someone named their database "../.."
+	// that we don't delete everything because of it, they'll just have extra files forever
+	if filepath.Clean(s.path) != filepath.Dir(dbPath) {
+		return fmt.Errorf("invalid database directory location for database '%s': %s", name, dbPath)
+	}
+
+	if err := os.RemoveAll(dbPath); err != nil {
 		return err
 	}
 	if err := os.RemoveAll(filepath.Join(s.EngineOptions.Config.WALDir, name)); err != nil {
@@ -482,6 +490,11 @@ func (s *Store) DeleteDatabase(name string) error {
 // both the DB and WAL, and remove all shard files from disk.
 func (s *Store) DeleteRetentionPolicy(database, name string) error {
 	s.mu.RLock()
+	if _, ok := s.databases[database]; !ok {
+		s.mu.RUnlock()
+		// unknown database, nothing to do
+		return nil
+	}
 	shards := s.filterShards(func(sh *Shard) bool {
 		return sh.database == database && sh.retentionPolicy == name
 	})
@@ -497,6 +510,14 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 		return sh.Close()
 	}); err != nil {
 		return err
+	}
+
+	// Remove the retention policy folder.
+	rpPath := filepath.Clean(filepath.Join(s.path, database, name))
+
+	// ensure Store's path is the grandparent of the retention policy
+	if filepath.Clean(s.path) != filepath.Dir(filepath.Dir(rpPath)) {
+		return fmt.Errorf("invalid path for database '%s', retention policy '%s': %s", database, name, rpPath)
 	}
 
 	// Remove the retention policy folder.
@@ -807,41 +828,12 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 
 // ExpandSources expands sources against all local shards.
 func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error) {
-	return s.IteratorCreators().ExpandSources(sources)
-}
-
-// IteratorCreators returns a set of all local shards as iterator creators.
-func (s *Store) IteratorCreators() influxql.IteratorCreators {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	a := make(influxql.IteratorCreators, 0, len(s.shards))
-	for _, sh := range s.shards {
-		a = append(a, sh)
-	}
-	return a
-}
-
-// IteratorCreator returns an iterator creator for all shards in the given shard IDs.
-func (s *Store) IteratorCreator(shards []uint64, opt *influxql.SelectOptions) (influxql.IteratorCreator, error) {
-	// Generate iterators for each node.
-	ics := make([]influxql.IteratorCreator, 0)
-	if err := func() error {
-		for _, id := range shards {
-			ic := s.ShardIteratorCreator(id, opt)
-			if ic == nil {
-				continue
-			}
-			ics = append(ics, ic)
-		}
-
-		return nil
-	}(); err != nil {
-		influxql.IteratorCreators(ics).Close()
-		return nil, err
-	}
-
-	return influxql.IteratorCreators(ics), nil
+	shards := func() Shards {
+		s.mu.RLock()
+		defer s.mu.RUnlock()
+		return Shards(s.shardsSlice())
+	}()
+	return shards.ExpandSources(sources)
 }
 
 // WriteToShard writes a list of points to a shard identified by its ID.

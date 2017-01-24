@@ -310,6 +310,10 @@ func (e *Engine) ForEachMeasurementSeriesByExpr(name []byte, condition influxql.
 	return e.index.ForEachMeasurementSeriesByExpr(name, condition, fn)
 }
 
+func (e *Engine) HasTagKey(name, key []byte) (bool, error) {
+	return e.index.HasTagKey(name, key)
+}
+
 func (e *Engine) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
 	return e.index.MeasurementTagKeysByExpr(name, expr)
 }
@@ -523,16 +527,13 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 		return err
 	}
 
+	tw := tar.NewWriter(w)
+	defer tw.Close()
+
 	// Remove the temporary snapshot dir
 	defer os.RemoveAll(path)
 
-	snapDir, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer snapDir.Close()
-
-	snapshotFiles, err := snapDir.Readdir(0)
+	snapshotFiles, err := ioutil.ReadDir(path)
 	if err != nil {
 		return err
 	}
@@ -548,9 +549,6 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 	if len(files) == 0 {
 		return nil
 	}
-
-	tw := tar.NewWriter(w)
-	defer tw.Close()
 
 	for _, f := range files {
 		if err := e.writeFileToBackup(f, basePath, filepath.Join(path, f.Name()), tw); err != nil {
@@ -902,7 +900,7 @@ func (e *Engine) WriteSnapshot() error {
 
 	defer func() {
 		if started != nil {
-			e.Cache.UpdateCompactTime(time.Now().Sub(*started))
+			e.Cache.UpdateCompactTime(time.Since(*started))
 			e.logger.Info(fmt.Sprintf("Snapshot for path %s written in %v", e.path, time.Since(*started)))
 		}
 	}()
@@ -993,7 +991,7 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (
 
 // compactCache continually checks if the WAL cache should be written to disk.
 func (e *Engine) compactCache(quit <-chan struct{}) {
-	t := time.NewTimer(time.Second)
+	t := time.NewTicker(time.Second)
 	defer t.Stop()
 	for {
 		select {
@@ -1015,7 +1013,6 @@ func (e *Engine) compactCache(quit <-chan struct{}) {
 				atomic.AddInt64(&e.stats.CacheCompactionDuration, time.Since(start).Nanoseconds())
 			}
 		}
-		t.Reset(time.Second)
 	}
 }
 
@@ -1029,11 +1026,11 @@ func (e *Engine) ShouldCompactCache(lastWriteTime time.Time) bool {
 	}
 
 	return sz > e.CacheFlushMemorySizeThreshold ||
-		time.Now().Sub(lastWriteTime) > e.CacheFlushWriteColdDuration
+		time.Since(lastWriteTime) > e.CacheFlushWriteColdDuration
 }
 
 func (e *Engine) compactTSMLevel(fast bool, level int, quit <-chan struct{}) {
-	t := time.NewTimer(time.Second)
+	t := time.NewTicker(time.Second)
 	defer t.Stop()
 
 	for {
@@ -1047,12 +1044,11 @@ func (e *Engine) compactTSMLevel(fast bool, level int, quit <-chan struct{}) {
 				s.Apply()
 			}
 		}
-		t.Reset(time.Second)
 	}
 }
 
 func (e *Engine) compactTSMFull(quit <-chan struct{}) {
-	t := time.NewTimer(time.Second)
+	t := time.NewTicker(time.Second)
 	defer t.Stop()
 
 	for {
@@ -1067,7 +1063,6 @@ func (e *Engine) compactTSMFull(quit <-chan struct{}) {
 			}
 
 		}
-		t.Reset(time.Second)
 	}
 }
 
@@ -1287,90 +1282,132 @@ func (e *Engine) KeyCursor(key string, t int64, ascending bool) *KeyCursor {
 	return e.FileStore.KeyCursor(key, t, ascending)
 }
 
-// CreateIterator returns an iterator based on opt.
-func (e *Engine) CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error) {
+// CreateIterator returns an iterator for the measurement based on opt.
+func (e *Engine) CreateIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
 	if call, ok := opt.Expr.(*influxql.Call); ok {
-		refOpt := opt
-		refOpt.Expr = call.Args[0].(*influxql.VarRef)
-
-		aggregate := true
 		if opt.Interval.IsZero() {
-			switch call.Name {
-			case "first":
-				aggregate = false
+			if call.Name == "first" || call.Name == "last" {
+				refOpt := opt
 				refOpt.Limit = 1
-				refOpt.Ascending = true
-			case "last":
-				aggregate = false
-				refOpt.Limit = 1
-				refOpt.Ascending = false
+				refOpt.Ascending = call.Name == "first"
+				refOpt.Ordered = true
+				refOpt.Expr = call.Args[0]
+
+				itrs, err := e.createVarRefIterator(measurement, refOpt)
+				if err != nil {
+					return nil, err
+				}
+				return influxql.Iterators(itrs).Merge(opt)
 			}
 		}
 
-		inputs, err := e.createVarRefIterator(refOpt, aggregate)
+		inputs, err := e.createCallIterator(measurement, call, opt)
 		if err != nil {
 			return nil, err
 		} else if len(inputs) == 0 {
 			return nil, nil
 		}
-
-		// Wrap each series in a call iterator.
-		for i, input := range inputs {
-			if opt.InterruptCh != nil {
-				input = influxql.NewInterruptIterator(input, opt.InterruptCh)
-			}
-
-			itr, err := influxql.NewCallIterator(input, opt)
-			if err != nil {
-				return nil, err
-			}
-			inputs[i] = itr
-		}
-
-		return influxql.NewParallelMergeIterator(inputs, opt, runtime.GOMAXPROCS(0)), nil
+		return influxql.Iterators(inputs).Merge(opt)
 	}
 
-	itrs, err := e.createVarRefIterator(opt, false)
+	itrs, err := e.createVarRefIterator(measurement, opt)
+	if err != nil {
+		return nil, err
+	}
+	return influxql.Iterators(itrs).Merge(opt)
+}
+
+func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
+	ref, _ := call.Args[0].(*influxql.VarRef)
+
+	if exists, err := e.index.MeasurementExists([]byte(measurement)); err != nil {
+		return nil, err
+	} else if !exists {
+		return nil, nil
+	}
+
+	// Determine tagsets for this measurement based on dimensions and filters.
+	tagSets, err := e.index.TagSets([]byte(measurement), opt.Dimensions, opt.Condition)
 	if err != nil {
 		return nil, err
 	}
 
-	itr := influxql.NewSortedMergeIterator(itrs, opt)
-	if itr != nil && opt.InterruptCh != nil {
-		itr = influxql.NewInterruptIterator(itr, opt.InterruptCh)
-	}
-	return itr, nil
-}
+	// Calculate tag sets and apply SLIMIT/SOFFSET.
+	tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
 
-// createVarRefIterator creates an iterator for a variable reference.
-// The aggregate argument determines this is being created for an aggregate.
-// If this is an aggregate, the limit optimization is disabled temporarily. See #6661.
-func (e *Engine) createVarRefIterator(opt influxql.IteratorOptions, aggregate bool) ([]influxql.Iterator, error) {
-	ref, _ := opt.Expr.(*influxql.VarRef)
-
-	var itrs []influxql.Iterator
+	itrs := make([]influxql.Iterator, 0, len(tagSets))
 	if err := func() error {
-		for _, name := range influxql.Sources(opt.Sources).Names() {
-			// Generate tag sets from index.
-			tagSets, err := e.index.TagSets([]byte(name), opt.Dimensions, opt.Condition)
+		for _, t := range tagSets {
+			inputs, err := e.createTagSetIterators(ref, measurement, t, opt)
 			if err != nil {
 				return err
+			} else if len(inputs) == 0 {
+				continue
 			}
-			tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
 
-			// Create iterators for each tagset.
-			for _, t := range tagSets {
-				inputs, err := e.createTagSetIterators(ref, name, t, opt)
+			// Wrap each series in a call iterator.
+			for i, input := range inputs {
+				if opt.InterruptCh != nil {
+					input = influxql.NewInterruptIterator(input, opt.InterruptCh)
+				}
+
+				itr, err := influxql.NewCallIterator(input, opt)
 				if err != nil {
 					return err
 				}
-
-				if !aggregate && len(inputs) > 0 && (opt.Limit > 0 || opt.Offset > 0) {
-					itrs = append(itrs, newLimitIterator(influxql.NewSortedMergeIterator(inputs, opt), opt))
-				} else {
-					itrs = append(itrs, inputs...)
-				}
+				inputs[i] = itr
 			}
+
+			itr := influxql.NewParallelMergeIterator(inputs, opt, runtime.GOMAXPROCS(0))
+			itrs = append(itrs, itr)
+		}
+		return nil
+	}(); err != nil {
+		influxql.Iterators(itrs).Close()
+		return nil, err
+	}
+
+	return itrs, nil
+}
+
+// createVarRefIterator creates an iterator for a variable reference.
+func (e *Engine) createVarRefIterator(measurement string, opt influxql.IteratorOptions) ([]influxql.Iterator, error) {
+	ref, _ := opt.Expr.(*influxql.VarRef)
+
+	if exists, err := e.index.MeasurementExists([]byte(measurement)); err != nil {
+		return nil, err
+	} else if !exists {
+		return nil, nil
+	}
+
+	// Determine tagsets for this measurement based on dimensions and filters.
+	tagSets, err := e.index.TagSets([]byte(measurement), opt.Dimensions, opt.Condition)
+	if err != nil {
+		return nil, err
+	}
+	// Calculate tag sets and apply SLIMIT/SOFFSET.
+	tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
+
+	itrs := make([]influxql.Iterator, 0, len(tagSets))
+	if err := func() error {
+		for _, t := range tagSets {
+			inputs, err := e.createTagSetIterators(ref, measurement, t, opt)
+			if err != nil {
+				return err
+			} else if len(inputs) == 0 {
+				continue
+			}
+
+			itr, err := influxql.Iterators(inputs).Merge(opt)
+			if err != nil {
+				influxql.Iterators(inputs).Close()
+				return err
+			}
+
+			if opt.Limit > 0 || opt.Offset > 0 {
+				itr = newLimitIterator(itr, opt)
+			}
+			itrs = append(itrs, itr)
 		}
 		return nil
 	}(); err != nil {
@@ -1568,7 +1605,8 @@ func (e *Engine) createVarRefSeriesIterator(ref *influxql.VarRef, name string, s
 	condNames := influxql.VarRefs(conditionFields).Strings()
 
 	// Limit tags to only the dimensions selected.
-	tags = tags.Subset(opt.Dimensions)
+	dimensions := opt.GetDimensions()
+	tags = tags.Subset(dimensions)
 
 	// If it's only auxiliary fields then it doesn't matter what type of iterator we use.
 	if ref == nil {

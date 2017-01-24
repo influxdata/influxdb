@@ -13,7 +13,6 @@ import (
 )
 
 func TestServer_BackupAndRestore(t *testing.T) {
-	t.Skip("currently fails intermittently.  See issue https://github.com/influxdata/influxdb/issues/6590")
 	config := NewConfig()
 	config.Data.Engine = "tsm1"
 	config.Data.Dir, _ = ioutil.TempDir("", "data_backup")
@@ -25,7 +24,7 @@ func TestServer_BackupAndRestore(t *testing.T) {
 
 	db := "mydb"
 	rp := "forever"
-	expected := `{"results":[{"series":[{"name":"myseries","columns":["time","host","value"],"values":[["1970-01-01T00:00:00.001Z","A",23]]}]}]}`
+	expected := `{"results":[{"statement_id":0,"series":[{"name":"myseries","columns":["time","host","value"],"values":[["1970-01-01T00:00:00.001Z","A",23]]}]}]}`
 
 	// set the cache snapshot size low so that a single point will cause TSM file creation
 	config.Data.CacheSnapshotMemorySize = 1

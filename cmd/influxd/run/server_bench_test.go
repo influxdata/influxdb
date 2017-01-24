@@ -36,7 +36,7 @@ func benchmarkServerQueryCount(b *testing.B, pointN int) {
 	for i := 0; i < b.N; i++ {
 		if strResult, err = benchServer.Query(`SELECT count(value) FROM db0.rp0.cpu`); err != nil {
 			b.Fatal(err)
-		} else if strResult != fmt.Sprintf(`{"results":[{"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",%d]]}]}]}`, pointN) {
+		} else if strResult != fmt.Sprintf(`{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["1970-01-01T00:00:00Z",%d]]}]}]}`, pointN) {
 			b.Fatalf("unexpected result: %s", strResult)
 		}
 	}

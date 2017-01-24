@@ -427,7 +427,7 @@ func (f *FileStore) Open() error {
 		go func(idx int, file *os.File) {
 			start := time.Now()
 			df, err := NewTSMReader(file)
-			f.logger.Info(fmt.Sprintf("%s (#%d) opened in %v", file.Name(), idx, time.Now().Sub(start)))
+			f.logger.Info(fmt.Sprintf("%s (#%d) opened in %v", file.Name(), idx, time.Since(start)))
 
 			if err != nil {
 				readerC <- &res{r: df, err: fmt.Errorf("error opening memory map for file %s: %v", file.Name(), err)}
@@ -543,10 +543,8 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 	// and load the new files.  We copy the pointers here to minimize
 	// the time that locks are held as well as to ensure that the replacement
 	// is atomic.©
-	var updated []TSMFile
-	for _, t := range f.files {
-		updated = append(updated, t)
-	}
+	updated := make([]TSMFile, len(f.files))
+	copy(updated, f.files)
 
 	// Rename all the new files to make them live on restart
 	for _, file := range newFiles {

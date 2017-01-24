@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -459,7 +460,7 @@ func TestShard_CreateIterator_Ascending(t *testing.T) {
 
 	// Calling CreateIterator when the engine is not open will return
 	// ErrEngineClosed.
-	_, got := sh.CreateIterator(influxql.IteratorOptions{})
+	_, got := sh.CreateIterator("cpu", influxql.IteratorOptions{})
 	if exp := tsdb.ErrEngineClosed; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
@@ -476,18 +477,13 @@ cpu,host=serverB,region=uswest value=25  0
 `)
 
 	// Create iterator.
-	itr, err := sh.CreateIterator(influxql.IteratorOptions{
+	itr, err := sh.CreateIterator("cpu", influxql.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Aux:        []influxql.VarRef{{Val: "val2"}},
 		Dimensions: []string{"host"},
-		Sources: []influxql.Source{&influxql.Measurement{
-			Name:            "cpu",
-			Database:        "db0",
-			RetentionPolicy: "rp0",
-		}},
-		Ascending: true,
-		StartTime: influxql.MinTime,
-		EndTime:   influxql.MaxTime,
+		Ascending:  true,
+		StartTime:  influxql.MinTime,
+		EndTime:    influxql.MaxTime,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -539,7 +535,7 @@ func TestShard_CreateIterator_Descending(t *testing.T) {
 
 	// Calling CreateIterator when the engine is not open will return
 	// ErrEngineClosed.
-	_, got := sh.CreateIterator(influxql.IteratorOptions{})
+	_, got := sh.CreateIterator("cpu", influxql.IteratorOptions{})
 	if exp := tsdb.ErrEngineClosed; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
@@ -556,18 +552,13 @@ cpu,host=serverB,region=uswest value=25  0
 `)
 
 	// Create iterator.
-	itr, err := sh.CreateIterator(influxql.IteratorOptions{
+	itr, err := sh.CreateIterator("cpu", influxql.IteratorOptions{
 		Expr:       influxql.MustParseExpr(`value`),
 		Aux:        []influxql.VarRef{{Val: "val2"}},
 		Dimensions: []string{"host"},
-		Sources: []influxql.Source{&influxql.Measurement{
-			Name:            "cpu",
-			Database:        "db0",
-			RetentionPolicy: "rp0",
-		}},
-		Ascending: false,
-		StartTime: influxql.MinTime,
-		EndTime:   influxql.MaxTime,
+		Ascending:  false,
+		StartTime:  influxql.MinTime,
+		EndTime:    influxql.MaxTime,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -637,7 +628,7 @@ func TestShard_Disabled_WriteQuery(t *testing.T) {
 		t.Fatalf(err.Error())
 	}
 
-	_, got := sh.CreateIterator(influxql.IteratorOptions{})
+	_, got := sh.CreateIterator("cpu", influxql.IteratorOptions{})
 	if err == nil {
 		t.Fatalf("expected shard disabled error")
 	}
@@ -652,8 +643,67 @@ func TestShard_Disabled_WriteQuery(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if _, err = sh.CreateIterator(influxql.IteratorOptions{}); err != nil {
+	if _, err = sh.CreateIterator("cpu", influxql.IteratorOptions{}); err != nil {
 		t.Fatalf("unexpected error: %v", got)
+	}
+}
+
+func TestShard_FieldDimensions(t *testing.T) {
+	sh := NewShard()
+
+	if err := sh.Open(); err != nil {
+		t.Fatal(err)
+	}
+	defer sh.Close()
+
+	sh.MustWritePointsString(`
+cpu,host=serverA,region=uswest value=100 0
+cpu,host=serverA,region=uswest value=50,val2=5  10
+cpu,host=serverB,region=uswest value=25  0
+mem,host=serverA value=25i 0
+mem,host=serverB value=50i,val3=t 10
+`)
+
+	for i, tt := range []struct {
+		sources []string
+		f       map[string]influxql.DataType
+		d       map[string]struct{}
+	}{
+		{
+			sources: []string{"cpu"},
+			f: map[string]influxql.DataType{
+				"value": influxql.Float,
+				"val2":  influxql.Float,
+			},
+			d: map[string]struct{}{
+				"host":   struct{}{},
+				"region": struct{}{},
+			},
+		},
+		{
+			sources: []string{"cpu", "mem"},
+			f: map[string]influxql.DataType{
+				"value": influxql.Float,
+				"val2":  influxql.Float,
+				"val3":  influxql.Boolean,
+			},
+			d: map[string]struct{}{
+				"host":   struct{}{},
+				"region": struct{}{},
+			},
+		},
+	} {
+		f, d, err := sh.FieldDimensions(tt.sources)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		if !reflect.DeepEqual(f, tt.f) {
+			t.Errorf("%d. unexpected fields:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.f, f)
+		}
+		if !reflect.DeepEqual(d, tt.d) {
+			t.Errorf("%d. unexpected dimensions:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.d, d)
+		}
 	}
 }
 

@@ -200,6 +200,18 @@ func (i *Index) CreateMeasurementIndexIfNotExists(name string) *tsdb.Measurement
 	return m
 }
 
+// HasTagKey returns true if tag key exists.
+func (i *Index) HasTagKey(name, key []byte) (bool, error) {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	mm := i.measurements[string(name)]
+	if mm == nil {
+		return false, nil
+	}
+	return mm.HasTagKey(string(key)), nil
+}
+
 // MeasurementTagKeyByExpr returns an ordered set of tag keys filtered by an expression.
 func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
 	i.mu.RLock()

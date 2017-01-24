@@ -38,7 +38,7 @@ type Engine interface {
 	Backup(w io.Writer, basePath string, since time.Time) error
 	Restore(r io.Reader, basePath string) error
 
-	CreateIterator(opt influxql.IteratorOptions) (influxql.Iterator, error)
+	CreateIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error)
 	WritePoints(points []models.Point) error
 
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
@@ -57,6 +57,7 @@ type Engine interface {
 	DeleteMeasurement(name []byte) error
 
 	// TagKeys(name []byte) ([][]byte, error)
+	HasTagKey(name, key []byte) (bool, error)
 	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)
 	ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error
 

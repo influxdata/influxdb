@@ -58,6 +58,15 @@ func (v *FloatPoint) Clone() *FloatPoint {
 	return &other
 }
 
+// CopyTo makes a deep copy into the point.
+func (v *FloatPoint) CopyTo(other *FloatPoint) {
+	*other = *v
+	if v.Aux != nil {
+		other.Aux = make([]interface{}, len(v.Aux))
+		copy(other.Aux, v.Aux)
+	}
+}
+
 func encodeFloatPoint(p *FloatPoint) *internal.Point {
 	return &internal.Point{
 		Name:       proto.String(p.Name),
@@ -258,6 +267,15 @@ func (v *IntegerPoint) Clone() *IntegerPoint {
 	}
 
 	return &other
+}
+
+// CopyTo makes a deep copy into the point.
+func (v *IntegerPoint) CopyTo(other *IntegerPoint) {
+	*other = *v
+	if v.Aux != nil {
+		other.Aux = make([]interface{}, len(v.Aux))
+		copy(other.Aux, v.Aux)
+	}
 }
 
 func encodeIntegerPoint(p *IntegerPoint) *internal.Point {
@@ -462,6 +480,15 @@ func (v *StringPoint) Clone() *StringPoint {
 	return &other
 }
 
+// CopyTo makes a deep copy into the point.
+func (v *StringPoint) CopyTo(other *StringPoint) {
+	*other = *v
+	if v.Aux != nil {
+		other.Aux = make([]interface{}, len(v.Aux))
+		copy(other.Aux, v.Aux)
+	}
+}
+
 func encodeStringPoint(p *StringPoint) *internal.Point {
 	return &internal.Point{
 		Name:       proto.String(p.Name),
@@ -662,6 +689,15 @@ func (v *BooleanPoint) Clone() *BooleanPoint {
 	}
 
 	return &other
+}
+
+// CopyTo makes a deep copy into the point.
+func (v *BooleanPoint) CopyTo(other *BooleanPoint) {
+	*other = *v
+	if v.Aux != nil {
+		other.Aux = make([]interface{}, len(v.Aux))
+		copy(other.Aux, v.Aux)
+	}
 }
 
 func encodeBooleanPoint(p *BooleanPoint) *internal.Point {

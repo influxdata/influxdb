@@ -26,7 +26,7 @@ type MetaClient interface {
 	RetentionPolicy(database, name string) (rpi *meta.RetentionPolicyInfo, err error)
 	SetAdminPrivilege(username string, admin bool) error
 	SetPrivilege(username, database string, p influxql.Privilege) error
-	ShardsByTimeRange(sources influxql.Sources, tmin, tmax time.Time) (a []meta.ShardInfo, err error)
+	ShardGroupsByTimeRange(database, policy string, min, max time.Time) (a []meta.ShardGroupInfo, err error)
 	UpdateRetentionPolicy(database, name string, rpu *meta.RetentionPolicyUpdate, makeDefault bool) error
 	UpdateUser(name, password string) error
 	UserPrivilege(username, database string) (*influxql.Privilege, error)

@@ -1103,6 +1103,151 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT statement with a subquery
+		{
+			s: `SELECT sum(derivative) FROM (SELECT derivative(value) FROM cpu GROUP BY host) WHERE time >= now() - 1d GROUP BY time(1h)`,
+			stmt: &influxql.SelectStatement{
+				Fields: []*influxql.Field{{
+					Expr: &influxql.Call{
+						Name: "sum",
+						Args: []influxql.Expr{
+							&influxql.VarRef{Val: "derivative"},
+						}},
+				}},
+				Dimensions: []*influxql.Dimension{{
+					Expr: &influxql.Call{
+						Name: "time",
+						Args: []influxql.Expr{
+							&influxql.DurationLiteral{Val: time.Hour},
+						},
+					},
+				}},
+				Sources: []influxql.Source{
+					&influxql.SubQuery{
+						Statement: &influxql.SelectStatement{
+							Fields: []*influxql.Field{{
+								Expr: &influxql.Call{
+									Name: "derivative",
+									Args: []influxql.Expr{
+										&influxql.VarRef{Val: "value"},
+									},
+								},
+							}},
+							Dimensions: []*influxql.Dimension{{
+								Expr: &influxql.VarRef{Val: "host"},
+							}},
+							Sources: []influxql.Source{
+								&influxql.Measurement{Name: "cpu"},
+							},
+						},
+					},
+				},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.GTE,
+					LHS: &influxql.VarRef{Val: "time"},
+					RHS: &influxql.BinaryExpr{
+						Op:  influxql.SUB,
+						LHS: &influxql.Call{Name: "now"},
+						RHS: &influxql.DurationLiteral{Val: 24 * time.Hour},
+					},
+				},
+			},
+		},
+
+		{
+			s: `SELECT sum(mean) FROM (SELECT mean(value) FROM cpu GROUP BY time(1h)) WHERE time >= now() - 1d`,
+			stmt: &influxql.SelectStatement{
+				Fields: []*influxql.Field{{
+					Expr: &influxql.Call{
+						Name: "sum",
+						Args: []influxql.Expr{
+							&influxql.VarRef{Val: "mean"},
+						}},
+				}},
+				Sources: []influxql.Source{
+					&influxql.SubQuery{
+						Statement: &influxql.SelectStatement{
+							Fields: []*influxql.Field{{
+								Expr: &influxql.Call{
+									Name: "mean",
+									Args: []influxql.Expr{
+										&influxql.VarRef{Val: "value"},
+									},
+								},
+							}},
+							Dimensions: []*influxql.Dimension{{
+								Expr: &influxql.Call{
+									Name: "time",
+									Args: []influxql.Expr{
+										&influxql.DurationLiteral{Val: time.Hour},
+									},
+								},
+							}},
+							Sources: []influxql.Source{
+								&influxql.Measurement{Name: "cpu"},
+							},
+						},
+					},
+				},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.GTE,
+					LHS: &influxql.VarRef{Val: "time"},
+					RHS: &influxql.BinaryExpr{
+						Op:  influxql.SUB,
+						LHS: &influxql.Call{Name: "now"},
+						RHS: &influxql.DurationLiteral{Val: 24 * time.Hour},
+					},
+				},
+			},
+		},
+
+		{
+			s: `SELECT sum(mean) FROM (SELECT mean(value) FROM cpu WHERE time >= now() - 1d GROUP BY time(1h))`,
+			stmt: &influxql.SelectStatement{
+				Fields: []*influxql.Field{{
+					Expr: &influxql.Call{
+						Name: "sum",
+						Args: []influxql.Expr{
+							&influxql.VarRef{Val: "mean"},
+						}},
+				}},
+				Sources: []influxql.Source{
+					&influxql.SubQuery{
+						Statement: &influxql.SelectStatement{
+							Fields: []*influxql.Field{{
+								Expr: &influxql.Call{
+									Name: "mean",
+									Args: []influxql.Expr{
+										&influxql.VarRef{Val: "value"},
+									},
+								},
+							}},
+							Dimensions: []*influxql.Dimension{{
+								Expr: &influxql.Call{
+									Name: "time",
+									Args: []influxql.Expr{
+										&influxql.DurationLiteral{Val: time.Hour},
+									},
+								},
+							}},
+							Condition: &influxql.BinaryExpr{
+								Op:  influxql.GTE,
+								LHS: &influxql.VarRef{Val: "time"},
+								RHS: &influxql.BinaryExpr{
+									Op:  influxql.SUB,
+									LHS: &influxql.Call{Name: "now"},
+									RHS: &influxql.DurationLiteral{Val: 24 * time.Hour},
+								},
+							},
+							Sources: []influxql.Source{
+								&influxql.Measurement{Name: "cpu"},
+							},
+						},
+					},
+				},
+			},
+		},
+
 		// See issues https://github.com/influxdata/influxdb/issues/1647
 		// and https://github.com/influxdata/influxdb/issues/4404
 		// DELETE statement
@@ -2342,6 +2487,7 @@ func TestParser_ParseStatement(t *testing.T) {
 		{s: `SELECT (count(foo + sum(bar))) FROM cpu`, err: `expected field argument in count()`},
 		{s: `SELECT sum(value) + count(foo + sum(bar)) FROM cpu`, err: `binary expressions cannot mix aggregates and raw fields`},
 		{s: `SELECT mean(value) FROM cpu FILL + value`, err: `fill must be a function call`},
+		{s: `SELECT sum(mean) FROM (SELECT mean(value) FROM cpu GROUP BY time(1h))`, err: `aggregate functions with GROUP BY time require a WHERE time clause`},
 		// See issues https://github.com/influxdata/influxdb/issues/1647
 		// and https://github.com/influxdata/influxdb/issues/4404
 		//{s: `DELETE`, err: `found EOF, expected FROM at line 1, char 8`},
@@ -2520,6 +2666,12 @@ func TestParser_ParseStatement(t *testing.T) {
 		// We are memoizing a field so for testing we need to...
 		if s, ok := tt.stmt.(*influxql.SelectStatement); ok {
 			s.GroupByInterval()
+			for _, source := range s.Sources {
+				switch source := source.(type) {
+				case *influxql.SubQuery:
+					source.Statement.GroupByInterval()
+				}
+			}
 		} else if st, ok := stmt.(*influxql.CreateContinuousQueryStatement); ok { // if it's a CQ, there is a non-exported field that gets memoized during parsing that needs to be set
 			if st != nil && st.Source != nil {
 				tt.stmt.(*influxql.CreateContinuousQueryStatement).Source.GroupByInterval()

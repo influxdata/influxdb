@@ -192,6 +192,16 @@ func (fs FileSet) TagKeySeriesIterator(name, key []byte) SeriesIterator {
 	return FilterUndeletedSeriesIterator(MergeSeriesIterators(a...))
 }
 
+// HasTagKey returns true if the tag key exists.
+func (fs FileSet) HasTagKey(name, key []byte) bool {
+	for _, f := range fs {
+		if e := f.TagKey(name, key); e != nil {
+			return !e.Deleted()
+		}
+	}
+	return false
+}
+
 // HasTagValue returns true if the tag value exists.
 func (fs FileSet) HasTagValue(name, key, value []byte) bool {
 	for _, f := range fs {
@@ -698,6 +708,8 @@ type File interface {
 	HasSeries(name []byte, tags models.Tags) (exists, tombstoned bool)
 	Series(name []byte, tags models.Tags) SeriesElem
 	SeriesN() uint64
+
+	TagKey(name, key []byte) TagKeyElem
 	TagKeyIterator(name []byte) TagKeyIterator
 
 	TagValue(name, key, value []byte) TagValueElem

@@ -17,8 +17,10 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/influxdata/influxdb/tsdb"
@@ -287,7 +289,7 @@ func (c *DefaultPlanner) Plan(lastWrite time.Time) []CompactionGroup {
 	generations := c.findGenerations()
 
 	// first check if we should be doing a full compaction because nothing has been written in a long time
-	if c.CompactFullWriteColdDuration > 0 && time.Now().Sub(lastWrite) > c.CompactFullWriteColdDuration && len(generations) > 1 {
+	if c.CompactFullWriteColdDuration > 0 && time.Since(lastWrite) > c.CompactFullWriteColdDuration && len(generations) > 1 {
 		var tsmFiles []string
 		var genCount int
 		for i, group := range generations {
@@ -1221,7 +1223,7 @@ func (k *tsmKeyIterator) combine(dedup bool) blocks {
 }
 
 func (k *tsmKeyIterator) chunk(dst blocks) blocks {
-	for len(k.mergedValues) > k.size {
+	if len(k.mergedValues) > k.size {
 		values := k.mergedValues[:k.size]
 		cb, err := Values(values).Encode(nil)
 		if err != nil {
@@ -1282,12 +1284,17 @@ func (k *tsmKeyIterator) Close() error {
 type cacheKeyIterator struct {
 	cache *Cache
 	size  int
+	order []string
 
+	i      int
+	blocks [][]cacheBlock
+	ready  []chan struct{}
+}
+
+type cacheBlock struct {
 	k                string
-	order            []string
-	values           []Value
-	block            []byte
-	minTime, maxTime time.Time
+	minTime, maxTime int64
+	b                []byte
 	err              error
 }
 
@@ -1295,40 +1302,98 @@ type cacheKeyIterator struct {
 func NewCacheKeyIterator(cache *Cache, size int) KeyIterator {
 	keys := cache.Keys()
 
-	return &cacheKeyIterator{
-		size:  size,
-		cache: cache,
-		order: keys,
+	chans := make([]chan struct{}, len(keys))
+	for i := 0; i < len(keys); i++ {
+		chans[i] = make(chan struct{}, 1)
+	}
+
+	cki := &cacheKeyIterator{
+		i:      -1,
+		size:   size,
+		cache:  cache,
+		order:  keys,
+		ready:  chans,
+		blocks: make([][]cacheBlock, len(keys)),
+	}
+	go cki.encode()
+	return cki
+}
+
+func (c *cacheKeyIterator) encode() {
+	concurrency := runtime.GOMAXPROCS(0)
+	n := len(c.ready)
+
+	// Divide the keyset across each CPU
+	chunkSize := 128
+	idx := uint64(0)
+	for i := 0; i < concurrency; i++ {
+		// Run one goroutine per CPU and encode a section of the key space concurrently
+		go func() {
+			for {
+				start := int(atomic.AddUint64(&idx, uint64(chunkSize))) - chunkSize
+				if start >= n {
+					break
+				}
+				end := start + chunkSize
+				if end > n {
+					end = n
+				}
+				c.encodeRange(start, end)
+			}
+		}()
+	}
+}
+
+func (c *cacheKeyIterator) encodeRange(start, stop int) {
+	for i := start; i < stop; i++ {
+		key := c.order[i]
+		values := c.cache.values(key)
+
+		for len(values) > 0 {
+			minTime, maxTime := values[0].UnixNano(), values[len(values)-1].UnixNano()
+			var b []byte
+			var err error
+			if len(values) > c.size {
+				maxTime = values[c.size-1].UnixNano()
+				b, err = Values(values[:c.size]).Encode(nil)
+				values = values[c.size:]
+			} else {
+				b, err = Values(values).Encode(nil)
+				values = values[:0]
+			}
+			c.blocks[i] = append(c.blocks[i], cacheBlock{
+				k:       key,
+				minTime: minTime,
+				maxTime: maxTime,
+				b:       b,
+				err:     err,
+			})
+		}
+		// Notify this key is fully encoded
+		c.ready[i] <- struct{}{}
 	}
 }
 
 func (c *cacheKeyIterator) Next() bool {
-	if len(c.values) > c.size {
-		c.values = c.values[c.size:]
-		return true
+	if c.i >= 0 && c.i < len(c.ready) && len(c.blocks[c.i]) > 0 {
+		c.blocks[c.i] = c.blocks[c.i][1:]
+		if len(c.blocks[c.i]) > 0 {
+			return true
+		}
 	}
+	c.i++
 
-	if len(c.order) == 0 {
+	if c.i >= len(c.ready) {
 		return false
 	}
-	c.k = c.order[0]
-	c.order = c.order[1:]
-	c.values = c.cache.values(c.k)
-	return len(c.values) > 0
+
+	<-c.ready[c.i]
+	return true
 }
 
 func (c *cacheKeyIterator) Read() (string, int64, int64, []byte, error) {
-	minTime, maxTime := c.values[0].UnixNano(), c.values[len(c.values)-1].UnixNano()
-	var b []byte
-	var err error
-	if len(c.values) > c.size {
-		maxTime = c.values[c.size-1].UnixNano()
-		b, err = Values(c.values[:c.size]).Encode(nil)
-	} else {
-		b, err = Values(c.values).Encode(nil)
-	}
-
-	return c.k, minTime, maxTime, b, err
+	blk := c.blocks[c.i][0]
+	return blk.k, blk.minTime, blk.maxTime, blk.b, blk.err
 }
 
 func (c *cacheKeyIterator) Close() error {

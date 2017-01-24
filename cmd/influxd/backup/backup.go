@@ -301,24 +301,34 @@ func (cmd *Command) download(req *snapshotter.Request, path string) error {
 	}
 	defer f.Close()
 
-	// Connect to snapshotter service.
-	conn, err := tcp.Dial("tcp", cmd.host, snapshotter.MuxHeader)
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
+	for i := 0; i < 10; i++ {
+		if err = func() error {
+			// Connect to snapshotter service.
+			conn, err := tcp.Dial("tcp", cmd.host, snapshotter.MuxHeader)
+			if err != nil {
+				return err
+			}
+			defer conn.Close()
 
-	// Write the request
-	if err := json.NewEncoder(conn).Encode(req); err != nil {
-		return fmt.Errorf("encode snapshot request: %s", err)
+			// Write the request
+			if err := json.NewEncoder(conn).Encode(req); err != nil {
+				return fmt.Errorf("encode snapshot request: %s", err)
+			}
+
+			// Read snapshot from the connection
+			if n, err := io.Copy(f, conn); err != nil || n == 0 {
+				return fmt.Errorf("copy backup to file: err=%v, n=%d", err, n)
+			}
+			return nil
+		}(); err == nil {
+			break
+		} else if err != nil {
+			cmd.Logger.Printf("Download shard %v failed %s.  Retrying (%d)...\n", req.ShardID, err, i)
+			time.Sleep(time.Second)
+		}
 	}
 
-	// Read snapshot from the connection
-	if _, err := io.Copy(f, conn); err != nil {
-		return fmt.Errorf("copy backup to file: %s", err)
-	}
-
-	return nil
+	return err
 }
 
 // requestInfo will request the database or retention policy information from the host
