@@ -4,13 +4,15 @@
   1. [#788](https://github.com/influxdata/chronograf/pull/788): Fix missing fields in data explorer when using non-default retention policy
 
 ### Upcoming Features
+  1. [#779](https://github.com/influxdata/chronograf/issues/779): Add layout for telegraf's diskio system plugin
+
 ### Upcoming UI Improvements
 
 ## v1.1.0-beta6 [2017-01-13]
 ### Bug Fixes
   1. [#748](https://github.com/influxdata/chronograf/pull/748): Fix missing kapacitors on source index page
-  1. [#755](https://github.com/influxdata/chronograf/pull/755): Fix kapacitor basic auth proxying
-  2. [#704](https://github.com/influxdata/chronograf/issues/704): Fix RPM and DEB install script and systemd unit file
+  2. [#755](https://github.com/influxdata/chronograf/pull/755): Fix kapacitor basic auth proxying
+  3. [#704](https://github.com/influxdata/chronograf/issues/704): Fix RPM and DEB install script and systemd unit file
 
 ### Features
   1. [#660](https://github.com/influxdata/chronograf/issues/660): Add option to accept any certificate from InfluxDB
