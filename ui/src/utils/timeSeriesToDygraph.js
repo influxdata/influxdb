@@ -79,14 +79,20 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
        */
       const measurementName = series.name;
       const columns = series.columns;
-
       // Tags are only included in an influxdb response under certain circumstances, e.g.
       // when a query is using GROUP BY (<tag key>).
       const tags = Object.keys(series.tags || {}).map((key) => {
         return `[${key}=${series.tags[key]}]`;
       }).sort().join('');
 
-      columns.slice(1).forEach((fieldName) => {
+      const c = columns.slice(1).sort();
+      let previousColumnLength = 0;
+
+      if (c.length != previousColumnLength) {
+        previousColumnLength = c.length;
+      }
+
+      c.forEach((fieldName) => {
         let effectiveFieldName = `${measurementName}.${fieldName}${tags}`;
 
         // If there are duplicate effectiveFieldNames identify them by their queryIndex
@@ -96,7 +102,7 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
 
         // Given a field name, identify which column in the timeSeries result should hold the field's value
         // ex given this timeSeries [Date, 10, 20, 30] field index at 2 would correspond to value 20
-        fieldToIndex[effectiveFieldName] = labels.length + 1;
+        fieldToIndex[effectiveFieldName] = c.indexOf(fieldName) + previousColumnLength;
         labels.push(effectiveFieldName);
 
         const {light, heavy} = STROKE_WIDTH;
@@ -156,6 +162,7 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
       row[0] = new Date(dates[date]);
 
       const fieldsForRow = dateToFieldValue[date];
+
       Object.keys(fieldsForRow).forEach((effectiveFieldName) => {
         row[fieldToIndex[effectiveFieldName]] = fieldsForRow[effectiveFieldName];
       });
@@ -178,4 +185,3 @@ function isEmpty(resp) {
 function hasError(resp) {
   return !!resp.results[0].error;
 }
-

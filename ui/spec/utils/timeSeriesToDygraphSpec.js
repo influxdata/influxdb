@@ -322,7 +322,7 @@ describe('timeSeriesToDygraph', () => {
     expect(dygraphSeries["m2.f2"].strokeWidth).to.be.above(dygraphSeries["m1.f1"].strokeWidth);
   });
 
-  it('parses a raw InfluxDB response into a dygraph friendly data format', () => {
+  it('parses labels alphabetically with the correct field values for multiple series', () => {
     const influxResponse = [
       {
         "response":
@@ -331,36 +331,26 @@ describe('timeSeriesToDygraph', () => {
             {
               "series": [
                 {
-                  "name":"mb",
-                  "columns": ["time","f1"],
-                  "values": [[1000, 1],[2000, 2]],
-                },
-              ]
-            },
-            {
-              "series": [
-                {
                   "name":"ma",
-                  "columns": ["time","f1"],
-                  "values": [[1000, 1],[2000, 2]],
+                  "columns": ["time","fa","fc","fb"],
+                  "values": [
+                    [1000, 20, 10, 10],
+                    [2000, 30, 15, 9],
+                    [3000, 40, 20, 8],
+                  ],
                 },
               ]
             },
             {
               "series": [
                 {
-                  "name":"mc",
-                  "columns": ["time","f2"],
-                  "values": [[2000, 3],[4000, 4]],
-                },
-              ]
-            },
-            {
-              "series": [
-                {
-                  "name":"mc",
-                  "columns": ["time","f1"],
-                  "values": [[2000, 3],[4000, 4]],
+                  "name":"mb",
+                  "columns": ["time","fa","fc","fb"],
+                  "values": [
+                    [1000, 200, 100, 100],
+                    [2000, 300, 150, 90],
+                    [3000, 400, 200, 80],
+                  ],
                 },
               ]
             },
@@ -371,14 +361,25 @@ describe('timeSeriesToDygraph', () => {
 
     const actual = timeSeriesToDygraph(influxResponse);
 
-    const expected = [
-      'time',
-      `ma.f1`,
-      `mb.f1`,
-      `mc.f1`,
-      `mc.f2`,
-    ];
+    const expected = {
+      labels: [
+        'time',
+        `ma.fa`,
+        `ma.fb`,
+        `ma.fc`,
+        `mb.fa`,
+        `mb.fb`,
+        `mb.fc`,
+      ],
+      timeSeries: [
+        [new Date(1000), 20, 10, 10],
+        [new Date(2000), 30, 9, 15],
+        [new Date(3000), 40, 8, 20],
+      ],
+    };
 
-    expect(actual.labels).to.deep.equal(expected);
+    console.log(actual.timeSeries);
+    expect(actual.labels).to.deep.equal(expected.labels);
+    expect(actual.timeSeries).to.deep.equal(expected.timeSeries);
   });
 });
