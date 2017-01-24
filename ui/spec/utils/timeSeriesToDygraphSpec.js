@@ -33,6 +33,17 @@ describe('timeSeriesToDygraph', () => {
       }
     ];
 
+    //  dygraphSeries: {
+    //    'm1.f1': {
+    //      axis: 'y',
+    //      strokeWidth,
+    //    },
+    //    'm1.f2': {
+    //      axis: 'y',
+    //      strokeWidth,
+    //    },
+    //  },
+
     const actual = timeSeriesToDygraph(influxResponse);
 
     const expected = {
@@ -46,16 +57,6 @@ describe('timeSeriesToDygraph', () => {
         [new Date(2000), 2, 3],
         [new Date(4000), null, 4],
       ],
-      dygraphSeries: {
-        'm1.f1': {
-          axis: 'y',
-          strokeWidth,
-        },
-        'm1.f2': {
-          axis: 'y',
-          strokeWidth,
-        },
-      },
     };
 
     expect(actual).to.deep.equal(expected);
@@ -201,28 +202,28 @@ describe('timeSeriesToDygraph', () => {
     ];
 
     const actual = timeSeriesToDygraph(influxResponse);
+    //  dygraphSeries: {
+    //    'm1.f1': {
+    //      axis: 'y',
+    //      strokeWidth,
+    //    },
+    //    'm1.f1-1': {
+    //      axis: 'y2',
+    //      strokeWidth,
+    //    },
+    //  },
 
     const expected = {
       labels: [
         'time',
         `m1.f1`,
-        `m1.f1-1`,
+        `m1.f1`,
       ],
       timeSeries: [
         [new Date(1000), 1, null],
         [new Date(2000), 2, 3],
-        [new Date(4000), 4, null],
+        [new Date(4000), null, 4],
       ],
-      dygraphSeries: {
-        'm1.f1': {
-          axis: 'y',
-          strokeWidth,
-        },
-        'm1.f1-1': {
-          axis: 'y2',
-          strokeWidth,
-        },
-      },
     };
 
     expect(actual).to.deep.equal(expected);
@@ -322,7 +323,7 @@ describe('timeSeriesToDygraph', () => {
     expect(dygraphSeries["m2.f2"].strokeWidth).to.be.above(dygraphSeries["m1.f1"].strokeWidth);
   });
 
-  it.only('parses labels alphabetically with the correct field values for multiple series', () => {
+  it('parses labels alphabetically with the correct field values for multiple series', () => {
     const influxResponse = [
       {
         "response":

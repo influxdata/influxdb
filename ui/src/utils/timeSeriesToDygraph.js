@@ -5,8 +5,7 @@ import {STROKE_WIDTH} from 'src/shared/constants';
  * that Dygraph understands.
  */
 
-// activeQueryIndex is an optional argument that indicated which query's series
-// we want highlighted.
+// activeQueryIndex is an optional argument that indicated which query's series we want highlighted.
 export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInDataExplorer) {
   // const labels = []; // all of the effective field names (i.e. <measurement>.<field>)
   const fieldToIndex = {}; // see parseSeries
@@ -31,14 +30,17 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
    */
   const dateToFieldValue = {};
 
+  // collect results from each influx response
   const results = raw.reduce((acc, response) => {
     return [...acc, ..._.get(response, 'response.results', [])]
   }, [])
 
+  // collect each series
   const serieses = results.reduce((acc, result, index) => {
     return [...acc, ...result.series.map((item) => ({...item, index}))];
   }, [])
 
+  // convert series into cells with rows and columns
   const cells = serieses.reduce((acc, {name, columns, values, index}) => {
     const rows = values.map((values) => ({
       name,
@@ -46,7 +48,6 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
       values,
       index,
     }))
-    console.log("HI IM Rerws: ", rows)
 
     rows.forEach(({values: vals, columns: cols, name: n, index: seriesIndex}) => {
       const [time, ...rowValues] = vals
@@ -63,8 +64,6 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
 
     return acc
   }, [])
-
-  console.log("HI IM CELLS: ", cells)
 
   const labels = cells.reduce((acc, cell) => {
     const existingLabel = acc.find(({label, seriesIndex}) => cell.label === label && cell.seriesIndex === seriesIndex)
@@ -93,10 +92,10 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
       existingRowIndex = acc.length - 1
     }
 
-      const values = acc[existingRowIndex].values
-      const labelIndex = sortedLabels.findIndex(({label}) => label === cell.label)
-      values[labelIndex] = cell.value
-      acc[existingRowIndex].values = values
+    const values = acc[existingRowIndex].values
+    const labelIndex = sortedLabels.findIndex(({label, seriesIndex}) => label === cell.label && cell.seriesIndex === seriesIndex);
+    values[labelIndex] = cell.value
+    acc[existingRowIndex].values = values
 
     return acc
   }, [])
@@ -111,10 +110,10 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
 
   // console.log("MY CAT LOVES LABELS: ", labels)
   // console.log("MY CAT HATES SORTED LABELS: ", sortedLabels)
- console.log("sorted term serrrrries: ", JSON.stringify(timeSeriesToDygraph, null, 2))
+  // console.log("sorted term serrrrries: ", JSON.stringify(timeSeriesToDygraph, null, 2))
 
   return timeSeriesToDygraph;
-// timeSeriesToDygraph , {labels: [], timeSeries: []}
+  // timeSeriesToDygraph , {labels: [], timeSeries: []}
 
   // raw.forEach(({response}, queryIndex) => {
   //   // If a response is an empty result set or a query returned an error
