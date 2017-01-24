@@ -30,13 +30,17 @@ const AlertsTable = React.createClass({
     this.filterAlerts(newProps.alerts, this.state.searchTerm);
   },
 
-  filterAlerts(allAlerts, searchTerm) {
-    const alerts = allAlerts.filter((h) => {
-      return h.name.toLowerCase().search(searchTerm.toLowerCase()) !== -1 ||
-              h.host.toLowerCase().search(searchTerm.toLowerCase()) !== -1 ||
-              h.level.toLowerCase().search(searchTerm.toLowerCase()) !== -1;
+  filterAlerts(searchTerm) {
+    const filteredAlerts = this.props.alerts.filter((h) => {
+      if (h.host === null || h.name === null || h.level === null) {
+        return false;
+      }
+
+      return h.name.toLowerCase().search((searchTerm).toLowerCase()) !== -1 ||
+              h.host.toLowerCase().search((searchTerm).toLowerCase()) !== -1 ||
+              h.level.toLowerCase().search((searchTerm).toLowerCase()) !== -1;
     });
-    this.setState({searchTerm, filteredAlerts: alerts});
+    this.setState({searchTerm, filteredAlerts});
   },
 
   changeSort(key) {
@@ -67,7 +71,7 @@ const AlertsTable = React.createClass({
       <div className="panel panel-minimal">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
           <h2 className="panel-title">{this.props.alerts.length} Alerts</h2>
-          <SearchBar onSearch={_.wrap(this.props.alerts, this.filterAlerts)} />
+          <SearchBar onSearch={this.filterAlerts}/>
         </div>
         <div className="panel-body">
           <table className="table v-center">
@@ -82,9 +86,9 @@ const AlertsTable = React.createClass({
             </thead>
             <tbody>
               {
-                alerts.map(({name, time, value, host, level}) => {
+                alerts.map(({name, level, time, host, value}) => {
                   return (
-                    <tr key={`${name}-${time}-${host}-${value}`}>
+                    <tr key={`${name}-${level}-${time}-${host}-${value}`}>
                       <td className="monotype">{name}</td>
                       <td className={`monotype alert-level-${level.toLowerCase()}`}>{level}</td>
                       <td className="monotype">{(new Date(Number(time)).toISOString())}</td>
@@ -111,8 +115,23 @@ const SearchBar = React.createClass({
     onSearch: PropTypes.func.isRequired,
   },
 
-  handleChange() {
-    this.props.onSearch(this.refs.searchInput.value);
+  getInitialState() {
+    return {
+      searchTerm: '',
+    };
+  },
+
+  componentWillMount() {
+    const waitPeriod = 300;
+    this.handleSearch = _.debounce(this.handleSearch, waitPeriod);
+  },
+
+  handleSearch() {
+    this.props.onSearch(this.state.searchTerm);
+  },
+
+  handleChange(e) {
+    this.setState({searchTerm: e.target.value}, this.handleSearch);
   },
 
   render() {
@@ -122,8 +141,8 @@ const SearchBar = React.createClass({
           type="text"
           className="form-control"
           placeholder="Filter Alerts by Name..."
-          ref="searchInput"
           onChange={this.handleChange}
+          value={this.state.searchTerm}
         />
         <div className="input-group-addon">
           <span className="icon search" aria-hidden="true"></span>
