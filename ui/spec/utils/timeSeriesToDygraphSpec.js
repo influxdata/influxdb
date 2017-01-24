@@ -322,12 +322,35 @@ describe('timeSeriesToDygraph', () => {
     expect(dygraphSeries["m2.f2"].strokeWidth).to.be.above(dygraphSeries["m1.f1"].strokeWidth);
   });
 
-  it('parses labels alphabetically with the correct field values for multiple series', () => {
+  it.only('parses labels alphabetically with the correct field values for multiple series', () => {
     const influxResponse = [
       {
         "response":
         {
           "results": [
+            {
+              "series": [
+                {
+                  "name":"mb",
+                  "columns": ["time","fa"],
+                  "values": [
+                    [1000, 200],
+                    [2000, 300],
+                    [4000, 400],
+                  ],
+                },
+                {
+                  "name":"mc",
+                  "columns": ["time","fa"],
+                  "values": [
+                    [1000, 400],
+                    [2000, 600],
+                    [3000, 800],
+                    [5000, 1000],
+                  ],
+                },
+              ]
+            },
             {
               "series": [
                 {
@@ -337,19 +360,6 @@ describe('timeSeriesToDygraph', () => {
                     [1000, 20, 10, 10],
                     [2000, 30, 15, 9],
                     [3000, 40, 20, 8],
-                  ],
-                },
-              ]
-            },
-            {
-              "series": [
-                {
-                  "name":"mb",
-                  "columns": ["time","fa","fc","fb"],
-                  "values": [
-                    [1000, 200, 100, 100],
-                    [2000, 300, 150, 90],
-                    [3000, 400, 200, 80],
                   ],
                 },
               ]
@@ -368,17 +378,18 @@ describe('timeSeriesToDygraph', () => {
         `ma.fb`,
         `ma.fc`,
         `mb.fa`,
-        `mb.fb`,
-        `mb.fc`,
+        `mc.fa`,
       ],
       timeSeries: [
-        [new Date(1000), 20, 10, 10],
-        [new Date(2000), 30, 9, 15],
-        [new Date(3000), 40, 8, 20],
+        [new Date(1000), 20, 10, 10, 200, 400],
+        [new Date(2000), 30, 9, 15, 300, 600],
+        [new Date(3000), 40, 8, 20, null, 800],
+        [new Date(4000), null, null, null, 400, null],
+        [new Date(5000), null, null, null, null, 1000],
       ],
     };
 
-    console.log(actual.timeSeries);
+    // console.log(actual.timeSeries);
     expect(actual.labels).to.deep.equal(expected.labels);
     expect(actual.timeSeries).to.deep.equal(expected.timeSeries);
   });
