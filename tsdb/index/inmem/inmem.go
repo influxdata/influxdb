@@ -152,7 +152,8 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	}
 
 	// set the in memory ID for query processing on this shard
-	series := tsdb.NewSeries(key, tags)
+	// The series key and tags are clone to prevent a memory leak
+	series := tsdb.NewSeries([]byte(string(key)), tags.Clone())
 	series.ID = i.lastID + 1
 	i.lastID++
 

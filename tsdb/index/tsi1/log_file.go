@@ -358,7 +358,8 @@ func (f *LogFile) AddSeriesList(names [][]byte, tagsSlice []models.Tags) error {
 	defer f.mu.Unlock()
 
 	for i := range names {
-		e := LogEntry{Name: names[i], Tags: tagsSlice[i]}
+		// The name and tags are clone to prevent a memory leak
+		e := LogEntry{Name: []byte(string(names[i])), Tags: tagsSlice[i].Clone()}
 		if err := f.appendEntry(&e); err != nil {
 			return err
 		}
@@ -372,7 +373,8 @@ func (f *LogFile) AddSeries(name []byte, tags models.Tags) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	e := LogEntry{Name: name, Tags: tags}
+	// The name and tags are clone to prevent a memory leak
+	e := LogEntry{Name: []byte(string(name)), Tags: tags.Clone()}
 	if err := f.appendEntry(&e); err != nil {
 		return err
 	}
