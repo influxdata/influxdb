@@ -138,7 +138,7 @@ func TestIndex_MeasurementNamesByExpr(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("mem")}) {
-				t.Fatal("unexpected names: %v", names)
+				t.Fatalf("unexpected names: %v", names)
 			}
 		})
 
@@ -156,7 +156,7 @@ func TestIndex_MeasurementNamesByExpr(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("mem")}) {
-				t.Fatal("unexpected names: %v", names)
+				t.Fatalf("unexpected names: %v", names)
 			}
 		})
 
@@ -165,7 +165,7 @@ func TestIndex_MeasurementNamesByExpr(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("disk")}) {
-				t.Fatal("unexpected names: %v", names)
+				t.Fatalf("unexpected names: %v", names)
 			}
 		})
 	})
@@ -191,7 +191,7 @@ func TestIndex_MeasurementNamesByRegex(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		} else if !reflect.DeepEqual(names, [][]byte{[]byte("cpu"), []byte("mem")}) {
-			t.Fatal("unexpected names: %v", names)
+			t.Fatalf("unexpected names: %v", names)
 		}
 	})
 }
