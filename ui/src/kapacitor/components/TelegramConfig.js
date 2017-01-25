@@ -19,10 +19,10 @@ const TelegramConfig = React.createClass({
     e.preventDefault();
 
     const properties = {
-      chatID: this.chatID.value,
-      disableNotification: this.disableNotification.checked,
-      disableWebPagePreview: this.disableWebPagePreview.checked,
-      parseMode: this.parseMode.checked,
+      'chat-id': this.chatID.value,
+      'disable-notification': this.disableNotification.checked,
+      'disable-web-page-preview': this.disableWebPagePreview.checked,
+      'parse-mode': this.parseMode.checked.toString(),
       token: this.token.value,
       url: this.url.value,
     };
