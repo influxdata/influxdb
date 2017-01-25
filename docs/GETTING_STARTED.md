@@ -12,9 +12,9 @@ It lists every host that is sending [Telegraf](https://github.com/influxdata/tel
 
 ![Host List](https://github.com/influxdata/chronograf/blob/master/docs/images/host-list-gs.png)
 
-The Chronograf instance shown above is connected to three hosts (`telegraf-region-neverland`, `telegraf-region-narnia`, and `telegraf-region-howardsend`).
-The first host is using 9.96%	of its total CPU and has a load of 0.15.
-It has two configured apps: `system` and `processes`.
+The Chronograf instance shown above is connected to two hosts (`telegraf-neverland` and `telegraf-narnia`).
+The first host is using 0.23%	of its total CPU and has a load of 0.00.
+It has one configured app: `system`.
 Apps are Telegraf [input plugins](https://github.com/influxdata/telegraf#input-plugins) that have dashboard templates in Chronograf.
 
 Click on the app on the `HOST LIST` page to access its dashboard template.
@@ -23,7 +23,7 @@ Here's the dashboard template for Telegraf's [system stats](https://github.com/i
 
 ![System Graph Layout](https://github.com/influxdata/chronograf/blob/master/docs/images/system-layout-gs.gif)
 
-Notice that you can hover over the graphs to get additional information about the data, and you select alternative time ranges for the graphs by using the time selector in the top right corner.
+Hover over the graphs to get additional information about the data, and select alternative time ranges for the graphs by using the time selector in the top right corner.
 
 See the [README](https://github.com/influxdata/chronograf#dashboard-templates) for a complete list of the apps supported by Chronograf.
 
@@ -54,8 +54,8 @@ Chronograf also offers a UI for generating [Kapacitor](https://github.com/influx
 
 ### Create an Alert Rule
 Easily create a Kapacitor alert rule on the `KAPACITOR RULES` page.
-Access the `KAPACITOR RULES` page by hovering over the third item in the left navigation menu and selecting `Rules`.
-Then, click on the `Add New Rule` button to create a new alert rule.
+Access the `KAPACITOR RULES` page by hovering over the third item in the left navigation menu and selecting `Kapacitor Rules`.
+Then, click on the `Create New Rule` button to create a new alert rule.
 
 The example rule shown below operates on data from Telegraf's [system stats](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/system) input plugin and sends a simple threshold alert to Slack:
 
@@ -88,4 +88,4 @@ You can configure your alert endpoints on the `CONFIGURE KAPACITOR` page.
 See all active alerts on the `ALERTING` page, and filter them by `Name`,
 `Level`, and `Host`:
 
-![Alert View](https://github.com/influxdata/chronograf/blob/master/docs/images/alert-view-gs.gif)
+![Alert View](https://github.com/influxdata/chronograf/blob/master/docs/images/alert-view-gs.png)
