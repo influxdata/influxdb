@@ -15,7 +15,7 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
   }, []);
 
   // collect each series
-  const serieses = results.reduce((acc, {series, responseIndex}, index) => {
+  const serieses = results.reduce((acc, {series = [], responseIndex}, index) => {
     return [...acc, ...series.map((item) => ({...item, responseIndex, index}))];
   }, []);
 
