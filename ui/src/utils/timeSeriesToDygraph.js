@@ -7,41 +7,20 @@ import {STROKE_WIDTH} from 'src/shared/constants';
 
 // activeQueryIndex is an optional argument that indicated which query's series we want highlighted.
 export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInDataExplorer) {
-  // const labels = []; // all of the effective field names (i.e. <measurement>.<field>)
-  const fieldToIndex = {}; // see parseSeries
-  const dates = {}; // map of date as string to date value to minimize string coercion
-  const dygraphSeries = {}; // dygraphSeries is a graph legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
-
-  /**
-   * dateToFieldValue will look like:
-   *
-   * {
-   *   Date1: {
-   *     effectiveFieldName_1: ValueForField1AtDate1,
-   *     effectiveFieldName_2: ValueForField2AtDate1,
-   *     ...
-   *   },
-   *   Date2: {
-   *     effectiveFieldName_1: ValueForField1AtDate2,
-   *     effectiveFieldName_2: ValueForField2AtDate2,
-   *     ...
-   *   }
-   * }
-   */
-  const dateToFieldValue = {};
-
   // collect results from each influx response
-  const results = raw.reduce((acc, response) => {
-    return [...acc, ..._.get(response, 'response.results', [])]
+  const results = raw.reduce((acc, response, responseIndex) => {
+    const responses = _.get(response, 'response.results', [])
+    const indexedResponses = responses.map((response) => ({...response, responseIndex}))
+    return [...acc, ...indexedResponses]
   }, [])
 
   // collect each series
-  const serieses = results.reduce((acc, result, index) => {
-    return [...acc, ...result.series.map((item) => ({...item, index}))];
+  const serieses = results.reduce((acc, {series, responseIndex}, index) => {
+    return [...acc, ...series.map((item) => ({...item, responseIndex, index}))];
   }, [])
 
   // convert series into cells with rows and columns
-  const cells = serieses.reduce((acc, {name, columns, values, index}) => {
+  const cells = serieses.reduce((acc, {name, columns, values, index, responseIndex}) => {
     const rows = values.map((values) => ({
       name,
       columns,
@@ -58,6 +37,7 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
           value,
           time,
           seriesIndex,
+          responseIndex,
         })
       })
     })
@@ -65,13 +45,17 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
     return acc
   }, [])
 
-  const labels = cells.reduce((acc, cell) => {
-    const existingLabel = acc.find(({label, seriesIndex}) => cell.label === label && cell.seriesIndex === seriesIndex)
+  const labels = cells.reduce((acc, {label, seriesIndex, responseIndex}) => {
+    const existingLabel = acc.find(({
+      label: findLabel,
+      seriesIndex: findSeriesIndex,
+    }) => findLabel === label && findSeriesIndex === seriesIndex)
 
     if (!existingLabel) {
       acc.push({
-        label: cell.label,
-        seriesIndex: cell.seriesIndex,
+        label,
+        seriesIndex,
+        responseIndex,
       })
     }
 
@@ -102,15 +86,25 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
 
   const sortedTimeSeries = _.sortBy(timeSeries, 'time')
 
+  const {light, heavy} = STROKE_WIDTH;
+
+  const dygraphSeries = sortedLabels.reduce((acc, {label, responseIndex}) => {
+    acc[label] = {
+      strokeWidth: responseIndex === activeQueryIndex ? heavy : light,
+    }
+
+    if (!isInDataExplorer) {
+      acc[label].axis = responseIndex === 0 ? 'y' : 'y2'
+    }
+
+    return acc
+  }, {})
+
   const timeSeriesToDygraph = {
     timeSeries: sortedTimeSeries.map(({time, values}) => ([new Date(time), ...values])),
     labels: ["time", ...sortedLabels.map(({label}) => label)],
+    dygraphSeries,
   }
-
-
-  // console.log("MY CAT LOVES LABELS: ", labels)
-  // console.log("MY CAT HATES SORTED LABELS: ", sortedLabels)
-  // console.log("sorted term serrrrries: ", JSON.stringify(timeSeriesToDygraph, null, 2))
 
   return timeSeriesToDygraph;
   // timeSeriesToDygraph , {labels: [], timeSeries: []}
