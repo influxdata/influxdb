@@ -3,6 +3,7 @@
 ### Bugfixes
 
 - [#7877](https://github.com/influxdata/influxdb/issues/7877): Fix mapping of types when the measurement uses a regex
+- [#7888](https://github.com/influxdata/influxdb/pull/7888): Expand query dimensions from the subquery.
 
 ## v1.2.0 [2017-01-24]
 
