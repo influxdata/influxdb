@@ -2959,6 +2959,12 @@ func TestServer_Query_Regex(t *testing.T) {
 			command: `SELECT * FROM db0../cpu[13]/ GROUP BY *`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu1","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
 		},
+		&Query{
+			name:    "map field type with a regex source",
+			command: `SELECT value FROM /cpu[13]/`,
+			params:  url.Values{"db": []string{"db0"}},
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu1","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
+		},
 	}...)
 
 	for i, query := range test.queries {
