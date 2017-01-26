@@ -3,6 +3,7 @@ package tsm1
 import (
 	"bufio"
 	"encoding/binary"
+	"io"
 	"io/ioutil"
 	"math"
 	"os"
@@ -153,7 +154,7 @@ func (t *Tombstoner) Walk(fn func(t Tombstone) error) error {
 		return t.readTombstoneV1(f, fn)
 	}
 
-	if _, err := f.Seek(0, os.SEEK_SET); err != nil {
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return err
 	}
 
@@ -250,7 +251,7 @@ func (t *Tombstoner) readTombstoneV1(f *os.File, fn func(t Tombstone) error) err
 // format is binary.
 func (t *Tombstoner) readTombstoneV2(f *os.File, fn func(t Tombstone) error) error {
 	// Skip header, already checked earlier
-	if _, err := f.Seek(v2headerSize, os.SEEK_SET); err != nil {
+	if _, err := f.Seek(v2headerSize, io.SeekStart); err != nil {
 		return err
 	}
 	n := int64(4)

@@ -2421,45 +2421,6 @@ func walkFunctionCalls(exp Expr) []*Call {
 	return nil
 }
 
-// filterExprBySource filters an expression to exclude expressions unrelated to a source.
-func filterExprBySource(name string, expr Expr) Expr {
-	switch expr := expr.(type) {
-	case *VarRef:
-		if !strings.HasPrefix(expr.Val, name) {
-			return nil
-		}
-
-	case *BinaryExpr:
-		lhs := filterExprBySource(name, expr.LHS)
-		rhs := filterExprBySource(name, expr.RHS)
-
-		// If an expr is logical then return either LHS/RHS or both.
-		// If an expr is arithmetic or comparative then require both sides.
-		if expr.Op == AND || expr.Op == OR {
-			if lhs == nil && rhs == nil {
-				return nil
-			} else if lhs != nil && rhs == nil {
-				return lhs
-			} else if lhs == nil && rhs != nil {
-				return rhs
-			}
-		} else {
-			if lhs == nil || rhs == nil {
-				return nil
-			}
-		}
-		return &BinaryExpr{Op: expr.Op, LHS: lhs, RHS: rhs}
-
-	case *ParenExpr:
-		exp := filterExprBySource(name, expr.Expr)
-		if exp == nil {
-			return nil
-		}
-		return &ParenExpr{Expr: exp}
-	}
-	return expr
-}
-
 // MatchSource returns the source name that matches a field name.
 // It returns a blank string if no sources match.
 func MatchSource(sources Sources, name string) string {

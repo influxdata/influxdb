@@ -82,15 +82,27 @@ func BenchmarkLimitListener(b *testing.B) {
 	wg.Add(b.N)
 
 	l := httpd.LimitListener(&fakeListener{}, b.N)
+	errC := make(chan error)
 	for i := 0; i < b.N; i++ {
 		go func() {
+			defer wg.Done()
 			c, err := l.Accept()
 			if err != nil {
-				b.Fatal(err)
+				errC <- err
+				return
 			}
 			c.Close()
-			wg.Done()
 		}()
 	}
-	wg.Wait()
+
+	go func() {
+		wg.Wait()
+		close(errC)
+	}()
+
+	for err := range errC {
+		if err != nil {
+			b.Error(err)
+		}
+	}
 }

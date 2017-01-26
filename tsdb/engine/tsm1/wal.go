@@ -43,12 +43,6 @@ const (
 	stringEntryType  = 4
 )
 
-// SegmentInfo represents metadata about a segment.
-type SegmentInfo struct {
-	name string
-	id   int
-}
-
 // WalEntryType is a byte written to a wal segment file that indicates what the following compressed block contains.
 type WalEntryType byte
 

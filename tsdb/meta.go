@@ -1243,63 +1243,6 @@ func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr) (SeriesIDs, Filt
 	}
 }
 
-// expandExpr returns a list of expressions expanded by all possible tag combinations.
-func (m *Measurement) expandExpr(expr influxql.Expr) []tagSetExpr {
-	// Retrieve list of unique values for each tag.
-	valuesByTagKey := m.uniqueTagValues(expr)
-
-	// Convert keys to slices.
-	keys := make([]string, 0, len(valuesByTagKey))
-	for key := range valuesByTagKey {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-
-	// Order uniques by key.
-	uniques := make([][]string, len(keys))
-	for i, key := range keys {
-		uniques[i] = valuesByTagKey[key]
-	}
-
-	// Reduce a condition for each combination of tag values.
-	return expandExprWithValues(expr, keys, []tagExpr{}, uniques, 0)
-}
-
-func expandExprWithValues(expr influxql.Expr, keys []string, tagExprs []tagExpr, uniques [][]string, index int) []tagSetExpr {
-	// If we have no more keys left then execute the reduction and return.
-	if index == len(keys) {
-		// Create a map of tag key/values.
-		m := make(map[string]*string, len(keys))
-		for i, key := range keys {
-			if tagExprs[i].op == influxql.EQ {
-				m[key] = &tagExprs[i].values[0]
-			} else {
-				m[key] = nil
-			}
-		}
-
-		// TODO: Rewrite full expressions instead of VarRef replacement.
-
-		// Reduce using the current tag key/value set.
-		// Ignore it if reduces down to "false".
-		e := influxql.Reduce(expr, &tagValuer{tags: m})
-		if e, ok := e.(*influxql.BooleanLiteral); ok && !e.Val {
-			return nil
-		}
-
-		return []tagSetExpr{{values: copyTagExprs(tagExprs), expr: e}}
-	}
-
-	// Otherwise expand for each possible equality value of the key.
-	var exprs []tagSetExpr
-	for _, v := range uniques[index] {
-		exprs = append(exprs, expandExprWithValues(expr, keys, append(tagExprs, tagExpr{keys[index], []string{v}, influxql.EQ}), uniques, index+1)...)
-	}
-	exprs = append(exprs, expandExprWithValues(expr, keys, append(tagExprs, tagExpr{keys[index], uniques[index], influxql.NEQ}), uniques, index+1)...)
-
-	return exprs
-}
-
 // SeriesIDsAllOrByExpr walks an expressions for matching series IDs
 // or, if no expression is given, returns all series IDs for the measurement.
 func (m *Measurement) SeriesIDsAllOrByExpr(expr influxql.Expr) (SeriesIDs, error) {
@@ -1413,91 +1356,6 @@ func (m *Measurement) tagKeysByFilter(op influxql.Token, val string, regex *rege
 		ss.add(key)
 	}
 	return ss
-}
-
-// tagValuer is used during expression expansion to evaluate all sets of tag values.
-type tagValuer struct {
-	tags map[string]*string
-}
-
-// Value returns the string value of a tag and true if it's listed in the tagset.
-func (v *tagValuer) Value(name string) (interface{}, bool) {
-	if value, ok := v.tags[name]; ok {
-		if value == nil {
-			return nil, true
-		}
-		return *value, true
-	}
-	return nil, false
-}
-
-// tagSetExpr represents a set of tag keys/values and associated expression.
-type tagSetExpr struct {
-	values []tagExpr
-	expr   influxql.Expr
-}
-
-// tagExpr represents one or more values assigned to a given tag.
-type tagExpr struct {
-	key    string
-	values []string
-	op     influxql.Token // EQ or NEQ
-}
-
-func copyTagExprs(a []tagExpr) []tagExpr {
-	other := make([]tagExpr, len(a))
-	copy(other, a)
-	return other
-}
-
-// uniqueTagValues returns a list of unique tag values used in an expression.
-func (m *Measurement) uniqueTagValues(expr influxql.Expr) map[string][]string {
-	// Track unique value per tag.
-	tags := make(map[string]map[string]struct{})
-
-	// Find all tag values referenced in the expression.
-	influxql.WalkFunc(expr, func(n influxql.Node) {
-		switch n := n.(type) {
-		case *influxql.BinaryExpr:
-			// Ignore operators that are not equality.
-			if n.Op != influxql.EQ {
-				return
-			}
-
-			// Extract ref and string literal.
-			var key, value string
-			switch lhs := n.LHS.(type) {
-			case *influxql.VarRef:
-				if rhs, ok := n.RHS.(*influxql.StringLiteral); ok {
-					key, value = lhs.Val, rhs.Val
-				}
-			case *influxql.StringLiteral:
-				if rhs, ok := n.RHS.(*influxql.VarRef); ok {
-					key, value = rhs.Val, lhs.Val
-				}
-			}
-			if key == "" {
-				return
-			}
-
-			// Add value to set.
-			if tags[key] == nil {
-				tags[key] = make(map[string]struct{})
-			}
-			tags[key][value] = struct{}{}
-		}
-	})
-
-	// Convert to map of slices.
-	out := make(map[string][]string)
-	for k, values := range tags {
-		out[k] = make([]string, 0, len(values))
-		for v := range values {
-			out[k] = append(out[k], v)
-		}
-		sort.Strings(out[k])
-	}
-	return out
 }
 
 // Measurements represents a list of *Measurement.
@@ -1988,39 +1846,6 @@ func (m *Measurement) FieldNames() []string {
 	return a
 }
 
-func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids SeriesIDs) map[string]stringSet {
-	// If no tag keys were passed, get all tag keys for the measurement.
-	if len(tagKeys) == 0 {
-		for k := range m.seriesByTagKeyValue {
-			tagKeys = append(tagKeys, k)
-		}
-	}
-
-	// Mapping between tag keys to all existing tag values.
-	tagValues := make(map[string]stringSet, 0)
-
-	// Iterate all series to collect tag values.
-	for _, id := range ids {
-		s, ok := m.seriesByID[id]
-		if !ok {
-			continue
-		}
-
-		// Iterate the tag keys we're interested in and collect values
-		// from this series, if they exist.
-		for _, tagKey := range tagKeys {
-			if tagVal := s.Tags.GetString(tagKey); tagVal != "" {
-				if _, ok = tagValues[tagKey]; !ok {
-					tagValues[tagKey] = newStringSet()
-				}
-				tagValues[tagKey].add(tagVal)
-			}
-		}
-	}
-
-	return tagValues
-}
-
 // stringSet represents a set of strings.
 type stringSet map[string]struct{}
 
@@ -2034,12 +1859,6 @@ func (s stringSet) add(ss ...string) {
 	for _, n := range ss {
 		s[n] = struct{}{}
 	}
-}
-
-// contains returns whether the set contains the given string.
-func (s stringSet) contains(ss string) bool {
-	_, ok := s[ss]
-	return ok
 }
 
 // list returns the current elements in the set, in sorted order.

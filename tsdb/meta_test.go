@@ -378,16 +378,3 @@ func genStrList(prefix string, n int) []string {
 	}
 	return lst
 }
-
-// MustParseExpr parses an expression string and returns its AST representation.
-func MustParseExpr(s string) influxql.Expr {
-	expr, err := influxql.ParseExpr(s)
-	if err != nil {
-		panic(err.Error())
-	}
-	return expr
-}
-
-func strref(s string) *string {
-	return &s
-}

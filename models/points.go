@@ -1820,23 +1820,6 @@ func (a Tags) HashKey() []byte {
 // values.
 type Fields map[string]interface{}
 
-func parseNumber(val []byte) (interface{}, error) {
-	if val[len(val)-1] == 'i' {
-		val = val[:len(val)-1]
-		return parseIntBytes(val, 10, 64)
-	}
-	for i := 0; i < len(val); i++ {
-		// If there is a decimal or an N (NaN), I (Inf), parse as float
-		if val[i] == '.' || val[i] == 'N' || val[i] == 'n' || val[i] == 'I' || val[i] == 'i' || val[i] == 'e' {
-			return parseFloatBytes(val, 64)
-		}
-		if val[i] < '0' && val[i] > '9' {
-			return string(val), nil
-		}
-	}
-	return parseFloatBytes(val, 64)
-}
-
 // FieldIterator retuns a FieldIterator that can be used to traverse the
 // fields of a point without constructing the in-memory map.
 func (p *point) FieldIterator() FieldIterator {

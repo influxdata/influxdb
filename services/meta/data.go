@@ -738,25 +738,6 @@ type NodeInfo struct {
 	TCPHost string
 }
 
-// clone returns a deep copy of ni.
-func (ni NodeInfo) clone() NodeInfo { return ni }
-
-// marshal serializes to a protobuf representation.
-func (ni NodeInfo) marshal() *internal.NodeInfo {
-	pb := &internal.NodeInfo{}
-	pb.ID = proto.Uint64(ni.ID)
-	pb.Host = proto.String(ni.Host)
-	pb.TCPHost = proto.String(ni.TCPHost)
-	return pb
-}
-
-// unmarshal deserializes from a protobuf representation.
-func (ni *NodeInfo) unmarshal(pb *internal.NodeInfo) {
-	ni.ID = pb.GetID()
-	ni.Host = pb.GetHost()
-	ni.TCPHost = pb.GetTCPHost()
-}
-
 // NodeInfos is a slice of NodeInfo used for sorting
 type NodeInfos []NodeInfo
 

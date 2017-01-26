@@ -22,9 +22,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// DefaultPrecision is the precision used by the MustWritePointsString() function.
-const DefaultPrecision = "s"
-
 func TestShardWriteAndIndex(t *testing.T) {
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
@@ -405,11 +402,13 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
+	errC := make(chan error)
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
 			if err := sh.DeleteMeasurement("cpu", []string{"cpu,host=server"}); err != nil {
-				t.Fatalf(err.Error())
+				errC <- err
+				return
 			}
 
 			_ = sh.WritePoints(points[:500])
@@ -424,7 +423,8 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
 			if err := sh.DeleteMeasurement("cpu", []string{"cpu,host=server"}); err != nil {
-				t.Fatalf(err.Error())
+				errC <- err
+				return
 			}
 
 			_ = sh.WritePoints(points[500:])
@@ -434,7 +434,16 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 		}
 	}()
 
-	wg.Wait()
+	go func() {
+		wg.Wait()
+		close(errC)
+	}()
+
+	for err := range errC {
+		if err != nil {
+			t.Error(err)
+		}
+	}
 }
 
 // Ensures that when a shard is closed, it removes any series meta-data
@@ -995,15 +1004,6 @@ func NewShard() *Shard {
 		),
 		path: path,
 	}
-}
-
-// MustOpenShard returns a new open shard. Panic on error.
-func MustOpenShard() *Shard {
-	sh := NewShard()
-	if err := sh.Open(); err != nil {
-		panic(err)
-	}
-	return sh
 }
 
 // Close closes the shard and removes all underlying data.

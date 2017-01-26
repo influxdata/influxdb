@@ -64,7 +64,7 @@ func (s ShardInfos) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s ShardInfos) Less(i, j int) bool {
 	if s[i].Database == s[j].Database {
 		if s[i].RetentionPolicy == s[j].RetentionPolicy {
-			return s[i].Path < s[i].Path
+			return s[i].Path < s[j].Path
 		}
 
 		return s[i].RetentionPolicy < s[j].RetentionPolicy
