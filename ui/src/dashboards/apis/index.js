@@ -6,3 +6,10 @@ export function getDashboards() {
     url: `/chronograf/v1/dashboards`,
   });
 }
+
+export function getDashboard(id) {
+  return AJAX({
+    method: 'GET',
+    url: `/chronograf/v1/dashboards/${id}`,
+  });
+}
