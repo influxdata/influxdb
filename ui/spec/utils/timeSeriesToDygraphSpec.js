@@ -168,8 +168,6 @@ describe('timeSeriesToDygraph', () => {
       },
     };
 
-    // console.log('BEAP EXPECTED', JSON.stringify(expected, null, 2))
-
     expect(actual.dygraphSeries).to.deep.equal(expected);
   });
 
@@ -210,16 +208,6 @@ describe('timeSeriesToDygraph', () => {
     ];
 
     const actual = timeSeriesToDygraph(influxResponse);
-    //  dygraphSeries: {
-    //    'm1.f1': {
-    //      axis: 'y',
-    //      strokeWidth,
-    //    },
-    //    'm1.f1-1': {
-    //      axis: 'y2',
-    //      strokeWidth,
-    //    },
-    //  },
 
     const expected = {
       labels: [
@@ -408,7 +396,6 @@ describe('timeSeriesToDygraph', () => {
       ],
     };
 
-    // console.log(actual.timeSeries);
     expect(actual.labels).to.deep.equal(expected.labels);
     expect(actual.timeSeries).to.deep.equal(expected.timeSeries);
   });
