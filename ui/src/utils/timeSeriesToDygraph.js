@@ -29,9 +29,7 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
     }));
 
     // tagSet is each tag key and value for a series
-    const tagSet = Object.keys(tags).map((tag) => {
-      return `[${tag}=${tags[tag]}]`;
-    }).sort().join('');
+    const tagSet = Object.keys(tags).map((tag) => `[${tag}=${tags[tag]}]`).sort().join('');
 
     rows.forEach(({vals, columns: cols, name: measurement, index: seriesIndex}) => {
       const [time, ...rowValues] = vals;
@@ -51,6 +49,7 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
     return acc;
   }, []);
 
+  // labels are a unique combination of measurement, fields, and tags that indicate a specific series on the graph legend
   const labels = cells.reduce((acc, {label, seriesIndex, responseIndex}) => {
     const existingLabel = acc.find(({
       label: findLabel,
