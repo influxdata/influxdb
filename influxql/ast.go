@@ -4508,13 +4508,10 @@ func FieldDimensions(sources Sources, m FieldMapper) (fields map[string]DataType
 				}
 			}
 
-			_, d, err := FieldDimensions(src.Statement.Sources, m)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			for k := range d {
-				dimensions[k] = struct{}{}
+			for _, d := range src.Statement.Dimensions {
+				if expr, ok := d.Expr.(*VarRef); ok {
+					dimensions[expr.Val] = struct{}{}
+				}
 			}
 		}
 	}
