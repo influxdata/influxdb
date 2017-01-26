@@ -16,6 +16,10 @@ describe('timeSeriesToDygraph', () => {
                   "name":"m1",
                   "columns": ["time","f1"],
                   "values": [[1000, 1],[2000, 2]],
+                  "tags": {
+                    tk1: "tv1",
+                    tk2: "tv2",
+                  },
                 },
               ]
             },
@@ -25,6 +29,9 @@ describe('timeSeriesToDygraph', () => {
                   "name":"m1",
                   "columns": ["time","f2"],
                   "values": [[2000, 3],[4000, 4]],
+                  "tags": {
+                    tk3: "tv3",
+                  },
                 },
               ]
             },
@@ -33,24 +40,13 @@ describe('timeSeriesToDygraph', () => {
       }
     ];
 
-    //  dygraphSeries: {
-    //    'm1.f1': {
-    //      axis: 'y',
-    //      strokeWidth,
-    //    },
-    //    'm1.f2': {
-    //      axis: 'y',
-    //      strokeWidth,
-    //    },
-    //  },
-
     const actual = timeSeriesToDygraph(influxResponse);
 
     const expected = {
       labels: [
         'time',
-        `m1.f1`,
-        `m1.f2`,
+        `m1.f1[tk1=tv1][tk2=tv2]`,
+        `m1.f2[tk3=tv3]`,
       ],
       timeSeries: [
         [new Date(1000), 1, null],
@@ -58,11 +54,11 @@ describe('timeSeriesToDygraph', () => {
         [new Date(4000), null, 4],
       ],
       dygraphSeries: {
-        'm1.f1': {
+        'm1.f1[tk1=tv1][tk2=tv2]': {
           axis: 'y',
           strokeWidth,
         },
-        'm1.f2': {
+        'm1.f2[tk3=tv3]': {
           axis: 'y',
           strokeWidth,
         },

@@ -20,7 +20,7 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
   }, []);
 
   // convert series into cells with rows and columns
-  const cells = serieses.reduce((acc, {name, columns, values, index, responseIndex}) => {
+  const cells = serieses.reduce((acc, {name, columns, values, index, responseIndex, tags = {}}) => {
     const rows = values.map((vals) => ({
       name,
       columns,
@@ -28,12 +28,18 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
       index,
     }));
 
-    rows.forEach(({vals, columns: cols, name: n, index: seriesIndex}) => {
+    // tagSet is each tag key and value for a series
+    const tagSet = Object.keys(tags).map((tag) => {
+      return `[${tag}=${tags[tag]}]`;
+    }).sort().join('');
+
+    rows.forEach(({vals, columns: cols, name: measurement, index: seriesIndex}) => {
       const [time, ...rowValues] = vals;
+
       rowValues.forEach((value, i) => {
-        const column = cols[i + 1];
+        const field = cols[i + 1];
         acc.push({
-          label: `${n}.${column}`,
+          label: `${measurement}.${field}${tagSet}`,
           value,
           time,
           seriesIndex,
