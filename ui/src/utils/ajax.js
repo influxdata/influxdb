@@ -7,6 +7,9 @@ export default function AJAX({
   params = {},
   headers = {},
 }) {
+  if (window.basepath) {
+    url = `${window.basepath}${url}`;
+  }
   return axios({
     url,
     method,

@@ -60,6 +60,7 @@ func Assets(opts AssetsOpts) http.Handler {
 				[]byte(`src="`),
 				[]byte(`href="`),
 				[]byte(`url(`),
+				[]byte(`data-basepath="`), // for forwarding basepath to frontend
 			},
 		}
 		up.ServeHTTP(w, r)
