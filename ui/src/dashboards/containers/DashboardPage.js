@@ -42,7 +42,6 @@ const DashboardPage = React.createClass({
 
     const cellWidth = 4;
     const cellHeight = 4;
-    const pageWidth = 12;
 
     const cells = dashboard.cells.map((cell, i) => {
       const dashboardCell = Object.assign(cell, {
