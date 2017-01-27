@@ -1,15 +1,17 @@
 import React, {PropTypes} from 'react';
 import ReactTooltip from 'react-tooltip';
-//
-// import LayoutRenderer from 'shared/components/LayoutRenderer';
+
+import LayoutRenderer from 'shared/components/LayoutRenderer';
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
 import {getDashboard} from '../apis';
+import {getSource} from 'shared/apis';
 
 const DashboardPage = React.createClass({
   propTypes: {
     params: PropTypes.shape({
+      sourceID: PropTypes.string.isRequired,
       dashboardID: PropTypes.string.isRequired,
     }).isRequired,
   },
@@ -28,6 +30,45 @@ const DashboardPage = React.createClass({
         dashboard: resp.data,
       });
     });
+    getSource(this.props.params.sourceID).then(({data: source}) => {
+      this.setState({source});
+    });
+  },
+
+  renderDashboard(dashboard) {
+    const autoRefreshMs = 15000;
+    const {timeRange} = this.state;
+    const {source} = this.state;
+
+    const cellWidth = 4;
+    const cellHeight = 4;
+    const pageWidth = 12;
+
+    const cells = dashboard.cells.map((cell, i) => {
+      const dashboardCell = Object.assign(cell, {
+        w: cellWidth,
+        h: cellHeight,
+        x: ((i) * cellWidth % pageWidth),
+        y: Math.floor(((i) * cellWidth / pageWidth)) * cellHeight,
+        queries: cell.queries,
+      });
+
+      dashboardCell.queries.forEach((q) => {
+        q.text = q.query;
+        q.database = source.telegraf;
+      });
+      return dashboardCell;
+    });
+
+    return (
+      <LayoutRenderer
+        timeRange={timeRange}
+        cells={cells}
+        autoRefreshMs={autoRefreshMs}
+        source={source.links.proxy}
+        host={this.props.params.sourceID}
+      />
+    );
   },
 
   handleChooseTimeRange({lower}) {
@@ -36,7 +77,8 @@ const DashboardPage = React.createClass({
   },
 
   render() {
-    const dashboardName = this.state.dashboard ? this.state.dashboard.name : '';
+    const {dashboard, timeRange} = this.state;
+    const dashboardName = dashboard ? dashboard.name : '';
 
     return (
       <div className="page">
@@ -55,12 +97,13 @@ const DashboardPage = React.createClass({
                 Graph Tips
               </div>
               <ReactTooltip id="graph-tips-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
-              <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={this.state.timeRange.inputValue} />
+              <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={timeRange.inputValue} />
             </div>
           </div>
         </div>
         <div className="page-contents">
           <div className="container-fluid full-width">
+            { dashboard ? this.renderDashboard(dashboard) : '' }
           </div>
         </div>
       </div>
