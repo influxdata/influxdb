@@ -18,11 +18,15 @@ const TelegramConfig = React.createClass({
   handleSaveAlert(e) {
     e.preventDefault();
 
+    let parseMode
+    if (this.parseModeHTML.checked) parseMode = 'HTML'
+    if (this.parseModeMarkdown.checked) parseMode = 'Markdown'
+
     const properties = {
       'chat-id': this.chatID.value,
       'disable-notification': this.disableNotification.checked,
       'disable-web-page-preview': this.disableWebPagePreview.checked,
-      'parse-mode': this.parseMode.checked.toString(),
+      'parse-mode': parseMode,
       token: this.token.value,
       url: this.url.value,
     };
@@ -62,8 +66,19 @@ const TelegramConfig = React.createClass({
 
           <div className="form-group col-xs-12">
             <div className="form-control-static">
-              <input id="enableParseMode" type="checkbox" defaultChecked={parseMode} ref={(r) => this.parseMode = r} />
-              <label htmlFor="enableParseMode">Enable Parse Mode</label>
+              <div className="radio">
+                <label>
+                  <input id="parseModeHTML" type="radio" name="parseMode" value="html" defaultChecked={parseMode === 'HTML'} ref={(r) => this.parseModeHTML = r} />
+                  HTML
+                </label>
+              </div>
+              <div className="radio">
+                <label>
+                  <input id="parseModeMarkdown" type="radio" name="parseMode" value="markdown" defaultChecked={parseMode === 'Markdown'} ref={(r) => this.parseModeMarkdown = r} />
+                  Markdown
+                </label>
+              </div>
+              <label htmlFor="parseMode">Parse Mode: HTML or Markdown</label>
             </div>
           </div>
 
