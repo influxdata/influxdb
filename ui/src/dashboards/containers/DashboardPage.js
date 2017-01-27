@@ -26,12 +26,12 @@ const DashboardPage = React.createClass({
 
   componentDidMount() {
     getDashboard(this.props.params.dashboardID).then((resp) => {
-      this.setState({
-        dashboard: resp.data,
+      getSource(this.props.params.sourceID).then(({data: source}) => {
+        this.setState({
+          dashboard: resp.data,
+          source,
+        });
       });
-    });
-    getSource(this.props.params.sourceID).then(({data: source}) => {
-      this.setState({source});
     });
   },
 
@@ -49,8 +49,9 @@ const DashboardPage = React.createClass({
         w: cellWidth,
         h: cellHeight,
         x: ((i) * cellWidth % pageWidth),
-        y: Math.floor(((i) * cellWidth / pageWidth)) * cellHeight,
+        y: Math.floor(((i + 1) * cellWidth / pageWidth)) * cellHeight,
         queries: cell.queries,
+        i: i.toString(),
       });
 
       dashboardCell.queries.forEach((q) => {
