@@ -86,13 +86,17 @@ export const HostPage = React.createClass({
     const cellHeight = 4;
     const pageWidth = 12;
 
-    const autoflowCells = autoflowLayouts.reduce((allCells, layout, i) => {
-      return allCells.concat(layout.cells.map((cell, j) => {
+    let cellCount = 0;
+    const autoflowCells = autoflowLayouts.reduce((allCells, layout) => {
+      return allCells.concat(layout.cells.map((cell) => {
+        const x = (cellCount * cellWidth % pageWidth);
+        const y = Math.floor(cellCount * cellWidth / pageWidth) * cellHeight;
+        cellCount += 1;
         return Object.assign(cell, {
           w: cellWidth,
           h: cellHeight,
-          x: ((i + j) * cellWidth % pageWidth),
-          y: Math.floor(((i + j) * cellWidth / pageWidth)) * cellHeight,
+          x,
+          y,
         });
       }));
     }, []);
