@@ -46,11 +46,7 @@ const DashboardPage = React.createClass({
               <div className="dropdown page-header-dropdown">
                 <button className="dropdown-toggle" type="button" data-toggle="dropdown">
                   <span className="button-text">{dashboardName}</span>
-                  <span className="caret"></span>
                 </button>
-                <ul className="dropdown-menu" aria-labelledby="dropdownMenu1">
-
-                </ul>
               </div>
             </div>
             <div className="page-header__right">
