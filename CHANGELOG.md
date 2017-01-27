@@ -6,6 +6,7 @@
 ### Upcoming Features
   1. [#779](https://github.com/influxdata/chronograf/issues/779): Add layout for telegraf's diskio system plugin
   1. [#810](https://github.com/influxdata/chronograf/issues/810): Add layout for telegraf's net system plugin
+  1. [#811](https://github.com/influxdata/chronograf/issues/811): Add layout for telegraf's procstat plugin
 
 ### Upcoming UI Improvements
 
