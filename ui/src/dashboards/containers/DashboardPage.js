@@ -64,7 +64,6 @@ const DashboardPage = React.createClass({
         cells={cells}
         autoRefreshMs={autoRefreshMs}
         source={source.links.proxy}
-        host={this.props.params.sourceID}
       />
     );
   },
