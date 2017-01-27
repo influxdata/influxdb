@@ -49,7 +49,7 @@ cat > $APP_FILE << EOF
 		"i": "$CELLID",
 		"name": "User facing cell Name",
 		"queries": [{
-			"query": "select mean(\"used_percent from\") from disk",
+			"query": "select mean(\"used_percent\") from disk",
 			"groupbys": [],
 			"wheres": []
 				}]

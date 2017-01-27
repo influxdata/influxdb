@@ -2,9 +2,12 @@
 
 ### Upcoming Bug Fixes
   1. [#788](https://github.com/influxdata/chronograf/pull/788): Fix missing fields in data explorer when using non-default retention policy
+  1. [#774](https://github.com/influxdata/chronograf/issues/774): Fix gaps in layouts for hosts
 
 ### Upcoming Features
   1. [#779](https://github.com/influxdata/chronograf/issues/779): Add layout for telegraf's diskio system plugin
+  1. [#810](https://github.com/influxdata/chronograf/issues/810): Add layout for telegraf's net system plugin
+  1. [#811](https://github.com/influxdata/chronograf/issues/811): Add layout for telegraf's procstat plugin
 
 ### Upcoming UI Improvements
 

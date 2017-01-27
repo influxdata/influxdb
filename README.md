@@ -43,8 +43,10 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
     * [Disk](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/DISK_README.md)
     * [DiskIO](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/disk.go#L136)
     * [Memory](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/MEM_README.md)
+    * [Net](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/net.go)
     * [Netstat](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/NETSTAT_README.md)
     * [Processes](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/PROCESSES_README.md)
+    * [Procstat](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/procstat/README.md)
 * Varnish
 * Windows Performance Counters
 
@@ -111,7 +113,7 @@ docker pull quay.io/influxdb/chronograf:latest
 
 ### From Source
 
-* Chronograf works with go 1.7.4, npm 3.10.7 and node v6.6.0. Additional version support of these projects will be implemented soon, but these are the only supported versions to date.
+* Chronograf works with go 1.7.x, node 6.x/7.x, and npm 3.x.
 * Chronograf requires [Kapacitor](https://github.com/influxdata/kapacitor) 1.1.x+ to create and store alerts.
 
 1. [Install Go](https://golang.org/doc/install)
