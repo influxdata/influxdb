@@ -98,7 +98,7 @@ const TagInput = React.createClass({
   handleAddTag(e) {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const newItem = e.target.value;
+      const newItem = e.target.value.trim();
       const {tags, onAddTag} = this.props;
       if (!this.shouldAddToList(newItem, tags)) {
         return;
