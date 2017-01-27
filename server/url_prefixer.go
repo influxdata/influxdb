@@ -48,7 +48,10 @@ func (wrw wrapResponseWriter) Header() http.Header {
 
 const CHUNK_SIZE int = 512
 
-// ServeHTTP implements an http.Handler that prefixes relative URLs from the Next handler with the configured prefix
+// ServeHTTP implements an http.Handler that prefixes relative URLs from the
+// Next handler with the configured prefix. It does this by examining the
+// stream through the ResponseWriter, and appending the Prefix after any of the
+// Attrs detected in the stream.
 func (up *URLPrefixer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	// chunked transfer because we're modifying the response on the fly, so we
@@ -59,6 +62,7 @@ func (up *URLPrefixer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	writtenCount := 0 // number of bytes written to rw
 
+	// extract the flusher for flushing chunks
 	flusher, ok := rw.(http.Flusher)
 	if !ok {
 		log.Fatalln("Exected http.ResponseWriter to be an http.Flusher, but wasn't")
