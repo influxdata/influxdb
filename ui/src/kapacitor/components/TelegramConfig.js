@@ -18,9 +18,13 @@ const TelegramConfig = React.createClass({
   handleSaveAlert(e) {
     e.preventDefault();
 
-    let parseMode
-    if (this.parseModeHTML.checked) parseMode = 'HTML'
-    if (this.parseModeMarkdown.checked) parseMode = 'Markdown'
+    let parseMode;
+    if (this.parseModeHTML.checked) {
+      parseMode = 'HTML';
+    }
+    if (this.parseModeMarkdown.checked) {
+      parseMode = 'Markdown';
+    }
 
     const properties = {
       'chat-id': this.chatID.value,
