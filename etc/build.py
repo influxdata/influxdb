@@ -812,24 +812,31 @@ def main(args):
             arch = None
             type = None
             regex = None
+            nice_name = None
             if ".deb" in p_name:
-                type = "Ubuntu"
+                type = "ubuntu"
+                nice_name = "Ubuntu"
                 regex = r"^.+_(.+)\.deb$"
             elif ".rpm" in p_name:
-                type = "CentOS"
+                type = "centos"
+                nice_name = "CentOS"
                 regex = r"^.+\.(.+)\.rpm$"
             elif ".tar.gz" in p_name:
                 if "linux" in p_name:
                     if "static" in p_name:
-                        type = "linux static"
+                        type = "linux_static"
+                        nice_name = "Linux Static"
                     else:
                         type = "linux"
+                        nice_name = "Linux"
                 elif "darwin" in p_name:
-                    type = "Mac OS X"
+                    type = "darwin"
+                    nice_name = "Mac OS X"
                 regex = r"^.+_(.+)\.tar.gz$"
             elif ".zip" in p_name:
                 if "windows" in p_name:
-                    type = "Windows"
+                    type = "windows"
+                    nice_name = "Windows"
                 regex = r"^.+_(.+)\.zip$"
 
             if regex is None or type is None:
@@ -844,16 +851,19 @@ def main(args):
                 arch = "amd64"
             elif arch == "x86_32":
                 arch = "i386"
-            
-            package_output[str(type).capitalize() + " " + str(arch)] = {
+            package_name = str(arch) + "_" + str(type)
+            package_output[package_name] = {
                 "md5": generate_md5_from_file(p),
                 "filename": p_name,
+                "name": nice_name,
+                "link": "https://dl.influxdata.com/chronograf/releases/" + p_name.rsplit('/', 1)[-1],
             }
+
         # Print the downloads in Markdown format for the release
         if args.release:
             lines = []
-            for arch, v in package_output.items():
-                line = arch + " | [" + v['filename'] +"](https://dl.influxdata.com/chronograf/releases/" + v['filename'].rsplit('/', 1)[-1] + ") | `" + v['md5'] + "`"
+            for package_name, v in package_output.items():
+                line =  v['name'] + " | [" + v['filename'] +"](" + v['link'] + ") | `" + v['md5'] + "`"
                 lines.append(line)
             lines.sort()
 
