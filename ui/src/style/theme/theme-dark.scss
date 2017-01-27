@@ -535,3 +535,80 @@ $form-static-checkbox-size: 16px;
     }
   }
 }
+
+.form-control-static .radio {
+  margin: 0;
+
+  input[type="radio"] {
+    position: relative;
+    left: -9999px;
+    visibility: hidden;
+    width: 0;
+    height: 0;
+    margin: 0;
+
+    // Faux Checkbox
+    & + label {
+      font-size: 14px !important;
+      line-height: 16px;
+      color: $g11-sidewalk;
+      font-weight: 500;
+      transition: color 0.25s ease;
+      margin: 0;
+      padding: 0 0 0 (12px + $form-static-checkbox-size) !important;
+      user-select: none;
+      -ms-user-select: none;
+      -moz-user-selct: none;
+      -webkit-user-select: none;
+
+      &:before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 0;
+        transform: translateY(-50%);
+        width: $form-static-checkbox-size;
+        height: $form-static-checkbox-size;
+        background-color: $g2-kevlar;
+        border: 2px solid $g5-pepper;
+        border-radius: 50%;
+        z-index: 2;
+        transition:
+          border-color 0.25s ease;
+      }
+      &:after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: ($form-static-checkbox-size / 2);
+        transform: translate(-50%,-50%) scale(2,2);
+        opacity: 0;
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background-color: $c-pool;
+        z-index: 3;
+        transition:
+          opacity 0.25s ease,
+          transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      }
+      &:hover {
+        cursor: pointer;
+        color: $g20-white;
+
+        &:before {
+          border-color: $g6-smoke;
+        }
+      }
+    }
+    // Faux Checkbox (Checked)
+    &:checked + label {
+      color: $g20-white;
+
+      &:after {
+        opacity: 1;
+        transform: translate(-50%,-50%) scale(1,1);
+      }
+    }
+  }
+}
