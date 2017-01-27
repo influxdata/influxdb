@@ -104,12 +104,8 @@ const TagInput = React.createClass({
         return;
       }
 
-      this.setState(
-        () => {
-          this.input.value = '';
-          onAddTag(newItem);
-        }
-      );
+      this.input.value = '';
+      onAddTag(newItem);
     }
   },
 
