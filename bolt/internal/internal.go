@@ -220,8 +220,8 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 		return err
 	}
 
-	cells := make([]chronograf.DashboardCell, len(d.Cells))
-	for i, c := range d.Cells {
+	cells := make([]chronograf.DashboardCell, len(pb.Cells))
+	for i, c := range pb.Cells {
 		cells[i] = chronograf.DashboardCell{
 			X:       c.X,
 			Y:       c.Y,
