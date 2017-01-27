@@ -7,7 +7,9 @@ export default function sources(state = [], action) {
     case 'SOURCE_UPDATED': {
       const {source} = action.payload;
       const updatedIndex = state.findIndex((s) => s.id === source.id);
-      const updatedSources = Object.assign([], state);
+      const updatedSources = source.default ? state.map((s) => {
+        s.default = false; return s;
+      }) : [...state];
       updatedSources[updatedIndex] = source;
       return updatedSources;
     }
@@ -20,7 +22,10 @@ export default function sources(state = [], action) {
 
     case 'SOURCE_ADDED': {
       const {source} = action.payload;
-      return state.concat([source]);
+      const updatedSources = source.default ? state.map((s) => {
+        s.default = false; return s;
+      }) : state;
+      return [...updatedSources, source];
     }
   }
 
