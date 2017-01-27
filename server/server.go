@@ -19,7 +19,10 @@ import (
 	"github.com/tylerb/graceful"
 )
 
-var startTime time.Time
+var (
+	startTime time.Time
+	basepath  string
+)
 
 func init() {
 	startTime = time.Now().UTC()
@@ -49,6 +52,7 @@ type Server struct {
 	ShowVersion        bool     `short:"v" long:"version" description:"Show Chronograf version info"`
 	BuildInfo          BuildInfo
 	Listener           net.Listener
+	Basepath           string       `long:"basepath" description:"A URL path prefix under which all chronograf routes will be mounted" json:"basePath"`
 	handler            http.Handler
 }
 
@@ -66,6 +70,7 @@ func (s *Server) useAuth() bool {
 func (s *Server) Serve() error {
 	logger := clog.New(clog.ParseLevel(s.LogLevel))
 	service := openService(s.BoltPath, s.CannedPath, logger, s.useAuth())
+	basepath = s.Basepath
 	s.handler = NewMux(MuxOpts{
 		Develop:            s.Develop,
 		TokenSecret:        s.TokenSecret,

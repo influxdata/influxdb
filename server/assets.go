@@ -54,7 +54,7 @@ func Assets(opts AssetsOpts) http.Handler {
 				Info("Serving assets")
 		}
 		up := URLPrefixer{
-			Prefix: "/chronograf",
+			Prefix: basepath,
 			Next:   assets.Handler(),
 			Attrs: [][]byte{
 				[]byte(`src="`),
