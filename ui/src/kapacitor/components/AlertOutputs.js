@@ -28,7 +28,7 @@ const AlertOutputs = React.createClass({
 
   getInitialState() {
     return {
-      selectedEndpoint: 'opsgenie',
+      selectedEndpoint: 'smtp',
       configSections: null,
     };
   },
