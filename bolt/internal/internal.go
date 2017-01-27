@@ -194,6 +194,22 @@ func UnmarshalLayout(data []byte, l *chronograf.Layout) error {
 func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 	cells := make([]*DashboardCell, len(d.Cells))
 	for i, c := range d.Cells {
+		queries := make([]*Query, len(c.Queries))
+		for j, q := range c.Queries {
+			r := new(Range)
+			if q.Range != nil {
+				r.Upper, r.Lower = q.Range.Upper, q.Range.Lower
+			}
+			queries[j] = &Query{
+				Command:  q.Command,
+				DB:       q.DB,
+				RP:       q.RP,
+				GroupBys: q.GroupBys,
+				Wheres:   q.Wheres,
+				Label:    q.Label,
+				Range:    r,
+			}
+		}
 
 		cells[i] = &DashboardCell{
 			X:       c.X,
@@ -201,7 +217,7 @@ func MarshalDashboard(d chronograf.Dashboard) ([]byte, error) {
 			W:       c.W,
 			H:       c.H,
 			Name:    c.Name,
-			Queries: c.Queries,
+			Queries: queries,
 			Type:    c.Type,
 		}
 	}
@@ -220,23 +236,39 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 		return err
 	}
 
-	cells := make([]chronograf.DashboardCell, len(d.Cells))
-	for i, c := range d.Cells {
+	cells := make([]chronograf.DashboardCell, len(pb.Cells))
+	for i, c := range pb.Cells {
+		queries := make([]chronograf.Query, len(c.Queries))
+		for j, q := range c.Queries {
+			queries[j] = chronograf.Query{
+				Command:  q.Command,
+				DB:       q.DB,
+				RP:       q.RP,
+				GroupBys: q.GroupBys,
+				Wheres:   q.Wheres,
+				Label:    q.Label,
+			}
+			if q.Range.Upper != q.Range.Lower {
+				queries[j].Range = &chronograf.Range{
+					Upper: q.Range.Upper,
+					Lower: q.Range.Lower,
+				}
+			}
+		}
+
 		cells[i] = chronograf.DashboardCell{
 			X:       c.X,
 			Y:       c.Y,
 			W:       c.W,
 			H:       c.H,
 			Name:    c.Name,
-			Queries: c.Queries,
+			Queries: queries,
 			Type:    c.Type,
 		}
 	}
-
 	d.ID = chronograf.DashboardID(pb.ID)
 	d.Cells = cells
 	d.Name = pb.Name
-
 	return nil
 }
 

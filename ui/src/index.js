@@ -11,7 +11,7 @@ import {KubernetesPage} from 'src/kubernetes';
 import {Login} from 'src/auth';
 import {KapacitorPage, KapacitorRulePage, KapacitorRulesPage, KapacitorTasksPage} from 'src/kapacitor';
 import DataExplorer from 'src/data_explorer';
-import {DashboardsPage} from 'src/dashboards';
+import {DashboardsPage, DashboardPage} from 'src/dashboards';
 import {CreateSource, SourcePage, ManageSources} from 'src/sources';
 import NotFound from 'src/shared/components/NotFound';
 import configureStore from 'src/store/configureStore';
@@ -106,6 +106,7 @@ const Root = React.createClass({
               <Route path="kapacitor-tasks" component={KapacitorTasksPage} />
               <Route path="alerts" component={AlertsApp} />
               <Route path="dashboards" component={DashboardsPage} />
+              <Route path="dashboards/:dashboardID" component={DashboardPage} />
               <Route path="alert-rules" component={KapacitorRulesPage} />
               <Route path="alert-rules/:ruleID" component={KapacitorRulePage} />
               <Route path="alert-rules/new" component={KapacitorRulePage} />
