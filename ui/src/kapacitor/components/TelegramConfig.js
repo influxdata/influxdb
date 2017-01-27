@@ -65,20 +65,16 @@ const TelegramConfig = React.createClass({
           </div>
 
           <div className="form-group col-xs-12">
+            <label htmlFor="parseMode">Parse Mode</label>
             <div className="form-control-static">
               <div className="radio">
-                <label>
-                  <input id="parseModeHTML" type="radio" name="parseMode" value="html" defaultChecked={parseMode === 'HTML'} ref={(r) => this.parseModeHTML = r} />
-                  HTML
-                </label>
+                <input id="parseModeHTML" type="radio" name="parseMode" value="html" defaultChecked={parseMode === 'HTML'} ref={(r) => this.parseModeHTML = r} />
+                <label htmlFor="parseModeHTML">HTML</label>
               </div>
               <div className="radio">
-                <label>
-                  <input id="parseModeMarkdown" type="radio" name="parseMode" value="markdown" defaultChecked={parseMode === 'Markdown'} ref={(r) => this.parseModeMarkdown = r} />
-                  Markdown
-                </label>
+                <input id="parseModeMarkdown" type="radio" name="parseMode" value="markdown" defaultChecked={parseMode === 'Markdown'} ref={(r) => this.parseModeMarkdown = r} />
+                <label htmlFor="parseModeMarkdown">Markdown</label>
               </div>
-              <label htmlFor="parseMode">Parse Mode: HTML or Markdown</label>
             </div>
           </div>
 
