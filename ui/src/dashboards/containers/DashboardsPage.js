@@ -20,6 +20,7 @@ const DashboardsPage = React.createClass({
   getInitialState() {
     return {
       dashboards: [],
+      waiting: true,
     };
   },
 
@@ -27,14 +28,17 @@ const DashboardsPage = React.createClass({
     getDashboards().then((resp) => {
       this.setState({
         dashboards: resp.data.dashboards,
+        waiting: false,
       });
     });
   },
 
   render() {
     let tableHeader;
-    if (this.state.dashboards.length === 0) {
+    if (this.state.waiting) {
       tableHeader = "Loading Dashboards...";
+    } else if (this.state.dashboards.length === 0) {
+      tableHeader = "No Dashboards";
     } else {
       tableHeader = `${this.state.dashboards.length} Dashboards`;
     }
