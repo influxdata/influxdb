@@ -164,10 +164,8 @@ func ValidDashboardRequest(d chronograf.Dashboard) error {
 	}
 
 	for _, c := range d.Cells {
-		for _, q := range c.Queries {
-			if len(q) == 0 {
-				return fmt.Errorf("query required")
-			}
+		if (len(c.Queries) == 0) {
+			return fmt.Errorf("query required")
 		}
 	}
 

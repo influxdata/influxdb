@@ -247,11 +247,12 @@ func UnmarshalDashboard(data []byte, d *chronograf.Dashboard) error {
 				GroupBys: q.GroupBys,
 				Wheres:   q.Wheres,
 				Label:    q.Label,
-		}
-		if q.Range.Upper != q.Range.Lower {
-			queries[j].Range = &chronograf.Range{
-				Upper: q.Range.Upper,
-				Lower: q.Range.Lower,
+			}
+			if q.Range.Upper != q.Range.Lower {
+				queries[j].Range = &chronograf.Range{
+					Upper: q.Range.Upper,
+					Lower: q.Range.Lower,
+				}
 			}
 		}
 

@@ -243,7 +243,7 @@ type DashboardCell struct {
 	W       int32    `json:"w"`
 	H       int32    `json:"h"`
 	Name    string   `json:"name"`
-	Queries []string `json:"queries"`
+	Queries []Query `json:"queries"`
 	Type    string   `json:"type"`
 }
 
