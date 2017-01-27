@@ -48,8 +48,6 @@ const DashboardPage = React.createClass({
       const dashboardCell = Object.assign(cell, {
         w: cellWidth,
         h: cellHeight,
-        x: ((i) * cellWidth % pageWidth),
-        y: Math.floor(((i + 1) * cellWidth / pageWidth)) * cellHeight,
         queries: cell.queries,
         i: i.toString(),
       });
