@@ -123,8 +123,8 @@ export const KapacitorPage = React.createClass({
   render() {
     const {kapacitor, newName, newURL, newUsername} = this.state;
     // if the fields in state are defined, use them. otherwise use the defaults
-    const name = newName === undefined ? kapacitor && kapacitor.name || '' : newName;
-    const url = newURL === undefined ? kapacitor && kapacitor.url || '' : newURL;
+    const name = newName === undefined ? kapacitor && kapacitor.name || defaultKapacitorName : newName;
+    const url = newURL === undefined ? kapacitor && kapacitor.url || defaultKapacitorUrl : newURL;
     const username = newUsername === undefined ? kapacitor && kapacitor.username || '' : newUsername;
 
 
