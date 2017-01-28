@@ -4,15 +4,17 @@ import (
 	"bufio"
 	"bytes"
 	"io"
-	"log"
 	"net/http"
+
+	"github.com/influxdata/chronograf"
 )
 
 // URLPrefixer is a wrapper for an http.Handler that will prefix all occurrences of a relative URL with the configured Prefix
 type URLPrefixer struct {
-	Prefix string       // the prefix to be appended after any detected Attrs
-	Next   http.Handler // the http.Handler which will generate the content to be modified by this handler
-	Attrs  [][]byte     // a list of attrs that should have their URLs prefixed. For example `src="` or `href="` would be valid
+	Prefix string            // the prefix to be appended after any detected Attrs
+	Next   http.Handler      // the http.Handler which will generate the content to be modified by this handler
+	Attrs  [][]byte          // a list of attrs that should have their URLs prefixed. For example `src="` or `href="` would be valid
+	Logger chronograf.Logger // The logger where prefixing errors will be dispatched to
 }
 
 type wrapResponseWriter struct {
@@ -65,7 +67,9 @@ func (up *URLPrefixer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// extract the flusher for flushing chunks
 	flusher, ok := rw.(http.Flusher)
 	if !ok {
-		log.Fatalln("Exected http.ResponseWriter to be an http.Flusher, but wasn't")
+		up.Logger.
+			WithField("component", "prefixer").
+			Fatal("Exected http.ResponseWriter to be an http.Flusher, but wasn't")
 	}
 
 	nextRead, nextWrite := io.Pipe()
@@ -99,7 +103,9 @@ func (up *URLPrefixer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				}
 			} else {
 				if err := src.Err(); err != nil {
-					log.Println("Error encountered while scanning: err:", err)
+					up.Logger.
+						WithField("component", "prefixer").
+						Error("Error encountered while scanning: err:", err)
 				}
 				rw.Write(window)
 				flusher.Flush()
@@ -147,10 +153,11 @@ func (up *URLPrefixer) maxlen(targets ...[]byte) int {
 // with the provided prefix. Additionally, it will prefix any `data-basepath`
 // attributes as well for informing front end logic about any prefixes. `next`
 // is the next http.Handler that will have its output prefixed
-func NewDefaultURLPrefixer(prefix string, next http.Handler) *URLPrefixer {
+func NewDefaultURLPrefixer(prefix string, next http.Handler, lg chronograf.Logger) *URLPrefixer {
 	return &URLPrefixer{
 		Prefix: prefix,
 		Next:   next,
+		Logger: lg,
 		Attrs: [][]byte{
 			[]byte(`src="`),
 			[]byte(`href="`),

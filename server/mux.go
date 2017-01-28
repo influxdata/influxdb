@@ -39,7 +39,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	})
 
 	// Prefix any URLs found in the React assets with any configured basepath
-	prefixedAssets := NewDefaultURLPrefixer(basepath, assets)
+	prefixedAssets := NewDefaultURLPrefixer(basepath, assets, opts.Logger)
 
 	// The react application handles all the routing if the server does not
 	// know about the route.  This means that we never have unknown
