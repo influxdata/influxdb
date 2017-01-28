@@ -37,10 +37,14 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		Develop: opts.Develop,
 		Logger:  opts.Logger,
 	})
+
+	// Prefix any URLs found in the React assets with any configured basepath
+	prefixedAssets := NewDefaultURLPrefixer(basepath, assets)
+
 	// The react application handles all the routing if the server does not
 	// know about the route.  This means that we never have unknown
 	// routes on the server.
-	router.NotFound = assets
+	router.NotFound = prefixedAssets
 
 	/* Documentation */
 	router.GET("/swagger.json", Spec())

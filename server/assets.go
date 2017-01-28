@@ -53,16 +53,6 @@ func Assets(opts AssetsOpts) http.Handler {
 				WithField("url", r.URL).
 				Info("Serving assets")
 		}
-		up := URLPrefixer{
-			Prefix: basepath,
-			Next:   assets.Handler(),
-			Attrs: [][]byte{
-				[]byte(`src="`),
-				[]byte(`href="`),
-				[]byte(`url(`),
-				[]byte(`data-basepath="`), // for forwarding basepath to frontend
-			},
-		}
-		up.ServeHTTP(w, r)
+		assets.Handler().ServeHTTP(w, r)
 	})
 }

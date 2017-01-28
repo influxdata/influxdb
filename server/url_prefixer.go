@@ -141,3 +141,21 @@ func (up *URLPrefixer) maxlen(targets ...[]byte) int {
 	}
 	return max
 }
+
+// NewDefaultURLPrefixer returns a URLPrefixer that will prefix any src and
+// href attributes found in HTML as well as any url() directives found in CSS
+// with the provided prefix. Additionally, it will prefix any `data-basepath`
+// attributes as well for informing front end logic about any prefixes. `next`
+// is the next http.Handler that will have its output prefixed
+func NewDefaultURLPrefixer(prefix string, next http.Handler) *URLPrefixer {
+	return &URLPrefixer{
+		Prefix: prefix,
+		Next:   next,
+		Attrs: [][]byte{
+			[]byte(`src="`),
+			[]byte(`href="`),
+			[]byte(`url(`),
+			[]byte(`data-basepath="`), // for forwarding basepath to frontend
+		},
+	}
+}
