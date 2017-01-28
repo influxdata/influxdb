@@ -2454,9 +2454,7 @@
 								"description": "Time-series data queries for Cell.",
 								"type": "array",
 								"items": {
-									"description": "links to the queries to visualize",
-									"type": "string",
-									"format": "url"
+									"$ref": "#/definitions/LayoutQuery"
 								}
 							},
 							"type": {
