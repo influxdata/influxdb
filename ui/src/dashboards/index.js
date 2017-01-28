@@ -1,2 +1,3 @@
 import DashboardsPage from './containers/DashboardsPage';
-export {DashboardsPage};
+import DashboardPage from './containers/DashboardPage';
+export {DashboardsPage, DashboardPage};

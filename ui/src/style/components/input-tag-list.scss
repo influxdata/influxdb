@@ -1,0 +1,32 @@
+.input-tag-list {
+  padding: 0 11px;
+  margin: 2px 0px;
+  font-size: 0;
+}
+$input-tag-item-height: 24px;
+.input-tag-item {
+  display: inline-block;
+  white-space: nowrap;
+  height: $input-tag-item-height;
+  line-height: $input-tag-item-height;
+  padding: 0 9px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  background-color: $g5-pepper;
+  color: $g18-cloud;
+  cursor: default;
+  margin: 2px;
+}
+
+.input-tag-item .icon {
+  transition: color 0.25s ease;
+  margin-left: 6px;
+  position: relative;
+  top: -0.5px;
+
+  &:hover {
+    color: $c-dreamsicle;
+    cursor: pointer;
+  }
+}

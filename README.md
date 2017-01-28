@@ -69,10 +69,12 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 * Preview data and alert boundaries while creating an alert
 * Configure alert destinations - Currently, Chronograf supports sending alerts to:
   * HipChat
+  * OpsGenie
   * PagerDuty
   * Sensu
   * Slack
   * SMTP
+  * Talk
   * Telegram
   * VictorOps
 * View all active alerts at a glance on the alerting dashboard
@@ -113,7 +115,7 @@ docker pull quay.io/influxdb/chronograf:latest
 
 ### From Source
 
-* Chronograf works with go 1.7.4, npm 3.10.7 and node v6.6.0. Additional version support of these projects will be implemented soon, but these are the only supported versions to date.
+* Chronograf works with go 1.7.x, node 6.x/7.x, and npm 3.x.
 * Chronograf requires [Kapacitor](https://github.com/influxdata/kapacitor) 1.1.x to create and store alerts.
 
 1. [Install Go](https://golang.org/doc/install)

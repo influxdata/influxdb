@@ -3,6 +3,7 @@ import _ from 'lodash';
 import {getKapacitorConfig, updateKapacitorConfigSection, testAlertOutput} from 'shared/apis';
 import AlertaConfig from './AlertaConfig';
 import HipChatConfig from './HipChatConfig';
+import OpsGenieConfig from './OpsGenieConfig';
 import PagerDutyConfig from './PagerDutyConfig';
 import SensuConfig from './SensuConfig';
 import SlackConfig from './SlackConfig';
@@ -111,6 +112,7 @@ const AlertOutputs = React.createClass({
               <label htmlFor="alert-endpoint" className="sr-only">Alert Enpoint</label>
               <select value={this.state.selectedEndpoint} className="form-control" id="source" onChange={this.changeSelectedEndpoint}>
                 <option value="hipchat">HipChat</option>
+                <option value="opsgenie">OpsGenie</option>
                 <option value="pagerduty">PagerDuty</option>
                 <option value="sensu">Sensu</option>
                 <option value="slack">Slack</option>
@@ -158,6 +160,9 @@ const AlertOutputs = React.createClass({
       }
       case 'telegram': {
         return <TelegramConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
+      }
+      case 'opsgenie': {
+        return <OpsGenieConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
       }
       case 'pagerduty': {
         return <PagerDutyConfig onSave={save} config={this.getSection(configSections, endpoint)} />;
