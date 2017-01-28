@@ -20,8 +20,8 @@ Check out the [downloads](https://www.influxdata.com/downloads/) page for links 
 
 #### 1. Download and Install InfluxDB
 ```
-wget https://dl.influxdata.com/influxdb/releases/influxdb_1.1.1_amd64.deb
-sudo dpkg -i influxdb_1.1.1_amd64.deb
+wget https://dl.influxdata.com/influxdb/releases/influxdb_1.2.0_amd64.deb
+sudo dpkg -i influxdb_1.2.0_amd64.deb
 ```
 
 #### 2. Start InfluxDB
@@ -38,7 +38,7 @@ curl "http://localhost:8086/query?q=show+databases"
 ```
 If InfluxDB is up and running, you should see an object that contains the `_internal` database:
 ```json
-{"results":[{"series":[{"name":"databases","columns":["name"],"values":[["_internal"]]}]}]}
+{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["_internal"]]}]}]}
 ```
 So far so good! You're ready to move on to the next section. Note that there's no need to create your own database on your InfluxDB instance; the other components of the TICK stack will handle that for you.
 
@@ -49,8 +49,8 @@ Kapacitor is responsible for creating and sending alerts in Chronograf.
 
 #### 1. Download and Install Kapacitor
 ```
-wget https://dl.influxdata.com/kapacitor/releases/kapacitor_1.1.1_amd64.deb
-sudo dpkg -i kapacitor_1.1.1_amd64.deb
+wget https://dl.influxdata.com/kapacitor/releases/kapacitor_1.2.0_amd64.deb
+sudo dpkg -i kapacitor_1.2.0_amd64.deb
 ```
 
 #### 2. Start Kapacitor
@@ -81,16 +81,15 @@ We will also configure Telegraf's basic [system stats](https://github.com/influx
 
 In a production environment, Telegraf would be installed on your servers and would point the output to an InfluxDB instance on a separate machine.
 Ultimately, you will configure a Telegraf input plugin for each application that you want to monitor.
-At the end of this guide we provide sample configurations for additional applications.
 
 > Note:
-Currently, Chronograf requires users to run Telegraf's [CPU](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/CPU_README.md) and [system](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/SYSTEM_README.md) plugins to ensure that all Apps appear on the [HOST LIST](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#host-list) page.
+Currently, Chronograf requires users to run Telegraf's  [system stats](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/SYSTEM_README.md) plugin to ensure that all content appears on the [HOST LIST](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#host-list) page.
 This is a known issue.
 
 #### 1. Download and Install Telegraf
 ```
-wget https://dl.influxdata.com/telegraf/releases/telegraf_1.1.2_amd64.deb
-sudo dpkg -i telegraf_1.1.2_amd64.deb
+wget https://dl.influxdata.com/telegraf/releases/telegraf_1.2.0_amd64.deb
+sudo dpkg -i telegraf_1.2.0_amd64.deb
 ```
 
 #### 2. Start Telegraf
@@ -216,9 +215,9 @@ You should see a welcome page:
 The next steps connect Chronograf to your InfluxDB instance.
 For the `Connection String`, enter the hostname or IP of the machine that InfluxDB is running on, and be sure to include InfluxDB's default port: `8086`.
 Next, name the connection string; this can be anything you want.
-Finally, there's no need to enter any information for the `Username` and `Password` inputs as [authorization is disabled](https://docs.influxdata.com/influxdb/latest/administration/config/#auth-enabled-false) in InfluxDB's default configuration.
+There's no need to edit the last three inputs; [authorization is disabled](https://docs.influxdata.com/influxdb/latest/administration/config/#auth-enabled-false) in InfluxDB's default configuration so `Username` and `Password` can remain blank, and Telegraf's [default database name](https://github.com/influxdata/telegraf/blob/master/etc/telegraf.conf#L89) is `telegraf`.
 
-Click `Create New Server` to move on to the `HOST LIST` page:
+Click `Connect New Source` to move on to the `HOST LIST` page:
 
 ![Chronograf Host List Page](https://github.com/influxdata/chronograf/blob/master/docs/images/host-list.png)
 

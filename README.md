@@ -56,10 +56,34 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
 
 Chronograf's graphing tool that allows you to dig in and create personalized visualizations of your data.
 
-* Generate [InfluxQL](https://docs.influxdata.com/influxdb/v1.1/query_language/) statements with the query builder
-* Generate and edit [InfluxQL](https://docs.influxdata.com/influxdb/v1.1/query_language/) statements with the raw query editor
+* Generate [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) statements with the query builder
+* Generate and edit [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) statements with the raw query editor
 * Create visualizations and view query results in tabular format
 * Manage visualizations with exploration sessions
+
+### Dashboards
+
+While there is an API and presentation layer for dashboards released in version 1.2.0-beta1, it is not recommended that you try to use Chronograf as a general purpose dashboard solution. The visualization around editing is under way and will be in a future release. Meanwhile, if you would like to try it out you can use `curl` or other HTTP tools to push dashboard definitions directly to the API. If you do so, they should be shown when selected in the application.
+
+Example:
+```
+curl -X POST -H "Content-Type: application/json" -d '{
+    "cells": [
+        {
+            "queries": [
+                {
+                    "label": "%",
+                    "query": "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
+                    "wheres": [],
+                    "groupbys": []
+                }
+            ],
+            "type": "line"
+        }
+    ],
+    "name": "dashboard name"
+}' "http://localhost:8888/chronograf/v1/dashboards"
+```
 
 ### Kapacitor UI
 
@@ -82,9 +106,12 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 ### GitHub OAuth Login
 See [Chronograf with OAuth 2.0](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) for more information.
 
+### Advanced Routing
+Change the default root path of the Chronograf server with the `—basepath` option.
+
 ## Versions
 
-Chronograf v1.1.0-beta6 is a beta release.
+Chronograf v1.2.0-beta1 is a beta release.
 We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
 
 Spotted a bug or have a feature request?
@@ -116,7 +143,7 @@ docker pull quay.io/influxdb/chronograf:latest
 ### From Source
 
 * Chronograf works with go 1.7.x, node 6.x/7.x, and npm 3.x.
-* Chronograf requires [Kapacitor](https://github.com/influxdata/kapacitor) 1.1.x to create and store alerts.
+* Chronograf requires [Kapacitor](https://github.com/influxdata/kapacitor) 1.1.x+ to create and store alerts.
 
 1. [Install Go](https://golang.org/doc/install)
 1. [Install Node and NPM](https://nodejs.org/en/download/)
