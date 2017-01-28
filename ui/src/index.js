@@ -1,7 +1,8 @@
 import React from 'react';
 import {render} from 'react-dom';
 import {Provider} from 'react-redux';
-import {Router, Route, browserHistory, Redirect} from 'react-router';
+import {Router, Route, Redirect} from 'react-router';
+import {createHistory, useBasename} from 'history';
 
 import App from 'src/App';
 import AlertsApp from 'src/alerts';
@@ -27,6 +28,19 @@ const timeRange = Object.assign(defaultTimeRange, parsedTimeRange);
 
 const store = configureStore({timeRange});
 const rootNode = document.getElementById('react-root');
+
+let browserHistory;
+const basepath = rootNode.dataset.basepath;
+window.basepath = basepath;
+if (basepath) {
+  browserHistory = useBasename(createHistory)({
+    basename: basepath, // this is written in when available by the URL prefixer middleware
+  });
+} else {
+  browserHistory = useBasename(createHistory)({
+    basename: "",
+  });
+}
 
 const Root = React.createClass({
   getInitialState() {
