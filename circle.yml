@@ -47,6 +47,7 @@ deployment:
         --platform all
         --arch all
         --upload-overwrite
+        --upload
         --bucket dl.influxdata.com/chronograf/releases
       - sudo chown -R ubuntu:ubuntu /home/ubuntu
       - cp build/linux/static_amd64/chronograf .
@@ -68,6 +69,7 @@ deployment:
         --platform all
         --arch all
         --upload-overwrite
+        --upload
         --bucket dl.influxdata.com/chronograf/releases
       - sudo chown -R ubuntu:ubuntu /home/ubuntu
       - cp build/linux/static_amd64/chronograf .
