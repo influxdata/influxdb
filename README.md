@@ -61,6 +61,30 @@ Chronograf's graphing tool that allows you to dig in and create personalized vis
 * Create visualizations and view query results in tabular format
 * Manage visualizations with exploration sessions
 
+### Dashboards
+
+While there is an API and presentation layer for dashboards released in version 1.2.0-beta1, it is not recommended that you try to use Chronograf as a general purpose dashboard solution. The visualization around editing is under way and will be in a future release. Meanwhile, if you would like to try it out you can use `curl` or other HTTP tools to push dashboard definitions directly to the API. If you do so, they should be shown when selected in the application.
+
+Example:
+```
+curl -X POST -H "Content-Type: application/json" -d '{
+    "cells": [
+        {
+            "queries": [
+                {
+                    "label": "%",
+                    "query": "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
+                    "wheres": [],
+                    "groupbys": []
+                }
+            ],
+            "type": "line"
+        }
+    ],
+    "name": "dashboard name"
+}' "http://localhost:8888/chronograf/v1/dashboards"
+```
+
 ### Kapacitor UI
 
 A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and alert tracking.
