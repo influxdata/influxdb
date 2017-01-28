@@ -49,8 +49,8 @@ type Server struct {
 	GithubOrgs         []string `short:"o" long:"github-organization" description:"Github organization user is required to have active membership" env:"GH_ORGS" env-delim:","`
 	ReportingDisabled  bool     `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id,uptime) once every 24hr" env:"REPORTING_DISABLED"`
 	LogLevel           string   `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"warn" choice:"error" choice:"fatal" choice:"panic" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
+	Basepath           string   `short:"p" long:"basepath" description:"A URL path prefix under which all chronograf routes will be mounted" env:"BASE_PATH"`
 	ShowVersion        bool     `short:"v" long:"version" description:"Show Chronograf version info"`
-	Basepath           string   `long:"basepath" description:"A URL path prefix under which all chronograf routes will be mounted"`
 	BuildInfo          BuildInfo
 	Listener           net.Listener
 	handler            http.Handler
