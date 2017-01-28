@@ -67,7 +67,7 @@ func (up *URLPrefixer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	if !ok {
 		up.Logger.
 			WithField("component", "prefixer").
-			Fatal("Exected http.ResponseWriter to be an http.Flusher, but wasn't")
+			Fatal("Expected http.ResponseWriter to be an http.Flusher, but wasn't")
 	}
 
 	nextRead, nextWrite := io.Pipe()
