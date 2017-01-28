@@ -80,7 +80,7 @@ Here's an example of the alert messages in Slack:
 
 ![Slack Alert](https://github.com/influxdata/chronograf/blob/master/docs/images/slack-alert-gs.png)
 
-Currently, Chronograf supports the following alert endpoints: HipChat, PagerDuty, Sensu, Slack, SMTP, Telegram, and VictorOps.
+Currently, Chronograf supports the following alert endpoints: HipChat, OpsGenie, PagerDuty, Sensu, Slack, SMTP, Talk, Telegram, and VictorOps.
 You can configure your alert endpoints on the `CONFIGURE KAPACITOR` page.
 
 ### View all Active Alerts
