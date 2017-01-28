@@ -1,17 +1,23 @@
-## v1.1.0 [unreleased]
+## v1.2.0 [unreleased]
 
 ### Upcoming Bug Fixes
+
+### Upcoming Features
+
+### Upcoming UI Improvements
+
+## v1.2.0-beta1 [2017-01-27]
+
+### Bug Fixes
   1. [#788](https://github.com/influxdata/chronograf/pull/788): Fix missing fields in data explorer when using non-default retention policy
   2. [#774](https://github.com/influxdata/chronograf/issues/774): Fix gaps in layouts for hosts
 
-### Upcoming Features
+### Features
   1. [#779](https://github.com/influxdata/chronograf/issues/779): Add layout for telegraf's diskio system plugin
   2. [#810](https://github.com/influxdata/chronograf/issues/810): Add layout for telegraf's net system plugin
   3. [#811](https://github.com/influxdata/chronograf/issues/811): Add layout for telegraf's procstat plugin
   4. [#737](https://github.com/influxdata/chronograf/issues/737): Add GUI for OpsGenie kapacitor alert service
   5. [#814](https://github.com/influxdata/chronograf/issues/814): Allows Chronograf to be mounted under any arbitrary URL path using the `--basepath` flag.
-
-### Upcoming UI Improvements
 
 ## v1.1.0-beta6 [2017-01-13]
 ### Bug Fixes
