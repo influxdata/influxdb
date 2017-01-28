@@ -55,12 +55,10 @@ const CHUNK_SIZE int = 512
 // stream through the ResponseWriter, and appending the Prefix after any of the
 // Attrs detected in the stream.
 func (up *URLPrefixer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-
 	// chunked transfer because we're modifying the response on the fly, so we
 	// won't know the final content-length
 	rw.Header().Set("Connection", "Keep-Alive")
 	rw.Header().Set("Transfer-Encoding", "chunked")
-	//rw.Header().Set("X-Content-Type-Options", "nosniff")
 
 	writtenCount := 0 // number of bytes written to rw
 
