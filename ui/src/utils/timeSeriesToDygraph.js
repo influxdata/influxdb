@@ -1,181 +1,126 @@
+import _ from 'lodash';
 import {STROKE_WIDTH} from 'src/shared/constants';
 /**
  * Accepts an array of raw influxdb responses and returns a format
  * that Dygraph understands.
  */
 
-// activeQueryIndex is an optional argument that indicated which query's series
-// we want highlighted.
+// activeQueryIndex is an optional argument that indicated which query's series we want highlighted.
 export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInDataExplorer) {
-  const labels = []; // all of the effective field names (i.e. <measurement>.<field>)
-  const fieldToIndex = {}; // see parseSeries
-  const dates = {}; // map of date as string to date value to minimize string coercion
-  const dygraphSeries = {}; // dygraphSeries is a graph legend label and its corresponding y-axis e.g. {legendLabel1: 'y', legendLabel2: 'y2'};
+  const d0 = new Date();
 
-  /**
-   * dateToFieldValue will look like:
-   *
-   * {
-   *   Date1: {
-   *     effectiveFieldName_1: ValueForField1AtDate1,
-   *     effectiveFieldName_2: ValueForField2AtDate1,
-   *     ...
-   *   },
-   *   Date2: {
-   *     effectiveFieldName_1: ValueForField1AtDate2,
-   *     effectiveFieldName_2: ValueForField2AtDate2,
-   *     ...
-   *   }
-   * }
-   */
-  const dateToFieldValue = {};
+  // collect results from each influx response
+  const results = raw.reduce((acc, rawResponse, responseIndex) => {
+    const responses = _.get(rawResponse, 'response.results', []);
+    const indexedResponses = responses.map((response) => ({...response, responseIndex}));
+    return [...acc, ...indexedResponses];
+  }, []);
 
-  raw.forEach(({response}, queryIndex) => {
-    // If a response is an empty result set or a query returned an error
-    // from InfluxDB, don't try and parse.
-    if (response.results.length) {
-      if (isEmpty(response) || hasError(response)) {
-        return;
-      }
-    }
+  // collect each series
+  const serieses = results.reduce((acc, {series = [], responseIndex}, index) => {
+    return [...acc, ...series.map((item) => ({...item, responseIndex, index}))];
+  }, []);
 
-    /**
-     * response looks like:
-     * {
-     *   results: [
-     *     { series: [...] },
-     *     { series: [...] },
-     *   ]
-     * }
-     */
-    response.results.forEach(parseResult);
+  // convert series into cells with rows and columns
+  const cells = serieses.reduce((acc, {name, columns, values, index, responseIndex, tags = {}}) => {
+    const rows = values.map((vals) => ({
+      name,
+      vals,
+      index,
+    }));
 
-    function parseResult(s) {
-      /*
-       * s looks like:
-       * {
-       *   series: [
-       *     {
-       *       name: "<measurement>",
-       *       columns: ["time", "<field name 1>", "<field name 2>", ...],
-       *       values: [<time>, <value of field 1>, <value of field 2>, ...],
-       *     },
-       * }
-       */
-      s.series.forEach(parseSeries);
-    }
+    columns.shift();
 
-    function parseSeries(series) {
-      /*
-       * series looks like:
-       * {
-       *   name: "<measurement>",
-       *   columns: ["time", "<field name 1>", "<field name 2>", ...],
-       *   values: [
-       *    [<time1>, <value of field 1 @ time1>, <value of field 2 @ time1>, ...],
-       *    [<time2>, <value of field 1 @ time2>, <value of field 2 @ time2>, ...],
-       *   ]
-       * }
-       */
-      const measurementName = series.name;
-      const columns = series.columns;
+    // tagSet is each tag key and value for a series
+    const tagSet = Object.keys(tags).map((tag) => `[${tag}=${tags[tag]}]`).sort().join('');
 
-      // Tags are only included in an influxdb response under certain circumstances, e.g.
-      // when a query is using GROUP BY (<tag key>).
-      const tags = Object.keys(series.tags || {}).map((key) => {
-        return `[${key}=${series.tags[key]}]`;
-      }).sort().join('');
+    rows.forEach(({vals, name: measurement, index: seriesIndex}) => {
+      const [time, ...rowValues] = vals;
 
-      columns.slice(1).forEach((fieldName) => {
-        let effectiveFieldName = `${measurementName}.${fieldName}${tags}`;
-
-        // If there are duplicate effectiveFieldNames identify them by their queryIndex
-        if (effectiveFieldName in dygraphSeries) {
-          effectiveFieldName = `${effectiveFieldName}-${queryIndex}`;
-        }
-
-        // Given a field name, identify which column in the timeSeries result should hold the field's value
-        // ex given this timeSeries [Date, 10, 20, 30] field index at 2 would correspond to value 20
-        fieldToIndex[effectiveFieldName] = labels.length + 1;
-        labels.push(effectiveFieldName);
-
-        const {light, heavy} = STROKE_WIDTH;
-
-        const dygraphSeriesStyles = {
-          strokeWidth: queryIndex === activeQueryIndex ? heavy : light,
-        };
-
-        if (!isInDataExplorer) {
-          dygraphSeriesStyles.axis = queryIndex === 0 ? 'y' : 'y2';
-        }
-
-        dygraphSeries[effectiveFieldName] = dygraphSeriesStyles;
-      });
-
-      (series.values || []).forEach(parseRow);
-
-      function parseRow(row) {
-        /**
-         * row looks like:
-         *   [<time1>, <value of field 1 @ time1>, <value of field 2 @ time1>, ...]
-         */
-        const date = row[0];
-        const dateString = date.toString();
-        row.forEach((value, index) => {
-          if (index === 0) {
-            // index 0 in a row is always the timestamp
-            if (!dateToFieldValue[dateString]) {
-              dateToFieldValue[dateString] = {};
-              dates[dateString] = date;
-            }
-            return;
-          }
-
-          const fieldName = columns[index];
-          let effectiveFieldName = `${measurementName}.${fieldName}${tags}`;
-
-          // If there are duplicate effectiveFieldNames identify them by their queryIndex
-          if (effectiveFieldName in dateToFieldValue[dateString]) {
-            effectiveFieldName = `${effectiveFieldName}-${queryIndex}`;
-          }
-
-          dateToFieldValue[dateString][effectiveFieldName] = value;
+      rowValues.forEach((value, i) => {
+        const field = columns[i];
+        acc.push({
+          label: `${measurement}.${field}${tagSet}`,
+          value,
+          time,
+          seriesIndex,
+          responseIndex,
         });
-      }
+      });
+    });
+
+    return acc;
+  }, []);
+
+  // labels are a unique combination of measurement, fields, and tags that indicate a specific series on the graph legend
+  const labels = cells.reduce((acc, {label, seriesIndex, responseIndex}) => {
+    const existingLabel = acc.find(({
+      label: findLabel,
+      seriesIndex: findSeriesIndex,
+    }) => findLabel === label && findSeriesIndex === seriesIndex);
+
+    if (!existingLabel) {
+      acc.push({
+        label,
+        seriesIndex,
+        responseIndex,
+      });
     }
-  });
 
-  function buildTimeSeries() {
-    const allDates = Object.keys(dateToFieldValue);
-    allDates.sort((a, b) => a - b);
-    const rowLength = labels.length + 1;
-    return allDates.map((date) => {
-      const row = new Array(rowLength);
+    return acc;
+  }, []);
 
-      row.fill(null);
-      row[0] = new Date(dates[date]);
+  const sortedLabels = _.sortBy(labels, 'label');
+  const memo = {};
 
-      const fieldsForRow = dateToFieldValue[date];
-      Object.keys(fieldsForRow).forEach((effectiveFieldName) => {
-        row[fieldToIndex[effectiveFieldName]] = fieldsForRow[effectiveFieldName];
+  const ts0 = new Date();
+
+  const timeSeries = cells.reduce((acc, cell) => {
+    let existingRowIndex = memo[cell.time];
+
+    if (existingRowIndex === undefined) {
+      acc.push({
+        time: cell.time,
+        values: Array(sortedLabels.length).fill(null),
       });
 
-      return row;
-    });
-  }
+      existingRowIndex = acc.length - 1;
+      memo[cell.time] = existingRowIndex;
+    }
+
+    const values = acc[existingRowIndex].values;
+    const labelIndex = sortedLabels.findIndex(({label, seriesIndex}) => label === cell.label && cell.seriesIndex === seriesIndex);;
+    values[labelIndex] = cell.value;
+    acc[existingRowIndex].values = values;
+
+    return acc;
+  }, []);
+  const ts1 = new Date();
+
+  const sortedTimeSeries = _.sortBy(timeSeries, 'time');
+
+  const {light, heavy} = STROKE_WIDTH;
+
+  const dygraphSeries = sortedLabels.reduce((acc, {label, responseIndex}) => {
+    acc[label] = {
+      strokeWidth: responseIndex === activeQueryIndex ? heavy : light,
+    };
+
+    if (!isInDataExplorer) {
+      acc[label].axis = responseIndex === 0 ? 'y' : 'y2';
+    }
+
+    return acc;
+  }, {});
+
+  const d1 = new Date();
+
+  console.log(`new function took ${d1 - d0}ms to run for ${cells.length} cells.`);
+  console.log(`timeSeries took ${ts1 - ts0}ms to run for ${timeSeries.length} records.`);
 
   return {
-    labels: ['time', ...labels.sort()],
-    timeSeries: buildTimeSeries(),
+    labels: ["time", ...sortedLabels.map(({label}) => label)],
+    timeSeries: sortedTimeSeries.map(({time, values}) => ([new Date(time), ...values])),
     dygraphSeries,
   };
 }
-
-function isEmpty(resp) {
-  return !resp.results[0].series;
-}
-
-function hasError(resp) {
-  return !!resp.results[0].error;
-}
-

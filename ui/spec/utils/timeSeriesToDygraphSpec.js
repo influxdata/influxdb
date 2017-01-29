@@ -206,19 +206,19 @@ describe('timeSeriesToDygraph', () => {
       labels: [
         'time',
         `m1.f1`,
-        `m1.f1-1`,
+        `m1.f1`,
       ],
       timeSeries: [
         [new Date(1000), 1, null],
         [new Date(2000), 2, 3],
-        [new Date(4000), 4, null],
+        [new Date(4000), null, 4],
       ],
       dygraphSeries: {
+        // 'm1.f1': {
+        //   axis: 'y',
+        //   strokeWidth,
+        // },
         'm1.f1': {
-          axis: 'y',
-          strokeWidth,
-        },
-        'm1.f1-1': {
           axis: 'y2',
           strokeWidth,
         },
