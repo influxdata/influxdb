@@ -7,8 +7,6 @@ import {STROKE_WIDTH} from 'src/shared/constants';
 
 // activeQueryIndex is an optional argument that indicated which query's series we want highlighted.
 export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInDataExplorer) {
-  const d0 = new Date();
-
   // collect results from each influx response
   const results = raw.reduce((acc, rawResponse, responseIndex) => {
     const responses = _.get(rawResponse, 'response.results', []);
@@ -53,11 +51,10 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
   }, []);
 
   // labels are a unique combination of measurement, fields, and tags that indicate a specific series on the graph legend
+  const labelMemo = {};
   const labels = cells.reduce((acc, {label, seriesIndex, responseIndex}) => {
-    const existingLabel = acc.find(({
-      label: findLabel,
-      seriesIndex: findSeriesIndex,
-    }) => findLabel === label && findSeriesIndex === seriesIndex);
+    const memoKey = `${label}-${seriesIndex}`;
+    const existingLabel = labelMemo[memoKey];
 
     if (!existingLabel) {
       acc.push({
@@ -65,18 +62,17 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
         seriesIndex,
         responseIndex,
       });
+      labelMemo[memoKey] = true;
     }
 
     return acc;
   }, []);
 
   const sortedLabels = _.sortBy(labels, 'label');
-  const memo = {};
-
-  const ts0 = new Date();
+  const tsMemo = {};
 
   const timeSeries = cells.reduce((acc, cell) => {
-    let existingRowIndex = memo[cell.time];
+    let existingRowIndex = tsMemo[cell.time];
 
     if (existingRowIndex === undefined) {
       acc.push({
@@ -85,7 +81,7 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
       });
 
       existingRowIndex = acc.length - 1;
-      memo[cell.time] = existingRowIndex;
+      tsMemo[cell.time] = existingRowIndex;
     }
 
     const values = acc[existingRowIndex].values;
@@ -95,7 +91,6 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
 
     return acc;
   }, []);
-  const ts1 = new Date();
 
   const sortedTimeSeries = _.sortBy(timeSeries, 'time');
 
@@ -112,11 +107,6 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
 
     return acc;
   }, {});
-
-  const d1 = new Date();
-
-  console.log(`new function took ${d1 - d0}ms to run for ${cells.length} cells.`);
-  console.log(`timeSeries took ${ts1 - ts0}ms to run for ${timeSeries.length} records.`);
 
   return {
     labels: ["time", ...sortedLabels.map(({label}) => label)],
