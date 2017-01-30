@@ -463,8 +463,8 @@ func (i *Index) DropMeasurement(name []byte) error {
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
 func (i *Index) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []models.Tags) error {
-	i.mu.RLock()
-	defer i.mu.RUnlock()
+	i.mu.Lock()
+	defer i.mu.Unlock()
 
 	// All slices must be of equal length.
 	if len(names) != len(tagsSlice) {
