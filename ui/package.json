@@ -94,6 +94,7 @@
     "bootstrap": "^3.3.7",
     "classnames": "^2.2.3",
     "dygraphs": "^1.1.1",
+    "fast.js": "^0.1.1",
     "fixed-data-table": "^0.6.1",
     "jquery": "^3.1.0",
     "lodash": "^4.3.0",
