@@ -24,6 +24,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
@@ -86,6 +87,7 @@ type Handler struct {
 
 	Monitor interface {
 		Statistics(tags map[string]string) ([]*monitor.Statistic, error)
+		Diagnostics() (map[string]*diagnostics.Diagnostics, error)
 	}
 
 	PointsWriter interface {
@@ -736,10 +738,36 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Retrieve diagnostics from the monitor.
+	diags, err := h.Monitor.Diagnostics()
+	if err != nil {
+		h.httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	fmt.Fprintln(w, "{")
 	first := true
+	if val, ok := diags["system"]; ok {
+		jv, err := parseSystemDiagnostics(val)
+		if err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		data, err := json.Marshal(jv)
+		if err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		first = false
+		fmt.Fprintln(w, "{")
+		fmt.Fprintf(w, "\"system\": %s", data)
+	} else {
+		fmt.Fprintln(w, "{")
+	}
+
 	if val := expvar.Get("cmdline"); val != nil {
 		if !first {
 			fmt.Fprintln(w, ",")
@@ -795,6 +823,48 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		w.Write(bytes.TrimSpace(val))
 	}
 	fmt.Fprintln(w, "\n}")
+}
+
+// parseSystemDiagnostics converts the system diagnostics into an appropriate
+// format for marshaling to JSON in the /debug/vars format.
+func parseSystemDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{}, error) {
+	// We don't need PID in this case.
+	m := map[string]interface{}{"currentTime": nil, "started": nil, "uptime": nil}
+	for key := range m {
+		// Find the associated column.
+		ci := -1
+		for i, col := range d.Columns {
+			if col == key {
+				ci = i
+				break
+			}
+		}
+
+		if ci == -1 {
+			return nil, fmt.Errorf("unable to find column %q", key)
+		}
+
+		if len(d.Rows) < 1 || len(d.Rows[0]) <= ci {
+			return nil, fmt.Errorf("no data for column %q", key)
+		}
+
+		var res interface{}
+		switch v := d.Rows[0][ci].(type) {
+		case time.Time:
+			res = v
+		case string:
+			// Should be a string representation of a time.Duration
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				return nil, err
+			}
+			res = int64(d.Seconds())
+		default:
+			return nil, fmt.Errorf("value for column %q is not parsable (got %T)", key, v)
+		}
+		m[key] = res
+	}
+	return m, nil
 }
 
 // httpError writes an error to the client in a standard format.
