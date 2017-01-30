@@ -126,11 +126,10 @@ func (e *Emitter) loadBuf() (t int64, name string, tags Tags, err error) {
 		}
 
 		// Update range values if higher and emitter is in time descending order.
-		if (itrName < name) || (itrName == name && itrTags.ID() < tags.ID()) || (itrName == name && itrTags.ID() == tags.ID() && itrTime < t) {
+		if (itrName > name) || (itrName == name && itrTags.ID() > tags.ID()) || (itrName == name && itrTags.ID() == tags.ID() && itrTime > t) {
 			t, name, tags = itrTime, itrName, itrTags
 		}
 	}
-
 	return
 }
 

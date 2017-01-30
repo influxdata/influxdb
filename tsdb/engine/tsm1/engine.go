@@ -1283,6 +1283,13 @@ func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt
 		return nil, err
 	}
 
+	// Reverse the tag sets if we are ordering by descending.
+	if !opt.Ascending {
+		for _, t := range tagSets {
+			t.Reverse()
+		}
+	}
+
 	// Calculate tag sets and apply SLIMIT/SOFFSET.
 	tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
 
@@ -1334,6 +1341,13 @@ func (e *Engine) createVarRefIterator(measurement string, opt influxql.IteratorO
 	tagSets, err := mm.TagSets(e.id, opt.Dimensions, opt.Condition)
 	if err != nil {
 		return nil, err
+	}
+
+	// Reverse the tag sets if we are ordering by descending.
+	if !opt.Ascending {
+		for _, t := range tagSets {
+			t.Reverse()
+		}
 	}
 
 	// Calculate tag sets and apply SLIMIT/SOFFSET.
