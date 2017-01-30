@@ -9,6 +9,17 @@
 
 ### Release Notes
 
+This release introduces a major new querying capability in the form of sub-queries, and provides several performance improvements, including a 50% or better gain in write performance on larger numbers of cores. The release adds some stability and memory-related improvements, as well as several CLI-related bug fixes. If upgrading from a prior version, please read the configuration changes in the following section before upgrading.
+
+### Configuration Changes
+
+The following new configuration options are available, if upgrading to `1.2.0` from prior versions.
+
+#### `[[collectd]]` Section
+
+* `security-level` which defaults to `"none"`. This field also accepts `"sign"` and `"encrypt"` and enables different levels of transmission security for the collectd plugin.
+* `auth-file` which defaults to `"/etc/collectd/auth_file"`. Specifies where to locate the authentication file used to authenticate clients when using signed or encrypted mode.
+
 ### Deprecations
 
 The stress tool `influx_stress` will be removed in a subsequent release. We recommend using [`influx-stress`](https://github.com/influxdata/influx-stress) as a replacement.
