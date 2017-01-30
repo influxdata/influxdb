@@ -26,7 +26,7 @@ deployment:
         --package
         --platform all
         --arch all
-        --upload-overwrite
+        --upload
       - sudo chown -R ubuntu:ubuntu /home/ubuntu
       - cp build/linux/static_amd64/chronograf .
       - docker build -t chronograf .
