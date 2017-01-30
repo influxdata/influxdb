@@ -37,6 +37,21 @@ type compressedList struct {
 	b     variableLengthList
 }
 
+func (v *compressedList) Clone() *compressedList {
+	if v == nil {
+		return nil
+	}
+
+	newV := &compressedList{
+		count: v.count,
+		last:  v.last,
+	}
+
+	newV.b = make(variableLengthList, len(v.b))
+	copy(newV.b, v.b)
+	return newV
+}
+
 func (v *compressedList) MarshalBinary() (data []byte, err error) {
 	// Marshal the variableLengthList
 	bdata, err := v.b.MarshalBinary()

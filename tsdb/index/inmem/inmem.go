@@ -81,7 +81,7 @@ func (i *Index) Series(key []byte) (*tsdb.Series, error) {
 func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
-	return i.seriesSketch, i.seriesTSSketch, nil
+	return i.seriesSketch.Clone(), i.seriesTSSketch.Clone(), nil
 }
 
 // SeriesN returns the number of unique non-tombstoned series in the index.

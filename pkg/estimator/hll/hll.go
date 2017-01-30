@@ -107,6 +107,25 @@ func MustNewPlus(p uint8) *Plus {
 	return hll
 }
 
+// Clone returns a deep copy of h.
+func (h *Plus) Clone() *Plus {
+	var hll = &Plus{
+		hash:       h.hash,
+		p:          h.p,
+		pp:         h.pp,
+		m:          h.m,
+		mp:         h.mp,
+		alpha:      h.alpha,
+		sparse:     h.sparse,
+		tmpSet:     h.tmpSet.Clone(),
+		sparseList: h.sparseList.Clone(),
+	}
+
+	hll.denseList = make([]uint8, len(h.denseList))
+	copy(hll.denseList, h.denseList)
+	return hll
+}
+
 // Add adds a new value to the HLL.
 func (h *Plus) Add(v []byte) {
 	x := h.hash(v)
@@ -421,6 +440,18 @@ func (p uint64Slice) Less(i, j int) bool { return p[i] < p[j] }
 func (p uint64Slice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
 type set map[uint32]struct{}
+
+func (s set) Clone() set {
+	if s == nil {
+		return nil
+	}
+
+	newS := make(map[uint32]struct{}, len(s))
+	for k, v := range s {
+		newS[k] = v
+	}
+	return newS
+}
 
 func (s set) MarshalBinary() (data []byte, err error) {
 	// 4 bytes for the size of the set, and 4 bytes for each key.
