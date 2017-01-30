@@ -1,6 +1,6 @@
 import _ from 'lodash';
 import {STROKE_WIDTH} from 'src/shared/constants';
-import {map, reduce, forEach} from 'fast.js';
+import {map, reduce, forEach, concat, clone} from 'fast.js';
 
 /**
  * Accepts an array of raw influxdb responses and returns a format
@@ -39,25 +39,29 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
 
   // convert series into cells with rows and columns
   let cellIndex = 0;
+  let labels = [];
 
-  forEach(serieses, ({name, columns, values, index, responseIndex, tags = {}}) => {
+  forEach(serieses, ({name: measurement, columns, values, index: seriesIndex, responseIndex, tags = {}}) => {
     const rows = map(values, (vals) => ({
-      name,
       vals,
-      index,
     }));
 
     columns.shift();
 
     // tagSet is each tag key and value for a series
     const tagSet = map(Object.keys(tags), (tag) => `[${tag}=${tags[tag]}]`).sort().join('');
+    const unsortedLabels = map(columns, (field) => ({
+      label: `${measurement}.${field}${tagSet}`,
+      responseIndex,
+      seriesIndex,
+    }));
+    labels = concat(labels, unsortedLabels);
 
-    forEach(rows, ({vals, name: measurement, index: seriesIndex}) => {
+    forEach(rows, ({vals}) => {
       const [time, ...rowValues] = vals;
 
       forEach(rowValues, (value, i) => {
-        const field = columns[i];
-        cells.label[cellIndex] = `${measurement}.${field}${tagSet}`;
+        cells.label[cellIndex] = unsortedLabels[i].label;
         cells.value[cellIndex] = value;
         cells.time[cellIndex] = time;
         cells.seriesIndex[cellIndex] = seriesIndex;
@@ -67,31 +71,16 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
     });
   });
 
-  // labels are a unique combination of measurement, fields, and tags that indicate a specific series on the graph legend
-  const labelMemo = {};
-  const labels = [];
-  for (let i = 0; i < size; i++) {
-    const label = cells.label[i];
-    const seriesIndex = cells.seriesIndex[i];
-    const responseIndex = cells.responseIndex[i];
-    const memoKey = `${label}-${seriesIndex}`;
-    const existingLabel = labelMemo[memoKey];
-
-    if (!existingLabel) {
-      labels.push({
-        label,
-        seriesIndex,
-        responseIndex,
-      });
-      labelMemo[memoKey] = true;
-    }
-  }
-
   const sortedLabels = _.sortBy(labels, 'label');
   const tsMemo = {};
+  const nullArray = Array(sortedLabels.length).fill(null);
+
+  const labelsToValueIndex = reduce(sortedLabels, (acc, {label, seriesIndex}, i) => {
+    acc[label + seriesIndex] = i;
+    return acc;
+  }, {});
 
   const timeSeries = [];
-
   for (let i = 0; i < size; i++) {
     const time = cells.time[i];
     const value = cells.value[i];
@@ -103,19 +92,15 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
     if (existingRowIndex === undefined) {
       timeSeries.push({
         time,
-        values: Array(sortedLabels.length).fill(null), // TODO clone
+        values: clone(nullArray),
       });
 
       existingRowIndex = timeSeries.length - 1;
       tsMemo[time] = existingRowIndex;
     }
 
-    const values = timeSeries[existingRowIndex].values;
-    const labelIndex = sortedLabels.findIndex((find) => find.label === label && find.seriesIndex === seriesIndex);
-    values[labelIndex] = value;
-    timeSeries[existingRowIndex].values = values;
+    timeSeries[existingRowIndex].values[labelsToValueIndex[label + seriesIndex]] = value;
   }
-
   const sortedTimeSeries = _.sortBy(timeSeries, 'time');
 
   const {light, heavy} = STROKE_WIDTH;
