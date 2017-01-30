@@ -502,6 +502,15 @@ def build(version=None,
         logging.info("Time taken: {}s".format((end_time - start_time).total_seconds()))
     return True
 
+def generate_sha256_from_file(path):
+    """Generate SHA256 signature based on the contents of the file at path.
+    """
+    m = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            m.update(chunk)
+    return m.hexdigest()
+
 def generate_md5_from_file(path):
     """Generate MD5 signature based on the contents of the file at path.
     """
@@ -853,6 +862,7 @@ def main(args):
                 arch = "i386"
             package_name = str(arch) + "_" + str(type)
             package_output[package_name] = {
+                "sha256": generate_sha256_from_file(p),
                 "md5": generate_md5_from_file(p),
                 "filename": p_name,
                 "name": nice_name,
@@ -863,7 +873,7 @@ def main(args):
         if args.release:
             lines = []
             for package_name, v in package_output.items():
-                line =  v['name'] + " | [" + v['filename'] +"](" + v['link'] + ") | `" + v['md5'] + "`"
+                line =  v['name'] + " | [" + v['filename'] +"](" + v['link'] + ") | `" + v['sha256'] + "`"
                 lines.append(line)
             lines.sort()
 
@@ -872,7 +882,7 @@ def main(args):
             print("")
             print("## Packages")
             print("")
-            print("Arch | Package | MD5")
+            print("Arch | Package | SHA256")
             print("--- | --- | ---")
             for line in lines:
                 print(line)
