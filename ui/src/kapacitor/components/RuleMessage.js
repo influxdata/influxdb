@@ -3,6 +3,8 @@ import Dropdown from 'shared/components/Dropdown';
 import ReactTooltip from 'react-tooltip';
 import {RULE_MESSAGE_TEMPLATES as templates} from '../constants/index.js';
 
+const DEFAULT_ALERTS = ['http', 'tcp'];
+
 const {
   arrayOf,
   func,
@@ -19,6 +21,12 @@ export const RuleMessage = React.createClass({
     enabledAlerts: arrayOf(string.isRequired).isRequired,
   },
 
+  getInitialState() {
+    return {
+      selectedAlert: null,
+    };
+  },
+
   handleChangeMessage() {
     const {actions, rule} = this.props;
     actions.updateMessage(rule.id, this.message.value);
@@ -27,13 +35,17 @@ export const RuleMessage = React.createClass({
   handleChooseAlert(item) {
     const {actions} = this.props;
     actions.updateAlerts(item.ruleID, [item.text]);
+    this.setState({selectedAlert: item.text});
   },
 
   render() {
-    const {rule, actions} = this.props;
-    const alerts = this.props.enabledAlerts.map((text) => {
+    const {rule, actions, enabledAlerts} = this.props;
+    const defaultAlertEndpoints = DEFAULT_ALERTS.map((text) => {
       return {text, ruleID: rule.id};
     });
+    const alerts = enabledAlerts.map((text) => {
+      return {text, ruleID: rule.id};
+    }).concat(defaultAlertEndpoints);
 
     return (
       <div className="kapacitor-rule-section">
@@ -65,10 +77,19 @@ export const RuleMessage = React.createClass({
           <div className="rule-section--item bottom alert-message--endpoint">
             <p>Send this Alert to:</p>
             <Dropdown className="size-256 dropdown-kapacitor" selected={rule.alerts[0] || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
+            {this.renderInput(this.state.selectedAlert)}
           </div>
         </div>
       </div>
     );
+  },
+
+  renderInput(alert) {
+    if (!DEFAULT_ALERTS.find((a) => a === alert)) {
+      return null;
+    }
+
+    return <input className="form-control col-xs-6" type="text" ref={(r) => this.selectedAlert = r} />;
   },
 });
 
