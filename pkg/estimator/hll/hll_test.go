@@ -164,6 +164,20 @@ func TestHLLPPCount(t *testing.T) {
 	if n != 5 {
 		t.Error(n)
 	}
+
+	// not mutated, still returns correct count
+	n = h.Count()
+	if n != 5 {
+		t.Error(n)
+	}
+
+	h.Add(toByte(0x00060fffffffffff))
+
+	// mutated
+	n = h.Count()
+	if n != 6 {
+		t.Error(n)
+	}
 }
 
 func TestHLLPP_Merge_Error(t *testing.T) {

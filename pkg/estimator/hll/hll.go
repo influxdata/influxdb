@@ -306,6 +306,9 @@ func (h *Plus) UnmarshalBinary(data []byte) error {
 }
 
 func (h *Plus) mergeSparse() {
+	if len(h.tmpSet) == 0 {
+		return
+	}
 	keys := make(uint64Slice, 0, len(h.tmpSet))
 	for k := range h.tmpSet {
 		keys = append(keys, k)
