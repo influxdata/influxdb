@@ -74,6 +74,7 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
   const nullArray = Array(sortedLabels.length).fill(null);
 
   const labelsToValueIndex = reduce(sortedLabels, (acc, {label, seriesIndex}, i) => {
+    // adding series index prevents overwriting of two distinct labels that have the same field and measurements
     acc[label + seriesIndex] = i;
     return acc;
   }, {});
