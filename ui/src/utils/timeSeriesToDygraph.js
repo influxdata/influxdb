@@ -5,7 +5,7 @@ import {map, reduce, forEach, concat, clone} from 'fast.js';
 /**
  * Accepts an array of raw influxdb responses and returns a format
  * that Dygraph understands.
- */
+**/
 
 const DEFAULT_SIZE = 0;
 const cells = {
