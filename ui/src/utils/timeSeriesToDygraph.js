@@ -46,11 +46,9 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
       vals,
     }));
 
-    columns.shift();
-
     // tagSet is each tag key and value for a series
     const tagSet = map(Object.keys(tags), (tag) => `[${tag}=${tags[tag]}]`).sort().join('');
-    const unsortedLabels = map(columns, (field) => ({
+    const unsortedLabels = map(columns.slice(1), (field) => ({
       label: `${measurement}.${field}${tagSet}`,
       responseIndex,
       seriesIndex,
