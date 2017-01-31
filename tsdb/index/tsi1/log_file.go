@@ -882,7 +882,6 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 
 		// Parse key.
 		sz, n := binary.Uvarint(data)
-		println("dbg", sz, n, "//", len(data))
 		tag.Key, data = data[n:n+int(sz)], data[n+int(sz):]
 
 		// Parse value.
