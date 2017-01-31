@@ -1288,7 +1288,13 @@ func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) N
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p {{$k.Name}}Point
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
