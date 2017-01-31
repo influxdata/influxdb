@@ -1136,6 +1136,16 @@ func TestEvalType(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: `value inside a parenthesis`,
+			in:   `(value)`,
+			typ:  influxql.Float,
+			data: EvalFixture{
+				"cpu": map[string]influxql.DataType{
+					"value": influxql.Float,
+				},
+			},
+		},
 	} {
 		sources := make([]influxql.Source, 0, len(tt.data))
 		for src := range tt.data {
