@@ -6,7 +6,6 @@ import (
 	"io"
 	"sort"
 
-	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
 )
 
@@ -143,27 +142,10 @@ func (p *IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *
 	itr := p.SeriesIterator()
 	sw := NewSeriesBlockWriter()
 
-	// As the index files are merged together, it's possible that series were
-	// added, removed and then added again over time. Since sketches cannot have
-	// values removed from them, the series would be in both the resulting
-	// series and tombstoned series sketches. So that a series only appears in
-	// one of the sketches, we rebuild some fresh sketches during the
-	// compaction.
-	//
-	// We update these sketches below as we iterate through the series in these
-	// index files.
-	sw.Sketch, sw.TSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
-
 	// Write all series.
 	for e := itr.Next(); e != nil; e = itr.Next() {
 		if err := sw.Add(e.Name(), e.Tags(), e.Deleted()); err != nil {
 			return err
-		}
-
-		if e.Deleted() {
-			sw.TSketch.Add(models.MakeKey(e.Name(), e.Tags()))
-		} else {
-			sw.Sketch.Add(models.MakeKey(e.Name(), e.Tags()))
 		}
 	}
 

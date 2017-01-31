@@ -698,16 +698,6 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 		}
 	}
 
-	// As the log file is created it's possible that series were added, removed
-	// and then added again. Since sketches cannot have values removed from them
-	// the series would be in both the series and tombstoned series sketches. So
-	// that a series only appears in one of the sketches we rebuild some fresh
-	// sketches for the compaction to a TSI file.
-	//
-	// We update these sketches below as we iterate through the series in this
-	// log file.
-	sw.Sketch, sw.TSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
-
 	// Flush series list.
 	nn, err := sw.WriteTo(w)
 	*n += nn
@@ -716,7 +706,6 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 	}
 
 	// Add series to each measurement and key/value.
-	buf := make([]byte, 0, 1024)
 	for _, name := range names {
 		mm := f.mms[name]
 
@@ -740,18 +729,9 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 				v.seriesIDs = append(v.seriesIDs, serie.offset)
 				t.tagValues[string(tag.Value)] = v
 			}
-
-			key := AppendSeriesKey(buf[:0], serie.name, serie.tags)
-			if serie.Deleted() {
-				sw.TSketch.Add(key)
-			} else {
-				sw.Sketch.Add(key)
-			}
 		}
 	}
 
-	// Set log file sketches to updated versions.
-	f.sSketch, f.sTSketch = sw.Sketch, sw.TSketch
 	return nil
 }
 
@@ -902,6 +882,7 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 
 		// Parse key.
 		sz, n := binary.Uvarint(data)
+		println("dbg", sz, n, "//", len(data))
 		tag.Key, data = data[n:n+int(sz)], data[n+int(sz):]
 
 		// Parse value.

@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"io"
-	"math"
 	"sort"
 
 	"github.com/influxdata/influxdb/influxql"
@@ -52,8 +51,7 @@ type SeriesBlock struct {
 	seriesN    int64
 	tombstoneN int64
 
-	// Series block sketch and tombstone sketch for cardinality
-	// estimation.
+	// Series block sketch and tombstone sketch for cardinality estimation.
 	sketch, tsketch estimator.Sketch
 }
 
@@ -330,30 +328,43 @@ func AppendSeriesKey(dst []byte, name []byte, tags models.Tags) []byte {
 type SeriesBlockWriter struct {
 	series []serie // series list
 
+	// key buffer
+	buf []byte
+
 	// Series sketch and tombstoned series sketch. These must be
 	// set before calling WriteTo.
-	Sketch, TSketch estimator.Sketch
+	sketch, tSketch estimator.Sketch
 }
 
 // NewSeriesBlockWriter returns a new instance of SeriesBlockWriter.
 func NewSeriesBlockWriter() *SeriesBlockWriter {
-	return &SeriesBlockWriter{}
+	return &SeriesBlockWriter{
+		sketch:  hll.NewDefaultPlus(),
+		tSketch: hll.NewDefaultPlus(),
+	}
 }
 
 // Add adds a series to the writer's set.
 // Returns an ErrSeriesOverflow if no more series can be held in the writer.
 func (sw *SeriesBlockWriter) Add(name []byte, tags models.Tags, deleted bool) error {
-	// Ensure writer doesn't add too many series.
-	if len(sw.series) == math.MaxInt32 {
-		return ErrSeriesOverflow
-	}
-
 	// Append series to list.
 	sw.series = append(sw.series, serie{
 		name:    copyBytes(name),
 		tags:    models.CopyTags(tags),
 		deleted: deleted,
 	})
+
+	// As the log file is created it's possible that series were added, removed
+	// and then added again. Since sketches cannot have values removed from them
+	// the series would be in both the series and tombstoned series sketches. So
+	// that a series only appears in one of the sketches we rebuild some fresh
+	// sketches for the compaction to a TSI file.
+	sw.buf = AppendSeriesKey(sw.buf[:0], name, tags)
+	if deleted {
+		sw.tSketch.Add(sw.buf)
+	} else {
+		sw.sketch.Add(sw.buf)
+	}
 
 	return nil
 }
@@ -367,13 +378,6 @@ func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 		} else {
 			t.SeriesN++
 		}
-	}
-
-	// The sketches must be set before calling WriteTo.
-	if sw.Sketch == nil {
-		return 0, errors.New("series sketch not set")
-	} else if sw.TSketch == nil {
-		return 0, errors.New("series tombstone sketch not set")
 	}
 
 	// Ensure series are sorted.
@@ -395,13 +399,13 @@ func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 
 	// Write the sketches out.
 	t.Sketch.Offset = n
-	if err := writeSketchTo(w, sw.Sketch, &n); err != nil {
+	if err := writeSketchTo(w, sw.sketch, &n); err != nil {
 		return n, err
 	}
 	t.Sketch.Size = n - t.Sketch.Offset
 
 	t.TSketch.Offset = n
-	if err := writeSketchTo(w, sw.TSketch, &n); err != nil {
+	if err := writeSketchTo(w, sw.tSketch, &n); err != nil {
 		return n, err
 	}
 	t.TSketch.Size = n - t.TSketch.Offset

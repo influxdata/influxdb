@@ -66,6 +66,7 @@ type Index struct {
 	fastCompactNotify   chan struct{}
 
 	// Close management.
+	once    sync.Once
 	closing chan struct{}
 	wg      sync.WaitGroup
 
@@ -217,6 +218,11 @@ func (i *Index) deleteNonManifestFiles(m *Manifest) error {
 
 // Close closes the index.
 func (i *Index) Close() error {
+	// Wait for goroutines to finish.
+	i.once.Do(func() { close(i.closing) })
+	i.wg.Wait()
+
+	// Lock index and close remaining
 	i.mu.Lock()
 	defer i.mu.Unlock()
 
