@@ -82,7 +82,7 @@ const DashboardPage = React.createClass({
 
   render() {
     const {dashboards, timeRange} = this.state;
-    const dashboard = this.currentDashboard(dashboards, this.props.params.dashboardID)
+    const dashboard = this.currentDashboard(dashboards, this.props.params.dashboardID);
 
     return (
       <div className="page">
