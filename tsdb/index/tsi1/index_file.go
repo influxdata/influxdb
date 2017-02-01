@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/mmap"
 )
 
@@ -292,6 +293,15 @@ func (f *IndexFile) MeasurementSeriesIterator(name []byte) SeriesIterator {
 	}
 }
 
+// MergeMeasurementsSketches merges the index file's series sketches into the provided
+// sketches.
+func (f *IndexFile) MergeMeasurementsSketches(s, t estimator.Sketch) error {
+	if err := s.Merge(f.mblk.sketch); err != nil {
+		return err
+	}
+	return t.Merge(f.mblk.tSketch)
+}
+
 // SeriesN returns the total number of non-tombstoned series for the index file.
 func (f *IndexFile) SeriesN() uint64 {
 	return uint64(f.sblk.seriesN - f.sblk.tombstoneN)
@@ -300,6 +310,15 @@ func (f *IndexFile) SeriesN() uint64 {
 // SeriesIterator returns an iterator over all series.
 func (f *IndexFile) SeriesIterator() SeriesIterator {
 	return f.sblk.SeriesIterator()
+}
+
+// MergeSeriesSketches merges the index file's series sketches into the provided
+// sketches.
+func (f *IndexFile) MergeSeriesSketches(s, t estimator.Sketch) error {
+	if err := s.Merge(f.sblk.sketch); err != nil {
+		return err
+	}
+	return t.Merge(f.sblk.tsketch)
 }
 
 // ReadIndexFileTrailer returns the index file trailer from data.

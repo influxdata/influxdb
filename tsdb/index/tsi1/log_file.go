@@ -813,7 +813,10 @@ func (f *LogFile) reset() {
 	}
 }
 
-// MergeSeriesSketches merges the series sketches within a mutex.
+// MergeSeriesSketches merges the series sketches belonging to this LogFile
+// into the provided sketches.
+//
+// MergeSeriesSketches is safe for concurrent use by multiple goroutines.
 func (f *LogFile) MergeSeriesSketches(sketch, tsketch estimator.Sketch) error {
 	f.mu.RLock()
 	defer f.mu.RUnlock()
@@ -821,10 +824,21 @@ func (f *LogFile) MergeSeriesSketches(sketch, tsketch estimator.Sketch) error {
 	if err := sketch.Merge(f.sSketch); err != nil {
 		return err
 	}
-	if err := tsketch.Merge(f.sTSketch); err != nil {
+	return tsketch.Merge(f.sTSketch)
+}
+
+// MergeMeasurementsSketches merges the measurement sketches belonging to this
+// LogFile into the provided sketches.
+//
+// MergeMeasurementsSketches is safe for concurrent use by multiple goroutines.
+func (f *LogFile) MergeMeasurementsSketches(sketch, tsketch estimator.Sketch) error {
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+
+	if err := sketch.Merge(f.mSketch); err != nil {
 		return err
 	}
-	return nil
+	return tsketch.Merge(f.mTSketch)
 }
 
 // LogEntry represents a single log entry in the write-ahead log.

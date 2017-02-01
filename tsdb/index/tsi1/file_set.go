@@ -499,19 +499,27 @@ func (fs FileSet) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]
 	return newNames, newTagsSlice
 }
 
-func (fs FileSet) sketches(fn func(*IndexFile) (estimator.Sketch, estimator.Sketch)) (estimator.Sketch, estimator.Sketch, error) {
+// SeriesSketches returns the merged series sketches for the FileSet.
+func (fs FileSet) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 	sketch, tsketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
 
-	// Iterate over all the index files and merge all the sketches.
+	// Iterate over all the files and merge the sketches into the result.
 	for _, f := range fs {
-		if f, ok := f.(*IndexFile); ok {
-			s, t := fn(f)
-			if err := sketch.Merge(s); err != nil {
-				return nil, nil, err
-			}
-			if err := tsketch.Merge(t); err != nil {
-				return nil, nil, err
-			}
+		if err := f.MergeSeriesSketches(sketch, tsketch); err != nil {
+			return nil, nil, err
+		}
+	}
+	return sketch, tsketch, nil
+}
+
+// MeasurementsSketches returns the merged measurement sketches for the FileSet.
+func (fs FileSet) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
+	sketch, tsketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
+
+	// Iterate over all the files and merge the sketches into the result.
+	for _, f := range fs {
+		if err := f.MergeMeasurementsSketches(sketch, tsketch); err != nil {
+			return nil, nil, err
 		}
 	}
 	return sketch, tsketch, nil
@@ -720,6 +728,10 @@ type File interface {
 	MeasurementSeriesIterator(name []byte) SeriesIterator
 	TagKeySeriesIterator(name, key []byte) SeriesIterator
 	TagValueSeriesIterator(name, key, value []byte) SeriesIterator
+
+	// Sketches for cardinality estimation
+	MergeSeriesSketches(s, t estimator.Sketch) error
+	MergeMeasurementsSketches(s, t estimator.Sketch) error
 
 	// Reference counting.
 	Retain()

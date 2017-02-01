@@ -560,27 +560,11 @@ func (i *Index) DropSeries(keys [][]byte) error {
 }
 
 // SeriesSketches returns the two sketches for the index by merging all
-// instances of the type sketch types in all the indexes files.
+// instances sketches from TSI files and the WAL.
 func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
-
-	sketch, tsketch, err := fs.sketches(func(f *IndexFile) (estimator.Sketch, estimator.Sketch) {
-		return f.sblk.sketch, f.sblk.tsketch
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Merge in any current log file sketches.
-	for _, f := range fs {
-		if f, ok := f.(*LogFile); ok {
-			if err := f.MergeSeriesSketches(sketch, tsketch); err != nil {
-				return nil, nil, err
-			}
-		}
-	}
-	return sketch, tsketch, err
+	return fs.SeriesSketches()
 }
 
 // MeasurementsSketches returns the two sketches for the index by merging all
@@ -588,27 +572,7 @@ func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
-
-	// sketches will merge all sketches for each index file in the file set.
-	sketch, tsketch, err := fs.sketches(func(f *IndexFile) (estimator.Sketch, estimator.Sketch) {
-		return f.mblk.sketch, f.mblk.tSketch
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Merge in any current log file sketches.
-	for _, f := range fs {
-		if f, ok := f.(*LogFile); ok {
-			if err := sketch.Merge(f.mSketch); err != nil {
-				return nil, nil, err
-			}
-			if err := tsketch.Merge(f.mTSketch); err != nil {
-				return nil, nil, err
-			}
-		}
-	}
-	return sketch, tsketch, err
+	return fs.MeasurementsSketches()
 }
 
 // SeriesN returns the number of unique non-tombstoned series in the index.
