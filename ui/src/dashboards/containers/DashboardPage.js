@@ -1,11 +1,13 @@
 import React, {PropTypes} from 'react';
 import ReactTooltip from 'react-tooltip';
+import {Link} from 'react-router';
+import _ from 'lodash';
 
 import LayoutRenderer from 'shared/components/LayoutRenderer';
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
-import {getDashboard} from '../apis';
+import {getDashboards} from '../apis';
 import {getSource} from 'shared/apis';
 
 const DashboardPage = React.createClass({
@@ -20,19 +22,29 @@ const DashboardPage = React.createClass({
     const fifteenMinutesIndex = 1;
 
     return {
+      dashboards: [],
       timeRange: timeRanges[fifteenMinutesIndex],
     };
   },
 
   componentDidMount() {
-    getDashboard(this.props.params.dashboardID).then((resp) => {
+    getDashboards().then((resp) => {
       getSource(this.props.params.sourceID).then(({data: source}) => {
         this.setState({
-          dashboard: resp.data,
+          dashboards: resp.data.dashboards,
+          dashboard: this.currentDashboard(resp.data.dashboards, this.props.params.dashboardID),
           source,
         });
       });
     });
+  },
+
+  componentWillReceiveProps(nextProps) {
+    this.setState({dashboard: this.currentDashboard(this.state.dashboards, nextProps.params.dashboardID)});
+  },
+
+  currentDashboard(dashboards, dashboardID) {
+    return _.find(dashboards, (d) => d.id.toString() === dashboardID);
   },
 
   renderDashboard(dashboard) {
@@ -74,7 +86,8 @@ const DashboardPage = React.createClass({
   },
 
   render() {
-    const {dashboard, timeRange} = this.state;
+    const {dashboards, dashboard, timeRange} = this.state;
+
     const dashboardName = dashboard ? dashboard.name : '';
 
     return (
@@ -85,7 +98,19 @@ const DashboardPage = React.createClass({
               <div className="dropdown page-header-dropdown">
                 <button className="dropdown-toggle" type="button" data-toggle="dropdown">
                   <span className="button-text">{dashboardName}</span>
+                  <span className="caret"></span>
                 </button>
+                <ul className="dropdown-menu" aria-labelledby="dropdownMenu1">
+                  {(dashboards).map((d, i) => {
+                    return (
+                      <li key={i}>
+                        <Link to={`/sources/${this.props.params.sourceID}/dashboards/${d.id}`} className="role-option">
+                          {d.name}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
             </div>
             <div className="page-header__right">
