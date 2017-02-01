@@ -1600,6 +1600,15 @@ func (s *Series) ShardN() int {
 	return n
 }
 
+// ForEachTag executes fn for every tag. Iteration occurs under lock.
+func (s *Series) ForEachTag(fn func(models.Tag)) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, t := range s.Tags {
+		fn(t)
+	}
+}
+
 // CloneTags returns a copy of the series tags under lock.
 func (s *Series) CloneTags() models.Tags {
 	s.mu.RLock()
