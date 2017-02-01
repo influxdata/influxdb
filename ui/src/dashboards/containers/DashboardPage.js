@@ -32,15 +32,10 @@ const DashboardPage = React.createClass({
       getSource(this.props.params.sourceID).then(({data: source}) => {
         this.setState({
           dashboards: resp.data.dashboards,
-          dashboard: this.currentDashboard(resp.data.dashboards, this.props.params.dashboardID),
           source,
         });
       });
     });
-  },
-
-  componentWillReceiveProps(nextProps) {
-    this.setState({dashboard: this.currentDashboard(this.state.dashboards, nextProps.params.dashboardID)});
   },
 
   currentDashboard(dashboards, dashboardID) {
@@ -86,9 +81,8 @@ const DashboardPage = React.createClass({
   },
 
   render() {
-    const {dashboards, dashboard, timeRange} = this.state;
-
-    const dashboardName = dashboard ? dashboard.name : '';
+    const {dashboards, timeRange} = this.state;
+    const dashboard = this.currentDashboard(dashboards, this.props.params.dashboardID)
 
     return (
       <div className="page">
@@ -97,7 +91,7 @@ const DashboardPage = React.createClass({
             <div className="page-header__left">
               <div className="dropdown page-header-dropdown">
                 <button className="dropdown-toggle" type="button" data-toggle="dropdown">
-                  <span className="button-text">{dashboardName}</span>
+                  <span className="button-text">{dashboard ? dashboard.name : ''}</span>
                   <span className="caret"></span>
                 </button>
                 <ul className="dropdown-menu" aria-labelledby="dropdownMenu1">
