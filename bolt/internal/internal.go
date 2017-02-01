@@ -2,44 +2,12 @@ package internal
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/chronograf"
 )
 
 //go:generate protoc --gogo_out=. internal.proto
-
-// MarshalExploration encodes an exploration to binary protobuf format.
-func MarshalExploration(e *chronograf.Exploration) ([]byte, error) {
-	return proto.Marshal(&Exploration{
-		ID:        int64(e.ID),
-		Name:      e.Name,
-		UserID:    int64(e.UserID),
-		Data:      e.Data,
-		CreatedAt: e.CreatedAt.UnixNano(),
-		UpdatedAt: e.UpdatedAt.UnixNano(),
-		Default:   e.Default,
-	})
-}
-
-// UnmarshalExploration decodes an exploration from binary protobuf data.
-func UnmarshalExploration(data []byte, e *chronograf.Exploration) error {
-	var pb Exploration
-	if err := proto.Unmarshal(data, &pb); err != nil {
-		return err
-	}
-
-	e.ID = chronograf.ExplorationID(pb.ID)
-	e.Name = pb.Name
-	e.UserID = chronograf.UserID(pb.UserID)
-	e.Data = pb.Data
-	e.CreatedAt = time.Unix(0, pb.CreatedAt).UTC()
-	e.UpdatedAt = time.Unix(0, pb.UpdatedAt).UTC()
-	e.Default = pb.Default
-
-	return nil
-}
 
 // MarshalSource encodes a source to binary protobuf format.
 func MarshalSource(s chronograf.Source) ([]byte, error) {
