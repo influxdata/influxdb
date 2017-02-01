@@ -363,15 +363,16 @@ func (e *MeasurementBlockElem) UnmarshalBinary(data []byte) error {
 type MeasurementBlockWriter struct {
 	mms map[string]measurement
 
-	// Measurement sketch and tombstoned measurement sketch. These must be
-	// set before calling WriteTo.
-	Sketch, TSketch estimator.Sketch
+	// Measurement sketch and tombstoned measurement sketch.
+	sketch, tSketch estimator.Sketch
 }
 
 // NewMeasurementBlockWriter returns a new MeasurementBlockWriter.
 func NewMeasurementBlockWriter() *MeasurementBlockWriter {
 	return &MeasurementBlockWriter{
-		mms: make(map[string]measurement),
+		mms:     make(map[string]measurement),
+		sketch:  hll.NewDefaultPlus(),
+		tSketch: hll.NewDefaultPlus(),
 	}
 }
 
@@ -383,18 +384,17 @@ func (mw *MeasurementBlockWriter) Add(name []byte, deleted bool, offset, size in
 	mm.tagBlock.size = size
 	mm.seriesIDs = seriesIDs
 	mw.mms[string(name)] = mm
+
+	if deleted {
+		mw.tSketch.Add(name)
+	} else {
+		mw.sketch.Add(name)
+	}
 }
 
 // WriteTo encodes the measurements to w.
 func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	var t MeasurementBlockTrailer
-
-	// The sketches must be set before calling WriteTo.
-	if mw.Sketch == nil {
-		return 0, errors.New("measurement sketch not set")
-	} else if mw.TSketch == nil {
-		return 0, errors.New("measurement tombstone sketch not set")
-	}
 
 	// Sort names.
 	names := make([]string, 0, len(mw.mms))
@@ -459,13 +459,13 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 
 	// Write the sketches out.
 	t.Sketch.Offset = n
-	if err := writeSketchTo(w, mw.Sketch, &n); err != nil {
+	if err := writeSketchTo(w, mw.sketch, &n); err != nil {
 		return n, err
 	}
 	t.Sketch.Size = n - t.Sketch.Offset
 
 	t.TSketch.Offset = n
-	if err := writeSketchTo(w, mw.TSketch, &n); err != nil {
+	if err := writeSketchTo(w, mw.tSketch, &n); err != nil {
 		return n, err
 	}
 	t.TSketch.Size = n - t.TSketch.Offset

@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"io"
 	"sort"
-
-	"github.com/influxdata/influxdb/pkg/estimator/hll"
 )
 
 // IndexFiles represents a layered set of index files.
@@ -230,21 +228,8 @@ func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo
 
 	// Add measurement data & compute sketches.
 	mitr := p.MeasurementIterator()
-	mw.Sketch, mw.TSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	for m := mitr.Next(); m != nil; m = mitr.Next() {
 		name := m.Name()
-
-		// As the index files are merged together, it's possible that measurements
-		// were added, removed and then added again over time. Since sketches cannot
-		// have values removed from them, the measurements would be in both the
-		// resulting measurements and tombstoned measurements sketches. So that a
-		// measurements only appears in one of the sketches, we rebuild some fresh
-		// sketches during the compaction.
-		if m.Deleted() {
-			mw.TSketch.Add(m.Name())
-		} else {
-			mw.Sketch.Add(m.Name())
-		}
 
 		// Look-up series ids.
 		itr := p.MeasurementSeriesIterator(name)
@@ -262,22 +247,6 @@ func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo
 		pos := info.tagSets[string(name)]
 		mw.Add(name, m.Deleted(), pos.offset, pos.size, seriesIDs)
 	}
-
-	// Generate merged sketches to write out.
-	sketch, tsketch := hll.NewDefaultPlus(), hll.NewDefaultPlus()
-
-	// merge all the sketches in the index files together.
-	for _, idx := range *p {
-		if err := sketch.Merge(idx.mblk.Sketch); err != nil {
-			return err
-		}
-		if err := tsketch.Merge(idx.mblk.TSketch); err != nil {
-			return err
-		}
-	}
-
-	// Set the merged sketches on the measurement block writer.
-	mw.Sketch, mw.TSketch = sketch, tsketch
 
 	// Write data to writer.
 	nn, err := mw.WriteTo(w)

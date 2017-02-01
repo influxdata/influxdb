@@ -782,28 +782,12 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, n *int64) error {
 func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, n *int64) error {
 	mw := NewMeasurementBlockWriter()
 
-	// As the log file is created it's possible that measurements were added,
-	// removed and then added again. Since sketches cannot have values removed
-	// from them, the measurement would be in both the measurement and
-	// tombstoned measurement sketches. So that a measurement only appears in
-	// one of the sketches, we rebuild some fresh sketches for the compaction to
-	// a TSI file.
-	//
-	// We update these sketches below as we iterate through the measurements in
-	// this log file.
-	mw.Sketch, mw.TSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
-
 	// Add measurement data.
 	for _, name := range names {
 		mm := f.mms[name]
 
 		sort.Sort(uint64Slice(mm.seriesIDs))
 		mw.Add(mm.name, mm.deleted, mm.offset, mm.size, mm.seriesIDs)
-		if mm.Deleted() {
-			mw.TSketch.Add(mm.Name())
-		} else {
-			mw.Sketch.Add(mm.Name())
-		}
 	}
 
 	// Write data to writer.
@@ -812,9 +796,6 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, n *int64)
 	if err != nil {
 		return err
 	}
-
-	// Set the updated sketches
-	f.mSketch, f.mTSketch = mw.Sketch, mw.TSketch
 	return nil
 }
 

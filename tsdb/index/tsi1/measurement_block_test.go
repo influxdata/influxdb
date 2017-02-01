@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/influxdata/influxdb/pkg/estimator/hll"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
@@ -112,10 +111,8 @@ func TestMeasurementBlockWriter(t *testing.T) {
 
 	// Write the measurements to writer.
 	mw := tsi1.NewMeasurementBlockWriter()
-	mw.Sketch, mw.TSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
 	for _, m := range ms {
 		mw.Add(m.Name, m.Deleted, m.Offset, m.Size, m.ids)
-		mw.Sketch.Add(m.Name)
 	}
 
 	// Encode into buffer.
