@@ -1287,7 +1287,13 @@ func (itr *floatExprIterator) Next() (*FloatPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p FloatPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
@@ -1621,7 +1627,13 @@ func (itr *floatIntegerExprIterator) Next() (*IntegerPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p FloatPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
@@ -1959,7 +1971,13 @@ func (itr *floatStringExprIterator) Next() (*StringPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p FloatPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
@@ -2297,7 +2315,13 @@ func (itr *floatBooleanExprIterator) Next() (*BooleanPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p FloatPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
@@ -3803,7 +3827,13 @@ func (itr *integerFloatExprIterator) Next() (*FloatPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p IntegerPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
@@ -4141,7 +4171,13 @@ func (itr *integerExprIterator) Next() (*IntegerPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p IntegerPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
@@ -4475,7 +4511,13 @@ func (itr *integerStringExprIterator) Next() (*StringPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p IntegerPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
@@ -4813,7 +4855,13 @@ func (itr *integerBooleanExprIterator) Next() (*BooleanPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p IntegerPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
@@ -6304,7 +6352,13 @@ func (itr *stringFloatExprIterator) Next() (*FloatPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p StringPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
@@ -6642,7 +6696,13 @@ func (itr *stringIntegerExprIterator) Next() (*IntegerPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p StringPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
@@ -6980,7 +7040,13 @@ func (itr *stringExprIterator) Next() (*StringPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p StringPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
@@ -7314,7 +7380,13 @@ func (itr *stringBooleanExprIterator) Next() (*BooleanPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p StringPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
@@ -8805,7 +8877,13 @@ func (itr *booleanFloatExprIterator) Next() (*FloatPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p BooleanPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
@@ -9143,7 +9221,13 @@ func (itr *booleanIntegerExprIterator) Next() (*IntegerPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p BooleanPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
@@ -9481,7 +9565,13 @@ func (itr *booleanStringExprIterator) Next() (*StringPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p BooleanPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
@@ -9819,7 +9909,13 @@ func (itr *booleanExprIterator) Next() (*BooleanPoint, error) {
 			if itr.points == nil {
 				continue
 			}
-			p := *b
+
+			var p BooleanPoint
+			if b != nil {
+				p = *b
+			} else {
+				p = *a
+			}
 			p.Value = itr.points[0].Value
 			p.Nil = itr.points[0].Nil
 			a = &p
