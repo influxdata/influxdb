@@ -527,31 +527,39 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 		return err
 	}
 
+	if err := e.index.SnapshotTo(path); err != nil {
+		return err
+	}
+
 	tw := tar.NewWriter(w)
 	defer tw.Close()
 
 	// Remove the temporary snapshot dir
 	defer os.RemoveAll(path)
 
-	snapshotFiles, err := ioutil.ReadDir(path)
+	// Recursively read all files from path.
+	files, err := readDir(path, "")
 	if err != nil {
 		return err
 	}
 
-	var files []os.FileInfo
-	// grab all the files and tombstones that have a modified time after since
-	for _, f := range snapshotFiles {
-		if f.ModTime().UnixNano() > since.UnixNano() {
-			files = append(files, f)
+	// Filter paths to only changed files.
+	var filtered []string
+	for _, file := range files {
+		fi, err := os.Stat(filepath.Join(path, file))
+		if err != nil {
+			return err
+		} else if !fi.ModTime().After(since) {
+			continue
 		}
+		filtered = append(filtered, file)
 	}
-
-	if len(files) == 0 {
+	if len(filtered) == 0 {
 		return nil
 	}
 
-	for _, f := range files {
-		if err := e.writeFileToBackup(f, basePath, filepath.Join(path, f.Name()), tw); err != nil {
+	for _, f := range filtered {
+		if err := e.writeFileToBackup(f, basePath, filepath.Join(path, f), tw); err != nil {
 			return err
 		}
 	}
@@ -561,9 +569,14 @@ func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 
 // writeFileToBackup copies the file into the tar archive. Files will use the shardRelativePath
 // in their names. This should be the <db>/<retention policy>/<id> part of the path.
-func (e *Engine) writeFileToBackup(f os.FileInfo, shardRelativePath, fullPath string, tw *tar.Writer) error {
+func (e *Engine) writeFileToBackup(name string, shardRelativePath, fullPath string, tw *tar.Writer) error {
+	f, err := os.Stat(fullPath)
+	if err != nil {
+		return err
+	}
+
 	h := &tar.Header{
-		Name:    filepath.ToSlash(filepath.Join(shardRelativePath, f.Name())),
+		Name:    filepath.ToSlash(filepath.Join(shardRelativePath, name)),
 		ModTime: f.ModTime(),
 		Size:    f.Size(),
 		Mode:    int64(f.Mode()),
@@ -1744,4 +1757,38 @@ func SeriesAndFieldFromCompositeKey(key []byte) ([]byte, string) {
 		return key, ""
 	}
 	return key[:sep], string(key[sep+len(keyFieldSeparator):])
+}
+
+// readDir recursively reads all files from a path.
+func readDir(root, rel string) ([]string, error) {
+	// Open root.
+	f, err := os.Open(filepath.Join(root, rel))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	// Read all files.
+	fis, err := f.Readdir(-1)
+	if err != nil {
+		return nil, err
+	}
+
+	// Read all subdirectories and append to the end.
+	var paths []string
+	for _, fi := range fis {
+		// Simply append if it's a file.
+		if !fi.IsDir() {
+			paths = append(paths, filepath.Join(rel, fi.Name()))
+			continue
+		}
+
+		// Read and append nested file paths.
+		children, err := readDir(root, filepath.Join(rel, fi.Name()))
+		if err != nil {
+			return nil, err
+		}
+		paths = append(paths, children...)
+	}
+	return paths, nil
 }

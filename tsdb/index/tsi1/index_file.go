@@ -58,7 +58,7 @@ type IndexFile struct {
 	seriesN int64 // Number of unique series in this indexFile.
 
 	// Path to data file.
-	Path string
+	path string
 }
 
 // NewIndexFile returns a new instance of IndexFile.
@@ -69,11 +69,11 @@ func NewIndexFile() *IndexFile {
 // Open memory maps the data file at the file's path.
 func (f *IndexFile) Open() error {
 	// Extract identifier from path name, if possible.
-	if id := ParseFileID(f.Path); id > 0 {
+	if id := ParseFileID(f.Path()); id > 0 {
 		f.ID = id
 	}
 
-	data, err := mmap.Map(f.Path)
+	data, err := mmap.Map(f.Path())
 	if err != nil {
 		return err
 	}
@@ -92,6 +92,12 @@ func (f *IndexFile) Close() error {
 	f.seriesN = 0
 	return mmap.Unmap(f.data)
 }
+
+// Path returns the file path.
+func (f *IndexFile) Path() string { return f.path }
+
+// SetPath sets the file's path.
+func (f *IndexFile) SetPath(path string) { f.path = path }
 
 // Retain adds a reference count to the file.
 func (f *IndexFile) Retain() { f.wg.Add(1) }

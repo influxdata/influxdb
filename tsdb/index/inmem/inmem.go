@@ -626,6 +626,9 @@ func (i *Index) SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iter
 	}, nil
 }
 
+// SnapshotTo is a no-op since this is an in-memory index.
+func (i *Index) SnapshotTo(path string) error { return nil }
+
 // AssignShard update the index to indicate that series k exists in the given shardID.
 func (i *Index) AssignShard(k string, shardID uint64) {
 	ss, _ := i.Series([]byte(k))

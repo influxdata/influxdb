@@ -711,6 +711,8 @@ func (fs FileSet) seriesByBinaryExprVarRefIterator(name, key []byte, value *infl
 
 // File represents a log or index file.
 type File interface {
+	Path() string
+
 	Measurement(name []byte) MeasurementElem
 	MeasurementIterator() MeasurementIterator
 	HasSeries(name []byte, tags models.Tags) (exists, tombstoned bool)

@@ -44,6 +44,9 @@ type Index interface {
 	// Sets a shared fieldset from the engine.
 	SetFieldSet(fs *MeasurementFieldSet)
 
+	// Creates hard links inside path for snapshotting.
+	SnapshotTo(path string) error
+
 	// To be removed w/ tsi1.
 	SetFieldName(measurement, name string)
 	AssignShard(k string, shardID uint64)

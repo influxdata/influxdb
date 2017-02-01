@@ -3,6 +3,7 @@ package tsi1
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -171,7 +172,7 @@ func (i *Index) Open() error {
 // openLogFile opens a log file and appends it to the index.
 func (i *Index) openLogFile(path string) (*LogFile, error) {
 	f := NewLogFile()
-	f.Path = path
+	f.SetPath(path)
 	if err := f.Open(); err != nil {
 		return nil, err
 	}
@@ -181,7 +182,7 @@ func (i *Index) openLogFile(path string) (*LogFile, error) {
 // openIndexFile opens a log file and appends it to the index.
 func (i *Index) openIndexFile(path string) (*IndexFile, error) {
 	f := NewIndexFile()
-	f.Path = path
+	f.SetPath(path)
 	if err := f.Open(); err != nil {
 		return nil, err
 	}
@@ -257,10 +258,10 @@ func (i *Index) Manifest() *Manifest {
 	}
 
 	for j, f := range i.logFiles {
-		m.LogFiles[j] = filepath.Base(f.Path)
+		m.LogFiles[j] = filepath.Base(f.Path())
 	}
 	for j, f := range i.indexFiles {
-		m.IndexFiles[j] = filepath.Base(f.Path)
+		m.IndexFiles[j] = filepath.Base(f.Path())
 	}
 
 	return m
@@ -275,12 +276,12 @@ func (i *Index) writeManifestFile() error {
 func (i *Index) maxFileID() int {
 	var max int
 	for _, f := range i.logFiles {
-		if i := ParseFileID(f.Path); i > max {
+		if i := ParseFileID(f.Path()); i > max {
 			max = i
 		}
 	}
 	for _, f := range i.indexFiles {
-		if i := ParseFileID(f.Path); i > max {
+		if i := ParseFileID(f.Path()); i > max {
 			max = i
 		}
 	}
@@ -718,6 +719,27 @@ func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Exp
 	return sortedTagsSets, nil
 }
 
+// SnapshotTo creates hard links to the file set into path.
+func (i *Index) SnapshotTo(path string) error {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	fs := i.retainFileSet()
+	defer fs.Release()
+
+	if err := os.Mkdir(filepath.Join(path, "index"), 0777); err != nil {
+		return err
+	}
+
+	for _, f := range fs {
+		if err := os.Link(f.Path(), filepath.Join(path, "index", filepath.Base(f.Path()))); err != nil {
+			return fmt.Errorf("error creating tsi hard link: %q", err)
+		}
+	}
+
+	return nil
+}
+
 func (i *Index) SetFieldName(measurement, name string) {}
 func (i *Index) RemoveShard(shardID uint64)            {}
 func (i *Index) AssignShard(k string, shardID uint64)  {}
@@ -822,7 +844,7 @@ func (i *Index) compactLogFile() error {
 
 	// Reopen as an index file.
 	file := NewIndexFile()
-	file.Path = path
+	file.SetPath(path)
 	if err := file.Open(); err != nil {
 		return err
 	}
@@ -858,7 +880,7 @@ func (i *Index) compactLogFile() error {
 	log.Printf("tsi1: removing log file: file=%s", logFile.Path)
 	if err := logFile.Close(); err != nil {
 		return err
-	} else if err := os.Remove(logFile.Path); err != nil {
+	} else if err := os.Remove(logFile.Path()); err != nil {
 		return err
 	}
 
@@ -919,7 +941,7 @@ func (i *Index) checkFullCompaction(force bool) error {
 
 	// Reopen as an index file.
 	file := NewIndexFile()
-	file.Path = path
+	file.SetPath(path)
 	if err := file.Open(); err != nil {
 		return err
 	}
@@ -951,7 +973,7 @@ func (i *Index) checkFullCompaction(force bool) error {
 
 		if err := f.Close(); err != nil {
 			return err
-		} else if err := os.Remove(f.Path); err != nil {
+		} else if err := os.Remove(f.Path()); err != nil {
 			return err
 		}
 	}
@@ -968,7 +990,7 @@ func (i *Index) indexFileStats() (maxN, totalN int64, modTime time.Time, err err
 
 	// Iterate over each file and determine size.
 	for _, f := range indexFiles {
-		fi, err := os.Stat(f.Path)
+		fi, err := os.Stat(f.Path())
 		if os.IsNotExist(err) {
 			continue
 		} else if err != nil {

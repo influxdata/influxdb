@@ -53,7 +53,7 @@ type LogFile struct {
 	mms logMeasurements
 
 	// Filepath to the log file.
-	Path string
+	path string
 }
 
 // NewLogFile returns a new instance of LogFile.
@@ -78,7 +78,7 @@ func (f *LogFile) Open() error {
 
 func (f *LogFile) open() error {
 	// Open file for appending.
-	file, err := os.OpenFile(f.Path, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
+	file, err := os.OpenFile(f.Path(), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if err != nil {
 		return err
 	}
@@ -96,7 +96,7 @@ func (f *LogFile) open() error {
 	f.modTime = fi.ModTime()
 
 	// Open a read-only memory map of the existing data.
-	data, err := mmap.Map(f.Path)
+	data, err := mmap.Map(f.Path())
 	if err != nil {
 		return err
 	}
@@ -143,6 +143,12 @@ func (f *LogFile) Close() error {
 
 	return nil
 }
+
+// Path returns the file path.
+func (f *LogFile) Path() string { return f.path }
+
+// SetPath sets the log file's path.
+func (f *LogFile) SetPath(path string) { f.path = path }
 
 // Retain adds a reference count to the file.
 func (f *LogFile) Retain() { f.wg.Add(1) }
