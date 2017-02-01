@@ -396,13 +396,10 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 	}
 }
 
-func TestStore_Cardinality_Tombstoning(t *testing.T) {
+func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 	if testing.Short() {
 		t.Skip("Skipping test in short mode.")
 	}
-
-	store := MustOpenStore()
-	defer store.Close()
 
 	// Generate point data to write to the shards.
 	series := genTestSeries(10, 2, 4) // 160 series
@@ -459,16 +456,32 @@ func TestStore_Cardinality_Tombstoning(t *testing.T) {
 	if got, exp := math.Abs(float64(cardinality)-0.0), 2.0; got > exp {
 		t.Fatalf("measurement cardinality out by %v (expected within %v), estimation was: %d", got, exp, cardinality)
 	}
-
 }
 
-func TestStore_Cardinality_Unique(t *testing.T) {
+func TestStore_Cardinality_Tombstoning_Inmem(t *testing.T) {
+	store := NewStore()
+	store.EngineOptions.Config.Index = "inmem"
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	testStoreCardinalityTombstoning(t, store)
+}
+
+func TestStore_Cardinality_Tombstoning_TSI(t *testing.T) {
+	store := NewStore()
+	store.EngineOptions.Config.Index = "tsi1"
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	testStoreCardinalityTombstoning(t, store)
+}
+
+func testStoreCardinalityUnique(t *testing.T, store *Store) {
 	if testing.Short() {
 		t.Skip("Skipping test in short mode.")
 	}
-
-	store := MustOpenStore()
-	defer store.Close()
 
 	// Generate point data to write to the shards.
 	series := genTestSeries(64, 5, 5) // 200,000 series
@@ -513,15 +526,32 @@ func TestStore_Cardinality_Unique(t *testing.T) {
 	}
 }
 
+func TestStore_Cardinality_Unique_Inmem(t *testing.T) {
+	store := NewStore()
+	store.EngineOptions.Config.Index = "inmem"
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	testStoreCardinalityUnique(t, store)
+}
+
+func TestStore_Cardinality_Unique_TSI1(t *testing.T) {
+	store := NewStore()
+	store.EngineOptions.Config.Index = "tsi1"
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	testStoreCardinalityUnique(t, store)
+}
+
 // This test tests cardinality estimation when series data is duplicated across
 // multiple shards.
-func TestStore_Cardinality_Duplicates(t *testing.T) {
+func testStoreCardinalityDuplicates(t *testing.T, store *Store) {
 	if testing.Short() {
 		t.Skip("Skipping test in short mode.")
 	}
-
-	store := MustOpenStore()
-	defer store.Close()
 
 	// Generate point data to write to the shards.
 	series := genTestSeries(64, 5, 5) // 200,000 series.
@@ -580,15 +610,32 @@ func TestStore_Cardinality_Duplicates(t *testing.T) {
 	}
 }
 
+func TestStore_Cardinality_Duplicates_Inmem(t *testing.T) {
+	store := NewStore()
+	store.EngineOptions.Config.Index = "inmem"
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	testStoreCardinalityDuplicates(t, store)
+}
+
+func TestStore_Cardinality_Duplicates_TSI1(t *testing.T) {
+	store := NewStore()
+	store.EngineOptions.Config.Index = "tsi1"
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	testStoreCardinalityDuplicates(t, store)
+}
+
 // Creates a large number of series in multiple shards, which will force
 // compactions to occur.
-func TestStore_Cardinality_Compactions(t *testing.T) {
+func testStoreCardinalityCompactions(t *testing.T, store *Store) {
 	if testing.Short() {
 		t.Skip("Skipping test in short mode.")
 	}
-
-	store := MustOpenStore()
-	defer store.Close()
 
 	// Generate point data to write to the shards.
 	series := genTestSeries(300, 5, 5) // 937,500 series
@@ -633,12 +680,29 @@ func TestStore_Cardinality_Compactions(t *testing.T) {
 	}
 }
 
-func BenchmarkStore_SeriesCardinality_100_Shards(b *testing.B) {
-	store := MustOpenStore()
+func TestStore_Cardinality_Compactions_Inmem(t *testing.T) {
+	store := NewStore()
+	store.EngineOptions.Config.Index = "inmem"
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
 	defer store.Close()
+	testStoreCardinalityCompactions(t, store)
+}
 
-	// Write a point to 100 shards.
-	for shardID := 0; shardID < 100; shardID++ {
+func TestStore_Cardinality_Compactions_TSI1(t *testing.T) {
+	store := NewStore()
+	store.EngineOptions.Config.Index = "tsi1"
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	testStoreCardinalityCompactions(t, store)
+}
+
+func benchmarkStoreSeriesCardinality(b *testing.B, store *Store, n int) {
+	// Write a point to n shards.
+	for shardID := 0; shardID < n; shardID++ {
 		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
 			b.Fatalf("create shard: %s", err)
 		}
@@ -653,6 +717,26 @@ func BenchmarkStore_SeriesCardinality_100_Shards(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		_, _ = store.SeriesCardinality("db")
 	}
+}
+
+func BenchmarkStore_SeriesCardinality_100_Shards_Inmem(b *testing.B) {
+	store := NewStore()
+	store.EngineOptions.Config.Index = "inmem"
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	benchmarkStoreSeriesCardinality(b, store, 100)
+}
+
+func BenchmarkStore_SeriesCardinality_100_Shards_TSI(b *testing.B) {
+	store := NewStore()
+	store.EngineOptions.Config.Index = "tsi1"
+	if err := store.Open(); err != nil {
+		panic(err)
+	}
+	defer store.Close()
+	benchmarkStoreSeriesCardinality(b, store, 100)
 }
 
 func BenchmarkStoreOpen_200KSeries_100Shards(b *testing.B) { benchmarkStoreOpen(b, 64, 5, 5, 1, 100) }
@@ -724,7 +808,7 @@ func NewStore() *Store {
 	if testing.Verbose() {
 		s.WithLogger(zap.New(
 			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
+			zap.Output(os.Stdout),
 		))
 	}
 	return s
