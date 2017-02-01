@@ -109,7 +109,7 @@ func (i *Index) MeasurementExists(name []byte) (bool, error) {
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
-	return i.measurementsSketch, i.measurementsTSSketch, nil
+	return i.measurementsSketch.Clone(), i.measurementsTSSketch.Clone(), nil
 }
 
 // MeasurementsByName returns a list of measurements.
@@ -213,7 +213,7 @@ func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 	return mm.HasTagKey(string(key)), nil
 }
 
-// MeasurementTagKeyByExpr returns an ordered set of tag keys filtered by an expression.
+// MeasurementTagKeysByExpr returns an ordered set of tag keys filtered by an expression.
 func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
