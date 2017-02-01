@@ -112,7 +112,6 @@ const Root = React.createClass({
               <Route path="manage-sources/new" component={SourcePage} />
               <Route path="manage-sources/:id/edit" component={SourcePage} />
               <Route path="chronograf/data-explorer" component={DataExplorer} />
-              <Route path="chronograf/data-explorer/:base64ExplorerID" component={DataExplorer} />
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
               <Route path="kubernetes" component={KubernetesPage} />

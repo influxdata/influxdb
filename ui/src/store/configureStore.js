@@ -5,7 +5,6 @@ import makeQueryExecuter from 'src/shared/middleware/queryExecuter';
 import * as chronografReducers from 'src/data_explorer/reducers';
 import * as sharedReducers from 'src/shared/reducers';
 import rulesReducer from 'src/kapacitor/reducers/rules';
-import persistStateEnhancer from './persistStateEnhancer';
 
 const rootReducer = combineReducers({
   ...sharedReducers,
@@ -17,7 +16,6 @@ const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
 
 export default function configureStore(initialState) {
   const createPersistentStore = composeEnhancers(
-    persistStateEnhancer(),
     applyMiddleware(thunkMiddleware, makeQueryExecuter()),
   )(createStore);
 

@@ -16,7 +16,6 @@ const App = React.createClass({
     }),
     params: PropTypes.shape({
       sourceID: PropTypes.string.isRequired,
-      base64ExplorerID: PropTypes.string,
     }).isRequired,
     publishNotification: PropTypes.func.isRequired,
     dismissNotification: PropTypes.func.isRequired,
@@ -47,11 +46,11 @@ const App = React.createClass({
   },
 
   render() {
-    const {sourceID, base64ExplorerID} = this.props.params;
+    const {sourceID} = this.props.params;
 
     return (
       <div className="chronograf-root">
-        <SideNavContainer sourceID={sourceID} explorationID={base64ExplorerID} addFlashMessage={this.handleNotification} currentLocation={this.props.location.pathname} />
+        <SideNavContainer sourceID={sourceID} addFlashMessage={this.handleNotification} currentLocation={this.props.location.pathname} />
         {this.renderNotifications()}
         {this.props.children && React.cloneElement(this.props.children, {
           addFlashMessage: this.handleNotification,

@@ -2,10 +2,6 @@ import update from 'react-addons-update';
 
 export default function panels(state = {}, action) {
   switch (action.type) {
-    case 'LOAD_EXPLORER': {
-      return action.payload.explorer.data.panels;
-    }
-
     case 'CREATE_PANEL': {
       const {panelId, queryId} = action.payload;
       const panel = {
