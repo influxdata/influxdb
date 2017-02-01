@@ -248,14 +248,10 @@ func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo
 		mw.Add(name, m.Deleted(), pos.offset, pos.size, seriesIDs)
 	}
 
-	// Write data to writer.
+	// Flush data to writer.
 	nn, err := mw.WriteTo(w)
 	*n += nn
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 // indexCompactInfo is a context object used for tracking position information

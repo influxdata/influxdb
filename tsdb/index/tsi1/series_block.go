@@ -47,11 +47,14 @@ type SeriesBlock struct {
 	seriesIndex  []byte
 	seriesIndexN uint64
 
-	// Series counts.
+	// Exact series counts for this block.
 	seriesN    int64
 	tombstoneN int64
 
 	// Series block sketch and tombstone sketch for cardinality estimation.
+	// While we have exact counts for the block, these sketches allow us to
+	// estimate cardinality across multiple blocks (which might contain
+	// duplicate series).
 	sketch, tsketch estimator.Sketch
 }
 
@@ -354,11 +357,7 @@ func (sw *SeriesBlockWriter) Add(name []byte, tags models.Tags, deleted bool) er
 		deleted: deleted,
 	})
 
-	// As the log file is created it's possible that series were added, removed
-	// and then added again. Since sketches cannot have values removed from them
-	// the series would be in both the series and tombstoned series sketches. So
-	// that a series only appears in one of the sketches we rebuild some fresh
-	// sketches for the compaction to a TSI file.
+	// Generate the series key and add it to the appropriate sketch.
 	sw.buf = AppendSeriesKey(sw.buf[:0], name, tags)
 	if deleted {
 		sw.tSketch.Add(sw.buf)

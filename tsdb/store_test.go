@@ -14,6 +14,8 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -394,7 +396,7 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 	}
 }
 
-func TestStore_SeriesCardinality_Tombstoning(t *testing.T) {
+func TestStore_Cardinality_Tombstoning(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping test in short mode.")
 	}
@@ -443,7 +445,7 @@ func TestStore_SeriesCardinality_Tombstoning(t *testing.T) {
 	// Estimated cardinality should be well within 10 of the actual cardinality.
 	// TODO(edd): this epsilon is arbitrary. How can I make it better?
 	if got, exp := math.Abs(float64(cardinality)-0.0), 10.0; got > exp {
-		t.Fatalf("cardinality out by %v (expected within %v), estimation was: %d", got, exp, cardinality)
+		t.Fatalf("series cardinality out by %v (expected within %v), estimation was: %d", got, exp, cardinality)
 	}
 
 	// Since all the series have been deleted, all the measurements should have
@@ -455,12 +457,12 @@ func TestStore_SeriesCardinality_Tombstoning(t *testing.T) {
 	// Estimated cardinality should be well within 2 of the actual cardinality.
 	// TODO(edd): this is totally arbitrary. How can I make it better?
 	if got, exp := math.Abs(float64(cardinality)-0.0), 2.0; got > exp {
-		t.Fatalf("cardinality out by %v (expected within %v), estimation was: %d", got, exp, cardinality)
+		t.Fatalf("measurement cardinality out by %v (expected within %v), estimation was: %d", got, exp, cardinality)
 	}
 
 }
 
-func TestStore_SeriesCardinality_Unique(t *testing.T) {
+func TestStore_Cardinality_Unique(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping test in short mode.")
 	}
@@ -496,13 +498,24 @@ func TestStore_SeriesCardinality_Unique(t *testing.T) {
 
 	// Estimated cardinality should be well within 1.5% of the actual cardinality.
 	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality))/float64(expCardinality), 0.015; got > exp {
-		t.Fatalf("got epsilon of %v for cardinality %d (expected %d), which is larger than expected %v", got, cardinality, expCardinality, exp)
+		t.Fatalf("got epsilon of %v for series cardinality %v (expected %v), which is larger than expected %v", got, cardinality, expCardinality, exp)
+	}
+
+	// Estimate the measurement cardinality...
+	if cardinality, err = store.Store.MeasurementsCardinality("db"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 2 of the actual cardinality. (arbitrary...)
+	expCardinality = 64
+	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality)), 2.0; got > exp {
+		t.Fatalf("got measurmement cardinality %v, expected upto %v; difference is larger than expected %v", cardinality, expCardinality, exp)
 	}
 }
 
 // This test tests cardinality estimation when series data is duplicated across
 // multiple shards.
-func TestStore_SeriesCardinality_Duplicates(t *testing.T) {
+func TestStore_Cardinality_Duplicates(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping test in short mode.")
 	}
@@ -552,7 +565,71 @@ func TestStore_SeriesCardinality_Duplicates(t *testing.T) {
 
 	// Estimated cardinality should be well within 1.5% of the actual cardinality.
 	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality))/float64(expCardinality), 0.015; got > exp {
-		t.Fatalf("got epsilon of %v for cardinality %d (expected %d), which is larger than expected %v", got, cardinality, expCardinality, exp)
+		t.Fatalf("got epsilon of %v for series cardinality %d (expected %d), which is larger than expected %v", got, cardinality, expCardinality, exp)
+	}
+
+	// Estimate the measurement cardinality...
+	if cardinality, err = store.Store.MeasurementsCardinality("db"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 2 of the actual cardinality. (Arbitrary...)
+	expCardinality = 64
+	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality)), 2.0; got > exp {
+		t.Fatalf("got measurement cardinality %v, expected upto %v; difference is larger than expected %v", cardinality, expCardinality, exp)
+	}
+}
+
+// Creates a large number of series in multiple shards, which will force
+// compactions to occur.
+func TestStore_Cardinality_Compactions(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping test in short mode.")
+	}
+
+	store := MustOpenStore()
+	defer store.Close()
+
+	// Generate point data to write to the shards.
+	series := genTestSeries(300, 5, 5) // 937,500 series
+	expCardinality := len(series)
+
+	points := make([]models.Point, 0, len(series))
+	for _, s := range series {
+		points = append(points, models.MustNewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": 1.0}, time.Now()))
+	}
+
+	// Create requested number of shards in the store & write points across
+	// shards such that we never write the same series to multiple shards.
+	for shardID := 0; shardID < 2; shardID++ {
+		if err := store.CreateShard("db", "rp", uint64(shardID), true); err != nil {
+			t.Fatalf("create shard: %s", err)
+		}
+		if err := store.BatchWrite(shardID, points[shardID*468750:(shardID+1)*468750]); err != nil {
+			t.Fatalf("batch write: %s", err)
+		}
+	}
+
+	// Estimate the series cardinality...
+	cardinality, err := store.Store.SeriesCardinality("db")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 1.5% of the actual cardinality.
+	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality))/float64(expCardinality), 0.015; got > exp {
+		t.Fatalf("got epsilon of %v for series cardinality %v (expected %v), which is larger than expected %v", got, cardinality, expCardinality, exp)
+	}
+
+	// Estimate the measurement cardinality...
+	if cardinality, err = store.Store.MeasurementsCardinality("db"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Estimated cardinality should be well within 2 of the actual cardinality. (Arbitrary...)
+	expCardinality = 300
+	if got, exp := math.Abs(float64(cardinality)-float64(expCardinality)), 2.0; got > exp {
+		t.Fatalf("got measurement cardinality %v, expected upto %v; difference is larger than expected %v", cardinality, expCardinality, exp)
 	}
 }
 
@@ -642,10 +719,19 @@ func NewStore() *Store {
 
 	s := &Store{Store: tsdb.NewStore(path)}
 	s.EngineOptions.Config.WALDir = filepath.Join(path, "wal")
+	s.EngineOptions.Config.TraceLoggingEnabled = true
+
+	if testing.Verbose() {
+		s.WithLogger(zap.New(
+			zap.NewTextEncoder(),
+			zap.Output(os.Stderr),
+		))
+	}
 	return s
 }
 
-// MustOpenStore returns a new, open Store at a temporary path.
+// MustOpenStore returns a new, open Store using the default index,
+// at a temporary path.
 func MustOpenStore() *Store {
 	s := NewStore()
 	if err := s.Open(); err != nil {

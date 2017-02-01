@@ -584,13 +584,14 @@ func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 }
 
 // MeasurementsSketches returns the two sketches for the index by merging all
-// instances of the type sketch types in all the indexes files.
+// instances of the type sketch types in all the index files.
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 
+	// sketches will merge all sketches for each index file in the file set.
 	sketch, tsketch, err := fs.sketches(func(f *IndexFile) (estimator.Sketch, estimator.Sketch) {
-		return f.mblk.Sketch, f.mblk.TSketch
+		return f.mblk.sketch, f.mblk.tSketch
 	})
 	if err != nil {
 		return nil, nil, err

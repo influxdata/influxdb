@@ -49,9 +49,11 @@ type MeasurementBlock struct {
 	data     []byte
 	hashData []byte
 
-	// Measurement block sketch and tombstone sketch for cardinality
-	// estimation.
-	Sketch, TSketch estimator.Sketch
+	// Series block sketch and tombstone sketch for cardinality estimation.
+	// While we have exact counts for the block, these sketches allow us to
+	// estimate cardinality across multiple blocks (which might contain
+	// duplicate series).
+	sketch, tSketch estimator.Sketch
 
 	version int // block version
 }
@@ -124,12 +126,12 @@ func (blk *MeasurementBlock) UnmarshalBinary(data []byte) error {
 	if err := s.UnmarshalBinary(data[t.Sketch.Offset:][:t.Sketch.Size]); err != nil {
 		return err
 	}
-	blk.Sketch = s
+	blk.sketch = s
 
 	if err := ts.UnmarshalBinary(data[t.TSketch.Offset:][:t.TSketch.Size]); err != nil {
 		return err
 	}
-	blk.TSketch = ts
+	blk.tSketch = ts
 
 	return nil
 }
@@ -395,6 +397,13 @@ func (mw *MeasurementBlockWriter) Add(name []byte, deleted bool, offset, size in
 // WriteTo encodes the measurements to w.
 func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	var t MeasurementBlockTrailer
+
+	// The sketches must be set before calling WriteTo.
+	if mw.sketch == nil {
+		return 0, errors.New("measurement sketch not set")
+	} else if mw.tSketch == nil {
+		return 0, errors.New("measurement tombstone sketch not set")
+	}
 
 	// Sort names.
 	names := make([]string, 0, len(mw.mms))

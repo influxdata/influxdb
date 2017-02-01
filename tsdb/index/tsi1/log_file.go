@@ -544,7 +544,7 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 		mm.tagSet[string(t.Key)] = ts
 	}
 
-	// Update the sketches...
+	// Update the sketches.
 	if deleted {
 		// TODO(edd) decrement series count...
 		f.sTSketch.Add(key) // Deleting series so update tombstone sketch.
@@ -785,18 +785,14 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, n *int64)
 	// Add measurement data.
 	for _, name := range names {
 		mm := f.mms[name]
-
 		sort.Sort(uint64Slice(mm.seriesIDs))
 		mw.Add(mm.name, mm.deleted, mm.offset, mm.size, mm.seriesIDs)
 	}
 
-	// Write data to writer.
+	// Flush data to writer.
 	nn, err := mw.WriteTo(w)
 	*n += nn
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 // reset clears all the compaction fields on the in-memory index.
