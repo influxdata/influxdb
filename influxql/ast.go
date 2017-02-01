@@ -4490,7 +4490,7 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 			return EvalType(expr.Args[0], sources, typmap)
 		}
 	case *ParenExpr:
-		return EvalType(expr, sources, typmap)
+		return EvalType(expr.Expr, sources, typmap)
 	case *NumberLiteral:
 		return Float
 	case *IntegerLiteral:
