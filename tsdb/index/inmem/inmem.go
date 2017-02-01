@@ -453,42 +453,35 @@ func (i *Index) dropMeasurement(name string) error {
 	return nil
 }
 
-// DropSeries removes the series keys and their tags from the index
-func (i *Index) DropSeries(keys [][]byte) error {
-	if len(keys) == 0 {
+// DropSeries removes the series key and its tags from the index.
+func (i *Index) DropSeries(key []byte) error {
+	if key == nil {
 		return nil
 	}
 
+	// TODO(edd) stats not being updated.
 	i.mu.Lock()
-	defer i.mu.Unlock()
-
-	var (
-		mToDelete = map[string]struct{}{}
-		nDeleted  int64
-	)
-
-	for _, k := range keys {
-		// Update the tombstone sketch.
-		i.seriesTSSketch.Add(k)
-
-		series := i.series[string(k)]
-		if series == nil {
-			continue
-		}
-		series.Measurement().DropSeries(series)
-		delete(i.series, string(k))
-		nDeleted++
-
-		// If there are no more series in the measurement then we'll
-		// remove it.
-		if len(series.Measurement().SeriesByIDMap()) == 0 {
-			mToDelete[series.Measurement().Name] = struct{}{}
-		}
+	k := string(key)
+	series := i.series[k]
+	if series == nil {
+		return nil
 	}
 
-	for mname := range mToDelete {
-		i.dropMeasurement(mname)
+	// Update the tombstone sketch.
+	i.seriesTSSketch.Add([]byte(k))
+
+	// Remove from the index.
+	delete(i.series, k)
+
+	// Remove the measurement's reference.
+	series.Measurement().DropSeries(series)
+
+	// If the measurement no longer has any series, remove it as well.
+	if !series.Measurement().HasSeries() {
+		i.dropMeasurement(series.Measurement().Name)
 	}
+	i.mu.Unlock()
+
 	return nil
 }
 
@@ -648,21 +641,8 @@ func (i *Index) UnassignShard(k string, shardID uint64) error {
 
 			// If this series no longer has shards assigned, remove the series
 			if ss.ShardN() == 0 {
-				// Remove the series the measurements
-				ss.Measurement().DropSeries(ss)
-
-				// If the measurement no longer has any series, remove it as well
-				if !ss.Measurement().HasSeries() {
-					i.mu.Lock()
-					i.dropMeasurement(ss.Measurement().Name)
-					i.mu.Unlock()
-				}
-
-				// Remove the series key from the series index
-				i.mu.Lock()
-				delete(i.series, k)
-				// atomic.AddInt64(&i.stats.NumSeries, -1)
-				i.mu.Unlock()
+				// Remove the series key from the index.
+				return i.DropSeries([]byte(k))
 			}
 		}
 	}

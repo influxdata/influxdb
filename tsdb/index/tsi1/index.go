@@ -518,42 +518,40 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 	return nil
 }
 
-func (i *Index) DropSeries(keys [][]byte) error {
+func (i *Index) DropSeries(key []byte) error {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
-	for _, key := range keys {
-		name, tags, err := models.ParseKey(key)
-		if err != nil {
+	name, tags, err := models.ParseKey(key)
+	if err != nil {
+		return err
+	}
+
+	mname := []byte(name)
+	if err := i.withLogFile(func(f *LogFile) error {
+		if err := f.DeleteSeries(mname, tags); err != nil {
 			return err
 		}
 
-		mname := []byte(name)
-		if err := i.withLogFile(func(f *LogFile) error {
-			if err := f.DeleteSeries(mname, tags); err != nil {
-				return err
-			}
+		// Obtain file set after deletion because that may add a new log file.
+		fs := i.retainFileSet()
+		defer fs.Release()
 
-			// Obtain file set after deletion because that may add a new log file.
-			fs := i.retainFileSet()
-			defer fs.Release()
-
-			// Check if that was the last series for the measurement in the entire index.
-			itr := fs.MeasurementSeriesIterator(mname)
-			if itr == nil {
-				return nil
-			} else if e := itr.Next(); e != nil {
-				return nil
-			}
-
-			// If no more series exist in the measurement then delete the measurement.
-			if err := f.DeleteMeasurement(mname); err != nil {
-				return err
-			}
+		// Check if that was the last series for the measurement in the entire index.
+		itr := fs.MeasurementSeriesIterator(mname)
+		if itr == nil {
 			return nil
-		}); err != nil {
+		} else if e := itr.Next(); e != nil {
+			return nil
+		}
+
+		// If no more series exist in the measurement then delete the measurement.
+		if err := f.DeleteMeasurement(mname); err != nil {
 			return err
 		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	i.checkFastCompaction()
@@ -746,7 +744,7 @@ func (i *Index) AssignShard(k string, shardID uint64)  {}
 
 func (i *Index) UnassignShard(k string, shardID uint64) error {
 	// This can be called directly once inmem is gone.
-	return i.DropSeries([][]byte{[]byte(k)})
+	return i.DropSeries([]byte(k))
 }
 
 // SeriesPointIterator returns an influxql iterator over all series.
