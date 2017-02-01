@@ -49,6 +49,7 @@
 .multi-select-dropdown.open {
   .dropdown-options {
     visibility: visible;
+    z-index: 9999;
   }
   .dropdown-menu,
   .multi-select-dropdown__apply {
