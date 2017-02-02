@@ -195,6 +195,7 @@ func (s *Store) loadShards() error {
 			if err != nil {
 				return err
 			}
+
 			for _, sh := range shardDirs {
 				n++
 				go func(db, rp, sh string) {

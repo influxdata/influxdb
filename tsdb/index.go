@@ -92,20 +92,23 @@ func RegisteredIndexes() []string {
 // NewIndex returns an instance of an index based on its format.
 // If the path does not exist then the DefaultFormat is used.
 func NewIndex(id uint64, path string, options EngineOptions) (Index, error) {
-	// Create a new index.
-	if _, err := os.Stat(path); os.IsNotExist(err) && options.Config.Index != "inmem" {
-		return newIndexFuncs[options.IndexVersion](id, path, options), nil
-	}
+	format := options.IndexVersion
 
-	// Use default format.
-	format := options.Config.Index
+	// Use default format unless existing directory exists.
+	_, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		// nop, use default
+	} else if err != nil {
+		return nil, err
+	} else if err == nil {
+		format = "tsi1"
+	}
 
 	// Lookup index by format.
 	fn := newIndexFuncs[format]
 	if fn == nil {
 		return nil, fmt.Errorf("invalid index format: %q", format)
 	}
-
 	return fn(id, path, options), nil
 }
 
