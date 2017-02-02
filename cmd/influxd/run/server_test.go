@@ -5543,6 +5543,12 @@ func TestServer_Query_With_EmptyTags(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2009-11-10T23:00:03Z",2]]}]}]}`,
 		},
 		&Query{
+			name:    "where regex exact (case insensitive)",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select value from cpu where host =~ /(?i)^SeRvEr01$/`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2009-11-10T23:00:03Z",2]]}]}]}`,
+		},
+		&Query{
 			name:    "where regex exact (not)",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select value from cpu where host !~ /^server01$/`,
