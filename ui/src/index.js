@@ -23,10 +23,17 @@ import 'src/style/chronograf.scss';
 
 const defaultTimeRange = {upper: null, lower: 'now() - 15m'};
 const lsTimeRange = window.localStorage.getItem('timeRange');
+const persistedPanels = window.localStorage.getItem('panels');
+const persistedQueryConfigs = window.localStorage.getItem('queryConfigs');
 const parsedTimeRange = JSON.parse(lsTimeRange) || {};
 const timeRange = Object.assign(defaultTimeRange, parsedTimeRange);
 
-const store = configureStore({timeRange});
+const store = configureStore({
+  timeRange,
+  panels: JSON.parse(persistedPanels),
+  queryConfigs: JSON.parse(persistedQueryConfigs),
+});
+
 const rootNode = document.getElementById('react-root');
 
 let browserHistory;
