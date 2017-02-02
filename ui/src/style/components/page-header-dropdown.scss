@@ -24,4 +24,17 @@
   .dropdown-toggle:hover {
     color: $c-pool;
   }
+  /* Menu */
+  .dropdown-menu {
+    z-index: 9000;
+    width: 250px;
+    min-width: 250px;
+    max-width: 250px;
+
+    & > li > a {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
 }
