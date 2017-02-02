@@ -1258,29 +1258,9 @@ func (itr *floatExprIterator) Close() error {
 
 func (itr *floatExprIterator) Next() (*FloatPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -1320,6 +1300,48 @@ func (itr *floatExprIterator) Next() (*FloatPoint, error) {
 		return a, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *floatExprIterator) next() (a, b *FloatPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // floatExprFunc creates or modifies a point by combining two
@@ -1598,29 +1620,9 @@ func (itr *floatIntegerExprIterator) Close() error {
 
 func (itr *floatIntegerExprIterator) Next() (*IntegerPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -1664,6 +1666,48 @@ func (itr *floatIntegerExprIterator) Next() (*IntegerPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *floatIntegerExprIterator) next() (a, b *FloatPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // floatIntegerExprFunc creates or modifies a point by combining two
@@ -1942,29 +1986,9 @@ func (itr *floatStringExprIterator) Close() error {
 
 func (itr *floatStringExprIterator) Next() (*StringPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -2008,6 +2032,48 @@ func (itr *floatStringExprIterator) Next() (*StringPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *floatStringExprIterator) next() (a, b *FloatPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // floatStringExprFunc creates or modifies a point by combining two
@@ -2286,29 +2352,9 @@ func (itr *floatBooleanExprIterator) Close() error {
 
 func (itr *floatBooleanExprIterator) Next() (*BooleanPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -2352,6 +2398,48 @@ func (itr *floatBooleanExprIterator) Next() (*BooleanPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *floatBooleanExprIterator) next() (a, b *FloatPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // floatBooleanExprFunc creates or modifies a point by combining two
@@ -3798,29 +3886,9 @@ func (itr *integerFloatExprIterator) Close() error {
 
 func (itr *integerFloatExprIterator) Next() (*FloatPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -3864,6 +3932,48 @@ func (itr *integerFloatExprIterator) Next() (*FloatPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *integerFloatExprIterator) next() (a, b *IntegerPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // integerFloatExprFunc creates or modifies a point by combining two
@@ -4142,29 +4252,9 @@ func (itr *integerExprIterator) Close() error {
 
 func (itr *integerExprIterator) Next() (*IntegerPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -4204,6 +4294,48 @@ func (itr *integerExprIterator) Next() (*IntegerPoint, error) {
 		return a, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *integerExprIterator) next() (a, b *IntegerPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // integerExprFunc creates or modifies a point by combining two
@@ -4482,29 +4614,9 @@ func (itr *integerStringExprIterator) Close() error {
 
 func (itr *integerStringExprIterator) Next() (*StringPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -4548,6 +4660,48 @@ func (itr *integerStringExprIterator) Next() (*StringPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *integerStringExprIterator) next() (a, b *IntegerPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // integerStringExprFunc creates or modifies a point by combining two
@@ -4826,29 +4980,9 @@ func (itr *integerBooleanExprIterator) Close() error {
 
 func (itr *integerBooleanExprIterator) Next() (*BooleanPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -4892,6 +5026,48 @@ func (itr *integerBooleanExprIterator) Next() (*BooleanPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *integerBooleanExprIterator) next() (a, b *IntegerPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // integerBooleanExprFunc creates or modifies a point by combining two
@@ -6323,29 +6499,9 @@ func (itr *stringFloatExprIterator) Close() error {
 
 func (itr *stringFloatExprIterator) Next() (*FloatPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -6389,6 +6545,48 @@ func (itr *stringFloatExprIterator) Next() (*FloatPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *stringFloatExprIterator) next() (a, b *StringPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // stringFloatExprFunc creates or modifies a point by combining two
@@ -6667,29 +6865,9 @@ func (itr *stringIntegerExprIterator) Close() error {
 
 func (itr *stringIntegerExprIterator) Next() (*IntegerPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -6733,6 +6911,48 @@ func (itr *stringIntegerExprIterator) Next() (*IntegerPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *stringIntegerExprIterator) next() (a, b *StringPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // stringIntegerExprFunc creates or modifies a point by combining two
@@ -7011,29 +7231,9 @@ func (itr *stringExprIterator) Close() error {
 
 func (itr *stringExprIterator) Next() (*StringPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -7073,6 +7273,48 @@ func (itr *stringExprIterator) Next() (*StringPoint, error) {
 		return a, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *stringExprIterator) next() (a, b *StringPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // stringExprFunc creates or modifies a point by combining two
@@ -7351,29 +7593,9 @@ func (itr *stringBooleanExprIterator) Close() error {
 
 func (itr *stringBooleanExprIterator) Next() (*BooleanPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -7417,6 +7639,48 @@ func (itr *stringBooleanExprIterator) Next() (*BooleanPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *stringBooleanExprIterator) next() (a, b *StringPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // stringBooleanExprFunc creates or modifies a point by combining two
@@ -8848,29 +9112,9 @@ func (itr *booleanFloatExprIterator) Close() error {
 
 func (itr *booleanFloatExprIterator) Next() (*FloatPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -8914,6 +9158,48 @@ func (itr *booleanFloatExprIterator) Next() (*FloatPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *booleanFloatExprIterator) next() (a, b *BooleanPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // booleanFloatExprFunc creates or modifies a point by combining two
@@ -9192,29 +9478,9 @@ func (itr *booleanIntegerExprIterator) Close() error {
 
 func (itr *booleanIntegerExprIterator) Next() (*IntegerPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -9258,6 +9524,48 @@ func (itr *booleanIntegerExprIterator) Next() (*IntegerPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *booleanIntegerExprIterator) next() (a, b *BooleanPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // booleanIntegerExprFunc creates or modifies a point by combining two
@@ -9536,29 +9844,9 @@ func (itr *booleanStringExprIterator) Close() error {
 
 func (itr *booleanStringExprIterator) Next() (*StringPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -9602,6 +9890,48 @@ func (itr *booleanStringExprIterator) Next() (*StringPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *booleanStringExprIterator) next() (a, b *BooleanPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // booleanStringExprFunc creates or modifies a point by combining two
@@ -9880,29 +10210,9 @@ func (itr *booleanExprIterator) Close() error {
 
 func (itr *booleanExprIterator) Next() (*BooleanPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -9942,6 +10252,48 @@ func (itr *booleanExprIterator) Next() (*BooleanPoint, error) {
 		return a, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *booleanExprIterator) next() (a, b *BooleanPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // booleanExprFunc creates or modifies a point by combining two
