@@ -125,8 +125,6 @@ export function editRawText(queryId, rawText) {
 }
 
 export function setTimeRange(range) {
-  window.localStorage.setItem('timeRange', JSON.stringify(range));
-
   return {
     type: 'SET_TIME_RANGE',
     payload: range,
