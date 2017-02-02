@@ -9,26 +9,32 @@ import {
   setTimeRange as setTimeRangeAction,
 } from '../actions/view';
 
+const {
+  func,
+  shape,
+  string,
+} = PropTypes;
+
 const DataExplorer = React.createClass({
   propTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
-        self: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
+        self: string.isRequired,
       }).isRequired,
     }).isRequired,
-    timeRange: PropTypes.shape({
-      upper: PropTypes.string,
-      lower: PropTypes.string,
+    timeRange: shape({
+      upper: string,
+      lower: string,
     }).isRequired,
-    setTimeRange: PropTypes.func.isRequired,
+    setTimeRange: func.isRequired,
   },
 
   childContextTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
-        self: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
+        self: string.isRequired,
       }).isRequired,
     }).isRequired,
   },
