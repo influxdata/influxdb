@@ -1259,29 +1259,9 @@ func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) C
 
 func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) Next() (*{{$v.Name}}Point, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
-			return nil, err
-		}
-
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil ) {
-			return nil, nil
-		}
-
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
 		}
 
 		if a == nil || a.Nil {
@@ -1328,6 +1308,48 @@ func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) N
 		return p, nil
 {{end}}
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) next() (a, b *{{$k.Name}}Point, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprFunc creates or modifies a point by combining two

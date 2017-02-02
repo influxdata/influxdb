@@ -1684,6 +1684,15 @@ func TestServer_Query_SelectGroupByTimeDerivative(t *testing.T) {
 cpu value=15 1278010021000000000
 cpu value=20 1278010022000000000
 cpu value=25 1278010023000000000
+
+cpu0,host=server01 ticks=10,total=100 1278010020000000000
+cpu0,host=server01 ticks=30,total=100 1278010021000000000
+cpu0,host=server01 ticks=32,total=100 1278010022000000000
+cpu0,host=server01 ticks=47,total=100 1278010023000000000
+cpu0,host=server02 ticks=40,total=100 1278010020000000000
+cpu0,host=server02 ticks=45,total=100 1278010021000000000
+cpu0,host=server02 ticks=84,total=100 1278010022000000000
+cpu0,host=server02 ticks=101,total=100 1278010023000000000
 `)},
 	}
 
@@ -1788,6 +1797,11 @@ cpu value=25 1278010023000000000
 			name:    "calculate derivative of percentile with unit 4s group by time",
 			command: `SELECT derivative(percentile(value, 50), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of ticks divided by aggregate",
+			command: `SELECT non_negative_derivative(mean(ticks), 1s) / last(total) * 100 AS usage FROM db0.rp0.cpu0 WHERE time >= '2010-07-01 18:47:00' AND time <= '2010-07-01 18:47:03' GROUP BY host, time(1s)`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu0","tags":{"host":"server01"},"columns":["time","usage"],"values":[["2010-07-01T18:47:00Z",null],["2010-07-01T18:47:01Z",20],["2010-07-01T18:47:02Z",2],["2010-07-01T18:47:03Z",15]]},{"name":"cpu0","tags":{"host":"server02"},"columns":["time","usage"],"values":[["2010-07-01T18:47:00Z",null],["2010-07-01T18:47:01Z",5],["2010-07-01T18:47:02Z",39],["2010-07-01T18:47:03Z",17]]}]}]}`,
 		},
 	}...)
 
