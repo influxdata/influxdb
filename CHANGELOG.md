@@ -7,6 +7,7 @@
 - [#7910](https://github.com/influxdata/influxdb/issues/7910): Fix EvalType when a parenthesis expression is used.
 - [#7929](https://github.com/influxdata/influxdb/issues/7929): Fix series tag iteration segfault. (#7922)
 - [#7906](https://github.com/influxdata/influxdb/issues/7906): Anchors not working as expected with case-insensitive regex
+- [#7895](https://github.com/influxdata/influxdb/issues/7895): Fix incorrect math when aggregates that emit different times are used.
 
 ## v1.2.0 [2017-01-24]
 
