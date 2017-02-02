@@ -6,6 +6,7 @@
 - [#7888](https://github.com/influxdata/influxdb/pull/7888): Expand query dimensions from the subquery.
 - [#7910](https://github.com/influxdata/influxdb/issues/7910): Fix EvalType when a parenthesis expression is used.
 - [#7929](https://github.com/influxdata/influxdb/issues/7929): Fix series tag iteration segfault. (#7922)
+- [#7906](https://github.com/influxdata/influxdb/issues/7906): Anchors not working as expected with case-insensitive regex
 
 ## v1.2.0 [2017-01-24]
 
