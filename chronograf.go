@@ -8,16 +8,15 @@ import (
 
 // General errors.
 const (
-	ErrUpstreamTimeout     = Error("request to backend timed out")
-	ErrExplorationNotFound = Error("exploration not found")
-	ErrSourceNotFound      = Error("source not found")
-	ErrServerNotFound      = Error("server not found")
-	ErrLayoutNotFound      = Error("layout not found")
-	ErrDashboardNotFound   = Error("dashboard not found")
-	ErrUserNotFound        = Error("user not found")
-	ErrLayoutInvalid       = Error("layout is invalid")
-	ErrAlertNotFound       = Error("alert not found")
-	ErrAuthentication      = Error("user not authenticated")
+	ErrUpstreamTimeout   = Error("request to backend timed out")
+	ErrSourceNotFound    = Error("source not found")
+	ErrServerNotFound    = Error("server not found")
+	ErrLayoutNotFound    = Error("layout not found")
+	ErrDashboardNotFound = Error("dashboard not found")
+	ErrUserNotFound      = Error("user not found")
+	ErrLayoutInvalid     = Error("layout is invalid")
+	ErrAlertNotFound     = Error("alert not found")
+	ErrAuthentication    = Error("user not authenticated")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -238,13 +237,13 @@ type Dashboard struct {
 
 // DashboardCell holds visual and query information for a cell
 type DashboardCell struct {
-	X       int32    `json:"x"`
-	Y       int32    `json:"y"`
-	W       int32    `json:"w"`
-	H       int32    `json:"h"`
-	Name    string   `json:"name"`
+	X       int32   `json:"x"`
+	Y       int32   `json:"y"`
+	W       int32   `json:"w"`
+	H       int32   `json:"h"`
+	Name    string  `json:"name"`
 	Queries []Query `json:"queries"`
-	Type    string   `json:"type"`
+	Type    string  `json:"type"`
 }
 
 // DashboardsStore is the storage and retrieval of dashboards
@@ -259,34 +258,6 @@ type DashboardsStore interface {
 	Get(ctx context.Context, id DashboardID) (Dashboard, error)
 	// Update replaces the dashboard information
 	Update(context.Context, Dashboard) error
-}
-
-// ExplorationID is a unique ID for an Exploration.
-type ExplorationID int
-
-// Exploration is a serialization of front-end Data Explorer.
-type Exploration struct {
-	ID        ExplorationID
-	Name      string    // User provided name of the Exploration.
-	UserID    UserID    // UserID is the owner of this Exploration.
-	Data      string    // Opaque blob of JSON data.
-	CreatedAt time.Time // Time the exploration was first created.
-	UpdatedAt time.Time // Latest time the exploration was updated.
-	Default   bool      // Flags an exploration as the default.
-}
-
-// ExplorationStore stores front-end serializations of data explorer sessions.
-type ExplorationStore interface {
-	// Search the ExplorationStore for each Exploration owned by `UserID`.
-	Query(ctx context.Context, userID UserID) ([]*Exploration, error)
-	// Create a new Exploration in the ExplorationStore.
-	Add(context.Context, *Exploration) (*Exploration, error)
-	// Delete the Exploration from the ExplorationStore.
-	Delete(context.Context, *Exploration) error
-	// Retrieve an Exploration if `ID` exists.
-	Get(ctx context.Context, ID ExplorationID) (*Exploration, error)
-	// Update the Exploration; will also update the `UpdatedAt` time.
-	Update(context.Context, *Exploration) error
 }
 
 // Cell is a rectangle and multiple time series queries to visualize.

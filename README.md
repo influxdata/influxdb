@@ -59,7 +59,6 @@ Chronograf's graphing tool that allows you to dig in and create personalized vis
 * Generate [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) statements with the query builder
 * Generate and edit [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) statements with the raw query editor
 * Create visualizations and view query results in tabular format
-* Manage visualizations with exploration sessions
 
 ### Dashboards
 
