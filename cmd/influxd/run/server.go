@@ -168,6 +168,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 	// Copy TSDB configuration.
 	s.TSDBStore.EngineOptions.EngineVersion = c.Data.Engine
+	s.TSDBStore.EngineOptions.IndexVersion = c.Data.Index
 
 	// Create the Subscriber service
 	s.Subscriber = subscriber.NewService(c.Subscriber)

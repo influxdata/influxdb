@@ -216,6 +216,11 @@ func (s *Store) loadShards() error {
 					opt := s.EngineOptions
 					opt.InmemIndex = idx
 
+					// Existing shards should continue to use inmem index.
+					if _, err := os.Stat(filepath.Join(path, "index")); os.IsNotExist(err) {
+						opt.IndexVersion = "inmem"
+					}
+
 					// Open engine.
 					shard := NewShard(shardID, path, walPath, opt)
 					shard.WithLogger(s.baseLogger)

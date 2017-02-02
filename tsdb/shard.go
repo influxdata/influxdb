@@ -258,9 +258,12 @@ func (s *Shard) Open() error {
 
 		// Initialize underlying index.
 		ipath := filepath.Join(s.path, "index")
-		// Create directory.
-		if err := os.MkdirAll(ipath, 0700); err != nil {
-			return err
+
+		// Create directory if this is not an in-memory index.
+		if s.options.IndexVersion != "inmem" {
+			if err := os.MkdirAll(ipath, 0700); err != nil {
+				return err
+			}
 		}
 
 		idx, err := NewIndex(s.id, ipath, s.options)

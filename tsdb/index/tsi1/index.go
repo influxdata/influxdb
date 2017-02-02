@@ -820,7 +820,7 @@ func (i *Index) compactLogFile() error {
 		return nil
 	}
 
-	log.Printf("tsi1: compacting log file: file=%s", logFile.Path)
+	log.Printf("tsi1: compacting log file: file=%s", logFile.Path())
 
 	// Create new index file.
 	path := filepath.Join(i.Path, FormatIndexFileName(id))
@@ -967,7 +967,7 @@ func (i *Index) checkFullCompaction(force bool) error {
 
 	// Close and delete all old index files.
 	for _, f := range oldIndexFiles {
-		log.Printf("tsi1: removing index file: file=%s", f.Path)
+		log.Printf("tsi1: removing index file: file=%s", f.Path())
 
 		if err := f.Close(); err != nil {
 			return err
