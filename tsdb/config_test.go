@@ -45,4 +45,20 @@ func TestConfig_Validate_Error(t *testing.T) {
 	if err := c.Validate(); err == nil || err.Error() != "unrecognized engine fake1" {
 		t.Errorf("unexpected error: %s", err)
 	}
+
+	c.Engine = "tsm1"
+	c.Index = "foo"
+	if err := c.Validate(); err == nil || err.Error() != "unrecognized index foo" {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	c.Index = "inmem"
+	if err := c.Validate(); err != nil {
+		t.Error(err)
+	}
+
+	c.Index = "tsi1"
+	if err := c.Validate(); err != nil {
+		t.Error(err)
+	}
 }
