@@ -1684,6 +1684,15 @@ func TestServer_Query_SelectGroupByTimeDerivative(t *testing.T) {
 cpu value=15 1278010021000000000
 cpu value=20 1278010022000000000
 cpu value=25 1278010023000000000
+
+cpu0,host=server01 ticks=10,total=100 1278010020000000000
+cpu0,host=server01 ticks=30,total=100 1278010021000000000
+cpu0,host=server01 ticks=32,total=100 1278010022000000000
+cpu0,host=server01 ticks=47,total=100 1278010023000000000
+cpu0,host=server02 ticks=40,total=100 1278010020000000000
+cpu0,host=server02 ticks=45,total=100 1278010021000000000
+cpu0,host=server02 ticks=84,total=100 1278010022000000000
+cpu0,host=server02 ticks=101,total=100 1278010023000000000
 `)},
 	}
 
@@ -1788,6 +1797,11 @@ cpu value=25 1278010023000000000
 			name:    "calculate derivative of percentile with unit 4s group by time",
 			command: `SELECT derivative(percentile(value, 50), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of ticks divided by aggregate",
+			command: `SELECT non_negative_derivative(mean(ticks), 1s) / last(total) * 100 AS usage FROM db0.rp0.cpu0 WHERE time >= '2010-07-01 18:47:00' AND time <= '2010-07-01 18:47:03' GROUP BY host, time(1s)`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu0","tags":{"host":"server01"},"columns":["time","usage"],"values":[["2010-07-01T18:47:00Z",null],["2010-07-01T18:47:01Z",20],["2010-07-01T18:47:02Z",2],["2010-07-01T18:47:03Z",15]]},{"name":"cpu0","tags":{"host":"server02"},"columns":["time","usage"],"values":[["2010-07-01T18:47:00Z",null],["2010-07-01T18:47:01Z",5],["2010-07-01T18:47:02Z",39],["2010-07-01T18:47:03Z",17]]}]}]}`,
 		},
 	}...)
 
@@ -7343,6 +7357,51 @@ func TestServer_Query_Sample_Wildcard(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT sample(*, 1) FROM cpu`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","sample_bool","sample_float","sample_int","sample_string"],"values":[["2000-01-01T00:00:00Z",true,1,1,"hello, world"]]}]}]}`,
+		},
+	}...)
+
+	if err := test.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+// Validate that nested aggregates don't panic
+func TestServer_NestedAggregateWithMathPanics(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		`cpu value=2 0`,
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "dividing by elapsed count should not panic",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum(value) / elapsed(sum(value), 1m) FROM cpu WHERE time >= 0 AND time < 10m GROUP BY time(1m)`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","sum_elapsed"],"values":[["1970-01-01T00:00:00Z",null],["1970-01-01T00:01:00Z",null],["1970-01-01T00:02:00Z",null],["1970-01-01T00:03:00Z",null],["1970-01-01T00:04:00Z",null],["1970-01-01T00:05:00Z",null],["1970-01-01T00:06:00Z",null],["1970-01-01T00:07:00Z",null],["1970-01-01T00:08:00Z",null],["1970-01-01T00:09:00Z",null]]}]}]}`,
 		},
 	}...)
 
