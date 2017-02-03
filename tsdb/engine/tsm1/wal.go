@@ -88,6 +88,8 @@ type WAL struct {
 
 	// cache and flush variables
 	closing chan struct{}
+	// goroutines waiting for the next fsync
+	syncWaiters chan chan error
 
 	// WALOutput is the writer used by the logger.
 	logger       zap.Logger // Logger to be used for important messages
@@ -111,6 +113,7 @@ func NewWAL(path string) *WAL {
 		// these options should be overriden by any options in the config
 		SegmentSize: DefaultSegmentSize,
 		closing:     make(chan struct{}),
+		syncWaiters: make(chan chan error, 256),
 		stats:       &WALStatistics{},
 		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
 		logger:      logger,
@@ -218,8 +221,30 @@ func (l *WAL) Open() error {
 	atomic.StoreInt64(&l.stats.OldBytes, totalOldDiskSize)
 
 	l.closing = make(chan struct{})
+	go l.syncPeriodically()
 
 	return nil
+}
+
+func (l *WAL) syncPeriodically() {
+	t := time.NewTicker(100 * time.Millisecond)
+	defer t.Stop()
+	for {
+		select {
+		case <-t.C:
+			if len(l.syncWaiters) > 0 {
+				l.mu.Lock()
+				err := l.currentSegmentWriter.sync()
+				for i := 0; i < len(l.syncWaiters); i++ {
+					errC := <-l.syncWaiters
+					errC <- err
+				}
+				l.mu.Unlock()
+			}
+		case <-l.closing:
+			return
+		}
+	}
 }
 
 // WritePoints writes the given points to the WAL. It returns the WAL segment ID to
@@ -328,32 +353,43 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	defer putBuf(encBuf)
 	compressed := snappy.Encode(encBuf, b)
 
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	syncErr := make(chan error)
 
-	// Make sure the log has not been closed
-	select {
-	case <-l.closing:
-		return -1, ErrWALClosed
-	default:
+	segID, err := func() (int, error) {
+		l.mu.Lock()
+		defer l.mu.Unlock()
+
+		// Make sure the log has not been closed
+		select {
+		case <-l.closing:
+			return -1, ErrWALClosed
+		default:
+		}
+
+		// roll the segment file if needed
+		if err := l.rollSegment(); err != nil {
+			return -1, fmt.Errorf("error rolling WAL segment: %v", err)
+		}
+
+		// write and sync
+		if err := l.currentSegmentWriter.Write(entry.Type(), compressed); err != nil {
+			return -1, fmt.Errorf("error writing WAL entry: %v", err)
+		}
+
+		// Update stats for current segment size
+		atomic.StoreInt64(&l.stats.CurrentBytes, int64(l.currentSegmentWriter.size))
+
+		l.lastWriteTime = time.Now()
+
+		l.syncWaiters <- syncErr
+		return l.currentSegmentID, nil
+
+	}()
+	if err != nil {
+		return segID, err
 	}
 
-	// roll the segment file if needed
-	if err := l.rollSegment(); err != nil {
-		return -1, fmt.Errorf("error rolling WAL segment: %v", err)
-	}
-
-	// write and sync
-	if err := l.currentSegmentWriter.Write(entry.Type(), compressed); err != nil {
-		return -1, fmt.Errorf("error writing WAL entry: %v", err)
-	}
-
-	// Update stats for current segment size
-	atomic.StoreInt64(&l.stats.CurrentBytes, int64(l.currentSegmentWriter.size))
-
-	l.lastWriteTime = time.Now()
-
-	return l.currentSegmentID, l.currentSegmentWriter.sync()
+	return segID, <-syncErr
 }
 
 // rollSegment checks if the current segment is due to roll over to a new segment;
