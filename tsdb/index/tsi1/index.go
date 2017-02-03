@@ -872,10 +872,10 @@ func (i *Index) compactLogFile() error {
 	}(); err != nil {
 		return err
 	}
-	log.Printf("tsi1: finished compacting log file: file=%s, t=%s", logFile.Path, time.Since(start))
+	log.Printf("tsi1: finished compacting log file: file=%s, t=%v", logFile.Path(), time.Since(start))
 
 	// Closing the log file will automatically wait until the ref count is zero.
-	log.Printf("tsi1: removing log file: file=%s", logFile.Path)
+	log.Printf("tsi1: removing log file: file=%s", logFile.Path())
 	if err := logFile.Close(); err != nil {
 		return err
 	} else if err := os.Remove(logFile.Path()); err != nil {
