@@ -1369,7 +1369,7 @@ func matchExactRegex(v string) (string, bool) {
 
 	if len(re.Sub) == 3 {
 		middle := re.Sub[1]
-		if middle.Op != syntax.OpLiteral {
+		if middle.Op != syntax.OpLiteral || middle.Flags^syntax.Perl != 0 {
 			// Regex does not contain a literal op.
 			return "", false
 		}
