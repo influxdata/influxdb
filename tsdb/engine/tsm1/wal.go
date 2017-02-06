@@ -64,7 +64,7 @@ var (
 	// ErrWALCorrupt is returned when reading a corrupt WAL entry.
 	ErrWALCorrupt = fmt.Errorf("corrupted WAL entry")
 
-	defaultWaitingWALWrites = runtime.NumCPU()
+	defaultWaitingWALWrites = runtime.GOMAXPROCS(0) * 2
 )
 
 // Statistics gathered by the WAL.
