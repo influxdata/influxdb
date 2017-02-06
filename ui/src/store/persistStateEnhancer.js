@@ -13,11 +13,11 @@ import {saveToLocalStorage} from '../localStorage';
 export default function persistState() {
   return (next) => (reducer, initialState, enhancer) => {
     const store = next(reducer, initialState, enhancer);
-    const debounceMs = 1000;
+    const throttleMs = 1000;
 
-    store.subscribe(_.debounce(() => {
+    store.subscribe(_.throttle(() => {
       saveToLocalStorage({...store.getState()});
-    }, debounceMs));
+    }, throttleMs));
 
     return store;
   };

@@ -27,6 +27,7 @@ const DataExplorer = React.createClass({
       upper: string,
       lower: string,
     }).isRequired,
+    activePanel: string,
     setTimeRange: func.isRequired,
   },
 
@@ -45,13 +46,8 @@ const DataExplorer = React.createClass({
 
   getInitialState() {
     return {
-      activePanelID: null,
       activeQueryID: null,
     };
-  },
-
-  handleSetActivePanel(id) {
-    this.setState({activePanelID: id});
   },
 
   handleSetActiveQuery(id) {
@@ -59,7 +55,7 @@ const DataExplorer = React.createClass({
   },
 
   render() {
-    const {timeRange, setTimeRange} = this.props;
+    const {timeRange, setTimeRange, activePanel} = this.props;
 
     return (
       <div className="data-explorer">
@@ -70,14 +66,13 @@ const DataExplorer = React.createClass({
         <ResizeContainer>
           <PanelBuilder
             timeRange={timeRange}
-            activePanelID={this.state.activePanelID}
+            activePanelID={activePanel}
             activeQueryID={this.state.activeQueryID}
             setActiveQuery={this.handleSetActiveQuery}
-            setActivePanel={this.handleSetActivePanel}
           />
           <Visualizations
             timeRange={timeRange}
-            activePanelID={this.state.activePanelID}
+            activePanelID={activePanel}
             activeQueryID={this.state.activeQueryID}
           />
         </ResizeContainer>
@@ -87,8 +82,11 @@ const DataExplorer = React.createClass({
 });
 
 function mapStateToProps(state) {
+  const {timeRange, dataExplorerUI} = state;
+
   return {
-    timeRange: state.timeRange,
+    timeRange,
+    activePanel: dataExplorerUI.activePanel,
   };
 }
 

@@ -3,15 +3,11 @@ import update from 'react-addons-update';
 export default function panels(state = {}, action) {
   switch (action.type) {
     case 'CREATE_PANEL': {
-      const {panelId, queryId} = action.payload;
-      const panel = {
-        id: panelId,
-        queryIds: [queryId],
+      const {panelID, queryID} = action.payload;
+      return {
+        ...state,
+        [panelID]: {id: panelID, queryIds: [queryID]},
       };
-
-      return update(state, {
-        [panelId]: {$set: panel},
-      });
     }
 
     case 'RENAME_PANEL': {
@@ -50,5 +46,6 @@ export default function panels(state = {}, action) {
       });
     }
   }
+
   return state;
 }

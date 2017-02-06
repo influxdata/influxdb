@@ -4,8 +4,8 @@ export function createPanel() {
   return {
     type: 'CREATE_PANEL',
     payload: {
-      panelId: uuid.v4(), // for the default Panel
-      queryId: uuid.v4(), // for the default Query
+      panelID: uuid.v4(), // for the default Panel
+      queryID: uuid.v4(), // for the default Query
     },
   };
 }
@@ -156,6 +156,15 @@ export function updateRawQuery(queryID, text) {
     payload: {
       queryID,
       text,
+    },
+  };
+}
+
+export function activatePanel(panelID) {
+  return {
+    type: 'ACTIVATE_PANEL',
+    payload: {
+      panelID,
     },
   };
 }
