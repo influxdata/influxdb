@@ -13,6 +13,7 @@ type getRoutesResponse struct {
 	Users      string `json:"users"`      // Location of the users endpoint
 	Me         string `json:"me"`         // Location of the me endpoint
 	Dashboards string `json:"dashboards"` // Location of the dashboards endpoint
+	Query      string `json:"query"`      // Location of the query endpoint
 }
 
 // AllRoutes returns all top level routes within chronograf
@@ -24,6 +25,7 @@ func AllRoutes(logger chronograf.Logger) http.HandlerFunc {
 		Me:         "/chronograf/v1/me",
 		Mappings:   "/chronograf/v1/mappings",
 		Dashboards: "/chronograf/v1/dashboards",
+		Query:      "/chronograf/v1/query",
 	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

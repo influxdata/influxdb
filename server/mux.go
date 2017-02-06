@@ -122,6 +122,9 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.DELETE("/chronograf/v1/dashboards/:id", service.RemoveDashboard)
 	router.PUT("/chronograf/v1/dashboards/:id", service.UpdateDashboard)
 
+	// Queries
+	router.POST("/chronograf/v1/query", service.Query)
+
 	/* Authentication */
 	if opts.UseAuth {
 		auth := AuthAPI(opts, router)
