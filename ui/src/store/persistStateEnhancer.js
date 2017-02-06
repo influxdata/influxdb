@@ -16,7 +16,7 @@ export default function persistState() {
     const throttleMs = 1000;
 
     store.subscribe(_.throttle(() => {
-      saveToLocalStorage({...store.getState()});
+      saveToLocalStorage(store.getState());
     }, throttleMs));
 
     return store;
