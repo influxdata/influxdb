@@ -104,10 +104,18 @@ func (f *LogFile) open() error {
 	f.data = data
 
 	// Read log entries from mmap.
+	var n int64
 	for buf := f.data; len(buf) > 0; {
-		// Read next entry.
+		// Read next entry. Truncate partial writes.
 		var e LogEntry
-		if err := e.UnmarshalBinary(buf); err != nil {
+		if err := e.UnmarshalBinary(buf); err == io.ErrShortBuffer {
+			if err := file.Truncate(n); err != nil {
+				return err
+			} else if _, err := file.Seek(0, io.SeekEnd); err != nil {
+				return err
+			}
+			break
+		} else if err != nil {
 			return err
 		}
 
@@ -115,6 +123,7 @@ func (f *LogFile) open() error {
 		f.execEntry(&e)
 
 		// Move buffer forward.
+		n += int64(e.Size)
 		buf = buf[e.Size:]
 	}
 
@@ -863,13 +872,27 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 	start := len(data)
 
 	// Parse flag data.
+	if len(data) < 1 {
+		return io.ErrShortBuffer
+	}
 	e.Flag, data = data[0], data[1:]
 
-	// Parse name.
+	// Parse name length.
+	if len(data) < 1 {
+		return io.ErrShortBuffer
+	}
 	sz, n := binary.Uvarint(data)
+
+	// Read name data.
+	if len(data) < n+int(sz) {
+		return io.ErrShortBuffer
+	}
 	e.Name, data = data[n:n+int(sz)], data[n+int(sz):]
 
 	// Parse tag count.
+	if len(data) < 1 {
+		return io.ErrShortBuffer
+	}
 	tagN, n := binary.Uvarint(data)
 	data = data[n:]
 
@@ -878,12 +901,28 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 	for i := range tags {
 		tag := &tags[i]
 
-		// Parse key.
+		// Parse key length.
+		if len(data) < 1 {
+			return io.ErrShortBuffer
+		}
 		sz, n := binary.Uvarint(data)
+
+		// Read key data.
+		if len(data) < n+int(sz) {
+			return io.ErrShortBuffer
+		}
 		tag.Key, data = data[n:n+int(sz)], data[n+int(sz):]
 
 		// Parse value.
+		if len(data) < 1 {
+			return io.ErrShortBuffer
+		}
 		sz, n = binary.Uvarint(data)
+
+		// Read value data.
+		if len(data) < n+int(sz) {
+			return io.ErrShortBuffer
+		}
 		tag.Value, data = data[n:n+int(sz)], data[n+int(sz):]
 	}
 	e.Tags = tags
@@ -892,6 +931,9 @@ func (e *LogEntry) UnmarshalBinary(data []byte) error {
 	chk := crc32.ChecksumIEEE(orig[:start-len(data)])
 
 	// Parse checksum.
+	if len(data) < 4 {
+		return io.ErrShortBuffer
+	}
 	e.Checksum, data = binary.BigEndian.Uint32(data[:4]), data[4:]
 
 	// Verify checksum.
