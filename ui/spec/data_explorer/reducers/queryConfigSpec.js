@@ -12,10 +12,10 @@ import {
   updateRawQuery,
 } from 'src/data_explorer/actions/view';
 
-const fakeAddQueryAction = (panelId, queryId) => {
+const fakeAddQueryAction = (panelID, queryID) => {
   return {
     type: 'ADD_QUERY',
-    payload: {panelId, queryId},
+    payload: {panelID, queryID},
   };
 };
 

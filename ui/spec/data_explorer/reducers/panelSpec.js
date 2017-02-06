@@ -1,34 +1,34 @@
 import reducer from 'src/data_explorer/reducers/panels';
 import {deletePanel} from 'src/data_explorer/actions/view';
 
-const fakeAddPanelAction = (panelId, queryId) => {
+const fakeAddPanelAction = (panelID, queryID) => {
   return {
     type: 'CREATE_PANEL',
-    payload: {panelId, queryId},
+    payload: {panelID, queryID},
   };
 };
 
 describe('Chronograf.Reducers.Panel', () => {
   let state;
-  const panelId = 123;
-  const queryId = 456;
+  const panelID = 123;
+  const queryID = 456;
 
   beforeEach(() => {
-    state = reducer({}, fakeAddPanelAction(panelId, queryId));
+    state = reducer({}, fakeAddPanelAction(panelID, queryID));
   });
 
   it('can add a panel', () => {
-    const actual = state[panelId];
+    const actual = state[panelID];
     expect(actual).to.deep.equal({
-      id: panelId,
-      queryIds: [queryId],
+      id: panelID,
+      queryIds: [queryID],
     });
   });
 
   it('can delete a panel', () => {
-    const nextState = reducer(state, deletePanel(panelId));
+    const nextState = reducer(state, deletePanel(panelID));
 
-    const actual = nextState[panelId];
+    const actual = nextState[panelID];
     expect(actual).to.equal(undefined);
   });
 });
