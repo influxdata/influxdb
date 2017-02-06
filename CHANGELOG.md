@@ -10,6 +10,7 @@
 - [#7895](https://github.com/influxdata/influxdb/issues/7895): Fix incorrect math when aggregates that emit different times are used.
 - [#7946](https://github.com/influxdata/influxdb/issues/7946): Fix authentication when subqueries are present.
 - [#7885](https://github.com/influxdata/influxdb/issues/7885): Fix LIMIT and OFFSET when they are used in a subquery.
+- [#7905](https://github.com/influxdata/influxdb/issues/7905): Fix ORDER BY time DESC with ordering series keys.
 
 ## v1.2.0 [2017-01-24]
 

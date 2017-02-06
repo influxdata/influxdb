@@ -35,6 +35,14 @@ func (t *TagSet) Swap(i, j int) {
 	t.Filters[i], t.Filters[j] = t.Filters[j], t.Filters[i]
 }
 
+// Reverse reverses the order of series keys and filters in the TagSet.
+func (t *TagSet) Reverse() {
+	for i, j := 0, len(t.Filters)-1; i < j; i, j = i+1, j-1 {
+		t.Filters[i], t.Filters[j] = t.Filters[j], t.Filters[i]
+		t.SeriesKeys[i], t.SeriesKeys[j] = t.SeriesKeys[j], t.SeriesKeys[i]
+	}
+}
+
 // Message represents a user-facing message to be included with the result.
 type Message struct {
 	Level string `json:"level"`
