@@ -57,8 +57,9 @@ type LogFile struct {
 }
 
 // NewLogFile returns a new instance of LogFile.
-func NewLogFile() *LogFile {
+func NewLogFile(path string) *LogFile {
 	return &LogFile{
+		path:     path,
 		mms:      make(logMeasurements),
 		mSketch:  hll.NewDefaultPlus(),
 		mTSketch: hll.NewDefaultPlus(),

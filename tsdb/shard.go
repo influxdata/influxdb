@@ -513,48 +513,9 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 	var (
 		fieldsToCreate []*FieldCreate
 		err            error
-		dropped, n     int
+		dropped        int
 		reason         string
 	)
-
-	// FIXME(jwilder): This is too slow due to the way that index.Measurement is currently implemented.
-	// if s.options.Config.MaxValuesPerTag > 0 {
-	// 	// Validate that all the new points would not exceed any limits, if so, we drop them
-	// 	// and record why/increment counters
-	// 	for i, p := range points {
-	// 		tags := p.Tags()
-
-	// 		// Measurement doesn't exist yet, can't check the limit
-	// 		m := s.Measurement([]byte(p.Name()))
-	// 		if m != nil {
-	// 			var dropPoint bool
-	// 			for _, tag := range tags {
-	// 				// If the tag value already exists, skip the limit check
-	// 				if m.HasTagKeyValue(tag.Key, tag.Value) {
-	// 					continue
-	// 				}
-
-	// 				n := m.CardinalityBytes(tag.Key)
-	// 				if n >= s.options.Config.MaxValuesPerTag {
-	// 					dropPoint = true
-	// 					reason = fmt.Sprintf("max-values-per-tag limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
-	// 						n, s.options.Config.MaxValuesPerTag, m.Name, string(tag.Key), string(tag.Key))
-	// 					break
-	// 				}
-	// 			}
-	// 			if dropPoint {
-	// 				atomic.AddInt64(&s.stats.WritePointsDropped, 1)
-	// 				dropped += 1
-
-	// 				// This causes n below to not be increment allowing the point to be dropped
-	// 				continue
-	// 			}
-	// 		}
-	// 		points[n] = points[i]
-	// 		n += 1
-	// 	}
-	// 	points = points[:n]
-	// }
 
 	// Create all series against the index in bulk.
 	keys := make([][]byte, len(points))
@@ -575,12 +536,20 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 		tagsSlice[i] = tags
 	}
 
+	// Add new series. Check for partial writes.
 	if err := s.engine.CreateSeriesListIfNotExists(keys, names, tagsSlice); err != nil {
-		return nil, nil, err
+		switch err := err.(type) {
+		case *PartialWriteError:
+			reason = err.Reason
+			dropped += err.Dropped
+			atomic.AddInt64(&s.stats.WritePointsDropped, int64(err.Dropped))
+		default:
+			return nil, nil, err
+		}
 	}
 
 	// get the shard mutex for locally defined fields
-	n = 0
+	n := 0
 	for i, p := range points {
 		var validField bool
 		iter := p.FieldIterator()

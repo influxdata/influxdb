@@ -34,6 +34,7 @@ func init() {
 		idx := NewIndex()
 		idx.ShardID = id
 		idx.Path = path
+		idx.options = opt
 		return idx
 	})
 }
@@ -54,8 +55,9 @@ var _ tsdb.Index = &Index{}
 
 // Index represents a collection of layered index files and WAL.
 type Index struct {
-	mu     sync.RWMutex
-	opened bool
+	mu      sync.RWMutex
+	opened  bool
+	options tsdb.EngineOptions
 
 	activeLogFile *LogFile
 	logFiles      []*LogFile
@@ -171,8 +173,7 @@ func (i *Index) Open() error {
 
 // openLogFile opens a log file and appends it to the index.
 func (i *Index) openLogFile(path string) (*LogFile, error) {
-	f := NewLogFile()
-	f.SetPath(path)
+	f := NewLogFile(path)
 	if err := f.Open(); err != nil {
 		return nil, err
 	}
@@ -481,15 +482,17 @@ func (i *Index) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []model
 	fs := i.retainFileSet()
 	defer fs.Release()
 
-	// Filter out existing series.
+	// Filter out existing series. Exit if no new series exist.
 	names, tagsSlice = fs.FilterNamesTags(names, tagsSlice)
+	if len(names) == 0 {
+		return nil
+	}
 
-	if len(names) > 0 {
-		if err := i.withLogFile(func(f *LogFile) error {
-			return f.AddSeriesList(names, tagsSlice)
-		}); err != nil {
-			return err
-		}
+	// Insert series into log file.
+	if err := i.withLogFile(func(f *LogFile) error {
+		return f.AddSeriesList(names, tagsSlice)
+	}); err != nil {
+		return err
 	}
 
 	i.checkFastCompaction()

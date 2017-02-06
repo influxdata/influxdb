@@ -93,6 +93,7 @@ type WAL struct {
 	currentSegmentWriter *WALSegmentWriter
 
 	// cache and flush variables
+	once    sync.Once
 	closing chan struct{}
 
 	// WALOutput is the writer used by the logger.
@@ -432,14 +433,16 @@ func (l *WAL) Close() error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	l.traceLogger.Info(fmt.Sprintf("Closing %s", l.path))
-	// Close, but don't set to nil so future goroutines can still be signaled
-	close(l.closing)
+	l.once.Do(func() {
+		// Close, but don't set to nil so future goroutines can still be signaled
+		l.traceLogger.Info(fmt.Sprintf("Closing %s", l.path))
+		close(l.closing)
 
-	if l.currentSegmentWriter != nil {
-		l.currentSegmentWriter.close()
-		l.currentSegmentWriter = nil
-	}
+		if l.currentSegmentWriter != nil {
+			l.currentSegmentWriter.close()
+			l.currentSegmentWriter = nil
+		}
+	})
 
 	return nil
 }

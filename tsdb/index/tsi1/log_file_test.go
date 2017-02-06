@@ -93,10 +93,7 @@ func NewLogFile() *LogFile {
 	}
 	file.Close()
 
-	f := &LogFile{LogFile: tsi1.NewLogFile()}
-	f.Path = file.Name()
-
-	return f
+	return &LogFile{LogFile: tsi1.NewLogFile(file.Name())}
 }
 
 // MustOpenLogFile returns a new, open instance of LogFile. Panic on error.
@@ -110,7 +107,7 @@ func MustOpenLogFile() *LogFile {
 
 // Close closes the log file and removes it from disk.
 func (f *LogFile) Close() error {
-	defer os.Remove(f.Path)
+	defer os.Remove(f.Path())
 	return f.LogFile.Close()
 }
 

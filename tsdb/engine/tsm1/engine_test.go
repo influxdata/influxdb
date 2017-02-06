@@ -21,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
+	"github.com/influxdata/influxdb/tsdb/index/inmem"
 )
 
 /*
@@ -157,7 +158,10 @@ func TestEngine_Backup(t *testing.T) {
 	p3 := MustParsePointString("cpu,host=C value=1.3 3000000000")
 
 	// Write those points to the engine.
-	e := tsm1.NewEngine(1, tsdb.MustNewIndex(1, "", tsdb.NewEngineOptions()), f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
+	opt := tsdb.NewEngineOptions()
+	opt.InmemIndex = inmem.NewIndex()
+
+	e := tsm1.NewEngine(1, tsdb.MustNewIndex(1, "", opt), f.Name(), walPath, opt).(*tsm1.Engine)
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -560,7 +564,9 @@ func TestEngine_DeleteSeries(t *testing.T) {
 	p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
 	// Write those points to the engine.
-	e := tsm1.NewEngine(1, tsdb.MustNewIndex(1, "", tsdb.NewEngineOptions()), f.Name(), walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
+	opt := tsdb.NewEngineOptions()
+	opt.InmemIndex = inmem.NewIndex()
+	e := tsm1.NewEngine(1, tsdb.MustNewIndex(1, "", opt), f.Name(), walPath, opt).(*tsm1.Engine)
 	// e.LoadMetadataIndex(1, MustNewDatabaseIndex("db0")) // Initialise an index
 
 	// mock the planner so compactions don't run during the test
@@ -611,7 +617,9 @@ func TestEngine_LastModified(t *testing.T) {
 	p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
 	// Write those points to the engine.
-	e := tsm1.NewEngine(1, tsdb.MustNewIndex(1, "", tsdb.NewEngineOptions()), dir, walPath, tsdb.NewEngineOptions()).(*tsm1.Engine)
+	opt := tsdb.NewEngineOptions()
+	opt.InmemIndex = inmem.NewIndex()
+	e := tsm1.NewEngine(1, tsdb.MustNewIndex(1, "", opt), dir, walPath, opt).(*tsm1.Engine)
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -933,12 +941,16 @@ func NewEngine() *Engine {
 	if err != nil {
 		panic(err)
 	}
+
+	opt := tsdb.NewEngineOptions()
+	opt.InmemIndex = inmem.NewIndex()
+
 	return &Engine{
 		Engine: tsm1.NewEngine(1,
-			tsdb.MustNewIndex(1, "", tsdb.NewEngineOptions()),
+			tsdb.MustNewIndex(1, "", opt),
 			filepath.Join(root, "data"),
 			filepath.Join(root, "wal"),
-			tsdb.NewEngineOptions()).(*tsm1.Engine),
+			opt).(*tsm1.Engine),
 		root: root,
 	}
 }
@@ -967,11 +979,14 @@ func (e *Engine) Reopen() error {
 		return err
 	}
 
+	opt := tsdb.NewEngineOptions()
+	opt.InmemIndex = inmem.NewIndex()
+
 	e.Engine = tsm1.NewEngine(1,
-		tsdb.MustNewIndex(1, "", tsdb.NewEngineOptions()),
+		tsdb.MustNewIndex(1, "", opt),
 		filepath.Join(e.root, "data"),
 		filepath.Join(e.root, "wal"),
-		tsdb.NewEngineOptions()).(*tsm1.Engine)
+		opt).(*tsm1.Engine)
 
 	if err := e.Engine.Open(); err != nil {
 		return err

@@ -213,6 +213,30 @@ func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 	return mm.HasTagKey(string(key)), nil
 }
 
+// HasTagValue returns true if tag value exists.
+func (i *Index) HasTagValue(name, key, value []byte) bool {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	mm := i.measurements[string(name)]
+	if mm == nil {
+		return false
+	}
+	return mm.HasTagKeyValue(key, value)
+}
+
+// TagValueN returns the cardinality of a tag value.
+func (i *Index) TagValueN(name, key []byte) int {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	mm := i.measurements[string(name)]
+	if mm == nil {
+		return 0
+	}
+	return mm.CardinalityBytes(key)
+}
+
 // MeasurementTagKeysByExpr returns an ordered set of tag keys filtered by an expression.
 func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
 	i.mu.RLock()
@@ -672,12 +696,56 @@ type ShardIndex struct {
 }
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
-func (i *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
-	for j := range keys {
-		if err := i.CreateSeriesIfNotExists(keys[j], names[j], tagsSlice[j]); err != nil {
+func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
+	// Ensure that no tags go over the maximum cardinality.
+	var reason string
+	var dropped, n int
+	if maxValuesPerTag := idx.opt.Config.MaxValuesPerTag; maxValuesPerTag > 0 {
+	outer:
+		for i, name := range names {
+			tags := tagsSlice[i]
+			for _, tag := range tags {
+				// Skip if the tag value already exists.
+				if idx.HasTagValue(name, tag.Key, tag.Value) {
+					continue
+				}
+
+				// Read cardinality. Skip if we're below the threshold.
+				n := idx.TagValueN(name, tag.Key)
+				if n < maxValuesPerTag {
+					continue
+				}
+
+				dropped++
+				reason = fmt.Sprintf("max-values-per-tag limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
+					n, maxValuesPerTag, name, string(tag.Key), string(tag.Key))
+				continue outer
+			}
+
+			// Increment success count if all checks complete.
+			keys[n], names[n], tagsSlice[n] = keys[i], names[i], tagsSlice[i]
+			n++
+		}
+	}
+
+	// Slice to only include successful points.
+	keys, names, tagsSlice = keys[:n], names[:n], tagsSlice[:n]
+
+	// Write
+	for i := range keys {
+		if err := idx.CreateSeriesIfNotExists(keys[i], names[i], tagsSlice[i]); err != nil {
 			return err
 		}
 	}
+
+	// Report partial writes back to shard.
+	if dropped > 0 {
+		return &tsdb.PartialWriteError{
+			Dropped: dropped,
+			Reason:  reason,
+		}
+	}
+
 	return nil
 }
 
