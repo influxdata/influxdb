@@ -1630,15 +1630,21 @@ func (s *SelectStatement) String() string {
 func (s *SelectStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	ep := ExecutionPrivileges{}
 	for _, source := range s.Sources {
-		measurement, ok := source.(*Measurement)
-		if !ok {
-			return nil, fmt.Errorf("invalid measurement: %s", source)
+		switch source := source.(type) {
+		case *Measurement:
+			ep = append(ep, ExecutionPrivilege{
+				Name:      source.Database,
+				Privilege: ReadPrivilege,
+			})
+		case *SubQuery:
+			privs, err := source.Statement.RequiredPrivileges()
+			if err != nil {
+				return nil, err
+			}
+			ep = append(ep, privs...)
+		default:
+			return nil, fmt.Errorf("invalid source: %s", source)
 		}
-
-		ep = append(ep, ExecutionPrivilege{
-			Name:      measurement.Database,
-			Privilege: ReadPrivilege,
-		})
 	}
 
 	if s.Target != nil {
