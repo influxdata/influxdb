@@ -334,7 +334,7 @@ func (s *SortField) MarshalJSON() ([]byte, error) {
 	if s.Ascending {
 		order = "ascending"
 	} else {
-		order = "decending"
+		order = "descending"
 	}
 
 	return json.Marshal(struct {
