@@ -22,7 +22,7 @@ export const SourceForm = React.createClass({
 
   handleSubmitForm(e) {
     e.preventDefault();
-    const newSource = Object.assign({}, this.props.source, {
+    const newSource = {...this.props.source,
       url: this.sourceURL.value.trim(),
       name: this.sourceName.value,
       username: this.sourceUsername.value,
@@ -30,7 +30,8 @@ export const SourceForm = React.createClass({
       'default': this.sourceDefault.checked,
       telegraf: this.sourceTelegraf.value,
       insecureSkipVerify: this.sourceInsecureSkipVerify ? this.sourceInsecureSkipVerify.checked : false,
-    });
+      metaUrl: this.metaUrl.value.trim(),
+    };
     this.props.onSubmit(newSource);
   },
 
@@ -106,21 +107,9 @@ export const SourceForm = React.createClass({
                         </div>
                         <div className="collapse" id="meta-service" style={{height: '0px'}}>
                           <div className="panel-body">
-                            <div className="row">
-                              <div className="form-group col-xs-12 col-sm-6">
-                                <label htmlFor="meta-connect-string">Connection String</label>
-                                <input type="text" name="meta-connect-string" ref={(r) => this.metaSourceURL = r} className="form-control" id="meta-connect-string" placeholder="http://localhost:8086" onChange={onInputChange} value={source.url || ''}></input>
-                              </div>
-                            </div>
-                            <div className="row">
-                              <div className="form-group col-xs-12 col-sm-6">
-                                <label htmlFor="meta-username">Username</label>
-                                <input type="text" name="meta-username" ref={(r) => this.metaSourceUsername = r} className="form-control" id="meta-username" onChange={onInputChange} value={source.metaUsername || ''}></input>
-                              </div>
-                              <div className="form-group col-xs-12 col-sm-6">
-                                <label htmlFor="meta-password">Password</label>
-                                <input type="password" name="meta-password" ref={(r) => this.metaSourcePassword = r} className="form-control" id="meta-password" onChange={onInputChange} value={source.metaPassword || ''}></input>
-                              </div>
+                            <div className="form-group col-xs-12 col-sm-6">
+                              <label htmlFor="meta-url">Connection String</label>
+                              <input type="text" name="metaUrl" ref={(r) => this.metaUrl = r} className="form-control" id="meta-url" placeholder="http://localhost:8086" onChange={onInputChange} value={source.metaUrl || ''}></input>
                             </div>
                           </div>
                         </div>
