@@ -30,19 +30,19 @@ export const RuleMessage = React.createClass({
     const alerts = this.props.enabledAlerts.map((text) => {
       return {text, ruleID: rule.id};
     });
+    const selectedAlert = rule.alerts[0];
 
     return (
       <div className="kapacitor-rule-section">
         <h3 className="rule-section-heading">Alert Message</h3>
         <div className="rule-section-body">
           <textarea
-            className="alert-message"
+            className="alert-text message"
             ref={(r) => this.message = r}
             onChange={() => actions.updateMessage(rule.id, this.message.value)}
             placeholder='Example: {{ .ID }} is {{ .Level }} value: {{ index .Fields "value" }}'
             value={rule.message}
           />
-
           <div className="alert-message--formatting">
             <p>Templates:</p>
             {
@@ -58,9 +58,19 @@ export const RuleMessage = React.createClass({
             }
             <ReactTooltip effect="solid" html={true} offset={{top: -4}} class="influx-tooltip kapacitor-tooltip" />
           </div>
+          {
+            selectedAlert === 'smtp' ?
+            <textarea
+              className="alert-text details"
+              ref={(r) => this.details = r}
+              onChange={() => actions.updateDetails(rule.id, this.details.value)}
+              placeholder="Put email body text here"
+              value={rule.details}
+            /> : null
+          }
           <div className="rule-section--item bottom alert-message--endpoint">
             <p>Send this Alert to:</p>
-            <Dropdown className="size-256 dropdown-kapacitor" selected={rule.alerts[0] || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
+            <Dropdown className="size-256 dropdown-kapacitor" selected={selectedAlert || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
           </div>
         </div>
       </div>
