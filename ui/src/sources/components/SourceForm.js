@@ -109,7 +109,7 @@ export const SourceForm = React.createClass({
                           <div className="panel-body">
                             <div className="form-group col-xs-12 col-sm-6">
                               <label htmlFor="meta-url">Connection String</label>
-                              <input type="text" name="metaUrl" ref={(r) => this.metaUrl = r} className="form-control" id="meta-url" placeholder="http://localhost:8086" onChange={onInputChange} value={source.metaUrl || ''}></input>
+                              <input type="text" name="metaUrl" ref={(r) => this.metaUrl = r} className="form-control" id="meta-url" placeholder="http://localhost:8091" onChange={onInputChange} value={source.metaUrl || ''}></input>
                             </div>
                           </div>
                         </div>
