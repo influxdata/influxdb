@@ -1928,6 +1928,11 @@
 					"format": "url",
 					"description": "URL for the time series data source backend (e.g. http://localhost:8086)"
 				},
+				"metaUrl": {
+					"type": "string",
+					"format": "url",
+					"description": "URL for the influxdb meta node"
+				},
 				"insecureSkipVerify": {
 					"type": "boolean",
 					"description": "True means any certificate presented by the source is accepted.  Typically used for self-signed certs. Probably should only be used for testing."
