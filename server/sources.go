@@ -212,6 +212,9 @@ func (h *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 	if req.URL != "" {
 		src.URL = req.URL
 	}
+	if req.MetaURL != "" {
+		src.MetaURL = req.MetaURL
+	}
 	if req.Type != "" {
 		src.Type = req.Type
 	}

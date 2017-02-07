@@ -83,6 +83,7 @@ type Source struct {
 	Username           string `json:"username,omitempty"`           // Username is the username to connect to the source
 	Password           string `json:"password,omitempty"`           // Password is in CLEARTEXT
 	URL                string `json:"url"`                          // URL are the connections to the source
+	MetaURL            string `json:"metaUrl,omitempty"`            // MetaURL is the url for the meta node
 	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the source is accepted.
 	Default            bool   `json:"default"`                      // Default specifies the default source for the application
 	Telegraf           string `json:"telegraf"`                     // Telegraf is the db telegraf is written to.  By default it is "telegraf"
