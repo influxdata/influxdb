@@ -7,6 +7,7 @@
   2. [#853](https://github.com/influxdata/chronograf/issues/853): Updated builds to use yarn over npm install
 
 ### Upcoming UI Improvements
+  1. [#851](https://github.com/influxdata/chronograf/pull/851): Add field for meta server information in connection config
 
 ## v1.2.0-beta1 [2017-01-27]
 
