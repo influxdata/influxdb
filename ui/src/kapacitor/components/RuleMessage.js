@@ -15,13 +15,9 @@ export const RuleMessage = React.createClass({
     rule: shape({}).isRequired,
     actions: shape({
       updateMessage: func.isRequired,
+      updateDetails: func.isRequired,
     }).isRequired,
     enabledAlerts: arrayOf(string.isRequired).isRequired,
-  },
-
-  handleChangeMessage() {
-    const {actions, rule} = this.props;
-    actions.updateMessage(rule.id, this.message.value);
   },
 
   handleChooseAlert(item) {
