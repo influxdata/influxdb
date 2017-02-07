@@ -96,6 +96,35 @@ export const SourceForm = React.createClass({
                           </div>
                           <label className="form-helper">{insecureSkipVerifyText}</label>
                         </div> : null}
+                      <div className="panel panel-collapse panel-collapse-sm">
+                        <div className="panel-heading">
+                          <h2 className="panel-title">
+                            <a role="button" data-toggle="collapse" className="collapsed" href="#meta-service" style={{fontSize: '14px', fontWeight: 600}}>
+                              <span className="caret"></span>Add Meta Service
+                            </a>
+                          </h2>
+                        </div>
+                        <div className="collapse" id="meta-service" style={{height: '0px'}}>
+                          <div className="panel-body">
+                            <div className="row">
+                              <div className="form-group col-xs-12 col-sm-6">
+                                <label htmlFor="meta-connect-string">Connection String</label>
+                                <input type="text" name="meta-connect-string" ref={(r) => this.metaSourceURL = r} className="form-control" id="meta-connect-string" placeholder="http://localhost:8086" onChange={onInputChange} value={source.url || ''}></input>
+                              </div>
+                            </div>
+                            <div className="row">
+                              <div className="form-group col-xs-12 col-sm-6">
+                                <label htmlFor="meta-username">Username</label>
+                                <input type="text" name="meta-username" ref={(r) => this.metaSourceUsername = r} className="form-control" id="meta-username" onChange={onInputChange} value={source.metaUsername || ''}></input>
+                              </div>
+                              <div className="form-group col-xs-12 col-sm-6">
+                                <label htmlFor="meta-password">Password</label>
+                                <input type="password" name="meta-password" ref={(r) => this.metaSourcePassword = r} className="form-control" id="meta-password" onChange={onInputChange} value={source.metaPassword || ''}></input>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                       <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
                         <button className={classNames('btn btn-block', {'btn-primary': editMode, 'btn-success': !editMode})} type="submit">{editMode ? "Save Changes" : "Add Source"}</button>
                       </div>
