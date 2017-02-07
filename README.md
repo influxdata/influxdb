@@ -107,7 +107,7 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 See [Chronograf with OAuth 2.0](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) for more information.
 
 ### Advanced Routing
-Change the default root path of the Chronograf server with the `—basepath` option.
+Change the default root path of the Chronograf server with the `--basepath` option.
 
 ## Versions
 
