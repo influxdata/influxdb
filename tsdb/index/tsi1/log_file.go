@@ -493,7 +493,7 @@ func (f *LogFile) execEntry(e *LogEntry) {
 }
 
 func (f *LogFile) execDeleteMeasurementEntry(e *LogEntry) {
-	mm := f.measurement(e.Name)
+	mm := f.createMeasurementIfNotExists(e.Name)
 	mm.deleted = true
 	mm.tagSet = make(map[string]logTagKey)
 	mm.series = make(map[string]*logSerie)
@@ -505,7 +505,7 @@ func (f *LogFile) execDeleteMeasurementEntry(e *LogEntry) {
 func (f *LogFile) execDeleteTagKeyEntry(e *LogEntry) {
 	key := e.Tags[0].Key
 
-	mm := f.measurement(e.Name)
+	mm := f.createMeasurementIfNotExists(e.Name)
 	ts := mm.createTagSetIfNotExists(key)
 
 	ts.deleted = true
@@ -516,7 +516,7 @@ func (f *LogFile) execDeleteTagKeyEntry(e *LogEntry) {
 func (f *LogFile) execDeleteTagValueEntry(e *LogEntry) {
 	key, value := e.Tags[0].Key, e.Tags[0].Value
 
-	mm := f.measurement(e.Name)
+	mm := f.createMeasurementIfNotExists(e.Name)
 	ts := mm.createTagSetIfNotExists(key)
 	tv := ts.createTagValueIfNotExists(value)
 
@@ -531,7 +531,7 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	deleted := (e.Flag & LogEntrySeriesTombstoneFlag) != 0
 
 	// Fetch measurement.
-	mm := f.measurement(e.Name)
+	mm := f.createMeasurementIfNotExists(e.Name)
 
 	// Undelete measurement if it's been tombstoned previously.
 	if !deleted && mm.deleted {
@@ -601,8 +601,8 @@ func (f *LogFile) SeriesIterator() SeriesIterator {
 	return &logSeriesIterator{series: series}
 }
 
-// measurement returns a measurement by name.
-func (f *LogFile) measurement(name []byte) *logMeasurement {
+// createMeasurementIfNotExists returns a measurement by name.
+func (f *LogFile) createMeasurementIfNotExists(name []byte) *logMeasurement {
 	mm := f.mms[string(name)]
 	if mm == nil {
 		mm = &logMeasurement{
@@ -651,9 +651,9 @@ func (f *LogFile) WriteTo(w io.Writer) (n int64, err error) {
 	// Wrap in bufferred writer.
 	bw := bufio.NewWriter(w)
 
-	// Reset compaction fields.
+	// Setup compaction offset tracking data.
 	var t IndexFileTrailer
-	f.reset()
+	info := newLogFileCompactInfo()
 
 	// Write magic number.
 	if err := writeTo(bw, []byte(FileSignature), &n); err != nil {
@@ -662,7 +662,7 @@ func (f *LogFile) WriteTo(w io.Writer) (n int64, err error) {
 
 	// Write series list.
 	t.SeriesBlock.Offset = n
-	if err := f.writeSeriesBlockTo(bw, &n); err != nil {
+	if err := f.writeSeriesBlockTo(bw, info, &n); err != nil {
 		return n, err
 	}
 	t.SeriesBlock.Size = n - t.SeriesBlock.Offset
@@ -671,13 +671,13 @@ func (f *LogFile) WriteTo(w io.Writer) (n int64, err error) {
 	names := f.mms.names()
 
 	// Write tagset blocks in measurement order.
-	if err := f.writeTagsetsTo(bw, names, &n); err != nil {
+	if err := f.writeTagsetsTo(bw, names, info, &n); err != nil {
 		return n, err
 	}
 
 	// Write measurement block.
 	t.MeasurementBlock.Offset = n
-	if err := f.writeMeasurementBlockTo(bw, names, &n); err != nil {
+	if err := f.writeMeasurementBlockTo(bw, names, info, &n); err != nil {
 		return n, err
 	}
 	t.MeasurementBlock.Size = n - t.MeasurementBlock.Offset
@@ -697,7 +697,7 @@ func (f *LogFile) WriteTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
-func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
+func (f *LogFile) writeSeriesBlockTo(w io.Writer, info *logFileCompactInfo, n *int64) error {
 	// Write all series.
 	sw := NewSeriesBlockWriter()
 
@@ -724,26 +724,26 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 	// Add series to each measurement and key/value.
 	for _, name := range names {
 		mm := f.mms[name]
+		mmInfo := info.createMeasurementInfoIfNotExists(name)
+		mmInfo.seriesIDs = make([]uint64, 0, len(mm.series))
 
-		for i := range mm.series {
-			serie := mm.series[i]
+		for k := range mm.series {
+			serie := mm.series[k]
 
 			// Lookup series offset.
-			serie.offset = sw.Offset(serie.name, serie.tags)
-			if serie.offset == 0 {
+			offset := sw.Offset(serie.name, serie.tags)
+			if offset == 0 {
 				panic("series not found: " + string(serie.name) + " " + serie.tags.String())
 			}
 
 			// Add series id to measurement, tag key, and tag value.
-			mm.seriesIDs = append(mm.seriesIDs, serie.offset)
+			mmInfo.seriesIDs = append(mmInfo.seriesIDs, offset)
 
 			// Add series id to each tag value.
 			for _, tag := range serie.tags {
-				t := mm.tagSet[string(tag.Key)]
-
-				v := t.tagValues[string(tag.Value)]
-				v.seriesIDs = append(v.seriesIDs, serie.offset)
-				t.tagValues[string(tag.Value)] = v
+				tagSetInfo := mmInfo.createTagSetInfoIfNotExists(tag.Key)
+				tagValueInfo := tagSetInfo.createTagValueInfoIfNotExists(tag.Value)
+				tagValueInfo.seriesIDs = append(tagValueInfo.seriesIDs, offset)
 			}
 		}
 	}
@@ -751,9 +751,9 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, n *int64) error {
 	return nil
 }
 
-func (f *LogFile) writeTagsetsTo(w io.Writer, names []string, n *int64) error {
+func (f *LogFile) writeTagsetsTo(w io.Writer, names []string, info *logFileCompactInfo, n *int64) error {
 	for _, name := range names {
-		if err := f.writeTagsetTo(w, name, n); err != nil {
+		if err := f.writeTagsetTo(w, name, info, n); err != nil {
 			return err
 		}
 	}
@@ -761,26 +761,32 @@ func (f *LogFile) writeTagsetsTo(w io.Writer, names []string, n *int64) error {
 }
 
 // writeTagsetTo writes a single tagset to w and saves the tagset offset.
-func (f *LogFile) writeTagsetTo(w io.Writer, name string, n *int64) error {
+func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactInfo, n *int64) error {
 	mm := f.mms[name]
+	mmInfo := info.mms[name]
 
 	tw := NewTagBlockWriter()
-	for _, tag := range mm.tagSet {
+	for k, tag := range mm.tagSet {
 		// Mark tag deleted.
 		if tag.deleted {
 			tw.DeleteTag(tag.name)
 			continue
 		}
 
+		// Lookup compaction info.
+		tagSetInfo := mmInfo.tagSet[k]
+		assert(tagSetInfo != nil, "tag set info not found")
+
 		// Add each value.
-		for _, value := range tag.tagValues {
-			sort.Sort(uint64Slice(value.seriesIDs))
-			tw.AddTagValue(tag.name, value.name, value.deleted, value.seriesIDs)
+		for v, value := range tag.tagValues {
+			tagValueInfo := tagSetInfo.tagValues[v]
+			sort.Sort(uint64Slice(tagValueInfo.seriesIDs))
+			tw.AddTagValue(tag.name, value.name, value.deleted, tagValueInfo.seriesIDs)
 		}
 	}
 
 	// Save tagset offset to measurement.
-	mm.offset = *n
+	mmInfo.offset = *n
 
 	// Write tagset to writer.
 	nn, err := tw.WriteTo(w)
@@ -790,19 +796,22 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, n *int64) error {
 	}
 
 	// Save tagset offset to measurement.
-	mm.size = *n - mm.offset
+	mmInfo.size = *n - mmInfo.offset
 
 	return nil
 }
 
-func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, n *int64) error {
+func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, info *logFileCompactInfo, n *int64) error {
 	mw := NewMeasurementBlockWriter()
 
 	// Add measurement data.
 	for _, name := range names {
 		mm := f.mms[name]
-		sort.Sort(uint64Slice(mm.seriesIDs))
-		mw.Add(mm.name, mm.deleted, mm.offset, mm.size, mm.seriesIDs)
+		mmInfo := info.mms[name]
+		assert(mmInfo != nil, "measurement info not found")
+
+		sort.Sort(uint64Slice(mmInfo.seriesIDs))
+		mw.Add(mm.name, mm.deleted, mmInfo.offset, mmInfo.size, mmInfo.seriesIDs)
 	}
 
 	// Flush data to writer.
@@ -811,22 +820,61 @@ func (f *LogFile) writeMeasurementBlockTo(w io.Writer, names []string, n *int64)
 	return err
 }
 
-// reset clears all the compaction fields on the in-memory index.
-func (f *LogFile) reset() {
-	for _, mm := range f.mms {
-		for i := range mm.series {
-			mm.series[i].offset = 0
-		}
+// logFileCompactInfo is a context object to track compaction position info.
+type logFileCompactInfo struct {
+	mms map[string]*logFileMeasurementCompactInfo
+}
 
-		mm.offset, mm.size, mm.seriesIDs = 0, 0, nil
-		for key, tagSet := range mm.tagSet {
-			for value, tagValue := range tagSet.tagValues {
-				tagValue.seriesIDs = nil
-				tagSet.tagValues[value] = tagValue
-			}
-			mm.tagSet[key] = tagSet
-		}
+// newLogFileCompactInfo returns a new instance of logFileCompactInfo.
+func newLogFileCompactInfo() *logFileCompactInfo {
+	return &logFileCompactInfo{
+		mms: make(map[string]*logFileMeasurementCompactInfo),
 	}
+}
+
+func (info *logFileCompactInfo) createMeasurementInfoIfNotExists(name string) *logFileMeasurementCompactInfo {
+	mmInfo := info.mms[name]
+	if mmInfo == nil {
+		mmInfo = &logFileMeasurementCompactInfo{
+			tagSet: make(map[string]*logFileTagSetCompactInfo),
+		}
+		info.mms[name] = mmInfo
+	}
+	return mmInfo
+}
+
+type logFileMeasurementCompactInfo struct {
+	offset    int64
+	size      int64
+	seriesIDs []uint64
+
+	tagSet map[string]*logFileTagSetCompactInfo
+}
+
+func (info *logFileMeasurementCompactInfo) createTagSetInfoIfNotExists(key []byte) *logFileTagSetCompactInfo {
+	tagSetInfo := info.tagSet[string(key)]
+	if tagSetInfo == nil {
+		tagSetInfo = &logFileTagSetCompactInfo{tagValues: make(map[string]*logFileTagValueCompactInfo)}
+		info.tagSet[string(key)] = tagSetInfo
+	}
+	return tagSetInfo
+}
+
+type logFileTagSetCompactInfo struct {
+	tagValues map[string]*logFileTagValueCompactInfo
+}
+
+func (info *logFileTagSetCompactInfo) createTagValueInfoIfNotExists(value []byte) *logFileTagValueCompactInfo {
+	tagValueInfo := info.tagValues[string(value)]
+	if tagValueInfo == nil {
+		tagValueInfo = &logFileTagValueCompactInfo{}
+		info.tagValues[string(value)] = tagValueInfo
+	}
+	return tagValueInfo
+}
+
+type logFileTagValueCompactInfo struct {
+	seriesIDs []uint64
 }
 
 // MergeSeriesSketches merges the series sketches belonging to this LogFile
@@ -994,7 +1042,6 @@ type logSerie struct {
 	name    []byte
 	tags    models.Tags
 	deleted bool
-	offset  uint64
 }
 
 func (s *logSerie) Name() []byte        { return s.name }
@@ -1031,11 +1078,6 @@ type logMeasurement struct {
 	tagSet  map[string]logTagKey
 	deleted bool
 	series  map[string]*logSerie
-
-	// Compaction fields.
-	offset    int64    // tagset offset
-	size      int64    // tagset size
-	seriesIDs []uint64 // series offsets
 }
 
 func (m *logMeasurement) Name() []byte  { return m.name }
@@ -1106,9 +1148,6 @@ type logTagValue struct {
 	name    []byte
 	deleted bool
 	series  map[string]*logSerie
-
-	// Compaction fields.
-	seriesIDs []uint64
 }
 
 func (tv *logTagValue) Value() []byte { return tv.name }
