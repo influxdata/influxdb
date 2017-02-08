@@ -5,12 +5,12 @@ $graph-radius: 4px;
 $dygraphs-legend-offset: 32px;
 
 .graph {
-  position: relative;
+  position: absolute;;
   margin-bottom: 18px;
-
-  &:last-child {
-    margin-bottom: 100%;
-  }
+  width: 100%;
+  padding: 0 $explorer-page-padding;
+  top:0;
+  height: 40%;
 }
 .graph-heading {
   background-color: $graph-bg-color;
