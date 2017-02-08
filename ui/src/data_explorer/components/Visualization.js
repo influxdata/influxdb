@@ -13,7 +13,6 @@ const Visualization = React.createClass({
       lower: PropTypes.string,
     }).isRequired,
     queryConfigs: PropTypes.arrayOf(PropTypes.shape({})).isRequired,
-    isActive: PropTypes.bool.isRequired,
     name: PropTypes.string,
     activeQueryIndex: PropTypes.number,
   },
@@ -32,20 +31,12 @@ const Visualization = React.createClass({
     };
   },
 
-  componentDidUpdate() {
-    if (this.props.isActive) {
-      this.panel.scrollIntoView();
-      // scrollIntoView scrolls slightly *too* far, so this adds some top offset.
-      this.panel.parentNode.scrollTop -= 10;
-    }
-  },
-
   handleToggleView() {
     this.setState({isGraphInView: !this.state.isGraphInView});
   },
 
   render() {
-    const {queryConfigs, timeRange, isActive, name, activeQueryIndex} = this.props;
+    const {queryConfigs, timeRange, activeQueryIndex} = this.props;
     const {source} = this.context;
     const proxyLink = source.links.proxy;
 
@@ -61,7 +52,7 @@ const Visualization = React.createClass({
     const isInDataExplorer = true;
 
     return (
-      <div ref={(p) => this.panel = p} className={classNames("graph", {active: isActive})}>
+      <div ref={(p) => this.panel = p} className={classNames("graph", {active: true})}>
         <div className="graph-heading">
           <div className="graph-title">
             {name || "Graph"}
