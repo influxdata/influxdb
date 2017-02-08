@@ -7,23 +7,23 @@ import (
 
 	"golang.org/x/net/context"
 
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/enterprise"
-	"github.com/influxdata/mrfusion/mock"
-	"github.com/influxdata/plutonium/meta/control"
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/enterprise"
+	"github.com/influxdata/chronograf/log"
 )
 
 func Test_Enterprise_FetchesDataNodes(t *testing.T) {
 	t.Parallel()
 
-	ctrl := &mock.ControlClient{
-		Cluster: &control.Cluster{},
+	ctrl := &ControlClient{
+		Cluster: &enterprise.Cluster{},
 	}
 	cl := &enterprise.Client{
 		Ctrl: ctrl,
 	}
 
-	err := cl.Open()
+	bg := context.Background()
+	err := cl.Connect(bg, &chronograf.Source{})
 
 	if err != nil {
 		t.Fatal("Unexpected error while creating enterprise client. err:", err)
@@ -48,15 +48,16 @@ func Test_Enterprise_IssuesQueries(t *testing.T) {
 	defer ts.Close()
 
 	cl := &enterprise.Client{
-		Ctrl: mock.NewMockControlClient(ts.URL),
+		Ctrl:   NewMockControlClient(ts.URL),
+		Logger: log.New(log.DebugLevel),
 	}
 
-	err := cl.Open()
+	err := cl.Connect(context.Background(), &chronograf.Source{})
 	if err != nil {
 		t.Fatal("Unexpected error initializing client: err:", err)
 	}
 
-	_, err = cl.Query(context.Background(), mrfusion.Query{"show shards", "_internal", "autogen"})
+	_, err = cl.Query(context.Background(), chronograf.Query{Command: "show shards", DB: "_internal", RP: "autogen"})
 
 	if err != nil {
 		t.Fatal("Unexpected error while querying data node: err:", err)
@@ -68,21 +69,21 @@ func Test_Enterprise_IssuesQueries(t *testing.T) {
 }
 
 func Test_Enterprise_AdvancesDataNodes(t *testing.T) {
-	m1 := mock.NewTimeSeries([]string{"http://host-1.example.com:8086"}, &mock.Response{})
-	m2 := mock.NewTimeSeries([]string{"http://host-2.example.com:8086"}, &mock.Response{})
-	cl := enterprise.NewClientWithTimeSeries(mrfusion.TimeSeries(m1), mrfusion.TimeSeries(m2))
+	m1 := NewMockTimeSeries("http://host-1.example.com:8086")
+	m2 := NewMockTimeSeries("http://host-2.example.com:8086")
+	cl := enterprise.NewClientWithTimeSeries(log.New(log.DebugLevel), chronograf.TimeSeries(m1), chronograf.TimeSeries(m2))
 
-	err := cl.Open()
+	err := cl.Connect(context.Background(), &chronograf.Source{})
 	if err != nil {
 		t.Error("Unexpected error while initializing client: err:", err)
 	}
 
-	_, err = cl.Query(context.Background(), mrfusion.Query{"show shards", "_internal", "autogen"})
+	_, err = cl.Query(context.Background(), chronograf.Query{Command: "show shards", DB: "_internal", RP: "autogen"})
 	if err != nil {
 		t.Fatal("Unexpected error while issuing query: err:", err)
 	}
 
-	_, err = cl.Query(context.Background(), mrfusion.Query{"show shards", "_internal", "autogen"})
+	_, err = cl.Query(context.Background(), chronograf.Query{Command: "show shards", DB: "_internal", RP: "autogen"})
 	if err != nil {
 		t.Fatal("Unexpected error while issuing query: err:", err)
 	}
@@ -113,7 +114,7 @@ func Test_Enterprise_NewClientWithURL(t *testing.T) {
 	}
 
 	for _, testURL := range urls {
-		_, err := enterprise.NewClientWithURL(testURL.url, testURL.tls)
+		_, err := enterprise.NewClientWithURL(testURL.url, testURL.tls, log.New(log.DebugLevel))
 		if err != nil && !testURL.shouldErr {
 			t.Errorf("Unexpected error creating Client with URL %s and TLS preference %t. err: %s", testURL.url, testURL.tls, err.Error())
 		} else if err == nil && testURL.shouldErr {
@@ -123,10 +124,10 @@ func Test_Enterprise_NewClientWithURL(t *testing.T) {
 }
 
 func Test_Enterprise_ComplainsIfNotOpened(t *testing.T) {
-	m1 := mock.NewTimeSeries([]string{"http://host-1.example.com:8086"}, &mock.Response{})
-	cl := enterprise.NewClientWithTimeSeries(mrfusion.TimeSeries(m1))
-	_, err := cl.Query(context.Background(), mrfusion.Query{"show shards", "_internal", "autogen"})
-	if err != mrfusion.ErrUninitialized {
+	m1 := NewMockTimeSeries("http://host-1.example.com:8086")
+	cl := enterprise.NewClientWithTimeSeries(log.New(log.DebugLevel), chronograf.TimeSeries(m1))
+	_, err := cl.Query(context.Background(), chronograf.Query{Command: "show shards", DB: "_internal", RP: "autogen"})
+	if err != chronograf.ErrUninitialized {
 		t.Error("Expected ErrUnitialized, but was this err:", err)
 	}
 }

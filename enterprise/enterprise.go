@@ -5,13 +5,13 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/influxdata/mrfusion"
-	"github.com/influxdata/mrfusion/influx"
-	"github.com/influxdata/plutonium/meta/control"
-	"golang.org/x/net/context"
+	"context"
+
+	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/influx"
 )
 
-var _ mrfusion.TimeSeries = &Client{}
+var _ chronograf.TimeSeries = &Client{}
 
 // Client is a device for retrieving time series data from an Influx Enterprise
 // cluster. It is configured using the addresses of one or more meta node URLs.
@@ -19,15 +19,16 @@ var _ mrfusion.TimeSeries = &Client{}
 // are appropriately load balanced across the cluster.
 type Client struct {
 	Ctrl interface {
-		ShowCluster() (*control.Cluster, error)
+		ShowCluster() (*Cluster, error)
 	}
+	Logger chronograf.Logger
 
 	dataNodes *ring.Ring
 	opened    bool
 }
 
 // NewClientWithTimeSeries initializes a Client with a known set of TimeSeries.
-func NewClientWithTimeSeries(series ...mrfusion.TimeSeries) *Client {
+func NewClientWithTimeSeries(lg chronograf.Logger, series ...chronograf.TimeSeries) *Client {
 	c := &Client{}
 
 	c.dataNodes = ring.New(len(series))
@@ -44,19 +45,20 @@ func NewClientWithTimeSeries(series ...mrfusion.TimeSeries) *Client {
 // Acceptable URLs include host:port combinations as well as scheme://host:port
 // varieties. TLS is used when the URL contains "https" or when the TLS
 // parameter is set. The latter option is provided for host:port combinations
-func NewClientWithURL(mu string, tls bool) (*Client, error) {
+func NewClientWithURL(mu string, tls bool, lg chronograf.Logger) (*Client, error) {
 	metaURL, err := parseMetaURL(mu, tls)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Client{
-		Ctrl: control.NewClient(metaURL.Host),
+		Ctrl:   &MetaClient{metaURL.Host},
+		Logger: lg,
 	}, nil
 }
 
-// Open prepares a Client to process queries. It must be called prior to calling Query
-func (c *Client) Open() error {
+// Connect prepares a Client to process queries. It must be called prior to calling Query
+func (c *Client) Connect(ctx context.Context, src *chronograf.Source) error {
 	c.opened = true
 	// return early if we already have dataNodes
 	if c.dataNodes != nil {
@@ -69,7 +71,7 @@ func (c *Client) Open() error {
 
 	c.dataNodes = ring.New(len(cluster.DataNodes))
 	for _, dn := range cluster.DataNodes {
-		cl, err := influx.NewClient(dn.HTTPAddr)
+		cl, err := influx.NewClient(dn.HTTPAddr, c.Logger)
 		if err != nil {
 			continue
 		} else {
@@ -82,22 +84,17 @@ func (c *Client) Open() error {
 
 // Query retrieves timeseries information pertaining to a specified query. It
 // can be cancelled by using a provided context.
-func (c *Client) Query(ctx context.Context, q mrfusion.Query) (mrfusion.Response, error) {
+func (c *Client) Query(ctx context.Context, q chronograf.Query) (chronograf.Response, error) {
 	if !c.opened {
-		return nil, mrfusion.ErrUninitialized
+		return nil, chronograf.ErrUninitialized
 	}
 	return c.nextDataNode().Query(ctx, q)
 }
 
-// MonitoredServices returns the services monitored by this Enterprise cluster.
-func (c *Client) MonitoredServices(ctx context.Context) ([]mrfusion.MonitoredService, error) {
-	return []mrfusion.MonitoredService{}, nil
-}
-
 // nextDataNode retrieves the next available data node
-func (c *Client) nextDataNode() mrfusion.TimeSeries {
+func (c *Client) nextDataNode() chronograf.TimeSeries {
 	c.dataNodes = c.dataNodes.Next()
-	return c.dataNodes.Value.(mrfusion.TimeSeries)
+	return c.dataNodes.Value.(chronograf.TimeSeries)
 }
 
 // parseMetaURL constructs a url from either a host:port combination or a
