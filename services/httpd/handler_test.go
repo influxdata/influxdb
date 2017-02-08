@@ -138,6 +138,17 @@ func TestHandler_Query_Auth(t *testing.T) {
 		t.Fatalf("unexpected body: %s", body)
 	}
 
+	// Test the handler with valid user and password using basic auth.
+	w = httptest.NewRecorder()
+	r := MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil)
+	r.SetBasicAuth("user1", "abcd")
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"statement_id":1,"series":[{"name":"series0"}]},{"statement_id":2,"series":[{"name":"series1"}]}]}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+
 	// Test the handler with valid JWT bearer token.
 	req := MustNewJSONRequest("GET", "/query?db=foo&q=SELECT+*+FROM+bar", nil)
 	// Create a signed JWT token string and add it to the request header.
@@ -203,6 +214,18 @@ func TestHandler_Query_Auth(t *testing.T) {
 	if w.Code != http.StatusUnauthorized {
 		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
 	} else if body := strings.TrimSpace(w.Body.String()); body != `{"error":"token expiration required"}` {
+		t.Fatalf("unexpected body: %s", body)
+	}
+
+	// Test the handler with valid user and password in the url and invalid in
+	// basic auth (prioritize url).
+	w = httptest.NewRecorder()
+	r = MustNewJSONRequest("GET", "/query?u=user1&p=abcd&db=foo&q=SELECT+*+FROM+bar", nil)
+	r.SetBasicAuth("user1", "efgh")
+	h.ServeHTTP(w, r)
+	if w.Code != http.StatusOK {
+		t.Fatalf("unexpected status: %d: %s", w.Code, w.Body.String())
+	} else if body := strings.TrimSpace(w.Body.String()); body != `{"results":[{"statement_id":1,"series":[{"name":"series0"}]},{"statement_id":2,"series":[{"name":"series1"}]}]}` {
 		t.Fatalf("unexpected body: %s", body)
 	}
 }

@@ -977,6 +977,15 @@ type credentials struct {
 func parseCredentials(r *http.Request) (*credentials, error) {
 	q := r.URL.Query()
 
+	// Check for username and password in URL params.
+	if u, p := q.Get("u"), q.Get("p"); u != "" && p != "" {
+		return &credentials{
+			Method:   UserAuthentication,
+			Username: u,
+			Password: p,
+		}, nil
+	}
+
 	// Check for the HTTP Authorization header.
 	if s := r.Header.Get("Authorization"); s != "" {
 		// Check for Bearer token.
@@ -996,15 +1005,6 @@ func parseCredentials(r *http.Request) (*credentials, error) {
 				Password: p,
 			}, nil
 		}
-	}
-
-	// Check for username and password in URL params.
-	if u, p := q.Get("u"), q.Get("p"); u != "" && p != "" {
-		return &credentials{
-			Method:   UserAuthentication,
-			Username: u,
-			Password: p,
-		}, nil
 	}
 
 	return nil, fmt.Errorf("unable to parse authentication credentials")
