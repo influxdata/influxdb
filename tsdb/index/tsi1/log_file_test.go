@@ -10,6 +10,8 @@ import (
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
 
+import _ "net/http/pprof"
+
 // Ensure log file can append series.
 func TestLogFile_AddSeries(t *testing.T) {
 	f := MustOpenLogFile()
@@ -165,3 +167,54 @@ func MustGenerateLogFile(measurementN, tagN, valueN int) *LogFile {
 	}
 	return f
 }
+
+func benchmarkLogFile_AddSeries(b *testing.B, measurementN, seriesKeyN, seriesValueN int) {
+	b.StopTimer()
+	f := MustOpenLogFile()
+
+	type Datum struct {
+		Name []byte
+		Tags models.Tags
+	}
+
+	// Pre-generate everything.
+	var (
+		data   []Datum
+		series int
+	)
+
+	tagValueN := pow(seriesValueN, seriesKeyN)
+
+	for i := 0; i < measurementN; i++ {
+		name := []byte(fmt.Sprintf("measurement%d", i))
+		for j := 0; j < tagValueN; j++ {
+			var tags models.Tags
+			for k := 0; k < seriesKeyN; k++ {
+				key := []byte(fmt.Sprintf("key%d", k))
+				value := []byte(fmt.Sprintf("value%d", (j / pow(seriesValueN, k) % seriesValueN)))
+				tags = append(tags, models.Tag{Key: key, Value: value})
+			}
+			data = append(data, Datum{Name: name, Tags: tags})
+			series += len(tags)
+		}
+	}
+	b.StartTimer()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		for _, d := range data {
+			if err := f.AddSeries(d.Name, d.Tags); err != nil {
+				b.Fatal(err)
+			}
+		}
+	}
+}
+
+func BenchmarkLogFile_AddSeries_100_1_1(b *testing.B)    { benchmarkLogFile_AddSeries(b, 100, 1, 1) }    // 100 series
+func BenchmarkLogFile_AddSeries_1000_1_1(b *testing.B)   { benchmarkLogFile_AddSeries(b, 1000, 1, 1) }   // 1000 series
+func BenchmarkLogFile_AddSeries_10000_1_1(b *testing.B)  { benchmarkLogFile_AddSeries(b, 10000, 1, 1) }  // 10000 series
+func BenchmarkLogFile_AddSeries_100_2_10(b *testing.B)   { benchmarkLogFile_AddSeries(b, 100, 2, 10) }   // ~20K series
+func BenchmarkLogFile_AddSeries_100000_1_1(b *testing.B) { benchmarkLogFile_AddSeries(b, 100000, 1, 1) } // ~100K series
+func BenchmarkLogFile_AddSeries_100_3_7(b *testing.B)    { benchmarkLogFile_AddSeries(b, 100, 3, 7) }    // ~100K series
+func BenchmarkLogFile_AddSeries_200_3_7(b *testing.B)    { benchmarkLogFile_AddSeries(b, 200, 3, 7) }    // ~200K series
+func BenchmarkLogFile_AddSeries_200_4_7(b *testing.B)    { benchmarkLogFile_AddSeries(b, 200, 4, 7) }    // ~1.9M series
