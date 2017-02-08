@@ -3,6 +3,7 @@
 ### Upcoming Bug Fixes
 
 ### Upcoming Features
+1. [#853](https://github.com/influxdata/chronograf/issues/853): Updated builds to use yarn over npm install
 
 ### Upcoming UI Improvements
 
