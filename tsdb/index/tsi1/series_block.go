@@ -60,7 +60,7 @@ type SeriesBlock struct {
 
 // HasSeries returns flags indicating if the series exists and if it is tombstoned.
 func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags) (exists, tombstoned bool) {
-	buf := AppendSeriesKey(make([]byte, 0, 256), name, tags)
+	buf := AppendSeriesKey(nil, name, tags)
 	bufN := uint64(len(buf))
 
 	n := blk.seriesIndexN
@@ -302,6 +302,18 @@ func AppendSeriesElem(dst []byte, flag byte, name []byte, tags models.Tags) []by
 
 // AppendSeriesKey serializes name and tags to a byte slice.
 func AppendSeriesKey(dst []byte, name []byte, tags models.Tags) []byte {
+	// If caller doesn't provide a buffer then pre-allocate an exact one.
+	if dst == nil {
+		capacity := 0 + //
+			2 + // size of measurement
+			len(name) + // measurement
+			2 + // number of tags
+			(4 * len(tags)) + // length of each tag key and value
+			tags.Size() // tag keys/values
+
+		dst = make([]byte, 0, capacity)
+	}
+
 	buf := make([]byte, 2)
 
 	// Append name.
@@ -323,7 +335,6 @@ func AppendSeriesKey(dst []byte, name []byte, tags models.Tags) []byte {
 		dst = append(dst, buf...)
 		dst = append(dst, tag.Value...)
 	}
-
 	return dst
 }
 

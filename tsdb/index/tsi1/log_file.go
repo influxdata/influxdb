@@ -390,7 +390,10 @@ func (f *LogFile) AddSeries(name []byte, tags models.Tags) error {
 	defer f.mu.Unlock()
 
 	// The name and tags are clone to prevent a memory leak
-	e := LogEntry{Name: []byte(string(name)), Tags: tags.Clone()}
+	newName := make([]byte, len(name))
+	copy(newName, name)
+
+	e := LogEntry{Name: newName, Tags: tags.Clone()}
 	if err := f.appendEntry(&e); err != nil {
 		return err
 	}
@@ -539,7 +542,8 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	}
 
 	// Generate key & series, if not exists.
-	key := AppendSeriesKey(make([]byte, 0, 256), e.Name, e.Tags)
+	// TODO(edd) use a pool of buffers?
+	key := AppendSeriesKey(nil, e.Name, e.Tags)
 	serie := mm.series[string(key)]
 	if serie == nil {
 		serie = &logSerie{name: e.Name, tags: e.Tags, deleted: deleted}
