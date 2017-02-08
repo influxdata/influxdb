@@ -1,16 +1,15 @@
 $graph-bg-color: $g3-castle;
 $graph-active-color: $g4-onyx;
 $graph-radius: 4px;
-
+$de-vertical-margin: 16px;
 $dygraphs-legend-offset: 32px;
 
 .graph {
-  position: absolute;;
-  margin-bottom: 18px;
-  width: 100%;
-  padding: 0 $explorer-page-padding;
-  top:0;
-  height: 40%;
+  position: absolute;
+  width: calc(100% - #{($explorer-page-padding * 2)});
+  left: $explorer-page-padding;
+  top: $de-vertical-margin;
+  height: 60%;
 }
 .graph-heading {
   background-color: $graph-bg-color;
@@ -47,6 +46,26 @@ $dygraphs-legend-offset: 32px;
   height: 316px;
   transition:
     background-color 0.25s ease;
+}
+.data-explorer .graph-container {
+  height: calc(100% - 44px - 32px);
+  padding: 0;
+
+  & > div {
+    position: absolute;
+    width: calc(100% - #{($de-vertical-margin * 2)});
+    height: calc(100% - #{$de-vertical-margin});
+    top: ($de-vertical-margin / 2);
+    left: $de-vertical-margin;
+  }
+  & > div > div {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+  }
+  & > div > div > div:first-child {
+    height: 100% !important;
+  }
 }
 
 
