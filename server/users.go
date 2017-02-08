@@ -11,8 +11,7 @@ import (
 )
 
 type userLinks struct {
-	Self         string `json:"self"`         // Self link mapping to this resource
-	Explorations string `json:"explorations"` // URL for explorations endpoint
+	Self string `json:"self"` // Self link mapping to this resource
 }
 
 type userResponse struct {
@@ -25,8 +24,7 @@ func newUserResponse(usr *chronograf.User) userResponse {
 	return userResponse{
 		User: usr,
 		Links: userLinks{
-			Self:         fmt.Sprintf("%s/%d", base, usr.ID),
-			Explorations: fmt.Sprintf("%s/%d/explorations", base, usr.ID),
+			Self: fmt.Sprintf("%s/%d", base, usr.ID),
 		},
 	}
 }

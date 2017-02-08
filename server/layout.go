@@ -9,6 +9,11 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+type link struct {
+	Href string `json:"href"`
+	Rel  string `json:"rel"`
+}
+
 type layoutResponse struct {
 	chronograf.Layout
 	Link link `json:"link"`
