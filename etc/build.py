@@ -3,7 +3,6 @@
 import sys
 import os
 import subprocess
-import time
 from datetime import datetime
 import shutil
 import tempfile
@@ -142,29 +141,38 @@ def package_scripts(build_root, config_only=False, windows=False):
         run("cp {} {} && chmod 644 {}".format(CANNED_SCRIPTS,
                                               os.path.join(build_root, CANNED_DIR[1:]),
                                               os.path.join(build_root, CANNED_DIR[1:], "*json")),
-            shell=True)
+            shell=True, print_output=True)
 
 def run_generate():
     """Generate static assets.
     """
+    start_time = datetime.utcnow()
     logging.info("Generating static assets...")
-    run("make assets", shell=True)
+    run("make assets", shell=True, print_output=True)
+    end_time = datetime.utcnow()
+    logging.info("Time taken: {}s".format((end_time - start_time).total_seconds()))
     return True
 
 def go_get(branch, update=False, no_uncommitted=False):
     """Retrieve build dependencies or restore pinned dependencies.
     """
+    start_time = datetime.utcnow()
     if local_changes() and no_uncommitted:
         logging.error("There are uncommitted changes in the current directory.")
         return False
-    run("make dep", shell=True)
+    run("make dep", shell=True, print_output=True)
+    end_time = datetime.utcnow()
+    logging.info("Time taken: {}s".format((end_time - start_time).total_seconds()))
     return True
 
 def run_tests(race, parallel, timeout, no_vet):
-    """Run the Go test suite on binary output.
+    """Run the Go and NPM test suite on binary output.
     """
+    start_time = datetime.utcnow()
     logging.info("Running tests...")
     run("make test", shell=True, print_output=True)
+    end_time = datetime.utcnow()
+    logging.info("Time taken: {}s".format((end_time - start_time).total_seconds()))
     return True
 
 ################
@@ -497,7 +505,7 @@ def build(version=None,
             build_command += "-a -installsuffix cgo "
         build_command += path
         start_time = datetime.utcnow()
-        run(build_command, shell=True)
+        run(build_command, shell=True, print_output=True)
         end_time = datetime.utcnow()
         logging.info("Time taken: {}s".format((end_time - start_time).total_seconds()))
     return True
@@ -633,13 +641,13 @@ def package(build_output, pkg_name, version, nightly=False, iteration=1, static=
                         current_location = os.path.join(os.getcwd(), current_location)
                         if package_type == 'tar':
                             tar_command = "cd {} && tar -cvzf {}.tar.gz --owner=root ./*".format(package_build_root, name)
-                            run(tar_command, shell=True)
+                            run(tar_command, shell=True, print_output=True)
                             run("mv {}.tar.gz {}".format(os.path.join(package_build_root, name), current_location), shell=True)
                             outfile = os.path.join(current_location, name + ".tar.gz")
                             outfiles.append(outfile)
                         elif package_type == 'zip':
                             zip_command = "cd {} && zip -r {}.zip ./*".format(package_build_root, name)
-                            run(zip_command, shell=True)
+                            run(zip_command, shell=True, print_output=True)
                             run("mv {}.zip {}".format(os.path.join(package_build_root, name), current_location), shell=True)
                             outfile = os.path.join(current_location, name + ".zip")
                             outfiles.append(outfile)
@@ -720,7 +728,7 @@ def main(args):
     orig_branch = get_current_branch()
 
     if args.platform not in supported_builds and args.platform != 'all':
-        logging.error("Invalid build platform: {}".format(target_platform))
+        logging.error("Invalid build platform: {}".format(args.platform))
         return 1
 
     build_output = {}
@@ -730,10 +738,10 @@ def main(args):
         return 1
     elif args.branch != orig_branch:
         logging.info("Moving to git branch: {}".format(args.branch))
-        run("git checkout {}".format(args.branch))
+        run("git checkout {}".format(args.branch), print_output=True)
     elif args.commit != orig_commit:
         logging.info("Moving to git commit: {}".format(args.commit))
-        run("git checkout {}".format(args.commit))
+        run("git checkout {}".format(args.commit), print_output=True)
 
     if not args.no_get:
         if not go_get(args.branch, update=args.update, no_uncommitted=args.no_uncommitted):
@@ -890,7 +898,7 @@ def main(args):
         logging.info(json.dumps(package_output, sort_keys=True, indent=4))
     if orig_branch != get_current_branch():
         logging.info("Moving back to original git branch: {}".format(orig_branch))
-        run("git checkout {}".format(orig_branch))
+        run("git checkout {}".format(orig_branch), print_output=True)
 
     return 0
 
