@@ -11,3 +11,4 @@ chronograf.db
 chronograf-v1.db
 npm-debug.log
 .vscode
+.DS_Store
