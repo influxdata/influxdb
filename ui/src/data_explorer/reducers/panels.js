@@ -27,24 +27,6 @@ export default function panels(state = {}, action) {
         return panelsCopy;
       }});
     }
-
-    case 'ADD_QUERY': {
-      const {panelId, queryId} = action.payload;
-      return update(state, {
-        [panelId]: {
-          queryIds: {$push: [queryId]},
-        },
-      });
-    }
-
-    case 'DELETE_QUERY': {
-      const {panelId, queryId} = action.payload;
-      return update(state, {
-        [panelId]: {
-          queryIds: {$set: state[panelId].queryIds.filter((id) => id !== queryId)},
-        },
-      });
-    }
   }
 
   return state;

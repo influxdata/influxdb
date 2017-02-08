@@ -33,19 +33,17 @@ export function addQuery(panelId, options) {
   return {
     type: 'ADD_QUERY',
     payload: {
-      panelId,
-      queryId: uuid.v4(),
+      queryID: uuid.v4(),
       options,
     },
   };
 }
 
-export function deleteQuery(panelId, queryId) {
+export function deleteQuery(queryID) {
   return {
     type: 'DELETE_QUERY',
     payload: {
-      queryId,
-      panelId,
+      queryID,
     },
   };
 }
