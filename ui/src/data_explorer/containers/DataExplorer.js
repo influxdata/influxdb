@@ -27,7 +27,6 @@ const DataExplorer = React.createClass({
       upper: string,
       lower: string,
     }).isRequired,
-    activePanel: string,
     setTimeRange: func.isRequired,
   },
 
@@ -55,7 +54,8 @@ const DataExplorer = React.createClass({
   },
 
   render() {
-    const {timeRange, setTimeRange, activePanel, queryConfigs} = this.props;
+    const {timeRange, setTimeRange, queryConfigs} = this.props;
+    const {activeQueryID} = this.state;
     const queries = Object.keys(queryConfigs).map((q) => queryConfigs[q]);
 
     return (
@@ -64,18 +64,20 @@ const DataExplorer = React.createClass({
           actions={{setTimeRange}}
           timeRange={timeRange}
         />
-        <Visualization
-          timeRange={timeRange}
-          queryConfigs={queries}
-          activePanelID={activePanel}
-          activeQueryID={this.state.activeQueryID}
-          activeQueryIndex={0}
-        />
-        <QueryBuilder
-          queries={queries}
-          timeRange={timeRange}
-          setActiveQuery={this.handleSetActiveQuery}
-        />
+        <div className="page-contents">
+          <Visualization
+            timeRange={timeRange}
+            queryConfigs={queries}
+            activeQueryID={this.state.activeQueryID}
+            activeQueryIndex={0}
+          />
+          <QueryBuilder
+            queries={queries}
+            timeRange={timeRange}
+            setActiveQuery={this.handleSetActiveQuery}
+            activeQueryID={activeQueryID}
+          />
+        </div>
       </div>
     );
   },
