@@ -45,7 +45,7 @@ godep:
 	go get -u github.com/jteeuwen/go-bindata/...
 
 jsdep:
-	cd ui && npm install
+	cd ui && yarn
 
 gen: bolt/internal/internal.proto
 	go generate -x ./bolt/internal
