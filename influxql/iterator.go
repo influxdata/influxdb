@@ -507,7 +507,10 @@ func (a *auxIteratorFields) iterator(name string, typ DataType) Iterator {
 func (a *auxIteratorFields) send(p Point) (ok bool) {
 	values := p.aux()
 	for i, f := range a.fields {
-		v := values[i]
+		var v interface{}
+		if i < len(values) {
+			v = values[i]
+		}
 
 		tags := p.tags()
 		tags = tags.Subset(a.dimensions)
