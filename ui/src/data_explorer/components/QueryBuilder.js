@@ -26,8 +26,6 @@ const QueryBuilder = React.createClass({
       groupByTime: PropTypes.func.isRequired,
       toggleTagAcceptance: PropTypes.func.isRequired,
       applyFuncsToField: PropTypes.func.isRequired,
-      deletePanel: PropTypes.func.isRequired,
-      renamePanel: PropTypes.func.isRequired,
     }).isRequired,
     setActiveQuery: PropTypes.func.isRequired,
     activeQueryID: PropTypes.string,

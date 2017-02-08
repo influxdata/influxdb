@@ -84,12 +84,11 @@ const DataExplorer = React.createClass({
 });
 
 function mapStateToProps(state) {
-  const {timeRange, queryConfigs, dataExplorerUI} = state;
+  const {timeRange, queryConfigs} = state;
 
   return {
     timeRange,
     queryConfigs,
-    activePanel: dataExplorerUI.activePanel,
   };
 }
 

@@ -52,7 +52,7 @@ const Visualization = React.createClass({
     const isInDataExplorer = true;
 
     return (
-      <div ref={(p) => this.panel = p} className={classNames("graph", {active: true})}>
+      <div className={classNames("graph", {active: true})}>
         <div className="graph-heading">
           <div className="graph-title">
             {name || "Graph"}
