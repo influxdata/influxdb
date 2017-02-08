@@ -18,35 +18,49 @@
   width: 190px;
   flex-direction: column;
   align-items: stretch;
-  background-color: $g4-onyx;
+  @include gradient-v($g3-castle,$g1-raven);
   border-radius: $radius 0 0 $radius;
+}
+.query-builder--tabs-heading {
+  height: 60px;
+  padding: 0 9px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  h1 {
+    font-size: 17px;
+    font-weight: 400;
+    text-transform: uppercase;
+    color: $g18-cloud;
+    margin: 0;
+  }
 }
 .query-builder--tab {
   width: 100%;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   color: $g11-sidewalk;
-  background: $g5-pepper;
-  height: 28px;
-  margin-right: 2px;
-  border-radius: $radius $radius 0 0;
+  background: transparent;
+  height: 30px;
   cursor: pointer;
-  padding: 0 8px 0 8px;
+  padding: 0 8px;
   transition:
       color 0.25s ease,
       background-color 0.25s ease;
 
   &:hover {
-    color: $g18-cloud;
-    background-color: $g6-smoke;
+    color: $g15-platinum;
+    background-color: $g4-onyx;
   }
   &.active {
-    background: $g6-smoke;
-    color: $g15-platinum;
+    color: $g18-cloud;
+    background: $g5-pepper;
   }
 
   &-delete {
-    margin: 0 -4px 0 1px;
+    margin: 0;
     width: 16px;
     height: 16px;
     background-color: transparent;
@@ -84,8 +98,11 @@
 }
 .panel--tab-new {
   > .dropdown-toggle {
-    height: 28px !important;
-    border-radius: $radius $radius 0 0;
+    height: 30px !important;
+    border-radius: $radius;
+    background-color: $c-pool;
+    color: $g20-white !important;
+    padding: 0;
 
     > .icon {
       margin: 0;
@@ -93,11 +110,21 @@
       position: relative;
       top: -1px;
     }
+    &:hover {
+      background-color: $c-laser;
+    }
   }
   > .dropdown-menu {
     width: 108px !important;
     min-width: 108px !important;
     max-width: 108px !important;
+  }
+}
+.panel--tab-new.open {
+  > .dropdown-toggle,
+  > .dropdown-toggle:hover {
+    background-color: $c-laser !important;
+    color: $g20-white !important;
   }
 }
 .query-builder--tab-label {
@@ -130,17 +157,10 @@
 .query-builder--column-heading {
   width: 100%;
   height: 30px;
-  position: absolute;
   display: flex;
   align-items: stretch;
   justify-content: space-between;
-  top: 0;
 
-  & > div {
-    width: 25%;
-    height: 30px;
-    color: #f00;
-  }
 }
 .query-builder--column {
   position: absolute;

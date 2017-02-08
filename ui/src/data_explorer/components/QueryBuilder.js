@@ -92,6 +92,10 @@ const QueryBuilder = React.createClass({
     const {queries} = this.props;
     return (
       <div className="query-builder--tabs">
+        <div className="query-builder--tabs-heading">
+          <h1>Queries</h1>
+          {this.renderAddQuery()}
+        </div>
         {queries.map((q) => {
           let queryTabText;
           if (q.rawText) {
@@ -110,8 +114,6 @@ const QueryBuilder = React.createClass({
             />
           );
         })}
-
-        {this.renderAddQuery()}
       </div>
     );
   },
