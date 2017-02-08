@@ -13,6 +13,7 @@ test:
   override:
     - >
       ./etc/scripts/docker/run.sh
+      --debug
       --test
       --no-build
 
