@@ -14,6 +14,9 @@
 - [#7929](https://github.com/influxdata/influxdb/issues/7929): Fix series tag iteration segfault. (#7922)
 - [#7906](https://github.com/influxdata/influxdb/issues/7906): Anchors not working as expected with case-insensitive regex
 - [#7895](https://github.com/influxdata/influxdb/issues/7895): Fix incorrect math when aggregates that emit different times are used.
+- [#7946](https://github.com/influxdata/influxdb/issues/7946): Fix authentication when subqueries are present.
+- [#7885](https://github.com/influxdata/influxdb/issues/7885): Fix LIMIT and OFFSET when they are used in a subquery.
+- [#7905](https://github.com/influxdata/influxdb/issues/7905): Fix ORDER BY time DESC with ordering series keys.
 - [#7933](https://github.com/influxdata/influxdb/pull/7933): Fixed install/remove of influxdb on non-systemd Debian/Ubuntu systems
 
 ## v1.2.0 [2017-01-24]
