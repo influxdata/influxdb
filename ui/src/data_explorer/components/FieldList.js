@@ -74,6 +74,7 @@ const FieldList = React.createClass({
 
     return (
       <div className="query-builder--column">
+        <div className="query-builder--column-heading">Fields</div>
         {
           hasAggregates ?
             <div className="qeditor--list-header">
@@ -95,21 +96,22 @@ const FieldList = React.createClass({
       return <div className="qeditor--empty">No <strong>Measurement</strong> selected</div>;
     }
 
-    return (<ul className="qeditor--list">
-      {this.state.fields.map((fieldFunc) => {
-        const selectedField = this.props.query.fields.find((f) => f.field === fieldFunc.field);
-        return (
-          <FieldListItem
-            key={fieldFunc.field}
-            onToggleField={this.props.onToggleField}
-            onApplyFuncsToField={this.props.applyFuncsToField}
-            isSelected={!!selectedField}
-            fieldFunc={selectedField || fieldFunc}
-            isKapacitorRule={this.props.isKapacitorRule}
-          />
-        );
-      })}
-    </ul>
+    return (
+      <ul className="qeditor--list">
+        {this.state.fields.map((fieldFunc) => {
+          const selectedField = this.props.query.fields.find((f) => f.field === fieldFunc.field);
+          return (
+            <FieldListItem
+              key={fieldFunc.field}
+              onToggleField={this.props.onToggleField}
+              onApplyFuncsToField={this.props.applyFuncsToField}
+              isSelected={!!selectedField}
+              fieldFunc={selectedField || fieldFunc}
+              isKapacitorRule={this.props.isKapacitorRule}
+            />
+          );
+        })}
+      </ul>
     );
   },
 
