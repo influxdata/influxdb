@@ -59,16 +59,7 @@ const QueryBuilder = React.createClass({
 
   render() {
     return (
-      <div className="panel active">
-        <div className="panel--header" onClick={this.handleSelectPanel}>
-          <div className="panel--name">
-            <span className="icon caret-right"></span>
-            {"Graph"}
-          </div>
-          <div className="panel--actions">
-            {/* <div title="Export Queries to Dashboard" className="panel--action"><span className="icon export"></span></div> */}
-          </div>
-        </div>
+      <div className="query-builder">
         {this.renderQueryTabList()}
         {this.renderQueryEditor()}
       </div>
@@ -102,7 +93,7 @@ const QueryBuilder = React.createClass({
   renderQueryTabList() {
     const {queries} = this.props;
     return (
-      <div className="panel--tabs">
+      <div className="query-builder--tabs">
         {queries.map((q) => {
           let queryTabText;
           if (q.rawText) {

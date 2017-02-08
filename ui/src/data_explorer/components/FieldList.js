@@ -41,25 +41,26 @@ const FieldList = React.createClass({
   },
 
   componentDidMount() {
-    const {database, measurement, retentionPolicy} = this.props.query;
+    const {database, measurement} = this.props.query;
     if (!database || !measurement) {
       return;
     }
 
-    const {source} = this.context;
-    const proxySource = source.links.proxy;
-    showFieldKeys(proxySource, database, measurement, retentionPolicy).then((resp) => {
-      const {errors, fieldSets} = showFieldKeysParser(resp.data);
-      if (errors.length) {
-        // TODO: do something
-      }
+    this._getFields();
+  },
 
-      this.setState({
-        fields: fieldSets[measurement].map((f) => {
-          return {field: f, funcs: []};
-        }),
-      });
-    });
+  componentDidUpdate(prevProps) {
+    const {database, measurement, retentionPolicy} = this.props.query;
+    const {database: prevDB, measurement: prevMeas, retentionPolicy: prevRP} = prevProps.query;
+    if (!database || !measurement) {
+      return;
+    }
+
+    if (database === prevDB && measurement === prevMeas && retentionPolicy === prevRP) {
+      return;
+    }
+
+    this._getFields();
   },
 
   handleGroupByTime(groupBy) {
@@ -72,7 +73,7 @@ const FieldList = React.createClass({
     const hasGroupByTime = query.groupBy.time;
 
     return (
-      <div>
+      <div className="query-builder--column">
         {
           hasAggregates ?
             <div className="qeditor--list-header">
@@ -110,6 +111,25 @@ const FieldList = React.createClass({
       })}
     </ul>
     );
+  },
+
+  _getFields() {
+    const {database, measurement, retentionPolicy} = this.props.query;
+    const {source} = this.context;
+    const proxySource = source.links.proxy;
+
+    showFieldKeys(proxySource, database, measurement, retentionPolicy).then((resp) => {
+      const {errors, fieldSets} = showFieldKeysParser(resp.data);
+      if (errors.length) {
+        // TODO: do something
+      }
+
+      this.setState({
+        fields: fieldSets[measurement].map((f) => {
+          return {field: f, funcs: []};
+        }),
+      });
+    });
   },
 });
 

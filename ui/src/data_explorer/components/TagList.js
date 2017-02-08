@@ -36,14 +36,11 @@ const TagList = React.createClass({
     };
   },
 
-  componentDidMount() {
+  _getTags() {
     const {database, measurement, retentionPolicy} = this.props.query;
     const {source} = this.context;
-    if (!database || !measurement || !retentionPolicy) {
-      return;
-    }
-
     const sourceProxy = source.links.proxy;
+
     showTagKeys({source: sourceProxy, database, retentionPolicy, measurement}).then((resp) => {
       const {errors, tagKeys} = showTagKeysParser(resp.data);
       if (errors.length) {
@@ -61,6 +58,29 @@ const TagList = React.createClass({
     });
   },
 
+  componentDidMount() {
+    const {database, measurement, retentionPolicy} = this.props.query;
+    if (!database || !measurement || !retentionPolicy) {
+      return;
+    }
+
+    this._getTags();
+  },
+
+  componentDidUpdate(prevProps) {
+    const {database, measurement, retentionPolicy} = this.props.query;
+    const {database: prevDB, measurement: prevMeas, retentionPolicy: prevRP} = prevProps.query;
+    if (!database || !measurement || !retentionPolicy) {
+      return;
+    }
+
+    if (database === prevDB && measurement === prevMeas && retentionPolicy === prevRP) {
+      return;
+    }
+
+    this._getTags();
+  },
+
   handleAcceptReject(e) {
     e.stopPropagation();
     this.props.onToggleTagAcceptance();
@@ -70,7 +90,7 @@ const TagList = React.createClass({
     const {query} = this.props;
 
     return (
-      <div>
+      <div className="query-builder--column">
         {(!query.database || !query.measurement || !query.retentionPolicy) ? null : <div className="qeditor--list-header">
           <div className="toggle toggle-sm">
             <div onClick={this.handleAcceptReject} className={cx("toggle-btn", {active: query.areTagsAccepted})}>Accept</div>
