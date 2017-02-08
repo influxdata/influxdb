@@ -1,8 +1,10 @@
 FROM ubuntu:trusty
 
 RUN apt update && DEBIAN_FRONTEND=noninteractive apt install -y \
+    apt-transport-https \
     python-dev \
     wget \
+    curl \
     git \
     mercurial \
     make \
@@ -25,6 +27,10 @@ RUN cd $(npm root -g)/npm \
     && npm install fs-extra \
     && sed -i -e s/graceful-fs/fs-extra/ -e s/fs.rename/fs.move/ ./lib/utils/rename.js
 RUN npm install npm -g
+
+RUN curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - && \
+    echo "deb https://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list &&  \
+    apt-get update && sudo apt-get install yarn
 
 # Install go
 ENV GOPATH /root/go
