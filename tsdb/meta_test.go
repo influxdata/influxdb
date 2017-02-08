@@ -104,7 +104,7 @@ func TestMeasurement_AppendSeriesKeysByID_Missing(t *testing.T) {
 
 func TestMeasurement_AppendSeriesKeysByID_Exists(t *testing.T) {
 	m := tsdb.NewMeasurement("cpu")
-	s := tsdb.NewSeries([]byte("cpu,host=foo"), models.Tags{models.Tag{Key: []byte("host"), Value: []byte("foo")}})
+	s := tsdb.NewSeries([]byte("cpu,host=foo"), models.Tags{models.NewTag([]byte("host"), []byte("foo"))})
 	s.ID = 1
 	m.AddSeries(s)
 
@@ -122,9 +122,9 @@ func TestMeasurement_AppendSeriesKeysByID_Exists(t *testing.T) {
 func BenchmarkMeasurement_SeriesIDForExp_EQRegex(b *testing.B) {
 	m := tsdb.NewMeasurement("cpu")
 	for i := 0; i < 100000; i++ {
-		s := tsdb.NewSeries([]byte("cpu"), models.Tags{models.Tag{
-			Key:   []byte("host"),
-			Value: []byte(fmt.Sprintf("host%d", i))}})
+		s := tsdb.NewSeries([]byte("cpu"), models.Tags{models.NewTag(
+			[]byte("host"),
+			[]byte(fmt.Sprintf("host%d", i)))})
 		s.ID = uint64(i)
 		m.AddSeries(s)
 	}

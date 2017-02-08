@@ -1360,9 +1360,9 @@ func parseTags(buf []byte) Tags {
 		}
 
 		if hasEscape {
-			tags = append(tags, Tag{Key: unescapeTag(key), Value: unescapeTag(value)})
+			tags = append(tags, NewTag(unescapeTag(key), unescapeTag(value)))
 		} else {
-			tags = append(tags, Tag{Key: key, Value: value})
+			tags = append(tags, NewTag(key, value))
 		}
 
 		i++
@@ -1629,6 +1629,18 @@ type Tag struct {
 
 	// shouldCopy returns whether or not a tag should be copied when Clone-ing
 	shouldCopy bool
+
+	// Number of bytes required to store this tag.
+	size int
+}
+
+// NewTag returns a new Tag.
+func NewTag(key, value []byte) Tag {
+	return Tag{
+		Key:   key,
+		Value: value,
+		size:  len(key) + len(value),
+	}
 }
 
 // Clone returns a shallow copy of Tag.
@@ -1672,7 +1684,7 @@ func NewTags(m map[string]string) Tags {
 	}
 	a := make(Tags, 0, len(m))
 	for k, v := range m {
-		a = append(a, Tag{Key: []byte(k), Value: []byte(v)})
+		a = append(a, NewTag([]byte(k), []byte(v)))
 	}
 	sort.Sort(a)
 	return a
@@ -1690,6 +1702,17 @@ func (a Tags) String() string {
 	}
 	buf.WriteByte(']')
 	return buf.String()
+}
+
+// Size returns the number of bytes needed to store all tags. Note, this is
+// the number of bytes needed to store all keys and values and does not account
+// for data structures or delimiters for example.
+func (a Tags) Size() int {
+	var total int
+	for _, t := range a {
+		total += t.size
+	}
+	return total
 }
 
 // Clone returns a copy of the slice where the elements are a result of calling `Clone` on the original elements
