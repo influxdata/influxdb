@@ -22,6 +22,7 @@ deployment:
     commands:
       - >
         ./etc/scripts/docker/run.sh
+        --debug
         --clean
         --package
         --platform all
@@ -42,6 +43,7 @@ deployment:
       - >
         ./etc/scripts/docker/run.sh
         --clean
+        --debug
         --release
         --package
         --platform all
@@ -64,6 +66,7 @@ deployment:
       - >
         ./etc/scripts/docker/run.sh
         --clean
+        --debug
         --release
         --package
         --platform all
