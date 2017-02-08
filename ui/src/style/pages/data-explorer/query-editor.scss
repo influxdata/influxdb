@@ -10,7 +10,7 @@ $query-editor-tab-inactive: $g2-kevlar;
 $query-editor-tab-active: $g3-castle;
 $query-editor-height: 250px;
 
-.qeditor--query-preview {
+.query-builder--query-preview {
   position: relative;
 
   pre {
@@ -18,11 +18,10 @@ $query-editor-height: 250px;
     border: 0;
     background-color: $query-editor-tab-inactive;
     color: $c-pool;
-    border-radius: $radius-small $radius-small 0 0;
-    border-bottom: 2px solid $query-editor-tab-active;
+    border-radius: $radius;
     margin-bottom: 0;
     overflow: auto;
-    min-height: 3.25em;
+    height: 56px;
     @include custom-scrollbar($query-editor-tab-inactive, $c-pool);
 
     code {
@@ -90,7 +89,8 @@ $query-editor-height: 250px;
     list-style-type: none;
     margin: 0;
     font-size: 12px;
-    padding: 4px 9px 4px 18px;
+    font-weight: 500;
+    padding: 4px 9px;
     transition:
       color 0.25s ease,
       background-color 0.25s ease;
@@ -105,7 +105,7 @@ $query-editor-height: 250px;
     &.active {
       color: $g20-white;
       background-color: $g4-onyx;
-      font-weight: 600;
+      font-weight: 700;
     }
   }
   &-checkbox {
@@ -178,14 +178,13 @@ $query-editor-height: 250px;
 
 // List empty state
 .qeditor--empty {
-  text-align: center;
+  text-align: left;
   color: $g10-wolf;
   display: inline-block;
   width: 100%;
   padding: 18px 0;
   height: $query-editor-height;
-  background-color: $query-editor-tab-active;
-  border-radius: 0 0 $radius $radius;
+  background-color: $g5-pepper;
 }
 
 // Hidden dropdowns

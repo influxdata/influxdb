@@ -79,8 +79,10 @@ const QueryEditor = React.createClass({
   render() {
     return (
       <div className="query-builder--tab-contents">
-        {this.renderQuery()}
-        {this.renderLists()}
+        <div>
+          {this.renderQuery()}
+          {this.renderLists()}
+        </div>
       </div>
     );
   },
@@ -91,7 +93,7 @@ const QueryEditor = React.createClass({
 
     if (!query.rawText) {
       return (
-        <div className="qeditor--query-preview">
+        <div className="query-builder--query-preview">
           <pre><code>{statement}</code></pre>
         </div>
       );
