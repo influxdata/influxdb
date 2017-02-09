@@ -21,7 +21,7 @@ func kapaHandler(handler string) (string, error) {
 		return "email", nil
 	case "http":
 		return "post", nil
-	case "sensu", "slack", "email", "talk", "telegram", "post", "tcp":
+	case "alerta", "sensu", "slack", "email", "talk", "telegram", "post", "tcp":
 		return handler, nil
 	default:
 		return "", fmt.Errorf("Unsupported alert handler %s", handler)
