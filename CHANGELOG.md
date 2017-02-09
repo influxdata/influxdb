@@ -7,6 +7,11 @@
   2. [#853](https://github.com/influxdata/chronograf/issues/853): Updated builds to use yarn over npm install
 
 ### Upcoming UI Improvements
+  1. [#822](https://github.com/influxdata/chronograf/issues/822): Simplify and improve layout of the Data Explorer
+    - The Data Explorer's intention and purpose has always been the ad hoc and ephemeral   exploration of your schema and data.
+      The concept of `Exploration` sessions and `Panels` betrayed this initial intention. The DE turned into a "poor man's"
+      dashboarding tool. In turn, this introduced complexity in the code and the UI.  In the future if I want to save, manipulate,
+      and view multiple visualizations this will be done more efficiently and effectively in our dashboarding solution.
 
 ## v1.2.0-beta1 [2017-01-27]
 
