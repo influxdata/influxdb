@@ -94,8 +94,8 @@ const TagList = React.createClass({
         <div className="query-builder--column-heading">Tags</div>
         {(!query.database || !query.measurement || !query.retentionPolicy) ? null : <div className="qeditor--list-header">
           <div className="toggle toggle-sm">
-            <div onClick={this.handleAcceptReject} className={cx("toggle-btn", {active: query.areTagsAccepted})}>Accept</div>
-            <div onClick={this.handleAcceptReject} className={cx("toggle-btn", {active: !query.areTagsAccepted})}>Reject</div>
+            <div onClick={this.handleAcceptReject} className={cx("toggle-btn", {active: query.areTagsAccepted})}>=</div>
+            <div onClick={this.handleAcceptReject} className={cx("toggle-btn", {active: !query.areTagsAccepted})}>!=</div>
           </div>
         </div>}
         {this.renderList()}
