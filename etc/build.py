@@ -153,6 +153,16 @@ def run_generate():
     logging.info("Time taken: {}s".format((end_time - start_time).total_seconds()))
     return True
 
+def make_clean():
+    """Generate static assets.
+    """
+    start_time = datetime.utcnow()
+    run("make clean", shell=True, print_output=True)
+    end_time = datetime.utcnow()
+    logging.info("Time taken: {}s".format((end_time - start_time).total_seconds()))
+    return True
+
+
 def go_get(branch, update=False, no_uncommitted=False):
     """Retrieve build dependencies or restore pinned dependencies.
     """
@@ -742,6 +752,10 @@ def main(args):
     elif args.commit != orig_commit:
         logging.info("Moving to git commit: {}".format(args.commit))
         run("git checkout {}".format(args.commit), print_output=True)
+
+    if args.clean:
+        if not make_clean():
+            return 1
 
     if not args.no_get:
         if not go_get(args.branch, update=args.update, no_uncommitted=args.no_uncommitted):
