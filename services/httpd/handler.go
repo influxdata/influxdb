@@ -8,7 +8,6 @@ import (
 	"expvar"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/pprof"
@@ -1089,12 +1088,8 @@ func gzipFilter(inner http.Handler) http.Handler {
 			inner.ServeHTTP(w, r)
 			return
 		}
-		gz := gzipWriterPool.Get().(*gzip.Writer)
-		gz.Reset(w)
-		defer func() {
-			gz.Close()
-			gzipWriterPool.Put(gz)
-		}()
+		gz := getGzipWriter(w)
+		defer putGzipWriter(gz)
 		gzw := gzipResponseWriter{Writer: gz, ResponseWriter: w}
 		inner.ServeHTTP(gzw, r)
 	})
@@ -1102,8 +1097,19 @@ func gzipFilter(inner http.Handler) http.Handler {
 
 var gzipWriterPool = sync.Pool{
 	New: func() interface{} {
-		return gzip.NewWriter(ioutil.Discard)
+		return gzip.NewWriter(nil)
 	},
+}
+
+func getGzipWriter(w io.Writer) *gzip.Writer {
+	gz := gzipWriterPool.Get().(*gzip.Writer)
+	gz.Reset(w)
+	return gz
+}
+
+func putGzipWriter(gz *gzip.Writer) {
+	gz.Close()
+	gzipWriterPool.Put(gz)
 }
 
 // cors responds to incoming requests and adds the appropriate cors headers
