@@ -544,13 +544,14 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	// Generate key & series, if not exists.
 	// TODO(edd) use a pool of buffers?
 	key := AppendSeriesKey(nil, e.Name, e.Tags)
-	serie := mm.series[string(key)]
+	keyStr := string(key)
+	serie := mm.series[keyStr]
 	if serie == nil {
 		serie = &logSerie{name: e.Name, tags: e.Tags, deleted: deleted}
-		mm.series[string(key)] = serie
+		mm.series[keyStr] = serie
 	} else if deleted {
 		serie.deleted = true
-		mm.series[string(key)] = serie
+		mm.series[keyStr] = serie
 	}
 
 	// Save tags.
@@ -558,7 +559,7 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 		ts := mm.createTagSetIfNotExists(t.Key)
 		tv := ts.createTagValueIfNotExists(t.Value)
 
-		tv.series[string(key)] = serie
+		tv.series[keyStr] = serie
 
 		ts.tagValues[string(t.Value)] = tv
 		mm.tagSet[string(t.Key)] = ts
