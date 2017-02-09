@@ -33,6 +33,7 @@ const ChronoTable = React.createClass({
       text: string.isRequired,
     }),
     containerWidth: number.isRequired,
+    height: number,
   },
 
   getInitialState() {
@@ -42,6 +43,12 @@ const ChronoTable = React.createClass({
         values: [],
       },
       columnWidths: {},
+    };
+  },
+
+  getDefaultProps() {
+    return {
+      height: 600,
     };
   },
 
@@ -81,30 +88,33 @@ const ChronoTable = React.createClass({
 
   // Table data as a list of array.
   render() {
-    const {containerWidth} = this.props;
+    const {containerWidth, height} = this.props;
     const {cellData, columnWidths, isLoading} = this.state;
     const {columns, values} = cellData;
 
-    const ownerHeight = 300;
+    // adjust height to proper value by subtracting the heights of the UI around it
+    // tab height, graph-container vertical padding, graph-heading height, multitable-header height
+    const stylePixelOffset = 136;
+
     const rowHeight = 34;
-    const height = 300;
     const width = 200;
-    const headerHeight = 40;
+    const headerHeight = 30;
     const minWidth = 70;
+    const styleAdjustedHeight = height - stylePixelOffset;
 
     if (!isLoading && !values.length) {
-      return <div>Your query returned no data</div>;
+      return <div className="generic-empty-state">Your query returned no data</div>;
     }
 
     return (
       <Table
         onColumnResizeEndCallback={this.handleColumnResize}
         isColumnResizing={false}
-        ownerHeight={ownerHeight}
         rowHeight={rowHeight}
         rowsCount={values.length}
         width={containerWidth}
-        height={height}
+        ownerHeight={styleAdjustedHeight}
+        height={styleAdjustedHeight}
         headerHeight={headerHeight}>
         {columns.map((columnName, colIndex) => {
           return (

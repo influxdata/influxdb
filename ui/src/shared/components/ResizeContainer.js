@@ -48,16 +48,19 @@ const ResizeContainer = React.createClass({
     // Don't trigger a resize if the new sizes are too small
     const minTopPanelHeight = 300;
     const minBottomPanelHeight = 250;
-    if (((newTopPanelPercent / turnToPercent) * appHeight) < minTopPanelHeight || ((newBottomPanelPercent / turnToPercent) * appHeight) < minBottomPanelHeight) {
+    const topHeightPixels = ((newTopPanelPercent / turnToPercent) * appHeight);
+    const bottomHeightPixels = ((newBottomPanelPercent / turnToPercent) * appHeight);
+
+    if (topHeightPixels < minTopPanelHeight || bottomHeightPixels < minBottomPanelHeight) {
       return;
     }
 
-    this.setState({topHeight: `${(newTopPanelPercent)}%`, bottomHeight: `${(newBottomPanelPercent)}%`});
+    this.setState({topHeight: `${(newTopPanelPercent)}%`, bottomHeight: `${(newBottomPanelPercent)}%`, topHeightPixels});
   },
 
   render() {
-    const {topHeight, bottomHeight, isDragging} = this.state;
-    const top = React.cloneElement(this.props.children[0], {height: topHeight});
+    const {topHeight, bottomHeight, isDragging, topHeightPixels} = this.state;
+    const top = React.cloneElement(this.props.children[0], {height: topHeight, heightPixels: topHeightPixels});
     const bottom = React.cloneElement(this.props.children[1], {height: bottomHeight, top: topHeight});
     const handle = <ResizeHandle isDragging={isDragging} onHandleStartDrag={this.handleStartDrag} top={topHeight} />;
 

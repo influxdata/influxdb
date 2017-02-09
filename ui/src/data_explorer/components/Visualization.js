@@ -23,6 +23,7 @@ const Visualization = React.createClass({
     name: string,
     activeQueryIndex: number,
     height: string,
+    heightPixels: number,
   },
 
   contextTypes: {
@@ -44,7 +45,7 @@ const Visualization = React.createClass({
   },
 
   render() {
-    const {queryConfigs, timeRange, activeQueryIndex, height} = this.props;
+    const {queryConfigs, timeRange, activeQueryIndex, height, heightPixels} = this.props;
     const {source} = this.context;
     const proxyLink = source.links.proxy;
 
@@ -72,7 +73,7 @@ const Visualization = React.createClass({
             </ul>
           </div>
         </div>
-        <div className="graph-container">
+        <div className={classNames("", {"graph-container": isGraphInView, "table-container": !isGraphInView})}>
           {isGraphInView ? (
             <RefreshingLineGraph
               queries={queries}
@@ -80,7 +81,7 @@ const Visualization = React.createClass({
               activeQueryIndex={activeQueryIndex}
               isInDataExplorer={isInDataExplorer}
               />
-          ) : <MultiTable queries={queries} />}
+          ) : <MultiTable queries={queries} height={heightPixels} />}
         </div>
       </div>
     );

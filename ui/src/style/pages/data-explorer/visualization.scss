@@ -34,6 +34,41 @@
   display: flex;
   align-items: center;
 }
+.table-container {
+  background-color: $graph-bg-color;
+  border-radius: 0 0 $graph-radius $graph-radius;
+  padding: 8px 16px;
+  position: relative;
+  top: $de-vertical-margin;
+  height: calc(100% - #{$de-graph-heading-height} - #{($de-vertical-margin * 2)});
+
+  & > div {
+    position: absolute;
+    width: calc(100% - #{($de-vertical-margin * 2)});
+    height: calc(100% - #{$de-vertical-margin});
+    top: ($de-vertical-margin/2);
+    left: $de-vertical-margin;;
+  }
+  & > div .multi-table__tabs {
+    position: absolute;
+    height: 30px;
+    width: 100%;
+  }
+  & > div > div:last-child {
+    position: absolute;
+    top: 30px;
+    height: calc(100% - 30px) !important;
+    width: 100%;
+  }
+  .fixedDataTableLayout_main {
+    height: 100% !important;
+  }
+  .generic-empty-state {
+    background-color: $g6-smoke;
+    padding: 50px 0;
+    height: 100%;
+  }
+}
 .graph-container {
   background-color: $graph-bg-color;
   border-radius: 0 0 $graph-radius $graph-radius;

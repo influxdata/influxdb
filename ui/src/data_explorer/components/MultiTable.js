@@ -2,7 +2,14 @@ import React, {PropTypes} from 'react';
 import Table from './Table';
 import classNames from 'classnames';
 
-const {bool, string, shape, arrayOf, func} = PropTypes;
+const {
+  arrayOf,
+  bool,
+  func,
+  number,
+  shape,
+  string,
+} = PropTypes;
 
 const MultiTable = React.createClass({
   propTypes: {
@@ -10,6 +17,7 @@ const MultiTable = React.createClass({
       host: arrayOf(string.isRequired).isRequired,
       text: string.isRequired,
     })),
+    height: number,
   },
 
   getInitialState() {
@@ -40,13 +48,14 @@ const MultiTable = React.createClass({
   },
 
   renderTable() {
+    const {height} = this.props;
     const query = this.getActiveQuery();
     const noQuery = !query || !query.text;
     if (noQuery) {
       return null;
     }
 
-    return <Table key={query.text} query={query} />;
+    return <Table key={query.text} query={query} height={height} />;
   },
 
   renderTabs() {
