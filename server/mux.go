@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/NYTimes/gziphandler"
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf" // When julienschmidt/httprouter v2 w/ context is out, switch
 	"github.com/influxdata/chronograf/jwt"
@@ -119,7 +120,10 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		auth := AuthAPI(opts, router)
 		return Logger(opts.Logger, auth)
 	}
-	return Logger(opts.Logger, router)
+
+	compressed := gziphandler.GzipHandler(router)
+	logged := Logger(opts.Logger, compressed)
+	return logged
 }
 
 // AuthAPI adds the OAuth routes if auth is enabled.
