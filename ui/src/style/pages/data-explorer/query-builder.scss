@@ -15,7 +15,7 @@
 // Tabs
 .query-builder--tabs {
   display: flex;
-  width: 190px;
+  width: 250px;
   flex-direction: column;
   align-items: stretch;
   @include gradient-v($g3-castle,$g1-raven);
@@ -23,7 +23,7 @@
 }
 .query-builder--tabs-heading {
   height: 60px;
-  padding: 0 9px;
+  padding: 0 9px 0 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -45,7 +45,7 @@
   background: transparent;
   height: 30px;
   cursor: pointer;
-  padding: 0 8px;
+  padding: 0 8px 0 16px;
   transition:
       color 0.25s ease,
       background-color 0.25s ease;
@@ -141,9 +141,10 @@
   Tab Contents
   -------------------------------------------
 */
+$query-builder--column-heading-height: 60px;
 .query-builder--tab-contents {
   width: 100%;
-  background-color: $g5-pepper;
+  background-color: $g4-onyx;
   border-radius: 0 $radius $radius 0;
   overflow: hidden;
   position: relative;
@@ -163,7 +164,7 @@
 }
 .query-builder--column-heading {
   width: 100%;
-  height: 30px;
+  height: $query-builder--column-heading-height;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -171,8 +172,8 @@
   font-weight: 600;
   color: $g13-mist;
   padding: 0 9px;
-  line-height: 30px;
-  border-bottom: 2px solid $g6-smoke;
+  line-height: $query-builder--column-heading-height;
+  border-bottom: 2px solid $g5-pepper;
 }
 .query-builder--column {
   position: absolute;
@@ -182,16 +183,16 @@
 
   .qeditor--list {
     position: absolute;
-    top: 30px;
-    height: calc(100% - 30px);
+    top: $query-builder--column-heading-height;
+    height: calc(100% - #{$query-builder--column-heading-height});
     width: 100%;
     left: 0;
     padding: 0;
     overflow: auto;
     overflow-x: hidden;
     overflow-y: scroll;
-    @include custom-scrollbar($g5-pepper,$c-pool);
-    background-color: $g5-pepper;
+    @include custom-scrollbar($g4-onyx,$c-pool);
+    background-color: $g4-onyx;
   }
 }
 .query-builder--column:nth-of-type(1) { left: 0; }

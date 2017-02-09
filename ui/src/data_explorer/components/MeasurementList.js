@@ -74,7 +74,7 @@ const MeasurementList = React.createClass({
       <div className="query-builder--column">
         <div className="query-builder--column-heading">Measurements</div>
         {this.props.query.database ? <div className="qeditor--list-header">
-          <input className="qeditor--filter" ref="filterText" placeholder="Filter Measurements..." type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
+          <input className="qeditor--filter" ref="filterText" placeholder="Filter" type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
           <span className="icon search"></span>
         </div> : null }
         {this.renderList()}
