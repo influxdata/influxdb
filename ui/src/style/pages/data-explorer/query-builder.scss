@@ -2,10 +2,8 @@
   position: absolute;
   width: calc(100% - #{($explorer-page-padding * 2)});
   left: $explorer-page-padding;
-  height: calc(40% - 16px);
+  height: 40%;
   top: 60%;
-  background-color: $g3-castle;
-  border-radius: $radius;
   border: 0;
   display: flex;
   align-items: stretch;
@@ -16,6 +14,8 @@
 .query-builder--tabs {
   display: flex;
   width: 250px;
+  margin-top: $de-vertical-margin;
+  height: calc(100% - #{($de-vertical-margin * 2)});
   flex-direction: column;
   align-items: stretch;
   @include gradient-v($g3-castle,$g1-raven);
@@ -144,6 +144,8 @@
 $query-builder--column-heading-height: 60px;
 .query-builder--tab-contents {
   width: 100%;
+  margin-top: $de-vertical-margin;
+  height: calc(100% - #{($de-vertical-margin * 2)});
   background-color: $g4-onyx;
   border-radius: 0 $radius $radius 0;
   overflow: hidden;

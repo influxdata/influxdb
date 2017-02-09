@@ -3,6 +3,7 @@ import {connect} from 'react-redux';
 import QueryBuilder from '../components/QueryBuilder';
 import Visualization from '../components/Visualization';
 import Header from '../containers/Header';
+import ResizeContainer from 'src/shared/components/ResizeContainer';
 
 import {
   setTimeRange as setTimeRangeAction,
@@ -64,7 +65,7 @@ const DataExplorer = React.createClass({
           actions={{setTimeRange}}
           timeRange={timeRange}
         />
-        <div className="page-contents">
+        <ResizeContainer>
           <Visualization
             timeRange={timeRange}
             queryConfigs={queries}
@@ -77,7 +78,7 @@ const DataExplorer = React.createClass({
             setActiveQuery={this.handleSetActiveQuery}
             activeQueryID={activeQueryID}
           />
-        </div>
+        </ResizeContainer>
       </div>
     );
   },

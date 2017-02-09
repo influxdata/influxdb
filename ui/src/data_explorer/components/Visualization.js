@@ -6,15 +6,23 @@ import LineGraph from 'shared/components/LineGraph';
 import MultiTable from './MultiTable';
 const RefreshingLineGraph = AutoRefresh(LineGraph);
 
+const {
+  arrayOf,
+  number,
+  shape,
+  string,
+} = PropTypes;
+
 const Visualization = React.createClass({
   propTypes: {
-    timeRange: PropTypes.shape({
-      upper: PropTypes.string,
-      lower: PropTypes.string,
+    timeRange: shape({
+      upper: string,
+      lower: string,
     }).isRequired,
-    queryConfigs: PropTypes.arrayOf(PropTypes.shape({})).isRequired,
-    name: PropTypes.string,
-    activeQueryIndex: PropTypes.number,
+    queryConfigs: arrayOf(shape({})).isRequired,
+    name: string,
+    activeQueryIndex: number,
+    height: string,
   },
 
   contextTypes: {
@@ -36,7 +44,7 @@ const Visualization = React.createClass({
   },
 
   render() {
-    const {queryConfigs, timeRange, activeQueryIndex} = this.props;
+    const {queryConfigs, timeRange, activeQueryIndex, height} = this.props;
     const {source} = this.context;
     const proxyLink = source.links.proxy;
 
@@ -52,7 +60,7 @@ const Visualization = React.createClass({
     const isInDataExplorer = true;
 
     return (
-      <div className={classNames("graph", {active: true})}>
+      <div className={classNames("graph", {active: true})} style={{height}}>
         <div className="graph-heading">
           <div className="graph-title">
             {name || "Graph"}

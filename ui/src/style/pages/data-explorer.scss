@@ -25,6 +25,16 @@
   }
 }
 
+$query-editor-gutter: 16px;
+$query-editor-tab-inactive: $g2-kevlar;
+$query-editor-tab-active: $g3-castle;
+$query-editor-height: 250px;
+$graph-bg-color: $g3-castle;
+$graph-active-color: $g4-onyx;
+$graph-radius: 4px;
+$de-vertical-margin: 16px;
+$dygraphs-legend-offset: 32px;
+$de-graph-heading-height: 44px;
 
 // DE Specific components
 @import 'data-explorer/query-builder';
