@@ -11,12 +11,12 @@ func TestValidateAlert(t *testing.T) {
 	}{
 		{
 			name:    "Test valid template alert",
-			service: "slack",
+			service: ".slack()",
 			wantErr: false,
 		},
 		{
 			name:    "Test invalid template alert",
-			service: "invalid",
+			service: ".invalid()",
 			wantErr: true,
 		},
 	}

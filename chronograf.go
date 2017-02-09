@@ -104,16 +104,16 @@ type SourcesStore interface {
 
 // AlertRule represents rules for building a tickscript alerting task
 type AlertRule struct {
-	ID            string          `json:"id,omitempty"` // ID is the unique ID of the alert
-	Query         QueryConfig     `json:"query"`        // Query is the filter of data for the alert.
-	Every         string          `json:"every"`        // Every how often to check for the alerting criteria
-	Alerts        []string        `json:"alerts"`       // Alerts name all the services to notify (e.g. pagerduty)
-	AlertNodes    []KapacitorNode `json:"alertNodes"`   // AlertNodes define additional arguments to alerts
-	Message       string          `json:"message"`      // Message included with alert
-	Details       string          `json:"details"`      // Details is generally used for the Email alert.  If empty will not be added.
-	Trigger       string          `json:"trigger"`      // Trigger is a type that defines when to trigger the alert
-	TriggerValues TriggerValues   `json:"values"`       // Defines the values that cause the alert to trigger
-	Name          string          `json:"name"`         // Name is the user-defined name for the alert
+	ID            string          `json:"id,omitempty"`         // ID is the unique ID of the alert
+	Query         QueryConfig     `json:"query"`                // Query is the filter of data for the alert.
+	Every         string          `json:"every"`                // Every how often to check for the alerting criteria
+	Alerts        []string        `json:"alerts"`               // Alerts name all the services to notify (e.g. pagerduty)
+	AlertNodes    []KapacitorNode `json:"alertNodes,omitempty"` // AlertNodes define additional arguments to alerts
+	Message       string          `json:"message"`              // Message included with alert
+	Details       string          `json:"details"`              // Details is generally used for the Email alert.  If empty will not be added.
+	Trigger       string          `json:"trigger"`              // Trigger is a type that defines when to trigger the alert
+	TriggerValues TriggerValues   `json:"values"`               // Defines the values that cause the alert to trigger
+	Name          string          `json:"name"`                 // Name is the user-defined name for the alert
 }
 
 // AlertRulesStore stores rules for building tickscript alerting tasks
@@ -176,9 +176,9 @@ type QueryConfig struct {
 
 // KapacitorNode adds arguments and properties to an alert
 type KapacitorNode struct {
-	Name       string               `json:"name"`
-	Args       []string             `json:"args"`
-	Properties []*KapacitorProperty `json:"properties"`
+	Name       string              `json:"name"`
+	Args       []string            `json:"args"`
+	Properties []KapacitorProperty `json:"properties"`
 	// In the future we could add chaining methods here.
 }
 

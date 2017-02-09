@@ -49,6 +49,103 @@ func TestAlertServices(t *testing.T) {
         .slack()
 `,
 		},
+		{
+			name: "Test single valid service and property",
+			rule: chronograf.AlertRule{
+				Alerts: []string{"slack"},
+				AlertNodes: []chronograf.KapacitorNode{
+					{
+						Name: "slack",
+						Properties: []chronograf.KapacitorProperty{
+							{
+								Name: "channel",
+								Args: []string{"#general"},
+							},
+						},
+					},
+				},
+			},
+			want: `alert()
+        .slack()
+        .channel('#general')
+`,
+		},
+		{
+			name: "Test tcp",
+			rule: chronograf.AlertRule{
+				AlertNodes: []chronograf.KapacitorNode{
+					{
+						Name: "tcp",
+						Args: []string{"myaddress:22"},
+					},
+				},
+			},
+			want: `alert()
+        .tcp('myaddress:22')
+`,
+		},
+		{
+			name: "Test tcp no argument",
+			rule: chronograf.AlertRule{
+				AlertNodes: []chronograf.KapacitorNode{
+					{
+						Name: "tcp",
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Test tcp no argument with other services",
+			rule: chronograf.AlertRule{
+				Alerts: []string{"slack", "tcp", "email"},
+				AlertNodes: []chronograf.KapacitorNode{
+					{
+						Name: "tcp",
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "Test http as post",
+			rule: chronograf.AlertRule{
+				AlertNodes: []chronograf.KapacitorNode{
+					{
+						Name: "http",
+						Args: []string{"http://myaddress"},
+					},
+				},
+			},
+			want: `alert()
+        .post('http://myaddress')
+`,
+		},
+		{
+			name: "Test post",
+			rule: chronograf.AlertRule{
+				AlertNodes: []chronograf.KapacitorNode{
+					{
+						Name: "post",
+						Args: []string{"http://myaddress"},
+					},
+				},
+			},
+			want: `alert()
+        .post('http://myaddress')
+`,
+		},
+		{
+			name: "Test http no arguments",
+			rule: chronograf.AlertRule{
+				AlertNodes: []chronograf.KapacitorNode{
+					{
+						Name: "http",
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		got, err := AlertServices(tt.rule)
