@@ -481,9 +481,7 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 		// We only need to load meta data for the in memory index.
 		return nil
 	}
-
 	now := time.Now()
-	defer func() { s.logger.Info(fmt.Sprintf("%s database index loaded in %s", s.path, time.Since(now))) }()
 
 	// Save reference to index for iterator creation.
 	e.index = index
