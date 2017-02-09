@@ -1714,6 +1714,8 @@
 					"items": {
 						"type": "string",
 						"enum": [
+							"post",
+							"tcp",
 							"hipchat",
 							"opsgenie",
 							"pagerduty",
