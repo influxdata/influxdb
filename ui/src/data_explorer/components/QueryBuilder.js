@@ -7,28 +7,36 @@ import QueryTabItem from './QueryTabItem';
 import SimpleDropdown from 'src/shared/components/SimpleDropdown';
 
 import * as viewActions from '../actions/view';
+const {
+  arrayOf,
+  func,
+  shape,
+  string,
+} = PropTypes;
 
 const QueryBuilder = React.createClass({
   propTypes: {
-    queries: PropTypes.arrayOf(PropTypes.shape({})).isRequired,
-    timeRange: PropTypes.shape({
-      upper: PropTypes.string,
-      lower: PropTypes.string,
+    queries: arrayOf(shape({})).isRequired,
+    timeRange: shape({
+      upper: string,
+      lower: string,
     }).isRequired,
-    actions: PropTypes.shape({
-      chooseNamespace: PropTypes.func.isRequired,
-      chooseMeasurement: PropTypes.func.isRequired,
-      chooseTag: PropTypes.func.isRequired,
-      groupByTag: PropTypes.func.isRequired,
-      addQuery: PropTypes.func.isRequired,
-      deleteQuery: PropTypes.func.isRequired,
-      toggleField: PropTypes.func.isRequired,
-      groupByTime: PropTypes.func.isRequired,
-      toggleTagAcceptance: PropTypes.func.isRequired,
-      applyFuncsToField: PropTypes.func.isRequired,
+    actions: shape({
+      chooseNamespace: func.isRequired,
+      chooseMeasurement: func.isRequired,
+      chooseTag: func.isRequired,
+      groupByTag: func.isRequired,
+      addQuery: func.isRequired,
+      deleteQuery: func.isRequired,
+      toggleField: func.isRequired,
+      groupByTime: func.isRequired,
+      toggleTagAcceptance: func.isRequired,
+      applyFuncsToField: func.isRequired,
     }).isRequired,
-    setActiveQuery: PropTypes.func.isRequired,
-    activeQueryID: PropTypes.string,
+    height: string,
+    top: string,
+    setActiveQuery: func.isRequired,
+    activeQueryID: string,
   },
 
   handleSetActiveQuery(query) {
@@ -56,8 +64,9 @@ const QueryBuilder = React.createClass({
   },
 
   render() {
+    const {height, top} = this.props;
     return (
-      <div className="query-builder">
+      <div className="query-builder" style={{height, top}}>
         {this.renderQueryTabList()}
         {this.renderQueryEditor()}
       </div>

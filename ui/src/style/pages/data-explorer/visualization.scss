@@ -1,23 +1,19 @@
-$graph-bg-color: $g3-castle;
-$graph-active-color: $g4-onyx;
-$graph-radius: 4px;
-$de-vertical-margin: 16px;
-$dygraphs-legend-offset: 32px;
-
 .graph {
   position: absolute;
   width: calc(100% - #{($explorer-page-padding * 2)});
   left: $explorer-page-padding;
-  top: $de-vertical-margin;
+  top: 0;
   height: 60%;
 }
 .graph-heading {
+  position: relative;
+  top: $de-vertical-margin;
   background-color: $graph-bg-color;
   border-radius: $graph-radius $graph-radius 0 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 44px;
+  height: $de-graph-heading-height;
   padding: 0 16px;
   transition:
     background-color 0.25s ease;
@@ -48,7 +44,8 @@ $dygraphs-legend-offset: 32px;
     background-color 0.25s ease;
 }
 .data-explorer .graph-container {
-  height: calc(100% - 44px - 32px);
+  top: $de-vertical-margin;
+  height: calc(100% - #{$de-graph-heading-height} - #{($de-vertical-margin * 2)});
   padding: 0;
 
   & > div {
