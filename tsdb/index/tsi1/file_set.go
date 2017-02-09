@@ -482,20 +482,16 @@ func (fs FileSet) HasSeries(name []byte, tags models.Tags) bool {
 	return false
 }
 
-// FilterNamesTags filters out any series which already exist.
+// FilterNamesTags filters out any series which already exist. It modifies the
+// provided slices of names and tags.
 func (fs FileSet) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags) {
-	n := len(names)
-	newNames := make([][]byte, 0, n)
-	newTagsSlice := make([]models.Tags, 0, n)
-
-	for j := 0; j < n; j++ {
-		if fs.HasSeries(names[j], tagsSlice[j]) {
-			continue
+	newNames, newTagsSlice := names[:0], tagsSlice[:0]
+	for i := 0; i < len(names); i++ {
+		if !fs.HasSeries(names[i], tagsSlice[i]) {
+			newNames = append(newNames, names[i])
+			newTagsSlice = append(newTagsSlice, tagsSlice[i])
 		}
-		newNames = append(newNames, names[j])
-		newTagsSlice = append(newTagsSlice, tagsSlice[j])
 	}
-
 	return newNames, newTagsSlice
 }
 
