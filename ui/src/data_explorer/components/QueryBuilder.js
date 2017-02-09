@@ -96,7 +96,7 @@ const QueryBuilder = React.createClass({
           <h1>Queries</h1>
           {this.renderAddQuery()}
         </div>
-        {queries.map((q) => {
+        {queries.map((q, i) => {
           let queryTabText;
           if (q.rawText) {
             queryTabText = 'InfluxQL';
@@ -106,7 +106,7 @@ const QueryBuilder = React.createClass({
           return (
             <QueryTabItem
               isActive={this.getActiveQuery().id === q.id}
-              key={q.id}
+              key={q.id + i}
               query={q}
               onSelect={this.handleSetActiveQuery}
               onDelete={this.handleDeleteQuery}

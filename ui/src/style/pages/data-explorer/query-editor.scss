@@ -185,13 +185,13 @@ $query-editor-height: 250px;
 
 // List empty state
 .qeditor--empty {
-  text-align: left;
+  text-align: center;
   color: $g10-wolf;
   display: inline-block;
   width: 100%;
   padding: 18px 0;
   height: $query-editor-height;
-  background-color: $g5-pepper;
+  background-color: transparent;
 }
 
 // Hidden dropdowns
