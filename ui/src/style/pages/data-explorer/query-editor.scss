@@ -96,7 +96,7 @@ $query-editor-height: 250px;
       background-color 0.25s ease;
 
     &:hover {
-      background-color: $g6-smoke;
+      background-color: $g5-pepper;
       color: $g15-platinum;
       cursor: pointer;
     }
@@ -104,7 +104,7 @@ $query-editor-height: 250px;
   &-radio {
     &.active {
       color: $g20-white;
-      background-color: $g6-smoke;
+      background-color: $g5-pepper;
       font-weight: 700;
     }
   }
