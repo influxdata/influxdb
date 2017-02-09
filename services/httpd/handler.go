@@ -390,6 +390,14 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 		NodeID:    nodeID,
 	}
 
+	if h.Config.AuthEnabled {
+		// The current user determines the authorized actions.
+		opts.Authorizer = user
+	} else {
+		// Auth is disabled, so allow everything.
+		opts.Authorizer = influxql.OpenAuthorizer{}
+	}
+
 	// Make sure if the client disconnects we signal the query to abort
 	var closing chan struct{}
 	if !async {
