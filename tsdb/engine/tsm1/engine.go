@@ -18,6 +18,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/influxdata/influxdb/tsdb/index/inmem"
+
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
@@ -475,7 +477,13 @@ func (e *Engine) WithLogger(log zap.Logger) {
 
 // LoadMetadataIndex loads the shard metadata into memory.
 func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
+	if index.Type() != inmem.IndexName {
+		// We only need to load meta data for the in memory index.
+		return nil
+	}
+
 	now := time.Now()
+	defer func() { s.logger.Info(fmt.Sprintf("%s database index loaded in %s", s.path, time.Since(now))) }()
 
 	// Save reference to index for iterator creation.
 	e.index = index

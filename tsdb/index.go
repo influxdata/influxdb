@@ -52,6 +52,8 @@ type Index interface {
 	AssignShard(k string, shardID uint64)
 	UnassignShard(k string, shardID uint64) error
 	RemoveShard(shardID uint64)
+
+	Type() string
 }
 
 // IndexFormat represents the format for an index.
