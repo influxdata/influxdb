@@ -3,7 +3,7 @@
 	"info": {
 		"title": "Chronograf",
 		"description": "API endpoints for Chronograf",
-		"version": "1.1.0"
+		"version": "1.2.0"
 	},
 	"schemes": [
 		"http"
@@ -1684,6 +1684,53 @@
 				"fields"
 			]
 		},
+		"KapacitorNode": {
+			"type": "object",
+			"description": "Represents a node in the kapacitor TICKscript graph",
+			"required": [
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "Name of the kapacitor node e.g. slack"
+				},
+				"args": {
+					"type": "array",
+					"description": "All arguments to the named node",
+					"items": {
+						"type": "string"
+					}
+				},
+				"properties": {
+					"type": "array",
+					"description": "All properties attached to the kapacitor node",
+					"items": {
+						"$ref": "#/definitions/KapacitorProperty"
+					}
+				}
+			}
+		},
+		"KapacitorProperty": {
+			"type": "object",
+			"description": "Represents a property attached to a node in the kapacitor TICKscript graph",
+			"required": [
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "Name of the kapacitor property e.g. channel for a slack ndoe"
+				},
+				"args": {
+					"type": "array",
+					"description": "All arguments to the named property",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
 		"Rule": {
 			"type": "object",
 			"required": [
@@ -1714,19 +1761,29 @@
 					"items": {
 						"type": "string",
 						"enum": [
+							"alerta",
 							"post",
-							"tcp",
+							"http",
 							"hipchat",
 							"opsgenie",
 							"pagerduty",
 							"victorops",
 							"smtp",
 							"email",
+							"exec",
 							"sensu",
 							"slack",
 							"talk",
-							"telegram"
+							"telegram",
+							"tcp"
 						]
+					}
+				},
+				"alertNodes": {
+					"type": "array",
+					"description": "Arguments and properties to add to alert",
+					"items": {
+						"$ref": "#/definitions/KapacitorNode"
 					}
 				},
 				"message": {
