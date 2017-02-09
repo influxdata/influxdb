@@ -3,7 +3,7 @@ machine:
   services:
     - docker
   environment:
-    DOCKER_TAG: chronograf-20170127
+    DOCKER_TAG: chronograf-20170208
 
 dependencies:
   override:
@@ -13,6 +13,7 @@ test:
   override:
     - >
       ./etc/scripts/docker/run.sh
+      --debug
       --test
       --no-build
 
@@ -22,6 +23,7 @@ deployment:
     commands:
       - >
         ./etc/scripts/docker/run.sh
+        --debug
         --clean
         --package
         --platform all
@@ -42,6 +44,7 @@ deployment:
       - >
         ./etc/scripts/docker/run.sh
         --clean
+        --debug
         --release
         --package
         --platform all
@@ -64,6 +67,7 @@ deployment:
       - >
         ./etc/scripts/docker/run.sh
         --clean
+        --debug
         --release
         --package
         --platform all

@@ -4,6 +4,7 @@ import {defaultRuleConfigs} from 'src/kapacitor/constants';
 import {
   chooseTrigger,
   updateRuleValues,
+  updateDetails,
   updateMessage,
   updateAlerts,
   updateRuleName,
@@ -116,5 +117,21 @@ describe('Kapacitor.Reducers.rules', () => {
     const newState = reducer(initialState, deleteRuleSuccess(rule2));
     expect(Object.keys(newState).length).to.equal(1);
     expect(newState[rule1]).to.equal(initialState[rule1]);
+  });
+
+  it('can update details', () => {
+    const ruleID = 1;
+    const details = 'im some rule details';
+
+    const initialState = {
+      [ruleID]: {
+        id: ruleID,
+        queryID: 988,
+        details: '',
+      }
+    };
+
+    const newState = reducer(initialState, updateDetails(ruleID, details));
+    expect(newState[ruleID].details).to.equal(details);
   });
 });
