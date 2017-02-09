@@ -1731,6 +1731,10 @@
 					"type": "string",
 					"description": "Message to send when alert occurs."
 				},
+				"details": {
+					"type": "string",
+					"description": "Template for constructing a detailed HTML message for the alert. (Currently, only used for email/smtp"
+				},
 				"trigger": {
 					"type": "string",
 					"description": "Trigger defines the alerting structure; deadman alert if no data are received for the specified time range; relative alert if the data change relative to the data in a different time range; threshold alert if the data cross a boundary",

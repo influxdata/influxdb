@@ -109,6 +109,7 @@ type AlertRule struct {
 	Every         string        `json:"every"`        // Every how often to check for the alerting criteria
 	Alerts        []string      `json:"alerts"`       // AlertServices name all the services to notify (e.g. pagerduty)
 	Message       string        `json:"message"`      // Message included with alert
+	Details       string        `json:"details"`      // Details is generally used for the Email alert.  If empty will not be added.
 	Trigger       string        `json:"trigger"`      // Trigger is a type that defines when to trigger the alert
 	TriggerValues TriggerValues `json:"values"`       // Defines the values that cause the alert to trigger
 	Name          string        `json:"name"`         // Name is the user-defined name for the alert

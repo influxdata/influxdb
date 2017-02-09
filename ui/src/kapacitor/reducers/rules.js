@@ -85,6 +85,14 @@ export default function rules(state = {}, action) {
       delete state[ruleID];
       return Object.assign({}, state);
     }
+
+    case 'UPDATE_RULE_DETAILS': {
+      const {ruleID, details} = action.payload;
+
+      return {...state, ...{
+        [ruleID]: {...state[ruleID], details},
+      }};
+    }
   }
   return state;
 }

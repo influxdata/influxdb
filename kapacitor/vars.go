@@ -100,7 +100,7 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
         var outputMeasurement = '%s'
         var triggerType = '%s'
     `
-	return fmt.Sprintf(common,
+	res := fmt.Sprintf(common,
 		rule.Query.Database,
 		rule.Query.RetentionPolicy,
 		rule.Query.Measurement,
@@ -117,7 +117,14 @@ func commonVars(rule chronograf.AlertRule) (string, error) {
 		RP,
 		Measurement,
 		rule.Trigger,
-	), nil
+	)
+
+	if rule.Details != "" {
+		res += fmt.Sprintf(`
+        var details = '%s'
+    `, rule.Details)
+	}
+	return res, nil
 }
 
 // window is only used if deadman or threshold/relative with aggregate.  Will return empty
