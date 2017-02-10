@@ -46,8 +46,8 @@ const ResizeContainer = React.createClass({
     }
 
     // Don't trigger a resize if the new sizes are too small
-    const minTopPanelHeight = 300;
-    const minBottomPanelHeight = 250;
+    const minTopPanelHeight = 200;
+    const minBottomPanelHeight = 100;
     const topHeightPixels = ((newTopPanelPercent / turnToPercent) * appHeight);
     const bottomHeightPixels = ((newBottomPanelPercent / turnToPercent) * appHeight);
 
