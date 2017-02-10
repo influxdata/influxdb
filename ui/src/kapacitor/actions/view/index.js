@@ -37,7 +37,7 @@ export function loadDefaultRule() {
     dispatch({
       type: 'ADD_KAPACITOR_QUERY',
       payload: {
-        queryId: queryID,
+        queryID,
       },
     });
   };
