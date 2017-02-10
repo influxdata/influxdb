@@ -6,7 +6,7 @@ Our circle.yml uses this docker container to build, test and create release pack
 ### Updating new node/go versions
 After updating the Dockerfile_build run
 
-`docker build -t quay.io/influxdb/builder:chronograf-$(date "+%Y%m%d") -f Dockerfile_build`
+`docker build -t quay.io/influxdb/builder:chronograf-$(date "+%Y%m%d") -f Dockerfile_build .`
 
 and push to quay with:
 `docker push quay.io/influxdb/builder:chronograf-$(date "+%Y%m%d")`

@@ -345,9 +345,8 @@ div.qeditor.kapacitor-metric-selector {
   }
 }
 
-.alert-message {
+.alert-text {
   border: 2px solid $g3-castle;
-  border-radius: $kap-radius-lg $kap-radius-lg 0 0;
   background-color: $kapacitor-graphic-color;
   margin: 0;
   padding: $kap-padding-sm $kap-padding-lg;
@@ -362,8 +361,8 @@ div.qeditor.kapacitor-metric-selector {
   font-size: $kapacitor-font-sm;
   line-height: 17px;
   transition:
-    color 0.25s ease,
-    border-color 0.25s ease;
+  color 0.25s ease,
+  border-color 0.25s ease;
 
   @include custom-scrollbar($kapacitor-graphic-color,$kapacitor-accent);
 
@@ -379,6 +378,14 @@ div.qeditor.kapacitor-metric-selector {
   &::-moz-placeholder { color: $g9-mountain; }
   &:-ms-input-placeholder { color: $g9-mountain; }
   &:-moz-placeholder { color: $g9-mountain; }
+
+  &.message {
+    border-radius: $kap-radius-lg $kap-radius-lg 0 0;
+  }
+
+  &.details {
+    border-radius: 0;
+  }
 }
 
 .alert-message--endpoint {

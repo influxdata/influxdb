@@ -3,6 +3,8 @@
 ### Upcoming Bug Fixes
 
 ### Upcoming Features
+  1. [#838](https://github.com/influxdata/chronograf/issues/838): Add detail node to kapacitor alerts
+  2. [#853](https://github.com/influxdata/chronograf/issues/853): Updated builds to use yarn over npm install
 
 ### Upcoming UI Improvements
 

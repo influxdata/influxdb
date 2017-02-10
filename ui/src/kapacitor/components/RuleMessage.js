@@ -17,6 +17,7 @@ export const RuleMessage = React.createClass({
     rule: shape({}).isRequired,
     actions: shape({
       updateMessage: func.isRequired,
+      updateDetails: func.isRequired,
     }).isRequired,
     enabledAlerts: arrayOf(string.isRequired).isRequired,
   },
@@ -43,22 +44,24 @@ export const RuleMessage = React.createClass({
     const defaultAlertEndpoints = DEFAULT_ALERTS.map((text) => {
       return {text, ruleID: rule.id};
     });
+
     const alerts = enabledAlerts.map((text) => {
       return {text, ruleID: rule.id};
     }).concat(defaultAlertEndpoints);
+
+    const selectedAlert = rule.alerts[0];
 
     return (
       <div className="kapacitor-rule-section">
         <h3 className="rule-section-heading">Alert Message</h3>
         <div className="rule-section-body">
           <textarea
-            className="alert-message"
+            className="alert-text message"
             ref={(r) => this.message = r}
             onChange={() => actions.updateMessage(rule.id, this.message.value)}
             placeholder='Example: {{ .ID }} is {{ .Level }} value: {{ index .Fields "value" }}'
             value={rule.message}
           />
-
           <div className="alert-message--formatting">
             <p>Templates:</p>
             {
@@ -74,22 +77,23 @@ export const RuleMessage = React.createClass({
             }
             <ReactTooltip effect="solid" html={true} offset={{top: -4}} class="influx-tooltip kapacitor-tooltip" />
           </div>
+          {
+            selectedAlert === 'smtp' ?
+            <textarea
+              className="alert-text details"
+              ref={(r) => this.details = r}
+              onChange={() => actions.updateDetails(rule.id, this.details.value)}
+              placeholder="Put email body text here"
+              value={rule.details}
+            /> : null
+          }
           <div className="rule-section--item bottom alert-message--endpoint">
             <p>Send this Alert to:</p>
-            <Dropdown className="size-256 dropdown-kapacitor" selected={rule.alerts[0] || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
-            {this.renderInput(this.state.selectedAlert)}
+            <Dropdown className="size-256 dropdown-kapacitor" selected={selectedAlert || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
           </div>
         </div>
       </div>
     );
-  },
-
-  renderInput(alert) {
-    if (!DEFAULT_ALERTS.find((a) => a === alert)) {
-      return null;
-    }
-
-    return <input className="form-control col-xs-6" type="text" ref={(r) => this.selectedAlert = r} />;
   },
 });
 

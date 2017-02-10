@@ -106,14 +106,6 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PATCH("/chronograf/v1/users/:id", service.UpdateUser)
 	router.DELETE("/chronograf/v1/users/:id", service.RemoveUser)
 
-	// Explorations
-	router.GET("/chronograf/v1/users/:id/explorations", service.Explorations)
-	router.POST("/chronograf/v1/users/:id/explorations", service.NewExploration)
-
-	router.GET("/chronograf/v1/users/:id/explorations/:eid", service.ExplorationsID)
-	router.PATCH("/chronograf/v1/users/:id/explorations/:eid", service.UpdateExploration)
-	router.DELETE("/chronograf/v1/users/:id/explorations/:eid", service.RemoveExploration)
-
 	// Dashboards
 	router.GET("/chronograf/v1/dashboards", service.Dashboards)
 	router.POST("/chronograf/v1/dashboards", service.NewDashboard)

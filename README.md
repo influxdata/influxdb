@@ -59,7 +59,6 @@ Chronograf's graphing tool that allows you to dig in and create personalized vis
 * Generate [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) statements with the query builder
 * Generate and edit [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_language/) statements with the raw query editor
 * Create visualizations and view query results in tabular format
-* Manage visualizations with exploration sessions
 
 ### Dashboards
 
@@ -107,7 +106,7 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 See [Chronograf with OAuth 2.0](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) for more information.
 
 ### Advanced Routing
-Change the default root path of the Chronograf server with the `—basepath` option.
+Change the default root path of the Chronograf server with the `--basepath` option.
 
 ## Versions
 
@@ -142,11 +141,12 @@ docker pull quay.io/influxdb/chronograf:latest
 
 ### From Source
 
-* Chronograf works with go 1.7.x, node 6.x/7.x, and npm 3.x.
+* Chronograf works with go 1.7.x, node 6.x/7.x, and yarn 0.18+.
 * Chronograf requires [Kapacitor](https://github.com/influxdata/kapacitor) 1.1.x+ to create and store alerts.
 
 1. [Install Go](https://golang.org/doc/install)
 1. [Install Node and NPM](https://nodejs.org/en/download/)
+1. [Install yarn](https://yarnpkg.com/docs/install)
 1. [Setup your GOPATH](https://golang.org/doc/code.html#GOPATH)
 1. Run `go get github.com/influxdata/chronograf`
 1. Run `cd $GOPATH/src/github.com/influxdata/chronograf`

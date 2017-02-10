@@ -13,20 +13,20 @@ const PanelList = React.createClass({
     }).isRequired,
     panels: shape({}).isRequired,
     queryConfigs: PropTypes.shape({}),
-    actions: shape({}).isRequired,
-    setActivePanel: func.isRequired,
+    actions: shape({
+      activatePanel: func.isRequired,
+      deleteQuery: func.isRequired,
+      addQuery: func.isRequired,
+    }).isRequired,
     setActiveQuery: func.isRequired,
     activePanelID: string,
     activeQueryID: string,
   },
 
   handleTogglePanel(panel) {
-    // If the panel being toggled is currently active, it means we should
-    // close everything by setting `activePanelID` to null.
-    const activePanelID = panel.id === this.props.activePanelID ?
-      null : panel.id;
+    const panelID = panel.id === this.props.activePanelID ? null : panel.id;
+    this.props.actions.activatePanel(panelID);
 
-    this.props.setActivePanel(activePanelID);
     // Reset the activeQueryID when toggling Exporations
     this.props.setActiveQuery(null);
   },

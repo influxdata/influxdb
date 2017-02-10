@@ -91,6 +91,6 @@
 /* Hacky way to ensure that legends cannot be obscured by neighboring graphs */
 .react-grid-item {
   &:hover {
-    z-index: 9999;
+    z-index: 8999;
   }
 }

@@ -9,6 +9,7 @@ const PanelBuilder = React.createClass({
   propTypes: {
     width: string,
     actions: PropTypes.shape({
+      activatePanel: func.isRequired,
       createPanel: func.isRequired,
       deleteQuery: func.isRequired,
       addQuery: func.isRequired,
@@ -23,25 +24,23 @@ const PanelBuilder = React.createClass({
       toggleTagAcceptance: func.isRequired,
       deletePanel: func.isRequired,
     }).isRequired,
-    setActivePanel: func.isRequired,
     setActiveQuery: func.isRequired,
     activePanelID: string,
     activeQueryID: string,
   },
 
-  handleCreateExploer() {
+  handleCreateExplorer() {
     this.props.actions.createPanel();
   },
 
   render() {
-    const {width, actions, setActivePanel, setActiveQuery, activePanelID, activeQueryID} = this.props;
+    const {width, actions, setActiveQuery, activePanelID, activeQueryID} = this.props;
 
     return (
       <div className="panel-builder" style={{width}}>
-        <div className="btn btn-block btn-primary" onClick={this.handleCreateExploer}><span className="icon graphline"></span>&nbsp;&nbsp;Create Graph</div>
+        <div className="btn btn-block btn-primary" onClick={this.handleCreateExplorer}><span className="icon graphline"></span>&nbsp;&nbsp;Create Graph</div>
         <PanelList
           actions={actions}
-          setActivePanel={setActivePanel}
           setActiveQuery={setActiveQuery}
           activePanelID={activePanelID}
           activeQueryID={activeQueryID}

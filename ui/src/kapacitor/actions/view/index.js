@@ -37,7 +37,7 @@ export function loadDefaultRule() {
     dispatch({
       type: 'ADD_KAPACITOR_QUERY',
       payload: {
-        queryId: queryID,
+        queryID,
       },
     });
   };
@@ -83,6 +83,16 @@ export function updateMessage(ruleID, message) {
     payload: {
       ruleID,
       message,
+    },
+  };
+}
+
+export function updateDetails(ruleID, details) {
+  return {
+    type: 'UPDATE_RULE_DETAILS',
+    payload: {
+      ruleID,
+      details,
     },
   };
 }

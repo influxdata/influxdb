@@ -44,7 +44,7 @@ Paste an existing [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_l
 ![Raw Editor](https://github.com/influxdata/chronograf/blob/master/docs/images/raw-editor-gs.gif)
 
 ### Other Features
-View query results in tabular format (1), easily alter the query's time range with the time range selector (2), and save your graphs in individual exploration sessions (3):
+View query results in tabular format (1) and easily alter the query's time range with the time range selector (2):
 
 ![Data Exploration Extras](https://github.com/influxdata/chronograf/blob/master/docs/images/data-exploration-extras-gs.png)
 
