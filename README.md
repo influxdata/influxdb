@@ -17,27 +17,27 @@ Chronograf is an open-source web application written in Go and React.js that pro
 Chronograf's [pre-canned dashboards](https://github.com/influxdata/chronograf/tree/master/canned) for the supported [Telegraf](https://github.com/influxdata/telegraf) input plugins.
 Currently, Chronograf offers dashboard templates for the following Telegraf input plugins:
 
-* Apache
-* Consul
-* Docker
-* Elastic
+* [Apache](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/apache)
+* [Consul](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/consul)
+* [Docker](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/docker)
+* [Elastic](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/elasticsearch)
 * etcd
-* HAProxy
+* [HAProxy](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/haproxy)
 * IIS
-* InfluxDB
-* Kubernetes
-* Memcached
-* MongoDB
-* MySQL
+* [InfluxDB](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/influxdb)
+* [Kubernetes](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/kubernetes)
+* [Memcached](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/memcached)
+* [MongoDB](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/mongodb)
+* [MySQL](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/mysql)
 * Network
-* NGINX
-* NSQ
-* Ping
-* PostgreSQL
+* [NGINX](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/nginx)
+* [NSQ](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/nsq)
+* [Ping](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/ping)
+* [PostgreSQL](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/postgresql)
 * Processes
-* RabbitMQ
-* Redis
-* Riak
+* [RabbitMQ](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/rabbitmq)
+* [Redis](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/redis)
+* [Riak](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/riak)
 * [System](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/SYSTEM_README.md)
     * [CPU](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/CPU_README.md)
     * [Disk](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/DISK_README.md)
@@ -47,8 +47,8 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
     * [Netstat](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/NETSTAT_README.md)
     * [Processes](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/PROCESSES_README.md)
     * [Procstat](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/procstat/README.md)
-* Varnish
-* Windows Performance Counters
+* [Varnish](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/varnish)
+* [Windows Performance Counters](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/win_perf_counters)
 
 > Note: If a `telegraf` instance isn't running the `system` and `cpu` plugins the canned dashboards from that instance won't be generated.
 
@@ -91,20 +91,21 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 * Simply generate threshold, relative, and deadman alerts
 * Preview data and alert boundaries while creating an alert
 * Configure alert destinations - Currently, Chronograf supports sending alerts to:
-  * Alerta
-  * Exec
-  * HipChat
-  * HTTP/Post
-  * OpsGenie
-  * PagerDuty
-  * Sensu
-  * Slack
-  * SMTP/email
-  * Talk
-  * TCP
-  * Telegram
-  * VictorOps
+  * [Alerta](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#alerta)
+  * [Exec](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#exec)
+  * [HipChat](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#hipchat)
+  * [HTTP/Post](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#post)
+  * [OpsGenie](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#opsgenie)
+  * [PagerDuty](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#pagerduty)
+  * [Sensu](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#sensu)
+  * [Slack](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#slack)
+  * [SMTP/Email](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#email)
+  * [Talk](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#talk)
+  * [Telegram](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#telegram)
+  * [TCP](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#tcp)
+  * [VictorOps](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#victorops)
 * View all active alerts at a glance on the alerting dashboard
+* Enable and disable existing alert rules with the check of a box
 
 ### GitHub OAuth Login
 See [Chronograf with OAuth 2.0](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) for more information.
@@ -114,7 +115,7 @@ Change the default root path of the Chronograf server with the `--basepath` opti
 
 ## Versions
 
-Chronograf v1.2.0-beta1 is a beta release.
+Chronograf v1.2.0-beta2 is a beta release.
 We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
 
 Spotted a bug or have a feature request?
