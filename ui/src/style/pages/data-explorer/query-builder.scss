@@ -196,6 +196,14 @@ $query-builder--column-heading-height: 60px;
     @include custom-scrollbar($g4-onyx,$c-pool);
     background-color: $g4-onyx;
   }
+  .qeditor--empty {
+    margin-top: 0;
+    height: calc(100% - #{$query-builder--column-heading-height});
+    position: absolute;
+    top: $query-builder--column-heading-height;
+    left: 0;
+    background-color: transparent;
+  }
 }
 .query-builder--column:nth-of-type(1) { left: 0; }
 .query-builder--column:nth-of-type(2) { left: 25%; }
