@@ -11,6 +11,7 @@ import {
   updateAlertNodes,
   updateRuleName,
   deleteRuleSuccess,
+  updateRuleStatusSuccess,
 } from 'src/kapacitor/actions/view';
 
 describe('Kapacitor.Reducers.rules', () => {
@@ -169,5 +170,21 @@ describe('Kapacitor.Reducers.rules', () => {
 
     const newState = reducer(initialState, updateDetails(ruleID, details));
     expect(newState[ruleID].details).to.equal(details);
+  });
+
+  it('can update status', () => {
+    const ruleID = 1;
+    const status = 'enabled';
+
+    const initialState = {
+      [ruleID]: {
+        id: ruleID,
+        queryID: 988,
+        status: 'disabled',
+      }
+    };
+
+    const newState = reducer(initialState, updateRuleStatusSuccess(ruleID, status));
+    expect(newState[ruleID].status).to.equal(status);
   });
 });

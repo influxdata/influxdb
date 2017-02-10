@@ -6,27 +6,35 @@ import {getKapacitor} from 'src/shared/apis';
 import * as kapacitorActionCreators from '../actions/view';
 import NoKapacitorError from '../../shared/components/NoKapacitorError';
 
+const {
+  arrayOf,
+  func,
+  shape,
+  string,
+} = PropTypes;
+
 export const KapacitorRulesPage = React.createClass({
   propTypes: {
-    source: PropTypes.shape({
-      id: PropTypes.string.isRequired,
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
-        self: PropTypes.string.isRequired,
-        kapacitors: PropTypes.string.isRequired,
+    source: shape({
+      id: string.isRequired,
+      links: shape({
+        proxy: string.isRequired,
+        self: string.isRequired,
+        kapacitors: string.isRequired,
       }),
     }),
-    rules: PropTypes.arrayOf(PropTypes.shape({
-      name: PropTypes.string.isRequired,
-      trigger: PropTypes.string.isRequired,
-      message: PropTypes.string.isRequired,
-      alerts: PropTypes.arrayOf(PropTypes.string.isRequired).isRequired,
+    rules: arrayOf(shape({
+      name: string.isRequired,
+      trigger: string.isRequired,
+      message: string.isRequired,
+      alerts: arrayOf(string.isRequired).isRequired,
     })).isRequired,
-    actions: PropTypes.shape({
-      fetchRules: PropTypes.func.isRequired,
-      deleteRule: PropTypes.func.isRequired,
+    actions: shape({
+      fetchRules: func.isRequired,
+      deleteRule: func.isRequired,
+      updateRuleStatus: func.isRequired,
     }).isRequired,
-    addFlashMessage: PropTypes.func,
+    addFlashMessage: func,
   },
 
   getInitialState() {
@@ -48,6 +56,14 @@ export const KapacitorRulesPage = React.createClass({
   handleDeleteRule(rule) {
     const {actions} = this.props;
     actions.deleteRule(rule);
+  },
+
+  handleRuleStatus(e, rule) {
+    const {actions} = this.props;
+    const status = e.target.checked ? 'enabled' : 'disabled';
+
+    actions.updateRuleStatusSuccess(rule.id, status);
+    actions.updateRuleStatus(rule, {status});
   },
 
   renderSubComponent() {
@@ -72,6 +88,7 @@ export const KapacitorRulesPage = React.createClass({
                   <th>Trigger</th>
                   <th>Message</th>
                   <th>Alerts</th>
+                  <th className="text-center">Enabled</th>
                   <th></th>
                 </tr>
               </thead>
@@ -129,6 +146,12 @@ export const KapacitorRulesPage = React.createClass({
           <td className="monotype">{rule.trigger}</td>
           <td className="monotype">{rule.message}</td>
           <td className="monotype">{rule.alerts.join(', ')}</td>
+          <td className="monotype text-center">
+            <div className="dark-checkbox">
+              <input id="kapacitor-enabled" className="form-control-static" type="checkbox" ref={(r) => this.enabled = r} checked={rule.status === "enabled"} onClick={(e) => this.handleRuleStatus(e, rule)} />
+              <label htmlFor="kapacitor-enabled"></label>
+            </div>
+          </td>
           <td className="text-right"><button className="btn btn-danger btn-xs" onClick={() => this.handleDeleteRule(rule)}>Delete</button></td>
         </tr>
       );
