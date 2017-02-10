@@ -1851,6 +1851,14 @@
 					"type": "string",
 					"description": "TICKscript representing this rule"
 				},
+                "status": {
+                    "type": "string",
+                    "description": "Represents if this rule is enabled or disabled in kapacitor",
+                    "enum": [
+                        "enabled",
+                        "disabled"
+                    ]
+                },
 				"links": {
 					"type": "object",
 					"required": [
