@@ -1,6 +1,7 @@
 ## v1.2.0 [unreleased]
 
 ### Upcoming Bug Fixes
+  1. [#865](https://github.com/influxdata/chronograf/issues/865): Support for String fields compare kapacitor rules in Chronograf UI
 
 ### Upcoming Features
   1. [#838](https://github.com/influxdata/chronograf/issues/838): Add detail node to kapacitor alerts
