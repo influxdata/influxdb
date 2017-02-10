@@ -1,27 +1,13 @@
 import React, {PropTypes} from 'react';
 import Dropdown from 'shared/components/Dropdown';
 import ReactTooltip from 'react-tooltip';
-import _ from 'lodash';
-import {RULE_MESSAGE_TEMPLATES as templates} from '../constants/index.js';
 
-const DEFAULT_ALERTS = ['http', 'tcp', 'exec', 'smtp', 'alerta'];
-const DEFAULT_ALERT_PLACEHOLDERS = {
-  http: 'URL',
-  tcp: 'Address',
-  exec: 'Add command with arguments separated by spaces',
-  smtp: 'Add email addresses separated by spaces',
-  alerta: 'Paste Alerta tick script here',
-};
-export const ALERT_NODES_ACCESSORS = {
-  http: (rule) => _.get(rule, 'alertNodes[0].args[0]', ''),
-  tcp: (rule) => _.get(rule, 'alertNodes[0].args[0]', ''),
-  exec: (rule) => _.get(rule, 'alertNodes[0].args', []).join(' '),
-  smtp: (rule) => _.get(rule, 'alertNodes[0].args', []).join(' '),
-  alerta: (rule) => _.get(rule, 'alertNodes[0].properties', []).reduce((strs, item) => {
-    strs.push(`${item.name}('${item.args.join(' ')}')`);
-    return strs;
-  }, ['alerta()']).join('.'),
-};
+import {
+  RULE_MESSAGE_TEMPLATES as templates,
+  DEFAULT_ALERTS,
+  DEFAULT_ALERT_PLACEHOLDERS,
+  ALERT_NODES_ACCESSORS,
+} from '../constants';
 
 const {
   arrayOf,
