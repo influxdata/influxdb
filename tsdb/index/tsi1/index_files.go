@@ -4,11 +4,36 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"sort"
+	"time"
 )
 
 // IndexFiles represents a layered set of index files.
 type IndexFiles []*IndexFile
+
+// Retain adds a reference count to all files.
+func (p IndexFiles) Retain() {
+	for _, f := range p {
+		f.Retain()
+	}
+}
+
+// Release removes a reference count from all files.
+func (p IndexFiles) Release() {
+	for _, f := range p {
+		f.Release()
+	}
+}
+
+// Files returns p as a list of File objects.
+func (p IndexFiles) Files() []File {
+	other := make([]File, len(p))
+	for i, f := range p {
+		other[i] = f
+	}
+	return other
+}
 
 // MeasurementNames returns a sorted list of all measurement names for all files.
 func (p *IndexFiles) MeasurementNames() [][]byte {
@@ -252,6 +277,35 @@ func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo
 	nn, err := mw.WriteTo(w)
 	*n += nn
 	return err
+}
+
+// Stat returns the max index file size and the total file size for all index files.
+func (p IndexFiles) Stat() (*IndexFilesInfo, error) {
+	var info IndexFilesInfo
+	for _, f := range p {
+		fi, err := os.Stat(f.Path())
+		if os.IsNotExist(err) {
+			continue
+		} else if err != nil {
+			return nil, err
+		}
+
+		if fi.Size() > info.MaxSize {
+			info.MaxSize = fi.Size()
+		}
+		if fi.ModTime().After(info.ModTime) {
+			info.ModTime = fi.ModTime()
+		}
+
+		info.Size += fi.Size()
+	}
+	return &info, nil
+}
+
+type IndexFilesInfo struct {
+	MaxSize int64     // largest file size
+	Size    int64     // total file size
+	ModTime time.Time // last modified
 }
 
 // indexCompactInfo is a context object used for tracking position information

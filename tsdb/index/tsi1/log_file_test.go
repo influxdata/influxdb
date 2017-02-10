@@ -1,10 +1,14 @@
 package tsi1_test
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"path/filepath"
+	"regexp"
+	"runtime/pprof"
 	"sort"
 	"testing"
 	"time"
@@ -278,3 +282,54 @@ func BenchmarkLogFile_AddSeries_100000_1_1(b *testing.B) { benchmarkLogFile_AddS
 func BenchmarkLogFile_AddSeries_100_3_7(b *testing.B)    { benchmarkLogFile_AddSeries(b, 100, 3, 7) }    // ~100K series
 func BenchmarkLogFile_AddSeries_200_3_7(b *testing.B)    { benchmarkLogFile_AddSeries(b, 200, 3, 7) }    // ~200K series
 func BenchmarkLogFile_AddSeries_200_4_7(b *testing.B)    { benchmarkLogFile_AddSeries(b, 200, 4, 7) }    // ~1.9M series
+
+func BenchmarkLogFile_WriteTo(b *testing.B) {
+	for _, seriesN := range []int{1000, 10000, 100000, 1000000} {
+		name := fmt.Sprintf("series=%d", seriesN)
+		b.Run(name, func(b *testing.B) {
+			f := MustOpenLogFile()
+			defer f.Close()
+
+			// Initialize log file with series data.
+			for i := 0; i < seriesN; i++ {
+				if err := f.AddSeries(
+					[]byte("cpu"),
+					models.Tags{
+						{Key: []byte("host"), Value: []byte(fmt.Sprintf("server-%d", i))},
+						{Key: []byte("location"), Value: []byte("us-west")},
+					},
+				); err != nil {
+					b.Fatal(err)
+				}
+			}
+			b.ResetTimer()
+
+			// Create cpu profile for each subtest.
+			MustStartCPUProfile(name)
+			defer pprof.StopCPUProfile()
+
+			// Compact log file.
+			for i := 0; i < b.N; i++ {
+				buf := bytes.NewBuffer(make([]byte, 0, 150*seriesN))
+				if _, err := f.WriteTo(buf); err != nil {
+					b.Fatal(err)
+				}
+				b.Logf("sz=%db", buf.Len())
+			}
+		})
+	}
+}
+
+// MustStartCPUProfile starts a cpu profile in a temporary path based on name.
+func MustStartCPUProfile(name string) {
+	name = regexp.MustCompile(`\W+`).ReplaceAllString(name, "-")
+
+	// Open file and start pprof.
+	f, err := os.Create(filepath.Join("/tmp", fmt.Sprintf("cpu-%s.pprof", name)))
+	if err != nil {
+		panic(err)
+	}
+	if err := pprof.StartCPUProfile(f); err != nil {
+		panic(err)
+	}
+}

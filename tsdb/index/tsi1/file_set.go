@@ -31,6 +31,70 @@ func (p FileSet) Release() {
 	}
 }
 
+// MustReplace swaps a list of files for a single file and returns a new file set.
+// The caller should always guarentee that the files exist and are contiguous.
+func (p FileSet) MustReplace(oldFiles []File, newFile File) FileSet {
+	assert(len(oldFiles) > 0, "cannot replace empty files")
+
+	// Find index of first old file.
+	var i int
+	for ; i < len(p); i++ {
+		if p[i] == oldFiles[0] {
+			break
+		} else if i == len(p)-1 {
+			panic("first replacement file not found")
+		}
+	}
+
+	// Ensure all old files are contiguous.
+	for j := range oldFiles {
+		if p[i+j] != oldFiles[j] {
+			panic("cannot replace non-contiguous files")
+		}
+	}
+
+	// Copy to new fileset.
+	other := make([]File, len(p)-len(oldFiles)+1)
+	copy(other[:i], p[:i])
+	other[i] = newFile
+	copy(other[i+1:], p[i+len(oldFiles):])
+
+	return other
+}
+
+// MaxID returns the highest file identifier.
+func (fs FileSet) MaxID() int {
+	var max int
+	for _, f := range fs {
+		if i := ParseFileID(f.Path()); i > max {
+			max = i
+		}
+	}
+	return max
+}
+
+// LogFiles returns all log files from the file set.
+func (fs FileSet) LogFiles() []*LogFile {
+	var a []*LogFile
+	for _, f := range fs {
+		if f, ok := f.(*LogFile); ok {
+			a = append(a, f)
+		}
+	}
+	return a
+}
+
+// IndexFiles returns all index files from the file set.
+func (fs FileSet) IndexFiles() []*IndexFile {
+	var a []*IndexFile
+	for _, f := range fs {
+		if f, ok := f.(*IndexFile); ok {
+			a = append(a, f)
+		}
+	}
+	return a
+}
+
 // SeriesIterator returns an iterator over all series in the index.
 func (fs FileSet) SeriesIterator() SeriesIterator {
 	a := make([]SeriesIterator, 0, len(fs))
@@ -707,6 +771,7 @@ func (fs FileSet) seriesByBinaryExprVarRefIterator(name, key []byte, value *infl
 
 // File represents a log or index file.
 type File interface {
+	Close() error
 	Path() string
 
 	Measurement(name []byte) MeasurementElem

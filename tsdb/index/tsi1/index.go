@@ -26,10 +26,7 @@ const IndexName = "tsi1"
 // Default compaction thresholds.
 const (
 	DefaultMaxLogFileSize           = 5 * 1024 * 1024
-	DefaultMaxLogFileIdleDuration   = 1 * time.Minute
 	DefaultMaxIndexFileIdleDuration = 5 * time.Minute
-
-	DefaultCompactionMonitorInterval = 30 * time.Second
 )
 
 func init() {
@@ -62,14 +59,9 @@ type Index struct {
 	opened  bool
 	options tsdb.EngineOptions
 
-	activeLogFile *LogFile
-	logFiles      []*LogFile
-	indexFiles    IndexFiles
-	fileSet       FileSet
-
-	// Compaction management.
-	manualCompactNotify chan compactNotify
-	fastCompactNotify   chan struct{}
+	activeLogFile *LogFile // current log file
+	fileSet       FileSet  // current file set
+	seq           int      // file id sequence
 
 	// Close management.
 	once    sync.Once
@@ -87,7 +79,6 @@ type Index struct {
 
 	// Log file compaction thresholds.
 	MaxLogFileSize           int64
-	MaxLogFileIdleDuration   time.Duration
 	MaxIndexFileIdleDuration time.Duration
 
 	// Frequency of compaction checks.
@@ -97,17 +88,13 @@ type Index struct {
 // NewIndex returns a new instance of Index.
 func NewIndex() *Index {
 	return &Index{
-		manualCompactNotify: make(chan compactNotify),
-		fastCompactNotify:   make(chan struct{}),
-
 		closing: make(chan struct{}),
 
 		// Default compaction thresholds.
 		MaxLogFileSize:           DefaultMaxLogFileSize,
-		MaxLogFileIdleDuration:   DefaultMaxLogFileIdleDuration,
 		MaxIndexFileIdleDuration: DefaultMaxIndexFileIdleDuration,
 
-		CompactionMonitorInterval: DefaultCompactionMonitorInterval,
+		// CompactionMonitorInterval: DefaultCompactionMonitorInterval,
 	}
 }
 
@@ -135,40 +122,42 @@ func (i *Index) Open() error {
 		return err
 	}
 
-	// Open each log file in the manifest.
-	for _, filename := range m.LogFiles {
-		f, err := i.openLogFile(filepath.Join(i.Path, filename))
-		if err != nil {
-			return err
+	// Open each file in the manifest.
+	for _, filename := range m.Files {
+		switch filepath.Ext(filename) {
+		case LogFileExt:
+			f, err := i.openLogFile(filepath.Join(i.Path, filename))
+			if err != nil {
+				return err
+			}
+			i.fileSet = append(i.fileSet, f)
+
+			// Make first log file active, if within threshold.
+			sz, _ := f.Stat()
+			if i.activeLogFile == nil && sz < i.MaxLogFileSize {
+				i.activeLogFile = f
+			}
+
+		case IndexFileExt:
+			f, err := i.openIndexFile(filepath.Join(i.Path, filename))
+			if err != nil {
+				return err
+			}
+			i.fileSet = append(i.fileSet, f)
 		}
-		i.logFiles = append(i.logFiles, f)
 	}
 
-	// Make first log file active.
-	if len(i.logFiles) > 0 {
-		i.activeLogFile = i.logFiles[0]
-	}
-
-	// Open each index file in the manifest.
-	for _, filename := range m.IndexFiles {
-		f, err := i.openIndexFile(filepath.Join(i.Path, filename))
-		if err != nil {
-			return err
-		}
-		i.indexFiles = append(i.indexFiles, f)
-	}
+	// Set initial sequnce number.
+	i.seq = i.fileSet.MaxID()
 
 	// Delete any files not in the manifest.
 	if err := i.deleteNonManifestFiles(m); err != nil {
 		return err
 	}
 
-	// Build initial file set.
-	i.buildFileSet()
-
 	// Start compaction monitor.
-	i.wg.Add(1)
-	go func() { defer i.wg.Done(); i.monitorCompaction() }()
+	// i.wg.Add(1)
+	// go func() { defer i.wg.Done(); i.monitorCompaction() }()
 
 	// Mark opened.
 	i.opened = true
@@ -234,21 +223,24 @@ func (i *Index) Close() error {
 	defer i.mu.Unlock()
 
 	// Close log files.
-	for _, f := range i.logFiles {
+	for _, f := range i.fileSet {
 		f.Close()
 	}
-	i.logFiles = nil
-
-	// Close index files.
-	for _, f := range i.indexFiles {
-		f.Close()
-	}
-	i.indexFiles = nil
-
-	// Clear fileset.
-	i.buildFileSet()
+	i.fileSet = nil
 
 	return nil
+}
+
+// NextSequence returns the next file identifier.
+func (i *Index) NextSequence() int {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.nextSequence()
+}
+
+func (i *Index) nextSequence() int {
+	i.seq++
+	return i.seq
 }
 
 // ManifestPath returns the path to the index's manifest file.
@@ -259,15 +251,11 @@ func (i *Index) ManifestPath() string {
 // Manifest returns a manifest for the index.
 func (i *Index) Manifest() *Manifest {
 	m := &Manifest{
-		LogFiles:   make([]string, len(i.logFiles)),
-		IndexFiles: make([]string, len(i.indexFiles)),
+		Files: make([]string, len(i.fileSet)),
 	}
 
-	for j, f := range i.logFiles {
-		m.LogFiles[j] = filepath.Base(f.Path())
-	}
-	for j, f := range i.indexFiles {
-		m.IndexFiles[j] = filepath.Base(f.Path())
+	for j, f := range i.fileSet {
+		m.Files[j] = filepath.Base(f.Path())
 	}
 
 	return m
@@ -278,39 +266,11 @@ func (i *Index) writeManifestFile() error {
 	return WriteManifestFile(i.ManifestPath(), i.Manifest())
 }
 
-// maxFileID returns the highest file id from the index.
-func (i *Index) maxFileID() int {
-	var max int
-	for _, f := range i.logFiles {
-		if i := ParseFileID(f.Path()); i > max {
-			max = i
-		}
-	}
-	for _, f := range i.indexFiles {
-		if i := ParseFileID(f.Path()); i > max {
-			max = i
-		}
-	}
-	return max
-}
-
 // SetFieldSet sets a shared field set from the engine.
 func (i *Index) SetFieldSet(fs *tsdb.MeasurementFieldSet) {
 	i.mu.Lock()
 	i.fieldset = fs
 	i.mu.Unlock()
-}
-
-// buildFileSet constructs the file set from the log & index files.
-func (i *Index) buildFileSet() {
-	fs := make(FileSet, 0, len(i.logFiles)+len(i.indexFiles))
-	for _, f := range i.logFiles {
-		fs = append(fs, f)
-	}
-	for _, f := range i.indexFiles {
-		fs = append(fs, f)
-	}
-	i.fileSet = fs
 }
 
 // RetainFileSet returns the current fileset and adds a reference count.
@@ -332,17 +292,13 @@ func (i *Index) FileN() int { return len(i.fileSet) }
 
 // prependActiveLogFile adds a new log file so that the current log file can be compacted.
 func (i *Index) prependActiveLogFile() error {
-	// Generate new file identifier.
-	id := i.maxFileID() + 1
-
 	// Open file and insert it into the first position.
-	f, err := i.openLogFile(filepath.Join(i.Path, FormatLogFileName(id)))
+	f, err := i.openLogFile(filepath.Join(i.Path, FormatLogFileName(i.nextSequence())))
 	if err != nil {
 		return err
 	}
 	i.activeLogFile = f
-	i.logFiles = append([]*LogFile{f}, i.logFiles...)
-	i.buildFileSet()
+	i.fileSet = append([]File{f}, i.fileSet...)
 
 	// Write new manifest.
 	if err := i.writeManifestFile(); err != nil {
@@ -470,7 +426,11 @@ func (i *Index) DropMeasurement(name []byte) error {
 		return err
 	}
 
-	i.CheckFastCompaction()
+	// Check if the log file needs to be swapped.
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.checkLogFile()
+
 	return nil
 }
 
@@ -500,7 +460,8 @@ func (i *Index) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []model
 		return err
 	}
 
-	i.checkFastCompaction()
+	// Swap log file, if necesssary.
+	i.checkLogFile()
 	return nil
 }
 
@@ -522,7 +483,8 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 		return err
 	}
 
-	i.checkFastCompaction()
+	// Swap log file, if necesssary.
+	i.checkLogFile()
 	return nil
 }
 
@@ -562,7 +524,8 @@ func (i *Index) DropSeries(key []byte) error {
 		return err
 	}
 
-	i.checkFastCompaction()
+	// Swap log file, if necesssary.
+	i.checkLogFile()
 	return nil
 }
 
@@ -765,17 +728,21 @@ func (i *Index) SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iter
 // Compact runs a compaction check. Returns once the check is complete.
 // If force is true then all files are compacted into a single index file regardless of size.
 func (i *Index) Compact(force bool) error {
-	info := compactNotify{force: force, ch: make(chan error)}
-	i.manualCompactNotify <- info
+	/*
+		info := compactNotify{force: force, ch: make(chan error)}
+		i.manualCompactNotify <- info
 
-	select {
-	case err := <-info.ch:
-		return err
-	case <-i.closing:
-		return nil
-	}
+		select {
+		case err := <-info.ch:
+			return err
+		case <-i.closing:
+			return nil
+		}
+	*/
+	return nil
 }
 
+/*
 // monitorCompaction periodically checks for files that need to be compacted.
 func (i *Index) monitorCompaction() {
 	// Ignore full compaction if interval is unset.
@@ -811,87 +778,7 @@ func (i *Index) monitorCompaction() {
 		}
 	}
 }
-
-// compactLogFile starts a new log file and compacts the previous one.
-func (i *Index) compactLogFile() error {
-	start := time.Now()
-
-	// Deactivate current log file & determine next file id.
-	i.mu.Lock()
-	logFile := i.activeLogFile
-	i.activeLogFile = nil
-	id := i.maxFileID() + 1
-	i.mu.Unlock()
-
-	// Exit if there is no active log file.
-	if logFile == nil {
-		return nil
-	}
-
-	log.Printf("%s: compacting log file: file=%s", IndexName, logFile.Path())
-
-	// Create new index file.
-	path := filepath.Join(i.Path, FormatIndexFileName(id))
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	// Compact log file to new index file.
-	if _, err := logFile.WriteTo(f); err != nil {
-		return err
-	}
-
-	// Close file.
-	if err := f.Close(); err != nil {
-		return err
-	}
-
-	// Reopen as an index file.
-	file := NewIndexFile()
-	file.SetPath(path)
-	if err := file.Open(); err != nil {
-		return err
-	}
-
-	// Obtain lock to swap in index file and write manifest.
-	if err := func() error {
-		i.mu.Lock()
-		defer i.mu.Unlock()
-
-		// Only use active log file, if one was created during compaction.
-		if i.activeLogFile != nil {
-			i.logFiles = []*LogFile{i.activeLogFile}
-		} else {
-			i.logFiles = nil
-		}
-
-		// Prepend new index file.
-		i.indexFiles = append(IndexFiles{file}, i.indexFiles...)
-		i.buildFileSet()
-
-		// Write new manifest.
-		if err := i.writeManifestFile(); err != nil {
-			// TODO: Close index if write fails.
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return err
-	}
-	log.Printf("%s: finished compacting log file: file=%s, t=%v", IndexName, logFile.Path(), time.Since(start))
-
-	// Closing the log file will automatically wait until the ref count is zero.
-	log.Printf("%s: removing log file: file=%s", IndexName, logFile.Path())
-	if err := logFile.Close(); err != nil {
-		return err
-	} else if err := os.Remove(logFile.Path()); err != nil {
-		return err
-	}
-
-	return nil
-}
+*/
 
 // checkFullCompaction compacts all index files if the total size of index files
 // is double the size of the largest index file. If force is true then all files
@@ -899,34 +786,32 @@ func (i *Index) compactLogFile() error {
 func (i *Index) checkFullCompaction(force bool) error {
 	start := time.Now()
 
-	// Only perform size check if compaction check is not forced.
-	if !force {
-		// Calculate total & max file sizes.
-		maxN, totalN, modTime, err := i.indexFileStats()
-		if err != nil {
-			return err
-		}
-
-		// Ignore if largest file is larger than all other files.
-		// Perform compaction if last mod time of all files is above threshold.
-		if (totalN-maxN) < maxN && time.Since(modTime) < i.MaxIndexFileIdleDuration {
-			return nil
-		}
-	}
-
-	// Retrieve list of index files under lock.
+	// Find and retain a list of index files.
+	// Ensure the set is released but only once.
 	i.mu.Lock()
-	oldIndexFiles := i.indexFiles
-	id := i.maxFileID() + 1
+	fileSet := IndexFiles(i.fileSet.IndexFiles())
+	fileSet.Retain()
+	var once sync.Once
+	defer once.Do(func() { fileSet.Release() })
 	i.mu.Unlock()
 
-	// Ignore if there are not at least two index files.
-	if len(oldIndexFiles) < 2 {
+	// Ignore if there's less than two index files.
+	if len(fileSet) < 2 {
+		return nil
+	}
+
+	// TODO(benbjohnson): Split into levels.
+
+	// Ignore if largest file is larger than all other files.
+	// Perform compaction if last mod time of all files is above threshold.
+	if info, err := fileSet.Stat(); err != nil {
+		return err
+	} else if (info.Size-info.MaxSize) < info.MaxSize && time.Since(info.ModTime) < i.MaxIndexFileIdleDuration {
 		return nil
 	}
 
 	// Create new index file.
-	path := filepath.Join(i.Path, FormatIndexFileName(id))
+	path := filepath.Join(i.Path, FormatIndexFileName(i.NextSequence()))
 	f, err := os.Create(path)
 	if err != nil {
 		return err
@@ -936,7 +821,8 @@ func (i *Index) checkFullCompaction(force bool) error {
 	log.Printf("%s: performing full compaction: file=%s", IndexName, path)
 
 	// Compact all index files to new index file.
-	if _, err := oldIndexFiles.WriteTo(f); err != nil {
+	n, err := fileSet.WriteTo(f)
+	if err != nil {
 		return err
 	}
 
@@ -957,9 +843,8 @@ func (i *Index) checkFullCompaction(force bool) error {
 		i.mu.Lock()
 		defer i.mu.Unlock()
 
-		// Replace index files with new index file.
-		i.indexFiles = IndexFiles{file}
-		i.buildFileSet()
+		// Replace previous files with new index file.
+		i.fileSet = i.fileSet.MustReplace(fileSet.Files(), file)
 
 		// Write new manifest.
 		if err := i.writeManifestFile(); err != nil {
@@ -970,11 +855,13 @@ func (i *Index) checkFullCompaction(force bool) error {
 	}(); err != nil {
 		return err
 	}
+	log.Printf("%s: full compaction complete: file=%s, t=%s, sz=%d", IndexName, path, time.Since(start), n)
 
-	log.Printf("%s: full compaction complete: file=%s, t=%s", IndexName, path, time.Since(start))
+	// Release old files.
+	once.Do(func() { fileSet.Release() })
 
 	// Close and delete all old index files.
-	for _, f := range oldIndexFiles {
+	for _, f := range fileSet {
 		log.Printf("%s: removing index file: file=%s", IndexName, f.Path())
 
 		if err := f.Close(); err != nil {
@@ -987,64 +874,95 @@ func (i *Index) checkFullCompaction(force bool) error {
 	return nil
 }
 
-// indexFileStats returns the max index file size and the total file size for all index files.
-func (i *Index) indexFileStats() (maxN, totalN int64, modTime time.Time, err error) {
-	// Retrieve index file list under lock.
-	i.mu.Lock()
-	indexFiles := i.indexFiles
-	i.mu.Unlock()
-
-	// Iterate over each file and determine size.
-	for _, f := range indexFiles {
-		fi, err := os.Stat(f.Path())
-		if os.IsNotExist(err) {
-			continue
-		} else if err != nil {
-			return 0, 0, time.Time{}, err
-		}
-
-		if fi.Size() > maxN {
-			maxN = fi.Size()
-		}
-		if fi.ModTime().After(modTime) {
-			modTime = fi.ModTime()
-		}
-
-		totalN += fi.Size()
-	}
-	return maxN, totalN, modTime, nil
-}
-
-// CheckFastCompaction notifies the index to begin compacting log file if the
-// log file is above the max log file size.
-func (i *Index) CheckFastCompaction() {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	i.checkFastCompaction()
-}
-
-func (i *Index) checkFastCompaction() {
-	if len(i.logFiles) == 0 {
+func (i *Index) checkLogFile() {
+	// If size is within threshold then ignore.
+	if i.activeLogFile == nil {
+		return
+	} else if size, _ := i.activeLogFile.Stat(); size < i.MaxLogFileSize {
 		return
 	}
 
-	// Ignore fast compaction if size and idle time are within threshold.
-	size, modTime := i.logFiles[0].Stat()
-	if size < i.MaxLogFileSize && time.Since(modTime) < i.MaxLogFileIdleDuration {
+	// Deactivate current log file.
+	logFile := i.activeLogFile
+	i.activeLogFile = nil
+
+	// Begin compacting in a background goroutine.
+	i.wg.Add(1)
+	go func() { i.wg.Done(); i.compactLogFile(logFile) }()
+}
+
+// compactLogFile compacts f into a tsi file. The new file will share the
+// same identifier but will have a ".tsi" extension. Once the log file is
+// compacted then the manifest is updated and the log file is discarded.
+func (i *Index) compactLogFile(logFile *LogFile) {
+	start := time.Now()
+	log.Printf("tsi1: compacting log file: file=%s", logFile.Path())
+
+	// Retrieve identifier from current path.
+	id := ParseFileID(logFile.Path())
+	assert(id != 0, "cannot parse log file id: %s", logFile.Path())
+
+	// Create new index file.
+	path := filepath.Join(i.Path, FormatIndexFileName(id))
+	f, err := os.Create(path)
+	if err != nil {
+		log.Printf("tsi1: error creating index file: %s", err)
+		return
+	}
+	defer f.Close()
+
+	// Compact log file to new index file.
+	n, err := logFile.WriteTo(f)
+	if err != nil {
+		log.Printf("%s: error compacting log file: path=%s, err=%s", IndexName, logFile.Path(), err)
 		return
 	}
 
-	// Send signal to begin compaction of current log file.
-	select {
-	case i.fastCompactNotify <- struct{}{}:
-	default:
+	// Close file.
+	if err := f.Close(); err != nil {
+		log.Printf("tsi1: error closing log file: %s", err)
+		return
 	}
-}
 
-// compactNotify represents a manual compaction notification.
-type compactNotify struct {
-	force bool
-	ch    chan error
+	// Reopen as an index file.
+	file := NewIndexFile()
+	file.SetPath(path)
+	if err := file.Open(); err != nil {
+		log.Printf("tsi1: error opening compacted index file: path=%s, err=%s", file.Path(), err)
+		return
+	}
+
+	// Obtain lock to swap in index file and write manifest.
+	if err := func() error {
+		i.mu.Lock()
+		defer i.mu.Unlock()
+
+		// Replace previous log file with index file.
+		i.fileSet = i.fileSet.MustReplace([]File{logFile}, file)
+
+		// Write new manifest.
+		if err := i.writeManifestFile(); err != nil {
+			// TODO: Close index if write fails.
+			return err
+		}
+		return nil
+	}(); err != nil {
+		log.Printf("%s: error updating manifest: %s", IndexName, err)
+		return
+	}
+	log.Printf("%s: finished compacting log file: file=%s, t=%v, sz=%d", IndexName, logFile.Path(), time.Since(start), n)
+
+	// Closing the log file will automatically wait until the ref count is zero.
+	log.Printf("%s: removing log file: file=%s", IndexName, logFile.Path())
+	if err := logFile.Close(); err != nil {
+		log.Printf("%s: error closing log file: %s", IndexName, err)
+		return
+	} else if err := os.Remove(logFile.Path()); err != nil {
+		log.Printf("%s: error removing log file: %s", IndexName, err)
+		return
+	}
+
+	return
 }
 
 // seriesPointIterator adapts SeriesIterator to an influxql.Iterator.
@@ -1166,18 +1084,12 @@ func ParseFileID(name string) int {
 // Manifest represents the list of log & index files that make up the index.
 // The files are listed in time order, not necessarily ID order.
 type Manifest struct {
-	LogFiles   []string `json:"logs,omitempty"`
-	IndexFiles []string `json:"indexes,omitempty"`
+	Files []string `json:"files,omitempty"`
 }
 
 // HasFile returns true if name is listed in the log files or index files.
 func (m *Manifest) HasFile(name string) bool {
-	for _, filename := range m.LogFiles {
-		if filename == name {
-			return true
-		}
-	}
-	for _, filename := range m.IndexFiles {
+	for _, filename := range m.Files {
 		if filename == name {
 			return true
 		}

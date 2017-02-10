@@ -8,6 +8,7 @@ import (
 
 // File is a mock implementation of a tsi1.File.
 type File struct {
+	Closef                     func() error
 	Pathf                      func() string
 	Measurementf               func(name []byte) tsi1.MeasurementElem
 	MeasurementIteratorf       func() tsi1.MeasurementIterator
@@ -28,6 +29,7 @@ type File struct {
 	Releasef                   func()
 }
 
+func (f *File) Close() error                                  { return f.Closef() }
 func (f *File) Path() string                                  { return f.Pathf() }
 func (f *File) Measurement(name []byte) tsi1.MeasurementElem  { return f.Measurementf(name) }
 func (f *File) MeasurementIterator() tsi1.MeasurementIterator { return f.MeasurementIteratorf() }
