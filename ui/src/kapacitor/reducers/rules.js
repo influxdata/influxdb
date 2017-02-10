@@ -1,6 +1,26 @@
 import {defaultRuleConfigs, DEFAULT_RULE_ID} from 'src/kapacitor/constants';
 import _ from 'lodash';
 
+const alertaRegex = /(services)\('(.+?)'\)|(resource)\('(.+?)'\)|(event)\('(.+?)'\)|(environment)\('(.+?)'\)|(group)\('(.+?)'\)|(origin)\('(.+?)'\)|(token)\('(.+?)'\)/gi;
+
+function parseAlerta(string, regex) {
+  const properties = [];
+  let match;
+
+  while (match = regex.exec(string)) { // eslint-disable-line no-cond-assign
+    for (let m = 1; m < match.length; m += 2) {
+      if (match[m]) {
+        properties.push({
+          name: match[m],
+          args: match[m] === 'services' ? match[m + 1].split(' ') : [match[m + 1]],
+        });
+      }
+    }
+  }
+
+  return properties;
+}
+
 export default function rules(state = {}, action) {
   switch (action.type) {
     case 'LOAD_DEFAULT_RULE': {
@@ -97,6 +117,15 @@ export default function rules(state = {}, action) {
               name: alertType,
               args: alertNodesText.split(' '),
               properties: [],
+            },
+          ];
+          break;
+        case 'alerta':
+          alertNodesByType = [
+            {
+              name: alertType,
+              args: [],
+              properties: parseAlerta(alertNodesText, alertaRegex),
             },
           ];
           break;
