@@ -5,6 +5,7 @@
 ### Upcoming Features
   1. [#838](https://github.com/influxdata/chronograf/issues/838): Add detail node to kapacitor alerts
   2. [#853](https://github.com/influxdata/chronograf/issues/853): Updated builds to use yarn over npm install
+  3. [#864](https://github.com/influxdata/chronograf/issues/864): Add TCP and HTTP support to kapacitor rule alert config
 
 ### Upcoming UI Improvements
 
