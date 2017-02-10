@@ -22,16 +22,27 @@ type wrapResponseWriter struct {
 	Substitute *io.PipeWriter
 
 	headerWritten bool
-	dupHeader     http.Header
+	dupHeader     *http.Header
 }
 
-func (wrw wrapResponseWriter) Write(p []byte) (int, error) {
+func (wrw *wrapResponseWriter) Write(p []byte) (int, error) {
 	return wrw.Substitute.Write(p)
 }
 
-func (wrw wrapResponseWriter) WriteHeader(code int) {
+func (wrw *wrapResponseWriter) WriteHeader(code int) {
 	if !wrw.headerWritten {
-		wrw.ResponseWriter.Header().Set("Content-Type", wrw.Header().Get("Content-Type"))
+		wrw.ResponseWriter.Header().Set("Content-Type", wrw.dupHeader.Get("Content-Type"))
+		header := wrw.ResponseWriter.Header()
+		// Filter out content length header to prevent stopping writing
+		if wrw.dupHeader != nil {
+			for k, v := range *wrw.dupHeader {
+				if k == "Content-Length" {
+					continue
+				}
+				header[k] = v
+			}
+		}
+
 		wrw.headerWritten = true
 	}
 	wrw.ResponseWriter.WriteHeader(code)
@@ -39,13 +50,16 @@ func (wrw wrapResponseWriter) WriteHeader(code int) {
 
 // Header() copies the Header map from the underlying ResponseWriter to prevent
 // modifications to it by callers
-func (wrw wrapResponseWriter) Header() http.Header {
-	wrw.dupHeader = http.Header{}
-	origHeader := wrw.ResponseWriter.Header()
-	for k, v := range origHeader {
-		wrw.dupHeader[k] = v
+func (wrw *wrapResponseWriter) Header() http.Header {
+	if wrw.dupHeader == nil {
+		h := http.Header{}
+		origHeader := wrw.ResponseWriter.Header()
+		for k, v := range origHeader {
+			h[k] = v
+		}
+		wrw.dupHeader = &h
 	}
-	return wrw.dupHeader
+	return *wrw.dupHeader
 }
 
 const CHUNK_SIZE int = 512
@@ -73,7 +87,7 @@ func (up *URLPrefixer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	nextRead, nextWrite := io.Pipe()
 	go func() {
 		defer nextWrite.Close()
-		up.Next.ServeHTTP(wrapResponseWriter{ResponseWriter: rw, Substitute: nextWrite}, r)
+		up.Next.ServeHTTP(&wrapResponseWriter{ResponseWriter: rw, Substitute: nextWrite}, r)
 	}()
 
 	// setup a buffer which is the max length of our target attrs

@@ -1,4 +1,5 @@
 ### Go
+* github.com/NYTimes/gziphandler [APACHE-2.0](https://github.com/NYTimes/gziphandler/blob/master/LICENSE.md)
 * github.com/Sirupsen/logrus [MIT](https://github.com/Sirupsen/logrus/blob/master/LICENSE)
 * github.com/boltdb/bolt [MIT](https://github.com/boltdb/bolt/blob/master/LICENSE)
 * github.com/bouk/httprouter [BSD](https://github.com/bouk/httprouter/blob/master/LICENSE)
