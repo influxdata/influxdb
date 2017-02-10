@@ -60,18 +60,21 @@ const DatabaseList = React.createClass({
     const {onChooseNamespace, query} = this.props;
 
     return (
-      <ul className="qeditor--list">
-        {this.state.namespaces.map((namespace) => {
-          const {database, retentionPolicy} = namespace;
-          const isActive = database === query.database && retentionPolicy === query.retentionPolicy;
+      <div className="query-builder--column">
+        <div className="query-builder--column-heading">Databases</div>
+        <ul className="qeditor--list">
+          {this.state.namespaces.map((namespace) => {
+            const {database, retentionPolicy} = namespace;
+            const isActive = database === query.database && retentionPolicy === query.retentionPolicy;
 
-          return (
-            <li className={classNames('qeditor--list-item qeditor--list-radio', {active: isActive})} key={`${database}..${retentionPolicy}`} onClick={_.wrap(namespace, onChooseNamespace)}>
-              {database}.{retentionPolicy}
-            </li>
-          );
-        })}
-      </ul>
+            return (
+              <li className={classNames('qeditor--list-item qeditor--list-radio', {active: isActive})} key={`${database}..${retentionPolicy}`} onClick={_.wrap(namespace, onChooseNamespace)}>
+                {database}.{retentionPolicy}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
     );
   },
 });
