@@ -34,6 +34,7 @@ func TestScanner_Scan(t *testing.T) {
 		{s: `-`, tok: influxql.SUB},
 		{s: `*`, tok: influxql.MUL},
 		{s: `/`, tok: influxql.DIV},
+		{s: `%`, tok: influxql.MOD},
 
 		// Logical operators
 		{s: `AND`, tok: influxql.AND},
