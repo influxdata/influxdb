@@ -47,3 +47,11 @@ export function deleteRule(rule) {
     url: rule.links.self,
   });
 }
+
+export function updateRuleStatus(rule, status) {
+  return AJAX({
+    method: 'PATCH',
+    url: rule.links.self,
+    data: {status},
+  });
+}
