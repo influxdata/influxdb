@@ -4,14 +4,16 @@ import ReactTooltip from 'react-tooltip';
 import _ from 'lodash';
 import {RULE_MESSAGE_TEMPLATES as templates} from '../constants/index.js';
 
-const DEFAULT_ALERTS = ['http', 'tcp'];
+const DEFAULT_ALERTS = ['http', 'tcp', 'exec'];
 const DEFAULT_ALERT_PLACEHOLDERS = {
   http: 'URL',
   tcp: 'Address',
+  exec: 'Add command with arguments separated by spaces',
 };
 const ALERT_NODES_ACCESSORS = {
-  http: 'alertNodes[0].args[0]',
-  tcp: 'alertNodes[0].args[0]',
+  http: (rule) => _.get(rule, 'alertNodes[0].args[0]', ''),
+  tcp: (rule) => _.get(rule, 'alertNodes[0].args[0]', ''),
+  exec: (rule) => _.get(rule, 'alertNodes[0].args', []).join(' '),
 };
 
 const {
@@ -118,7 +120,7 @@ export const RuleMessage = React.createClass({
       placeholder={DEFAULT_ALERT_PLACEHOLDERS[alert]}
       ref={(r) => this.selectedAlertProperty = r}
       onChange={() => updateAlertNodes(rule.id, alert, this.selectedAlertProperty.value)}
-      value={_.get(rule, ALERT_NODES_ACCESSORS[alert], '')}
+      value={ALERT_NODES_ACCESSORS[alert](rule)}
     />);
   },
 });

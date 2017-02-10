@@ -100,6 +100,15 @@ export default function rules(state = {}, action) {
             },
           ];
           break;
+        case 'exec':
+          alertNodesByType = [
+            {
+              name: 'exec',
+              args: alertNodesText.split(' '),
+              properties: [],
+            },
+          ];
+          break;
         default:
           alertNodesByType = [];
       }
