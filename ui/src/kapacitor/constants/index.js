@@ -24,7 +24,7 @@ export const OPERATORS = ['greater than', 'equal to or greater', 'equal to or le
 export const PERIODS = ['1m', '5m', '10m', '30m', '1h', '2h', '24h'];
 export const CHANGES = ['change', '% change'];
 export const SHIFTS = ['1m', '5m', '10m', '30m', '1h', '2h', '24h'];
-export const ALERTS = ['hipchat', 'opsgenie', 'pagerduty', 'sensu', 'slack', 'smtp', 'talk', 'telegram', 'victorops'];
+export const ALERTS = ['alerta', 'hipchat', 'opsgenie', 'pagerduty', 'sensu', 'slack', 'smtp', 'talk', 'telegram', 'victorops'];
 
 export const DEFAULT_RULE_ID = 'DEFAULT_RULE_ID';
 
