@@ -59,8 +59,11 @@ export const KapacitorRulesPage = React.createClass({
   },
 
   handleRuleStatus(e, rule) {
+    const {actions} = this.props;
     const status = e.target.checked ? 'enabled' : 'disabled';
-    this.props.actions.updateRuleStatus(rule, {status});
+
+    actions.updateRuleStatusSuccess(rule.id, status);
+    actions.updateRuleStatus(rule, {status});
   },
 
   renderSubComponent() {
