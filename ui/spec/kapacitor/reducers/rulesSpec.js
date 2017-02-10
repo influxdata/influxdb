@@ -110,58 +110,15 @@ describe('Kapacitor.Reducers.rules', () => {
     `;
 
     let newState = reducer(initialState, updateAlertNodes(ruleID, 'alerta', tickScript));
-
-    const expectedObj = [
-      {
-        "name": "alerta",
-        "args": [],
-        "properties": [
-          {
-            "name": "resource",
-            "args": [
-              "Hostname or service"
-            ]
-          },
-          {
-            "name": "event",
-            "args": [
-              "Something went wrong"
-            ]
-          },
-          {
-            "name": "environment",
-            "args": [
-              "Development"
-            ]
-          },
-          {
-            "name": "group",
-            "args": [
-              "Dev. Servers"
-            ]
-          },
-          {
-            "name": "services",
-            "args": [
-              "a",
-              "b",
-              "c"
-            ]
-          }
-        ]
-      }
-    ];
     const expectedStr = `alerta().resource('Hostname or service').event('Something went wrong').environment('Development').group('Dev. Servers').services('a b c')`;
     let actualStr = ALERT_NODES_ACCESSORS.alerta(newState[ruleID]);
 
     // Test both data structure and accessor string
-    expect(newState[ruleID].alertNodes).to.deep.equal(expectedObj);
     expect(actualStr).to.equal(expectedStr);
 
     // Test that accessor string is the same if fed back in
     newState = reducer(newState, updateAlertNodes(ruleID, 'alerta', actualStr));
     actualStr = ALERT_NODES_ACCESSORS.alerta(newState[ruleID]);
-    expect(newState[ruleID].alertNodes).to.deep.equal(expectedObj);
     expect(actualStr).to.equal(expectedStr);
   });
 

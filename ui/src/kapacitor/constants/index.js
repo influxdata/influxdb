@@ -39,7 +39,7 @@ export const RULE_MESSAGE_TEMPLATES = {
   time: {label: "{{.Time}}", text: "The time of the point that triggered the event"},
 };
 
-export const DEFAULT_ALERTS = ['http', 'tcp', 'exec', 'smtp', 'alerta'];
+export const DEFAULT_ALERTS = ['http', 'tcp', 'exec'];
 
 export const DEFAULT_ALERT_PLACEHOLDERS = {
   http: 'URL',

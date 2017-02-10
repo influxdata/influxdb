@@ -94,8 +94,10 @@ export const RuleMessage = React.createClass({
             /> : null
           }
           <div className="rule-section--item bottom alert-message--endpoint">
-            <p>Send this Alert to:</p>
-            <Dropdown className="size-256 dropdown-kapacitor" selected={selectedAlert || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
+            <div>
+              <p>Send this Alert to:</p>
+              <Dropdown className="dropdown-kapacitor size-136" selected={selectedAlert || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
+            </div>
             {this.renderInput(actions.updateAlertNodes, selectedAlert, rule)}
           </div>
         </div>
@@ -104,17 +106,27 @@ export const RuleMessage = React.createClass({
   },
 
   renderInput(updateAlertNodes, alert, rule) {
-    if (!DEFAULT_ALERTS.find((a) => a === alert)) {
+    if (!Object.keys(DEFAULT_ALERT_PLACEHOLDERS).find((a) => a === alert)) {
       return null;
     }
-    return (<input
-      className="form-control col-xs-6"
-      type="text"
-      placeholder={DEFAULT_ALERT_PLACEHOLDERS[alert]}
-      ref={(r) => this.selectedAlertProperty = r}
-      onChange={() => updateAlertNodes(rule.id, alert, this.selectedAlertProperty.value)}
-      value={ALERT_NODES_ACCESSORS[alert](rule)}
-    />);
+    return (
+      <form className="form-group col-xs-12" style={{marginTop: '8px'}}>
+        <div>
+          <label htmlFor="alert-input">{DEFAULT_ALERT_PLACEHOLDERS[alert]}</label>
+        </div>
+        <div>
+          <input
+            id="alert-input"
+            className="form-control"
+            type="text"
+            placeholder={DEFAULT_ALERT_PLACEHOLDERS[alert]}
+            ref={(r) => this.selectedAlertProperty = r}
+            onChange={() => updateAlertNodes(rule.id, alert, this.selectedAlertProperty.value)}
+            value={ALERT_NODES_ACCESSORS[alert](rule)}
+          />
+        </div>
+      </form>
+    );
   },
 });
 
