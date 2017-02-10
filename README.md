@@ -103,6 +103,7 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
   * [TCP](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#tcp)
   * [VictorOps](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#victorops)
 * View all active alerts at a glance on the alerting dashboard
+* Enable and disable existing alert rules with the check of a box
 
 ### GitHub OAuth Login
 See [Chronograf with OAuth 2.0](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) for more information.
