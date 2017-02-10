@@ -3,6 +3,7 @@ package kapacitor
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/influxdata/chronograf"
@@ -39,15 +40,16 @@ func Vars(rule chronograf.AlertRule) (string, error) {
 		%s
         var crit = %s
  `
-			return fmt.Sprintf(vars,
-				common,
-				rule.TriggerValues.Value), nil
+			// If critical value is a string, we'll
+			// need to single-quote it.
+			crit := critVar(rule.TriggerValues.Value)
+			return fmt.Sprintf(vars, common, crit), nil
 		} else {
 			vars := `
 			%s
 					var lower = %s
 					var upper = %s
-	 `
+`
 			return fmt.Sprintf(vars,
 				common,
 				rule.TriggerValues.Value,
@@ -177,4 +179,15 @@ func whereFilter(q chronograf.QueryConfig) string {
 	}
 
 	return "lambda: TRUE"
+}
+
+// critVar return the same string if a numeric type
+// or if it is a string will return it as a kapacitor
+// formatted single-quoted string
+func critVar(value string) string {
+	// Test if numeric if it can be converted to a float
+	if _, err := strconv.ParseFloat(value, 64); err == nil {
+		return value
+	}
+	return "'" + value + "'"
 }

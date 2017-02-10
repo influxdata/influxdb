@@ -199,6 +199,280 @@ trigger
 	}
 }
 
+func TestThresholdStringCrit(t *testing.T) {
+	alert := chronograf.AlertRule{
+		Name:    "haproxy",
+		Trigger: "threshold",
+		Alerts:  []string{"email"},
+		TriggerValues: chronograf.TriggerValues{
+			Operator: "equal to",
+			Value:    "DOWN",
+		},
+		Every:   "10s",
+		Message: `Haproxy monitor : {{.ID}} : {{ index .Tags "server" }} : {{ index .Tags "pxname" }} is {{ .Level }} `,
+		Details: "Email template",
+		Query: chronograf.QueryConfig{
+			Database:        "influxdb",
+			RetentionPolicy: "autogen",
+			Measurement:     "haproxy",
+			Fields: []chronograf.Field{
+				{
+					Field: "status",
+					Funcs: []string{"last"},
+				},
+			},
+			GroupBy: chronograf.GroupBy{
+				Time: "10s",
+				Tags: []string{"pxname"},
+			},
+			AreTagsAccepted: true,
+		},
+	}
+
+	tests := []struct {
+		name    string
+		alert   chronograf.AlertRule
+		want    chronograf.TICKScript
+		wantErr bool
+	}{
+		{
+			name:  "Test valid template alert",
+			alert: alert,
+			want: `var db = 'influxdb'
+
+var rp = 'autogen'
+
+var measurement = 'haproxy'
+
+var groupBy = ['pxname']
+
+var whereFilter = lambda: TRUE
+
+var period = 10s
+
+var every = 10s
+
+var name = 'haproxy'
+
+var idVar = name + ':{{.Group}}'
+
+var message = 'Haproxy monitor : {{.ID}} : {{ index .Tags "server" }} : {{ index .Tags "pxname" }} is {{ .Level }} '
+
+var idTag = 'alertID'
+
+var levelTag = 'level'
+
+var messageField = 'message'
+
+var durationField = 'duration'
+
+var outputDB = 'chronograf'
+
+var outputRP = 'autogen'
+
+var outputMeasurement = 'alerts'
+
+var triggerType = 'threshold'
+
+var details = 'Email template'
+
+var crit = 'DOWN'
+
+var data = stream
+    |from()
+        .database(db)
+        .retentionPolicy(rp)
+        .measurement(measurement)
+        .groupBy(groupBy)
+        .where(whereFilter)
+    |window()
+        .period(period)
+        .every(every)
+        .align()
+    |last('status')
+        .as('value')
+
+var trigger = data
+    |alert()
+        .crit(lambda: "value" == crit)
+        .stateChangesOnly()
+        .message(message)
+        .id(idVar)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
+        .details(details)
+        .email()
+
+trigger
+    |influxDBOut()
+        .create()
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
+        .tag('alertName', name)
+        .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
+`,
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		gen := Alert{}
+		got, err := gen.Generate(tt.alert)
+		if (err != nil) != tt.wantErr {
+			t.Errorf("%q. Threshold() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			continue
+		}
+		if got != tt.want {
+			diff := diffmatchpatch.New()
+			delta := diff.DiffMain(string(tt.want), string(got), true)
+			t.Errorf("%q\n%s", tt.name, diff.DiffPrettyText(delta))
+		}
+	}
+}
+
+// TODO: Check with Nathaniel if kapacitor can do inequalities on strings
+// If it cannot, I think we should add operator checks.
+func TestThresholdStringCritGreater(t *testing.T) {
+	alert := chronograf.AlertRule{
+		Name:    "haproxy",
+		Trigger: "threshold",
+		Alerts:  []string{"email"},
+		TriggerValues: chronograf.TriggerValues{
+			Operator: "greater than",
+			Value:    "DOWN",
+		},
+		Every:   "10s",
+		Message: `Haproxy monitor : {{.ID}} : {{ index .Tags "server" }} : {{ index .Tags "pxname" }} is {{ .Level }} `,
+		Details: "Email template",
+		Query: chronograf.QueryConfig{
+			Database:        "influxdb",
+			RetentionPolicy: "autogen",
+			Measurement:     "haproxy",
+			Fields: []chronograf.Field{
+				{
+					Field: "status",
+					Funcs: []string{"last"},
+				},
+			},
+			GroupBy: chronograf.GroupBy{
+				Time: "10s",
+				Tags: []string{"pxname"},
+			},
+			AreTagsAccepted: true,
+		},
+	}
+
+	tests := []struct {
+		name    string
+		alert   chronograf.AlertRule
+		want    chronograf.TICKScript
+		wantErr bool
+	}{
+		{
+			name:  "Test valid template alert",
+			alert: alert,
+			want: `var db = 'influxdb'
+
+var rp = 'autogen'
+
+var measurement = 'haproxy'
+
+var groupBy = ['pxname']
+
+var whereFilter = lambda: TRUE
+
+var period = 10s
+
+var every = 10s
+
+var name = 'haproxy'
+
+var idVar = name + ':{{.Group}}'
+
+var message = 'Haproxy monitor : {{.ID}} : {{ index .Tags "server" }} : {{ index .Tags "pxname" }} is {{ .Level }} '
+
+var idTag = 'alertID'
+
+var levelTag = 'level'
+
+var messageField = 'message'
+
+var durationField = 'duration'
+
+var outputDB = 'chronograf'
+
+var outputRP = 'autogen'
+
+var outputMeasurement = 'alerts'
+
+var triggerType = 'threshold'
+
+var details = 'Email template'
+
+var crit = 'DOWN'
+
+var data = stream
+    |from()
+        .database(db)
+        .retentionPolicy(rp)
+        .measurement(measurement)
+        .groupBy(groupBy)
+        .where(whereFilter)
+    |window()
+        .period(period)
+        .every(every)
+        .align()
+    |last('status')
+        .as('value')
+
+var trigger = data
+    |alert()
+        .crit(lambda: "value" > crit)
+        .stateChangesOnly()
+        .message(message)
+        .id(idVar)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
+        .details(details)
+        .email()
+
+trigger
+    |influxDBOut()
+        .create()
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
+        .tag('alertName', name)
+        .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
+`,
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		gen := Alert{}
+		got, err := gen.Generate(tt.alert)
+		if (err != nil) != tt.wantErr {
+			t.Errorf("%q. Threshold() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			continue
+		}
+		if got != tt.want {
+			diff := diffmatchpatch.New()
+			delta := diff.DiffMain(string(tt.want), string(got), true)
+			t.Errorf("%q\n%s", tt.name, diff.DiffPrettyText(delta))
+		}
+	}
+}
+
 func TestThresholdDetail(t *testing.T) {
 	alert := chronograf.AlertRule{
 		Name:    "name",
