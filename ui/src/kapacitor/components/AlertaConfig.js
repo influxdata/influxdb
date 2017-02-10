@@ -17,10 +17,10 @@ const AlertaConfig = React.createClass({
     e.preventDefault();
 
     const properties = {
-      environment: this.port.value,
-      origin: this.from.value,
-      token: this.username.value,
-      url: this.password.value,
+      environment: this.environment.value,
+      origin: this.origin.value,
+      token: this.token.value,
+      url: this.url.value,
     };
 
     this.props.onSave(properties);
