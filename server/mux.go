@@ -42,10 +42,13 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	// Prefix any URLs found in the React assets with any configured basepath
 	prefixedAssets := NewDefaultURLPrefixer(basepath, assets, opts.Logger)
 
+	// Compress the assets with gzip if an accepted encoding
+	compressed := gziphandler.GzipHandler(prefixedAssets)
+
 	// The react application handles all the routing if the server does not
 	// know about the route.  This means that we never have unknown
 	// routes on the server.
-	router.NotFound = prefixedAssets
+	router.NotFound = compressed
 
 	/* Documentation */
 	router.GET("/swagger.json", Spec())
@@ -80,6 +83,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesID)
 	router.PUT("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesPut)
+	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesStatus)
 	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesDelete)
 
 	// Kapacitor Proxy
@@ -121,8 +125,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		return Logger(opts.Logger, auth)
 	}
 
-	compressed := gziphandler.GzipHandler(router)
-	logged := Logger(opts.Logger, compressed)
+	logged := Logger(opts.Logger, router)
 	return logged
 }
 
