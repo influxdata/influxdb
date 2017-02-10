@@ -91,6 +91,8 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 * Simply generate threshold, relative, and deadman alerts
 * Preview data and alert boundaries while creating an alert
 * Configure alert destinations - Currently, Chronograf supports sending alerts to:
+  * [Alerta](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#alerta)
+  * [Exec](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#exec)
   * [HipChat](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#hipchat)
   * [HTTP/Post](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#post)
   * [OpsGenie](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#opsgenie)

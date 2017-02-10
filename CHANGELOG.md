@@ -5,8 +5,15 @@
 
 ### Upcoming Features
   1. [#838](https://github.com/influxdata/chronograf/issues/838): Add detail node to kapacitor alerts
-  2. [#853](https://github.com/influxdata/chronograf/issues/853): Updated builds to use yarn over npm install
-  3. [#860](https://github.com/influxdata/chronograf/issues/860): Add gzip encoding and caching of static assets to server
+  2. [#847](https://github.com/influxdata/chronograf/issues/847): Enable and disable kapacitor alerts from alert manager
+  3. [#853](https://github.com/influxdata/chronograf/issues/853): Updated builds to use yarn over npm install
+  4. [#860](https://github.com/influxdata/chronograf/issues/860): Add gzip encoding and caching of static assets to server
+  5. [#864](https://github.com/influxdata/chronograf/issues/864): Add support to kapacitor rule alert config for:
+    - HTTP
+    - TCP
+    - Exec
+    - SMTP
+    - Alerta
 
 ### Upcoming UI Improvements
   1. [#822](https://github.com/influxdata/chronograf/issues/822): Simplify and improve layout of the Data Explorer
