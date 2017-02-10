@@ -107,6 +107,17 @@ export function updateAlerts(ruleID, alerts) {
   };
 }
 
+export function updateAlertNodes(ruleID, alertType, alertNodesText) {
+  return {
+    type: 'UPDATE_RULE_ALERT_NODES',
+    payload: {
+      ruleID,
+      alertType,
+      alertNodesText,
+    },
+  };
+}
+
 export function updateRuleName(ruleID, name) {
   return {
     type: 'UPDATE_RULE_NAME',

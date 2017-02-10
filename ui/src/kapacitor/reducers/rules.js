@@ -13,6 +13,7 @@ export default function rules(state = {}, action) {
           values: defaultRuleConfigs.threshold,
           message: '',
           alerts: [],
+          alertNodes: [],
           every: '30s',
           name: 'Untitled Rule',
         },
@@ -67,6 +68,45 @@ export default function rules(state = {}, action) {
       return Object.assign({}, state, {
         [ruleID]: Object.assign({}, state[ruleID], {
           alerts,
+        }),
+      });
+    }
+
+    case 'UPDATE_RULE_ALERT_NODES': {
+      const {ruleID, alertType, alertNodesText} = action.payload;
+
+      let alertNodesByType;
+
+      switch (alertType) {
+        case 'http':
+          alertNodesByType = [
+            {
+              name: 'http',
+              args: [
+                alertNodesText,
+              ],
+              properties: [],
+            },
+          ];
+          break;
+        case 'tcp':
+          alertNodesByType = [
+            {
+              name: 'tcp',
+              args: [
+                alertNodesText,
+              ],
+              properties: [],
+            },
+          ];
+          break;
+        default:
+          alertNodesByType = [];
+      }
+
+      return Object.assign({}, state, {
+        [ruleID]: Object.assign({}, state[ruleID], {
+          alertNodes: alertNodesByType,
         }),
       });
     }

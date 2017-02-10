@@ -1,9 +1,18 @@
 import React, {PropTypes} from 'react';
 import Dropdown from 'shared/components/Dropdown';
 import ReactTooltip from 'react-tooltip';
+import _ from 'lodash';
 import {RULE_MESSAGE_TEMPLATES as templates} from '../constants/index.js';
 
 const DEFAULT_ALERTS = ['http', 'tcp'];
+const DEFAULT_ALERT_PLACEHOLDERS = {
+  http: 'URL',
+  tcp: 'Address',
+};
+const ALERT_NODES_ACCESSORS = {
+  http: 'alertNodes[0].args[0]',
+  tcp: 'alertNodes[0].args[0]',
+};
 
 const {
   arrayOf,
@@ -25,6 +34,7 @@ export const RuleMessage = React.createClass({
   getInitialState() {
     return {
       selectedAlert: null,
+      selectedAlertProperty: null,
     };
   },
 
@@ -36,6 +46,7 @@ export const RuleMessage = React.createClass({
   handleChooseAlert(item) {
     const {actions} = this.props;
     actions.updateAlerts(item.ruleID, [item.text]);
+    actions.updateAlertNodes(item.ruleID, item.text, '');
     this.setState({selectedAlert: item.text});
   },
 
@@ -81,27 +92,34 @@ export const RuleMessage = React.createClass({
             selectedAlert === 'smtp' ?
             <textarea
               className="alert-text details"
+              placeholder="Put email body text here"
               ref={(r) => this.details = r}
               onChange={() => actions.updateDetails(rule.id, this.details.value)}
-              placeholder="Put email body text here"
               value={rule.details}
             /> : null
           }
           <div className="rule-section--item bottom alert-message--endpoint">
             <p>Send this Alert to:</p>
             <Dropdown className="size-256 dropdown-kapacitor" selected={selectedAlert || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
-            {this.renderInput(this.state.selectedAlert)}
+            {this.renderInput(actions.updateAlertNodes, selectedAlert, rule)}
           </div>
         </div>
       </div>
     );
   },
 
-  renderInput(alert) {
+  renderInput(updateAlertNodes, alert, rule) {
     if (!DEFAULT_ALERTS.find((a) => a === alert)) {
       return null;
     }
-    return <input className="form-control col-xs-6" type="text" ref={(r) => this.selectedAlert = r} />;
+    return (<input
+      className="form-control col-xs-6"
+      type="text"
+      placeholder={DEFAULT_ALERT_PLACEHOLDERS[alert]}
+      ref={(r) => this.selectedAlertProperty = r}
+      onChange={() => updateAlertNodes(rule.id, alert, this.selectedAlertProperty.value)}
+      value={_.get(rule, ALERT_NODES_ACCESSORS[alert], '')}
+    />);
   },
 });
 
