@@ -15,18 +15,30 @@
 
   .page-header {
     padding-left: $explorer-page-padding;
-    padding-right: ($explorer-page-padding + $scrollbar-width);
+    padding-right: $explorer-page-padding;
   }
   .page-header__container {
     max-width: 100%;
   }
+  .page-contents {
+    overflow: hidden;
+  }
 }
 
+$query-editor-gutter: 16px;
+$query-editor-tab-inactive: $g2-kevlar;
+$query-editor-tab-active: $g3-castle;
+$query-editor-height: 250px;
+$graph-bg-color: $g3-castle;
+$graph-active-color: $g4-onyx;
+$graph-radius: 4px;
+$de-vertical-margin: 16px;
+$dygraphs-legend-offset: 32px;
+$de-graph-heading-height: 44px;
 
 // DE Specific components
+@import 'data-explorer/query-builder';
 @import 'data-explorer/page-header';
-@import 'data-explorer/panel-builder';
-@import 'data-explorer/panel';
 @import 'data-explorer/query-editor';
 @import 'data-explorer/raw-text';
 @import 'data-explorer/tag-list';

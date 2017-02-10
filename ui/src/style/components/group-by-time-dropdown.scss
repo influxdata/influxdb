@@ -1,4 +1,4 @@
-.group-by-time-dropdown .dropdown-toggle {
+  .group-by-time-dropdown .dropdown-toggle {
   width: 70px;
 }
 .group-by-time {
@@ -17,6 +17,7 @@
     border-style: solid;
     border-color: $g5-pepper;
     border-width: 2px;
+    background-color: $g3-castle;
   }
   .dropdown-toggle {
     border-radius: 0px 3px 3px 0;

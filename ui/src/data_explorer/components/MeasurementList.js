@@ -34,19 +34,21 @@ const MeasurementList = React.createClass({
       return;
     }
 
-    const {source} = this.context;
-    const proxy = source.links.proxy;
-    showMeasurements(proxy, this.props.query.database).then((resp) => {
-      const {errors, measurementSets} = showMeasurementsParser(resp.data);
-      if (errors.length) {
-        // TODO: display errors in the UI.
-        return console.error('InfluxDB returned error(s): ', errors); // eslint-disable-line no-console
-      }
+    this._getMeasurements();
+  },
 
-      this.setState({
-        measurements: measurementSets[0].measurements,
-      });
-    });
+  componentDidUpdate(prevProps) {
+    const {query} = this.props;
+
+    if (!query.database) {
+      return;
+    }
+
+    if (prevProps.query.database === query.database) {
+      return;
+    }
+
+    this._getMeasurements();
   },
 
   handleFilterText(e) {
@@ -69,9 +71,10 @@ const MeasurementList = React.createClass({
 
   render() {
     return (
-      <div>
+      <div className="query-builder--column">
+        <div className="query-builder--column-heading">Measurements</div>
         {this.props.query.database ? <div className="qeditor--list-header">
-          <input className="qeditor--filter" ref="filterText" placeholder="Filter Measurements..." type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
+          <input className="qeditor--filter" ref="filterText" placeholder="Filter" type="text" value={this.state.filterText} onChange={this.handleFilterText} onKeyUp={this.handleEscape} />
           <span className="icon search"></span>
         </div> : null }
         {this.renderList()}
@@ -97,6 +100,23 @@ const MeasurementList = React.createClass({
       </ul>
     );
   },
+
+  _getMeasurements() {
+    const {source} = this.context;
+    const proxy = source.links.proxy;
+    showMeasurements(proxy, this.props.query.database).then((resp) => {
+      const {errors, measurementSets} = showMeasurementsParser(resp.data);
+      if (errors.length) {
+        // TODO: display errors in the UI.
+        return console.error('InfluxDB returned error(s): ', errors); // eslint-disable-line no-console
+      }
+
+      this.setState({
+        measurements: measurementSets[0].measurements,
+      });
+    });
+  },
+
 });
 
 export default MeasurementList;

@@ -5,12 +5,8 @@
   Abbreviated as "qeditor"
 
 */
-$query-editor-gutter: 16px;
-$query-editor-tab-inactive: $g2-kevlar;
-$query-editor-tab-active: $g3-castle;
-$query-editor-height: 250px;
 
-.qeditor--query-preview {
+.query-builder--query-preview {
   position: relative;
 
   pre {
@@ -18,11 +14,10 @@ $query-editor-height: 250px;
     border: 0;
     background-color: $query-editor-tab-inactive;
     color: $c-pool;
-    border-radius: $radius-small $radius-small 0 0;
-    border-bottom: 2px solid $query-editor-tab-active;
+    border-radius: $radius;
     margin-bottom: 0;
     overflow: auto;
-    min-height: 3.25em;
+    height: 56px;
     @include custom-scrollbar($query-editor-tab-inactive, $c-pool);
 
     code {
@@ -90,22 +85,23 @@ $query-editor-height: 250px;
     list-style-type: none;
     margin: 0;
     font-size: 12px;
-    padding: 4px 9px 4px 18px;
+    font-weight: 500;
+    padding: 4px 9px;
     transition:
       color 0.25s ease,
       background-color 0.25s ease;
 
     &:hover {
-      background-color: $g4-onyx;
-      color: $g17-whisper;
+      background-color: $g5-pepper;
+      color: $g15-platinum;
       cursor: pointer;
     }
   }
   &-radio {
     &.active {
       color: $g20-white;
-      background-color: $g4-onyx;
-      font-weight: 600;
+      background-color: $g5-pepper;
+      font-weight: 700;
     }
   }
   &-checkbox {
@@ -169,11 +165,18 @@ $query-editor-height: 250px;
       }
     }
   }
-  &-header {
-    position: relative;
-    background-color: $query-editor-tab-active;
-      padding: 8px 18px 0px 18px;
-  }
+}
+.qeditor--list-header {
+  position: absolute;
+  top: 15px;
+  right: 16px;
+  width: calc(60% - 16px);
+  height: 30px;
+  padding: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 // List empty state
@@ -184,8 +187,7 @@ $query-editor-height: 250px;
   width: 100%;
   padding: 18px 0;
   height: $query-editor-height;
-  background-color: $query-editor-tab-active;
-  border-radius: 0 0 $radius $radius;
+  background-color: transparent;
 }
 
 // Hidden dropdowns
@@ -210,7 +212,7 @@ $query-editor-height: 250px;
   height: 30px;
   border-radius: 15px;
   font-size: 13px;
-  padding-left: 38px;
+  padding-left: 28px;
   outline: none;
   color: $g20-white;
   font-weight: 700;
@@ -244,8 +246,8 @@ $query-editor-height: 250px;
   }
   + .icon {
     position: absolute;
-    top: calc(50% + 5px);
-    left: calc(19px * 2);
+    top: 50%;
+    left: 11px;
     transform: translateY(-50%);
     color: $g10-wolf;
     transition: color 0.25s ease;

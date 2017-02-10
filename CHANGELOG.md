@@ -1,11 +1,13 @@
 ## v1.2.0 [unreleased]
 
 ### Upcoming Bug Fixes
+  1. [#865](https://github.com/influxdata/chronograf/issues/865): Support for String fields compare kapacitor rules in Chronograf UI
 
 ### Upcoming Features
   1. [#838](https://github.com/influxdata/chronograf/issues/838): Add detail node to kapacitor alerts
   2. [#853](https://github.com/influxdata/chronograf/issues/853): Updated builds to use yarn over npm install
-  3. [#864](https://github.com/influxdata/chronograf/issues/864): Add support to kapacitor rule alert config for:
+  3. [#860](https://github.com/influxdata/chronograf/issues/860): Add gzip encoding and caching of static assets to server
+  4. [#864](https://github.com/influxdata/chronograf/issues/864): Add support to kapacitor rule alert config for:
     - HTTP
     - TCP
     - Exec
@@ -13,6 +15,11 @@
     - Alerta
 
 ### Upcoming UI Improvements
+  1. [#822](https://github.com/influxdata/chronograf/issues/822): Simplify and improve layout of the Data Explorer
+    - The Data Explorer's intention and purpose has always been the ad hoc and ephemeral   exploration of your schema and data.
+      The concept of `Exploration` sessions and `Panels` betrayed this initial intention. The DE turned into a "poor man's"
+      dashboarding tool. In turn, this introduced complexity in the code and the UI.  In the future if I want to save, manipulate,
+      and view multiple visualizations this will be done more efficiently and effectively in our dashboarding solution.
 
 ## v1.2.0-beta1 [2017-01-27]
 

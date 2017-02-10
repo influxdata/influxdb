@@ -46,7 +46,6 @@ export default function queryConfigs(state = {}, action) {
       return nextState;
     }
 
-    case 'CREATE_PANEL':
     case 'ADD_KAPACITOR_QUERY':
     case 'ADD_QUERY': {
       const {queryID, options} = action.payload;
@@ -94,9 +93,9 @@ export default function queryConfigs(state = {}, action) {
     }
 
     case 'DELETE_QUERY': {
-      const {queryId} = action.payload;
+      const {queryID} = action.payload;
       const nextState = update(state, {$apply: (configs) => {
-        delete configs[queryId];
+        delete configs[queryID];
         return configs;
       }});
 
