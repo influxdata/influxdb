@@ -1,7 +1,12 @@
 import uuid from 'node-uuid';
-import {getRules, getRule, deleteRule as deleteRuleAPI} from 'src/kapacitor/apis';
 import {getKapacitor} from 'src/shared/apis';
 import {publishNotification} from 'src/shared/actions/notifications';
+import {
+  getRules,
+  getRule,
+  deleteRule as deleteRuleAPI,
+  updateRuleStatus as updateRuleStatusAPI,
+} from 'src/kapacitor/apis';
 
 export function fetchRule(source, ruleID) {
   return (dispatch) => {
@@ -126,6 +131,16 @@ export function deleteRuleSuccess(ruleID) {
   };
 }
 
+export function updateRuleStatusSuccess(ruleID, status) {
+  return {
+    type: 'UPDATE_RULE_STATUS_SUCCESS',
+    payload: {
+      ruleID,
+      status,
+    },
+  };
+}
+
 export function deleteRule(rule) {
   return (dispatch) => {
     deleteRuleAPI(rule).then(() => {
@@ -133,6 +148,18 @@ export function deleteRule(rule) {
       dispatch(publishNotification('success', `${rule.name} deleted successfully`));
     }).catch(() => {
       dispatch(publishNotification('error', `${rule.name} could not be deleted`));
+    });
+  };
+}
+
+export function updateRuleStatus(rule, {status}) {
+  return (dispatch) => {
+    updateRuleStatusAPI(rule, status).then(() => {
+      dispatch(updateRuleStatusSuccess(rule.id, status));
+      dispatch(publishNotification('success', `${rule.name} ${status} successfully`));
+    }).catch(() => {
+      dispatch(updateRuleStatusSuccess(rule.id, status));
+      dispatch(publishNotification('error', `${rule.name} could not be ${status}`));
     });
   };
 }
