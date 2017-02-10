@@ -89,3 +89,22 @@ See all active alerts on the `ALERTING` page, and filter them by `Name`,
 `Level`, and `Host`:
 
 ![Alert View](https://github.com/influxdata/chronograf/blob/master/docs/images/alert-view-gs.png)
+
+### Alerta TICKscript Parser
+
+Chronograf offers a parser for TICKscripts that use the [Alerta](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#alerta) output.
+This is a new feature in version 1.2.0-beta2.
+
+To use the TICKscript parser:
+
+* Select Alerta as the output when creating or editing an alert rule
+* Paste your existing TICKscript in the text input (spacing doesn't matter!)
+* Save your rule
+
+You're good to go! The system automatically parses your TICKscript and creates a
+Chronograf-friendly alert rule.
+
+> **Notes:**
+>
+* Currently, the Alerta TICKscript parser requires users to **paste** their existing TICKscript in the text input. The parser does not support manually entering or editing a TICKscript.
+* The parser requires users to whitespace delimit any services listed in the TICKscript's [`.services()` attribute](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#alerta-services).
