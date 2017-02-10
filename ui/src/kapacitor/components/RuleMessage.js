@@ -90,10 +90,18 @@ export const RuleMessage = React.createClass({
           <div className="rule-section--item bottom alert-message--endpoint">
             <p>Send this Alert to:</p>
             <Dropdown className="size-256 dropdown-kapacitor" selected={selectedAlert || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
+            {this.renderInput(this.state.selectedAlert)}
           </div>
         </div>
       </div>
     );
+  },
+
+  renderInput(alert) {
+    if (!DEFAULT_ALERTS.find((a) => a === alert)) {
+      return null;
+    }
+    return <input className="form-control col-xs-6" type="text" ref={(r) => this.selectedAlert = r} />;
   },
 });
 
