@@ -18,7 +18,7 @@ func ValidateAlert(service string) error {
 	// Simple tick script to check alert service.
 	// If a pipeline cannot be created then we know this is an invalid
 	// service.  At least with this version of kapacitor!
-	script := fmt.Sprintf("stream|from()|alert().%s()", service)
+	script := fmt.Sprintf("stream|from()|alert()%s", service)
 	return validateTick(chronograf.TICKScript(script))
 }
 

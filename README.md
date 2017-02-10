@@ -91,14 +91,16 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 * Simply generate threshold, relative, and deadman alerts
 * Preview data and alert boundaries while creating an alert
 * Configure alert destinations - Currently, Chronograf supports sending alerts to:
+  * HTTP/Post
   * HipChat
   * OpsGenie
   * PagerDuty
   * Sensu
   * Slack
-  * SMTP
+  * SMTP/email
   * Talk
   * Telegram
+  * TCP
   * VictorOps
 * View all active alerts at a glance on the alerting dashboard
 
