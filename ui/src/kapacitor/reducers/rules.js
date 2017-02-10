@@ -1,5 +1,6 @@
 import {defaultRuleConfigs, DEFAULT_RULE_ID} from 'src/kapacitor/constants';
 import _ from 'lodash';
+import {parseAlerta} from 'src/shared/parsing/parseAlerta';
 
 export default function rules(state = {}, action) {
   switch (action.type) {
@@ -13,6 +14,7 @@ export default function rules(state = {}, action) {
           values: defaultRuleConfigs.threshold,
           message: '',
           alerts: [],
+          alertNodes: [],
           every: '30s',
           name: 'Untitled Rule',
         },
@@ -67,6 +69,54 @@ export default function rules(state = {}, action) {
       return Object.assign({}, state, {
         [ruleID]: Object.assign({}, state[ruleID], {
           alerts,
+        }),
+      });
+    }
+
+    case 'UPDATE_RULE_ALERT_NODES': {
+      const {ruleID, alertType, alertNodesText} = action.payload;
+
+      let alertNodesByType;
+
+      switch (alertType) {
+        case 'http':
+        case 'tcp':
+          alertNodesByType = [
+            {
+              name: alertType,
+              args: [
+                alertNodesText,
+              ],
+              properties: [],
+            },
+          ];
+          break;
+        case 'exec':
+        case 'smtp':
+          alertNodesByType = [
+            {
+              name: alertType,
+              args: alertNodesText.split(' '),
+              properties: [],
+            },
+          ];
+          break;
+        case 'alerta':
+          alertNodesByType = [
+            {
+              name: alertType,
+              args: [],
+              properties: parseAlerta(alertNodesText),
+            },
+          ];
+          break;
+        default:
+          alertNodesByType = [];
+      }
+
+      return Object.assign({}, state, {
+        [ruleID]: Object.assign({}, state[ruleID], {
+          alertNodes: alertNodesByType,
         }),
       });
     }

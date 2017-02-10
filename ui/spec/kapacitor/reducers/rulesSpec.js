@@ -1,5 +1,6 @@
 import reducer from 'src/kapacitor/reducers/rules';
 import {defaultRuleConfigs} from 'src/kapacitor/constants';
+import {ALERT_NODES_ACCESSORS} from 'src/kapacitor/constants';
 
 import {
   chooseTrigger,
@@ -7,6 +8,7 @@ import {
   updateDetails,
   updateMessage,
   updateAlerts,
+  updateAlertNodes,
   updateRuleName,
   deleteRuleSuccess,
   updateRuleStatusSuccess,
@@ -85,6 +87,40 @@ describe('Kapacitor.Reducers.rules', () => {
     const alerts = ['slack'];
     const newState = reducer(initialState, updateAlerts(ruleID, alerts));
     expect(newState[ruleID].alerts).to.equal(alerts);
+  });
+
+  it('can update an alerta alert', () => {
+    const ruleID = 1;
+    const initialState = {
+      [ruleID]: {
+        id: ruleID,
+        queryID: 988,
+        alerts: [],
+        alertNodes: [],
+      }
+    };
+
+    const tickScript = `stream
+      |alert()
+        .alerta()
+          .resource('Hostname or service')
+          .event('Something went wrong')
+          .environment('Development')
+          .group('Dev. Servers')
+          .services('a b c')
+    `;
+
+    let newState = reducer(initialState, updateAlertNodes(ruleID, 'alerta', tickScript));
+    const expectedStr = `alerta().resource('Hostname or service').event('Something went wrong').environment('Development').group('Dev. Servers').services('a b c')`;
+    let actualStr = ALERT_NODES_ACCESSORS.alerta(newState[ruleID]);
+
+    // Test both data structure and accessor string
+    expect(actualStr).to.equal(expectedStr);
+
+    // Test that accessor string is the same if fed back in
+    newState = reducer(newState, updateAlertNodes(ruleID, 'alerta', actualStr));
+    actualStr = ALERT_NODES_ACCESSORS.alerta(newState[ruleID]);
+    expect(actualStr).to.equal(expectedStr);
   });
 
   it('can update the name', () => {
