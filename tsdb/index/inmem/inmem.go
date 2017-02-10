@@ -28,10 +28,13 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
+// IndexName is the name of this index.
+const IndexName = "inmem"
+
 func init() {
 	tsdb.NewInmemIndex = func(name string) (interface{}, error) { return NewIndex(), nil }
 
-	tsdb.RegisterIndex("inmem", func(id uint64, path string, opt tsdb.EngineOptions) tsdb.Index {
+	tsdb.RegisterIndex(IndexName, func(id uint64, path string, opt tsdb.EngineOptions) tsdb.Index {
 		return NewShardIndex(id, path, opt)
 	})
 }
@@ -66,6 +69,7 @@ func NewIndex() *Index {
 	return index
 }
 
+func (i *Index) Type() string      { return IndexName }
 func (i *Index) Open() (err error) { return nil }
 func (i *Index) Close() error      { return nil }
 

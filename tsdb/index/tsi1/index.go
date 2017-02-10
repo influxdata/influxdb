@@ -20,6 +20,9 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 )
 
+// IndexName is the name of the index.
+const IndexName = "tsi1"
+
 // Default compaction thresholds.
 const (
 	DefaultMaxLogFileSize           = 5 * 1024 * 1024
@@ -30,7 +33,7 @@ const (
 )
 
 func init() {
-	tsdb.RegisterIndex("tsi1", func(id uint64, path string, opt tsdb.EngineOptions) tsdb.Index {
+	tsdb.RegisterIndex(IndexName, func(id uint64, path string, opt tsdb.EngineOptions) tsdb.Index {
 		idx := NewIndex()
 		idx.ShardID = id
 		idx.Path = path
@@ -107,6 +110,8 @@ func NewIndex() *Index {
 		CompactionMonitorInterval: DefaultCompactionMonitorInterval,
 	}
 }
+
+func (i *Index) Type() string { return IndexName }
 
 // Open opens the index.
 func (i *Index) Open() error {
@@ -823,7 +828,7 @@ func (i *Index) compactLogFile() error {
 		return nil
 	}
 
-	log.Printf("tsi1: compacting log file: file=%s", logFile.Path())
+	log.Printf("%s: compacting log file: file=%s", IndexName, logFile.Path())
 
 	// Create new index file.
 	path := filepath.Join(i.Path, FormatIndexFileName(id))
@@ -875,10 +880,10 @@ func (i *Index) compactLogFile() error {
 	}(); err != nil {
 		return err
 	}
-	log.Printf("tsi1: finished compacting log file: file=%s, t=%v", logFile.Path(), time.Since(start))
+	log.Printf("%s: finished compacting log file: file=%s, t=%v", IndexName, logFile.Path(), time.Since(start))
 
 	// Closing the log file will automatically wait until the ref count is zero.
-	log.Printf("tsi1: removing log file: file=%s", logFile.Path())
+	log.Printf("%s: removing log file: file=%s", IndexName, logFile.Path())
 	if err := logFile.Close(); err != nil {
 		return err
 	} else if err := os.Remove(logFile.Path()); err != nil {
@@ -928,7 +933,7 @@ func (i *Index) checkFullCompaction(force bool) error {
 	}
 	defer f.Close()
 
-	log.Printf("tsi1: performing full compaction: file=%s", path)
+	log.Printf("%s: performing full compaction: file=%s", IndexName, path)
 
 	// Compact all index files to new index file.
 	if _, err := oldIndexFiles.WriteTo(f); err != nil {
@@ -966,11 +971,11 @@ func (i *Index) checkFullCompaction(force bool) error {
 		return err
 	}
 
-	log.Printf("tsi1: full compaction complete: file=%s, t=%s", path, time.Since(start))
+	log.Printf("%s: full compaction complete: file=%s, t=%s", IndexName, path, time.Since(start))
 
 	// Close and delete all old index files.
 	for _, f := range oldIndexFiles {
-		log.Printf("tsi1: removing index file: file=%s", f.Path())
+		log.Printf("%s: removing index file: file=%s", IndexName, f.Path())
 
 		if err := f.Close(); err != nil {
 			return err

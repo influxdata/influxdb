@@ -286,18 +286,15 @@ func (s *Shard) Open() error {
 			return err
 		}
 
-		// Load metadata index.
-		start := time.Now()
+		// Load metadata index for the inmem index only.
 		if err := e.LoadMetadataIndex(s.id, s.index); err != nil {
 			return err
 		}
+		s.engine = e
 
 		// TODO(benbjohnson):
 		// count := s.index.SeriesShardN(s.id)
 		// atomic.AddInt64(&s.stats.SeriesCreated, int64(count))
-
-		s.engine = e
-		s.logger.Info(fmt.Sprintf("%s database index loaded in %s", s.path, time.Since(start)))
 
 		go s.monitor()
 
