@@ -92,13 +92,15 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 * Preview data and alert boundaries while creating an alert
 * Configure alert destinations - Currently, Chronograf supports sending alerts to:
   * [HipChat](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#hipchat)
+  * [HTTP/Post](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#post)
   * [OpsGenie](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#opsgenie)
   * [PagerDuty](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#pagerduty)
   * [Sensu](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#sensu)
   * [Slack](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#slack)
-  * [SMTP](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#email)
+  * [SMTP/Email](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#email)
   * [Talk](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#talk)
   * [Telegram](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#telegram)
+  * [TCP](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#tcp)
   * [VictorOps](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#victorops)
 * View all active alerts at a glance on the alerting dashboard
 

@@ -443,7 +443,7 @@ $toggle-border: 2px;
   .toggle-btn {
     height: ($toggle-height-sm - ($toggle-border * 2));
     line-height: ($toggle-height-sm - ($toggle-border * 2));
-    padding: 0 $toggle-padding-sm;
+    padding: 0 16px;
     font-size: $toggle-font-sm;
     font-weight: 600;
   }

@@ -3,6 +3,7 @@ package dist
 //go:generate go-bindata -o dist_gen.go -ignore 'map|go' -pkg dist ../ui/build/...
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/elazarl/go-bindata-assetfs"
@@ -32,6 +33,21 @@ func (b *BindataAssets) Handler() http.Handler {
 	return b
 }
 
+// addCacheHeaders requests an hour of Cache-Control and sets an ETag based on file size and modtime
+func (b *BindataAssets) addCacheHeaders(filename string, w http.ResponseWriter) error {
+	w.Header().Add("Cache-Control", "public, max-age=3600")
+	fi, err := AssetInfo(filename)
+	if err != nil {
+		return err
+	}
+
+	hour, minute, second := fi.ModTime().Clock()
+	etag := fmt.Sprintf(`"%d%d%d%d%d"`, fi.Size(), fi.ModTime().Day(), hour, minute, second)
+
+	w.Header().Set("ETag", etag)
+	return nil
+}
+
 // ServeHTTP wraps http.FileServer by returning a default asset if the asset
 // doesn't exist.  This supports single-page react-apps with its own
 // built-in router.  Additionally, we override the content-type if the
@@ -52,7 +68,13 @@ func (b *BindataAssets) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			// Additionally, because we know we are returning the default asset,
 			// we need to set the default asset's content-type.
 			w.Header().Set("Content-Type", b.DefaultContentType)
+			if err := b.addCacheHeaders(b.Default, w); err != nil {
+				return nil, err
+			}
 			return Asset(b.Default)
+		}
+		if err := b.addCacheHeaders(name, w); err != nil {
+			return nil, err
 		}
 		return octets, nil
 	}

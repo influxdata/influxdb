@@ -9,8 +9,8 @@ const ResizeContainer = React.createClass({
 
   getInitialState() {
     return {
-      leftWidth: '34%',
-      rightWidth: '66%',
+      topHeight: '60%',
+      bottomHeight: '40%',
       isDragging: false,
     };
   },
@@ -32,40 +32,43 @@ const ResizeContainer = React.createClass({
       return;
     }
 
-    const appWidth = parseInt(getComputedStyle(this.refs.resizeContainer).width, 10);
-    // handleOffSet moves the resize handle as many pixels as the side bar is taking up.
-    const handleOffSet = window.innerWidth - appWidth;
+    const appHeight = parseInt(getComputedStyle(this.refs.resizeContainer).height, 10);
+    // headingOffset moves the resize handle as many pixels as the page-heading is taking up.
+    const headingOffset = window.innerHeight - appHeight;
     const turnToPercent = 100;
-    const newLeftPanelPercent = Math.ceil(((e.pageX - handleOffSet) / (appWidth)) * turnToPercent);
-    const newRightPanelPercent = (turnToPercent - newLeftPanelPercent);
+    const newTopPanelPercent = Math.ceil(((e.pageY - headingOffset) / (appHeight)) * turnToPercent);
+    const newBottomPanelPercent = (turnToPercent - newTopPanelPercent);
 
     // Don't trigger a resize unless the change in size is greater than minResizePercentage
     const minResizePercentage = 0.5;
-    if (Math.abs(newLeftPanelPercent - parseFloat(this.state.leftWidth)) < minResizePercentage) {
+    if (Math.abs(newTopPanelPercent - parseFloat(this.state.topHeight)) < minResizePercentage) {
       return;
     }
 
     // Don't trigger a resize if the new sizes are too small
-    const minLeftPanelWidth = 371;
-    const minRightPanelWidth = 389;
-    if (((newLeftPanelPercent / turnToPercent) * appWidth) < minLeftPanelWidth || ((newRightPanelPercent / turnToPercent) * appWidth) < minRightPanelWidth) {
+    const minTopPanelHeight = 200;
+    const minBottomPanelHeight = 100;
+    const topHeightPixels = ((newTopPanelPercent / turnToPercent) * appHeight);
+    const bottomHeightPixels = ((newBottomPanelPercent / turnToPercent) * appHeight);
+
+    if (topHeightPixels < minTopPanelHeight || bottomHeightPixels < minBottomPanelHeight) {
       return;
     }
 
-    this.setState({leftWidth: `${(newLeftPanelPercent)}%`, rightWidth: `${(newRightPanelPercent)}%`});
+    this.setState({topHeight: `${(newTopPanelPercent)}%`, bottomHeight: `${(newBottomPanelPercent)}%`, topHeightPixels});
   },
 
   render() {
-    const {leftWidth, rightWidth, isDragging} = this.state;
-    const left = React.cloneElement(this.props.children[0], {width: leftWidth});
-    const right = React.cloneElement(this.props.children[1], {width: rightWidth});
-    const handle = <ResizeHandle isDragging={isDragging} onHandleStartDrag={this.handleStartDrag} />;
+    const {topHeight, bottomHeight, isDragging, topHeightPixels} = this.state;
+    const top = React.cloneElement(this.props.children[0], {height: topHeight, heightPixels: topHeightPixels});
+    const bottom = React.cloneElement(this.props.children[1], {height: bottomHeight, top: topHeight});
+    const handle = <ResizeHandle isDragging={isDragging} onHandleStartDrag={this.handleStartDrag} top={topHeight} />;
 
     return (
       <div className="resize-container page-contents" onMouseLeave={this.handleMouseLeave} onMouseUp={this.handleStopDrag} onMouseMove={this.handleDrag} ref="resizeContainer" >
-        {left}
+        {top}
         {handle}
-        {right}
+        {bottom}
       </div>
     );
   },

@@ -81,7 +81,10 @@ const TagListItem = React.createClass({
   },
 
   render() {
-    const itemClasses = classNames("qeditor--list-item tag-list__item", {open: this.state.isOpen});
+    const {tagKey, tagValues} = this.props;
+    const {isOpen} = this.state;
+    const itemClasses = classNames("qeditor--list-item tag-list__item", {open: isOpen});
+
     return (
       <div>
         <li className={itemClasses} onClick={this.handleClickKey}>
@@ -89,12 +92,15 @@ const TagListItem = React.createClass({
             <div className="tag-list__caret">
               <div className="icon caret-right"></div>
             </div>
-            {this.props.tagKey}
-            <span className="badge">{this.props.tagValues.length}</span>
+            {tagKey}
+            <span className="badge">{tagValues.length}</span>
           </div>
-          <div className={classNames('btn btn-info btn-xs tag-list__group-by', {active: this.props.isUsingGroupBy})} onClick={this.handleGroupBy}>Group By</div>
+          <div
+            className={classNames('btn btn-info btn-xs tag-list__group-by', {active: this.props.isUsingGroupBy})}
+            onClick={this.handleGroupBy}>Group By {tagKey}
+          </div>
         </li>
-        {this.state.isOpen ? this.renderTagValues() : null}
+        {isOpen ? this.renderTagValues() : null}
       </div>
     );
   },
