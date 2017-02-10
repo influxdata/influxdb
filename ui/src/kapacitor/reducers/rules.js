@@ -79,20 +79,10 @@ export default function rules(state = {}, action) {
 
       switch (alertType) {
         case 'http':
-          alertNodesByType = [
-            {
-              name: 'http',
-              args: [
-                alertNodesText,
-              ],
-              properties: [],
-            },
-          ];
-          break;
         case 'tcp':
           alertNodesByType = [
             {
-              name: 'tcp',
+              name: alertType,
               args: [
                 alertNodesText,
               ],
@@ -101,9 +91,10 @@ export default function rules(state = {}, action) {
           ];
           break;
         case 'exec':
+        case 'smtp':
           alertNodesByType = [
             {
-              name: 'exec',
+              name: alertType,
               args: alertNodesText.split(' '),
               properties: [],
             },

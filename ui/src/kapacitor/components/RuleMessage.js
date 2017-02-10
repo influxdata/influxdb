@@ -4,16 +4,18 @@ import ReactTooltip from 'react-tooltip';
 import _ from 'lodash';
 import {RULE_MESSAGE_TEMPLATES as templates} from '../constants/index.js';
 
-const DEFAULT_ALERTS = ['http', 'tcp', 'exec'];
+const DEFAULT_ALERTS = ['http', 'tcp', 'exec', 'smtp'];
 const DEFAULT_ALERT_PLACEHOLDERS = {
   http: 'URL',
   tcp: 'Address',
   exec: 'Add command with arguments separated by spaces',
+  smtp: 'Add email addresses separated by spaces',
 };
 const ALERT_NODES_ACCESSORS = {
   http: (rule) => _.get(rule, 'alertNodes[0].args[0]', ''),
   tcp: (rule) => _.get(rule, 'alertNodes[0].args[0]', ''),
   exec: (rule) => _.get(rule, 'alertNodes[0].args', []).join(' '),
+  smtp: (rule) => _.get(rule, 'alertNodes[0].args', []).join(' '),
 };
 
 const {
