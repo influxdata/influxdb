@@ -147,7 +147,10 @@ export const KapacitorRulesPage = React.createClass({
           <td className="monotype">{rule.message}</td>
           <td className="monotype">{rule.alerts.join(', ')}</td>
           <td className="monotype">
-            <input className="form-control-static" type="checkbox" ref={(r) => this.enabled = r} checked={rule.status === "enabled"} onClick={(e) => this.handleRuleStatus(e, rule)} />
+            <div className="dark-checkbox">
+              <input id="kapacitor-enabled" className="form-control-static" type="checkbox" ref={(r) => this.enabled = r} checked={rule.status === "enabled"} onClick={(e) => this.handleRuleStatus(e, rule)} />
+              <label htmlFor="kapacitor-enabled"></label>
+            </div>
           </td>
           <td className="text-right"><button className="btn btn-danger btn-xs" onClick={() => this.handleDeleteRule(rule)}>Delete</button></td>
         </tr>
