@@ -41,47 +41,47 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 
 ### Features
 
+- [#7830](https://github.com/influxdata/influxdb/pull/7830): Cache snapshotting performance improvements.
 - [#7723](https://github.com/influxdata/influxdb/pull/7723): Remove the override of GOMAXPROCS.
+- [#7709](https://github.com/influxdata/influxdb/pull/7709): Add clear command to CLI.
+- [#7688](https://github.com/influxdata/influxdb/pull/7688): Adding ability to use parameters in queries in the v2 client using the `Parameters` map in the `Query` struct.
 - [#7669](https://github.com/influxdata/influxdb/issues/7669): Uncomment section headers from the default configuration file.
 - [#7633](https://github.com/influxdata/influxdb/pull/7633): improve write performance significantly.
 - [#7601](https://github.com/influxdata/influxdb/issues/7601): Prune data in meta store for deleted shards.
 - [#7554](https://github.com/influxdata/influxdb/pull/7554): update latest dependencies with Godeps.
 - [#7368](https://github.com/influxdata/influxdb/pull/7368): Introduce syntax for marking a partial response with chunking.
 - [#7356](https://github.com/influxdata/influxdb/issues/7356): Use X-Forwarded-For IP address in HTTP logger if present.
+- [#7326](https://github.com/influxdata/influxdb/issues/7326): Verbose output for SSL connection errors.
+- [#7323](https://github.com/influxdata/influxdb/pull/7323): Allow add items to array config via ENV.
 - [#7066](https://github.com/influxdata/influxdb/issues/7066): Add support for secure transmission via collectd.
 - [#7036](https://github.com/influxdata/influxdb/issues/7036): Switch logging to use structured logging everywhere.
-- [#3188](https://github.com/influxdata/influxdb/issues/3188): [CLI feature request] USE retention policy for queries.
-- [#7709](https://github.com/influxdata/influxdb/pull/7709): Add clear command to cli.
-- [#7688](https://github.com/influxdata/influxdb/pull/7688): Adding ability to use parameters in queries in the v2 client using the `Parameters` map in the `Query` struct.
-- [#7323](https://github.com/influxdata/influxdb/pull/7323): Allow add items to array config via ENV
 - [#4619](https://github.com/influxdata/influxdb/issues/4619): Support subquery execution in the query language.
-- [#7326](https://github.com/influxdata/influxdb/issues/7326): Verbose output for SSL connection errors.
-- [#7830](https://github.com/influxdata/influxdb/pull/7830): Cache snapshotting performance improvements
+- [#3188](https://github.com/influxdata/influxdb/issues/3188): [CLI feature request] USE retention policy for queries.
 
 ### Bugfixes
 
+- [#7845](https://github.com/influxdata/influxdb/issues/7845): Fix race in storage engine.
+- [#7838](https://github.com/influxdata/influxdb/issues/7838): Ensure Subscriber service can be disabled.
 - [#7832](https://github.com/influxdata/influxdb/pull/7832): Fix memory leak when writing new series over HTTP
+- [#7822](https://github.com/influxdata/influxdb/issues/7822): Drop database will delete /influxdb/data directory.
+- [#7814](https://github.com/influxdata/influxdb/issues/7814): InfluxDB should do a partial write on mismatched type errors.
+- [#7812](https://github.com/influxdata/influxdb/issues/7812): Fix slice out of bounds panic when pruning shard groups. Thanks @vladlopes
 - [#7786](https://github.com/influxdata/influxdb/pull/7786): Fix potential race condition in correctness of tsm1_cache memBytes statistic.
 - [#7784](https://github.com/influxdata/influxdb/pull/7784): Fix broken error return on meta client's UpdateUser and DropContinuousQuery methods.
 - [#7741](https://github.com/influxdata/influxdb/pull/7741): Fix string quoting and significantly improve performance of `influx_inspect export`.
+- [#7740](https://github.com/influxdata/influxdb/issues/7740): Fix parse key panic when missing tag value. @oiooj
 - [#7698](https://github.com/influxdata/influxdb/pull/7698): CLI was caching db/rp for insert into statements.
 - [#7659](https://github.com/influxdata/influxdb/issues/7659): Fix CLI import bug when using self-signed SSL certificates.
-- [#7656](https://github.com/influxdata/influxdb/issues/7656): Fix cross-platform backup/restore @allenpetersen
+- [#7656](https://github.com/influxdata/influxdb/issues/7656): Fix cross-platform backup/restore. @allenpetersen
 - [#7650](https://github.com/influxdata/influxdb/issues/7650): Ensures that all user privileges associated with a database are removed when the database is dropped.
 - [#7634](https://github.com/influxdata/influxdb/issues/7634): Return the time from a percentile call on an integer.
 - [#7621](https://github.com/influxdata/influxdb/issues/7621): Expand string and boolean fields when using a wildcard with `sample()`.
-- [#7616](https://github.com/influxdata/influxdb/pull/7616): Fix chuid argument order in init script @ccasey
-- [#7615](https://github.com/influxdata/influxdb/issues/7615): Reject invalid subscription urls @allenpetersen
+- [#7616](https://github.com/influxdata/influxdb/pull/7616): Fix chuid argument order in init script. @ccasey
+- [#7615](https://github.com/influxdata/influxdb/issues/7615): Reject invalid subscription URLs. @allenpetersen
+- [#7585](https://github.com/influxdata/influxdb/pull/7585): Return Error instead of panic when decoding point values.
+- [#7563](https://github.com/influxdata/influxdb/issues/7563): RP should not allow `INF` or `0` as a shard duration.
 - [#7396](https://github.com/influxdata/influxdb/issues/7396): CLI should use spaces for alignment, not tabs.
 - [#6527](https://github.com/influxdata/influxdb/issues/6527): 0.12.2 Influx CLI client PRECISION returns "Unknown precision....
-- [#7740](https://github.com/influxdata/influxdb/issues/7740): Fix parse key panic when missing tag value @oiooj
-- [#7563](https://github.com/influxdata/influxdb/issues/7563): RP should not allow `INF` or `0` as a shard duration.
-- [#7585](https://github.com/influxdata/influxdb/pull/7585): Return Error instead of panic when decoding point values.
-- [#7812](https://github.com/influxdata/influxdb/issues/7812): Fix slice out of bounds panic when pruning shard groups. Thanks @vladlopes
-- [#7822](https://github.com/influxdata/influxdb/issues/7822): Drop database will delete /influxdb/data directory
-- [#7838](https://github.com/influxdata/influxdb/issues/7838): Ensure Subscriber service can be disabled.
-- [#7845](https://github.com/influxdata/influxdb/issues/7845): Fix race in storage engine.
-- [#7814](https://github.com/influxdata/influxdb/issues/7814): InfluxDB should do a partial write on mismatched type errors.
 
 ## v1.1.1 [2016-12-06]
 
