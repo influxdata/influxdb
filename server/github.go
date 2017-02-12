@@ -39,16 +39,35 @@ func NewCookie() Cookie {
 // an authentication cookie.  This cookie's value is a JWT containing
 // the user's primary Github email address.
 type Github struct {
-	Cookie        Cookie
-	Authenticator chronograf.Authenticator
-	ClientID      string
-	ClientSecret  string
-	Scopes        []string
-	SuccessURL    string   // SuccessURL is redirect location after successful authorization
-	FailureURL    string   // FailureURL is redirect location after authorization failure
-	Orgs          []string // Optional github organization checking
-	Now           func() time.Time
-	Logger        chronograf.Logger
+	Cookie       Cookie
+	Auth         chronograf.Authenticator
+	ClientID     string
+	ClientSecret string
+	SuccessURL   string   // SuccessURL is redirect location after successful authorization
+	FailureURL   string   // FailureURL is redirect location after authorization failure
+	Orgs         []string // Optional github organization checking
+	Now          func() time.Time
+	Logger       chronograf.Logger
+}
+
+func (g *Github) ID() string {
+	return g.ClientID
+}
+
+func (g *Github) Secret() string {
+	return g.ClientSecret
+}
+
+func (g *Github) Scopes() []string {
+	scopes := []string{"user:email"}
+	if len(g.Orgs) > 0 {
+		scopes = append(scopes, "read:org")
+	}
+	return scopes
+}
+
+func (g *Github) Authenticator() chronograf.Authenticator {
+	return g.Auth
 }
 
 // NewGithub constructs a Github with default cookie behavior and scopes.
@@ -58,24 +77,23 @@ func NewGithub(clientID, clientSecret, successURL, failureURL string, orgs []str
 		scopes = append(scopes, "read:org")
 	}
 	return Github{
-		ClientID:      clientID,
-		ClientSecret:  clientSecret,
-		Cookie:        NewCookie(),
-		Scopes:        scopes,
-		Orgs:          orgs,
-		SuccessURL:    successURL,
-		FailureURL:    failureURL,
-		Authenticator: auth,
-		Now:           time.Now,
-		Logger:        log,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Cookie:       NewCookie(),
+		Orgs:         orgs,
+		SuccessURL:   successURL,
+		FailureURL:   failureURL,
+		Auth:         auth,
+		Now:          time.Now,
+		Logger:       log,
 	}
 }
 
 func (g *Github) config() *oauth2.Config {
 	return &oauth2.Config{
-		ClientID:     g.ClientID,
-		ClientSecret: g.ClientSecret,
-		Scopes:       g.Scopes,
+		ClientID:     g.ID(),
+		ClientSecret: g.Secret(),
+		Scopes:       g.Scopes(),
 		Endpoint:     ogh.Endpoint,
 	}
 }
@@ -92,7 +110,7 @@ func (g *Github) Login() http.HandlerFunc {
 		// We'll give our users 10 minutes from this point to type in their github password.
 		// If the callback is not received within 10 minutes, then authorization will fail.
 		csrf := randomString(32) // 32 is not important... just long
-		state, err := g.Authenticator.Token(r.Context(), chronograf.Principal(csrf), 10*time.Minute)
+		state, err := g.Authenticator().Token(r.Context(), chronograf.Principal(csrf), 10*time.Minute)
 		// This is likely an internal server error
 		if err != nil {
 			g.Logger.
@@ -140,7 +158,7 @@ func (g *Github) Callback() http.HandlerFunc {
 
 		state := r.FormValue("state")
 		// Check if the OAuth state token is valid to prevent CSRF
-		_, err := g.Authenticator.Authenticate(r.Context(), state)
+		_, err := g.Authenticator().Authenticate(r.Context(), state)
 		if err != nil {
 			log.Error("Invalid OAuth state received: ", err.Error())
 			http.Redirect(w, r, g.FailureURL, http.StatusTemporaryRedirect)
@@ -180,14 +198,14 @@ func (g *Github) Callback() http.HandlerFunc {
 		}
 
 		// We create an auth token that will be used by all other endpoints to validate the principal has a claim
-		authToken, err := g.Authenticator.Token(r.Context(), chronograf.Principal(email), g.Cookie.Duration)
+		authToken, err := g.Authenticator().Token(r.Context(), chronograf.Principal(email), g.Cookie.Duration)
 		if err != nil {
 			log.Error("Unable to create cookie auth token ", err.Error())
 			http.Redirect(w, r, g.FailureURL, http.StatusTemporaryRedirect)
 			return
 		}
 
-		expireCookie := time.Now().UTC().Add(g.Cookie.Duration)
+		expireCookie := g.Now().UTC().Add(g.Cookie.Duration)
 		cookie := http.Cookie{
 			Name:     g.Cookie.Name,
 			Value:    authToken,
