@@ -68,6 +68,7 @@ func (s *Server) useTLS() bool {
 	return s.Cert != ""
 }
 
+// NewListener will an http or https listener depending useTLS()
 func (s *Server) NewListener() (net.Listener, error) {
 	addr := net.JoinHostPort(s.Host, strconv.Itoa(s.Port))
 	if !s.useTLS() {
