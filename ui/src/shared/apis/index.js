@@ -4,31 +4,33 @@ export function fetchLayouts() {
   return AJAX({
     url: `/chronograf/v1/layouts`,
     method: 'GET',
+    resource: 'layouts',
   });
 }
 
 export function getMe() {
   return AJAX({
-    url: `/chronograf/v1/me`,
+    resource: 'me',
     method: 'GET',
   });
 }
 
 export function getSources() {
   return AJAX({
-    url: '/chronograf/v1/sources',
+    resource: 'sources',
   });
 }
 
-export function getSource(sourceID) {
+export function getSource(id) {
   return AJAX({
-    url: `/chronograf/v1/sources/${sourceID}`,
+    resource: 'sources',
+    id,
   });
 }
 
 export function createSource(attributes) {
   return AJAX({
-    url: '/chronograf/v1/sources',
+    resource: 'sources',
     method: 'POST',
     data: attributes,
   });
