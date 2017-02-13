@@ -1,18 +1,9 @@
-import _ from 'lodash';
-
 export const loadLocalStorage = () => {
   try {
     const serializedState = localStorage.getItem('state');
-    const defaultTimeRange = {upper: null, lower: 'now() - 15m'};
-
-    if (serializedState === null) {
-      return {timeRange: defaultTimeRange};
-    }
-
     const parsedState = JSON.parse(serializedState) || {};
-    const timeRange = _.isEmpty(parsedState.timeRange) ? defaultTimeRange : parsedState.timeRange;
 
-    return {...parsedState, timeRange};
+    return {...parsedState};
   } catch (err) {
     console.error(`Loading persisted state failed: ${err}`); // eslint-disable-line no-console
     return {};
