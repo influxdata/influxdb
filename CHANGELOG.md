@@ -20,6 +20,7 @@
 - [#7946](https://github.com/influxdata/influxdb/issues/7946): Fix authentication when subqueries are present.
 - [#7885](https://github.com/influxdata/influxdb/issues/7885): Fix LIMIT and OFFSET when they are used in a subquery.
 - [#7905](https://github.com/influxdata/influxdb/issues/7905): Fix ORDER BY time DESC with ordering series keys.
+- [#7966](https://github.com/influxdata/influxdb/pull/7966): Prevent a panic when aggregates are used in an inner query with a raw query.
 
 ## v1.2.0 [2017-01-24]
 
