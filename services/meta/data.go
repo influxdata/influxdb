@@ -1409,15 +1409,24 @@ func (cqi *ContinuousQueryInfo) unmarshal(pb *internal.ContinuousQueryInfo) {
 
 // UserInfo represents metadata about a user in the system.
 type UserInfo struct {
-	Name       string
-	Hash       string
-	Admin      bool
+	// User's name.
+	Name string
+
+	// Hashed password.
+	Hash string
+
+	// Whether the user is an admin, i.e. allowed to do everything.
+	Admin bool
+
+	// Map of database name to granted privilege.
 	Privileges map[string]influxql.Privilege
 }
 
-// Authorize returns true if the user is authorized and false if not.
-func (ui *UserInfo) Authorize(privilege influxql.Privilege, database string) bool {
-	if ui.Admin {
+var _ influxql.Authorizer = (*UserInfo)(nil)
+
+// AuthorizeDatabase returns true if the user is authorized for the given privilege on the given database.
+func (ui *UserInfo) AuthorizeDatabase(privilege influxql.Privilege, database string) bool {
+	if ui.Admin || privilege == influxql.NoPrivileges {
 		return true
 	}
 	p, ok := ui.Privileges[database]

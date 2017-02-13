@@ -2673,7 +2673,10 @@ func (s *ShowDatabasesStatement) String() string { return "SHOW DATABASES" }
 
 // RequiredPrivileges returns the privilege required to execute a ShowDatabasesStatement.
 func (s *ShowDatabasesStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
+	// SHOW DATABASES is one of few statements that have no required privileges.
+	// Anyone is allowed to execute it, but the returned results depend on the user's
+	// individual database permissions.
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: NoPrivileges}}, nil
 }
 
 // CreateContinuousQueryStatement represents a command for creating a continuous query.

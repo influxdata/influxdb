@@ -2,10 +2,11 @@
 
 ### Features
 
-- [#7776](https://github.com/influxdata/influxdb/issues/7776): Add system information to /debug/vars.
-- [#7948](https://github.com/influxdata/influxdb/pull/7948): Reduce memory allocations by reusing gzip.Writers across requests
-- [#7553](https://github.com/influxdata/influxdb/issues/7553): Add modulo operator to the query language.
 - [#7977](https://github.com/influxdata/influxdb/issues/7977): Add chunked request processing back into the Go client v2
+- [#7974](https://github.com/influxdata/influxdb/pull/7974): Allow non-admin users to execute SHOW DATABASES.
+- [#7948](https://github.com/influxdata/influxdb/pull/7948): Reduce memory allocations by reusing gzip.Writers across requests
+- [#7776](https://github.com/influxdata/influxdb/issues/7776): Add system information to /debug/vars.
+- [#7553](https://github.com/influxdata/influxdb/issues/7553): Add modulo operator to the query language.
 
 ## v1.2.1 [unreleased]
 
