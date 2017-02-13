@@ -3,14 +3,15 @@ package tsi1_test
 import (
 	"fmt"
 	"io/ioutil"
+	"math/rand"
 	"os"
+	"sort"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
 )
-
-import _ "net/http/pprof"
 
 // Ensure log file can append series.
 func TestLogFile_AddSeries(t *testing.T) {
@@ -49,6 +50,65 @@ func TestLogFile_AddSeries(t *testing.T) {
 		t.Fatalf("unexpected measurement: %#v", e)
 	} else if e := itr.Next(); e != nil {
 		t.Fatalf("expected eof, got: %#v", e)
+	}
+}
+
+func TestLogFile_SeriesStoredInOrder(t *testing.T) {
+	f := MustOpenLogFile()
+	defer f.Close()
+
+	// Generate and add test data
+	tvm := make(map[string]struct{})
+	rand.Seed(time.Now().Unix())
+	for i := 0; i < 100; i++ {
+		tv := fmt.Sprintf("server-%d", rand.Intn(50)) // Encourage adding duplicate series.
+		tvm[tv] = struct{}{}
+
+		if err := f.AddSeries([]byte("mem"), models.Tags{models.NewTag([]byte("host"), []byte(tv))}); err != nil {
+			t.Fatal(err)
+		}
+
+		if err := f.AddSeries([]byte("cpu"), models.Tags{models.NewTag([]byte("host"), []byte(tv))}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Sort the tag values so we know what order to expect.
+	tvs := make([]string, 0, len(tvm))
+	for tv := range tvm {
+		tvs = append(tvs, tv)
+	}
+	sort.Strings(tvs)
+
+	// Double the series values since we're adding them twice (two measurements)
+	tvs = append(tvs, tvs...)
+
+	// When we pull the series out via an iterator they should be in order.
+	itr := f.SeriesIterator()
+	if itr == nil {
+		t.Fatal("nil iterator")
+	}
+
+	mname := []string{"cpu", "mem"}
+	var j int
+	for i := 0; i < len(tvs); i++ {
+		serie := itr.Next()
+		if serie == nil {
+			t.Fatal("got nil series")
+		}
+
+		if got, exp := string(serie.Name()), mname[j]; got != exp {
+			t.Fatalf("[series %d] got %s, expected %s", i, got, exp)
+		}
+
+		if got, exp := string(serie.Tags()[0].Value), tvs[i]; got != exp {
+			t.Fatalf("[series %d] got %s, expected %s", i, got, exp)
+		}
+
+		if i == (len(tvs)/2)-1 {
+			// Next measurement
+			j++
+		}
 	}
 }
 
