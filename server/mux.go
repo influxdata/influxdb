@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/NYTimes/gziphandler"
 	"github.com/bouk/httprouter"
@@ -57,6 +58,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	/* API */
 	// Root Routes returns all top-level routes in the API
 	router.GET("/chronograf/v1/", AllRoutes(opts.Logger))
+	router.GET("/chronograf/v1", AllRoutes(opts.Logger))
 
 	// Sources
 	router.GET("/chronograf/v1/sources", service.Sources)
@@ -133,18 +135,23 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 	auth := jwt.NewJWT(opts.TokenSecret)
 
-	successURL := "/"
-	failureURL := "/login"
 	gh := NewGithub(
 		opts.GithubClientID,
 		opts.GithubClientSecret,
-		successURL,
-		failureURL,
 		opts.GithubOrgs,
 		&auth,
 		opts.Logger,
 	)
 
+	callback := CallbackOpts{
+		Provider:   &gh,
+		Auth:       &auth,
+		Cookie:     NewCookie(),
+		Logger:     opts.Logger,
+		SuccessURL: "/",
+		FailureURL: "/login",
+		Now:        time.Now,
+	}
 	router.GET("/oauth/github", gh.Login())
 	router.GET("/oauth/logout", gh.Logout())
 	router.GET("/oauth/github/callback", gh.Callback())
