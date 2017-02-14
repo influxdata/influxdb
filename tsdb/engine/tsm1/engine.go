@@ -1229,8 +1229,6 @@ func (e *Engine) cleanupTempTSMFiles() error {
 
 // KeyCursor returns a KeyCursor for the given key starting at time t.
 func (e *Engine) KeyCursor(key string, t int64, ascending bool) *KeyCursor {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
 	return e.FileStore.KeyCursor(key, t, ascending)
 }
 
@@ -1281,6 +1279,13 @@ func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt
 	tagSets, err := mm.TagSets(e.id, opt.Dimensions, opt.Condition)
 	if err != nil {
 		return nil, err
+	}
+
+	// Reverse the tag sets if we are ordering by descending.
+	if !opt.Ascending {
+		for _, t := range tagSets {
+			t.Reverse()
+		}
 	}
 
 	// Calculate tag sets and apply SLIMIT/SOFFSET.
@@ -1336,6 +1341,13 @@ func (e *Engine) createVarRefIterator(measurement string, opt influxql.IteratorO
 		return nil, err
 	}
 
+	// Reverse the tag sets if we are ordering by descending.
+	if !opt.Ascending {
+		for _, t := range tagSets {
+			t.Reverse()
+		}
+	}
+
 	// Calculate tag sets and apply SLIMIT/SOFFSET.
 	tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
 
@@ -1349,14 +1361,36 @@ func (e *Engine) createVarRefIterator(measurement string, opt influxql.IteratorO
 				continue
 			}
 
+			// If we have a LIMIT or OFFSET and the grouping of the outer query
+			// is different than the current grouping, we need to perform the
+			// limit on each of the individual series keys instead to improve
+			// performance.
+			if (opt.Limit > 0 || opt.Offset > 0) && len(opt.Dimensions) != len(opt.GroupBy) {
+				for i, input := range inputs {
+					inputs[i] = newLimitIterator(input, opt)
+				}
+			}
+
 			itr, err := influxql.Iterators(inputs).Merge(opt)
 			if err != nil {
 				influxql.Iterators(inputs).Close()
 				return err
 			}
 
+			// Apply a limit on the merged iterator.
 			if opt.Limit > 0 || opt.Offset > 0 {
-				itr = newLimitIterator(itr, opt)
+				if len(opt.Dimensions) == len(opt.GroupBy) {
+					// When the final dimensions and the current grouping are
+					// the same, we will only produce one series so we can use
+					// the faster limit iterator.
+					itr = newLimitIterator(itr, opt)
+				} else {
+					// When the dimensions are different than the current
+					// grouping, we need to account for the possibility there
+					// will be multiple series. The limit iterator in the
+					// influxql package handles that scenario.
+					itr = influxql.NewLimitIterator(itr, opt)
+				}
 			}
 			itrs = append(itrs, itr)
 		}

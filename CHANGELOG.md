@@ -2,7 +2,11 @@
 
 ### Features
 
+- [#7977](https://github.com/influxdata/influxdb/issues/7977): Add chunked request processing back into the Go client v2
+- [#7974](https://github.com/influxdata/influxdb/pull/7974): Allow non-admin users to execute SHOW DATABASES.
+- [#7948](https://github.com/influxdata/influxdb/pull/7948): Reduce memory allocations by reusing gzip.Writers across requests
 - [#7776](https://github.com/influxdata/influxdb/issues/7776): Add system information to /debug/vars.
+- [#7553](https://github.com/influxdata/influxdb/issues/7553): Add modulo operator to the query language.
 - [#7926](https://github.com/influxdata/influxdb/pull/7926): Go version 1.7.4 -> 1.7.5
 
 ## v1.2.1 [unreleased]
@@ -10,7 +14,13 @@
 - [#7877](https://github.com/influxdata/influxdb/issues/7877): Fix mapping of types when the measurement uses a regex
 - [#7888](https://github.com/influxdata/influxdb/pull/7888): Expand query dimensions from the subquery.
 - [#7910](https://github.com/influxdata/influxdb/issues/7910): Fix EvalType when a parenthesis expression is used.
-
+- [#7929](https://github.com/influxdata/influxdb/issues/7929): Fix series tag iteration segfault. (#7922)
+- [#7906](https://github.com/influxdata/influxdb/issues/7906): Anchors not working as expected with case-insensitive regex
+- [#7895](https://github.com/influxdata/influxdb/issues/7895): Fix incorrect math when aggregates that emit different times are used.
+- [#7946](https://github.com/influxdata/influxdb/issues/7946): Fix authentication when subqueries are present.
+- [#7885](https://github.com/influxdata/influxdb/issues/7885): Fix LIMIT and OFFSET when they are used in a subquery.
+- [#7905](https://github.com/influxdata/influxdb/issues/7905): Fix ORDER BY time DESC with ordering series keys.
+- [#7966](https://github.com/influxdata/influxdb/pull/7966): Prevent a panic when aggregates are used in an inner query with a raw query.
 
 ## v1.2.0 [2017-01-24]
 

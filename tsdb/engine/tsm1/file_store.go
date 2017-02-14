@@ -532,17 +532,11 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 		return nil
 	}
 
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
+	f.mu.RLock()
 	maxTime := f.lastModified
+	f.mu.RUnlock()
 
-	// Copy the current set of active files while we rename
-	// and load the new files.  We copy the pointers here to minimize
-	// the time that locks are held as well as to ensure that the replacement
-	// is atomic.©
-	updated := make([]TSMFile, len(f.files))
-	copy(updated, f.files)
+	updated := make([]TSMFile, 0, len(newFiles))
 
 	// Rename all the new files to make them live on restart
 	for _, file := range newFiles {
@@ -573,6 +567,16 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 		}
 		updated = append(updated, tsm)
 	}
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	// Copy the current set of active files while we rename
+	// and load the new files.  We copy the pointers here to minimize
+	// the time that locks are held as well as to ensure that the replacement
+	// is atomic.©
+
+	updated = append(updated, f.files...)
 
 	// We need to prune our set of active files now
 	var active, inuse []TSMFile

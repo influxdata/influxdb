@@ -293,6 +293,111 @@ func TestServer_DatabaseRetentionPolicyAutoCreate(t *testing.T) {
 	}
 }
 
+func TestServer_ShowDatabases_NoAuth(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	test := Test{
+		queries: []*Query{
+			&Query{
+				name:    "create db1",
+				command: "CREATE DATABASE db1",
+				exp:     `{"results":[{"statement_id":0}]}`,
+			},
+			&Query{
+				name:    "create db2",
+				command: "CREATE DATABASE db2",
+				exp:     `{"results":[{"statement_id":0}]}`,
+			},
+			&Query{
+				name:    "show dbs",
+				command: "SHOW DATABASES",
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["db1"],["db2"]]}]}]}`,
+			},
+		},
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(fmt.Sprintf("command: %s - err: %s", query.command, query.Error(err)))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+func TestServer_ShowDatabases_WithAuth(t *testing.T) {
+	t.Parallel()
+	c := NewConfig()
+	c.HTTPD.AuthEnabled = true
+	s := OpenServer(c)
+	defer s.Close()
+
+	adminParams := map[string][]string{"u": []string{"admin"}, "p": []string{"admin"}}
+	readerParams := map[string][]string{"u": []string{"reader"}, "p": []string{"r"}}
+	writerParams := map[string][]string{"u": []string{"writer"}, "p": []string{"w"}}
+	nobodyParams := map[string][]string{"u": []string{"nobody"}, "p": []string{"n"}}
+
+	test := Test{
+		queries: []*Query{
+			&Query{
+				name:    "create admin",
+				command: `CREATE USER admin WITH PASSWORD 'admin' WITH ALL PRIVILEGES`,
+				exp:     `{"results":[{"statement_id":0}]}`,
+			},
+			&Query{
+				name:    "create databases",
+				command: "CREATE DATABASE dbR; CREATE DATABASE dbW",
+				params:  adminParams,
+				exp:     `{"results":[{"statement_id":0},{"statement_id":1}]}`,
+			},
+			&Query{
+				name:    "show dbs as admin",
+				command: "SHOW DATABASES",
+				params:  adminParams,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["dbR"],["dbW"]]}]}]}`,
+			},
+			&Query{
+				name:    "create users",
+				command: `CREATE USER reader WITH PASSWORD 'r'; GRANT READ ON "dbR" TO "reader"; CREATE USER writer WITH PASSWORD 'w'; GRANT WRITE ON "dbW" TO "writer"; CREATE USER nobody WITH PASSWORD 'n'`,
+				params:  adminParams,
+				exp:     `{"results":[{"statement_id":0},{"statement_id":1},{"statement_id":2},{"statement_id":3},{"statement_id":4}]}`,
+			},
+			&Query{
+				name:    "show dbs as reader",
+				command: "SHOW DATABASES",
+				params:  readerParams,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["dbR"]]}]}]}`,
+			},
+			&Query{
+				name:    "show dbs as writer",
+				command: "SHOW DATABASES",
+				params:  writerParams,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["dbW"]]}]}]}`,
+			},
+			&Query{
+				name:    "show dbs as nobody",
+				command: "SHOW DATABASES",
+				params:  nobodyParams,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"]}]}]}`,
+			},
+		},
+	}
+
+	for _, query := range test.queries {
+		if err := query.Execute(s); err != nil {
+			t.Error(fmt.Sprintf("command: %s - err: %s", query.command, query.Error(err)))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 // Ensure user commands work.
 func TestServer_UserCommands(t *testing.T) {
 	t.Parallel()
@@ -1684,6 +1789,15 @@ func TestServer_Query_SelectGroupByTimeDerivative(t *testing.T) {
 cpu value=15 1278010021000000000
 cpu value=20 1278010022000000000
 cpu value=25 1278010023000000000
+
+cpu0,host=server01 ticks=10,total=100 1278010020000000000
+cpu0,host=server01 ticks=30,total=100 1278010021000000000
+cpu0,host=server01 ticks=32,total=100 1278010022000000000
+cpu0,host=server01 ticks=47,total=100 1278010023000000000
+cpu0,host=server02 ticks=40,total=100 1278010020000000000
+cpu0,host=server02 ticks=45,total=100 1278010021000000000
+cpu0,host=server02 ticks=84,total=100 1278010022000000000
+cpu0,host=server02 ticks=101,total=100 1278010023000000000
 `)},
 	}
 
@@ -1788,6 +1902,11 @@ cpu value=25 1278010023000000000
 			name:    "calculate derivative of percentile with unit 4s group by time",
 			command: `SELECT derivative(percentile(value, 50), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of ticks divided by aggregate",
+			command: `SELECT non_negative_derivative(mean(ticks), 1s) / last(total) * 100 AS usage FROM db0.rp0.cpu0 WHERE time >= '2010-07-01 18:47:00' AND time <= '2010-07-01 18:47:03' GROUP BY host, time(1s)`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu0","tags":{"host":"server01"},"columns":["time","usage"],"values":[["2010-07-01T18:47:00Z",null],["2010-07-01T18:47:01Z",20],["2010-07-01T18:47:02Z",2],["2010-07-01T18:47:03Z",15]]},{"name":"cpu0","tags":{"host":"server02"},"columns":["time","usage"],"values":[["2010-07-01T18:47:00Z",null],["2010-07-01T18:47:01Z",5],["2010-07-01T18:47:02Z",39],["2010-07-01T18:47:03Z",17]]}]}]}`,
 		},
 	}...)
 
@@ -4726,6 +4845,14 @@ func TestServer_Query_Subqueries(t *testing.T) {
 			command: `SELECT value FROM (SELECT max(usage_user), usage_user - usage_system AS value FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z' AND value > 0`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",40]]}]}]}`,
 		},
+		&Query{
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT mean, host FROM (SELECT mean(usage_user) FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z'`,
+			// TODO(jsternberg): This should return the hosts for each mean()
+			// value. The query engine is currently limited in a way that
+			// doesn't allow that to work though so we have to do this.
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","mean","host"],"values":[["2000-01-01T00:00:00Z",46,null],["2000-01-01T00:00:00Z",17,null]]}]}]}`,
+		},
 	}...)
 
 	for i, query := range test.queries {
@@ -5540,6 +5667,12 @@ func TestServer_Query_With_EmptyTags(t *testing.T) {
 			name:    "where regex exact",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select value from cpu where host =~ /^server01$/`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2009-11-10T23:00:03Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "where regex exact (case insensitive)",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select value from cpu where host =~ /(?i)^SeRvEr01$/`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2009-11-10T23:00:03Z",2]]}]}]}`,
 		},
 		&Query{
@@ -6771,6 +6904,11 @@ func TestServer_Query_OrderByTime(t *testing.T) {
 		fmt.Sprintf(`power,presence=true value=2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:02Z").UnixNano()),
 		fmt.Sprintf(`power,presence=true value=3 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
 		fmt.Sprintf(`power,presence=false value=4 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:04Z").UnixNano()),
+
+		fmt.Sprintf(`mem,host=server1 free=1 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:01Z").UnixNano()),
+		fmt.Sprintf(`mem,host=server1 free=2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:02Z").UnixNano()),
+		fmt.Sprintf(`mem,host=server2 used=3 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:01Z").UnixNano()),
+		fmt.Sprintf(`mem,host=server2 used=4 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:02Z").UnixNano()),
 	}
 
 	test := NewTest("db0", "rp0")
@@ -6791,6 +6929,20 @@ func TestServer_Query_OrderByTime(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select value from "power" ORDER BY time DESC`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"power","columns":["time","value"],"values":[["2000-01-01T00:00:04Z",4],["2000-01-01T00:00:03Z",3],["2000-01-01T00:00:02Z",2],["2000-01-01T00:00:01Z",1]]}]}]}`,
+		},
+
+		&Query{
+			name:    "order desc with sparse data",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select used, free from "mem" ORDER BY time DESC`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"mem","columns":["time","used","free"],"values":[["2000-01-01T00:00:02Z",4,null],["2000-01-01T00:00:02Z",null,2],["2000-01-01T00:00:01Z",3,null],["2000-01-01T00:00:01Z",null,1]]}]}]}`,
+		},
+
+		&Query{
+			name:    "order desc with an aggregate and sparse data",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select first("used") AS "used", first("free") AS "free" from "mem" WHERE time >= '2000-01-01T00:00:01Z' AND time <= '2000-01-01T00:00:02Z' GROUP BY host, time(1s) FILL(none) ORDER BY time DESC`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"mem","tags":{"host":"server2"},"columns":["time","used","free"],"values":[["2000-01-01T00:00:02Z",4,null],["2000-01-01T00:00:01Z",3,null]]},{"name":"mem","tags":{"host":"server1"},"columns":["time","used","free"],"values":[["2000-01-01T00:00:02Z",null,2],["2000-01-01T00:00:01Z",null,1]]}]}]}`,
 		},
 	}...)
 
@@ -7337,6 +7489,51 @@ func TestServer_Query_Sample_Wildcard(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT sample(*, 1) FROM cpu`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","sample_bool","sample_float","sample_int","sample_string"],"values":[["2000-01-01T00:00:00Z",true,1,1,"hello, world"]]}]}]}`,
+		},
+	}...)
+
+	if err := test.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+// Validate that nested aggregates don't panic
+func TestServer_NestedAggregateWithMathPanics(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		`cpu value=2 0`,
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "dividing by elapsed count should not panic",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum(value) / elapsed(sum(value), 1m) FROM cpu WHERE time >= 0 AND time < 10m GROUP BY time(1m)`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","sum_elapsed"],"values":[["1970-01-01T00:00:00Z",null],["1970-01-01T00:01:00Z",null],["1970-01-01T00:02:00Z",null],["1970-01-01T00:03:00Z",null],["1970-01-01T00:04:00Z",null],["1970-01-01T00:05:00Z",null],["1970-01-01T00:06:00Z",null],["1970-01-01T00:07:00Z",null],["1970-01-01T00:08:00Z",null],["1970-01-01T00:09:00Z",null]]}]}]}`,
 		},
 	}...)
 

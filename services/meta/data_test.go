@@ -109,3 +109,18 @@ func Test_Data_CreateRetentionPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestUserInfo_AuthorizeDatabase(t *testing.T) {
+	emptyUser := &meta.UserInfo{}
+	if !emptyUser.AuthorizeDatabase(influxql.NoPrivileges, "anydb") {
+		t.Fatal("expected NoPrivileges to be authorized but it wasn't")
+	}
+	if emptyUser.AuthorizeDatabase(influxql.ReadPrivilege, "anydb") {
+		t.Fatal("expected ReadPrivilege to prevent authorization, but it was authorized")
+	}
+
+	adminUser := &meta.UserInfo{Admin: true}
+	if !adminUser.AuthorizeDatabase(influxql.AllPrivileges, "anydb") {
+		t.Fatalf("expected admin to be authorized but it wasn't")
+	}
+}

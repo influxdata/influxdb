@@ -3,6 +3,7 @@ package influxql
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"time"
 )
@@ -1482,6 +1483,8 @@ func floatBinaryExprFunc(op Token) interface{} {
 			}
 			return lhs / rhs
 		}
+	case MOD:
+		return func(lhs, rhs float64) float64 { return math.Mod(lhs, rhs) }
 	case EQ:
 		return func(lhs, rhs float64) bool { return lhs == rhs }
 	case NEQ:
@@ -1512,6 +1515,13 @@ func integerBinaryExprFunc(op Token) interface{} {
 				return float64(0)
 			}
 			return float64(lhs) / float64(rhs)
+		}
+	case MOD:
+		return func(lhs, rhs int64) int64 {
+			if rhs == 0 {
+				return int64(0)
+			}
+			return lhs % rhs
 		}
 	case EQ:
 		return func(lhs, rhs int64) bool { return lhs == rhs }

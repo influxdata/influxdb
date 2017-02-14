@@ -2817,6 +2817,62 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
+		// Binary expression with LHS precedence
+		{
+			s: `1 / 2 + 3`,
+			expr: &influxql.BinaryExpr{
+				Op: influxql.ADD,
+				LHS: &influxql.BinaryExpr{
+					Op:  influxql.DIV,
+					LHS: &influxql.IntegerLiteral{Val: 1},
+					RHS: &influxql.IntegerLiteral{Val: 2},
+				},
+				RHS: &influxql.IntegerLiteral{Val: 3},
+			},
+		},
+
+		// Binary expression with RHS precedence
+		{
+			s: `1 + 2 / 3`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.ADD,
+				LHS: &influxql.IntegerLiteral{Val: 1},
+				RHS: &influxql.BinaryExpr{
+					Op:  influxql.DIV,
+					LHS: &influxql.IntegerLiteral{Val: 2},
+					RHS: &influxql.IntegerLiteral{Val: 3},
+				},
+			},
+		},
+
+		// Binary expression with LHS precedence
+		{
+			s: `1 % 2 + 3`,
+			expr: &influxql.BinaryExpr{
+				Op: influxql.ADD,
+				LHS: &influxql.BinaryExpr{
+					Op:  influxql.MOD,
+					LHS: &influxql.IntegerLiteral{Val: 1},
+					RHS: &influxql.IntegerLiteral{Val: 2},
+				},
+				RHS: &influxql.IntegerLiteral{Val: 3},
+			},
+		},
+
+		// Binary expression with RHS precedence
+		{
+			s: `1 + 2 % 3`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.ADD,
+				LHS: &influxql.IntegerLiteral{Val: 1},
+				RHS: &influxql.BinaryExpr{
+					Op:  influxql.MOD,
+					LHS: &influxql.IntegerLiteral{Val: 2},
+					RHS: &influxql.IntegerLiteral{Val: 3},
+				},
+			},
+		},
+
 		// Binary expression with LHS paren group.
 		{
 			s: `(1 + 2) * 3`,
@@ -2950,6 +3006,16 @@ func TestParser_ParseExpr(t *testing.T) {
 			t.Errorf("%d. %q: error mismatch:\n  exp=%s\n  got=%s\n\n", i, tt.s, tt.err, err)
 		} else if tt.err == "" && !reflect.DeepEqual(tt.expr, expr) {
 			t.Errorf("%d. %q\n\nexpr mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.s, tt.expr, expr)
+		} else if err == nil {
+			// Attempt to reparse the expr as a string and confirm it parses the same.
+			expr2, err := influxql.ParseExpr(expr.String())
+			if err != nil {
+				t.Errorf("%d. %q: unable to parse expr string: %s", i, expr.String(), err)
+			} else if !reflect.DeepEqual(tt.expr, expr2) {
+				t.Logf("\n# %s\nexp=%s\ngot=%s\n", tt.s, mustMarshalJSON(tt.expr), mustMarshalJSON(expr2))
+				t.Logf("\nSQL exp=%s\nSQL got=%s\n", tt.expr.String(), expr2.String())
+				t.Errorf("%d. %q\n\nexpr reparse mismatch:\n\nexp=%#v\n\ngot=%#v\n\n", i, tt.s, tt.expr, expr2)
+			}
 		}
 	}
 }
