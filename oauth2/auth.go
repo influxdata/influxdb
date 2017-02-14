@@ -55,6 +55,7 @@ func AuthorizedToken(auth Authenticator, te TokenExtractor, logger chronograf.Lo
 
 		token, err := te.Extract(r)
 		if err != nil {
+			// Happens when Provider okays authentication, but Token is bad
 			log.Error("Unable to extract token")
 			w.WriteHeader(http.StatusUnauthorized)
 			return
