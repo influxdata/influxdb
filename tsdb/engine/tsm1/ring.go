@@ -13,7 +13,7 @@ import (
 // basically defines the maximum number of partitions you can have in the ring.
 // If a smaller number of partitions are chosen when creating a ring, then
 // they're evenly spread across this many partitions in the ring.
-const partitions = 256
+const partitions = 4096
 
 // ring is a structure that maps series keys to entries.
 //
@@ -92,7 +92,7 @@ func (r *ring) reset() {
 // getPartition retrieves the hash ring partition associated with the provided
 // key.
 func (r *ring) getPartition(key string) *partition {
-	return r.continuum[int(uint8(xxhash.Sum64([]byte(key))))]
+	return r.continuum[int(xxhash.Sum64([]byte(key))%partitions)]
 }
 
 // entry returns the entry for the given key.

@@ -293,6 +293,111 @@ func TestServer_DatabaseRetentionPolicyAutoCreate(t *testing.T) {
 	}
 }
 
+func TestServer_ShowDatabases_NoAuth(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	test := Test{
+		queries: []*Query{
+			&Query{
+				name:    "create db1",
+				command: "CREATE DATABASE db1",
+				exp:     `{"results":[{"statement_id":0}]}`,
+			},
+			&Query{
+				name:    "create db2",
+				command: "CREATE DATABASE db2",
+				exp:     `{"results":[{"statement_id":0}]}`,
+			},
+			&Query{
+				name:    "show dbs",
+				command: "SHOW DATABASES",
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["db1"],["db2"]]}]}]}`,
+			},
+		},
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(fmt.Sprintf("command: %s - err: %s", query.command, query.Error(err)))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+func TestServer_ShowDatabases_WithAuth(t *testing.T) {
+	t.Parallel()
+	c := NewConfig()
+	c.HTTPD.AuthEnabled = true
+	s := OpenServer(c)
+	defer s.Close()
+
+	adminParams := map[string][]string{"u": []string{"admin"}, "p": []string{"admin"}}
+	readerParams := map[string][]string{"u": []string{"reader"}, "p": []string{"r"}}
+	writerParams := map[string][]string{"u": []string{"writer"}, "p": []string{"w"}}
+	nobodyParams := map[string][]string{"u": []string{"nobody"}, "p": []string{"n"}}
+
+	test := Test{
+		queries: []*Query{
+			&Query{
+				name:    "create admin",
+				command: `CREATE USER admin WITH PASSWORD 'admin' WITH ALL PRIVILEGES`,
+				exp:     `{"results":[{"statement_id":0}]}`,
+			},
+			&Query{
+				name:    "create databases",
+				command: "CREATE DATABASE dbR; CREATE DATABASE dbW",
+				params:  adminParams,
+				exp:     `{"results":[{"statement_id":0},{"statement_id":1}]}`,
+			},
+			&Query{
+				name:    "show dbs as admin",
+				command: "SHOW DATABASES",
+				params:  adminParams,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["dbR"],["dbW"]]}]}]}`,
+			},
+			&Query{
+				name:    "create users",
+				command: `CREATE USER reader WITH PASSWORD 'r'; GRANT READ ON "dbR" TO "reader"; CREATE USER writer WITH PASSWORD 'w'; GRANT WRITE ON "dbW" TO "writer"; CREATE USER nobody WITH PASSWORD 'n'`,
+				params:  adminParams,
+				exp:     `{"results":[{"statement_id":0},{"statement_id":1},{"statement_id":2},{"statement_id":3},{"statement_id":4}]}`,
+			},
+			&Query{
+				name:    "show dbs as reader",
+				command: "SHOW DATABASES",
+				params:  readerParams,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["dbR"]]}]}]}`,
+			},
+			&Query{
+				name:    "show dbs as writer",
+				command: "SHOW DATABASES",
+				params:  writerParams,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["dbW"]]}]}]}`,
+			},
+			&Query{
+				name:    "show dbs as nobody",
+				command: "SHOW DATABASES",
+				params:  nobodyParams,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"]}]}]}`,
+			},
+		},
+	}
+
+	for _, query := range test.queries {
+		if err := query.Execute(s); err != nil {
+			t.Error(fmt.Sprintf("command: %s - err: %s", query.command, query.Error(err)))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 // Ensure user commands work.
 func TestServer_UserCommands(t *testing.T) {
 	t.Parallel()
@@ -4739,6 +4844,14 @@ func TestServer_Query_Subqueries(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT value FROM (SELECT max(usage_user), usage_user - usage_system AS value FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z' AND value > 0`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",40]]}]}]}`,
+		},
+		&Query{
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT mean, host FROM (SELECT mean(usage_user) FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z'`,
+			// TODO(jsternberg): This should return the hosts for each mean()
+			// value. The query engine is currently limited in a way that
+			// doesn't allow that to work though so we have to do this.
+			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","mean","host"],"values":[["2000-01-01T00:00:00Z",46,null],["2000-01-01T00:00:00Z",17,null]]}]}]}`,
 		},
 	}...)
 

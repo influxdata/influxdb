@@ -453,7 +453,7 @@ type floatParallelIterator struct {
 func newFloatParallelIterator(input FloatIterator) *floatParallelIterator {
 	itr := &floatParallelIterator{
 		input:   input,
-		ch:      make(chan floatPointError, 1),
+		ch:      make(chan floatPointError, 256),
 		closing: make(chan struct{}),
 	}
 	itr.wg.Add(1)
@@ -488,6 +488,9 @@ func (itr *floatParallelIterator) monitor() {
 	for {
 		// Read next point.
 		p, err := itr.input.Next()
+		if p != nil {
+			p = p.Clone()
+		}
 
 		select {
 		case <-itr.closing:
@@ -3084,7 +3087,7 @@ type integerParallelIterator struct {
 func newIntegerParallelIterator(input IntegerIterator) *integerParallelIterator {
 	itr := &integerParallelIterator{
 		input:   input,
-		ch:      make(chan integerPointError, 1),
+		ch:      make(chan integerPointError, 256),
 		closing: make(chan struct{}),
 	}
 	itr.wg.Add(1)
@@ -3119,6 +3122,9 @@ func (itr *integerParallelIterator) monitor() {
 	for {
 		// Read next point.
 		p, err := itr.input.Next()
+		if p != nil {
+			p = p.Clone()
+		}
 
 		select {
 		case <-itr.closing:
@@ -5712,7 +5718,7 @@ type stringParallelIterator struct {
 func newStringParallelIterator(input StringIterator) *stringParallelIterator {
 	itr := &stringParallelIterator{
 		input:   input,
-		ch:      make(chan stringPointError, 1),
+		ch:      make(chan stringPointError, 256),
 		closing: make(chan struct{}),
 	}
 	itr.wg.Add(1)
@@ -5747,6 +5753,9 @@ func (itr *stringParallelIterator) monitor() {
 	for {
 		// Read next point.
 		p, err := itr.input.Next()
+		if p != nil {
+			p = p.Clone()
+		}
 
 		select {
 		case <-itr.closing:
@@ -8325,7 +8334,7 @@ type booleanParallelIterator struct {
 func newBooleanParallelIterator(input BooleanIterator) *booleanParallelIterator {
 	itr := &booleanParallelIterator{
 		input:   input,
-		ch:      make(chan booleanPointError, 1),
+		ch:      make(chan booleanPointError, 256),
 		closing: make(chan struct{}),
 	}
 	itr.wg.Add(1)
@@ -8360,6 +8369,9 @@ func (itr *booleanParallelIterator) monitor() {
 	for {
 		// Read next point.
 		p, err := itr.input.Next()
+		if p != nil {
+			p = p.Clone()
+		}
 
 		select {
 		case <-itr.closing:

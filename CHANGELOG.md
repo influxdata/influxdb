@@ -2,7 +2,15 @@
 
 ### Features
 
+- [#7977](https://github.com/influxdata/influxdb/issues/7977): Add chunked request processing back into the Go client v2
+- [#7974](https://github.com/influxdata/influxdb/pull/7974): Allow non-admin users to execute SHOW DATABASES.
+- [#7948](https://github.com/influxdata/influxdb/pull/7948): Reduce memory allocations by reusing gzip.Writers across requests
 - [#7776](https://github.com/influxdata/influxdb/issues/7776): Add system information to /debug/vars.
+- [#7553](https://github.com/influxdata/influxdb/issues/7553): Add modulo operator to the query language.
+
+### Bugfixes
+
+- [#7933](https://github.com/influxdata/influxdb/pull/7933): Fixed install/remove of influxdb on non-systemd Debian/Ubuntu systems
 
 ## v1.2.1 [unreleased]
 
@@ -17,7 +25,7 @@
 - [#7946](https://github.com/influxdata/influxdb/issues/7946): Fix authentication when subqueries are present.
 - [#7885](https://github.com/influxdata/influxdb/issues/7885): Fix LIMIT and OFFSET when they are used in a subquery.
 - [#7905](https://github.com/influxdata/influxdb/issues/7905): Fix ORDER BY time DESC with ordering series keys.
-- [#7933](https://github.com/influxdata/influxdb/pull/7933): Fixed install/remove of influxdb on non-systemd Debian/Ubuntu systems
+- [#7966](https://github.com/influxdata/influxdb/pull/7966): Prevent a panic when aggregates are used in an inner query with a raw query.
 
 ## v1.2.0 [2017-01-24]
 

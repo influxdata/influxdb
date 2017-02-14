@@ -451,7 +451,7 @@ type {{$k.name}}ParallelIterator struct {
 func new{{$k.Name}}ParallelIterator(input {{$k.Name}}Iterator) *{{$k.name}}ParallelIterator {
 	itr := &{{$k.name}}ParallelIterator{
 		input:   input,
-		ch:      make(chan {{$k.name}}PointError, 1),
+		ch:      make(chan {{$k.name}}PointError, 256),
 		closing: make(chan struct{}),
 	}
 	itr.wg.Add(1)
@@ -486,6 +486,9 @@ func (itr *{{$k.name}}ParallelIterator) monitor()  {
 	for {
 		// Read next point.
 		p, err := itr.input.Next()
+		if p != nil {
+			p = p.Clone()
+		}
 
 		select {
 		case <-itr.closing:

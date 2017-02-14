@@ -1175,6 +1175,10 @@ func TestReduce(t *testing.T) {
 		{in: `foo(bar(2 + 3), 4)`, out: `foo(bar(5), 4)`},
 		{in: `4 / 0`, out: `0.000`},
 		{in: `1 / 2`, out: `0.500`},
+		{in: `2 % 3`, out: `2`},
+		{in: `5 % 2`, out: `1`},
+		{in: `2 % 0`, out: `0`},
+		{in: `2.5 % 0`, out: `NaN`},
 		{in: `4 = 4`, out: `true`},
 		{in: `4 <> 4`, out: `false`},
 		{in: `6 > 4`, out: `true`},
@@ -1458,6 +1462,79 @@ func TestSelect_SubqueryPrivileges(t *testing.T) {
 
 	if !reflect.DeepEqual(exp, got) {
 		t.Errorf("exp: %v, got: %v", exp, got)
+	}
+}
+
+func TestShow_Privileges(t *testing.T) {
+	for _, c := range []struct {
+		stmt influxql.Statement
+		exp  influxql.ExecutionPrivileges
+	}{
+		{
+			stmt: &influxql.ShowDatabasesStatement{},
+			exp:  influxql.ExecutionPrivileges{{Admin: false, Privilege: influxql.NoPrivileges}},
+		},
+		{
+			stmt: &influxql.ShowFieldKeysStatement{},
+			exp:  influxql.ExecutionPrivileges{{Admin: false, Privilege: influxql.ReadPrivilege}},
+		},
+		{
+			stmt: &influxql.ShowMeasurementsStatement{},
+			exp:  influxql.ExecutionPrivileges{{Admin: false, Privilege: influxql.ReadPrivilege}},
+		},
+		{
+			stmt: &influxql.ShowQueriesStatement{},
+			exp:  influxql.ExecutionPrivileges{{Admin: false, Privilege: influxql.ReadPrivilege}},
+		},
+		{
+			stmt: &influxql.ShowRetentionPoliciesStatement{},
+			exp:  influxql.ExecutionPrivileges{{Admin: false, Privilege: influxql.ReadPrivilege}},
+		},
+		{
+			stmt: &influxql.ShowSeriesStatement{},
+			exp:  influxql.ExecutionPrivileges{{Admin: false, Privilege: influxql.ReadPrivilege}},
+		},
+		{
+			stmt: &influxql.ShowShardGroupsStatement{},
+			exp:  influxql.ExecutionPrivileges{{Admin: true, Privilege: influxql.AllPrivileges}},
+		},
+		{
+			stmt: &influxql.ShowShardsStatement{},
+			exp:  influxql.ExecutionPrivileges{{Admin: true, Privilege: influxql.AllPrivileges}},
+		},
+		{
+			stmt: &influxql.ShowStatsStatement{},
+			exp:  influxql.ExecutionPrivileges{{Admin: true, Privilege: influxql.AllPrivileges}},
+		},
+		{
+			stmt: &influxql.ShowSubscriptionsStatement{},
+			exp:  influxql.ExecutionPrivileges{{Admin: true, Privilege: influxql.AllPrivileges}},
+		},
+		{
+			stmt: &influxql.ShowDiagnosticsStatement{},
+			exp:  influxql.ExecutionPrivileges{{Admin: true, Privilege: influxql.AllPrivileges}},
+		},
+		{
+			stmt: &influxql.ShowTagKeysStatement{},
+			exp:  influxql.ExecutionPrivileges{{Admin: false, Privilege: influxql.ReadPrivilege}},
+		},
+		{
+			stmt: &influxql.ShowTagValuesStatement{},
+			exp:  influxql.ExecutionPrivileges{{Admin: false, Privilege: influxql.ReadPrivilege}},
+		},
+		{
+			stmt: &influxql.ShowUsersStatement{},
+			exp:  influxql.ExecutionPrivileges{{Admin: true, Privilege: influxql.AllPrivileges}},
+		},
+	} {
+		got, err := c.stmt.RequiredPrivileges()
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if !reflect.DeepEqual(c.exp, got) {
+			t.Errorf("exp: %v, got: %v", c.exp, got)
+		}
 	}
 }
 

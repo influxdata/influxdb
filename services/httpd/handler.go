@@ -15,6 +15,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -387,6 +388,14 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 		ChunkSize: chunkSize,
 		ReadOnly:  r.Method == "GET",
 		NodeID:    nodeID,
+	}
+
+	if h.Config.AuthEnabled {
+		// The current user determines the authorized actions.
+		opts.Authorizer = user
+	} else {
+		// Auth is disabled, so allow everything.
+		opts.Authorizer = influxql.OpenAuthorizer{}
 	}
 
 	// Make sure if the client disconnects we signal the query to abort
@@ -1087,11 +1096,28 @@ func gzipFilter(inner http.Handler) http.Handler {
 			inner.ServeHTTP(w, r)
 			return
 		}
-		gz := gzip.NewWriter(w)
-		defer gz.Close()
+		gz := getGzipWriter(w)
+		defer putGzipWriter(gz)
 		gzw := gzipResponseWriter{Writer: gz, ResponseWriter: w}
 		inner.ServeHTTP(gzw, r)
 	})
+}
+
+var gzipWriterPool = sync.Pool{
+	New: func() interface{} {
+		return gzip.NewWriter(nil)
+	},
+}
+
+func getGzipWriter(w io.Writer) *gzip.Writer {
+	gz := gzipWriterPool.Get().(*gzip.Writer)
+	gz.Reset(w)
+	return gz
+}
+
+func putGzipWriter(gz *gzip.Writer) {
+	gz.Close()
+	gzipWriterPool.Put(gz)
 }
 
 // cors responds to incoming requests and adds the appropriate cors headers
