@@ -43,4 +43,9 @@ func TestConfig_Validate(t *testing.T) {
 	if err := c.Validate(); err == nil {
 		t.Fatal("expected error for negative check-interval, got nil")
 	}
+
+	c.Enabled = false
+	if err := c.Validate(); err != nil {
+		t.Fatalf("unexpected validation fail from disabled config: %s", err)
+	}
 }

@@ -220,7 +220,7 @@ func (m *Monitor) RegisterDiagnosticsClient(name string, client diagnostics.Clie
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.diagRegistrations[name] = client
-	m.Logger.Info(fmt.Sprintf(`'%s' registered for diagnostics monitoring`, name))
+	m.Logger.Info("registered for diagnostics monitoring", zap.String("name", name))
 }
 
 // DeregisterDiagnosticsClient deregisters a diagnostics client by name.
@@ -250,8 +250,11 @@ func (m *Monitor) Statistics(tags map[string]string) ([]*Statistic, error) {
 			statistic.Tags[k] = v
 		}
 
-		// Every other top-level expvar value is a map.
-		m := kv.Value.(*expvar.Map)
+		// Every other top-level expvar value should be a map.
+		m, ok := kv.Value.(*expvar.Map)
+		if !ok {
+			return
+		}
 
 		m.Do(func(subKV expvar.KeyValue) {
 			switch subKV.Key {
@@ -344,8 +347,10 @@ func (m *Monitor) gatherStatistics(statistics []*Statistic, tags map[string]stri
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	for _, s := range m.reporter.Statistics(tags) {
-		statistics = append(statistics, &Statistic{Statistic: s})
+	if m.reporter != nil {
+		for _, s := range m.reporter.Statistics(tags) {
+			statistics = append(statistics, &Statistic{Statistic: s})
+		}
 	}
 	return statistics
 }

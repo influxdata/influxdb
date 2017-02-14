@@ -43,7 +43,7 @@ func (s *Service) Open() error {
 		return nil
 	}
 
-	s.logger.Info(fmt.Sprint("Starting retention policy enforcement service with check interval of ", s.config.CheckInterval))
+	s.logger.Info("Starting retention policy enforcement service", zap.String("check-interval", s.config.CheckInterval.String()))
 	s.done = make(chan struct{})
 
 	s.wg.Add(1)
