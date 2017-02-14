@@ -74,6 +74,16 @@ func InspectDataTypes(a []interface{}) []DataType {
 	return dta
 }
 
+// LessThan returns true if the other DataType has greater precedence than the
+// current data type. Unknown has the lowest precedence.
+//
+// NOTE: This is not the same as using the `<` or `>` operator because the
+// integers used decrease with higher precedence, but Unknown is the lowest
+// precedence at the zero value.
+func (d DataType) LessThan(other DataType) bool {
+	return d == Unknown || (other != Unknown && other < d)
+}
+
 // String returns the human-readable string representation of the DataType.
 func (d DataType) String() string {
 	switch d {
