@@ -15,6 +15,21 @@ import (
 
 var _ Provider = &Github{}
 
+// NewGithub constructs a Github with default scopes.
+func NewGithub(clientID, clientSecret string, orgs []string, auth Authenticator, log chronograf.Logger) Github {
+	scopes := []string{"user:email"}
+	if len(orgs) > 0 {
+		scopes = append(scopes, "read:org")
+	}
+	return Github{
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
+		Orgs:         orgs,
+		Auth:         auth,
+		Logger:       log,
+	}
+}
+
 // Github provides OAuth Login and Callback server. Callback will set
 // an authentication cookie.  This cookie's value is a JWT containing
 // the user's primary Github email address.
@@ -24,6 +39,11 @@ type Github struct {
 	ClientSecret string
 	Orgs         []string // Optional github organization checking
 	Logger       chronograf.Logger
+}
+
+// Name is the name of the provider
+func (g *Github) Name() string {
+	return "github"
 }
 
 // ID returns the github application client id
@@ -44,21 +64,6 @@ func (g *Github) Scopes() []string {
 		scopes = append(scopes, "read:org")
 	}
 	return scopes
-}
-
-// NewGithub constructs a Github with default scopes.
-func NewGithub(clientID, clientSecret string, orgs []string, auth Authenticator, log chronograf.Logger) Github {
-	scopes := []string{"user:email"}
-	if len(orgs) > 0 {
-		scopes = append(scopes, "read:org")
-	}
-	return Github{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Orgs:         orgs,
-		Auth:         auth,
-		Logger:       log,
-	}
 }
 
 // Config is the Github OAuth2 exchange information and endpoints

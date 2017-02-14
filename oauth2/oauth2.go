@@ -41,6 +41,9 @@ type Provider interface {
 	Config() *oauth2.Config
 	// PrincipalID with fetch the identifier to be associated with the principal.
 	PrincipalID(provider *http.Client) (string, error)
+
+	// Name is the name of the Provider
+	Name() string
 }
 
 // Mux is a collection of handlers responsible for servicing an Oauth2 interaction between a browser and a provider
