@@ -12,6 +12,7 @@
 - [#7885](https://github.com/influxdata/influxdb/issues/7885): Fix LIMIT and OFFSET when they are used in a subquery.
 - [#7905](https://github.com/influxdata/influxdb/issues/7905): Fix ORDER BY time DESC with ordering series keys.
 - [#7966](https://github.com/influxdata/influxdb/pull/7966): Prevent a panic when aggregates are used in an inner query with a raw query.
+- [#8001](https://github.com/influxdata/influxdb/issues/8001): Map types correctly when using a regex and one of the measurements is empty.
 
 ## v1.2.0 [2017-01-24]
 

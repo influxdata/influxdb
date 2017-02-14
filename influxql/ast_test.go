@@ -61,6 +61,55 @@ func TestDataType_String(t *testing.T) {
 	}
 }
 
+func TestDataType_LessThan(t *testing.T) {
+	for i, tt := range []struct {
+		typ   influxql.DataType
+		other influxql.DataType
+		exp   bool
+	}{
+		{typ: influxql.Unknown, other: influxql.Unknown, exp: true},
+		{typ: influxql.Unknown, other: influxql.Float, exp: true},
+		{typ: influxql.Unknown, other: influxql.Integer, exp: true},
+		{typ: influxql.Unknown, other: influxql.String, exp: true},
+		{typ: influxql.Unknown, other: influxql.Boolean, exp: true},
+		{typ: influxql.Unknown, other: influxql.Tag, exp: true},
+		{typ: influxql.Float, other: influxql.Unknown, exp: false},
+		{typ: influxql.Integer, other: influxql.Unknown, exp: false},
+		{typ: influxql.String, other: influxql.Unknown, exp: false},
+		{typ: influxql.Boolean, other: influxql.Unknown, exp: false},
+		{typ: influxql.Tag, other: influxql.Unknown, exp: false},
+		{typ: influxql.Float, other: influxql.Float, exp: false},
+		{typ: influxql.Float, other: influxql.Integer, exp: false},
+		{typ: influxql.Float, other: influxql.String, exp: false},
+		{typ: influxql.Float, other: influxql.Boolean, exp: false},
+		{typ: influxql.Float, other: influxql.Tag, exp: false},
+		{typ: influxql.Integer, other: influxql.Float, exp: true},
+		{typ: influxql.Integer, other: influxql.Integer, exp: false},
+		{typ: influxql.Integer, other: influxql.String, exp: false},
+		{typ: influxql.Integer, other: influxql.Boolean, exp: false},
+		{typ: influxql.Integer, other: influxql.Tag, exp: false},
+		{typ: influxql.String, other: influxql.Float, exp: true},
+		{typ: influxql.String, other: influxql.Integer, exp: true},
+		{typ: influxql.String, other: influxql.String, exp: false},
+		{typ: influxql.String, other: influxql.Boolean, exp: false},
+		{typ: influxql.String, other: influxql.Tag, exp: false},
+		{typ: influxql.Boolean, other: influxql.Float, exp: true},
+		{typ: influxql.Boolean, other: influxql.Integer, exp: true},
+		{typ: influxql.Boolean, other: influxql.String, exp: true},
+		{typ: influxql.Boolean, other: influxql.Boolean, exp: false},
+		{typ: influxql.Boolean, other: influxql.Tag, exp: false},
+		{typ: influxql.Tag, other: influxql.Float, exp: true},
+		{typ: influxql.Tag, other: influxql.Integer, exp: true},
+		{typ: influxql.Tag, other: influxql.String, exp: true},
+		{typ: influxql.Tag, other: influxql.Boolean, exp: true},
+		{typ: influxql.Tag, other: influxql.Tag, exp: false},
+	} {
+		if got, exp := tt.typ.LessThan(tt.other), tt.exp; got != exp {
+			t.Errorf("%d. %q.LessThan(%q) = %v; exp = %v", i, tt.typ, tt.other, got, exp)
+		}
+	}
+}
+
 // Ensure the SELECT statement can extract GROUP BY interval.
 func TestSelectStatement_GroupByInterval(t *testing.T) {
 	q := "SELECT sum(value) from foo  where time < now() GROUP BY time(10m)"
