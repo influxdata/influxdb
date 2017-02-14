@@ -12,9 +12,9 @@ export default async function AJAX({
   headers = {},
 }) {
   try {
-    if (window.basepath) {
-      url = `${window.basepath}${url}`
-    }
+    const basepath = window.basepath || ''
+
+    url = `${basepath}${url}`
 
     if (resource) {
       if (!links) {
@@ -24,7 +24,7 @@ export default async function AJAX({
         })
         links = linksRes.data
       }
-      url = id ? `${links[resource]}/${id}` : links[resource]
+      url = id ? `${basepath}${links[resource]}/${id}` : `${basepath}${links[resource]}`
     }
 
     return axios({
