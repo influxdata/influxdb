@@ -34,8 +34,7 @@ export default async function AJAX({
       params,
       headers,
     })
-  }
-  catch (error) {
-    console.error(error)
+  } catch (error) {
+    console.error(error) // eslint-disable-line no-console
   }
 }
