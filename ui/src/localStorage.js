@@ -10,11 +10,12 @@ export const loadLocalStorage = () => {
   }
 };
 
-export const saveToLocalStorage = ({queryConfigs, timeRange}) => {
+export const saveToLocalStorage = ({queryConfigs, timeRange, dataExplorer}) => {
   try {
     window.localStorage.setItem('state', JSON.stringify({
       queryConfigs,
       timeRange,
+      dataExplorer,
     }));
   } catch (err) {
     console.error('Unable to save data explorer: ', JSON.parse(err)); // eslint-disable-line no-console
