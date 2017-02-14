@@ -1,7 +1,7 @@
-package server
+package oauth2
 
 type Google struct {
-	OAuth2Provider
+	Provider
 	Domains []string // Optional google email domain checking
 }
 

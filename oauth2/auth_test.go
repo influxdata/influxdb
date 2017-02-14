@@ -1,4 +1,4 @@
-package server_test
+package oauth2_test
 
 import (
 	"context"
@@ -28,7 +28,7 @@ func TestCookieExtractor(t *testing.T) {
 			Value:    "reallyimportant",
 			Lookup:   "Doesntexist",
 			Expected: "",
-			Err:      chronograf.ErrAuthentication,
+			Err:      ErrAuthentication,
 		},
 		{
 			Desc:     "Cookie token extracted",
@@ -46,7 +46,7 @@ func TestCookieExtractor(t *testing.T) {
 			Value: test.Value,
 		})
 
-		var e chronograf.TokenExtractor = &server.CookieExtractor{
+		var e TokenExtractor = &server.CookieExtractor{
 			Name: test.Lookup,
 		}
 		actual, err := e.Extract(req)
@@ -74,21 +74,21 @@ func TestBearerExtractor(t *testing.T) {
 			Header:   "Doesntexist",
 			Value:    "reallyimportant",
 			Expected: "",
-			Err:      chronograf.ErrAuthentication,
+			Err:      ErrAuthentication,
 		},
 		{
 			Desc:     "Auth header doesn't have Bearer",
 			Header:   "Authorization",
 			Value:    "Bad Value",
 			Expected: "",
-			Err:      chronograf.ErrAuthentication,
+			Err:      ErrAuthentication,
 		},
 		{
 			Desc:     "Auth header doesn't have Bearer token",
 			Header:   "Authorization",
 			Value:    "Bearer",
 			Expected: "",
-			Err:      chronograf.ErrAuthentication,
+			Err:      ErrAuthentication,
 		},
 		{
 			Desc:     "Authorization Bearer token success",
@@ -102,7 +102,7 @@ func TestBearerExtractor(t *testing.T) {
 		req, _ := http.NewRequest("", "http://howdy.com", nil)
 		req.Header.Add(test.Header, test.Value)
 
-		var e chronograf.TokenExtractor = &server.BearerExtractor{}
+		var e TokenExtractor = &server.BearerExtractor{}
 		actual, err := e.Extract(req)
 		if err != test.Err {
 			t.Errorf("Bearer extract error; expected %v  actual %v", test.Err, err)
@@ -123,15 +123,15 @@ func (m *MockExtractor) Extract(*http.Request) (string, error) {
 }
 
 type MockAuthenticator struct {
-	Principal chronograf.Principal
+	Principal Principal
 	Err       error
 }
 
-func (m *MockAuthenticator) Authenticate(context.Context, string) (chronograf.Principal, error) {
+func (m *MockAuthenticator) Authenticate(context.Context, string) (Principal, error) {
 	return m.Principal, m.Err
 }
 
-func (m *MockAuthenticator) Token(context.Context, chronograf.Principal, time.Duration) (string, error) {
+func (m *MockAuthenticator) Token(context.Context, Principal, time.Duration) (string, error) {
 	return "", m.Err
 }
 
@@ -139,7 +139,7 @@ func TestAuthorizedToken(t *testing.T) {
 	var tests = []struct {
 		Desc         string
 		Code         int
-		Principal    chronograf.Principal
+		Principal    Principal
 		ExtractorErr error
 		AuthErr      error
 		Expected     string
@@ -164,10 +164,10 @@ func TestAuthorizedToken(t *testing.T) {
 	for _, test := range tests {
 		// next is a sentinel StatusOK and
 		// principal recorder.
-		var principal chronograf.Principal
+		var principal Principal
 		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			principal = r.Context().Value(chronograf.PrincipalKey).(chronograf.Principal)
+			principal = r.Context().Value(PrincipalKey).(Principal)
 		})
 		req, _ := http.NewRequest("GET", "", nil)
 		w := httptest.NewRecorder()

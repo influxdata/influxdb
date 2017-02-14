@@ -3,7 +3,6 @@ package chronograf
 import (
 	"context"
 	"net/http"
-	"time"
 )
 
 // General errors.
@@ -16,7 +15,6 @@ const (
 	ErrUserNotFound      = Error("user not found")
 	ErrLayoutInvalid     = Error("layout is invalid")
 	ErrAlertNotFound     = Error("alert not found")
-	ErrAuthentication    = Error("user not authenticated")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -309,26 +307,4 @@ type LayoutStore interface {
 	Get(ctx context.Context, ID string) (Layout, error)
 	// Update the dashboard in the store.
 	Update(context.Context, Layout) error
-}
-
-// Principal is any entity that can be authenticated
-type Principal string
-
-// PrincipalKey is used to pass principal
-// via context.Context to request-scoped
-// functions.
-const PrincipalKey Principal = "principal"
-
-// Authenticator represents a service for authenticating users.
-type Authenticator interface {
-	// Authenticate returns User associated with token if successful.
-	Authenticate(ctx context.Context, token string) (Principal, error)
-	// Token generates a valid token for Principal lasting a duration
-	Token(context.Context, Principal, time.Duration) (string, error)
-}
-
-// TokenExtractor extracts tokens from http requests
-type TokenExtractor interface {
-	// Extract will return the token or an error.
-	Extract(r *http.Request) (string, error)
 }

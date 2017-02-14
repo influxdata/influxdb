@@ -8,6 +8,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/oauth2"
 )
 
 type userLinks struct {
@@ -135,7 +136,7 @@ func ValidUserRequest(s *chronograf.User) error {
 }
 
 func getEmail(ctx context.Context) (string, error) {
-	principal := ctx.Value(chronograf.PrincipalKey).(chronograf.Principal)
+	principal := ctx.Value(oauth2.PrincipalKey).(oauth2.Principal)
 	if principal == "" {
 		return "", fmt.Errorf("Token not found")
 	}

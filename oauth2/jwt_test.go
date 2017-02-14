@@ -1,4 +1,4 @@
-package jwt_test
+package oauth2_test
 
 import (
 	"context"
@@ -15,7 +15,7 @@ func TestAuthenticate(t *testing.T) {
 		Desc   string
 		Secret string
 		Token  string
-		User   chronograf.Principal
+		User   Principal
 		Err    error
 	}{
 		{
@@ -83,7 +83,7 @@ func TestToken(t *testing.T) {
 			return time.Unix(-446774400, 0)
 		},
 	}
-	if token, err := j.Token(context.Background(), chronograf.Principal("/chronograf/v1/users/1"), duration); err != nil {
+	if token, err := j.Token(context.Background(), Principal("/chronograf/v1/users/1"), duration); err != nil {
 		t.Errorf("Error creating token for user: %v", err)
 	} else if token != expected {
 		t.Errorf("Error creating token; expected: %s  actual: %s", "", token)

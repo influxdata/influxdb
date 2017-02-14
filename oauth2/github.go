@@ -1,4 +1,4 @@
-package server
+package oauth2
 
 import (
 	"crypto/rand"
@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/google/go-github/github"
 	"github.com/influxdata/chronograf"
@@ -14,34 +13,13 @@ import (
 	ogh "golang.org/x/oauth2/github"
 )
 
-const (
-	// DefaultCookieName is the name of the stored cookie
-	DefaultCookieName = "session"
-	// DefaultCookieDuration is the length of time the cookie is valid
-	DefaultCookieDuration = time.Hour * 24 * 30
-)
-
-// Cookie represents the location and expiration time of new cookies.
-type Cookie struct {
-	Name     string
-	Duration time.Duration
-}
-
-// NewCookie creates a Cookie with DefaultCookieName and DefaultCookieDuration
-func NewCookie() Cookie {
-	return Cookie{
-		Name:     DefaultCookieName,
-		Duration: DefaultCookieDuration,
-	}
-}
-
-var _ OAuth2Provider = &Github{}
+var _ Provider = &Github{}
 
 // Github provides OAuth Login and Callback server. Callback will set
 // an authentication cookie.  This cookie's value is a JWT containing
 // the user's primary Github email address.
 type Github struct {
-	Auth         chronograf.Authenticator
+	Auth         Authenticator
 	ClientID     string
 	ClientSecret string
 	Orgs         []string // Optional github organization checking
@@ -69,7 +47,7 @@ func (g *Github) Scopes() []string {
 }
 
 // NewGithub constructs a Github with default scopes.
-func NewGithub(clientID, clientSecret string, orgs []string, auth chronograf.Authenticator, log chronograf.Logger) Github {
+func NewGithub(clientID, clientSecret string, orgs []string, auth Authenticator, log chronograf.Logger) Github {
 	scopes := []string{"user:email"}
 	if len(orgs) > 0 {
 		scopes = append(scopes, "read:org")

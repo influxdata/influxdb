@@ -6,12 +6,11 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/NYTimes/gziphandler"
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf" // When julienschmidt/httprouter v2 w/ context is out, switch
-	"github.com/influxdata/chronograf/jwt"
+	"github.com/influxdata/chronograf/oauth2"
 )
 
 const (
@@ -133,9 +132,9 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 // AuthAPI adds the OAuth routes if auth is enabled.
 func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
-	auth := jwt.NewJWT(opts.TokenSecret)
+	auth := oauth2.NewJWT(opts.TokenSecret)
 
-	gh := NewGithub(
+	gh := oauth2.NewGithub(
 		opts.GithubClientID,
 		opts.GithubClientSecret,
 		opts.GithubOrgs,
@@ -143,20 +142,12 @@ func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 		opts.Logger,
 	)
 
-	callback := CallbackOpts{
-		Provider:   &gh,
-		Auth:       &auth,
-		Cookie:     NewCookie(),
-		Logger:     opts.Logger,
-		SuccessURL: "/",
-		FailureURL: "/login",
-		Now:        time.Now,
-	}
-	router.GET("/oauth/github", gh.Login())
-	router.GET("/oauth/logout", gh.Logout())
-	router.GET("/oauth/github/callback", gh.Callback())
+	ghMux := oauth2.NewJWTMux(&gh, &auth, opts.Logger)
+	router.Handler("GET", "/oauth/github/login", ghMux.Login())
+	router.Handler("GET", "/oauth/github/logout", ghMux.Logout())
+	router.Handler("GET", "/oauth/github/callback", ghMux.Callback())
 
-	tokenMiddleware := AuthorizedToken(&auth, &CookieExtractor{Name: "session"}, opts.Logger, router)
+	tokenMiddleware := oauth2.AuthorizedToken(&auth, &oauth2.CookieExtractor{Name: "session"}, opts.Logger, router)
 	// Wrap the API with token validation middleware.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/chronograf/v1/") {
