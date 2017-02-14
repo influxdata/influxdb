@@ -19,7 +19,7 @@ export default async function AJAX({
     if (resource) {
       if (!links) {
         const linksRes = await axios({
-          url: '/chronograf/v1/',
+          url: '/chronograf/v1',
           method: 'GET',
         })
         links = linksRes.data
