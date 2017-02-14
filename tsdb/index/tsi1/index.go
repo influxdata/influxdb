@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,8 +26,8 @@ const IndexName = "tsi1"
 
 // Default compaction thresholds.
 const (
-	DefaultMaxLogFileSize           = 5 * 1024 * 1024
-	DefaultMaxIndexFileIdleDuration = 5 * time.Minute
+	DefaultMaxLogFileSize   = 5 * 1024 * 1024
+	DefaultCompactionFactor = 1.8
 )
 
 func init() {
@@ -78,8 +79,8 @@ type Index struct {
 	Path string
 
 	// Log file compaction thresholds.
-	MaxLogFileSize           int64
-	MaxIndexFileIdleDuration time.Duration
+	MaxLogFileSize   int64
+	CompactionFactor float64
 
 	// Frequency of compaction checks.
 	CompactionMonitorInterval time.Duration
@@ -91,10 +92,8 @@ func NewIndex() *Index {
 		closing: make(chan struct{}),
 
 		// Default compaction thresholds.
-		MaxLogFileSize:           DefaultMaxLogFileSize,
-		MaxIndexFileIdleDuration: DefaultMaxIndexFileIdleDuration,
-
-		// CompactionMonitorInterval: DefaultCompactionMonitorInterval,
+		MaxLogFileSize:   DefaultMaxLogFileSize,
+		CompactionFactor: DefaultCompactionFactor,
 	}
 }
 
@@ -155,12 +154,11 @@ func (i *Index) Open() error {
 		return err
 	}
 
-	// Start compaction monitor.
-	// i.wg.Add(1)
-	// go func() { defer i.wg.Done(); i.monitorCompaction() }()
-
 	// Mark opened.
 	i.opened = true
+
+	// Send a compaction request on start up.
+	i.compact()
 
 	return nil
 }
@@ -725,117 +723,154 @@ func (i *Index) SeriesPointIterator(opt influxql.IteratorOptions) (influxql.Iter
 	return newSeriesPointIterator(fs, i.fieldset, opt), nil
 }
 
-// Compact runs a compaction check. Returns once the check is complete.
-// If force is true then all files are compacted into a single index file regardless of size.
-func (i *Index) Compact(force bool) error {
-	/*
-		info := compactNotify{force: force, ch: make(chan error)}
-		i.manualCompactNotify <- info
-
-		select {
-		case err := <-info.ch:
-			return err
-		case <-i.closing:
-			return nil
-		}
-	*/
-	return nil
-}
-
-/*
-// monitorCompaction periodically checks for files that need to be compacted.
-func (i *Index) monitorCompaction() {
-	// Ignore full compaction if interval is unset.
-	var c <-chan time.Time
-	if i.CompactionMonitorInterval > 0 {
-		ticker := time.NewTicker(i.CompactionMonitorInterval)
-		c = ticker.C
-		defer ticker.Stop()
-	}
-
-	// Wait for compaction checks or for the index to close.
-	for {
-		select {
-		case <-i.closing:
-			return
-		case <-i.fastCompactNotify:
-			if err := i.compactLogFile(); err != nil {
-				log.Printf("fast compaction error: %s", err)
-			}
-		case <-c:
-			if err := i.checkFullCompaction(false); err != nil {
-				log.Printf("full compaction error: %s", err)
-			}
-		case info := <-i.manualCompactNotify:
-			if err := i.compactLogFile(); err != nil {
-				info.ch <- err
-				continue
-			} else if err := i.checkFullCompaction(info.force); err != nil {
-				info.ch <- err
-				continue
-			}
-			info.ch <- nil
-		}
-	}
-}
-*/
-
-// checkFullCompaction compacts all index files if the total size of index files
-// is double the size of the largest index file. If force is true then all files
-// are compacted regardless of size.
-func (i *Index) checkFullCompaction(force bool) error {
-	start := time.Now()
-
-	// Find and retain a list of index files.
-	// Ensure the set is released but only once.
+// Compact requests a compaction of log files.
+func (i *Index) Compact() {
 	i.mu.Lock()
-	fileSet := IndexFiles(i.fileSet.IndexFiles())
-	fileSet.Retain()
+	defer i.mu.Unlock()
+	i.compact()
+}
+
+// compact compacts continguous groups of files that are not currently compacting.
+func (i *Index) compact() {
+	fs := i.retainFileSet()
+	defer fs.Release()
+
+	// Return contiguous groups of files that are available for compaction.
+	for _, group := range i.compactionGroups(fs) {
+		// Mark files in group as compacting.
+		for _, f := range group {
+			f.Retain()
+			f.setCompacting(true)
+		}
+
+		// Execute in closure to save reference to the group within the loop.
+		func(group []*IndexFile) {
+			// Start compacting in a separate goroutine.
+			i.wg.Add(1)
+			go func() {
+				defer i.wg.Done()
+				i.compactGroup(group)
+				i.Compact() // check for new compactions
+			}()
+		}(group)
+	}
+}
+
+// compactionGroups returns contiguous groups of index files that can be compacted.
+//
+// All groups will have at least two files and the total size is more than the
+// largest file times the compaction factor. For example, if the compaction
+// factor is 2 then the total size will be at least double the max file size.
+func (i *Index) compactionGroups(fileSet FileSet) [][]*IndexFile {
+	log.Printf("%s: checking for compaction groups: n=%d", IndexName, len(fileSet))
+
+	var groups [][]*IndexFile
+
+	// Loop over all files to find contiguous group of compactable files.
+	var group []*IndexFile
+	for _, f := range fileSet {
+		indexFile, ok := f.(*IndexFile)
+
+		// Skip over log files. They compact themselves.
+		if !ok {
+			if isCompactableGroup(group, i.CompactionFactor) {
+				group, groups = nil, append(groups, group)
+			} else {
+				group = nil
+			}
+			continue
+		}
+
+		// If file is currently compacting then stop current group.
+		if indexFile.Compacting() {
+			if isCompactableGroup(group, i.CompactionFactor) {
+				group, groups = nil, append(groups, group)
+			} else {
+				group = nil
+			}
+			continue
+		}
+
+		// Stop current group if adding file will invalidate group.
+		// This can happen when appending a large file to a group of small files.
+		if isCompactableGroup(group, i.CompactionFactor) && !isCompactableGroup(append(group, indexFile), i.CompactionFactor) {
+			group, groups = []*IndexFile{indexFile}, append(groups, group)
+			continue
+		}
+
+		// Otherwise append to the current group.
+		group = append(group, indexFile)
+	}
+
+	// Append final group, if compactable.
+	if isCompactableGroup(group, i.CompactionFactor) {
+		groups = append(groups, group)
+	}
+
+	return groups
+}
+
+// isCompactableGroup returns true if total file size is greater than max file size times factor.
+func isCompactableGroup(files []*IndexFile, factor float64) bool {
+	if len(files) < 2 {
+		return false
+	}
+
+	var max, total int64
+	for _, f := range files {
+		sz := f.Size()
+		if sz > max {
+			max = sz
+		}
+		total += sz
+	}
+	return total >= int64(float64(max)*factor)
+}
+
+// compactGroup compacts files into a new file. Replaces old files with
+// compacted file on successful completion. This runs in a separate goroutine.
+func (i *Index) compactGroup(files []*IndexFile) {
+	assert(len(files) >= 2, "at least two index files are required for compaction")
+
+	// Files have already been retained by caller.
+	// Ensure files are released only once.
 	var once sync.Once
-	defer once.Do(func() { fileSet.Release() })
-	i.mu.Unlock()
+	defer once.Do(func() { IndexFiles(files).Release() })
 
-	// Ignore if there's less than two index files.
-	if len(fileSet) < 2 {
-		return nil
-	}
-
-	// TODO(benbjohnson): Split into levels.
-
-	// Ignore if largest file is larger than all other files.
-	// Perform compaction if last mod time of all files is above threshold.
-	if info, err := fileSet.Stat(); err != nil {
-		return err
-	} else if (info.Size-info.MaxSize) < info.MaxSize && time.Since(info.ModTime) < i.MaxIndexFileIdleDuration {
-		return nil
-	}
+	// Track time to compact.
+	start := time.Now()
 
 	// Create new index file.
 	path := filepath.Join(i.Path, FormatIndexFileName(i.NextSequence()))
 	f, err := os.Create(path)
 	if err != nil {
-		return err
+		log.Printf("%s: error creating compaction files: %s", IndexName, err)
+		return
 	}
 	defer f.Close()
 
-	log.Printf("%s: performing full compaction: file=%s", IndexName, path)
+	srcIDs := joinIntSlice(IndexFiles(files).IDs(), ",")
+	log.Printf("%s: performing full compaction: src=%s, path=%s", IndexName, srcIDs, path)
 
 	// Compact all index files to new index file.
-	n, err := fileSet.WriteTo(f)
+	n, err := IndexFiles(files).WriteTo(f)
 	if err != nil {
-		return err
+		log.Printf("%s: error compacting index files: src=%s, path=%s, err=%s", IndexName, srcIDs, path, err)
+		return
 	}
 
 	// Close file.
 	if err := f.Close(); err != nil {
-		return err
+		log.Printf("%s: error closing index file: %s", IndexName)
+		return
 	}
 
 	// Reopen as an index file.
 	file := NewIndexFile()
 	file.SetPath(path)
 	if err := file.Open(); err != nil {
-		return err
+		log.Printf("%s: error opening new index file: %s", IndexName)
+		return
 	}
 
 	// Obtain lock to swap in index file and write manifest.
@@ -844,7 +879,7 @@ func (i *Index) checkFullCompaction(force bool) error {
 		defer i.mu.Unlock()
 
 		// Replace previous files with new index file.
-		i.fileSet = i.fileSet.MustReplace(fileSet.Files(), file)
+		i.fileSet = i.fileSet.MustReplace(IndexFiles(files).Files(), file)
 
 		// Write new manifest.
 		if err := i.writeManifestFile(); err != nil {
@@ -853,25 +888,26 @@ func (i *Index) checkFullCompaction(force bool) error {
 		}
 		return nil
 	}(); err != nil {
-		return err
+		log.Printf("%s: error writing manifest: %s", IndexName)
+		return
 	}
 	log.Printf("%s: full compaction complete: file=%s, t=%s, sz=%d", IndexName, path, time.Since(start), n)
 
 	// Release old files.
-	once.Do(func() { fileSet.Release() })
+	once.Do(func() { IndexFiles(files).Release() })
 
 	// Close and delete all old index files.
-	for _, f := range fileSet {
+	for _, f := range files {
 		log.Printf("%s: removing index file: file=%s", IndexName, f.Path())
 
 		if err := f.Close(); err != nil {
-			return err
+			log.Printf("%s: error closing index file: %s", IndexName)
+			return
 		} else if err := os.Remove(f.Path()); err != nil {
-			return err
+			log.Printf("%s: error removing index file: %s", IndexName)
+			return
 		}
 	}
-
-	return nil
 }
 
 func (i *Index) checkLogFile() {
@@ -888,7 +924,11 @@ func (i *Index) checkLogFile() {
 
 	// Begin compacting in a background goroutine.
 	i.wg.Add(1)
-	go func() { i.wg.Done(); i.compactLogFile(logFile) }()
+	go func() {
+		i.wg.Done()
+		i.compactLogFile(logFile)
+		i.Compact() // check for new compactions
+	}()
 }
 
 // compactLogFile compacts f into a tsi file. The new file will share the
@@ -1125,4 +1165,12 @@ func WriteManifestFile(path string, m *Manifest) error {
 	}
 
 	return nil
+}
+
+func joinIntSlice(a []int, sep string) string {
+	other := make([]string, len(a))
+	for i := range a {
+		other[i] = strconv.Itoa(a[i])
+	}
+	return strings.Join(other, sep)
 }

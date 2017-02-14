@@ -302,11 +302,11 @@ func (idx *Index) Run(t *testing.T, fn func(t *testing.T)) {
 	}
 	t.Run("state=reopen", fn)
 
-	// Force a compaction
-	if err := idx.Compact(true); err != nil {
-		t.Fatalf("compact error: %s", err)
-	}
-	t.Run("state=post-compaction", fn)
+	// TODO: Request a compaction.
+	// if err := idx.Compact(); err != nil {
+	// 	t.Fatalf("compact error: %s", err)
+	// }
+	// t.Run("state=post-compaction", fn)
 
 	// Reopen and invoke again.
 	if err := idx.Reopen(); err != nil {

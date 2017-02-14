@@ -12,6 +12,15 @@ import (
 // IndexFiles represents a layered set of index files.
 type IndexFiles []*IndexFile
 
+// IDs returns the ids for all index files.
+func (p IndexFiles) IDs() []int {
+	a := make([]int, len(p))
+	for i, f := range p {
+		a[i] = f.ID
+	}
+	return a
+}
+
 // Retain adds a reference count to all files.
 func (p IndexFiles) Retain() {
 	for _, f := range p {
@@ -111,7 +120,7 @@ func (p IndexFiles) TagValueSeriesIterator(name, key, value []byte) SeriesIterat
 }
 
 // WriteTo merges all index files and writes them to w.
-func (p *IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
+func (p IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 	var t IndexFileTrailer
 
 	// Wrap writer in buffered I/O.
@@ -161,7 +170,7 @@ func (p *IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
-func (p *IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
+func (p IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
 	itr := p.SeriesIterator()
 	sw := NewSeriesBlockWriter()
 
@@ -185,7 +194,7 @@ func (p *IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *
 	return nil
 }
 
-func (p *IndexFiles) writeTagsetsTo(w io.Writer, info *indexCompactInfo, n *int64) error {
+func (p IndexFiles) writeTagsetsTo(w io.Writer, info *indexCompactInfo, n *int64) error {
 	mitr := p.MeasurementIterator()
 	for m := mitr.Next(); m != nil; m = mitr.Next() {
 		if err := p.writeTagsetTo(w, m.Name(), info, n); err != nil {
@@ -196,7 +205,7 @@ func (p *IndexFiles) writeTagsetsTo(w io.Writer, info *indexCompactInfo, n *int6
 }
 
 // writeTagsetTo writes a single tagset to w and saves the tagset offset.
-func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactInfo, n *int64) error {
+func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactInfo, n *int64) error {
 	kitr, err := p.TagKeyIterator(name)
 	if err != nil {
 		return err
@@ -248,7 +257,7 @@ func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactI
 	return nil
 }
 
-func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
+func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
 	mw := NewMeasurementBlockWriter()
 
 	// Add measurement data & compute sketches.
