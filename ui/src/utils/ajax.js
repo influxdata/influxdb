@@ -2,6 +2,8 @@ import axios from 'axios';
 
 let links
 
+const UNAUTHORIZED = 401
+
 export default async function AJAX({
   url,
   resource,
@@ -11,30 +13,43 @@ export default async function AJAX({
   params = {},
   headers = {},
 }) {
+  let response
+
   try {
     const basepath = window.basepath || ''
 
     url = `${basepath}${url}`
 
+    if (!links) {
+      const linksRes = response = await axios({
+        url: `${basepath}/chronograf/v1`,
+        method: 'GET',
+      })
+      links = linksRes.data
+    }
+
+    const {auth} = links
+
     if (resource) {
-      if (!links) {
-        const linksRes = await axios({
-          url: '/chronograf/v1',
-          method: 'GET',
-        })
-        links = linksRes.data
-      }
       url = id ? `${basepath}${links[resource]}/${id}` : `${basepath}${links[resource]}`
     }
 
-    return axios({
+    response = await axios({
       url,
       method,
       data,
       params,
       headers,
     })
+
+    return {
+      auth,
+      ...response,
+    }
   } catch (error) {
-    console.error(error) // eslint-disable-line no-console
+    if (!response.status === UNAUTHORIZED) {
+      console.error(error) // eslint-disable-line no-console
+    }
+    throw {response} // eslint-disable-line no-throw-literal
   }
 }

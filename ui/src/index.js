@@ -18,6 +18,7 @@ import NotFound from 'src/shared/components/NotFound';
 import configureStore from 'src/store/configureStore';
 import {getMe, getSources} from 'shared/apis';
 import {receiveMe} from 'shared/actions/me';
+import {receiveAuth} from 'shared/actions/auth';
 import {loadLocalStorage} from './localStorage';
 
 import 'src/style/chronograf.scss';
@@ -69,16 +70,11 @@ const Root = React.createClass({
     if (store.getState().me.links) {
       return this.setState({loggedIn: true});
     }
-    getMe().then(({data: me}) => {
+    getMe().then(({data: {me, auth}}) => {
       store.dispatch(receiveMe(me));
+      store.dispatch(receiveAuth(auth));
       this.setState({loggedIn: true});
-    }).catch((err) => {
-      const AUTH_DISABLED = 418;
-      if (err.response.status === AUTH_DISABLED) {
-        return this.setState({loggedIn: true});
-        // Could store a boolean indicating auth is not set up
-      }
-
+    }).catch(() => {
       this.setState({loggedIn: false});
     });
   },
@@ -120,8 +116,8 @@ const Root = React.createClass({
               <Route path="alert-rules/:ruleID" component={KapacitorRulePage} />
               <Route path="alert-rules/new" component={KapacitorRulePage} />
             </Route>
-            <Route path="*" component={NotFound} />
           </Route>
+          <Route path="*" component={NotFound} />
         </Router>
       </Provider>
     );
