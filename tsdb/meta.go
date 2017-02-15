@@ -268,7 +268,7 @@ func (d *DatabaseIndex) TagsForSeries(key string) models.Tags {
 	if ss == nil {
 		return nil
 	}
-	return ss.Tags
+	return ss.CloneTags()
 }
 
 // MeasurementsByExpr takes an expression containing only tags and returns a
@@ -1598,6 +1598,13 @@ func (s *Series) ShardN() int {
 	n := len(s.shardIDs)
 	s.mu.RUnlock()
 	return n
+}
+
+// CloneTags returns a copy of the series tags under lock.
+func (s *Series) CloneTags() models.Tags {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Tags.Clone()
 }
 
 // Dereference removes references to a byte slice.

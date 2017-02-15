@@ -1,3 +1,9 @@
+## v1.1.2 [unreleased]
+
+### Bugfixes
+
+- [#8011](https://github.com/influxdata/influxdb/issues/8011): Fix tag dereferencing panic.
+
 ## v1.1.1 [2016-12-06]
 
 ### Features
