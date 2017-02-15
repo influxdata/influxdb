@@ -132,16 +132,14 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 // AuthAPI adds the OAuth routes if auth is enabled.
 func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
+	gh := oauth2.Github{
+		ClientID:     opts.GithubClientID,
+		ClientSecret: opts.GithubClientSecret,
+		Orgs:         opts.GithubOrgs,
+		Logger:       opts.Logger,
+	}
+
 	auth := oauth2.NewJWT(opts.TokenSecret)
-
-	gh := oauth2.NewGithub(
-		opts.GithubClientID,
-		opts.GithubClientSecret,
-		opts.GithubOrgs,
-		&auth,
-		opts.Logger,
-	)
-
 	ghMux := oauth2.NewJWTMux(&gh, &auth, opts.Logger)
 	router.Handler("GET", "/oauth/github/login", ghMux.Login())
 	router.Handler("GET", "/oauth/github/logout", ghMux.Logout())

@@ -15,26 +15,10 @@ import (
 
 var _ Provider = &Github{}
 
-// NewGithub constructs a Github with default scopes.
-func NewGithub(clientID, clientSecret string, orgs []string, auth Authenticator, log chronograf.Logger) Github {
-	scopes := []string{"user:email"}
-	if len(orgs) > 0 {
-		scopes = append(scopes, "read:org")
-	}
-	return Github{
-		ClientID:     clientID,
-		ClientSecret: clientSecret,
-		Orgs:         orgs,
-		Auth:         auth,
-		Logger:       log,
-	}
-}
-
 // Github provides OAuth Login and Callback server. Callback will set
 // an authentication cookie.  This cookie's value is a JWT containing
 // the user's primary Github email address.
 type Github struct {
-	Auth         Authenticator
 	ClientID     string
 	ClientSecret string
 	Orgs         []string // Optional github organization checking
