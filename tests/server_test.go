@@ -1,4 +1,4 @@
-package run_test
+package tests
 
 import (
 	"flag"
@@ -16,7 +16,7 @@ import (
 )
 
 // Global server used by benchmarks
-var benchServer *Server
+var benchServer Server
 
 func TestMain(m *testing.M) {
 	flag.Parse()
@@ -44,6 +44,10 @@ func TestMain(m *testing.M) {
 
 // Ensure that HTTP responses include the InfluxDB version.
 func TestServer_HTTPResponseVersion(t *testing.T) {
+	if RemoteEnabled() {
+		t.Skip("Skipping.  Cannot change version of remote server")
+	}
+
 	version := "v1234"
 	s := OpenServerWithVersion(NewConfig(), version)
 	defer s.Close()
@@ -252,10 +256,14 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 	s := OpenServer(c)
 	defer s.Close()
 
+	if _, ok := s.(*RemoteServer); ok {
+		t.Skip("Skipping. Cannot alter auto create rp remotely")
+	}
+
 	test := tests.load(t, "retention_policy_commands")
 
 	// Create a database.
-	if _, err := s.MetaClient.CreateDatabase(test.database()); err != nil {
+	if _, err := s.CreateDatabase(test.database()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -338,6 +346,10 @@ func TestServer_ShowDatabases_WithAuth(t *testing.T) {
 	s := OpenServer(c)
 	defer s.Close()
 
+	if _, ok := s.(*RemoteServer); ok {
+		t.Skip("Skipping.  Cannot enable auth on remote server")
+	}
+
 	adminParams := map[string][]string{"u": []string{"admin"}, "p": []string{"admin"}}
 	readerParams := map[string][]string{"u": []string{"reader"}, "p": []string{"r"}}
 	writerParams := map[string][]string{"u": []string{"writer"}, "p": []string{"w"}}
@@ -405,7 +417,7 @@ func TestServer_UserCommands(t *testing.T) {
 	defer s.Close()
 
 	// Create a database.
-	if _, err := s.MetaClient.CreateDatabase("db0"); err != nil {
+	if _, err := s.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1082,6 +1094,10 @@ func TestServer_Query_MaxSelectSeriesN(t *testing.T) {
 	config.Coordinator.MaxSelectSeriesN = 3
 	s := OpenServer(config)
 	defer s.Close()
+
+	if _, ok := s.(*RemoteServer); ok {
+		t.Skip("Skipping.  Cannot modify MaxSelectSeriesN remotely")
+	}
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
@@ -6323,7 +6339,7 @@ func TestServer_Query_ShowStats(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := s.MetaClient.CreateSubscription("db0", "rp0", "foo", "ALL", []string{"udp://localhost:9000"}); err != nil {
+	if err := s.CreateSubscription("db0", "rp0", "foo", "ALL", []string{"udp://localhost:9000"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -6775,9 +6791,6 @@ func TestServer_ContinuousQuery_Deadlock(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer func() {
 		s.Close()
-		// Nil the server so our deadlock detector goroutine can determine if we completed writes
-		// without timing out
-		s.Server = nil
 	}()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
@@ -6814,12 +6827,12 @@ func TestServer_ContinuousQuery_Deadlock(t *testing.T) {
 	// Deadlock detector.  If the deadlock is fixed, this test should complete all the writes in ~2.5s seconds (with artifical delays
 	// added).  After 10 seconds, if the server has not been closed then we hit the deadlock bug.
 	iterations := 0
-	go func(s *Server) {
+	go func(s Server) {
 		<-time.After(10 * time.Second)
 
 		// If the server is not nil then the test is still running and stuck.  We panic to avoid
 		// having the whole test suite hang indefinitely.
-		if s.Server != nil {
+		if !s.Closed() {
 			panic("possible deadlock. writes did not complete in time")
 		}
 	}(s)
@@ -7234,6 +7247,10 @@ func TestServer_Query_LargeTimestamp(t *testing.T) {
 	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
+	if _, ok := s.(*RemoteServer); ok {
+		t.Skip("Skipping.  Cannot restart remote server")
+	}
+
 	writes := []string{
 		fmt.Sprintf(`cpu value=100 %d`, models.MaxNanoTime),
 	}
@@ -7242,6 +7259,7 @@ func TestServer_Query_LargeTimestamp(t *testing.T) {
 	test.writes = Writes{
 		&Write{data: strings.Join(writes, "\n")},
 	}
+
 	test.addQueries([]*Query{
 		&Query{
 			name:    `select value at max nano time`,
@@ -7257,7 +7275,7 @@ func TestServer_Query_LargeTimestamp(t *testing.T) {
 
 	// Open a new server with the same configuration file.
 	// This is to ensure the meta data was marshaled correctly.
-	s2 := OpenServer(s.Config)
+	s2 := OpenServer((s.(*LocalServer)).Config)
 	defer s2.Close()
 
 	for _, query := range test.queries {
@@ -7280,6 +7298,9 @@ func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
 	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
+	if _, ok := s.(*RemoteServer); ok {
+		t.Skip("Skipping.  Cannot access PointsWriter remotely")
+	}
 	// goroutine to write points
 	done := make(chan struct{})
 	go func() {
@@ -7292,7 +7313,7 @@ func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
 					Database:        "db0",
 					RetentionPolicy: "rp0",
 				}
-				s.PointsWriter.WritePoints(wpr.Database, wpr.RetentionPolicy, models.ConsistencyLevelAny, wpr.Points)
+				s.WritePoints(wpr.Database, wpr.RetentionPolicy, models.ConsistencyLevelAny, wpr.Points)
 			}
 		}
 	}()
