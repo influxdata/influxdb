@@ -1,6 +1,8 @@
 ## v1.2.0 [unreleased]
 
 ### Bug Fixes
+  1. [#879](https://github.com/influxdata/chronograf/pull/879): Fix several kapacitor configuration page state bugs;  [#875](https://github.com/influxdata/chronograf/issues/875), [#876](https://github.com/influxdata/chronograf/issues/876), [#878](https://github.com/influxdata/chronograf/issues/878)
+  1. [#872](https://github.com/influxdata/chronograf/pull/872): Fix incorrect data source response
 ### Features
 ### UI Improvements
 
