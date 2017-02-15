@@ -613,7 +613,7 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 			if err != nil {
 				return err
 			}
-			cl.Logger.Info(fmt.Sprintf("reading file %s, size %d", f.Name(), stat.Size()))
+			cl.Logger.Info("reading file", zap.String("path", f.Name()), zap.Int64("size", stat.Size()))
 
 			r := NewWALSegmentReader(f)
 			defer r.Close()
@@ -622,7 +622,7 @@ func (cl *CacheLoader) Load(cache *Cache) error {
 				entry, err := r.Read()
 				if err != nil {
 					n := r.Count()
-					cl.Logger.Info(fmt.Sprintf("file %s corrupt at position %d, truncating", f.Name(), n))
+					cl.Logger.Info("file corrupt, truncating", zap.String("path", f.Name()), zap.Int64("position", n))
 					if err := f.Truncate(n); err != nil {
 						return err
 					}

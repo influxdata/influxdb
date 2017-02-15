@@ -1,7 +1,6 @@
 package tsdb_test
 
 import (
-	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -19,7 +18,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/engine"
-	"go.uber.org/zap"
+	"go.uber.org/zap/spy"
 )
 
 func TestShardWriteAndIndex(t *testing.T) {
@@ -226,12 +225,14 @@ func TestWriteTimeTag(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	buf := bytes.NewBuffer(nil)
-	sh.WithLogger(zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(buf))))
+	logger, sink := spy.New()
+	sh.WithLogger(logger)
 	if err := sh.WritePoints([]models.Point{pt}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	} else if got, exp := buf.String(), "dropping field 'time'"; !strings.Contains(got, exp) {
-		t.Fatalf("unexpected log message: %s", strings.TrimSpace(got))
+	} else if logs := sink.Logs(); len(logs) != 1 {
+		t.Fatalf("unexpected number of log messages: %d", len(logs))
+	} else if got := logs[0]; got.Msg != "dropping field" {
+		t.Fatalf("unexpected log message: %s", got.Msg)
 	}
 
 	m := index.Measurement("cpu")
@@ -246,12 +247,14 @@ func TestWriteTimeTag(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	buf = bytes.NewBuffer(nil)
-	sh.WithLogger(zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(buf))))
+	logger, sink = spy.New()
+	sh.WithLogger(logger)
 	if err := sh.WritePoints([]models.Point{pt}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	} else if got, exp := buf.String(), "dropping field 'time'"; !strings.Contains(got, exp) {
-		t.Fatalf("unexpected log message: %s", strings.TrimSpace(got))
+	} else if logs := sink.Logs(); len(logs) != 1 {
+		t.Fatalf("unexpected number of log messages: %d", len(logs))
+	} else if got := logs[0]; got.Msg != "dropping field" {
+		t.Fatalf("unexpected log message: %s", got.Msg)
 	}
 
 	m = index.Measurement("cpu")
@@ -287,12 +290,14 @@ func TestWriteTimeField(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	buf := bytes.NewBuffer(nil)
-	sh.WithLogger(zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(buf))))
+	logger, sink := spy.New()
+	sh.WithLogger(logger)
 	if err := sh.WritePoints([]models.Point{pt}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	} else if got, exp := buf.String(), "dropping tag 'time'"; !strings.Contains(got, exp) {
-		t.Fatalf("unexpected log message: %s", strings.TrimSpace(got))
+	} else if logs := sink.Logs(); len(logs) != 1 {
+		t.Fatalf("unexpected number of log messages: %d", len(logs))
+	} else if got := logs[0]; got.Msg != "dropping tag" {
+		t.Fatalf("unexpected log message: %s", got.Msg)
 	}
 
 	key := models.MakeKey([]byte("cpu"), nil)
