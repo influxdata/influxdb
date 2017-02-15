@@ -34,6 +34,25 @@ type MuxOpts struct {
 	PublicURL          string   // PublicURL is the public facing URL for the server
 }
 
+func (m *MuxOpts) UseGithub() bool {
+	return m.TokenSecret != "" && m.GithubClientID != "" && m.GithubClientSecret != ""
+}
+
+func (m *MuxOpts) UseGoogle() bool {
+	return m.TokenSecret != "" && m.GoogleClientID != "" && m.GoogleClientSecret != "" && m.PublicURL != ""
+}
+
+func (m *MuxOpts) Routes() []AuthRoute {
+	routes := []AuthRoute{}
+	if m.UseGithub() {
+		routes = append(routes, NewGithubRoute())
+	}
+	if m.UseGoogle() {
+		routes = append(routes, NewGoogleRoute())
+	}
+	return routes
+}
+
 // NewMux attaches all the route handlers; handler returned servers chronograf.
 func NewMux(opts MuxOpts, service Service) http.Handler {
 	router := httprouter.New()
@@ -60,10 +79,6 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.GET("/docs", Redoc("/swagger.json"))
 
 	/* API */
-	// Root Routes returns all top-level routes in the API
-	router.GET("/chronograf/v1/", AllRoutes(opts.Logger))
-	router.GET("/chronograf/v1", AllRoutes(opts.Logger))
-
 	// Sources
 	router.GET("/chronograf/v1/sources", service.Sources)
 	router.POST("/chronograf/v1/sources", service.NewSource)
@@ -125,6 +140,12 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.DELETE("/chronograf/v1/dashboards/:id", service.RemoveDashboard)
 	router.PUT("/chronograf/v1/dashboards/:id", service.UpdateDashboard)
 
+	authRoutes := opts.Routes()
+	// Root Routes returns all top-level routes in the API and
+	// optional authentication routes
+	router.GET("/chronograf/v1/", AllRoutes(authRoutes, opts.Logger))
+	router.GET("/chronograf/v1", AllRoutes(authRoutes, opts.Logger))
+
 	/* Authentication */
 	if opts.UseAuth {
 		auth := AuthAPI(opts, router)
@@ -137,32 +158,36 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 // AuthAPI adds the OAuth routes if auth is enabled.
 func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
-	gh := oauth2.Github{
-		ClientID:     opts.GithubClientID,
-		ClientSecret: opts.GithubClientSecret,
-		Orgs:         opts.GithubOrgs,
-		Logger:       opts.Logger,
-	}
-
 	auth := oauth2.NewJWT(opts.TokenSecret)
-	ghMux := oauth2.NewJWTMux(&gh, &auth, opts.Logger)
-	router.Handler("GET", "/oauth/github/login", ghMux.Login())
-	router.Handler("GET", "/oauth/github/logout", ghMux.Logout())
-	router.Handler("GET", "/oauth/github/callback", ghMux.Callback())
+	if opts.UseGithub() {
+		gh := oauth2.Github{
+			ClientID:     opts.GithubClientID,
+			ClientSecret: opts.GithubClientSecret,
+			Orgs:         opts.GithubOrgs,
+			Logger:       opts.Logger,
+		}
 
-	redirectURL := opts.PublicURL + opts.Basepath + "/oauth/google/callback"
-	google := oauth2.Google{
-		ClientID:     opts.GoogleClientID,
-		ClientSecret: opts.GoogleClientSecret,
-		Domains:      opts.GoogleDomains,
-		RedirectURL:  redirectURL,
-		Logger:       opts.Logger,
+		ghMux := oauth2.NewJWTMux(&gh, &auth, opts.Logger)
+		router.Handler("GET", "/oauth/github/login", ghMux.Login())
+		router.Handler("GET", "/oauth/github/logout", ghMux.Logout())
+		router.Handler("GET", "/oauth/github/callback", ghMux.Callback())
 	}
 
-	goMux := oauth2.NewJWTMux(&google, &auth, opts.Logger)
-	router.Handler("GET", "/oauth/google/login", goMux.Login())
-	router.Handler("GET", "/oauth/google/logout", goMux.Logout())
-	router.Handler("GET", "/oauth/google/callback", goMux.Callback())
+	if opts.UseGoogle() {
+		redirectURL := opts.PublicURL + opts.Basepath + "/oauth/google/callback"
+		google := oauth2.Google{
+			ClientID:     opts.GoogleClientID,
+			ClientSecret: opts.GoogleClientSecret,
+			Domains:      opts.GoogleDomains,
+			RedirectURL:  redirectURL,
+			Logger:       opts.Logger,
+		}
+
+		goMux := oauth2.NewJWTMux(&google, &auth, opts.Logger)
+		router.Handler("GET", "/oauth/google/login", goMux.Login())
+		router.Handler("GET", "/oauth/google/logout", goMux.Logout())
+		router.Handler("GET", "/oauth/google/callback", goMux.Callback())
+	}
 
 	tokenMiddleware := oauth2.AuthorizedToken(&auth, &oauth2.CookieExtractor{Name: "session"}, opts.Logger, router)
 	// Wrap the API with token validation middleware.
