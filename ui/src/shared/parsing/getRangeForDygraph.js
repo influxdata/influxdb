@@ -5,25 +5,21 @@ export default function getRange(timeSeries, override, value = null, rangeValue 
     return override;
   }
 
-  const subtractPadding = (val) => +val - val * PADDING_FACTOR;
-  const addPadding = (val) => +val + val * PADDING_FACTOR;
+  const subtractPadding = (val) => +val - Math.abs(val * PADDING_FACTOR);
+  const addPadding = (val) => +val + Math.abs(val * PADDING_FACTOR);
 
-  const pad = (val, side) => {
+  const pad = (val) => {
     if (val === null || val === '') {
       return null;
     }
 
-    if (val < 0) {
-      return side === "top" ? subtractPadding(val) : addPadding(val);
-    }
-
-    return side === "top" ? addPadding(val) : subtractPadding(val);
+    return val < 0 ? subtractPadding(val) : addPadding(val);
   };
 
   const points = [
     ...timeSeries,
     [null, pad(value)],
-    [null, pad(rangeValue, "top")],
+    [null, pad(rangeValue)],
   ];
 
   const range = points.reduce(([min, max] = [], series) => {
