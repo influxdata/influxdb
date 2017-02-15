@@ -27,6 +27,9 @@ func newSourceResponse(src chronograf.Source) sourceResponse {
 		src.Telegraf = "telegraf"
 	}
 
+	// Omit the password on response
+	src.Password = ""
+
 	httpAPISrcs := "/chronograf/v1/sources"
 	return sourceResponse{
 		Source: src,

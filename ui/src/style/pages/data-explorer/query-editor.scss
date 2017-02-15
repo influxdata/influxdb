@@ -78,7 +78,6 @@
   padding: 9.5px 0 0 0;
   background-color: $query-editor-tab-active;
   border-radius: 0 0 $radius-small $radius-small;
-  min-height: $query-editor-height;
 
   &-item {
     color: $g11-sidewalk;
@@ -183,11 +182,17 @@
 .qeditor--empty {
   text-align: center;
   color: $g10-wolf;
-  display: inline-block;
   width: 100%;
-  padding: 18px 0;
-  height: $query-editor-height;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: calc(100% - 32px);
   background-color: transparent;
+  background-color: $g3-castle;
+  border-radius: 0 $radius $radius 0;
+  margin-top: 16px;
 }
 
 // Hidden dropdowns
