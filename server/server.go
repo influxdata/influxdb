@@ -47,13 +47,17 @@ type Server struct {
 	GithubClientID     string   `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
 	GithubClientSecret string   `short:"s" long:"github-client-secret" description:"Github Client Secret for OAuth 2 support" env:"GH_CLIENT_SECRET"`
 	GithubOrgs         []string `short:"o" long:"github-organization" description:"Github organization user is required to have active membership" env:"GH_ORGS" env-delim:","`
-	ReportingDisabled  bool     `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id,uptime) once every 24hr" env:"REPORTING_DISABLED"`
-	LogLevel           string   `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"warn" choice:"error" choice:"fatal" choice:"panic" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
-	Basepath           string   `short:"p" long:"basepath" description:"A URL path prefix under which all chronograf routes will be mounted" env:"BASE_PATH"`
-	ShowVersion        bool     `short:"v" long:"version" description:"Show Chronograf version info"`
-	BuildInfo          BuildInfo
-	Listener           net.Listener
-	handler            http.Handler
+	GoogleClientID     string   `long:"google-client-id" description:"Google Client ID for OAuth 2 support" env:"GOOGLE_CLIENT_ID"`
+	GoogleClientSecret string   `long:"google-client-secret" description:"Google Client Secret for OAuth 2 support" env:"GOGGLE_CLIENT_SECRET"`
+	GoogleDomains      []string `long:"google-domains" description:"Google email domain user is required to have active membership" env:"GOOGLE_DOMAINS" env-delim:","`
+
+	ReportingDisabled bool   `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id,uptime) once every 24hr" env:"REPORTING_DISABLED"`
+	LogLevel          string `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"warn" choice:"error" choice:"fatal" choice:"panic" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
+	Basepath          string `short:"p" long:"basepath" description:"A URL path prefix under which all chronograf routes will be mounted" env:"BASE_PATH"`
+	ShowVersion       bool   `short:"v" long:"version" description:"Show Chronograf version info"`
+	BuildInfo         BuildInfo
+	Listener          net.Listener
+	handler           http.Handler
 }
 
 // BuildInfo is sent to the usage client to track versions and commits
@@ -63,7 +67,9 @@ type BuildInfo struct {
 }
 
 func (s *Server) useAuth() bool {
-	return s.TokenSecret != "" && s.GithubClientID != "" && s.GithubClientSecret != ""
+	gh := s.TokenSecret != "" && s.GithubClientID != "" && s.GithubClientSecret != ""
+	google := s.TokenSecret != "" && s.GoogleClientID != "" && s.GoogleClientSecret != ""
+	return gh || google
 }
 
 // Serve starts and runs the chronograf server
@@ -77,6 +83,9 @@ func (s *Server) Serve() error {
 		GithubClientID:     s.GithubClientID,
 		GithubClientSecret: s.GithubClientSecret,
 		GithubOrgs:         s.GithubOrgs,
+		GoogleClientID:     s.GoogleClientID,
+		GoogleClientSecret: s.GoogleClientSecret,
+		GoogleDomains:      s.GoogleDomains,
 		Logger:             logger,
 		UseAuth:            s.useAuth(),
 	}, service)

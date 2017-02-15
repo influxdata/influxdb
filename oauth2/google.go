@@ -1,19 +1,88 @@
 package oauth2
 
+import (
+	"fmt"
+	"net/http"
+
+	"github.com/influxdata/chronograf"
+
+	"golang.org/x/oauth2"
+	goauth2 "google.golang.org/api/oauth2/v2"
+)
+
+// Endpoint is Google's OAuth 2.0 endpoint.
+// Copied here to remove tons of package dependencies
+var GoogleEndpoint = oauth2.Endpoint{
+	AuthURL:  "https://accounts.google.com/o/oauth2/auth",
+	TokenURL: "https://accounts.google.com/o/oauth2/token",
+}
+var _ Provider = &Google{}
+
 type Google struct {
-	Provider
-	Domains []string // Optional google email domain checking
+	ClientID     string
+	ClientSecret string
+	Domains      []string // Optional google email domain checking
+	Logger       chronograf.Logger
 }
 
-/*
-	client := conf.Client(oauth2.NoContext, tok)
-	email, err := client.Get("https://www.googleapis.com/oauth2/v3/userinfo")
-    if err != nil {
-		c.AbortWithError(http.StatusBadRequest, err)
-        return
+// Name is the name of the provider
+func (g *Google) Name() string {
+	return "google"
+}
+
+// ID returns the google application client id
+func (g *Google) ID() string {
+	return g.ClientID
+}
+
+// Secret returns the google application client secret
+func (g *Google) Secret() string {
+	return g.ClientSecret
+}
+
+// Scopes for google is only the email address
+// Documentation is here: https://developers.google.com/+/web/api/rest/oauth#email
+func (g *Google) Scopes() []string {
+	return []string{
+		goauth2.UserinfoEmailScope,
+		goauth2.UserinfoProfileScope,
 	}
-    defer email.Body.Close()
-    data, _ := ioutil.ReadAll(email.Body)
-    log.Println("Email body: ", string(data))
-    c.Status(http.StatusOK)
-*/
+}
+
+// Config is the Google OAuth2 exchange information and endpoints
+func (g *Google) Config() *oauth2.Config {
+	return &oauth2.Config{
+		ClientID:     g.ID(),
+		ClientSecret: g.Secret(),
+		Scopes:       g.Scopes(),
+		Endpoint:     GoogleEndpoint,
+		RedirectURL:  "http://localhost:8888/oauth/google/callback", // TODO: we are required to have a redirect_uri from google
+	}
+}
+
+// PrincipalID returns the google email address of the user.
+func (g *Google) PrincipalID(provider *http.Client) (string, error) {
+	srv, err := goauth2.New(provider)
+	if err != nil {
+		g.Logger.Error("Unable to communicate with Google ", err.Error())
+		return "", err
+	}
+	info, err := srv.Userinfo.Get().Do()
+	if err != nil {
+		g.Logger.Error("Unable to retrieve Google email ", err.Error())
+		return "", err
+	}
+	// No domain filtering required, so, the user is autenticated.
+	if len(g.Domains) == 0 {
+		return info.Email, nil
+	}
+
+	// Check if the account domain is acceptable
+	for _, requiredDomain := range g.Domains {
+		if info.Hd == requiredDomain {
+			return info.Email, nil
+		}
+	}
+	g.Logger.Error("Domain '", info.Hd, "' is not a member of required Google domain(s): ", g.Domains)
+	return "", fmt.Errorf("Not in required domain")
+}

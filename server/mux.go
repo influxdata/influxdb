@@ -26,7 +26,10 @@ type MuxOpts struct {
 	TokenSecret        string   // TokenSecret is the JWT secret
 	GithubClientID     string   // GithubClientID is the GH OAuth id
 	GithubClientSecret string   // GithubClientSecret is the GH OAuth secret
-	GithubOrgs         []string // GithubOrgs is the list of organizations a user my be a member of
+	GithubOrgs         []string // GithubOrgs is the list of organizations a user may be a member of
+	GoogleClientID     string   // GoogleClientID is the Google OAuth id
+	GoogleClientSecret string   // GoogleClientSecret is the Google OAuth secret
+	GoogleDomains      []string // GoogleOrgs is the list of domains a user may be a member of
 }
 
 // NewMux attaches all the route handlers; handler returned servers chronograf.
@@ -144,6 +147,18 @@ func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 	router.Handler("GET", "/oauth/github/login", ghMux.Login())
 	router.Handler("GET", "/oauth/github/logout", ghMux.Logout())
 	router.Handler("GET", "/oauth/github/callback", ghMux.Callback())
+
+	google := oauth2.Google{
+		ClientID:     opts.GoogleClientID,
+		ClientSecret: opts.GoogleClientSecret,
+		Domains:      opts.GoogleDomains,
+		Logger:       opts.Logger,
+	}
+
+	goMux := oauth2.NewJWTMux(&google, &auth, opts.Logger)
+	router.Handler("GET", "/oauth/google/login", goMux.Login())
+	router.Handler("GET", "/oauth/google/logout", goMux.Logout())
+	router.Handler("GET", "/oauth/google/callback", goMux.Callback())
 
 	tokenMiddleware := oauth2.AuthorizedToken(&auth, &oauth2.CookieExtractor{Name: "session"}, opts.Logger, router)
 	// Wrap the API with token validation middleware.
