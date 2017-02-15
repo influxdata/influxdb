@@ -20,11 +20,14 @@ pair from these files. The files must contain PEM encoded data.
 In Chronograf all command line options also have a corresponding environment
 variable. 
 
-To specify the the certificate file either use the `--cert` CLI option or `TLS_CERTIFICATE`
+To specify the certificate file either use the `--cert` CLI option or `TLS_CERTIFICATE`
 environment variable.
 
 To specify the key file either use the `--key` CLI option or `TLS_PRIVATE_KEY`
 environment variable.
+
+To specify the certificate and key if both are in the same file either use the `--cert`
+CLI option or `TLS_CERTIFICATE` environment variable.
 
 #### Example with CLI options
 ```sh
@@ -51,9 +54,6 @@ To create a cert and key in one file with openssl:
 openssl req -x509 -newkey rsa:4096 -sha256 -nodes -keyout testing.pem -out testing.pem -subj "/CN=localhost" -days 365
 ```
 
-If the cert and the key are in the same file, you don't have to specify the 
-`TLS_PRIVATE_KEY` option.
-
 Next, set the environment variable `TLS_CERTIFICATE`:
 ```sh
 export TLS_CERTIFICATE=$PWD/testing.pem
@@ -66,9 +66,4 @@ Run chronograf:
 INFO[0000] Serving chronograf at https://[::]:8888       component=server
 ```
 
-In the first log message you should `https` rather than `http`.
-
-
-
-
-
+In the first log message you should see `https` rather than `http`.
