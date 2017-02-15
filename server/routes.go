@@ -15,6 +15,19 @@ type AuthRoute struct {
 	Callback string `json:"callback"` // Callback is the route the provider calls to exchange the code/state
 }
 
+// AuthRoutes contains all OAuth2 provider routes.
+type AuthRoutes []AuthRoute
+
+// Lookup searches all the routes for a specific provider
+func (r *AuthRoutes) Lookup(provider string) (AuthRoute, bool) {
+	for _, route := range *r {
+		if route.Name == provider {
+			return route, true
+		}
+	}
+	return AuthRoute{}, false
+}
+
 type getRoutesResponse struct {
 	Layouts    string      `json:"layouts"`    // Location of the layouts endpoint
 	Mappings   string      `json:"mappings"`   // Location of the application mappings endpoint

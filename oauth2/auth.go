@@ -56,12 +56,12 @@ func AuthorizedToken(auth Authenticator, te TokenExtractor, logger chronograf.Lo
 		token, err := te.Extract(r)
 		if err != nil {
 			// Happens when Provider okays authentication, but Token is bad
-			log.Error("Unable to extract token")
+			log.Info("Unauthenticated user")
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 		// We do not check the validity of the principal.  Those
-		// server further down the chain should do so.
+		// served further down the chain should do so.
 		principal, err := auth.Authenticate(r.Context(), token)
 		if err != nil {
 			log.Error("Invalid token")

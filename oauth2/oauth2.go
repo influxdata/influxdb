@@ -14,7 +14,7 @@ const (
 	// PrincipalKey is used to pass principal
 	// via context.Context to request-scoped
 	// functions.
-	PrincipalKey Principal = "principal"
+	PrincipalKey string = "principal"
 )
 
 var (
@@ -25,7 +25,10 @@ var (
 /* Types */
 
 // Principal is any entity that can be authenticated
-type Principal string
+type Principal struct {
+	Subject string
+	Issuer  string
+}
 
 /* Interfaces */
 

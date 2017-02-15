@@ -64,7 +64,10 @@ func (j *JWTMux) Login() http.Handler {
 		// We'll give our users 10 minutes from this point to type in their github password.
 		// If the callback is not received within 10 minutes, then authorization will fail.
 		csrf := randomString(32) // 32 is not important... just long
-		state, err := j.Auth.Token(r.Context(), Principal(csrf), 10*time.Minute)
+		p := Principal{
+			Subject: csrf,
+		}
+		state, err := j.Auth.Token(r.Context(), p, 10*time.Minute)
 		// This is likely an internal server error
 		if err != nil {
 			j.Logger.
@@ -122,8 +125,12 @@ func (j *JWTMux) Callback() http.Handler {
 			return
 		}
 
+		p := Principal{
+			Subject: id,
+			Issuer:  j.Provider.Name(),
+		}
 		// We create an auth token that will be used by all other endpoints to validate the principal has a claim
-		authToken, err := j.Auth.Token(r.Context(), Principal(id), j.cookie.Duration)
+		authToken, err := j.Auth.Token(r.Context(), p, j.cookie.Duration)
 		if err != nil {
 			log.Error("Unable to create cookie auth token ", err.Error())
 			http.Redirect(w, r, j.FailureURL, http.StatusTemporaryRedirect)

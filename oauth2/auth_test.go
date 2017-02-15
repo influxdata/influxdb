@@ -154,10 +154,12 @@ func TestAuthorizedToken(t *testing.T) {
 			AuthErr: errors.New("error"),
 		},
 		{
-			Desc:      "Authorized ok",
-			Code:      http.StatusOK,
-			Principal: "Principal Strickland",
-			Expected:  "Principal Strickland",
+			Desc: "Authorized ok",
+			Code: http.StatusOK,
+			Principal: oauth2.Principal{
+				Subject: "Principal Strickland",
+			},
+			Expected: "Principal Strickland",
 		},
 	}
 	for _, test := range tests {

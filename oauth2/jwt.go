@@ -61,17 +61,20 @@ func (j *JWT) Authenticate(ctx context.Context, jwtToken string) (Principal, err
 	// 4. Check if subject is not empty
 	token, err := gojwt.ParseWithClaims(jwtToken, &Claims{}, alg)
 	if err != nil {
-		return "", err
+		return Principal{}, err
 	} else if !token.Valid {
-		return "", err
+		return Principal{}, err
 	}
 
 	claims, ok := token.Claims.(*Claims)
 	if !ok {
-		return "", fmt.Errorf("unable to convert claims to standard claims")
+		return Principal{}, fmt.Errorf("unable to convert claims to standard claims")
 	}
 
-	return Principal(claims.Subject), nil
+	return Principal{
+		Subject: claims.Subject,
+		Issuer:  claims.Issuer,
+	}, nil
 }
 
 // Token creates a signed JWT token from user that expires at Now + duration
@@ -81,7 +84,8 @@ func (j *JWT) Token(ctx context.Context, user Principal, duration time.Duration)
 	now := j.Now().UTC()
 	claims := &Claims{
 		gojwt.StandardClaims{
-			Subject:   string(user),
+			Subject:   user.Subject,
+			Issuer:    user.Issuer,
 			ExpiresAt: now.Add(duration).Unix(),
 			IssuedAt:  now.Unix(),
 			NotBefore: now.Unix(),

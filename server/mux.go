@@ -42,8 +42,8 @@ func (m *MuxOpts) UseGoogle() bool {
 	return m.TokenSecret != "" && m.GoogleClientID != "" && m.GoogleClientSecret != "" && m.PublicURL != ""
 }
 
-func (m *MuxOpts) Routes() []AuthRoute {
-	routes := []AuthRoute{}
+func (m *MuxOpts) Routes() AuthRoutes {
+	routes := AuthRoutes{}
 	if m.UseGithub() {
 		routes = append(routes, NewGithubRoute())
 	}
@@ -148,6 +148,11 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	/* Authentication */
 	if opts.UseAuth {
+		// Create middleware to redirect to the appropriate provider logout
+		targetURL := "/"
+		router.GET("/oauth/logout", Logout(targetURL, authRoutes))
+
+		// Encapsulate the router with OAuth2
 		auth := AuthAPI(opts, router)
 		return Logger(opts.Logger, auth)
 	}
@@ -157,6 +162,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 }
 
 // AuthAPI adds the OAuth routes if auth is enabled.
+// TODO: this function is not great.  Would be good if providers added their routes.
 func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 	auth := oauth2.NewJWT(opts.TokenSecret)
 	if opts.UseGithub() {
@@ -192,7 +198,7 @@ func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 	tokenMiddleware := oauth2.AuthorizedToken(&auth, &oauth2.CookieExtractor{Name: "session"}, opts.Logger, router)
 	// Wrap the API with token validation middleware.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/chronograf/v1/") {
+		if strings.HasPrefix(r.URL.Path, "/chronograf/v1/") || r.URL.Path == "/oauth/logout" {
 			tokenMiddleware.ServeHTTP(w, r)
 			return
 		}
