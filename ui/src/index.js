@@ -70,11 +70,15 @@ const Root = React.createClass({
     if (store.getState().me.links) {
       return this.setState({loggedIn: true});
     }
-    getMe().then(({data: {me, auth}}) => {
+    getMe().then(({data: me, auth}) => {
       store.dispatch(receiveMe(me));
       store.dispatch(receiveAuth(auth));
       this.setState({loggedIn: true});
-    }).catch(() => {
+    }).catch((error) => {
+      if (error.auth) {
+        store.dispatch(receiveAuth(error.auth));
+      }
+
       this.setState({loggedIn: false});
     });
   },

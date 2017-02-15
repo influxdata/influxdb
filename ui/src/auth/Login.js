@@ -4,13 +4,13 @@ import {connect} from 'react-redux'
 
 const {array} = PropTypes
 
-const Login = ({auths}) => (
+const Login = ({auth}) => (
   <div className="auth-page">
     <div className="auth-box">
       <div className="auth-logo"></div>
       <h1 className="auth-text-logo">Chronograf</h1>
       <p><strong>{VERSION}</strong> / Time-Series Data Visualization</p>
-      {auths.map(({name, login, label}) => (
+      {auth.map(({name, login, label}) => (
         <a key={name} className="btn btn-primary" href={login}>
           <span className={`icon ${name}`}></span>
           Login with {label}
@@ -23,13 +23,11 @@ const Login = ({auths}) => (
 )
 
 Login.propTypes = {
-  auths: array.isRequired,
+  auth: array.isRequired,
 }
 
-const mapStateToProps = (state) => {
-  return {
-    auths: state.auth,
-  }
-}
+const mapStateToProps = (state) => ({
+  auth: state.auth,
+})
 
 export default connect(mapStateToProps)(Login)

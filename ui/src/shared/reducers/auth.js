@@ -1,5 +1,5 @@
 function getInitialState() {
-  return {};
+  return [];
 }
 const initialState = getInitialState();
 

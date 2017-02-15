@@ -50,6 +50,7 @@ export default async function AJAX({
     if (!response.status === UNAUTHORIZED) {
       console.error(error) // eslint-disable-line no-console
     }
-    throw {response} // eslint-disable-line no-throw-literal
+    const {auth} = links
+    throw {auth, ...response} // eslint-disable-line no-throw-literal
   }
 }
