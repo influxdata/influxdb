@@ -1,5 +1,5 @@
 // This package is a set of convenience helpers and structs to make integration testing easier
-package run_test
+package tests
 
 import (
 	"bytes"
