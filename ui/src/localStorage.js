@@ -1,9 +1,8 @@
 export const loadLocalStorage = () => {
   try {
     const serializedState = localStorage.getItem('state');
-    const parsedState = JSON.parse(serializedState) || {};
 
-    return {...parsedState};
+    return JSON.parse(serializedState) || {};
   } catch (err) {
     console.error(`Loading persisted state failed: ${err}`); // eslint-disable-line no-console
     return {};
