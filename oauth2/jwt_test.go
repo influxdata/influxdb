@@ -6,8 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/chronograf"
-	"github.com/influxdata/chronograf/jwt"
+	"github.com/influxdata/chronograf/oauth2"
 )
 
 func TestAuthenticate(t *testing.T) {
@@ -15,7 +14,7 @@ func TestAuthenticate(t *testing.T) {
 		Desc   string
 		Secret string
 		Token  string
-		User   Principal
+		User   oauth2.Principal
 		Err    error
 	}{
 		{
@@ -54,7 +53,7 @@ func TestAuthenticate(t *testing.T) {
 		},
 	}
 	for i, test := range tests {
-		j := jwt.JWT{
+		j := oauth2.JWT{
 			Secret: test.Secret,
 			Now: func() time.Time {
 				return time.Unix(-446774400, 0)
@@ -77,13 +76,13 @@ func TestAuthenticate(t *testing.T) {
 func TestToken(t *testing.T) {
 	duration := time.Second
 	expected := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOi00NDY3NzQzOTksImlhdCI6LTQ0Njc3NDQwMCwibmJmIjotNDQ2Nzc0NDAwLCJzdWIiOiIvY2hyb25vZ3JhZi92MS91c2Vycy8xIn0.ofQM6yTmrmve5JeEE0RcK4_euLXuZ_rdh6bLAbtbC9M"
-	j := jwt.JWT{
+	j := oauth2.JWT{
 		Secret: "secret",
 		Now: func() time.Time {
 			return time.Unix(-446774400, 0)
 		},
 	}
-	if token, err := j.Token(context.Background(), Principal("/chronograf/v1/users/1"), duration); err != nil {
+	if token, err := j.Token(context.Background(), oauth2.Principal("/chronograf/v1/users/1"), duration); err != nil {
 		t.Errorf("Error creating token for user: %v", err)
 	} else if token != expected {
 		t.Errorf("Error creating token; expected: %s  actual: %s", "", token)
