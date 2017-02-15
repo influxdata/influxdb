@@ -5,6 +5,8 @@
   2. [#872](https://github.com/influxdata/chronograf/pull/872): Fix incorrect data source response
 
 ### Features
+  1. [#896](https://github.com/influxdata/chronograf/pull/896) Add more docker stats
+
 ### UI Improvements
 
 ## v1.2.0-beta2 [2017-02-10]
