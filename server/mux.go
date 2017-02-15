@@ -22,6 +22,7 @@ const (
 type MuxOpts struct {
 	Logger             chronograf.Logger
 	Develop            bool     // Develop loads assets from filesystem instead of bindata
+	Basepath           string   // URL path prefix under which all chronograf routes will be mounted
 	UseAuth            bool     // UseAuth turns on Github OAuth and JWT
 	TokenSecret        string   // TokenSecret is the JWT secret
 	GithubClientID     string   // GithubClientID is the GH OAuth id
@@ -29,7 +30,8 @@ type MuxOpts struct {
 	GithubOrgs         []string // GithubOrgs is the list of organizations a user may be a member of
 	GoogleClientID     string   // GoogleClientID is the Google OAuth id
 	GoogleClientSecret string   // GoogleClientSecret is the Google OAuth secret
-	GoogleDomains      []string // GoogleOrgs is the list of domains a user may be a member of
+	GoogleDomains      []string // GoogleDomains is the list of domains a user may be a member of
+	PublicURL          string   // PublicURL is the public facing URL for the server
 }
 
 // NewMux attaches all the route handlers; handler returned servers chronograf.
@@ -148,10 +150,12 @@ func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 	router.Handler("GET", "/oauth/github/logout", ghMux.Logout())
 	router.Handler("GET", "/oauth/github/callback", ghMux.Callback())
 
+	redirectURL := opts.PublicURL + opts.Basepath + "/oauth/google/callback"
 	google := oauth2.Google{
 		ClientID:     opts.GoogleClientID,
 		ClientSecret: opts.GoogleClientSecret,
 		Domains:      opts.GoogleDomains,
+		RedirectURL:  redirectURL,
 		Logger:       opts.Logger,
 	}
 

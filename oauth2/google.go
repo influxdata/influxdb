@@ -21,6 +21,7 @@ var _ Provider = &Google{}
 type Google struct {
 	ClientID     string
 	ClientSecret string
+	RedirectURL  string
 	Domains      []string // Optional google email domain checking
 	Logger       chronograf.Logger
 }
@@ -56,7 +57,7 @@ func (g *Google) Config() *oauth2.Config {
 		ClientSecret: g.Secret(),
 		Scopes:       g.Scopes(),
 		Endpoint:     GoogleEndpoint,
-		RedirectURL:  "http://localhost:8888/oauth/google/callback", // TODO: we are required to have a redirect_uri from google
+		RedirectURL:  g.RedirectURL,
 	}
 }
 

@@ -50,6 +50,7 @@ type Server struct {
 	GoogleClientID     string   `long:"google-client-id" description:"Google Client ID for OAuth 2 support" env:"GOOGLE_CLIENT_ID"`
 	GoogleClientSecret string   `long:"google-client-secret" description:"Google Client Secret for OAuth 2 support" env:"GOGGLE_CLIENT_SECRET"`
 	GoogleDomains      []string `long:"google-domains" description:"Google email domain user is required to have active membership" env:"GOOGLE_DOMAINS" env-delim:","`
+	PublicURL          string   `long:"public-url" description:"Full public URL used to access Chronograf from a web browser. Used for Google OAuth2 authentication. (http://localhost:8888)" env:"PUBLIC_URL"`
 
 	ReportingDisabled bool   `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id,uptime) once every 24hr" env:"REPORTING_DISABLED"`
 	LogLevel          string `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"warn" choice:"error" choice:"fatal" choice:"panic" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
@@ -68,7 +69,7 @@ type BuildInfo struct {
 
 func (s *Server) useAuth() bool {
 	gh := s.TokenSecret != "" && s.GithubClientID != "" && s.GithubClientSecret != ""
-	google := s.TokenSecret != "" && s.GoogleClientID != "" && s.GoogleClientSecret != ""
+	google := s.TokenSecret != "" && s.GoogleClientID != "" && s.GoogleClientSecret != "" && s.PublicURL != ""
 	return gh || google
 }
 
@@ -86,6 +87,7 @@ func (s *Server) Serve() error {
 		GoogleClientID:     s.GoogleClientID,
 		GoogleClientSecret: s.GoogleClientSecret,
 		GoogleDomains:      s.GoogleDomains,
+		PublicURL:          s.PublicURL,
 		Logger:             logger,
 		UseAuth:            s.useAuth(),
 	}, service)
