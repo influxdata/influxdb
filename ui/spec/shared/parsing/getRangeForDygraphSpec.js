@@ -55,4 +55,15 @@ describe('getRangeForDygraphSpec', () => {
     expect(actualTwo[1]).to.be.above(unpadded[1]);
     expect(actualTwo[0]).to.equal(unpadded[0]);
   });
+
+  it('returns an expected range when an additional value is provided that is well within range of timeSeries data', () => {
+    const value = 0;
+    const timeSeries = [[new Date(1000), -10], [new Date(2000), 1], [new Date(3000), 20]];
+    const unpadded = getRange(timeSeries);
+
+    const actual = getRange(timeSeries, undefined, value);
+
+    expect(actual[0]).to.equal(unpadded[0]);
+    expect(actual[1]).to.equal(unpadded[1]);
+  });
 });
