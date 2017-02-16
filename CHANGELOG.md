@@ -3,6 +3,7 @@
 ### Bug Fixes
 
 ### Features
+  1. [#873](https://github.com/influxdata/chronograf/pull/873): Add [TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md) support 
 
 ### UI Improvements
 

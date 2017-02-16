@@ -107,6 +107,9 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 * View all active alerts at a glance on the alerting dashboard
 * Enable and disable existing alert rules with the check of a box
 
+### TLS/HTTPS support
+See [Chronograf with TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md) for more information.
+
 ### GitHub OAuth Login
 See [Chronograf with OAuth 2.0](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) for more information.
 
