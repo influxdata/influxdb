@@ -4,33 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"testing"
 
+	clog "github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/oauth2"
 )
-
-func NewTestTripper(ts *httptest.Server, rt http.RoundTripper) (*TestTripper, error) {
-	url, err := url.Parse(ts.URL)
-	if err != nil {
-		return nil, err
-	}
-	return &TestTripper{rt, url}, nil
-}
-
-type TestTripper struct {
-	rt    http.RoundTripper
-	tsURL *url.URL
-}
-
-// RoundTrip modifies the Hostname of the incoming request to be directed to the
-// test server.
-func (tt *TestTripper) RoundTrip(r *http.Request) (*http.Response, error) {
-	r.URL.Host = tt.tsURL.Host
-	r.URL.Scheme = tt.tsURL.Scheme
-
-	return tt.rt.RoundTrip(r)
-}
 
 func Test_Heroku_PrincipalID_ExtractsEmailAddress(t *testing.T) {
 	t.Parallel()
@@ -53,8 +31,11 @@ func Test_Heroku_PrincipalID_ExtractsEmailAddress(t *testing.T) {
 	}))
 	defer mockAPI.Close()
 
-	prov := oauth2.Heroku{}
-	tt, err := NewTestTripper(mockAPI, http.DefaultTransport)
+	logger := clog.New(clog.ParseLevel("debug"))
+	prov := oauth2.Heroku{
+		Logger: logger,
+	}
+	tt, err := NewTestTripper(logger, mockAPI, http.DefaultTransport)
 	if err != nil {
 		t.Fatal("Error initializing TestTripper: err:", err)
 	}
