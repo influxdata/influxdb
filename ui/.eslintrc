@@ -182,7 +182,7 @@
     'quote-props': [2, 'as-needed', {keywords: true, numbers: false }],
     'require-jsdoc': 0,
     'semi-spacing': [2, {before: false, after: true}],
-    'semi': [2, 'always'],
+    // 'semi': [2, 'always'],
     'sort-vars': 0,
     'keyword-spacing': 'error',
     'space-before-blocks': [2, 'always'],
