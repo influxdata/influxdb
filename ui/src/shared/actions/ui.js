@@ -17,9 +17,3 @@ export function delayEnablePresentationMode() {
     setTimeout(() => dispatch(enablePresentationMode()), PRESENTATION_MODE_DELAY)
   }
 }
-
-export function delayDisablePresentationMode() {
-  return (dispatch) => {
-    setTimeout(() => dispatch(disablePresentationMode()), PRESENTATION_MODE_DELAY)
-  }
-}
