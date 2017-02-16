@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/chronograf"
 
 	"golang.org/x/oauth2"
+	hrk "golang.org/x/oauth2/heroku"
 )
 
 // Ensure that Heroku is an oauth2.Provider
@@ -29,7 +30,12 @@ type Heroku struct {
 
 // Config returns the OAuth2 exchange information and endpoints
 func (h *Heroku) Config() *oauth2.Config {
-	return &oauth2.Config{}
+	return &oauth2.Config{
+		ClientID:     h.ID(),
+		ClientSecret: h.Secret(),
+		Scopes:       h.Scopes(),
+		Endpoint:     hrk.Endpoint,
+	}
 }
 
 // ID returns the Heroku application client ID
