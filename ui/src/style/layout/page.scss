@@ -35,6 +35,11 @@
   &--purple-scrollbar {
     @include custom-scrollbar($g2-kevlar,$c-comet);
   }
+
+  &.presentation-mode {
+    top: 0;
+    height: 100%;
+  }
 }
 .container-fluid {
   padding: ($chronograf-page-header-height / 2) $page-wrapper-padding ($chronograf-page-header-height / 2) $page-wrapper-padding;

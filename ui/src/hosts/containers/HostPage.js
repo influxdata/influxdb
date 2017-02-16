@@ -1,30 +1,42 @@
-import React, {PropTypes} from 'react';
-import {Link} from 'react-router';
-import _ from 'lodash';
+import React, {PropTypes} from 'react'
+import {Link} from 'react-router'
+import {connect} from 'react-redux'
+import _ from 'lodash'
+import classnames from 'classnames';
 
 import LayoutRenderer from 'shared/components/LayoutRenderer';
 import DashboardHeader from 'shared/components/DashboardHeader';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 import {getMappings, getAppsForHosts, getMeasurementsForHost, getAllHosts} from 'src/hosts/apis';
 import {fetchLayouts} from 'shared/apis';
+import {enablePresentationMode} from 'shared/actions/ui';
+
+const {
+  shape,
+  string,
+  bool,
+  func,
+} = PropTypes
 
 export const HostPage = React.createClass({
   propTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
       }).isRequired,
-      telegraf: PropTypes.string.isRequired,
-      id: PropTypes.string.isRequired,
+      telegraf: string.isRequired,
+      id: string.isRequired,
     }),
-    params: PropTypes.shape({
-      hostID: PropTypes.string.isRequired,
+    params: shape({
+      hostID: string.isRequired,
     }).isRequired,
-    location: PropTypes.shape({
-      query: PropTypes.shape({
-        app: PropTypes.string,
+    location: shape({
+      query: shape({
+        app: string,
       }),
     }),
+    inPresentationMode: bool,
+    handleClickPresentationButton: func,
   },
 
   getInitialState() {
@@ -133,24 +145,33 @@ export const HostPage = React.createClass({
   },
 
   render() {
-    const hostID = this.props.params.hostID;
-    const {layouts, timeRange, hosts} = this.state;
-    const appParam = this.props.location.query.app ? `?app=${this.props.location.query.app}` : '';
+    const {params: {hostID}, location: {query: {app}}, source: {id}, inPresentationMode, handleClickPresentationButton} = this.props
+    const {layouts, timeRange, hosts} = this.state
+    const appParam = app ? `?app=${app}` : ''
 
     return (
       <div className="page">
-        <DashboardHeader buttonText={hostID} timeRange={timeRange} handleChooseTimeRange={this.handleChooseTimeRange}>
+        <DashboardHeader
+          buttonText={hostID}
+          timeRange={timeRange}
+          isHidden={inPresentationMode}
+          handleChooseTimeRange={this.handleChooseTimeRange}
+          handleClickPresentationButton={handleClickPresentationButton}
+        >
           {Object.keys(hosts).map((host, i) => {
             return (
               <li key={i}>
-                <Link to={`/sources/${this.props.source.id}/hosts/${host + appParam}`} className="role-option">
+                <Link to={`/sources/${id}/hosts/${host + appParam}`} className="role-option">
                   {host}
                 </Link>
               </li>
             );
           })}
         </DashboardHeader>
-        <div className="page-contents">
+        <div className={classnames({
+          'page-contents': true,
+          'presentation-mode': inPresentationMode,
+        })}>
           <div className="container-fluid full-width">
             { (layouts.length > 0) ? this.renderLayouts(layouts) : '' }
           </div>
@@ -160,4 +181,14 @@ export const HostPage = React.createClass({
   },
 });
 
-export default HostPage;
+const mapStateToProps = (state) => ({
+  inPresentationMode: state.appUI.presentationMode,
+})
+
+const mapDispatchToProps = (dispatch) => ({
+  handleClickPresentationButton: () => {
+    dispatch(enablePresentationMode())
+  },
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(HostPage)
