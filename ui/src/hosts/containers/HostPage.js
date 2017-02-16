@@ -5,7 +5,7 @@ import _ from 'lodash'
 import classnames from 'classnames';
 
 import LayoutRenderer from 'shared/components/LayoutRenderer';
-import DashboardHeader from 'shared/components/DashboardHeader';
+import DashboardHeader from 'src/dashboards/components/DashboardHeader';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 import {getMappings, getAppsForHosts, getMeasurementsForHost, getAllHosts} from 'src/hosts/apis';
 import {fetchLayouts} from 'shared/apis';

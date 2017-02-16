@@ -1,6 +1,6 @@
 import React, {PropTypes} from 'react';
 import LayoutRenderer from 'shared/components/LayoutRenderer';
-import DashboardHeader from 'shared/components/DashboardHeader';
+import DashboardHeader from 'src/dashboards/components/DashboardHeader';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
 export const KubernetesPage = React.createClass({

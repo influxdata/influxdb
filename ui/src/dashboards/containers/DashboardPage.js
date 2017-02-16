@@ -3,7 +3,7 @@ import {Link} from 'react-router';
 import _ from 'lodash';
 
 import LayoutRenderer from 'shared/components/LayoutRenderer';
-import DashboardHeader from 'shared/components/DashboardHeader';
+import DashboardHeader from 'src/dashboards/components/DashboardHeader';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
 import {getDashboards} from '../apis';
