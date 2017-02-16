@@ -18,6 +18,7 @@ import NotFound from 'src/shared/components/NotFound';
 import configureStore from 'src/store/configureStore';
 import {getMe, getSources} from 'shared/apis';
 import {receiveMe} from 'shared/actions/me';
+import {delayDisablePresentationMode} from 'shared/actions/ui';
 import {loadLocalStorage} from './localStorage';
 
 import 'src/style/chronograf.scss';
@@ -37,6 +38,12 @@ if (basepath) {
     basename: "",
   });
 }
+
+window.addEventListener('keyup', (event) => {
+  if (event.key === 'Escape') {
+    store.dispatch(disablePresentationMode())
+  }
+})
 
 const Root = React.createClass({
   getInitialState() {
