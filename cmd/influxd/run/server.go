@@ -392,7 +392,6 @@ func (s *Server) Open() error {
 	}
 
 	s.Subscriber.MetaClient = s.MetaClient
-	s.Subscriber.MetaClient = s.MetaClient
 	s.PointsWriter.MetaClient = s.MetaClient
 	s.Monitor.MetaClient = s.MetaClient
 
