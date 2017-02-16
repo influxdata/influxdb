@@ -40,4 +40,19 @@ describe('getRangeForDygraphSpec', () => {
 
     expect(actual).to.deep.equal(expected);
   });
+
+  it('returns a padded range when an additional value is provided that is near or exceeds range of timeSeries data', () => {
+    const value0 = -10;
+    const value1 = 20;
+    const timeSeries = [[new Date(1000), value0], [new Date(2000), 1], [new Date(3000), value1]];
+    const unpadded = getRange(timeSeries);
+
+    const actualOne = getRange(timeSeries, undefined, value0);
+    const actualTwo = getRange(timeSeries, undefined, value1);
+
+    expect(actualOne[0]).to.be.below(unpadded[0]);
+    expect(actualOne[1]).to.equal(unpadded[1]);
+    expect(actualTwo[1]).to.be.above(unpadded[1]);
+    expect(actualTwo[0]).to.equal(unpadded[0]);
+  });
 });
