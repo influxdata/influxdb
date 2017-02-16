@@ -87,6 +87,38 @@ func testPoint_cube(t *testing.T, f func(p models.Point)) {
 	}
 }
 
+func TestTag_Clone(t *testing.T) {
+	tag := models.Tag{Key: []byte("key"), Value: []byte("value")}
+
+	c := tag.Clone()
+
+	if &c.Key == &tag.Key || !bytes.Equal(c.Key, tag.Key) {
+		t.Fatalf("key %s should have been a clone of %s", c.Key, tag.Key)
+	}
+
+	if &c.Value == &tag.Value || !bytes.Equal(c.Value, tag.Value) {
+		t.Fatalf("value %s should have been a clone of %s", c.Value, tag.Value)
+	}
+}
+
+func TestTags_Clone(t *testing.T) {
+	tags := models.NewTags(map[string]string{"k1": "v1", "k2": "v2", "k3": "v3"})
+
+	clone := tags.Clone()
+
+	for i := range tags {
+		tag := tags[i]
+		c := clone[i]
+		if &c.Key == &tag.Key || !bytes.Equal(c.Key, tag.Key) {
+			t.Fatalf("key %s should have been a clone of %s", c.Key, tag.Key)
+		}
+
+		if &c.Value == &tag.Value || !bytes.Equal(c.Value, tag.Value) {
+			t.Fatalf("value %s should have been a clone of %s", c.Value, tag.Value)
+		}
+	}
+}
+
 var p models.Point
 
 func BenchmarkNewPoint(b *testing.B) {

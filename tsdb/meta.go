@@ -171,6 +171,9 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 	d.lastID++
 
 	series.measurement = m
+
+	// Clone the tags to dereference any short-term buffers
+	series.Tags = series.Tags.Clone()
 	d.series[series.Key] = series
 
 	m.AddSeries(series)
@@ -268,7 +271,7 @@ func (d *DatabaseIndex) TagsForSeries(key string) models.Tags {
 	if ss == nil {
 		return nil
 	}
-	return ss.Tags
+	return ss.CloneTags()
 }
 
 // MeasurementsByExpr takes an expression containing only tags and returns a
@@ -1598,6 +1601,22 @@ func (s *Series) ShardN() int {
 	n := len(s.shardIDs)
 	s.mu.RUnlock()
 	return n
+}
+
+// ForEachTag executes fn for every tag. Iteration occurs under lock.
+func (s *Series) ForEachTag(fn func(models.Tag)) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, t := range s.Tags {
+		fn(t)
+	}
+}
+
+// CloneTags returns a copy of the series tags under lock.
+func (s *Series) CloneTags() models.Tags {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Tags.Clone()
 }
 
 // Dereference removes references to a byte slice.
