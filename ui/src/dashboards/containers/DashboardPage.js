@@ -1,6 +1,8 @@
 import React, {PropTypes} from 'react';
 import {Link} from 'react-router';
+import {connect} from 'react-redux'
 import _ from 'lodash';
+import classnames from 'classnames'
 
 import LayoutRenderer from 'shared/components/LayoutRenderer';
 import DashboardHeader from 'src/dashboards/components/DashboardHeader';
@@ -8,13 +10,23 @@ import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
 import {getDashboards} from '../apis';
 import {getSource} from 'shared/apis';
+import {delayEnablePresentationMode} from 'shared/actions/ui';
+
+const {
+  shape,
+  string,
+  bool,
+  func,
+} = PropTypes
 
 const DashboardPage = React.createClass({
   propTypes: {
-    params: PropTypes.shape({
-      sourceID: PropTypes.string.isRequired,
-      dashboardID: PropTypes.string.isRequired,
+    params: shape({
+      sourceID: string.isRequired,
+      dashboardID: string.isRequired,
     }).isRequired,
+    inPresentationMode: bool.isRequired,
+    handleClickPresentationButton: func,
   },
 
   getInitialState() {
@@ -81,23 +93,33 @@ const DashboardPage = React.createClass({
 
   render() {
     const {dashboards, timeRange} = this.state;
-    const dashboard = this.currentDashboard(dashboards, this.props.params.dashboardID);
+    const {params: {dashboardID, sourceID}, inPresentationMode, handleClickPresentationButton} = this.props
+    const dashboard = this.currentDashboard(dashboards, dashboardID);
 
     return (
       <div className="page">
-        <DashboardHeader buttonText={dashboard ? dashboard.name : ''} timeRange={timeRange} handleChooseTimeRange={this.handleChooseTimeRange}>
+        <DashboardHeader
+          buttonText={dashboard ? dashboard.name : ''}
+          timeRange={timeRange}
+          handleChooseTimeRange={this.handleChooseTimeRange}
+          isHidden={inPresentationMode}
+          handleClickPresentationButton={handleClickPresentationButton}
+        >
           {(dashboards).map((d, i) => {
             return (
               <li key={i}>
-                <Link to={`/sources/${this.props.params.sourceID}/dashboards/${d.id}`} className="role-option">
+                <Link to={`/sources/${sourceID}/dashboards/${d.id}`} className="role-option">
                   {d.name}
                 </Link>
               </li>
             );
           })}
         </DashboardHeader>
-        <div className="page-contents">
-          <div className="container-fluid full-width">
+        <div className={classnames({
+          'page-contents': true,
+          'presentation-mode': inPresentationMode,
+        })}>
+            <div className="container-fluid full-width">
             { dashboard ? this.renderDashboard(dashboard) : '' }
           </div>
         </div>
@@ -106,4 +128,14 @@ const DashboardPage = React.createClass({
   },
 });
 
-export default DashboardPage;
+const mapStateToProps = (state) => ({
+  inPresentationMode: state.appUI.presentationMode,
+})
+
+const mapDispatchToProps = (dispatch) => ({
+  handleClickPresentationButton: () => {
+    dispatch(delayEnablePresentationMode())
+  },
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(DashboardPage);
