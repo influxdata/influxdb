@@ -10,7 +10,7 @@ import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
 import {getDashboards} from '../apis';
 import {getSource} from 'shared/apis';
-import {delayEnablePresentationMode} from 'shared/actions/ui';
+import {presentationButtonDispatcher} from 'shared/dispatchers'
 
 const {
   shape,
@@ -133,9 +133,7 @@ const mapStateToProps = (state) => ({
 })
 
 const mapDispatchToProps = (dispatch) => ({
-  handleClickPresentationButton: () => {
-    dispatch(delayEnablePresentationMode())
-  },
+  handleClickPresentationButton: presentationButtonDispatcher(dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DashboardPage);

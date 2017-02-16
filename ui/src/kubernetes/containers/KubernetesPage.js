@@ -3,7 +3,7 @@ import {connect} from 'react-redux'
 
 import {fetchLayouts} from 'shared/apis';
 import KubernetesDashboard from 'src/kubernetes/components/KubernetesDashboard';
-import {delayEnablePresentationMode} from 'shared/actions/ui';
+import {presentationButtonDispatcher} from 'shared/dispatchers'
 
 const {
   shape,
@@ -56,9 +56,7 @@ const mapStateToProps = (state) => ({
 })
 
 const mapDispatchToProps = (dispatch) => ({
-  handleClickPresentationButton: () => {
-    dispatch(delayEnablePresentationMode())
-  },
+  handleClickPresentationButton: presentationButtonDispatcher(dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(KubernetesPage);

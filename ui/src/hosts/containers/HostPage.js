@@ -9,7 +9,7 @@ import DashboardHeader from 'src/dashboards/components/DashboardHeader';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 import {getMappings, getAppsForHosts, getMeasurementsForHost, getAllHosts} from 'src/hosts/apis';
 import {fetchLayouts} from 'shared/apis';
-import {delayEnablePresentationMode} from 'shared/actions/ui';
+import {presentationButtonDispatcher} from 'shared/dispatchers'
 
 const {
   shape,
@@ -186,9 +186,7 @@ const mapStateToProps = (state) => ({
 })
 
 const mapDispatchToProps = (dispatch) => ({
-  handleClickPresentationButton: () => {
-    dispatch(delayEnablePresentationMode())
-  },
+  handleClickPresentationButton: presentationButtonDispatcher(dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(HostPage)
