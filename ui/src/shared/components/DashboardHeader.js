@@ -8,8 +8,10 @@ const DashboardHeader = ({
   buttonText,
   headerText,
   timeRange,
+  isHidden,
   handleChooseTimeRange,
-}) => (
+  handleClickPresentationButton,
+}) => isHidden ? null : (
   <div className="page-header full-width">
     <div className="page-header__container">
       <div className="page-header__left">
@@ -35,6 +37,9 @@ const DashboardHeader = ({
         </div>
         <ReactTooltip id="graph-tips-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
         <TimeRangeDropdown onChooseTimeRange={handleChooseTimeRange} selected={timeRange.inputValue} />
+        <div className="btn btn-sm btn-info" onClick={handleClickPresentationButton}>
+          <span className="icon keynote" style={{margin: 0}}></span>
+        </div>
       </div>
     </div>
   </div>
@@ -45,6 +50,7 @@ const {
   array,
   string,
   func,
+  bool,
 } = PropTypes
 
 DashboardHeader.propTypes = {
@@ -52,7 +58,9 @@ DashboardHeader.propTypes = {
   buttonText: string,
   headerText: string,
   timeRange: shape({}).isRequired,
+  isHidden: bool.isRequired,
   handleChooseTimeRange: func.isRequired,
+  handleClickPresentationButton: func.isRequired,
 }
 
 export default DashboardHeader
