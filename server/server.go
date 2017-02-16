@@ -40,17 +40,22 @@ type Server struct {
 	TLSCertificateKey flags.Filename `long:"tls-key" description:"the private key to use for secure conections" env:"TLS_PRIVATE_KEY"`
 	*/
 
-	Develop            bool     `short:"d" long:"develop" description:"Run server in develop mode."`
-	BoltPath           string   `short:"b" long:"bolt-path" description:"Full path to boltDB file (/var/lib/chronograf/chronograf-v1.db)" env:"BOLT_PATH" default:"chronograf-v1.db"`
-	CannedPath         string   `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
-	TokenSecret        string   `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
+	Develop     bool   `short:"d" long:"develop" description:"Run server in develop mode."`
+	BoltPath    string `short:"b" long:"bolt-path" description:"Full path to boltDB file (/var/lib/chronograf/chronograf-v1.db)" env:"BOLT_PATH" default:"chronograf-v1.db"`
+	CannedPath  string `short:"c" long:"canned-path" description:"Path to directory of pre-canned application layouts (/usr/share/chronograf/canned)" env:"CANNED_PATH" default:"canned"`
+	TokenSecret string `short:"t" long:"token-secret" description:"Secret to sign tokens" env:"TOKEN_SECRET"`
+
 	GithubClientID     string   `short:"i" long:"github-client-id" description:"Github Client ID for OAuth 2 support" env:"GH_CLIENT_ID"`
 	GithubClientSecret string   `short:"s" long:"github-client-secret" description:"Github Client Secret for OAuth 2 support" env:"GH_CLIENT_SECRET"`
 	GithubOrgs         []string `short:"o" long:"github-organization" description:"Github organization user is required to have active membership" env:"GH_ORGS" env-delim:","`
+
 	GoogleClientID     string   `long:"google-client-id" description:"Google Client ID for OAuth 2 support" env:"GOOGLE_CLIENT_ID"`
 	GoogleClientSecret string   `long:"google-client-secret" description:"Google Client Secret for OAuth 2 support" env:"GOGGLE_CLIENT_SECRET"`
 	GoogleDomains      []string `long:"google-domains" description:"Google email domain user is required to have active membership" env:"GOOGLE_DOMAINS" env-delim:","`
 	PublicURL          string   `long:"public-url" description:"Full public URL used to access Chronograf from a web browser. Used for Google OAuth2 authentication. (http://localhost:8888)" env:"PUBLIC_URL"`
+
+	HerokuClientID string `long:"heroku-client-id" description:"Heroku Client ID for OAuth 2 support" env:"HEROKU_CLIENT_ID"`
+	HerokuSecret   string `long:"heroku-secret" description:"Heroku Secret for OAuth 2 support" env:"HEROKU_SECRET"`
 
 	ReportingDisabled bool   `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id,uptime) once every 24hr" env:"REPORTING_DISABLED"`
 	LogLevel          string `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"warn" choice:"error" choice:"fatal" choice:"panic" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
@@ -70,7 +75,8 @@ type BuildInfo struct {
 func (s *Server) useAuth() bool {
 	gh := s.TokenSecret != "" && s.GithubClientID != "" && s.GithubClientSecret != ""
 	google := s.TokenSecret != "" && s.GoogleClientID != "" && s.GoogleClientSecret != "" && s.PublicURL != ""
-	return gh || google
+	heroku := s.TokenSecret != "" && s.HerokuClientID != "" && s.HerokuSecret != ""
+	return gh || google || heroku
 }
 
 // Serve starts and runs the chronograf server
@@ -87,6 +93,8 @@ func (s *Server) Serve() error {
 		GoogleClientID:     s.GoogleClientID,
 		GoogleClientSecret: s.GoogleClientSecret,
 		GoogleDomains:      s.GoogleDomains,
+		HerokuClientID:     s.HerokuClientID,
+		HerokuSecret:       s.HerokuSecret,
 		PublicURL:          s.PublicURL,
 		Logger:             logger,
 		UseAuth:            s.useAuth(),

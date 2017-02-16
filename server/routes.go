@@ -79,3 +79,13 @@ func NewGoogleRoute() AuthRoute {
 		Callback: "/oauth/google/callback",
 	}
 }
+
+func NewHerokuRoute() AuthRoute {
+	return AuthRoute{
+		Name:     "heroku",
+		Label:    "Heroku",
+		Login:    "/oauth/heroku/login",
+		Logout:   "/oauth/heroku/logout",
+		Callback: "/oauth/heroku/callback",
+	}
+}

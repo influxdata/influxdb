@@ -31,6 +31,8 @@ type MuxOpts struct {
 	GoogleClientID     string   // GoogleClientID is the Google OAuth id
 	GoogleClientSecret string   // GoogleClientSecret is the Google OAuth secret
 	GoogleDomains      []string // GoogleDomains is the list of domains a user may be a member of
+	HerokuClientID     string   // HerokuClientID is the Heroku OAuth id
+	HerokuSecret       string   // HerokuSecret is the Heroku OAuth secret
 	PublicURL          string   // PublicURL is the public facing URL for the server
 }
 
@@ -42,6 +44,10 @@ func (m *MuxOpts) UseGoogle() bool {
 	return m.TokenSecret != "" && m.GoogleClientID != "" && m.GoogleClientSecret != "" && m.PublicURL != ""
 }
 
+func (m *MuxOpts) UseHeroku() bool {
+	return m.TokenSecret != "" && m.HerokuClientID != "" && m.HerokuSecret != ""
+}
+
 func (m *MuxOpts) Routes() AuthRoutes {
 	routes := AuthRoutes{}
 	if m.UseGithub() {
@@ -49,6 +55,9 @@ func (m *MuxOpts) Routes() AuthRoutes {
 	}
 	if m.UseGoogle() {
 		routes = append(routes, NewGoogleRoute())
+	}
+	if m.UseHeroku() {
+		routes = append(routes, NewHerokuRoute())
 	}
 	return routes
 }
@@ -193,6 +202,19 @@ func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 		router.Handler("GET", "/oauth/google/login", goMux.Login())
 		router.Handler("GET", "/oauth/google/logout", goMux.Logout())
 		router.Handler("GET", "/oauth/google/callback", goMux.Callback())
+	}
+
+	if opts.UseHeroku() {
+		heroku := oauth2.Heroku{
+			ClientID:     opts.HerokuClientID,
+			ClientSecret: opts.HerokuSecret,
+			Logger:       opts.Logger,
+		}
+
+		hMux := oauth2.NewJWTMux(&heroku, &auth, opts.Logger)
+		router.Handler("GET", "/oauth/heroku/login", hMux.Login())
+		router.Handler("GET", "/oauth/heroku/logout", hMux.Logout())
+		router.Handler("GET", "/oauth/heroku/callback", hMux.Callback())
 	}
 
 	tokenMiddleware := oauth2.AuthorizedToken(&auth, &oauth2.CookieExtractor{Name: "session"}, opts.Logger, router)
