@@ -467,3 +467,5 @@ export const STROKE_WIDTH = {
   heavy: 3.5,
   light: 1.5,
 };
+
+export const PRESENTATION_MODE_DELAY = 250 // In milliseconds.
