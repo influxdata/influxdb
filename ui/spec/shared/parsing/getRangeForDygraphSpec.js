@@ -41,29 +41,47 @@ describe('getRangeForDygraphSpec', () => {
     expect(actual).to.deep.equal(expected);
   });
 
-  it('returns a padded range when an additional value is provided that is near or exceeds range of timeSeries data', () => {
-    const value0 = -10;
-    const value1 = 20;
-    const timeSeries = [[new Date(1000), value0], [new Date(2000), 1], [new Date(3000), value1]];
-    const unpadded = getRange(timeSeries);
+  describe('when user provides a rule value', () => {
+    const defaultMax = 20;
+    const defaultMin = -10;
+    const timeSeries = [[new Date(1000), defaultMax], [new Date(2000), 1], [new Date(3000), defaultMin]];
 
-    const actualOne = getRange(timeSeries, undefined, value0);
-    const actualTwo = getRange(timeSeries, undefined, value1);
+    it('can pad positive values', () => {
+      const value = 20;
+      const [min, max] = getRange(timeSeries, undefined, value);
 
-    expect(actualOne[0]).to.be.below(unpadded[0]);
-    expect(actualOne[1]).to.equal(unpadded[1]);
-    expect(actualTwo[1]).to.be.above(unpadded[1]);
-    expect(actualTwo[0]).to.equal(unpadded[0]);
+      expect(min).to.equal(defaultMin);
+      expect(max).to.be.above(defaultMax);
+    });
+
+    it('can pad negative values', () => {
+      const value = -10;
+      const [min, max] = getRange(timeSeries, undefined, value);
+
+      expect(min).to.be.below(defaultMin);
+      expect(max).to.equal(defaultMax);
+    });
   });
 
-  it('returns an expected range when an additional value is provided that is well within range of timeSeries data', () => {
-    const value = 0;
-    const timeSeries = [[new Date(1000), -10], [new Date(2000), 1], [new Date(3000), 20]];
-    const unpadded = getRange(timeSeries);
+  describe('when user provides a rule range value', () => {
+    const defaultMax = 20;
+    const defaultMin = -10;
+    const timeSeries = [[new Date(1000), defaultMax], [new Date(2000), 1], [new Date(3000), defaultMin]];
 
-    const actual = getRange(timeSeries, undefined, value);
+    it('can pad positive values', () => {
+      const rangeValue = 20;
+      const [min, max] = getRange(timeSeries, undefined, 0, rangeValue);
 
-    expect(actual[0]).to.equal(unpadded[0]);
-    expect(actual[1]).to.equal(unpadded[1]);
+      expect(min).to.equal(defaultMin);
+      expect(max).to.be.above(defaultMax);
+    });
+
+    it('can pad negative values', () => {
+      const rangeValue = -10;
+      const [min, max] = getRange(timeSeries, undefined, 0, rangeValue);
+
+      expect(min).to.be.below(defaultMin);
+      expect(max).to.equal(defaultMax);
+    });
   });
 });
