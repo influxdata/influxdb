@@ -1,7 +1,6 @@
 package oauth2_test
 
 import (
-	"context"
 	"net/http"
 	"net/http/cookiejar"
 	"net/http/httptest"
@@ -11,53 +10,7 @@ import (
 
 	clog "github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/oauth2"
-	goauth "golang.org/x/oauth2"
 )
-
-type MockProvider struct {
-	Email string
-}
-
-func (mp *MockProvider) Config() *goauth.Config {
-	return &goauth.Config{}
-}
-
-func (mp *MockProvider) ID() string {
-	return "8675309"
-}
-
-func (mp *MockProvider) Name() string {
-	return "mockly"
-}
-
-func (mp *MockProvider) PrincipalID(provider *http.Client) (string, error) {
-	return mp.Email, nil
-}
-
-func (mp *MockProvider) Scopes() []string {
-	return []string{}
-}
-
-func (mp *MockProvider) Secret() string {
-	return "4815162342"
-}
-
-var _ oauth2.Authenticator = &YesManAuthenticator{}
-
-type YesManAuthenticator struct{}
-
-func (y *YesManAuthenticator) Authenticate(ctx context.Context, token string) (oauth2.Principal, error) {
-	return oauth2.Principal{
-		Subject: "biff@example.com",
-		Issuer:  "Biff Tannen's Pleasure Paradise",
-	}, nil
-}
-
-func (y *YesManAuthenticator) Token(ctx context.Context, p oauth2.Principal, t time.Duration) (string, error) {
-	return "HELLO?!MCFLY?!ANYONEINTHERE?!", nil
-}
-
-var _ oauth2.Provider = &MockProvider{}
 
 func Test_JWTMux_Logout_DeletesSessionCookie(t *testing.T) {
 	t.Parallel()
