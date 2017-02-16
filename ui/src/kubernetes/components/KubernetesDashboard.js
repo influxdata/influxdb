@@ -2,16 +2,27 @@ import React, {PropTypes} from 'react';
 import LayoutRenderer from 'shared/components/LayoutRenderer';
 import DashboardHeader from 'src/dashboards/components/DashboardHeader';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
+import classnames from 'classnames'
 
-export const KubernetesPage = React.createClass({
+const {
+  shape,
+  string,
+  arrayOf,
+  bool,
+  func,
+} = PropTypes
+
+export const KubernetesDashboard = React.createClass({
   propTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
       }).isRequired,
-      telegraf: PropTypes.string.isRequired,
+      telegraf: string.isRequired,
     }),
-    layouts: PropTypes.arrayOf(PropTypes.shape().isRequired).isRequired,
+    layouts: arrayOf(shape().isRequired).isRequired,
+    inPresentationMode: bool.isRequired,
+    handleClickPresentationButton: func,
   },
 
   getInitialState() {
@@ -56,7 +67,7 @@ export const KubernetesPage = React.createClass({
   },
 
   render() {
-    const {layouts} = this.props;
+    const {layouts, inPresentationMode, handleClickPresentationButton} = this.props;
     const {timeRange} = this.state;
     const emptyState = (
       <div className="generic-empty-state">
@@ -67,8 +78,17 @@ export const KubernetesPage = React.createClass({
 
     return (
       <div className="page">
-        <DashboardHeader headerText="Kubernetes Dashboard" timeRange={timeRange} handleChooseTimeRange={this.handleChooseTimeRange} />
-        <div className="page-contents">
+        <DashboardHeader
+          headerText="Kubernetes Dashboard"
+          timeRange={timeRange}
+          handleChooseTimeRange={this.handleChooseTimeRange}
+          isHidden={inPresentationMode}
+          handleClickPresentationButton={handleClickPresentationButton}
+        />
+        <div className={classnames({
+          'page-contents': true,
+          'presentation-mode': inPresentationMode,
+        })}>
           <div className="container-fluid full-width">
             {layouts.length ? this.renderLayouts(layouts) : emptyState}
           </div>
@@ -77,4 +97,5 @@ export const KubernetesPage = React.createClass({
     );
   },
 });
-export default KubernetesPage;
+
+export default KubernetesDashboard;
