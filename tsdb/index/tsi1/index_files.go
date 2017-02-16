@@ -172,24 +172,24 @@ func (p IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 
 func (p IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
 	itr := p.SeriesIterator()
-	sw := NewSeriesBlockWriter()
+	enc := NewSeriesBlockEncoder(w)
 
 	// Write all series.
 	for e := itr.Next(); e != nil; e = itr.Next() {
-		if err := sw.Add(e.Name(), e.Tags(), e.Deleted()); err != nil {
+		if err := enc.Encode(e.Name(), e.Tags(), e.Deleted()); err != nil {
 			return err
 		}
 	}
 
-	// Flush series list.
-	nn, err := sw.WriteTo(w)
-	*n += nn
+	// Close and flush block.
+	err := enc.Close()
+	*n += enc.N()
 	if err != nil {
 		return err
 	}
 
 	// Attach writer to info so we can obtain series offsets later.
-	info.sw = sw
+	info.enc = enc
 
 	return nil
 }
@@ -206,6 +206,8 @@ func (p IndexFiles) writeTagsetsTo(w io.Writer, info *indexCompactInfo, n *int64
 
 // writeTagsetTo writes a single tagset to w and saves the tagset offset.
 func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactInfo, n *int64) error {
+	var seriesKey []byte
+
 	kitr, err := p.TagKeyIterator(name)
 	if err != nil {
 		return err
@@ -225,9 +227,10 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 			sitr := p.TagValueSeriesIterator(name, ke.Key(), ve.Value())
 			var seriesIDs []uint64
 			for se := sitr.Next(); se != nil; se = sitr.Next() {
-				seriesID := info.sw.Offset(se.Name(), se.Tags())
+				seriesKey = AppendSeriesKey(seriesKey[:0], se.Name(), se.Tags())
+				seriesID := info.enc.Offset(seriesKey)
 				if seriesID == 0 {
-					panic("expected series id")
+					panic(fmt.Sprintf("expected series id: %s/%s", se.Name(), se.Tags().String()))
 				}
 				seriesIDs = append(seriesIDs, seriesID)
 			}
@@ -258,6 +261,7 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 }
 
 func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
+	var seriesKey []byte
 	mw := NewMeasurementBlockWriter()
 
 	// Add measurement data & compute sketches.
@@ -269,7 +273,8 @@ func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo,
 		itr := p.MeasurementSeriesIterator(name)
 		var seriesIDs []uint64
 		for e := itr.Next(); e != nil; e = itr.Next() {
-			seriesID := info.sw.Offset(e.Name(), e.Tags())
+			seriesKey = AppendSeriesKey(seriesKey[:0], e.Name(), e.Tags())
+			seriesID := info.enc.Offset(seriesKey)
 			if seriesID == 0 {
 				panic(fmt.Sprintf("expected series id: %s %s", e.Name(), e.Tags().String()))
 			}
@@ -321,7 +326,7 @@ type IndexFilesInfo struct {
 // during the compaction of index files.
 type indexCompactInfo struct {
 	// Saved to look up series offsets.
-	sw *SeriesBlockWriter
+	enc *SeriesBlockEncoder
 
 	// Tracks offset/size for each measurement's tagset.
 	tagSets map[string]indexTagSetPos

@@ -102,27 +102,28 @@ func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
 			return nil
 		}
 
-		// Evaluate key if offset is not empty.
-		if offset > 0 {
-			// Parse into element.
-			var e TagBlockKeyElem
-			e.unmarshal(blk.data[offset:], blk.data)
+		// Parse into element.
+		var e TagBlockKeyElem
+		e.unmarshal(blk.data[offset:], blk.data)
 
-			// Return if keys match.
-			if bytes.Equal(e.key, key) {
-				return &e
-			}
+		// Return if keys match.
+		if bytes.Equal(e.key, key) {
+			return &e
+		}
 
-			// Check if we've exceeded the probe distance.
-			if d > dist(hashKey(e.key), pos, int(keyN)) {
-				return nil
-			}
-
+		// Check if we've exceeded the probe distance.
+		if d > dist(hashKey(e.key), pos, int(keyN)) {
+			return nil
 		}
 
 		// Move position forward.
 		pos = (pos + 1) % int(keyN)
 		d++
+
+		// DEBUG(benbjohnson)
+		if d > 30 {
+			println("dbg: high tag key probe count:", d)
+		}
 
 		if uint64(d) > keyN {
 			return nil
@@ -151,27 +152,32 @@ func (blk *TagBlock) TagValueElem(key, value []byte) TagValueElem {
 	for {
 		// Find offset of tag value.
 		offset := binary.BigEndian.Uint64(hashData[TagValueNSize+(pos*TagValueOffsetSize):])
+		if offset == 0 {
+			return nil
+		}
 
-		// Evaluate value if offset is not empty.
-		if offset > 0 {
-			// Parse into element.
-			var e TagBlockValueElem
-			e.unmarshal(blk.data[offset:])
+		// Parse into element.
+		var e TagBlockValueElem
+		e.unmarshal(blk.data[offset:])
 
-			// Return if values match.
-			if bytes.Equal(e.value, value) {
-				return &e
-			}
+		// Return if values match.
+		if bytes.Equal(e.value, value) {
+			return &e
+		}
 
-			// Check if we've exceeded the probe distance.
-			if d > dist(hashKey(e.value), pos, int(valueN)) {
-				return nil
-			}
+		// Check if we've exceeded the probe distance.
+		if d > dist(hashKey(e.value), pos, int(valueN)) {
+			return nil
 		}
 
 		// Move position forward.
 		pos = (pos + 1) % int(valueN)
 		d++
+
+		// DEBUG(benbjohnson)
+		if d > 30 {
+			println("dbg: high tag value probe count:", d)
+		}
 
 		if uint64(d) > valueN {
 			return nil
@@ -505,7 +511,7 @@ func (tw *TagBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	// Build key hash map.
 	m := rhh.NewHashMap(rhh.Options{
 		Capacity:   len(tw.sets),
-		LoadFactor: 90,
+		LoadFactor: 50,
 	})
 	for key := range tw.sets {
 		ts := tw.sets[key]
@@ -551,7 +557,7 @@ func (tw *TagBlockWriter) writeTagValueBlockTo(w io.Writer, ts *tagSet, n *int64
 	// Build RHH map from tag values.
 	m := rhh.NewHashMap(rhh.Options{
 		Capacity:   len(ts.values),
-		LoadFactor: 90,
+		LoadFactor: 50,
 	})
 	for value := range ts.values {
 		tv := ts.values[value]

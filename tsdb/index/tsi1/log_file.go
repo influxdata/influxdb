@@ -199,6 +199,7 @@ func (f *LogFile) measurementNames() []string {
 	for name := range f.mms {
 		a = append(a, name)
 	}
+	sort.Strings(a)
 	return a
 }
 
@@ -717,7 +718,7 @@ func (f *LogFile) WriteTo(w io.Writer) (n int64, err error) {
 
 func (f *LogFile) writeSeriesBlockTo(w io.Writer, info *logFileCompactInfo, n *int64) error {
 	// Write all series.
-	sw := NewSeriesBlockWriter()
+	enc := NewSeriesBlockEncoder(w)
 
 	// Retreve measurement names in order.
 	names := f.measurementNames()
@@ -726,20 +727,21 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, info *logFileCompactInfo, n *i
 	for _, name := range names {
 		mm := f.mms[name]
 		for _, serie := range mm.series {
-			if err := sw.Add(serie.name, serie.tags, serie.deleted); err != nil {
+			if err := enc.Encode(serie.name, serie.tags, serie.deleted); err != nil {
 				return err
 			}
 		}
 	}
 
-	// Flush series list.
-	nn, err := sw.WriteTo(w)
-	*n += nn
+	// Close and flush series list.
+	err := enc.Close()
+	*n += enc.N()
 	if err != nil {
 		return err
 	}
 
 	// Add series to each measurement and key/value.
+	var seriesKey []byte
 	for _, name := range names {
 		mm := f.mms[name]
 		mmInfo := info.createMeasurementInfoIfNotExists(name)
@@ -749,7 +751,8 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, info *logFileCompactInfo, n *i
 			serie := mm.series[k]
 
 			// Lookup series offset.
-			offset := sw.Offset(serie.name, serie.tags)
+			seriesKey = AppendSeriesKey(seriesKey[:0], serie.name, serie.tags)
+			offset := enc.Offset(seriesKey)
 			if offset == 0 {
 				panic("series not found: " + string(serie.name) + " " + serie.tags.String())
 			}
@@ -1142,6 +1145,7 @@ func (m *logMeasurement) createSeriesIfNotExists(name []byte, tags models.Tags, 
 	m.series = append(m.series, nil)
 	copy(m.series[i+1:], m.series[i:])
 	m.series[i] = &logSerie{name: name, tags: tags, deleted: deleted}
+
 	return m.series[i]
 }
 
