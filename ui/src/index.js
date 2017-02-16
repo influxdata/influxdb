@@ -18,7 +18,7 @@ import NotFound from 'src/shared/components/NotFound';
 import configureStore from 'src/store/configureStore';
 import {getMe, getSources} from 'shared/apis';
 import {receiveMe} from 'shared/actions/me';
-import {delayDisablePresentationMode} from 'shared/actions/ui';
+import {disablePresentationMode} from 'shared/actions/ui';
 import {loadLocalStorage} from './localStorage';
 
 import 'src/style/chronograf.scss';

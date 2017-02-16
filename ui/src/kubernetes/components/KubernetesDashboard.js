@@ -1,8 +1,9 @@
 import React, {PropTypes} from 'react';
+import classnames from 'classnames'
+
 import LayoutRenderer from 'shared/components/LayoutRenderer';
 import DashboardHeader from 'src/dashboards/components/DashboardHeader';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
-import classnames from 'classnames'
 
 const {
   shape,

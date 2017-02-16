@@ -1,4 +1,4 @@
-import {PRESENTATION_MODE_DELAY} from '../constants'
+import {PRESENTATION_MODE_ANIMATION_DELAY} from '../constants'
 
 export function enablePresentationMode() {
   return {
@@ -14,6 +14,6 @@ export function disablePresentationMode() {
 
 export function delayEnablePresentationMode() {
   return (dispatch) => {
-    setTimeout(() => dispatch(enablePresentationMode()), PRESENTATION_MODE_DELAY)
+    setTimeout(() => dispatch(enablePresentationMode()), PRESENTATION_MODE_ANIMATION_DELAY)
   }
 }

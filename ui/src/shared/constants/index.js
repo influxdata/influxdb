@@ -468,4 +468,5 @@ export const STROKE_WIDTH = {
   light: 1.5,
 };
 
-export const PRESENTATION_MODE_DELAY = 250 // In milliseconds.
+export const PRESENTATION_MODE_ANIMATION_DELAY = 250 // In milliseconds.
+export const PRESENTATION_MODE_NOTIFICATION_DELAY = 2000 // In milliseconds.
