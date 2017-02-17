@@ -2,14 +2,13 @@ import React, {PropTypes} from 'react';
 import {Link} from 'react-router';
 import {connect} from 'react-redux'
 import _ from 'lodash';
-import classnames from 'classnames'
 
-import LayoutRenderer from 'shared/components/LayoutRenderer';
-import DashboardHeader from 'src/dashboards/components/DashboardHeader';
+import Header from 'src/dashboards/components/DashboardHeader';
+import EditHeader from 'src/dashboards/components/DashboardHeaderEdit';
+import Dashboard from 'src/dashboards/components/Dashboard';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
 import {getDashboards} from '../apis';
-import {getSource} from 'shared/apis';
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 
 const {
@@ -21,9 +20,18 @@ const {
 
 const DashboardPage = React.createClass({
   propTypes: {
+    source: PropTypes.shape({
+      links: PropTypes.shape({
+        proxy: PropTypes.string,
+        self: PropTypes.string,
+      }),
+    }),
     params: shape({
       sourceID: string.isRequired,
       dashboardID: string.isRequired,
+    }).isRequired,
+    location: shape({
+      pathname: string.isRequired,
     }).isRequired,
     inPresentationMode: bool.isRequired,
     handleClickPresentationButton: func,
@@ -34,56 +42,39 @@ const DashboardPage = React.createClass({
 
     return {
       dashboards: [],
+      dashboard: null,
       timeRange: timeRanges[fifteenMinutesIndex],
+      isEditMode: this.props.location.pathname.includes('/edit'),
     };
   },
 
   componentDidMount() {
-    getDashboards().then((resp) => {
-      getSource(this.props.params.sourceID).then(({data: source}) => {
-        this.setState({
-          dashboards: resp.data.dashboards,
-          source,
-        });
+    const {dashboardID} = this.props.params;
+
+    getDashboards().then(({data: {dashboards}}) => {
+      this.setState({
+        dashboards,
+        dashboard: _.find(dashboards, (d) => d.id.toString() === dashboardID),
       });
     });
+  },
+
+  componentWillReceiveProps(nextProps) {
+    const {location: {pathname}} = this.props
+    const {location: {pathname: nextPathname}, params: {dashboardID: nextID}} = nextProps
+
+    if (nextPathname.pathname === pathname) {
+      return
+    }
+
+    this.setState({
+      isEditMode: nextPathname.includes('/edit'),
+      dashboard: _.find(this.state.dashboards, (d) => d.id.toString() === nextID),
+    })
   },
 
   currentDashboard(dashboards, dashboardID) {
     return _.find(dashboards, (d) => d.id.toString() === dashboardID);
-  },
-
-  renderDashboard(dashboard) {
-    const autoRefreshMs = 15000;
-    const {timeRange} = this.state;
-    const {source} = this.state;
-
-    const cellWidth = 4;
-    const cellHeight = 4;
-
-    const cells = dashboard.cells.map((cell, i) => {
-      const dashboardCell = Object.assign(cell, {
-        w: cellWidth,
-        h: cellHeight,
-        queries: cell.queries,
-        i: i.toString(),
-      });
-
-      dashboardCell.queries.forEach((q) => {
-        q.text = q.query;
-        q.database = source.telegraf;
-      });
-      return dashboardCell;
-    });
-
-    return (
-      <LayoutRenderer
-        timeRange={timeRange}
-        cells={cells}
-        autoRefreshMs={autoRefreshMs}
-        source={source.links.proxy}
-      />
-    );
   },
 
   handleChooseTimeRange({lower}) {
@@ -92,37 +83,51 @@ const DashboardPage = React.createClass({
   },
 
   render() {
-    const {dashboards, timeRange} = this.state;
-    const {params: {dashboardID, sourceID}, inPresentationMode, handleClickPresentationButton} = this.props
-    const dashboard = this.currentDashboard(dashboards, dashboardID);
+    const {dashboards, timeRange, isEditMode, dashboard} = this.state;
+
+    const {
+      params: {sourceID},
+      inPresentationMode,
+      handleClickPresentationButton,
+      source,
+    } = this.props
+
+    if (!dashboard) {
+      return null
+    }
 
     return (
       <div className="page">
-        <DashboardHeader
-          buttonText={dashboard ? dashboard.name : ''}
+        {
+          isEditMode ?
+            <EditHeader dashboard={dashboard} onSave={() => {}} /> :
+            <Header
+              buttonText={dashboard ? dashboard.name : ''}
+              timeRange={timeRange}
+              handleChooseTimeRange={this.handleChooseTimeRange}
+              isHidden={inPresentationMode}
+              handleClickPresentationButton={handleClickPresentationButton}
+              dashboard={dashboard}
+              sourceID={sourceID}
+            >
+              {(dashboards).map((d, i) => {
+                return (
+                  <li key={i}>
+                    <Link to={`/sources/${sourceID}/dashboards/${d.id}`} className="role-option">
+                      {d.name}
+                    </Link>
+                  </li>
+                );
+              })}
+            </Header>
+        }
+        <Dashboard
+          dashboard={dashboard}
+          isEditMode={isEditMode}
+          inPresentationMode={inPresentationMode}
+          source={source}
           timeRange={timeRange}
-          handleChooseTimeRange={this.handleChooseTimeRange}
-          isHidden={inPresentationMode}
-          handleClickPresentationButton={handleClickPresentationButton}
-        >
-          {(dashboards).map((d, i) => {
-            return (
-              <li key={i}>
-                <Link to={`/sources/${sourceID}/dashboards/${d.id}`} className="role-option">
-                  {d.name}
-                </Link>
-              </li>
-            );
-          })}
-        </DashboardHeader>
-        <div className={classnames({
-          'page-contents': true,
-          'presentation-mode': inPresentationMode,
-        })}>
-            <div className="container-fluid full-width">
-            { dashboard ? this.renderDashboard(dashboard) : '' }
-          </div>
-        </div>
+        />
       </div>
     );
   },
