@@ -2,7 +2,6 @@ import React, {PropTypes} from 'react';
 import {Link} from 'react-router';
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux';
-import _ from 'lodash';
 
 import Header from 'src/dashboards/components/DashboardHeader';
 import EditHeader from 'src/dashboards/components/DashboardHeaderEdit';
@@ -11,7 +10,6 @@ import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
 import * as dashboardActionCreators from 'src/dashboards/actions';
 
-import {getDashboards} from '../apis';
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 
 const {
@@ -39,12 +37,17 @@ const DashboardPage = React.createClass({
       pathname: string.isRequired,
     }).isRequired,
     dashboardActions: shape({
-      loadDashboards: func.isRequired,
+      getDashboards: func.isRequired,
+      setDashboard: func.isRequired,
     }).isRequired,
     dashboards: arrayOf(shape({
       id: number.isRequired,
       cells: arrayOf(shape({})).isRequired,
     })).isRequired,
+    dashboard: shape({
+      id: number.isRequired,
+      cells: arrayOf(shape({})).isRequired,
+    }).isRequired,
     inPresentationMode: bool.isRequired,
     handleClickPresentationButton: func,
   },
@@ -53,34 +56,36 @@ const DashboardPage = React.createClass({
     const fifteenMinutesIndex = 1;
 
     return {
-      dashboard: null,
       timeRange: timeRanges[fifteenMinutesIndex],
       isEditMode: this.props.location.pathname.includes('/edit'),
     };
   },
 
   componentDidMount() {
-    const {params: {dashboardID}, dashboardActions: {loadDashboards}} = this.props;
+    const {
+      params: {dashboardID},
+      dashboardActions: {getDashboards},
+    } = this.props;
 
-    getDashboards().then(({data: {dashboards}}) => {
-      loadDashboards(dashboards)
-      this.setState({
-        dashboard: _.find(dashboards, (d) => d.id.toString() === dashboardID),
-      });
-    });
+    getDashboards(dashboardID)
   },
 
   componentWillReceiveProps(nextProps) {
     const {location: {pathname}} = this.props
-    const {location: {pathname: nextPathname}, params: {dashboardID: nextID}} = nextProps
+    const {
+      location: {pathname: nextPathname},
+      params: {dashboardID: nextID},
+      dashboardActions: {setDashboard},
+    } = nextProps
 
     if (nextPathname.pathname === pathname) {
       return
     }
 
+    setDashboard(nextID)
+
     this.setState({
       isEditMode: nextPathname.includes('/edit'),
-      dashboard: _.find(this.state.dashboards, (d) => d.id.toString() === nextID),
     })
   },
 
@@ -90,19 +95,16 @@ const DashboardPage = React.createClass({
   },
 
   render() {
-    const {timeRange, isEditMode, dashboard} = this.state;
+    const {timeRange, isEditMode} = this.state;
 
     const {
       dashboards,
+      dashboard,
       params: {sourceID},
       inPresentationMode,
       handleClickPresentationButton,
       source,
     } = this.props
-
-    if (!dashboard) {
-      return null
-    }
 
     return (
       <div className="page">
@@ -141,10 +143,15 @@ const DashboardPage = React.createClass({
   },
 });
 
-const mapStateToProps = (state) => ({
-  inPresentationMode: state.appUI.presentationMode,
-  dashboards: state.dashboardUI.dashboards,
-})
+const mapStateToProps = (state) => {
+  const {appUI, dashboardUI: {dashboards, dashboard}} = state
+
+  return {
+    inPresentationMode: appUI.presentationMode,
+    dashboards,
+    dashboard,
+  }
+}
 
 const mapDispatchToProps = (dispatch) => ({
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),

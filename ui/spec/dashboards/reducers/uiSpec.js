@@ -1,7 +1,8 @@
-import reducer from 'src/dashboards/reducers/ui';
+import reducer from 'src/dashboards/reducers/ui'
 
 import {
   loadDashboards,
+  setDashboard,
 } from 'src/dashboards/actions';
 
 const noopAction = () => {
@@ -11,21 +12,37 @@ const noopAction = () => {
 let state = undefined;
 
 describe('DataExplorer.Reducers.UI', () => {
-  it('it sets the default state for UI', () => {
-    const actual = reducer(state, noopAction());
-    const expected = {
-      dashboards: [],
-    };
-
-    expect(actual).to.deep.equal(expected);
-  });
-
   it('can load the dashboards', () => {
-    const dashboards = [{cell: {}, name: "d1"}]
-    const actual = reducer(state, loadDashboards(dashboards));
+    const dashboard = {id: 2, cells: [], name: "d2"}
+    const dashboards = [
+      {id: 1, cells: [], name: "d1"},
+      dashboard,
+    ]
+
+    const actual = reducer(state, loadDashboards(dashboards, dashboard.id))
     const expected = {
       dashboards,
+      dashboard,
     }
-    expect(actual).to.deep.equal(expected);
+
+    expect(actual).to.deep.equal(expected)
+  });
+
+  it('can set a dashboard', () => {
+    const d1 = {id: 2, cells: [], name: "d2"}
+    const d2 = {id: 2, cells: [], name: "d2"}
+    const dashboards = [
+      d1,
+      d2,
+    ]
+
+    const loadedState = reducer(state, loadDashboards(dashboards, d1.id))
+    const actual = reducer(loadedState, setDashboard(d2.id))
+    const expected = {
+      dashboards,
+      dashboard: d2,
+    }
+
+    expect(actual).to.deep.equal(expected)
   });
 });
