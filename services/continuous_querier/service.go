@@ -12,7 +12,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 const (

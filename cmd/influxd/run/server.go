@@ -31,7 +31,7 @@ import (
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
 	client "github.com/influxdata/usage-client/v1"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 	// Initialize the engine packages
 	_ "github.com/influxdata/influxdb/tsdb/engine"
 )

@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 // TSMFile represents an on-disk TSM file.
