@@ -796,9 +796,13 @@ func (m *Measurement) TagSets(shardID uint64, dimensions []string, condition inf
 		tags := make(map[string]string, len(dimensions))
 
 		// Build the TagSet for this series.
+
+		s.mu.RLock()
 		for _, dim := range dimensions {
 			tags[dim] = s.Tags.GetString(dim)
 		}
+		s.mu.RUnlock()
+
 		// Convert the TagSet to a string, so it can be added to a map allowing TagSets to be handled
 		// as a set.
 		tagsAsKey := MarshalTags(tags)

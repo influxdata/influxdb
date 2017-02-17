@@ -5,6 +5,11 @@
 - [#7832](https://github.com/influxdata/influxdb/pull/7832): Fix memory leak when writing new series over HTTP
 - [#7929](https://github.com/influxdata/influxdb/issues/7929): Fix series tag iteration segfault. (#7922)
 - [#8011](https://github.com/influxdata/influxdb/issues/8011): Fix tag dereferencing panic.
+## v1.1.2 [unreleased]
+
+## Bugfixes
+
+- [#8024](https://github.com/influxdata/influxdb/pull/8024): Add required series lock on tag iteration.
 
 ## v1.1.1 [2016-12-06]
 
