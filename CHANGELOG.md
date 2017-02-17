@@ -1,3 +1,9 @@
+## v1.1.3 [2017-02-17]
+
+### Bugfixes
+
+- [#8027](https://github.com/influxdata/influxdb/pull/8027): Remove Tags.shouldCopy, replace with forceCopy on series creation. 
+
 ## v1.1.2 [2017-02-16]
 
 ### Bugfixes
