@@ -12,8 +12,9 @@ import (
 )
 
 type newSourceUserRequest struct {
-	Username string `json:"username,omitempty"` // Username for new account
-	Password string `json:"password,omitempty"` // Passwor for new account
+	Username    string                 `json:"username,omitempty"`    // Username for new account
+	Password    string                 `json:"password,omitempty"`    // Password for new account
+	Permissions chronograf.Permissions `json:"permissions,omitempty"` // Optional permissions
 }
 
 func (r *newSourceUserRequest) Valid() error {
@@ -27,16 +28,18 @@ func (r *newSourceUserRequest) Valid() error {
 }
 
 type sourceUser struct {
-	Username string          `json:"username,omitempty"` // Username for new account
-	Links    sourceUserLinks `json:"links"`              // Links are URI locations related to user
+	Username    string                 `json:"username,omitempty"`    // Username for new account
+	Permissions chronograf.Permissions `json:"permissions,omitempty"` // Account's permissions
+	Links       sourceUserLinks        `json:"links"`                 // Links are URI locations related to user
 }
 
-func NewSourceUser(srcID int, name string) sourceUser {
+func NewSourceUser(srcID int, name string, perms chronograf.Permissions) sourceUser {
 	u := &url.URL{Path: name}
 	encodedUser := u.String()
 	httpAPISrcs := "/chronograf/v1/sources"
 	return sourceUser{
-		Username: name,
+		Username:    name,
+		Permissions: perms,
 		Links: sourceUserLinks{
 			Self: fmt.Sprintf("%s/%d/users/%s", httpAPISrcs, srcID, encodedUser),
 		},
@@ -76,7 +79,7 @@ func (h *Service) NewSourceUser(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 	}
 
-	su := NewSourceUser(srcID, res.Name)
+	su := NewSourceUser(srcID, res.Name, req.Permissions)
 	w.Header().Add("Location", su.Links.Self)
 	encodeJSON(w, http.StatusCreated, su, h.Logger)
 }
@@ -102,7 +105,7 @@ func (h *Service) SourceUsers(w http.ResponseWriter, r *http.Request) {
 
 	su := []sourceUser{}
 	for _, u := range users {
-		su = append(su, NewSourceUser(srcID, u.Name))
+		su = append(su, NewSourceUser(srcID, u.Name, u.Permissions))
 	}
 
 	res := sourceUsers{
@@ -128,7 +131,7 @@ func (h *Service) SourceUserID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := NewSourceUser(srcID, u.Name)
+	res := NewSourceUser(srcID, u.Name, u.Permissions)
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 

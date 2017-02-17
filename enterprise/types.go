@@ -23,6 +23,7 @@ type Node struct {
 }
 
 // Permissions maps resources to a set of permissions.
+// Specifically, it maps a database to a set of permissions
 type Permissions map[string][]string
 
 // User represents an enterprise user.

@@ -221,10 +221,22 @@ type ID interface {
 	Generate() (string, error)
 }
 
+// Permission is a specific allowance for User or Role bound to a
+// scope of the data source
+type Permission struct {
+	Scope   string   `json:"scope"`
+	Name    string   `json:"name,omitempty"`
+	Allowed []string `json:"allowed"`
+}
+
+// Permissions represent the entire set of permissions a User or Role may have
+type Permissions []Permission
+
 // User represents an authenticated user.
 type User struct {
-	Name   string `json:"username"`
-	Passwd string `json:"password"`
+	Name        string      `json:"username"`
+	Passwd      string      `json:"password"`
+	Permissions Permissions `json:"permissions,omitempty"`
 }
 
 // UsersStore is the Storage and retrieval of authentication information
