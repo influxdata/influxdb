@@ -17,10 +17,20 @@ var _ oauth2.Provider = &MockProvider{}
 
 type MockProvider struct {
 	Email string
+
+	ProviderURL string
 }
 
 func (mp *MockProvider) Config() *goauth.Config {
-	return &goauth.Config{}
+	return &goauth.Config{
+		RedirectURL:  "http://www.example.com",
+		ClientID:     "4815162342",
+		ClientSecret: "8675309",
+		Endpoint: goauth.Endpoint{
+			mp.ProviderURL + "/oauth/auth",
+			mp.ProviderURL + "/oauth/token",
+		},
+	}
 }
 
 func (mp *MockProvider) ID() string {
