@@ -1,14 +1,11 @@
 import _ from 'lodash';
 import {EMPTY_DASHBOARD} from 'src/dashboards/constants'
-
+import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
 const initialState = {
   dashboards: [],
   dashboard: EMPTY_DASHBOARD,
-  timeRange: {
-    upper: null,
-    lower: 'now() - 15m',
-  },
+  timeRange: timeRanges[1],
 };
 
 export default function ui(state = initialState, action) {

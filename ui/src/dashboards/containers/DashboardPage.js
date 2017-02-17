@@ -39,6 +39,7 @@ const DashboardPage = React.createClass({
     dashboardActions: shape({
       getDashboards: func.isRequired,
       setDashboard: func.isRequired,
+      setTimeRange: func.isRequired,
     }).isRequired,
     dashboards: arrayOf(shape({
       id: number.isRequired,
@@ -48,15 +49,13 @@ const DashboardPage = React.createClass({
       id: number.isRequired,
       cells: arrayOf(shape({})).isRequired,
     }).isRequired,
+    timeRange: shape({}).isRequired,
     inPresentationMode: bool.isRequired,
     handleClickPresentationButton: func,
   },
 
   getInitialState() {
-    const fifteenMinutesIndex = 1;
-
     return {
-      timeRange: timeRanges[fifteenMinutesIndex],
       isEditMode: this.props.location.pathname.includes('/edit'),
     };
   },
@@ -91,11 +90,11 @@ const DashboardPage = React.createClass({
 
   handleChooseTimeRange({lower}) {
     const timeRange = timeRanges.find((range) => range.queryValue === lower);
-    this.setState({timeRange});
+    this.props.dashboardActions.setTimeRange(timeRange)
   },
 
   render() {
-    const {timeRange, isEditMode} = this.state;
+    const {isEditMode} = this.state;
 
     const {
       dashboards,
@@ -104,6 +103,7 @@ const DashboardPage = React.createClass({
       inPresentationMode,
       handleClickPresentationButton,
       source,
+      timeRange,
     } = this.props
 
     return (
@@ -144,12 +144,16 @@ const DashboardPage = React.createClass({
 });
 
 const mapStateToProps = (state) => {
-  const {appUI, dashboardUI: {dashboards, dashboard}} = state
+  const {
+    appUI,
+    dashboardUI: {dashboards, dashboard, timeRange},
+  } = state
 
   return {
     inPresentationMode: appUI.presentationMode,
     dashboards,
     dashboard,
+    timeRange,
   }
 }
 
