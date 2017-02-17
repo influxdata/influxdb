@@ -52,7 +52,9 @@ func NewClientWithURL(mu string, tls bool, lg chronograf.Logger) (*Client, error
 	}
 
 	return &Client{
-		Ctrl:   &MetaClient{metaURL.Host},
+		Ctrl: &MetaClient{
+			MetaHostPort: metaURL.Host,
+		},
 		Logger: lg,
 	}, nil
 }
