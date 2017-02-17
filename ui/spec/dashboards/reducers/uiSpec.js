@@ -5,6 +5,7 @@ import {
   loadDashboards,
   setDashboard,
   setTimeRange,
+  setEditMode,
 } from 'src/dashboards/actions'
 
 const noopAction = () => {
@@ -23,22 +24,17 @@ describe('DataExplorer.Reducers.UI', () => {
     const expected = {
       dashboards,
       dashboard: d1,
-      timeRange,
     }
 
-    expect(actual).to.deep.equal(expected)
+    expect(actual.dashboards).to.deep.equal(expected.dashboards)
+    expect(actual.dashboard).to.deep.equal(expected.dashboard)
   })
 
   it('can set a dashboard', () => {
     const loadedState = reducer(state, loadDashboards(dashboards, d1.id))
     const actual = reducer(loadedState, setDashboard(d2.id))
-    const expected = {
-      dashboards,
-      dashboard: d2,
-      timeRange,
-    }
 
-    expect(actual).to.deep.equal(expected)
+    expect(actual.dashboard).to.deep.equal(d2)
   })
 
   it('can set the time range', () => {
@@ -46,5 +42,11 @@ describe('DataExplorer.Reducers.UI', () => {
     const actual = reducer(state, setTimeRange(expected))
 
     expect(actual.timeRange).to.deep.equal(expected)
+  })
+
+  it('can set edit mode', () => {
+    const isEditMode = true
+    const actual = reducer(state, setEditMode(isEditMode))
+    expect(actual.isEditMode).to.equal(isEditMode)
   })
 })

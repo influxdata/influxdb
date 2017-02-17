@@ -28,6 +28,15 @@ export function setTimeRange(timeRange) {
   }
 }
 
+export function setEditMode(isEditMode) {
+  return {
+    type: 'SET_EDIT_MODE',
+    payload: {
+      isEditMode,
+    },
+  }
+}
+
 export function getDashboards(dashboardID) {
   return (dispatch) => {
     getDashboardsAPI().then(({data: {dashboards}}) => {
