@@ -5,6 +5,10 @@ import {EMPTY_DASHBOARD} from 'src/dashboards/constants'
 const initialState = {
   dashboards: [],
   dashboard: EMPTY_DASHBOARD,
+  timeRange: {
+    upper: null,
+    lower: 'now() - 15m',
+  },
 };
 
 export default function ui(state = initialState, action) {
@@ -26,6 +30,12 @@ export default function ui(state = initialState, action) {
       };
 
       return {...state, ...newState}
+    }
+
+    case 'SET_DASHBOARD_TIME_RANGE': {
+      const {timeRange} = action.payload
+
+      return {...state, timeRange};
     }
   }
 

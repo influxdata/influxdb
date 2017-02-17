@@ -19,6 +19,15 @@ export function setDashboard(dashboardID) {
   }
 }
 
+export function setTimeRange(timeRange) {
+  return {
+    type: 'SET_DASHBOARD_TIME_RANGE',
+    payload: {
+      timeRange,
+    },
+  }
+}
+
 export function getDashboards(dashboardID) {
   return (dispatch) => {
     getDashboardsAPI().then(({data: {dashboards}}) => {
