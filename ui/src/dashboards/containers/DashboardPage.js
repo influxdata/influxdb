@@ -40,6 +40,7 @@ const DashboardPage = React.createClass({
       getDashboards: func.isRequired,
       setDashboard: func.isRequired,
       setTimeRange: func.isRequired,
+      setEditMode: func.isRequired,
     }).isRequired,
     dashboards: arrayOf(shape({
       id: number.isRequired,
@@ -51,13 +52,8 @@ const DashboardPage = React.createClass({
     }).isRequired,
     timeRange: shape({}).isRequired,
     inPresentationMode: bool.isRequired,
+    isEditMode: bool.isRequired,
     handleClickPresentationButton: func,
-  },
-
-  getInitialState() {
-    return {
-      isEditMode: this.props.location.pathname.includes('/edit'),
-    };
   },
 
   componentDidMount() {
@@ -74,7 +70,7 @@ const DashboardPage = React.createClass({
     const {
       location: {pathname: nextPathname},
       params: {dashboardID: nextID},
-      dashboardActions: {setDashboard},
+      dashboardActions: {setDashboard, setEditMode},
     } = nextProps
 
     if (nextPathname.pathname === pathname) {
@@ -82,10 +78,7 @@ const DashboardPage = React.createClass({
     }
 
     setDashboard(nextID)
-
-    this.setState({
-      isEditMode: nextPathname.includes('/edit'),
-    })
+    setEditMode(nextPathname.includes('/edit'))
   },
 
   handleChooseTimeRange({lower}) {
@@ -94,13 +87,12 @@ const DashboardPage = React.createClass({
   },
 
   render() {
-    const {isEditMode} = this.state;
-
     const {
       dashboards,
       dashboard,
       params: {sourceID},
       inPresentationMode,
+      isEditMode,
       handleClickPresentationButton,
       source,
       timeRange,
@@ -146,7 +138,12 @@ const DashboardPage = React.createClass({
 const mapStateToProps = (state) => {
   const {
     appUI,
-    dashboardUI: {dashboards, dashboard, timeRange},
+    dashboardUI: {
+      dashboards,
+      dashboard,
+      timeRange,
+      isEditMode,
+    },
   } = state
 
   return {
@@ -154,6 +151,7 @@ const mapStateToProps = (state) => {
     dashboards,
     dashboard,
     timeRange,
+    isEditMode,
   }
 }
 

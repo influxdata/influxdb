@@ -6,6 +6,7 @@ const initialState = {
   dashboards: [],
   dashboard: EMPTY_DASHBOARD,
   timeRange: timeRanges[1],
+  isEditMode: false,
 };
 
 export default function ui(state = initialState, action) {
@@ -33,6 +34,11 @@ export default function ui(state = initialState, action) {
       const {timeRange} = action.payload
 
       return {...state, timeRange};
+    }
+
+    case 'SET_EDIT_MODE': {
+      const {isEditMode} = action.payload
+      return {...state, isEditMode}
     }
   }
 
