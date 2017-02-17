@@ -145,7 +145,7 @@ func (d *DatabaseIndex) SeriesShardN(shardID uint64) int {
 }
 
 // CreateSeriesIndexIfNotExists adds the series for the given measurement to the index and sets its ID or returns the existing series object
-func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, series *Series) *Series {
+func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, series *Series, forceCopy bool) *Series {
 	d.mu.RLock()
 	// if there is a measurement for this id, it's already been added
 	ss := d.series[series.Key]
@@ -173,7 +173,9 @@ func (d *DatabaseIndex) CreateSeriesIndexIfNotExists(measurementName string, ser
 	series.measurement = m
 
 	// Clone the tags to dereference any short-term buffers
-	series.Tags = series.Tags.Clone()
+	if forceCopy {
+		series.CopyTags()
+	}
 	d.series[series.Key] = series
 
 	m.AddSeries(series)
@@ -271,7 +273,7 @@ func (d *DatabaseIndex) TagsForSeries(key string) models.Tags {
 	if ss == nil {
 		return nil
 	}
-	return ss.CloneTags()
+	return ss.Tags()
 }
 
 // MeasurementsByExpr takes an expression containing only tags and returns a
@@ -702,7 +704,7 @@ func (m *Measurement) AddSeries(s *Series) bool {
 	}
 
 	// add this series id to the tag index on the measurement
-	for _, t := range s.Tags {
+	s.ForEachTag(func(t models.Tag) {
 		valueMap := m.seriesByTagKeyValue[string(t.Key)]
 		if valueMap == nil {
 			valueMap = make(map[string]SeriesIDs)
@@ -717,7 +719,7 @@ func (m *Measurement) AddSeries(s *Series) bool {
 			sort.Sort(ids)
 		}
 		valueMap[string(t.Value)] = ids
-	}
+	})
 
 	return true
 }
@@ -738,7 +740,7 @@ func (m *Measurement) DropSeries(series *Series) {
 
 	// remove this series id from the tag index on the measurement
 	// s.seriesByTagKeyValue is defined as map[string]map[string]SeriesIDs
-	for _, t := range series.Tags {
+	series.ForEachTag(func(t models.Tag) {
 		values := m.seriesByTagKeyValue[string(t.Key)][string(t.Value)]
 		ids := filter(values, seriesID)
 		// Check to see if we have any ids, if not, remove the key
@@ -752,7 +754,7 @@ func (m *Measurement) DropSeries(series *Series) {
 		if len(m.seriesByTagKeyValue[string(t.Key)]) == 0 {
 			delete(m.seriesByTagKeyValue, string(t.Key))
 		}
-	}
+	})
 
 	return
 }
@@ -797,8 +799,9 @@ func (m *Measurement) TagSets(shardID uint64, dimensions []string, condition inf
 
 		// Build the TagSet for this series.
 		for _, dim := range dimensions {
-			tags[dim] = s.Tags.GetString(dim)
+			tags[dim] = s.GetTagString(dim)
 		}
+
 		// Convert the TagSet to a string, so it can be added to a map allowing TagSets to be handled
 		// as a set.
 		tagsAsKey := MarshalTags(tags)
@@ -1550,7 +1553,7 @@ func (a Measurements) union(other Measurements) Measurements {
 type Series struct {
 	mu          sync.RWMutex
 	Key         string
-	Tags        models.Tags
+	tags        models.Tags
 	ID          uint64
 	measurement *Measurement
 	shardIDs    []uint64 // shards that have this series defined
@@ -1560,7 +1563,7 @@ type Series struct {
 func NewSeries(key string, tags models.Tags) *Series {
 	return &Series{
 		Key:  key,
-		Tags: tags,
+		tags: tags,
 	}
 }
 
@@ -1607,16 +1610,30 @@ func (s *Series) ShardN() int {
 func (s *Series) ForEachTag(fn func(models.Tag)) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	for _, t := range s.Tags {
+	for _, t := range s.tags {
 		fn(t)
 	}
 }
 
-// CloneTags returns a copy of the series tags under lock.
-func (s *Series) CloneTags() models.Tags {
+// Tags returns a copy of the tags under lock.
+func (s *Series) Tags() models.Tags {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.Tags.Clone()
+	return s.tags.Clone()
+}
+
+// CopyTags clones the tags on the series in-place,
+func (s *Series) CopyTags() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tags = s.tags.Clone()
+}
+
+// GetTagString returns a tag value under lock.
+func (s *Series) GetTagString(key string) string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.tags.GetString(key)
 }
 
 // Dereference removes references to a byte slice.
@@ -1626,9 +1643,9 @@ func (s *Series) Dereference(b []byte) {
 	min := uintptr(unsafe.Pointer(&b[0]))
 	max := min + uintptr(len(b))
 
-	for i := range s.Tags {
-		deref(&s.Tags[i].Key, min, max)
-		deref(&s.Tags[i].Value, min, max)
+	for i := range s.tags {
+		deref(&s.tags[i].Key, min, max)
+		deref(&s.tags[i].Value, min, max)
 	}
 
 	s.mu.Unlock()
@@ -1656,7 +1673,7 @@ func (s *Series) MarshalBinary() ([]byte, error) {
 
 	var pb internal.Series
 	pb.Key = &s.Key
-	for _, t := range s.Tags {
+	for _, t := range s.tags {
 		pb.Tags = append(pb.Tags, &internal.Tag{Key: proto.String(string(t.Key)), Value: proto.String(string(t.Value))})
 	}
 	return proto.Marshal(&pb)
@@ -1672,9 +1689,9 @@ func (s *Series) UnmarshalBinary(buf []byte) error {
 		return err
 	}
 	s.Key = pb.GetKey()
-	s.Tags = make(models.Tags, len(pb.Tags))
+	s.tags = make(models.Tags, len(pb.Tags))
 	for i, t := range pb.Tags {
-		s.Tags[i] = models.Tag{Key: []byte(t.GetKey()), Value: []byte(t.GetValue())}
+		s.tags[i] = models.Tag{Key: []byte(t.GetKey()), Value: []byte(t.GetValue())}
 	}
 	return nil
 }
@@ -1982,7 +1999,7 @@ func (m *Measurement) tagValuesByKeyAndSeriesID(tagKeys []string, ids SeriesIDs)
 		// Iterate the tag keys we're interested in and collect values
 		// from this series, if they exist.
 		for _, tagKey := range tagKeys {
-			if tagVal := s.Tags.GetString(tagKey); tagVal != "" {
+			if tagVal := s.GetTagString(tagKey); tagVal != "" {
 				if _, ok = tagValues[tagKey]; !ok {
 					tagValues[tagKey] = newStringSet()
 				}
