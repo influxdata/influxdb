@@ -1,6 +1,8 @@
 ## v1.2.0 [unreleased]
 
 ### Bug Fixes
+  1. [#882](https://github.com/influxdata/chronograf/pull/882): Fix y-axis graph padding
+
 ### Features
 ### UI Improvements
 
