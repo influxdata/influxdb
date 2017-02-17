@@ -27,7 +27,7 @@ func newUserResponse(usr *chronograf.User) userResponse {
 	return userResponse{
 		User: usr,
 		Links: userLinks{
-			Self: fmt.Sprintf("%s/%d", base, encodedUser),
+			Self: fmt.Sprintf("%s/%s", base, encodedUser),
 		},
 	}
 }
