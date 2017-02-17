@@ -10,6 +10,7 @@ import {
 } from '../actions/view';
 
 const {
+  arrayOf,
   func,
   shape,
   string,
@@ -29,6 +30,9 @@ const DataExplorer = React.createClass({
       lower: string,
     }).isRequired,
     setTimeRange: func.isRequired,
+    dataExplorer: shape({
+      queryIDs: arrayOf(string).isRequired,
+    }).isRequired,
   },
 
   childContextTypes: {
@@ -55,9 +59,9 @@ const DataExplorer = React.createClass({
   },
 
   render() {
-    const {timeRange, setTimeRange, queryConfigs} = this.props;
+    const {timeRange, setTimeRange, queryConfigs, dataExplorer} = this.props;
     const {activeQueryID} = this.state;
-    const queries = Object.keys(queryConfigs).map((q) => queryConfigs[q]);
+    const queries = dataExplorer.queryIDs.map((qid) => queryConfigs[qid]);
 
     return (
       <div className="data-explorer">
@@ -85,11 +89,12 @@ const DataExplorer = React.createClass({
 });
 
 function mapStateToProps(state) {
-  const {timeRange, queryConfigs} = state;
+  const {timeRange, queryConfigs, dataExplorer} = state;
 
   return {
     timeRange,
     queryConfigs,
+    dataExplorer,
   };
 }
 

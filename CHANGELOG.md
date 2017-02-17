@@ -4,7 +4,18 @@
   1. [#882](https://github.com/influxdata/chronograf/pull/882): Fix y-axis graph padding
 
 ### Features
+  1. [#873](https://github.com/influxdata/chronograf/pull/873): Add [TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md) support 
+
 ### UI Improvements
+
+## v1.2.0-beta3 [2017-02-15]
+
+### Bug Fixes
+  1. [#879](https://github.com/influxdata/chronograf/pull/879): Fix several Kapacitor configuration page state bugs: [#875](https://github.com/influxdata/chronograf/issues/875), [#876](https://github.com/influxdata/chronograf/issues/876), [#878](https://github.com/influxdata/chronograf/issues/878)
+  2. [#872](https://github.com/influxdata/chronograf/pull/872): Fix incorrect data source response
+
+### Features
+  1. [#896](https://github.com/influxdata/chronograf/pull/896) Add more docker stats
 
 ## v1.2.0-beta2 [2017-02-10]
 
