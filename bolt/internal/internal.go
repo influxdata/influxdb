@@ -278,21 +278,35 @@ func UnmarshalAlertRule(data []byte, r *ScopedAlert) error {
 }
 
 // MarshalUser encodes a user to binary protobuf format.
+// We are ignoring the password for now.
 func MarshalUser(u *chronograf.User) ([]byte, error) {
-	return proto.Marshal(&User{
-		ID:    uint64(u.ID),
-		Email: u.Email,
+	return MarshalUserPB(&User{
+		Name: u.Name,
 	})
 }
 
+// MarshalUserPB encodes a user to binary protobuf format.
+// We are ignoring the password for now.
+func MarshalUserPB(u *User) ([]byte, error) {
+	return proto.Marshal(u)
+}
+
 // UnmarshalUser decodes a user from binary protobuf data.
+// We are ignoring the password for now.
 func UnmarshalUser(data []byte, u *chronograf.User) error {
 	var pb User
-	if err := proto.Unmarshal(data, &pb); err != nil {
+	if err := UnmarshalUserPB(data, &pb); err != nil {
 		return err
 	}
+	u.Name = pb.Name
+	return nil
+}
 
-	u.ID = chronograf.UserID(pb.ID)
-	u.Email = pb.Email
+// UnmarshalUser decodes a user from binary protobuf data.
+// We are ignoring the password for now.
+func UnmarshalUserPB(data []byte, u *User) error {
+	if err := proto.Unmarshal(data, u); err != nil {
+		return err
+	}
 	return nil
 }

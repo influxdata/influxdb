@@ -2,12 +2,15 @@ package enterprise
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+
+	"github.com/influxdata/chronograf"
 )
 
 type MetaClient struct {
@@ -16,8 +19,8 @@ type MetaClient struct {
 	Password     string
 }
 
-func (t *MetaClient) ShowCluster() (*Cluster, error) {
-	res, err := t.Do("GET", "/show-cluster", nil, nil)
+func (t *MetaClient) ShowCluster(ctx context.Context) (*Cluster, error) {
+	res, err := t.Do(ctx, "GET", "/show-cluster", nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -33,12 +36,12 @@ func (t *MetaClient) ShowCluster() (*Cluster, error) {
 }
 
 // Users gets all the users.  If name is not nil it filters for a single user
-func (t *MetaClient) Users(name *string) (*Users, error) {
+func (t *MetaClient) Users(ctx context.Context, name *string) (*Users, error) {
 	params := map[string]string{}
 	if name != nil {
 		params["name"] = *name
 	}
-	res, err := t.Do("GET", "/user", params, nil)
+	res, err := t.Do(ctx, "GET", "/user", params, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -53,8 +56,8 @@ func (t *MetaClient) Users(name *string) (*Users, error) {
 	return users, nil
 }
 
-func (t *MetaClient) User(name string) (*User, error) {
-	users, err := t.Users(&name)
+func (t *MetaClient) User(ctx context.Context, name string) (*User, error) {
+	users, err := t.Users(ctx, &name)
 	if err != nil {
 		return nil, err
 	}
@@ -64,15 +67,15 @@ func (t *MetaClient) User(name string) (*User, error) {
 	return nil, fmt.Errorf("No user found")
 }
 
-func (t *MetaClient) CreateUser(name, passwd string) error {
-	return t.CreateUpdateUser("create", name, passwd)
+func (t *MetaClient) CreateUser(ctx context.Context, name, passwd string) error {
+	return t.CreateUpdateUser(ctx, "create", name, passwd)
 }
 
-func (t *MetaClient) ChangePassword(name, passwd string) error {
-	return t.CreateUpdateUser("change-password", name, passwd)
+func (t *MetaClient) ChangePassword(ctx context.Context, name, passwd string) error {
+	return t.CreateUpdateUser(ctx, "change-password", name, passwd)
 }
 
-func (t *MetaClient) CreateUpdateUser(action, name, passwd string) error {
+func (t *MetaClient) CreateUpdateUser(ctx context.Context, action, name, passwd string) error {
 	a := &UserAction{
 		Action: action,
 		User: &User{
@@ -80,10 +83,10 @@ func (t *MetaClient) CreateUpdateUser(action, name, passwd string) error {
 			Password: passwd,
 		},
 	}
-	return t.Post("/user", a, nil)
+	return t.Post(ctx, "/user", a, nil)
 }
 
-func (t *MetaClient) DeleteUser(name string) error {
+func (t *MetaClient) DeleteUser(ctx context.Context, name string) error {
 	a := &UserAction{
 		Action: "delete",
 		User: &User{
@@ -91,11 +94,11 @@ func (t *MetaClient) DeleteUser(name string) error {
 		},
 	}
 
-	return t.Post("/user", a, nil)
+	return t.Post(ctx, "/user", a, nil)
 }
 
-func (t *MetaClient) RemoveAllUserPerms(name string) error {
-	user, err := t.User(name)
+func (t *MetaClient) RemoveAllUserPerms(ctx context.Context, name string) error {
+	user, err := t.User(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -109,12 +112,12 @@ func (t *MetaClient) RemoveAllUserPerms(name string) error {
 		Action: "remove-permissions",
 		User:   user,
 	}
-	return t.Post("/user", a, nil)
+	return t.Post(ctx, "/user", a, nil)
 }
 
 // SetUserPerms removes all permissions and then adds the requested perms
-func (t *MetaClient) SetUserPerms(name string, perms Permissions) error {
-	err := t.RemoveAllUserPerms(name)
+func (t *MetaClient) SetUserPerms(ctx context.Context, name string, perms Permissions) error {
+	err := t.RemoveAllUserPerms(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -131,16 +134,16 @@ func (t *MetaClient) SetUserPerms(name string, perms Permissions) error {
 			Permissions: perms,
 		},
 	}
-	return t.Post("/user", a, nil)
+	return t.Post(ctx, "/user", a, nil)
 }
 
 // Users gets all the roles.  If name is not nil it filters for a single role
-func (t *MetaClient) Roles(name *string) (*Roles, error) {
+func (t *MetaClient) Roles(ctx context.Context, name *string) (*Roles, error) {
 	params := map[string]string{}
 	if name != nil {
 		params["name"] = *name
 	}
-	res, err := t.Do("GET", "/role", params, nil)
+	res, err := t.Do(ctx, "GET", "/role", params, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -155,8 +158,8 @@ func (t *MetaClient) Roles(name *string) (*Roles, error) {
 	return roles, nil
 }
 
-func (t *MetaClient) Role(name string) (*Role, error) {
-	roles, err := t.Roles(&name)
+func (t *MetaClient) Role(ctx context.Context, name string) (*Role, error) {
+	roles, err := t.Roles(ctx, &name)
 	if err != nil {
 		return nil, err
 	}
@@ -166,27 +169,27 @@ func (t *MetaClient) Role(name string) (*Role, error) {
 	return nil, fmt.Errorf("No role found")
 }
 
-func (t *MetaClient) CreateRole(name string) error {
+func (t *MetaClient) CreateRole(ctx context.Context, name string) error {
 	a := &RoleAction{
 		Action: "create",
 		Role: &Role{
 			Name: name,
 		},
 	}
-	return t.Post("/role", a, nil)
+	return t.Post(ctx, "/role", a, nil)
 }
-func (t *MetaClient) DeleteRole(name string) error {
+func (t *MetaClient) DeleteRole(ctx context.Context, name string) error {
 	a := &RoleAction{
 		Action: "delete",
 		Role: &Role{
 			Name: name,
 		},
 	}
-	return t.Post("/role", a, nil)
+	return t.Post(ctx, "/role", a, nil)
 }
 
-func (t *MetaClient) RemoveAllRolePerms(name string) error {
-	role, err := t.Role(name)
+func (t *MetaClient) RemoveAllRolePerms(ctx context.Context, name string) error {
+	role, err := t.Role(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -200,12 +203,12 @@ func (t *MetaClient) RemoveAllRolePerms(name string) error {
 		Action: "remove-permissions",
 		Role:   role,
 	}
-	return t.Post("/role", a, nil)
+	return t.Post(ctx, "/role", a, nil)
 }
 
 // SetRolePerms removes all permissions and then adds the requested perms to role
-func (t *MetaClient) SetRolePerms(name string, perms Permissions) error {
-	err := t.RemoveAllRolePerms(name)
+func (t *MetaClient) SetRolePerms(ctx context.Context, name string, perms Permissions) error {
+	err := t.RemoveAllRolePerms(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -222,11 +225,11 @@ func (t *MetaClient) SetRolePerms(name string, perms Permissions) error {
 			Permissions: perms,
 		},
 	}
-	return t.Post("/role", a, nil)
+	return t.Post(ctx, "/role", a, nil)
 }
 
-func (t *MetaClient) RemoveAllRoleUsers(name string) error {
-	role, err := t.Role(name)
+func (t *MetaClient) RemoveAllRoleUsers(ctx context.Context, name string) error {
+	role, err := t.Role(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -240,12 +243,12 @@ func (t *MetaClient) RemoveAllRoleUsers(name string) error {
 		Action: "remove-users",
 		Role:   role,
 	}
-	return t.Post("/role", a, nil)
+	return t.Post(ctx, "/role", a, nil)
 }
 
 // SetRoleUsers removes all users and then adds the requested users to role
-func (t *MetaClient) SetRoleUsers(name string, users []string) error {
-	err := t.RemoveAllRoleUsers(name)
+func (t *MetaClient) SetRoleUsers(ctx context.Context, name string, users []string) error {
+	err := t.RemoveAllRoleUsers(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -262,23 +265,23 @@ func (t *MetaClient) SetRoleUsers(name string, users []string) error {
 			Users: users,
 		},
 	}
-	return t.Post("/role", a, nil)
+	return t.Post(ctx, "/role", a, nil)
 }
 
-func (t *MetaClient) Post(path string, action interface{}, params map[string]string) error {
+func (t *MetaClient) Post(ctx context.Context, path string, action interface{}, params map[string]string) error {
 	b, err := json.Marshal(action)
 	if err != nil {
 		return err
 	}
 	body := bytes.NewReader(b)
-	_, err = t.Do("POST", path, params, body)
+	_, err = t.Do(ctx, "POST", path, params, body)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (t *MetaClient) Do(method, path string, params map[string]string, body io.Reader) (*http.Response, error) {
+func (t *MetaClient) do(method, path string, params map[string]string, body io.Reader) (*http.Response, error) {
 	p := url.Values{}
 	p.Add("u", t.Username)
 	p.Add("p", t.Password)
@@ -317,4 +320,24 @@ func (t *MetaClient) Do(method, path string, params map[string]string, body io.R
 	}
 
 	return res, nil
+
+}
+
+func (t *MetaClient) Do(ctx context.Context, method, path string, params map[string]string, body io.Reader) (*http.Response, error) {
+	type result struct {
+		Response *http.Response
+		Err      error
+	}
+	resps := make(chan (result))
+	go func() {
+		resp, err := t.do(method, path, params, body)
+		resps <- result{resp, err}
+	}()
+
+	select {
+	case resp := <-resps:
+		return resp.Response, resp.Err
+	case <-ctx.Done():
+		return nil, chronograf.ErrUpstreamTimeout
+	}
 }

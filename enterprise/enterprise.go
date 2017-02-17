@@ -19,7 +19,11 @@ var _ chronograf.TimeSeries = &Client{}
 // are appropriately load balanced across the cluster.
 type Client struct {
 	Ctrl interface {
-		ShowCluster() (*Cluster, error)
+		ShowCluster(ctx context.Context) (*Cluster, error)
+		User(ctx context.Context, name string) (*User, error)
+		CreateUser(ctx context.Context, name, passwd string) error
+		DeleteUser(ctx context.Context, name string) error
+		ChangePassword(ctx context.Context, name, passwd string) error
 	}
 	Logger chronograf.Logger
 
@@ -66,7 +70,7 @@ func (c *Client) Connect(ctx context.Context, src *chronograf.Source) error {
 	if c.dataNodes != nil {
 		return nil
 	}
-	cluster, err := c.Ctrl.ShowCluster()
+	cluster, err := c.Ctrl.ShowCluster(ctx)
 	if err != nil {
 		return err
 	}
@@ -91,6 +95,10 @@ func (c *Client) Query(ctx context.Context, q chronograf.Query) (chronograf.Resp
 		return nil, chronograf.ErrUninitialized
 	}
 	return c.nextDataNode().Query(ctx, q)
+}
+
+func (c *Client) Users(context.Context) chronograf.UsersStore {
+	return c
 }
 
 // nextDataNode retrieves the next available data node

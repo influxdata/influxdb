@@ -11,6 +11,8 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+var _ chronograf.TimeSeries = &Client{}
+
 // Client is a device for retrieving time series data from an InfluxDB instance
 type Client struct {
 	URL                *url.URL
@@ -160,4 +162,8 @@ func (c *Client) Connect(ctx context.Context, src *chronograf.Source) error {
 	}
 	c.URL = u
 	return nil
+}
+
+func (c *Client) Users(ctx context.Context) chronograf.UsersStore {
+	return c
 }

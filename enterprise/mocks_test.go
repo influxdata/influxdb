@@ -31,9 +31,22 @@ func NewMockControlClient(addr string) *ControlClient {
 	}
 }
 
-func (cc *ControlClient) ShowCluster() (*enterprise.Cluster, error) {
+func (cc *ControlClient) ShowCluster(context.Context) (*enterprise.Cluster, error) {
 	cc.ShowClustersCalled = true
 	return cc.Cluster, nil
+}
+
+func (cc *ControlClient) User(ctx context.Context, name string) (*enterprise.User, error) {
+	return nil, nil
+}
+func (cc *ControlClient) CreateUser(ctx context.Context, name, passwd string) error {
+	return nil
+}
+func (cc *ControlClient) DeleteUser(ctx context.Context, name string) error {
+	return nil
+}
+func (cc *ControlClient) ChangePassword(ctx context.Context, name, passwd string) error {
+	return nil
 }
 
 type TimeSeries struct {
@@ -55,6 +68,10 @@ func (ts *TimeSeries) Query(ctx context.Context, q chronograf.Query) (chronograf
 }
 
 func (ts *TimeSeries) Connect(ctx context.Context, src *chronograf.Source) error {
+	return nil
+}
+
+func (ts *TimeSeries) Users(ctx context.Context) chronograf.UsersStore {
 	return nil
 }
 

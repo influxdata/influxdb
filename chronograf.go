@@ -52,6 +52,8 @@ type TimeSeries interface {
 	Query(context.Context, Query) (Response, error)
 	// Connect will connect to the time series using the information in `Source`.
 	Connect(context.Context, *Source) error
+	// UsersStore represents the user accounts within the TimeSeries database
+	Users(context.Context) UsersStore
 }
 
 // Range represents an upper and lower bound for data
@@ -219,13 +221,10 @@ type ID interface {
 	Generate() (string, error)
 }
 
-// UserID is a unique ID for a source user.
-type UserID int
-
 // User represents an authenticated user.
 type User struct {
-	ID    UserID `json:"id"`
-	Email string `json:"email"`
+	Name   string `json:"username"`
+	Passwd string `json:"password"`
 }
 
 // UsersStore is the Storage and retrieval of authentication information
@@ -234,12 +233,10 @@ type UsersStore interface {
 	Add(context.Context, *User) (*User, error)
 	// Delete the User from the UsersStore
 	Delete(context.Context, *User) error
-	// Get retrieves a user if `ID` exists.
-	Get(ctx context.Context, ID UserID) (*User, error)
+	// Get retrieves a user if name exists.
+	Get(ctx context.Context, name string) (*User, error)
 	// Update the user's permissions or roles
 	Update(context.Context, *User) error
-	// FindByEmail will retrieve a user by email address.
-	FindByEmail(ctx context.Context, Email string) (*User, error)
 }
 
 // DashboardID is the dashboard ID
