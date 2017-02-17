@@ -229,6 +229,8 @@ type User struct {
 
 // UsersStore is the Storage and retrieval of authentication information
 type UsersStore interface {
+	// All lists all users from the UsersStore
+	All(context.Context) ([]User, error)
 	// Create a new User in the UsersStore
 	Add(context.Context, *User) (*User, error)
 	// Delete the User from the UsersStore

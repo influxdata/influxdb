@@ -39,14 +39,21 @@ func (cc *ControlClient) ShowCluster(context.Context) (*enterprise.Cluster, erro
 func (cc *ControlClient) User(ctx context.Context, name string) (*enterprise.User, error) {
 	return nil, nil
 }
+
 func (cc *ControlClient) CreateUser(ctx context.Context, name, passwd string) error {
 	return nil
 }
+
 func (cc *ControlClient) DeleteUser(ctx context.Context, name string) error {
 	return nil
 }
+
 func (cc *ControlClient) ChangePassword(ctx context.Context, name, passwd string) error {
 	return nil
+}
+
+func (cc *ControlClient) Users(ctx context.Context, name *string) (*enterprise.Users, error) {
+	return nil, nil
 }
 
 type TimeSeries struct {

@@ -35,3 +35,19 @@ func (c *Client) Update(ctx context.Context, u *chronograf.User) error {
 	// TODO: Update permissions
 	return c.Ctrl.ChangePassword(ctx, u.Name, u.Passwd)
 }
+
+// All is all users in influx
+func (c *Client) All(ctx context.Context) ([]chronograf.User, error) {
+	all, err := c.Ctrl.Users(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	res := make([]chronograf.User, len(all.Users))
+	for i, user := range all.Users {
+		res[i] = chronograf.User{
+			Name: user.Name,
+		}
+	}
+	return res, nil
+}

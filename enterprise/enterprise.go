@@ -24,6 +24,7 @@ type Client struct {
 		CreateUser(ctx context.Context, name, passwd string) error
 		DeleteUser(ctx context.Context, name string) error
 		ChangePassword(ctx context.Context, name, passwd string) error
+		Users(ctx context.Context, name *string) (*Users, error)
 	}
 	Logger chronograf.Logger
 

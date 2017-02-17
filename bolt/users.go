@@ -120,3 +120,25 @@ func (s *UsersStore) Update(ctx context.Context, usr *chronograf.User) error {
 
 	return nil
 }
+
+// All returns all users
+func (s *UsersStore) All(ctx context.Context) ([]chronograf.User, error) {
+	var users []chronograf.User
+	if err := s.client.db.View(func(tx *bolt.Tx) error {
+		if err := tx.Bucket(UsersBucket).ForEach(func(k, v []byte) error {
+			var user chronograf.User
+			if err := internal.UnmarshalUser(v, &user); err != nil {
+				return err
+			}
+			users = append(users, user)
+			return nil
+		}); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}
