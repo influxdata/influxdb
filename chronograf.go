@@ -8,17 +8,16 @@ import (
 
 // General errors.
 const (
-	ErrUpstreamTimeout     = Error("request to backend timed out")
-	ErrExplorationNotFound = Error("exploration not found")
-	ErrSourceNotFound      = Error("source not found")
-	ErrServerNotFound      = Error("server not found")
-	ErrLayoutNotFound      = Error("layout not found")
-	ErrDashboardNotFound   = Error("dashboard not found")
-	ErrUserNotFound        = Error("user not found")
-	ErrLayoutInvalid       = Error("layout is invalid")
-	ErrAlertNotFound       = Error("alert not found")
-	ErrAuthentication      = Error("user not authenticated")
-	ErrUninitialized       = Error("client uninitialized. Call Open() method")
+	ErrUpstreamTimeout   = Error("request to backend timed out")
+	ErrSourceNotFound    = Error("source not found")
+	ErrServerNotFound    = Error("server not found")
+	ErrLayoutNotFound    = Error("layout not found")
+	ErrDashboardNotFound = Error("dashboard not found")
+	ErrUserNotFound      = Error("user not found")
+	ErrLayoutInvalid     = Error("layout is invalid")
+	ErrAlertNotFound     = Error("alert not found")
+	ErrAuthentication    = Error("user not authenticated")
+	ErrUninitialized     = Error("client uninitialized. Call Open() method")
 )
 
 // Error is a domain error encountered while processing chronograf requests
@@ -106,14 +105,16 @@ type SourcesStore interface {
 
 // AlertRule represents rules for building a tickscript alerting task
 type AlertRule struct {
-	ID            string        `json:"id,omitempty"` // ID is the unique ID of the alert
-	Query         QueryConfig   `json:"query"`        // Query is the filter of data for the alert.
-	Every         string        `json:"every"`        // Every how often to check for the alerting criteria
-	Alerts        []string      `json:"alerts"`       // AlertServices name all the services to notify (e.g. pagerduty)
-	Message       string        `json:"message"`      // Message included with alert
-	Trigger       string        `json:"trigger"`      // Trigger is a type that defines when to trigger the alert
-	TriggerValues TriggerValues `json:"values"`       // Defines the values that cause the alert to trigger
-	Name          string        `json:"name"`         // Name is the user-defined name for the alert
+	ID            string          `json:"id,omitempty"`         // ID is the unique ID of the alert
+	Query         QueryConfig     `json:"query"`                // Query is the filter of data for the alert.
+	Every         string          `json:"every"`                // Every how often to check for the alerting criteria
+	Alerts        []string        `json:"alerts"`               // Alerts name all the services to notify (e.g. pagerduty)
+	AlertNodes    []KapacitorNode `json:"alertNodes,omitempty"` // AlertNodes define additional arguments to alerts
+	Message       string          `json:"message"`              // Message included with alert
+	Details       string          `json:"details"`              // Details is generally used for the Email alert.  If empty will not be added.
+	Trigger       string          `json:"trigger"`              // Trigger is a type that defines when to trigger the alert
+	TriggerValues TriggerValues   `json:"values"`               // Defines the values that cause the alert to trigger
+	Name          string          `json:"name"`                 // Name is the user-defined name for the alert
 }
 
 // AlertRulesStore stores rules for building tickscript alerting tasks
@@ -172,6 +173,20 @@ type QueryConfig struct {
 	GroupBy         GroupBy             `json:"groupBy"`
 	AreTagsAccepted bool                `json:"areTagsAccepted"`
 	RawText         string              `json:"rawText,omitempty"`
+}
+
+// KapacitorNode adds arguments and properties to an alert
+type KapacitorNode struct {
+	Name       string              `json:"name"`
+	Args       []string            `json:"args"`
+	Properties []KapacitorProperty `json:"properties"`
+	// In the future we could add chaining methods here.
+}
+
+// KapacitorProperty modifies the node they are called on
+type KapacitorProperty struct {
+	Name string   `json:"name"`
+	Args []string `json:"args"`
 }
 
 // Server represents a proxy connection to an HTTP server
@@ -260,34 +275,6 @@ type DashboardsStore interface {
 	Get(ctx context.Context, id DashboardID) (Dashboard, error)
 	// Update replaces the dashboard information
 	Update(context.Context, Dashboard) error
-}
-
-// ExplorationID is a unique ID for an Exploration.
-type ExplorationID int
-
-// Exploration is a serialization of front-end Data Explorer.
-type Exploration struct {
-	ID        ExplorationID
-	Name      string    // User provided name of the Exploration.
-	UserID    UserID    // UserID is the owner of this Exploration.
-	Data      string    // Opaque blob of JSON data.
-	CreatedAt time.Time // Time the exploration was first created.
-	UpdatedAt time.Time // Latest time the exploration was updated.
-	Default   bool      // Flags an exploration as the default.
-}
-
-// ExplorationStore stores front-end serializations of data explorer sessions.
-type ExplorationStore interface {
-	// Search the ExplorationStore for each Exploration owned by `UserID`.
-	Query(ctx context.Context, userID UserID) ([]*Exploration, error)
-	// Create a new Exploration in the ExplorationStore.
-	Add(context.Context, *Exploration) (*Exploration, error)
-	// Delete the Exploration from the ExplorationStore.
-	Delete(context.Context, *Exploration) error
-	// Retrieve an Exploration if `ID` exists.
-	Get(ctx context.Context, ID ExplorationID) (*Exploration, error)
-	// Update the Exploration; will also update the `UpdatedAt` time.
-	Update(context.Context, *Exploration) error
 }
 
 // Cell is a rectangle and multiple time series queries to visualize.

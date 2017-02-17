@@ -8,20 +8,18 @@ const SideNavApp = React.createClass({
     currentLocation: string.isRequired,
     addFlashMessage: func.isRequired,
     sourceID: string.isRequired,
-    explorationID: string,
     me: shape({
       email: string,
     }),
   },
 
   render() {
-    const {me, currentLocation, sourceID, explorationID} = this.props;
+    const {me, currentLocation, sourceID} = this.props;
 
     return (
       <SideNav
         sourceID={sourceID}
         location={currentLocation}
-        explorationID={explorationID}
         me={me}
       />
     );

@@ -1,44 +1,45 @@
 import React, {PropTypes} from 'react';
 import {connect} from 'react-redux';
-import PanelBuilder from '../components/PanelBuilder';
-import Visualizations from '../components/Visualizations';
+import QueryBuilder from '../components/QueryBuilder';
+import Visualization from '../components/Visualization';
 import Header from '../containers/Header';
-import ResizeContainer from 'shared/components/ResizeContainer';
-import {FETCHING} from '../reducers/explorers';
+import ResizeContainer from 'src/shared/components/ResizeContainer';
+
 import {
   setTimeRange as setTimeRangeAction,
-  createExploration as createExplorationAction,
-  chooseExploration as chooseExplorationAction,
-  deleteExplorer as deleteExplorerAction,
-  editExplorer as editExplorerAction,
 } from '../actions/view';
+
+const {
+  arrayOf,
+  func,
+  shape,
+  string,
+} = PropTypes;
 
 const DataExplorer = React.createClass({
   propTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
-        self: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
+        self: string.isRequired,
       }).isRequired,
     }).isRequired,
-    explorers: PropTypes.shape({}).isRequired,
-    explorerID: PropTypes.string,
-    timeRange: PropTypes.shape({
-      upper: PropTypes.string,
-      lower: PropTypes.string,
+    queryConfigs: PropTypes.shape({}),
+    timeRange: shape({
+      upper: string,
+      lower: string,
     }).isRequired,
-    setTimeRange: PropTypes.func.isRequired,
-    createExploration: PropTypes.func.isRequired,
-    chooseExploration: PropTypes.func.isRequired,
-    deleteExplorer: PropTypes.func.isRequired,
-    editExplorer: PropTypes.func.isRequired,
+    setTimeRange: func.isRequired,
+    dataExplorer: shape({
+      queryIDs: arrayOf(string).isRequired,
+    }).isRequired,
   },
 
   childContextTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
-        self: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
+        self: string.isRequired,
       }).isRequired,
     }).isRequired,
   },
@@ -49,13 +50,8 @@ const DataExplorer = React.createClass({
 
   getInitialState() {
     return {
-      activePanelID: null,
       activeQueryID: null,
     };
-  },
-
-  handleSetActivePanel(id) {
-    this.setState({activePanelID: id});
   },
 
   handleSetActiveQuery(id) {
@@ -63,33 +59,28 @@ const DataExplorer = React.createClass({
   },
 
   render() {
-    const {timeRange, explorers, explorerID, setTimeRange, createExploration, chooseExploration, deleteExplorer, editExplorer} = this.props;
-
-    if (explorers === FETCHING || !explorerID) {
-      // TODO: page-wide spinner
-      return null;
-    }
+    const {timeRange, setTimeRange, queryConfigs, dataExplorer} = this.props;
+    const {activeQueryID} = this.state;
+    const queries = dataExplorer.queryIDs.map((qid) => queryConfigs[qid]);
 
     return (
       <div className="data-explorer">
         <Header
-          actions={{setTimeRange, createExploration, chooseExploration, deleteExplorer, editExplorer}}
-          explorers={explorers}
+          actions={{setTimeRange}}
           timeRange={timeRange}
-          explorerID={explorerID}
         />
         <ResizeContainer>
-          <PanelBuilder
+          <Visualization
             timeRange={timeRange}
-            activePanelID={this.state.activePanelID}
+            queryConfigs={queries}
             activeQueryID={this.state.activeQueryID}
-            setActiveQuery={this.handleSetActiveQuery}
-            setActivePanel={this.handleSetActivePanel}
+            activeQueryIndex={0}
           />
-          <Visualizations
+          <QueryBuilder
+            queries={queries}
             timeRange={timeRange}
-            activePanelID={this.state.activePanelID}
-            activeQueryID={this.state.activeQueryID}
+            setActiveQuery={this.handleSetActiveQuery}
+            activeQueryID={activeQueryID}
           />
         </ResizeContainer>
       </div>
@@ -98,16 +89,15 @@ const DataExplorer = React.createClass({
 });
 
 function mapStateToProps(state) {
+  const {timeRange, queryConfigs, dataExplorer} = state;
+
   return {
-    timeRange: state.timeRange,
-    explorers: state.explorers,
+    timeRange,
+    queryConfigs,
+    dataExplorer,
   };
 }
 
 export default connect(mapStateToProps, {
   setTimeRange: setTimeRangeAction,
-  createExploration: createExplorationAction,
-  chooseExploration: chooseExplorationAction,
-  deleteExplorer: deleteExplorerAction,
-  editExplorer: editExplorerAction,
 })(DataExplorer);

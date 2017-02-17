@@ -1,24 +1,19 @@
-$graph-bg-color: $g3-castle;
-$graph-active-color: $g4-onyx;
-$graph-radius: 4px;
-
-$dygraphs-legend-offset: 32px;
-
 .graph {
-  position: relative;
-  margin-bottom: 18px;
-
-  &:last-child {
-    margin-bottom: 100%;
-  }
+  position: absolute;
+  width: calc(100% - #{($explorer-page-padding * 2)});
+  left: $explorer-page-padding;
+  top: 0;
+  height: 60%;
 }
 .graph-heading {
+  position: relative;
+  top: $de-vertical-margin;
   background-color: $graph-bg-color;
   border-radius: $graph-radius $graph-radius 0 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 44px;
+  height: $de-graph-heading-height;
   padding: 0 16px;
   transition:
     background-color 0.25s ease;
@@ -39,6 +34,41 @@ $dygraphs-legend-offset: 32px;
   display: flex;
   align-items: center;
 }
+.table-container {
+  background-color: $graph-bg-color;
+  border-radius: 0 0 $graph-radius $graph-radius;
+  padding: 8px 16px;
+  position: relative;
+  top: $de-vertical-margin;
+  height: calc(100% - #{$de-graph-heading-height} - #{($de-vertical-margin * 2)});
+
+  & > div {
+    position: absolute;
+    width: calc(100% - #{($de-vertical-margin * 2)});
+    height: calc(100% - #{$de-vertical-margin});
+    top: ($de-vertical-margin/2);
+    left: $de-vertical-margin;;
+  }
+  & > div .multi-table__tabs {
+    position: absolute;
+    height: 30px;
+    width: 100%;
+  }
+  & > div > div:last-child {
+    position: absolute;
+    top: 30px;
+    height: calc(100% - 30px) !important;
+    width: 100%;
+  }
+  .fixedDataTableLayout_main {
+    height: 100% !important;
+  }
+  .generic-empty-state {
+    background-color: $g6-smoke;
+    padding: 50px 0;
+    height: 100%;
+  }
+}
 .graph-container {
   background-color: $graph-bg-color;
   border-radius: 0 0 $graph-radius $graph-radius;
@@ -47,6 +77,30 @@ $dygraphs-legend-offset: 32px;
   height: 316px;
   transition:
     background-color 0.25s ease;
+}
+.data-explorer .graph-container {
+  top: $de-vertical-margin;
+  height: calc(100% - #{$de-graph-heading-height} - #{($de-vertical-margin * 2)});
+  padding: 0;
+
+  & > div {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+  }
+  & > div > div {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    padding: 8px 16px;
+    // width: calc(100% - #{($de-vertical-margin * 2)});
+    // height: calc(100% - #{$de-vertical-margin});
+    // top: ($de-vertical-margin / 2);
+    // left: $de-vertical-margin;
+  }
+  & > div > div > div:first-child {
+    height: 100% !important;
+  }
 }
 
 

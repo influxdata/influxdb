@@ -3,7 +3,7 @@
 	"info": {
 		"title": "Chronograf",
 		"description": "API endpoints for Chronograf",
-		"version": "1.1.0"
+		"version": "1.2.0"
 	},
 	"schemes": [
 		"http"
@@ -412,233 +412,6 @@
 					},
 					"404": {
 						"description": "Unknown user id",
-						"schema": {
-							"$ref": "#/definitions/Error"
-						}
-					},
-					"default": {
-						"description": "Unexpected internal service error",
-						"schema": {
-							"$ref": "#/definitions/Error"
-						}
-					}
-				}
-			}
-		},
-		"/users/{user_id}/explorations": {
-			"get": {
-				"tags": [
-					"users",
-					"explorations"
-				],
-				"summary": "Returns all explorations for specified user",
-				"parameters": [
-					{
-						"name": "user_id",
-						"in": "path",
-						"type": "string",
-						"description": "All Data Explorations returned only for this user.",
-						"required": true
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "Data Explorations saved sessions for user are returned.",
-						"schema": {
-							"$ref": "#/definitions/Explorations"
-						}
-					},
-					"404": {
-						"description": "User does not exist.",
-						"schema": {
-							"$ref": "#/definitions/Error"
-						}
-					},
-					"default": {
-						"description": "Unexpected internal service error",
-						"schema": {
-							"$ref": "#/definitions/Error"
-						}
-					}
-				}
-			},
-			"post": {
-				"tags": [
-					"users",
-					"explorations"
-				],
-				"summary": "Create new named exploration for this user",
-				"parameters": [
-					{
-						"name": "user_id",
-						"in": "path",
-						"type": "string",
-						"description": "ID of user to associate this exploration with.",
-						"required": true
-					},
-					{
-						"name": "exploration",
-						"in": "body",
-						"description": "Exploration session to save",
-						"schema": {
-							"$ref": "#/definitions/Exploration"
-						}
-					}
-				],
-				"responses": {
-					"201": {
-						"description": "Successfully created new Exploration session",
-						"headers": {
-							"Location": {
-								"type": "string",
-								"format": "url",
-								"description": "Location of the newly created exploration resource."
-							}
-						},
-						"schema": {
-							"$ref": "#/definitions/Exploration"
-						}
-					},
-					"404": {
-						"description": "User does not exist.",
-						"schema": {
-							"$ref": "#/definitions/Error"
-						}
-					},
-					"default": {
-						"description": "A processing or an unexpected error.",
-						"schema": {
-							"$ref": "#/definitions/Error"
-						}
-					}
-				}
-			}
-		},
-		"/users/{user_id}/explorations/{exploration_id}": {
-			"get": {
-				"tags": [
-					"users",
-					"explorations"
-				],
-				"parameters": [
-					{
-						"name": "user_id",
-						"in": "path",
-						"type": "string",
-						"description": "ID of user to associate this exploration with.",
-						"required": true
-					},
-					{
-						"name": "exploration_id",
-						"in": "path",
-						"type": "string",
-						"description": "ID of the specific exploration.",
-						"required": true
-					}
-				],
-				"summary": "Returns the specified data exploration session",
-				"description": "A data exploration session specifies query information.\n",
-				"responses": {
-					"200": {
-						"description": "Information relating to the exploration",
-						"schema": {
-							"$ref": "#/definitions/Exploration"
-						}
-					},
-					"404": {
-						"description": "User or exploration does not exist.",
-						"schema": {
-							"$ref": "#/definitions/Error"
-						}
-					},
-					"default": {
-						"description": "Unexpected internal service error",
-						"schema": {
-							"$ref": "#/definitions/Error"
-						}
-					}
-				}
-			},
-			"patch": {
-				"tags": [
-					"users",
-					"explorations"
-				],
-				"summary": "Update exploration configuration",
-				"parameters": [
-					{
-						"name": "user_id",
-						"in": "path",
-						"type": "string",
-						"description": "ID of user",
-						"required": true
-					},
-					{
-						"name": "exploration_id",
-						"in": "path",
-						"type": "string",
-						"description": "ID of the specific exploration.",
-						"required": true
-					},
-					{
-						"name": "exploration",
-						"in": "body",
-						"description": "Update the exploration information to this.",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/Exploration"
-						}
-					}
-				],
-				"responses": {
-					"200": {
-						"description": "Exploration's configuration was changed",
-						"schema": {
-							"$ref": "#/definitions/Exploration"
-						}
-					},
-					"404": {
-						"description": "Data source id, user, or exploration does not exist.",
-						"schema": {
-							"$ref": "#/definitions/Error"
-						}
-					},
-					"default": {
-						"description": "A processing or an unexpected error.",
-						"schema": {
-							"$ref": "#/definitions/Error"
-						}
-					}
-				}
-			},
-			"delete": {
-				"tags": [
-					"users",
-					"explorations"
-				],
-				"parameters": [
-					{
-						"name": "user_id",
-						"in": "path",
-						"type": "string",
-						"description": "ID of user to associate this exploration with.",
-						"required": true
-					},
-					{
-						"name": "exploration_id",
-						"in": "path",
-						"type": "string",
-						"description": "ID of the specific exploration.",
-						"required": true
-					}
-				],
-				"summary": "This specific exporer session will be removed.",
-				"responses": {
-					"204": {
-						"description": "Exploration session has been removed"
-					},
-					"404": {
-						"description": "Data source id, user, or exploration does not exist.",
 						"schema": {
 							"$ref": "#/definitions/Error"
 						}
@@ -1911,6 +1684,53 @@
 				"fields"
 			]
 		},
+		"KapacitorNode": {
+			"type": "object",
+			"description": "Represents a node in the kapacitor TICKscript graph",
+			"required": [
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "Name of the kapacitor node e.g. slack"
+				},
+				"args": {
+					"type": "array",
+					"description": "All arguments to the named node",
+					"items": {
+						"type": "string"
+					}
+				},
+				"properties": {
+					"type": "array",
+					"description": "All properties attached to the kapacitor node",
+					"items": {
+						"$ref": "#/definitions/KapacitorProperty"
+					}
+				}
+			}
+		},
+		"KapacitorProperty": {
+			"type": "object",
+			"description": "Represents a property attached to a node in the kapacitor TICKscript graph",
+			"required": [
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "Name of the kapacitor property e.g. channel for a slack ndoe"
+				},
+				"args": {
+					"type": "array",
+					"description": "All arguments to the named property",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
 		"Rule": {
 			"type": "object",
 			"required": [
@@ -1941,22 +1761,38 @@
 					"items": {
 						"type": "string",
 						"enum": [
+							"alerta",
+							"post",
+							"http",
 							"hipchat",
 							"opsgenie",
 							"pagerduty",
 							"victorops",
 							"smtp",
 							"email",
+							"exec",
 							"sensu",
 							"slack",
 							"talk",
-							"telegram"
+							"telegram",
+							"tcp"
 						]
+					}
+				},
+				"alertNodes": {
+					"type": "array",
+					"description": "Arguments and properties to add to alert",
+					"items": {
+						"$ref": "#/definitions/KapacitorNode"
 					}
 				},
 				"message": {
 					"type": "string",
 					"description": "Message to send when alert occurs."
+				},
+				"details": {
+					"type": "string",
+					"description": "Template for constructing a detailed HTML message for the alert. (Currently, only used for email/smtp"
 				},
 				"trigger": {
 					"type": "string",
@@ -2014,6 +1850,14 @@
 				"tickscript": {
 					"type": "string",
 					"description": "TICKscript representing this rule"
+				},
+				"status": {
+					"type": "string",
+					"description": "Represents if this rule is enabled or disabled in kapacitor",
+					"enum": [
+						"enabled",
+						"disabled"
+					]
 				},
 				"links": {
 					"type": "object",
@@ -2157,45 +2001,6 @@
 				"results": {
 					"description": "results from influx",
 					"type": "object"
-				}
-			}
-		},
-		"Explorations": {
-			"type": "object",
-			"required": [
-				"explorations"
-			],
-			"properties": {
-				"explorations": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/Exploration"
-					}
-				}
-			}
-		},
-		"Exploration": {
-			"type": "object",
-			"properties": {
-				"created_at": {
-					"type": "string",
-					"format": "date-time"
-				},
-				"updated_at": {
-					"type": "string",
-					"format": "date-time",
-					"description": "Latest time the exploration was updated."
-				},
-				"name": {
-					"type": "string",
-					"description": "Exploration name given by user."
-				},
-				"data": {
-					"type": "object",
-					"description": "Serialization of the exploration query configuration."
-				},
-				"link": {
-					"$ref": "#/definitions/Link"
 				}
 			}
 		},

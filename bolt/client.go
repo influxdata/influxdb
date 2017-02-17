@@ -15,18 +15,16 @@ type Client struct {
 	Now       func() time.Time
 	LayoutIDs chronograf.ID
 
-	ExplorationStore *ExplorationStore
-	SourcesStore     *SourcesStore
-	ServersStore     *ServersStore
-	LayoutStore      *LayoutStore
-	UsersStore       *UsersStore
-	AlertsStore      *AlertsStore
-	DashboardsStore  *DashboardsStore
+	SourcesStore    *SourcesStore
+	ServersStore    *ServersStore
+	LayoutStore     *LayoutStore
+	UsersStore      *UsersStore
+	AlertsStore     *AlertsStore
+	DashboardsStore *DashboardsStore
 }
 
 func NewClient() *Client {
 	c := &Client{Now: time.Now}
-	c.ExplorationStore = &ExplorationStore{client: c}
 	c.SourcesStore = &SourcesStore{client: c}
 	c.ServersStore = &ServersStore{client: c}
 	c.AlertsStore = &AlertsStore{client: c}
@@ -49,10 +47,6 @@ func (c *Client) Open() error {
 	c.db = db
 
 	if err := c.db.Update(func(tx *bolt.Tx) error {
-		// Always create explorations bucket.
-		if _, err := tx.CreateBucketIfNotExists(ExplorationBucket); err != nil {
-			return err
-		}
 		// Always create Sources bucket.
 		if _, err := tx.CreateBucketIfNotExists(SourcesBucket); err != nil {
 			return err

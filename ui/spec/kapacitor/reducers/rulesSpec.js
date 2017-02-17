@@ -1,13 +1,17 @@
 import reducer from 'src/kapacitor/reducers/rules';
 import {defaultRuleConfigs} from 'src/kapacitor/constants';
+import {ALERT_NODES_ACCESSORS} from 'src/kapacitor/constants';
 
 import {
   chooseTrigger,
   updateRuleValues,
+  updateDetails,
   updateMessage,
   updateAlerts,
+  updateAlertNodes,
   updateRuleName,
   deleteRuleSuccess,
+  updateRuleStatusSuccess,
 } from 'src/kapacitor/actions/view';
 
 describe('Kapacitor.Reducers.rules', () => {
@@ -85,6 +89,40 @@ describe('Kapacitor.Reducers.rules', () => {
     expect(newState[ruleID].alerts).to.equal(alerts);
   });
 
+  it('can update an alerta alert', () => {
+    const ruleID = 1;
+    const initialState = {
+      [ruleID]: {
+        id: ruleID,
+        queryID: 988,
+        alerts: [],
+        alertNodes: [],
+      }
+    };
+
+    const tickScript = `stream
+      |alert()
+        .alerta()
+          .resource('Hostname or service')
+          .event('Something went wrong')
+          .environment('Development')
+          .group('Dev. Servers')
+          .services('a b c')
+    `;
+
+    let newState = reducer(initialState, updateAlertNodes(ruleID, 'alerta', tickScript));
+    const expectedStr = `alerta().resource('Hostname or service').event('Something went wrong').environment('Development').group('Dev. Servers').services('a b c')`;
+    let actualStr = ALERT_NODES_ACCESSORS.alerta(newState[ruleID]);
+
+    // Test both data structure and accessor string
+    expect(actualStr).to.equal(expectedStr);
+
+    // Test that accessor string is the same if fed back in
+    newState = reducer(newState, updateAlertNodes(ruleID, 'alerta', actualStr));
+    actualStr = ALERT_NODES_ACCESSORS.alerta(newState[ruleID]);
+    expect(actualStr).to.equal(expectedStr);
+  });
+
   it('can update the name', () => {
     const ruleID = 1;
     const name = 'New name'
@@ -116,5 +154,37 @@ describe('Kapacitor.Reducers.rules', () => {
     const newState = reducer(initialState, deleteRuleSuccess(rule2));
     expect(Object.keys(newState).length).to.equal(1);
     expect(newState[rule1]).to.equal(initialState[rule1]);
+  });
+
+  it('can update details', () => {
+    const ruleID = 1;
+    const details = 'im some rule details';
+
+    const initialState = {
+      [ruleID]: {
+        id: ruleID,
+        queryID: 988,
+        details: '',
+      }
+    };
+
+    const newState = reducer(initialState, updateDetails(ruleID, details));
+    expect(newState[ruleID].details).to.equal(details);
+  });
+
+  it('can update status', () => {
+    const ruleID = 1;
+    const status = 'enabled';
+
+    const initialState = {
+      [ruleID]: {
+        id: ruleID,
+        queryID: 988,
+        status: 'disabled',
+      }
+    };
+
+    const newState = reducer(initialState, updateRuleStatusSuccess(ruleID, status));
+    expect(newState[ruleID].status).to.equal(status);
   });
 });

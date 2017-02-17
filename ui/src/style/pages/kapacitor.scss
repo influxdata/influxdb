@@ -219,6 +219,34 @@ div.qeditor.kapacitor-metric-selector {
   .kapacitor-tab-list {
     background-color: $kapacitor-graphic-color;
     border-radius: 0 0 $kap-radius-lg $kap-radius-lg;
+
+    .query-builder--column {
+      position: relative;
+      top: initial;
+      left: initial;
+      width: 100%;
+      height: 190px;
+
+      .qeditor--list-header {
+        width: 50%;
+        top: -34px;
+        right: 0;
+        z-index: 5;
+      }
+      .qeditor--list {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .group-by-time-dropdown {
+        width: 70px;
+      }
+    }
+    .query-builder--column-heading {
+      display: none;
+    }
   }
   .qeditor--list {
     overflow: auto;
@@ -345,9 +373,8 @@ div.qeditor.kapacitor-metric-selector {
   }
 }
 
-.alert-message {
+.alert-text {
   border: 2px solid $g3-castle;
-  border-radius: $kap-radius-lg $kap-radius-lg 0 0;
   background-color: $kapacitor-graphic-color;
   margin: 0;
   padding: $kap-padding-sm $kap-padding-lg;
@@ -362,8 +389,8 @@ div.qeditor.kapacitor-metric-selector {
   font-size: $kapacitor-font-sm;
   line-height: 17px;
   transition:
-    color 0.25s ease,
-    border-color 0.25s ease;
+  color 0.25s ease,
+  border-color 0.25s ease;
 
   @include custom-scrollbar($kapacitor-graphic-color,$kapacitor-accent);
 
@@ -379,6 +406,14 @@ div.qeditor.kapacitor-metric-selector {
   &::-moz-placeholder { color: $g9-mountain; }
   &:-ms-input-placeholder { color: $g9-mountain; }
   &:-moz-placeholder { color: $g9-mountain; }
+
+  &.message {
+    border-radius: $kap-radius-lg $kap-radius-lg 0 0;
+  }
+
+  &.details {
+    border-radius: 0;
+  }
 }
 
 .alert-message--endpoint {

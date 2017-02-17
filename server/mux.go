@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/NYTimes/gziphandler"
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf" // When julienschmidt/httprouter v2 w/ context is out, switch
 	"github.com/influxdata/chronograf/jwt"
@@ -41,10 +42,13 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	// Prefix any URLs found in the React assets with any configured basepath
 	prefixedAssets := NewDefaultURLPrefixer(basepath, assets, opts.Logger)
 
+	// Compress the assets with gzip if an accepted encoding
+	compressed := gziphandler.GzipHandler(prefixedAssets)
+
 	// The react application handles all the routing if the server does not
 	// know about the route.  This means that we never have unknown
 	// routes on the server.
-	router.NotFound = prefixedAssets
+	router.NotFound = compressed
 
 	/* Documentation */
 	router.GET("/swagger.json", Spec())
@@ -79,6 +83,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesID)
 	router.PUT("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesPut)
+	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesStatus)
 	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesDelete)
 
 	// Kapacitor Proxy
@@ -106,14 +111,6 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PATCH("/chronograf/v1/users/:id", service.UpdateUser)
 	router.DELETE("/chronograf/v1/users/:id", service.RemoveUser)
 
-	// Explorations
-	router.GET("/chronograf/v1/users/:id/explorations", service.Explorations)
-	router.POST("/chronograf/v1/users/:id/explorations", service.NewExploration)
-
-	router.GET("/chronograf/v1/users/:id/explorations/:eid", service.ExplorationsID)
-	router.PATCH("/chronograf/v1/users/:id/explorations/:eid", service.UpdateExploration)
-	router.DELETE("/chronograf/v1/users/:id/explorations/:eid", service.RemoveExploration)
-
 	// Dashboards
 	router.GET("/chronograf/v1/dashboards", service.Dashboards)
 	router.POST("/chronograf/v1/dashboards", service.NewDashboard)
@@ -127,7 +124,9 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 		auth := AuthAPI(opts, router)
 		return Logger(opts.Logger, auth)
 	}
-	return Logger(opts.Logger, router)
+
+	logged := Logger(opts.Logger, router)
+	return logged
 }
 
 // AuthAPI adds the OAuth routes if auth is enabled.

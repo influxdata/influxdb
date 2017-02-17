@@ -8,7 +8,7 @@ var dependencies = package.dependencies;
 
 var config = {
   bail: true,
-  devtool:  'hidden-source-map',
+  devtool:  'eval',
   entry: {
     app: path.resolve(__dirname, '..', 'src', 'index.js'),
     vendor: Object.keys(dependencies),

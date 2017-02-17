@@ -6,17 +6,15 @@ const SideNav = React.createClass({
   propTypes: {
     location: string.isRequired,
     sourceID: string.isRequired,
-    explorationID: string,
     me: shape({
       email: string,
     }),
   },
 
   render() {
-    const {me, location, sourceID, explorationID} = this.props;
+    const {me, location, sourceID} = this.props;
     const sourcePrefix = `/sources/${sourceID}`;
-    const explorationSuffix = explorationID ? `/${explorationID}` : '';
-    const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer${explorationSuffix}`;
+    const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`;
 
     const loggedIn = !!(me && me.email);
 

@@ -82,21 +82,25 @@
 .dygraph-axis-label {
   color: $g11-sidewalk !important;
   font-weight: 500 !important;
+  user-select: none;
 }
 .dygraph-axis-label-y {
   padding: 0 9px 0 0 !important;
   text-align: left !important;
   left: 0 !important;
+  user-select: none;
 }
 .dygraph-axis-label-y2 {
   padding: 0 0 0 9px !important;
   text-align: right !important;
+  user-select: none;
 }
 .graph-container > div > div > div > div {}
 
 /* Vertical Axis Labels */
 .dygraph-ylabel,
 .dygraph-y2label {
+  user-select: none;
   position: absolute;
   width: 100%;
   text-align: center;

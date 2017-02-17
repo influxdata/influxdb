@@ -3,7 +3,7 @@ The dashboard API will support collections of resizable InfluxQL visualizations.
 
 ### TL; DR 
 Here are the objects we are thinking about; dashboards contain layouts which
-contain explorations.
+contain queries.
 
 #### Dashboard
 

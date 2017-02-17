@@ -1,3 +1,4 @@
+github.com/NYTimes/gziphandler 6710af535839f57c687b62c4c23d649f9545d885
 github.com/Sirupsen/logrus 3ec0642a7fb6488f65b06f9040adc67e3990296a
 github.com/boltdb/bolt 5cc10bbbc5c141029940133bb33c9e969512a698
 github.com/bouk/httprouter ee8b3818a7f51fbc94cc709b5744b52c2c725e91
@@ -6,7 +7,7 @@ github.com/elazarl/go-bindata-assetfs 9a6736ed45b44bf3835afeebb3034b57ed329f3e
 github.com/gogo/protobuf 6abcf94fd4c97dcb423fdafd42fe9f96ca7e421b
 github.com/google/go-github 1bc362c7737e51014af7299e016444b654095ad9
 github.com/google/go-querystring 9235644dd9e52eeae6fa48efd539fdc351a0af53
-github.com/influxdata/kapacitor 0eb8c348b210dd3d32cb240a417f9e6ded1b691d
+github.com/influxdata/kapacitor 5408057e5a3493d3b5bd38d5d535ea45b587f8ff
 github.com/influxdata/usage-client 6d3895376368aa52a3a81d2a16e90f0f52371967
 github.com/jessevdk/go-flags 4cc2832a6e6d1d3b815e2b9d544b2a4dfb3ce8fa
 github.com/satori/go.uuid b061729afc07e77a8aa4fad0a2fd840958f1942a

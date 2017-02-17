@@ -1,16 +1,6 @@
 syntax = "proto3";
 package internal;
 
-message Exploration {
-	int64 ID                  = 1; // ExplorationID is a unique ID for an Exploration.
-	string Name               = 2; // User provided name of the Exploration.
-	int64 UserID              = 3; // UserID is the owner of this Exploration.
-	string Data               = 4; // Opaque blob of JSON data.
-	int64 CreatedAt           = 5; // Time the exploration was first created.
-	int64 UpdatedAt           = 6; // Latest time the exploration was updated.
-	bool Default              = 7; // Flags an exploration as the default.
-}
-
 message Source {
 	int64 ID                  = 1; // ID is the unique ID of the source
 	string Name               = 2; // Name is the user-defined name for the source
@@ -18,7 +8,7 @@ message Source {
 	string Username           = 4; // Username is the username to connect to the source
 	string Password           = 5;
 	string URL                = 6; // URL are the connections to the source
-	bool Default              = 7; // Flags an exploration as the default.
+	bool Default              = 7; // Flags an source as the default.
 	string Telegraf           = 8; // Telegraf is the db telegraf is written to. By default it is "telegraf"
 	bool InsecureSkipVerify   = 9; // InsecureSkipVerify accepts any certificate from the influx server
 }
@@ -34,18 +24,18 @@ message DashboardCell {
 	int32 y                 = 2; // Y-coordinate of Cell in the Dashboard
 	int32 w                 = 3; // Width of Cell in the Dashboard
 	int32 h                 = 4; // Height of Cell in the Dashboard
-	repeated Query queries = 5; // Time-series data queries for Dashboard
+	repeated Query queries  = 5; // Time-series data queries for Dashboard
 	string name             = 6; // User-facing name for this Dashboard
 	string type             = 7; // Dashboard visualization type
 }
 
 message Server {
-	int64 ID                  = 1; // ID is the unique ID of the server
-	string Name               = 2; // Name is the user-defined name for the server
-	string Username           = 3; // Username is the username to connect to the server
-	string Password           = 4;
-	string URL                = 5; // URL is the path to the server
- 	int64 SrcID               = 6; // SrcID is the ID of the data source
+	int64 ID                = 1; // ID is the unique ID of the server
+	string Name             = 2; // Name is the user-defined name for the server
+	string Username         = 3; // Username is the username to connect to the server
+	string Password         = 4;
+	string URL              = 5; // URL is the path to the server
+ 	int64 SrcID             = 6; // SrcID is the ID of the data source
 }
 
 message Layout {

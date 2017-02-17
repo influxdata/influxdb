@@ -18,15 +18,11 @@ import NotFound from 'src/shared/components/NotFound';
 import configureStore from 'src/store/configureStore';
 import {getMe, getSources} from 'shared/apis';
 import {receiveMe} from 'shared/actions/me';
+import {loadLocalStorage} from './localStorage';
 
 import 'src/style/chronograf.scss';
 
-const defaultTimeRange = {upper: null, lower: 'now() - 15m'};
-const lsTimeRange = window.localStorage.getItem('timeRange');
-const parsedTimeRange = JSON.parse(lsTimeRange) || {};
-const timeRange = Object.assign(defaultTimeRange, parsedTimeRange);
-
-const store = configureStore({timeRange});
+const store = configureStore(loadLocalStorage());
 const rootNode = document.getElementById('react-root');
 
 let browserHistory;
@@ -112,7 +108,6 @@ const Root = React.createClass({
               <Route path="manage-sources/new" component={SourcePage} />
               <Route path="manage-sources/:id/edit" component={SourcePage} />
               <Route path="chronograf/data-explorer" component={DataExplorer} />
-              <Route path="chronograf/data-explorer/:base64ExplorerID" component={DataExplorer} />
               <Route path="hosts" component={HostsPage} />
               <Route path="hosts/:hostID" component={HostPage} />
               <Route path="kubernetes" component={KubernetesPage} />
