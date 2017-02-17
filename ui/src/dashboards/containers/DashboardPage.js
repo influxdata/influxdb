@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react';
 import {Link} from 'react-router';
 import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux';
 import _ from 'lodash';
 
 import Header from 'src/dashboards/components/DashboardHeader';
@@ -8,14 +9,18 @@ import EditHeader from 'src/dashboards/components/DashboardHeaderEdit';
 import Dashboard from 'src/dashboards/components/Dashboard';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
+import * as dashboardActionCreators from 'src/dashboards/actions';
+
 import {getDashboards} from '../apis';
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 
 const {
-  shape,
-  string,
+  arrayOf,
   bool,
   func,
+  number,
+  shape,
+  string,
 } = PropTypes
 
 const DashboardPage = React.createClass({
@@ -33,6 +38,13 @@ const DashboardPage = React.createClass({
     location: shape({
       pathname: string.isRequired,
     }).isRequired,
+    dashboardActions: shape({
+      loadDashboards: func.isRequired,
+    }).isRequired,
+    dashboards: arrayOf(shape({
+      id: number.isRequired,
+      cells: arrayOf(shape({})).isRequired,
+    })).isRequired,
     inPresentationMode: bool.isRequired,
     handleClickPresentationButton: func,
   },
@@ -41,7 +53,6 @@ const DashboardPage = React.createClass({
     const fifteenMinutesIndex = 1;
 
     return {
-      dashboards: [],
       dashboard: null,
       timeRange: timeRanges[fifteenMinutesIndex],
       isEditMode: this.props.location.pathname.includes('/edit'),
@@ -49,11 +60,11 @@ const DashboardPage = React.createClass({
   },
 
   componentDidMount() {
-    const {dashboardID} = this.props.params;
+    const {params: {dashboardID}, dashboardActions: {loadDashboards}} = this.props;
 
     getDashboards().then(({data: {dashboards}}) => {
+      loadDashboards(dashboards)
       this.setState({
-        dashboards,
         dashboard: _.find(dashboards, (d) => d.id.toString() === dashboardID),
       });
     });
@@ -73,19 +84,16 @@ const DashboardPage = React.createClass({
     })
   },
 
-  currentDashboard(dashboards, dashboardID) {
-    return _.find(dashboards, (d) => d.id.toString() === dashboardID);
-  },
-
   handleChooseTimeRange({lower}) {
     const timeRange = timeRanges.find((range) => range.queryValue === lower);
     this.setState({timeRange});
   },
 
   render() {
-    const {dashboards, timeRange, isEditMode, dashboard} = this.state;
+    const {timeRange, isEditMode, dashboard} = this.state;
 
     const {
+      dashboards,
       params: {sourceID},
       inPresentationMode,
       handleClickPresentationButton,
@@ -135,10 +143,12 @@ const DashboardPage = React.createClass({
 
 const mapStateToProps = (state) => ({
   inPresentationMode: state.appUI.presentationMode,
+  dashboards: state.dashboardUI.dashboards,
 })
 
 const mapDispatchToProps = (dispatch) => ({
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
+  dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DashboardPage);
