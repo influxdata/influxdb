@@ -14,7 +14,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/services/meta"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 // Statistics for the Subscriber service.

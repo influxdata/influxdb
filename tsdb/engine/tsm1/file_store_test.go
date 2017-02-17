@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 func TestFileStore_Read(t *testing.T) {

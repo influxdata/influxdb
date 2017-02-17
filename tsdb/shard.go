@@ -18,7 +18,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	internal "github.com/influxdata/influxdb/tsdb/internal"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 // monitorStatInterval is the interval at which the shard is inspected

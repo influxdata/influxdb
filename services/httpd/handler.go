@@ -27,7 +27,7 @@ import (
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 const (
