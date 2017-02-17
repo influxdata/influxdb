@@ -5,12 +5,14 @@ import makeQueryExecuter from 'src/shared/middleware/queryExecuter';
 import * as dataExplorerReducers from 'src/data_explorer/reducers';
 import * as sharedReducers from 'src/shared/reducers';
 import rulesReducer from 'src/kapacitor/reducers/rules';
+import dashboardUI from 'src/dashboards/reducers/ui';
 import persistStateEnhancer from './persistStateEnhancer';
 
 const rootReducer = combineReducers({
   ...sharedReducers,
   ...dataExplorerReducers,
   rules: rulesReducer,
+  dashboardUI,
 });
 
 const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
