@@ -182,7 +182,7 @@ func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 			Logger:       opts.Logger,
 		}
 
-		ghMux := oauth2.NewJWTMux(&gh, &auth, opts.Logger)
+		ghMux := oauth2.NewCookieMux(&gh, &auth, opts.Logger)
 		router.Handler("GET", "/oauth/github/login", ghMux.Login())
 		router.Handler("GET", "/oauth/github/logout", ghMux.Logout())
 		router.Handler("GET", "/oauth/github/callback", ghMux.Callback())
@@ -198,7 +198,7 @@ func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 			Logger:       opts.Logger,
 		}
 
-		goMux := oauth2.NewJWTMux(&google, &auth, opts.Logger)
+		goMux := oauth2.NewCookieMux(&google, &auth, opts.Logger)
 		router.Handler("GET", "/oauth/google/login", goMux.Login())
 		router.Handler("GET", "/oauth/google/logout", goMux.Logout())
 		router.Handler("GET", "/oauth/google/callback", goMux.Callback())
@@ -211,7 +211,7 @@ func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 			Logger:       opts.Logger,
 		}
 
-		hMux := oauth2.NewJWTMux(&heroku, &auth, opts.Logger)
+		hMux := oauth2.NewCookieMux(&heroku, &auth, opts.Logger)
 		router.Handler("GET", "/oauth/heroku/login", hMux.Login())
 		router.Handler("GET", "/oauth/heroku/logout", hMux.Logout())
 		router.Handler("GET", "/oauth/heroku/callback", hMux.Callback())

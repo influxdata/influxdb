@@ -21,11 +21,11 @@ type cookie struct {
 	Duration time.Duration
 }
 
-// Check to ensure JWTMux is an oauth2.Mux
-var _ Mux = &JWTMux{}
+// Check to ensure CookieMux is an oauth2.Mux
+var _ Mux = &CookieMux{}
 
-func NewJWTMux(p Provider, a Authenticator, l chronograf.Logger) *JWTMux {
-	return &JWTMux{
+func NewCookieMux(p Provider, a Authenticator, l chronograf.Logger) *CookieMux {
+	return &CookieMux{
 		Provider:   p,
 		Auth:       a,
 		Logger:     l,
@@ -40,11 +40,12 @@ func NewJWTMux(p Provider, a Authenticator, l chronograf.Logger) *JWTMux {
 	}
 }
 
-// JWTMux services an Oauth2 interaction with a provider and browser and stores
-// the resultant token in the user's browser as a cookie encoded as a JWT. The
-// benefit of this is that the JWT's authenticity can be verified independently
-// by any Chronograf instance.
-type JWTMux struct {
+// CookieMux services an Oauth2 interaction with a provider and browser and
+// stores the resultant token in the user's browser as a cookie. The benefit of
+// this is that the cookie's authenticity can be verified independently by any
+// Chronograf instance as long as the Authenticator has no external
+// dependencies (e.g. on a Database).
+type CookieMux struct {
 	Provider   Provider
 	Auth       Authenticator
 	cookie     cookie
@@ -54,9 +55,10 @@ type JWTMux struct {
 	Now        func() time.Time // Now returns the current time
 }
 
-// Uses JWT with a random string as the state validation method.
-// JWTs are used because they can be validated without storing state.
-func (j *JWTMux) Login() http.Handler {
+// Uses a Cookie with a random string as the state validation method.  JWTs are
+// a good choice here for encoding because they can be validated without
+// storing state.
+func (j *CookieMux) Login() http.Handler {
 	conf := j.Provider.Config()
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// We are creating a token with an encoded random string to prevent CSRF attacks
@@ -85,11 +87,11 @@ func (j *JWTMux) Login() http.Handler {
 }
 
 // Callback is used by OAuth2 provider after authorization is granted.  If
-// granted, Callback will set a cookie with a month-long expiration.  The
-// value of the cookie is a JWT because the JWT can be validated without
-// the need for saving state. The JWT contains the principal's identifier (e.g.
-// email address).
-func (j *JWTMux) Callback() http.Handler {
+// granted, Callback will set a cookie with a month-long expiration.  It is
+// recommended that the value of the cookie be encoded as a JWT because the JWT
+// can be validated without the need for saving state. The JWT contains the
+// principal's identifier (e.g.  email address).
+func (j *CookieMux) Callback() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log := j.Logger.
 			WithField("component", "auth").
@@ -152,7 +154,7 @@ func (j *JWTMux) Callback() http.Handler {
 } // Login returns a handler that redirects to the providers OAuth login.
 
 // Logout handler will expire our authentication cookie and redirect to the successURL
-func (j *JWTMux) Logout() http.Handler {
+func (j *CookieMux) Logout() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		deleteCookie := http.Cookie{
 			Name:     j.cookie.Name,

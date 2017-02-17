@@ -15,19 +15,19 @@ import (
 var testTime time.Time = time.Date(1985, time.October, 25, 18, 0, 0, 0, time.UTC)
 
 // setupMuxTest produces an http.Client and an httptest.Server configured to
-// use a particular http.Handler selected from a JWTMux. As this selection is
+// use a particular http.Handler selected from a CookieMux. As this selection is
 // done during the setup process, this configuration is performed by providing
 // a function, and returning the desired handler. Cleanup is still the
 // responsibility of the test writer, so the httptest.Server's Close() method
 // should be deferred.
-func setupMuxTest(selector func(*oauth2.JWTMux) http.Handler) (*http.Client, *httptest.Server, *httptest.Server) {
+func setupMuxTest(selector func(*oauth2.CookieMux) http.Handler) (*http.Client, *httptest.Server, *httptest.Server) {
 	provider := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(http.StatusOK)
 	}))
 
 	mp := &MockProvider{"biff@example.com", provider.URL}
 
-	jm := oauth2.NewJWTMux(mp, &YesManAuthenticator{}, clog.New(clog.ParseLevel("debug")))
+	jm := oauth2.NewCookieMux(mp, &YesManAuthenticator{}, clog.New(clog.ParseLevel("debug")))
 
 	jm.Now = func() time.Time {
 		return testTime
@@ -53,10 +53,10 @@ func teardownMuxTest(hc *http.Client, backend *httptest.Server, provider *httpte
 	backend.Close()
 }
 
-func Test_JWTMux_Logout_DeletesSessionCookie(t *testing.T) {
+func Test_CookieMux_Logout_DeletesSessionCookie(t *testing.T) {
 	t.Parallel()
 
-	hc, ts, prov := setupMuxTest(func(j *oauth2.JWTMux) http.Handler {
+	hc, ts, prov := setupMuxTest(func(j *oauth2.CookieMux) http.Handler {
 		return j.Logout()
 	})
 	defer teardownMuxTest(hc, ts, prov)
@@ -90,10 +90,10 @@ func Test_JWTMux_Logout_DeletesSessionCookie(t *testing.T) {
 	}
 }
 
-func Test_JWTMux_Login_RedirectsToCorrectURL(t *testing.T) {
+func Test_CookieMux_Login_RedirectsToCorrectURL(t *testing.T) {
 	t.Parallel()
 
-	hc, ts, prov := setupMuxTest(func(j *oauth2.JWTMux) http.Handler {
+	hc, ts, prov := setupMuxTest(func(j *oauth2.CookieMux) http.Handler {
 		return j.Login() // Use Login handler for httptest server.
 	})
 	defer teardownMuxTest(hc, ts, prov)
@@ -118,8 +118,8 @@ func Test_JWTMux_Login_RedirectsToCorrectURL(t *testing.T) {
 	}
 }
 
-func Test_JWTMux_Callback_SetsCookie(t *testing.T) {
-	hc, ts, prov := setupMuxTest(func(j *oauth2.JWTMux) http.Handler {
+func Test_CookieMux_Callback_SetsCookie(t *testing.T) {
+	hc, ts, prov := setupMuxTest(func(j *oauth2.CookieMux) http.Handler {
 		return j.Callback()
 	})
 	defer teardownMuxTest(hc, ts, prov)
