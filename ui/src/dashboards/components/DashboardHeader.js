@@ -1,16 +1,19 @@
 import React, {PropTypes} from 'react'
 import ReactTooltip from 'react-tooltip'
+import {Link} from 'react-router';
 
 import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
 
 const DashboardHeader = ({
   children,
   buttonText,
+  dashboard,
   headerText,
   timeRange,
   isHidden,
   handleChooseTimeRange,
   handleClickPresentationButton,
+  sourceID,
 }) => isHidden ? null : (
   <div className="page-header full-width">
     <div className="page-header__container">
@@ -31,6 +34,13 @@ const DashboardHeader = ({
         }
       </div>
       <div className="page-header__right">
+        {sourceID ?
+          <div className="btn btn-sm btn-info">
+            <Link to={`/sources/${sourceID}/dashboards/${dashboard && dashboard.id}/edit`} >
+              <span className="icon pencil" style={{margin: 0}} />
+            </Link>
+          </div> : null
+        }
         <div className="btn btn-info btn-sm" data-for="graph-tips-tooltip" data-tip="<p><code>Click + Drag</code> Zoom in (X or Y)</p><p><code>Shift + Click</code> Pan Graph Window</p><p><code>Double Click</code> Reset Graph Window</p>">
           <span className="icon heart"></span>
           Graph Tips
@@ -54,8 +64,10 @@ const {
 } = PropTypes
 
 DashboardHeader.propTypes = {
+  sourceID: string,
   children: array,
   buttonText: string,
+  dashboard: shape({}),
   headerText: string,
   timeRange: shape({}).isRequired,
   isHidden: bool.isRequired,
