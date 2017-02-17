@@ -21,10 +21,13 @@ type userResponse struct {
 
 func newUserResponse(usr *chronograf.User) userResponse {
 	base := "/chronograf/v1/users"
+	// TODO: Change to usrl.PathEscape for go 1.8
+	u := &url.URL{Path: usr.Name}
+	encodedUser := u.String()
 	return userResponse{
 		User: usr,
 		Links: userLinks{
-			Self: fmt.Sprintf("%s/%d", base, url.PathEscape(usr.Name)),
+			Self: fmt.Sprintf("%s/%d", base, encodedUser),
 		},
 	}
 }
