@@ -56,6 +56,10 @@ func (cc *ControlClient) Users(ctx context.Context, name *string) (*enterprise.U
 	return nil, nil
 }
 
+func (cc *ControlClient) SetUserPerms(ctx context.Context, name string, perms enterprise.Permissions) error {
+	return nil
+}
+
 type TimeSeries struct {
 	URLs     []string
 	Response Response

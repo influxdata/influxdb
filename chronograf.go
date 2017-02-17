@@ -221,6 +221,11 @@ type ID interface {
 	Generate() (string, error)
 }
 
+const (
+	AllScope = "all"
+	DBScope  = "database"
+)
+
 // Permission is a specific allowance for User or Role bound to a
 // scope of the data source
 type Permission struct {

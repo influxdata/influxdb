@@ -25,6 +25,7 @@ type Client struct {
 		DeleteUser(ctx context.Context, name string) error
 		ChangePassword(ctx context.Context, name, passwd string) error
 		Users(ctx context.Context, name *string) (*Users, error)
+		SetUserPerms(ctx context.Context, name string, perms Permissions) error
 	}
 	Logger chronograf.Logger
 
