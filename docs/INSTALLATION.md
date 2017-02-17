@@ -88,8 +88,8 @@ This is a known issue.
 
 #### 1. Download and Install Telegraf
 ```
-wget https://dl.influxdata.com/telegraf/releases/telegraf_1.2.0_amd64.deb
-sudo dpkg -i telegraf_1.2.0_amd64.deb
+wget https://dl.influxdata.com/telegraf/releases/telegraf_1.2.1_amd64.deb
+sudo dpkg -i telegraf_1.2.1_amd64.deb
 ```
 
 #### 2. Start Telegraf
