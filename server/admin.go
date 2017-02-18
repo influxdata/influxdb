@@ -11,18 +11,29 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
-type newSourceUserRequest struct {
+type sourceUserRequest struct {
 	Username    string                 `json:"username,omitempty"`    // Username for new account
 	Password    string                 `json:"password,omitempty"`    // Password for new account
 	Permissions chronograf.Permissions `json:"permissions,omitempty"` // Optional permissions
 }
 
-func (r *newSourceUserRequest) Valid() error {
+func (r *sourceUserRequest) ValidCreate() error {
 	if r.Username == "" {
 		return fmt.Errorf("Username required")
 	}
 	if r.Password == "" {
 		return fmt.Errorf("Password required")
+	}
+	return nil
+}
+
+func (r *sourceUserRequest) ValidUpdate() error {
+	if r.Username == "" {
+		return fmt.Errorf("Username required")
+	}
+
+	if r.Password == "" && len(r.Permissions) == 0 {
+		return fmt.Errorf("No fields to update")
 	}
 	return nil
 }
@@ -52,12 +63,12 @@ type sourceUserLinks struct {
 
 // NewSourceUser adds user to source
 func (h *Service) NewSourceUser(w http.ResponseWriter, r *http.Request) {
-	var req newSourceUserRequest
+	var req sourceUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		invalidJSON(w, h.Logger)
 		return
 	}
-	if err := req.Valid(); err != nil {
+	if err := req.ValidCreate(); err != nil {
 		invalidData(w, err, h.Logger)
 		return
 	}
@@ -150,6 +161,40 @@ func (h *Service) RemoveSourceUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Service) UpdateSourceUser(w http.ResponseWriter, r *http.Request) {
+	var req sourceUserRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		invalidJSON(w, h.Logger)
+		return
+	}
+	if err := req.ValidUpdate(); err != nil {
+		invalidData(w, err, h.Logger)
+		return
+	}
+
+	ctx := r.Context()
+	uid := httprouter.GetParamFromContext(ctx, "uid")
+	srcID, store, err := h.sourceUsersStore(ctx, w, r)
+	if err != nil {
+		return
+	}
+
+	user := &chronograf.User{
+		Name:        uid,
+		Passwd:      req.Password,
+		Permissions: req.Permissions,
+	}
+
+	if err := store.Update(ctx, user); err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+	}
+
+	su := NewSourceUser(srcID, user.Name, user.Permissions)
+	w.Header().Add("Location", su.Links.Self)
+	encodeJSON(w, http.StatusCreated, su, h.Logger)
+
 }
 
 func (h *Service) sourceUsersStore(ctx context.Context, w http.ResponseWriter, r *http.Request) (int, chronograf.UsersStore, error) {

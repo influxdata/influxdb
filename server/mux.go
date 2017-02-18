@@ -69,6 +69,14 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	// Source Proxy to Influx
 	router.POST("/chronograf/v1/sources/:id/proxy", service.Influx)
 
+	// Users associated with the data source
+	router.GET("/chronograf/v1/sources/:id/users", service.SourceUsers)
+	router.POST("/chronograf/v1/sources/:id/users", service.NewSourceUser)
+
+	router.GET("/chronograf/v1/sources/:id/users/:uid", service.SourceUserID)
+	router.DELETE("/chronograf/v1/sources/:id/users/:uid", service.RemoveSourceUser)
+	router.PATCH("/chronograf/v1/sources/:id/users/:uid", service.UpdateSourceUser)
+
 	// Kapacitor
 	router.GET("/chronograf/v1/sources/:id/kapacitors", service.Kapacitors)
 	router.POST("/chronograf/v1/sources/:id/kapacitors", service.NewKapacitor)

@@ -160,8 +160,12 @@ func (r *showResults) Permissions() chronograf.Permissions {
 				} else if priv, ok := v[1].(string); !ok {
 					continue
 				} else {
+					if priv == "ALL PRIVILEGES" {
+						priv = "ALL"
+					}
 					c := chronograf.Permission{
 						Name:    db,
+						Scope:   chronograf.DBScope,
 						Allowed: []string{priv},
 					}
 					res = append(res, c)
