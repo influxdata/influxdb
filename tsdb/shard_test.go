@@ -19,7 +19,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/engine"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 func TestShardWriteAndIndex(t *testing.T) {

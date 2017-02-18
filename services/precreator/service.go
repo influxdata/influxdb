@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 // Service manages the shard precreation service.

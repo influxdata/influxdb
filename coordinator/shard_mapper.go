@@ -145,7 +145,7 @@ func (a *LocalShardMapping) MapType(m *influxql.Measurement, field string) influ
 	var typ influxql.DataType
 	for _, name := range names {
 		t := sg.MapType(name, field)
-		if typ == influxql.Unknown || t < typ {
+		if typ.LessThan(t) {
 			typ = t
 		}
 	}
