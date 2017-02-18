@@ -97,7 +97,7 @@ export const LayoutRenderer = React.createClass({
         return (
           <div key={cell.i}>
             <h2 className="hosts-graph-heading">{cell.name}</h2>
-            <div className="hosts-graph graph-container">
+            <div className="hosts-graph graph-container ">
               <RefreshingSingleStat queries={[qs[0]]} autoRefresh={autoRefreshMs} />
             </div>
           </div>
@@ -107,7 +107,7 @@ export const LayoutRenderer = React.createClass({
       return (
         <div key={cell.i}>
           <h2 className="hosts-graph-heading">{cell.name}</h2>
-          <div className="hosts-graph graph-container">
+          <div className="hosts-graph graph-container ">
             <RefreshingLineGraph queries={qs} autoRefresh={autoRefreshMs} showSingleStat={cell.type === "line-plus-single-stat"} />
           </div>
         </div>
@@ -118,10 +118,27 @@ export const LayoutRenderer = React.createClass({
   render() {
     const layoutMargin = 4;
     return (
-      <GridLayout layout={this.state.layout} isDraggable={false} isResizable={false} cols={12} rowHeight={83.5} margin={[layoutMargin, layoutMargin]} containerPadding={[0, 0]} useCSSTransforms={false} >
+      <GridLayout
+        layout={this.state.layout}
+        cols={12}
+        rowHeight={83.5}
+        margin={[layoutMargin, layoutMargin]}
+        containerPadding={[0, 0]}
+        useCSSTransforms={false}
+        onResize={triggerWindowResize}
+        onLayoutChange={triggerWindowResize}
+      >
         {this.generateVisualizations()}
       </GridLayout>
     );
+
+    function triggerWindowResize() {
+      // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
+      const evt = document.createEvent('CustomEvent');  // MUST be 'CustomEvent'
+      evt.initCustomEvent('resize', false, false, null);
+      dispatchEvent(evt);
+    }
+
   },
 });
 
