@@ -138,7 +138,6 @@ export const LayoutRenderer = React.createClass({
       evt.initCustomEvent('resize', false, false, null);
       dispatchEvent(evt);
     }
-
   },
 });
 
