@@ -19,7 +19,7 @@ import (
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/limiter"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 const (

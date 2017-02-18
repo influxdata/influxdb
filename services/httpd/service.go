@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 // statistics gathered by the httpd package.

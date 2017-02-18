@@ -15,7 +15,7 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 // Handler is an http.Handler for the OpenTSDB service.
