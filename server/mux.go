@@ -69,6 +69,9 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	// Source Proxy to Influx
 	router.POST("/chronograf/v1/sources/:id/proxy", service.Influx)
 
+	// All possible permissions for users in this source
+	router.GET("/chronograf/v1/sources/:id/permissions", service.Permissions)
+
 	// Users associated with the data source
 	router.GET("/chronograf/v1/sources/:id/users", service.SourceUsers)
 	router.POST("/chronograf/v1/sources/:id/users", service.NewSourceUser)

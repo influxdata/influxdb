@@ -218,3 +218,38 @@ func (h *Service) sourceUsersStore(ctx context.Context, w http.ResponseWriter, r
 	store := h.TimeSeries.Users(ctx)
 	return srcID, store, nil
 }
+
+// Permissions returns all possible permissions for this source.
+func (h *Service) Permissions(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	srcID, err := paramID("id", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		return
+	}
+
+	src, err := h.SourcesStore.Get(ctx, srcID)
+	if err != nil {
+		notFound(w, srcID, h.Logger)
+		return
+	}
+
+	if err = h.TimeSeries.Connect(ctx, &src); err != nil {
+		msg := fmt.Sprintf("Unable to connect to source %d", srcID)
+		Error(w, http.StatusBadRequest, msg, h.Logger)
+		return
+	}
+
+	perms := h.TimeSeries.Allowances(ctx)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+		return
+	}
+
+	res := struct {
+		Permissions chronograf.Allowances `json:"permissions"`
+	}{
+		Permissions: perms,
+	}
+	encodeJSON(w, http.StatusOK, res, h.Logger)
+}
