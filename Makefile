@@ -20,7 +20,7 @@ build: assets ${BINARY}
 
 dev: dep dev-assets ${BINARY}
 
-${BINARY}: $(SOURCES) .bindata
+${BINARY}: $(SOURCES) .bindata .jsdep .godep
 	go build -o ${BINARY} ${LDFLAGS} ./cmd/chronograf/main.go
 
 docker-${BINARY}: $(SOURCES)
@@ -102,3 +102,7 @@ clean:
 	cd ui && rm -rf node_modules
 	rm -f dist/dist_gen.go canned/bin_gen.go server/swagger_gen.go
 	@rm -f .godep .jsdep .jssrc .dev-jssrc .bindata
+
+continuous:
+	while true; do if fswatch -r --one-event .; then echo "#-> Starting build: `date`"; make dev; echo "#-> Build complete."; fi; sleep 0.5; done
+
