@@ -123,6 +123,9 @@ func ToRevoke(username string, perm chronograf.Permission) string {
 
 // ToGrant converts the permission into InfluxQL grants
 func ToGrant(username string, perm chronograf.Permission) string {
+	if len(perm.Allowed) == 0 {
+		return ""
+	}
 	return ToInfluxQL("GRANT", "TO", username, perm)
 }
 
