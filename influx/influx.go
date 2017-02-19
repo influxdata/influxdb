@@ -37,11 +37,14 @@ func NewClient(host string, lg chronograf.Logger) (*Client, error) {
 	}, nil
 }
 
+// Response is a partial JSON decoded InfluxQL response used
+// to check for some errors
 type Response struct {
 	Results json.RawMessage
 	Err     string `json:"error,omitempty"`
 }
 
+// MarshalJSON returns the raw results bytes from the response
 func (r Response) MarshalJSON() ([]byte, error) {
 	return r.Results, nil
 }
@@ -150,6 +153,7 @@ func (c *Client) Query(ctx context.Context, q chronograf.Query) (chronograf.Resp
 	}
 }
 
+// Connect caches the URL for the data source
 func (c *Client) Connect(ctx context.Context, src *chronograf.Source) error {
 	u, err := url.Parse(src.URL)
 	if err != nil {
@@ -164,6 +168,7 @@ func (c *Client) Connect(ctx context.Context, src *chronograf.Source) error {
 	return nil
 }
 
+// Users transforms InfluxDB into a user store
 func (c *Client) Users(ctx context.Context) chronograf.UsersStore {
 	return c
 }
