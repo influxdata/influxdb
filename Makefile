@@ -94,7 +94,7 @@ run: ${BINARY}
 	./chronograf
 
 run-dev: ${BINARY}
-	./chronograf -d
+	./chronograf -d --log-level=debug
 
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi

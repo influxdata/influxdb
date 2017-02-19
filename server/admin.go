@@ -28,10 +28,6 @@ func (r *sourceUserRequest) ValidCreate() error {
 }
 
 func (r *sourceUserRequest) ValidUpdate() error {
-	if r.Username == "" {
-		return fmt.Errorf("Username required")
-	}
-
 	if r.Password == "" && len(r.Permissions) == 0 {
 		return fmt.Errorf("No fields to update")
 	}
@@ -87,7 +83,8 @@ func (h *Service) NewSourceUser(w http.ResponseWriter, r *http.Request) {
 
 	res, err := store.Add(ctx, user)
 	if err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+		return
 	}
 
 	su := NewSourceUser(srcID, res.Name, req.Permissions)
@@ -146,6 +143,7 @@ func (h *Service) SourceUserID(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
+// RemoveSourceUser removes the user from the InfluxDB source
 func (h *Service) RemoveSourceUser(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	uid := httprouter.GetParamFromContext(ctx, "uid")
@@ -163,6 +161,7 @@ func (h *Service) RemoveSourceUser(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// UpdateSourceUser changes the password or permissions of a source user
 func (h *Service) UpdateSourceUser(w http.ResponseWriter, r *http.Request) {
 	var req sourceUserRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -188,13 +187,13 @@ func (h *Service) UpdateSourceUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := store.Update(ctx, user); err != nil {
-		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+		return
 	}
 
 	su := NewSourceUser(srcID, user.Name, user.Permissions)
 	w.Header().Add("Location", su.Links.Self)
 	encodeJSON(w, http.StatusCreated, su, h.Logger)
-
 }
 
 func (h *Service) sourceUsersStore(ctx context.Context, w http.ResponseWriter, r *http.Request) (int, chronograf.UsersStore, error) {

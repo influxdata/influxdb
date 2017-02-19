@@ -222,20 +222,28 @@ type ID interface {
 }
 
 const (
-	AllScope = "all"
-	DBScope  = "database"
+	// AllScope grants permission for all databases.
+	AllScope Scope = "all"
+	// DBScope grants permissions for a specific database
+	DBScope Scope = "database"
 )
 
 // Permission is a specific allowance for User or Role bound to a
 // scope of the data source
 type Permission struct {
-	Scope   string   `json:"scope"`
-	Name    string   `json:"name,omitempty"`
-	Allowed []string `json:"allowed"`
+	Scope   Scope      `json:"scope"`
+	Name    string     `json:"name,omitempty"`
+	Allowed Allowances `json:"allowed"`
 }
 
 // Permissions represent the entire set of permissions a User or Role may have
 type Permissions []Permission
+
+// Allowances defines what actions a user can have on a scoped permission
+type Allowances []string
+
+// Scope defines the location of access of a permission
+type Scope string
 
 // User represents an authenticated user.
 type User struct {

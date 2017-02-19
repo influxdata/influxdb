@@ -8,10 +8,10 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
-// Create a new User in InfluxDB
+// Add a new User in InfluxDB
 func (c *Client) Add(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 	_, err := c.Query(ctx, chronograf.Query{
-		Command: fmt.Sprintf(`CREATE USER %s WITH PASSWORD '%s'`, u.Name, u.Passwd),
+		Command: fmt.Sprintf(`CREATE USER "%s" WITH PASSWORD '%s'`, u.Name, u.Passwd),
 	})
 	if err != nil {
 		return nil, err
@@ -23,7 +23,7 @@ func (c *Client) Add(ctx context.Context, u *chronograf.User) (*chronograf.User,
 // Delete the User from InfluxDB
 func (c *Client) Delete(ctx context.Context, u *chronograf.User) error {
 	res, err := c.Query(ctx, chronograf.Query{
-		Command: fmt.Sprintf(`DROP USER %s`, u.Name),
+		Command: fmt.Sprintf(`DROP USER "%s"`, u.Name),
 	})
 	if err != nil {
 		return err
@@ -36,7 +36,7 @@ func (c *Client) Delete(ctx context.Context, u *chronograf.User) error {
 	}
 
 	results := make([]struct{ Error string }, 0)
-	if err := json.Unmarshal(octets, results); err != nil {
+	if err := json.Unmarshal(octets, &results); err != nil {
 		return err
 	}
 
@@ -51,13 +51,18 @@ func (c *Client) Delete(ctx context.Context, u *chronograf.User) error {
 
 // Get retrieves a user if name exists.
 func (c *Client) Get(ctx context.Context, name string) (*chronograf.User, error) {
-	users, err := c.All(ctx)
+	users, err := c.showUsers(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, user := range users {
 		if user.Name == name {
+			perms, err := c.userPermissions(ctx, user.Name)
+			if err != nil {
+				return nil, err
+			}
+			user.Permissions = append(user.Permissions, perms...)
 			return &user, nil
 		}
 	}
@@ -66,10 +71,49 @@ func (c *Client) Get(ctx context.Context, name string) (*chronograf.User, error)
 }
 
 // Update the user's permissions or roles
-func (c *Client) Update(context.Context, *chronograf.User) error { return nil }
+func (c *Client) Update(ctx context.Context, u *chronograf.User) error {
+	user, err := c.Get(ctx, u.Name)
+	if err != nil {
+		return err
+	}
+
+	revoke, add := Difference(u.Permissions, user.Permissions)
+	for _, a := range add {
+		if err := c.grantPermission(ctx, u.Name, a); err != nil {
+			return err
+		}
+	}
+
+	for _, r := range revoke {
+		if err := c.revokePermission(ctx, u.Name, r); err != nil {
+			return err
+		}
+	}
+	return nil
+}
 
 // All users in influx
 func (c *Client) All(ctx context.Context) ([]chronograf.User, error) {
+	users, err := c.showUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// For all users we need to look up permissions to add to the user.
+	for i, user := range users {
+		perms, err := c.userPermissions(ctx, user.Name)
+		if err != nil {
+			return nil, err
+		}
+
+		user.Permissions = append(user.Permissions, perms...)
+		users[i] = user
+	}
+	return users, nil
+}
+
+// showUsers runs SHOW USERS InfluxQL command and returns chronograf users.
+func (c *Client) showUsers(ctx context.Context) ([]chronograf.User, error) {
 	res, err := c.Query(ctx, chronograf.Query{
 		Command: `SHOW USERS`,
 	})
@@ -86,23 +130,31 @@ func (c *Client) All(ctx context.Context) ([]chronograf.User, error) {
 		return nil, err
 	}
 
-	users := results.Users()
-	for i, user := range users {
-		perms, err := c.userPermissions(ctx, user.Name)
-		if err != nil {
-			return nil, err
-		}
-
-		user.Permissions = append(user.Permissions, perms...)
-		users[i] = user
-	}
-	return users, nil
+	return results.Users(), nil
 }
 
-type showResults []struct {
-	Series []struct {
-		Values [][]interface{} `json:"values"`
-	} `json:"series"`
+func (c *Client) grantPermission(ctx context.Context, username string, perm chronograf.Permission) error {
+	query := ToGrant(username, perm)
+	if query == "" {
+		return nil
+	}
+
+	_, err := c.Query(ctx, chronograf.Query{
+		Command: query,
+	})
+	return err
+}
+
+func (c *Client) revokePermission(ctx context.Context, username string, perm chronograf.Permission) error {
+	query := ToRevoke(username, perm)
+	if query == "" {
+		return nil
+	}
+
+	_, err := c.Query(ctx, chronograf.Query{
+		Command: query,
+	})
+	return err
 }
 
 func (c *Client) userPermissions(ctx context.Context, name string) (chronograf.Permissions, error) {
@@ -122,65 +174,5 @@ func (c *Client) userPermissions(ctx context.Context, name string) (chronograf.P
 	if err := json.Unmarshal(octets, &results); err != nil {
 		return nil, err
 	}
-
 	return results.Permissions(), nil
-}
-
-func (r *showResults) Users() []chronograf.User {
-	res := []chronograf.User{}
-	for _, u := range *r {
-		for _, s := range u.Series {
-			for _, v := range s.Values {
-				if name, ok := v[0].(string); !ok {
-					continue
-				} else if admin, ok := v[1].(bool); !ok {
-					continue
-				} else {
-					c := chronograf.User{
-						Name: name,
-					}
-					if admin {
-						c.Permissions = adminPerms()
-					}
-					res = append(res, c)
-				}
-			}
-		}
-	}
-	return res
-}
-
-func (r *showResults) Permissions() chronograf.Permissions {
-	res := []chronograf.Permission{}
-	for _, u := range *r {
-		for _, s := range u.Series {
-			for _, v := range s.Values {
-				if db, ok := v[0].(string); !ok {
-					continue
-				} else if priv, ok := v[1].(string); !ok {
-					continue
-				} else {
-					if priv == "ALL PRIVILEGES" {
-						priv = "ALL"
-					}
-					c := chronograf.Permission{
-						Name:    db,
-						Scope:   chronograf.DBScope,
-						Allowed: []string{priv},
-					}
-					res = append(res, c)
-				}
-			}
-		}
-	}
-	return res
-}
-
-func adminPerms() chronograf.Permissions {
-	return []chronograf.Permission{
-		{
-			Scope:   chronograf.AllScope,
-			Allowed: []string{"ALL"},
-		},
-	}
 }
