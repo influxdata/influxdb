@@ -54,6 +54,8 @@ type TimeSeries interface {
 	Connect(context.Context, *Source) error
 	// UsersStore represents the user accounts within the TimeSeries database
 	Users(context.Context) UsersStore
+	// Allowances returns all valid names permissions in this database
+	Allowances(context.Context) Allowances
 }
 
 // Range represents an upper and lower bound for data

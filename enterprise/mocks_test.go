@@ -86,6 +86,10 @@ func (ts *TimeSeries) Users(ctx context.Context) chronograf.UsersStore {
 	return nil
 }
 
+func (ts *TimeSeries) Allowances(ctx context.Context) chronograf.Allowances {
+	return chronograf.Allowances{}
+}
+
 func NewMockTimeSeries(urls ...string) *TimeSeries {
 	return &TimeSeries{
 		URLs:     urls,

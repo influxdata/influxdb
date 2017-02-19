@@ -7,6 +7,7 @@ type Cluster struct {
 	MetaNodes []Node     `json:"meta"`
 }
 
+// DataNode represents a data node in an Influx Enterprise Cluster
 type DataNode struct {
 	ID         uint64 `json:"id"`               // Meta store ID.
 	TCPAddr    string `json:"tcpAddr"`          // RPC addr, e.g., host:8088.
@@ -15,6 +16,7 @@ type DataNode struct {
 	Status     string `json:"status,omitempty"` // The cluster status of the node.
 }
 
+// Node represent any meta or data node in an Influx Enterprise cluster
 type Node struct {
 	ID         uint64 `json:"id"`
 	Addr       string `json:"addr"`
@@ -33,6 +35,7 @@ type User struct {
 	Permissions Permissions `json:"permissions,omitempty"`
 }
 
+// Users represents a set of enterprise users.
 type Users struct {
 	Users []User `json:"users,omitempty"`
 }
@@ -43,6 +46,7 @@ type UserAction struct {
 	User   *User  `json:"user"`
 }
 
+// Role is a restricted set of permissions assigned to a set of users.
 type Role struct {
 	Name        string      `json:"name"`
 	NewName     string      `json:"newName,omitempty"`
@@ -50,6 +54,7 @@ type Role struct {
 	Users       []string    `json:"users,omitempty"`
 }
 
+// Roles is a set of roles
 type Roles struct {
 	Roles []Role `json:"roles,omitempty"`
 }
@@ -60,6 +65,7 @@ type RoleAction struct {
 	Role   *Role  `json:"role"`
 }
 
+// Error is JSON error message return by Influx Enterprise's meta API.
 type Error struct {
 	Error string `json:"error"`
 }

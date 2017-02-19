@@ -1,6 +1,7 @@
 package influx
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/influxdata/chronograf"
@@ -24,6 +25,11 @@ var (
 	// Write means a user can write to a database
 	Write = "WRITE"
 )
+
+// Allowances return just READ and WRITE for OSS Influx
+func (c *Client) Allowances(context.Context) chronograf.Allowances {
+	return chronograf.Allowances{"READ", "WRITE"}
+}
 
 // showResults is used to deserialize InfluxQL SHOW commands
 type showResults []struct {

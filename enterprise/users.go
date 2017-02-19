@@ -6,7 +6,7 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
-// Create a new User in Influx Enterprise
+// Add creates a new User in Influx Enterprise
 func (c *Client) Add(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 	if err := c.Ctrl.CreateUser(ctx, u.Name, u.Passwd); err != nil {
 		return nil, err

@@ -99,8 +99,34 @@ func (c *Client) Query(ctx context.Context, q chronograf.Query) (chronograf.Resp
 	return c.nextDataNode().Query(ctx, q)
 }
 
+// Users is the interface to the users within Influx Enterprise
 func (c *Client) Users(context.Context) chronograf.UsersStore {
 	return c
+}
+
+// Allowances returns all Influx Enterprise permission strings
+func (c *Client) Allowances(context.Context) chronograf.Allowances {
+	return chronograf.Allowances{
+		"NoPermissions",
+		"ViewAdmin",
+		"ViewChronograf",
+		"CreateDatabase",
+		"CreateUserAndRole",
+		"AddRemoveNode",
+		"DropDatabase",
+		"DropData",
+		"ReadData",
+		"WriteData",
+		"Rebalance",
+		"ManageShard",
+		"ManageContinuousQuery",
+		"ManageQuery",
+		"ManageSubscription",
+		"Monitor",
+		"CopyShard",
+		"KapacitorAPI",
+		"KapacitorConfigAPI",
+	}
 }
 
 // nextDataNode retrieves the next available data node
