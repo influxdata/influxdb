@@ -104,5 +104,5 @@ clean:
 	@rm -f .godep .jsdep .jssrc .dev-jssrc .bindata
 
 continuous:
-	while true; do if fswatch -r --one-event .; then echo "#-> Starting build: `date`"; make dev; echo "#-> Build complete."; fi; sleep 0.5; done
+	while true; do if fswatch -r --one-event .; then echo "#-> Starting build: `date`"; make dev; pkill chronograf; ./chronograf -d --log-level=debug & echo "#-> Build complete."; fi; sleep 0.5; done
 
