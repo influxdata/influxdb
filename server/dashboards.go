@@ -10,6 +10,13 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+const (
+	// DefaultWidth is used if not specified
+	DefaultWidth = 4
+	// DefaultHeight is used if not specified
+	DefaultHeight = 4
+)
+
 type dashboardLinks struct {
 	Self string `json:"self"` // Self link mapping to this resource
 }
@@ -25,6 +32,7 @@ type getDashboardsResponse struct {
 
 func newDashboardResponse(d chronograf.Dashboard) dashboardResponse {
 	base := "/chronograf/v1/dashboards"
+	DashboardDefaults(&d)
 	return dashboardResponse{
 		Dashboard: d,
 		Links: dashboardLinks{
@@ -80,7 +88,7 @@ func (s *Service) NewDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := ValidDashboardRequest(dashboard); err != nil {
+	if err := ValidDashboardRequest(&dashboard); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
@@ -142,7 +150,7 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 	req.ID = id
 
-	if err := ValidDashboardRequest(req); err != nil {
+	if err := ValidDashboardRequest(&req); err != nil {
 		invalidData(w, err, s.Logger)
 		return
 	}
@@ -158,16 +166,38 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 }
 
 // ValidDashboardRequest verifies that the dashboard cells have a query
-func ValidDashboardRequest(d chronograf.Dashboard) error {
+func ValidDashboardRequest(d *chronograf.Dashboard) error {
 	if len(d.Cells) == 0 {
 		return fmt.Errorf("cells are required")
 	}
 
-	for _, c := range d.Cells {
-		if (len(c.Queries) == 0) {
+	for i, c := range d.Cells {
+		if len(c.Queries) == 0 {
 			return fmt.Errorf("query required")
 		}
+		CorrectWidthHeight(&c)
+		d.Cells[i] = c
 	}
-
+	DashboardDefaults(d)
 	return nil
+}
+
+// DashboardDefaults updates the dashboard with the default values
+// if none are specified
+func DashboardDefaults(d *chronograf.Dashboard) {
+	for i, c := range d.Cells {
+		CorrectWidthHeight(&c)
+		d.Cells[i] = c
+	}
+}
+
+// CorrectWidthHeight changes the cell to have at least the
+// minimum width and height
+func CorrectWidthHeight(c *chronograf.DashboardCell) {
+	if c.W < 1 {
+		c.W = DefaultWidth
+	}
+	if c.H < 1 {
+		c.H = DefaultHeight
+	}
 }
