@@ -9,39 +9,48 @@ import _ from 'lodash';
 const RefreshingLineGraph = AutoRefresh(LineGraph);
 const RefreshingSingleStat = AutoRefresh(SingleStat);
 
+const {
+  children,
+  arrayOf,
+  node,
+  number,
+  shape,
+  string,
+} = PropTypes;
+
 export const LayoutRenderer = React.createClass({
   propTypes: {
-    timeRange: PropTypes.shape({
-      defaultGroupBy: PropTypes.string.isRequired,
-      queryValue: PropTypes.string.isRequired,
+    timeRange: shape({
+      defaultGroupBy: string.isRequired,
+      queryValue: string.isRequired,
     }).isRequired,
-    cells: PropTypes.arrayOf(
-      PropTypes.shape({
-        queries: PropTypes.arrayOf(
-          PropTypes.shape({
-            label: PropTypes.string,
-            range: PropTypes.shape({
-              upper: PropTypes.number,
-              lower: PropTypes.number,
+    cells: arrayOf(
+      shape({
+        queries: arrayOf(
+          shape({
+            label: string,
+            range: shape({
+              upper: number,
+              lower: number,
             }),
-            rp: PropTypes.string,
-            text: PropTypes.string.isRequired,
-            database: PropTypes.string.isRequired,
-            groupbys: PropTypes.arrayOf(PropTypes.string),
-            wheres: PropTypes.arrayOf(PropTypes.string),
+            rp: string,
+            text: string.isRequired,
+            database: string.isRequired,
+            groupbys: arrayOf(string),
+            wheres: arrayOf(string),
           }).isRequired
         ).isRequired,
-        x: PropTypes.number.isRequired,
-        y: PropTypes.number.isRequired,
-        w: PropTypes.number.isRequired,
-        h: PropTypes.number.isRequired,
-        i: PropTypes.string.isRequired,
-        name: PropTypes.string.isRequired,
+        x: number.isRequired,
+        y: number.isRequired,
+        w: number.isRequired,
+        h: number.isRequired,
+        i: string.isRequired,
+        name: string.isRequired,
       }).isRequired
     ),
-    autoRefreshMs: PropTypes.number.isRequired,
-    host: PropTypes.string,
-    source: PropTypes.string,
+    autoRefreshMs: number.isRequired,
+    host: string,
+    source: string,
   },
 
   getInitialState() {
@@ -105,12 +114,9 @@ export const LayoutRenderer = React.createClass({
       }
 
       return (
-        <div key={cell.i}>
-          <h2 className="hosts-graph-heading">{cell.name}</h2>
-          <div className="hosts-graph graph-container ">
-            <RefreshingLineGraph queries={qs} autoRefresh={autoRefreshMs} showSingleStat={cell.type === "line-plus-single-stat"} />
-          </div>
-        </div>
+        <Wrapper key={cell.i}>
+          <RefreshingLineGraph queries={qs} autoRefresh={autoRefreshMs} showSingleStat={cell.type === "line-plus-single-stat"} />
+        </Wrapper>
       );
     });
   },
@@ -139,6 +145,26 @@ export const LayoutRenderer = React.createClass({
       dispatchEvent(evt);
     }
   },
+});
+
+const Wrapper = React.createClass({
+  propTypes: {
+    children: node.isRequired,
+  },
+  render() {
+    const that = this;
+    const newChildren = React.Children.map(this.props.children, (child) => {
+      return React.cloneElement(child, {
+        height: that.props.style.height,
+      })
+    })
+
+    return (
+      <div {...this.props}>
+        {newChildren}
+      </div>
+    );
+  }
 });
 
 export default LayoutRenderer;
