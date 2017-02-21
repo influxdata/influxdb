@@ -25,6 +25,8 @@ type Heroku struct {
 	ClientID     string
 	ClientSecret string
 
+	Organizations []string // set of organizations permitted to access the protected resource. Empty means "all"
+
 	Logger chronograf.Logger
 }
 
@@ -50,6 +52,15 @@ func (h *Heroku) Name() string {
 
 // PrincipalID returns the Heroku email address of the user.
 func (h *Heroku) PrincipalID(provider *http.Client) (string, error) {
+	type DefaultOrg struct {
+		ID   string `json:"id"`
+		Name string `json:"name"`
+	}
+	type Account struct {
+		Email               string     `json:"email"`
+		DefaultOrganization DefaultOrg `json:"default_organization"`
+	}
+
 	resp, err := provider.Get(HEROKU_ACCOUNT_ROUTE)
 	if err != nil {
 		h.Logger.Error("Unable to communicate with Heroku. err:", err)
@@ -57,14 +68,24 @@ func (h *Heroku) PrincipalID(provider *http.Client) (string, error) {
 	}
 	defer resp.Body.Close()
 	d := json.NewDecoder(resp.Body)
-	var account struct {
-		Email string `json:"email"`
-	}
+	var account Account
 	if err := d.Decode(&account); err != nil {
 		h.Logger.Error("Unable to decode response from Heroku. err:", err)
 		return "", err
 	}
-	return account.Email, nil
+
+	// check if member of org
+	if len(h.Organizations) > 0 {
+		for _, org := range h.Organizations {
+			if account.DefaultOrganization.Name == org {
+				return account.Email, nil
+			}
+		}
+		h.Logger.Error(ErrOrgMembership)
+		return "", ErrOrgMembership
+	} else {
+		return account.Email, nil
+	}
 }
 
 // Scopes for heroku is "identity" which grants access to user account

@@ -20,20 +20,21 @@ const (
 
 // MuxOpts are the options for the router.  Mostly related to auth.
 type MuxOpts struct {
-	Logger             chronograf.Logger
-	Develop            bool     // Develop loads assets from filesystem instead of bindata
-	Basepath           string   // URL path prefix under which all chronograf routes will be mounted
-	UseAuth            bool     // UseAuth turns on Github OAuth and JWT
-	TokenSecret        string   // TokenSecret is the JWT secret
-	GithubClientID     string   // GithubClientID is the GH OAuth id
-	GithubClientSecret string   // GithubClientSecret is the GH OAuth secret
-	GithubOrgs         []string // GithubOrgs is the list of organizations a user may be a member of
-	GoogleClientID     string   // GoogleClientID is the Google OAuth id
-	GoogleClientSecret string   // GoogleClientSecret is the Google OAuth secret
-	GoogleDomains      []string // GoogleDomains is the list of domains a user may be a member of
-	HerokuClientID     string   // HerokuClientID is the Heroku OAuth id
-	HerokuSecret       string   // HerokuSecret is the Heroku OAuth secret
-	PublicURL          string   // PublicURL is the public facing URL for the server
+	Logger              chronograf.Logger
+	Develop             bool     // Develop loads assets from filesystem instead of bindata
+	Basepath            string   // URL path prefix under which all chronograf routes will be mounted
+	UseAuth             bool     // UseAuth turns on Github OAuth and JWT
+	TokenSecret         string   // TokenSecret is the JWT secret
+	GithubClientID      string   // GithubClientID is the GH OAuth id
+	GithubClientSecret  string   // GithubClientSecret is the GH OAuth secret
+	GithubOrgs          []string // GithubOrgs is the list of organizations a user may be a member of
+	GoogleClientID      string   // GoogleClientID is the Google OAuth id
+	GoogleClientSecret  string   // GoogleClientSecret is the Google OAuth secret
+	GoogleDomains       []string // GoogleDomains is the list of domains a user may be a member of
+	HerokuClientID      string   // HerokuClientID is the Heroku OAuth id
+	HerokuSecret        string   // HerokuSecret is the Heroku OAuth secret
+	HerokuOrganizations []string // HerokuOrganizations is the set of organizations permitted to access Chronograf
+	PublicURL           string   // PublicURL is the public facing URL for the server
 }
 
 func (m *MuxOpts) UseGithub() bool {
@@ -206,9 +207,10 @@ func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 
 	if opts.UseHeroku() {
 		heroku := oauth2.Heroku{
-			ClientID:     opts.HerokuClientID,
-			ClientSecret: opts.HerokuSecret,
-			Logger:       opts.Logger,
+			ClientID:      opts.HerokuClientID,
+			ClientSecret:  opts.HerokuSecret,
+			Organizations: opts.HerokuOrganizations,
+			Logger:        opts.Logger,
 		}
 
 		hMux := oauth2.NewCookieMux(&heroku, &auth, opts.Logger)

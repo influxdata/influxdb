@@ -95,3 +95,11 @@ The equivalent command line switches are:
 
 * `--heroku-client-id`
 * `--heroku-secret`
+
+#### Optional Heroku Organizations
+
+Like the other OAuth2 providers, access to Chronograf via Heroku can be restricted to members of specific Heroku organizations. This is controlled using the `HEROKU_ORGS` ENV or the `--heroku-organizations` switch and is comma-separated. If we wanted to permit access from the `hill-valley-preservation-society` orgization and `the-pinheads` organization, we would use the following ENV:
+
+```sh
+export HEROKU_ORGS=hill-valley-preservation-sociey,the-pinheads
+```

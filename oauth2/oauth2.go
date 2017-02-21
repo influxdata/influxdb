@@ -20,6 +20,7 @@ const (
 var (
 	/* Errors */
 	ErrAuthentication = errors.New("user not authenticated")
+	ErrOrgMembership  = errors.New("Not a member of the required organization")
 )
 
 /* Types */

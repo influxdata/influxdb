@@ -54,8 +54,9 @@ type Server struct {
 	GoogleDomains      []string `long:"google-domains" description:"Google email domain user is required to have active membership" env:"GOOGLE_DOMAINS" env-delim:","`
 	PublicURL          string   `long:"public-url" description:"Full public URL used to access Chronograf from a web browser. Used for Google OAuth2 authentication. (http://localhost:8888)" env:"PUBLIC_URL"`
 
-	HerokuClientID string `long:"heroku-client-id" description:"Heroku Client ID for OAuth 2 support" env:"HEROKU_CLIENT_ID"`
-	HerokuSecret   string `long:"heroku-secret" description:"Heroku Secret for OAuth 2 support" env:"HEROKU_SECRET"`
+	HerokuClientID      string   `long:"heroku-client-id" description:"Heroku Client ID for OAuth 2 support" env:"HEROKU_CLIENT_ID"`
+	HerokuSecret        string   `long:"heroku-secret" description:"Heroku Secret for OAuth 2 support" env:"HEROKU_SECRET"`
+	HerokuOrganizations []string `long:"heroku-organization" description:"Heroku Organization Memberships a user is required to have for access to Chronograf (comma separated)" env:"HEROKU_ORGS" env-delim:","`
 
 	ReportingDisabled bool   `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id,uptime) once every 24hr" env:"REPORTING_DISABLED"`
 	LogLevel          string `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"warn" choice:"error" choice:"fatal" choice:"panic" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
@@ -85,19 +86,20 @@ func (s *Server) Serve() error {
 	service := openService(s.BoltPath, s.CannedPath, logger, s.useAuth())
 	basepath = s.Basepath
 	s.handler = NewMux(MuxOpts{
-		Develop:            s.Develop,
-		TokenSecret:        s.TokenSecret,
-		GithubClientID:     s.GithubClientID,
-		GithubClientSecret: s.GithubClientSecret,
-		GithubOrgs:         s.GithubOrgs,
-		GoogleClientID:     s.GoogleClientID,
-		GoogleClientSecret: s.GoogleClientSecret,
-		GoogleDomains:      s.GoogleDomains,
-		HerokuClientID:     s.HerokuClientID,
-		HerokuSecret:       s.HerokuSecret,
-		PublicURL:          s.PublicURL,
-		Logger:             logger,
-		UseAuth:            s.useAuth(),
+		Develop:             s.Develop,
+		TokenSecret:         s.TokenSecret,
+		GithubClientID:      s.GithubClientID,
+		GithubClientSecret:  s.GithubClientSecret,
+		GithubOrgs:          s.GithubOrgs,
+		GoogleClientID:      s.GoogleClientID,
+		GoogleClientSecret:  s.GoogleClientSecret,
+		GoogleDomains:       s.GoogleDomains,
+		HerokuClientID:      s.HerokuClientID,
+		HerokuSecret:        s.HerokuSecret,
+		HerokuOrganizations: s.HerokuOrganizations,
+		PublicURL:           s.PublicURL,
+		Logger:              logger,
+		UseAuth:             s.useAuth(),
 	}, service)
 
 	s.handler = Version(s.BuildInfo.Version, s.handler)
