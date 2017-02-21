@@ -7,6 +7,18 @@ OAuth 2.0 Style Authentication
 
 To use authentication in Chronograf, both Github OAuth and JWT signature need to be configured.
 
+#### Configuring JWT signature
+
+Set a [JWT](https://tools.ietf.org/html/rfc7519) signature to a random string. This is needed for all OAuth2 providers that you choose to configure. *Keep this random string around!*
+
+You'll need it each time you start a chronograf server because it is used to verify user authorization. If you are running multiple chronograf servers in an HA configuration set the `TOKEN_SECRET` on each to allow users to stay logged in.
+
+```sh
+export TOKEN_SECRET=supersupersecret
+```
+
+# Github
+
 #### Creating Github OAuth Application
 
 To create a Github OAuth Application follow the [Register your app](https://developer.github.com/guides/basics-of-authentication/#registering-your-app) instructions.
@@ -29,18 +41,6 @@ export GH_CLIENT_ID=b339dd4fddd95abec9aa
 export GH_CLIENT_SECRET=260041897d3252c146ece6b46ba39bc1e54416dc
 ```
 
-#### Configuring JWT signature
-
-Set a [JWT](https://tools.ietf.org/html/rfc7519) signature to a random string.
-*Keep this random string around!* 
-
-You'll need it each time you start a chronograf server because it is used to verify 
-user authorization. If you are running multiple chronograf servers in an HA configuration set the `TOKEN_SECRET` on each to allow users to stay logged in.
-
-```sh
-export TOKEN_SECRET=supersupersecret
-```
-
 #### Optional Github Organizations
 
 To require an organization membership for a user, set the `GH_ORGS` environment variables
@@ -56,72 +56,42 @@ To support multiple organizations use a comma delimted list like so:
 export GH_ORGS=hill-valley-preservation-sociey,the-pinheads
 ```
 
-### Design
+# Google
 
-The Chronograf authentication scheme is a standard [web application](https://developer.github.com/v3/oauth/#web-application-flow) OAuth flow.
+#### Creating Google OAuth Application
 
-![oauth 2.0 flow](./OauthStyleAuthentication.png)
+You will need to obtain a client ID and an application secret by following the steps under "Basic Steps" [here](https://developers.google.com/identity/protocols/OAuth2). Chronograf will also need to be publicly accessible via a fully qualified domain name so that Google properly redirects users back to the application.
 
-The browser receives a cookie from Chronograf, authorizing it.  The contents of the cookie is a JWT whose "sub" claim is the user's primary
-github email address.
+This information should be set in the following ENVs:
 
-On each request to Chronograf, the JWT contained in the cookie will be validated against the `TOKEN_SECRET` signature and checked for expiration.
-The JWT's "sub" becomes the [principal](https://en.wikipedia.org/wiki/Principal_(computer_security)) used for authorization to resources.
+* `GOOGLE_CLIENT_ID`
+* `GOOGLE_CLIENT_SECRET`
+* `PUBLIC_URL`
 
-The API provides three endpoints `/oauth`, `/oauth/logout` and `/oauth/github/callback`.
+Alternatively, this can also be set using the command line switches:
 
-#### /oauth
+* `--google-client-id`
+* `--google-client-secret`
+* `--public-url`
 
-The `/oauth` endpoint redirects to Github for OAuth.  Chronograf sets the OAuth `state` request parameter to a JWT with a random "sub".  Using $TOKEN_SECRET `/oauth/github/callback`
-can validate the `state` parameter without needing `state` to be saved.
+#### Optional Google Domains
 
-#### /oauth/github/callback
+Similar to Github's organization restriction, Google authentication can be restricted to permit access to Chronograf from only specific domains. These are configured using the `GOOGLE_DOMAINS` ENV or the `--google-domains` switch. Multiple domains are separated with a comma. For example, if we wanted to permit access only from biffspleasurepalace.com and savetheclocktower.com the ENV would be set as follows:
 
-The `/oauth/github/callback` receives the OAuth `authorization code`  and `state`.
-
-First, it will validate the `state` JWT from the `/oauth` endpoint. `JWT` validation
-only requires access to the signature token.  Therefore, there is no need for `state`
-to be saved.  Additionally, multiple Chronograf servers will not need to share third
-party storage to synchronize `state`. If this validation fails, the request
-will be redirected to `/login`.
-
-Secondly, the endpoint will use the `authorization code` to retrieve a valid OAuth token
-with the `user:email` scope.  If unable to get a token from Github, the request will
-be redirected to `/login`.
-
-Finally, the endpoint will attempt to get the primary email address of the Github user.
-Again, if not successful, the request will redirect to `/login`.
-
-The email address is used as the subject claim for a new JWT.  This JWT becomes the
-value of the cookie sent back to the browser. The cookie is valid for thirty days.
-
-Next, the request is redirected to `/`.
-
-For all API calls to `/chronograf/v1`, the server checks for the existence and validity
-of the JWT within the cookie value.
-If the request did not have a valid JWT, the API returns `HTTP/1.1 401 Unauthorized`.
-
-#### /oauth/logout
-
-Simply expires the session cookie and redirects to `/`.
-
-### Authorization 
-
-After successful validation of the JWT, each API endpoint of `/chronograf/v1` receives the
-JWT subject within the `http.Request` as a `context.Context` value.
-
-Within the Go API code all interfaces take `context.Context`.  This means that each
-interface can use the value as a principal.  The design allows for authorization to happen
-at the level of design most closely related to the problem.
-
-An example usage in Go would be:
-
-```go
-func ShallIPass(ctx context.Context) (string, error) {
-    principal := ctx.Value(chronograf.PrincipalKey).(chronograf.Principal)
-    if principal != "gandolf@moria.misty.mt" {
-        return "you shall not pass", chronograf.ErrAuthentication
-    }
-    return "run you fools", nil
-}
+```sh
+export GOOGLE_DOMAINS=biffspleasurepalance.com,savetheclocktower.com
 ```
+
+# Heroku
+
+#### Creating Heroku Application
+
+To obtain a client ID and application secret for Heroku, you will need to follow the guide posted [here](https://devcenter.heroku.com/articles/oauth#register-client). Once your application has been created, those two values should be inserted into the following ENVs:
+
+* `HEROKU_CLIENT_ID`
+* `HEROKU_SECRET`
+
+The equivalent command line switches are:
+
+* `--heroku-client-id`
+* `--heroku-secret`
