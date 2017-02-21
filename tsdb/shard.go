@@ -585,7 +585,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 				continue
 			}
 
-			ss = s.index.CreateSeriesIndexIfNotExists(p.Name(), NewSeries(string(p.Key()), tags))
+			ss = s.index.CreateSeriesIndexIfNotExists(p.Name(), NewSeries(string(p.Key()), tags), true)
 			atomic.AddInt64(&s.stats.SeriesCreated, 1)
 		}
 
@@ -1481,7 +1481,7 @@ func (itr *tagValuesIterator) Next() (*influxql.FloatPoint, error) {
 		}
 
 		key := itr.buf.keys[0]
-		value := itr.buf.s.Tags.GetString(key)
+		value := itr.buf.s.GetTagString(key)
 		if value == "" {
 			itr.buf.keys = itr.buf.keys[1:]
 			continue

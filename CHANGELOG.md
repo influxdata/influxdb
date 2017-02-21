@@ -5,7 +5,6 @@
 - [#7877](https://github.com/influxdata/influxdb/issues/7877): Fix mapping of types when the measurement uses a regex
 - [#7888](https://github.com/influxdata/influxdb/pull/7888): Expand query dimensions from the subquery.
 - [#7910](https://github.com/influxdata/influxdb/issues/7910): Fix EvalType when a parenthesis expression is used.
-- [#7929](https://github.com/influxdata/influxdb/issues/7929): Fix series tag iteration segfault. (#7922)
 - [#7906](https://github.com/influxdata/influxdb/issues/7906): Anchors not working as expected with case-insensitive regex
 - [#7895](https://github.com/influxdata/influxdb/issues/7895): Fix incorrect math when aggregates that emit different times are used.
 - [#7946](https://github.com/influxdata/influxdb/issues/7946): Fix authentication when subqueries are present.
@@ -13,7 +12,6 @@
 - [#7905](https://github.com/influxdata/influxdb/issues/7905): Fix ORDER BY time DESC with ordering series keys.
 - [#7966](https://github.com/influxdata/influxdb/pull/7966): Prevent a panic when aggregates are used in an inner query with a raw query.
 - [#8001](https://github.com/influxdata/influxdb/issues/8001): Map types correctly when using a regex and one of the measurements is empty.
-- [#8011](https://github.com/influxdata/influxdb/issues/8011): Fix tag dereferencing panic.
 
 ## v1.2.0 [2017-01-24]
 
@@ -44,7 +42,6 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 
 ### Bugfixes
 
-- [#7832](https://github.com/influxdata/influxdb/pull/7832): Fix memory leak when writing new series over HTTP
 - [#7786](https://github.com/influxdata/influxdb/pull/7786): Fix potential race condition in correctness of tsm1_cache memBytes statistic.
 - [#7784](https://github.com/influxdata/influxdb/pull/7784): Fix broken error return on meta client's UpdateUser and DropContinuousQuery methods.
 - [#7741](https://github.com/influxdata/influxdb/pull/7741): Fix string quoting and significantly improve performance of `influx_inspect export`.
@@ -66,6 +63,20 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7838](https://github.com/influxdata/influxdb/issues/7838): Ensure Subscriber service can be disabled.
 - [#7845](https://github.com/influxdata/influxdb/issues/7845): Fix race in storage engine.
 - [#7814](https://github.com/influxdata/influxdb/issues/7814): InfluxDB should do a partial write on mismatched type errors.
+
+## v1.1.3 [2017-02-17]
+
+### Bugfixes
+
+- [#8027](https://github.com/influxdata/influxdb/pull/8027): Remove Tags.shouldCopy, replace with forceCopy on series creation.
+
+## v1.1.2 [2017-02-16]
+
+### Bugfixes
+
+- [#7832](https://github.com/influxdata/influxdb/pull/7832): Fix memory leak when writing new series over HTTP
+- [#7929](https://github.com/influxdata/influxdb/issues/7929): Fix series tag iteration segfault. (#7922)
+- [#8011](https://github.com/influxdata/influxdb/issues/8011): Fix tag dereferencing panic.
 
 ## v1.1.1 [2016-12-06]
 
