@@ -2248,12 +2248,16 @@
 							"w": {
 								"description": "Width of Cell in the Dashboard",
 								"type": "integer",
-								"format": "int32"
+								"format": "int32",
+								"minimum": 1,
+								"default": 4
 							},
 							"h": {
 								"description": "Height of Cell in the Dashboard",
 								"type": "integer",
-								"format": "int32"
+								"format": "int32",
+								"minimum": 1,
+								"default": 4
 							},
 							"queries": {
 								"description": "Time-series data queries for Cell.",
