@@ -10,9 +10,7 @@ const RefreshingLineGraph = AutoRefresh(LineGraph);
 const RefreshingSingleStat = AutoRefresh(SingleStat);
 
 const {
-  children,
   arrayOf,
-  node,
   number,
   shape,
   string,
@@ -114,9 +112,12 @@ export const LayoutRenderer = React.createClass({
       }
 
       return (
-        <Wrapper key={cell.i}>
-          <RefreshingLineGraph queries={qs} autoRefresh={autoRefreshMs} showSingleStat={cell.type === "line-plus-single-stat"} />
-        </Wrapper>
+        <div key={cell.i}>
+          <h2 className="hosts-graph-heading">{cell.name}</h2>
+          <div className="hosts-graph graph-container ">
+            <RefreshingLineGraph queries={qs} autoRefresh={autoRefreshMs} showSingleStat={cell.type === "line-plus-single-stat"} />
+          </div>
+        </div>
       );
     });
   },
@@ -145,26 +146,6 @@ export const LayoutRenderer = React.createClass({
       dispatchEvent(evt);
     }
   },
-});
-
-const Wrapper = React.createClass({
-  propTypes: {
-    children: node.isRequired,
-  },
-  render() {
-    const that = this;
-    const newChildren = React.Children.map(this.props.children, (child) => {
-      return React.cloneElement(child, {
-        height: that.props.style.height,
-      })
-    })
-
-    return (
-      <div {...this.props}>
-        {newChildren}
-      </div>
-    );
-  }
 });
 
 export default LayoutRenderer;
