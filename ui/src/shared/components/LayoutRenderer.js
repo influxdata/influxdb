@@ -131,7 +131,7 @@ export const LayoutRenderer = React.createClass({
         rowHeight={83.5}
         margin={[layoutMargin, layoutMargin]}
         containerPadding={[0, 0]}
-        useCSSTransforms={false}
+        useCSSTransforms={true}
         onResize={triggerWindowResize}
         onLayoutChange={triggerWindowResize}
       >
