@@ -109,6 +109,7 @@ export default React.createClass({
         const legendMaxLeft = graphWidth - (legendWidth / 2);
         const trueGraphX = (e.pageX - graphRect.left);
         let legendLeft = trueGraphX;
+        let legendTop = graphRect.height + 0
         // Enforcing max & min legend offsets
         if (trueGraphX < (legendWidth / 2)) {
           legendLeft = legendWidth / 2;
@@ -117,6 +118,7 @@ export default React.createClass({
         }
 
         legendContainerNode.style.left = `${legendLeft}px`;
+        legendContainerNode.style.top = `${legendTop}px`;
         setMarker(points);
       },
       unhighlightCallback() {
