@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/uber-go/zap"
 )
 
 const (
@@ -274,10 +274,7 @@ func NewQueryExecutor() *QueryExecutor {
 	if testing.Verbose() {
 		out = io.MultiWriter(out, os.Stderr)
 	}
-	e.QueryExecutor.WithLogger(zap.New(
-		zap.NewTextEncoder(),
-		zap.Output(zap.AddSync(out)),
-	))
+	e.QueryExecutor.WithLogger(influxdb.NewLogger(out))
 
 	return e
 }

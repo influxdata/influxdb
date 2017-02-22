@@ -12,7 +12,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 const (
@@ -75,7 +75,7 @@ type Service struct {
 	RunInterval   time.Duration
 	// RunCh can be used by clients to signal service to run CQs.
 	RunCh          chan *RunRequest
-	Logger         zap.Logger
+	Logger         *zap.Logger
 	loggingEnabled bool
 	stats          *Statistics
 	// lastRuns maps CQ name to last time it was run.
@@ -92,7 +92,7 @@ func NewService(c Config) *Service {
 		RunInterval:    time.Duration(c.RunInterval),
 		RunCh:          make(chan *RunRequest),
 		loggingEnabled: c.LogEnabled,
-		Logger:         zap.New(zap.NullEncoder()),
+		Logger:         zap.NewNop(),
 		stats:          &Statistics{},
 		lastRuns:       map[string]time.Time{},
 	}
@@ -131,7 +131,7 @@ func (s *Service) Close() error {
 }
 
 // WithLogger sets the logger on the service.
-func (s *Service) WithLogger(log zap.Logger) {
+func (s *Service) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "continuous_querier"))
 }
 

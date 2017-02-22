@@ -31,7 +31,7 @@ import (
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
 	client "github.com/influxdata/usage-client/v1"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 	// Initialize the engine packages
 	_ "github.com/influxdata/influxdb/tsdb/engine"
 )
@@ -62,7 +62,7 @@ type Server struct {
 	BindAddress string
 	Listener    net.Listener
 
-	Logger zap.Logger
+	Logger *zap.Logger
 
 	MetaClient *meta.Client
 
@@ -140,10 +140,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		BindAddress: bind,
 
-		Logger: zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
-		),
+		Logger: influxdb.NewLogger(os.Stderr),
 
 		MetaClient: meta.NewClient(c.Meta),
 
@@ -231,7 +228,7 @@ func (s *Server) appendSnapshotterService() {
 // SetLogOutput sets the logger used for all messages. It must not be called
 // after the Open method has been called.
 func (s *Server) SetLogOutput(w io.Writer) {
-	s.Logger = zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(w)))
+	s.Logger = influxdb.NewLogger(w)
 }
 
 func (s *Server) appendMonitorService() {
@@ -548,7 +545,7 @@ func (s *Server) reportServer() {
 
 // Service represents a service attached to the server.
 type Service interface {
-	WithLogger(log zap.Logger)
+	WithLogger(log *zap.Logger)
 	Open() error
 	Close() error
 }

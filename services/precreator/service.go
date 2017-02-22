@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // Service manages the shard precreation service.
@@ -14,7 +14,7 @@ type Service struct {
 	checkInterval time.Duration
 	advancePeriod time.Duration
 
-	Logger zap.Logger
+	Logger *zap.Logger
 
 	done chan struct{}
 	wg   sync.WaitGroup
@@ -29,14 +29,14 @@ func NewService(c Config) (*Service, error) {
 	s := Service{
 		checkInterval: time.Duration(c.CheckInterval),
 		advancePeriod: time.Duration(c.AdvancePeriod),
-		Logger:        zap.New(zap.NullEncoder()),
+		Logger:        zap.NewNop(),
 	}
 
 	return &s, nil
 }
 
 // WithLogger sets the logger for the service.
-func (s *Service) WithLogger(log zap.Logger) {
+func (s *Service) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "shard-precreation"))
 }
 

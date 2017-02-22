@@ -10,7 +10,7 @@ import (
 	// Register static assets via statik.
 	_ "github.com/influxdata/influxdb/services/admin/statik"
 	"github.com/rakyll/statik/fs"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // Service manages the listener for an admin endpoint.
@@ -22,7 +22,7 @@ type Service struct {
 	err      chan error
 	version  string
 
-	logger zap.Logger
+	logger *zap.Logger
 }
 
 // NewService returns a new instance of Service.
@@ -33,7 +33,7 @@ func NewService(c Config) *Service {
 		cert:    c.HTTPSCertificate,
 		err:     make(chan error),
 		version: c.Version,
-		logger:  zap.New(zap.NullEncoder()),
+		logger:  zap.NewNop(),
 	}
 }
 
@@ -81,7 +81,7 @@ func (s *Service) Close() error {
 	return nil
 }
 
-func (s *Service) WithLogger(log zap.Logger) {
+func (s *Service) WithLogger(log *zap.Logger) {
 	s.logger = log.With(zap.String("service", "admin"))
 }
 

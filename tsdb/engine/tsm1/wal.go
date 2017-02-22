@@ -19,7 +19,7 @@ import (
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/limiter"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 const (
@@ -92,8 +92,8 @@ type WAL struct {
 	syncWaiters chan chan error
 
 	// WALOutput is the writer used by the logger.
-	logger       zap.Logger // Logger to be used for important messages
-	traceLogger  zap.Logger // Logger to be used when trace-logging is on.
+	logger       *zap.Logger // Logger to be used for important messages
+	traceLogger  *zap.Logger // Logger to be used when trace-logging is on.
 	traceLogging bool
 
 	// SegmentSize is the file size at which a segment file will be rotated
@@ -106,7 +106,7 @@ type WAL struct {
 
 // NewWAL initializes a new WAL at the given directory.
 func NewWAL(path string) *WAL {
-	logger := zap.New(zap.NullEncoder())
+	logger := zap.NewNop()
 	return &WAL{
 		path: path,
 
@@ -130,7 +130,7 @@ func (l *WAL) enableTraceLogging(enabled bool) {
 }
 
 // WithLogger sets the WAL's logger.
-func (l *WAL) WithLogger(log zap.Logger) {
+func (l *WAL) WithLogger(log *zap.Logger) {
 	l.logger = log.With(zap.String("service", "wal"))
 
 	if l.traceLogging {

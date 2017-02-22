@@ -15,7 +15,7 @@ import (
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 const (
@@ -42,14 +42,14 @@ type Service struct {
 	TSDBStore *tsdb.Store
 
 	Listener net.Listener
-	Logger   zap.Logger
+	Logger   *zap.Logger
 }
 
 // NewService returns a new instance of Service.
 func NewService() *Service {
 	return &Service{
 		err:    make(chan error),
-		Logger: zap.New(zap.NullEncoder()),
+		Logger: zap.NewNop(),
 	}
 }
 
@@ -72,7 +72,7 @@ func (s *Service) Close() error {
 }
 
 // WithLogger sets the logger on the service.
-func (s *Service) WithLogger(log zap.Logger) {
+func (s *Service) WithLogger(log *zap.Logger) {
 	s.Logger = log.With(zap.String("service", "snapshot"))
 }
 
