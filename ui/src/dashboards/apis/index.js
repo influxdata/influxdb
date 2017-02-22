@@ -7,7 +7,7 @@ export function getDashboards() {
   });
 }
 
-export function updateDashboardPosition(dashboard) {
+export function updateDashboard(dashboard) {
   return AJAX({
     method: 'PUT',
     url: dashboard.links.self,

@@ -8,7 +8,6 @@ import EditHeader from 'src/dashboards/components/DashboardHeaderEdit'
 import Dashboard from 'src/dashboards/components/Dashboard'
 import timeRanges from 'hson!../../shared/data/timeRanges.hson'
 
-import {updateDashboardPosition} from 'src/dashboards/apis'
 import * as dashboardActionCreators from 'src/dashboards/actions'
 
 import {presentationButtonDispatcher} from 'shared/dispatchers'
@@ -38,6 +37,7 @@ const DashboardPage = React.createClass({
       pathname: string.isRequired,
     }).isRequired,
     dashboardActions: shape({
+      putDashboard: func.isRequired,
       getDashboards: func.isRequired,
       setDashboard: func.isRequired,
       setTimeRange: func.isRequired,
@@ -88,7 +88,7 @@ const DashboardPage = React.createClass({
   },
 
   handleUpdatePosition(cells) {
-    updateDashboardPosition({...this.props.dashboard, cells})
+    this.props.dashboardActions.putDashboard({...this.props.dashboard, cells})
   },
 
   render() {

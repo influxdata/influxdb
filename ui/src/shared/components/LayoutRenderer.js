@@ -4,7 +4,6 @@ import LineGraph from 'shared/components/LineGraph';
 import SingleStat from 'shared/components/SingleStat';
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout';
 const GridLayout = WidthProvider(ReactGridLayout);
-import _ from 'lodash';
 
 const RefreshingLineGraph = AutoRefresh(LineGraph);
 const RefreshingSingleStat = AutoRefresh(SingleStat);

@@ -40,6 +40,17 @@ export default function ui(state = initialState, action) {
       const {isEditMode} = action.payload
       return {...state, isEditMode}
     }
+
+    case 'UPDATE_DASHBOARD': {
+      const {dashboard} = action.payload
+      const newState = {
+        dashboard,
+        dashboards: state.dashboards.map((d) => d.id === dashboard.id ? dashboard : d),
+      }
+
+      console.log('hi i am new state: ', {...state, ...newState})
+      return {...state, ...newState}
+    }
   }
 
   return state;

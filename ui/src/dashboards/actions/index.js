@@ -1,4 +1,7 @@
-import {getDashboards as getDashboardsAPI} from 'src/dashboards/apis'
+import {
+  getDashboards as getDashboardsAPI,
+  updateDashboard as updateDashboardAPI,
+} from 'src/dashboards/apis'
 
 export function loadDashboards(dashboards, dashboardID) {
   return {
@@ -42,5 +45,22 @@ export function getDashboards(dashboardID) {
     getDashboardsAPI().then(({data: {dashboards}}) => {
       dispatch(loadDashboards(dashboards, dashboardID))
     });
+  }
+}
+
+export function putDashboard(dashboard) {
+  return (dispatch) => {
+    updateDashboardAPI(dashboard).then(({data}) => {
+      dispatch(updateDashboard(data))
+    })
+  }
+}
+
+export function updateDashboard(dashboard) {
+  return {
+    type: 'UPDATE_DASHBOARD',
+    payload: {
+      dashboard,
+    },
   }
 }
