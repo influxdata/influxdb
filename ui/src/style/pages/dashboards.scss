@@ -5,13 +5,14 @@ $dashboard-item-heading: 30px;
     background-color: $g3-castle;
     border-radius: $radius;
     border: 2px solid $g3-castle;
-    transition-property: left, top, border-color;
+    transition-property: left, top, border-color, background-color;
 
     &.cssTransforms {
-      transition-property: transform, border-color;
+      transition-property: transform, border-color, background-color;
     }
 
     &.resizing {
+      background-color: fade-out($g3-castle,0.09);
       border-color: $c-pool;
       border-image-slice: 3%;
       border-image-repeat: initial;
@@ -27,6 +28,7 @@ $dashboard-item-heading: 30px;
       }
     }
     &.react-draggable-dragging {
+      background-color: fade-out($g3-castle,0.09);
       border-color: $c-pool;
       border-image-slice: 3%;
       border-image-repeat: initial;
@@ -59,6 +61,7 @@ $dashboard-item-heading: 30px;
     z-index: 2;
   }
   .graph-empty {
+    background-color: transparent;
     position: absolute;
     width: 100%;
     height: 100%;
@@ -66,6 +69,7 @@ $dashboard-item-heading: 30px;
     left: 0;
   }
   .hosts-graph {
+    background-color: transparent;
     position: absolute;
     width: 100%;
     height: calc(100% - #{$dashboard-item-heading});
@@ -93,6 +97,7 @@ $dashboard-item-heading: 30px;
 
   }
   .hosts-graph-heading {
+    background-color: transparent;
     position: absolute;
     top: 0;
     left: 0;
