@@ -10,6 +10,8 @@
   position: relative;
 
   pre {
+    display: flex;
+    align-items: center;
     padding: 9px;
     border: 0;
     background-color: $query-editor-tab-inactive;
