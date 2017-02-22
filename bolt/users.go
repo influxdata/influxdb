@@ -11,8 +11,10 @@ import (
 // Ensure UsersStore implements chronograf.UsersStore.
 var _ chronograf.UsersStore = &UsersStore{}
 
+// UsersBucket is used to store users local to chronograf
 var UsersBucket = []byte("UsersV1")
 
+// UsersStore uses bolt to store and retrieve users
 type UsersStore struct {
 	client *Client
 }
@@ -61,7 +63,7 @@ func (s *UsersStore) Get(ctx context.Context, name string) (*chronograf.User, er
 	}, nil
 }
 
-// Create a new Users in the UsersStore.
+// Add a new Users in the UsersStore.
 func (s *UsersStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.User, error) {
 	if err := s.client.db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(UsersBucket)
