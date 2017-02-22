@@ -40,6 +40,7 @@ type sourceUser struct {
 	Links       sourceUserLinks        `json:"links"`                 // Links are URI locations related to user
 }
 
+// NewSourceUser creates a new user in the InfluxDB data source
 func NewSourceUser(srcID int, name string, perms chronograf.Permissions) sourceUser {
 	u := &url.URL{Path: name}
 	encodedUser := u.String()
