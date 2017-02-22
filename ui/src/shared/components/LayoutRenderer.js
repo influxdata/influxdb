@@ -126,6 +126,11 @@ export const LayoutRenderer = React.createClass({
 
   handleLayoutChange(layout) {
     this.triggerWindowResize()
+
+    if (!this.props.onPositionChange) {
+      return
+    }
+
     const newCells = this.props.cells.map((cell) => {
       const l = layout.find((ly) => ly.i === cell.i)
       const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
