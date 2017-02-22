@@ -1519,6 +1519,51 @@
 						}
 					}
 				}
+			},
+			"patch": {
+				"tags": [
+					"layouts"
+				],
+				"summary": "Update dashboard information.",
+				"description": "Update either the dashboard name or the dashboard cells",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "integer",
+						"description": "ID of a dashboard",
+						"required": true
+					},
+					{
+						"name": "config",
+						"in": "body",
+						"description": "dashboard configuration update parameters. Must be either name or cells",
+						"schema": {
+							"$ref": "#/definitions/Dashboard"
+						},
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Dashboard has been updated and the new dashboard is returned.",
+						"schema": {
+							"$ref": "#/definitions/Dashboard"
+						}
+					},
+					"404": {
+						"description": "Happens when trying to access a non-existent dashboard.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
 			}
 		}
 	},
