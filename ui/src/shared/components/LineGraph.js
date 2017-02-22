@@ -100,22 +100,20 @@ export default React.createClass({
     }
 
     return (
-      <div>
-        <div className={classNames({"graph--hasYLabel": !!(options.ylabel || options.y2label)})}>
-          {isRefreshing ? this.renderSpinner() : null}
-          <Dygraph
-            containerStyle={{width: '100%', height: '100%'}}
-            overrideLineColors={overrideLineColors}
-            isGraphFilled={isGraphFilled}
-            timeSeries={timeSeries}
-            labels={labels}
-            options={options}
-            dygraphSeries={dygraphSeries}
-            ranges={ranges || this.getRanges()}
-            ruleValues={ruleValues}
-          />
-          {showSingleStat ? <div className="graph-single-stat single-stat">{roundedValue}</div> : null}
-        </div>
+      <div className={classNames({"graph--hasYLabel": !!(options.ylabel || options.y2label)})}>
+        {this.renderSpinner()}
+        <Dygraph
+          containerStyle={{width: '100%', height: '100%'}}
+          overrideLineColors={overrideLineColors}
+          isGraphFilled={isGraphFilled}
+          timeSeries={timeSeries}
+          labels={labels}
+          options={options}
+          dygraphSeries={dygraphSeries}
+          ranges={ranges || this.getRanges()}
+          ruleValues={ruleValues}
+        />
+        {showSingleStat ? <div className="graph-single-stat single-stat">{roundedValue}</div> : null}
       </div>
     );
   },
