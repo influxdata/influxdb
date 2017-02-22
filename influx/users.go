@@ -72,6 +72,12 @@ func (c *Client) Get(ctx context.Context, name string) (*chronograf.User, error)
 
 // Update the user's permissions or roles
 func (c *Client) Update(ctx context.Context, u *chronograf.User) error {
+	// Only allow one type of change at a time. If it is a password
+	// change then do it and return without any changes to permissions
+	if u.Passwd != "" {
+		return c.updatePassword(ctx, u.Name, u.Passwd)
+	}
+
 	user, err := c.Get(ctx, u.Name)
 	if err != nil {
 		return err
@@ -175,4 +181,32 @@ func (c *Client) userPermissions(ctx context.Context, name string) (chronograf.P
 		return nil, err
 	}
 	return results.Permissions(), nil
+}
+
+func (c *Client) updatePassword(ctx context.Context, name, passwd string) error {
+	res, err := c.Query(ctx, chronograf.Query{
+		Command: fmt.Sprintf(`SET PASSWORD for "%s" = '%s'`, name, passwd),
+	})
+	if err != nil {
+		return err
+	}
+	// The SET PASSWORD statements puts the error within the results itself
+	// So, we have to crack open the results to see what happens
+	octets, err := res.MarshalJSON()
+	if err != nil {
+		return err
+	}
+
+	results := make([]struct{ Error string }, 0)
+	if err := json.Unmarshal(octets, &results); err != nil {
+		return err
+	}
+
+	// At last, we can check if there are any error strings
+	for _, r := range results {
+		if r.Error != "" {
+			return fmt.Errorf(r.Error)
+		}
+	}
+	return nil
 }

@@ -641,19 +641,70 @@ func TestClient_Update(t *testing.T) {
 		u   *chronograf.User
 	}
 	tests := []struct {
-		name         string
-		statusUsers  int
-		showUsers    []byte
-		statusGrants int
-		showGrants   []byte
-		statusRevoke int
-		revoke       []byte
-		statusGrant  int
-		grant        []byte
-		args         args
-		want         []string
-		wantErr      bool
+		name           string
+		statusUsers    int
+		showUsers      []byte
+		statusGrants   int
+		showGrants     []byte
+		statusRevoke   int
+		revoke         []byte
+		statusGrant    int
+		grant          []byte
+		statusPassword int
+		password       []byte
+		args           args
+		want           []string
+		wantErr        bool
 	}{
+		{
+			name:           "Change Password",
+			statusPassword: http.StatusOK,
+			password:       []byte(`{"results":[]}`),
+			args: args{
+				ctx: context.Background(),
+				u: &chronograf.User{
+					Name:   "docbrown",
+					Passwd: "hunter2",
+				},
+			},
+			want: []string{
+				`SET PASSWORD for "docbrown" = 'hunter2'`,
+			},
+		},
+		{
+			name:         "Grant all permissions",
+			statusUsers:  http.StatusOK,
+			showUsers:    []byte(`{"results":[{"series":[{"columns":["user","admin"],"values":[["admin",true],["docbrown",true],["reader",false]]}]}]}`),
+			statusGrants: http.StatusOK,
+			showGrants:   []byte(`{"results":[{"series":[{"columns":["database","privilege"],"values":[["mydb","ALL PRIVILEGES"]]}]}]}`),
+			statusRevoke: http.StatusOK,
+			revoke:       []byte(`{"results":[]}`),
+			statusGrant:  http.StatusOK,
+			grant:        []byte(`{"results":[]}`),
+			args: args{
+				ctx: context.Background(),
+				u: &chronograf.User{
+					Name: "docbrown",
+					Permissions: chronograf.Permissions{
+						{
+							Scope:   "all",
+							Allowed: []string{"WRITE", "READ"},
+						},
+						{
+							Scope:   "database",
+							Name:    "mydb",
+							Allowed: []string{"WRITE", "READ"},
+						},
+					},
+				},
+			},
+			want: []string{
+				`SHOW USERS`,
+				`SHOW GRANTS FOR "docbrown"`,
+				`GRANT ALL PRIVILEGES TO "docbrown"`,
+				`GRANT ALL ON "mydb" TO "docbrown"`,
+			},
+		},
 		{
 			name:         "Revoke all permissions",
 			statusUsers:  http.StatusOK,
@@ -870,6 +921,9 @@ func TestClient_Update(t *testing.T) {
 			} else if strings.Contains(query, "GRANT") {
 				rw.WriteHeader(tt.statusGrant)
 				rw.Write(tt.grant)
+			} else if strings.Contains(query, "PASSWORD") {
+				rw.WriteHeader(tt.statusPassword)
+				rw.Write(tt.password)
 			}
 			queries = append(queries, query)
 		}))
