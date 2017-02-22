@@ -9,6 +9,12 @@ $dashboard-item-heading: 30px;
     &.resizing {
       border-color: $c-pool;
       z-index: 3;
+
+      & > .react-resizable-handle {
+        &:before, &:after {
+          background-color: $c-pool;
+        }
+      }
     }
     &.react-draggable-dragging {
       border-color: $c-pool;
@@ -67,5 +73,31 @@ $dashboard-item-heading: 30px;
 }
 
 .react-grid-item > .react-resizable-handle {
+  background-image: none;
+  cursor: nwse-resize;
 
+  &:before,
+  &:after {
+    content: '';
+    display: block;
+    position: absolute;
+    height: 2px;
+    background-color: $g6-smoke;
+    transition: background-color 0.25s ease;
+    top: 50%;
+    left: 50%;
+  }
+  &:before {
+    width: 20px;
+    transform: translate(-50%,-50%) rotate(-45deg);
+  }
+  &:after {
+    width: 12px;
+    transform: translate(-3px,2px) rotate(-45deg);
+  }
+  &:hover {
+    &:before, &:after {
+      background-color: $c-pool;
+    }
+  }
 }
