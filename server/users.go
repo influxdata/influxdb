@@ -65,13 +65,14 @@ func (h *Service) Me(w http.ResponseWriter, r *http.Request) {
 	user := &chronograf.User{
 		Name: principal,
 	}
-	user, err = h.UsersStore.Add(ctx, user)
+
+	newUser, err := h.UsersStore.Add(ctx, user)
 	if err != nil {
-		msg := fmt.Errorf("error storing user %v: %v", user, err)
+		msg := fmt.Errorf("error storing user %s: %v", user.Name, err)
 		unknownErrorWithMessage(w, msg, h.Logger)
 		return
 	}
 
-	res := newUserResponse(user)
+	res := newUserResponse(newUser)
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
