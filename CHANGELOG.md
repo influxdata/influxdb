@@ -2,11 +2,13 @@
 
 ### Bug Fixes
   1. [#882](https://github.com/influxdata/chronograf/pull/882): Fix y-axis graph padding
+  2. [#907](https://github.com/influxdata/chronograf/pull/907): Fix react-router warning
 
 ### Features
   1. [#873](https://github.com/influxdata/chronograf/pull/873): Add [TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md) support 
 
 ### UI Improvements
+  1. [#905](https://github.com/influxdata/chronograf/pull/905): Make scroll bar thumb element bigger
 
 ## v1.2.0-beta3 [2017-02-15]
 

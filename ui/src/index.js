@@ -1,8 +1,8 @@
 import React from 'react';
 import {render} from 'react-dom';
 import {Provider} from 'react-redux';
-import {Router, Route, Redirect} from 'react-router';
-import {createHistory, useBasename} from 'history';
+import {Router, Route, Redirect, useRouterHistory} from 'react-router';
+import {createHistory} from 'history';
 
 import App from 'src/App';
 import AlertsApp from 'src/alerts';
@@ -29,11 +29,11 @@ let browserHistory;
 const basepath = rootNode.dataset.basepath;
 window.basepath = basepath;
 if (basepath) {
-  browserHistory = useBasename(createHistory)({
+  browserHistory = useRouterHistory(createHistory)({
     basename: basepath, // this is written in when available by the URL prefixer middleware
   });
 } else {
-  browserHistory = useBasename(createHistory)({
+  browserHistory = useRouterHistory(createHistory)({
     basename: "",
   });
 }
