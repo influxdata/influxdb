@@ -43,7 +43,7 @@ $dashboard-item-heading: 30px;
     }
   }
   .react-grid-placeholder {
-    background-color: $c-pool;
+    @include gradient-diag-up($c-pool,$c-comet);
     border: 0;
     opacity: 0.3;
     z-index: 2;
