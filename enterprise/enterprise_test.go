@@ -1,11 +1,11 @@
 package enterprise_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
-
-	"golang.org/x/net/context"
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/enterprise"
@@ -132,5 +132,44 @@ func Test_Enterprise_ComplainsIfNotOpened(t *testing.T) {
 	_, err := cl.Query(context.Background(), chronograf.Query{Command: "show shards", DB: "_internal", RP: "autogen"})
 	if err != chronograf.ErrUninitialized {
 		t.Error("Expected ErrUnitialized, but was this err:", err)
+	}
+}
+
+func TestClient_Allowances(t *testing.T) {
+	tests := []struct {
+		name string
+
+		want chronograf.Allowances
+	}{
+		{
+			name: "All possible enterprise permissions",
+			want: chronograf.Allowances{
+				"NoPermissions",
+				"ViewAdmin",
+				"ViewChronograf",
+				"CreateDatabase",
+				"CreateUserAndRole",
+				"AddRemoveNode",
+				"DropDatabase",
+				"DropData",
+				"ReadData",
+				"WriteData",
+				"Rebalance",
+				"ManageShard",
+				"ManageContinuousQuery",
+				"ManageQuery",
+				"ManageSubscription",
+				"Monitor",
+				"CopyShard",
+				"KapacitorAPI",
+				"KapacitorConfigAPI",
+			},
+		},
+	}
+	for _, tt := range tests {
+		c := &enterprise.Client{}
+		if got := c.Allowances(context.Background()); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%q. Client.Allowances() = %v, want %v", tt.name, got, tt.want)
+		}
 	}
 }
