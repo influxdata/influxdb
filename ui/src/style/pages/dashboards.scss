@@ -5,7 +5,11 @@ $dashboard-item-heading: 30px;
     background-color: $g3-castle;
     border-radius: $radius;
     border: 2px solid $g3-castle;
-    transition: all 0.2s ease !important;
+    transition-property: left, top, border-color;
+
+    &.cssTransforms {
+      transition-property: transform, border-color;
+    }
 
     &.resizing {
       border-color: $c-pool;
