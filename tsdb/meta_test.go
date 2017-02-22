@@ -255,7 +255,7 @@ func benchmarkCreateSeriesIndex(b *testing.B, series []*TestSeries) {
 	for n := 0; n < b.N; n++ {
 		idx := idxs[n]
 		for _, s := range series {
-			idx.CreateSeriesIndexIfNotExists(s.Measurement, s.Series)
+			idx.CreateSeriesIndexIfNotExists(s.Measurement, s.Series, false)
 		}
 	}
 }

@@ -45,8 +45,8 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	// Verify index is correct.
 	if m := index.Measurement("cpu"); m == nil {
 		t.Fatal("measurement not found")
-	} else if s := m.SeriesByID(1); s.Key != "cpu,host=A" || !reflect.DeepEqual(s.Tags, models.NewTags(map[string]string{"host": "A"})) {
-		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags)
+	} else if s := m.SeriesByID(1); s.Key != "cpu,host=A" || !reflect.DeepEqual(s.Tags(), models.NewTags(map[string]string{"host": "A"})) {
+		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags())
 	}
 
 	// write the snapshot, ensure we can close and load index from TSM
@@ -68,8 +68,8 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	// Verify index is correct.
 	if m := index.Measurement("cpu"); m == nil {
 		t.Fatal("measurement not found")
-	} else if s := m.SeriesByID(1); s.Key != "cpu,host=A" || !reflect.DeepEqual(s.Tags, models.NewTags(map[string]string{"host": "A"})) {
-		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags)
+	} else if s := m.SeriesByID(1); s.Key != "cpu,host=A" || !reflect.DeepEqual(s.Tags(), models.NewTags(map[string]string{"host": "A"})) {
+		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags())
 	}
 
 	// Write a new point and ensure we can close and load index from TSM and WAL
@@ -93,10 +93,10 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 	// Verify index is correct.
 	if m := index.Measurement("cpu"); m == nil {
 		t.Fatal("measurement not found")
-	} else if s := m.SeriesByID(1); s.Key != "cpu,host=A" || !reflect.DeepEqual(s.Tags, models.NewTags(map[string]string{"host": "A"})) {
-		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags)
-	} else if s := m.SeriesByID(2); s.Key != "cpu,host=B" || !reflect.DeepEqual(s.Tags, models.NewTags(map[string]string{"host": "B"})) {
-		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags)
+	} else if s := m.SeriesByID(1); s.Key != "cpu,host=A" || !reflect.DeepEqual(s.Tags(), models.NewTags(map[string]string{"host": "A"})) {
+		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags())
+	} else if s := m.SeriesByID(2); s.Key != "cpu,host=B" || !reflect.DeepEqual(s.Tags(), models.NewTags(map[string]string{"host": "B"})) {
+		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags())
 	}
 }
 
@@ -223,7 +223,7 @@ func TestEngine_CreateIterator_Cache_Ascending(t *testing.T) {
 
 	e.Index().CreateMeasurementIndexIfNotExists("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
+	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})), false)
 	si.AssignShard(1)
 
 	if err := e.WritePointsString(
@@ -277,7 +277,7 @@ func TestEngine_CreateIterator_Cache_Descending(t *testing.T) {
 
 	e.Index().CreateMeasurementIndexIfNotExists("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
+	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})), false)
 	si.AssignShard(1)
 
 	if err := e.WritePointsString(
@@ -331,7 +331,7 @@ func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 
 	e.Index().CreateMeasurementIndexIfNotExists("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
+	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})), false)
 	si.AssignShard(1)
 
 	if err := e.WritePointsString(
@@ -386,7 +386,7 @@ func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 
 	e.Index().CreateMeasurementIndexIfNotExists("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
+	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})), false)
 	si.AssignShard(1)
 
 	if err := e.WritePointsString(
@@ -442,7 +442,7 @@ func TestEngine_CreateIterator_Aux(t *testing.T) {
 	e.Index().CreateMeasurementIndexIfNotExists("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("F", influxql.Float, false)
-	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
+	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})), false)
 	si.AssignShard(1)
 
 	if err := e.WritePointsString(
@@ -503,7 +503,7 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("X", influxql.Float, false)
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("Y", influxql.Float, false)
-	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
+	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})), false)
 	si.AssignShard(1)
 
 	if err := e.WritePointsString(
@@ -905,7 +905,7 @@ func MustInitBenchmarkEngine(pointN int) *Engine {
 	// Initialize metadata.
 	e.Index().CreateMeasurementIndexIfNotExists("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
-	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})))
+	si := e.Index().CreateSeriesIndexIfNotExists("cpu", tsdb.NewSeries("cpu,host=A", models.NewTags(map[string]string{"host": "A"})), false)
 	si.AssignShard(1)
 
 	// Generate time ascending points with jitterred time & value.

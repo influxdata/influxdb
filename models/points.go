@@ -1323,11 +1323,6 @@ func (p *point) Tags() Tags {
 		return p.cachedTags
 	}
 	p.cachedTags = parseTags(p.key)
-
-	for i := range p.cachedTags {
-		p.cachedTags[i].shouldCopy = true
-	}
-
 	return p.cachedTags
 }
 
@@ -1626,9 +1621,6 @@ func (p *point) Split(size int) []Point {
 type Tag struct {
 	Key   []byte
 	Value []byte
-
-	// shouldCopy returns whether or not a tag should be copied when Clone-ing
-	shouldCopy bool
 }
 
 // Clone returns a shallow copy of Tag.
@@ -1636,10 +1628,6 @@ type Tag struct {
 // Tags associated with a Point created by ParsePointsWithPrecision will hold references to the byte slice that was parsed.
 // Use Clone to create a Tag with new byte slices that do not refer to the argument to ParsePointsWithPrecision.
 func (t Tag) Clone() Tag {
-	if !t.shouldCopy {
-		return t
-	}
-
 	other := Tag{
 		Key:   make([]byte, len(t.Key)),
 		Value: make([]byte, len(t.Value)),
@@ -1674,15 +1662,6 @@ func NewTags(m map[string]string) Tags {
 func (a Tags) Clone() Tags {
 	if len(a) == 0 {
 		return nil
-	}
-
-	needsClone := false
-	for i := 0; i < len(a) && !needsClone; i++ {
-		needsClone = a[i].shouldCopy
-	}
-
-	if !needsClone {
-		return a
 	}
 
 	others := make(Tags, len(a))
