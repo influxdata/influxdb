@@ -51,16 +51,15 @@ func NewClientWithTimeSeries(lg chronograf.Logger, series ...chronograf.TimeSeri
 // Acceptable URLs include host:port combinations as well as scheme://host:port
 // varieties. TLS is used when the URL contains "https" or when the TLS
 // parameter is set. The latter option is provided for host:port combinations
-func NewClientWithURL(mu string, tls bool, lg chronograf.Logger) (*Client, error) {
+// Username and Password are used for Basic Auth
+func NewClientWithURL(mu, username, password string, tls bool, lg chronograf.Logger) (*Client, error) {
 	metaURL, err := parseMetaURL(mu, tls)
 	if err != nil {
 		return nil, err
 	}
-
+	metaURL.User = url.UserPassword(username, password)
 	return &Client{
-		Ctrl: &MetaClient{
-			MetaHostPort: metaURL.Host,
-		},
+		Ctrl:   NewMetaClient(metaURL),
 		Logger: lg,
 	}, nil
 }

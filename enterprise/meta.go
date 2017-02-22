@@ -15,14 +15,23 @@ import (
 
 // MetaClient represents a Meta node in an Influx Enterprise cluster
 type MetaClient struct {
-	MetaHostPort string
-	Username     string
-	Password     string
+	URL    *url.URL
+	client interface {
+		Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+	}
+}
+
+// NewMetaClient represents a meta node in an Influx Enterprise cluster
+func NewMetaClient(url *url.URL) *MetaClient {
+	return &MetaClient{
+		URL:    url,
+		client: &defaultClient{},
+	}
 }
 
 // ShowCluster returns the cluster configuration (not health)
-func (t *MetaClient) ShowCluster(ctx context.Context) (*Cluster, error) {
-	res, err := t.Do(ctx, "GET", "/show-cluster", nil, nil)
+func (m *MetaClient) ShowCluster(ctx context.Context) (*Cluster, error) {
+	res, err := m.Do(ctx, "GET", "/show-cluster", nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -38,12 +47,12 @@ func (t *MetaClient) ShowCluster(ctx context.Context) (*Cluster, error) {
 }
 
 // Users gets all the users.  If name is not nil it filters for a single user
-func (t *MetaClient) Users(ctx context.Context, name *string) (*Users, error) {
+func (m *MetaClient) Users(ctx context.Context, name *string) (*Users, error) {
 	params := map[string]string{}
 	if name != nil {
 		params["name"] = *name
 	}
-	res, err := t.Do(ctx, "GET", "/user", params, nil)
+	res, err := m.Do(ctx, "GET", "/user", params, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -59,11 +68,12 @@ func (t *MetaClient) Users(ctx context.Context, name *string) (*Users, error) {
 }
 
 // User returns a single Influx Enterprise user
-func (t *MetaClient) User(ctx context.Context, name string) (*User, error) {
-	users, err := t.Users(ctx, &name)
+func (m *MetaClient) User(ctx context.Context, name string) (*User, error) {
+	users, err := m.Users(ctx, &name)
 	if err != nil {
 		return nil, err
 	}
+
 	for _, user := range users.Users {
 		return &user, nil
 	}
@@ -71,17 +81,17 @@ func (t *MetaClient) User(ctx context.Context, name string) (*User, error) {
 }
 
 // CreateUser adds a user to Influx Enterprise
-func (t *MetaClient) CreateUser(ctx context.Context, name, passwd string) error {
-	return t.CreateUpdateUser(ctx, "create", name, passwd)
+func (m *MetaClient) CreateUser(ctx context.Context, name, passwd string) error {
+	return m.CreateUpdateUser(ctx, "create", name, passwd)
 }
 
 // ChangePassword updates a user's password in Influx Enterprise
-func (t *MetaClient) ChangePassword(ctx context.Context, name, passwd string) error {
-	return t.CreateUpdateUser(ctx, "change-password", name, passwd)
+func (m *MetaClient) ChangePassword(ctx context.Context, name, passwd string) error {
+	return m.CreateUpdateUser(ctx, "change-password", name, passwd)
 }
 
 // CreateUpdateUser is a helper function to POST to the /user Influx Enterprise endpoint
-func (t *MetaClient) CreateUpdateUser(ctx context.Context, action, name, passwd string) error {
+func (m *MetaClient) CreateUpdateUser(ctx context.Context, action, name, passwd string) error {
 	a := &UserAction{
 		Action: action,
 		User: &User{
@@ -89,11 +99,11 @@ func (t *MetaClient) CreateUpdateUser(ctx context.Context, action, name, passwd 
 			Password: passwd,
 		},
 	}
-	return t.Post(ctx, "/user", a, nil)
+	return m.Post(ctx, "/user", a, nil)
 }
 
 // DeleteUser removes a user from Influx Enterprise
-func (t *MetaClient) DeleteUser(ctx context.Context, name string) error {
+func (m *MetaClient) DeleteUser(ctx context.Context, name string) error {
 	a := &UserAction{
 		Action: "delete",
 		User: &User{
@@ -101,12 +111,12 @@ func (t *MetaClient) DeleteUser(ctx context.Context, name string) error {
 		},
 	}
 
-	return t.Post(ctx, "/user", a, nil)
+	return m.Post(ctx, "/user", a, nil)
 }
 
 // RemoveAllUserPerms revokes all permissions for a user in Influx Enterprise
-func (t *MetaClient) RemoveAllUserPerms(ctx context.Context, name string) error {
-	user, err := t.User(ctx, name)
+func (m *MetaClient) RemoveAllUserPerms(ctx context.Context, name string) error {
+	user, err := m.User(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -120,12 +130,12 @@ func (t *MetaClient) RemoveAllUserPerms(ctx context.Context, name string) error 
 		Action: "remove-permissions",
 		User:   user,
 	}
-	return t.Post(ctx, "/user", a, nil)
+	return m.Post(ctx, "/user", a, nil)
 }
 
 // SetUserPerms removes all permissions and then adds the requested perms
-func (t *MetaClient) SetUserPerms(ctx context.Context, name string, perms Permissions) error {
-	err := t.RemoveAllUserPerms(ctx, name)
+func (m *MetaClient) SetUserPerms(ctx context.Context, name string, perms Permissions) error {
+	err := m.RemoveAllUserPerms(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -142,16 +152,16 @@ func (t *MetaClient) SetUserPerms(ctx context.Context, name string, perms Permis
 			Permissions: perms,
 		},
 	}
-	return t.Post(ctx, "/user", a, nil)
+	return m.Post(ctx, "/user", a, nil)
 }
 
 // Roles gets all the roles.  If name is not nil it filters for a single role
-func (t *MetaClient) Roles(ctx context.Context, name *string) (*Roles, error) {
+func (m *MetaClient) Roles(ctx context.Context, name *string) (*Roles, error) {
 	params := map[string]string{}
 	if name != nil {
 		params["name"] = *name
 	}
-	res, err := t.Do(ctx, "GET", "/role", params, nil)
+	res, err := m.Do(ctx, "GET", "/role", params, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -167,8 +177,8 @@ func (t *MetaClient) Roles(ctx context.Context, name *string) (*Roles, error) {
 }
 
 // Role returns a single named role
-func (t *MetaClient) Role(ctx context.Context, name string) (*Role, error) {
-	roles, err := t.Roles(ctx, &name)
+func (m *MetaClient) Role(ctx context.Context, name string) (*Role, error) {
+	roles, err := m.Roles(ctx, &name)
 	if err != nil {
 		return nil, err
 	}
@@ -179,30 +189,30 @@ func (t *MetaClient) Role(ctx context.Context, name string) (*Role, error) {
 }
 
 // CreateRole adds a role to Influx Enterprise
-func (t *MetaClient) CreateRole(ctx context.Context, name string) error {
+func (m *MetaClient) CreateRole(ctx context.Context, name string) error {
 	a := &RoleAction{
 		Action: "create",
 		Role: &Role{
 			Name: name,
 		},
 	}
-	return t.Post(ctx, "/role", a, nil)
+	return m.Post(ctx, "/role", a, nil)
 }
 
 // DeleteRole removes a role from Influx Enterprise
-func (t *MetaClient) DeleteRole(ctx context.Context, name string) error {
+func (m *MetaClient) DeleteRole(ctx context.Context, name string) error {
 	a := &RoleAction{
 		Action: "delete",
 		Role: &Role{
 			Name: name,
 		},
 	}
-	return t.Post(ctx, "/role", a, nil)
+	return m.Post(ctx, "/role", a, nil)
 }
 
 // RemoveAllRolePerms removes all permissions from a role
-func (t *MetaClient) RemoveAllRolePerms(ctx context.Context, name string) error {
-	role, err := t.Role(ctx, name)
+func (m *MetaClient) RemoveAllRolePerms(ctx context.Context, name string) error {
+	role, err := m.Role(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -216,12 +226,12 @@ func (t *MetaClient) RemoveAllRolePerms(ctx context.Context, name string) error 
 		Action: "remove-permissions",
 		Role:   role,
 	}
-	return t.Post(ctx, "/role", a, nil)
+	return m.Post(ctx, "/role", a, nil)
 }
 
 // SetRolePerms removes all permissions and then adds the requested perms to role
-func (t *MetaClient) SetRolePerms(ctx context.Context, name string, perms Permissions) error {
-	err := t.RemoveAllRolePerms(ctx, name)
+func (m *MetaClient) SetRolePerms(ctx context.Context, name string, perms Permissions) error {
+	err := m.RemoveAllRolePerms(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -238,12 +248,12 @@ func (t *MetaClient) SetRolePerms(ctx context.Context, name string, perms Permis
 			Permissions: perms,
 		},
 	}
-	return t.Post(ctx, "/role", a, nil)
+	return m.Post(ctx, "/role", a, nil)
 }
 
 // RemoveAllRoleUsers removes all users from a role
-func (t *MetaClient) RemoveAllRoleUsers(ctx context.Context, name string) error {
-	role, err := t.Role(ctx, name)
+func (m *MetaClient) RemoveAllRoleUsers(ctx context.Context, name string) error {
+	role, err := m.Role(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -257,12 +267,12 @@ func (t *MetaClient) RemoveAllRoleUsers(ctx context.Context, name string) error 
 		Action: "remove-users",
 		Role:   role,
 	}
-	return t.Post(ctx, "/role", a, nil)
+	return m.Post(ctx, "/role", a, nil)
 }
 
 // SetRoleUsers removes all users and then adds the requested users to role
-func (t *MetaClient) SetRoleUsers(ctx context.Context, name string, users []string) error {
-	err := t.RemoveAllRoleUsers(ctx, name)
+func (m *MetaClient) SetRoleUsers(ctx context.Context, name string, users []string) error {
+	err := m.RemoveAllRoleUsers(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -279,37 +289,34 @@ func (t *MetaClient) SetRoleUsers(ctx context.Context, name string, users []stri
 			Users: users,
 		},
 	}
-	return t.Post(ctx, "/role", a, nil)
+	return m.Post(ctx, "/role", a, nil)
 }
 
 // Post is a helper function to POST to Influx Enterprise
-func (t *MetaClient) Post(ctx context.Context, path string, action interface{}, params map[string]string) error {
+func (m *MetaClient) Post(ctx context.Context, path string, action interface{}, params map[string]string) error {
 	b, err := json.Marshal(action)
 	if err != nil {
 		return err
 	}
 	body := bytes.NewReader(b)
-	_, err = t.Do(ctx, "POST", path, params, body)
+	_, err = m.Do(ctx, "POST", path, params, body)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-// do is a helper function to interface with Influx Enterprise's Meta API
-func (t *MetaClient) do(method, path string, params map[string]string, body io.Reader) (*http.Response, error) {
+type defaultClient struct{}
+
+// Do is a helper function to interface with Influx Enterprise's Meta API
+func (d *defaultClient) Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error) {
 	p := url.Values{}
-	p.Add("u", t.Username)
-	p.Add("p", t.Password)
 	for k, v := range params {
 		p.Add(k, v)
 	}
-	URL := url.URL{
-		Scheme:   "http",
-		Host:     t.MetaHostPort,
-		Path:     path,
-		RawQuery: p.Encode(),
-	}
+
+	URL.Path = path
+	URL.RawQuery = p.Encode()
 
 	req, err := http.NewRequest(method, URL.String(), body)
 	if err != nil {
@@ -340,14 +347,14 @@ func (t *MetaClient) do(method, path string, params map[string]string, body io.R
 }
 
 // Do is a cancelable function to interface with Influx Enterprise's Meta API
-func (t *MetaClient) Do(ctx context.Context, method, path string, params map[string]string, body io.Reader) (*http.Response, error) {
+func (m *MetaClient) Do(ctx context.Context, method, path string, params map[string]string, body io.Reader) (*http.Response, error) {
 	type result struct {
 		Response *http.Response
 		Err      error
 	}
 	resps := make(chan (result))
 	go func() {
-		resp, err := t.do(method, path, params, body)
+		resp, err := m.client.Do(m.URL, path, method, params, body)
 		resps <- result{resp, err}
 	}()
 

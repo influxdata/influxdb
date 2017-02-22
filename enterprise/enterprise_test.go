@@ -98,23 +98,26 @@ func Test_Enterprise_NewClientWithURL(t *testing.T) {
 
 	urls := []struct {
 		url       string
+		username  string
+		password  string
 		tls       bool
 		shouldErr bool
 	}{
-		{"http://localhost:8086", false, false},
-		{"https://localhost:8086", false, false},
+		{"http://localhost:8086", "", "", false, false},
+		{"https://localhost:8086", "", "", false, false},
+		{"http://localhost:8086", "username", "password", false, false},
 
-		{"http://localhost:8086", true, false},
-		{"https://localhost:8086", true, false},
+		{"http://localhost:8086", "", "", true, false},
+		{"https://localhost:8086", "", "", true, false},
 
-		{"localhost:8086", false, false},
-		{"localhost:8086", true, false},
+		{"localhost:8086", "", "", false, false},
+		{"localhost:8086", "", "", true, false},
 
-		{":http", false, true},
+		{":http", "", "", false, true},
 	}
 
 	for _, testURL := range urls {
-		_, err := enterprise.NewClientWithURL(testURL.url, testURL.tls, log.New(log.DebugLevel))
+		_, err := enterprise.NewClientWithURL(testURL.url, testURL.username, testURL.password, testURL.tls, log.New(log.DebugLevel))
 		if err != nil && !testURL.shouldErr {
 			t.Errorf("Unexpected error creating Client with URL %s and TLS preference %t. err: %s", testURL.url, testURL.tls, err.Error())
 		} else if err == nil && testURL.shouldErr {
