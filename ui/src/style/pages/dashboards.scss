@@ -5,6 +5,7 @@ $dashboard-item-heading: 30px;
     background-color: $g3-castle;
     border-radius: $radius;
     border: 2px solid $g3-castle;
+    transition: all 0.2s ease !important;
 
     &.resizing {
       border-color: $c-pool;
@@ -18,6 +19,23 @@ $dashboard-item-heading: 30px;
     }
     &.react-draggable-dragging {
       border-color: $c-pool;
+      cursor: grabbing;
+      cursor: -moz-grabbing;
+      cursor: -webkit-grabbing;
+      &:hover {
+        cursor: grabbing;
+        cursor: -moz-grabbing;
+        cursor: -webkit-grabbing;
+      }
+
+      & > .hosts-graph-heading,
+      & > .hosts-graph-heading:hover {
+        background-color: $g4-onyx;
+        color: $g18-cloud;
+        cursor: grabbing;
+        cursor: -moz-grabbing;
+        cursor: -webkit-grabbing;
+      }
     }
   }
   .react-grid-placeholder {
@@ -69,6 +87,19 @@ $dashboard-item-heading: 30px;
     padding: 0 16px;
     display: flex;
     align-items: center;
+    border-radius: $radius;
+    transition:
+      color 0.25s ease,
+      background-color 0.25s ease;
+
+    &:hover {
+      background-color: $g4-onyx;
+      color: $g18-cloud;
+      cursor: move; /* fallback if grab cursor is unsupported */
+      cursor: grab;
+      cursor: -moz-grab;
+      cursor: -webkit-grab;
+    }
   }
 }
 
