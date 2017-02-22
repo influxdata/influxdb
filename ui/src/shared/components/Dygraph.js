@@ -108,8 +108,8 @@ export default React.createClass({
         const legendWidth = legendRect.width;
         const legendMaxLeft = graphWidth - (legendWidth / 2);
         const trueGraphX = (e.pageX - graphRect.left);
+        const legendTop = graphRect.height + 0
         let legendLeft = trueGraphX;
-        let legendTop = graphRect.height + 0
         // Enforcing max & min legend offsets
         if (trueGraphX < (legendWidth / 2)) {
           legendLeft = legendWidth / 2;
