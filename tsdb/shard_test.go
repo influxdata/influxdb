@@ -67,7 +67,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 			t.Fatalf("series wasn't in index")
 		}
 
-		seriesTags := index.Series(string(pt.Key())).Tags
+		seriesTags := index.Series(string(pt.Key())).Tags()
 		if len(seriesTags) != len(pt.Tags()) || pt.Tags().GetString("host") != seriesTags.GetString("host") {
 			t.Fatalf("tags weren't properly saved to series index: %v, %v", pt.Tags(), seriesTags)
 		}
@@ -299,8 +299,8 @@ func TestWriteTimeField(t *testing.T) {
 	series := index.Series(string(key))
 	if series == nil {
 		t.Fatal("expected series")
-	} else if len(series.Tags) != 0 {
-		t.Fatalf("unexpected number of tags: got=%v exp=%v", len(series.Tags), 0)
+	} else if len(series.Tags()) != 0 {
+		t.Fatalf("unexpected number of tags: got=%v exp=%v", len(series.Tags()), 0)
 	}
 }
 
@@ -347,7 +347,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 	if index.SeriesN() != 1 {
 		t.Fatalf("series wasn't in index")
 	}
-	seriesTags := index.Series(string(pt.Key())).Tags
+	seriesTags := index.Series(string(pt.Key())).Tags()
 	if len(seriesTags) != len(pt.Tags()) || pt.Tags().GetString("host") != seriesTags.GetString("host") {
 		t.Fatalf("tags weren't properly saved to series index: %v, %v", pt.Tags(), seriesTags)
 	}
@@ -886,7 +886,7 @@ func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 	points := []models.Point{}
 	for _, s := range series {
 		for val := 0.0; val < float64(pntCnt); val++ {
-			p := models.MustNewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+			p := models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": val}, time.Now())
 			points = append(points, p)
 		}
 	}
@@ -927,7 +927,7 @@ func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt
 	points := []models.Point{}
 	for _, s := range series {
 		for val := 0.0; val < float64(pntCnt); val++ {
-			p := models.MustNewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+			p := models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": val}, time.Now())
 			points = append(points, p)
 		}
 	}

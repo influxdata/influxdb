@@ -374,7 +374,7 @@ func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) 
 		points := []models.Point{}
 		for _, s := range series {
 			for val := 0.0; val < float64(pntCnt); val++ {
-				p := models.MustNewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+				p := models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": val}, time.Now())
 				points = append(points, p)
 			}
 		}
