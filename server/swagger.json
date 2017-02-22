@@ -1655,6 +1655,16 @@
 				"name",
 				"url"
 			],
+			"example": {
+				"id": "4",
+				"name": "kapa",
+				"url": "http://localhost:9092",
+				"links": {
+					"proxy": "/chronograf/v1/sources/4/kapacitors/4/proxy",
+					"self": "/chronograf/v1/sources/4/kapacitors/4",
+					"rules": "/chronograf/v1/sources/4/kapacitors/4/rules"
+				}
+			},
 			"properties": {
 				"id": {
 					"type": "string",
@@ -1724,6 +1734,26 @@
 		},
 		"QueryConfig": {
 			"type": "object",
+			"example": {
+				"id": "ce72917d-1ecb-45ea-a6cb-4c122deb93c7",
+				"database": "telegraf",
+				"measurement": "cpu",
+				"retentionPolicy": "autogen",
+				"fields": [
+					{
+						"field": "usage_system",
+						"funcs": [
+							"max"
+						]
+					}
+				],
+				"tags": {},
+				"groupBy": {
+					"time": "10m",
+					"tags": []
+				},
+				"areTagsAccepted": true
+			},
 			"properties": {
 				"id": {
 					"type": "string"
@@ -1845,6 +1875,55 @@
 		},
 		"Rule": {
 			"type": "object",
+			"example": {
+				"id": "chronograf-v1-b2b065ea-79bd-4e4f-8c0d-d0ef68477d38",
+				"query": {
+					"id": "ce72917d-1ecb-45ea-a6cb-4c122deb93c7",
+					"database": "telegraf",
+					"measurement": "cpu",
+					"retentionPolicy": "autogen",
+					"fields": [
+						{
+							"field": "usage_system",
+							"funcs": [
+								"max"
+							]
+						}
+					],
+					"tags": {},
+					"groupBy": {
+						"time": "10m",
+						"tags": []
+					},
+					"areTagsAccepted": true
+				},
+				"every": "30s",
+				"alerts": [
+					"alerta"
+				],
+				"alertNodes": [
+					{
+						"name": "alerta",
+						"args": [],
+						"properties": []
+					}
+				],
+				"message": "too much spam",
+				"details": "muh body",
+				"trigger": "threshold",
+				"values": {
+					"operator": "greater than",
+					"value": "10"
+				},
+				"name": "Untitled Rule",
+				"tickscript": "var db = 'telegraf'\n\nvar rp = 'autogen'\n\nvar measurement = 'cpu'\n\nvar groupBy = []\n\nvar whereFilter = lambda: TRUE\n\nvar period = 10m\n\nvar every = 30s\n\nvar name = 'Untitled Rule'\n\nvar idVar = name + ':{{.Group}}'\n\nvar message = 'too much spam'\n\nvar idTag = 'alertID'\n\nvar levelTag = 'level'\n\nvar messageField = 'message'\n\nvar durationField = 'duration'\n\nvar outputDB = 'chronograf'\n\nvar outputRP = 'autogen'\n\nvar outputMeasurement = 'alerts'\n\nvar triggerType = 'threshold'\n\nvar details = 'muh body'\n\nvar crit = 10\n\nvar data = stream\n    |from()\n        .database(db)\n        .retentionPolicy(rp)\n        .measurement(measurement)\n        .groupBy(groupBy)\n        .where(whereFilter)\n    |window()\n        .period(period)\n        .every(every)\n        .align()\n    |max('usage_system')\n        .as('value')\n\nvar trigger = data\n    |alert()\n        .crit(lambda: \"value\" > crit)\n        .stateChangesOnly()\n        .message(message)\n        .id(idVar)\n        .idTag(idTag)\n        .levelTag(levelTag)\n        .messageField(messageField)\n        .durationField(durationField)\n        .details(details)\n        .alerta()\n\ntrigger\n    |influxDBOut()\n        .create()\n        .database(outputDB)\n        .retentionPolicy(outputRP)\n        .measurement(outputMeasurement)\n        .tag('alertName', name)\n        .tag('triggerType', triggerType)\n\ntrigger\n    |httpOut('output')\n",
+				"status": "enabled",
+				"links": {
+					"self": "/chronograf/v1/sources/5/kapacitors/5/rules/chronograf-v1-b2b065ea-79bd-4e4f-8c0d-d0ef68477d38",
+					"kapacitor": "/chronograf/v1/sources/5/kapacitors/5/proxy?path=%2Fkapacitor%2Fv1%2Ftasks%2Fchronograf-v1-b2b065ea-79bd-4e4f-8c0d-d0ef68477d38",
+					"output": "/chronograf/v1/sources/5/kapacitors/5/proxy?path=%2Fkapacitor%2Fv1%2Ftasks%2Fchronograf-v1-b2b065ea-79bd-4e4f-8c0d-d0ef68477d38%2Foutput"
+				}
+			},
 			"required": [
 				"query",
 				"every",
@@ -2012,6 +2091,20 @@
 		},
 		"Source": {
 			"type": "object",
+			"example": {
+				"id": "4",
+				"name": "Influx 1",
+				"url": "http://localhost:8086",
+				"default": false,
+				"telegraf": "telegraf",
+				"links": {
+					"self": "/chronograf/v1/sources/4",
+					"kapacitors": "/chronograf/v1/sources/4/kapacitors",
+					"proxy": "/chronograf/v1/sources/4/proxy",
+					"permissions": "/chronograf/v1/sources/4/permissions",
+					"users": "/chronograf/v1/sources/4/users"
+				}
+			},
 			"required": [
 				"name",
 				"url"
@@ -2094,6 +2187,12 @@
 		},
 		"Proxy": {
 			"type": "object",
+			"example": {
+				"query": "select * from cpu where time > now() - 10m",
+				"db": "telegraf",
+				"rp": "autogen",
+				"format": "raw"
+			},
 			"required": [
 				"query"
 			],
@@ -2118,6 +2217,50 @@
 		},
 		"ProxyResponse": {
 			"type": "object",
+			"example": {
+				"results": [
+					{
+						"statement_id": 0,
+						"series": [
+							{
+								"name": "cpu",
+								"columns": [
+									"time",
+									"cpu",
+									"host",
+									"usage_guest",
+									"usage_guest_nice",
+									"usage_idle",
+									"usage_iowait",
+									"usage_irq",
+									"usage_nice",
+									"usage_softirq",
+									"usage_steal",
+									"usage_system",
+									"usage_user"
+								],
+								"values": [
+									[
+										1487785510000,
+										"cpu-total",
+										"ChristohersMBP2.lan",
+										0,
+										0,
+										76.6916354556804,
+										0,
+										0,
+										0,
+										0,
+										0,
+										4.781523096129837,
+										18.526841448189764
+									]
+								]
+							}
+						]
+					}
+				]
+			},
 			"properties": {
 				"results": {
 					"description": "results from influx",
@@ -2353,6 +2496,41 @@
 				"link": {
 					"$ref": "#/definitions/Link"
 				}
+			},
+			"example": {
+				"id": "0e980b97-c162-487b-a815-3f955df62430",
+				"app": "docker",
+				"measurement": "docker_container_net",
+				"autoflow": true,
+				"cells": [
+					{
+						"x": 0,
+						"y": 0,
+						"w": 4,
+						"h": 4,
+						"i": "4c79cefb-5152-410c-9b88-74f9bff7ef23",
+						"name": "Docker - Container Network",
+						"queries": [
+							{
+								"query": "SELECT derivative(mean(\"tx_bytes\"), 10s) AS \"net_tx_bytes\" FROM \"docker_container_net\"",
+								"groupbys": [
+									"\"container_name\""
+								]
+							},
+							{
+								"query": "SELECT derivative(mean(\"rx_bytes\"), 10s) AS \"net_rx_bytes\" FROM \"docker_container_net\"",
+								"groupbys": [
+									"\"container_name\""
+								]
+							}
+						],
+						"type": ""
+					}
+				],
+				"link": {
+					"href": "/chronograf/v1/layouts/0e980b97-c162-487b-a815-3f955df62430",
+					"rel": "self"
+				}
 			}
 		},
 		"Mappings": {
@@ -2384,6 +2562,10 @@
 					"description": "The application name which will be assigned to the corresponding measurement",
 					"type": "string"
 				}
+			},
+			"example": {
+				"measurement": "riak",
+				"name": "riak"
 			}
 		},
 		"Cell": {
@@ -2433,6 +2615,20 @@
 					"type": "string",
 					"format": "uuid4"
 				}
+			},
+			"example": {
+				"x": 5,
+				"y": 5,
+				"w": 4,
+				"h": 4,
+				"name": "usage_user",
+				"queries": [
+					{
+						"query": "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
+						"label": "%"
+					}
+				],
+				"type": "line"
 			}
 		},
 		"LayoutQuery": {
@@ -2482,6 +2678,16 @@
 						"type": "string"
 					}
 				}
+			},
+			"example": {
+				"label": "# warnings",
+				"query": "SELECT count(\"check_id\") as \"Number Warning\" FROM consul_health_checks",
+				"wheres": [
+					"\"status\" = 'warning'"
+				],
+				"groupbys": [
+					"\"service_name\""
+				]
 			}
 		},
 		"Dashboards": {
@@ -2568,6 +2774,43 @@
 						}
 					}
 				}
+			},
+			"example": {
+				"id": 4,
+				"cells": [
+					{
+						"x": 5,
+						"y": 5,
+						"w": 4,
+						"h": 4,
+						"name": "usage_user",
+						"queries": [
+							{
+								"query": "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
+								"label": "%"
+							}
+						],
+						"type": "line"
+					},
+					{
+						"x": 0,
+						"y": 0,
+						"w": 4,
+						"h": 4,
+						"name": "usage_system",
+						"queries": [
+							{
+								"query": "SELECT mean(\"usage_system\") AS \"usage_system\" FROM \"cpu\"",
+								"label": "%"
+							}
+						],
+						"type": "line"
+					}
+				],
+				"name": "lalalalala",
+				"links": {
+					"self": "/chronograf/v1/dashboards/4"
+				}
 			}
 		},
 		"Routes": {
@@ -2598,6 +2841,13 @@
 					"type": "string",
 					"format": "url"
 				}
+			},
+			"example": {
+				"layouts": "/chronograf/v1/layouts",
+				"mappings": "/chronograf/v1/mappings",
+				"sources": "/chronograf/v1/sources",
+				"me": "/chronograf/v1/me",
+				"dashboards": "/chronograf/v1/dashboards"
 			}
 		},
 		"Link": {
