@@ -10,8 +10,8 @@ const RefreshingLineGraph = AutoRefresh(LineGraph);
 const RefreshingSingleStat = AutoRefresh(SingleStat);
 
 const {
-  children,
   arrayOf,
+  func,
   node,
   number,
   shape,
@@ -51,6 +51,7 @@ export const LayoutRenderer = React.createClass({
     autoRefreshMs: number.isRequired,
     host: string,
     source: string,
+    onPositionChange: func,
   },
 
   getInitialState() {
@@ -121,6 +122,17 @@ export const LayoutRenderer = React.createClass({
     });
   },
 
+  handleLayoutChange(layout) {
+    this.triggerWindowResize()
+    const newCells = this.props.cells.map((cell) => {
+      const l = layout.find((ly) => ly.i === cell.i)
+      const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
+      return {...cell, ...newLayout}
+    })
+
+    this.props.onPositionChange(newCells)
+  },
+
   render() {
     const layoutMargin = 4;
     return (
@@ -131,19 +143,20 @@ export const LayoutRenderer = React.createClass({
         margin={[layoutMargin, layoutMargin]}
         containerPadding={[0, 0]}
         useCSSTransforms={false}
-        onResize={triggerWindowResize}
-        onLayoutChange={triggerWindowResize}
+        onResize={this.triggerWindowResize}
+        onLayoutChange={this.handleLayoutChange}
       >
         {this.generateVisualizations()}
       </GridLayout>
     );
+  },
 
-    function triggerWindowResize() {
-      // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
-      const evt = document.createEvent('CustomEvent');  // MUST be 'CustomEvent'
-      evt.initCustomEvent('resize', false, false, null);
-      dispatchEvent(evt);
-    }
+
+  triggerWindowResize() {
+    // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
+    const evt = document.createEvent('CustomEvent');  // MUST be 'CustomEvent'
+    evt.initCustomEvent('resize', false, false, null);
+    dispatchEvent(evt);
   },
 });
 

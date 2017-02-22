@@ -8,6 +8,7 @@ const Dashboard = ({
   dashboard,
   isEditMode,
   inPresentationMode,
+  onPositionChange,
   source,
   timeRange,
 }) => {
@@ -19,29 +20,17 @@ const Dashboard = ({
     <div className={classnames({'page-contents': true, 'presentation-mode': inPresentationMode})}>
       <div className="container-fluid full-width">
         {isEditMode ? <Visualizations/> : null}
-        {Dashboard.renderDashboard(dashboard, timeRange, source)}
+        {Dashboard.renderDashboard(dashboard, timeRange, source, onPositionChange)}
       </div>
     </div>
   )
 }
 
-Dashboard.renderDashboard = (dashboard, timeRange, source) => {
+Dashboard.renderDashboard = (dashboard, timeRange, source, onPositionChange) => {
   const autoRefreshMs = 15000
-  const cellWidth = 4
-  const cellHeight = 4
-  const pageWidth = 12
-
   const cells = dashboard.cells.map((cell, i) => {
-    const cellCount = i + 1;
-    const cellConversion = {
-      w: cellWidth,
-      h: cellHeight,
-      x: (cellCount * cellWidth % pageWidth),
-      y: Math.floor(cellCount * cellWidth / pageWidth) * cellHeight,
-      i: i.toString(),
-    }
-
-    const dashboardCell = {...cell, ...cellConversion}
+    i = `${i}`
+    const dashboardCell = {...cell, i}
     dashboardCell.queries.forEach((q) => {
       q.text = q.query;
       q.database = source.telegraf;
@@ -55,12 +44,14 @@ Dashboard.renderDashboard = (dashboard, timeRange, source) => {
       cells={cells}
       autoRefreshMs={autoRefreshMs}
       source={source.links.proxy}
+      onPositionChange={onPositionChange}
     />
   )
 }
 
 const {
   bool,
+  func,
   shape,
   string,
 } = PropTypes
@@ -69,6 +60,7 @@ Dashboard.propTypes = {
   dashboard: shape({}).isRequired,
   isEditMode: bool,
   inPresentationMode: bool,
+  onPositionChange: func,
   source: shape({
     links: shape({
       proxy: string,
