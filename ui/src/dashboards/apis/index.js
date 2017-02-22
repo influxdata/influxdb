@@ -6,3 +6,11 @@ export function getDashboards() {
     url: `/chronograf/v1/dashboards`,
   });
 }
+
+export function updateDashboardPosition(dashboard) {
+  return AJAX({
+    method: 'PUT',
+    url: dashboard.links.self,
+    data: dashboard,
+  });
+}

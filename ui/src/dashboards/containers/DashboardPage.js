@@ -1,14 +1,15 @@
-import React, {PropTypes} from 'react';
-import {Link} from 'react-router';
+import React, {PropTypes} from 'react'
+import {Link} from 'react-router'
 import {connect} from 'react-redux'
-import {bindActionCreators} from 'redux';
+import {bindActionCreators} from 'redux'
 
-import Header from 'src/dashboards/components/DashboardHeader';
-import EditHeader from 'src/dashboards/components/DashboardHeaderEdit';
-import Dashboard from 'src/dashboards/components/Dashboard';
-import timeRanges from 'hson!../../shared/data/timeRanges.hson';
+import Header from 'src/dashboards/components/DashboardHeader'
+import EditHeader from 'src/dashboards/components/DashboardHeaderEdit'
+import Dashboard from 'src/dashboards/components/Dashboard'
+import timeRanges from 'hson!../../shared/data/timeRanges.hson'
 
-import * as dashboardActionCreators from 'src/dashboards/actions';
+import {updateDashboardPosition} from 'src/dashboards/apis'
+import * as dashboardActionCreators from 'src/dashboards/actions'
 
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 
@@ -86,6 +87,10 @@ const DashboardPage = React.createClass({
     this.props.dashboardActions.setTimeRange(timeRange)
   },
 
+  handleUpdatePosition(cells) {
+    updateDashboardPosition({...this.props.dashboard, cells})
+  },
+
   render() {
     const {
       dashboards,
@@ -129,6 +134,7 @@ const DashboardPage = React.createClass({
           inPresentationMode={inPresentationMode}
           source={source}
           timeRange={timeRange}
+          onPositionChange={this.handleUpdatePosition}
         />
       </div>
     );
