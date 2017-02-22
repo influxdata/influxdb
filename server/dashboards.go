@@ -127,8 +127,8 @@ func (s *Service) RemoveDashboard(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// UpdateDashboard replaces a dashboard
-func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
+// ReplaceDashboard completely replaces a dashboard
+func (s *Service) ReplaceDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	idParam, err := strconv.Atoi(httprouter.GetParamFromContext(ctx, "id"))
 	if err != nil {
@@ -162,6 +162,52 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	res := newDashboardResponse(req)
+	encodeJSON(w, http.StatusOK, res, s.Logger)
+}
+
+// UpdateDashboard completely updates either the dashboard name or the cells
+func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	idParam, err := strconv.Atoi(httprouter.GetParamFromContext(ctx, "id"))
+	if err != nil {
+		msg := fmt.Sprintf("Could not parse dashboard ID: %s", err)
+		Error(w, http.StatusInternalServerError, msg, s.Logger)
+	}
+	id := chronograf.DashboardID(idParam)
+
+	orig, err := s.DashboardsStore.Get(ctx, id)
+	if err != nil {
+		Error(w, http.StatusNotFound, fmt.Sprintf("ID %d not found", id), s.Logger)
+		return
+	}
+
+	var req chronograf.Dashboard
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		invalidJSON(w, s.Logger)
+		return
+	}
+	req.ID = id
+
+	if req.Name != "" {
+		orig.Name = req.Name
+	} else if len(req.Cells) > 0 {
+		if err := ValidDashboardRequest(&req); err != nil {
+			invalidData(w, err, s.Logger)
+			return
+		}
+		orig.Cells = req.Cells
+	} else {
+		invalidData(w, fmt.Errorf("Update must include either name or cells"), s.Logger)
+		return
+	}
+
+	if err := s.DashboardsStore.Update(ctx, orig); err != nil {
+		msg := fmt.Sprintf("Error updating dashboard ID %d: %v", id, err)
+		Error(w, http.StatusInternalServerError, msg, s.Logger)
+		return
+	}
+
+	res := newDashboardResponse(orig)
 	encodeJSON(w, http.StatusOK, res, s.Logger)
 }
 
