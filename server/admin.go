@@ -40,8 +40,8 @@ type sourceUser struct {
 	Links       sourceUserLinks        `json:"links"`                 // Links are URI locations related to user
 }
 
-// NewSourceUser creates a new user in the InfluxDB data source
-func NewSourceUser(srcID int, name string, perms chronograf.Permissions) sourceUser {
+// newSourceUser creates a new user in the InfluxDB data source
+func newSourceUser(srcID int, name string, perms chronograf.Permissions) sourceUser {
 	u := &url.URL{Path: name}
 	encodedUser := u.String()
 	httpAPISrcs := "/chronograf/v1/sources"
@@ -88,7 +88,7 @@ func (h *Service) NewSourceUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	su := NewSourceUser(srcID, res.Name, req.Permissions)
+	su := newSourceUser(srcID, res.Name, req.Permissions)
 	w.Header().Add("Location", su.Links.Self)
 	encodeJSON(w, http.StatusCreated, su, h.Logger)
 }
@@ -114,7 +114,7 @@ func (h *Service) SourceUsers(w http.ResponseWriter, r *http.Request) {
 
 	su := []sourceUser{}
 	for _, u := range users {
-		su = append(su, NewSourceUser(srcID, u.Name, u.Permissions))
+		su = append(su, newSourceUser(srcID, u.Name, u.Permissions))
 	}
 
 	res := sourceUsers{
@@ -140,7 +140,7 @@ func (h *Service) SourceUserID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := NewSourceUser(srcID, u.Name, u.Permissions)
+	res := newSourceUser(srcID, u.Name, u.Permissions)
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
@@ -192,9 +192,9 @@ func (h *Service) UpdateSourceUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	su := NewSourceUser(srcID, user.Name, user.Permissions)
+	su := newSourceUser(srcID, user.Name, user.Permissions)
 	w.Header().Add("Location", su.Links.Self)
-	encodeJSON(w, http.StatusCreated, su, h.Logger)
+	encodeJSON(w, http.StatusOK, su, h.Logger)
 }
 
 func (h *Service) sourceUsersStore(ctx context.Context, w http.ResponseWriter, r *http.Request) (int, chronograf.UsersStore, error) {
@@ -246,11 +246,16 @@ func (h *Service) Permissions(w http.ResponseWriter, r *http.Request) {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
 		return
 	}
-
+	httpAPISrcs := "/chronograf/v1/sources"
 	res := struct {
 		Permissions chronograf.Allowances `json:"permissions"`
+		Links       map[string]string     `json:"links"` // Links are URI locations related to user
 	}{
 		Permissions: perms,
+		Links: map[string]string{
+			"self":   fmt.Sprintf("%s/%d/permissions", httpAPISrcs, srcID),
+			"source": fmt.Sprintf("%s/%d", httpAPISrcs, srcID),
+		},
 	}
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }

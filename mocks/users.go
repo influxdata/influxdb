@@ -6,6 +6,8 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+var _ chronograf.UsersStore = &UsersStore{}
+
 // UsersStore mock allows all functions to be set for testing
 type UsersStore struct {
 	AllF    func(context.Context) ([]chronograf.User, error)
