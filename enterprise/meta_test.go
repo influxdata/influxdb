@@ -1132,6 +1132,124 @@ func TestMetaClient_SetRolePerms(t *testing.T) {
 	}
 }
 
+func TestMetaClient_SetRoleUsers(t *testing.T) {
+	type fields struct {
+		URL    *url.URL
+		client interface {
+			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+		}
+	}
+	type args struct {
+		ctx   context.Context
+		name  string
+		users []string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantRm  string
+		wantAdd string
+		wantErr bool
+	}{
+		{
+			name: "Successful set users role",
+			fields: fields{
+				URL: &url.URL{
+					Host:   "twinpinesmall.net:8091",
+					Scheme: "https",
+				},
+				client: NewMockClient(
+					http.StatusOK,
+					[]byte(`{"roles":[{"name":"admin","users":["marty"],"permissions":{"":["ViewAdmin","ViewChronograf"]}}]}`),
+					nil,
+					nil,
+				),
+			},
+			args: args{
+				ctx:  context.Background(),
+				name: "admin",
+			},
+			wantRm: `{"action":"remove-users","role":{"name":"admin","permissions":{"":["ViewAdmin","ViewChronograf"]},"users":["marty"]}}`,
+		},
+		{
+			name: "Successful set single user role",
+			fields: fields{
+				URL: &url.URL{
+					Host:   "twinpinesmall.net:8091",
+					Scheme: "https",
+				},
+				client: NewMockClient(
+					http.StatusOK,
+					[]byte(`{"roles":[{"name":"admin","users":["marty"],"permissions":{"":["ViewAdmin","ViewChronograf"]}}]}`),
+					nil,
+					nil,
+				),
+			},
+			args: args{
+				ctx:   context.Background(),
+				name:  "admin",
+				users: []string{"marty"},
+			},
+			wantRm:  `{"action":"remove-users","role":{"name":"admin","permissions":{"":["ViewAdmin","ViewChronograf"]},"users":["marty"]}}`,
+			wantAdd: `{"action":"add-users","role":{"name":"admin","users":["marty"]}}`,
+		},
+	}
+	for _, tt := range tests {
+		m := &MetaClient{
+			URL:    tt.fields.URL,
+			client: tt.fields.client,
+		}
+		if err := m.SetRoleUsers(tt.args.ctx, tt.args.name, tt.args.users); (err != nil) != tt.wantErr {
+			t.Errorf("%q. MetaClient.SetRoleUsers() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+		}
+
+		if tt.wantErr {
+			continue
+		}
+		reqs := tt.fields.client.(*MockClient).Requests
+		if len(reqs) < 2 {
+			t.Errorf("%q. MetaClient.SetRoleUsers() expected 2 but got %d", tt.name, len(reqs))
+			continue
+		}
+
+		usr := reqs[0]
+		if usr.Method != "GET" {
+			t.Errorf("%q. MetaClient.SetRoleUsers() expected GET method", tt.name)
+		}
+		if usr.URL.Path != "/role" {
+			t.Errorf("%q. MetaClient.SetRoleUsers() expected /user path but got %s", tt.name, usr.URL.Path)
+		}
+
+		prm := reqs[1]
+		if prm.Method != "POST" {
+			t.Errorf("%q. MetaClient.SetRoleUsers() expected GET method", tt.name)
+		}
+		if prm.URL.Path != "/role" {
+			t.Errorf("%q. MetaClient.SetRoleUsers() expected /role path but got %s", tt.name, prm.URL.Path)
+		}
+
+		got, _ := ioutil.ReadAll(prm.Body)
+		if string(got) != tt.wantRm {
+			t.Errorf("%q. MetaClient.SetRoleUsers() = %v, want %v", tt.name, string(got), tt.wantRm)
+		}
+		if tt.wantAdd != "" {
+			prm := reqs[2]
+			if prm.Method != "POST" {
+				t.Errorf("%q. MetaClient.SetRoleUsers() expected GET method", tt.name)
+			}
+			if prm.URL.Path != "/role" {
+				t.Errorf("%q. MetaClient.SetRoleUsers() expected /role path but got %s", tt.name, prm.URL.Path)
+			}
+
+			got, _ := ioutil.ReadAll(prm.Body)
+			if string(got) != tt.wantAdd {
+				t.Errorf("%q. MetaClient.SetRoleUsers() = %v, want %v", tt.name, string(got), tt.wantAdd)
+			}
+		}
+	}
+}
+
 type MockClient struct {
 	Code      int // HTTP Status code
 	Body      []byte
