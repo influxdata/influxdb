@@ -134,6 +134,7 @@ export const LayoutRenderer = React.createClass({
         useCSSTransforms={true}
         onResize={triggerWindowResize}
         onLayoutChange={triggerWindowResize}
+        draggableHandle={'.hosts-graph-heading'}
       >
         {this.generateVisualizations()}
       </GridLayout>
