@@ -48,7 +48,6 @@ export default function ui(state = initialState, action) {
         dashboards: state.dashboards.map((d) => d.id === dashboard.id ? dashboard : d),
       }
 
-      console.log('hi i am new state: ', {...state, ...newState})
       return {...state, ...newState}
     }
   }

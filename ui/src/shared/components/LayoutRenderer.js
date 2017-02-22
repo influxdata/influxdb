@@ -52,12 +52,6 @@ export const LayoutRenderer = React.createClass({
     onPositionChange: func,
   },
 
-  getInitialState() {
-    return ({
-      layout: _.without(this.props.cells, ['queries']),
-    });
-  },
-
   buildQuery(q) {
     const {timeRange, host} = this.props;
     const {wheres, groupbys} = q;
@@ -143,7 +137,7 @@ export const LayoutRenderer = React.createClass({
     const layoutMargin = 4;
     return (
       <GridLayout
-        layout={this.state.layout}
+        layout={this.props.cells}
         cols={12}
         rowHeight={83.5}
         margin={[layoutMargin, layoutMargin]}
