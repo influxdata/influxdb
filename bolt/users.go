@@ -11,7 +11,7 @@ import (
 // Ensure UsersStore implements chronograf.UsersStore.
 var _ chronograf.UsersStore = &UsersStore{}
 
-var UsersBucket = []byte("Users")
+var UsersBucket = []byte("UsersV1")
 
 type UsersStore struct {
 	client *Client
