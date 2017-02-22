@@ -1,0 +1,72 @@
+$dashboard-item-heading: 30px;
+
+.dashboard-view {
+  .react-grid-item {
+    background-color: $g3-castle;
+    border-radius: $radius;
+    border: 2px solid $g3-castle;
+
+    &.resizing {
+      border-color: $c-pool;
+      z-index: 3;
+    }
+    &.react-draggable-dragging {
+      border-color: $c-pool;
+    }
+  }
+  .react-grid-placeholder {
+    background-color: $c-pool;
+    border: 0;
+    opacity: 0.3;
+    z-index: 2;
+  }
+  .graph-empty {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+  }
+  .hosts-graph {
+    position: absolute;
+    width: 100%;
+    height: calc(100% - #{$dashboard-item-heading});
+    top: $dashboard-item-heading;
+    left: 0;
+    padding: 0;
+
+    & > div:not(.graph-empty) {
+      position: absolute;
+      left: 16px;
+      top: 8px;
+      width: calc(100% - 32px);
+      height: calc(100% - 16px);
+
+      & > div,
+      & > div > div:not(.graph-panel__refreshing) {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+      }
+    }
+    .graph-panel__refreshing {
+      top: -$dashboard-item-heading !important;
+      right: 0 !important;
+    }
+
+  }
+  .hosts-graph-heading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: $dashboard-item-heading;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+  }
+}
+
+.react-grid-item > .react-resizable-handle {
+
+}
