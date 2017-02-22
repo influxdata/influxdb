@@ -5,7 +5,11 @@
   2. [#907](https://github.com/influxdata/chronograf/pull/907): Fix react-router warning
 
 ### Features
-  1. [#873](https://github.com/influxdata/chronograf/pull/873): Add [TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md) support 
+  1. [#873](https://github.com/influxdata/chronograf/pull/873): Add [TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md) support
+  2. [#885](https://github.com/influxdata/chronograf/issues/885): Add presentation mode to dashboard page
+  3. [#891](https://github.com/influxdata/chronograf/issues/891): Make dashboard visualizations draggable
+  4. [#892](https://github.com/influxdata/chronograf/issues/891): Make dashboard visualizations resizable
+  5. [#893](https://github.com/influxdata/chronograf/issues/893): Persist dashboard visualization position
 
 ### UI Improvements
   1. [#905](https://github.com/influxdata/chronograf/pull/905): Make scroll bar thumb element bigger
