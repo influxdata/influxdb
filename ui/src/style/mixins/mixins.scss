@@ -13,9 +13,31 @@
 	background: linear-gradient(to right,  $startColor 0%,$endColor 100%);
 	filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=1 );
 }
+@mixin gradient-diag-up($startColor, $endColor) {
+	background: $startColor;
+	background: -moz-linear-gradient(45deg,  $startColor 0%, $endColor 100%);
+	background: -webkit-linear-gradient(45deg,  $startColor 0%,$endColor 100%);
+	background: linear-gradient(45deg,  $startColor 0%,$endColor 100%);
+	filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=1 );
+}
+@mixin gradient-diag-down($startColor, $endColor) {
+	background: $startColor;
+	background: -moz-linear-gradient(135deg,  $startColor 0%, $endColor 100%);
+	background: -webkit-linear-gradient(135deg,  $startColor 0%,$endColor 100%);
+	background: linear-gradient(135deg,  $startColor 0%,$endColor 100%);
+	filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=1 );
+}
+@mixin gradient-r($startColor, $endColor) {
+	background: $startColor;
+	background: -moz-radial-gradient(center, ellipse cover,  $startColor 0%, $endColor 100%);
+	background: -webkit-radial-gradient(center, ellipse cover,  $startColor 0%,$endColor 100%);
+	background: radial-gradient(ellipse at center,  $startColor 0%,$endColor 100%);
+	filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=1 );
+}
 
 // Custom Scrollbars (Chrome Only)
 $scrollbar-width: 16px;
+$scrollbar-offset: 3px;
 @mixin custom-scrollbar($trackColor, $handleColor) {
 	&::-webkit-scrollbar {
 		width: $scrollbar-width;
@@ -30,12 +52,12 @@ $scrollbar-width: 16px;
 		}
 		&-track-piece {
 			background-color: $trackColor;
-			border: 6px solid $trackColor;
+			border: $scrollbar-offset solid $trackColor;
 			border-radius: ($scrollbar-width / 2);
 		}
 		&-thumb {
 			background-color: $handleColor;
-			border: 6px solid $trackColor;
+			border: $scrollbar-offset solid $trackColor;
 			border-radius: ($scrollbar-width / 2);
 		}
 		&-corner {
