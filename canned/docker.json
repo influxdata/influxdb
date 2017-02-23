@@ -11,6 +11,7 @@
       "h": 4,
       "i": "4c79cefb-5152-410c-9b88-74f9bff7ef22",
       "name": "Docker - Container CPU",
+      "type": "line-stacked",
       "queries": [
         {
           "query": "SELECT mean(\"usage_percent\") AS \"usage_percent\" FROM \"docker_container_cpu\"",
@@ -28,6 +29,7 @@
       "h": 4,
       "i": "4c79cefb-5152-410c-9b88-74f9bff7ef00",
       "name": "Docker - Container Memory",
+      "type": "line-stepplot",
       "queries": [
         {
           "query": "SELECT mean(\"usage\") AS \"usage\" FROM \"docker_container_mem\"",

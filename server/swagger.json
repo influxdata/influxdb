@@ -2268,7 +2268,9 @@
 								"enum": [
 									"single-stat",
 									"line",
-									"line-plus-single-stat"
+									"line-plus-single-stat",
+									"line-stacked",
+									"line-stepplot"
 								],
 								"default": "line"
 							}
