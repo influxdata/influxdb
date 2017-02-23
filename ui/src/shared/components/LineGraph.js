@@ -103,7 +103,7 @@ export default React.createClass({
       <div className={classNames({"graph--hasYLabel": !!(options.ylabel || options.y2label)})}>
         {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
-          containerStyle={{width: '100%', height: '300px'}}
+          containerStyle={{width: '100%', height: '100%'}}
           overrideLineColors={overrideLineColors}
           isGraphFilled={isGraphFilled}
           timeSeries={timeSeries}

@@ -1,31 +1,42 @@
-import React, {PropTypes} from 'react';
-import ReactTooltip from 'react-tooltip';
-import {Link} from 'react-router';
-import _ from 'lodash';
+import React, {PropTypes} from 'react'
+import {Link} from 'react-router'
+import {connect} from 'react-redux'
+import _ from 'lodash'
+import classnames from 'classnames';
 
 import LayoutRenderer from 'shared/components/LayoutRenderer';
-import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
+import DashboardHeader from 'src/dashboards/components/DashboardHeader';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 import {getMappings, getAppsForHosts, getMeasurementsForHost, getAllHosts} from 'src/hosts/apis';
 import {fetchLayouts} from 'shared/apis';
+import {presentationButtonDispatcher} from 'shared/dispatchers'
+
+const {
+  shape,
+  string,
+  bool,
+  func,
+} = PropTypes
 
 export const HostPage = React.createClass({
   propTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
       }).isRequired,
-      telegraf: PropTypes.string.isRequired,
-      id: PropTypes.string.isRequired,
+      telegraf: string.isRequired,
+      id: string.isRequired,
     }),
-    params: PropTypes.shape({
-      hostID: PropTypes.string.isRequired,
+    params: shape({
+      hostID: string.isRequired,
     }).isRequired,
-    location: PropTypes.shape({
-      query: PropTypes.shape({
-        app: PropTypes.string,
+    location: shape({
+      query: shape({
+        app: string,
       }),
     }),
+    inPresentationMode: bool,
+    handleClickPresentationButton: func,
   },
 
   getInitialState() {
@@ -134,45 +145,34 @@ export const HostPage = React.createClass({
   },
 
   render() {
-    const hostID = this.props.params.hostID;
-    const {layouts, timeRange, hosts} = this.state;
-    const appParam = this.props.location.query.app ? `?app=${this.props.location.query.app}` : '';
+    const {params: {hostID}, location: {query: {app}}, source: {id}, inPresentationMode, handleClickPresentationButton} = this.props
+    const {layouts, timeRange, hosts} = this.state
+    const appParam = app ? `?app=${app}` : ''
 
     return (
       <div className="page">
-        <div className="page-header full-width">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <div className="dropdown page-header-dropdown">
-                <button className="dropdown-toggle" type="button" data-toggle="dropdown">
-                  <span className="button-text">{hostID}</span>
-                  <span className="caret"></span>
-                </button>
-                <ul className="dropdown-menu" aria-labelledby="dropdownMenu1">
-                  {Object.keys(hosts).map((host, i) => {
-                    return (
-                      <li key={i}>
-                        <Link to={`/sources/${this.props.source.id}/hosts/${host + appParam}`} className="role-option">
-                          {host}
-                        </Link>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            </div>
-            <div className="page-header__right">
-              <div className="btn btn-info btn-sm" data-for="graph-tips-tooltip" data-tip="<p><code>Click + Drag</code> Zoom in (X or Y)</p><p><code>Shift + Click</code> Pan Graph Window</p><p><code>Double Click</code> Reset Graph Window</p>">
-                <span className="icon heart"></span>
-                Graph Tips
-              </div>
-              <ReactTooltip id="graph-tips-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
-              <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={timeRange.inputValue} />
-            </div>
-          </div>
-        </div>
-        <div className="page-contents">
-          <div className="container-fluid full-width">
+        <DashboardHeader
+          buttonText={hostID}
+          timeRange={timeRange}
+          isHidden={inPresentationMode}
+          handleChooseTimeRange={this.handleChooseTimeRange}
+          handleClickPresentationButton={handleClickPresentationButton}
+        >
+          {Object.keys(hosts).map((host, i) => {
+            return (
+              <li key={i}>
+                <Link to={`/sources/${id}/hosts/${host + appParam}`} className="role-option">
+                  {host}
+                </Link>
+              </li>
+            );
+          })}
+        </DashboardHeader>
+        <div className={classnames({
+          'page-contents': true,
+          'presentation-mode': inPresentationMode,
+        })}>
+          <div className="container-fluid full-width dashboard">
             { (layouts.length > 0) ? this.renderLayouts(layouts) : '' }
           </div>
         </div>
@@ -181,4 +181,12 @@ export const HostPage = React.createClass({
   },
 });
 
-export default HostPage;
+const mapStateToProps = (state) => ({
+  inPresentationMode: state.appUI.presentationMode,
+})
+
+const mapDispatchToProps = (dispatch) => ({
+  handleClickPresentationButton: presentationButtonDispatcher(dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(HostPage)

@@ -1,7 +1,11 @@
 import React, {PropTypes} from 'react';
 import {NavBar, NavBlock, NavHeader, NavListItem} from 'src/side_nav/components/NavItems';
 
-const {string, shape} = PropTypes;
+const {
+  string,
+  shape,
+  bool,
+} = PropTypes;
 const SideNav = React.createClass({
   propTypes: {
     location: string.isRequired,
@@ -9,16 +13,17 @@ const SideNav = React.createClass({
     me: shape({
       email: string,
     }),
+    isHidden: bool.isRequired,
   },
 
   render() {
-    const {me, location, sourceID} = this.props;
+    const {me, location, sourceID, isHidden} = this.props;
     const sourcePrefix = `/sources/${sourceID}`;
     const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`;
 
     const loggedIn = !!(me && me.email);
 
-    return (
+    return isHidden ? null : (
       <NavBar location={location}>
         <div className="sidebar__logo">
           <a href="/"><span className="icon cubo-uniform"></span></a>
