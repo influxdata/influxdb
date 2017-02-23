@@ -39,9 +39,9 @@ const DashboardsPage = React.createClass({
     if (this.state.waiting) {
       tableHeader = "Loading Dashboards...";
     } else if (this.state.dashboards.length === 0) {
-      tableHeader = "No Dashboards";
+      tableHeader = "1 Dashboard";
     } else {
-      tableHeader = `${this.state.dashboards.length} Dashboards`;
+      tableHeader = `${this.state.dashboards.length + 1} Dashboards`;
     }
 
     return (
@@ -84,6 +84,13 @@ const DashboardsPage = React.createClass({
                               );
                             })
                           }
+                          <tr>
+                            <td className="monotype">
+                              <Link to={`${dashboardLink}/kubernetes`}>
+                                {'Kubernetes'}
+                              </Link>
+                            </td>
+                          </tr>
                       </tbody>
                     </table>
                   </div>
