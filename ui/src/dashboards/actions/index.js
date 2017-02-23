@@ -1,6 +1,6 @@
 import {
-  getDashboards as getDashboardsAPI,
-  updateDashboard as updateDashboardAPI,
+  getDashboards as getDashboardsAJAX,
+  updateDashboard as updateDashboardAJAX,
 } from 'src/dashboards/apis'
 
 export function loadDashboards(dashboards, dashboardID) {
@@ -42,7 +42,7 @@ export function setEditMode(isEditMode) {
 
 export function getDashboards(dashboardID) {
   return (dispatch) => {
-    getDashboardsAPI().then(({data: {dashboards}}) => {
+    getDashboardsAJAX().then(({data: {dashboards}}) => {
       dispatch(loadDashboards(dashboards, dashboardID))
     });
   }
@@ -50,7 +50,7 @@ export function getDashboards(dashboardID) {
 
 export function putDashboard(dashboard) {
   return (dispatch) => {
-    updateDashboardAPI(dashboard).then(({data}) => {
+    updateDashboardAJAX(dashboard).then(({data}) => {
       dispatch(updateDashboard(data))
     })
   }
