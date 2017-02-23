@@ -13,6 +13,7 @@
 
 ### UI Improvements
   1. [#905](https://github.com/influxdata/chronograf/pull/905): Make scroll bar thumb element bigger
+  2. [#917](https://github.com/influxdata/chronograf/pull/917): Simplify side navigation
 
 ## v1.2.0-beta3 [2017-02-15]
 

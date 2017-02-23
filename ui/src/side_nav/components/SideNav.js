@@ -28,22 +28,21 @@ const SideNav = React.createClass({
         <div className="sidebar__logo">
           <a href="/"><span className="icon cubo-uniform"></span></a>
         </div>
-        <NavBlock icon="cpu" link={`${sourcePrefix}/hosts`}>
-          <NavHeader link={`${sourcePrefix}/hosts`} title="Infrastructure" />
-          <NavListItem link={`${sourcePrefix}/hosts`}>Host List</NavListItem>
-          <NavListItem link={`${sourcePrefix}/kubernetes`}>Kubernetes Dashboard</NavListItem>
+        <NavBlock icon="cubo-node" link={`${sourcePrefix}/hosts`}>
+          <NavHeader link={`${sourcePrefix}/hosts`} title="Host List" />
         </NavBlock>
         <NavBlock icon="graphline" link={dataExplorerLink}>
-          <NavHeader link={dataExplorerLink} title={'Data'} />
-          <NavListItem link={dataExplorerLink}>Explorer</NavListItem>
-          <NavListItem link={`${sourcePrefix}/dashboards`}>Dashboards</NavListItem>
+          <NavHeader link={dataExplorerLink} title="Data Explorer" />
         </NavBlock>
-        <NavBlock matcher="alerts" icon="pulse-b" link={`${sourcePrefix}/alerts`}>
+        <NavBlock icon="dash-h" link={`${sourcePrefix}/dashboards`}>
+          <NavHeader link={`${sourcePrefix}/dashboards`} title={'Dashboards'} />
+        </NavBlock>
+        <NavBlock matcher="alerts" icon="alert-triangle" link={`${sourcePrefix}/alerts`}>
           <NavHeader link={`${sourcePrefix}/alerts`} title="Alerting" />
           <NavListItem link={`${sourcePrefix}/alerts`}>Alert History</NavListItem>
           <NavListItem link={`${sourcePrefix}/alert-rules`}>Kapacitor Rules</NavListItem>
         </NavBlock>
-        <NavBlock icon="access-key" link={`${sourcePrefix}/manage-sources`}>
+        <NavBlock icon="cog-thick" link={`${sourcePrefix}/manage-sources`}>
           <NavHeader link={`${sourcePrefix}/manage-sources`} title="Configuration" />
           <NavListItem link={`${sourcePrefix}/manage-sources`}>InfluxDB</NavListItem>
           <NavListItem link={`${sourcePrefix}/kapacitor-config`}>Kapacitor</NavListItem>
