@@ -39,6 +39,10 @@
   &.presentation-mode {
     top: 0;
     height: 100%;
+
+    .dashboard {
+      padding: 12px;
+    }
   }
 }
 .container-fluid {
