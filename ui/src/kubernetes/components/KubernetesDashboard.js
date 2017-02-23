@@ -90,7 +90,7 @@ export const KubernetesDashboard = React.createClass({
           'page-contents': true,
           'presentation-mode': inPresentationMode,
         })}>
-          <div className="container-fluid full-width dashboard-view">
+          <div className="container-fluid full-width dashboard">
             {layouts.length ? this.renderLayouts(layouts) : emptyState}
           </div>
         </div>

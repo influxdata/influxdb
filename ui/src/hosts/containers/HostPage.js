@@ -172,7 +172,7 @@ export const HostPage = React.createClass({
           'page-contents': true,
           'presentation-mode': inPresentationMode,
         })}>
-          <div className="container-fluid full-width dashboard-view">
+          <div className="container-fluid full-width dashboard">
             { (layouts.length > 0) ? this.renderLayouts(layouts) : '' }
           </div>
         </div>
