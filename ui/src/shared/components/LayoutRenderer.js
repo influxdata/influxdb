@@ -134,7 +134,9 @@ export const LayoutRenderer = React.createClass({
   },
 
   render() {
-    const layoutMargin = 4;
+    const layoutMargin = 4
+    const isDashboard = !!this.props.onPositionChange
+
     return (
       <GridLayout
         layout={this.props.cells}
@@ -146,6 +148,8 @@ export const LayoutRenderer = React.createClass({
         onResize={this.triggerWindowResize}
         onLayoutChange={this.handleLayoutChange}
         draggableHandle={'.hosts-graph-heading'}
+        isDraggable={isDashboard}
+        isResizable={isDashboard}
       >
         {this.generateVisualizations()}
       </GridLayout>
