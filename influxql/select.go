@@ -495,6 +495,9 @@ func (b *exprIteratorBuilder) buildVarRefIterator(expr *VarRef) (Iterator, error
 						return itr, nil
 					}
 
+					// Reduce the expression to remove parenthesis.
+					e = Reduce(e, nil)
+
 					switch e := e.(type) {
 					case *VarRef:
 						// If the field we selected is a variable
