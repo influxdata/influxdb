@@ -69,6 +69,10 @@ $dashboard-item-heading: 30px;
     left: 0;
   }
   .hosts-graph {
+    user-select: none !important;
+    -o-user-select: none !important;
+    -moz-user-select: none !important;
+    -webkit-user-select: none !important;
     background-color: transparent;
     position: absolute;
     width: 100%;
@@ -97,6 +101,10 @@ $dashboard-item-heading: 30px;
 
   }
   .hosts-graph-heading {
+    user-select: none !important;
+    -o-user-select: none !important;
+    -moz-user-select: none !important;
+    -webkit-user-select: none !important;
     background-color: transparent;
     position: absolute;
     top: 0;
