@@ -1,4 +1,4 @@
-package server_test
+package oauth2_test
 
 import (
 	"context"
@@ -8,9 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/chronograf"
 	clog "github.com/influxdata/chronograf/log"
-	"github.com/influxdata/chronograf/server"
+	"github.com/influxdata/chronograf/oauth2"
 )
 
 func TestCookieExtractor(t *testing.T) {
@@ -28,7 +27,7 @@ func TestCookieExtractor(t *testing.T) {
 			Value:    "reallyimportant",
 			Lookup:   "Doesntexist",
 			Expected: "",
-			Err:      chronograf.ErrAuthentication,
+			Err:      oauth2.ErrAuthentication,
 		},
 		{
 			Desc:     "Cookie token extracted",
@@ -46,7 +45,7 @@ func TestCookieExtractor(t *testing.T) {
 			Value: test.Value,
 		})
 
-		var e chronograf.TokenExtractor = &server.CookieExtractor{
+		var e oauth2.TokenExtractor = &oauth2.CookieExtractor{
 			Name: test.Lookup,
 		}
 		actual, err := e.Extract(req)
@@ -74,21 +73,21 @@ func TestBearerExtractor(t *testing.T) {
 			Header:   "Doesntexist",
 			Value:    "reallyimportant",
 			Expected: "",
-			Err:      chronograf.ErrAuthentication,
+			Err:      oauth2.ErrAuthentication,
 		},
 		{
 			Desc:     "Auth header doesn't have Bearer",
 			Header:   "Authorization",
 			Value:    "Bad Value",
 			Expected: "",
-			Err:      chronograf.ErrAuthentication,
+			Err:      oauth2.ErrAuthentication,
 		},
 		{
 			Desc:     "Auth header doesn't have Bearer token",
 			Header:   "Authorization",
 			Value:    "Bearer",
 			Expected: "",
-			Err:      chronograf.ErrAuthentication,
+			Err:      oauth2.ErrAuthentication,
 		},
 		{
 			Desc:     "Authorization Bearer token success",
@@ -102,7 +101,7 @@ func TestBearerExtractor(t *testing.T) {
 		req, _ := http.NewRequest("", "http://howdy.com", nil)
 		req.Header.Add(test.Header, test.Value)
 
-		var e chronograf.TokenExtractor = &server.BearerExtractor{}
+		var e oauth2.TokenExtractor = &oauth2.BearerExtractor{}
 		actual, err := e.Extract(req)
 		if err != test.Err {
 			t.Errorf("Bearer extract error; expected %v  actual %v", test.Err, err)
@@ -123,15 +122,15 @@ func (m *MockExtractor) Extract(*http.Request) (string, error) {
 }
 
 type MockAuthenticator struct {
-	Principal chronograf.Principal
+	Principal oauth2.Principal
 	Err       error
 }
 
-func (m *MockAuthenticator) Authenticate(context.Context, string) (chronograf.Principal, error) {
+func (m *MockAuthenticator) Authenticate(context.Context, string) (oauth2.Principal, error) {
 	return m.Principal, m.Err
 }
 
-func (m *MockAuthenticator) Token(context.Context, chronograf.Principal, time.Duration) (string, error) {
+func (m *MockAuthenticator) Token(context.Context, oauth2.Principal, time.Duration) (string, error) {
 	return "", m.Err
 }
 
@@ -139,7 +138,7 @@ func TestAuthorizedToken(t *testing.T) {
 	var tests = []struct {
 		Desc         string
 		Code         int
-		Principal    chronograf.Principal
+		Principal    oauth2.Principal
 		ExtractorErr error
 		AuthErr      error
 		Expected     string
@@ -155,19 +154,21 @@ func TestAuthorizedToken(t *testing.T) {
 			AuthErr: errors.New("error"),
 		},
 		{
-			Desc:      "Authorized ok",
-			Code:      http.StatusOK,
-			Principal: "Principal Strickland",
-			Expected:  "Principal Strickland",
+			Desc: "Authorized ok",
+			Code: http.StatusOK,
+			Principal: oauth2.Principal{
+				Subject: "Principal Strickland",
+			},
+			Expected: "Principal Strickland",
 		},
 	}
 	for _, test := range tests {
 		// next is a sentinel StatusOK and
 		// principal recorder.
-		var principal chronograf.Principal
+		var principal oauth2.Principal
 		next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			principal = r.Context().Value(chronograf.PrincipalKey).(chronograf.Principal)
+			principal = r.Context().Value(oauth2.PrincipalKey).(oauth2.Principal)
 		})
 		req, _ := http.NewRequest("GET", "", nil)
 		w := httptest.NewRecorder()
@@ -181,7 +182,7 @@ func TestAuthorizedToken(t *testing.T) {
 		}
 
 		logger := clog.New(clog.DebugLevel)
-		handler := server.AuthorizedToken(a, e, logger, next)
+		handler := oauth2.AuthorizedToken(a, e, logger, next)
 		handler.ServeHTTP(w, req)
 		if w.Code != test.Code {
 			t.Errorf("Status code expected: %d actual %d", test.Code, w.Code)

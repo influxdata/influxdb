@@ -87,7 +87,7 @@ export async function getAllHosts(proxyLink, telegrafDB) {
 export function getMappings() {
   return AJAX({
     method: 'GET',
-    url: `/chronograf/v1/mappings`,
+    resource: 'mappings',
   });
 }
 

@@ -8,6 +8,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/oauth2"
 )
 
 type userLinks struct {
@@ -19,14 +20,19 @@ type userResponse struct {
 	Links userLinks `json:"links"`
 }
 
+// If new user response is nil, return an empty userResponse because it
+// indicates authentication is not needed
 func newUserResponse(usr *chronograf.User) userResponse {
 	base := "/chronograf/v1/users"
-	return userResponse{
-		User: usr,
-		Links: userLinks{
-			Self: fmt.Sprintf("%s/%d", base, usr.ID),
-		},
+	if usr != nil {
+		return userResponse{
+			User: usr,
+			Links: userLinks{
+				Self: fmt.Sprintf("%s/%d", base, usr.ID),
+			},
+		}
 	}
+	return userResponse{}
 }
 
 // NewUser adds a new valid user to the store
@@ -135,19 +141,32 @@ func ValidUserRequest(s *chronograf.User) error {
 }
 
 func getEmail(ctx context.Context) (string, error) {
-	principal := ctx.Value(chronograf.PrincipalKey).(chronograf.Principal)
-	if principal == "" {
+	principal, err := getPrincipal(ctx)
+	if err != nil {
+		return "", err
+	}
+	if principal.Subject == "" {
 		return "", fmt.Errorf("Token not found")
 	}
-	return string(principal), nil
+	return principal.Subject, nil
+}
+
+func getPrincipal(ctx context.Context) (oauth2.Principal, error) {
+	principal, ok := ctx.Value(oauth2.PrincipalKey).(oauth2.Principal)
+	if !ok {
+		return oauth2.Principal{}, fmt.Errorf("Token not found")
+	}
+
+	return principal, nil
 }
 
 // Me does a findOrCreate based on the email in the context
 func (h *Service) Me(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !h.UseAuth {
-		// Using status code to signal no need for authentication
-		w.WriteHeader(http.StatusTeapot)
+		// If there's no authentication, return an empty user
+		res := newUserResponse(nil)
+		encodeJSON(w, http.StatusOK, res, h.Logger)
 		return
 	}
 	email, err := getEmail(ctx)
