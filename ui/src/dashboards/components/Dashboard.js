@@ -18,7 +18,7 @@ const Dashboard = ({
 
   return (
     <div className={classnames({'page-contents': true, 'presentation-mode': inPresentationMode})}>
-      <div className="container-fluid full-width dashboard-view">
+      <div className={classnames('container-fluid full-width dashboard', {'dashboard-edit': isEditMode})}>
         {isEditMode ? <Visualizations/> : null}
         {Dashboard.renderDashboard(dashboard, timeRange, source, onPositionChange)}
       </div>
