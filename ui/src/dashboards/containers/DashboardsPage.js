@@ -34,6 +34,7 @@ const DashboardsPage = React.createClass({
   },
 
   render() {
+    const dashboardLink = `/sources/${this.props.source.id}`;
     let tableHeader;
     if (this.state.waiting) {
       tableHeader = "Loading Dashboards...";
@@ -75,7 +76,7 @@ const DashboardsPage = React.createClass({
                               return (
                                 <tr key={dashboard.id}>
                                   <td className="monotype">
-                                    <Link to={`/sources/${this.props.source.id}/dashboards/${dashboard.id}`}>
+                                    <Link to={`${dashboardLink}/dashboards/${dashboard.id}`}>
                                       {dashboard.name}
                                     </Link>
                                   </td>
