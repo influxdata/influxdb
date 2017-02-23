@@ -20,47 +20,13 @@ const (
 
 // MuxOpts are the options for the router.  Mostly related to auth.
 type MuxOpts struct {
-	Logger              chronograf.Logger
-	Develop             bool     // Develop loads assets from filesystem instead of bindata
-	Basepath            string   // URL path prefix under which all chronograf routes will be mounted
-	UseAuth             bool     // UseAuth turns on Github OAuth and JWT
-	TokenSecret         string   // TokenSecret is the JWT secret
-	GithubClientID      string   // GithubClientID is the GH OAuth id
-	GithubClientSecret  string   // GithubClientSecret is the GH OAuth secret
-	GithubOrgs          []string // GithubOrgs is the list of organizations a user may be a member of
-	GoogleClientID      string   // GoogleClientID is the Google OAuth id
-	GoogleClientSecret  string   // GoogleClientSecret is the Google OAuth secret
-	GoogleDomains       []string // GoogleDomains is the list of domains a user may be a member of
-	HerokuClientID      string   // HerokuClientID is the Heroku OAuth id
-	HerokuSecret        string   // HerokuSecret is the Heroku OAuth secret
-	HerokuOrganizations []string // HerokuOrganizations is the set of organizations permitted to access Chronograf
-	PublicURL           string   // PublicURL is the public facing URL for the server
-}
+	Logger      chronograf.Logger
+	Develop     bool   // Develop loads assets from filesystem instead of bindata
+	Basepath    string // URL path prefix under which all chronograf routes will be mounted
+	UseAuth     bool   // UseAuth turns on Github OAuth and JWT
+	TokenSecret string
 
-func (m *MuxOpts) UseGithub() bool {
-	return m.TokenSecret != "" && m.GithubClientID != "" && m.GithubClientSecret != ""
-}
-
-func (m *MuxOpts) UseGoogle() bool {
-	return m.TokenSecret != "" && m.GoogleClientID != "" && m.GoogleClientSecret != "" && m.PublicURL != ""
-}
-
-func (m *MuxOpts) UseHeroku() bool {
-	return m.TokenSecret != "" && m.HerokuClientID != "" && m.HerokuSecret != ""
-}
-
-func (m *MuxOpts) Routes() AuthRoutes {
-	routes := AuthRoutes{}
-	if m.UseGithub() {
-		routes = append(routes, NewGithubRoute())
-	}
-	if m.UseGoogle() {
-		routes = append(routes, NewGoogleRoute())
-	}
-	if m.UseHeroku() {
-		routes = append(routes, NewHerokuRoute())
-	}
-	return routes
+	ProviderFuncs []func(func(oauth2.Provider, oauth2.Mux))
 }
 
 // NewMux attaches all the route handlers; handler returned servers chronograf.
@@ -150,73 +116,51 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.DELETE("/chronograf/v1/dashboards/:id", service.RemoveDashboard)
 	router.PUT("/chronograf/v1/dashboards/:id", service.UpdateDashboard)
 
-	authRoutes := opts.Routes()
-	// Root Routes returns all top-level routes in the API and
-	// optional authentication routes
-	router.GET("/chronograf/v1/", AllRoutes(authRoutes, opts.Logger))
-	router.GET("/chronograf/v1", AllRoutes(authRoutes, opts.Logger))
+	var authRoutes AuthRoutes
 
+	var out http.Handler
 	/* Authentication */
 	if opts.UseAuth {
+		// Encapsulate the router with OAuth2
+		var auth http.Handler
+		auth, authRoutes = AuthAPI(opts, router)
+
 		// Create middleware to redirect to the appropriate provider logout
 		targetURL := "/"
 		router.GET("/oauth/logout", Logout(targetURL, authRoutes))
 
-		// Encapsulate the router with OAuth2
-		auth := AuthAPI(opts, router)
-		return Logger(opts.Logger, auth)
+		out = Logger(opts.Logger, auth)
+	} else {
+		out = Logger(opts.Logger, router)
 	}
 
-	logged := Logger(opts.Logger, router)
-	return logged
+	router.GET("/chronograf/v1/", AllRoutes(authRoutes, opts.Logger))
+	router.GET("/chronograf/v1", AllRoutes(authRoutes, opts.Logger))
+
+	return out
 }
 
 // AuthAPI adds the OAuth routes if auth is enabled.
 // TODO: this function is not great.  Would be good if providers added their routes.
-func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
+func AuthAPI(opts MuxOpts, router *httprouter.Router) (http.Handler, AuthRoutes) {
 	auth := oauth2.NewJWT(opts.TokenSecret)
-	if opts.UseGithub() {
-		gh := oauth2.Github{
-			ClientID:     opts.GithubClientID,
-			ClientSecret: opts.GithubClientSecret,
-			Orgs:         opts.GithubOrgs,
-			Logger:       opts.Logger,
-		}
-
-		ghMux := oauth2.NewCookieMux(&gh, &auth, opts.Logger)
-		router.Handler("GET", "/oauth/github/login", ghMux.Login())
-		router.Handler("GET", "/oauth/github/logout", ghMux.Logout())
-		router.Handler("GET", "/oauth/github/callback", ghMux.Callback())
-	}
-
-	if opts.UseGoogle() {
-		redirectURL := opts.PublicURL + opts.Basepath + "/oauth/google/callback"
-		google := oauth2.Google{
-			ClientID:     opts.GoogleClientID,
-			ClientSecret: opts.GoogleClientSecret,
-			Domains:      opts.GoogleDomains,
-			RedirectURL:  redirectURL,
-			Logger:       opts.Logger,
-		}
-
-		goMux := oauth2.NewCookieMux(&google, &auth, opts.Logger)
-		router.Handler("GET", "/oauth/google/login", goMux.Login())
-		router.Handler("GET", "/oauth/google/logout", goMux.Logout())
-		router.Handler("GET", "/oauth/google/callback", goMux.Callback())
-	}
-
-	if opts.UseHeroku() {
-		heroku := oauth2.Heroku{
-			ClientID:      opts.HerokuClientID,
-			ClientSecret:  opts.HerokuSecret,
-			Organizations: opts.HerokuOrganizations,
-			Logger:        opts.Logger,
-		}
-
-		hMux := oauth2.NewCookieMux(&heroku, &auth, opts.Logger)
-		router.Handler("GET", "/oauth/heroku/login", hMux.Login())
-		router.Handler("GET", "/oauth/heroku/logout", hMux.Logout())
-		router.Handler("GET", "/oauth/heroku/callback", hMux.Callback())
+	routes := AuthRoutes{}
+	for _, pf := range opts.ProviderFuncs {
+		pf(func(p oauth2.Provider, m oauth2.Mux) {
+			loginPath := fmt.Sprintf("%s/oauth/%s/login", opts.Basepath, strings.ToLower(p.Name()))
+			logoutPath := fmt.Sprintf("%s/oauth/%s/logout", opts.Basepath, strings.ToLower(p.Name()))
+			callbackPath := fmt.Sprintf("%s/oauth/%s/callback", opts.Basepath, strings.ToLower(p.Name()))
+			router.Handler("GET", loginPath, m.Login())
+			router.Handler("GET", logoutPath, m.Logout())
+			router.Handler("GET", callbackPath, m.Callback())
+			routes = append(routes, AuthRoute{
+				Name:     p.Name(),
+				Label:    strings.Title(p.Name()),
+				Login:    loginPath,
+				Logout:   logoutPath,
+				Callback: callbackPath,
+			})
+		})
 	}
 
 	tokenMiddleware := oauth2.AuthorizedToken(&auth, &oauth2.CookieExtractor{Name: "session"}, opts.Logger, router)
@@ -227,7 +171,7 @@ func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
 			return
 		}
 		router.ServeHTTP(w, r)
-	})
+	}), routes
 }
 
 func encodeJSON(w http.ResponseWriter, status int, v interface{}, logger chronograf.Logger) {

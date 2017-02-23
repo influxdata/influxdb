@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/chronograf/influx"
 	"github.com/influxdata/chronograf/layouts"
 	clog "github.com/influxdata/chronograf/log"
+	"github.com/influxdata/chronograf/oauth2"
 	"github.com/influxdata/chronograf/uuid"
 	client "github.com/influxdata/usage-client/v1"
 	"github.com/tylerb/graceful"
@@ -67,6 +68,63 @@ type Server struct {
 	handler           http.Handler
 }
 
+func provide(p oauth2.Provider, m oauth2.Mux, ok func() bool) func(func(oauth2.Provider, oauth2.Mux)) {
+	return func(configure func(oauth2.Provider, oauth2.Mux)) {
+		if ok() {
+			configure(p, m)
+		}
+	}
+}
+
+func (s *Server) UseGithub() bool {
+	return s.TokenSecret != "" && s.GithubClientID != "" && s.GithubClientSecret != ""
+}
+
+func (s *Server) UseGoogle() bool {
+	return s.TokenSecret != "" && s.GoogleClientID != "" && s.GoogleClientSecret != "" && s.PublicURL != ""
+}
+
+func (s *Server) UseHeroku() bool {
+	return s.TokenSecret != "" && s.HerokuClientID != "" && s.HerokuSecret != ""
+}
+
+func (s *Server) githubOAuth(logger chronograf.Logger, auth oauth2.Authenticator) (oauth2.Provider, oauth2.Mux, func() bool) {
+	gh := oauth2.Github{
+		ClientID:     s.GithubClientID,
+		ClientSecret: s.GithubClientSecret,
+		Orgs:         s.GithubOrgs,
+		Logger:       logger,
+	}
+	ghMux := oauth2.NewCookieMux(&gh, auth, logger)
+	return &gh, ghMux, s.UseGithub
+}
+
+func (s *Server) googleOAuth(logger chronograf.Logger, auth oauth2.Authenticator) (oauth2.Provider, oauth2.Mux, func() bool) {
+	redirectURL := s.PublicURL + s.Basepath + "/oauth/google/callback"
+	google := oauth2.Google{
+		ClientID:     s.GoogleClientID,
+		ClientSecret: s.GoogleClientSecret,
+		Domains:      s.GoogleDomains,
+		RedirectURL:  redirectURL,
+		Logger:       logger,
+	}
+
+	goMux := oauth2.NewCookieMux(&google, auth, logger)
+	return &google, goMux, s.UseGoogle
+}
+
+func (s *Server) herokuOAuth(logger chronograf.Logger, auth oauth2.Authenticator) (oauth2.Provider, oauth2.Mux, func() bool) {
+	heroku := oauth2.Heroku{
+		ClientID:      s.HerokuClientID,
+		ClientSecret:  s.HerokuSecret,
+		Organizations: s.HerokuOrganizations,
+		Logger:        logger,
+	}
+
+	hMux := oauth2.NewCookieMux(&heroku, auth, logger)
+	return &heroku, hMux, s.UseHeroku
+}
+
 // BuildInfo is sent to the usage client to track versions and commits
 type BuildInfo struct {
 	Version string
@@ -85,21 +143,20 @@ func (s *Server) Serve() error {
 	logger := clog.New(clog.ParseLevel(s.LogLevel))
 	service := openService(s.BoltPath, s.CannedPath, logger, s.useAuth())
 	basepath = s.Basepath
+
+	providerFuncs := []func(func(oauth2.Provider, oauth2.Mux)){}
+
+	auth := oauth2.NewJWT(s.TokenSecret)
+	providerFuncs = append(providerFuncs, provide(s.githubOAuth(logger, &auth)))
+	providerFuncs = append(providerFuncs, provide(s.googleOAuth(logger, &auth)))
+	providerFuncs = append(providerFuncs, provide(s.herokuOAuth(logger, &auth)))
+
 	s.handler = NewMux(MuxOpts{
-		Develop:             s.Develop,
-		TokenSecret:         s.TokenSecret,
-		GithubClientID:      s.GithubClientID,
-		GithubClientSecret:  s.GithubClientSecret,
-		GithubOrgs:          s.GithubOrgs,
-		GoogleClientID:      s.GoogleClientID,
-		GoogleClientSecret:  s.GoogleClientSecret,
-		GoogleDomains:       s.GoogleDomains,
-		HerokuClientID:      s.HerokuClientID,
-		HerokuSecret:        s.HerokuSecret,
-		HerokuOrganizations: s.HerokuOrganizations,
-		PublicURL:           s.PublicURL,
-		Logger:              logger,
-		UseAuth:             s.useAuth(),
+		Develop:       s.Develop,
+		TokenSecret:   s.TokenSecret,
+		Logger:        logger,
+		UseAuth:       s.useAuth(),
+		ProviderFuncs: providerFuncs,
 	}, service)
 
 	s.handler = Version(s.BuildInfo.Version, s.handler)
