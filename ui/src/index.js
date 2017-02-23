@@ -18,6 +18,7 @@ import NotFound from 'src/shared/components/NotFound';
 import configureStore from 'src/store/configureStore';
 import {getMe, getSources} from 'shared/apis';
 import {receiveMe} from 'shared/actions/me';
+import {disablePresentationMode} from 'shared/actions/ui';
 import {loadLocalStorage} from './localStorage';
 
 import 'src/style/chronograf.scss';
@@ -37,6 +38,12 @@ if (basepath) {
     basename: "",
   });
 }
+
+window.addEventListener('keyup', (event) => {
+  if (event.key === 'Escape') {
+    store.dispatch(disablePresentationMode())
+  }
+})
 
 const Root = React.createClass({
   getInitialState() {
@@ -116,6 +123,7 @@ const Root = React.createClass({
               <Route path="alerts" component={AlertsApp} />
               <Route path="dashboards" component={DashboardsPage} />
               <Route path="dashboards/:dashboardID" component={DashboardPage} />
+              <Route path="dashboards/:dashboardID/edit" component={DashboardPage} />
               <Route path="alert-rules" component={KapacitorRulesPage} />
               <Route path="alert-rules/:ruleID" component={KapacitorRulePage} />
               <Route path="alert-rules/new" component={KapacitorRulePage} />

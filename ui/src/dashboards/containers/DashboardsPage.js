@@ -34,13 +34,14 @@ const DashboardsPage = React.createClass({
   },
 
   render() {
+    const dashboardLink = `/sources/${this.props.source.id}`;
     let tableHeader;
     if (this.state.waiting) {
       tableHeader = "Loading Dashboards...";
     } else if (this.state.dashboards.length === 0) {
-      tableHeader = "No Dashboards";
+      tableHeader = "1 Dashboard";
     } else {
-      tableHeader = `${this.state.dashboards.length} Dashboards`;
+      tableHeader = `${this.state.dashboards.length + 1} Dashboards`;
     }
 
     return (
@@ -75,7 +76,7 @@ const DashboardsPage = React.createClass({
                               return (
                                 <tr key={dashboard.id}>
                                   <td className="monotype">
-                                    <Link to={`/sources/${this.props.source.id}/dashboards/${dashboard.id}`}>
+                                    <Link to={`${dashboardLink}/dashboards/${dashboard.id}`}>
                                       {dashboard.name}
                                     </Link>
                                   </td>
@@ -83,6 +84,13 @@ const DashboardsPage = React.createClass({
                               );
                             })
                           }
+                          <tr>
+                            <td className="monotype">
+                              <Link to={`${dashboardLink}/kubernetes`}>
+                                {'Kubernetes'}
+                              </Link>
+                            </td>
+                          </tr>
                       </tbody>
                     </table>
                   </div>
