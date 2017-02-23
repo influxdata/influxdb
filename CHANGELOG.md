@@ -10,6 +10,7 @@
   3. [#891](https://github.com/influxdata/chronograf/issues/891): Make dashboard visualizations draggable
   4. [#892](https://github.com/influxdata/chronograf/issues/891): Make dashboard visualizations resizable
   5. [#893](https://github.com/influxdata/chronograf/issues/893): Persist dashboard visualization position
+  6. [#922](https://github.com/influxdata/chronograf/issues/922): Additional OAuth2 support for Heroku and Google
 
 ### UI Improvements
   1. [#905](https://github.com/influxdata/chronograf/pull/905): Make scroll bar thumb element bigger
