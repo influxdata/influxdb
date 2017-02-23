@@ -1264,28 +1264,34 @@ func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) N
 			return nil, err
 		}
 
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
+		}
 
-			var p {{$k.Name}}Point
-			if b != nil {
-				p = *b
-			} else {
-				p = *a
-			}
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
+			p := *b
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = {{$k.Nil}}
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = {{$k.Nil}}
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
