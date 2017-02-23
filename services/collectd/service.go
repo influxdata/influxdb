@@ -2,6 +2,7 @@
 package collectd // import "github.com/influxdata/influxdb/services/collectd"
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -114,7 +115,10 @@ func (s *Service) Open() error {
 		if stat, err := os.Stat(s.Config.TypesDB); err != nil {
 			return fmt.Errorf("Stat(): %s", err)
 		} else if stat.IsDir() {
-			alltypesdb := new(api.TypesDB)
+			alltypesdb, err := api.NewTypesDB(&bytes.Buffer{})
+			if err != nil {
+				return err
+			}
 			var readdir func(path string)
 			readdir = func(path string) {
 				files, err := ioutil.ReadDir(path)

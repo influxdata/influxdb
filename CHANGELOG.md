@@ -14,6 +14,7 @@
 - [#8001](https://github.com/influxdata/influxdb/issues/8001): Map types correctly when using a regex and one of the measurements is empty.
 - [#8040](https://github.com/influxdata/influxdb/issues/8040): Reduce the expression in a subquery to avoid a panic.
 - [#7968](https://github.com/influxdata/influxdb/issues/7968): Properly select a tag within a subquery.
+- [#8028](https://github.com/influxdata/influxdb/issues/8028): Fix panic in collectd when configured to read types DB from directory.
 
 ## v1.2.0 [2017-01-24]
 
