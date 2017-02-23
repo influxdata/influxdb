@@ -1,6 +1,7 @@
 package server
 
 import (
+	"crypto/tls"
 	"math/rand"
 	"net"
 	"net/http"
@@ -17,6 +18,7 @@ import (
 	"github.com/influxdata/chronograf/oauth2"
 	"github.com/influxdata/chronograf/uuid"
 	client "github.com/influxdata/usage-client/v1"
+	flags "github.com/jessevdk/go-flags"
 	"github.com/tylerb/graceful"
 )
 
@@ -31,15 +33,11 @@ func init() {
 
 // Server for the chronograf API
 type Server struct {
-	Host string `long:"host" description:"the IP to listen on" default:"0.0.0.0" env:"HOST"`
-	Port int    `long:"port" description:"the port to listen on for insecure connections, defaults to a random value" default:"8888" env:"PORT"`
+	Host string `long:"host" description:"The IP to listen on" default:"0.0.0.0" env:"HOST"`
+	Port int    `long:"port" description:"The port to listen on for insecure connections, defaults to a random value" default:"8888" env:"PORT"`
 
-	/* TODO: add in support for TLS
-	TLSHost           string         `long:"tls-host" description:"the IP to listen on for tls, when not specified it's the same as --host" env:"TLS_HOST"`
-	TLSPort           int            `long:"tls-port" description:"the port to listen on for secure connections, defaults to a random value" env:"TLS_PORT"`
-	TLSCertificate    flags.Filename `long:"tls-certificate" description:"the certificate to use for secure connections" env:"TLS_CERTIFICATE"`
-	TLSCertificateKey flags.Filename `long:"tls-key" description:"the private key to use for secure conections" env:"TLS_PRIVATE_KEY"`
-	*/
+	Cert flags.Filename `long:"cert" description:"Path to PEM encoded public key certificate. " env:"TLS_CERTIFICATE"`
+	Key  flags.Filename `long:"key" description:"Path to private key associated with given certificate. " env:"TLS_PRIVATE_KEY"`
 
 	Develop     bool   `short:"d" long:"develop" description:"Run server in develop mode."`
 	BoltPath    string `short:"b" long:"bolt-path" description:"Full path to boltDB file (/var/lib/chronograf/chronograf-v1.db)" env:"BOLT_PATH" default:"chronograf-v1.db"`
@@ -138,6 +136,41 @@ func (s *Server) useAuth() bool {
 	return gh || google || heroku
 }
 
+func (s *Server) useTLS() bool {
+	return s.Cert != ""
+}
+
+// NewListener will an http or https listener depending useTLS()
+func (s *Server) NewListener() (net.Listener, error) {
+	addr := net.JoinHostPort(s.Host, strconv.Itoa(s.Port))
+	if !s.useTLS() {
+		listener, err := net.Listen("tcp", addr)
+		if err != nil {
+			return nil, err
+		}
+		return listener, nil
+	}
+
+	// If no key specified, therefore, we assume it is in the cert
+	if s.Key == "" {
+		s.Key = s.Cert
+	}
+
+	cert, err := tls.LoadX509KeyPair(string(s.Cert), string(s.Key))
+	if err != nil {
+		return nil, err
+	}
+
+	listener, err := tls.Listen("tcp", addr, &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return listener, nil
+}
+
 // Serve starts and runs the chronograf server
 func (s *Server) Serve() error {
 	logger := clog.New(clog.ParseLevel(s.LogLevel))
@@ -159,16 +192,22 @@ func (s *Server) Serve() error {
 		ProviderFuncs: providerFuncs,
 	}, service)
 
+	// Add chronograf's version header to all requests
 	s.handler = Version(s.BuildInfo.Version, s.handler)
 
-	var err error
-	s.Listener, err = net.Listen("tcp", net.JoinHostPort(s.Host, strconv.Itoa(s.Port)))
+	if s.useTLS() {
+		// Add HSTS to instruct all browsers to change from http to https
+		s.handler = HSTS(s.handler)
+	}
+
+	listener, err := s.NewListener()
 	if err != nil {
 		logger.
 			WithField("component", "server").
 			Error(err)
 		return err
 	}
+	s.Listener = listener
 
 	httpServer := &graceful.Server{Server: new(http.Server)}
 	httpServer.SetKeepAlivesEnabled(true)
@@ -178,10 +217,13 @@ func (s *Server) Serve() error {
 	if !s.ReportingDisabled {
 		go reportUsageStats(s.BuildInfo, logger)
 	}
-
+	scheme := "http"
+	if s.useTLS() {
+		scheme = "https"
+	}
 	logger.
 		WithField("component", "server").
-		Info("Serving chronograf at http://", s.Listener.Addr())
+		Info("Serving chronograf at ", scheme, "://", s.Listener.Addr())
 
 	if err := httpServer.Serve(s.Listener); err != nil {
 		logger.
@@ -192,7 +234,7 @@ func (s *Server) Serve() error {
 
 	logger.
 		WithField("component", "server").
-		Info("Stopped serving chronograf at http://", s.Listener.Addr())
+		Info("Stopped serving chronograf at ", scheme, "://", s.Listener.Addr())
 
 	return nil
 }

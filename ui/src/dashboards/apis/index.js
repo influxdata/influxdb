@@ -6,3 +6,11 @@ export function getDashboards() {
     resource: 'dashboards',
   });
 }
+
+export function updateDashboard(dashboard) {
+  return AJAX({
+    method: 'PUT',
+    url: dashboard.links.self,
+    data: dashboard,
+  });
+}

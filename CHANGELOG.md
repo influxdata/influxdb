@@ -1,8 +1,28 @@
 ## v1.2.0 [unreleased]
 
 ### Bug Fixes
+  1. [#882](https://github.com/influxdata/chronograf/pull/882): Fix y-axis graph padding
+  2. [#907](https://github.com/influxdata/chronograf/pull/907): Fix react-router warning
+
 ### Features
+  1. [#873](https://github.com/influxdata/chronograf/pull/873): Add [TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md) support
+  2. [#885](https://github.com/influxdata/chronograf/issues/885): Add presentation mode to dashboard page
+  3. [#891](https://github.com/influxdata/chronograf/issues/891): Make dashboard visualizations draggable
+  4. [#892](https://github.com/influxdata/chronograf/issues/891): Make dashboard visualizations resizable
+  5. [#893](https://github.com/influxdata/chronograf/issues/893): Persist dashboard visualization position
+
 ### UI Improvements
+  1. [#905](https://github.com/influxdata/chronograf/pull/905): Make scroll bar thumb element bigger
+  2. [#917](https://github.com/influxdata/chronograf/pull/917): Simplify side navigation
+
+## v1.2.0-beta3 [2017-02-15]
+
+### Bug Fixes
+  1. [#879](https://github.com/influxdata/chronograf/pull/879): Fix several Kapacitor configuration page state bugs: [#875](https://github.com/influxdata/chronograf/issues/875), [#876](https://github.com/influxdata/chronograf/issues/876), [#878](https://github.com/influxdata/chronograf/issues/878)
+  2. [#872](https://github.com/influxdata/chronograf/pull/872): Fix incorrect data source response
+
+### Features
+  1. [#896](https://github.com/influxdata/chronograf/pull/896) Add more docker stats
 
 ## v1.2.0-beta2 [2017-02-10]
 

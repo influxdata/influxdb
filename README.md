@@ -62,7 +62,7 @@ Chronograf's graphing tool that allows you to dig in and create personalized vis
 
 ### Dashboards
 
-While there is an API and presentation layer for dashboards released in version 1.2.0-beta1, it is not recommended that you try to use Chronograf as a general purpose dashboard solution. The visualization around editing is under way and will be in a future release. Meanwhile, if you would like to try it out you can use `curl` or other HTTP tools to push dashboard definitions directly to the API. If you do so, they should be shown when selected in the application.
+While there is an API and presentation layer for dashboards released in version 1.2.0-beta1+, it is not recommended that you try to use Chronograf as a general purpose dashboard solution. The visualization around editing is under way and will be in a future release. Meanwhile, if you would like to try it out you can use `curl` or other HTTP tools to push dashboard definitions directly to the API. If you do so, they should be shown when selected in the application.
 
 Example:
 ```
@@ -107,6 +107,9 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 * View all active alerts at a glance on the alerting dashboard
 * Enable and disable existing alert rules with the check of a box
 
+### TLS/HTTPS support
+See [Chronograf with TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md) for more information.
+
 ### GitHub OAuth Login
 See [Chronograf with OAuth 2.0](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) for more information.
 
@@ -115,7 +118,7 @@ Change the default root path of the Chronograf server with the `--basepath` opti
 
 ## Versions
 
-Chronograf v1.2.0-beta2 is a beta release.
+Chronograf v1.2.0-beta3 is a beta release.
 We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
 
 Spotted a bug or have a feature request?
