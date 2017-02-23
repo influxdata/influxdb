@@ -13,6 +13,7 @@
 - [#7966](https://github.com/influxdata/influxdb/pull/7966): Prevent a panic when aggregates are used in an inner query with a raw query.
 - [#8001](https://github.com/influxdata/influxdb/issues/8001): Map types correctly when using a regex and one of the measurements is empty.
 - [#8040](https://github.com/influxdata/influxdb/issues/8040): Reduce the expression in a subquery to avoid a panic.
+- [#7968](https://github.com/influxdata/influxdb/issues/7968): Properly select a tag within a subquery.
 
 ## v1.2.0 [2017-01-24]
 
