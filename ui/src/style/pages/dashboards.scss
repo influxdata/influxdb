@@ -1,16 +1,156 @@
-$dashboard-item-heading: 30px;
+/*
+  Variables
+  ------------------------------------------------------
+*/
+$dash-graph-heading: 30px;
 
-.dashboard-view {
+
+/*
+  Animations
+  ------------------------------------------------------
+*/
+@keyframes refreshingSpinnerA {
+  0% { transform: translate(-50%,-50%) scale(1.75); background-color: $g7-graphite; }
+  33% { transform: translate(-50%,-50%) scale(1,1); }
+  66% { transform: translate(-50%,-50%) scale(1,1); }
+  100% { transform: translate(-50%,-50%) scale(1,1); }
+}
+@keyframes refreshingSpinnerB {
+  0% { transform: translate(-50%,-50%) scale(1,1); }
+  33% { transform: translate(-50%,-50%) scale(1.75); background-color: $g7-graphite; }
+  66% { transform: translate(-50%,-50%) scale(1,1); }
+  100% { transform: translate(-50%,-50%) scale(1,1); }
+}
+@keyframes refreshingSpinnerC {
+  0% { transform: translate(-50%,-50%) scale(1,1); }
+  33% { transform: translate(-50%,-50%) scale(1,1); }
+  66% { transform: translate(-50%,-50%) scale(1.75); background-color: $g7-graphite; }
+  100% { transform: translate(-50%,-50%) scale(1,1); }
+}
+
+/*
+  Default Dashboard Mode
+  ------------------------------------------------------
+*/
+.dashboard {
   .react-grid-item {
     background-color: $g3-castle;
     border-radius: $radius;
     border: 2px solid $g3-castle;
     transition-property: left, top, border-color, background-color;
+  }
+  .graph-empty {
+    background-color: transparent;
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+  }
+}
+.dash-graph--container {
+  user-select: none !important;
+  -o-user-select: none !important;
+  -moz-user-select: none !important;
+  -webkit-user-select: none !important;
+  background-color: transparent;
+  position: absolute;
+  width: 100%;
+  height: calc(100% - #{$dash-graph-heading});
+  top: $dash-graph-heading;
+  left: 0;
+  padding: 0;
 
-    &.cssTransforms {
-      transition-property: transform, border-color, background-color;
+  &:hover {
+    cursor: crosshair;
+  }
+  & > div:not(.graph-empty) {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+
+    & > div:not(.graph-panel__refreshing) {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      padding: 8px 16px;
     }
+  }
+  .graph-panel__refreshing {
+    top: (-$dash-graph-heading + 5px) !important;
+  }
+}
+.dash-graph--heading {
+  user-select: none !important;
+  -o-user-select: none !important;
+  -moz-user-select: none !important;
+  -webkit-user-select: none !important;
+  background-color: transparent;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: $dash-graph-heading;
+  padding: 0 16px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  border-radius: $radius;
+  font-weight: 600;
+  font-size: 13px;
+  color: $g14-chromium;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease;
+  &:hover {
+    cursor: default;
+  }
+}
+.graph-panel__refreshing {
+  position: absolute;
+  top: -18px !important;
+  transform: translate(0,0);
+  right: 16px !important;
+  width: 16px;
+  height: 18px;
 
+  > div {
+    width: 4px;
+    height: 4px;
+    background-color: $g6-smoke;
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%,-50%);
+  }
+
+  div:nth-child(1) {left: 0; animation: refreshingSpinnerA 0.8s cubic-bezier(0.645, 0.045, 0.355, 1) infinite; }
+  div:nth-child(2) {left: 50%; animation: refreshingSpinnerB 0.8s cubic-bezier(0.645, 0.045, 0.355, 1) infinite; }
+  div:nth-child(3) {left: 100%; animation: refreshingSpinnerC 0.8s cubic-bezier(0.645, 0.045, 0.355, 1) infinite;}
+}
+
+/*
+  Dashboard Edit Mode
+  ------------------------------------------------------
+*/
+.dashboard.dashboard-edit {
+  .dash-graph--heading:hover {
+    background-color: $g4-onyx;
+    color: $g18-cloud;
+    cursor: move; /* fallback if grab cursor is unsupported */
+    cursor: grab;
+    cursor: -moz-grab;
+    cursor: -webkit-grab;
+  }
+  .react-grid-placeholder {
+    @include gradient-diag-down($c-pool,$c-comet);
+    border: 0;
+    opacity: 0.3;
+    z-index: 2;
+  }
+  .react-grid-item {
     &.resizing {
       background-color: fade-out($g3-castle,0.09);
       border-color: $c-pool;
@@ -44,8 +184,8 @@ $dashboard-item-heading: 30px;
         cursor: -webkit-grabbing;
       }
 
-      & > .hosts-graph-heading,
-      & > .hosts-graph-heading:hover {
+      & > .dash-graph--heading,
+      & > .dash-graph--heading:hover {
         background-color: $g4-onyx;
         color: $g18-cloud;
         cursor: grabbing;
@@ -53,109 +193,37 @@ $dashboard-item-heading: 30px;
         cursor: -webkit-grabbing;
       }
     }
-  }
-  .react-grid-placeholder {
-    @include gradient-diag-down($c-pool,$c-comet);
-    border: 0;
-    opacity: 0.3;
-    z-index: 2;
-  }
-  .graph-empty {
-    background-color: transparent;
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    top: 0;
-    left: 0;
-  }
-  .hosts-graph {
-    user-select: none !important;
-    -o-user-select: none !important;
-    -moz-user-select: none !important;
-    -webkit-user-select: none !important;
-    background-color: transparent;
-    position: absolute;
-    width: 100%;
-    height: calc(100% - #{$dashboard-item-heading});
-    top: $dashboard-item-heading;
-    left: 0;
-    padding: 0;
+    &.cssTransforms {
+      transition-property: transform, border-color, background-color;
+    }
+    & > .react-resizable-handle {
+      background-image: none;
+      cursor: nwse-resize;
 
-    & > div:not(.graph-empty) {
-      position: absolute;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-
-      & > div:not(.graph-panel__refreshing) {
+      &:before,
+      &:after {
+        content: '';
+        display: block;
         position: absolute;
-        width: 100%;
-        height: 100%;
-        padding: 8px 16px;
+        height: 2px;
+        background-color: $g6-smoke;
+        transition: background-color 0.25s ease;
+        top: 50%;
+        left: 50%;
       }
-    }
-    .graph-panel__refreshing {
-      top: (-$dashboard-item-heading + 5px) !important;
-    }
-
-  }
-  .hosts-graph-heading {
-    user-select: none !important;
-    -o-user-select: none !important;
-    -moz-user-select: none !important;
-    -webkit-user-select: none !important;
-    background-color: transparent;
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: $dashboard-item-heading;
-    padding: 0 16px;
-    display: flex;
-    align-items: center;
-    border-radius: $radius;
-    transition:
-      color 0.25s ease,
-      background-color 0.25s ease;
-
-    &:hover {
-      background-color: $g4-onyx;
-      color: $g18-cloud;
-      cursor: move; /* fallback if grab cursor is unsupported */
-      cursor: grab;
-      cursor: -moz-grab;
-      cursor: -webkit-grab;
-    }
-  }
-}
-
-.react-grid-item > .react-resizable-handle {
-  background-image: none;
-  cursor: nwse-resize;
-
-  &:before,
-  &:after {
-    content: '';
-    display: block;
-    position: absolute;
-    height: 2px;
-    background-color: $g6-smoke;
-    transition: background-color 0.25s ease;
-    top: 50%;
-    left: 50%;
-  }
-  &:before {
-    width: 20px;
-    transform: translate(-50%,-50%) rotate(-45deg);
-  }
-  &:after {
-    width: 12px;
-    transform: translate(-3px,2px) rotate(-45deg);
-  }
-  &:hover {
-    &:before, &:after {
-      background-color: $c-comet;
+      &:before {
+        width: 20px;
+        transform: translate(-50%,-50%) rotate(-45deg);
+      }
+      &:after {
+        width: 12px;
+        transform: translate(-3px,2px) rotate(-45deg);
+      }
+      &:hover {
+        &:before, &:after {
+          background-color: $c-comet;
+        }
+      }
     }
   }
 }
