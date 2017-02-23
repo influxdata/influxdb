@@ -104,11 +104,21 @@ export const LayoutRenderer = React.createClass({
         );
       }
 
+      const displayOptions = {
+        stepPlot: cell.type === 'line-stepplot',
+        stackedGraph: cell.type === 'line-stacked',
+      }
+
       return (
         <div key={cell.i}>
           <h2 className="hosts-graph-heading">{cell.name}</h2>
           <div className="hosts-graph graph-container">
-            <RefreshingLineGraph queries={qs} autoRefresh={autoRefreshMs} showSingleStat={cell.type === "line-plus-single-stat"} />
+            <RefreshingLineGraph
+              queries={qs}
+              autoRefresh={autoRefreshMs}
+              showSingleStat={cell.type === "line-plus-single-stat"}
+              displayOptions={displayOptions}
+            />
           </div>
         </div>
       );
