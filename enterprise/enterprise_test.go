@@ -14,10 +14,14 @@ import (
 
 func Test_Enterprise_FetchesDataNodes(t *testing.T) {
 	t.Parallel()
-
-	ctrl := &ControlClient{
-		Cluster: &enterprise.Cluster{},
+	showClustersCalled := false
+	ctrl := &mockCtrl{
+		showCluster: func(ctx context.Context) (*enterprise.Cluster, error) {
+			showClustersCalled = true
+			return &enterprise.Cluster{}, nil
+		},
 	}
+
 	cl := &enterprise.Client{
 		Ctrl: ctrl,
 	}
@@ -29,7 +33,7 @@ func Test_Enterprise_FetchesDataNodes(t *testing.T) {
 		t.Fatal("Unexpected error while creating enterprise client. err:", err)
 	}
 
-	if ctrl.ShowClustersCalled != true {
+	if showClustersCalled != true {
 		t.Fatal("Expected request to meta node but none was issued")
 	}
 }

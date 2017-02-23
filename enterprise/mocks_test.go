@@ -60,6 +60,30 @@ func (cc *ControlClient) SetUserPerms(ctx context.Context, name string, perms en
 	return nil
 }
 
+func (cc *ControlClient) CreateRole(ctx context.Context, name string) error {
+	return nil
+}
+
+func (cc *ControlClient) Role(ctx context.Context, name string) (*enterprise.Role, error) {
+	return nil, nil
+}
+
+func (ccm *ControlClient) Roles(ctx context.Context, name *string) (*enterprise.Roles, error) {
+	return nil, nil
+}
+
+func (cc *ControlClient) DeleteRole(ctx context.Context, name string) error {
+	return nil
+}
+
+func (cc *ControlClient) SetRolePerms(ctx context.Context, name string, perms enterprise.Permissions) error {
+	return nil
+}
+
+func (cc *ControlClient) SetRoleUsers(ctx context.Context, name string, users []string) error {
+	return nil
+}
+
 type TimeSeries struct {
 	URLs     []string
 	Response Response
@@ -84,6 +108,10 @@ func (ts *TimeSeries) Connect(ctx context.Context, src *chronograf.Source) error
 
 func (ts *TimeSeries) Users(ctx context.Context) chronograf.UsersStore {
 	return nil
+}
+
+func (ts *TimeSeries) Roles(ctx context.Context) (chronograf.RolesStore, error) {
+	return nil, nil
 }
 
 func (ts *TimeSeries) Allowances(ctx context.Context) chronograf.Allowances {

@@ -54,7 +54,7 @@ func TestService_Me(t *testing.T) {
 			principal:       "me",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"username":"me","password":"hunter2","links":{"self":"/chronograf/v1/users/me"}}
+			wantBody: `{"name":"me","password":"hunter2","links":{"self":"/chronograf/v1/users/me"}}
 `,
 		},
 		{
@@ -77,7 +77,7 @@ func TestService_Me(t *testing.T) {
 			principal:       "secret",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"username":"secret","password":"","links":{"self":"/chronograf/v1/users/secret"}}
+			wantBody: `{"name":"secret","password":"","links":{"self":"/chronograf/v1/users/secret"}}
 `,
 		},
 		{

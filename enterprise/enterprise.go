@@ -13,21 +13,34 @@ import (
 
 var _ chronograf.TimeSeries = &Client{}
 
+// Ctrl represents administrative controls over an Influx Enterprise cluster
+type Ctrl interface {
+	ShowCluster(ctx context.Context) (*Cluster, error)
+
+	Users(ctx context.Context, name *string) (*Users, error)
+	User(ctx context.Context, name string) (*User, error)
+	CreateUser(ctx context.Context, name, passwd string) error
+	DeleteUser(ctx context.Context, name string) error
+	ChangePassword(ctx context.Context, name, passwd string) error
+	SetUserPerms(ctx context.Context, name string, perms Permissions) error
+
+	Roles(ctx context.Context, name *string) (*Roles, error)
+	Role(ctx context.Context, name string) (*Role, error)
+	CreateRole(ctx context.Context, name string) error
+	DeleteRole(ctx context.Context, name string) error
+	SetRolePerms(ctx context.Context, name string, perms Permissions) error
+	SetRoleUsers(ctx context.Context, name string, users []string) error
+}
+
 // Client is a device for retrieving time series data from an Influx Enterprise
 // cluster. It is configured using the addresses of one or more meta node URLs.
 // Data node URLs are retrieved automatically from the meta nodes and queries
 // are appropriately load balanced across the cluster.
 type Client struct {
-	Ctrl interface {
-		ShowCluster(ctx context.Context) (*Cluster, error)
-		User(ctx context.Context, name string) (*User, error)
-		CreateUser(ctx context.Context, name, passwd string) error
-		DeleteUser(ctx context.Context, name string) error
-		ChangePassword(ctx context.Context, name, passwd string) error
-		Users(ctx context.Context, name *string) (*Users, error)
-		SetUserPerms(ctx context.Context, name string, perms Permissions) error
-	}
-	Logger chronograf.Logger
+	Ctrl
+	UsersStore chronograf.UsersStore
+	RolesStore chronograf.RolesStore
+	Logger     chronograf.Logger
 
 	dataNodes *ring.Ring
 	opened    bool
@@ -58,8 +71,17 @@ func NewClientWithURL(mu, username, password string, tls bool, lg chronograf.Log
 		return nil, err
 	}
 	metaURL.User = url.UserPassword(username, password)
+	ctrl := NewMetaClient(metaURL)
 	return &Client{
-		Ctrl:   NewMetaClient(metaURL),
+		Ctrl: ctrl,
+		UsersStore: &UserStore{
+			Ctrl:   ctrl,
+			Logger: lg,
+		},
+		RolesStore: &RolesStore{
+			Ctrl:   ctrl,
+			Logger: lg,
+		},
 		Logger: lg,
 	}, nil
 }
@@ -100,7 +122,12 @@ func (c *Client) Query(ctx context.Context, q chronograf.Query) (chronograf.Resp
 
 // Users is the interface to the users within Influx Enterprise
 func (c *Client) Users(context.Context) chronograf.UsersStore {
-	return c
+	return c.UsersStore
+}
+
+// Roles provide a grouping of permissions given to a grouping of users
+func (c *Client) Roles(ctx context.Context) (chronograf.RolesStore, error) {
+	return c.RolesStore, nil
 }
 
 // Allowances returns all Influx Enterprise permission strings

@@ -18,6 +18,8 @@ type TimeSeries struct {
 	UsersF func(context.Context) chronograf.UsersStore
 	// Allowances returns all valid names permissions in this database
 	AllowancesF func(context.Context) chronograf.Allowances
+	// RolesF represents the roles. Roles group permissions and Users
+	RolesF func(context.Context) (chronograf.RolesStore, error)
 }
 
 // Query retrieves time series data from the database.
@@ -33,6 +35,11 @@ func (t *TimeSeries) Connect(ctx context.Context, src *chronograf.Source) error 
 // Users represents the user accounts within the TimeSeries database
 func (t *TimeSeries) Users(ctx context.Context) chronograf.UsersStore {
 	return t.UsersF(ctx)
+}
+
+// Roles represents the roles. Roles group permissions and Users
+func (t *TimeSeries) Roles(ctx context.Context) (chronograf.RolesStore, error) {
+	return t.RolesF(ctx)
 }
 
 // Allowances returns all valid names permissions in this database

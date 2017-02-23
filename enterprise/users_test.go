@@ -1,13 +1,13 @@
-package enterprise
+package enterprise_test
 
 import (
-	"container/ring"
 	"context"
 	"fmt"
 	"reflect"
 	"testing"
 
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/enterprise"
 )
 
 func TestClient_Add(t *testing.T) {
@@ -67,7 +67,7 @@ func TestClient_Add(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		c := &Client{
+		c := &enterprise.UserStore{
 			Ctrl:   tt.fields.Ctrl,
 			Logger: tt.fields.Logger,
 		}
@@ -134,7 +134,7 @@ func TestClient_Delete(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		c := &Client{
+		c := &enterprise.UserStore{
 			Ctrl:   tt.fields.Ctrl,
 			Logger: tt.fields.Logger,
 		}
@@ -146,10 +146,8 @@ func TestClient_Delete(t *testing.T) {
 
 func TestClient_Get(t *testing.T) {
 	type fields struct {
-		Ctrl      *mockCtrl
-		Logger    chronograf.Logger
-		dataNodes *ring.Ring
-		opened    bool
+		Ctrl   *mockCtrl
+		Logger chronograf.Logger
 	}
 	type args struct {
 		ctx  context.Context
@@ -166,8 +164,8 @@ func TestClient_Get(t *testing.T) {
 			name: "Successful Get User",
 			fields: fields{
 				Ctrl: &mockCtrl{
-					user: func(ctx context.Context, name string) (*User, error) {
-						return &User{
+					user: func(ctx context.Context, name string) (*enterprise.User, error) {
+						return &enterprise.User{
 							Name:     "marty",
 							Password: "johnny be good",
 							Permissions: map[string][]string{
@@ -199,7 +197,7 @@ func TestClient_Get(t *testing.T) {
 			name: "Failure to get User",
 			fields: fields{
 				Ctrl: &mockCtrl{
-					user: func(ctx context.Context, name string) (*User, error) {
+					user: func(ctx context.Context, name string) (*enterprise.User, error) {
 						return nil, fmt.Errorf("1.21 Gigawatts! Tom, how could I have been so careless?")
 					},
 				},
@@ -212,11 +210,9 @@ func TestClient_Get(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		c := &Client{
-			Ctrl:      tt.fields.Ctrl,
-			Logger:    tt.fields.Logger,
-			dataNodes: tt.fields.dataNodes,
-			opened:    tt.fields.opened,
+		c := &enterprise.UserStore{
+			Ctrl:   tt.fields.Ctrl,
+			Logger: tt.fields.Logger,
 		}
 		got, err := c.Get(tt.args.ctx, tt.args.name)
 		if (err != nil) != tt.wantErr {
@@ -283,7 +279,7 @@ func TestClient_Update(t *testing.T) {
 			name: "Success setting permissions User",
 			fields: fields{
 				Ctrl: &mockCtrl{
-					setUserPerms: func(ctx context.Context, name string, perms Permissions) error {
+					setUserPerms: func(ctx context.Context, name string, perms enterprise.Permissions) error {
 						return nil
 					},
 				},
@@ -306,7 +302,7 @@ func TestClient_Update(t *testing.T) {
 			name: "Failure setting permissions User",
 			fields: fields{
 				Ctrl: &mockCtrl{
-					setUserPerms: func(ctx context.Context, name string, perms Permissions) error {
+					setUserPerms: func(ctx context.Context, name string, perms enterprise.Permissions) error {
 						return fmt.Errorf("They found me, I don't know how, but they found me.")
 					},
 				},
@@ -327,7 +323,7 @@ func TestClient_Update(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		c := &Client{
+		c := &enterprise.UserStore{
 			Ctrl:   tt.fields.Ctrl,
 			Logger: tt.fields.Logger,
 		}
@@ -356,9 +352,9 @@ func TestClient_All(t *testing.T) {
 			name: "Successful Get User",
 			fields: fields{
 				Ctrl: &mockCtrl{
-					users: func(ctx context.Context, name *string) (*Users, error) {
-						return &Users{
-							Users: []User{
+					users: func(ctx context.Context, name *string) (*enterprise.Users, error) {
+						return &enterprise.Users{
+							Users: []enterprise.User{
 								{
 									Name:     "marty",
 									Password: "johnny be good",
@@ -394,7 +390,7 @@ func TestClient_All(t *testing.T) {
 			name: "Failure to get User",
 			fields: fields{
 				Ctrl: &mockCtrl{
-					users: func(ctx context.Context, name *string) (*Users, error) {
+					users: func(ctx context.Context, name *string) (*enterprise.Users, error) {
 						return nil, fmt.Errorf("1.21 Gigawatts! Tom, how could I have been so careless?")
 					},
 				},
@@ -406,7 +402,7 @@ func TestClient_All(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		c := &Client{
+		c := &enterprise.UserStore{
 			Ctrl:   tt.fields.Ctrl,
 			Logger: tt.fields.Logger,
 		}
@@ -421,15 +417,15 @@ func TestClient_All(t *testing.T) {
 	}
 }
 
-func Test_toEnterprise(t *testing.T) {
+func Test_ToEnterprise(t *testing.T) {
 	tests := []struct {
 		name  string
 		perms chronograf.Permissions
-		want  Permissions
+		want  enterprise.Permissions
 	}{
 		{
 			name: "All Scopes",
-			want: Permissions{"": []string{"ViewChronograf", "KapacitorAPI"}},
+			want: enterprise.Permissions{"": []string{"ViewChronograf", "KapacitorAPI"}},
 			perms: chronograf.Permissions{
 				{
 					Scope:   chronograf.AllScope,
@@ -439,7 +435,7 @@ func Test_toEnterprise(t *testing.T) {
 		},
 		{
 			name: "DB Scope",
-			want: Permissions{"telegraf": []string{"ReadData", "WriteData"}},
+			want: enterprise.Permissions{"telegraf": []string{"ReadData", "WriteData"}},
 			perms: chronograf.Permissions{
 				{
 					Scope:   chronograf.DBScope,
@@ -450,21 +446,21 @@ func Test_toEnterprise(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		if got := toEnterprise(tt.perms); !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. toEnterprise() = %v, want %v", tt.name, got, tt.want)
+		if got := enterprise.ToEnterprise(tt.perms); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%q. ToEnterprise() = %v, want %v", tt.name, got, tt.want)
 		}
 	}
 }
 
-func Test_toChronograf(t *testing.T) {
+func Test_ToChronograf(t *testing.T) {
 	tests := []struct {
 		name  string
-		perms Permissions
+		perms enterprise.Permissions
 		want  chronograf.Permissions
 	}{
 		{
 			name:  "All Scopes",
-			perms: Permissions{"": []string{"ViewChronograf", "KapacitorAPI"}},
+			perms: enterprise.Permissions{"": []string{"ViewChronograf", "KapacitorAPI"}},
 			want: chronograf.Permissions{
 				{
 					Scope:   chronograf.AllScope,
@@ -474,7 +470,7 @@ func Test_toChronograf(t *testing.T) {
 		},
 		{
 			name:  "DB Scope",
-			perms: Permissions{"telegraf": []string{"ReadData", "WriteData"}},
+			perms: enterprise.Permissions{"telegraf": []string{"ReadData", "WriteData"}},
 			want: chronograf.Permissions{
 				{
 					Scope:   chronograf.DBScope,
@@ -485,26 +481,33 @@ func Test_toChronograf(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		if got := toChronograf(tt.perms); !reflect.DeepEqual(got, tt.want) {
+		if got := enterprise.ToChronograf(tt.perms); !reflect.DeepEqual(got, tt.want) {
 			t.Errorf("%q. toChronograf() = %v, want %v", tt.name, got, tt.want)
 		}
 	}
 }
 
 type mockCtrl struct {
-	showCluster    func(ctx context.Context) (*Cluster, error)
-	user           func(ctx context.Context, name string) (*User, error)
+	showCluster    func(ctx context.Context) (*enterprise.Cluster, error)
+	user           func(ctx context.Context, name string) (*enterprise.User, error)
 	createUser     func(ctx context.Context, name, passwd string) error
 	deleteUser     func(ctx context.Context, name string) error
 	changePassword func(ctx context.Context, name, passwd string) error
-	users          func(ctx context.Context, name *string) (*Users, error)
-	setUserPerms   func(ctx context.Context, name string, perms Permissions) error
+	users          func(ctx context.Context, name *string) (*enterprise.Users, error)
+	setUserPerms   func(ctx context.Context, name string, perms enterprise.Permissions) error
+
+	roles        func(ctx context.Context, name *string) (*enterprise.Roles, error)
+	role         func(ctx context.Context, name string) (*enterprise.Role, error)
+	createRole   func(ctx context.Context, name string) error
+	deleteRole   func(ctx context.Context, name string) error
+	setRolePerms func(ctx context.Context, name string, perms enterprise.Permissions) error
+	setRoleUsers func(ctx context.Context, name string, users []string) error
 }
 
-func (m *mockCtrl) ShowCluster(ctx context.Context) (*Cluster, error) {
+func (m *mockCtrl) ShowCluster(ctx context.Context) (*enterprise.Cluster, error) {
 	return m.showCluster(ctx)
 }
-func (m *mockCtrl) User(ctx context.Context, name string) (*User, error) {
+func (m *mockCtrl) User(ctx context.Context, name string) (*enterprise.User, error) {
 	return m.user(ctx, name)
 }
 func (m *mockCtrl) CreateUser(ctx context.Context, name, passwd string) error {
@@ -516,9 +519,33 @@ func (m *mockCtrl) DeleteUser(ctx context.Context, name string) error {
 func (m *mockCtrl) ChangePassword(ctx context.Context, name, passwd string) error {
 	return m.changePassword(ctx, name, passwd)
 }
-func (m *mockCtrl) Users(ctx context.Context, name *string) (*Users, error) {
+func (m *mockCtrl) Users(ctx context.Context, name *string) (*enterprise.Users, error) {
 	return m.users(ctx, name)
 }
-func (m *mockCtrl) SetUserPerms(ctx context.Context, name string, perms Permissions) error {
+func (m *mockCtrl) SetUserPerms(ctx context.Context, name string, perms enterprise.Permissions) error {
 	return m.setUserPerms(ctx, name, perms)
+}
+
+func (m *mockCtrl) Roles(ctx context.Context, name *string) (*enterprise.Roles, error) {
+	return m.roles(ctx, name)
+}
+
+func (m *mockCtrl) Role(ctx context.Context, name string) (*enterprise.Role, error) {
+	return m.role(ctx, name)
+}
+
+func (m *mockCtrl) CreateRole(ctx context.Context, name string) error {
+	return m.createRole(ctx, name)
+}
+
+func (m *mockCtrl) DeleteRole(ctx context.Context, name string) error {
+	return m.deleteRole(ctx, name)
+}
+
+func (m *mockCtrl) SetRolePerms(ctx context.Context, name string, perms enterprise.Permissions) error {
+	return m.setRolePerms(ctx, name, perms)
+}
+
+func (m *mockCtrl) SetRoleUsers(ctx context.Context, name string, users []string) error {
+	return m.setRoleUsers(ctx, name, users)
 }

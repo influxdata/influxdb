@@ -537,6 +537,238 @@
 				}
 			}
 		},
+		"/sources/{id}/roles": {
+			"get": {
+				"tags": [
+					"sources",
+					"users",
+					"roles"
+				],
+				"summary": "Retrieve all data sources roles.  Available only in Influx Enterprise",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Listing of all roles",
+						"schema": {
+							"$ref": "#/definitions/Roles"
+						}
+					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			},
+			"post": {
+				"tags": [
+					"sources",
+					"users",
+					"roles"
+				],
+				"summary": "Create new role for this data source",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "roleuser",
+						"in": "body",
+						"description": "Configuration options for new role",
+						"schema": {
+							"$ref": "#/definitions/Role"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Successfully created new role",
+						"headers": {
+							"Location": {
+								"type": "string",
+								"format": "url",
+								"description": "Location of the newly created role resource."
+							}
+						},
+						"schema": {
+							"$ref": "#/definitions/Role"
+						}
+					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			}
+		},
+		"/sources/{id}/roles/{role_id}": {
+			"get": {
+				"tags": [
+					"sources",
+					"users",
+					"roles"
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "role_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the specific role",
+						"required": true
+					}
+				],
+				"summary": "Returns information about a specific role",
+				"description": "Specific role within a data source",
+				"responses": {
+					"200": {
+						"description": "Information relating to the role",
+						"schema": {
+							"$ref": "#/definitions/Role"
+						}
+					},
+					"404": {
+						"description": "Unknown role or unknown source",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "Unexpected internal service error",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			},
+			"patch": {
+				"tags": [
+					"sources",
+					"users",
+					"roles"
+				],
+				"summary": "Update role configuration",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "role_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the specific role",
+						"required": true
+					},
+					{
+						"name": "config",
+						"in": "body",
+						"description": "role configuration",
+						"schema": {
+							"$ref": "#/definitions/Role"
+						},
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Roles's configuration was changed",
+						"schema": {
+							"$ref": "#/definitions/Role"
+						}
+					},
+					"404": {
+						"description": "Happens when trying to access a non-existent role or source.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			},
+			"delete": {
+				"tags": [
+					"sources",
+					"users",
+					"roles"
+				],
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "role_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the specific role",
+						"required": true
+					}
+				],
+				"summary": "This specific role will be removed from the data source",
+				"responses": {
+					"204": {
+						"description": "Role has been removed"
+					},
+					"404": {
+						"description": "Unknown role id or data source",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "Unexpected internal service error",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			}
+		},
 		"/sources/{id}/kapacitors": {
 			"get": {
 				"tags": [
@@ -1590,7 +1822,7 @@
 			},
 			"put": {
 				"tags": [
-					"layouts"
+					"dashboards"
 				],
 				"summary": "Replace dashboard information.",
 				"parameters": [
@@ -2102,7 +2334,8 @@
 					"kapacitors": "/chronograf/v1/sources/4/kapacitors",
 					"proxy": "/chronograf/v1/sources/4/proxy",
 					"permissions": "/chronograf/v1/sources/4/permissions",
-					"users": "/chronograf/v1/sources/4/users"
+					"users": "/chronograf/v1/sources/4/users",
+					"roles": "/chronograf/v1/sources/4/roles"
 				}
 			},
 			"required": [
@@ -2179,6 +2412,11 @@
 						"permissions": {
 							"type": "string",
 							"description": "URL location of the permissions endpoint for this source",
+							"format": "url"
+						},
+						"roles": {
+							"type": "string",
+							"description": "Optional path to the roles endpoint IFF it is supported on this source",
 							"format": "url"
 						}
 					}
@@ -2265,6 +2503,48 @@
 				"results": {
 					"description": "results from influx",
 					"type": "object"
+				}
+			}
+		},
+		"Roles": {
+			"type": "object",
+			"properties": {
+				"roles": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/Role"
+					}
+				}
+			}
+		},
+		"Role": {
+			"type": "object",
+			"required": [
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "Unique name of the role",
+					"maxLength": 254,
+					"minLength": 1
+				},
+				"users": {
+					"$ref": "#/definitions/Users"
+				},
+				"permissions": {
+					"$ref": "#/definitions/Permissions"
+				},
+				"links": {
+					"type": "object",
+					"description": "URL relations of this role",
+					"properties": {
+						"self": {
+							"type": "string",
+							"format": "url",
+							"description": "URI of resource."
+						}
+					}
 				}
 			}
 		},

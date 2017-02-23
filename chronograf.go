@@ -56,6 +56,29 @@ type TimeSeries interface {
 	Users(context.Context) UsersStore
 	// Allowances returns all valid names permissions in this database
 	Allowances(context.Context) Allowances
+	// Roles represents the roles associated with this TimesSeriesDatabase
+	Roles(context.Context) (RolesStore, error)
+}
+
+// Role is a restricted set of permissions assigned to a set of users.
+type Role struct {
+	Name        string      `json:"name"`
+	Permissions Permissions `json:"permissions,omitempty"`
+	Users       []User      `json:"users,omitempty"`
+}
+
+// RolesStore is the Storage and retrieval of authentication information
+type RolesStore interface {
+	// All lists all roles from the RolesStore
+	All(context.Context) ([]Role, error)
+	// Create a new Role in the RolesStore
+	Add(context.Context, *Role) (*Role, error)
+	// Delete the Role from the RolesStore
+	Delete(context.Context, *Role) error
+	// Get retrieves a role if name exists.
+	Get(ctx context.Context, name string) (*Role, error)
+	// Update the roles' users or permissions
+	Update(context.Context, *Role) error
 }
 
 // Range represents an upper and lower bound for data
@@ -249,7 +272,7 @@ type Scope string
 
 // User represents an authenticated user.
 type User struct {
-	Name        string      `json:"username"`
+	Name        string      `json:"name"`
 	Passwd      string      `json:"password"`
 	Permissions Permissions `json:"permissions,omitempty"`
 }
