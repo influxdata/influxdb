@@ -35,11 +35,10 @@ const DashboardHeader = ({
       </div>
       <div className="page-header__right">
         {sourceID ?
-          <div className="btn btn-sm btn-info">
-            <Link to={`/sources/${sourceID}/dashboards/${dashboard && dashboard.id}/edit`} >
-              <span className="icon pencil" style={{margin: 0}} />
-            </Link>
-          </div> : null
+          <Link className="btn btn-info btn-sm" to={`/sources/${sourceID}/dashboards/${dashboard && dashboard.id}/edit`} >
+            <span className="icon pencil" />
+            &nbsp;Edit
+          </Link> : null
         }
         <div className="btn btn-info btn-sm" data-for="graph-tips-tooltip" data-tip="<p><code>Click + Drag</code> Zoom in (X or Y)</p><p><code>Shift + Click</code> Pan Graph Window</p><p><code>Double Click</code> Reset Graph Window</p>">
           <span className="icon heart"></span>
@@ -47,7 +46,7 @@ const DashboardHeader = ({
         </div>
         <ReactTooltip id="graph-tips-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
         <TimeRangeDropdown onChooseTimeRange={handleChooseTimeRange} selected={timeRange.inputValue} />
-        <div className="btn btn-sm btn-info" onClick={handleClickPresentationButton}>
+        <div className="btn btn-info btn-sm" onClick={handleClickPresentationButton}>
           <span className="icon keynote" style={{margin: 0}}></span>
         </div>
       </div>
