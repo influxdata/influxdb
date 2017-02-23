@@ -33,6 +33,10 @@ export default React.createClass({
     overrideLineColors: array,
     queries: arrayOf(shape({}).isRequired).isRequired,
     showSingleStat: bool,
+    displayOptions: shape({
+      stepPlot: bool,
+      stackedGraph: bool,
+    }),
     activeQueryIndex: number,
     ruleValues: shape({}),
     isInDataExplorer: bool,
