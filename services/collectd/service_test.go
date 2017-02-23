@@ -3,8 +3,10 @@ package collectd
 import (
 	"encoding/hex"
 	"errors"
+	"io/ioutil"
 	"net"
 	"os"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -49,6 +51,60 @@ func TestService_OpenClose(t *testing.T) {
 
 	// Tidy up.
 	if err := service.Service.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// Test that the service can read types DB files from a directory.
+func TestService_Open_TypesDBDir(t *testing.T) {
+	t.Parallel()
+
+	// Make a temp dir to write types.db into.
+	tmpDir, err := ioutil.TempDir(os.TempDir(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	// Write types.db.
+	if err := ioutil.WriteFile(path.Join(tmpDir, "types.db"), []byte(typesDBText), 0777); err != nil {
+		t.Fatal(err)
+	}
+
+	// Setup config to read all files in the temp dir.
+	c := Config{
+		BindAddress:   "127.0.0.1:0",
+		Database:      "collectd_test",
+		BatchSize:     1000,
+		BatchDuration: toml.Duration(time.Second),
+		TypesDB:       tmpDir,
+	}
+
+	s := &TestService{
+		Config:     c,
+		Service:    NewService(c),
+		MetaClient: &internal.MetaClientMock{},
+	}
+
+	if testing.Verbose() {
+		s.Service.WithLogger(zap.New(
+			zap.NewTextEncoder(),
+			zap.Output(os.Stderr),
+		))
+	}
+
+	s.MetaClient.CreateDatabaseFn = func(name string) (*meta.DatabaseInfo, error) {
+		return nil, nil
+	}
+
+	s.Service.PointsWriter = s
+	s.Service.MetaClient = s.MetaClient
+
+	if err := s.Service.Open(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Service.Close(); err != nil {
 		t.Fatal(err)
 	}
 }
