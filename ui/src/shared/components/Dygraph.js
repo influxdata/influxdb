@@ -174,7 +174,7 @@ export default React.createClass({
 
   render() {
     return (
-      <div ref="self">
+      <div ref="self" style={{height: '100%'}}>
         <div ref="graphContainer" style={this.props.containerStyle} />
         <div className="container--dygraph-legend" ref="legendContainer" />
         <div className="graph-vertical-marker" ref="graphVerticalMarker" />
