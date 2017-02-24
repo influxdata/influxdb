@@ -18,6 +18,7 @@ func MarshalSource(s chronograf.Source) ([]byte, error) {
 		Username:           s.Username,
 		Password:           s.Password,
 		URL:                s.URL,
+		MetaURL:            s.MetaURL,
 		InsecureSkipVerify: s.InsecureSkipVerify,
 		Default:            s.Default,
 		Telegraf:           s.Telegraf,
@@ -37,6 +38,7 @@ func UnmarshalSource(data []byte, s *chronograf.Source) error {
 	s.Username = pb.Username
 	s.Password = pb.Password
 	s.URL = pb.URL
+	s.MetaURL = pb.MetaURL
 	s.InsecureSkipVerify = pb.InsecureSkipVerify
 	s.Default = pb.Default
 	s.Telegraf = pb.Telegraf

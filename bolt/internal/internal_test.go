@@ -16,6 +16,7 @@ func TestMarshalSource(t *testing.T) {
 		Username: "docbrown",
 		Password: "1 point twenty-one g1g@w@tts",
 		URL:      "http://twin-pines.mall.io:8086",
+		MetaURL:  "http://twin-pines.meta.io:8086",
 		Default:  true,
 		Telegraf: "telegraf",
 	}
