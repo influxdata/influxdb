@@ -33,6 +33,9 @@ func TestClient_Add(t *testing.T) {
 					createUser: func(ctx context.Context, name, passwd string) error {
 						return nil
 					},
+					setUserPerms: func(ctx context.Context, name string, perms enterprise.Permissions) error {
+						return nil
+					},
 				},
 			},
 			args: args{

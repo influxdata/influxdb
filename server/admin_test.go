@@ -154,7 +154,7 @@ func TestService_NewSourceUser(t *testing.T) {
 			ID:              "1",
 			wantStatus:      http.StatusBadRequest,
 			wantContentType: "application/json",
-			wantBody:        `{"code":400,"message":"Unable to connect to source 1"}`,
+			wantBody:        `{"code":400,"message":"Unable to connect to source 1: Biff just happens to be my supervisor"}`,
 		},
 		{
 			name: "Failure getting source",
