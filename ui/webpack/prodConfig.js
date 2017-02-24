@@ -101,7 +101,10 @@ var config = {
           process.exit(1);
         }
       });
-    }
+    },
+    new webpack.DefinePlugin({
+      VERSION: JSON.stringify(require('../package.json').version),
+    }),
   ],
   postcss: require('./postcss'),
   target: 'web',

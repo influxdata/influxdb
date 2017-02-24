@@ -1,18 +1,29 @@
 import React, {PropTypes} from 'react';
+import classnames from 'classnames'
+
 import LayoutRenderer from 'shared/components/LayoutRenderer';
-import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
-import ReactTooltip from 'react-tooltip';
+import DashboardHeader from 'src/dashboards/components/DashboardHeader';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
-export const KubernetesPage = React.createClass({
+const {
+  shape,
+  string,
+  arrayOf,
+  bool,
+  func,
+} = PropTypes
+
+export const KubernetesDashboard = React.createClass({
   propTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
       }).isRequired,
-      telegraf: PropTypes.string.isRequired,
+      telegraf: string.isRequired,
     }),
-    layouts: PropTypes.arrayOf(PropTypes.shape().isRequired).isRequired,
+    layouts: arrayOf(shape().isRequired).isRequired,
+    inPresentationMode: bool.isRequired,
+    handleClickPresentationButton: func,
   },
 
   getInitialState() {
@@ -57,7 +68,7 @@ export const KubernetesPage = React.createClass({
   },
 
   render() {
-    const {layouts} = this.props;
+    const {layouts, inPresentationMode, handleClickPresentationButton} = this.props;
     const {timeRange} = this.state;
     const emptyState = (
       <div className="generic-empty-state">
@@ -68,23 +79,18 @@ export const KubernetesPage = React.createClass({
 
     return (
       <div className="page">
-        <div className="page-header full-width">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1>Kubernetes Dashboard</h1>
-            </div>
-            <div className="page-header__right">
-              <div className="btn btn-info btn-sm" data-for="graph-tips-tooltip" data-tip="<p><code>Click + Drag</code> Zoom in (X or Y)</p><p><code>Shift + Click</code> Pan Graph Window</p><p><code>Double Click</code> Reset Graph Window</p>">
-                <span className="icon heart"></span>
-                Graph Tips
-              </div>
-              <ReactTooltip id="graph-tips-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
-              <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={timeRange.inputValue} />
-            </div>
-          </div>
-        </div>
-        <div className="page-contents">
-          <div className="container-fluid full-width">
+        <DashboardHeader
+          headerText="Kubernetes Dashboard"
+          timeRange={timeRange}
+          handleChooseTimeRange={this.handleChooseTimeRange}
+          isHidden={inPresentationMode}
+          handleClickPresentationButton={handleClickPresentationButton}
+        />
+        <div className={classnames({
+          'page-contents': true,
+          'presentation-mode': inPresentationMode,
+        })}>
+          <div className="container-fluid full-width dashboard">
             {layouts.length ? this.renderLayouts(layouts) : emptyState}
           </div>
         </div>
@@ -92,4 +98,5 @@ export const KubernetesPage = React.createClass({
     );
   },
 });
-export default KubernetesPage;
+
+export default KubernetesDashboard;

@@ -11,6 +11,7 @@ message Source {
 	bool Default              = 7; // Flags an source as the default.
 	string Telegraf           = 8; // Telegraf is the db telegraf is written to. By default it is "telegraf"
 	bool InsecureSkipVerify   = 9; // InsecureSkipVerify accepts any certificate from the influx server
+	string MetaURL            = 10; // MetaURL is the connection URL for the meta node.
 }
 
 message Dashboard {
@@ -82,6 +83,6 @@ message AlertRule {
 }
 
 message User {
-    uint64 ID                = 1; // ID is the unique ID of this user
-    string Email             = 2; // Email byte representation of the user
+    uint64 ID               = 1; // ID is the unique ID of this user
+    string Name             = 2; // Name is the user's login name
 }

@@ -3,13 +3,21 @@
 ### Bug Fixes
   1. [#882](https://github.com/influxdata/chronograf/pull/882): Fix y-axis graph padding
   2. [#907](https://github.com/influxdata/chronograf/pull/907): Fix react-router warning
+  3. [#926](https://github.com/influxdata/chronograf/pull/926): Fix Kapacitor RuleGraph display
 
 ### Features
   1. [#873](https://github.com/influxdata/chronograf/pull/873): Add [TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md) support
+  2. [#885](https://github.com/influxdata/chronograf/issues/885): Add presentation mode to dashboard page
+  3. [#891](https://github.com/influxdata/chronograf/issues/891): Make dashboard visualizations draggable
+  4. [#892](https://github.com/influxdata/chronograf/issues/891): Make dashboard visualizations resizable
+  5. [#893](https://github.com/influxdata/chronograf/issues/893): Persist dashboard visualization position
+  6. [#922](https://github.com/influxdata/chronograf/issues/922): Additional OAuth2 support for Heroku and Google
 
 ### UI Improvements
   1. [#905](https://github.com/influxdata/chronograf/pull/905): Make scroll bar thumb element bigger
-  1. [#917](https://github.com/influxdata/chronograf/pull/917): Simplify side navigation
+  2. [#917](https://github.com/influxdata/chronograf/pull/917): Simplify side navigation
+  3. [#920](https://github.com/influxdata/chronograf/pull/920): Display stacked and step plot graphs
+  4. [#851](https://github.com/influxdata/chronograf/pull/851): Add configuration for Influx Enterprise Meta nodes
 
 ## v1.2.0-beta3 [2017-02-15]
 

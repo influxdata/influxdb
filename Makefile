@@ -1,4 +1,4 @@
-.PHONY: assets dep clean test gotest gotestrace jstest run run-dev
+.PHONY: assets dep clean test gotest gotestrace jstest run run-dev ctags continuous
 
 VERSION ?= $(shell git describe --always --tags)
 COMMIT ?= $(shell git rev-parse --short=8 HEAD)
@@ -20,7 +20,7 @@ build: assets ${BINARY}
 
 dev: dep dev-assets ${BINARY}
 
-${BINARY}: $(SOURCES) .bindata
+${BINARY}: $(SOURCES) .bindata .jsdep .godep
 	go build -o ${BINARY} ${LDFLAGS} ./cmd/chronograf/main.go
 
 docker-${BINARY}: $(SOURCES)
@@ -94,7 +94,7 @@ run: ${BINARY}
 	./chronograf
 
 run-dev: ${BINARY}
-	./chronograf -d
+	./chronograf -d --log-level=debug
 
 clean:
 	if [ -f ${BINARY} ] ; then rm ${BINARY} ; fi
@@ -102,3 +102,9 @@ clean:
 	cd ui && rm -rf node_modules
 	rm -f dist/dist_gen.go canned/bin_gen.go server/swagger_gen.go
 	@rm -f .godep .jsdep .jssrc .dev-jssrc .bindata
+
+continuous:
+	while true; do if fswatch -r --one-event .; then echo "#-> Starting build: `date`"; make dev; pkill chronograf; ./chronograf -d --log-level=debug & echo "#-> Build complete."; fi; sleep 0.5; done
+
+ctags:
+	ctags -R --languages="Go" --exclude=.git --exclude=ui .
