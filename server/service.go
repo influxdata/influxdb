@@ -1,6 +1,9 @@
 package server
 
 import (
+	"context"
+	"strings"
+
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/enterprise"
 	"github.com/influxdata/chronograf/influx"
@@ -40,8 +43,16 @@ type InfluxClient struct{}
 
 // New creates a client to connect to OSS or enterprise
 func (c *InfluxClient) New(src chronograf.Source, logger chronograf.Logger) (chronograf.TimeSeries, error) {
-	if src.Type == "influx-enterprise" {
-		return enterprise.NewClientWithURL(src.URL, src.Username, src.Password, false, logger)
+	if src.Type == "influx-enterprise" && src.MetaURL != "" {
+		dataNode := &influx.Client{
+			Logger: logger,
+		}
+		if err := dataNode.Connect(context.TODO(), &src); err != nil {
+			return nil, err
+		}
+
+		tls := strings.Contains(src.MetaURL, "https")
+		return enterprise.NewClientWithTimeSeries(logger, src.MetaURL, src.Username, src.Password, tls, dataNode)
 	}
 	return &influx.Client{
 		Logger: logger,
