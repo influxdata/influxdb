@@ -2,7 +2,9 @@
 
 Chronograf is an open-source web application written in Go and React.js that provides the tools to visualize your monitoring data and easily create alerting and automation rules.
 
-![Chronograf](https://github.com/influxdata/chronograf/blob/master/docs/images/overview-readme.png)
+<p align="left">
+  <img src="https://github.com/influxdata/chronograf/blob/master/docs/images/overview-readme.png"/>
+</p>
 
 ## Features
 
@@ -118,7 +120,7 @@ Change the default root path of the Chronograf server with the `--basepath` opti
 
 ## Versions
 
-Chronograf v1.2.0-beta3 is a beta release.
+Chronograf v1.2.0-beta4 is a beta release.
 We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
 
 Spotted a bug or have a feature request?
