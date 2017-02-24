@@ -75,9 +75,12 @@ func Test_Enterprise_IssuesQueries(t *testing.T) {
 func Test_Enterprise_AdvancesDataNodes(t *testing.T) {
 	m1 := NewMockTimeSeries("http://host-1.example.com:8086")
 	m2 := NewMockTimeSeries("http://host-2.example.com:8086")
-	cl := enterprise.NewClientWithTimeSeries(log.New(log.DebugLevel), chronograf.TimeSeries(m1), chronograf.TimeSeries(m2))
+	cl, err := enterprise.NewClientWithTimeSeries(log.New(log.DebugLevel), "http://meta.example.com:8091", "marty", "thelake", false, chronograf.TimeSeries(m1), chronograf.TimeSeries(m2))
+	if err != nil {
+		t.Error("Unexpected error while initializing client: err:", err)
+	}
 
-	err := cl.Connect(context.Background(), &chronograf.Source{})
+	err = cl.Connect(context.Background(), &chronograf.Source{})
 	if err != nil {
 		t.Error("Unexpected error while initializing client: err:", err)
 	}
@@ -132,8 +135,11 @@ func Test_Enterprise_NewClientWithURL(t *testing.T) {
 
 func Test_Enterprise_ComplainsIfNotOpened(t *testing.T) {
 	m1 := NewMockTimeSeries("http://host-1.example.com:8086")
-	cl := enterprise.NewClientWithTimeSeries(log.New(log.DebugLevel), chronograf.TimeSeries(m1))
-	_, err := cl.Query(context.Background(), chronograf.Query{Command: "show shards", DB: "_internal", RP: "autogen"})
+	cl, err := enterprise.NewClientWithTimeSeries(log.New(log.DebugLevel), "http://meta.example.com:8091", "docbrown", "1.21 gigawatts", false, chronograf.TimeSeries(m1))
+	if err != nil {
+		t.Error("Expected ErrUnitialized, but was this err:", err)
+	}
+	_, err = cl.Query(context.Background(), chronograf.Query{Command: "show shards", DB: "_internal", RP: "autogen"})
 	if err != chronograf.ErrUninitialized {
 		t.Error("Expected ErrUnitialized, but was this err:", err)
 	}

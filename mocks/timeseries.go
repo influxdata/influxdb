@@ -22,6 +22,11 @@ type TimeSeries struct {
 	RolesF func(context.Context) (chronograf.RolesStore, error)
 }
 
+// New implements TimeSeriesClient
+func (t *TimeSeries) New(chronograf.Source, chronograf.Logger) (chronograf.TimeSeries, error) {
+	return t, nil
+}
+
 // Query retrieves time series data from the database.
 func (t *TimeSeries) Query(ctx context.Context, query chronograf.Query) (chronograf.Response, error) {
 	return t.QueryF(ctx, query)

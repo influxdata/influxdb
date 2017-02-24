@@ -45,13 +45,20 @@ func (h *Service) Influx(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = h.TimeSeries.Connect(ctx, &src); err != nil {
+	ts, err := h.TimeSeries(src)
+	if err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d", id)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
 		return
 	}
 
-	response, err := h.TimeSeries.Query(ctx, req)
+	if err = ts.Connect(ctx, &src); err != nil {
+		msg := fmt.Sprintf("Unable to connect to source %d", id)
+		Error(w, http.StatusBadRequest, msg, h.Logger)
+		return
+	}
+
+	response, err := ts.Query(ctx, req)
 	if err != nil {
 		if err == chronograf.ErrUpstreamTimeout {
 			msg := "Timeout waiting for Influx response"

@@ -223,40 +223,47 @@ func (h *Service) UpdateSourceUser(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, su, h.Logger)
 }
 
-func (h *Service) sourcesSeries(ctx context.Context, w http.ResponseWriter, r *http.Request) (int, error) {
+func (h *Service) sourcesSeries(ctx context.Context, w http.ResponseWriter, r *http.Request) (int, chronograf.TimeSeries, error) {
 	srcID, err := paramID("id", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
-		return 0, err
+		return 0, nil, err
 	}
 
 	src, err := h.SourcesStore.Get(ctx, srcID)
 	if err != nil {
 		notFound(w, srcID, h.Logger)
-		return 0, err
+		return 0, nil, err
 	}
 
-	if err = h.TimeSeries.Connect(ctx, &src); err != nil {
+	ts, err := h.TimeSeries(src)
+	if err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d", srcID)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
-		return 0, err
+		return 0, nil, err
 	}
-	return srcID, nil
+
+	if err = ts.Connect(ctx, &src); err != nil {
+		msg := fmt.Sprintf("Unable to connect to source %d", srcID)
+		Error(w, http.StatusBadRequest, msg, h.Logger)
+		return 0, nil, err
+	}
+	return srcID, ts, nil
 }
 
 func (h *Service) sourceUsersStore(ctx context.Context, w http.ResponseWriter, r *http.Request) (int, chronograf.UsersStore, error) {
-	srcID, err := h.sourcesSeries(ctx, w, r)
+	srcID, ts, err := h.sourcesSeries(ctx, w, r)
 	if err != nil {
 		return 0, nil, err
 	}
 
-	store := h.TimeSeries.Users(ctx)
+	store := ts.Users(ctx)
 	return srcID, store, nil
 }
 
 // hasRoles checks if the influx source has roles or not
-func (h *Service) hasRoles(ctx context.Context) (chronograf.RolesStore, bool) {
-	store, err := h.TimeSeries.Roles(ctx)
+func (h *Service) hasRoles(ctx context.Context, ts chronograf.TimeSeries) (chronograf.RolesStore, bool) {
+	store, err := ts.Roles(ctx)
 	if err != nil {
 		return nil, false
 	}
@@ -278,13 +285,20 @@ func (h *Service) Permissions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err = h.TimeSeries.Connect(ctx, &src); err != nil {
+	ts, err := h.TimeSeries(src)
+	if err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d", srcID)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
 		return
 	}
 
-	perms := h.TimeSeries.Allowances(ctx)
+	if err = ts.Connect(ctx, &src); err != nil {
+		msg := fmt.Sprintf("Unable to connect to source %d", srcID)
+		Error(w, http.StatusBadRequest, msg, h.Logger)
+		return
+	}
+
+	perms := ts.Allowances(ctx)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
 		return
@@ -373,12 +387,12 @@ func (h *Service) NewRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srcID, err := h.sourcesSeries(ctx, w, r)
+	srcID, ts, err := h.sourcesSeries(ctx, w, r)
 	if err != nil {
 		return
 	}
 
-	roles, ok := h.hasRoles(ctx)
+	roles, ok := h.hasRoles(ctx, ts)
 	if !ok {
 		Error(w, http.StatusNotFound, fmt.Sprintf("Source %d does not have role capability", srcID), h.Logger)
 		return
@@ -408,12 +422,12 @@ func (h *Service) UpdateRole(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-	srcID, err := h.sourcesSeries(ctx, w, r)
+	srcID, ts, err := h.sourcesSeries(ctx, w, r)
 	if err != nil {
 		return
 	}
 
-	roles, ok := h.hasRoles(ctx)
+	roles, ok := h.hasRoles(ctx, ts)
 	if !ok {
 		Error(w, http.StatusNotFound, fmt.Sprintf("Source %d does not have role capability", srcID), h.Logger)
 		return
@@ -440,12 +454,12 @@ func (h *Service) UpdateRole(w http.ResponseWriter, r *http.Request) {
 // RoleID retrieves a role with ID from store.
 func (h *Service) RoleID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	srcID, err := h.sourcesSeries(ctx, w, r)
+	srcID, ts, err := h.sourcesSeries(ctx, w, r)
 	if err != nil {
 		return
 	}
 
-	roles, ok := h.hasRoles(ctx)
+	roles, ok := h.hasRoles(ctx, ts)
 	if !ok {
 		Error(w, http.StatusNotFound, fmt.Sprintf("Source %d does not have role capability", srcID), h.Logger)
 		return
@@ -464,12 +478,12 @@ func (h *Service) RoleID(w http.ResponseWriter, r *http.Request) {
 // Roles retrieves all roles from the store
 func (h *Service) Roles(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	srcID, err := h.sourcesSeries(ctx, w, r)
+	srcID, ts, err := h.sourcesSeries(ctx, w, r)
 	if err != nil {
 		return
 	}
 
-	store, ok := h.hasRoles(ctx)
+	store, ok := h.hasRoles(ctx, ts)
 	if !ok {
 		Error(w, http.StatusNotFound, fmt.Sprintf("Source %d does not have role capability", srcID), h.Logger)
 		return
@@ -495,12 +509,12 @@ func (h *Service) Roles(w http.ResponseWriter, r *http.Request) {
 // RemoveRole removes role from data source.
 func (h *Service) RemoveRole(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	srcID, err := h.sourcesSeries(ctx, w, r)
+	srcID, ts, err := h.sourcesSeries(ctx, w, r)
 	if err != nil {
 		return
 	}
 
-	roles, ok := h.hasRoles(ctx)
+	roles, ok := h.hasRoles(ctx, ts)
 	if !ok {
 		Error(w, http.StatusNotFound, fmt.Sprintf("Source %d does not have role capability", srcID), h.Logger)
 		return

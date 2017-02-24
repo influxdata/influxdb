@@ -47,8 +47,24 @@ type Client struct {
 }
 
 // NewClientWithTimeSeries initializes a Client with a known set of TimeSeries.
-func NewClientWithTimeSeries(lg chronograf.Logger, series ...chronograf.TimeSeries) *Client {
-	c := &Client{}
+func NewClientWithTimeSeries(lg chronograf.Logger, mu, username, password string, tls bool, series ...chronograf.TimeSeries) (*Client, error) {
+	metaURL, err := parseMetaURL(mu, tls)
+	if err != nil {
+		return nil, err
+	}
+	metaURL.User = url.UserPassword(username, password)
+	ctrl := NewMetaClient(metaURL)
+	c := &Client{
+		Ctrl: ctrl,
+		UsersStore: &UserStore{
+			Ctrl:   ctrl,
+			Logger: lg,
+		},
+		RolesStore: &RolesStore{
+			Ctrl:   ctrl,
+			Logger: lg,
+		},
+	}
 
 	c.dataNodes = ring.New(len(series))
 
@@ -57,7 +73,7 @@ func NewClientWithTimeSeries(lg chronograf.Logger, series ...chronograf.TimeSeri
 		c.dataNodes = c.dataNodes.Next()
 	}
 
-	return c
+	return c, nil
 }
 
 // NewClientWithURL initializes an Enterprise client with a URL to a Meta Node.

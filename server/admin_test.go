@@ -19,7 +19,7 @@ import (
 func TestService_NewSourceUser(t *testing.T) {
 	type fields struct {
 		SourcesStore chronograf.SourcesStore
-		TimeSeries   chronograf.TimeSeries
+		TimeSeries   server.TimeSeriesClient
 		Logger       chronograf.Logger
 		UseAuth      bool
 	}
@@ -249,10 +249,10 @@ func TestService_NewSourceUser(t *testing.T) {
 			}))
 
 		h := &server.Service{
-			SourcesStore: tt.fields.SourcesStore,
-			TimeSeries:   tt.fields.TimeSeries,
-			Logger:       tt.fields.Logger,
-			UseAuth:      tt.fields.UseAuth,
+			SourcesStore:     tt.fields.SourcesStore,
+			TimeSeriesClient: tt.fields.TimeSeries,
+			Logger:           tt.fields.Logger,
+			UseAuth:          tt.fields.UseAuth,
 		}
 
 		h.NewSourceUser(tt.args.w, tt.args.r)
@@ -276,7 +276,7 @@ func TestService_NewSourceUser(t *testing.T) {
 func TestService_SourceUsers(t *testing.T) {
 	type fields struct {
 		SourcesStore chronograf.SourcesStore
-		TimeSeries   chronograf.TimeSeries
+		TimeSeries   server.TimeSeriesClient
 		Logger       chronograf.Logger
 		UseAuth      bool
 	}
@@ -357,10 +357,10 @@ func TestService_SourceUsers(t *testing.T) {
 				},
 			}))
 		h := &server.Service{
-			SourcesStore: tt.fields.SourcesStore,
-			TimeSeries:   tt.fields.TimeSeries,
-			Logger:       tt.fields.Logger,
-			UseAuth:      tt.fields.UseAuth,
+			SourcesStore:     tt.fields.SourcesStore,
+			TimeSeriesClient: tt.fields.TimeSeries,
+			Logger:           tt.fields.Logger,
+			UseAuth:          tt.fields.UseAuth,
 		}
 
 		h.SourceUsers(tt.args.w, tt.args.r)
@@ -383,7 +383,7 @@ func TestService_SourceUsers(t *testing.T) {
 func TestService_SourceUserID(t *testing.T) {
 	type fields struct {
 		SourcesStore chronograf.SourcesStore
-		TimeSeries   chronograf.TimeSeries
+		TimeSeries   server.TimeSeriesClient
 		Logger       chronograf.Logger
 		UseAuth      bool
 	}
@@ -464,10 +464,10 @@ func TestService_SourceUserID(t *testing.T) {
 				},
 			}))
 		h := &server.Service{
-			SourcesStore: tt.fields.SourcesStore,
-			TimeSeries:   tt.fields.TimeSeries,
-			Logger:       tt.fields.Logger,
-			UseAuth:      tt.fields.UseAuth,
+			SourcesStore:     tt.fields.SourcesStore,
+			TimeSeriesClient: tt.fields.TimeSeries,
+			Logger:           tt.fields.Logger,
+			UseAuth:          tt.fields.UseAuth,
 		}
 
 		h.SourceUserID(tt.args.w, tt.args.r)
@@ -490,7 +490,7 @@ func TestService_SourceUserID(t *testing.T) {
 func TestService_RemoveSourceUser(t *testing.T) {
 	type fields struct {
 		SourcesStore chronograf.SourcesStore
-		TimeSeries   chronograf.TimeSeries
+		TimeSeries   server.TimeSeriesClient
 		Logger       chronograf.Logger
 		UseAuth      bool
 	}
@@ -559,10 +559,10 @@ func TestService_RemoveSourceUser(t *testing.T) {
 				},
 			}))
 		h := &server.Service{
-			SourcesStore: tt.fields.SourcesStore,
-			TimeSeries:   tt.fields.TimeSeries,
-			Logger:       tt.fields.Logger,
-			UseAuth:      tt.fields.UseAuth,
+			SourcesStore:     tt.fields.SourcesStore,
+			TimeSeriesClient: tt.fields.TimeSeries,
+			Logger:           tt.fields.Logger,
+			UseAuth:          tt.fields.UseAuth,
 		}
 		h.RemoveSourceUser(tt.args.w, tt.args.r)
 		resp := tt.args.w.Result()
@@ -584,7 +584,7 @@ func TestService_RemoveSourceUser(t *testing.T) {
 func TestService_UpdateSourceUser(t *testing.T) {
 	type fields struct {
 		SourcesStore chronograf.SourcesStore
-		TimeSeries   chronograf.TimeSeries
+		TimeSeries   server.TimeSeriesClient
 		Logger       chronograf.Logger
 		UseAuth      bool
 	}
@@ -681,10 +681,10 @@ func TestService_UpdateSourceUser(t *testing.T) {
 				},
 			}))
 		h := &server.Service{
-			SourcesStore: tt.fields.SourcesStore,
-			TimeSeries:   tt.fields.TimeSeries,
-			Logger:       tt.fields.Logger,
-			UseAuth:      tt.fields.UseAuth,
+			SourcesStore:     tt.fields.SourcesStore,
+			TimeSeriesClient: tt.fields.TimeSeries,
+			Logger:           tt.fields.Logger,
+			UseAuth:          tt.fields.UseAuth,
 		}
 		h.UpdateSourceUser(tt.args.w, tt.args.r)
 		resp := tt.args.w.Result()
@@ -706,7 +706,7 @@ func TestService_UpdateSourceUser(t *testing.T) {
 func TestService_Permissions(t *testing.T) {
 	type fields struct {
 		SourcesStore chronograf.SourcesStore
-		TimeSeries   chronograf.TimeSeries
+		TimeSeries   server.TimeSeriesClient
 		Logger       chronograf.Logger
 		UseAuth      bool
 	}
@@ -773,10 +773,10 @@ func TestService_Permissions(t *testing.T) {
 				},
 			}))
 		h := &server.Service{
-			SourcesStore: tt.fields.SourcesStore,
-			TimeSeries:   tt.fields.TimeSeries,
-			Logger:       tt.fields.Logger,
-			UseAuth:      tt.fields.UseAuth,
+			SourcesStore:     tt.fields.SourcesStore,
+			TimeSeriesClient: tt.fields.TimeSeries,
+			Logger:           tt.fields.Logger,
+			UseAuth:          tt.fields.UseAuth,
 		}
 		h.Permissions(tt.args.w, tt.args.r)
 		resp := tt.args.w.Result()
@@ -798,7 +798,7 @@ func TestService_Permissions(t *testing.T) {
 func TestService_NewSourceRole(t *testing.T) {
 	type fields struct {
 		SourcesStore chronograf.SourcesStore
-		TimeSeries   chronograf.TimeSeries
+		TimeSeries   server.TimeSeriesClient
 		Logger       chronograf.Logger
 	}
 	type args struct {
@@ -990,9 +990,9 @@ func TestService_NewSourceRole(t *testing.T) {
 	}
 	for _, tt := range tests {
 		h := &server.Service{
-			SourcesStore: tt.fields.SourcesStore,
-			TimeSeries:   tt.fields.TimeSeries,
-			Logger:       tt.fields.Logger,
+			SourcesStore:     tt.fields.SourcesStore,
+			TimeSeriesClient: tt.fields.TimeSeries,
+			Logger:           tt.fields.Logger,
 		}
 		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
 			context.Background(),
@@ -1024,7 +1024,7 @@ func TestService_NewSourceRole(t *testing.T) {
 func TestService_UpdateRole(t *testing.T) {
 	type fields struct {
 		SourcesStore chronograf.SourcesStore
-		TimeSeries   chronograf.TimeSeries
+		TimeSeries   server.TimeSeriesClient
 		Logger       chronograf.Logger
 	}
 	type args struct {
@@ -1103,9 +1103,9 @@ func TestService_UpdateRole(t *testing.T) {
 	}
 	for _, tt := range tests {
 		h := &server.Service{
-			SourcesStore: tt.fields.SourcesStore,
-			TimeSeries:   tt.fields.TimeSeries,
-			Logger:       tt.fields.Logger,
+			SourcesStore:     tt.fields.SourcesStore,
+			TimeSeriesClient: tt.fields.TimeSeries,
+			Logger:           tt.fields.Logger,
 		}
 
 		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
@@ -1142,7 +1142,7 @@ func TestService_UpdateRole(t *testing.T) {
 func TestService_RoleID(t *testing.T) {
 	type fields struct {
 		SourcesStore chronograf.SourcesStore
-		TimeSeries   chronograf.TimeSeries
+		TimeSeries   server.TimeSeriesClient
 		Logger       chronograf.Logger
 	}
 	type args struct {
@@ -1226,9 +1226,9 @@ func TestService_RoleID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		h := &server.Service{
-			SourcesStore: tt.fields.SourcesStore,
-			TimeSeries:   tt.fields.TimeSeries,
-			Logger:       tt.fields.Logger,
+			SourcesStore:     tt.fields.SourcesStore,
+			TimeSeriesClient: tt.fields.TimeSeries,
+			Logger:           tt.fields.Logger,
 		}
 
 		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
@@ -1265,7 +1265,7 @@ func TestService_RoleID(t *testing.T) {
 func TestService_RemoveRole(t *testing.T) {
 	type fields struct {
 		SourcesStore chronograf.SourcesStore
-		TimeSeries   chronograf.TimeSeries
+		TimeSeries   server.TimeSeriesClient
 		Logger       chronograf.Logger
 	}
 	type args struct {
@@ -1322,9 +1322,9 @@ func TestService_RemoveRole(t *testing.T) {
 	}
 	for _, tt := range tests {
 		h := &server.Service{
-			SourcesStore: tt.fields.SourcesStore,
-			TimeSeries:   tt.fields.TimeSeries,
-			Logger:       tt.fields.Logger,
+			SourcesStore:     tt.fields.SourcesStore,
+			TimeSeriesClient: tt.fields.TimeSeries,
+			Logger:           tt.fields.Logger,
 		}
 
 		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(
@@ -1352,7 +1352,7 @@ func TestService_RemoveRole(t *testing.T) {
 func TestService_Roles(t *testing.T) {
 	type fields struct {
 		SourcesStore chronograf.SourcesStore
-		TimeSeries   chronograf.TimeSeries
+		TimeSeries   server.TimeSeriesClient
 		Logger       chronograf.Logger
 	}
 	type args struct {
@@ -1434,9 +1434,9 @@ func TestService_Roles(t *testing.T) {
 	}
 	for _, tt := range tests {
 		h := &server.Service{
-			SourcesStore: tt.fields.SourcesStore,
-			TimeSeries:   tt.fields.TimeSeries,
-			Logger:       tt.fields.Logger,
+			SourcesStore:     tt.fields.SourcesStore,
+			TimeSeriesClient: tt.fields.TimeSeries,
+			Logger:           tt.fields.Logger,
 		}
 
 		tt.args.r = tt.args.r.WithContext(httprouter.WithParams(

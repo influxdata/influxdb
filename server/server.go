@@ -12,7 +12,6 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt"
 	"github.com/influxdata/chronograf/canned"
-	"github.com/influxdata/chronograf/influx"
 	"github.com/influxdata/chronograf/layouts"
 	clog "github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/uuid"
@@ -190,17 +189,15 @@ func openService(boltPath, cannedPath string, logger chronograf.Logger, useAuth 
 	}
 
 	return Service{
-		SourcesStore: db.SourcesStore,
-		ServersStore: db.ServersStore,
-		UsersStore:   db.UsersStore,
-		TimeSeries: &influx.Client{
-			Logger: logger,
-		},
-		LayoutStore:     layouts,
-		DashboardsStore: db.DashboardsStore,
-		AlertRulesStore: db.AlertsStore,
-		Logger:          logger,
-		UseAuth:         useAuth,
+		TimeSeriesClient: &InfluxClient{},
+		SourcesStore:     db.SourcesStore,
+		ServersStore:     db.ServersStore,
+		UsersStore:       db.UsersStore,
+		LayoutStore:      layouts,
+		DashboardsStore:  db.DashboardsStore,
+		AlertRulesStore:  db.AlertsStore,
+		Logger:           logger,
+		UseAuth:          useAuth,
 	}
 }
 
