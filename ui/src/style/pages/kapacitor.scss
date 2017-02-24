@@ -427,12 +427,14 @@ div.qeditor.kapacitor-metric-selector {
 }
 
 .alert-message--endpoint {
-  display: flex;
-  align-items: center;
   width: auto;
   border-top: 2px solid $kapacitor-divider-color;
 
-  > p {
+  & > div {
+    display: flex;
+    align-items: center;
+  }
+  p {
     margin-right: $kap-padding-sm !important;
   }
 }
