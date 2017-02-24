@@ -2,6 +2,7 @@ import {createStore, applyMiddleware, compose} from 'redux';
 import {combineReducers} from 'redux';
 import thunkMiddleware from 'redux-thunk';
 import makeQueryExecuter from 'src/shared/middleware/queryExecuter';
+import resizeLayout from 'src/shared/middleware/resizeLayout';
 import * as dataExplorerReducers from 'src/data_explorer/reducers';
 import * as sharedReducers from 'src/shared/reducers';
 import rulesReducer from 'src/kapacitor/reducers/rules';
@@ -20,7 +21,7 @@ const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
 export default function configureStore(initialState) {
   const createPersistentStore = composeEnhancers(
     persistStateEnhancer(),
-    applyMiddleware(thunkMiddleware, makeQueryExecuter()),
+    applyMiddleware(thunkMiddleware, makeQueryExecuter(), resizeLayout),
   )(createStore);
 
 
