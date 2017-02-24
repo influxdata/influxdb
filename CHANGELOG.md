@@ -18,6 +18,7 @@
   2. [#917](https://github.com/influxdata/chronograf/pull/917): Simplify side navigation
   3. [#920](https://github.com/influxdata/chronograf/pull/920): Display stacked and step plot graphs
   4. [#851](https://github.com/influxdata/chronograf/pull/851): Add configuration for Influx Enterprise Meta nodes
+  5. [#916](https://github.com/influxdata/chronograf/pull/916): Dynamically scale font size based on resolution
 
 ## v1.2.0-beta3 [2017-02-15]
 
