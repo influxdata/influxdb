@@ -110,7 +110,7 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 ### TLS/HTTPS support
 See [Chronograf with TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md) for more information.
 
-### GitHub OAuth Login
+### OAuth Login
 See [Chronograf with OAuth 2.0](https://github.com/influxdata/chronograf/blob/master/docs/auth.md) for more information.
 
 ### Advanced Routing

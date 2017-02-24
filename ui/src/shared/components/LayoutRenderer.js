@@ -4,50 +4,52 @@ import LineGraph from 'shared/components/LineGraph';
 import SingleStat from 'shared/components/SingleStat';
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout';
 const GridLayout = WidthProvider(ReactGridLayout);
-import _ from 'lodash';
 
 const RefreshingLineGraph = AutoRefresh(LineGraph);
 const RefreshingSingleStat = AutoRefresh(SingleStat);
 
+const {
+  arrayOf,
+  func,
+  number,
+  shape,
+  string,
+} = PropTypes;
+
 export const LayoutRenderer = React.createClass({
   propTypes: {
-    timeRange: PropTypes.shape({
-      defaultGroupBy: PropTypes.string.isRequired,
-      queryValue: PropTypes.string.isRequired,
+    timeRange: shape({
+      defaultGroupBy: string.isRequired,
+      queryValue: string.isRequired,
     }).isRequired,
-    cells: PropTypes.arrayOf(
-      PropTypes.shape({
-        queries: PropTypes.arrayOf(
-          PropTypes.shape({
-            label: PropTypes.string,
-            range: PropTypes.shape({
-              upper: PropTypes.number,
-              lower: PropTypes.number,
+    cells: arrayOf(
+      shape({
+        queries: arrayOf(
+          shape({
+            label: string,
+            range: shape({
+              upper: number,
+              lower: number,
             }),
-            rp: PropTypes.string,
-            text: PropTypes.string.isRequired,
-            database: PropTypes.string.isRequired,
-            groupbys: PropTypes.arrayOf(PropTypes.string),
-            wheres: PropTypes.arrayOf(PropTypes.string),
+            rp: string,
+            text: string.isRequired,
+            database: string.isRequired,
+            groupbys: arrayOf(string),
+            wheres: arrayOf(string),
           }).isRequired
         ).isRequired,
-        x: PropTypes.number.isRequired,
-        y: PropTypes.number.isRequired,
-        w: PropTypes.number.isRequired,
-        h: PropTypes.number.isRequired,
-        i: PropTypes.string.isRequired,
-        name: PropTypes.string.isRequired,
+        x: number.isRequired,
+        y: number.isRequired,
+        w: number.isRequired,
+        h: number.isRequired,
+        i: string.isRequired,
+        name: string.isRequired,
       }).isRequired
     ),
-    autoRefreshMs: PropTypes.number.isRequired,
-    host: PropTypes.string,
-    source: PropTypes.string,
-  },
-
-  getInitialState() {
-    return ({
-      layout: _.without(this.props.cells, ['queries']),
-    });
+    autoRefreshMs: number.isRequired,
+    host: string,
+    source: string,
+    onPositionChange: func,
   },
 
   buildQuery(q) {
@@ -96,32 +98,80 @@ export const LayoutRenderer = React.createClass({
       if (cell.type === 'single-stat') {
         return (
           <div key={cell.i}>
-            <h2 className="hosts-graph-heading">{cell.name}</h2>
-            <div className="hosts-graph graph-container">
+            <h2 className="dash-graph--heading">{cell.name || `Graph`}</h2>
+            <div className="dash-graph--container">
               <RefreshingSingleStat queries={[qs[0]]} autoRefresh={autoRefreshMs} />
             </div>
           </div>
         );
       }
 
+      const displayOptions = {
+        stepPlot: cell.type === 'line-stepplot',
+        stackedGraph: cell.type === 'line-stacked',
+      }
+
       return (
         <div key={cell.i}>
-          <h2 className="hosts-graph-heading">{cell.name}</h2>
-          <div className="hosts-graph graph-container">
-            <RefreshingLineGraph queries={qs} autoRefresh={autoRefreshMs} showSingleStat={cell.type === "line-plus-single-stat"} />
+          <h2 className="dash-graph--heading">{cell.name || `Graph`}</h2>
+          <div className="dash-graph--container">
+            <RefreshingLineGraph
+              queries={qs}
+              autoRefresh={autoRefreshMs}
+              showSingleStat={cell.type === "line-plus-single-stat"}
+              displayOptions={displayOptions}
+            />
           </div>
         </div>
       );
     });
   },
 
+  handleLayoutChange(layout) {
+    this.triggerWindowResize()
+
+    if (!this.props.onPositionChange) {
+      return
+    }
+
+    const newCells = this.props.cells.map((cell) => {
+      const l = layout.find((ly) => ly.i === cell.i)
+      const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
+      return {...cell, ...newLayout}
+    })
+
+    this.props.onPositionChange(newCells)
+  },
+
   render() {
-    const layoutMargin = 4;
+    const layoutMargin = 4
+    const isDashboard = !!this.props.onPositionChange
+
     return (
-      <GridLayout layout={this.state.layout} isDraggable={false} isResizable={false} cols={12} rowHeight={83.5} margin={[layoutMargin, layoutMargin]} containerPadding={[0, 0]} useCSSTransforms={false} >
+      <GridLayout
+        layout={this.props.cells}
+        cols={12}
+        rowHeight={83.5}
+        margin={[layoutMargin, layoutMargin]}
+        containerPadding={[0, 0]}
+        useCSSTransforms={false}
+        onResize={this.triggerWindowResize}
+        onLayoutChange={this.handleLayoutChange}
+        draggableHandle={'.dash-graph--heading'}
+        isDraggable={isDashboard}
+        isResizable={isDashboard}
+      >
         {this.generateVisualizations()}
       </GridLayout>
     );
+  },
+
+
+  triggerWindowResize() {
+    // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
+    const evt = document.createEvent('CustomEvent');  // MUST be 'CustomEvent'
+    evt.initCustomEvent('resize', false, false, null);
+    dispatchEvent(evt);
   },
 });
 

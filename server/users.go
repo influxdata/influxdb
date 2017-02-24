@@ -8,6 +8,7 @@ import (
 	"golang.org/x/net/context"
 
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/oauth2"
 )
 
 type userLinks struct {
@@ -19,42 +20,62 @@ type userResponse struct {
 	Links userLinks `json:"links"`
 }
 
+// If new user response is nil, return an empty userResponse because it
+// indicates authentication is not needed
 func newUserResponse(usr *chronograf.User) userResponse {
 	base := "/chronograf/v1/users"
-	// TODO: Change to usrl.PathEscape for go 1.8
-	u := &url.URL{Path: usr.Name}
-	encodedUser := u.String()
+	name := "me"
+	if usr != nil {
+		// TODO: Change to usrl.PathEscape for go 1.8
+		u := &url.URL{Path: usr.Name}
+		name = u.String()
+	}
+
 	return userResponse{
 		User: usr,
 		Links: userLinks{
-			Self: fmt.Sprintf("%s/%s", base, encodedUser),
+			Self: fmt.Sprintf("%s/%s", base, name),
 		},
 	}
 }
 
-func getPrincipal(ctx context.Context) (string, error) {
-	principal := ctx.Value(chronograf.PrincipalKey).(chronograf.Principal)
-	if principal == "" {
+func getEmail(ctx context.Context) (string, error) {
+	principal, err := getPrincipal(ctx)
+	if err != nil {
+		return "", err
+	}
+	if principal.Subject == "" {
 		return "", fmt.Errorf("Token not found")
 	}
-	return string(principal), nil
+	return principal.Subject, nil
+}
+
+func getPrincipal(ctx context.Context) (oauth2.Principal, error) {
+	principal, ok := ctx.Value(oauth2.PrincipalKey).(oauth2.Principal)
+	if !ok {
+		return oauth2.Principal{}, fmt.Errorf("Token not found")
+	}
+
+	return principal, nil
 }
 
 // Me does a findOrCreate based on the email in the context
 func (h *Service) Me(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !h.UseAuth {
-		// Using status code to signal no need for authentication
-		w.WriteHeader(http.StatusTeapot)
+		// If there's no authentication, return an empty user
+		res := newUserResponse(nil)
+		encodeJSON(w, http.StatusOK, res, h.Logger)
 		return
 	}
-	principal, err := getPrincipal(ctx)
+
+	email, err := getEmail(ctx)
 	if err != nil {
 		invalidData(w, err, h.Logger)
 		return
 	}
 
-	usr, err := h.UsersStore.Get(ctx, principal)
+	usr, err := h.UsersStore.Get(ctx, email)
 	if err == nil {
 		res := newUserResponse(usr)
 		encodeJSON(w, http.StatusOK, res, h.Logger)
@@ -63,7 +84,7 @@ func (h *Service) Me(w http.ResponseWriter, r *http.Request) {
 
 	// Because we didnt find a user, making a new one
 	user := &chronograf.User{
-		Name: principal,
+		Name: email,
 	}
 
 	newUser, err := h.UsersStore.Add(ctx, user)

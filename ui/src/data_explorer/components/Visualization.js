@@ -73,7 +73,7 @@ const Visualization = React.createClass({
             </ul>
           </div>
         </div>
-        <div className={classNames("", {"graph-container": isGraphInView, "table-container": !isGraphInView})}>
+        <div className={classNames({"graph-container": isGraphInView, "table-container": !isGraphInView})}>
           {isGraphInView ? (
             <RefreshingLineGraph
               queries={queries}

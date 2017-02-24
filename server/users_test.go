@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/mocks"
+	"github.com/influxdata/chronograf/oauth2"
 )
 
 type MockUsers struct{}
@@ -29,7 +30,7 @@ func TestService_Me(t *testing.T) {
 		name            string
 		fields          fields
 		args            args
-		principal       chronograf.Principal
+		principal       oauth2.Principal
 		wantStatus      int
 		wantContentType string
 		wantBody        string
@@ -51,7 +52,9 @@ func TestService_Me(t *testing.T) {
 					},
 				},
 			},
-			principal:       "me",
+			principal: oauth2.Principal{
+				Subject: "me",
+			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
 			wantBody: `{"name":"me","password":"hunter2","links":{"self":"/chronograf/v1/users/me"}}
@@ -74,7 +77,9 @@ func TestService_Me(t *testing.T) {
 					},
 				},
 			},
-			principal:       "secret",
+			principal: oauth2.Principal{
+				Subject: "secret",
+			},
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
 			wantBody: `{"name":"secret","password":"","links":{"self":"/chronograf/v1/users/secret"}}
@@ -98,13 +103,15 @@ func TestService_Me(t *testing.T) {
 				},
 				Logger: log.New(log.DebugLevel),
 			},
-			principal:       "secret",
+			principal: oauth2.Principal{
+				Subject: "secret",
+			},
 			wantStatus:      http.StatusInternalServerError,
 			wantContentType: "application/json",
 			wantBody:        `{"code":500,"message":"Unknown error: error storing user secret: Why Heavy?"}`,
 		},
 		{
-			name: "No Auth Teapot",
+			name: "No Auth",
 			args: args{
 				w: httptest.NewRecorder(),
 				r: httptest.NewRequest("GET", "http://example.com/foo", nil),
@@ -113,7 +120,10 @@ func TestService_Me(t *testing.T) {
 				UseAuth: false,
 				Logger:  log.New(log.DebugLevel),
 			},
-			wantStatus: http.StatusTeapot,
+			wantStatus:      http.StatusOK,
+			wantContentType: "application/json",
+			wantBody: `{"links":{"self":"/chronograf/v1/users/me"}}
+`,
 		},
 		{
 			name: "Empty Principal",
@@ -126,11 +136,13 @@ func TestService_Me(t *testing.T) {
 				Logger:  log.New(log.DebugLevel),
 			},
 			wantStatus: http.StatusUnprocessableEntity,
-			principal:  "",
+			principal: oauth2.Principal{
+				Subject: "",
+			},
 		},
 	}
 	for _, tt := range tests {
-		tt.args.r = tt.args.r.WithContext(context.WithValue(context.Background(), chronograf.PrincipalKey, tt.principal))
+		tt.args.r = tt.args.r.WithContext(context.WithValue(context.Background(), oauth2.PrincipalKey, tt.principal))
 		h := &Service{
 			UsersStore: tt.fields.UsersStore,
 			Logger:     tt.fields.Logger,

@@ -81,6 +81,9 @@ module.exports = {
     new webpack.optimize.CommonsChunkPlugin({
       names: ['vendor', 'manifest'],
     }),
+    new webpack.DefinePlugin({
+      VERSION: JSON.stringify(require('../package.json').version),
+    }),
   ],
   postcss: require('./postcss'),
   target: 'web',

@@ -33,6 +33,10 @@ export default React.createClass({
     overrideLineColors: array,
     queries: arrayOf(shape({}).isRequired).isRequired,
     showSingleStat: bool,
+    displayOptions: shape({
+      stepPlot: bool,
+      stackedGraph: bool,
+    }),
     activeQueryIndex: number,
     ruleValues: shape({}),
     isInDataExplorer: bool,
@@ -63,7 +67,7 @@ export default React.createClass({
   },
 
   render() {
-    const {data, ranges, isFetchingInitially, isRefreshing, isGraphFilled, overrideLineColors, title, underlayCallback, queries, showSingleStat, ruleValues} = this.props;
+    const {data, ranges, isFetchingInitially, isRefreshing, isGraphFilled, overrideLineColors, title, underlayCallback, queries, showSingleStat, displayOptions, ruleValues} = this.props;
     const {labels, timeSeries, dygraphSeries} = this._timeSeries;
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
@@ -75,7 +79,7 @@ export default React.createClass({
       );
     }
 
-    const options = {
+    const options = Object.assign({}, {
       labels,
       connectSeparatedPoints: true,
       labelsKMB: true,
@@ -89,7 +93,7 @@ export default React.createClass({
       underlayCallback,
       ylabel: _.get(queries, ['0', 'label'], ''),
       y2label: _.get(queries, ['1', 'label'], ''),
-    };
+    }, displayOptions);
 
     let roundedValue;
     if (showSingleStat) {
@@ -103,7 +107,7 @@ export default React.createClass({
       <div className={classNames({"graph--hasYLabel": !!(options.ylabel || options.y2label)})}>
         {isRefreshing ? this.renderSpinner() : null}
         <Dygraph
-          containerStyle={{width: '100%', height: '300px'}}
+          containerStyle={{width: '100%', height: '100%'}}
           overrideLineColors={overrideLineColors}
           isGraphFilled={isGraphFilled}
           timeSeries={timeSeries}

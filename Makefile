@@ -1,4 +1,4 @@
-.PHONY: assets dep clean test gotest gotestrace jstest run run-dev
+.PHONY: assets dep clean test gotest gotestrace jstest run run-dev ctags continuous
 
 VERSION ?= $(shell git describe --always --tags)
 COMMIT ?= $(shell git rev-parse --short=8 HEAD)
@@ -106,3 +106,5 @@ clean:
 continuous:
 	while true; do if fswatch -r --one-event .; then echo "#-> Starting build: `date`"; make dev; pkill chronograf; ./chronograf -d --log-level=debug & echo "#-> Build complete."; fi; sleep 0.5; done
 
+ctags:
+	ctags -R --languages="Go" --exclude=.git --exclude=ui .
