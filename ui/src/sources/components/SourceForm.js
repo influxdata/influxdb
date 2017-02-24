@@ -101,13 +101,13 @@ export const SourceForm = React.createClass({
                         <div className="panel-collapse panel-collapse-sm form-control-static">
                           <h2 className="panel-title" style={{margin: '0 0 6px'}}>
                             <a role="button" data-toggle="collapse" className="collapsed" href="#meta-service" style={{fontSize: '14px', fontWeight: 600}}>
-                              <span className="caret"></span>Add Meta Service
+                              <span className="caret"></span>Add Influx Enterprise Meta Service
                             </a>
                           </h2>
                           <div className="collapse" id="meta-service" style={{height: '0px'}}>
                             <div className="panel-body" style={{padding: '10px 10px 21px'}}>
                               <div className="form-group col-xs-12 col-sm-6">
-                                <label htmlFor="meta-url">Meta Service Connection String</label>
+                                <label htmlFor="meta-url">Meta Service Connection URL</label>
                                 <input type="text" name="metaUrl" ref={(r) => this.metaUrl = r} className="form-control" id="meta-url" placeholder="http://localhost:8091" onChange={onInputChange} value={source.metaUrl || ''}></input>
                               </div>
                             </div>
