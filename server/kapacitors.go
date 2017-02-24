@@ -445,10 +445,12 @@ func (h *Service) KapacitorRulesPut(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
+// KapacitorStatus is the current state of a running task
 type KapacitorStatus struct {
 	Status string `json:"status"`
 }
 
+// Valid check if the kapacitor status is enabled or disabled
 func (k *KapacitorStatus) Valid() error {
 	if k.Status == "enabled" || k.Status == "disabled" {
 		return nil
