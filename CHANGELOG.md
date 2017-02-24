@@ -50,7 +50,6 @@
       The concept of `Exploration` sessions and `Panels` betrayed this initial intention. The DE turned into a "poor man's"
       dashboarding tool. In turn, this introduced complexity in the code and the UI. In the future if I want to save, manipulate,
       and view multiple visualizations this will be done more efficiently and effectively in our dashboarding solution.
->>>>>>> master
 
 ## v1.2.0-beta1 [2017-01-27]
 
