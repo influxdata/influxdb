@@ -40,4 +40,48 @@ describe('getRangeForDygraphSpec', () => {
 
     expect(actual).to.deep.equal(expected);
   });
+
+  describe('when user provides a rule value', () => {
+    const defaultMax = 20;
+    const defaultMin = -10;
+    const timeSeries = [[new Date(1000), defaultMax], [new Date(2000), 1], [new Date(3000), defaultMin]];
+
+    it('can pad positive values', () => {
+      const value = 20;
+      const [min, max] = getRange(timeSeries, undefined, value);
+
+      expect(min).to.equal(defaultMin);
+      expect(max).to.be.above(defaultMax);
+    });
+
+    it('can pad negative values', () => {
+      const value = -10;
+      const [min, max] = getRange(timeSeries, undefined, value);
+
+      expect(min).to.be.below(defaultMin);
+      expect(max).to.equal(defaultMax);
+    });
+  });
+
+  describe('when user provides a rule range value', () => {
+    const defaultMax = 20;
+    const defaultMin = -10;
+    const timeSeries = [[new Date(1000), defaultMax], [new Date(2000), 1], [new Date(3000), defaultMin]];
+
+    it('can pad positive values', () => {
+      const rangeValue = 20;
+      const [min, max] = getRange(timeSeries, undefined, 0, rangeValue);
+
+      expect(min).to.equal(defaultMin);
+      expect(max).to.be.above(defaultMax);
+    });
+
+    it('can pad negative values', () => {
+      const rangeValue = -10;
+      const [min, max] = getRange(timeSeries, undefined, 0, rangeValue);
+
+      expect(min).to.be.below(defaultMin);
+      expect(max).to.equal(defaultMax);
+    });
+  });
 });

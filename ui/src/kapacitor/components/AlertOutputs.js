@@ -111,6 +111,7 @@ const AlertOutputs = React.createClass({
             <div className="form-group col-xs-12 col-sm-8 col-sm-offset-2">
               <label htmlFor="alert-endpoint" className="sr-only">Alert Enpoint</label>
               <select value={this.state.selectedEndpoint} className="form-control" id="source" onChange={this.changeSelectedEndpoint}>
+                <option value="alerta">Alerta</option>
                 <option value="hipchat">HipChat</option>
                 <option value="opsgenie">OpsGenie</option>
                 <option value="pagerduty">PagerDuty</option>

@@ -6,16 +6,24 @@ import LineGraph from 'shared/components/LineGraph';
 import MultiTable from './MultiTable';
 const RefreshingLineGraph = AutoRefresh(LineGraph);
 
+const {
+  arrayOf,
+  number,
+  shape,
+  string,
+} = PropTypes;
+
 const Visualization = React.createClass({
   propTypes: {
-    timeRange: PropTypes.shape({
-      upper: PropTypes.string,
-      lower: PropTypes.string,
+    timeRange: shape({
+      upper: string,
+      lower: string,
     }).isRequired,
-    queryConfigs: PropTypes.arrayOf(PropTypes.shape({})).isRequired,
-    isActive: PropTypes.bool.isRequired,
-    name: PropTypes.string,
-    activeQueryIndex: PropTypes.number,
+    queryConfigs: arrayOf(shape({})).isRequired,
+    name: string,
+    activeQueryIndex: number,
+    height: string,
+    heightPixels: number,
   },
 
   contextTypes: {
@@ -32,20 +40,12 @@ const Visualization = React.createClass({
     };
   },
 
-  componentDidUpdate() {
-    if (this.props.isActive) {
-      this.panel.scrollIntoView();
-      // scrollIntoView scrolls slightly *too* far, so this adds some top offset.
-      this.panel.parentNode.scrollTop -= 10;
-    }
-  },
-
   handleToggleView() {
     this.setState({isGraphInView: !this.state.isGraphInView});
   },
 
   render() {
-    const {queryConfigs, timeRange, isActive, name, activeQueryIndex} = this.props;
+    const {queryConfigs, timeRange, activeQueryIndex, height, heightPixels} = this.props;
     const {source} = this.context;
     const proxyLink = source.links.proxy;
 
@@ -61,7 +61,7 @@ const Visualization = React.createClass({
     const isInDataExplorer = true;
 
     return (
-      <div ref={(p) => this.panel = p} className={classNames("graph", {active: isActive})}>
+      <div className={classNames("graph", {active: true})} style={{height}}>
         <div className="graph-heading">
           <div className="graph-title">
             {name || "Graph"}
@@ -73,7 +73,7 @@ const Visualization = React.createClass({
             </ul>
           </div>
         </div>
-        <div className="graph-container">
+        <div className={classNames({"graph-container": isGraphInView, "table-container": !isGraphInView})}>
           {isGraphInView ? (
             <RefreshingLineGraph
               queries={queries}
@@ -81,7 +81,7 @@ const Visualization = React.createClass({
               activeQueryIndex={activeQueryIndex}
               isInDataExplorer={isInDataExplorer}
               />
-          ) : <MultiTable queries={queries} />}
+          ) : <MultiTable queries={queries} height={heightPixels} />}
         </div>
       </div>
     );

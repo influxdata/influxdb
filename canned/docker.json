@@ -1,7 +1,7 @@
 {
   "id": "0e980b97-c162-487b-a815-3f955df6243f",
-  "measurement": "docker",
   "app": "docker",
+  "measurement": "docker",
   "autoflow": true,
   "cells": [
     {
@@ -16,10 +16,10 @@
           "query": "SELECT mean(\"usage_percent\") AS \"usage_percent\" FROM \"docker_container_cpu\"",
           "groupbys": [
             "\"container_name\""
-          ],
-          "wheres": []
+          ]
         }
-      ]
+      ],
+      "type": "line-stacked"
     },
     {
       "x": 0,
@@ -33,10 +33,73 @@
           "query": "SELECT mean(\"usage\") AS \"usage\" FROM \"docker_container_mem\"",
           "groupbys": [
             "\"container_name\""
-          ],
-          "wheres": []
+          ]
         }
-      ]
+      ],
+      "type": "line-stepplot"
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "4c79cefb-5152-410c-9b88-74f9bff7ef01",
+      "name": "Docker - Containers",
+      "queries": [
+        {
+          "query": "SELECT max(\"n_containers\") AS \"max_n_containers\" FROM \"docker\"",
+          "groupbys": [
+            "\"host\""
+          ]
+        }
+      ],
+      "type": "single-stat"
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "4c79cefb-5152-410c-9b88-74f9bff7ef02",
+      "name": "Docker - Images",
+      "queries": [
+        {
+          "query": "SELECT max(\"n_images\") AS \"max_n_images\" FROM \"docker\"",
+          "groupbys": [
+            "\"host\""
+          ]
+        }
+      ],
+      "type": "single-stat"
+    },
+    {
+      "x": 0,
+      "y": 0,
+      "w": 4,
+      "h": 4,
+      "i": "4c79cefb-5152-410c-9b88-74f9bff7ef03",
+      "name": "Docker - Container State",
+      "queries": [
+        {
+          "query": "SELECT max(\"n_containers_running\") AS \"max_n_containers_running\" FROM \"docker\"",
+          "groupbys": [
+            "\"host\""
+          ]
+        },
+        {
+          "query": "SELECT max(\"n_containers_stopped\") AS \"max_n_containers_stopped\" FROM \"docker\"",
+          "groupbys": [
+            "\"host\""
+          ]
+        },
+        {
+          "query": "SELECT max(\"n_containers_paused\") AS \"max_n_containers_paused\" FROM \"docker\"",
+          "groupbys": [
+            "\"host\""
+          ]
+        }
+      ],
+      "type": ""
     }
   ]
 }

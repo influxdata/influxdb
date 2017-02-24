@@ -1,4 +1,4 @@
-.PHONY: assets dep clean test gotest gotestrace jstest run run-dev
+.PHONY: assets dep clean test gotest gotestrace jstest run run-dev ctags
 
 VERSION ?= $(shell git describe --always --tags)
 COMMIT ?= $(shell git rev-parse --short=8 HEAD)
@@ -102,3 +102,6 @@ clean:
 	cd ui && rm -rf node_modules
 	rm -f dist/dist_gen.go canned/bin_gen.go server/swagger_gen.go
 	@rm -f .godep .jsdep .jssrc .dev-jssrc .bindata
+
+ctags:
+	ctags -R --languages="Go" --exclude=.git --exclude=ui .

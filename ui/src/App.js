@@ -8,22 +8,29 @@ import {
   dismissAllNotifications as dismissAllNotificationsAction,
 } from 'src/shared/actions/notifications';
 
+const {
+  node,
+  shape,
+  string,
+  func,
+} = PropTypes
+
 const App = React.createClass({
   propTypes: {
-    children: PropTypes.node.isRequired,
-    location: PropTypes.shape({
-      pathname: PropTypes.string,
+    children: node.isRequired,
+    location: shape({
+      pathname: string,
     }),
-    params: PropTypes.shape({
-      sourceID: PropTypes.string.isRequired,
+    params: shape({
+      sourceID: string.isRequired,
     }).isRequired,
-    publishNotification: PropTypes.func.isRequired,
-    dismissNotification: PropTypes.func.isRequired,
-    dismissAllNotifications: PropTypes.func.isRequired,
-    notifications: PropTypes.shape({
-      success: PropTypes.string,
-      error: PropTypes.string,
-      warning: PropTypes.string,
+    publishNotification: func.isRequired,
+    dismissNotification: func.isRequired,
+    dismissAllNotifications: func.isRequired,
+    notifications: shape({
+      success: string,
+      error: string,
+      warning: string,
     }),
   },
 
@@ -46,11 +53,15 @@ const App = React.createClass({
   },
 
   render() {
-    const {sourceID} = this.props.params;
+    const {params: {sourceID}} = this.props;
 
     return (
       <div className="chronograf-root">
-        <SideNavContainer sourceID={sourceID} addFlashMessage={this.handleNotification} currentLocation={this.props.location.pathname} />
+        <SideNavContainer
+          sourceID={sourceID}
+          addFlashMessage={this.handleNotification}
+          currentLocation={this.props.location.pathname}
+        />
         {this.renderNotifications()}
         {this.props.children && React.cloneElement(this.props.children, {
           addFlashMessage: this.handleNotification,

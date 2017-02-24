@@ -7,9 +7,10 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/NYTimes/gziphandler"
 	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf" // When julienschmidt/httprouter v2 w/ context is out, switch
-	"github.com/influxdata/chronograf/jwt"
+	"github.com/influxdata/chronograf/oauth2"
 )
 
 const (
@@ -19,13 +20,13 @@ const (
 
 // MuxOpts are the options for the router.  Mostly related to auth.
 type MuxOpts struct {
-	Logger             chronograf.Logger
-	Develop            bool     // Develop loads assets from filesystem instead of bindata
-	UseAuth            bool     // UseAuth turns on Github OAuth and JWT
-	TokenSecret        string   // TokenSecret is the JWT secret
-	GithubClientID     string   // GithubClientID is the GH OAuth id
-	GithubClientSecret string   // GithubClientSecret is the GH OAuth secret
-	GithubOrgs         []string // GithubOrgs is the list of organizations a user my be a member of
+	Logger      chronograf.Logger
+	Develop     bool   // Develop loads assets from filesystem instead of bindata
+	Basepath    string // URL path prefix under which all chronograf routes will be mounted
+	UseAuth     bool   // UseAuth turns on Github OAuth and JWT
+	TokenSecret string
+
+	ProviderFuncs []func(func(oauth2.Provider, oauth2.Mux))
 }
 
 // NewMux attaches all the route handlers; handler returned servers chronograf.
@@ -41,19 +42,19 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	// Prefix any URLs found in the React assets with any configured basepath
 	prefixedAssets := NewDefaultURLPrefixer(basepath, assets, opts.Logger)
 
+	// Compress the assets with gzip if an accepted encoding
+	compressed := gziphandler.GzipHandler(prefixedAssets)
+
 	// The react application handles all the routing if the server does not
 	// know about the route.  This means that we never have unknown
 	// routes on the server.
-	router.NotFound = prefixedAssets
+	router.NotFound = compressed
 
 	/* Documentation */
 	router.GET("/swagger.json", Spec())
 	router.GET("/docs", Redoc("/swagger.json"))
 
 	/* API */
-	// Root Routes returns all top-level routes in the API
-	router.GET("/chronograf/v1/", AllRoutes(opts.Logger))
-
 	// Sources
 	router.GET("/chronograf/v1/sources", service.Sources)
 	router.POST("/chronograf/v1/sources", service.NewSource)
@@ -79,6 +80,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	router.GET("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesID)
 	router.PUT("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesPut)
+	router.PATCH("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesStatus)
 	router.DELETE("/chronograf/v1/sources/:id/kapacitors/:kid/rules/:tid", service.KapacitorRulesDelete)
 
 	// Kapacitor Proxy
@@ -112,45 +114,65 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	router.GET("/chronograf/v1/dashboards/:id", service.DashboardID)
 	router.DELETE("/chronograf/v1/dashboards/:id", service.RemoveDashboard)
-	router.PUT("/chronograf/v1/dashboards/:id", service.UpdateDashboard)
+	router.PUT("/chronograf/v1/dashboards/:id", service.ReplaceDashboard)
+	router.PATCH("/chronograf/v1/dashboards/:id", service.UpdateDashboard)
 
+	var authRoutes AuthRoutes
+
+	var out http.Handler
 	/* Authentication */
 	if opts.UseAuth {
-		auth := AuthAPI(opts, router)
-		return Logger(opts.Logger, auth)
+		// Encapsulate the router with OAuth2
+		var auth http.Handler
+		auth, authRoutes = AuthAPI(opts, router)
+
+		// Create middleware to redirect to the appropriate provider logout
+		targetURL := "/"
+		router.GET("/oauth/logout", Logout(targetURL, authRoutes))
+
+		out = Logger(opts.Logger, auth)
+	} else {
+		out = Logger(opts.Logger, router)
 	}
-	return Logger(opts.Logger, router)
+
+	router.GET("/chronograf/v1/", AllRoutes(authRoutes, opts.Logger))
+	router.GET("/chronograf/v1", AllRoutes(authRoutes, opts.Logger))
+
+	return out
 }
 
 // AuthAPI adds the OAuth routes if auth is enabled.
-func AuthAPI(opts MuxOpts, router *httprouter.Router) http.Handler {
-	auth := jwt.NewJWT(opts.TokenSecret)
+// TODO: this function is not great.  Would be good if providers added their routes.
+func AuthAPI(opts MuxOpts, router *httprouter.Router) (http.Handler, AuthRoutes) {
+	auth := oauth2.NewJWT(opts.TokenSecret)
+	routes := AuthRoutes{}
+	for _, pf := range opts.ProviderFuncs {
+		pf(func(p oauth2.Provider, m oauth2.Mux) {
+			loginPath := fmt.Sprintf("%s/oauth/%s/login", opts.Basepath, strings.ToLower(p.Name()))
+			logoutPath := fmt.Sprintf("%s/oauth/%s/logout", opts.Basepath, strings.ToLower(p.Name()))
+			callbackPath := fmt.Sprintf("%s/oauth/%s/callback", opts.Basepath, strings.ToLower(p.Name()))
+			router.Handler("GET", loginPath, m.Login())
+			router.Handler("GET", logoutPath, m.Logout())
+			router.Handler("GET", callbackPath, m.Callback())
+			routes = append(routes, AuthRoute{
+				Name:     p.Name(),
+				Label:    strings.Title(p.Name()),
+				Login:    loginPath,
+				Logout:   logoutPath,
+				Callback: callbackPath,
+			})
+		})
+	}
 
-	successURL := "/"
-	failureURL := "/login"
-	gh := NewGithub(
-		opts.GithubClientID,
-		opts.GithubClientSecret,
-		successURL,
-		failureURL,
-		opts.GithubOrgs,
-		&auth,
-		opts.Logger,
-	)
-
-	router.GET("/oauth/github", gh.Login())
-	router.GET("/oauth/logout", gh.Logout())
-	router.GET("/oauth/github/callback", gh.Callback())
-
-	tokenMiddleware := AuthorizedToken(&auth, &CookieExtractor{Name: "session"}, opts.Logger, router)
+	tokenMiddleware := oauth2.AuthorizedToken(&auth, &oauth2.CookieExtractor{Name: "session"}, opts.Logger, router)
 	// Wrap the API with token validation middleware.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/chronograf/v1/") {
+		if strings.HasPrefix(r.URL.Path, "/chronograf/v1/") || r.URL.Path == "/oauth/logout" {
 			tokenMiddleware.ServeHTTP(w, r)
 			return
 		}
 		router.ServeHTTP(w, r)
-	})
+	}), routes
 }
 
 func encodeJSON(w http.ResponseWriter, status int, v interface{}, logger chronograf.Logger) {

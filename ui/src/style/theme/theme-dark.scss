@@ -74,13 +74,14 @@
   line-height: 30px !important;
   height: 30px !important;
   padding: 0 9px !important;
-
-  .icon {
-    font-size: 16px;
-    margin: 0 4px 0 0 ;
-  }
 }
-.btn.btn-xs .icon {
+a.btn.btn-sm > span.icon,
+div.btn.btn-sm > span.icon,
+button.btn.btn-sm > span.icon {
+  font-size: 16px;
+  margin: 0 4px 0 0 ;
+}
+.btn.btn-xs > .icon {
   position: relative;
   top: -1px;
 }
@@ -443,7 +444,7 @@ $toggle-border: 2px;
   .toggle-btn {
     height: ($toggle-height-sm - ($toggle-border * 2));
     line-height: ($toggle-height-sm - ($toggle-border * 2));
-    padding: 0 $toggle-padding-sm;
+    padding: 0 16px;
     font-size: $toggle-font-sm;
     font-weight: 600;
   }
@@ -610,5 +611,48 @@ $form-static-checkbox-size: 16px;
         transform: translate(-50%,-50%) scale(1,1);
       }
     }
+  }
+}
+
+.dark-checkbox {
+  input {
+    position: absolute;
+    left: -9999px;
+    visibility: hidden;
+  }
+  label {
+    display: inline-block;
+    width: $form-static-checkbox-size;
+    height: $form-static-checkbox-size;
+    background-color: $g1-raven;
+    border-radius: $radius-small;
+    position: relative;
+    vertical-align: middle;
+    margin: 0;
+    transition: background-color 0.25s ease;
+  }
+  label:hover {
+    cursor: pointer;
+    background-color: $g2-kevlar;
+  }
+  label:after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    background-color: $c-pool;
+    border-radius: 50%;
+    transform: translate(-50%,-50%) scale(2,2);
+    opacity: 0;
+    z-index: 3;
+    transition:
+      opacity 0.25s ease,
+      transform 0.25s ease;
+  }
+  input:checked + label:after {
+    opacity: 1;
+    transform: translate(-50%,-50%) scale(1,1);
   }
 }

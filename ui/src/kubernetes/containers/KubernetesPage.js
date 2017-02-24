@@ -1,14 +1,26 @@
 import React, {PropTypes} from 'react';
+import {connect} from 'react-redux'
+
 import {fetchLayouts} from 'shared/apis';
 import KubernetesDashboard from 'src/kubernetes/components/KubernetesDashboard';
+import {presentationButtonDispatcher} from 'shared/dispatchers'
+
+const {
+  shape,
+  string,
+  bool,
+  func,
+} = PropTypes
 
 export const KubernetesPage = React.createClass({
   propTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
+    source: shape({
+      links: shape({
+        proxy: string.isRequired,
       }).isRequired,
     }),
+    inPresentationMode: bool.isRequired,
+    handleClickPresentationButton: func,
   },
 
   getInitialState() {
@@ -25,10 +37,26 @@ export const KubernetesPage = React.createClass({
   },
 
   render() {
+    const {layouts} = this.state
+    const {source, inPresentationMode, handleClickPresentationButton} = this.props
+
     return (
-      <KubernetesDashboard layouts={this.state.layouts} source={this.props.source} />
+      <KubernetesDashboard
+        layouts={layouts}
+        source={source}
+        inPresentationMode={inPresentationMode}
+        handleClickPresentationButton={handleClickPresentationButton}
+      />
     );
   },
 });
 
-export default KubernetesPage;
+const mapStateToProps = (state) => ({
+  inPresentationMode: state.appUI.presentationMode,
+})
+
+const mapDispatchToProps = (dispatch) => ({
+  handleClickPresentationButton: presentationButtonDispatcher(dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(KubernetesPage);

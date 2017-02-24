@@ -1,15 +1,16 @@
 import React, {PropTypes} from 'react';
 import {connect} from 'react-redux';
-import PanelBuilder from '../components/PanelBuilder';
-import Visualizations from '../components/Visualizations';
+import QueryBuilder from '../components/QueryBuilder';
+import Visualization from '../components/Visualization';
 import Header from '../containers/Header';
-import ResizeContainer from 'shared/components/ResizeContainer';
+import ResizeContainer from 'src/shared/components/ResizeContainer';
 
 import {
   setTimeRange as setTimeRangeAction,
 } from '../actions/view';
 
 const {
+  arrayOf,
   func,
   shape,
   string,
@@ -23,12 +24,15 @@ const DataExplorer = React.createClass({
         self: string.isRequired,
       }).isRequired,
     }).isRequired,
+    queryConfigs: PropTypes.shape({}),
     timeRange: shape({
       upper: string,
       lower: string,
     }).isRequired,
-    activePanel: string,
     setTimeRange: func.isRequired,
+    dataExplorer: shape({
+      queryIDs: arrayOf(string).isRequired,
+    }).isRequired,
   },
 
   childContextTypes: {
@@ -55,7 +59,9 @@ const DataExplorer = React.createClass({
   },
 
   render() {
-    const {timeRange, setTimeRange, activePanel} = this.props;
+    const {timeRange, setTimeRange, queryConfigs, dataExplorer} = this.props;
+    const {activeQueryID} = this.state;
+    const queries = dataExplorer.queryIDs.map((qid) => queryConfigs[qid]);
 
     return (
       <div className="data-explorer">
@@ -64,16 +70,17 @@ const DataExplorer = React.createClass({
           timeRange={timeRange}
         />
         <ResizeContainer>
-          <PanelBuilder
+          <Visualization
             timeRange={timeRange}
-            activePanelID={activePanel}
+            queryConfigs={queries}
             activeQueryID={this.state.activeQueryID}
-            setActiveQuery={this.handleSetActiveQuery}
+            activeQueryIndex={0}
           />
-          <Visualizations
+          <QueryBuilder
+            queries={queries}
             timeRange={timeRange}
-            activePanelID={activePanel}
-            activeQueryID={this.state.activeQueryID}
+            setActiveQuery={this.handleSetActiveQuery}
+            activeQueryID={activeQueryID}
           />
         </ResizeContainer>
       </div>
@@ -82,11 +89,12 @@ const DataExplorer = React.createClass({
 });
 
 function mapStateToProps(state) {
-  const {timeRange, dataExplorerUI} = state;
+  const {timeRange, queryConfigs, dataExplorer} = state;
 
   return {
     timeRange,
-    activePanel: dataExplorerUI.activePanel,
+    queryConfigs,
+    dataExplorer,
   };
 }
 

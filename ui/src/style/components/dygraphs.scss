@@ -15,9 +15,8 @@
   filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='fade-out($g20-white, 0.71)', endColorstr='fade-out($g20-white, 0.71)',GradientType=0 );
 }
 .container--dygraph-legend {
-  top: 300px !important;
-  transform: translate(-50%,-6px);
-  background-color: $g1-raven;
+  transform: translateX(-50%);
+  background-color: $g0-obsidian;
   display: block;
   position: absolute;
   padding: 11px;
@@ -82,21 +81,25 @@
 .dygraph-axis-label {
   color: $g11-sidewalk !important;
   font-weight: 500 !important;
+  user-select: none;
 }
 .dygraph-axis-label-y {
   padding: 0 9px 0 0 !important;
   text-align: left !important;
   left: 0 !important;
+  user-select: none;
 }
 .dygraph-axis-label-y2 {
   padding: 0 0 0 9px !important;
   text-align: right !important;
+  user-select: none;
 }
 .graph-container > div > div > div > div {}
 
 /* Vertical Axis Labels */
 .dygraph-ylabel,
 .dygraph-y2label {
+  user-select: none;
   position: absolute;
   width: 100%;
   text-align: center;
@@ -115,9 +118,9 @@
 .graph--hasYLabel {
 
   .dygraph-axis-label-y {
-    padding: 0 1px 0 12px !important;
+    padding: 0 1px 0 10px !important;
   }
   .dygraph-axis-label-y2 {
-    padding: 0 12px 0 1px !important;
+    padding: 0 10px 0 1px !important;
   }
 }

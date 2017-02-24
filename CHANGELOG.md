@@ -1,13 +1,56 @@
 ## v1.2.0 [unreleased]
 
-### Upcoming Bug Fixes
+### Bug Fixes
+  1. [#882](https://github.com/influxdata/chronograf/pull/882): Fix y-axis graph padding
+  2. [#907](https://github.com/influxdata/chronograf/pull/907): Fix react-router warning
 
-### Upcoming Features
-  1. [#838](https://github.com/influxdata/chronograf/issues/838): Add detail node to kapacitor alerts
-  2. [#853](https://github.com/influxdata/chronograf/issues/853): Updated builds to use yarn over npm install
+### Features
+  1. [#873](https://github.com/influxdata/chronograf/pull/873): Add [TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md) support
+  2. [#885](https://github.com/influxdata/chronograf/issues/885): Add presentation mode to dashboard page
+  3. [#891](https://github.com/influxdata/chronograf/issues/891): Make dashboard visualizations draggable
+  4. [#892](https://github.com/influxdata/chronograf/issues/891): Make dashboard visualizations resizable
+  5. [#893](https://github.com/influxdata/chronograf/issues/893): Persist dashboard visualization position
+  6. [#922](https://github.com/influxdata/chronograf/issues/922): Additional OAuth2 support for Heroku and Google
 
-### Upcoming UI Improvements
-  1. [#851](https://github.com/influxdata/chronograf/pull/851): Add field for meta server information in connection config
+### UI Improvements
+  1. [#905](https://github.com/influxdata/chronograf/pull/905): Make scroll bar thumb element bigger
+  2. [#917](https://github.com/influxdata/chronograf/pull/917): Simplify side navigation
+  3. [#920](https://github.com/influxdata/chronograf/pull/920): Display stacked and step plot graphs
+  4. [#851](https://github.com/influxdata/chronograf/pull/851): Add configuration for Influx Enterprise Meta nodes
+
+## v1.2.0-beta3 [2017-02-15]
+
+### Bug Fixes
+  1. [#879](https://github.com/influxdata/chronograf/pull/879): Fix several Kapacitor configuration page state bugs: [#875](https://github.com/influxdata/chronograf/issues/875), [#876](https://github.com/influxdata/chronograf/issues/876), [#878](https://github.com/influxdata/chronograf/issues/878)
+  2. [#872](https://github.com/influxdata/chronograf/pull/872): Fix incorrect data source response
+
+### Features
+  1. [#896](https://github.com/influxdata/chronograf/pull/896) Add more docker stats
+
+## v1.2.0-beta2 [2017-02-10]
+
+### Bug Fixes
+  1. [#865](https://github.com/influxdata/chronograf/issues/865): Support for String fields compare Kapacitor rules in Chronograf UI
+
+### Features
+  1. [#838](https://github.com/influxdata/chronograf/issues/838): Add [detail node](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#details) to Kapacitor alerts
+  2. [#847](https://github.com/influxdata/chronograf/issues/847): Enable and disable Kapacitor alerts from the alert manager page
+  3. [#853](https://github.com/influxdata/chronograf/issues/853): Update builds to use yarn over npm install
+  4. [#860](https://github.com/influxdata/chronograf/issues/860): Add gzip encoding and caching of static assets to server
+  5. [#864](https://github.com/influxdata/chronograf/issues/864): Add support to Kapacitor rule alert configuration for:
+    - HTTP
+    - TCP
+    - Exec
+    - SMTP
+    - Alerta
+
+### UI Improvements
+  1. [#822](https://github.com/influxdata/chronograf/issues/822): Simplify and improve the layout of the Data Explorer
+    - The Data Explorer's intention and purpose has always been the ad hoc and ephemeral exploration of your schema and data.
+      The concept of `Exploration` sessions and `Panels` betrayed this initial intention. The DE turned into a "poor man's"
+      dashboarding tool. In turn, this introduced complexity in the code and the UI. In the future if I want to save, manipulate,
+      and view multiple visualizations this will be done more efficiently and effectively in our dashboarding solution.
+>>>>>>> master
 
 ## v1.2.0-beta1 [2017-01-27]
 

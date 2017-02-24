@@ -1,51 +1,20 @@
 import uuid from 'node-uuid';
 
-export function createPanel() {
-  return {
-    type: 'CREATE_PANEL',
-    payload: {
-      panelID: uuid.v4(), // for the default Panel
-      queryID: uuid.v4(), // for the default Query
-    },
-  };
-}
-
-export function renamePanel(panelId, name) {
-  return {
-    type: 'RENAME_PANEL',
-    payload: {
-      panelId,
-      name,
-    },
-  };
-}
-
-export function deletePanel(panelId) {
-  return {
-    type: 'DELETE_PANEL',
-    payload: {
-      panelId,
-    },
-  };
-}
-
-export function addQuery(panelId, options) {
+export function addQuery(options = {}) {
   return {
     type: 'ADD_QUERY',
     payload: {
-      panelId,
-      queryId: uuid.v4(),
+      queryID: uuid.v4(),
       options,
     },
   };
 }
 
-export function deleteQuery(panelId, queryId) {
+export function deleteQuery(queryID) {
   return {
     type: 'DELETE_QUERY',
     payload: {
-      queryId,
-      panelId,
+      queryID,
     },
   };
 }
@@ -156,15 +125,6 @@ export function updateRawQuery(queryID, text) {
     payload: {
       queryID,
       text,
-    },
-  };
-}
-
-export function activatePanel(panelID) {
-  return {
-    type: 'ACTIVATE_PANEL',
-    payload: {
-      panelID,
     },
   };
 }

@@ -4,31 +4,33 @@ export function fetchLayouts() {
   return AJAX({
     url: `/chronograf/v1/layouts`,
     method: 'GET',
+    resource: 'layouts',
   });
 }
 
 export function getMe() {
   return AJAX({
-    url: `/chronograf/v1/me`,
+    resource: 'me',
     method: 'GET',
   });
 }
 
 export function getSources() {
   return AJAX({
-    url: '/chronograf/v1/sources',
+    resource: 'sources',
   });
 }
 
-export function getSource(sourceID) {
+export function getSource(id) {
   return AJAX({
-    url: `/chronograf/v1/sources/${sourceID}`,
+    resource: 'sources',
+    id,
   });
 }
 
 export function createSource(attributes) {
   return AJAX({
-    url: '/chronograf/v1/sources',
+    resource: 'sources',
     method: 'POST',
     data: attributes,
   });
@@ -78,9 +80,9 @@ export function createKapacitor(source, {url, name = 'My Kapacitor', username, p
   });
 }
 
-export function updateKapacitor(kapacitor, {url, name = 'My Kapacitor', username, password}) {
+export function updateKapacitor({links, url, name = 'My Kapacitor', username, password}) {
   return AJAX({
-    url: kapacitor.links.self,
+    url: links.self,
     method: 'PATCH',
     data: {
       name,

@@ -1,8 +1,8 @@
 import React from 'react';
 import {render} from 'react-dom';
 import {Provider} from 'react-redux';
-import {Router, Route, Redirect} from 'react-router';
-import {createHistory, useBasename} from 'history';
+import {Router, Route, Redirect, useRouterHistory} from 'react-router';
+import {createHistory} from 'history';
 
 import App from 'src/App';
 import AlertsApp from 'src/alerts';
@@ -18,6 +18,8 @@ import NotFound from 'src/shared/components/NotFound';
 import configureStore from 'src/store/configureStore';
 import {getMe, getSources} from 'shared/apis';
 import {receiveMe} from 'shared/actions/me';
+import {receiveAuth} from 'shared/actions/auth';
+import {disablePresentationMode} from 'shared/actions/ui';
 import {loadLocalStorage} from './localStorage';
 
 import 'src/style/chronograf.scss';
@@ -29,14 +31,20 @@ let browserHistory;
 const basepath = rootNode.dataset.basepath;
 window.basepath = basepath;
 if (basepath) {
-  browserHistory = useBasename(createHistory)({
+  browserHistory = useRouterHistory(createHistory)({
     basename: basepath, // this is written in when available by the URL prefixer middleware
   });
 } else {
-  browserHistory = useBasename(createHistory)({
+  browserHistory = useRouterHistory(createHistory)({
     basename: "",
   });
 }
+
+window.addEventListener('keyup', (event) => {
+  if (event.key === 'Escape') {
+    store.dispatch(disablePresentationMode())
+  }
+})
 
 const Root = React.createClass({
   getInitialState() {
@@ -69,14 +77,13 @@ const Root = React.createClass({
     if (store.getState().me.links) {
       return this.setState({loggedIn: true});
     }
-    getMe().then(({data: me}) => {
+    getMe().then(({data: me, auth}) => {
       store.dispatch(receiveMe(me));
+      store.dispatch(receiveAuth(auth));
       this.setState({loggedIn: true});
-    }).catch((err) => {
-      const AUTH_DISABLED = 418;
-      if (err.response.status === AUTH_DISABLED) {
-        return this.setState({loggedIn: true});
-        // Could store a boolean indicating auth is not set up
+    }).catch((error) => {
+      if (error.auth) {
+        store.dispatch(receiveAuth(error.auth));
       }
 
       this.setState({loggedIn: false});
@@ -116,12 +123,13 @@ const Root = React.createClass({
               <Route path="alerts" component={AlertsApp} />
               <Route path="dashboards" component={DashboardsPage} />
               <Route path="dashboards/:dashboardID" component={DashboardPage} />
+              <Route path="dashboards/:dashboardID/edit" component={DashboardPage} />
               <Route path="alert-rules" component={KapacitorRulesPage} />
               <Route path="alert-rules/:ruleID" component={KapacitorRulePage} />
               <Route path="alert-rules/new" component={KapacitorRulePage} />
             </Route>
-            <Route path="*" component={NotFound} />
           </Route>
+          <Route path="*" component={NotFound} />
         </Router>
       </Provider>
     );
