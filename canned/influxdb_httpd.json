@@ -35,6 +35,7 @@
       ]
     },
     {
+      "type": "line-stepplot",
       "x": 0,
       "y": 0,
       "w": 4,
@@ -43,7 +44,7 @@
       "name": "InfluxDB - Client Failures",
       "queries": [
         {
-          "query": "SELECT non_negative_derivative(max(\"clientError\"), 1s) AS \"client_errors\" FROM \"influxdb_httpd\"",
+          "query": "SELECT non_negative_derivative(max(\"clientError\")) AS \"client_errors\" FROM \"influxdb_httpd\"",
           "groupbys": [],
           "wheres": []
         },
