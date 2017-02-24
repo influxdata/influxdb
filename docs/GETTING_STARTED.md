@@ -12,13 +12,13 @@ It lists every host that is sending [Telegraf](https://github.com/influxdata/tel
 
 ![Host List](https://github.com/influxdata/chronograf/blob/master/docs/images/host-list-gs.png)
 
-The Chronograf instance shown above is connected to two hosts (`telegraf-neverland` and `telegraf-narnia`).
-The first host is using 0.23%	of its total CPU and has a load of 0.00.
+The Chronograf instance shown above is connected to two hosts (`telegraf-narnia` and `telegraf-neverland`).
+The first host is using 0.43%	of its total CPU and has a load of 0.00.
 It has one configured app: `system`.
 Apps are Telegraf [input plugins](https://github.com/influxdata/telegraf#input-plugins) that have dashboard templates in Chronograf.
 
 Click on the app on the `HOST LIST` page to access its dashboard template.
-The dashboard offers [pre-canned](https://github.com/influxdata/chronograf/tree/master/canned) graphs of the input's data that are currently in InfluxDB.
+The dashboard offers [pre-created](https://github.com/influxdata/chronograf/tree/master/canned) graphs of the input's data that are currently in InfluxDB.
 Here's the dashboard template for Telegraf's [system stats](https://github.com/influxdata/telegraf/tree/master/plugins/inputs/system) input plugin:
 
 ![System Graph Layout](https://github.com/influxdata/chronograf/blob/master/docs/images/system-layout-gs.gif)
@@ -71,7 +71,7 @@ It supports three rule types:
 * Relative Rule - alert if the data change relative to the data in a different time range
 * Deadman Rule - alert if no data are received for the specified time range
 
-The example above creates a simple threshold rule that sends an alert when `usage_idle` values are less than 86% within the past minute.
+The example above creates a simple threshold rule that sends an alert when `usage_idle` values are less than 96%.
 Notice that the graph provides a preview of the target data and the configured rule boundary.
 
 Lastly, the `Alert Message` section allows you to personalize the alert message and select an alert endpoint.
@@ -108,3 +108,4 @@ Chronograf-friendly alert rule.
 >
 * Currently, the Alerta TICKscript parser requires users to **paste** their existing TICKscript in the text input. The parser does not support manually entering or editing a TICKscript.
 * The parser requires users to whitespace delimit any services listed in the TICKscript's [`.services()` attribute](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#alerta-services).
+master

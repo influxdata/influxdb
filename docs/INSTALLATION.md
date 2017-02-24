@@ -242,7 +242,7 @@ There's no need to enter any information for the `Username` and `Password` input
 Finally, click `Connect Kapacitor`.
 
 If Kapacitor successfully connects you'll see an
-[Alert Endpoints](https://docs.influxdata.com/kapacitor/v1.0/nodes/alert_node/)
+Configure [Alert Endpoints](https://docs.influxdata.com/kapacitor/v1.0/nodes/alert_node/)
 section below the `Connection Details` section:
 
 ![Alert Endpoints](https://github.com/influxdata/chronograf/blob/master/docs/images/alert-endpoints.png)
