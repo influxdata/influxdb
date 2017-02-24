@@ -238,13 +238,13 @@ func (h *Service) sourcesSeries(ctx context.Context, w http.ResponseWriter, r *h
 
 	ts, err := h.TimeSeries(src)
 	if err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d", srcID)
+		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
 		return 0, nil, err
 	}
 
 	if err = ts.Connect(ctx, &src); err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d", srcID)
+		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
 		return 0, nil, err
 	}
@@ -287,13 +287,13 @@ func (h *Service) Permissions(w http.ResponseWriter, r *http.Request) {
 
 	ts, err := h.TimeSeries(src)
 	if err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d", srcID)
+		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
 		return
 	}
 
 	if err = ts.Connect(ctx, &src); err != nil {
-		msg := fmt.Sprintf("Unable to connect to source %d", srcID)
+		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
 		return
 	}
