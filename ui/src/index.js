@@ -24,6 +24,7 @@ import {loadLocalStorage} from './localStorage';
 
 import 'src/style/chronograf.scss';
 
+// TODO ensure appConfig data in localstorage
 const store = configureStore(loadLocalStorage());
 const rootNode = document.getElementById('react-root');
 

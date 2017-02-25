@@ -10,6 +10,8 @@ export default function appConfig(state = initialState, action) {
         autoRefreshMs: action.payload,
       }
     }
+
+    // TODO implement 'GET_AUTOREFRESH'
   }
 
   return state

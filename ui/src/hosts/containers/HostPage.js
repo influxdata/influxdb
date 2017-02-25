@@ -3,6 +3,7 @@ import {Link} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 import classnames from 'classnames';
+import {loadLocalStorage} from 'src/localStorage'
 
 import LayoutRenderer from 'shared/components/LayoutRenderer';
 import DashboardHeader from 'src/dashboards/components/DashboardHeader';
@@ -86,10 +87,13 @@ export const HostPage = React.createClass({
     this.setState({timeRange});
   },
 
+  // TODO implement
+  handleChooseAutoRefresh({})
+
   renderLayouts(layouts) {
-    const autoRefreshMs = 15000;
     const {timeRange} = this.state;
-    const {source} = this.props;
+    const {source, autoRefreshMs} = this.props;
+    console.log(autoRefreshMs)
 
     const autoflowLayouts = layouts.filter((layout) => !!layout.autoflow);
 
@@ -156,6 +160,7 @@ export const HostPage = React.createClass({
           timeRange={timeRange}
           isHidden={inPresentationMode}
           handleChooseTimeRange={this.handleChooseTimeRange}
+          handleChooseAutoRefresh={this.handleChooseAutoRefresh}
           handleClickPresentationButton={handleClickPresentationButton}
         >
           {Object.keys(hosts).map((host, i) => {
@@ -183,9 +188,11 @@ export const HostPage = React.createClass({
 
 const mapStateToProps = (state) => ({
   inPresentationMode: state.appUI.presentationMode,
+  autoRefreshMs: state.appConfig.autoRefreshMs,
 })
 
 const mapDispatchToProps = (dispatch) => ({
+  handleChooseAutoRefresh: dispatch(setAutoRefresh()),
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
 })
 

@@ -2,14 +2,14 @@ import React from 'react';
 import classnames from 'classnames';
 import OnClickOutside from 'shared/components/OnClickOutside';
 
-import timeRanges from 'hson!../data/timeRanges.hson';
+import autoRefreshValues from 'hson!../data/autoRefreshValues.hson';
 
-const TimeRangeDropdown = React.createClass({
+const AutoRefreshDropdown = React.createClass({
   autobind: false,
 
   propTypes: {
     selected: React.PropTypes.string.isRequired,
-    onChooseTimeRange: React.PropTypes.func.isRequired,
+    onChoose: React.PropTypes.func.isRequired,
   },
 
   getInitialState() {
@@ -23,12 +23,8 @@ const TimeRangeDropdown = React.createClass({
   },
 
   handleSelection(params) {
-    const {queryValue, menuOption} = params;
-    if (menuOption.toLowerCase() === 'custom') {
-      this.props.onChooseTimeRange({custom: true});
-    } else {
-      this.props.onChooseTimeRange({lower: queryValue, upper: null});
-    }
+    const {seconds, menuOption} = params;
+    this.props.onChoose({seconds});
     this.setState({isOpen: false});
   },
 
@@ -44,13 +40,13 @@ const TimeRangeDropdown = React.createClass({
     return (
       <div className="dropdown time-range-dropdown">
         <div className="btn btn-sm btn-info dropdown-toggle" onClick={() => self.toggleMenu()}>
-          <span className="icon clock"></span>
+          <span className="icon refresh"></span>
           <span className="selected-time-range">{selected}</span>
           <span className="caret" />
         </div>
         <ul className={classnames("dropdown-menu", {show: isOpen})}>
           <li className="dropdown-header">Time Range</li>
-          {timeRanges.map((item) => {
+          {autoRefreshValues.map((item) => {
             return (
               <li key={item.menuOption}>
                 <a href="#" onClick={() => self.handleSelection(item)}>
@@ -65,4 +61,4 @@ const TimeRangeDropdown = React.createClass({
   },
 });
 
-export default OnClickOutside(TimeRangeDropdown);
+export default OnClickOutside(AutoRefreshDropdown);
