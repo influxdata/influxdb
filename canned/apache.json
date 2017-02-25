@@ -14,6 +14,7 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"BytesPerSec\")) AS \"bytes_per_sec\" FROM apache",
+          "label": "bytes/s",
           "groupbys": [
             "\"server\""
           ],
@@ -31,6 +32,7 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"ReqPerSec\")) AS \"req_per_sec\" FROM apache",
+          "label": "requests/s",
           "groupbys": [
             "\"server\""
           ],
@@ -48,6 +50,7 @@
       "queries": [
         {
           "query": "SELECT non_negative_derivative(max(\"TotalAccesses\")) AS \"tot_access\" FROM apache",
+          "label": "accesses/s",
           "groupbys": [
             "\"server\""
           ],

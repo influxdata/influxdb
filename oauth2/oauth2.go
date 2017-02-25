@@ -9,18 +9,21 @@ import (
 	"golang.org/x/oauth2"
 )
 
-/* Constants */
-const (
+type principalKey string
+
+func (p principalKey) String() string {
+	return string(p)
+}
+
+var (
 	// PrincipalKey is used to pass principal
 	// via context.Context to request-scoped
 	// functions.
-	PrincipalKey string = "principal"
-)
-
-var (
-	/* Errors */
+	PrincipalKey = principalKey("principal")
+	// ErrAuthentication means that oauth2 exchange failed
 	ErrAuthentication = errors.New("user not authenticated")
-	ErrOrgMembership  = errors.New("Not a member of the required organization")
+	// ErrOrgMembership means that the user is not in the OAuth2 filtered group
+	ErrOrgMembership = errors.New("Not a member of the required organization")
 )
 
 /* Types */

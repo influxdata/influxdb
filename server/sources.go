@@ -11,9 +11,12 @@ import (
 )
 
 type sourceLinks struct {
-	Self       string `json:"self"`       // Self link mapping to this resource
-	Kapacitors string `json:"kapacitors"` // URL for kapacitors endpoint
-	Proxy      string `json:"proxy"`      // URL for proxy endpoint
+	Self        string `json:"self"`            // Self link mapping to this resource
+	Kapacitors  string `json:"kapacitors"`      // URL for kapacitors endpoint
+	Proxy       string `json:"proxy"`           // URL for proxy endpoint
+	Permissions string `json:"permissions"`     // URL for all allowed permissions for this source
+	Users       string `json:"users"`           // URL for all users associated with this source
+	Roles       string `json:"roles,omitempty"` // URL for all users associated with this source
 }
 
 type sourceResponse struct {
@@ -31,14 +34,21 @@ func newSourceResponse(src chronograf.Source) sourceResponse {
 	src.Password = ""
 
 	httpAPISrcs := "/chronograf/v1/sources"
-	return sourceResponse{
+	res := sourceResponse{
 		Source: src,
 		Links: sourceLinks{
-			Self:       fmt.Sprintf("%s/%d", httpAPISrcs, src.ID),
-			Proxy:      fmt.Sprintf("%s/%d/proxy", httpAPISrcs, src.ID),
-			Kapacitors: fmt.Sprintf("%s/%d/kapacitors", httpAPISrcs, src.ID),
+			Self:        fmt.Sprintf("%s/%d", httpAPISrcs, src.ID),
+			Proxy:       fmt.Sprintf("%s/%d/proxy", httpAPISrcs, src.ID),
+			Kapacitors:  fmt.Sprintf("%s/%d/kapacitors", httpAPISrcs, src.ID),
+			Permissions: fmt.Sprintf("%s/%d/permissions", httpAPISrcs, src.ID),
+			Users:       fmt.Sprintf("%s/%d/users", httpAPISrcs, src.ID),
 		},
 	}
+
+	if src.Type == "influx-enterprise" {
+		res.Links.Roles = fmt.Sprintf("%s/%d/roles", httpAPISrcs, src.ID)
+	}
+	return res
 }
 
 // NewSource adds a new valid source to the store
@@ -214,6 +224,9 @@ func (h *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.URL != "" {
 		src.URL = req.URL
+	}
+	if req.MetaURL != "" {
+		src.MetaURL = req.MetaURL
 	}
 	if req.Type != "" {
 		src.Type = req.Type
