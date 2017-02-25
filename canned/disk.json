@@ -14,6 +14,7 @@
       "queries": [
         {
           "query": "SELECT mean(\"used_percent\") AS \"used_percent\" FROM disk",
+          "label": "% used",
           "groupbys": [
             "\"path\""
           ],

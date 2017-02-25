@@ -32,7 +32,6 @@ type getRoutesResponse struct {
 	Layouts    string      `json:"layouts"`    // Location of the layouts endpoint
 	Mappings   string      `json:"mappings"`   // Location of the application mappings endpoint
 	Sources    string      `json:"sources"`    // Location of the sources endpoint
-	Users      string      `json:"users"`      // Location of the users endpoint
 	Me         string      `json:"me"`         // Location of the me endpoint
 	Dashboards string      `json:"dashboards"` // Location of the dashboards endpoint
 	Auth       []AuthRoute `json:"auth"`       // Location of all auth routes.
@@ -43,7 +42,6 @@ func AllRoutes(authRoutes []AuthRoute, logger chronograf.Logger) http.HandlerFun
 	routes := getRoutesResponse{
 		Sources:    "/chronograf/v1/sources",
 		Layouts:    "/chronograf/v1/layouts",
-		Users:      "/chronograf/v1/users",
 		Me:         "/chronograf/v1/me",
 		Mappings:   "/chronograf/v1/mappings",
 		Dashboards: "/chronograf/v1/dashboards",
@@ -58,34 +56,4 @@ func AllRoutes(authRoutes []AuthRoute, logger chronograf.Logger) http.HandlerFun
 		encodeJSON(w, http.StatusOK, routes, logger)
 		return
 	})
-}
-
-func NewGithubRoute() AuthRoute {
-	return AuthRoute{
-		Name:     "github",
-		Label:    "GitHub",
-		Login:    "/oauth/github/login",
-		Logout:   "/oauth/github/logout",
-		Callback: "/oauth/github/callback",
-	}
-}
-
-func NewGoogleRoute() AuthRoute {
-	return AuthRoute{
-		Name:     "google",
-		Label:    "Google",
-		Login:    "/oauth/google/login",
-		Logout:   "/oauth/google/logout",
-		Callback: "/oauth/google/callback",
-	}
-}
-
-func NewHerokuRoute() AuthRoute {
-	return AuthRoute{
-		Name:     "heroku",
-		Label:    "Heroku",
-		Login:    "/oauth/heroku/login",
-		Logout:   "/oauth/heroku/logout",
-		Callback: "/oauth/heroku/callback",
-	}
 }

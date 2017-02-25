@@ -63,8 +63,27 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.PATCH("/chronograf/v1/sources/:id", service.UpdateSource)
 	router.DELETE("/chronograf/v1/sources/:id", service.RemoveSource)
 
-	// Source Proxy
-	router.POST("/chronograf/v1/sources/:id/proxy", service.Proxy)
+	// Source Proxy to Influx
+	router.POST("/chronograf/v1/sources/:id/proxy", service.Influx)
+
+	// All possible permissions for users in this source
+	router.GET("/chronograf/v1/sources/:id/permissions", service.Permissions)
+
+	// Users associated with the data source
+	router.GET("/chronograf/v1/sources/:id/users", service.SourceUsers)
+	router.POST("/chronograf/v1/sources/:id/users", service.NewSourceUser)
+
+	router.GET("/chronograf/v1/sources/:id/users/:uid", service.SourceUserID)
+	router.DELETE("/chronograf/v1/sources/:id/users/:uid", service.RemoveSourceUser)
+	router.PATCH("/chronograf/v1/sources/:id/users/:uid", service.UpdateSourceUser)
+
+	// Roles associated with the data source
+	router.GET("/chronograf/v1/sources/:id/roles", service.Roles)
+	router.POST("/chronograf/v1/sources/:id/roles", service.NewRole)
+
+	router.GET("/chronograf/v1/sources/:id/roles/:rid", service.RoleID)
+	router.DELETE("/chronograf/v1/sources/:id/roles/:rid", service.RemoveRole)
+	router.PATCH("/chronograf/v1/sources/:id/roles/:rid", service.UpdateRole)
 
 	// Kapacitor
 	router.GET("/chronograf/v1/sources/:id/kapacitors", service.Kapacitors)
@@ -102,11 +121,6 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	// Users
 	router.GET("/chronograf/v1/me", service.Me)
-	router.POST("/chronograf/v1/users", service.NewUser)
-
-	router.GET("/chronograf/v1/users/:id", service.UserID)
-	router.PATCH("/chronograf/v1/users/:id", service.UpdateUser)
-	router.DELETE("/chronograf/v1/users/:id", service.RemoveUser)
 
 	// Dashboards
 	router.GET("/chronograf/v1/dashboards", service.Dashboards)

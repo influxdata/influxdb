@@ -37,9 +37,19 @@ $kapacitor-font-sm: 13px;
   height: (300px + ($kap-padding-sm * 2));
   position: relative;
 
-  > div {
-    padding: 8px 16px;
-    position: relative;
+  & > div {
+    position: absolute;
+    top: 0;
+    left: $kap-padding-sm;
+    width: calc(100% - #{($kap-padding-sm * 2)});
+    height: 100%;
+
+    & > div {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      padding: 8px 16px;
+    }
   }
 
   &:before {
@@ -417,12 +427,14 @@ div.qeditor.kapacitor-metric-selector {
 }
 
 .alert-message--endpoint {
-  display: flex;
-  align-items: center;
   width: auto;
   border-top: 2px solid $kapacitor-divider-color;
 
-  > p {
+  & > div {
+    display: flex;
+    align-items: center;
+  }
+  p {
     margin-right: $kap-padding-sm !important;
   }
 }

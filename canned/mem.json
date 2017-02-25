@@ -10,10 +10,11 @@
       "w": 4,
       "h": 4,
       "i": "e6e5063c-43d5-409b-a0ab-68da51ed3f28",
-      "name": "System - Memory Bytes Used",
+      "name": "System - Memory Gigabytes Used",
       "queries": [
         {
-          "query": "SELECT mean(\"used\") AS \"used\", mean(\"available\") AS \"available\" FROM \"mem\"",
+          "query": "SELECT mean(\"used\") / 1073741824 AS \"used\", mean(\"available\") / 1073741824 AS \"available\" FROM \"mem\"",
+          "label": "GB",
           "groupbys": [],
           "wheres": []
         }

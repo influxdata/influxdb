@@ -47,7 +47,7 @@ const DashboardHeader = ({
         <ReactTooltip id="graph-tips-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
         <TimeRangeDropdown onChooseTimeRange={handleChooseTimeRange} selected={timeRange.inputValue} />
         <div className="btn btn-info btn-sm" onClick={handleClickPresentationButton}>
-          <span className="icon keynote" style={{margin: 0}}></span>
+          <span className="icon expand-a" style={{margin: 0}}></span>
         </div>
       </div>
     </div>

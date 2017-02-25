@@ -1,6 +1,7 @@
 package influx_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,7 +10,6 @@ import (
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/influx"
 	"github.com/influxdata/chronograf/log"
-	"golang.org/x/net/context"
 )
 
 func Test_Influx_MakesRequestsToQueryEndpoint(t *testing.T) {
@@ -202,5 +202,13 @@ func Test_Influx_ReportsInfluxErrs(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("Expected an error but received none")
+	}
+}
+
+func TestClient_Roles(t *testing.T) {
+	c := &influx.Client{}
+	_, err := c.Roles(context.Background())
+	if err == nil {
+		t.Errorf("Client.Roles() want error")
 	}
 }
