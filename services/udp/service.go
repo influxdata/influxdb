@@ -19,8 +19,8 @@ const (
 	// Arbitrary, testing indicated that this doesn't typically get over 10
 	parserChanLen = 1000
 
-	// MAX_UDP_PAYLOAD is largest payload size the UDP service will accept.
-	MAX_UDP_PAYLOAD = 64 * 1024
+	// MaxUDPPayload is largest payload size the UDP service will accept.
+	MaxUDPPayload = 64 * 1024
 )
 
 // statistics gathered by the UDP package.
@@ -179,7 +179,7 @@ func (s *Service) writer() {
 func (s *Service) serve() {
 	defer s.wg.Done()
 
-	buf := make([]byte, MAX_UDP_PAYLOAD)
+	buf := make([]byte, MaxUDPPayload)
 	s.batcher.Start()
 	for {
 		select {
