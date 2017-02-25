@@ -38,8 +38,3 @@
   align-items: center;
   justify-content: space-between;
 }
-
-/* Hacky way to ensure that legends cannot be obscured by neighboring graphs */
-div:not(.dashboard-edit) .react-grid-item:hover {
-  z-index: 8999;
-}
