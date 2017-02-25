@@ -261,6 +261,24 @@ input {
     }
   }
 }
+.dropdown-header {
+  height: 32px;
+  line-height: 30px;
+  padding: 0 9px;
+  white-space: nowrap;
+  font-size: 14px !important;
+  font-weight: 900;
+  color: $c-neutrino !important;
+  text-transform: none !important;
+  border-bottom: 2px solid $c-pool;
+  background-color: $c-ocean;
+
+  &:hover {
+    background-image: none !important;
+    background-color: $c-ocean !important;
+    cursor: default;
+  }
+}
 
 /* Dropdown Actions */
 .dropdown-item {

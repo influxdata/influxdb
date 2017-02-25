@@ -49,6 +49,7 @@ const TimeRangeDropdown = React.createClass({
           <span className="caret" />
         </div>
         <ul className={cN("dropdown-menu", {show: isOpen})}>
+          <li className="dropdown-header">Time Range</li>
           {timeRanges.map((item) => {
             return (
               <li key={item.menuOption}>
