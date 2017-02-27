@@ -503,7 +503,7 @@ func TestValues_MergeFloat(t *testing.T) {
 
 func TestIntegerValues_Merge(t *testing.T) {
 	integerValue := func(t int64, f int64) tsm1.IntegerValue {
-		return *(tsm1.NewValue(t, f).(*tsm1.IntegerValue))
+		return tsm1.NewValue(t, f).(tsm1.IntegerValue)
 	}
 
 	tests := []struct {
@@ -636,7 +636,7 @@ func TestIntegerValues_Merge(t *testing.T) {
 
 func TestFloatValues_Merge(t *testing.T) {
 	floatValue := func(t int64, f float64) tsm1.FloatValue {
-		return *(tsm1.NewValue(t, f).(*tsm1.FloatValue))
+		return tsm1.NewValue(t, f).(tsm1.FloatValue)
 	}
 
 	tests := []struct {
@@ -765,7 +765,7 @@ func TestFloatValues_Merge(t *testing.T) {
 
 func TestBooleanValues_Merge(t *testing.T) {
 	booleanValue := func(t int64, f bool) tsm1.BooleanValue {
-		return *(tsm1.NewValue(t, f).(*tsm1.BooleanValue))
+		return tsm1.NewValue(t, f).(tsm1.BooleanValue)
 	}
 
 	tests := []struct {
@@ -894,7 +894,7 @@ func TestBooleanValues_Merge(t *testing.T) {
 
 func TestStringValues_Merge(t *testing.T) {
 	stringValue := func(t int64, f string) tsm1.StringValue {
-		return *(tsm1.NewValue(t, f).(*tsm1.StringValue))
+		return tsm1.NewValue(t, f).(tsm1.StringValue)
 	}
 
 	tests := []struct {

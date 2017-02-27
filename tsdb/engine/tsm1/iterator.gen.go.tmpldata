@@ -3,28 +3,28 @@
 		"Name":"Float",
 		"name":"float",
 		"Type":"float64",
-		"ValueType":"*FloatValue",
+		"ValueType":"FloatValue",
 		"Nil":"0"
 	},
 	{
 		"Name":"Integer",
 		"name":"integer",
 		"Type":"int64",
-		"ValueType":"*IntegerValue",
+		"ValueType":"IntegerValue",
 		"Nil":"0"
 	},
 	{
 		"Name":"String",
 		"name":"string",
 		"Type":"string",
-		"ValueType":"*StringValue",
+		"ValueType":"StringValue",
 		"Nil":"\"\""
 	},
 	{
 		"Name":"Boolean",
 		"name":"boolean",
 		"Type":"bool",
-		"ValueType":"*BooleanValue",
+		"ValueType":"BooleanValue",
 		"Nil":"false"
 	}
 ]

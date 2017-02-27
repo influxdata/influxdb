@@ -343,7 +343,7 @@ func (c *floatAscendingCursor) peekCache() (t int64, v float64) {
 	}
 
 	item := c.cache.values[c.cache.pos]
-	return item.UnixNano(), item.(*FloatValue).value
+	return item.UnixNano(), item.(FloatValue).value
 }
 
 // peekTSM returns the current time/value from tsm.
@@ -463,7 +463,7 @@ func (c *floatDescendingCursor) peekCache() (t int64, v float64) {
 	}
 
 	item := c.cache.values[c.cache.pos]
-	return item.UnixNano(), item.(*FloatValue).value
+	return item.UnixNano(), item.(FloatValue).value
 }
 
 // peekTSM returns the current time/value from tsm.
@@ -786,7 +786,7 @@ func (c *integerAscendingCursor) peekCache() (t int64, v int64) {
 	}
 
 	item := c.cache.values[c.cache.pos]
-	return item.UnixNano(), item.(*IntegerValue).value
+	return item.UnixNano(), item.(IntegerValue).value
 }
 
 // peekTSM returns the current time/value from tsm.
@@ -906,7 +906,7 @@ func (c *integerDescendingCursor) peekCache() (t int64, v int64) {
 	}
 
 	item := c.cache.values[c.cache.pos]
-	return item.UnixNano(), item.(*IntegerValue).value
+	return item.UnixNano(), item.(IntegerValue).value
 }
 
 // peekTSM returns the current time/value from tsm.
@@ -1229,7 +1229,7 @@ func (c *stringAscendingCursor) peekCache() (t int64, v string) {
 	}
 
 	item := c.cache.values[c.cache.pos]
-	return item.UnixNano(), item.(*StringValue).value
+	return item.UnixNano(), item.(StringValue).value
 }
 
 // peekTSM returns the current time/value from tsm.
@@ -1349,7 +1349,7 @@ func (c *stringDescendingCursor) peekCache() (t int64, v string) {
 	}
 
 	item := c.cache.values[c.cache.pos]
-	return item.UnixNano(), item.(*StringValue).value
+	return item.UnixNano(), item.(StringValue).value
 }
 
 // peekTSM returns the current time/value from tsm.
@@ -1672,7 +1672,7 @@ func (c *booleanAscendingCursor) peekCache() (t int64, v bool) {
 	}
 
 	item := c.cache.values[c.cache.pos]
-	return item.UnixNano(), item.(*BooleanValue).value
+	return item.UnixNano(), item.(BooleanValue).value
 }
 
 // peekTSM returns the current time/value from tsm.
@@ -1792,7 +1792,7 @@ func (c *booleanDescendingCursor) peekCache() (t int64, v bool) {
 	}
 
 	item := c.cache.values[c.cache.pos]
-	return item.UnixNano(), item.(*BooleanValue).value
+	return item.UnixNano(), item.(BooleanValue).value
 }
 
 // peekTSM returns the current time/value from tsm.

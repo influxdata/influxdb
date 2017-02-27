@@ -1929,6 +1929,17 @@ func MarshalTags(tags map[string]string) []byte {
 	return b
 }
 
+// WalkTagKeys calls fn for each tag key associated with m.  The order of the
+// keys is undefined.
+func (m *Measurement) WalkTagKeys(fn func(k string)) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for k := range m.seriesByTagKeyValue {
+		fn(k)
+	}
+}
+
 // TagKeys returns a list of the measurement's tag names.
 func (m *Measurement) TagKeys() []string {
 	m.mu.RLock()

@@ -930,12 +930,14 @@ func (e *Engine) writeSnapshotAndCommit(closedFiles []string, snapshot *Cache) (
 
 // compactCache continually checks if the WAL cache should be written to disk
 func (e *Engine) compactCache(quit <-chan struct{}) {
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
 	for {
 		select {
 		case <-quit:
 			return
 
-		default:
+		case <-t.C:
 			e.Cache.UpdateAge()
 			if e.ShouldCompactCache(e.WAL.LastWriteTime()) {
 				start := time.Now()
@@ -950,7 +952,6 @@ func (e *Engine) compactCache(quit <-chan struct{}) {
 				atomic.AddInt64(&e.stats.CacheCompactionDuration, time.Since(start).Nanoseconds())
 			}
 		}
-		time.Sleep(time.Second)
 	}
 }
 
@@ -968,37 +969,38 @@ func (e *Engine) ShouldCompactCache(lastWriteTime time.Time) bool {
 }
 
 func (e *Engine) compactTSMLevel(fast bool, level int, quit <-chan struct{}) {
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+
 	for {
 		select {
 		case <-quit:
 			return
 
-		default:
+		case <-t.C:
 			s := e.levelCompactionStrategy(fast, level)
-			if s == nil {
-				time.Sleep(time.Second)
-				continue
+			if s != nil {
+				s.Apply()
 			}
-
-			s.Apply()
 		}
 	}
 }
 
 func (e *Engine) compactTSMFull(quit <-chan struct{}) {
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+
 	for {
 		select {
 		case <-quit:
 			return
 
-		default:
+		case <-t.C:
 			s := e.fullCompactionStrategy()
-			if s == nil {
-				time.Sleep(time.Second)
-				continue
+			if s != nil {
+				s.Apply()
 			}
 
-			s.Apply()
 		}
 	}
 }

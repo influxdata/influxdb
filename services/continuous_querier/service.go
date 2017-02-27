@@ -196,6 +196,8 @@ func (s *Service) Run(database, name string, t time.Time) error {
 // backgroundLoop runs on a go routine and periodically executes CQs.
 func (s *Service) backgroundLoop() {
 	leaseName := "continuous_querier"
+	t := time.NewTimer(s.RunInterval)
+	defer t.Stop()
 	defer s.wg.Done()
 	for {
 		select {
@@ -210,13 +212,15 @@ func (s *Service) backgroundLoop() {
 				s.Logger.Printf("running continuous queries by request for time: %v", req.Now)
 				s.runContinuousQueries(req)
 			}
-		case <-time.After(s.RunInterval):
+		case <-t.C:
 			if !s.hasContinuousQueries() {
+				t.Reset(s.RunInterval)
 				continue
 			}
 			if _, err := s.MetaClient.AcquireLease(leaseName); err == nil {
 				s.runContinuousQueries(&RunRequest{Now: time.Now()})
 			}
+			t.Reset(s.RunInterval)
 		}
 	}
 }
