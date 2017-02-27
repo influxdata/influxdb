@@ -43,6 +43,29 @@ func TestParser_ParseQuery_Empty(t *testing.T) {
 	}
 }
 
+// Ensure the parser will skip comments.
+func TestParser_ParseQuery_SkipComments(t *testing.T) {
+	q, err := influxql.ParseQuery(`SELECT * FROM cpu; -- read from cpu database
+
+/* create continuous query */
+CREATE CONTINUOUS QUERY cq0 ON db0 BEGIN
+	SELECT mean(*) INTO db1..:MEASUREMENT FROM cpu GROUP BY time(5m)
+END;
+
+/* just a multline comment
+what is this doing here?
+**/
+
+-- should ignore the trailing multiline comment /*
+SELECT mean(value) FROM gpu;
+-- trailing comment at the end`)
+	if err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if len(q.Statements) != 3 {
+		t.Fatalf("unexpected statement count: %d", len(q.Statements))
+	}
+}
+
 // Ensure the parser can return an error from an malformed statement.
 func TestParser_ParseQuery_ParseError(t *testing.T) {
 	_, err := influxql.NewParser(strings.NewReader(`SELECT`)).ParseQuery()
@@ -1299,6 +1322,38 @@ func TestParser_ParseStatement(t *testing.T) {
 						LHS: &influxql.Call{Name: "now"},
 						RHS: &influxql.DurationLiteral{Val: 24 * time.Hour},
 					},
+				},
+			},
+		},
+
+		// select statements with intertwined comments
+		{
+			s: `SELECT "user" /*, system, idle */ FROM cpu`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.VarRef{Val: "user"}},
+				},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+			},
+		},
+
+		{
+			s: `SELECT /foo\/*bar/ FROM /foo\/*bar*/ WHERE x = 1`,
+			stmt: &influxql.SelectStatement{
+				IsRawQuery: true,
+				Fields: []*influxql.Field{
+					{Expr: &influxql.RegexLiteral{Val: regexp.MustCompile(`foo/*bar`)}},
+				},
+				Sources: []influxql.Source{
+					&influxql.Measurement{
+						Regex: &influxql.RegexLiteral{Val: regexp.MustCompile(`foo/*bar*`)},
+					},
+				},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.EQ,
+					LHS: &influxql.VarRef{Val: "x"},
+					RHS: &influxql.IntegerLiteral{Val: 1},
 				},
 			},
 		},
