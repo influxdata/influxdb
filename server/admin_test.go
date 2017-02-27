@@ -751,15 +751,20 @@ func TestService_Permissions(t *testing.T) {
 					ConnectF: func(ctx context.Context, src *chronograf.Source) error {
 						return nil
 					},
-					AllowancesF: func(ctx context.Context) chronograf.Allowances {
-						return chronograf.Allowances{"READ", "WRITE"}
+					PermissionsF: func(ctx context.Context) chronograf.Permissions {
+						return chronograf.Permissions{
+							{
+								Scope:   chronograf.AllScope,
+								Allowed: chronograf.Allowances{"READ", "WRITE"},
+							},
+						}
 					},
 				},
 			},
 			ID:              "1",
 			wantStatus:      http.StatusOK,
 			wantContentType: "application/json",
-			wantBody: `{"permissions":["READ","WRITE"],"links":{"self":"/chronograf/v1/sources/1/permissions","source":"/chronograf/v1/sources/1"}}
+			wantBody: `{"permissions":[{"scope":"all","allowed":["READ","WRITE"]}],"links":{"self":"/chronograf/v1/sources/1/permissions","source":"/chronograf/v1/sources/1"}}
 `,
 		},
 	}

@@ -147,8 +147,8 @@ func (c *Client) Roles(ctx context.Context) (chronograf.RolesStore, error) {
 }
 
 // Allowances returns all Influx Enterprise permission strings
-func (c *Client) Allowances(context.Context) chronograf.Allowances {
-	return chronograf.Allowances{
+func (c *Client) Permissions(context.Context) chronograf.Permissions {
+	all := chronograf.Allowances{
 		"NoPermissions",
 		"ViewAdmin",
 		"ViewChronograf",
@@ -168,6 +168,17 @@ func (c *Client) Allowances(context.Context) chronograf.Allowances {
 		"CopyShard",
 		"KapacitorAPI",
 		"KapacitorConfigAPI",
+	}
+
+	return chronograf.Permissions{
+		{
+			Scope:   chronograf.AllScope,
+			Allowed: all,
+		},
+		{
+			Scope:   chronograf.DBScope,
+			Allowed: all,
+		},
 	}
 }
 
