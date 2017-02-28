@@ -114,112 +114,14 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, sources Sources, opt I
 				}
 				inputs = append(inputs, input)
 			case *SubQuery:
-				fields := make([]*Field, 0, len(opt.Aux))
-				indexes := make([]IteratorMap, len(opt.Aux))
-				offset := 0
-			AUX:
-				for i, name := range opt.Aux {
-					// Search through the fields to find one that matches this auxiliary field.
-					var match *Field
-				FIELDS:
-					for _, f := range source.Statement.Fields {
-						if f.Name() == name.Val {
-							match = f
-							break
-						} else if call, ok := f.Expr.(*Call); ok && (call.Name == "top" || call.Name == "bottom") {
-							// We may match one of the arguments in "top" or "bottom".
-							if len(call.Args) > 2 {
-								for j, arg := range call.Args[1 : len(call.Args)-1] {
-									if arg, ok := arg.(*VarRef); ok && arg.Val == name.Val {
-										match = f
-										// Increment the offset since we are looking for the tag
-										// associated with this value rather than the value itself.
-										offset += j + 1
-										break FIELDS
-									}
-								}
-							}
-						}
-					}
-
-					// Look within the dimensions and create a field if we find it.
-					if match == nil {
-						for _, d := range source.Statement.Dimensions {
-							if d, ok := d.Expr.(*VarRef); ok && name.Val == d.Val {
-								fields = append(fields, &Field{
-									Expr: &VarRef{
-										Val:  d.Val,
-										Type: Tag,
-									},
-								})
-								indexes[i] = TagMap(d.Val)
-								continue AUX
-							}
-						}
-					}
-
-					// There is no field that matches this name so signal this
-					// should be a nil iterator.
-					if match == nil {
-						match = &Field{Expr: (*nilLiteral)(nil)}
-					}
-					fields = append(fields, match)
-					indexes[i] = FieldMap(len(fields) + offset - 1)
+				b := subqueryBuilder{
+					ic:   ic,
+					stmt: source.Statement,
 				}
 
-				// Check if we need any selectors within the selected fields.
-				// If we have an expression that relies on the selector, we
-				// need to include that even if it isn't referenced directly.
-				var selector *Field
-				for _, f := range source.Statement.Fields {
-					if IsSelector(f.Expr) {
-						selector = f
-						break
-					}
-				}
-
-				// There is a selector in the inner query. Now check if we have that selector
-				// in the constructed fields list.
-				if selector != nil {
-					hasSelector := false
-					for _, f := range fields {
-						if _, ok := f.Expr.(*Call); ok {
-							hasSelector = true
-							break
-						}
-					}
-
-					if !hasSelector {
-						// Append the selector to the statement fields.
-						fields = append(fields, selector)
-					}
-				}
-
-				// If there are no fields, then we have nothing driving the iterator.
-				// Skip this subquery since it only references tags.
-				if len(fields) == 0 {
-					continue
-				}
-
-				// Clone the statement and replace the fields with our custom ordering.
-				stmt := source.Statement.Clone()
-				stmt.Fields = fields
-
-				subOpt, err := newIteratorOptionsSubstatement(stmt, opt)
+				input, err := b.buildAuxIterator(opt)
 				if err != nil {
 					return err
-				}
-
-				itrs, err := buildIterators(stmt, ic, subOpt)
-				if err != nil {
-					return err
-				}
-
-				// Construct the iterators for the subquery.
-				input := NewIteratorMapper(itrs, indexes, opt)
-				// If there is a condition, filter it now.
-				if opt.Condition != nil {
-					input = NewFilterIterator(input, opt.Condition, opt)
 				}
 				inputs = append(inputs, input)
 			}
@@ -443,244 +345,16 @@ func (b *exprIteratorBuilder) buildVarRefIterator(expr *VarRef) (Iterator, error
 				}
 				inputs = append(inputs, input)
 			case *SubQuery:
-				info := newSelectInfo(source.Statement)
-				if len(info.calls) > 1 && len(info.refs) > 0 {
-					return errors.New("cannot select fields when selecting multiple aggregates from subquery")
+				subquery := subqueryBuilder{
+					ic:   b.ic,
+					stmt: source.Statement,
 				}
 
-				if input, err := func() (Iterator, error) {
-					// Look for the field that matches this name.
-					i, e := source.Statement.FieldExprByName(expr.Val)
-					if e == nil {
-						return nil, nil
-					}
-					f := source.Statement.Fields[i]
-
-					// Retrieve the select info for the substatement.
-					info := newSelectInfo(source.Statement)
-					if len(info.calls) == 0 && len(info.refs) > 0 {
-						// There are no aggregates in the subquery, so
-						// it is just a raw query. Match the auxiliary
-						// fields to the other fields and pass as-is.
-						subOpt, err := newIteratorOptionsSubstatement(source.Statement, b.opt)
-						if err != nil {
-							return nil, err
-						}
-
-						subOpt.Aux = make([]VarRef, len(b.opt.Aux))
-						for i, ref := range b.opt.Aux {
-							if ref.Type != Tag {
-								for _, f := range source.Statement.Fields {
-									if f.Name() == ref.Val {
-										subOpt.Aux[i] = *(e.(*VarRef))
-										break
-									}
-								}
-							}
-
-							// Look in the dimensions.
-							if subOpt.Aux[i].Val == "" && (ref.Type == Unknown || ref.Type == Tag) {
-								for _, d := range source.Statement.Dimensions {
-									if d, ok := d.Expr.(*VarRef); ok && ref.Val == d.Val {
-										subOpt.Aux[i] = VarRef{
-											Val:  d.Val,
-											Type: Tag,
-										}
-										break
-									}
-								}
-							}
-						}
-						itr, err := buildExprIterator(e, b.ic, source.Statement.Sources, subOpt, false)
-						if err != nil {
-							return nil, err
-						}
-
-						if b.opt.Condition != nil {
-							itr = NewFilterIterator(itr, b.opt.Condition, subOpt)
-						}
-						return itr, nil
-					}
-
-					// Reduce the expression to remove parenthesis.
-					e = Reduce(e, nil)
-
-					switch e := e.(type) {
-					case *VarRef:
-						// If the field we selected is a variable
-						// reference, then we need to find the associated
-						// selector (and ensure it is actually a selector)
-						// and build the iterator off of that.
-						selector := info.FindSelector()
-						if selector == nil {
-							return nil, nil
-						}
-
-						subOpt, err := newIteratorOptionsSubstatement(source.Statement, b.opt)
-						if err != nil {
-							return nil, err
-						}
-
-						// If we have top() or bottom(), we need to
-						// fill the aux fields with what is in the
-						// function even if we aren't using the result.
-						if call, ok := f.Expr.(*Call); ok && (call.Name == "top" || call.Name == "bottom") {
-							// Prepare the auxiliary fields for this call.
-							subOpt.Aux = make([]VarRef, 0, len(call.Args)-1)
-
-							// Look for the auxiliary field inside of the call.
-							// If we can't find it, then add it to the end.
-							hasVarRef := false
-							for _, arg := range call.Args[1 : len(call.Args)-1] {
-								if arg, ok := arg.(*VarRef); ok {
-									subOpt.Aux = append(subOpt.Aux, *arg)
-									if arg.Val == e.Val {
-										hasVarRef = true
-									}
-								}
-							}
-
-							// We need to attach the actual auxiliary field we're looking
-							// for if it wasn't in the argument list.
-							// This is for SELECT top(value, 1), host.
-							if !hasVarRef {
-								subOpt.Aux = append(subOpt.Aux, *e)
-							}
-						} else {
-							subOpt.Aux = []VarRef{*e}
-						}
-
-						// Construct the selector iterator.
-						input, err := buildExprIterator(selector, b.ic, source.Statement.Sources, subOpt, true)
-						if err != nil {
-							return nil, err
-						}
-
-						// Filter the iterator.
-						if b.opt.Condition != nil {
-							input = NewFilterIterator(input, b.opt.Condition, subOpt)
-						}
-
-						// Create an auxiliary iterator.
-						aitr := NewAuxIterator(input, subOpt)
-						itr := aitr.Iterator(e.Val, e.Type)
-						aitr.Background()
-						return itr, nil
-					case *Call:
-						subOpt, err := newIteratorOptionsSubstatement(source.Statement, b.opt)
-						if err != nil {
-							return nil, err
-						}
-
-						if len(b.opt.Aux) > 0 {
-							subOpt.Aux = make([]VarRef, len(b.opt.Aux))
-							for i, ref := range b.opt.Aux {
-								_, expr := source.Statement.FieldExprByName(ref.Val)
-								if expr != nil {
-									v, ok := expr.(*VarRef)
-									if ok {
-										subOpt.Aux[i] = *v
-										continue
-									}
-								}
-
-								if ref.Type == Unknown || ref.Type == Tag {
-									for _, d := range source.Statement.Dimensions {
-										if d, ok := d.Expr.(*VarRef); ok && ref.Val == d.Val {
-											subOpt.Aux[i] = VarRef{
-												Val:  d.Val,
-												Type: Tag,
-											}
-											break
-										}
-									}
-								}
-							}
-						}
-
-						// Check if this is a selector or not and
-						// create the iterator directly.
-						selector := len(info.calls) == 1 && IsSelector(e)
-						itr, err := buildExprIterator(e, b.ic, source.Statement.Sources, subOpt, selector)
-						if err != nil {
-							return nil, err
-						}
-
-						if b.opt.Condition != nil {
-							itr = NewFilterIterator(itr, b.opt.Condition, subOpt)
-						}
-						return itr, nil
-					case *BinaryExpr:
-						// Retrieve the calls and references for this binary expression.
-						// There should be no mixing of calls and refs.
-						i := selectInfo{
-							calls: make(map[*Call]struct{}),
-							refs:  make(map[*VarRef]struct{}),
-						}
-						Walk(&i, e)
-
-						opt, err := newIteratorOptionsSubstatement(source.Statement, b.opt)
-						if err != nil {
-							return nil, err
-						}
-
-						if len(i.refs) > 0 {
-							if len(b.opt.Aux) > 0 {
-								// Catch this so we don't cause a panic. This
-								// is too difficult to implement now though.
-								// TODO(jsternberg): Implement this.
-								return nil, errors.New("unsupported")
-							}
-
-							selector := info.FindSelector()
-							if selector == nil {
-								return nil, nil
-							}
-
-							// Prepare the auxiliary iterators with the refs we care about.
-							opt.Aux = make([]VarRef, 0, len(i.refs))
-							for ref := range i.refs {
-								opt.Aux = append(opt.Aux, *ref)
-							}
-
-							input, err := buildExprIterator(selector, b.ic, source.Statement.Sources, opt, true)
-							if err != nil {
-								return nil, err
-							}
-
-							aitr := NewAuxIterator(input, opt)
-							itr, err := buildAuxIterator(e, aitr, opt)
-							if err != nil {
-								aitr.Close()
-								return nil, err
-							}
-							aitr.Background()
-							return itr, nil
-						}
-
-						// Determine if this expression is a selector or not.
-						selector := len(i.calls) == 1 && len(info.calls) == 1
-						// Prepare the auxiliary fields we need.
-						if len(b.opt.Aux) > 0 {
-							opt.Aux = make([]VarRef, len(b.opt.Aux))
-							for i, ref := range b.opt.Aux {
-								_, expr := source.Statement.FieldExprByName(ref.Val)
-								if v, ok := expr.(*VarRef); ok {
-									opt.Aux[i] = *v
-								}
-							}
-						}
-
-						// Build the iterator using the options we created.
-						return buildExprIterator(e, b.ic, source.Statement.Sources, opt, selector)
-					default:
-						panic(fmt.Sprintf("unsupported use of %T in a subquery", e))
-					}
-				}(); err != nil {
+				input, err := subquery.buildVarRefIterator(expr, b.opt)
+				if err != nil {
 					return err
-				} else if input != nil {
-					inputs = append(inputs, input)
 				}
+				inputs = append(inputs, input)
 			}
 		}
 		return nil
@@ -885,10 +559,6 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 						input, err := buildExprIterator(arg0, b.ic, []Source{source}, opt, b.selector)
 						if err != nil {
 							return err
-						}
-
-						if opt.Condition != nil {
-							input = NewFilterIterator(input, opt.Condition, opt)
 						}
 
 						// Wrap the result in a call iterator.

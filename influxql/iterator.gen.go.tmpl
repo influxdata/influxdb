@@ -1503,6 +1503,70 @@ type {{$k.name}}DedupeIterator struct {
 	m     map[string]struct{} // lookup of points already sent
 }
 
+type {{$k.name}}IteratorMapper struct {
+	e         *Emitter
+	buf       []interface{}
+	driver    IteratorMap   // which iterator to use for the primary value, can be nil
+	fields    []IteratorMap // which iterator to use for an aux field
+	point     {{$k.Name}}Point
+}
+
+func new{{$k.Name}}IteratorMapper(itrs []Iterator, driver IteratorMap, fields []IteratorMap, opt IteratorOptions) *{{$k.name}}IteratorMapper {
+	e := NewEmitter(itrs, opt.Ascending, 0)
+	e.OmitTime = true
+	return &{{$k.name}}IteratorMapper{
+		e:         e,
+		buf:       make([]interface{}, len(itrs)),
+		driver:    driver,
+		fields:    fields,
+		point:  {{$k.Name}}Point{
+			Aux: make([]interface{}, len(fields)),
+		},
+	}
+}
+
+func (itr *{{$k.name}}IteratorMapper) Next() (*{{$k.Name}}Point, error) {
+	t, name, tags, err := itr.e.loadBuf()
+	if err != nil || t == ZeroTime {
+		return nil, err
+	}
+	itr.point.Time = t
+	itr.point.Name = name
+	itr.point.Tags = tags
+
+	itr.e.readInto(t, name, tags, itr.buf)
+	if itr.driver != nil {
+	if v := itr.driver.Value(tags, itr.buf); v != nil {
+			if v, ok := v.({{$k.Type}}); ok {
+				itr.point.Value = v
+				itr.point.Nil = false
+			} else {
+				itr.point.Value = {{$k.Nil}}
+				itr.point.Nil = true
+			}
+		} else {
+			itr.point.Value = {{$k.Nil}}
+			itr.point.Nil = true
+		}
+	}
+	for i, f := range itr.fields {
+		itr.point.Aux[i] = f.Value(tags, itr.buf)
+	}
+	return &itr.point, nil
+}
+
+func (itr *{{$k.name}}IteratorMapper) Stats() IteratorStats {
+	stats := IteratorStats{}
+	for _, itr := range itr.e.itrs {
+		stats.Add(itr.Stats())
+	}
+	return stats
+}
+
+func (itr *{{$k.name}}IteratorMapper) Close() error {
+	return itr.e.Close()
+}
+
 type {{$k.name}}FilterIterator struct {
 	input {{$k.Name}}Iterator
 	cond  Expr

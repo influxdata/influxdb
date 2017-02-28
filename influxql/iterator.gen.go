@@ -2736,6 +2736,70 @@ type floatDedupeIterator struct {
 	m     map[string]struct{} // lookup of points already sent
 }
 
+type floatIteratorMapper struct {
+	e      *Emitter
+	buf    []interface{}
+	driver IteratorMap   // which iterator to use for the primary value, can be nil
+	fields []IteratorMap // which iterator to use for an aux field
+	point  FloatPoint
+}
+
+func newFloatIteratorMapper(itrs []Iterator, driver IteratorMap, fields []IteratorMap, opt IteratorOptions) *floatIteratorMapper {
+	e := NewEmitter(itrs, opt.Ascending, 0)
+	e.OmitTime = true
+	return &floatIteratorMapper{
+		e:      e,
+		buf:    make([]interface{}, len(itrs)),
+		driver: driver,
+		fields: fields,
+		point: FloatPoint{
+			Aux: make([]interface{}, len(fields)),
+		},
+	}
+}
+
+func (itr *floatIteratorMapper) Next() (*FloatPoint, error) {
+	t, name, tags, err := itr.e.loadBuf()
+	if err != nil || t == ZeroTime {
+		return nil, err
+	}
+	itr.point.Time = t
+	itr.point.Name = name
+	itr.point.Tags = tags
+
+	itr.e.readInto(t, name, tags, itr.buf)
+	if itr.driver != nil {
+		if v := itr.driver.Value(tags, itr.buf); v != nil {
+			if v, ok := v.(float64); ok {
+				itr.point.Value = v
+				itr.point.Nil = false
+			} else {
+				itr.point.Value = 0
+				itr.point.Nil = true
+			}
+		} else {
+			itr.point.Value = 0
+			itr.point.Nil = true
+		}
+	}
+	for i, f := range itr.fields {
+		itr.point.Aux[i] = f.Value(tags, itr.buf)
+	}
+	return &itr.point, nil
+}
+
+func (itr *floatIteratorMapper) Stats() IteratorStats {
+	stats := IteratorStats{}
+	for _, itr := range itr.e.itrs {
+		stats.Add(itr.Stats())
+	}
+	return stats
+}
+
+func (itr *floatIteratorMapper) Close() error {
+	return itr.e.Close()
+}
+
 type floatFilterIterator struct {
 	input FloatIterator
 	cond  Expr
@@ -5585,6 +5649,70 @@ type integerDedupeIterator struct {
 	m     map[string]struct{} // lookup of points already sent
 }
 
+type integerIteratorMapper struct {
+	e      *Emitter
+	buf    []interface{}
+	driver IteratorMap   // which iterator to use for the primary value, can be nil
+	fields []IteratorMap // which iterator to use for an aux field
+	point  IntegerPoint
+}
+
+func newIntegerIteratorMapper(itrs []Iterator, driver IteratorMap, fields []IteratorMap, opt IteratorOptions) *integerIteratorMapper {
+	e := NewEmitter(itrs, opt.Ascending, 0)
+	e.OmitTime = true
+	return &integerIteratorMapper{
+		e:      e,
+		buf:    make([]interface{}, len(itrs)),
+		driver: driver,
+		fields: fields,
+		point: IntegerPoint{
+			Aux: make([]interface{}, len(fields)),
+		},
+	}
+}
+
+func (itr *integerIteratorMapper) Next() (*IntegerPoint, error) {
+	t, name, tags, err := itr.e.loadBuf()
+	if err != nil || t == ZeroTime {
+		return nil, err
+	}
+	itr.point.Time = t
+	itr.point.Name = name
+	itr.point.Tags = tags
+
+	itr.e.readInto(t, name, tags, itr.buf)
+	if itr.driver != nil {
+		if v := itr.driver.Value(tags, itr.buf); v != nil {
+			if v, ok := v.(int64); ok {
+				itr.point.Value = v
+				itr.point.Nil = false
+			} else {
+				itr.point.Value = 0
+				itr.point.Nil = true
+			}
+		} else {
+			itr.point.Value = 0
+			itr.point.Nil = true
+		}
+	}
+	for i, f := range itr.fields {
+		itr.point.Aux[i] = f.Value(tags, itr.buf)
+	}
+	return &itr.point, nil
+}
+
+func (itr *integerIteratorMapper) Stats() IteratorStats {
+	stats := IteratorStats{}
+	for _, itr := range itr.e.itrs {
+		stats.Add(itr.Stats())
+	}
+	return stats
+}
+
+func (itr *integerIteratorMapper) Close() error {
+	return itr.e.Close()
+}
+
 type integerFilterIterator struct {
 	input IntegerIterator
 	cond  Expr
@@ -8420,6 +8548,70 @@ type stringDedupeIterator struct {
 	m     map[string]struct{} // lookup of points already sent
 }
 
+type stringIteratorMapper struct {
+	e      *Emitter
+	buf    []interface{}
+	driver IteratorMap   // which iterator to use for the primary value, can be nil
+	fields []IteratorMap // which iterator to use for an aux field
+	point  StringPoint
+}
+
+func newStringIteratorMapper(itrs []Iterator, driver IteratorMap, fields []IteratorMap, opt IteratorOptions) *stringIteratorMapper {
+	e := NewEmitter(itrs, opt.Ascending, 0)
+	e.OmitTime = true
+	return &stringIteratorMapper{
+		e:      e,
+		buf:    make([]interface{}, len(itrs)),
+		driver: driver,
+		fields: fields,
+		point: StringPoint{
+			Aux: make([]interface{}, len(fields)),
+		},
+	}
+}
+
+func (itr *stringIteratorMapper) Next() (*StringPoint, error) {
+	t, name, tags, err := itr.e.loadBuf()
+	if err != nil || t == ZeroTime {
+		return nil, err
+	}
+	itr.point.Time = t
+	itr.point.Name = name
+	itr.point.Tags = tags
+
+	itr.e.readInto(t, name, tags, itr.buf)
+	if itr.driver != nil {
+		if v := itr.driver.Value(tags, itr.buf); v != nil {
+			if v, ok := v.(string); ok {
+				itr.point.Value = v
+				itr.point.Nil = false
+			} else {
+				itr.point.Value = ""
+				itr.point.Nil = true
+			}
+		} else {
+			itr.point.Value = ""
+			itr.point.Nil = true
+		}
+	}
+	for i, f := range itr.fields {
+		itr.point.Aux[i] = f.Value(tags, itr.buf)
+	}
+	return &itr.point, nil
+}
+
+func (itr *stringIteratorMapper) Stats() IteratorStats {
+	stats := IteratorStats{}
+	for _, itr := range itr.e.itrs {
+		stats.Add(itr.Stats())
+	}
+	return stats
+}
+
+func (itr *stringIteratorMapper) Close() error {
+	return itr.e.Close()
+}
+
 type stringFilterIterator struct {
 	input StringIterator
 	cond  Expr
@@ -11253,6 +11445,70 @@ type booleanBoolTransformFunc func(p *BooleanPoint) *BooleanPoint
 type booleanDedupeIterator struct {
 	input BooleanIterator
 	m     map[string]struct{} // lookup of points already sent
+}
+
+type booleanIteratorMapper struct {
+	e      *Emitter
+	buf    []interface{}
+	driver IteratorMap   // which iterator to use for the primary value, can be nil
+	fields []IteratorMap // which iterator to use for an aux field
+	point  BooleanPoint
+}
+
+func newBooleanIteratorMapper(itrs []Iterator, driver IteratorMap, fields []IteratorMap, opt IteratorOptions) *booleanIteratorMapper {
+	e := NewEmitter(itrs, opt.Ascending, 0)
+	e.OmitTime = true
+	return &booleanIteratorMapper{
+		e:      e,
+		buf:    make([]interface{}, len(itrs)),
+		driver: driver,
+		fields: fields,
+		point: BooleanPoint{
+			Aux: make([]interface{}, len(fields)),
+		},
+	}
+}
+
+func (itr *booleanIteratorMapper) Next() (*BooleanPoint, error) {
+	t, name, tags, err := itr.e.loadBuf()
+	if err != nil || t == ZeroTime {
+		return nil, err
+	}
+	itr.point.Time = t
+	itr.point.Name = name
+	itr.point.Tags = tags
+
+	itr.e.readInto(t, name, tags, itr.buf)
+	if itr.driver != nil {
+		if v := itr.driver.Value(tags, itr.buf); v != nil {
+			if v, ok := v.(bool); ok {
+				itr.point.Value = v
+				itr.point.Nil = false
+			} else {
+				itr.point.Value = false
+				itr.point.Nil = true
+			}
+		} else {
+			itr.point.Value = false
+			itr.point.Nil = true
+		}
+	}
+	for i, f := range itr.fields {
+		itr.point.Aux[i] = f.Value(tags, itr.buf)
+	}
+	return &itr.point, nil
+}
+
+func (itr *booleanIteratorMapper) Stats() IteratorStats {
+	stats := IteratorStats{}
+	for _, itr := range itr.e.itrs {
+		stats.Add(itr.Stats())
+	}
+	return stats
+}
+
+func (itr *booleanIteratorMapper) Close() error {
+	return itr.e.Close()
 }
 
 type booleanFilterIterator struct {
