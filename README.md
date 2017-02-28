@@ -142,6 +142,9 @@ We recommend installing Chronograf using one of the [pre-built packages](https:/
 * `systemctl start chronograf` if you have installed Chronograf using an official Debian or RPM package, and are running a distro with `systemd`. For example, Ubuntu 15 or later.
 * `$GOPATH/bin/chronograf` if you have built Chronograf from source.
 
+By default, chronograf runs on port `8888`.
+
+
 ### With Docker
 To get started right away with Docker, you can pull down our latest alpha:
 
