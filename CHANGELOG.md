@@ -16,6 +16,7 @@
 - [#7968](https://github.com/influxdata/influxdb/issues/7968): Properly select a tag within a subquery.
 - [#8028](https://github.com/influxdata/influxdb/issues/8028): Fix panic in collectd when configured to read types DB from directory.
 - [#7880](https://github.com/influxdata/influxdb/issues/7880): Dividing aggregate functions with different outputs doesn't panic.
+- [#8044](https://github.com/influxdata/influxdb/issues/8044): Treat non-reserved measurement names with underscores as normal measurements.
 
 ## v1.2.0 [2017-01-24]
 

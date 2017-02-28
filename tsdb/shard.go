@@ -689,23 +689,28 @@ func (s *Shard) CreateIterator(measurement string, opt influxql.IteratorOptions)
 	}
 
 	if strings.HasPrefix(measurement, "_") {
-		return s.createSystemIterator(measurement, opt)
+		if itr, ok, err := s.createSystemIterator(measurement, opt); ok {
+			return itr, err
+		}
+		// Unknown system source so pass this to the engine.
 	}
 	return s.engine.CreateIterator(measurement, opt)
 }
 
 // createSystemIterator returns an iterator for a system source.
-func (s *Shard) createSystemIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+func (s *Shard) createSystemIterator(measurement string, opt influxql.IteratorOptions) (influxql.Iterator, bool, error) {
 	switch measurement {
 	case "_fieldKeys":
-		return NewFieldKeysIterator(s, opt)
+		itr, err := NewFieldKeysIterator(s, opt)
+		return itr, true, err
 	case "_series":
-		return NewSeriesIterator(s, opt)
+		itr, err := NewSeriesIterator(s, opt)
+		return itr, true, err
 	case "_tagKeys":
-		return NewTagKeysIterator(s, opt)
-	default:
-		return nil, fmt.Errorf("unknown system source: %s", measurement)
+		itr, err := NewTagKeysIterator(s, opt)
+		return itr, true, err
 	}
+	return nil, false, nil
 }
 
 // FieldDimensions returns unique sets of fields and dimensions across a list of sources.
@@ -730,12 +735,15 @@ func (s *Shard) FieldDimensions(measurements []string) (fields map[string]influx
 				keys = []string{"tagKey"}
 			}
 
-			for _, k := range keys {
-				if _, ok := fields[k]; !ok || influxql.String < fields[k] {
-					fields[k] = influxql.String
+			if len(keys) > 0 {
+				for _, k := range keys {
+					if _, ok := fields[k]; !ok || influxql.String < fields[k] {
+						fields[k] = influxql.String
+					}
 				}
+				continue
 			}
-			continue
+			// Unknown system source so default to looking for a measurement.
 		}
 
 		// Retrieve measurement.
@@ -779,16 +787,19 @@ func (s *Shard) MapType(measurement, field string) influxql.DataType {
 			if field == "fieldKey" || field == "fieldType" {
 				return influxql.String
 			}
+			return influxql.Unknown
 		case "_series":
 			if field == "key" {
 				return influxql.String
 			}
+			return influxql.Unknown
 		case "_tagKeys":
 			if field == "tagKey" {
 				return influxql.String
 			}
+			return influxql.Unknown
 		}
-		return influxql.Unknown
+		// Unknown system source so default to looking for a measurement.
 	}
 
 	mm := s.index.Measurement(measurement)
