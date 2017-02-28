@@ -2,6 +2,7 @@ import React, {Component, PropTypes} from 'react'
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import {loadUsersAsync} from 'src/users/actions'
+import UsersTable from 'src/users/components/UsersTable'
 
 class UsersPage extends Component {
   constructor(props) {
@@ -14,13 +15,16 @@ class UsersPage extends Component {
   }
 
   render() {
+    const {users} = this.props
+
     return (
-      <div>Hello Users</div>
+      <UsersTable users={users} />
     )
   }
 }
 
 const {
+  arrayOf,
   func,
   shape,
   string,
@@ -33,12 +37,12 @@ UsersPage.propTypes = {
       users: string.isRequired,
     }),
   }).isRequired,
-  users: shape(),
+  users: arrayOf(shape()),
   loadUsers: func,
 }
 
-const mapStateToProps = ({users}) => ({
-  users,
+const mapStateToProps = ({admin}) => ({
+  users: admin.users,
 })
 
 const mapDispatchToProps = (dispatch) => ({

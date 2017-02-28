@@ -5,16 +5,16 @@ import makeQueryExecuter from 'src/shared/middleware/queryExecuter';
 import resizeLayout from 'src/shared/middleware/resizeLayout';
 import * as dataExplorerReducers from 'src/data_explorer/reducers';
 import * as sharedReducers from 'src/shared/reducers';
+import adminReducer from 'src/users/reducers/admin';
 import rulesReducer from 'src/kapacitor/reducers/rules';
 import dashboardUI from 'src/dashboards/reducers/ui';
-import usersReducer from 'src/users/reducers/users';
 import persistStateEnhancer from './persistStateEnhancer';
 
 const rootReducer = combineReducers({
   ...sharedReducers,
   ...dataExplorerReducers,
+  admin: adminReducer,
   rules: rulesReducer,
-  users: usersReducer,
   dashboardUI,
 });
 
