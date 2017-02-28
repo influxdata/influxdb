@@ -26,9 +26,18 @@ var (
 	Write = "WRITE"
 )
 
-// Allowances return just READ and WRITE for OSS Influx
-func (c *Client) Allowances(context.Context) chronograf.Allowances {
-	return chronograf.Allowances{"READ", "WRITE"}
+// Permissions return just READ and WRITE for OSS Influx
+func (c *Client) Permissions(context.Context) chronograf.Permissions {
+	return chronograf.Permissions{
+		{
+			Scope:   chronograf.AllScope,
+			Allowed: AllowAll,
+		},
+		{
+			Scope:   chronograf.DBScope,
+			Allowed: AllowAll,
+		},
+	}
 }
 
 // showResults is used to deserialize InfluxQL SHOW commands

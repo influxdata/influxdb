@@ -53,8 +53,8 @@ type TimeSeries interface {
 	Connect(context.Context, *Source) error
 	// UsersStore represents the user accounts within the TimeSeries database
 	Users(context.Context) UsersStore
-	// Allowances returns all valid names permissions in this database
-	Allowances(context.Context) Allowances
+	// Permissions returns all valid names permissions in this database
+	Permissions(context.Context) Permissions
 	// Roles represents the roles associated with this TimesSeriesDatabase
 	Roles(context.Context) (RolesStore, error)
 }
