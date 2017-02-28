@@ -1,6 +1,7 @@
 ## v1.2.0 [unreleased]
 
 ### Bug Fixes
+  1. [#936](https://github.com/influxdata/chronograf/pull/936): Fix leaking sockets for InfluxQL queries
 
 ### Features
 
