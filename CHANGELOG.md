@@ -68,6 +68,12 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7845](https://github.com/influxdata/influxdb/issues/7845): Fix race in storage engine.
 - [#7814](https://github.com/influxdata/influxdb/issues/7814): InfluxDB should do a partial write on mismatched type errors.
 
+## v1.1.4 [2017-02-27]
+
+### Bugfixes
+
+- [#8063](https://github.com/influxdata/influxdb/pull/8063): Backport #7631 to reduce GC allocations.
+
 ## v1.1.3 [2017-02-17]
 
 ### Bugfixes
