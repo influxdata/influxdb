@@ -13,6 +13,14 @@ import (
 
 var _ chronograf.TimeSeries = &Client{}
 
+// Shared transports for all clients to prevent leaking connections
+var (
+	skipVerifyTransport = &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	defaultTransport = &http.Transport{}
+)
+
 // Client is a device for retrieving time series data from an InfluxDB instance
 type Client struct {
 	URL                *url.URL
@@ -74,10 +82,9 @@ func (c *Client) query(u *url.URL, q chronograf.Query) (chronograf.Response, err
 
 	hc := &http.Client{}
 	if c.InsecureSkipVerify {
-		tr := &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		}
-		hc.Transport = tr
+		hc.Transport = skipVerifyTransport
+	} else {
+		hc.Transport = defaultTransport
 	}
 	resp, err := hc.Do(req)
 	if err != nil {
