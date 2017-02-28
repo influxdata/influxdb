@@ -1,15 +1,20 @@
-import React from 'react';
+import React, {PropTypes} from 'react';
 import classnames from 'classnames';
 import OnClickOutside from 'shared/components/OnClickOutside';
 
-import autoRefreshValues from 'hson!../data/autoRefreshValues.hson';
+import autoRefreshItems from 'hson!../data/autoRefreshes.hson';
+
+const {
+  number,
+  func,
+} = PropTypes
 
 const AutoRefreshDropdown = React.createClass({
   autobind: false,
 
   propTypes: {
-    selected: React.PropTypes.string.isRequired,
-    onChoose: React.PropTypes.func.isRequired,
+    selected: number.isRequired,
+    onChoose: func.isRequired,
   },
 
   getInitialState() {
@@ -18,13 +23,16 @@ const AutoRefreshDropdown = React.createClass({
     };
   },
 
+  findAutoRefreshItem(milliseconds) {
+    return autoRefreshItems.find((values) => values.milliseconds === milliseconds)
+  },
+
   handleClickOutside() {
     this.setState({isOpen: false});
   },
 
-  handleSelection(params) {
-    const {seconds, menuOption} = params;
-    this.props.onChoose({seconds});
+  handleSelection(milliseconds) {
+    this.props.onChoose(milliseconds);
     this.setState({isOpen: false});
   },
 
@@ -41,15 +49,15 @@ const AutoRefreshDropdown = React.createClass({
       <div className="dropdown time-range-dropdown">
         <div className="btn btn-sm btn-info dropdown-toggle" onClick={() => self.toggleMenu()}>
           <span className="icon refresh"></span>
-          <span className="selected-time-range">{selected}</span>
+          <span className="selected-time-range">{this.findAutoRefreshItem(selected).inputValue}</span>
           <span className="caret" />
         </div>
         <ul className={classnames("dropdown-menu", {show: isOpen})}>
-          <li className="dropdown-header">Time Range</li>
-          {autoRefreshValues.map((item) => {
+          <li className="dropdown-header">AutoRefresh Interval</li>
+          {autoRefreshItems.map((item) => {
             return (
               <li key={item.menuOption}>
-                <a href="#" onClick={() => self.handleSelection(item)}>
+                <a href="#" onClick={() => self.handleSelection(item.milliseconds)}>
                   {item.menuOption}
                 </a>
               </li>

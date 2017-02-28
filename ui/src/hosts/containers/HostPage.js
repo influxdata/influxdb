@@ -3,20 +3,23 @@ import {Link} from 'react-router'
 import {connect} from 'react-redux'
 import _ from 'lodash'
 import classnames from 'classnames';
-import {loadLocalStorage} from 'src/localStorage'
 
 import LayoutRenderer from 'shared/components/LayoutRenderer';
 import DashboardHeader from 'src/dashboards/components/DashboardHeader';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 import {getMappings, getAppsForHosts, getMeasurementsForHost, getAllHosts} from 'src/hosts/apis';
 import {fetchLayouts} from 'shared/apis';
+
+import {setAutoRefresh} from 'shared/actions/appConfig'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
+import {bindActionCreators} from 'redux'
 
 const {
   shape,
   string,
   bool,
   func,
+  number,
 } = PropTypes
 
 export const HostPage = React.createClass({
@@ -36,6 +39,8 @@ export const HostPage = React.createClass({
         app: string,
       }),
     }),
+    autoRefresh: number.isRequired,
+    handleChooseAutoRefresh: func.isRequired,
     inPresentationMode: bool,
     handleClickPresentationButton: func,
   },
@@ -87,13 +92,9 @@ export const HostPage = React.createClass({
     this.setState({timeRange});
   },
 
-  // TODO implement
-  handleChooseAutoRefresh({})
-
   renderLayouts(layouts) {
     const {timeRange} = this.state;
-    const {source, autoRefreshMs} = this.props;
-    console.log(autoRefreshMs)
+    const {source, autoRefresh} = this.props;
 
     const autoflowLayouts = layouts.filter((layout) => !!layout.autoflow);
 
@@ -141,7 +142,7 @@ export const HostPage = React.createClass({
       <LayoutRenderer
         timeRange={timeRange}
         cells={layoutCells}
-        autoRefreshMs={autoRefreshMs}
+        autoRefresh={autoRefresh}
         source={source.links.proxy}
         host={this.props.params.hostID}
       />
@@ -149,7 +150,7 @@ export const HostPage = React.createClass({
   },
 
   render() {
-    const {params: {hostID}, location: {query: {app}}, source: {id}, inPresentationMode, handleClickPresentationButton} = this.props
+    const {params: {hostID}, location: {query: {app}}, source: {id}, autoRefresh, handleChooseAutoRefresh, inPresentationMode, handleClickPresentationButton} = this.props
     const {layouts, timeRange, hosts} = this.state
     const appParam = app ? `?app=${app}` : ''
 
@@ -157,10 +158,11 @@ export const HostPage = React.createClass({
       <div className="page">
         <DashboardHeader
           buttonText={hostID}
+          autoRefresh={autoRefresh}
           timeRange={timeRange}
           isHidden={inPresentationMode}
           handleChooseTimeRange={this.handleChooseTimeRange}
-          handleChooseAutoRefresh={this.handleChooseAutoRefresh}
+          handleChooseAutoRefresh={handleChooseAutoRefresh}
           handleClickPresentationButton={handleClickPresentationButton}
         >
           {Object.keys(hosts).map((host, i) => {
@@ -188,11 +190,11 @@ export const HostPage = React.createClass({
 
 const mapStateToProps = (state) => ({
   inPresentationMode: state.appUI.presentationMode,
-  autoRefreshMs: state.appConfig.autoRefreshMs,
+  autoRefresh: state.appConfig.autoRefresh,
 })
 
 const mapDispatchToProps = (dispatch) => ({
-  handleChooseAutoRefresh: dispatch(setAutoRefresh()),
+  handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
 })
 

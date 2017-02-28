@@ -11,7 +11,7 @@ const DashboardHeader = ({
   dashboard,
   headerText,
   timeRange,
-  selectedAutoRefresh,
+  autoRefresh,
   isHidden,
   handleChooseTimeRange,
   handleChooseAutoRefresh,
@@ -48,11 +48,7 @@ const DashboardHeader = ({
           Graph Tips
         </div>
         <ReactTooltip id="graph-tips-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
-        <AutoRefreshDropdown
-          onChoose={handleChooseAutoRefresh}
-          selected={selectedAutoRefresh.inputValue}
-          iconName="refresh"
-        />
+        <AutoRefreshDropdown onChoose={handleChooseAutoRefresh} selected={autoRefresh} iconName="refresh" />
         <TimeRangeDropdown onChooseTimeRange={handleChooseTimeRange} selected={timeRange.inputValue} />
         <div className="btn btn-info btn-sm" onClick={handleClickPresentationButton}>
           <span className="icon expand-a" style={{margin: 0}}></span>
@@ -67,6 +63,7 @@ const {
   array,
   string,
   func,
+  number,
   bool,
 } = PropTypes
 
@@ -77,7 +74,7 @@ DashboardHeader.propTypes = {
   dashboard: shape({}),
   headerText: string,
   timeRange: shape({}).isRequired,
-  selectedAutoRefresh: shape({}).isRequired,
+  autoRefresh: number.isRequired,
   isHidden: bool.isRequired,
   handleChooseTimeRange: func.isRequired,
   handleChooseAutoRefresh: func.isRequired,

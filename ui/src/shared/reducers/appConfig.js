@@ -1,18 +1,20 @@
-const initialState = {
-  autoRefreshMs: 15000,
-};
+import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 
-export default function appConfig(state = initialState, action) {
+const initialState = {
+  autoRefresh: AUTOREFRESH_DEFAULT,
+}
+
+const appConfig = (state = initialState, action) => {
   switch (action.type) {
     case 'SET_AUTOREFRESH': {
       return {
         ...state,
-        autoRefreshMs: action.payload,
+        autoRefresh: action.payload.milliseconds,
       }
     }
-
-    // TODO implement 'GET_AUTOREFRESH'
   }
 
   return state
 }
+
+export default appConfig

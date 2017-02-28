@@ -9,9 +9,10 @@ export const loadLocalStorage = () => {
   }
 };
 
-export const saveToLocalStorage = ({queryConfigs, timeRange, dataExplorer}) => {
+export const saveToLocalStorage = ({appConfig, queryConfigs, timeRange, dataExplorer}) => {
   try {
     window.localStorage.setItem('state', JSON.stringify({
+      appConfig,
       queryConfigs,
       timeRange,
       dataExplorer,
