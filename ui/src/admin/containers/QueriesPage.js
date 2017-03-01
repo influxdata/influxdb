@@ -10,7 +10,7 @@ import {
 
 import showDatabasesParser from 'shared/parsing/showDatabases';
 import showQueriesParser from 'shared/parsing/showQueries';
-import {TIMES} from 'src/queries/constants'
+import {TIMES} from 'src/admin/constants'
 
 export default class QueriesPage extends Component {
   constructor(props) {
@@ -73,66 +73,60 @@ export default class QueriesPage extends Component {
   render() {
     const {queries} = this.state;
     return (
-      <div>
-        <div className="enterprise-header">
-          <div className="enterprise-header__container">
-            <div className="enterprise-header__left">
-              <h1>
-                Queries
-              </h1>
-            </div>
-          </div>
-        </div>
+      <div className="page">
+        <Header />
 
-        <div className="container-fluid">
-          <div className="row">
-            <div className="col-md-12">
-              <div className="panel panel-minimal">
-                <div className="panel-body">
-                  <table className="table v-center">
-                    <thead>
-                      <tr>
-                        <th>Database</th>
-                        <th>Query</th>
-                        <th>Running</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {queries.map((q) => {
-                        return (
-                          <tr key={q.id}>
-                            <td>{q.database}</td>
-                            <td><code>{q.query}</code></td>
-                            <td>{q.duration}</td>
-                            <td className="text-right">
-                              <button className="btn btn-xs btn-link-danger" onClick={this.handleKillQuery} data-toggle="modal" data-query-id={q.id} data-target="#killModal">
-                                Kill
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+        <div className="page-contents">
+          <div className="container-fluid">
+            <div className="row">
+              <div className="col-md-12">
+                <div className="panel panel-minimal">
+                  <div className="panel-body">
+                    <table className="table v-center">
+                      <thead>
+                        <tr>
+                          <th>Database</th>
+                          <th>Query</th>
+                          <th>Running</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {queries.map((q) => {
+                          return (
+                            <tr key={q.id}>
+                              <td>{q.database}</td>
+                              <td><code>{q.query}</code></td>
+                              <td>{q.duration}</td>
+                              <td className="text-right">
+                                <button className="btn btn-xs btn-link-danger" onClick={this.handleKillQuery} data-toggle="modal" data-query-id={q.id} data-target="#killModal">
+                                  Kill
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <div className="modal fade" id="killModal" tabIndex="-1" role="dialog" aria-labelledby="myModalLabel">
-          <div className="modal-dialog" role="document">
-            <div className="modal-content">
-              <div className="modal-header">
-                <button type="button" className="close" data-dismiss="modal" aria-label="Close">
-                  <span aria-hidden="true">×</span>
-                </button>
-                <h4 className="modal-title" id="myModalLabel">Are you sure you want to kill this query?</h4>
-              </div>
-              <div className="modal-footer">
-                <button type="button" className="btn btn-default" data-dismiss="modal">No</button>
-                <button type="button" className="btn btn-danger" data-dismiss="modal" onClick={this.handleConfirmKillQuery}>Yes, kill it!</button>
+          <div className="modal fade" id="killModal" tabIndex="-1" role="dialog" aria-labelledby="myModalLabel">
+            <div className="modal-dialog" role="document">
+              <div className="modal-content">
+                <div className="modal-header">
+                  <button type="button" className="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">×</span>
+                  </button>
+                  <h4 className="modal-title" id="myModalLabel">Are you sure you want to kill this query?</h4>
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-default" data-dismiss="modal">No</button>
+                  <button type="button" className="btn btn-danger" data-dismiss="modal" onClick={this.handleConfirmKillQuery}>Yes, kill it!</button>
+                </div>
               </div>
             </div>
           </div>
@@ -170,6 +164,18 @@ export default class QueriesPage extends Component {
     });
   }
 }
+
+const Header = () => (
+  <div className="page-header">
+    <div className="page-header__container">
+      <div className="page-header__left">
+        <h1>
+          Queries
+        </h1>
+      </div>
+    </div>
+  </div>
+)
 
 const {
   func,
