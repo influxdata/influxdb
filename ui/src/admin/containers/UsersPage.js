@@ -1,8 +1,8 @@
 import React, {Component, PropTypes} from 'react'
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
-import {loadUsersAsync} from 'src/users/actions'
-import UsersTable from 'src/users/components/UsersTable'
+import {loadUsersAsync} from 'src/admin/actions'
+import UsersTable from 'src/admin/components/UsersTable'
 
 class UsersPage extends Component {
   constructor(props) {

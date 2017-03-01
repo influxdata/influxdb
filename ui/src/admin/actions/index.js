@@ -1,4 +1,4 @@
-import {getUsers} from 'src/users/apis'
+import {getUsers} from 'src/admin/apis'
 
 export const loadUsers = ({users}) => ({
   type: 'LOAD_USERS',
