@@ -17,9 +17,7 @@
     "test:lint": "npm run lint; npm run test",
     "test:dev": "nodemon --exec npm run test:lint",
     "clean": "rm -rf build",
-    "storybook": "start-storybook -p 6006",
-    "build-storybook": "build-storybook",
-    "proxy": "node ./corsless"
+    "storybook": "node ./storybook"
   },
   "author": "",
   "eslintConfig": {

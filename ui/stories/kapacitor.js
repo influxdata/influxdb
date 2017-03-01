@@ -12,7 +12,7 @@ import queryConfigs from './stubs/queryConfigs';
 
 // Actions for Spies
 import * as kapacitorActions from 'src/kapacitor/actions/view'
-import * as queryActions from 'src/chronograf/actions/view';
+import * as queryActions from 'src/data_explorer/actions/view';
 
 // Components
 import KapacitorRule from 'src/kapacitor/components/KapacitorRule';
