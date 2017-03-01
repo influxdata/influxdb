@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react'
 import {Link} from 'react-router'
 import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
 import _ from 'lodash'
 import classnames from 'classnames';
 
@@ -12,7 +13,6 @@ import {fetchLayouts} from 'shared/apis';
 
 import {setAutoRefresh} from 'shared/actions/appConfig'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
-import {bindActionCreators} from 'redux'
 
 const {
   shape,
