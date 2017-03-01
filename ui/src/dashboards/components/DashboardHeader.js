@@ -59,12 +59,12 @@ const DashboardHeader = ({
 )
 
 const {
-  shape,
   array,
-  string,
+  bool,
   func,
   number,
-  bool,
+  shape,
+  string,
 } = PropTypes
 
 DashboardHeader.propTypes = {
