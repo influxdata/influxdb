@@ -8,8 +8,9 @@ import {
   killQuery,
 } from 'shared/apis/metaQuery'
 
-import showDatabasesParser from 'shared/parsing/showDatabases';
-import showQueriesParser from 'shared/parsing/showQueries';
+import QueriesTable from 'src/admin/components/QueriesTable'
+import showDatabasesParser from 'shared/parsing/showDatabases'
+import showQueriesParser from 'shared/parsing/showQueries'
 import {TIMES} from 'src/admin/constants'
 
 export default class QueriesPage extends Component {
@@ -21,6 +22,8 @@ export default class QueriesPage extends Component {
     }
 
     this.updateQueries = this.updateQueries.bind(this);
+    this.handleConfirmKillQuery = this.handleConfirmKillQuery.bind(this);
+    this.handleKillQuery = this.handleKillQuery.bind(this);
   }
 
   componentDidMount() {
@@ -74,63 +77,8 @@ export default class QueriesPage extends Component {
     const {queries} = this.state;
     return (
       <div className="page">
-        <Header />
-
-        <div className="page-contents">
-          <div className="container-fluid">
-            <div className="row">
-              <div className="col-md-12">
-                <div className="panel panel-minimal">
-                  <div className="panel-body">
-                    <table className="table v-center">
-                      <thead>
-                        <tr>
-                          <th>Database</th>
-                          <th>Query</th>
-                          <th>Running</th>
-                          <th></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {queries.map((q) => {
-                          return (
-                            <tr key={q.id}>
-                              <td>{q.database}</td>
-                              <td><code>{q.query}</code></td>
-                              <td>{q.duration}</td>
-                              <td className="text-right">
-                                <button className="btn btn-xs btn-link-danger" onClick={this.handleKillQuery} data-toggle="modal" data-query-id={q.id} data-target="#killModal">
-                                  Kill
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="modal fade" id="killModal" tabIndex="-1" role="dialog" aria-labelledby="myModalLabel">
-            <div className="modal-dialog" role="document">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <button type="button" className="close" data-dismiss="modal" aria-label="Close">
-                    <span aria-hidden="true">×</span>
-                  </button>
-                  <h4 className="modal-title" id="myModalLabel">Are you sure you want to kill this query?</h4>
-                </div>
-                <div className="modal-footer">
-                  <button type="button" className="btn btn-default" data-dismiss="modal">No</button>
-                  <button type="button" className="btn btn-danger" data-dismiss="modal" onClick={this.handleConfirmKillQuery}>Yes, kill it!</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <QueriesHeader />
+        <QueriesTable queries={queries} onConfirm={this.handleConfirmKillQuery} onKillQuery={this.handleKillQuery} />
       </div>
     );
   }
@@ -165,7 +113,7 @@ export default class QueriesPage extends Component {
   }
 }
 
-const Header = () => (
+const QueriesHeader = () => (
   <div className="page-header">
     <div className="page-header__container">
       <div className="page-header__left">
