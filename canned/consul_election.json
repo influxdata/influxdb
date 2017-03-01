@@ -1,6 +1,6 @@
 {
-    "id": "34611ae0-7c3e-4697-8db0-371b16bef345",
-    "measurement": "consul_raft_state_leader",
+    "id": "b15aaf24-701a-4d9b-920c-9a407e91da71",
+    "measurement": "consul_raft_state_candidate",
     "app": "consul_telemetry",
     "autoflow": true,
     "cells": [
@@ -9,11 +9,11 @@
             "y": 0,
             "w": 4,
             "h": 4,
-            "i": "ef8eeeb5-b408-46d6-8cfc-20c00c9d7239",
-            "name": "Consul – Leadership Change",
+            "i": "5b2bddce-badb-4594-91fb-0486f62266e5",
+            "name": "Consul – Leadership Election",
             "queries": [
                 {
-                    "query": "SELECT max(\"value\") as \"change\" FROM \"consul_raft_state_leader\"",
+                    "query": "SELECT max(\"value\") AS \"max_value\" FROM \"consul_raft_state_candidate\"",
                     "label": "count",
                     "groupbys": [],
                     "wheres": []
