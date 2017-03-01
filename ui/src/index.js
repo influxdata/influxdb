@@ -6,6 +6,7 @@ import {createHistory} from 'history';
 
 import App from 'src/App';
 import AlertsApp from 'src/alerts';
+import QueriesPage from 'src/queries';
 import CheckSources from 'src/CheckSources';
 import {HostsPage, HostPage} from 'src/hosts';
 import {KubernetesPage} from 'src/kubernetes';
@@ -129,6 +130,7 @@ const Root = React.createClass({
               <Route path="alert-rules/:ruleID" component={KapacitorRulePage} />
               <Route path="alert-rules/new" component={KapacitorRulePage} />
               <Route path="admin" component={AdminPage} />
+              <Route path="queries" component={QueriesPage} />
             </Route>
           </Route>
           <Route path="*" component={NotFound} />
