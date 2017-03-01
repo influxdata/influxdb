@@ -4473,15 +4473,13 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 		for _, src := range sources {
 			switch src := src.(type) {
 			case *Measurement:
-				t := typmap.MapType(src, expr.Val)
-				if typ == Unknown || t < typ {
+				if t := typmap.MapType(src, expr.Val); typ.LessThan(t) {
 					typ = t
 				}
 			case *SubQuery:
 				_, e := src.Statement.FieldExprByName(expr.Val)
 				if e != nil {
-					t := EvalType(e, src.Statement.Sources, typmap)
-					if typ == Unknown || t < typ {
+					if t := EvalType(e, src.Statement.Sources, typmap); typ.LessThan(t) {
 						typ = t
 					}
 				}
