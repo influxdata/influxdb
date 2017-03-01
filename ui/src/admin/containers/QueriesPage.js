@@ -1,51 +1,64 @@
 import React, {PropTypes, Component} from 'react'
+import {connect} from 'react-redux';
+import {bindActionCreators} from 'redux';
+
 import flatten from 'lodash/flatten'
-import reject from 'lodash/reject'
 import uniqBy from 'lodash/uniqBy'
+
 import {
   showDatabases,
   showQueries,
-  killQuery,
 } from 'shared/apis/metaQuery'
 
 import QueriesTable from 'src/admin/components/QueriesTable'
 import showDatabasesParser from 'shared/parsing/showDatabases'
 import showQueriesParser from 'shared/parsing/showQueries'
 import {TIMES} from 'src/admin/constants'
+import {
+  loadQueries as loadQueriesAction,
+  setQueryToKill as setQueryToKillAction,
+  killQueryAsync,
+} from 'src/admin/actions'
 
-export default class QueriesPage extends Component {
+class QueriesPage extends Component {
   constructor(props) {
     super(props)
-    this.state = {
-      queries: [],
-      queryIDToKill: null,
-    }
-
-    this.updateQueries = this.updateQueries.bind(this);
-    this.handleConfirmKillQuery = this.handleConfirmKillQuery.bind(this);
-    this.handleKillQuery = this.handleKillQuery.bind(this);
+    this.updateQueries = this.updateQueries.bind(this)
+    this.handleConfirmKillQuery = this.handleConfirmKillQuery.bind(this)
+    this.handleKillQuery = this.handleKillQuery.bind(this)
   }
 
   componentDidMount() {
-    this.updateQueries();
-    const updateInterval = 5000;
-    this.intervalID = setInterval(this.updateQueries, updateInterval);
+    this.updateQueries()
+    const updateInterval = 5000
+    this.intervalID = setInterval(this.updateQueries, updateInterval)
   }
 
   componentWillUnmount() {
-    clearInterval(this.intervalID);
+    clearInterval(this.intervalID)
+  }
+
+  render() {
+    const {queries} = this.props;
+
+    return (
+      <div className="page">
+        <QueriesHeader />
+        <QueriesTable queries={queries} onConfirm={this.handleConfirmKillQuery} onKillQuery={this.handleKillQuery} />
+      </div>
+    );
   }
 
   updateQueries() {
-    const {source, addFlashMessage} = this.props;
+    const {source, addFlashMessage, loadQueries} = this.props
     showDatabases(source.links.proxy).then((resp) => {
-      const {databases, errors} = showDatabasesParser(resp.data);
+      const {databases, errors} = showDatabasesParser(resp.data)
       if (errors.length) {
-        errors.forEach((message) => addFlashMessage({type: 'error', text: message}));
+        errors.forEach((message) => addFlashMessage({type: 'error', text: message}))
         return;
       }
 
-      const fetches = databases.map((db) => showQueries(source.links.proxy, db));
+      const fetches = databases.map((db) => showQueries(source.links.proxy, db))
 
       Promise.all(fetches).then((queryResponses) => {
         const allQueries = [];
@@ -66,50 +79,26 @@ export default class QueriesPage extends Component {
           const bTime = TIMES.find((t) => b.duration.match(t.test));
           return +aTime.magnitude <= +bTime.magnitude;
         });
-        this.setState({
-          queries: sortedQueries,
-        });
+
+        loadQueries(sortedQueries)
       });
     });
-  }
-
-  render() {
-    const {queries} = this.state;
-    return (
-      <div className="page">
-        <QueriesHeader />
-        <QueriesTable queries={queries} onConfirm={this.handleConfirmKillQuery} onKillQuery={this.handleKillQuery} />
-      </div>
-    );
   }
 
   handleKillQuery(e) {
     e.stopPropagation();
     const id = e.target.dataset.queryId;
-    this.setState({
-      queryIDToKill: id,
-    });
+
+    this.props.setQueryToKill(id)
   }
 
   handleConfirmKillQuery() {
-    const {queryIDToKill} = this.state;
+    const {queryIDToKill, source, killQuery} = this.props;
     if (queryIDToKill === null) {
       return;
     }
 
-    // optimitstic update
-    const {queries} = this.state;
-    this.setState({
-      queries: reject(queries, (q) => +q.id === +queryIDToKill),
-    });
-
-    // kill the query over http
-    const {source} = this.props;
-    killQuery(source.links.proxy, queryIDToKill).then(() => {
-      this.setState({
-        queryIDToKill: null,
-      });
-    });
+    killQuery(source.links.proxy, queryIDToKill)
   }
 }
 
@@ -126,6 +115,7 @@ const QueriesHeader = () => (
 )
 
 const {
+  arrayOf,
   func,
   string,
   shape,
@@ -137,5 +127,23 @@ QueriesPage.propTypes = {
       proxy: string,
     }),
   }),
+  queries: arrayOf(shape()),
   addFlashMessage: func,
+  loadQueries: func,
+  queryIDToKill: string,
+  setQueryToKill: func,
+  killQuery: func,
 }
+
+const mapStateToProps = ({admin: {queries, queryIDToKill}}) => ({
+  queries,
+  queryIDToKill,
+})
+
+const mapDispatchToProps = (dispatch) => ({
+  loadQueries: bindActionCreators(loadQueriesAction, dispatch),
+  setQueryToKill: bindActionCreators(setQueryToKillAction, dispatch),
+  killQuery: bindActionCreators(killQueryAsync, dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(QueriesPage)

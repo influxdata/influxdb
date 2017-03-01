@@ -1,13 +1,17 @@
 import AJAX from 'utils/ajax';
 
-export function proxy({source, query, db, rp}) {
-  return AJAX({
-    method: 'POST',
-    url: source,
-    data: {
-      query,
-      db,
-      rp,
-    },
-  });
+export const proxy = async ({source, query, db, rp}) => {
+  try {
+    return await AJAX({
+      method: 'POST',
+      url: source,
+      data: {
+        query,
+        db,
+        rp,
+      },
+    })
+  } catch (error) {
+    console.error(error) // eslint-disable-line no-console
+  }
 }
