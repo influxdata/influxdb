@@ -47,6 +47,10 @@ const SideNav = React.createClass({
           <NavListItem link={`${sourcePrefix}/manage-sources`}>InfluxDB</NavListItem>
           <NavListItem link={`${sourcePrefix}/kapacitor-config`}>Kapacitor</NavListItem>
         </NavBlock>
+        <NavBlock icon="crown" link={`${sourcePrefix}/users`}>
+          <NavHeader link={`${sourcePrefix}/users`} title="Admin" />
+          <NavListItem link={`${sourcePrefix}/users`}>Users & Roles</NavListItem>
+        </NavBlock>
         {loggedIn ? (
         <NavBlock icon="user-outline" className="sidebar__square-last">
           <a className="sidebar__menu-item" href="/oauth/logout">Logout</a>
