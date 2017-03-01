@@ -2732,7 +2732,7 @@
 			"type": "object",
 			"properties": {
 				"permissions": {
-					"$ref": "#/definitions/Allowances"
+					"$ref": "#/definitions/Permissions"
 				},
 				"links": {
 					"type": "object",

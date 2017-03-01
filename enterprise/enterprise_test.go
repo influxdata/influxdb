@@ -145,41 +145,70 @@ func Test_Enterprise_ComplainsIfNotOpened(t *testing.T) {
 	}
 }
 
-func TestClient_Allowances(t *testing.T) {
+func TestClient_Permissions(t *testing.T) {
 	tests := []struct {
 		name string
 
-		want chronograf.Allowances
+		want chronograf.Permissions
 	}{
 		{
 			name: "All possible enterprise permissions",
-			want: chronograf.Allowances{
-				"NoPermissions",
-				"ViewAdmin",
-				"ViewChronograf",
-				"CreateDatabase",
-				"CreateUserAndRole",
-				"AddRemoveNode",
-				"DropDatabase",
-				"DropData",
-				"ReadData",
-				"WriteData",
-				"Rebalance",
-				"ManageShard",
-				"ManageContinuousQuery",
-				"ManageQuery",
-				"ManageSubscription",
-				"Monitor",
-				"CopyShard",
-				"KapacitorAPI",
-				"KapacitorConfigAPI",
+			want: chronograf.Permissions{
+				{
+					Scope: chronograf.AllScope,
+					Allowed: chronograf.Allowances{
+						"NoPermissions",
+						"ViewAdmin",
+						"ViewChronograf",
+						"CreateDatabase",
+						"CreateUserAndRole",
+						"AddRemoveNode",
+						"DropDatabase",
+						"DropData",
+						"ReadData",
+						"WriteData",
+						"Rebalance",
+						"ManageShard",
+						"ManageContinuousQuery",
+						"ManageQuery",
+						"ManageSubscription",
+						"Monitor",
+						"CopyShard",
+						"KapacitorAPI",
+						"KapacitorConfigAPI",
+					},
+				},
+				{
+					Scope: chronograf.DBScope,
+					Allowed: chronograf.Allowances{
+						"NoPermissions",
+						"ViewAdmin",
+						"ViewChronograf",
+						"CreateDatabase",
+						"CreateUserAndRole",
+						"AddRemoveNode",
+						"DropDatabase",
+						"DropData",
+						"ReadData",
+						"WriteData",
+						"Rebalance",
+						"ManageShard",
+						"ManageContinuousQuery",
+						"ManageQuery",
+						"ManageSubscription",
+						"Monitor",
+						"CopyShard",
+						"KapacitorAPI",
+						"KapacitorConfigAPI",
+					},
+				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		c := &enterprise.Client{}
-		if got := c.Allowances(context.Background()); !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. Client.Allowances() = %v, want %v", tt.name, got, tt.want)
+		if got := c.Permissions(context.Background()); !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%q. Client.Permissions() = %v, want %v", tt.name, got, tt.want)
 		}
 	}
 }

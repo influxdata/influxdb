@@ -114,8 +114,8 @@ func (ts *TimeSeries) Roles(ctx context.Context) (chronograf.RolesStore, error) 
 	return nil, nil
 }
 
-func (ts *TimeSeries) Allowances(ctx context.Context) chronograf.Allowances {
-	return chronograf.Allowances{}
+func (ts *TimeSeries) Permissions(ctx context.Context) chronograf.Permissions {
+	return chronograf.Permissions{}
 }
 
 func NewMockTimeSeries(urls ...string) *TimeSeries {

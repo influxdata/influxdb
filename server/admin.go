@@ -298,15 +298,15 @@ func (h *Service) Permissions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	perms := ts.Allowances(ctx)
+	perms := ts.Permissions(ctx)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
 		return
 	}
 	httpAPISrcs := "/chronograf/v1/sources"
 	res := struct {
-		Permissions chronograf.Allowances `json:"permissions"`
-		Links       map[string]string     `json:"links"` // Links are URI locations related to user
+		Permissions chronograf.Permissions `json:"permissions"`
+		Links       map[string]string      `json:"links"` // Links are URI locations related to user
 	}{
 		Permissions: perms,
 		Links: map[string]string{
