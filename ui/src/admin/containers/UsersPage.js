@@ -11,9 +11,11 @@ class UsersPage extends Component {
   }
 
   componentDidMount() {
-    const {source, loadUsers} = this.props
+    const {source, loadUsers, loadRoles} = this.props
     loadUsers(source.links.users)
-    if (source.links.roles) loadRoles(source.links.roles)
+    if (source.links.roles) {
+      loadRoles(source.links.roles)
+    }
   }
 
   render() {
@@ -50,6 +52,7 @@ UsersPage.propTypes = {
   users: arrayOf(shape()),
   roles: arrayOf(shape()),
   loadUsers: func,
+  loadRoles: func,
 }
 
 const mapStateToProps = ({admin}) => ({

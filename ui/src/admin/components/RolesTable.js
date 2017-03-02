@@ -20,7 +20,7 @@ const RolesTable = ({roles}) => (
               return (
                 <tr key={role.name}>
                   <td>{role.name}</td>
-                  <td>{role.permissions.map((p) => p.name).join(', ')}</td>
+                  <td>{role.permissions.map((p) => p.scope).join(', ')}</td>
                   <td>{role.users.map((u) => u.name).join(', ')}</td>
                 </tr>
               );
