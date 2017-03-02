@@ -87,12 +87,12 @@ const HostsTable = React.createClass({
     const hostCount = sortedHosts.length;
 
     let hostsTitle;
-    if (hostCount === 1) {
-      hostsTitle = `${hostCount} Host`;
-    } else if (hostCount > 1) {
-      hostsTitle = `${hostCount} Hosts`;
-    } else {
+    if (hosts.length === 0) {
       hostsTitle = `Loading Hosts...`;
+    } else if (hostCount === 1) {
+      hostsTitle = `${hostCount} Host`;
+    } else {
+      hostsTitle = `${hostCount} Hosts`;
     }
 
     return (
