@@ -1,5 +1,5 @@
-import React, {PropTypes} from 'react';
-import {Link} from 'react-router';
+import React, {PropTypes} from 'react'
+import {Link} from 'react-router'
 
 const NoKapacitorError = React.createClass({
   propTypes: {
@@ -9,14 +9,14 @@ const NoKapacitorError = React.createClass({
   },
 
   render() {
-    const path = `/sources/${this.props.source.id}/kapacitor-config`;
+    const path = `/sources/${this.props.source.id}/kapacitor-config`
     return (
       <div>
         <p>The current source does not have an associated Kapacitor instance, please configure one.</p>
         <Link to={path}>Add Kapacitor</Link>
       </div>
-    );
+    )
   },
-});
+})
 
-export default NoKapacitorError;
+export default NoKapacitorError
