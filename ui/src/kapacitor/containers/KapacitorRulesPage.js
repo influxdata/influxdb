@@ -13,8 +13,8 @@ class KapacitorRulesPage extends Component {
       loading: true,
     }
 
-    this.handleDeleteRule = this.handleDeleteRule.bind(this)
-    this.handleRuleStatus = this.handleRuleStatus.bind(this)
+    this.handleDeleteRule = ::this.handleDeleteRule
+    this.handleRuleStatus = ::this.handleRuleStatus
   }
 
   componentDidMount() {
