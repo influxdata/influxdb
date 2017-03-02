@@ -22,11 +22,22 @@ class AdminPage extends Component {
     const {users, roles} = this.props
 
     return (
-      <div id="users-page">
-        <div className="container-fluid">
-          <div className="row">
-            <div className="col-md-12">
-              {users.length ? <AdminTabs users={users} roles={roles} /> : <span>Loading...</span>}
+      <div className="page">
+        <div className="page-header">
+          <div className="page-header__container">
+            <div className="page-header__left">
+              <h1>
+                Admin
+              </h1>
+            </div>
+          </div>
+        </div>
+        <div className="page-contents">
+          <div className="container-fluid">
+            <div className="row">
+              <div className="col-md-12">
+                {users.length ? <AdminTabs users={users} roles={roles} /> : <span>Loading...</span>}
+              </div>
             </div>
           </div>
         </div>

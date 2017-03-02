@@ -45,6 +45,10 @@ UsersTable.propTypes = {
     roles: arrayOf(shape({
       name: string,
     })),
+    permissions: arrayOf(shape({
+      name: string,
+      scope: string.isRequired,
+    })),
   })),
 }
 

@@ -36,11 +36,20 @@ const RolesTable = ({roles}) => (
 const {
   arrayOf,
   shape,
+  string,
 } = PropTypes
 
 RolesTable.propTypes = {
-  users: arrayOf(shape()),
-  roles: arrayOf(shape()),
+  roles: arrayOf(shape({
+    name: string.isRequired,
+    users: arrayOf(shape({
+      name: string,
+    })),
+    permissions: arrayOf(shape({
+      name: string,
+      scope: string.isRequired,
+    })),
+  })),
 }
 
 export default RolesTable
