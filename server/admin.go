@@ -82,15 +82,15 @@ func (h *Service) NewSourceUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	ctx := r.Context()
-
 	srcID, store, err := h.sourceUsersStore(ctx, w, r)
 	if err != nil {
 		return
 	}
 
 	user := &chronograf.User{
-		Name:   req.Username,
-		Passwd: req.Password,
+		Name:        req.Username,
+		Passwd:      req.Password,
+		Permissions: req.Permissions,
 	}
 
 	res, err := store.Add(ctx, user)

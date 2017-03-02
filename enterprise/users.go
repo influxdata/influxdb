@@ -18,6 +18,7 @@ func (c *UserStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.Us
 		return nil, err
 	}
 	perms := ToEnterprise(u.Permissions)
+
 	if err := c.Ctrl.SetUserPerms(ctx, u.Name, perms); err != nil {
 		return nil, err
 	}
@@ -62,8 +63,11 @@ func (c *UserStore) Update(ctx context.Context, u *chronograf.User) error {
 	if u.Passwd != "" {
 		return c.Ctrl.ChangePassword(ctx, u.Name, u.Passwd)
 	}
-	perms := ToEnterprise(u.Permissions)
-	return c.Ctrl.SetUserPerms(ctx, u.Name, perms)
+	if u.Permissions != nil {
+		perms := ToEnterprise(u.Permissions)
+		return c.Ctrl.SetUserPerms(ctx, u.Name, perms)
+	}
+	return nil
 }
 
 // All is all users in influx
