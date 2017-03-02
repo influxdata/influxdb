@@ -37,7 +37,7 @@ UsersPage.propTypes = {
       users: string.isRequired,
     }),
   }).isRequired,
-  users: arrayOf(shape()),
+  users: arrayOf(shape()).isRequired,
   loadUsers: func,
 }
 
