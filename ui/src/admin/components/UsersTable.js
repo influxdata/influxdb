@@ -13,15 +13,19 @@ const UsersTable = ({users}) => (
         </thead>
         <tbody>
           {
-            users.map((user) => {
-              return (
-                <tr key={user.name}>
-                  <td>{user.name}</td>
-                  <td>{user.roles/* .map((r) => r.name).join(', ') */}</td>
-                  <td>{user.permissions.map((p) => p.scope).join(', ')}</td>
-                </tr>
-              );
-            })
+            users.length ? users.map((user) => (
+              <tr key={user.name}>
+                <td>{user.name}</td>
+                <td>{user.roles.map((r) => r.name).join(', ')}</td>
+                <td>{user.permissions.map((p) => p.scope).join(', ')}</td>
+              </tr>
+            )) : (() => (
+              <tr className="table-empty-state">
+                <th colSpan="5">
+                  <p>You don&#39;t have any Users,<br/>why not create one?</p>
+                </th>
+              </tr>
+            ))()
           }
         </tbody>
       </table>

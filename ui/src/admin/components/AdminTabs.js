@@ -5,7 +5,7 @@ import RolesTable from 'src/admin/components/RolesTable'
 
 const TABS = ['Users', 'Roles'];
 
-class UsersTabs extends Component {
+class AdminTabs extends Component {
   constructor(props) {
     super(props)
 
@@ -52,7 +52,7 @@ const {
   string,
 } = PropTypes
 
-UsersTabs.propTypes = {
+AdminTabs.propTypes = {
   users: arrayOf(shape({
     name: string.isRequired,
     roles: arrayOf(shape({
@@ -62,4 +62,4 @@ UsersTabs.propTypes = {
   roles: arrayOf(shape()),
 }
 
-export default UsersTabs
+export default AdminTabs

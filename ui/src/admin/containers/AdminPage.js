@@ -2,16 +2,16 @@ import React, {Component, PropTypes} from 'react'
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
 import {loadUsersAsync, loadRolesAsync} from 'src/admin/actions'
-import UsersTabs from 'src/admin/components/UsersTabs'
-import UsersTable from 'src/admin/components/UsersTable'
+import AdminTabs from 'src/admin/components/AdminTabs'
 
-class UsersPage extends Component {
+class AdminPage extends Component {
   constructor(props) {
     super(props)
   }
 
   componentDidMount() {
     const {source, loadUsers, loadRoles} = this.props
+
     loadUsers(source.links.users)
     if (source.links.roles) {
       loadRoles(source.links.roles)
@@ -26,7 +26,7 @@ class UsersPage extends Component {
         <div className="container-fluid">
           <div className="row">
             <div className="col-md-12">
-              {roles.length ? <UsersTabs users={users} roles={roles} /> : <UsersTable users={users} />}
+              {users.length ? <AdminTabs users={users} roles={roles} /> : <span>Loading...</span>}
             </div>
           </div>
         </div>
@@ -42,7 +42,7 @@ const {
   string,
 } = PropTypes
 
-UsersPage.propTypes = {
+AdminPage.propTypes = {
   source: shape({
     id: string.isRequired,
     links: shape({
@@ -65,4 +65,4 @@ const mapDispatchToProps = (dispatch) => ({
   loadRoles: bindActionCreators(loadRolesAsync, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(UsersPage);
+export default connect(mapStateToProps, mapDispatchToProps)(AdminPage);

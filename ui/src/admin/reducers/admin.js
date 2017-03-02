@@ -13,5 +13,6 @@ export default function admin(state = initialState, action) {
       return {...state, ...action.payload}
     }
   }
+
   return state
 }
