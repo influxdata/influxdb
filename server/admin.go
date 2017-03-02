@@ -52,6 +52,7 @@ func (r *sourceUserRequest) ValidUpdate() error {
 type sourceUser struct {
 	Username    string                 `json:"name,omitempty"`        // Username for new account
 	Permissions chronograf.Permissions `json:"permissions,omitempty"` // Account's permissions
+	Roles       []roleResponse         `json:"roles,omitempty"`       // Roles if source uses them
 	Links       selfLinks              `json:"links"`                 // Links are URI locations related to user
 }
 
@@ -128,11 +129,19 @@ func (h *Service) SourceUsers(w http.ResponseWriter, r *http.Request) {
 
 	su := []sourceUser{}
 	for _, u := range users {
-		su = append(su, sourceUser{
+		res := sourceUser{
 			Username:    u.Name,
 			Permissions: u.Permissions,
 			Links:       newSelfLinks(srcID, "users", u.Name),
-		})
+		}
+		if len(u.Roles) > 0 {
+			rr := make([]roleResponse, len(u.Roles))
+			for i, role := range u.Roles {
+				rr[i] = newRoleResponse(srcID, &role)
+			}
+			res.Roles = rr
+		}
+		su = append(su, res)
 	}
 
 	res := sourceUsers{
@@ -162,6 +171,13 @@ func (h *Service) SourceUserID(w http.ResponseWriter, r *http.Request) {
 		Username:    u.Name,
 		Permissions: u.Permissions,
 		Links:       newSelfLinks(srcID, "users", u.Name),
+	}
+	if len(u.Roles) > 0 {
+		rr := make([]roleResponse, len(u.Roles))
+		for i, role := range u.Roles {
+			rr[i] = newRoleResponse(srcID, &role)
+		}
+		res.Roles = rr
 	}
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
@@ -346,7 +362,7 @@ func (r *sourceRoleRequest) ValidUpdate() error {
 }
 
 type roleResponse struct {
-	Users       []sourceUser           `json:"users"`
+	Users       []sourceUser           `json:"users,omitempty"`
 	Name        string                 `json:"name"`
 	Permissions chronograf.Permissions `json:"permissions"`
 	Links       selfLinks              `json:"links"`

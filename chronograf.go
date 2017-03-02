@@ -275,6 +275,7 @@ type User struct {
 	Name        string      `json:"name"`
 	Passwd      string      `json:"password"`
 	Permissions Permissions `json:"permissions,omitempty"`
+	Roles       []Role      `json:"roles,omitempty"`
 }
 
 // UsersStore is the Storage and retrieval of authentication information

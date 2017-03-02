@@ -155,6 +155,27 @@ func (m *MetaClient) SetUserPerms(ctx context.Context, name string, perms Permis
 	return m.Post(ctx, "/user", a, nil)
 }
 
+// UserRoles returns a map of users to all of their current roles
+func (m *MetaClient) UserRoles(ctx context.Context) (map[string]Roles, error) {
+	res, err := m.Roles(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	userRoles := make(map[string]Roles)
+	for _, role := range res.Roles {
+		for _, u := range role.Users {
+			ur, ok := userRoles[u]
+			if !ok {
+				ur = Roles{}
+			}
+			ur.Roles = append(ur.Roles, role)
+			userRoles[u] = ur
+		}
+	}
+	return userRoles, nil
+}
+
 // Roles gets all the roles.  If name is not nil it filters for a single role
 func (m *MetaClient) Roles(ctx context.Context, name *string) (*Roles, error) {
 	params := map[string]string{}
