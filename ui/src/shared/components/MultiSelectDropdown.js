@@ -83,11 +83,11 @@ class MultiSelectDropdown extends Component {
     return (
       <div className={classNames('dropdown multi-select-dropdown', {open: isOpen})}>
         <div onClick={::this.toggleMenu} className="btn btn-xs btn-info dropdown-toggle" type="button">
-          <span className="multi-select-dropdown__label">
+          <div className="multi-select-dropdown__label">
             {
               labelText({localSelectedItems, isOpen, label})
             }
-          </span>
+          </div>
           <span className="caret"></span>
         </div>
         {this.renderMenu()}
