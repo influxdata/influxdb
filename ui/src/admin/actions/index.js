@@ -1,4 +1,4 @@
-import {getUsers} from 'src/admin/apis'
+import {getUsers, getRoles} from 'src/admin/apis'
 
 export const loadUsers = ({users}) => ({
   type: 'LOAD_USERS',
@@ -19,6 +19,6 @@ export const loadRoles = ({roles}) => ({
 })
 
 export const loadRolesAsync = (url) => async (dispatch) => {
-  const {data} = await getUsers(url)
+  const {data} = await getRoles(url)
   dispatch(loadRoles(data))
 }
