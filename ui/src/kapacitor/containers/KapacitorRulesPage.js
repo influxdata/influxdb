@@ -1,48 +1,21 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 import {getKapacitor} from 'src/shared/apis'
 import * as kapacitorActionCreators from '../actions/view'
 import KapacitorRules from 'src/kapacitor/components/KapacitorRules'
 
-const {
-  arrayOf,
-  func,
-  shape,
-  string,
-} = PropTypes
-
-export const KapacitorRulesPage = React.createClass({
-  propTypes: {
-    source: shape({
-      id: string.isRequired,
-      links: shape({
-        proxy: string.isRequired,
-        self: string.isRequired,
-        kapacitors: string.isRequired,
-      }),
-    }),
-    rules: arrayOf(shape({
-      name: string.isRequired,
-      trigger: string.isRequired,
-      message: string.isRequired,
-      alerts: arrayOf(string.isRequired).isRequired,
-    })).isRequired,
-    actions: shape({
-      fetchRules: func.isRequired,
-      deleteRule: func.isRequired,
-      updateRuleStatus: func.isRequired,
-    }).isRequired,
-    addFlashMessage: func,
-  },
-
-  getInitialState() {
-    return {
+class KapacitorRulesPage extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
       hasKapacitor: false,
       loading: true,
-      fooRule: 'HAI',
-    };
-  },
+    }
+
+    this.handleDeleteRule = this.handleDeleteRule.bind(this)
+    this.handleRuleStatus = this.handleRuleStatus.bind(this)
+  }
 
   componentDidMount() {
     getKapacitor(this.props.source).then((kapacitor) => {
@@ -51,12 +24,12 @@ export const KapacitorRulesPage = React.createClass({
       }
       this.setState({loading: false, hasKapacitor: !!kapacitor});
     });
-  },
+  }
 
   handleDeleteRule(rule) {
-    const {actions} = this.props;
-    actions.deleteRule(rule);
-  },
+    const {actions} = this.props
+    actions.deleteRule(rule)
+  }
 
   handleRuleStatus(rule) {
     const {actions} = this.props
@@ -64,7 +37,7 @@ export const KapacitorRulesPage = React.createClass({
 
     actions.updateRuleStatus(rule, status)
     actions.updateRuleStatusSuccess(rule.id, status)
-  },
+  }
 
   render() {
     const {source, rules} = this.props
@@ -80,19 +53,49 @@ export const KapacitorRulesPage = React.createClass({
         onChangeRuleStatus={this.handleRuleStatus}
       />
     )
-  },
-});
+  }
+}
 
-function mapStateToProps(state) {
+const {
+  arrayOf,
+  func,
+  shape,
+  string,
+} = PropTypes
+
+KapacitorRulesPage.propTypes = {
+  source: shape({
+    id: string.isRequired,
+    links: shape({
+      proxy: string.isRequired,
+      self: string.isRequired,
+      kapacitors: string.isRequired,
+    }),
+  }),
+  rules: arrayOf(shape({
+    name: string.isRequired,
+    trigger: string.isRequired,
+    message: string.isRequired,
+    alerts: arrayOf(string.isRequired).isRequired,
+  })).isRequired,
+  actions: shape({
+    fetchRules: func.isRequired,
+    deleteRule: func.isRequired,
+    updateRuleStatus: func.isRequired,
+  }).isRequired,
+  addFlashMessage: func,
+}
+
+const mapStateToProps = (state) => {
   return {
     rules: Object.values(state.rules),
-  };
+  }
 }
 
-function mapDispatchToProps(dispatch) {
+const mapDispatchToProps = (dispatch) => {
   return {
     actions: bindActionCreators(kapacitorActionCreators, dispatch),
-  };
+  }
 }
 
-export default connect(mapStateToProps, mapDispatchToProps)(KapacitorRulesPage);
+export default connect(mapStateToProps, mapDispatchToProps)(KapacitorRulesPage)
