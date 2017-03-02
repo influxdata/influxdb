@@ -24,6 +24,8 @@ type Ctrl interface {
 	ChangePassword(ctx context.Context, name, passwd string) error
 	SetUserPerms(ctx context.Context, name string, perms Permissions) error
 
+	UserRoles(ctx context.Context) (map[string]Roles, error)
+
 	Roles(ctx context.Context, name *string) (*Roles, error)
 	Role(ctx context.Context, name string) (*Role, error)
 	CreateRole(ctx context.Context, name string) error

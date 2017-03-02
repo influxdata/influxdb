@@ -2565,6 +2565,34 @@
 						"$ref": "#/definitions/Role"
 					}
 				}
+			},
+			"example": {
+				"roles": [
+					{
+						"users": [
+							{
+								"name": "admin",
+								"links": {
+									"self": "/chronograf/v1/sources/3/users/admin"
+								}
+							}
+						],
+						"name": "timetravelers",
+						"permissions": [
+							{
+								"scope": "database",
+								"name": "telegraf",
+								"allowed": [
+									"ReadData",
+									"WriteData"
+								]
+							}
+						],
+						"links": {
+							"self": "/chronograf/v1/sources/3/roles/timetravelers"
+						}
+					}
+				]
 			}
 		},
 		"Role": {
@@ -2596,6 +2624,30 @@
 						}
 					}
 				}
+			},
+			"example": {
+				"users": [
+					{
+						"name": "admin",
+						"links": {
+							"self": "/chronograf/v1/sources/3/users/admin"
+						}
+					}
+				],
+				"name": "timetravelers",
+				"permissions": [
+					{
+						"scope": "database",
+						"name": "telegraf",
+						"allowed": [
+							"ReadData",
+							"WriteData"
+						]
+					}
+				],
+				"links": {
+					"self": "/chronograf/v1/sources/3/roles/timetravelers"
+				}
 			}
 		},
 		"Users": {
@@ -2616,21 +2668,43 @@
 							{
 								"scope": "all",
 								"allowed": [
+									"ViewAdmin",
 									"ViewChronograf",
-									"ReadData"
-								]
-							},
-							{
-								"scope": "database",
-								"name": "telegraf",
-								"allowed": [
-									"ViewChronograf",
-									"ReadData"
+									"CreateDatabase",
+									"CreateUserAndRole",
+									"DropDatabase",
+									"DropData",
+									"ReadData",
+									"WriteData",
+									"ManageShard",
+									"ManageContinuousQuery",
+									"ManageQuery",
+									"ManageSubscription",
+									"Monitor",
+									"KapacitorAPI"
 								]
 							}
 						],
+						"roles": [
+							{
+								"name": "timetravelers",
+								"permissions": [
+									{
+										"scope": "database",
+										"name": "telegraf",
+										"allowed": [
+											"ReadData",
+											"WriteData"
+										]
+									}
+								],
+								"links": {
+									"self": "/chronograf/v1/sources/3/roles/timetravelers"
+								}
+							}
+						],
 						"links": {
-							"self": "/chronograf/v1/source/1/users/docbrown"
+							"self": "/chronograf/v1/sources/3/users/docbrown"
 						}
 					}
 				]
@@ -2669,21 +2743,43 @@
 					{
 						"scope": "all",
 						"allowed": [
+							"ViewAdmin",
 							"ViewChronograf",
-							"ReadData"
-						]
-					},
-					{
-						"scope": "database",
-						"name": "telegraf",
-						"allowed": [
-							"ViewChronograf",
-							"ReadData"
+							"CreateDatabase",
+							"CreateUserAndRole",
+							"DropDatabase",
+							"DropData",
+							"ReadData",
+							"WriteData",
+							"ManageShard",
+							"ManageContinuousQuery",
+							"ManageQuery",
+							"ManageSubscription",
+							"Monitor",
+							"KapacitorAPI"
 						]
 					}
 				],
+				"roles": [
+					{
+						"name": "timetravelers",
+						"permissions": [
+							{
+								"scope": "database",
+								"name": "telegraf",
+								"allowed": [
+									"ReadData",
+									"WriteData"
+								]
+							}
+						],
+						"links": {
+							"self": "/chronograf/v1/sources/3/roles/timetravelers"
+						}
+					}
+				],
 				"links": {
-					"self": "/chronograf/v1/source/1/users/docbrown"
+					"self": "/chronograf/v1/sources/3/users/docbrown"
 				}
 			}
 		},

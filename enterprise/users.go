@@ -35,9 +35,23 @@ func (c *UserStore) Get(ctx context.Context, name string) (*chronograf.User, err
 	if err != nil {
 		return nil, err
 	}
+
+	ur, err := c.Ctrl.UserRoles(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	role := ur[name]
+	cr := role.ToChronograf()
+	// For now we are removing all users from a role being returned.
+	for i, r := range cr {
+		r.Users = []chronograf.User{}
+		cr[i] = r
+	}
 	return &chronograf.User{
 		Name:        u.Name,
 		Permissions: ToChronograf(u.Permissions),
+		Roles:       cr,
 	}, nil
 }
 
@@ -59,11 +73,25 @@ func (c *UserStore) All(ctx context.Context) ([]chronograf.User, error) {
 		return nil, err
 	}
 
+	ur, err := c.Ctrl.UserRoles(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	res := make([]chronograf.User, len(all.Users))
 	for i, user := range all.Users {
+		role := ur[user.Name]
+		cr := role.ToChronograf()
+		// For now we are removing all users from a role being returned.
+		for i, r := range cr {
+			r.Users = []chronograf.User{}
+			cr[i] = r
+		}
+
 		res[i] = chronograf.User{
 			Name:        user.Name,
 			Permissions: ToChronograf(user.Permissions),
+			Roles:       cr,
 		}
 	}
 	return res, nil

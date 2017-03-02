@@ -85,9 +85,13 @@ func (c *RolesStore) All(ctx context.Context) ([]chronograf.Role, error) {
 		return nil, err
 	}
 
-	res := make([]chronograf.Role, len(all.Roles))
-	for i, role := range all.Roles {
+	return all.ToChronograf(), nil
+}
 
+// ToChronograf converts enterprise roles to chronograf
+func (r *Roles) ToChronograf() []chronograf.Role {
+	res := make([]chronograf.Role, len(r.Roles))
+	for i, role := range r.Roles {
 		users := make([]chronograf.User, len(role.Users))
 		for i, user := range role.Users {
 			users[i] = chronograf.User{
@@ -101,5 +105,5 @@ func (c *RolesStore) All(ctx context.Context) ([]chronograf.Role, error) {
 			Users:       users,
 		}
 	}
-	return res, nil
+	return res
 }

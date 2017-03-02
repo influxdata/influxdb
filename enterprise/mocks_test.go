@@ -68,6 +68,10 @@ func (cc *ControlClient) Role(ctx context.Context, name string) (*enterprise.Rol
 	return nil, nil
 }
 
+func (ccm *ControlClient) UserRoles(ctx context.Context) (map[string]enterprise.Roles, error) {
+	return nil, nil
+}
+
 func (ccm *ControlClient) Roles(ctx context.Context, name *string) (*enterprise.Roles, error) {
 	return nil, nil
 }
