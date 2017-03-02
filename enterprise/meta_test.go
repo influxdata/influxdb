@@ -876,6 +876,110 @@ func TestMetaClient_Role(t *testing.T) {
 	}
 }
 
+func TestMetaClient_UserRoles(t *testing.T) {
+	type fields struct {
+		URL    *url.URL
+		client interface {
+			Do(URL *url.URL, path, method string, params map[string]string, body io.Reader) (*http.Response, error)
+		}
+	}
+	type args struct {
+		ctx  context.Context
+		name *string
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    map[string]Roles
+		wantErr bool
+	}{
+		{
+			name: "Successful Show all roles",
+			fields: fields{
+				URL: &url.URL{
+					Host:   "twinpinesmall.net:8091",
+					Scheme: "https",
+				},
+				client: NewMockClient(
+					http.StatusOK,
+					[]byte(`{"roles":[{"name":"timetravelers","users":["marty","docbrown"],"permissions":{"":["ViewAdmin","ViewChronograf"]}},{"name":"mcfly","users":["marty","george"],"permissions":{"":["ViewAdmin","ViewChronograf"]}}]}`),
+					nil,
+					nil,
+				),
+			},
+			args: args{
+				ctx:  context.Background(),
+				name: nil,
+			},
+			want: map[string]Roles{
+				"marty": Roles{
+					Roles: []Role{
+						{
+							Name: "timetravelers",
+							Permissions: map[string][]string{
+								"": []string{
+									"ViewAdmin", "ViewChronograf",
+								},
+							},
+							Users: []string{"marty", "docbrown"},
+						},
+						{
+							Name: "mcfly",
+							Permissions: map[string][]string{
+								"": []string{
+									"ViewAdmin", "ViewChronograf",
+								},
+							},
+							Users: []string{"marty", "george"},
+						},
+					},
+				},
+				"docbrown": Roles{
+					Roles: []Role{
+						{
+							Name: "timetravelers",
+							Permissions: map[string][]string{
+								"": []string{
+									"ViewAdmin", "ViewChronograf",
+								},
+							},
+							Users: []string{"marty", "docbrown"},
+						},
+					},
+				},
+				"george": Roles{
+					Roles: []Role{
+						{
+							Name: "mcfly",
+							Permissions: map[string][]string{
+								"": []string{
+									"ViewAdmin", "ViewChronograf",
+								},
+							},
+							Users: []string{"marty", "george"},
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		m := &MetaClient{
+			URL:    tt.fields.URL,
+			client: tt.fields.client,
+		}
+		got, err := m.UserRoles(tt.args.ctx)
+		if (err != nil) != tt.wantErr {
+			t.Errorf("%q. MetaClient.UserRoles() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			continue
+		}
+		if !reflect.DeepEqual(got, tt.want) {
+			t.Errorf("%q. MetaClient.UserRoles() = %v, want %v", tt.name, got, tt.want)
+		}
+	}
+}
+
 func TestMetaClient_CreateRole(t *testing.T) {
 	type fields struct {
 		URL    *url.URL
