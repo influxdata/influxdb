@@ -2,9 +2,6 @@ import React, {PropTypes} from 'react'
 
 const RolesTable = ({roles}) => (
   <div className="panel panel-minimal">
-    <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-      <h2 className="panel-title">Database Roles</h2>
-    </div>
     <div className="panel-body">
       <table className="table v-center">
         <thead>
