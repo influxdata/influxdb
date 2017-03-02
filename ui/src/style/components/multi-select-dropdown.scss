@@ -56,3 +56,9 @@
     opacity: 1;
   }
 }
+.multi-select-dropdown__label {
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  padding-right: 10px;
+}

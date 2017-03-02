@@ -3,6 +3,23 @@ import OnClickOutside from 'shared/components/OnClickOutside'
 import classNames from 'classnames'
 import _ from 'lodash'
 
+const labelText = ({localSelectedItems, isOpen, label}) => {
+  if (label) {
+    return label
+  }
+  else if (localSelectedItems.length) {
+    return localSelectedItems.map((s) => s).join(', ')
+  }
+  else {
+    if (isOpen) {
+      return '0 Selected'
+    }
+    else {
+      return 'Apply Function'
+    }
+  }
+}
+
 class MultiSelectDropdown extends Component {
   constructor(props) {
     super(props)
@@ -62,16 +79,13 @@ class MultiSelectDropdown extends Component {
   render() {
     const {localSelectedItems, isOpen} = this.state
     const {label} = this.props
-    const labelText = isOpen ? "0 Selected" : "Apply Function"
 
     return (
       <div className={classNames('dropdown multi-select-dropdown', {open: isOpen})}>
         <div onClick={::this.toggleMenu} className="btn btn-xs btn-info dropdown-toggle" type="button">
           <span className="multi-select-dropdown__label">
             {
-              label ?
-              label :
-              localSelectedItems.length ? localSelectedItems.map((s) => s).join(', ') : labelText
+              labelText({localSelectedItems, isOpen, label})
             }
           </span>
           <span className="caret"></span>
