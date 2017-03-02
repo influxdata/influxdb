@@ -16,7 +16,7 @@ const UsersTable = ({users}) => (
             users.length ? users.map((user) => (
               <tr key={user.name}>
                 <td>{user.name}</td>
-                <td>{user.roles.map((r) => r.name).join(', ')}</td>
+                <td>{users.roles && user.roles.map((r) => r.name).join(', ')}</td>
                 <td>{user.permissions.map((p) => p.scope).join(', ')}</td>
               </tr>
             )) : (() => (
