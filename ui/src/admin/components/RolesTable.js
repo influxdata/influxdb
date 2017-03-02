@@ -1,28 +1,28 @@
 import React, {PropTypes} from 'react'
 
-const UsersTable = ({users}) => (
+const RolesTable = ({roles}) => (
   <div className="panel panel-minimal">
     <div className="panel-body">
       <table className="table v-center">
         <thead>
           <tr>
-            <th>User</th>
-            <th>Roles</th>
+            <th>Name</th>
             <th>Permissions</th>
+            <th>Users</th>
           </tr>
         </thead>
         <tbody>
           {
-            users.length ? users.map((user) => (
-              <tr key={user.name}>
-                <td>{user.name}</td>
-                <td>{user.roles.map((r) => r.name).join(', ')}</td>
-                <td>{user.permissions.map((p) => p.scope).join(', ')}</td>
+            roles.length ? roles.map((role) => (
+              <tr key={role.name}>
+                <td>{role.name}</td>
+                <td>{role.permissions.map((p) => p.scope).join(', ')}</td>
+                <td>{role.users.map((u) => u.name).join(', ')}</td>
               </tr>
             )) : (() => (
               <tr className="table-empty-state">
                 <th colSpan="5">
-                  <p>You don&#39;t have any Users,<br/>why not create one?</p>
+                  <p>You don&#39;t have any Roles,<br/>why not create one?</p>
                 </th>
               </tr>
             ))()
@@ -39,10 +39,10 @@ const {
   string,
 } = PropTypes
 
-UsersTable.propTypes = {
-  users: arrayOf(shape({
+RolesTable.propTypes = {
+  roles: arrayOf(shape({
     name: string.isRequired,
-    roles: arrayOf(shape({
+    users: arrayOf(shape({
       name: string,
     })),
     permissions: arrayOf(shape({
@@ -52,4 +52,4 @@ UsersTable.propTypes = {
   })),
 }
 
-export default UsersTable
+export default RolesTable

@@ -14,7 +14,7 @@ import {KapacitorPage, KapacitorRulePage, KapacitorRulesPage, KapacitorTasksPage
 import DataExplorer from 'src/data_explorer';
 import {DashboardsPage, DashboardPage} from 'src/dashboards';
 import {CreateSource, SourcePage, ManageSources} from 'src/sources';
-import {UsersPage} from 'src/admin';
+import {AdminPage} from 'src/admin';
 import NotFound from 'src/shared/components/NotFound';
 import configureStore from 'src/store/configureStore';
 import {getMe, getSources} from 'shared/apis';
@@ -128,7 +128,7 @@ const Root = React.createClass({
               <Route path="alert-rules" component={KapacitorRulesPage} />
               <Route path="alert-rules/:ruleID" component={KapacitorRulePage} />
               <Route path="alert-rules/new" component={KapacitorRulePage} />
-              <Route path="users" component={UsersPage} />
+              <Route path="admin" component={AdminPage} />
             </Route>
           </Route>
           <Route path="*" component={NotFound} />

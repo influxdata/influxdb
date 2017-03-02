@@ -1,5 +1,6 @@
 const initialState = {
   users: [],
+  roles: [],
 }
 
 export default function admin(state = initialState, action) {
@@ -7,6 +8,11 @@ export default function admin(state = initialState, action) {
     case 'LOAD_USERS': {
       return {...state, ...action.payload}
     }
+
+    case 'LOAD_ROLES': {
+      return {...state, ...action.payload}
+    }
   }
+
   return state
 }

@@ -65,6 +65,7 @@ export const TabPanels = React.createClass({
     activeIndex: number,
   },
 
+  // if only 1 child, children array index lookup will fail
   render() {
     return (
       <div>
