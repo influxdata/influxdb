@@ -230,7 +230,7 @@
     'react/no-string-refs': 0, // TODO: 2
     'react/no-unknown-property': 2,
     'react/prop-types': 2,
-    'react/prefer-es6-class': [2, 'never'],
+    'react/prefer-es6-class': [0, 'never'],
     'react/react-in-jsx-scope': 2,
     'react/require-extension': 0,
     'react/self-closing-comp': 0, // TODO: we can re-enable this if some brave soul wants to update the code (mostly spans acting as icons)
