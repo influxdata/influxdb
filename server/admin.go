@@ -50,16 +50,53 @@ func (r *sourceUserRequest) ValidUpdate() error {
 }
 
 type sourceUser struct {
-	Username    string                 `json:"name,omitempty"`        // Username for new account
+	Username    string                 `json:"name"`                  // Username for new account
 	Permissions chronograf.Permissions `json:"permissions,omitempty"` // Account's permissions
-	Roles       []roleResponse         `json:"roles,omitempty"`       // Roles if source uses them
 	Links       selfLinks              `json:"links"`                 // Links are URI locations related to user
+}
+
+type enterpriseSourceUser struct {
+	Username    string                 `json:"name"`        // Username for new account
+	Permissions chronograf.Permissions `json:"permissions"` // Account's permissions
+	Roles       []roleResponse         `json:"roles"`       // Roles if source uses them
+	Links       selfLinks              `json:"links"`       // Links are URI locations related to user
 }
 
 type selfLinks struct {
 	Self string `json:"self"` // Self link mapping to this resource
 }
 
+func sourceUserResponse(u *chronograf.User, srcID int, hasRoles bool) interface{} {
+	// Permissions should always be returned.  If no permissions, then
+	// return empty array
+	perms := u.Permissions
+	if len(perms) == 0 {
+		perms = make([]chronograf.Permission, 0)
+	}
+	if hasRoles {
+		res := enterpriseSourceUser{
+			Username:    u.Name,
+			Permissions: perms,
+			Roles:       make([]roleResponse, 0),
+			Links:       newSelfLinks(srcID, "users", u.Name),
+		}
+		if len(u.Roles) > 0 {
+			rr := make([]roleResponse, len(u.Roles))
+			for i, role := range u.Roles {
+				rr[i] = newRoleResponse(srcID, &role)
+			}
+			res.Roles = rr
+		}
+		return &res
+	}
+
+	res := sourceUser{
+		Username:    u.Name,
+		Permissions: perms,
+		Links:       newSelfLinks(srcID, "users", u.Name),
+	}
+	return &res
+}
 func newSelfLinks(id int, parent, resource string) selfLinks {
 	httpAPISrcs := "/chronograf/v1/sources"
 	u := &url.URL{Path: resource}
@@ -109,38 +146,29 @@ func (h *Service) NewSourceUser(w http.ResponseWriter, r *http.Request) {
 }
 
 type sourceUsers struct {
-	Users []sourceUser `json:"users"`
+	Users []interface{} `json:"users"`
 }
 
 // SourceUsers retrieves all users from source.
 func (h *Service) SourceUsers(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	srcID, store, err := h.sourceUsersStore(ctx, w, r)
+	srcID, ts, err := h.sourcesSeries(ctx, w, r)
 	if err != nil {
 		return
 	}
 
+	store := ts.Users(ctx)
 	users, err := store.All(ctx)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
 		return
 	}
+	_, hasRoles := h.hasRoles(ctx, ts)
 
-	su := []sourceUser{}
+	su := []interface{}{}
 	for _, u := range users {
-		res := sourceUser{
-			Username:    u.Name,
-			Permissions: u.Permissions,
-			Links:       newSelfLinks(srcID, "users", u.Name),
-		}
-		if len(u.Roles) > 0 {
-			rr := make([]roleResponse, len(u.Roles))
-			for i, role := range u.Roles {
-				rr[i] = newRoleResponse(srcID, &role)
-			}
-			res.Roles = rr
-		}
+		res := sourceUserResponse(&u, srcID, hasRoles)
 		su = append(su, res)
 	}
 
@@ -156,29 +184,20 @@ func (h *Service) SourceUserID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	uid := httprouter.GetParamFromContext(ctx, "uid")
 
-	srcID, store, err := h.sourceUsersStore(ctx, w, r)
+	srcID, ts, err := h.sourcesSeries(ctx, w, r)
 	if err != nil {
 		return
 	}
 
+	store := ts.Users(ctx)
 	u, err := store.Get(ctx, uid)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
 		return
 	}
+	_, hasRoles := h.hasRoles(ctx, ts)
 
-	res := sourceUser{
-		Username:    u.Name,
-		Permissions: u.Permissions,
-		Links:       newSelfLinks(srcID, "users", u.Name),
-	}
-	if len(u.Roles) > 0 {
-		rr := make([]roleResponse, len(u.Roles))
-		for i, role := range u.Roles {
-			rr[i] = newRoleResponse(srcID, &role)
-		}
-		res.Roles = rr
-	}
+	res := sourceUserResponse(u, srcID, hasRoles)
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
@@ -362,7 +381,7 @@ func (r *sourceRoleRequest) ValidUpdate() error {
 }
 
 type roleResponse struct {
-	Users       []sourceUser           `json:"users,omitempty"`
+	Users       []sourceUser           `json:"users"`
 	Name        string                 `json:"name"`
 	Permissions chronograf.Permissions `json:"permissions"`
 	Links       selfLinks              `json:"links"`
