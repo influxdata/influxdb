@@ -23,9 +23,9 @@ import {
 class QueriesPage extends Component {
   constructor(props) {
     super(props)
-    this.updateQueries = this.updateQueries.bind(this)
-    this.handleConfirmKillQuery = this.handleConfirmKillQuery.bind(this)
-    this.handleKillQuery = this.handleKillQuery.bind(this)
+    this.updateQueries = ::this.updateQueries
+    this.handleConfirmKillQuery = ::this.handleConfirmKillQuery
+    this.handleKillQuery = ::this.handleKillQuery
   }
 
   componentDidMount() {
@@ -42,10 +42,7 @@ class QueriesPage extends Component {
     const {queries} = this.props;
 
     return (
-      <div className="page">
-        <QueriesHeader />
-        <QueriesTable queries={queries} onConfirm={this.handleConfirmKillQuery} onKillQuery={this.handleKillQuery} />
-      </div>
+      <QueriesTable queries={queries} onConfirm={this.handleConfirmKillQuery} onKillQuery={this.handleKillQuery} />
     );
   }
 
@@ -101,18 +98,6 @@ class QueriesPage extends Component {
     killQuery(source.links.proxy, queryIDToKill)
   }
 }
-
-const QueriesHeader = () => (
-  <div className="page-header">
-    <div className="page-header__container">
-      <div className="page-header__left">
-        <h1>
-          Queries
-        </h1>
-      </div>
-    </div>
-  </div>
-)
 
 const {
   arrayOf,

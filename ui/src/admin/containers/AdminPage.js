@@ -19,7 +19,7 @@ class AdminPage extends Component {
   }
 
   render() {
-    const {users, roles} = this.props
+    const {users, roles, source} = this.props
 
     return (
       <div className="page">
@@ -36,7 +36,7 @@ class AdminPage extends Component {
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-12">
-                {users.length ? <AdminTabs users={users} roles={roles} /> : <span>Loading...</span>}
+                {users.length ? <AdminTabs users={users} roles={roles} source={source}/> : <span>Loading...</span>}
               </div>
             </div>
           </div>

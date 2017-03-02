@@ -1,41 +1,35 @@
 import React, {PropTypes} from 'react'
 
 const QueriesTable = ({queries, onKillQuery, onConfirm}) => (
-  <div className="page-contents">
-    <div className="container-fluid">
-      <div className="row">
-        <div className="col-md-12">
-          <div className="panel panel-minimal">
-            <div className="panel-body">
-              <table className="table v-center">
-                <thead>
-                  <tr>
-                    <th>Database</th>
-                    <th>Query</th>
-                    <th>Running</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {queries.map((q) => {
-                    return (
-                      <tr key={q.id}>
-                        <td>{q.database}</td>
-                        <td><code>{q.query}</code></td>
-                        <td>{q.duration}</td>
-                        <td className="text-right">
-                          <button className="btn btn-xs btn-link-danger" onClick={onKillQuery} data-toggle="modal" data-query-id={q.id} data-target="#killModal">
-                            Kill
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
+  <div>
+    <div className="panel panel-minimal">
+      <div className="panel-body">
+        <table className="table v-center">
+          <thead>
+            <tr>
+              <th>Database</th>
+              <th>Query</th>
+              <th>Running</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {queries.map((q) => {
+              return (
+                <tr key={q.id}>
+                  <td>{q.database}</td>
+                  <td><code>{q.query}</code></td>
+                  <td>{q.duration}</td>
+                  <td className="text-right">
+                    <button className="btn btn-xs btn-link-danger" onClick={onKillQuery} data-toggle="modal" data-query-id={q.id} data-target="#killModal">
+                      Kill
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
 

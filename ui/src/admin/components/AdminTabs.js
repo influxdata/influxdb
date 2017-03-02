@@ -2,8 +2,9 @@ import React, {Component, PropTypes} from 'react'
 import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'src/shared/components/Tabs';
 import UsersTable from 'src/admin/components/UsersTable'
 import RolesTable from 'src/admin/components/RolesTable'
+import QueriesPage from 'src/admin/containers/QueriesPage'
 
-const TABS = ['Users', 'Roles'];
+const TABS = ['Users', 'Roles', 'Queries'];
 
 class AdminTabs extends Component {
   constructor(props) {
@@ -21,13 +22,14 @@ class AdminTabs extends Component {
   }
 
   render() {
-    const {users, roles} = this.props
+    const {users, roles, source} = this.props
 
     return (
       <Tabs onSelect={this.handleActivateTab}>
         <TabList>
           <Tab>{TABS[0]}</Tab>
           <Tab>{TABS[1]}</Tab>
+          <Tab>{TABS[2]}</Tab>
         </TabList>
         <TabPanels>
           <TabPanel>
@@ -39,6 +41,9 @@ class AdminTabs extends Component {
             <RolesTable
               roles={roles}
             />
+          </TabPanel>
+          <TabPanel>
+            <QueriesPage source={source} />
           </TabPanel>
         </TabPanels>
       </Tabs>
@@ -59,6 +64,7 @@ AdminTabs.propTypes = {
       name: string,
     })),
   })),
+  source: shape(),
   roles: arrayOf(shape()),
 }
 
