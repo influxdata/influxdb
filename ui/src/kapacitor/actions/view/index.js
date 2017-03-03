@@ -163,12 +163,11 @@ export function deleteRule(rule) {
   };
 }
 
-export function updateRuleStatus(rule, {status}) {
+export function updateRuleStatus(rule, status) {
   return (dispatch) => {
     updateRuleStatusAPI(rule, status).then(() => {
       dispatch(publishNotification('success', `${rule.name} ${status} successfully`));
     }).catch(() => {
-      dispatch(updateRuleStatusSuccess(rule.id, status));
       dispatch(publishNotification('error', `${rule.name} could not be ${status}`));
     });
   };
