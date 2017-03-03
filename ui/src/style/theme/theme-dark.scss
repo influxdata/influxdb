@@ -25,7 +25,6 @@
   .panel-title {
     color: $g10-wolf !important;
   }
-
   .panel-body {
     padding: 30px;
     background-color: $g3-castle;
@@ -38,24 +37,40 @@
     > *:last-child {
       margin-bottom: 0;
     }
-
-    table {
-      th,td {
-        border-color: $g5-pepper;
-      }
-      th {
-        color: $g17-whisper;
-      }
-      td {
-        color: $g14-chromium;
-      }
-      tbody tr:last-child td {
-        border-bottom: 2px solid $g5-pepper;
-      }
-    }
   }
 }
+.panel.panel-info {
+  background-color: $g3-castle;
+  border: 0;
 
+  .panel-body,
+  .panel-heading {
+    background-color: transparent;
+  }
+  .panel-body {
+    padding: 30px;
+  }
+  .panel-heading {
+    border-color: $g4-onyx;
+    .panel-title { color: $g14-chromium;}
+  }
+}
+.panel .panel-body table {
+  margin: 0;
+
+  th,td {
+    border-color: $g5-pepper;
+  }
+  th {
+    color: $g17-whisper;
+  }
+  td {
+    color: $g14-chromium;
+  }
+  tbody tr:last-child td {
+    border-bottom: 2px solid $g5-pepper;
+  }
+}
 
 
 /*

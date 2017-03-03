@@ -1,5 +1,29 @@
 import React, {PropTypes} from 'react'
+import _ from 'lodash'
+
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
+
+const PERMISSIONS = [
+  "NoPermissions",
+  "ViewAdmin",
+  "ViewChronograf",
+  "CreateDatabase",
+  "CreateUserAndRole",
+  "AddRemoveNode",
+  "DropDatabase",
+  "DropData",
+  "ReadData",
+  "WriteData",
+  "Rebalance",
+  "ManageShard",
+  "ManageContinuousQuery",
+  "ManageQuery",
+  "ManageSubscription",
+  "Monitor",
+  "CopyShard",
+  "KapacitorAPI",
+  "KapacitorConfigAPI",
+]
 
 const RoleRow = ({role: {name, permissions, users}}) => (
   <tr>
@@ -8,8 +32,8 @@ const RoleRow = ({role: {name, permissions, users}}) => (
       {
         permissions && permissions.length ?
         <MultiSelectDropdown
-          items={permissions.map((perm) => perm.name)}
-          selectedItems={[]}
+          items={PERMISSIONS}
+          selectedItems={_.get(permissions, ['0', 'allowed'], [])}
           label={'Select Permissions'}
           onApply={() => '//TODO'}
         /> : '\u2014'
@@ -25,6 +49,9 @@ const RoleRow = ({role: {name, permissions, users}}) => (
           onApply={() => '//TODO'}
         /> : '\u2014'
       }
+    </td>
+    <td>
+      🗑
     </td>
   </tr>
 )

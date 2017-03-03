@@ -3,7 +3,20 @@ import RoleRow from 'src/admin/components/RoleRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
 
 const RolesTable = ({roles}) => (
-  <div className="panel panel-minimal">
+  <div className="panel panel-info">
+    <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      <div className="users__search-widget input-group admin__search-widget">
+        <input
+          type="text"
+          className="form-control"
+          placeholder="Filter Role..."
+        />
+        <div className="input-group-addon">
+          <span className="icon search" aria-hidden="true"></span>
+        </div>
+      </div>
+      <a href="#" className="btn btn-primary">Create Role</a>
+    </div>
     <div className="panel-body">
       <table className="table v-center">
         <thead>
@@ -11,6 +24,7 @@ const RolesTable = ({roles}) => (
             <th>Name</th>
             <th>Permissions</th>
             <th>Users</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
