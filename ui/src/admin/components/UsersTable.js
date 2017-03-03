@@ -1,4 +1,6 @@
 import React, {PropTypes} from 'react'
+import UserRow from 'src/admin/components/UserRow'
+import EmptyRow from 'src/admin/components/EmptyRow'
 
 const UsersTable = ({users}) => (
   <div className="panel panel-minimal">
@@ -13,19 +15,10 @@ const UsersTable = ({users}) => (
         </thead>
         <tbody>
           {
-            users.length ? users.map((user) => (
-              <tr key={user.name}>
-                <td>{user.name}</td>
-                <td>{user.roles && user.roles.map((r) => r.name).join(', ')}</td>
-                <td>{user.permissions && user.permissions.map((p) => p.scope).join(', ')}</td>
-              </tr>
-            )) : (() => (
-              <tr className="table-empty-state">
-                <th colSpan="5">
-                  <p>You don&#39;t have any Users,<br/>why not create one?</p>
-                </th>
-              </tr>
-            ))()
+            users.length ?
+              users.map((user) =>
+                <UserRow key={user.name} user={user} />
+              ) : <EmptyRow tableName={'Users'} />
           }
         </tbody>
       </table>
