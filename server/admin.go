@@ -58,8 +58,25 @@ type sourceUser struct {
 type enterpriseSourceUser struct {
 	Username    string                 `json:"name"`        // Username for new account
 	Permissions chronograf.Permissions `json:"permissions"` // Account's permissions
-	Roles       []roleResponse         `json:"roles"`       // Roles if source uses them
+	Roles       []userRoleResponse     `json:"roles"`       // Roles if source uses them
 	Links       selfLinks              `json:"links"`       // Links are URI locations related to user
+}
+
+type userRoleResponse struct {
+	Name        string                 `json:"name"`
+	Permissions chronograf.Permissions `json:"permissions"`
+	Links       selfLinks              `json:"links"`
+}
+
+func newUserRoleResponse(srcID int, res *chronograf.Role) userRoleResponse {
+	if res.Permissions == nil {
+		res.Permissions = make(chronograf.Permissions, 0)
+	}
+	return userRoleResponse{
+		Name:        res.Name,
+		Permissions: res.Permissions,
+		Links:       newSelfLinks(srcID, "roles", res.Name),
+	}
 }
 
 type selfLinks struct {
@@ -73,17 +90,21 @@ func sourceUserResponse(u *chronograf.User, srcID int, hasRoles bool) interface{
 	if len(perms) == 0 {
 		perms = make([]chronograf.Permission, 0)
 	}
+
+	// If the source supports roles, we return all
+	// associated with this user
 	if hasRoles {
 		res := enterpriseSourceUser{
 			Username:    u.Name,
 			Permissions: perms,
-			Roles:       make([]roleResponse, 0),
+			Roles:       make([]userRoleResponse, 0),
 			Links:       newSelfLinks(srcID, "users", u.Name),
 		}
+
 		if len(u.Roles) > 0 {
-			rr := make([]roleResponse, len(u.Roles))
+			rr := make([]userRoleResponse, len(u.Roles))
 			for i, role := range u.Roles {
-				rr[i] = newRoleResponse(srcID, &role)
+				rr[i] = newUserRoleResponse(srcID, &role)
 			}
 			res.Roles = rr
 		}
@@ -97,6 +118,7 @@ func sourceUserResponse(u *chronograf.User, srcID int, hasRoles bool) interface{
 	}
 	return &res
 }
+
 func newSelfLinks(id int, parent, resource string) selfLinks {
 	httpAPISrcs := "/chronograf/v1/sources"
 	u := &url.URL{Path: resource}
