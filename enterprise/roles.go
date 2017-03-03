@@ -66,16 +66,20 @@ func (c *RolesStore) Get(ctx context.Context, name string) (*chronograf.Role, er
 
 // Update the Role's permissions and roles
 func (c *RolesStore) Update(ctx context.Context, u *chronograf.Role) error {
-	perms := ToEnterprise(u.Permissions)
-	if err := c.Ctrl.SetRolePerms(ctx, u.Name, perms); err != nil {
-		return err
+	if u.Permissions != nil {
+		perms := ToEnterprise(u.Permissions)
+		if err := c.Ctrl.SetRolePerms(ctx, u.Name, perms); err != nil {
+			return err
+		}
 	}
-
-	users := make([]string, len(u.Users))
-	for i, u := range u.Users {
-		users[i] = u.Name
+	if u.Users != nil {
+		users := make([]string, len(u.Users))
+		for i, u := range u.Users {
+			users[i] = u.Name
+		}
+		return c.Ctrl.SetRoleUsers(ctx, u.Name, users)
 	}
-	return c.Ctrl.SetRoleUsers(ctx, u.Name, users)
+	return nil
 }
 
 // All is all Roles in influx

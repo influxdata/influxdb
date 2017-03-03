@@ -320,6 +320,9 @@ func TestService_SourceUsers(t *testing.T) {
 					ConnectF: func(ctx context.Context, src *chronograf.Source) error {
 						return nil
 					},
+					RolesF: func(ctx context.Context) (chronograf.RolesStore, error) {
+						return nil, fmt.Errorf("No role store for this test")
+					},
 					UsersF: func(ctx context.Context) chronograf.UsersStore {
 						return &mocks.UsersStore{
 							AllF: func(ctx context.Context) ([]chronograf.User, error) {
@@ -427,6 +430,9 @@ func TestService_SourceUserID(t *testing.T) {
 				TimeSeries: &mocks.TimeSeries{
 					ConnectF: func(ctx context.Context, src *chronograf.Source) error {
 						return nil
+					},
+					RolesF: func(ctx context.Context) (chronograf.RolesStore, error) {
+						return nil, fmt.Errorf("No role store for this test")
 					},
 					UsersF: func(ctx context.Context) chronograf.UsersStore {
 						return &mocks.UsersStore{
