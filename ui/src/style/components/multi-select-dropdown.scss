@@ -1,6 +1,80 @@
+$ms-normal-left-padding: 9px;
+$ms-item-height: 26px;
+$ms-checkbox-size: 14px;
+$ms-checkbox-dot-size: 6px;
+$ms-checkbox-bg: $c-sapphire;
+$ms-checkbox-bg-hover: $c-ocean;
+$ms-checkbox-dot: $g20-white;
+
 .multi-select-dropdown {
+  .multi-select-dropdown__item > a {
+    color: $c-neutrino !important;
+    height: $ms-item-height;
+    line-height: $ms-item-height;
+    position: relative;
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-right: $ms-normal-left-padding;
+    padding-left: ($ms-normal-left-padding + $ms-checkbox-size + ($ms-normal-left-padding - 2px));
+
+    &,
+    &:focus,
+    &:active,
+    &:active:focus {
+      background: none !important;
+
+      &:hover {
+        background: $c-pool;
+        background: -moz-linear-gradient(left,  $c-pool 0%, $c-pool 100%) !important;
+        background: -webkit-linear-gradient(left,  $c-pool 0%,$c-pool 100%) !important;
+        background: linear-gradient(to right,  $c-pool 0%,$c-pool 100%) !important;
+        filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$c-pool', endColorstr='$c-pool',GradientType=1 ) !important;
+      }
+    }
+    /* Shared Checkbox Styles */
+    &:before,
+    &:after {
+      content: '';
+      position: absolute;
+      display: block;
+      top: 50%;
+    }
+    /* Before = Checkbox */
+    &:before {
+      width: $ms-checkbox-size;
+      height: $ms-checkbox-size;
+      border-radius: $radius-small;
+      background-color: $ms-checkbox-bg;
+      left: $ms-normal-left-padding;
+      transform: translateY(-50%);
+    }
+    /* After = Dot */
+    &:after {
+      width: $ms-checkbox-dot-size;
+      height: $ms-checkbox-dot-size;
+      background-color: $ms-checkbox-dot;
+      border-radius: 50%;
+      transform: translate(-50%,-50%) scale(2,2);
+      opacity: 0;
+      left: ($ms-normal-left-padding + ($ms-checkbox-size / 2));
+      transition:
+        opacity 0.25s ease,
+        transform 0.25s ease;
+    }
+    /* Hover State */
+    &:hover {
+      color: $g20-white !important;
+    }
+  }
   .dropdown-toggle {
     width: 110px;
+
+    &.btn-xs {
+      height: 22px;
+      line-height: 22px;
+      padding-left: 0;
+      padding-right: 0;
+    }
   }
   &__apply {
     margin: 0;
@@ -45,6 +119,22 @@
     }
   }
 }
+
+/* Checked State */
+.multi-select-dropdown li.multi-select-dropdown__item.active > a {
+  &,
+  &:focus,
+  &:active,
+  &:active:focus {
+    background: none !important;  
+  }
+  color: $g20-white !important;
+
+  &:after {
+    transform: translate(-50%,-50%) scale(1,1);
+    opacity: 1;
+  }
+}
 /* Open State */
 .multi-select-dropdown.open {
   .dropdown-options {
@@ -57,8 +147,13 @@
   }
 }
 .multi-select-dropdown__label {
+  top: 50%;
+  transform: translateY(-50%);
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
   padding-right: 10px;
+  position: absolute;
+  width: calc(100% - #{($ms-normal-left-padding * 2)});
+  left: $ms-normal-left-padding;
 }
