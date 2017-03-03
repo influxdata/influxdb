@@ -1,20 +1,9 @@
 import React, {PropTypes} from 'react'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
 
-const UserRow = ({user: {name, roles, permissions}}) => (
+const RoleRow = ({role: {name, permissions, users}}) => (
   <tr>
     <td>{name}</td>
-    <td>
-      {
-        roles && roles.length ?
-        <MultiSelectDropdown
-          items={roles.map((role) => role.name)}
-          selectedItems={[]}
-          label={'Select Roles'}
-          onApply={() => '//TODO'}
-        /> : '\u2014'
-      }
-    </td>
     <td>
       {
         permissions && permissions.length ?
@@ -22,6 +11,17 @@ const UserRow = ({user: {name, roles, permissions}}) => (
           items={permissions.map((perm) => perm.name)}
           selectedItems={[]}
           label={'Select Permissions'}
+          onApply={() => '//TODO'}
+        /> : '\u2014'
+      }
+    </td>
+    <td>
+      {
+        users && users.length ?
+        <MultiSelectDropdown
+          items={users.map((role) => role.name)}
+          selectedItems={[]}
+          label={'Select Users'}
           onApply={() => '//TODO'}
         /> : '\u2014'
       }
@@ -35,16 +35,16 @@ const {
   string,
 } = PropTypes
 
-UserRow.propTypes = {
-  user: shape({
+RoleRow.propTypes = {
+  role: shape({
     name: string,
-    roles: arrayOf(shape({
+    permissions: arrayOf(shape({
       name: string,
     })),
-    permissions: arrayOf(shape({
+    users: arrayOf(shape({
       name: string,
     })),
   }).isRequired,
 }
 
-export default UserRow
+export default RoleRow

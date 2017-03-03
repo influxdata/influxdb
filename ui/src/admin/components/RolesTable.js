@@ -1,4 +1,6 @@
 import React, {PropTypes} from 'react'
+import RoleRow from 'src/admin/components/RoleRow'
+import EmptyRow from 'src/admin/components/EmptyRow'
 
 const RolesTable = ({roles}) => (
   <div className="panel panel-minimal">
@@ -13,19 +15,10 @@ const RolesTable = ({roles}) => (
         </thead>
         <tbody>
           {
-            roles.length ? roles.map((role) => (
-              <tr key={role.name}>
-                <td>{role.name}</td>
-                <td>{role.permissions && role.permissions.map((p) => p.scope).join(', ')}</td>
-                <td>{role.users && role.users.map((u) => u.name).join(', ')}</td>
-              </tr>
-            )) : (() => (
-              <tr className="table-empty-state">
-                <th colSpan="5">
-                  <p>You don&#39;t have any Roles,<br/>why not create one?</p>
-                </th>
-              </tr>
-            ))()
+            roles.length ?
+              roles.map((role) =>
+                <RoleRow key={role.name} role={role} />
+              ) : <EmptyRow tableName={'Roles'} />
           }
         </tbody>
       </table>
@@ -42,12 +35,12 @@ const {
 RolesTable.propTypes = {
   roles: arrayOf(shape({
     name: string.isRequired,
-    users: arrayOf(shape({
-      name: string,
-    })),
     permissions: arrayOf(shape({
       name: string,
       scope: string.isRequired,
+    })),
+    users: arrayOf(shape({
+      name: string,
     })),
   })),
 }
