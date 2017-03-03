@@ -15,7 +15,6 @@ const {
 
 const Visualization = React.createClass({
   propTypes: {
-    autoRefresh: number.isRequired,
     timeRange: shape({
       upper: string,
       lower: string,
@@ -46,7 +45,7 @@ const Visualization = React.createClass({
   },
 
   render() {
-    const {queryConfigs, autoRefresh, timeRange, activeQueryIndex, height, heightPixels} = this.props;
+    const {queryConfigs, timeRange, activeQueryIndex, height, heightPixels} = this.props;
     const {source} = this.context;
     const proxyLink = source.links.proxy;
 
@@ -58,6 +57,7 @@ const Visualization = React.createClass({
     const queries = statements.filter((s) => s.text !== null).map((s) => {
       return {host: [proxyLink], text: s.text, id: s.id};
     });
+    const autoRefreshMs = 10000;
     const isInDataExplorer = true;
 
     return (
@@ -77,7 +77,7 @@ const Visualization = React.createClass({
           {isGraphInView ? (
             <RefreshingLineGraph
               queries={queries}
-              autoRefresh={autoRefresh}
+              autoRefresh={autoRefreshMs}
               activeQueryIndex={activeQueryIndex}
               isInDataExplorer={isInDataExplorer}
               />

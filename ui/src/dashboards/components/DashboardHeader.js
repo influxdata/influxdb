@@ -2,7 +2,6 @@ import React, {PropTypes} from 'react'
 import ReactTooltip from 'react-tooltip'
 import {Link} from 'react-router';
 
-import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
 
 const DashboardHeader = ({
@@ -11,10 +10,8 @@ const DashboardHeader = ({
   dashboard,
   headerText,
   timeRange,
-  autoRefresh,
   isHidden,
   handleChooseTimeRange,
-  handleChooseAutoRefresh,
   handleClickPresentationButton,
   sourceID,
 }) => isHidden ? null : (
@@ -48,7 +45,6 @@ const DashboardHeader = ({
           Graph Tips
         </div>
         <ReactTooltip id="graph-tips-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
-        <AutoRefreshDropdown onChoose={handleChooseAutoRefresh} selected={autoRefresh} iconName="refresh" />
         <TimeRangeDropdown onChooseTimeRange={handleChooseTimeRange} selected={timeRange.inputValue} />
         <div className="btn btn-info btn-sm" onClick={handleClickPresentationButton}>
           <span className="icon expand-a" style={{margin: 0}}></span>
@@ -59,12 +55,11 @@ const DashboardHeader = ({
 )
 
 const {
-  array,
-  bool,
-  func,
-  number,
   shape,
+  array,
   string,
+  func,
+  bool,
 } = PropTypes
 
 DashboardHeader.propTypes = {
@@ -74,10 +69,8 @@ DashboardHeader.propTypes = {
   dashboard: shape({}),
   headerText: string,
   timeRange: shape({}).isRequired,
-  autoRefresh: number.isRequired,
   isHidden: bool.isRequired,
   handleChooseTimeRange: func.isRequired,
-  handleChooseAutoRefresh: func.isRequired,
   handleClickPresentationButton: func.isRequired,
 }
 

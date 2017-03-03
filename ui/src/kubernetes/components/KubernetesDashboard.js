@@ -6,12 +6,11 @@ import DashboardHeader from 'src/dashboards/components/DashboardHeader';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
 const {
+  shape,
+  string,
   arrayOf,
   bool,
   func,
-  number,
-  shape,
-  string,
 } = PropTypes
 
 export const KubernetesDashboard = React.createClass({
@@ -23,8 +22,6 @@ export const KubernetesDashboard = React.createClass({
       telegraf: string.isRequired,
     }),
     layouts: arrayOf(shape().isRequired).isRequired,
-    autoRefresh: number.isRequired,
-    handleChooseAutoRefresh: func.isRequired,
     inPresentationMode: bool.isRequired,
     handleClickPresentationButton: func,
   },
@@ -37,8 +34,9 @@ export const KubernetesDashboard = React.createClass({
   },
 
   renderLayouts(layouts) {
+    const autoRefreshMs = 15000;
     const {timeRange} = this.state;
-    const {source, autoRefresh} = this.props;
+    const {source} = this.props;
 
     let layoutCells = [];
     layouts.forEach((layout) => {
@@ -58,7 +56,7 @@ export const KubernetesDashboard = React.createClass({
       <LayoutRenderer
         timeRange={timeRange}
         cells={layoutCells}
-        autoRefresh={autoRefresh}
+        autoRefreshMs={autoRefreshMs}
         source={source.links.proxy}
       />
     );
@@ -70,7 +68,7 @@ export const KubernetesDashboard = React.createClass({
   },
 
   render() {
-    const {layouts, autoRefresh, handleChooseAutoRefresh, inPresentationMode, handleClickPresentationButton} = this.props;
+    const {layouts, inPresentationMode, handleClickPresentationButton} = this.props;
     const {timeRange} = this.state;
     const emptyState = (
       <div className="generic-empty-state">
@@ -83,8 +81,6 @@ export const KubernetesDashboard = React.createClass({
       <div className="page">
         <DashboardHeader
           headerText="Kubernetes Dashboard"
-          autoRefresh={autoRefresh}
-          handleChooseAutoRefresh={handleChooseAutoRefresh}
           timeRange={timeRange}
           handleChooseTimeRange={this.handleChooseTimeRange}
           isHidden={inPresentationMode}

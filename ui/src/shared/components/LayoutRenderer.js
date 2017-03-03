@@ -18,7 +18,6 @@ const {
 
 export const LayoutRenderer = React.createClass({
   propTypes: {
-    autoRefresh: number.isRequired,
     timeRange: shape({
       defaultGroupBy: string.isRequired,
       queryValue: string.isRequired,
@@ -47,6 +46,7 @@ export const LayoutRenderer = React.createClass({
         name: string.isRequired,
       }).isRequired
     ),
+    autoRefreshMs: number.isRequired,
     host: string,
     source: string,
     onPositionChange: func,
@@ -84,7 +84,7 @@ export const LayoutRenderer = React.createClass({
   },
 
   generateVisualizations() {
-    const {autoRefresh, source, cells} = this.props;
+    const {autoRefreshMs, source, cells} = this.props;
 
     return cells.map((cell) => {
       const qs = cell.queries.map((q) => {
@@ -100,7 +100,7 @@ export const LayoutRenderer = React.createClass({
           <div key={cell.i}>
             <h2 className="dash-graph--heading">{cell.name || `Graph`}</h2>
             <div className="dash-graph--container">
-              <RefreshingSingleStat queries={[qs[0]]} autoRefresh={autoRefresh} />
+              <RefreshingSingleStat queries={[qs[0]]} autoRefresh={autoRefreshMs} />
             </div>
           </div>
         );
@@ -117,7 +117,7 @@ export const LayoutRenderer = React.createClass({
           <div className="dash-graph--container">
             <RefreshingLineGraph
               queries={qs}
-              autoRefresh={autoRefresh}
+              autoRefresh={autoRefreshMs}
               showSingleStat={cell.type === "line-plus-single-stat"}
               displayOptions={displayOptions}
             />
