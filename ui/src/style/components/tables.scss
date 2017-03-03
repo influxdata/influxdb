@@ -126,9 +126,13 @@ table .monotype {
   tbody tr:hover .admin-table--delete {
     visibility: visible;
   }
+  .multi-select-dropdown {
+    width: 100%;
+    min-width: 150px;
+  }
   .dropdown-toggle {
     background-color: transparent;
-    width: 330px;
+    width: 100%;
 
     .caret {
       opacity: 0;

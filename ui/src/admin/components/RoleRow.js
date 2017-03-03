@@ -50,8 +50,8 @@ const RoleRow = ({role: {name, permissions, users}}) => (
         /> : '\u2014'
       }
     </td>
-    <td>
-      🗑
+    <td className="text-right">
+      <button className="btn btn-xs btn-danger admin-table--delete">Delete</button>
     </td>
   </tr>
 )

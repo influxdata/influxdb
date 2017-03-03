@@ -17,9 +17,9 @@ const UserRow = ({user: {name, roles, permissions}}) => (
     </td>
     <td>
       {
-        false && permissions && permissions.length ?
+        permissions && permissions.length ?
         <MultiSelectDropdown
-          items={permissions.map((perm) => perm.name)}
+          items={[]}
           selectedItems={[]}
           label={'Select Permissions'}
           onApply={() => '//TODO'}

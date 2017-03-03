@@ -18,7 +18,7 @@ const RolesTable = ({roles}) => (
       <a href="#" className="btn btn-primary">Create Role</a>
     </div>
     <div className="panel-body">
-      <table className="table v-center">
+      <table className="table v-center admin-table">
         <thead>
           <tr>
             <th>Name</th>
