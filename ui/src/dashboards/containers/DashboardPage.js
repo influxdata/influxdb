@@ -51,7 +51,6 @@ const DashboardPage = React.createClass({
       id: number.isRequired,
       cells: arrayOf(shape({})).isRequired,
     }).isRequired,
-    autoRefresh: number.isRequired,
     timeRange: shape({}).isRequired,
     inPresentationMode: bool.isRequired,
     isEditMode: bool.isRequired,
@@ -101,7 +100,6 @@ const DashboardPage = React.createClass({
       isEditMode,
       handleClickPresentationButton,
       source,
-      autoRefresh,
       timeRange,
     } = this.props
 
@@ -112,7 +110,6 @@ const DashboardPage = React.createClass({
             <EditHeader dashboard={dashboard} onSave={() => {}} /> :
             <Header
               buttonText={dashboard ? dashboard.name : ''}
-              autoRefresh={autoRefresh}
               timeRange={timeRange}
               handleChooseTimeRange={this.handleChooseTimeRange}
               isHidden={inPresentationMode}
@@ -136,7 +133,6 @@ const DashboardPage = React.createClass({
           isEditMode={isEditMode}
           inPresentationMode={inPresentationMode}
           source={source}
-          autoRefresh={autoRefresh}
           timeRange={timeRange}
           onPositionChange={this.handleUpdatePosition}
         />
@@ -147,10 +143,7 @@ const DashboardPage = React.createClass({
 
 const mapStateToProps = (state) => {
   const {
-    app: {
-      ephemeral: {inPresentationMode},
-      persisted: {autoRefresh},
-    },
+    appUI,
     dashboardUI: {
       dashboards,
       dashboard,
@@ -160,12 +153,11 @@ const mapStateToProps = (state) => {
   } = state
 
   return {
+    inPresentationMode: appUI.presentationMode,
     dashboards,
     dashboard,
-    autoRefresh,
     timeRange,
     isEditMode,
-    inPresentationMode,
   }
 }
 
