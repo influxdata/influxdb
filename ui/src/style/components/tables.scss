@@ -108,6 +108,44 @@ table .monotype {
   }
 }
 
+
+/*
+    Table Styles for Admin Pages
+    ----------------------------------------------
+*/
+.admin-table {
+  .admin-table--delete {
+    visibility: hidden;
+  }
+  tbody tr {
+    transition: background-color 0.25s ease;
+    &:hover {
+      background-color: $g4-onyx;
+    }
+  }
+  tbody tr:hover .admin-table--delete {
+    visibility: visible;
+  }
+  .multi-select-dropdown {
+    width: 100%;
+    min-width: 150px;
+  }
+  .dropdown-toggle {
+    background-color: transparent;
+    width: 100%;
+
+    .caret {
+      opacity: 0;
+    }
+  }
+  tbody tr:hover .dropdown-toggle {
+    color: $g20-white !important;
+    background-color: $c-pool;
+
+    .caret {opacity: 1;}
+  }
+}
+
 /*
     Responsive Tables
     ----------------------------------------------

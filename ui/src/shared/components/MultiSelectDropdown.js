@@ -6,18 +6,14 @@ import _ from 'lodash'
 const labelText = ({localSelectedItems, isOpen, label}) => {
   if (label) {
     return label
-  }
-  else if (localSelectedItems.length) {
+  } else if (localSelectedItems.length) {
     return localSelectedItems.map((s) => s).join(', ')
   }
-  else {
-    if (isOpen) {
-      return '0 Selected'
-    }
-    else {
-      return 'Apply Function'
-    }
+
+  if (isOpen) {
+    return '0 Selected'
   }
+  return 'Apply Function'
 }
 
 class MultiSelectDropdown extends Component {

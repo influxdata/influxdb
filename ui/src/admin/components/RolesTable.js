@@ -1,31 +1,38 @@
 import React, {PropTypes} from 'react'
+import RoleRow from 'src/admin/components/RoleRow'
+import EmptyRow from 'src/admin/components/EmptyRow'
 
 const RolesTable = ({roles}) => (
-  <div className="panel panel-minimal">
+  <div className="panel panel-info">
+    <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+      <div className="users__search-widget input-group admin__search-widget">
+        <input
+          type="text"
+          className="form-control"
+          placeholder="Filter Role..."
+        />
+        <div className="input-group-addon">
+          <span className="icon search" aria-hidden="true"></span>
+        </div>
+      </div>
+      <a href="#" className="btn btn-primary">Create Role</a>
+    </div>
     <div className="panel-body">
-      <table className="table v-center">
+      <table className="table v-center admin-table">
         <thead>
           <tr>
             <th>Name</th>
             <th>Permissions</th>
             <th>Users</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {
-            roles.length ? roles.map((role) => (
-              <tr key={role.name}>
-                <td>{role.name}</td>
-                <td>{role.permissions && role.permissions.map((p) => p.scope).join(', ')}</td>
-                <td>{role.users && role.users.map((u) => u.name).join(', ')}</td>
-              </tr>
-            )) : (() => (
-              <tr className="table-empty-state">
-                <th colSpan="5">
-                  <p>You don&#39;t have any Roles,<br/>why not create one?</p>
-                </th>
-              </tr>
-            ))()
+            roles.length ?
+              roles.map((role) =>
+                <RoleRow key={role.name} role={role} />
+              ) : <EmptyRow tableName={'Roles'} />
           }
         </tbody>
       </table>
@@ -42,12 +49,12 @@ const {
 RolesTable.propTypes = {
   roles: arrayOf(shape({
     name: string.isRequired,
-    users: arrayOf(shape({
-      name: string,
-    })),
     permissions: arrayOf(shape({
       name: string,
       scope: string.isRequired,
+    })),
+    users: arrayOf(shape({
+      name: string,
     })),
   })),
 }

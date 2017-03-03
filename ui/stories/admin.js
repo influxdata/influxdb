@@ -12,13 +12,13 @@ storiesOf('MultiSelectDropdown', module)
         items={[
           'Admin',
           'User',
-          'Chrono Giraffe',
+          'Chrono Girafferoo',
           'Prophet',
           'Susford',
         ]}
         selectedItems={[
           'User',
-          'Chrono Giraffe',
+          'Chrono Girafferoo',
         ]}
         label={'Select Roles'}
         onApply={action('onApply')}
