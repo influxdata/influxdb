@@ -21,7 +21,6 @@
   4. [#892](https://github.com/influxdata/chronograf/issues/891): Make dashboard visualizations resizable
   5. [#893](https://github.com/influxdata/chronograf/issues/893): Persist dashboard visualization position
   6. [#922](https://github.com/influxdata/chronograf/issues/922): Additional OAuth2 support for [Heroku](https://github.com/influxdata/chronograf/blob/master/docs/auth.md#heroku) and [Google](https://github.com/influxdata/chronograf/blob/master/docs/auth.md#google)
-  7. [#781](https://github.com/influxdata/chronograf/issues/781): Add global auto-refresh dropdown to all graph dashboards
 
 ### UI Improvements
   1. [#905](https://github.com/influxdata/chronograf/pull/905): Make scroll bar thumb element bigger

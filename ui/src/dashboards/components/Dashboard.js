@@ -10,7 +10,6 @@ const Dashboard = ({
   inPresentationMode,
   onPositionChange,
   source,
-  autoRefresh,
   timeRange,
 }) => {
   if (dashboard.id === 0) {
@@ -21,13 +20,14 @@ const Dashboard = ({
     <div className={classnames({'page-contents': true, 'presentation-mode': inPresentationMode})}>
       <div className={classnames('container-fluid full-width dashboard', {'dashboard-edit': isEditMode})}>
         {isEditMode ? <Visualizations/> : null}
-        {Dashboard.renderDashboard(dashboard, autoRefresh, timeRange, source, onPositionChange)}
+        {Dashboard.renderDashboard(dashboard, timeRange, source, onPositionChange)}
       </div>
     </div>
   )
 }
 
-Dashboard.renderDashboard = (dashboard, autoRefresh, timeRange, source, onPositionChange) => {
+Dashboard.renderDashboard = (dashboard, timeRange, source, onPositionChange) => {
+  const autoRefreshMs = 15000
   const cells = dashboard.cells.map((cell, i) => {
     i = `${i}`
     const dashboardCell = {...cell, i}
@@ -42,7 +42,7 @@ Dashboard.renderDashboard = (dashboard, autoRefresh, timeRange, source, onPositi
     <LayoutRenderer
       timeRange={timeRange}
       cells={cells}
-      autoRefresh={autoRefresh}
+      autoRefreshMs={autoRefreshMs}
       source={source.links.proxy}
       onPositionChange={onPositionChange}
     />
@@ -54,7 +54,6 @@ const {
   func,
   shape,
   string,
-  number,
 } = PropTypes
 
 Dashboard.propTypes = {
@@ -67,7 +66,6 @@ Dashboard.propTypes = {
       proxy: string,
     }).isRequired,
   }).isRequired,
-  autoRefresh: number.isRequired,
   timeRange: shape({}).isRequired,
 }
 

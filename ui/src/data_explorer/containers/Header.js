@@ -1,35 +1,23 @@
 import React, {PropTypes} from 'react';
 import moment from 'moment';
 import {withRouter} from 'react-router';
-
-import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
-
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
-
-const {
-  func,
-  number,
-  shape,
-  string,
-} = PropTypes
 
 const Header = React.createClass({
   propTypes: {
-    autoRefresh: number.isRequired,
-    timeRange: shape({
-      upper: string,
-      lower: string,
+    timeRange: PropTypes.shape({
+      upper: PropTypes.string,
+      lower: PropTypes.string,
     }).isRequired,
-    actions: shape({
-      handleChooseAutoRefresh: func.isRequired,
-      setTimeRange: func.isRequired,
+    actions: PropTypes.shape({
+      setTimeRange: PropTypes.func.isRequired,
     }),
   },
 
   contextTypes: {
-    source: shape({
-      name: string,
+    source: PropTypes.shape({
+      name: PropTypes.string,
     }),
   },
 
@@ -48,7 +36,7 @@ const Header = React.createClass({
   },
 
   render() {
-    const {autoRefresh, actions: {handleChooseAutoRefresh}, timeRange} = this.props;
+    const {timeRange} = this.props;
 
     return (
       <div className="page-header">
@@ -62,7 +50,6 @@ const Header = React.createClass({
               <span className="icon cpu"></span>
               {this.context.source.name}
             </div>
-            <AutoRefreshDropdown onChoose={handleChooseAutoRefresh} selected={autoRefresh} iconName="refresh" />
             <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={this.findSelected(timeRange)} />
           </div>
         </div>

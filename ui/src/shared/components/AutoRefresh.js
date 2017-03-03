@@ -6,34 +6,25 @@ function _fetchTimeSeries(source, db, rp, query) {
   return proxy({source, db, rp, query});
 }
 
-const {
-  element,
-  number,
-  arrayOf,
-  shape,
-  oneOfType,
-  string,
-} = PropTypes
-
 export default function AutoRefresh(ComposedComponent) {
   const wrapper = React.createClass({
     displayName: `AutoRefresh_${ComposedComponent.displayName}`,
     propTypes: {
-      children: element,
-      autoRefresh: number.isRequired,
-      queries: arrayOf(shape({
-        host: oneOfType([string, arrayOf(string)]),
-        text: string,
+      children: PropTypes.element,
+      autoRefresh: PropTypes.number,
+      queries: PropTypes.arrayOf(PropTypes.shape({
+        host: PropTypes.oneOfType([PropTypes.string, PropTypes.arrayOf(PropTypes.string)]),
+        text: PropTypes.string,
       }).isRequired).isRequired,
     },
     getInitialState() {
       return {timeSeries: []};
     },
     componentDidMount() {
-      const {queries, autoRefresh} = this.props;
+      const {queries} = this.props;
       this.executeQueries(queries);
-      if (autoRefresh) {
-        this.intervalID = setInterval(() => this.executeQueries(queries), autoRefresh);
+      if (this.props.autoRefresh) {
+        this.intervalID = setInterval(() => this.executeQueries(queries), this.props.autoRefresh);
       }
     },
     componentWillReceiveProps(nextProps) {
