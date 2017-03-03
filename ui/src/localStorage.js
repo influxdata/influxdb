@@ -9,10 +9,12 @@ export const loadLocalStorage = () => {
   }
 };
 
-export const saveToLocalStorage = ({appConfig, queryConfigs, timeRange, dataExplorer}) => {
+export const saveToLocalStorage = ({app: {persisted}, queryConfigs, timeRange, dataExplorer}) => {
   try {
+    const appPersisted = Object.assign({}, {app: {persisted}})
+
     window.localStorage.setItem('state', JSON.stringify({
-      appConfig,
+      ...appPersisted,
       queryConfigs,
       timeRange,
       dataExplorer,

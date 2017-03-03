@@ -147,8 +147,10 @@ const DashboardPage = React.createClass({
 
 const mapStateToProps = (state) => {
   const {
-    appUI,
-    appConfig,
+    app: {
+      ephemeral: {inPresentationMode},
+      persisted: {autoRefresh},
+    },
     dashboardUI: {
       dashboards,
       dashboard,
@@ -160,10 +162,10 @@ const mapStateToProps = (state) => {
   return {
     dashboards,
     dashboard,
-    autoRefresh: appConfig.autoRefresh,
+    autoRefresh,
     timeRange,
     isEditMode,
-    inPresentationMode: appUI.presentationMode,
+    inPresentationMode,
   }
 }
 

@@ -11,7 +11,7 @@ import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 import {getMappings, getAppsForHosts, getMeasurementsForHost, getAllHosts} from 'src/hosts/apis';
 import {fetchLayouts} from 'shared/apis';
 
-import {setAutoRefresh} from 'shared/actions/appConfig'
+import {setAutoRefresh} from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 
 const {
@@ -188,9 +188,9 @@ export const HostPage = React.createClass({
   },
 });
 
-const mapStateToProps = (state) => ({
-  inPresentationMode: state.appUI.presentationMode,
-  autoRefresh: state.appConfig.autoRefresh,
+const mapStateToProps = ({app: {ephemeral: {inPresentationMode}, persisted: {autoRefresh}}}) => ({
+  inPresentationMode,
+  autoRefresh,
 })
 
 const mapDispatchToProps = (dispatch) => ({

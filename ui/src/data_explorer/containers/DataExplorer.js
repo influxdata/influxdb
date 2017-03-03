@@ -6,7 +6,7 @@ import Visualization from '../components/Visualization';
 import Header from '../containers/Header';
 import ResizeContainer from 'src/shared/components/ResizeContainer';
 
-import {setAutoRefresh} from 'shared/actions/appConfig'
+import {setAutoRefresh} from 'shared/actions/app'
 import {setTimeRange as setTimeRangeAction} from '../actions/view';
 
 const {
@@ -95,7 +95,7 @@ const DataExplorer = React.createClass({
 });
 
 function mapStateToProps(state) {
-  const {appConfig: {autoRefresh}, timeRange, queryConfigs, dataExplorer} = state;
+  const {app: {persisted: {autoRefresh}}, timeRange, queryConfigs, dataExplorer} = state;
 
   return {
     autoRefresh,

@@ -34,11 +34,9 @@ const SideNavApp = React.createClass({
   },
 });
 
-function mapStateToProps(state) {
-  return {
-    me: state.me,
-    inPresentationMode: state.appUI.presentationMode,
-  };
-}
+const mapStateToProps = ({me, app: {ephemeral: {inPresentationMode}}}) => ({
+  me,
+  inPresentationMode,
+})
 
 export default connect(mapStateToProps)(SideNavApp);

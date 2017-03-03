@@ -5,7 +5,7 @@ import {bindActionCreators} from 'redux'
 import {fetchLayouts} from 'shared/apis';
 import KubernetesDashboard from 'src/kubernetes/components/KubernetesDashboard';
 
-import {setAutoRefresh} from 'shared/actions/appConfig'
+import {setAutoRefresh} from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
 
 const {
@@ -59,9 +59,9 @@ export const KubernetesPage = React.createClass({
   },
 });
 
-const mapStateToProps = (state) => ({
-  autoRefresh: state.appConfig.autoRefresh,
-  inPresentationMode: state.appUI.presentationMode,
+const mapStateToProps = ({app: {ephemeral: {inPresentationMode}, persisted: {autoRefresh}}}) => ({
+  inPresentationMode,
+  autoRefresh,
 })
 
 const mapDispatchToProps = (dispatch) => ({
