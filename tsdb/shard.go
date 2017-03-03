@@ -1134,7 +1134,12 @@ func (m *MeasurementFields) CreateFieldIfNotExists(name string, typ influxql.Dat
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// Re-check field and type under write lock.
 	if f := m.fields[name]; f != nil {
+		if f.Type != typ {
+			return ErrFieldTypeConflict
+		}
 		return nil
 	}
 
