@@ -1,13 +1,13 @@
-import appUI from './ui';
 import me from './me';
+import app from './app';
 import auth from './auth';
 import notifications from './notifications';
 import sources from './sources';
 
-export {
-  appUI,
+export default {
   me,
+  app,
   auth,
   notifications,
   sources,
-};
+}

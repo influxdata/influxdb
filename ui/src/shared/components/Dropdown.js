@@ -1,14 +1,23 @@
 import React, {PropTypes} from 'react';
+import classnames from 'classnames';
 import OnClickOutside from 'shared/components/OnClickOutside';
+
+const {
+  arrayOf,
+  shape,
+  string,
+  func,
+} = PropTypes
 
 const Dropdown = React.createClass({
   propTypes: {
-    items: PropTypes.arrayOf(PropTypes.shape({
-      text: PropTypes.string.isRequired,
+    items: arrayOf(shape({
+      text: string.isRequired,
     })).isRequired,
-    onChoose: PropTypes.func.isRequired,
-    selected: PropTypes.string.isRequired,
-    className: PropTypes.string,
+    onChoose: func.isRequired,
+    selected: string.isRequired,
+    iconName: string,
+    className: string,
   },
   getInitialState() {
     return {
@@ -39,11 +48,12 @@ const Dropdown = React.createClass({
   },
   render() {
     const self = this;
-    const {items, selected, className, actions} = self.props;
+    const {items, selected, className, iconName, actions} = self.props;
 
     return (
       <div onClick={this.toggleMenu} className={`dropdown ${className}`}>
         <div className="btn btn-sm btn-info dropdown-toggle">
+          {iconName ? <span className={classnames("icon", {[iconName]: true})}></span> : null}
           <span className="dropdown-selected">{selected}</span>
           <span className="caret" />
         </div>

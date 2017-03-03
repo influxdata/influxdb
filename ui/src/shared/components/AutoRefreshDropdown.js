@@ -1,15 +1,20 @@
-import React from 'react';
+import React, {PropTypes} from 'react';
 import classnames from 'classnames';
 import OnClickOutside from 'shared/components/OnClickOutside';
 
-import timeRanges from 'hson!../data/timeRanges.hson';
+import autoRefreshItems from 'hson!../data/autoRefreshes.hson';
 
-const TimeRangeDropdown = React.createClass({
+const {
+  number,
+  func,
+} = PropTypes
+
+const AutoRefreshDropdown = React.createClass({
   autobind: false,
 
   propTypes: {
-    selected: React.PropTypes.string.isRequired,
-    onChooseTimeRange: React.PropTypes.func.isRequired,
+    selected: number.isRequired,
+    onChoose: func.isRequired,
   },
 
   getInitialState() {
@@ -18,17 +23,16 @@ const TimeRangeDropdown = React.createClass({
     };
   },
 
+  findAutoRefreshItem(milliseconds) {
+    return autoRefreshItems.find((values) => values.milliseconds === milliseconds)
+  },
+
   handleClickOutside() {
     this.setState({isOpen: false});
   },
 
-  handleSelection(params) {
-    const {queryValue, menuOption} = params;
-    if (menuOption.toLowerCase() === 'custom') {
-      this.props.onChooseTimeRange({custom: true});
-    } else {
-      this.props.onChooseTimeRange({lower: queryValue, upper: null});
-    }
+  handleSelection(milliseconds) {
+    this.props.onChoose(milliseconds);
     this.setState({isOpen: false});
   },
 
@@ -44,16 +48,16 @@ const TimeRangeDropdown = React.createClass({
     return (
       <div className="dropdown time-range-dropdown">
         <div className="btn btn-sm btn-info dropdown-toggle" onClick={() => self.toggleMenu()}>
-          <span className="icon clock"></span>
-          <span className="selected-time-range">{selected}</span>
+          <span className="icon refresh"></span>
+          <span className="selected-time-range">{this.findAutoRefreshItem(selected).inputValue}</span>
           <span className="caret" />
         </div>
         <ul className={classnames("dropdown-menu", {show: isOpen})}>
-          <li className="dropdown-header">Time Range</li>
-          {timeRanges.map((item) => {
+          <li className="dropdown-header">AutoRefresh Interval</li>
+          {autoRefreshItems.map((item) => {
             return (
               <li key={item.menuOption}>
-                <a href="#" onClick={() => self.handleSelection(item)}>
+                <a href="#" onClick={() => self.handleSelection(item.milliseconds)}>
                   {item.menuOption}
                 </a>
               </li>
@@ -65,4 +69,4 @@ const TimeRangeDropdown = React.createClass({
   },
 });
 
-export default OnClickOutside(TimeRangeDropdown);
+export default OnClickOutside(AutoRefreshDropdown);

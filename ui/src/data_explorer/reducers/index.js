@@ -2,8 +2,8 @@ import queryConfigs from './queryConfigs';
 import timeRange from './timeRange';
 import dataExplorer from './ui';
 
-export {
+export default {
   queryConfigs,
   timeRange,
   dataExplorer,
-};
+}
