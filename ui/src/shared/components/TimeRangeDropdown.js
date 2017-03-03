@@ -1,5 +1,5 @@
 import React from 'react';
-import cN from 'classnames';
+import classnames from 'classnames';
 import OnClickOutside from 'shared/components/OnClickOutside';
 
 import timeRanges from 'hson!../data/timeRanges.hson';
@@ -48,7 +48,7 @@ const TimeRangeDropdown = React.createClass({
           <span className="selected-time-range">{selected}</span>
           <span className="caret" />
         </div>
-        <ul className={cN("dropdown-menu", {show: isOpen})}>
+        <ul className={classnames("dropdown-menu", {show: isOpen})}>
           <li className="dropdown-header">Time Range</li>
           {timeRanges.map((item) => {
             return (
