@@ -185,7 +185,6 @@ input {
   max-width: 100%;
   margin: 0 !important;
   padding: 0 !important;
-  min-height: 70px;
   max-height: 290px;
   overflow: auto;
   @include custom-scrollbar($c-pool, $c-laser);
