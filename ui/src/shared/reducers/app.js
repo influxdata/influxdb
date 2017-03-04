@@ -16,7 +16,7 @@ const {
   persisted: initialPersistedState,
 } = initialState
 
-export const ephemeralReducer = (state = initialEphemeralState, action) => {
+const ephemeralReducer = (state = initialEphemeralState, action) => {
   switch (action.type) {
     case 'ENABLE_PRESENTATION_MODE': {
       return {
@@ -37,7 +37,7 @@ export const ephemeralReducer = (state = initialEphemeralState, action) => {
   }
 }
 
-export const persistedReducer = (state = initialPersistedState, action) => {
+const persistedReducer = (state = initialPersistedState, action) => {
   switch (action.type) {
     case 'SET_AUTOREFRESH': {
       return {
