@@ -1,6 +1,6 @@
 import {PRESENTATION_MODE_ANIMATION_DELAY} from '../constants'
 
-// ephemeral state reducers
+// ephemeral state action creators
 export const enablePresentationMode = () => ({
   type: 'ENABLE_PRESENTATION_MODE',
 })
@@ -13,7 +13,7 @@ export const delayEnablePresentationMode = () => (dispatch) => {
   setTimeout(() => dispatch(enablePresentationMode()), PRESENTATION_MODE_ANIMATION_DELAY)
 }
 
-// persistent state reducers
+// persistent state action creators
 export const setAutoRefresh = (milliseconds) => ({
   type: 'SET_AUTOREFRESH',
   payload: {
