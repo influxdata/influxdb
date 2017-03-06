@@ -2,6 +2,7 @@ package chronograf
 
 import (
 	"context"
+	"io"
 	"net/http"
 )
 
@@ -32,12 +33,13 @@ func (e Error) Error() string {
 type Logger interface {
 	Debug(...interface{})
 	Info(...interface{})
-	Warn(...interface{})
 	Error(...interface{})
-	Fatal(...interface{})
-	Panic(...interface{})
 
 	WithField(string, interface{}) Logger
+
+	// Logger can be transformed into an io.Writer.
+	// That writer is the end of an io.Pipe and it is your responsibility to close it.
+	Writer() *io.PipeWriter
 }
 
 // Assets returns a handler to serve the website.

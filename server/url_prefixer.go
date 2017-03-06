@@ -80,9 +80,9 @@ func (up *URLPrefixer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// extract the flusher for flushing chunks
 	flusher, ok := rw.(http.Flusher)
 	if !ok {
-		up.Logger.
-			WithField("component", "prefixer").
-			Fatal("Expected http.ResponseWriter to be an http.Flusher, but wasn't")
+		msg := "Expected http.ResponseWriter to be an http.Flusher, but wasn't"
+		Error(rw, http.StatusInternalServerError, msg, up.Logger)
+		return
 	}
 
 	nextRead, nextWrite := io.Pipe()
