@@ -103,6 +103,13 @@ type csvFormatter struct {
 
 func (w *csvFormatter) WriteResponse(resp Response) (n int, err error) {
 	csv := csv.NewWriter(w)
+	if resp.Err != nil {
+		csv.Write([]string{"error"})
+		csv.Write([]string{resp.Err.Error()})
+		csv.Flush()
+		return n, csv.Error()
+	}
+
 	for _, result := range resp.Results {
 		if result.StatementID != w.statementID {
 			// If there are no series in the result, skip past this result.
