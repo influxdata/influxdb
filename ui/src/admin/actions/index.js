@@ -55,6 +55,20 @@ export const deleteUser = (user) => ({
   },
 })
 
+export const filterRoles = (text) => ({
+  type: 'FILTER_ROLES',
+  payload: {
+    text,
+  },
+})
+
+export const filterUsers = (text) => ({
+  type: 'FILTER_USERS',
+  payload: {
+    text,
+  },
+})
+
 // async actions
 export const loadUsersAsync = (url) => async (dispatch) => {
   const {data} = await getUsers(url)

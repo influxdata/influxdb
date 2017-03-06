@@ -6,6 +6,8 @@ import {
   loadRolesAsync,
   deleteRoleAsync,
   deleteUserAsync,
+  filterRoles as filterRolesAction,
+  filterUsers as filterUsersAction,
 } from 'src/admin/actions'
 import AdminTabs from 'src/admin/components/AdminTabs'
 
@@ -34,7 +36,7 @@ class AdminPage extends Component {
   }
 
   render() {
-    const {users, roles, source} = this.props
+    const {users, roles, source, filterUsers, filterRoles} = this.props
 
     return (
       <div className="page">
@@ -59,6 +61,8 @@ class AdminPage extends Component {
                     source={source}
                     onDeleteRole={this.handleDeleteRole}
                     onDeleteUser={this.handleDeleteUser}
+                    onFilterUsers={filterUsers}
+                    onFilterRoles={filterRoles}
                   /> :
                   <span>Loading...</span>
                 }
@@ -92,6 +96,8 @@ AdminPage.propTypes = {
   deleteRole: func,
   deleteUser: func,
   addFlashMessage: func,
+  filterRoles: func,
+  filterUsers: func,
 }
 
 const mapStateToProps = ({admin}) => ({
@@ -104,6 +110,8 @@ const mapDispatchToProps = (dispatch) => ({
   loadRoles: bindActionCreators(loadRolesAsync, dispatch),
   deleteRole: bindActionCreators(deleteRoleAsync, dispatch),
   deleteUser: bindActionCreators(deleteUserAsync, dispatch),
+  filterRoles: bindActionCreators(filterRolesAction, dispatch),
+  filterUsers: bindActionCreators(filterUsersAction, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(AdminPage)

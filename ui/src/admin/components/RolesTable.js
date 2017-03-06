@@ -1,22 +1,11 @@
 import React, {PropTypes} from 'react'
 import RoleRow from 'src/admin/components/RoleRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
+import FilterBar from 'src/admin/components/FilterBar'
 
-const RolesTable = ({roles, onDelete}) => (
+const RolesTable = ({roles, onDelete, onFilter}) => (
   <div className="panel panel-info">
-    <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-      <div className="users__search-widget input-group admin__search-widget">
-        <input
-          type="text"
-          className="form-control"
-          placeholder="Filter Role..."
-        />
-        <div className="input-group-addon">
-          <span className="icon search" aria-hidden="true"></span>
-        </div>
-      </div>
-      <a href="#" className="btn btn-primary">Create Role</a>
-    </div>
+    <FilterBar name="Roles" onFilter={onFilter} />
     <div className="panel-body">
       <table className="table v-center admin-table">
         <thead>
@@ -30,7 +19,7 @@ const RolesTable = ({roles, onDelete}) => (
         <tbody>
           {
             roles.length ?
-              roles.map((role) =>
+              roles.filter(r => !r.hidden).map((role) =>
                 <RoleRow key={role.name} role={role} onDelete={onDelete} />
               ) : <EmptyRow tableName={'Roles'} />
           }
@@ -59,6 +48,7 @@ RolesTable.propTypes = {
     })),
   })),
   onDelete: func.isRequired,
+  onFilter: func,
 }
 
 export default RolesTable
