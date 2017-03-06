@@ -62,7 +62,8 @@ func (wrw *wrapResponseWriter) Header() http.Header {
 	return *wrw.dupHeader
 }
 
-const CHUNK_SIZE int = 512
+// ChunkSize is the number of bytes per chunked transfer-encoding
+const ChunkSize int = 512
 
 // ServeHTTP implements an http.Handler that prefixes relative URLs from the
 // Next handler with the configured prefix. It does this by examining the
@@ -109,7 +110,7 @@ func (up *URLPrefixer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 				writtenCount++
 				buf.Write(src.Bytes())
 
-				if writtenCount >= CHUNK_SIZE {
+				if writtenCount >= ChunkSize {
 					flusher.Flush()
 					writtenCount = 0
 				}

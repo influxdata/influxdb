@@ -73,14 +73,17 @@ func provide(p oauth2.Provider, m oauth2.Mux, ok func() bool) func(func(oauth2.P
 	}
 }
 
+// UseGithub validates the CLI parameters to enable github oauth support
 func (s *Server) UseGithub() bool {
 	return s.TokenSecret != "" && s.GithubClientID != "" && s.GithubClientSecret != ""
 }
 
+// UseGoogle validates the CLI parameters to enable google oauth support
 func (s *Server) UseGoogle() bool {
 	return s.TokenSecret != "" && s.GoogleClientID != "" && s.GoogleClientSecret != "" && s.PublicURL != ""
 }
 
+// UseHeroku validates the CLI parameters to enable heroku oauth support
 func (s *Server) UseHeroku() bool {
 	return s.TokenSecret != "" && s.HerokuClientID != "" && s.HerokuSecret != ""
 }

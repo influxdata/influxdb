@@ -11,8 +11,10 @@ import (
 // Ensure SourcesStore implements chronograf.SourcesStore.
 var _ chronograf.SourcesStore = &SourcesStore{}
 
+// SourcesBucket is the bolt bucket used to store source information
 var SourcesBucket = []byte("Sources")
 
+// SourcesStore is a bolt implementation to store time-series source information.
 type SourcesStore struct {
 	client *Client
 }

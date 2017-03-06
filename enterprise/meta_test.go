@@ -70,7 +70,7 @@ func TestMetaClient_ShowCluster(t *testing.T) {
 					http.StatusBadGateway,
 					nil,
 					nil,
-					fmt.Errorf("Time circuits on. Flux Capacitor... fluxxing."),
+					fmt.Errorf("time circuits on. Flux Capacitor... fluxxing"),
 				),
 			},
 			wantErr: true,
@@ -214,7 +214,7 @@ func TestMetaClient_Users(t *testing.T) {
 					http.StatusOK,
 					[]byte(`{"users":[{"name":"admin","hash":"1234","permissions":{"":["ViewAdmin","ViewChronograf"]}}]}`),
 					nil,
-					fmt.Errorf("Time circuits on. Flux Capacitor... fluxxing."),
+					fmt.Errorf("time circuits on. Flux Capacitor... fluxxing"),
 				),
 			},
 			args: args{

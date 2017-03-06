@@ -3,8 +3,8 @@ package kapacitor
 import "fmt"
 
 const (
-	GreaterThan      = "greater than"
-	LessThan         = "less than"
+	greaterThan      = "greater than"
+	lessThan         = "less than"
 	LessThanEqual    = "equal to or less than"
 	GreaterThanEqual = "equal to or greater"
 	Equal            = "equal to"
@@ -16,9 +16,9 @@ const (
 // kapaOperator converts UI strings to kapacitor operators
 func kapaOperator(operator string) (string, error) {
 	switch operator {
-	case GreaterThan:
+	case greaterThan:
 		return ">", nil
-	case LessThan:
+	case lessThan:
 		return "<", nil
 	case LessThanEqual:
 		return "<=", nil

@@ -41,6 +41,9 @@ func validateTick(script chronograf.TICKScript) error {
 	return err
 }
 
+// deadman is an empty implementation of a kapacitor DeadmanService to allow CreatePipeline
+var _ pipeline.DeadmanService = &deadman{}
+
 type deadman struct {
 	interval  time.Duration
 	threshold float64

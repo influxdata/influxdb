@@ -12,8 +12,10 @@ import (
 // Ensure DashboardsStore implements chronograf.DashboardsStore.
 var _ chronograf.DashboardsStore = &DashboardsStore{}
 
+// DashboardBucket is the bolt bucket dashboards are stored in
 var DashboardBucket = []byte("Dashoard")
 
+// DashboardsStore is the bolt implementation of storing dashboards
 type DashboardsStore struct {
 	client *Client
 	IDs    chronograf.DashboardID
@@ -81,9 +83,9 @@ func (d *DashboardsStore) Get(ctx context.Context, id chronograf.DashboardID) (c
 }
 
 // Delete the dashboard from DashboardsStore
-func (s *DashboardsStore) Delete(ctx context.Context, d chronograf.Dashboard) error {
-	if err := s.client.db.Update(func(tx *bolt.Tx) error {
-		if err := tx.Bucket(DashboardBucket).Delete(itob(int(d.ID))); err != nil {
+func (d *DashboardsStore) Delete(ctx context.Context, dash chronograf.Dashboard) error {
+	if err := d.client.db.Update(func(tx *bolt.Tx) error {
+		if err := tx.Bucket(DashboardBucket).Delete(itob(int(dash.ID))); err != nil {
 			return err
 		}
 		return nil
@@ -95,16 +97,16 @@ func (s *DashboardsStore) Delete(ctx context.Context, d chronograf.Dashboard) er
 }
 
 // Update the dashboard in DashboardsStore
-func (s *DashboardsStore) Update(ctx context.Context, d chronograf.Dashboard) error {
-	if err := s.client.db.Update(func(tx *bolt.Tx) error {
+func (d *DashboardsStore) Update(ctx context.Context, dash chronograf.Dashboard) error {
+	if err := d.client.db.Update(func(tx *bolt.Tx) error {
 		// Get an existing dashboard with the same ID.
 		b := tx.Bucket(DashboardBucket)
-		strID := strconv.Itoa(int(d.ID))
+		strID := strconv.Itoa(int(dash.ID))
 		if v := b.Get([]byte(strID)); v == nil {
 			return chronograf.ErrDashboardNotFound
 		}
 
-		if v, err := internal.MarshalDashboard(d); err != nil {
+		if v, err := internal.MarshalDashboard(dash); err != nil {
 			return err
 		} else if err := b.Put([]byte(strID), v); err != nil {
 			return err

@@ -23,6 +23,7 @@ type Client struct {
 	DashboardsStore *DashboardsStore
 }
 
+// NewClient initializes all stores
 func NewClient() *Client {
 	c := &Client{Now: time.Now}
 	c.SourcesStore = &SourcesStore{client: c}
@@ -79,6 +80,7 @@ func (c *Client) Open() error {
 	return nil
 }
 
+// Close the connection to the bolt database
 func (c *Client) Close() error {
 	if c.db != nil {
 		return c.db.Close()

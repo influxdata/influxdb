@@ -41,17 +41,16 @@ func Vars(rule chronograf.AlertRule) (string, error) {
         var crit = %s
  `
 			return fmt.Sprintf(vars, common, formatValue(rule.TriggerValues.Value)), nil
-		} else {
-			vars := `
+		}
+		vars := `
 			%s
 					var lower = %s
 					var upper = %s
 `
-			return fmt.Sprintf(vars,
-				common,
-				rule.TriggerValues.Value,
-				rule.TriggerValues.RangeValue), nil
-		}
+		return fmt.Sprintf(vars,
+			common,
+			rule.TriggerValues.Value,
+			rule.TriggerValues.RangeValue), nil
 	case Relative:
 		vars := `
 		%s
