@@ -4742,6 +4742,81 @@ func TestServer_Query_GroupByTimeCutoffs(t *testing.T) {
 	}
 }
 
+func TestServer_Query_MapType(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu value=2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`gpu speed=25 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+	}
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "query value with a single measurement",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value FROM cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "query wildcard with a single measurement",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "query value with multiple measurements",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value FROM cpu, gpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "query wildcard with multiple measurements",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM cpu, gpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","speed","value"],"values":[["2000-01-01T00:00:00Z",null,2]]},{"name":"gpu","columns":["time","speed","value"],"values":[["2000-01-01T00:00:00Z",25,null]]}]}]}`,
+		},
+		&Query{
+			name:    "query value with a regex measurement",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value FROM /[cg]pu/`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "query wildcard with a regex measurement",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM /[cg]pu/`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","speed","value"],"values":[["2000-01-01T00:00:00Z",null,2]]},{"name":"gpu","columns":["time","speed","value"],"values":[["2000-01-01T00:00:00Z",25,null]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 func TestServer_Query_Subqueries(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())
@@ -4797,14 +4872,23 @@ func TestServer_Query_Subqueries(t *testing.T) {
 		},
 		&Query{
 			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT mean(min) FROM (SELECT (min(usage_user)) FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",17]]}]}]}`,
+		},
+		&Query{
+			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT max(min), host FROM (SELECT min(usage_user) FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z'`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","max","host"],"values":[["2000-01-01T00:00:20Z",23,"server01"]]}]}]}`,
 		},
 		&Query{
 			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT mean, host FROM (SELECT mean(usage_user) FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","mean","host"],"values":[["2000-01-01T00:00:00Z",46,"server01"],["2000-01-01T00:00:00Z",17,"server02"]]}]}]}`,
+		},
+		&Query{
+			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT host FROM (SELECT mean(usage_user) FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z'`,
 			exp:     `{"results":[{"statement_id":0}]}`,
-			skip:    true,
 		},
 		&Query{
 			params:  url.Values{"db": []string{"db0"}},
@@ -4860,14 +4944,6 @@ func TestServer_Query_Subqueries(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT value FROM (SELECT max(usage_user), usage_user - usage_system AS value FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z' AND value > 0`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",40]]}]}]}`,
-		},
-		&Query{
-			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT mean, host FROM (SELECT mean(usage_user) FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z'`,
-			// TODO(jsternberg): This should return the hosts for each mean()
-			// value. The query engine is currently limited in a way that
-			// doesn't allow that to work though so we have to do this.
-			exp: `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","mean","host"],"values":[["2000-01-01T00:00:00Z",46,null],["2000-01-01T00:00:00Z",17,null]]}]}]}`,
 		},
 	}...)
 
@@ -4939,6 +5015,50 @@ func TestServer_Query_SubqueryWithGroupBy(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT mean(mean) FROM (SELECT mean(value) FROM cpu GROUP BY time(2s), host, region) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:04Z' GROUP BY time(2s), host`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",5.5],["2000-01-01T00:00:02Z",7.5]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",9.5],["2000-01-01T00:00:02Z",11.5]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+func TestServer_Query_UnderscoreMeasurement(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`_cpu value=1i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+	}
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "select underscore with underscore prefix",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM _cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"_cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",1]]}]}]}`,
 		},
 	}...)
 
@@ -7541,7 +7661,7 @@ func TestServer_NestedAggregateWithMathPanics(t *testing.T) {
 	}
 
 	writes := []string{
-		`cpu value=2 0`,
+		`cpu value=2i 120000000000`,
 	}
 
 	test := NewTest("db0", "rp0")
@@ -7553,8 +7673,14 @@ func TestServer_NestedAggregateWithMathPanics(t *testing.T) {
 		&Query{
 			name:    "dividing by elapsed count should not panic",
 			params:  url.Values{"db": []string{"db0"}},
-			command: `SELECT sum(value) / elapsed(sum(value), 1m) FROM cpu WHERE time >= 0 AND time < 10m GROUP BY time(1m)`,
+			command: `SELECT sum(value) / elapsed(sum(value), 1m) FROM cpu WHERE time > 0 AND time < 10m GROUP BY time(1m)`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","sum_elapsed"],"values":[["1970-01-01T00:00:00Z",null],["1970-01-01T00:01:00Z",null],["1970-01-01T00:02:00Z",null],["1970-01-01T00:03:00Z",null],["1970-01-01T00:04:00Z",null],["1970-01-01T00:05:00Z",null],["1970-01-01T00:06:00Z",null],["1970-01-01T00:07:00Z",null],["1970-01-01T00:08:00Z",null],["1970-01-01T00:09:00Z",null]]}]}]}`,
+		},
+		&Query{
+			name:    "dividing by elapsed count with fill previous should not panic",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum(value) / elapsed(sum(value), 1m) FROM cpu WHERE time > 0 AND time < 10m GROUP BY time(1m) FILL(previous)`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","sum_elapsed"],"values":[["1970-01-01T00:00:00Z",null],["1970-01-01T00:01:00Z",null],["1970-01-01T00:02:00Z",null],["1970-01-01T00:03:00Z",2],["1970-01-01T00:04:00Z",2],["1970-01-01T00:05:00Z",2],["1970-01-01T00:06:00Z",2],["1970-01-01T00:07:00Z",2],["1970-01-01T00:08:00Z",2],["1970-01-01T00:09:00Z",2]]}]}]}`,
 		},
 	}...)
 

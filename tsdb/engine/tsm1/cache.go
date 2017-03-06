@@ -53,12 +53,12 @@ func newEntryValues(values []Value, hint int) (*entry, error) {
 	}
 
 	e := &entry{}
-	if len(values) >= hint {
-		e.values = values
+	if len(values) > hint {
+		e.values = make(Values, 0, len(values))
 	} else {
 		e.values = make(Values, 0, hint)
-		e.values = append(e.values, values...)
 	}
+	e.values = append(e.values, values...)
 
 	// No values, don't check types and ordering
 	if len(values) == 0 {
