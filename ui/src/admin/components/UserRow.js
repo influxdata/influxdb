@@ -27,7 +27,7 @@ const UserRow = ({user: {name, roles, permissions}, user, onDelete}) => (
         /> : '\u2014'
       }
     </td>
-    <td>
+    <td className="text-right" style={{width: "85px"}}>
       <DeleteRow onDelete={onDelete} item={user} />
     </td>
   </tr>

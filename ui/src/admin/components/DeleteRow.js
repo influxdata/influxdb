@@ -10,18 +10,18 @@ const DeleteButton = ({onConfirm}) => (
 )
 
 const ConfirmButtons = ({onDelete, item, onCancel}) => (
-  <div className="admin-table--delete">
+  <div>
     <button
-      className="btn btn-xs btn-primary "
+      className="btn btn-xs btn-primary"
       onClick={() => onDelete(item)}
     >
-      Confirm
+      <span className="icon checkmark"></span>
     </button>
     <button
       className="btn btn-xs btn-default"
       onClick={onCancel}
     >
-      Cancel
+      <span className="icon remove"></span>
     </button>
   </div>
 )

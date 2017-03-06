@@ -51,7 +51,7 @@ const RoleRow = ({role: {name, permissions, users}, role, onDelete}) => (
         /> : '\u2014'
       }
     </td>
-    <td className="text-right">
+    <td className="text-right" style={{width: "85px"}}>
       <DeleteRow onDelete={onDelete} item={role} />
     </td>
   </tr>

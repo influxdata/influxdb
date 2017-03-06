@@ -3,9 +3,9 @@ import UserRow from 'src/admin/components/UserRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
 
 const UsersTable = ({users, onDelete}) => (
-  <div className="panel panel-minimal">
+  <div className="panel panel-info">
     <div className="panel-body">
-      <table className="table v-center">
+      <table className="table v-center admin-table">
         <thead>
           <tr>
             <th>User</th>
