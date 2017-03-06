@@ -27,7 +27,10 @@ export default function AutoRefresh(ComposedComponent) {
       }).isRequired).isRequired,
     },
     getInitialState() {
-      return {timeSeries: []};
+      return {
+        lastQuerySuccessful: false,
+        timeSeries: [],
+      };
     },
     componentDidMount() {
       const {queries, autoRefresh} = this.props;
@@ -72,7 +75,9 @@ export default function AutoRefresh(ComposedComponent) {
           newSeries.push({response: resp.data});
           count += 1;
           if (count === queries.length) {
+            const querySuccessful = !this._noResultsForQuery(newSeries);
             this.setState({
+              lastQuerySuccessful: querySuccessful,
               isFetching: false,
               timeSeries: newSeries,
             });
@@ -86,11 +91,11 @@ export default function AutoRefresh(ComposedComponent) {
     render() {
       const {timeSeries} = this.state;
 
-      if (this.state.isFetching) {
+      if (this.state.isFetching && this.state.lastQuerySuccessful) {
         return this.renderFetching(timeSeries);
       }
 
-      if (this._noResultsForQuery(timeSeries)) {
+      if (this._noResultsForQuery(timeSeries) || !this.state.lastQuerySuccessful) {
         return this.renderNoResults();
       }
 
