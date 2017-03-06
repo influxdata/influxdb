@@ -58,7 +58,7 @@ export const RuleHeader = React.createClass({
   renderSave() {
     const {validationError, onSave, timeRange, onChooseTimeRange} = this.props;
     const saveButton = validationError ?
-      <button className="btn btn-sm btn-default disabled" data-for="save-kapacitor-tooltip" data-tip={validationError}>
+      <button className="btn btn-success btn-sm disabled" data-for="save-kapacitor-tooltip" data-tip={validationError}>
         Save Rule
       </button> :
       <button className="btn btn-success btn-sm" onClick={onSave}>Save Rule</button>;
