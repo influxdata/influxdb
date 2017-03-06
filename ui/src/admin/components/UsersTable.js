@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import UserRow from 'src/admin/components/UserRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
 
-const UsersTable = ({users}) => (
+const UsersTable = ({users, onDelete}) => (
   <div className="panel panel-minimal">
     <div className="panel-body">
       <table className="table v-center">
@@ -11,13 +11,14 @@ const UsersTable = ({users}) => (
             <th>User</th>
             <th>Roles</th>
             <th>Permissions</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
           {
             users.length ?
               users.map((user) =>
-                <UserRow key={user.name} user={user} />
+                <UserRow key={user.name} user={user} onDelete={onDelete} />
               ) : <EmptyRow tableName={'Users'} />
           }
         </tbody>
@@ -28,6 +29,7 @@ const UsersTable = ({users}) => (
 
 const {
   arrayOf,
+  func,
   shape,
   string,
 } = PropTypes
@@ -43,6 +45,7 @@ UsersTable.propTypes = {
       scope: string.isRequired,
     })),
   })),
+  onDelete: func.isRequired,
 }
 
 export default UsersTable

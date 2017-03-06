@@ -5,6 +5,7 @@ import {
   loadUsersAsync,
   loadRolesAsync,
   deleteRoleAsync,
+  deleteUserAsync,
 } from 'src/admin/actions'
 import AdminTabs from 'src/admin/components/AdminTabs'
 
@@ -12,6 +13,7 @@ class AdminPage extends Component {
   constructor(props) {
     super(props)
     this.handleDeleteRole = ::this.handleDeleteRole
+    this.handleDeleteUser = ::this.handleDeleteUser
   }
 
   componentDidMount() {
@@ -25,6 +27,10 @@ class AdminPage extends Component {
 
   handleDeleteRole(role) {
     this.props.deleteRole(role)
+  }
+
+  handleDeleteUser(user) {
+    this.props.deleteUser(user)
   }
 
   render() {
@@ -52,6 +58,7 @@ class AdminPage extends Component {
                     roles={roles}
                     source={source}
                     onDeleteRole={this.handleDeleteRole}
+                    onDeleteUser={this.handleDeleteUser}
                   /> :
                   <span>Loading...</span>
                 }
@@ -83,6 +90,7 @@ AdminPage.propTypes = {
   loadUsers: func,
   loadRoles: func,
   deleteRole: func,
+  deleteUser: func,
 }
 
 const mapStateToProps = ({admin}) => ({
@@ -94,6 +102,7 @@ const mapDispatchToProps = (dispatch) => ({
   loadUsers: bindActionCreators(loadUsersAsync, dispatch),
   loadRoles: bindActionCreators(loadRolesAsync, dispatch),
   deleteRole: bindActionCreators(deleteRoleAsync, dispatch),
+  deleteUser: bindActionCreators(deleteUserAsync, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(AdminPage)

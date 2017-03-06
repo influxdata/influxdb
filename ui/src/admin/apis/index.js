@@ -32,3 +32,14 @@ export const deleteRole = async (url) => {
     console.error(error) // eslint-disable-line no-console
   }
 }
+
+export const deleteUser = async (url) => {
+  try {
+    return await AJAX({
+      method: 'DELETE',
+      url,
+    })
+  } catch (error) {
+    console.error(error) // eslint-disable-line no-console
+  }
+}
