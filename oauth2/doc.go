@@ -1,4 +1,4 @@
-// The oauth2 package provides http.Handlers necessary for implementing Oauth2
+// Package oauth2 provides http.Handlers necessary for implementing Oauth2
 // authentication with multiple Providers.
 //
 // This is how the pieces of this package fit together:

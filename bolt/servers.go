@@ -11,8 +11,11 @@ import (
 // Ensure ServersStore implements chronograf.ServersStore.
 var _ chronograf.ServersStore = &ServersStore{}
 
+// ServersBucket is the bolt bucket to store lists of servers
 var ServersBucket = []byte("Servers")
 
+// ServersStore is the bolt implementation to store servers in a store.
+// Used store servers that are associated in some way with a source
 type ServersStore struct {
 	client *Client
 }

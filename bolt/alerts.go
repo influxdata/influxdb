@@ -11,8 +11,10 @@ import (
 // Ensure AlertsStore implements chronograf.AlertsStore.
 var _ chronograf.AlertRulesStore = &AlertsStore{}
 
+// AlertsBucket is the name of the bucket alert configuration is stored in
 var AlertsBucket = []byte("Alerts")
 
+// AlertsStore represents the bolt implementation of a store for alerts
 type AlertsStore struct {
 	client *Client
 }

@@ -11,8 +11,10 @@ import (
 // Ensure LayoutStore implements chronograf.LayoutStore.
 var _ chronograf.LayoutStore = &LayoutStore{}
 
+// LayoutBucket is the bolt bucket layouts are stored in
 var LayoutBucket = []byte("Layout")
 
+// LayoutStore is the bolt implementation to store layouts
 type LayoutStore struct {
 	client *Client
 	IDs    chronograf.ID

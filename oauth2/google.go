@@ -10,7 +10,7 @@ import (
 	goauth2 "google.golang.org/api/oauth2/v2"
 )
 
-// Endpoint is Google's OAuth 2.0 endpoint.
+// GoogleEndpoint is Google's OAuth 2.0 endpoint.
 // Copied here to remove tons of package dependencies
 var GoogleEndpoint = oauth2.Endpoint{
 	AuthURL:  "https://accounts.google.com/o/oauth2/auth",
@@ -18,6 +18,7 @@ var GoogleEndpoint = oauth2.Endpoint{
 }
 var _ Provider = &Google{}
 
+// Google is an oauth2 provider supporting google.
 type Google struct {
 	ClientID     string
 	ClientSecret string

@@ -148,7 +148,7 @@ func (c *Client) Roles(ctx context.Context) (chronograf.RolesStore, error) {
 	return c.RolesStore, nil
 }
 
-// Allowances returns all Influx Enterprise permission strings
+// Permissions returns all Influx Enterprise permission strings
 func (c *Client) Permissions(context.Context) chronograf.Permissions {
 	all := chronograf.Allowances{
 		"NoPermissions",

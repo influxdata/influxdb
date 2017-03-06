@@ -24,6 +24,7 @@ type cookie struct {
 // Check to ensure CookieMux is an oauth2.Mux
 var _ Mux = &CookieMux{}
 
+// NewCookieMux constructs a Mux handler that checks a cookie against the authenticator
 func NewCookieMux(p Provider, a Authenticator, l chronograf.Logger) *CookieMux {
 	return &CookieMux{
 		Provider:   p,
@@ -55,7 +56,7 @@ type CookieMux struct {
 	Now        func() time.Time // Now returns the current time
 }
 
-// Uses a Cookie with a random string as the state validation method.  JWTs are
+// Login uses a Cookie with a random string as the state validation method.  JWTs are
 // a good choice here for encoding because they can be validated without
 // storing state.
 func (j *CookieMux) Login() http.Handler {

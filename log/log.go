@@ -81,6 +81,7 @@ func (ll *logrusLogger) WithField(key string, value interface{}) chronograf.Logg
 	return &logrusLogger{ll.l.WithField(key, value)}
 }
 
+// New wraps a logrus Logger
 func New(l Level) chronograf.Logger {
 	logger := &logrus.Logger{
 		Out:       os.Stderr,
