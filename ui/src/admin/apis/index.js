@@ -22,24 +22,42 @@ export const getRoles = async (url) => {
   }
 }
 
-export const deleteRole = async (url) => {
+export const deleteRole = async (url, addFlashMessage, rolename) => {
   try {
-    return await AJAX({
+    const response = await AJAX({
       method: 'DELETE',
       url,
     })
+    addFlashMessage({
+      type: 'success',
+      text: `${rolename} successfully deleted.`,
+    })
+    return response
   } catch (error) {
     console.error(error) // eslint-disable-line no-console
+    addFlashMessage({
+      type: 'error',
+      text: `Error deleting: ${rolename}.`,
+    })
   }
 }
 
-export const deleteUser = async (url) => {
+export const deleteUser = async (url, addFlashMessage, username) => {
   try {
-    return await AJAX({
+    const response = await AJAX({
       method: 'DELETE',
       url,
     })
+    addFlashMessage({
+      type: 'success',
+      text: `${username} successfully deleted.`,
+    })
+    return response
   } catch (error) {
     console.error(error) // eslint-disable-line no-console
+    addFlashMessage({
+      type: 'error',
+      text: `Error deleting: ${username}.`,
+    })
   }
 }

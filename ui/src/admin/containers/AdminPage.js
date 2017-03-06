@@ -26,11 +26,11 @@ class AdminPage extends Component {
   }
 
   handleDeleteRole(role) {
-    this.props.deleteRole(role)
+    this.props.deleteRole(role, this.props.addFlashMessage)
   }
 
   handleDeleteUser(user) {
-    this.props.deleteUser(user)
+    this.props.deleteUser(user, this.props.addFlashMessage)
   }
 
   render() {
@@ -91,6 +91,7 @@ AdminPage.propTypes = {
   loadRoles: func,
   deleteRole: func,
   deleteUser: func,
+  addFlashMessage: func,
 }
 
 const mapStateToProps = ({admin}) => ({
