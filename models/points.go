@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"sort"
 	"strconv"
@@ -1492,21 +1493,36 @@ func (p *point) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary decodes a binary representation of the point into a point struct.
 func (p *point) UnmarshalBinary(b []byte) error {
-	var i int
-	keyLen := int(binary.BigEndian.Uint32(b[:4]))
-	i += int(4)
+	var n int
 
-	p.key = b[i : i+keyLen]
-	i += keyLen
+	// Read key length.
+	if len(b) < 4 {
+		return io.ErrShortBuffer
+	}
+	n, b = int(binary.BigEndian.Uint32(b[:4])), b[4:]
 
-	fieldLen := int(binary.BigEndian.Uint32(b[i : i+4]))
-	i += int(4)
+	// Read key.
+	if len(b) < n {
+		return io.ErrShortBuffer
+	}
+	p.key, b = b[:n], b[n:]
 
-	p.fields = b[i : i+fieldLen]
-	i += fieldLen
+	// Read fields length.
+	if len(b) < 4 {
+		return io.ErrShortBuffer
+	}
+	n, b = int(binary.BigEndian.Uint32(b[:4])), b[4:]
 
-	p.time = time.Now()
-	p.time.UnmarshalBinary(b[i:])
+	// Read fields.
+	if len(b) < n {
+		return io.ErrShortBuffer
+	}
+	p.fields, b = b[:n], b[n:]
+
+	// Read timestamp.
+	if err := p.time.UnmarshalBinary(b); err != nil {
+		return err
+	}
 	return nil
 }
 

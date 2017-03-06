@@ -816,11 +816,15 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
+	if err := e.DeleteSeries(seriesKeys); err != nil {
+		return err
+	}
+
 	e.fieldsMu.Lock()
 	delete(e.measurementFields, name)
 	e.fieldsMu.Unlock()
 
-	return e.DeleteSeries(seriesKeys)
+	return nil
 }
 
 // SeriesCount returns the number of series buckets on the shard.

@@ -115,8 +115,9 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, sources Sources, opt I
 				inputs = append(inputs, input)
 			case *SubQuery:
 				fields := make([]*Field, 0, len(opt.Aux))
-				indexes := make([]int, len(opt.Aux))
+				indexes := make([]IteratorMap, len(opt.Aux))
 				offset := 0
+			AUX:
 				for i, name := range opt.Aux {
 					// Search through the fields to find one that matches this auxiliary field.
 					var match *Field
@@ -145,13 +146,14 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, sources Sources, opt I
 					if match == nil {
 						for _, d := range source.Statement.Dimensions {
 							if d, ok := d.Expr.(*VarRef); ok && name.Val == d.Val {
-								match = &Field{
+								fields = append(fields, &Field{
 									Expr: &VarRef{
 										Val:  d.Val,
 										Type: Tag,
 									},
-								}
-								break
+								})
+								indexes[i] = TagMap(d.Val)
+								continue AUX
 							}
 						}
 					}
@@ -162,7 +164,7 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, sources Sources, opt I
 						match = &Field{Expr: (*nilLiteral)(nil)}
 					}
 					fields = append(fields, match)
-					indexes[i] = i + offset
+					indexes[i] = FieldMap(len(fields) + offset - 1)
 				}
 
 				// Check if we need any selectors within the selected fields.
@@ -191,6 +193,12 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, sources Sources, opt I
 						// Append the selector to the statement fields.
 						fields = append(fields, selector)
 					}
+				}
+
+				// If there are no fields, then we have nothing driving the iterator.
+				// Skip this subquery since it only references tags.
+				if len(fields) == 0 {
+					continue
 				}
 
 				// Clone the statement and replace the fields with our custom ordering.
@@ -495,6 +503,9 @@ func (b *exprIteratorBuilder) buildVarRefIterator(expr *VarRef) (Iterator, error
 						}
 						return itr, nil
 					}
+
+					// Reduce the expression to remove parenthesis.
+					e = Reduce(e, nil)
 
 					switch e := e.(type) {
 					case *VarRef:

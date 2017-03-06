@@ -918,6 +918,10 @@ func (b *block) markRead(min, max int64) {
 	}
 }
 
+func (b *block) partiallyRead() bool {
+	return b.readMin != b.minTime || b.readMax != b.maxTime
+}
+
 type blocks []*block
 
 func (a blocks) Len() int { return len(a) }
@@ -1065,25 +1069,25 @@ func (k *tsmKeyIterator) merge() {
 		return
 	}
 
-	dedup := false
-	if len(k.blocks) > 0 {
+	dedup := len(k.mergedValues) > 0
+	if len(k.blocks) > 0 && !dedup {
 		// If we have more than one block or any partially tombstoned blocks, we many need to dedup
-		dedup = len(k.blocks[0].tombstones) > 0
+		dedup = len(k.blocks[0].tombstones) > 0 || k.blocks[0].partiallyRead()
 
-		if len(k.blocks) > 1 {
-			// Quickly scan each block to see if any overlap with the prior block, if they overlap then
-			// we need to dedup as there may be duplicate points now
-			for i := 1; !dedup && i < len(k.blocks); i++ {
-				if k.blocks[i].read() {
-					dedup = true
-					break
-				}
-				if k.blocks[i].minTime <= k.blocks[i-1].maxTime || len(k.blocks[i].tombstones) > 0 {
-					dedup = true
-					break
-				}
+		// Quickly scan each block to see if any overlap with the prior block, if they overlap then
+		// we need to dedup as there may be duplicate points now
+		for i := 1; !dedup && i < len(k.blocks); i++ {
+			if k.blocks[i].partiallyRead() {
+				dedup = true
+				break
+			}
+
+			if k.blocks[i].minTime <= k.blocks[i-1].maxTime || len(k.blocks[i].tombstones) > 0 {
+				dedup = true
+				break
 			}
 		}
+
 	}
 
 	k.merged = k.combine(dedup)
@@ -1103,10 +1107,21 @@ func (k *tsmKeyIterator) combine(dedup bool) blocks {
 				break
 			}
 			first := k.blocks[0]
+			minTime := first.minTime
+			maxTime := first.maxTime
+
+			// Adjust the min time to the start of any overlapping blocks.
+			for i := 0; i < len(k.blocks); i++ {
+				if k.blocks[i].overlapsTimeRange(minTime, maxTime) {
+					if k.blocks[i].minTime < minTime {
+						minTime = k.blocks[i].minTime
+					}
+				}
+			}
 
 			// We have some overlapping blocks so decode all, append in order and then dedup
 			for i := 0; i < len(k.blocks); i++ {
-				if !k.blocks[i].overlapsTimeRange(first.minTime, first.maxTime) || k.blocks[i].read() {
+				if !k.blocks[i].overlapsTimeRange(minTime, maxTime) || k.blocks[i].read() {
 					continue
 				}
 
@@ -1120,7 +1135,7 @@ func (k *tsmKeyIterator) combine(dedup bool) blocks {
 				v = Values(v).Exclude(k.blocks[i].readMin, k.blocks[i].readMax)
 
 				// Filter out only the values for overlapping block
-				v = Values(v).Include(first.minTime, first.maxTime)
+				v = Values(v).Include(minTime, maxTime)
 				if len(v) > 0 {
 					// Record that we read a subset of the block
 					k.blocks[i].markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())

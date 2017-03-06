@@ -22,6 +22,16 @@
 - [#7905](https://github.com/influxdata/influxdb/issues/7905): Fix ORDER BY time DESC with ordering series keys.
 - [#7966](https://github.com/influxdata/influxdb/pull/7966): Prevent a panic when aggregates are used in an inner query with a raw query.
 - [#8001](https://github.com/influxdata/influxdb/issues/8001): Map types correctly when using a regex and one of the measurements is empty.
+- [#8040](https://github.com/influxdata/influxdb/issues/8040): Reduce the expression in a subquery to avoid a panic.
+- [#7968](https://github.com/influxdata/influxdb/issues/7968): Properly select a tag within a subquery.
+- [#8028](https://github.com/influxdata/influxdb/issues/8028): Fix panic in collectd when configured to read types DB from directory.
+- [#7880](https://github.com/influxdata/influxdb/issues/7880): Dividing aggregate functions with different outputs doesn't panic.
+- [#8044](https://github.com/influxdata/influxdb/issues/8044): Treat non-reserved measurement names with underscores as normal measurements.
+- [#8078](https://github.com/influxdata/influxdb/issues/8078): Map types correctly when selecting a field with multiple measurements where one of the measurements is empty.
+- [#8080](https://github.com/influxdata/influxdb/issues/8080): Point.UnmarshalBinary() bounds check
+- [#8084](https://github.com/influxdata/influxdb/issues/8084): Points missing after compaction
+- [#8085](https://github.com/influxdata/influxdb/issues/8085): panic: interface conversion: tsm1.Value is tsm1.IntegerValue, not tsm1.FloatValue.
+- [#8095](https://github.com/influxdata/influxdb/pull/8095): Fix race in WALEntry.Encode and Values.Deduplicate
 
 ## v1.2.0 [2017-01-24]
 
@@ -84,6 +94,12 @@ The stress tool `influx_stress` will be removed in a subsequent release. We reco
 - [#7838](https://github.com/influxdata/influxdb/issues/7838): Ensure Subscriber service can be disabled.
 - [#7845](https://github.com/influxdata/influxdb/issues/7845): Fix race in storage engine.
 - [#7814](https://github.com/influxdata/influxdb/issues/7814): InfluxDB should do a partial write on mismatched type errors.
+
+## v1.1.4 [2017-02-27]
+
+### Bugfixes
+
+- [#8063](https://github.com/influxdata/influxdb/pull/8063): Backport #7631 to reduce GC allocations.
 
 ## v1.1.3 [2017-02-17]
 
