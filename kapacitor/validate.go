@@ -3,7 +3,6 @@ package kapacitor
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/influxdata/chronograf"
@@ -25,7 +24,6 @@ func ValidateAlert(service string) error {
 func formatTick(tickscript string) (chronograf.TICKScript, error) {
 	node, err := ast.Parse(tickscript)
 	if err != nil {
-		log.Fatalf("parse execution: %s", err)
 		return "", err
 	}
 

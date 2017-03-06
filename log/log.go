@@ -1,6 +1,7 @@
 package log
 
 import (
+	"io"
 	"os"
 
 	"github.com/Sirupsen/logrus"
@@ -79,6 +80,10 @@ func (ll *logrusLogger) Panic(items ...interface{}) {
 
 func (ll *logrusLogger) WithField(key string, value interface{}) chronograf.Logger {
 	return &logrusLogger{ll.l.WithField(key, value)}
+}
+
+func (ll *logrusLogger) Writer() *io.PipeWriter {
+	return ll.l.Logger.WriterLevel(logrus.ErrorLevel)
 }
 
 // New wraps a logrus Logger

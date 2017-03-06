@@ -2,9 +2,11 @@ package server
 
 import (
 	"crypto/tls"
+	"log"
 	"math/rand"
 	"net"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 	"time"
@@ -57,7 +59,7 @@ type Server struct {
 	HerokuOrganizations []string `long:"heroku-organization" description:"Heroku Organization Memberships a user is required to have for access to Chronograf (comma separated)" env:"HEROKU_ORGS" env-delim:","`
 
 	ReportingDisabled bool   `short:"r" long:"reporting-disabled" description:"Disable reporting of usage stats (os,arch,version,cluster_id,uptime) once every 24hr" env:"REPORTING_DISABLED"`
-	LogLevel          string `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"warn" choice:"error" choice:"fatal" choice:"panic" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
+	LogLevel          string `short:"l" long:"log-level" value-name:"choice" choice:"debug" choice:"info" choice:"error" default:"info" description:"Set the logging level" env:"LOG_LEVEL"`
 	Basepath          string `short:"p" long:"basepath" description:"A URL path prefix under which all chronograf routes will be mounted" env:"BASE_PATH"`
 	ShowVersion       bool   `short:"v" long:"version" description:"Show Chronograf version info"`
 	BuildInfo         BuildInfo
@@ -211,10 +213,21 @@ func (s *Server) Serve() error {
 	}
 	s.Listener = listener
 
-	httpServer := &graceful.Server{Server: new(http.Server)}
+	// Using a log writer for http server logging
+	w := logger.Writer()
+	defer w.Close()
+	stdLog := log.New(w, "", 0)
+
+	// TODO: Remove graceful when changing to go 1.8
+	httpServer := &graceful.Server{
+		Server: &http.Server{
+			ErrorLog: stdLog,
+			Handler:  s.handler,
+		},
+		Logger:       stdLog,
+		TCPKeepAlive: 5 * time.Second,
+	}
 	httpServer.SetKeepAlivesEnabled(true)
-	httpServer.TCPKeepAlive = 5 * time.Second
-	httpServer.Handler = s.handler
 
 	if !s.ReportingDisabled {
 		go reportUsageStats(s.BuildInfo, logger)
@@ -247,7 +260,8 @@ func openService(boltPath, cannedPath string, logger chronograf.Logger, useAuth 
 	if err := db.Open(); err != nil {
 		logger.
 			WithField("component", "boltstore").
-			Fatal("Unable to open boltdb; is there a chronograf already running?  ", err)
+			Error("Unable to open boltdb; is there a chronograf already running?  ", err)
+		os.Exit(1)
 	}
 
 	// These apps are those handled from a directory
