@@ -19,6 +19,7 @@
 - [#8044](https://github.com/influxdata/influxdb/issues/8044): Treat non-reserved measurement names with underscores as normal measurements.
 - [#8078](https://github.com/influxdata/influxdb/issues/8078): Map types correctly when selecting a field with multiple measurements where one of the measurements is empty.
 - [#8080](https://github.com/influxdata/influxdb/issues/8080): Point.UnmarshalBinary() bounds check
+- [#8084](https://github.com/influxdata/influxdb/issues/8084): Points missing after compaction
 - [#8085](https://github.com/influxdata/influxdb/issues/8085): panic: interface conversion: tsm1.Value is tsm1.IntegerValue, not tsm1.FloatValue.
 - [#8095](https://github.com/influxdata/influxdb/pull/8095): Fix race in WALEntry.Encode and Values.Deduplicate
 
