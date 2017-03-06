@@ -19,6 +19,7 @@ class UsersTable extends Component {
 
     this.handleCancelNewUser = ::this.handleCancelNewUser
     this.handleSaveNewUser = ::this.handleSaveNewUser
+    this.handleEditNewUserName = ::this.handleEditNewUserName
   }
 
   handleSaveNewUser() {
@@ -26,7 +27,18 @@ class UsersTable extends Component {
   }
 
   handleCancelNewUser() {
-    this.setState({isAddingUser: false, newUser: {...newDefaultUser}})
+    this.setState({
+      isAddingUser: false,
+      newUser: {...newDefaultUser},
+    })
+  }
+
+  handleEditNewUserName(val) {
+    const newUser = Object.assign({}, this.state.newUser, {name: val})
+
+    this.setState({
+      newUser,
+    })
   }
 
   render() {
@@ -65,9 +77,10 @@ class UsersTable extends Component {
                 isAddingUser ?
                   <UserRow
                     user={this.state.newUser}
+                    isEditing={true}
                     onCancel={this.handleCancelNewUser}
                     onSave={this.handleSaveNewUser}
-                    isEditing={true}
+                    onEditName={this.handleEditNewUserName}
                   />
                   : null
               }
