@@ -2,30 +2,37 @@ import React, {Component, PropTypes} from 'react'
 import UserRow from 'src/admin/components/UserRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
 
+const newDefaultUser = {
+  name: '',
+  roles: [],
+  permissions: [],
+}
+
 class UsersTable extends Component {
   constructor(props) {
     super(props)
 
-    this.state = {users: this.props.users}
-
-    this.addUser = ::this.addUser
-  }
-
-  addUser() {
-    const newUser = {
-      name: '',
-      roles: [],
-      permissions: [],
-      isEditing: true,
+    this.state = {
+      isAddingUser: false,
+      newUser: {...newDefaultUser},
     }
 
-    const newUsers = [...this.state.users]
-    newUsers.unshift(newUser)
+    this.handleCancelNewUser = ::this.handleCancelNewUser
+    this.handleSaveNewUser = ::this.handleSaveNewUser
+  }
 
-    this.setState({users: newUsers})
+  handleSaveNewUser() {
+
+  }
+
+  handleCancelNewUser() {
+    this.setState({isAddingUser: false, newUser: {...newDefaultUser}})
   }
 
   render() {
+    const {users} = this.props
+    const {isAddingUser} = this.state
+
     return (
       <div className="panel panel-info">
         <div className="panel-heading u-flex u-ai-center u-jc-space-between">
@@ -39,7 +46,10 @@ class UsersTable extends Component {
               <span className="icon search" aria-hidden="true"></span>
             </div>
           </div>
-          <button className="btn btn-primary" onClick={this.addUser}>Create User</button>
+          <button
+            className="btn btn-primary"
+            onClick={() => this.setState({isAddingUser: true})}
+          >Create User</button>
         </div>
         <div className="panel-body">
           <table className="table v-center">
@@ -52,9 +62,22 @@ class UsersTable extends Component {
             </thead>
             <tbody>
               {
-                this.state.users.length ?
-                  this.state.users.map((user) =>
-                    <UserRow key={user.name} user={user} isEditing={user.isEditing} />
+                isAddingUser ?
+                  <UserRow
+                    user={this.state.newUser}
+                    onCancel={this.handleCancelNewUser}
+                    onSave={this.handleSaveNewUser}
+                    isEditing={true}
+                  />
+                  : null
+              }
+              {
+                users.length ?
+                  users.map((user) =>
+                    <UserRow
+                      key={user.name}
+                      user={user}
+                    />
                   ) : <EmptyRow tableName={'Users'} />
               }
             </tbody>
