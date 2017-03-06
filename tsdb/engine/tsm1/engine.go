@@ -816,13 +816,22 @@ func (e *Engine) DeleteSeriesRange(seriesKeys []string, min, max int64) error {
 
 // DeleteMeasurement deletes a measurement and all related series.
 func (e *Engine) DeleteMeasurement(name string, seriesKeys []string) error {
+	// Delete the bulk of data outside of the fields lock
 	if err := e.DeleteSeries(seriesKeys); err != nil {
 		return err
 	}
 
 	e.fieldsMu.Lock()
+	defer e.fieldsMu.Unlock()
+
+	// Delete any data that may have been written while we were deleting outside
+	// of the lock
+	if err := e.DeleteSeries(seriesKeys); err != nil {
+		return err
+	}
+
+	// Remove the field type mapping
 	delete(e.measurementFields, name)
-	e.fieldsMu.Unlock()
 
 	return nil
 }
