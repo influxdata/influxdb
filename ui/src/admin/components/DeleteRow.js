@@ -1,4 +1,5 @@
 import React, {PropTypes, Component} from 'react'
+import OnClickOutside from 'shared/components/OnClickOutside'
 
 const DeleteButton = ({onConfirm}) => (
   <button
@@ -44,6 +45,10 @@ class DeleteRow extends Component {
     this.setState({isConfirmed: false})
   }
 
+  handleClickOutside() {
+    this.setState({isConfirmed: false})
+  }
+
   render() {
     const {onDelete, item} = this.props
     const {isConfirmed} = this.state
@@ -84,4 +89,4 @@ DeleteRow.propTypes = {
   onDelete: func.isRequired,
 }
 
-export default DeleteRow
+export default OnClickOutside(DeleteRow)
