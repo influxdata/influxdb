@@ -1,43 +1,69 @@
-import React, {PropTypes} from 'react'
+import React, {Component, PropTypes} from 'react'
 import UserRow from 'src/admin/components/UserRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
 
-const UsersTable = ({users}) => (
-  <div className="panel panel-info">
-    <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-      <div className="users__search-widget input-group admin__search-widget">
-        <input
-          type="text"
-          className="form-control"
-          placeholder="Filter Role..."
-        />
-        <div className="input-group-addon">
-          <span className="icon search" aria-hidden="true"></span>
+class UsersTable extends Component {
+  constructor(props) {
+    super(props)
+
+    this.state = {users: this.props.users}
+
+    this.addUser = ::this.addUser
+  }
+
+  addUser() {
+    const newUser = {
+      name: '',
+      roles: [],
+      permissions: [],
+      isEditing: true,
+    }
+
+    const newUsers = [...this.state.users]
+    newUsers.unshift(newUser)
+
+    this.setState({users: newUsers})
+  }
+
+  render() {
+    return (
+      <div className="panel panel-info">
+        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
+          <div className="users__search-widget input-group admin__search-widget">
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Filter Role..."
+            />
+            <div className="input-group-addon">
+              <span className="icon search" aria-hidden="true"></span>
+            </div>
+          </div>
+          <button className="btn btn-primary" onClick={this.addUser}>Create User</button>
+        </div>
+        <div className="panel-body">
+          <table className="table v-center">
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Roles</th>
+                <th>Permissions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {
+                this.state.users.length ?
+                  this.state.users.map((user) =>
+                    <UserRow key={user.name} user={user} isEditing={user.isEditing} />
+                  ) : <EmptyRow tableName={'Users'} />
+              }
+            </tbody>
+          </table>
         </div>
       </div>
-      <a href="#" className="btn btn-primary">Create User</a>
-    </div>
-    <div className="panel-body">
-      <table className="table v-center">
-        <thead>
-          <tr>
-            <th>User</th>
-            <th>Roles</th>
-            <th>Permissions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {
-            users.length ?
-              users.map((user) =>
-                <UserRow key={user.name} user={user} />
-              ) : <EmptyRow tableName={'Users'} />
-          }
-        </tbody>
-      </table>
-    </div>
-  </div>
-)
+    )
+  }
+}
 
 const {
   arrayOf,

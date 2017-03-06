@@ -1,9 +1,9 @@
 import React, {PropTypes} from 'react'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
 
-const UserRow = ({user: {name, roles, permissions}}) => (
+const UserRow = ({user: {name, roles, permissions}, isEditing}) => (
   <tr>
-    <td>{name}</td>
+    {isEditing ? <input type="text"></input> : <td>{name}</td>}
     <td>
       {
         roles && roles.length ?
@@ -31,6 +31,7 @@ const UserRow = ({user: {name, roles, permissions}}) => (
 
 const {
   arrayOf,
+  bool,
   shape,
   string,
 } = PropTypes
@@ -45,6 +46,7 @@ UserRow.propTypes = {
       name: string,
     })),
   }).isRequired,
+  isEditing: bool,
 }
 
 export default UserRow

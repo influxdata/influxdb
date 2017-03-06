@@ -8,6 +8,13 @@ export const loadUsers = ({users}) => ({
   },
 })
 
+export const loadRoles = ({roles}) => ({
+  type: 'LOAD_ROLES',
+  payload: {
+    roles,
+  },
+})
+
 export const killQuery = (queryID) => ({
   type: 'KILL_QUERY',
   payload: {
@@ -34,12 +41,6 @@ export const loadUsersAsync = (url) => async (dispatch) => {
   const {data} = await getUsers(url)
   dispatch(loadUsers(data))
 }
-export const loadRoles = ({roles}) => ({
-  type: 'LOAD_ROLES',
-  payload: {
-    roles,
-  },
-})
 
 export const loadRolesAsync = (url) => async (dispatch) => {
   const {data} = await getRoles(url)
