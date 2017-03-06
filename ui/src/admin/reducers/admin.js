@@ -17,6 +17,24 @@ export default function admin(state = initialState, action) {
       return {...state, ...action.payload}
     }
 
+    case 'DELETE_ROLE': {
+      const {role} = action.payload
+      const newState = {
+        roles: state.roles.filter(r => r.name !== role.name),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'DELETE_USER': {
+      const {user} = action.payload
+      const newState = {
+        users: state.users.filter(u => u.name !== user.name),
+      }
+
+      return {...state, ...newState}
+    }
+
     case 'LOAD_QUERIES': {
       return {...state, ...action.payload}
     }

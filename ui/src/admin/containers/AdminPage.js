@@ -1,12 +1,19 @@
 import React, {Component, PropTypes} from 'react'
-import {connect} from 'react-redux';
-import {bindActionCreators} from 'redux';
-import {loadUsersAsync, loadRolesAsync} from 'src/admin/actions'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+import {
+  loadUsersAsync,
+  loadRolesAsync,
+  deleteRoleAsync,
+  deleteUserAsync,
+} from 'src/admin/actions'
 import AdminTabs from 'src/admin/components/AdminTabs'
 
 class AdminPage extends Component {
   constructor(props) {
     super(props)
+    this.handleDeleteRole = ::this.handleDeleteRole
+    this.handleDeleteUser = ::this.handleDeleteUser
   }
 
   componentDidMount() {
@@ -16,6 +23,14 @@ class AdminPage extends Component {
     if (source.links.roles) {
       loadRoles(source.links.roles)
     }
+  }
+
+  handleDeleteRole(role) {
+    this.props.deleteRole(role, this.props.addFlashMessage)
+  }
+
+  handleDeleteUser(user) {
+    this.props.deleteUser(user, this.props.addFlashMessage)
   }
 
   render() {
@@ -36,7 +51,17 @@ class AdminPage extends Component {
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-12">
-                {users.length ? <AdminTabs users={users} roles={roles} source={source}/> : <span>Loading...</span>}
+                {
+                  users.length ?
+                  <AdminTabs
+                    users={users}
+                    roles={roles}
+                    source={source}
+                    onDeleteRole={this.handleDeleteRole}
+                    onDeleteUser={this.handleDeleteUser}
+                  /> :
+                  <span>Loading...</span>
+                }
               </div>
             </div>
           </div>
@@ -64,6 +89,9 @@ AdminPage.propTypes = {
   roles: arrayOf(shape()),
   loadUsers: func,
   loadRoles: func,
+  deleteRole: func,
+  deleteUser: func,
+  addFlashMessage: func,
 }
 
 const mapStateToProps = ({admin}) => ({
@@ -74,6 +102,8 @@ const mapStateToProps = ({admin}) => ({
 const mapDispatchToProps = (dispatch) => ({
   loadUsers: bindActionCreators(loadUsersAsync, dispatch),
   loadRoles: bindActionCreators(loadRolesAsync, dispatch),
+  deleteRole: bindActionCreators(deleteRoleAsync, dispatch),
+  deleteUser: bindActionCreators(deleteUserAsync, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(AdminPage);
+export default connect(mapStateToProps, mapDispatchToProps)(AdminPage)

@@ -1,7 +1,8 @@
 import React, {PropTypes} from 'react'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
+import DeleteRow from 'src/admin/components/DeleteRow'
 
-const UserRow = ({user: {name, roles, permissions}}) => (
+const UserRow = ({user: {name, roles, permissions}, user, onDelete}) => (
   <tr>
     <td>{name}</td>
     <td>
@@ -26,11 +27,15 @@ const UserRow = ({user: {name, roles, permissions}}) => (
         /> : '\u2014'
       }
     </td>
+    <td className="text-right" style={{width: "85px"}}>
+      <DeleteRow onDelete={onDelete} item={user} />
+    </td>
   </tr>
 )
 
 const {
   arrayOf,
+  func,
   shape,
   string,
 } = PropTypes
@@ -45,6 +50,7 @@ UserRow.propTypes = {
       name: string,
     })),
   }).isRequired,
+  onDelete: func.isRequired,
 }
 
 export default UserRow
