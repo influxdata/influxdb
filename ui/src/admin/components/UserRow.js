@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
+import DeleteRow from 'src/admin/components/DeleteRow'
 
 const UserRow = ({user: {name, roles, permissions}, user, onDelete}) => (
   <tr>
@@ -27,12 +28,7 @@ const UserRow = ({user: {name, roles, permissions}, user, onDelete}) => (
       }
     </td>
     <td>
-      <button
-        className="btn btn-xs btn-danger admin-table--delete"
-        onClick={() => onDelete(user)}
-      >
-        Delete
-      </button>
+      <DeleteRow onDelete={onDelete} item={user} />
     </td>
   </tr>
 )

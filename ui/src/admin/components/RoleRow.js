@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react'
 import _ from 'lodash'
 
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
+import DeleteRow from 'src/admin/components/DeleteRow'
 
 const PERMISSIONS = [
   "NoPermissions",
@@ -51,12 +52,7 @@ const RoleRow = ({role: {name, permissions, users}, role, onDelete}) => (
       }
     </td>
     <td className="text-right">
-      <button
-        className="btn btn-xs btn-danger admin-table--delete"
-        onClick={() => onDelete(role)}
-      >
-        Delete
-      </button>
+      <DeleteRow onDelete={onDelete} item={role} />
     </td>
   </tr>
 )
