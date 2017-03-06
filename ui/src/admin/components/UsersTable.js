@@ -1,9 +1,11 @@
 import React, {PropTypes} from 'react'
 import UserRow from 'src/admin/components/UserRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
+import FilterBar from 'src/admin/components/FilterBar'
 
-const UsersTable = ({users, onDelete}) => (
+const UsersTable = ({users, onDelete, onFilter}) => (
   <div className="panel panel-info">
+    <FilterBar name="Users" onFilter={onFilter} />
     <div className="panel-body">
       <table className="table v-center admin-table">
         <thead>
@@ -17,7 +19,7 @@ const UsersTable = ({users, onDelete}) => (
         <tbody>
           {
             users.length ?
-              users.map((user) =>
+              users.filter(u => !u.hidden).map((user) =>
                 <UserRow key={user.name} user={user} onDelete={onDelete} />
               ) : <EmptyRow tableName={'Users'} />
           }
@@ -46,6 +48,7 @@ UsersTable.propTypes = {
     })),
   })),
   onDelete: func.isRequired,
+  onFilter: func,
 }
 
 export default UsersTable

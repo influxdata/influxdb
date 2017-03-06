@@ -39,6 +39,30 @@ export default function admin(state = initialState, action) {
       return {...state, ...action.payload}
     }
 
+    case 'FILTER_ROLES': {
+      const {text} = action.payload
+      const newState = {
+        roles: state.roles.map(r => {
+          r.hidden = !r.name.toLowerCase().includes(text)
+          return r
+        }),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'FILTER_USERS': {
+      const {text} = action.payload
+      const newState = {
+        users: state.users.map(u => {
+          u.hidden = !u.name.toLowerCase().includes(text)
+          return u
+        }),
+      }
+
+      return {...state, ...newState}
+    }
+
     case 'KILL_QUERY': {
       const {queryID} = action.payload
       const nextState = {

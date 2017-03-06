@@ -4,6 +4,8 @@ import {
   loadRoles,
   deleteRole,
   deleteUser,
+  filterRoles,
+  filterUsers,
 } from 'src/admin/actions'
 
 let state = undefined
@@ -50,6 +52,42 @@ describe('Admin.Reducers', () => {
     const actual = reducer(state, deleteUser(u1))
     const expected = {
       users: [],
+    }
+
+    expect(actual.users).to.deep.equal(expected.users)
+  })
+
+  it('can filter roles w/ "1" text', () => {
+    state = {
+      roles,
+    }
+
+    const text = '1'
+
+    const actual = reducer(state, filterRoles(text))
+    const expected = {
+      roles: [
+        {...r1, hidden: false},
+        {...r2, hidden: true},
+      ],
+    }
+
+    expect(actual.roles).to.deep.equal(expected.roles)
+  })
+
+  it('can filter users w/ "2" text', () => {
+    state = {
+      users,
+    }
+
+    const text = '2'
+
+    const actual = reducer(state, filterUsers(text))
+    const expected = {
+      users: [
+        {...u1, hidden: true},
+        {...u2, hidden: false},
+      ],
     }
 
     expect(actual.users).to.deep.equal(expected.users)
