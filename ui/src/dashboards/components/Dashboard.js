@@ -33,7 +33,7 @@ Dashboard.renderDashboard = (dashboard, autoRefresh, timeRange, source, onPositi
     const dashboardCell = {...cell, i}
     dashboardCell.queries.forEach((q) => {
       q.text = q.query;
-      q.database = source.telegraf;
+      q.database = q.db;
     });
     return dashboardCell;
   })
