@@ -22,7 +22,7 @@ class AdminTabs extends Component {
   }
 
   render() {
-    const {users, roles, source} = this.props
+    const {users, roles, source, onDeleteRole} = this.props
 
     return (
       <Tabs onSelect={this.handleActivateTab}>
@@ -40,6 +40,7 @@ class AdminTabs extends Component {
           <TabPanel>
             <RolesTable
               roles={roles}
+              onDelete={onDeleteRole}
             />
           </TabPanel>
           <TabPanel>
@@ -53,6 +54,7 @@ class AdminTabs extends Component {
 
 const {
   arrayOf,
+  func,
   shape,
   string,
 } = PropTypes
@@ -66,6 +68,7 @@ AdminTabs.propTypes = {
   })),
   source: shape(),
   roles: arrayOf(shape()),
+  onDeleteRole: func.isRequired,
 }
 
 export default AdminTabs

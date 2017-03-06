@@ -1,4 +1,4 @@
-import {getUsers, getRoles} from 'src/admin/apis'
+import {getUsers, getRoles, deleteRole as deleteRoleAJAX} from 'src/admin/apis'
 import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
 
 export const loadUsers = ({users}) => ({
@@ -29,17 +29,25 @@ export const loadQueries = (queries) => ({
   },
 })
 
-// async actions
-export const loadUsersAsync = (url) => async (dispatch) => {
-  const {data} = await getUsers(url)
-  dispatch(loadUsers(data))
-}
 export const loadRoles = ({roles}) => ({
   type: 'LOAD_ROLES',
   payload: {
     roles,
   },
 })
+
+export const deleteRole = (role) => ({
+  type: 'DELETE_ROLE',
+  payload: {
+    role,
+  },
+})
+
+// async actions
+export const loadUsersAsync = (url) => async (dispatch) => {
+  const {data} = await getUsers(url)
+  dispatch(loadUsers(data))
+}
 
 export const loadRolesAsync = (url) => async (dispatch) => {
   const {data} = await getRoles(url)
@@ -53,4 +61,12 @@ export const killQueryAsync = (source, queryID) => (dispatch) => {
 
   // kill query on server
   killQueryProxy(source, queryID)
+}
+
+export const deleteRoleAsync = (role) => (dispatch) => {
+  // optimistic update
+  dispatch(deleteRole(role))
+
+  // delete role on server
+  deleteRoleAJAX(role.links.self)
 }

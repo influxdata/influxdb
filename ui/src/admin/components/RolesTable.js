@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react'
 import RoleRow from 'src/admin/components/RoleRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
 
-const RolesTable = ({roles}) => (
+const RolesTable = ({roles, onDelete}) => (
   <div className="panel panel-info">
     <div className="panel-heading u-flex u-ai-center u-jc-space-between">
       <div className="users__search-widget input-group admin__search-widget">
@@ -31,7 +31,7 @@ const RolesTable = ({roles}) => (
           {
             roles.length ?
               roles.map((role) =>
-                <RoleRow key={role.name} role={role} />
+                <RoleRow key={role.name} role={role} onDelete={onDelete} />
               ) : <EmptyRow tableName={'Roles'} />
           }
         </tbody>
@@ -42,6 +42,7 @@ const RolesTable = ({roles}) => (
 
 const {
   arrayOf,
+  func,
   shape,
   string,
 } = PropTypes
@@ -57,6 +58,7 @@ RolesTable.propTypes = {
       name: string,
     })),
   })),
+  onDelete: func.isRequired,
 }
 
 export default RolesTable
