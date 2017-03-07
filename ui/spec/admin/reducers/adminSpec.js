@@ -2,6 +2,7 @@ import reducer from 'src/admin/reducers/admin'
 
 import {
   addUser,
+  removeAddedUser,
   loadRoles,
   deleteRole,
   deleteUser,
@@ -29,6 +30,17 @@ describe('Admin.Reducers', () => {
     const actual = reducer(state, addUser(u2))
     const expected = {
       users: [u2, u1],
+    }
+
+    expect(actual.users).to.deep.equal(expected.users)
+  })
+
+  it('it can remove an added user', () => {
+    state = {users}
+
+    const actual = reducer(state, removeAddedUser(u1))
+    const expected = {
+      users: [u2],
     }
 
     expect(actual.users).to.deep.equal(expected.users)
