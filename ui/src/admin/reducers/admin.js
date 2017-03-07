@@ -27,11 +27,15 @@ export default function admin(state = initialState, action) {
       return newState
     }
 
-    case 'ERROR_ADD_USER': { // TODO implement redux state history
+    case 'ERROR_ADD_USER': {
+      const newUsers = [...state.users]
+
+       // find and remove first user in list with name
+      const i = newUsers.findIndex((user) => user.name === action.payload.user.name)
+      newUsers.splice(i, 1)
+
       const newState = Object.assign({}, state, {
-        users: [
-          ...state.users.filter((user) => user.name !== action.payload.user.name),
-        ],
+        users: newUsers,
       })
       return newState
     }

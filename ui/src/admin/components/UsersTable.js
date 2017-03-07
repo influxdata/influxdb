@@ -97,9 +97,9 @@ class UsersTable extends Component {
               }
               {
                 users.length ?
-                  users.map((user) =>
+                  users.map((user, i) =>
                     <UserRow
-                      key={user.name}
+                      key={i}
                       user={user}
                     />
                   ) : <EmptyRow tableName={'Users'} />
