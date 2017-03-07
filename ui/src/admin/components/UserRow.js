@@ -1,13 +1,15 @@
 import React, {PropTypes} from 'react'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
+import DeleteRow from 'src/admin/components/DeleteRow'
 
 const UserRow = ({
   user: {name, roles, permissions},
+  user,
   isEditing,
-  onCancel,
   onSave,
   onInputChange,
   onInputKeyPress,
+  onDelete,
 }) => (
   <tr>
     {
@@ -57,11 +59,13 @@ const UserRow = ({
       {
         isEditing ?
         <div>
-          <button onClick={onCancel}>Cancel</button>
           <button onClick={onSave}>Save</button>
         </div>
         : null
       }
+    </td>
+    <td className="text-right" style={{width: "85px"}}>
+      <DeleteRow onDelete={onDelete} item={user} />
     </td>
   </tr>
 )
@@ -85,10 +89,10 @@ UserRow.propTypes = {
     })),
   }).isRequired,
   isEditing: bool,
-  onCancel: func,
   onSave: func,
   onInputChange: func,
   onInputKeyPress: func,
+  onDelete: func.isRequired,
 }
 
 export default UserRow

@@ -2,6 +2,7 @@ import React, {Component, PropTypes} from 'react'
 
 import UserRow from 'src/admin/components/UserRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
+import FilterBar from 'src/admin/components/FilterBar'
 
 const newDefaultUser = {
   name: '',
@@ -24,17 +25,22 @@ class UsersTable extends Component {
       newUser: {...newDefaultUser},
     }
 
+    this.handleClickCreate = ::this.handleClickCreate
     this.handleClearNewUser = ::this.handleClearNewUser
     this.handleSubmitNewUser = ::this.handleSubmitNewUser
     this.handleInputChange = ::this.handleInputChange
     this.handleInputKeyPress = ::this.handleInputKeyPress
   }
 
+  handleClickCreate() {
+    this.setState({isAddingUser: true})
+  }
+
   handleSubmitNewUser() {
-    const {source, addUser, addFlashMessage} = this.props
+    const {onAdd, addFlashMessage} = this.props
     const {newUser} = this.state
     if (isValid(newUser)) {
-      addUser(source.links.users, newUser)
+      onAdd(newUser)
       this.handleClearNewUser()
     } else {
       addFlashMessage({type: 'error', text: 'Username and/or password too short'})
@@ -61,34 +67,20 @@ class UsersTable extends Component {
   }
 
   render() {
-    const {users} = this.props
+    const {users, hasRoles, onDelete, onFilter} = this.props
     const {isAddingUser} = this.state
 
     return (
       <div className="panel panel-info">
-        <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-          <div className="users__search-widget input-group admin__search-widget">
-            <input
-              type="text"
-              className="form-control"
-              placeholder="Filter Role..."
-            />
-            <div className="input-group-addon">
-              <span className="icon search" aria-hidden="true"></span>
-            </div>
-          </div>
-          <button
-            className="btn btn-primary"
-            onClick={() => this.setState({isAddingUser: true})}
-          >Create User</button>
-        </div>
+        <FilterBar name="Users" onFilter={onFilter} onClickCreate={this.handleClickCreate} />
         <div className="panel-body">
-          <table className="table v-center">
+          <table className="table v-center admin-table">
             <thead>
               <tr>
                 <th>User</th>
-                <th>Roles</th>
+                {hasRoles && <th>Roles</th>}
                 <th>Permissions</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -97,7 +89,7 @@ class UsersTable extends Component {
                   <UserRow
                     user={this.state.newUser}
                     isEditing={true}
-                    onCancel={this.handleClearNewUser}
+                    onDelete={this.handleClearNewUser}
                     onSave={this.handleSubmitNewUser}
                     onInputChange={this.handleInputChange}
                     onInputKeyPress={this.handleInputKeyPress}
@@ -106,11 +98,8 @@ class UsersTable extends Component {
               }
               {
                 users.length ?
-                  users.map((user, i) =>
-                    <UserRow
-                      key={i}
-                      user={user}
-                    />
+                  users.filter(u => !u.hidden).map((user, i) =>
+                    <UserRow key={i} user={user} onDelete={onDelete} />
                   ) : <EmptyRow tableName={'Users'} />
               }
             </tbody>
@@ -123,6 +112,7 @@ class UsersTable extends Component {
 
 const {
   arrayOf,
+  bool,
   func,
   shape,
   string,
@@ -139,9 +129,11 @@ UsersTable.propTypes = {
       scope: string.isRequired,
     })),
   })),
-  source: shape(),
-  addUser: func.isRequired,
+  onAdd: func.isRequired,
   addFlashMessage: func.isRequired,
+  hasRoles: bool.isRequired,
+  onDelete: func.isRequired,
+  onFilter: func,
 }
 
 export default UsersTable

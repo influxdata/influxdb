@@ -1,12 +1,23 @@
 import React, {Component, PropTypes} from 'react'
-import {connect} from 'react-redux';
-import {bindActionCreators} from 'redux';
-import {loadUsersAsync, loadRolesAsync, addUserAsync} from 'src/admin/actions'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+import {
+  loadUsersAsync,
+  loadRolesAsync,
+  addUserAsync,
+  deleteRoleAsync,
+  deleteUserAsync,
+  filterRoles as filterRolesAction,
+  filterUsers as filterUsersAction,
+} from 'src/admin/actions'
 import AdminTabs from 'src/admin/components/AdminTabs'
 
 class AdminPage extends Component {
   constructor(props) {
     super(props)
+    this.handleAddUser = ::this.handleAddUser
+    this.handleDeleteRole = ::this.handleDeleteRole
+    this.handleDeleteUser = ::this.handleDeleteUser
   }
 
   componentDidMount() {
@@ -18,8 +29,20 @@ class AdminPage extends Component {
     }
   }
 
+  handleAddUser(user) {
+    this.props.addUser(this.props.source.links.users, user, this.props.addFlashMessage)
+  }
+
+  handleDeleteRole(role) {
+    this.props.deleteRole(role, this.props.addFlashMessage)
+  }
+
+  handleDeleteUser(user) {
+    this.props.deleteUser(user, this.props.addFlashMessage)
+  }
+
   render() {
-    const {users, roles, source, addUser, addFlashMessage} = this.props
+    const {users, roles, source, filterUsers, filterRoles, addFlashMessage} = this.props
 
     return (
       <div className="page">
@@ -36,15 +59,21 @@ class AdminPage extends Component {
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-12">
-                {users.length ?
+                {
+                  users.length ?
                   <AdminTabs
                     users={users}
                     roles={roles}
                     source={source}
-                    addUser={addUser}
+                    onAddUser={this.handleAddUser}
+                    onDeleteRole={this.handleDeleteRole}
+                    onDeleteUser={this.handleDeleteUser}
+                    onFilterUsers={filterUsers}
+                    onFilterRoles={filterRoles}
                     addFlashMessage={addFlashMessage}
-                  />
-                  : <span>Loading...</span>}
+                  /> :
+                  <span>Loading...</span>}
+                }
               </div>
             </div>
           </div>
@@ -73,7 +102,11 @@ AdminPage.propTypes = {
   loadUsers: func,
   loadRoles: func,
   addUser: func,
-  addFlashMessage: func.isRequired,
+  deleteRole: func,
+  deleteUser: func,
+  addFlashMessage: func,
+  filterRoles: func,
+  filterUsers: func,
 }
 
 const mapStateToProps = ({admin}) => ({
@@ -85,6 +118,10 @@ const mapDispatchToProps = (dispatch) => ({
   loadUsers: bindActionCreators(loadUsersAsync, dispatch),
   loadRoles: bindActionCreators(loadRolesAsync, dispatch),
   addUser: bindActionCreators(addUserAsync, dispatch),
+  deleteRole: bindActionCreators(deleteRoleAsync, dispatch),
+  deleteUser: bindActionCreators(deleteUserAsync, dispatch),
+  filterRoles: bindActionCreators(filterRolesAction, dispatch),
+  filterUsers: bindActionCreators(filterUsersAction, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(AdminPage);
+export default connect(mapStateToProps, mapDispatchToProps)(AdminPage)

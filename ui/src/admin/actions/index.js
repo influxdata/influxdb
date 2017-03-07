@@ -1,9 +1,12 @@
 import {
-  getUsers as getUsersAPI,
-  getRoles as getRolesAPI,
-  createUser as createUserAPI,
+  getUsers as getUsersAJAX,
+  getRoles as getRolesAJAX,
+  createUser as createUserAJAX,
+  deleteRole as deleteRoleAJAX,
+  deleteUser as deleteUserAJAX,
 } from 'src/admin/apis'
 import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
+
 import {publishNotification} from 'src/shared/actions/notifications';
 
 import {ADMIN_NOTIFICATION_DELAY} from 'shared/constants'
@@ -29,8 +32,8 @@ export const addUser = (user) => ({
   },
 })
 
-export const errorAddUser = (user) => ({
-  type: 'ERROR_ADD_USER',
+export const removeAddedUser = (user) => ({
+  type: 'REMOVE_ADDED_USER',
   payload: {
     user,
   },
@@ -57,28 +60,56 @@ export const loadQueries = (queries) => ({
   },
 })
 
+export const deleteRole = (role) => ({
+  type: 'DELETE_ROLE',
+  payload: {
+    role,
+  },
+})
+
+export const deleteUser = (user) => ({
+  type: 'DELETE_USER',
+  payload: {
+    user,
+  },
+})
+
+export const filterRoles = (text) => ({
+  type: 'FILTER_ROLES',
+  payload: {
+    text,
+  },
+})
+
+export const filterUsers = (text) => ({
+  type: 'FILTER_USERS',
+  payload: {
+    text,
+  },
+})
+
 // async actions
 export const loadUsersAsync = (url) => async (dispatch) => {
-  const {data} = await getUsersAPI(url)
+  const {data} = await getUsersAJAX(url)
   dispatch(loadUsers(data))
 }
 
 export const loadRolesAsync = (url) => async (dispatch) => {
-  const {data} = await getRolesAPI(url)
+  const {data} = await getRolesAJAX(url)
   dispatch(loadRoles(data))
 }
 
 export const addUserAsync = (url, user) => async (dispatch) => {
-  // optimistically update
+  // optimistic update
   dispatch(addUser(user))
 
   try {
-    await createUserAPI(url, user)
+    await createUserAJAX(url, user)
     dispatch(publishNotification('success', 'User created successfully'))
   } catch (error) {
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create user: ${error.data.message}`))
-    setTimeout(() => dispatch(errorAddUser(user)), ADMIN_NOTIFICATION_DELAY)
+    setTimeout(() => dispatch(removeAddedUser(user)), ADMIN_NOTIFICATION_DELAY)
   }
 }
 
@@ -89,4 +120,20 @@ export const killQueryAsync = (source, queryID) => (dispatch) => {
 
   // kill query on server
   killQueryProxy(source, queryID)
+}
+
+export const deleteRoleAsync = (role, addFlashMessage) => (dispatch) => {
+  // optimistic update
+  dispatch(deleteRole(role))
+
+  // delete role on server
+  deleteRoleAJAX(role.links.self, addFlashMessage, role.name)
+}
+
+export const deleteUserAsync = (user, addFlashMessage) => (dispatch) => {
+  // optimistic update
+  dispatch(deleteUser(user))
+
+  // delete user on server
+  deleteUserAJAX(user.links.self, addFlashMessage, user.name)
 }
