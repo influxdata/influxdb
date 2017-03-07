@@ -22,7 +22,6 @@ export const getRoles = async (url) => {
   }
 }
 
-
 export const createUser = async (url, user) => {
   try {
     return await AJAX({
