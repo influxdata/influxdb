@@ -6,8 +6,19 @@ const UserRow = ({user: {name, roles, permissions}, isEditing, onCancel, onSave,
     {
       isEditing ?
         <td>
-          <input name="name" type="text" onChange={onInputChange}></input>
-          <input name="password" type="text" onChange={onInputChange}></input>
+          <input
+            name="name"
+            type="text"
+            placeholder="username"
+            onChange={onInputChange}
+            autoFocus={true}
+          />
+          <input
+            name="password"
+            type="text"
+            placeholder="password"
+            onChange={onInputChange}
+          />
         </td>
         : <td>{name}</td>
     }
