@@ -11,7 +11,8 @@ const newDefaultUser = {
 }
 
 const isValid = (user) => {
-  return (user.name.length >= 3 && user.password.length >= 3)
+  const minLen = 3
+  return (user.name.length >= minLen && user.password.length >= minLen)
 }
 
 class UsersTable extends Component {
