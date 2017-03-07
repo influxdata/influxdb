@@ -17,6 +17,15 @@ export default function admin(state = initialState, action) {
       return {...state, ...action.payload}
     }
 
+    case 'ADD_USER': {
+      const newState = Object.assign({}, state, {
+        users: [
+          action.payload.user,
+          ...state.users,
+        ]})
+      return newState
+    }
+
     case 'LOAD_QUERIES': {
       return {...state, ...action.payload}
     }

@@ -14,7 +14,7 @@ class AdminTabs extends Component {
       activeTab: TABS[0],
     }
 
-    this.handleActivateTab = this.handleActivateTab.bind(this)
+    this.handleActivateTab = ::this.handleActivateTab
   }
 
   handleActivateTab(activeIndex) {
@@ -22,7 +22,7 @@ class AdminTabs extends Component {
   }
 
   render() {
-    const {users, roles, source} = this.props
+    const {users, roles, source, addUser, addFlashMessage} = this.props
 
     return (
       <Tabs onSelect={this.handleActivateTab}>
@@ -34,7 +34,10 @@ class AdminTabs extends Component {
         <TabPanels>
           <TabPanel>
             <UsersTable
+              source={source}
               users={users}
+              addUser={addUser}
+              addFlashMessage={addFlashMessage}
             />
           </TabPanel>
           <TabPanel>
@@ -53,6 +56,7 @@ class AdminTabs extends Component {
 
 const {
   arrayOf,
+  func,
   shape,
   string,
 } = PropTypes
@@ -66,6 +70,8 @@ AdminTabs.propTypes = {
   })),
   source: shape(),
   roles: arrayOf(shape()),
+  addUser: func.isRequired,
+  addFlashMessage: func.isRequired,
 }
 
 export default AdminTabs

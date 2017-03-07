@@ -21,3 +21,15 @@ export const getRoles = async (url) => {
     console.error(error) // eslint-disable-line no-console
   }
 }
+
+export const createUser = async (url, user) => {
+  try {
+    return await AJAX({
+      method: 'POST',
+      url,
+      data: user,
+    })
+  } catch (error) {
+    console.error(error) // eslint-disable-line no-console
+  }
+}

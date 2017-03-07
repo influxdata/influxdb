@@ -1,7 +1,7 @@
 import React, {Component, PropTypes} from 'react'
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
-import {loadUsersAsync, loadRolesAsync} from 'src/admin/actions'
+import {loadUsersAsync, loadRolesAsync, addUserAsync} from 'src/admin/actions'
 import AdminTabs from 'src/admin/components/AdminTabs'
 
 class AdminPage extends Component {
@@ -19,7 +19,7 @@ class AdminPage extends Component {
   }
 
   render() {
-    const {users, roles, source} = this.props
+    const {users, roles, source, addUser, addFlashMessage} = this.props
 
     return (
       <div className="page">
@@ -36,7 +36,15 @@ class AdminPage extends Component {
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-12">
-                {users.length ? <AdminTabs users={users} roles={roles} source={source}/> : <span>Loading...</span>}
+                {users.length ?
+                  <AdminTabs
+                    users={users}
+                    roles={roles}
+                    source={source}
+                    addUser={addUser}
+                    addFlashMessage={addFlashMessage}
+                  />
+                  : <span>Loading...</span>}
               </div>
             </div>
           </div>
@@ -64,6 +72,8 @@ AdminPage.propTypes = {
   roles: arrayOf(shape()),
   loadUsers: func,
   loadRoles: func,
+  addUser: func,
+  addFlashMessage: func.isRequired,
 }
 
 const mapStateToProps = ({admin}) => ({
@@ -74,6 +84,7 @@ const mapStateToProps = ({admin}) => ({
 const mapDispatchToProps = (dispatch) => ({
   loadUsers: bindActionCreators(loadUsersAsync, dispatch),
   loadRoles: bindActionCreators(loadRolesAsync, dispatch),
+  addUser: bindActionCreators(addUserAsync, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(AdminPage);

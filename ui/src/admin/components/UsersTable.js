@@ -1,9 +1,11 @@
 import React, {Component, PropTypes} from 'react'
+
 import UserRow from 'src/admin/components/UserRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
 
 const newDefaultUser = {
   name: '',
+  password: '',
   roles: [],
   permissions: [],
 }
@@ -18,12 +20,19 @@ class UsersTable extends Component {
     }
 
     this.handleCancelNewUser = ::this.handleCancelNewUser
-    this.handleSaveNewUser = ::this.handleSaveNewUser
+    this.handleSubmitNewUser = ::this.handleSubmitNewUser
     this.handleEditNewUserName = ::this.handleEditNewUserName
+    this.handleEditNewUserPassword = ::this.handleEditNewUserPassword
   }
 
-  handleSaveNewUser() {
-
+  handleSubmitNewUser() {
+    const {source, addUser, addFlashMessage} = this.props
+    const {newUser} = this.state
+    if (newUser.name.length >= 3 && newUser.password.length >= 3) {
+      addUser(source.links.users, newUser)
+    } else {
+      addFlashMessage({type: 'error', text: `Username and password too short`})
+    }
   }
 
   handleCancelNewUser() {
@@ -36,9 +45,13 @@ class UsersTable extends Component {
   handleEditNewUserName(val) {
     const newUser = Object.assign({}, this.state.newUser, {name: val})
 
-    this.setState({
-      newUser,
-    })
+    this.setState({newUser})
+  }
+
+  handleEditNewUserPassword(val) {
+    const newUser = Object.assign({}, this.state.newUser, {password: val})
+
+    this.setState({newUser})
   }
 
   render() {
@@ -79,8 +92,9 @@ class UsersTable extends Component {
                     user={this.state.newUser}
                     isEditing={true}
                     onCancel={this.handleCancelNewUser}
-                    onSave={this.handleSaveNewUser}
+                    onSave={this.handleSubmitNewUser}
                     onEditName={this.handleEditNewUserName}
+                    onEditPassword={this.handleEditNewUserPassword}
                   />
                   : null
               }
@@ -103,6 +117,7 @@ class UsersTable extends Component {
 
 const {
   arrayOf,
+  func,
   shape,
   string,
 } = PropTypes
@@ -118,6 +133,9 @@ UsersTable.propTypes = {
       scope: string.isRequired,
     })),
   })),
+  source: shape(),
+  addUser: func.isRequired,
+  addFlashMessage: func.isRequired,
 }
 
 export default UsersTable
