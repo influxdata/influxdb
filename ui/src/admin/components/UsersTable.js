@@ -26,6 +26,7 @@ class UsersTable extends Component {
     this.handleClearNewUser = ::this.handleClearNewUser
     this.handleSubmitNewUser = ::this.handleSubmitNewUser
     this.handleInputChange = ::this.handleInputChange
+    this.handleInputKeyPress = ::this.handleInputKeyPress
   }
 
   handleSubmitNewUser() {
@@ -50,6 +51,12 @@ class UsersTable extends Component {
     const newUser = Object.assign({}, this.state.newUser, {[e.target.name]: e.target.value})
 
     this.setState({newUser})
+  }
+
+  handleInputKeyPress(e) {
+    if (e.key === 'Enter') {
+      this.handleSubmitNewUser()
+    }
   }
 
   render() {
@@ -92,6 +99,7 @@ class UsersTable extends Component {
                     onCancel={this.handleClearNewUser}
                     onSave={this.handleSubmitNewUser}
                     onInputChange={this.handleInputChange}
+                    onInputKeyPress={this.handleInputKeyPress}
                   />
                   : null
               }

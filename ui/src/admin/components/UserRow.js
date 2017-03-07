@@ -1,7 +1,14 @@
 import React, {PropTypes} from 'react'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
 
-const UserRow = ({user: {name, roles, permissions}, isEditing, onCancel, onSave, onInputChange}) => (
+const UserRow = ({
+  user: {name, roles, permissions},
+  isEditing,
+  onCancel,
+  onSave,
+  onInputChange,
+  onInputKeyPress,
+}) => (
   <tr>
     {
       isEditing ?
@@ -11,6 +18,7 @@ const UserRow = ({user: {name, roles, permissions}, isEditing, onCancel, onSave,
             type="text"
             placeholder="username"
             onChange={onInputChange}
+            onKeyPress={onInputKeyPress}
             autoFocus={true}
           />
           <input
@@ -18,6 +26,7 @@ const UserRow = ({user: {name, roles, permissions}, isEditing, onCancel, onSave,
             type="text"
             placeholder="password"
             onChange={onInputChange}
+            onKeyPress={onInputKeyPress}
           />
         </td>
         : <td>{name}</td>
@@ -79,6 +88,7 @@ UserRow.propTypes = {
   onCancel: func,
   onSave: func,
   onInputChange: func,
+  onInputKeyPress: func,
 }
 
 export default UserRow
