@@ -3,7 +3,7 @@ import UserRow from 'src/admin/components/UserRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
 import FilterBar from 'src/admin/components/FilterBar'
 
-const UsersTable = ({users, onDelete, onFilter}) => (
+const UsersTable = ({users, hasRoles, onDelete, onFilter}) => (
   <div className="panel panel-info">
     <FilterBar name="Users" onFilter={onFilter} />
     <div className="panel-body">
@@ -11,7 +11,7 @@ const UsersTable = ({users, onDelete, onFilter}) => (
         <thead>
           <tr>
             <th>User</th>
-            <th>Roles</th>
+            {hasRoles && <th>Roles</th>}
             <th>Permissions</th>
             <th></th>
           </tr>
@@ -31,6 +31,7 @@ const UsersTable = ({users, onDelete, onFilter}) => (
 
 const {
   arrayOf,
+  bool,
   func,
   shape,
   string,
@@ -47,6 +48,7 @@ UsersTable.propTypes = {
       scope: string.isRequired,
     })),
   })),
+  hasRoles: bool.isRequired,
   onDelete: func.isRequired,
   onFilter: func,
 }

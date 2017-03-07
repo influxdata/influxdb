@@ -1,66 +1,58 @@
-import React, {Component, PropTypes} from 'react'
+import React, {PropTypes} from 'react'
 import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'src/shared/components/Tabs';
 import UsersTable from 'src/admin/components/UsersTable'
 import RolesTable from 'src/admin/components/RolesTable'
 import QueriesPage from 'src/admin/containers/QueriesPage'
 
-const TABS = ['Users', 'Roles', 'Queries'];
+const AdminTabs = ({
+  users,
+  roles,
+  source,
+  onDeleteRole,
+  onDeleteUser,
+  onFilterRoles,
+  onFilterUsers,
+}) => {
+  const hasRoles = !!source.links.roles
 
-class AdminTabs extends Component {
-  constructor(props) {
-    super(props)
+  let tabs = [
+    {
+      type: 'Users',
+      component: (<UsersTable
+        users={users}
+        hasRoles={hasRoles}
+        onDelete={onDeleteUser}
+        onFilter={onFilterUsers}
+      />),
+    },
+    {
+      type: 'Roles',
+      component: (<RolesTable roles={roles} onDelete={onDeleteRole} onFilter={onFilterRoles} />),
+    },
+    {
+      type: 'Queries',
+      component: (<QueriesPage source={source} />),
+    },
+  ]
 
-    this.state = {
-      activeTab: TABS[0],
-    }
-
-    this.handleActivateTab = this.handleActivateTab.bind(this)
+  if (!hasRoles) {
+    tabs = tabs.filter(t => t.type !== 'Roles')
   }
 
-  handleActivateTab(activeIndex) {
-    this.setState({activeTab: TABS[activeIndex]})
-  }
-
-  render() {
-    const {
-      users,
-      roles,
-      source,
-      onDeleteRole,
-      onDeleteUser,
-      onFilterRoles,
-      onFilterUsers,
-    } = this.props
-
-    return (
-      <Tabs onSelect={this.handleActivateTab}>
-        <TabList>
-          <Tab>{TABS[0]}</Tab>
-          <Tab>{TABS[1]}</Tab>
-          <Tab>{TABS[2]}</Tab>
-        </TabList>
-        <TabPanels>
-          <TabPanel>
-            <UsersTable
-              users={users}
-              onDelete={onDeleteUser}
-              onFilter={onFilterUsers}
-            />
-          </TabPanel>
-          <TabPanel>
-            <RolesTable
-              roles={roles}
-              onDelete={onDeleteRole}
-              onFilter={onFilterRoles}
-            />
-          </TabPanel>
-          <TabPanel>
-            <QueriesPage source={source} />
-          </TabPanel>
-        </TabPanels>
-      </Tabs>
-    )
-  }
+  return (
+    <Tabs>
+      <TabList>
+        {
+          tabs.map((t, i) => (<Tab key={tabs[i].type}>{tabs[i].type}</Tab>))
+        }
+      </TabList>
+      <TabPanels>
+        {
+          tabs.map((t, i) => (<TabPanel key={tabs[i].type}>{t.component}</TabPanel>))
+        }
+      </TabPanels>
+    </Tabs>
+  )
 }
 
 const {
