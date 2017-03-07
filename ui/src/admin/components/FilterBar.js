@@ -17,6 +17,10 @@ class FilterBar extends Component {
     )
   }
 
+  componentWillUnmount() {
+    this.props.onFilter('')
+  }
+
   render() {
     return (
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
