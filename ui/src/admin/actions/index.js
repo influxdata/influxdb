@@ -6,6 +6,8 @@ import {
 import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
 import {publishNotification} from 'src/shared/actions/notifications';
 
+import {ADMIN_NOTIFICATION_DELAY} from 'shared/constants'
+
 export const loadUsers = ({users}) => ({
   type: 'LOAD_USERS',
   payload: {
@@ -67,14 +69,16 @@ export const loadRolesAsync = (url) => async (dispatch) => {
 }
 
 export const addUserAsync = (url, user) => async (dispatch) => {
+  // optimistically update
   dispatch(addUser(user))
 
   try {
     await createUserAPI(url, user)
     dispatch(publishNotification('success', 'User created successfully'))
   } catch (error) {
-    dispatch(publishNotification('error', 'Failed to create user'))
-    setTimeout(() => dispatch(errorAddUser(user)), 1500)
+    // undo optimistic update
+    dispatch(publishNotification('error', `Failed to create user: ${error.data.message}`))
+    setTimeout(() => dispatch(errorAddUser(user)), ADMIN_NOTIFICATION_DELAY)
   }
 }
 
