@@ -123,19 +123,17 @@ export const killQueryAsync = (source, queryID) => (dispatch) => {
 }
 
 export const deleteRoleAsync = (role, addFlashMessage) => (dispatch) => {
-  const url = role.links.self
   // optimistic update
   dispatch(deleteRole(role))
 
   // delete role on server
-  deleteRoleAJAX(url, addFlashMessage, role.name)
+  deleteRoleAJAX(role.links.self, addFlashMessage, role.name)
 }
 
 export const deleteUserAsync = (user, addFlashMessage) => (dispatch) => {
-  const url = user.links.self
   // optimistic update
   dispatch(deleteUser(user))
 
   // delete user on server
-  deleteUserAJAX(url, addFlashMessage, user.name)
+  deleteUserAJAX(user.links.self, addFlashMessage, user.name)
 }

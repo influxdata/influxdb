@@ -21,6 +21,7 @@ const AdminTabs = ({
     {
       type: 'Users',
       component: (<UsersTable
+        source={source}
         users={users}
         hasRoles={hasRoles}
         onAdd={onAddUser}

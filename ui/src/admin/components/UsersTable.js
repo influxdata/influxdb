@@ -9,6 +9,7 @@ const newDefaultUser = {
   password: '',
   roles: [],
   permissions: [],
+  links: {},
 }
 
 const isValid = (user) => {
@@ -22,7 +23,10 @@ class UsersTable extends Component {
 
     this.state = {
       isAddingUser: false,
-      newUser: {...newDefaultUser},
+      newUser: {
+        ...newDefaultUser,
+        source: {...props.source},
+      },
     }
 
     this.handleClickCreate = ::this.handleClickCreate
@@ -119,6 +123,7 @@ const {
 } = PropTypes
 
 UsersTable.propTypes = {
+  source: shape(),
   users: arrayOf(shape({
     name: string.isRequired,
     roles: arrayOf(shape({
