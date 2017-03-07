@@ -13,10 +13,9 @@ export default async function AJAX({
   params = {},
   headers = {},
 }) {
-  let response
-
   try {
     const basepath = window.basepath || ''
+    let response
 
     url = `${basepath}${url}`
 
@@ -47,9 +46,11 @@ export default async function AJAX({
       ...response,
     }
   } catch (error) {
+    const {response} = error
     if (!response.status === UNAUTHORIZED) {
       console.error(error) // eslint-disable-line no-console
     }
+    console.error(error) // eslint-disable-line no-console
     const {auth} = links
     throw {auth, ...response} // eslint-disable-line no-throw-literal
   }

@@ -22,7 +22,17 @@ export default function admin(state = initialState, action) {
         users: [
           action.payload.user,
           ...state.users,
-        ]})
+        ],
+      })
+      return newState
+    }
+
+    case 'ERROR_ADD_USER': { // TODO implement redux state history
+      const newState = Object.assign({}, state, {
+        users: [
+          ...state.users.filter((user) => user.name !== action.payload.user.name),
+        ],
+      })
       return newState
     }
 

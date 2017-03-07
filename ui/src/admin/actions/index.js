@@ -1,5 +1,10 @@
-import {getUsers, getRoles, createUser} from 'src/admin/apis'
+import {
+  getUsers as getUsersAPI,
+  getRoles as getRolesAPI,
+  createUser as createUserAPI,
+} from 'src/admin/apis'
 import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
+import {publishNotification} from 'src/shared/actions/notifications';
 
 export const loadUsers = ({users}) => ({
   type: 'LOAD_USERS',
@@ -17,6 +22,13 @@ export const loadRoles = ({roles}) => ({
 
 export const addUser = (user) => ({
   type: 'ADD_USER',
+  payload: {
+    user,
+  },
+})
+
+export const errorAddUser = (user) => ({
+  type: 'ERROR_ADD_USER',
   payload: {
     user,
   },
@@ -45,18 +57,25 @@ export const loadQueries = (queries) => ({
 
 // async actions
 export const loadUsersAsync = (url) => async (dispatch) => {
-  const {data} = await getUsers(url)
+  const {data} = await getUsersAPI(url)
   dispatch(loadUsers(data))
 }
 
 export const loadRolesAsync = (url) => async (dispatch) => {
-  const {data} = await getRoles(url)
+  const {data} = await getRolesAPI(url)
   dispatch(loadRoles(data))
 }
 
 export const addUserAsync = (url, user) => async (dispatch) => {
-  const {data} = await createUser(url, user)
-  dispatch(addUser(data)) // TODO make this an optimistic update
+  dispatch(addUser(user))
+
+  try {
+    await createUserAPI(url, user)
+    dispatch(publishNotification('success', 'User created successfully'))
+  } catch (error) {
+    dispatch(publishNotification('error', 'Failed to create user'))
+    setTimeout(() => dispatch(errorAddUser(user)), 1500)
+  }
 }
 
 export const killQueryAsync = (source, queryID) => (dispatch) => {

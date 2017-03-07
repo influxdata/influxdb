@@ -10,6 +10,10 @@ const newDefaultUser = {
   permissions: [],
 }
 
+const isValid = (user) => {
+  return (user.name.length >= 3 && user.password.length >= 3)
+}
+
 class UsersTable extends Component {
   constructor(props) {
     super(props)
@@ -19,37 +23,31 @@ class UsersTable extends Component {
       newUser: {...newDefaultUser},
     }
 
-    this.handleCancelNewUser = ::this.handleCancelNewUser
+    this.handleClearNewUser = ::this.handleClearNewUser
     this.handleSubmitNewUser = ::this.handleSubmitNewUser
-    this.handleEditNewUserName = ::this.handleEditNewUserName
-    this.handleEditNewUserPassword = ::this.handleEditNewUserPassword
+    this.handleInputChange = ::this.handleInputChange
   }
 
   handleSubmitNewUser() {
     const {source, addUser, addFlashMessage} = this.props
     const {newUser} = this.state
-    if (newUser.name.length >= 3 && newUser.password.length >= 3) {
+    if (isValid(newUser)) {
       addUser(source.links.users, newUser)
+      this.handleClearNewUser()
     } else {
-      addFlashMessage({type: 'error', text: `Username and password too short`})
+      addFlashMessage({type: 'error', text: 'Username and/or password too short'})
     }
   }
 
-  handleCancelNewUser() {
+  handleClearNewUser() {
     this.setState({
       isAddingUser: false,
       newUser: {...newDefaultUser},
     })
   }
 
-  handleEditNewUserName(val) {
-    const newUser = Object.assign({}, this.state.newUser, {name: val})
-
-    this.setState({newUser})
-  }
-
-  handleEditNewUserPassword(val) {
-    const newUser = Object.assign({}, this.state.newUser, {password: val})
+  handleInputChange(e) {
+    const newUser = Object.assign({}, this.state.newUser, {[e.target.name]: e.target.value})
 
     this.setState({newUser})
   }
@@ -91,10 +89,9 @@ class UsersTable extends Component {
                   <UserRow
                     user={this.state.newUser}
                     isEditing={true}
-                    onCancel={this.handleCancelNewUser}
+                    onCancel={this.handleClearNewUser}
                     onSave={this.handleSubmitNewUser}
-                    onEditName={this.handleEditNewUserName}
-                    onEditPassword={this.handleEditNewUserPassword}
+                    onInputChange={this.handleInputChange}
                   />
                   : null
               }

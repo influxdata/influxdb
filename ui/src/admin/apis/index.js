@@ -30,6 +30,6 @@ export const createUser = async (url, user) => {
       data: user,
     })
   } catch (error) {
-    console.error(error) // eslint-disable-line no-console
+    throw error
   }
 }
