@@ -1,6 +1,7 @@
 import reducer from 'src/admin/reducers/admin'
 
 import {
+  addUser,
   loadRoles,
   deleteRole,
   deleteUser,
@@ -18,6 +19,21 @@ const u2 = {name: 'user2'}
 const users = [u1, u2]
 
 describe('Admin.Reducers', () => {
+  it('it can add a user', () => {
+    state = {
+      users: [
+        u1,
+      ]
+    }
+
+    const actual = reducer(state, addUser(u2))
+    const expected = {
+      users: [u2, u1],
+    }
+
+    expect(actual.users).to.deep.equal(expected.users)
+  })
+
   it('it can load the roles', () => {
     const actual = reducer(state, loadRoles({roles}))
     const expected = {
