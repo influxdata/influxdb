@@ -32,6 +32,17 @@ export const addUser = (user) => ({
   },
 })
 
+export const updateEditingUser = (editingUser) => ({
+  type: 'UPDATE_EDITING_USER',
+  payload: {
+    editingUser,
+  },
+})
+
+export const clearEditingMode = () => ({
+  type: 'CLEAR_EDITING_MODE',
+})
+
 export const removeAddedUser = (user) => ({
   type: 'REMOVE_ADDED_USER',
   payload: {
@@ -99,10 +110,7 @@ export const loadRolesAsync = (url) => async (dispatch) => {
   dispatch(loadRoles(data))
 }
 
-export const addUserAsync = (url, user) => async (dispatch) => {
-  // optimistic update
-  dispatch(addUser(user))
-
+export const createUserAsync = (url, user) => async (dispatch) => {
   try {
     await createUserAJAX(url, user)
     dispatch(publishNotification('success', 'User created successfully'))

@@ -22,14 +22,14 @@ class FilterBar extends Component {
   }
 
   render() {
-    const {name, onClickCreate} = this.props
+    const {type, onClickCreate} = this.props
     return (
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
         <div className="users__search-widget input-group admin__search-widget">
           <input
             type="text"
             className="form-control"
-            placeholder={`Filter ${name}...`}
+            placeholder={`Filter ${type}...`}
             value={this.state.filterText}
             onChange={this.handleText}
           />
@@ -37,7 +37,7 @@ class FilterBar extends Component {
             <span className="icon search" aria-hidden="true"></span>
           </div>
         </div>
-        <a href="#" className="btn btn-primary" onClick={onClickCreate}>Create {name}</a>
+        <a href="#" className="btn btn-primary" onClick={() => onClickCreate(type)}>Create {type}</a>
       </div>
     )
   }
@@ -50,7 +50,7 @@ const {
 
 FilterBar.propTypes = {
   onFilter: func.isRequired,
-  name: string,
+  type: string,
   onClickCreate: func,
 }
 

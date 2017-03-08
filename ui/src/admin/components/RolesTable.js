@@ -5,7 +5,7 @@ import FilterBar from 'src/admin/components/FilterBar'
 
 const RolesTable = ({roles, onDelete, onFilter}) => (
   <div className="panel panel-info">
-    <FilterBar name="Roles" onFilter={onFilter} />
+    <FilterBar type="roles" onFilter={onFilter} />
     <div className="panel-body">
       <table className="table v-center admin-table">
         <thead>
