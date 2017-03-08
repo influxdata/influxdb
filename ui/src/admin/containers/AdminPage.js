@@ -44,7 +44,7 @@ class AdminPage extends Component {
 
   handleClickCreate(type) {
     if (this.props.isEditing) {
-      this.props.addFlashMessage({type: 'error', text: `You can only add one ${type.slice(0,-1)} at a time`})
+      this.props.addFlashMessage({type: 'error', text: `You can only add one ${type.slice(0, -1)} at a time`})
       return
     }
     if (type === 'users') {
