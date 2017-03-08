@@ -33,6 +33,7 @@ func rewriteShowFieldKeysStatement(stmt *ShowFieldKeysStatement) (Statement, err
 		SortFields: stmt.SortFields,
 		OmitTime:   true,
 		Dedupe:     true,
+		IsRawQuery: true,
 	}, nil
 }
 
@@ -72,6 +73,7 @@ func rewriteShowSeriesStatement(stmt *ShowSeriesStatement) (Statement, error) {
 		SortFields: stmt.SortFields,
 		OmitTime:   true,
 		Dedupe:     true,
+		IsRawQuery: true,
 	}, nil
 }
 
@@ -149,6 +151,7 @@ func rewriteShowTagKeysStatement(stmt *ShowTagKeysStatement) (Statement, error) 
 		SortFields: stmt.SortFields,
 		OmitTime:   true,
 		Dedupe:     true,
+		IsRawQuery: true,
 	}, nil
 }
 
