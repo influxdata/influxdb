@@ -52,7 +52,6 @@ class AdminPage extends Component {
         <div className="page-contents">
           <div className="container-fluid">
             <div className="row">
-              <div className="col-md-12">
                 {
                   users.length ?
                   <AdminTabs
@@ -66,7 +65,6 @@ class AdminPage extends Component {
                   /> :
                   <span>Loading...</span>
                 }
-              </div>
             </div>
           </div>
         </div>

@@ -40,13 +40,13 @@ const AdminTabs = ({
   }
 
   return (
-    <Tabs>
-      <TabList>
+    <Tabs className="row">
+      <TabList customClass="col-md-3 admin-tabs">
         {
           tabs.map((t, i) => (<Tab key={tabs[i].type}>{tabs[i].type}</Tab>))
         }
       </TabList>
-      <TabPanels>
+      <TabPanels customClass="col-md-9">
         {
           tabs.map((t, i) => (<TabPanel key={tabs[i].type}>{t.component}</TabPanel>))
         }
