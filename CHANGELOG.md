@@ -8,7 +8,9 @@
 - [#7776](https://github.com/influxdata/influxdb/issues/7776): Add system information to /debug/vars.
 - [#7553](https://github.com/influxdata/influxdb/issues/7553): Add modulo operator to the query language.
 
-## v1.2.1 [unreleased]
+## v1.2.1 [2017-03-08]
+
+### Release Notes
 
 ### Bugfixes
 
@@ -32,6 +34,7 @@
 - [#8084](https://github.com/influxdata/influxdb/issues/8084): Points missing after compaction
 - [#8085](https://github.com/influxdata/influxdb/issues/8085): panic: interface conversion: tsm1.Value is tsm1.IntegerValue, not tsm1.FloatValue.
 - [#8095](https://github.com/influxdata/influxdb/pull/8095): Fix race in WALEntry.Encode and Values.Deduplicate
+- [#8100](https://github.com/influxdata/influxdb/issues/8100): Include IsRawQuery in the rewritten statement for meta queries.
 
 ## v1.2.0 [2017-01-24]
 
