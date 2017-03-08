@@ -32,9 +32,9 @@ const VictorOpsConfig = React.createClass({
 
     return (
       <div>
-        <h4 className="text-center">VictorOps Alert</h4>
+        <h4 className="text-center no-user-select">VictorOps Alert</h4>
         <br/>
-        <p>Have alerts sent to VictorOps.</p>
+        <p className="no-user-select">Have alerts sent to VictorOps.</p>
         <form onSubmit={this.handleSaveAlert}>
           <div className="form-group col-xs-12">
             <label htmlFor="api-key">API Key</label>

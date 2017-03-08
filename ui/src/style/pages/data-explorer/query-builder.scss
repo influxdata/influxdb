@@ -29,6 +29,7 @@
   justify-content: space-between;
 
   h1 {
+    @include no-user-select();
     font-size: 17px;
     font-weight: 400;
     text-transform: uppercase;
@@ -135,6 +136,7 @@
   overflow: hidden;
   max-width: 177px;
   text-overflow: ellipsis;
+  @include no-user-select();
 }
 
 /*
@@ -165,6 +167,7 @@ $query-builder--column-heading-height: 60px;
   top: 60px;
 }
 .query-builder--column-heading {
+  @include no-user-select();
   width: 100%;
   height: $query-builder--column-heading-height;
   display: flex;

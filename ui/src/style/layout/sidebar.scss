@@ -214,6 +214,7 @@ $sidebar-logo-color: $g8-storm;
     white-space: nowrap;
     margin: 0;
     display: block;
+    @include no-user-select();
   }
 
   &__menu-item {

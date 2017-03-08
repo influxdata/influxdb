@@ -80,6 +80,7 @@ $kapacitor-font-sm: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
+  @include no-user-select();
 
   p {
     margin: 0;
@@ -101,6 +102,7 @@ $kapacitor-font-sm: 13px;
   font-weight: 400;
   color: $g13-mist;
   position: relative;
+  @include no-user-select();
 
   &:before,
   &:after {
@@ -451,6 +453,7 @@ div.qeditor.kapacitor-metric-selector {
     font-weight: 600;
     display: inline-block;
     color: $g15-platinum;
+    @include no-user-select();
   }
   > code {
     background-color: $g2-kevlar;
@@ -465,6 +468,7 @@ div.qeditor.kapacitor-metric-selector {
     font-size: ($kapacitor-font-sm - 2px);
     font-weight: 600;
     transition: color 0.25s ease;
+    @include no-user-select();
 
     &:hover {
       color: $c-rainforest;
@@ -483,6 +487,7 @@ div.qeditor.kapacitor-metric-selector {
     font-weight: 600;
     display: inline-block;
     color: $g15-platinum;
+    @include no-user-select();
   }
 
   &.top {
@@ -514,6 +519,7 @@ div.qeditor.kapacitor-metric-selector {
   }
 
   > p {
+    @include no-user-select();
     white-space: nowrap;
     font-weight: 600;
     color: $g15-platinum;
@@ -521,6 +527,7 @@ div.qeditor.kapacitor-metric-selector {
     margin-right: ($kap-padding-sm / 2);
   }
   > span {
+    @include no-user-select();
     color: $kapacitor-accent;
     height: $kap-input-height;
     line-height: $kap-input-height;

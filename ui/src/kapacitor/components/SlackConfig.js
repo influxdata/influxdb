@@ -48,9 +48,9 @@ const SlackConfig = React.createClass({
 
     return (
       <div>
-        <h4 className="text-center">Slack Alert</h4>
+        <h4 className="text-center no-user-select">Slack Alert</h4>
         <br/>
-        <p>Post alerts to a Slack channel.</p>
+        <p className="no-user-select">Post alerts to a Slack channel.</p>
         <form onSubmit={this.handleSaveAlert}>
           <div className="form-group col-xs-12">
             <label htmlFor="slack-url">Slack Webhook URL (<a href="https://api.slack.com/incoming-webhooks" target="_">see more on Slack webhooks</a>)</label>

@@ -45,13 +45,13 @@ const KapacitorForm = React.createClass({
               <div className="col-md-8 col-md-offset-2">
                 <div className="panel panel-minimal">
                   <div className="panel-body">
-                    <p>
+                    <p className="no-user-select">
                       Kapacitor is used as the monitoring and alerting agent.
                       This page will let you configure which Kapacitor to use and
                       set up alert end points like email, Slack, and others.
                     </p>
                     <hr/>
-                    <h4 className="text-center">Connect Kapacitor to Source</h4>
+                    <h4 className="text-center no-user-select">Connect Kapacitor to Source</h4>
                     <h4 className="text-center">{source.url}</h4>
                     <br/>
                     <form onSubmit={onSubmit}>

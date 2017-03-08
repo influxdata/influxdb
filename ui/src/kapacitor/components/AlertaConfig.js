@@ -31,10 +31,10 @@ const AlertaConfig = React.createClass({
 
     return (
       <div className="col-xs-12">
-        <h4 className="text-center">Alerta Alert</h4>
+        <h4 className="text-center no-user-select">Alerta Alert</h4>
         <br/>
         <form onSubmit={this.handleSaveAlert}>
-          <p>
+          <p className="no-user-select">
             Have alerts sent to Alerta
           </p>
 

@@ -27,9 +27,9 @@ const SensuConfig = React.createClass({
 
     return (
       <div>
-        <h4 className="text-center">Sensu Alert</h4>
+        <h4 className="text-center no-user-select">Sensu Alert</h4>
         <br/>
-        <p>Have alerts sent to Sensu.</p>
+        <p className="no-user-select">Have alerts sent to Sensu.</p>
         <form onSubmit={this.handleSaveAlert}>
           <div className="form-group col-xs-12 col-md-6">
             <label htmlFor="source">Source</label>

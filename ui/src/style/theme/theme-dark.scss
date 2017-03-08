@@ -19,6 +19,10 @@
 .panel hr {
   background-color: $g5-pepper;
 }
+.panel-title,
+.panel-title a {
+  @include no-user-select();
+}
 .panel-minimal {
   border: 0;
 
@@ -55,7 +59,9 @@
     }
   }
 }
-
+table thead th {
+  @include no-user-select();
+}
 
 
 /*
@@ -165,6 +171,7 @@ button.btn.btn-sm > span.icon {
   font-weight: 600;
   margin-bottom: 4px;
   padding: 0 13px;
+  @include no-user-select();
 }
 .form-control {
   padding: 0 13px;
@@ -500,6 +507,7 @@ $toggle-border: 2px;
   background-color: $g5-pepper;
   font-size: 0;
   white-space: nowrap;
+  @include no-user-select();
 }
 .toggle-btn {
   border: 0;
@@ -740,4 +748,12 @@ $form-static-checkbox-size: 16px;
     opacity: 1;
     transform: translate(-50%,-50%) scale(1,1);
   }
+}
+
+
+
+
+
+br {
+  @include no-user-select();
 }

@@ -34,9 +34,9 @@ const TalkConfig = React.createClass({
 
     return (
       <div>
-        <h4 className="text-center">Talk Alert</h4>
+        <h4 className="text-center no-user-select">Talk Alert</h4>
         <br/>
-        <p>Have alerts sent to Talk.</p>
+        <p className="no-user-select">Have alerts sent to Talk.</p>
         <form onSubmit={this.handleSaveAlert}>
           <div className="form-group col-xs-12">
             <label htmlFor="url">URL</label>

@@ -26,6 +26,7 @@ $sessions-dropdown-width: 227px;
   border-radius: 0 3px 3px 0;
 }
 .source-indicator {
+  @include no-user-select();
   padding: 0 9px;
   border: 0;
   background-color: $g5-pepper;
