@@ -1,4 +1,6 @@
-## v1.2.1 [unreleased]
+## v1.2.1 [2017-03-08]
+
+### Release Notes
 
 ### Bugfixes
 
