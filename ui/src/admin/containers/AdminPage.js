@@ -66,7 +66,6 @@ class AdminPage extends Component {
 
   handleCancelEdit(user) {
     this.props.removeUser(user)
-    // this.props.editUser(null)
   }
 
   handleDeleteRole(role) {

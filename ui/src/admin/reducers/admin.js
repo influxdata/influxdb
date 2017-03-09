@@ -53,16 +53,6 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'CLEAR_EDITING_MODE': {
-      const newState = {
-        users: state.users.map(u => {
-          u.isEditing = false
-          return u
-        }),
-      }
-      return {...state, ...newState}
-    }
-
     case 'DELETE_ROLE': {
       const {role} = action.payload
       const newState = {
