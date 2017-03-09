@@ -11,6 +11,7 @@ import {
   deleteRoleAsync,
   deleteUserAsync,
   addUsersToRoleAsync,
+  updateRolePermissionsAsync,
   filterRoles as filterRolesAction,
   filterUsers as filterUsersAction,
 } from 'src/admin/actions'
@@ -32,6 +33,7 @@ class AdminPage extends Component {
     this.handleDeleteRole = ::this.handleDeleteRole
     this.handleDeleteUser = ::this.handleDeleteUser
     this.handleAddUsersToRole = ::this.handleAddUsersToRole
+    this.handleUpdateRolePermissions = ::this.handleUpdateRolePermissions
   }
 
   componentDidMount() {
@@ -82,6 +84,10 @@ class AdminPage extends Component {
     this.props.addUsersToRole(users, role)
   }
 
+  handleUpdateRolePermissions(permissions, role) {
+    this.props.updateRolePermissions(permissions, role)
+  }
+
   render() {
     const {users, roles, source, filterUsers, filterRoles, addFlashMessage} = this.props
 
@@ -116,6 +122,7 @@ class AdminPage extends Component {
                     onFilterRoles={filterRoles}
                     addFlashMessage={addFlashMessage}
                     onAddUsersToRole={this.handleAddUsersToRole}
+                    onUpdateRolePermissions={this.handleUpdateRolePermissions}
                   /> :
                   <span>Loading...</span>
                 }
@@ -155,6 +162,7 @@ AdminPage.propTypes = {
   filterRoles: func,
   filterUsers: func,
   addUsersToRole: func,
+  updateRolePermissions: func,
 }
 
 const mapStateToProps = ({admin: {users, roles}}) => ({
@@ -174,6 +182,7 @@ const mapDispatchToProps = (dispatch) => ({
   filterRoles: bindActionCreators(filterRolesAction, dispatch),
   filterUsers: bindActionCreators(filterUsersAction, dispatch),
   addUsersToRole: bindActionCreators(addUsersToRoleAsync, dispatch),
+  updateRolePermissions: bindActionCreators(updateRolePermissionsAsync, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(AdminPage)

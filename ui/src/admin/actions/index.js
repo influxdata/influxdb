@@ -5,6 +5,7 @@ import {
   deleteRole as deleteRoleAJAX,
   deleteUser as deleteUserAJAX,
   addUsersToRole as addUsersToRoleAJAX,
+  updateRolePermissions as updateRolePermissionsAJAX,
 } from 'src/admin/apis'
 import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
 import {publishNotification} from 'src/shared/actions/notifications';
@@ -148,8 +149,17 @@ export const deleteUserAsync = (user, addFlashMessage) => (dispatch) => {
 export const addUsersToRoleAsync = (users, role) => async (dispatch) => {
   try {
     await addUsersToRoleAJAX(role.links.self, users)
-    dispatch(publishNotification('success', 'Role upated successfully'))
+    dispatch(publishNotification('success', 'Role users updated'))
   } catch (error) {
     dispatch(publishNotification('error', `Failed to update role: ${error.data.message}`))
+  }
+}
+
+export const updateRolePermissionsAsync = (permissions, role) => async (dispatch) => {
+  try {
+    await updateRolePermissionsAJAX(role.links.self, permissions)
+    dispatch(publishNotification('success', 'Role permissions updated'))
+  } catch (error) {
+    dispatch(publishNotification('error', `Failed to updated role:  ${error.data.message}`))
   }
 }

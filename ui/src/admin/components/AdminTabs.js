@@ -19,6 +19,7 @@ const AdminTabs = ({
   onFilterRoles,
   onFilterUsers,
   onAddUsersToRole,
+  onUpdateRolePermissions,
 }) => {
   const hasRoles = !!source.links.roles
 
@@ -40,7 +41,16 @@ const AdminTabs = ({
     },
     {
       type: 'Roles',
-      component: (<RolesTable roles={roles} allUsers={users} onDelete={onDeleteRole} onFilter={onFilterRoles} onAddUsersToRole={onAddUsersToRole}/>),
+      component: (
+        <RolesTable
+          roles={roles}
+          allUsers={users}
+          onDelete={onDeleteRole}
+          onFilter={onFilterRoles}
+          onAddUsersToRole={onAddUsersToRole}
+          onUpdateRolePermissions={onUpdateRolePermissions}
+        />
+      ),
     },
     {
       type: 'Queries',
@@ -96,6 +106,7 @@ AdminTabs.propTypes = {
   onFilterRoles: func.isRequired,
   onFilterUsers: func.isRequired,
   onAddUsersToRole: func.isRequired,
+  onUpdateRolePermissions: func.isRequired,
 }
 
 export default AdminTabs

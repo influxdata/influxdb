@@ -3,7 +3,14 @@ import RoleRow from 'src/admin/components/RoleRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
 import FilterBar from 'src/admin/components/FilterBar'
 
-const RolesTable = ({roles, allUsers, onDelete, onFilter, onAddUsersToRole}) => (
+const RolesTable = ({
+  roles,
+  allUsers,
+  onDelete,
+  onFilter,
+  onAddUsersToRole,
+  onUpdateRolePermissions,
+}) => (
   <div className="panel panel-info">
     <FilterBar type="roles" onFilter={onFilter} />
     <div className="panel-body">
@@ -20,7 +27,14 @@ const RolesTable = ({roles, allUsers, onDelete, onFilter, onAddUsersToRole}) => 
           {
             roles.length ?
               roles.filter(r => !r.hidden).map((role) =>
-                <RoleRow key={role.name} allUsers={allUsers} role={role} onDelete={onDelete} onAddUsersToRole={onAddUsersToRole}/>
+                <RoleRow
+                  key={role.name}
+                  allUsers={allUsers}
+                  role={role}
+                  onDelete={onDelete}
+                  onAddUsersToRole={onAddUsersToRole}
+                  onUpdateRolePermissions={onUpdateRolePermissions}
+                />
               ) : <EmptyRow tableName={'Roles'} />
           }
         </tbody>
@@ -51,6 +65,7 @@ RolesTable.propTypes = {
   onFilter: func,
   allUsers: arrayOf(shape()),
   onAddUsersToRole: func.isRequired,
+  onUpdateRolePermissions: func.isRequired,
 }
 
 export default RolesTable

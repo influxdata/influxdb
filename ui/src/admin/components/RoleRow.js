@@ -4,7 +4,7 @@ import _ from 'lodash'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
 import DeleteRow from 'src/admin/components/DeleteRow'
 
-const PERMISSIONS = [
+const ALL_PERMISSIONS = [
   "NoPermissions",
   "ViewAdmin",
   "ViewChronograf",
@@ -32,13 +32,18 @@ const RoleRow = ({
   allUsers,
   onDelete,
   onAddUsersToRole,
+  onUpdateRolePermissions,
 }) => {
-  const wrapUsers = (u) => {
-    const updatedUsers = u.map((n) => {
-      return {name: n}
-    })
+  const handleAddUsers = (u) => {
+    const updatedUsers = u.map((n) => ({name: n}))
     onAddUsersToRole(updatedUsers, role)
   }
+
+  const handleAddPermisisons = (allowed) => {
+    onUpdateRolePermissions([{scope: 'all', allowed}], role)
+  }
+
+  const perms = _.get(permissions, ['0', 'allowed'], [])
 
   return (
     <tr>
@@ -47,10 +52,10 @@ const RoleRow = ({
         {
           permissions && permissions.length ?
             <MultiSelectDropdown
-              items={PERMISSIONS}
-              selectedItems={_.get(permissions, ['0', 'allowed'], [])}
-              label={'Select Permissions'}
-              onApply={() => '// TODO'}
+              items={ALL_PERMISSIONS}
+              selectedItems={perms}
+              label={perms.length ? '' : 'Select Permissions'}
+              onApply={handleAddPermisisons}
             /> : '\u2014'
         }
       </td>
@@ -60,7 +65,8 @@ const RoleRow = ({
             <MultiSelectDropdown
               items={allUsers.map((u) => u.name)}
               selectedItems={users.map((u) => u.name)}
-              onApply={wrapUsers}
+              label={users.length ? '' : 'Select Users'}
+              onApply={handleAddUsers}
             /> : '\u2014'
         }
       </td>
@@ -91,6 +97,7 @@ RoleRow.propTypes = {
   onDelete: func.isRequired,
   allUsers: arrayOf(shape()),
   onAddUsersToRole: func.isRequired,
+  onUpdateRolePermissions: func.isRequired,
 }
 
 export default RoleRow
