@@ -6,7 +6,7 @@ import FilterBar from 'src/admin/components/FilterBar'
 
 const UsersTable = ({users, hasRoles, isEditingUsers, onClickCreate, onEdit, onSave, onCancel, onDelete, onFilter}) => (
   <div className="panel panel-info">
-    <FilterBar type="users" onFilter={onFilter} isEditingUsers={isEditingUsers} onClickCreate={onClickCreate} />
+    <FilterBar type="users" onFilter={onFilter} isEditing={isEditingUsers} onClickCreate={onClickCreate} />
     <div className="panel-body">
       <table className="table v-center admin-table">
         <thead>
