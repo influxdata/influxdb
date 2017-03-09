@@ -4,6 +4,7 @@ import _ from 'lodash'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
 import DeleteRow from 'src/admin/components/DeleteRow'
 
+// TODO: replace with permissions list from server
 const ALL_PERMISSIONS = [
   "NoPermissions",
   "ViewAdmin",
