@@ -20,9 +20,9 @@ const UsersTable = ({users, hasRoles, isEditingUsers, onClickCreate, onEdit, onS
         <tbody>
           {
             users.length ?
-              users.filter((u) => !u.hidden).map((user, i) =>
+              users.filter(u => !u.hidden).map(user =>
                 <UserRow
-                  key={i}
+                  key={user.links.self}
                   user={user}
                   onEdit={onEdit}
                   onSave={onSave}
