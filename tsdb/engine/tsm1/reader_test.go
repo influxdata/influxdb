@@ -841,8 +841,7 @@ func TestBlockIterator_Single(t *testing.T) {
 	var count int
 	iter := r.BlockIterator()
 	for iter.Next() {
-		key, minTime, maxTime, _, buf, err := iter.Read()
-
+		key, minTime, maxTime, typ, _, buf, err := iter.Read()
 		if err != nil {
 			t.Fatalf("unexpected error creating iterator: %v", err)
 		}
@@ -857,6 +856,10 @@ func TestBlockIterator_Single(t *testing.T) {
 
 		if got, exp := maxTime, int64(0); got != exp {
 			t.Fatalf("max time mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := typ, tsm1.BlockInteger; got != exp {
+			t.Fatalf("block type mismatch: got %v, exp %v", got, exp)
 		}
 
 		if len(buf) == 0 {
@@ -914,7 +917,7 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 	iter := r.BlockIterator()
 	var i int
 	for iter.Next() {
-		key, minTime, maxTime, _, buf, err := iter.Read()
+		key, minTime, maxTime, typ, _, buf, err := iter.Read()
 
 		if err != nil {
 			t.Fatalf("unexpected error creating iterator: %v", err)
@@ -930,6 +933,10 @@ func TestBlockIterator_MultipleBlocks(t *testing.T) {
 
 		if got, exp := maxTime, expData[i][0].UnixNano(); got != exp {
 			t.Fatalf("max time mismatch: got %v, exp %v", got, exp)
+		}
+
+		if got, exp := typ, tsm1.BlockInteger; got != exp {
+			t.Fatalf("block type mismatch: got %v, exp %v", got, exp)
 		}
 
 		if len(buf) == 0 {
@@ -991,7 +998,7 @@ func TestBlockIterator_Sorted(t *testing.T) {
 	iter := r.BlockIterator()
 	var lastKey string
 	for iter.Next() {
-		key, _, _, _, buf, err := iter.Read()
+		key, _, _, _, _, buf, err := iter.Read()
 
 		if key < lastKey {
 			t.Fatalf("keys not sorted: got %v, last %v", key, lastKey)
@@ -1088,7 +1095,7 @@ func TestCompacted_NotFull(t *testing.T) {
 		t.Fatalf("expected next, got false")
 	}
 
-	_, _, _, _, block, err := iter.Read()
+	_, _, _, _, _, block, err := iter.Read()
 	if err != nil {
 		t.Fatalf("unexpected error reading block: %v", err)
 	}
@@ -1230,7 +1237,7 @@ func TestTSMReader_FuzzCrashes(t *testing.T) {
 
 			iter := r.BlockIterator()
 			for iter.Next() {
-				key, _, _, _, _, err := iter.Read()
+				key, _, _, _, _, _, err := iter.Read()
 				if err != nil {
 					return
 				}
