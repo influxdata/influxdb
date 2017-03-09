@@ -35,11 +35,11 @@ const RoleRow = ({
   onUpdateRolePermissions,
 }) => {
   const handleUpdateUsers = (u) => {
-    onUpdateRoleUsers(u.map((n) => ({name: n})), role)
+    onUpdateRoleUsers(role, u.map((n) => ({name: n})))
   }
 
   const handleUpdatePermissions = (allowed) => {
-    onUpdateRolePermissions([{scope: 'all', allowed}], role)
+    onUpdateRolePermissions(role, [{scope: 'all', allowed}])
   }
 
   const perms = _.get(permissions, ['0', 'allowed'], [])

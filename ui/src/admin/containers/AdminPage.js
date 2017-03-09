@@ -80,12 +80,12 @@ class AdminPage extends Component {
     this.props.deleteUser(user, this.props.addFlashMessage)
   }
 
-  handleUpdateRoleUsers(users, role) {
-    this.props.updateRoleUsers(users, role)
+  handleUpdateRoleUsers(role, users) {
+    this.props.updateRoleUsers(role, users)
   }
 
-  handleUpdateRolePermissions(permissions, role) {
-    this.props.updateRolePermissions(permissions, role)
+  handleUpdateRolePermissions(role, permissions) {
+    this.props.updateRolePermissions(role, permissions)
   }
 
   render() {

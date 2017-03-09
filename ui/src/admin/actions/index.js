@@ -146,7 +146,7 @@ export const deleteUserAsync = (user, addFlashMessage) => (dispatch) => {
   deleteUserAJAX(user.links.self, addFlashMessage, user.name)
 }
 
-export const updateRoleUsersAsync = (users, role) => async (dispatch) => {
+export const updateRoleUsersAsync = (role, users) => async (dispatch) => {
   try {
     await updateRoleUsersAJAX(role.links.self, users)
     dispatch(publishNotification('success', 'Role users updated'))
@@ -155,7 +155,7 @@ export const updateRoleUsersAsync = (users, role) => async (dispatch) => {
   }
 }
 
-export const updateRolePermissionsAsync = (permissions, role) => async (dispatch) => {
+export const updateRolePermissionsAsync = (role, permissions) => async (dispatch) => {
   try {
     await updateRolePermissionsAJAX(role.links.self, permissions)
     dispatch(publishNotification('success', 'Role permissions updated'))
