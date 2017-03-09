@@ -5,7 +5,6 @@ import {
   loadUsersAsync,
   loadRolesAsync,
   addUser,
-  setEditingMode,
   deleteUser, // TODO rename to removeUser throughout + tests
   editUser,
   createUserAsync,
@@ -43,11 +42,6 @@ class AdminPage extends Component {
   }
 
   handleClickCreate(type) {
-    if (this.props.isEditing) {
-      this.props.addFlashMessage({type: 'error', text: `You can only add one ${type.slice(0, -1)} at a time`})
-      return
-    }
-    this.props.setEditingMode(true)
     if (type === 'users') {
       this.props.addUser()
     }
@@ -63,23 +57,15 @@ class AdminPage extends Component {
       return
     }
     if (user.isNew) {
-      await this.props.createUser(this.props.source.links.users, user)
-
-      // this.props.editUser(Object.assign(
-      //   this.props.editingUser,
-      //   {isEditing: undefined, isNew: undefined}))
-      // this.props.createUser(urlUsers, this.props.editingUser, this.props.addFlashMessage)
+      this.props.createUser(this.props.source.links.users, user)
     } else {
       // TODO update user
       // console.log('update')
     }
-    this.props.setEditingMode(false)
   }
 
   handleCancelEdit(user) {
     this.props.removeUser(user)
-    this.props.setEditingMode(false)
-    // this.props.clearEditingMode()
     // this.props.editUser(null)
   }
 
@@ -92,7 +78,7 @@ class AdminPage extends Component {
   }
 
   render() {
-    const {users, roles, source, isEditing, filterUsers, filterRoles, addFlashMessage} = this.props
+    const {users, roles, source, filterUsers, filterRoles, addFlashMessage} = this.props
 
     return (
       <div className="page">
@@ -115,7 +101,7 @@ class AdminPage extends Component {
                     users={users}
                     roles={roles}
                     source={source}
-                    isEditing={isEditing}
+                    isEditingUsers={users.some(u => u.isEditing)}
                     onClickCreate={this.handleClickCreate}
                     onEditUser={this.handleEditUser}
                     onSaveUser={this.handleSaveUser}
@@ -139,7 +125,6 @@ class AdminPage extends Component {
 
 const {
   arrayOf,
-  bool,
   func,
   shape,
   string,
@@ -157,9 +142,7 @@ AdminPage.propTypes = {
   loadUsers: func,
   loadRoles: func,
   addUser: func,
-  setEditingMode: func,
   removeUser: func,
-  isEditing: bool,
   editUser: func,
   createUser: func,
   deleteRole: func,
@@ -169,17 +152,15 @@ AdminPage.propTypes = {
   filterUsers: func,
 }
 
-const mapStateToProps = ({admin: {users, roles, ephemeral: {isEditing}}}) => ({
+const mapStateToProps = ({admin: {users, roles}}) => ({
   users,
   roles,
-  isEditing,
 })
 
 const mapDispatchToProps = (dispatch) => ({
   loadUsers: bindActionCreators(loadUsersAsync, dispatch),
   loadRoles: bindActionCreators(loadRolesAsync, dispatch),
   addUser: bindActionCreators(addUser, dispatch),
-  setEditingMode: bindActionCreators(setEditingMode, dispatch),
   removeUser: bindActionCreators(deleteUser, dispatch),
   editUser: bindActionCreators(editUser, dispatch),
   createUser: bindActionCreators(createUserAsync, dispatch),

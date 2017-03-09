@@ -12,9 +12,6 @@ const newDefaultUser = {
 const initialState = {
   users: [],
   roles: [],
-  ephemeral: {
-    editingUser: {},
-  },
   queries: [],
   queryIDToKill: null,
 }
@@ -40,23 +37,18 @@ export default function admin(state = initialState, action) {
       }
     }
 
-    case 'SET_EDITING_MODE': {
-      const newState = {...state}
-      newState.ephemeral.isEditing = action.payload.isEditing
-      return newState
-    }
-
-    case 'RESET_EDITING_USER': {
-      return {...state, ephemeral: {...state.ephemeral, editingUser: {...newDefaultUser}}}
+    case 'CONFIRM_USER_CREATED': {
+      const {user, createdUser} = action.payload
+      const newState = {
+        users: state.users.map(u => u.links.self === user.links.self ? {...createdUser} : u),
+      }
+      return {...state, ...newState}
     }
 
     case 'EDIT_USER': {
       const {user, updates} = action.payload
       const newState = {
-        users: state.users.map(u => {
-          const output = u.links.self === user.links.self ? {...u, ...updates} : u
-          return output
-        }),
+        users: state.users.map(u => u.links.self === user.links.self ? {...u, ...updates} : u),
       }
       return {...state, ...newState}
     }
@@ -70,12 +62,6 @@ export default function admin(state = initialState, action) {
       }
       return {...state, ...newState}
     }
-
-    // case 'CREATE_USER': {
-    //   const {user, source} = action.payload
-    //   const userLink = `${this.props.source.links.users}/${user.name}`
-    //   Object.assign(user, {links: {self: userLink}})
-    // }
 
     case 'DELETE_ROLE': {
       const {role} = action.payload

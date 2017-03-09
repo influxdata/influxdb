@@ -8,7 +8,7 @@ const AdminTabs = ({
   users,
   roles,
   source,
-  isEditing,
+  isEditingUsers,
   onClickCreate,
   onEditUser,
   onSaveUser,
@@ -27,7 +27,7 @@ const AdminTabs = ({
       component: (<UsersTable
         users={users}
         hasRoles={hasRoles}
-        isEditing={isEditing}
+        isEditingUsers={isEditingUsers}
         onClickCreate={onClickCreate}
         onEdit={onEditUser}
         onSave={onSaveUser}
@@ -84,7 +84,7 @@ AdminTabs.propTypes = {
   })),
   roles: arrayOf(shape()),
   source: shape(),
-  isEditing: bool,
+  isEditingUsers: bool,
   onClickCreate: func.isRequired,
   onEditUser: func.isRequired,
   onSaveUser: func.isRequired,

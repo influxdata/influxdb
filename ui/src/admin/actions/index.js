@@ -32,23 +32,20 @@ export const addUser = (user) => ({
   },
 })
 
+export const confirmUserCreated = (user, createdUser) => ({
+  type: 'CONFIRM_USER_CREATED',
+  payload: {
+    user,
+    createdUser,
+  },
+})
+
 export const editUser = (user, updates) => ({
   type: 'EDIT_USER',
   payload: {
     user,
     updates,
   },
-})
-
-export const setEditingMode = (isEditing) => ({
-  type: 'SET_EDITING_MODE',
-  payload: {
-    isEditing,
-  },
-})
-
-export const clearEditingMode = () => ({
-  type: 'CLEAR_EDITING_MODE',
 })
 
 export const killQuery = (queryID) => ({
@@ -113,8 +110,9 @@ export const loadRolesAsync = (url) => async (dispatch) => {
 
 export const createUserAsync = (url, user) => async (dispatch) => {
   try {
-    await createUserAJAX(url, user)
+    const {data} = await createUserAJAX(url, user)
     dispatch(publishNotification('success', 'User created successfully'))
+    dispatch(confirmUserCreated(user, data))
   } catch (error) {
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create user: ${error.data.message}`))
