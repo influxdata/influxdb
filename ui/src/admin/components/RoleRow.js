@@ -26,7 +26,7 @@ const PERMISSIONS = [
   "KapacitorConfigAPI",
 ]
 
-const RoleRow = ({role: {name, permissions, users}, role, onDelete}) => (
+const RoleRow = ({role: {name, permissions, users}, role, allUsers, onDelete}) => (
   <tr>
     <td>{name}</td>
     <td>
@@ -43,11 +43,10 @@ const RoleRow = ({role: {name, permissions, users}, role, onDelete}) => (
     </td>
     <td>
       {
-        users && users.length ?
+        allUsers && allUsers.length ?
         <MultiSelectDropdown
-          items={users.map((r) => r.name)}
-          selectedItems={[]}
-          label={'Select Users'}
+          items={allUsers.map((u) => u.name)}
+          selectedItems={users.map((u) => u.name)}
           onApply={() => '//TODO'}
         /> :
         '\u2014'
@@ -77,6 +76,7 @@ RoleRow.propTypes = {
     })),
   }).isRequired,
   onDelete: func.isRequired,
+  allUsers: arrayOf(shape()),
 }
 
 export default RoleRow

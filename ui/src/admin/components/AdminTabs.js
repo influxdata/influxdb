@@ -39,7 +39,7 @@ const AdminTabs = ({
     },
     {
       type: 'Roles',
-      component: (<RolesTable roles={roles} onDelete={onDeleteRole} onFilter={onFilterRoles} />),
+      component: (<RolesTable roles={roles} allUsers={users} onDelete={onDeleteRole} onFilter={onFilterRoles} />),
     },
     {
       type: 'Queries',

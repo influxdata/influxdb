@@ -3,7 +3,7 @@ import RoleRow from 'src/admin/components/RoleRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
 import FilterBar from 'src/admin/components/FilterBar'
 
-const RolesTable = ({roles, onDelete, onFilter}) => (
+const RolesTable = ({roles, allUsers, onDelete, onFilter}) => (
   <div className="panel panel-info">
     <FilterBar type="roles" onFilter={onFilter} />
     <div className="panel-body">
@@ -20,7 +20,7 @@ const RolesTable = ({roles, onDelete, onFilter}) => (
           {
             roles.length ?
               roles.filter(r => !r.hidden).map((role) =>
-                <RoleRow key={role.name} role={role} onDelete={onDelete} />
+                <RoleRow key={role.name} allUsers={allUsers} role={role} onDelete={onDelete} />
               ) : <EmptyRow tableName={'Roles'} />
           }
         </tbody>
@@ -49,6 +49,7 @@ RolesTable.propTypes = {
   })),
   onDelete: func.isRequired,
   onFilter: func,
+  allUsers: arrayOf(shape()),
 }
 
 export default RolesTable

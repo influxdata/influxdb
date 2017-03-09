@@ -13,7 +13,7 @@ const labelText = ({localSelectedItems, isOpen, label}) => {
   if (isOpen) {
     return '0 Selected'
   }
-  return 'Apply Function'
+  return 'None'
 }
 
 class MultiSelectDropdown extends Component {
