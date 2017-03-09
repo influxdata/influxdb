@@ -4,7 +4,7 @@ import {
   createUser as createUserAJAX,
   deleteRole as deleteRoleAJAX,
   deleteUser as deleteUserAJAX,
-  addUsersToRole as addUsersToRoleAJAX,
+  updateRoleUsers as updateRoleUsersAJAX,
   updateRolePermissions as updateRolePermissionsAJAX,
 } from 'src/admin/apis'
 import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
@@ -146,9 +146,9 @@ export const deleteUserAsync = (user, addFlashMessage) => (dispatch) => {
   deleteUserAJAX(user.links.self, addFlashMessage, user.name)
 }
 
-export const addUsersToRoleAsync = (users, role) => async (dispatch) => {
+export const updateRoleUsersAsync = (users, role) => async (dispatch) => {
   try {
-    await addUsersToRoleAJAX(role.links.self, users)
+    await updateRoleUsersAJAX(role.links.self, users)
     dispatch(publishNotification('success', 'Role users updated'))
   } catch (error) {
     dispatch(publishNotification('error', `Failed to update role: ${error.data.message}`))

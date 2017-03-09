@@ -18,7 +18,7 @@ const AdminTabs = ({
   onDeleteUser,
   onFilterRoles,
   onFilterUsers,
-  onAddUsersToRole,
+  onUpdateRoleUsers,
   onUpdateRolePermissions,
 }) => {
   const hasRoles = !!source.links.roles
@@ -47,7 +47,7 @@ const AdminTabs = ({
           allUsers={users}
           onDelete={onDeleteRole}
           onFilter={onFilterRoles}
-          onAddUsersToRole={onAddUsersToRole}
+          onUpdateRoleUsers={onUpdateRoleUsers}
           onUpdateRolePermissions={onUpdateRolePermissions}
         />
       ),
@@ -105,7 +105,7 @@ AdminTabs.propTypes = {
   onDeleteUser: func.isRequired,
   onFilterRoles: func.isRequired,
   onFilterUsers: func.isRequired,
-  onAddUsersToRole: func.isRequired,
+  onUpdateRoleUsers: func.isRequired,
   onUpdateRolePermissions: func.isRequired,
 }
 

@@ -8,7 +8,7 @@ const RolesTable = ({
   allUsers,
   onDelete,
   onFilter,
-  onAddUsersToRole,
+  onUpdateRoleUsers,
   onUpdateRolePermissions,
 }) => (
   <div className="panel panel-info">
@@ -32,7 +32,7 @@ const RolesTable = ({
                   allUsers={allUsers}
                   role={role}
                   onDelete={onDelete}
-                  onAddUsersToRole={onAddUsersToRole}
+                  onUpdateRoleUsers={onUpdateRoleUsers}
                   onUpdateRolePermissions={onUpdateRolePermissions}
                 />
               ) : <EmptyRow tableName={'Roles'} />
@@ -64,7 +64,7 @@ RolesTable.propTypes = {
   onDelete: func.isRequired,
   onFilter: func,
   allUsers: arrayOf(shape()),
-  onAddUsersToRole: func.isRequired,
+  onUpdateRoleUsers: func.isRequired,
   onUpdateRolePermissions: func.isRequired,
 }
 

@@ -74,7 +74,7 @@ export const deleteUser = async (url, addFlashMessage, username) => {
   }
 }
 
-export const addUsersToRole = async (url, users) => {
+export const updateRoleUsers = async (url, users) => {
   try {
     await AJAX({
       method: 'PATCH',

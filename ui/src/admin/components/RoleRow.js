@@ -31,15 +31,14 @@ const RoleRow = ({
   role,
   allUsers,
   onDelete,
-  onAddUsersToRole,
+  onUpdateRoleUsers,
   onUpdateRolePermissions,
 }) => {
-  const handleAddUsers = (u) => {
-    const updatedUsers = u.map((n) => ({name: n}))
-    onAddUsersToRole(updatedUsers, role)
+  const handleUpdateUsers = (u) => {
+    onUpdateRoleUsers(u.map((n) => ({name: n})), role)
   }
 
-  const handleAddPermisisons = (allowed) => {
+  const handleUpdatePermissions = (allowed) => {
     onUpdateRolePermissions([{scope: 'all', allowed}], role)
   }
 
@@ -55,7 +54,7 @@ const RoleRow = ({
               items={ALL_PERMISSIONS}
               selectedItems={perms}
               label={perms.length ? '' : 'Select Permissions'}
-              onApply={handleAddPermisisons}
+              onApply={handleUpdatePermissions}
             /> : '\u2014'
         }
       </td>
@@ -66,7 +65,7 @@ const RoleRow = ({
               items={allUsers.map((u) => u.name)}
               selectedItems={users.map((u) => u.name)}
               label={users.length ? '' : 'Select Users'}
-              onApply={handleAddUsers}
+              onApply={handleUpdateUsers}
             /> : '\u2014'
         }
       </td>
@@ -96,7 +95,7 @@ RoleRow.propTypes = {
   }).isRequired,
   onDelete: func.isRequired,
   allUsers: arrayOf(shape()),
-  onAddUsersToRole: func.isRequired,
+  onUpdateRoleUsers: func.isRequired,
   onUpdateRolePermissions: func.isRequired,
 }
 

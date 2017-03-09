@@ -10,7 +10,7 @@ import {
   createUserAsync,
   deleteRoleAsync,
   deleteUserAsync,
-  addUsersToRoleAsync,
+  updateRoleUsersAsync,
   updateRolePermissionsAsync,
   filterRoles as filterRolesAction,
   filterUsers as filterUsersAction,
@@ -32,7 +32,7 @@ class AdminPage extends Component {
     this.handleCancelEdit = ::this.handleCancelEdit
     this.handleDeleteRole = ::this.handleDeleteRole
     this.handleDeleteUser = ::this.handleDeleteUser
-    this.handleAddUsersToRole = ::this.handleAddUsersToRole
+    this.handleUpdateRoleUsers = ::this.handleUpdateRoleUsers
     this.handleUpdateRolePermissions = ::this.handleUpdateRolePermissions
   }
 
@@ -80,8 +80,8 @@ class AdminPage extends Component {
     this.props.deleteUser(user, this.props.addFlashMessage)
   }
 
-  handleAddUsersToRole(users, role) {
-    this.props.addUsersToRole(users, role)
+  handleUpdateRoleUsers(users, role) {
+    this.props.updateRoleUsers(users, role)
   }
 
   handleUpdateRolePermissions(permissions, role) {
@@ -121,7 +121,7 @@ class AdminPage extends Component {
                     onFilterUsers={filterUsers}
                     onFilterRoles={filterRoles}
                     addFlashMessage={addFlashMessage}
-                    onAddUsersToRole={this.handleAddUsersToRole}
+                    onUpdateRoleUsers={this.handleUpdateRoleUsers}
                     onUpdateRolePermissions={this.handleUpdateRolePermissions}
                   /> :
                   <span>Loading...</span>
@@ -161,7 +161,7 @@ AdminPage.propTypes = {
   addFlashMessage: func,
   filterRoles: func,
   filterUsers: func,
-  addUsersToRole: func,
+  updateRoleUsers: func,
   updateRolePermissions: func,
 }
 
@@ -181,7 +181,7 @@ const mapDispatchToProps = (dispatch) => ({
   deleteUser: bindActionCreators(deleteUserAsync, dispatch),
   filterRoles: bindActionCreators(filterRolesAction, dispatch),
   filterUsers: bindActionCreators(filterUsersAction, dispatch),
-  addUsersToRole: bindActionCreators(addUsersToRoleAsync, dispatch),
+  updateRoleUsers: bindActionCreators(updateRoleUsersAsync, dispatch),
   updateRolePermissions: bindActionCreators(updateRolePermissionsAsync, dispatch),
 })
 
