@@ -124,3 +124,28 @@
     padding: 0 10px 0 1px !important;
   }
 }
+
+
+
+.single-stat {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  font-size: 60px;
+  font-weight: 300;
+  color: $c-pool;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  text-align: center;
+  font-size: 54px;
+  font-weight: 300;
+  color: $c-pool;
+
+  &.graph-single-stat {
+    position: absolute;
+    width: 100%;
+    top: 0;
+  }
+}
