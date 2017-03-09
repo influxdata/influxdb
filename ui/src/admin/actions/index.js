@@ -29,8 +29,8 @@ export const addUser = () => ({
   type: 'ADD_USER',
 })
 
-export const confirmUserCreated = (user, createdUser) => ({
-  type: 'CONFIRM_USER_CREATED',
+export const createUserSuccess = (user, createdUser) => ({
+  type: 'CREATE_USER_SUCCESS',
   payload: {
     user,
     createdUser,
@@ -109,7 +109,7 @@ export const createUserAsync = (url, user) => async (dispatch) => {
   try {
     const {data} = await createUserAJAX(url, user)
     dispatch(publishNotification('success', 'User created successfully'))
-    dispatch(confirmUserCreated(user, data))
+    dispatch(createUserSuccess(user, data))
   } catch (error) {
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create user: ${error.data.message}`))

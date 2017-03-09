@@ -2,7 +2,7 @@ import reducer from 'src/admin/reducers/admin'
 
 import {
   addUser,
-  confirmUserCreated,
+  createUserSuccess,
   editUser,
   loadRoles,
   deleteRole,
@@ -69,7 +69,7 @@ describe('Admin.Reducers', () => {
     }
     state = {users: [u2, addedUser]}
 
-    const actual = reducer(state, confirmUserCreated(addedUser, u1))
+    const actual = reducer(state, createUserSuccess(addedUser, u1))
     const expected = {
       users: [u2, u1],
     }

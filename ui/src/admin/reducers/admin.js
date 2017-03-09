@@ -37,7 +37,7 @@ export default function admin(state = initialState, action) {
       }
     }
 
-    case 'CONFIRM_USER_CREATED': {
+    case 'CREATE_USER_SUCCESS': {
       const {user, createdUser} = action.payload
       const newState = {
         users: state.users.map(u => u.links.self === user.links.self ? {...createdUser} : u),
