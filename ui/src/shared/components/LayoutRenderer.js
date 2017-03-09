@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react';
 import AutoRefresh from 'shared/components/AutoRefresh';
 import LineGraph from 'shared/components/LineGraph';
 import SingleStat from 'shared/components/SingleStat';
+import NameableGraph from 'shared/components/NameableGraph';
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout';
 const GridLayout = WidthProvider(ReactGridLayout);
 
@@ -94,14 +95,12 @@ export const LayoutRenderer = React.createClass({
         });
       });
 
-
       if (cell.type === 'single-stat') {
         return (
           <div key={cell.i}>
-            <h2 className="dash-graph--heading">{cell.name || `Graph`}</h2>
-            <div className="dash-graph--container">
+            <NameableGraph name={cell.name || `Graph`} layout={cells} onRename={this.handleLayoutChange} id={cell.i}>
               <RefreshingSingleStat queries={[qs[0]]} autoRefresh={autoRefresh} />
-            </div>
+            </NameableGraph>
           </div>
         );
       }
@@ -113,15 +112,14 @@ export const LayoutRenderer = React.createClass({
 
       return (
         <div key={cell.i}>
-          <h2 className="dash-graph--heading">{cell.name || `Graph`}</h2>
-          <div className="dash-graph--container">
+          <NameableGraph name={cell.name || `Graph`} layout={cells} onRename={this.handleLayoutChange} id={cell.i}>
             <RefreshingLineGraph
               queries={qs}
               autoRefresh={autoRefresh}
               showSingleStat={cell.type === "line-plus-single-stat"}
               displayOptions={displayOptions}
             />
-          </div>
+          </NameableGraph>
         </div>
       );
     });
@@ -136,7 +134,7 @@ export const LayoutRenderer = React.createClass({
 
     const newCells = this.props.cells.map((cell) => {
       const l = layout.find((ly) => ly.i === cell.i)
-      const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w}
+      const newLayout = {x: l.x, y: l.y, h: l.h, w: l.w, name: l.name}
       return {...cell, ...newLayout}
     })
 
