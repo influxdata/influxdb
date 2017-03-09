@@ -10,10 +10,11 @@ const labelText = ({localSelectedItems, isOpen, label}) => {
     return localSelectedItems.map((s) => s).join(', ')
   }
 
+  // TODO: be smarter about the text displayed here
   if (isOpen) {
     return '0 Selected'
   }
-  return 'Apply Function'
+  return 'None'
 }
 
 class MultiSelectDropdown extends Component {

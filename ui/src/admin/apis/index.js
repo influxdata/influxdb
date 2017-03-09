@@ -73,3 +73,31 @@ export const deleteUser = async (url, addFlashMessage, username) => {
     })
   }
 }
+
+export const updateRoleUsers = async (url, users) => {
+  try {
+    await AJAX({
+      method: 'PATCH',
+      url,
+      data: {
+        users,
+      },
+    })
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+export const updateRolePermissions = async (url, permissions) => {
+  try {
+    await AJAX({
+      method: 'PATCH',
+      url,
+      data: {
+        permissions,
+      },
+    })
+  } catch (error) {
+    console.error(error)
+  }
+}

@@ -10,6 +10,8 @@ import {
   createUserAsync,
   deleteRoleAsync,
   deleteUserAsync,
+  updateRoleUsersAsync,
+  updateRolePermissionsAsync,
   filterRoles as filterRolesAction,
   filterUsers as filterUsersAction,
 } from 'src/admin/actions'
@@ -30,6 +32,8 @@ class AdminPage extends Component {
     this.handleCancelEdit = ::this.handleCancelEdit
     this.handleDeleteRole = ::this.handleDeleteRole
     this.handleDeleteUser = ::this.handleDeleteUser
+    this.handleUpdateRoleUsers = ::this.handleUpdateRoleUsers
+    this.handleUpdateRolePermissions = ::this.handleUpdateRolePermissions
   }
 
   componentDidMount() {
@@ -76,6 +80,14 @@ class AdminPage extends Component {
     this.props.deleteUser(user, this.props.addFlashMessage)
   }
 
+  handleUpdateRoleUsers(role, users) {
+    this.props.updateRoleUsers(role, users)
+  }
+
+  handleUpdateRolePermissions(role, permissions) {
+    this.props.updateRolePermissions(role, permissions)
+  }
+
   render() {
     const {users, roles, source, filterUsers, filterRoles, addFlashMessage} = this.props
 
@@ -109,6 +121,8 @@ class AdminPage extends Component {
                     onFilterUsers={filterUsers}
                     onFilterRoles={filterRoles}
                     addFlashMessage={addFlashMessage}
+                    onUpdateRoleUsers={this.handleUpdateRoleUsers}
+                    onUpdateRolePermissions={this.handleUpdateRolePermissions}
                   /> :
                   <span>Loading...</span>
                 }
@@ -147,6 +161,8 @@ AdminPage.propTypes = {
   addFlashMessage: func,
   filterRoles: func,
   filterUsers: func,
+  updateRoleUsers: func,
+  updateRolePermissions: func,
 }
 
 const mapStateToProps = ({admin: {users, roles}}) => ({
@@ -165,6 +181,8 @@ const mapDispatchToProps = (dispatch) => ({
   deleteUser: bindActionCreators(deleteUserAsync, dispatch),
   filterRoles: bindActionCreators(filterRolesAction, dispatch),
   filterUsers: bindActionCreators(filterUsersAction, dispatch),
+  updateRoleUsers: bindActionCreators(updateRoleUsersAsync, dispatch),
+  updateRolePermissions: bindActionCreators(updateRolePermissionsAsync, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(AdminPage)
