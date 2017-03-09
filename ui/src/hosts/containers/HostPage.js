@@ -150,9 +150,16 @@ export const HostPage = React.createClass({
   },
 
   render() {
-    const {params: {hostID}, location: {query: {app}}, source: {id},
-    autoRefresh, handleChooseAutoRefresh, inPresentationMode,
-    handleClickPresentationButton, source} = this.props
+    const {
+      params: {hostID},
+      location: {query: {app}},
+      source: {id},
+      autoRefresh,
+      handleChooseAutoRefresh,
+      inPresentationMode,
+      handleClickPresentationButton,
+      source,
+    } = this.props
     const {layouts, timeRange, hosts} = this.state
     const appParam = app ? `?app=${app}` : ''
 
