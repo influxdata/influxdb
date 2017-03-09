@@ -73,3 +73,17 @@ export const deleteUser = async (url, addFlashMessage, username) => {
     })
   }
 }
+
+export const addUsersToRole = async (url, users) => {
+  try {
+    await AJAX({
+      method: 'PATCH',
+      url,
+      data: {
+        users,
+      },
+    })
+  } catch (error) {
+    console.error(error)
+  }
+}

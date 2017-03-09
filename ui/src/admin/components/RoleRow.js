@@ -26,37 +26,50 @@ const PERMISSIONS = [
   "KapacitorConfigAPI",
 ]
 
-const RoleRow = ({role: {name, permissions, users}, role, allUsers, onDelete}) => (
-  <tr>
-    <td>{name}</td>
-    <td>
-      {
-        permissions && permissions.length ?
-        <MultiSelectDropdown
-          items={PERMISSIONS}
-          selectedItems={_.get(permissions, ['0', 'allowed'], [])}
-          label={'Select Permissions'}
-          onApply={() => '//TODO'}
-        /> :
-        '\u2014'
-      }
-    </td>
-    <td>
-      {
-        allUsers && allUsers.length ?
-        <MultiSelectDropdown
-          items={allUsers.map((u) => u.name)}
-          selectedItems={users.map((u) => u.name)}
-          onApply={() => '//TODO'}
-        /> :
-        '\u2014'
-      }
-    </td>
-    <td className="text-right" style={{width: "85px"}}>
-      <DeleteRow onDelete={onDelete} item={role} />
-    </td>
-  </tr>
-)
+const RoleRow = ({
+  role: {name, permissions, users},
+  role,
+  allUsers,
+  onDelete,
+  onAddUsersToRole,
+}) => {
+  const wrapUsers = (u) => {
+    const updatedUsers = u.map((n) => {
+      return {name: n}
+    })
+    onAddUsersToRole(updatedUsers, role)
+  }
+
+  return (
+    <tr>
+      <td>{name}</td>
+      <td>
+        {
+          permissions && permissions.length ?
+            <MultiSelectDropdown
+              items={PERMISSIONS}
+              selectedItems={_.get(permissions, ['0', 'allowed'], [])}
+              label={'Select Permissions'}
+              onApply={() => '// TODO'}
+            /> : '\u2014'
+        }
+      </td>
+      <td>
+        {
+          allUsers && allUsers.length ?
+            <MultiSelectDropdown
+              items={allUsers.map((u) => u.name)}
+              selectedItems={users.map((u) => u.name)}
+              onApply={wrapUsers}
+            /> : '\u2014'
+        }
+      </td>
+      <td className="text-right" style={{width: "85px"}}>
+        <DeleteRow onDelete={onDelete} item={role} />
+      </td>
+    </tr>
+  )
+}
 
 const {
   arrayOf,
@@ -77,6 +90,7 @@ RoleRow.propTypes = {
   }).isRequired,
   onDelete: func.isRequired,
   allUsers: arrayOf(shape()),
+  onAddUsersToRole: func.isRequired,
 }
 
 export default RoleRow
