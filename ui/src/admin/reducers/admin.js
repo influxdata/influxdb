@@ -5,6 +5,7 @@ const newDefaultUser = {
   password: '',
   roles: [],
   permissions: [],
+  links: {self: ''},
   isNew: true,
 }
 
@@ -53,7 +54,7 @@ export default function admin(state = initialState, action) {
       const {user, updates} = action.payload
       const newState = {
         users: state.users.map(u => {
-          const output = u.name === user.name ? {...u, ...updates} : u
+          const output = u.links.self === user.links.self ? {...u, ...updates} : u
           return output
         }),
       }
@@ -88,7 +89,7 @@ export default function admin(state = initialState, action) {
     case 'DELETE_USER': {
       const {user} = action.payload
       const newState = {
-        users: state.users.filter(u => u.name !== user.name),
+        users: state.users.filter(u => u.links.self !== user.links.self),
       }
 
       return {...state, ...newState}
