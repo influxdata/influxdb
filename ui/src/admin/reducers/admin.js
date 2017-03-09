@@ -1,5 +1,14 @@
 import reject from 'lodash/reject'
 
+const newDefaultUser = {
+  name: '',
+  password: '',
+  roles: [],
+  permissions: [],
+  links: {self: ''},
+  isNew: true,
+}
+
 const initialState = {
   users: [],
   roles: [],
@@ -17,6 +26,33 @@ export default function admin(state = initialState, action) {
       return {...state, ...action.payload}
     }
 
+    case 'ADD_USER': {
+      const newUser = {...newDefaultUser, isEditing: true}
+      return {
+        ...state,
+        users: [
+          newUser,
+          ...state.users,
+        ],
+      }
+    }
+
+    case 'CREATE_USER_SUCCESS': {
+      const {user, createdUser} = action.payload
+      const newState = {
+        users: state.users.map(u => u.links.self === user.links.self ? {...createdUser} : u),
+      }
+      return {...state, ...newState}
+    }
+
+    case 'EDIT_USER': {
+      const {user, updates} = action.payload
+      const newState = {
+        users: state.users.map(u => u.links.self === user.links.self ? {...u, ...updates} : u),
+      }
+      return {...state, ...newState}
+    }
+
     case 'DELETE_ROLE': {
       const {role} = action.payload
       const newState = {
@@ -29,7 +65,7 @@ export default function admin(state = initialState, action) {
     case 'DELETE_USER': {
       const {user} = action.payload
       const newState = {
-        users: state.users.filter(u => u.name !== user.name),
+        users: state.users.filter(u => u.links.self !== user.links.self),
       }
 
       return {...state, ...newState}

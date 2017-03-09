@@ -37,7 +37,8 @@ const RoleRow = ({role: {name, permissions, users}, role, onDelete}) => (
           selectedItems={_.get(permissions, ['0', 'allowed'], [])}
           label={'Select Permissions'}
           onApply={() => '//TODO'}
-        /> : '\u2014'
+        /> :
+        '\u2014'
       }
     </td>
     <td>
@@ -48,7 +49,8 @@ const RoleRow = ({role: {name, permissions, users}, role, onDelete}) => (
           selectedItems={[]}
           label={'Select Users'}
           onApply={() => '//TODO'}
-        /> : '\u2014'
+        /> :
+        '\u2014'
       }
     </td>
     <td className="text-right" style={{width: "85px"}}>

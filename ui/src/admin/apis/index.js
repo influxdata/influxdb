@@ -22,6 +22,18 @@ export const getRoles = async (url) => {
   }
 }
 
+export const createUser = async (url, user) => {
+  try {
+    return await AJAX({
+      method: 'POST',
+      url,
+      data: user,
+    })
+  } catch (error) {
+    throw error
+  }
+}
+
 export const deleteRole = async (url, addFlashMessage, rolename) => {
   try {
     const response = await AJAX({

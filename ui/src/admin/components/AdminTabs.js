@@ -8,6 +8,12 @@ const AdminTabs = ({
   users,
   roles,
   source,
+  isEditingUsers,
+  onClickCreate,
+  onEditUser,
+  onSaveUser,
+  onCancelEdit,
+  addFlashMessage,
   onDeleteRole,
   onDeleteUser,
   onFilterRoles,
@@ -21,6 +27,12 @@ const AdminTabs = ({
       component: (<UsersTable
         users={users}
         hasRoles={hasRoles}
+        isEditingUsers={isEditingUsers}
+        onClickCreate={onClickCreate}
+        onEdit={onEditUser}
+        onSave={onSaveUser}
+        onCancel={onCancelEdit}
+        addFlashMessage={addFlashMessage}
         onDelete={onDeleteUser}
         onFilter={onFilterUsers}
       />),
@@ -57,6 +69,7 @@ const AdminTabs = ({
 
 const {
   arrayOf,
+  bool,
   func,
   shape,
   string,
@@ -69,8 +82,14 @@ AdminTabs.propTypes = {
       name: string,
     })),
   })),
-  source: shape(),
   roles: arrayOf(shape()),
+  source: shape(),
+  isEditingUsers: bool,
+  onClickCreate: func.isRequired,
+  onEditUser: func.isRequired,
+  onSaveUser: func.isRequired,
+  onCancelEdit: func.isRequired,
+  addFlashMessage: func.isRequired,
   onDeleteRole: func.isRequired,
   onDeleteUser: func.isRequired,
   onFilterRoles: func.isRequired,

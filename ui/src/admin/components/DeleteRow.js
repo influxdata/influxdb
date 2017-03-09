@@ -1,5 +1,7 @@
 import React, {PropTypes, Component} from 'react'
+
 import OnClickOutside from 'shared/components/OnClickOutside'
+import ConfirmButtons from 'src/admin/components/ConfirmButtons'
 
 const DeleteButton = ({onConfirm}) => (
   <button
@@ -8,23 +10,6 @@ const DeleteButton = ({onConfirm}) => (
   >
     Delete
   </button>
-)
-
-const ConfirmButtons = ({onDelete, item, onCancel}) => (
-  <div>
-    <button
-      className="btn btn-xs btn-primary"
-      onClick={() => onDelete(item)}
-    >
-      <span className="icon checkmark"></span>
-    </button>
-    <button
-      className="btn btn-xs btn-default"
-      onClick={onCancel}
-    >
-      <span className="icon remove"></span>
-    </button>
-  </div>
 )
 
 class DeleteRow extends Component {
@@ -56,7 +41,7 @@ class DeleteRow extends Component {
     if (isConfirmed) {
       return (
         <ConfirmButtons
-          onDelete={onDelete}
+          onConfirm={onDelete}
           item={item}
           onCancel={this.handleCancel}
         />
@@ -76,12 +61,6 @@ const {
 
 DeleteButton.propTypes = {
   onConfirm: func.isRequired,
-}
-
-ConfirmButtons.propTypes = {
-  onDelete: func.isRequired,
-  item: shape({}).isRequired,
-  onCancel: func.isRequired,
 }
 
 DeleteRow.propTypes = {
