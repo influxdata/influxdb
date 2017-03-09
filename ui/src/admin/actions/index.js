@@ -25,11 +25,8 @@ export const loadRoles = ({roles}) => ({
   },
 })
 
-export const addUser = (user) => ({
+export const addUser = () => ({
   type: 'ADD_USER',
-  payload: {
-    user,
-  },
 })
 
 export const confirmUserCreated = (user, createdUser) => ({
