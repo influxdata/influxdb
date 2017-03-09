@@ -10,7 +10,7 @@ const ConfirmButtons = ({onConfirm, item, onCancel}) => (
     </button>
     <button
       className="btn btn-xs btn-default"
-      onClick={onCancel}
+      onClick={() => onCancel(item)}
     >
       <span className="icon remove"></span>
     </button>

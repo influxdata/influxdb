@@ -5,7 +5,7 @@ const newDefaultUser = {
   password: '',
   roles: [],
   permissions: [],
-  links: {self: ''},
+  isNew: true,
 }
 
 const initialState = {
@@ -29,29 +29,45 @@ export default function admin(state = initialState, action) {
     }
 
     case 'ADD_USER': {
-      const newUser = Object.assign({...newDefaultUser}, {isNew: true, isEditing: true})
-      const newState = Object.assign({}, state, {
+      const newUser = {...newDefaultUser, isEditing: true}
+      return {
+        ...state,
         users: [
-          {...newUser},
+          newUser,
           ...state.users,
         ],
-      })
+      }
+    }
+
+    case 'SET_EDITING_MODE': {
+      const newState = {...state}
+      newState.ephemeral.isEditing = action.payload.isEditing
       return newState
     }
 
-    case 'UPDATE_EDITING_USER': {
-      const newState = {...state}
-      const newUserState = action.payload.editingUser === null ? {...newDefaultUser} : {...action.payload}
+    case 'RESET_EDITING_USER': {
+      return {...state, ephemeral: {...state.ephemeral, editingUser: {...newDefaultUser}}}
+    }
 
-      Object.assign(newState.ephemeral, newUserState)
-      return newState
+    case 'EDIT_USER': {
+      const {user, updates} = action.payload
+      const newState = {
+        users: state.users.map(u => {
+          const output = u.name === user.name ? {...u, ...updates} : u
+          return output
+        }),
+      }
+      return {...state, ...newState}
     }
 
     case 'CLEAR_EDITING_MODE': {
-      const newState = {...state}
-      newState.users.forEach((user) => user.isEditing = false)
-      Object.assign(newState.ephemeral.editingUser, newDefaultUser)
-      return newState
+      const newState = {
+        users: state.users.map(u => {
+          u.isEditing = false
+          return u
+        }),
+      }
+      return {...state, ...newState}
     }
 
     // case 'CREATE_USER': {
@@ -59,23 +75,6 @@ export default function admin(state = initialState, action) {
     //   const userLink = `${this.props.source.links.users}/${user.name}`
     //   Object.assign(user, {links: {self: userLink}})
     // }
-
-    case 'REMOVE_ADDED_USER': {
-      const newUsers = [...state.users]
-
-      if (action.payload.user) {
-       // find and remove first user in list with name
-        const i = newUsers.findIndex((user) => user.name === action.payload.user.name)
-        newUsers.splice(i, 1)
-      } else {
-        newUsers.shift()
-      }
-
-      const newState = Object.assign({}, state, {
-        users: newUsers,
-      })
-      return newState
-    }
 
     case 'DELETE_ROLE': {
       const {role} = action.payload

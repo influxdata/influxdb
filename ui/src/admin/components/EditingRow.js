@@ -6,38 +6,33 @@ class EditingRow extends Component {
 
     this.handleKeyPress = ::this.handleKeyPress
     this.handleEdit = ::this.handleEdit
-    this.getValues = ::this.getValues
   }
 
-  handleKeyPress(e) {
-    if (e.key === 'Enter') {
-      this.props.onSave()
+  handleKeyPress(user) {
+    return (e) => {
+      if (e.key === 'Enter') {
+        this.props.onSave(user)
+      }
     }
   }
 
-  handleEdit() {
-    this.props.onEdit(Object.assign(this.props.user, this.getValues()))
-  }
-
-  getValues() {
-    const values = {name: this.refs.name.value}
-    if (this.refs.hasOwnProperty('password')) {
-      values.password = this.refs.password.value
+  handleEdit(user) {
+    return (e) => {
+      this.props.onEdit(user, {[e.target.name]: e.target.value})
     }
-    return values
   }
 
   render() {
-    const {isNew} = this.props
+    const {user, isNew} = this.props
     return (
       <td>
         <input
           name="name"
           type="text"
-          ref="name"
+          value={user.name || ''}
           placeholder="username"
-          onKeyPress={this.handleKeyPress}
-          onChange={this.handleEdit}
+          onChange={this.handleEdit(user)}
+          onKeyPress={this.handleKeyPress(user)}
           autoFocus={true}
         />
         {
@@ -45,10 +40,10 @@ class EditingRow extends Component {
             <input
               name="password"
               type="text"
-              ref="password"
+              value={user.password || ''}
               placeholder="password"
-              onChange={this.handleEdit}
-              onKeyPress={this.handleKeyPress}
+              onChange={this.handleEdit(user)}
+              onKeyPress={this.handleKeyPress(user)}
             /> :
             null
         }

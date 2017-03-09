@@ -4,9 +4,9 @@ import UserRow from 'src/admin/components/UserRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
 import FilterBar from 'src/admin/components/FilterBar'
 
-const UsersTable = ({users, hasRoles, onClickCreate, onEdit, onSave, onCancel, onDelete, onFilter}) => (
+const UsersTable = ({users, hasRoles, isEditing, onClickCreate, onEdit, onSave, onCancel, onDelete, onFilter}) => (
   <div className="panel panel-info">
-    <FilterBar type="users" onFilter={onFilter} onClickCreate={onClickCreate} />
+    <FilterBar type="users" onFilter={onFilter} isEditing={isEditing} onClickCreate={onClickCreate} />
     <div className="panel-body">
       <table className="table v-center admin-table">
         <thead>
@@ -58,6 +58,7 @@ UsersTable.propTypes = {
       scope: string.isRequired,
     })),
   })),
+  isEditing: bool,
   onClickCreate: func.isRequired,
   onEdit: func.isRequired,
   onSave: func.isRequired,

@@ -32,22 +32,23 @@ export const addUser = (user) => ({
   },
 })
 
-export const updateEditingUser = (editingUser) => ({
-  type: 'UPDATE_EDITING_USER',
+export const editUser = (user, updates) => ({
+  type: 'EDIT_USER',
   payload: {
-    editingUser,
+    user,
+    updates,
+  },
+})
+
+export const setEditingMode = (isEditing) => ({
+  type: 'SET_EDITING_MODE',
+  payload: {
+    isEditing,
   },
 })
 
 export const clearEditingMode = () => ({
   type: 'CLEAR_EDITING_MODE',
-})
-
-export const removeAddedUser = (user) => ({
-  type: 'REMOVE_ADDED_USER',
-  payload: {
-    user,
-  },
 })
 
 export const killQuery = (queryID) => ({
@@ -117,7 +118,7 @@ export const createUserAsync = (url, user) => async (dispatch) => {
   } catch (error) {
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create user: ${error.data.message}`))
-    setTimeout(() => dispatch(removeAddedUser(user)), ADMIN_NOTIFICATION_DELAY)
+    setTimeout(() => dispatch(deleteUser(user)), ADMIN_NOTIFICATION_DELAY)
   }
 }
 

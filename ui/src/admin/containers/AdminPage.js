@@ -5,9 +5,9 @@ import {
   loadUsersAsync,
   loadRolesAsync,
   addUser,
-  updateEditingUser,
-  clearEditingMode,
-  removeAddedUser,
+  setEditingMode,
+  deleteUser, // TODO rename to removeUser throughout + tests
+  editUser,
   createUserAsync,
   deleteRoleAsync,
   deleteUserAsync,
@@ -47,39 +47,40 @@ class AdminPage extends Component {
       this.props.addFlashMessage({type: 'error', text: `You can only add one ${type.slice(0, -1)} at a time`})
       return
     }
+    this.props.setEditingMode(true)
     if (type === 'users') {
       this.props.addUser()
     }
   }
 
-  handleEditUser(user) {
-    this.props.updateEditingUser(user)
+  handleEditUser(user, updates) {
+    this.props.editUser(user, updates)
   }
 
-  handleSaveUser() {
-    if (!isValid(this.props.editingUser)) {
+  async handleSaveUser(user) {
+    if (!isValid(user)) {
       this.props.addFlashMessage({type: 'error', text: 'Username and/or password too short'})
       return
     }
-    if (this.props.editingUser.isNew) {
-      const urlUsers = this.props.source.links.users
-      const userLink = `${urlUsers}/${this.props.editingUser.name}`
+    if (user.isNew) {
+      await this.props.createUser(this.props.source.links.users, user)
 
-      this.props.updateEditingUser(Object.assign(
-        this.props.editingUser,
-        {links: {self: userLink}, isEditing: undefined, isNew: undefined}))
-      this.props.createUser(urlUsers, this.props.editingUser, this.props.addFlashMessage)
-      .then(() => this.props.clearEditingMode())
+      // this.props.editUser(Object.assign(
+      //   this.props.editingUser,
+      //   {isEditing: undefined, isNew: undefined}))
+      // this.props.createUser(urlUsers, this.props.editingUser, this.props.addFlashMessage)
     } else {
       // TODO update user
       // console.log('update')
     }
+    this.props.setEditingMode(false)
   }
 
-  handleCancelEdit() {
-    this.props.clearEditingMode()
-    this.props.removeAddedUser()
-    this.props.updateEditingUser(null)
+  handleCancelEdit(user) {
+    this.props.removeUser(user)
+    this.props.setEditingMode(false)
+    // this.props.clearEditingMode()
+    // this.props.editUser(null)
   }
 
   handleDeleteRole(role) {
@@ -91,7 +92,7 @@ class AdminPage extends Component {
   }
 
   render() {
-    const {users, roles, source, filterUsers, filterRoles, addFlashMessage} = this.props
+    const {users, roles, source, isEditing, filterUsers, filterRoles, addFlashMessage} = this.props
 
     return (
       <div className="page">
@@ -114,6 +115,7 @@ class AdminPage extends Component {
                     users={users}
                     roles={roles}
                     source={source}
+                    isEditing={isEditing}
                     onClickCreate={this.handleClickCreate}
                     onEditUser={this.handleEditUser}
                     onSaveUser={this.handleSaveUser}
@@ -155,11 +157,10 @@ AdminPage.propTypes = {
   loadUsers: func,
   loadRoles: func,
   addUser: func,
+  setEditingMode: func,
+  removeUser: func,
   isEditing: bool,
-  editingUser: shape(),
-  updateEditingUser: func,
-  clearEditingMode: func,
-  removeAddedUser: func,
+  editUser: func,
   createUser: func,
   deleteRole: func,
   deleteUser: func,
@@ -168,20 +169,19 @@ AdminPage.propTypes = {
   filterUsers: func,
 }
 
-const mapStateToProps = ({admin: {users, roles, ephemeral: {isEditing, editingUser}}}) => ({
+const mapStateToProps = ({admin: {users, roles, ephemeral: {isEditing}}}) => ({
   users,
   roles,
   isEditing,
-  editingUser,
 })
 
 const mapDispatchToProps = (dispatch) => ({
   loadUsers: bindActionCreators(loadUsersAsync, dispatch),
   loadRoles: bindActionCreators(loadRolesAsync, dispatch),
   addUser: bindActionCreators(addUser, dispatch),
-  updateEditingUser: bindActionCreators(updateEditingUser, dispatch),
-  clearEditingMode: bindActionCreators(clearEditingMode, dispatch),
-  removeAddedUser: bindActionCreators(removeAddedUser, dispatch),
+  setEditingMode: bindActionCreators(setEditingMode, dispatch),
+  removeUser: bindActionCreators(deleteUser, dispatch),
+  editUser: bindActionCreators(editUser, dispatch),
   createUser: bindActionCreators(createUserAsync, dispatch),
   deleteRole: bindActionCreators(deleteRoleAsync, dispatch),
   deleteUser: bindActionCreators(deleteUserAsync, dispatch),
