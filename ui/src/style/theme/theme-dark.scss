@@ -19,6 +19,10 @@
 .panel hr {
   background-color: $g5-pepper;
 }
+.panel-title,
+.panel-title a {
+  @include no-user-select();
+}
 .panel-minimal {
   border: 0;
 
@@ -55,7 +59,9 @@
     }
   }
 }
-
+table thead th {
+  @include no-user-select();
+}
 
 
 /*
@@ -86,6 +92,72 @@ button.btn.btn-sm > span.icon {
   top: -1px;
 }
 
+.btn.disabled,
+.btn[disabled="true"] {
+  &.btn-success,
+  &.btn-success:hover,
+  &.btn-success:focus,
+  &.btn-success:active,
+  &.btn-success:hover:active,
+  &.btn-success:hover:focus,
+  &.btn-success:focus:active,
+  &.btn-success:focus:active:hover {
+    border-color: $c-emerald;
+    background-color: $c-emerald;
+    color: $g2-kevlar !important;
+  }
+  &.btn-primary,
+  &.btn-primary:hover,
+  &.btn-primary:focus,
+  &.btn-primary:active,
+  &.btn-primary:hover:active,
+  &.btn-primary:hover:focus,
+  &.btn-primary:focus:active,
+  &.btn-primary:focus:active:hover {
+    border-color: $c-sapphire;
+    background-color: $c-sapphire;
+    color: $g2-kevlar !important;
+  }
+  &.btn-info,
+  &.btn-info:hover,
+  &.btn-info:focus,
+  &.btn-info:active,
+  &.btn-info:hover:active,
+  &.btn-info:hover:focus,
+  &.btn-info:focus:active,
+  &.btn-info:focus:active:hover {
+    border-color: $g5-pepper;
+    background-color: $g5-pepper;
+    color: $g8-storm !important;
+  }
+  &.btn-danger,
+  &.btn-danger:hover,
+  &.btn-danger:focus,
+  &.btn-danger:active,
+  &.btn-danger:hover:active,
+  &.btn-danger:hover:focus,
+  &.btn-danger:focus:active,
+  &.btn-danger:focus:active:hover {
+    border-color: $c-ruby;
+    background-color: $c-ruby;
+    color: $g2-kevlar !important;
+  }
+  &.btn-warning,
+  &.btn-warning:hover,
+  &.btn-warning:focus,
+  &.btn-warning:active,
+  &.btn-warning:hover:active,
+  &.btn-warning:hover:focus,
+  &.btn-warning:focus:active,
+  &.btn-warning:focus:active:hover {
+    border-color: $c-star;
+    background-color: $c-star;
+    color: $g2-kevlar !important;
+  }
+}
+
+
+
 /*
     Dark Inputs
     ----------------------------------------------
@@ -99,6 +171,7 @@ button.btn.btn-sm > span.icon {
   font-weight: 600;
   margin-bottom: 4px;
   padding: 0 13px;
+  @include no-user-select();
 }
 .form-control {
   padding: 0 13px;
@@ -433,6 +506,8 @@ $toggle-border: 2px;
   border-radius: 3px;
   background-color: $g5-pepper;
   font-size: 0;
+  white-space: nowrap;
+  @include no-user-select();
 }
 .toggle-btn {
   border: 0;
@@ -673,4 +748,12 @@ $form-static-checkbox-size: 16px;
     opacity: 1;
     transform: translate(-50%,-50%) scale(1,1);
   }
+}
+
+
+
+
+
+br {
+  @include no-user-select();
 }

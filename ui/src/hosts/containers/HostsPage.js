@@ -1,6 +1,7 @@
 import React, {PropTypes} from 'react';
 import _ from 'lodash';
 import HostsTable from '../components/HostsTable';
+import SourceIndicator from '../../shared/components/SourceIndicator'
 import {getCpuAndLoadForHosts, getMappings, getAppsForHosts} from '../apis';
 
 export const HostsPage = React.createClass({
@@ -44,6 +45,7 @@ export const HostsPage = React.createClass({
   },
 
   render() {
+    const {source} = this.props;
     return (
       <div className="page">
         <div className="page-header">
@@ -53,13 +55,16 @@ export const HostsPage = React.createClass({
                 Host List
               </h1>
             </div>
+            <div className="page-header__right">
+              <SourceIndicator sourceName={source.name} />
+            </div>
           </div>
         </div>
         <div className="page-contents">
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-12">
-                <HostsTable source={this.props.source} hosts={_.values(this.state.hosts)} up={this.state.up} />
+                <HostsTable source={source} hosts={_.values(this.state.hosts)} up={this.state.up} />
               </div>
             </div>
           </div>

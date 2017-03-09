@@ -105,7 +105,7 @@ const AlertOutputs = React.createClass({
     return (
       <div className="panel panel-minimal">
         <div className="panel-body">
-          <h4 className="text-center">Configure Alert Endpoints</h4>
+          <h4 className="text-center no-user-select">Configure Alert Endpoints</h4>
           <br/>
           <div className="row">
             <div className="form-group col-xs-12 col-sm-8 col-sm-offset-2">

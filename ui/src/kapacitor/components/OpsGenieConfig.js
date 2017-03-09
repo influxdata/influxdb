@@ -65,9 +65,9 @@ const OpsGenieConfig = React.createClass({
 
     return (
       <div>
-        <h4 className="text-center">OpsGenie Alert</h4>
+        <h4 className="text-center no-user-select">OpsGenie Alert</h4>
         <br/>
-        <p>Have alerts sent to OpsGenie.</p>
+        <p className="no-user-select">Have alerts sent to OpsGenie.</p>
         <form onSubmit={this.handleSaveAlert}>
           <div className="form-group col-xs-12">
             <label htmlFor="api-key">API Key</label>

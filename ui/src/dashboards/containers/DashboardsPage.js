@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react';
 import {Link} from 'react-router';
+import SourceIndicator from '../../shared/components/SourceIndicator';
 
 import {getDashboards} from '../apis';
 
@@ -52,6 +53,9 @@ const DashboardsPage = React.createClass({
               <h1>
                 Dashboards
               </h1>
+            </div>
+            <div className="page-header__right">
+              <SourceIndicator sourceName={this.props.source.name} />
             </div>
           </div>
         </div>

@@ -4,6 +4,7 @@ import {Link} from 'react-router';
 
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
+import SourceIndicator from '../../shared/components/SourceIndicator'
 
 const DashboardHeader = ({
   children,
@@ -17,6 +18,7 @@ const DashboardHeader = ({
   handleChooseAutoRefresh,
   handleClickPresentationButton,
   sourceID,
+  source,
 }) => isHidden ? null : (
   <div className="page-header full-width">
     <div className="page-header__container">
@@ -48,6 +50,7 @@ const DashboardHeader = ({
           Graph Tips
         </div>
         <ReactTooltip id="graph-tips-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
+        <SourceIndicator sourceName={source.name} />
         <AutoRefreshDropdown onChoose={handleChooseAutoRefresh} selected={autoRefresh} iconName="refresh" />
         <TimeRangeDropdown onChooseTimeRange={handleChooseTimeRange} selected={timeRange.inputValue} />
         <div className="btn btn-info btn-sm" onClick={handleClickPresentationButton}>
@@ -79,6 +82,7 @@ DashboardHeader.propTypes = {
   handleChooseTimeRange: func.isRequired,
   handleChooseAutoRefresh: func.isRequired,
   handleClickPresentationButton: func.isRequired,
+  source: shape({}),
 }
 
 export default DashboardHeader

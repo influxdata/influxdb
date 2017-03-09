@@ -25,24 +25,3 @@ $sessions-dropdown-width: 227px;
   margin: 0 16px 0 0;
   border-radius: 0 3px 3px 0;
 }
-.source-indicator {
-  padding: 0 9px;
-  border: 0;
-  background-color: $g5-pepper;
-  height: 30px;
-  line-height: 30px;
-  color: $g13-mist;
-  font-weight: 700;
-  font-size: 12px;
-  border-radius: 3px;
-  margin-right: 16px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-
-  > .icon {
-    display: inline-block;
-    font-size: 16px;
-    margin: 0 4px 0 -2px;
-  }
-}

@@ -70,7 +70,7 @@ export const KubernetesDashboard = React.createClass({
   },
 
   render() {
-    const {layouts, autoRefresh, handleChooseAutoRefresh, inPresentationMode, handleClickPresentationButton} = this.props;
+    const {layouts, autoRefresh, handleChooseAutoRefresh, inPresentationMode, handleClickPresentationButton, source} = this.props;
     const {timeRange} = this.state;
     const emptyState = (
       <div className="generic-empty-state">
@@ -89,6 +89,7 @@ export const KubernetesDashboard = React.createClass({
           handleChooseTimeRange={this.handleChooseTimeRange}
           isHidden={inPresentationMode}
           handleClickPresentationButton={handleClickPresentationButton}
+          source={source}
         />
         <div className={classnames({
           'page-contents': true,

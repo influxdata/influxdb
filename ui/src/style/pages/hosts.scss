@@ -5,22 +5,6 @@
 
 .graph-container.hosts-graph {
   padding: 8px 16px;
-
-  .single-stat {
-    font-size: 60px;
-    font-weight: 300;
-    color: $c-pool;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100%;
-
-    &.graph-single-stat {
-      position: absolute;
-      width: 100%;
-      top: 0;
-    }
-  }
 }
 
 .host-list--active-source {

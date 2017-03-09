@@ -60,6 +60,7 @@
   font-weight: 600;
   border-radius: $radius-small $radius-small 0 0;
   margin-right: 2px;
+  @include no-user-select();
   transition:
     color 0.25s ease,
     background-color 0.25s ease;
@@ -82,6 +83,7 @@
   border-radius: 0 0 $radius-small $radius-small;
 
   &-item {
+    @include no-user-select();
     color: $g11-sidewalk;
     list-style-type: none;
     margin: 0;
