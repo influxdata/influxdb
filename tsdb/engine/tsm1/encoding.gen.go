@@ -370,6 +370,10 @@ func (a FloatValues) Merge(b FloatValues) FloatValues {
 	return a
 }
 
+func (a FloatValues) Encode(buf []byte) ([]byte, error) {
+	return encodeFloatValuesBlock(buf, a)
+}
+
 // Sort methods
 func (a FloatValues) Len() int           { return len(a) }
 func (a FloatValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
@@ -550,6 +554,10 @@ func (a IntegerValues) Merge(b IntegerValues) IntegerValues {
 		return append(a, b...)
 	}
 	return a
+}
+
+func (a IntegerValues) Encode(buf []byte) ([]byte, error) {
+	return encodeIntegerValuesBlock(buf, a)
 }
 
 // Sort methods
@@ -734,6 +742,10 @@ func (a StringValues) Merge(b StringValues) StringValues {
 	return a
 }
 
+func (a StringValues) Encode(buf []byte) ([]byte, error) {
+	return encodeStringValuesBlock(buf, a)
+}
+
 // Sort methods
 func (a StringValues) Len() int           { return len(a) }
 func (a StringValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
@@ -914,6 +926,10 @@ func (a BooleanValues) Merge(b BooleanValues) BooleanValues {
 		return append(a, b...)
 	}
 	return a
+}
+
+func (a BooleanValues) Encode(buf []byte) ([]byte, error) {
+	return encodeBooleanValuesBlock(buf, a)
 }
 
 // Sort methods

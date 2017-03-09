@@ -185,6 +185,12 @@ func (a {{.Name}}Values) Merge(b {{.Name}}Values) {{.Name}}Values {
 	return a
 }
 
+{{ if ne .Name "" }}
+func (a {{.Name}}Values) Encode(buf []byte) ([]byte, error) {
+	return encode{{.Name}}ValuesBlock(buf, a)
+}
+{{ end }}
+
 // Sort methods
 func (a {{.Name}}Values) Len() int           { return len(a) }
 func (a {{.Name}}Values) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
