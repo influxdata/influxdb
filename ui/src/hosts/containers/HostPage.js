@@ -150,7 +150,9 @@ export const HostPage = React.createClass({
   },
 
   render() {
-    const {params: {hostID}, location: {query: {app}}, source: {id}, autoRefresh, handleChooseAutoRefresh, inPresentationMode, handleClickPresentationButton} = this.props
+    const {params: {hostID}, location: {query: {app}}, source: {id},
+    autoRefresh, handleChooseAutoRefresh, inPresentationMode,
+    handleClickPresentationButton, source} = this.props
     const {layouts, timeRange, hosts} = this.state
     const appParam = app ? `?app=${app}` : ''
 
@@ -164,6 +166,7 @@ export const HostPage = React.createClass({
           handleChooseTimeRange={this.handleChooseTimeRange}
           handleChooseAutoRefresh={handleChooseAutoRefresh}
           handleClickPresentationButton={handleClickPresentationButton}
+          source={source}
         >
           {Object.keys(hosts).map((host, i) => {
             return (
