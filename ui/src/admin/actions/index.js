@@ -10,9 +10,6 @@ import {
 import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
 import {publishNotification} from 'src/shared/actions/notifications';
 
-
-import {publishNotification} from 'src/shared/actions/notifications';
-
 import {ADMIN_NOTIFICATION_DELAY} from 'shared/constants'
 
 export const loadUsers = ({users}) => ({
