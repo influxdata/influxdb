@@ -2,15 +2,18 @@ import React, {PropTypes} from 'react';
 
 const SourceIndicator = React.createClass({
   propTypes: {
-    source: PropTypes.shape({}).isRequired,
+    sourceName: PropTypes.string,
   },
 
   render() {
-    const {source} = this.props;
+    const {sourceName} = this.props;
+    if (!sourceName) {
+      return null;
+    }
     return (
       <div className="source-indicator">
         <span className="icon server"></span>
-        {source && source.name}
+        {sourceName}
       </div>
     );
   },
