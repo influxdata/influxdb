@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react'
+
 import _ from 'lodash'
 
 import RoleEditingRow from 'src/admin/components/RoleEditingRow'
@@ -6,33 +7,11 @@ import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
 import ConfirmButtons from 'src/admin/components/ConfirmButtons'
 import DeleteRow from 'src/admin/components/DeleteRow'
 
-// TODO: replace with permissions list from server
-const ALL_PERMISSIONS = [
-  "NoPermissions",
-  "ViewAdmin",
-  "ViewChronograf",
-  "CreateDatabase",
-  "CreateUserAndRole",
-  "AddRemoveNode",
-  "DropDatabase",
-  "DropData",
-  "ReadData",
-  "WriteData",
-  "Rebalance",
-  "ManageShard",
-  "ManageContinuousQuery",
-  "ManageQuery",
-  "ManageSubscription",
-  "Monitor",
-  "CopyShard",
-  "KapacitorAPI",
-  "KapacitorConfigAPI",
-]
-
 const RoleRow = ({
   role: {name, permissions, users},
   role,
   allUsers,
+  allPermissions,
   isNew,
   isEditing,
   onEdit,
@@ -52,22 +31,31 @@ const RoleRow = ({
 
   const perms = _.get(permissions, ['0', 'allowed'], [])
 
+  if (isEditing) {
+    return (
+      <tr className="admin-table--edit-row">
+        <RoleEditingRow role={role} onEdit={onEdit} onSave={onSave} isNew={isNew} />
+        <td></td>
+        <td></td>
+        <td className="text-right" style={{width: "85px"}}>
+          <ConfirmButtons item={role} onConfirm={onSave} onCancel={onCancel} />
+        </td>
+      </tr>
+    )
+  }
+
   return (
     <tr>
-      {
-        isEditing ?
-          <RoleEditingRow role={role} onEdit={onEdit} onSave={onSave} isNew={isNew} /> :
-          <td>{name}</td>
-      }
+      <td>{name}</td>
       <td>
         {
-          permissions && permissions.length ?
+          allPermissions && allPermissions.length ?
             <MultiSelectDropdown
-              items={ALL_PERMISSIONS}
+              items={allPermissions}
               selectedItems={perms}
               label={perms.length ? '' : 'Select Permissions'}
               onApply={handleUpdatePermissions}
-            /> : '\u2014'
+            /> : null
         }
       </td>
       <td>
@@ -78,15 +66,11 @@ const RoleRow = ({
               selectedItems={users === undefined ? [] : users.map((u) => u.name)}
               label={users && users.length ? '' : 'Select Users'}
               onApply={handleUpdateUsers}
-            /> : '\u2014'
+            /> : null
         }
       </td>
       <td className="text-right" style={{width: "85px"}}>
-        {
-          isEditing ?
-            <ConfirmButtons item={role} onConfirm={onSave} onCancel={onCancel} /> :
-            <DeleteRow onDelete={onDelete} item={role} />
-        }
+        <DeleteRow onDelete={onDelete} item={role} />
       </td>
     </tr>
   )
@@ -117,6 +101,7 @@ RoleRow.propTypes = {
   onSave: func,
   onDelete: func.isRequired,
   allUsers: arrayOf(shape()),
+  allPermissions: arrayOf(string),
   onUpdateRoleUsers: func.isRequired,
   onUpdateRolePermissions: func.isRequired,
 }

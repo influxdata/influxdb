@@ -1,11 +1,11 @@
 import React, {PropTypes} from 'react'
+
 import _ from 'lodash'
 
 import UserEditingRow from 'src/admin/components/UserEditingRow'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
 import ConfirmButtons from 'src/admin/components/ConfirmButtons'
 import DeleteRow from 'src/admin/components/DeleteRow'
-import classNames from 'classnames'
 
 const UserRow = ({
   user: {name, roles, permissions},
@@ -19,46 +19,52 @@ const UserRow = ({
   onSave,
   onCancel,
   onDelete,
-}) => (
-  <tr className={classNames("", {"admin-table--edit-row": isEditing})}>
-    {
-      isEditing ?
-        <UserEditingRow user={user} onEdit={onEdit} onSave={onSave} isNew={isNew} /> :
-        <td>{name}</td>
-    }
-    {
-      hasRoles ?
-        <td>
-          <MultiSelectDropdown
-            items={allRoles.map((r) => r.name)}
-            selectedItems={roles ? roles.map((r) => r.name) : []/* TODO remove check when server returns empty list */}
-            label={roles && roles.length ? '' : 'Select Roles'}
-            onApply={() => '//TODO'}
-          />
-        </td> :
-        null
-    }
-    <td>
+}) => {
+  if (isEditing) {
+    return (
+      <tr className="admin-table--edit-row">
+        <UserEditingRow user={user} onEdit={onEdit} onSave={onSave} isNew={isNew} />
+        {hasRoles ? <td></td> : null}
+        <td></td>
+        <td className="text-right" style={{width: "85px"}}>
+          <ConfirmButtons item={user} onConfirm={onSave} onCancel={onCancel} />
+        </td>
+      </tr>
+    )
+  }
+
+  return (
+    <tr>
+      <td>{name}</td>
       {
-        allPermissions && allPermissions.length ?
-          <MultiSelectDropdown
-            items={allPermissions}
-            selectedItems={_.get(permissions, ['0', 'allowed'], [])}
-            label={permissions && permissions.length ? '' : 'Select Permissions'}
-            onApply={() => '//TODO'}
-          /> :
-          '\u2014'
+        hasRoles ?
+          <td>
+            <MultiSelectDropdown
+              items={allRoles.map((r) => r.name)}
+              selectedItems={roles ? roles.map((r) => r.name) : []/* TODO remove check when server returns empty list */}
+              label={roles && roles.length ? '' : 'Select Roles'}
+              onApply={() => '//TODO'}
+            />
+          </td> :
+          null
       }
-    </td>
-    <td className="text-right" style={{width: "85px"}}>
-      {
-        isEditing ?
-          <ConfirmButtons item={user} onConfirm={onSave} onCancel={onCancel} /> :
-          <DeleteRow onDelete={onDelete} item={user} />
-      }
-    </td>
-  </tr>
-)
+      <td>
+        {
+          allPermissions && allPermissions.length ?
+            <MultiSelectDropdown
+              items={allPermissions}
+              selectedItems={_.get(permissions, ['0', 'allowed'], [])}
+              label={permissions && permissions.length ? '' : 'Select Permissions'}
+              onApply={() => '//TODO'}
+            /> : null
+        }
+      </td>
+      <td className="text-right" style={{width: "85px"}}>
+        <DeleteRow onDelete={onDelete} item={user} />
+      </td>
+    </tr>
+  )
+}
 
 const {
   arrayOf,

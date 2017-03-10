@@ -6,6 +6,7 @@ import FilterBar from 'src/admin/components/FilterBar'
 const RolesTable = ({
   roles,
   allUsers,
+  permissions,
   isEditing,
   onClickCreate,
   onEdit,
@@ -33,8 +34,9 @@ const RolesTable = ({
             roles.length ?
               roles.filter(r => !r.hidden).map((role) =>
                 <RoleRow
-                  key={role.name}
+                  key={role.links.self}
                   allUsers={allUsers}
+                  allPermissions={permissions}
                   role={role}
                   onEdit={onEdit}
                   onSave={onSave}
@@ -80,6 +82,7 @@ RolesTable.propTypes = {
   onDelete: func.isRequired,
   onFilter: func,
   allUsers: arrayOf(shape()),
+  permissions: arrayOf(string),
   onUpdateRoleUsers: func.isRequired,
   onUpdateRolePermissions: func.isRequired,
 }

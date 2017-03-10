@@ -26,15 +26,18 @@ class RoleEditingRow extends Component {
     const {role} = this.props
     return (
       <td>
-        <input
-          name="name"
-          type="text"
-          value={role.name || ''}
-          placeholder="role name"
-          onChange={this.handleEdit(role)}
-          onKeyPress={this.handleKeyPress(role)}
-          autoFocus={true}
-        />
+        <div className="admin-table--edit-cell">
+          <input
+            className="form-control"
+            name="name"
+            type="text"
+            value={role.name || ''}
+            placeholder="role name"
+            onChange={this.handleEdit(role)}
+            onKeyPress={this.handleKeyPress(role)}
+            autoFocus={true}
+          />
+        </div>
       </td>
     )
   }

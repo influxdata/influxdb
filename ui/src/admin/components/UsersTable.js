@@ -78,7 +78,6 @@ UsersTable.propTypes = {
   onEdit: func.isRequired,
   onSave: func.isRequired,
   onCancel: func.isRequired,
-  addFlashMessage: func.isRequired,
   onDelete: func.isRequired,
   onFilter: func,
   allRoles: arrayOf(shape()),

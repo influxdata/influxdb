@@ -50,8 +50,8 @@ const AdminTabs = ({
       component: (
         <RolesTable
           roles={roles}
-          permissions={permissions}
           allUsers={users}
+          permissions={permissions}
           isEditing={isEditingRoles}
           onClickCreate={onClickCreate}
           onEdit={onEditRole}
