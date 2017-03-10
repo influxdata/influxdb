@@ -6,12 +6,12 @@ import {
   createRole as createRoleAJAX,
   deleteUser as deleteUserAJAX,
   deleteRole as deleteRoleAJAX,
-  updateRoleUsers as updateRoleUsersAJAX,
-  updateRolePermissions as updateRolePermissionsAJAX,
+  updateRole as updateRoleAJAX,
+  updateUser as updateUserAJAX,
 } from 'src/admin/apis'
+
 import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
 import {publishNotification} from 'src/shared/actions/notifications';
-
 import {ADMIN_NOTIFICATION_DELAY} from 'shared/constants'
 
 export const loadUsers = ({users}) => ({
@@ -191,7 +191,7 @@ export const deleteUserAsync = (user, addFlashMessage) => (dispatch) => {
 
 export const updateRoleUsersAsync = (role, users) => async (dispatch) => {
   try {
-    await updateRoleUsersAJAX(role.links.self, users)
+    await updateRoleAJAX(role.links.self, users, role.permissions)
     dispatch(publishNotification('success', 'Role users updated'))
   } catch (error) {
     dispatch(publishNotification('error', `Failed to update role: ${error.data.message}`))
@@ -200,9 +200,27 @@ export const updateRoleUsersAsync = (role, users) => async (dispatch) => {
 
 export const updateRolePermissionsAsync = (role, permissions) => async (dispatch) => {
   try {
-    await updateRolePermissionsAJAX(role.links.self, permissions)
+    await updateRoleAJAX(role.links.self, role.users, permissions)
     dispatch(publishNotification('success', 'Role permissions updated'))
   } catch (error) {
     dispatch(publishNotification('error', `Failed to updated role:  ${error.data.message}`))
+  }
+}
+
+export const updateUserPermissionsAsync = (user, permissions) => async (dispatch) => {
+  try {
+    await updateUserAJAX(user.links.self, user.roles, permissions)
+    dispatch(publishNotification('success', 'User permissions updated'))
+  } catch (error) {
+    dispatch(publishNotification('error', `Failed to updated user:  ${error.data.message}`))
+  }
+}
+
+export const updateUserRolesAsync = (user, roles) => async (dispatch) => {
+  try {
+    await updateUserAJAX(user.links.self, roles, user.permissions)
+    dispatch(publishNotification('success', 'User roles updated'))
+  } catch (error) {
+    dispatch(publishNotification('error', `Failed to updated user:  ${error.data.message}`))
   }
 }

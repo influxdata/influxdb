@@ -19,7 +19,17 @@ const UserRow = ({
   onSave,
   onCancel,
   onDelete,
+  onUpdatePermissions,
+  onUpdateRoles,
 }) => {
+  const handleUpdatePermissions = (allowed) => {
+    onUpdatePermissions(user, [{scope: 'all', allowed}])
+  }
+
+  const handleUpdateRoles = (roleNames) => {
+    onUpdateRoles(user, allRoles.filter(r => roleNames.find(rn => rn === r.name)))
+  }
+
   if (isEditing) {
     return (
       <tr className="admin-table--edit-row">
@@ -43,7 +53,7 @@ const UserRow = ({
               items={allRoles.map((r) => r.name)}
               selectedItems={roles ? roles.map((r) => r.name) : []/* TODO remove check when server returns empty list */}
               label={roles && roles.length ? '' : 'Select Roles'}
-              onApply={() => '//TODO'}
+              onApply={handleUpdateRoles}
             />
           </td> :
           null
@@ -55,7 +65,7 @@ const UserRow = ({
               items={allPermissions}
               selectedItems={_.get(permissions, ['0', 'allowed'], [])}
               label={permissions && permissions.length ? '' : 'Select Permissions'}
-              onApply={() => '//TODO'}
+              onApply={handleUpdatePermissions}
             /> : null
         }
       </td>
@@ -93,6 +103,8 @@ UserRow.propTypes = {
   onEdit: func,
   onSave: func,
   onDelete: func.isRequired,
+  onUpdatePermissions: func,
+  onUpdateRoles: func,
 }
 
 export default UserRow
