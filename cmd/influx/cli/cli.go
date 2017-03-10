@@ -31,6 +31,10 @@ import (
 // ErrBlankCommand is returned when a parsed command is empty.
 var ErrBlankCommand = errors.New("empty input")
 
+// DefaultChunkSize is the default number of results to return
+// per response if chunked responses are turned on
+const DefaultChunkSize = 10000
+
 // CommandLine holds CLI configuration and state.
 type CommandLine struct {
 	Line            *liner.State
