@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 import _ from 'lodash'
 
-import EditingRow from 'src/admin/components/EditingRow'
+import UserEditingRow from 'src/admin/components/UserEditingRow'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
 import ConfirmButtons from 'src/admin/components/ConfirmButtons'
 import DeleteRow from 'src/admin/components/DeleteRow'
@@ -23,7 +23,7 @@ const UserRow = ({
   <tr className={classNames("", {"admin-table--edit-row": isEditing})}>
     {
       isEditing ?
-        <EditingRow user={user} onEdit={onEdit} onSave={onSave} isNew={isNew} /> :
+        <UserEditingRow user={user} onEdit={onEdit} onSave={onSave} isNew={isNew} /> :
         <td>{name}</td>
     }
     {
@@ -51,9 +51,10 @@ const UserRow = ({
       }
     </td>
     <td className="text-right" style={{width: "85px"}}>
-      {isEditing ?
-        <ConfirmButtons item={user} onConfirm={onSave} onCancel={onCancel} /> :
-        <DeleteRow onDelete={onDelete} item={user} />
+      {
+        isEditing ?
+          <ConfirmButtons item={user} onConfirm={onSave} onCancel={onCancel} /> :
+          <DeleteRow onDelete={onDelete} item={user} />
       }
     </td>
   </tr>

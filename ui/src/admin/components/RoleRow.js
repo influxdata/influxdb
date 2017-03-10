@@ -1,7 +1,9 @@
 import React, {PropTypes} from 'react'
 import _ from 'lodash'
 
+import RoleEditingRow from 'src/admin/components/RoleEditingRow'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
+import ConfirmButtons from 'src/admin/components/ConfirmButtons'
 import DeleteRow from 'src/admin/components/DeleteRow'
 
 // TODO: replace with permissions list from server
@@ -31,6 +33,11 @@ const RoleRow = ({
   role: {name, permissions, users},
   role,
   allUsers,
+  isNew,
+  isEditing,
+  onEdit,
+  onSave,
+  onCancel,
   onDelete,
   onUpdateRoleUsers,
   onUpdateRolePermissions,
@@ -47,7 +54,11 @@ const RoleRow = ({
 
   return (
     <tr>
-      <td>{name}</td>
+      {
+        isEditing ?
+          <RoleEditingRow role={role} onEdit={onEdit} onSave={onSave} isNew={isNew} /> :
+          <td>{name}</td>
+      }
       <td>
         {
           permissions && permissions.length ?
@@ -71,7 +82,11 @@ const RoleRow = ({
         }
       </td>
       <td className="text-right" style={{width: "85px"}}>
-        <DeleteRow onDelete={onDelete} item={role} />
+        {
+          isEditing ?
+            <ConfirmButtons item={role} onConfirm={onSave} onCancel={onCancel} /> :
+            <DeleteRow onDelete={onDelete} item={role} />
+        }
       </td>
     </tr>
   )
@@ -79,6 +94,7 @@ const RoleRow = ({
 
 const {
   arrayOf,
+  bool,
   func,
   shape,
   string,
@@ -94,6 +110,11 @@ RoleRow.propTypes = {
       name: string,
     })),
   }).isRequired,
+  isNew: bool,
+  isEditing: bool,
+  onCancel: func,
+  onEdit: func,
+  onSave: func,
   onDelete: func.isRequired,
   allUsers: arrayOf(shape()),
   onUpdateRoleUsers: func.isRequired,
