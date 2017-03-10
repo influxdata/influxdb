@@ -34,6 +34,11 @@ func (h *Service) NewRole(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, err := roles.Get(ctx, req.Name); err == nil {
+		Error(w, http.StatusBadRequest, fmt.Sprintf("Source %d already has role %s", srcID, req.Name), h.Logger)
+		return
+	}
+
 	res, err := roles.Add(ctx, &req.Role)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
