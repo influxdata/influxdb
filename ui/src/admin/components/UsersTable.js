@@ -23,7 +23,7 @@ const UsersTable = ({
         <thead>
           <tr>
             <th>User</th>
-            {allRoles && <th>Roles</th>}
+            {!!allRoles.length && <th>Roles</th>}
             <th>Permissions</th>
             <th></th>
           </tr>

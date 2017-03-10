@@ -24,25 +24,25 @@ const UserRow = ({
         <EditingRow user={user} onEdit={onEdit} onSave={onSave} isNew={isNew} /> :
         <td>{name}</td>
     }
-    <td>
-      {
-        allRoles && allRoles.length ?
+    {
+      allRoles.length ?
+        <td>
           <MultiSelectDropdown
             items={allRoles.map((r) => r.name)}
             selectedItems={roles ? roles.map((r) => r.name) : []/* TODO remove check when server returns empty list */}
-            label={roles.length ? '' : 'Select Roles'}
+            label={roles && roles.length ? '' : 'Select Roles'}
             onApply={() => '//TODO'}
-          /> :
-          '\u2014'
-      }
-    </td>
+          />
+        </td> :
+        null
+    }
     <td>
       {
         allPermissions && allPermissions.length ?
           <MultiSelectDropdown
             items={allPermissions}
             selectedItems={_.get(permissions, ['0', 'allowed'], [])}
-            label={permissions.length ? '' : 'Select Permissions'}
+            label={permissions && permissions.length ? '' : 'Select Permissions'}
             onApply={() => '//TODO'}
           /> :
           '\u2014'
