@@ -2,17 +2,17 @@ import React, {PropTypes} from 'react'
 
 const NameableGraph = React.createClass({
   propTypes: {
-    name: PropTypes.string.isRequired,
-    id: PropTypes.string.isRequired,
+    cell: PropTypes.shape({
+      name: PropTypes.string.isRequired,
+      id: PropTypes.string.isRequired,
+    }).isRequired,
     children: PropTypes.node.isRequired,
-    layout: PropTypes.arrayOf(PropTypes.shape({})).isRequired,
     onRename: PropTypes.func.isRequired,
   },
 
   getInitialState() {
     return {
       editing: false,
-      name: this.props.name,
     }
   },
 
@@ -23,32 +23,18 @@ const NameableGraph = React.createClass({
   },
 
   handleChangeName(evt) {
-    const {editing, name: oldName} = this.state
-    const newName = evt.target.value
-    const {layout, id, onRename} = this.props
-
-    if (editing && newName !== oldName) {
-      const newLayout = layout.map((cell) => {
-        if (cell.i === id) {
-          const ret = Object.assign({}, cell)
-          ret.name = newName
-          return ret
-        }
-        return cell
-      })
-      onRename(newLayout)
-      this.setState({
-        name: newName,
-      });
-    }
+    this.props.onRename({
+      ...this.props.cell,
+      name: evt.target.value,
+    })
   },
 
   render() {
     let nameOrField
     if (!this.state.editing) {
-      nameOrField = this.state.name
+      nameOrField = this.props.cell.name
     } else {
-      nameOrField = <input type="text" value={this.state.name} autoFocus={true} onChange={this.handleChangeName}></input>
+      nameOrField = <input type="text" value={this.props.cell.name} autoFocus={true} onChange={this.handleChangeName}></input>
     }
 
     return (

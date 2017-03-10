@@ -51,6 +51,7 @@ export const LayoutRenderer = React.createClass({
     host: string,
     source: string,
     onPositionChange: func,
+    onEditCell: func,
   },
 
   buildQuery(q) {
@@ -98,7 +99,7 @@ export const LayoutRenderer = React.createClass({
       if (cell.type === 'single-stat') {
         return (
           <div key={cell.i}>
-            <NameableGraph name={cell.name || `Graph`} layout={cells} onRename={this.handleLayoutChange} id={cell.i}>
+            <NameableGraph cell={cell} onRename={this.props.onEditCell}>
               <RefreshingSingleStat queries={[qs[0]]} autoRefresh={autoRefresh} />
             </NameableGraph>
           </div>
@@ -112,7 +113,7 @@ export const LayoutRenderer = React.createClass({
 
       return (
         <div key={cell.i}>
-          <NameableGraph name={cell.name || `Graph`} layout={cells} onRename={this.handleLayoutChange} id={cell.i}>
+          <NameableGraph cell={cell} onRename={this.props.onEditCell}>
             <RefreshingLineGraph
               queries={qs}
               autoRefresh={autoRefresh}
