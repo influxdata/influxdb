@@ -21,14 +21,12 @@ const AdminTabs = ({
   onUpdateRoleUsers,
   onUpdateRolePermissions,
 }) => {
-  const hasRoles = !!source.links.roles
-
   let tabs = [
     {
       type: 'Users',
       component: (<UsersTable
         users={users}
-        hasRoles={hasRoles}
+        allRoles={roles}
         isEditingUsers={isEditingUsers}
         onClickCreate={onClickCreate}
         onEdit={onEditUser}
@@ -58,7 +56,7 @@ const AdminTabs = ({
     },
   ]
 
-  if (!hasRoles) {
+  if (!roles) {
     tabs = tabs.filter(t => t.type !== 'Roles')
   }
 

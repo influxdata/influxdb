@@ -4,7 +4,17 @@ import UserRow from 'src/admin/components/UserRow'
 import EmptyRow from 'src/admin/components/EmptyRow'
 import FilterBar from 'src/admin/components/FilterBar'
 
-const UsersTable = ({users, hasRoles, isEditingUsers, onClickCreate, onEdit, onSave, onCancel, onDelete, onFilter}) => (
+const UsersTable = ({
+  users,
+  allRoles,
+  isEditingUsers,
+  onClickCreate,
+  onEdit,
+  onSave,
+  onCancel,
+  onDelete,
+  onFilter,
+}) => (
   <div className="panel panel-info">
     <FilterBar type="users" onFilter={onFilter} isEditing={isEditingUsers} onClickCreate={onClickCreate} />
     <div className="panel-body">
@@ -12,7 +22,7 @@ const UsersTable = ({users, hasRoles, isEditingUsers, onClickCreate, onEdit, onS
         <thead>
           <tr>
             <th>User</th>
-            {hasRoles && <th>Roles</th>}
+            {allRoles && <th>Roles</th>}
             <th>Permissions</th>
             <th></th>
           </tr>
@@ -30,6 +40,7 @@ const UsersTable = ({users, hasRoles, isEditingUsers, onClickCreate, onEdit, onS
                   onDelete={onDelete}
                   isEditing={user.isEditing}
                   isNew={user.isNew}
+                  allRoles={allRoles}
                 />) :
               <EmptyRow tableName={'Users'} />
           }
@@ -64,9 +75,9 @@ UsersTable.propTypes = {
   onSave: func.isRequired,
   onCancel: func.isRequired,
   addFlashMessage: func.isRequired,
-  hasRoles: bool.isRequired,
   onDelete: func.isRequired,
   onFilter: func,
+  allRoles: arrayOf(shape()),
 }
 
 export default UsersTable

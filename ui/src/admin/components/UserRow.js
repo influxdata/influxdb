@@ -8,6 +8,7 @@ import DeleteRow from 'src/admin/components/DeleteRow'
 const UserRow = ({
   user: {name, roles, permissions},
   user,
+  allRoles,
   isNew,
   isEditing,
   onEdit,
@@ -23,11 +24,11 @@ const UserRow = ({
     }
     <td>
       {
-        roles && roles.length ?
+        allRoles && allRoles.length ?
           <MultiSelectDropdown
-            items={roles.map((role) => role.name)}
-            selectedItems={[]}
-            label={'Select Roles'}
+            items={allRoles.map((r) => r.name)}
+            selectedItems={roles ? roles.map((r) => r.name) : []/* TODO remove check when server returns empty list */}
+            label={roles.length ? '' : 'Select Roles'}
             onApply={() => '//TODO'}
           /> :
           '\u2014'
@@ -72,6 +73,7 @@ UserRow.propTypes = {
       name: string,
     })),
   }).isRequired,
+  allRoles: arrayOf(shape()),
   isNew: bool,
   isEditing: bool,
   onCancel: func,
