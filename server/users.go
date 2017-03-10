@@ -32,8 +32,10 @@ func (h *Service) NewSourceUser(w http.ResponseWriter, r *http.Request) {
 
 	store := ts.Users(ctx)
 	user := &chronograf.User{
-		Name:   req.Username,
-		Passwd: req.Password,
+		Name:        req.Username,
+		Passwd:      req.Password,
+		Permissions: req.Permissions,
+		Roles:       req.Roles,
 	}
 
 	res, err := store.Add(ctx, user)
@@ -224,6 +226,7 @@ type userRequest struct {
 	Username    string                 `json:"name,omitempty"`        // Username for new account
 	Password    string                 `json:"password,omitempty"`    // Password for new account
 	Permissions chronograf.Permissions `json:"permissions,omitempty"` // Optional permissions
+	Roles       []chronograf.Role      `json:"roles,omitempty"`       // Optional roles
 }
 
 func (r *userRequest) ValidCreate() error {

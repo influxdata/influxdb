@@ -125,8 +125,43 @@ func TestClient_Add(t *testing.T) {
 					chronograf.Permission{
 						Scope: chronograf.AllScope,
 						Allowed: chronograf.Allowances{
-							"WRITE",
-							"READ",
+							"ALL",
+						},
+					},
+				},
+			},
+		},
+		{
+			name:   "Create User with permissions",
+			status: http.StatusOK,
+			args: args{
+				ctx: context.Background(),
+				u: &chronograf.User{
+					Name:   "docbrown",
+					Passwd: "Dont Need Roads",
+					Permissions: chronograf.Permissions{
+						chronograf.Permission{
+							Scope: chronograf.AllScope,
+							Allowed: chronograf.Allowances{
+								"ALL",
+							},
+						},
+					},
+				},
+			},
+			wantQueries: []string{
+				`CREATE USER "docbrown" WITH PASSWORD 'Dont Need Roads'`,
+				`GRANT ALL PRIVILEGES TO "docbrown"`,
+				`SHOW USERS`,
+				`SHOW GRANTS FOR "docbrown"`,
+			},
+			want: &chronograf.User{
+				Name: "docbrown",
+				Permissions: chronograf.Permissions{
+					chronograf.Permission{
+						Scope: chronograf.AllScope,
+						Allowed: chronograf.Allowances{
+							"ALL",
 						},
 					},
 				},
@@ -294,7 +329,7 @@ func TestClient_Get(t *testing.T) {
 				Permissions: chronograf.Permissions{
 					chronograf.Permission{
 						Scope:   "all",
-						Allowed: []string{"WRITE", "READ"},
+						Allowed: []string{"ALL"},
 					},
 					chronograf.Permission{
 						Scope:   "database",
@@ -567,7 +602,7 @@ func TestClient_All(t *testing.T) {
 					Permissions: chronograf.Permissions{
 						chronograf.Permission{
 							Scope:   "all",
-							Allowed: []string{"WRITE", "READ"},
+							Allowed: []string{"ALL"},
 						},
 						chronograf.Permission{
 							Scope:   "database",
@@ -581,7 +616,7 @@ func TestClient_All(t *testing.T) {
 					Permissions: chronograf.Permissions{
 						chronograf.Permission{
 							Scope:   "all",
-							Allowed: []string{"WRITE", "READ"},
+							Allowed: []string{"ALL"},
 						},
 						chronograf.Permission{
 							Scope:   "database",
@@ -707,7 +742,7 @@ func TestClient_Update(t *testing.T) {
 					Permissions: chronograf.Permissions{
 						{
 							Scope:   "all",
-							Allowed: []string{"WRITE", "READ"},
+							Allowed: []string{"all"},
 						},
 						{
 							Scope:   "database",
@@ -762,7 +797,7 @@ func TestClient_Update(t *testing.T) {
 					Permissions: chronograf.Permissions{
 						{
 							Scope:   "all",
-							Allowed: []string{"WRITE", "READ"},
+							Allowed: []string{"all"},
 						},
 						{
 							Scope:   "database",
@@ -817,6 +852,34 @@ func TestClient_Update(t *testing.T) {
 				`GRANT WRITE ON "mydb" TO "docbrown"`,
 				`GRANT ALL ON "newdb" TO "docbrown"`,
 				`REVOKE ALL PRIVILEGES FROM "docbrown"`,
+			},
+		},
+		{
+			name:         "Revoke some",
+			statusUsers:  http.StatusOK,
+			showUsers:    []byte(`{"results":[{"series":[{"columns":["user","admin"],"values":[["admin",true],["docbrown",false],["reader",false]]}]}]}`),
+			statusGrants: http.StatusOK,
+			showGrants:   []byte(`{"results":[]}`),
+			statusRevoke: http.StatusOK,
+			revoke:       []byte(`{"results":[]}`),
+			statusGrant:  http.StatusOK,
+			grant:        []byte(`{"results":[]}`),
+			args: args{
+				ctx: context.Background(),
+				u: &chronograf.User{
+					Name: "docbrown",
+					Permissions: chronograf.Permissions{
+						{
+							Scope:   "all",
+							Allowed: []string{"ALL"},
+						},
+					},
+				},
+			},
+			want: []string{
+				`SHOW USERS`,
+				`SHOW GRANTS FOR "docbrown"`,
+				`GRANT ALL PRIVILEGES TO "docbrown"`,
 			},
 		},
 		{
