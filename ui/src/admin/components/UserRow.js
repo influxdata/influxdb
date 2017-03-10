@@ -19,7 +19,12 @@ const UserRow = ({
   onSave,
   onCancel,
   onDelete,
+  onUpdatePermissions,
 }) => {
+  const handleUpdatePermissions = (allowed) => {
+    onUpdatePermissions(user, [{scope: 'all', allowed}])
+  }
+
   if (isEditing) {
     return (
       <tr className="admin-table--edit-row">
@@ -55,7 +60,7 @@ const UserRow = ({
               items={allPermissions}
               selectedItems={_.get(permissions, ['0', 'allowed'], [])}
               label={permissions && permissions.length ? '' : 'Select Permissions'}
-              onApply={() => '//TODO'}
+              onApply={handleUpdatePermissions}
             /> : null
         }
       </td>
@@ -93,6 +98,7 @@ UserRow.propTypes = {
   onEdit: func,
   onSave: func,
   onDelete: func.isRequired,
+  onUpdatePermissions: func,
 }
 
 export default UserRow

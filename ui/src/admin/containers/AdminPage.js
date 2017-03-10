@@ -17,6 +17,7 @@ import {
   deleteRoleAsync,
   updateRoleUsersAsync,
   updateRolePermissionsAsync,
+  updateUserPermissionsAsync,
   filterUsers as filterUsersAction,
   filterRoles as filterRolesAction,
 } from 'src/admin/actions'
@@ -47,6 +48,7 @@ class AdminPage extends Component {
     this.handleDeleteUser = ::this.handleDeleteUser
     this.handleUpdateRoleUsers = ::this.handleUpdateRoleUsers
     this.handleUpdateRolePermissions = ::this.handleUpdateRolePermissions
+    this.handleUpdateUserPermissions = ::this.handleUpdateUserPermissions
   }
 
   componentDidMount() {
@@ -124,6 +126,10 @@ class AdminPage extends Component {
     this.props.updateRolePermissions(role, permissions)
   }
 
+  handleUpdateUserPermissions(user, permissions) {
+    this.props.updateUserPermissions(user, permissions)
+  }
+
   render() {
     const {users, roles, source, permissions, filterUsers, filterRoles} = this.props
     const hasRoles = !!source.links.roles
@@ -167,6 +173,7 @@ class AdminPage extends Component {
                     onFilterRoles={filterRoles}
                     onUpdateRoleUsers={this.handleUpdateRoleUsers}
                     onUpdateRolePermissions={this.handleUpdateRolePermissions}
+                    onUpdateUserPermissions={this.handleUpdateUserPermissions}
                   /> :
                   <span>Loading...</span>
                 }
@@ -213,6 +220,7 @@ AdminPage.propTypes = {
   filterUsers: func,
   updateRoleUsers: func,
   updateRolePermissions: func,
+  updateUserPermissions: func,
 }
 
 const mapStateToProps = ({admin: {users, roles, permissions}}) => ({
@@ -239,6 +247,7 @@ const mapDispatchToProps = (dispatch) => ({
   filterRoles: bindActionCreators(filterRolesAction, dispatch),
   updateRoleUsers: bindActionCreators(updateRoleUsersAsync, dispatch),
   updateRolePermissions: bindActionCreators(updateRolePermissionsAsync, dispatch),
+  updateUserPermissions: bindActionCreators(updateUserPermissionsAsync, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(AdminPage)

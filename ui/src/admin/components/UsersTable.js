@@ -16,6 +16,7 @@ const UsersTable = ({
   onCancel,
   onDelete,
   onFilter,
+  onUpdatePermissions,
 }) => (
   <div className="panel panel-info">
     <FilterBar type="users" onFilter={onFilter} isEditing={isEditing} onClickCreate={onClickCreate} />
@@ -45,6 +46,7 @@ const UsersTable = ({
                   allRoles={allRoles}
                   hasRoles={hasRoles}
                   allPermissions={permissions}
+                  onUpdatePermissions={onUpdatePermissions}
                 />) :
               <EmptyRow tableName={'Users'} />
           }
@@ -83,6 +85,7 @@ UsersTable.propTypes = {
   allRoles: arrayOf(shape()),
   permissions: arrayOf(string),
   hasRoles: bool.isRequired,
+  onUpdatePermissions: func,
 }
 
 export default UsersTable

@@ -124,3 +124,17 @@ export const updateRolePermissions = async (url, permissions) => {
     console.error(error)
   }
 }
+
+export const updateUserPermissions = async (url, permissions) => {
+  try {
+    await AJAX({
+      method: 'PATCH',
+      url,
+      data: {
+        permissions,
+      },
+    })
+  } catch (error) {
+    console.error(error)
+  }
+}
