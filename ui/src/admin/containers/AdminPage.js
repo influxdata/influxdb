@@ -91,6 +91,7 @@ class AdminPage extends Component {
 
   render() {
     const {users, roles, source, permissions, filterUsers, filterRoles, addFlashMessage} = this.props
+    const hasRoles = !!source.links.roles
     const globalPermissions = permissions.find((p) => p.scope === 'all')
     const allowed = globalPermissions ? globalPermissions.allowed : []
 
@@ -115,6 +116,7 @@ class AdminPage extends Component {
                     roles={roles}
                     source={source}
                     permissions={allowed}
+                    hasRoles={hasRoles}
                     isEditingUsers={users.some(u => u.isEditing)}
                     onClickCreate={this.handleClickCreate}
                     onEditUser={this.handleEditUser}

@@ -9,6 +9,7 @@ const AdminTabs = ({
   roles,
   permissions,
   source,
+  hasRoles,
   isEditingUsers,
   onClickCreate,
   onEditUser,
@@ -25,19 +26,22 @@ const AdminTabs = ({
   let tabs = [
     {
       type: 'Users',
-      component: (<UsersTable
-        users={users}
-        allRoles={roles}
-        permissions={permissions}
-        isEditingUsers={isEditingUsers}
-        onClickCreate={onClickCreate}
-        onEdit={onEditUser}
-        onSave={onSaveUser}
-        onCancel={onCancelEdit}
-        addFlashMessage={addFlashMessage}
-        onDelete={onDeleteUser}
-        onFilter={onFilterUsers}
-      />),
+      component: (
+        <UsersTable
+          users={users}
+          allRoles={roles}
+          hasRoles={hasRoles}
+          permissions={permissions}
+          isEditingUsers={isEditingUsers}
+          onClickCreate={onClickCreate}
+          onEdit={onEditUser}
+          onSave={onSaveUser}
+          onCancel={onCancelEdit}
+          addFlashMessage={addFlashMessage}
+          onDelete={onDeleteUser}
+          onFilter={onFilterUsers}
+        />
+      ),
     },
     {
       type: 'Roles',
@@ -59,7 +63,7 @@ const AdminTabs = ({
     },
   ]
 
-  if (!roles) {
+  if (!hasRoles) {
     tabs = tabs.filter(t => t.type !== 'Roles')
   }
 
@@ -109,6 +113,7 @@ AdminTabs.propTypes = {
   onFilterUsers: func.isRequired,
   onUpdateRoleUsers: func.isRequired,
   onUpdateRolePermissions: func.isRequired,
+  hasRoles: bool.isRequired,
 }
 
 export default AdminTabs

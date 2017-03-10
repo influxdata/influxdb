@@ -11,6 +11,7 @@ const UserRow = ({
   user,
   allRoles,
   allPermissions,
+  hasRoles,
   isNew,
   isEditing,
   onEdit,
@@ -25,7 +26,7 @@ const UserRow = ({
         <td>{name}</td>
     }
     {
-      allRoles.length ?
+      hasRoles ?
         <td>
           <MultiSelectDropdown
             items={allRoles.map((r) => r.name)}
@@ -77,6 +78,7 @@ UserRow.propTypes = {
   }).isRequired,
   allRoles: arrayOf(shape()),
   allPermissions: arrayOf(string),
+  hasRoles: bool,
   isNew: bool,
   isEditing: bool,
   onCancel: func,
