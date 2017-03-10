@@ -20,9 +20,14 @@ const UserRow = ({
   onCancel,
   onDelete,
   onUpdatePermissions,
+  onUpdateRoles,
 }) => {
   const handleUpdatePermissions = (allowed) => {
     onUpdatePermissions(user, [{scope: 'all', allowed}])
+  }
+
+  const handleUpdateRoles = (roleNames) => {
+    onUpdateRoles(user, allRoles.filter(r => roleNames.find(rn => rn === r.name)))
   }
 
   if (isEditing) {
@@ -48,7 +53,7 @@ const UserRow = ({
               items={allRoles.map((r) => r.name)}
               selectedItems={roles ? roles.map((r) => r.name) : []/* TODO remove check when server returns empty list */}
               label={roles && roles.length ? '' : 'Select Roles'}
-              onApply={() => '//TODO'}
+              onApply={handleUpdateRoles}
             />
           </td> :
           null
@@ -99,6 +104,7 @@ UserRow.propTypes = {
   onSave: func,
   onDelete: func.isRequired,
   onUpdatePermissions: func,
+  onUpdateRoles: func,
 }
 
 export default UserRow

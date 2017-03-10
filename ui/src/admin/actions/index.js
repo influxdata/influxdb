@@ -6,9 +6,8 @@ import {
   createRole as createRoleAJAX,
   deleteUser as deleteUserAJAX,
   deleteRole as deleteRoleAJAX,
-  updateRoleUsers as updateRoleUsersAJAX,
-  updateRolePermissions as updateRolePermissionsAJAX,
-  updateUserPermissions as updateUserPermissionsAJAX,
+  updateRole as updateRoleAJAX,
+  updateUser as updateUserAJAX,
 } from 'src/admin/apis'
 
 import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
@@ -192,7 +191,7 @@ export const deleteUserAsync = (user, addFlashMessage) => (dispatch) => {
 
 export const updateRoleUsersAsync = (role, users) => async (dispatch) => {
   try {
-    await updateRoleUsersAJAX(role.links.self, users)
+    await updateRoleAJAX(role.links.self, users, role.permissions)
     dispatch(publishNotification('success', 'Role users updated'))
   } catch (error) {
     dispatch(publishNotification('error', `Failed to update role: ${error.data.message}`))
@@ -201,7 +200,7 @@ export const updateRoleUsersAsync = (role, users) => async (dispatch) => {
 
 export const updateRolePermissionsAsync = (role, permissions) => async (dispatch) => {
   try {
-    await updateRolePermissionsAJAX(role.links.self, permissions)
+    await updateRoleAJAX(role.links.self, role.users, permissions)
     dispatch(publishNotification('success', 'Role permissions updated'))
   } catch (error) {
     dispatch(publishNotification('error', `Failed to updated role:  ${error.data.message}`))
@@ -210,8 +209,23 @@ export const updateRolePermissionsAsync = (role, permissions) => async (dispatch
 
 export const updateUserPermissionsAsync = (user, permissions) => async (dispatch) => {
   try {
-    await updateUserPermissionsAJAX(user.links.self, permissions)
+    await updateUserAJAX(user.links.self, user.roles, permissions)
     dispatch(publishNotification('success', 'User permissions updated'))
+  } catch (error) {
+    dispatch(publishNotification('error', `Failed to updated user:  ${error.data.message}`))
+  }
+}
+
+export const updateUserRolesAsync = (user, roles) => async (dispatch) => {
+  console.log('The backend for this is not hooked up yet')
+  console.log('Once it is go into admin/actions/index and delete these lines')
+  console.log('user to update: ', user)
+  console.log('to be updated with these roles: ', roles)
+  return
+
+  try {
+    await updateUserAJAX(user.links.self, roles, user.permissions)
+    dispatch(publishNotification('success', 'User roles updated'))
   } catch (error) {
     dispatch(publishNotification('error', `Failed to updated user:  ${error.data.message}`))
   }

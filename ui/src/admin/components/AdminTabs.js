@@ -25,6 +25,7 @@ const AdminTabs = ({
   onFilterUsers,
   onUpdateRoleUsers,
   onUpdateRolePermissions,
+  onUpdateUserRoles,
   onUpdateUserPermissions,
 }) => {
   let tabs = [
@@ -44,6 +45,7 @@ const AdminTabs = ({
           onDelete={onDeleteUser}
           onFilter={onFilterUsers}
           onUpdatePermissions={onUpdateUserPermissions}
+          onUpdateRoles={onUpdateUserRoles}
         />
       ),
     },
@@ -127,6 +129,7 @@ AdminTabs.propTypes = {
   onUpdateRolePermissions: func.isRequired,
   hasRoles: bool.isRequired,
   onUpdateUserPermissions: func,
+  onUpdateUserRoles: func,
 }
 
 export default AdminTabs
