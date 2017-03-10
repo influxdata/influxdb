@@ -12,6 +12,7 @@ const newDefaultUser = {
 const initialState = {
   users: [],
   roles: [],
+  permissions: [],
   queries: [],
   queryIDToKill: null,
 }
@@ -23,6 +24,10 @@ export default function admin(state = initialState, action) {
     }
 
     case 'LOAD_ROLES': {
+      return {...state, ...action.payload}
+    }
+
+    case 'LOAD_PERMISSIONS': {
       return {...state, ...action.payload}
     }
 

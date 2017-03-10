@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react'
+import _ from 'lodash'
 
 import EditingRow from 'src/admin/components/EditingRow'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
@@ -9,6 +10,9 @@ import classNames from 'classnames'
 const UserRow = ({
   user: {name, roles, permissions},
   user,
+  allRoles,
+  allPermissions,
+  hasRoles,
   isNew,
   isEditing,
   onEdit,
@@ -22,25 +26,25 @@ const UserRow = ({
         <EditingRow user={user} onEdit={onEdit} onSave={onSave} isNew={isNew} /> :
         <td>{name}</td>
     }
-    <td>
-      {
-        roles && roles.length ?
+    {
+      hasRoles ?
+        <td>
           <MultiSelectDropdown
-            items={roles.map((role) => role.name)}
-            selectedItems={[]}
-            label={'Select Roles'}
+            items={allRoles.map((r) => r.name)}
+            selectedItems={roles ? roles.map((r) => r.name) : []/* TODO remove check when server returns empty list */}
+            label={roles && roles.length ? '' : 'Select Roles'}
             onApply={() => '//TODO'}
-          /> :
-          '\u2014'
-      }
-    </td>
+          />
+        </td> :
+        null
+    }
     <td>
       {
-        permissions && permissions.length ?
+        allPermissions && allPermissions.length ?
           <MultiSelectDropdown
-            items={[]}
-            selectedItems={[]}
-            label={'Select Permissions'}
+            items={allPermissions}
+            selectedItems={_.get(permissions, ['0', 'allowed'], [])}
+            label={permissions && permissions.length ? '' : 'Select Permissions'}
             onApply={() => '//TODO'}
           /> :
           '\u2014'
@@ -73,6 +77,9 @@ UserRow.propTypes = {
       name: string,
     })),
   }).isRequired,
+  allRoles: arrayOf(shape()),
+  allPermissions: arrayOf(string),
+  hasRoles: bool,
   isNew: bool,
   isEditing: bool,
   onCancel: func,

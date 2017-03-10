@@ -1,6 +1,7 @@
 import {
   getUsers as getUsersAJAX,
   getRoles as getRolesAJAX,
+  getPermissions as getPermissionsAJAX,
   createUser as createUserAJAX,
   deleteRole as deleteRoleAJAX,
   deleteUser as deleteUserAJAX,
@@ -23,6 +24,13 @@ export const loadRoles = ({roles}) => ({
   type: 'LOAD_ROLES',
   payload: {
     roles,
+  },
+})
+
+export const loadPermissions = ({permissions}) => ({
+  type: 'LOAD_PERMISSIONS',
+  payload: {
+    permissions,
   },
 })
 
@@ -104,6 +112,11 @@ export const loadUsersAsync = (url) => async (dispatch) => {
 export const loadRolesAsync = (url) => async (dispatch) => {
   const {data} = await getRolesAJAX(url)
   dispatch(loadRoles(data))
+}
+
+export const loadPermissionsAsync = (url) => async (dispatch) => {
+  const {data} = await getPermissionsAJAX(url)
+  dispatch(loadPermissions(data))
 }
 
 export const createUserAsync = (url, user) => async (dispatch) => {

@@ -7,7 +7,9 @@ import QueriesPage from 'src/admin/containers/QueriesPage'
 const AdminTabs = ({
   users,
   roles,
+  permissions,
   source,
+  hasRoles,
   isEditingUsers,
   onClickCreate,
   onEditUser,
@@ -21,29 +23,32 @@ const AdminTabs = ({
   onUpdateRoleUsers,
   onUpdateRolePermissions,
 }) => {
-  const hasRoles = !!source.links.roles
-
   let tabs = [
     {
       type: 'Users',
-      component: (<UsersTable
-        users={users}
-        hasRoles={hasRoles}
-        isEditingUsers={isEditingUsers}
-        onClickCreate={onClickCreate}
-        onEdit={onEditUser}
-        onSave={onSaveUser}
-        onCancel={onCancelEdit}
-        addFlashMessage={addFlashMessage}
-        onDelete={onDeleteUser}
-        onFilter={onFilterUsers}
-      />),
+      component: (
+        <UsersTable
+          users={users}
+          allRoles={roles}
+          hasRoles={hasRoles}
+          permissions={permissions}
+          isEditingUsers={isEditingUsers}
+          onClickCreate={onClickCreate}
+          onEdit={onEditUser}
+          onSave={onSaveUser}
+          onCancel={onCancelEdit}
+          addFlashMessage={addFlashMessage}
+          onDelete={onDeleteUser}
+          onFilter={onFilterUsers}
+        />
+      ),
     },
     {
       type: 'Roles',
       component: (
         <RolesTable
           roles={roles}
+          permissions={permissions}
           allUsers={users}
           onDelete={onDeleteRole}
           onFilter={onFilterRoles}
@@ -95,6 +100,7 @@ AdminTabs.propTypes = {
   })),
   roles: arrayOf(shape()),
   source: shape(),
+  permissions: arrayOf(string),
   isEditingUsers: bool,
   onClickCreate: func.isRequired,
   onEditUser: func.isRequired,
@@ -107,6 +113,7 @@ AdminTabs.propTypes = {
   onFilterUsers: func.isRequired,
   onUpdateRoleUsers: func.isRequired,
   onUpdateRolePermissions: func.isRequired,
+  hasRoles: bool.isRequired,
 }
 
 export default AdminTabs

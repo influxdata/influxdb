@@ -5,6 +5,7 @@ import {
   createUserSuccess,
   editUser,
   loadRoles,
+  loadPermissions,
   deleteRole,
   deleteUser,
   filterRoles,
@@ -12,10 +13,13 @@ import {
 } from 'src/admin/actions'
 
 let state = undefined
+
+// Roles
 const r1 = {name: 'role1'}
 const r2 = {name: 'role2'}
 const roles = [r1, r2]
 
+// Users
 const u1 = {
   name: 'acidburn',
   roles: [],
@@ -29,7 +33,6 @@ const u2 = {
   links: {self: '/chronograf/v1/sources/1/users/zerocool'},
 }
 const users = [u1, u2]
-
 const newDefaultUser = {
   name: '',
   password: '',
@@ -38,6 +41,11 @@ const newDefaultUser = {
   links: {self: ''},
   isNew: true,
 }
+
+// Permissions
+const global = {scope: 'all', allowed: ['p1', 'p2']}
+const scoped = {scope: 'db1', allowed: ['p1', 'p3']}
+const permissions = [global, scoped]
 
 describe('Admin.Reducers', () => {
   it('it can add a user', () => {
@@ -164,5 +172,15 @@ describe('Admin.Reducers', () => {
     }
 
     expect(actual.users).to.deep.equal(expected.users)
+  })
+
+  // Permissions
+  it('it can load the permissions', () => {
+    const actual = reducer(state, loadPermissions({permissions}))
+    const expected = {
+      permissions,
+    }
+
+    expect(actual.permissions).to.deep.equal(expected.permissions)
   })
 })

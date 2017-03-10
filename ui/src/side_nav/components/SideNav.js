@@ -49,7 +49,6 @@ const SideNav = React.createClass({
         </NavBlock>
         <NavBlock icon="crown" link={`${sourcePrefix}/admin`}>
           <NavHeader link={`${sourcePrefix}/admin`} title="Admin" />
-          <NavListItem link={`${sourcePrefix}/admin`}>Admin</NavListItem>
         </NavBlock>
         {loggedIn ? (
         <NavBlock icon="user-outline" className="sidebar__square-last">

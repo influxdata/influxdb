@@ -4,6 +4,7 @@ import {bindActionCreators} from 'redux'
 import {
   loadUsersAsync,
   loadRolesAsync,
+  loadPermissionsAsync,
   addUser,
   deleteUser, // TODO rename to removeUser throughout + tests
   editUser,
@@ -37,9 +38,10 @@ class AdminPage extends Component {
   }
 
   componentDidMount() {
-    const {source, loadUsers, loadRoles} = this.props
+    const {source, loadUsers, loadRoles, loadPermissions} = this.props
 
     loadUsers(source.links.users)
+    loadPermissions(source.links.permissions)
     if (source.links.roles) {
       loadRoles(source.links.roles)
     }
@@ -64,7 +66,6 @@ class AdminPage extends Component {
       this.props.createUser(this.props.source.links.users, user)
     } else {
       // TODO update user
-      // console.log('update')
     }
   }
 
@@ -89,7 +90,10 @@ class AdminPage extends Component {
   }
 
   render() {
-    const {users, roles, source, filterUsers, filterRoles, addFlashMessage} = this.props
+    const {users, roles, source, permissions, filterUsers, filterRoles, addFlashMessage} = this.props
+    const hasRoles = !!source.links.roles
+    const globalPermissions = permissions.find((p) => p.scope === 'all')
+    const allowed = globalPermissions ? globalPermissions.allowed : []
 
     return (
       <div className="page">
@@ -111,6 +115,8 @@ class AdminPage extends Component {
                     users={users}
                     roles={roles}
                     source={source}
+                    permissions={allowed}
+                    hasRoles={hasRoles}
                     isEditingUsers={users.some(u => u.isEditing)}
                     onClickCreate={this.handleClickCreate}
                     onEditUser={this.handleEditUser}
@@ -150,8 +156,10 @@ AdminPage.propTypes = {
   }).isRequired,
   users: arrayOf(shape()),
   roles: arrayOf(shape()),
+  permissions: arrayOf(shape()),
   loadUsers: func,
   loadRoles: func,
+  loadPermissions: func,
   addUser: func,
   removeUser: func,
   editUser: func,
@@ -165,14 +173,16 @@ AdminPage.propTypes = {
   updateRolePermissions: func,
 }
 
-const mapStateToProps = ({admin: {users, roles}}) => ({
+const mapStateToProps = ({admin: {users, roles, permissions}}) => ({
   users,
   roles,
+  permissions,
 })
 
 const mapDispatchToProps = (dispatch) => ({
   loadUsers: bindActionCreators(loadUsersAsync, dispatch),
   loadRoles: bindActionCreators(loadRolesAsync, dispatch),
+  loadPermissions: bindActionCreators(loadPermissionsAsync, dispatch),
   addUser: bindActionCreators(addUser, dispatch),
   removeUser: bindActionCreators(deleteUser, dispatch),
   editUser: bindActionCreators(editUser, dispatch),

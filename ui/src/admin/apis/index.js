@@ -7,7 +7,7 @@ export const getUsers = async (url) => {
       url,
     })
   } catch (error) {
-    console.error(error) // eslint-disable-line no-console
+    console.error(error)
   }
 }
 
@@ -18,7 +18,18 @@ export const getRoles = async (url) => {
       url,
     })
   } catch (error) {
-    console.error(error) // eslint-disable-line no-console
+    console.error(error)
+  }
+}
+
+export const getPermissions = async (url) => {
+  try {
+    return await AJAX({
+      method: 'GET',
+      url,
+    })
+  } catch (error) {
+    console.error(error)
   }
 }
 
@@ -46,7 +57,7 @@ export const deleteRole = async (url, addFlashMessage, rolename) => {
     })
     return response
   } catch (error) {
-    console.error(error) // eslint-disable-line no-console
+    console.error(error)
     addFlashMessage({
       type: 'error',
       text: `Error deleting: ${rolename}.`,
@@ -66,7 +77,7 @@ export const deleteUser = async (url, addFlashMessage, username) => {
     })
     return response
   } catch (error) {
-    console.error(error) // eslint-disable-line no-console
+    console.error(error)
     addFlashMessage({
       type: 'error',
       text: `Error deleting: ${username}.`,
