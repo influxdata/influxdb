@@ -456,7 +456,7 @@ func (enc *SeriesBlockEncoder) Encode(name []byte, tags models.Tags, deleted boo
 		if cmp := CompareSeriesKeys(key0, key1); cmp == -1 {
 			return fmt.Errorf("series out of order: prev=%s, new=%s", enc.buf[1], buf)
 		} else if cmp == 0 {
-			return fmt.Errorf("series already encoded: %s", buf, enc.buf[1])
+			return fmt.Errorf("series already encoded: %s", buf)
 		}
 	}
 

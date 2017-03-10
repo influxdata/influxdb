@@ -213,11 +213,11 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 		return err
 	}
 
-	tw := NewTagBlockWriter()
+	enc := NewTagBlockEncoder(w)
 	for ke := kitr.Next(); ke != nil; ke = kitr.Next() {
-		// Mark tag deleted.
-		if ke.Deleted() {
-			tw.DeleteTag(ke.Key())
+		// Encode key.
+		if err := enc.EncodeKey(ke.Key(), ke.Deleted()); err != nil {
+			return err
 		}
 
 		// Iterate over tag values.
@@ -236,8 +236,10 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 			}
 			sort.Sort(uint64Slice(seriesIDs))
 
-			// Insert tag value into writer.
-			tw.AddTagValue(ke.Key(), ve.Value(), ve.Deleted(), seriesIDs)
+			// Encode value.
+			if err := enc.EncodeValue(ve.Value(), ve.Deleted(), seriesIDs); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -245,9 +247,9 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 	pos := info.tagSets[string(name)]
 	pos.offset = *n
 
-	// Write tagset to writer.
-	nn, err := tw.WriteTo(w)
-	*n += nn
+	// Flush data to writer.
+	err = enc.Close()
+	*n += enc.N()
 	if err != nil {
 		return err
 	}

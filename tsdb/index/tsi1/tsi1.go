@@ -237,7 +237,9 @@ func (p tagKeyMergeElem) TagValueIterator() TagValueIterator {
 
 	a := make([]TagValueIterator, 0, len(p))
 	for _, e := range p {
-		a = append(a, e.TagValueIterator())
+		itr := e.TagValueIterator()
+
+		a = append(a, itr)
 		if e.Deleted() {
 			break
 		}
