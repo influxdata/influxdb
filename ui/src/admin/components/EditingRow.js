@@ -26,27 +26,31 @@ class EditingRow extends Component {
     const {user, isNew} = this.props
     return (
       <td>
-        <input
-          name="name"
-          type="text"
-          value={user.name || ''}
-          placeholder="username"
-          onChange={this.handleEdit(user)}
-          onKeyPress={this.handleKeyPress(user)}
-          autoFocus={true}
-        />
-        {
-          isNew ?
-            <input
-              name="password"
-              type="text"
-              value={user.password || ''}
-              placeholder="password"
-              onChange={this.handleEdit(user)}
-              onKeyPress={this.handleKeyPress(user)}
-            /> :
-            null
-        }
+        <div className="admin-table--edit-cell">
+          <input
+            className="form-control"
+            name="name"
+            type="text"
+            value={user.name || ''}
+            placeholder="Username"
+            onChange={this.handleEdit(user)}
+            onKeyPress={this.handleKeyPress(user)}
+            autoFocus={true}
+          />
+          {
+            isNew ?
+              <input
+                className="form-control"
+                name="password"
+                type="text"
+                value={user.password || ''}
+                placeholder="Password"
+                onChange={this.handleEdit(user)}
+                onKeyPress={this.handleKeyPress(user)}
+              /> :
+              null
+          }
+        </div>
       </td>
     )
   }

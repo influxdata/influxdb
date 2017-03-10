@@ -4,6 +4,7 @@ import EditingRow from 'src/admin/components/EditingRow'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
 import ConfirmButtons from 'src/admin/components/ConfirmButtons'
 import DeleteRow from 'src/admin/components/DeleteRow'
+import classNames from 'classnames'
 
 const UserRow = ({
   user: {name, roles, permissions},
@@ -15,7 +16,7 @@ const UserRow = ({
   onCancel,
   onDelete,
 }) => (
-  <tr>
+  <tr className={classNames("", {"admin-table--edit-row": isEditing})}>
     {
       isEditing ?
         <EditingRow user={user} onEdit={onEdit} onSave={onSave} isNew={isNew} /> :

@@ -3,16 +3,16 @@ import React, {PropTypes} from 'react'
 const ConfirmButtons = ({onConfirm, item, onCancel}) => (
   <div>
     <button
-      className="btn btn-xs btn-primary"
-      onClick={() => onConfirm(item)}
-    >
-      <span className="icon checkmark"></span>
-    </button>
-    <button
-      className="btn btn-xs btn-default"
+      className="btn btn-xs btn-info"
       onClick={() => onCancel(item)}
     >
       <span className="icon remove"></span>
+    </button>
+    <button
+      className="btn btn-xs btn-success"
+      onClick={() => onConfirm(item)}
+    >
+      <span className="icon checkmark"></span>
     </button>
   </div>
 )

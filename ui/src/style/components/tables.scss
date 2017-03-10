@@ -145,6 +145,26 @@ table .monotype {
     .caret {opacity: 1;}
   }
 }
+.admin-table--edit-row {
+  background-color: $g4-onyx;
+}
+.admin-table--edit-cell {
+  width: 100%;
+  margin: 0 !important;
+  display: flex !important;
+  justify-content: space-between;
+
+  > input {
+    height: 30px;
+    padding: 0 9px;
+    flex-grow: 1;
+    margin: 0 2px;
+    min-width: 110px;
+
+    &:first-child {margin-left: 0;}
+    &:last-child {margin-right: 0;}
+  }
+}
 
 /*
     Responsive Tables
