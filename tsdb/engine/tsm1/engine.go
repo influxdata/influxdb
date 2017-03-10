@@ -131,6 +131,8 @@ type Engine struct {
 // NewEngine returns a new instance of Engine.
 func NewEngine(id uint64, path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
 	w := NewWAL(walPath)
+	w.syncDelay = time.Duration(opt.Config.WALFsyncDelay)
+
 	fs := NewFileStore(path)
 	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize), path)
 

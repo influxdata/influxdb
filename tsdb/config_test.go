@@ -2,6 +2,7 @@ package tsdb_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/tsdb"
@@ -13,6 +14,7 @@ func TestConfig_Parse(t *testing.T) {
 	if _, err := toml.Decode(`
 dir = "/var/lib/influxdb/data"
 wal-dir = "/var/lib/influxdb/wal"
+wal-fsync-delay = "10s"
 `, &c); err != nil {
 		t.Fatal(err)
 	}
@@ -27,6 +29,10 @@ wal-dir = "/var/lib/influxdb/wal"
 	if got, exp := c.WALDir, "/var/lib/influxdb/wal"; got != exp {
 		t.Errorf("unexpected wal-dir:\n\nexp=%v\n\ngot=%v\n\n", exp, got)
 	}
+	if got, exp := c.WALFsyncDelay, time.Duration(10*time.Second); time.Duration(got).Nanoseconds() != exp.Nanoseconds() {
+		t.Errorf("unexpected wal-fsync-delay:\n\nexp=%v\n\ngot=%v\n\n", exp, got)
+	}
+
 }
 
 func TestConfig_Validate_Error(t *testing.T) {

@@ -2,6 +2,7 @@
 
 ### Features
 
+- [#8143](https://github.com/influxdata/influxdb/pull/8143): Add WAL sync delay
 - [#7977](https://github.com/influxdata/influxdb/issues/7977): Add chunked request processing back into the Go client v2
 - [#7974](https://github.com/influxdata/influxdb/pull/7974): Allow non-admin users to execute SHOW DATABASES.
 - [#7948](https://github.com/influxdata/influxdb/pull/7948): Reduce memory allocations by reusing gzip.Writers across requests

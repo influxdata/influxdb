@@ -90,6 +90,12 @@ type WAL struct {
 	closing chan struct{}
 	// goroutines waiting for the next fsync
 	syncWaiters chan chan error
+	syncCount   uint64
+
+	// syncDelay sets the duration to wait before fsyncing writes.  A value of 0 (default)
+	// will cause every write to be fsync'd.  This must be set before the WAL
+	// is opened if a non-default value is required.
+	syncDelay time.Duration
 
 	// WALOutput is the writer used by the logger.
 	logger       zap.Logger // Logger to be used for important messages
@@ -221,30 +227,39 @@ func (l *WAL) Open() error {
 	atomic.StoreInt64(&l.stats.OldBytes, totalOldDiskSize)
 
 	l.closing = make(chan struct{})
-	go l.syncPeriodically()
 
 	return nil
 }
 
-func (l *WAL) syncPeriodically() {
-	t := time.NewTicker(100 * time.Millisecond)
-	defer t.Stop()
-	for {
+// sync will schedule an fsync to the current wal segment and notify any
+// waiting gorutines.  If an fsync is already scheduled, subsequent calls will
+// not schedule a new fsync and will be handle by the existing scheduled fsync.
+func (l *WAL) sync() {
+	// If we're not the first to sync, then another goroutine is fsyncing the wal for us.
+	if !atomic.CompareAndSwapUint64(&l.syncCount, 0, 1) {
+		return
+	}
+
+	// Fsync the wal and notify all pending waiters
+	go func() {
+		t := time.NewTimer(l.syncDelay)
 		select {
 		case <-t.C:
 			if len(l.syncWaiters) > 0 {
 				l.mu.Lock()
 				err := l.currentSegmentWriter.sync()
-				for i := 0; i < len(l.syncWaiters); i++ {
+				for len(l.syncWaiters) > 0 {
 					errC := <-l.syncWaiters
 					errC <- err
 				}
 				l.mu.Unlock()
 			}
 		case <-l.closing:
-			return
+			t.Stop()
 		}
-	}
+
+		atomic.StoreUint64(&l.syncCount, 0)
+	}()
 }
 
 // WritePoints writes the given points to the WAL. It returns the WAL segment ID to
@@ -389,6 +404,8 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 		return segID, err
 	}
 
+	// schedule an fsync and wait for it to complete
+	l.sync()
 	return segID, <-syncErr
 }
 
