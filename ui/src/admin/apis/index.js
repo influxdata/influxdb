@@ -18,7 +18,18 @@ export const getRoles = async (url) => {
       url,
     })
   } catch (error) {
-    console.error(error) // eslint-disable-line no-console
+    console.error(error)
+  }
+}
+
+export const getPermissions = async (url) => {
+  try {
+    return await AJAX({
+      method: 'GET',
+      url,
+    })
+  } catch (error) {
+    console.error(error)
   }
 }
 
