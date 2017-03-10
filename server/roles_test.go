@@ -156,6 +156,9 @@ func TestService_NewSourceRole(t *testing.T) {
 							AddF: func(ctx context.Context, u *chronograf.Role) (*chronograf.Role, error) {
 								return nil, fmt.Errorf("server had and issue")
 							},
+							GetF: func(ctx context.Context, name string) (*chronograf.Role, error) {
+								return nil, fmt.Errorf("No such role")
+							},
 						}, nil
 					},
 				},
@@ -196,6 +199,9 @@ func TestService_NewSourceRole(t *testing.T) {
 						return &mocks.RolesStore{
 							AddF: func(ctx context.Context, u *chronograf.Role) (*chronograf.Role, error) {
 								return u, nil
+							},
+							GetF: func(ctx context.Context, name string) (*chronograf.Role, error) {
+								return nil, fmt.Errorf("no such role")
 							},
 						}, nil
 					},
