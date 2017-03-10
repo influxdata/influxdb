@@ -14,7 +14,7 @@
       "queries": [
         {
           "query": "SELECT max(\"master/slaves_active\") AS \"Active Slaves\" FROM \"mesos\"",
-          "label": "Slaves",
+          "label": "count",
           "groupbys": [],
           "wheres": []
         }
@@ -30,7 +30,7 @@
       "queries": [
         {
           "query": "SELECT max(\"master/tasks_running\") AS \"num tasks\" FROM \"mesos\"",
-          "label": "Tasks",
+          "label": "count",
           "groupbys": [],
           "wheres": []
         }
@@ -45,13 +45,8 @@
       "name": "Mesos Tasks",
       "queries": [
         {
-          "query": "SELECT max(\"master/tasks_running\") AS \"tasks running\" FROM \"mesos\"",
-          "label": "running/finsihed/failed/killed",
-          "groupbys": [],
-          "wheres": []
-        },
-        {
           "query": "SELECT non_negative_derivative(max(\"master/tasks_finished\"), 60s) AS \"tasks finished\" FROM \"mesos\"",
+          "label": "count",
           "groupbys": [],
           "wheres": []
         },
@@ -77,7 +72,7 @@
       "queries": [
         {
           "query": "SELECT max(\"master/outstanding_offers\") AS \"Outstanding Offers\" FROM \"mesos\"",
-          "label": "Tasks",
+          "label": "count",
           "groupbys": [],
           "wheres": []
         }
@@ -92,8 +87,8 @@
       "name": "Mesos Available/Used CPUs",
       "queries": [
         {
-          "query": "SELECT max(\"master/cpus_total\"), max(\"master/cpus_used\") AS \"memory\" FROM \"mesos\"",
-          "label": "CPUs",
+          "query": "SELECT max(\"master/cpus_total\") AS \"cpu total\", max(\"master/cpus_used\") AS \"cpu used\" FROM \"mesos\"",
+          "label": "count",
           "groupbys": [],
           "wheres": []
         }
@@ -108,8 +103,8 @@
       "name": "Mesos Available/Used Memory",
       "queries": [
         {
-          "query": "SELECT max(\"master/mem_total\"), max(\"master/mem_used\") AS \"memory\" FROM \"mesos\"",
-          "label": "Memory",
+          "query": "SELECT max(\"master/mem_total\") AS \"memory total\", max(\"master/mem_used\") AS \"memory used\" FROM \"mesos\"",
+          "label": "MB",
           "groupbys": [],
           "wheres": []
         }
@@ -126,7 +121,7 @@
       "queries": [
         {
           "query": "SELECT max(\"master/uptime_secs\") AS \"uptime\" FROM \"mesos\"",
-          "label": "Uptime",
+          "label": "Seconds",
           "groupbys": [],
           "wheres": []
         }
