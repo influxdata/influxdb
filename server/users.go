@@ -153,6 +153,7 @@ func (h *Service) UpdateSourceUser(w http.ResponseWriter, r *http.Request) {
 		Name:        uid,
 		Passwd:      req.Password,
 		Permissions: req.Permissions,
+		Roles:       req.Roles,
 	}
 	store := ts.Users(ctx)
 

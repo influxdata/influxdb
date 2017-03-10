@@ -73,6 +73,74 @@ func TestClient_Add(t *testing.T) {
 			},
 		},
 		{
+			name: "Successful Create User with roles",
+			fields: fields{
+				Ctrl: &mockCtrl{
+					createUser: func(ctx context.Context, name, passwd string) error {
+						return nil
+					},
+					setUserPerms: func(ctx context.Context, name string, perms enterprise.Permissions) error {
+						return nil
+					},
+					user: func(ctx context.Context, name string) (*enterprise.User, error) {
+						return &enterprise.User{
+							Name:     "marty",
+							Password: "johnny be good",
+							Permissions: map[string][]string{
+								"": {
+									"ViewChronograf",
+									"ReadData",
+									"WriteData",
+								},
+							},
+						}, nil
+					},
+					userRoles: func(ctx context.Context) (map[string]enterprise.Roles, error) {
+						return map[string]enterprise.Roles{
+							"marty": enterprise.Roles{
+								Roles: []enterprise.Role{
+									{
+										Name: "admin",
+									},
+								},
+							},
+						}, nil
+					},
+					addRoleUsers: func(ctx context.Context, name string, users []string) error {
+						return nil
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				u: &chronograf.User{
+					Name:   "marty",
+					Passwd: "johnny be good",
+					Roles: []chronograf.Role{
+						{
+							Name: "admin",
+						},
+					},
+				},
+			},
+			want: &chronograf.User{
+				Name: "marty",
+				Permissions: chronograf.Permissions{
+					{
+						Scope:   chronograf.AllScope,
+						Allowed: chronograf.Allowances{"ViewChronograf", "ReadData", "WriteData"},
+					},
+				},
+				Roles: []chronograf.Role{
+					{
+						Name:        "admin",
+						Users:       []chronograf.User{},
+						Permissions: chronograf.Permissions{},
+					},
+				},
+			},
+		},
+		{
 			name: "Failure to Create User",
 			fields: fields{
 				Ctrl: &mockCtrl{
@@ -102,7 +170,7 @@ func TestClient_Add(t *testing.T) {
 			continue
 		}
 		if !reflect.DeepEqual(got, tt.want) {
-			t.Errorf("%q. Client.Add() = %v, want %v", tt.name, got, tt.want)
+			t.Errorf("%q. Client.Add() = \n%#v\n, want \n%#v\n", tt.name, got, tt.want)
 		}
 	}
 }
@@ -375,6 +443,9 @@ func TestClient_Update(t *testing.T) {
 					setUserPerms: func(ctx context.Context, name string, perms enterprise.Permissions) error {
 						return nil
 					},
+					userRoles: func(ctx context.Context) (map[string]enterprise.Roles, error) {
+						return map[string]enterprise.Roles{}, nil
+					},
 				},
 			},
 			args: args{
@@ -392,11 +463,48 @@ func TestClient_Update(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "Success setting permissions and roles for user",
+			fields: fields{
+				Ctrl: &mockCtrl{
+					setUserPerms: func(ctx context.Context, name string, perms enterprise.Permissions) error {
+						return nil
+					},
+					addRoleUsers: func(ctx context.Context, name string, users []string) error {
+						return nil
+					},
+					userRoles: func(ctx context.Context) (map[string]enterprise.Roles, error) {
+						return map[string]enterprise.Roles{}, nil
+					},
+				},
+			},
+			args: args{
+				ctx: context.Background(),
+				u: &chronograf.User{
+					Name: "marty",
+					Permissions: chronograf.Permissions{
+						{
+							Scope:   chronograf.AllScope,
+							Allowed: chronograf.Allowances{"ViewChronograf", "KapacitorAPI"},
+						},
+					},
+					Roles: []chronograf.Role{
+						{
+							Name: "adminrole",
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
 			name: "Failure setting permissions User",
 			fields: fields{
 				Ctrl: &mockCtrl{
 					setUserPerms: func(ctx context.Context, name string, perms enterprise.Permissions) error {
 						return fmt.Errorf("They found me, I don't know how, but they found me.")
+					},
+					userRoles: func(ctx context.Context) (map[string]enterprise.Roles, error) {
+						return map[string]enterprise.Roles{}, nil
 					},
 				},
 			},
@@ -595,12 +703,14 @@ type mockCtrl struct {
 
 	userRoles func(ctx context.Context) (map[string]enterprise.Roles, error)
 
-	roles        func(ctx context.Context, name *string) (*enterprise.Roles, error)
-	role         func(ctx context.Context, name string) (*enterprise.Role, error)
-	createRole   func(ctx context.Context, name string) error
-	deleteRole   func(ctx context.Context, name string) error
-	setRolePerms func(ctx context.Context, name string, perms enterprise.Permissions) error
-	setRoleUsers func(ctx context.Context, name string, users []string) error
+	roles           func(ctx context.Context, name *string) (*enterprise.Roles, error)
+	role            func(ctx context.Context, name string) (*enterprise.Role, error)
+	createRole      func(ctx context.Context, name string) error
+	deleteRole      func(ctx context.Context, name string) error
+	setRolePerms    func(ctx context.Context, name string, perms enterprise.Permissions) error
+	setRoleUsers    func(ctx context.Context, name string, users []string) error
+	addRoleUsers    func(ctx context.Context, name string, users []string) error
+	removeRoleUsers func(ctx context.Context, name string, users []string) error
 }
 
 func (m *mockCtrl) ShowCluster(ctx context.Context) (*enterprise.Cluster, error) {
@@ -657,4 +767,12 @@ func (m *mockCtrl) SetRolePerms(ctx context.Context, name string, perms enterpri
 
 func (m *mockCtrl) SetRoleUsers(ctx context.Context, name string, users []string) error {
 	return m.setRoleUsers(ctx, name, users)
+}
+
+func (m *mockCtrl) AddRoleUsers(ctx context.Context, name string, users []string) error {
+	return m.addRoleUsers(ctx, name, users)
+}
+
+func (m *mockCtrl) RemoveRoleUsers(ctx context.Context, name string, users []string) error {
+	return m.removeRoleUsers(ctx, name, users)
 }

@@ -272,32 +272,52 @@ func (m *MetaClient) SetRolePerms(ctx context.Context, name string, perms Permis
 	return m.Post(ctx, "/role", a, nil)
 }
 
-// RemoveAllRoleUsers removes all users from a role
-func (m *MetaClient) RemoveAllRoleUsers(ctx context.Context, name string) error {
+// SetRoleUsers removes all users and then adds the requested users to role
+func (m *MetaClient) SetRoleUsers(ctx context.Context, name string, users []string) error {
 	role, err := m.Role(ctx, name)
 	if err != nil {
 		return err
 	}
-
-	// No users to remove
-	if len(role.Users) == 0 {
-		return nil
-	}
-
-	a := &RoleAction{
-		Action: "remove-users",
-		Role:   role,
-	}
-	return m.Post(ctx, "/role", a, nil)
-}
-
-// SetRoleUsers removes all users and then adds the requested users to role
-func (m *MetaClient) SetRoleUsers(ctx context.Context, name string, users []string) error {
-	err := m.RemoveAllRoleUsers(ctx, name)
-	if err != nil {
+	revoke, add := Difference(users, role.Users)
+	if err := m.RemoveRoleUsers(ctx, name, revoke); err != nil {
 		return err
 	}
 
+	return m.AddRoleUsers(ctx, name, add)
+}
+
+// Difference compares two sets and returns a set to be removed and a set to be added
+func Difference(wants []string, haves []string) (revoke []string, add []string) {
+	for _, want := range wants {
+		found := false
+		for _, got := range haves {
+			if want != got {
+				continue
+			}
+			found = true
+		}
+		if !found {
+			add = append(add, want)
+		}
+	}
+	for _, got := range haves {
+		found := false
+		for _, want := range wants {
+			if want != got {
+				continue
+			}
+			found = true
+			break
+		}
+		if !found {
+			revoke = append(revoke, got)
+		}
+	}
+	return
+}
+
+// AddRoleUsers updates a role to have additional users.
+func (m *MetaClient) AddRoleUsers(ctx context.Context, name string, users []string) error {
 	// No permissions to add, so, role is in the right state
 	if len(users) == 0 {
 		return nil
@@ -305,6 +325,23 @@ func (m *MetaClient) SetRoleUsers(ctx context.Context, name string, users []stri
 
 	a := &RoleAction{
 		Action: "add-users",
+		Role: &Role{
+			Name:  name,
+			Users: users,
+		},
+	}
+	return m.Post(ctx, "/role", a, nil)
+}
+
+// RemoveRoleUsers updates a role to remove some users.
+func (m *MetaClient) RemoveRoleUsers(ctx context.Context, name string, users []string) error {
+	// No permissions to add, so, role is in the right state
+	if len(users) == 0 {
+		return nil
+	}
+
+	a := &RoleAction{
+		Action: "remove-users",
 		Role: &Role{
 			Name:  name,
 			Users: users,

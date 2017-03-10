@@ -88,6 +88,14 @@ func (cc *ControlClient) SetRoleUsers(ctx context.Context, name string, users []
 	return nil
 }
 
+func (cc *ControlClient) AddRoleUsers(ctx context.Context, name string, users []string) error {
+	return nil
+}
+
+func (cc *ControlClient) RemoveRoleUsers(ctx context.Context, name string, users []string) error {
+	return nil
+}
+
 type TimeSeries struct {
 	URLs     []string
 	Response Response

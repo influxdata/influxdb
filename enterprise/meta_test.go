@@ -1252,12 +1252,11 @@ func TestMetaClient_SetRoleUsers(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		wantRm  string
-		wantAdd string
+		wants   []string
 		wantErr bool
 	}{
 		{
-			name: "Successful set users role",
+			name: "Successful set users role (remove user from role)",
 			fields: fields{
 				URL: &url.URL{
 					Host:   "twinpinesmall.net:8091",
@@ -1274,7 +1273,7 @@ func TestMetaClient_SetRoleUsers(t *testing.T) {
 				ctx:  context.Background(),
 				name: "admin",
 			},
-			wantRm: `{"action":"remove-users","role":{"name":"admin","permissions":{"":["ViewAdmin","ViewChronograf"]},"users":["marty"]}}`,
+			wants: []string{`{"action":"remove-users","role":{"name":"admin","users":["marty"]}}`},
 		},
 		{
 			name: "Successful set single user role",
@@ -1285,7 +1284,7 @@ func TestMetaClient_SetRoleUsers(t *testing.T) {
 				},
 				client: NewMockClient(
 					http.StatusOK,
-					[]byte(`{"roles":[{"name":"admin","users":["marty"],"permissions":{"":["ViewAdmin","ViewChronograf"]}}]}`),
+					[]byte(`{"roles":[{"name":"admin","users":[],"permissions":{"":["ViewAdmin","ViewChronograf"]}}]}`),
 					nil,
 					nil,
 				),
@@ -1295,8 +1294,9 @@ func TestMetaClient_SetRoleUsers(t *testing.T) {
 				name:  "admin",
 				users: []string{"marty"},
 			},
-			wantRm:  `{"action":"remove-users","role":{"name":"admin","permissions":{"":["ViewAdmin","ViewChronograf"]},"users":["marty"]}}`,
-			wantAdd: `{"action":"add-users","role":{"name":"admin","users":["marty"]}}`,
+			wants: []string{
+				`{"action":"add-users","role":{"name":"admin","users":["marty"]}}`,
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -1312,8 +1312,8 @@ func TestMetaClient_SetRoleUsers(t *testing.T) {
 			continue
 		}
 		reqs := tt.fields.client.(*MockClient).Requests
-		if len(reqs) < 2 {
-			t.Errorf("%q. MetaClient.SetRoleUsers() expected 2 but got %d", tt.name, len(reqs))
+		if len(reqs) != len(tt.wants)+1 {
+			t.Errorf("%q. MetaClient.SetRoleUsers() expected %d but got %d", tt.name, len(tt.wants)+1, len(reqs))
 			continue
 		}
 
@@ -1324,21 +1324,8 @@ func TestMetaClient_SetRoleUsers(t *testing.T) {
 		if usr.URL.Path != "/role" {
 			t.Errorf("%q. MetaClient.SetRoleUsers() expected /user path but got %s", tt.name, usr.URL.Path)
 		}
-
-		prm := reqs[1]
-		if prm.Method != "POST" {
-			t.Errorf("%q. MetaClient.SetRoleUsers() expected GET method", tt.name)
-		}
-		if prm.URL.Path != "/role" {
-			t.Errorf("%q. MetaClient.SetRoleUsers() expected /role path but got %s", tt.name, prm.URL.Path)
-		}
-
-		got, _ := ioutil.ReadAll(prm.Body)
-		if string(got) != tt.wantRm {
-			t.Errorf("%q. MetaClient.SetRoleUsers() = %v, want %v", tt.name, string(got), tt.wantRm)
-		}
-		if tt.wantAdd != "" {
-			prm := reqs[2]
+		for i := range tt.wants {
+			prm := reqs[i+1]
 			if prm.Method != "POST" {
 				t.Errorf("%q. MetaClient.SetRoleUsers() expected GET method", tt.name)
 			}
@@ -1347,8 +1334,8 @@ func TestMetaClient_SetRoleUsers(t *testing.T) {
 			}
 
 			got, _ := ioutil.ReadAll(prm.Body)
-			if string(got) != tt.wantAdd {
-				t.Errorf("%q. MetaClient.SetRoleUsers() = %v, want %v", tt.name, string(got), tt.wantAdd)
+			if string(got) != tt.wants[i] {
+				t.Errorf("%q. MetaClient.SetRoleUsers() = %v, want %v", tt.name, string(got), tt.wants[i])
 			}
 		}
 	}
