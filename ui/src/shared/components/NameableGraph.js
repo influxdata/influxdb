@@ -13,6 +13,7 @@ const NameableGraph = React.createClass({
   getInitialState() {
     return {
       editing: false,
+      name: this.props.cell.name,
     }
   },
 
@@ -22,9 +23,15 @@ const NameableGraph = React.createClass({
     });
   },
 
-  handleChangeName(evt) {
+  handleChangeName() {
     this.props.onRename({
       ...this.props.cell,
+      name: this.state.name,
+    })
+  },
+
+  handleChange(evt) {
+    this.setState({
       name: evt.target.value,
     })
   },
@@ -34,7 +41,7 @@ const NameableGraph = React.createClass({
     if (!this.state.editing) {
       nameOrField = this.props.cell.name
     } else {
-      nameOrField = <input type="text" value={this.props.cell.name} autoFocus={true} onChange={this.handleChangeName}></input>
+      nameOrField = <input type="text" value={this.state.name} autoFocus={true} onChange={this.handleChange} onBlur={this.handleChangeName}></input>
     }
 
     return (
