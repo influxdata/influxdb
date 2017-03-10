@@ -15,8 +15,8 @@ import {
 let state = undefined
 
 // Roles
-const r1 = {name: 'role1'}
-const r2 = {name: 'role2'}
+const r1 = {name: 'role1', links: {self: '/chronograf/v1/sources/1/roles/role1'}}
+const r2 = {name: 'role2', links: {self: '/chronograf/v1/sources/1/roles/role2'}}
 const roles = [r1, r2]
 
 // Users

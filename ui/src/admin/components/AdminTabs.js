@@ -11,11 +11,14 @@ const AdminTabs = ({
   source,
   hasRoles,
   isEditingUsers,
+  isEditingRoles,
   onClickCreate,
   onEditUser,
   onSaveUser,
-  onCancelEdit,
-  addFlashMessage,
+  onCancelEditUser,
+  onEditRole,
+  onSaveRole,
+  onCancelEditRole,
   onDeleteRole,
   onDeleteUser,
   onFilterRoles,
@@ -32,12 +35,11 @@ const AdminTabs = ({
           allRoles={roles}
           hasRoles={hasRoles}
           permissions={permissions}
-          isEditingUsers={isEditingUsers}
+          isEditing={isEditingUsers}
+          onSave={onSaveUser}
+          onCancel={onCancelEditUser}
           onClickCreate={onClickCreate}
           onEdit={onEditUser}
-          onSave={onSaveUser}
-          onCancel={onCancelEdit}
-          addFlashMessage={addFlashMessage}
           onDelete={onDeleteUser}
           onFilter={onFilterUsers}
         />
@@ -48,8 +50,13 @@ const AdminTabs = ({
       component: (
         <RolesTable
           roles={roles}
-          permissions={permissions}
           allUsers={users}
+          permissions={permissions}
+          isEditing={isEditingRoles}
+          onClickCreate={onClickCreate}
+          onEdit={onEditRole}
+          onSave={onSaveRole}
+          onCancel={onCancelEditRole}
           onDelete={onDeleteRole}
           onFilter={onFilterRoles}
           onUpdateRoleUsers={onUpdateRoleUsers}
@@ -102,11 +109,14 @@ AdminTabs.propTypes = {
   source: shape(),
   permissions: arrayOf(string),
   isEditingUsers: bool,
+  isEditingRoles: bool,
   onClickCreate: func.isRequired,
   onEditUser: func.isRequired,
   onSaveUser: func.isRequired,
-  onCancelEdit: func.isRequired,
-  addFlashMessage: func.isRequired,
+  onCancelEditUser: func.isRequired,
+  onEditRole: func.isRequired,
+  onSaveRole: func.isRequired,
+  onCancelEditRole: func.isRequired,
   onDeleteRole: func.isRequired,
   onDeleteUser: func.isRequired,
   onFilterRoles: func.isRequired,

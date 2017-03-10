@@ -6,13 +6,19 @@ import FilterBar from 'src/admin/components/FilterBar'
 const RolesTable = ({
   roles,
   allUsers,
+  permissions,
+  isEditing,
+  onClickCreate,
+  onEdit,
+  onSave,
+  onCancel,
   onDelete,
   onFilter,
   onUpdateRoleUsers,
   onUpdateRolePermissions,
 }) => (
   <div className="panel panel-info">
-    <FilterBar type="roles" onFilter={onFilter} />
+    <FilterBar type="roles" onFilter={onFilter} isEditing={isEditing} onClickCreate={onClickCreate} />
     <div className="panel-body">
       <table className="table v-center admin-table">
         <thead>
@@ -28,12 +34,18 @@ const RolesTable = ({
             roles.length ?
               roles.filter(r => !r.hidden).map((role) =>
                 <RoleRow
-                  key={role.name}
+                  key={role.links.self}
                   allUsers={allUsers}
+                  allPermissions={permissions}
                   role={role}
+                  onEdit={onEdit}
+                  onSave={onSave}
+                  onCancel={onCancel}
                   onDelete={onDelete}
                   onUpdateRoleUsers={onUpdateRoleUsers}
                   onUpdateRolePermissions={onUpdateRolePermissions}
+                  isEditing={role.isEditing}
+                  isNew={role.isNew}
                 />
               ) : <EmptyRow tableName={'Roles'} />
           }
@@ -45,6 +57,7 @@ const RolesTable = ({
 
 const {
   arrayOf,
+  bool,
   func,
   shape,
   string,
@@ -61,9 +74,15 @@ RolesTable.propTypes = {
       name: string,
     })),
   })),
+  isEditing: bool,
+  onClickCreate: func.isRequired,
+  onEdit: func.isRequired,
+  onSave: func.isRequired,
+  onCancel: func.isRequired,
   onDelete: func.isRequired,
   onFilter: func,
   allUsers: arrayOf(shape()),
+  permissions: arrayOf(string),
   onUpdateRoleUsers: func.isRequired,
   onUpdateRolePermissions: func.isRequired,
 }

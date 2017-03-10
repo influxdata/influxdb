@@ -8,6 +8,13 @@ const newDefaultUser = {
   links: {self: ''},
   isNew: true,
 }
+const newDefaultRole = {
+  name: '',
+  permissions: [],
+  users: [],
+  links: {self: ''},
+  isNew: true,
+}
 
 const initialState = {
   users: [],
@@ -42,10 +49,29 @@ export default function admin(state = initialState, action) {
       }
     }
 
+    case 'ADD_ROLE': {
+      const newRole = {...newDefaultRole, isEditing: true}
+      return {
+        ...state,
+        roles: [
+          newRole,
+          ...state.roles,
+        ],
+      }
+    }
+
     case 'CREATE_USER_SUCCESS': {
       const {user, createdUser} = action.payload
       const newState = {
         users: state.users.map(u => u.links.self === user.links.self ? {...createdUser} : u),
+      }
+      return {...state, ...newState}
+    }
+
+    case 'CREATE_ROLE_SUCCESS': {
+      const {role, createdRole} = action.payload
+      const newState = {
+        roles: state.roles.map(r => r.links.self === role.links.self ? {...createdRole} : r),
       }
       return {...state, ...newState}
     }
@@ -58,12 +84,11 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'DELETE_ROLE': {
-      const {role} = action.payload
+    case 'EDIT_ROLE': {
+      const {role, updates} = action.payload
       const newState = {
-        roles: state.roles.filter(r => r.name !== role.name),
+        roles: state.roles.map(r => r.links.self === role.links.self ? {...r, ...updates} : r),
       }
-
       return {...state, ...newState}
     }
 
@@ -76,20 +101,17 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'LOAD_QUERIES': {
-      return {...state, ...action.payload}
-    }
-
-    case 'FILTER_ROLES': {
-      const {text} = action.payload
+    case 'DELETE_ROLE': {
+      const {role} = action.payload
       const newState = {
-        roles: state.roles.map(r => {
-          r.hidden = !r.name.toLowerCase().includes(text)
-          return r
-        }),
+        roles: state.roles.filter(r => r.links.self !== role.links.self),
       }
 
       return {...state, ...newState}
+    }
+
+    case 'LOAD_QUERIES': {
+      return {...state, ...action.payload}
     }
 
     case 'FILTER_USERS': {
@@ -100,7 +122,17 @@ export default function admin(state = initialState, action) {
           return u
         }),
       }
+      return {...state, ...newState}
+    }
 
+    case 'FILTER_ROLES': {
+      const {text} = action.payload
+      const newState = {
+        roles: state.roles.map(r => {
+          r.hidden = !r.name.toLowerCase().includes(text)
+          return r
+        }),
+      }
       return {...state, ...newState}
     }
 

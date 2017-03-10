@@ -9,7 +9,7 @@ const UsersTable = ({
   allRoles,
   hasRoles,
   permissions,
-  isEditingUsers,
+  isEditing,
   onClickCreate,
   onEdit,
   onSave,
@@ -18,7 +18,7 @@ const UsersTable = ({
   onFilter,
 }) => (
   <div className="panel panel-info">
-    <FilterBar type="users" onFilter={onFilter} isEditing={isEditingUsers} onClickCreate={onClickCreate} />
+    <FilterBar type="users" onFilter={onFilter} isEditing={isEditing} onClickCreate={onClickCreate} />
     <div className="panel-body">
       <table className="table v-center admin-table">
         <thead>
@@ -73,12 +73,11 @@ UsersTable.propTypes = {
       scope: string.isRequired,
     })),
   })),
-  isEditingUsers: bool,
+  isEditing: bool,
   onClickCreate: func.isRequired,
   onEdit: func.isRequired,
   onSave: func.isRequired,
   onCancel: func.isRequired,
-  addFlashMessage: func.isRequired,
   onDelete: func.isRequired,
   onFilter: func,
   allRoles: arrayOf(shape()),

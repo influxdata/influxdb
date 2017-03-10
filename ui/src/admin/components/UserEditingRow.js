@@ -1,6 +1,6 @@
 import React, {Component, PropTypes} from 'react'
 
-class EditingRow extends Component {
+class UserEditingRow extends Component {
   constructor(props) {
     super(props)
 
@@ -62,11 +62,11 @@ const {
   shape,
 } = PropTypes
 
-EditingRow.propTypes = {
+UserEditingRow.propTypes = {
   user: shape().isRequired,
   isNew: bool,
   onEdit: func.isRequired,
   onSave: func.isRequired,
 }
 
-export default EditingRow
+export default UserEditingRow

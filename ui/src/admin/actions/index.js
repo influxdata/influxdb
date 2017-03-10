@@ -3,8 +3,9 @@ import {
   getRoles as getRolesAJAX,
   getPermissions as getPermissionsAJAX,
   createUser as createUserAJAX,
-  deleteRole as deleteRoleAJAX,
+  createRole as createRoleAJAX,
   deleteUser as deleteUserAJAX,
+  deleteRole as deleteRoleAJAX,
   updateRoleUsers as updateRoleUsersAJAX,
   updateRolePermissions as updateRolePermissionsAJAX,
 } from 'src/admin/apis'
@@ -38,6 +39,10 @@ export const addUser = () => ({
   type: 'ADD_USER',
 })
 
+export const addRole = () => ({
+  type: 'ADD_ROLE',
+})
+
 export const createUserSuccess = (user, createdUser) => ({
   type: 'CREATE_USER_SUCCESS',
   payload: {
@@ -46,10 +51,26 @@ export const createUserSuccess = (user, createdUser) => ({
   },
 })
 
+export const createRoleSuccess = (role, createdRole) => ({
+  type: 'CREATE_ROLE_SUCCESS',
+  payload: {
+    role,
+    createdRole,
+  },
+})
+
 export const editUser = (user, updates) => ({
   type: 'EDIT_USER',
   payload: {
     user,
+    updates,
+  },
+})
+
+export const editRole = (role, updates) => ({
+  type: 'EDIT_ROLE',
+  payload: {
+    role,
     updates,
   },
 })
@@ -75,13 +96,6 @@ export const loadQueries = (queries) => ({
   },
 })
 
-export const deleteRole = (role) => ({
-  type: 'DELETE_ROLE',
-  payload: {
-    role,
-  },
-})
-
 export const deleteUser = (user) => ({
   type: 'DELETE_USER',
   payload: {
@@ -89,15 +103,22 @@ export const deleteUser = (user) => ({
   },
 })
 
-export const filterRoles = (text) => ({
-  type: 'FILTER_ROLES',
+export const deleteRole = (role) => ({
+  type: 'DELETE_ROLE',
   payload: {
-    text,
+    role,
   },
 })
 
 export const filterUsers = (text) => ({
   type: 'FILTER_USERS',
+  payload: {
+    text,
+  },
+})
+
+export const filterRoles = (text) => ({
+  type: 'FILTER_ROLES',
   payload: {
     text,
   },
@@ -128,6 +149,18 @@ export const createUserAsync = (url, user) => async (dispatch) => {
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create user: ${error.data.message}`))
     setTimeout(() => dispatch(deleteUser(user)), ADMIN_NOTIFICATION_DELAY)
+  }
+}
+
+export const createRoleAsync = (url, role) => async (dispatch) => {
+  try {
+    const {data} = await createRoleAJAX(url, role)
+    dispatch(publishNotification('success', 'Role created successfully'))
+    dispatch(createRoleSuccess(role, data))
+  } catch (error) {
+    // undo optimistic update
+    dispatch(publishNotification('error', `Failed to create role: ${error.data.message}`))
+    setTimeout(() => dispatch(deleteRole(role)), ADMIN_NOTIFICATION_DELAY)
   }
 }
 

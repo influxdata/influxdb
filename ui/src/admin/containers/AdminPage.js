@@ -6,21 +6,30 @@ import {
   loadRolesAsync,
   loadPermissionsAsync,
   addUser,
+  addRole,
   deleteUser, // TODO rename to removeUser throughout + tests
+  deleteRole, // TODO rename to removeUser throughout + tests
   editUser,
+  editRole,
   createUserAsync,
-  deleteRoleAsync,
+  createRoleAsync,
   deleteUserAsync,
+  deleteRoleAsync,
   updateRoleUsersAsync,
   updateRolePermissionsAsync,
-  filterRoles as filterRolesAction,
   filterUsers as filterUsersAction,
+  filterRoles as filterRolesAction,
 } from 'src/admin/actions'
 import AdminTabs from 'src/admin/components/AdminTabs'
 
-const isValid = (user) => {
+const isValidUser = (user) => {
   const minLen = 3
   return (user.name.length >= minLen && user.password.length >= minLen)
+}
+
+const isValidRole = (role) => {
+  const minLen = 3
+  return (role.name.length >= minLen)
 }
 
 class AdminPage extends Component {
@@ -29,8 +38,11 @@ class AdminPage extends Component {
 
     this.handleClickCreate = ::this.handleClickCreate
     this.handleEditUser = ::this.handleEditUser
+    this.handleEditRole = ::this.handleEditRole
     this.handleSaveUser = ::this.handleSaveUser
-    this.handleCancelEdit = ::this.handleCancelEdit
+    this.handleSaveRole = ::this.handleSaveRole
+    this.handleCancelEditUser = ::this.handleCancelEditUser
+    this.handleCancelEditRole = ::this.handleCancelEditRole
     this.handleDeleteRole = ::this.handleDeleteRole
     this.handleDeleteUser = ::this.handleDeleteUser
     this.handleUpdateRoleUsers = ::this.handleUpdateRoleUsers
@@ -50,6 +62,8 @@ class AdminPage extends Component {
   handleClickCreate(type) {
     if (type === 'users') {
       this.props.addUser()
+    } else if (type === 'roles') {
+      this.props.addRole()
     }
   }
 
@@ -57,8 +71,12 @@ class AdminPage extends Component {
     this.props.editUser(user, updates)
   }
 
+  handleEditRole(role, updates) {
+    this.props.editRole(role, updates)
+  }
+
   async handleSaveUser(user) {
-    if (!isValid(user)) {
+    if (!isValidUser(user)) {
       this.props.addFlashMessage({type: 'error', text: 'Username and/or password too short'})
       return
     }
@@ -69,8 +87,25 @@ class AdminPage extends Component {
     }
   }
 
-  handleCancelEdit(user) {
+  async handleSaveRole(role) {
+    if (!isValidRole(role)) {
+      this.props.addFlashMessage({type: 'error', text: 'Role name too short'})
+      return
+    }
+    if (role.isNew) {
+      this.props.createRole(this.props.source.links.roles, role)
+    } else {
+      // TODO update role
+      // console.log('update')
+    }
+  }
+
+  handleCancelEditUser(user) {
     this.props.removeUser(user)
+  }
+
+  handleCancelEditRole(role) {
+    this.props.removeRole(role)
   }
 
   handleDeleteRole(role) {
@@ -90,7 +125,7 @@ class AdminPage extends Component {
   }
 
   render() {
-    const {users, roles, source, permissions, filterUsers, filterRoles, addFlashMessage} = this.props
+    const {users, roles, source, permissions, filterUsers, filterRoles} = this.props
     const hasRoles = !!source.links.roles
     const globalPermissions = permissions.find((p) => p.scope === 'all')
     const allowed = globalPermissions ? globalPermissions.allowed : []
@@ -118,15 +153,18 @@ class AdminPage extends Component {
                     permissions={allowed}
                     hasRoles={hasRoles}
                     isEditingUsers={users.some(u => u.isEditing)}
+                    isEditingRoles={roles.some(r => r.isEditing)}
                     onClickCreate={this.handleClickCreate}
                     onEditUser={this.handleEditUser}
+                    onEditRole={this.handleEditRole}
                     onSaveUser={this.handleSaveUser}
-                    onCancelEdit={this.handleCancelEdit}
-                    onDeleteRole={this.handleDeleteRole}
+                    onSaveRole={this.handleSaveRole}
+                    onCancelEditUser={this.handleCancelEditUser}
+                    onCancelEditRole={this.handleCancelEditRole}
                     onDeleteUser={this.handleDeleteUser}
+                    onDeleteRole={this.handleDeleteRole}
                     onFilterUsers={filterUsers}
                     onFilterRoles={filterRoles}
-                    addFlashMessage={addFlashMessage}
                     onUpdateRoleUsers={this.handleUpdateRoleUsers}
                     onUpdateRolePermissions={this.handleUpdateRolePermissions}
                   /> :
@@ -161,9 +199,13 @@ AdminPage.propTypes = {
   loadRoles: func,
   loadPermissions: func,
   addUser: func,
+  addRole: func,
   removeUser: func,
+  removeRole: func,
   editUser: func,
+  editRole: func,
   createUser: func,
+  createRole: func,
   deleteRole: func,
   deleteUser: func,
   addFlashMessage: func,
@@ -184,13 +226,17 @@ const mapDispatchToProps = (dispatch) => ({
   loadRoles: bindActionCreators(loadRolesAsync, dispatch),
   loadPermissions: bindActionCreators(loadPermissionsAsync, dispatch),
   addUser: bindActionCreators(addUser, dispatch),
+  addRole: bindActionCreators(addRole, dispatch),
   removeUser: bindActionCreators(deleteUser, dispatch),
+  removeRole: bindActionCreators(deleteRole, dispatch),
   editUser: bindActionCreators(editUser, dispatch),
+  editRole: bindActionCreators(editRole, dispatch),
   createUser: bindActionCreators(createUserAsync, dispatch),
-  deleteRole: bindActionCreators(deleteRoleAsync, dispatch),
+  createRole: bindActionCreators(createRoleAsync, dispatch),
   deleteUser: bindActionCreators(deleteUserAsync, dispatch),
-  filterRoles: bindActionCreators(filterRolesAction, dispatch),
+  deleteRole: bindActionCreators(deleteRoleAsync, dispatch),
   filterUsers: bindActionCreators(filterUsersAction, dispatch),
+  filterRoles: bindActionCreators(filterRolesAction, dispatch),
   updateRoleUsers: bindActionCreators(updateRoleUsersAsync, dispatch),
   updateRolePermissions: bindActionCreators(updateRolePermissionsAsync, dispatch),
 })
