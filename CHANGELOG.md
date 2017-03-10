@@ -8,6 +8,7 @@
 ### Features
 
 ### UI Improvements
+  1. [#989](https://github.com/influxdata/chronograf/pull/989) Add a canned dashboard for mesos
 
 ## v1.2.0-beta4 [2017-02-24]
 
