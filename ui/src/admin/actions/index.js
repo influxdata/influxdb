@@ -26,6 +26,13 @@ export const loadRoles = ({roles}) => ({
   },
 })
 
+export const loadPermissions = ({permissions}) => ({
+  type: 'LOAD_PERMISSIONS',
+  payload: {
+    permissions,
+  },
+})
+
 export const addUser = () => ({
   type: 'ADD_USER',
 })
