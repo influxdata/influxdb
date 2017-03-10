@@ -7,6 +7,7 @@ import QueriesPage from 'src/admin/containers/QueriesPage'
 const AdminTabs = ({
   users,
   roles,
+  permissions,
   source,
   isEditingUsers,
   onClickCreate,
@@ -27,6 +28,7 @@ const AdminTabs = ({
       component: (<UsersTable
         users={users}
         allRoles={roles}
+        permissions={permissions}
         isEditingUsers={isEditingUsers}
         onClickCreate={onClickCreate}
         onEdit={onEditUser}
@@ -42,6 +44,7 @@ const AdminTabs = ({
       component: (
         <RolesTable
           roles={roles}
+          permissions={permissions}
           allUsers={users}
           onDelete={onDeleteRole}
           onFilter={onFilterRoles}
@@ -93,6 +96,7 @@ AdminTabs.propTypes = {
   })),
   roles: arrayOf(shape()),
   source: shape(),
+  permissions: arrayOf(string),
   isEditingUsers: bool,
   onClickCreate: func.isRequired,
   onEditUser: func.isRequired,

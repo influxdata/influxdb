@@ -7,6 +7,7 @@ import FilterBar from 'src/admin/components/FilterBar'
 const UsersTable = ({
   users,
   allRoles,
+  permissions,
   isEditingUsers,
   onClickCreate,
   onEdit,
@@ -41,6 +42,7 @@ const UsersTable = ({
                   isEditing={user.isEditing}
                   isNew={user.isNew}
                   allRoles={allRoles}
+                  allPermissions={permissions}
                 />) :
               <EmptyRow tableName={'Users'} />
           }
@@ -78,6 +80,7 @@ UsersTable.propTypes = {
   onDelete: func.isRequired,
   onFilter: func,
   allRoles: arrayOf(shape()),
+  permissions: arrayOf(string),
 }
 
 export default UsersTable

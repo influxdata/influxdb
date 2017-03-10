@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react'
+import _ from 'lodash'
 
 import EditingRow from 'src/admin/components/EditingRow'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
@@ -9,6 +10,7 @@ const UserRow = ({
   user: {name, roles, permissions},
   user,
   allRoles,
+  allPermissions,
   isNew,
   isEditing,
   onEdit,
@@ -36,11 +38,11 @@ const UserRow = ({
     </td>
     <td>
       {
-        permissions && permissions.length ?
+        allPermissions && allPermissions.length ?
           <MultiSelectDropdown
-            items={[]}
-            selectedItems={[]}
-            label={'Select Permissions'}
+            items={allPermissions}
+            selectedItems={_.get(permissions, ['0', 'allowed'], [])}
+            label={permissions.length ? '' : 'Select Permissions'}
             onApply={() => '//TODO'}
           /> :
           '\u2014'
@@ -74,6 +76,7 @@ UserRow.propTypes = {
     })),
   }).isRequired,
   allRoles: arrayOf(shape()),
+  allPermissions: arrayOf(string),
   isNew: bool,
   isEditing: bool,
   onCancel: func,
