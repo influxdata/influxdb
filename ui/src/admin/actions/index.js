@@ -217,12 +217,6 @@ export const updateUserPermissionsAsync = (user, permissions) => async (dispatch
 }
 
 export const updateUserRolesAsync = (user, roles) => async (dispatch) => {
-  console.log('The backend for this is not hooked up yet')
-  console.log('Once it is go into admin/actions/index and delete these lines')
-  console.log('user to update: ', user)
-  console.log('to be updated with these roles: ', roles)
-  return
-
   try {
     await updateUserAJAX(user.links.self, roles, user.permissions)
     dispatch(publishNotification('success', 'User roles updated'))
