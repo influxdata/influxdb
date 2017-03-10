@@ -21,7 +21,8 @@ func (c *UserStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.Us
 	if err := c.Ctrl.SetUserPerms(ctx, u.Name, perms); err != nil {
 		return nil, err
 	}
-	return u, nil
+
+	return c.Get(ctx, u.Name)
 }
 
 // Delete the User from Influx Enterprise

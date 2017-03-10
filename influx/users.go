@@ -17,7 +17,7 @@ func (c *Client) Add(ctx context.Context, u *chronograf.User) (*chronograf.User,
 		return nil, err
 	}
 
-	return u, nil
+	return c.Get(ctx, u.Name)
 }
 
 // Delete the User from InfluxDB

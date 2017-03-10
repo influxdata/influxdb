@@ -36,6 +36,22 @@ func TestClient_Add(t *testing.T) {
 					setUserPerms: func(ctx context.Context, name string, perms enterprise.Permissions) error {
 						return nil
 					},
+					user: func(ctx context.Context, name string) (*enterprise.User, error) {
+						return &enterprise.User{
+							Name:     "marty",
+							Password: "johnny be good",
+							Permissions: map[string][]string{
+								"": {
+									"ViewChronograf",
+									"ReadData",
+									"WriteData",
+								},
+							},
+						}, nil
+					},
+					userRoles: func(ctx context.Context) (map[string]enterprise.Roles, error) {
+						return map[string]enterprise.Roles{}, nil
+					},
 				},
 			},
 			args: args{
@@ -46,8 +62,14 @@ func TestClient_Add(t *testing.T) {
 				},
 			},
 			want: &chronograf.User{
-				Name:   "marty",
-				Passwd: "johnny be good",
+				Name: "marty",
+				Permissions: chronograf.Permissions{
+					{
+						Scope:   chronograf.AllScope,
+						Allowed: chronograf.Allowances{"ViewChronograf", "ReadData", "WriteData"},
+					},
+				},
+				Roles: []chronograf.Role{},
 			},
 		},
 		{
