@@ -29,6 +29,7 @@ Currently, Chronograf offers dashboard templates for the following Telegraf inpu
 * [InfluxDB](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/influxdb)
 * [Kubernetes](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/kubernetes)
 * [Memcached](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/memcached)
+* [Mesos](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/mesos)
 * [MongoDB](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/mongodb)
 * [MySQL](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/mysql)
 * Network
