@@ -64,8 +64,8 @@ const RoleRow = ({
           allUsers && allUsers.length ?
             <MultiSelectDropdown
               items={allUsers.map((u) => u.name)}
-              selectedItems={users.map((u) => u.name)}
-              label={users.length ? '' : 'Select Users'}
+              selectedItems={users === undefined ? [] : users.map((u) => u.name)}
+              label={users && users.length ? '' : 'Select Users'}
               onApply={handleUpdateUsers}
             /> : '\u2014'
         }
