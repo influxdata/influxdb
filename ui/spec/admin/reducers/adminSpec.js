@@ -2,7 +2,7 @@ import reducer from 'src/admin/reducers/admin'
 
 import {
   addUser,
-  createUserSuccess,
+  syncUser,
   editUser,
   loadRoles,
   loadPermissions,
@@ -66,8 +66,8 @@ describe('Admin.Reducers', () => {
     expect(actual.users).to.deep.equal(expected.users)
   })
 
-  it('it can confirm a created user', () => {
-    const addedUser = {
+  it('it can sync a stale user', () => {
+    const staleUser = {
       name: 'acidburn',
       password: 'pass1',
       roles: [],
@@ -75,9 +75,9 @@ describe('Admin.Reducers', () => {
       links: {self: ''},
       isNew: true,
     }
-    state = {users: [u2, addedUser]}
+    state = {users: [u2, staleUser]}
 
-    const actual = reducer(state, createUserSuccess(addedUser, u1))
+    const actual = reducer(state, syncUser(staleUser, u1))
     const expected = {
       users: [u2, u1],
     }

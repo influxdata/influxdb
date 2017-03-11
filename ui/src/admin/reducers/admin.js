@@ -60,18 +60,18 @@ export default function admin(state = initialState, action) {
       }
     }
 
-    case 'CREATE_USER_SUCCESS': {
-      const {user, createdUser} = action.payload
+    case 'SYNC_USER': {
+      const {staleUser, syncedUser} = action.payload
       const newState = {
-        users: state.users.map(u => u.links.self === user.links.self ? {...createdUser} : u),
+        users: state.users.map(u => u.links.self === staleUser.links.self ? {...syncedUser} : u),
       }
       return {...state, ...newState}
     }
 
-    case 'CREATE_ROLE_SUCCESS': {
-      const {role, createdRole} = action.payload
+    case 'SYNC_ROLE': {
+      const {staleRole, syncedRole} = action.payload
       const newState = {
-        roles: state.roles.map(r => r.links.self === role.links.self ? {...createdRole} : r),
+        roles: state.roles.map(r => r.links.self === staleRole.links.self ? {...syncedRole} : r),
       }
       return {...state, ...newState}
     }
