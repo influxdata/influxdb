@@ -108,6 +108,64 @@ table .monotype {
   }
 }
 
+
+/*
+    Table Styles for Admin Pages
+    ----------------------------------------------
+*/
+.admin-table {
+  .admin-table--delete {
+    visibility: hidden;
+  }
+  tbody tr {
+    transition: background-color 0.25s ease;
+    &:hover {
+      background-color: $g4-onyx;
+    }
+  }
+  tbody tr:hover .admin-table--delete {
+    visibility: visible;
+  }
+  .multi-select-dropdown {
+    width: 100%;
+    min-width: 150px;
+  }
+  .dropdown-toggle {
+    background-color: transparent;
+    width: 100%;
+
+    .caret {
+      opacity: 0;
+    }
+  }
+  tbody tr:hover .dropdown-toggle {
+    color: $g20-white !important;
+    background-color: $c-pool;
+
+    .caret {opacity: 1;}
+  }
+}
+.admin-table--edit-row {
+  background-color: $g4-onyx;
+}
+.admin-table--edit-cell {
+  width: 100%;
+  margin: 0 !important;
+  display: flex !important;
+  justify-content: space-between;
+
+  > input {
+    height: 30px;
+    padding: 0 9px;
+    flex-grow: 1;
+    margin: 0 2px;
+    min-width: 110px;
+
+    &:first-child {margin-left: 0;}
+    &:last-child {margin-right: 0;}
+  }
+}
+
 /*
     Responsive Tables
     ----------------------------------------------

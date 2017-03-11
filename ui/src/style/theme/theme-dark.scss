@@ -29,7 +29,6 @@
   .panel-title {
     color: $g10-wolf !important;
   }
-
   .panel-body {
     padding: 30px;
     background-color: $g3-castle;
@@ -42,23 +41,41 @@
     > *:last-child {
       margin-bottom: 0;
     }
-
-    table {
-      th,td {
-        border-color: $g5-pepper;
-      }
-      th {
-        color: $g17-whisper;
-      }
-      td {
-        color: $g14-chromium;
-      }
-      tbody tr:last-child td {
-        border-bottom: 2px solid $g5-pepper;
-      }
-    }
   }
 }
+.panel.panel-info {
+  background-color: $g3-castle;
+  border: 0;
+
+  .panel-body,
+  .panel-heading {
+    background-color: transparent;
+  }
+  .panel-body {
+    padding: 30px;
+  }
+  .panel-heading {
+    border-color: $g4-onyx;
+    .panel-title { color: $g14-chromium;}
+  }
+}
+.panel .panel-body table {
+  margin: 0;
+
+  th,td {
+    border-color: $g5-pepper;
+  }
+  th {
+    color: $g17-whisper;
+  }
+  td {
+    color: $g14-chromium;
+  }
+  tbody tr:last-child td {
+    border-bottom: 2px solid $g5-pepper;
+  }
+}
+
 table thead th {
   @include no-user-select();
 }
@@ -258,7 +275,6 @@ input {
   max-width: 100%;
   margin: 0 !important;
   padding: 0 !important;
-  min-height: 70px;
   max-height: 290px;
   overflow: auto;
   @include custom-scrollbar($c-pool, $c-laser);
@@ -752,7 +768,44 @@ $form-static-checkbox-size: 16px;
 
 
 
+/*
+    Admin Tabs
+    ----------------------------------------------
+*/
+.admin-tabs .btn-group {
+  margin: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 
+  .tab {
+    font-weight: 500 !important;
+    border-radius: $radius !important;
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease !important;
+    border: 0 !important;
+    text-align: left;
+    height: 60px !important;
+    line-height: 60px !important;
+    padding: 0 0 0 16px !important;
+    font-size: 17px;
+    background-color: transparent !important;
+    color: $g11-sidewalk !important;
+
+    &:hover,
+    &:active,
+    &:active:hover {
+      background-color: $g3-castle !important;
+      color: $g15-platinum !important;
+    }
+    &.active {
+      background-color: $g4-onyx !important;
+      color: $g18-cloud !important;
+    }
+  }
+}
 
 br {
   @include no-user-select();

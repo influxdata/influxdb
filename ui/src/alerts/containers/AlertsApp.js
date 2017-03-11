@@ -6,10 +6,6 @@ import AJAX from 'utils/ajax';
 import _ from 'lodash';
 import NoKapacitorError from '../../shared/components/NoKapacitorError';
 
-// Kevin: because we were getting strange errors saying
-// "Failed prop type: Required prop `source` was not specified in `AlertsApp`."
-// Tim and I decided to make the source and addFlashMessage props not required.
-// FIXME: figure out why that wasn't working
 const AlertsApp = React.createClass({
   propTypes: {
     source: PropTypes.shape({

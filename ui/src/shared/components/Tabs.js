@@ -28,6 +28,7 @@ export const TabList = React.createClass({
     activeIndex: number,
     onActivate: func,
     isKapacitorTabs: string,
+    customClass: string,
   },
 
   getDefaultProps() {
@@ -53,6 +54,14 @@ export const TabList = React.createClass({
       );
     }
 
+    if (this.props.customClass) {
+      return (
+        <div className={this.props.customClass}>
+          <div className="btn-group btn-group-lg tab-group">{children}</div>
+        </div>
+      );
+    }
+
     return (
       <div className="btn-group btn-group-lg tab-group">{children}</div>
     );
@@ -63,11 +72,13 @@ export const TabPanels = React.createClass({
   propTypes: {
     children: node.isRequired,
     activeIndex: number,
+    customClass: string,
   },
 
+  // if only 1 child, children array index lookup will fail
   render() {
     return (
-      <div>
+      <div className={this.props.customClass ? this.props.customClass : null}>
         {this.props.children[this.props.activeIndex]}
       </div>
     );

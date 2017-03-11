@@ -1,19 +1,17 @@
 import AJAX from 'utils/ajax';
 
-// TODO: delete this once all references
-// to it have been removed
-export function buildInfluxUrl() {
-  return "You dont need me anymore";
-}
-
-export function proxy({source, query, db, rp}) {
-  return AJAX({
-    method: 'POST',
-    url: source,
-    data: {
-      query,
-      db,
-      rp,
-    },
-  });
+export const proxy = async ({source, query, db, rp}) => {
+  try {
+    return await AJAX({
+      method: 'POST',
+      url: source,
+      data: {
+        query,
+        db,
+        rp,
+      },
+    })
+  } catch (error) {
+    console.error(error) // eslint-disable-line no-console
+  }
 }

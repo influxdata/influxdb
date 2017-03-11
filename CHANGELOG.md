@@ -6,9 +6,13 @@
   3. [#968](https://github.com/influxdata/chronograf/issue/968): Fix wrong database used in dashboards
 
 ### Features
+  1. [#993](https://github.com/influxdata/chronograf/pull/993): Add Admin page with ability to manage Users, Roles, and Permissions for InfluxDB and Enterprise
+  2. [#993](https://github.com/influxdata/chronograf/pull/993): Add ability to manage Queries for InfluxDB and Enterprise
 
 ### UI Improvements
   1. [#989](https://github.com/influxdata/chronograf/pull/989) Add a canned dashboard for mesos
+  2. [#993](https://github.com/influxdata/chronograf/pull/993): Improve multi-select dropdown
+  3. [#993](https://github.com/influxdata/chronograf/pull/993): Provide better error information to users
 
 ## v1.2.0-beta4 [2017-02-24]
 

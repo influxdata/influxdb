@@ -18,6 +18,7 @@ func (c *UserStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.Us
 		return nil, err
 	}
 	perms := ToEnterprise(u.Permissions)
+
 	if err := c.Ctrl.SetUserPerms(ctx, u.Name, perms); err != nil {
 		return nil, err
 	}
