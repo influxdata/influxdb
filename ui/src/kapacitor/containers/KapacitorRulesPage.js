@@ -1,48 +1,21 @@
-import React, {PropTypes} from 'react';
-import {connect} from 'react-redux';
-import {bindActionCreators} from 'redux';
-import {Link} from 'react-router';
-import {getKapacitor} from 'src/shared/apis';
-import * as kapacitorActionCreators from '../actions/view';
-import NoKapacitorError from '../../shared/components/NoKapacitorError';
+import React, {PropTypes, Component} from 'react'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+import {getKapacitor} from 'src/shared/apis'
+import * as kapacitorActionCreators from '../actions/view'
+import KapacitorRules from 'src/kapacitor/components/KapacitorRules'
 
-const {
-  arrayOf,
-  func,
-  shape,
-  string,
-} = PropTypes;
-
-export const KapacitorRulesPage = React.createClass({
-  propTypes: {
-    source: shape({
-      id: string.isRequired,
-      links: shape({
-        proxy: string.isRequired,
-        self: string.isRequired,
-        kapacitors: string.isRequired,
-      }),
-    }),
-    rules: arrayOf(shape({
-      name: string.isRequired,
-      trigger: string.isRequired,
-      message: string.isRequired,
-      alerts: arrayOf(string.isRequired).isRequired,
-    })).isRequired,
-    actions: shape({
-      fetchRules: func.isRequired,
-      deleteRule: func.isRequired,
-      updateRuleStatus: func.isRequired,
-    }).isRequired,
-    addFlashMessage: func,
-  },
-
-  getInitialState() {
-    return {
+class KapacitorRulesPage extends Component {
+  constructor(props) {
+    super(props);
+    this.state = {
       hasKapacitor: false,
       loading: true,
-    };
-  },
+    }
+
+    this.handleDeleteRule = ::this.handleDeleteRule
+    this.handleRuleStatus = ::this.handleRuleStatus
+  }
 
   componentDidMount() {
     getKapacitor(this.props.source).then((kapacitor) => {
@@ -51,131 +24,78 @@ export const KapacitorRulesPage = React.createClass({
       }
       this.setState({loading: false, hasKapacitor: !!kapacitor});
     });
-  },
+  }
 
   handleDeleteRule(rule) {
-    const {actions} = this.props;
-    actions.deleteRule(rule);
-  },
+    const {actions} = this.props
+    actions.deleteRule(rule)
+  }
 
-  handleRuleStatus(e, rule) {
-    const {actions} = this.props;
-    const status = e.target.checked ? 'enabled' : 'disabled';
+  handleRuleStatus(rule) {
+    const {actions} = this.props
+    const status = rule.status === 'enabled' ? 'disabled' : 'enabled'
 
-    actions.updateRuleStatusSuccess(rule.id, status);
-    actions.updateRuleStatus(rule, {status});
-  },
-
-  renderSubComponent() {
-    const {source} = this.props;
-    const {hasKapacitor, loading} = this.state;
-
-    let component;
-    if (loading) {
-      component = (<p>Loading...</p>);
-    } else if (hasKapacitor) {
-      component = (
-        <div className="panel panel-minimal">
-          <div className="panel-heading u-flex u-ai-center u-jc-space-between">
-            <h2 className="panel-title">Alert Rules</h2>
-            <Link to={`/sources/${source.id}/alert-rules/new`} className="btn btn-sm btn-primary">Create New Rule</Link>
-          </div>
-          <div className="panel-body">
-            <table className="table v-center">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>Trigger</th>
-                  <th>Message</th>
-                  <th>Alerts</th>
-                  <th className="text-center">Enabled</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {this.renderAlertsTableRows()}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      );
-    } else {
-      component = <NoKapacitorError source={source} />;
-    }
-    return component;
-  },
+    actions.updateRuleStatus(rule, status)
+    actions.updateRuleStatusSuccess(rule.id, status)
+  }
 
   render() {
+    const {source, rules} = this.props
+    const {hasKapacitor, loading} = this.state
+
     return (
-      <div className="page">
-        <div className="page-header">
-          <div className="page-header__container">
-            <div className="page-header__left">
-              <h1>Kapacitor Rules</h1>
-            </div>
-          </div>
-        </div>
-        <div className="page-contents">
-          <div className="container-fluid">
-            {this.renderSubComponent()}
-          </div>
-        </div>
-      </div>
-    );
-  },
+      <KapacitorRules
+        source={source}
+        rules={rules}
+        hasKapacitor={hasKapacitor}
+        loading={loading}
+        onDelete={this.handleDeleteRule}
+        onChangeRuleStatus={this.handleRuleStatus}
+      />
+    )
+  }
+}
 
-  renderAlertsTableRows() {
-    const {rules, source} = this.props;
-    const numRules = rules.length;
+const {
+  arrayOf,
+  func,
+  shape,
+  string,
+} = PropTypes
 
-    if (numRules === 0) {
-      return (
-        <tr className="table-empty-state">
-          <th colSpan="5">
-            <p>You don&#39;t have any Kapacitor<br/>Rules, why not create one?</p>
-            <Link to={`/sources/${source.id}/alert-rules/new`} className="btn btn-primary">Create New Rule</Link>
-          </th>
-        </tr>
-      );
-    }
+KapacitorRulesPage.propTypes = {
+  source: shape({
+    id: string.isRequired,
+    links: shape({
+      proxy: string.isRequired,
+      self: string.isRequired,
+      kapacitors: string.isRequired,
+    }),
+  }),
+  rules: arrayOf(shape({
+    name: string.isRequired,
+    trigger: string.isRequired,
+    message: string.isRequired,
+    alerts: arrayOf(string.isRequired).isRequired,
+  })).isRequired,
+  actions: shape({
+    fetchRules: func.isRequired,
+    deleteRule: func.isRequired,
+    updateRuleStatus: func.isRequired,
+  }).isRequired,
+  addFlashMessage: func,
+}
 
-    return rules.map((rule) => {
-      return (
-        <tr key={rule.id}>
-          <td className="monotype"><Link to={`/sources/${source.id}/alert-rules/${rule.id}`}>{rule.name}</Link></td>
-          <td className="monotype">{rule.trigger}</td>
-          <td className="monotype">{rule.message}</td>
-          <td className="monotype">{rule.alerts.join(', ')}</td>
-          <td className="monotype text-center">
-            <div className="dark-checkbox">
-              <input
-                id="kapacitor-enabled"
-                className="form-control-static"
-                type="checkbox"
-                ref={(r) => this.enabled = r}
-                defaultChecked={rule.status === "enabled"}
-                onClick={(e) => this.handleRuleStatus(e, rule)}
-              />
-              <label htmlFor="kapacitor-enabled"></label>
-            </div>
-          </td>
-          <td className="text-right"><button className="btn btn-danger btn-xs" onClick={() => this.handleDeleteRule(rule)}>Delete</button></td>
-        </tr>
-      );
-    });
-  },
-});
-
-function mapStateToProps(state) {
+const mapStateToProps = (state) => {
   return {
     rules: Object.values(state.rules),
-  };
+  }
 }
 
-function mapDispatchToProps(dispatch) {
+const mapDispatchToProps = (dispatch) => {
   return {
     actions: bindActionCreators(kapacitorActionCreators, dispatch),
-  };
+  }
 }
 
-export default connect(mapStateToProps, mapDispatchToProps)(KapacitorRulesPage);
+export default connect(mapStateToProps, mapDispatchToProps)(KapacitorRulesPage)

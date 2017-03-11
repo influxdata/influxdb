@@ -32,6 +32,8 @@ type Ctrl interface {
 	DeleteRole(ctx context.Context, name string) error
 	SetRolePerms(ctx context.Context, name string, perms Permissions) error
 	SetRoleUsers(ctx context.Context, name string, users []string) error
+	AddRoleUsers(ctx context.Context, name string, users []string) error
+	RemoveRoleUsers(ctx context.Context, name string, users []string) error
 }
 
 // Client is a device for retrieving time series data from an Influx Enterprise
@@ -148,7 +150,7 @@ func (c *Client) Roles(ctx context.Context) (chronograf.RolesStore, error) {
 	return c.RolesStore, nil
 }
 
-// Allowances returns all Influx Enterprise permission strings
+// Permissions returns all Influx Enterprise permission strings
 func (c *Client) Permissions(context.Context) chronograf.Permissions {
 	all := chronograf.Allowances{
 		"NoPermissions",

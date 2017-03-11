@@ -318,7 +318,7 @@ func Test_showResults_Users(t *testing.T) {
 					Permissions: chronograf.Permissions{
 						{
 							Scope:   chronograf.AllScope,
-							Allowed: chronograf.Allowances{"WRITE", "READ"},
+							Allowed: chronograf.Allowances{"ALL"},
 						},
 					},
 				},

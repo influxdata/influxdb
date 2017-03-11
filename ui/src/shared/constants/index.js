@@ -472,3 +472,5 @@ export const PRESENTATION_MODE_ANIMATION_DELAY = 0 // In milliseconds.
 export const PRESENTATION_MODE_NOTIFICATION_DELAY = 2000 // In milliseconds.
 
 export const RES_UNAUTHORIZED = 401
+
+export const AUTOREFRESH_DEFAULT = 15000 // in milliseconds

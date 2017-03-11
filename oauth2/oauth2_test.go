@@ -27,8 +27,8 @@ func (mp *MockProvider) Config() *goauth.Config {
 		ClientID:     "4815162342",
 		ClientSecret: "8675309",
 		Endpoint: goauth.Endpoint{
-			mp.ProviderURL + "/oauth/auth",
-			mp.ProviderURL + "/oauth/token",
+			AuthURL:  mp.ProviderURL + "/oauth/auth",
+			TokenURL: mp.ProviderURL + "/oauth/token",
 		},
 	}
 }

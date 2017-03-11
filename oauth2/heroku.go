@@ -14,8 +14,8 @@ import (
 var _ Provider = &Heroku{}
 
 const (
-	// Routes required for interacting with Heroku API
-	HEROKU_ACCOUNT_ROUTE string = "https://api.heroku.com/account"
+	// HerokuAccountRoute is required for interacting with Heroku API
+	HerokuAccountRoute string = "https://api.heroku.com/account"
 )
 
 // Heroku is an OAuth2 Provider allowing users to authenticate with Heroku to
@@ -61,13 +61,14 @@ func (h *Heroku) PrincipalID(provider *http.Client) (string, error) {
 		DefaultOrganization DefaultOrg `json:"default_organization"`
 	}
 
-	resp, err := provider.Get(HEROKU_ACCOUNT_ROUTE)
+	resp, err := provider.Get(HerokuAccountRoute)
 	if err != nil {
 		h.Logger.Error("Unable to communicate with Heroku. err:", err)
 		return "", err
 	}
 	defer resp.Body.Close()
 	d := json.NewDecoder(resp.Body)
+
 	var account Account
 	if err := d.Decode(&account); err != nil {
 		h.Logger.Error("Unable to decode response from Heroku. err:", err)
@@ -83,9 +84,8 @@ func (h *Heroku) PrincipalID(provider *http.Client) (string, error) {
 		}
 		h.Logger.Error(ErrOrgMembership)
 		return "", ErrOrgMembership
-	} else {
-		return account.Email, nil
 	}
+	return account.Email, nil
 }
 
 // Scopes for heroku is "identity" which grants access to user account

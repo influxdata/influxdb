@@ -31,6 +31,7 @@
     margin: 0;
     display: inline-block;
     vertical-align: middle;
+    @include no-user-select();
   }
   &__left,
   &__right {

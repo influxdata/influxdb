@@ -2,14 +2,17 @@
 
 ### Bug Fixes
   1. [#936](https://github.com/influxdata/chronograf/pull/936): Fix leaking sockets for InfluxQL queries
+  2. [#967](https://github.com/influxdata/chronograf/pull/967): Fix flash of empty graph on auto-refresh when no results were previously returned from a query.
+  3. [#968](https://github.com/influxdata/chronograf/issue/968): Fix wrong database used in dashboards
 
 ### Features
   1. [#993](https://github.com/influxdata/chronograf/pull/993): Add Admin page with ability to manage Users, Roles, and Permissions for InfluxDB and Enterprise
   2. [#993](https://github.com/influxdata/chronograf/pull/993): Add ability to manage Queries for InfluxDB and Enterprise
 
 ### UI Improvements
-  1. [#993](https://github.com/influxdata/chronograf/pull/993): Improve multi-select dropdown
-  2. [#993](https://github.com/influxdata/chronograf/pull/993): Provide better error information to users
+  1. [#989](https://github.com/influxdata/chronograf/pull/989) Add a canned dashboard for mesos
+  2. [#993](https://github.com/influxdata/chronograf/pull/993): Improve multi-select dropdown
+  3. [#993](https://github.com/influxdata/chronograf/pull/993): Provide better error information to users
 
 ## v1.2.0-beta4 [2017-02-24]
 
@@ -25,6 +28,7 @@
   4. [#892](https://github.com/influxdata/chronograf/issues/891): Make dashboard visualizations resizable
   5. [#893](https://github.com/influxdata/chronograf/issues/893): Persist dashboard visualization position
   6. [#922](https://github.com/influxdata/chronograf/issues/922): Additional OAuth2 support for [Heroku](https://github.com/influxdata/chronograf/blob/master/docs/auth.md#heroku) and [Google](https://github.com/influxdata/chronograf/blob/master/docs/auth.md#google)
+  7. [#781](https://github.com/influxdata/chronograf/issues/781): Add global auto-refresh dropdown to all graph dashboards
 
 ### UI Improvements
   1. [#905](https://github.com/influxdata/chronograf/pull/905): Make scroll bar thumb element bigger

@@ -11,6 +11,7 @@
     font-size: 17px;
     font-weight: 400;
     transition: color 0.25s ease;
+    @include no-user-select();
   }
   .dropdown-toggle > .caret {
     right: 0;
@@ -35,6 +36,7 @@
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      @include no-user-select();
     }
   }
 }

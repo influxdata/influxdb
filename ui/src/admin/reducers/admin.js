@@ -17,7 +17,7 @@ const newDefaultRole = {
 }
 
 const initialState = {
-  users: [],
+  users: null,
   roles: [],
   permissions: [],
   queries: [],

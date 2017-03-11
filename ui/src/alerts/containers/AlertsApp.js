@@ -1,5 +1,6 @@
 import React, {PropTypes} from 'react';
 import AlertsTable from '../components/AlertsTable';
+import SourceIndicator from '../../shared/components/SourceIndicator';
 import {getAlerts} from '../apis';
 import AJAX from 'utils/ajax';
 import _ from 'lodash';
@@ -89,6 +90,7 @@ const AlertsApp = React.createClass({
   },
 
   render() {
+    const {source} = this.props;
     return (
       // I stole this from the Hosts page.
       // Perhaps we should create an abstraction?
@@ -99,6 +101,9 @@ const AlertsApp = React.createClass({
               <h1>
                 Alert History
               </h1>
+            </div>
+            <div className="page-header__right">
+              <SourceIndicator sourceName={source.name} />
             </div>
           </div>
         </div>

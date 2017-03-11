@@ -6,25 +6,37 @@ function _fetchTimeSeries(source, db, rp, query) {
   return proxy({source, db, rp, query});
 }
 
+const {
+  element,
+  number,
+  arrayOf,
+  shape,
+  oneOfType,
+  string,
+} = PropTypes
+
 export default function AutoRefresh(ComposedComponent) {
   const wrapper = React.createClass({
     displayName: `AutoRefresh_${ComposedComponent.displayName}`,
     propTypes: {
-      children: PropTypes.element,
-      autoRefresh: PropTypes.number,
-      queries: PropTypes.arrayOf(PropTypes.shape({
-        host: PropTypes.oneOfType([PropTypes.string, PropTypes.arrayOf(PropTypes.string)]),
-        text: PropTypes.string,
+      children: element,
+      autoRefresh: number.isRequired,
+      queries: arrayOf(shape({
+        host: oneOfType([string, arrayOf(string)]),
+        text: string,
       }).isRequired).isRequired,
     },
     getInitialState() {
-      return {timeSeries: []};
+      return {
+        lastQuerySuccessful: false,
+        timeSeries: [],
+      };
     },
     componentDidMount() {
-      const {queries} = this.props;
+      const {queries, autoRefresh} = this.props;
       this.executeQueries(queries);
-      if (this.props.autoRefresh) {
-        this.intervalID = setInterval(() => this.executeQueries(queries), this.props.autoRefresh);
+      if (autoRefresh) {
+        this.intervalID = setInterval(() => this.executeQueries(queries), autoRefresh);
       }
     },
     componentWillReceiveProps(nextProps) {
@@ -63,7 +75,9 @@ export default function AutoRefresh(ComposedComponent) {
           newSeries.push({response: resp.data});
           count += 1;
           if (count === queries.length) {
+            const querySuccessful = !this._noResultsForQuery(newSeries);
             this.setState({
+              lastQuerySuccessful: querySuccessful,
               isFetching: false,
               timeSeries: newSeries,
             });
@@ -77,11 +91,11 @@ export default function AutoRefresh(ComposedComponent) {
     render() {
       const {timeSeries} = this.state;
 
-      if (this.state.isFetching) {
+      if (this.state.isFetching && this.state.lastQuerySuccessful) {
         return this.renderFetching(timeSeries);
       }
 
-      if (this._noResultsForQuery(timeSeries)) {
+      if (this._noResultsForQuery(timeSeries) || !this.state.lastQuerySuccessful) {
         return this.renderNoResults();
       }
 

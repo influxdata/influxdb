@@ -158,7 +158,7 @@ class AdminPage extends Component {
           <div className="container-fluid">
             <div className="row">
                 {
-                  users.length ?
+                  users ?
                   <AdminTabs
                     users={users}
                     roles={roles}

@@ -47,6 +47,7 @@ export const KapacitorRule = React.createClass({
           onChooseTimeRange={this.handleChooseTimeRange}
           validationError={this.validationError()}
           timeRange={timeRange}
+          source={source}
         />
         <div className="page-contents page-contents--green-scrollbar">
           <div className="container-fluid">

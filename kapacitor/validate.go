@@ -3,7 +3,6 @@ package kapacitor
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/influxdata/chronograf"
@@ -25,7 +24,6 @@ func ValidateAlert(service string) error {
 func formatTick(tickscript string) (chronograf.TICKScript, error) {
 	node, err := ast.Parse(tickscript)
 	if err != nil {
-		log.Fatalf("parse execution: %s", err)
 		return "", err
 	}
 
@@ -40,6 +38,9 @@ func validateTick(script chronograf.TICKScript) error {
 	_, err := pipeline.CreatePipeline(string(script), pipeline.StreamEdge, scope, &deadman{}, predefinedVars)
 	return err
 }
+
+// deadman is an empty implementation of a kapacitor DeadmanService to allow CreatePipeline
+var _ pipeline.DeadmanService = &deadman{}
 
 type deadman struct {
 	interval  time.Duration

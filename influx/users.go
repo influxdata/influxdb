@@ -16,8 +16,12 @@ func (c *Client) Add(ctx context.Context, u *chronograf.User) (*chronograf.User,
 	if err != nil {
 		return nil, err
 	}
-
-	return u, nil
+	for _, p := range u.Permissions {
+		if err := c.grantPermission(ctx, u.Name, p); err != nil {
+			return nil, err
+		}
+	}
+	return c.Get(ctx, u.Name)
 }
 
 // Delete the User from InfluxDB

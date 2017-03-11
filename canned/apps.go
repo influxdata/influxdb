@@ -11,6 +11,7 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+// AppExt is the the file extension searched for in the directory for layout files
 const AppExt = ".json"
 
 // Apps are canned JSON layouts.  Implements LayoutStore.
@@ -25,6 +26,7 @@ type Apps struct {
 	Logger   chronograf.Logger
 }
 
+// NewApps constructs a layout store wrapping a file system directory
 func NewApps(dir string, ids chronograf.ID, logger chronograf.Logger) chronograf.LayoutStore {
 	return &Apps{
 		Dir:      dir,
@@ -63,14 +65,14 @@ func createLayout(file string, layout chronograf.Layout) error {
 	defer h.Close()
 	if octets, err := json.MarshalIndent(layout, "    ", "    "); err != nil {
 		return chronograf.ErrLayoutInvalid
-	} else {
-		if _, err := h.Write(octets); err != nil {
-			return err
-		}
+	} else if _, err := h.Write(octets); err != nil {
+		return err
 	}
+
 	return nil
 }
 
+// All returns all layouts from the directory
 func (a *Apps) All(ctx context.Context) ([]chronograf.Layout, error) {
 	files, err := a.ReadDir(a.Dir)
 	if err != nil {
@@ -91,6 +93,7 @@ func (a *Apps) All(ctx context.Context) ([]chronograf.Layout, error) {
 	return layouts, nil
 }
 
+// Add creates a new layout within the directory
 func (a *Apps) Add(ctx context.Context, layout chronograf.Layout) (chronograf.Layout, error) {
 	var err error
 	layout.ID, err = a.IDs.Generate()
@@ -118,6 +121,7 @@ func (a *Apps) Add(ctx context.Context, layout chronograf.Layout) (chronograf.La
 	return layout, nil
 }
 
+// Delete removes a layout file from the directory
 func (a *Apps) Delete(ctx context.Context, layout chronograf.Layout) error {
 	_, file, err := a.idToFile(layout.ID)
 	if err != nil {
@@ -134,6 +138,7 @@ func (a *Apps) Delete(ctx context.Context, layout chronograf.Layout) error {
 	return nil
 }
 
+// Get returns an app file from the layout directory
 func (a *Apps) Get(ctx context.Context, ID string) (chronograf.Layout, error) {
 	l, file, err := a.idToFile(ID)
 	if err != nil {
@@ -157,6 +162,7 @@ func (a *Apps) Get(ctx context.Context, ID string) (chronograf.Layout, error) {
 	return l, nil
 }
 
+// Update replaces a layout from the file system directory
 func (a *Apps) Update(ctx context.Context, layout chronograf.Layout) error {
 	l, _, err := a.idToFile(layout.ID)
 	if err != nil {

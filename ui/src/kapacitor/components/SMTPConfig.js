@@ -33,9 +33,9 @@ const SMTPConfig = React.createClass({
 
     return (
       <div>
-        <h4 className="text-center">SMTP Alert</h4>
+        <h4 className="text-center no-user-select">SMTP Alert</h4>
         <br/>
-        <p>You can have alerts sent to an email address by setting up an SMTP endpoint.</p>
+        <p className="no-user-select">You can have alerts sent to an email address by setting up an SMTP endpoint.</p>
         <form onSubmit={this.handleSaveAlert}>
           <div className="form-group col-xs-12 col-md-6">
             <label htmlFor="smtp-host">SMTP Host</label>

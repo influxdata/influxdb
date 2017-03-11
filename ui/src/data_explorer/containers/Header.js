@@ -1,23 +1,36 @@
 import React, {PropTypes} from 'react';
 import moment from 'moment';
 import {withRouter} from 'react-router';
+
+import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
+import SourceIndicator from '../../shared/components/SourceIndicator';
+
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
+
+const {
+  func,
+  number,
+  shape,
+  string,
+} = PropTypes
 
 const Header = React.createClass({
   propTypes: {
-    timeRange: PropTypes.shape({
-      upper: PropTypes.string,
-      lower: PropTypes.string,
+    autoRefresh: number.isRequired,
+    timeRange: shape({
+      upper: string,
+      lower: string,
     }).isRequired,
-    actions: PropTypes.shape({
-      setTimeRange: PropTypes.func.isRequired,
+    actions: shape({
+      handleChooseAutoRefresh: func.isRequired,
+      setTimeRange: func.isRequired,
     }),
   },
 
   contextTypes: {
-    source: PropTypes.shape({
-      name: PropTypes.string,
+    source: shape({
+      name: string,
     }),
   },
 
@@ -36,7 +49,7 @@ const Header = React.createClass({
   },
 
   render() {
-    const {timeRange} = this.props;
+    const {autoRefresh, actions: {handleChooseAutoRefresh}, timeRange} = this.props;
 
     return (
       <div className="page-header">
@@ -45,11 +58,8 @@ const Header = React.createClass({
             <h1>Explorer</h1>
           </div>
           <div className="page-header__right">
-            <h1>Source:</h1>
-            <div className="source-indicator">
-              <span className="icon cpu"></span>
-              {this.context.source.name}
-            </div>
+            <SourceIndicator sourceName={this.context.source.name} />
+            <AutoRefreshDropdown onChoose={handleChooseAutoRefresh} selected={autoRefresh} iconName="refresh" />
             <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={this.findSelected(timeRange)} />
           </div>
         </div>

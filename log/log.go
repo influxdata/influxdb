@@ -1,6 +1,7 @@
 package log
 
 import (
+	"io"
 	"os"
 
 	"github.com/Sirupsen/logrus"
@@ -81,6 +82,11 @@ func (ll *logrusLogger) WithField(key string, value interface{}) chronograf.Logg
 	return &logrusLogger{ll.l.WithField(key, value)}
 }
 
+func (ll *logrusLogger) Writer() *io.PipeWriter {
+	return ll.l.Logger.WriterLevel(logrus.ErrorLevel)
+}
+
+// New wraps a logrus Logger
 func New(l Level) chronograf.Logger {
 	logger := &logrus.Logger{
 		Out:       os.Stderr,

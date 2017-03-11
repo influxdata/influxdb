@@ -48,9 +48,9 @@ const TelegramConfig = React.createClass({
 
     return (
       <div>
-        <h4 className="text-center">Telegram Alert</h4>
+        <h4 className="text-center no-user-select">Telegram Alert</h4>
         <br/>
-        <p>You can have alerts sent to Telegram by entering info below.</p>
+        <p className="no-user-select">You can have alerts sent to Telegram by entering info below.</p>
         <form onSubmit={this.handleSaveAlert}>
           <div className="form-group col-xs-12">
             <label htmlFor="url">Telegram URL</label>

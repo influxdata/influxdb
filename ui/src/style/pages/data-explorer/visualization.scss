@@ -27,6 +27,7 @@
   color: $g13-mist;
   font-weight: 600;
   margin-right: 16px;
+  @include no-user-select();
   transition:
     color 0.25s ease;
 }
@@ -70,6 +71,7 @@
   }
 }
 .graph-container {
+  @include no-user-select();
   background-color: $graph-bg-color;
   border-radius: 0 0 $graph-radius $graph-radius;
   padding: 8px 16px;
