@@ -1,17 +1,25 @@
 ## v1.2.0 [unreleased]
 
 ### Bug Fixes
+
+### Features
+
+### UI Improvements
+
+## v1.2.0-beta5 [2017-03-10]
+
+### Bug Fixes
   1. [#936](https://github.com/influxdata/chronograf/pull/936): Fix leaking sockets for InfluxQL queries
-  2. [#967](https://github.com/influxdata/chronograf/pull/967): Fix flash of empty graph on auto-refresh when no results were previously returned from a query.
+  2. [#967](https://github.com/influxdata/chronograf/pull/967): Fix flash of empty graph on auto-refresh when no results were previously returned from a query
   3. [#968](https://github.com/influxdata/chronograf/issue/968): Fix wrong database used in dashboards
 
 ### Features
-  1. [#993](https://github.com/influxdata/chronograf/pull/993): Add Admin page with ability to manage Users, Roles, and Permissions for InfluxDB and Enterprise
-  2. [#993](https://github.com/influxdata/chronograf/pull/993): Add ability to manage Queries for InfluxDB and Enterprise
+  1. [#993](https://github.com/influxdata/chronograf/pull/993): Add Admin page for managing users, roles, and permissions for [OSS InfluxDB](https://github.com/influxdata/influxdb) and InfluxData's [Enterprise](https://docs.influxdata.com/enterprise/v1.2/) product
+  2. [#993](https://github.com/influxdata/chronograf/pull/993): Add Query Management features including the ability to view active queries and stop queries
 
 ### UI Improvements
   1. [#989](https://github.com/influxdata/chronograf/pull/989) Add a canned dashboard for mesos
-  2. [#993](https://github.com/influxdata/chronograf/pull/993): Improve multi-select dropdown
+  2. [#993](https://github.com/influxdata/chronograf/pull/993): Improve the multi-select dropdown
   3. [#993](https://github.com/influxdata/chronograf/pull/993): Provide better error information to users
 
 ## v1.2.0-beta4 [2017-02-24]
