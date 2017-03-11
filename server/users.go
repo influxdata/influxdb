@@ -245,7 +245,7 @@ type usersResponse struct {
 }
 
 func (r *userRequest) ValidUpdate() error {
-	if r.Password == "" && len(r.Permissions) == 0 {
+	if r.Password == "" && len(r.Permissions) == 0 && len(r.Roles) == 0 {
 		return fmt.Errorf("No fields to update")
 	}
 	return validPermissions(&r.Permissions)
