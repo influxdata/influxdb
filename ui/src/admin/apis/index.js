@@ -8,6 +8,7 @@ export const getUsers = async (url) => {
     })
   } catch (error) {
     console.error(error)
+    throw error
   }
 }
 
@@ -19,6 +20,7 @@ export const getRoles = async (url) => {
     })
   } catch (error) {
     console.error(error)
+    throw error
   }
 }
 
@@ -30,6 +32,7 @@ export const getPermissions = async (url) => {
     })
   } catch (error) {
     console.error(error)
+    throw error
   }
 }
 
