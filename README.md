@@ -110,7 +110,14 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 * View all active alerts at a glance on the alerting dashboard
 * Enable and disable existing alert rules with the check of a box
 
-### TLS/HTTPS support
+### User and Query Management
+
+Manage users, roles, permissions for [OSS InfluxDB](https://github.com/influxdata/influxdb) and InfluxData's [Enterprise](https://docs.influxdata.com/enterprise/v1.2/) product.
+View actively running queries and stop expensive queries on the Query Management page.
+
+These features are new in Chronograf version 1.2.0-beta5. We recommend using them in a non-production environment only. Should you come across any bugs or unexpected behavior please open [an issue](https://github.com/influxdata/chronograf/issues/new). We appreciate the feedback as we work to finalize and improve the user and query management features!
+
+### TLS/HTTPS Support
 See [Chronograf with TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md) for more information.
 
 ### OAuth Login
@@ -121,7 +128,7 @@ Change the default root path of the Chronograf server with the `--basepath` opti
 
 ## Versions
 
-Chronograf v1.2.0-beta4 is a beta release.
+Chronograf v1.2.0-beta5 is a beta release.
 We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
 
 Spotted a bug or have a feature request?
