@@ -12,7 +12,7 @@ import {
 
 import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
 import {publishNotification} from 'src/shared/actions/notifications';
-import {ADMIN_NOTIFICATION_DELAY} from 'shared/constants'
+import {ADMIN_NOTIFICATION_DELAY} from 'src/admin/constants'
 
 export const loadUsers = ({users}) => ({
   type: 'LOAD_USERS',
@@ -43,19 +43,19 @@ export const addRole = () => ({
   type: 'ADD_ROLE',
 })
 
-export const createUserSuccess = (user, createdUser) => ({
-  type: 'CREATE_USER_SUCCESS',
+export const syncUser = (staleUser, syncedUser) => ({
+  type: 'SYNC_USER',
   payload: {
-    user,
-    createdUser,
+    staleUser,
+    syncedUser,
   },
 })
 
-export const createRoleSuccess = (role, createdRole) => ({
-  type: 'CREATE_ROLE_SUCCESS',
+export const syncRole = (staleRole, syncedRole) => ({
+  type: 'SYNC_ROLE',
   payload: {
-    role,
-    createdRole,
+    staleRole,
+    syncedRole,
   },
 })
 
@@ -144,7 +144,7 @@ export const createUserAsync = (url, user) => async (dispatch) => {
   try {
     const {data} = await createUserAJAX(url, user)
     dispatch(publishNotification('success', 'User created successfully'))
-    dispatch(createUserSuccess(user, data))
+    dispatch(syncUser(user, data))
   } catch (error) {
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create user: ${error.data.message}`))
@@ -156,7 +156,7 @@ export const createRoleAsync = (url, role) => async (dispatch) => {
   try {
     const {data} = await createRoleAJAX(url, role)
     dispatch(publishNotification('success', 'Role created successfully'))
-    dispatch(createRoleSuccess(role, data))
+    dispatch(syncRole(role, data))
   } catch (error) {
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create role: ${error.data.message}`))
@@ -191,8 +191,9 @@ export const deleteUserAsync = (user, addFlashMessage) => (dispatch) => {
 
 export const updateRoleUsersAsync = (role, users) => async (dispatch) => {
   try {
-    await updateRoleAJAX(role.links.self, users, role.permissions)
+    const {data} = await updateRoleAJAX(role.links.self, users, role.permissions)
     dispatch(publishNotification('success', 'Role users updated'))
+    dispatch(syncRole(role, data))
   } catch (error) {
     dispatch(publishNotification('error', `Failed to update role: ${error.data.message}`))
   }
@@ -200,8 +201,9 @@ export const updateRoleUsersAsync = (role, users) => async (dispatch) => {
 
 export const updateRolePermissionsAsync = (role, permissions) => async (dispatch) => {
   try {
-    await updateRoleAJAX(role.links.self, role.users, permissions)
+    const {data} = await updateRoleAJAX(role.links.self, role.users, permissions)
     dispatch(publishNotification('success', 'Role permissions updated'))
+    dispatch(syncRole(role, data))
   } catch (error) {
     dispatch(publishNotification('error', `Failed to updated role:  ${error.data.message}`))
   }
@@ -209,8 +211,9 @@ export const updateRolePermissionsAsync = (role, permissions) => async (dispatch
 
 export const updateUserPermissionsAsync = (user, permissions) => async (dispatch) => {
   try {
-    await updateUserAJAX(user.links.self, user.roles, permissions)
+    const {data} = await updateUserAJAX(user.links.self, user.roles, permissions)
     dispatch(publishNotification('success', 'User permissions updated'))
+    dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(publishNotification('error', `Failed to updated user:  ${error.data.message}`))
   }
@@ -218,8 +221,9 @@ export const updateUserPermissionsAsync = (user, permissions) => async (dispatch
 
 export const updateUserRolesAsync = (user, roles) => async (dispatch) => {
   try {
-    await updateUserAJAX(user.links.self, roles, user.permissions)
+    const {data} = await updateUserAJAX(user.links.self, roles, user.permissions)
     dispatch(publishNotification('success', 'User roles updated'))
+    dispatch(syncUser(user, data))
   } catch (error) {
     dispatch(publishNotification('error', `Failed to updated user:  ${error.data.message}`))
   }

@@ -2,8 +2,11 @@ import reducer from 'src/admin/reducers/admin'
 
 import {
   addUser,
-  createUserSuccess,
+  addRole,
+  syncUser,
+  syncRole,
   editUser,
+  editRole,
   loadRoles,
   loadPermissions,
   deleteRole,
@@ -14,15 +17,37 @@ import {
 
 let state = undefined
 
-// Roles
-const r1 = {name: 'role1', links: {self: '/chronograf/v1/sources/1/roles/role1'}}
-const r2 = {name: 'role2', links: {self: '/chronograf/v1/sources/1/roles/role2'}}
-const roles = [r1, r2]
-
 // Users
 const u1 = {
   name: 'acidburn',
-  roles: [],
+  roles: [
+    {
+      name: 'hax0r',
+      permissions: {
+        allowed: [
+          'ViewAdmin',
+          'ViewChronograf',
+          'CreateDatabase',
+          'CreateUserAndRole',
+          'AddRemoveNode',
+          'DropDatabase',
+          'DropData',
+          'ReadData',
+          'WriteData',
+          'Rebalance',
+          'ManageShard',
+          'ManageContinuousQuery',
+          'ManageQuery',
+          'ManageSubscription',
+          'Monitor',
+          'CopyShard',
+          'KapacitorAPI',
+          'KapacitorConfigAPI'
+        ],
+        scope: 'all',
+      },
+    }
+  ],
   permissions: [],
   links: {self: '/chronograf/v1/sources/1/users/acidburn'},
 }
@@ -37,6 +62,50 @@ const newDefaultUser = {
   name: '',
   password: '',
   roles: [],
+  permissions: [],
+  links: {self: ''},
+  isNew: true,
+}
+
+// Roles
+const r1 = {
+  name: 'hax0r',
+  users: [],
+  permissions: [
+    {
+      allowed: [
+        'ViewAdmin',
+        'ViewChronograf',
+        'CreateDatabase',
+        'CreateUserAndRole',
+        'AddRemoveNode',
+        'DropDatabase',
+        'DropData',
+        'ReadData',
+        'WriteData',
+        'Rebalance',
+        'ManageShard',
+        'ManageContinuousQuery',
+        'ManageQuery',
+        'ManageSubscription',
+        'Monitor',
+        'CopyShard',
+        'KapacitorAPI',
+        'KapacitorConfigAPI'
+      ],
+      scope: 'all',
+    },
+  ],
+  links: {self: '/chronograf/v1/sources/1/roles/hax0r'}
+}
+const r2 = {
+  name: 'l33tus3r',
+  links: {self: '/chronograf/v1/sources/1/roles/l33tus3r'}
+}
+const roles = [r1, r2]
+const newDefaultRole = {
+  name: '',
+  users: [],
   permissions: [],
   links: {self: ''},
   isNew: true,
@@ -66,18 +135,11 @@ describe('Admin.Reducers', () => {
     expect(actual.users).to.deep.equal(expected.users)
   })
 
-  it('it can confirm a created user', () => {
-    const addedUser = {
-      name: 'acidburn',
-      password: 'pass1',
-      roles: [],
-      permissions: [],
-      links: {self: ''},
-      isNew: true,
-    }
-    state = {users: [u2, addedUser]}
+  it('it can sync a stale user', () => {
+    const staleUser = {...u1, roles: []}
+    state = {users: [u2, staleUser]}
 
-    const actual = reducer(state, createUserSuccess(addedUser, u1))
+    const actual = reducer(state, syncUser(staleUser, u1))
     const expected = {
       users: [u2, u1],
     }
@@ -97,6 +159,50 @@ describe('Admin.Reducers', () => {
     }
 
     expect(actual.users).to.deep.equal(expected.users)
+  })
+
+  it('it can add a role', () => {
+    state = {
+      roles: [
+        r1,
+      ]
+    }
+
+    const actual = reducer(state, addRole())
+    const expected = {
+      roles: [
+        {...newDefaultRole, isEditing: true},
+        r1,
+      ],
+    }
+
+    expect(actual.roles).to.deep.equal(expected.roles)
+  })
+
+  it('it can sync a stale role', () => {
+    const staleRole = {...r1, permissions: []}
+    state = {roles: [r2, staleRole]}
+
+    const actual = reducer(state, syncRole(staleRole, r1))
+    const expected = {
+      roles: [r2, r1],
+    }
+
+    expect(actual.roles).to.deep.equal(expected.roles)
+  })
+
+  it('it can edit a role', () => {
+    const updates = {name: 'onecool'}
+    state = {
+      roles: [r2, r1],
+    }
+
+    const actual = reducer(state, editRole(r2, updates))
+    const expected = {
+      roles: [{...r2, ...updates}, r1]
+    }
+
+    expect(actual.roles).to.deep.equal(expected.roles)
   })
 
   it('it can load the roles', () => {
@@ -138,12 +244,12 @@ describe('Admin.Reducers', () => {
     expect(actual.users).to.deep.equal(expected.users)
   })
 
-  it('can filter roles w/ "1" text', () => {
+  it('can filter roles w/ "x" text', () => {
     state = {
       roles,
     }
 
-    const text = '1'
+    const text = 'x'
 
     const actual = reducer(state, filterRoles(text))
     const expected = {

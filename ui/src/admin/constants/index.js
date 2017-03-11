@@ -8,3 +8,4 @@ export const TIMES = [
   {test: /^\d*h\d*m\d*s/, magnitude: 5},
 ];
 
+export const ADMIN_NOTIFICATION_DELAY = 1500 // milliseconds
