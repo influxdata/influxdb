@@ -4,8 +4,12 @@
   1. [#936](https://github.com/influxdata/chronograf/pull/936): Fix leaking sockets for InfluxQL queries
 
 ### Features
+  1. [#993](https://github.com/influxdata/chronograf/pull/993): Add Admin page with ability to manage Users, Roles, and Permissions for InfluxDB and Enterprise
+  2. [#993](https://github.com/influxdata/chronograf/pull/993): Add ability to manage Queries for InfluxDB and Enterprise
 
 ### UI Improvements
+  1. [#993](https://github.com/influxdata/chronograf/pull/993): Improve multi-select dropdown
+  2. [#993](https://github.com/influxdata/chronograf/pull/993): Provide better error information to users
 
 ## v1.2.0-beta4 [2017-02-24]
 
@@ -21,7 +25,6 @@
   4. [#892](https://github.com/influxdata/chronograf/issues/891): Make dashboard visualizations resizable
   5. [#893](https://github.com/influxdata/chronograf/issues/893): Persist dashboard visualization position
   6. [#922](https://github.com/influxdata/chronograf/issues/922): Additional OAuth2 support for [Heroku](https://github.com/influxdata/chronograf/blob/master/docs/auth.md#heroku) and [Google](https://github.com/influxdata/chronograf/blob/master/docs/auth.md#google)
-  7. [#975](https://github.com/influxdata/chronograf/pull/975): Add ability to add a new user
 
 ### UI Improvements
   1. [#905](https://github.com/influxdata/chronograf/pull/905): Make scroll bar thumb element bigger
