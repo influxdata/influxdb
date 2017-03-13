@@ -42,13 +42,13 @@ const SideNav = React.createClass({
           <NavListItem link={`${sourcePrefix}/alerts`}>Alert History</NavListItem>
           <NavListItem link={`${sourcePrefix}/alert-rules`}>Kapacitor Rules</NavListItem>
         </NavBlock>
+        <NavBlock icon="crown" link={`${sourcePrefix}/admin`}>
+          <NavHeader link={`${sourcePrefix}/admin`} title="Admin" />
+        </NavBlock>
         <NavBlock icon="cog-thick" link={`${sourcePrefix}/manage-sources`}>
           <NavHeader link={`${sourcePrefix}/manage-sources`} title="Configuration" />
           <NavListItem link={`${sourcePrefix}/manage-sources`}>InfluxDB</NavListItem>
           <NavListItem link={`${sourcePrefix}/kapacitor-config`}>Kapacitor</NavListItem>
-        </NavBlock>
-        <NavBlock icon="crown" link={`${sourcePrefix}/admin`}>
-          <NavHeader link={`${sourcePrefix}/admin`} title="Admin" />
         </NavBlock>
         {loggedIn ? (
         <NavBlock icon="user-outline" className="sidebar__square-last">
