@@ -2,10 +2,13 @@
     Custom Search Widget
     ----------------------------------------------
 */
+$search-widget-height: 36px;
+
 .users__search-widget {
   position: relative;
 
   input.form-control {
+    height: $search-widget-height;
     position: relative;
     width: 100%;
     z-index: 1;
@@ -19,7 +22,7 @@
   .input-group-addon {
     padding: 0;
     text-align: center;
-    line-height: 38px;
+    line-height: calc(#{$search-widget-height} - 2px);
     position: absolute;
     color: $g10-wolf;
     top: 0;
@@ -32,4 +35,7 @@
     transition:
       color 0.25s ease;
   }
+}
+.admin__search-widget {
+  width: 300px;
 }

@@ -18,10 +18,17 @@ func (c *UserStore) Add(ctx context.Context, u *chronograf.User) (*chronograf.Us
 		return nil, err
 	}
 	perms := ToEnterprise(u.Permissions)
+
 	if err := c.Ctrl.SetUserPerms(ctx, u.Name, perms); err != nil {
 		return nil, err
 	}
-	return u, nil
+	for _, role := range u.Roles {
+		if err := c.Ctrl.AddRoleUsers(ctx, role.Name, []string{u.Name}); err != nil {
+			return nil, err
+		}
+	}
+
+	return c.Get(ctx, u.Name)
 }
 
 // Delete the User from Influx Enterprise
@@ -62,6 +69,43 @@ func (c *UserStore) Update(ctx context.Context, u *chronograf.User) error {
 	if u.Passwd != "" {
 		return c.Ctrl.ChangePassword(ctx, u.Name, u.Passwd)
 	}
+
+	// Make a list of the roles we want this user to have:
+	want := make([]string, len(u.Roles))
+	for i, r := range u.Roles {
+		want[i] = r.Name
+	}
+
+	// Find the list of all roles this user is currently in
+	userRoles, err := c.UserRoles(ctx)
+	if err != nil {
+		return nil
+	}
+	// Make a list of the roles the user currently has
+	roles := userRoles[u.Name]
+	have := make([]string, len(roles.Roles))
+	for i, r := range roles.Roles {
+		have[i] = r.Name
+	}
+
+	// Calculate the roles the user will be removed from and the roles the user
+	// will be added to.
+	revoke, add := Difference(want, have)
+
+	// First, add the user to the new roles
+	for _, role := range add {
+		if err := c.Ctrl.AddRoleUsers(ctx, role, []string{u.Name}); err != nil {
+			return err
+		}
+	}
+
+	// ... and now remove the user from an extra roles
+	for _, role := range revoke {
+		if err := c.Ctrl.RemoveRoleUsers(ctx, role, []string{u.Name}); err != nil {
+			return err
+		}
+	}
+
 	perms := ToEnterprise(u.Permissions)
 	return c.Ctrl.SetUserPerms(ctx, u.Name, perms)
 }

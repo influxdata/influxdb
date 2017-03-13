@@ -7,18 +7,16 @@ export function showDatabases(source) {
   return proxy({source, query});
 }
 
-export function showQueries(host, db, clusterID) {
-  const statement = 'SHOW QUERIES';
-  const url = buildInfluxUrl({host, statement, database: db});
+export function showQueries(source, db) {
+  const query = 'SHOW QUERIES';
 
-  return proxy(url, clusterID);
+  return proxy({source, query, db});
 }
 
-export function killQuery(host, queryId, clusterID) {
-  const statement = `KILL QUERY ${queryId}`;
-  const url = buildInfluxUrl({host, statement});
+export function killQuery(source, queryId) {
+  const query = `KILL QUERY ${queryId}`;
 
-  return proxy(url, clusterID);
+  return proxy({source, query});
 }
 
 export function showMeasurements(source, db) {

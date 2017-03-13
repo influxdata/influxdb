@@ -3,6 +3,7 @@ import {combineReducers} from 'redux';
 import thunkMiddleware from 'redux-thunk';
 import makeQueryExecuter from 'src/shared/middleware/queryExecuter';
 import resizeLayout from 'src/shared/middleware/resizeLayout';
+import adminReducer from 'src/admin/reducers/admin';
 import sharedReducers from 'src/shared/reducers';
 import dataExplorerReducers from 'src/data_explorer/reducers';
 import rulesReducer from 'src/kapacitor/reducers/rules';
@@ -12,6 +13,7 @@ import persistStateEnhancer from './persistStateEnhancer';
 const rootReducer = combineReducers({
   ...sharedReducers,
   ...dataExplorerReducers,
+  admin: adminReducer,
   rules: rulesReducer,
   dashboardUI,
 });

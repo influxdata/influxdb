@@ -32,6 +32,8 @@ type Ctrl interface {
 	DeleteRole(ctx context.Context, name string) error
 	SetRolePerms(ctx context.Context, name string, perms Permissions) error
 	SetRoleUsers(ctx context.Context, name string, users []string) error
+	AddRoleUsers(ctx context.Context, name string, users []string) error
+	RemoveRoleUsers(ctx context.Context, name string, users []string) error
 }
 
 // Client is a device for retrieving time series data from an Influx Enterprise

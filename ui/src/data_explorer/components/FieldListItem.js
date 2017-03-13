@@ -2,7 +2,7 @@ import React, {PropTypes} from 'react';
 import classNames from 'classnames';
 import _ from 'lodash';
 
-import MultiSelectDropdown from './MultiSelectDropdown';
+import MultiSelectDropdown from 'src/shared/components/MultiSelectDropdown';
 import Dropdown from 'src/shared/components/Dropdown';
 
 import {INFLUXQL_FUNCTIONS} from '../constants';

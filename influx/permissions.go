@@ -8,8 +8,10 @@ import (
 )
 
 var (
-	// AllowAll means a user gets both read and write permissions
-	AllowAll = chronograf.Allowances{"WRITE", "READ"}
+	// AllowAllDB means a user gets both read and write permissions for a db
+	AllowAllDB = chronograf.Allowances{"WRITE", "READ"}
+	// AllowAllAdmin means a user gets both read and write permissions for an admin
+	AllowAllAdmin = chronograf.Allowances{"ALL"}
 	// AllowRead means a user is only able to read the database.
 	AllowRead = chronograf.Allowances{"READ"}
 	// AllowWrite means a user is able to only write to the database
@@ -31,11 +33,11 @@ func (c *Client) Permissions(context.Context) chronograf.Permissions {
 	return chronograf.Permissions{
 		{
 			Scope:   chronograf.AllScope,
-			Allowed: AllowAll,
+			Allowed: AllowAllAdmin,
 		},
 		{
 			Scope:   chronograf.DBScope,
-			Allowed: AllowAll,
+			Allowed: AllowAllDB,
 		},
 	}
 }
@@ -90,7 +92,7 @@ func (r *showResults) Permissions() chronograf.Permissions {
 					}
 					switch priv {
 					case AllPrivileges, All:
-						c.Allowed = AllowAll
+						c.Allowed = AllowAllDB
 					case Read:
 						c.Allowed = AllowRead
 					case Write:
@@ -111,7 +113,7 @@ func adminPerms() chronograf.Permissions {
 	return []chronograf.Permission{
 		{
 			Scope:   chronograf.AllScope,
-			Allowed: AllowAll,
+			Allowed: AllowAllAdmin,
 		},
 	}
 }
