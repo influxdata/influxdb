@@ -42,7 +42,7 @@ class UserEditingRow extends Component {
               <input
                 className="form-control"
                 name="password"
-                type="text"
+                type="password"
                 value={user.password || ''}
                 placeholder="Password"
                 onChange={this.handleEdit(user)}
