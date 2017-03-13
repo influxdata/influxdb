@@ -5,13 +5,16 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/influxdata/chronograf"
 )
 
 var _ chronograf.TimeSeries = &Client{}
+var _ chronograf.TSDBStatus = &Client{}
 
 // Shared transports for all clients to prevent leaking connections
 var (
@@ -183,4 +186,83 @@ func (c *Client) Users(ctx context.Context) chronograf.UsersStore {
 // Roles aren't support in OSS
 func (c *Client) Roles(ctx context.Context) (chronograf.RolesStore, error) {
 	return nil, fmt.Errorf("Roles not support in open-source InfluxDB.  Roles are support in Influx Enterprise")
+}
+
+// Ping hits the influxdb ping endpoint and returns the type of influx
+func (c *Client) Ping(ctx context.Context) error {
+	_, _, err := c.pingTimeout(ctx)
+	return err
+}
+
+// Version hits the influxdb ping endpoint and returns the version of influx
+func (c *Client) Version(ctx context.Context) (string, error) {
+	version, _, err := c.pingTimeout(ctx)
+	return version, err
+}
+
+// Type hits the influxdb ping endpoint and returns the type of influx running
+func (c *Client) Type(ctx context.Context) (string, error) {
+	_, tsdbType, err := c.pingTimeout(ctx)
+	return tsdbType, err
+}
+
+func (c *Client) pingTimeout(ctx context.Context) (string, string, error) {
+	resps := make(chan (pingResult))
+	go func() {
+		version, tsdbType, err := c.ping(c.URL)
+		resps <- pingResult{version, tsdbType, err}
+	}()
+
+	select {
+	case resp := <-resps:
+		return resp.Version, resp.Type, resp.Err
+	case <-ctx.Done():
+		return "", "", chronograf.ErrUpstreamTimeout
+	}
+}
+
+type pingResult struct {
+	Version string
+	Type    string
+	Err     error
+}
+
+func (c *Client) ping(u *url.URL) (string, string, error) {
+	u.Path = "ping"
+
+	req, err := http.NewRequest("GET", u.String(), nil)
+	if err != nil {
+		return "", "", err
+	}
+
+	hc := &http.Client{}
+	if c.InsecureSkipVerify {
+		hc.Transport = skipVerifyTransport
+	} else {
+		hc.Transport = defaultTransport
+	}
+
+	resp, err := hc.Do(req)
+	if err != nil {
+		return "", "", err
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", err
+	}
+
+	if resp.StatusCode != http.StatusNoContent {
+		var err = fmt.Errorf(string(body))
+		return "", "", err
+	}
+
+	version := resp.Header.Get("X-Influxdb-Version")
+	if strings.Contains(version, "-c") {
+		return version, chronograf.InfluxEnterprise, nil
+	} else if strings.Contains(version, "relay") {
+		return version, chronograf.InfluxRelay, nil
+	}
+	return version, chronograf.InfluxDB, nil
 }

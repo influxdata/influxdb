@@ -43,7 +43,7 @@ type InfluxClient struct{}
 
 // New creates a client to connect to OSS or enterprise
 func (c *InfluxClient) New(src chronograf.Source, logger chronograf.Logger) (chronograf.TimeSeries, error) {
-	if src.Type == "influx-enterprise" && src.MetaURL != "" {
+	if src.Type == chronograf.InfluxEnterprise && src.MetaURL != "" {
 		dataNode := &influx.Client{
 			Logger: logger,
 		}

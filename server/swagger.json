@@ -2400,9 +2400,11 @@
 				"type": {
 					"type": "string",
 					"description": "Format of the data source",
+					"readOnly": true,
 					"enum": [
 						"influx",
-						"influx-enterprise"
+						"influx-enterprise",
+						"influx-relay"
 					]
 				},
 				"username": {
