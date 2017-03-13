@@ -32,7 +32,7 @@ export const SourceForm = React.createClass({
       'default': this.sourceDefault.checked,
       telegraf: this.sourceTelegraf.value,
       insecureSkipVerify: this.sourceInsecureSkipVerify ? this.sourceInsecureSkipVerify.checked : false,
-      metaUrl: this.metaUrl.value.trim(),
+      metaUrl: this.metaUrl && this.metaUrl.value.trim(),
     }
 
     this.props.onSubmit(newSource)
