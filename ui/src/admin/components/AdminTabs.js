@@ -80,12 +80,12 @@ const AdminTabs = ({
 
   return (
     <Tabs className="row">
-      <TabList customClass="col-md-3 admin-tabs">
+      <TabList customClass="col-md-2 admin-tabs">
         {
           tabs.map((t, i) => (<Tab key={tabs[i].type}>{tabs[i].type}</Tab>))
         }
       </TabList>
-      <TabPanels customClass="col-md-9">
+      <TabPanels customClass="col-md-10">
         {
           tabs.map((t, i) => (<TabPanel key={tabs[i].type}>{t.component}</TabPanel>))
         }
