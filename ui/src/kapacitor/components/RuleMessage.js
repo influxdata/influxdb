@@ -61,6 +61,29 @@ export const RuleMessage = React.createClass({
       <div className="kapacitor-rule-section">
         <h3 className="rule-section-heading">Alert Message</h3>
         <div className="rule-section-body">
+          <div className="rule-section--item alert-message--endpoint">
+            <div>
+              <p>Send this Alert to:</p>
+              <Dropdown className="dropdown-kapacitor size-136" selected={selectedAlert || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
+            </div>
+          </div>
+          <RuleMessageAlertConfig
+            updateAlertNodes={actions.updateAlertNodes}
+            alert={selectedAlert}
+            rule={rule}
+          />
+          {
+            selectedAlert === 'smtp' ?
+            <div className="alert-message--email-body">
+              <textarea
+                className="alert-text details"
+                placeholder="Email body text goes here"
+                ref={(r) => this.details = r}
+                onChange={() => actions.updateDetails(rule.id, this.details.value)}
+                value={rule.details}
+              />
+            </div> : null
+          }
           <textarea
             className="alert-text message"
             ref={(r) => this.message = r}
@@ -82,27 +105,6 @@ export const RuleMessage = React.createClass({
               })
             }
             <ReactTooltip effect="solid" html={true} offset={{top: -4}} class="influx-tooltip kapacitor-tooltip" />
-          </div>
-          {
-            selectedAlert === 'smtp' ?
-            <textarea
-              className="alert-text details"
-              placeholder="Put email body text here"
-              ref={(r) => this.details = r}
-              onChange={() => actions.updateDetails(rule.id, this.details.value)}
-              value={rule.details}
-            /> : null
-          }
-          <div className="rule-section--item bottom alert-message--endpoint">
-            <div>
-              <p>Send this Alert to:</p>
-              <Dropdown className="dropdown-kapacitor size-136" selected={selectedAlert || 'Choose an output'} items={alerts} onChoose={this.handleChooseAlert} />
-            </div>
-            <RuleMessageAlertConfig
-              updateAlertNodes={actions.updateAlertNodes}
-              alert={selectedAlert}
-              rule={rule}
-            />
           </div>
         </div>
       </div>

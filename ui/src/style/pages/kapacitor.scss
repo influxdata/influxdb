@@ -401,8 +401,9 @@ div.qeditor.kapacitor-metric-selector {
   font-size: $kapacitor-font-sm;
   line-height: 17px;
   transition:
-  color 0.25s ease,
-  border-color 0.25s ease;
+    color 0.25s ease,
+    border-color 0.25s ease;
+  border-radius: 0;
 
   @include custom-scrollbar($kapacitor-graphic-color,$kapacitor-accent);
 
@@ -418,19 +419,12 @@ div.qeditor.kapacitor-metric-selector {
   &::-moz-placeholder { color: $g9-mountain; }
   &:-ms-input-placeholder { color: $g9-mountain; }
   &:-moz-placeholder { color: $g9-mountain; }
-
-  &.message {
-    border-radius: $kap-radius-lg $kap-radius-lg 0 0;
-  }
-
-  &.details {
-    border-radius: 0;
-  }
 }
 
 .alert-message--endpoint {
   width: auto;
-  border-top: 2px solid $kapacitor-divider-color;
+  border-radius: $kap-radius-lg $kap-radius-lg 0 0;
+  border-bottom: 2px solid $kapacitor-divider-color;
 
   & > div {
     display: flex;
@@ -447,6 +441,7 @@ div.qeditor.kapacitor-metric-selector {
   align-items: center;
   flex-wrap: wrap;
   border-top: 2px solid $kapacitor-divider-color;
+  border-radius: 0 0 $kap-radius-lg $kap-radius-lg;
 
   > p {
     margin: 0 ($kap-padding-sm - 2px) 0 0;
@@ -475,6 +470,20 @@ div.qeditor.kapacitor-metric-selector {
       cursor: pointer;
     }
   }
+}
+.alert-message--config {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  border-bottom: 2px solid $kapacitor-divider-color;
+
+  & > p {
+    margin-right: ($kap-padding-sm - 2px);
+  }
+}
+.alert-message--email-body {
+  border-bottom: 2px solid $kapacitor-divider-color;
 }
 
 .rule-section--item {
@@ -616,6 +625,14 @@ div.qeditor.kapacitor-metric-selector {
     &:hover {
       color: $c-honeydew !important;
     }
+  }
+  
+  
+  .size-486 {
+    width: 486px;
+  }
+  .size-384 {
+    width: 384px;
   }
   .size-256 {
     width: 256px;

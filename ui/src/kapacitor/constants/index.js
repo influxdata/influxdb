@@ -41,12 +41,20 @@ export const RULE_MESSAGE_TEMPLATES = {
 
 export const DEFAULT_ALERTS = ['http', 'tcp', 'exec'];
 
+
+export const DEFAULT_ALERT_LABELS = {
+  http: 'URL:',
+  tcp: 'Address:',
+  exec: 'Add Command (Arguments separated by Spaces):',
+  smtp: 'Email Addresses (Separated by Spaces):',
+  alerta: 'Paste Alerta TICKscript:',
+};
 export const DEFAULT_ALERT_PLACEHOLDERS = {
-  http: 'URL',
-  tcp: 'Address',
-  exec: 'Add command with arguments separated by spaces',
-  smtp: 'Add email addresses separated by spaces',
-  alerta: 'Paste Alerta tick script here',
+  http: 'http://',
+  tcp: 'Address:',
+  exec: 'Ex: woogie boogie',
+  smtp: 'Ex: benedict@domain.com delaney@domain.com susan@domain.com',
+  alerta: 'alerta()',
 };
 
 export const ALERT_NODES_ACCESSORS = {
