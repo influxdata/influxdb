@@ -61,6 +61,20 @@ export const SourcePage = React.createClass({
     });
   },
 
+  handleBlurSourceURL(newSource) {
+    if (this.state.editMode) {
+      return
+    }
+
+    if (!newSource.url) {
+      return
+    }
+
+    createSource(newSource).then(({data: sourceFromServer}) => {
+      this.props.addSourceAction(sourceFromServer)
+    })
+  },
+
   handleSubmit(newSource) {
     const {router, params, addFlashMessage} = this.props;
     if (this.state.editMode) {
@@ -99,6 +113,7 @@ export const SourcePage = React.createClass({
         updateSourceAction={updateSourceAction}
         onInputChange={this.handleInputChange}
         onSubmit={this.handleSubmit}
+        onBlurSourceURL={this.handleBlurSourceURL}
       />
     );
   },

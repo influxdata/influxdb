@@ -1,13 +1,13 @@
-import React, {PropTypes} from 'react';
-import classNames from 'classnames';
-import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText';
-import _ from 'lodash';
+import React, {PropTypes} from 'react'
+import classNames from 'classnames'
+import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText'
+import _ from 'lodash'
 
 const {
   bool,
   func,
   shape,
-} = PropTypes;
+} = PropTypes
 
 export const SourceForm = React.createClass({
   propTypes: {
@@ -16,13 +16,16 @@ export const SourceForm = React.createClass({
     updateSourceAction: func,
     source: shape({}).isRequired,
     editMode: bool.isRequired,
+    canConnect: bool,
     onInputChange: func.isRequired,
     onSubmit: func.isRequired,
+    onBlurSourceURL: func.isRequired,
   },
 
   handleSubmitForm(e) {
-    e.preventDefault();
-    const newSource = {...this.props.source,
+    e.preventDefault()
+    const newSource = {
+      ...this.props.source,
       url: this.sourceURL.value.trim(),
       name: this.sourceName.value,
       username: this.sourceUsername.value,
@@ -31,15 +34,32 @@ export const SourceForm = React.createClass({
       telegraf: this.sourceTelegraf.value,
       insecureSkipVerify: this.sourceInsecureSkipVerify ? this.sourceInsecureSkipVerify.checked : false,
       metaUrl: this.metaUrl.value.trim(),
-    };
-    this.props.onSubmit(newSource);
+      type: this.metaUrl.value.trim() ? 'influx-enterprise' : null,
+    }
+
+    this.props.onSubmit(newSource)
+  },
+
+  handleBlurSourceURL() {
+    const url = this.sourceURL.value.trim()
+
+    if (!url) {
+      return
+    }
+
+    const newSource = {
+      ...this.props.source,
+      url: this.sourceURL.value.trim(),
+    }
+
+    this.props.onBlurSourceURL(newSource)
   },
 
   render() {
     const {source, editMode, onInputChange} = this.props;
 
     if (editMode && !source.id) {
-      return <div className="page-spinner"></div>;
+      return <div className="page-spinner"></div>
     }
 
     return (
@@ -64,8 +84,8 @@ export const SourceForm = React.createClass({
 
                     <form onSubmit={this.handleSubmitForm}>
                       <div className="form-group col-xs-12 col-sm-6">
-                        <label htmlFor="connect-string">Connection String</label>
-                        <input type="text" name="url" ref={(r) => this.sourceURL = r} className="form-control" id="connect-string" placeholder="http://localhost:8086" onChange={onInputChange} value={source.url || ''}></input>
+                        <label htmlFor="connect-string"> Connection String</label>
+                        <input type="text" name="url" ref={(r) => this.sourceURL = r} className="form-control" id="connect-string" placeholder="http://localhost:8086" onChange={onInputChange} value={source.url || ''} onBlur={this.handleBlurSourceURL}></input>
                       </div>
                       <div className="form-group col-xs-12 col-sm-6">
                         <label htmlFor="name">Name</label>
@@ -125,8 +145,8 @@ export const SourceForm = React.createClass({
           </div>
         </div>
       </div>
-    );
+    )
   },
-});
+})
 
-export default SourceForm;
+export default SourceForm
