@@ -61,19 +61,6 @@
 }
 .panel .panel-body table {
   margin: 0;
-
-  th,td {
-    border-color: $g5-pepper;
-  }
-  th {
-    color: $g17-whisper;
-  }
-  td {
-    color: $g14-chromium;
-  }
-  tbody tr:last-child td {
-    border-bottom: 2px solid $g5-pepper;
-  }
 }
 
 table thead th {
