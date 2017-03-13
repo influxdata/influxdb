@@ -276,8 +276,8 @@ func (h *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 // ValidSourceRequest checks if name, url and type are valid
 func ValidSourceRequest(s chronograf.Source) error {
 	// Name and URL areq required
-	if s.Name == "" || s.URL == "" {
-		return fmt.Errorf("name and url required")
+	if s.URL == "" {
+		return fmt.Errorf("url required")
 	}
 	// Type must be influx or influx-enterprise
 	if s.Type != "" {
