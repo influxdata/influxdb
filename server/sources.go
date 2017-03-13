@@ -8,6 +8,7 @@ import (
 	"net/url"
 
 	"github.com/influxdata/chronograf"
+	"github.com/influxdata/chronograf/influx"
 )
 
 type sourceLinks struct {
@@ -45,7 +46,7 @@ func newSourceResponse(src chronograf.Source) sourceResponse {
 		},
 	}
 
-	if src.Type == "influx-enterprise" {
+	if src.Type == chronograf.InfluxEnterprise {
 		res.Links.Roles = fmt.Sprintf("%s/%d/roles", httpAPISrcs, src.ID)
 	}
 	return res
@@ -69,8 +70,15 @@ func (h *Service) NewSource(w http.ResponseWriter, r *http.Request) {
 		src.Telegraf = "telegraf"
 	}
 
-	var err error
-	if src, err = h.SourcesStore.Add(r.Context(), src); err != nil {
+	ctx := r.Context()
+	dbType, err := h.tsdbType(ctx, &src)
+	if err != nil {
+		Error(w, http.StatusBadRequest, "Error contacting source", h.Logger)
+		return
+	}
+
+	src.Type = dbType
+	if src, err = h.SourcesStore.Add(ctx, src); err != nil {
 		msg := fmt.Errorf("Error storing source %v: %v", src, err)
 		unknownErrorWithMessage(w, msg, h.Logger)
 		return
@@ -79,6 +87,16 @@ func (h *Service) NewSource(w http.ResponseWriter, r *http.Request) {
 	res := newSourceResponse(src)
 	w.Header().Add("Location", res.Links.Self)
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
+}
+
+func (h *Service) tsdbType(ctx context.Context, src *chronograf.Source) (string, error) {
+	cli := &influx.Client{
+		Logger: h.Logger,
+	}
+	if err := cli.Connect(ctx, src); err != nil {
+		return "", err
+	}
+	return cli.Type(ctx)
 }
 
 type getSourcesResponse struct {
@@ -240,6 +258,13 @@ func (h *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	dbType, err := h.tsdbType(ctx, &src)
+	if err != nil {
+		Error(w, http.StatusBadRequest, "Error contacting source", h.Logger)
+		return
+	}
+	src.Type = dbType
+
 	if err := h.SourcesStore.Update(ctx, src); err != nil {
 		msg := fmt.Sprintf("Error updating source ID %d", id)
 		Error(w, http.StatusInternalServerError, msg, h.Logger)
@@ -251,12 +276,12 @@ func (h *Service) UpdateSource(w http.ResponseWriter, r *http.Request) {
 // ValidSourceRequest checks if name, url and type are valid
 func ValidSourceRequest(s chronograf.Source) error {
 	// Name and URL areq required
-	if s.Name == "" || s.URL == "" {
-		return fmt.Errorf("name and url required")
+	if s.URL == "" {
+		return fmt.Errorf("url required")
 	}
 	// Type must be influx or influx-enterprise
 	if s.Type != "" {
-		if s.Type != "influx" && s.Type != "influx-enterprise" {
+		if s.Type != chronograf.InfluxDB && s.Type != chronograf.InfluxEnterprise && s.Type != chronograf.InfluxRelay {
 			return fmt.Errorf("invalid source type %s", s.Type)
 		}
 	}

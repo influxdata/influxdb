@@ -38,6 +38,7 @@ export const SourcePage = React.createClass({
     return {
       source: {},
       editMode: this.props.params.id !== undefined,
+      error: '',
     };
   },
 
@@ -61,25 +62,44 @@ export const SourcePage = React.createClass({
     });
   },
 
-  handleSubmit(newSource) {
-    const {router, params, addFlashMessage} = this.props;
+  handleBlurSourceURL(newSource) {
     if (this.state.editMode) {
-      updateSource(newSource).then(({data: sourceFromServer}) => {
-        this.props.updateSourceAction(sourceFromServer);
-        router.push(`/sources/${params.sourceID}/manage-sources`);
-        addFlashMessage({type: 'success', text: 'The source was successfully updated'});
-      }).catch(() => {
-        addFlashMessage({type: 'error', text: 'There was a problem updating the source. Check the settings'});
-      });
-    } else {
-      createSource(newSource).then(({data: sourceFromServer}) => {
-        this.props.addSourceAction(sourceFromServer);
-        router.push(`/sources/${params.sourceID}/manage-sources`);
-        addFlashMessage({type: 'success', text: 'The source was successfully created'});
-      }).catch(() => {
-        addFlashMessage({type: 'error', text: 'There was a problem creating the source. Check the settings'});
-      });
+      return
     }
+
+    if (!newSource.url) {
+      return
+    }
+
+    // if there is a type on source it has already been created
+    if (newSource.type) {
+      return
+    }
+
+    createSource(newSource).then(({data: sourceFromServer}) => {
+      this.props.addSourceAction(sourceFromServer)
+      this.setState({source: sourceFromServer})
+    }).catch(({data: error}) => {
+      // dont want to flash this until they submit
+      this.setState({error: error.message})
+    })
+  },
+
+  handleSubmit(newSource) {
+    const {router, params, addFlashMessage} = this.props
+    const {error} = this.state
+
+    if (error) {
+      return addFlashMessage({type: 'error', text: error})
+    }
+
+    updateSource(newSource).then(({data: sourceFromServer}) => {
+      this.props.updateSourceAction(sourceFromServer);
+      router.push(`/sources/${params.sourceID}/manage-sources`);
+      addFlashMessage({type: 'success', text: 'The source info saved'})
+    }).catch(() => {
+      addFlashMessage({type: 'error', text: 'There was a problem updating the source. Check the settings'})
+    });
   },
 
 
@@ -99,6 +119,7 @@ export const SourcePage = React.createClass({
         updateSourceAction={updateSourceAction}
         onInputChange={this.handleInputChange}
         onSubmit={this.handleSubmit}
+        onBlurSourceURL={this.handleBlurSourceURL}
       />
     );
   },

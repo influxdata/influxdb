@@ -47,6 +47,28 @@ type Assets interface {
 	Handler() http.Handler
 }
 
+// Supported time-series databases
+const (
+	// InfluxDB is the open-source time-series database
+	InfluxDB = "influx"
+	// InfluxEnteprise is the clustered HA time-series database
+	InfluxEnterprise = "influx-enterprise"
+	// InfluxRelay is the basic HA layer over InfluxDB
+	InfluxRelay = "influx-relay"
+)
+
+// TSDBStatus represents the current status of a time series database
+type TSDBStatus interface {
+	// Connect will connect to the time series using the information in `Source`.
+	Connect(ctx context.Context, src *Source) error
+	// Ping returns version and TSDB type of time series database if reachable.
+	Ping(context.Context) error
+	// Version returns the version of the TSDB database
+	Version(context.Context) (string, error)
+	// Type returns the type of the TSDB database
+	Type(context.Context) (string, error)
+}
+
 // TimeSeries represents a queryable time series database.
 type TimeSeries interface {
 	// Query retrieves time series data from the database.
