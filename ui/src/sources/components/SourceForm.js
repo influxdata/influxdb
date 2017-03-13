@@ -16,7 +16,6 @@ export const SourceForm = React.createClass({
     updateSourceAction: func,
     source: shape({}).isRequired,
     editMode: bool.isRequired,
-    canConnect: bool,
     onInputChange: func.isRequired,
     onSubmit: func.isRequired,
     onBlurSourceURL: func.isRequired,
@@ -34,7 +33,6 @@ export const SourceForm = React.createClass({
       telegraf: this.sourceTelegraf.value,
       insecureSkipVerify: this.sourceInsecureSkipVerify ? this.sourceInsecureSkipVerify.checked : false,
       metaUrl: this.metaUrl.value.trim(),
-      type: this.metaUrl.value.trim() ? 'influx-enterprise' : null,
     }
 
     this.props.onSubmit(newSource)
@@ -99,6 +97,11 @@ export const SourceForm = React.createClass({
                         <label htmlFor="password">Password</label>
                         <input type="password" name="password" ref={(r) => this.sourcePassword = r} className="form-control" id="password" onChange={onInputChange} value={source.password || ''}></input>
                       </div>
+                      {_.get(source, 'type', '').includes("enterprise") ?
+                          <div className="form-group col-xs-12">
+                            <label htmlFor="meta-url">Meta Service Connection URL</label>
+                            <input type="text" name="metaUrl" ref={(r) => this.metaUrl = r} className="form-control" id="meta-url" placeholder="http://localhost:8091" onChange={onInputChange} value={source.metaUrl || ''}></input>
+                          </div> : null}
                       <div className="form-group col-xs-12">
                         <label htmlFor="telegraf">Telegraf database</label>
                         <input type="text" name="telegraf" ref={(r) => this.sourceTelegraf = r} className="form-control" id="telegraf" onChange={onInputChange} value={source.telegraf || 'telegraf'}></input>
@@ -117,23 +120,6 @@ export const SourceForm = React.createClass({
                           </div>
                           <label className="form-helper">{insecureSkipVerifyText}</label>
                         </div> : null}
-                      <div className="form-group col-xs-12">
-                        <div className="panel-collapse panel-collapse-sm form-control-static">
-                          <h2 className="panel-title" style={{margin: '0 0 6px'}}>
-                            <a role="button" data-toggle="collapse" className="collapsed" href="#meta-service" style={{fontSize: '14px', fontWeight: 600}}>
-                              <span className="caret"></span>Add Influx Enterprise Meta Service
-                            </a>
-                          </h2>
-                          <div className="collapse" id="meta-service" style={{height: '0px'}}>
-                            <div className="panel-body" style={{padding: '10px 10px 21px'}}>
-                              <div className="form-group col-xs-12 col-sm-6">
-                                <label htmlFor="meta-url">Meta Service Connection URL</label>
-                                <input type="text" name="metaUrl" ref={(r) => this.metaUrl = r} className="form-control" id="meta-url" placeholder="http://localhost:8091" onChange={onInputChange} value={source.metaUrl || ''}></input>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
                       <div className="form-group form-group-submit col-xs-12 col-sm-6 col-sm-offset-3">
                         <button className={classNames('btn btn-block', {'btn-primary': editMode, 'btn-success': !editMode})} type="submit">{editMode ? "Save Changes" : "Add Source"}</button>
                       </div>

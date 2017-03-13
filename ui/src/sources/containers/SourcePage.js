@@ -72,6 +72,7 @@ export const SourcePage = React.createClass({
 
     createSource(newSource).then(({data: sourceFromServer}) => {
       this.props.addSourceAction(sourceFromServer)
+      this.setState({source: sourceFromServer})
     })
   },
 
