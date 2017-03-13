@@ -55,7 +55,9 @@
     padding: 30px;
   }
   .panel-heading {
-    border-color: $g4-onyx;
+    padding: 0 30px;
+    height: 60px;
+    border: 0px;
     .panel-title { color: $g14-chromium;}
   }
 }
@@ -750,47 +752,6 @@ $form-static-checkbox-size: 16px;
   input:checked + label:after {
     opacity: 1;
     transform: translate(-50%,-50%) scale(1,1);
-  }
-}
-
-
-
-/*
-    Admin Tabs
-    ----------------------------------------------
-*/
-.admin-tabs .btn-group {
-  margin: 0;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-
-  .tab {
-    font-weight: 500 !important;
-    border-radius: $radius !important;
-    transition:
-      background-color 0.25s ease,
-      color 0.25s ease !important;
-    border: 0 !important;
-    text-align: left;
-    height: 60px !important;
-    line-height: 60px !important;
-    padding: 0 0 0 16px !important;
-    font-size: 17px;
-    background-color: transparent !important;
-    color: $g11-sidewalk !important;
-
-    &:hover,
-    &:active,
-    &:active:hover {
-      background-color: $g3-castle !important;
-      color: $g15-platinum !important;
-    }
-    &.active {
-      background-color: $g4-onyx !important;
-      color: $g18-cloud !important;
-    }
   }
 }
 
