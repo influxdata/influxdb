@@ -93,7 +93,8 @@ button.btn.btn-sm > span.icon {
 }
 
 .btn.disabled,
-.btn[disabled="true"] {
+.btn[disabled="true"],
+.btn[disabled] {
   &.btn-success,
   &.btn-success:hover,
   &.btn-success:focus,
