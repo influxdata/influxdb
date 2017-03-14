@@ -34,6 +34,9 @@ func NewStringEncoder(sz int) StringEncoder {
 	}
 }
 
+// Flush is no-op
+func (e *StringEncoder) Flush() {}
+
 // Reset sets the encoder back to its initial state.
 func (e *StringEncoder) Reset() {
 	e.bytes = e.bytes[:0]

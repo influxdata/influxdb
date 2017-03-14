@@ -875,6 +875,7 @@ type tsmKeyIterator struct {
 	// key is the current key lowest key across all readers that has not be fully exhausted
 	// of values.
 	key string
+	typ byte
 
 	iterators []*BlockIterator
 	blocks    blocks
@@ -882,7 +883,10 @@ type tsmKeyIterator struct {
 	buf []blocks
 
 	// mergeValues are decoded blocks that have been combined
-	mergedValues Values
+	mergedFloatValues   FloatValues
+	mergedIntegerValues IntegerValues
+	mergedBooleanValues BooleanValues
+	mergedStringValues  StringValues
 
 	// merged are encoded blocks that have been combined or used as is
 	// without decode
@@ -892,6 +896,7 @@ type tsmKeyIterator struct {
 type block struct {
 	key              string
 	minTime, maxTime int64
+	typ              byte
 	b                []byte
 	tombstones       []TimeRange
 
@@ -954,6 +959,13 @@ func NewTSMKeyIterator(size int, fast bool, readers ...*TSMReader) (KeyIterator,
 	}, nil
 }
 
+func (k *tsmKeyIterator) hasMergedValues() bool {
+	return len(k.mergedFloatValues) > 0 ||
+		len(k.mergedIntegerValues) > 0 ||
+		len(k.mergedStringValues) > 0 ||
+		len(k.mergedBooleanValues) > 0
+}
+
 // Next returns true if there are any values remaining in the iterator.
 func (k *tsmKeyIterator) Next() bool {
 	// Any merged blocks pending?
@@ -965,9 +977,9 @@ func (k *tsmKeyIterator) Next() bool {
 	}
 
 	// Any merged values pending?
-	if len(k.mergedValues) > 0 {
+	if k.hasMergedValues() {
 		k.merge()
-		if len(k.merged) > 0 || len(k.mergedValues) > 0 {
+		if len(k.merged) > 0 || k.hasMergedValues() {
 			return true
 		}
 	}
@@ -975,7 +987,7 @@ func (k *tsmKeyIterator) Next() bool {
 	// If we still have blocks from the last read, merge them
 	if len(k.blocks) > 0 {
 		k.merge()
-		if len(k.merged) > 0 || len(k.mergedValues) > 0 {
+		if len(k.merged) > 0 || k.hasMergedValues() {
 			return true
 		}
 	}
@@ -985,7 +997,7 @@ func (k *tsmKeyIterator) Next() bool {
 		if v == nil {
 			iter := k.iterators[i]
 			if iter.Next() {
-				key, minTime, maxTime, _, b, err := iter.Read()
+				key, minTime, maxTime, typ, _, b, err := iter.Read()
 				if err != nil {
 					k.err = err
 				}
@@ -997,6 +1009,7 @@ func (k *tsmKeyIterator) Next() bool {
 					minTime:    minTime,
 					maxTime:    maxTime,
 					key:        key,
+					typ:        typ,
 					b:          b,
 					tombstones: tombstones,
 					readMin:    math.MaxInt64,
@@ -1006,7 +1019,7 @@ func (k *tsmKeyIterator) Next() bool {
 				blockKey := key
 				for iter.PeekNext() == blockKey {
 					iter.Next()
-					key, minTime, maxTime, _, b, err := iter.Read()
+					key, minTime, maxTime, typ, _, b, err := iter.Read()
 					if err != nil {
 						k.err = err
 					}
@@ -1017,6 +1030,7 @@ func (k *tsmKeyIterator) Next() bool {
 						minTime:    minTime,
 						maxTime:    maxTime,
 						key:        key,
+						typ:        typ,
 						b:          b,
 						tombstones: tombstones,
 						readMin:    math.MaxInt64,
@@ -1030,6 +1044,7 @@ func (k *tsmKeyIterator) Next() bool {
 	// Each reader could have a different key that it's currently at, need to find
 	// the next smallest one to keep the sort ordering.
 	var minKey string
+	var minType byte
 	for _, b := range k.buf {
 		// block could be nil if the iterator has been exhausted for that file
 		if len(b) == 0 {
@@ -1037,9 +1052,11 @@ func (k *tsmKeyIterator) Next() bool {
 		}
 		if minKey == "" || b[0].key < minKey {
 			minKey = b[0].key
+			minType = b[0].typ
 		}
 	}
 	k.key = minKey
+	k.typ = minType
 
 	// Now we need to find all blocks that match the min key so we can combine and dedupe
 	// the blocks if necessary
@@ -1064,214 +1081,18 @@ func (k *tsmKeyIterator) Next() bool {
 
 // merge combines the next set of blocks into merged blocks.
 func (k *tsmKeyIterator) merge() {
-	// No blocks left, or pending merged values, we're done
-	if len(k.blocks) == 0 && len(k.merged) == 0 && len(k.mergedValues) == 0 {
-		return
+	switch k.typ {
+	case BlockFloat64:
+		k.mergeFloat()
+	case BlockInteger:
+		k.mergeInteger()
+	case BlockBoolean:
+		k.mergeBoolean()
+	case BlockString:
+		k.mergeString()
+	default:
+		k.err = fmt.Errorf("unknown block type: %v", k.typ)
 	}
-
-	dedup := len(k.mergedValues) > 0
-	if len(k.blocks) > 0 && !dedup {
-		// If we have more than one block or any partially tombstoned blocks, we many need to dedup
-		dedup = len(k.blocks[0].tombstones) > 0 || k.blocks[0].partiallyRead()
-
-		// Quickly scan each block to see if any overlap with the prior block, if they overlap then
-		// we need to dedup as there may be duplicate points now
-		for i := 1; !dedup && i < len(k.blocks); i++ {
-			if k.blocks[i].partiallyRead() {
-				dedup = true
-				break
-			}
-
-			if k.blocks[i].minTime <= k.blocks[i-1].maxTime || len(k.blocks[i].tombstones) > 0 {
-				dedup = true
-				break
-			}
-		}
-
-	}
-
-	k.merged = k.combine(dedup)
-}
-
-// combine returns a new set of blocks using the current blocks in the buffers.  If dedup
-// is true, all the blocks will be decoded, dedup and sorted in in order.  If dedup is false,
-// only blocks that are smaller than the chunk size will be decoded and combined.
-func (k *tsmKeyIterator) combine(dedup bool) blocks {
-	if dedup {
-		for len(k.mergedValues) < k.size && len(k.blocks) > 0 {
-			for len(k.blocks) > 0 && k.blocks[0].read() {
-				k.blocks = k.blocks[1:]
-			}
-
-			if len(k.blocks) == 0 {
-				break
-			}
-			first := k.blocks[0]
-			minTime := first.minTime
-			maxTime := first.maxTime
-
-			// Adjust the min time to the start of any overlapping blocks.
-			for i := 0; i < len(k.blocks); i++ {
-				if k.blocks[i].overlapsTimeRange(minTime, maxTime) {
-					if k.blocks[i].minTime < minTime {
-						minTime = k.blocks[i].minTime
-					}
-				}
-			}
-
-			// We have some overlapping blocks so decode all, append in order and then dedup
-			for i := 0; i < len(k.blocks); i++ {
-				if !k.blocks[i].overlapsTimeRange(minTime, maxTime) || k.blocks[i].read() {
-					continue
-				}
-
-				v, err := DecodeBlock(k.blocks[i].b, nil)
-				if err != nil {
-					k.err = err
-					return nil
-				}
-
-				// Remove values we already read
-				v = Values(v).Exclude(k.blocks[i].readMin, k.blocks[i].readMax)
-
-				// Filter out only the values for overlapping block
-				v = Values(v).Include(minTime, maxTime)
-				if len(v) > 0 {
-					// Record that we read a subset of the block
-					k.blocks[i].markRead(v[0].UnixNano(), v[len(v)-1].UnixNano())
-				}
-
-				// Apply each tombstone to the block
-				for _, ts := range k.blocks[i].tombstones {
-					v = Values(v).Exclude(ts.Min, ts.Max)
-				}
-
-				k.mergedValues = k.mergedValues.Merge(v)
-
-				// Allow other goroutines to run
-				runtime.Gosched()
-
-			}
-			k.blocks = k.blocks[1:]
-		}
-
-		// Since we combined multiple blocks, we could have more values than we should put into
-		// a single block.  We need to chunk them up into groups and re-encode them.
-		return k.chunk(nil)
-	} else {
-		var chunked blocks
-		var i int
-
-		for i < len(k.blocks) {
-
-			// skip this block if it's values were already read
-			if k.blocks[i].read() {
-				i++
-				continue
-			}
-			// If we this block is already full, just add it as is
-			if BlockCount(k.blocks[i].b) >= k.size {
-				chunked = append(chunked, k.blocks[i])
-			} else {
-				break
-			}
-			i++
-			// Allow other goroutines to run
-			runtime.Gosched()
-		}
-
-		if k.fast {
-			for i < len(k.blocks) {
-				// skip this block if it's values were already read
-				if k.blocks[i].read() {
-					i++
-					continue
-				}
-
-				chunked = append(chunked, k.blocks[i])
-				i++
-				// Allow other goroutines to run
-				runtime.Gosched()
-			}
-		}
-
-		// If we only have 1 blocks left, just append it as is and avoid decoding/recoding
-		if i == len(k.blocks)-1 {
-			if !k.blocks[i].read() {
-				chunked = append(chunked, k.blocks[i])
-			}
-			i++
-		}
-
-		// The remaining blocks can be combined and we know that they do not overlap and
-		// so we can just append each, sort and re-encode.
-		for i < len(k.blocks) && len(k.mergedValues) < k.size {
-			if k.blocks[i].read() {
-				i++
-				continue
-			}
-
-			v, err := DecodeBlock(k.blocks[i].b, nil)
-			if err != nil {
-				k.err = err
-				return nil
-			}
-
-			// Apply each tombstone to the block
-			for _, ts := range k.blocks[i].tombstones {
-				v = Values(v).Exclude(ts.Min, ts.Max)
-			}
-
-			k.blocks[i].markRead(k.blocks[i].minTime, k.blocks[i].maxTime)
-
-			k.mergedValues = k.mergedValues.Merge(v)
-			i++
-			// Allow other goroutines to run
-			runtime.Gosched()
-		}
-
-		k.blocks = k.blocks[i:]
-
-		return k.chunk(chunked)
-	}
-}
-
-func (k *tsmKeyIterator) chunk(dst blocks) blocks {
-	if len(k.mergedValues) > k.size {
-		values := k.mergedValues[:k.size]
-		cb, err := Values(values).Encode(nil)
-		if err != nil {
-			k.err = err
-			return nil
-		}
-
-		dst = append(dst, &block{
-			minTime: values[0].UnixNano(),
-			maxTime: values[len(values)-1].UnixNano(),
-			key:     k.key,
-			b:       cb,
-		})
-		k.mergedValues = k.mergedValues[k.size:]
-		return dst
-	}
-
-	// Re-encode the remaining values into the last block
-	if len(k.mergedValues) > 0 {
-		cb, err := Values(k.mergedValues).Encode(nil)
-		if err != nil {
-			k.err = err
-			return nil
-		}
-
-		dst = append(dst, &block{
-			minTime: k.mergedValues[0].UnixNano(),
-			maxTime: k.mergedValues[len(k.mergedValues)-1].UnixNano(),
-			key:     k.key,
-			b:       cb,
-		})
-		k.mergedValues = k.mergedValues[:0]
-	}
-	return dst
 }
 
 func (k *tsmKeyIterator) Read() (string, int64, int64, []byte, error) {

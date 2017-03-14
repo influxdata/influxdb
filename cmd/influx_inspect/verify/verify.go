@@ -84,7 +84,7 @@ func (cmd *Command) Run(args ...string) error {
 		count := 0
 		for blockItr.Next() {
 			totalBlocks++
-			key, _, _, checksum, buf, err := blockItr.Read()
+			key, _, _, _, checksum, buf, err := blockItr.Read()
 			if err != nil {
 				brokenBlocks++
 				fmt.Fprintf(tw, "%s: could not get checksum for key %v block %d due to error: %q\n", f, key, count, err)
