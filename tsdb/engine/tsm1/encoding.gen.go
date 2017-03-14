@@ -374,6 +374,46 @@ func (a FloatValues) Encode(buf []byte) ([]byte, error) {
 	return encodeFloatValuesBlock(buf, a)
 }
 
+func encodeFloatValuesBlock(buf []byte, values []FloatValue) ([]byte, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+
+	venc := getFloatEncoder(len(values))
+	tsenc := getTimeEncoder(len(values))
+
+	var b []byte
+	err := func() error {
+		for _, v := range values {
+			tsenc.Write(v.unixnano)
+			venc.Write(v.value)
+		}
+		venc.Flush()
+
+		// Encoded timestamp values
+		tb, err := tsenc.Bytes()
+		if err != nil {
+			return err
+		}
+		// Encoded values
+		vb, err := venc.Bytes()
+		if err != nil {
+			return err
+		}
+
+		// Prepend the first timestamp of the block in the first 8 bytes and the block
+		// in the next byte, followed by the block
+		b = packBlock(buf, BlockFloat64, tb, vb)
+
+		return nil
+	}()
+
+	putTimeEncoder(tsenc)
+	putFloatEncoder(venc)
+
+	return b, err
+}
+
 // Sort methods
 func (a FloatValues) Len() int           { return len(a) }
 func (a FloatValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
@@ -558,6 +598,46 @@ func (a IntegerValues) Merge(b IntegerValues) IntegerValues {
 
 func (a IntegerValues) Encode(buf []byte) ([]byte, error) {
 	return encodeIntegerValuesBlock(buf, a)
+}
+
+func encodeIntegerValuesBlock(buf []byte, values []IntegerValue) ([]byte, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+
+	venc := getIntegerEncoder(len(values))
+	tsenc := getTimeEncoder(len(values))
+
+	var b []byte
+	err := func() error {
+		for _, v := range values {
+			tsenc.Write(v.unixnano)
+			venc.Write(v.value)
+		}
+		venc.Flush()
+
+		// Encoded timestamp values
+		tb, err := tsenc.Bytes()
+		if err != nil {
+			return err
+		}
+		// Encoded values
+		vb, err := venc.Bytes()
+		if err != nil {
+			return err
+		}
+
+		// Prepend the first timestamp of the block in the first 8 bytes and the block
+		// in the next byte, followed by the block
+		b = packBlock(buf, BlockInteger, tb, vb)
+
+		return nil
+	}()
+
+	putTimeEncoder(tsenc)
+	putIntegerEncoder(venc)
+
+	return b, err
 }
 
 // Sort methods
@@ -746,6 +826,46 @@ func (a StringValues) Encode(buf []byte) ([]byte, error) {
 	return encodeStringValuesBlock(buf, a)
 }
 
+func encodeStringValuesBlock(buf []byte, values []StringValue) ([]byte, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+
+	venc := getStringEncoder(len(values))
+	tsenc := getTimeEncoder(len(values))
+
+	var b []byte
+	err := func() error {
+		for _, v := range values {
+			tsenc.Write(v.unixnano)
+			venc.Write(v.value)
+		}
+		venc.Flush()
+
+		// Encoded timestamp values
+		tb, err := tsenc.Bytes()
+		if err != nil {
+			return err
+		}
+		// Encoded values
+		vb, err := venc.Bytes()
+		if err != nil {
+			return err
+		}
+
+		// Prepend the first timestamp of the block in the first 8 bytes and the block
+		// in the next byte, followed by the block
+		b = packBlock(buf, BlockString, tb, vb)
+
+		return nil
+	}()
+
+	putTimeEncoder(tsenc)
+	putStringEncoder(venc)
+
+	return b, err
+}
+
 // Sort methods
 func (a StringValues) Len() int           { return len(a) }
 func (a StringValues) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
@@ -930,6 +1050,46 @@ func (a BooleanValues) Merge(b BooleanValues) BooleanValues {
 
 func (a BooleanValues) Encode(buf []byte) ([]byte, error) {
 	return encodeBooleanValuesBlock(buf, a)
+}
+
+func encodeBooleanValuesBlock(buf []byte, values []BooleanValue) ([]byte, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+
+	venc := getBooleanEncoder(len(values))
+	tsenc := getTimeEncoder(len(values))
+
+	var b []byte
+	err := func() error {
+		for _, v := range values {
+			tsenc.Write(v.unixnano)
+			venc.Write(v.value)
+		}
+		venc.Flush()
+
+		// Encoded timestamp values
+		tb, err := tsenc.Bytes()
+		if err != nil {
+			return err
+		}
+		// Encoded values
+		vb, err := venc.Bytes()
+		if err != nil {
+			return err
+		}
+
+		// Prepend the first timestamp of the block in the first 8 bytes and the block
+		// in the next byte, followed by the block
+		b = packBlock(buf, BlockBoolean, tb, vb)
+
+		return nil
+	}()
+
+	putTimeEncoder(tsenc)
+	putBooleanEncoder(venc)
+
+	return b, err
 }
 
 // Sort methods

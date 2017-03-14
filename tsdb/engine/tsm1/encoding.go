@@ -327,7 +327,7 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	// for timestamps and values.
 
 	// Encode values using Gorilla float compression
-	venc := getFloatEncoder()
+	venc := getFloatEncoder(len(values))
 
 	// Encode timestamps using an adaptive encoder that uses delta-encoding,
 	// frame-or-reference and run length encoding.
@@ -338,56 +338,9 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 		for _, v := range values {
 			vv := v.(FloatValue)
 			tsenc.Write(vv.unixnano)
-			venc.Push(vv.value)
+			venc.Write(vv.value)
 		}
-		venc.Finish()
-
-		// Encoded timestamp values
-		tb, err := tsenc.Bytes()
-		if err != nil {
-			return err
-		}
-		// Encoded float values
-		vb, err := venc.Bytes()
-		if err != nil {
-			return err
-		}
-
-		// Prepend the first timestamp of the block in the first 8 bytes and the block
-		// in the next byte, followed by the block
-		b = packBlock(buf, BlockFloat64, tb, vb)
-
-		return nil
-	}()
-
-	putTimeEncoder(tsenc)
-	putFloatEncoder(venc)
-
-	return b, err
-}
-
-func encodeFloatValuesBlock(buf []byte, values []FloatValue) ([]byte, error) {
-	if len(values) == 0 {
-		return nil, nil
-	}
-
-	// A float block is encoded using different compression strategies
-	// for timestamps and values.
-
-	// Encode values using Gorilla float compression
-	venc := getFloatEncoder()
-
-	// Encode timestamps using an adaptive encoder that uses delta-encoding,
-	// frame-or-reference and run length encoding.
-	tsenc := getTimeEncoder(len(values))
-
-	var b []byte
-	err := func() error {
-		for _, v := range values {
-			tsenc.Write(v.unixnano)
-			venc.Push(v.value)
-		}
-		venc.Finish()
+		venc.Flush()
 
 		// Encoded timestamp values
 		tb, err := tsenc.Bytes()
@@ -543,48 +496,6 @@ func encodeBooleanBlock(buf []byte, values []Value) ([]byte, error) {
 	return b, err
 }
 
-func encodeBooleanValuesBlock(buf []byte, values []BooleanValue) ([]byte, error) {
-	if len(values) == 0 {
-		return nil, nil
-	}
-
-	// A boolean block is encoded using different compression strategies
-	// for timestamps and values.
-	venc := getBooleanEncoder(len(values))
-
-	// Encode timestamps using an adaptive encoder
-	tsenc := getTimeEncoder(len(values))
-
-	var b []byte
-	err := func() error {
-		for _, v := range values {
-			tsenc.Write(v.unixnano)
-			venc.Write(v.value)
-		}
-
-		// Encoded timestamp values
-		tb, err := tsenc.Bytes()
-		if err != nil {
-			return err
-		}
-		// Encoded float values
-		vb, err := venc.Bytes()
-		if err != nil {
-			return err
-		}
-
-		// Prepend the first timestamp of the block in the first 8 bytes and the block
-		// in the next byte, followed by the block
-		b = packBlock(buf, BlockBoolean, tb, vb)
-		return nil
-	}()
-
-	putTimeEncoder(tsenc)
-	putBooleanEncoder(venc)
-
-	return b, err
-}
-
 // DecodeBooleanBlock decodes the boolean block from the byte slice
 // and appends the boolean values to a.
 func DecodeBooleanBlock(block []byte, a *[]BooleanValue) ([]BooleanValue, error) {
@@ -678,39 +589,6 @@ func encodeIntegerBlock(buf []byte, values []Value) ([]byte, error) {
 			vv := v.(IntegerValue)
 			tsEnc.Write(vv.unixnano)
 			vEnc.Write(vv.value)
-		}
-
-		// Encoded timestamp values
-		tb, err := tsEnc.Bytes()
-		if err != nil {
-			return err
-		}
-		// Encoded int64 values
-		vb, err := vEnc.Bytes()
-		if err != nil {
-			return err
-		}
-
-		// Prepend the first timestamp of the block in the first 8 bytes
-		b = packBlock(buf, BlockInteger, tb, vb)
-		return nil
-	}()
-
-	putTimeEncoder(tsEnc)
-	putIntegerEncoder(vEnc)
-
-	return b, err
-}
-
-func encodeIntegerValuesBlock(buf []byte, values []IntegerValue) ([]byte, error) {
-	tsEnc := getTimeEncoder(len(values))
-	vEnc := getIntegerEncoder(len(values))
-
-	var b []byte
-	err := func() error {
-		for _, v := range values {
-			tsEnc.Write(v.unixnano)
-			vEnc.Write(v.value)
 		}
 
 		// Encoded timestamp values
@@ -829,40 +707,6 @@ func encodeStringBlock(buf []byte, values []Value) ([]byte, error) {
 			vv := v.(StringValue)
 			tsEnc.Write(vv.unixnano)
 			vEnc.Write(vv.value)
-		}
-
-		// Encoded timestamp values
-		tb, err := tsEnc.Bytes()
-		if err != nil {
-			return err
-		}
-		// Encoded string values
-		vb, err := vEnc.Bytes()
-		if err != nil {
-			return err
-		}
-
-		// Prepend the first timestamp of the block in the first 8 bytes
-		b = packBlock(buf, BlockString, tb, vb)
-
-		return nil
-	}()
-
-	putTimeEncoder(tsEnc)
-	putStringEncoder(vEnc)
-
-	return b, err
-}
-
-func encodeStringValuesBlock(buf []byte, values []StringValue) ([]byte, error) {
-	tsEnc := getTimeEncoder(len(values))
-	vEnc := getStringEncoder(len(values) * len(values[0].value))
-
-	var b []byte
-	err := func() error {
-		for _, v := range values {
-			tsEnc.Write(v.unixnano)
-			vEnc.Write(v.value)
 		}
 
 		// Encoded timestamp values
@@ -1014,8 +858,8 @@ func getIntegerEncoder(sz int) IntegerEncoder {
 }
 func putIntegerEncoder(enc IntegerEncoder) { integerEncoderPool.Put(enc) }
 
-func getFloatEncoder() *FloatEncoder {
-	x := floatEncoderPool.Get(1024).(*FloatEncoder)
+func getFloatEncoder(sz int) *FloatEncoder {
+	x := floatEncoderPool.Get(sz).(*FloatEncoder)
 	x.Reset()
 	return x
 }
