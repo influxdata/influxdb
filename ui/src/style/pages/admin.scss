@@ -81,6 +81,7 @@
     .caret {opacity: 0;}
     .multi-select-dropdown__label {left: 0;}
   }
+  .open .dropdown-toggle .multi-select-dropdown__label {left: 9px;}
   tbody tr:hover {
     .admin-table--delete {
       visibility: visible;
@@ -98,6 +99,12 @@
         background-color: $c-laser;
       }
     }
+  }
+  .multi-select-dropdown.open .dropdown-toggle {
+    color: $g20-white !important;
+    background-color: $c-laser !important;
+    font-weight: 600;
+    .multi-select-dropdown__label {left: 9x !important;}
   }
 }
 .admin-table--edit-row {
