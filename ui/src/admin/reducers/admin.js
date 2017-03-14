@@ -22,6 +22,8 @@ const initialState = {
   permissions: [],
   queries: [],
   queryIDToKill: null,
+  databases: [],
+  retentionPolicies: [],
 }
 
 export default function admin(state = initialState, action) {
@@ -35,6 +37,14 @@ export default function admin(state = initialState, action) {
     }
 
     case 'LOAD_PERMISSIONS': {
+      return {...state, ...action.payload}
+    }
+
+    case 'LOAD_DATABASES': {
+      return {...state, ...action.payload}
+    }
+
+    case 'LOAD_RETENTION_POLICIES': {
       return {...state, ...action.payload}
     }
 

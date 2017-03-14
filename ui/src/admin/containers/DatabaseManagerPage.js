@@ -1,43 +1,32 @@
 import React, {PropTypes, Component} from 'react'
-import {showDatabases, showRetentionPolicies} from 'src/shared/apis/metaQuery'
-import parseShowDatabases from 'src/shared/parsing/showDatabases'
-import parseShowRetentionPolicies from 'src/shared/parsing/showRetentionPolicies'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
+import {loadDBsAndRPsAsync} from 'src/admin/actions'
 import DatabaseManager from 'src/admin/components/DatabaseManager'
 
 class DatabaseManagerPage extends Component {
   constructor(props) {
     super(props)
-    this.state = {
-      databases: [],
-      retentionPolicies: [],
-    }
   }
 
-  async componentDidMount() {
-    const {source: {links: {proxy}}} = this.props
+  componentDidMount() {
+    const {source: {links: {proxy}}, loadDBsAndRPs} = this.props
 
-    const {data: dbs} = await showDatabases(proxy)
-    const {databases} = parseShowDatabases(dbs)
-
-    const {data: {results}} = await showRetentionPolicies(proxy, databases)
-    const retentionPolicies = results.map(parseShowRetentionPolicies)
-
-    this.setState({databases, retentionPolicies})
+    loadDBsAndRPs(proxy)
   }
 
   render() {
-    const {databases, retentionPolicies} = this.state
-    const rps = retentionPolicies.map((rp) => rp.retentionPolicies)
+    const {databases, retentionPolicies} = this.props
 
-    if (!databases.length || !retentionPolicies.length) {
-      return null
-    }
-
-    return <DatabaseManager databases={databases} retentionPolicies={rps} />
+    return <DatabaseManager databases={databases} retentionPolicies={retentionPolicies} />
   }
 }
 
 const {
+  array,
+  arrayOf,
+  func,
   shape,
   string,
 } = PropTypes
@@ -48,6 +37,18 @@ DatabaseManagerPage.propTypes = {
       proxy: string,
     }),
   }),
+  databases: arrayOf(string),
+  retentionPolicies: array,
+  loadDBsAndRPs: func,
 }
 
-export default DatabaseManagerPage
+const mapStateToProps = ({admin: {databases, retentionPolicies}}) => ({
+  databases,
+  retentionPolicies,
+})
+
+const mapDispatchToProps = (dispatch) => ({
+  loadDBsAndRPs: bindActionCreators(loadDBsAndRPsAsync, dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(DatabaseManagerPage)

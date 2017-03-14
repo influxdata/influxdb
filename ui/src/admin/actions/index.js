@@ -10,7 +10,14 @@ import {
   updateUser as updateUserAJAX,
 } from 'src/admin/apis'
 
-import {killQuery as killQueryProxy} from 'shared/apis/metaQuery'
+import {
+  killQuery as killQueryProxy,
+  showDatabases,
+  showRetentionPolicies,
+} from 'shared/apis/metaQuery'
+
+import parseShowDatabases from 'src/shared/parsing/showDatabases'
+import parseShowRetentionPolicies from 'src/shared/parsing/showRetentionPolicies'
 import {publishNotification} from 'src/shared/actions/notifications';
 import {ADMIN_NOTIFICATION_DELAY} from 'src/admin/constants'
 
@@ -32,6 +39,20 @@ export const loadPermissions = ({permissions}) => ({
   type: 'LOAD_PERMISSIONS',
   payload: {
     permissions,
+  },
+})
+
+export const loadDatabases = (databases) => ({
+  type: 'LOAD_DATABASES',
+  payload: {
+    databases,
+  },
+})
+
+export const loadRetentionPolicies = (retentionPolicies) => ({
+  type: 'LOAD_RETENTION_POLICIES',
+  payload: {
+    retentionPolicies,
   },
 })
 
@@ -138,6 +159,17 @@ export const loadRolesAsync = (url) => async (dispatch) => {
 export const loadPermissionsAsync = (url) => async (dispatch) => {
   const {data} = await getPermissionsAJAX(url)
   dispatch(loadPermissions(data))
+}
+
+export const loadDBsAndRPsAsync = (url) => async (dispatch) => {
+  const {data: dbs} = await showDatabases(url)
+  const {databases} = parseShowDatabases(dbs)
+  dispatch(loadDatabases(databases))
+
+  const {data: {results}} = await showRetentionPolicies(url, databases)
+  const retentionPolicies = results.map(parseShowRetentionPolicies)
+  const rps = retentionPolicies.map((rp) => rp.retentionPolicies)
+  dispatch(loadRetentionPolicies(rps))
 }
 
 export const createUserAsync = (url, user) => async (dispatch) => {
