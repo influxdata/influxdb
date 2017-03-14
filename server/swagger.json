@@ -769,6 +769,174 @@
 				}
 			}
 		},
+		"/sources/{id}/dbs/": {
+			"get": {
+				"summary": "Retrieve all databases for a source",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Listing of all databases for a source",
+						"schema": {
+							"$ref": "#/definitions/Databases"
+						}
+					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			},
+			"post": {
+				"summary": "Create new database for a source",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Database successfully created.",
+						"schema": {
+							"$ref": "#/definitions/Database"
+						}
+					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			}
+		},
+		"/sources/{id}/dbs/{db_id}": {
+			"get": {
+
+			},
+			"patch": {
+
+			},
+			"delete": {
+
+			}
+		},
+		"/sources/{id}/dbs/{db_id}/rps": {
+			"get": {
+				"summary": "Retrieve all retention policies for a database",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "db_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the database",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "Listing of all retention policies for a database",
+						"schema": {
+							"$ref": "#/definitions/RetentionPolicies"
+						}
+					},
+					"404": {
+						"description": "Specified retention policy does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			},
+			"post": {
+				"summary": "Create new retention policy for a database",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "db_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the database",
+						"required": true
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Retention Policy successfully created.",
+						"schema": {
+							"$ref": "#/definitions/RetentionPolicy"
+						}
+					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
+			}
+		},
+		"/sources/{id}/dbs/{db_id}/rps/{rp_id}": {
+			"get": {
+
+			},
+			"patch": {
+
+			},
+			"delete": {
+
+			}
+		},
 		"/sources/{id}/kapacitors": {
 			"get": {
 				"tags": [
@@ -1912,6 +2080,45 @@
 		}
 	},
 	"definitions": {
+		"Databases": {
+			"type": "object",
+			"required": [
+				"databases"
+			],
+			"properties": {
+				"databases": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/Database"
+					}
+				}
+			}
+		},
+		"Database": {
+			"type": "object",
+			"required": [
+				"name"
+			],
+			"example": {
+
+			},
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "The identifying name of the database",
+				},
+				"duration": {
+					"type": "",
+					"description": "the duration of the default retention policy"
+				},
+				"replication": {
+
+				},
+				"shardDuration": {
+
+				}
+			}
+		},
 		"Kapacitors": {
 			"type": "object",
 			"required": [
