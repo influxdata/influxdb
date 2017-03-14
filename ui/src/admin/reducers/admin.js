@@ -16,6 +16,19 @@ const newDefaultRole = {
   isNew: true,
 }
 
+const newDefaultDatabase = {
+  name: '',
+  isNew: true,
+}
+
+const newDefaultRP = {
+  name: 'autogen',
+  duration: '0',
+  replication: 2,
+  isDefault: true,
+  isNew: true,
+}
+
 const initialState = {
   users: null,
   roles: [],
@@ -66,6 +79,23 @@ export default function admin(state = initialState, action) {
         roles: [
           newRole,
           ...state.roles,
+        ],
+      }
+    }
+
+    case 'ADD_DATABASE': {
+      const newDatabase = {...newDefaultDatabase, isEditing: true}
+      const newRetentionPolicies = [{...newDefaultRP}]
+
+      return {
+        ...state,
+        databases: [
+          newDatabase,
+          ...state.databases,
+        ],
+        retentionPolicies: [
+          newRetentionPolicies,
+          ...state.retentionPolicies,
         ],
       }
     }

@@ -2,7 +2,7 @@ import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import {loadDBsAndRPsAsync} from 'src/admin/actions'
+import * as adminActionCreators from 'src/admin/actions'
 import DatabaseManager from 'src/admin/components/DatabaseManager'
 
 class DatabaseManagerPage extends Component {
@@ -11,22 +11,37 @@ class DatabaseManagerPage extends Component {
   }
 
   componentDidMount() {
-    const {source: {links: {proxy}}, loadDBsAndRPs} = this.props
+    const {source: {links: {proxy}}, actions} = this.props
 
-    loadDBsAndRPs(proxy)
+    actions.loadDBsAndRPsAsync(proxy)
+  }
+
+  handleCreateDatabase() {
+    // this.props.createDatabase(database)
+  }
+
+  handleAddDatabase() {
+    this.props.actions.addDatabase()
   }
 
   render() {
-    const {databases, retentionPolicies} = this.props
+    const {databases, retentionPolicies, actions} = this.props
 
-    return <DatabaseManager databases={databases} retentionPolicies={retentionPolicies} />
+    return (
+      <DatabaseManager
+        addDatabase={actions.addDatabase}
+        databases={databases}
+        retentionPolicies={retentionPolicies}
+      />
+    )
   }
 }
 
 const {
-  array,
   arrayOf,
+  bool,
   func,
+  number,
   shape,
   string,
 } = PropTypes
@@ -37,9 +52,20 @@ DatabaseManagerPage.propTypes = {
       proxy: string,
     }),
   }),
-  databases: arrayOf(string),
-  retentionPolicies: array,
-  loadDBsAndRPs: func,
+  databases: arrayOf(shape({
+    name: string,
+    isEditing: bool,
+  })),
+  retentionPolicies: arrayOf(arrayOf(shape({
+    name: string,
+    duration: string,
+    replication: number,
+    isDefault: bool,
+  }))),
+  actions: shape({
+    loadDBsAndRPsAsync: func,
+    addDatabase: func,
+  }),
 }
 
 const mapStateToProps = ({admin: {databases, retentionPolicies}}) => ({
@@ -48,7 +74,7 @@ const mapStateToProps = ({admin: {databases, retentionPolicies}}) => ({
 })
 
 const mapDispatchToProps = (dispatch) => ({
-  loadDBsAndRPs: bindActionCreators(loadDBsAndRPsAsync, dispatch),
+  actions: bindActionCreators(adminActionCreators, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DatabaseManagerPage)

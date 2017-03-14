@@ -64,6 +64,10 @@ export const addRole = () => ({
   type: 'ADD_ROLE',
 })
 
+export const addDatabase = () => ({
+  type: 'ADD_DATABASE',
+})
+
 export const syncUser = (staleUser, syncedUser) => ({
   type: 'SYNC_USER',
   payload: {
@@ -164,7 +168,7 @@ export const loadPermissionsAsync = (url) => async (dispatch) => {
 export const loadDBsAndRPsAsync = (url) => async (dispatch) => {
   const {data: dbs} = await showDatabases(url)
   const {databases} = parseShowDatabases(dbs)
-  dispatch(loadDatabases(databases))
+  dispatch(loadDatabases(databases.map(name => ({name}))))
 
   const {data: {results}} = await showRetentionPolicies(url, databases)
   const retentionPolicies = results.map(parseShowRetentionPolicies)

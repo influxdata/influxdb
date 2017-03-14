@@ -1,19 +1,20 @@
 import React, {PropTypes} from 'react'
 import {formatRPDuration} from 'utils/formatting'
+import DatabaseTable from 'src/admin/components/DatabaseTable'
 
-const DatabaseManager = ({databases, retentionPolicies}) => {
+const DatabaseManager = ({databases, retentionPolicies, addDatabase}) => {
   return (
     <div className="panel panel-info">
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
         <h2 className="panel-title">{databases.length === 1 ? '1 Database' : `${databases.length} Databases`}</h2>
-        <div className="btn btn-sm btn-primary">Create Database</div>
+        <div className="btn btn-sm btn-primary" onClick={addDatabase}>Create Database</div>
       </div>
       <div className="panel-body">
         {
           databases.map((db, i) =>
             <DatabaseTable
-              key={i}
-              database={db}
+              key={db.name}
+              database={db.name}
               retentionPolicies={retentionPolicies[i] || []}
             />
           )
@@ -89,14 +90,16 @@ const DatabaseRow = ({name, duration, replication, isDefault}) => {
 const {
   arrayOf,
   bool,
+  func,
   number,
   shape,
   string,
 } = PropTypes
 
 DatabaseManager.propTypes = {
-  databases: arrayOf(string),
+  databases: arrayOf(shape()),
   retentionPolicies: arrayOf(arrayOf(shape)),
+  addDatabase: func,
 }
 
 DatabaseRow.propTypes = {
@@ -104,11 +107,6 @@ DatabaseRow.propTypes = {
   duration: string,
   replication: number,
   isDefault: bool,
-}
-
-DatabaseTable.propTypes = {
-  database: string,
-  retentionPolicies: arrayOf(shape()),
 }
 
 export default DatabaseManager
