@@ -771,6 +771,9 @@
 		},
 		"/sources/{id}/dbs/": {
 			"get": {
+				"tags": [
+					"databases"
+				],
 				"summary": "Retrieve all databases for a source",
 				"parameters": [
 					{
@@ -803,6 +806,9 @@
 				}
 			},
 			"post": {
+				"tags": [
+					"databases"
+				],
 				"summary": "Create new database for a source",
 				"parameters": [
 					{
@@ -846,6 +852,9 @@
 		},
 		"/sources/{id}/dbs/{db_id}": {
 			"delete": {
+				"tags": [
+					"databases"
+				],
 				"summary": "Delete database for a source",
 				"parameters": [
 					{
@@ -884,6 +893,9 @@
 		},
 		"/sources/{id}/dbs/{db_id}/rps": {
 			"get": {
+				"tags": [
+					"retention policies"
+				],
 				"summary": "Retrieve all retention policies for a database",
 				"parameters": [
 					{
@@ -923,6 +935,9 @@
 				}
 			},
 			"post": {
+				"tags": [
+					"retention policies"
+				],
 				"summary": "Create new retention policy for a database",
 				"parameters": [
 					{
@@ -973,6 +988,9 @@
 		},
 		"/sources/{id}/dbs/{db_id}/rps/{rp_id}": {
 			"patch": {
+				"tags": [
+					"retention policies"
+				],
 				"summary": "Alter retention policy for a database",
 				"parameters": [
 					{
@@ -992,9 +1010,10 @@
 					{
 						"name": "rp_id",
 						"in": "path",
+						"type": "string",
 						"description": "ID of the retention policy",
 						"required": true
-					}
+					},
 					{
 						"name": "rp",
 						"in": "body",
@@ -1007,6 +1026,9 @@
 				]
 			},
 			"delete": {
+				"tags": [
+					"retention policies"
+				],
 				"summary": "Delete retention policy for a database",
 				"parameters": [
 					{
@@ -1026,6 +1048,7 @@
 					{
 						"name": "rp_id",
 						"in": "path",
+						"type": "string",
 						"description": "ID of the retention policy",
 						"required": true
 					}
