@@ -7,12 +7,11 @@
 - [#7948](https://github.com/influxdata/influxdb/pull/7948): Reduce memory allocations by reusing gzip.Writers across requests
 - [#7776](https://github.com/influxdata/influxdb/issues/7776): Add system information to /debug/vars.
 - [#7553](https://github.com/influxdata/influxdb/issues/7553): Add modulo operator to the query language.
+- [#7926](https://github.com/influxdata/influxdb/pull/7926): Go version 1.7.4 -> 1.7.5
 
 ## v1.2.1 [2017-03-08]
 
 ### Release Notes
-
-### Bugfixes
 
 - [#7877](https://github.com/influxdata/influxdb/issues/7877): Fix mapping of types when the measurement uses a regex
 - [#7888](https://github.com/influxdata/influxdb/pull/7888): Expand query dimensions from the subquery.
