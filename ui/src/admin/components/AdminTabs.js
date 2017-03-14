@@ -1,8 +1,9 @@
 import React, {PropTypes} from 'react'
-import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'src/shared/components/Tabs';
+import {Tab, Tabs, TabPanel, TabPanels, TabList} from 'src/shared/components/Tabs'
 import UsersTable from 'src/admin/components/UsersTable'
 import RolesTable from 'src/admin/components/RolesTable'
 import QueriesPage from 'src/admin/containers/QueriesPage'
+import DatabaseManagerPage from 'src/admin/containers/DatabaseManagerPage'
 
 const AdminTabs = ({
   users,
@@ -29,6 +30,10 @@ const AdminTabs = ({
   onUpdateUserPermissions,
 }) => {
   let tabs = [
+    {
+      type: 'DB Management',
+      component: (<DatabaseManagerPage source={source} />),
+    },
     {
       type: 'Users',
       component: (
