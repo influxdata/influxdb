@@ -97,9 +97,9 @@ class MultiSelectDropdown extends Component {
 
     return (
       <div className="dropdown-options">
-        <li className="multi-select-dropdown__apply" onClick={this.onApplyFunctions} style={{listStyle: 'none'}}>
+        <div className="multi-select-dropdown__apply" onClick={this.onApplyFunctions} style={{listStyle: 'none'}}>
           <div className="btn btn-xs btn-info btn-block">Apply</div>
-        </li>
+        </div>
         <ul className="dropdown-menu multi-select-dropdown__menu" aria-labelledby="dropdownMenu1">
           {items.map((listItem, i) => {
             return (
