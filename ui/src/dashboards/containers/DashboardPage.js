@@ -42,6 +42,8 @@ const DashboardPage = React.createClass({
       setDashboard: func.isRequired,
       setTimeRange: func.isRequired,
       setEditMode: func.isRequired,
+      editCell: func.isRequired,
+      renameCell: func.isRequired,
     }).isRequired,
     dashboards: arrayOf(shape({
       id: number.isRequired,
@@ -92,16 +94,32 @@ const DashboardPage = React.createClass({
     this.props.dashboardActions.putDashboard({...this.props.dashboard, cells})
   },
 
-  handleEditCell(cell) {
-    const {cells} = this.props.dashboard
-    const targetIdx = cells.findIndex((c) => cell.x === c.x && cell.y === c.y && cell.h === c.h && cell.w === c.w)
+  // Places cell into editing mode.
+  handleEditCell(x, y, isEditing) {
+    return () => {
+      this.props.dashboardActions.editCell(x, y, !isEditing) /* eslint-disable no-negated-condition */
+    }
+  },
 
-    const newCells = [
-      ...cells.slice(0, targetIdx),
-      cell,
-      ...cells.slice(targetIdx + 1),
-    ]
-    this.props.dashboardActions.putDashboard({...this.props.dashboard, cells: newCells})
+  handleChangeCellName(x, y) {
+    return (evt) => {
+      this.props.dashboardActions.renameCell(x, y, evt.target.value)
+    }
+  },
+
+  handleUpdateCell(newCell) {
+    return () => {
+      const {cells} = this.props.dashboard
+      const cellIdx = cells.findIndex((c) => c.x === newCell.x && c.y === newCell.y)
+
+      this.handleUpdatePosition([
+        ...cells.slice(0, cellIdx),
+        newCell,
+        ...cells.slice(cellIdx + 1),
+      ])
+
+      this.props.dashboardActions.editCell(newCell.x, newCell.y, false)
+    }
   },
 
   render() {
@@ -153,6 +171,8 @@ const DashboardPage = React.createClass({
           timeRange={timeRange}
           onPositionChange={this.handleUpdatePosition}
           onEditCell={this.handleEditCell}
+          onRenameCell={this.handleChangeCellName}
+          onUpdateCell={this.handleUpdateCell}
         />
       </div>
     );

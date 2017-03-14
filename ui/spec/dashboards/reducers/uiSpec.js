@@ -6,6 +6,8 @@ import {
   setDashboard,
   setTimeRange,
   setEditMode,
+  editCell,
+  renameCell,
 } from 'src/dashboards/actions'
 
 const noopAction = () => {
@@ -48,5 +50,51 @@ describe('DataExplorer.Reducers.UI', () => {
     const isEditMode = true
     const actual = reducer(state, setEditMode(isEditMode))
     expect(actual.isEditMode).to.equal(isEditMode)
+  })
+
+  it('can edit cell', () => {
+    const dash = {
+      id: 1,
+      cells: [{
+        x: 0,
+        y: 0,
+        w: 4,
+        h: 4,
+        id: 1,
+        isEditing: false,
+        name: "Gigawatts",
+      }],
+    }
+
+    state = {
+      dashboard: dash,
+      dashboards: [dash],
+    }
+
+    const actual = reducer(state, editCell(0, 0, true))
+    expect(actual.dashboards[0].cells[0].isEditing).to.equal(true)
+  })
+
+  it('can rename cells', () => {
+    const dash = {
+      id: 1,
+      cells: [{
+        x: 0,
+        y: 0,
+        w: 4,
+        h: 4,
+        id: 1,
+        isEditing: true,
+        name: "Gigawatts",
+      }],
+    }
+
+    state = {
+      dashboard: dash,
+      dashboards: [dash],
+    }
+
+    const actual = reducer(state, renameCell(0, 0, "Plutonium Consumption Rate (ug/sec)"))
+    expect(actual.dashboards[0].cells[0].name).to.equal("Plutonium Consumption Rate (ug/sec)")
   })
 })
