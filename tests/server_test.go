@@ -6081,7 +6081,7 @@ func TestServer_Query_Chunk(t *testing.T) {
 	}
 
 	writes := make([]string, 10001) // 10,000 is the default chunking size, even when no chunking requested.
-	expectedValues := make([]string, 10000)
+	expectedValues := make([]string, len(writes))
 	for i := 0; i < len(writes); i++ {
 		writes[i] = fmt.Sprintf(`cpu value=%d %d`, i, time.Unix(0, int64(i)).UnixNano())
 		if i < len(expectedValues) {
