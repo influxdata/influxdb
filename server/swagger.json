@@ -811,6 +811,15 @@
 						"type": "string",
 						"description": "ID of the data source",
 						"required": true
+					},
+					{
+						"name": "database",
+						"in": "body",
+						"description": "Configuration options for a database",
+						"schema": {
+							"$ref": "#/definitions/Database"
+						},
+						"required": true
 					}
 				],
 				"responses": {
@@ -836,14 +845,41 @@
 			}
 		},
 		"/sources/{id}/dbs/{db_id}": {
-			"get": {
-
-			},
-			"patch": {
-
-			},
 			"delete": {
-
+				"summary": "Delete database for a source",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "db_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the database",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Database has been deleted",
+					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
 			}
 		},
 		"/sources/{id}/dbs/{db_id}/rps": {
@@ -902,6 +938,15 @@
 						"type": "string",
 						"description": "ID of the database",
 						"required": true
+					},
+					{
+						"name": "rp",
+						"in": "body",
+						"description": "Configuration options for the retention policy",
+						"schema": {
+							"$ref": "#/definitions/RetentionPolicy"
+						},
+						"required": true
 					}
 				],
 				"responses": {
@@ -927,14 +972,81 @@
 			}
 		},
 		"/sources/{id}/dbs/{db_id}/rps/{rp_id}": {
-			"get": {
-
-			},
 			"patch": {
-
+				"summary": "Alter retention policy for a database",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "db_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the database",
+						"required": true
+					},
+					{
+						"name": "rp_id",
+						"in": "path",
+						"description": "ID of the retention policy",
+						"required": true
+					}
+					{
+						"name": "rp",
+						"in": "body",
+						"description": "Configuration options for the retention policy",
+						"schema": {
+							"$ref": "#/definitions/RetentionPolicy"
+						},
+						"required": true
+					}
+				]
 			},
 			"delete": {
-
+				"summary": "Delete retention policy for a database",
+				"parameters": [
+					{
+						"name": "id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the data source",
+						"required": true
+					},
+					{
+						"name": "db_id",
+						"in": "path",
+						"type": "string",
+						"description": "ID of the database",
+						"required": true
+					},
+					{
+						"name": "rp_id",
+						"in": "path",
+						"description": "ID of the retention policy",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "Retention Policy has been deleted",
+					},
+					"404": {
+						"description": "Data source id does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
 			}
 		},
 		"/sources/{id}/kapacitors": {
