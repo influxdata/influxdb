@@ -2212,7 +2212,10 @@
 				"name"
 			],
 			"example": {
-
+				"name": "NOAA_water_database",
+				"duration": "3d",
+				"replication": 3,
+				"shardDuration": "3h"
 			},
 			"properties": {
 				"name": {
@@ -2220,14 +2223,17 @@
 					"description": "The identifying name of the database",
 				},
 				"duration": {
-					"type": "",
+					"type": "string",
 					"description": "the duration of the default retention policy"
 				},
 				"replication": {
-
+					"type": "integer",
+					"format": "int32",
+					"description": "how many copies of the data are stored in the cluster"
 				},
 				"shardDuration": {
-
+					"type": "string",
+					"description": "the interval spanned by each shard group"
 				}
 			}
 		},
@@ -2466,6 +2472,53 @@
 					"items": {
 						"type": "string"
 					}
+				}
+			}
+		},
+		"RetentionPolicies": {
+			"type": "object",
+			"required": [
+				"retentionPolicies"
+			],
+			"properties": {
+				"retentionPolicies": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/RetentionPolicy"
+					}
+				}
+			}
+		},
+		"RetentionPolicy": {
+			"type": "object",
+			"required": [
+				"name",
+				"duration",
+				"replication"
+			],
+			"example": {
+			},
+			"properties": {
+				"name": {
+					"type": "string",
+					"description": "The identifying name of the retention policy",
+				},
+				"duration": {
+					"type": "string",
+					"description": "the duration of the retention policy"
+				},
+				"replication": {
+					"type": "integer",
+					"format": "int32",
+					"description": "how many copies of the data are stored in the cluster"
+				},
+				"shardDuration": {
+					"type": "string",
+					"description": "the interval spanned by each shard group"
+				},
+				"default": {
+					"type": "boolean",
+					"description": "Indicates whether this retention policy should be the default"
 				}
 			}
 		},
