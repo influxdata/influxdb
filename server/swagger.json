@@ -2520,6 +2520,11 @@
 				"replication"
 			],
 			"example": {
+				"name": "weekly",
+				"duration": "7d",
+				"replication": 1,
+				"shardDuration": "7d",
+				"default": true
 			},
 			"properties": {
 				"name": {
