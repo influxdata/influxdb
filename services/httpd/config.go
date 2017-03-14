@@ -41,7 +41,7 @@ func NewConfig() Config {
 		PprofEnabled:      true,
 		HTTPSEnabled:      false,
 		HTTPSCertificate:  "/etc/ssl/influxdb.pem",
-		MaxRowLimit:       DefaultChunkSize,
+		MaxRowLimit:       0,
 		Realm:             DefaultRealm,
 		UnixSocketEnabled: false,
 		BindSocket:        DefaultBindSocket,

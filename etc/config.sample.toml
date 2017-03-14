@@ -240,7 +240,7 @@
   # shared-sercret = ""
 
   # The default chunk size for result sets that should be chunked.
-  # max-row-limit = 10000
+  # max-row-limit = 0
 
   # The maximum number of HTTP connections that may be open at once.  New connections that
   # would exceed this limit are dropped.  Setting this value to 0 disables the limit.

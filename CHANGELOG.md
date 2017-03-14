@@ -10,6 +10,20 @@
 - [#7856](https://github.com/influxdata/influxdb/issues/7856): Failed points during an import now result in a non-zero exit code.
 - [#7821](https://github.com/influxdata/influxdb/issues/7821): Expose some configuration settings via SHOW DIAGNOSTICS
 
+## v1.2.2 [2017-03-14]
+
+### Release Notes
+
+### Configuration Changes
+
+#### `[http]` Section
+
+* `max-row-limit` now defaults to `0`.  The previous default was `10000`, but due to a bug, the value in use since `1.0` was `0`.
+
+### Bugfixes
+
+- [#8050](https://github.com/influxdata/influxdb/issues/8050): influxdb & grafana, absence of data on the graphs
+
 ## v1.2.1 [2017-03-08]
 
 ### Release Notes
