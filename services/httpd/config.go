@@ -1,5 +1,7 @@
 package httpd
 
+import "github.com/influxdata/influxdb/monitor/diagnostics"
+
 const (
 	// DefaultBindAddress is the default address to bind to.
 	DefaultBindAddress = ":8086"
@@ -44,4 +46,21 @@ func NewConfig() Config {
 		UnixSocketEnabled: false,
 		BindSocket:        DefaultBindSocket,
 	}
+}
+
+// Diagnostics returns a diagnostics representation of a subset of the Config.
+func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
+	if !c.Enabled {
+		return diagnostics.RowFromMap(map[string]interface{}{
+			"enabled": false,
+		}), nil
+	}
+
+	return diagnostics.RowFromMap(map[string]interface{}{
+		"enabled":              true,
+		"bind-address":         c.BindAddress,
+		"https-enabled":        c.HTTPSEnabled,
+		"max-row-limit":        c.MaxRowLimit,
+		"max-connection-limit": c.MaxConnectionLimit,
+	}), nil
 }

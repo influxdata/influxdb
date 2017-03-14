@@ -156,6 +156,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		config: c,
 	}
 	s.Monitor = monitor.New(s, c.Monitor)
+	s.config.registerDiagnostics(s.Monitor)
 
 	if err := s.MetaClient.Open(); err != nil {
 		return nil, err
@@ -457,6 +458,8 @@ func (s *Server) Close() error {
 	for _, service := range s.Services {
 		service.Close()
 	}
+
+	s.config.deregisterDiagnostics(s.Monitor)
 
 	if s.PointsWriter != nil {
 		s.PointsWriter.Close()
