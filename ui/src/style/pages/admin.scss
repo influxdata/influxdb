@@ -120,3 +120,32 @@
     &:last-child {margin-right: 0;}
   }
 }
+
+.db-manager-header {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 11px;
+
+  h4 {
+    margin: 0px;
+    color: $g15-platinum;
+
+  }
+
+  & .btn {display: none;}
+  &:hover .btn {display: inline-block;}
+}
+.db-manager {
+  margin-top: 18px;
+}
+.db-manager:first-child {
+  margin-top: 0;
+ }
+
+.db-manager-table {
+  background-color: $g4-onyx;
+  padding: 9px 11px;
+  border-radius: $radius-small;
+ }

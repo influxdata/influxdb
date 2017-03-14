@@ -1,4 +1,4 @@
-export function formatBytes(bytes) {
+export const formatBytes = (bytes) => {
   if (bytes === 0) {
     return '0 Bytes';
   }
@@ -15,8 +15,8 @@ export function formatBytes(bytes) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
-export function formatRPDuration(duration) {
-  if (duration === '0') {
+export const formatRPDuration = (duration) => {
+  if (duration === '0' || duration === '0s') {
     return 'infinite';
   }
 
