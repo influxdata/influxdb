@@ -6,6 +6,7 @@ import {
   setDashboard,
   setTimeRange,
   setEditMode,
+  updateDashboardCells,
   editCell,
   renameCell,
 } from 'src/dashboards/actions'
@@ -50,6 +51,26 @@ describe('DataExplorer.Reducers.UI', () => {
     const isEditMode = true
     const actual = reducer(state, setEditMode(isEditMode))
     expect(actual.isEditMode).to.equal(isEditMode)
+  })
+
+  it('can update dashboard cells', () => {
+    state = {
+      dashboard: d1,
+      dashboards,
+    }
+
+    const cells = [{id: 1}, {id: 2}]
+
+    const expected = {
+      id: 1,
+      cells,
+      name: 'd1',
+    }
+
+    const actual = reducer(state, updateDashboardCells(cells))
+
+    expect(actual.dashboard).to.deep.equal(expected)
+    expect(actual.dashboards[0]).to.deep.equal(expected)
   })
 
   it('can edit cell', () => {

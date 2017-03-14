@@ -39,6 +39,13 @@ export const updateDashboard = (dashboard) => ({
   },
 })
 
+export const updateDashboardCells = (cells) => ({
+  type: 'UPDATE_DASHBOARD_CELLS',
+  payload: {
+    cells,
+  },
+})
+
 export const editCell = (x, y, isEditing) => ({
   type: 'EDIT_CELL',
   // x and y coords are used as a alternative to cell ids, which are not
@@ -69,7 +76,8 @@ export const getDashboards = (dashboardID) => (dispatch) => {
   })
 }
 
-export const putDashboard = (dashboard) => (dispatch) => {
+export const putDashboard = () => (dispatch, getState) => {
+  const {dashboardUI: {dashboard}} = getState()
   updateDashboardAJAX(dashboard).then(({data}) => {
     dispatch(updateDashboard(data))
   })

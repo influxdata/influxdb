@@ -23,6 +23,11 @@ const NameableGraph = ({
         autoFocus={true}
         onChange={onRenameCell(x, y)}
         onBlur={onUpdateCell(cell)}
+        onKeyUp={(evt) => {
+          if (evt.key === 'Enter') {
+            onUpdateCell(cell)()
+          }
+        }}
       />
     )
   } else {

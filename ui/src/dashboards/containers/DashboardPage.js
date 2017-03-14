@@ -91,7 +91,8 @@ const DashboardPage = React.createClass({
   },
 
   handleUpdatePosition(cells) {
-    this.props.dashboardActions.putDashboard({...this.props.dashboard, cells})
+    this.props.dashboardActions.updateDashboardCells(cells)
+    this.props.dashboardActions.putDashboard()
   },
 
   // Places cell into editing mode.
@@ -109,16 +110,8 @@ const DashboardPage = React.createClass({
 
   handleUpdateCell(newCell) {
     return () => {
-      const {cells} = this.props.dashboard
-      const cellIdx = cells.findIndex((c) => c.x === newCell.x && c.y === newCell.y)
-
-      this.handleUpdatePosition([
-        ...cells.slice(0, cellIdx),
-        newCell,
-        ...cells.slice(cellIdx + 1),
-      ])
-
       this.props.dashboardActions.editCell(newCell.x, newCell.y, false)
+      this.props.dashboardActions.putDashboard()
     }
   },
 
