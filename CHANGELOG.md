@@ -3,6 +3,7 @@
 ### Bug Fixes
 
 ### Features
+  1. [#1020](https://github.com/influxdata/chronograf/pull/1020): Users can now edit cell names on dashboards
 
 ### UI Improvements
 

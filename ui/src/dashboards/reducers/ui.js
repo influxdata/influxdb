@@ -50,6 +50,71 @@ export default function ui(state = initialState, action) {
 
       return {...state, ...newState}
     }
+
+    case 'UPDATE_DASHBOARD_CELLS': {
+      const {cells} = action.payload
+      const {dashboard} = state
+
+      const newDashboard = {
+        ...dashboard,
+        cells,
+      }
+
+      const newState = {
+        dashboard: newDashboard,
+        dashboards: state.dashboards.map((d) => d.id === dashboard.id ? newDashboard : d),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'EDIT_CELL': {
+      const {x, y, isEditing} = action.payload
+      const {dashboard} = state
+
+      const cell = dashboard.cells.find((c) => c.x === x && c.y === y)
+
+      const newCell = {
+        ...cell,
+        isEditing,
+      }
+
+      const newDashboard = {
+        ...dashboard,
+        cells: dashboard.cells.map((c) => c.x === x && c.y === y ? newCell : c),
+      }
+
+      const newState = {
+        dashboard: newDashboard,
+        dashboards: state.dashboards.map((d) => d.id === dashboard.id ? newDashboard : d),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'RENAME_CELL': {
+      const {x, y, name} = action.payload
+      const {dashboard} = state
+
+      const cell = dashboard.cells.find((c) => c.x === x && c.y === y)
+
+      const newCell = {
+        ...cell,
+        name,
+      }
+
+      const newDashboard = {
+        ...dashboard,
+        cells: dashboard.cells.map((c) => c.x === x && c.y === y ? newCell : c),
+      }
+
+      const newState = {
+        dashboard: newDashboard,
+        dashboards: state.dashboards.map((d) => d.id === dashboard.id ? newDashboard : d),
+      }
+
+      return {...state, ...newState}
+    }
   }
 
   return state;

@@ -2,6 +2,7 @@ import React, {PropTypes} from 'react';
 import AutoRefresh from 'shared/components/AutoRefresh';
 import LineGraph from 'shared/components/LineGraph';
 import SingleStat from 'shared/components/SingleStat';
+import NameableGraph from 'shared/components/NameableGraph';
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout';
 const GridLayout = WidthProvider(ReactGridLayout);
 
@@ -50,6 +51,9 @@ export const LayoutRenderer = React.createClass({
     host: string,
     source: string,
     onPositionChange: func,
+    onEditCell: func,
+    onRenameCell: func,
+    onUpdateCell: func,
   },
 
   buildQuery(q) {
@@ -84,7 +88,7 @@ export const LayoutRenderer = React.createClass({
   },
 
   generateVisualizations() {
-    const {autoRefresh, source, cells} = this.props;
+    const {autoRefresh, source, cells, onEditCell, onRenameCell, onUpdateCell} = this.props;
 
     return cells.map((cell) => {
       const qs = cell.queries.map((q) => {
@@ -94,14 +98,17 @@ export const LayoutRenderer = React.createClass({
         });
       });
 
-
       if (cell.type === 'single-stat') {
         return (
           <div key={cell.i}>
-            <h2 className="dash-graph--heading">{cell.name || `Graph`}</h2>
-            <div className="dash-graph--container">
+            <NameableGraph
+              onEditCell={onEditCell}
+              onRenameCell={onRenameCell}
+              onUpdateCell={onUpdateCell}
+              cell={cell}
+            >
               <RefreshingSingleStat queries={[qs[0]]} autoRefresh={autoRefresh} />
-            </div>
+            </NameableGraph>
           </div>
         );
       }
@@ -113,15 +120,19 @@ export const LayoutRenderer = React.createClass({
 
       return (
         <div key={cell.i}>
-          <h2 className="dash-graph--heading">{cell.name || `Graph`}</h2>
-          <div className="dash-graph--container">
+          <NameableGraph
+            onEditCell={onEditCell}
+            onRenameCell={onRenameCell}
+            onUpdateCell={onUpdateCell}
+            cell={cell}
+          >
             <RefreshingLineGraph
               queries={qs}
               autoRefresh={autoRefresh}
               showSingleStat={cell.type === "line-plus-single-stat"}
               displayOptions={displayOptions}
             />
-          </div>
+          </NameableGraph>
         </div>
       );
     });

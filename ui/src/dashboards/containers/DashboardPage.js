@@ -42,6 +42,8 @@ const DashboardPage = React.createClass({
       setDashboard: func.isRequired,
       setTimeRange: func.isRequired,
       setEditMode: func.isRequired,
+      editCell: func.isRequired,
+      renameCell: func.isRequired,
     }).isRequired,
     dashboards: arrayOf(shape({
       id: number.isRequired,
@@ -89,7 +91,28 @@ const DashboardPage = React.createClass({
   },
 
   handleUpdatePosition(cells) {
-    this.props.dashboardActions.putDashboard({...this.props.dashboard, cells})
+    this.props.dashboardActions.updateDashboardCells(cells)
+    this.props.dashboardActions.putDashboard()
+  },
+
+  // Places cell into editing mode.
+  handleEditCell(x, y, isEditing) {
+    return () => {
+      this.props.dashboardActions.editCell(x, y, !isEditing) /* eslint-disable no-negated-condition */
+    }
+  },
+
+  handleChangeCellName(x, y) {
+    return (evt) => {
+      this.props.dashboardActions.renameCell(x, y, evt.target.value)
+    }
+  },
+
+  handleUpdateCell(newCell) {
+    return () => {
+      this.props.dashboardActions.editCell(newCell.x, newCell.y, false)
+      this.props.dashboardActions.putDashboard()
+    }
   },
 
   render() {
@@ -140,6 +163,9 @@ const DashboardPage = React.createClass({
           autoRefresh={autoRefresh}
           timeRange={timeRange}
           onPositionChange={this.handleUpdatePosition}
+          onEditCell={this.handleEditCell}
+          onRenameCell={this.handleChangeCellName}
+          onUpdateCell={this.handleUpdateCell}
         />
       </div>
     );
