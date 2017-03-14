@@ -13,22 +13,22 @@ func TestFloatEncoder_Simple(t *testing.T) {
 	// Example from the paper
 	s := tsm1.NewFloatEncoder()
 
-	s.Push(12)
-	s.Push(12)
-	s.Push(24)
+	s.Write(12)
+	s.Write(12)
+	s.Write(24)
 
 	// extra tests
 
 	// floating point masking/shifting bug
-	s.Push(13)
-	s.Push(24)
+	s.Write(13)
+	s.Write(24)
 
 	// delta-of-delta sizes
-	s.Push(24)
-	s.Push(24)
-	s.Push(24)
+	s.Write(24)
+	s.Write(24)
+	s.Write(24)
 
-	s.Finish()
+	s.Flush()
 
 	b, err := s.Bytes()
 	if err != nil {
@@ -84,10 +84,10 @@ func TestFloatEncoder_SimilarFloats(t *testing.T) {
 	}
 
 	for _, v := range want {
-		s.Push(v)
+		s.Write(v)
 	}
 
-	s.Finish()
+	s.Flush()
 
 	b, err := s.Bytes()
 	if err != nil {
@@ -151,9 +151,9 @@ var TwoHoursData = []struct {
 func TestFloatEncoder_Roundtrip(t *testing.T) {
 	s := tsm1.NewFloatEncoder()
 	for _, p := range TwoHoursData {
-		s.Push(p.v)
+		s.Write(p.v)
 	}
-	s.Finish()
+	s.Flush()
 
 	b, err := s.Bytes()
 	if err != nil {
@@ -188,10 +188,10 @@ func TestFloatEncoder_Roundtrip(t *testing.T) {
 func TestFloatEncoder_Roundtrip_NaN(t *testing.T) {
 
 	s := tsm1.NewFloatEncoder()
-	s.Push(1.0)
-	s.Push(math.NaN())
-	s.Push(2.0)
-	s.Finish()
+	s.Write(1.0)
+	s.Write(math.NaN())
+	s.Write(2.0)
+	s.Flush()
 
 	_, err := s.Bytes()
 
@@ -211,9 +211,9 @@ func Test_FloatEncoder_Quick(t *testing.T) {
 		// Write values to encoder.
 		enc := tsm1.NewFloatEncoder()
 		for _, v := range values {
-			enc.Push(v)
+			enc.Write(v)
 		}
-		enc.Finish()
+		enc.Flush()
 
 		// Read values out of decoder.
 		got := make([]float64, 0, len(values))
@@ -254,18 +254,18 @@ func BenchmarkFloatEncoder(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		s := tsm1.NewFloatEncoder()
 		for _, tt := range TwoHoursData {
-			s.Push(tt.v)
+			s.Write(tt.v)
 		}
-		s.Finish()
+		s.Flush()
 	}
 }
 
 func BenchmarkFloatDecoder(b *testing.B) {
 	s := tsm1.NewFloatEncoder()
 	for _, tt := range TwoHoursData {
-		s.Push(tt.v)
+		s.Write(tt.v)
 	}
-	s.Finish()
+	s.Flush()
 	bytes, err := s.Bytes()
 	if err != nil {
 		b.Fatalf("unexpected error: %v", err)
