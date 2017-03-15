@@ -18,6 +18,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/estimator"
 	internal "github.com/influxdata/influxdb/tsdb/internal"
 	"github.com/uber-go/zap"
 )
@@ -485,6 +486,20 @@ func (s *Shard) DeleteMeasurement(name []byte) error {
 // SeriesN returns the unique number of series in the shard.
 func (s *Shard) SeriesN() int64 {
 	return s.engine.SeriesN()
+}
+
+// SeriesSketches returns the series sketches for the shard.
+func (s *Shard) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.engine.SeriesSketches()
+}
+
+// MeasurementsSketches returns the measurement sketches for the shard.
+func (s *Shard) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.engine.MeasurementsSketches()
 }
 
 func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error {

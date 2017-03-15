@@ -861,7 +861,7 @@ func (i *Index) compactGroup(files []*IndexFile) {
 
 	// Close file.
 	if err := f.Close(); err != nil {
-		log.Printf("%s: error closing index file: %s", IndexName)
+		log.Printf("%s: error closing index file: %s", IndexName, err)
 		return
 	}
 
@@ -869,7 +869,7 @@ func (i *Index) compactGroup(files []*IndexFile) {
 	file := NewIndexFile()
 	file.SetPath(path)
 	if err := file.Open(); err != nil {
-		log.Printf("%s: error opening new index file: %s", IndexName)
+		log.Printf("%s: error opening new index file: %s", IndexName, err)
 		return
 	}
 
@@ -888,7 +888,7 @@ func (i *Index) compactGroup(files []*IndexFile) {
 		}
 		return nil
 	}(); err != nil {
-		log.Printf("%s: error writing manifest: %s", IndexName)
+		log.Printf("%s: error writing manifest: %s", IndexName, err)
 		return
 	}
 	log.Printf("%s: full compaction complete: file=%s, t=%s, sz=%d", IndexName, path, time.Since(start), n)
@@ -901,10 +901,10 @@ func (i *Index) compactGroup(files []*IndexFile) {
 		log.Printf("%s: removing index file: file=%s", IndexName, f.Path())
 
 		if err := f.Close(); err != nil {
-			log.Printf("%s: error closing index file: %s", IndexName)
+			log.Printf("%s: error closing index file: %s", IndexName, err)
 			return
 		} else if err := os.Remove(f.Path()); err != nil {
-			log.Printf("%s: error removing index file: %s", IndexName)
+			log.Printf("%s: error removing index file: %s", IndexName, err)
 			return
 		}
 	}
