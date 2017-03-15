@@ -94,7 +94,7 @@ func New{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer(f
 // Aggregate{{$k.Name}} copies the {{$k.Name}}Point into the internal slice to be passed
 // to the reduce function when Emit is called.
 func (r *{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer) Aggregate{{$k.Name}}(p *{{$k.Name}}Point) {
-	r.points = append(r.points, *p)
+	r.points = append(r.points, *p.Clone())
 }
 
 // Aggregate{{$k.Name}}Bulk performs a bulk copy of {{$k.Name}}Points into the internal slice.

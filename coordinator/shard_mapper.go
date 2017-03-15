@@ -134,7 +134,22 @@ func (a *LocalShardMapping) MapType(m *influxql.Measurement, field string) influ
 	if sg == nil {
 		return influxql.Unknown
 	}
-	return sg.MapType(m.Name, field)
+
+	var names []string
+	if m.Regex != nil {
+		names = sg.MeasurementsByRegex(m.Regex.Val)
+	} else {
+		names = []string{m.Name}
+	}
+
+	var typ influxql.DataType
+	for _, name := range names {
+		t := sg.MapType(name, field)
+		if typ.LessThan(t) {
+			typ = t
+		}
+	}
+	return typ
 }
 
 func (a *LocalShardMapping) CreateIterator(m *influxql.Measurement, opt influxql.IteratorOptions) (influxql.Iterator, error) {

@@ -3,6 +3,7 @@ package influxql
 import (
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"time"
 )
@@ -114,8 +115,9 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, sources Sources, opt I
 				inputs = append(inputs, input)
 			case *SubQuery:
 				fields := make([]*Field, 0, len(opt.Aux))
-				indexes := make([]int, len(opt.Aux))
+				indexes := make([]IteratorMap, len(opt.Aux))
 				offset := 0
+			AUX:
 				for i, name := range opt.Aux {
 					// Search through the fields to find one that matches this auxiliary field.
 					var match *Field
@@ -144,13 +146,14 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, sources Sources, opt I
 					if match == nil {
 						for _, d := range source.Statement.Dimensions {
 							if d, ok := d.Expr.(*VarRef); ok && name.Val == d.Val {
-								match = &Field{
+								fields = append(fields, &Field{
 									Expr: &VarRef{
 										Val:  d.Val,
 										Type: Tag,
 									},
-								}
-								break
+								})
+								indexes[i] = TagMap(d.Val)
+								continue AUX
 							}
 						}
 					}
@@ -161,7 +164,7 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, sources Sources, opt I
 						match = &Field{Expr: (*nilLiteral)(nil)}
 					}
 					fields = append(fields, match)
-					indexes[i] = i + offset
+					indexes[i] = FieldMap(len(fields) + offset - 1)
 				}
 
 				// Check if we need any selectors within the selected fields.
@@ -192,6 +195,12 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, sources Sources, opt I
 					}
 				}
 
+				// If there are no fields, then we have nothing driving the iterator.
+				// Skip this subquery since it only references tags.
+				if len(fields) == 0 {
+					continue
+				}
+
 				// Clone the statement and replace the fields with our custom ordering.
 				stmt := source.Statement.Clone()
 				stmt.Fields = fields
@@ -208,6 +217,10 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, sources Sources, opt I
 
 				// Construct the iterators for the subquery.
 				input := NewIteratorMapper(itrs, indexes, opt)
+				// If there is a condition, filter it now.
+				if opt.Condition != nil {
+					input = NewFilterIterator(input, opt.Condition, opt)
+				}
 				inputs = append(inputs, input)
 			}
 		}
@@ -480,8 +493,19 @@ func (b *exprIteratorBuilder) buildVarRefIterator(expr *VarRef) (Iterator, error
 								}
 							}
 						}
-						return buildExprIterator(e, b.ic, source.Statement.Sources, subOpt, false)
+						itr, err := buildExprIterator(e, b.ic, source.Statement.Sources, subOpt, false)
+						if err != nil {
+							return nil, err
+						}
+
+						if b.opt.Condition != nil {
+							itr = NewFilterIterator(itr, b.opt.Condition, subOpt)
+						}
+						return itr, nil
 					}
+
+					// Reduce the expression to remove parenthesis.
+					e = Reduce(e, nil)
 
 					switch e := e.(type) {
 					case *VarRef:
@@ -534,6 +558,11 @@ func (b *exprIteratorBuilder) buildVarRefIterator(expr *VarRef) (Iterator, error
 							return nil, err
 						}
 
+						// Filter the iterator.
+						if b.opt.Condition != nil {
+							input = NewFilterIterator(input, b.opt.Condition, subOpt)
+						}
+
 						// Create an auxiliary iterator.
 						aitr := NewAuxIterator(input, subOpt)
 						itr := aitr.Iterator(e.Val, e.Type)
@@ -574,7 +603,15 @@ func (b *exprIteratorBuilder) buildVarRefIterator(expr *VarRef) (Iterator, error
 						// Check if this is a selector or not and
 						// create the iterator directly.
 						selector := len(info.calls) == 1 && IsSelector(e)
-						return buildExprIterator(e, b.ic, source.Statement.Sources, subOpt, selector)
+						itr, err := buildExprIterator(e, b.ic, source.Statement.Sources, subOpt, selector)
+						if err != nil {
+							return nil, err
+						}
+
+						if b.opt.Condition != nil {
+							itr = NewFilterIterator(itr, b.opt.Condition, subOpt)
+						}
+						return itr, nil
 					case *BinaryExpr:
 						// Retrieve the calls and references for this binary expression.
 						// There should be no mixing of calls and refs.
@@ -783,6 +820,10 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 						input, err := buildExprIterator(arg0, b.ic, []Source{source}, b.opt, b.selector)
 						if err != nil {
 							return err
+						}
+
+						if b.opt.Condition != nil {
+							input = NewFilterIterator(input, b.opt.Condition, b.opt)
 						}
 
 						// Wrap the result in a call iterator.
@@ -1453,6 +1494,8 @@ func floatBinaryExprFunc(op Token) interface{} {
 			}
 			return lhs / rhs
 		}
+	case MOD:
+		return func(lhs, rhs float64) float64 { return math.Mod(lhs, rhs) }
 	case EQ:
 		return func(lhs, rhs float64) bool { return lhs == rhs }
 	case NEQ:
@@ -1483,6 +1526,13 @@ func integerBinaryExprFunc(op Token) interface{} {
 				return float64(0)
 			}
 			return float64(lhs) / float64(rhs)
+		}
+	case MOD:
+		return func(lhs, rhs int64) int64 {
+			if rhs == 0 {
+				return int64(0)
+			}
+			return lhs % rhs
 		}
 	case EQ:
 		return func(lhs, rhs int64) bool { return lhs == rhs }

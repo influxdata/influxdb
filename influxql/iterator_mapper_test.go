@@ -31,14 +31,18 @@ func TestIteratorMapper(t *testing.T) {
 			{Val: "val2", Type: influxql.String},
 		},
 	}
-	itr := influxql.NewIteratorMapper(inputs, []int{0, 1}, opt)
+	itr := influxql.NewIteratorMapper(inputs, []influxql.IteratorMap{
+		influxql.FieldMap(0),
+		influxql.FieldMap(1),
+		influxql.TagMap("host"),
+	}, opt)
 	if a, err := Iterators([]influxql.Iterator{itr}).ReadAll(); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	} else if !deep.Equal(a, [][]influxql.Point{
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Aux: []interface{}{float64(1), "a"}}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 5, Aux: []interface{}{float64(3), "c"}}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 2, Aux: []interface{}{float64(2), "b"}}},
-		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 8, Aux: []interface{}{float64(8), "h"}}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 0, Aux: []interface{}{float64(1), "a", "A"}}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=A"), Time: 5, Aux: []interface{}{float64(3), "c", "A"}}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 2, Aux: []interface{}{float64(2), "b", "B"}}},
+		{&influxql.FloatPoint{Name: "cpu", Tags: ParseTags("host=B"), Time: 8, Aux: []interface{}{float64(8), "h", "B"}}},
 	}) {
 		t.Errorf("unexpected points: %s", spew.Sdump(a))
 	}

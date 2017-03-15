@@ -738,25 +738,6 @@ type NodeInfo struct {
 	TCPHost string
 }
 
-// clone returns a deep copy of ni.
-func (ni NodeInfo) clone() NodeInfo { return ni }
-
-// marshal serializes to a protobuf representation.
-func (ni NodeInfo) marshal() *internal.NodeInfo {
-	pb := &internal.NodeInfo{}
-	pb.ID = proto.Uint64(ni.ID)
-	pb.Host = proto.String(ni.Host)
-	pb.TCPHost = proto.String(ni.TCPHost)
-	return pb
-}
-
-// unmarshal deserializes from a protobuf representation.
-func (ni *NodeInfo) unmarshal(pb *internal.NodeInfo) {
-	ni.ID = pb.GetID()
-	ni.Host = pb.GetHost()
-	ni.TCPHost = pb.GetTCPHost()
-}
-
 // NodeInfos is a slice of NodeInfo used for sorting
 type NodeInfos []NodeInfo
 
@@ -1428,15 +1409,24 @@ func (cqi *ContinuousQueryInfo) unmarshal(pb *internal.ContinuousQueryInfo) {
 
 // UserInfo represents metadata about a user in the system.
 type UserInfo struct {
-	Name       string
-	Hash       string
-	Admin      bool
+	// User's name.
+	Name string
+
+	// Hashed password.
+	Hash string
+
+	// Whether the user is an admin, i.e. allowed to do everything.
+	Admin bool
+
+	// Map of database name to granted privilege.
 	Privileges map[string]influxql.Privilege
 }
 
-// Authorize returns true if the user is authorized and false if not.
-func (ui *UserInfo) Authorize(privilege influxql.Privilege, database string) bool {
-	if ui.Admin {
+var _ influxql.Authorizer = (*UserInfo)(nil)
+
+// AuthorizeDatabase returns true if the user is authorized for the given privilege on the given database.
+func (ui *UserInfo) AuthorizeDatabase(privilege influxql.Privilege, database string) bool {
+	if ui.Admin || privilege == influxql.NoPrivileges {
 		return true
 	}
 	p, ok := ui.Privileges[database]

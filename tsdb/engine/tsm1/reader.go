@@ -66,7 +66,7 @@ type TSMIndex interface {
 	Entry(key string, timestamp int64) *IndexEntry
 
 	// Key returns the key in the index at the given position.
-	Key(index int) (string, []IndexEntry)
+	Key(index int) (string, byte, []IndexEntry)
 
 	// KeyAt returns the key in the index at the given position.
 	KeyAt(index int) ([]byte, byte)
@@ -110,6 +110,7 @@ type BlockIterator struct {
 	key     string
 	entries []IndexEntry
 	err     error
+	typ     byte
 }
 
 // PeekNext returns the next key to be iterated or an empty string.
@@ -137,7 +138,7 @@ func (b *BlockIterator) Next() bool {
 	}
 
 	if b.n-b.i > 0 {
-		b.key, b.entries = b.r.Key(b.i)
+		b.key, b.typ, b.entries = b.r.Key(b.i)
 		b.i++
 
 		if len(b.entries) > 0 {
@@ -149,15 +150,15 @@ func (b *BlockIterator) Next() bool {
 }
 
 // Read reads information about the next block to be iterated.
-func (b *BlockIterator) Read() (key string, minTime int64, maxTime int64, checksum uint32, buf []byte, err error) {
+func (b *BlockIterator) Read() (key string, minTime int64, maxTime int64, typ byte, checksum uint32, buf []byte, err error) {
 	if b.err != nil {
-		return "", 0, 0, 0, nil, b.err
+		return "", 0, 0, 0, 0, nil, b.err
 	}
 	checksum, buf, err = b.r.readBytes(&b.entries[0], nil)
 	if err != nil {
-		return "", 0, 0, 0, nil, err
+		return "", 0, 0, 0, 0, nil, err
 	}
-	return b.key, b.entries[0].MinTime, b.entries[0].MaxTime, checksum, buf, err
+	return b.key, b.entries[0].MinTime, b.entries[0].MaxTime, b.typ, checksum, buf, err
 }
 
 // blockAccessor abstracts a method of accessing blocks from a
@@ -245,7 +246,7 @@ func (t *TSMReader) Path() string {
 }
 
 // Key returns the key and the underlying entry at the numeric index.
-func (t *TSMReader) Key(index int) (string, []IndexEntry) {
+func (t *TSMReader) Key(index int) (string, byte, []IndexEntry) {
 	return t.index.Key(index)
 }
 
@@ -685,23 +686,25 @@ func (d *indirectIndex) Entry(key string, timestamp int64) *IndexEntry {
 }
 
 // Key returns the key in the index at the given position.
-func (d *indirectIndex) Key(idx int) (string, []IndexEntry) {
+func (d *indirectIndex) Key(idx int) (string, byte, []IndexEntry) {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 
 	if idx < 0 || idx >= len(d.offsets) {
-		return "", nil
+		return "", 0, nil
 	}
 	n, key, err := readKey(d.b[d.offsets[idx]:])
 	if err != nil {
-		return "", nil
+		return "", 0, nil
 	}
+
+	typ := d.b[int(d.offsets[idx])+n]
 
 	var entries indexEntries
 	if _, err := readEntries(d.b[int(d.offsets[idx])+n:], &entries); err != nil {
-		return "", nil
+		return "", 0, nil
 	}
-	return string(key), entries.entries
+	return string(key), typ, entries.entries
 }
 
 // KeyAt returns the key in the index at the given position.

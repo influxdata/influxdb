@@ -453,7 +453,7 @@ type floatParallelIterator struct {
 func newFloatParallelIterator(input FloatIterator) *floatParallelIterator {
 	itr := &floatParallelIterator{
 		input:   input,
-		ch:      make(chan floatPointError, 1),
+		ch:      make(chan floatPointError, 256),
 		closing: make(chan struct{}),
 	}
 	itr.wg.Add(1)
@@ -488,6 +488,9 @@ func (itr *floatParallelIterator) monitor() {
 	for {
 		// Read next point.
 		p, err := itr.input.Next()
+		if p != nil {
+			p = p.Clone()
+		}
 
 		select {
 		case <-itr.closing:
@@ -1258,47 +1261,39 @@ func (itr *floatExprIterator) Close() error {
 
 func (itr *floatExprIterator) Next() (*FloatPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = 0
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = 0
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -1314,6 +1309,48 @@ func (itr *floatExprIterator) Next() (*FloatPoint, error) {
 		return a, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *floatExprIterator) next() (a, b *FloatPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // floatExprFunc creates or modifies a point by combining two
@@ -1592,47 +1629,39 @@ func (itr *floatIntegerExprIterator) Close() error {
 
 func (itr *floatIntegerExprIterator) Next() (*IntegerPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = 0
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = 0
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -1652,6 +1681,48 @@ func (itr *floatIntegerExprIterator) Next() (*IntegerPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *floatIntegerExprIterator) next() (a, b *FloatPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // floatIntegerExprFunc creates or modifies a point by combining two
@@ -1930,47 +2001,39 @@ func (itr *floatStringExprIterator) Close() error {
 
 func (itr *floatStringExprIterator) Next() (*StringPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = 0
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = 0
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -1990,6 +2053,48 @@ func (itr *floatStringExprIterator) Next() (*StringPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *floatStringExprIterator) next() (a, b *FloatPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // floatStringExprFunc creates or modifies a point by combining two
@@ -2268,47 +2373,39 @@ func (itr *floatBooleanExprIterator) Close() error {
 
 func (itr *floatBooleanExprIterator) Next() (*BooleanPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = 0
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = 0
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -2328,6 +2425,48 @@ func (itr *floatBooleanExprIterator) Next() (*BooleanPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *floatBooleanExprIterator) next() (a, b *FloatPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // floatBooleanExprFunc creates or modifies a point by combining two
@@ -2401,6 +2540,65 @@ type floatBoolTransformFunc func(p *FloatPoint) *BooleanPoint
 type floatDedupeIterator struct {
 	input FloatIterator
 	m     map[string]struct{} // lookup of points already sent
+}
+
+type floatFilterIterator struct {
+	input FloatIterator
+	cond  Expr
+	opt   IteratorOptions
+	m     map[string]interface{}
+}
+
+func newFloatFilterIterator(input FloatIterator, cond Expr, opt IteratorOptions) FloatIterator {
+	// Strip out time conditions from the WHERE clause.
+	// TODO(jsternberg): This should really be done for us when creating the IteratorOptions struct.
+	n := RewriteFunc(CloneExpr(cond), func(n Node) Node {
+		switch n := n.(type) {
+		case *BinaryExpr:
+			if n.LHS.String() == "time" {
+				return &BooleanLiteral{Val: true}
+			}
+		}
+		return n
+	})
+
+	cond, _ = n.(Expr)
+	if cond == nil {
+		return input
+	} else if n, ok := cond.(*BooleanLiteral); ok && n.Val {
+		return input
+	}
+
+	return &floatFilterIterator{
+		input: input,
+		cond:  cond,
+		opt:   opt,
+		m:     make(map[string]interface{}),
+	}
+}
+
+func (itr *floatFilterIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *floatFilterIterator) Close() error         { return itr.input.Close() }
+
+func (itr *floatFilterIterator) Next() (*FloatPoint, error) {
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		}
+
+		for i, ref := range itr.opt.Aux {
+			itr.m[ref.Val] = p.Aux[i]
+		}
+		for k, v := range p.Tags.KeyValues() {
+			itr.m[k] = v
+		}
+
+		if !EvalBool(itr.cond, itr.m) {
+			continue
+		}
+		return p, nil
+	}
 }
 
 // newFloatDedupeIterator returns a new instance of floatDedupeIterator.
@@ -2913,7 +3111,7 @@ type integerParallelIterator struct {
 func newIntegerParallelIterator(input IntegerIterator) *integerParallelIterator {
 	itr := &integerParallelIterator{
 		input:   input,
-		ch:      make(chan integerPointError, 1),
+		ch:      make(chan integerPointError, 256),
 		closing: make(chan struct{}),
 	}
 	itr.wg.Add(1)
@@ -2948,6 +3146,9 @@ func (itr *integerParallelIterator) monitor() {
 	for {
 		// Read next point.
 		p, err := itr.input.Next()
+		if p != nil {
+			p = p.Clone()
+		}
 
 		select {
 		case <-itr.closing:
@@ -3715,47 +3916,39 @@ func (itr *integerFloatExprIterator) Close() error {
 
 func (itr *integerFloatExprIterator) Next() (*FloatPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = 0
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = 0
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -3775,6 +3968,48 @@ func (itr *integerFloatExprIterator) Next() (*FloatPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *integerFloatExprIterator) next() (a, b *IntegerPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // integerFloatExprFunc creates or modifies a point by combining two
@@ -4053,47 +4288,39 @@ func (itr *integerExprIterator) Close() error {
 
 func (itr *integerExprIterator) Next() (*IntegerPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = 0
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = 0
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -4109,6 +4336,48 @@ func (itr *integerExprIterator) Next() (*IntegerPoint, error) {
 		return a, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *integerExprIterator) next() (a, b *IntegerPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // integerExprFunc creates or modifies a point by combining two
@@ -4387,47 +4656,39 @@ func (itr *integerStringExprIterator) Close() error {
 
 func (itr *integerStringExprIterator) Next() (*StringPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = 0
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = 0
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -4447,6 +4708,48 @@ func (itr *integerStringExprIterator) Next() (*StringPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *integerStringExprIterator) next() (a, b *IntegerPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // integerStringExprFunc creates or modifies a point by combining two
@@ -4725,47 +5028,39 @@ func (itr *integerBooleanExprIterator) Close() error {
 
 func (itr *integerBooleanExprIterator) Next() (*BooleanPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = 0
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = 0
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -4785,6 +5080,48 @@ func (itr *integerBooleanExprIterator) Next() (*BooleanPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *integerBooleanExprIterator) next() (a, b *IntegerPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // integerBooleanExprFunc creates or modifies a point by combining two
@@ -4858,6 +5195,65 @@ type integerBoolTransformFunc func(p *IntegerPoint) *BooleanPoint
 type integerDedupeIterator struct {
 	input IntegerIterator
 	m     map[string]struct{} // lookup of points already sent
+}
+
+type integerFilterIterator struct {
+	input IntegerIterator
+	cond  Expr
+	opt   IteratorOptions
+	m     map[string]interface{}
+}
+
+func newIntegerFilterIterator(input IntegerIterator, cond Expr, opt IteratorOptions) IntegerIterator {
+	// Strip out time conditions from the WHERE clause.
+	// TODO(jsternberg): This should really be done for us when creating the IteratorOptions struct.
+	n := RewriteFunc(CloneExpr(cond), func(n Node) Node {
+		switch n := n.(type) {
+		case *BinaryExpr:
+			if n.LHS.String() == "time" {
+				return &BooleanLiteral{Val: true}
+			}
+		}
+		return n
+	})
+
+	cond, _ = n.(Expr)
+	if cond == nil {
+		return input
+	} else if n, ok := cond.(*BooleanLiteral); ok && n.Val {
+		return input
+	}
+
+	return &integerFilterIterator{
+		input: input,
+		cond:  cond,
+		opt:   opt,
+		m:     make(map[string]interface{}),
+	}
+}
+
+func (itr *integerFilterIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *integerFilterIterator) Close() error         { return itr.input.Close() }
+
+func (itr *integerFilterIterator) Next() (*IntegerPoint, error) {
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		}
+
+		for i, ref := range itr.opt.Aux {
+			itr.m[ref.Val] = p.Aux[i]
+		}
+		for k, v := range p.Tags.KeyValues() {
+			itr.m[k] = v
+		}
+
+		if !EvalBool(itr.cond, itr.m) {
+			continue
+		}
+		return p, nil
+	}
 }
 
 // newIntegerDedupeIterator returns a new instance of integerDedupeIterator.
@@ -5370,7 +5766,7 @@ type stringParallelIterator struct {
 func newStringParallelIterator(input StringIterator) *stringParallelIterator {
 	itr := &stringParallelIterator{
 		input:   input,
-		ch:      make(chan stringPointError, 1),
+		ch:      make(chan stringPointError, 256),
 		closing: make(chan struct{}),
 	}
 	itr.wg.Add(1)
@@ -5405,6 +5801,9 @@ func (itr *stringParallelIterator) monitor() {
 	for {
 		// Read next point.
 		p, err := itr.input.Next()
+		if p != nil {
+			p = p.Clone()
+		}
 
 		select {
 		case <-itr.closing:
@@ -6157,47 +6556,39 @@ func (itr *stringFloatExprIterator) Close() error {
 
 func (itr *stringFloatExprIterator) Next() (*FloatPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = ""
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = ""
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -6217,6 +6608,48 @@ func (itr *stringFloatExprIterator) Next() (*FloatPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *stringFloatExprIterator) next() (a, b *StringPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // stringFloatExprFunc creates or modifies a point by combining two
@@ -6495,47 +6928,39 @@ func (itr *stringIntegerExprIterator) Close() error {
 
 func (itr *stringIntegerExprIterator) Next() (*IntegerPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = ""
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = ""
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -6555,6 +6980,48 @@ func (itr *stringIntegerExprIterator) Next() (*IntegerPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *stringIntegerExprIterator) next() (a, b *StringPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // stringIntegerExprFunc creates or modifies a point by combining two
@@ -6833,47 +7300,39 @@ func (itr *stringExprIterator) Close() error {
 
 func (itr *stringExprIterator) Next() (*StringPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = ""
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = ""
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -6889,6 +7348,48 @@ func (itr *stringExprIterator) Next() (*StringPoint, error) {
 		return a, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *stringExprIterator) next() (a, b *StringPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // stringExprFunc creates or modifies a point by combining two
@@ -7167,47 +7668,39 @@ func (itr *stringBooleanExprIterator) Close() error {
 
 func (itr *stringBooleanExprIterator) Next() (*BooleanPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = ""
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = ""
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -7227,6 +7720,48 @@ func (itr *stringBooleanExprIterator) Next() (*BooleanPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *stringBooleanExprIterator) next() (a, b *StringPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // stringBooleanExprFunc creates or modifies a point by combining two
@@ -7300,6 +7835,65 @@ type stringBoolTransformFunc func(p *StringPoint) *BooleanPoint
 type stringDedupeIterator struct {
 	input StringIterator
 	m     map[string]struct{} // lookup of points already sent
+}
+
+type stringFilterIterator struct {
+	input StringIterator
+	cond  Expr
+	opt   IteratorOptions
+	m     map[string]interface{}
+}
+
+func newStringFilterIterator(input StringIterator, cond Expr, opt IteratorOptions) StringIterator {
+	// Strip out time conditions from the WHERE clause.
+	// TODO(jsternberg): This should really be done for us when creating the IteratorOptions struct.
+	n := RewriteFunc(CloneExpr(cond), func(n Node) Node {
+		switch n := n.(type) {
+		case *BinaryExpr:
+			if n.LHS.String() == "time" {
+				return &BooleanLiteral{Val: true}
+			}
+		}
+		return n
+	})
+
+	cond, _ = n.(Expr)
+	if cond == nil {
+		return input
+	} else if n, ok := cond.(*BooleanLiteral); ok && n.Val {
+		return input
+	}
+
+	return &stringFilterIterator{
+		input: input,
+		cond:  cond,
+		opt:   opt,
+		m:     make(map[string]interface{}),
+	}
+}
+
+func (itr *stringFilterIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *stringFilterIterator) Close() error         { return itr.input.Close() }
+
+func (itr *stringFilterIterator) Next() (*StringPoint, error) {
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		}
+
+		for i, ref := range itr.opt.Aux {
+			itr.m[ref.Val] = p.Aux[i]
+		}
+		for k, v := range p.Tags.KeyValues() {
+			itr.m[k] = v
+		}
+
+		if !EvalBool(itr.cond, itr.m) {
+			continue
+		}
+		return p, nil
+	}
 }
 
 // newStringDedupeIterator returns a new instance of stringDedupeIterator.
@@ -7812,7 +8406,7 @@ type booleanParallelIterator struct {
 func newBooleanParallelIterator(input BooleanIterator) *booleanParallelIterator {
 	itr := &booleanParallelIterator{
 		input:   input,
-		ch:      make(chan booleanPointError, 1),
+		ch:      make(chan booleanPointError, 256),
 		closing: make(chan struct{}),
 	}
 	itr.wg.Add(1)
@@ -7847,6 +8441,9 @@ func (itr *booleanParallelIterator) monitor() {
 	for {
 		// Read next point.
 		p, err := itr.input.Next()
+		if p != nil {
+			p = p.Clone()
+		}
 
 		select {
 		case <-itr.closing:
@@ -8599,47 +9196,39 @@ func (itr *booleanFloatExprIterator) Close() error {
 
 func (itr *booleanFloatExprIterator) Next() (*FloatPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = false
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = false
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -8659,6 +9248,48 @@ func (itr *booleanFloatExprIterator) Next() (*FloatPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *booleanFloatExprIterator) next() (a, b *BooleanPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // booleanFloatExprFunc creates or modifies a point by combining two
@@ -8937,47 +9568,39 @@ func (itr *booleanIntegerExprIterator) Close() error {
 
 func (itr *booleanIntegerExprIterator) Next() (*IntegerPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = false
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = false
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -8997,6 +9620,48 @@ func (itr *booleanIntegerExprIterator) Next() (*IntegerPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *booleanIntegerExprIterator) next() (a, b *BooleanPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // booleanIntegerExprFunc creates or modifies a point by combining two
@@ -9275,47 +9940,39 @@ func (itr *booleanStringExprIterator) Close() error {
 
 func (itr *booleanStringExprIterator) Next() (*StringPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = false
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = false
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -9335,6 +9992,48 @@ func (itr *booleanStringExprIterator) Next() (*StringPoint, error) {
 		return p, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *booleanStringExprIterator) next() (a, b *BooleanPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // booleanStringExprFunc creates or modifies a point by combining two
@@ -9613,47 +10312,39 @@ func (itr *booleanExprIterator) Close() error {
 
 func (itr *booleanExprIterator) Next() (*BooleanPoint, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = false
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = false
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -9669,6 +10360,48 @@ func (itr *booleanExprIterator) Next() (*BooleanPoint, error) {
 		return a, nil
 
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *booleanExprIterator) next() (a, b *BooleanPoint, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // booleanExprFunc creates or modifies a point by combining two
@@ -9742,6 +10475,65 @@ type booleanBoolTransformFunc func(p *BooleanPoint) *BooleanPoint
 type booleanDedupeIterator struct {
 	input BooleanIterator
 	m     map[string]struct{} // lookup of points already sent
+}
+
+type booleanFilterIterator struct {
+	input BooleanIterator
+	cond  Expr
+	opt   IteratorOptions
+	m     map[string]interface{}
+}
+
+func newBooleanFilterIterator(input BooleanIterator, cond Expr, opt IteratorOptions) BooleanIterator {
+	// Strip out time conditions from the WHERE clause.
+	// TODO(jsternberg): This should really be done for us when creating the IteratorOptions struct.
+	n := RewriteFunc(CloneExpr(cond), func(n Node) Node {
+		switch n := n.(type) {
+		case *BinaryExpr:
+			if n.LHS.String() == "time" {
+				return &BooleanLiteral{Val: true}
+			}
+		}
+		return n
+	})
+
+	cond, _ = n.(Expr)
+	if cond == nil {
+		return input
+	} else if n, ok := cond.(*BooleanLiteral); ok && n.Val {
+		return input
+	}
+
+	return &booleanFilterIterator{
+		input: input,
+		cond:  cond,
+		opt:   opt,
+		m:     make(map[string]interface{}),
+	}
+}
+
+func (itr *booleanFilterIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *booleanFilterIterator) Close() error         { return itr.input.Close() }
+
+func (itr *booleanFilterIterator) Next() (*BooleanPoint, error) {
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		}
+
+		for i, ref := range itr.opt.Aux {
+			itr.m[ref.Val] = p.Aux[i]
+		}
+		for k, v := range p.Tags.KeyValues() {
+			itr.m[k] = v
+		}
+
+		if !EvalBool(itr.cond, itr.m) {
+			continue
+		}
+		return p, nil
+	}
 }
 
 // newBooleanDedupeIterator returns a new instance of booleanDedupeIterator.

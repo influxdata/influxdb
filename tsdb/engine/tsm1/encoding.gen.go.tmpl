@@ -185,6 +185,53 @@ func (a {{.Name}}Values) Merge(b {{.Name}}Values) {{.Name}}Values {
 	return a
 }
 
+{{ if ne .Name "" }}
+func (a {{.Name}}Values) Encode(buf []byte) ([]byte, error) {
+	return encode{{.Name}}ValuesBlock(buf, a)
+}
+
+func encode{{ .Name }}ValuesBlock(buf []byte, values []{{.Name}}Value) ([]byte, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+
+	venc := get{{ .Name }}Encoder(len(values))
+	tsenc := getTimeEncoder(len(values))
+
+	var b []byte
+	err := func() error {
+		for _, v := range values {
+			tsenc.Write(v.unixnano)
+			venc.Write(v.value)
+		}
+		venc.Flush()
+
+		// Encoded timestamp values
+		tb, err := tsenc.Bytes()
+		if err != nil {
+			return err
+		}
+		// Encoded values
+		vb, err := venc.Bytes()
+		if err != nil {
+			return err
+		}
+
+		// Prepend the first timestamp of the block in the first 8 bytes and the block
+		// in the next byte, followed by the block
+		b = packBlock(buf, {{ .Type }}, tb, vb)
+
+		return nil
+	}()
+
+	putTimeEncoder(tsenc)
+	put{{.Name}}Encoder(venc)
+
+	return b, err
+}
+
+{{ end }}
+
 // Sort methods
 func (a {{.Name}}Values) Len() int           { return len(a) }
 func (a {{.Name}}Values) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }

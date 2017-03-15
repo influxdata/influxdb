@@ -15,6 +15,7 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -24,10 +25,11 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 const (
@@ -86,6 +88,7 @@ type Handler struct {
 
 	Monitor interface {
 		Statistics(tags map[string]string) ([]*monitor.Statistic, error)
+		Diagnostics() (map[string]*diagnostics.Diagnostics, error)
 	}
 
 	PointsWriter interface {
@@ -385,6 +388,14 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user *meta.
 		ChunkSize: chunkSize,
 		ReadOnly:  r.Method == "GET",
 		NodeID:    nodeID,
+	}
+
+	if h.Config.AuthEnabled {
+		// The current user determines the authorized actions.
+		opts.Authorizer = user
+	} else {
+		// Auth is disabled, so allow everything.
+		opts.Authorizer = influxql.OpenAuthorizer{}
 	}
 
 	// Make sure if the client disconnects we signal the query to abort
@@ -736,10 +747,36 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Retrieve diagnostics from the monitor.
+	diags, err := h.Monitor.Diagnostics()
+	if err != nil {
+		h.httpError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 
-	fmt.Fprintln(w, "{")
 	first := true
+	if val, ok := diags["system"]; ok {
+		jv, err := parseSystemDiagnostics(val)
+		if err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		data, err := json.Marshal(jv)
+		if err != nil {
+			h.httpError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		first = false
+		fmt.Fprintln(w, "{")
+		fmt.Fprintf(w, "\"system\": %s", data)
+	} else {
+		fmt.Fprintln(w, "{")
+	}
+
 	if val := expvar.Get("cmdline"); val != nil {
 		if !first {
 			fmt.Fprintln(w, ",")
@@ -795,6 +832,48 @@ func (h *Handler) serveExpvar(w http.ResponseWriter, r *http.Request) {
 		w.Write(bytes.TrimSpace(val))
 	}
 	fmt.Fprintln(w, "\n}")
+}
+
+// parseSystemDiagnostics converts the system diagnostics into an appropriate
+// format for marshaling to JSON in the /debug/vars format.
+func parseSystemDiagnostics(d *diagnostics.Diagnostics) (map[string]interface{}, error) {
+	// We don't need PID in this case.
+	m := map[string]interface{}{"currentTime": nil, "started": nil, "uptime": nil}
+	for key := range m {
+		// Find the associated column.
+		ci := -1
+		for i, col := range d.Columns {
+			if col == key {
+				ci = i
+				break
+			}
+		}
+
+		if ci == -1 {
+			return nil, fmt.Errorf("unable to find column %q", key)
+		}
+
+		if len(d.Rows) < 1 || len(d.Rows[0]) <= ci {
+			return nil, fmt.Errorf("no data for column %q", key)
+		}
+
+		var res interface{}
+		switch v := d.Rows[0][ci].(type) {
+		case time.Time:
+			res = v
+		case string:
+			// Should be a string representation of a time.Duration
+			d, err := time.ParseDuration(v)
+			if err != nil {
+				return nil, err
+			}
+			res = int64(d.Seconds())
+		default:
+			return nil, fmt.Errorf("value for column %q is not parsable (got %T)", key, v)
+		}
+		m[key] = res
+	}
+	return m, nil
 }
 
 // httpError writes an error to the client in a standard format.
@@ -1017,11 +1096,28 @@ func gzipFilter(inner http.Handler) http.Handler {
 			inner.ServeHTTP(w, r)
 			return
 		}
-		gz := gzip.NewWriter(w)
-		defer gz.Close()
+		gz := getGzipWriter(w)
+		defer putGzipWriter(gz)
 		gzw := gzipResponseWriter{Writer: gz, ResponseWriter: w}
 		inner.ServeHTTP(gzw, r)
 	})
+}
+
+var gzipWriterPool = sync.Pool{
+	New: func() interface{} {
+		return gzip.NewWriter(nil)
+	},
+}
+
+func getGzipWriter(w io.Writer) *gzip.Writer {
+	gz := gzipWriterPool.Get().(*gzip.Writer)
+	gz.Reset(w)
+	return gz
+}
+
+func putGzipWriter(gz *gzip.Writer) {
+	gz.Close()
+	gzipWriterPool.Put(gz)
 }
 
 // cors responds to incoming requests and adds the appropriate cors headers

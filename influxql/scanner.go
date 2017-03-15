@@ -65,6 +65,8 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 		return MUL, pos, ""
 	case '/':
 		return DIV, pos, ""
+	case '%':
+		return MOD, pos, ""
 	case '=':
 		if ch1, _ := s.r.read(); ch1 == '~' {
 			return EQREGEX, pos, ""
@@ -554,7 +556,6 @@ func ScanString(r io.RuneScanner) (string, error) {
 
 var errBadString = errors.New("bad string")
 var errBadEscape = errors.New("bad escape")
-var errBadRegex = errors.New("bad regex")
 
 // ScanBareIdent reads bare identifier from a rune reader.
 func ScanBareIdent(r io.RuneScanner) string {
@@ -575,16 +576,7 @@ func ScanBareIdent(r io.RuneScanner) string {
 	return buf.String()
 }
 
-var errInvalidIdentifier = errors.New("invalid identifier")
-
 // IsRegexOp returns true if the operator accepts a regex operand.
 func IsRegexOp(t Token) bool {
 	return (t == EQREGEX || t == NEQREGEX)
-}
-
-// assert will panic with a given formatted message if the given condition is false.
-func assert(condition bool, msg string, v ...interface{}) {
-	if !condition {
-		panic(fmt.Sprintf("assert failed: "+msg, v...))
-	}
 }

@@ -31,7 +31,7 @@ import (
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
 	client "github.com/influxdata/usage-client/v1"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 
 	// Initialize the engine & index packages
 	_ "github.com/influxdata/influxdb/tsdb/engine"
@@ -158,6 +158,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		config: c,
 	}
 	s.Monitor = monitor.New(s, c.Monitor)
+	s.config.registerDiagnostics(s.Monitor)
 
 	if err := s.MetaClient.Open(); err != nil {
 		return nil, err
@@ -461,6 +462,8 @@ func (s *Server) Close() error {
 		service.Close()
 	}
 
+	s.config.deregisterDiagnostics(s.Monitor)
+
 	if s.PointsWriter != nil {
 		s.PointsWriter.Close()
 	}
@@ -554,21 +557,6 @@ func (s *Server) reportServer() {
 	go cl.Save(usage)
 }
 
-// monitorErrorChan reads an error channel and resends it through the server.
-func (s *Server) monitorErrorChan(ch <-chan error) {
-	for {
-		select {
-		case err, ok := <-ch:
-			if !ok {
-				return
-			}
-			s.err <- err
-		case <-s.closing:
-			return
-		}
-	}
-}
-
 // Service represents a service attached to the server.
 type Service interface {
 	WithLogger(log zap.Logger)
@@ -619,11 +607,6 @@ func stopProfile() {
 		log.Println("mem profile stopped")
 	}
 }
-
-type tcpaddr struct{ host string }
-
-func (a *tcpaddr) Network() string { return "tcp" }
-func (a *tcpaddr) String() string  { return a.host }
 
 // monitorPointsWriter is a wrapper around `coordinator.PointsWriter` that helps
 // to prevent a circular dependency between the `cluster` and `monitor` packages.

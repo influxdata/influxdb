@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"math"
-	"math/rand"
 	"reflect"
 	"testing"
 	"time"
@@ -1073,29 +1072,6 @@ func FloatIterators(inputs []*FloatIterator) []influxql.Iterator {
 		itrs[i] = influxql.Iterator(inputs[i])
 	}
 	return itrs
-}
-
-// GenerateFloatIterator creates a FloatIterator with random data.
-func GenerateFloatIterator(rand *rand.Rand, valueN int) *FloatIterator {
-	const interval = 10 * time.Second
-
-	itr := &FloatIterator{
-		Points: make([]influxql.FloatPoint, valueN),
-	}
-
-	for i := 0; i < valueN; i++ {
-		// Generate incrementing timestamp with some jitter (1s).
-		jitter := (rand.Int63n(2) * int64(time.Second))
-		timestamp := int64(i)*int64(10*time.Second) + jitter
-
-		itr.Points[i] = influxql.FloatPoint{
-			Name:  "cpu",
-			Time:  timestamp,
-			Value: rand.Float64(),
-		}
-	}
-
-	return itr
 }
 
 // Test implementation of influxql.IntegerIterator

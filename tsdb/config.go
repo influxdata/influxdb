@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/toml"
 )
 
@@ -131,4 +132,18 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
+}
+
+// Diagnostics returns a diagnostics representation of a subset of the Config.
+func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
+	return diagnostics.RowFromMap(map[string]interface{}{
+		"dir":                                c.Dir,
+		"wal-dir":                            c.WALDir,
+		"cache-max-memory-size":              c.CacheMaxMemorySize,
+		"cache-snapshot-memory-size":         c.CacheSnapshotMemorySize,
+		"cache-snapshot-write-cold-duration": c.CacheSnapshotWriteColdDuration,
+		"compact-full-write-cold-duration":   c.CompactFullWriteColdDuration,
+		"max-series-per-shard":               c.MaxSeriesPerShard,
+		"max-values-per-tag":                 c.MaxValuesPerTag,
+	}), nil
 }

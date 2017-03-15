@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"regexp/syntax"
 	"sort"
@@ -72,6 +73,16 @@ func InspectDataTypes(a []interface{}) []DataType {
 		dta[i] = InspectDataType(v)
 	}
 	return dta
+}
+
+// LessThan returns true if the other DataType has greater precedence than the
+// current data type. Unknown has the lowest precedence.
+//
+// NOTE: This is not the same as using the `<` or `>` operator because the
+// integers used decrease with higher precedence, but Unknown is the lowest
+// precedence at the zero value.
+func (d DataType) LessThan(other DataType) bool {
+	return d == Unknown || (other != Unknown && other < d)
 }
 
 // String returns the human-readable string representation of the DataType.
@@ -1369,7 +1380,7 @@ func matchExactRegex(v string) (string, bool) {
 
 	if len(re.Sub) == 3 {
 		middle := re.Sub[1]
-		if middle.Op != syntax.OpLiteral {
+		if middle.Op != syntax.OpLiteral || middle.Flags^syntax.Perl != 0 {
 			// Regex does not contain a literal op.
 			return "", false
 		}
@@ -1630,15 +1641,21 @@ func (s *SelectStatement) String() string {
 func (s *SelectStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
 	ep := ExecutionPrivileges{}
 	for _, source := range s.Sources {
-		measurement, ok := source.(*Measurement)
-		if !ok {
-			return nil, fmt.Errorf("invalid measurement: %s", source)
+		switch source := source.(type) {
+		case *Measurement:
+			ep = append(ep, ExecutionPrivilege{
+				Name:      source.Database,
+				Privilege: ReadPrivilege,
+			})
+		case *SubQuery:
+			privs, err := source.Statement.RequiredPrivileges()
+			if err != nil {
+				return nil, err
+			}
+			ep = append(ep, privs...)
+		default:
+			return nil, fmt.Errorf("invalid source: %s", source)
 		}
-
-		ep = append(ep, ExecutionPrivilege{
-			Name:      measurement.Database,
-			Privilege: ReadPrivilege,
-		})
 	}
 
 	if s.Target != nil {
@@ -1922,7 +1939,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					return fmt.Errorf("invalid group interval: %v", err)
 				}
 
-				if c, ok := expr.Args[0].(*Call); ok && groupByInterval == 0 {
+				if c, ok := expr.Args[0].(*Call); ok && groupByInterval == 0 && tr != targetSubquery {
 					return fmt.Errorf("%s aggregate requires a GROUP BY interval", expr.Name)
 				} else if !ok && groupByInterval > 0 {
 					return fmt.Errorf("aggregate function required inside the call to %s", expr.Name)
@@ -1983,7 +2000,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 					return fmt.Errorf("invalid group interval: %v", err)
 				}
 
-				if _, ok := expr.Args[0].(*Call); ok && groupByInterval == 0 {
+				if _, ok := expr.Args[0].(*Call); ok && groupByInterval == 0 && tr != targetSubquery {
 					return fmt.Errorf("%s aggregate requires a GROUP BY interval", expr.Name)
 				} else if !ok {
 					return fmt.Errorf("must use aggregate function with %s", expr.Name)
@@ -2043,6 +2060,11 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 
 	// If we have an aggregate function with a group by time without a where clause, it's an invalid statement
 	if tr == targetNotRequired { // ignore create continuous query statements
+		if err := s.validateTimeExpression(); err != nil {
+			return err
+		}
+	}
+	if tr != targetSubquery {
 		if err := s.validateGroupByInterval(); err != nil {
 			return err
 		}
@@ -2050,10 +2072,10 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	return nil
 }
 
-// validateGroupByInterval ensures that any select statements that have a group
+// validateTimeExpression ensures that any select statements that have a group
 // by interval either have a time expression limiting the time range or have a
 // parent query that does that.
-func (s *SelectStatement) validateGroupByInterval() error {
+func (s *SelectStatement) validateTimeExpression() error {
 	// If we have a time expression, we and all subqueries are fine.
 	if HasTimeExpr(s.Condition) {
 		return nil
@@ -2072,6 +2094,44 @@ func (s *SelectStatement) validateGroupByInterval() error {
 	// statement, we don't need to do this because parent time ranges propagate
 	// to children. So we only execute this when there is no time condition in
 	// the parent.
+	for _, source := range s.Sources {
+		switch source := source.(type) {
+		case *SubQuery:
+			if err := source.Statement.validateTimeExpression(); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// validateGroupByInterval ensures that a select statement is grouped by an
+// interval if it contains certain functions.
+func (s *SelectStatement) validateGroupByInterval() error {
+	interval, err := s.GroupByInterval()
+	if err != nil {
+		return err
+	} else if interval > 0 {
+		// If we have an interval here, that means the interval will propagate
+		// into any subqueries and we can just stop looking.
+		return nil
+	}
+
+	// Check inside of the fields for any of the specific functions that ned a group by interval.
+	for _, f := range s.Fields {
+		switch expr := f.Expr.(type) {
+		case *Call:
+			switch expr.Name {
+			case "derivative", "non_negative_derivative", "difference", "moving_average", "cumulative_sum", "elapsed", "holt_winters", "holt_winters_with_fit":
+				// If the first argument is a call, we needed a group by interval and we don't have one.
+				if _, ok := expr.Args[0].(*Call); ok {
+					return fmt.Errorf("%s aggregate requires a GROUP BY interval", expr.Name)
+				}
+			}
+		}
+	}
+
+	// Validate the subqueries.
 	for _, source := range s.Sources {
 		switch source := source.(type) {
 		case *SubQuery:
@@ -2378,45 +2438,6 @@ func walkFunctionCalls(exp Expr) []*Call {
 	return nil
 }
 
-// filterExprBySource filters an expression to exclude expressions unrelated to a source.
-func filterExprBySource(name string, expr Expr) Expr {
-	switch expr := expr.(type) {
-	case *VarRef:
-		if !strings.HasPrefix(expr.Val, name) {
-			return nil
-		}
-
-	case *BinaryExpr:
-		lhs := filterExprBySource(name, expr.LHS)
-		rhs := filterExprBySource(name, expr.RHS)
-
-		// If an expr is logical then return either LHS/RHS or both.
-		// If an expr is arithmetic or comparative then require both sides.
-		if expr.Op == AND || expr.Op == OR {
-			if lhs == nil && rhs == nil {
-				return nil
-			} else if lhs != nil && rhs == nil {
-				return lhs
-			} else if lhs == nil && rhs != nil {
-				return rhs
-			}
-		} else {
-			if lhs == nil || rhs == nil {
-				return nil
-			}
-		}
-		return &BinaryExpr{Op: expr.Op, LHS: lhs, RHS: rhs}
-
-	case *ParenExpr:
-		exp := filterExprBySource(name, expr.Expr)
-		if exp == nil {
-			return nil
-		}
-		return &ParenExpr{Expr: exp}
-	}
-	return expr
-}
-
 // MatchSource returns the source name that matches a field name.
 // It returns a blank string if no sources match.
 func MatchSource(sources Sources, name string) string {
@@ -2662,7 +2683,10 @@ func (s *ShowDatabasesStatement) String() string { return "SHOW DATABASES" }
 
 // RequiredPrivileges returns the privilege required to execute a ShowDatabasesStatement.
 func (s *ShowDatabasesStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
+	// SHOW DATABASES is one of few statements that have no required privileges.
+	// Anyone is allowed to execute it, but the returned results depend on the user's
+	// individual database permissions.
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: NoPrivileges}}, nil
 }
 
 // CreateContinuousQueryStatement represents a command for creating a continuous query.
@@ -4291,6 +4315,11 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 				return float64(0)
 			}
 			return lhs / rhs
+		case MOD:
+			if !ok {
+				return nil
+			}
+			return math.Mod(lhs, rhs)
 		}
 	case int64:
 		// Try as a float64 to see if a float cast is required.
@@ -4322,6 +4351,8 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 					return float64(0)
 				}
 				return lhs / rhs
+			case MOD:
+				return math.Mod(lhs, rhs)
 			}
 		} else {
 			rhs, ok := rhs.(int64)
@@ -4360,6 +4391,13 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 					return float64(0)
 				}
 				return lhs / rhs
+			case MOD:
+				if !ok {
+					return nil
+				} else if rhs == 0 {
+					return int64(0)
+				}
+				return lhs % rhs
 			}
 		}
 	case string:
@@ -4414,15 +4452,13 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 		for _, src := range sources {
 			switch src := src.(type) {
 			case *Measurement:
-				t := typmap.MapType(src, expr.Val)
-				if typ == Unknown || t < typ {
+				if t := typmap.MapType(src, expr.Val); typ.LessThan(t) {
 					typ = t
 				}
 			case *SubQuery:
 				_, e := src.Statement.FieldExprByName(expr.Val)
 				if e != nil {
-					t := EvalType(e, src.Statement.Sources, typmap)
-					if typ == Unknown || t < typ {
+					if t := EvalType(e, src.Statement.Sources, typmap); typ.LessThan(t) {
 						typ = t
 					}
 				}
@@ -4447,7 +4483,7 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 			return EvalType(expr.Args[0], sources, typmap)
 		}
 	case *ParenExpr:
-		return EvalType(expr, sources, typmap)
+		return EvalType(expr.Expr, sources, typmap)
 	case *NumberLiteral:
 		return Float
 	case *IntegerLiteral:
@@ -4503,10 +4539,10 @@ func FieldDimensions(sources Sources, m FieldMapper) (fields map[string]DataType
 					fields[k] = typ
 				}
 			}
+
 			for _, d := range src.Statement.Dimensions {
-				switch d := d.Expr.(type) {
-				case *VarRef:
-					dimensions[d.Val] = struct{}{}
+				if expr, ok := d.Expr.(*VarRef); ok {
+					dimensions[expr.Val] = struct{}{}
 				}
 			}
 		}
@@ -4699,6 +4735,11 @@ func reduceBinaryExprIntegerLHS(op Token, lhs *IntegerLiteral, rhs Expr) Expr {
 				return &NumberLiteral{Val: 0}
 			}
 			return &NumberLiteral{Val: float64(lhs.Val) / float64(rhs.Val)}
+		case MOD:
+			if rhs.Val == 0 {
+				return &IntegerLiteral{Val: 0}
+			}
+			return &IntegerLiteral{Val: lhs.Val % rhs.Val}
 		case EQ:
 			return &BooleanLiteral{Val: lhs.Val == rhs.Val}
 		case NEQ:
@@ -4765,6 +4806,8 @@ func reduceBinaryExprNumberLHS(op Token, lhs *NumberLiteral, rhs Expr) Expr {
 				return &NumberLiteral{Val: 0}
 			}
 			return &NumberLiteral{Val: lhs.Val / rhs.Val}
+		case MOD:
+			return &NumberLiteral{Val: math.Mod(lhs.Val, rhs.Val)}
 		case EQ:
 			return &BooleanLiteral{Val: lhs.Val == rhs.Val}
 		case NEQ:
@@ -4791,6 +4834,8 @@ func reduceBinaryExprNumberLHS(op Token, lhs *NumberLiteral, rhs Expr) Expr {
 				return &NumberLiteral{Val: 0}
 			}
 			return &NumberLiteral{Val: lhs.Val / float64(rhs.Val)}
+		case MOD:
+			return &NumberLiteral{Val: math.Mod(lhs.Val, float64(rhs.Val))}
 		case EQ:
 			return &BooleanLiteral{Val: lhs.Val == float64(rhs.Val)}
 		case NEQ:

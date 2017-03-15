@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/services/meta"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 // Service represents the retention policy enforcement service.
@@ -22,7 +22,6 @@ type Service struct {
 		DeleteShard(shardID uint64) error
 	}
 
-	enabled       bool
 	checkInterval time.Duration
 	wg            sync.WaitGroup
 	done          chan struct{}

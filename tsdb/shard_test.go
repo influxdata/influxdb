@@ -21,11 +21,8 @@ import (
 	_ "github.com/influxdata/influxdb/tsdb/engine"
 	_ "github.com/influxdata/influxdb/tsdb/index"
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
-
-// DefaultPrecision is the precision used by the MustWritePointsString() function.
-const DefaultPrecision = "s"
 
 func TestShardWriteAndIndex(t *testing.T) {
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
@@ -380,11 +377,13 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
+	errC := make(chan error)
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
 			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
-				t.Fatalf(err.Error())
+				errC <- err
+				return
 			}
 
 			_ = sh.WritePoints(points[:500])
@@ -399,12 +398,168 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 		defer wg.Done()
 		for i := 0; i < 50; i++ {
 			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
-				t.Fatalf(err.Error())
+				errC <- err
+				return
 			}
 
 			_ = sh.WritePoints(points[500:])
 			if f, err := sh.CreateSnapshot(); err == nil {
 				os.RemoveAll(f)
+			}
+		}
+	}()
+
+	go func() {
+		wg.Wait()
+		close(errC)
+	}()
+
+	for err := range errC {
+		if err != nil {
+			t.Error(err)
+		}
+	}
+}
+
+func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+	tmpDir, _ := ioutil.TempDir("", "shard_test")
+	defer os.RemoveAll(tmpDir)
+	tmpShard := path.Join(tmpDir, "shard")
+	tmpWal := path.Join(tmpDir, "wal")
+
+	opts := tsdb.NewEngineOptions()
+	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
+	opts.InmemIndex = inmem.NewIndex()
+
+	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
+	if err := sh.Open(); err != nil {
+		t.Fatalf("error opening shard: %s", err.Error())
+	}
+	defer sh.Close()
+
+	// Spin up two goroutines that write points with different field types in reverse
+	// order concurrently.  After writing them, query them back.
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+
+		// Write 250 floats and then ints to the same field
+		points := make([]models.Point, 0, 500)
+		for i := 0; i < cap(points); i++ {
+			if i < 250 {
+				points = append(points, models.MustNewPoint(
+					"cpu",
+					models.NewTags(map[string]string{"host": "server"}),
+					map[string]interface{}{"value": 1.0},
+					time.Unix(int64(i), 0),
+				))
+			} else {
+				points = append(points, models.MustNewPoint(
+					"cpu",
+					models.NewTags(map[string]string{"host": "server"}),
+					map[string]interface{}{"value": int64(1)},
+					time.Unix(int64(i), 0),
+				))
+			}
+		}
+
+		for i := 0; i < 500; i++ {
+			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
+				t.Fatalf(err.Error())
+			}
+
+			sh.WritePoints(points)
+
+			iter, err := sh.CreateIterator("cpu", influxql.IteratorOptions{
+				Expr:       influxql.MustParseExpr(`value`),
+				Aux:        []influxql.VarRef{{Val: "value"}},
+				Dimensions: []string{},
+				Ascending:  true,
+				StartTime:  influxql.MinTime,
+				EndTime:    influxql.MaxTime,
+			})
+			if err != nil {
+				t.Fatalf(err.Error())
+			}
+
+			switch itr := iter.(type) {
+			case influxql.IntegerIterator:
+				p, err := itr.Next()
+				for p != nil && err == nil {
+					p, err = itr.Next()
+				}
+				iter.Close()
+
+			case influxql.FloatIterator:
+				p, err := itr.Next()
+				for p != nil && err == nil {
+					p, err = itr.Next()
+				}
+				iter.Close()
+
+			}
+
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		// Write 250 ints and then floats to the same field
+		points := make([]models.Point, 0, 500)
+		for i := 0; i < cap(points); i++ {
+			if i < 250 {
+				points = append(points, models.MustNewPoint(
+					"cpu",
+					models.NewTags(map[string]string{"host": "server"}),
+					map[string]interface{}{"value": int64(1)},
+					time.Unix(int64(i), 0),
+				))
+			} else {
+				points = append(points, models.MustNewPoint(
+					"cpu",
+					models.NewTags(map[string]string{"host": "server"}),
+					map[string]interface{}{"value": 1.0},
+					time.Unix(int64(i), 0),
+				))
+			}
+		}
+		for i := 0; i < 500; i++ {
+			if err := sh.DeleteMeasurement([]byte("cpu")); err != nil {
+				t.Fatalf(err.Error())
+			}
+
+			sh.WritePoints(points)
+
+			iter, err := sh.CreateIterator("cpu", influxql.IteratorOptions{
+				Expr:       influxql.MustParseExpr(`value`),
+				Aux:        []influxql.VarRef{{Val: "value"}},
+				Dimensions: []string{},
+				Ascending:  true,
+				StartTime:  influxql.MinTime,
+				EndTime:    influxql.MaxTime,
+			})
+			if err != nil {
+				t.Fatalf(err.Error())
+			}
+
+			switch itr := iter.(type) {
+			case influxql.IntegerIterator:
+				p, err := itr.Next()
+				for p != nil && err == nil {
+					p, err = itr.Next()
+				}
+				iter.Close()
+			case influxql.FloatIterator:
+				p, err := itr.Next()
+				for p != nil && err == nil {
+					p, err = itr.Next()
+				}
+				iter.Close()
 			}
 		}
 	}()
@@ -850,7 +1005,7 @@ func benchmarkWritePoints(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt int) {
 	points := []models.Point{}
 	for _, s := range series {
 		for val := 0.0; val < float64(pntCnt); val++ {
-			p := models.MustNewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+			p := models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": val}, time.Now())
 			points = append(points, p)
 		}
 	}
@@ -889,7 +1044,7 @@ func benchmarkWritePointsExistingSeries(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt
 	points := []models.Point{}
 	for _, s := range series {
 		for val := 0.0; val < float64(pntCnt); val++ {
-			p := models.MustNewPoint(s.Measurement, s.Series.Tags, map[string]interface{}{"value": val}, time.Now())
+			p := models.MustNewPoint(s.Measurement, s.Series.Tags(), map[string]interface{}{"value": val}, time.Now())
 			points = append(points, p)
 		}
 	}
@@ -966,15 +1121,6 @@ func NewShard() *Shard {
 		),
 		path: path,
 	}
-}
-
-// MustOpenShard returns a new open shard. Panic on error.
-func MustOpenShard() *Shard {
-	sh := NewShard()
-	if err := sh.Open(); err != nil {
-		panic(err)
-	}
-	return sh
 }
 
 // Close closes the shard and removes all underlying data.

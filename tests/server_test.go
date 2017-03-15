@@ -1,4 +1,4 @@
-package run_test
+package tests
 
 import (
 	"flag"
@@ -16,7 +16,7 @@ import (
 )
 
 // Global server used by benchmarks
-var benchServer *Server
+var benchServer Server
 
 func TestMain(m *testing.M) {
 	flag.Parse()
@@ -44,6 +44,10 @@ func TestMain(m *testing.M) {
 
 // Ensure that HTTP responses include the InfluxDB version.
 func TestServer_HTTPResponseVersion(t *testing.T) {
+	if RemoteEnabled() {
+		t.Skip("Skipping.  Cannot change version of remote server")
+	}
+
 	version := "v1234"
 	s := OpenServerWithVersion(NewConfig(), version)
 	defer s.Close()
@@ -252,10 +256,14 @@ func TestServer_RetentionPolicyCommands(t *testing.T) {
 	s := OpenServer(c)
 	defer s.Close()
 
+	if _, ok := s.(*RemoteServer); ok {
+		t.Skip("Skipping. Cannot alter auto create rp remotely")
+	}
+
 	test := tests.load(t, "retention_policy_commands")
 
 	// Create a database.
-	if _, err := s.MetaClient.CreateDatabase(test.database()); err != nil {
+	if _, err := s.CreateDatabase(test.database()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -293,6 +301,115 @@ func TestServer_DatabaseRetentionPolicyAutoCreate(t *testing.T) {
 	}
 }
 
+func TestServer_ShowDatabases_NoAuth(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	test := Test{
+		queries: []*Query{
+			&Query{
+				name:    "create db1",
+				command: "CREATE DATABASE db1",
+				exp:     `{"results":[{"statement_id":0}]}`,
+			},
+			&Query{
+				name:    "create db2",
+				command: "CREATE DATABASE db2",
+				exp:     `{"results":[{"statement_id":0}]}`,
+			},
+			&Query{
+				name:    "show dbs",
+				command: "SHOW DATABASES",
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["db1"],["db2"]]}]}]}`,
+			},
+		},
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(fmt.Sprintf("command: %s - err: %s", query.command, query.Error(err)))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+func TestServer_ShowDatabases_WithAuth(t *testing.T) {
+	t.Parallel()
+	c := NewConfig()
+	c.HTTPD.AuthEnabled = true
+	s := OpenServer(c)
+	defer s.Close()
+
+	if _, ok := s.(*RemoteServer); ok {
+		t.Skip("Skipping.  Cannot enable auth on remote server")
+	}
+
+	adminParams := map[string][]string{"u": []string{"admin"}, "p": []string{"admin"}}
+	readerParams := map[string][]string{"u": []string{"reader"}, "p": []string{"r"}}
+	writerParams := map[string][]string{"u": []string{"writer"}, "p": []string{"w"}}
+	nobodyParams := map[string][]string{"u": []string{"nobody"}, "p": []string{"n"}}
+
+	test := Test{
+		queries: []*Query{
+			&Query{
+				name:    "create admin",
+				command: `CREATE USER admin WITH PASSWORD 'admin' WITH ALL PRIVILEGES`,
+				exp:     `{"results":[{"statement_id":0}]}`,
+			},
+			&Query{
+				name:    "create databases",
+				command: "CREATE DATABASE dbR; CREATE DATABASE dbW",
+				params:  adminParams,
+				exp:     `{"results":[{"statement_id":0},{"statement_id":1}]}`,
+			},
+			&Query{
+				name:    "show dbs as admin",
+				command: "SHOW DATABASES",
+				params:  adminParams,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["dbR"],["dbW"]]}]}]}`,
+			},
+			&Query{
+				name:    "create users",
+				command: `CREATE USER reader WITH PASSWORD 'r'; GRANT READ ON "dbR" TO "reader"; CREATE USER writer WITH PASSWORD 'w'; GRANT WRITE ON "dbW" TO "writer"; CREATE USER nobody WITH PASSWORD 'n'`,
+				params:  adminParams,
+				exp:     `{"results":[{"statement_id":0},{"statement_id":1},{"statement_id":2},{"statement_id":3},{"statement_id":4}]}`,
+			},
+			&Query{
+				name:    "show dbs as reader",
+				command: "SHOW DATABASES",
+				params:  readerParams,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["dbR"]]}]}]}`,
+			},
+			&Query{
+				name:    "show dbs as writer",
+				command: "SHOW DATABASES",
+				params:  writerParams,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"],"values":[["dbW"]]}]}]}`,
+			},
+			&Query{
+				name:    "show dbs as nobody",
+				command: "SHOW DATABASES",
+				params:  nobodyParams,
+				exp:     `{"results":[{"statement_id":0,"series":[{"name":"databases","columns":["name"]}]}]}`,
+			},
+		},
+	}
+
+	for _, query := range test.queries {
+		if err := query.Execute(s); err != nil {
+			t.Error(fmt.Sprintf("command: %s - err: %s", query.command, query.Error(err)))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 // Ensure user commands work.
 func TestServer_UserCommands(t *testing.T) {
 	t.Parallel()
@@ -300,7 +417,7 @@ func TestServer_UserCommands(t *testing.T) {
 	defer s.Close()
 
 	// Create a database.
-	if _, err := s.MetaClient.CreateDatabase("db0"); err != nil {
+	if _, err := s.CreateDatabase("db0"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -384,6 +501,58 @@ func TestServer_UserCommands(t *testing.T) {
 		} else if !query.success() {
 			t.Error(query.failureMessage())
 		}
+	}
+}
+
+// Ensure the server will write all points possible with exception to the field type conflict.
+// This should return a partial write and a status of 400
+func TestServer_Write_FieldTypeConflict(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	if res, err := s.Write("db0", "rp0", fmt.Sprintf("cpu value=1i %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:01Z").UnixNano()), nil); err != nil {
+		t.Fatal(err)
+	} else if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu`); err != nil {
+		t.Fatal(err)
+	} else if exp := `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-01-01T00:00:01Z",1]]}]}]}`; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	writes := []string{
+		fmt.Sprintf("cpu value=2i %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:02Z").UnixNano()),
+		fmt.Sprintf("cpu value=3  %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:03Z").UnixNano()),
+		fmt.Sprintf("cpu value=4i %d", mustParseTime(time.RFC3339Nano, "2015-01-01T00:00:04Z").UnixNano()),
+	}
+	res, err := s.Write("db0", "rp0", strings.Join(writes, "\n"), nil)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	wr, ok := err.(WriteError)
+	if !ok {
+		t.Fatalf("wrong error type %v", err)
+	}
+	if exp, got := http.StatusBadRequest, wr.StatusCode(); exp != got {
+		t.Fatalf("unexpected status code\nexp: %d\ngot: %d\n", exp, got)
+	}
+	if exp := ``; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
+	}
+
+	// Verify the data was written.
+	if res, err := s.Query(`SELECT * FROM db0.rp0.cpu`); err != nil {
+		t.Fatal(err)
+	} else if exp := `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2015-01-01T00:00:01Z",1],["2015-01-01T00:00:02Z",2],["2015-01-01T00:00:04Z",4]]}]}]}`; exp != res {
+		t.Fatalf("unexpected results\nexp: %s\ngot: %s\n", exp, res)
 	}
 }
 
@@ -925,6 +1094,10 @@ func TestServer_Query_MaxSelectSeriesN(t *testing.T) {
 	config.Coordinator.MaxSelectSeriesN = 3
 	s := OpenServer(config)
 	defer s.Close()
+
+	if _, ok := s.(*RemoteServer); ok {
+		t.Skip("Skipping.  Cannot modify MaxSelectSeriesN remotely")
+	}
 
 	test := NewTest("db0", "rp0")
 	test.writes = Writes{
@@ -1632,6 +1805,15 @@ func TestServer_Query_SelectGroupByTimeDerivative(t *testing.T) {
 cpu value=15 1278010021000000000
 cpu value=20 1278010022000000000
 cpu value=25 1278010023000000000
+
+cpu0,host=server01 ticks=10,total=100 1278010020000000000
+cpu0,host=server01 ticks=30,total=100 1278010021000000000
+cpu0,host=server01 ticks=32,total=100 1278010022000000000
+cpu0,host=server01 ticks=47,total=100 1278010023000000000
+cpu0,host=server02 ticks=40,total=100 1278010020000000000
+cpu0,host=server02 ticks=45,total=100 1278010021000000000
+cpu0,host=server02 ticks=84,total=100 1278010022000000000
+cpu0,host=server02 ticks=101,total=100 1278010023000000000
 `)},
 	}
 
@@ -1736,6 +1918,11 @@ cpu value=25 1278010023000000000
 			name:    "calculate derivative of percentile with unit 4s group by time",
 			command: `SELECT derivative(percentile(value, 50), 4s) from db0.rp0.cpu where time >= '2010-07-01 18:47:00' and time <= '2010-07-01 18:47:03' group by time(2s)`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-07-01T18:47:02Z",20]]}]}]}`,
+		},
+		&Query{
+			name:    "calculate derivative of ticks divided by aggregate",
+			command: `SELECT non_negative_derivative(mean(ticks), 1s) / last(total) * 100 AS usage FROM db0.rp0.cpu0 WHERE time >= '2010-07-01 18:47:00' AND time <= '2010-07-01 18:47:03' GROUP BY host, time(1s)`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu0","tags":{"host":"server01"},"columns":["time","usage"],"values":[["2010-07-01T18:47:00Z",null],["2010-07-01T18:47:01Z",20],["2010-07-01T18:47:02Z",2],["2010-07-01T18:47:03Z",15]]},{"name":"cpu0","tags":{"host":"server02"},"columns":["time","usage"],"values":[["2010-07-01T18:47:00Z",null],["2010-07-01T18:47:01Z",5],["2010-07-01T18:47:02Z",39],["2010-07-01T18:47:03Z",17]]}]}]}`,
 		},
 	}...)
 
@@ -2906,6 +3093,12 @@ func TestServer_Query_Regex(t *testing.T) {
 			name:    "specified db and default rp",
 			command: `SELECT * FROM db0../cpu[13]/ GROUP BY *`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu1","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","tags":{"host":"server01"},"columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
+		},
+		&Query{
+			name:    "map field type with a regex source",
+			command: `SELECT value FROM /cpu[13]/`,
+			params:  url.Values{"db": []string{"db0"}},
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu1","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",10]]},{"name":"cpu3","columns":["time","value"],"values":[["2015-02-28T01:03:36.703820946Z",30]]}]}]}`,
 		},
 	}...)
 
@@ -4549,6 +4742,81 @@ func TestServer_Query_GroupByTimeCutoffs(t *testing.T) {
 	}
 }
 
+func TestServer_Query_MapType(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu value=2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`gpu speed=25 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+	}
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "query value with a single measurement",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value FROM cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "query wildcard with a single measurement",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "query value with multiple measurements",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value FROM cpu, gpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "query wildcard with multiple measurements",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM cpu, gpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","speed","value"],"values":[["2000-01-01T00:00:00Z",null,2]]},{"name":"gpu","columns":["time","speed","value"],"values":[["2000-01-01T00:00:00Z",25,null]]}]}]}`,
+		},
+		&Query{
+			name:    "query value with a regex measurement",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value FROM /[cg]pu/`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "query wildcard with a regex measurement",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM /[cg]pu/`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","speed","value"],"values":[["2000-01-01T00:00:00Z",null,2]]},{"name":"gpu","columns":["time","speed","value"],"values":[["2000-01-01T00:00:00Z",25,null]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 func TestServer_Query_Subqueries(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())
@@ -4604,14 +4872,23 @@ func TestServer_Query_Subqueries(t *testing.T) {
 		},
 		&Query{
 			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT mean(min) FROM (SELECT (min(usage_user)) FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",17]]}]}]}`,
+		},
+		&Query{
+			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT max(min), host FROM (SELECT min(usage_user) FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z'`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","max","host"],"values":[["2000-01-01T00:00:20Z",23,"server01"]]}]}]}`,
 		},
 		&Query{
 			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT mean, host FROM (SELECT mean(usage_user) FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","mean","host"],"values":[["2000-01-01T00:00:00Z",46,"server01"],["2000-01-01T00:00:00Z",17,"server02"]]}]}]}`,
+		},
+		&Query{
+			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT host FROM (SELECT mean(usage_user) FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z'`,
 			exp:     `{"results":[{"statement_id":0}]}`,
-			skip:    true,
 		},
 		&Query{
 			params:  url.Values{"db": []string{"db0"}},
@@ -4652,6 +4929,21 @@ func TestServer_Query_Subqueries(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT min(value) FROM (SELECT max(usage_user), usage_user - usage_system AS value FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z'`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","min"],"values":[["2000-01-01T00:00:10Z",-44]]}]}]}`,
+		},
+		&Query{
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT min(value) FROM (SELECT top(usage_user, 2), usage_user - usage_system AS value FROM cpu) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z' GROUP BY host`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","min"],"values":[["2000-01-01T00:00:10Z",-10]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","min"],"values":[["2000-01-01T00:00:10Z",-44]]}]}]}`,
+		},
+		&Query{
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT min(value) FROM (SELECT max(usage_user), usage_user - usage_system AS value FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z' AND host = 'server01'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","min"],"values":[["2000-01-01T00:00:00Z",40]]}]}]}`,
+		},
+		&Query{
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT value FROM (SELECT max(usage_user), usage_user - usage_system AS value FROM cpu GROUP BY host) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:30Z' AND value > 0`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",40]]}]}]}`,
 		},
 	}...)
 
@@ -4723,6 +5015,50 @@ func TestServer_Query_SubqueryWithGroupBy(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT mean(mean) FROM (SELECT mean(value) FROM cpu GROUP BY time(2s), host, region) WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:00:04Z' GROUP BY time(2s), host`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","tags":{"host":"server01"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",5.5],["2000-01-01T00:00:02Z",7.5]]},{"name":"cpu","tags":{"host":"server02"},"columns":["time","mean"],"values":[["2000-01-01T00:00:00Z",9.5],["2000-01-01T00:00:02Z",11.5]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+func TestServer_Query_UnderscoreMeasurement(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`_cpu value=1i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+	}
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "select underscore with underscore prefix",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM _cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"_cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00Z",1]]}]}]}`,
 		},
 	}...)
 
@@ -5470,6 +5806,12 @@ func TestServer_Query_With_EmptyTags(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2009-11-10T23:00:03Z",2]]}]}]}`,
 		},
 		&Query{
+			name:    "where regex exact (case insensitive)",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select value from cpu where host =~ /(?i)^SeRvEr01$/`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2009-11-10T23:00:03Z",2]]}]}]}`,
+		},
+		&Query{
 			name:    "where regex exact (not)",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select value from cpu where host !~ /^server01$/`,
@@ -5739,7 +6081,7 @@ func TestServer_Query_Chunk(t *testing.T) {
 	}
 
 	writes := make([]string, 10001) // 10,000 is the default chunking size, even when no chunking requested.
-	expectedValues := make([]string, 10000)
+	expectedValues := make([]string, len(writes))
 	for i := 0; i < len(writes); i++ {
 		writes[i] = fmt.Sprintf(`cpu value=%d %d`, i, time.Unix(0, int64(i)).UnixNano())
 		if i < len(expectedValues) {
@@ -6117,7 +6459,7 @@ func TestServer_Query_ShowStats(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := s.MetaClient.CreateSubscription("db0", "rp0", "foo", "ALL", []string{"udp://localhost:9000"}); err != nil {
+	if err := s.CreateSubscription("db0", "rp0", "foo", "ALL", []string{"udp://localhost:9000"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -6569,9 +6911,6 @@ func TestServer_ContinuousQuery_Deadlock(t *testing.T) {
 	s := OpenServer(NewConfig())
 	defer func() {
 		s.Close()
-		// Nil the server so our deadlock detector goroutine can determine if we completed writes
-		// without timing out
-		s.Server = nil
 	}()
 
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
@@ -6608,12 +6947,12 @@ func TestServer_ContinuousQuery_Deadlock(t *testing.T) {
 	// Deadlock detector.  If the deadlock is fixed, this test should complete all the writes in ~2.5s seconds (with artifical delays
 	// added).  After 10 seconds, if the server has not been closed then we hit the deadlock bug.
 	iterations := 0
-	go func(s *Server) {
+	go func(s Server) {
 		<-time.After(10 * time.Second)
 
 		// If the server is not nil then the test is still running and stuck.  We panic to avoid
 		// having the whole test suite hang indefinitely.
-		if s.Server != nil {
+		if !s.Closed() {
 			panic("possible deadlock. writes did not complete in time")
 		}
 	}(s)
@@ -6698,6 +7037,11 @@ func TestServer_Query_OrderByTime(t *testing.T) {
 		fmt.Sprintf(`power,presence=true value=2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:02Z").UnixNano()),
 		fmt.Sprintf(`power,presence=true value=3 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:03Z").UnixNano()),
 		fmt.Sprintf(`power,presence=false value=4 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:04Z").UnixNano()),
+
+		fmt.Sprintf(`mem,host=server1 free=1 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:01Z").UnixNano()),
+		fmt.Sprintf(`mem,host=server1 free=2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:02Z").UnixNano()),
+		fmt.Sprintf(`mem,host=server2 used=3 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:01Z").UnixNano()),
+		fmt.Sprintf(`mem,host=server2 used=4 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:02Z").UnixNano()),
 	}
 
 	test := NewTest("db0", "rp0")
@@ -6718,6 +7062,20 @@ func TestServer_Query_OrderByTime(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `select value from "power" ORDER BY time DESC`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"power","columns":["time","value"],"values":[["2000-01-01T00:00:04Z",4],["2000-01-01T00:00:03Z",3],["2000-01-01T00:00:02Z",2],["2000-01-01T00:00:01Z",1]]}]}]}`,
+		},
+
+		&Query{
+			name:    "order desc with sparse data",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select used, free from "mem" ORDER BY time DESC`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"mem","columns":["time","used","free"],"values":[["2000-01-01T00:00:02Z",4,null],["2000-01-01T00:00:02Z",null,2],["2000-01-01T00:00:01Z",3,null],["2000-01-01T00:00:01Z",null,1]]}]}]}`,
+		},
+
+		&Query{
+			name:    "order desc with an aggregate and sparse data",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `select first("used") AS "used", first("free") AS "free" from "mem" WHERE time >= '2000-01-01T00:00:01Z' AND time <= '2000-01-01T00:00:02Z' GROUP BY host, time(1s) FILL(none) ORDER BY time DESC`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"mem","tags":{"host":"server2"},"columns":["time","used","free"],"values":[["2000-01-01T00:00:02Z",4,null],["2000-01-01T00:00:01Z",3,null]]},{"name":"mem","tags":{"host":"server1"},"columns":["time","used","free"],"values":[["2000-01-01T00:00:02Z",null,2],["2000-01-01T00:00:01Z",null,1]]}]}]}`,
 		},
 	}...)
 
@@ -7009,6 +7367,10 @@ func TestServer_Query_LargeTimestamp(t *testing.T) {
 	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
+	if _, ok := s.(*RemoteServer); ok {
+		t.Skip("Skipping.  Cannot restart remote server")
+	}
+
 	writes := []string{
 		fmt.Sprintf(`cpu value=100 %d`, models.MaxNanoTime),
 	}
@@ -7017,6 +7379,7 @@ func TestServer_Query_LargeTimestamp(t *testing.T) {
 	test.writes = Writes{
 		&Write{data: strings.Join(writes, "\n")},
 	}
+
 	test.addQueries([]*Query{
 		&Query{
 			name:    `select value at max nano time`,
@@ -7032,7 +7395,7 @@ func TestServer_Query_LargeTimestamp(t *testing.T) {
 
 	// Open a new server with the same configuration file.
 	// This is to ensure the meta data was marshaled correctly.
-	s2 := OpenServer(s.Config)
+	s2 := OpenServer((s.(*LocalServer)).Config)
 	defer s2.Close()
 
 	for _, query := range test.queries {
@@ -7055,6 +7418,9 @@ func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
 	s := OpenDefaultServer(NewConfig())
 	defer s.Close()
 
+	if _, ok := s.(*RemoteServer); ok {
+		t.Skip("Skipping.  Cannot access PointsWriter remotely")
+	}
 	// goroutine to write points
 	done := make(chan struct{})
 	go func() {
@@ -7067,7 +7433,7 @@ func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
 					Database:        "db0",
 					RetentionPolicy: "rp0",
 				}
-				s.PointsWriter.WritePoints(wpr.Database, wpr.RetentionPolicy, models.ConsistencyLevelAny, wpr.Points)
+				s.WritePoints(wpr.Database, wpr.RetentionPolicy, models.ConsistencyLevelAny, wpr.Points)
 			}
 		}
 	}()
@@ -7264,6 +7630,57 @@ func TestServer_Query_Sample_Wildcard(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT sample(*, 1) FROM cpu`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","sample_bool","sample_float","sample_int","sample_string"],"values":[["2000-01-01T00:00:00Z",true,1,1,"hello, world"]]}]}]}`,
+		},
+	}...)
+
+	if err := test.init(s); err != nil {
+		t.Fatalf("test init failed: %s", err)
+	}
+
+	for _, query := range test.queries {
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+// Validate that nested aggregates don't panic
+func TestServer_NestedAggregateWithMathPanics(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		`cpu value=2i 120000000000`,
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "dividing by elapsed count should not panic",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum(value) / elapsed(sum(value), 1m) FROM cpu WHERE time > 0 AND time < 10m GROUP BY time(1m)`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","sum_elapsed"],"values":[["1970-01-01T00:00:00Z",null],["1970-01-01T00:01:00Z",null],["1970-01-01T00:02:00Z",null],["1970-01-01T00:03:00Z",null],["1970-01-01T00:04:00Z",null],["1970-01-01T00:05:00Z",null],["1970-01-01T00:06:00Z",null],["1970-01-01T00:07:00Z",null],["1970-01-01T00:08:00Z",null],["1970-01-01T00:09:00Z",null]]}]}]}`,
+		},
+		&Query{
+			name:    "dividing by elapsed count with fill previous should not panic",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT sum(value) / elapsed(sum(value), 1m) FROM cpu WHERE time > 0 AND time < 10m GROUP BY time(1m) FILL(previous)`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","sum_elapsed"],"values":[["1970-01-01T00:00:00Z",null],["1970-01-01T00:01:00Z",null],["1970-01-01T00:02:00Z",null],["1970-01-01T00:03:00Z",2],["1970-01-01T00:04:00Z",2],["1970-01-01T00:05:00Z",2],["1970-01-01T00:06:00Z",2],["1970-01-01T00:07:00Z",2],["1970-01-01T00:08:00Z",2],["1970-01-01T00:09:00Z",2]]}]}]}`,
 		},
 	}...)
 

@@ -19,7 +19,7 @@ import (
 	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/limiter"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 var (
@@ -964,6 +964,21 @@ func (s *Store) TagValues(database string, cond influxql.Expr) ([]TagValues, err
 			}); err != nil {
 				return nil, err
 			}
+
+			/*
+				// Loop over all keys for each series.
+				m := make(map[KeyValue]struct{}, len(ss))
+				for _, series := range ss {
+					series.ForEachTag(func(t models.Tag) {
+						if !ok {
+							// nop
+						} else if _, exists := keySet[string(t.Key)]; !exists {
+							return
+						}
+						m[KeyValue{string(t.Key), string(t.Value)}] = struct{}{}
+					})
+				}
+			*/
 
 			// Sort key/value set.
 			var a []KeyValue

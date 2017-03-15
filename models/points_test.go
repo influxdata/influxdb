@@ -3,6 +3,7 @@ package models_test
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"math"
 	"math/rand"
 	"reflect"
@@ -2013,6 +2014,13 @@ func TestNewPointsWithBytesWithCorruptData(t *testing.T) {
 	corrupted := []byte{0, 0, 0, 3, 102, 111, 111, 0, 0, 0, 4, 61, 34, 65, 34, 1, 0, 0, 0, 14, 206, 86, 119, 24, 32, 72, 233, 168, 2, 148}
 	p, err := models.NewPointFromBytes(corrupted)
 	if p != nil || err == nil {
+		t.Fatalf("NewPointFromBytes: got: (%v, %v), expected: (nil, error)", p, err)
+	}
+}
+
+func TestNewPointsWithShortBuffer(t *testing.T) {
+	_, err := models.NewPointFromBytes([]byte{0, 0, 0, 3, 4})
+	if err != io.ErrShortBuffer {
 		t.Fatalf("NewPointFromBytes: got: (%v, %v), expected: (nil, error)", p, err)
 	}
 }

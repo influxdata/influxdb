@@ -51,8 +51,8 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 		t.Fatal(err)
 	} else if m == nil {
 		t.Fatal("measurement not found")
-	} else if s := m.SeriesByID(1); s.Key != "cpu,host=A" || !reflect.DeepEqual(s.Tags, models.NewTags(map[string]string{"host": "A"})) {
-		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags)
+	} else if s := m.SeriesByID(1); s.Key != "cpu,host=A" || !reflect.DeepEqual(s.Tags(), models.NewTags(map[string]string{"host": "A"})) {
+		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags())
 	}
 
 	// write the snapshot, ensure we can close and load index from TSM
@@ -76,8 +76,8 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 		t.Fatal(err)
 	} else if m == nil {
 		t.Fatal("measurement not found")
-	} else if s := m.SeriesByID(1); s.Key != "cpu,host=A" || !reflect.DeepEqual(s.Tags, models.NewTags(map[string]string{"host": "A"})) {
-		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags)
+	} else if s := m.SeriesByID(1); s.Key != "cpu,host=A" || !reflect.DeepEqual(s.Tags(), models.NewTags(map[string]string{"host": "A"})) {
+		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags())
 	}
 
 	// Write a new point and ensure we can close and load index from TSM and WAL
@@ -103,10 +103,10 @@ func TestEngine_LoadMetadataIndex(t *testing.T) {
 		t.Fatal(err)
 	} else if m == nil {
 		t.Fatal("measurement not found")
-	} else if s := m.SeriesByID(1); s.Key != "cpu,host=A" || !reflect.DeepEqual(s.Tags, models.NewTags(map[string]string{"host": "A"})) {
-		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags)
-	} else if s := m.SeriesByID(2); s.Key != "cpu,host=B" || !reflect.DeepEqual(s.Tags, models.NewTags(map[string]string{"host": "B"})) {
-		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags)
+	} else if s := m.SeriesByID(1); s.Key != "cpu,host=A" || !reflect.DeepEqual(s.Tags(), models.NewTags(map[string]string{"host": "A"})) {
+		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags())
+	} else if s := m.SeriesByID(2); s.Key != "cpu,host=B" || !reflect.DeepEqual(s.Tags(), models.NewTags(map[string]string{"host": "B"})) {
+		t.Fatalf("unexpected series: %q / %#v", s.Key, s.Tags())
 	}
 }
 */
@@ -238,6 +238,7 @@ func TestEngine_CreateIterator_Cache_Ascending(t *testing.T) {
 	// e.CreateMeasurement("cpu")
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A value=1.2 2000000000`,
@@ -289,6 +290,7 @@ func TestEngine_CreateIterator_Cache_Descending(t *testing.T) {
 
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A value=1.2 2000000000`,
@@ -340,6 +342,7 @@ func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A value=1.2 2000000000`,
@@ -392,6 +395,7 @@ func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A value=1.2 2000000000`,
@@ -445,6 +449,7 @@ func TestEngine_CreateIterator_Aux(t *testing.T) {
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("value", influxql.Float, false)
 	e.MeasurementFields("cpu").CreateFieldIfNotExists("F", influxql.Float, false)
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A F=100 1000000000`,
@@ -503,6 +508,7 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
 	e.SetFieldName("cpu", "X")
 	e.SetFieldName("cpu", "Y")
+
 	if err := e.WritePointsString(
 		`cpu,host=A value=1.1 1000000000`,
 		`cpu,host=A X=10 1000000000`,
@@ -823,6 +829,7 @@ func benchmarkEngine_WritePoints_Parallel(b *testing.B, batchSize int) {
 		b.StartTimer()
 
 		var wg sync.WaitGroup
+		errC := make(chan error)
 		for i := 0; i < cpus; i++ {
 			wg.Add(1)
 			go func(i int) {
@@ -830,11 +837,22 @@ func benchmarkEngine_WritePoints_Parallel(b *testing.B, batchSize int) {
 				from, to := i*batchSize, (i+1)*batchSize
 				err := e.WritePoints(pp[from:to])
 				if err != nil {
-					b.Fatal(err)
+					errC <- err
+					return
 				}
 			}(i)
 		}
-		wg.Wait()
+
+		go func() {
+			wg.Wait()
+			close(errC)
+		}()
+
+		for err := range errC {
+			if err != nil {
+				b.Error(err)
+			}
+		}
 	}
 }
 

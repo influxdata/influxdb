@@ -32,13 +32,3 @@ func IsClientError(err error) bool {
 
 	return false
 }
-
-const upgradeMessage = `*******************************************************************
-                 UNSUPPORTED SHARD FORMAT DETECTED
-
-As of version 0.11, only tsm shards are supported. Please use the
-influx_tsm tool to convert non-tsm shards.
-
-More information can be found at the documentation site:
-https://docs.influxdata.com/influxdb/v0.10/administration/upgrading
-*******************************************************************`

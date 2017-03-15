@@ -1,5 +1,5 @@
 // This package is a set of convenience helpers and structs to make integration testing easier
-package run_test
+package tests
 
 import (
 	"bytes"
@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -17,36 +16,191 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/cmd/influxd/run"
+	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/httpd"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
 )
 
-const emptyResults = `{"results":[{}]}`
-
 // Server represents a test wrapper for run.Server.
-type Server struct {
+type Server interface {
+	URL() string
+	Open() error
+	SetLogOutput(w io.Writer)
+	Close()
+	Closed() bool
+
+	CreateDatabase(db string) (*meta.DatabaseInfo, error)
+	CreateDatabaseAndRetentionPolicy(db string, rp *meta.RetentionPolicySpec, makeDefault bool) error
+	CreateSubscription(database, rp, name, mode string, destinations []string) error
+	Reset() error
+
+	Query(query string) (results string, err error)
+	QueryWithParams(query string, values url.Values) (results string, err error)
+
+	Write(db, rp, body string, params url.Values) (results string, err error)
+	MustWrite(db, rp, body string, params url.Values) string
+	WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
+}
+
+// LocalServer is a Server that is running in-process and can be accessed directly
+type LocalServer struct {
+	*client
 	*run.Server
 	Config *run.Config
 }
 
+// RemoteServer is a Server that is accessed remotely via the HTTP API
+type RemoteServer struct {
+	*client
+	url string
+}
+
+func (s *RemoteServer) URL() string {
+	return s.url
+}
+
+func (s *RemoteServer) Open() error {
+	resp, err := http.Get(s.URL() + "/ping")
+	if err != nil {
+		return err
+	}
+	body := strings.TrimSpace(string(MustReadAll(resp.Body)))
+	if resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("unexpected status code: code=%d, body=%s", resp.StatusCode, body)
+	}
+	return nil
+}
+
+func (s *RemoteServer) Close() {
+	// ignore, we can't shutdown a remote server
+}
+
+func (s *RemoteServer) SetLogOutput(w io.Writer) {
+	// ignore, we can't change the logging of a remote server
+}
+
+func (s *RemoteServer) Closed() bool {
+	return true
+}
+
+func (s *RemoteServer) CreateDatabase(db string) (*meta.DatabaseInfo, error) {
+	stmt := fmt.Sprintf("CREATE+DATABASE+%s", db)
+
+	_, err := s.HTTPPost(s.URL()+"/query?q="+stmt, nil)
+	if err != nil {
+		return nil, err
+	}
+	return &meta.DatabaseInfo{}, nil
+}
+
+func (s *RemoteServer) CreateDatabaseAndRetentionPolicy(db string, rp *meta.RetentionPolicySpec, makeDefault bool) error {
+	if _, err := s.CreateDatabase(db); err != nil {
+		return err
+	}
+
+	stmt := fmt.Sprintf("CREATE+RETENTION+POLICY+%s+ON+\"%s\"+DURATION+%s+REPLICATION+%v+SHARD+DURATION+%s",
+		rp.Name, db, rp.Duration, *rp.ReplicaN, rp.ShardGroupDuration)
+	if makeDefault {
+		stmt += "+DEFAULT"
+	}
+
+	_, err := s.HTTPPost(s.URL()+"/query?q="+stmt, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *RemoteServer) CreateSubscription(database, rp, name, mode string, destinations []string) error {
+	dests := make([]string, 0, len(destinations))
+	for _, d := range destinations {
+		dests = append(dests, "'"+d+"'")
+	}
+
+	stmt := fmt.Sprintf("CREATE+SUBSCRIPTION+%s+ON+\"%s\".\"%s\"+DESTINATIONS+%v+%s",
+		name, database, rp, mode, strings.Join(dests, ","))
+
+	_, err := s.HTTPPost(s.URL()+"/query?q="+stmt, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *RemoteServer) DropDatabase(db string) error {
+	stmt := fmt.Sprintf("DROP+DATABASE+%s", db)
+
+	_, err := s.HTTPPost(s.URL()+"/query?q="+stmt, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Reset attempts to remove all database state by dropping everything
+func (s *RemoteServer) Reset() error {
+	stmt := fmt.Sprintf("SHOW+DATABASES")
+	results, err := s.HTTPPost(s.URL()+"/query?q="+stmt, nil)
+	if err != nil {
+		return err
+	}
+
+	resp := &httpd.Response{}
+	if resp.UnmarshalJSON([]byte(results)); err != nil {
+		return err
+	}
+
+	for _, db := range resp.Results[0].Series[0].Values {
+		if err := s.DropDatabase(fmt.Sprintf("%s", db[0])); err != nil {
+			return err
+		}
+	}
+	return nil
+
+}
+
+func (s *RemoteServer) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+	panic("WritePoints not implemented")
+}
+
 // NewServer returns a new instance of Server.
-func NewServer(c *run.Config) *Server {
+func NewServer(c *run.Config) Server {
 	buildInfo := &run.BuildInfo{
 		Version: "testServer",
 		Commit:  "testCommit",
 		Branch:  "testBranch",
 	}
+
+	// If URL exists, create a server that will run against a remote endpoint
+	if url := os.Getenv("URL"); url != "" {
+		s := &RemoteServer{
+			url: url,
+			client: &client{
+				URLFn: func() string {
+					return url
+				},
+			},
+		}
+		if err := s.Reset(); err != nil {
+			panic(err.Error())
+		}
+		return s
+	}
+
+	// Otherwise create a local server
 	srv, _ := run.NewServer(c, buildInfo)
-	s := Server{
+	s := LocalServer{
+		client: &client{},
 		Server: srv,
 		Config: c,
 	}
+	s.client.URLFn = s.URL
 	return &s
 }
 
 // OpenServer opens a test server.
-func OpenServer(c *run.Config) *Server {
+func OpenServer(c *run.Config) Server {
 	s := NewServer(c)
 	configureLogging(s)
 	if err := s.Open(); err != nil {
@@ -56,17 +210,26 @@ func OpenServer(c *run.Config) *Server {
 }
 
 // OpenServerWithVersion opens a test server with a specific version.
-func OpenServerWithVersion(c *run.Config, version string) *Server {
+func OpenServerWithVersion(c *run.Config, version string) Server {
+	// We can't change the versino of a remote server.  The test needs to
+	// be skipped if using this func.
+	if RemoteEnabled() {
+		panic("OpenServerWithVersion not support with remote server")
+	}
+
 	buildInfo := &run.BuildInfo{
 		Version: version,
 		Commit:  "",
 		Branch:  "",
 	}
 	srv, _ := run.NewServer(c, buildInfo)
-	s := Server{
+	s := LocalServer{
+		client: &client{},
 		Server: srv,
 		Config: c,
 	}
+	s.client.URLFn = s.URL
+
 	if err := s.Open(); err != nil {
 		panic(err.Error())
 	}
@@ -76,7 +239,7 @@ func OpenServerWithVersion(c *run.Config, version string) *Server {
 }
 
 // OpenDefaultServer opens a test server with a default database & retention policy.
-func OpenDefaultServer(c *run.Config) *Server {
+func OpenDefaultServer(c *run.Config) Server {
 	s := OpenServer(c)
 	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
 		panic(err)
@@ -85,7 +248,7 @@ func OpenDefaultServer(c *run.Config) *Server {
 }
 
 // Close shuts down the server and removes all temporary paths.
-func (s *Server) Close() {
+func (s *LocalServer) Close() {
 	if err := s.Server.Close(); err != nil {
 		panic(err.Error())
 	}
@@ -95,10 +258,17 @@ func (s *Server) Close() {
 	if err := os.RemoveAll(s.Config.Data.Dir); err != nil {
 		panic(err.Error())
 	}
+	// Nil the server so our deadlock detector goroutine can determine if we completed writes
+	// without timing out
+	s.Server = nil
+}
+
+func (s *LocalServer) Closed() bool {
+	return s.Server == nil
 }
 
 // URL returns the base URL for the httpd endpoint.
-func (s *Server) URL() string {
+func (s *LocalServer) URL() string {
 	for _, service := range s.Services {
 		if service, ok := service.(*httpd.Service); ok {
 			return "http://" + service.Addr().String()
@@ -107,8 +277,12 @@ func (s *Server) URL() string {
 	panic("httpd server not found in services")
 }
 
+func (s *LocalServer) CreateDatabase(db string) (*meta.DatabaseInfo, error) {
+	return s.MetaClient.CreateDatabase(db)
+}
+
 // CreateDatabaseAndRetentionPolicy will create the database and retention policy.
-func (s *Server) CreateDatabaseAndRetentionPolicy(db string, rp *meta.RetentionPolicySpec, makeDefault bool) error {
+func (s *LocalServer) CreateDatabaseAndRetentionPolicy(db string, rp *meta.RetentionPolicySpec, makeDefault bool) error {
 	if _, err := s.MetaClient.CreateDatabase(db); err != nil {
 		return err
 	} else if _, err := s.MetaClient.CreateRetentionPolicy(db, rp, makeDefault); err != nil {
@@ -117,13 +291,39 @@ func (s *Server) CreateDatabaseAndRetentionPolicy(db string, rp *meta.RetentionP
 	return nil
 }
 
+func (s *LocalServer) CreateSubscription(database, rp, name, mode string, destinations []string) error {
+	return s.MetaClient.CreateSubscription(database, rp, name, mode, destinations)
+}
+
+func (s *LocalServer) DropDatabase(db string) error {
+	return s.MetaClient.DropDatabase(db)
+}
+
+func (s *LocalServer) Reset() error {
+	for _, db := range s.MetaClient.Databases() {
+		if err := s.DropDatabase(db.Name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// client abstract querying and writing to a Server using HTTP
+type client struct {
+	URLFn func() string
+}
+
+func (c *client) URL() string {
+	return c.URLFn()
+}
+
 // Query executes a query against the server and returns the results.
-func (s *Server) Query(query string) (results string, err error) {
+func (s *client) Query(query string) (results string, err error) {
 	return s.QueryWithParams(query, nil)
 }
 
 // MustQuery executes a query against the server and returns the results.
-func (s *Server) MustQuery(query string) string {
+func (s *client) MustQuery(query string) string {
 	results, err := s.Query(query)
 	if err != nil {
 		panic(err)
@@ -132,7 +332,7 @@ func (s *Server) MustQuery(query string) string {
 }
 
 // Query executes a query against the server and returns the results.
-func (s *Server) QueryWithParams(query string, values url.Values) (results string, err error) {
+func (s *client) QueryWithParams(query string, values url.Values) (results string, err error) {
 	var v url.Values
 	if values == nil {
 		v = url.Values{}
@@ -144,7 +344,7 @@ func (s *Server) QueryWithParams(query string, values url.Values) (results strin
 }
 
 // MustQueryWithParams executes a query against the server and returns the results.
-func (s *Server) MustQueryWithParams(query string, values url.Values) string {
+func (s *client) MustQueryWithParams(query string, values url.Values) string {
 	results, err := s.QueryWithParams(query, values)
 	if err != nil {
 		panic(err)
@@ -153,7 +353,7 @@ func (s *Server) MustQueryWithParams(query string, values url.Values) string {
 }
 
 // HTTPGet makes an HTTP GET request to the server and returns the response.
-func (s *Server) HTTPGet(url string) (results string, err error) {
+func (s *client) HTTPGet(url string) (results string, err error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
@@ -173,7 +373,7 @@ func (s *Server) HTTPGet(url string) (results string, err error) {
 }
 
 // HTTPPost makes an HTTP POST request to the server and returns the response.
-func (s *Server) HTTPPost(url string, content []byte) (results string, err error) {
+func (s *client) HTTPPost(url string, content []byte) (results string, err error) {
 	buf := bytes.NewBuffer(content)
 	resp, err := http.Post(url, "application/json", buf)
 	if err != nil {
@@ -193,8 +393,29 @@ func (s *Server) HTTPPost(url string, content []byte) (results string, err error
 	}
 }
 
+type WriteError struct {
+	body       string
+	statusCode int
+}
+
+func (wr WriteError) StatusCode() int {
+	return wr.statusCode
+}
+
+func (wr WriteError) Body() string {
+	return wr.body
+}
+
+func (wr WriteError) Error() string {
+	return fmt.Sprintf("invalid status code: code=%d, body=%s", wr.statusCode, wr.body)
+}
+
+func (s *LocalServer) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+	return s.PointsWriter.WritePoints(database, retentionPolicy, consistencyLevel, points)
+}
+
 // Write executes a write against the server and returns the results.
-func (s *Server) Write(db, rp, body string, params url.Values) (results string, err error) {
+func (s *client) Write(db, rp, body string, params url.Values) (results string, err error) {
 	if params == nil {
 		params = url.Values{}
 	}
@@ -208,13 +429,13 @@ func (s *Server) Write(db, rp, body string, params url.Values) (results string, 
 	if err != nil {
 		return "", err
 	} else if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
-		return "", fmt.Errorf("invalid status code: code=%d, body=%s", resp.StatusCode, MustReadAll(resp.Body))
+		return "", WriteError{statusCode: resp.StatusCode, body: string(MustReadAll(resp.Body))}
 	}
 	return string(MustReadAll(resp.Body)), nil
 }
 
 // MustWrite executes a write to the server. Panic on error.
-func (s *Server) MustWrite(db, rp, body string, params url.Values) string {
+func (s *client) MustWrite(db, rp, body string, params url.Values) string {
 	results, err := s.Write(db, rp, body, params)
 	if err != nil {
 		panic(err)
@@ -248,11 +469,6 @@ func NewConfig() *run.Config {
 
 func newRetentionPolicySpec(name string, rf int, duration time.Duration) *meta.RetentionPolicySpec {
 	return &meta.RetentionPolicySpec{Name: name, ReplicaN: &rf, Duration: &duration}
-}
-
-func maxFloat64() string {
-	maxFloat64, _ := json.Marshal(math.MaxFloat64)
-	return string(maxFloat64)
 }
 
 func maxInt64() string {
@@ -296,6 +512,10 @@ func MustTempFile() string {
 	return f.Name()
 }
 
+func RemoteEnabled() bool {
+	return os.Getenv("URL") != ""
+}
+
 func expectPattern(exp, act string) bool {
 	re := regexp.MustCompile(exp)
 	if !re.MatchString(act) {
@@ -316,7 +536,7 @@ type Query struct {
 }
 
 // Execute runs the command and returns an err if it fails
-func (q *Query) Execute(s *Server) (err error) {
+func (q *Query) Execute(s Server) (err error) {
 	if q.params == nil {
 		q.act, err = s.Query(q.command)
 		return
@@ -423,7 +643,7 @@ func (t *Test) retentionPolicy() string {
 	return "default"
 }
 
-func (t *Test) init(s *Server) error {
+func (t *Test) init(s Server) error {
 	if len(t.writes) == 0 || t.initialized {
 		return nil
 	}
@@ -443,7 +663,7 @@ func (t *Test) init(s *Server) error {
 	return nil
 }
 
-func writeTestData(s *Server, t *Test) error {
+func writeTestData(s Server, t *Test) error {
 	for i, w := range t.writes {
 		if w.db == "" {
 			w.db = t.database()
@@ -465,7 +685,7 @@ func writeTestData(s *Server, t *Test) error {
 	return nil
 }
 
-func configureLogging(s *Server) {
+func configureLogging(s Server) {
 	// Set the logger to discard unless verbose is on
 	if !testing.Verbose() {
 		s.SetLogOutput(ioutil.Discard)

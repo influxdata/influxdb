@@ -281,6 +281,28 @@ func NewLimitIterator(input Iterator, opt IteratorOptions) Iterator {
 	}
 }
 
+// NewFilterIterator returns an iterator that filters the points based on the
+// condition. This iterator is not nearly as efficient as filtering points
+// within the query engine and is only used when filtering subqueries.
+func NewFilterIterator(input Iterator, cond Expr, opt IteratorOptions) Iterator {
+	if input == nil {
+		return nil
+	}
+
+	switch input := input.(type) {
+	case FloatIterator:
+		return newFloatFilterIterator(input, cond, opt)
+	case IntegerIterator:
+		return newIntegerFilterIterator(input, cond, opt)
+	case StringIterator:
+		return newStringFilterIterator(input, cond, opt)
+	case BooleanIterator:
+		return newBooleanFilterIterator(input, cond, opt)
+	default:
+		panic(fmt.Sprintf("unsupported filter iterator type: %T", input))
+	}
+}
+
 // NewDedupeIterator returns an iterator that only outputs unique points.
 // This iterator maintains a serialized copy of each row so it is inefficient
 // to use on large datasets. It is intended for small datasets such as meta queries.
@@ -485,7 +507,10 @@ func (a *auxIteratorFields) iterator(name string, typ DataType) Iterator {
 func (a *auxIteratorFields) send(p Point) (ok bool) {
 	values := p.aux()
 	for i, f := range a.fields {
-		v := values[i]
+		var v interface{}
+		if i < len(values) {
+			v = values[i]
+		}
 
 		tags := p.tags()
 		tags = tags.Subset(a.dimensions)
@@ -755,7 +780,11 @@ func newIteratorOptionsSubstatement(stmt *SelectStatement, opt IteratorOptions) 
 	if subOpt.EndTime > opt.EndTime {
 		subOpt.EndTime = opt.EndTime
 	}
+	// Propagate the dimensions to the inner subquery.
 	subOpt.Dimensions = opt.Dimensions
+	for d := range opt.GroupBy {
+		subOpt.GroupBy[d] = struct{}{}
+	}
 	subOpt.InterruptCh = opt.InterruptCh
 
 	// Propagate the SLIMIT and SOFFSET from the outer query.
@@ -778,6 +807,12 @@ func newIteratorOptionsSubstatement(stmt *SelectStatement, opt IteratorOptions) 
 		return IteratorOptions{}, err
 	}
 	subOpt.Ordered = opt.Ordered && (interval == 0 && stmt.HasSelector())
+
+	// If there is no interval for this subquery, but the outer query has an
+	// interval, inherit the parent interval.
+	if interval == 0 {
+		subOpt.Interval = opt.Interval
+	}
 	return subOpt, nil
 }
 

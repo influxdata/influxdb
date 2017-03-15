@@ -281,7 +281,7 @@ func (i *Index) TagsForSeries(key string) (models.Tags, error) {
 	if ss == nil {
 		return nil, nil
 	}
-	return ss.Tags, nil
+	return ss.Tags(), nil
 }
 
 // MeasurementNamesByExpr takes an expression containing only tags and returns a

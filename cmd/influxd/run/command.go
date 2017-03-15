@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 const logo = `

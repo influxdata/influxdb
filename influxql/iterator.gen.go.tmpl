@@ -451,7 +451,7 @@ type {{$k.name}}ParallelIterator struct {
 func new{{$k.Name}}ParallelIterator(input {{$k.Name}}Iterator) *{{$k.name}}ParallelIterator {
 	itr := &{{$k.name}}ParallelIterator{
 		input:   input,
-		ch:      make(chan {{$k.name}}PointError, 1),
+		ch:      make(chan {{$k.name}}PointError, 256),
 		closing: make(chan struct{}),
 	}
 	itr.wg.Add(1)
@@ -486,6 +486,9 @@ func (itr *{{$k.name}}ParallelIterator) monitor()  {
 	for {
 		// Read next point.
 		p, err := itr.input.Next()
+		if p != nil {
+			p = p.Clone()
+		}
 
 		select {
 		case <-itr.closing:
@@ -1259,47 +1262,39 @@ func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) C
 
 func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) Next() (*{{$v.Name}}Point, error) {
 	for {
-		a, err := itr.left.Next()
-		if err != nil {
-			return nil, err
-		}
-		b, err := itr.right.Next()
-		if err != nil {
+		a, b, err := itr.next()
+		if err != nil || (a == nil && b == nil) {
 			return nil, err
 		}
 
-		if a == nil && b == nil {
-			return nil, nil
-		} else if itr.points == nil && (a == nil || b == nil ) {
-			return nil, nil
+		// If any of these are nil and we are using fill(none), skip these points.
+		if (a == nil || a.Nil || b == nil || b.Nil) && itr.points == nil {
+			continue
 		}
 
-		if a != nil && b != nil {
-			if a.Time > b.Time {
-				itr.left.unread(a)
-				a = nil
-			} else if a.Time < b.Time {
-				itr.right.unread(b)
-				b = nil
-			}
-		}
-
-		if a == nil || a.Nil {
-			if itr.points == nil {
-				continue
-			}
+		// If one of the two points is nil, we need to fill it with a fake nil
+		// point that has the same name, tags, and time as the other point.
+		// There should never be a time when both of these are nil.
+		if a == nil {
 			p := *b
-			p.Value = itr.points[0].Value
-			p.Nil = itr.points[0].Nil
 			a = &p
-		} else if b == nil || b.Nil {
-			if itr.points == nil {
-				continue
-			}
+			a.Value = {{$k.Nil}}
+			a.Nil = true
+		} else if b == nil {
 			p := *a
-			p.Value = itr.points[1].Value
-			p.Nil = itr.points[1].Nil
 			b = &p
+			b.Value = {{$k.Nil}}
+			b.Nil = true
+		}
+
+		// If a value is nil, use the fill values if the fill value is non-nil.
+		if a.Nil && !itr.points[0].Nil {
+			a.Value = itr.points[0].Value
+			a.Nil = false
+		}
+		if b.Nil && !itr.points[1].Nil {
+			b.Value = itr.points[1].Value
+			b.Nil = false
 		}
 
 		if itr.storePrev {
@@ -1328,6 +1323,48 @@ func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) N
 		return p, nil
 {{end}}
 	}
+}
+
+// next returns the next points within each iterator. If the iterators are
+// uneven, it organizes them so only matching points are returned.
+func (itr *{{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprIterator) next() (a, b *{{$k.Name}}Point, err error) {
+	// Retrieve the next value for both the left and right.
+	a, err = itr.left.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+	b, err = itr.right.Next()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// If we have a point from both, make sure that they match each other.
+	if a != nil && b != nil {
+		if a.Name > b.Name {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Name < b.Name {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if ltags, rtags := a.Tags.ID(), b.Tags.ID(); ltags > rtags {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if ltags < rtags {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+
+		if a.Time > b.Time {
+			itr.left.unread(a)
+			return nil, b, nil
+		} else if a.Time < b.Time {
+			itr.right.unread(b)
+			return a, nil, nil
+		}
+	}
+	return a, b, nil
 }
 
 // {{$k.name}}{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}ExprFunc creates or modifies a point by combining two
@@ -1402,6 +1439,65 @@ type {{$k.name}}BoolTransformFunc func(p *{{$k.Name}}Point) *BooleanPoint
 type {{$k.name}}DedupeIterator struct {
 	input {{$k.Name}}Iterator
 	m     map[string]struct{} // lookup of points already sent
+}
+
+type {{$k.name}}FilterIterator struct {
+	input {{$k.Name}}Iterator
+	cond  Expr
+	opt   IteratorOptions
+	m     map[string]interface{}
+}
+
+func new{{$k.Name}}FilterIterator(input {{$k.Name}}Iterator, cond Expr, opt IteratorOptions) {{$k.Name}}Iterator {
+	// Strip out time conditions from the WHERE clause.
+	// TODO(jsternberg): This should really be done for us when creating the IteratorOptions struct.
+	n := RewriteFunc(CloneExpr(cond), func(n Node) Node {
+		switch n := n.(type) {
+		case *BinaryExpr:
+			if n.LHS.String() == "time" {
+				return &BooleanLiteral{Val: true}
+			}
+		}
+		return n
+	})
+
+	cond, _ = n.(Expr)
+	if cond == nil {
+		return input
+	} else if n, ok := cond.(*BooleanLiteral); ok && n.Val {
+		return input
+	}
+
+	return &{{$k.name}}FilterIterator{
+		input: input,
+		cond:  cond,
+		opt:   opt,
+		m:     make(map[string]interface{}),
+	}
+}
+
+func (itr *{{$k.name}}FilterIterator) Stats() IteratorStats { return itr.input.Stats() }
+func (itr *{{$k.name}}FilterIterator) Close() error { return itr.input.Close() }
+
+func (itr *{{$k.name}}FilterIterator) Next() (*{{$k.Name}}Point, error) {
+	for {
+		p, err := itr.input.Next()
+		if err != nil || p == nil {
+			return nil, err
+		}
+
+		for i, ref := range itr.opt.Aux {
+			itr.m[ref.Val] = p.Aux[i]
+		}
+		for k, v := range p.Tags.KeyValues() {
+			itr.m[k] = v
+		}
+
+		if !EvalBool(itr.cond, itr.m) {
+			continue
+		}
+		return p, nil
+	}
 }
 
 // new{{$k.Name}}DedupeIterator returns a new instance of {{$k.name}}DedupeIterator.

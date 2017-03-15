@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"sort"
 	"strconv"
@@ -1323,11 +1324,6 @@ func (p *point) Tags() Tags {
 		return p.cachedTags
 	}
 	p.cachedTags = parseTags(p.key)
-
-	for i := range p.cachedTags {
-		p.cachedTags[i].shouldCopy = true
-	}
-
 	return p.cachedTags
 }
 
@@ -1497,21 +1493,36 @@ func (p *point) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary decodes a binary representation of the point into a point struct.
 func (p *point) UnmarshalBinary(b []byte) error {
-	var i int
-	keyLen := int(binary.BigEndian.Uint32(b[:4]))
-	i += int(4)
+	var n int
 
-	p.key = b[i : i+keyLen]
-	i += keyLen
+	// Read key length.
+	if len(b) < 4 {
+		return io.ErrShortBuffer
+	}
+	n, b = int(binary.BigEndian.Uint32(b[:4])), b[4:]
 
-	fieldLen := int(binary.BigEndian.Uint32(b[i : i+4]))
-	i += int(4)
+	// Read key.
+	if len(b) < n {
+		return io.ErrShortBuffer
+	}
+	p.key, b = b[:n], b[n:]
 
-	p.fields = b[i : i+fieldLen]
-	i += fieldLen
+	// Read fields length.
+	if len(b) < 4 {
+		return io.ErrShortBuffer
+	}
+	n, b = int(binary.BigEndian.Uint32(b[:4])), b[4:]
 
-	p.time = time.Now()
-	p.time.UnmarshalBinary(b[i:])
+	// Read fields.
+	if len(b) < n {
+		return io.ErrShortBuffer
+	}
+	p.fields, b = b[:n], b[n:]
+
+	// Read timestamp.
+	if err := p.time.UnmarshalBinary(b); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1626,12 +1637,6 @@ func (p *point) Split(size int) []Point {
 type Tag struct {
 	Key   []byte
 	Value []byte
-
-	// shouldCopy returns whether or not a tag should be copied when Clone-ing
-	shouldCopy bool
-
-	// Number of bytes required to store this tag.
-	size int
 }
 
 // NewTag returns a new Tag.
@@ -1639,19 +1644,17 @@ func NewTag(key, value []byte) Tag {
 	return Tag{
 		Key:   key,
 		Value: value,
-		size:  len(key) + len(value),
 	}
 }
+
+// Size returns the size of the key and value.
+func (t Tag) Size() int { return len(t.Key) + len(t.Value) }
 
 // Clone returns a shallow copy of Tag.
 //
 // Tags associated with a Point created by ParsePointsWithPrecision will hold references to the byte slice that was parsed.
 // Use Clone to create a Tag with new byte slices that do not refer to the argument to ParsePointsWithPrecision.
 func (t Tag) Clone() Tag {
-	if !t.shouldCopy {
-		return t
-	}
-
 	other := Tag{
 		Key:   make([]byte, len(t.Key)),
 		Value: make([]byte, len(t.Value)),
@@ -1710,7 +1713,7 @@ func (a Tags) String() string {
 func (a Tags) Size() int {
 	var total int
 	for _, t := range a {
-		total += t.size
+		total += t.Size()
 	}
 	return total
 }
@@ -1722,15 +1725,6 @@ func (a Tags) Size() int {
 func (a Tags) Clone() Tags {
 	if len(a) == 0 {
 		return nil
-	}
-
-	needsClone := false
-	for i := 0; i < len(a) && !needsClone; i++ {
-		needsClone = a[i].shouldCopy
-	}
-
-	if !needsClone {
-		return a
 	}
 
 	others := make(Tags, len(a))
@@ -1929,23 +1923,6 @@ func DeepCopyTags(a Tags) Tags {
 // Fields represents a mapping between a Point's field names and their
 // values.
 type Fields map[string]interface{}
-
-func parseNumber(val []byte) (interface{}, error) {
-	if val[len(val)-1] == 'i' {
-		val = val[:len(val)-1]
-		return parseIntBytes(val, 10, 64)
-	}
-	for i := 0; i < len(val); i++ {
-		// If there is a decimal or an N (NaN), I (Inf), parse as float
-		if val[i] == '.' || val[i] == 'N' || val[i] == 'n' || val[i] == 'I' || val[i] == 'i' || val[i] == 'e' {
-			return parseFloatBytes(val, 64)
-		}
-		if val[i] < '0' && val[i] > '9' {
-			return string(val), nil
-		}
-	}
-	return parseFloatBytes(val, 64)
-}
 
 // FieldIterator retuns a FieldIterator that can be used to traverse the
 // fields of a point without constructing the in-memory map.

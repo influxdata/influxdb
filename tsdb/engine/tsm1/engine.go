@@ -25,12 +25,13 @@ import (
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/index"
-	"go.uber.org/zap"
+	"github.com/uber-go/zap"
 )
 
 //go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl
 //go:generate tmpl -data=@file_store.gen.go.tmpldata file_store.gen.go.tmpl
 //go:generate tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
+//go:generate tmpl -data=@compact.gen.go.tmpldata compact.gen.go.tmpl
 
 func init() {
 	tsdb.RegisterEngine("tsm1", NewEngine)
@@ -868,15 +869,25 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	return nil
 }
 
-// ForEachMeasurementName iterates over each measurement name in the engine.
-func (e *Engine) ForEachMeasurementName(fn func(name []byte) error) error {
-	return e.index.ForEachMeasurementName(fn)
+// DeleteMeasurement deletes a measurement and all related series.
+func (e *Engine) DeleteMeasurement(name []byte) error {
+	// Delete the bulk of data outside of the fields lock.
+	if err := e.deleteMeasurement(name); err != nil {
+		return err
+	}
+
+	// Under lock, delete any series created deletion.
+	if err := e.fieldset.DeleteWithLock(string(name), func() error {
+		return e.deleteMeasurement(name)
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // DeleteMeasurement deletes a measurement and all related series.
-func (e *Engine) DeleteMeasurement(name []byte) error {
-	e.fieldset.Delete(string(name))
-
+func (e *Engine) deleteMeasurement(name []byte) error {
 	// Attempt to find the series keys.
 	keys, err := e.index.MeasurementSeriesKeysByExpr(name, nil)
 	if err != nil {
@@ -892,6 +903,11 @@ func (e *Engine) DeleteMeasurement(name []byte) error {
 		return err
 	}
 	return nil
+}
+
+// ForEachMeasurementName iterates over each measurement name in the engine.
+func (e *Engine) ForEachMeasurementName(fn func(name []byte) error) error {
+	return e.index.ForEachMeasurementName(fn)
 }
 
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
@@ -1296,8 +1312,6 @@ func (e *Engine) cleanupTempTSMFiles() error {
 
 // KeyCursor returns a KeyCursor for the given key starting at time t.
 func (e *Engine) KeyCursor(key string, t int64, ascending bool) *KeyCursor {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
 	return e.FileStore.KeyCursor(key, t, ascending)
 }
 
@@ -1349,6 +1363,13 @@ func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt
 	tagSets, err := e.index.TagSets([]byte(measurement), opt.Dimensions, opt.Condition)
 	if err != nil {
 		return nil, err
+	}
+
+	// Reverse the tag sets if we are ordering by descending.
+	if !opt.Ascending {
+		for _, t := range tagSets {
+			t.Reverse()
+		}
 	}
 
 	// Calculate tag sets and apply SLIMIT/SOFFSET.
@@ -1404,6 +1425,14 @@ func (e *Engine) createVarRefIterator(measurement string, opt influxql.IteratorO
 	if err != nil {
 		return nil, err
 	}
+
+	// Reverse the tag sets if we are ordering by descending.
+	if !opt.Ascending {
+		for _, t := range tagSets {
+			t.Reverse()
+		}
+	}
+
 	// Calculate tag sets and apply SLIMIT/SOFFSET.
 	tagSets = influxql.LimitTagSets(tagSets, opt.SLimit, opt.SOffset)
 
@@ -1417,14 +1446,36 @@ func (e *Engine) createVarRefIterator(measurement string, opt influxql.IteratorO
 				continue
 			}
 
+			// If we have a LIMIT or OFFSET and the grouping of the outer query
+			// is different than the current grouping, we need to perform the
+			// limit on each of the individual series keys instead to improve
+			// performance.
+			if (opt.Limit > 0 || opt.Offset > 0) && len(opt.Dimensions) != len(opt.GroupBy) {
+				for i, input := range inputs {
+					inputs[i] = newLimitIterator(input, opt)
+				}
+			}
+
 			itr, err := influxql.Iterators(inputs).Merge(opt)
 			if err != nil {
 				influxql.Iterators(inputs).Close()
 				return err
 			}
 
+			// Apply a limit on the merged iterator.
 			if opt.Limit > 0 || opt.Offset > 0 {
-				itr = newLimitIterator(itr, opt)
+				if len(opt.Dimensions) == len(opt.GroupBy) {
+					// When the final dimensions and the current grouping are
+					// the same, we will only produce one series so we can use
+					// the faster limit iterator.
+					itr = newLimitIterator(itr, opt)
+				} else {
+					// When the dimensions are different than the current
+					// grouping, we need to account for the possibility there
+					// will be multiple series. The limit iterator in the
+					// influxql package handles that scenario.
+					itr = influxql.NewLimitIterator(itr, opt)
+				}
 			}
 			itrs = append(itrs, itr)
 		}
