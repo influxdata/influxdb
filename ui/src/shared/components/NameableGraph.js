@@ -47,6 +47,7 @@ const NameableGraph = ({
 const {
   func,
   node,
+  number,
   shape,
   string,
 } = PropTypes
@@ -54,8 +55,8 @@ const {
 NameableGraph.propTypes = {
   cell: shape({
     name: string.isRequired,
-    x: string.isRequired,
-    y: string.isRequired,
+    x: number.isRequired,
+    y: number.isRequired,
   }).isRequired,
   children: node.isRequired,
   onEditCell: func.isRequired,
