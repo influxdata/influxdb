@@ -478,10 +478,6 @@ func (e *Engine) WithLogger(log zap.Logger) {
 
 // LoadMetadataIndex loads the shard metadata into memory.
 func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
-	if index.Type() != inmem.IndexName {
-		// We only need to load meta data for the in memory index.
-		return nil
-	}
 	now := time.Now()
 
 	// Save reference to index for iterator creation.
@@ -687,9 +683,12 @@ func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType, inde
 		return err
 	}
 
-	_, tags, _ := models.ParseKey(seriesKey)
-	if err := e.index.CreateSeriesIfNotExists(seriesKey, []byte(name), tags); err != nil {
-		return err
+	// Build in-memory index, if necessary.
+	if e.index.Type() == inmem.IndexName {
+		_, tags, _ := models.ParseKey(seriesKey)
+		if err := e.index.CreateSeriesIfNotExists(seriesKey, []byte(name), tags); err != nil {
+			return err
+		}
 	}
 
 	return nil

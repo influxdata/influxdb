@@ -154,6 +154,14 @@ func (f *LogFile) Close() error {
 	return nil
 }
 
+// Flush flushes buffered data to disk.
+func (f *LogFile) Flush() error {
+	if f.w != nil {
+		return f.w.Flush()
+	}
+	return nil
+}
+
 // Path returns the file path.
 func (f *LogFile) Path() string { return f.path }
 
@@ -631,8 +639,6 @@ func (f *LogFile) createMeasurementIfNotExists(name []byte) *logMeasurement {
 			tagSet: make(map[string]logTagKey),
 		}
 		f.mms[string(name)] = mm
-	} else if mm.series == nil {
-		panic("NO SERIES? " + string(mm.name))
 	}
 	return mm
 }

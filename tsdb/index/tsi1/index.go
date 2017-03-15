@@ -123,6 +123,7 @@ func (i *Index) Open() error {
 
 	// Open each file in the manifest.
 	for _, filename := range m.Files {
+		println("dbg/FILE", filename)
 		switch filepath.Ext(filename) {
 		case LogFileExt:
 			f, err := i.openLogFile(filepath.Join(i.Path, filename))
@@ -694,10 +695,23 @@ func (i *Index) SnapshotTo(path string) error {
 	fs := i.retainFileSet()
 	defer fs.Release()
 
+	// Flush active log file, if any.
+	if i.activeLogFile != nil {
+		if err := i.activeLogFile.Flush(); err != nil {
+			return err
+		}
+	}
+
 	if err := os.Mkdir(filepath.Join(path, "index"), 0777); err != nil {
 		return err
 	}
 
+	// Link manifest.
+	if err := os.Link(i.ManifestPath(), filepath.Join(path, "index", filepath.Base(i.ManifestPath()))); err != nil {
+		return fmt.Errorf("error creating tsi manifest hard link: %q", err)
+	}
+
+	// Link files in directory.
 	for _, f := range fs {
 		if err := os.Link(f.Path(), filepath.Join(path, "index", filepath.Base(f.Path()))); err != nil {
 			return fmt.Errorf("error creating tsi hard link: %q", err)
@@ -925,7 +939,7 @@ func (i *Index) checkLogFile() {
 	// Begin compacting in a background goroutine.
 	i.wg.Add(1)
 	go func() {
-		i.wg.Done()
+		defer i.wg.Done()
 		i.compactLogFile(logFile)
 		i.Compact() // check for new compactions
 	}()

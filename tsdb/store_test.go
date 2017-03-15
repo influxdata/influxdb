@@ -345,6 +345,10 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 		`cpu value=3 20`,
 	)
 
+	if err := s0.Reopen(); err != nil {
+		t.Fatal(err)
+	}
+
 	// Backup shard to a buffer.
 	var buf bytes.Buffer
 	if err := s0.BackupShard(100, time.Time{}, &buf); err != nil {
@@ -360,7 +364,7 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 	}
 
 	// Read data from
-	itr, err := s1.Shard(100).CreateIterator("cpu", influxql.IteratorOptions{
+	itr, err := s0.Shard(100).CreateIterator("cpu", influxql.IteratorOptions{
 		Expr:      influxql.MustParseExpr(`value`),
 		Ascending: true,
 		StartTime: influxql.MinTime,
