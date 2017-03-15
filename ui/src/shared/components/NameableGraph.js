@@ -14,8 +14,9 @@ const NameableGraph = ({
   onUpdateCell,
 }) => {
   let nameOrField
+  const isEditable = !!(onEditCell || onRenameCell || onUpdateCell)
 
-  if (isEditing) {
+  if (isEditing && isEditable) {
     nameOrField = (
       <input
         type="text"
@@ -34,9 +35,18 @@ const NameableGraph = ({
     nameOrField = name
   }
 
+  let onClickHandler
+  if (isEditable) {
+    onClickHandler = onEditCell
+  } else {
+    onClickHandler = () => {
+      // no-op
+    }
+  }
+
   return (
     <div>
-      <h2 className="dash-graph--heading" onClick={onEditCell(x, y, isEditing)}>{nameOrField}</h2>
+      <h2 className="dash-graph--heading" onClick={onClickHandler(x, y, isEditing)}>{nameOrField}</h2>
       <div className="dash-graph--container">
         {children}
       </div>
@@ -47,6 +57,7 @@ const NameableGraph = ({
 const {
   func,
   node,
+  number,
   shape,
   string,
 } = PropTypes
@@ -54,13 +65,13 @@ const {
 NameableGraph.propTypes = {
   cell: shape({
     name: string.isRequired,
-    x: string.isRequired,
-    y: string.isRequired,
+    x: number.isRequired,
+    y: number.isRequired,
   }).isRequired,
   children: node.isRequired,
-  onEditCell: func.isRequired,
-  onRenameCell: func.isRequired,
-  onUpdateCell: func.isRequired,
+  onEditCell: func,
+  onRenameCell: func,
+  onUpdateCell: func,
 }
 
 export default NameableGraph;
