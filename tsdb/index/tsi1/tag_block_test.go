@@ -2,8 +2,8 @@ package tsi1_test
 
 import (
 	"bytes"
+	"fmt"
 	"reflect"
-	"strconv"
 	"testing"
 
 	"github.com/influxdata/influxdb/tsdb/index/tsi1"
@@ -12,19 +12,32 @@ import (
 // Ensure tag blocks can be written and opened.
 func TestTagBlockWriter(t *testing.T) {
 	// Write 3 series to writer.
-	tsw := tsi1.NewTagBlockWriter()
-	tsw.AddTagValue([]byte("region"), []byte("us-east"), false, []uint64{1, 2})
-	tsw.AddTagValue([]byte("region"), []byte("us-west"), false, []uint64{3})
-	tsw.AddTagValue([]byte("host"), []byte("server0"), false, []uint64{1})
-	tsw.AddTagValue([]byte("host"), []byte("server1"), false, []uint64{2})
-	tsw.AddTagValue([]byte("host"), []byte("server2"), false, []uint64{3})
-
-	// Encode into buffer.
 	var buf bytes.Buffer
-	if n, err := tsw.WriteTo(&buf); err != nil {
+	enc := tsi1.NewTagBlockEncoder(&buf)
+
+	if err := enc.EncodeKey([]byte("host"), false); err != nil {
 		t.Fatal(err)
-	} else if int(n) != buf.Len() {
-		t.Fatalf("bytes written mismatch: %d, expected %d", n, buf.Len())
+	} else if err := enc.EncodeValue([]byte("server0"), false, []uint64{1}); err != nil {
+		t.Fatal(err)
+	} else if err := enc.EncodeValue([]byte("server1"), false, []uint64{2}); err != nil {
+		t.Fatal(err)
+	} else if err := enc.EncodeValue([]byte("server2"), false, []uint64{3}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := enc.EncodeKey([]byte("region"), false); err != nil {
+		t.Fatal(err)
+	} else if err := enc.EncodeValue([]byte("us-east"), false, []uint64{1, 2}); err != nil {
+		t.Fatal(err)
+	} else if err := enc.EncodeValue([]byte("us-west"), false, []uint64{3}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Flush encoder.
+	if err := enc.Close(); err != nil {
+		t.Fatal(err)
+	} else if int(enc.N()) != buf.Len() {
+		t.Fatalf("bytes written mismatch: %d, expected %d", enc.N(), buf.Len())
 	}
 
 	// Unmarshal into a block.
@@ -82,21 +95,24 @@ func BenchmarkTagBlock_SeriesN_1_1000000(b *testing.B) {
 
 func benchmarkTagBlock_SeriesN(b *testing.B, tagN, valueN int, blk **tsi1.TagBlock) {
 	if (*blk) == nil {
-		tw := tsi1.NewTagBlockWriter()
+		var buf bytes.Buffer
+		enc := tsi1.NewTagBlockEncoder(&buf)
 
 		// Write block.
-		var kbuf, vbuf [20]byte
 		for i := 0; i < tagN; i++ {
+			if err := enc.EncodeKey([]byte(fmt.Sprintf("%08d", i)), false); err != nil {
+				b.Fatal(err)
+			}
+
 			for j := 0; j < valueN; j++ {
-				k := strconv.AppendInt(kbuf[:0], int64(i), 10)
-				v := strconv.AppendInt(vbuf[:0], int64(j), 10)
-				tw.AddTagValue(k, v, false, []uint64{1})
+				if err := enc.EncodeValue([]byte(fmt.Sprintf("%08d", j)), false, []uint64{1}); err != nil {
+					b.Fatal(err)
+				}
 			}
 		}
 
-		// Encode into buffer.
-		var buf bytes.Buffer
-		if _, err := tw.WriteTo(&buf); err != nil {
+		// Flush encoder.
+		if err := enc.Close(); err != nil {
 			b.Fatal(err)
 		}
 		b.Log("size", buf.Len())

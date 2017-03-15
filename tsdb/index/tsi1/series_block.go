@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
-	"sort"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -92,6 +92,11 @@ func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags) (exists, tombst
 		pos = (pos + 1) % int(n)
 		d++
 
+		// DEBUG(benbjohnson)
+		if d > 30 {
+			println("dbg: high series probe count:", d, offset)
+		}
+
 		if uint64(d) > n {
 			return false, false
 		}
@@ -141,14 +146,14 @@ func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
 
 // SeriesCount returns the number of series.
 func (blk *SeriesBlock) SeriesCount() uint64 {
-	return binary.BigEndian.Uint64(blk.seriesData[:SeriesCountSize])
+	return uint64(blk.seriesN + blk.tombstoneN)
 }
 
 // SeriesIterator returns an iterator over all the series.
 func (blk *SeriesBlock) SeriesIterator() SeriesIterator {
 	return &seriesBlockIterator{
 		n:      blk.SeriesCount(),
-		offset: uint64(SeriesCountSize),
+		offset: 1,
 		sblk:   blk,
 	}
 }
@@ -338,174 +343,220 @@ func AppendSeriesKey(dst []byte, name []byte, tags models.Tags) []byte {
 	return dst
 }
 
-// SeriesBlockWriter writes a SeriesBlock.
-type SeriesBlockWriter struct {
-	series []serie // series list
+func CompareSeriesKeys(a, b []byte) int {
+	// Read names.
+	var n uint16
+	n, a = binary.BigEndian.Uint16(a), a[2:]
+	name0, a := a[:n], a[n:]
+	n, b = binary.BigEndian.Uint16(b), b[2:]
+	name1, b := b[:n], b[n:]
 
-	// key buffer
-	buf []byte
+	// Compare names, return if not equal.
+	if cmp := bytes.Compare(name0, name1); cmp != 0 {
+		return cmp
+	}
+
+	// Read tag counts.
+	tagN0, a := binary.BigEndian.Uint16(a), a[2:]
+	tagN1, b := binary.BigEndian.Uint16(b), b[2:]
+
+	// Compare each tag in order.
+	for i := uint16(0); ; i++ {
+		// Check for EOF.
+		if i == tagN0 && i == tagN1 {
+			return 0
+		} else if i == tagN0 {
+			return -1
+		} else if i == tagN1 {
+			return 1
+		}
+
+		// Read keys.
+		var key0, key1 []byte
+		n, a = binary.BigEndian.Uint16(a), a[2:]
+		key0, a = a[:n], a[n:]
+		n, b = binary.BigEndian.Uint16(b), b[2:]
+		key1, b = b[:n], b[n:]
+
+		// Compare keys.
+		if cmp := bytes.Compare(key0, key1); cmp != 0 {
+			return cmp
+		}
+
+		// Read values.
+		var value0, value1 []byte
+		n, a = binary.BigEndian.Uint16(a), a[2:]
+		value0, a = a[:n], a[n:]
+		n, b = binary.BigEndian.Uint16(b), b[2:]
+		value1, b = b[:n], b[n:]
+
+		// Compare values.
+		if cmp := bytes.Compare(value0, value1); cmp != 0 {
+			return cmp
+		}
+	}
+}
+
+// SeriesBlockEncoder encodes series to a SeriesBlock in an underlying writer.
+type SeriesBlockEncoder struct {
+	w io.Writer
+
+	// Double buffer for writing series.
+	// First elem is current buffer, second is previous buffer.
+	buf [2][]byte
+
+	// Track bytes written, sections, & offsets.
+	n       int64
+	trailer SeriesBlockTrailer
+	offsets *rhh.HashMap
 
 	// Series sketch and tombstoned series sketch. These must be
 	// set before calling WriteTo.
 	sketch, tSketch estimator.Sketch
 }
 
-// NewSeriesBlockWriter returns a new instance of SeriesBlockWriter.
-func NewSeriesBlockWriter() *SeriesBlockWriter {
-	return &SeriesBlockWriter{
+// NewSeriesBlockEncoder returns a new instance of SeriesBlockEncoder.
+func NewSeriesBlockEncoder(w io.Writer) *SeriesBlockEncoder {
+	return &SeriesBlockEncoder{
+		w: w,
+
+		offsets: rhh.NewHashMap(rhh.Options{LoadFactor: 50}),
+
 		sketch:  hll.NewDefaultPlus(),
 		tSketch: hll.NewDefaultPlus(),
 	}
 }
 
-// Add adds a series to the writer's set.
-// Returns an ErrSeriesOverflow if no more series can be held in the writer.
-func (sw *SeriesBlockWriter) Add(name []byte, tags models.Tags, deleted bool) error {
-	// Append series to list.
-	sw.series = append(sw.series, serie{
-		name:    copyBytes(name),
-		tags:    models.CopyTags(tags),
-		deleted: deleted,
-	})
+// N returns the number of bytes written.
+func (enc *SeriesBlockEncoder) N() int64 { return enc.n }
 
-	// Generate the series key and add it to the appropriate sketch.
-	sw.buf = AppendSeriesKey(sw.buf[:0], name, tags)
-	if deleted {
-		sw.tSketch.Add(sw.buf)
-	} else {
-		sw.sketch.Add(sw.buf)
-	}
-
-	return nil
+// Offset returns the series offset from the encoder.
+// Returns zero if series cannot be found.
+func (enc *SeriesBlockEncoder) Offset(key []byte) uint64 {
+	v, _ := enc.offsets.Get(key).(uint64)
+	return v
 }
 
-// WriteTo computes the dictionary encoding of the series and writes to w.
-func (sw *SeriesBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
-	var t SeriesBlockTrailer
-	for _, s := range sw.series {
-		if s.deleted {
-			t.TombstoneN++
-		} else {
-			t.SeriesN++
-		}
-	}
-
-	// Ensure series are sorted.
-	sort.Sort(series(sw.series))
-
-	// Write dictionary-encoded series list.
-	t.Series.Data.Offset = n
-	if err := sw.writeSeriesTo(w, &n); err != nil {
-		return n, err
-	}
-	t.Series.Data.Size = n - t.Series.Data.Offset
-
-	// Write dictionary-encoded series hash index.
-	t.Series.Index.Offset = n
-	if err := sw.writeSeriesIndexTo(w, &n); err != nil {
-		return n, err
-	}
-	t.Series.Index.Size = n - t.Series.Index.Offset
-
-	// Write the sketches out.
-	t.Sketch.Offset = n
-	if err := writeSketchTo(w, sw.sketch, &n); err != nil {
-		return n, err
-	}
-	t.Sketch.Size = n - t.Sketch.Offset
-
-	t.TSketch.Offset = n
-	if err := writeSketchTo(w, sw.tSketch, &n); err != nil {
-		return n, err
-	}
-	t.TSketch.Size = n - t.TSketch.Offset
-
-	// Write trailer.
-	nn, err := t.WriteTo(w)
-	n += nn
-	if err != nil {
-		return n, err
-	}
-
-	return n, nil
-}
-
-// writeSeriesTo writes series to w in sorted order.
-func (sw *SeriesBlockWriter) writeSeriesTo(w io.Writer, n *int64) error {
-	// Write series count.
-	if err := writeUint64To(w, uint64(len(sw.series)), n); err != nil {
+// Encode writes a series to the underlying writer.
+// The series must be lexicographical sorted after the previous encoded series.
+func (enc *SeriesBlockEncoder) Encode(name []byte, tags models.Tags, deleted bool) error {
+	// An initial empty byte must be written.
+	if err := enc.ensureHeaderWritten(); err != nil {
 		return err
 	}
 
-	// Write series.
-	buf := make([]byte, 40)
-	for i := range sw.series {
-		s := &sw.series[i]
+	// Generate the series element.
+	buf := AppendSeriesElem(enc.buf[0][:0], encodeSerieFlag(deleted), name, tags)
 
-		// Track offset of the series.
-		s.offset = uint64(*n)
+	// Verify series is after previous series.
+	if enc.buf[1] != nil {
+		// Skip the first byte since it is the flag. Remaining bytes are key.
+		key0, key1 := buf[1:], enc.buf[1][1:]
 
-		// Write series to buffer.
-		buf = AppendSeriesElem(buf[:0], s.flag(), s.name, s.tags)
-
-		// Write buffer to writer.
-		if err := writeTo(w, buf, n); err != nil {
-			return err
+		if cmp := CompareSeriesKeys(key0, key1); cmp == -1 {
+			return fmt.Errorf("series out of order: prev=%s, new=%s", enc.buf[1], buf)
+		} else if cmp == 0 {
+			return fmt.Errorf("series already encoded: %s", buf)
 		}
+	}
+
+	// Swap double buffer.
+	enc.buf[0], enc.buf[1] = enc.buf[1], buf
+
+	// Write encoded series to writer.
+	offset := enc.n
+	if err := writeTo(enc.w, buf, &enc.n); err != nil {
+		return err
+	}
+
+	// Save offset to generate index later.
+	enc.offsets.Put(copyBytes(buf[1:]), uint64(offset))
+
+	// Update sketches & trailer.
+	if deleted {
+		enc.trailer.TombstoneN++
+		enc.tSketch.Add(buf)
+	} else {
+		enc.trailer.SeriesN++
+		enc.sketch.Add(buf)
 	}
 
 	return nil
 }
 
-// writeSeriesIndexTo writes hash map lookup of series to w.
-func (sw *SeriesBlockWriter) writeSeriesIndexTo(w io.Writer, n *int64) error {
-	// Build hash map of series.
-	m := rhh.NewHashMap(rhh.Options{
-		Capacity:   len(sw.series),
-		LoadFactor: 90,
-	})
-	for _, s := range sw.series {
-		m.Put(AppendSeriesKey(nil, s.name, s.tags), s.offset)
+// Close writes the index and trailer.
+// This should be called at the end once all series have been encoded.
+func (enc *SeriesBlockEncoder) Close() error {
+	if err := enc.ensureHeaderWritten(); err != nil {
+		return err
 	}
 
+	// Write dictionary-encoded series list.
+	enc.trailer.Series.Data.Offset = 1
+	enc.trailer.Series.Data.Size = enc.n - enc.trailer.Series.Data.Offset
+
+	// Write dictionary-encoded series hash index.
+	enc.trailer.Series.Index.Offset = enc.n
+	if err := enc.writeSeriesIndex(); err != nil {
+		return err
+	}
+	enc.trailer.Series.Index.Size = enc.n - enc.trailer.Series.Index.Offset
+
+	// Write the sketches out.
+	enc.trailer.Sketch.Offset = enc.n
+	if err := writeSketchTo(enc.w, enc.sketch, &enc.n); err != nil {
+		return err
+	}
+	enc.trailer.Sketch.Size = enc.n - enc.trailer.Sketch.Offset
+
+	enc.trailer.TSketch.Offset = enc.n
+	if err := writeSketchTo(enc.w, enc.tSketch, &enc.n); err != nil {
+		return err
+	}
+	enc.trailer.TSketch.Size = enc.n - enc.trailer.TSketch.Offset
+
+	// Write trailer.
+	nn, err := enc.trailer.WriteTo(enc.w)
+	enc.n += nn
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// writeSeriesIndex writes hash map lookup of series to w.
+func (enc *SeriesBlockEncoder) writeSeriesIndex() error {
 	// Encode hash map length.
-	if err := writeUint64To(w, uint64(m.Cap()), n); err != nil {
+	if err := writeUint64To(enc.w, uint64(enc.offsets.Cap()), &enc.n); err != nil {
 		return err
 	}
 
 	// Encode hash map offset entries.
-	for i := 0; i < m.Cap(); i++ {
-		_, v := m.Elem(i)
+	for i := 0; i < enc.offsets.Cap(); i++ {
+		_, v := enc.offsets.Elem(i)
 		offset, _ := v.(uint64)
 
-		if err := writeUint64To(w, uint64(offset), n); err != nil {
+		if err := writeUint64To(enc.w, uint64(offset), &enc.n); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-// Offset returns the series offset from the writer.
-// Only valid after the series list has been written to a writer.
-func (sw *SeriesBlockWriter) Offset(name []byte, tags models.Tags) uint64 {
-	// Find position of series.
-	i := sort.Search(len(sw.series), func(i int) bool {
-		s := &sw.series[i]
-		if cmp := bytes.Compare(s.name, name); cmp != 0 {
-			return cmp != -1
-		}
-		return models.CompareTags(s.tags, tags) != -1
-	})
-
-	// Ignore if it's not an exact match.
-	if i >= len(sw.series) {
-		return 0
-	} else if s := &sw.series[i]; !bytes.Equal(s.name, name) || !s.tags.Equal(tags) {
-		return 0
+// ensureHeaderWritten writes a single empty byte at the front of the file
+// so that series offsets will always be non-zero.
+func (enc *SeriesBlockEncoder) ensureHeaderWritten() error {
+	if enc.n > 0 {
+		return nil
 	}
 
-	// Return offset & deleted flag of series.
-	return sw.series[i].offset
+	if _, err := enc.w.Write([]byte{0}); err != nil {
+		return err
+	}
+	enc.n++
+
+	return nil
 }
 
 // ReadSeriesBlockTrailer returns the series list trailer from data.
@@ -530,6 +581,10 @@ func ReadSeriesBlockTrailer(data []byte) SeriesBlockTrailer {
 	// Read tombstone series sketch info.
 	t.TSketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 	t.TSketch.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+
+	// Read series & tombstone count.
+	t.SeriesN, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.TombstoneN, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
 	return t
 }
@@ -593,8 +648,11 @@ func (t SeriesBlockTrailer) WriteTo(w io.Writer) (n int64, err error) {
 	// Write series and tombstone count.
 	if err := writeUint64To(w, uint64(t.SeriesN), &n); err != nil {
 		return n, err
+	} else if err := writeUint64To(w, uint64(t.TombstoneN), &n); err != nil {
+		return n, err
 	}
-	return n, writeUint64To(w, uint64(t.TombstoneN), &n)
+
+	return n, nil
 }
 
 type serie struct {
@@ -604,9 +662,11 @@ type serie struct {
 	offset  uint64
 }
 
-func (s *serie) flag() uint8 {
+func (s *serie) flag() uint8 { return encodeSerieFlag(s.deleted) }
+
+func encodeSerieFlag(deleted bool) byte {
 	var flag byte
-	if s.deleted {
+	if deleted {
 		flag |= SeriesTombstoneFlag
 	}
 	return flag

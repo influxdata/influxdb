@@ -53,17 +53,18 @@ func TestSeriesBlock_Series(t *testing.T) {
 
 // CreateSeriesBlock returns an in-memory SeriesBlock with a list of series.
 func CreateSeriesBlock(a []Series) (*tsi1.SeriesBlock, error) {
+	var buf bytes.Buffer
+
 	// Create writer and sketches. Add series.
-	w := tsi1.NewSeriesBlockWriter()
+	enc := tsi1.NewSeriesBlockEncoder(&buf)
 	for i, s := range a {
-		if err := w.Add(s.Name, s.Tags, s.Deleted); err != nil {
+		if err := enc.Encode(s.Name, s.Tags, s.Deleted); err != nil {
 			return nil, fmt.Errorf("SeriesBlockWriter.Add(): i=%d, err=%s", i, err)
 		}
 	}
 
-	// Write to buffer.
-	var buf bytes.Buffer
-	if _, err := w.WriteTo(&buf); err != nil {
+	// Close and flush.
+	if err := enc.Close(); err != nil {
 		return nil, fmt.Errorf("SeriesBlockWriter.WriteTo(): %s", err)
 	}
 

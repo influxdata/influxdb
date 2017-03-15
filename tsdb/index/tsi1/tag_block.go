@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/influxdata/influxdb/pkg/rhh"
@@ -102,27 +103,28 @@ func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
 			return nil
 		}
 
-		// Evaluate key if offset is not empty.
-		if offset > 0 {
-			// Parse into element.
-			var e TagBlockKeyElem
-			e.unmarshal(blk.data[offset:], blk.data)
+		// Parse into element.
+		var e TagBlockKeyElem
+		e.unmarshal(blk.data[offset:], blk.data)
 
-			// Return if keys match.
-			if bytes.Equal(e.key, key) {
-				return &e
-			}
+		// Return if keys match.
+		if bytes.Equal(e.key, key) {
+			return &e
+		}
 
-			// Check if we've exceeded the probe distance.
-			if d > dist(hashKey(e.key), pos, int(keyN)) {
-				return nil
-			}
-
+		// Check if we've exceeded the probe distance.
+		if d > dist(hashKey(e.key), pos, int(keyN)) {
+			return nil
 		}
 
 		// Move position forward.
 		pos = (pos + 1) % int(keyN)
 		d++
+
+		// DEBUG(benbjohnson)
+		if d > 30 {
+			println("dbg: high tag key probe count:", d)
+		}
 
 		if uint64(d) > keyN {
 			return nil
@@ -151,27 +153,32 @@ func (blk *TagBlock) TagValueElem(key, value []byte) TagValueElem {
 	for {
 		// Find offset of tag value.
 		offset := binary.BigEndian.Uint64(hashData[TagValueNSize+(pos*TagValueOffsetSize):])
+		if offset == 0 {
+			return nil
+		}
 
-		// Evaluate value if offset is not empty.
-		if offset > 0 {
-			// Parse into element.
-			var e TagBlockValueElem
-			e.unmarshal(blk.data[offset:])
+		// Parse into element.
+		var e TagBlockValueElem
+		e.unmarshal(blk.data[offset:])
 
-			// Return if values match.
-			if bytes.Equal(e.value, value) {
-				return &e
-			}
+		// Return if values match.
+		if bytes.Equal(e.value, value) {
+			return &e
+		}
 
-			// Check if we've exceeded the probe distance.
-			if d > dist(hashKey(e.value), pos, int(valueN)) {
-				return nil
-			}
+		// Check if we've exceeded the probe distance.
+		if d > dist(hashKey(e.value), pos, int(valueN)) {
+			return nil
 		}
 
 		// Move position forward.
 		pos = (pos + 1) % int(valueN)
 		d++
+
+		// DEBUG(benbjohnson)
+		if d > 30 {
+			println("dbg: high tag value probe count:", d)
+		}
 
 		if uint64(d) > valueN {
 			return nil
@@ -452,175 +459,101 @@ func ReadTagBlockTrailer(data []byte) (TagBlockTrailer, error) {
 	return t, nil
 }
 
-// TagBlockWriter writes a TagBlock section.
-type TagBlockWriter struct {
-	sets map[string]tagSet
+// TagBlockEncoder encodes a tags to a TagBlock section.
+type TagBlockEncoder struct {
+	w io.Writer
+
+	// Track value offsets.
+	offsets *rhh.HashMap
+
+	// Track bytes written, sections.
+	n       int64
+	trailer TagBlockTrailer
+
+	// Track tag keys.
+	keys []tagKeyEncodeEntry
 }
 
-// NewTagBlockWriter returns a new TagBlockWriter.
-func NewTagBlockWriter() *TagBlockWriter {
-	return &TagBlockWriter{
-		sets: make(map[string]tagSet),
+// NewTagBlockEncoder returns a new TagBlockEncoder.
+func NewTagBlockEncoder(w io.Writer) *TagBlockEncoder {
+	return &TagBlockEncoder{
+		w:       w,
+		offsets: rhh.NewHashMap(rhh.Options{LoadFactor: 50}),
+		trailer: TagBlockTrailer{
+			Version: TagBlockVersion,
+		},
 	}
 }
 
-// DeleteTag marks a key as deleted.
-func (tw *TagBlockWriter) DeleteTag(key []byte) {
-	assert(len(key) > 0, "cannot delete zero-length tag")
+// N returns the number of bytes written.
+func (enc *TagBlockEncoder) N() int64 { return enc.n }
 
-	ts := tw.sets[string(key)]
-	ts.deleted = true
-	tw.sets[string(key)] = ts
-}
-
-// AddTagValue adds a key/value pair with an associated list of series.
-func (tw *TagBlockWriter) AddTagValue(key, value []byte, deleted bool, seriesIDs []uint64) {
-	assert(len(key) > 0, "cannot add zero-length key")
-	assert(len(value) > 0, "cannot add zero-length value")
-	assert(len(seriesIDs) > 0, "cannot add tag value without series ids")
-
-	ts, ok := tw.sets[string(key)]
-	if !ok || ts.values == nil {
-		ts.values = make(map[string]tagValue)
-		tw.sets[string(key)] = ts
-	}
-
-	tv := ts.values[string(value)]
-	tv.deleted = deleted
-	tv.seriesIDs = seriesIDs
-	ts.values[string(value)] = tv
-}
-
-// WriteTo encodes the tag values & tag key blocks.
-func (tw *TagBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
-	// Initialize trailer.
-	var t TagBlockTrailer
-	t.Version = TagBlockVersion
-
-	// Write padding byte so no offsets are zero.
-	if err := writeUint8To(w, 0, &n); err != nil {
-		return n, err
-	}
-
-	// Build key hash map.
-	m := rhh.NewHashMap(rhh.Options{
-		Capacity:   len(tw.sets),
-		LoadFactor: 90,
-	})
-	for key := range tw.sets {
-		ts := tw.sets[key]
-		m.Put([]byte(key), &ts)
-	}
-
-	// Write value blocks in key map order.
-	t.ValueData.Offset = n
-	for i := 0; i < m.Cap(); i++ {
-		_, v := m.Elem(i)
-		if v == nil {
-			continue
-		}
-		ts := v.(*tagSet)
-
-		// Write value block.
-		if err := tw.writeTagValueBlockTo(w, ts, &n); err != nil {
-			return n, err
-		}
-	}
-	t.ValueData.Size = n - t.ValueData.Offset
-
-	// Write key block to point to value blocks.
-	if err := tw.writeTagKeyBlockTo(w, m, &t, &n); err != nil {
-		return n, err
-	}
-
-	// Compute total size w/ trailer.
-	t.Size = n + TagBlockTrailerSize
-
-	// Write trailer.
-	nn, err := t.WriteTo(w)
-	n += nn
-	if err != nil {
-		return n, err
-	}
-
-	return n, nil
-}
-
-// writeTagValueBlockTo encodes values from a tag set into w.
-func (tw *TagBlockWriter) writeTagValueBlockTo(w io.Writer, ts *tagSet, n *int64) error {
-	// Build RHH map from tag values.
-	m := rhh.NewHashMap(rhh.Options{
-		Capacity:   len(ts.values),
-		LoadFactor: 90,
-	})
-	for value := range ts.values {
-		tv := ts.values[value]
-		m.Put([]byte(value), &tv)
-	}
-
-	// Encode value list.
-	ts.data.offset = *n
-	for _, k := range m.Keys() {
-		tv := m.Get(k).(*tagValue)
-
-		// Save current offset so we can use it in the hash index.
-		tv.offset = *n
-
-		// Write value block.
-		if err := tw.writeTagValueTo(w, k, tv, n); err != nil {
-			return err
-		}
-	}
-	ts.data.size = *n - ts.data.offset
-
-	// Encode hash map length.
-	ts.hashIndex.offset = *n
-	if err := writeUint64To(w, uint64(m.Cap()), n); err != nil {
+// EncodeKey writes a tag key to the underlying writer.
+func (enc *TagBlockEncoder) EncodeKey(key []byte, deleted bool) error {
+	// An initial empty byte must be written.
+	if err := enc.ensureHeaderWritten(); err != nil {
 		return err
 	}
 
-	// Encode hash map offset entries.
-	for i := 0; i < m.Cap(); i++ {
-		var offset int64
-
-		_, v := m.Elem(i)
-		if v != nil {
-			offset = v.(*tagValue).offset
-		}
-
-		if err := writeUint64To(w, uint64(offset), n); err != nil {
-			return err
+	// Verify key is lexicographically after previous key.
+	if len(enc.keys) > 0 {
+		prev := enc.keys[len(enc.keys)-1].key
+		if cmp := bytes.Compare(prev, key); cmp == 1 {
+			return fmt.Errorf("tag key out of order: prev=%s, new=%s", prev, key)
+		} else if cmp == 0 {
+			return fmt.Errorf("tag key already encoded: %s", key)
 		}
 	}
-	ts.hashIndex.size = *n - ts.hashIndex.offset
+
+	// Flush values section for key.
+	if err := enc.flushValueHashIndex(); err != nil {
+		return err
+	}
+
+	// Append key on to the end of the key list.
+	entry := tagKeyEncodeEntry{
+		key:     key,
+		deleted: deleted,
+	}
+	entry.data.offset = enc.n
+
+	enc.keys = append(enc.keys, entry)
 
 	return nil
 }
 
-// writeTagValueTo encodes a single tag value entry into w.
-func (tw *TagBlockWriter) writeTagValueTo(w io.Writer, v []byte, tv *tagValue, n *int64) error {
-	assert(len(v) > 0, "cannot write zero-length tag value")
+// EncodeValue writes a tag value to the underlying writer.
+// The tag key must be lexicographical sorted after the previous encoded tag key.
+func (enc *TagBlockEncoder) EncodeValue(value []byte, deleted bool, seriesIDs []uint64) error {
+	if len(enc.keys) == 0 {
+		return fmt.Errorf("tag key must be encoded before encoding values")
+	} else if len(value) == 0 {
+		return fmt.Errorf("zero length tag value not allowed")
+	}
+
+	// Save offset to hash map.
+	enc.offsets.Put(value, enc.n)
 
 	// Write flag.
-	if err := writeUint8To(w, tv.flag(), n); err != nil {
+	if err := writeUint8To(enc.w, encodeTagValueFlag(deleted), &enc.n); err != nil {
 		return err
 	}
 
 	// Write value.
-	if err := writeUvarintTo(w, uint64(len(v)), n); err != nil {
+	if err := writeUvarintTo(enc.w, uint64(len(value)), &enc.n); err != nil {
 		return err
-	} else if err := writeTo(w, v, n); err != nil {
+	} else if err := writeTo(enc.w, value, &enc.n); err != nil {
 		return err
 	}
 
 	// Write series count.
-	if err := writeUvarintTo(w, uint64(len(tv.seriesIDs)), n); err != nil {
+	if err := writeUvarintTo(enc.w, uint64(len(seriesIDs)), &enc.n); err != nil {
 		return err
 	}
 
 	// Write series ids.
-	for _, seriesID := range tv.seriesIDs {
-		if err := writeUint64To(w, seriesID, n); err != nil {
+	for _, seriesID := range seriesIDs {
+		if err := writeUint64To(enc.w, seriesID, &enc.n); err != nil {
 			return err
 		}
 	}
@@ -628,75 +561,172 @@ func (tw *TagBlockWriter) writeTagValueTo(w io.Writer, v []byte, tv *tagValue, n
 	return nil
 }
 
-// writeTagKeyBlockTo encodes keys from a tag set into w.
-func (tw *TagBlockWriter) writeTagKeyBlockTo(w io.Writer, m *rhh.HashMap, t *TagBlockTrailer, n *int64) error {
-	// Encode key list in sorted order.
-	t.KeyData.Offset = *n
-	for _, k := range m.Keys() {
-		ts := m.Get(k).(*tagSet)
-
-		// Save current offset so we can use it in the hash index.
-		ts.offset = *n
-
-		// Write key entry.
-		if err := tw.writeTagKeyTo(w, k, ts, n); err != nil {
-			return err
-		}
+// Close flushes the trailer of the encoder to the writer.
+func (enc *TagBlockEncoder) Close() error {
+	// Flush last value set.
+	if err := enc.ensureHeaderWritten(); err != nil {
+		return err
+	} else if err := enc.flushValueHashIndex(); err != nil {
+		return err
 	}
-	t.KeyData.Size = *n - t.KeyData.Offset
+
+	// Save ending position of entire data block.
+	enc.trailer.ValueData.Size = enc.n - enc.trailer.ValueData.Offset
+
+	// Write key block to point to value blocks.
+	if err := enc.encodeTagKeyBlock(); err != nil {
+		return err
+	}
+
+	// Compute total size w/ trailer.
+	enc.trailer.Size = enc.n + TagBlockTrailerSize
+
+	// Write trailer.
+	nn, err := enc.trailer.WriteTo(enc.w)
+	enc.n += nn
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ensureHeaderWritten writes a single byte to offset the rest of the block.
+func (enc *TagBlockEncoder) ensureHeaderWritten() error {
+	if enc.n > 0 {
+		return nil
+	} else if _, err := enc.w.Write([]byte{0}); err != nil {
+		return err
+	}
+
+	enc.n++
+	enc.trailer.ValueData.Offset = enc.n
+
+	return nil
+}
+
+// flushValueHashIndex builds writes the hash map at the end of a value set.
+func (enc *TagBlockEncoder) flushValueHashIndex() error {
+	// Ignore if no keys have been written.
+	if len(enc.keys) == 0 {
+		return nil
+	}
+	key := &enc.keys[len(enc.keys)-1]
+
+	// Save size of data section.
+	key.data.size = enc.n - key.data.offset
 
 	// Encode hash map length.
-	t.HashIndex.Offset = *n
-	if err := writeUint64To(w, uint64(m.Cap()), n); err != nil {
+	key.hashIndex.offset = enc.n
+	if err := writeUint64To(enc.w, uint64(enc.offsets.Cap()), &enc.n); err != nil {
 		return err
 	}
 
 	// Encode hash map offset entries.
-	for i := 0; i < m.Cap(); i++ {
-		var offset int64
-
-		_, v := m.Elem(i)
-		if v != nil {
-			offset = v.(*tagSet).offset
-		}
-
-		if err := writeUint64To(w, uint64(offset), n); err != nil {
+	for i := 0; i < enc.offsets.Cap(); i++ {
+		_, v := enc.offsets.Elem(i)
+		offset, _ := v.(int64)
+		if err := writeUint64To(enc.w, uint64(offset), &enc.n); err != nil {
 			return err
 		}
 	}
-	t.HashIndex.Size = *n - t.HashIndex.Offset
+	key.hashIndex.size = enc.n - key.hashIndex.offset
+
+	// Clear offsets.
+	enc.offsets = rhh.NewHashMap(rhh.Options{LoadFactor: 50})
 
 	return nil
 }
 
-// writeTagKeyTo encodes a single tag key entry into w.
-func (tw *TagBlockWriter) writeTagKeyTo(w io.Writer, k []byte, ts *tagSet, n *int64) error {
-	assert(len(k) > 0, "cannot write zero-length tag key")
+// encodeTagKeyBlock encodes the keys section to the writer.
+func (enc *TagBlockEncoder) encodeTagKeyBlock() error {
+	offsets := rhh.NewHashMap(rhh.Options{Capacity: len(enc.keys), LoadFactor: 50})
 
-	if err := writeUint8To(w, ts.flag(), n); err != nil {
+	// Encode key list in sorted order.
+	enc.trailer.KeyData.Offset = enc.n
+	for i := range enc.keys {
+		entry := &enc.keys[i]
+
+		// Save current offset so we can use it in the hash index.
+		offsets.Put(entry.key, enc.n)
+
+		if err := writeUint8To(enc.w, encodeTagKeyFlag(entry.deleted), &enc.n); err != nil {
+			return err
+		}
+
+		// Write value data offset & size.
+		if err := writeUint64To(enc.w, uint64(entry.data.offset), &enc.n); err != nil {
+			return err
+		} else if err := writeUint64To(enc.w, uint64(entry.data.size), &enc.n); err != nil {
+			return err
+		}
+
+		// Write value hash index offset & size.
+		if err := writeUint64To(enc.w, uint64(entry.hashIndex.offset), &enc.n); err != nil {
+			return err
+		} else if err := writeUint64To(enc.w, uint64(entry.hashIndex.size), &enc.n); err != nil {
+			return err
+		}
+
+		// Write key length and data.
+		if err := writeUvarintTo(enc.w, uint64(len(entry.key)), &enc.n); err != nil {
+			return err
+		} else if err := writeTo(enc.w, entry.key, &enc.n); err != nil {
+			return err
+		}
+	}
+	enc.trailer.KeyData.Size = enc.n - enc.trailer.KeyData.Offset
+
+	// Encode hash map length.
+	enc.trailer.HashIndex.Offset = enc.n
+	if err := writeUint64To(enc.w, uint64(offsets.Cap()), &enc.n); err != nil {
 		return err
 	}
 
-	if err := writeUint64To(w, uint64(ts.data.offset), n); err != nil {
-		return err
-	} else if err := writeUint64To(w, uint64(ts.data.size), n); err != nil {
-		return err
+	// Encode hash map offset entries.
+	for i := 0; i < offsets.Cap(); i++ {
+		_, v := offsets.Elem(i)
+		offset, _ := v.(int64)
+		if err := writeUint64To(enc.w, uint64(offset), &enc.n); err != nil {
+			return err
+		}
 	}
+	enc.trailer.HashIndex.Size = enc.n - enc.trailer.HashIndex.Offset
 
-	if err := writeUint64To(w, uint64(ts.hashIndex.offset), n); err != nil {
-		return err
-	} else if err := writeUint64To(w, uint64(ts.hashIndex.size), n); err != nil {
-		return err
-	}
-
-	if err := writeUvarintTo(w, uint64(len(k)), n); err != nil {
-		return err
-	} else if err := writeTo(w, k, n); err != nil {
-		return err
-	}
 	return nil
 }
 
+type tagKeyEncodeEntry struct {
+	key     []byte
+	deleted bool
+
+	data struct {
+		offset int64
+		size   int64
+	}
+	hashIndex struct {
+		offset int64
+		size   int64
+	}
+}
+
+func encodeTagKeyFlag(deleted bool) byte {
+	var flag byte
+	if deleted {
+		flag |= TagKeyTombstoneFlag
+	}
+	return flag
+}
+
+func encodeTagValueFlag(deleted bool) byte {
+	var flag byte
+	if deleted {
+		flag |= TagValueTombstoneFlag
+	}
+	return flag
+}
+
+/*
 type tagSet struct {
 	deleted bool
 	data    struct {
@@ -712,13 +742,7 @@ type tagSet struct {
 	offset int64
 }
 
-func (ts tagSet) flag() byte {
-	var flag byte
-	if ts.deleted {
-		flag |= TagKeyTombstoneFlag
-	}
-	return flag
-}
+func (ts tagSet) flag() byte { return encodeTagKeyFlag(ts.deleted) }
 
 type tagValue struct {
 	seriesIDs []uint64
@@ -727,10 +751,5 @@ type tagValue struct {
 	offset int64
 }
 
-func (tv tagValue) flag() byte {
-	var flag byte
-	if tv.deleted {
-		flag |= TagValueTombstoneFlag
-	}
-	return flag
-}
+func (tv tagValue) flag() byte { return encodeTagValueFlag(tv.deleted) }
+*/

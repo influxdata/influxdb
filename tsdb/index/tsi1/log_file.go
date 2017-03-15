@@ -199,6 +199,7 @@ func (f *LogFile) measurementNames() []string {
 	for name := range f.mms {
 		a = append(a, name)
 	}
+	sort.Strings(a)
 	return a
 }
 
@@ -717,7 +718,7 @@ func (f *LogFile) WriteTo(w io.Writer) (n int64, err error) {
 
 func (f *LogFile) writeSeriesBlockTo(w io.Writer, info *logFileCompactInfo, n *int64) error {
 	// Write all series.
-	sw := NewSeriesBlockWriter()
+	enc := NewSeriesBlockEncoder(w)
 
 	// Retreve measurement names in order.
 	names := f.measurementNames()
@@ -726,20 +727,21 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, info *logFileCompactInfo, n *i
 	for _, name := range names {
 		mm := f.mms[name]
 		for _, serie := range mm.series {
-			if err := sw.Add(serie.name, serie.tags, serie.deleted); err != nil {
+			if err := enc.Encode(serie.name, serie.tags, serie.deleted); err != nil {
 				return err
 			}
 		}
 	}
 
-	// Flush series list.
-	nn, err := sw.WriteTo(w)
-	*n += nn
+	// Close and flush series list.
+	err := enc.Close()
+	*n += enc.N()
 	if err != nil {
 		return err
 	}
 
 	// Add series to each measurement and key/value.
+	var seriesKey []byte
 	for _, name := range names {
 		mm := f.mms[name]
 		mmInfo := info.createMeasurementInfoIfNotExists(name)
@@ -749,7 +751,8 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, info *logFileCompactInfo, n *i
 			serie := mm.series[k]
 
 			// Lookup series offset.
-			offset := sw.Offset(serie.name, serie.tags)
+			seriesKey = AppendSeriesKey(seriesKey[:0], serie.name, serie.tags)
+			offset := enc.Offset(seriesKey)
 			if offset == 0 {
 				panic("series not found: " + string(serie.name) + " " + serie.tags.String())
 			}
@@ -783,11 +786,14 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 	mm := f.mms[name]
 	mmInfo := info.mms[name]
 
-	tw := NewTagBlockWriter()
-	for k, tag := range mm.tagSet {
-		// Mark tag deleted.
-		if tag.deleted {
-			tw.DeleteTag(tag.name)
+	enc := NewTagBlockEncoder(w)
+	for _, k := range mm.keys() {
+		tag := mm.tagSet[k]
+
+		// Encode tag. Skip values if tag is deleted.
+		if err := enc.EncodeKey(tag.name, tag.deleted); err != nil {
+			return err
+		} else if tag.deleted {
 			continue
 		}
 
@@ -799,16 +805,19 @@ func (f *LogFile) writeTagsetTo(w io.Writer, name string, info *logFileCompactIn
 		for v, value := range tag.tagValues {
 			tagValueInfo := tagSetInfo.tagValues[v]
 			sort.Sort(uint64Slice(tagValueInfo.seriesIDs))
-			tw.AddTagValue(tag.name, value.name, value.deleted, tagValueInfo.seriesIDs)
+
+			if err := enc.EncodeValue(value.name, value.deleted, tagValueInfo.seriesIDs); err != nil {
+				return err
+			}
 		}
 	}
 
 	// Save tagset offset to measurement.
 	mmInfo.offset = *n
 
-	// Write tagset to writer.
-	nn, err := tw.WriteTo(w)
-	*n += nn
+	// Flush tag block.
+	err := enc.Close()
+	*n += enc.N()
 	if err != nil {
 		return err
 	}
@@ -1142,7 +1151,18 @@ func (m *logMeasurement) createSeriesIfNotExists(name []byte, tags models.Tags, 
 	m.series = append(m.series, nil)
 	copy(m.series[i+1:], m.series[i:])
 	m.series[i] = &logSerie{name: name, tags: tags, deleted: deleted}
+
 	return m.series[i]
+}
+
+// keys returns a sorted list of tag keys.
+func (m *logMeasurement) keys() []string {
+	a := make([]string, 0, len(m.tagSet))
+	for k := range m.tagSet {
+		a = append(a, k)
+	}
+	sort.Strings(a)
+	return a
 }
 
 // logMeasurementSlice is a sortable list of log measurements.

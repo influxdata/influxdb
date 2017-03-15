@@ -4,11 +4,45 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"sort"
+	"time"
 )
 
 // IndexFiles represents a layered set of index files.
 type IndexFiles []*IndexFile
+
+// IDs returns the ids for all index files.
+func (p IndexFiles) IDs() []int {
+	a := make([]int, len(p))
+	for i, f := range p {
+		a[i] = f.ID
+	}
+	return a
+}
+
+// Retain adds a reference count to all files.
+func (p IndexFiles) Retain() {
+	for _, f := range p {
+		f.Retain()
+	}
+}
+
+// Release removes a reference count from all files.
+func (p IndexFiles) Release() {
+	for _, f := range p {
+		f.Release()
+	}
+}
+
+// Files returns p as a list of File objects.
+func (p IndexFiles) Files() []File {
+	other := make([]File, len(p))
+	for i, f := range p {
+		other[i] = f
+	}
+	return other
+}
 
 // MeasurementNames returns a sorted list of all measurement names for all files.
 func (p *IndexFiles) MeasurementNames() [][]byte {
@@ -86,7 +120,7 @@ func (p IndexFiles) TagValueSeriesIterator(name, key, value []byte) SeriesIterat
 }
 
 // WriteTo merges all index files and writes them to w.
-func (p *IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
+func (p IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 	var t IndexFileTrailer
 
 	// Wrap writer in buffered I/O.
@@ -136,31 +170,31 @@ func (p *IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
-func (p *IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
+func (p IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
 	itr := p.SeriesIterator()
-	sw := NewSeriesBlockWriter()
+	enc := NewSeriesBlockEncoder(w)
 
 	// Write all series.
 	for e := itr.Next(); e != nil; e = itr.Next() {
-		if err := sw.Add(e.Name(), e.Tags(), e.Deleted()); err != nil {
+		if err := enc.Encode(e.Name(), e.Tags(), e.Deleted()); err != nil {
 			return err
 		}
 	}
 
-	// Flush series list.
-	nn, err := sw.WriteTo(w)
-	*n += nn
+	// Close and flush block.
+	err := enc.Close()
+	*n += enc.N()
 	if err != nil {
 		return err
 	}
 
 	// Attach writer to info so we can obtain series offsets later.
-	info.sw = sw
+	info.enc = enc
 
 	return nil
 }
 
-func (p *IndexFiles) writeTagsetsTo(w io.Writer, info *indexCompactInfo, n *int64) error {
+func (p IndexFiles) writeTagsetsTo(w io.Writer, info *indexCompactInfo, n *int64) error {
 	mitr := p.MeasurementIterator()
 	for m := mitr.Next(); m != nil; m = mitr.Next() {
 		if err := p.writeTagsetTo(w, m.Name(), info, n); err != nil {
@@ -171,17 +205,19 @@ func (p *IndexFiles) writeTagsetsTo(w io.Writer, info *indexCompactInfo, n *int6
 }
 
 // writeTagsetTo writes a single tagset to w and saves the tagset offset.
-func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactInfo, n *int64) error {
+func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactInfo, n *int64) error {
+	var seriesKey []byte
+
 	kitr, err := p.TagKeyIterator(name)
 	if err != nil {
 		return err
 	}
 
-	tw := NewTagBlockWriter()
+	enc := NewTagBlockEncoder(w)
 	for ke := kitr.Next(); ke != nil; ke = kitr.Next() {
-		// Mark tag deleted.
-		if ke.Deleted() {
-			tw.DeleteTag(ke.Key())
+		// Encode key.
+		if err := enc.EncodeKey(ke.Key(), ke.Deleted()); err != nil {
+			return err
 		}
 
 		// Iterate over tag values.
@@ -191,16 +227,19 @@ func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactI
 			sitr := p.TagValueSeriesIterator(name, ke.Key(), ve.Value())
 			var seriesIDs []uint64
 			for se := sitr.Next(); se != nil; se = sitr.Next() {
-				seriesID := info.sw.Offset(se.Name(), se.Tags())
+				seriesKey = AppendSeriesKey(seriesKey[:0], se.Name(), se.Tags())
+				seriesID := info.enc.Offset(seriesKey)
 				if seriesID == 0 {
-					panic("expected series id")
+					panic(fmt.Sprintf("expected series id: %s/%s", se.Name(), se.Tags().String()))
 				}
 				seriesIDs = append(seriesIDs, seriesID)
 			}
 			sort.Sort(uint64Slice(seriesIDs))
 
-			// Insert tag value into writer.
-			tw.AddTagValue(ke.Key(), ve.Value(), ve.Deleted(), seriesIDs)
+			// Encode value.
+			if err := enc.EncodeValue(ve.Value(), ve.Deleted(), seriesIDs); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -208,9 +247,9 @@ func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactI
 	pos := info.tagSets[string(name)]
 	pos.offset = *n
 
-	// Write tagset to writer.
-	nn, err := tw.WriteTo(w)
-	*n += nn
+	// Flush data to writer.
+	err = enc.Close()
+	*n += enc.N()
 	if err != nil {
 		return err
 	}
@@ -223,7 +262,8 @@ func (p *IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactI
 	return nil
 }
 
-func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
+func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo, n *int64) error {
+	var seriesKey []byte
 	mw := NewMeasurementBlockWriter()
 
 	// Add measurement data & compute sketches.
@@ -235,7 +275,8 @@ func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo
 		itr := p.MeasurementSeriesIterator(name)
 		var seriesIDs []uint64
 		for e := itr.Next(); e != nil; e = itr.Next() {
-			seriesID := info.sw.Offset(e.Name(), e.Tags())
+			seriesKey = AppendSeriesKey(seriesKey[:0], e.Name(), e.Tags())
+			seriesID := info.enc.Offset(seriesKey)
 			if seriesID == 0 {
 				panic(fmt.Sprintf("expected series id: %s %s", e.Name(), e.Tags().String()))
 			}
@@ -254,11 +295,40 @@ func (p *IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo
 	return err
 }
 
+// Stat returns the max index file size and the total file size for all index files.
+func (p IndexFiles) Stat() (*IndexFilesInfo, error) {
+	var info IndexFilesInfo
+	for _, f := range p {
+		fi, err := os.Stat(f.Path())
+		if os.IsNotExist(err) {
+			continue
+		} else if err != nil {
+			return nil, err
+		}
+
+		if fi.Size() > info.MaxSize {
+			info.MaxSize = fi.Size()
+		}
+		if fi.ModTime().After(info.ModTime) {
+			info.ModTime = fi.ModTime()
+		}
+
+		info.Size += fi.Size()
+	}
+	return &info, nil
+}
+
+type IndexFilesInfo struct {
+	MaxSize int64     // largest file size
+	Size    int64     // total file size
+	ModTime time.Time // last modified
+}
+
 // indexCompactInfo is a context object used for tracking position information
 // during the compaction of index files.
 type indexCompactInfo struct {
 	// Saved to look up series offsets.
-	sw *SeriesBlockWriter
+	enc *SeriesBlockEncoder
 
 	// Tracks offset/size for each measurement's tagset.
 	tagSets map[string]indexTagSetPos

@@ -354,7 +354,7 @@ func BenchmarkFileset_FilterNamesTags(b *testing.B) {
 	if err := idx.CreateSeriesListIfNotExists(nil, allNames, allTags); err != nil {
 		b.Fatal(err)
 	}
-	idx.CheckFastCompaction()
+	// idx.CheckFastCompaction()
 
 	fs := idx.RetainFileSet()
 	defer fs.Release()

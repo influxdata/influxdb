@@ -57,6 +57,10 @@ type IndexFile struct {
 	// Counters
 	seriesN int64 // Number of unique series in this indexFile.
 
+	// Compaction tracking.
+	mu         sync.RWMutex
+	compacting bool
+
 	// Path to data file.
 	path string
 }
@@ -104,6 +108,24 @@ func (f *IndexFile) Retain() { f.wg.Add(1) }
 
 // Release removes a reference count from the file.
 func (f *IndexFile) Release() { f.wg.Done() }
+
+// Size returns the size of the index file, in bytes.
+func (f *IndexFile) Size() int64 { return int64(len(f.data)) }
+
+// Compacting returns true if the file is being compacted.
+func (f *IndexFile) Compacting() bool {
+	f.mu.RLock()
+	v := f.compacting
+	f.mu.RUnlock()
+	return v
+}
+
+// setCompacting sets whether the index file is being compacted.
+func (f *IndexFile) setCompacting(v bool) {
+	f.mu.Lock()
+	f.compacting = v
+	f.mu.Unlock()
+}
 
 // UnmarshalBinary opens an index from data.
 // The byte slice is retained so it must be kept open.
