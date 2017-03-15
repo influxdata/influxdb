@@ -7,6 +7,7 @@ import {
   createUser as createUserAJAX,
   createRole as createRoleAJAX,
   createDatabase as createDatabaseAJAX,
+  deleteDatabase as deleteDatabaseAJAX,
   deleteUser as deleteUserAJAX,
   deleteRole as deleteRoleAJAX,
   updateRole as updateRoleAJAX,
@@ -180,6 +181,28 @@ export const filterRoles = (text) => ({
   },
 })
 
+export const startDeleteDatabase = (database) => ({
+  type: 'START_DELETE_DATABASE',
+  payload: {
+    database,
+  },
+})
+
+export const updateDatabaseDeleteCode = (database, deleteCode) => ({
+  type: 'UPDATE_DATABASE_DELETE_CODE',
+  payload: {
+    database,
+    deleteCode,
+  },
+})
+
+export const removeDatabaseDeleteCode = (database) => ({
+  type: 'REMOVE_DATABASE_DELETE_CODE',
+  payload: {
+    database,
+  },
+})
+
 // async actions
 export const loadUsersAsync = (url) => async (dispatch) => {
   const {data} = await getUsersAJAX(url)
@@ -233,6 +256,7 @@ export const createRoleAsync = (url, role) => async (dispatch) => {
 
 export const createDatabaseAsync = (url, database) => async (dispatch) => {
   try {
+    // TODO: implement once server is up
     // const {data} = await createDatabaseAJAX(url, database)
     dispatch(publishNotification('success', 'Database created successfully'))
     // dispatch(syncDatabase(database, {...data, id: uuid.v4()}))
@@ -266,6 +290,18 @@ export const deleteUserAsync = (user, addFlashMessage) => (dispatch) => {
 
   // delete user on server
   deleteUserAJAX(user.links.self, addFlashMessage, user.name)
+}
+
+export const deleteDatabaseAsync = (url, database) => (dispatch) => {
+  dispatch(removeDatabase(database))
+  dispatch(publishNotification('success', 'Database deleted'))
+
+  // TODO: implement once server is up
+  // try {
+  //   await deleteDatabaseAJAX(url, database.name)
+  // } catch (error) {
+  //   dispatch(publishNotification('error', `Failed to delete database: ${error.data.message}`))
+  // }
 }
 
 export const updateRoleUsersAsync = (role, users) => async (dispatch) => {

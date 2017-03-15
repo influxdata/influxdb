@@ -2,6 +2,12 @@ import React, {PropTypes} from 'react'
 import {DatabaseRow} from 'src/admin/components/DatabaseRow'
 import ConfirmButtons from 'src/admin/components/ConfirmButtons'
 
+const {
+  arrayOf,
+  func,
+  shape,
+} = PropTypes
+
 const DatabaseTable = ({
   database,
   retentionPolicies,
@@ -9,6 +15,8 @@ const DatabaseTable = ({
   onKeyDownDatabase,
   onCancelDatabase,
   onConfirmDatabase,
+  onStartDeleteDatabase,
+  onDatabaseDeleteConfirm,
 }) => {
   return (
     <div className="db-manager">
@@ -18,6 +26,8 @@ const DatabaseTable = ({
         onKeyDown={onKeyDownDatabase}
         onCancel={onCancelDatabase}
         onConfirm={onConfirmDatabase}
+        onStartDelete={onStartDeleteDatabase}
+        onDatabaseDeleteConfirm={onDatabaseDeleteConfirm}
       />
       <div className="db-manager-table">
         <table className="table v-center admin-table">
@@ -50,7 +60,26 @@ const DatabaseTable = ({
   )
 }
 
-const DatabaseTableHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => {
+DatabaseTable.propTypes = {
+  onEditDatabase: func,
+  database: shape(),
+  retentionPolicies: arrayOf(shape()),
+  onKeyDownDatabase: func,
+  onCancelDatabase: func,
+  onConfirmDatabase: func,
+  onStartDeleteDatabase: func,
+  onDatabaseDeleteConfirm: func,
+}
+
+const DatabaseTableHeader = ({
+  database,
+  onEdit,
+  onKeyDown,
+  onConfirm,
+  onCancel,
+  onStartDelete,
+  onDatabaseDeleteConfirm,
+}) => {
   if (database.isEditing) {
     return (
       <EditHeader
@@ -63,22 +92,78 @@ const DatabaseTableHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel})
     )
   }
 
-  return <Header database={database} />
+  return (
+    <Header
+      database={database}
+      onStartDelete={onStartDelete}
+      onDatabaseDeleteConfirm={onDatabaseDeleteConfirm}
+    />
+  )
 }
 
-const Header = ({database}) => (
-  <div className="db-manager-header">
-    <h4>{database.name}</h4>
+DatabaseTableHeader.propTypes = {
+  onEdit: func,
+  database: shape(),
+  onKeyDown: func,
+  onCancel: func,
+  onConfirm: func,
+  onStartDelete: func,
+  onDatabaseDeleteConfirm: func,
+}
+
+const Header = ({
+  database,
+  onStartDelete,
+  onDatabaseDeleteConfirm,
+}) => {
+  const confirmStyle = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  }
+
+  const buttons = (
     <div className="text-right">
-      <button className="btn btn-xs btn-danger">
+      <button className="btn btn-xs btn-danger" onClick={() => onStartDelete(database)}>
         Delete
       </button>
       <button className="btn btn-xs btn-primary">
         {`Add retention policy`}
       </button>
     </div>
-  </div>
-)
+  )
+
+  const deleteConfirm = (
+    <div style={confirmStyle}>
+      <div className="admin-table--delete-cell">
+        <input
+          className="form-control"
+          name="name"
+          type="text"
+          value={database.deleteCode || ''}
+          placeholder="type DELETE to confirm"
+          onChange={(e) => onDatabaseDeleteConfirm(database, e)}
+          onKeyDown={(e) => onDatabaseDeleteConfirm(database, e)}
+          autoFocus={true}
+        />
+      </div>
+      <ConfirmButtons item={database} onConfirm={() => {}} onCancel={() => {}} />
+    </div>
+  )
+
+  return (
+    <div className="db-manager-header">
+      <h4>{database.name}</h4>
+      {database.hasOwnProperty('deleteCode') ? deleteConfirm : buttons}
+    </div>
+  )
+}
+
+Header.propTypes = {
+  database: shape(),
+  onStartDelete: func,
+  onDatabaseDeleteConfirm: func,
+}
 
 const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (
   <div className="db-manager-header">
@@ -100,36 +185,9 @@ const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (
   </div>
 )
 
-const {
-  arrayOf,
-  func,
-  shape,
-} = PropTypes
-
-DatabaseTable.propTypes = {
-  onEditDatabase: func,
-  database: shape(),
-  retentionPolicies: arrayOf(shape()),
-  onKeyDownDatabase: func,
-  onCancelDatabase: func,
-  onConfirmDatabase: func,
-}
-
-Header.propTypes = {
-  database: shape(),
-}
-
 EditHeader.propTypes = {
   database: shape(),
   onEdit: func,
-  onKeyDown: func,
-  onCancel: func,
-  onConfirm: func,
-}
-
-DatabaseTableHeader.propTypes = {
-  onEdit: func,
-  database: shape(),
   onKeyDown: func,
   onCancel: func,
   onConfirm: func,

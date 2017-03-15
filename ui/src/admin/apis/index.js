@@ -112,6 +112,18 @@ export const deleteUser = async (url, addFlashMessage, username) => {
   }
 }
 
+export const deleteDatabase = async (url, name) => {
+  try {
+    return await AJAX({
+      method: 'DELETE',
+      url: `${url}/${name}`,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
 export const updateRole = async (url, users, permissions) => {
   try {
     return await AJAX({

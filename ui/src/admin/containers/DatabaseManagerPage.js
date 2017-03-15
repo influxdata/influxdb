@@ -9,6 +9,7 @@ class DatabaseManagerPage extends Component {
   constructor(props) {
     super(props)
     this.handleKeyDownDatabase = ::this.handleKeyDownDatabase
+    this.handleDatabaseDeleteConfirm = ::this.handleDatabaseDeleteConfirm
   }
 
   componentDidMount() {
@@ -30,18 +31,35 @@ class DatabaseManagerPage extends Component {
     }
   }
 
+  handleDatabaseDeleteConfirm(database, e) {
+    const {key, target: {value}} = e
+    const {actions, source} = this.props
+
+    if (key === 'Escape') {
+      return actions.removeDatabaseDeleteCode(database)
+    }
+
+    if (key === 'Enter' && database.deleteCode === 'DELETE') {
+      return actions.deleteDatabaseAsync(source, database)
+    }
+
+    actions.updateDatabaseDeleteCode(database, value)
+  }
+
   render() {
     const {databases, retentionPolicies, actions} = this.props
 
     return (
       <DatabaseManager
-        addDatabase={actions.addDatabase}
         databases={databases}
         retentionPolicies={retentionPolicies}
         onKeyDownDatabase={this.handleKeyDownDatabase}
+        onDatabaseDeleteConfirm={this.handleDatabaseDeleteConfirm}
+        addDatabase={actions.addDatabase}
         onEditDatabase={actions.editDatabase}
         onCancelDatabase={actions.removeDatabase}
         onConfirmDatabase={actions.createDatabaseAsync}
+        onStartDeleteDatabase={actions.startDeleteDatabase}
       />
     )
   }
@@ -77,6 +95,9 @@ DatabaseManagerPage.propTypes = {
     createDatabaseAsync: func,
     addDatabase: func,
     removeDatabase: func,
+    startDeleteDatabase: func,
+    updateDatabaseDeleteCode: func,
+    removeDatabaseDeleteCode: func,
   }),
 }
 

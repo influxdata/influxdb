@@ -178,6 +178,35 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
+    case 'START_DELETE_DATABASE': {
+      const {database} = action.payload
+      const newState = {
+        databases: state.databases.map(db => db.id === database.id ? {...db, deleteCode: ''} : db),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'UPDATE_DATABASE_DELETE_CODE': {
+      const {database, deleteCode} = action.payload
+      const newState = {
+        databases: state.databases.map(db => db.id === database.id ? {...db, deleteCode} : db),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'REMOVE_DATABASE_DELETE_CODE': {
+      const {database} = action.payload
+      delete database.deleteCode
+
+      const newState = {
+        databases: state.databases.map(db => db.id === database.id ? {...database} : db),
+      }
+
+      return {...state, ...newState}
+    }
+
     case 'LOAD_QUERIES': {
       return {...state, ...action.payload}
     }

@@ -9,6 +9,8 @@ const DatabaseManager = ({
   onKeyDownDatabase,
   onCancelDatabase,
   onConfirmDatabase,
+  onStartDeleteDatabase,
+  onDatabaseDeleteConfirm,
 }) => {
   return (
     <div className="panel panel-info">
@@ -27,6 +29,8 @@ const DatabaseManager = ({
               onKeyDownDatabase={onKeyDownDatabase}
               onCancelDatabase={onCancelDatabase}
               onConfirmDatabase={onConfirmDatabase}
+              onStartDeleteDatabase={onStartDeleteDatabase}
+              onDatabaseDeleteConfirm={onDatabaseDeleteConfirm}
             />
           )
         }
@@ -49,6 +53,8 @@ DatabaseManager.propTypes = {
   onKeyDownDatabase: func,
   onCancelDatabase: func,
   onConfirmDatabase: func,
+  onStartDeleteDatabase: func,
+  onDatabaseDeleteConfirm: func,
 }
 
 export default DatabaseManager
