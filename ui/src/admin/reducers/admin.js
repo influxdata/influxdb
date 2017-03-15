@@ -17,17 +17,25 @@ const newDefaultRole = {
   isNew: true,
 }
 
-const newDefaultDatabase = {
-  name: '',
-  isNew: true,
-}
-
 const newDefaultRP = {
   name: 'autogen',
   duration: '0',
   replication: 2,
   isDefault: true,
   isNew: true,
+}
+
+const newEmptyRP = {
+  name: '',
+  duration: '0',
+  replication: 0,
+  isNew: true,
+}
+
+const newDefaultDatabase = {
+  name: '',
+  isNew: true,
+  retentionPolicies: [newDefaultRP],
 }
 
 const initialState = {
@@ -37,7 +45,6 @@ const initialState = {
   queries: [],
   queryIDToKill: null,
   databases: [],
-  retentionPolicies: [],
 }
 
 export default function admin(state = initialState, action) {
@@ -55,10 +62,6 @@ export default function admin(state = initialState, action) {
     }
 
     case 'LOAD_DATABASES': {
-      return {...state, ...action.payload}
-    }
-
-    case 'LOAD_RETENTION_POLICIES': {
       return {...state, ...action.payload}
     }
 
@@ -87,7 +90,6 @@ export default function admin(state = initialState, action) {
     case 'ADD_DATABASE': {
       const {id} = action.payload
       const newDatabase = {...newDefaultDatabase, id, isEditing: true}
-      const newRetentionPolicies = [{...newDefaultRP}]
 
       return {
         ...state,
@@ -95,11 +97,18 @@ export default function admin(state = initialState, action) {
           newDatabase,
           ...state.databases,
         ],
-        retentionPolicies: [
-          newRetentionPolicies,
-          ...state.retentionPolicies,
-        ],
       }
+    }
+
+    case 'ADD_RETENTION_POLICY': {
+      const {database} = action.payload
+      const databases = state.databases.map(db =>
+        db.id === database.id ?
+        {...database, retentionPolicies: [newEmptyRP, ...database.retentionPolicies]}
+        : db
+      )
+
+      return {...state, databases}
     }
 
     case 'SYNC_USER': {

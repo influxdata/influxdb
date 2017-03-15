@@ -18,6 +18,24 @@ class DatabaseManagerPage extends Component {
     actions.loadDBsAndRPsAsync(proxy)
   }
 
+  render() {
+    const {databases, actions} = this.props
+
+    return (
+      <DatabaseManager
+        databases={databases}
+        onKeyDownDatabase={this.handleKeyDownDatabase}
+        onDatabaseDeleteConfirm={this.handleDatabaseDeleteConfirm}
+        addDatabase={actions.addDatabase}
+        onEditDatabase={actions.editDatabase}
+        onCancelDatabase={actions.removeDatabase}
+        onConfirmDatabase={actions.createDatabaseAsync}
+        onStartDeleteDatabase={actions.startDeleteDatabase}
+        onAddRetentionPolicy={actions.addRetentionPolicy}
+      />
+    )
+  }
+
   handleKeyDownDatabase(e, database) {
     const {key} = e
     const {actions} = this.props
@@ -44,24 +62,6 @@ class DatabaseManagerPage extends Component {
     }
 
     actions.updateDatabaseDeleteCode(database, value)
-  }
-
-  render() {
-    const {databases, retentionPolicies, actions} = this.props
-
-    return (
-      <DatabaseManager
-        databases={databases}
-        retentionPolicies={retentionPolicies}
-        onKeyDownDatabase={this.handleKeyDownDatabase}
-        onDatabaseDeleteConfirm={this.handleDatabaseDeleteConfirm}
-        addDatabase={actions.addDatabase}
-        onEditDatabase={actions.editDatabase}
-        onCancelDatabase={actions.removeDatabase}
-        onConfirmDatabase={actions.createDatabaseAsync}
-        onStartDeleteDatabase={actions.startDeleteDatabase}
-      />
-    )
   }
 }
 
@@ -91,6 +91,7 @@ DatabaseManagerPage.propTypes = {
     isDefault: bool,
   }))),
   actions: shape({
+    addRetentionPolicy: func,
     loadDBsAndRPsAsync: func,
     createDatabaseAsync: func,
     addDatabase: func,

@@ -3,20 +3,19 @@ import {DatabaseRow} from 'src/admin/components/DatabaseRow'
 import ConfirmButtons from 'src/admin/components/ConfirmButtons'
 
 const {
-  arrayOf,
   func,
   shape,
 } = PropTypes
 
 const DatabaseTable = ({
   database,
-  retentionPolicies,
   onEditDatabase,
   onKeyDownDatabase,
   onCancelDatabase,
   onConfirmDatabase,
   onStartDeleteDatabase,
   onDatabaseDeleteConfirm,
+  onAddRetentionPolicy,
 }) => {
   return (
     <div className="db-manager">
@@ -28,6 +27,7 @@ const DatabaseTable = ({
         onConfirm={onConfirmDatabase}
         onStartDelete={onStartDeleteDatabase}
         onDatabaseDeleteConfirm={onDatabaseDeleteConfirm}
+        onAddRetentionPolicy={onAddRetentionPolicy}
       />
       <div className="db-manager-table">
         <table className="table v-center admin-table">
@@ -41,7 +41,7 @@ const DatabaseTable = ({
           </thead>
           <tbody>
             {
-              retentionPolicies.map(({name, duration, replication, isDefault}) => {
+              database.retentionPolicies.map(({name, duration, replication, isDefault}) => {
                 return (
                   <DatabaseRow
                     key={name}
@@ -63,12 +63,12 @@ const DatabaseTable = ({
 DatabaseTable.propTypes = {
   onEditDatabase: func,
   database: shape(),
-  retentionPolicies: arrayOf(shape()),
   onKeyDownDatabase: func,
   onCancelDatabase: func,
   onConfirmDatabase: func,
   onStartDeleteDatabase: func,
   onDatabaseDeleteConfirm: func,
+  onAddRetentionPolicy: func,
 }
 
 const DatabaseTableHeader = ({
@@ -79,6 +79,7 @@ const DatabaseTableHeader = ({
   onCancel,
   onStartDelete,
   onDatabaseDeleteConfirm,
+  onAddRetentionPolicy,
 }) => {
   if (database.isEditing) {
     return (
@@ -97,6 +98,7 @@ const DatabaseTableHeader = ({
       database={database}
       onStartDelete={onStartDelete}
       onDatabaseDeleteConfirm={onDatabaseDeleteConfirm}
+      onAddRetentionPolicy={onAddRetentionPolicy}
     />
   )
 }
@@ -109,12 +111,14 @@ DatabaseTableHeader.propTypes = {
   onConfirm: func,
   onStartDelete: func,
   onDatabaseDeleteConfirm: func,
+  onAddRetentionPolicy: func,
 }
 
 const Header = ({
   database,
   onStartDelete,
   onDatabaseDeleteConfirm,
+  onAddRetentionPolicy,
 }) => {
   const confirmStyle = {
     display: 'flex',
@@ -127,8 +131,8 @@ const Header = ({
       <button className="btn btn-xs btn-danger" onClick={() => onStartDelete(database)}>
         Delete
       </button>
-      <button className="btn btn-xs btn-primary">
-        {`Add retention policy`}
+      <button className="btn btn-xs btn-primary" onClick={() => onAddRetentionPolicy(database)}>
+        Add retention policy
       </button>
     </div>
   )
@@ -163,6 +167,7 @@ Header.propTypes = {
   database: shape(),
   onStartDelete: func,
   onDatabaseDeleteConfirm: func,
+  onAddRetentionPolicy: func,
 }
 
 const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (

@@ -3,7 +3,6 @@ import DatabaseTable from 'src/admin/components/DatabaseTable'
 
 const DatabaseManager = ({
   databases,
-  retentionPolicies,
   addDatabase,
   onEditDatabase,
   onKeyDownDatabase,
@@ -11,6 +10,7 @@ const DatabaseManager = ({
   onConfirmDatabase,
   onStartDeleteDatabase,
   onDatabaseDeleteConfirm,
+  onAddRetentionPolicy,
 }) => {
   return (
     <div className="panel panel-info">
@@ -20,17 +20,17 @@ const DatabaseManager = ({
       </div>
       <div className="panel-body">
         {
-          databases.map((db, i) =>
+          databases.map(db =>
             <DatabaseTable
               key={db.id}
               database={db}
-              retentionPolicies={retentionPolicies[i] || []}
               onEditDatabase={onEditDatabase}
               onKeyDownDatabase={onKeyDownDatabase}
               onCancelDatabase={onCancelDatabase}
               onConfirmDatabase={onConfirmDatabase}
               onStartDeleteDatabase={onStartDeleteDatabase}
               onDatabaseDeleteConfirm={onDatabaseDeleteConfirm}
+              onAddRetentionPolicy={onAddRetentionPolicy}
             />
           )
         }
@@ -47,7 +47,6 @@ const {
 
 DatabaseManager.propTypes = {
   databases: arrayOf(shape()),
-  retentionPolicies: arrayOf(arrayOf(shape)),
   addDatabase: func,
   onEditDatabase: func,
   onKeyDownDatabase: func,
@@ -55,6 +54,7 @@ DatabaseManager.propTypes = {
   onConfirmDatabase: func,
   onStartDeleteDatabase: func,
   onDatabaseDeleteConfirm: func,
+  onAddRetentionPolicy: func,
 }
 
 export default DatabaseManager

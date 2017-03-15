@@ -75,6 +75,14 @@ export const addDatabase = () => ({
   },
 })
 
+export const addRetentionPolicy = (database) => ({
+  type: 'ADD_RETENTION_POLICY',
+  payload: {
+    id: uuid.v4(),
+    database,
+  },
+})
+
 export const syncUser = (staleUser, syncedUser) => ({
   type: 'SYNC_USER',
   payload: {
@@ -222,12 +230,13 @@ export const loadPermissionsAsync = (url) => async (dispatch) => {
 export const loadDBsAndRPsAsync = (url) => async (dispatch) => {
   const {data: dbs} = await showDatabases(url)
   const {databases} = parseShowDatabases(dbs)
-  dispatch(loadDatabases(databases.map(name => ({name, id: uuid.v4()}))))
 
   const {data: {results}} = await showRetentionPolicies(url, databases)
   const retentionPolicies = results.map(parseShowRetentionPolicies)
-  const rps = retentionPolicies.map((rp) => rp.retentionPolicies)
-  dispatch(loadRetentionPolicies(rps))
+  const rps = retentionPolicies.map(rp => rp.retentionPolicies)
+  const dbsAndRps = databases.map((name, i) => ({name, id: uuid.v4(), retentionPolicies: rps[i]}))
+
+  dispatch(loadDatabases(dbsAndRps))
 }
 
 export const createUserAsync = (url, user) => async (dispatch) => {
