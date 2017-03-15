@@ -714,7 +714,7 @@ func (s *Store) SeriesCardinality(database string) (int64, error) {
 		if sh == nil {
 			return nil, nil, errors.New("shard nil, can't get cardinality")
 		}
-		return sh.engine.SeriesSketches()
+		return sh.SeriesSketches()
 	})
 }
 
@@ -725,7 +725,7 @@ func (s *Store) MeasurementsCardinality(database string) (int64, error) {
 		if sh == nil {
 			return nil, nil, errors.New("shard nil, can't get cardinality")
 		}
-		return sh.engine.MeasurementsSketches()
+		return sh.MeasurementsSketches()
 	})
 }
 
