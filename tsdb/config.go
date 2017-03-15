@@ -128,6 +128,7 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 	return diagnostics.RowFromMap(map[string]interface{}{
 		"dir":                                c.Dir,
 		"wal-dir":                            c.WALDir,
+		"wal-fsync-delay":                    c.WALFsyncDelay,
 		"cache-max-memory-size":              c.CacheMaxMemorySize,
 		"cache-snapshot-memory-size":         c.CacheSnapshotMemorySize,
 		"cache-snapshot-write-cold-duration": c.CacheSnapshotWriteColdDuration,
