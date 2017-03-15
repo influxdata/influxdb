@@ -8,6 +8,7 @@ import DatabaseManager from 'src/admin/components/DatabaseManager'
 class DatabaseManagerPage extends Component {
   constructor(props) {
     super(props)
+    this.handleEditDatabase = ::this.handleEditDatabase
   }
 
   componentDidMount() {
@@ -18,6 +19,10 @@ class DatabaseManagerPage extends Component {
 
   handleCreateDatabase() {
     // this.props.createDatabase(database)
+  }
+
+  handleEditDatabase(updates, database) {
+    this.props.actions.editDatabase(updates, database)
   }
 
   handleAddDatabase() {
@@ -32,6 +37,7 @@ class DatabaseManagerPage extends Component {
         addDatabase={actions.addDatabase}
         databases={databases}
         retentionPolicies={retentionPolicies}
+        onEditDatabase={this.handleEditDatabase}
       />
     )
   }

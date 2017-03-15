@@ -1,3 +1,5 @@
+import uuid from 'node-uuid';
+
 import {
   getUsers as getUsersAJAX,
   getRoles as getRolesAJAX,
@@ -66,6 +68,9 @@ export const addRole = () => ({
 
 export const addDatabase = () => ({
   type: 'ADD_DATABASE',
+  payload: {
+    id: uuid.v4(),
+  },
 })
 
 export const syncUser = (staleUser, syncedUser) => ({
@@ -97,6 +102,14 @@ export const editRole = (role, updates) => ({
   payload: {
     role,
     updates,
+  },
+})
+
+export const editDatabase = (name, database) => ({
+  type: 'EDIT_DATABASE',
+  payload: {
+    name,
+    database,
   },
 })
 
@@ -168,7 +181,7 @@ export const loadPermissionsAsync = (url) => async (dispatch) => {
 export const loadDBsAndRPsAsync = (url) => async (dispatch) => {
   const {data: dbs} = await showDatabases(url)
   const {databases} = parseShowDatabases(dbs)
-  dispatch(loadDatabases(databases.map(name => ({name}))))
+  dispatch(loadDatabases(databases.map(name => ({name, id: uuid.v4()}))))
 
   const {data: {results}} = await showRetentionPolicies(url, databases)
   const retentionPolicies = results.map(parseShowRetentionPolicies)

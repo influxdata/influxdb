@@ -8,6 +8,7 @@ const newDefaultUser = {
   links: {self: ''},
   isNew: true,
 }
+
 const newDefaultRole = {
   name: '',
   permissions: [],
@@ -84,7 +85,8 @@ export default function admin(state = initialState, action) {
     }
 
     case 'ADD_DATABASE': {
-      const newDatabase = {...newDefaultDatabase, isEditing: true}
+      const {id} = action.payload
+      const newDatabase = {...newDefaultDatabase, id, isEditing: true}
       const newRetentionPolicies = [{...newDefaultRP}]
 
       return {
@@ -129,6 +131,15 @@ export default function admin(state = initialState, action) {
       const newState = {
         roles: state.roles.map(r => r.links.self === role.links.self ? {...r, ...updates} : r),
       }
+      return {...state, ...newState}
+    }
+
+    case 'EDIT_DATABASE': {
+      const {database, name} = action.payload
+      const newState = {
+        databases: state.databases.map(db => db.id === database.id ? {...db, name} : db),
+      }
+
       return {...state, ...newState}
     }
 
