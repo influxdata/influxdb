@@ -6,6 +6,7 @@ import {
   getPermissions as getPermissionsAJAX,
   createUser as createUserAJAX,
   createRole as createRoleAJAX,
+  createDatabase as createDatabaseAJAX,
   deleteUser as deleteUserAJAX,
   deleteRole as deleteRoleAJAX,
   updateRole as updateRoleAJAX,
@@ -89,6 +90,14 @@ export const syncRole = (staleRole, syncedRole) => ({
   },
 })
 
+export const syncDatabase = (stale, synced) => ({
+  type: 'SYNC_DATABASE',
+  payload: {
+    stale,
+    synced,
+  },
+})
+
 export const editUser = (user, updates) => ({
   type: 'EDIT_USER',
   payload: {
@@ -134,6 +143,7 @@ export const loadQueries = (queries) => ({
   },
 })
 
+// TODO: change to 'removeUser'
 export const deleteUser = (user) => ({
   type: 'DELETE_USER',
   payload: {
@@ -141,10 +151,18 @@ export const deleteUser = (user) => ({
   },
 })
 
+// TODO: change to 'removeRole'
 export const deleteRole = (role) => ({
   type: 'DELETE_ROLE',
   payload: {
     role,
+  },
+})
+
+export const removeDatabase = (database) => ({
+  type: 'REMOVE_DATABASE',
+  payload: {
+    database,
   },
 })
 
@@ -210,6 +228,18 @@ export const createRoleAsync = (url, role) => async (dispatch) => {
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create role: ${error.data.message}`))
     setTimeout(() => dispatch(deleteRole(role)), ADMIN_NOTIFICATION_DELAY)
+  }
+}
+
+export const createDatabaseAsync = (url, database) => async (dispatch) => {
+  try {
+    // const {data} = await createDatabaseAJAX(url, database)
+    dispatch(publishNotification('success', 'Database created successfully'))
+    // dispatch(syncDatabase(database, {...data, id: uuid.v4()}))
+  } catch (error) {
+    // undo optimistic update
+    dispatch(publishNotification('error', `Failed to create database: ${error.data.message}`))
+    setTimeout(() => dispatch(removeDatabase(database)), ADMIN_NOTIFICATION_DELAY)
   }
 }
 

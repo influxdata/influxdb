@@ -9,6 +9,7 @@ class DatabaseManagerPage extends Component {
   constructor(props) {
     super(props)
     this.handleEditDatabase = ::this.handleEditDatabase
+    this.handleKeyDownDatabase = ::this.handleKeyDownDatabase
   }
 
   componentDidMount() {
@@ -17,16 +18,21 @@ class DatabaseManagerPage extends Component {
     actions.loadDBsAndRPsAsync(proxy)
   }
 
-  handleCreateDatabase() {
-    // this.props.createDatabase(database)
-  }
-
   handleEditDatabase(updates, database) {
     this.props.actions.editDatabase(updates, database)
   }
 
-  handleAddDatabase() {
-    this.props.actions.addDatabase()
+  handleKeyDownDatabase(e, database) {
+    const {key} = e
+    const {actions} = this.props
+
+    if (key === 'Escape') {
+      actions.removeDatabase(database)
+    }
+
+    if (key === 'Enter') {
+      actions.createDatabaseAsync(database)
+    }
   }
 
   render() {
@@ -38,6 +44,9 @@ class DatabaseManagerPage extends Component {
         databases={databases}
         retentionPolicies={retentionPolicies}
         onEditDatabase={this.handleEditDatabase}
+        onKeyDownDatabase={this.handleKeyDownDatabase}
+        onCancelDatabase={actions.removeDatabase}
+        onConfirmDatabase={actions.createDatabaseAsync}
       />
     )
   }
@@ -70,7 +79,9 @@ DatabaseManagerPage.propTypes = {
   }))),
   actions: shape({
     loadDBsAndRPsAsync: func,
+    createDatabaseAsync: func,
     addDatabase: func,
+    removeDatabase: func,
   }),
 }
 

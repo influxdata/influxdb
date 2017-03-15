@@ -60,6 +60,18 @@ export const createRole = async (url, role) => {
   }
 }
 
+export const createDatabase = async (url, database) => {
+  try {
+    return await AJAX({
+      method: 'POST',
+      url,
+      data: database,
+    })
+  } catch (error) {
+    throw error
+  }
+}
+
 export const deleteRole = async (url, addFlashMessage, rolename) => {
   try {
     const response = await AJAX({

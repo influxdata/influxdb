@@ -118,6 +118,14 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
+    case 'SYNC_DATABASE': {
+      const {stale, synced} = action.payload
+      const newState = {
+        databases: state.databases.map(db => db.id === stale.id ? {...synced} : db),
+      }
+      return {...state, ...newState}
+    }
+
     case 'EDIT_USER': {
       const {user, updates} = action.payload
       const newState = {
@@ -156,6 +164,15 @@ export default function admin(state = initialState, action) {
       const {role} = action.payload
       const newState = {
         roles: state.roles.filter(r => r.links.self !== role.links.self),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'REMOVE_DATABASE': {
+      const {database} = action.payload
+      const newState = {
+        databases: state.databases.filter(db => db.id !== database.id),
       }
 
       return {...state, ...newState}

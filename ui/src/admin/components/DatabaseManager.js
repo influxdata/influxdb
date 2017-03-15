@@ -6,6 +6,9 @@ const DatabaseManager = ({
   retentionPolicies,
   addDatabase,
   onEditDatabase,
+  onKeyDownDatabase,
+  onCancelDatabase,
+  onConfirmDatabase,
 }) => {
   return (
     <div className="panel panel-info">
@@ -21,6 +24,9 @@ const DatabaseManager = ({
               database={db}
               retentionPolicies={retentionPolicies[i] || []}
               onEditDatabase={onEditDatabase}
+              onKeyDownDatabase={onKeyDownDatabase}
+              onCancelDatabase={onCancelDatabase}
+              onConfirmDatabase={onConfirmDatabase}
             />
           )
         }
@@ -40,6 +46,9 @@ DatabaseManager.propTypes = {
   retentionPolicies: arrayOf(arrayOf(shape)),
   addDatabase: func,
   onEditDatabase: func,
+  onKeyDownDatabase: func,
+  onCancelDatabase: func,
+  onConfirmDatabase: func,
 }
 
 export default DatabaseManager

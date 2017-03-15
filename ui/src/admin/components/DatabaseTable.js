@@ -1,10 +1,24 @@
 import React, {PropTypes} from 'react'
 import {DatabaseRow} from 'src/admin/components/DatabaseRow'
+import ConfirmButtons from 'src/admin/components/ConfirmButtons'
 
-const DatabaseTable = ({database, retentionPolicies, onEditDatabase}) => {
+const DatabaseTable = ({
+  database,
+  retentionPolicies,
+  onEditDatabase,
+  onKeyDownDatabase,
+  onCancelDatabase,
+  onConfirmDatabase,
+}) => {
   return (
     <div className="db-manager">
-      <DatabaseTableHeader database={database} onEdit={onEditDatabase} />
+      <DatabaseTableHeader
+        database={database}
+        onEdit={onEditDatabase}
+        onKeyDown={onKeyDownDatabase}
+        onCancel={onCancelDatabase}
+        onConfirm={onConfirmDatabase}
+      />
       <div className="db-manager-table">
         <table className="table v-center admin-table">
           <thead>
@@ -36,9 +50,17 @@ const DatabaseTable = ({database, retentionPolicies, onEditDatabase}) => {
   )
 }
 
-const DatabaseTableHeader = ({database, onEdit}) => {
+const DatabaseTableHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => {
   if (database.isEditing) {
-    return <EditHeader database={database} onEdit={onEdit} />
+    return (
+      <EditHeader
+        database={database}
+        onEdit={onEdit}
+        onKeyDown={onKeyDown}
+        onConfirm={onConfirm}
+        onCancel={onCancel}
+      />
+    )
   }
 
   return <Header database={database} />
@@ -58,7 +80,7 @@ const Header = ({database}) => (
   </div>
 )
 
-const EditHeader = ({database, onEdit, onKeyPress}) => (
+const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (
   <div className="db-manager-header">
     <h4>
       <div className="admin-table--edit-cell">
@@ -69,11 +91,12 @@ const EditHeader = ({database, onEdit, onKeyPress}) => (
           value={database.name}
           placeholder="database name"
           onChange={(e) => onEdit(e.target.value, database)}
-          onKeyPress={(e) => onKeyPress(e, database)}
+          onKeyDown={(e) => onKeyDown(e, database)}
           autoFocus={true}
         />
       </div>
     </h4>
+    <ConfirmButtons item={database} onConfirm={onConfirm} onCancel={onCancel} />
   </div>
 )
 
@@ -87,6 +110,9 @@ DatabaseTable.propTypes = {
   onEditDatabase: func,
   database: shape(),
   retentionPolicies: arrayOf(shape()),
+  onKeyDownDatabase: func,
+  onCancelDatabase: func,
+  onConfirmDatabase: func,
 }
 
 Header.propTypes = {
@@ -94,13 +120,19 @@ Header.propTypes = {
 }
 
 EditHeader.propTypes = {
-  onEdit: func,
   database: shape(),
+  onEdit: func,
+  onKeyDown: func,
+  onCancel: func,
+  onConfirm: func,
 }
 
 DatabaseTableHeader.propTypes = {
   onEdit: func,
   database: shape(),
+  onKeyDown: func,
+  onCancel: func,
+  onConfirm: func,
 }
 
 export default DatabaseTable
