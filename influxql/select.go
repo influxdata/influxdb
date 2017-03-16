@@ -93,7 +93,7 @@ func buildIterators(stmt *SelectStatement, ic IteratorCreator, opt IteratorOptio
 	selector := false
 	if len(info.calls) == 1 {
 		for call := range info.calls {
-			selector = IsSelector(call)
+			selector = isSelector(call)
 		}
 	}
 
@@ -172,7 +172,7 @@ func buildAuxIterators(fields Fields, ic IteratorCreator, sources Sources, opt I
 				// need to include that even if it isn't referenced directly.
 				var selector *Field
 				for _, f := range source.Statement.Fields {
-					if IsSelector(f.Expr) {
+					if isSelector(f.Expr) {
 						selector = f
 						break
 					}
@@ -602,7 +602,7 @@ func (b *exprIteratorBuilder) buildVarRefIterator(expr *VarRef) (Iterator, error
 
 						// Check if this is a selector or not and
 						// create the iterator directly.
-						selector := len(info.calls) == 1 && IsSelector(e)
+						selector := len(info.calls) == 1 && isSelector(e)
 						itr, err := buildExprIterator(e, b.ic, source.Statement.Sources, subOpt, selector)
 						if err != nil {
 							return nil, err
@@ -971,13 +971,13 @@ func (b *exprIteratorBuilder) buildBinaryExprIterator(expr *BinaryExpr) (Iterato
 			return nil, fmt.Errorf("unable to construct an iterator from two literals: LHS: %T, RHS: %T", lhs, rhs)
 		}
 
-		lhs, err := buildExprIterator(expr.LHS, b.ic, b.sources, b.opt, IsSelector(expr.LHS))
+		lhs, err := buildExprIterator(expr.LHS, b.ic, b.sources, b.opt, isSelector(expr.LHS))
 		if err != nil {
 			return nil, err
 		}
 		return buildRHSTransformIterator(lhs, rhs, expr.Op, b.opt)
 	} else if lhs, ok := expr.LHS.(Literal); ok {
-		rhs, err := buildExprIterator(expr.RHS, b.ic, b.sources, b.opt, IsSelector(expr.RHS))
+		rhs, err := buildExprIterator(expr.RHS, b.ic, b.sources, b.opt, isSelector(expr.RHS))
 		if err != nil {
 			return nil, err
 		}

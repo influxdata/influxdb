@@ -1085,7 +1085,7 @@ func (v *selectInfo) FindSelector() *Call {
 	}
 
 	for s := range v.calls {
-		if IsSelector(s) {
+		if isSelector(s) {
 			return s
 		}
 	}

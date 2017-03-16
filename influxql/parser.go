@@ -2063,9 +2063,8 @@ func (p *Parser) parseSource(subqueries bool) (Source, error) {
 				return nil, err
 			}
 			return &SubQuery{Statement: stmt}, nil
-		} else {
-			p.unscan()
 		}
+		p.unscan()
 	}
 
 	// Didn't find a regex so parse segmented identifiers.

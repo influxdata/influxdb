@@ -213,7 +213,7 @@ func (e *QueryExecutor) Close() error {
 	return e.TaskManager.Close()
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
+// WithLogger sets the writer to which all logs are written. It must not be
 // called after Open is called.
 func (e *QueryExecutor) WithLogger(log zap.Logger) {
 	e.Logger = log.With(zap.String("service", "query"))
