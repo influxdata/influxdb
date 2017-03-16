@@ -326,6 +326,7 @@ func TestSelectStatement_RewriteFields(t *testing.T) {
 	var tests = []struct {
 		stmt    string
 		rewrite string
+		err     string
 	}{
 		// No wildcards
 		{
@@ -462,6 +463,35 @@ func TestSelectStatement_RewriteFields(t *testing.T) {
 			stmt:    `SELECT * FROM (SELECT mean(value1) FROM cpu GROUP BY host) GROUP BY *`,
 			rewrite: `SELECT mean::float FROM (SELECT mean(value1::float) FROM cpu GROUP BY host) GROUP BY host`,
 		},
+
+		// Invalid queries that can't be rewritten should return an error (to
+		// avoid a panic in the query engine)
+		{
+			stmt: `SELECT count(*) / 2 FROM cpu`,
+			err:  `unsupported expression with wildcard: count(*) / 2`,
+		},
+
+		{
+			stmt: `SELECT * / 2 FROM (SELECT count(*) FROM cpu)`,
+			err:  `unsupported expression with wildcard: * / 2`,
+		},
+
+		{
+			stmt: `SELECT count(/value/) / 2 FROM cpu`,
+			err:  `unsupported expression with regex field: count(/value/) / 2`,
+		},
+
+		// This one should be possible though since there's no wildcard in the
+		// binary expression.
+		{
+			stmt:    `SELECT value1 + value2, * FROM cpu`,
+			rewrite: `SELECT value1::float + value2::integer, host::tag, region::tag, value1::float, value2::integer FROM cpu`,
+		},
+
+		{
+			stmt:    `SELECT value1 + value2, /value/ FROM cpu`,
+			rewrite: `SELECT value1::float + value2::integer, value1::float, value2::integer FROM cpu`,
+		},
 	}
 
 	for i, tt := range tests {
@@ -496,12 +526,20 @@ func TestSelectStatement_RewriteFields(t *testing.T) {
 
 		// Rewrite statement.
 		rw, err := stmt.(*influxql.SelectStatement).RewriteFields(&ic)
-		if err != nil {
-			t.Errorf("%d. %q: error: %s", i, tt.stmt, err)
-		} else if rw == nil {
-			t.Errorf("%d. %q: unexpected nil statement", i, tt.stmt)
-		} else if rw := rw.String(); tt.rewrite != rw {
-			t.Errorf("%d. %q: unexpected rewrite:\n\nexp=%s\n\ngot=%s\n\n", i, tt.stmt, tt.rewrite, rw)
+		if tt.err != "" {
+			if err != nil && err.Error() != tt.err {
+				t.Errorf("%d. %q: unexpected error: %s != %s", i, tt.stmt, err.Error(), tt.err)
+			} else if err == nil {
+				t.Errorf("%d. %q: expected error", i, tt.stmt)
+			}
+		} else {
+			if err != nil {
+				t.Errorf("%d. %q: error: %s", i, tt.stmt, err)
+			} else if rw == nil && tt.err == "" {
+				t.Errorf("%d. %q: unexpected nil statement", i, tt.stmt)
+			} else if rw := rw.String(); tt.rewrite != rw {
+				t.Errorf("%d. %q: unexpected rewrite:\n\nexp=%s\n\ngot=%s\n\n", i, tt.stmt, tt.rewrite, rw)
+			}
 		}
 	}
 }
