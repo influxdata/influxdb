@@ -1024,7 +1024,7 @@ func (s *SelectStatement) HasSelector() bool {
 	var selector *Call
 	for _, f := range s.Fields {
 		if call, ok := f.Expr.(*Call); ok {
-			if selector != nil || !IsSelector(call) {
+			if selector != nil || !isSelector(call) {
 				// This is an aggregate call or there is already a selector.
 				return false
 			}
