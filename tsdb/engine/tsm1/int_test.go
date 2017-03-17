@@ -600,10 +600,6 @@ func BenchmarkIntegerEncoderPackedSimple(b *testing.B) {
 	}
 }
 
-type byteSetter interface {
-	SetBytes(b []byte)
-}
-
 func BenchmarkIntegerDecoderPackedSimple(b *testing.B) {
 	x := make([]int64, 1024)
 	enc := NewIntegerEncoder(1024)

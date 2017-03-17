@@ -453,7 +453,7 @@ type floatParallelIterator struct {
 func newFloatParallelIterator(input FloatIterator) *floatParallelIterator {
 	itr := &floatParallelIterator{
 		input:   input,
-		ch:      make(chan floatPointError, 1),
+		ch:      make(chan floatPointError, 256),
 		closing: make(chan struct{}),
 	}
 	itr.wg.Add(1)
@@ -488,6 +488,9 @@ func (itr *floatParallelIterator) monitor() {
 	for {
 		// Read next point.
 		p, err := itr.input.Next()
+		if p != nil {
+			p = p.Clone()
+		}
 
 		select {
 		case <-itr.closing:
@@ -677,8 +680,7 @@ func (itr *floatFillIterator) Next() (*FloatPoint, error) {
 				next, err := itr.input.peek()
 				if err != nil {
 					return nil, err
-				}
-				if next != nil {
+				} else if next != nil && next.Name == itr.window.name && next.Tags.ID() == itr.window.tags.ID() {
 					interval := int64(itr.opt.Interval.Duration)
 					start := itr.window.time / interval
 					p.Value = linearFloat(start, itr.prev.Time/interval, next.Time/interval, itr.prev.Value, next.Value)
@@ -3108,7 +3110,7 @@ type integerParallelIterator struct {
 func newIntegerParallelIterator(input IntegerIterator) *integerParallelIterator {
 	itr := &integerParallelIterator{
 		input:   input,
-		ch:      make(chan integerPointError, 1),
+		ch:      make(chan integerPointError, 256),
 		closing: make(chan struct{}),
 	}
 	itr.wg.Add(1)
@@ -3143,6 +3145,9 @@ func (itr *integerParallelIterator) monitor() {
 	for {
 		// Read next point.
 		p, err := itr.input.Next()
+		if p != nil {
+			p = p.Clone()
+		}
 
 		select {
 		case <-itr.closing:
@@ -3332,8 +3337,7 @@ func (itr *integerFillIterator) Next() (*IntegerPoint, error) {
 				next, err := itr.input.peek()
 				if err != nil {
 					return nil, err
-				}
-				if next != nil {
+				} else if next != nil && next.Name == itr.window.name && next.Tags.ID() == itr.window.tags.ID() {
 					interval := int64(itr.opt.Interval.Duration)
 					start := itr.window.time / interval
 					p.Value = linearInteger(start, itr.prev.Time/interval, next.Time/interval, itr.prev.Value, next.Value)
@@ -5760,7 +5764,7 @@ type stringParallelIterator struct {
 func newStringParallelIterator(input StringIterator) *stringParallelIterator {
 	itr := &stringParallelIterator{
 		input:   input,
-		ch:      make(chan stringPointError, 1),
+		ch:      make(chan stringPointError, 256),
 		closing: make(chan struct{}),
 	}
 	itr.wg.Add(1)
@@ -5795,6 +5799,9 @@ func (itr *stringParallelIterator) monitor() {
 	for {
 		// Read next point.
 		p, err := itr.input.Next()
+		if p != nil {
+			p = p.Clone()
+		}
 
 		select {
 		case <-itr.closing:
@@ -8397,7 +8404,7 @@ type booleanParallelIterator struct {
 func newBooleanParallelIterator(input BooleanIterator) *booleanParallelIterator {
 	itr := &booleanParallelIterator{
 		input:   input,
-		ch:      make(chan booleanPointError, 1),
+		ch:      make(chan booleanPointError, 256),
 		closing: make(chan struct{}),
 	}
 	itr.wg.Add(1)
@@ -8432,6 +8439,9 @@ func (itr *booleanParallelIterator) monitor() {
 	for {
 		// Read next point.
 		p, err := itr.input.Next()
+		if p != nil {
+			p = p.Clone()
+		}
 
 		select {
 		case <-itr.closing:

@@ -57,46 +57,7 @@ const (
 	keywordEnd
 )
 
-var tokens = [...]string{
-	ILLEGAL: "ILLEGAL",
-	EOF:     "EOF",
-	WS:      "WS",
-
-	IDENT:       "IDENT",
-	NUMBER:      "NUMBER",
-	DURATIONVAL: "DURATION",
-	STRING:      "STRING",
-	BADSTRING:   "BADSTRING",
-	TEMPLATEVAR: "TEMPLATEVAR",
-
-	COMMA:    ",",
-	PERIOD:   ".",
-	LPAREN:   "(",
-	RPAREN:   ")",
-	LBRACKET: "[",
-	RBRACKET: "]",
-	PIPE:     "|",
-
-	SET:    "SET",
-	USE:    "USE",
-	QUERY:  "QUERY",
-	INSERT: "INSERT",
-	EXEC:   "EXEC",
-	DO:     "DO",
-	GO:     "GO",
-	WAIT:   "WAIT",
-	INT:    "INT",
-	FLOAT:  "FLOAT",
-	STR:    "STRING",
-}
-
 var eof = rune(1)
-
-func check(e error) {
-	if e != nil {
-		panic(e)
-	}
-}
 
 func isWhitespace(ch rune) bool { return ch == ' ' || ch == '\t' || ch == '\n' }
 
@@ -127,12 +88,6 @@ func (s *Scanner) read() rune {
 }
 
 func (s *Scanner) unread() { _ = s.r.UnreadRune() }
-
-func (s *Scanner) peek() rune {
-	ch := s.read()
-	s.unread()
-	return ch
-}
 
 // Scan moves to the next character in the file and returns a tokenized version as well as the literal
 func (s *Scanner) Scan() (tok Token, lit string) {

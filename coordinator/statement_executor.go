@@ -156,7 +156,7 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx influx
 	case *influxql.ShowContinuousQueriesStatement:
 		rows, err = e.executeShowContinuousQueriesStatement(stmt)
 	case *influxql.ShowDatabasesStatement:
-		rows, err = e.executeShowDatabasesStatement(stmt)
+		rows, err = e.executeShowDatabasesStatement(stmt, &ctx)
 	case *influxql.ShowDiagnosticsStatement:
 		rows, err = e.executeShowDiagnosticsStatement(stmt)
 	case *influxql.ShowGrantsForUserStatement:
@@ -620,12 +620,16 @@ func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql
 	return rows, nil
 }
 
-func (e *StatementExecutor) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatement) (models.Rows, error) {
+func (e *StatementExecutor) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatement, ctx *influxql.ExecutionContext) (models.Rows, error) {
 	dis := e.MetaClient.Databases()
+	a := ctx.ExecutionOptions.Authorizer
 
 	row := &models.Row{Name: "databases", Columns: []string{"name"}}
 	for _, di := range dis {
-		row.Values = append(row.Values, []interface{}{di.Name})
+		// Only include databases that the user is authorized to read or write.
+		if a.AuthorizeDatabase(influxql.ReadPrivilege, di.Name) || a.AuthorizeDatabase(influxql.WritePrivilege, di.Name) {
+			row.Values = append(row.Values, []interface{}{di.Name})
+		}
 	}
 	return []*models.Row{row}, nil
 }
@@ -1181,63 +1185,4 @@ func joinUint64(a []uint64) string {
 		}
 	}
 	return buf.String()
-}
-
-// stringSet represents a set of strings.
-type stringSet map[string]struct{}
-
-// newStringSet returns an empty stringSet.
-func newStringSet() stringSet {
-	return make(map[string]struct{})
-}
-
-// add adds strings to the set.
-func (s stringSet) add(ss ...string) {
-	for _, n := range ss {
-		s[n] = struct{}{}
-	}
-}
-
-// contains returns whether the set contains the given string.
-func (s stringSet) contains(ss string) bool {
-	_, ok := s[ss]
-	return ok
-}
-
-// list returns the current elements in the set, in sorted order.
-func (s stringSet) list() []string {
-	l := make([]string, 0, len(s))
-	for k := range s {
-		l = append(l, k)
-	}
-	sort.Strings(l)
-	return l
-}
-
-// union returns the union of this set and another.
-func (s stringSet) union(o stringSet) stringSet {
-	ns := newStringSet()
-	for k := range s {
-		ns[k] = struct{}{}
-	}
-	for k := range o {
-		ns[k] = struct{}{}
-	}
-	return ns
-}
-
-// intersect returns the intersection of this set and another.
-func (s stringSet) intersect(o stringSet) stringSet {
-	shorter, longer := s, o
-	if len(longer) < len(shorter) {
-		shorter, longer = longer, shorter
-	}
-
-	ns := newStringSet()
-	for k := range shorter {
-		if _, ok := longer[k]; ok {
-			ns[k] = struct{}{}
-		}
-	}
-	return ns
 }

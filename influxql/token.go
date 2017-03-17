@@ -13,6 +13,7 @@ const (
 	ILLEGAL Token = iota
 	EOF
 	WS
+	COMMENT
 
 	literalBeg
 	// IDENT and the following are InfluxQL literal tokens.
@@ -36,6 +37,7 @@ const (
 	SUB // -
 	MUL // *
 	DIV // /
+	MOD // %
 
 	AND // AND
 	OR  // OR
@@ -155,6 +157,7 @@ var tokens = [...]string{
 	SUB: "-",
 	MUL: "*",
 	DIV: "/",
+	MOD: "%",
 
 	AND: "AND",
 	OR:  "OR",
@@ -284,7 +287,7 @@ func (tok Token) Precedence() int {
 		return 3
 	case ADD, SUB:
 		return 4
-	case MUL, DIV:
+	case MUL, DIV, MOD:
 		return 5
 	}
 	return 0

@@ -53,16 +53,11 @@ type PointsWriter struct {
 		Database(name string) (di *meta.DatabaseInfo)
 		RetentionPolicy(database, policy string) (*meta.RetentionPolicyInfo, error)
 		CreateShardGroup(database, policy string, timestamp time.Time) (*meta.ShardGroupInfo, error)
-		ShardOwner(shardID uint64) (string, string, *meta.ShardGroupInfo)
 	}
 
 	TSDBStore interface {
 		CreateShard(database, retentionPolicy string, shardID uint64, enabled bool) error
 		WriteToShard(shardID uint64, points []models.Point) error
-	}
-
-	ShardWriter interface {
-		WriteShard(shardID, ownerID uint64, points []models.Point) error
 	}
 
 	Subscriber interface {

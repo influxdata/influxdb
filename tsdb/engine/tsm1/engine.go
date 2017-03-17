@@ -26,6 +26,7 @@ import (
 //go:generate tmpl -data=@iterator.gen.go.tmpldata iterator.gen.go.tmpl
 //go:generate tmpl -data=@file_store.gen.go.tmpldata file_store.gen.go.tmpl
 //go:generate tmpl -data=@encoding.gen.go.tmpldata encoding.gen.go.tmpl
+//go:generate tmpl -data=@compact.gen.go.tmpldata compact.gen.go.tmpl
 
 func init() {
 	tsdb.RegisterEngine("tsm1", NewEngine)
@@ -130,6 +131,8 @@ type Engine struct {
 // NewEngine returns a new instance of Engine.
 func NewEngine(id uint64, path string, walPath string, opt tsdb.EngineOptions) tsdb.Engine {
 	w := NewWAL(walPath)
+	w.syncDelay = time.Duration(opt.Config.WALFsyncDelay)
+
 	fs := NewFileStore(path)
 	cache := NewCache(uint64(opt.Config.CacheMaxMemorySize), path)
 
@@ -1242,8 +1245,6 @@ func (e *Engine) cleanupTempTSMFiles() error {
 
 // KeyCursor returns a KeyCursor for the given key starting at time t.
 func (e *Engine) KeyCursor(key string, t int64, ascending bool) *KeyCursor {
-	e.mu.RLock()
-	defer e.mu.RUnlock()
 	return e.FileStore.KeyCursor(key, t, ascending)
 }
 

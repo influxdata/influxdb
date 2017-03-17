@@ -8,9 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/influxql"
-	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/uber-go/zap"
 )
@@ -342,22 +340,19 @@ func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 	cqi := dbi.ContinuousQueries[0]
 
 	cqi.Query = `this is not a query`
-	err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
-	if err == nil {
+	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now()); err == nil {
 		t.Error("expected error but got nil")
 	}
 
 	// Valid query but invalid continuous query.
 	cqi.Query = `SELECT * FROM cpu`
-	err = s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
-	if err == nil {
+	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now()); err == nil {
 		t.Error("expected error but got nil")
 	}
 
 	// Group by requires aggregate.
 	cqi.Query = `SELECT value INTO other_value FROM cpu WHERE time > now() - 1h GROUP BY time(1s)`
-	err = s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
-	if err == nil {
+	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now()); err == nil {
 		t.Error("expected error but got nil")
 	}
 }
@@ -376,8 +371,7 @@ func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	cqi := dbi.ContinuousQueries[0]
 
 	now := time.Now().Truncate(10 * time.Minute)
-	err := s.ExecuteContinuousQuery(&dbi, &cqi, now)
-	if err != errExpected {
+	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, now); err != errExpected {
 		t.Errorf("exp = %s, got = %v", errExpected, err)
 	}
 }
@@ -523,13 +517,6 @@ func (ms *MetaClient) CreateContinuousQuery(database, name, query string) error 
 	return nil
 }
 
-// QueryExecutor is a mock query executor.
-type QueryExecutor struct {
-	*influxql.QueryExecutor
-	Err error
-	t   *testing.T
-}
-
 // StatementExecutor is a mock statement executor.
 type StatementExecutor struct {
 	ExecuteStatementFn func(stmt influxql.Statement, ctx influxql.ExecutionContext) error
@@ -539,75 +526,6 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx influx
 	return e.ExecuteStatementFn(stmt, ctx)
 }
 
-// NewQueryExecutor returns a *QueryExecutor.
-func NewQueryExecutor(t *testing.T) *QueryExecutor {
-	e := influxql.NewQueryExecutor()
-	e.StatementExecutor = &StatementExecutor{}
-	return &QueryExecutor{
-		QueryExecutor: e,
-		t:             t,
-	}
-}
-
-// PointsWriter is a mock points writer.
-type PointsWriter struct {
-	WritePointsFn   func(p *coordinator.WritePointsRequest) error
-	Err             error
-	PointsPerSecond int
-	t               *testing.T
-}
-
-// NewPointsWriter returns a new *PointsWriter.
-func NewPointsWriter(t *testing.T) *PointsWriter {
-	return &PointsWriter{
-		PointsPerSecond: 25000,
-		t:               t,
-	}
-}
-
-// WritePoints mocks writing points.
-func (pw *PointsWriter) WritePoints(p *coordinator.WritePointsRequest) error {
-	// If the test set a callback, call it.
-	if pw.WritePointsFn != nil {
-		if err := pw.WritePointsFn(p); err != nil {
-			return err
-		}
-	}
-
-	if pw.Err != nil {
-		return pw.Err
-	}
-	ns := time.Duration((1 / pw.PointsPerSecond) * 1000000000)
-	time.Sleep(ns)
-	return nil
-}
-
-// genResult generates a dummy query result.
-func genResult(rowCnt, valCnt int) *influxql.Result {
-	rows := make(models.Rows, 0, rowCnt)
-	now := time.Now()
-	for n := 0; n < rowCnt; n++ {
-		vals := make([][]interface{}, 0, valCnt)
-		for m := 0; m < valCnt; m++ {
-			vals = append(vals, []interface{}{now, float64(m)})
-			now.Add(time.Second)
-		}
-		row := &models.Row{
-			Name:    "cpu",
-			Tags:    map[string]string{"host": "server01"},
-			Columns: []string{"time", "value"},
-			Values:  vals,
-		}
-		if len(rows) > 0 {
-			row.Name = fmt.Sprintf("cpu%d", len(rows)+1)
-		}
-		rows = append(rows, row)
-	}
-	return &influxql.Result{
-		Series: rows,
-	}
-}
-
 func wait(c chan struct{}, d time.Duration) (err error) {
 	select {
 	case <-c:
@@ -615,19 +533,4 @@ func wait(c chan struct{}, d time.Duration) (err error) {
 		err = errors.New("timed out")
 	}
 	return
-}
-
-func waitInt(c chan int, d time.Duration) (i int, err error) {
-	select {
-	case i = <-c:
-	case <-time.After(d):
-		err = errors.New("timed out")
-	}
-	return
-}
-
-func check(err error) {
-	if err != nil {
-		panic(err)
-	}
 }

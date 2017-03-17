@@ -369,24 +369,6 @@ func (w *TestService) WritePoints(database, retentionPolicy string, consistencyL
 	return w.WritePointsFn(database, retentionPolicy, consistencyLevel, points)
 }
 
-func wait(c chan struct{}, d time.Duration) (err error) {
-	select {
-	case <-c:
-	case <-time.After(d):
-		err = errors.New("timed out")
-	}
-	return
-}
-
-func waitInt(c chan int, d time.Duration) (i int, err error) {
-	select {
-	case i = <-c:
-	case <-time.After(d):
-		err = errors.New("timed out")
-	}
-	return
-}
-
 func check(err error) {
 	if err != nil {
 		panic(err)

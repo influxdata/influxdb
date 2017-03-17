@@ -2,6 +2,7 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -153,6 +154,29 @@ func TestClient_Query(t *testing.T) {
 	}
 }
 
+func TestClient_ChunkedQuery(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var data Response
+		w.WriteHeader(http.StatusOK)
+		enc := json.NewEncoder(w)
+		_ = enc.Encode(data)
+		_ = enc.Encode(data)
+	}))
+	defer ts.Close()
+
+	config := HTTPConfig{Addr: ts.URL}
+	c, err := NewHTTPClient(config)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+
+	query := Query{Chunked: true}
+	_, err = c.Query(query)
+	if err != nil {
+		t.Fatalf("unexpected error.  expected %v, actual %v", nil, err)
+	}
+}
+
 func TestClient_BoundParameters(t *testing.T) {
 	var parameterString string
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -257,16 +281,19 @@ func TestClient_Concurrent_Use(t *testing.T) {
 	wg.Add(3)
 	n := 1000
 
+	errC := make(chan error)
 	go func() {
 		defer wg.Done()
 		bp, err := NewBatchPoints(BatchPointsConfig{})
 		if err != nil {
-			t.Errorf("got error %v", err)
+			errC <- fmt.Errorf("got error %v", err)
+			return
 		}
 
 		for i := 0; i < n; i++ {
 			if err = c.Write(bp); err != nil {
-				t.Fatalf("got error %v", err)
+				errC <- fmt.Errorf("got error %v", err)
+				return
 			}
 		}
 	}()
@@ -276,7 +303,8 @@ func TestClient_Concurrent_Use(t *testing.T) {
 		var q Query
 		for i := 0; i < n; i++ {
 			if _, err := c.Query(q); err != nil {
-				t.Fatalf("got error %v", err)
+				errC <- fmt.Errorf("got error %v", err)
+				return
 			}
 		}
 	}()
@@ -287,7 +315,17 @@ func TestClient_Concurrent_Use(t *testing.T) {
 			c.Ping(time.Second)
 		}
 	}()
-	wg.Wait()
+
+	go func() {
+		wg.Wait()
+		close(errC)
+	}()
+
+	for err := range errC {
+		if err != nil {
+			t.Error(err)
+		}
+	}
 }
 
 func TestClient_Write(t *testing.T) {

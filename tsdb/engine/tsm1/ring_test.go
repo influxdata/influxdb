@@ -67,16 +67,27 @@ func benchmarkRingWrite(b *testing.B, r *ring, n int) {
 	for i := 0; i < b.N; i++ {
 		var wg sync.WaitGroup
 		for i := 0; i < runtime.GOMAXPROCS(0); i++ {
+			errC := make(chan error)
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				for j := 0; j < n; j++ {
 					if err := r.write(fmt.Sprintf("cpu,host=server-%d value=1", j), Values{}); err != nil {
-						b.Fatal(err)
+						errC <- err
 					}
 				}
 			}()
-			wg.Wait()
+
+			go func() {
+				wg.Wait()
+				close(errC)
+			}()
+
+			for err := range errC {
+				if err != nil {
+					b.Error(err)
+				}
+			}
 		}
 	}
 }

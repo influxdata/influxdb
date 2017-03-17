@@ -64,7 +64,18 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 	case '*':
 		return MUL, pos, ""
 	case '/':
+		ch1, _ := s.r.read()
+		if ch1 == '*' {
+			if err := s.skipUntilEndComment(); err != nil {
+				return ILLEGAL, pos, ""
+			}
+			return COMMENT, pos, ""
+		} else {
+			s.r.unread()
+		}
 		return DIV, pos, ""
+	case '%':
+		return MOD, pos, ""
 	case '=':
 		if ch1, _ := s.r.read(); ch1 == '~' {
 			return EQREGEX, pos, ""
@@ -133,6 +144,36 @@ func (s *Scanner) scanWhitespace() (tok Token, pos Pos, lit string) {
 	}
 
 	return WS, pos, buf.String()
+}
+
+// skipUntilNewline skips characters until it reaches a newline.
+func (s *Scanner) skipUntilNewline() {
+	for {
+		if ch, _ := s.r.read(); ch == '\n' || ch == eof {
+			return
+		}
+	}
+}
+
+// skipUntilEndComment skips characters until it reaches a '*/' symbol.
+func (s *Scanner) skipUntilEndComment() error {
+	for {
+		if ch1, _ := s.r.read(); ch1 == '*' {
+			// We might be at the end.
+		star:
+			ch2, _ := s.r.read()
+			if ch2 == '/' {
+				return nil
+			} else if ch2 == '*' {
+				// We are back in the state machine since we see a star.
+				goto star
+			} else if ch2 == eof {
+				return io.EOF
+			}
+		} else if ch1 == eof {
+			return io.EOF
+		}
+	}
 }
 
 func (s *Scanner) scanIdent(lookup bool) (tok Token, pos Pos, lit string) {
@@ -228,6 +269,10 @@ func (s *Scanner) scanNumber() (tok Token, pos Pos, lit string) {
 		} else if ch == '+' {
 			return ADD, pos, ""
 		} else if ch == '-' {
+			if ch1 == '-' {
+				s.skipUntilNewline()
+				return COMMENT, pos, ""
+			}
 			return SUB, pos, ""
 		}
 	} else if ch == '.' {
@@ -554,7 +599,6 @@ func ScanString(r io.RuneScanner) (string, error) {
 
 var errBadString = errors.New("bad string")
 var errBadEscape = errors.New("bad escape")
-var errBadRegex = errors.New("bad regex")
 
 // ScanBareIdent reads bare identifier from a rune reader.
 func ScanBareIdent(r io.RuneScanner) string {
@@ -575,16 +619,7 @@ func ScanBareIdent(r io.RuneScanner) string {
 	return buf.String()
 }
 
-var errInvalidIdentifier = errors.New("invalid identifier")
-
 // IsRegexOp returns true if the operator accepts a regex operand.
 func IsRegexOp(t Token) bool {
 	return (t == EQREGEX || t == NEQREGEX)
-}
-
-// assert will panic with a given formatted message if the given condition is false.
-func assert(condition bool, msg string, v ...interface{}) {
-	if !condition {
-		panic(fmt.Sprintf("assert failed: "+msg, v...))
-	}
 }

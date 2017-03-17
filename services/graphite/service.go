@@ -82,7 +82,6 @@ type Service struct {
 		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 	}
 	MetaClient interface {
-		CreateDatabase(name string) (*meta.DatabaseInfo, error)
 		CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)
 		CreateRetentionPolicy(database string, spec *meta.RetentionPolicySpec, makeDefault bool) (*meta.RetentionPolicyInfo, error)
 		Database(name string) *meta.DatabaseInfo

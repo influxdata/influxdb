@@ -51,6 +51,9 @@ func NewIntegerEncoder(sz int) IntegerEncoder {
 	}
 }
 
+// Flush is no-op
+func (e *IntegerEncoder) Flush() {}
+
 // Reset sets the encoder back to its initial state.
 func (e *IntegerEncoder) Reset() {
 	e.prev = 0

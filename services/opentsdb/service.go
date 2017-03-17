@@ -385,10 +385,8 @@ func (s *Service) handleTelnetConn(conn net.Conn) {
 		switch len(tsStr) {
 		case 10:
 			t = time.Unix(ts, 0)
-			break
 		case 13:
 			t = time.Unix(ts/1000, (ts%1000)*1000)
-			break
 		default:
 			atomic.AddInt64(&s.stats.TelnetBadTime, 1)
 			if s.LogPointErrors {

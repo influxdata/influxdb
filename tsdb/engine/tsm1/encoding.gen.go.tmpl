@@ -137,53 +137,68 @@ func (a {{.Name}}Values) Merge(b {{.Name}}Values) {{.Name}}Values {
 		return append(b, a...)
 	}
 
-	for i := 0; i < len(a) && len(b) > 0; i++ {
-		av, bv := a[i].UnixNano(), b[0].UnixNano()
-		// Value in a is greater than B, we need to merge
-		if av > bv {
-			// Save value in a
-			temp := a[i]
-
-			// Overwrite a with b
-			a[i] = b[0]
-
-			// Slide all values of b down 1
-			copy(b, b[1:])
-			b = b[:len(b)-1]
-
-			var k int
-			if len(b) > 0 && av > b[len(b)-1].UnixNano() {
-				// Fast path where a is after b, we skip the search
-				k = len(b)
-			} else {
-				// See where value we save from a should be inserted in b to keep b sorted
-				k = sort.Search(len(b), func(i int) bool { return b[i].UnixNano() >= temp.UnixNano() })
-			}
-
-			if k == len(b) {
-				// Last position?
-				b = append(b, temp)
-			} else if b[k].UnixNano() != temp.UnixNano() {
-				// Save the last element, since it will get overwritten
-				last := b[len(b)-1]
-				// Somewhere in the middle of b, insert it only if it's not a duplicate
-				copy(b[k+1:], b[k:])
-				// Add the last vale to the end
-				b = append(b, last)
-				b[k] = temp
-			}
-		} else if av == bv {
-			// Value in a an b are the same, use b
-			a[i] = b[0]
-			b = b[1:]
+	out := make({{.Name}}Values, 0, len(a)+len(b))
+	for len(a) > 0 && len(b) > 0 {
+		if a[0].UnixNano() < b[0].UnixNano() {
+			out, a = append(out, a[0]), a[1:]
+		} else if len(b) > 0 && a[0].UnixNano() == b[0].UnixNano() {
+			a = a[1:]
+		} else {
+			out, b = append(out, b[0]), b[1:]
 		}
 	}
-
-	if len(b) > 0 {
-		return append(a, b...)
+	if len(a) > 0 {
+		return append(out, a...)
 	}
-	return a
+	return append(out, b...)
 }
+
+{{ if ne .Name "" }}
+func (a {{.Name}}Values) Encode(buf []byte) ([]byte, error) {
+	return encode{{.Name}}ValuesBlock(buf, a)
+}
+
+func encode{{ .Name }}ValuesBlock(buf []byte, values []{{.Name}}Value) ([]byte, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+
+	venc := get{{ .Name }}Encoder(len(values))
+	tsenc := getTimeEncoder(len(values))
+
+	var b []byte
+	err := func() error {
+		for _, v := range values {
+			tsenc.Write(v.unixnano)
+			venc.Write(v.value)
+		}
+		venc.Flush()
+
+		// Encoded timestamp values
+		tb, err := tsenc.Bytes()
+		if err != nil {
+			return err
+		}
+		// Encoded values
+		vb, err := venc.Bytes()
+		if err != nil {
+			return err
+		}
+
+		// Prepend the first timestamp of the block in the first 8 bytes and the block
+		// in the next byte, followed by the block
+		b = packBlock(buf, {{ .Type }}, tb, vb)
+
+		return nil
+	}()
+
+	putTimeEncoder(tsenc)
+	put{{.Name}}Encoder(venc)
+
+	return b, err
+}
+
+{{ end }}
 
 // Sort methods
 func (a {{.Name}}Values) Len() int           { return len(a) }

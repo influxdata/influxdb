@@ -568,22 +568,6 @@ func (p *Parser) parseInt(min, max int) (int, error) {
 	return n, nil
 }
 
-// parseUInt32 parses a string and returns a 32-bit unsigned integer literal.
-func (p *Parser) parseUInt32() (uint32, error) {
-	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok != INTEGER {
-		return 0, newParseError(tokstr(tok, lit), []string{"integer"}, pos)
-	}
-
-	// Convert string to unsigned 32-bit integer
-	n, err := strconv.ParseUint(lit, 10, 32)
-	if err != nil {
-		return 0, &ParseError{Message: err.Error(), Pos: pos}
-	}
-
-	return uint32(n), nil
-}
-
 // parseUInt64 parses a string and returns a 64-bit unsigned integer literal.
 func (p *Parser) parseUInt64() (uint64, error) {
 	tok, pos, lit := p.scanIgnoreWhitespace()
@@ -1845,37 +1829,6 @@ func (p *Parser) parseDropUserStatement() (*DropUserStatement, error) {
 	return stmt, nil
 }
 
-// parseRetentionPolicy parses a string and returns a retention policy name.
-// This function assumes the "WITH" token has already been consumed.
-func (p *Parser) parseRetentionPolicy() (name string, dfault bool, err error) {
-	// Check for optional DEFAULT token.
-	tok, pos, lit := p.scanIgnoreWhitespace()
-	if tok == DEFAULT {
-		dfault = true
-		tok, pos, lit = p.scanIgnoreWhitespace()
-	}
-
-	// Check for required RETENTION token.
-	if tok != RETENTION {
-		err = newParseError(tokstr(tok, lit), []string{"RETENTION"}, pos)
-		return
-	}
-
-	// Check of required POLICY token.
-	if tok, pos, lit = p.scanIgnoreWhitespace(); tok != POLICY {
-		err = newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
-		return
-	}
-
-	// Parse retention policy name.
-	name, err = p.parseIdent()
-	if err != nil {
-		return
-	}
-
-	return
-}
-
 // parseShowShardGroupsStatement parses a string for "SHOW SHARD GROUPS" statement.
 // This function assumes the "SHOW SHARD GROUPS" tokens have already been consumed.
 func (p *Parser) parseShowShardGroupsStatement() (*ShowShardGroupsStatement, error) {
@@ -2733,13 +2686,15 @@ func (p *Parser) parseResample() (time.Duration, time.Duration, error) {
 // scan returns the next token from the underlying scanner.
 func (p *Parser) scan() (tok Token, pos Pos, lit string) { return p.s.Scan() }
 
-// scanIgnoreWhitespace scans the next non-whitespace token.
+// scanIgnoreWhitespace scans the next non-whitespace and non-comment token.
 func (p *Parser) scanIgnoreWhitespace() (tok Token, pos Pos, lit string) {
-	tok, pos, lit = p.scan()
-	if tok == WS {
+	for {
 		tok, pos, lit = p.scan()
+		if tok == WS || tok == COMMENT {
+			continue
+		}
+		return
 	}
-	return
 }
 
 // consumeWhitespace scans the next token if it's whitespace.

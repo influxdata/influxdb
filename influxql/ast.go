@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math"
 	"regexp"
 	"regexp/syntax"
 	"sort"
@@ -1272,6 +1273,26 @@ func (s *SelectStatement) RewriteFields(m FieldMapper) (*SelectStatement, error)
 						Alias: fmt.Sprintf("%s_%s", f.Name(), ref.Val),
 					})
 				}
+			case *BinaryExpr:
+				// Search for regexes or wildcards within the binary
+				// expression. If we find any, throw an error indicating that
+				// it's illegal.
+				var regex, wildcard bool
+				WalkFunc(expr, func(n Node) {
+					switch n.(type) {
+					case *RegexLiteral:
+						regex = true
+					case *Wildcard:
+						wildcard = true
+					}
+				})
+
+				if wildcard {
+					return nil, fmt.Errorf("unsupported expression with wildcard: %s", f.Expr)
+				} else if regex {
+					return nil, fmt.Errorf("unsupported expression with regex field: %s", f.Expr)
+				}
+				rwFields = append(rwFields, f)
 			default:
 				rwFields = append(rwFields, f)
 			}
@@ -2437,45 +2458,6 @@ func walkFunctionCalls(exp Expr) []*Call {
 	return nil
 }
 
-// filterExprBySource filters an expression to exclude expressions unrelated to a source.
-func filterExprBySource(name string, expr Expr) Expr {
-	switch expr := expr.(type) {
-	case *VarRef:
-		if !strings.HasPrefix(expr.Val, name) {
-			return nil
-		}
-
-	case *BinaryExpr:
-		lhs := filterExprBySource(name, expr.LHS)
-		rhs := filterExprBySource(name, expr.RHS)
-
-		// If an expr is logical then return either LHS/RHS or both.
-		// If an expr is arithmetic or comparative then require both sides.
-		if expr.Op == AND || expr.Op == OR {
-			if lhs == nil && rhs == nil {
-				return nil
-			} else if lhs != nil && rhs == nil {
-				return lhs
-			} else if lhs == nil && rhs != nil {
-				return rhs
-			}
-		} else {
-			if lhs == nil || rhs == nil {
-				return nil
-			}
-		}
-		return &BinaryExpr{Op: expr.Op, LHS: lhs, RHS: rhs}
-
-	case *ParenExpr:
-		exp := filterExprBySource(name, expr.Expr)
-		if exp == nil {
-			return nil
-		}
-		return &ParenExpr{Expr: exp}
-	}
-	return expr
-}
-
 // MatchSource returns the source name that matches a field name.
 // It returns a blank string if no sources match.
 func MatchSource(sources Sources, name string) string {
@@ -2721,7 +2703,10 @@ func (s *ShowDatabasesStatement) String() string { return "SHOW DATABASES" }
 
 // RequiredPrivileges returns the privilege required to execute a ShowDatabasesStatement.
 func (s *ShowDatabasesStatement) RequiredPrivileges() (ExecutionPrivileges, error) {
-	return ExecutionPrivileges{{Admin: true, Name: "", Privilege: AllPrivileges}}, nil
+	// SHOW DATABASES is one of few statements that have no required privileges.
+	// Anyone is allowed to execute it, but the returned results depend on the user's
+	// individual database permissions.
+	return ExecutionPrivileges{{Admin: false, Name: "", Privilege: NoPrivileges}}, nil
 }
 
 // CreateContinuousQueryStatement represents a command for creating a continuous query.
@@ -4350,6 +4335,11 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 				return float64(0)
 			}
 			return lhs / rhs
+		case MOD:
+			if !ok {
+				return nil
+			}
+			return math.Mod(lhs, rhs)
 		}
 	case int64:
 		// Try as a float64 to see if a float cast is required.
@@ -4381,6 +4371,8 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 					return float64(0)
 				}
 				return lhs / rhs
+			case MOD:
+				return math.Mod(lhs, rhs)
 			}
 		} else {
 			rhs, ok := rhs.(int64)
@@ -4419,6 +4411,13 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 					return float64(0)
 				}
 				return lhs / rhs
+			case MOD:
+				if !ok {
+					return nil
+				} else if rhs == 0 {
+					return int64(0)
+				}
+				return lhs % rhs
 			}
 		}
 	case string:
@@ -4756,6 +4755,11 @@ func reduceBinaryExprIntegerLHS(op Token, lhs *IntegerLiteral, rhs Expr) Expr {
 				return &NumberLiteral{Val: 0}
 			}
 			return &NumberLiteral{Val: float64(lhs.Val) / float64(rhs.Val)}
+		case MOD:
+			if rhs.Val == 0 {
+				return &IntegerLiteral{Val: 0}
+			}
+			return &IntegerLiteral{Val: lhs.Val % rhs.Val}
 		case EQ:
 			return &BooleanLiteral{Val: lhs.Val == rhs.Val}
 		case NEQ:
@@ -4822,6 +4826,8 @@ func reduceBinaryExprNumberLHS(op Token, lhs *NumberLiteral, rhs Expr) Expr {
 				return &NumberLiteral{Val: 0}
 			}
 			return &NumberLiteral{Val: lhs.Val / rhs.Val}
+		case MOD:
+			return &NumberLiteral{Val: math.Mod(lhs.Val, rhs.Val)}
 		case EQ:
 			return &BooleanLiteral{Val: lhs.Val == rhs.Val}
 		case NEQ:
@@ -4848,6 +4854,8 @@ func reduceBinaryExprNumberLHS(op Token, lhs *NumberLiteral, rhs Expr) Expr {
 				return &NumberLiteral{Val: 0}
 			}
 			return &NumberLiteral{Val: lhs.Val / float64(rhs.Val)}
+		case MOD:
+			return &NumberLiteral{Val: math.Mod(lhs.Val, float64(rhs.Val))}
 		case EQ:
 			return &BooleanLiteral{Val: lhs.Val == float64(rhs.Val)}
 		case NEQ:

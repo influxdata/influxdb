@@ -59,10 +59,29 @@ func ErrMaxConcurrentQueriesLimitExceeded(n, limit int) error {
 	return fmt.Errorf("max-concurrent-queries limit exceeded(%d, %d)", n, limit)
 }
 
+// Authorizer reports whether certain operations are authorized.
+type Authorizer interface {
+	// AuthorizeDatabase indicates whether the given Privilege is authorized on the database with the given name.
+	AuthorizeDatabase(p Privilege, name string) bool
+}
+
+// OpenAuthorizer is the Authorizer used when authorization is disabled.
+// It allows all operations.
+type OpenAuthorizer struct{}
+
+var _ Authorizer = OpenAuthorizer{}
+
+// AuthorizeDatabase returns true to allow any operation on a database.
+func (OpenAuthorizer) AuthorizeDatabase(Privilege, string) bool { return true }
+
 // ExecutionOptions contains the options for executing a query.
 type ExecutionOptions struct {
 	// The database the query is running against.
 	Database string
+
+	// How to determine whether the query is allowed to execute,
+	// what resources can be returned in SHOW queries, etc.
+	Authorizer Authorizer
 
 	// The requested maximum number of points to return in each result.
 	ChunkSize int

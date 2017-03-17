@@ -43,12 +43,6 @@ const (
 	stringEntryType  = 4
 )
 
-// SegmentInfo represents metadata about a segment.
-type SegmentInfo struct {
-	name string
-	id   int
-}
-
 // WalEntryType is a byte written to a wal segment file that indicates what the following compressed block contains.
 type WalEntryType byte
 
@@ -70,7 +64,7 @@ var (
 	// ErrWALCorrupt is returned when reading a corrupt WAL entry.
 	ErrWALCorrupt = fmt.Errorf("corrupted WAL entry")
 
-	defaultWaitingWALWrites = runtime.NumCPU()
+	defaultWaitingWALWrites = runtime.GOMAXPROCS(0) * 2
 )
 
 // Statistics gathered by the WAL.
@@ -94,6 +88,14 @@ type WAL struct {
 
 	// cache and flush variables
 	closing chan struct{}
+	// goroutines waiting for the next fsync
+	syncWaiters chan chan error
+	syncCount   uint64
+
+	// syncDelay sets the duration to wait before fsyncing writes.  A value of 0 (default)
+	// will cause every write to be fsync'd.  This must be set before the WAL
+	// is opened if a non-default value is required.
+	syncDelay time.Duration
 
 	// WALOutput is the writer used by the logger.
 	logger       zap.Logger // Logger to be used for important messages
@@ -117,6 +119,7 @@ func NewWAL(path string) *WAL {
 		// these options should be overriden by any options in the config
 		SegmentSize: DefaultSegmentSize,
 		closing:     make(chan struct{}),
+		syncWaiters: make(chan chan error, 256),
 		stats:       &WALStatistics{},
 		limiter:     limiter.NewFixed(defaultWaitingWALWrites),
 		logger:      logger,
@@ -228,6 +231,37 @@ func (l *WAL) Open() error {
 	return nil
 }
 
+// sync will schedule an fsync to the current wal segment and notify any
+// waiting gorutines.  If an fsync is already scheduled, subsequent calls will
+// not schedule a new fsync and will be handle by the existing scheduled fsync.
+func (l *WAL) sync() {
+	// If we're not the first to sync, then another goroutine is fsyncing the wal for us.
+	if !atomic.CompareAndSwapUint64(&l.syncCount, 0, 1) {
+		return
+	}
+
+	// Fsync the wal and notify all pending waiters
+	go func() {
+		t := time.NewTimer(l.syncDelay)
+		select {
+		case <-t.C:
+			if len(l.syncWaiters) > 0 {
+				l.mu.Lock()
+				err := l.currentSegmentWriter.sync()
+				for len(l.syncWaiters) > 0 {
+					errC := <-l.syncWaiters
+					errC <- err
+				}
+				l.mu.Unlock()
+			}
+		case <-l.closing:
+			t.Stop()
+		}
+
+		atomic.StoreUint64(&l.syncCount, 0)
+	}()
+}
+
 // WritePoints writes the given points to the WAL. It returns the WAL segment ID to
 // which the points were written. If an error is returned the segment ID should
 // be ignored.
@@ -334,32 +368,45 @@ func (l *WAL) writeToLog(entry WALEntry) (int, error) {
 	defer putBuf(encBuf)
 	compressed := snappy.Encode(encBuf, b)
 
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	syncErr := make(chan error)
 
-	// Make sure the log has not been closed
-	select {
-	case <-l.closing:
-		return -1, ErrWALClosed
-	default:
+	segID, err := func() (int, error) {
+		l.mu.Lock()
+		defer l.mu.Unlock()
+
+		// Make sure the log has not been closed
+		select {
+		case <-l.closing:
+			return -1, ErrWALClosed
+		default:
+		}
+
+		// roll the segment file if needed
+		if err := l.rollSegment(); err != nil {
+			return -1, fmt.Errorf("error rolling WAL segment: %v", err)
+		}
+
+		// write and sync
+		if err := l.currentSegmentWriter.Write(entry.Type(), compressed); err != nil {
+			return -1, fmt.Errorf("error writing WAL entry: %v", err)
+		}
+
+		// Update stats for current segment size
+		atomic.StoreInt64(&l.stats.CurrentBytes, int64(l.currentSegmentWriter.size))
+
+		l.lastWriteTime = time.Now()
+
+		l.syncWaiters <- syncErr
+		return l.currentSegmentID, nil
+
+	}()
+	if err != nil {
+		return segID, err
 	}
 
-	// roll the segment file if needed
-	if err := l.rollSegment(); err != nil {
-		return -1, fmt.Errorf("error rolling WAL segment: %v", err)
-	}
-
-	// write and sync
-	if err := l.currentSegmentWriter.Write(entry.Type(), compressed); err != nil {
-		return -1, fmt.Errorf("error writing WAL entry: %v", err)
-	}
-
-	// Update stats for current segment size
-	atomic.StoreInt64(&l.stats.CurrentBytes, int64(l.currentSegmentWriter.size))
-
-	l.lastWriteTime = time.Now()
-
-	return l.currentSegmentID, l.currentSegmentWriter.sync()
+	// schedule an fsync and wait for it to complete
+	l.sync()
+	return segID, <-syncErr
 }
 
 // rollSegment checks if the current segment is due to roll over to a new segment;

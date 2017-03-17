@@ -6,16 +6,13 @@ import (
 	"archive/tar"
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"os"
 	"path/filepath"
 	"strconv"
-	"sync"
 
 	"github.com/influxdata/influxdb/cmd/influxd/backup"
 	"github.com/influxdata/influxdb/services/meta"
@@ -356,33 +353,3 @@ Usage: influxd restore [flags] PATH
 
 `)
 }
-
-type nopListener struct {
-	mu      sync.Mutex
-	closing chan struct{}
-}
-
-func newNopListener() *nopListener {
-	return &nopListener{closing: make(chan struct{})}
-}
-
-func (ln *nopListener) Accept() (net.Conn, error) {
-	ln.mu.Lock()
-	defer ln.mu.Unlock()
-
-	<-ln.closing
-	return nil, errors.New("listener closing")
-}
-
-func (ln *nopListener) Close() error {
-	if ln.closing != nil {
-		close(ln.closing)
-		ln.mu.Lock()
-		defer ln.mu.Unlock()
-
-		ln.closing = nil
-	}
-	return nil
-}
-
-func (ln *nopListener) Addr() net.Addr { return &net.TCPAddr{} }

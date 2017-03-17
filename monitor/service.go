@@ -48,13 +48,10 @@ type Monitor struct {
 	done              chan struct{}
 	storeCreated      bool
 	storeEnabled      bool
-	storeAddress      string
 
-	storeDatabase          string
-	storeRetentionPolicy   string
-	storeRetentionDuration time.Duration
-	storeReplicationFactor int
-	storeInterval          time.Duration
+	storeDatabase        string
+	storeRetentionPolicy string
+	storeInterval        time.Duration
 
 	MetaClient interface {
 		CreateDatabaseWithRetentionPolicy(name string, spec *meta.RetentionPolicySpec) (*meta.DatabaseInfo, error)
@@ -470,22 +467,3 @@ func (a Statistics) Less(i, j int) bool {
 
 // Swap implements sort.Interface.
 func (a Statistics) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-
-// DiagnosticsFromMap returns a Diagnostics from a map.
-func DiagnosticsFromMap(m map[string]interface{}) *diagnostics.Diagnostics {
-	// Display columns in deterministic order.
-	sortedKeys := make([]string, 0, len(m))
-	for k := range m {
-		sortedKeys = append(sortedKeys, k)
-	}
-	sort.Strings(sortedKeys)
-
-	d := diagnostics.NewDiagnostics(sortedKeys)
-	row := make([]interface{}, len(sortedKeys))
-	for i, k := range sortedKeys {
-		row[i] = m[k]
-	}
-	d.AddRow(row)
-
-	return d
-}

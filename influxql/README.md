@@ -36,6 +36,27 @@ Notation operators in order of increasing precedence:
 {}  repetition (0 to n times)
 ```
 
+## Comments
+
+Both single and multiline comments are supported. A comment is treated
+the same as whitespace by the parser.
+
+```
+-- single line comment
+/*
+    multiline comment
+*/
+```
+
+Single line comments will skip all text until the scanner hits a
+newline. Multiline comments will skip all text until the end comment
+marker is hit. Nested multiline comments are not supported so the
+following does not work:
+
+```
+/* /* this does not work */ */
+```
+
 ## Query representation
 
 ### Characters

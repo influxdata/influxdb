@@ -976,35 +976,6 @@ func (a KeyValues) Less(i, j int) bool {
 	return ki < kj
 }
 
-// filterShowSeriesResult will limit the number of series returned based on the limit and the offset.
-// Unlike limit and offset on SELECT statements, the limit and offset don't apply to the number of Rows, but
-// to the number of total Values returned, since each Value represents a unique series.
-func (e *Store) filterShowSeriesResult(limit, offset int, rows models.Rows) models.Rows {
-	var filteredSeries models.Rows
-	seriesCount := 0
-	for _, r := range rows {
-		var currentSeries [][]interface{}
-
-		// filter the values
-		for _, v := range r.Values {
-			if seriesCount >= offset && seriesCount-offset < limit {
-				currentSeries = append(currentSeries, v)
-			}
-			seriesCount++
-		}
-
-		// only add the row back in if there are some values in it
-		if len(currentSeries) > 0 {
-			r.Values = currentSeries
-			filteredSeries = append(filteredSeries, r)
-			if seriesCount > limit+offset {
-				return filteredSeries
-			}
-		}
-	}
-	return filteredSeries
-}
-
 // DecodeStorePath extracts the database and retention policy names
 // from a given shard or WAL path.
 func DecodeStorePath(shardOrWALPath string) (database, retentionPolicy string) {
