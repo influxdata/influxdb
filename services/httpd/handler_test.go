@@ -88,16 +88,7 @@ func TestHandler_Query_Auth(t *testing.T) {
 	h := NewHandler(true)
 
 	// Set mock meta client functions for the handler to use.
-	h.MetaClient.UsersFn = func() []meta.UserInfo {
-		return []meta.UserInfo{
-			{
-				Name:       "user1",
-				Hash:       "abcd",
-				Admin:      true,
-				Privileges: make(map[string]influxql.Privilege),
-			},
-		}
-	}
+	h.MetaClient.AdminUserExistsFn = func() bool { return true }
 
 	h.MetaClient.UserFn = func(username string) (*meta.UserInfo, error) {
 		if username != "user1" {
@@ -355,8 +346,10 @@ func TestHandler_Query_ErrAuthorize(t *testing.T) {
 	h.QueryAuthorizer.AuthorizeQueryFn = func(u *meta.UserInfo, q *influxql.Query, db string) error {
 		return errors.New("marker")
 	}
-	h.MetaClient.UsersFn = func() []meta.UserInfo {
-		return []meta.UserInfo{
+	h.MetaClient.AdminUserExistsFn = func() bool { return true }
+	h.MetaClient.AuthenticateFn = func(u, p string) (*meta.UserInfo, error) {
+
+		users := []meta.UserInfo{
 			{
 				Name:  "admin",
 				Hash:  "admin",
@@ -370,9 +363,8 @@ func TestHandler_Query_ErrAuthorize(t *testing.T) {
 				},
 			},
 		}
-	}
-	h.MetaClient.AuthenticateFn = func(u, p string) (*meta.UserInfo, error) {
-		for _, user := range h.MetaClient.Users() {
+
+		for _, user := range users {
 			if u == user.Name {
 				if p == user.Hash {
 					return &user, nil
@@ -637,11 +629,11 @@ func NewHandler(requireAuthentication bool) *Handler {
 
 // HandlerMetaStore is a mock implementation of Handler.MetaClient.
 type HandlerMetaStore struct {
-	PingFn         func(d time.Duration) error
-	DatabaseFn     func(name string) *meta.DatabaseInfo
-	AuthenticateFn func(username, password string) (ui *meta.UserInfo, err error)
-	UsersFn        func() []meta.UserInfo
-	UserFn         func(username string) (*meta.UserInfo, error)
+	PingFn            func(d time.Duration) error
+	DatabaseFn        func(name string) *meta.DatabaseInfo
+	AuthenticateFn    func(username, password string) (ui *meta.UserInfo, err error)
+	UserFn            func(username string) (*meta.UserInfo, error)
+	AdminUserExistsFn func() bool
 }
 
 func (s *HandlerMetaStore) Ping(b bool) error {
@@ -660,8 +652,8 @@ func (s *HandlerMetaStore) Authenticate(username, password string) (ui *meta.Use
 	return s.AuthenticateFn(username, password)
 }
 
-func (s *HandlerMetaStore) Users() []meta.UserInfo {
-	return s.UsersFn()
+func (s *HandlerMetaStore) AdminUserExists() bool {
+	return s.AdminUserExistsFn()
 }
 
 func (s *HandlerMetaStore) User(username string) (*meta.UserInfo, error) {
