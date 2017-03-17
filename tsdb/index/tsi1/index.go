@@ -436,34 +436,30 @@ func (i *Index) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []model
 		return errors.New("names/tags length mismatch")
 	}
 
-	if err := func() error {
-		// Ensure fileset cannot change during insert.
-		i.mu.RLock()
-		defer i.mu.RUnlock()
+	// Maintain reference count on files in file set.
+	fs := i.RetainFileSet()
+	defer fs.Release()
 
-		// Maintain reference count on files in file set.
-		fs := i.retainFileSet()
-		defer fs.Release()
-
-		// Filter out existing series. Exit if no new series exist.
-		names, tagsSlice = fs.FilterNamesTags(names, tagsSlice)
-		if len(names) == 0 {
-			return nil
-		}
-
-		// Insert series into log file.
-		if err := i.activeLogFile.AddSeriesList(names, tagsSlice); err != nil {
-			return err
-		}
+	// Filter out existing series. Exit if no new series exist.
+	names, tagsSlice = fs.FilterNamesTags(names, tagsSlice)
+	if len(names) == 0 {
 		return nil
-	}(); err != nil {
+	}
+
+	// Ensure fileset cannot change during insert.
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
+	// Insert series into log file.
+	if err := i.activeLogFile.AddSeriesList(names, tagsSlice); err != nil {
 		return err
 	}
 
-	// Swap log file, if necesssary.
-	if err := i.CheckLogFile(); err != nil {
+	// Switch log file if necessary.
+	if err := i.checkLogFile(); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -945,6 +941,10 @@ func (i *Index) CheckLogFile() error {
 	// If file size exceeded then recheck under write lock and swap files.
 	i.mu.Lock()
 	defer i.mu.Unlock()
+	return i.checkLogFile()
+}
+
+func (i *Index) checkLogFile() error {
 	if i.activeLogFile.Size() < i.MaxLogFileSize {
 		return nil
 	}
