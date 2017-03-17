@@ -1292,7 +1292,7 @@ func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt
 	}
 
 	// Determine tagsets for this measurement based on dimensions and filters.
-	tagSets, err := mm.TagSets(e.id, opt.Dimensions, opt.Condition, opt)
+	tagSets, err := mm.TagSets(e.id, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -1360,7 +1360,7 @@ func (e *Engine) createVarRefIterator(measurement string, opt influxql.IteratorO
 	}
 
 	// Determine tagsets for this measurement based on dimensions and filters.
-	tagSets, err := mm.TagSets(e.id, opt.Dimensions, opt.Condition, opt)
+	tagSets, err := mm.TagSets(e.id, opt)
 	if err != nil {
 		return nil, err
 	}
