@@ -201,6 +201,19 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
+    case 'REMOVE_RETENTION_POLICY': {
+      const {database, retentionPolicy} = action.payload
+      const newState = {
+        databases: state.databases.map(db => db.id === database.id ? {
+          ...db,
+          retentionPolicies: db.retentionPolicies.filter(rp => rp.id !== retentionPolicy.id),
+        }
+          : db),
+      }
+
+      return {...state, ...newState}
+    }
+
     case 'START_DELETE_DATABASE': {
       const {database} = action.payload
       const newState = {

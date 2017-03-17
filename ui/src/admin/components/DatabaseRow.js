@@ -7,6 +7,8 @@ export const DatabaseRow = ({
   retentionPolicy: {name, duration, replication, isEditing, isDefault},
   database,
   onEdit,
+  onKeyDown,
+  onCancel,
 }) => {
   if (isEditing) {
     return (
@@ -20,7 +22,7 @@ export const DatabaseRow = ({
               value={name}
               placeholder="retention policy name"
               onChange={(e) => onEdit(database, {...retentionPolicy, name: e.target.value})}
-              onKeyDown={() => {}}
+              onKeyDown={(e) => onKeyDown(e, database, retentionPolicy)}
               autoFocus={true}
             />
           </div>
@@ -53,7 +55,7 @@ export const DatabaseRow = ({
           </div>
         </td>
         <td className="text-right">
-          <ConfirmButtons item={{}} onConfirm={() => {}} onCancel={() => {}} />
+          <ConfirmButtons item={{database, retentionPolicy}} onConfirm={() => {}} onCancel={onCancel} />
         </td>
       </tr>
     )
@@ -94,4 +96,5 @@ DatabaseRow.propTypes = {
   }),
   database: shape(),
   onEdit: func,
+  onKeyDown: func,
 }

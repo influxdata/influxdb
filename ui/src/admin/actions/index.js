@@ -168,6 +168,14 @@ export const removeDatabase = (database) => ({
   },
 })
 
+export const removeRetentionPolicy = (database, retentionPolicy) => ({
+  type: 'REMOVE_RETENTION_POLICY',
+  payload: {
+    database,
+    retentionPolicy,
+  },
+})
+
 export const filterUsers = (text) => ({
   type: 'FILTER_USERS',
   payload: {

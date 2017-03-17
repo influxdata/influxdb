@@ -17,6 +17,8 @@ const DatabaseTable = ({
   onDatabaseDeleteConfirm,
   onAddRetentionPolicy,
   onEditRetentionPolicy,
+  onKeyDownRetentionPolicy,
+  onCancelRetentionPolicy,
 }) => {
   return (
     <div className="db-manager">
@@ -49,6 +51,8 @@ const DatabaseTable = ({
                     database={database}
                     retentionPolicy={rp}
                     onEdit={onEditRetentionPolicy}
+                    onKeyDown={onKeyDownRetentionPolicy}
+                    onCancel={onCancelRetentionPolicy}
                   />
                 )
               })
@@ -70,6 +74,8 @@ DatabaseTable.propTypes = {
   onDatabaseDeleteConfirm: func,
   onAddRetentionPolicy: func,
   onEditRetentionPolicy: func,
+  onKeyDownRetentionPolicy: func,
+  onCancelRetentionPolicy: func,
 }
 
 const DatabaseTableHeader = ({
