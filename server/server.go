@@ -300,32 +300,37 @@ func reportUsageStats(bi BuildInfo, logger chronograf.Logger) {
 	rand.Seed(time.Now().UTC().UnixNano())
 	serverID := strconv.FormatUint(uint64(rand.Int63()), 10)
 	reporter := client.New("")
-	u := &client.Usage{
-		Product: "chronograf-ng",
-		Data: []client.UsageData{
-			{
-				Values: client.Values{
-					"os":         runtime.GOOS,
-					"arch":       runtime.GOARCH,
-					"version":    bi.Version,
-					"cluster_id": serverID,
-					"uptime":     time.Since(startTime).Seconds(),
-				},
-			},
-		},
+	values := client.Values{
+		"os":         runtime.GOOS,
+		"arch":       runtime.GOARCH,
+		"version":    bi.Version,
+		"cluster_id": serverID,
+		"uptime":     time.Since(startTime).Seconds(),
 	}
 	l := logger.WithField("component", "usage").
 		WithField("reporting_addr", reporter.URL).
 		WithField("freq", "24h").
 		WithField("stats", "os,arch,version,cluster_id,uptime")
 	l.Info("Reporting usage stats")
-	_, _ = reporter.Save(u)
+	_, _ = reporter.Save(clientUsage(values))
 
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 	for {
 		<-ticker.C
+		values["uptime"] = time.Since(startTime).Seconds()
 		l.Debug("Reporting usage stats")
-		go reporter.Save(u)
+		go reporter.Save(clientUsage(values))
+	}
+}
+
+func clientUsage(values client.Values) *client.Usage {
+	return &client.Usage{
+		Product: "chronograf-ng",
+		Data: []client.UsageData{
+			{
+				Values: values,
+			},
+		},
 	}
 }
