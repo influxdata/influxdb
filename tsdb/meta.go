@@ -809,6 +809,13 @@ func (m *Measurement) TagSets(shardID uint64, dimensions []string, condition inf
 	tagSets := make(map[string]*influxql.TagSet, 64)
 	var seriesN int
 	for _, id := range ids {
+		// Abort if the query was killed
+		select {
+		case <-opt.InterruptCh:
+			return nil, influxql.ErrQueryInterrupted
+		default:
+		}
+
 		if opt.MaxSeriesN > 0 && seriesN > opt.MaxSeriesN {
 			return nil, fmt.Errorf("max-select-series limit exceeded: (%d/%d)", seriesN, opt.MaxSeriesN)
 		}
@@ -847,6 +854,13 @@ func (m *Measurement) TagSets(shardID uint64, dimensions []string, condition inf
 
 	// Sort the series in each tag set.
 	for _, t := range tagSets {
+		// Abort if the query was killed
+		select {
+		case <-opt.InterruptCh:
+			return nil, influxql.ErrQueryInterrupted
+		default:
+		}
+
 		sort.Sort(t)
 	}
 

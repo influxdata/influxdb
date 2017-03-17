@@ -1310,6 +1310,14 @@ func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt
 	itrs := make([]influxql.Iterator, 0, len(tagSets))
 	if err := func() error {
 		for _, t := range tagSets {
+			// Abort if the query was killed
+			select {
+			case <-opt.InterruptCh:
+				influxql.Iterators(itrs).Close()
+				return err
+			default:
+			}
+
 			inputs, err := e.createTagSetIterators(ref, mm, t, opt)
 			if err != nil {
 				return err
@@ -1509,6 +1517,14 @@ func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, mm *tsdb.Measu
 			continue
 		}
 		itrs = append(itrs, itr)
+
+		// Abort if the query was killed
+		select {
+		case <-opt.InterruptCh:
+			influxql.Iterators(itrs).Close()
+			return nil, err
+		default:
+		}
 
 		// Enforce series limit at creation time.
 		if opt.MaxSeriesN > 0 && len(itrs) > opt.MaxSeriesN {
