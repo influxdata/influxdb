@@ -65,7 +65,7 @@ func (blk *MeasurementBlock) Version() int { return blk.version }
 // Elem returns an element for a measurement.
 func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementBlockElem, ok bool) {
 	n := binary.BigEndian.Uint64(blk.hashData[:MeasurementNSize])
-	hash := hashKey(name)
+	hash := rhh.HashKey(name)
 	pos := int(hash % n)
 
 	// Track current distance
@@ -89,7 +89,7 @@ func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementBlockElem, ok bool)
 			}
 
 			// Check if we've exceeded the probe distance.
-			if d > dist(hashKey(e.name), pos, int(n)) {
+			if d > rhh.Dist(rhh.HashKey(e.name), pos, int(n)) {
 				return MeasurementBlockElem{}, false
 			}
 		}
@@ -437,7 +437,7 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	// Build key hash map
 	m := rhh.NewHashMap(rhh.Options{
 		Capacity:   len(names),
-		LoadFactor: 90,
+		LoadFactor: LoadFactor,
 	})
 	for name := range mw.mms {
 		mm := mw.mms[name]

@@ -182,6 +182,14 @@ func (f *LogFile) Stat() (int64, time.Time) {
 	return size, modTime
 }
 
+// Size returns the size of the file, in bytes.
+func (f *LogFile) Size() int64 {
+	f.mu.Lock()
+	v := f.size
+	f.mu.Unlock()
+	return v
+}
+
 // Measurement returns a measurement element.
 func (f *LogFile) Measurement(name []byte) MeasurementElem {
 	f.mu.RLock()

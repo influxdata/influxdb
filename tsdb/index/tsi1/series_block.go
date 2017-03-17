@@ -64,7 +64,7 @@ func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags) (exists, tombst
 	bufN := uint64(len(buf))
 
 	n := blk.seriesIndexN
-	hash := hashKey(buf)
+	hash := rhh.HashKey(buf)
 	pos := int(hash % n)
 
 	// Track current distance
@@ -77,13 +77,13 @@ func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags) (exists, tombst
 		}
 
 		// Evaluate encoded value matches expected.
-		key := blk.data[offset+1 : offset+1+bufN]
+		key := ReadSeriesKey(blk.data[offset+1 : offset+1+bufN])
 		if bytes.Equal(buf, key) {
 			return true, (blk.data[offset] & SeriesTombstoneFlag) != 0
 		}
 
 		// Check if we've exceeded the probe distance.
-		max := dist(hashKey(key), pos, int(n))
+		max := rhh.Dist(rhh.HashKey(key), pos, int(n))
 		if d > max {
 			return false, false
 		}
@@ -91,11 +91,6 @@ func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags) (exists, tombst
 		// Move position forward.
 		pos = (pos + 1) % int(n)
 		d++
-
-		// DEBUG(benbjohnson)
-		if d > 30 {
-			println("dbg: high series probe count:", d, offset)
-		}
 
 		if uint64(d) > n {
 			return false, false
@@ -109,7 +104,7 @@ func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
 	bufN := uint64(len(buf))
 
 	n := blk.seriesIndexN
-	hash := hashKey(buf)
+	hash := rhh.HashKey(buf)
 	pos := int(hash % n)
 
 	// Track current distance
@@ -122,7 +117,7 @@ func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
 		}
 
 		// Evaluate encoded value matches expected.
-		key := blk.data[offset+1 : offset+1+bufN]
+		key := ReadSeriesKey(blk.data[offset+1 : offset+1+bufN])
 		if bytes.Equal(buf, key) {
 			var e SeriesBlockElem
 			e.UnmarshalBinary(blk.data[offset:])
@@ -130,7 +125,7 @@ func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
 		}
 
 		// Check if we've exceeded the probe distance.
-		if d > dist(hashKey(key), pos, int(n)) {
+		if d > rhh.Dist(rhh.HashKey(key), pos, int(n)) {
 			return nil
 		}
 
@@ -343,6 +338,32 @@ func AppendSeriesKey(dst []byte, name []byte, tags models.Tags) []byte {
 	return dst
 }
 
+// ReadSeriesKey returns the series key from the beginning of the buffer.
+func ReadSeriesKey(data []byte) []byte {
+	buf := data
+
+	// Name (len+data)
+	n := int(binary.BigEndian.Uint16(buf))
+	buf = buf[2+n:]
+
+	// Tag count.
+	tagN := int(binary.BigEndian.Uint16(buf))
+	buf = buf[2:]
+
+	// Read tags.
+	for i := 0; i < tagN; i++ {
+		// Key
+		n := int(binary.BigEndian.Uint16(buf))
+		buf = buf[2+n:]
+
+		// Value
+		n = int(binary.BigEndian.Uint16(buf))
+		buf = buf[2+n:]
+	}
+
+	return data[:len(data)-len(buf)]
+}
+
 func CompareSeriesKeys(a, b []byte) int {
 	// Read names.
 	var n uint16
@@ -420,7 +441,7 @@ func NewSeriesBlockEncoder(w io.Writer) *SeriesBlockEncoder {
 	return &SeriesBlockEncoder{
 		w: w,
 
-		offsets: rhh.NewHashMap(rhh.Options{LoadFactor: 50}),
+		offsets: rhh.NewHashMap(rhh.Options{LoadFactor: LoadFactor}),
 
 		sketch:  hll.NewDefaultPlus(),
 		tSketch: hll.NewDefaultPlus(),

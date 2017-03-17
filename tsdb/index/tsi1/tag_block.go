@@ -91,7 +91,7 @@ func (blk *TagBlock) UnmarshalBinary(data []byte) error {
 // Returns an element with a nil key if not found.
 func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
 	keyN := binary.BigEndian.Uint64(blk.hashData[:TagKeyNSize])
-	hash := hashKey(key)
+	hash := rhh.HashKey(key)
 	pos := int(hash % keyN)
 
 	// Track current distance
@@ -113,18 +113,13 @@ func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
 		}
 
 		// Check if we've exceeded the probe distance.
-		if d > dist(hashKey(e.key), pos, int(keyN)) {
+		if d > rhh.Dist(rhh.HashKey(e.key), pos, int(keyN)) {
 			return nil
 		}
 
 		// Move position forward.
 		pos = (pos + 1) % int(keyN)
 		d++
-
-		// DEBUG(benbjohnson)
-		if d > 30 {
-			println("dbg: high tag key probe count:", d)
-		}
 
 		if uint64(d) > keyN {
 			return nil
@@ -144,12 +139,11 @@ func (blk *TagBlock) TagValueElem(key, value []byte) TagValueElem {
 	hashData := kelem.hashIndex.buf
 
 	valueN := binary.BigEndian.Uint64(hashData[:TagValueNSize])
-	hash := hashKey(value)
+	hash := rhh.HashKey(value)
 	pos := int(hash % valueN)
 
 	// Track current distance
 	var d int
-
 	for {
 		// Find offset of tag value.
 		offset := binary.BigEndian.Uint64(hashData[TagValueNSize+(pos*TagValueOffsetSize):])
@@ -167,18 +161,14 @@ func (blk *TagBlock) TagValueElem(key, value []byte) TagValueElem {
 		}
 
 		// Check if we've exceeded the probe distance.
-		if d > dist(hashKey(e.value), pos, int(valueN)) {
+		max := rhh.Dist(rhh.HashKey(e.value), pos, int(valueN))
+		if d > max {
 			return nil
 		}
 
 		// Move position forward.
 		pos = (pos + 1) % int(valueN)
 		d++
-
-		// DEBUG(benbjohnson)
-		if d > 30 {
-			println("dbg: high tag value probe count:", d)
-		}
 
 		if uint64(d) > valueN {
 			return nil
@@ -478,7 +468,7 @@ type TagBlockEncoder struct {
 func NewTagBlockEncoder(w io.Writer) *TagBlockEncoder {
 	return &TagBlockEncoder{
 		w:       w,
-		offsets: rhh.NewHashMap(rhh.Options{LoadFactor: 50}),
+		offsets: rhh.NewHashMap(rhh.Options{LoadFactor: LoadFactor}),
 		trailer: TagBlockTrailer{
 			Version: TagBlockVersion,
 		},
@@ -633,14 +623,14 @@ func (enc *TagBlockEncoder) flushValueHashIndex() error {
 	key.hashIndex.size = enc.n - key.hashIndex.offset
 
 	// Clear offsets.
-	enc.offsets = rhh.NewHashMap(rhh.Options{LoadFactor: 50})
+	enc.offsets = rhh.NewHashMap(rhh.Options{LoadFactor: LoadFactor})
 
 	return nil
 }
 
 // encodeTagKeyBlock encodes the keys section to the writer.
 func (enc *TagBlockEncoder) encodeTagKeyBlock() error {
-	offsets := rhh.NewHashMap(rhh.Options{Capacity: len(enc.keys), LoadFactor: 50})
+	offsets := rhh.NewHashMap(rhh.Options{Capacity: len(enc.keys), LoadFactor: LoadFactor})
 
 	// Encode key list in sorted order.
 	enc.trailer.KeyData.Offset = enc.n

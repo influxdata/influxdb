@@ -12,8 +12,8 @@ var s = `
   [write.point_generator]
     [write.point_generator.basic]
       enabled = true
-      point_count = 100
-      series_count = 100000
+      point_count = 1
+      series_count = 100000000
       tick = "10s"
       jitter = true
       measurement = "cpu"

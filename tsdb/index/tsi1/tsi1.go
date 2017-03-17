@@ -8,10 +8,12 @@ import (
 	"io"
 	"os"
 
-	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 )
+
+// LoadFactor is the fill percent for RHH indexes.
+const LoadFactor = 80
 
 // MeasurementElem represents a generic measurement element.
 type MeasurementElem interface {
@@ -769,20 +771,6 @@ func writeUvarintTo(w io.Writer, v uint64, n *int64) error {
 	nn, err := w.Write(buf[:i])
 	*n += int64(nn)
 	return err
-}
-
-// hashKey hashes a key using murmur3.
-func hashKey(key []byte) uint64 {
-	h := xxhash.Sum64(key)
-	if h == 0 {
-		h = 1
-	}
-	return h
-}
-
-// dist returns the probe distance for a hash in a slot index.
-func dist(hash uint64, i, capacity int) int {
-	return (i + capacity - (int(hash) % capacity)) % capacity
 }
 
 type uint64Slice []uint64

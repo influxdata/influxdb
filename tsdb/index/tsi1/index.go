@@ -123,7 +123,6 @@ func (i *Index) Open() error {
 
 	// Open each file in the manifest.
 	for _, filename := range m.Files {
-		println("dbg/FILE", filename)
 		switch filepath.Ext(filename) {
 		case LogFileExt:
 			f, err := i.openLogFile(filepath.Join(i.Path, filename))
@@ -153,6 +152,13 @@ func (i *Index) Open() error {
 	// Delete any files not in the manifest.
 	if err := i.deleteNonManifestFiles(m); err != nil {
 		return err
+	}
+
+	// Ensure a log file exists.
+	if i.activeLogFile == nil {
+		if err := i.prependActiveLogFile(); err != nil {
+			return err
+		}
 	}
 
 	// Mark opened.
@@ -274,9 +280,9 @@ func (i *Index) SetFieldSet(fs *tsdb.MeasurementFieldSet) {
 
 // RetainFileSet returns the current fileset and adds a reference count.
 func (i *Index) RetainFileSet() FileSet {
-	i.mu.Lock()
+	i.mu.RLock()
 	fs := i.retainFileSet()
-	i.mu.Unlock()
+	i.mu.RUnlock()
 	return fs
 }
 
@@ -306,24 +312,6 @@ func (i *Index) prependActiveLogFile() error {
 	}
 
 	return nil
-}
-
-// WithLogFile executes fn with the active log file under write lock.
-func (i *Index) WithLogFile(fn func(f *LogFile) error) error {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	return i.withLogFile(fn)
-}
-
-func (i *Index) withLogFile(fn func(f *LogFile) error) error {
-	// Create log file if it doesn't exist.
-	if i.activeLogFile == nil {
-		if err := i.prependActiveLogFile(); err != nil {
-			return err
-		}
-	}
-
-	return fn(i.activeLogFile)
 }
 
 // ForEachMeasurementName iterates over all measurement names in the index.
@@ -383,9 +371,11 @@ func (i *Index) DropMeasurement(name []byte) error {
 		for k := kitr.Next(); k != nil; k = kitr.Next() {
 			// Delete key if not already deleted.
 			if !k.Deleted() {
-				if err := i.WithLogFile(func(f *LogFile) error {
-					return f.DeleteTagKey(name, k.Key())
-				}); err != nil {
+				if err := func() error {
+					i.mu.RLock()
+					defer i.mu.RUnlock()
+					return i.activeLogFile.DeleteTagKey(name, k.Key())
+				}(); err != nil {
 					return err
 				}
 			}
@@ -394,9 +384,11 @@ func (i *Index) DropMeasurement(name []byte) error {
 			if vitr := k.TagValueIterator(); vitr != nil {
 				for v := vitr.Next(); v != nil; v = vitr.Next() {
 					if !v.Deleted() {
-						if err := i.WithLogFile(func(f *LogFile) error {
-							return f.DeleteTagValue(name, k.Key(), v.Value())
-						}); err != nil {
+						if err := func() error {
+							i.mu.RLock()
+							defer i.mu.RUnlock()
+							return i.activeLogFile.DeleteTagValue(name, k.Key(), v.Value())
+						}(); err != nil {
 							return err
 						}
 					}
@@ -409,9 +401,11 @@ func (i *Index) DropMeasurement(name []byte) error {
 	if sitr := fs.MeasurementSeriesIterator(name); sitr != nil {
 		for s := sitr.Next(); s != nil; s = sitr.Next() {
 			if !s.Deleted() {
-				if err := i.WithLogFile(func(f *LogFile) error {
-					return f.DeleteSeries(s.Name(), s.Tags())
-				}); err != nil {
+				if err := func() error {
+					i.mu.RLock()
+					defer i.mu.RUnlock()
+					return i.activeLogFile.DeleteSeries(s.Name(), s.Tags())
+				}(); err != nil {
 					return err
 				}
 			}
@@ -419,86 +413,100 @@ func (i *Index) DropMeasurement(name []byte) error {
 	}
 
 	// Mark measurement as deleted.
-	if err := i.WithLogFile(func(f *LogFile) error {
-		return f.DeleteMeasurement(name)
-	}); err != nil {
+	if err := func() error {
+		i.mu.RLock()
+		defer i.mu.RUnlock()
+		return i.activeLogFile.DeleteMeasurement(name)
+	}(); err != nil {
 		return err
 	}
 
 	// Check if the log file needs to be swapped.
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	i.checkLogFile()
+	if err := i.CheckLogFile(); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
 func (i *Index) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []models.Tags) error {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
 	// All slices must be of equal length.
 	if len(names) != len(tagsSlice) {
 		return errors.New("names/tags length mismatch")
 	}
 
-	fs := i.retainFileSet()
-	defer fs.Release()
+	if err := func() error {
+		// Ensure fileset cannot change during insert.
+		i.mu.RLock()
+		defer i.mu.RUnlock()
 
-	// Filter out existing series. Exit if no new series exist.
-	names, tagsSlice = fs.FilterNamesTags(names, tagsSlice)
-	if len(names) == 0 {
+		// Maintain reference count on files in file set.
+		fs := i.retainFileSet()
+		defer fs.Release()
+
+		// Filter out existing series. Exit if no new series exist.
+		names, tagsSlice = fs.FilterNamesTags(names, tagsSlice)
+		if len(names) == 0 {
+			return nil
+		}
+
+		// Insert series into log file.
+		if err := i.activeLogFile.AddSeriesList(names, tagsSlice); err != nil {
+			return err
+		}
 		return nil
-	}
-
-	// Insert series into log file.
-	if err := i.withLogFile(func(f *LogFile) error {
-		return f.AddSeriesList(names, tagsSlice)
-	}); err != nil {
+	}(); err != nil {
 		return err
 	}
 
 	// Swap log file, if necesssary.
-	i.checkLogFile()
+	if err := i.CheckLogFile(); err != nil {
+		return err
+	}
 	return nil
 }
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	i.mu.RLock()
-	defer i.mu.RUnlock()
+	if err := func() error {
+		i.mu.RLock()
+		defer i.mu.RUnlock()
 
-	fs := i.retainFileSet()
-	defer fs.Release()
+		fs := i.retainFileSet()
+		defer fs.Release()
 
-	if fs.HasSeries(name, tags) {
+		if fs.HasSeries(name, tags) {
+			return nil
+		}
+
+		if err := i.activeLogFile.AddSeries(name, tags); err != nil {
+			return err
+		}
 		return nil
-	}
-
-	if err := i.withLogFile(func(f *LogFile) error {
-		return f.AddSeries(name, tags)
-	}); err != nil {
+	}(); err != nil {
 		return err
 	}
 
 	// Swap log file, if necesssary.
-	i.checkLogFile()
+	if err := i.CheckLogFile(); err != nil {
+		return err
+	}
 	return nil
 }
 
 func (i *Index) DropSeries(key []byte) error {
-	i.mu.RLock()
-	defer i.mu.RUnlock()
+	if err := func() error {
+		i.mu.RLock()
+		defer i.mu.RUnlock()
 
-	name, tags, err := models.ParseKey(key)
-	if err != nil {
-		return err
-	}
+		name, tags, err := models.ParseKey(key)
+		if err != nil {
+			return err
+		}
 
-	mname := []byte(name)
-	if err := i.withLogFile(func(f *LogFile) error {
-		if err := f.DeleteSeries(mname, tags); err != nil {
+		mname := []byte(name)
+		if err := i.activeLogFile.DeleteSeries(mname, tags); err != nil {
 			return err
 		}
 
@@ -515,16 +523,18 @@ func (i *Index) DropSeries(key []byte) error {
 		}
 
 		// If no more series exist in the measurement then delete the measurement.
-		if err := f.DeleteMeasurement(mname); err != nil {
+		if err := i.activeLogFile.DeleteMeasurement(mname); err != nil {
 			return err
 		}
 		return nil
-	}); err != nil {
+	}(); err != nil {
 		return err
 	}
 
 	// Swap log file, if necesssary.
-	i.checkLogFile()
+	if err := i.CheckLogFile(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -696,10 +706,8 @@ func (i *Index) SnapshotTo(path string) error {
 	defer fs.Release()
 
 	// Flush active log file, if any.
-	if i.activeLogFile != nil {
-		if err := i.activeLogFile.Flush(); err != nil {
-			return err
-		}
+	if err := i.activeLogFile.Flush(); err != nil {
+		return err
 	}
 
 	if err := os.Mkdir(filepath.Join(path, "index"), 0777); err != nil {
@@ -924,17 +932,30 @@ func (i *Index) compactGroup(files []*IndexFile) {
 	}
 }
 
-func (i *Index) checkLogFile() {
-	// If size is within threshold then ignore.
-	if i.activeLogFile == nil {
-		return
-	} else if size, _ := i.activeLogFile.Stat(); size < i.MaxLogFileSize {
-		return
+func (i *Index) CheckLogFile() error {
+	// Check log file size under read lock.
+	if size := func() int64 {
+		i.mu.RLock()
+		defer i.mu.RUnlock()
+		return i.activeLogFile.Size()
+	}(); size < i.MaxLogFileSize {
+		return nil
 	}
 
-	// Deactivate current log file.
+	// If file size exceeded then recheck under write lock and swap files.
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if i.activeLogFile.Size() < i.MaxLogFileSize {
+		return nil
+	}
+
+	// Swap current log file.
 	logFile := i.activeLogFile
-	i.activeLogFile = nil
+
+	// Open new log file and insert it into the first position.
+	if err := i.prependActiveLogFile(); err != nil {
+		return err
+	}
 
 	// Begin compacting in a background goroutine.
 	i.wg.Add(1)
@@ -943,6 +964,8 @@ func (i *Index) checkLogFile() {
 		i.compactLogFile(logFile)
 		i.Compact() // check for new compactions
 	}()
+
+	return nil
 }
 
 // compactLogFile compacts f into a tsi file. The new file will share the
