@@ -11,6 +11,7 @@ const DatabaseManager = ({
   onStartDeleteDatabase,
   onDatabaseDeleteConfirm,
   onAddRetentionPolicy,
+  onEditRetentionPolicy,
 }) => {
   return (
     <div className="panel panel-info">
@@ -31,6 +32,7 @@ const DatabaseManager = ({
               onStartDeleteDatabase={onStartDeleteDatabase}
               onDatabaseDeleteConfirm={onDatabaseDeleteConfirm}
               onAddRetentionPolicy={onAddRetentionPolicy}
+              onEditRetentionPolicy={onEditRetentionPolicy}
             />
           )
         }
@@ -55,6 +57,7 @@ DatabaseManager.propTypes = {
   onStartDeleteDatabase: func,
   onDatabaseDeleteConfirm: func,
   onAddRetentionPolicy: func,
+  onEditRetentionPolicy: func,
 }
 
 export default DatabaseManager

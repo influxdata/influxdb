@@ -53,13 +53,6 @@ export const loadDatabases = (databases) => ({
   },
 })
 
-export const loadRetentionPolicies = (retentionPolicies) => ({
-  type: 'LOAD_RETENTION_POLICIES',
-  payload: {
-    retentionPolicies,
-  },
-})
-
 export const addUser = () => ({
   type: 'ADD_USER',
 })
@@ -211,6 +204,14 @@ export const removeDatabaseDeleteCode = (database) => ({
   },
 })
 
+export const editRetentionPolicy = (database, retentionPolicy) => ({
+  type: 'EDIT_RETENTION_POLICY',
+  payload: {
+    database,
+    retentionPolicy,
+  },
+})
+
 // async actions
 export const loadUsersAsync = (url) => async (dispatch) => {
   const {data} = await getUsersAJAX(url)
@@ -234,7 +235,9 @@ export const loadDBsAndRPsAsync = (url) => async (dispatch) => {
   const {data: {results}} = await showRetentionPolicies(url, databases)
   const retentionPolicies = results.map(parseShowRetentionPolicies)
   const rps = retentionPolicies.map(rp => rp.retentionPolicies)
-  const dbsAndRps = databases.map((name, i) => ({name, id: uuid.v4(), retentionPolicies: rps[i]}))
+  const dbsAndRps = databases.map((name, i) => (
+    {name, id: uuid.v4(), retentionPolicies: rps[i].map(rp => ({...rp, id: uuid.v4()}))}
+  ))
 
   dispatch(loadDatabases(dbsAndRps))
 }

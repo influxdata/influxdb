@@ -16,6 +16,7 @@ const DatabaseTable = ({
   onStartDeleteDatabase,
   onDatabaseDeleteConfirm,
   onAddRetentionPolicy,
+  onEditRetentionPolicy,
 }) => {
   return (
     <div className="db-manager">
@@ -41,14 +42,13 @@ const DatabaseTable = ({
           </thead>
           <tbody>
             {
-              database.retentionPolicies.map(({name, duration, replication, isDefault}) => {
+              database.retentionPolicies.map(rp => {
                 return (
                   <DatabaseRow
-                    key={name}
-                    name={name}
-                    duration={duration}
-                    replication={replication}
-                    isDefault={isDefault}
+                    key={rp.id}
+                    database={database}
+                    retentionPolicy={rp}
+                    onEdit={onEditRetentionPolicy}
                   />
                 )
               })
@@ -69,6 +69,7 @@ DatabaseTable.propTypes = {
   onStartDeleteDatabase: func,
   onDatabaseDeleteConfirm: func,
   onAddRetentionPolicy: func,
+  onEditRetentionPolicy: func,
 }
 
 const DatabaseTableHeader = ({
