@@ -18,6 +18,7 @@ const newDefaultRole = {
 }
 
 const newDefaultRP = {
+  id: '',
   name: 'autogen',
   duration: '0',
   replication: 2,
@@ -27,8 +28,8 @@ const newDefaultRP = {
 
 const newEmptyRP = {
   name: '',
-  duration: '2w',
-  replication: 2,
+  duration: '',
+  replication: 0,
   isNew: true,
   isEditing: true,
 }

@@ -12,6 +12,7 @@ class DatabaseManagerPage extends Component {
     this.handleDatabaseDeleteConfirm = ::this.handleDatabaseDeleteConfirm
     this.handleKeyDownRetentionPolicy = ::this.handleKeyDownRetentionPolicy
     this.handleCancelRetentionPolicy = ::this.handleCancelRetentionPolicy
+    this.handleSaveRetentionPolicy = ::this.handleSaveRetentionPolicy
   }
 
   componentDidMount() {
@@ -50,11 +51,12 @@ class DatabaseManagerPage extends Component {
     const {actions} = this.props
 
     if (key === 'Escape') {
-      return actions.removeRetentionPolicy(db, rp)
+      actions.removeRetentionPolicy(db, rp)
     }
 
     if (key === 'Enter') {
-      // actions.createRetentionPolicyAsync(db, rp)
+      // TODO: validate input
+      actions.createRetentionPolicyAsync(db, rp)
     }
   }
 
@@ -67,6 +69,7 @@ class DatabaseManagerPage extends Component {
     }
 
     if (key === 'Enter') {
+      // TODO: validate input
       actions.createDatabaseAsync(database)
     }
   }

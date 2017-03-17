@@ -72,6 +72,18 @@ export const createDatabase = async (url, database) => {
   }
 }
 
+export const createRetentionPolicy = async (url, retentionPolicy) => {
+  try {
+    return await AJAX({
+      method: 'POST',
+      url,
+      data: retentionPolicy,
+    })
+  } catch (error) {
+    throw error
+  }
+}
+
 export const deleteRole = async (url, addFlashMessage, rolename) => {
   try {
     const response = await AJAX({

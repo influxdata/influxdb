@@ -20,7 +20,7 @@ export const DatabaseRow = ({
               name="name"
               type="text"
               value={name}
-              placeholder="retention policy name"
+              placeholder="give it a name"
               onChange={(e) => onEdit(database, {...retentionPolicy, name: e.target.value})}
               onKeyDown={(e) => onKeyDown(e, database, retentionPolicy)}
               autoFocus={true}
@@ -34,7 +34,7 @@ export const DatabaseRow = ({
               name="name"
               type="text"
               value={duration}
-              placeholder="duration"
+              placeholder="how long should data last"
               onChange={(e) => onEdit(database, {...retentionPolicy, duration: e.target.value})}
               onKeyDown={() => {}}
             />
@@ -47,8 +47,8 @@ export const DatabaseRow = ({
               name="name"
               type="number"
               min="1"
-              value={replication}
-              placeholder="replication factor"
+              value={replication || ''}
+              placeholder="how many nodes do you have"
               onChange={(e) => onEdit(database, {...retentionPolicy, replication: +e.target.value})}
               onKeyDown={() => {}}
             />
@@ -97,4 +97,5 @@ DatabaseRow.propTypes = {
   database: shape(),
   onEdit: func,
   onKeyDown: func,
+  onCancel: func,
 }

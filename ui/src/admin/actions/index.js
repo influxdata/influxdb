@@ -6,8 +6,6 @@ import {
   getPermissions as getPermissionsAJAX,
   createUser as createUserAJAX,
   createRole as createRoleAJAX,
-  createDatabase as createDatabaseAJAX,
-  deleteDatabase as deleteDatabaseAJAX,
   deleteUser as deleteUserAJAX,
   deleteRole as deleteRoleAJAX,
   updateRole as updateRoleAJAX,
@@ -284,6 +282,19 @@ export const createDatabaseAsync = (url, database) => async (dispatch) => {
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create database: ${error.data.message}`))
     setTimeout(() => dispatch(removeDatabase(database)), ADMIN_NOTIFICATION_DELAY)
+  }
+}
+
+export const createRetentionPolicyAsync = (url, retentionPolicy) => async (dispatch) => {
+  try {
+    // TODO: implement once server is up
+    // const {data} = await createRetentionPolicyAJAX(url, retentionPolicy)
+    dispatch(publishNotification('success', 'Retention policy created successfully'))
+    // dispatch(syncRetentionPolicy(retentionPolicy, {...data, id: uuid.v4()}))
+  } catch (error) {
+    // undo optimistic update
+    dispatch(publishNotification('error', `Failed to create retention policy: ${error.data.message}`))
+    setTimeout(() => dispatch(removeRetentionPolicy(retentionPolicy)), ADMIN_NOTIFICATION_DELAY)
   }
 }
 
