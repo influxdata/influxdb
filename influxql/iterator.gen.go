@@ -767,7 +767,7 @@ func (itr *floatInterruptIterator) Next() (*FloatPoint, error) {
 	if itr.count&0xFF == 0xFF {
 		select {
 		case <-itr.closing:
-			return nil, nil
+			return nil, itr.Close()
 		default:
 			// Reset iterator count to zero and fall through to emit the next point.
 			itr.count = 0
@@ -3424,7 +3424,7 @@ func (itr *integerInterruptIterator) Next() (*IntegerPoint, error) {
 	if itr.count&0xFF == 0xFF {
 		select {
 		case <-itr.closing:
-			return nil, nil
+			return nil, itr.Close()
 		default:
 			// Reset iterator count to zero and fall through to emit the next point.
 			itr.count = 0
@@ -6064,7 +6064,7 @@ func (itr *stringInterruptIterator) Next() (*StringPoint, error) {
 	if itr.count&0xFF == 0xFF {
 		select {
 		case <-itr.closing:
-			return nil, nil
+			return nil, itr.Close()
 		default:
 			// Reset iterator count to zero and fall through to emit the next point.
 			itr.count = 0
@@ -8704,7 +8704,7 @@ func (itr *booleanInterruptIterator) Next() (*BooleanPoint, error) {
 	if itr.count&0xFF == 0xFF {
 		select {
 		case <-itr.closing:
-			return nil, nil
+			return nil, itr.Close()
 		default:
 			// Reset iterator count to zero and fall through to emit the next point.
 			itr.count = 0

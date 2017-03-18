@@ -768,7 +768,7 @@ func (itr *{{$k.name}}InterruptIterator) Next() (*{{$k.Name}}Point, error) {
 	if itr.count & 0xFF == 0xFF {
 		select {
 		case <-itr.closing:
-			return nil, nil
+			return nil, itr.Close()
 		default:
 			// Reset iterator count to zero and fall through to emit the next point.
 			itr.count = 0

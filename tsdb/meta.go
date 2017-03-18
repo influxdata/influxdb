@@ -793,11 +793,11 @@ func (m *Measurement) filters(condition influxql.Expr) ([]uint64, map[uint64]inf
 // This will also populate the TagSet objects with the series IDs that match each tagset and any
 // influx filter expression that goes with the series
 // TODO: this shouldn't be exported. However, until tx.go and the engine get refactored into tsdb, we need it.
-func (m *Measurement) TagSets(shardID uint64, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
+func (m *Measurement) TagSets(shardID uint64, opt influxql.IteratorOptions) ([]*influxql.TagSet, error) {
 	m.mu.RLock()
 
 	// get the unique set of series ids and the filters that should be applied to each
-	ids, filters, err := m.filters(condition)
+	ids, filters, err := m.filters(opt.Condition)
 	if err != nil {
 		m.mu.RUnlock()
 		return nil, err
@@ -807,15 +807,27 @@ func (m *Measurement) TagSets(shardID uint64, dimensions []string, condition inf
 	// TagSet for that series. Series with the same TagSet are then grouped together, because for the
 	// purpose of GROUP BY they are part of the same composite series.
 	tagSets := make(map[string]*influxql.TagSet, 64)
+	var seriesN int
 	for _, id := range ids {
+		// Abort if the query was killed
+		select {
+		case <-opt.InterruptCh:
+			return nil, influxql.ErrQueryInterrupted
+		default:
+		}
+
+		if opt.MaxSeriesN > 0 && seriesN > opt.MaxSeriesN {
+			return nil, fmt.Errorf("max-select-series limit exceeded: (%d/%d)", seriesN, opt.MaxSeriesN)
+		}
+
 		s := m.seriesByID[id]
 		if !s.Assigned(shardID) {
 			continue
 		}
-		tags := make(map[string]string, len(dimensions))
+		tags := make(map[string]string, len(opt.Dimensions))
 
 		// Build the TagSet for this series.
-		for _, dim := range dimensions {
+		for _, dim := range opt.Dimensions {
 			tags[dim] = s.GetTagString(dim)
 		}
 
@@ -832,6 +844,7 @@ func (m *Measurement) TagSets(shardID uint64, dimensions []string, condition inf
 		}
 		// Associate the series and filter with the Tagset.
 		tagSet.AddFilter(m.seriesByID[id].Key, filters[id])
+		seriesN++
 
 		// Ensure it's back in the map.
 		tagSets[string(tagsAsKey)] = tagSet
@@ -841,6 +854,13 @@ func (m *Measurement) TagSets(shardID uint64, dimensions []string, condition inf
 
 	// Sort the series in each tag set.
 	for _, t := range tagSets {
+		// Abort if the query was killed
+		select {
+		case <-opt.InterruptCh:
+			return nil, influxql.ErrQueryInterrupted
+		default:
+		}
+
 		sort.Sort(t)
 	}
 

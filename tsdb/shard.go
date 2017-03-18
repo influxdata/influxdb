@@ -1046,6 +1046,13 @@ func (a Shards) CreateIterator(measurement string, opt influxql.IteratorOptions)
 		}
 		itrs = append(itrs, itr)
 
+		select {
+		case <-opt.InterruptCh:
+			influxql.Iterators(itrs).Close()
+			return nil, err
+		default:
+		}
+
 		// Enforce series limit at creation time.
 		if opt.MaxSeriesN > 0 {
 			stats := itr.Stats()
