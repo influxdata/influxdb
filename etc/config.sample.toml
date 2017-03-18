@@ -1,8 +1,8 @@
 ### Welcome to the InfluxDB configuration file.
 
 # The values in this file override the default values used by the system if
-# a config option is not specified.  The commented out lines are the the configuration
-# field and the default value used.  Uncommentting a line and changing the value
+# a config option is not specified. The commented out lines are the configuration
+# field and the default value used. Uncommentting a line and changing the value
 # will change the value used at runtime when the process is restarted.
 
 # Once every 24 hours InfluxDB will report usage data to usage.influxdata.com
