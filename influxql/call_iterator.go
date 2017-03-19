@@ -1309,3 +1309,192 @@ func newIntegralIterator(input Iterator, opt IteratorOptions, interval Interval)
 		return nil, fmt.Errorf("unsupported integral iterator type: %T", input)
 	}
 }
+
+// Value Transform Iterators apply some transform function to the value of each point individually
+func NewValueTransformIterator(input Iterator, name string, args []Expr) (Iterator, error) {
+	_, inputIsInteger := input.(IntegerIterator)
+	outputIntegers := false // Set true later if we need to return integers
+	f := func(v float64) float64 { return v }
+
+	switch name {
+	case "abs":
+		f = math.Abs
+		outputIntegers = inputIsInteger
+	case "exp":
+		f = math.Exp
+	case "log":
+		f = math.Log
+	case "log10":
+		f = math.Log10
+	case "sqrt":
+		f = math.Sqrt
+	case "asin":
+		f = math.Asin
+	case "acos":
+		f = math.Acos
+	case "atan":
+		f = math.Atan
+	case "sin":
+		f = math.Sin
+	case "cos":
+		f = math.Cos
+	case "tan":
+		f = math.Tan
+	case "deg2rad":
+		f = func(v float64) float64 { return (math.Pi / 180.0) * v }
+	case "rad2deg":
+		f = func(v float64) float64 { return (180.0 / math.Pi) * v }
+	case "pow":
+		// Needs a second argument, returns float unless we are raising an
+		// integer input series to a non-negative integer power.
+		if len(args) != 2 {
+			return nil, fmt.Errorf("%s() should have a numeric literal second argument", name)
+		}
+
+		var argVal float64
+		switch arg := args[1].(type) {
+		case *NumberLiteral:
+			argVal = arg.Val
+		case *IntegerLiteral:
+			outputIntegers = inputIsInteger && arg.Val >= 0
+			argVal = float64(arg.Val)
+		default:
+			return nil, fmt.Errorf("Second argument to %s() should be a numeric literal", name)
+		}
+
+		f = func(v float64) float64 { return math.Pow(v, argVal) }
+	case "floor", "ceiling":
+		// These have an optional second argument which defaults to integer 1.
+		// If the second arg is an integer, we return an integer series,
+		// otherwise floats.  A negative second argument was probably user error.
+		var argVal float64
+		if len(args) == 1 {
+			outputIntegers = true
+			argVal = 1
+		} else if len(args) == 2 {
+			switch arg := args[1].(type) {
+			case *NumberLiteral:
+				argVal = arg.Val
+			case *IntegerLiteral:
+				outputIntegers = true
+				argVal = float64(arg.Val)
+			default:
+				return nil, fmt.Errorf("Second argument to %s() should be a numeric literal", name)
+			}
+		} else {
+			return nil, fmt.Errorf("%s() requires one or two arguments", name)
+		}
+		if argVal <= 0 {
+			return nil, fmt.Errorf("Second argument to %s() should be > 0", name)
+		}
+
+		switch name {
+		case "floor":
+			f = func(v float64) float64 { return math.Floor(v/argVal) * argVal }
+		case "ceiling":
+			f = func(v float64) float64 { return math.Ceil(v/argVal) * argVal }
+		}
+	case "round":
+		// Has an optional integer second argument indicating the number of
+		// decimal places, which defaults to 0.
+		// If the second arg is 0 or less, or we are operating on integers,
+		// return integers, otherwise floats.
+		var argVal int
+		if len(args) == 1 {
+			argVal = 0
+		} else if len(args) == 2 {
+			if arg, ok := args[1].(*IntegerLiteral); ok {
+				argVal = int(arg.Val)
+			} else {
+				return nil, fmt.Errorf("Second argument to %s() should be an integer literal", name)
+			}
+		} else {
+			return nil, fmt.Errorf("%s() requires one or two arguments", name)
+		}
+
+		outputIntegers = inputIsInteger || argVal <= 0
+		scale := math.Pow10(-argVal)
+		f = func(v float64) float64 { return math.Floor(0.5+(v/scale)) * scale }
+	default:
+		return nil, fmt.Errorf("Unsupported data type for %s() function", name)
+	}
+
+	float2int := func(value float64) (int64, bool) {
+		// Safely convert a float to an int, also return a Nil flag.
+		switch {
+		case math.IsNaN(value):
+			return 0, true
+		case value > math.MaxInt64 || value < math.MinInt64:
+			return 0, true
+		case value < 0:
+			// The 0.5 is to avoid floating point truncation errors
+			return int64(value - 0.5), false
+		default:
+			// The 0.5 is to avoid floating point truncation errors
+			return int64(value + 0.5), false
+		}
+	}
+
+	switch input := input.(type) {
+	case FloatIterator:
+		if outputIntegers {
+			pointTransformFn := func(p *FloatPoint) *IntegerPoint {
+				ip := &IntegerPoint{
+					Name: p.Name,
+					Tags: p.Tags,
+					Time: p.Time,
+					Aux:  p.Aux,
+				}
+				if p.Nil {
+					ip.Nil = true
+				} else {
+					ip.Value, ip.Nil = float2int(f(p.Value))
+				}
+				return ip
+			}
+			return &floatIntegerTransformIterator{input: input, fn: pointTransformFn}, nil
+		} else {
+			pointTransformFn := func(p *FloatPoint) *FloatPoint {
+				if !p.Nil {
+					p.Value = f(p.Value)
+					if math.IsNaN(p.Value) {
+						p.Nil = true
+					}
+				}
+				return p
+			}
+			return &floatTransformIterator{input: input, fn: pointTransformFn}, nil
+		}
+	case IntegerIterator:
+		if outputIntegers {
+			pointTransformFn := func(p *IntegerPoint) *IntegerPoint {
+				if !p.Nil {
+					p.Value, p.Nil = float2int(f(float64(p.Value)))
+				}
+				return p
+			}
+			return &integerTransformIterator{input: input, fn: pointTransformFn}, nil
+		} else {
+			pointTransformFn := func(p *IntegerPoint) *FloatPoint {
+				fp := &FloatPoint{
+					Name: p.Name,
+					Tags: p.Tags,
+					Time: p.Time,
+					Aux:  p.Aux,
+				}
+				if p.Nil {
+					fp.Nil = true
+				} else {
+					fp.Value = f(float64(p.Value))
+					if math.IsNaN(fp.Value) {
+						fp.Nil = true
+					}
+				}
+				return fp
+			}
+			return &integerFloatTransformIterator{input: input, fn: pointTransformFn}, nil
+		}
+	default:
+		return nil, fmt.Errorf("Unsupported data type for %s() function", name)
+	}
+}

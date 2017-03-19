@@ -326,6 +326,18 @@ func buildAuxIterator(expr Expr, aitr AuxIterator, opt IteratorOptions) (Iterato
 		return buildAuxIterator(expr.Expr, aitr, opt)
 	case *nilLiteral:
 		return &nilFloatIterator{}, nil
+	case *Call:
+		if !IsValueTransform(expr) {
+			return nil, fmt.Errorf("Only value transforms are allowed here")
+		}
+		if len(expr.Args) == 0 {
+			return nil, fmt.Errorf("%s() needs at least one argument", expr.Name)
+		}
+		input, err := buildAuxIterator(expr.Args[0], aitr, opt)
+		if err != nil {
+			return nil, err
+		}
+		return NewValueTransformIterator(input, expr.Name, expr.Args)
 	default:
 		return nil, fmt.Errorf("invalid expression type: %T", expr)
 	}
@@ -414,7 +426,18 @@ func buildExprIterator(expr Expr, ic IteratorCreator, sources Sources, opt Itera
 	case *VarRef:
 		return b.buildVarRefIterator(expr)
 	case *Call:
-		return b.buildCallIterator(expr)
+		if IsValueTransform(expr) {
+			if len(expr.Args) == 0 {
+				return nil, fmt.Errorf("%s() needs at least one argument", expr.Name)
+			}
+			input, err := buildExprIterator(expr.Args[0], ic, sources, opt, selector)
+			if err != nil {
+				return nil, err
+			}
+			return NewValueTransformIterator(input, expr.Name, expr.Args)
+		} else {
+			return b.buildCallIterator(expr)
+		}
 	case *BinaryExpr:
 		return b.buildBinaryExprIterator(expr)
 	case *ParenExpr:

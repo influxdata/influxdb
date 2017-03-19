@@ -16,6 +16,7 @@
 - [#7393](https://github.com/influxdata/influxdb/issues/7393): Add "non_negative_difference" function to InfluxQL.
 - [#8042](https://github.com/influxdata/influxdb/issues/8042): Add bitwise AND, OR and XOR operators to the query language.
 - [#8302](https://github.com/influxdata/influxdb/pull/8302): Write throughput/concurrency improvements
+- [#659](https://github.com/influxdata/influxdb/issues/659): Add value-transform functions to the query language (abs, sin, cos, tan, asin, acos, atan, log, log10, exp, sqrt, rad2deg, deg2rad, pow, ceiling, floor, round)
 
 ### Bugfixes
 

@@ -1152,8 +1152,10 @@ func newSelectInfo(stmt *SelectStatement) *selectInfo {
 func (v *selectInfo) Visit(n Node) Visitor {
 	switch n := n.(type) {
 	case *Call:
-		v.calls[n] = struct{}{}
-		return nil
+		if !IsValueTransform(n) {
+			v.calls[n] = struct{}{}
+			return nil
+		}
 	case *VarRef:
 		v.refs[n] = struct{}{}
 		return nil
@@ -1244,10 +1246,35 @@ func (itr *integerFloatTransformIterator) Next() (*FloatPoint, error) {
 	return nil, nil
 }
 
-// integerFloatTransformFunc creates or modifies a point.
-// The point passed in may be modified and returned rather than allocating a
-// new point if possible.
+// An integerFloatTransformFunc transforms an integer point into a float point
 type integerFloatTransformFunc func(p *IntegerPoint) *FloatPoint
+
+// floatIntegerTransformIterator executes a function to modify an existing point for every
+// output of the input iterator.
+type floatIntegerTransformIterator struct {
+	input FloatIterator
+	fn    floatIntegerTransformFunc
+}
+
+// Stats returns stats from the input iterator.
+func (itr *floatIntegerTransformIterator) Stats() IteratorStats { return itr.input.Stats() }
+
+// Close closes the iterator and all child iterators.
+func (itr *floatIntegerTransformIterator) Close() error { return itr.input.Close() }
+
+// Next returns the minimum value for the next available interval.
+func (itr *floatIntegerTransformIterator) Next() (*IntegerPoint, error) {
+	p, err := itr.input.Next()
+	if err != nil {
+		return nil, err
+	} else if p != nil {
+		return itr.fn(p), nil
+	}
+	return nil, nil
+}
+
+// A floatIntegerTransformFunc transforms a float point into an integer one
+type floatIntegerTransformFunc func(p *FloatPoint) *IntegerPoint
 
 type integerFloatCastIterator struct {
 	input IntegerIterator
