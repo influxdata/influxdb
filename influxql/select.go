@@ -1193,6 +1193,43 @@ func buildRHSTransformIterator(lhs Iterator, rhs Literal, op Token, opt Iterator
 				return bp
 			},
 		}, nil
+	case func(bool, bool) bool:
+		var input BooleanIterator
+		switch lhs := lhs.(type) {
+		case BooleanIterator:
+			input = lhs
+		default:
+			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as an BooleanIterator", lhs)
+		}
+
+		var val bool
+		switch rhs := rhs.(type) {
+		case *BooleanLiteral:
+			val = rhs.Val
+		default:
+			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as an BooleanLiteral", rhs)
+		}
+		return &booleanTransformIterator{
+			input: input,
+			fn: func(p *BooleanPoint) *BooleanPoint {
+				if p == nil {
+					return nil
+				}
+
+				bp := &BooleanPoint{
+					Name: p.Name,
+					Tags: p.Tags,
+					Time: p.Time,
+					Aux:  p.Aux,
+				}
+				if p.Nil {
+					bp.Nil = true
+				} else {
+					bp.Value = fn(p.Value, val)
+				}
+				return bp
+			},
+		}, nil
 	}
 	return nil, fmt.Errorf("unable to construct rhs transform iterator from %T and %T", lhs, rhs)
 }
@@ -1372,6 +1409,43 @@ func buildLHSTransformIterator(lhs Literal, rhs Iterator, op Token, opt Iterator
 				return bp
 			},
 		}, nil
+	case func(bool, bool) bool:
+		var input BooleanIterator
+		switch rhs := rhs.(type) {
+		case BooleanIterator:
+			input = rhs
+		default:
+			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as an BooleanIterator", rhs)
+		}
+
+		var val bool
+		switch lhs := lhs.(type) {
+		case *BooleanLiteral:
+			val = lhs.Val
+		default:
+			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as a BooleanLiteral", lhs)
+		}
+		return &booleanTransformIterator{
+			input: input,
+			fn: func(p *BooleanPoint) *BooleanPoint {
+				if p == nil {
+					return nil
+				}
+
+				bp := &BooleanPoint{
+					Name: p.Name,
+					Tags: p.Tags,
+					Time: p.Time,
+					Aux:  p.Aux,
+				}
+				if p.Nil {
+					bp.Nil = true
+				} else {
+					bp.Value = fn(val, p.Value)
+				}
+				return bp
+			},
+		}, nil
 	}
 	return nil, fmt.Errorf("unable to construct lhs transform iterator from %T and %T", lhs, rhs)
 }
@@ -1448,9 +1522,19 @@ func buildTransformIterator(lhs Iterator, rhs Iterator, op Token, opt IteratorOp
 		}
 		right, ok := rhs.(IntegerIterator)
 		if !ok {
-			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as a IntegerIterator", rhs)
+			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a IntegerIterator", rhs)
 		}
 		return newIntegerBooleanExprIterator(left, right, opt, fn), nil
+	case func(bool, bool) bool:
+		left, ok := lhs.(BooleanIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch on LHS, unable to use %T as a BooleanIterator", lhs)
+		}
+		right, ok := rhs.(BooleanIterator)
+		if !ok {
+			return nil, fmt.Errorf("type mismatch on RHS, unable to use %T as a BooleanIterator", rhs)
+		}
+		return newBooleanExprIterator(left, right, opt, fn), nil
 	}
 	return nil, fmt.Errorf("unable to construct transform iterator from %T and %T", lhs, rhs)
 }
@@ -1497,6 +1581,8 @@ func binaryExprFunc(typ1 DataType, typ2 DataType, op Token) interface{} {
 		default:
 			fn = integerBinaryExprFunc(op)
 		}
+	case Boolean:
+		fn = booleanBinaryExprFunc(op)
 	}
 	return fn
 }
@@ -1556,6 +1642,12 @@ func integerBinaryExprFunc(op Token) interface{} {
 			}
 			return lhs % rhs
 		}
+	case BITWISE_AND:
+		return func(lhs, rhs int64) int64 { return lhs & rhs }
+	case BITWISE_OR:
+		return func(lhs, rhs int64) int64 { return lhs | rhs }
+	case BITWISE_XOR:
+		return func(lhs, rhs int64) int64 { return lhs ^ rhs }
 	case EQ:
 		return func(lhs, rhs int64) bool { return lhs == rhs }
 	case NEQ:
@@ -1568,6 +1660,18 @@ func integerBinaryExprFunc(op Token) interface{} {
 		return func(lhs, rhs int64) bool { return lhs > rhs }
 	case GTE:
 		return func(lhs, rhs int64) bool { return lhs >= rhs }
+	}
+	return nil
+}
+
+func booleanBinaryExprFunc(op Token) interface{} {
+	switch op {
+	case BITWISE_AND:
+		return func(lhs, rhs bool) bool { return lhs && rhs }
+	case BITWISE_OR:
+		return func(lhs, rhs bool) bool { return lhs || rhs }
+	case BITWISE_XOR:
+		return func(lhs, rhs bool) bool { return lhs != rhs }
 	}
 	return nil
 }

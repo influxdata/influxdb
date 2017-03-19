@@ -4304,6 +4304,12 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 			return ok && (lhs && rhs)
 		case OR:
 			return ok && (lhs || rhs)
+		case BITWISE_AND:
+			return ok && (lhs && rhs)
+		case BITWISE_OR:
+			return ok && (lhs || rhs)
+		case BITWISE_XOR:
+			return ok && (lhs != rhs)
 		case EQ:
 			return ok && (lhs == rhs)
 		case NEQ:
@@ -4438,6 +4444,21 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 					return int64(0)
 				}
 				return lhs % rhs
+			case BITWISE_AND:
+				if !ok {
+					return nil
+				}
+				return lhs & rhs
+			case BITWISE_OR:
+				if !ok {
+					return nil
+				}
+				return lhs | rhs
+			case BITWISE_XOR:
+				if !ok {
+					return nil
+				}
+				return lhs ^ rhs
 			}
 		}
 	case string:
@@ -4687,6 +4708,12 @@ func reduceBinaryExprBooleanLHS(op Token, lhs *BooleanLiteral, rhs Expr) Expr {
 			return &BooleanLiteral{Val: lhs.Val && rhs.Val}
 		case OR:
 			return &BooleanLiteral{Val: lhs.Val || rhs.Val}
+		case BITWISE_AND:
+			return &BooleanLiteral{Val: lhs.Val && rhs.Val}
+		case BITWISE_OR:
+			return &BooleanLiteral{Val: lhs.Val || rhs.Val}
+		case BITWISE_XOR:
+			return &BooleanLiteral{Val: lhs.Val != rhs.Val}
 		}
 	case *nilLiteral:
 		return &BooleanLiteral{Val: false}
@@ -4780,6 +4807,12 @@ func reduceBinaryExprIntegerLHS(op Token, lhs *IntegerLiteral, rhs Expr) Expr {
 				return &IntegerLiteral{Val: 0}
 			}
 			return &IntegerLiteral{Val: lhs.Val % rhs.Val}
+		case BITWISE_AND:
+			return &IntegerLiteral{Val: lhs.Val & rhs.Val}
+		case BITWISE_OR:
+			return &IntegerLiteral{Val: lhs.Val | rhs.Val}
+		case BITWISE_XOR:
+			return &IntegerLiteral{Val: lhs.Val ^ rhs.Val}
 		case EQ:
 			return &BooleanLiteral{Val: lhs.Val == rhs.Val}
 		case NEQ:
