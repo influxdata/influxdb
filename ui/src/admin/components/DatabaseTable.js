@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import {DatabaseRow} from 'src/admin/components/DatabaseRow'
+import DatabaseRow from 'src/admin/components/DatabaseRow'
 import ConfirmButtons from 'src/admin/components/ConfirmButtons'
 
 const {
@@ -57,6 +57,7 @@ const DatabaseTable = ({
                     onCancel={onCancelRetentionPolicy}
                     onConfirm={onCreateRetentionPolicy}
                     onStopEdit={onStopEditRetentionPolicy}
+                    handleClickOutside={() => onStopEditRetentionPolicy({database, retentionPolicy: rp})}
                   />
                 )
               })

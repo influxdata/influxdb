@@ -1,8 +1,9 @@
 import React, {PropTypes} from 'react'
 import {formatRPDuration} from 'utils/formatting'
 import ConfirmButtons from 'src/admin/components/ConfirmButtons'
+import onClickOutside from 'react-onclickoutside'
 
-export const DatabaseRow = ({
+const DatabaseRow = ({
   retentionPolicy,
   retentionPolicy: {name, duration, replication, isEditing, isDefault, isNew},
   database,
@@ -103,3 +104,5 @@ DatabaseRow.propTypes = {
   onCancel: func,
   onConfirm: func,
 }
+
+export default onClickOutside(DatabaseRow)
