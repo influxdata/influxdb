@@ -13,6 +13,7 @@ class DatabaseManagerPage extends Component {
     this.handleKeyDownRetentionPolicy = ::this.handleKeyDownRetentionPolicy
     this.handleCancelRetentionPolicy = ::this.handleCancelRetentionPolicy
     this.handleCreateRetentionPolicy = ::this.handleCreateRetentionPolicy
+    this.handleStopEditRetentionPolicy = ::this.handleStopEditRetentionPolicy
   }
 
   componentDidMount() {
@@ -37,10 +38,15 @@ class DatabaseManagerPage extends Component {
         onStartDeleteDatabase={actions.startDeleteDatabase}
         onAddRetentionPolicy={actions.addRetentionPolicy}
         onEditRetentionPolicy={actions.editRetentionPolicy}
+        onStopEditRetentionPolicy={this.handleStopEditRetentionPolicy}
         onCancelRetentionPolicy={this.handleCancelRetentionPolicy}
         onCreateRetentionPolicy={this.handleCreateRetentionPolicy}
       />
     )
+  }
+
+  handleStopEditRetentionPolicy({database, retentionPolicy}) {
+    this.props.actions.stopEditRetentionPolicy(database, retentionPolicy)
   }
 
   handleCancelRetentionPolicy({database, retentionPolicy}) {
@@ -55,13 +61,24 @@ class DatabaseManagerPage extends Component {
     const {key} = e
     const {actions} = this.props
 
+    if (rp.isNew) {
+      if (key === 'Escape') {
+        return actions.removeRetentionPolicy(db, rp)
+      }
+
+      if (key === 'Enter') {
+        // TODO: validate input
+        return actions.createRetentionPolicyAsync(db, rp)
+      }
+    }
+
     if (key === 'Escape') {
-      actions.removeRetentionPolicy(db, rp)
+      actions.stopEditRetentionPolicy(db, rp)
     }
 
     if (key === 'Enter') {
       // TODO: validate input
-      actions.createRetentionPolicyAsync(db, rp)
+      // actions.updateRetentionPolicy(db, rp)
     }
   }
 

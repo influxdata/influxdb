@@ -4,9 +4,10 @@ import ConfirmButtons from 'src/admin/components/ConfirmButtons'
 
 export const DatabaseRow = ({
   retentionPolicy,
-  retentionPolicy: {name, duration, replication, isEditing, isDefault},
+  retentionPolicy: {name, duration, replication, isEditing, isDefault, isNew},
   database,
   onEdit,
+  onStopEdit,
   onKeyDown,
   onCancel,
   onConfirm,
@@ -56,7 +57,7 @@ export const DatabaseRow = ({
           </div>
         </td>
         <td className="text-right">
-          <ConfirmButtons item={{database, retentionPolicy}} onConfirm={onConfirm} onCancel={onCancel} />
+          <ConfirmButtons item={{database, retentionPolicy}} onConfirm={isNew ? onConfirm : () => {}} onCancel={isNew ? onCancel : onStopEdit} />
         </td>
       </tr>
     )
@@ -64,12 +65,12 @@ export const DatabaseRow = ({
 
   return (
     <tr>
-      <td>
+      <td onClick={() => onEdit(database, retentionPolicy)}>
         {name}
         {isDefault ? <span className="default-source-label">default</span> : null}
       </td>
-      <td>{formatRPDuration(duration)}</td>
-      <td>{replication}</td>
+      <td onClick={() => onEdit(database, retentionPolicy)}>{formatRPDuration(duration)}</td>
+      <td onClick={() => onEdit(database, retentionPolicy)}>{replication}</td>
       <td className="text-right">
         <button className="btn btn-xs btn-danger admin-table--delete">
           {`Delete ${name}`}
@@ -97,6 +98,7 @@ DatabaseRow.propTypes = {
   }),
   database: shape(),
   onEdit: func,
+  onStopEdit: func,
   onKeyDown: func,
   onCancel: func,
   onConfirm: func,

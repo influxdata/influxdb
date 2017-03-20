@@ -12,6 +12,7 @@ const DatabaseManager = ({
   onDatabaseDeleteConfirm,
   onAddRetentionPolicy,
   onEditRetentionPolicy,
+  onStopEditRetentionPolicy,
   onKeyDownRetentionPolicy,
   onCancelRetentionPolicy,
   onCreateRetentionPolicy,
@@ -36,6 +37,7 @@ const DatabaseManager = ({
               onDatabaseDeleteConfirm={onDatabaseDeleteConfirm}
               onAddRetentionPolicy={onAddRetentionPolicy}
               onEditRetentionPolicy={onEditRetentionPolicy}
+              onStopEditRetentionPolicy={onStopEditRetentionPolicy}
               onKeyDownRetentionPolicy={onKeyDownRetentionPolicy}
               onCancelRetentionPolicy={onCancelRetentionPolicy}
               onCreateRetentionPolicy={onCreateRetentionPolicy}
@@ -64,6 +66,7 @@ DatabaseManager.propTypes = {
   onDatabaseDeleteConfirm: func,
   onAddRetentionPolicy: func,
   onEditRetentionPolicy: func,
+  onStopEditRetentionPolicy: func,
   onKeyDownRetentionPolicy: func,
   onCancelRetentionPolicy: func,
   onCreateRetentionPolicy: func,

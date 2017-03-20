@@ -218,6 +218,14 @@ export const editRetentionPolicy = (database, retentionPolicy) => ({
   },
 })
 
+export const stopEditRetentionPolicy = (database, retentionPolicy) => ({
+  type: 'STOP_EDIT_RETENTION_POLICY',
+  payload: {
+    database,
+    retentionPolicy,
+  },
+})
+
 // async actions
 export const loadUsersAsync = (url) => async (dispatch) => {
   const {data} = await getUsersAJAX(url)

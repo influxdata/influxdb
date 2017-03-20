@@ -17,6 +17,7 @@ const DatabaseTable = ({
   onDatabaseDeleteConfirm,
   onAddRetentionPolicy,
   onEditRetentionPolicy,
+  onStopEditRetentionPolicy,
   onKeyDownRetentionPolicy,
   onCancelRetentionPolicy,
   onCreateRetentionPolicy,
@@ -55,6 +56,7 @@ const DatabaseTable = ({
                     onKeyDown={onKeyDownRetentionPolicy}
                     onCancel={onCancelRetentionPolicy}
                     onConfirm={onCreateRetentionPolicy}
+                    onStopEdit={onStopEditRetentionPolicy}
                   />
                 )
               })
@@ -76,6 +78,7 @@ DatabaseTable.propTypes = {
   onDatabaseDeleteConfirm: func,
   onAddRetentionPolicy: func,
   onEditRetentionPolicy: func,
+  onStopEditRetentionPolicy: func,
   onKeyDownRetentionPolicy: func,
   onCancelRetentionPolicy: func,
   onCreateRetentionPolicy: func,
