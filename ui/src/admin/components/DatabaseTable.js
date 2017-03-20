@@ -57,7 +57,7 @@ const DatabaseTable = ({
                     onCancel={onCancelRetentionPolicy}
                     onConfirm={onCreateRetentionPolicy}
                     onStopEdit={onStopEditRetentionPolicy}
-                    handleClickOutside={() => onStopEditRetentionPolicy({database, retentionPolicy: rp})}
+                    handleClickOutside={() => rp.isNew ? onCancelRetentionPolicy({database, retentionPolicy: rp}) : onStopEditRetentionPolicy({database, retentionPolicy: rp})}
                   />
                 )
               })
