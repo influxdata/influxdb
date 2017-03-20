@@ -42,6 +42,10 @@ type Data struct {
 	Databases []DatabaseInfo
 	Users     []UserInfo
 
+	// adminUserExists provides a constant time mechanism for determining
+	// if there is at least one admin user.
+	adminUserExists bool
+
 	MaxShardGroupID uint64
 	MaxShardID      uint64
 }
@@ -568,6 +572,11 @@ func (data *Data) CreateUser(name, hash string, admin bool) error {
 		Admin: admin,
 	})
 
+	// We know there is now at least one admin user.
+	if admin {
+		data.adminUserExists = true
+	}
+
 	return nil
 }
 
@@ -575,10 +584,17 @@ func (data *Data) CreateUser(name, hash string, admin bool) error {
 func (data *Data) DropUser(name string) error {
 	for i := range data.Users {
 		if data.Users[i].Name == name {
+			wasAdmin := data.Users[i].Admin
 			data.Users = append(data.Users[:i], data.Users[i+1:]...)
+
+			// Maybe we dropped the only admin user?
+			if wasAdmin {
+				data.adminUserExists = data.hasAdminUser()
+			}
 			return nil
 		}
 	}
+
 	return ErrUserNotFound
 }
 
@@ -630,7 +646,15 @@ func (data *Data) SetAdminPrivilege(name string, admin bool) error {
 
 	ui.Admin = admin
 
+	// We could have promoted or revoked the only admin. Check if an admin
+	// user exists.
+	data.adminUserExists = data.hasAdminUser()
 	return nil
+}
+
+// AdminUserExists returns true if an admin user exists.
+func (data Data) AdminUserExists() bool {
+	return data.adminUserExists
 }
 
 // UserPrivileges gets the privileges for a user.
@@ -714,6 +738,10 @@ func (data *Data) unmarshal(pb *internal.Data) {
 	for i, x := range pb.GetUsers() {
 		data.Users[i].unmarshal(x)
 	}
+
+	// Exhaustively determine if there is an admin user. The marshalled cache
+	// value may not be correct.
+	data.adminUserExists = data.hasAdminUser()
 }
 
 // MarshalBinary encodes the metadata to a binary format.
@@ -729,6 +757,17 @@ func (data *Data) UnmarshalBinary(buf []byte) error {
 	}
 	data.unmarshal(&pb)
 	return nil
+}
+
+// hasAdminUser exhaustively checks for the presence of at least one admin
+// user.
+func (data *Data) hasAdminUser() bool {
+	for _, u := range data.Users {
+		if u.Admin {
+			return true
+		}
+	}
+	return false
 }
 
 // NodeInfo represents information about a single node in the cluster.
