@@ -2,6 +2,7 @@
 
 ### Features
 
+- [#8143](https://github.com/influxdata/influxdb/pull/8143): Add WAL sync delay
 - [#7977](https://github.com/influxdata/influxdb/issues/7977): Add chunked request processing back into the Go client v2
 - [#7974](https://github.com/influxdata/influxdb/pull/7974): Allow non-admin users to execute SHOW DATABASES.
 - [#7948](https://github.com/influxdata/influxdb/pull/7948): Reduce memory allocations by reusing gzip.Writers across requests
@@ -9,6 +10,14 @@
 - [#7553](https://github.com/influxdata/influxdb/issues/7553): Add modulo operator to the query language.
 - [#7856](https://github.com/influxdata/influxdb/issues/7856): Failed points during an import now result in a non-zero exit code.
 - [#7821](https://github.com/influxdata/influxdb/issues/7821): Expose some configuration settings via SHOW DIAGNOSTICS
+- [#8025](https://github.com/influxdata/influxdb/issues/8025): Support single and multiline comments in InfluxQL.
+
+### Bugfixes
+
+- [#8091](https://github.com/influxdata/influxdb/issues/8091): Do not increment the continuous query statistic if no query is run.
+- [#8064](https://github.com/influxdata/influxdb/issues/8064): Forbid wildcards in binary expressions.
+- [#8148](https://github.com/influxdata/influxdb/issues/8148): Fix fill(linear) when multiple series exist and there are null values.
+- [#7995](https://github.com/influxdata/influxdb/issues/7995): Update liner dependency to handle docker exec.
 
 ## v1.2.2 [2017-03-14]
 

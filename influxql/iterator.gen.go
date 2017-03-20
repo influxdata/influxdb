@@ -680,8 +680,7 @@ func (itr *floatFillIterator) Next() (*FloatPoint, error) {
 				next, err := itr.input.peek()
 				if err != nil {
 					return nil, err
-				}
-				if next != nil {
+				} else if next != nil && next.Name == itr.window.name && next.Tags.ID() == itr.window.tags.ID() {
 					interval := int64(itr.opt.Interval.Duration)
 					start := itr.window.time / interval
 					p.Value = linearFloat(start, itr.prev.Time/interval, next.Time/interval, itr.prev.Value, next.Value)
@@ -3338,8 +3337,7 @@ func (itr *integerFillIterator) Next() (*IntegerPoint, error) {
 				next, err := itr.input.peek()
 				if err != nil {
 					return nil, err
-				}
-				if next != nil {
+				} else if next != nil && next.Name == itr.window.name && next.Tags.ID() == itr.window.tags.ID() {
 					interval := int64(itr.opt.Interval.Duration)
 					start := itr.window.time / interval
 					p.Value = linearInteger(start, itr.prev.Time/interval, next.Time/interval, itr.prev.Value, next.Value)

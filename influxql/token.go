@@ -13,6 +13,7 @@ const (
 	ILLEGAL Token = iota
 	EOF
 	WS
+	COMMENT
 
 	literalBeg
 	// IDENT and the following are InfluxQL literal tokens.

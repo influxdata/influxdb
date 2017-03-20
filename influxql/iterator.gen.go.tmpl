@@ -679,8 +679,7 @@ func (itr *{{$k.name}}FillIterator) Next() (*{{$k.Name}}Point, error) {
 				next, err := itr.input.peek()
 				if err != nil {
 					return nil, err
-				}
-				if next != nil {
+				} else if next != nil && next.Name == itr.window.name && next.Tags.ID() == itr.window.tags.ID() {
 					interval := int64(itr.opt.Interval.Duration)
 					start := itr.window.time / interval
 					p.Value = linear{{$k.Name}}(start, itr.prev.Time/interval, next.Time/interval, itr.prev.Value, next.Value)

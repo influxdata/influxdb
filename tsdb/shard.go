@@ -951,17 +951,28 @@ func (s *Shard) monitor() {
 	defer t.Stop()
 	t2 := time.NewTicker(time.Minute)
 	defer t2.Stop()
+	var changed time.Time
+
 	for {
 		select {
 		case <-s.closing:
 			return
 		case <-t.C:
+
+			// Checking DiskSize can be expensive with a lot of shards and TSM files, only
+			// check if something has changed.
+			lm := s.LastModified()
+			if lm.Equal(changed) {
+				continue
+			}
+
 			size, err := s.DiskSize()
 			if err != nil {
 				s.logger.Info(fmt.Sprintf("Error collecting shard size: %v", err))
 				continue
 			}
 			atomic.StoreInt64(&s.stats.DiskBytes, size)
+			changed = lm
 		case <-t2.C:
 			if s.options.Config.MaxValuesPerTag == 0 {
 				continue

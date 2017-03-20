@@ -1273,6 +1273,26 @@ func (s *SelectStatement) RewriteFields(m FieldMapper) (*SelectStatement, error)
 						Alias: fmt.Sprintf("%s_%s", f.Name(), ref.Val),
 					})
 				}
+			case *BinaryExpr:
+				// Search for regexes or wildcards within the binary
+				// expression. If we find any, throw an error indicating that
+				// it's illegal.
+				var regex, wildcard bool
+				WalkFunc(expr, func(n Node) {
+					switch n.(type) {
+					case *RegexLiteral:
+						regex = true
+					case *Wildcard:
+						wildcard = true
+					}
+				})
+
+				if wildcard {
+					return nil, fmt.Errorf("unsupported expression with wildcard: %s", f.Expr)
+				} else if regex {
+					return nil, fmt.Errorf("unsupported expression with regex field: %s", f.Expr)
+				}
+				rwFields = append(rwFields, f)
 			default:
 				rwFields = append(rwFields, f)
 			}
