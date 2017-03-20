@@ -2537,7 +2537,10 @@
 				"duration": "7d",
 				"replication": 1,
 				"shardDuration": "7d",
-				"default": true
+				"default": true,
+				"links": {
+					"self": "/chronograf/v1/ousrces/1/dbs/NOAA_water_database/rps/liquid"
+				}
 			},
 			"properties": {
 				"name": {
@@ -2560,6 +2563,16 @@
 				"default": {
 					"type": "boolean",
 					"description": "Indicates whether this retention policy should be the default"
+				},
+				"links": {
+					"type": "object",
+					"properties": {
+						"self": {
+							"type": "string",
+							"description": "Self link mapping to this resource",
+							"format": "url"
+						}
+					}
 				}
 			}
 		},
