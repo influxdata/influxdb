@@ -2238,7 +2238,10 @@
 				"name": "NOAA_water_database",
 				"duration": "3d",
 				"replication": 3,
-				"shardDuration": "3h"
+				"shardDuration": "3h",
+				"links": {
+					"self": "/chronograf/v1/sources/1/dbs/NOAA_water_database"
+				}
 			},
 			"properties": {
 				"name": {
@@ -2257,6 +2260,16 @@
 				"shardDuration": {
 					"type": "string",
 					"description": "the interval spanned by each shard group"
+				},
+				"links": {
+					"type": "object",
+					"properties": {
+						"self": {
+							"type": "string",
+							"description": "Self link mapping to this resource",
+							"format": "url"
+						}
+					}
 				}
 			}
 		},
