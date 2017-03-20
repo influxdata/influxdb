@@ -4,6 +4,7 @@
 
 - [#8022](https://github.com/influxdata/influxdb/issues/8022): Segment violation in models.Tags.Get
 - [#8155](https://github.com/influxdata/influxdb/pull/8155): Simplify admin user check.
+- [#8167](https://github.com/influxdata/influxdb/issues/8167): Fix a regression when math was used with selectors.
 
 ## v1.2.2 [2017-03-14]
 

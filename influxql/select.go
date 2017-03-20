@@ -970,13 +970,13 @@ func (b *exprIteratorBuilder) buildBinaryExprIterator(expr *BinaryExpr) (Iterato
 			return nil, fmt.Errorf("unable to construct an iterator from two literals: LHS: %T, RHS: %T", lhs, rhs)
 		}
 
-		lhs, err := buildExprIterator(expr.LHS, b.ic, b.sources, b.opt, IsSelector(expr.LHS))
+		lhs, err := buildExprIterator(expr.LHS, b.ic, b.sources, b.opt, b.selector)
 		if err != nil {
 			return nil, err
 		}
 		return buildRHSTransformIterator(lhs, rhs, expr.Op, b.opt)
 	} else if lhs, ok := expr.LHS.(Literal); ok {
-		rhs, err := buildExprIterator(expr.RHS, b.ic, b.sources, b.opt, IsSelector(expr.RHS))
+		rhs, err := buildExprIterator(expr.RHS, b.ic, b.sources, b.opt, b.selector)
 		if err != nil {
 			return nil, err
 		}
