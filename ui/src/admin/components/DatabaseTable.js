@@ -19,6 +19,7 @@ const DatabaseTable = ({
   onEditRetentionPolicy,
   onKeyDownRetentionPolicy,
   onCancelRetentionPolicy,
+  onCreateRetentionPolicy,
 }) => {
   return (
     <div className="db-manager">
@@ -53,6 +54,7 @@ const DatabaseTable = ({
                     onEdit={onEditRetentionPolicy}
                     onKeyDown={onKeyDownRetentionPolicy}
                     onCancel={onCancelRetentionPolicy}
+                    onConfirm={onCreateRetentionPolicy}
                   />
                 )
               })
@@ -76,6 +78,7 @@ DatabaseTable.propTypes = {
   onEditRetentionPolicy: func,
   onKeyDownRetentionPolicy: func,
   onCancelRetentionPolicy: func,
+  onCreateRetentionPolicy: func,
 }
 
 const DatabaseTableHeader = ({

@@ -12,7 +12,7 @@ class DatabaseManagerPage extends Component {
     this.handleDatabaseDeleteConfirm = ::this.handleDatabaseDeleteConfirm
     this.handleKeyDownRetentionPolicy = ::this.handleKeyDownRetentionPolicy
     this.handleCancelRetentionPolicy = ::this.handleCancelRetentionPolicy
-    this.handleSaveRetentionPolicy = ::this.handleSaveRetentionPolicy
+    this.handleCreateRetentionPolicy = ::this.handleCreateRetentionPolicy
   }
 
   componentDidMount() {
@@ -38,12 +38,17 @@ class DatabaseManagerPage extends Component {
         onAddRetentionPolicy={actions.addRetentionPolicy}
         onEditRetentionPolicy={actions.editRetentionPolicy}
         onCancelRetentionPolicy={this.handleCancelRetentionPolicy}
+        onCreateRetentionPolicy={this.handleCreateRetentionPolicy}
       />
     )
   }
 
   handleCancelRetentionPolicy({database, retentionPolicy}) {
     this.props.actions.removeRetentionPolicy(database, retentionPolicy)
+  }
+
+  handleCreateRetentionPolicy({database, retentionPolicy}) {
+    this.props.actions.createRetentionPolicyAsync(database, retentionPolicy)
   }
 
   handleKeyDownRetentionPolicy(e, db, rp) {
@@ -119,6 +124,7 @@ DatabaseManagerPage.propTypes = {
     addRetentionPolicy: func,
     loadDBsAndRPsAsync: func,
     createDatabaseAsync: func,
+    createRetentionPolicyAsync: func,
     addDatabase: func,
     removeDatabase: func,
     startDeleteDatabase: func,

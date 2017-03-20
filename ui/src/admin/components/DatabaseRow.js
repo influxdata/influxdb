@@ -9,6 +9,7 @@ export const DatabaseRow = ({
   onEdit,
   onKeyDown,
   onCancel,
+  onConfirm,
 }) => {
   if (isEditing) {
     return (
@@ -36,7 +37,7 @@ export const DatabaseRow = ({
               value={duration}
               placeholder="how long should data last"
               onChange={(e) => onEdit(database, {...retentionPolicy, duration: e.target.value})}
-              onKeyDown={() => {}}
+              onKeyDown={(e) => onKeyDown(e, database, retentionPolicy)}
             />
           </div>
         </td>
@@ -50,12 +51,12 @@ export const DatabaseRow = ({
               value={replication || ''}
               placeholder="how many nodes do you have"
               onChange={(e) => onEdit(database, {...retentionPolicy, replication: +e.target.value})}
-              onKeyDown={() => {}}
+              onKeyDown={(e) => onKeyDown(e, database, retentionPolicy)}
             />
           </div>
         </td>
         <td className="text-right">
-          <ConfirmButtons item={{database, retentionPolicy}} onConfirm={() => {}} onCancel={onCancel} />
+          <ConfirmButtons item={{database, retentionPolicy}} onConfirm={onConfirm} onCancel={onCancel} />
         </td>
       </tr>
     )
@@ -98,4 +99,5 @@ DatabaseRow.propTypes = {
   onEdit: func,
   onKeyDown: func,
   onCancel: func,
+  onConfirm: func,
 }
