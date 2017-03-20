@@ -50,7 +50,7 @@ const DatabaseRow = ({
               name="name"
               type="number"
               min="1"
-              value={replication || ''}
+              value={replication || 1}
               placeholder="how many nodes do you have"
               onChange={(e) => onEdit(database, {...retentionPolicy, replication: +e.target.value})}
               onKeyDown={(e) => onKeyDown(e, database, retentionPolicy)}
