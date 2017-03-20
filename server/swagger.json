@@ -2240,7 +2240,8 @@
 				"replication": 3,
 				"shardDuration": "3h",
 				"links": {
-					"self": "/chronograf/v1/sources/1/dbs/NOAA_water_database"
+					"self": "/chronograf/v1/sources/1/dbs/NOAA_water_database",
+					"rps": "/chronograf/v1/sources/1/dbs/NOAA_water_database/rps"
 				}
 			},
 			"properties": {
@@ -2267,6 +2268,11 @@
 						"self": {
 							"type": "string",
 							"description": "Self link mapping to this resource",
+							"format": "url"
+						},
+						"rps": {
+							"type": "string",
+							"description": "Link to retention policies for this database",
 							"format": "url"
 						}
 					}
