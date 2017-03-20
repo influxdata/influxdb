@@ -174,6 +174,11 @@ func (h *Plus) Count() uint64 {
 // If HyperLogLogPlus h is using the sparse representation, it will be converted
 // to the normal representation.
 func (h *Plus) Merge(s estimator.Sketch) error {
+	if s == nil {
+		// Nothing to do
+		return nil
+	}
+
 	other, ok := s.(*Plus)
 	if !ok {
 		return fmt.Errorf("wrong type for merging: %T", other)

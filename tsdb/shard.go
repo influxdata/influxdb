@@ -492,6 +492,9 @@ func (s *Shard) SeriesN() int64 {
 func (s *Shard) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.engine == nil {
+		return nil, nil, nil
+	}
 	return s.engine.SeriesSketches()
 }
 
@@ -499,6 +502,9 @@ func (s *Shard) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
 func (s *Shard) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	if s.engine == nil {
+		return nil, nil, nil
+	}
 	return s.engine.MeasurementsSketches()
 }
 
