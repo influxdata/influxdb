@@ -4,6 +4,7 @@ import {
   addUser,
   addRole,
   addDatabase,
+  addRetentionPolicy,
   syncUser,
   syncRole,
   editUser,
@@ -14,6 +15,7 @@ import {
   deleteRole,
   deleteUser,
   removeDatabase,
+  removeRetentionPolicy,
   filterRoles,
   filterUsers,
   addDatabaseDeleteCode,
@@ -114,10 +116,18 @@ const scoped = {scope: 'db1', allowed: ['p1', 'p3']}
 const permissions = [global, scoped]
 
 // Databases && Retention Policies
+const rp1 = {
+  name: 'rp1',
+  duration: '0',
+  replication: 2,
+  isDefault: true,
+  links: {self: '/chronograf/v1/sources/1/db/db1/rp/rp1'},
+}
+
 const db1 = {
   name: 'db1',
   links: {self: '/chronograf/v1/sources/1/db/db1'},
-  retentionPolicies: [],
+  retentionPolicies: [rp1],
 }
 
 const db2 = {
@@ -128,7 +138,7 @@ const db2 = {
 }
 
 describe('Admin.Reducers', () => {
-  describe('Databases and Retention Policies', () => {
+  describe('Databases', () => {
     const state = {databases: [db1, db2]}
 
     it('can add a database', () => {
@@ -177,7 +187,28 @@ describe('Admin.Reducers', () => {
 
       expect(actual.databases).to.deep.equal(expected)
     })
+  })
 
+  describe('Retention Policies', () => {
+    const state = {databases: [db1]}
+
+    it('can add a retention policy', () => {
+      const actual = reducer(state, addRetentionPolicy(db1))
+      const expected = [
+        {...db1, retentionPolicies: [NEW_EMPTY_RP, rp1]},
+      ]
+
+      expect(actual.databases).to.deep.equal(expected)
+    })
+
+    it('can remove a retention policy', () => {
+      const actual = reducer(state, removeRetentionPolicy(db1, rp1))
+      const expected = [
+        {...db1, retentionPolicies: []},
+      ]
+
+      expect(actual.databases).to.deep.equal(expected)
+    })
   })
 
   it('it can add a user', () => {
