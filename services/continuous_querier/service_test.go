@@ -340,22 +340,19 @@ func TestExecuteContinuousQuery_InvalidQueries(t *testing.T) {
 	cqi := dbi.ContinuousQueries[0]
 
 	cqi.Query = `this is not a query`
-	err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
-	if err == nil {
+	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now()); err == nil {
 		t.Error("expected error but got nil")
 	}
 
 	// Valid query but invalid continuous query.
 	cqi.Query = `SELECT * FROM cpu`
-	err = s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
-	if err == nil {
+	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now()); err == nil {
 		t.Error("expected error but got nil")
 	}
 
 	// Group by requires aggregate.
 	cqi.Query = `SELECT value INTO other_value FROM cpu WHERE time > now() - 1h GROUP BY time(1s)`
-	err = s.ExecuteContinuousQuery(&dbi, &cqi, time.Now())
-	if err == nil {
+	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, time.Now()); err == nil {
 		t.Error("expected error but got nil")
 	}
 }
@@ -374,8 +371,7 @@ func TestExecuteContinuousQuery_QueryExecutor_Error(t *testing.T) {
 	cqi := dbi.ContinuousQueries[0]
 
 	now := time.Now().Truncate(10 * time.Minute)
-	err := s.ExecuteContinuousQuery(&dbi, &cqi, now)
-	if err != errExpected {
+	if _, err := s.ExecuteContinuousQuery(&dbi, &cqi, now); err != errExpected {
 		t.Errorf("exp = %s, got = %v", errExpected, err)
 	}
 }

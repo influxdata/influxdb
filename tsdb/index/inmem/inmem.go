@@ -492,6 +492,7 @@ func (i *Index) DropSeries(key []byte) error {
 	k := string(key)
 	series := i.series[k]
 	if series == nil {
+		i.mu.Unlock()
 		return nil
 	}
 
@@ -701,10 +702,13 @@ type ShardIndex struct {
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
 func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
-	// Ensure that no tags go over the maximum cardinality.
 	var reason string
-	var dropped, n int
+	var dropped int
+
+	// Ensure that no tags go over the maximum cardinality.
 	if maxValuesPerTag := idx.opt.Config.MaxValuesPerTag; maxValuesPerTag > 0 {
+		var n int
+
 	outer:
 		for i, name := range names {
 			tags := tagsSlice[i]
@@ -730,10 +734,10 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 			keys[n], names[n], tagsSlice[n] = keys[i], names[i], tagsSlice[i]
 			n++
 		}
-	}
 
-	// Slice to only include successful points.
-	keys, names, tagsSlice = keys[:n], names[:n], tagsSlice[:n]
+		// Slice to only include successful points.
+		keys, names, tagsSlice = keys[:n], names[:n], tagsSlice[:n]
+	}
 
 	// Write
 	for i := range keys {

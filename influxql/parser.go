@@ -2686,13 +2686,15 @@ func (p *Parser) parseResample() (time.Duration, time.Duration, error) {
 // scan returns the next token from the underlying scanner.
 func (p *Parser) scan() (tok Token, pos Pos, lit string) { return p.s.Scan() }
 
-// scanIgnoreWhitespace scans the next non-whitespace token.
+// scanIgnoreWhitespace scans the next non-whitespace and non-comment token.
 func (p *Parser) scanIgnoreWhitespace() (tok Token, pos Pos, lit string) {
-	tok, pos, lit = p.scan()
-	if tok == WS {
+	for {
 		tok, pos, lit = p.scan()
+		if tok == WS || tok == COMMENT {
+			continue
+		}
+		return
 	}
-	return
 }
 
 // consumeWhitespace scans the next token if it's whitespace.
