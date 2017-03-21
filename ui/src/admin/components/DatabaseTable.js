@@ -48,7 +48,7 @@ const DatabaseTable = ({
               database.retentionPolicies.map(rp => {
                 return (
                   <DatabaseRow
-                    key={rp.id}
+                    key={rp.links.self}
                     notify={notify}
                     database={database}
                     retentionPolicy={rp}

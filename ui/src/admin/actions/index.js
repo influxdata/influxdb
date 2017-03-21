@@ -61,15 +61,11 @@ export const addRole = () => ({
 
 export const addDatabase = () => ({
   type: 'ADD_DATABASE',
-  payload: {
-    id: uuid.v4(),
-  },
 })
 
 export const addRetentionPolicy = (database) => ({
   type: 'ADD_RETENTION_POLICY',
   payload: {
-    id: uuid.v4(),
     database,
   },
 })
@@ -241,9 +237,11 @@ export const loadDBsAndRPsAsync = (url) => async (dispatch) => {
   const {data: {results}} = await showRetentionPolicies(url, databases)
   const retentionPolicies = results.map(parseShowRetentionPolicies)
   const rps = retentionPolicies.map(rp => rp.retentionPolicies)
-  const dbsAndRps = databases.map((name, i) => (
-    {name, id: uuid.v4(), retentionPolicies: rps[i].map(rp => ({...rp, id: uuid.v4()}))}
-  ))
+  const dbsAndRps = databases.map((name, i) => ({
+    name,
+    links: {self: uuid.v4()},
+    retentionPolicies: rps[i].map(rp => ({...rp, links: {self: uuid.v4()}})),
+  }))
 
   dispatch(loadDatabases(dbsAndRps))
 }
@@ -306,7 +304,7 @@ export const updateRetentionPolicyAsync = (database, retentionPolicy) => async (
     dispatch(publishNotification('success', 'Retention policy updated successfully'))
     // dispatch(syncRetentionPolicy(retentionPolicy, {...data, id: uuid.v4()}))
   } catch (error) {
-    setTimeout(() => dispatch(removeRetentionPolicy(retentionPolicy)), ADMIN_NOTIFICATION_DELAY)
+    dispatch(publishNotification('error', `Failed to update retention policy: ${error.data.message}`))
   }
 }
 

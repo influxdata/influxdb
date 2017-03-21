@@ -29,7 +29,7 @@ const DatabaseManager = ({
         {
           databases.map(db =>
             <DatabaseTable
-              key={db.id}
+              key={db.links.self}
               database={db}
               notify={notify}
               onEditDatabase={onEditDatabase}

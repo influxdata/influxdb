@@ -18,17 +18,18 @@ const newDefaultRole = {
 }
 
 const newDefaultRP = {
-  id: '',
   name: 'autogen',
   duration: '0',
   replication: 2,
   isDefault: true,
+  links: {self: ''},
 }
 
 const newEmptyRP = {
   name: '',
   duration: '',
   replication: 0,
+  links: {self: ''},
   isNew: true,
 }
 
@@ -36,6 +37,7 @@ const newDefaultDatabase = {
   name: '',
   isNew: true,
   retentionPolicies: [newDefaultRP],
+  links: {self: ''},
 }
 
 const initialState = {
@@ -88,8 +90,7 @@ export default function admin(state = initialState, action) {
     }
 
     case 'ADD_DATABASE': {
-      const {id} = action.payload
-      const newDatabase = {...newDefaultDatabase, id, isEditing: true}
+      const newDatabase = {...newDefaultDatabase, isEditing: true}
 
       return {
         ...state,
@@ -101,10 +102,10 @@ export default function admin(state = initialState, action) {
     }
 
     case 'ADD_RETENTION_POLICY': {
-      const {database, id} = action.payload
+      const {database} = action.payload
       const databases = state.databases.map(db =>
-        db.id === database.id ?
-        {...database, retentionPolicies: [{...newEmptyRP, id}, ...database.retentionPolicies]}
+        db.links.self === database.links.self ?
+        {...database, retentionPolicies: [{...newEmptyRP}, ...database.retentionPolicies]}
         : db
       )
 
@@ -130,7 +131,7 @@ export default function admin(state = initialState, action) {
     case 'SYNC_DATABASE': {
       const {stale, synced} = action.payload
       const newState = {
-        databases: state.databases.map(db => db.id === stale.id ? {...synced} : db),
+        databases: state.databases.map(db => db.links.self === stale.links.self ? {...synced} : db),
       }
       return {...state, ...newState}
     }
@@ -154,7 +155,7 @@ export default function admin(state = initialState, action) {
     case 'EDIT_DATABASE': {
       const {database, name} = action.payload
       const newState = {
-        databases: state.databases.map(db => db.id === database.id ? {...db, name} : db),
+        databases: state.databases.map(db => db.links.self === database.links.self ? {...db, name} : db),
       }
 
       return {...state, ...newState}
@@ -164,9 +165,9 @@ export default function admin(state = initialState, action) {
       const {database, retentionPolicy} = action.payload
 
       const newState = {
-        databases: state.databases.map(db => db.id === database.id ? {
+        databases: state.databases.map(db => db.links.self === database.links.self ? {
           ...db,
-          retentionPolicies: db.retentionPolicies.map(rp => rp.id === retentionPolicy.id ? {...rp, ...retentionPolicy} : rp),
+          retentionPolicies: db.retentionPolicies.map(rp => rp.links.self === retentionPolicy.links.self ? {...rp, ...retentionPolicy} : rp),
         } : db),
       }
 
@@ -194,7 +195,7 @@ export default function admin(state = initialState, action) {
     case 'REMOVE_DATABASE': {
       const {database} = action.payload
       const newState = {
-        databases: state.databases.filter(db => db.id !== database.id),
+        databases: state.databases.filter(db => db.links.self !== database.links.self),
       }
 
       return {...state, ...newState}
@@ -203,9 +204,9 @@ export default function admin(state = initialState, action) {
     case 'REMOVE_RETENTION_POLICY': {
       const {database, retentionPolicy} = action.payload
       const newState = {
-        databases: state.databases.map(db => db.id === database.id ? {
+        databases: state.databases.map(db => db.links.self === database.links.self ? {
           ...db,
-          retentionPolicies: db.retentionPolicies.filter(rp => rp.id !== retentionPolicy.id),
+          retentionPolicies: db.retentionPolicies.filter(rp => rp.links.self !== retentionPolicy.links.self),
         }
           : db),
       }
@@ -216,7 +217,7 @@ export default function admin(state = initialState, action) {
     case 'START_DELETE_DATABASE': {
       const {database} = action.payload
       const newState = {
-        databases: state.databases.map(db => db.id === database.id ? {...db, deleteCode: ''} : db),
+        databases: state.databases.map(db => db.links.self === database.links.self ? {...db, deleteCode: ''} : db),
       }
 
       return {...state, ...newState}
@@ -225,7 +226,7 @@ export default function admin(state = initialState, action) {
     case 'UPDATE_DATABASE_DELETE_CODE': {
       const {database, deleteCode} = action.payload
       const newState = {
-        databases: state.databases.map(db => db.id === database.id ? {...db, deleteCode} : db),
+        databases: state.databases.map(db => db.links.self === database.links.self ? {...db, deleteCode} : db),
       }
 
       return {...state, ...newState}
@@ -236,7 +237,7 @@ export default function admin(state = initialState, action) {
       delete database.deleteCode
 
       const newState = {
-        databases: state.databases.map(db => db.id === database.id ? {...database} : db),
+        databases: state.databases.map(db => db.links.self === database.links.self ? {...database} : db),
       }
 
       return {...state, ...newState}
