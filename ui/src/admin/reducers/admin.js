@@ -119,9 +119,9 @@ export default function admin(state = initialState, action) {
     }
 
     case 'EDIT_DATABASE': {
-      const {database, name} = action.payload
+      const {database, updates} = action.payload
       const newState = {
-        databases: state.databases.map(db => db.links.self === database.links.self ? {...db, name} : db),
+        databases: state.databases.map(db => db.links.self === database.links.self ? {...db, ...updates} : db),
       }
 
       return {...state, ...newState}
@@ -184,15 +184,6 @@ export default function admin(state = initialState, action) {
       const {database} = action.payload
       const newState = {
         databases: state.databases.map(db => db.links.self === database.links.self ? {...db, deleteCode: ''} : db),
-      }
-
-      return {...state, ...newState}
-    }
-
-    case 'UPDATE_DATABASE_DELETE_CODE': {
-      const {database, deleteCode} = action.payload
-      const newState = {
-        databases: state.databases.map(db => db.links.self === database.links.self ? {...db, deleteCode} : db),
       }
 
       return {...state, ...newState}

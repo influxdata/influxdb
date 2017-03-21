@@ -110,11 +110,11 @@ export const editRole = (role, updates) => ({
   },
 })
 
-export const editDatabase = (database, name) => ({
+export const editDatabase = (database, updates) => ({
   type: 'EDIT_DATABASE',
   payload: {
-    name,
     database,
+    updates,
   },
 })
 
@@ -188,14 +188,6 @@ export const startDeleteDatabase = (database) => ({
   type: 'START_DELETE_DATABASE',
   payload: {
     database,
-  },
-})
-
-export const updateDatabaseDeleteCode = (database, deleteCode) => ({
-  type: 'UPDATE_DATABASE_DELETE_CODE',
-  payload: {
-    database,
-    deleteCode,
   },
 })
 

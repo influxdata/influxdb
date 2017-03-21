@@ -144,9 +144,9 @@ describe('Admin.Reducers', () => {
     })
 
     it('can edit a database', () => {
-      const name = 'dbOne'
-      const actual = reducer(state, editDatabase(db1, name))
-      const expected = [{...db1, name}]
+      const updates = {name: 'dbOne'}
+      const actual = reducer(state, editDatabase(db1, updates))
+      const expected = [{...db1, ...updates}]
 
       expect(actual.databases).to.deep.equal(expected)
     })

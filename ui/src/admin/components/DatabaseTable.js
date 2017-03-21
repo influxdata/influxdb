@@ -191,7 +191,7 @@ const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (
           type="text"
           value={database.name}
           placeholder="database name"
-          onChange={(e) => onEdit(database, e.target.value)}
+          onChange={(e) => onEdit(database, {name: e.target.value})}
           onKeyDown={(e) => onKeyDown(e, database)}
           autoFocus={true}
         />

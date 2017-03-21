@@ -68,7 +68,7 @@ class DatabaseManagerPage extends Component {
       return actions.deleteDatabaseAsync(source, database)
     }
 
-    actions.updateDatabaseDeleteCode(database, value)
+    actions.editDatabase(database, {deleteCode: value})
   }
 }
 
@@ -105,7 +105,6 @@ DatabaseManagerPage.propTypes = {
     addDatabase: func,
     removeDatabase: func,
     startDeleteDatabase: func,
-    updateDatabaseDeleteCode: func,
     removeDatabaseDeleteCode: func,
     editRetentionPolicy: func,
     removeRetentionPolicy: func,
