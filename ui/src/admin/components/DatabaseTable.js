@@ -9,6 +9,7 @@ const {
 
 const DatabaseTable = ({
   database,
+  notify,
   onEditDatabase,
   onKeyDownDatabase,
   onCancelDatabase,
@@ -47,6 +48,7 @@ const DatabaseTable = ({
                 return (
                   <DatabaseRow
                     key={rp.id}
+                    notify={notify}
                     database={database}
                     retentionPolicy={rp}
                     onCreate={onCreateRetentionPolicy}
@@ -65,6 +67,7 @@ const DatabaseTable = ({
 DatabaseTable.propTypes = {
   onEditDatabase: func,
   database: shape(),
+  notify: func,
   onKeyDownDatabase: func,
   onCancelDatabase: func,
   onConfirmDatabase: func,

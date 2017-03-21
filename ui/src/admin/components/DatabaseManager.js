@@ -3,6 +3,7 @@ import DatabaseTable from 'src/admin/components/DatabaseTable'
 
 const DatabaseManager = ({
   databases,
+  notify,
   addDatabase,
   onEditDatabase,
   onKeyDownDatabase,
@@ -29,6 +30,7 @@ const DatabaseManager = ({
             <DatabaseTable
               key={db.id}
               database={db}
+              notify={notify}
               onEditDatabase={onEditDatabase}
               onKeyDownDatabase={onKeyDownDatabase}
               onCancelDatabase={onCancelDatabase}
@@ -57,6 +59,7 @@ const {
 
 DatabaseManager.propTypes = {
   databases: arrayOf(shape()),
+  notify: func,
   addDatabase: func,
   onEditDatabase: func,
   onKeyDownDatabase: func,

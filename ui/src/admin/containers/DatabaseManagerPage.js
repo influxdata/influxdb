@@ -4,6 +4,7 @@ import {bindActionCreators} from 'redux'
 
 import * as adminActionCreators from 'src/admin/actions'
 import DatabaseManager from 'src/admin/components/DatabaseManager'
+import {publishNotification} from 'src/shared/actions/notifications';
 
 class DatabaseManagerPage extends Component {
   constructor(props) {
@@ -19,11 +20,12 @@ class DatabaseManagerPage extends Component {
   }
 
   render() {
-    const {databases, actions} = this.props
+    const {databases, actions, notify} = this.props
 
     return (
       <DatabaseManager
         databases={databases}
+        notify={notify}
         onKeyDownDatabase={this.handleKeyDownDatabase}
         onDatabaseDeleteConfirm={this.handleDatabaseDeleteConfirm}
         addDatabase={actions.addDatabase}
@@ -107,6 +109,7 @@ DatabaseManagerPage.propTypes = {
     removeDatabaseDeleteCode: func,
     editRetentionPolicy: func,
   }),
+  notify: func,
 }
 
 const mapStateToProps = ({admin: {databases, retentionPolicies}}) => ({
@@ -116,6 +119,7 @@ const mapStateToProps = ({admin: {databases, retentionPolicies}}) => ({
 
 const mapDispatchToProps = (dispatch) => ({
   actions: bindActionCreators(adminActionCreators, dispatch),
+  notify: bindActionCreators(publishNotification, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DatabaseManagerPage)

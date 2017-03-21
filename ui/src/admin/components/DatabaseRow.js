@@ -15,63 +15,7 @@ class DatabaseRow extends Component {
     this.handleEndEdit = ::this.handleEndEdit
     this.handleCreate = ::this.handleCreate
     this.handleUpdate = ::this.handleUpdate
-    this._getInputValues = ::this._getInputValues
-  }
-
-  handleClickOutside() {
-    this.handleEndEdit()
-  }
-
-  handleStartEdit() {
-    this.setState({isEditing: true})
-  }
-
-  handleEndEdit() {
-    this.setState({isEditing: false})
-  }
-
-  handleCreate() {
-    const {database, onCreate} = this.props
-    onCreate(database, this._getInputValues())
-    this.handleEndEdit()
-  }
-
-  handleUpdate() {
-    const {database, retentionPolicy, onUpdate} = this.props
-    onUpdate(database, {...retentionPolicy, ...this._getInputValues()})
-    this.handleEndEdit()
-  }
-
-  handleKeyDown(e) {
-    const {key} = e
-    const {retentionPolicy, database, onCancel} = this.props
-
-
-    if (key === 'Escape') {
-      if (retentionPolicy.isNew) {
-        onCancel(database, retentionPolicy)
-        return
-      }
-
-      this.handleEndEdit()
-    }
-
-    if (key === 'Enter') {
-      if (retentionPolicy.isNew) {
-        this.handleCreate()
-        return
-      }
-
-      this.handleUpdate()
-    }
-  }
-
-  _getInputValues() {
-    return {
-      name: this.name.value.trim(),
-      duration: this.duration.value.trim(),
-      replication: +this.replication.value.trim(),
-    }
+    this.getInputValues = ::this.getInputValues
   }
 
   render() {
@@ -150,6 +94,82 @@ class DatabaseRow extends Component {
       </tr>
     )
   }
+
+  handleClickOutside() {
+    this.handleEndEdit()
+  }
+
+  handleStartEdit() {
+    this.setState({isEditing: true})
+  }
+
+  handleEndEdit() {
+    this.setState({isEditing: false})
+  }
+
+  handleCreate() {
+    const {database, onCreate} = this.props
+    const validInputs = this.getInputValues()
+    if (!validInputs) {
+      return
+    }
+
+    onCreate(database, validInputs)
+    this.handleEndEdit()
+  }
+
+  handleUpdate() {
+    const {database, retentionPolicy, onUpdate} = this.props
+    const validInputs = this.getInputValues()
+    if (!validInputs) {
+      return
+    }
+
+    onUpdate(database, {...retentionPolicy, ...validInputs})
+    this.handleEndEdit()
+  }
+
+  handleKeyDown(e) {
+    const {key} = e
+    const {retentionPolicy, database, onCancel} = this.props
+
+
+    if (key === 'Escape') {
+      if (retentionPolicy.isNew) {
+        onCancel(database, retentionPolicy)
+        return
+      }
+
+      this.handleEndEdit()
+    }
+
+    if (key === 'Enter') {
+      if (retentionPolicy.isNew) {
+        this.handleCreate()
+        return
+      }
+
+      this.handleUpdate()
+    }
+  }
+
+  getInputValues() {
+    const name = this.name.value.trim()
+    const duration = this.duration.value.trim()
+    const replication = +this.replication.value.trim()
+
+    if (!name || !duration || !replication) {
+      this.props.notify('error', 'Fields cannot be empty')
+      return
+    }
+
+    return {
+      name,
+      duration,
+      replication,
+    }
+  }
+
 }
 
 const {
@@ -169,10 +189,10 @@ DatabaseRow.propTypes = {
     isEditing: bool,
   }),
   database: shape(),
-  onEdit: func,
   onCancel: func,
   onCreate: func,
   onUpdate: func,
+  notify: func,
 }
 
 export default onClickOutside(DatabaseRow)
