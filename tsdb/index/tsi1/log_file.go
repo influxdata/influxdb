@@ -750,14 +750,14 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, info *logFileCompactInfo, n *i
 		mm := f.mms[name]
 
 		// Sort series.
-		keys := make([]string, 0, len(mm.series))
+		keys := make([][]byte, 0, len(mm.series))
 		for k := range mm.series {
-			keys = append(keys, k)
+			keys = append(keys, []byte(k))
 		}
-		sort.Slice(keys, func(i, j int) bool { return CompareSeriesKeys([]byte(keys[i]), []byte(keys[j])) == -1 })
+		sort.Sort(seriesKeys(keys))
 
 		for _, key := range keys {
-			serie := mm.series[key]
+			serie := mm.series[string(key)]
 			if err := enc.Encode(serie.name, serie.tags, serie.deleted); err != nil {
 				return err
 			}
