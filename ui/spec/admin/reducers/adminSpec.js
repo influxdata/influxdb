@@ -3,6 +3,7 @@ import reducer from 'src/admin/reducers/admin'
 import {
   addUser,
   addRole,
+  addDatabase,
   syncUser,
   syncRole,
   editUser,
@@ -102,20 +103,46 @@ const r2 = {
   links: {self: '/chronograf/v1/sources/1/roles/l33tus3r'}
 }
 const roles = [r1, r2]
-const newDefaultRole = {
-  name: '',
-  users: [],
-  permissions: [],
-  links: {self: ''},
-  isNew: true,
-}
 
 // Permissions
 const global = {scope: 'all', allowed: ['p1', 'p2']}
 const scoped = {scope: 'db1', allowed: ['p1', 'p3']}
 const permissions = [global, scoped]
 
+// Databases && Retention Policies
+const db1 = {
+  name: 'db1',
+  links: {self: '/chronograf/v1/sources/1/db/db1'},
+  retentionPolicies: [],
+}
+
+const db2 = {
+  name: 'db2',
+  links: {self: '/chronograf/v1/sources/1/db/db2'},
+  retentionPolicies: [],
+}
+
 describe('Admin.Reducers', () => {
+  describe('Databases', () => {
+    it('can add a database', () => {
+      state = {
+        databases: [
+          db1,
+        ]
+      }
+
+      const actual = reducer(state, addDatabase())
+      const expected = {
+        databases: [
+          {...NEW_DEFAULT_DATABASE, isEditing: true},
+          db1,
+        ],
+      }
+
+      expect(actual.databases).to.deep.equal(expected.databases)
+    })
+  })
+
   it('it can add a user', () => {
     state = {
       users: [
