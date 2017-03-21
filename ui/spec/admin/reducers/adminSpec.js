@@ -16,6 +16,7 @@ import {
   removeDatabase,
   filterRoles,
   filterUsers,
+  startDeleteDatabase,
 } from 'src/admin/actions'
 
 import {
@@ -153,6 +154,16 @@ describe('Admin.Reducers', () => {
     it('can remove a database', () => {
       const actual = reducer(state, removeDatabase(db1))
       const expected = []
+
+      expect(actual.databases).to.deep.equal(expected)
+    })
+
+    it('can start delete database by adding a delete code', () => {
+      const actual = reducer(state, startDeleteDatabase(db1))
+      const expected = [
+        {...db1, deleteCode: ''}
+      ]
+
 
       expect(actual.databases).to.deep.equal(expected)
     })
