@@ -180,7 +180,7 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'START_DELETE_DATABASE': {
+    case 'ADD_DATABASE_DELETE_CODE': {
       const {database} = action.payload
       const newState = {
         databases: state.databases.map(db => db.links.self === database.links.self ? {...db, deleteCode: ''} : db),

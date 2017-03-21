@@ -16,7 +16,8 @@ import {
   removeDatabase,
   filterRoles,
   filterUsers,
-  startDeleteDatabase,
+  addDatabaseDeleteCode,
+  removeDatabaseDeleteCode,
 } from 'src/admin/actions'
 
 import {
@@ -123,21 +124,19 @@ const db2 = {
   name: 'db2',
   links: {self: '/chronograf/v1/sources/1/db/db2'},
   retentionPolicies: [],
+  deleteCode: 'DELETE',
 }
 
 describe('Admin.Reducers', () => {
   describe('Databases and Retention Policies', () => {
-    const state = {
-      databases: [
-        db1,
-      ]
-    }
+    const state = {databases: [db1, db2]}
 
     it('can add a database', () => {
       const actual = reducer(state, addDatabase())
       const expected = [
         {...NEW_DEFAULT_DATABASE, isEditing: true},
         db1,
+        db2,
       ]
 
       expect(actual.databases).to.deep.equal(expected)
@@ -146,27 +145,39 @@ describe('Admin.Reducers', () => {
     it('can edit a database', () => {
       const updates = {name: 'dbOne'}
       const actual = reducer(state, editDatabase(db1, updates))
-      const expected = [{...db1, ...updates}]
+      const expected = [{...db1, ...updates}, db2]
 
       expect(actual.databases).to.deep.equal(expected)
     })
 
     it('can remove a database', () => {
       const actual = reducer(state, removeDatabase(db1))
-      const expected = []
+      const expected = [db2]
 
       expect(actual.databases).to.deep.equal(expected)
     })
 
-    it('can start delete database by adding a delete code', () => {
-      const actual = reducer(state, startDeleteDatabase(db1))
+    it('can add a database delete code', () => {
+      const actual = reducer(state, addDatabaseDeleteCode(db1))
       const expected = [
-        {...db1, deleteCode: ''}
+        {...db1, deleteCode: ''},
+        db2,
       ]
 
+      expect(actual.databases).to.deep.equal(expected)
+    })
+
+    it('can remove the delete code', () => {
+      const actual = reducer(state, removeDatabaseDeleteCode(db2))
+      delete db2.deleteCode
+      const expected = [
+        db1,
+        db2,
+      ]
 
       expect(actual.databases).to.deep.equal(expected)
     })
+
   })
 
   it('it can add a user', () => {

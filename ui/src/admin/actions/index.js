@@ -184,8 +184,8 @@ export const filterRoles = (text) => ({
   },
 })
 
-export const startDeleteDatabase = (database) => ({
-  type: 'START_DELETE_DATABASE',
+export const addDatabaseDeleteCode = (database) => ({
+  type: 'ADD_DATABASE_DELETE_CODE',
   payload: {
     database,
   },

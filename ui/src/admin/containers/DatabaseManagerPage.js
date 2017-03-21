@@ -32,7 +32,7 @@ class DatabaseManagerPage extends Component {
         onEditDatabase={actions.editDatabase}
         onCancelDatabase={actions.removeDatabase}
         onConfirmDatabase={actions.createDatabaseAsync}
-        onStartDeleteDatabase={actions.startDeleteDatabase}
+        onStartDeleteDatabase={actions.addDatabaseDeleteCode}
         onAddRetentionPolicy={actions.addRetentionPolicy}
         onEditRetentionPolicy={actions.editRetentionPolicy}
         onCreateRetentionPolicy={actions.createRetentionPolicyAsync}
