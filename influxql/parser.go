@@ -2501,7 +2501,10 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 	case TRUE, FALSE:
 		return &BooleanLiteral{Val: (tok == TRUE)}, nil
 	case DURATIONVAL:
-		v, _ := ParseDuration(lit)
+		v, err := ParseDuration(lit)
+		if err != nil {
+			return nil, err
+		}
 		return &DurationLiteral{Val: v}, nil
 	case MUL:
 		wc := &Wildcard{}

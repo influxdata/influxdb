@@ -3030,6 +3030,12 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
+		// Duration math with an invalid literal.
+		{
+			s:   `time > now() - 1y`,
+			err: `invalid duration`,
+		},
+
 		// Function call (empty)
 		{
 			s: `my_func()`,
