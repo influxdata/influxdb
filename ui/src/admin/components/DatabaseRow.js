@@ -18,9 +18,17 @@ class DatabaseRow extends Component {
     this.getInputValues = ::this.getInputValues
   }
 
+  componentWillMount() {
+    if (this.props.retentionPolicy.isNew) {
+      this.setState({isEditing: true})
+    }
+  }
+
   render() {
     const {
+      onRemove,
       retentionPolicy: {name, duration, replication, isDefault, isNew},
+      retentionPolicy,
       database,
     } = this.props
 
@@ -67,11 +75,11 @@ class DatabaseRow extends Component {
                 ref={(r) => this.replication = r}
               />
             </div>
-          </td>
+         </td>
           <td className="text-right">
             <YesNoButtons
               onConfirm={isNew ? this.handleCreate : this.handleUpdate}
-              onCancel={this.handleEndEdit}
+              onCancel={isNew ? () => onRemove(database, retentionPolicy) : this.handleEndEdit}
             />
           </td>
         </tr>
@@ -131,12 +139,12 @@ class DatabaseRow extends Component {
 
   handleKeyDown(e) {
     const {key} = e
-    const {retentionPolicy, database, onCancel} = this.props
+    const {retentionPolicy, database, onRemove} = this.props
 
 
     if (key === 'Escape') {
       if (retentionPolicy.isNew) {
-        onCancel(database, retentionPolicy)
+        onRemove(database, retentionPolicy)
         return
       }
 
@@ -189,7 +197,7 @@ DatabaseRow.propTypes = {
     isEditing: bool,
   }),
   database: shape(),
-  onCancel: func,
+  onRemove: func,
   onCreate: func,
   onUpdate: func,
   notify: func,

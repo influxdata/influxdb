@@ -35,9 +35,9 @@ class DatabaseManagerPage extends Component {
         onStartDeleteDatabase={actions.startDeleteDatabase}
         onAddRetentionPolicy={actions.addRetentionPolicy}
         onEditRetentionPolicy={actions.editRetentionPolicy}
-        onCancelRetentionPolicy={actions.removeRetentionPolicy}
         onCreateRetentionPolicy={actions.createRetentionPolicyAsync}
         onUpdateRetentionPolicy={actions.updateRetentionPolicyAsync}
+        onRemoveRetentionPolicy={actions.removeRetentionPolicy}
       />
     )
   }
@@ -108,6 +108,7 @@ DatabaseManagerPage.propTypes = {
     updateDatabaseDeleteCode: func,
     removeDatabaseDeleteCode: func,
     editRetentionPolicy: func,
+    removeRetentionPolicy: func,
   }),
   notify: func,
 }
