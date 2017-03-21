@@ -271,7 +271,7 @@ func (s *Shard) Open() error {
 
 		return nil
 	}(); err != nil {
-		s.close()
+		s.close(true)
 		return NewShardError(s.id, err)
 	}
 
@@ -289,14 +289,28 @@ func (s *Shard) UnloadIndex() {
 	s.index.RemoveShard(s.id)
 }
 
-// Close shuts down the shard's store.
+// Close closes the shard, removing the shard ID and any of the shard's series
+// keys from any associated indexes.
 func (s *Shard) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.close()
+	return s.close(true)
 }
 
-func (s *Shard) close() error {
+// CloseFast closes the shard without cleaning up the shard ID or any of the
+// shard's series keys from the index it belongs to.
+//
+// CloseFast can be called when the entire index is being removed, e.g., when
+// the database the shard belongs to is being dropped.
+func (s *Shard) CloseFast() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.close(false)
+}
+
+// close closes the shard an removes reference to the shard from associated
+// indexes, unless clean is false.
+func (s *Shard) close(clean bool) error {
 	if s.engine == nil {
 		return nil
 	}
@@ -308,8 +322,10 @@ func (s *Shard) close() error {
 		close(s.closing)
 	}
 
-	// Don't leak our shard ID and series keys in the index
-	s.UnloadIndex()
+	if clean {
+		// Don't leak our shard ID and series keys in the index
+		s.UnloadIndex()
+	}
 
 	err := s.engine.Close()
 	if err == nil {

@@ -402,7 +402,7 @@ func (s *Store) DeleteDatabase(name string) error {
 			return nil
 		}
 
-		return sh.Close()
+		return sh.CloseFast()
 	}); err != nil {
 		return err
 	}

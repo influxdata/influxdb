@@ -509,39 +509,6 @@ func (d *DatabaseIndex) dropMeasurement(name string) {
 	atomic.AddInt64(&d.stats.NumMeasurementsDropped, 1)
 }
 
-// DropSeries removes the series keys and their tags from the index.
-func (d *DatabaseIndex) DropSeries(keys []string) {
-	d.mu.Lock()
-	defer d.mu.Unlock()
-
-	var (
-		mToDelete = map[string]struct{}{}
-		nDeleted  int64
-	)
-
-	for _, k := range keys {
-		series := d.series[k]
-		if series == nil {
-			continue
-		}
-		series.measurement.DropSeries(series)
-		delete(d.series, k)
-		nDeleted++
-
-		// If there are no more series in the measurement then we'll
-		// remove it.
-		if len(series.measurement.seriesByID) == 0 {
-			mToDelete[series.measurement.Name] = struct{}{}
-		}
-	}
-
-	for mname := range mToDelete {
-		d.dropMeasurement(mname)
-	}
-	atomic.AddInt64(&d.stats.NumSeries, -nDeleted)
-	atomic.AddInt64(&d.stats.NumSeriesDropped, nDeleted)
-}
-
 // Dereference removes all references to data within b and moves them to the heap.
 func (d *DatabaseIndex) Dereference(b []byte) {
 	d.mu.RLock()
