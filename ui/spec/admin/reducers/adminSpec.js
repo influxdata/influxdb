@@ -13,6 +13,7 @@ import {
   loadPermissions,
   deleteRole,
   deleteUser,
+  removeDatabase,
   filterRoles,
   filterUsers,
 } from 'src/admin/actions'
@@ -145,6 +146,13 @@ describe('Admin.Reducers', () => {
       const name = 'dbOne'
       const actual = reducer(state, editDatabase(db1, name))
       const expected = [{...db1, name}]
+
+      expect(actual.databases).to.deep.equal(expected)
+    })
+
+    it('can remove a database', () => {
+      const actual = reducer(state, removeDatabase(db1))
+      const expected = []
 
       expect(actual.databases).to.deep.equal(expected)
     })
