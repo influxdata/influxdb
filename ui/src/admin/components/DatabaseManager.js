@@ -13,9 +13,9 @@ const DatabaseManager = ({
   onAddRetentionPolicy,
   onEditRetentionPolicy,
   onStopEditRetentionPolicy,
-  onKeyDownRetentionPolicy,
   onCancelRetentionPolicy,
   onCreateRetentionPolicy,
+  onUpdateRetentionPolicy,
 }) => {
   return (
     <div className="panel panel-info">
@@ -38,9 +38,9 @@ const DatabaseManager = ({
               onAddRetentionPolicy={onAddRetentionPolicy}
               onEditRetentionPolicy={onEditRetentionPolicy}
               onStopEditRetentionPolicy={onStopEditRetentionPolicy}
-              onKeyDownRetentionPolicy={onKeyDownRetentionPolicy}
               onCancelRetentionPolicy={onCancelRetentionPolicy}
               onCreateRetentionPolicy={onCreateRetentionPolicy}
+              onUpdateRetentionPolicy={onUpdateRetentionPolicy}
             />
           )
         }
@@ -67,9 +67,9 @@ DatabaseManager.propTypes = {
   onAddRetentionPolicy: func,
   onEditRetentionPolicy: func,
   onStopEditRetentionPolicy: func,
-  onKeyDownRetentionPolicy: func,
   onCancelRetentionPolicy: func,
   onCreateRetentionPolicy: func,
+  onUpdateRetentionPolicy: func,
 }
 
 export default DatabaseManager

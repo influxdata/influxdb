@@ -31,7 +31,6 @@ const newEmptyRP = {
   duration: '',
   replication: 0,
   isNew: true,
-  isEditing: true,
 }
 
 const newDefaultDatabase = {
@@ -168,21 +167,7 @@ export default function admin(state = initialState, action) {
       const newState = {
         databases: state.databases.map(db => db.id === database.id ? {
           ...db,
-          retentionPolicies: db.retentionPolicies.map(rp => rp.id === retentionPolicy.id ? {...rp, ...retentionPolicy, isEditing: true} : rp),
-        } : db),
-      }
-
-      return {...state, ...newState}
-    }
-
-    case 'STOP_EDIT_RETENTION_POLICY': {
-      const {database, retentionPolicy} = action.payload
-      delete retentionPolicy.isEditing
-
-      const newState = {
-        databases: state.databases.map(db => db.id === database.id ? {
-          ...db,
-          retentionPolicies: db.retentionPolicies.map(rp => rp.id === retentionPolicy.id ? {...retentionPolicy} : rp),
+          retentionPolicies: db.retentionPolicies.map(rp => rp.id === retentionPolicy.id ? {...rp, ...retentionPolicy} : rp),
         } : db),
       }
 

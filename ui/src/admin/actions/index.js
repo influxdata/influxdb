@@ -218,14 +218,6 @@ export const editRetentionPolicy = (database, retentionPolicy) => ({
   },
 })
 
-export const stopEditRetentionPolicy = (database, retentionPolicy) => ({
-  type: 'STOP_EDIT_RETENTION_POLICY',
-  payload: {
-    database,
-    retentionPolicy,
-  },
-})
-
 // async actions
 export const loadUsersAsync = (url) => async (dispatch) => {
   const {data} = await getUsersAJAX(url)
@@ -302,6 +294,18 @@ export const createRetentionPolicyAsync = (url, retentionPolicy) => async (dispa
   } catch (error) {
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create retention policy: ${error.data.message}`))
+    setTimeout(() => dispatch(removeRetentionPolicy(retentionPolicy)), ADMIN_NOTIFICATION_DELAY)
+  }
+}
+
+export const updateRetentionPolicyAsync = (database, retentionPolicy) => async (dispatch) => {
+  try {
+    // TODO: implement once server is up
+    dispatch(editRetentionPolicy(database, retentionPolicy))
+    // const {data} = await createRetentionPolicyAJAX(url, retentionPolicy)
+    dispatch(publishNotification('success', 'Retention policy updated successfully'))
+    // dispatch(syncRetentionPolicy(retentionPolicy, {...data, id: uuid.v4()}))
+  } catch (error) {
     setTimeout(() => dispatch(removeRetentionPolicy(retentionPolicy)), ADMIN_NOTIFICATION_DELAY)
   }
 }

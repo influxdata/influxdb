@@ -10,10 +10,6 @@ class DatabaseManagerPage extends Component {
     super(props)
     this.handleKeyDownDatabase = ::this.handleKeyDownDatabase
     this.handleDatabaseDeleteConfirm = ::this.handleDatabaseDeleteConfirm
-    this.handleKeyDownRetentionPolicy = ::this.handleKeyDownRetentionPolicy
-    this.handleCancelRetentionPolicy = ::this.handleCancelRetentionPolicy
-    this.handleCreateRetentionPolicy = ::this.handleCreateRetentionPolicy
-    this.handleStopEditRetentionPolicy = ::this.handleStopEditRetentionPolicy
   }
 
   componentDidMount() {
@@ -30,7 +26,6 @@ class DatabaseManagerPage extends Component {
         databases={databases}
         onKeyDownDatabase={this.handleKeyDownDatabase}
         onDatabaseDeleteConfirm={this.handleDatabaseDeleteConfirm}
-        onKeyDownRetentionPolicy={this.handleKeyDownRetentionPolicy}
         addDatabase={actions.addDatabase}
         onEditDatabase={actions.editDatabase}
         onCancelDatabase={actions.removeDatabase}
@@ -38,48 +33,11 @@ class DatabaseManagerPage extends Component {
         onStartDeleteDatabase={actions.startDeleteDatabase}
         onAddRetentionPolicy={actions.addRetentionPolicy}
         onEditRetentionPolicy={actions.editRetentionPolicy}
-        onStopEditRetentionPolicy={this.handleStopEditRetentionPolicy}
-        onCancelRetentionPolicy={this.handleCancelRetentionPolicy}
-        onCreateRetentionPolicy={this.handleCreateRetentionPolicy}
+        onCancelRetentionPolicy={actions.removeRetentionPolicy}
+        onCreateRetentionPolicy={actions.createRetentionPolicyAsync}
+        onUpdateRetentionPolicy={actions.updateRetentionPolicyAsync}
       />
     )
-  }
-
-  handleStopEditRetentionPolicy({database, retentionPolicy}) {
-    this.props.actions.stopEditRetentionPolicy(database, retentionPolicy)
-  }
-
-  handleCancelRetentionPolicy({database, retentionPolicy}) {
-    this.props.actions.removeRetentionPolicy(database, retentionPolicy)
-  }
-
-  handleCreateRetentionPolicy({database, retentionPolicy}) {
-    this.props.actions.createRetentionPolicyAsync(database, retentionPolicy)
-  }
-
-  handleKeyDownRetentionPolicy(e, db, rp) {
-    const {key} = e
-    const {actions} = this.props
-
-    if (rp.isNew) {
-      if (key === 'Escape') {
-        return actions.removeRetentionPolicy(db, rp)
-      }
-
-      if (key === 'Enter') {
-        // TODO: validate input
-        return actions.createRetentionPolicyAsync(db, rp)
-      }
-    }
-
-    if (key === 'Escape') {
-      actions.stopEditRetentionPolicy(db, rp)
-    }
-
-    if (key === 'Enter') {
-      // TODO: validate input
-      // actions.updateRetentionPolicy(db, rp)
-    }
   }
 
   handleKeyDownDatabase(e, database) {
