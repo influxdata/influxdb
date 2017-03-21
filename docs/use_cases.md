@@ -110,7 +110,7 @@ instance, Chronograf uses Telegraf's `host` tag to populate the [HOST LIST](http
 
 The system stats dashboard template shows the CPU, Disk, and Memory metrics for the selected hostname:
 
-![Dashboard Template](https://github.com/influxdata/chronograf/blob/master/docs/images/template-dashboard-usecase.png)
+![Dashboard Template](https://github.com/influxdata/chronograf/blob/master/docs/images/template-dashboard-usecase.gif)
 
 Finally, you can create queries in the [Data Explorer](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#data-explorer) that graph results per hostname:
 

@@ -13,7 +13,7 @@ It lists every host that is sending [Telegraf](https://github.com/influxdata/tel
 ![Host List](https://github.com/influxdata/chronograf/blob/master/docs/images/host-list-gs.png)
 
 The Chronograf instance shown above is connected to two hosts (`telegraf-narnia` and `telegraf-neverland`).
-The first host is using 0.43%	of its total CPU and has a load of 0.00.
+The first host is using 0.35%	of its total CPU and has a load of 0.00.
 It has one configured app: `system`.
 Apps are Telegraf [input plugins](https://github.com/influxdata/telegraf#input-plugins) that have dashboard templates in Chronograf.
 
@@ -23,7 +23,8 @@ Here's the dashboard template for Telegraf's [system stats](https://github.com/i
 
 ![System Graph Layout](https://github.com/influxdata/chronograf/blob/master/docs/images/system-layout-gs.gif)
 
-Hover over the graphs to get additional information about the data, and select alternative time ranges for the graphs by using the time selector in the top right corner.
+Hover over the graphs to get additional information about the data.
+In addition, select alternative refresh intervals, alternative time ranges, and enter presentation mode with the icons in the top right corner.
 
 See the [README](https://github.com/influxdata/chronograf#dashboard-templates) for a complete list of the apps supported by Chronograf.
 
@@ -44,7 +45,7 @@ Paste an existing [InfluxQL](https://docs.influxdata.com/influxdb/latest/query_l
 ![Raw Editor](https://github.com/influxdata/chronograf/blob/master/docs/images/raw-editor-gs.gif)
 
 ### Other Features
-View query results in tabular format (1) and easily alter the query's time range with the time range selector (2):
+Select an alternative refresh interval (1), an alternative time range (2), and view query results in tabular format (3):
 
 ![Data Exploration Extras](https://github.com/influxdata/chronograf/blob/master/docs/images/data-exploration-extras-gs.png)
 
@@ -108,4 +109,3 @@ Chronograf-friendly alert rule.
 >
 * Currently, the Alerta TICKscript parser requires users to **paste** their existing TICKscript in the text input. The parser does not support manually entering or editing a TICKscript.
 * The parser requires users to whitespace delimit any services listed in the TICKscript's [`.services()` attribute](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#alerta-services).
-master
