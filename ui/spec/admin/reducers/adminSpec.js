@@ -8,6 +8,7 @@ import {
   syncRole,
   editUser,
   editRole,
+  editDatabase,
   loadRoles,
   loadPermissions,
   deleteRole,
@@ -123,23 +124,29 @@ const db2 = {
 }
 
 describe('Admin.Reducers', () => {
-  describe('Databases', () => {
+  describe('Databases and Retention Policies', () => {
+    const state = {
+      databases: [
+        db1,
+      ]
+    }
+
     it('can add a database', () => {
-      state = {
-        databases: [
-          db1,
-        ]
-      }
-
       const actual = reducer(state, addDatabase())
-      const expected = {
-        databases: [
-          {...NEW_DEFAULT_DATABASE, isEditing: true},
-          db1,
-        ],
-      }
+      const expected = [
+        {...NEW_DEFAULT_DATABASE, isEditing: true},
+        db1,
+      ]
 
-      expect(actual.databases).to.deep.equal(expected.databases)
+      expect(actual.databases).to.deep.equal(expected)
+    })
+
+    it('can edit a database', () => {
+      const name = 'dbOne'
+      const actual = reducer(state, editDatabase(db1, name))
+      const expected = [{...db1, name}]
+
+      expect(actual.databases).to.deep.equal(expected)
     })
   })
 

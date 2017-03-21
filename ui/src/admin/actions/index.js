@@ -110,7 +110,7 @@ export const editRole = (role, updates) => ({
   },
 })
 
-export const editDatabase = (name, database) => ({
+export const editDatabase = (database, name) => ({
   type: 'EDIT_DATABASE',
   payload: {
     name,
