@@ -3957,8 +3957,8 @@ func TimeRange(expr Expr) (min, max time.Time, err error) {
 				if min.IsZero() || value.After(min) {
 					min = value
 				}
-				if max.IsZero() || value.Add(1*time.Nanosecond).Before(max) {
-					max = value.Add(1 * time.Nanosecond)
+				if max.IsZero() || value.Before(max) {
+					max = value
 				}
 			}
 		}
