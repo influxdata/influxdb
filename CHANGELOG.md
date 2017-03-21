@@ -29,6 +29,7 @@
 - [#8174](https://github.com/influxdata/influxdb/issues/8174): Fix query parser when using addition and subtraction without spaces.
 - [#8167](https://github.com/influxdata/influxdb/issues/8167): Fix a regression when math was used with selectors.
 - [#8175](https://github.com/influxdata/influxdb/issues/8175): Ensure the input for certain functions in the query engine are ordered.
+- [#8171](https://github.com/influxdata/influxdb/issues/8171): Significantly improve shutdown speed for high cardinality databases.
 
 ## v1.2.2 [2017-03-14]
 
