@@ -160,8 +160,10 @@ func TestEngine_Backup(t *testing.T) {
 	// Write those points to the engine.
 	opt := tsdb.NewEngineOptions()
 	opt.InmemIndex = inmem.NewIndex()
+	idx := tsdb.MustOpenIndex(1, filepath.Join(f.Name(), "index"), opt)
+	defer idx.Close()
 
-	e := tsm1.NewEngine(1, tsdb.MustNewIndex(1, "", opt), f.Name(), walPath, opt).(*tsm1.Engine)
+	e := tsm1.NewEngine(1, idx, f.Name(), walPath, opt).(*tsm1.Engine)
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -572,7 +574,9 @@ func TestEngine_DeleteSeries(t *testing.T) {
 	// Write those points to the engine.
 	opt := tsdb.NewEngineOptions()
 	opt.InmemIndex = inmem.NewIndex()
-	e := tsm1.NewEngine(1, tsdb.MustNewIndex(1, "", opt), f.Name(), walPath, opt).(*tsm1.Engine)
+	idx := tsdb.MustOpenIndex(1, filepath.Join(f.Name(), "index"), opt)
+	defer idx.Close()
+	e := tsm1.NewEngine(1, idx, f.Name(), walPath, opt).(*tsm1.Engine)
 	// e.LoadMetadataIndex(1, MustNewDatabaseIndex("db0")) // Initialise an index
 
 	// mock the planner so compactions don't run during the test
@@ -625,7 +629,10 @@ func TestEngine_LastModified(t *testing.T) {
 	// Write those points to the engine.
 	opt := tsdb.NewEngineOptions()
 	opt.InmemIndex = inmem.NewIndex()
-	e := tsm1.NewEngine(1, tsdb.MustNewIndex(1, "", opt), dir, walPath, opt).(*tsm1.Engine)
+	idx := tsdb.MustOpenIndex(1, filepath.Join(dir, "index"), opt)
+	defer idx.Close()
+
+	e := tsm1.NewEngine(1, idx, dir, walPath, opt).(*tsm1.Engine)
 
 	// mock the planner so compactions don't run during the test
 	e.CompactionPlan = &mockPlanner{}
@@ -950,7 +957,8 @@ func MustInitBenchmarkEngine(pointN int) *Engine {
 // Engine is a test wrapper for tsm1.Engine.
 type Engine struct {
 	*tsm1.Engine
-	root string
+	root  string
+	index tsdb.Index
 }
 
 // NewEngine returns a new instance of Engine at a temporary location.
@@ -963,13 +971,16 @@ func NewEngine() *Engine {
 	opt := tsdb.NewEngineOptions()
 	opt.InmemIndex = inmem.NewIndex()
 
+	idx := tsdb.MustOpenIndex(1, filepath.Join(root, "data", "index"), opt)
+
 	return &Engine{
 		Engine: tsm1.NewEngine(1,
-			tsdb.MustNewIndex(1, "", opt),
+			idx,
 			filepath.Join(root, "data"),
 			filepath.Join(root, "wal"),
 			opt).(*tsm1.Engine),
-		root: root,
+		root:  root,
+		index: idx,
 	}
 }
 
@@ -987,6 +998,9 @@ func MustOpenEngine() *Engine {
 
 // Close closes the engine and removes all underlying data.
 func (e *Engine) Close() error {
+	if e.index != nil {
+		e.index.Close()
+	}
 	defer os.RemoveAll(e.root)
 	return e.Engine.Close()
 }
@@ -995,13 +1009,17 @@ func (e *Engine) Close() error {
 func (e *Engine) Reopen() error {
 	if err := e.Engine.Close(); err != nil {
 		return err
+	} else if e.index.Close(); err != nil {
+		return err
 	}
 
 	opt := tsdb.NewEngineOptions()
 	opt.InmemIndex = inmem.NewIndex()
 
+	e.index = tsdb.MustOpenIndex(1, filepath.Join(e.root, "data", "index"), opt)
+
 	e.Engine = tsm1.NewEngine(1,
-		tsdb.MustNewIndex(1, "", opt),
+		e.index,
 		filepath.Join(e.root, "data"),
 		filepath.Join(e.root, "wal"),
 		opt).(*tsm1.Engine)

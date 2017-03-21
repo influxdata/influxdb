@@ -114,9 +114,11 @@ func NewIndex(id uint64, path string, options EngineOptions) (Index, error) {
 	return fn(id, path, options), nil
 }
 
-func MustNewIndex(id uint64, path string, options EngineOptions) Index {
+func MustOpenIndex(id uint64, path string, options EngineOptions) Index {
 	idx, err := NewIndex(id, path, options)
 	if err != nil {
+		panic(err)
+	} else if err := idx.Open(); err != nil {
 		panic(err)
 	}
 	return idx
