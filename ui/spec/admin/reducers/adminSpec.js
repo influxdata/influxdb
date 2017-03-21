@@ -15,6 +15,13 @@ import {
   filterUsers,
 } from 'src/admin/actions'
 
+import {
+  NEW_DEFAULT_USER,
+  NEW_DEFAULT_ROLE,
+  NEW_DEFAULT_DATABASE,
+  NEW_EMPTY_RP,
+} from 'src/admin/constants'
+
 let state = undefined
 
 // Users
@@ -58,14 +65,6 @@ const u2 = {
   links: {self: '/chronograf/v1/sources/1/users/zerocool'},
 }
 const users = [u1, u2]
-const newDefaultUser = {
-  name: '',
-  password: '',
-  roles: [],
-  permissions: [],
-  links: {self: ''},
-  isNew: true,
-}
 
 // Roles
 const r1 = {
@@ -127,7 +126,7 @@ describe('Admin.Reducers', () => {
     const actual = reducer(state, addUser())
     const expected = {
       users: [
-        {...newDefaultUser, isEditing: true},
+        {...NEW_DEFAULT_USER, isEditing: true},
         u1,
       ],
     }
@@ -171,7 +170,7 @@ describe('Admin.Reducers', () => {
     const actual = reducer(state, addRole())
     const expected = {
       roles: [
-        {...newDefaultRole, isEditing: true},
+        {...NEW_DEFAULT_ROLE, isEditing: true},
         r1,
       ],
     }

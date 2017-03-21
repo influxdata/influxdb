@@ -1,44 +1,10 @@
 import reject from 'lodash/reject'
-
-const newDefaultUser = {
-  name: '',
-  password: '',
-  roles: [],
-  permissions: [],
-  links: {self: ''},
-  isNew: true,
-}
-
-const newDefaultRole = {
-  name: '',
-  permissions: [],
-  users: [],
-  links: {self: ''},
-  isNew: true,
-}
-
-const newDefaultRP = {
-  name: 'autogen',
-  duration: '0',
-  replication: 2,
-  isDefault: true,
-  links: {self: ''},
-}
-
-const newEmptyRP = {
-  name: '',
-  duration: '',
-  replication: 0,
-  links: {self: ''},
-  isNew: true,
-}
-
-const newDefaultDatabase = {
-  name: '',
-  isNew: true,
-  retentionPolicies: [newDefaultRP],
-  links: {self: ''},
-}
+import {
+  NEW_DEFAULT_USER,
+  NEW_DEFAULT_ROLE,
+  NEW_DEFAULT_DATABASE,
+  NEW_EMPTY_RP,
+} from 'src/admin/constants'
 
 const initialState = {
   users: null,
@@ -68,7 +34,7 @@ export default function admin(state = initialState, action) {
     }
 
     case 'ADD_USER': {
-      const newUser = {...newDefaultUser, isEditing: true}
+      const newUser = {...NEW_DEFAULT_USER, isEditing: true}
       return {
         ...state,
         users: [
@@ -79,7 +45,7 @@ export default function admin(state = initialState, action) {
     }
 
     case 'ADD_ROLE': {
-      const newRole = {...newDefaultRole, isEditing: true}
+      const newRole = {...NEW_DEFAULT_ROLE, isEditing: true}
       return {
         ...state,
         roles: [
@@ -90,7 +56,7 @@ export default function admin(state = initialState, action) {
     }
 
     case 'ADD_DATABASE': {
-      const newDatabase = {...newDefaultDatabase, isEditing: true}
+      const newDatabase = {...NEW_DEFAULT_DATABASE, isEditing: true}
 
       return {
         ...state,
@@ -105,7 +71,7 @@ export default function admin(state = initialState, action) {
       const {database} = action.payload
       const databases = state.databases.map(db =>
         db.links.self === database.links.self ?
-        {...database, retentionPolicies: [{...newEmptyRP}, ...database.retentionPolicies]}
+        {...database, retentionPolicies: [{...NEW_EMPTY_RP}, ...database.retentionPolicies]}
         : db
       )
 
