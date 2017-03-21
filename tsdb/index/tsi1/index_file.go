@@ -280,8 +280,8 @@ func (f *IndexFile) TagValue(name, key, value []byte) TagValueElem {
 }
 
 // HasSeries returns flags indicating if the series exists and if it is tombstoned.
-func (f *IndexFile) HasSeries(name []byte, tags models.Tags) (exists, tombstoned bool) {
-	return f.sblk.HasSeries(name, tags)
+func (f *IndexFile) HasSeries(name []byte, tags models.Tags, buf []byte) (exists, tombstoned bool) {
+	return f.sblk.HasSeries(name, tags, buf)
 }
 
 // Series returns the series and a flag indicating if the series has been

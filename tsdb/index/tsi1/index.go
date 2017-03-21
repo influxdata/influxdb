@@ -472,7 +472,7 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 		fs := i.retainFileSet()
 		defer fs.Release()
 
-		if fs.HasSeries(name, tags) {
+		if fs.HasSeries(name, tags, nil) {
 			return nil
 		}
 

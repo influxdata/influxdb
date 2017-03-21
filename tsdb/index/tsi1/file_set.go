@@ -537,9 +537,9 @@ func (fs FileSet) measurementNamesByTagFilter(op influxql.Token, key, val string
 }
 
 // HasSeries returns true if the series exists and is not tombstoned.
-func (fs FileSet) HasSeries(name []byte, tags models.Tags) bool {
+func (fs FileSet) HasSeries(name []byte, tags models.Tags, buf []byte) bool {
 	for _, f := range fs {
-		if exists, tombstoned := f.HasSeries(name, tags); exists {
+		if exists, tombstoned := f.HasSeries(name, tags, buf); exists {
 			return !tombstoned
 		}
 	}
@@ -549,9 +549,10 @@ func (fs FileSet) HasSeries(name []byte, tags models.Tags) bool {
 // FilterNamesTags filters out any series which already exist. It modifies the
 // provided slices of names and tags.
 func (fs FileSet) FilterNamesTags(names [][]byte, tagsSlice []models.Tags) ([][]byte, []models.Tags) {
+	buf := make([]byte, 1024)
 	newNames, newTagsSlice := names[:0], tagsSlice[:0]
 	for i := 0; i < len(names); i++ {
-		if !fs.HasSeries(names[i], tagsSlice[i]) {
+		if !fs.HasSeries(names[i], tagsSlice[i], buf) {
 			newNames = append(newNames, names[i])
 			newTagsSlice = append(newTagsSlice, tagsSlice[i])
 		}
@@ -776,7 +777,7 @@ type File interface {
 
 	Measurement(name []byte) MeasurementElem
 	MeasurementIterator() MeasurementIterator
-	HasSeries(name []byte, tags models.Tags) (exists, tombstoned bool)
+	HasSeries(name []byte, tags models.Tags, buf []byte) (exists, tombstoned bool)
 	Series(name []byte, tags models.Tags) SeriesElem
 	SeriesN() uint64
 

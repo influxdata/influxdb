@@ -443,8 +443,8 @@ func (f *LogFile) SeriesN() (n uint64) {
 }
 
 // HasSeries returns flags indicating if the series exists and if it is tombstoned.
-func (f *LogFile) HasSeries(name []byte, tags models.Tags) (exists, tombstoned bool) {
-	e := f.Series(name, tags)
+func (f *LogFile) HasSeries(name []byte, tags models.Tags, buf []byte) (exists, tombstoned bool) {
+	e := f.SeriesWithBuffer(name, tags, buf)
 	if e == nil {
 		return false, false
 	}
@@ -453,6 +453,13 @@ func (f *LogFile) HasSeries(name []byte, tags models.Tags) (exists, tombstoned b
 
 // Series returns a series by name/tags.
 func (f *LogFile) Series(name []byte, tags models.Tags) SeriesElem {
+	return f.SeriesWithBuffer(name, tags, nil)
+}
+
+// SeriesWithBuffer returns a series by name/tags.
+func (f *LogFile) SeriesWithBuffer(name []byte, tags models.Tags, buf []byte) SeriesElem {
+	key := AppendSeriesKey(buf[:0], name, tags)
+
 	f.mu.RLock()
 	defer f.mu.RUnlock()
 
@@ -461,16 +468,11 @@ func (f *LogFile) Series(name []byte, tags models.Tags) SeriesElem {
 		return nil
 	}
 
-	// Search for the logSeries on the measurement.
-	i := sort.Search(len(mm.series), func(i int) bool {
-		// The checked series is not less than a logSerie with name and tags
-		return mm.series[i].Compare(name, tags) > -1
-	})
-
-	if i < len(mm.series) && mm.series[i].Compare(name, tags) == 0 {
-		return mm.series[i]
+	s := mm.series[string(key)]
+	if s == nil {
+		return nil
 	}
-	return nil
+	return s
 }
 
 // appendEntry adds a log entry to the end of the file.
@@ -521,7 +523,7 @@ func (f *LogFile) execDeleteMeasurementEntry(e *LogEntry) {
 	mm := f.createMeasurementIfNotExists(e.Name)
 	mm.deleted = true
 	mm.tagSet = make(map[string]logTagKey)
-	mm.series = nil
+	mm.series = make(map[string]*logSerie)
 
 	// Update measurement tombstone sketch.
 	f.mTSketch.Add(e.Name)
@@ -564,7 +566,8 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 	}
 
 	// Generate key & series, if not exists.
-	serie := mm.createSeriesIfNotExists(e.Name, e.Tags, deleted)
+	key := AppendSeriesKey(nil, e.Name, e.Tags)
+	serie := mm.createSeriesIfNotExists(key, e.Name, e.Tags, deleted)
 
 	// Save tags.
 	for _, t := range e.Tags {
@@ -572,14 +575,13 @@ func (f *LogFile) execSeriesEntry(e *LogEntry) {
 		tv := ts.createTagValueIfNotExists(t.Value)
 
 		// Add a reference to the series on the tag value.
-		tv.addSeries(serie)
+		tv.series[string(key)] = serie
 
 		ts.tagValues[string(t.Value)] = tv
 		mm.tagSet[string(t.Key)] = ts
 	}
 
 	// Update the sketches.
-	key := AppendSeriesKey(nil, e.Name, e.Tags)
 	if deleted {
 		// TODO(edd) decrement series count...
 		f.sTSketch.Add(key) // Deleting series so update tombstone sketch.
@@ -599,10 +601,15 @@ func (f *LogFile) SeriesIterator() SeriesIterator {
 	// Determine total series count across all measurements.
 	var n int
 	mSeriesIdx := make([]int, len(f.mms))
-	mSeries := make([][]*logSerie, 0, len(f.mms))
+	mSeries := make([][]logSerie, 0, len(f.mms))
 	for _, mm := range f.mms {
 		n += len(mm.series)
-		mSeries = append(mSeries, mm.series)
+		a := make([]logSerie, 0, len(mm.series))
+		for _, s := range mm.series {
+			a = append(a, *s)
+		}
+		sort.Sort(logSeries(a))
+		mSeries = append(mSeries, a)
 	}
 
 	// Combine series across all measurements by merging the already sorted
@@ -619,7 +626,7 @@ func (f *LogFile) SeriesIterator() SeriesIterator {
 			// Are there still serie to pull from this measurement?
 			if mSeriesIdx[i] < len(mSeries[i]) && sBuffer[i] == nil {
 				// Fill the buffer slot for this measurement.
-				sBuffer[i] = mSeries[i][mSeriesIdx[i]]
+				sBuffer[i] = &mSeries[i][mSeriesIdx[i]]
 				mSeriesIdx[i]++
 			}
 
@@ -645,6 +652,7 @@ func (f *LogFile) createMeasurementIfNotExists(name []byte) *logMeasurement {
 		mm = &logMeasurement{
 			name:   name,
 			tagSet: make(map[string]logTagKey),
+			series: make(map[string]*logSerie),
 		}
 		f.mms[string(name)] = mm
 	}
@@ -740,7 +748,16 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, info *logFileCompactInfo, n *i
 	// Add series from measurements.
 	for _, name := range names {
 		mm := f.mms[name]
-		for _, serie := range mm.series {
+
+		// Sort series.
+		keys := make([]string, 0, len(mm.series))
+		for k := range mm.series {
+			keys = append(keys, k)
+		}
+		sort.Slice(keys, func(i, j int) bool { return CompareSeriesKeys([]byte(keys[i]), []byte(keys[j])) == -1 })
+
+		for _, key := range keys {
+			serie := mm.series[key]
 			if err := enc.Encode(serie.name, serie.tags, serie.deleted); err != nil {
 				return err
 			}
@@ -761,11 +778,10 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, info *logFileCompactInfo, n *i
 		mmInfo := info.createMeasurementInfoIfNotExists(name)
 		mmInfo.seriesIDs = make([]uint64, 0, len(mm.series))
 
-		for k := range mm.series {
-			serie := mm.series[k]
+		for _, serie := range mm.series {
+			seriesKey = AppendSeriesKey(seriesKey[:0], serie.name, serie.tags)
 
 			// Lookup series offset.
-			seriesKey = AppendSeriesKey(seriesKey[:0], serie.name, serie.tags)
 			offset := enc.Offset(seriesKey)
 			if offset == 0 {
 				panic("series not found: " + string(serie.name) + " " + serie.tags.String())
@@ -1125,7 +1141,7 @@ type logMeasurement struct {
 	name    []byte
 	tagSet  map[string]logTagKey
 	deleted bool
-	series  []*logSerie
+	series  map[string]*logSerie
 }
 
 func (m *logMeasurement) Name() []byte  { return m.name }
@@ -1139,34 +1155,16 @@ func (m *logMeasurement) createTagSetIfNotExists(key []byte) logTagKey {
 	return ts
 }
 
-// createSeriesIfNotExists creates or returns an existing series on the
-// measurement.
-func (m *logMeasurement) createSeriesIfNotExists(name []byte, tags models.Tags, deleted bool) *logSerie {
-	// Found *may* be true if we happen to land directly on the serie.
-	// This is an optimisation to reduce the number of compares needed in some
-	// cases.
-	var found bool
-	i := sort.Search(len(m.series), func(i int) bool {
-		// The checked series is not less than serie.
-		result := m.series[i].Compare(name, tags)
-		if result == 0 {
-			found = true
-		}
-		return result > -1
-	})
-
-	if i < len(m.series) && (found || m.series[i].Compare(name, tags) == 0) {
-		// We have it already.
-		m.series[i].deleted = deleted
-		return m.series[i]
+// createSeriesIfNotExists creates or returns an existing series on the measurement.
+func (m *logMeasurement) createSeriesIfNotExists(key []byte, name []byte, tags models.Tags, deleted bool) *logSerie {
+	s := m.series[string(key)]
+	if s == nil {
+		s = &logSerie{name: name, tags: tags, deleted: deleted}
+		m.series[string(key)] = s
+	} else {
+		s.deleted = deleted
 	}
-
-	// Need to create the series; add it to the measurement.
-	m.series = append(m.series, nil)
-	copy(m.series[i+1:], m.series[i:])
-	m.series[i] = &logSerie{name: name, tags: tags, deleted: deleted}
-
-	return m.series[i]
+	return s
 }
 
 // keys returns a sorted list of tag keys.
@@ -1220,7 +1218,7 @@ func (tk *logTagKey) TagValueIterator() TagValueIterator {
 func (tk *logTagKey) createTagValueIfNotExists(value []byte) logTagValue {
 	tv, ok := tk.tagValues[string(value)]
 	if !ok {
-		tv = logTagValue{name: value}
+		tv = logTagValue{name: value, series: make(map[string]*logSerie)}
 	}
 	return tv
 }
@@ -1235,37 +1233,11 @@ func (a logTagKeySlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[
 type logTagValue struct {
 	name    []byte
 	deleted bool
-	series  []*logSerie
+	series  map[string]*logSerie
 }
 
 func (tv *logTagValue) Value() []byte { return tv.name }
 func (tv *logTagValue) Deleted() bool { return tv.deleted }
-
-// addSeries a reference to an existing logSerie.
-func (tv *logTagValue) addSeries(serie *logSerie) {
-	// Found *may* be true if we happen to land directly on the serie.
-	// This is an optimisation to reduce the number of compares needed in some
-	// cases.
-	var found bool
-	i := sort.Search(len(tv.series), func(i int) bool {
-		// The checked series is not less than serie.
-		result := tv.series[i].Compare(serie.name, serie.tags)
-		if result == 0 {
-			found = true
-		}
-		return result > -1
-	})
-
-	if i < len(tv.series) && (found || tv.series[i].Compare(serie.name, serie.tags) == 0) {
-		return
-	}
-
-	// We don't have it; add it.
-	tv.series = append(tv.series, nil)
-	copy(tv.series[i+1:], tv.series[i:])
-	tv.series[i] = serie
-	return
-}
 
 // logTagValue is a sortable list of log tag values.
 type logTagValueSlice []logTagValue
@@ -1321,15 +1293,17 @@ type logSeriesIterator struct {
 
 // newLogSeriesIterator returns a new instance of logSeriesIterator.
 // All series are copied to the iterator.
-func newLogSeriesIterator(a []*logSerie) *logSeriesIterator {
-	if len(a) == 0 {
+func newLogSeriesIterator(m map[string]*logSerie) *logSeriesIterator {
+	if len(m) == 0 {
 		return nil
 	}
 
-	itr := logSeriesIterator{series: make(logSeries, 0, len(a))}
-	for _, serie := range a {
-		itr.series = append(itr.series, *serie)
+	itr := logSeriesIterator{series: make(logSeries, 0, len(m))}
+	for _, s := range m {
+		itr.series = append(itr.series, *s)
 	}
+	sort.Sort(itr.series)
+
 	return &itr
 }
 

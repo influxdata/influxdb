@@ -289,7 +289,7 @@ func TestFileSet_FilterNamesTags(t *testing.T) {
 
 	// Filter out first name/tags in arguments.
 	reset()
-	mf.HasSeriesf = func(name []byte, tags models.Tags) (bool, bool) {
+	mf.HasSeriesf = func(name []byte, tags models.Tags, buf []byte) (bool, bool) {
 		return string(name) == "m1" && tags[0].String() == "{host server-1}", false
 	}
 
@@ -303,7 +303,7 @@ func TestFileSet_FilterNamesTags(t *testing.T) {
 
 	// Filter out middle name/tags in arguments.
 	reset()
-	mf.HasSeriesf = func(name []byte, tags models.Tags) (bool, bool) {
+	mf.HasSeriesf = func(name []byte, tags models.Tags, buf []byte) (bool, bool) {
 		return string(name) == "m3" && tags[0].String() == "{host server-3}", false
 	}
 
@@ -317,7 +317,7 @@ func TestFileSet_FilterNamesTags(t *testing.T) {
 
 	// Filter out last name/tags in arguments.
 	reset()
-	mf.HasSeriesf = func(name []byte, tags models.Tags) (bool, bool) {
+	mf.HasSeriesf = func(name []byte, tags models.Tags, buf []byte) (bool, bool) {
 		return string(name) == "m4" && tags[0].String() == "{host server-3}", false
 	}
 

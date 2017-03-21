@@ -59,8 +59,8 @@ type SeriesBlock struct {
 }
 
 // HasSeries returns flags indicating if the series exists and if it is tombstoned.
-func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags) (exists, tombstoned bool) {
-	buf := AppendSeriesKey(nil, name, tags)
+func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags, buf []byte) (exists, tombstoned bool) {
+	buf = AppendSeriesKey(buf[:0], name, tags)
 	bufN := uint64(len(buf))
 
 	n := blk.seriesIndexN
@@ -269,6 +269,10 @@ func (e *SeriesBlockElem) UnmarshalBinary(data []byte) error {
 	// Parse flag data.
 	e.flag, data = data[0], data[1:]
 
+	// Parse total size.
+	_, szN := binary.Uvarint(data)
+	data = data[szN:]
+
 	// Parse name.
 	n, data := binary.BigEndian.Uint16(data[:2]), data[2:]
 	e.name, data = data[:n], data[n:]
@@ -301,70 +305,71 @@ func AppendSeriesElem(dst []byte, flag byte, name []byte, tags models.Tags) []by
 }
 
 // AppendSeriesKey serializes name and tags to a byte slice.
+// The total length is prepended as a uvarint.
 func AppendSeriesKey(dst []byte, name []byte, tags models.Tags) []byte {
+	buf := make([]byte, binary.MaxVarintLen64)
+	origLen := len(dst)
+
+	// Size of name/tags. Does not include total length.
+	size := 0 + //
+		2 + // size of measurement
+		len(name) + // measurement
+		2 + // number of tags
+		(4 * len(tags)) + // length of each tag key and value
+		tags.Size() // tag keys/values
+
+	// Variable encode length.
+	n := binary.PutUvarint(buf, uint64(size))
+
 	// If caller doesn't provide a buffer then pre-allocate an exact one.
 	if dst == nil {
-		capacity := 0 + //
-			2 + // size of measurement
-			len(name) + // measurement
-			2 + // number of tags
-			(4 * len(tags)) + // length of each tag key and value
-			tags.Size() // tag keys/values
-
-		dst = make([]byte, 0, capacity)
+		dst = make([]byte, 0, size+n)
 	}
 
-	buf := make([]byte, 2)
+	// Append total length.
+	dst = append(dst, buf[:n]...)
 
 	// Append name.
 	binary.BigEndian.PutUint16(buf, uint16(len(name)))
-	dst = append(dst, buf...)
+	dst = append(dst, buf[:2]...)
 	dst = append(dst, name...)
 
 	// Append tag count.
 	binary.BigEndian.PutUint16(buf, uint16(len(tags)))
-	dst = append(dst, buf...)
+	dst = append(dst, buf[:2]...)
 
 	// Append tags.
 	for _, tag := range tags {
 		binary.BigEndian.PutUint16(buf, uint16(len(tag.Key)))
-		dst = append(dst, buf...)
+		dst = append(dst, buf[:2]...)
 		dst = append(dst, tag.Key...)
 
 		binary.BigEndian.PutUint16(buf, uint16(len(tag.Value)))
-		dst = append(dst, buf...)
+		dst = append(dst, buf[:2]...)
 		dst = append(dst, tag.Value...)
 	}
+
+	// Verify that the total length equals the encoded byte count.
+	if len(dst)-origLen != size+n {
+		panic(fmt.Sprintf("series key encoding does not match calculated total length: exp=%d, actual=%d, key=%x", size+n, len(dst), dst))
+	}
+
 	return dst
 }
 
 // ReadSeriesKey returns the series key from the beginning of the buffer.
 func ReadSeriesKey(data []byte) []byte {
-	buf := data
-
-	// Name (len+data)
-	n := int(binary.BigEndian.Uint16(buf))
-	buf = buf[2+n:]
-
-	// Tag count.
-	tagN := int(binary.BigEndian.Uint16(buf))
-	buf = buf[2:]
-
-	// Read tags.
-	for i := 0; i < tagN; i++ {
-		// Key
-		n := int(binary.BigEndian.Uint16(buf))
-		buf = buf[2+n:]
-
-		// Value
-		n = int(binary.BigEndian.Uint16(buf))
-		buf = buf[2+n:]
-	}
-
-	return data[:len(data)-len(buf)]
+	sz, n := binary.Uvarint(data)
+	return data[:int(sz)+n]
 }
 
 func CompareSeriesKeys(a, b []byte) int {
+	// Read total size.
+	_, i := binary.Uvarint(a)
+	a = a[i:]
+	_, i = binary.Uvarint(b)
+	b = b[i:]
+
 	// Read names.
 	var n uint16
 	n, a = binary.BigEndian.Uint16(a), a[2:]
