@@ -23,7 +23,6 @@ const newDefaultRP = {
   duration: '0',
   replication: 2,
   isDefault: true,
-  isNew: true,
 }
 
 const newEmptyRP = {
