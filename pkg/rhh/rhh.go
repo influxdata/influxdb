@@ -10,13 +10,13 @@ import (
 // HashMap represents a hash map that implements Robin Hood Hashing.
 // https://cs.uwaterloo.ca/research/tr/1986/CS-86-14.pdf
 type HashMap struct {
-	hashes []uint64
+	hashes []int64
 	elems  []hashElem
 
-	n          int
-	capacity   int
-	threshold  int
-	mask       uint64
+	n          int64
+	capacity   int64
+	threshold  int64
+	mask       int64
 	loadFactor int
 }
 
@@ -51,9 +51,9 @@ func (m *HashMap) Put(key []byte, val interface{}) {
 	}
 }
 
-func (m *HashMap) insert(hash uint64, key []byte, val interface{}) (overwritten bool) {
-	pos := int(hash & m.mask)
-	dist := 0
+func (m *HashMap) insert(hash int64, key []byte, val interface{}) (overwritten bool) {
+	pos := hash & m.mask
+	var dist int64
 
 	// Continue searching until we find an empty slot or lower probe distance.
 	for {
@@ -83,7 +83,7 @@ func (m *HashMap) insert(hash uint64, key []byte, val interface{}) (overwritten 
 		}
 
 		// Increment position, wrap around on overflow.
-		pos = int((uint64(pos) + 1) & m.mask)
+		pos = (pos + 1) & m.mask
 		dist++
 	}
 }
@@ -91,9 +91,9 @@ func (m *HashMap) insert(hash uint64, key []byte, val interface{}) (overwritten 
 // alloc elems according to currently set capacity.
 func (m *HashMap) alloc() {
 	m.elems = make([]hashElem, m.capacity)
-	m.hashes = make([]uint64, m.capacity)
-	m.threshold = (m.capacity * m.loadFactor) / 100
-	m.mask = uint64(m.capacity - 1)
+	m.hashes = make([]int64, m.capacity)
+	m.threshold = (m.capacity * int64(m.loadFactor)) / 100
+	m.mask = int64(m.capacity - 1)
 }
 
 // grow doubles the capacity and reinserts all existing hashes & elements.
@@ -107,7 +107,7 @@ func (m *HashMap) grow() {
 	m.alloc()
 
 	// Copy old elements to new hash/elem list.
-	for i := 0; i < capacity; i++ {
+	for i := int64(0); i < capacity; i++ {
 		elem, hash := &elems[i], hashes[i]
 		if hash == 0 {
 			continue
@@ -117,11 +117,11 @@ func (m *HashMap) grow() {
 }
 
 // index returns the position of key in the hash map.
-func (m *HashMap) index(key []byte) int {
+func (m *HashMap) index(key []byte) int64 {
 	hash := HashKey(key)
-	pos := int(hash & m.mask)
+	pos := hash & m.mask
 
-	dist := 0
+	var dist int64
 	for {
 		if m.hashes[pos] == 0 {
 			return -1
@@ -131,14 +131,14 @@ func (m *HashMap) index(key []byte) int {
 			return pos
 		}
 
-		pos = int(uint64(pos+1) & m.mask)
+		pos = (pos + 1) & m.mask
 		dist++
 	}
 }
 
 // Elem returns the i-th key/value pair of the hash map.
-func (m *HashMap) Elem(i int) (key []byte, value interface{}) {
-	if i >= len(m.elems) {
+func (m *HashMap) Elem(i int64) (key []byte, value interface{}) {
+	if i >= int64(len(m.elems)) {
 		return nil, nil
 	}
 
@@ -147,15 +147,15 @@ func (m *HashMap) Elem(i int) (key []byte, value interface{}) {
 }
 
 // Len returns the number of key/values set in map.
-func (m *HashMap) Len() int { return m.n }
+func (m *HashMap) Len() int64 { return m.n }
 
 // Cap returns the number of key/values set in map.
-func (m *HashMap) Cap() int { return m.capacity }
+func (m *HashMap) Cap() int64 { return m.capacity }
 
 // AverageProbeCount returns the average number of probes for each element.
 func (m *HashMap) AverageProbeCount() float64 {
 	var sum float64
-	for i := 0; i < m.capacity; i++ {
+	for i := int64(0); i < m.capacity; i++ {
 		hash := m.hashes[i]
 		if hash == 0 {
 			continue
@@ -168,7 +168,7 @@ func (m *HashMap) AverageProbeCount() float64 {
 // Keys returns a list of sorted keys.
 func (m *HashMap) Keys() [][]byte {
 	a := make([][]byte, 0, m.Len())
-	for i := 0; i < m.Cap(); i++ {
+	for i := int64(0); i < m.Cap(); i++ {
 		k, v := m.Elem(i)
 		if v == nil {
 			continue
@@ -182,12 +182,12 @@ func (m *HashMap) Keys() [][]byte {
 type hashElem struct {
 	key   []byte
 	value interface{}
-	hash  uint64
+	hash  int64
 }
 
 // Options represents initialization options that are passed to NewHashMap().
 type Options struct {
-	Capacity   int
+	Capacity   int64
 	LoadFactor int
 }
 
@@ -198,26 +198,28 @@ var DefaultOptions = Options{
 }
 
 // HashKey computes a hash of key. Hash is always non-zero.
-func HashKey(key []byte) uint64 {
-	h := xxhash.Sum64(key)
+func HashKey(key []byte) int64 {
+	h := int64(xxhash.Sum64(key))
 	if h == 0 {
 		h = 1
+	} else if h < 0 {
+		h = 0 - h
 	}
 	return h
 }
 
 // Dist returns the probe distance for a hash in a slot index.
 // NOTE: Capacity must be a power of 2.
-func Dist(hash uint64, i, capacity int) int {
-	mask := uint64(capacity - 1)
-	dist := int(uint64(i+capacity-int(hash&mask)) & mask)
+func Dist(hash, i, capacity int64) int64 {
+	mask := capacity - 1
+	dist := (i + capacity - (hash & mask)) & mask
 	return dist
 }
 
 // pow2 returns the number that is the next highest power of 2.
 // Returns v if it is a power of 2.
-func pow2(v int) int {
-	for i := 2; i < 1<<62; i *= 2 {
+func pow2(v int64) int64 {
+	for i := int64(2); i < 1<<62; i *= 2 {
 		if i >= v {
 			return i
 		}

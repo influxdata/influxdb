@@ -45,7 +45,7 @@ type SeriesBlock struct {
 	// Series data & index/capacity.
 	seriesData   []byte
 	seriesIndex  []byte
-	seriesIndexN uint64
+	seriesIndexN int64
 
 	// Exact series counts for this block.
 	seriesN    int64
@@ -65,10 +65,10 @@ func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags, buf []byte) (ex
 
 	n := blk.seriesIndexN
 	hash := rhh.HashKey(buf)
-	pos := int(hash % n)
+	pos := hash % n
 
 	// Track current distance
-	var d int
+	var d int64
 	for {
 		// Find offset of series.
 		offset := binary.BigEndian.Uint64(blk.seriesIndex[pos*SeriesIDSize:])
@@ -83,16 +83,16 @@ func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags, buf []byte) (ex
 		}
 
 		// Check if we've exceeded the probe distance.
-		max := rhh.Dist(rhh.HashKey(key), pos, int(n))
+		max := rhh.Dist(rhh.HashKey(key), pos, n)
 		if d > max {
 			return false, false
 		}
 
 		// Move position forward.
-		pos = (pos + 1) % int(n)
+		pos = (pos + 1) % n
 		d++
 
-		if uint64(d) > n {
+		if d > n {
 			return false, false
 		}
 	}
@@ -105,10 +105,10 @@ func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
 
 	n := blk.seriesIndexN
 	hash := rhh.HashKey(buf)
-	pos := int(hash % n)
+	pos := hash % n
 
 	// Track current distance
-	var d int
+	var d int64
 	for {
 		// Find offset of series.
 		offset := binary.BigEndian.Uint64(blk.seriesIndex[pos*SeriesIDSize:])
@@ -125,15 +125,15 @@ func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
 		}
 
 		// Check if we've exceeded the probe distance.
-		if d > rhh.Dist(rhh.HashKey(key), pos, int(n)) {
+		if d > rhh.Dist(rhh.HashKey(key), pos, n) {
 			return nil
 		}
 
 		// Move position forward.
-		pos = (pos + 1) % int(n)
+		pos = (pos + 1) % n
 		d++
 
-		if uint64(d) > n {
+		if d > n {
 			return nil
 		}
 	}
@@ -170,7 +170,7 @@ func (blk *SeriesBlock) UnmarshalBinary(data []byte) error {
 	// Slice series hash index.
 	blk.seriesIndex = data[t.Series.Index.Offset:]
 	blk.seriesIndex = blk.seriesIndex[:t.Series.Index.Size]
-	blk.seriesIndexN = binary.BigEndian.Uint64(blk.seriesIndex[:8])
+	blk.seriesIndexN = int64(binary.BigEndian.Uint64(blk.seriesIndex[:8]))
 	blk.seriesIndex = blk.seriesIndex[8:]
 
 	// Initialise sketches. We're currently using HLL+.
@@ -559,7 +559,7 @@ func (enc *SeriesBlockEncoder) writeSeriesIndex() error {
 	}
 
 	// Encode hash map offset entries.
-	for i := 0; i < enc.offsets.Cap(); i++ {
+	for i := int64(0); i < enc.offsets.Cap(); i++ {
 		_, v := enc.offsets.Elem(i)
 		offset, _ := v.(uint64)
 

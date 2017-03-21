@@ -64,12 +64,12 @@ func (blk *MeasurementBlock) Version() int { return blk.version }
 
 // Elem returns an element for a measurement.
 func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementBlockElem, ok bool) {
-	n := binary.BigEndian.Uint64(blk.hashData[:MeasurementNSize])
+	n := int64(binary.BigEndian.Uint64(blk.hashData[:MeasurementNSize]))
 	hash := rhh.HashKey(name)
-	pos := int(hash % n)
+	pos := hash % n
 
 	// Track current distance
-	var d int
+	var d int64
 	for {
 		// Find offset of measurement.
 		offset := binary.BigEndian.Uint64(blk.hashData[MeasurementNSize+(pos*MeasurementOffsetSize):])
@@ -89,16 +89,16 @@ func (blk *MeasurementBlock) Elem(name []byte) (e MeasurementBlockElem, ok bool)
 			}
 
 			// Check if we've exceeded the probe distance.
-			if d > rhh.Dist(rhh.HashKey(e.name), pos, int(n)) {
+			if d > rhh.Dist(rhh.HashKey(e.name), pos, n) {
 				return MeasurementBlockElem{}, false
 			}
 		}
 
 		// Move position forward.
-		pos = (pos + 1) % int(n)
+		pos = (pos + 1) % n
 		d++
 
-		if uint64(d) > n {
+		if d > n {
 			return MeasurementBlockElem{}, false
 		}
 	}
@@ -436,7 +436,7 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 
 	// Build key hash map
 	m := rhh.NewHashMap(rhh.Options{
-		Capacity:   len(names),
+		Capacity:   int64(len(names)),
 		LoadFactor: LoadFactor,
 	})
 	for name := range mw.mms {
@@ -452,7 +452,7 @@ func (mw *MeasurementBlockWriter) WriteTo(w io.Writer) (n int64, err error) {
 	}
 
 	// Encode hash map offset entries.
-	for i := 0; i < m.Cap(); i++ {
+	for i := int64(0); i < m.Cap(); i++ {
 		_, v := m.Elem(i)
 
 		var offset int64

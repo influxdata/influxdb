@@ -90,12 +90,12 @@ func (blk *TagBlock) UnmarshalBinary(data []byte) error {
 // TagKeyElem returns an element for a tag key.
 // Returns an element with a nil key if not found.
 func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
-	keyN := binary.BigEndian.Uint64(blk.hashData[:TagKeyNSize])
+	keyN := int64(binary.BigEndian.Uint64(blk.hashData[:TagKeyNSize]))
 	hash := rhh.HashKey(key)
-	pos := int(hash % keyN)
+	pos := hash % keyN
 
 	// Track current distance
-	var d int
+	var d int64
 	for {
 		// Find offset of tag key.
 		offset := binary.BigEndian.Uint64(blk.hashData[TagKeyNSize+(pos*TagKeyOffsetSize):])
@@ -113,15 +113,15 @@ func (blk *TagBlock) TagKeyElem(key []byte) TagKeyElem {
 		}
 
 		// Check if we've exceeded the probe distance.
-		if d > rhh.Dist(rhh.HashKey(e.key), pos, int(keyN)) {
+		if d > rhh.Dist(rhh.HashKey(e.key), pos, keyN) {
 			return nil
 		}
 
 		// Move position forward.
-		pos = (pos + 1) % int(keyN)
+		pos = (pos + 1) % keyN
 		d++
 
-		if uint64(d) > keyN {
+		if d > keyN {
 			return nil
 		}
 	}
@@ -138,12 +138,12 @@ func (blk *TagBlock) TagValueElem(key, value []byte) TagValueElem {
 	// Slice hash index data.
 	hashData := kelem.hashIndex.buf
 
-	valueN := binary.BigEndian.Uint64(hashData[:TagValueNSize])
+	valueN := int64(binary.BigEndian.Uint64(hashData[:TagValueNSize]))
 	hash := rhh.HashKey(value)
-	pos := int(hash % valueN)
+	pos := hash % valueN
 
 	// Track current distance
-	var d int
+	var d int64
 	for {
 		// Find offset of tag value.
 		offset := binary.BigEndian.Uint64(hashData[TagValueNSize+(pos*TagValueOffsetSize):])
@@ -161,16 +161,16 @@ func (blk *TagBlock) TagValueElem(key, value []byte) TagValueElem {
 		}
 
 		// Check if we've exceeded the probe distance.
-		max := rhh.Dist(rhh.HashKey(e.value), pos, int(valueN))
+		max := rhh.Dist(rhh.HashKey(e.value), pos, valueN)
 		if d > max {
 			return nil
 		}
 
 		// Move position forward.
-		pos = (pos + 1) % int(valueN)
+		pos = (pos + 1) % valueN
 		d++
 
-		if uint64(d) > valueN {
+		if d > valueN {
 			return nil
 		}
 	}
@@ -613,7 +613,7 @@ func (enc *TagBlockEncoder) flushValueHashIndex() error {
 	}
 
 	// Encode hash map offset entries.
-	for i := 0; i < enc.offsets.Cap(); i++ {
+	for i := int64(0); i < enc.offsets.Cap(); i++ {
 		_, v := enc.offsets.Elem(i)
 		offset, _ := v.(int64)
 		if err := writeUint64To(enc.w, uint64(offset), &enc.n); err != nil {
@@ -630,7 +630,7 @@ func (enc *TagBlockEncoder) flushValueHashIndex() error {
 
 // encodeTagKeyBlock encodes the keys section to the writer.
 func (enc *TagBlockEncoder) encodeTagKeyBlock() error {
-	offsets := rhh.NewHashMap(rhh.Options{Capacity: len(enc.keys), LoadFactor: LoadFactor})
+	offsets := rhh.NewHashMap(rhh.Options{Capacity: int64(len(enc.keys)), LoadFactor: LoadFactor})
 
 	// Encode key list in sorted order.
 	enc.trailer.KeyData.Offset = enc.n
@@ -674,7 +674,7 @@ func (enc *TagBlockEncoder) encodeTagKeyBlock() error {
 	}
 
 	// Encode hash map offset entries.
-	for i := 0; i < offsets.Cap(); i++ {
+	for i := int64(0); i < offsets.Cap(); i++ {
 		_, v := offsets.Elem(i)
 		offset, _ := v.(int64)
 		if err := writeUint64To(enc.w, uint64(offset), &enc.n); err != nil {
