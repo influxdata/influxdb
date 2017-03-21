@@ -492,6 +492,7 @@ func (i *Index) DropSeries(key []byte) error {
 	k := string(key)
 	series := i.series[k]
 	if series == nil {
+		i.mu.Unlock()
 		return nil
 	}
 
