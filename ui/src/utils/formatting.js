@@ -17,7 +17,7 @@ export const formatBytes = (bytes) => {
 
 export const formatRPDuration = (duration) => {
   if (duration === '0' || duration === '0s') {
-    return 'infinite';
+    return '∞';
   }
 
   let adjustedTime = duration;
