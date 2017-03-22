@@ -735,21 +735,28 @@ func (d *indirectIndex) Delete(keys []string) {
 		return
 	}
 
+	if !sort.StringsAreSorted(keys) {
+		sort.Strings(keys)
+	}
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	lookup := map[string]struct{}{}
-	for _, k := range keys {
-		lookup[k] = struct{}{}
-	}
-
-	var offsets []int32
+	// Both keys and offsets are sorted.  Walk both in order and skip
+	// any keys that exist in both.
+	offsets := make([]int32, 0, len(d.offsets))
 	for _, offset := range d.offsets {
 		_, indexKey, _ := readKey(d.b[offset:])
 
-		if _, ok := lookup[string(indexKey)]; ok {
+		for len(keys) > 0 && keys[0] < string(indexKey) {
+			keys = keys[1:]
+		}
+
+		if len(keys) > 0 && keys[0] == string(indexKey) {
+			keys = keys[1:]
 			continue
 		}
+
 		offsets = append(offsets, int32(offset))
 	}
 	d.offsets = offsets

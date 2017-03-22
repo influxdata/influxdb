@@ -501,6 +501,7 @@ func (s *Store) DeleteMeasurement(database, name string) error {
 	}
 
 	seriesKeys := m.SeriesKeys()
+	sort.Strings(seriesKeys)
 
 	s.mu.RLock()
 	shards := s.filterShards(func(sh *Shard) bool {
@@ -753,6 +754,10 @@ func (s *Store) deleteSeries(database string, seriesKeys []string, min, max int6
 	db := s.databaseIndexes[database]
 	if db == nil {
 		return influxql.ErrDatabaseNotFound(database)
+	}
+
+	if !sort.StringsAreSorted(seriesKeys) {
+		sort.Strings(seriesKeys)
 	}
 
 	s.mu.RLock()
