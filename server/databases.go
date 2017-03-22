@@ -1,8 +1,9 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
+  "context"
+  "encoding/json"
 
 	"github.com/influxdata/chronograf"
 )
@@ -64,8 +65,7 @@ func (h *Service) Databases(w http.ResponseWriter, r *http.Request) {
     return
   }
 
-  store := ts.Databases(ctx)
-  databases, err := store.All(ctx)
+  databases, err := ts.AllDB(ctx)
   if err != nil {
     Error(w, http.StatusBadRequest, err.Error(), h.Logger)
     return

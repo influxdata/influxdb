@@ -59,8 +59,6 @@ type TimeSeries interface {
 	Permissions(context.Context) Permissions
 	// Roles represents the roles associated with this TimesSeriesDatabase
 	Roles(context.Context) (RolesStore, error)
-	// Databases represents the named databases within an InfluxDB instance
-	Databases(context.Context) Databases
 }
 
 // Role is a restricted set of permissions assigned to a set of users.
