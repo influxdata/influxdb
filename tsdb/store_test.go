@@ -420,7 +420,7 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 }
 
 func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
-	if testing.Short() {
+	if testing.Short() || os.Getenv("GORACE") != "" {
 		t.Skip("Skipping test in short mode.")
 	}
 
@@ -506,7 +506,7 @@ func TestStore_Cardinality_Tombstoning_TSI(t *testing.T) {
 }
 
 func testStoreCardinalityUnique(t *testing.T, store *Store) {
-	if testing.Short() {
+	if testing.Short() || os.Getenv("GORACE") != "" {
 		t.Skip("Skipping test in short mode.")
 	}
 
@@ -580,7 +580,7 @@ func TestStore_Cardinality_Unique_TSI1(t *testing.T) {
 // This test tests cardinality estimation when series data is duplicated across
 // multiple shards.
 func testStoreCardinalityDuplicates(t *testing.T, store *Store) {
-	if testing.Short() {
+	if testing.Short() || os.Getenv("GORACE") != "" {
 		t.Skip("Skipping test in short mode.")
 	}
 
@@ -668,7 +668,7 @@ func TestStore_Cardinality_Duplicates_TSI1(t *testing.T) {
 // Creates a large number of series in multiple shards, which will force
 // compactions to occur.
 func testStoreCardinalityCompactions(t *testing.T, store *Store) {
-	if testing.Short() {
+	if testing.Short() || os.Getenv("GORACE") != "" {
 		t.Skip("Skipping test in short mode.")
 	}
 
