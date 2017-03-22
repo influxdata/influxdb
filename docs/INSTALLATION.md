@@ -20,8 +20,8 @@ Check out the [downloads](https://www.influxdata.com/downloads/) page for links 
 
 #### 1. Download and Install InfluxDB
 ```
-wget https://dl.influxdata.com/influxdb/releases/influxdb_1.2.0_amd64.deb
-sudo dpkg -i influxdb_1.2.0_amd64.deb
+wget https://dl.influxdata.com/influxdb/releases/influxdb_1.2.2_amd64.deb
+sudo dpkg -i influxdb_1.2.2_amd64.deb
 ```
 
 #### 2. Start InfluxDB
@@ -195,8 +195,8 @@ Now that we are collecting data with Telegraf and storing data with InfluxDB, it
 
 #### 1. Download and Install Chronograf
 ```
-wget https://dl.influxdata.com/chronograf/nightlies/chronograf_nightly_amd64.deb
-sudo dpkg -i chronograf_nightly_amd64.deb
+wget https://dl.influxdata.com/chronograf/releases/chronograf_1.2.0~beta5_amd64.deb
+sudo dpkg -i chronograf_1.2.0~beta5_amd64.deb
 ```
 
 #### 2. Start Chronograf
