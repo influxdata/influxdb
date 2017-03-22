@@ -66,6 +66,7 @@ const DashboardsPage = React.createClass({
                 <div className="panel panel-minimal">
                   <div className="panel-heading u-flex u-ai-center u-jc-space-between">
                     <h2 className="panel-title">{tableHeader}</h2>
+                    <button className="btn btn-sm btn-primary">Create Dashboard</button>
                   </div>
                   <div className="panel-body">
                     <table className="table v-center">
