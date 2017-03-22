@@ -2,9 +2,11 @@ package influx
 
 import (
   "encoding/json"
+  "context"
+
+  "github.com/influxdata/chronograf"
 )
 
-// this stuff should probably live elsewhere?
 func (c *Client) AllDB(ctx context.Context) ([]chronograf.Database, error) {
   databases, err := c.showDatabases(ctx)
   if err != nil {
