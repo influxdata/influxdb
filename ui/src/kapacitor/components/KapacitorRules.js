@@ -33,7 +33,7 @@ const KapacitorRules = ({
     <PageContents source={source} >
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
         <h2 className="panel-title">Alert Rules</h2>
-        <Link to={`/sources/${source.id}/alert-rules/new`} className="btn btn-sm btn-primary">Create New Rule</Link>
+        <Link to={`/sources/${source.id}/alert-rules/new`} className="btn btn-sm btn-primary">Create Rule</Link>
       </div>
       <KapacitorRulesTable
         source={source}
