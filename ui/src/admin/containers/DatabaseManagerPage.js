@@ -11,6 +11,7 @@ class DatabaseManagerPage extends Component {
     super(props)
     this.handleKeyDownDatabase = ::this.handleKeyDownDatabase
     this.handleDatabaseDeleteConfirm = ::this.handleDatabaseDeleteConfirm
+    this.handleCreateDatabase = :: this.handleCreateDatabase
   }
 
   componentDidMount() {
@@ -31,7 +32,7 @@ class DatabaseManagerPage extends Component {
         addDatabase={actions.addDatabase}
         onEditDatabase={actions.editDatabase}
         onCancelDatabase={actions.removeDatabase}
-        onConfirmDatabase={actions.createDatabaseAsync}
+        onConfirmDatabase={this.handleCreateDatabase}
         onStartDeleteDatabase={actions.addDatabaseDeleteCode}
         onAddRetentionPolicy={actions.addRetentionPolicy}
         onCreateRetentionPolicy={actions.createRetentionPolicyAsync}
@@ -41,16 +42,29 @@ class DatabaseManagerPage extends Component {
     )
   }
 
+  handleCreateDatabase(database) {
+    const {actions, notify} = this.props
+
+    if (!database.name) {
+      return notify('error', 'Database name cannot be blank')
+    }
+
+    actions.createDatabaseAsync(database)
+  }
+
   handleKeyDownDatabase(e, database) {
     const {key} = e
-    const {actions} = this.props
+    const {actions, notify} = this.props
 
     if (key === 'Escape') {
       actions.removeDatabase(database)
     }
 
     if (key === 'Enter') {
-      // TODO: validate input
+      if (!database.name) {
+        return notify('error', 'Database name cannot be blank')
+      }
+
       actions.createDatabaseAsync(database)
     }
   }
