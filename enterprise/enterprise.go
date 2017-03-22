@@ -35,7 +35,8 @@ type Ctrl interface {
 	AddRoleUsers(ctx context.Context, name string, users []string) error
 	RemoveRoleUsers(ctx context.Context, name string, users []string) error
 
-	Databases(ctx context.Context) (*Databases, error)
+	// TODO add error here?
+	Databases(ctx context.Context) chronograf.Databases
 }
 
 // Client is a device for retrieving time series data from an Influx Enterprise
@@ -141,6 +142,10 @@ func (c *Client) Query(ctx context.Context, q chronograf.Query) (chronograf.Resp
 	}
 	return c.nextDataNode().Query(ctx, q)
 }
+
+// func (c *Client) Databases(context.Context) chronograf.Databases {
+// 	return c.Databases
+// }
 
 // Users is the interface to the users within Influx Enterprise
 func (c *Client) Users(context.Context) chronograf.UsersStore {

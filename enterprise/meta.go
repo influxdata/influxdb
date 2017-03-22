@@ -46,6 +46,17 @@ func (m *MetaClient) ShowCluster(ctx context.Context) (*Cluster, error) {
 	return out, nil
 }
 
+func (m *MetaClient) Databases(ctx context.Context) chronograf.Databases {
+	res, _ := m.Do(ctx, "GET", "/databases", nil, nil)
+
+	defer res.Body.Close()
+	dec := json.NewDecoder(res.Body)
+	dbs := []chronograf.Database{}
+	databases := chronograf.Databases{Databases: dbs}
+	// _ = dec.Decode(databases)
+	return databases
+}
+
 // Users gets all the users.  If name is not nil it filters for a single user
 func (m *MetaClient) Users(ctx context.Context, name *string) (*Users, error) {
 	params := map[string]string{}
