@@ -2827,6 +2827,15 @@ func TestParser_ParseExpr(t *testing.T) {
 		// Primitives
 		{s: `100.0`, expr: &influxql.NumberLiteral{Val: 100}},
 		{s: `100`, expr: &influxql.IntegerLiteral{Val: 100}},
+		{s: `-100.0`, expr: &influxql.NumberLiteral{Val: -100}},
+		{s: `-100`, expr: &influxql.IntegerLiteral{Val: -100}},
+		{s: `100.`, expr: &influxql.NumberLiteral{Val: 100}},
+		{s: `-100.`, expr: &influxql.NumberLiteral{Val: -100}},
+		{s: `.23`, expr: &influxql.NumberLiteral{Val: 0.23}},
+		{s: `-.23`, expr: &influxql.NumberLiteral{Val: -0.23}},
+		{s: `1s`, expr: &influxql.DurationLiteral{Val: time.Second}},
+		{s: `-1s`, expr: &influxql.DurationLiteral{Val: -time.Second}},
+		{s: `-+1`, err: `found +, expected identifier, number, duration, ( at line 1, char 2`},
 		{s: `'foo bar'`, expr: &influxql.StringLiteral{Val: "foo bar"}},
 		{s: `true`, expr: &influxql.BooleanLiteral{Val: true}},
 		{s: `false`, expr: &influxql.BooleanLiteral{Val: false}},
@@ -2954,6 +2963,78 @@ func TestParser_ParseExpr(t *testing.T) {
 					LHS: &influxql.IntegerLiteral{Val: 1},
 					RHS: &influxql.IntegerLiteral{Val: 2},
 				},
+				RHS: &influxql.IntegerLiteral{Val: 3},
+			},
+		},
+
+		// Addition and subtraction without whitespace.
+		{
+			s: `1+2-3`,
+			expr: &influxql.BinaryExpr{
+				Op: influxql.SUB,
+				LHS: &influxql.BinaryExpr{
+					Op:  influxql.ADD,
+					LHS: &influxql.IntegerLiteral{Val: 1},
+					RHS: &influxql.IntegerLiteral{Val: 2},
+				},
+				RHS: &influxql.IntegerLiteral{Val: 3},
+			},
+		},
+
+		{
+			s: `time>now()-5m`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.GT,
+				LHS: &influxql.VarRef{Val: "time"},
+				RHS: &influxql.BinaryExpr{
+					Op:  influxql.SUB,
+					LHS: &influxql.Call{Name: "now"},
+					RHS: &influxql.DurationLiteral{Val: 5 * time.Minute},
+				},
+			},
+		},
+
+		// Simple unary expression.
+		{
+			s: `-value`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.MUL,
+				LHS: &influxql.IntegerLiteral{Val: -1},
+				RHS: &influxql.VarRef{Val: "value"},
+			},
+		},
+
+		{
+			s: `-mean(value)`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.MUL,
+				LHS: &influxql.IntegerLiteral{Val: -1},
+				RHS: &influxql.Call{
+					Name: "mean",
+					Args: []influxql.Expr{
+						&influxql.VarRef{Val: "value"}},
+				},
+			},
+		},
+
+		// Unary expressions with parenthesis.
+		{
+			s: `-(-4)`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.MUL,
+				LHS: &influxql.IntegerLiteral{Val: -1},
+				RHS: &influxql.ParenExpr{
+					Expr: &influxql.IntegerLiteral{Val: -4},
+				},
+			},
+		},
+
+		// Multiplication with leading subtraction.
+		{
+			s: `-2 * 3`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.MUL,
+				LHS: &influxql.IntegerLiteral{Val: -2},
 				RHS: &influxql.IntegerLiteral{Val: 3},
 			},
 		},

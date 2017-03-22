@@ -59,8 +59,16 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 			return tok, pos, "$" + lit
 		}
 		return BOUNDPARAM, pos, "$" + lit
-	case '+', '-':
-		return s.scanNumber()
+	case '+':
+		return ADD, pos, ""
+	case '-':
+		ch1, _ := s.r.read()
+		if ch1 == '-' {
+			s.skipUntilNewline()
+			return COMMENT, pos, ""
+		}
+		s.r.unread()
+		return SUB, pos, ""
 	case '*':
 		return MUL, pos, ""
 	case '/':
@@ -248,34 +256,12 @@ func (s *Scanner) ScanRegex() (tok Token, pos Pos, lit string) {
 }
 
 // scanNumber consumes anything that looks like the start of a number.
-// Numbers start with a digit, full stop, plus sign or minus sign.
-// This function can return non-number tokens if a scan is a false positive.
-// For example, a minus sign followed by a letter will just return a minus sign.
 func (s *Scanner) scanNumber() (tok Token, pos Pos, lit string) {
 	var buf bytes.Buffer
 
-	// Check if the initial rune is a "+" or "-".
+	// Check if the initial rune is a ".".
 	ch, pos := s.r.curr()
-	if ch == '+' || ch == '-' {
-		// Peek at the next two runes.
-		ch1, _ := s.r.read()
-		ch2, _ := s.r.read()
-		s.r.unread()
-		s.r.unread()
-
-		// This rune must be followed by a digit or a full stop and a digit.
-		if isDigit(ch1) || (ch1 == '.' && isDigit(ch2)) {
-			_, _ = buf.WriteRune(ch)
-		} else if ch == '+' {
-			return ADD, pos, ""
-		} else if ch == '-' {
-			if ch1 == '-' {
-				s.skipUntilNewline()
-				return COMMENT, pos, ""
-			}
-			return SUB, pos, ""
-		}
-	} else if ch == '.' {
+	if ch == '.' {
 		// Peek and see if the next rune is a digit.
 		ch1, _ := s.r.read()
 		s.r.unread()

@@ -87,24 +87,16 @@ func TestScanner_Scan(t *testing.T) {
 
 		// Numbers
 		{s: `100`, tok: influxql.INTEGER, lit: `100`},
-		{s: `-100`, tok: influxql.INTEGER, lit: `-100`},
 		{s: `100.23`, tok: influxql.NUMBER, lit: `100.23`},
-		{s: `+100.23`, tok: influxql.NUMBER, lit: `+100.23`},
-		{s: `-100.23`, tok: influxql.NUMBER, lit: `-100.23`},
-		{s: `-100.`, tok: influxql.NUMBER, lit: `-100`},
 		{s: `.23`, tok: influxql.NUMBER, lit: `.23`},
-		{s: `+.23`, tok: influxql.NUMBER, lit: `+.23`},
-		{s: `-.23`, tok: influxql.NUMBER, lit: `-.23`},
 		//{s: `.`, tok: influxql.ILLEGAL, lit: `.`},
-		{s: `-.`, tok: influxql.SUB, lit: ``},
-		{s: `+.`, tok: influxql.ADD, lit: ``},
 		{s: `10.3s`, tok: influxql.NUMBER, lit: `10.3`},
 
 		// Durations
 		{s: `10u`, tok: influxql.DURATIONVAL, lit: `10u`},
 		{s: `10µ`, tok: influxql.DURATIONVAL, lit: `10µ`},
 		{s: `10ms`, tok: influxql.DURATIONVAL, lit: `10ms`},
-		{s: `-1s`, tok: influxql.DURATIONVAL, lit: `-1s`},
+		{s: `1s`, tok: influxql.DURATIONVAL, lit: `1s`},
 		{s: `10m`, tok: influxql.DURATIONVAL, lit: `10m`},
 		{s: `10h`, tok: influxql.DURATIONVAL, lit: `10h`},
 		{s: `10d`, tok: influxql.DURATIONVAL, lit: `10d`},
