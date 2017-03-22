@@ -304,6 +304,7 @@ type Database struct {
 type Databases interface {
   // All lists all databases
   AllDB(context.Context) ([]Database, error)
+	Connect(context.Context, *Source) error
 }
 
 // DashboardID is the dashboard ID

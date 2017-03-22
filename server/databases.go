@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 )
 
@@ -13,8 +14,8 @@ type dbResponse struct {
 	Name          string  `json:"name"`                  // a unique string identifier for the database
 	Duration      string  `json:"duration,omitempty"`    // the duration (when creating a default retention policy)
 	Replication   int32   `json:"replication,omitempty"` // the replication factor (when creating a default retention policy)
-	ShardDuration string  `json:shardDuration,omitempty` // the shard duration (when creating a default retention policy)
-	Links         dbLinks `json:links`                   // Links are URI locations related to the database
+	ShardDuration string  `json:"shardDuration,omitempty"` // the shard duration (when creating a default retention policy)
+	Links         dbLinks `json:"links"`                   // Links are URI locations related to the database
 }
 
 type dbsResponse struct {
@@ -22,23 +23,39 @@ type dbsResponse struct {
 }
 
 // Databases queries the list of all databases for a source
-func (h *Service) Databases(w http.ResponseWriter, r *http.Request) {
+func (h *Service) GetDatabases(w http.ResponseWriter, r *http.Request) {
   ctx := r.Context()
-  srcID, ts, err := h.sourcesSeries(ctx, w, r)
-  if err != nil {
-    return
-  }
 
-  databases, err := ts.AllDB(ctx)
+  srcID, err := paramID("id", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		return
+	}
+
+	src, err := h.SourcesStore.Get(ctx, srcID)
+	if err != nil {
+		notFound(w, srcID, h.Logger)
+		return
+	}
+
+  db := h.Databases
+
+	if err = db.Connect(ctx, &src); err != nil {
+		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
+		Error(w, http.StatusBadRequest, msg, h.Logger)
+		return
+	}
+
+  databases, err := db.AllDB(ctx)
   if err != nil {
     Error(w, http.StatusBadRequest, err.Error(), h.Logger)
     return
   }
 
   dbs := make([]dbResponse, len(databases))
-  for i, d := range databases {
-
-  }
+  // for i, d := range databases {
+	//
+  // }
 
 	res := dbsResponse{
 		Databases: dbs,

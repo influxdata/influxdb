@@ -12,6 +12,7 @@ import (
 )
 
 var _ chronograf.TimeSeries = &Client{}
+var _ chronograf.Databases = &Client{}
 
 // Shared transports for all clients to prevent leaking connections
 var (
