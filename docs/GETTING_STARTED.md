@@ -109,3 +109,18 @@ Chronograf-friendly alert rule.
 >
 * Currently, the Alerta TICKscript parser requires users to **paste** their existing TICKscript in the text input. The parser does not support manually entering or editing a TICKscript.
 * The parser requires users to whitespace delimit any services listed in the TICKscript's [`.services()` attribute](https://docs.influxdata.com/kapacitor/latest/nodes/alert_node/#alerta-services).
+
+## Manage Users and Queries
+
+The `ADMIN` section of Chronograf supports managing InfluxDB users and queries.
+
+### User Management
+
+Create, assign permissions to, and delete [InfluxDB users](https://docs.influxdata.com/influxdb/latest/query_language/authentication_and_authorization/#user-types-and-privileges).
+In version 1.2.0-beta5, Chronograf only supports assigning `ALL` permissions to users; that is, read and write permissions to every database in the InfluxDB instance.
+
+### Query Management
+
+View currently-running queries and stop expensive queries from running on the InfluxDB instance:
+
+![Alert View](https://github.com/influxdata/chronograf/blob/master/docs/images/admin-gs.png)
