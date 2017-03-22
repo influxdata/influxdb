@@ -133,16 +133,16 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	// Databases
 	router.GET("/chronograf/v1/sources/:id/dbs", service.Databases)
-	router.POST("/chronograf/v1/sources/:id/dbs", service.NewDatabase)
-
-	router.DELETE("/chronograf/v1/sources/:id/dbs/:did", service.DropDatabase)
-
-	// Retention Policies
-	router.GET("/chronograf/v1/sources/:id/dbs/:did/rps", service.RetentionPolicies)
-	router.POST("/chronograf/v1/sources/:id/dbs/:did/rps", service.NewRetentionPolicy)
-
-	router.PATCH("/chronograf/v1/sources/:id/dbs/:did/rps/:rpid", service.UpdateRetentionPolicy)
-	router.DELETE("/chronograf/v1/sources/:id/dbs/:did/rps/:rpid", service.DropRetentionPolicy)
+	// router.POST("/chronograf/v1/sources/:id/dbs", service.NewDatabase)
+	//
+	// router.DELETE("/chronograf/v1/sources/:id/dbs/:did", service.DropDatabase)
+	//
+	// // Retention Policies
+	// router.GET("/chronograf/v1/sources/:id/dbs/:did/rps", service.RetentionPolicies)
+	// router.POST("/chronograf/v1/sources/:id/dbs/:did/rps", service.NewRetentionPolicy)
+	//
+	// router.PATCH("/chronograf/v1/sources/:id/dbs/:did/rps/:rpid", service.UpdateRetentionPolicy)
+	// router.DELETE("/chronograf/v1/sources/:id/dbs/:did/rps/:rpid", service.DropRetentionPolicy)
 
 	var authRoutes AuthRoutes
 

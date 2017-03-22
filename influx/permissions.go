@@ -75,6 +75,24 @@ func (r *showResults) Users() []chronograf.User {
 	return res
 }
 
+// Databases converts SHOW DATABASES to chronograf Databases
+func (r *showResults) Databases() []chronograf.Database {
+	res := []chronograf.Database{}
+	for _, u := range *r {
+		for _, s := range u.Series {
+			for _, v := range s.Values {
+				if name, ok := v[0].(string); !ok {
+					continue
+				} else {
+					d := chronograf.Database{Name: name}
+					res = append(res, d)
+				}
+			}
+		}
+	}
+	return res
+}
+
 // Permissions converts SHOW GRANTS to chronograf.Permissions
 func (r *showResults) Permissions() chronograf.Permissions {
 	res := []chronograf.Permission{}
