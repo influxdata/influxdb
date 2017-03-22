@@ -53,9 +53,11 @@ func (h *Service) GetDatabases(w http.ResponseWriter, r *http.Request) {
   }
 
   dbs := make([]dbResponse, len(databases))
-  // for i, d := range databases {
-	//
-  // }
+  for i, d := range databases {
+	  dbs[i] = dbResponse{
+      Name: d.Name,
+    }
+  }
 
 	res := dbsResponse{
 		Databases: dbs,
