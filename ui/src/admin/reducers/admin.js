@@ -128,12 +128,12 @@ export default function admin(state = initialState, action) {
     }
 
     case 'EDIT_RETENTION_POLICY': {
-      const {database, retentionPolicy} = action.payload
+      const {database, retentionPolicy, updates} = action.payload
 
       const newState = {
         databases: state.databases.map(db => db.links.self === database.links.self ? {
           ...db,
-          retentionPolicies: db.retentionPolicies.map(rp => rp.links.self === retentionPolicy.links.self ? {...rp, ...retentionPolicy} : rp),
+          retentionPolicies: db.retentionPolicies.map(rp => rp.links.self === retentionPolicy.links.self ? {...rp, ...updates} : rp),
         } : db),
       }
 

@@ -10,6 +10,7 @@ import {
   editUser,
   editRole,
   editDatabase,
+  editRetentionPolicy,
   loadRoles,
   loadPermissions,
   deleteRole,
@@ -205,6 +206,16 @@ describe('Admin.Reducers', () => {
       const actual = reducer(state, removeRetentionPolicy(db1, rp1))
       const expected = [
         {...db1, retentionPolicies: []},
+      ]
+
+      expect(actual.databases).to.deep.equal(expected)
+    })
+
+    it('can edit a retention policy', () => {
+      const updates = {name: 'rpOne', duration: '100y', replication: '42'}
+      const actual = reducer(state, editRetentionPolicy(db1, rp1, updates))
+      const expected = [
+        {...db1, retentionPolicies: [{...rp1, ...updates}]},
       ]
 
       expect(actual.databases).to.deep.equal(expected)

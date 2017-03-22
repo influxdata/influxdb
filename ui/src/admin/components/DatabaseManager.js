@@ -12,7 +12,6 @@ const DatabaseManager = ({
   onStartDeleteDatabase,
   onDatabaseDeleteConfirm,
   onAddRetentionPolicy,
-  onEditRetentionPolicy,
   onStopEditRetentionPolicy,
   onCancelRetentionPolicy,
   onCreateRetentionPolicy,
@@ -39,7 +38,6 @@ const DatabaseManager = ({
               onStartDeleteDatabase={onStartDeleteDatabase}
               onDatabaseDeleteConfirm={onDatabaseDeleteConfirm}
               onAddRetentionPolicy={onAddRetentionPolicy}
-              onEditRetentionPolicy={onEditRetentionPolicy}
               onStopEditRetentionPolicy={onStopEditRetentionPolicy}
               onCancelRetentionPolicy={onCancelRetentionPolicy}
               onCreateRetentionPolicy={onCreateRetentionPolicy}

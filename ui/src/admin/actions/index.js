@@ -198,11 +198,12 @@ export const removeDatabaseDeleteCode = (database) => ({
   },
 })
 
-export const editRetentionPolicy = (database, retentionPolicy) => ({
+export const editRetentionPolicy = (database, retentionPolicy, updates) => ({
   type: 'EDIT_RETENTION_POLICY',
   payload: {
     database,
     retentionPolicy,
+    updates,
   },
 })
 
@@ -288,10 +289,10 @@ export const createRetentionPolicyAsync = (url, retentionPolicy) => async (dispa
   }
 }
 
-export const updateRetentionPolicyAsync = (database, retentionPolicy) => async (dispatch) => {
+export const updateRetentionPolicyAsync = (database, retentionPolicy, updates) => async (dispatch) => {
   try {
     // TODO: implement once server is up
-    dispatch(editRetentionPolicy(database, retentionPolicy))
+    dispatch(editRetentionPolicy(database, retentionPolicy, updates))
     // const {data} = await createRetentionPolicyAJAX(url, retentionPolicy)
     dispatch(publishNotification('success', 'Retention policy updated successfully'))
     // dispatch(syncRetentionPolicy(retentionPolicy, {...data, id: uuid.v4()}))

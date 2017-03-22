@@ -133,7 +133,7 @@ class DatabaseRow extends Component {
       return
     }
 
-    onUpdate(database, {...retentionPolicy, ...validInputs})
+    onUpdate(database, retentionPolicy, validInputs)
     this.handleEndEdit()
   }
 
