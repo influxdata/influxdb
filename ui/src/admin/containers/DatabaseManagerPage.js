@@ -71,13 +71,17 @@ class DatabaseManagerPage extends Component {
 
   handleDatabaseDeleteConfirm(database, e) {
     const {key, target: {value}} = e
-    const {actions, source} = this.props
+    const {actions, source, notify} = this.props
 
     if (key === 'Escape') {
       return actions.removeDatabaseDeleteCode(database)
     }
 
-    if (key === 'Enter' && database.deleteCode === 'DELETE') {
+    if (key === 'Enter') {
+      if (database.deleteCode !== `DELETE ${database.name}`) {
+        return notify('error', `Please type DELETE ${database.name} to confirm`)
+      }
+
       return actions.deleteDatabaseAsync(source, database)
     }
 

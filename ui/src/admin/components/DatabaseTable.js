@@ -156,7 +156,7 @@ const Header = ({
           name="name"
           type="text"
           value={database.deleteCode || ''}
-          placeholder="type DELETE to confirm"
+          placeholder={`DELETE ${database.name}`}
           onChange={(e) => onDatabaseDeleteConfirm(database, e)}
           onKeyDown={(e) => onDatabaseDeleteConfirm(database, e)}
           autoFocus={true}
