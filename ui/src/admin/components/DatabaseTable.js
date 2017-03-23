@@ -157,9 +157,12 @@ const Header = ({
 
   const buttons = (
     <div className="text-right">
-      <button className="btn btn-xs btn-danger" onClick={() => onStartDelete(database)}>
-        Delete
-      </button>
+      {
+        database.name === '_internal' ? null :
+          <button className="btn btn-xs btn-danger" onClick={() => onStartDelete(database)}>
+            Delete
+          </button>
+      }
       <button className="btn btn-xs btn-primary" disabled={isAddRPDisabled} onClick={() => onAddRetentionPolicy(database)}>
         Add retention policy
       </button>
