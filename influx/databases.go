@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+// AllDB returns all databases from within Influx
 func (c *Client) AllDB(ctx context.Context) ([]chronograf.Database, error) {
 	databases, err := c.showDatabases(ctx)
 	if err != nil {
@@ -18,6 +19,7 @@ func (c *Client) AllDB(ctx context.Context) ([]chronograf.Database, error) {
 	return databases, nil
 }
 
+// CreateDB creates a database within Influx
 func (c *Client) CreateDB(ctx context.Context, db *chronograf.Database) (*chronograf.Database, error) {
 	_, err := c.Query(ctx, chronograf.Query{
 		Command: fmt.Sprintf(`CREATE DATABASE "%s"`, db.Name),
@@ -31,6 +33,7 @@ func (c *Client) CreateDB(ctx context.Context, db *chronograf.Database) (*chrono
 	return res, nil
 }
 
+// DropDB drops a database within Influx
 func (c *Client) DropDB(ctx context.Context, database string) error {
 	_, err := c.Query(ctx, chronograf.Query{
 		Command: fmt.Sprintf(`DROP DATABASE "%s"`, database),
@@ -42,6 +45,7 @@ func (c *Client) DropDB(ctx context.Context, database string) error {
 	return nil
 }
 
+// AllRP returns all the retention policies for a specific database
 func (c *Client) AllRP(ctx context.Context, database string) ([]chronograf.RetentionPolicy, error) {
 	retentionPolicies, err := c.showRetentionPolicies(ctx, database)
 	if err != nil {
@@ -51,6 +55,7 @@ func (c *Client) AllRP(ctx context.Context, database string) ([]chronograf.Reten
 	return retentionPolicies, nil
 }
 
+// CreateRP creates a retention policy for a specific database
 func (c *Client) CreateRP(ctx context.Context, database string, rp *chronograf.RetentionPolicy) (*chronograf.RetentionPolicy, error) {
 	_, err := c.Query(ctx, chronograf.Query{
 		Command: fmt.Sprintf(`CREATE RETENTION POLICY "%s" ON "%s" DURATION %s REPLICATION %d`, rp.Name, database, rp.Duration, rp.Replication),
@@ -69,6 +74,7 @@ func (c *Client) CreateRP(ctx context.Context, database string, rp *chronograf.R
 	return res, nil
 }
 
+// UpdateRP updates a specific retention policy for a specific database
 func (c *Client) UpdateRP(ctx context.Context, database string, name string, rp *chronograf.RetentionPolicy) (*chronograf.RetentionPolicy, error) {
 	var buffer bytes.Buffer
 	buffer.WriteString("ALTER RETENTION POLICY")
@@ -102,6 +108,7 @@ func (c *Client) UpdateRP(ctx context.Context, database string, name string, rp 
 	return res, nil
 }
 
+// DropRP removes a specific retention policy for a specific database
 func (c *Client) DropRP(ctx context.Context, database string, rp string) error {
 	_, err := c.Query(ctx, chronograf.Query{
 		Command: fmt.Sprintf(`DROP RETENTION POLICY`),
@@ -136,7 +143,7 @@ func (c *Client) showDatabases(ctx context.Context) ([]chronograf.Database, erro
 
 func (c *Client) showRetentionPolicies(ctx context.Context, name string) ([]chronograf.RetentionPolicy, error) {
 	retentionPolicies, err := c.Query(ctx, chronograf.Query{
-		Command: fmt.Sprintf(`SHOW RETENTION POLICIES`),
+		Command: fmt.Sprintf(`SHOW RETENTION POLICIES ON "%s"`, name),
 		DB:      name,
 	})
 

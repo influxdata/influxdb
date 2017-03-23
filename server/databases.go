@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -15,18 +16,20 @@ type dbLinks struct {
 }
 
 type dbResponse struct {
-	Name          string  `json:"name"`                    // a unique string identifier for the database
-	Duration      string  `json:"duration,omitempty"`      // the duration (when creating a default retention policy)
-	Replication   int32   `json:"replication,omitempty"`   // the replication factor (when creating a default retention policy)
-	ShardDuration string  `json:"shardDuration,omitempty"` // the shard duration (when creating a default retention policy)
-	Links         dbLinks `json:"links"`                   // Links are URI locations related to the database
+	Name          string       `json:"name"`                        // a unique string identifier for the database
+	Duration      string       `json:"duration,omitempty"`          // the duration (when creating a default retention policy)
+	Replication   int32        `json:"replication,omitempty"`       // the replication factor (when creating a default retention policy)
+	ShardDuration string       `json:"shardDuration,omitempty"`     // the shard duration (when creating a default retention policy)
+	RPs           []rpResponse `json:"retentionPolicies,omitempty"` // RPs are the retention policies for a database
+	Links         dbLinks      `json:"links"`                       // Links are URI locations related to the database
 }
 
 // newDBResponse creates the response for the /databases endpoint
-func newDBResponse(srcID int, name string) dbResponse {
+func newDBResponse(srcID int, name string, rps []rpResponse) dbResponse {
 	base := "/chronograf/v1/sources"
 	return dbResponse{
 		Name: name,
+		RPs:  rps,
 		Links: dbLinks{
 			Self: fmt.Sprintf("%s/%d/dbs/%s", base, srcID, name),
 			RPs:  fmt.Sprintf("%s/%d/dbs/%s/rps", base, srcID, name),
@@ -94,7 +97,12 @@ func (h *Service) GetDatabases(w http.ResponseWriter, r *http.Request) {
 
 	dbs := make([]dbResponse, len(databases))
 	for i, d := range databases {
-		dbs[i] = newDBResponse(srcID, d.Name)
+		rps, err := h.allRPs(ctx, db, srcID, d.Name)
+		if err != nil {
+			Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+			return
+		}
+		dbs[i] = newDBResponse(srcID, d.Name, rps)
 	}
 
 	res := dbsResponse{
@@ -145,7 +153,12 @@ func (h *Service) NewDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := newDBResponse(srcID, database.Name)
+	rps, err := h.allRPs(ctx, db, srcID, database.Name)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+		return
+	}
+	res := newDBResponse(srcID, database.Name, rps)
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
 }
 
@@ -208,10 +221,19 @@ func (h *Service) RetentionPolicies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dbID := httprouter.GetParamFromContext(ctx, "dbid")
+	res, err := h.allRPs(ctx, db, srcID, dbID)
+	if err != nil {
+		msg := fmt.Sprintf("Unable to connect get RPs %d: %v", srcID, err)
+		Error(w, http.StatusBadRequest, msg, h.Logger)
+		return
+	}
+	encodeJSON(w, http.StatusOK, res, h.Logger)
+}
+
+func (h *Service) allRPs(ctx context.Context, db chronograf.Databases, srcID int, dbID string) ([]rpResponse, error) {
 	allRP, err := db.AllRP(ctx, dbID)
 	if err != nil {
-		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
-		return
+		return nil, err
 	}
 
 	rps := make([]rpResponse, len(allRP))
@@ -226,12 +248,7 @@ func (h *Service) RetentionPolicies(w http.ResponseWriter, r *http.Request) {
 		rp.WithLinks(srcID, dbID)
 		rps[i] = rp
 	}
-
-	res := rpsResponse{
-		RetentionPolicies: rps,
-	}
-
-	encodeJSON(w, http.StatusOK, res, h.Logger)
+	return rps, nil
 }
 
 // NewRetentionPolicy creates a new retention policy for a database
