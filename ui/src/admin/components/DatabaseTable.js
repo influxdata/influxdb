@@ -195,21 +195,17 @@ Header.propTypes = {
 }
 
 const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (
-  <div className="db-manager-header">
-    <h4>
-      <div className="admin-table--edit-cell">
-        <input
-          className="form-control"
-          name="name"
-          type="text"
-          value={database.name}
-          placeholder="database name"
-          onChange={(e) => onEdit(database, {name: e.target.value})}
-          onKeyDown={(e) => onKeyDown(e, database)}
-          autoFocus={true}
-        />
-      </div>
-    </h4>
+  <div className="db-manager-header-edit">
+    <input
+      className="form-control"
+      name="name"
+      type="text"
+      value={database.name}
+      placeholder="Database name"
+      onChange={(e) => onEdit(database, {name: e.target.value})}
+      onKeyDown={(e) => onKeyDown(e, database)}
+      autoFocus={true}
+    />
     <ConfirmButtons item={database} onConfirm={onConfirm} onCancel={onCancel} />
   </div>
 )
