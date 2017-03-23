@@ -77,6 +77,10 @@ const (
 
 // WAL represents the write-ahead log used for writing TSM files.
 type WAL struct {
+	// goroutines waiting for the next fsync
+	syncCount   uint64
+	syncWaiters chan chan error
+
 	mu            sync.RWMutex
 	lastWriteTime time.Time
 
@@ -89,9 +93,6 @@ type WAL struct {
 	// cache and flush variables
 	once    sync.Once
 	closing chan struct{}
-	// goroutines waiting for the next fsync
-	syncWaiters chan chan error
-	syncCount   uint64
 
 	// syncDelay sets the duration to wait before fsyncing writes.  A value of 0 (default)
 	// will cause every write to be fsync'd.  This must be set before the WAL

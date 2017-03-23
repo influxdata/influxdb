@@ -25,6 +25,8 @@ import (
 // Ensure the store can delete a retention policy and all shards under
 // it.
 func TestStore_DeleteRetentionPolicy(t *testing.T) {
+	t.Parallel()
+
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -93,6 +95,8 @@ func TestStore_DeleteRetentionPolicy(t *testing.T) {
 
 // Ensure the store can create a new shard.
 func TestStore_CreateShard(t *testing.T) {
+	t.Parallel()
+
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -122,6 +126,8 @@ func TestStore_CreateShard(t *testing.T) {
 
 // Ensure the store can delete an existing shard.
 func TestStore_DeleteShard(t *testing.T) {
+	t.Parallel()
+
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -142,6 +148,8 @@ func TestStore_DeleteShard(t *testing.T) {
 
 // Ensure the store can create a snapshot to a shard.
 func TestStore_CreateShardSnapShot(t *testing.T) {
+	t.Parallel()
+
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -162,6 +170,8 @@ func TestStore_CreateShardSnapShot(t *testing.T) {
 }
 
 func TestStore_Open(t *testing.T) {
+	t.Parallel()
+
 	s := NewStore()
 	defer s.Close()
 
@@ -197,6 +207,8 @@ func TestStore_Open(t *testing.T) {
 
 // Ensure the store reports an error when it can't open a database directory.
 func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
+	t.Parallel()
+
 	s := NewStore()
 	defer s.Close()
 
@@ -215,6 +227,8 @@ func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
 
 // Ensure the store reports an error when it can't open a retention policy.
 func TestStore_Open_InvalidRetentionPolicy(t *testing.T) {
+	t.Parallel()
+
 	s := NewStore()
 	defer s.Close()
 
@@ -237,6 +251,8 @@ func TestStore_Open_InvalidRetentionPolicy(t *testing.T) {
 
 // Ensure the store reports an error when it can't open a retention policy.
 func TestStore_Open_InvalidShard(t *testing.T) {
+	t.Parallel()
+
 	s := NewStore()
 	defer s.Close()
 
@@ -259,6 +275,8 @@ func TestStore_Open_InvalidShard(t *testing.T) {
 
 // Ensure shards can create iterators.
 func TestShards_CreateIterator(t *testing.T) {
+	t.Parallel()
+
 	s := MustOpenStore()
 	defer s.Close()
 
@@ -334,6 +352,8 @@ func TestShards_CreateIterator(t *testing.T) {
 
 // Ensure the store can backup a shard and another store can restore it.
 func TestStore_BackupRestoreShard(t *testing.T) {
+	t.Parallel()
+
 	s0, s1 := MustOpenStore(), MustOpenStore()
 	defer s0.Close()
 	defer s1.Close()
@@ -400,7 +420,7 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 }
 
 func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
-	if testing.Short() {
+	if testing.Short() || os.Getenv("GORACE") != "" {
 		t.Skip("Skipping test in short mode.")
 	}
 
@@ -462,6 +482,8 @@ func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
 }
 
 func TestStore_Cardinality_Tombstoning_Inmem(t *testing.T) {
+	t.Parallel()
+
 	store := NewStore()
 	store.EngineOptions.Config.Index = "inmem"
 	if err := store.Open(); err != nil {
@@ -472,6 +494,8 @@ func TestStore_Cardinality_Tombstoning_Inmem(t *testing.T) {
 }
 
 func TestStore_Cardinality_Tombstoning_TSI(t *testing.T) {
+	t.Parallel()
+
 	store := NewStore()
 	store.EngineOptions.Config.Index = "tsi1"
 	if err := store.Open(); err != nil {
@@ -482,7 +506,7 @@ func TestStore_Cardinality_Tombstoning_TSI(t *testing.T) {
 }
 
 func testStoreCardinalityUnique(t *testing.T, store *Store) {
-	if testing.Short() {
+	if testing.Short() || os.Getenv("GORACE") != "" {
 		t.Skip("Skipping test in short mode.")
 	}
 
@@ -530,6 +554,8 @@ func testStoreCardinalityUnique(t *testing.T, store *Store) {
 }
 
 func TestStore_Cardinality_Unique_Inmem(t *testing.T) {
+	t.Parallel()
+
 	store := NewStore()
 	store.EngineOptions.Config.Index = "inmem"
 	if err := store.Open(); err != nil {
@@ -540,6 +566,8 @@ func TestStore_Cardinality_Unique_Inmem(t *testing.T) {
 }
 
 func TestStore_Cardinality_Unique_TSI1(t *testing.T) {
+	t.Parallel()
+
 	store := NewStore()
 	store.EngineOptions.Config.Index = "tsi1"
 	if err := store.Open(); err != nil {
@@ -552,7 +580,7 @@ func TestStore_Cardinality_Unique_TSI1(t *testing.T) {
 // This test tests cardinality estimation when series data is duplicated across
 // multiple shards.
 func testStoreCardinalityDuplicates(t *testing.T, store *Store) {
-	if testing.Short() {
+	if testing.Short() || os.Getenv("GORACE") != "" {
 		t.Skip("Skipping test in short mode.")
 	}
 
@@ -614,6 +642,8 @@ func testStoreCardinalityDuplicates(t *testing.T, store *Store) {
 }
 
 func TestStore_Cardinality_Duplicates_Inmem(t *testing.T) {
+	t.Parallel()
+
 	store := NewStore()
 	store.EngineOptions.Config.Index = "inmem"
 	if err := store.Open(); err != nil {
@@ -624,6 +654,8 @@ func TestStore_Cardinality_Duplicates_Inmem(t *testing.T) {
 }
 
 func TestStore_Cardinality_Duplicates_TSI1(t *testing.T) {
+	t.Parallel()
+
 	store := NewStore()
 	store.EngineOptions.Config.Index = "tsi1"
 	if err := store.Open(); err != nil {
@@ -636,7 +668,7 @@ func TestStore_Cardinality_Duplicates_TSI1(t *testing.T) {
 // Creates a large number of series in multiple shards, which will force
 // compactions to occur.
 func testStoreCardinalityCompactions(t *testing.T, store *Store) {
-	if testing.Short() {
+	if testing.Short() || os.Getenv("GORACE") != "" {
 		t.Skip("Skipping test in short mode.")
 	}
 
@@ -684,6 +716,8 @@ func testStoreCardinalityCompactions(t *testing.T, store *Store) {
 }
 
 func TestStore_Cardinality_Compactions_Inmem(t *testing.T) {
+	t.Parallel()
+
 	store := NewStore()
 	store.EngineOptions.Config.Index = "inmem"
 	if err := store.Open(); err != nil {
@@ -694,6 +728,8 @@ func TestStore_Cardinality_Compactions_Inmem(t *testing.T) {
 }
 
 func TestStore_Cardinality_Compactions_TSI1(t *testing.T) {
+	t.Parallel()
+
 	store := NewStore()
 	store.EngineOptions.Config.Index = "tsi1"
 	if err := store.Open(); err != nil {
