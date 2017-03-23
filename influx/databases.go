@@ -33,7 +33,7 @@ func (c *Client) CreateDB(ctx context.Context, db *chronograf.Database) (*chrono
 
 func (c *Client) DropDB(ctx context.Context, database string) error {
 	_, err := c.Query(ctx, chronograf.Query{
-		Command: fmt.Sprintf(`DROP DATABASE`),
+		Command: fmt.Sprintf(`DROP DATABASE "%s"`, database),
 		DB:      database,
 	})
 	if err != nil {
