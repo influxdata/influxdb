@@ -22,8 +22,8 @@ type dbResponse struct {
 	Links         dbLinks `json:"links"`                   // Links are URI locations related to the database
 }
 
-// NewDBResponse creates the response for the /databases endpoint
-func NewDBResponse(srcID int, name string) dbResponse {
+// newDBResponse creates the response for the /databases endpoint
+func newDBResponse(srcID int, name string) dbResponse {
 	base := "/chronograf/v1/sources"
 	return dbResponse{
 		Name: name,
@@ -94,7 +94,7 @@ func (h *Service) GetDatabases(w http.ResponseWriter, r *http.Request) {
 
 	dbs := make([]dbResponse, len(databases))
 	for i, d := range databases {
-		dbs[i] = NewDBResponse(srcID, d.Name)
+		dbs[i] = newDBResponse(srcID, d.Name)
 	}
 
 	res := dbsResponse{
@@ -145,7 +145,7 @@ func (h *Service) NewDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := NewDBResponse(srcID, database.Name)
+	res := newDBResponse(srcID, database.Name)
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
 }
 
