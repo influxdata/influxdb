@@ -21,6 +21,7 @@ import (
 	client "github.com/influxdata/usage-client/v1"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/tylerb/graceful"
+	"github.com/influxdata/chronograf/influx"
 )
 
 var (
@@ -292,6 +293,7 @@ func openService(boltPath, cannedPath string, logger chronograf.Logger, useAuth 
 		AlertRulesStore:  db.AlertsStore,
 		Logger:           logger,
 		UseAuth:          useAuth,
+		Databases:        &influx.Client{Logger: logger},
 	}
 }
 
