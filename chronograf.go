@@ -306,6 +306,7 @@ type Databases interface {
   AllDB(context.Context) ([]Database, error)
 	Connect(context.Context, *Source) error
 	CreateDB(context.Context, *Database) (*Database, error)
+	DropDB(context.Context, string) error
 }
 
 // DashboardID is the dashboard ID

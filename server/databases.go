@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"encoding/json"
 
+  "github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
 )
 
@@ -111,6 +112,44 @@ func (h *Service) NewDatabase(w http.ResponseWriter, r *http.Request) {
 
 	res := dbResponse{Name: database.Name}
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
+}
+
+func (h *Service) DropDatabase(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	srcID, err := paramID("id", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		return
+	}
+
+	src, err := h.SourcesStore.Get(ctx, srcID)
+	if err != nil {
+		notFound(w, srcID, h.Logger)
+		return
+	}
+
+	db := h.Databases
+
+	if err = db.Connect(ctx, &src); err != nil {
+		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
+		Error(w, http.StatusBadRequest, msg, h.Logger)
+		return
+	}
+
+	dbID := httprouter.GetParamFromContext(ctx, "dbid")
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		return
+	}
+
+	dropErr := db.DropDB(ctx, dbID)
+	if dropErr != nil {
+		Error(w, http.StatusBadRequest, dropErr.Error(), h.Logger)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func ValidDatabaseRequest(d *chronograf.Database) error {
