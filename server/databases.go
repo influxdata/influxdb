@@ -222,9 +222,72 @@ func (h *Service) RetentionPolicies(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
+func (h *Service) NewRetentionPolicy(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	srcID, err := paramID("id", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		return
+	}
+
+	src, err := h.SourcesStore.Get(ctx, srcID)
+	if err != nil {
+		notFound(w, srcID, h.Logger)
+		return
+	}
+
+	db := h.Databases
+
+	if err = db.Connect(ctx, &src); err != nil {
+		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
+		Error(w, http.StatusBadRequest, msg, h.Logger)
+		return
+	}
+
+	postedRP := &chronograf.RetentionPolicy{}
+	if err := json.NewDecoder(r.Body).Decode(postedRP); err != nil {
+		invalidJSON(w, h.Logger)
+		return
+	}
+	if err := ValidRetentionPolicyRequest(postedRP); err != nil {
+		invalidData(w, err, h.Logger)
+		return
+	}
+
+	dbID := httprouter.GetParamFromContext(ctx, "dbid")
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		return
+	}
+
+	database, err := db.CreateRP(ctx, dbID, postedRP)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+		return
+	}
+
+	res := dbResponse{Name: database.Name}
+	encodeJSON(w, http.StatusCreated, res, h.Logger)
+}
+
 func ValidDatabaseRequest(d *chronograf.Database) error {
 	if len(d.Name) == 0 {
 		return fmt.Errorf("name is required")
 	}
+	return nil
+}
+
+func ValidRetentionPolicyRequest(rp *chronograf.RetentionPolicy) error {
+	if len(rp.Name) == 0 {
+		return fmt.Errorf("name is required")
+	}
+	if len(rp.Duration) == 0 {
+		return fmt.Errorf("duration is required")
+	}
+	if rp.Replication == 0 {
+		return fmt.Errorf("replication factor is invalid")
+	}
+
 	return nil
 }

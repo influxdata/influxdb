@@ -30,9 +30,10 @@ func (c *Client) CreateDB(ctx context.Context, db *chronograf.Database) (*chrono
   return res, nil
 }
 
-func (c *Client) DropDB(ctx context.Context, name string) error {
+func (c *Client) DropDB(ctx context.Context, database string) error {
   _, err := c.Query(ctx, chronograf.Query{
-    Command: fmt.Sprintf(`DROP DATABASE "%s"`, name),
+    Command: fmt.Sprintf(`DROP DATABASE`),
+    DB: database,
   })
   if err != nil {
     return err
@@ -40,13 +41,31 @@ func (c *Client) DropDB(ctx context.Context, name string) error {
   return nil
 }
 
-func (c *Client) AllRP(ctx context.Context, name string) ([]chronograf.RetentionPolicy, error) {
-  retentionPolicies, err := c.showRetentionPolicies(ctx, name)
+func (c *Client) AllRP(ctx context.Context, database string) ([]chronograf.RetentionPolicy, error) {
+  retentionPolicies, err := c.showRetentionPolicies(ctx, database)
   if err != nil {
     return nil, err
   }
 
   return retentionPolicies, nil
+}
+
+func (c *Client) CreateRP(ctx context.Context, database string, rp *chronograf.RetentionPolicy) (*chronograf.RetentionPolicy, error) {
+  _, err := c.Query(ctx, chronograf.Query{
+    Command: fmt.Sprintf(`CREATE RETENTION POLICY "%s" DURATION "%s" REPLICATION "%s"`, rp.Name, rp.Duration, rp.Replication),
+    DB: database,
+  })
+  if err != nil {
+    return nil, err
+  }
+
+  res := &chronograf.RetentionPolicy{
+    Name: rp.Name,
+    Duration: rp.Duration,
+    Replication: rp.Replication,
+  }
+
+  return res, nil
 }
 
 func (c *Client) showDatabases(ctx context.Context) ([]chronograf.Database, error) {

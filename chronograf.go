@@ -316,6 +316,7 @@ type Databases interface {
 	CreateDB(context.Context, *Database) (*Database, error)
 	DropDB(context.Context, string) error
 	AllRP(context.Context, string) ([]RetentionPolicy, error)
+	CreateRP(context.Context, string, *RetentionPolicy) (*RetentionPolicy, error)
 }
 
 // DashboardID is the dashboard ID
