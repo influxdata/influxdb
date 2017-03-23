@@ -1,21 +1,31 @@
-import React, {PropTypes} from 'react';
-import {Link} from 'react-router';
-import SourceIndicator from '../../shared/components/SourceIndicator';
+import React, {PropTypes} from 'react'
+import {Link, withRouter} from 'react-router'
+import SourceIndicator from '../../shared/components/SourceIndicator'
 
-import {getDashboards} from '../apis';
+import {getDashboards, createDashboard} from '../apis'
+import {NEW_DASHBOARD} from 'src/dashboards/constants'
+
+const {
+  func,
+  string,
+  shape,
+} = PropTypes
 
 const DashboardsPage = React.createClass({
   propTypes: {
-    source: PropTypes.shape({
-      id: PropTypes.string.isRequired,
-      name: PropTypes.string.isRequired,
-      type: PropTypes.string,
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
+    source: shape({
+      id: string.isRequired,
+      name: string.isRequired,
+      type: string,
+      links: shape({
+        proxy: string.isRequired,
       }).isRequired,
-      telegraf: PropTypes.string.isRequired,
+      telegraf: string.isRequired,
     }),
-    addFlashMessage: PropTypes.func,
+    router: shape({
+      push: func.isRequired,
+    }).isRequired,
+    addFlashMessage: func,
   },
 
   getInitialState() {
@@ -34,15 +44,21 @@ const DashboardsPage = React.createClass({
     });
   },
 
+  async handleCreateDashbord() {
+    const {source: {id}, router: {push}} = this.props
+    const {data} = await createDashboard(NEW_DASHBOARD)
+    push(`/sources/${id}/dashboards/${data.id}`)
+  },
+
   render() {
-    const dashboardLink = `/sources/${this.props.source.id}`;
-    let tableHeader;
+    const dashboardLink = `/sources/${this.props.source.id}`
+    let tableHeader
     if (this.state.waiting) {
-      tableHeader = "Loading Dashboards...";
+      tableHeader = "Loading Dashboards..."
     } else if (this.state.dashboards.length === 0) {
-      tableHeader = "1 Dashboard";
+      tableHeader = "1 Dashboard"
     } else {
-      tableHeader = `${this.state.dashboards.length + 1} Dashboards`;
+      tableHeader = `${this.state.dashboards.length + 1} Dashboards`
     }
 
     return (
@@ -66,7 +82,7 @@ const DashboardsPage = React.createClass({
                 <div className="panel panel-minimal">
                   <div className="panel-heading u-flex u-ai-center u-jc-space-between">
                     <h2 className="panel-title">{tableHeader}</h2>
-                    <button className="btn btn-sm btn-primary">Create Dashboard</button>
+                    <button className="btn btn-sm btn-primary" onClick={this.handleCreateDashbord}>Create Dashboard</button>
                   </div>
                   <div className="panel-body">
                     <table className="table v-center">
@@ -105,8 +121,8 @@ const DashboardsPage = React.createClass({
           </div>
         </div>
       </div>
-    );
+    )
   },
-});
+})
 
-export default DashboardsPage;
+export default withRouter(DashboardsPage)
