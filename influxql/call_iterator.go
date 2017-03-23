@@ -1295,16 +1295,16 @@ func newIntegralIterator(input Iterator, opt IteratorOptions, interval Interval)
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
-			fn := NewFloatIntegralReducer(interval)
+			fn := NewFloatIntegralReducer(interval, opt)
 			return fn, fn
 		}
-		return &floatReduceFloatIterator{input: newBufFloatIterator(input), opt: opt, create: createFn}, nil
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
 	case IntegerIterator:
 		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
-			fn := NewIntegerIntegralReducer(interval)
+			fn := NewIntegerIntegralReducer(interval, opt)
 			return fn, fn
 		}
-		return &integerReduceFloatIterator{input: newBufIntegerIterator(input), opt: opt, create: createFn}, nil
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
 	default:
 		return nil, fmt.Errorf("unsupported integral iterator type: %T", input)
 	}

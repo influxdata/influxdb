@@ -794,6 +794,15 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 			return nil, err
 		}
 		return newCumulativeSumIterator(input, opt)
+	case "integral":
+		opt := b.opt
+		opt.Ordered = true
+		input, err := buildExprIterator(expr.Args[0].(*VarRef), b.ic, b.sources, opt, false)
+		if err != nil {
+			return nil, err
+		}
+		interval := opt.IntegralInterval()
+		return newIntegralIterator(input, opt, interval)
 	}
 
 	itr, err := func() (Iterator, error) {
@@ -951,15 +960,6 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 				percentile = float64(arg.Val)
 			}
 			return newPercentileIterator(input, opt, percentile)
-		case "integral":
-			opt := b.opt
-			opt.Ordered = true
-			input, err := buildExprIterator(expr.Args[0].(*VarRef), b.ic, b.sources, opt, false)
-			if err != nil {
-				return nil, err
-			}
-			interval := opt.IntegralInterval()
-			return newIntegralIterator(input, opt, interval)
 		default:
 			return nil, fmt.Errorf("unsupported call: %s", expr.Name)
 		}

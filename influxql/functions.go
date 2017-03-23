@@ -760,47 +760,77 @@ func (r *FloatHoltWintersReducer) constrain(x []float64) {
 
 // FloatIntegralReducer calculates the time-integral of the aggregated points.
 type FloatIntegralReducer struct {
-	count    uint32
 	interval Interval
 	sum      float64
 	prev     FloatPoint
+	window   struct {
+		start int64
+		end   int64
+	}
+	ch  chan FloatPoint
+	opt IteratorOptions
 }
 
 // NewFloatIntegralReducer creates a new FloatIntegralReducer.
-func NewFloatIntegralReducer(interval Interval) *FloatIntegralReducer {
+func NewFloatIntegralReducer(interval Interval, opt IteratorOptions) *FloatIntegralReducer {
 	return &FloatIntegralReducer{
 		interval: interval,
 		prev:     FloatPoint{Nil: true},
+		ch:       make(chan FloatPoint, 1),
+		opt:      opt,
 	}
 }
 
 // AggregateFloat aggregates a point into the reducer.
 func (r *FloatIntegralReducer) AggregateFloat(p *FloatPoint) {
-
 	// If this is the first point, just save it
 	if r.prev.Nil {
 		r.prev = *p
-		r.count++
+		if !r.opt.Interval.IsZero() {
+			// Record the end of the time interval.
+			// We do not care for whether the last number is inclusive or exclusive
+			// because we treat both the same for the involved math.
+			if r.opt.Ascending {
+				r.window.start, r.window.end = r.opt.Window(p.Time)
+			} else {
+				r.window.end, r.window.start = r.opt.Window(p.Time)
+			}
+		}
 		return
 	}
 
 	// If this point has the same timestamp as the previous one,
-	// use it but don't add anything to the integral.  Effectively
-	// this means that we allow the curve we are integrating
-	// to have step changes in it, but who knows whether the points
-	// actually arrive in any particular order...?
+	// skip the point. Points sent into this reducer are expected
+	// to be fed in order.
 	if r.prev.Time == p.Time {
 		r.prev = *p
-		r.count++
 		return
+	} else if !r.opt.Interval.IsZero() && ((r.opt.Ascending && p.Time >= r.window.end) || (!r.opt.Ascending && p.Time <= r.window.end)) {
+		// If our previous time is not equal to the window, we need to
+		// interpolate the area at the end of this interval.
+		if r.prev.Time != r.window.end {
+			value := linearFloat(r.window.end, r.prev.Time, p.Time, r.prev.Value, p.Value)
+			elapsed := float64(r.window.end-r.prev.Time) / float64(r.interval.Duration)
+			r.sum += 0.5 * (value + r.prev.Value) * elapsed
+
+			r.prev.Value = value
+			r.prev.Time = r.window.end
+		}
+
+		// Emit the current point through the channel and then clear it.
+		r.ch <- FloatPoint{Time: r.window.start, Value: r.sum}
+		if r.opt.Ascending {
+			r.window.start, r.window.end = r.opt.Window(p.Time)
+		} else {
+			r.window.end, r.window.start = r.opt.Window(p.Time)
+		}
+		r.sum = 0.0
 	}
 
 	// Normal operation: update the sum using the trapezium rule
 	elapsed := float64(p.Time-r.prev.Time) / float64(r.interval.Duration)
 	r.sum += 0.5 * (p.Value + r.prev.Value) * elapsed
 	r.prev = *p
-	r.count++
-	return
 }
 
 // Emit emits the time-integral of the aggregated points as a single point.
@@ -808,56 +838,108 @@ func (r *FloatIntegralReducer) AggregateFloat(p *FloatPoint) {
 // a timestamp of zero.  Within a group-by-time, we can set the time to ZeroTime
 // and a higher level will change it to the start of the time group.
 func (r *FloatIntegralReducer) Emit() []FloatPoint {
-	return []FloatPoint{{
-		Time:       ZeroTime,
-		Value:      r.sum,
-		Aggregated: r.count,
-	}}
+	select {
+	case pt, ok := <-r.ch:
+		if !ok {
+			return nil
+		}
+		return []FloatPoint{pt}
+	default:
+		return nil
+	}
+}
+
+// Close flushes any in progress points to ensure any remaining points are
+// emitted.
+func (r *FloatIntegralReducer) Close() error {
+	// If our last point is at the start time, then discard this point since
+	// there is no area within this bucket. Otherwise, send off what we
+	// currently have as the final point.
+	if !r.prev.Nil && r.prev.Time != r.window.start {
+		r.ch <- FloatPoint{Time: r.window.start, Value: r.sum}
+	}
+	close(r.ch)
+	return nil
 }
 
 // IntegerIntegralReducer calculates the time-integral of the aggregated points.
 type IntegerIntegralReducer struct {
-	count    uint32
 	interval Interval
 	sum      float64
 	prev     IntegerPoint
+	window   struct {
+		start int64
+		end   int64
+	}
+	ch  chan FloatPoint
+	opt IteratorOptions
 }
 
 // NewIntegerIntegralReducer creates a new IntegerIntegralReducer.
-func NewIntegerIntegralReducer(interval Interval) *IntegerIntegralReducer {
+func NewIntegerIntegralReducer(interval Interval, opt IteratorOptions) *IntegerIntegralReducer {
 	return &IntegerIntegralReducer{
 		interval: interval,
 		prev:     IntegerPoint{Nil: true},
+		ch:       make(chan FloatPoint, 1),
+		opt:      opt,
 	}
 }
 
 // AggregateInteger aggregates a point into the reducer.
 func (r *IntegerIntegralReducer) AggregateInteger(p *IntegerPoint) {
-
 	// If this is the first point, just save it
 	if r.prev.Nil {
 		r.prev = *p
-		r.count++
+
+		// Record the end of the time interval.
+		// We do not care for whether the last number is inclusive or exclusive
+		// because we treat both the same for the involved math.
+		if r.opt.Ascending {
+			r.window.start, r.window.end = r.opt.Window(p.Time)
+		} else {
+			r.window.end, r.window.start = r.opt.Window(p.Time)
+		}
+
+		// If we see the minimum allowable time, set the time to zero so we don't
+		// break the default returned time for aggregate queries without times.
+		if r.window.start == MinTime {
+			r.window.start = 0
+		}
 		return
 	}
 
 	// If this point has the same timestamp as the previous one,
-	// use it but don't add anything to the integral.  Effectively
-	// this means that we allow the curve we are integrating
-	// to have step changes in it, but who knows whether the points
-	// actually arrive in any particular order...?
+	// skip the point. Points sent into this reducer are expected
+	// to be fed in order.
+	value := float64(p.Value)
 	if r.prev.Time == p.Time {
 		r.prev = *p
-		r.count++
 		return
+	} else if (r.opt.Ascending && p.Time >= r.window.end) || (!r.opt.Ascending && p.Time <= r.window.end) {
+		// If our previous time is not equal to the window, we need to
+		// interpolate the area at the end of this interval.
+		if r.prev.Time != r.window.end {
+			value = linearFloat(r.window.end, r.prev.Time, p.Time, float64(r.prev.Value), value)
+			elapsed := float64(r.window.end-r.prev.Time) / float64(r.interval.Duration)
+			r.sum += 0.5 * (value + float64(r.prev.Value)) * elapsed
+
+			r.prev.Time = r.window.end
+		}
+
+		// Emit the current point through the channel and then clear it.
+		r.ch <- FloatPoint{Time: r.window.start, Value: r.sum}
+		if r.opt.Ascending {
+			r.window.start, r.window.end = r.opt.Window(p.Time)
+		} else {
+			r.window.end, r.window.start = r.opt.Window(p.Time)
+		}
+		r.sum = 0.0
 	}
 
 	// Normal operation: update the sum using the trapezium rule
 	elapsed := float64(p.Time-r.prev.Time) / float64(r.interval.Duration)
-	r.sum += 0.5 * float64(p.Value+r.prev.Value) * elapsed
+	r.sum += 0.5 * (value + float64(r.prev.Value)) * elapsed
 	r.prev = *p
-	r.count++
-	return
 }
 
 // Emit emits the time-integral of the aggregated points as a single FLOAT point
@@ -865,9 +947,26 @@ func (r *IntegerIntegralReducer) AggregateInteger(p *IntegerPoint) {
 // a timestamp of zero.  Within a group-by-time, we can set the time to ZeroTime
 // and a higher level will change it to the start of the time group.
 func (r *IntegerIntegralReducer) Emit() []FloatPoint {
-	return []FloatPoint{{
-		Time:       ZeroTime,
-		Value:      r.sum,
-		Aggregated: r.count,
-	}}
+	select {
+	case pt, ok := <-r.ch:
+		if !ok {
+			return nil
+		}
+		return []FloatPoint{pt}
+	default:
+		return nil
+	}
+}
+
+// Close flushes any in progress points to ensure any remaining points are
+// emitted.
+func (r *IntegerIntegralReducer) Close() error {
+	// If our last point is at the start time, then discard this point since
+	// there is no area within this bucket. Otherwise, send off what we
+	// currently have as the final point.
+	if !r.prev.Nil && r.prev.Time != r.window.start {
+		r.ch <- FloatPoint{Time: r.window.start, Value: r.sum}
+	}
+	close(r.ch)
+	return nil
 }
