@@ -22,12 +22,14 @@ type dbResponse struct {
 	Links         dbLinks `json:"links"`                   // Links are URI locations related to the database
 }
 
+// NewDBResponse creates the response for the /databases endpoint
 func NewDBResponse(srcID int, name string) dbResponse {
 	base := "/chronograf/v1/sources"
 	return dbResponse{
 		Name: name,
 		Links: dbLinks{
 			Self: fmt.Sprintf("%s/%d/dbs/%s", base, srcID, name),
+			RPs:  fmt.Sprintf("%s/%d/dbs/%s/rps", base, srcID, name),
 		},
 	}
 }
@@ -49,6 +51,7 @@ type rpResponse struct {
 	Links         rpLinks `json:"links"`         // Links are URI locations related to the database
 }
 
+// WithLinks adds links to an rpResponse in place
 func (r *rpResponse) WithLinks(srcID int, dbName string) {
 	base := "/chronograf/v1/sources"
 	r.Links = rpLinks{
@@ -60,7 +63,7 @@ type rpsResponse struct {
 	RetentionPolicies []rpResponse `json:"retentionPolicies"`
 }
 
-// Databases queries the list of all databases for a source
+// GetDatabases queries the list of all databases for a source
 func (h *Service) GetDatabases(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -101,6 +104,7 @@ func (h *Service) GetDatabases(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
+// NewDatabase creates a new database within the datastore
 func (h *Service) NewDatabase(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -145,6 +149,7 @@ func (h *Service) NewDatabase(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
 }
 
+// DropDatabase removes a database from a data source
 func (h *Service) DropDatabase(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -179,6 +184,7 @@ func (h *Service) DropDatabase(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// RetentionPolicies lists retention policies within a database
 func (h *Service) RetentionPolicies(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -195,7 +201,6 @@ func (h *Service) RetentionPolicies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	db := h.Databases
-
 	if err = db.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
@@ -203,7 +208,6 @@ func (h *Service) RetentionPolicies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dbID := httprouter.GetParamFromContext(ctx, "dbid")
-
 	allRP, err := db.AllRP(ctx, dbID)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
@@ -230,6 +234,7 @@ func (h *Service) RetentionPolicies(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusOK, res, h.Logger)
 }
 
+// NewRetentionPolicy creates a new retention policy for a database
 func (h *Service) NewRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -246,7 +251,6 @@ func (h *Service) NewRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	db := h.Databases
-
 	if err = db.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
@@ -264,7 +268,6 @@ func (h *Service) NewRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dbID := httprouter.GetParamFromContext(ctx, "dbid")
-
 	database, err := db.CreateRP(ctx, dbID, postedRP)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
@@ -275,6 +278,7 @@ func (h *Service) NewRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
 }
 
+// UpdateRetentionPolicy modifies an existing retention policy for a database
 func (h *Service) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -291,7 +295,6 @@ func (h *Service) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) 
 	}
 
 	db := h.Databases
-
 	if err = db.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
@@ -310,7 +313,6 @@ func (h *Service) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) 
 
 	dbID := httprouter.GetParamFromContext(ctx, "dbid")
 	rpID := httprouter.GetParamFromContext(ctx, "rpid")
-
 	rp, err := db.UpdateRP(ctx, dbID, rpID, postedRP)
 
 	if err != nil {
@@ -323,6 +325,7 @@ func (h *Service) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) 
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
 }
 
+// DropRetentionPolicy removes a retention policy from a database
 func (h *Service) DropRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -339,7 +342,6 @@ func (h *Service) DropRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	db := h.Databases
-
 	if err = db.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
@@ -348,7 +350,6 @@ func (h *Service) DropRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 
 	dbID := httprouter.GetParamFromContext(ctx, "dbid")
 	rpID := httprouter.GetParamFromContext(ctx, "rpid")
-
 	dropErr := db.DropRP(ctx, dbID, rpID)
 	if dropErr != nil {
 		Error(w, http.StatusBadRequest, dropErr.Error(), h.Logger)
@@ -358,6 +359,7 @@ func (h *Service) DropRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// ValidDatabaseRequest checks if the database posted is valid
 func ValidDatabaseRequest(d *chronograf.Database) error {
 	if len(d.Name) == 0 {
 		return fmt.Errorf("name is required")
@@ -365,6 +367,7 @@ func ValidDatabaseRequest(d *chronograf.Database) error {
 	return nil
 }
 
+// ValidRetentionPolicyRequest checks if a retention policy is valid on POST
 func ValidRetentionPolicyRequest(rp *chronograf.RetentionPolicy) error {
 	if len(rp.Name) == 0 {
 		return fmt.Errorf("name is required")
@@ -375,6 +378,5 @@ func ValidRetentionPolicyRequest(rp *chronograf.RetentionPolicy) error {
 	if rp.Replication == 0 {
 		return fmt.Errorf("replication factor is invalid")
 	}
-
 	return nil
 }
