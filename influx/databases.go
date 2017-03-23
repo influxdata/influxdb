@@ -1,10 +1,10 @@
 package influx
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-  "bytes"
 
 	"github.com/influxdata/chronograf"
 )
@@ -70,36 +70,36 @@ func (c *Client) CreateRP(ctx context.Context, database string, rp *chronograf.R
 }
 
 func (c *Client) UpdateRP(ctx context.Context, database string, name string, rp *chronograf.RetentionPolicy) (*chronograf.RetentionPolicy, error) {
-  var buffer bytes.Buffer
-  buffer.WriteString("ALTER RETENTION POLICY")
-  if (len(rp.Duration) > 0) {
-    buffer.WriteString(" DURATION " + rp.Duration)
-  }
-  if (rp.Replication > 0) {
-    buffer.WriteString(" REPLICATION " + fmt.Sprint(rp.Replication))
-  }
-  if (len(rp.ShardDuration) > 0) {
-    buffer.WriteString(" SHARD DURATION " + rp.ShardDuration)
-  }
-  if (rp.Default == true) {
-    buffer.WriteString(" DEFAULT")
-  }
+	var buffer bytes.Buffer
+	buffer.WriteString("ALTER RETENTION POLICY")
+	if len(rp.Duration) > 0 {
+		buffer.WriteString(" DURATION " + rp.Duration)
+	}
+	if rp.Replication > 0 {
+		buffer.WriteString(" REPLICATION " + fmt.Sprint(rp.Replication))
+	}
+	if len(rp.ShardDuration) > 0 {
+		buffer.WriteString(" SHARD DURATION " + rp.ShardDuration)
+	}
+	if rp.Default == true {
+		buffer.WriteString(" DEFAULT")
+	}
 
-  _, err := c.Query(ctx, chronograf.Query{
-    Command: buffer.String(),
-    DB:      database,
-    RP:      name,
-  })
-  if err != nil {
-    return nil, err
-  }
+	_, err := c.Query(ctx, chronograf.Query{
+		Command: buffer.String(),
+		DB:      database,
+		RP:      name,
+	})
+	if err != nil {
+		return nil, err
+	}
 
-  // TODO: use actual information here
-  res := &chronograf.RetentionPolicy{
-    Name:        name,
-  }
+	// TODO: use actual information here
+	res := &chronograf.RetentionPolicy{
+		Name: name,
+	}
 
-  return res, nil
+	return res, nil
 }
 
 func (c *Client) DropRP(ctx context.Context, database string, rp string) error {
