@@ -10,8 +10,8 @@ import (
 )
 
 type dbLinks struct {
-	Self string `json:"self"` // Self link mapping to this resource
-	RPs  string `json:"rps"`  // URL for retention policies for this database
+	Self string `json:"self"`              // Self link mapping to this resource
+	RPs  string `json:"retentionPolicies"` // URL for retention policies for this database
 }
 
 type dbResponse struct {
@@ -20,6 +20,16 @@ type dbResponse struct {
 	Replication   int32   `json:"replication,omitempty"`   // the replication factor (when creating a default retention policy)
 	ShardDuration string  `json:"shardDuration,omitempty"` // the shard duration (when creating a default retention policy)
 	Links         dbLinks `json:"links"`                   // Links are URI locations related to the database
+}
+
+func NewDBResponse(srcID int, name string) dbResponse {
+	base := "/chronograf/v1/sources"
+	return dbResponse{
+		Name: name,
+		Links: dbLinks{
+			Self: fmt.Sprintf("%s/%d/dbs/%s", base, srcID, name),
+		},
+	}
 }
 
 type dbsResponse struct {
@@ -37,6 +47,13 @@ type rpResponse struct {
 	ShardDuration string  `json:"shardDuration"` // the shard duration
 	Default       bool    `json:"default"`       // whether the RP should be the default
 	Links         rpLinks `json:"links"`         // Links are URI locations related to the database
+}
+
+func (r *rpResponse) WithLinks(srcID int, dbName string) {
+	base := "/chronograf/v1/sources"
+	r.Links = rpLinks{
+		Self: fmt.Sprintf("%s/%d/dbs/%s/rps/%s", base, srcID, dbName, r.Name),
+	}
 }
 
 type rpsResponse struct {
@@ -60,7 +77,6 @@ func (h *Service) GetDatabases(w http.ResponseWriter, r *http.Request) {
 	}
 
 	db := h.Databases
-
 	if err = db.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
 		Error(w, http.StatusBadRequest, msg, h.Logger)
@@ -75,9 +91,7 @@ func (h *Service) GetDatabases(w http.ResponseWriter, r *http.Request) {
 
 	dbs := make([]dbResponse, len(databases))
 	for i, d := range databases {
-		dbs[i] = dbResponse{
-			Name: d.Name,
-		}
+		dbs[i] = NewDBResponse(srcID, d.Name)
 	}
 
 	res := dbsResponse{
@@ -127,7 +141,7 @@ func (h *Service) NewDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := dbResponse{Name: database.Name}
+	res := NewDBResponse(srcID, database.Name)
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
 }
 
@@ -198,13 +212,15 @@ func (h *Service) RetentionPolicies(w http.ResponseWriter, r *http.Request) {
 
 	rps := make([]rpResponse, len(allRP))
 	for i, rp := range allRP {
-		rps[i] = rpResponse{
+		rp := rpResponse{
 			Name:          rp.Name,
 			Duration:      rp.Duration,
 			Replication:   rp.Replication,
 			ShardDuration: rp.ShardDuration,
 			Default:       rp.Default,
 		}
+		rp.WithLinks(srcID, dbID)
+		rps[i] = rp
 	}
 
 	res := rpsResponse{
@@ -302,7 +318,7 @@ func (h *Service) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-  // TODO: this needs to be the actual RP information
+	// TODO: this needs to be the actual RP information
 	res := rpResponse{Name: rp.Name}
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
 }
