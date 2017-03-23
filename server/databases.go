@@ -259,6 +259,54 @@ func (h *Service) NewRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
 }
 
+func (h *Service) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	srcID, err := paramID("id", r)
+	if err != nil {
+		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
+		return
+	}
+
+	src, err := h.SourcesStore.Get(ctx, srcID)
+	if err != nil {
+		notFound(w, srcID, h.Logger)
+		return
+	}
+
+	db := h.Databases
+
+	if err = db.Connect(ctx, &src); err != nil {
+		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
+		Error(w, http.StatusBadRequest, msg, h.Logger)
+		return
+	}
+
+	postedRP := &chronograf.RetentionPolicy{}
+	if err := json.NewDecoder(r.Body).Decode(postedRP); err != nil {
+		invalidJSON(w, h.Logger)
+		return
+	}
+	if err := ValidRetentionPolicyRequest(postedRP); err != nil {
+		invalidData(w, err, h.Logger)
+		return
+	}
+
+	dbID := httprouter.GetParamFromContext(ctx, "dbid")
+	rpID := httprouter.GetParamFromContext(ctx, "rpid")
+
+	rp, err := db.UpdateRP(ctx, dbID, rpID, postedRP)
+
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+		return
+	}
+
+  // TODO: this needs to be the actual RP information
+	res := rpResponse{Name: rp.Name}
+	encodeJSON(w, http.StatusCreated, res, h.Logger)
+}
+
 func (h *Service) DropRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
