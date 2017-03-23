@@ -1,11 +1,11 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
-	"encoding/json"
 
-  "github.com/bouk/httprouter"
+	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
 )
 
@@ -23,7 +23,7 @@ type dbResponse struct {
 }
 
 type dbsResponse struct {
-  Databases []dbResponse `json:"databases"`
+	Databases []dbResponse `json:"databases"`
 }
 
 type rpLinks struct {
@@ -40,14 +40,14 @@ type rpResponse struct {
 }
 
 type rpsResponse struct {
-  RetentionPolicies []rpResponse `json:"retentionPolicies"`
+	RetentionPolicies []rpResponse `json:"retentionPolicies"`
 }
 
 // Databases queries the list of all databases for a source
 func (h *Service) GetDatabases(w http.ResponseWriter, r *http.Request) {
-  ctx := r.Context()
+	ctx := r.Context()
 
-  srcID, err := paramID("id", r)
+	srcID, err := paramID("id", r)
 	if err != nil {
 		Error(w, http.StatusUnprocessableEntity, err.Error(), h.Logger)
 		return
@@ -59,7 +59,7 @@ func (h *Service) GetDatabases(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-  db := h.Databases
+	db := h.Databases
 
 	if err = db.Connect(ctx, &src); err != nil {
 		msg := fmt.Sprintf("Unable to connect to source %d: %v", srcID, err)
@@ -67,18 +67,18 @@ func (h *Service) GetDatabases(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-  databases, err := db.AllDB(ctx)
-  if err != nil {
-    Error(w, http.StatusBadRequest, err.Error(), h.Logger)
-    return
-  }
+	databases, err := db.AllDB(ctx)
+	if err != nil {
+		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
+		return
+	}
 
-  dbs := make([]dbResponse, len(databases))
-  for i, d := range databases {
-	  dbs[i] = dbResponse{
-      Name: d.Name,
-    }
-  }
+	dbs := make([]dbResponse, len(databases))
+	for i, d := range databases {
+		dbs[i] = dbResponse{
+			Name: d.Name,
+		}
+	}
 
 	res := dbsResponse{
 		Databases: dbs,
@@ -199,11 +199,11 @@ func (h *Service) RetentionPolicies(w http.ResponseWriter, r *http.Request) {
 	rps := make([]rpResponse, len(allRP))
 	for i, rp := range allRP {
 		rps[i] = rpResponse{
-			Name: rp.Name,
-			Duration: rp.Duration,
-			Replication: rp.Replication,
+			Name:          rp.Name,
+			Duration:      rp.Duration,
+			Replication:   rp.Replication,
 			ShardDuration: rp.ShardDuration,
-			Default: rp.Default,
+			Default:       rp.Default,
 		}
 	}
 

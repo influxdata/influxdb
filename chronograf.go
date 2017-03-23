@@ -295,23 +295,23 @@ type UsersStore interface {
 }
 
 type Database struct {
-	Name          string  `json:"name"`                  // a unique string identifier for the database
-	Duration      string  `json:"duration,omitempty"`    // the duration (when creating a default retention policy)
-	Replication   int32   `json:"replication,omitempty"` // the replication factor (when creating a default retention policy)
-	ShardDuration string  `json:"shardDuration,omitempty"` // the shard duration (when creating a default retention policy)
+	Name          string `json:"name"`                    // a unique string identifier for the database
+	Duration      string `json:"duration,omitempty"`      // the duration (when creating a default retention policy)
+	Replication   int32  `json:"replication,omitempty"`   // the replication factor (when creating a default retention policy)
+	ShardDuration string `json:"shardDuration,omitempty"` // the shard duration (when creating a default retention policy)
 }
 
 type RetentionPolicy struct {
-	Name          string  `json:"name"`                  // a unique string identifier for the retention policy
-	Duration      string  `json:"duration,omitempty"`    // the duration
-	Replication   int32   `json:"replication,omitempty"` // the replication factor
-	ShardDuration string  `json:"shardDuration,omitempty"` // the shard duration
-	Default       bool    `json:"default,omitempty"` // whether the RP should be the default
+	Name          string `json:"name"`                    // a unique string identifier for the retention policy
+	Duration      string `json:"duration,omitempty"`      // the duration
+	Replication   int32  `json:"replication,omitempty"`   // the replication factor
+	ShardDuration string `json:"shardDuration,omitempty"` // the shard duration
+	Default       bool   `json:"default,omitempty"`       // whether the RP should be the default
 }
 
 type Databases interface {
-  // All lists all databases
-  AllDB(context.Context) ([]Database, error)
+	// All lists all databases
+	AllDB(context.Context) ([]Database, error)
 	Connect(context.Context, *Source) error
 	CreateDB(context.Context, *Database) (*Database, error)
 	DropDB(context.Context, string) error
