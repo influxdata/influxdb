@@ -71,8 +71,17 @@ func (c *Client) getRP(ctx context.Context, db, name string) (chronograf.Retenti
 
 // CreateRP creates a retention policy for a specific database
 func (c *Client) CreateRP(ctx context.Context, database string, rp *chronograf.RetentionPolicy) (*chronograf.RetentionPolicy, error) {
+	query := fmt.Sprintf(`CREATE RETENTION POLICY "%s" ON "%s" DURATION %s REPLICATION %d`, rp.Name, database, rp.Duration, rp.Replication)
+	if len(rp.ShardDuration) != 0 {
+		query = fmt.Sprintf(`%s SHARD DURATION %s`, query, rp.ShardDuration)
+	}
+
+	if rp.Default {
+		query = fmt.Sprintf(`%s DEFAULT`, query)
+	}
+
 	_, err := c.Query(ctx, chronograf.Query{
-		Command: fmt.Sprintf(`CREATE RETENTION POLICY "%s" ON "%s" DURATION %s REPLICATION %d`, rp.Name, database, rp.Duration, rp.Replication),
+		Command: query,
 		DB:      database,
 	})
 	if err != nil {
@@ -103,14 +112,32 @@ func (c *Client) UpdateRP(ctx context.Context, database string, name string, rp 
 	if rp.Default == true {
 		buffer.WriteString(" DEFAULT")
 	}
-
-	_, err := c.Query(ctx, chronograf.Query{
+	queryRes, err := c.Query(ctx, chronograf.Query{
 		Command: buffer.String(),
 		DB:      database,
 		RP:      name,
 	})
 	if err != nil {
 		return nil, err
+	}
+
+	// The ALTER RETENTION POLICIES statements puts the error within the results itself
+	// So, we have to crack open the results to see what happens
+	octets, err := queryRes.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]struct{ Error string }, 0)
+	if err := json.Unmarshal(octets, &results); err != nil {
+		return nil, err
+	}
+
+	// At last, we can check if there are any error strings
+	for _, r := range results {
+		if r.Error != "" {
+			return nil, fmt.Errorf(r.Error)
+		}
 	}
 
 	res, err := c.getRP(ctx, database, rp.Name)
