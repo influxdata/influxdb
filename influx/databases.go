@@ -73,7 +73,16 @@ func (c *Client) UpdateRP(ctx context.Context, database string, name string, rp 
   var buffer bytes.Buffer
   buffer.WriteString("ALTER RETENTION POLICY")
   if (len(rp.Duration) > 0) {
-    buffer.WriteString("DURATION " + rp.Duration)
+    buffer.WriteString(" DURATION " + rp.Duration)
+  }
+  if (rp.Replication > 0) {
+    buffer.WriteString(" REPLICATION " + fmt.Sprint(rp.Replication))
+  }
+  if (len(rp.ShardDuration) > 0) {
+    buffer.WriteString(" SHARD DURATION " + rp.ShardDuration)
+  }
+  if (rp.Default == true) {
+    buffer.WriteString(" DEFAULT")
   }
 
   _, err := c.Query(ctx, chronograf.Query{
