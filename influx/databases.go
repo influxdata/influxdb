@@ -3,6 +3,7 @@ package influx
 import (
   "encoding/json"
   "context"
+  "fmt"
 
   "github.com/influxdata/chronograf"
 )
@@ -14,6 +15,19 @@ func (c *Client) AllDB(ctx context.Context) ([]chronograf.Database, error) {
   }
 
   return databases, nil
+}
+
+func (c *Client) CreateDB(ctx context.Context, db *chronograf.Database) (*chronograf.Database, error) {
+  _, err := c.Query(ctx, chronograf.Query{
+    Command: fmt.Sprintf(`CREATE DATABASE "%s"`, db.Name),
+  })
+  if err != nil {
+    return nil, err
+  }
+
+  res := &chronograf.Database{Name: db.Name}
+
+  return res, nil
 }
 
 func (c *Client) showDatabases(ctx context.Context) ([]chronograf.Database, error) {

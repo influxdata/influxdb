@@ -305,6 +305,7 @@ type Databases interface {
   // All lists all databases
   AllDB(context.Context) ([]Database, error)
 	Connect(context.Context, *Source) error
+	CreateDB(context.Context, db *chronograf.Database) (*chronograf.Database, error)
 }
 
 // DashboardID is the dashboard ID

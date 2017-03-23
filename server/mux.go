@@ -133,7 +133,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	// Databases
 	router.GET("/chronograf/v1/sources/:id/dbs", service.GetDatabases)
-	// router.POST("/chronograf/v1/sources/:id/dbs", service.NewDatabase)
+	router.POST("/chronograf/v1/sources/:id/dbs", service.NewDatabase)
 	//
 	// router.DELETE("/chronograf/v1/sources/:id/dbs/:did", service.DropDatabase)
 	//
