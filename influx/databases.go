@@ -55,6 +55,20 @@ func (c *Client) AllRP(ctx context.Context, database string) ([]chronograf.Reten
 	return retentionPolicies, nil
 }
 
+func (c *Client) getRP(ctx context.Context, db, name string) (chronograf.RetentionPolicy, error) {
+	rps, err := c.AllRP(ctx, db)
+	if err != nil {
+		return chronograf.RetentionPolicy{}, err
+	}
+
+	for _, rp := range rps {
+		if rp.Name == name {
+			return rp, nil
+		}
+	}
+	return chronograf.RetentionPolicy{}, fmt.Errorf("unknown retention policy")
+}
+
 // CreateRP creates a retention policy for a specific database
 func (c *Client) CreateRP(ctx context.Context, database string, rp *chronograf.RetentionPolicy) (*chronograf.RetentionPolicy, error) {
 	_, err := c.Query(ctx, chronograf.Query{
@@ -65,19 +79,18 @@ func (c *Client) CreateRP(ctx context.Context, database string, rp *chronograf.R
 		return nil, err
 	}
 
-	res := &chronograf.RetentionPolicy{
-		Name:        rp.Name,
-		Duration:    rp.Duration,
-		Replication: rp.Replication,
+	res, err := c.getRP(ctx, database, rp.Name)
+	if err != nil {
+		return nil, err
 	}
 
-	return res, nil
+	return &res, nil
 }
 
 // UpdateRP updates a specific retention policy for a specific database
 func (c *Client) UpdateRP(ctx context.Context, database string, name string, rp *chronograf.RetentionPolicy) (*chronograf.RetentionPolicy, error) {
 	var buffer bytes.Buffer
-	buffer.WriteString("ALTER RETENTION POLICY")
+	buffer.WriteString(fmt.Sprintf(`ALTER RETENTION POLICY "%s" ON "%s"`, name, database))
 	if len(rp.Duration) > 0 {
 		buffer.WriteString(" DURATION " + rp.Duration)
 	}
@@ -100,12 +113,12 @@ func (c *Client) UpdateRP(ctx context.Context, database string, name string, rp 
 		return nil, err
 	}
 
-	// TODO: use actual information here
-	res := &chronograf.RetentionPolicy{
-		Name: name,
+	res, err := c.getRP(ctx, database, rp.Name)
+	if err != nil {
+		return nil, err
 	}
 
-	return res, nil
+	return &res, nil
 }
 
 // DropRP removes a specific retention policy for a specific database

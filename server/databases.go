@@ -285,13 +285,19 @@ func (h *Service) NewRetentionPolicy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	dbID := httprouter.GetParamFromContext(ctx, "dbid")
-	database, err := db.CreateRP(ctx, dbID, postedRP)
+	rp, err := db.CreateRP(ctx, dbID, postedRP)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
 		return
 	}
-
-	res := dbResponse{Name: database.Name}
+	res := rpResponse{
+		Name:          rp.Name,
+		Duration:      rp.Duration,
+		Replication:   rp.Replication,
+		ShardDuration: rp.ShardDuration,
+		Default:       rp.Default,
+	}
+	res.WithLinks(srcID, dbID)
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
 }
 
@@ -337,8 +343,14 @@ func (h *Service) UpdateRetentionPolicy(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	// TODO: this needs to be the actual RP information
-	res := rpResponse{Name: rp.Name}
+	res := rpResponse{
+		Name:          rp.Name,
+		Duration:      rp.Duration,
+		Replication:   rp.Replication,
+		ShardDuration: rp.ShardDuration,
+		Default:       rp.Default,
+	}
+	res.WithLinks(srcID, dbID)
 	encodeJSON(w, http.StatusCreated, res, h.Logger)
 }
 
