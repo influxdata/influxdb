@@ -8,6 +8,7 @@ class DatabaseRow extends Component {
     super(props)
     this.state = {
       isEditing: false,
+      isDeleting: false,
     }
     this.handleKeyDown = ::this.handleKeyDown
     this.handleClickOutside = ::this.handleClickOutside
@@ -16,6 +17,8 @@ class DatabaseRow extends Component {
     this.handleCreate = ::this.handleCreate
     this.handleUpdate = ::this.handleUpdate
     this.getInputValues = ::this.getInputValues
+    this.handleStartDelete = ::this.handleStartDelete
+    this.handleEndDelete = ::this.handleEndDelete
   }
 
   componentWillMount() {
@@ -30,12 +33,14 @@ class DatabaseRow extends Component {
       retentionPolicy: {name, duration, replication, isDefault, isNew},
       retentionPolicy,
       database,
+      onDelete,
       isRFDisplayed,
     } = this.props
+    const {isEditing, isDeleting} = this.state
 
     const formattedDuration = formatInfiniteDuration(duration)
 
-    if (this.state.isEditing) {
+    if (isEditing) {
       return (
         <tr>
           <td>
@@ -72,7 +77,7 @@ class DatabaseRow extends Component {
                 name="name"
                 type="number"
                 min="1"
-                defaultValue={replication}
+                defaultValue={replication || 1}
                 placeholder="how many nodes do you have"
                 onKeyDown={(e) => this.handleKeyDown(e, database)}
                 ref={(r) => this.replication = r}
@@ -95,9 +100,13 @@ class DatabaseRow extends Component {
         <td onClick={this.handleStartEdit}>{formattedDuration}</td>
         {isRFDisplayed ? <td onClick={this.handleStartEdit}>{replication}</td> : null}
         <td className="text-right">
-          <button className="btn btn-xs btn-danger admin-table--delete">
-            {`Delete ${name}`}
-          </button>
+          {
+            isDeleting ?
+              <YesNoButtons onConfirm={() => onDelete(database, retentionPolicy)} onCancel={this.handleEndDelete} /> :
+              <button className="btn btn-xs btn-danger admin-table--delete" onClick={this.handleStartDelete}>
+                {`Delete ${name}`}
+              </button>
+          }
         </td>
       </tr>
     )
@@ -105,6 +114,7 @@ class DatabaseRow extends Component {
 
   handleClickOutside() {
     this.handleEndEdit()
+    this.handleEndDelete()
   }
 
   handleStartEdit() {
@@ -115,14 +125,22 @@ class DatabaseRow extends Component {
     this.setState({isEditing: false})
   }
 
+  handleStartDelete() {
+    this.setState({isDeleting: true})
+  }
+
+  handleEndDelete() {
+    this.setState({isDeleting: false})
+  }
+
   handleCreate() {
-    const {database, onCreate} = this.props
+    const {database, retentionPolicy, onCreate} = this.props
     const validInputs = this.getInputValues()
     if (!validInputs) {
       return
     }
 
-    onCreate(database, validInputs)
+    onCreate(database, {...retentionPolicy, ...validInputs})
     this.handleEndEdit()
   }
 
@@ -205,6 +223,7 @@ DatabaseRow.propTypes = {
   onRemove: func,
   onCreate: func,
   onUpdate: func,
+  onDelete: func,
   notify: func,
   isRFDisplayed: bool,
 }

@@ -1,25 +1,25 @@
-import uuid from 'node-uuid';
-
 import {
   getUsers as getUsersAJAX,
   getRoles as getRolesAJAX,
   getPermissions as getPermissionsAJAX,
+  getDbsAndRps as getDbsAndRpsAJAX,
   createUser as createUserAJAX,
   createRole as createRoleAJAX,
+  createDatabase as createDatabaseAJAX,
+  createRetentionPolicy as createRetentionPolicyAJAX,
   deleteUser as deleteUserAJAX,
   deleteRole as deleteRoleAJAX,
+  deleteDatabase as deleteDatabaseAJAX,
+  deleteRetentionPolicy as deleteRetentionPolicyAJAX,
   updateRole as updateRoleAJAX,
   updateUser as updateUserAJAX,
+  updateRetentionPolicy as updateRetentionPolicyAJAX,
 } from 'src/admin/apis'
 
 import {
   killQuery as killQueryProxy,
-  showDatabases,
-  showRetentionPolicies,
 } from 'shared/apis/metaQuery'
 
-import parseShowDatabases from 'src/shared/parsing/showDatabases'
-import parseShowRetentionPolicies from 'src/shared/parsing/showRetentionPolicies'
 import {publishNotification} from 'src/shared/actions/notifications';
 import {ADMIN_NOTIFICATION_DELAY} from 'src/admin/constants'
 
@@ -93,6 +93,16 @@ export const syncDatabase = (stale, synced) => ({
     synced,
   },
 })
+
+export const syncRetentionPolicy = (database, stale, synced) => ({
+  type: 'SYNC_RETENTION_POLICY',
+  payload: {
+    database,
+    stale,
+    synced,
+  },
+})
+
 
 export const editUser = (user, updates) => ({
   type: 'EDIT_USER',
@@ -224,19 +234,8 @@ export const loadPermissionsAsync = (url) => async (dispatch) => {
 }
 
 export const loadDBsAndRPsAsync = (url) => async (dispatch) => {
-  const {data: dbs} = await showDatabases(url)
-  const {databases} = parseShowDatabases(dbs)
-
-  const {data: {results}} = await showRetentionPolicies(url, databases)
-  const retentionPolicies = results.map(parseShowRetentionPolicies)
-  const rps = retentionPolicies.map(rp => rp.retentionPolicies)
-  const dbsAndRps = databases.map((name, i) => ({
-    name,
-    links: {self: uuid.v4()},
-    retentionPolicies: rps[i].map(rp => ({...rp, links: {self: uuid.v4()}})),
-  }))
-
-  dispatch(loadDatabases(dbsAndRps))
+  const {data: {databases}} = await getDbsAndRpsAJAX(url)
+  dispatch(loadDatabases(databases))
 }
 
 export const createUserAsync = (url, user) => async (dispatch) => {
@@ -265,10 +264,9 @@ export const createRoleAsync = (url, role) => async (dispatch) => {
 
 export const createDatabaseAsync = (url, database) => async (dispatch) => {
   try {
-    // TODO: implement once server is up
-    // const {data} = await createDatabaseAJAX(url, database)
+    const {data} = await createDatabaseAJAX(url, database)
+    dispatch(syncDatabase(database, data))
     dispatch(publishNotification('success', 'Database created successfully'))
-    // dispatch(syncDatabase(database, {...data, id: uuid.v4()}))
   } catch (error) {
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create database: ${error.data.message}`))
@@ -276,26 +274,24 @@ export const createDatabaseAsync = (url, database) => async (dispatch) => {
   }
 }
 
-export const createRetentionPolicyAsync = (url, retentionPolicy) => async (dispatch) => {
+export const createRetentionPolicyAsync = (database, retentionPolicy) => async (dispatch) => {
   try {
-    // TODO: implement once server is up
-    // const {data} = await createRetentionPolicyAJAX(url, retentionPolicy)
+    const {data} = await createRetentionPolicyAJAX(database.links.retentionPolicies, retentionPolicy)
     dispatch(publishNotification('success', 'Retention policy created successfully'))
-    // dispatch(syncRetentionPolicy(retentionPolicy, {...data, id: uuid.v4()}))
+    dispatch(syncRetentionPolicy(database, retentionPolicy, data))
   } catch (error) {
     // undo optimistic update
     dispatch(publishNotification('error', `Failed to create retention policy: ${error.data.message}`))
-    setTimeout(() => dispatch(removeRetentionPolicy(retentionPolicy)), ADMIN_NOTIFICATION_DELAY)
+    setTimeout(() => dispatch(removeRetentionPolicy(database, retentionPolicy)), ADMIN_NOTIFICATION_DELAY)
   }
 }
 
 export const updateRetentionPolicyAsync = (database, retentionPolicy, updates) => async (dispatch) => {
   try {
-    // TODO: implement once server is up
     dispatch(editRetentionPolicy(database, retentionPolicy, updates))
-    // const {data} = await createRetentionPolicyAJAX(url, retentionPolicy)
+    const {data} = await updateRetentionPolicyAJAX(retentionPolicy.links.self, updates)
     dispatch(publishNotification('success', 'Retention policy updated successfully'))
-    // dispatch(syncRetentionPolicy(retentionPolicy, {...data, id: uuid.v4()}))
+    dispatch(syncRetentionPolicy(database, data))
   } catch (error) {
     dispatch(publishNotification('error', `Failed to update retention policy: ${error.data.message}`))
   }
@@ -326,16 +322,24 @@ export const deleteUserAsync = (user, addFlashMessage) => (dispatch) => {
   deleteUserAJAX(user.links.self, addFlashMessage, user.name)
 }
 
-export const deleteDatabaseAsync = (url, database) => (dispatch) => {
+export const deleteDatabaseAsync = (database) => async (dispatch) => {
   dispatch(removeDatabase(database))
   dispatch(publishNotification('success', 'Database deleted'))
+  try {
+    await deleteDatabaseAJAX(database.links.self)
+  } catch (error) {
+    dispatch(publishNotification('error', `Failed to delete database: ${error.data.message}`))
+  }
+}
 
-  // TODO: implement once server is up
-  // try {
-  //   await deleteDatabaseAJAX(url, database.name)
-  // } catch (error) {
-  //   dispatch(publishNotification('error', `Failed to delete database: ${error.data.message}`))
-  // }
+export const deleteRetentionPolicyAsync = (database, retentionPolicy) => async (dispatch) => {
+  dispatch(removeRetentionPolicy(database, retentionPolicy))
+  dispatch(publishNotification('success', `Retention policy ${retentionPolicy.name} deleted`))
+  try {
+    await deleteRetentionPolicyAJAX(retentionPolicy.links.self)
+  } catch (error) {
+    dispatch(publishNotification('error', `Failed to delete retentionPolicy: ${error.data.message}`))
+  }
 }
 
 export const updateRoleUsersAsync = (role, users) => async (dispatch) => {

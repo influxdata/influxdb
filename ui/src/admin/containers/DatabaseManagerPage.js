@@ -15,9 +15,9 @@ class DatabaseManagerPage extends Component {
   }
 
   componentDidMount() {
-    const {source: {links: {proxy}}, actions} = this.props
+    const {source: {links: {databases}}, actions} = this.props
 
-    actions.loadDBsAndRPsAsync(proxy)
+    actions.loadDBsAndRPsAsync(databases)
   }
 
   render() {
@@ -39,23 +39,24 @@ class DatabaseManagerPage extends Component {
         onCreateRetentionPolicy={actions.createRetentionPolicyAsync}
         onUpdateRetentionPolicy={actions.updateRetentionPolicyAsync}
         onRemoveRetentionPolicy={actions.removeRetentionPolicy}
+        onDeleteRetentionPolicy={actions.deleteRetentionPolicyAsync}
       />
     )
   }
 
   handleCreateDatabase(database) {
-    const {actions, notify} = this.props
+    const {actions, notify, source} = this.props
 
     if (!database.name) {
       return notify('error', 'Database name cannot be blank')
     }
 
-    actions.createDatabaseAsync(database)
+    actions.createDatabaseAsync(source.links.databases, database)
   }
 
   handleKeyDownDatabase(e, database) {
     const {key} = e
-    const {actions, notify} = this.props
+    const {actions, notify, source} = this.props
 
     if (key === 'Escape') {
       actions.removeDatabase(database)
@@ -66,13 +67,13 @@ class DatabaseManagerPage extends Component {
         return notify('error', 'Database name cannot be blank')
       }
 
-      actions.createDatabaseAsync(database)
+      actions.createDatabaseAsync(source.links.databases, database)
     }
   }
 
   handleDatabaseDeleteConfirm(database, e) {
     const {key, target: {value}} = e
-    const {actions, source, notify} = this.props
+    const {actions, notify} = this.props
 
     if (key === 'Escape') {
       return actions.removeDatabaseDeleteCode(database)
@@ -83,7 +84,7 @@ class DatabaseManagerPage extends Component {
         return notify('error', `Please type DELETE ${database.name} to confirm`)
       }
 
-      return actions.deleteDatabaseAsync(source, database)
+      return actions.deleteDatabaseAsync(database)
     }
 
     actions.editDatabase(database, {deleteCode: value})
@@ -125,6 +126,7 @@ DatabaseManagerPage.propTypes = {
     startDeleteDatabase: func,
     removeDatabaseDeleteCode: func,
     removeRetentionPolicy: func,
+    deleteRetentionPolicyAsync: func,
   }),
   notify: func,
 }
