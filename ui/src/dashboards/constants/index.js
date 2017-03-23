@@ -12,7 +12,7 @@ export const EMPTY_DASHBOARD = {
 }
 
 export const NEW_DASHBOARD = {
-  name: 'Name This Dashbaord',
+  name: 'Name This Dashboard',
   cells: [
     {
       x: 0,
