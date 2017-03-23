@@ -11,7 +11,7 @@ class DatabaseManagerPage extends Component {
     super(props)
     this.handleKeyDownDatabase = ::this.handleKeyDownDatabase
     this.handleDatabaseDeleteConfirm = ::this.handleDatabaseDeleteConfirm
-    this.handleCreateDatabase = :: this.handleCreateDatabase
+    this.handleCreateDatabase = ::this.handleCreateDatabase
   }
 
   componentDidMount() {
@@ -22,12 +22,14 @@ class DatabaseManagerPage extends Component {
 
   render() {
     const {source, databases, actions, notify} = this.props
+    const isCreateDBDisabled = databases.some(db => db.isEditing)
 
     return (
       <DatabaseManager
         databases={databases}
         notify={notify}
         isRFDisplayed={!!source.metaUrl}
+        isCreateDBDisabled={!!isCreateDBDisabled}
         onKeyDownDatabase={this.handleKeyDownDatabase}
         onDatabaseDeleteConfirm={this.handleDatabaseDeleteConfirm}
         addDatabase={actions.addDatabase}

@@ -5,6 +5,7 @@ const DatabaseManager = ({
   databases,
   notify,
   isRFDisplayed,
+  isCreateDBDisabled,
   addDatabase,
   onEditDatabase,
   onKeyDownDatabase,
@@ -18,13 +19,12 @@ const DatabaseManager = ({
   onCreateRetentionPolicy,
   onUpdateRetentionPolicy,
   onRemoveRetentionPolicy,
-  onDeleteRetentionPolicy,
 }) => {
   return (
     <div className="panel panel-info">
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
         <h2 className="panel-title">{databases.length === 1 ? '1 Database' : `${databases.length} Databases`}</h2>
-        <div className="btn btn-sm btn-primary" onClick={addDatabase}>Create Database</div>
+        <div className="btn btn-sm btn-primary" disabled={isCreateDBDisabled} onClick={addDatabase}>Create Database</div>
       </div>
       <div className="panel-body">
         {
@@ -46,7 +46,6 @@ const DatabaseManager = ({
               onCreateRetentionPolicy={onCreateRetentionPolicy}
               onUpdateRetentionPolicy={onUpdateRetentionPolicy}
               onRemoveRetentionPolicy={onRemoveRetentionPolicy}
-              onDeleteRetentionPolicy={onDeleteRetentionPolicy}
             />
           )
         }
@@ -67,6 +66,7 @@ DatabaseManager.propTypes = {
   notify: func,
   addDatabase: func,
   isRFDisplayed: bool,
+  isCreateDBDisabled: bool,
   onEditDatabase: func,
   onKeyDownDatabase: func,
   onCancelDatabase: func,
@@ -80,7 +80,6 @@ DatabaseManager.propTypes = {
   onCreateRetentionPolicy: func,
   onUpdateRetentionPolicy: func,
   onRemoveRetentionPolicy: func,
-  onDeleteRetentionPolicy: func,
 }
 
 export default DatabaseManager
