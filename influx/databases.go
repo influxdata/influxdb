@@ -53,7 +53,7 @@ func (c *Client) AllRP(ctx context.Context, database string) ([]chronograf.Reten
 
 func (c *Client) CreateRP(ctx context.Context, database string, rp *chronograf.RetentionPolicy) (*chronograf.RetentionPolicy, error) {
 	_, err := c.Query(ctx, chronograf.Query{
-		Command: fmt.Sprintf(`CREATE RETENTION POLICY "%s" DURATION "%s" REPLICATION "%s"`, rp.Name, rp.Duration, rp.Replication),
+		Command: fmt.Sprintf(`CREATE RETENTION POLICY "%s" ON "%s" DURATION %s REPLICATION %d`, rp.Name, database, rp.Duration, rp.Replication),
 		DB:      database,
 	})
 	if err != nil {
