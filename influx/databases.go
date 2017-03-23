@@ -68,6 +68,18 @@ func (c *Client) CreateRP(ctx context.Context, database string, rp *chronograf.R
   return res, nil
 }
 
+func (c *Client) DropRP(ctx context.Context, database string, rp string) error {
+  _, err := c.Query(ctx, chronograf.Query{
+    Command: fmt.Sprintf(`DROP RETENTION POLICY`),
+    DB: database,
+    RP: rp,
+  })
+  if err != nil {
+    return err
+  }
+  return nil
+}
+
 func (c *Client) showDatabases(ctx context.Context) ([]chronograf.Database, error) {
   res, err := c.Query(ctx, chronograf.Query{
     Command: `SHOW DATABASES`,

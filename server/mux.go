@@ -139,10 +139,10 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	// Retention Policies
 	router.GET("/chronograf/v1/sources/:id/dbs/:dbid/rps", service.RetentionPolicies)
-	// router.POST("/chronograf/v1/sources/:id/dbs/:dbid/rps", service.NewRetentionPolicy)
-	//
+	router.POST("/chronograf/v1/sources/:id/dbs/:dbid/rps", service.NewRetentionPolicy)
+
 	// router.PATCH("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.UpdateRetentionPolicy)
-	// router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.DropRetentionPolicy)
+	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.DropRetentionPolicy)
 
 	var authRoutes AuthRoutes
 
