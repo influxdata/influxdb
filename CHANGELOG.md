@@ -1,3 +1,9 @@
+## v1.2.3 [unreleased]
+
+### Bugfixes
+
+- [#8022](https://github.com/influxdata/influxdb/issues/8022): Segment violation in models.Tags.Get
+
 ## v1.2.2 [2017-03-14]
 
 ### Release Notes
