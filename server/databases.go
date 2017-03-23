@@ -3,6 +3,9 @@ package server
 import (
 	"fmt"
 	"net/http"
+	"encoding/json"
+
+	"github.com/influxdata/chronograf"
 )
 
 type dbLinks struct {
@@ -89,13 +92,30 @@ func (h *Service) NewDatabase(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-  // need to pass database object from POST
-	database, err := db.CreateDB(ctx, )
+	postedDB := &chronograf.Database{}
+	if err := json.NewDecoder(r.Body).Decode(postedDB); err != nil {
+		invalidJSON(w, h.Logger)
+		return
+	}
+
+	if err := ValidDatabaseRequest(postedDB); err != nil {
+		invalidData(w, err, h.Logger)
+		return
+	}
+
+	database, err := db.CreateDB(ctx, postedDB)
 	if err != nil {
 		Error(w, http.StatusBadRequest, err.Error(), h.Logger)
 		return
 	}
 
 	res := dbResponse{Name: database.Name}
-	encodeJSON(w, http.StatusOK, res, h.Logger)
+	encodeJSON(w, http.StatusCreated, res, h.Logger)
+}
+
+func ValidDatabaseRequest(d *chronograf.Database) error {
+	if len(d.Name) == 0 {
+		return fmt.Errorf("name is required")
+	}
+	return nil
 }
