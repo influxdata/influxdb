@@ -137,8 +137,8 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	router.DELETE("/chronograf/v1/sources/:id/dbs/:dbid", service.DropDatabase)
 
-	// // Retention Policies
-	// router.GET("/chronograf/v1/sources/:id/dbs/:dbid/rps", service.RetentionPolicies)
+	// Retention Policies
+	router.GET("/chronograf/v1/sources/:id/dbs/:dbid/rps", service.RetentionPolicies)
 	// router.POST("/chronograf/v1/sources/:id/dbs/:dbid/rps", service.NewRetentionPolicy)
 	//
 	// router.PATCH("/chronograf/v1/sources/:id/dbs/:dbid/rps/:rpid", service.UpdateRetentionPolicy)

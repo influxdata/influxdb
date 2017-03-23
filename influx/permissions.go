@@ -93,6 +93,37 @@ func (r *showResults) Databases() []chronograf.Database {
 	return res
 }
 
+func (r *showResults) RetentionPolicies() []chronograf.RetentionPolicy {
+	res := []chronograf.RetentionPolicy{}
+	for _, u := range *r {
+		for _, s := range u.Series {
+			for _, v := range s.Values {
+				if name, ok := v[0].(string); !ok {
+					continue
+				} else if duration, ok := v[1].(string); !ok {
+					continue
+				} else if sduration, ok := v[2].(string); !ok {
+					continue
+				} else if replication, ok := v[3].(int32); !ok {
+					continue
+				} else if def, ok := v[4].(bool); !ok {
+					continue
+				} else {
+					d := chronograf.RetentionPolicy{
+						Name: name,
+						Duration: duration,
+						ShardDuration: sduration,
+						Replication: replication,
+						Default: def,
+					}
+					res = append(res, d)
+				}
+			}
+		}
+	}
+	return res
+}
+
 // Permissions converts SHOW GRANTS to chronograf.Permissions
 func (r *showResults) Permissions() chronograf.Permissions {
 	res := []chronograf.Permission{}
