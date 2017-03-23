@@ -28,6 +28,7 @@ const DatabaseTable = ({
     <div className="db-manager">
       <DatabaseTableHeader
         database={database}
+        isAddRPDisabled={!!database.retentionPolicies.some(rp => rp.isNew)}
         onEdit={onEditDatabase}
         onKeyDown={onKeyDownDatabase}
         onCancel={onCancelDatabase}
@@ -76,6 +77,7 @@ DatabaseTable.propTypes = {
   database: shape(),
   notify: func,
   isRFDisplayed: bool,
+  isAddRPDisabled: bool,
   onKeyDownDatabase: func,
   onCancelDatabase: func,
   onConfirmDatabase: func,
@@ -98,6 +100,7 @@ const DatabaseTableHeader = ({
   onStartDelete,
   onDatabaseDeleteConfirm,
   onAddRetentionPolicy,
+  isAddRPDisabled,
 }) => {
   if (database.isEditing) {
     return (
@@ -119,6 +122,7 @@ const DatabaseTableHeader = ({
       onAddRetentionPolicy={onAddRetentionPolicy}
       onConfirm={onConfirm}
       onCancel={onCancel}
+      isAddRPDisabled={isAddRPDisabled}
     />
   )
 }
@@ -132,6 +136,7 @@ DatabaseTableHeader.propTypes = {
   onStartDelete: func,
   onDatabaseDeleteConfirm: func,
   onAddRetentionPolicy: func,
+  isAddRPDisabled: bool,
 }
 
 const Header = ({
@@ -139,6 +144,7 @@ const Header = ({
   onStartDelete,
   onDatabaseDeleteConfirm,
   onAddRetentionPolicy,
+  isAddRPDisabled,
   onCancel,
   onConfirm,
 }) => {
@@ -153,7 +159,7 @@ const Header = ({
       <button className="btn btn-xs btn-danger" onClick={() => onStartDelete(database)}>
         Delete
       </button>
-      <button className="btn btn-xs btn-primary" onClick={() => onAddRetentionPolicy(database)}>
+      <button className="btn btn-xs btn-primary" disabled={isAddRPDisabled} onClick={() => onAddRetentionPolicy(database)}>
         Add retention policy
       </button>
     </div>
@@ -190,6 +196,7 @@ Header.propTypes = {
   onStartDelete: func,
   onDatabaseDeleteConfirm: func,
   onAddRetentionPolicy: func,
+  isAddRPDisabled: bool,
   onConfirm: func,
   onCancel: func,
 }
