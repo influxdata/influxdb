@@ -1023,7 +1023,27 @@
 						},
 						"required": true
 					}
-				]
+				],
+				"responses": {
+					"200": {
+						"description": "Retention Policy was altered",
+						"schema": {
+							"$ref": "#/definitions/RetentionPolicy"
+						}
+					},
+					"404": {
+						"description": "Database or source does not exist.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					},
+					"default": {
+						"description": "A processing or an unexpected error.",
+						"schema": {
+							"$ref": "#/definitions/Error"
+						}
+					}
+				}
 			},
 			"delete": {
 				"tags": [
