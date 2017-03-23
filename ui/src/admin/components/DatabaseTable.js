@@ -61,6 +61,7 @@ const DatabaseTable = ({
                     onRemove={onRemoveRetentionPolicy}
                     onDelete={onDeleteRetentionPolicy}
                     isRFDisplayed={isRFDisplayed}
+                    isDeletable={database.retentionPolicies.length > 1}
                   />
                 )
               })

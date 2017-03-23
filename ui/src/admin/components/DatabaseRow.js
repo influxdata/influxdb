@@ -103,12 +103,22 @@ class DatabaseRow extends Component {
           {
             isDeleting ?
               <YesNoButtons onConfirm={() => onDelete(database, retentionPolicy)} onCancel={this.handleEndDelete} /> :
-              <button className="btn btn-xs btn-danger admin-table--delete" onClick={this.handleStartDelete}>
-                {`Delete ${name}`}
-              </button>
+              this.renderDeleteButton()
           }
         </td>
       </tr>
+    )
+  }
+
+  renderDeleteButton() {
+    if (!this.props.isDeletable) {
+      return
+    }
+
+    return (
+      <button className="btn btn-xs btn-danger admin-table--delete" onClick={this.handleStartDelete}>
+        {`Delete ${name}`}
+      </button>
     )
   }
 
@@ -219,6 +229,7 @@ DatabaseRow.propTypes = {
     isDefault: bool,
     isEditing: bool,
   }),
+  isDeletable: bool,
   database: shape(),
   onRemove: func,
   onCreate: func,
