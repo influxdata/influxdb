@@ -117,6 +117,8 @@ const DatabaseTableHeader = ({
       onStartDelete={onStartDelete}
       onDatabaseDeleteConfirm={onDatabaseDeleteConfirm}
       onAddRetentionPolicy={onAddRetentionPolicy}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
     />
   )
 }
@@ -137,6 +139,8 @@ const Header = ({
   onStartDelete,
   onDatabaseDeleteConfirm,
   onAddRetentionPolicy,
+  onCancel,
+  onConfirm,
 }) => {
   const confirmStyle = {
     display: 'flex',
@@ -169,7 +173,7 @@ const Header = ({
           autoFocus={true}
         />
       </div>
-      <ConfirmButtons item={database} onConfirm={() => {}} onCancel={() => {}} />
+      <ConfirmButtons item={database} onConfirm={onConfirm} onCancel={onCancel} />
     </div>
   )
 
@@ -186,6 +190,8 @@ Header.propTypes = {
   onStartDelete: func,
   onDatabaseDeleteConfirm: func,
   onAddRetentionPolicy: func,
+  onConfirm: func,
+  onCancel: func,
 }
 
 const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (
