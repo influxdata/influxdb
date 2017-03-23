@@ -104,7 +104,7 @@ func (r *showResults) RetentionPolicies() []chronograf.RetentionPolicy {
 					continue
 				} else if sduration, ok := v[2].(string); !ok {
 					continue
-				} else if replication, ok := v[3].(int32); !ok {
+				} else if replication, ok := v[3].(float64); !ok {
 					continue
 				} else if def, ok := v[4].(bool); !ok {
 					continue
@@ -113,7 +113,7 @@ func (r *showResults) RetentionPolicies() []chronograf.RetentionPolicy {
 						Name: name,
 						Duration: duration,
 						ShardDuration: sduration,
-						Replication: replication,
+						Replication: int32(replication),
 						Default: def,
 					}
 					res = append(res, d)

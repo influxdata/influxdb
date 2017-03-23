@@ -71,7 +71,8 @@ func (c *Client) showDatabases(ctx context.Context) ([]chronograf.Database, erro
 
 func (c *Client) showRetentionPolicies(ctx context.Context, name string) ([]chronograf.RetentionPolicy, error) {
   retentionPolicies, err := c.Query(ctx, chronograf.Query{
-    Command: fmt.Sprintf(`SHOW RETENTION POLICIES ON "%s"`, name),
+    Command: fmt.Sprintf(`SHOW RETENTION POLICIES`),
+    DB: name,
   })
 
   if err != nil {
