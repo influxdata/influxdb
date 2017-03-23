@@ -5,11 +5,13 @@ import ConfirmButtons from 'src/admin/components/ConfirmButtons'
 const {
   func,
   shape,
+  bool,
 } = PropTypes
 
 const DatabaseTable = ({
   database,
   notify,
+  isRFDisplayed,
   onEditDatabase,
   onKeyDownDatabase,
   onCancelDatabase,
@@ -39,7 +41,7 @@ const DatabaseTable = ({
             <tr>
               <th>Retention Policy</th>
               <th>Duration</th>
-              <th>Replication Factor</th>
+              {isRFDisplayed ? <th>Replication Factor</th> : null}
               <th></th>
             </tr>
           </thead>
@@ -55,6 +57,7 @@ const DatabaseTable = ({
                     onCreate={onCreateRetentionPolicy}
                     onUpdate={onUpdateRetentionPolicy}
                     onRemove={onRemoveRetentionPolicy}
+                    isRFDisplayed={isRFDisplayed}
                   />
                 )
               })
@@ -70,6 +73,7 @@ DatabaseTable.propTypes = {
   onEditDatabase: func,
   database: shape(),
   notify: func,
+  isRFDisplayed: bool,
   onKeyDownDatabase: func,
   onCancelDatabase: func,
   onConfirmDatabase: func,
@@ -207,6 +211,7 @@ EditHeader.propTypes = {
   onKeyDown: func,
   onCancel: func,
   onConfirm: func,
+  isRFDisplayed: bool,
 }
 
 export default DatabaseTable

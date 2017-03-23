@@ -21,12 +21,13 @@ class DatabaseManagerPage extends Component {
   }
 
   render() {
-    const {databases, actions, notify} = this.props
+    const {source, databases, actions, notify} = this.props
 
     return (
       <DatabaseManager
         databases={databases}
         notify={notify}
+        isRFDisplayed={!!source.metaUrl}
         onKeyDownDatabase={this.handleKeyDownDatabase}
         onDatabaseDeleteConfirm={this.handleDatabaseDeleteConfirm}
         addDatabase={actions.addDatabase}

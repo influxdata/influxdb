@@ -1,5 +1,5 @@
 import React, {PropTypes, Component} from 'react'
-import {formatRPDuration} from 'utils/formatting'
+import {formatInfiniteDuration} from 'utils/formatting'
 import YesNoButtons from 'src/shared/components/YesNoButtons'
 import onClickOutside from 'react-onclickoutside'
 
@@ -30,7 +30,10 @@ class DatabaseRow extends Component {
       retentionPolicy: {name, duration, replication, isDefault, isNew},
       retentionPolicy,
       database,
+      isRFDisplayed,
     } = this.props
+
+    const formattedDuration = formatInfiniteDuration(duration)
 
     if (this.state.isEditing) {
       return (
@@ -55,27 +58,27 @@ class DatabaseRow extends Component {
                 className="form-control"
                 name="name"
                 type="text"
-                defaultValue={duration}
+                defaultValue={formattedDuration}
                 placeholder="how long should data last"
                 onKeyDown={(e) => this.handleKeyDown(e, database)}
                 ref={(r) => this.duration = r}
               />
             </div>
           </td>
-          <td>
+          <td style={isRFDisplayed ? {} : {display: 'none'}}>
             <div className="admin-table--edit-cell">
               <input
                 className="form-control"
                 name="name"
                 type="number"
                 min="1"
-                defaultValue={replication || 1}
+                defaultValue={replication}
                 placeholder="how many nodes do you have"
                 onKeyDown={(e) => this.handleKeyDown(e, database)}
                 ref={(r) => this.replication = r}
               />
             </div>
-         </td>
+          </td>
           <td className="text-right">
             <YesNoButtons
               onConfirm={isNew ? this.handleCreate : this.handleUpdate}
@@ -88,12 +91,9 @@ class DatabaseRow extends Component {
 
     return (
       <tr>
-        <td onClick={this.handleStartEdit}>
-          {name}
-          {isDefault ? <span className="default-source-label">default</span> : null}
-        </td>
-        <td onClick={this.handleStartEdit}>{formatRPDuration(duration)}</td>
-        <td onClick={this.handleStartEdit}>{replication}</td>
+        <td onClick={this.handleStartEdit}> {name} {isDefault ? <span className="default-source-label">default</span> : null}</td>
+        <td onClick={this.handleStartEdit}>{formattedDuration}</td>
+        {isRFDisplayed ? <td onClick={this.handleStartEdit}>{replication}</td> : null}
         <td className="text-right">
           <button className="btn btn-xs btn-danger admin-table--delete">
             {`Delete ${name}`}
@@ -163,12 +163,17 @@ class DatabaseRow extends Component {
 
   getInputValues() {
     const name = this.name.value.trim()
-    const duration = this.duration.value.trim()
+    let duration = this.duration.value.trim()
     const replication = +this.replication.value.trim()
+    const {notify} = this.props
 
     if (!name || !duration || !replication) {
-      this.props.notify('error', 'Fields cannot be empty')
+      notify('error', 'Fields cannot be empty')
       return
+    }
+
+    if (duration === '∞') {
+      duration = 'INF'
     }
 
     return {
@@ -201,6 +206,7 @@ DatabaseRow.propTypes = {
   onCreate: func,
   onUpdate: func,
   notify: func,
+  isRFDisplayed: bool,
 }
 
 export default onClickOutside(DatabaseRow)
