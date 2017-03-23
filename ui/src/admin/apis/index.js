@@ -36,6 +36,18 @@ export const getPermissions = async (url) => {
   }
 }
 
+export const getDbsAndRps = async (url) => {
+  try {
+    return await AJAX({
+      method: 'GET',
+      url,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
 export const createUser = async (url, user) => {
   try {
     return await AJAX({
@@ -84,6 +96,17 @@ export const createRetentionPolicy = async (url, retentionPolicy) => {
   }
 }
 
+export const deleteRetentionPolicy = async (url) => {
+  try {
+    return await AJAX({
+      method: 'DELETE',
+      url,
+    })
+  } catch (error) {
+    throw error
+  }
+}
+
 export const deleteRole = async (url, addFlashMessage, rolename) => {
   try {
     const response = await AJAX({
@@ -124,11 +147,11 @@ export const deleteUser = async (url, addFlashMessage, username) => {
   }
 }
 
-export const deleteDatabase = async (url, name) => {
+export const deleteDatabase = async (url) => {
   try {
     return await AJAX({
       method: 'DELETE',
-      url: `${url}/${name}`,
+      url,
     })
   } catch (error) {
     console.error(error)
@@ -160,6 +183,21 @@ export const updateUser = async (url, roles, permissions) => {
       data: {
         roles,
         permissions,
+      },
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+export const updateRetentionPolicy = async (url, retentionPolicy) => {
+  try {
+    return await AJAX({
+      method: 'PUT',
+      url,
+      data: {
+        retentionPolicy,
       },
     })
   } catch (error) {

@@ -99,6 +99,19 @@ export default function admin(state = initialState, action) {
       const newState = {
         databases: state.databases.map(db => db.links.self === stale.links.self ? {...synced} : db),
       }
+
+      return {...state, ...newState}
+    }
+
+    case 'SYNC_RETENTION_POLICY': {
+      const {database, stale, synced} = action.payload
+      const newState = {
+        databases: state.databases.map(db => db.links.self === database.links.self ? {
+          ...db,
+          retentionPolicies: db.retentionPolicies.map(rp => rp.links.self === stale.links.self ? {...synced} : rp),
+        } : db),
+      }
+
       return {...state, ...newState}
     }
 

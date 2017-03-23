@@ -18,6 +18,7 @@ const DatabaseManager = ({
   onCreateRetentionPolicy,
   onUpdateRetentionPolicy,
   onRemoveRetentionPolicy,
+  onDeleteRetentionPolicy,
 }) => {
   return (
     <div className="panel panel-info">
@@ -45,6 +46,7 @@ const DatabaseManager = ({
               onCreateRetentionPolicy={onCreateRetentionPolicy}
               onUpdateRetentionPolicy={onUpdateRetentionPolicy}
               onRemoveRetentionPolicy={onRemoveRetentionPolicy}
+              onDeleteRetentionPolicy={onDeleteRetentionPolicy}
             />
           )
         }
@@ -78,6 +80,7 @@ DatabaseManager.propTypes = {
   onCreateRetentionPolicy: func,
   onUpdateRetentionPolicy: func,
   onRemoveRetentionPolicy: func,
+  onDeleteRetentionPolicy: func,
 }
 
 export default DatabaseManager
