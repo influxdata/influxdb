@@ -111,7 +111,7 @@ func (c *Client) UpdateRP(ctx context.Context, database string, name string, rp 
 // DropRP removes a specific retention policy for a specific database
 func (c *Client) DropRP(ctx context.Context, database string, rp string) error {
 	_, err := c.Query(ctx, chronograf.Query{
-		Command: fmt.Sprintf(`DROP RETENTION POLICY`),
+		Command: fmt.Sprintf(`DROP RETENTION POLICY "%s" ON "%s"`, rp, database),
 		DB:      database,
 		RP:      rp,
 	})
