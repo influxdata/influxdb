@@ -734,11 +734,11 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 			}
 		} else {
 			// No WHERE clause so get all series IDs for this measurement.
-			ids = m.seriesIDs
+			ids = m.SeriesIDs()
 		}
 
 		for _, id := range ids {
-			seriesKeys = append(seriesKeys, m.seriesByID[id].Key)
+			seriesKeys = append(seriesKeys, m.SeriesByID(id).Key)
 		}
 	}
 
