@@ -4,9 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 
-	"github.com/bouk/httprouter"
 	"github.com/influxdata/chronograf"
 )
 
@@ -130,7 +128,7 @@ func (s *Service) RemoveDashboard(w http.ResponseWriter, r *http.Request) {
 // ReplaceDashboard completely replaces a dashboard
 func (s *Service) ReplaceDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	idParam, err := strconv.Atoi(httprouter.GetParamFromContext(ctx, "id"))
+	idParam, err := paramID("id", r)
 	if err != nil {
 		msg := fmt.Sprintf("Could not parse dashboard ID: %s", err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
@@ -168,10 +166,11 @@ func (s *Service) ReplaceDashboard(w http.ResponseWriter, r *http.Request) {
 // UpdateDashboard completely updates either the dashboard name or the cells
 func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	idParam, err := strconv.Atoi(httprouter.GetParamFromContext(ctx, "id"))
+	idParam, err := paramID("id", r)
 	if err != nil {
 		msg := fmt.Sprintf("Could not parse dashboard ID: %s", err)
 		Error(w, http.StatusInternalServerError, msg, s.Logger)
+		return
 	}
 	id := chronograf.DashboardID(idParam)
 
