@@ -136,7 +136,7 @@ type Source struct {
 	URL                string `json:"url"`                          // URL are the connections to the source
 	MetaURL            string `json:"metaUrl,omitempty"`            // MetaURL is the url for the meta node
 	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the source is accepted.
-	Default            bool   `json:"default"`                      // Default specifies the default source for the application
+	Default            bool   `json:"isDefault"`                    // Default specifies the default source for the application
 	Telegraf           string `json:"telegraf"`                     // Telegraf is the db telegraf is written to.  By default it is "telegraf"
 }
 
@@ -316,6 +316,7 @@ type UsersStore interface {
 	Update(context.Context, *User) error
 }
 
+// Database represents a database in a time series source
 type Database struct {
 	Name          string `json:"name"`                    // a unique string identifier for the database
 	Duration      string `json:"duration,omitempty"`      // the duration (when creating a default retention policy)
@@ -323,6 +324,7 @@ type Database struct {
 	ShardDuration string `json:"shardDuration,omitempty"` // the shard duration (when creating a default retention policy)
 }
 
+// RetentionPolicy represents a retention policy in a time series source
 type RetentionPolicy struct {
 	Name          string `json:"name"`                    // a unique string identifier for the retention policy
 	Duration      string `json:"duration,omitempty"`      // the duration
@@ -331,6 +333,7 @@ type RetentionPolicy struct {
 	Default       bool   `json:"default,omitempty"`       // whether the RP should be the default
 }
 
+// Databases represents a databases in a time series source
 type Databases interface {
 	// All lists all databases
 	AllDB(context.Context) ([]Database, error)
