@@ -30,13 +30,6 @@ export const setTimeRange = (timeRange) => ({
   },
 })
 
-export const setEditMode = (isEditMode) => ({
-  type: 'SET_EDIT_MODE',
-  payload: {
-    isEditMode,
-  },
-})
-
 export const updateDashboard = (dashboard) => ({
   type: 'UPDATE_DASHBOARD',
   payload: {

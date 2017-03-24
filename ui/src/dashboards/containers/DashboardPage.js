@@ -42,7 +42,6 @@ const DashboardPage = React.createClass({
       getDashboards: func.isRequired,
       setDashboard: func.isRequired,
       setTimeRange: func.isRequired,
-      setEditMode: func.isRequired,
       addDashboardCellAsync: func.isRequired,
       editDashboardCell: func.isRequired,
       renameDashboardCell: func.isRequired,
@@ -59,7 +58,6 @@ const DashboardPage = React.createClass({
     autoRefresh: number.isRequired,
     timeRange: shape({}).isRequired,
     inPresentationMode: bool.isRequired,
-    isEditMode: bool.isRequired,
     handleClickPresentationButton: func,
   },
 
@@ -79,6 +77,7 @@ const DashboardPage = React.createClass({
   getInitialState() {
     return {
       selectedCell: null,
+      isEditMode: false,
     }
   },
 
@@ -96,7 +95,7 @@ const DashboardPage = React.createClass({
     const {
       location: {pathname: nextPathname},
       params: {dashboardID: nextID},
-      dashboardActions: {setDashboard, setEditMode},
+      dashboardActions: {setDashboard},
     } = nextProps
 
     if (nextPathname.pathname === pathname) {
@@ -104,7 +103,6 @@ const DashboardPage = React.createClass({
     }
 
     setDashboard(nextID)
-    setEditMode(nextPathname.includes('/edit'))
   },
 
   handleDismissOverlay() {
@@ -132,6 +130,22 @@ const DashboardPage = React.createClass({
   handleAddCell() {
     const {dashboard} = this.props
     this.props.dashboardActions.addDashboardCellAsync(dashboard)
+  },
+
+  handleEditDashboard() {
+    this.setState({isEditMode: true})
+  },
+
+  handleCancelEditDashboard() {
+    this.setState({isEditMode: false})
+  },
+
+  handleRenameDashboard(name) {
+    this.setState({isEditMode: false})
+    const {dashboard} = this.props
+    const newDashboard = {...dashboard, name}
+    this.props.dashboardActions.updateDashboard(newDashboard)
+    this.props.dashboardActions.putDashboard()
   },
 
   // Places cell into editing mode.
@@ -164,7 +178,6 @@ const DashboardPage = React.createClass({
       dashboard,
       params: {sourceID},
       inPresentationMode,
-      isEditMode,
       handleClickPresentationButton,
       source,
       handleChooseAutoRefresh,
@@ -174,6 +187,7 @@ const DashboardPage = React.createClass({
 
     const {
       selectedCell,
+      isEditMode,
     } = this.state
 
     return (
@@ -191,7 +205,11 @@ const DashboardPage = React.createClass({
         }
         {
           isEditMode ?
-            <EditHeader dashboard={dashboard} onSave={() => {}} /> :
+            <EditHeader
+              dashboard={dashboard}
+              onCancel={this.handleCancelEditDashboard}
+              onSave={this.handleRenameDashboard}
+            /> :
             <Header
               buttonText={dashboard ? dashboard.name : ''}
               handleChooseAutoRefresh={handleChooseAutoRefresh}
@@ -204,6 +222,7 @@ const DashboardPage = React.createClass({
               sourceID={sourceID}
               source={source}
               onAddCell={this.handleAddCell}
+              onEditDashboard={this.handleEditDashboard}
             >
               {(dashboards).map((d, i) => {
                 return (
@@ -218,7 +237,6 @@ const DashboardPage = React.createClass({
         }
         <Dashboard
           dashboard={dashboard}
-          isEditMode={isEditMode}
           inPresentationMode={inPresentationMode}
           source={source}
           autoRefresh={autoRefresh}
@@ -245,7 +263,6 @@ const mapStateToProps = (state) => {
       dashboards,
       dashboard,
       timeRange,
-      isEditMode,
     },
   } = state
 
@@ -254,7 +271,6 @@ const mapStateToProps = (state) => {
     dashboard,
     autoRefresh,
     timeRange,
-    isEditMode,
     inPresentationMode,
   }
 }

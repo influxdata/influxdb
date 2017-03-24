@@ -2,6 +2,7 @@
 
 ### Features
 ### Bug Fixes
+  1. [#1065](https://github.com/influxdata/chronograf/pull/1065): Save and Cancel edits to a Dashboard name
 
 ## v1.2.0-beta6 [2017-03-24]
 

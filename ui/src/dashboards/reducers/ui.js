@@ -38,11 +38,6 @@ export default function ui(state = initialState, action) {
       return {...state, timeRange};
     }
 
-    case 'SET_EDIT_MODE': {
-      const {isEditMode} = action.payload
-      return {...state, isEditMode}
-    }
-
     case 'UPDATE_DASHBOARD': {
       const {dashboard} = action.payload
       const newState = {

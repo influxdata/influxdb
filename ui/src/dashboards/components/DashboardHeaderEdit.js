@@ -1,27 +1,41 @@
-import React, {PropTypes} from 'react'
+import React, {PropTypes, Component} from 'react'
+import ConfirmButtons from 'src/admin/components/ConfirmButtons'
 
-const DashboardEditHeader = ({
-  dashboard,
-  onSave,
-}) => (
-  <div className="page-header full-width">
-    <div className="page-header__container">
-      <div className="page-header__left">
-        <input
-          className="chronograf-header__editing"
-          autoFocus={true}
-          defaultValue={dashboard && dashboard.name}
-          placeholder="Dashboard name"
-        />
-      </div>
-      <div className="page-header__right">
-        <div className="btn btn-sm btn-success" onClick={onSave}>
-          Save
+class DashboardEditHeader extends Component {
+  constructor(props) {
+    super(props)
+
+    const {dashboard: {name}} = props
+    this.state = {name}
+    this.handleChange = ::this.handleChange
+  }
+
+  handleChange(name) {
+    this.setState({name})
+  }
+
+  render() {
+    const {onSave, onCancel} = this.props
+    const {name} = this.state
+
+    return (
+      <div className="page-header full-width">
+        <div className="page-header__container">
+          <div className="page-header__left">
+            <input
+              className="chronograf-header__editing"
+              autoFocus={true}
+              value={name}
+              placeholder="Dashboard name"
+              onChange={(e) => this.handleChange(e.target.value)}
+            />
+          </div>
+          <ConfirmButtons item={name} onConfirm={onSave} onCancel={onCancel} />
         </div>
       </div>
-    </div>
-  </div>
-)
+    )
+  }
+}
 
 const {
   shape,
@@ -30,6 +44,7 @@ const {
 
 DashboardEditHeader.propTypes = {
   dashboard: shape({}),
+  onCancel: func.isRequired,
   onSave: func.isRequired,
 }
 
