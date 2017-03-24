@@ -25,7 +25,7 @@ const DatabaseManager = ({
     <div className="panel panel-info">
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
         <h2 className="panel-title">{databases.length === 1 ? '1 Database' : `${databases.length} Databases`}</h2>
-        <div className="btn btn-sm btn-primary" disabled={isAddDBDisabled} onClick={addDatabase}>Create Database</div>
+        <button className="btn btn-sm btn-primary" disabled={isAddDBDisabled} onClick={addDatabase}>Create Database</button>
       </div>
       <div className="panel-body">
         {
