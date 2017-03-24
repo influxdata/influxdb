@@ -34,6 +34,7 @@ class DatabaseRow extends Component {
       retentionPolicy,
       database,
       onDelete,
+      isDeletable,
       isRFDisplayed,
     } = this.props
     const {isEditing, isDeleting} = this.state
@@ -107,23 +108,17 @@ class DatabaseRow extends Component {
         <td className="text-right">
           {
             isDeleting ?
-              <YesNoButtons onConfirm={() => onDelete(database, retentionPolicy)} onCancel={this.handleEndDelete} /> :
-              this.renderDeleteButton()
+              <YesNoButtons
+                onConfirm={() => onDelete(database, retentionPolicy)}
+                onCancel={this.handleEndDelete} /> :
+              <button
+                className="btn btn-xs btn-danger admin-table--delete"
+                style={isDeletable ? {} : {visibility: 'hidden'}}
+                onClick={this.handleStartDelete}>{`Delete ${name}`}
+              </button>
           }
         </td>
       </tr>
-    )
-  }
-
-  renderDeleteButton() {
-    if (!this.props.isDeletable) {
-      return
-    }
-
-    return (
-      <button className="btn btn-xs btn-danger admin-table--delete" onClick={this.handleStartDelete}>
-        {`Delete ${name}`}
-      </button>
     )
   }
 
