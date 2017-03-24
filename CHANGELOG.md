@@ -24,6 +24,7 @@
 - [#8118](https://github.com/influxdata/influxdb/issues/8118): Significantly improve DROP DATABASE speed.
 - [#8181](https://github.com/influxdata/influxdb/issues/8181): Return an error when an invalid duration literal is parsed.
 - [#8093](https://github.com/influxdata/influxdb/issues/8093): Fix the time range when an exact timestamp is selected.
+- [#8174](https://github.com/influxdata/influxdb/issues/8174): Fix query parser when using addition and subtraction without spaces.
 
 ## v1.2.2 [2017-03-14]
 

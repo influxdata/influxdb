@@ -136,7 +136,7 @@ InfluxQL supports decimal integer literals.  Hexadecimal and octal literals are
 not currently supported.
 
 ```
-int_lit             = ( "1" … "9" ) { digit } .
+int_lit             = [ "+" | "-" ] ( "1" … "9" ) { digit } .
 ```
 
 ### Floats
@@ -144,7 +144,7 @@ int_lit             = ( "1" … "9" ) { digit } .
 InfluxQL supports floating-point literals.  Exponents are not currently supported.
 
 ```
-float_lit           = int_lit "." int_lit .
+float_lit           = [ "+" | "-" ] ( "." digit { digit } | digit { digit } "." { digit } ) .
 ```
 
 ### Strings
