@@ -50,7 +50,7 @@ type rpResponse struct {
 	Duration      string  `json:"duration"`      // the duration
 	Replication   int32   `json:"replication"`   // the replication factor
 	ShardDuration string  `json:"shardDuration"` // the shard duration
-	Default       bool    `json:"default"`       // whether the RP should be the default
+	Default       bool    `json:"isDefault"`     // whether the RP should be the default
 	Links         rpLinks `json:"links"`         // Links are URI locations related to the database
 }
 
