@@ -43,10 +43,7 @@ const (
 
 	// DefaultMaxSeriesPerDatabase is the maximum number of series a node can hold per database.
 	// This limit only applies to the "inmem" index.
-	DefaultMaxSeriesPerDatabase = 100000
-
-	// DefaultMaxSeriesPerShard is the maximum number of series a node can hold per shard.
-	DefaultMaxSeriesPerShard = 100000
+	DefaultMaxSeriesPerDatabase = 1000000
 
 	// DefaultMaxValuesPerTag is the maximum number of values a tag can have within a measurement.
 	DefaultMaxValuesPerTag = 100000
@@ -80,12 +77,7 @@ type Config struct {
 	// MaxSeriesPerDatabase is the maximum number of series a node can hold per database.
 	// When this limit is exceeded, writes return a 'max series per database exceeded' error.
 	// A value of 0 disables the limit. This limit only applies when using the "inmem" index.
-	MaxSeriesPerDatabase int `toml:"max-series-per-shard"`
-
-	// MaxSeriesPerShard is the maximum number of series a node can hold per shard.
-	// When this limit is exceeded, writes return a 'max series per shard exceeded' error.
-	// A value of 0 disables the limit.
-	MaxSeriesPerShard int `toml:"max-series-per-shard"`
+	MaxSeriesPerDatabase int `toml:"max-series-per-database"`
 
 	// MaxValuesPerTag is the maximum number of tag values a single tag key can have within
 	// a measurement.  When the limit is execeeded, writes return an error.
@@ -109,7 +101,6 @@ func NewConfig() Config {
 		CompactFullWriteColdDuration:   toml.Duration(DefaultCompactFullWriteColdDuration),
 
 		MaxSeriesPerDatabase: DefaultMaxSeriesPerDatabase,
-		MaxSeriesPerShard:    DefaultMaxSeriesPerShard,
 		MaxValuesPerTag:      DefaultMaxValuesPerTag,
 
 		TraceLoggingEnabled: false,
@@ -160,7 +151,6 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 		"cache-snapshot-write-cold-duration": c.CacheSnapshotWriteColdDuration,
 		"compact-full-write-cold-duration":   c.CompactFullWriteColdDuration,
 		"max-series-per-database":            c.MaxSeriesPerDatabase,
-		"max-series-per-shard":               c.MaxSeriesPerShard,
 		"max-values-per-tag":                 c.MaxValuesPerTag,
 	}), nil
 }
