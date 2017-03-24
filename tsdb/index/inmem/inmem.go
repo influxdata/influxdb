@@ -495,6 +495,7 @@ func (i *Index) dropMeasurement(name string) error {
 	delete(i.measurements, name)
 	for _, s := range m.SeriesByIDMap() {
 		delete(i.series, s.Key)
+		i.seriesTSSketch.Add([]byte(s.Key))
 	}
 	return nil
 }
@@ -505,7 +506,6 @@ func (i *Index) DropSeries(key []byte) error {
 		return nil
 	}
 
-	// TODO(edd) stats not being updated.
 	i.mu.Lock()
 	k := string(key)
 	series := i.series[k]
