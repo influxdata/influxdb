@@ -70,7 +70,22 @@ export default function ui(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'EDIT_CELL': {
+    case 'ADD_DASHBOARD_CELL': {
+      const {cell} = action.payload
+      const {dashboard, dashboards} = state
+
+      const newCells = [cell, ...dashboard.cells]
+      const newDashboard = {...dashboard, cells: newCells}
+      const newDashboards = dashboards.map((d) => d.id === dashboard.id ? newDashboard : d)
+      const newState = {
+        dashboard: newDashboard,
+        dashboards: newDashboards,
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'EDIT_DASHBOARD_CELL': {
       const {x, y, isEditing} = action.payload
       const {dashboard} = state
 
@@ -111,7 +126,7 @@ export default function ui(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'RENAME_CELL': {
+    case 'RENAME_DASHBOARD_CELL': {
       const {x, y, name} = action.payload
       const {dashboard} = state
 

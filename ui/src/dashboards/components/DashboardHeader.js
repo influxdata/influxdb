@@ -19,6 +19,7 @@ const DashboardHeader = ({
   handleClickPresentationButton,
   sourceID,
   source,
+  onAddCell,
 }) => isHidden ? null : (
   <div className="page-header full-width">
     <div className="page-header__container">
@@ -39,6 +40,13 @@ const DashboardHeader = ({
         }
       </div>
       <div className="page-header__right">
+        {
+          dashboard ?
+            <button className="btn btn-info btn-sm" onClick={onAddCell}>
+              <span className="icon plus" />
+              &nbsp;Add Cell
+            </button> : null
+        }
         {sourceID ?
           <Link className="btn btn-info btn-sm" to={`/sources/${sourceID}/dashboards/${dashboard && dashboard.id}/edit`} >
             <span className="icon pencil" />
@@ -83,6 +91,7 @@ DashboardHeader.propTypes = {
   handleChooseAutoRefresh: func.isRequired,
   handleClickPresentationButton: func.isRequired,
   source: shape({}),
+  onAddCell: func.isRequired,
 }
 
 export default DashboardHeader

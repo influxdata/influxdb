@@ -3226,9 +3226,6 @@
 					"items": {
 						"description": "cell visualization information",
 						"type": "object",
-						"required": [
-							"queries"
-						],
 						"properties": {
 							"x": {
 								"description": "X-coordinate of Cell in the Dashboard",

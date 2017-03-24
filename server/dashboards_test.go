@@ -187,38 +187,6 @@ func TestValidDashboardRequest(t *testing.T) {
 				},
 			},
 		},
-		{
-			name: "No queries",
-			d: chronograf.Dashboard{
-				Cells: []chronograf.DashboardCell{
-					{
-						W:       2,
-						H:       2,
-						Queries: []chronograf.DashboardQuery{},
-					},
-				},
-			},
-			want: chronograf.Dashboard{
-				Cells: []chronograf.DashboardCell{
-					{
-						W:       2,
-						H:       2,
-						Queries: []chronograf.DashboardQuery{},
-					},
-				},
-			},
-			wantErr: true,
-		},
-		{
-			name: "Empty Cells",
-			d: chronograf.Dashboard{
-				Cells: []chronograf.DashboardCell{},
-			},
-			want: chronograf.Dashboard{
-				Cells: []chronograf.DashboardCell{},
-			},
-			wantErr: true,
-		},
 	}
 	for _, tt := range tests {
 		err := ValidDashboardRequest(&tt.d)

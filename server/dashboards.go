@@ -50,6 +50,9 @@ func newDashboardResponse(d chronograf.Dashboard) *dashboardResponse {
 	AddQueryConfigs(&d)
 	cells := make([]dashboardCellResponse, len(d.Cells))
 	for i, cell := range d.Cells {
+		if len(cell.Queries) == 0 {
+			cell.Queries = make([]chronograf.DashboardQuery, 0)
+		}
 		cells[i] = dashboardCellResponse{
 			DashboardCell: cell,
 			Links: dashboardCellLinks{
@@ -240,14 +243,7 @@ func (s *Service) UpdateDashboard(w http.ResponseWriter, r *http.Request) {
 
 // ValidDashboardRequest verifies that the dashboard cells have a query
 func ValidDashboardRequest(d *chronograf.Dashboard) error {
-	if len(d.Cells) == 0 {
-		return fmt.Errorf("cells are required")
-	}
-
 	for i, c := range d.Cells {
-		if len(c.Queries) == 0 {
-			return fmt.Errorf("query required")
-		}
 		CorrectWidthHeight(&c)
 		d.Cells[i] = c
 	}
@@ -257,9 +253,6 @@ func ValidDashboardRequest(d *chronograf.Dashboard) error {
 
 // ValidDashboardCellRequest verifies that the dashboard cells have a query
 func ValidDashboardCellRequest(c *chronograf.DashboardCell) error {
-	if len(c.Queries) == 0 {
-		return fmt.Errorf("query required")
-	}
 	CorrectWidthHeight(c)
 	return nil
 }

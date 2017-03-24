@@ -21,6 +21,7 @@ export const NEW_DASHBOARD = {
       w: 4,
       h: 4,
       name: 'Name This Graph',
+      type: 'line',
       queries: [
         {
           query: "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
@@ -31,4 +32,9 @@ export const NEW_DASHBOARD = {
       ],
     },
   ],
+}
+
+export const NEW_DEFAULT_DASHBOARD_CELL = {
+  query: [],
+  type: 'line',
 }

@@ -6,6 +6,7 @@
   1. [#1020](https://github.com/influxdata/chronograf/pull/1020): Users can now edit cell names on dashboards
   2. [#1035](https://github.com/influxdata/chronograf/pull/1035): Convert many InfluxQL statements to query builder
   3. [#1015](https://github.com/influxdata/chronograf/pull/1015): Introduce ability to edit a dashboard cell
+  4. [#1056](https://github.com/influxdata/chronograf/pull/1056): Introduce ability to add a dashboard cell
 
 ### UI Improvements
 

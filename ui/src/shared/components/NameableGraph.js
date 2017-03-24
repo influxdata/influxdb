@@ -96,7 +96,7 @@ const NameableGraph = React.createClass({
       <div className="dash-graph">
         <div className="dash-graph--heading">
           <div onClick={onClickHandler(x, y, isEditing)}>{nameOrField}</div>
-          <ContextMenu isOpen={this.state.isMenuOpen} toggleMenu={this.toggleMenu} onSummonOverlayTechnologies={onSummonOverlayTechnologies} cell={cell} handleClickOutside={this.closeMenu}/>
+          <ContextMenu isOpen={this.state.isMenuOpen} toggleMenu={this.toggleMenu} onEdit={onSummonOverlayTechnologies} cell={cell} handleClickOutside={this.closeMenu}/>
         </div>
         <div className="dash-graph--container">
           {children}
@@ -106,13 +106,13 @@ const NameableGraph = React.createClass({
   },
 })
 
-const ContextMenu = OnClickOutside(({isOpen, toggleMenu, onSummonOverlayTechnologies, cell}) => (
+const ContextMenu = OnClickOutside(({isOpen, toggleMenu, onEdit, cell}) => (
   <div className={classnames("dash-graph--options", {"dash-graph--options-show": isOpen})} onClick={toggleMenu}>
     <button className="btn btn-info btn-xs">
       <span className="icon caret-down"></span>
     </button>
     <ul className="dash-graph--options-menu">
-      <li onClick={() => onSummonOverlayTechnologies(cell)}>Edit</li>
+      <li onClick={() => onEdit(cell)}>Edit</li>
     </ul>
   </div>
 ))

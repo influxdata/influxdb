@@ -2,7 +2,10 @@ import {
   getDashboards as getDashboardsAJAX,
   updateDashboard as updateDashboardAJAX,
   updateDashboardCell as updateDashboardCellAJAX,
+  addDashboardCell as addDashboardCellAJAX,
 } from 'src/dashboards/apis'
+
+import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
 export const loadDashboards = (dashboards, dashboardID) => ({
   type: 'LOAD_DASHBOARDS',
@@ -54,8 +57,15 @@ export const syncDashboardCell = (cell) => ({
   },
 })
 
-export const editCell = (x, y, isEditing) => ({
-  type: 'EDIT_CELL',
+export const addDashboardCell = (cell) => ({
+  type: 'ADD_DASHBOARD_CELL',
+  payload: {
+    cell,
+  },
+})
+
+export const editDashboardCell = (x, y, isEditing) => ({
+  type: 'EDIT_DASHBOARD_CELL',
   // x and y coords are used as a alternative to cell ids, which are not
   // universally unique, and cannot be because React depends on a
   // quasi-predictable ID for keys. Since cells cannot overlap, coordinates act
@@ -67,8 +77,8 @@ export const editCell = (x, y, isEditing) => ({
   },
 })
 
-export const renameCell = (x, y, name) => ({
-  type: 'RENAME_CELL',
+export const renameDashboardCell = (x, y, name) => ({
+  type: 'RENAME_DASHBOARD_CELL',
   payload: {
     x,  // x-coord of the cell to be renamed
     y,  // y-coord of the cell to be renamed
@@ -96,4 +106,14 @@ export const updateDashboardCell = (cell) => (dispatch) => {
   .then(({data}) => {
     dispatch(syncDashboardCell(data))
   })
+}
+
+export const addDashboardCellAsync = (dashboard) => async (dispatch) => {
+  try {
+    const {data} = await addDashboardCellAJAX(dashboard, NEW_DEFAULT_DASHBOARD_CELL)
+    dispatch(addDashboardCell(data))
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
 }

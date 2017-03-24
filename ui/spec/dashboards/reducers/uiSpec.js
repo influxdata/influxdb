@@ -7,8 +7,8 @@ import {
   setTimeRange,
   setEditMode,
   updateDashboardCells,
-  editCell,
-  renameCell,
+  editDashboardCell,
+  renameDashboardCell,
   syncDashboardCell,
 } from 'src/dashboards/actions'
 
@@ -91,7 +91,7 @@ describe('DataExplorer.Reducers.UI', () => {
       dashboards: [dash],
     }
 
-    const actual = reducer(state, editCell(0, 0, true))
+    const actual = reducer(state, editDashboardCell(0, 0, true))
     expect(actual.dashboards[0].cells[0].isEditing).to.equal(true)
     expect(actual.dashboard.cells[0].isEditing).to.equal(true)
   })
@@ -122,7 +122,7 @@ describe('DataExplorer.Reducers.UI', () => {
       dashboards: [dash],
     }
 
-    const actual = reducer(state, renameCell(0, 0, "Plutonium Consumption Rate (ug/sec)"))
+    const actual = reducer(state, renameDashboardCell(0, 0, "Plutonium Consumption Rate (ug/sec)"))
     expect(actual.dashboards[0].cells[0].name).to.equal("Plutonium Consumption Rate (ug/sec)")
     expect(actual.dashboard.cells[0].name).to.equal("Plutonium Consumption Rate (ug/sec)")
   })
