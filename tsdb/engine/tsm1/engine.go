@@ -692,7 +692,7 @@ func (e *Engine) addToIndexFromKey(key []byte, fieldType influxql.DataType, inde
 	// Build in-memory index, if necessary.
 	if e.index.Type() == inmem.IndexName {
 		_, tags, _ := models.ParseKey(seriesKey)
-		if err := e.index.CreateSeriesIfNotExists(seriesKey, []byte(name), tags); err != nil {
+		if err := e.index.InitializeSeries(seriesKey, []byte(name), tags); err != nil {
 			return err
 		}
 	}

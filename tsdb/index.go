@@ -21,6 +21,7 @@ type Index interface {
 	DropMeasurement(name []byte) error
 	ForEachMeasurementName(fn func(name []byte) error) error
 
+	InitializeSeries(key, name []byte, tags models.Tags) error
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
 	DropSeries(key []byte) error

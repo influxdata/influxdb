@@ -463,6 +463,11 @@ func (i *Index) CreateSeriesListIfNotExists(_, names [][]byte, tagsSlice []model
 	return nil
 }
 
+// InitializeSeries is a no-op. This only applies to the in-memory index.
+func (i *Index) InitializeSeries(key, name []byte, tags models.Tags) error {
+	return nil
+}
+
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
 	if err := func() error {

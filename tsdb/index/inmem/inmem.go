@@ -132,7 +132,7 @@ func (i *Index) MeasurementsByName(names [][]byte) ([]*tsdb.Measurement, error) 
 
 // CreateSeriesIfNotExists adds the series for the given measurement to the
 // index and sets its ID or returns the existing series object
-func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags models.Tags, opt *tsdb.EngineOptions) error {
+func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags models.Tags, opt *tsdb.EngineOptions, ignoreLimits bool) error {
 	i.mu.RLock()
 	// if there is a series for this id, it's already been added
 	ss := i.series[string(key)]
@@ -156,9 +156,11 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 	}
 
 	// Verify that the series will not exceed limit.
-	if max := opt.Config.MaxSeriesPerDatabase; max > 0 && len(i.series)+1 > max {
-		i.mu.Unlock()
-		return errMaxSeriesPerDatabaseExceeded
+	if !ignoreLimits {
+		if max := opt.Config.MaxSeriesPerDatabase; max > 0 && len(i.series)+1 > max {
+			i.mu.Unlock()
+			return errMaxSeriesPerDatabaseExceeded
+		}
 	}
 
 	// set the in memory ID for query processing on this shard
@@ -790,8 +792,14 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 	return nil
 }
 
+// InitializeSeries is called during startup.
+// This works the same as CreateSeriesIfNotExists except it ignore limit errors.
+func (i *ShardIndex) InitializeSeries(key, name []byte, tags models.Tags) error {
+	return i.Index.CreateSeriesIfNotExists(i.id, key, name, tags, &i.opt, true)
+}
+
 func (i *ShardIndex) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	return i.Index.CreateSeriesIfNotExists(i.id, key, name, tags, &i.opt)
+	return i.Index.CreateSeriesIfNotExists(i.id, key, name, tags, &i.opt, false)
 }
 
 // TagSets returns a list of tag sets based on series filtering.
