@@ -18,6 +18,10 @@ export const formatBytes = (bytes) => {
 // Using InfluxDB 1.2+ we should no longer need this formatter.
 // Times can now be submitted using multiple units i.e. 1d2h3m
 export const formatRPDuration = (duration) => {
+  if (!duration) {
+    return
+  }
+
   if (duration === '0' || duration === '0s') {
     return '∞';
   }
