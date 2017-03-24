@@ -36,6 +36,7 @@ const DatabaseTable = ({
         onStartDelete={onStartDeleteDatabase}
         onDatabaseDeleteConfirm={onDatabaseDeleteConfirm}
         onAddRetentionPolicy={onAddRetentionPolicy}
+        onDeleteRetentionPolicy={onDeleteRetentionPolicy}
       />
       <div className="db-manager-table">
         <table className="table v-center admin-table">
