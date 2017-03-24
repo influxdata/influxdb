@@ -197,7 +197,7 @@ export const updateRetentionPolicy = async (url, retentionPolicy) => {
       method: 'PUT',
       url,
       data: {
-        retentionPolicy,
+        ...retentionPolicy,
       },
     })
   } catch (error) {

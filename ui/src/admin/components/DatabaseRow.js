@@ -44,18 +44,7 @@ class DatabaseRow extends Component {
       return (
         <tr>
           <td>
-            <div className="admin-table--edit-cell">
-              <input
-                className="form-control"
-                name="name"
-                type="text"
-                defaultValue={name}
-                placeholder="give it a name"
-                onKeyDown={(e) => this.handleKeyDown(e, database)}
-                autoFocus={true}
-                ref={(r) => this.name = r}
-              />
-            </div>
+            {name}
           </td>
           <td>
             <div className="admin-table--edit-cell">
@@ -67,6 +56,7 @@ class DatabaseRow extends Component {
                 placeholder="how long should data last"
                 onKeyDown={(e) => this.handleKeyDown(e, database)}
                 ref={(r) => this.duration = r}
+                autoFocus={true}
               />
             </div>
           </td>
@@ -190,12 +180,11 @@ class DatabaseRow extends Component {
   }
 
   getInputValues() {
-    const name = this.name.value.trim()
     let duration = this.duration.value.trim()
     const replication = +this.replication.value.trim()
-    const {notify} = this.props
+    const {notify, retentionPolicy: {name}} = this.props
 
-    if (!name || !duration || !replication) {
+    if (!duration || !replication) {
       notify('error', 'Fields cannot be empty')
       return
     }
