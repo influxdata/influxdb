@@ -3,6 +3,7 @@ import {
   updateDashboard as updateDashboardAJAX,
   updateDashboardCell as updateDashboardCellAJAX,
   addDashboardCell as addDashboardCellAJAX,
+  deleteDashboardCell as deleteDashboardCellAJAX,
 } from 'src/dashboards/apis'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
@@ -86,6 +87,13 @@ export const renameDashboardCell = (x, y, name) => ({
   },
 })
 
+export const deleteDashboardCell = (cell) => ({
+  type: 'DELETE_DASHBOARD_CELL',
+  payload: {
+    cell,
+  },
+})
+
 // Async Action Creators
 
 export const getDashboards = (dashboardID) => (dispatch) => {
@@ -112,6 +120,16 @@ export const addDashboardCellAsync = (dashboard) => async (dispatch) => {
   try {
     const {data} = await addDashboardCellAJAX(dashboard, NEW_DEFAULT_DASHBOARD_CELL)
     dispatch(addDashboardCell(data))
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+export const deleteDashboardCellAsync = (cell) => async (dispatch) => {
+  try {
+    await deleteDashboardCellAJAX(cell)
+    dispatch(deleteDashboardCell(cell))
   } catch (error) {
     console.error(error)
     throw error

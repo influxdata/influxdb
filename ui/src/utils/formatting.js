@@ -1,4 +1,4 @@
-export function formatBytes(bytes) {
+export const formatBytes = (bytes) => {
   if (bytes === 0) {
     return '0 Bytes';
   }
@@ -15,9 +15,15 @@ export function formatBytes(bytes) {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
 }
 
-export function formatRPDuration(duration) {
-  if (duration === '0') {
-    return 'infinite';
+// Using InfluxDB 1.2+ we should no longer need this formatter.
+// Times can now be submitted using multiple units i.e. 1d2h3m
+export const formatRPDuration = (duration) => {
+  if (!duration) {
+    return
+  }
+
+  if (duration === '0' || duration === '0s') {
+    return '∞';
   }
 
   let adjustedTime = duration;
@@ -37,4 +43,12 @@ export function formatRPDuration(duration) {
   }
 
   return adjustedTime;
+}
+
+export const formatInfiniteDuration = (duration) => {
+  if (duration === '0' || duration === '0s' || duration === 'INF') {
+    return '∞';
+  }
+
+  return duration
 }

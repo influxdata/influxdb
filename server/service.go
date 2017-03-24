@@ -20,6 +20,7 @@ type Service struct {
 	TimeSeriesClient TimeSeriesClient
 	Logger           chronograf.Logger
 	UseAuth          bool
+	Databases        chronograf.Databases
 }
 
 // TimeSeriesClient returns the correct client for a time series database.

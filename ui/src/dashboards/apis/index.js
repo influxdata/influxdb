@@ -48,3 +48,15 @@ export const addDashboardCell = async (dashboard, cell) => {
     throw error
   }
 }
+
+export const deleteDashboardCell = async (cell) => {
+  try {
+    return await AJAX({
+      method: 'DELETE',
+      url: cell.links.self,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}

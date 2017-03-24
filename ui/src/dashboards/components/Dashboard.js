@@ -11,6 +11,7 @@ const Dashboard = ({
   onEditCell,
   onRenameCell,
   onUpdateCell,
+  onDeleteCell,
   onSummonOverlayTechnologies,
   source,
   autoRefresh,
@@ -23,13 +24,13 @@ const Dashboard = ({
   return (
     <div className={classnames({'page-contents': true, 'presentation-mode': inPresentationMode})}>
       <div className={classnames('container-fluid full-width dashboard', {'dashboard-edit': isEditMode})}>
-        {Dashboard.renderDashboard(dashboard, autoRefresh, timeRange, source, onPositionChange, onEditCell, onRenameCell, onUpdateCell, onSummonOverlayTechnologies)}
+        {Dashboard.renderDashboard(dashboard, autoRefresh, timeRange, source, onPositionChange, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies)}
       </div>
     </div>
   )
 }
 
-Dashboard.renderDashboard = (dashboard, autoRefresh, timeRange, source, onPositionChange, onEditCell, onRenameCell, onUpdateCell, onSummonOverlayTechnologies) => {
+Dashboard.renderDashboard = (dashboard, autoRefresh, timeRange, source, onPositionChange, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies) => {
   const cells = dashboard.cells.map((cell, i) => {
     i = `${i}`
     const dashboardCell = {...cell, i}
@@ -56,6 +57,7 @@ Dashboard.renderDashboard = (dashboard, autoRefresh, timeRange, source, onPositi
       onEditCell={onEditCell}
       onRenameCell={onRenameCell}
       onUpdateCell={onUpdateCell}
+      onDeleteCell={onDeleteCell}
       onSummonOverlayTechnologies={onSummonOverlayTechnologies}
     />
   )
@@ -77,6 +79,7 @@ Dashboard.propTypes = {
   onEditCell: func,
   onRenameCell: func,
   onUpdateCell: func,
+  onDeleteCell: func,
   onSummonOverlayTechnologies: func,
   source: shape({
     links: shape({

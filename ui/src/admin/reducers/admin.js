@@ -1,20 +1,10 @@
 import reject from 'lodash/reject'
-
-const newDefaultUser = {
-  name: '',
-  password: '',
-  roles: [],
-  permissions: [],
-  links: {self: ''},
-  isNew: true,
-}
-const newDefaultRole = {
-  name: '',
-  permissions: [],
-  users: [],
-  links: {self: ''},
-  isNew: true,
-}
+import {
+  NEW_DEFAULT_USER,
+  NEW_DEFAULT_ROLE,
+  NEW_DEFAULT_DATABASE,
+  NEW_EMPTY_RP,
+} from 'src/admin/constants'
 
 const initialState = {
   users: null,
@@ -22,6 +12,7 @@ const initialState = {
   permissions: [],
   queries: [],
   queryIDToKill: null,
+  databases: [],
 }
 
 export default function admin(state = initialState, action) {
@@ -38,8 +29,12 @@ export default function admin(state = initialState, action) {
       return {...state, ...action.payload}
     }
 
+    case 'LOAD_DATABASES': {
+      return {...state, ...action.payload}
+    }
+
     case 'ADD_USER': {
-      const newUser = {...newDefaultUser, isEditing: true}
+      const newUser = {...NEW_DEFAULT_USER, isEditing: true}
       return {
         ...state,
         users: [
@@ -50,7 +45,7 @@ export default function admin(state = initialState, action) {
     }
 
     case 'ADD_ROLE': {
-      const newRole = {...newDefaultRole, isEditing: true}
+      const newRole = {...NEW_DEFAULT_ROLE, isEditing: true}
       return {
         ...state,
         roles: [
@@ -58,6 +53,29 @@ export default function admin(state = initialState, action) {
           ...state.roles,
         ],
       }
+    }
+
+    case 'ADD_DATABASE': {
+      const newDatabase = {...NEW_DEFAULT_DATABASE, isEditing: true}
+
+      return {
+        ...state,
+        databases: [
+          newDatabase,
+          ...state.databases,
+        ],
+      }
+    }
+
+    case 'ADD_RETENTION_POLICY': {
+      const {database} = action.payload
+      const databases = state.databases.map(db =>
+        db.links.self === database.links.self ?
+        {...database, retentionPolicies: [{...NEW_EMPTY_RP}, ...database.retentionPolicies]}
+        : db
+      )
+
+      return {...state, databases}
     }
 
     case 'SYNC_USER': {
@@ -73,6 +91,27 @@ export default function admin(state = initialState, action) {
       const newState = {
         roles: state.roles.map(r => r.links.self === staleRole.links.self ? {...syncedRole} : r),
       }
+      return {...state, ...newState}
+    }
+
+    case 'SYNC_DATABASE': {
+      const {stale, synced} = action.payload
+      const newState = {
+        databases: state.databases.map(db => db.links.self === stale.links.self ? {...synced} : db),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'SYNC_RETENTION_POLICY': {
+      const {database, stale, synced} = action.payload
+      const newState = {
+        databases: state.databases.map(db => db.links.self === database.links.self ? {
+          ...db,
+          retentionPolicies: db.retentionPolicies.map(rp => rp.links.self === stale.links.self ? {...synced} : rp),
+        } : db),
+      }
+
       return {...state, ...newState}
     }
 
@@ -92,6 +131,28 @@ export default function admin(state = initialState, action) {
       return {...state, ...newState}
     }
 
+    case 'EDIT_DATABASE': {
+      const {database, updates} = action.payload
+      const newState = {
+        databases: state.databases.map(db => db.links.self === database.links.self ? {...db, ...updates} : db),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'EDIT_RETENTION_POLICY': {
+      const {database, retentionPolicy, updates} = action.payload
+
+      const newState = {
+        databases: state.databases.map(db => db.links.self === database.links.self ? {
+          ...db,
+          retentionPolicies: db.retentionPolicies.map(rp => rp.links.self === retentionPolicy.links.self ? {...rp, ...updates} : rp),
+        } : db),
+      }
+
+      return {...state, ...newState}
+    }
+
     case 'DELETE_USER': {
       const {user} = action.payload
       const newState = {
@@ -105,6 +166,48 @@ export default function admin(state = initialState, action) {
       const {role} = action.payload
       const newState = {
         roles: state.roles.filter(r => r.links.self !== role.links.self),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'REMOVE_DATABASE': {
+      const {database} = action.payload
+      const newState = {
+        databases: state.databases.filter(db => db.links.self !== database.links.self),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'REMOVE_RETENTION_POLICY': {
+      const {database, retentionPolicy} = action.payload
+      const newState = {
+        databases: state.databases.map(db => db.links.self === database.links.self ? {
+          ...db,
+          retentionPolicies: db.retentionPolicies.filter(rp => rp.links.self !== retentionPolicy.links.self),
+        }
+          : db),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'ADD_DATABASE_DELETE_CODE': {
+      const {database} = action.payload
+      const newState = {
+        databases: state.databases.map(db => db.links.self === database.links.self ? {...db, deleteCode: ''} : db),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'REMOVE_DATABASE_DELETE_CODE': {
+      const {database} = action.payload
+      delete database.deleteCode
+
+      const newState = {
+        databases: state.databases.map(db => db.links.self === database.links.self ? {...database} : db),
       }
 
       return {...state, ...newState}

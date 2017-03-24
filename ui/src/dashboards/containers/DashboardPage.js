@@ -154,6 +154,10 @@ const DashboardPage = React.createClass({
     }
   },
 
+  handleDeleteDashboardCell(cell) {
+    this.props.dashboardActions.deleteDashboardCellAsync(cell)
+  },
+
   render() {
     const {
       dashboards,
@@ -223,6 +227,7 @@ const DashboardPage = React.createClass({
           onEditCell={this.handleEditDashboardCell}
           onRenameCell={this.handleRenameDashboardCell}
           onUpdateCell={this.handleUpdateDashboardCell}
+          onDeleteCell={this.handleDeleteDashboardCell}
           onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
         />
       </div>
