@@ -92,9 +92,6 @@ func TestShardWriteAndIndex(t *testing.T) {
 }
 
 func TestMaxSeriesLimit(t *testing.T) {
-
-	t.Skip("TODO(edd): AWAITING SERIES CHECK FUNCTIONALITY")
-
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
 	tmpShard := path.Join(tmpDir, "db", "rp", "1")
@@ -102,7 +99,8 @@ func TestMaxSeriesLimit(t *testing.T) {
 
 	opts := tsdb.NewEngineOptions()
 	opts.Config.WALDir = filepath.Join(tmpDir, "wal")
-	opts.Config.MaxSeriesPerShard = 1000
+	opts.Config.MaxSeriesPerDatabase = 1000
+	opts.InmemIndex = inmem.NewIndex()
 
 	sh := tsdb.NewShard(1, tmpShard, tmpWal, opts)
 
@@ -139,7 +137,7 @@ func TestMaxSeriesLimit(t *testing.T) {
 	err = sh.WritePoints([]models.Point{pt})
 	if err == nil {
 		t.Fatal("expected error")
-	} else if exp, got := `db=db: max-series-per-database limit exceeded: (1000/1000) dropped=1`, err.Error(); exp != got {
+	} else if exp, got := `max-series-per-database limit exceeded: (1000) dropped=1`, err.Error(); exp != got {
 		t.Fatalf("unexpected error message:\n\texp = %s\n\tgot = %s", exp, got)
 	}
 
@@ -147,9 +145,6 @@ func TestMaxSeriesLimit(t *testing.T) {
 }
 
 func TestShard_MaxTagValuesLimit(t *testing.T) {
-
-	t.Skip("TODO(edd): not performant enough yet")
-
 	tmpDir, _ := ioutil.TempDir("", "shard_test")
 	defer os.RemoveAll(tmpDir)
 	tmpShard := path.Join(tmpDir, "db", "rp", "1")

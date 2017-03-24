@@ -35,6 +35,7 @@ type Index interface {
 	TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error)
 	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)
 	ForEachMeasurementTagKey(name []byte, fn func(key []byte) error) error
+	TagKeyCardinality(name, key []byte) int
 
 	// InfluxQL system iterators
 	MeasurementSeriesKeysByExpr(name []byte, condition influxql.Expr) ([][]byte, error)

@@ -155,6 +155,12 @@ func (i *Index) CreateSeriesIfNotExists(shardID uint64, key, name []byte, tags m
 		return nil
 	}
 
+	// Verify that the series will not exceed limit.
+	if max := opt.Config.MaxSeriesPerDatabase; max > 0 && len(i.series)+1 > max {
+		i.mu.Unlock()
+		return errMaxSeriesPerDatabaseExceeded
+	}
+
 	// set the in memory ID for query processing on this shard
 	// The series key and tags are clone to prevent a memory leak
 	series := tsdb.NewSeries([]byte(string(key)), tags.Clone())
@@ -270,6 +276,18 @@ func (i *Index) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error)
 	}
 
 	return nil
+}
+
+// TagKeyCardinality returns the number of values for a measurement/tag key.
+func (i *Index) TagKeyCardinality(name, key []byte) int {
+	i.mu.RLock()
+	defer i.mu.RUnlock()
+
+	mm := i.measurements[string(name)]
+	if mm == nil {
+		return 0
+	}
+	return mm.CardinalityBytes(key)
 }
 
 // TagsForSeries returns the tag map for the passed in series
@@ -704,6 +722,7 @@ type ShardIndex struct {
 func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
 	var reason string
 	var dropped int
+	var droppedKeys map[string]struct{}
 
 	// Ensure that no tags go over the maximum cardinality.
 	if maxValuesPerTag := idx.opt.Config.MaxValuesPerTag; maxValuesPerTag > 0 {
@@ -726,7 +745,12 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 
 				dropped++
 				reason = fmt.Sprintf("max-values-per-tag limit exceeded (%d/%d): measurement=%q tag=%q value=%q",
-					n, maxValuesPerTag, name, string(tag.Key), string(tag.Key))
+					n, maxValuesPerTag, name, string(tag.Key), string(tag.Value))
+
+				if droppedKeys == nil {
+					droppedKeys = make(map[string]struct{})
+				}
+				droppedKeys[string(keys[i])] = struct{}{}
 				continue outer
 			}
 
@@ -741,7 +765,15 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 
 	// Write
 	for i := range keys {
-		if err := idx.CreateSeriesIfNotExists(keys[i], names[i], tagsSlice[i]); err != nil {
+		if err := idx.CreateSeriesIfNotExists(keys[i], names[i], tagsSlice[i]); err == errMaxSeriesPerDatabaseExceeded {
+			dropped++
+			reason = fmt.Sprintf("max-series-per-database limit exceeded: (%d)", idx.opt.Config.MaxSeriesPerDatabase)
+			if droppedKeys == nil {
+				droppedKeys = make(map[string]struct{})
+			}
+			droppedKeys[string(keys[i])] = struct{}{}
+			continue
+		} else if err != nil {
 			return err
 		}
 	}
@@ -749,8 +781,9 @@ func (idx *ShardIndex) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSli
 	// Report partial writes back to shard.
 	if dropped > 0 {
 		return &tsdb.PartialWriteError{
-			Dropped: dropped,
-			Reason:  reason,
+			Reason:      reason,
+			Dropped:     dropped,
+			DroppedKeys: droppedKeys,
 		}
 	}
 
@@ -847,3 +880,7 @@ func (itr *seriesPointIterator) nextKeys() error {
 		return nil
 	}
 }
+
+// errMaxSeriesPerDatabaseExceeded is a marker error returned during series creation
+// to indicate that a new series would exceed the limits of the database.
+var errMaxSeriesPerDatabaseExceeded = errors.New("max series per database exceeded")

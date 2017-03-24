@@ -623,6 +623,12 @@ func (i *Index) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error)
 	return nil
 }
 
+// TagKeyCardinality always returns zero.
+// It is not possible to determine cardinality of tags across index files.
+func (i *Index) TagKeyCardinality(name, key []byte) int {
+	return 0
+}
+
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.
 func (i *Index) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([][]byte, error) {
 	fs := i.RetainFileSet()

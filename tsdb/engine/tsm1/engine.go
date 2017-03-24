@@ -327,6 +327,10 @@ func (e *Engine) ForEachMeasurementTagKey(name []byte, fn func(key []byte) error
 	return e.index.ForEachMeasurementTagKey(name, fn)
 }
 
+func (e *Engine) TagKeyCardinality(name, key []byte) int {
+	return e.index.TagKeyCardinality(name, key)
+}
+
 // SeriesN returns the unique number of series in the index.
 func (e *Engine) SeriesN() int64 {
 	return e.index.SeriesN()

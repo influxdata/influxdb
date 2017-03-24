@@ -93,6 +93,9 @@ func (e ShardError) Error() string {
 type PartialWriteError struct {
 	Reason  string
 	Dropped int
+
+	// The set of series keys that were dropped. Can be nil.
+	DroppedKeys map[string]struct{}
 }
 
 func (e PartialWriteError) Error() string {
@@ -292,10 +295,6 @@ func (s *Shard) Open() error {
 			return err
 		}
 		s.engine = e
-
-		// TODO(benbjohnson):
-		// count := s.index.SeriesShardN(s.id)
-		// atomic.AddInt64(&s.stats.SeriesCreated, int64(count))
 
 		go s.monitor()
 
@@ -553,11 +552,13 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 	}
 
 	// Add new series. Check for partial writes.
+	var droppedKeys map[string]struct{}
 	if err := s.engine.CreateSeriesListIfNotExists(keys, names, tagsSlice); err != nil {
 		switch err := err.(type) {
 		case *PartialWriteError:
 			reason = err.Reason
 			dropped += err.Dropped
+			droppedKeys = err.DroppedKeys
 			atomic.AddInt64(&s.stats.WritePointsDropped, int64(err.Dropped))
 		default:
 			return nil, nil, err
@@ -585,16 +586,12 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 
 		iter.Reset()
 
-		// TODO(edd): we need to use the fast-series-check to determine if
-		// adding the series would send us over the limit for the shard.
-		//
-		// Replace false with the predicate that determines if p.Key() already
-		// exists in the shard.
-		if s.options.Config.MaxSeriesPerShard > 0 && false && s.engine.SeriesN()+1 > int64(s.options.Config.MaxSeriesPerShard) {
-			atomic.AddInt64(&s.stats.WritePointsDropped, 1)
-			dropped++
-			reason = fmt.Sprintf("max-series-per-shard limit (%d) will be exceeded: db=%s, shard=%d", s.options.Config.MaxSeriesPerShard, s.database, s.id)
-			continue
+		// Skip points if keys have been dropped.
+		// The drop count has already been incremented during series creation.
+		if droppedKeys != nil {
+			if _, ok := droppedKeys[string(keys[i])]; ok {
+				continue
+			}
 		}
 
 		// see if the field definitions need to be saved to the shard
@@ -992,20 +989,17 @@ func (s *Shard) monitor() {
 
 			for _, name := range names {
 				s.engine.ForEachMeasurementTagKey(name, func(k []byte) error {
-					// TODO(benbjohnson): Add sketches for cardinality.
-					/*
-						n := s.engine.Cardinality(k)
-						perc := int(float64(n) / float64(s.options.Config.MaxValuesPerTag) * 100)
-						if perc > 100 {
-							perc = 100
-						}
+					n := s.engine.TagKeyCardinality(name, k)
+					perc := int(float64(n) / float64(s.options.Config.MaxValuesPerTag) * 100)
+					if perc > 100 {
+						perc = 100
+					}
 
-						// Log at 80, 85, 90-100% levels
-						if perc == 80 || perc == 85 || perc >= 90 {
-							s.logger.Info(fmt.Sprintf("WARN: %d%% of max-values-per-tag limit exceeded: (%d/%d), db=%s shard=%d measurement=%s tag=%s",
-								perc, n, s.options.Config.MaxValuesPerTag, s.database, s.id, m.Name, k))
-						}
-					*/
+					// Log at 80, 85, 90-100% levels
+					if perc == 80 || perc == 85 || perc >= 90 {
+						s.logger.Info(fmt.Sprintf("WARN: %d%% of max-values-per-tag limit exceeded: (%d/%d), db=%s shard=%d measurement=%s tag=%s",
+							perc, n, s.options.Config.MaxValuesPerTag, s.database, s.id, name, k))
+					}
 					return nil
 				})
 			}

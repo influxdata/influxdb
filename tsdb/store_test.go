@@ -558,6 +558,7 @@ func TestStore_Cardinality_Unique_Inmem(t *testing.T) {
 
 	store := NewStore()
 	store.EngineOptions.Config.Index = "inmem"
+	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
 	if err := store.Open(); err != nil {
 		panic(err)
 	}
@@ -570,6 +571,7 @@ func TestStore_Cardinality_Unique_TSI1(t *testing.T) {
 
 	store := NewStore()
 	store.EngineOptions.Config.Index = "tsi1"
+	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
 	if err := store.Open(); err != nil {
 		panic(err)
 	}
@@ -646,6 +648,7 @@ func TestStore_Cardinality_Duplicates_Inmem(t *testing.T) {
 
 	store := NewStore()
 	store.EngineOptions.Config.Index = "inmem"
+	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
 	if err := store.Open(); err != nil {
 		panic(err)
 	}
@@ -658,6 +661,7 @@ func TestStore_Cardinality_Duplicates_TSI1(t *testing.T) {
 
 	store := NewStore()
 	store.EngineOptions.Config.Index = "tsi1"
+	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
 	if err := store.Open(); err != nil {
 		panic(err)
 	}
@@ -720,6 +724,7 @@ func TestStore_Cardinality_Compactions_Inmem(t *testing.T) {
 
 	store := NewStore()
 	store.EngineOptions.Config.Index = "inmem"
+	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
 	if err := store.Open(); err != nil {
 		panic(err)
 	}
@@ -732,6 +737,7 @@ func TestStore_Cardinality_Compactions_TSI1(t *testing.T) {
 
 	store := NewStore()
 	store.EngineOptions.Config.Index = "tsi1"
+	store.EngineOptions.Config.MaxSeriesPerDatabase = 0
 	if err := store.Open(); err != nil {
 		panic(err)
 	}
