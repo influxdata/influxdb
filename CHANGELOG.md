@@ -9,6 +9,7 @@
   4. [#1056](https://github.com/influxdata/chronograf/pull/1056): Introduce ability to add a dashboard cell
 
 ### UI Improvements
+  1. [#1061](https://github.com/influxdata/chronograf/pull/1061): Remove VisualizationSelector from Dashboard Edit Mode
 
 ## v1.2.0-beta5 [2017-03-10]
 
