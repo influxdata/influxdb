@@ -78,8 +78,12 @@ func TestRunCLI_ExecuteInsert(t *testing.T) {
 
 func TestSetAuth(t *testing.T) {
 	t.Parallel()
+	ts := emptyTestServer()
+	defer ts.Close()
+
 	c := cli.New(CLIENT_VERSION)
-	config := client.NewConfig()
+	url, _ := url.Parse(ts.URL)
+	config := client.Config{URL: *url}
 	client, _ := client.NewClient(config)
 	c.Client = client
 	u := "userx"

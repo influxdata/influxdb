@@ -351,6 +351,12 @@ func (c *CommandLine) SetAuth(cmd string) {
 
 	// Update the client as well
 	c.Client.SetAuth(c.ClientConfig.Username, c.ClientConfig.Password)
+
+	// Test the credentials are correct, or else notify the user.
+	response, _ := c.Client.Query(client.Query{Command: "SHOW DATABASES"})
+	if err := response.Error(); err != nil {
+		fmt.Printf("ERR: %s\n", err)
+	}
 }
 
 func (c *CommandLine) clear(cmd string) {
