@@ -15,6 +15,14 @@ export function updateDashboard(dashboard) {
   });
 }
 
+export function updateDashboardCell(cell) {
+  return AJAX({
+    method: 'PUT',
+    url: cell.links.self,
+    data: cell,
+  })
+}
+
 export const createDashboard = async (dashboard) => {
   try {
     return await AJAX({

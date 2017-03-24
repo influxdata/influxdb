@@ -52,7 +52,7 @@ const DashboardHeader = ({
         <ReactTooltip id="graph-tips-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
         <SourceIndicator sourceName={source.name} />
         <AutoRefreshDropdown onChoose={handleChooseAutoRefresh} selected={autoRefresh} iconName="refresh" />
-        <TimeRangeDropdown onChooseTimeRange={handleChooseTimeRange} selected={timeRange.inputValue} />
+        <TimeRangeDropdown onChooseTimeRange={handleChooseTimeRange} selected={timeRange} />
         <div className="btn btn-info btn-sm" onClick={handleClickPresentationButton}>
           <span className="icon expand-a" style={{margin: 0}}></span>
         </div>

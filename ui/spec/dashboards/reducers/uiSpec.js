@@ -9,6 +9,7 @@ import {
   updateDashboardCells,
   editCell,
   renameCell,
+  syncDashboardCell,
 } from 'src/dashboards/actions'
 
 const noopAction = () => {
@@ -20,6 +21,16 @@ const timeRange = timeRanges[1];
 const d1 = {id: 1, cells: [], name: "d1"}
 const d2 = {id: 2, cells: [], name: "d2"}
 const dashboards = [d1, d2]
+const c1 = {
+  x: 0,
+  y: 0,
+  w: 4,
+  h: 4,
+  id: 1,
+  isEditing: false,
+  name: "Gigawatts",
+}
+const cells = [c1]
 
 describe('DataExplorer.Reducers.UI', () => {
   it('can load the dashboards', () => {
@@ -74,19 +85,7 @@ describe('DataExplorer.Reducers.UI', () => {
   })
 
   it('can edit cell', () => {
-    const dash = {
-      id: 1,
-      cells: [{
-        x: 0,
-        y: 0,
-        w: 4,
-        h: 4,
-        id: 1,
-        isEditing: false,
-        name: "Gigawatts",
-      }],
-    }
-
+    const dash = {...d1, cells}
     state = {
       dashboard: dash,
       dashboards: [dash],
@@ -97,20 +96,27 @@ describe('DataExplorer.Reducers.UI', () => {
     expect(actual.dashboard.cells[0].isEditing).to.equal(true)
   })
 
-  it('can rename cells', () => {
-    const dash = {
-      id: 1,
-      cells: [{
-        x: 0,
-        y: 0,
-        w: 4,
-        h: 4,
-        id: 1,
-        isEditing: true,
-        name: "Gigawatts",
-      }],
+  it('can sync a cell', () => {
+    const newCellName = 'watts is kinda cool'
+    const newCell = {
+      x: c1.x,
+      y: c1.y,
+      name: newCellName
+    }
+    const dash = {...d1, cells: [c1]}
+    state = {
+      dashboard: dash,
+      dashboards: [dash],
     }
 
+    const actual = reducer(state, syncDashboardCell(newCell))
+    expect(actual.dashboards[0].cells[0].name).to.equal(newCellName)
+    expect(actual.dashboard.cells[0].name).to.equal(newCellName)
+  })
+
+  it('can rename cells', () => {
+    const c2 = {...c1, isEditing: true}
+    const dash = {...d1, cells: [c2]}
     state = {
       dashboard: dash,
       dashboards: [dash],

@@ -130,6 +130,13 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	router.DELETE("/chronograf/v1/dashboards/:id", service.RemoveDashboard)
 	router.PUT("/chronograf/v1/dashboards/:id", service.ReplaceDashboard)
 	router.PATCH("/chronograf/v1/dashboards/:id", service.UpdateDashboard)
+	// Dashboard Cells
+	router.GET("/chronograf/v1/dashboards/:id/cells", service.DashboardCells)
+	router.POST("/chronograf/v1/dashboards/:id/cells", service.NewDashboardCell)
+
+	router.GET("/chronograf/v1/dashboards/:id/cells/:cid", service.DashboardCellID)
+	router.DELETE("/chronograf/v1/dashboards/:id/cells/:cid", service.RemoveDashboardCell)
+	router.PUT("/chronograf/v1/dashboards/:id/cells/:cid", service.ReplaceDashboardCell)
 
 	var authRoutes AuthRoutes
 

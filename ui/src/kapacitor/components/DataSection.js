@@ -97,8 +97,8 @@ export const DataSection = React.createClass({
   },
 
   render() {
-    const {query, timeRange} = this.props;
-    const statement = query.rawText || selectStatement({lower: timeRange.queryValue}, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
+    const {query, timeRange: {lower}} = this.props;
+    const statement = query.rawText || selectStatement({lower}, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
 
     return (
       <div className="kapacitor-rule-section">

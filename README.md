@@ -75,9 +75,7 @@ curl -X POST -H "Content-Type: application/json" -d '{
             "queries": [
                 {
                     "label": "%",
-                    "query": "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
-                    "wheres": [],
-                    "groupbys": []
+                    "query": "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\""
                 }
             ],
             "type": "line"

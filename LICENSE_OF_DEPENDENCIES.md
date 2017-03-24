@@ -8,6 +8,7 @@
 * github.com/gogo/protobuf [BSD](https://github.com/gogo/protobuf/blob/master/LICENSE)
 * github.com/google/go-github [BSD](https://github.com/google/go-github/blob/master/LICENSE)
 * github.com/google/go-querystring [BSD](https://github.com/google/go-querystring/blob/master/LICENSE)
+* github.com/influxdata/influxdb [MIT](https://github.com/influxdata/influxdb/blob/master/LICENSE)
 * github.com/influxdata/kapacitor [MIT](https://github.com/influxdata/kapacitor/blob/master/LICENSE)
 * github.com/influxdata/usage-client [MIT](https://github.com/influxdata/usage-client/blob/master/LICENSE.TXT)
 * github.com/jessevdk/go-flags [BSD](https://github.com/jessevdk/go-flags/blob/master/LICENSE)

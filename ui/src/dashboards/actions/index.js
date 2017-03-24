@@ -1,6 +1,7 @@
 import {
   getDashboards as getDashboardsAJAX,
   updateDashboard as updateDashboardAJAX,
+  updateDashboardCell as updateDashboardCellAJAX,
 } from 'src/dashboards/apis'
 
 export const loadDashboards = (dashboards, dashboardID) => ({
@@ -46,6 +47,13 @@ export const updateDashboardCells = (cells) => ({
   },
 })
 
+export const syncDashboardCell = (cell) => ({
+  type: 'SYNC_DASHBOARD_CELL',
+  payload: {
+    cell,
+  },
+})
+
 export const editCell = (x, y, isEditing) => ({
   type: 'EDIT_CELL',
   // x and y coords are used as a alternative to cell ids, which are not
@@ -80,5 +88,12 @@ export const putDashboard = () => (dispatch, getState) => {
   const {dashboardUI: {dashboard}} = getState()
   updateDashboardAJAX(dashboard).then(({data}) => {
     dispatch(updateDashboard(data))
+  })
+}
+
+export const updateDashboardCell = (cell) => (dispatch) => {
+  return updateDashboardCellAJAX(cell)
+  .then(({data}) => {
+    dispatch(syncDashboardCell(data))
   })
 }

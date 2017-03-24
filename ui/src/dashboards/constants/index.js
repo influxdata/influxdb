@@ -7,6 +7,7 @@ export const EMPTY_DASHBOARD = {
       y: 0,
       queries: [],
       name: 'Loading...',
+      type: 'single-stat',
     },
   ],
 }

@@ -1,13 +1,16 @@
 import React, {PropTypes} from 'react';
 import {connect} from 'react-redux';
 import {bindActionCreators} from 'redux';
+
+import _ from 'lodash'
+
 import QueryBuilder from '../components/QueryBuilder';
 import Visualization from '../components/Visualization';
 import Header from '../containers/Header';
-import ResizeContainer from 'src/shared/components/ResizeContainer';
+import ResizeContainer, {ResizeBottom} from 'src/shared/components/ResizeContainer'
 
 import {setAutoRefresh} from 'shared/actions/app'
-import {setTimeRange as setTimeRangeAction} from '../actions/view';
+import * as viewActions from 'src/data_explorer/actions/view'
 
 const {
   arrayOf,
@@ -25,7 +28,8 @@ const DataExplorer = React.createClass({
         self: string.isRequired,
       }).isRequired,
     }).isRequired,
-    queryConfigs: PropTypes.shape({}),
+    queryConfigs: arrayOf(shape({})).isRequired,
+    queryConfigActions: shape({}).isRequired,
     autoRefresh: number.isRequired,
     handleChooseAutoRefresh: func.isRequired,
     timeRange: shape({
@@ -53,18 +57,23 @@ const DataExplorer = React.createClass({
 
   getInitialState() {
     return {
-      activeQueryID: null,
+      activeQueryIndex: 0,
     };
   },
 
-  handleSetActiveQuery(id) {
-    this.setState({activeQueryID: id});
+  handleSetActiveQueryIndex(index) {
+    this.setState({activeQueryIndex: index});
+  },
+
+  handleDeleteQuery(index) {
+    const {queryConfigs} = this.props
+    const query = queryConfigs[index]
+    this.props.queryConfigActions.deleteQuery(query.id)
   },
 
   render() {
-    const {autoRefresh, handleChooseAutoRefresh, timeRange, setTimeRange, queryConfigs, dataExplorer} = this.props;
-    const {activeQueryID} = this.state;
-    const queries = dataExplorer.queryIDs.map((qid) => queryConfigs[qid]);
+    const {autoRefresh, handleChooseAutoRefresh, timeRange, setTimeRange, queryConfigs, queryConfigActions} = this.props
+    const {activeQueryIndex} = this.state
 
     return (
       <div className="data-explorer">
@@ -77,17 +86,20 @@ const DataExplorer = React.createClass({
           <Visualization
             autoRefresh={autoRefresh}
             timeRange={timeRange}
-            queryConfigs={queries}
-            activeQueryID={this.state.activeQueryID}
+            queryConfigs={queryConfigs}
             activeQueryIndex={0}
           />
-          <QueryBuilder
-            queries={queries}
-            autoRefresh={autoRefresh}
-            timeRange={timeRange}
-            setActiveQuery={this.handleSetActiveQuery}
-            activeQueryID={activeQueryID}
-          />
+          <ResizeBottom>
+            <QueryBuilder
+              queries={queryConfigs}
+              actions={queryConfigActions}
+              autoRefresh={autoRefresh}
+              timeRange={timeRange}
+              setActiveQueryIndex={this.handleSetActiveQueryIndex}
+              onDeleteQuery={this.handleDeleteQuery}
+              activeQueryIndex={activeQueryIndex}
+            />
+          </ResizeBottom>
         </ResizeContainer>
       </div>
     );
@@ -96,11 +108,12 @@ const DataExplorer = React.createClass({
 
 function mapStateToProps(state) {
   const {app: {persisted: {autoRefresh}}, timeRange, queryConfigs, dataExplorer} = state;
+  const queryConfigValues = _.values(queryConfigs)
 
   return {
     autoRefresh,
     timeRange,
-    queryConfigs,
+    queryConfigs: queryConfigValues,
     dataExplorer,
   };
 }
@@ -108,7 +121,8 @@ function mapStateToProps(state) {
 function mapDispatchToProps(dispatch) {
   return {
     handleChooseAutoRefresh: bindActionCreators(setAutoRefresh, dispatch),
-    setTimeRange: bindActionCreators(setTimeRangeAction, dispatch),
+    setTimeRange: bindActionCreators(viewActions.setTimeRange, dispatch),
+    queryConfigActions: bindActionCreators(viewActions, dispatch),
   }
 }
 

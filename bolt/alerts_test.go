@@ -11,7 +11,7 @@ import (
 func setupTestClient() (*TestClient, error) {
 	if c, err := NewTestClient(); err != nil {
 		return nil, err
-	} else if err := c.Open(); err != nil {
+	} else if err := c.Open(context.TODO()); err != nil {
 		return nil, err
 	} else {
 		return c, nil

@@ -1,11 +1,13 @@
-import _ from 'lodash';
+import _ from 'lodash'
 import {EMPTY_DASHBOARD} from 'src/dashboards/constants'
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
+
+const {lower, upper} = timeRanges[1]
 
 const initialState = {
   dashboards: [],
   dashboard: EMPTY_DASHBOARD,
-  timeRange: timeRanges[1],
+  timeRange: {lower, upper},
   isEditMode: false,
 };
 
@@ -82,6 +84,23 @@ export default function ui(state = initialState, action) {
       const newDashboard = {
         ...dashboard,
         cells: dashboard.cells.map((c) => c.x === x && c.y === y ? newCell : c),
+      }
+
+      const newState = {
+        dashboard: newDashboard,
+        dashboards: state.dashboards.map((d) => d.id === dashboard.id ? newDashboard : d),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'SYNC_DASHBOARD_CELL': {
+      const {cell} = action.payload
+      const {dashboard} = state
+
+      const newDashboard = {
+        ...dashboard,
+        cells: dashboard.cells.map((c) => c.x === cell.x && c.y === cell.y ? cell : c),
       }
 
       const newState = {

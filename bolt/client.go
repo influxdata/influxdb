@@ -1,6 +1,7 @@
 package bolt
 
 import (
+	"context"
 	"time"
 
 	"github.com/boltdb/bolt"
@@ -34,12 +35,15 @@ func NewClient() *Client {
 		client: c,
 		IDs:    &uuid.V4{},
 	}
-	c.DashboardsStore = &DashboardsStore{client: c}
+	c.DashboardsStore = &DashboardsStore{
+		client: c,
+		IDs:    &uuid.V4{},
+	}
 	return c
 }
 
 // Open and initialize boltDB. Initial buckets are created if they do not exist.
-func (c *Client) Open() error {
+func (c *Client) Open(ctx context.Context) error {
 	// Open database file.
 	db, err := bolt.Open(c.Path, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
@@ -77,7 +81,8 @@ func (c *Client) Open() error {
 		return err
 	}
 
-	return nil
+	// Runtime migrations
+	return c.DashboardsStore.Migrate(ctx)
 }
 
 // Close the connection to the bolt database

@@ -165,6 +165,8 @@ export default React.createClass({
           valueRange: getRange(timeSeries, ranges.y2),
         },
       },
+      stepPlot: options.stepPlot,
+      stackedGraph: options.stackedGraph,
       underlayCallback: options.underlayCallback,
       series: dygraphSeries,
     });

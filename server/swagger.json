@@ -3030,6 +3030,10 @@
 					"type": "integer",
 					"format": "int32"
 				},
+				"name": {
+					"description": "Cell name",
+					"type": "string"
+				},
 				"queries": {
 					"description": "Time-series data queries for Cell.",
 					"type": "array",
@@ -3039,8 +3043,7 @@
 				},
 				"type": {
 					"description": "Cell visualization type",
-					"type": "string",
-					"format": "uuid4"
+					"type": "string"
 				}
 			},
 			"example": {
@@ -3061,7 +3064,7 @@
 		"LayoutQuery": {
 			"type": "object",
 			"required": [
-				"query"
+				"query",
 			],
 			"properties": {
 				"label": {
@@ -3115,6 +3118,86 @@
 				"groupbys": [
 					"\"service_name\""
 				]
+			}
+		},
+		"DashboardQuery": {
+			"type": "object",
+			"required": [
+				"query"
+			],
+			"properties": {
+				"label": {
+					"description": "Optional Y-axis user-facing label for this query",
+					"type": "string"
+				},
+				"range": {
+					"description": "Optional default range of the Y-axis",
+					"type": "object",
+					"required": [
+						"upper",
+						"lower"
+					],
+					"properties": {
+						"upper": {
+							"description": "Upper bound of the display range of the Y-axis",
+							"type": "integer",
+							"format": "int64"
+						},
+						"lower": {
+							"description": "Lower bound of the display range of the Y-axis",
+							"type": "integer",
+							"format": "int64"
+						}
+					}
+				},
+				"query": {
+					"type": "string"
+				},
+				"queryConfig": {
+					"$ref": "#/definitions/QueryConfig"
+				}
+			},
+			"example": {
+				"id": 4,
+				"cells": [
+					{
+						"x": 0,
+						"y": 0,
+						"w": 4,
+						"h": 4,
+						"name": "",
+						"queries": [
+							{
+								"query": "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
+								"label": "%",
+								"queryConfig": {
+									"database": "",
+									"measurement": "cpu",
+									"retentionPolicy": "",
+									"fields": [
+										{
+											"field": "usage_user",
+											"funcs": [
+												"mean"
+											]
+										}
+									],
+									"tags": {},
+									"groupBy": {
+										"time": "",
+										"tags": []
+									},
+									"areTagsAccepted": false
+								}
+							}
+						],
+						"type": "line"
+					}
+				],
+				"name": "dashboard name",
+				"links": {
+					"self": "/chronograf/v1/dashboards/4"
+				}
 			}
 		},
 		"Dashboards": {
@@ -3171,11 +3254,15 @@
 								"minimum": 1,
 								"default": 4
 							},
+							"name": {
+								"description": "Name of Cell in the Dashboard",
+								"type": "string"
+							},
 							"queries": {
 								"description": "Time-series data queries for Cell.",
 								"type": "array",
 								"items": {
-									"$ref": "#/definitions/LayoutQuery"
+									"$ref": "#/definitions/DashboardQuery"
 								}
 							},
 							"type": {
@@ -3189,6 +3276,16 @@
 									"line-stepplot"
 								],
 								"default": "line"
+							},
+							"links": {
+								"type": "object",
+								"properties": {
+									"self": {
+										"type": "string",
+										"description": "Self link mapping to this resource",
+										"format": "url"
+									}
+								}
 							}
 						}
 					}
@@ -3220,6 +3317,7 @@
 						"queries": [
 							{
 								"query": "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
+								"db": "telegraf",
 								"label": "%"
 							}
 						],
@@ -3234,6 +3332,7 @@
 						"queries": [
 							{
 								"query": "SELECT mean(\"usage_system\") AS \"usage_system\" FROM \"cpu\"",
+								"db": "telegraf",
 								"label": "%"
 							}
 						],

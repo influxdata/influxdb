@@ -25,9 +25,9 @@ export const RuleGraph = React.createClass({
   },
 
   renderGraph() {
-    const {query, source, timeRange, rule} = this.props;
+    const {query, source, timeRange: {lower}, rule} = this.props;
     const autoRefreshMs = 30000;
-    const queryText = selectStatement({lower: timeRange.queryValue}, query);
+    const queryText = selectStatement({lower}, query);
     const queries = [{host: source.links.proxy, text: queryText}];
     const kapacitorLineColors = ["#4ED8A0"];
 

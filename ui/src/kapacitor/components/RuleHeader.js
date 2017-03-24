@@ -68,7 +68,7 @@ export const RuleHeader = React.createClass({
     return (
       <div className="page-header__right">
         <SourceIndicator sourceName={source.name} />
-        <TimeRangeDropdown onChooseTimeRange={onChooseTimeRange} selected={timeRange.inputValue} />
+        <TimeRangeDropdown onChooseTimeRange={onChooseTimeRange} selected={timeRange} />
         {saveButton}
         <ReactTooltip id="save-kapacitor-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
       </div>

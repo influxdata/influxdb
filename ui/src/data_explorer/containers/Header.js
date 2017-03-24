@@ -1,12 +1,9 @@
 import React, {PropTypes} from 'react';
-import moment from 'moment';
 import {withRouter} from 'react-router';
 
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
 import SourceIndicator from '../../shared/components/SourceIndicator';
-
-import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
 const {
   func,
@@ -38,16 +35,6 @@ const Header = React.createClass({
     this.props.actions.setTimeRange(bounds);
   },
 
-  findSelected({upper, lower}) {
-    if (upper && lower) {
-      const format = (t) => moment(t.replace(/\'/g, '')).format('YYYY-MM-DD HH:mm');
-      return `${format(lower)} - ${format(upper)}`;
-    }
-
-    const selected = timeRanges.find((range) => range.queryValue === lower);
-    return selected ? selected.inputValue : 'Custom';
-  },
-
   render() {
     const {autoRefresh, actions: {handleChooseAutoRefresh}, timeRange} = this.props;
 
@@ -60,7 +47,7 @@ const Header = React.createClass({
           <div className="page-header__right">
             <SourceIndicator sourceName={this.context.source.name} />
             <AutoRefreshDropdown onChoose={handleChooseAutoRefresh} selected={autoRefresh} iconName="refresh" />
-            <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={this.findSelected(timeRange)} />
+            <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={timeRange} />
           </div>
         </div>
       </div>
