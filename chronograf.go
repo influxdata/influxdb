@@ -136,7 +136,7 @@ type Source struct {
 	URL                string `json:"url"`                          // URL are the connections to the source
 	MetaURL            string `json:"metaUrl,omitempty"`            // MetaURL is the url for the meta node
 	InsecureSkipVerify bool   `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the source is accepted.
-	Default            bool   `json:"isDefault"`                    // Default specifies the default source for the application
+	Default            bool   `json:"default"`                      // Default specifies the default source for the application
 	Telegraf           string `json:"telegraf"`                     // Telegraf is the db telegraf is written to.  By default it is "telegraf"
 }
 
@@ -330,7 +330,7 @@ type RetentionPolicy struct {
 	Duration      string `json:"duration,omitempty"`      // the duration
 	Replication   int32  `json:"replication,omitempty"`   // the replication factor
 	ShardDuration string `json:"shardDuration,omitempty"` // the shard duration
-	Default       bool   `json:"default,omitempty"`       // whether the RP should be the default
+	Default       bool   `json:"isDefault,omitempty"`     // whether the RP should be the default
 }
 
 // Databases represents a databases in a time series source
