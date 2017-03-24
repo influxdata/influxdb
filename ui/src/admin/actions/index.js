@@ -291,7 +291,7 @@ export const updateRetentionPolicyAsync = (database, retentionPolicy, updates) =
     dispatch(editRetentionPolicy(database, retentionPolicy, updates))
     const {data} = await updateRetentionPolicyAJAX(retentionPolicy.links.self, updates)
     dispatch(publishNotification('success', 'Retention policy updated successfully'))
-    dispatch(syncRetentionPolicy(database, data))
+    dispatch(syncRetentionPolicy(database, retentionPolicy, data))
   } catch (error) {
     dispatch(publishNotification('error', `Failed to update retention policy: ${error.data.message}`))
   }
