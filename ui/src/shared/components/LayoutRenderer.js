@@ -50,6 +50,7 @@ export const LayoutRenderer = React.createClass({
     onEditCell: func,
     onRenameCell: func,
     onUpdateCell: func,
+    onDeleteCell: func,
     onSummonOverlayTechnologies: func,
   },
 
@@ -86,7 +87,7 @@ export const LayoutRenderer = React.createClass({
   },
 
   generateVisualizations() {
-    const {autoRefresh, source, cells, onEditCell, onRenameCell, onUpdateCell, onSummonOverlayTechnologies} = this.props;
+    const {autoRefresh, source, cells, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies} = this.props;
 
     return cells.map((cell) => {
       const qs = cell.queries.map((query) => {
@@ -103,6 +104,7 @@ export const LayoutRenderer = React.createClass({
               onEditCell={onEditCell}
               onRenameCell={onRenameCell}
               onUpdateCell={onUpdateCell}
+              onDeleteCell={onDeleteCell}
               onSummonOverlayTechnologies={onSummonOverlayTechnologies}
               cell={cell}
             >
@@ -123,6 +125,7 @@ export const LayoutRenderer = React.createClass({
             onEditCell={onEditCell}
             onRenameCell={onRenameCell}
             onUpdateCell={onUpdateCell}
+            onDeleteCell={onDeleteCell}
             onSummonOverlayTechnologies={onSummonOverlayTechnologies}
             cell={cell}
           >

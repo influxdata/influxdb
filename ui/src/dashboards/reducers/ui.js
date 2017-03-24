@@ -109,6 +109,23 @@ export default function ui(state = initialState, action) {
       return {...state, ...newState}
     }
 
+    case 'DELETE_DASHBOARD_CELL': {
+      const {cell} = action.payload
+      const {dashboard} = state
+
+      const newCells = dashboard.cells.filter((c) => !(c.x === cell.x && c.y === cell.y))
+      const newDashboard = {
+        ...dashboard,
+        cells: newCells,
+      }
+      const newState = {
+        dashboard: newDashboard,
+        dashboards: state.dashboards.map((d) => d.id === dashboard.id ? newDashboard : d),
+      }
+
+      return {...state, ...newState}
+    }
+
     case 'SYNC_DASHBOARD_CELL': {
       const {cell} = action.payload
       const {dashboard} = state
