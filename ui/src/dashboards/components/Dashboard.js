@@ -2,7 +2,6 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 
 import LayoutRenderer from 'shared/components/LayoutRenderer'
-import Visualizations from 'src/dashboards/components/VisualizationSelector'
 
 const Dashboard = ({
   dashboard,
@@ -25,7 +24,6 @@ const Dashboard = ({
   return (
     <div className={classnames({'page-contents': true, 'presentation-mode': inPresentationMode})}>
       <div className={classnames('container-fluid full-width dashboard', {'dashboard-edit': isEditMode})}>
-        {isEditMode ? <Visualizations/> : null}
         {Dashboard.renderDashboard(dashboard, autoRefresh, timeRange, source, onPositionChange, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies)}
       </div>
     </div>
