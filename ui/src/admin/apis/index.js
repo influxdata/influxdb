@@ -36,6 +36,18 @@ export const getPermissions = async (url) => {
   }
 }
 
+export const getDbsAndRps = async (url) => {
+  try {
+    return await AJAX({
+      method: 'GET',
+      url,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
 export const createUser = async (url, user) => {
   try {
     return await AJAX({
@@ -54,6 +66,41 @@ export const createRole = async (url, role) => {
       method: 'POST',
       url,
       data: role,
+    })
+  } catch (error) {
+    throw error
+  }
+}
+
+export const createDatabase = async (url, database) => {
+  try {
+    return await AJAX({
+      method: 'POST',
+      url,
+      data: database,
+    })
+  } catch (error) {
+    throw error
+  }
+}
+
+export const createRetentionPolicy = async (url, retentionPolicy) => {
+  try {
+    return await AJAX({
+      method: 'POST',
+      url,
+      data: retentionPolicy,
+    })
+  } catch (error) {
+    throw error
+  }
+}
+
+export const deleteRetentionPolicy = async (url) => {
+  try {
+    return await AJAX({
+      method: 'DELETE',
+      url,
     })
   } catch (error) {
     throw error
@@ -100,6 +147,18 @@ export const deleteUser = async (url, addFlashMessage, username) => {
   }
 }
 
+export const deleteDatabase = async (url) => {
+  try {
+    return await AJAX({
+      method: 'DELETE',
+      url,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
 export const updateRole = async (url, users, permissions) => {
   try {
     return await AJAX({
@@ -124,6 +183,21 @@ export const updateUser = async (url, roles, permissions) => {
       data: {
         roles,
         permissions,
+      },
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
+export const updateRetentionPolicy = async (url, retentionPolicy) => {
+  try {
+    return await AJAX({
+      method: 'PUT',
+      url,
+      data: {
+        ...retentionPolicy,
       },
     })
   } catch (error) {

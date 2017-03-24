@@ -3,17 +3,32 @@ import reducer from 'src/admin/reducers/admin'
 import {
   addUser,
   addRole,
+  addDatabase,
+  addRetentionPolicy,
   syncUser,
   syncRole,
   editUser,
   editRole,
+  editDatabase,
+  editRetentionPolicy,
   loadRoles,
   loadPermissions,
   deleteRole,
   deleteUser,
+  removeDatabase,
+  removeRetentionPolicy,
   filterRoles,
   filterUsers,
+  addDatabaseDeleteCode,
+  removeDatabaseDeleteCode,
 } from 'src/admin/actions'
+
+import {
+  NEW_DEFAULT_USER,
+  NEW_DEFAULT_ROLE,
+  NEW_DEFAULT_DATABASE,
+  NEW_EMPTY_RP,
+} from 'src/admin/constants'
 
 let state = undefined
 
@@ -58,14 +73,6 @@ const u2 = {
   links: {self: '/chronograf/v1/sources/1/users/zerocool'},
 }
 const users = [u1, u2]
-const newDefaultUser = {
-  name: '',
-  password: '',
-  roles: [],
-  permissions: [],
-  links: {self: ''},
-  isNew: true,
-}
 
 // Roles
 const r1 = {
@@ -103,20 +110,118 @@ const r2 = {
   links: {self: '/chronograf/v1/sources/1/roles/l33tus3r'}
 }
 const roles = [r1, r2]
-const newDefaultRole = {
-  name: '',
-  users: [],
-  permissions: [],
-  links: {self: ''},
-  isNew: true,
-}
 
 // Permissions
 const global = {scope: 'all', allowed: ['p1', 'p2']}
 const scoped = {scope: 'db1', allowed: ['p1', 'p3']}
 const permissions = [global, scoped]
 
+// Databases && Retention Policies
+const rp1 = {
+  name: 'rp1',
+  duration: '0',
+  replication: 2,
+  isDefault: true,
+  links: {self: '/chronograf/v1/sources/1/db/db1/rp/rp1'},
+}
+
+const db1 = {
+  name: 'db1',
+  links: {self: '/chronograf/v1/sources/1/db/db1'},
+  retentionPolicies: [rp1],
+}
+
+const db2 = {
+  name: 'db2',
+  links: {self: '/chronograf/v1/sources/1/db/db2'},
+  retentionPolicies: [],
+  deleteCode: 'DELETE',
+}
+
 describe('Admin.Reducers', () => {
+  describe('Databases', () => {
+    const state = {databases: [db1, db2]}
+
+    it('can add a database', () => {
+      const actual = reducer(state, addDatabase())
+      const expected = [
+        {...NEW_DEFAULT_DATABASE, isEditing: true},
+        db1,
+        db2,
+      ]
+
+      expect(actual.databases).to.deep.equal(expected)
+    })
+
+    it('can edit a database', () => {
+      const updates = {name: 'dbOne'}
+      const actual = reducer(state, editDatabase(db1, updates))
+      const expected = [{...db1, ...updates}, db2]
+
+      expect(actual.databases).to.deep.equal(expected)
+    })
+
+    it('can remove a database', () => {
+      const actual = reducer(state, removeDatabase(db1))
+      const expected = [db2]
+
+      expect(actual.databases).to.deep.equal(expected)
+    })
+
+    it('can add a database delete code', () => {
+      const actual = reducer(state, addDatabaseDeleteCode(db1))
+      const expected = [
+        {...db1, deleteCode: ''},
+        db2,
+      ]
+
+      expect(actual.databases).to.deep.equal(expected)
+    })
+
+    it('can remove the delete code', () => {
+      const actual = reducer(state, removeDatabaseDeleteCode(db2))
+      delete db2.deleteCode
+      const expected = [
+        db1,
+        db2,
+      ]
+
+      expect(actual.databases).to.deep.equal(expected)
+    })
+  })
+
+  describe('Retention Policies', () => {
+    const state = {databases: [db1]}
+
+    it('can add a retention policy', () => {
+      const actual = reducer(state, addRetentionPolicy(db1))
+      const expected = [
+        {...db1, retentionPolicies: [NEW_EMPTY_RP, rp1]},
+      ]
+
+      expect(actual.databases).to.deep.equal(expected)
+    })
+
+    it('can remove a retention policy', () => {
+      const actual = reducer(state, removeRetentionPolicy(db1, rp1))
+      const expected = [
+        {...db1, retentionPolicies: []},
+      ]
+
+      expect(actual.databases).to.deep.equal(expected)
+    })
+
+    it('can edit a retention policy', () => {
+      const updates = {name: 'rpOne', duration: '100y', replication: '42'}
+      const actual = reducer(state, editRetentionPolicy(db1, rp1, updates))
+      const expected = [
+        {...db1, retentionPolicies: [{...rp1, ...updates}]},
+      ]
+
+      expect(actual.databases).to.deep.equal(expected)
+    })
+  })
+
   it('it can add a user', () => {
     state = {
       users: [
@@ -127,7 +232,7 @@ describe('Admin.Reducers', () => {
     const actual = reducer(state, addUser())
     const expected = {
       users: [
-        {...newDefaultUser, isEditing: true},
+        {...NEW_DEFAULT_USER, isEditing: true},
         u1,
       ],
     }
@@ -171,7 +276,7 @@ describe('Admin.Reducers', () => {
     const actual = reducer(state, addRole())
     const expected = {
       roles: [
-        {...newDefaultRole, isEditing: true},
+        {...NEW_DEFAULT_ROLE, isEditing: true},
         r1,
       ],
     }

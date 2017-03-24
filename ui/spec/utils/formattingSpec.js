@@ -25,7 +25,7 @@ describe('Formatting helpers', () => {
     it("returns 'infinite' for a retention policy with a value of '0'", () => {
       const actual = formatRPDuration('0')
 
-      expect(actual).to.equal('infinite');
+      expect(actual).to.equal('∞');
     });
 
     it('correctly formats retention policy durations', () => {
