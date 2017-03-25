@@ -141,28 +141,30 @@ $dash-graph-heading: 30px;
   border: 2px solid $g3-castle;
   top: 2px;
 
-  &:after {
-    display: inline-block;
-    content: "\f058";
-    font-family: 'icomoon' !important;
-    font-style: normal;
-    font-weight: normal;
-    font-variant: normal;
-    line-height: 1;
-    text-transform: none;
-    color: $g11-sidewalk;
-    font-size: 14px;
-    opacity: 0;
-    transition: opacity 0.25s ease;
-    margin-left: 5px;
-  }
-
-  &:hover {
-    cursor: text;
-    color: $g20-white;
-
+  &.editable {
     &:after {
-      opacity: 1;
+      display: inline-block;
+      content: "\f058";
+      font-family: 'icomoon' !important;
+      font-style: normal;
+      font-weight: normal;
+      font-variant: normal;
+      line-height: 1;
+      text-transform: none;
+      color: $g11-sidewalk;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      margin-left: 5px;
+    }
+
+    &:hover {
+      cursor: text;
+      color: $g20-white;
+
+      &:after {
+        opacity: 1;
+      }
     }
   }
 }

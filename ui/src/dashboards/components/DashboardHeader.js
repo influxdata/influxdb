@@ -91,8 +91,8 @@ DashboardHeader.propTypes = {
   handleChooseAutoRefresh: func.isRequired,
   handleClickPresentationButton: func.isRequired,
   source: shape({}),
-  onAddCell: func.isRequired,
-  onEditDashboard: func.isRequired,
+  onAddCell: func,
+  onEditDashboard: func,
 }
 
 export default DashboardHeader

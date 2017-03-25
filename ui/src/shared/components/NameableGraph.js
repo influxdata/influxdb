@@ -25,6 +25,7 @@ const NameableGraph = React.createClass({
     onUpdateCell: func,
     onDeleteCell: func,
     onSummonOverlayTechnologies: func,
+    shouldNotBeEditable: bool,
   },
 
   getInitialState() {
@@ -59,6 +60,7 @@ const NameableGraph = React.createClass({
       onUpdateCell,
       onDeleteCell,
       onSummonOverlayTechnologies,
+      shouldNotBeEditable,
       children,
     } = this.props
 
@@ -82,7 +84,7 @@ const NameableGraph = React.createClass({
         />
       )
     } else {
-      nameOrField = (<span className="dash-graph--name">{name}</span>)
+      nameOrField = (<span className={classnames("dash-graph--name", {editable: !shouldNotBeEditable})}>{name}</span>)
     }
 
     let onClickHandler
@@ -98,7 +100,18 @@ const NameableGraph = React.createClass({
       <div className="dash-graph">
         <div className="dash-graph--heading">
           <div onClick={onClickHandler(x, y, isEditing)}>{nameOrField}</div>
-          <ContextMenu isOpen={this.state.isMenuOpen} toggleMenu={this.toggleMenu} onEdit={onSummonOverlayTechnologies} onDelete={onDeleteCell} cell={cell} handleClickOutside={this.closeMenu}/>
+          {
+            shouldNotBeEditable ?
+              null :
+              <ContextMenu
+                isOpen={this.state.isMenuOpen}
+                toggleMenu={this.toggleMenu}
+                onEdit={onSummonOverlayTechnologies}
+                onDelete={onDeleteCell}
+                cell={cell}
+                handleClickOutside={this.closeMenu}
+              />
+          }
         </div>
         <div className="dash-graph--container">
           {children}

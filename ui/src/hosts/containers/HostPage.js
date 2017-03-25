@@ -145,6 +145,7 @@ export const HostPage = React.createClass({
         autoRefresh={autoRefresh}
         source={source.links.proxy}
         host={this.props.params.hostID}
+        shouldNotBeEditable={true}
       />
     );
   },

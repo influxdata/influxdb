@@ -14,6 +14,7 @@ const RefreshingSingleStat = AutoRefresh(SingleStat);
 
 const {
   arrayOf,
+  bool,
   func,
   number,
   shape,
@@ -52,6 +53,7 @@ export const LayoutRenderer = React.createClass({
     onUpdateCell: func,
     onDeleteCell: func,
     onSummonOverlayTechnologies: func,
+    shouldNotBeEditable: bool,
   },
 
   buildQuery(q) {
@@ -87,7 +89,7 @@ export const LayoutRenderer = React.createClass({
   },
 
   generateVisualizations() {
-    const {autoRefresh, source, cells, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies} = this.props;
+    const {autoRefresh, source, cells, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies, shouldNotBeEditable} = this.props;
 
     return cells.map((cell) => {
       const qs = cell.queries.map((query) => {
@@ -106,6 +108,7 @@ export const LayoutRenderer = React.createClass({
               onUpdateCell={onUpdateCell}
               onDeleteCell={onDeleteCell}
               onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+              shouldNotBeEditable={shouldNotBeEditable}
               cell={cell}
             >
               <RefreshingSingleStat queries={[qs[0]]} autoRefresh={autoRefresh} />
@@ -127,6 +130,7 @@ export const LayoutRenderer = React.createClass({
             onUpdateCell={onUpdateCell}
             onDeleteCell={onDeleteCell}
             onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+            shouldNotBeEditable={shouldNotBeEditable}
             cell={cell}
           >
             <RefreshingLineGraph
