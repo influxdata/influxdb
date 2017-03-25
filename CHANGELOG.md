@@ -8,14 +8,13 @@
 ## v1.2.0-beta6 [2017-03-24]
 
 ### Features
-  1. [#1056](https://github.com/influxdata/chronograf/pull/1056): Introduce ability to add a dashboard cell
-  2. [#1020](https://github.com/influxdata/chronograf/pull/1020): Users can now edit cell names on dashboards
-  3. [#1015](https://github.com/influxdata/chronograf/pull/1015): Introduce ability to edit a dashboard cell
-  4. [#832](https://github.com/influxdata/chronograf/issues/832): Introduce retention policy management page
-  5. [#1035](https://github.com/influxdata/chronograf/pull/1035): Convert many InfluxQL statements to query builder
+  1. [#1056](https://github.com/influxdata/chronograf/pull/1056): Add ability to add a dashboard cell
+  2. [#1020](https://github.com/influxdata/chronograf/pull/1020): Allow users to edit cell names on dashboards
+  3. [#1015](https://github.com/influxdata/chronograf/pull/1015): Add ability to edit a dashboard cell
+  4. [#832](https://github.com/influxdata/chronograf/issues/832): Add a database and retention policy management page
+  5. [#1035](https://github.com/influxdata/chronograf/pull/1035): Add ability to move and edit queries between raw InfluxQL mode and Query Builder mode
 
 ### UI Improvements
-  1. [#1061](https://github.com/influxdata/chronograf/pull/1061): Remove VisualizationSelector from Dashboard Edit Mode
 
 ## v1.2.0-beta5 [2017-03-10]
 
