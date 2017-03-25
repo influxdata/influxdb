@@ -1773,40 +1773,35 @@ func (a Tags) HashKey() []byte {
 		return nil
 	}
 
+	// Type invariant: Tags are sorted
+
 	escaped := make(Tags, 0, len(a))
+	sz := 0
 	for _, t := range a {
 		ek := escapeTag(t.Key)
 		ev := escapeTag(t.Value)
 
 		if len(ev) > 0 {
 			escaped = append(escaped, Tag{Key: ek, Value: ev})
+			sz += len(ek) + len(ev)
 		}
 	}
 
-	// Extract keys and determine final size.
-	sz := len(escaped) + (len(escaped) * 2) // separators
-	keys := make([][]byte, len(escaped)+1)
-	for i, t := range escaped {
-		keys[i] = t.Key
-		sz += len(t.Key) + len(t.Value)
-	}
-	keys = keys[:len(escaped)]
-	sort.Sort(byteSlices(keys))
+	sz += len(escaped) + (len(escaped) * 2) // separators
 
 	// Generate marshaled bytes.
 	b := make([]byte, sz)
 	buf := b
 	idx := 0
-	for i, k := range keys {
+	for _, k := range escaped {
 		buf[idx] = ','
 		idx++
-		copy(buf[idx:idx+len(k)], k)
-		idx += len(k)
+		copy(buf[idx:idx+len(k.Key)], k.Key)
+		idx += len(k.Key)
 		buf[idx] = '='
 		idx++
-		v := escaped[i].Value
-		copy(buf[idx:idx+len(v)], v)
-		idx += len(v)
+		copy(buf[idx:idx+len(k.Value)], k.Value)
+		idx += len(k.Value)
 	}
 	return b[:idx]
 }

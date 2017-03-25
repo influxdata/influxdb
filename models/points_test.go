@@ -40,6 +40,16 @@ func TestMarshal(t *testing.T) {
 	}
 }
 
+func TestTags_HashKey(t *testing.T) {
+	tags = models.NewTags(map[string]string{"A FOO": "bar", "APPLE": "orange", "host": "serverA", "region": "uswest"})
+	got := tags.HashKey()
+	if exp := ",A\\ FOO=bar,APPLE=orange,host=serverA,region=uswest"; string(got) != exp {
+		t.Log("got: ", string(got))
+		t.Log("exp: ", exp)
+		t.Error("invalid match")
+	}
+}
+
 func BenchmarkMarshal(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		tags.HashKey()
