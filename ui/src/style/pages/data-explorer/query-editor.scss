@@ -66,7 +66,7 @@
     background-color 0.25s ease;
 
   &:hover {
-    cursor: pointer;
+    cursor: $cc-pointer;
     color: $g20-white;
   }
   &.active {
@@ -97,7 +97,7 @@
     &:hover {
       background-color: $g5-pepper;
       color: $g15-platinum;
-      cursor: pointer;
+      cursor: $cc-pointer;
     }
   }
   &-radio {

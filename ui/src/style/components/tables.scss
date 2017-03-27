@@ -83,7 +83,7 @@ table .monotype {
   }
 
   &:hover {
-    cursor: pointer;
+    cursor: $cc-pointer;
     color: $g19-ghost;
     background-color: $g5-pepper;
 

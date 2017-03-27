@@ -155,12 +155,12 @@ html input[type="button"],
 input[type="reset"],
 input[type="submit"] {
   -webkit-appearance: button;
-  cursor: pointer;
+  cursor: $cc-pointer;
 }
 
 button[disabled],
 html input[disabled] {
-  cursor: default;
+  cursor: $cc-default;
 }
 
 button::-moz-focus-inner,
@@ -1504,7 +1504,7 @@ hr {
 }
 
 [role="button"] {
-  cursor: pointer;
+  cursor: $cc-pointer;
 }
 
 h1,
@@ -3331,7 +3331,7 @@ input[type="search"] {
   padding-left: 20px;
   margin-bottom: 0;
   font-weight: normal;
-  cursor: pointer;
+  cursor: $cc-pointer;
 }
 
 .radio input[type="radio"],
@@ -3356,7 +3356,7 @@ input[type="search"] {
   margin-bottom: 0;
   font-weight: normal;
   vertical-align: middle;
-  cursor: pointer;
+  cursor: $cc-pointer;
 }
 
 .radio-inline + .radio-inline,
@@ -3764,7 +3764,7 @@ select[multiple].input-lg {
   vertical-align: middle;
   -ms-touch-action: manipulation;
   touch-action: manipulation;
-  cursor: pointer;
+  cursor: $cc-pointer;
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
@@ -4959,7 +4959,7 @@ select[multiple].input-group-sm > .input-group-btn > .btn {
 .nav-tabs > li.active > a:hover,
 .nav-tabs > li.active > a:focus {
   color: #575e6b;
-  cursor: default;
+  cursor: $cc-default;
   background-color: #fafbfc;
   border: 1px solid #ddd;
   border-bottom-color: transparent;
@@ -5830,7 +5830,7 @@ fieldset[disabled] .navbar-inverse .btn-link:focus {
 .pagination > .active > span:focus {
   z-index: 3;
   color: #fff;
-  cursor: default;
+  cursor: $cc-default;
   background-color: #22adf6;
   border-color: #22adf6;
 }
@@ -5947,7 +5947,7 @@ a.label:hover,
 a.label:focus {
   color: #fff;
   text-decoration: none;
-  cursor: pointer;
+  cursor: $cc-pointer;
 }
 
 .label:empty {
@@ -6047,7 +6047,7 @@ a.badge:hover,
 a.badge:focus {
   color: #fff;
   text-decoration: none;
-  cursor: pointer;
+  cursor: $cc-pointer;
 }
 
 .list-group-item.active > .badge,
@@ -6998,7 +6998,7 @@ button.list-group-item-danger.active:focus {
 .close:focus {
   color: #000;
   text-decoration: none;
-  cursor: pointer;
+  cursor: $cc-pointer;
   filter: alpha(opacity = 50);
   opacity: .5;
 }
@@ -7006,7 +7006,7 @@ button.list-group-item-danger.active:focus {
 button.close {
   -webkit-appearance: none;
   padding: 0;
-  cursor: pointer;
+  cursor: $cc-pointer;
   background: transparent;
   border: 0;
 }
@@ -7633,7 +7633,7 @@ button.close {
   height: 10px;
   margin: 1px;
   text-indent: -999px;
-  cursor: pointer;
+  cursor: $cc-pointer;
   background-color: #000 \9;
   background-color: rgba(0, 0, 0, 0);
   border: 1px solid #fff;
