@@ -195,9 +195,10 @@ class DatabaseRow extends Component {
   }
 
   getInputValues() {
+    const {notify, retentionPolicy: {name: currentName}} = this.props
+    const name = this.name && this.name.value.trim() || currentName
     let duration = this.duration.value.trim()
     const replication = +this.replication.value.trim()
-    const {notify, retentionPolicy: {name}} = this.props
 
     if (!duration || !replication) {
       notify('error', 'Fields cannot be empty')
