@@ -33,6 +33,25 @@ func kapaOperator(operator string) (string, error) {
 	}
 }
 
+func chronoOperator(operator string) (string, error) {
+	switch operator {
+	case ">":
+		return greaterThan, nil
+	case "<":
+		return lessThan, nil
+	case "<=":
+		return LessThanEqual, nil
+	case ">=":
+		return GreaterThanEqual, nil
+	case "==":
+		return Equal, nil
+	case "!=":
+		return NotEqual, nil
+	default:
+		return "", fmt.Errorf("invalid operator: %s is unknown", operator)
+	}
+}
+
 func rangeOperators(operator string) ([]string, error) {
 	switch operator {
 	case InsideRange:
@@ -42,4 +61,16 @@ func rangeOperators(operator string) ([]string, error) {
 	default:
 		return nil, fmt.Errorf("invalid operator: %s is unknown", operator)
 	}
+}
+
+func chronoRangeOperators(ops []string) (string, error) {
+	if len(ops) != 3 {
+		return "", fmt.Errorf("Unknown operators")
+	}
+	if ops[0] == ">=" && ops[1] == "AND" && ops[2] == "<=" {
+		return InsideRange, nil
+	} else if ops[0] == "<" && ops[1] == "OR" && ops[2] == ">" {
+		return OutsideRange, nil
+	}
+	return "", fmt.Errorf("Unknown operators")
 }
