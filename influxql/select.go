@@ -708,25 +708,31 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 	// TODO(jsternberg): Refactor this. This section needs to die in a fire.
 	switch expr.Name {
 	case "distinct":
-		input, err := buildExprIterator(expr.Args[0].(*VarRef), b.ic, b.sources, b.opt, b.selector)
+		opt := b.opt
+		opt.Ordered = true
+		input, err := buildExprIterator(expr.Args[0].(*VarRef), b.ic, b.sources, opt, b.selector)
 		if err != nil {
 			return nil, err
 		}
-		input, err = NewDistinctIterator(input, b.opt)
+		input, err = NewDistinctIterator(input, opt)
 		if err != nil {
 			return nil, err
 		}
-		return NewIntervalIterator(input, b.opt), nil
+		return NewIntervalIterator(input, opt), nil
 	case "sample":
-		input, err := buildExprIterator(expr.Args[0], b.ic, b.sources, b.opt, b.selector)
+		opt := b.opt
+		opt.Ordered = true
+		input, err := buildExprIterator(expr.Args[0], b.ic, b.sources, opt, b.selector)
 		if err != nil {
 			return nil, err
 		}
 		size := expr.Args[1].(*IntegerLiteral)
 
-		return newSampleIterator(input, b.opt, int(size.Val))
+		return newSampleIterator(input, opt, int(size.Val))
 	case "holt_winters", "holt_winters_with_fit":
-		input, err := buildExprIterator(expr.Args[0], b.ic, b.sources, b.opt, b.selector)
+		opt := b.opt
+		opt.Ordered = true
+		input, err := buildExprIterator(expr.Args[0], b.ic, b.sources, opt, b.selector)
 		if err != nil {
 			return nil, err
 		}
@@ -737,7 +743,6 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 
 		interval := b.opt.Interval.Duration
 		// Redefine interval to be unbounded to capture all aggregate results
-		opt := b.opt
 		opt.StartTime = MinTime
 		opt.EndTime = MaxTime
 		opt.Interval = Interval{}
@@ -752,6 +757,7 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 				opt.EndTime += int64(opt.Interval.Duration)
 			}
 		}
+		opt.Ordered = true
 
 		input, err := buildExprIterator(expr.Args[0], b.ic, b.sources, opt, b.selector)
 		if err != nil {
@@ -781,11 +787,13 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 		}
 		panic(fmt.Sprintf("invalid series aggregate function: %s", expr.Name))
 	case "cumulative_sum":
-		input, err := buildExprIterator(expr.Args[0], b.ic, b.sources, b.opt, b.selector)
+		opt := b.opt
+		opt.Ordered = true
+		input, err := buildExprIterator(expr.Args[0], b.ic, b.sources, opt, b.selector)
 		if err != nil {
 			return nil, err
 		}
-		return newCumulativeSumIterator(input, b.opt)
+		return newCumulativeSumIterator(input, opt)
 	}
 
 	itr, err := func() (Iterator, error) {
@@ -894,12 +902,14 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 				}
 			}
 
-			input, err := buildExprIterator(expr.Args[0].(*VarRef), b.ic, b.sources, b.opt, false)
+			opt := b.opt
+			opt.Ordered = true
+			input, err := buildExprIterator(expr.Args[0].(*VarRef), b.ic, b.sources, opt, false)
 			if err != nil {
 				return nil, err
 			}
 			n := expr.Args[len(expr.Args)-1].(*IntegerLiteral)
-			return newTopIterator(input, b.opt, n, tags)
+			return newTopIterator(input, opt, n, tags)
 		case "bottom":
 			var tags []int
 			if len(expr.Args) < 2 {
@@ -918,7 +928,9 @@ func (b *exprIteratorBuilder) buildCallIterator(expr *Call) (Iterator, error) {
 				}
 			}
 
-			input, err := buildExprIterator(expr.Args[0].(*VarRef), b.ic, b.sources, b.opt, false)
+			opt := b.opt
+			opt.Ordered = true
+			input, err := buildExprIterator(expr.Args[0].(*VarRef), b.ic, b.sources, opt, false)
 			if err != nil {
 				return nil, err
 			}
