@@ -127,7 +127,7 @@ func NewHandler(c Config) *Handler {
 		},
 		Route{
 			"write", // Data-ingest route.
-			"POST", "/write", true, true, h.serveWrite,
+			"POST", "/write", true, c.WriteLogEnabled, h.serveWrite,
 		},
 		Route{ // Ping
 			"ping",
