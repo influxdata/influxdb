@@ -21,7 +21,6 @@ export const HostsPage = React.createClass({
   getInitialState() {
     return {
       hosts: {},
-      up: {},
       hostsLoading: true,
       hostsError: '',
     };
@@ -36,10 +35,9 @@ export const HostsPage = React.createClass({
         this.setState({hostsLoading: true})
         resolve()
       }),
-    ]).then(([hosts, {data: {mappings}}, up]) => {
+    ]).then(([hosts, {data: {mappings}}]) => {
       this.setState({
         hosts,
-        up,
         hostsLoading: false,
       })
       getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf).then((newHosts) => {
@@ -69,7 +67,7 @@ export const HostsPage = React.createClass({
 
   render() {
     const {source} = this.props
-    const {hosts, hostsLoading, hostsError, up} = this.state
+    const {hosts, hostsLoading, hostsError} = this.state
     return (
       <div className="page">
         <div className="page-header">
@@ -91,7 +89,6 @@ export const HostsPage = React.createClass({
                 <HostsTable
                   source={source}
                   hosts={_.values(hosts)}
-                  up={up}
                   hostsLoading={hostsLoading}
                   hostsError={hostsError}
                 />
