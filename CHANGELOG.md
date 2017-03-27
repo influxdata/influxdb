@@ -9,6 +9,7 @@
 ### Bug Fixes
   1. [#1065](https://github.com/influxdata/chronograf/pull/1065): Add functionality to the `save` and `cancel` buttons on editable dashboards
   2. [#1069](https://github.com/influxdata/chronograf/pull/1069): Make graphs on pre-created dashboards un-editable
+  3. [#1085](https://github.com/influxdata/chronograf/pull/1085): Make graphs resizable again
 
 ### Features
   1. [#1056](https://github.com/influxdata/chronograf/pull/1056): Add ability to add a dashboard cell
