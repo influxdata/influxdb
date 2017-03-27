@@ -22,6 +22,8 @@ export const HostsPage = React.createClass({
     return {
       hosts: {},
       up: {},
+      hostsLoading: true,
+      hostsError: '',
     };
   },
 
@@ -30,14 +32,35 @@ export const HostsPage = React.createClass({
     Promise.all([
       getCpuAndLoadForHosts(source.links.proxy, source.telegraf),
       getMappings(),
+      new Promise((resolve) => {
+        this.setState({hostsLoading: true})
+        resolve()
+      }),
     ]).then(([hosts, {data: {mappings}}, up]) => {
-      this.setState({hosts, up});
+      this.setState({
+        hosts,
+        up,
+        hostsLoading: false,
+      })
       getAppsForHosts(source.links.proxy, hosts, mappings, source.telegraf).then((newHosts) => {
-        this.setState({hosts: newHosts});
+        this.setState({
+          hosts: newHosts,
+          hostsError: '',
+          hostsLoading: false,
+        })
       }).catch(() => {
-        addFlashMessage({type: 'error', text: 'Unable to get apps for hosts'});
+        const reason = 'Unable to get apps for hosts'
+        addFlashMessage({type: 'error', text: reason})
+        this.setState({
+          hostsError: reason.toString(),
+          hostsLoading: false,
+        })
       });
     }).catch((reason) => {
+      this.setState({
+        hostsError: reason.toString(),
+        hostsLoading: false,
+      })
       // TODO: this isn't reachable at the moment, because getCpuAndLoadForHosts doesn't fail when it should.
       // (like with a bogus proxy link). We should provide better messaging to the user in this catch after that's fixed.
       console.error(reason); // eslint-disable-line no-console
@@ -45,7 +68,8 @@ export const HostsPage = React.createClass({
   },
 
   render() {
-    const {source} = this.props;
+    const {source} = this.props
+    const {hosts, hostsLoading, hostsError, up} = this.state
     return (
       <div className="page">
         <div className="page-header">
@@ -64,7 +88,13 @@ export const HostsPage = React.createClass({
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-12">
-                <HostsTable source={source} hosts={_.values(this.state.hosts)} up={this.state.up} />
+                <HostsTable
+                  source={source}
+                  hosts={_.values(hosts)}
+                  up={up}
+                  hostsLoading={hostsLoading}
+                  hostsError={hostsError}
+                />
               </div>
             </div>
           </div>
