@@ -1,7 +1,12 @@
+import timeRanges from 'hson!../../shared/data/timeRanges.hson'
+
+const initialLower = timeRanges[1].lower
+const initialUpper = timeRanges[1].upper
+
 const initialState = {
-  upper: null,
-  lower: 'now() - 15m',
-};
+  upper: initialUpper,
+  lower: initialLower,
+}
 
 export default function timeRange(state = initialState, action) {
   switch (action.type) {
@@ -15,5 +20,5 @@ export default function timeRange(state = initialState, action) {
       return {...state, ...newState};
     }
   }
-  return state;
+  return state
 }

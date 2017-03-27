@@ -4,6 +4,9 @@ import LineGraph from 'shared/components/LineGraph';
 import SingleStat from 'shared/components/SingleStat';
 import NameableGraph from 'shared/components/NameableGraph';
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout';
+
+import timeRanges from 'hson!../data/timeRanges.hson';
+
 const GridLayout = WidthProvider(ReactGridLayout);
 
 const RefreshingLineGraph = AutoRefresh(LineGraph);
@@ -11,6 +14,7 @@ const RefreshingSingleStat = AutoRefresh(SingleStat);
 
 const {
   arrayOf,
+  bool,
   func,
   number,
   shape,
@@ -21,23 +25,15 @@ export const LayoutRenderer = React.createClass({
   propTypes: {
     autoRefresh: number.isRequired,
     timeRange: shape({
-      defaultGroupBy: string.isRequired,
-      queryValue: string.isRequired,
+      lower: string.isRequired,
     }).isRequired,
     cells: arrayOf(
       shape({
         queries: arrayOf(
           shape({
             label: string,
-            range: shape({
-              upper: number,
-              lower: number,
-            }),
-            rp: string,
-            text: string.isRequired,
-            database: string.isRequired,
-            groupbys: arrayOf(string),
-            wheres: arrayOf(string),
+            text: string,
+            query: string,
           }).isRequired
         ).isRequired,
         x: number.isRequired,
@@ -46,6 +42,7 @@ export const LayoutRenderer = React.createClass({
         h: number.isRequired,
         i: string.isRequired,
         name: string.isRequired,
+        type: string.isRequired,
       }).isRequired
     ),
     host: string,
@@ -54,15 +51,19 @@ export const LayoutRenderer = React.createClass({
     onEditCell: func,
     onRenameCell: func,
     onUpdateCell: func,
+    onDeleteCell: func,
+    onSummonOverlayTechnologies: func,
+    shouldNotBeEditable: bool,
   },
 
   buildQuery(q) {
-    const {timeRange, host} = this.props;
-    const {wheres, groupbys} = q;
+    const {timeRange: {lower}, host} = this.props
+    const {defaultGroupBy} = timeRanges.find((range) => range.lower === lower)
+    const {wheres, groupbys} = q
 
     let text = q.text;
 
-    text += ` where time > ${timeRange.queryValue}`;
+    text += ` where time > ${lower}`;
 
     if (host) {
       text += ` and \"host\" = '${host}'`;
@@ -76,25 +77,25 @@ export const LayoutRenderer = React.createClass({
       if (groupbys.find((g) => g.includes("time"))) {
         text += ` group by ${groupbys.join(',')}`;
       } else if (groupbys.length > 0) {
-        text += ` group by time(${timeRange.defaultGroupBy}),${groupbys.join(',')}`;
+        text += ` group by time(${defaultGroupBy}),${groupbys.join(',')}`;
       } else {
-        text += ` group by time(${timeRange.defaultGroupBy})`;
+        text += ` group by time(${defaultGroupBy})`;
       }
     } else {
-      text += ` group by time(${timeRange.defaultGroupBy})`;
+      text += ` group by time(${defaultGroupBy})`;
     }
 
     return text;
   },
 
   generateVisualizations() {
-    const {autoRefresh, source, cells, onEditCell, onRenameCell, onUpdateCell} = this.props;
+    const {autoRefresh, source, cells, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies, shouldNotBeEditable} = this.props;
 
     return cells.map((cell) => {
-      const qs = cell.queries.map((q) => {
-        return Object.assign({}, q, {
+      const qs = cell.queries.map((query) => {
+        return Object.assign({}, query, {
           host: source,
-          text: this.buildQuery(q),
+          text: this.buildQuery(query),
         });
       });
 
@@ -105,6 +106,9 @@ export const LayoutRenderer = React.createClass({
               onEditCell={onEditCell}
               onRenameCell={onRenameCell}
               onUpdateCell={onUpdateCell}
+              onDeleteCell={onDeleteCell}
+              onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+              shouldNotBeEditable={shouldNotBeEditable}
               cell={cell}
             >
               <RefreshingSingleStat queries={[qs[0]]} autoRefresh={autoRefresh} />
@@ -124,12 +128,15 @@ export const LayoutRenderer = React.createClass({
             onEditCell={onEditCell}
             onRenameCell={onRenameCell}
             onUpdateCell={onUpdateCell}
+            onDeleteCell={onDeleteCell}
+            onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+            shouldNotBeEditable={shouldNotBeEditable}
             cell={cell}
           >
             <RefreshingLineGraph
               queries={qs}
               autoRefresh={autoRefresh}
-              showSingleStat={cell.type === "line-plus-single-stat"}
+              showSingleStat={cell.type === 'line-plus-single-stat'}
               displayOptions={displayOptions}
             />
           </NameableGraph>

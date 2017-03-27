@@ -88,7 +88,7 @@ export const HostPage = React.createClass({
   },
 
   handleChooseTimeRange({lower}) {
-    const timeRange = timeRanges.find((range) => range.queryValue === lower);
+    const timeRange = timeRanges.find((range) => range.lower === lower);
     this.setState({timeRange});
   },
 
@@ -145,6 +145,7 @@ export const HostPage = React.createClass({
         autoRefresh={autoRefresh}
         source={source.links.proxy}
         host={this.props.params.hostID}
+        shouldNotBeEditable={true}
       />
     );
   },

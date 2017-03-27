@@ -18,7 +18,43 @@ var DashboardBucket = []byte("Dashoard")
 // DashboardsStore is the bolt implementation of storing dashboards
 type DashboardsStore struct {
 	client *Client
-	IDs    chronograf.DashboardID
+	IDs    chronograf.ID
+}
+
+// AddIDs is a migration function that adds ID information to existing dashboards
+func (d *DashboardsStore) AddIDs(ctx context.Context, boards []chronograf.Dashboard) error {
+	for _, board := range boards {
+		update := false
+		for i, cell := range board.Cells {
+			// If there are is no id set, we generate one and update the dashboard
+			if cell.ID == "" {
+				id, err := d.IDs.Generate()
+				if err != nil {
+					return err
+				}
+				cell.ID = id
+				board.Cells[i] = cell
+				update = true
+			}
+		}
+		if !update {
+			continue
+		}
+		if err := d.Update(ctx, board); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// Migrate updates the dashboards at runtime
+func (d *DashboardsStore) Migrate(ctx context.Context) error {
+	// 1. Add UUIDs to cells without one
+	boards, err := d.All(ctx)
+	if err != nil {
+		return err
+	}
+	return d.AddIDs(ctx, boards)
 }
 
 // All returns all known dashboards
@@ -51,6 +87,14 @@ func (d *DashboardsStore) Add(ctx context.Context, src chronograf.Dashboard) (ch
 
 		src.ID = chronograf.DashboardID(id)
 		strID := strconv.Itoa(int(id))
+		for i, cell := range src.Cells {
+			cid, err := d.IDs.Generate()
+			if err != nil {
+				return err
+			}
+			cell.ID = cid
+			src.Cells[i] = cell
+		}
 		if v, err := internal.MarshalDashboard(src); err != nil {
 			return err
 		} else if err := b.Put([]byte(strID), v); err != nil {
@@ -85,7 +129,8 @@ func (d *DashboardsStore) Get(ctx context.Context, id chronograf.DashboardID) (c
 // Delete the dashboard from DashboardsStore
 func (d *DashboardsStore) Delete(ctx context.Context, dash chronograf.Dashboard) error {
 	if err := d.client.db.Update(func(tx *bolt.Tx) error {
-		if err := tx.Bucket(DashboardBucket).Delete(itob(int(dash.ID))); err != nil {
+		strID := strconv.Itoa(int(dash.ID))
+		if err := tx.Bucket(DashboardBucket).Delete([]byte(strID)); err != nil {
 			return err
 		}
 		return nil
@@ -106,6 +151,17 @@ func (d *DashboardsStore) Update(ctx context.Context, dash chronograf.Dashboard)
 			return chronograf.ErrDashboardNotFound
 		}
 
+		for i, cell := range dash.Cells {
+			if cell.ID != "" {
+				continue
+			}
+			cid, err := d.IDs.Generate()
+			if err != nil {
+				return err
+			}
+			cell.ID = cid
+			dash.Cells[i] = cell
+		}
 		if v, err := internal.MarshalDashboard(dash); err != nil {
 			return err
 		} else if err := b.Put([]byte(strID), v); err != nil {

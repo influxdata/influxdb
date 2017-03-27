@@ -121,6 +121,15 @@ type Query struct {
 	Range    *Range   `json:"range,omitempty"`    // Range is the default Y-Axis range for the data
 }
 
+// DashboardQuery includes state for the query builder.  This is a transition
+// struct while we move to the full InfluxQL AST
+type DashboardQuery struct {
+	Command     string      `json:"query"`                 // Command is the query itself
+	Label       string      `json:"label,omitempty"`       // Label is the Y-Axis label for the data
+	Range       *Range      `json:"range,omitempty"`       // Range is the default Y-Axis range for the data
+	QueryConfig QueryConfig `json:"queryConfig,omitempty"` // QueryConfig represents the query state that is understood by the data explorer
+}
+
 // Response is the result of a query against a TimeSeries
 type Response interface {
 	MarshalJSON() ([]byte, error)
@@ -316,6 +325,36 @@ type UsersStore interface {
 	Update(context.Context, *User) error
 }
 
+// Database represents a database in a time series source
+type Database struct {
+	Name          string `json:"name"`                    // a unique string identifier for the database
+	Duration      string `json:"duration,omitempty"`      // the duration (when creating a default retention policy)
+	Replication   int32  `json:"replication,omitempty"`   // the replication factor (when creating a default retention policy)
+	ShardDuration string `json:"shardDuration,omitempty"` // the shard duration (when creating a default retention policy)
+}
+
+// RetentionPolicy represents a retention policy in a time series source
+type RetentionPolicy struct {
+	Name          string `json:"name"`                    // a unique string identifier for the retention policy
+	Duration      string `json:"duration,omitempty"`      // the duration
+	Replication   int32  `json:"replication,omitempty"`   // the replication factor
+	ShardDuration string `json:"shardDuration,omitempty"` // the shard duration
+	Default       bool   `json:"isDefault,omitempty"`     // whether the RP should be the default
+}
+
+// Databases represents a databases in a time series source
+type Databases interface {
+	// All lists all databases
+	AllDB(context.Context) ([]Database, error)
+	Connect(context.Context, *Source) error
+	CreateDB(context.Context, *Database) (*Database, error)
+	DropDB(context.Context, string) error
+	AllRP(context.Context, string) ([]RetentionPolicy, error)
+	CreateRP(context.Context, string, *RetentionPolicy) (*RetentionPolicy, error)
+	UpdateRP(context.Context, string, string, *RetentionPolicy) (*RetentionPolicy, error)
+	DropRP(context.Context, string, string) error
+}
+
 // DashboardID is the dashboard ID
 type DashboardID int
 
@@ -328,13 +367,14 @@ type Dashboard struct {
 
 // DashboardCell holds visual and query information for a cell
 type DashboardCell struct {
-	X       int32   `json:"x"`
-	Y       int32   `json:"y"`
-	W       int32   `json:"w"`
-	H       int32   `json:"h"`
-	Name    string  `json:"name"`
-	Queries []Query `json:"queries"`
-	Type    string  `json:"type"`
+	ID      string           `json:"-"`
+	X       int32            `json:"x"`
+	Y       int32            `json:"y"`
+	W       int32            `json:"w"`
+	H       int32            `json:"h"`
+	Name    string           `json:"name"`
+	Queries []DashboardQuery `json:"queries"`
+	Type    string           `json:"type"`
 }
 
 // DashboardsStore is the storage and retrieval of dashboards

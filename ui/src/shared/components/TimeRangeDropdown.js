@@ -2,13 +2,15 @@ import React from 'react';
 import classnames from 'classnames';
 import OnClickOutside from 'shared/components/OnClickOutside';
 
+import moment from 'moment';
+
 import timeRanges from 'hson!../data/timeRanges.hson';
 
 const TimeRangeDropdown = React.createClass({
   autobind: false,
 
   propTypes: {
-    selected: React.PropTypes.string.isRequired,
+    selected: React.PropTypes.shape().isRequired,
     onChooseTimeRange: React.PropTypes.func.isRequired,
   },
 
@@ -18,16 +20,26 @@ const TimeRangeDropdown = React.createClass({
     };
   },
 
+  findTimeRangeInputValue({upper, lower}) {
+    if (upper && lower) {
+      const format = (t) => moment(t.replace(/\'/g, '')).format('YYYY-MM-DD HH:mm');
+      return `${format(lower)} - ${format(upper)}`;
+    }
+
+    const selected = timeRanges.find((range) => range.lower === lower);
+    return selected ? selected.inputValue : 'Custom';
+  },
+
   handleClickOutside() {
     this.setState({isOpen: false});
   },
 
   handleSelection(params) {
-    const {queryValue, menuOption} = params;
+    const {lower, upper, menuOption} = params;
     if (menuOption.toLowerCase() === 'custom') {
       this.props.onChooseTimeRange({custom: true});
     } else {
-      this.props.onChooseTimeRange({lower: queryValue, upper: null});
+      this.props.onChooseTimeRange({lower, upper});
     }
     this.setState({isOpen: false});
   },
@@ -45,7 +57,7 @@ const TimeRangeDropdown = React.createClass({
       <div className="dropdown time-range-dropdown">
         <div className="btn btn-sm btn-info dropdown-toggle" onClick={() => self.toggleMenu()}>
           <span className="icon clock"></span>
-          <span className="selected-time-range">{selected}</span>
+          <span className="selected-time-range">{self.findTimeRangeInputValue(selected)}</span>
           <span className="caret" />
         </div>
         <ul className={classnames("dropdown-menu", {show: isOpen})}>

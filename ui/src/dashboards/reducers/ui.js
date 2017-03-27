@@ -1,11 +1,13 @@
-import _ from 'lodash';
+import _ from 'lodash'
 import {EMPTY_DASHBOARD} from 'src/dashboards/constants'
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
+
+const {lower, upper} = timeRanges[1]
 
 const initialState = {
   dashboards: [],
   dashboard: EMPTY_DASHBOARD,
-  timeRange: timeRanges[1],
+  timeRange: {lower, upper},
   isEditMode: false,
 };
 
@@ -36,11 +38,6 @@ export default function ui(state = initialState, action) {
       return {...state, timeRange};
     }
 
-    case 'SET_EDIT_MODE': {
-      const {isEditMode} = action.payload
-      return {...state, isEditMode}
-    }
-
     case 'UPDATE_DASHBOARD': {
       const {dashboard} = action.payload
       const newState = {
@@ -68,7 +65,22 @@ export default function ui(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'EDIT_CELL': {
+    case 'ADD_DASHBOARD_CELL': {
+      const {cell} = action.payload
+      const {dashboard, dashboards} = state
+
+      const newCells = [cell, ...dashboard.cells]
+      const newDashboard = {...dashboard, cells: newCells}
+      const newDashboards = dashboards.map((d) => d.id === dashboard.id ? newDashboard : d)
+      const newState = {
+        dashboard: newDashboard,
+        dashboards: newDashboards,
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'EDIT_DASHBOARD_CELL': {
       const {x, y, isEditing} = action.payload
       const {dashboard} = state
 
@@ -92,7 +104,41 @@ export default function ui(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'RENAME_CELL': {
+    case 'DELETE_DASHBOARD_CELL': {
+      const {cell} = action.payload
+      const {dashboard} = state
+
+      const newCells = dashboard.cells.filter((c) => !(c.x === cell.x && c.y === cell.y))
+      const newDashboard = {
+        ...dashboard,
+        cells: newCells,
+      }
+      const newState = {
+        dashboard: newDashboard,
+        dashboards: state.dashboards.map((d) => d.id === dashboard.id ? newDashboard : d),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'SYNC_DASHBOARD_CELL': {
+      const {cell} = action.payload
+      const {dashboard} = state
+
+      const newDashboard = {
+        ...dashboard,
+        cells: dashboard.cells.map((c) => c.x === cell.x && c.y === cell.y ? cell : c),
+      }
+
+      const newState = {
+        dashboard: newDashboard,
+        dashboards: state.dashboards.map((d) => d.id === dashboard.id ? newDashboard : d),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'RENAME_DASHBOARD_CELL': {
       const {x, y, name} = action.payload
       const {dashboard} = state
 

@@ -1,15 +1,14 @@
 import React, {PropTypes} from 'react';
-import {bindActionCreators} from 'redux';
-import {connect} from 'react-redux';
 
 import QueryEditor from './QueryEditor';
 import QueryTabItem from './QueryTabItem';
 import SimpleDropdown from 'src/shared/components/SimpleDropdown';
 
-import * as viewActions from '../actions/view';
 const {
   arrayOf,
   func,
+  node,
+  number,
   shape,
   string,
 } = PropTypes;
@@ -27,7 +26,6 @@ const QueryBuilder = React.createClass({
       chooseTag: func.isRequired,
       groupByTag: func.isRequired,
       addQuery: func.isRequired,
-      deleteQuery: func.isRequired,
       toggleField: func.isRequired,
       groupByTime: func.isRequired,
       toggleTagAcceptance: func.isRequired,
@@ -35,32 +33,34 @@ const QueryBuilder = React.createClass({
     }).isRequired,
     height: string,
     top: string,
-    setActiveQuery: func.isRequired,
-    activeQueryID: string,
+    setActiveQueryIndex: func.isRequired,
+    onDeleteQuery: func.isRequired,
+    activeQueryIndex: number,
+    children: node,
   },
 
-  handleSetActiveQuery(query) {
-    this.props.setActiveQuery(query.id);
+  handleSetActiveQueryIndex(index) {
+    this.props.setActiveQueryIndex(index);
   },
 
   handleAddQuery() {
-    this.props.actions.addQuery();
+    const newIndex = this.props.queries.length
+    this.props.actions.addQuery()
+    this.handleSetActiveQueryIndex(newIndex)
   },
 
   handleAddRawQuery() {
-    this.props.actions.addQuery({rawText: `SELECT "fields" from "db"."rp"."measurement"`});
-  },
-
-  handleDeleteQuery(query) {
-    this.props.actions.deleteQuery(query.id);
+    const newIndex = this.props.queries.length
+    this.props.actions.addQuery({rawText: `SELECT "fields" from "db"."rp"."measurement"`})
+    this.handleSetActiveQueryIndex(newIndex)
   },
 
   getActiveQuery() {
-    const {queries, activeQueryID} = this.props;
-    const activeQuery = queries.find((query) => query.id === activeQueryID);
-    const defaultQuery = queries[0];
+    const {queries, activeQueryIndex} = this.props
+    const activeQuery = queries[activeQueryIndex]
+    const defaultQuery = queries[0]
 
-    return activeQuery || defaultQuery;
+    return activeQuery || defaultQuery
   },
 
   render() {
@@ -80,7 +80,7 @@ const QueryBuilder = React.createClass({
     if (!query) {
       return (
         <div className="qeditor--empty">
-          <h5>This Graph has no Queries</h5>
+          <h5 className="no-user-select">This Graph has no Queries</h5>
           <br/>
           <div className="btn btn-primary" role="button" onClick={this.handleAddQuery}>Add a Query</div>
         </div>
@@ -90,7 +90,7 @@ const QueryBuilder = React.createClass({
     return (
       <QueryEditor
         timeRange={timeRange}
-        query={this.getActiveQuery()}
+        query={query}
         actions={actions}
         onAddQuery={this.handleAddQuery}
       />
@@ -98,7 +98,7 @@ const QueryBuilder = React.createClass({
   },
 
   renderQueryTabList() {
-    const {queries} = this.props;
+    const {queries, activeQueryIndex, onDeleteQuery} = this.props;
     return (
       <div className="query-builder--tabs">
         <div className="query-builder--tabs-heading">
@@ -114,15 +114,17 @@ const QueryBuilder = React.createClass({
           }
           return (
             <QueryTabItem
-              isActive={this.getActiveQuery().id === q.id}
-              key={q.id + i}
+              isActive={i === activeQueryIndex}
+              key={i}
+              queryIndex={i}
               query={q}
-              onSelect={this.handleSetActiveQuery}
-              onDelete={this.handleDeleteQuery}
+              onSelect={this.handleSetActiveQueryIndex}
+              onDelete={onDeleteQuery}
               queryTabText={queryTabText}
             />
           );
         })}
+        {this.props.children}
       </div>
     );
   },
@@ -147,14 +149,4 @@ const QueryBuilder = React.createClass({
   },
 });
 
-function mapStateToProps() {
-  return {};
-}
-
-function mapDispatchToProps(dispatch) {
-  return {
-    actions: bindActionCreators(viewActions, dispatch),
-  };
-}
-
-export default connect(mapStateToProps, mapDispatchToProps)(QueryBuilder);
+export default QueryBuilder

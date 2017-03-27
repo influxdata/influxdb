@@ -1,0 +1,21 @@
+/*
+  Confirmation Buttons
+  ------------------------------------------------------
+*/
+.confirm-buttons {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+
+  & > * {
+    margin: 0 0 0 4px !important;
+
+    &:first-child {
+      margin: 0 !important;
+    }
+  }
+  span.icon {
+    margin: 0 !important;
+  }
+}

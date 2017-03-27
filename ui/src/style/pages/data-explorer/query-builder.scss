@@ -1,9 +1,8 @@
 .query-builder {
-  position: absolute;
+  position: relative;
+  flex: 1 0 0;
   width: calc(100% - #{($explorer-page-padding * 2)});
   left: $explorer-page-padding;
-  height: 40%;
-  top: 60%;
   border: 0;
   display: flex;
   align-items: stretch;
@@ -206,6 +205,8 @@ $query-builder--column-heading-height: 60px;
     top: $query-builder--column-heading-height;
     left: 0;
     background-color: transparent;
+
+    p,h1,h2,h3,h4,h5,h6 { @include no-user-select(); }
   }
 }
 .query-builder--column:nth-of-type(1) { left: 0; }

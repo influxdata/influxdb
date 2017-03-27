@@ -127,3 +127,68 @@
     &:last-child {margin-right: 0;}
   }
 }
+
+.admin-table--delete-cell {
+  margin: 0 !important;
+  display: flex !important;
+  justify-content: space-between;
+
+  > input {
+    height: 30px;
+    padding: 0 9px;
+    flex-grow: 1;
+    margin: 0 2px;
+    min-width: 110px;
+
+    &:first-child {margin-left: 0;}
+    &:last-child {margin-right: 0;}
+  }
+}
+
+.db-manager-header {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 11px;
+
+  h4 {
+    margin: 0px;
+    color: $g15-platinum;
+
+  }
+
+  & .btn {display: none;}
+  &:hover .btn {display: inline-block;}
+}
+.db-manager-header-edit {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-bottom: 11px;
+
+  > .form-control {
+    width: 300px;
+    margin-right: 8px;
+  }
+  .btn {
+    height: 40px;
+    width: 40px;
+    padding: 0;
+    margin: 0 2px 0 0;
+    font-size: 18px;
+  }
+}
+.db-manager {
+  margin-top: 18px;
+}
+.db-manager:first-child {
+  margin-top: 0;
+ }
+
+.db-manager-table {
+  background-color: $g4-onyx;
+  padding: 9px 11px;
+  border-radius: $radius-small;
+ }

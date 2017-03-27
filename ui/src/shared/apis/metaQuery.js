@@ -1,10 +1,20 @@
 import AJAX from 'utils/ajax';
 import {buildInfluxUrl, proxy} from 'utils/queryUrlGenerator';
 
-export function showDatabases(source) {
-  const query = `SHOW DATABASES`;
+export const showDatabases = async (source) => {
+  const query = `SHOW DATABASES`
+  return await proxy({source, query})
+}
 
-  return proxy({source, query});
+export const showRetentionPolicies = async (source, databases) => {
+  let query
+  if (Array.isArray(databases)) {
+    query = databases.map((db) => `SHOW RETENTION POLICIES ON "${db}"`).join(';')
+  } else {
+    query = `SHOW RETENTION POLICIES ON "${databases}"`
+  }
+
+  return await proxy({source, query})
 }
 
 export function showQueries(source, db) {
@@ -36,17 +46,6 @@ export function showTagValues({source, database, retentionPolicy, measurement, t
   const query = `SHOW TAG VALUES FROM "${measurement}" WITH KEY IN (${keys})`;
 
   return proxy({source, db: database, rp: retentionPolicy, query});
-}
-
-export function showRetentionPolicies(source, databases) {
-  let query;
-  if (Array.isArray(databases)) {
-    query = databases.map((db) => `SHOW RETENTION POLICIES ON "${db}"`).join(';');
-  } else {
-    query = `SHOW RETENTION POLICIES ON "${databases}"`;
-  }
-
-  return proxy({source, query});
 }
 
 export function showShards() {

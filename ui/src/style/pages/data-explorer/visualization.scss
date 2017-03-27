@@ -1,9 +1,8 @@
 .graph {
   position: absolute;
+  top: 0;
   width: calc(100% - #{($explorer-page-padding * 2)});
   left: $explorer-page-padding;
-  top: 0;
-  height: 60%;
 }
 .graph-heading {
   position: relative;

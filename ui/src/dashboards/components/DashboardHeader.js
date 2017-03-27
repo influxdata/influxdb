@@ -1,6 +1,5 @@
 import React, {PropTypes} from 'react'
 import ReactTooltip from 'react-tooltip'
-import {Link} from 'react-router';
 
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
@@ -17,8 +16,9 @@ const DashboardHeader = ({
   handleChooseTimeRange,
   handleChooseAutoRefresh,
   handleClickPresentationButton,
-  sourceID,
   source,
+  onAddCell,
+  onEditDashboard,
 }) => isHidden ? null : (
   <div className="page-header full-width">
     <div className="page-header__container">
@@ -39,11 +39,19 @@ const DashboardHeader = ({
         }
       </div>
       <div className="page-header__right">
-        {sourceID ?
-          <Link className="btn btn-info btn-sm" to={`/sources/${sourceID}/dashboards/${dashboard && dashboard.id}/edit`} >
-            <span className="icon pencil" />
-            &nbsp;Edit
-          </Link> : null
+        {
+          dashboard ?
+            <button className="btn btn-info btn-sm" onClick={onAddCell}>
+              <span className="icon plus" />
+              &nbsp;Add Cell
+            </button> : null
+        }
+        {
+          dashboard ?
+            <button className="btn btn-info btn-sm" onClick={onEditDashboard}>
+              <span className="icon pencil" />
+              &nbsp;Edit
+            </button> : null
         }
         <div className="btn btn-info btn-sm" data-for="graph-tips-tooltip" data-tip="<p><code>Click + Drag</code> Zoom in (X or Y)</p><p><code>Shift + Click</code> Pan Graph Window</p><p><code>Double Click</code> Reset Graph Window</p>">
           <span className="icon heart"></span>
@@ -52,7 +60,7 @@ const DashboardHeader = ({
         <ReactTooltip id="graph-tips-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
         <SourceIndicator sourceName={source.name} />
         <AutoRefreshDropdown onChoose={handleChooseAutoRefresh} selected={autoRefresh} iconName="refresh" />
-        <TimeRangeDropdown onChooseTimeRange={handleChooseTimeRange} selected={timeRange.inputValue} />
+        <TimeRangeDropdown onChooseTimeRange={handleChooseTimeRange} selected={timeRange} />
         <div className="btn btn-info btn-sm" onClick={handleClickPresentationButton}>
           <span className="icon expand-a" style={{margin: 0}}></span>
         </div>
@@ -83,6 +91,8 @@ DashboardHeader.propTypes = {
   handleChooseAutoRefresh: func.isRequired,
   handleClickPresentationButton: func.isRequired,
   source: shape({}),
+  onAddCell: func,
+  onEditDashboard: func,
 }
 
 export default DashboardHeader

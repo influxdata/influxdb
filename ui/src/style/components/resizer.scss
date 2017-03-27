@@ -86,3 +86,22 @@ $resizer-color-active: $c-pool;
   flex-direction: row;
   align-items: stretch;
 }
+
+.resize-container {
+  .resize-top {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    top: 0;
+    height: 60%;
+    width: 100%;
+  }
+  .resize-bottom {
+    display: flex;
+    flex-direction: column;
+    position: absolute;
+    height: 40%;
+    bottom: 0;
+    width: 100%;
+  }
+}

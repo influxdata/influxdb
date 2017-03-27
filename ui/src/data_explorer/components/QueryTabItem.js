@@ -10,15 +10,16 @@ const QueryTabItem = React.createClass({
     onSelect: PropTypes.func.isRequired,
     onDelete: PropTypes.func.isRequired,
     queryTabText: PropTypes.string,
+    queryIndex: PropTypes.number,
   },
 
   handleSelect() {
-    this.props.onSelect(this.props.query);
+    this.props.onSelect(this.props.queryIndex)
   },
 
   handleDelete(e) {
     e.stopPropagation();
-    this.props.onDelete(this.props.query);
+    this.props.onDelete(this.props.queryIndex)
   },
 
   render() {

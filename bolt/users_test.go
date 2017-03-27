@@ -33,7 +33,7 @@ func TestUsersStore_Get(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(); err != nil {
+		if err := client.Open(context.TODO()); err != nil {
 			t.Fatal(err)
 		}
 		defer client.Close()
@@ -79,7 +79,7 @@ func TestUsersStore_Add(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(); err != nil {
+		if err := client.Open(context.TODO()); err != nil {
 			t.Fatal(err)
 		}
 		defer client.Close()
@@ -137,7 +137,7 @@ func TestUsersStore_Delete(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(); err != nil {
+		if err := client.Open(context.TODO()); err != nil {
 			t.Fatal(err)
 		}
 		defer client.Close()
@@ -189,7 +189,7 @@ func TestUsersStore_Update(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(); err != nil {
+		if err := client.Open(context.TODO()); err != nil {
 			t.Fatal(err)
 		}
 		defer client.Close()
@@ -234,7 +234,7 @@ func TestUsersStore_All(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := client.Open(); err != nil {
+		if err := client.Open(context.TODO()); err != nil {
 			t.Fatal(err)
 		}
 		defer client.Close()

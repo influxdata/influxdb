@@ -7,6 +7,34 @@ export const EMPTY_DASHBOARD = {
       y: 0,
       queries: [],
       name: 'Loading...',
+      type: 'single-stat',
     },
   ],
+}
+
+export const NEW_DASHBOARD = {
+  name: 'Name This Dashboard',
+  cells: [
+    {
+      x: 0,
+      y: 0,
+      w: 4,
+      h: 4,
+      name: 'Name This Graph',
+      type: 'line',
+      queries: [
+        {
+          query: "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"cpu\"",
+          label: "",
+          groupbys: [],
+          wheres: [],
+        },
+      ],
+    },
+  ],
+}
+
+export const NEW_DEFAULT_DASHBOARD_CELL = {
+  query: [],
+  type: 'line',
 }

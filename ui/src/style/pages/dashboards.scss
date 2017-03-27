@@ -48,7 +48,15 @@ $dash-graph-heading: 30px;
     left: 0;
   }
 }
+.dash-graph {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+}
 .dash-graph--container {
+  z-index: 1;
   user-select: none !important;
   -o-user-select: none !important;
   -moz-user-select: none !important;
@@ -80,6 +88,7 @@ $dash-graph-heading: 30px;
   }
 }
 .dash-graph--heading {
+  z-index: 2;
   user-select: none !important;
   -o-user-select: none !important;
   -moz-user-select: none !important;
@@ -94,6 +103,7 @@ $dash-graph-heading: 30px;
   margin: 0;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   border-radius: $radius;
   font-weight: 600;
   font-size: 13px;
@@ -105,11 +115,160 @@ $dash-graph-heading: 30px;
     cursor: $cc-default;
   }
 }
+.dash-graph--name-edit,
+.dash-graph--name {
+  display: inline-block;
+  padding: 0 6px;
+  height: 26px !important;
+  line-height: (26px - 4px) !important;
+  font-size: 13px;
+  font-weight: 600;
+  position: relative;
+  left: -6px;
+  border-radius: $radius;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dash-graph--name {
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+  border: 2px solid $g3-castle;
+  top: 2px;
+
+  &.editable {
+    &:after {
+      display: inline-block;
+      content: "\f058";
+      font-family: 'icomoon' !important;
+      font-style: normal;
+      font-weight: normal;
+      font-variant: normal;
+      line-height: 1;
+      text-transform: none;
+      color: $g11-sidewalk;
+      font-size: 14px;
+      opacity: 0;
+      transition: opacity 0.25s ease;
+      margin-left: 5px;
+    }
+
+    &:hover {
+      cursor: text;
+      color: $g20-white;
+
+      &:after {
+        opacity: 1;
+      }
+    }
+  }
+}
+.dash-graph--name-edit {
+  top: -1px;
+  width: 190px;
+}
+.dash-graph--options {
+  height: $dash-graph-heading;
+  position: relative;
+  width: ($dash-graph-heading - 8px);
+  right: -6px;
+
+  > .btn {
+    background-color: transparent !important;
+    padding: 0;
+    margin: 4px 0;
+    height: ($dash-graph-heading - 8px);
+    width: ($dash-graph-heading - 8px);
+    line-height: ($dash-graph-heading - 8px);
+    transition:
+      background-color 0.25s ease,
+      color 0.25s ease !important;
+
+    &:hover {
+      background-color: $g5-pepper !important;
+      color: $g20-white;
+    }
+  }
+}
+$dash-graph-options-arrow: 8px;
+
+.presentation-mode .dash-graph--options {
+  display: none;
+  visibility: hidden;
+}
+.dash-graph--options-menu {
+  position: absolute;
+  top: ($dash-graph-heading + $dash-graph-options-arrow);
+  left: 50%;
+  transform: translateX(-50%);
+  display: block;
+  list-style: none;
+  padding: 0;
+  width: 90px;
+  visibility: hidden;
+  transition-property: all;
+
+  > li {
+    position: relative;
+    width: 100%;
+    height: 28px;
+    line-height: 28px;
+    background-color: $g5-pepper;
+    padding: 0 11px;
+    color: $g15-platinum;
+    opacity: 0;
+    transition:
+      opacity 0.25s ease,
+      color 0.25s ease,
+      background-color 0.25s ease;
+
+    &:first-child {
+      border-radius: $radius $radius 0 0;
+
+      &:before {
+        content: '';
+        width: 0;
+        height: 0;
+        border-width: $dash-graph-options-arrow;
+        border-style: solid;
+        border-color: transparent transparent $g5-pepper transparent;
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        top: -($dash-graph-options-arrow * 2);
+      }
+    }
+    &:last-child {
+      border-radius: 0 0 $radius $radius;
+    }
+
+    &:hover {
+      cursor: pointer;
+      background-color: $g6-smoke;
+      color: $g20-white;
+    }
+  }
+}
+
+/* Menu Open State */
+.dash-graph--options.dash-graph--options-show {
+  > .btn {
+    color: $g20-white;
+    background-color: $g5-pepper !important;
+  }
+  .dash-graph--options-menu { visibility: visible; }
+  .dash-graph--options-menu > li { opacity: 1; }
+}
+
+
+
 .graph-panel__refreshing {
   position: absolute;
   top: -18px !important;
   transform: translate(0,0);
-  right: 16px !important;
+  right: 50px !important;
   width: 16px;
   height: 18px;
 
@@ -211,6 +370,94 @@ $dash-graph-heading: 30px;
         &:before, &:after {
           background-color: $c-comet;
         }
+      }
+    }
+  }
+}
+
+/*
+  Cell Edit Mode
+  ------------------------------------------------------
+*/
+$overlay-controls-height: 50px;
+$overlay-controls-bg: $g2-kevlar;
+$overlay-bg: rgba($g0-obsidian, 0.7);
+
+.overlay-technology {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: $overlay-bg;
+
+  .overlay-controls {
+    padding: 0 16px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: 0 0 $overlay-controls-height;
+    width: calc(100% - #{($explorer-page-padding * 2)});
+    left: $explorer-page-padding;
+    margin-top: $de-vertical-margin;
+    border: 0;
+    border-radius: $radius;
+    @include gradient-h($g3-castle,$overlay-controls-bg);
+
+    /* Hack for making the adjacent query builder have less margin on top */
+    & + .query-builder .query-builder--tabs,
+    & + .query-builder .query-builder--tab-contents,
+    & + .query-builder .qeditor--empty {
+      margin-top: 2px;
+      height: calc(100% - 18px);
+    }
+  }
+  .overlay-controls--right {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+
+    .toggle {
+      margin: 0 0 0 5px;
+    }
+    p {
+      font-weight: 600;
+      color: $g13-mist;
+      margin: 0;
+      @include no-user-select;
+    }
+  }
+  .overlay--graph-name {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 400;
+    text-transform: uppercase;
+    @include no-user-select;
+  }
+  .confirm-buttons {
+    margin-left: 32px;
+  }
+  .confirm-buttons .btn {
+    height: 30px;
+    line-height: 30px;
+    padding: 0 9px;
+
+    & > span.icon {
+      font-size: 16px;
+    }
+  }
+  .overlay-controls .toggle {
+
+    .toggle-btn {
+      background-color: $overlay-controls-bg;
+
+      &:hover {
+        background-color: $g4-onyx;
+      }
+      &.active {
+        background-color: $g5-pepper;
       }
     }
   }

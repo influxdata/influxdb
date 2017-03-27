@@ -2,7 +2,6 @@ import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 
 import LayoutRenderer from 'shared/components/LayoutRenderer'
-import Visualizations from 'src/dashboards/components/VisualizationSelector'
 
 const Dashboard = ({
   dashboard,
@@ -12,6 +11,8 @@ const Dashboard = ({
   onEditCell,
   onRenameCell,
   onUpdateCell,
+  onDeleteCell,
+  onSummonOverlayTechnologies,
   source,
   autoRefresh,
   timeRange,
@@ -23,21 +24,26 @@ const Dashboard = ({
   return (
     <div className={classnames({'page-contents': true, 'presentation-mode': inPresentationMode})}>
       <div className={classnames('container-fluid full-width dashboard', {'dashboard-edit': isEditMode})}>
-        {isEditMode ? <Visualizations/> : null}
-        {Dashboard.renderDashboard(dashboard, autoRefresh, timeRange, source, onPositionChange, onEditCell, onRenameCell, onUpdateCell)}
+        {Dashboard.renderDashboard(dashboard, autoRefresh, timeRange, source, onPositionChange, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies)}
       </div>
     </div>
   )
 }
 
-Dashboard.renderDashboard = (dashboard, autoRefresh, timeRange, source, onPositionChange, onEditCell, onRenameCell, onUpdateCell) => {
+Dashboard.renderDashboard = (dashboard, autoRefresh, timeRange, source, onPositionChange, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies) => {
   const cells = dashboard.cells.map((cell, i) => {
     i = `${i}`
     const dashboardCell = {...cell, i}
-    dashboardCell.queries.forEach((q) => {
-      q.text = q.query;
-      q.database = q.db;
-    });
+    dashboardCell.queries = dashboardCell.queries.map(({label, query, queryConfig, db}) =>
+      ({
+        label,
+        query,
+        queryConfig,
+        db,
+        database: db,
+        text: query,
+      })
+    )
     return dashboardCell;
   })
 
@@ -51,6 +57,8 @@ Dashboard.renderDashboard = (dashboard, autoRefresh, timeRange, source, onPositi
       onEditCell={onEditCell}
       onRenameCell={onRenameCell}
       onUpdateCell={onUpdateCell}
+      onDeleteCell={onDeleteCell}
+      onSummonOverlayTechnologies={onSummonOverlayTechnologies}
     />
   )
 }
@@ -71,6 +79,8 @@ Dashboard.propTypes = {
   onEditCell: func,
   onRenameCell: func,
   onUpdateCell: func,
+  onDeleteCell: func,
+  onSummonOverlayTechnologies: func,
   source: shape({
     links: shape({
       proxy: string,

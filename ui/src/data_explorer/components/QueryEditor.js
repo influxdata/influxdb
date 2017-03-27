@@ -15,7 +15,7 @@ const {
 const QueryEditor = React.createClass({
   propTypes: {
     query: shape({
-      id: string.isRequired,
+      id: string,
     }).isRequired,
     timeRange: shape({
       upper: string,

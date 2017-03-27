@@ -1,21 +1,33 @@
 export default function selectStatement(timeBounds, config) {
-  const {database, measurement, fields, groupBy, tags, retentionPolicy, areTagsAccepted} = config;
+  const {groupBy, tags, areTagsAccepted} = config;
   const {upper, lower} = timeBounds;
 
-  if (!database || !measurement || !fields || !fields.length) {
-    return null;
+  const select = _buildSelect(config)
+  if (select === null) {
+    return null
   }
 
-  const rpSegment = retentionPolicy ? `"${retentionPolicy}"` : '';
-  const fullyQualifiedMeasurement = `"${database}".${rpSegment}."${measurement}"`;
-
-  const fieldsClause = _buildFields(fields);
   const condition = _buildWhereClause({lower, upper, tags, areTagsAccepted});
   const dimensions = _buildGroupBy(groupBy);
 
-  return `SELECT ${fieldsClause} FROM ${fullyQualifiedMeasurement}${condition}${dimensions}`;
+  return `${select}${condition}${dimensions}`;
 }
 
+function _buildSelect({fields, database, retentionPolicy, measurement}) {
+  if (!database || !measurement || !fields || !fields.length) {
+    return null
+  }
+
+  const rpSegment = retentionPolicy ? `"${retentionPolicy}"` : ''
+  const fieldsClause = _buildFields(fields)
+  const fullyQualifiedMeasurement = `"${database}".${rpSegment}."${measurement}"`
+  const statement = `SELECT ${fieldsClause} FROM ${fullyQualifiedMeasurement}`
+  return statement
+}
+
+export function buildSelectStatement(config) {
+  return _buildSelect(config)
+}
 
 function _buildFields(fieldFuncs) {
   const hasAggregate = fieldFuncs.some((f) => f.funcs && f.funcs.length);
@@ -86,4 +98,3 @@ function _buildGroupByTags(groupBy) {
 
   return ` GROUP BY ${tags}`;
 }
-

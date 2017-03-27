@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react';
-import Dygraph from './Dygraph';
+import Dygraph from 'shared/components/Dygraph';
 import classNames from 'classnames';
 import shallowCompare from 'react-addons-shallow-compare';
 import _ from 'lodash';

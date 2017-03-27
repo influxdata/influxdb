@@ -1,9 +1,21 @@
 ## v1.2.0 [unreleased]
 
 ### Bug Fixes
+### Features
+### UI Improvements
+
+## v1.2.0-beta6 [2017-03-24]
+
+### Bug Fixes
+  1. [#1065](https://github.com/influxdata/chronograf/pull/1065): Add functionality to the `save` and `cancel` buttons on editable dashboards
+  2. [#1069](https://github.com/influxdata/chronograf/pull/1069): Make graphs on pre-created dashboards un-editable
 
 ### Features
-  1. [#1020](https://github.com/influxdata/chronograf/pull/1020): Users can now edit cell names on dashboards
+  1. [#1056](https://github.com/influxdata/chronograf/pull/1056): Add ability to add a dashboard cell
+  2. [#1020](https://github.com/influxdata/chronograf/pull/1020): Allow users to edit cell names on dashboards
+  3. [#1015](https://github.com/influxdata/chronograf/pull/1015): Add ability to edit a dashboard cell
+  4. [#832](https://github.com/influxdata/chronograf/issues/832): Add a database and retention policy management page
+  5. [#1035](https://github.com/influxdata/chronograf/pull/1035): Add ability to move and edit queries between raw InfluxQL mode and Query Builder mode
 
 ### UI Improvements
 

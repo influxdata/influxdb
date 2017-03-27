@@ -28,6 +28,7 @@ message DashboardCell {
 	repeated Query queries  = 5; // Time-series data queries for Dashboard
 	string name             = 6; // User-facing name for this Dashboard
 	string type             = 7; // Dashboard visualization type
+    string ID               = 8; // id is the unique id of the dashboard. MIGRATED FIELD added in 1.2.0-beta6
 }
 
 message Server {

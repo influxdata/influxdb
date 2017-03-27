@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 
@@ -41,7 +42,8 @@ func main() {
 		os.Exit(0)
 	}
 
-	if err := srv.Serve(); err != nil {
+	ctx := context.Background()
+	if err := srv.Serve(ctx); err != nil {
 		log.Fatalln(err)
 	}
 }

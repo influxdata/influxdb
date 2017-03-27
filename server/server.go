@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"log"
 	"math/rand"
@@ -21,6 +22,7 @@ import (
 	client "github.com/influxdata/usage-client/v1"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/tylerb/graceful"
+	"github.com/influxdata/chronograf/influx"
 )
 
 var (
@@ -176,9 +178,9 @@ func (s *Server) NewListener() (net.Listener, error) {
 }
 
 // Serve starts and runs the chronograf server
-func (s *Server) Serve() error {
+func (s *Server) Serve(ctx context.Context) error {
 	logger := clog.New(clog.ParseLevel(s.LogLevel))
-	service := openService(s.BoltPath, s.CannedPath, logger, s.useAuth())
+	service := openService(ctx, s.BoltPath, s.CannedPath, logger, s.useAuth())
 	basepath = s.Basepath
 
 	providerFuncs := []func(func(oauth2.Provider, oauth2.Mux)){}
@@ -254,10 +256,10 @@ func (s *Server) Serve() error {
 	return nil
 }
 
-func openService(boltPath, cannedPath string, logger chronograf.Logger, useAuth bool) Service {
+func openService(ctx context.Context, boltPath, cannedPath string, logger chronograf.Logger, useAuth bool) Service {
 	db := bolt.NewClient()
 	db.Path = boltPath
-	if err := db.Open(); err != nil {
+	if err := db.Open(ctx); err != nil {
 		logger.
 			WithField("component", "boltstore").
 			Error("Unable to open boltdb; is there a chronograf already running?  ", err)
@@ -292,6 +294,7 @@ func openService(boltPath, cannedPath string, logger chronograf.Logger, useAuth 
 		AlertRulesStore:  db.AlertsStore,
 		Logger:           logger,
 		UseAuth:          useAuth,
+		Databases:        &influx.Client{Logger: logger},
 	}
 }
 
