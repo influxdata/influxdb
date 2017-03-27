@@ -1,11 +1,14 @@
 ## v1.2.0 [unreleased]
 
-### Features
 ### Bug Fixes
-  1. [#1065](https://github.com/influxdata/chronograf/pull/1065): Save and Cancel edits to a Dashboard name
-  2. [#1069](https://github.com/influxdata/chronograf/pull/1069): Graphs are no longer editable from a Host Page
+### Features
+### UI Improvements
 
 ## v1.2.0-beta6 [2017-03-24]
+
+### Bug Fixes
+  1. [#1065](https://github.com/influxdata/chronograf/pull/1065): Add functionality to the `save` and `cancel` buttons on editable dashboards
+  2. [#1069](https://github.com/influxdata/chronograf/pull/1069): Make graphs on pre-created dashboards un-editable
 
 ### Features
   1. [#1056](https://github.com/influxdata/chronograf/pull/1056): Add ability to add a dashboard cell
