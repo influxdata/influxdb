@@ -12,7 +12,7 @@ const SourceIndicator = React.createClass({
     }
     return (
       <div className="source-indicator">
-        <span className="icon server"></span>
+        <span className="icon server2"></span>
         {sourceName}
       </div>
     );

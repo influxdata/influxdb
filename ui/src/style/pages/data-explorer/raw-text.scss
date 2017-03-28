@@ -4,39 +4,39 @@
   between builder / raw tabs
 */
 .raw-text--field,
-.qeditor--query-preview pre,
-.qeditor--query-preview pre code {
+.query-builder--query-preview pre,
+.query-builder--query-preview pre code {
   font-style: normal !important;
-  letter-spacing: 0.02em !important;
+  letter-spacing: 0 !important;
   font-size: 12px !important;
+  font-variant: normal !important;
+  line-height: 14px !important;
   font-family: $code-font !important;
   font-weight: 600 !important;
   word-wrap: break-word !important;
   word-break: break-all !important;
   white-space: pre-wrap !important;
   -webkit-font-smoothing: antialiased;
-}
-
-$raw-text-color: $c-comet;
-
-.raw-text {
-  border-bottom: 2px solid $g4-onyx;
-}
-.raw-text--field {
-  @include custom-scrollbar($g2-kevlar, $raw-text-color);
-  display: block;
-  width: 100%;
-  height: 56px;
-  background-color: $g2-kevlar;
-  border: 2px solid $g2-kevlar;
-  color: $raw-text-color;
-  padding: (9px - 2px);
-  border-radius: $radius;
-  line-height: 1.5em;
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
   resize: none;
+  text-size-adjust: 100% !important;
+  text-shadow: none !important;
+}
+
+$raw-text-color: $c-comet;
+
+.raw-text--field {
+  @include custom-scrollbar($g2-kevlar, $raw-text-color);
+  display: block;
+  width: 100%;
+  height: ($query-builder--preview-height - 4px);
+  background-color: $g2-kevlar;
+  border: 2px solid $g2-kevlar;
+  color: $raw-text-color;
+  padding: 7px;
+  border-radius: $radius;
   margin: 0;
   transition:
     color 0.25s ease,

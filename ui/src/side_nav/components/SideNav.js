@@ -42,7 +42,7 @@ const SideNav = React.createClass({
           <NavListItem link={`${sourcePrefix}/alerts`}>Alert History</NavListItem>
           <NavListItem link={`${sourcePrefix}/alert-rules`}>Kapacitor Rules</NavListItem>
         </NavBlock>
-        <NavBlock icon="crown" link={`${sourcePrefix}/admin`}>
+        <NavBlock icon="crown2" link={`${sourcePrefix}/admin`}>
           <NavHeader link={`${sourcePrefix}/admin`} title="Admin" />
         </NavBlock>
         <NavBlock icon="cog-thick" link={`${sourcePrefix}/manage-sources`}>

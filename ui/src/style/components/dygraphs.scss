@@ -1,5 +1,12 @@
 // Overrides default Dygraphs styles
 
+.dygraph {
+  &:hover {
+    cursor: $cc-invert;
+  }
+}
+
+
 .graph-vertical-marker {
   top: 0;
   bottom: 0;
