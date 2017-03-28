@@ -14,7 +14,6 @@
   1. [#1086](https://github.com/influxdata/chronograf/issues/1086): Fix validation for deleting databases
 
 ### Features
-  1. [#1092](https://github.com/influxdata/chronograf/pull/1092): Persist and render Dashboard Cell GROUP BY queries
 
 ### UI Improvements
 
