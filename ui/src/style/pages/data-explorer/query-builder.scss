@@ -142,7 +142,9 @@
   Tab Contents
   -------------------------------------------
 */
-$query-builder--column-heading-height: 60px;
+$query-builder--preview-height: 60px;
+$query-builder--column-heading-height: 50px;
+
 .query-builder--tab-contents {
   width: 100%;
   margin-top: $de-vertical-margin;
@@ -159,11 +161,31 @@ $query-builder--column-heading-height: 60px;
   width: calc(100% - 8px);
   height: calc(100% - 8px);
 }
+.query-builder--query-preview {
+  position: relative;
+
+  pre {
+    display: block;
+    padding: 7px;
+    border: 2px solid $query-editor-tab-inactive;
+    background-color: $query-editor-tab-inactive;
+    color: $c-pool;
+    border-radius: $radius;
+    margin-bottom: 0;
+    overflow: auto;
+    height: ($query-builder--preview-height - 4px);
+    @include custom-scrollbar($query-editor-tab-inactive, $c-pool);
+
+    code {
+      margin: 0;
+    }
+  }
+}
 .query-builder--columns {
   position: absolute;
   width: 100%;
-  height: calc(100% - 60px);
-  top: 60px;
+  height: calc(100% - #{$query-builder--preview-height});
+  top: $query-builder--preview-height;
 }
 .query-builder--column-heading {
   @include no-user-select();
@@ -224,7 +246,6 @@ $query-builder--column-heading-height: 60px;
 }
 
 .alert.alert-rawquery {
-  border-color: $g5-pepper;
   border-color: $g6-smoke;
   color: $g12-forge;
 }
