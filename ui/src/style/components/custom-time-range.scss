@@ -2,4 +2,9 @@
   background: red;
   z-index: 1000;
   display: flex;
+  transform: translateY(102px);
+}
+
+.rd-day-selected {
+  background: blue;
 }

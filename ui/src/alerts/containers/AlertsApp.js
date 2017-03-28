@@ -103,7 +103,7 @@ const AlertsApp = React.createClass({
             </div>
             <div className="page-header__right">
               <SourceIndicator sourceName={source.name} />
-              <CustomTimeRange onApplyTimeRange={() => {}} timeRange={{upper: null, lower: null}}/>
+              <CustomTimeRange onApplyTimeRange={(timeRange) => console.log(timeRange)} timeRange={{upper: null, lower: null}}/>
             </div>
           </div>
         </div>

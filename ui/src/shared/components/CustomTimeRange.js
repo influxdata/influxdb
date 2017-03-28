@@ -10,6 +10,8 @@ class CustomTimeRange extends Component {
     this.state = {
       isVisible: false,
     }
+
+    this.handleClick = ::this.handleClick
   }
 
   handleClickOutside() {
