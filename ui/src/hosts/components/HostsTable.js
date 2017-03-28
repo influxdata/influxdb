@@ -169,8 +169,6 @@ const HostRow = React.createClass({
       stateStr = "table-dot dot-critical";
     } else if (host.deltaUptime > 0) {
       stateStr = "table-dot dot-success";
-    } else {
-      stateStr = "table-dot dot-danger";
     }
 
     return (
