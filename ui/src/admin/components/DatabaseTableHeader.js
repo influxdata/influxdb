@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react'
-import ConfirmButtons from 'src/admin/components/ConfirmButtons'
+import ConfirmButtons from 'shared/components/ConfirmButtons'
 
 const DatabaseTableHeader = ({
   database,

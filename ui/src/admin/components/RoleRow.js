@@ -4,7 +4,7 @@ import _ from 'lodash'
 
 import RoleEditingRow from 'src/admin/components/RoleEditingRow'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
-import ConfirmButtons from 'src/admin/components/ConfirmButtons'
+import ConfirmButtons from 'shared/components/ConfirmButtons'
 import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 
 const RoleRow = ({

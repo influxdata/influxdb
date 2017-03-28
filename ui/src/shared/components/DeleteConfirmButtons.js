@@ -1,7 +1,7 @@
 import React, {PropTypes, Component} from 'react'
 
 import OnClickOutside from 'shared/components/OnClickOutside'
-import ConfirmButtons from 'src/admin/components/ConfirmButtons'
+import ConfirmButtons from 'shared/components/ConfirmButtons'
 
 const DeleteButton = ({onClickDelete}) => (
   <button className="btn btn-xs btn-danger admin-table--delete" onClick={onClickDelete}>
