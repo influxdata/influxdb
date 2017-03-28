@@ -3,7 +3,6 @@ import reducer from 'src/shared/reducers/sources';
 import {
   loadSources,
   updateSource,
-  removeSource,
   addSource,
 } from 'src/shared/actions/sources';
 

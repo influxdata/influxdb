@@ -1,5 +1,11 @@
 ## v1.2.0 [unreleased]
 
+### Bug Fixes
+  1. [#1074](https://github.com/influxdata/chronograf/pull/1074): Fix unexpected redirection to create sources page when deleting a source
+### Features
+### UI Improvements
+
+
 ## v1.2.0-beta6 [2017-03-24]
 
 ### Bug Fixes
