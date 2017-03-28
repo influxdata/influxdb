@@ -1,6 +1,8 @@
 ## v1.2.0 [unreleased]
 
 ### Bug Fixes
+  1. [#1104](https://github.com/influxdata/chronograf/pull/1104): Fix windows hosts on host list
+
 ### Features
 ### UI Improvements
 
