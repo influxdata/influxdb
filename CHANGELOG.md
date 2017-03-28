@@ -11,6 +11,7 @@
 - [#7856](https://github.com/influxdata/influxdb/issues/7856): Failed points during an import now result in a non-zero exit code.
 - [#7821](https://github.com/influxdata/influxdb/issues/7821): Expose some configuration settings via SHOW DIAGNOSTICS
 - [#8025](https://github.com/influxdata/influxdb/issues/8025): Support single and multiline comments in InfluxQL.
+- [#6541](https://github.com/influxdata/influxdb/issues/6541): Support timezone offsets for queries.
 
 ### Bugfixes
 

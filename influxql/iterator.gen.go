@@ -573,9 +573,10 @@ type floatFillIterator struct {
 	opt       IteratorOptions
 
 	window struct {
-		name string
-		tags Tags
-		time int64
+		name   string
+		tags   Tags
+		time   int64
+		offset int64
 	}
 }
 
@@ -622,6 +623,9 @@ func (itr *floatFillIterator) Next() (*FloatPoint, error) {
 		}
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.opt.Location != nil {
+			_, itr.window.offset = itr.opt.Zone(itr.window.time)
+		}
 		itr.init = true
 	}
 
@@ -657,6 +661,9 @@ func (itr *floatFillIterator) Next() (*FloatPoint, error) {
 		// Set the new interval.
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.opt.Location != nil {
+			_, itr.window.offset = itr.opt.Zone(itr.window.time)
+		}
 		itr.prev = FloatPoint{Nil: true}
 		break
 	}
@@ -711,9 +718,21 @@ func (itr *floatFillIterator) Next() (*FloatPoint, error) {
 	// as there may be lingering points with the same timestamp in the previous
 	// window.
 	if itr.opt.Ascending {
-		itr.window.time = p.Time + int64(itr.opt.Interval.Duration)
+		itr.window.time += int64(itr.opt.Interval.Duration)
 	} else {
-		itr.window.time = p.Time - int64(itr.opt.Interval.Duration)
+		itr.window.time -= int64(itr.opt.Interval.Duration)
+	}
+
+	// Check to see if we have passed over an offset change and adjust the time
+	// to account for this new offset.
+	if itr.opt.Location != nil {
+		if _, offset := itr.opt.Zone(itr.window.time); offset != itr.window.offset {
+			diff := itr.window.offset - offset
+			if abs(diff) < int64(itr.opt.Interval.Duration) {
+				itr.window.time += diff
+			}
+			itr.window.offset = offset
+		}
 	}
 	return p, nil
 }
@@ -3230,9 +3249,10 @@ type integerFillIterator struct {
 	opt       IteratorOptions
 
 	window struct {
-		name string
-		tags Tags
-		time int64
+		name   string
+		tags   Tags
+		time   int64
+		offset int64
 	}
 }
 
@@ -3279,6 +3299,9 @@ func (itr *integerFillIterator) Next() (*IntegerPoint, error) {
 		}
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.opt.Location != nil {
+			_, itr.window.offset = itr.opt.Zone(itr.window.time)
+		}
 		itr.init = true
 	}
 
@@ -3314,6 +3337,9 @@ func (itr *integerFillIterator) Next() (*IntegerPoint, error) {
 		// Set the new interval.
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.opt.Location != nil {
+			_, itr.window.offset = itr.opt.Zone(itr.window.time)
+		}
 		itr.prev = IntegerPoint{Nil: true}
 		break
 	}
@@ -3368,9 +3394,21 @@ func (itr *integerFillIterator) Next() (*IntegerPoint, error) {
 	// as there may be lingering points with the same timestamp in the previous
 	// window.
 	if itr.opt.Ascending {
-		itr.window.time = p.Time + int64(itr.opt.Interval.Duration)
+		itr.window.time += int64(itr.opt.Interval.Duration)
 	} else {
-		itr.window.time = p.Time - int64(itr.opt.Interval.Duration)
+		itr.window.time -= int64(itr.opt.Interval.Duration)
+	}
+
+	// Check to see if we have passed over an offset change and adjust the time
+	// to account for this new offset.
+	if itr.opt.Location != nil {
+		if _, offset := itr.opt.Zone(itr.window.time); offset != itr.window.offset {
+			diff := itr.window.offset - offset
+			if abs(diff) < int64(itr.opt.Interval.Duration) {
+				itr.window.time += diff
+			}
+			itr.window.offset = offset
+		}
 	}
 	return p, nil
 }
@@ -5884,9 +5922,10 @@ type stringFillIterator struct {
 	opt       IteratorOptions
 
 	window struct {
-		name string
-		tags Tags
-		time int64
+		name   string
+		tags   Tags
+		time   int64
+		offset int64
 	}
 }
 
@@ -5933,6 +5972,9 @@ func (itr *stringFillIterator) Next() (*StringPoint, error) {
 		}
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.opt.Location != nil {
+			_, itr.window.offset = itr.opt.Zone(itr.window.time)
+		}
 		itr.init = true
 	}
 
@@ -5968,6 +6010,9 @@ func (itr *stringFillIterator) Next() (*StringPoint, error) {
 		// Set the new interval.
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.opt.Location != nil {
+			_, itr.window.offset = itr.opt.Zone(itr.window.time)
+		}
 		itr.prev = StringPoint{Nil: true}
 		break
 	}
@@ -6008,9 +6053,21 @@ func (itr *stringFillIterator) Next() (*StringPoint, error) {
 	// as there may be lingering points with the same timestamp in the previous
 	// window.
 	if itr.opt.Ascending {
-		itr.window.time = p.Time + int64(itr.opt.Interval.Duration)
+		itr.window.time += int64(itr.opt.Interval.Duration)
 	} else {
-		itr.window.time = p.Time - int64(itr.opt.Interval.Duration)
+		itr.window.time -= int64(itr.opt.Interval.Duration)
+	}
+
+	// Check to see if we have passed over an offset change and adjust the time
+	// to account for this new offset.
+	if itr.opt.Location != nil {
+		if _, offset := itr.opt.Zone(itr.window.time); offset != itr.window.offset {
+			diff := itr.window.offset - offset
+			if abs(diff) < int64(itr.opt.Interval.Duration) {
+				itr.window.time += diff
+			}
+			itr.window.offset = offset
+		}
 	}
 	return p, nil
 }
@@ -8524,9 +8581,10 @@ type booleanFillIterator struct {
 	opt       IteratorOptions
 
 	window struct {
-		name string
-		tags Tags
-		time int64
+		name   string
+		tags   Tags
+		time   int64
+		offset int64
 	}
 }
 
@@ -8573,6 +8631,9 @@ func (itr *booleanFillIterator) Next() (*BooleanPoint, error) {
 		}
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.opt.Location != nil {
+			_, itr.window.offset = itr.opt.Zone(itr.window.time)
+		}
 		itr.init = true
 	}
 
@@ -8608,6 +8669,9 @@ func (itr *booleanFillIterator) Next() (*BooleanPoint, error) {
 		// Set the new interval.
 		itr.window.name, itr.window.tags = p.Name, p.Tags
 		itr.window.time = itr.startTime
+		if itr.opt.Location != nil {
+			_, itr.window.offset = itr.opt.Zone(itr.window.time)
+		}
 		itr.prev = BooleanPoint{Nil: true}
 		break
 	}
@@ -8648,9 +8712,21 @@ func (itr *booleanFillIterator) Next() (*BooleanPoint, error) {
 	// as there may be lingering points with the same timestamp in the previous
 	// window.
 	if itr.opt.Ascending {
-		itr.window.time = p.Time + int64(itr.opt.Interval.Duration)
+		itr.window.time += int64(itr.opt.Interval.Duration)
 	} else {
-		itr.window.time = p.Time - int64(itr.opt.Interval.Duration)
+		itr.window.time -= int64(itr.opt.Interval.Duration)
+	}
+
+	// Check to see if we have passed over an offset change and adjust the time
+	// to account for this new offset.
+	if itr.opt.Location != nil {
+		if _, offset := itr.opt.Zone(itr.window.time); offset != itr.window.offset {
+			diff := itr.window.offset - offset
+			if abs(diff) < int64(itr.opt.Interval.Duration) {
+				itr.window.time += diff
+			}
+			itr.window.offset = offset
+		}
 	}
 	return p, nil
 }
