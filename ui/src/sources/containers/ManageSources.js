@@ -1,29 +1,33 @@
 import React, {PropTypes} from 'react';
 import {withRouter, Link} from 'react-router';
-import {getKapacitor, deleteSource} from 'shared/apis';
-import {
-  loadSources as loadSourcesAction,
-  removeSource as removeSourceAction,
-} from 'src/shared/actions/sources';
+import {getKapacitor} from 'shared/apis';
+import {removeAndLoadSources} from 'src/shared/actions/sources';
 import {connect} from 'react-redux';
+
+const {
+  array,
+  func,
+  shape,
+  string,
+} = PropTypes
 
 export const ManageSources = React.createClass({
   propTypes: {
-    location: PropTypes.shape({
-      pathname: PropTypes.string.isRequired,
+    location: shape({
+      pathname: string.isRequired,
     }).isRequired,
-    source: PropTypes.shape({
-      id: PropTypes.string.isRequired,
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
-        self: PropTypes.string.isRequired,
+    source: shape({
+      id: string.isRequired,
+      links: shape({
+        proxy: string.isRequired,
+        self: string.isRequired,
       }),
     }),
-    sources: PropTypes.array,
-    addFlashMessage: PropTypes.func,
-    loadSourcesAction: PropTypes.func.isRequired,
-    removeSourceAction: PropTypes.func.isRequired,
+    sources: array,
+    addFlashMessage: func,
+    removeAndLoadSources: func,
   },
+
   getInitialState() {
     return {
       kapacitors: {},
@@ -47,12 +51,11 @@ export const ManageSources = React.createClass({
   handleDeleteSource(source) {
     const {addFlashMessage} = this.props;
 
-    deleteSource(source).then(() => {
-      this.props.removeSourceAction(source);
-      addFlashMessage({type: 'success', text: 'Source removed from Chronograf'});
-    }).catch(() => {
+    try {
+      this.props.removeAndLoadSources(source)
+    } catch (e) {
       addFlashMessage({type: 'error', text: 'Could not remove source from Chronograf'});
-    });
+    }
   },
 
   render() {
@@ -130,4 +133,4 @@ function mapStateToProps(state) {
   };
 }
 
-export default connect(mapStateToProps, {loadSourcesAction, removeSourceAction})(withRouter(ManageSources));
+export default connect(mapStateToProps, {removeAndLoadSources})(withRouter(ManageSources));

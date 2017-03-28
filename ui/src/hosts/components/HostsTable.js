@@ -121,9 +121,9 @@ const HostsTable = React.createClass({
             <thead>
               <tr>
                 <th onClick={() => this.updateSort('name')} className={this.sortableClasses('name')}>Hostname</th>
-                <th onClick={() => this.updateSort('deltaUptime')} className={this.sortableClasses('deltaUptime')}>Status</th>
-                <th onClick={() => this.updateSort('cpu')} className={this.sortableClasses('cpu')}>CPU</th>
-                <th onClick={() => this.updateSort('load')} className={this.sortableClasses('load')}>Load</th>
+                <th onClick={() => this.updateSort('deltaUptime')} className={this.sortableClasses('deltaUptime')} style={{width: '74px'}}>Status</th>
+                <th onClick={() => this.updateSort('cpu')} className={this.sortableClasses('cpu')} style={{width: '70px'}}>CPU</th>
+                <th onClick={() => this.updateSort('load')} className={this.sortableClasses('load')} style={{width: '68px'}}>Load</th>
                 <th>Apps</th>
               </tr>
             </thead>
@@ -174,9 +174,9 @@ const HostRow = React.createClass({
     return (
       <tr>
         <td className="monotype"><Link to={`/sources/${source.id}/hosts/${name}`}>{name}</Link></td>
-        <td className="text-center"><div className={stateStr}></div></td>
-        <td className="monotype">{isNaN(cpu) ? 'N/A' : `${cpu.toFixed(2)}%`}</td>
-        <td className="monotype">{isNaN(load) ? 'N/A' : `${load.toFixed(2)}`}</td>
+        <td style={{width: '74px'}}><div className={stateStr}></div></td>
+        <td className="monotype" style={{width: '70px'}}>{isNaN(cpu) ? 'N/A' : `${cpu.toFixed(2)}%`}</td>
+        <td className="monotype" style={{width: '68px'}}>{isNaN(load) ? 'N/A' : `${load.toFixed(2)}`}</td>
         <td className="monotype">
           {apps.map((app, index) => {
             return (

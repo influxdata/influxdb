@@ -14,12 +14,6 @@ export default function sources(state = [], action) {
       return updatedSources;
     }
 
-    case 'SOURCE_REMOVED': {
-      const {source} = action.payload;
-      const updatedSources = state.filter((s) => s.id !== source.id);
-      return updatedSources;
-    }
-
     case 'SOURCE_ADDED': {
       const {source} = action.payload;
       const updatedSources = source.default ? state.map((s) => {

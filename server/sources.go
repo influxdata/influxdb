@@ -155,7 +155,11 @@ func (h *Service) RemoveSource(w http.ResponseWriter, r *http.Request) {
 	src := chronograf.Source{ID: id}
 	ctx := r.Context()
 	if err = h.SourcesStore.Delete(ctx, src); err != nil {
-		unknownErrorWithMessage(w, err, h.Logger)
+		if err == chronograf.ErrSourceNotFound {
+			notFound(w, id, h.Logger)
+		} else {
+			unknownErrorWithMessage(w, err, h.Logger)
+		}
 		return
 	}
 

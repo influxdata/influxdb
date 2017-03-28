@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react';
-import selectStatement from '../utils/influxql/select';
+import buildInfluxQLQuery from 'utils/influxql';
 import classNames from 'classnames';
 import AutoRefresh from 'shared/components/AutoRefresh';
 import LineGraph from 'shared/components/LineGraph';
@@ -80,7 +80,7 @@ const Visualization = React.createClass({
 
     const {isGraphInView} = this.state;
     const statements = queryConfigs.map((query) => {
-      const text = query.rawText || selectStatement(timeRange, query);
+      const text = query.rawText || buildInfluxQLQuery(timeRange, query);
       return {text, id: query.id};
     });
     const queries = statements.filter((s) => s.text !== null).map((s) => {

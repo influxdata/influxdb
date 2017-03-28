@@ -1,5 +1,22 @@
 ## v1.2.0 [unreleased]
 
+### Bug Fixes
+### Features
+### UI Improvements
+
+## v1.2.0-beta7 [2017-03-28]
+### Bug Fixes
+  1. [#1008](https://github.com/influxdata/chronograf/issues/1008): Fix unexpected redirection to create sources page when deleting a source
+  1. [#1067](https://github.com/influxdata/chronograf/issues/1067): Fix issue creating retention policies
+  1. [#1068](https://github.com/influxdata/chronograf/issues/1068): Fix issue deleting databases
+  1. [#1078](https://github.com/influxdata/chronograf/issues/1078): Fix cell resizing in dashboards
+  1. [#1070](https://github.com/influxdata/chronograf/issues/1070): Save GROUP BY tag(s) clauses on dashboards
+  1. [#1086](https://github.com/influxdata/chronograf/issues/1086): Fix validation for deleting databases
+
+### Features
+
+### UI Improvements
+
 ## v1.2.0-beta6 [2017-03-24]
 
 ### Bug Fixes
