@@ -291,15 +291,15 @@ $dash-graph-options-arrow: 8px;
   Dashboard Edit Mode
   ------------------------------------------------------
 */
-.dash-graph--heading:hover {
-  background-color: $g4-onyx;
-  color: $g18-cloud;
-  cursor: $cc-move;
+// .dash-graph--heading:hover {
+//   background-color: $g4-onyx;
+//   color: $g18-cloud;
+//   cursor: $cc-move;
 
-  .dash-graph--name {
-    border-color: $g4-onyx;
-  }
-}
+//   .dash-graph--name {
+//     border-color: $g4-onyx;
+//   }
+// }
 .react-grid-placeholder {
   @include gradient-diag-down($c-pool,$c-comet);
   border: 0;
@@ -336,12 +336,12 @@ $dash-graph-options-arrow: 8px;
       cursor: $cc-move;
     }
 
-    & > .dash-graph--heading,
-    & > .dash-graph--heading:hover {
-      background-color: $g4-onyx;
-      color: $g18-cloud;
-      cursor: $cc-move;
-    }
+    // & > .dash-graph--heading,
+    // & > .dash-graph--heading:hover {
+    //   background-color: $g4-onyx;
+    //   color: $g18-cloud;
+    //   cursor: $cc-move;
+    // }
   }
   & > .react-resizable-handle {
     background-image: none;
