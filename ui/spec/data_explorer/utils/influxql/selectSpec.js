@@ -1,17 +1,17 @@
-import selectStatement from 'src/data_explorer/utils/influxql/select';
+import buildInfluxQLQuery from 'utils/influxql';
 import defaultQueryConfig from 'src/utils/defaultQueryConfig';
 
 function mergeConfig(options) {
   return Object.assign({}, defaultQueryConfig(123), options);
 }
 
-describe('selectStatement', () => {
+describe('buildInfluxQLQuery', () => {
   let config, timeBounds;
   describe('when information is missing', () => {
     it('returns a null select statement', () => {
-      expect(selectStatement({}, mergeConfig())).to.equal(null);
-      expect(selectStatement({}, mergeConfig({database: 'db1'}))).to.equal(null); // no measurement
-      expect(selectStatement({}, mergeConfig({database: 'db1', measurement: 'm1'}))).to.equal(null); // no fields
+      expect(buildInfluxQLQuery({}, mergeConfig())).to.equal(null);
+      expect(buildInfluxQLQuery({}, mergeConfig({database: 'db1'}))).to.equal(null); // no measurement
+      expect(buildInfluxQLQuery({}, mergeConfig({database: 'db1', measurement: 'm1'}))).to.equal(null); // no fields
     });
   });
 
@@ -21,7 +21,7 @@ describe('selectStatement', () => {
     });
 
     it('builds the right query', () => {
-      expect(selectStatement({}, config)).to.equal('SELECT "f1" FROM "db1".."m1"');
+      expect(buildInfluxQLQuery({}, config)).to.equal('SELECT "f1" FROM "db1".."m1"');
     });
   });
 
@@ -32,11 +32,11 @@ describe('selectStatement', () => {
     });
 
     it('builds the right query', () => {
-      expect(selectStatement({}, config)).to.equal('SELECT "f1" FROM "db1"."rp1"."m1"');
+      expect(buildInfluxQLQuery({}, config)).to.equal('SELECT "f1" FROM "db1"."rp1"."m1"');
     });
 
     it('builds the right query with a time range', () => {
-      expect(selectStatement(timeBounds, config)).to.equal('SELECT "f1" FROM "db1"."rp1"."m1" WHERE time > now() - 1hr');
+      expect(buildInfluxQLQuery(timeBounds, config)).to.equal('SELECT "f1" FROM "db1"."rp1"."m1" WHERE time > now() - 1hr');
     });
   });
 
@@ -46,7 +46,7 @@ describe('selectStatement', () => {
     });
 
     it('does not quote the star', () => {
-      expect(selectStatement({}, config)).to.equal('SELECT * FROM "db1"."rp1"."m1"');
+      expect(buildInfluxQLQuery({}, config)).to.equal('SELECT * FROM "db1"."rp1"."m1"');
     });
   });
 
@@ -58,7 +58,7 @@ describe('selectStatement', () => {
 
     it('builds the right query', () => {
       const expected = 'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m)';
-      expect(selectStatement(timeBounds, config)).to.equal(expected);
+      expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected);
     });
   });
 
@@ -70,7 +70,7 @@ describe('selectStatement', () => {
 
     it('builds the right query', () => {
       const expected = `SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY "t1", "t2"`;
-      expect(selectStatement(timeBounds, config)).to.equal(expected);
+      expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected);
     });
   });
 
@@ -82,7 +82,7 @@ describe('selectStatement', () => {
 
     it('builds the right query', () => {
       const expected = 'SELECT "value" FROM "db1"."rp1"."m0" WHERE time > \'2015-07-23T15:52:24.447Z\' AND time < \'2015-07-24T15:52:24.447Z\'';
-      expect(selectStatement(timeBounds, config)).to.equal(expected);
+      expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected);
     });
   });
 
@@ -94,7 +94,7 @@ describe('selectStatement', () => {
 
     it('builds the right query', () => {
       const expected = 'SELECT min("value") AS "min_value" FROM "db1"."rp1"."m0" WHERE time > now() - 12h GROUP BY time(10m), "t1", "t2"';
-      expect(selectStatement(timeBounds, config)).to.equal(expected);
+      expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected);
     });
   });
 
@@ -105,12 +105,12 @@ describe('selectStatement', () => {
     });
 
     it('builds the right query', () => {
-      expect(selectStatement({}, config)).to.equal('SELECT "f0", "f1" FROM "db1"."rp1"."m0"');
+      expect(buildInfluxQLQuery({}, config)).to.equal('SELECT "f0", "f1" FROM "db1"."rp1"."m0"');
     });
 
     it('builds the right query with a time range', () => {
       const expected = `SELECT "f0", "f1" FROM "db1"."rp1"."m0" WHERE time < '2015-02-24T00:00:00Z'`;
-      expect(selectStatement(timeBounds, config)).to.equal(expected);
+      expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected);
     });
 
     describe('with multiple tag pairs', () => {
@@ -136,7 +136,7 @@ describe('selectStatement', () => {
 
       it('correctly uses AND/OR to combine pairs', () => {
         const expected = `SELECT "f0" FROM "db1"."rp1"."m0" WHERE time > now() - 6h AND ("k1"='v1' OR "k1"='v3' OR "k1"='v4') AND "k2"='v2'`;
-        expect(selectStatement(timeBounds, config)).to.equal(expected);
+        expect(buildInfluxQLQuery(timeBounds, config)).to.equal(expected);
       });
     });
   });

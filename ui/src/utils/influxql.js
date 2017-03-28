@@ -1,4 +1,4 @@
-export default function selectStatement(timeBounds, config) {
+export default function buildInfluxQLQuery(timeBounds, config) {
   const {groupBy, tags, areTagsAccepted} = config;
   const {upper, lower} = timeBounds;
 

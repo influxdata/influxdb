@@ -1,5 +1,5 @@
 import React, {PropTypes} from 'react';
-import selectStatement from '../utils/influxql/select';
+import buildInfluxQLQuery from 'utils/influxql';
 
 import DatabaseList from './DatabaseList';
 import MeasurementList from './MeasurementList';
@@ -89,7 +89,7 @@ const QueryEditor = React.createClass({
 
   renderQuery() {
     const {query, timeRange} = this.props;
-    const statement = query.rawText || selectStatement(timeRange, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
+    const statement = query.rawText || buildInfluxQLQuery(timeRange, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
 
     if (!query.rawText) {
       return (

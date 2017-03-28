@@ -5,7 +5,8 @@ import SingleStat from 'shared/components/SingleStat';
 import NameableGraph from 'shared/components/NameableGraph';
 import ReactGridLayout, {WidthProvider} from 'react-grid-layout';
 
-import timeRanges from 'hson!../data/timeRanges.hson';
+import timeRanges from 'hson!../data/timeRanges.hson'
+import buildInfluxQLQuery from 'utils/influxql'
 
 const GridLayout = WidthProvider(ReactGridLayout);
 
@@ -56,7 +57,7 @@ export const LayoutRenderer = React.createClass({
     shouldNotBeEditable: bool,
   },
 
-  buildQuery(q) {
+  buildQueryForOldQuerySchema(q) {
     const {timeRange: {lower}, host} = this.props
     const {defaultGroupBy} = timeRanges.find((range) => range.lower === lower)
     const {wheres, groupbys} = q
@@ -89,13 +90,24 @@ export const LayoutRenderer = React.createClass({
   },
 
   generateVisualizations() {
-    const {autoRefresh, source, cells, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies, shouldNotBeEditable} = this.props;
+    const {autoRefresh, timeRange, source, cells, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies, shouldNotBeEditable} = this.props;
 
     return cells.map((cell) => {
       const qs = cell.queries.map((query) => {
+        // TODO: Canned dashboards (and possibly Kubernetes dashboard) use an old query schema,
+        // which does not have enough information for the new `buildInfluxQLQuery` function
+        // to operate on. We will use `buildQueryForOldQuerySchema` until we conform
+        // on a stable query representation.
+        let queryText
+        if (query.queryConfig) {
+          queryText = buildInfluxQLQuery(timeRange, query.queryConfig)
+        } else {
+          queryText = this.buildQueryForOldQuerySchema(query)
+        }
+
         return Object.assign({}, query, {
           host: source,
-          text: this.buildQuery(query),
+          text: queryText,
         });
       });
 

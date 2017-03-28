@@ -5,7 +5,7 @@ import RuleHeader from 'src/kapacitor/components/RuleHeader';
 import RuleGraph from 'src/kapacitor/components/RuleGraph';
 import RuleMessage from 'src/kapacitor/components/RuleMessage';
 import {createRule, editRule} from 'src/kapacitor/apis';
-import selectStatement from '../../data_explorer/utils/influxql/select';
+import buildInfluxQLQuery from 'utils/influxql';
 import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 
 export const KapacitorRule = React.createClass({
@@ -108,7 +108,7 @@ export const KapacitorRule = React.createClass({
   },
 
   validationError() {
-    if (!selectStatement({}, this.props.query)) {
+    if (!buildInfluxQLQuery({}, this.props.query)) {
       return 'Please select a database, measurement, and field';
     }
 
