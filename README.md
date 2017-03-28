@@ -121,10 +121,6 @@ Please open [an issue](https://github.com/influxdata/chronograf/issues/new)!
 The Chronograf team has identified and is working on the following issues:
 
 * Chronograf requires users to run Telegraf's [CPU](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/CPU_README.md) and [system](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/SYSTEM_README.md) plugins to ensure that all Apps appear on the [HOST LIST](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#host-list) page.
-* Chronograf cannot create new retention policies on the ADMIN page: [#1067](https://github.com/influxdata/chronograf/issues/1067).
-* Chronograf requires users to hit the enter key to successfully delete a database on the ADMIN page: [#1068](https://github.com/influxdata/chronograf/issues/1068).
-* Graphs on Chronograf's dashboards do not save `GROUP BY` tag clauses: [#1070](https://github.com/influxdata/chronograf/issues/1070).
-* Graphs require InfluxQL functions and a `GROUP BY time()` clause for them to appear on Chronograf's dashboards.
 
 ## Installation
 
