@@ -22,10 +22,10 @@
 }
 @mixin gradient-diag-down($startColor, $endColor) {
   background: $startColor;
-  background: -moz-linear-gradient(135deg,  $startColor 0%, $endColor 100%);
-  background: -webkit-linear-gradient(135deg,  $startColor 0%,$endColor 100%);
-  background: linear-gradient(135deg,  $startColor 0%,$endColor 100%);
-  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=1 );
+  background: -moz-linear-gradient(135deg,  $startColor 0%, $endColor 100%) !important;
+  background: -webkit-linear-gradient(135deg,  $startColor 0%,$endColor 100%) !important;
+  background: linear-gradient(135deg,  $startColor 0%,$endColor 100%) !important;
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=1 ) !important;
 }
 @mixin gradient-r($startColor, $endColor) {
   background: $startColor;
