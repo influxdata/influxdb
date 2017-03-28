@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react';
 import classNames from 'classnames';
 import _ from 'lodash';
-import selectStatement from '../../data_explorer/utils/influxql/select';
+import buildInfluxQLQuery from 'utils/influxql';
 
 import DatabaseList from '../../data_explorer/components/DatabaseList';
 import MeasurementList from '../../data_explorer/components/MeasurementList';
@@ -98,7 +98,7 @@ export const DataSection = React.createClass({
 
   render() {
     const {query, timeRange: {lower}} = this.props;
-    const statement = query.rawText || selectStatement({lower}, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
+    const statement = query.rawText || buildInfluxQLQuery({lower}, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
 
     return (
       <div className="kapacitor-rule-section">

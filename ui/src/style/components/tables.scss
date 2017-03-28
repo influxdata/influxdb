@@ -14,7 +14,7 @@ table {
     font-weight: 500;
     color: $g14-chromium !important;
     border: 0 !important;
-    padding: 4px 8px !important;
+    padding: 6px 8px !important;
   }
   tbody tr:hover {
     background-color: $g5-pepper;
@@ -83,7 +83,7 @@ table .monotype {
   }
 
   &:hover {
-    cursor: pointer;
+    cursor: $cc-pointer;
     color: $g19-ghost;
     background-color: $g5-pepper;
 
