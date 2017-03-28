@@ -3,6 +3,7 @@
 ### Bug Fixes
   1. [#1074](https://github.com/influxdata/chronograf/pull/1074): Fix unexpected redirection to create sources page when deleting a source
 ### Features
+  1. [#1101](https://github.com/influxdata/chronograf/pull/1101): Compress InfluxQL responses with gzip
 ### UI Improvements
 
 
