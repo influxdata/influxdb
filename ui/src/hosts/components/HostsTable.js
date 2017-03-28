@@ -3,17 +3,27 @@ import shallowCompare from 'react-addons-shallow-compare';
 import {Link} from 'react-router';
 import _ from 'lodash';
 
+const {
+  arrayOf,
+  bool,
+  number,
+  shape,
+  string,
+} = PropTypes
+
 const HostsTable = React.createClass({
   propTypes: {
-    hosts: PropTypes.arrayOf(PropTypes.shape({
-      name: PropTypes.string,
-      cpu: PropTypes.number,
-      load: PropTypes.number,
-      apps: PropTypes.arrayOf(PropTypes.string.isRequired),
+    hosts: arrayOf(shape({
+      name: string,
+      cpu: number,
+      load: number,
+      apps: arrayOf(string.isRequired),
     })),
-    source: PropTypes.shape({
-      id: PropTypes.string.isRequired,
-      name: PropTypes.string.isRequired,
+    hostsLoading: bool,
+    hostsError: string,
+    source: shape({
+      id: string.isRequired,
+      name: string.isRequired,
     }).isRequired,
   },
 
@@ -81,18 +91,23 @@ const HostsTable = React.createClass({
   },
 
   render() {
-    const {searchTerm, sortKey, sortDirection} = this.state;
-    const {hosts, source} = this.props;
-    const sortedHosts = this.sort(this.filter(hosts, searchTerm), sortKey, sortDirection);
-    const hostCount = sortedHosts.length;
+    const {searchTerm, sortKey, sortDirection} = this.state
+    const {hosts, hostsLoading, hostsError, source} = this.props
+    const sortedHosts = this.sort(this.filter(hosts, searchTerm), sortKey, sortDirection)
+    const hostCount = sortedHosts.length
 
-    let hostsTitle;
-    if (hosts.length === 0) {
-      hostsTitle = `Loading Hosts...`;
+    let hostsTitle
+
+    if (hostsLoading) {
+      hostsTitle = `Loading Hosts...`
+    } else if (hostsError.length) {
+      hostsTitle = `There was a problem loading hosts`
+    } else if (hosts.length === 0) {
+      hostsTitle = `No hosts found`
     } else if (hostCount === 1) {
-      hostsTitle = `${hostCount} Host`;
+      hostsTitle = `${hostCount} Host`
     } else {
-      hostsTitle = `${hostCount} Hosts`;
+      hostsTitle = `${hostCount} Hosts`
     }
 
     return (
