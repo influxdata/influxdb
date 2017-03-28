@@ -5,7 +5,7 @@ import _ from 'lodash'
 import UserEditingRow from 'src/admin/components/UserEditingRow'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
 import ConfirmButtons from 'src/admin/components/ConfirmButtons'
-import DeleteRow from 'src/admin/components/DeleteRow'
+import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 
 const UserRow = ({
   user: {name, roles, permissions},
@@ -69,9 +69,7 @@ const UserRow = ({
             /> : null
         }
       </td>
-      <td className="text-right" style={{width: "85px"}}>
-        <DeleteRow onDelete={onDelete} item={user} />
-      </td>
+      <DeleteConfirmTableCell onDelete={onDelete} item={user} />
     </tr>
   )
 }

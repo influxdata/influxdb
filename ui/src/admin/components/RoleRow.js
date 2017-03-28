@@ -5,7 +5,7 @@ import _ from 'lodash'
 import RoleEditingRow from 'src/admin/components/RoleEditingRow'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
 import ConfirmButtons from 'src/admin/components/ConfirmButtons'
-import DeleteRow from 'src/admin/components/DeleteRow'
+import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 
 const RoleRow = ({
   role: {name, permissions, users},
@@ -69,9 +69,7 @@ const RoleRow = ({
             /> : null
         }
       </td>
-      <td className="text-right" style={{width: "85px"}}>
-        <DeleteRow onDelete={onDelete} item={role} />
-      </td>
+      <DeleteConfirmTableCell onDelete={onDelete} item={role} />
     </tr>
   )
 }
