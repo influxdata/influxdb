@@ -26,7 +26,7 @@ const RawQueryEditor = React.createClass({
   handleKeyDown(e) {
     if (e.keyCode === ENTER) {
       e.preventDefault()
-      this.handleUpdate();
+      this.handleUpdate()
     } else if (e.keyCode === ESCAPE) {
       this.setState({value: this.props.query.rawText}, () => {
         this.editor.blur()
@@ -45,6 +45,7 @@ const RawQueryEditor = React.createClass({
   },
 
   render() {
+    const {query: {rawStatus}} = this.props
     const {value} = this.state
 
     return (
@@ -58,6 +59,7 @@ const RawQueryEditor = React.createClass({
           value={value}
           placeholder="Blank query"
         />
+        <div>{rawStatus && rawStatus.error || rawStatus && rawStatus.success}</div>
       </div>
     )
   },

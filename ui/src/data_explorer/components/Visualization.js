@@ -11,6 +11,7 @@ const RefreshingSingleStat = AutoRefresh(SingleStat)
 const VIEWS = ['graph', 'table']
 
 const {
+  func,
   arrayOf,
   number,
   shape,
@@ -30,6 +31,7 @@ const Visualization = React.createClass({
     activeQueryIndex: number,
     height: string,
     heightPixels: number,
+    onEditRawStatus: func.isRequired,
   },
 
   contextTypes: {
@@ -51,7 +53,7 @@ const Visualization = React.createClass({
   },
 
   render() {
-    const {queryConfigs, timeRange, height, heightPixels} = this.props;
+    const {queryConfigs, timeRange, height, heightPixels, onEditRawStatus} = this.props;
     const {source} = this.context;
     const proxyLink = source.links.proxy;
     const {view} = this.state;
@@ -68,18 +70,18 @@ const Visualization = React.createClass({
       <div className={classNames("graph", {active: true})} style={{height}}>
         <VisHeader views={VIEWS} view={view} onToggleView={this.handleToggleView} name={name || 'Graph'}/>
         <div className={classNames({"graph-container": view === 'graph', "table-container": view === 'table'})}>
-          {this.renderVisualization(view, queries, heightPixels)}
+          {this.renderVisualization(view, queries, heightPixels, onEditRawStatus)}
         </div>
       </div>
     );
   },
 
-  renderVisualization(view, queries, heightPixels) {
+  renderVisualization(view, queries, heightPixels, onEditRawStatus) {
     switch (view) {
       case 'graph':
         return this.renderGraph(queries)
       case 'table':
-        return <MultiTable queries={queries} height={heightPixels} />
+        return <MultiTable queries={queries} height={heightPixels} onEditRawStatus={onEditRawStatus} />
       default:
         this.renderGraph(queries)
     }

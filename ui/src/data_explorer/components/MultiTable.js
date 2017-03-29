@@ -18,6 +18,7 @@ const MultiTable = React.createClass({
       text: string.isRequired,
     })),
     height: number,
+    onEditRawStatus: func.isRequired,
   },
 
   getInitialState() {
@@ -48,14 +49,14 @@ const MultiTable = React.createClass({
   },
 
   renderTable() {
-    const {height} = this.props
-    const query = this.getActiveQuery()
-    const noQuery = !query || !query.text
+    const {height, onEditRawStatus} = this.props;
+    const query = this.getActiveQuery();
+    const noQuery = !query || !query.text;
     if (noQuery) {
       return null
     }
 
-    return <Table key={query.text} query={query} height={height} />
+    return <Table key={query.text} query={query} height={height} onEditRawStatus={onEditRawStatus} />;
   },
 
   renderTabs() {

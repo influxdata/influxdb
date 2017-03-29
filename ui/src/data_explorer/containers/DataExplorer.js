@@ -88,6 +88,7 @@ const DataExplorer = React.createClass({
             timeRange={timeRange}
             queryConfigs={queryConfigs}
             activeQueryIndex={0}
+            onEditRawStatus={queryConfigActions.editRawQueryStatus}
           />
           <ResizeBottom>
             <QueryBuilder

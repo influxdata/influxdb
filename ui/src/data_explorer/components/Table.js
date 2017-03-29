@@ -5,7 +5,7 @@ import fetchTimeSeries from 'shared/apis/timeSeries'
 import _ from 'lodash'
 import moment from 'moment'
 
-const {oneOfType, number, string, shape, arrayOf} = PropTypes
+const {oneOfType, number, string, shape, arrayOf, func} = PropTypes;
 
 const CustomCell = React.createClass({
   propTypes: {
@@ -34,6 +34,7 @@ const ChronoTable = React.createClass({
     }),
     containerWidth: number.isRequired,
     height: number,
+    onEditRawStatus: func.isRequired,
   },
 
   getInitialState() {
@@ -54,19 +55,30 @@ const ChronoTable = React.createClass({
 
   async fetchCellData(query) {
     this.setState({isLoading: true});
+    const {onEditRawStatus} = this.props
     // second param is db, we want to leave this blank
     try {
       const {data} = await fetchTimeSeries(query.host, undefined, query.text)
-      const cellData = _.get(data, ['results', '0', 'series', '0'], false);
+      this.setState({isLoading: false})
 
-      if (!cellData) {
-        return this.setState({isLoading: false})
+      const error = _.get(data, ['results', '0', 'error'], false)
+      if (error) {
+        return onEditRawStatus(query.id, {error})
       }
 
-      this.setState({cellData, isLoading: false})
+      const cellData = _.get(data, ['results', '0', 'series', '0'], false);
+      onEditRawStatus(query.id, {success: 'Success!'})
+
+      if (!cellData) {
+        return
+      }
+
+      this.setState({cellData})
     } catch (error) {
-      console.error(error.message)
-      this.setState({error: error.message, isLoading: false})
+      const {message} = error.data
+      this.setState({isLoading: false})
+      console.error(message)
+      onEditRawStatus(query.id, {error: message})
     }
   },
 
