@@ -984,6 +984,9 @@ type SelectStatement struct {
 	// The value to fill empty aggregate buckets with, if any.
 	FillValue interface{}
 
+	// The timezone for the query, if any.
+	Location *time.Location
+
 	// Renames the implicit time field name.
 	TimeAlias string
 
@@ -1273,6 +1276,26 @@ func (s *SelectStatement) RewriteFields(m FieldMapper) (*SelectStatement, error)
 						Alias: fmt.Sprintf("%s_%s", f.Name(), ref.Val),
 					})
 				}
+			case *BinaryExpr:
+				// Search for regexes or wildcards within the binary
+				// expression. If we find any, throw an error indicating that
+				// it's illegal.
+				var regex, wildcard bool
+				WalkFunc(expr, func(n Node) {
+					switch n.(type) {
+					case *RegexLiteral:
+						regex = true
+					case *Wildcard:
+						wildcard = true
+					}
+				})
+
+				if wildcard {
+					return nil, fmt.Errorf("unsupported expression with wildcard: %s", f.Expr)
+				} else if regex {
+					return nil, fmt.Errorf("unsupported expression with regex field: %s", f.Expr)
+				}
+				rwFields = append(rwFields, f)
 			default:
 				rwFields = append(rwFields, f)
 			}
@@ -1629,6 +1652,9 @@ func (s *SelectStatement) String() string {
 	}
 	if s.SOffset > 0 {
 		_, _ = fmt.Fprintf(&buf, " SOFFSET %d", s.SOffset)
+	}
+	if s.Location != nil {
+		_, _ = fmt.Fprintf(&buf, ` TZ('%s')`, s.Location)
 	}
 	return buf.String()
 }
@@ -3937,8 +3963,8 @@ func TimeRange(expr Expr) (min, max time.Time, err error) {
 				if min.IsZero() || value.After(min) {
 					min = value
 				}
-				if max.IsZero() || value.Add(1*time.Nanosecond).Before(max) {
-					max = value.Add(1 * time.Nanosecond)
+				if max.IsZero() || value.Before(max) {
+					max = value
 				}
 			}
 		}

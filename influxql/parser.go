@@ -956,6 +956,11 @@ func (p *Parser) parseSelectStatement(tr targetRequirement) (*SelectStatement, e
 		return nil, err
 	}
 
+	// Parse timezone: "TZ(<timezone>)".
+	if stmt.Location, err = p.parseLocation(); err != nil {
+		return nil, err
+	}
+
 	// Set if the query is a raw data query or one with an aggregate
 	stmt.IsRawQuery = true
 	WalkFunc(stmt.Fields, func(n Node) {
@@ -2216,6 +2221,39 @@ func (p *Parser) parseFill() (FillOption, interface{}, error) {
 	}
 }
 
+// parseLocation parses the timezone call and its arguments.
+func (p *Parser) parseLocation() (*time.Location, error) {
+	// Parse the expression first.
+	tok, _, lit := p.scanIgnoreWhitespace()
+	p.unscan()
+	if tok != IDENT || strings.ToLower(lit) != "tz" {
+		return nil, nil
+	}
+
+	expr, err := p.ParseExpr()
+	if err != nil {
+		return nil, err
+	}
+	tz, ok := expr.(*Call)
+	if !ok {
+		return nil, errors.New("tz must be a function call")
+	} else if len(tz.Args) != 1 {
+		return nil, errors.New("tz requires exactly one argument")
+	}
+
+	tzname, ok := tz.Args[0].(*StringLiteral)
+	if !ok {
+		return nil, errors.New("expected string argument in tz()")
+	}
+
+	loc, err := time.LoadLocation(tzname.Val)
+	if err != nil {
+		// Do not pass the same error message as the error may contain sensitive pathnames.
+		return nil, fmt.Errorf("unable to find time zone %s", tzname.Val)
+	}
+	return loc, nil
+}
+
 // parseOptionalTokenAndInt parses the specified token followed
 // by an int, if it exists.
 func (p *Parser) parseOptionalTokenAndInt(t Token) (int, error) {
@@ -2500,7 +2538,10 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 	case TRUE, FALSE:
 		return &BooleanLiteral{Val: (tok == TRUE)}, nil
 	case DURATIONVAL:
-		v, _ := ParseDuration(lit)
+		v, err := ParseDuration(lit)
+		if err != nil {
+			return nil, err
+		}
 		return &DurationLiteral{Val: v}, nil
 	case MUL:
 		wc := &Wildcard{}
@@ -2544,6 +2585,44 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 			return &BooleanLiteral{Val: v}, nil
 		default:
 			return nil, fmt.Errorf("unable to bind parameter with type %T", v)
+		}
+	case ADD, SUB:
+		mul := 1
+		if tok == SUB {
+			mul = -1
+		}
+
+		tok0, pos0, lit0 := p.scanIgnoreWhitespace()
+		switch tok0 {
+		case NUMBER, INTEGER, DURATIONVAL, LPAREN, IDENT:
+			// Unscan the token and use parseUnaryExpr.
+			p.unscan()
+
+			lit, err := p.parseUnaryExpr()
+			if err != nil {
+				return nil, err
+			}
+
+			switch lit := lit.(type) {
+			case *NumberLiteral:
+				lit.Val *= float64(mul)
+			case *IntegerLiteral:
+				lit.Val *= int64(mul)
+			case *DurationLiteral:
+				lit.Val *= time.Duration(mul)
+			case *VarRef, *Call, *ParenExpr:
+				// Multiply the variable.
+				return &BinaryExpr{
+					Op:  MUL,
+					LHS: &IntegerLiteral{Val: int64(mul)},
+					RHS: lit,
+				}, nil
+			default:
+				panic(fmt.Sprintf("unexpected literal: %T", lit))
+			}
+			return lit, nil
+		default:
+			return nil, newParseError(tokstr(tok0, lit0), []string{"identifier", "number", "duration", "("}, pos0)
 		}
 	default:
 		return nil, newParseError(tokstr(tok, lit), []string{"identifier", "string", "number", "bool"}, pos)
@@ -2685,13 +2764,15 @@ func (p *Parser) parseResample() (time.Duration, time.Duration, error) {
 // scan returns the next token from the underlying scanner.
 func (p *Parser) scan() (tok Token, pos Pos, lit string) { return p.s.Scan() }
 
-// scanIgnoreWhitespace scans the next non-whitespace token.
+// scanIgnoreWhitespace scans the next non-whitespace and non-comment token.
 func (p *Parser) scanIgnoreWhitespace() (tok Token, pos Pos, lit string) {
-	tok, pos, lit = p.scan()
-	if tok == WS {
+	for {
 		tok, pos, lit = p.scan()
+		if tok == WS || tok == COMMENT {
+			continue
+		}
+		return
 	}
-	return
 }
 
 // consumeWhitespace scans the next token if it's whitespace.

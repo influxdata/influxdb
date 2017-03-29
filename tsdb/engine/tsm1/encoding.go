@@ -327,7 +327,7 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 	// for timestamps and values.
 
 	// Encode values using Gorilla float compression
-	venc := getFloatEncoder()
+	venc := getFloatEncoder(len(values))
 
 	// Encode timestamps using an adaptive encoder that uses delta-encoding,
 	// frame-or-reference and run length encoding.
@@ -338,9 +338,9 @@ func encodeFloatBlock(buf []byte, values []Value) ([]byte, error) {
 		for _, v := range values {
 			vv := v.(FloatValue)
 			tsenc.Write(vv.unixnano)
-			venc.Push(vv.value)
+			venc.Write(vv.value)
 		}
-		venc.Finish()
+		venc.Flush()
 
 		// Encoded timestamp values
 		tb, err := tsenc.Bytes()
@@ -858,8 +858,8 @@ func getIntegerEncoder(sz int) IntegerEncoder {
 }
 func putIntegerEncoder(enc IntegerEncoder) { integerEncoderPool.Put(enc) }
 
-func getFloatEncoder() *FloatEncoder {
-	x := floatEncoderPool.Get(1024).(*FloatEncoder)
+func getFloatEncoder(sz int) *FloatEncoder {
+	x := floatEncoderPool.Get(sz).(*FloatEncoder)
 	x.Reset()
 	return x
 }

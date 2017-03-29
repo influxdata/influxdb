@@ -1,8 +1,8 @@
 ### Welcome to the InfluxDB configuration file.
 
 # The values in this file override the default values used by the system if
-# a config option is not specified.  The commented out lines are the the configuration
-# field and the default value used.  Uncommentting a line and changing the value
+# a config option is not specified. The commented out lines are the configuration
+# field and the default value used. Uncommentting a line and changing the value
 # will change the value used at runtime when the process is restarted.
 
 # Once every 24 hours InfluxDB will report usage data to usage.influxdata.com
@@ -48,6 +48,12 @@
 
   # The directory where the TSM storage engine stores WAL files.
   wal-dir = "/var/lib/influxdb/wal"
+
+  # The amount of time that a write will wait before fsyncing.  A duration
+  # greater than 0 can be used to batch up multiple fsync calls.  This is useful for slower
+  # disks or when WAL write contention is seen.  A value of 0s fsyncs every write to the WAL.
+  # Values in the range of 0-100ms are recommended for non-SSD disks.
+  # wal-fsync-delay = "0s"
 
   # Trace logging provides more verbose output around the tsm engine. Turning
   # this on can provide more useful output for debugging tsm engine issues.
@@ -240,7 +246,7 @@
   # shared-sercret = ""
 
   # The default chunk size for result sets that should be chunked.
-  # max-row-limit = 10000
+  # max-row-limit = 0
 
   # The maximum number of HTTP connections that may be open at once.  New connections that
   # would exceed this limit are dropped.  Setting this value to 0 disables the limit.

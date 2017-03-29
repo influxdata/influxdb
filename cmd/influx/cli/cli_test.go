@@ -132,6 +132,77 @@ func TestSetFormat(t *testing.T) {
 	}
 }
 
+func Test_SetChunked(t *testing.T) {
+	t.Parallel()
+	c := cli.New(CLIENT_VERSION)
+	config := client.NewConfig()
+	client, _ := client.NewClient(config)
+	c.Client = client
+
+	// make sure chunked is on by default
+	if got, exp := c.Chunked, true; got != exp {
+		t.Fatalf("chunked should be on by default.  got %v, exp %v", got, exp)
+	}
+
+	// turn chunked off
+	if err := c.ParseCommand("Chunked"); err != nil {
+		t.Fatalf("setting chunked failed: err: %s", err)
+	}
+
+	if got, exp := c.Chunked, false; got != exp {
+		t.Fatalf("setting chunked failed.  got %v, exp %v", got, exp)
+	}
+
+	// turn chunked back on
+	if err := c.ParseCommand("Chunked"); err != nil {
+		t.Fatalf("setting chunked failed: err: %s", err)
+	}
+
+	if got, exp := c.Chunked, true; got != exp {
+		t.Fatalf("setting chunked failed.  got %v, exp %v", got, exp)
+	}
+}
+
+func Test_SetChunkSize(t *testing.T) {
+	t.Parallel()
+	c := cli.New(CLIENT_VERSION)
+	config := client.NewConfig()
+	client, _ := client.NewClient(config)
+	c.Client = client
+
+	// check default chunk size
+	if got, exp := c.ChunkSize, 0; got != exp {
+		t.Fatalf("unexpected chunk size.  got %d, exp %d", got, exp)
+	}
+
+	tests := []struct {
+		command string
+		exp     int
+	}{
+		{"chunk size 20", 20},
+		{"   CHunk     siZE  55    ", 55},
+		{"chunk 10", 10},
+		{"     chuNK     15", 15},
+		{"chunk size -60", 0},
+		{"chunk size 10", 10},
+		{"chunk size 0", 0},
+		{"chunk size 10", 10},
+		{"chunk size junk", 10},
+	}
+
+	for _, test := range tests {
+		if err := c.ParseCommand(test.command); err != nil {
+			t.Logf("command: %q", test.command)
+			t.Fatalf("setting chunked failed: err: %s", err)
+		}
+
+		if got, exp := c.ChunkSize, test.exp; got != exp {
+			t.Logf("command: %q", test.command)
+			t.Fatalf("unexpected chunk size.  got %d, exp %d", got, exp)
+		}
+	}
+}
+
 func TestSetWriteConsistency(t *testing.T) {
 	t.Parallel()
 	c := cli.New(CLIENT_VERSION)

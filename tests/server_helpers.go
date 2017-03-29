@@ -492,6 +492,16 @@ func mustParseTime(layout, value string) time.Time {
 	return tm
 }
 
+func mustParseLocation(tzname string) *time.Location {
+	loc, err := time.LoadLocation(tzname)
+	if err != nil {
+		panic(err)
+	}
+	return loc
+}
+
+var LosAngeles = mustParseLocation("America/Los_Angeles")
+
 // MustReadAll reads r. Panic on error.
 func MustReadAll(r io.Reader) []byte {
 	b, err := ioutil.ReadAll(r)

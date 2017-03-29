@@ -36,6 +36,27 @@ Notation operators in order of increasing precedence:
 {}  repetition (0 to n times)
 ```
 
+## Comments
+
+Both single and multiline comments are supported. A comment is treated
+the same as whitespace by the parser.
+
+```
+-- single line comment
+/*
+    multiline comment
+*/
+```
+
+Single line comments will skip all text until the scanner hits a
+newline. Multiline comments will skip all text until the end comment
+marker is hit. Nested multiline comments are not supported so the
+following does not work:
+
+```
+/* /* this does not work */ */
+```
+
 ## Query representation
 
 ### Characters
@@ -115,7 +136,7 @@ InfluxQL supports decimal integer literals.  Hexadecimal and octal literals are
 not currently supported.
 
 ```
-int_lit             = ( "1" … "9" ) { digit } .
+int_lit             = [ "+" | "-" ] ( "1" … "9" ) { digit } .
 ```
 
 ### Floats
@@ -123,7 +144,7 @@ int_lit             = ( "1" … "9" ) { digit } .
 InfluxQL supports floating-point literals.  Exponents are not currently supported.
 
 ```
-float_lit           = int_lit "." int_lit .
+float_lit           = [ "+" | "-" ] ( "." digit { digit } | digit { digit } "." { digit } ) .
 ```
 
 ### Strings
@@ -766,7 +787,8 @@ REVOKE READ ON "mydb" FROM "jdoe"
 ```
 select_stmt = "SELECT" fields from_clause [ into_clause ] [ where_clause ]
               [ group_by_clause ] [ order_by_clause ] [ limit_clause ]
-              [ offset_clause ] [ slimit_clause ] [ soffset_clause ] .
+              [ offset_clause ] [ slimit_clause ] [ soffset_clause ]
+              [ timezone_clause ] .
 ```
 
 #### Examples:
@@ -777,6 +799,9 @@ SELECT mean("value") FROM "cpu" WHERE "region" = 'uswest' GROUP BY time(10m) fil
 
 -- select from all measurements beginning with cpu into the same measurement name in the cpu_1h retention policy
 SELECT mean("value") INTO "cpu_1h".:MEASUREMENT FROM /cpu.*/
+
+-- select from measurements grouped by the day with a timezone
+SELECT mean("value") FROM "cpu" GROUP BY region, time(1d) fill(0) tz("America/Chicago")
 ```
 
 ## Clauses
@@ -795,6 +820,8 @@ offset_clause   = "OFFSET" int_lit .
 slimit_clause   = "SLIMIT" int_lit .
 
 soffset_clause  = "SOFFSET" int_lit .
+
+timezone_clause = tz(string_lit) .
 
 on_clause       = "ON" db_name .
 

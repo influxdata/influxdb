@@ -84,6 +84,9 @@ func (e *BooleanEncoder) flush() {
 	}
 }
 
+// Flush is no-op
+func (e *BooleanEncoder) Flush() {}
+
 // Bytes returns a new byte slice containing the encoded booleans from previous calls to Write.
 func (e *BooleanEncoder) Bytes() ([]byte, error) {
 	// Ensure the current byte is flushed
