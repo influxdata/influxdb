@@ -7,9 +7,9 @@ import {
   deleteDashboardCell as deleteDashboardCellAJAX,
 } from 'src/dashboards/apis'
 
-import {publishNotification, delayDismissNotification} from 'src/shared/actions/notifications'
+import {publishNotification} from 'shared/actions/notifications'
+import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
-import {SHORT_NOTIFICATION_DISAPPEARING_DELAY} from 'shared/constants'
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
 export const loadDashboards = (dashboards, dashboardID) => ({
@@ -135,8 +135,7 @@ export const deleteDashboardAsync = (dashboard) => async (dispatch) => {
   dispatch(deleteDashboard(dashboard))
   try {
     await deleteDashboardAJAX(dashboard)
-    dispatch(publishNotification('success', 'Dashboard deleted successfully.'))
-    dispatch(delayDismissNotification('success', SHORT_NOTIFICATION_DISAPPEARING_DELAY))
+    dispatch(publishAutoDismissingNotification('success', 'Dashboard deleted successfully.'))
   } catch (error) {
     dispatch(deleteDashboardFailed(dashboard))
     dispatch(publishNotification('error', `Failed to delete dashboard: ${error.data.message}.`))

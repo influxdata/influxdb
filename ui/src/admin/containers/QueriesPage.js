@@ -20,6 +20,8 @@ import {
   killQueryAsync,
 } from 'src/admin/actions'
 
+import {publishAutoDismissingNotification} from 'shared/dispatchers'
+
 class QueriesPage extends Component {
   constructor(props) {
     super(props)
@@ -47,11 +49,11 @@ class QueriesPage extends Component {
   }
 
   updateQueries() {
-    const {source, addFlashMessage, loadQueries} = this.props
+    const {source, notify, loadQueries} = this.props
     showDatabases(source.links.proxy).then((resp) => {
       const {databases, errors} = showDatabasesParser(resp.data)
       if (errors.length) {
-        errors.forEach((message) => addFlashMessage({type: 'error', text: message}))
+        errors.forEach((message) => notify('error', message))
         return
       }
 
@@ -62,7 +64,7 @@ class QueriesPage extends Component {
         queryResponses.forEach((queryResponse) => {
           const result = showQueriesParser(queryResponse.data)
           if (result.errors.length) {
-            result.erorrs.forEach((message) => this.props.addFlashMessage({type: 'error', text: message}))
+            result.errors.forEach((message) => notify('error', message))
           }
 
           allQueries.push(...result.queries)
@@ -113,11 +115,11 @@ QueriesPage.propTypes = {
     }),
   }),
   queries: arrayOf(shape()),
-  addFlashMessage: func,
   loadQueries: func,
   queryIDToKill: string,
   setQueryToKill: func,
   killQuery: func,
+  notify: func,
 }
 
 const mapStateToProps = ({admin: {queries, queryIDToKill}}) => ({
@@ -129,6 +131,7 @@ const mapDispatchToProps = (dispatch) => ({
   loadQueries: bindActionCreators(loadQueriesAction, dispatch),
   setQueryToKill: bindActionCreators(setQueryToKillAction, dispatch),
   killQuery: bindActionCreators(killQueryAsync, dispatch),
+  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(QueriesPage)

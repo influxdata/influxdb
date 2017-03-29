@@ -32,7 +32,6 @@ const DashboardsPage = React.createClass({
     router: shape({
       push: func.isRequired,
     }).isRequired,
-    addFlashMessage: func,
     handleGetDashboards: func.isRequired,
     handleDeleteDashboard: func.isRequired,
     dashboards: arrayOf(shape()),

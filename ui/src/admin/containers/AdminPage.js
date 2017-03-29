@@ -25,6 +25,8 @@ import {
 
 import AdminTabs from 'src/admin/components/AdminTabs'
 
+import {publishAutoDismissingNotification} from 'shared/dispatchers'
+
 const isValidUser = (user) => {
   const minLen = 3
   return (user.name.length >= minLen && user.password.length >= minLen)
@@ -81,8 +83,9 @@ class AdminPage extends Component {
   }
 
   async handleSaveUser(user) {
+    const {notify} = this.props
     if (!isValidUser(user)) {
-      this.props.addFlashMessage({type: 'error', text: 'Username and/or password too short'})
+      notify('error', 'Username and/or password too short')
       return
     }
     if (user.isNew) {
@@ -93,8 +96,9 @@ class AdminPage extends Component {
   }
 
   async handleSaveRole(role) {
+    const {notify} = this.props
     if (!isValidRole(role)) {
-      this.props.addFlashMessage({type: 'error', text: 'Role name too short'})
+      notify('error', 'Role name too short')
       return
     }
     if (role.isNew) {
@@ -114,11 +118,11 @@ class AdminPage extends Component {
   }
 
   handleDeleteRole(role) {
-    this.props.deleteRole(role, this.props.addFlashMessage)
+    this.props.deleteRole(role)
   }
 
   handleDeleteUser(user) {
-    this.props.deleteUser(user, this.props.addFlashMessage)
+    this.props.deleteUser(user)
   }
 
   handleUpdateRoleUsers(role, users) {
@@ -223,13 +227,13 @@ AdminPage.propTypes = {
   createRole: func,
   deleteRole: func,
   deleteUser: func,
-  addFlashMessage: func,
   filterRoles: func,
   filterUsers: func,
   updateRoleUsers: func,
   updateRolePermissions: func,
   updateUserPermissions: func,
   updateUserRoles: func,
+  notify: func,
 }
 
 const mapStateToProps = ({admin: {users, roles, permissions}}) => ({
@@ -258,6 +262,7 @@ const mapDispatchToProps = (dispatch) => ({
   updateRolePermissions: bindActionCreators(updateRolePermissionsAsync, dispatch),
   updateUserPermissions: bindActionCreators(updateUserPermissionsAsync, dispatch),
   updateUserRoles: bindActionCreators(updateUserRolesAsync, dispatch),
+  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(AdminPage)
