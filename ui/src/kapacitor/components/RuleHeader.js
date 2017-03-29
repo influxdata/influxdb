@@ -60,9 +60,9 @@ export const RuleHeader = React.createClass({
   renderSave() {
     const {validationError, onSave, timeRange, onChooseTimeRange, source} = this.props;
     const saveButton = validationError ?
-      <button className="btn btn-success btn-sm disabled" data-for="save-kapacitor-tooltip" data-tip={validationError}>
+      (<button className="btn btn-success btn-sm disabled" data-for="save-kapacitor-tooltip" data-tip={validationError}>
         Save Rule
-      </button> :
+      </button>) :
       <button className="btn btn-success btn-sm" onClick={onSave}>Save Rule</button>;
 
     return (
@@ -80,7 +80,7 @@ export const RuleHeader = React.createClass({
     const {isEditingName} = this.state;
 
     const name = isEditingName ?
-      <input
+      (<input
         className="chronograf-header__editing"
         autoFocus={true}
         defaultValue={rule.name}
@@ -88,12 +88,12 @@ export const RuleHeader = React.createClass({
         onKeyDown={(e) => this.handleEditName(e, rule)}
         onBlur={() => this.handleEditNameBlur(rule)}
         placeholder="Name your rule"
-      /> :
-      <h1 className="chronograf-header__editable" onClick={this.toggleEditName} data-for="rename-kapacitor-tooltip" data-tip="Click to Rename">
+      />) :
+      (<h1 className="chronograf-header__editable" onClick={this.toggleEditName} data-for="rename-kapacitor-tooltip" data-tip="Click to Rename">
         {rule.name}
         <span className="icon pencil"></span>
         <ReactTooltip id="rename-kapacitor-tooltip" delayShow={200} effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip kapacitor-tooltip place-bottom" />
-      </h1>;
+      </h1>);
 
     return (
       <div className="page-header__left">
