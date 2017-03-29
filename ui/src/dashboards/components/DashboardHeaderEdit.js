@@ -1,5 +1,5 @@
 import React, {PropTypes, Component} from 'react'
-import ConfirmButtons from 'src/admin/components/ConfirmButtons'
+import ConfirmButtons from 'shared/components/ConfirmButtons'
 
 class DashboardEditHeader extends Component {
   constructor(props) {
