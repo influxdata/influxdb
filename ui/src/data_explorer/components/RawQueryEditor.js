@@ -24,9 +24,10 @@ const RawQueryEditor = React.createClass({
   },
 
   handleKeyDown(e) {
+    e.preventDefault()
+
     if (e.keyCode === ENTER) {
-      this.handleUpdate()
-      this.editor.blur()
+      this.handleUpdate();
     } else if (e.keyCode === ESCAPE) {
       this.setState({value: this.props.query.rawText}, () => {
         this.editor.blur()
