@@ -30,6 +30,7 @@
 - [#8167](https://github.com/influxdata/influxdb/issues/8167): Fix a regression when math was used with selectors.
 - [#8175](https://github.com/influxdata/influxdb/issues/8175): Ensure the input for certain functions in the query engine are ordered.
 - [#8171](https://github.com/influxdata/influxdb/issues/8171): Significantly improve shutdown speed for high cardinality databases.
+- [#8177](https://github.com/influxdata/influxdb/issues/8177): Fix racy integration test.
 
 ## v1.2.2 [2017-03-14]
 

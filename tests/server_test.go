@@ -7723,7 +7723,6 @@ func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	close(done)
-	// Race occurs on s.Close()
 }
 
 // Ensure time in where clause is inclusive
