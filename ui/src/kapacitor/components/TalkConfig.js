@@ -1,11 +1,11 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 
 const {
   bool,
   string,
   shape,
   func,
-} = PropTypes;
+} = PropTypes
 
 const TalkConfig = React.createClass({
   propTypes: {
@@ -19,18 +19,18 @@ const TalkConfig = React.createClass({
   },
 
   handleSaveAlert(e) {
-    e.preventDefault();
+    e.preventDefault()
 
     const properties = {
       url: this.url.value,
       author_name: this.author.value,
-    };
+    }
 
-    this.props.onSave(properties);
+    this.props.onSave(properties)
   },
 
   render() {
-    const {url, author_name: author} = this.props.config.options;
+    const {url, author_name: author} = this.props.config.options
 
     return (
       <div>
@@ -54,8 +54,8 @@ const TalkConfig = React.createClass({
           </div>
         </form>
       </div>
-    );
+    )
   },
-});
+})
 
-export default TalkConfig;
+export default TalkConfig

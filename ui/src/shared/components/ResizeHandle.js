@@ -1,7 +1,7 @@
-import React from 'react';
-import cx from 'classnames';
+import React from 'react'
+import cx from 'classnames'
 
-const {func, bool, string} = React.PropTypes;
+const {func, bool, string} = React.PropTypes
 const ResizeHandle = React.createClass({
   propTypes: {
     onHandleStartDrag: func.isRequired,
@@ -10,7 +10,7 @@ const ResizeHandle = React.createClass({
   },
 
   render() {
-    const {isDragging, onHandleStartDrag, top} = this.props;
+    const {isDragging, onHandleStartDrag, top} = this.props
 
     return (
       <div
@@ -18,8 +18,8 @@ const ResizeHandle = React.createClass({
         onMouseDown={onHandleStartDrag}
         style={{top}}
       />
-    );
+    )
   },
-});
+})
 
-export default ResizeHandle;
+export default ResizeHandle

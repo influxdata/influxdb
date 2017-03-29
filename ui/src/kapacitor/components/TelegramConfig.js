@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 
 const TelegramConfig = React.createClass({
   propTypes: {
@@ -16,14 +16,14 @@ const TelegramConfig = React.createClass({
   },
 
   handleSaveAlert(e) {
-    e.preventDefault();
+    e.preventDefault()
 
-    let parseMode;
+    let parseMode
     if (this.parseModeHTML.checked) {
-      parseMode = 'HTML';
+      parseMode = 'HTML'
     }
     if (this.parseModeMarkdown.checked) {
-      parseMode = 'Markdown';
+      parseMode = 'Markdown'
     }
 
     const properties = {
@@ -33,18 +33,18 @@ const TelegramConfig = React.createClass({
       'parse-mode': parseMode,
       token: this.token.value,
       url: this.url.value,
-    };
+    }
 
-    this.props.onSave(properties);
+    this.props.onSave(properties)
   },
 
   render() {
-    const {options} = this.props.config;
-    const {url, token} = options;
-    const chatID = options['chat-id'];
-    const disableNotification = options['chat-id'];
-    const disableWebPagePreview = options['disable-web-page-preview'];
-    const parseMode = options['parse-mode'];
+    const {options} = this.props.config
+    const {url, token} = options
+    const chatID = options['chat-id']
+    const disableNotification = options['chat-id']
+    const disableWebPagePreview = options['disable-web-page-preview']
+    const parseMode = options['parse-mode']
 
     return (
       <div>
@@ -101,8 +101,8 @@ const TelegramConfig = React.createClass({
           </div>
         </form>
       </div>
-    );
+    )
   },
-});
+})
 
-export default TelegramConfig;
+export default TelegramConfig

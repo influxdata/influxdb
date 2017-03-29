@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 
 const VictorOpsConfig = React.createClass({
   propTypes: {
@@ -13,22 +13,22 @@ const VictorOpsConfig = React.createClass({
   },
 
   handleSaveAlert(e) {
-    e.preventDefault();
+    e.preventDefault()
 
     const properties = {
       'api-key': this.apiKey.value,
       'routing-key': this.routingKey.value,
       url: this.url.value,
-    };
+    }
 
-    this.props.onSave(properties);
+    this.props.onSave(properties)
   },
 
   render() {
-    const {options} = this.props.config;
-    const apiKey = options['api-key'];
-    const routingKey = options['routing-key'];
-    const {url} = options;
+    const {options} = this.props.config
+    const apiKey = options['api-key']
+    const routingKey = options['routing-key']
+    const {url} = options
 
     return (
       <div>
@@ -57,8 +57,8 @@ const VictorOpsConfig = React.createClass({
           </div>
         </form>
       </div>
-    );
+    )
   },
-});
+})
 
-export default VictorOpsConfig;
+export default VictorOpsConfig

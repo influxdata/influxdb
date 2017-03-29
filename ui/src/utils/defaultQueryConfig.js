@@ -12,5 +12,5 @@ export default function defaultQueryConfig(id) {
     },
     areTagsAccepted: true,
     rawText: null,
-  };
+  }
 }

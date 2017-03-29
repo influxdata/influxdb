@@ -68,7 +68,7 @@ export const PERMISSIONS = {
   //   displayName: 'Kapacitor',
   //   description: 'Can access the Kapacitor API',
   // },
-};
+}
 
 export const DEFAULT_LINE_COLORS = [
   // 1 Color Palettes
@@ -461,12 +461,12 @@ export const DEFAULT_LINE_COLORS = [
       '#a0725b',
     ],
   ],
-];
+]
 
 export const STROKE_WIDTH = {
   heavy: 3.5,
   light: 1.5,
-};
+}
 
 export const PRESENTATION_MODE_ANIMATION_DELAY = 0 // In milliseconds.
 export const PRESENTATION_MODE_NOTIFICATION_DELAY = 2000 // In milliseconds.

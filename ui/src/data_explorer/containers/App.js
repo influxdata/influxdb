@@ -1,6 +1,6 @@
-import React, {PropTypes} from 'react';
-import {withRouter} from 'react-router';
-import DataExplorer from './DataExplorer';
+import React, {PropTypes} from 'react'
+import {withRouter} from 'react-router'
+import DataExplorer from './DataExplorer'
 
 const App = React.createClass({
   propTypes: {
@@ -17,8 +17,8 @@ const App = React.createClass({
       <div className="page">
         <DataExplorer source={this.props.source} />
       </div>
-    );
+    )
   },
-});
+})
 
-export default withRouter(App);
+export default withRouter(App)

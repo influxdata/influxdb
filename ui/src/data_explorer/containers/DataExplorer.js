@@ -1,12 +1,12 @@
-import React, {PropTypes} from 'react';
-import {connect} from 'react-redux';
-import {bindActionCreators} from 'redux';
+import React, {PropTypes} from 'react'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
 
 import _ from 'lodash'
 
-import QueryBuilder from '../components/QueryBuilder';
-import Visualization from '../components/Visualization';
-import Header from '../containers/Header';
+import QueryBuilder from '../components/QueryBuilder'
+import Visualization from '../components/Visualization'
+import Header from '../containers/Header'
 import ResizeContainer, {ResizeBottom} from 'src/shared/components/ResizeContainer'
 
 import {setAutoRefresh} from 'shared/actions/app'
@@ -18,7 +18,7 @@ const {
   number,
   shape,
   string,
-} = PropTypes;
+} = PropTypes
 
 const DataExplorer = React.createClass({
   propTypes: {
@@ -52,17 +52,17 @@ const DataExplorer = React.createClass({
   },
 
   getChildContext() {
-    return {source: this.props.source};
+    return {source: this.props.source}
   },
 
   getInitialState() {
     return {
       activeQueryIndex: 0,
-    };
+    }
   },
 
   handleSetActiveQueryIndex(index) {
-    this.setState({activeQueryIndex: index});
+    this.setState({activeQueryIndex: index})
   },
 
   handleDeleteQuery(index) {
@@ -102,12 +102,12 @@ const DataExplorer = React.createClass({
           </ResizeBottom>
         </ResizeContainer>
       </div>
-    );
+    )
   },
-});
+})
 
 function mapStateToProps(state) {
-  const {app: {persisted: {autoRefresh}}, timeRange, queryConfigs, dataExplorer} = state;
+  const {app: {persisted: {autoRefresh}}, timeRange, queryConfigs, dataExplorer} = state
   const queryConfigValues = _.values(queryConfigs)
 
   return {
@@ -115,7 +115,7 @@ function mapStateToProps(state) {
     timeRange,
     queryConfigs: queryConfigValues,
     dataExplorer,
-  };
+  }
 }
 
 function mapDispatchToProps(dispatch) {
@@ -126,4 +126,4 @@ function mapDispatchToProps(dispatch) {
   }
 }
 
-export default connect(mapStateToProps, mapDispatchToProps)(DataExplorer);
+export default connect(mapStateToProps, mapDispatchToProps)(DataExplorer)

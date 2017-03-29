@@ -1,9 +1,9 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import {fetchLayouts} from 'shared/apis';
-import KubernetesDashboard from 'src/kubernetes/components/KubernetesDashboard';
+import {fetchLayouts} from 'shared/apis'
+import KubernetesDashboard from 'src/kubernetes/components/KubernetesDashboard'
 
 import {setAutoRefresh} from 'shared/actions/app'
 import {presentationButtonDispatcher} from 'shared/dispatchers'
@@ -32,14 +32,14 @@ export const KubernetesPage = React.createClass({
   getInitialState() {
     return {
       layouts: [],
-    };
+    }
   },
 
   componentDidMount() {
     fetchLayouts().then(({data: {layouts}}) => {
-      const kubernetesLayouts = layouts.filter((l) => l.app === 'kubernetes');
-      this.setState({layouts: kubernetesLayouts});
-    });
+      const kubernetesLayouts = layouts.filter((l) => l.app === 'kubernetes')
+      this.setState({layouts: kubernetesLayouts})
+    })
   },
 
   render() {
@@ -55,9 +55,9 @@ export const KubernetesPage = React.createClass({
         inPresentationMode={inPresentationMode}
         handleClickPresentationButton={handleClickPresentationButton}
       />
-    );
+    )
   },
-});
+})
 
 const mapStateToProps = ({app: {ephemeral: {inPresentationMode}, persisted: {autoRefresh}}}) => ({
   inPresentationMode,
@@ -69,4 +69,4 @@ const mapDispatchToProps = (dispatch) => ({
   handleClickPresentationButton: presentationButtonDispatcher(dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(KubernetesPage);
+export default connect(mapStateToProps, mapDispatchToProps)(KubernetesPage)

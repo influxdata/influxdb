@@ -26,7 +26,7 @@ const QueriesTable = ({queries, onKillQuery, onConfirm}) => (
                     </button>
                   </td>
                 </tr>
-              );
+              )
             })}
           </tbody>
         </table>

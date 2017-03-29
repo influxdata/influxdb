@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 
 const PagerDutyConfig = React.createClass({
   propTypes: {
@@ -12,20 +12,20 @@ const PagerDutyConfig = React.createClass({
   },
 
   handleSaveAlert(e) {
-    e.preventDefault();
+    e.preventDefault()
 
     const properties = {
       serviceKey: this.serviceKey.value,
       url: this.url.value,
-    };
+    }
 
-    this.props.onSave(properties);
+    this.props.onSave(properties)
   },
 
   render() {
-    const {options} = this.props.config;
-    const {url} = options;
-    const serviceKey = options['service-key'];
+    const {options} = this.props.config
+    const {url} = options
+    const serviceKey = options['service-key']
 
     return (
       <div>
@@ -49,8 +49,8 @@ const PagerDutyConfig = React.createClass({
           </div>
         </form>
       </div>
-    );
+    )
   },
-});
+})
 
-export default PagerDutyConfig;
+export default PagerDutyConfig

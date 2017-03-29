@@ -1,10 +1,10 @@
-import React, {PropTypes} from 'react';
-import ResizeHandle from 'shared/components/ResizeHandle';
+import React, {PropTypes} from 'react'
+import ResizeHandle from 'shared/components/ResizeHandle'
 
 const {
   node,
   string,
-} = PropTypes;
+} = PropTypes
 
 const ResizeContainer = React.createClass({
   propTypes: {
@@ -16,50 +16,50 @@ const ResizeContainer = React.createClass({
       topHeight: '60%',
       bottomHeight: '40%',
       isDragging: false,
-    };
+    }
   },
 
   handleStopDrag() {
-    this.setState({isDragging: false});
+    this.setState({isDragging: false})
   },
 
   handleStartDrag() {
-    this.setState({isDragging: true});
+    this.setState({isDragging: true})
   },
 
   handleMouseLeave() {
-    this.setState({isDragging: false});
+    this.setState({isDragging: false})
   },
 
   handleDrag(e) {
     if (!this.state.isDragging) {
-      return;
+      return
     }
 
-    const appHeight = parseInt(getComputedStyle(this.refs.resizeContainer).height, 10);
+    const appHeight = parseInt(getComputedStyle(this.refs.resizeContainer).height, 10)
     // headingOffset moves the resize handle as many pixels as the page-heading is taking up.
-    const headingOffset = window.innerHeight - appHeight;
-    const turnToPercent = 100;
-    const newTopPanelPercent = Math.ceil(((e.pageY - headingOffset) / (appHeight)) * turnToPercent);
-    const newBottomPanelPercent = (turnToPercent - newTopPanelPercent);
+    const headingOffset = window.innerHeight - appHeight
+    const turnToPercent = 100
+    const newTopPanelPercent = Math.ceil(((e.pageY - headingOffset) / (appHeight)) * turnToPercent)
+    const newBottomPanelPercent = (turnToPercent - newTopPanelPercent)
 
     // Don't trigger a resize unless the change in size is greater than minResizePercentage
-    const minResizePercentage = 0.5;
+    const minResizePercentage = 0.5
     if (Math.abs(newTopPanelPercent - parseFloat(this.state.topHeight)) < minResizePercentage) {
-      return;
+      return
     }
 
     // Don't trigger a resize if the new sizes are too small
-    const minTopPanelHeight = 200;
-    const minBottomPanelHeight = 200;
-    const topHeightPixels = ((newTopPanelPercent / turnToPercent) * appHeight);
-    const bottomHeightPixels = ((newBottomPanelPercent / turnToPercent) * appHeight);
+    const minTopPanelHeight = 200
+    const minBottomPanelHeight = 200
+    const topHeightPixels = ((newTopPanelPercent / turnToPercent) * appHeight)
+    const bottomHeightPixels = ((newBottomPanelPercent / turnToPercent) * appHeight)
 
     if (topHeightPixels < minTopPanelHeight || bottomHeightPixels < minBottomPanelHeight) {
-      return;
+      return
     }
 
-    this.setState({topHeight: `${(newTopPanelPercent)}%`, bottomHeight: `${(newBottomPanelPercent)}%`, topHeightPixels});
+    this.setState({topHeight: `${(newTopPanelPercent)}%`, bottomHeight: `${(newBottomPanelPercent)}%`, topHeightPixels})
   },
 
   renderHandle() {

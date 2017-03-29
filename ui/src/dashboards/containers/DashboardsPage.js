@@ -107,7 +107,7 @@ const DashboardsPage = React.createClass({
                                   </td>
                                   <DeleteConfirmTableCell onDelete={this.handleDeleteDashboard} item={dashboard} />
                                 </tr>
-                              );
+                              )
                             }) :
                             null
                           }

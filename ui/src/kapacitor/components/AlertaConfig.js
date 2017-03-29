@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 
 const AlertaConfig = React.createClass({
   propTypes: {
@@ -14,20 +14,20 @@ const AlertaConfig = React.createClass({
   },
 
   handleSaveAlert(e) {
-    e.preventDefault();
+    e.preventDefault()
 
     const properties = {
       environment: this.environment.value,
       origin: this.origin.value,
       token: this.token.value,
       url: this.url.value,
-    };
+    }
 
-    this.props.onSave(properties);
+    this.props.onSave(properties)
   },
 
   render() {
-    const {environment, origin, token, url} = this.props.config.options;
+    const {environment, origin, token, url} = this.props.config.options
 
     return (
       <div className="col-xs-12">
@@ -64,8 +64,8 @@ const AlertaConfig = React.createClass({
           </div>
         </form>
       </div>
-    );
+    )
   },
-});
+})
 
-export default AlertaConfig;
+export default AlertaConfig

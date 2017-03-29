@@ -1,8 +1,8 @@
-import React, {PropTypes} from 'react';
-import _ from 'lodash';
-import HostsTable from '../components/HostsTable';
+import React, {PropTypes} from 'react'
+import _ from 'lodash'
+import HostsTable from '../components/HostsTable'
 import SourceIndicator from '../../shared/components/SourceIndicator'
-import {getCpuAndLoadForHosts, getMappings, getAppsForHosts} from '../apis';
+import {getCpuAndLoadForHosts, getMappings, getAppsForHosts} from '../apis'
 
 export const HostsPage = React.createClass({
   propTypes: {
@@ -23,11 +23,11 @@ export const HostsPage = React.createClass({
       hosts: {},
       hostsLoading: true,
       hostsError: '',
-    };
+    }
   },
 
   componentDidMount() {
-    const {source, addFlashMessage} = this.props;
+    const {source, addFlashMessage} = this.props
     Promise.all([
       getCpuAndLoadForHosts(source.links.proxy, source.telegraf),
       getMappings(),
@@ -53,7 +53,7 @@ export const HostsPage = React.createClass({
           hostsError: reason,
           hostsLoading: false,
         })
-      });
+      })
     }).catch((reason) => {
       this.setState({
         hostsError: reason.toString(),
@@ -61,8 +61,8 @@ export const HostsPage = React.createClass({
       })
       // TODO: this isn't reachable at the moment, because getCpuAndLoadForHosts doesn't fail when it should.
       // (like with a bogus proxy link). We should provide better messaging to the user in this catch after that's fixed.
-      console.error(reason); // eslint-disable-line no-console
-    });
+      console.error(reason) // eslint-disable-line no-console
+    })
   },
 
   render() {
@@ -97,8 +97,8 @@ export const HostsPage = React.createClass({
           </div>
         </div>
       </div>
-    );
+    )
   },
-});
+})
 
-export default HostsPage;
+export default HostsPage

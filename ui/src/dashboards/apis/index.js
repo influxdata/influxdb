@@ -1,10 +1,10 @@
-import AJAX from 'utils/ajax';
+import AJAX from 'utils/ajax'
 
 export function getDashboards() {
   return AJAX({
     method: 'GET',
     resource: 'dashboards',
-  });
+  })
 }
 
 export function updateDashboard(dashboard) {
@@ -12,7 +12,7 @@ export function updateDashboard(dashboard) {
     method: 'PUT',
     url: dashboard.links.self,
     data: dashboard,
-  });
+  })
 }
 
 export function updateDashboardCell(cell) {

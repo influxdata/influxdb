@@ -1,14 +1,14 @@
 function getInitialState() {
-  return [];
+  return []
 }
-const initialState = getInitialState();
+const initialState = getInitialState()
 
 export default function auth(state = initialState, action) {
   switch (action.type) {
     case 'AUTH_RECEIVED': {
-      return action.payload.auth;
+      return action.payload.auth
     }
   }
 
-  return state;
+  return state
 }

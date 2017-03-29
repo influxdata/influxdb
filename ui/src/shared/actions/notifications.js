@@ -5,7 +5,7 @@ export function publishNotification(type, message) {
       type,
       message,
     },
-  };
+  }
 }
 
 export function dismissNotification(type) {
@@ -14,7 +14,7 @@ export function dismissNotification(type) {
     payload: {
       type,
     },
-  };
+  }
 }
 
 export function delayDismissNotification(type, wait) {
@@ -26,5 +26,5 @@ export function delayDismissNotification(type, wait) {
 export function dismissAllNotifications() {
   return {
     type: 'ALL_NOTIFICATIONS_DISMISSED',
-  };
+  }
 }

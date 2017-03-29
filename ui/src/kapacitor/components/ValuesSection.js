@@ -1,11 +1,11 @@
-import React, {PropTypes} from 'react';
-import Dropdown from 'src/shared/components/Dropdown';
-import {Tab, TabList, TabPanels, TabPanel, Tabs} from 'shared/components/Tabs';
-import {OPERATORS, PERIODS, CHANGES, SHIFTS} from 'src/kapacitor/constants';
-import _ from 'lodash';
+import React, {PropTypes} from 'react'
+import Dropdown from 'src/shared/components/Dropdown'
+import {Tab, TabList, TabPanels, TabPanel, Tabs} from 'shared/components/Tabs'
+import {OPERATORS, PERIODS, CHANGES, SHIFTS} from 'src/kapacitor/constants'
+import _ from 'lodash'
 
-const TABS = ['Threshold', 'Relative', 'Deadman'];
-const mapToItems = (arr, type) => arr.map((text) => ({text, type}));
+const TABS = ['Threshold', 'Relative', 'Deadman']
+const mapToItems = (arr, type) => arr.map((text) => ({text, type}))
 
 export const ValuesSection = React.createClass({
   propTypes: {
@@ -18,8 +18,8 @@ export const ValuesSection = React.createClass({
   },
 
   render() {
-    const {rule, query} = this.props;
-    const initialIndex = TABS.indexOf(_.startCase(rule.trigger));
+    const {rule, query} = this.props
+    const initialIndex = TABS.indexOf(_.startCase(rule.trigger))
 
     return (
       <div className="kapacitor-rule-section">
@@ -44,23 +44,23 @@ export const ValuesSection = React.createClass({
           </Tabs>
         </div>
       </div>
-    );
+    )
   },
 
   handleChooseTrigger(triggerIndex) {
-    const {rule, onChooseTrigger} = this.props;
+    const {rule, onChooseTrigger} = this.props
     if (TABS[triggerIndex] === rule.trigger) {
-      return;
+      return
     }
 
-    onChooseTrigger(rule.id, TABS[triggerIndex]);
+    onChooseTrigger(rule.id, TABS[triggerIndex])
   },
 
   handleValuesChange(values) {
-    const {onUpdateValues, rule} = this.props;
-    onUpdateValues(rule.id, rule.trigger, values);
+    const {onUpdateValues, rule} = this.props
+    onUpdateValues(rule.id, rule.trigger, values)
   },
-});
+})
 
 const Threshold = React.createClass({
   propTypes: {
@@ -78,7 +78,7 @@ const Threshold = React.createClass({
 
 
   handleDropdownChange(item) {
-    this.props.onChange({...this.props.rule.values, [item.type]: item.text});
+    this.props.onChange({...this.props.rule.values, [item.type]: item.text})
   },
 
   handleInputChange() {
@@ -86,14 +86,14 @@ const Threshold = React.createClass({
       ...this.props.rule.values,
       value: this.valueInput.value,
       rangeValue: this.valueRangeInput ? this.valueRangeInput.value : '',
-    });
+    })
   },
 
   render() {
-    const {operator, value, rangeValue} = this.props.rule.values;
-    const {query} = this.props;
+    const {operator, value, rangeValue} = this.props.rule.values
+    const {query} = this.props
 
-    const operators = mapToItems(OPERATORS, 'operator');
+    const operators = mapToItems(OPERATORS, 'operator')
 
     return (
       <div className="value-selector">
@@ -106,9 +106,9 @@ const Threshold = React.createClass({
           <input className="form-control input-sm size-166 form-control--green" type="text" ref={(r) => this.valueRangeInput = r} defaultValue={rangeValue} onKeyUp={this.handleInputChange} />
         }
       </div>
-    );
+    )
   },
-});
+})
 
 const Relative = React.createClass({
   propTypes: {
@@ -124,19 +124,19 @@ const Relative = React.createClass({
   },
 
   handleDropdownChange(item) {
-    this.props.onChange({...this.props.rule.values, [item.type]: item.text});
+    this.props.onChange({...this.props.rule.values, [item.type]: item.text})
   },
 
   handleInputChange() {
-    this.props.onChange({...this.props.rule.values, value: this.input.value});
+    this.props.onChange({...this.props.rule.values, value: this.input.value})
   },
 
   render() {
-    const {change, shift, operator, value} = this.props.rule.values;
+    const {change, shift, operator, value} = this.props.rule.values
 
-    const changes = mapToItems(CHANGES, 'change');
-    const shifts = mapToItems(SHIFTS, 'shift');
-    const operators = mapToItems(OPERATORS, 'operator');
+    const changes = mapToItems(CHANGES, 'change')
+    const shifts = mapToItems(SHIFTS, 'shift')
+    const operators = mapToItems(OPERATORS, 'operator')
 
     return (
       <div className="value-selector">
@@ -156,9 +156,9 @@ const Relative = React.createClass({
         />
         <p>{ change === CHANGES[1] ? '%' : '' }</p>
       </div>
-    );
+    )
   },
-});
+})
 
 const Deadman = React.createClass({
   propTypes: {
@@ -171,21 +171,21 @@ const Deadman = React.createClass({
   },
 
   handleChange(item) {
-    this.props.onChange({period: item.text});
+    this.props.onChange({period: item.text})
   },
 
   render() {
     const periods = PERIODS.map((text) => {
-      return {text};
-    });
+      return {text}
+    })
 
     return (
       <div className="value-selector">
         <p>Send Alert if Data is missing for</p>
         <Dropdown className="size-66 dropdown-kapacitor" items={periods} selected={this.props.rule.values.period} onChoose={this.handleChange} />
       </div>
-    );
+    )
   },
-});
+})
 
-export default ValuesSection;
+export default ValuesSection

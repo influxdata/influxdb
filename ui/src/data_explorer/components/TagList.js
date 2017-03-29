@@ -1,14 +1,14 @@
-import React, {PropTypes} from 'react';
-import _ from 'lodash';
-import cx from 'classnames';
+import React, {PropTypes} from 'react'
+import _ from 'lodash'
+import cx from 'classnames'
 
-import TagListItem from './TagListItem';
+import TagListItem from './TagListItem'
 
-import {showTagKeys, showTagValues} from 'shared/apis/metaQuery';
-import showTagKeysParser from 'shared/parsing/showTagKeys';
-import showTagValuesParser from 'shared/parsing/showTagValues';
+import {showTagKeys, showTagValues} from 'shared/apis/metaQuery'
+import showTagKeysParser from 'shared/parsing/showTagKeys'
+import showTagValuesParser from 'shared/parsing/showTagValues'
 
-const {string, shape, func, bool} = PropTypes;
+const {string, shape, func, bool} = PropTypes
 const TagList = React.createClass({
   propTypes: {
     query: shape({
@@ -33,61 +33,61 @@ const TagList = React.createClass({
   getInitialState() {
     return {
       tags: {},
-    };
+    }
   },
 
   _getTags() {
-    const {database, measurement, retentionPolicy} = this.props.query;
-    const {source} = this.context;
-    const sourceProxy = source.links.proxy;
+    const {database, measurement, retentionPolicy} = this.props.query
+    const {source} = this.context
+    const sourceProxy = source.links.proxy
 
     showTagKeys({source: sourceProxy, database, retentionPolicy, measurement}).then((resp) => {
-      const {errors, tagKeys} = showTagKeysParser(resp.data);
+      const {errors, tagKeys} = showTagKeysParser(resp.data)
       if (errors.length) {
         // do something
       }
 
-      return showTagValues({source: sourceProxy, database, retentionPolicy, measurement, tagKeys});
+      return showTagValues({source: sourceProxy, database, retentionPolicy, measurement, tagKeys})
     }).then((resp) => {
-      const {errors: errs, tags} = showTagValuesParser(resp.data);
+      const {errors: errs, tags} = showTagValuesParser(resp.data)
       if (errs.length) {
         // do something
       }
 
-      this.setState({tags});
-    });
+      this.setState({tags})
+    })
   },
 
   componentDidMount() {
-    const {database, measurement, retentionPolicy} = this.props.query;
+    const {database, measurement, retentionPolicy} = this.props.query
     if (!database || !measurement || !retentionPolicy) {
-      return;
+      return
     }
 
-    this._getTags();
+    this._getTags()
   },
 
   componentDidUpdate(prevProps) {
-    const {database, measurement, retentionPolicy} = this.props.query;
-    const {database: prevDB, measurement: prevMeas, retentionPolicy: prevRP} = prevProps.query;
+    const {database, measurement, retentionPolicy} = this.props.query
+    const {database: prevDB, measurement: prevMeas, retentionPolicy: prevRP} = prevProps.query
     if (!database || !measurement || !retentionPolicy) {
-      return;
+      return
     }
 
     if (database === prevDB && measurement === prevMeas && retentionPolicy === prevRP) {
-      return;
+      return
     }
 
-    this._getTags();
+    this._getTags()
   },
 
   handleAcceptReject(e) {
-    e.stopPropagation();
-    this.props.onToggleTagAcceptance();
+    e.stopPropagation()
+    this.props.onToggleTagAcceptance()
   },
 
   render() {
-    const {query} = this.props;
+    const {query} = this.props
 
     return (
       <div className="query-builder--column">
@@ -100,13 +100,13 @@ const TagList = React.createClass({
         </div>}
         {this.renderList()}
       </div>
-    );
+    )
   },
 
   renderList() {
-    const {database, measurement, retentionPolicy} = this.props.query;
+    const {database, measurement, retentionPolicy} = this.props.query
     if (!database || !measurement || !retentionPolicy) {
-      return <div className="qeditor--empty">No <strong>Measurement</strong> selected</div>;
+      return <div className="qeditor--empty">No <strong>Measurement</strong> selected</div>
     }
 
     return (
@@ -122,11 +122,11 @@ const TagList = React.createClass({
               onChooseTag={this.props.onChooseTag}
               onGroupByTag={this.props.onGroupByTag}
             />
-          );
+          )
         })}
       </ul>
-    );
+    )
   },
-});
+})
 
-export default TagList;
+export default TagList

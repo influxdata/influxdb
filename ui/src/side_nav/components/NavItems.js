@@ -1,8 +1,8 @@
-import React, {PropTypes} from 'react';
-import {Link} from 'react-router';
-import cx from 'classnames';
+import React, {PropTypes} from 'react'
+import {Link} from 'react-router'
+import cx from 'classnames'
 
-const {node, string} = PropTypes;
+const {node, string} = PropTypes
 
 const NavListItem = React.createClass({
   propTypes: {
@@ -12,12 +12,12 @@ const NavListItem = React.createClass({
   },
 
   render() {
-    const {link, children, location} = this.props;
-    const isActive = location.startsWith(link);
+    const {link, children, location} = this.props
+    const isActive = location.startsWith(link)
 
-    return <Link className={cx("sidebar__menu-item", {active: isActive})} to={link}>{children}</Link>;
+    return <Link className={cx("sidebar__menu-item", {active: isActive})} to={link}>{children}</Link>
   },
-});
+})
 
 const NavHeader = React.createClass({
   propTypes: {
@@ -29,9 +29,9 @@ const NavHeader = React.createClass({
       <Link className="sidebar__menu-route" to={this.props.link}>
         <h3 className="sidebar__menu-heading">{this.props.title}</h3>
       </Link>
-    );
+    )
   },
-});
+})
 
 const NavBlock = React.createClass({
   propTypes: {
@@ -44,19 +44,19 @@ const NavBlock = React.createClass({
   },
 
   render() {
-    const {location, className, wrapperClassName} = this.props;
+    const {location, className, wrapperClassName} = this.props
 
     const isActive = React.Children.toArray(this.props.children).find((child) => {
-      return child.type === NavListItem && location.startsWith(child.props.link);
-    });
+      return child.type === NavListItem && location.startsWith(child.props.link)
+    })
 
     const children = React.Children.map((this.props.children), (child) => {
       if (child && child.type === NavListItem) {
-        return React.cloneElement(child, {location});
+        return React.cloneElement(child, {location})
       }
 
-      return child;
-    });
+      return child
+    })
 
 
     return (
@@ -68,18 +68,18 @@ const NavBlock = React.createClass({
           </div>
         </div>
       </div>
-    );
+    )
   },
 
   renderLink() {
-    const {link, icon} = this.props;
+    const {link, icon} = this.props
 
     if (!link) {
       return (
         <div className="sidebar__icon">
           <span className={`icon ${icon}`}></span>
         </div>
-      );
+      )
     }
 
     return (
@@ -88,9 +88,9 @@ const NavBlock = React.createClass({
           <span className={`icon ${icon}`}></span>
         </div>
       </Link>
-    );
+    )
   },
-});
+})
 
 const NavBar = React.createClass({
   propTypes: {
@@ -103,18 +103,18 @@ const NavBar = React.createClass({
       if (child && child.type === NavBlock) {
         return React.cloneElement(child, {
           location: this.props.location,
-        });
+        })
       }
 
-      return child;
-    });
-    return <aside className="sidebar">{children}</aside>;
+      return child
+    })
+    return <aside className="sidebar">{children}</aside>
   },
-});
+})
 
 export {
   NavBar,
   NavBlock,
   NavHeader,
   NavListItem,
-};
+}

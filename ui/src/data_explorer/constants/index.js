@@ -9,4 +9,4 @@ export const INFLUXQL_FUNCTIONS = [
   'last',
   'spread',
   'stddev',
-];
+]

@@ -1,4 +1,4 @@
-import React from 'react';
+import React from 'react'
 
 const NotFound = React.createClass({
   render() {
@@ -11,8 +11,8 @@ const NotFound = React.createClass({
           </div>
         </div>
       </div>
-    );
+    )
   },
-});
+})
 
-export default NotFound;
+export default NotFound

@@ -54,7 +54,7 @@ export const SourceForm = React.createClass({
   },
 
   render() {
-    const {source, editMode, onInputChange} = this.props;
+    const {source, editMode, onInputChange} = this.props
 
     if (editMode && !source.id) {
       return <div className="page-spinner"></div>

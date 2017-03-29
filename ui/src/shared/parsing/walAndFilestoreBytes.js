@@ -1,19 +1,19 @@
 export default function walAndFilestoreBytes(response) {
-  let totalDiskBytes = 0;
+  let totalDiskBytes = 0
 
   response.results.forEach((result) => {
     if (!result.series) {
-      return;
+      return
     }
     result.series.forEach((series) => {
       if (!series.values) {
-        return;
+        return
       }
       series.values.forEach((value) => {
-        totalDiskBytes += (value && value[1]) || 0;
-      });
-    });
-  });
+        totalDiskBytes += (value && value[1]) || 0
+      })
+    })
+  })
 
-  return totalDiskBytes;
+  return totalDiskBytes
 }

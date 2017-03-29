@@ -1,14 +1,14 @@
-import moment from 'moment';
+import moment from 'moment'
 
 export default function parseShowShards(results) {
-  const shards = {};
+  const shards = {}
   results.forEach((result) => {
     if (!result.owners.length) {
-      return;
+      return
     }
 
     if (moment().isAfter(result['expire-time'])) {
-      return;
+      return
     }
 
     const shard = {
@@ -19,15 +19,15 @@ export default function parseShowShards(results) {
       startTime: result['start-time'],
       endTime: result['end-time'],
       owners: result.owners,
-    };
-
-    const key = `${shard.database}..${shard.retentionPolicy}`;
-    if (shards[key]) {
-      shards[key].push(shard);
-    } else {
-      shards[key] = [shard];
     }
-  });
 
-  return shards;
+    const key = `${shard.database}..${shard.retentionPolicy}`
+    if (shards[key]) {
+      shards[key].push(shard)
+    } else {
+      shards[key] = [shard]
+    }
+  })
+
+  return shards
 }

@@ -8,5 +8,5 @@ export function fetchTimeSeries(host, query) {
       host,
       query,
     },
-  };
+  }
 }

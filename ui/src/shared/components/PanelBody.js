@@ -1,6 +1,6 @@
-import React from 'react';
+import React from 'react'
 
-const {node} = React.PropTypes;
+const {node} = React.PropTypes
 const PanelBody = React.createClass({
   propTypes: {
     children: node.isRequired,
@@ -14,8 +14,8 @@ const PanelBody = React.createClass({
           {this.props.children}
         </p>
       </div>
-    );
+    )
   },
-});
+})
 
-export default PanelBody;
+export default PanelBody

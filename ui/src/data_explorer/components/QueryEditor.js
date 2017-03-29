@@ -1,17 +1,17 @@
-import React, {PropTypes} from 'react';
-import buildInfluxQLQuery from 'utils/influxql';
+import React, {PropTypes} from 'react'
+import buildInfluxQLQuery from 'utils/influxql'
 
-import DatabaseList from './DatabaseList';
-import MeasurementList from './MeasurementList';
-import FieldList from './FieldList';
-import TagList from './TagList';
-import RawQueryEditor from './RawQueryEditor';
+import DatabaseList from './DatabaseList'
+import MeasurementList from './MeasurementList'
+import FieldList from './FieldList'
+import TagList from './TagList'
+import RawQueryEditor from './RawQueryEditor'
 
 const {
   string,
   shape,
   func,
-} = PropTypes;
+} = PropTypes
 const QueryEditor = React.createClass({
   propTypes: {
     query: shape({
@@ -37,43 +37,43 @@ const QueryEditor = React.createClass({
     return {
       database: null,
       measurement: null,
-    };
+    }
   },
 
   handleChooseNamespace(namespace) {
-    this.props.actions.chooseNamespace(this.props.query.id, namespace);
+    this.props.actions.chooseNamespace(this.props.query.id, namespace)
   },
 
   handleChooseMeasurement(measurement) {
-    this.props.actions.chooseMeasurement(this.props.query.id, measurement);
+    this.props.actions.chooseMeasurement(this.props.query.id, measurement)
   },
 
   handleToggleField(field) {
-    this.props.actions.toggleField(this.props.query.id, field);
+    this.props.actions.toggleField(this.props.query.id, field)
   },
 
   handleGroupByTime(time) {
-    this.props.actions.groupByTime(this.props.query.id, time);
+    this.props.actions.groupByTime(this.props.query.id, time)
   },
 
   handleApplyFuncsToField(fieldFunc) {
-    this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc);
+    this.props.actions.applyFuncsToField(this.props.query.id, fieldFunc)
   },
 
   handleChooseTag(tag) {
-    this.props.actions.chooseTag(this.props.query.id, tag);
+    this.props.actions.chooseTag(this.props.query.id, tag)
   },
 
   handleToggleTagAcceptance() {
-    this.props.actions.toggleTagAcceptance(this.props.query.id);
+    this.props.actions.toggleTagAcceptance(this.props.query.id)
   },
 
   handleGroupByTag(tagKey) {
-    this.props.actions.groupByTag(this.props.query.id, tagKey);
+    this.props.actions.groupByTag(this.props.query.id, tagKey)
   },
 
   handleEditRawText(text) {
-    this.props.actions.editRawText(this.props.query.id, text);
+    this.props.actions.editRawText(this.props.query.id, text)
   },
 
   render() {
@@ -84,26 +84,26 @@ const QueryEditor = React.createClass({
           {this.renderLists()}
         </div>
       </div>
-    );
+    )
   },
 
   renderQuery() {
-    const {query, timeRange} = this.props;
-    const statement = query.rawText || buildInfluxQLQuery(timeRange, query) || `SELECT "fields" FROM "db"."rp"."measurement"`;
+    const {query, timeRange} = this.props
+    const statement = query.rawText || buildInfluxQLQuery(timeRange, query) || `SELECT "fields" FROM "db"."rp"."measurement"`
 
     if (!query.rawText) {
       return (
         <div className="query-builder--query-preview">
           <pre><code>{statement}</code></pre>
         </div>
-      );
+      )
     }
 
-    return <RawQueryEditor query={query} onUpdate={this.handleEditRawText} />;
+    return <RawQueryEditor query={query} onUpdate={this.handleEditRawText} />
   },
 
   renderLists() {
-    const {query} = this.props;
+    const {query} = this.props
 
     return (
       <div className="query-builder--columns">
@@ -128,8 +128,8 @@ const QueryEditor = React.createClass({
           onToggleTagAcceptance={this.handleToggleTagAcceptance}
         />
       </div>
-    );
+    )
   },
-});
+})
 
-export default QueryEditor;
+export default QueryEditor

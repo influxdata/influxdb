@@ -24,8 +24,8 @@ class FilterBar extends Component {
   render() {
     const {type, isEditing, onClickCreate} = this.props
     const placeholderText = type.replace(/\w\S*/g, function(txt) {
-      return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
-    });
+      return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+    })
     return (
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
         <div className="users__search-widget input-group admin__search-widget">

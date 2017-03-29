@@ -1,31 +1,31 @@
-import AJAX from 'utils/ajax';
+import AJAX from 'utils/ajax'
 
 export function fetchLayouts() {
   return AJAX({
     url: `/chronograf/v1/layouts`,
     method: 'GET',
     resource: 'layouts',
-  });
+  })
 }
 
 export function getMe() {
   return AJAX({
     resource: 'me',
     method: 'GET',
-  });
+  })
 }
 
 export function getSources() {
   return AJAX({
     resource: 'sources',
-  });
+  })
 }
 
 export function getSource(id) {
   return AJAX({
     resource: 'sources',
     id,
-  });
+  })
 }
 
 export function createSource(attributes) {
@@ -33,7 +33,7 @@ export function createSource(attributes) {
     resource: 'sources',
     method: 'POST',
     data: attributes,
-  });
+  })
 }
 
 export function updateSource(newSource) {
@@ -41,21 +41,21 @@ export function updateSource(newSource) {
     url: newSource.links.self,
     method: 'PATCH',
     data: newSource,
-  });
+  })
 }
 
 export function deleteSource(source) {
   return AJAX({
     url: source.links.self,
     method: 'DELETE',
-  });
+  })
 }
 
 export function pingKapacitor(kapacitor) {
   return AJAX({
     method: 'GET',
     url: `${kapacitor.links.proxy}?path=/kapacitor/v1/ping`,
-  });
+  })
 }
 
 export function getKapacitor(source) {
@@ -63,8 +63,8 @@ export function getKapacitor(source) {
     url: source.links.kapacitors,
     method: 'GET',
   }).then(({data}) => {
-    return data.kapacitors[0];
-  });
+    return data.kapacitors[0]
+  })
 }
 
 export function createKapacitor(source, {url, name = 'My Kapacitor', username, password}) {
@@ -77,7 +77,7 @@ export function createKapacitor(source, {url, name = 'My Kapacitor', username, p
       username,
       password,
     },
-  });
+  })
 }
 
 export function updateKapacitor({links, url, name = 'My Kapacitor', username, password}) {
@@ -90,15 +90,15 @@ export function updateKapacitor({links, url, name = 'My Kapacitor', username, pa
       username,
       password,
     },
-  });
+  })
 }
 
 export function getKapacitorConfig(kapacitor) {
-  return kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/config', '');
+  return kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/config', '')
 }
 
 export function getKapacitorConfigSection(kapacitor, section) {
-  return kapacitorProxy(kapacitor, 'GET', `/kapacitor/v1/config/${section}`, '');
+  return kapacitorProxy(kapacitor, 'GET', `/kapacitor/v1/config/${section}`, '')
 }
 
 export function updateKapacitorConfigSection(kapacitor, section, properties) {
@@ -114,14 +114,14 @@ export function updateKapacitorConfigSection(kapacitor, section, properties) {
     headers: {
       'Content-Type': 'application/json',
     },
-  });
+  })
 }
 
 export function testAlertOutput(kapacitor, outputName, properties) {
   return kapacitorProxy(kapacitor, 'GET', '/kapacitor/v1/service-tests').then(({data: {services}}) => {
-    const service = services.find(s => s.name === outputName);
-    return kapacitorProxy(kapacitor, 'POST', service.link.href, Object.assign({}, service.options, properties));
-  });
+    const service = services.find(s => s.name === outputName)
+    return kapacitorProxy(kapacitor, 'POST', service.link.href, Object.assign({}, service.options, properties))
+  })
 }
 
 export function createKapacitorTask(kapacitor, id, type, dbrps, script) {
@@ -131,19 +131,19 @@ export function createKapacitorTask(kapacitor, id, type, dbrps, script) {
     dbrps,
     script,
     status: 'enabled',
-  });
+  })
 }
 
 export function enableKapacitorTask(kapacitor, id) {
-  return kapacitorProxy(kapacitor, 'PATCH', `/kapacitor/v1/tasks/${id}`, {status: 'enabled'});
+  return kapacitorProxy(kapacitor, 'PATCH', `/kapacitor/v1/tasks/${id}`, {status: 'enabled'})
 }
 
 export function disableKapacitorTask(kapacitor, id) {
-  return kapacitorProxy(kapacitor, 'PATCH', `/kapacitor/v1/tasks/${id}`, {status: 'disabled'});
+  return kapacitorProxy(kapacitor, 'PATCH', `/kapacitor/v1/tasks/${id}`, {status: 'disabled'})
 }
 
 export function deleteKapacitorTask(kapacitor, id) {
-  return kapacitorProxy(kapacitor, 'DELETE', `/kapacitor/v1/tasks/${id}`, '');
+  return kapacitorProxy(kapacitor, 'DELETE', `/kapacitor/v1/tasks/${id}`, '')
 }
 
 export function kapacitorProxy(kapacitor, method, path, body) {
@@ -154,5 +154,5 @@ export function kapacitorProxy(kapacitor, method, path, body) {
       path,
     },
     data: body,
-  });
+  })
 }

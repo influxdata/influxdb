@@ -44,7 +44,7 @@ Dashboard.renderDashboard = (dashboard, autoRefresh, timeRange, source, onPositi
         text: query,
       })
     )
-    return dashboardCell;
+    return dashboardCell
   })
 
   return (

@@ -71,7 +71,7 @@ const DashboardPage = React.createClass({
   },
 
   getChildContext() {
-    return {source: this.props.source};
+    return {source: this.props.source}
   },
 
   getInitialState() {
@@ -85,7 +85,7 @@ const DashboardPage = React.createClass({
     const {
       params: {dashboardID},
       dashboardActions: {getDashboardsAsync},
-    } = this.props;
+    } = this.props
 
     getDashboardsAsync(dashboardID)
   },
@@ -233,7 +233,7 @@ const DashboardPage = React.createClass({
                         {d.name}
                       </Link>
                     </li>
-                  );
+                  )
                 }) :
                 null
               }
@@ -257,9 +257,9 @@ const DashboardPage = React.createClass({
           null
         }
       </div>
-    );
+    )
   },
-});
+})
 
 const mapStateToProps = (state) => {
   const {
@@ -289,4 +289,4 @@ const mapDispatchToProps = (dispatch) => ({
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(DashboardPage);
+export default connect(mapStateToProps, mapDispatchToProps)(DashboardPage)

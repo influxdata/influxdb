@@ -1,2 +1,2 @@
-import App from './containers/App';
-export default App;
+import App from './containers/App'
+export default App

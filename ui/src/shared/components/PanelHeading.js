@@ -1,6 +1,6 @@
-import React from 'react';
+import React from 'react'
 
-const {node} = React.PropTypes;
+const {node} = React.PropTypes
 const PanelHeading = React.createClass({
   propTypes: {
     children: node.isRequired,
@@ -13,8 +13,8 @@ const PanelHeading = React.createClass({
           {this.props.children}
         </h2>
       </div>
-    );
+    )
   },
-});
+})
 
-export default PanelHeading;
+export default PanelHeading

@@ -1,5 +1,5 @@
-import _ from 'lodash';
-import {saveToLocalStorage} from '../localStorage';
+import _ from 'lodash'
+import {saveToLocalStorage} from '../localStorage'
 
 /**
  * Redux store enhancer (https://github.com/reactjs/redux/blob/master/docs/Glossary.md)
@@ -12,13 +12,13 @@ import {saveToLocalStorage} from '../localStorage';
 
 export default function persistState() {
   return (next) => (reducer, initialState, enhancer) => {
-    const store = next(reducer, initialState, enhancer);
-    const throttleMs = 1000;
+    const store = next(reducer, initialState, enhancer)
+    const throttleMs = 1000
 
     store.subscribe(_.throttle(() => {
-      saveToLocalStorage(store.getState());
-    }, throttleMs));
+      saveToLocalStorage(store.getState())
+    }, throttleMs))
 
-    return store;
-  };
+    return store
+  }
 }
