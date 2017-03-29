@@ -227,7 +227,7 @@ func (s *Store) Close() error {
 
 	// Close all the shards in parallel.
 	if err := s.walkShards(s.shardsSlice(), func(sh *Shard) error {
-		return sh.Close()
+		return sh.CloseFast()
 	}); err != nil {
 		return err
 	}
