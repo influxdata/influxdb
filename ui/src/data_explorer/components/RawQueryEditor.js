@@ -24,9 +24,8 @@ const RawQueryEditor = React.createClass({
   },
 
   handleKeyDown(e) {
-    e.preventDefault()
-
     if (e.keyCode === ENTER) {
+      e.preventDefault()
       this.handleUpdate();
     } else if (e.keyCode === ESCAPE) {
       this.setState({value: this.props.query.rawText}, () => {
