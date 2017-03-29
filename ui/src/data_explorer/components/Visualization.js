@@ -8,7 +8,7 @@ import MultiTable from './MultiTable'
 
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
-const VIEWS = ['graph', 'table', 'console']
+const VIEWS = ['graph', 'table']
 
 const {
   arrayOf,
@@ -80,8 +80,6 @@ const Visualization = React.createClass({
         return this.renderGraph(queries)
       case 'table':
         return <MultiTable queries={queries} height={heightPixels} />
-      case 'console':
-        return <div>I'm a console</div>
       default:
         this.renderGraph(queries)
     }
