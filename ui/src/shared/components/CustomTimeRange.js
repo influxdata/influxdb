@@ -62,10 +62,7 @@ class CustomTimeRange extends Component {
     const lower = this.lowerCal.getDate().toISOString()
     const upper = this.upperCal.getDate().toISOString()
 
-    this.props.onApplyTimeRange({
-      lower: `'${lower}'`,
-      upper: `'${upper}'`,
-    })
+    this.props.onApplyTimeRange({lower, upper})
     this.props.onClose()
   }
   /*
