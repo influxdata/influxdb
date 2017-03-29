@@ -48,6 +48,26 @@ export default function ui(state = initialState, action) {
       return {...state, ...newState}
     }
 
+    case 'DELETE_DASHBOARD': {
+      const {dashboard} = action.payload
+      const newState = {
+        dashboards: state.dashboards.filter((d) => d.id !== dashboard.id),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'UNDO_DELETE_DASHBOARD': {
+      const {dashboard} = action.payload
+      const newState = {
+        dashboards: [
+          _.cloneDeep(dashboard),
+          ...state.dashboards,
+        ],
+      }
+      return {...state, ...newState}
+    }
+
     case 'UPDATE_DASHBOARD_CELLS': {
       const {cells} = action.payload
       const {dashboard} = state

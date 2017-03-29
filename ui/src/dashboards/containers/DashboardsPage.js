@@ -1,8 +1,14 @@
 import React, {PropTypes} from 'react'
 import {Link, withRouter} from 'react-router'
-import SourceIndicator from '../../shared/components/SourceIndicator'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
+
+import SourceIndicator from 'shared/components/SourceIndicator'
+import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
 
 import {getDashboards, createDashboard} from '../apis'
+import {deleteDashboardAsync} from 'src/dashboards/actions'
+
 import {NEW_DASHBOARD} from 'src/dashboards/constants'
 
 const {
@@ -26,6 +32,7 @@ const DashboardsPage = React.createClass({
       push: func.isRequired,
     }).isRequired,
     addFlashMessage: func,
+    handleDeleteDashboard: func.isRequired,
   },
 
   getInitialState() {
@@ -48,6 +55,10 @@ const DashboardsPage = React.createClass({
     const {source: {id}, router: {push}} = this.props
     const {data} = await createDashboard(NEW_DASHBOARD)
     push(`/sources/${id}/dashboards/${data.id}`)
+  },
+
+  handleDeleteDashboard(dashboard) {
+    this.props.handleDeleteDashboard(dashboard)
   },
 
   render() {
@@ -95,12 +106,13 @@ const DashboardsPage = React.createClass({
                           {
                             this.state.dashboards.map((dashboard) => {
                               return (
-                                <tr key={dashboard.id}>
+                                <tr key={dashboard.id} className="">
                                   <td className="monotype">
                                     <Link to={`${dashboardLink}/dashboards/${dashboard.id}`}>
                                       {dashboard.name}
                                     </Link>
                                   </td>
+                                  <DeleteConfirmTableCell onDelete={this.handleDeleteDashboard} item={dashboard} />
                                 </tr>
                               );
                             })
@@ -125,4 +137,8 @@ const DashboardsPage = React.createClass({
   },
 })
 
-export default withRouter(DashboardsPage)
+const mapDispatchToProps = (dispatch) => ({
+  handleDeleteDashboard: bindActionCreators(deleteDashboardAsync, dispatch),
+})
+
+export default connect(null, mapDispatchToProps)(withRouter(DashboardsPage))

@@ -1,10 +1,13 @@
 import {
   getDashboards as getDashboardsAJAX,
   updateDashboard as updateDashboardAJAX,
+  deleteDashboard as deleteDashboardAJAX,
   updateDashboardCell as updateDashboardCellAJAX,
   addDashboardCell as addDashboardCellAJAX,
   deleteDashboardCell as deleteDashboardCellAJAX,
 } from 'src/dashboards/apis'
+
+import {publishNotification} from 'src/shared/actions/notifications';
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
@@ -32,6 +35,20 @@ export const setTimeRange = (timeRange) => ({
 
 export const updateDashboard = (dashboard) => ({
   type: 'UPDATE_DASHBOARD',
+  payload: {
+    dashboard,
+  },
+})
+
+export const deleteDashboard = (dashboard) => ({
+  type: 'DELETE_DASHBOARD',
+  payload: {
+    dashboard,
+  },
+})
+
+export const undoDeleteDashboard = (dashboard) => ({
+  type: 'UNDO_DELETE_DASHBOARD',
   payload: {
     dashboard,
   },
@@ -107,6 +124,17 @@ export const updateDashboardCell = (cell) => (dispatch) => {
   .then(({data}) => {
     dispatch(syncDashboardCell(data))
   })
+}
+
+export const deleteDashboardAsync = (dashboard) => async (dispatch) => {
+  dispatch(deleteDashboard(dashboard))
+  try {
+    await deleteDashboardAJAX(dashboard)
+    dispatch(publishNotification('success', 'Dashboard deleted successfully.'))
+  } catch (error) {
+    dispatch(undoDeleteDashboard(dashboard)) // undo optimistic update
+    dispatch(publishNotification('error', `Failed to delete dashboard: ${error.data.message}.`))
+  }
 }
 
 export const addDashboardCellAsync = (dashboard) => async (dispatch) => {

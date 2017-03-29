@@ -36,6 +36,18 @@ export const createDashboard = async (dashboard) => {
   }
 }
 
+export const deleteDashboard = async (dashboard) => {
+  try {
+    return await AJAX({
+      method: 'DELETE',
+      url: dashboard.links.self,
+    })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
+}
+
 export const addDashboardCell = async (dashboard, cell) => {
   try {
     return await AJAX({
