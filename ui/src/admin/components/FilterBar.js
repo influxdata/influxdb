@@ -40,7 +40,7 @@ class FilterBar extends Component {
             <span className="icon search" aria-hidden="true"></span>
           </div>
         </div>
-        <button className="btn btn-primary" disabled={isEditing} onClick={() => onClickCreate(type)}>Create {placeholderText.substring(0, placeholderText.length - 1)}</button>
+        <button className="btn btn-sm btn-primary" disabled={isEditing} onClick={() => onClickCreate(type)}>Create {placeholderText.substring(0, placeholderText.length - 1)}</button>
       </div>
     )
   }
