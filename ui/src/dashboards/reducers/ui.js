@@ -5,7 +5,7 @@ import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 const {lower, upper} = timeRanges[1]
 
 const initialState = {
-  dashboards: [],
+  dashboards: null,
   dashboard: EMPTY_DASHBOARD,
   timeRange: {lower, upper},
   isEditMode: false,
@@ -45,6 +45,26 @@ export default function ui(state = initialState, action) {
         dashboards: state.dashboards.map((d) => d.id === dashboard.id ? dashboard : d),
       }
 
+      return {...state, ...newState}
+    }
+
+    case 'DELETE_DASHBOARD': {
+      const {dashboard} = action.payload
+      const newState = {
+        dashboards: state.dashboards.filter((d) => d.id !== dashboard.id),
+      }
+
+      return {...state, ...newState}
+    }
+
+    case 'DELETE_DASHBOARD_FAILED': {
+      const {dashboard} = action.payload
+      const newState = {
+        dashboards: [
+          _.cloneDeep(dashboard),
+          ...state.dashboards,
+        ],
+      }
       return {...state, ...newState}
     }
 

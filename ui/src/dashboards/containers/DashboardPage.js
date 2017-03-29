@@ -24,10 +24,10 @@ const {
 
 const DashboardPage = React.createClass({
   propTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string,
-        self: PropTypes.string,
+    source: shape({
+      links: shape({
+        proxy: string,
+        self: string,
       }),
     }),
     params: shape({
@@ -39,7 +39,7 @@ const DashboardPage = React.createClass({
     }).isRequired,
     dashboardActions: shape({
       putDashboard: func.isRequired,
-      getDashboards: func.isRequired,
+      getDashboardsAsync: func.isRequired,
       setDashboard: func.isRequired,
       setTimeRange: func.isRequired,
       addDashboardCellAsync: func.isRequired,
@@ -49,11 +49,11 @@ const DashboardPage = React.createClass({
     dashboards: arrayOf(shape({
       id: number.isRequired,
       cells: arrayOf(shape({})).isRequired,
-    })).isRequired,
+    })),
     dashboard: shape({
       id: number.isRequired,
       cells: arrayOf(shape({})).isRequired,
-    }).isRequired,
+    }),
     handleChooseAutoRefresh: func.isRequired,
     autoRefresh: number.isRequired,
     timeRange: shape({}).isRequired,
@@ -84,10 +84,10 @@ const DashboardPage = React.createClass({
   componentDidMount() {
     const {
       params: {dashboardID},
-      dashboardActions: {getDashboards},
+      dashboardActions: {getDashboardsAsync},
     } = this.props;
 
-    getDashboards(dashboardID)
+    getDashboardsAsync(dashboardID)
   },
 
   componentWillReceiveProps(nextProps) {
@@ -224,30 +224,38 @@ const DashboardPage = React.createClass({
               onAddCell={this.handleAddCell}
               onEditDashboard={this.handleEditDashboard}
             >
-              {(dashboards).map((d, i) => {
-                return (
-                  <li key={i}>
-                    <Link to={`/sources/${sourceID}/dashboards/${d.id}`} className="role-option">
-                      {d.name}
-                    </Link>
-                  </li>
-                );
-              })}
+              {
+                dashboards ?
+                dashboards.map((d, i) => {
+                  return (
+                    <li key={i}>
+                      <Link to={`/sources/${sourceID}/dashboards/${d.id}`} className="role-option">
+                        {d.name}
+                      </Link>
+                    </li>
+                  );
+                }) :
+                null
+              }
             </Header>
         }
-        <Dashboard
-          dashboard={dashboard}
-          inPresentationMode={inPresentationMode}
-          source={source}
-          autoRefresh={autoRefresh}
-          timeRange={timeRange}
-          onPositionChange={this.handleUpdatePosition}
-          onEditCell={this.handleEditDashboardCell}
-          onRenameCell={this.handleRenameDashboardCell}
-          onUpdateCell={this.handleUpdateDashboardCell}
-          onDeleteCell={this.handleDeleteDashboardCell}
-          onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
-        />
+        {
+          dashboard ?
+          <Dashboard
+            dashboard={dashboard}
+            inPresentationMode={inPresentationMode}
+            source={source}
+            autoRefresh={autoRefresh}
+            timeRange={timeRange}
+            onPositionChange={this.handleUpdatePosition}
+            onEditCell={this.handleEditDashboardCell}
+            onRenameCell={this.handleRenameDashboardCell}
+            onUpdateCell={this.handleUpdateDashboardCell}
+            onDeleteCell={this.handleDeleteDashboardCell}
+            onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
+          /> :
+          null
+        }
       </div>
     );
   },
