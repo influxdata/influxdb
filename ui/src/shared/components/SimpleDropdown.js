@@ -1,6 +1,6 @@
-import React, {PropTypes} from 'react';
-import classNames from 'classnames';
-import OnClickOutside from 'shared/components/OnClickOutside';
+import React, {PropTypes} from 'react'
+import classNames from 'classnames'
+import OnClickOutside from 'shared/components/OnClickOutside'
 
 const Dropdown = React.createClass({
   propTypes: {
@@ -14,24 +14,24 @@ const Dropdown = React.createClass({
   getInitialState() {
     return {
       isOpen: false,
-    };
+    }
   },
   handleClickOutside() {
-    this.setState({isOpen: false});
+    this.setState({isOpen: false})
   },
   handleSelection(item) {
-    this.toggleMenu();
-    this.props.onChoose(item);
+    this.toggleMenu()
+    this.props.onChoose(item)
   },
   toggleMenu(e) {
     if (e) {
-      e.stopPropagation();
+      e.stopPropagation()
     }
-    this.setState({isOpen: !this.state.isOpen});
+    this.setState({isOpen: !this.state.isOpen})
   },
   render() {
-    const self = this;
-    const {items, className} = self.props;
+    const self = this
+    const {items, className} = self.props
 
     return (
       <div onClick={this.toggleMenu} className={classNames(`dropdown ${className}`, {open: self.state.isOpen})}>
@@ -47,13 +47,13 @@ const Dropdown = React.createClass({
                     {item.text}
                   </a>
                 </li>
-              );
+              )
             })}
           </ul>
           : null}
       </div>
-    );
+    )
   },
-});
+})
 
-export default OnClickOutside(Dropdown);
+export default OnClickOutside(Dropdown)

@@ -1,9 +1,9 @@
-import React, {PropTypes} from 'react';
-import {withRouter} from 'react-router';
+import React, {PropTypes} from 'react'
+import {withRouter} from 'react-router'
 
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
-import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown';
-import SourceIndicator from '../../shared/components/SourceIndicator';
+import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown'
+import SourceIndicator from '../../shared/components/SourceIndicator'
 
 const {
   func,
@@ -32,11 +32,11 @@ const Header = React.createClass({
   },
 
   handleChooseTimeRange(bounds) {
-    this.props.actions.setTimeRange(bounds);
+    this.props.actions.setTimeRange(bounds)
   },
 
   render() {
-    const {autoRefresh, actions: {handleChooseAutoRefresh}, timeRange} = this.props;
+    const {autoRefresh, actions: {handleChooseAutoRefresh}, timeRange} = this.props
 
     return (
       <div className="page-header">
@@ -51,8 +51,8 @@ const Header = React.createClass({
           </div>
         </div>
       </div>
-    );
+    )
   },
-});
+})
 
-export default withRouter(Header);
+export default withRouter(Header)

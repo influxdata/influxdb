@@ -1,2 +1,2 @@
-import KubernetesPage from './containers/KubernetesPage';
-export {KubernetesPage};
+import KubernetesPage from './containers/KubernetesPage'
+export {KubernetesPage}

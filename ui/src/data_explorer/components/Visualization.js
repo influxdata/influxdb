@@ -1,20 +1,20 @@
-import React, {PropTypes} from 'react';
-import buildInfluxQLQuery from 'utils/influxql';
-import classNames from 'classnames';
-import AutoRefresh from 'shared/components/AutoRefresh';
-import LineGraph from 'shared/components/LineGraph';
-import SingleStat from 'shared/components/SingleStat';
-import MultiTable from './MultiTable';
+import React, {PropTypes} from 'react'
+import buildInfluxQLQuery from 'utils/influxql'
+import classNames from 'classnames'
+import AutoRefresh from 'shared/components/AutoRefresh'
+import LineGraph from 'shared/components/LineGraph'
+import SingleStat from 'shared/components/SingleStat'
+import MultiTable from './MultiTable'
 
-const RefreshingLineGraph = AutoRefresh(LineGraph);
-const RefreshingSingleStat = AutoRefresh(SingleStat);
+const RefreshingLineGraph = AutoRefresh(LineGraph)
+const RefreshingSingleStat = AutoRefresh(SingleStat)
 
 const {
   arrayOf,
   number,
   shape,
   string,
-} = PropTypes;
+} = PropTypes
 
 const Visualization = React.createClass({
   propTypes: {
@@ -42,16 +42,16 @@ const Visualization = React.createClass({
   getInitialState() {
     return {
       isGraphInView: true,
-    };
+    }
   },
 
   handleToggleView() {
-    this.setState({isGraphInView: !this.state.isGraphInView});
+    this.setState({isGraphInView: !this.state.isGraphInView})
   },
 
   renderGraph(queries) {
     const {cellType, autoRefresh, activeQueryIndex} = this.props
-    const isInDataExplorer = true;
+    const isInDataExplorer = true
 
     if (cellType === 'single-stat') {
       return <RefreshingSingleStat queries={[queries[0]]} autoRefresh={autoRefresh} />
@@ -74,18 +74,18 @@ const Visualization = React.createClass({
   },
 
   render() {
-    const {queryConfigs, timeRange, height, heightPixels} = this.props;
-    const {source} = this.context;
-    const proxyLink = source.links.proxy;
+    const {queryConfigs, timeRange, height, heightPixels} = this.props
+    const {source} = this.context
+    const proxyLink = source.links.proxy
 
-    const {isGraphInView} = this.state;
+    const {isGraphInView} = this.state
     const statements = queryConfigs.map((query) => {
-      const text = query.rawText || buildInfluxQLQuery(timeRange, query);
-      return {text, id: query.id};
-    });
+      const text = query.rawText || buildInfluxQLQuery(timeRange, query)
+      return {text, id: query.id}
+    })
     const queries = statements.filter((s) => s.text !== null).map((s) => {
-      return {host: [proxyLink], text: s.text, id: s.id};
-    });
+      return {host: [proxyLink], text: s.text, id: s.id}
+    })
 
     return (
       <div className={classNames("graph", {active: true})} style={{height}}>
@@ -106,8 +106,8 @@ const Visualization = React.createClass({
             <MultiTable queries={queries} height={heightPixels} />}
         </div>
       </div>
-    );
+    )
   },
-});
+})
 
-export default Visualization;
+export default Visualization

@@ -4,11 +4,11 @@ export function receiveMe(me) {
     payload: {
       me,
     },
-  };
+  }
 }
 
 export function logout() {
   return {
     type: 'LOGOUT',
-  };
+  }
 }

@@ -1,8 +1,8 @@
-import React, {PropTypes} from 'react';
-import classnames from 'classnames';
-import OnClickOutside from 'shared/components/OnClickOutside';
+import React, {PropTypes} from 'react'
+import classnames from 'classnames'
+import OnClickOutside from 'shared/components/OnClickOutside'
 
-import autoRefreshItems from 'hson!../data/autoRefreshes.hson';
+import autoRefreshItems from 'hson!../data/autoRefreshes.hson'
 
 const {
   number,
@@ -20,7 +20,7 @@ const AutoRefreshDropdown = React.createClass({
   getInitialState() {
     return {
       isOpen: false,
-    };
+    }
   },
 
   findAutoRefreshItem(milliseconds) {
@@ -28,22 +28,22 @@ const AutoRefreshDropdown = React.createClass({
   },
 
   handleClickOutside() {
-    this.setState({isOpen: false});
+    this.setState({isOpen: false})
   },
 
   handleSelection(milliseconds) {
-    this.props.onChoose(milliseconds);
-    this.setState({isOpen: false});
+    this.props.onChoose(milliseconds)
+    this.setState({isOpen: false})
   },
 
   toggleMenu() {
-    this.setState({isOpen: !this.state.isOpen});
+    this.setState({isOpen: !this.state.isOpen})
   },
 
   render() {
-    const self = this;
-    const {selected} = self.props;
-    const {isOpen} = self.state;
+    const self = this
+    const {selected} = self.props
+    const {isOpen} = self.state
     const {milliseconds, inputValue} = this.findAutoRefreshItem(selected)
 
     return (
@@ -62,12 +62,12 @@ const AutoRefreshDropdown = React.createClass({
                   {item.menuOption}
                 </a>
               </li>
-            );
+            )
           })}
         </ul>
       </div>
-    );
+    )
   },
-});
+})
 
-export default OnClickOutside(AutoRefreshDropdown);
+export default OnClickOutside(AutoRefreshDropdown)

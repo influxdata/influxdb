@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 
 const HipchatConfig = React.createClass({
   propTypes: {
@@ -13,20 +13,20 @@ const HipchatConfig = React.createClass({
   },
 
   handleSaveAlert(e) {
-    e.preventDefault();
+    e.preventDefault()
 
     const properties = {
       room: this.room.value,
       url: this.url.value,
       token: this.token.value,
-    };
+    }
 
-    this.props.onSave(properties);
+    this.props.onSave(properties)
   },
 
   render() {
-    const {options} = this.props.config;
-    const {url, room, token} = options;
+    const {options} = this.props.config
+    const {url, room, token} = options
 
     return (
       <div>
@@ -55,8 +55,8 @@ const HipchatConfig = React.createClass({
           </div>
         </form>
       </div>
-    );
+    )
   },
-});
+})
 
-export default HipchatConfig;
+export default HipchatConfig

@@ -1,13 +1,13 @@
-import React, {PropTypes} from 'react';
-import {withRouter} from 'react-router';
-import {connect} from 'react-redux';
-import _ from 'lodash';
-import * as kapacitorActionCreators from '../actions/view';
-import * as queryActionCreators from '../../data_explorer/actions/view';
-import {bindActionCreators} from 'redux';
-import {getKapacitor, getKapacitorConfig} from 'shared/apis/index';
-import {ALERTS, DEFAULT_RULE_ID} from 'src/kapacitor/constants';
-import KapacitorRule from 'src/kapacitor/components/KapacitorRule';
+import React, {PropTypes} from 'react'
+import {withRouter} from 'react-router'
+import {connect} from 'react-redux'
+import _ from 'lodash'
+import * as kapacitorActionCreators from '../actions/view'
+import * as queryActionCreators from '../../data_explorer/actions/view'
+import {bindActionCreators} from 'redux'
+import {getKapacitor, getKapacitorConfig} from 'shared/apis/index'
+import {ALERTS, DEFAULT_RULE_ID} from 'src/kapacitor/constants'
+import KapacitorRule from 'src/kapacitor/components/KapacitorRule'
 
 export const KapacitorRulePage = React.createClass({
   propTypes: {
@@ -42,42 +42,42 @@ export const KapacitorRulePage = React.createClass({
     return {
       enabledAlerts: [],
       kapacitor: {},
-    };
+    }
   },
 
   componentDidMount() {
-    const {params, source, kapacitorActions, addFlashMessage} = this.props;
+    const {params, source, kapacitorActions, addFlashMessage} = this.props
     if (this.isEditing()) {
-      kapacitorActions.fetchRule(source, params.ruleID);
+      kapacitorActions.fetchRule(source, params.ruleID)
     } else {
-      kapacitorActions.loadDefaultRule();
+      kapacitorActions.loadDefaultRule()
     }
 
     getKapacitor(source).then((kapacitor) => {
-      this.setState({kapacitor});
+      this.setState({kapacitor})
       getKapacitorConfig(kapacitor).then(({data: {sections}}) => {
         const enabledAlerts = Object.keys(sections).filter((section) => {
-          return _.get(sections, [section, 'elements', '0', 'options', 'enabled'], false) && ALERTS.includes(section);
-        });
-        this.setState({enabledAlerts});
+          return _.get(sections, [section, 'elements', '0', 'options', 'enabled'], false) && ALERTS.includes(section)
+        })
+        this.setState({enabledAlerts})
       }).catch(() => {
-        addFlashMessage({type: 'error', text: `There was a problem communicating with Kapacitor`});
+        addFlashMessage({type: 'error', text: `There was a problem communicating with Kapacitor`})
       }).catch(() => {
-        addFlashMessage({type: 'error', text: `We couldn't find a configured Kapacitor for this source`});
-      });
-    });
+        addFlashMessage({type: 'error', text: `We couldn't find a configured Kapacitor for this source`})
+      })
+    })
   },
 
   render() {
     const {rules, queryConfigs, params, kapacitorActions,
-      source, queryActions, addFlashMessage, router} = this.props;
-    const {enabledAlerts, kapacitor} = this.state;
+      source, queryActions, addFlashMessage, router} = this.props
+    const {enabledAlerts, kapacitor} = this.state
 
-    const rule = this.isEditing() ? rules[params.ruleID] : rules[DEFAULT_RULE_ID];
-    const query = rule && queryConfigs[rule.queryID];
+    const rule = this.isEditing() ? rules[params.ruleID] : rules[DEFAULT_RULE_ID]
+    const query = rule && queryConfigs[rule.queryID]
 
     if (!query) {
-      return <div className="page-spinner"></div>;
+      return <div className="page-spinner"></div>
     }
 
     return (
@@ -94,27 +94,27 @@ export const KapacitorRulePage = React.createClass({
         router={router}
         kapacitor={kapacitor}
       />
-    );
+    )
   },
 
   isEditing() {
-    const {params} = this.props;
-    return params.ruleID && params.ruleID !== 'new';
+    const {params} = this.props
+    return params.ruleID && params.ruleID !== 'new'
   },
-});
+})
 
 function mapStateToProps(state) {
   return {
     rules: state.rules,
     queryConfigs: state.queryConfigs,
-  };
+  }
 }
 
 function mapDispatchToProps(dispatch) {
   return {
     kapacitorActions: bindActionCreators(kapacitorActionCreators, dispatch),
     queryActions: bindActionCreators(queryActionCreators, dispatch),
-  };
+  }
 }
 
-export default connect(mapStateToProps, mapDispatchToProps)(withRouter(KapacitorRulePage));
+export default connect(mapStateToProps, mapDispatchToProps)(withRouter(KapacitorRulePage))

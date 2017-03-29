@@ -1,6 +1,6 @@
-import React, {PropTypes} from 'react';
-import Table from './Table';
-import classNames from 'classnames';
+import React, {PropTypes} from 'react'
+import Table from './Table'
+import classNames from 'classnames'
 
 const {
   arrayOf,
@@ -9,7 +9,7 @@ const {
   number,
   shape,
   string,
-} = PropTypes;
+} = PropTypes
 
 const MultiTable = React.createClass({
   propTypes: {
@@ -23,19 +23,19 @@ const MultiTable = React.createClass({
   getInitialState() {
     return {
       activeQueryId: null,
-    };
+    }
   },
 
   getActiveQuery() {
-    const {queries} = this.props;
-    const activeQuery = queries.find((query) => query.id === this.state.activeQueryId);
-    const defaultQuery = queries[0];
+    const {queries} = this.props
+    const activeQuery = queries.find((query) => query.id === this.state.activeQueryId)
+    const defaultQuery = queries[0]
 
-    return activeQuery || defaultQuery;
+    return activeQuery || defaultQuery
   },
 
   handleSetActiveTable(query) {
-    this.setState({activeQueryId: query.id});
+    this.setState({activeQueryId: query.id})
   },
 
   render() {
@@ -44,22 +44,22 @@ const MultiTable = React.createClass({
         {this.renderTabs()}
         {this.renderTable()}
       </div>
-    );
+    )
   },
 
   renderTable() {
-    const {height} = this.props;
-    const query = this.getActiveQuery();
-    const noQuery = !query || !query.text;
+    const {height} = this.props
+    const query = this.getActiveQuery()
+    const noQuery = !query || !query.text
     if (noQuery) {
-      return null;
+      return null
     }
 
-    return <Table key={query.text} query={query} height={height} />;
+    return <Table key={query.text} query={query} height={height} />
   },
 
   renderTabs() {
-    const {queries} = this.props;
+    const {queries} = this.props
     return (
       <div className="multi-table__tabs">
         {queries.map((q) => {
@@ -70,12 +70,12 @@ const MultiTable = React.createClass({
               query={q}
               onSelect={this.handleSetActiveTable}
             />
-          );
+          )
         })}
       </div>
-    );
+    )
   },
-});
+})
 
 const TabItem = React.createClass({
   propTypes: {
@@ -89,17 +89,17 @@ const TabItem = React.createClass({
   },
 
   handleSelect() {
-    this.props.onSelect(this.props.query);
+    this.props.onSelect(this.props.query)
   },
 
   render() {
-    const {isActive} = this.props;
+    const {isActive} = this.props
     return (
       <div className={classNames("multi-table__tab", {active: isActive})} onClick={this.handleSelect}>
         {"Query"}
       </div>
-    );
+    )
   },
-});
+})
 
-export default MultiTable;
+export default MultiTable

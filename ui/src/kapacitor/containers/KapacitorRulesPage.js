@@ -7,7 +7,7 @@ import KapacitorRules from 'src/kapacitor/components/KapacitorRules'
 
 class KapacitorRulesPage extends Component {
   constructor(props) {
-    super(props);
+    super(props)
     this.state = {
       hasKapacitor: false,
       loading: true,
@@ -20,10 +20,10 @@ class KapacitorRulesPage extends Component {
   componentDidMount() {
     getKapacitor(this.props.source).then((kapacitor) => {
       if (kapacitor) {
-        this.props.actions.fetchRules(kapacitor);
+        this.props.actions.fetchRules(kapacitor)
       }
-      this.setState({loading: false, hasKapacitor: !!kapacitor});
-    });
+      this.setState({loading: false, hasKapacitor: !!kapacitor})
+    })
   }
 
   handleDeleteRule(rule) {

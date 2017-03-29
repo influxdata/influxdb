@@ -1,13 +1,13 @@
 export const loadLocalStorage = () => {
   try {
-    const serializedState = localStorage.getItem('state');
+    const serializedState = localStorage.getItem('state')
 
-    return JSON.parse(serializedState) || {};
+    return JSON.parse(serializedState) || {}
   } catch (err) {
-    console.error(`Loading persisted state failed: ${err}`); // eslint-disable-line no-console
-    return {};
+    console.error(`Loading persisted state failed: ${err}`) // eslint-disable-line no-console
+    return {}
   }
-};
+}
 
 export const saveToLocalStorage = ({app: {persisted}, queryConfigs, timeRange, dataExplorer}) => {
   try {
@@ -18,8 +18,8 @@ export const saveToLocalStorage = ({app: {persisted}, queryConfigs, timeRange, d
       queryConfigs,
       timeRange,
       dataExplorer,
-    }));
+    }))
   } catch (err) {
-    console.error('Unable to save data explorer: ', JSON.parse(err)); // eslint-disable-line no-console
+    console.error('Unable to save data explorer: ', JSON.parse(err)) // eslint-disable-line no-console
   }
-};
+}

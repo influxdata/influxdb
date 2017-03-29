@@ -1,10 +1,10 @@
-import React from 'react';
-import classnames from 'classnames';
-import OnClickOutside from 'shared/components/OnClickOutside';
+import React from 'react'
+import classnames from 'classnames'
+import OnClickOutside from 'shared/components/OnClickOutside'
 
-import moment from 'moment';
+import moment from 'moment'
 
-import timeRanges from 'hson!../data/timeRanges.hson';
+import timeRanges from 'hson!../data/timeRanges.hson'
 
 const TimeRangeDropdown = React.createClass({
   autobind: false,
@@ -17,41 +17,41 @@ const TimeRangeDropdown = React.createClass({
   getInitialState() {
     return {
       isOpen: false,
-    };
+    }
   },
 
   findTimeRangeInputValue({upper, lower}) {
     if (upper && lower) {
-      const format = (t) => moment(t.replace(/\'/g, '')).format('YYYY-MM-DD HH:mm');
-      return `${format(lower)} - ${format(upper)}`;
+      const format = (t) => moment(t.replace(/\'/g, '')).format('YYYY-MM-DD HH:mm')
+      return `${format(lower)} - ${format(upper)}`
     }
 
-    const selected = timeRanges.find((range) => range.lower === lower);
-    return selected ? selected.inputValue : 'Custom';
+    const selected = timeRanges.find((range) => range.lower === lower)
+    return selected ? selected.inputValue : 'Custom'
   },
 
   handleClickOutside() {
-    this.setState({isOpen: false});
+    this.setState({isOpen: false})
   },
 
   handleSelection(params) {
-    const {lower, upper, menuOption} = params;
+    const {lower, upper, menuOption} = params
     if (menuOption.toLowerCase() === 'custom') {
-      this.props.onChooseTimeRange({custom: true});
+      this.props.onChooseTimeRange({custom: true})
     } else {
-      this.props.onChooseTimeRange({lower, upper});
+      this.props.onChooseTimeRange({lower, upper})
     }
-    this.setState({isOpen: false});
+    this.setState({isOpen: false})
   },
 
   toggleMenu() {
-    this.setState({isOpen: !this.state.isOpen});
+    this.setState({isOpen: !this.state.isOpen})
   },
 
   render() {
-    const self = this;
-    const {selected} = self.props;
-    const {isOpen} = self.state;
+    const self = this
+    const {selected} = self.props
+    const {isOpen} = self.state
 
     return (
       <div className="dropdown time-range-dropdown">
@@ -69,12 +69,12 @@ const TimeRangeDropdown = React.createClass({
                   {item.menuOption}
                 </a>
               </li>
-            );
+            )
           })}
         </ul>
       </div>
-    );
+    )
   },
-});
+})
 
-export default OnClickOutside(TimeRangeDropdown);
+export default OnClickOutside(TimeRangeDropdown)

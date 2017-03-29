@@ -132,4 +132,4 @@ const ContextMenu = OnClickOutside(({isOpen, toggleMenu, onEdit, onDelete, cell}
     </ul>
   </div>
 ))
-export default NameableGraph;
+export default NameableGraph

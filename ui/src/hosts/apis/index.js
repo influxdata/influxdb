@@ -1,6 +1,6 @@
-import {proxy} from 'utils/queryUrlGenerator';
-import AJAX from 'utils/ajax';
-import _ from 'lodash';
+import {proxy} from 'utils/queryUrlGenerator'
+import AJAX from 'utils/ajax'
+import _ from 'lodash'
 
 export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
   return proxy({
@@ -8,14 +8,14 @@ export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
     query: `select mean(usage_user) from cpu where cpu = 'cpu-total' and time > now() - 10m group by host; select mean("load1") from "system" where time > now() - 10m group by host;  select mean("Percent_Processor_Time") from win_cpu where time > now() - 10m group by host; select mean("Processor_Queue_Length") from win_system where time > now() - 10s group by host; select non_negative_derivative(mean(uptime)) as deltaUptime from "system" where time > now() - 10m group by host, time(1m) fill(0); show tag values from /win_system|system/ with key = "host"`,
     db: telegrafDB,
   }).then((resp) => {
-    const hosts = {};
-    const precision = 100;
-    const cpuSeries = _.get(resp, ['data', 'results', '0', 'series'], []);
-    const loadSeries = _.get(resp, ['data', 'results', '1', 'series'], []);
-    const winCPUSeries = _.get(resp, ['data', 'results', '2', 'series'], []);
-    const winLoadSeries = _.get(resp, ['data', 'results', '3', 'series'], []);
-    const uptimeSeries = _.get(resp, ['data', 'results', '4', 'series'], []);
-    const allHostsSeries = _.get(resp, ['data', 'results', '5', 'series'], []);
+    const hosts = {}
+    const precision = 100
+    const cpuSeries = _.get(resp, ['data', 'results', '0', 'series'], [])
+    const loadSeries = _.get(resp, ['data', 'results', '1', 'series'], [])
+    const winCPUSeries = _.get(resp, ['data', 'results', '2', 'series'], [])
+    const winLoadSeries = _.get(resp, ['data', 'results', '3', 'series'], [])
+    const uptimeSeries = _.get(resp, ['data', 'results', '4', 'series'], [])
+    const allHostsSeries = _.get(resp, ['data', 'results', '5', 'series'], [])
 
     allHostsSeries.forEach((s) => {
       const hostnameIndex = s.columns.findIndex((col) => col === 'value')
@@ -31,38 +31,38 @@ export function getCpuAndLoadForHosts(proxyLink, telegrafDB) {
     })
 
     cpuSeries.forEach((s) => {
-      const meanIndex = s.columns.findIndex((col) => col === 'mean');
+      const meanIndex = s.columns.findIndex((col) => col === 'mean')
       hosts[s.tags.host] = {
         name: s.tags.host,
         cpu: (Math.round(s.values[0][meanIndex] * precision) / precision),
-      };
-    });
+      }
+    })
 
     loadSeries.forEach((s) => {
-      const meanIndex = s.columns.findIndex((col) => col === 'mean');
-      hosts[s.tags.host].load = (Math.round(s.values[0][meanIndex] * precision) / precision);
-    });
+      const meanIndex = s.columns.findIndex((col) => col === 'mean')
+      hosts[s.tags.host].load = (Math.round(s.values[0][meanIndex] * precision) / precision)
+    })
 
     uptimeSeries.forEach((s) => {
-      const uptimeIndex = s.columns.findIndex((col) => col === 'deltaUptime');
-      hosts[s.tags.host].deltaUptime = s.values[s.values.length - 1][uptimeIndex];
-    });
+      const uptimeIndex = s.columns.findIndex((col) => col === 'deltaUptime')
+      hosts[s.tags.host].deltaUptime = s.values[s.values.length - 1][uptimeIndex]
+    })
 
     winCPUSeries.forEach((s) => {
-      const meanIndex = s.columns.findIndex((col) => col === 'mean');
+      const meanIndex = s.columns.findIndex((col) => col === 'mean')
       hosts[s.tags.host] = {
         name: s.tags.host,
         cpu: (Math.round(s.values[0][meanIndex] * precision) / precision),
-      };
-    });
+      }
+    })
 
     winLoadSeries.forEach((s) => {
-      const meanIndex = s.columns.findIndex((col) => col === 'mean');
-      hosts[s.tags.host].load = (Math.round(s.values[0][meanIndex] * precision) / precision);
-    });
+      const meanIndex = s.columns.findIndex((col) => col === 'mean')
+      hosts[s.tags.host].load = (Math.round(s.values[0][meanIndex] * precision) / precision)
+    })
 
-    return hosts;
-  });
+    return hosts
+  })
 }
 
 export async function getAllHosts(proxyLink, telegrafDB) {
@@ -71,7 +71,7 @@ export async function getAllHosts(proxyLink, telegrafDB) {
       source: proxyLink,
       query: 'show tag values from /win_system|system/ with key = "host"',
       db: telegrafDB,
-    });
+    })
     const hosts = {}
     const allHostsSeries = _.get(resp, ['data', 'results', '0', 'series'], [])
 
@@ -95,39 +95,39 @@ export function getMappings() {
   return AJAX({
     method: 'GET',
     resource: 'mappings',
-  });
+  })
 }
 
 export function getAppsForHosts(proxyLink, hosts, appMappings, telegrafDB) {
-  const measurements = appMappings.map((m) => `^${m.measurement}$`).join('|');
-  const measurementsToApps = _.zipObject(appMappings.map(m => m.measurement), appMappings.map(m => m.name));
+  const measurements = appMappings.map((m) => `^${m.measurement}$`).join('|')
+  const measurementsToApps = _.zipObject(appMappings.map(m => m.measurement), appMappings.map(m => m.name))
   return proxy({
     source: proxyLink,
     query: `show series from /${measurements}/`,
     db: telegrafDB,
   }).then((resp) => {
-    const newHosts = Object.assign({}, hosts);
-    const allSeries = _.get(resp, ['data', 'results', '0', 'series', '0', 'values'], []);
+    const newHosts = Object.assign({}, hosts)
+    const allSeries = _.get(resp, ['data', 'results', '0', 'series', '0', 'values'], [])
     allSeries.forEach(([series]) => {
-      const seriesObj = parseSeries(series);
-      const measurement = seriesObj.measurement;
-      const host = seriesObj.tags.host;
+      const seriesObj = parseSeries(series)
+      const measurement = seriesObj.measurement
+      const host = seriesObj.tags.host
 
       if (!newHosts[host]) {
-        return;
+        return
       }
       if (!newHosts[host].apps) {
-        newHosts[host].apps = [];
+        newHosts[host].apps = []
       }
       if (!newHosts[host].tags) {
-        newHosts[host].tags = {};
+        newHosts[host].tags = {}
       }
-      newHosts[host].apps = _.uniq(newHosts[host].apps.concat(measurementsToApps[measurement]));
-      _.assign(newHosts[host].tags, seriesObj.tags);
-    });
+      newHosts[host].apps = _.uniq(newHosts[host].apps.concat(measurementsToApps[measurement]))
+      _.assign(newHosts[host].tags, seriesObj.tags)
+    })
 
-    return newHosts;
-  });
+    return newHosts
+  })
 }
 
 export function getMeasurementsForHost(source, host) {
@@ -137,63 +137,63 @@ export function getMeasurementsForHost(source, host) {
     db: source.telegraf,
   }).then(({data}) => {
     if (_isEmpty(data) || _hasError(data)) {
-      return [];
+      return []
     }
 
-    const series = data.results[0].series[0];
+    const series = data.results[0].series[0]
     return series.values.map((measurement) => {
-      return measurement[0];
-    });
-  });
+      return measurement[0]
+    })
+  })
 }
 
 function parseSeries(series) {
-  const ident = /\w+/;
-  const tag = /,?([^=]+)=([^,]+)/;
+  const ident = /\w+/
+  const tag = /,?([^=]+)=([^,]+)/
 
   function parseMeasurement(s, obj) {
-    const match = ident.exec(s);
-    const measurement = match[0];
+    const match = ident.exec(s)
+    const measurement = match[0]
     if (measurement) {
-      obj.measurement = measurement;
+      obj.measurement = measurement
     }
-    return s.slice(match.index + measurement.length);
+    return s.slice(match.index + measurement.length)
   }
 
   function parseTag(s, obj) {
-    const match = tag.exec(s);
+    const match = tag.exec(s)
 
-    const kv = match[0];
-    const key = match[1];
-    const value = match[2];
+    const kv = match[0]
+    const key = match[1]
+    const value = match[2]
 
     if (key) {
       if (!obj.tags) {
-        obj.tags = {};
+        obj.tags = {}
       }
-      obj.tags[key] = value;
+      obj.tags[key] = value
     }
-    return s.slice(match.index + kv.length);
+    return s.slice(match.index + kv.length)
   }
 
-  let workStr = series.slice();
-  const out = {};
+  let workStr = series.slice()
+  const out = {}
 
   // Consume measurement
-  workStr = parseMeasurement(workStr, out);
+  workStr = parseMeasurement(workStr, out)
 
   // Consume tags
   while (workStr.length > 0) {
-    workStr = parseTag(workStr, out);
+    workStr = parseTag(workStr, out)
   }
 
-  return out;
+  return out
 }
 
 function _isEmpty(resp) {
-  return !resp.results[0].series;
+  return !resp.results[0].series
 }
 
 function _hasError(resp) {
-  return !!resp.results[0].error;
+  return !!resp.results[0].error
 }

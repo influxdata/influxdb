@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 
 const SensuConfig = React.createClass({
   propTypes: {
@@ -12,18 +12,18 @@ const SensuConfig = React.createClass({
   },
 
   handleSaveAlert(e) {
-    e.preventDefault();
+    e.preventDefault()
 
     const properties = {
       source: this.source.value,
       addr: this.addr.value,
-    };
+    }
 
-    this.props.onSave(properties);
+    this.props.onSave(properties)
   },
 
   render() {
-    const {source, addr} = this.props.config.options;
+    const {source, addr} = this.props.config.options
 
     return (
       <div>
@@ -46,8 +46,8 @@ const SensuConfig = React.createClass({
           </div>
         </form>
       </div>
-    );
+    )
   },
-});
+})
 
-export default SensuConfig;
+export default SensuConfig

@@ -4,5 +4,5 @@ export function receiveAuth(auth) {
     payload: {
       auth,
     },
-  };
+  }
 }

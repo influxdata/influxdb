@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 
 const SMTPConfig = React.createClass({
   propTypes: {
@@ -15,7 +15,7 @@ const SMTPConfig = React.createClass({
   },
 
   handleSaveAlert(e) {
-    e.preventDefault();
+    e.preventDefault()
 
     const properties = {
       host: this.host.value,
@@ -23,13 +23,13 @@ const SMTPConfig = React.createClass({
       from: this.from.value,
       username: this.username.value,
       password: this.password.value,
-    };
+    }
 
-    this.props.onSave(properties);
+    this.props.onSave(properties)
   },
 
   render() {
-    const {host, port, from, username, password} = this.props.config.options;
+    const {host, port, from, username, password} = this.props.config.options
 
     return (
       <div>
@@ -67,8 +67,8 @@ const SMTPConfig = React.createClass({
           </div>
         </form>
       </div>
-    );
+    )
   },
-});
+})
 
-export default SMTPConfig;
+export default SMTPConfig

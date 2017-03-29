@@ -1,5 +1,5 @@
-import React, {PropTypes} from 'react';
-import classNames from 'classnames';
+import React, {PropTypes} from 'react'
+import classNames from 'classnames'
 
 const QueryTabItem = React.createClass({
   propTypes: {
@@ -18,7 +18,7 @@ const QueryTabItem = React.createClass({
   },
 
   handleDelete(e) {
-    e.stopPropagation();
+    e.stopPropagation()
     this.props.onDelete(this.props.queryIndex)
   },
 
@@ -28,8 +28,8 @@ const QueryTabItem = React.createClass({
         <span className="query-builder--tab-label">{this.props.queryTabText}</span>
         <span className="query-builder--tab-delete" onClick={this.handleDelete}></span>
       </div>
-    );
+    )
   },
-});
+})
 
-export default QueryTabItem;
+export default QueryTabItem

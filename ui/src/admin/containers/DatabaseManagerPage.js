@@ -4,7 +4,7 @@ import {bindActionCreators} from 'redux'
 
 import * as adminActionCreators from 'src/admin/actions'
 import DatabaseManager from 'src/admin/components/DatabaseManager'
-import {publishNotification} from 'src/shared/actions/notifications';
+import {publishNotification} from 'src/shared/actions/notifications'
 
 class DatabaseManagerPage extends Component {
   constructor(props) {

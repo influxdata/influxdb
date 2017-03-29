@@ -1,8 +1,8 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 
-import QueryEditor from './QueryEditor';
-import QueryTabItem from './QueryTabItem';
-import SimpleDropdown from 'src/shared/components/SimpleDropdown';
+import QueryEditor from './QueryEditor'
+import QueryTabItem from './QueryTabItem'
+import SimpleDropdown from 'src/shared/components/SimpleDropdown'
 
 const {
   arrayOf,
@@ -11,7 +11,7 @@ const {
   number,
   shape,
   string,
-} = PropTypes;
+} = PropTypes
 
 const QueryBuilder = React.createClass({
   propTypes: {
@@ -40,7 +40,7 @@ const QueryBuilder = React.createClass({
   },
 
   handleSetActiveQueryIndex(index) {
-    this.props.setActiveQueryIndex(index);
+    this.props.setActiveQueryIndex(index)
   },
 
   handleAddQuery() {
@@ -64,18 +64,18 @@ const QueryBuilder = React.createClass({
   },
 
   render() {
-    const {height, top} = this.props;
+    const {height, top} = this.props
     return (
       <div className="query-builder" style={{height, top}}>
         {this.renderQueryTabList()}
         {this.renderQueryEditor()}
       </div>
-    );
+    )
   },
 
   renderQueryEditor() {
-    const {timeRange, actions} = this.props;
-    const query = this.getActiveQuery();
+    const {timeRange, actions} = this.props
+    const query = this.getActiveQuery()
 
     if (!query) {
       return (
@@ -84,7 +84,7 @@ const QueryBuilder = React.createClass({
           <br/>
           <div className="btn btn-primary" role="button" onClick={this.handleAddQuery}>Add a Query</div>
         </div>
-      );
+      )
     }
 
     return (
@@ -94,11 +94,11 @@ const QueryBuilder = React.createClass({
         actions={actions}
         onAddQuery={this.handleAddQuery}
       />
-    );
+    )
   },
 
   renderQueryTabList() {
-    const {queries, activeQueryIndex, onDeleteQuery} = this.props;
+    const {queries, activeQueryIndex, onDeleteQuery} = this.props
     return (
       <div className="query-builder--tabs">
         <div className="query-builder--tabs-heading">
@@ -106,11 +106,11 @@ const QueryBuilder = React.createClass({
           {this.renderAddQuery()}
         </div>
         {queries.map((q, i) => {
-          let queryTabText;
+          let queryTabText
           if (q.rawText) {
-            queryTabText = 'InfluxQL';
+            queryTabText = 'InfluxQL'
           } else {
-            queryTabText = (q.measurement && q.fields.length !== 0) ? `${q.measurement}.${q.fields[0].field}` : 'Query';
+            queryTabText = (q.measurement && q.fields.length !== 0) ? `${q.measurement}.${q.fields[0].field}` : 'Query'
           }
           return (
             <QueryTabItem
@@ -122,21 +122,21 @@ const QueryBuilder = React.createClass({
               onDelete={onDeleteQuery}
               queryTabText={queryTabText}
             />
-          );
+          )
         })}
         {this.props.children}
       </div>
-    );
+    )
   },
 
   onChoose(item) {
     switch (item.text) {
       case 'Query Builder':
-        this.handleAddQuery();
-        break;
+        this.handleAddQuery()
+        break
       case 'InfluxQL':
-        this.handleAddRawQuery();
-        break;
+        this.handleAddRawQuery()
+        break
     }
   },
 
@@ -145,8 +145,8 @@ const QueryBuilder = React.createClass({
       <SimpleDropdown onChoose={this.onChoose} items={[{text: 'Query Builder'}, {text: 'InfluxQL'}]} className="panel--tab-new">
         <span className="icon plus"></span>
       </SimpleDropdown>
-    );
+    )
   },
-});
+})
 
 export default QueryBuilder

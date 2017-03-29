@@ -1,2 +1,2 @@
-import AdminPage from './containers/AdminPage';
-export {AdminPage};
+import AdminPage from './containers/AdminPage'
+export {AdminPage}
