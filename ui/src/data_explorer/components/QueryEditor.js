@@ -12,6 +12,7 @@ const {
   shape,
   func,
 } = PropTypes
+
 const QueryEditor = React.createClass({
   propTypes: {
     query: shape({
