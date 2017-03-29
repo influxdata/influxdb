@@ -16,11 +16,13 @@ class CustomTimeRange extends Component {
   }
 
   componentDidMount() {
-    const lower = rome(this.timeLower, {
-      initialValue: this._formatTimeRange(this.props.timeLower),
+    const {timeRange} = this.props
+
+    const lower = rome(this.lower, {
+      initialValue: this._formatTimeRange(timeRange.lower),
     })
-    const upper = rome(this.timeUpper, {
-      initialValue: this._formatTimeRange(this.props.timeUpper),
+    const upper = rome(this.upper, {
+      initialValue: this._formatTimeRange(timeRange.upper),
     })
 
     this.lowerCal = lower
@@ -40,18 +42,18 @@ class CustomTimeRange extends Component {
   }
 
   render() {
-    const {isVisible, onToggle} = this.props
+    const {isVisible, onToggle, timeRange: {upper, lower}} = this.props
 
     return (
       <div className={classNames("custom-time-range", {show: isVisible})} style={{display: 'flex'}}>
         <button className="btn btn-sm btn-info" onClick={onToggle}>
           <span className="icon clock"></span>
-          sfsfsdfsf
+          {`${moment(lower).format('MMM Do HH:mm')} to ${moment(upper).format('MMM Do HH:mm')}`}
           <span className="caret"></span>
         </button>
         <div className="custom-time-container">
-          <div className="time-lower" ref={(r) => this.timeLower = r} />
-          <div className="time-upper" ref={(r) => this.timeUpper = r} />
+          <div className="time-lower" ref={(r) => this.lower = r} />
+          <div className="time-upper" ref={(r) => this.upper = r} />
           <div className="apply-time button" onClick={this.handleClick}>Apply</div>
         </div>
       </div>
@@ -90,13 +92,16 @@ class CustomTimeRange extends Component {
 const {
   bool,
   func,
+  shape,
   string,
 } = PropTypes
 
 CustomTimeRange.propTypes = {
   onApplyTimeRange: func.isRequired,
-  timeLower: string,
-  timeUpper: string,
+  timeRange: shape({
+    lower: string.isRequired,
+    upper: string.isRequired,
+  }).isRequired,
   isVisible: bool.isRequired,
   onToggle: func.isRequired,
   onClose: func.isRequired,
