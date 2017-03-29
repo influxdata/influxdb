@@ -106,10 +106,9 @@ export const deleteDashboardCell = (cell) => ({
 
 // Async Action Creators
 
-export const getDashboards = (dashboardID) => (dispatch) => {
-  getDashboardsAJAX().then(({data: {dashboards}}) => {
-    dispatch(loadDashboards(dashboards, dashboardID))
-  })
+export const getDashboardsAsync = (dashboardID) => async (dispatch) => {
+  const {data: {dashboards}} = await getDashboardsAJAX()
+  dispatch(loadDashboards(dashboards, dashboardID))
 }
 
 export const putDashboard = () => (dispatch, getState) => {

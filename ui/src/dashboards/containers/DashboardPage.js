@@ -39,7 +39,7 @@ const DashboardPage = React.createClass({
     }).isRequired,
     dashboardActions: shape({
       putDashboard: func.isRequired,
-      getDashboards: func.isRequired,
+      getDashboardsAsync: func.isRequired,
       setDashboard: func.isRequired,
       setTimeRange: func.isRequired,
       addDashboardCellAsync: func.isRequired,
@@ -84,10 +84,10 @@ const DashboardPage = React.createClass({
   componentDidMount() {
     const {
       params: {dashboardID},
-      dashboardActions: {getDashboards},
+      dashboardActions: {getDashboardsAsync},
     } = this.props;
 
-    getDashboards(dashboardID)
+    getDashboardsAsync(dashboardID)
   },
 
   componentWillReceiveProps(nextProps) {

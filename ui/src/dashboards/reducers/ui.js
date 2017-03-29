@@ -5,7 +5,7 @@ import timeRanges from 'hson!../../shared/data/timeRanges.hson';
 const {lower, upper} = timeRanges[1]
 
 const initialState = {
-  dashboards: [],
+  dashboards: null,
   dashboard: EMPTY_DASHBOARD,
   timeRange: {lower, upper},
   isEditMode: false,
