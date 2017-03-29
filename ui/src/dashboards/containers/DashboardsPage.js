@@ -53,7 +53,7 @@ const DashboardsPage = React.createClass({
   },
 
   render() {
-    const {dashboards: dashboards} = this.props
+    const {dashboards} = this.props
     const dashboardLink = `/sources/${this.props.source.id}`
     let tableHeader
     if (dashboards === null) {
