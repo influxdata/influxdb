@@ -6,6 +6,16 @@
 .custom-time-range {
   position: relative;
 }
+.btn.btn-sm.btn-info.custom-time-range--btn {
+  padding: 0 30px 0 9px !important;
+
+  .caret {
+    position: absolute;
+    right: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+}
 .custom-time-container {
   display: none;
   position: absolute;
@@ -14,8 +24,14 @@
   background: red;
   z-index: 1000;
 }
-.custom-time-range.show .custom-time-container {
-  display: block;
+.custom-time-range.show {
+  .custom-time-container {
+    display: block;
+  }
+  .custom-time-range--btn {
+    color: $g20-white;
+    background-color: $g6-smoke;
+  }
 }
 
 .rd-day-selected {
