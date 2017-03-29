@@ -57,7 +57,7 @@ class CustomTimeRange extends Component {
           <div className="apply-time button" onClick={this.handleClick}>Apply</div>
         </div>
       </div>
-    );
+    )
   }
 
   handleClick() {
@@ -74,18 +74,18 @@ class CustomTimeRange extends Component {
    */
   _formatTimeRange(timeRange) {
     if (!timeRange) {
-      return '';
+      return ''
     }
 
     // If the given time range is relative, create a fixed timestamp based on its value
     if (timeRange.match(/^now/)) {
-      const match = timeRange.match(/\d+\w/)[0];
-      const duration = match.slice(0, match.length - 1);
-      const unitOfTime = match[match.length - 1];
-      return moment().subtract(duration, unitOfTime);
+      const match = timeRange.match(/\d+\w/)[0]
+      const duration = match.slice(0, match.length - 1)
+      const unitOfTime = match[match.length - 1]
+      return moment().subtract(duration, unitOfTime)
     }
 
-    return moment(timeRange.replace(/\'/g, '')).format('YYYY-MM-DD HH:mm');
+    return moment(timeRange.replace(/\'/g, '')).format('YYYY-MM-DD HH:mm')
   }
 }
 
