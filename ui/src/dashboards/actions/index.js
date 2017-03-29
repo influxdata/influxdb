@@ -47,8 +47,8 @@ export const deleteDashboard = (dashboard) => ({
   },
 })
 
-export const undoDeleteDashboard = (dashboard) => ({
-  type: 'UNDO_DELETE_DASHBOARD',
+export const deleteDashboardFailed = (dashboard) => ({
+  type: 'DELETE_DASHBOARD_FAILED',
   payload: {
     dashboard,
   },
@@ -131,7 +131,7 @@ export const deleteDashboardAsync = (dashboard) => async (dispatch) => {
     await deleteDashboardAJAX(dashboard)
     dispatch(publishNotification('success', 'Dashboard deleted successfully.'))
   } catch (error) {
-    dispatch(undoDeleteDashboard(dashboard)) // undo optimistic update
+    dispatch(deleteDashboardFailed(dashboard))
     dispatch(publishNotification('error', `Failed to delete dashboard: ${error.data.message}.`))
   }
 }

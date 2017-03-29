@@ -57,7 +57,7 @@ export default function ui(state = initialState, action) {
       return {...state, ...newState}
     }
 
-    case 'UNDO_DELETE_DASHBOARD': {
+    case 'DELETE_DASHBOARD_FAILED': {
       const {dashboard} = action.payload
       const newState = {
         dashboards: [
