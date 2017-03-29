@@ -91,6 +91,7 @@ const DashboardsPage = React.createClass({
                       <thead>
                         <tr>
                           <th>Name</th>
+                          <th></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -116,6 +117,7 @@ const DashboardsPage = React.createClass({
                                 {'Kubernetes'}
                               </Link>
                             </td>
+                            <td></td>
                           </tr>
                       </tbody>
                     </table>
