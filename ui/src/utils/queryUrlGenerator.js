@@ -12,6 +12,7 @@ export const proxy = async ({source, query, db, rp}) => {
       },
     })
   } catch (error) {
-    console.error(error) // eslint-disable-line no-console
+    console.error(error)
+    throw error
   }
 }

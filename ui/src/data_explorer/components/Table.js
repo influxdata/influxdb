@@ -52,20 +52,22 @@ const ChronoTable = React.createClass({
     }
   },
 
-  fetchCellData(query) {
-    this.setState({isLoading: true})
+  async fetchCellData(query) {
+    this.setState({isLoading: true});
     // second param is db, we want to leave this blank
-    fetchTimeSeries(query.host, undefined, query.text).then((resp) => {
-      const cellData = _.get(resp.data, ['results', '0', 'series', '0'], false)
+    try {
+      const {data} = await fetchTimeSeries(query.host, undefined, query.text)
+      const cellData = _.get(data, ['results', '0', 'series', '0'], false);
+
       if (!cellData) {
         return this.setState({isLoading: false})
       }
 
-      this.setState({
-        cellData,
-        isLoading: false,
-      })
-    })
+      this.setState({cellData, isLoading: false})
+    } catch (error) {
+      console.error(error.message)
+      this.setState({error: error.message, isLoading: false})
+    }
   },
 
   componentDidMount() {
