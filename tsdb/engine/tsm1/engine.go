@@ -1365,7 +1365,7 @@ func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt
 	}
 
 	// Determine tagsets for this measurement based on dimensions and filters.
-	tagSets, err := e.index.TagSets([]byte(measurement), opt.Dimensions, opt.Condition)
+	tagSets, err := e.index.TagSets([]byte(measurement), opt)
 	if err != nil {
 		return nil, err
 	}
@@ -1383,6 +1383,14 @@ func (e *Engine) createCallIterator(measurement string, call *influxql.Call, opt
 	itrs := make([]influxql.Iterator, 0, len(tagSets))
 	if err := func() error {
 		for _, t := range tagSets {
+			// Abort if the query was killed
+			select {
+			case <-opt.InterruptCh:
+				influxql.Iterators(itrs).Close()
+				return err
+			default:
+			}
+
 			inputs, err := e.createTagSetIterators(ref, measurement, t, opt)
 			if err != nil {
 				return err
@@ -1426,7 +1434,7 @@ func (e *Engine) createVarRefIterator(measurement string, opt influxql.IteratorO
 	}
 
 	// Determine tagsets for this measurement based on dimensions and filters.
-	tagSets, err := e.index.TagSets([]byte(measurement), opt.Dimensions, opt.Condition)
+	tagSets, err := e.index.TagSets([]byte(measurement), opt)
 	if err != nil {
 		return nil, err
 	}
@@ -1583,6 +1591,21 @@ func (e *Engine) createTagSetGroupIterators(ref *influxql.VarRef, name string, s
 			continue
 		}
 		itrs = append(itrs, itr)
+
+		// Abort if the query was killed
+		select {
+		case <-opt.InterruptCh:
+			influxql.Iterators(itrs).Close()
+			return nil, err
+		default:
+		}
+
+		// Enforce series limit at creation time.
+		if opt.MaxSeriesN > 0 && len(itrs) > opt.MaxSeriesN {
+			influxql.Iterators(itrs).Close()
+			return nil, fmt.Errorf("max-select-series limit exceeded: (%d/%d)", len(itrs), opt.MaxSeriesN)
+		}
+
 	}
 	return itrs, nil
 }

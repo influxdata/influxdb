@@ -4026,6 +4026,72 @@ func TestServer_Query_Aggregates_String(t *testing.T) {
 	}
 }
 
+func TestServer_Query_Aggregates_Math(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`network,host=server01,region=west,core=1 rx=10i,tx=20i,core=2i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`network,host=server02,region=west,core=2 rx=40i,tx=50i,core=3i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:10Z").UnixNano()),
+		fmt.Sprintf(`network,host=server03,region=east,core=3 rx=40i,tx=55i,core=4i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:20Z").UnixNano()),
+		fmt.Sprintf(`network,host=server04,region=east,core=4 rx=40i,tx=60i,core=1i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:30Z").UnixNano()),
+		fmt.Sprintf(`network,host=server05,region=west,core=1 rx=50i,tx=70i,core=2i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:40Z").UnixNano()),
+		fmt.Sprintf(`network,host=server06,region=east,core=2 rx=50i,tx=40i,core=3i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:50Z").UnixNano()),
+		fmt.Sprintf(`network,host=server07,region=west,core=3 rx=70i,tx=30i,core=4i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:00Z").UnixNano()),
+		fmt.Sprintf(`network,host=server08,region=east,core=4 rx=90i,tx=10i,core=1i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:10Z").UnixNano()),
+		fmt.Sprintf(`network,host=server09,region=east,core=1 rx=5i,tx=4i,core=2i %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:01:20Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "add two selectors",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT max(rx) + min(rx) FROM network WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:01:30Z'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","max_min"],"values":[["2000-01-01T00:00:00Z",95]]}]}]}`,
+		},
+		&Query{
+			name:    "use math one two selectors separately",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT max(rx) * 1, min(rx) * 1 FROM network WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:01:30Z'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","max","min"],"values":[["2000-01-01T00:00:00Z",90,5]]}]}]}`,
+		},
+		&Query{
+			name:    "math with a single selector",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT max(rx) * 1 FROM network WHERE time >= '2000-01-01T00:00:00Z' AND time < '2000-01-01T00:01:30Z'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","max"],"values":[["2000-01-01T00:01:10Z",90]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 func TestServer_Query_AggregateSelectors(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())
@@ -4333,6 +4399,60 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, percentile(rx, 75) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"network","columns":["time","tx","percentile"],"values":[["2000-01-01T00:00:00Z",50,40],["2000-01-01T00:00:30Z",70,50],["2000-01-01T00:01:00Z",30,70]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+func TestServer_Query_ExactTimeRange(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu value=1 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00.000000000Z").UnixNano()),
+		fmt.Sprintf(`cpu value=2 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00.000000001Z").UnixNano()),
+		fmt.Sprintf(`cpu value=3 %d`, mustParseTime(time.RFC3339Nano, "2000-01-01T00:00:00.000000002Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "query point at exactly one time - rfc3339nano",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM cpu WHERE time = '2000-01-01T00:00:00.000000001Z'`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00.000000001Z",2]]}]}]}`,
+		},
+		&Query{
+			name:    "query point at exactly one time - timestamp",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT * FROM cpu WHERE time = 946684800000000001`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","value"],"values":[["2000-01-01T00:00:00.000000001Z",2]]}]}]}`,
 		},
 	}...)
 
@@ -5456,6 +5576,73 @@ func TestServer_Query_AcrossShardsAndFields(t *testing.T) {
 	}
 }
 
+func TestServer_Query_OrderedAcrossShards(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	writes := []string{
+		fmt.Sprintf(`cpu value=7 %d`, mustParseTime(time.RFC3339Nano, "2010-01-01T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu value=14 %d`, mustParseTime(time.RFC3339Nano, "2010-01-08T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu value=28 %d`, mustParseTime(time.RFC3339Nano, "2010-01-15T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu value=56 %d`, mustParseTime(time.RFC3339Nano, "2010-01-22T00:00:00Z").UnixNano()),
+		fmt.Sprintf(`cpu value=112 %d`, mustParseTime(time.RFC3339Nano, "2010-01-29T00:00:00Z").UnixNano()),
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "derivative",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT derivative(value, 24h) FROM cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","derivative"],"values":[["2010-01-08T00:00:00Z",1],["2010-01-15T00:00:00Z",2],["2010-01-22T00:00:00Z",4],["2010-01-29T00:00:00Z",8]]}]}]}`,
+		},
+		&Query{
+			name:    "non_negative_derivative",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT non_negative_derivative(value, 24h) FROM cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","non_negative_derivative"],"values":[["2010-01-08T00:00:00Z",1],["2010-01-15T00:00:00Z",2],["2010-01-22T00:00:00Z",4],["2010-01-29T00:00:00Z",8]]}]}]}`,
+		},
+		&Query{
+			name:    "difference",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT difference(value) FROM cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","difference"],"values":[["2010-01-08T00:00:00Z",7],["2010-01-15T00:00:00Z",14],["2010-01-22T00:00:00Z",28],["2010-01-29T00:00:00Z",56]]}]}]}`,
+		},
+		&Query{
+			name:    "cumulative_sum",
+			params:  url.Values{"db": []string{"db0"}},
+			command: `SELECT cumulative_sum(value) FROM cpu`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","cumulative_sum"],"values":[["2010-01-01T00:00:00Z",7],["2010-01-08T00:00:00Z",21],["2010-01-15T00:00:00Z",49],["2010-01-22T00:00:00Z",105],["2010-01-29T00:00:00Z",217]]}]}]}`,
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
 func TestServer_Query_Where_Fields(t *testing.T) {
 	t.Parallel()
 	s := OpenServer(NewConfig())
@@ -6048,6 +6235,101 @@ func TestServer_Query_Fill(t *testing.T) {
 			name:    "fill previous overwrites 0s for count",
 			command: `select count(val) from fills where time >= '2009-11-10T23:00:00Z' and time < '2009-11-10T23:00:20Z' group by time(5s) fill(previous)`,
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"fills","columns":["time","count"],"values":[["2009-11-10T23:00:00Z",2],["2009-11-10T23:00:05Z",1],["2009-11-10T23:00:10Z",1],["2009-11-10T23:00:15Z",1]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+	}...)
+
+	for i, query := range test.queries {
+		if i == 0 {
+			if err := test.init(s); err != nil {
+				t.Fatalf("test init failed: %s", err)
+			}
+		}
+		if query.skip {
+			t.Logf("SKIP:: %s", query.name)
+			continue
+		}
+		if err := query.Execute(s); err != nil {
+			t.Error(query.Error(err))
+		} else if !query.success() {
+			t.Error(query.failureMessage())
+		}
+	}
+}
+
+func TestServer_Query_TimeZone(t *testing.T) {
+	t.Parallel()
+	s := OpenServer(NewConfig())
+	defer s.Close()
+
+	if err := s.CreateDatabaseAndRetentionPolicy("db0", newRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+		t.Fatal(err)
+	}
+
+	var writes []string
+	for _, start := range []time.Time{
+		// One day before DST starts.
+		time.Date(2000, 4, 1, 0, 0, 0, 0, LosAngeles),
+		// Middle of DST. No change.
+		time.Date(2000, 6, 1, 0, 0, 0, 0, LosAngeles),
+		// One day before DST ends.
+		time.Date(2000, 10, 28, 0, 0, 0, 0, LosAngeles),
+	} {
+		ts := start
+		// Write every hour for 4 days.
+		for i := 0; i < 24*4; i++ {
+			writes = append(writes, fmt.Sprintf(`cpu,interval=daily value=0 %d`, ts.UnixNano()))
+			ts = ts.Add(time.Hour)
+		}
+
+		// Write every 5 minutes for 3 hours. Start at 1 on the day with DST.
+		ts = start.Add(25 * time.Hour)
+		for i := 0; i < 12*3; i++ {
+			writes = append(writes, fmt.Sprintf(`cpu,interval=hourly value=0 %d`, ts.UnixNano()))
+			ts = ts.Add(5 * time.Minute)
+		}
+	}
+
+	test := NewTest("db0", "rp0")
+	test.writes = Writes{
+		&Write{data: strings.Join(writes, "\n")},
+	}
+
+	test.addQueries([]*Query{
+		&Query{
+			name:    "timezone offset - dst start - daily",
+			command: `SELECT count(value) FROM cpu WHERE time >= '2000-04-02T00:00:00-08:00' AND time < '2000-04-04T00:00:00-07:00' AND interval = 'daily' GROUP BY time(1d) TZ('America/Los_Angeles')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-04-02T00:00:00-08:00",23],["2000-04-03T00:00:00-07:00",24]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "timezone offset - no change - daily",
+			command: `SELECT count(value) FROM cpu WHERE time >= '2000-06-01T00:00:00-07:00' AND time < '2000-06-03T00:00:00-07:00' AND interval = 'daily' GROUP BY time(1d) TZ('America/Los_Angeles')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-06-01T00:00:00-07:00",24],["2000-06-02T00:00:00-07:00",24]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "timezone offset - dst end - daily",
+			command: `SELECT count(value) FROM cpu WHERE time >= '2000-10-29T00:00:00-07:00' AND time < '2000-10-31T00:00:00-08:00' AND interval = 'daily' GROUP BY time(1d) TZ('America/Los_Angeles')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-10-29T00:00:00-07:00",25],["2000-10-30T00:00:00-08:00",24]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "timezone offset - dst start - hourly",
+			command: `SELECT count(value) FROM cpu WHERE time >= '2000-04-02T01:00:00-08:00' AND time < '2000-04-02T04:00:00-07:00' AND interval = 'hourly' GROUP BY time(1h) TZ('America/Los_Angeles')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-04-02T01:00:00-08:00",12],["2000-04-02T03:00:00-07:00",12]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "timezone offset - no change - hourly",
+			command: `SELECT count(value) FROM cpu WHERE time >= '2000-06-02T01:00:00-07:00' AND time < '2000-06-02T03:00:00-07:00' AND interval = 'hourly' GROUP BY time(1h) TZ('America/Los_Angeles')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-06-02T01:00:00-07:00",12],["2000-06-02T02:00:00-07:00",12]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "timezone offset - dst end - hourly",
+			command: `SELECT count(value) FROM cpu WHERE time >= '2000-10-29T01:00:00-07:00' AND time < '2000-10-29T02:00:00-08:00' AND interval = 'hourly' GROUP BY time(1h) TZ('America/Los_Angeles')`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["time","count"],"values":[["2000-10-29T01:00:00-07:00",12],["2000-10-29T01:00:00-08:00",12]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 	}...)
@@ -7440,7 +7722,6 @@ func TestServer_ConcurrentPointsWriter_Subscriber(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	close(done)
-	// Race occurs on s.Close()
 }
 
 // Ensure time in where clause is inclusive

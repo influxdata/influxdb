@@ -11,13 +11,26 @@
 - [#7856](https://github.com/influxdata/influxdb/issues/7856): Failed points during an import now result in a non-zero exit code.
 - [#7821](https://github.com/influxdata/influxdb/issues/7821): Expose some configuration settings via SHOW DIAGNOSTICS
 - [#8025](https://github.com/influxdata/influxdb/issues/8025): Support single and multiline comments in InfluxQL.
+- [#6541](https://github.com/influxdata/influxdb/issues/6541): Support timezone offsets for queries.
 
 ### Bugfixes
 
+- [#8119](https://github.com/influxdata/influxdb/pull/8119): Add chunked/chunk size as setting/options in cli.
 - [#8091](https://github.com/influxdata/influxdb/issues/8091): Do not increment the continuous query statistic if no query is run.
 - [#8064](https://github.com/influxdata/influxdb/issues/8064): Forbid wildcards in binary expressions.
 - [#8148](https://github.com/influxdata/influxdb/issues/8148): Fix fill(linear) when multiple series exist and there are null values.
 - [#7995](https://github.com/influxdata/influxdb/issues/7995): Update liner dependency to handle docker exec.
+- [#7811](https://github.com/influxdata/influxdb/issues/7811): Kill query not killing query
+- [#7457](https://github.com/influxdata/influxdb/issues/7457): KILL QUERY should work during all phases of a query
+- [#8155](https://github.com/influxdata/influxdb/pull/8155): Simplify admin user check.
+- [#8118](https://github.com/influxdata/influxdb/issues/8118): Significantly improve DROP DATABASE speed.
+- [#8181](https://github.com/influxdata/influxdb/issues/8181): Return an error when an invalid duration literal is parsed.
+- [#8093](https://github.com/influxdata/influxdb/issues/8093): Fix the time range when an exact timestamp is selected.
+- [#8174](https://github.com/influxdata/influxdb/issues/8174): Fix query parser when using addition and subtraction without spaces.
+- [#8167](https://github.com/influxdata/influxdb/issues/8167): Fix a regression when math was used with selectors.
+- [#8175](https://github.com/influxdata/influxdb/issues/8175): Ensure the input for certain functions in the query engine are ordered.
+- [#8171](https://github.com/influxdata/influxdb/issues/8171): Significantly improve shutdown speed for high cardinality databases.
+- [#8177](https://github.com/influxdata/influxdb/issues/8177): Fix racy integration test.
 
 ## v1.2.2 [2017-03-14]
 

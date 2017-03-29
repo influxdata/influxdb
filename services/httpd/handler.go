@@ -72,8 +72,8 @@ type Handler struct {
 	MetaClient interface {
 		Database(name string) *meta.DatabaseInfo
 		Authenticate(username, password string) (ui *meta.UserInfo, err error)
-		Users() []meta.UserInfo
 		User(username string) (*meta.UserInfo, error)
+		AdminUserExists() bool
 	}
 
 	QueryAuthorizer interface {
@@ -964,20 +964,8 @@ func authenticate(inner func(http.ResponseWriter, *http.Request, *meta.UserInfo)
 		}
 		var user *meta.UserInfo
 
-		// Retrieve user list.
-		uis := h.MetaClient.Users()
-
-		// See if admin user exists.
-		adminExists := false
-		for i := range uis {
-			if uis[i].Admin {
-				adminExists = true
-				break
-			}
-		}
-
 		// TODO corylanou: never allow this in the future without users
-		if requireAuthentication && adminExists {
+		if requireAuthentication && h.MetaClient.AdminUserExists() {
 			creds, err := parseCredentials(r)
 			if err != nil {
 				atomic.AddInt64(&h.stats.AuthenticationFailures, 1)

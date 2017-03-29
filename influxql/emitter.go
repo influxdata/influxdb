@@ -20,6 +20,9 @@ type Emitter struct {
 	// The columns to attach to each row.
 	Columns []string
 
+	// The time zone location.
+	Location *time.Location
+
 	// Removes the "time" column from output.
 	// Used for meta queries where time does not apply.
 	OmitTime bool
@@ -32,6 +35,7 @@ func NewEmitter(itrs []Iterator, ascending bool, chunkSize int) *Emitter {
 		itrs:      itrs,
 		ascending: ascending,
 		chunkSize: chunkSize,
+		Location:  time.UTC,
 	}
 }
 
@@ -154,7 +158,7 @@ func (e *Emitter) readAt(t int64, name string, tags Tags) []interface{} {
 
 	values := make([]interface{}, len(e.itrs)+offset)
 	if !e.OmitTime {
-		values[0] = time.Unix(0, t).UTC()
+		values[0] = time.Unix(0, t).In(e.Location)
 	}
 	e.readInto(t, name, tags, values[offset:])
 	return values
