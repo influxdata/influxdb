@@ -1,9 +1,13 @@
+import _ from 'lodash'
+
 import reducer from 'src/dashboards/reducers/ui'
 import timeRanges from 'hson!src/shared/data/timeRanges.hson';
 
 import {
   loadDashboards,
   setDashboard,
+  deleteDashboard,
+  deleteDashboardFailed,
   setTimeRange,
   updateDashboardCells,
   editDashboardCell,
@@ -48,6 +52,25 @@ describe('DataExplorer.Reducers.UI', () => {
     const actual = reducer(loadedState, setDashboard(d2.id))
 
     expect(actual.dashboard).to.deep.equal(d2)
+  })
+
+  it('can handle a successful dashboard deletion', () => {
+    const loadedState = reducer(state, loadDashboards(dashboards))
+    const expected = [d1]
+    const actual = reducer(loadedState, deleteDashboard(d2))
+
+    expect(actual.dashboards).to.deep.equal(expected)
+  })
+
+  it('can handle a failed dashboard deletion', () => {
+    const loadedState = reducer(state, loadDashboards([d1]))
+    const actual = reducer(loadedState, deleteDashboardFailed(d2))
+    const actualFirst = _.first(actual.dashboards)
+
+    expect(actual.dashboards).to.have.length(2)
+    _.forOwn(d2, (v, k) => {
+      expect(actualFirst[k]).to.deep.equal(v)
+    })
   })
 
   it('can set the time range', () => {
