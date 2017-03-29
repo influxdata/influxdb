@@ -1,8 +1,21 @@
+/*
+  Custom Time Range Dropdown
+  ------------------------------------------------------
+*/
+
+.custom-time-range {
+  position: relative;
+}
 .custom-time-container {
+  display: none;
+  position: absolute;
+  top: 40px;
+  right: 0;
   background: red;
   z-index: 1000;
-  display: flex;
-  transform: translateY(102px);
+}
+.custom-time-range.show .custom-time-container {
+  display: block;
 }
 
 .rd-day-selected {

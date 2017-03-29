@@ -7,15 +7,12 @@ import OnClickOutside from 'react-onclickoutside'
 class CustomTimeRange extends Component {
   constructor(props) {
     super(props)
-    this.state = {
-      isVisible: false,
-    }
 
     this.handleClick = ::this.handleClick
   }
 
   handleClickOutside() {
-    this.setState({isVisible: false})
+    this.props.onClose()
   }
 
   componentDidMount() {
@@ -43,8 +40,15 @@ class CustomTimeRange extends Component {
   }
 
   render() {
+    const {isVisible, onToggle} = this.props
+
     return (
-      <div className={classNames("custom-time-range", {show: this.state.isVisible})} style={{display: 'flex'}}>
+      <div className={classNames("custom-time-range", {show: isVisible})} style={{display: 'flex'}}>
+        <button className="btn btn-sm btn-info" onClick={onToggle}>
+          <span className="icon clock"></span>
+          sfsfsdfsf
+          <span className="caret"></span>
+        </button>
         <div className="custom-time-container">
           <div className="time-lower" ref={(r) => this.timeLower = r} />
           <div className="time-upper" ref={(r) => this.timeUpper = r} />
@@ -62,6 +66,7 @@ class CustomTimeRange extends Component {
       lower: `'${lower}'`,
       upper: `'${upper}'`,
     })
+    this.props.onClose()
   }
   /*
    * Upper and lower time ranges are passed in with single quotes as part of
@@ -86,6 +91,7 @@ class CustomTimeRange extends Component {
 }
 
 const {
+  bool,
   func,
   string,
 } = PropTypes
@@ -94,6 +100,9 @@ CustomTimeRange.propTypes = {
   onApplyTimeRange: func.isRequired,
   timeLower: string,
   timeUpper: string,
+  isVisible: bool.isRequired,
+  onToggle: func.isRequired,
+  onClose: func.isRequired,
 }
 
 export default OnClickOutside(CustomTimeRange)
