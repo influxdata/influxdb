@@ -279,8 +279,10 @@ func (e *SeriesBlockElem) UnmarshalBinary(data []byte) error {
 
 	// Parse tags.
 	e.tags = e.tags[:0]
-	tagN, data := binary.BigEndian.Uint16(data[:2]), data[2:]
-	for i := uint16(0); i < tagN; i++ {
+	tagN, szN := binary.Uvarint(data)
+	data = data[szN:]
+
+	for i := uint64(0); i < tagN; i++ {
 		var tag models.Tag
 
 		n, data = binary.BigEndian.Uint16(data[:2]), data[2:]
@@ -310,24 +312,29 @@ func AppendSeriesKey(dst []byte, name []byte, tags models.Tags) []byte {
 	buf := make([]byte, binary.MaxVarintLen64)
 	origLen := len(dst)
 
+	// The tag count is variable encoded, so we need to know ahead of time what
+	// the size of the tag count value will be.
+	tcBuf := make([]byte, binary.MaxVarintLen64)
+	tcSz := binary.PutUvarint(tcBuf, uint64(len(tags)))
+
 	// Size of name/tags. Does not include total length.
 	size := 0 + //
 		2 + // size of measurement
 		len(name) + // measurement
-		2 + // number of tags
+		tcSz + // size of number of tags
 		(4 * len(tags)) + // length of each tag key and value
-		tags.Size() // tag keys/values
+		tags.Size() // size of tag keys/values
 
 	// Variable encode length.
-	n := binary.PutUvarint(buf, uint64(size))
+	totalSz := binary.PutUvarint(buf, uint64(size))
 
 	// If caller doesn't provide a buffer then pre-allocate an exact one.
 	if dst == nil {
-		dst = make([]byte, 0, size+n)
+		dst = make([]byte, 0, size+totalSz)
 	}
 
 	// Append total length.
-	dst = append(dst, buf[:n]...)
+	dst = append(dst, buf[:totalSz]...)
 
 	// Append name.
 	binary.BigEndian.PutUint16(buf, uint16(len(name)))
@@ -335,8 +342,7 @@ func AppendSeriesKey(dst []byte, name []byte, tags models.Tags) []byte {
 	dst = append(dst, name...)
 
 	// Append tag count.
-	binary.BigEndian.PutUint16(buf, uint16(len(tags)))
-	dst = append(dst, buf[:2]...)
+	dst = append(dst, tcBuf[:tcSz]...)
 
 	// Append tags.
 	for _, tag := range tags {
@@ -350,8 +356,8 @@ func AppendSeriesKey(dst []byte, name []byte, tags models.Tags) []byte {
 	}
 
 	// Verify that the total length equals the encoded byte count.
-	if len(dst)-origLen != size+n {
-		panic(fmt.Sprintf("series key encoding does not match calculated total length: exp=%d, actual=%d, key=%x", size+n, len(dst), dst))
+	if got, exp := len(dst)-origLen, size+totalSz; got != exp {
+		panic(fmt.Sprintf("series key encoding does not match calculated total length: actual=%d, exp=%d, key=%x", got, exp, dst))
 	}
 
 	return dst
@@ -383,11 +389,14 @@ func CompareSeriesKeys(a, b []byte) int {
 	}
 
 	// Read tag counts.
-	tagN0, a := binary.BigEndian.Uint16(a), a[2:]
-	tagN1, b := binary.BigEndian.Uint16(b), b[2:]
+	tagN0, i := binary.Uvarint(a)
+	a = a[i:]
+
+	tagN1, i := binary.Uvarint(b)
+	b = b[i:]
 
 	// Compare each tag in order.
-	for i := uint16(0); ; i++ {
+	for i := uint64(0); ; i++ {
 		// Check for EOF.
 		if i == tagN0 && i == tagN1 {
 			return 0
