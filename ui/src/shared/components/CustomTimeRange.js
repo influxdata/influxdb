@@ -51,10 +51,12 @@ class CustomTimeRange extends Component {
           {`${moment(lower).format('MMM Do HH:mm')} — ${moment(upper).format('MMM Do HH:mm')}`}
           <span className="caret"></span>
         </button>
-        <div className="custom-time-container">
-          <div className="time-lower" ref={(r) => this.lower = r} />
-          <div className="time-upper" ref={(r) => this.upper = r} />
-          <div className="apply-time button" onClick={this.handleClick}>Apply</div>
+        <div className="custom-time--container">
+          <div className="custom-time--dates">
+            <div className="custom-time--lower" ref={(r) => this.lower = r} />
+            <div className="custom-time--upper" ref={(r) => this.upper = r} />
+          </div>
+          <div className="custom-time--apply btn btn-sm btn-primary" onClick={this.handleClick}>Apply</div>
         </div>
       </div>
     )
