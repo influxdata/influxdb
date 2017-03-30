@@ -1289,3 +1289,23 @@ func newSampleIterator(input Iterator, opt IteratorOptions, size int) (Iterator,
 		return nil, fmt.Errorf("unsupported elapsed iterator type: %T", input)
 	}
 }
+
+// newIntegralIterator returns an iterator for operating on a integral() call.
+func newIntegralIterator(input Iterator, opt IteratorOptions, interval Interval) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatIntegralReducer(interval, opt)
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewIntegerIntegralReducer(interval, opt)
+			return fn, fn
+		}
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported integral iterator type: %T", input)
+	}
+}
