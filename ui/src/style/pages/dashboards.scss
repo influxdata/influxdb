@@ -303,9 +303,10 @@ $dash-graph-options-arrow: 8px;
 // }
 .react-grid-placeholder {
   @include gradient-diag-down($c-pool,$c-comet);
-  border: 0;
+  border: 0 !important;
   opacity: 0.3;
   z-index: 2;
+  border-radius: $radius !important;
 }
 .react-grid-item {
   &.resizing {
