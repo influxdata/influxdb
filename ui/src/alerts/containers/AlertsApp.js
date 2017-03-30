@@ -91,6 +91,12 @@ const AlertsApp = React.createClass({
 
   render() {
     const {source} = this.props
+    const {loading} = this.state
+
+    if (loading || !source) {
+      return <div className="page-spinner" />
+    }
+
     return (
       // I stole this from the Hosts page.
       // Perhaps we should create an abstraction?
