@@ -86,3 +86,12 @@ $tooltip-code-color: $c-potassium;
     }
   }
 }
+
+.influx-tooltip__hover {
+  @extend .influx-tooltip;
+  pointer-events: auto!important;
+  &:hover {
+    visibility: visible!important;
+    opacity: 1!important;
+  }
+}
