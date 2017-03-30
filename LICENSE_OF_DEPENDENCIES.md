@@ -891,6 +891,7 @@
 * rimraf 2.5.3 [ISC](http://github.com/isaacs/rimraf)
 * rimraf 2.5.4 [ISC](http://github.com/isaacs/rimraf)
 * ripemd160 0.2.0 [Unknown](https://github.com/cryptocoinjs/ripemd160)
+* rome 2.1.22 [MIT](https://github.com/bevacqua/rome)
 * run-async 0.1.0 [MIT](http://github.com/SBoudrias/run-async)
 * rx-lite 3.1.2 [Apache License](https://github.com/Reactive-Extensions/RxJS)
 * samsam 1.1.2 [BSD](https://github.com/busterjs/samsam)
