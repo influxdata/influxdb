@@ -3,7 +3,7 @@
 ### Bug Fixes
   1. [#1104](https://github.com/influxdata/chronograf/pull/1104): Fix windows hosts on host list
   1. [#1125](https://github.com/influxdata/chronograf/pull/1125): Fix visualizations not showing graph name
-  1. [#1133](https://github.com/influxdata/chronograf/issue/1133): Fix Enterprise Kapacitor authentication. 
+  1. [#1133](https://github.com/influxdata/chronograf/issue/1133): Fix Enterprise Kapacitor authentication.
 
 ### Features
   1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard
@@ -13,7 +13,8 @@
 
 ### UI Improvements
   1. [#1101](https://github.com/influxdata/chronograf/pull/1101): Compress InfluxQL responses with gzip
-  1. [#1132](https://github.com/influxdata/chronograf/pull/1132): All sidebar items show activity with a blue strip
+  2. [#1132](https://github.com/influxdata/chronograf/pull/1132): All sidebar items show activity with a blue strip
+  3. [#1079](https://github.com/influxdata/chronograf/issues/1079): Remove series highlighting in line graphs
 
 ## v1.2.0-beta7 [2017-03-28]
 ### Bug Fixes
