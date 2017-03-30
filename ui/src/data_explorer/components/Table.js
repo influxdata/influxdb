@@ -61,9 +61,9 @@ const ChronoTable = React.createClass({
       const {data} = await fetchTimeSeries(query.host, undefined, query.text)
       this.setState({isLoading: false})
 
-      const error = _.get(data, ['results', '0', 'error'], false)
-      if (error) {
-        return onEditRawStatus(query.id, {error})
+      const warn = _.get(data, ['results', '0', 'error'], false)
+      if (warn) {
+        return onEditRawStatus(query.id, {warn})
       }
 
       const cellData = _.get(data, ['results', '0', 'series', '0'], false)
