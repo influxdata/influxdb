@@ -278,13 +278,9 @@ func (s *Store) Close() error {
 	return nil
 }
 
-// CreateIndexIfNotExists returns an in-memory index for a database.
-func (s *Store) CreateIndexIfNotExists(name string) (interface{}, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.createIndexIfNotExists(name)
-}
-
+// createIndexIfNotExists returns a shared index for a database, if the inmem
+// index is being used. If the TSI index is being used, then this method is
+// basically a no-op.
 func (s *Store) createIndexIfNotExists(name string) (interface{}, error) {
 	if idx := s.indexes[name]; idx != nil {
 		return idx, nil
@@ -486,6 +482,9 @@ func (s *Store) DeleteDatabase(name string) error {
 
 	// Remove database from store list of databases
 	delete(s.databases, name)
+
+	// Remove shared index for database if using inmem index.
+	delete(s.indexes, name)
 	s.mu.Unlock()
 
 	return nil
