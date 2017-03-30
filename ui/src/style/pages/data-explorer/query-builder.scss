@@ -133,7 +133,7 @@
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
-  max-width: 177px;
+  width: 90%;
   text-overflow: ellipsis;
   @include no-user-select();
 }
