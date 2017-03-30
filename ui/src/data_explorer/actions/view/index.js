@@ -136,5 +136,5 @@ export function editRawQueryStatus(queryID, rawStatus) {
       queryID,
       rawStatus,
     },
-  };
+  }
 }

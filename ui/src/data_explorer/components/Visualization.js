@@ -5,6 +5,7 @@ import AutoRefresh from 'shared/components/AutoRefresh'
 import LineGraph from 'shared/components/LineGraph'
 import SingleStat from 'shared/components/SingleStat'
 import MultiTable from './MultiTable'
+import VisHeader from 'src/data_explorer/components/VisHeader'
 
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
@@ -53,18 +54,18 @@ const Visualization = React.createClass({
   },
 
   render() {
-    const {queryConfigs, timeRange, height, heightPixels, onEditRawStatus} = this.props;
-    const {source} = this.context;
-    const proxyLink = source.links.proxy;
-    const {view} = this.state;
+    const {queryConfigs, timeRange, height, heightPixels, onEditRawStatus} = this.props
+    const {source} = this.context
+    const proxyLink = source.links.proxy
+    const {view} = this.state
 
     const statements = queryConfigs.map((query) => {
-      const text = query.rawText || buildInfluxQLQuery(timeRange, query);
-      return {text, id: query.id};
-    });
+      const text = query.rawText || buildInfluxQLQuery(timeRange, query)
+      return {text, id: query.id}
+    })
     const queries = statements.filter((s) => s.text !== null).map((s) => {
-      return {host: [proxyLink], text: s.text, id: s.id};
-    });
+      return {host: [proxyLink], text: s.text, id: s.id}
+    })
 
     return (
       <div className={classNames("graph", {active: true})} style={{height}}>
@@ -73,7 +74,7 @@ const Visualization = React.createClass({
           {this.renderVisualization(view, queries, heightPixels, onEditRawStatus)}
         </div>
       </div>
-    );
+    )
   },
 
   renderVisualization(view, queries, heightPixels, onEditRawStatus) {

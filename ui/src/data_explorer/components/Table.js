@@ -5,7 +5,7 @@ import fetchTimeSeries from 'shared/apis/timeSeries'
 import _ from 'lodash'
 import moment from 'moment'
 
-const {oneOfType, number, string, shape, arrayOf, func} = PropTypes;
+const {oneOfType, number, string, shape, arrayOf, func} = PropTypes
 
 const CustomCell = React.createClass({
   propTypes: {
@@ -54,7 +54,7 @@ const ChronoTable = React.createClass({
   },
 
   async fetchCellData(query) {
-    this.setState({isLoading: true});
+    this.setState({isLoading: true})
     const {onEditRawStatus} = this.props
     // second param is db, we want to leave this blank
     try {
@@ -66,7 +66,7 @@ const ChronoTable = React.createClass({
         return onEditRawStatus(query.id, {error})
       }
 
-      const cellData = _.get(data, ['results', '0', 'series', '0'], false);
+      const cellData = _.get(data, ['results', '0', 'series', '0'], false)
       onEditRawStatus(query.id, {success: 'Success!'})
 
       if (!cellData) {
