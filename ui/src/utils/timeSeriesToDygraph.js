@@ -1,5 +1,4 @@
 import _ from 'lodash'
-import {STROKE_WIDTH} from 'src/shared/constants'
 import {map, reduce, forEach, concat, clone} from 'fast.js'
 
 /**
@@ -102,15 +101,11 @@ export default function timeSeriesToDygraph(raw = [], activeQueryIndex, isInData
   }
   const sortedTimeSeries = _.sortBy(timeSeries, 'time')
 
-  const {light, heavy} = STROKE_WIDTH
-
   const dygraphSeries = reduce(sortedLabels, (acc, {label, responseIndex}) => {
-    acc[label] = {
-      strokeWidth: responseIndex === activeQueryIndex ? heavy : light,
-    }
-
     if (!isInDataExplorer) {
-      acc[label].axis = responseIndex === 0 ? 'y' : 'y2'
+      acc[label] = {
+        axis: responseIndex === 0 ? 'y' : 'y2',
+      }
     }
 
     return acc
