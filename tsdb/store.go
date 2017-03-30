@@ -278,13 +278,7 @@ func (s *Store) Close() error {
 	return nil
 }
 
-// CreateIndexIfNotExists returns an in-memory index for a database.
-func (s *Store) CreateIndexIfNotExists(name string) (interface{}, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.createIndexIfNotExists(name)
-}
-
+// createIndexIfNotExists returns an index for a database.
 func (s *Store) createIndexIfNotExists(name string) (interface{}, error) {
 	if idx := s.indexes[name]; idx != nil {
 		return idx, nil
