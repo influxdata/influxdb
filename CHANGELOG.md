@@ -4,6 +4,7 @@
   1. [#1104](https://github.com/influxdata/chronograf/pull/1104): Fix windows hosts on host list
   1. [#1125](https://github.com/influxdata/chronograf/pull/1125): Fix visualizations not showing graph name
   1. [#1133](https://github.com/influxdata/chronograf/issue/1133): Fix Enterprise Kapacitor authentication.
+  1. [#1142](https://github.com/influxdata/chronograf/issue/1142): Fix Kapacitor Telegram config to display correct disableNotification setting
 
 ### Features
   1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard
