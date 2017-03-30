@@ -47,7 +47,7 @@ const NavBlock = React.createClass({
     const {location, className, wrapperClassName} = this.props
 
     const isActive = React.Children.toArray(this.props.children).find((child) => {
-      return child.type === NavListItem && location.startsWith(child.props.link)
+      return location.startsWith(child.props.link)
     })
 
     const children = React.Children.map((this.props.children), (child) => {
