@@ -643,11 +643,11 @@ func (i *Index) MeasurementSeriesKeysByExpr(name []byte, expr influxql.Expr) ([]
 
 // TagSets returns an ordered list of tag sets for a measurement by dimension
 // and filtered by an optional conditional expression.
-func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
+func (i *Index) TagSets(name []byte, opt influxql.IteratorOptions) ([]*influxql.TagSet, error) {
 	fs := i.RetainFileSet()
 	defer fs.Release()
 
-	itr, err := fs.MeasurementSeriesByExprIterator(name, condition, i.fieldset)
+	itr, err := fs.MeasurementSeriesByExprIterator(name, opt.Condition, i.fieldset)
 	if err != nil {
 		return nil, err
 	} else if itr == nil {
@@ -662,10 +662,10 @@ func (i *Index) TagSets(name []byte, dimensions []string, condition influxql.Exp
 
 	if itr != nil {
 		for e := itr.Next(); e != nil; e = itr.Next() {
-			tags := make(map[string]string, len(dimensions))
+			tags := make(map[string]string, len(opt.Dimensions))
 
 			// Build the TagSet for this series.
-			for _, dim := range dimensions {
+			for _, dim := range opt.Dimensions {
 				tags[dim] = e.Tags().GetString(dim)
 			}
 

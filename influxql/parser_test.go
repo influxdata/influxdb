@@ -1358,6 +1358,35 @@ func TestParser_ParseStatement(t *testing.T) {
 			},
 		},
 
+		// SELECT statement with a time zone
+		{
+			s: `SELECT mean(value) FROM cpu WHERE time >= now() - 7d GROUP BY time(1d) TZ('America/Los_Angeles')`,
+			stmt: &influxql.SelectStatement{
+				Fields: []*influxql.Field{{
+					Expr: &influxql.Call{
+						Name: "mean",
+						Args: []influxql.Expr{
+							&influxql.VarRef{Val: "value"}},
+					}}},
+				Sources: []influxql.Source{&influxql.Measurement{Name: "cpu"}},
+				Condition: &influxql.BinaryExpr{
+					Op:  influxql.GTE,
+					LHS: &influxql.VarRef{Val: "time"},
+					RHS: &influxql.BinaryExpr{
+						Op:  influxql.SUB,
+						LHS: &influxql.Call{Name: "now"},
+						RHS: &influxql.DurationLiteral{Val: 7 * 24 * time.Hour},
+					},
+				},
+				Dimensions: []*influxql.Dimension{{
+					Expr: &influxql.Call{
+						Name: "time",
+						Args: []influxql.Expr{
+							&influxql.DurationLiteral{Val: 24 * time.Hour}}}}},
+				Location: LosAngeles,
+			},
+		},
+
 		// See issues https://github.com/influxdata/influxdb/issues/1647
 		// and https://github.com/influxdata/influxdb/issues/4404
 		// DELETE statement
@@ -2827,6 +2856,15 @@ func TestParser_ParseExpr(t *testing.T) {
 		// Primitives
 		{s: `100.0`, expr: &influxql.NumberLiteral{Val: 100}},
 		{s: `100`, expr: &influxql.IntegerLiteral{Val: 100}},
+		{s: `-100.0`, expr: &influxql.NumberLiteral{Val: -100}},
+		{s: `-100`, expr: &influxql.IntegerLiteral{Val: -100}},
+		{s: `100.`, expr: &influxql.NumberLiteral{Val: 100}},
+		{s: `-100.`, expr: &influxql.NumberLiteral{Val: -100}},
+		{s: `.23`, expr: &influxql.NumberLiteral{Val: 0.23}},
+		{s: `-.23`, expr: &influxql.NumberLiteral{Val: -0.23}},
+		{s: `1s`, expr: &influxql.DurationLiteral{Val: time.Second}},
+		{s: `-1s`, expr: &influxql.DurationLiteral{Val: -time.Second}},
+		{s: `-+1`, err: `found +, expected identifier, number, duration, ( at line 1, char 2`},
 		{s: `'foo bar'`, expr: &influxql.StringLiteral{Val: "foo bar"}},
 		{s: `true`, expr: &influxql.BooleanLiteral{Val: true}},
 		{s: `false`, expr: &influxql.BooleanLiteral{Val: false}},
@@ -2958,6 +2996,78 @@ func TestParser_ParseExpr(t *testing.T) {
 			},
 		},
 
+		// Addition and subtraction without whitespace.
+		{
+			s: `1+2-3`,
+			expr: &influxql.BinaryExpr{
+				Op: influxql.SUB,
+				LHS: &influxql.BinaryExpr{
+					Op:  influxql.ADD,
+					LHS: &influxql.IntegerLiteral{Val: 1},
+					RHS: &influxql.IntegerLiteral{Val: 2},
+				},
+				RHS: &influxql.IntegerLiteral{Val: 3},
+			},
+		},
+
+		{
+			s: `time>now()-5m`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.GT,
+				LHS: &influxql.VarRef{Val: "time"},
+				RHS: &influxql.BinaryExpr{
+					Op:  influxql.SUB,
+					LHS: &influxql.Call{Name: "now"},
+					RHS: &influxql.DurationLiteral{Val: 5 * time.Minute},
+				},
+			},
+		},
+
+		// Simple unary expression.
+		{
+			s: `-value`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.MUL,
+				LHS: &influxql.IntegerLiteral{Val: -1},
+				RHS: &influxql.VarRef{Val: "value"},
+			},
+		},
+
+		{
+			s: `-mean(value)`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.MUL,
+				LHS: &influxql.IntegerLiteral{Val: -1},
+				RHS: &influxql.Call{
+					Name: "mean",
+					Args: []influxql.Expr{
+						&influxql.VarRef{Val: "value"}},
+				},
+			},
+		},
+
+		// Unary expressions with parenthesis.
+		{
+			s: `-(-4)`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.MUL,
+				LHS: &influxql.IntegerLiteral{Val: -1},
+				RHS: &influxql.ParenExpr{
+					Expr: &influxql.IntegerLiteral{Val: -4},
+				},
+			},
+		},
+
+		// Multiplication with leading subtraction.
+		{
+			s: `-2 * 3`,
+			expr: &influxql.BinaryExpr{
+				Op:  influxql.MUL,
+				LHS: &influxql.IntegerLiteral{Val: -2},
+				RHS: &influxql.IntegerLiteral{Val: 3},
+			},
+		},
+
 		// Binary expression with regex.
 		{
 			s: `region =~ /us.*/`,
@@ -3028,6 +3138,12 @@ func TestParser_ParseExpr(t *testing.T) {
 					},
 				},
 			},
+		},
+
+		// Duration math with an invalid literal.
+		{
+			s:   `time > now() - 1y`,
+			err: `invalid duration`,
 		},
 
 		// Function call (empty)
@@ -3360,6 +3476,16 @@ func mustParseDuration(s string) time.Duration {
 	}
 	return d
 }
+
+func mustLoadLocation(s string) *time.Location {
+	l, err := time.LoadLocation(s)
+	if err != nil {
+		panic(err)
+	}
+	return l
+}
+
+var LosAngeles = mustLoadLocation("America/Los_Angeles")
 
 func duration(v time.Duration) *time.Duration {
 	return &v

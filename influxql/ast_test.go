@@ -879,7 +879,7 @@ func TestTimeRange(t *testing.T) {
 		{expr: `time < 10`, min: `0001-01-01T00:00:00Z`, max: `1970-01-01T00:00:00.000000009Z`},
 
 		// Equality
-		{expr: `time = '2000-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `2000-01-01T00:00:00.000000001Z`},
+		{expr: `time = '2000-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `2000-01-01T00:00:00Z`},
 
 		// Multiple time expressions.
 		{expr: `time >= '2000-01-01 00:00:00' AND time < '2000-01-02 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `2000-01-01T23:59:59.999999999Z`},
@@ -888,7 +888,7 @@ func TestTimeRange(t *testing.T) {
 		{expr: `time >= '2000-01-01 00:00:00' AND time <= '1999-01-01 00:00:00'`, min: `2000-01-01T00:00:00Z`, max: `1999-01-01T00:00:00Z`},
 
 		// Absolute time
-		{expr: `time = 1388534400s`, min: `2014-01-01T00:00:00Z`, max: `2014-01-01T00:00:00.000000001Z`},
+		{expr: `time = 1388534400s`, min: `2014-01-01T00:00:00Z`, max: `2014-01-01T00:00:00Z`},
 
 		// Non-comparative expressions.
 		{expr: `time`, min: `0001-01-01T00:00:00Z`, max: `0001-01-01T00:00:00Z`},

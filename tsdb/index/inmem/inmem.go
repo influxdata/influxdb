@@ -562,7 +562,7 @@ func (i *Index) ForEachMeasurementSeriesByExpr(name []byte, expr influxql.Expr, 
 }
 
 // TagSets returns a list of tag sets.
-func (i *Index) TagSets(shardID uint64, name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
+func (i *Index) TagSets(shardID uint64, name []byte, opt influxql.IteratorOptions) ([]*influxql.TagSet, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
@@ -571,7 +571,7 @@ func (i *Index) TagSets(shardID uint64, name []byte, dimensions []string, condit
 		return nil, nil
 	}
 
-	tagSets, err := mm.TagSets(shardID, dimensions, condition)
+	tagSets, err := mm.TagSets(shardID, opt)
 	if err != nil {
 		return nil, err
 	}
@@ -803,8 +803,8 @@ func (i *ShardIndex) CreateSeriesIfNotExists(key, name []byte, tags models.Tags)
 }
 
 // TagSets returns a list of tag sets based on series filtering.
-func (i *ShardIndex) TagSets(name []byte, dimensions []string, condition influxql.Expr) ([]*influxql.TagSet, error) {
-	return i.Index.TagSets(i.id, name, dimensions, condition)
+func (i *ShardIndex) TagSets(name []byte, opt influxql.IteratorOptions) ([]*influxql.TagSet, error) {
+	return i.Index.TagSets(i.id, name, opt)
 }
 
 // NewShardIndex returns a new index for a shard.
