@@ -94,7 +94,7 @@ const Visualization = React.createClass({
     return (
       <div className={classNames("graph", {active: true})} style={{height}}>
         <VisHeader views={VIEWS} view={view} onToggleView={this.handleToggleView} name={name || 'Graph'}/>
-        <div className={classNames({"graph-container": view === 'graph', "table-container": view === 'table'})}>
+        <div className={classNames({"graph-container": view === GRAPH, "table-container": view === TABLE})}>
           {this.renderVisualization(view, queries, heightPixels, onEditRawStatus)}
         </div>
       </div>
@@ -103,9 +103,9 @@ const Visualization = React.createClass({
 
   renderVisualization(view, queries, heightPixels, onEditRawStatus) {
     switch (view) {
-      case 'graph':
+      case GRAPH:
         return this.renderGraph(queries)
-      case 'table':
+      case TABLE:
         return <MultiTable queries={queries} height={heightPixels} onEditRawStatus={onEditRawStatus} />
       default:
         this.renderGraph(queries)
