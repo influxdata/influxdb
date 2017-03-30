@@ -9,7 +9,10 @@ import VisHeader from 'src/data_explorer/components/VisHeader'
 
 const RefreshingLineGraph = AutoRefresh(LineGraph)
 const RefreshingSingleStat = AutoRefresh(SingleStat)
-const VIEWS = ['graph', 'table']
+
+const GRAPH = 'graph'
+const TABLE = 'table'
+const VIEWS = [GRAPH, TABLE]
 
 const {
   func,
@@ -44,9 +47,30 @@ const Visualization = React.createClass({
   },
 
   getInitialState() {
-    return {
-      view: 'graph',
+    const {queryConfigs, activeQueryIndex} = this.props
+    if (!queryConfigs.length) {
+      return {
+        view: GRAPH,
+      }
     }
+
+    return {
+      view: queryConfigs[activeQueryIndex].rawText ? TABLE : GRAPH,
+    }
+  },
+
+  componentWillReceiveProps(nextProps) {
+    const {queryConfigs, activeQueryIndex} = nextProps
+    if (!queryConfigs.length) {
+      return
+    }
+
+    const activeQuery = queryConfigs[activeQueryIndex]
+    if (activeQuery && activeQuery.rawText) {
+      return this.setState({view: TABLE})
+    }
+
+    this.setState({view: GRAPH})
   },
 
   handleToggleView(view) {
