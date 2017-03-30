@@ -6,7 +6,8 @@
 
 ### Features
   1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard
-  2. [#1120](https://github.com/influxdata/chronograf/pull/1120): Allow users to update user passwords.
+  1. [#1120](https://github.com/influxdata/chronograf/pull/1120): Allow users to update user passwords.
+  1. [#1130](https://github.com/influxdata/chronograf/pull/1130): Add loading spinner to Alert History page.
 
 ### UI Improvements
   1. [#1101](https://github.com/influxdata/chronograf/pull/1101): Compress InfluxQL responses with gzip
