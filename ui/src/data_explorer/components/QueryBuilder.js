@@ -3,6 +3,7 @@ import React, {PropTypes} from 'react'
 import QueryEditor from './QueryEditor'
 import QueryTabItem from './QueryTabItem'
 import SimpleDropdown from 'src/shared/components/SimpleDropdown'
+import buildInfluxQLQuery from 'utils/influxql'
 
 const {
   arrayOf,
@@ -98,7 +99,7 @@ const QueryBuilder = React.createClass({
   },
 
   renderQueryTabList() {
-    const {queries, activeQueryIndex, onDeleteQuery} = this.props
+    const {queries, activeQueryIndex, onDeleteQuery, timeRange} = this.props
     return (
       <div className="query-builder--tabs">
         <div className="query-builder--tabs-heading">
@@ -106,15 +107,6 @@ const QueryBuilder = React.createClass({
           {this.renderAddQuery()}
         </div>
         {queries.map((q, i) => {
-          let queryTabText
-          if (q.rawText) {
-            queryTabText = 'Query Editor'
-          } else if (q.measurement && q.fields.length !== 0) {
-            queryTabText = `${q.measurement}.${q.fields[0].field}`
-          } else {
-            queryTabText = 'Query Builder'
-          }
-
           return (
             <QueryTabItem
               isActive={i === activeQueryIndex}
@@ -123,7 +115,7 @@ const QueryBuilder = React.createClass({
               query={q}
               onSelect={this.handleSetActiveQueryIndex}
               onDelete={onDeleteQuery}
-              queryTabText={queryTabText}
+              queryTabText={q.rawText || buildInfluxQLQuery(timeRange, q) || `SELECT "fields" FROM "db"."rp"."measurement"`}
             />
           )
         })}

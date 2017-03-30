@@ -4,7 +4,7 @@ import classNames from 'classnames'
 import AutoRefresh from 'shared/components/AutoRefresh'
 import LineGraph from 'shared/components/LineGraph'
 import SingleStat from 'shared/components/SingleStat'
-import MultiTable from './MultiTable'
+import Table from './Table'
 import VisHeader from 'src/data_explorer/components/VisHeader'
 
 const RefreshingLineGraph = AutoRefresh(LineGraph)
@@ -36,7 +36,6 @@ const Visualization = React.createClass({
     height: string,
     heightPixels: number,
     onEditRawStatus: func.isRequired,
-    onSetActiveQueryIndex: func.isRequired,
   },
 
   contextTypes: {
@@ -77,7 +76,7 @@ const Visualization = React.createClass({
   },
 
   render() {
-    const {queryConfigs, timeRange, height, heightPixels, onEditRawStatus, activeQueryIndex, onSetActiveQueryIndex} = this.props
+    const {queryConfigs, timeRange, height, heightPixels, onEditRawStatus, activeQueryIndex} = this.props
     const {source} = this.context
     const proxyLink = source.links.proxy
     const {view} = this.state
@@ -94,24 +93,21 @@ const Visualization = React.createClass({
       <div className={classNames("graph", {active: true})} style={{height}}>
         <VisHeader views={VIEWS} view={view} onToggleView={this.handleToggleView} name={name || 'Graph'}/>
         <div className={classNames({"graph-container": view === GRAPH, "table-container": view === TABLE})}>
-          {this.renderVisualization(view, queries, heightPixels, onEditRawStatus, activeQueryIndex, onSetActiveQueryIndex)}
+          {this.renderVisualization(view, queries, heightPixels, onEditRawStatus, activeQueryIndex)}
         </div>
       </div>
     )
   },
 
-  renderVisualization(view, queries, heightPixels, onEditRawStatus, activeQueryIndex, onSetActiveQueryIndex) {
+  renderVisualization(view, queries, heightPixels, onEditRawStatus, activeQueryIndex) {
+    const activeQuery = queries[activeQueryIndex]
+    const defaultQuery = queries[0]
+
     switch (view) {
       case GRAPH:
         return this.renderGraph(queries)
       case TABLE:
-        return (<MultiTable
-          queries={queries}
-          height={heightPixels}
-          onEditRawStatus={onEditRawStatus}
-          activeQueryIndex={activeQueryIndex}
-          onSetActiveQueryIndex={onSetActiveQueryIndex}
-        />)
+        return (<Table query={activeQuery || defaultQuery} height={heightPixels} onEditRawStatus={onEditRawStatus} />)
       default:
         this.renderGraph(queries)
     }

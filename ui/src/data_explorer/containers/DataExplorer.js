@@ -89,7 +89,6 @@ const DataExplorer = React.createClass({
             queryConfigs={queryConfigs}
             activeQueryIndex={activeQueryIndex}
             onEditRawStatus={queryConfigActions.editRawQueryStatus}
-            onSetActiveQueryIndex={this.handleSetActiveQueryIndex}
           />
           <ResizeBottom>
             <QueryBuilder

@@ -102,7 +102,7 @@ const ChronoTable = React.createClass({
 
   // Table data as a list of array.
   render() {
-    const {containerWidth, height} = this.props
+    const {containerWidth, height, query} = this.props
     const {cellData, columnWidths, isLoading} = this.state
     const {columns, values} = cellData
 
@@ -116,6 +116,10 @@ const ChronoTable = React.createClass({
     const headerHeight = 30
     const minWidth = 70
     const styleAdjustedHeight = height - stylePixelOffset
+
+    if (!query) {
+      return <div className="generic-empty-state">Please add a query below</div>
+    }
 
     if (!isLoading && !values.length) {
       return <div className="generic-empty-state">Your query returned no data</div>
