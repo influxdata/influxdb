@@ -36,6 +36,7 @@ const Visualization = React.createClass({
     height: string,
     heightPixels: number,
     onEditRawStatus: func.isRequired,
+    onSetActiveQueryIndex: func.isRequired,
   },
 
   contextTypes: {
@@ -69,8 +70,6 @@ const Visualization = React.createClass({
     if (activeQuery && activeQuery.rawText) {
       return this.setState({view: TABLE})
     }
-
-    this.setState({view: GRAPH})
   },
 
   handleToggleView(view) {
@@ -78,7 +77,7 @@ const Visualization = React.createClass({
   },
 
   render() {
-    const {queryConfigs, timeRange, height, heightPixels, onEditRawStatus} = this.props
+    const {queryConfigs, timeRange, height, heightPixels, onEditRawStatus, activeQueryIndex, onSetActiveQueryIndex} = this.props
     const {source} = this.context
     const proxyLink = source.links.proxy
     const {view} = this.state
@@ -95,18 +94,24 @@ const Visualization = React.createClass({
       <div className={classNames("graph", {active: true})} style={{height}}>
         <VisHeader views={VIEWS} view={view} onToggleView={this.handleToggleView} name={name || 'Graph'}/>
         <div className={classNames({"graph-container": view === GRAPH, "table-container": view === TABLE})}>
-          {this.renderVisualization(view, queries, heightPixels, onEditRawStatus)}
+          {this.renderVisualization(view, queries, heightPixels, onEditRawStatus, activeQueryIndex, onSetActiveQueryIndex)}
         </div>
       </div>
     )
   },
 
-  renderVisualization(view, queries, heightPixels, onEditRawStatus) {
+  renderVisualization(view, queries, heightPixels, onEditRawStatus, activeQueryIndex, onSetActiveQueryIndex) {
     switch (view) {
       case GRAPH:
         return this.renderGraph(queries)
       case TABLE:
-        return <MultiTable queries={queries} height={heightPixels} onEditRawStatus={onEditRawStatus} />
+        return (<MultiTable
+          queries={queries}
+          height={heightPixels}
+          onEditRawStatus={onEditRawStatus}
+          activeQueryIndex={activeQueryIndex}
+          onSetActiveQueryIndex={onSetActiveQueryIndex}
+        />)
       default:
         this.renderGraph(queries)
     }
