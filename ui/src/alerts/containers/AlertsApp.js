@@ -114,7 +114,12 @@ class AlertsApp extends Component {
 
   render() {
     const {source} = this.props
-    const {timeRange} = this.state
+    const {loading, timeRange} = this.state
+
+    if (loading || !source) {
+      return <div className="page-spinner" />
+    }
+
     return (
       <div className="page">
         <div className="page-header">
