@@ -1,7 +1,7 @@
 import {
   buildRoles,
   buildClusterAccounts,
-} from 'src/shared/presenters';
+} from 'src/shared/presenters'
 
 describe('Presenters', function() {
   describe('roles utils', function() {
@@ -17,13 +17,13 @@ describe('Presenters', function() {
                 ],
               },
             },
-          ];
+          ]
 
-          const actual = buildRoles(roles);
+          const actual = buildRoles(roles)
 
-          expect(actual[0].users).to.eql([]);
-        });
-      });
+          expect(actual[0].users).to.eql([])
+        })
+      })
 
       describe('when a role has no permissions', function() {
         it('set\'s a roles permission as an empty array', function() {
@@ -35,47 +35,47 @@ describe('Presenters', function() {
                 "will@influxdb.com",
               ],
             },
-          ];
+          ]
 
-          const actual = buildRoles(roles);
+          const actual = buildRoles(roles)
 
-          expect(actual[0].permissions).to.eql([]);
-        });
-      });
+          expect(actual[0].permissions).to.eql([])
+        })
+      })
 
       describe('when a role has users and permissions', function() {
         beforeEach(function() {
           const roles = [
             {
-              "name": "Marketing",
-              "permissions": {
+              name: "Marketing",
+              permissions: {
                 "": [
                   "ViewAdmin",
                 ],
-                "db1": [
-                  "ReadData"
+                db1: [
+                  "ReadData",
                 ],
-                "db2": [
+                db2: [
                   "ReadData",
                   "AddRemoveNode",
                 ],
               },
-              "users": [
+              users: [
                 "roley@influxdb.com",
-                "will@influxdb.com"
-              ]
+                "will@influxdb.com",
+              ],
             },
-          ];
+          ]
 
-          this.roles = buildRoles(roles);
-        });
+          this.roles = buildRoles(roles)
+        })
 
         it('each role has a name and a list of users (if they exist)', function() {
-          const role = this.roles[0];
-          expect(role.name).to.equal('Marketing');
-          expect(role.users).to.contain("roley@influxdb.com");
-          expect(role.users).to.contain("will@influxdb.com");
-        });
+          const role = this.roles[0]
+          expect(role.name).to.equal('Marketing')
+          expect(role.users).to.contain("roley@influxdb.com")
+          expect(role.users).to.contain("will@influxdb.com")
+        })
 
         it('transforms permissions into a list of objects and each permission has a list of resources', function() {
           expect(this.roles[0].permissions).to.eql([
@@ -97,11 +97,11 @@ describe('Presenters', function() {
               description: 'Can add/remove nodes from a cluster',
               resources: ['db2'],
             },
-          ]);
-        });
-      });
-    });
-  });
+          ])
+        })
+      })
+    })
+  })
 
   describe('cluster utils', function() {
     describe('buildClusterAccounts', function() {
@@ -109,50 +109,50 @@ describe('Presenters', function() {
       it('adds role information to each cluster account and parses permissions', function() {
         const users = [
           {
-            "name":"jon@example.com",
-            "hash":"xxxxx",
-            "permissions": {
+            name: "jon@example.com",
+            hash: "xxxxx",
+            permissions: {
               "": [
                 "ViewAdmin",
               ],
-              "db1": [
+              db1: [
                 "ReadData",
               ],
-            }
+            },
           },
           {
-            "name":"ned@example.com",
-            "hash":"xxxxx"
-          }
-        ];
+            name: "ned@example.com",
+            hash: "xxxxx",
+          },
+        ]
 
         const roles = [
           {
-            "name":"Admin",
-            "permissions":{
-              "db2": [
+            name: "Admin",
+            permissions: {
+              db2: [
                 "ViewAdmin",
-              ]
+              ],
             },
-            "users":[
+            users: [
               "jon@example.com",
               "ned@example.com",
-            ]
+            ],
           },
           {
-            "name":"Marketing",
-            "permissions": {
-              "db3": [
+            name: "Marketing",
+            permissions: {
+              db3: [
                 "ReadData",
               ],
             },
-            "users": [
+            users: [
               "jon@example.com",
-            ]
-          }
+            ],
+          },
         ]
 
-        const actual = buildClusterAccounts(users, roles);
+        const actual = buildClusterAccounts(users, roles)
 
         const expected = [
           {
@@ -183,7 +183,7 @@ describe('Presenters', function() {
                     resources: ['db2'],
                   },
                 ],
-                users:[
+                users: [
                   "jon@example.com",
                   "ned@example.com",
                 ],
@@ -198,10 +198,10 @@ describe('Presenters', function() {
                     resources: ['db3'],
                   },
                 ],
-                users:[
+                users: [
                   "jon@example.com",
-                ]
-              }
+                ],
+              },
             ],
           },
           {
@@ -219,38 +219,38 @@ describe('Presenters', function() {
                     resources: ['db2'],
                   },
                 ],
-                users:[
+                users: [
                   "jon@example.com",
                   "ned@example.com",
                 ],
               },
             ],
-          }
-        ];
+          },
+        ]
 
-        expect(actual).to.eql(expected);
-      });
+        expect(actual).to.eql(expected)
+      })
 
       it('can handle empty results for users and roles', function() {
-        const users = undefined;
-        const roles = undefined;
+        const users = undefined
+        const roles = undefined
 
-        const actual = buildClusterAccounts(users, roles);
+        const actual = buildClusterAccounts(users, roles)
 
-        expect(actual).to.eql([]);
-      });
+        expect(actual).to.eql([])
+      })
 
       it('sets roles to an empty array if a user has no roles', function() {
         const users = [{
           name: "ned@example.com",
           hash: "xxxxx",
-        }];
-        const roles = [];
+        }]
+        const roles = []
 
-        const actual = buildClusterAccounts(users, roles);
+        const actual = buildClusterAccounts(users, roles)
 
-        expect(actual[0].roles).to.eql([]);
-      });
-    });
-  });
-});
+        expect(actual[0].roles).to.eql([])
+      })
+    })
+  })
+})

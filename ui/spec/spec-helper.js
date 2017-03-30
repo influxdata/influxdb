@@ -1,13 +1,13 @@
 window.then = function(cb, done) {
   window.setTimeout(function() {
-    cb();
+    cb()
     if (typeof done === 'function') {
-      done();
+      done()
     }
-  }, 0);
-};
+  }, 0)
+}
 
-var chai = require('chai');
-chai.use(require('sinon-chai'));
+const chai = require('chai')
+chai.use(require('sinon-chai'))
 
-global.expect = chai.expect;
+global.expect = chai.expect

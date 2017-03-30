@@ -30,7 +30,7 @@ import {
   NEW_EMPTY_RP,
 } from 'src/admin/constants'
 
-let state = undefined
+let state
 
 // Users
 const u1 = {
@@ -57,11 +57,11 @@ const u1 = {
           'Monitor',
           'CopyShard',
           'KapacitorAPI',
-          'KapacitorConfigAPI'
+          'KapacitorConfigAPI',
         ],
         scope: 'all',
       },
-    }
+    },
   ],
   permissions: [],
   links: {self: '/chronograf/v1/sources/1/users/acidburn'},
@@ -98,16 +98,16 @@ const r1 = {
         'Monitor',
         'CopyShard',
         'KapacitorAPI',
-        'KapacitorConfigAPI'
+        'KapacitorConfigAPI',
       ],
       scope: 'all',
     },
   ],
-  links: {self: '/chronograf/v1/sources/1/roles/hax0r'}
+  links: {self: '/chronograf/v1/sources/1/roles/hax0r'},
 }
 const r2 = {
   name: 'l33tus3r',
-  links: {self: '/chronograf/v1/sources/1/roles/l33tus3r'}
+  links: {self: '/chronograf/v1/sources/1/roles/l33tus3r'},
 }
 const roles = [r1, r2]
 
@@ -226,7 +226,7 @@ describe('Admin.Reducers', () => {
     state = {
       users: [
         u1,
-      ]
+      ],
     }
 
     const actual = reducer(state, addUser())
@@ -260,7 +260,7 @@ describe('Admin.Reducers', () => {
 
     const actual = reducer(state, editUser(u2, updates))
     const expected = {
-      users: [{...u2, ...updates}, u1]
+      users: [{...u2, ...updates}, u1],
     }
 
     expect(actual.users).to.deep.equal(expected.users)
@@ -270,7 +270,7 @@ describe('Admin.Reducers', () => {
     state = {
       roles: [
         r1,
-      ]
+      ],
     }
 
     const actual = reducer(state, addRole())
@@ -304,7 +304,7 @@ describe('Admin.Reducers', () => {
 
     const actual = reducer(state, editRole(r2, updates))
     const expected = {
-      roles: [{...r2, ...updates}, r1]
+      roles: [{...r2, ...updates}, r1],
     }
 
     expect(actual.roles).to.deep.equal(expected.roles)
@@ -323,7 +323,7 @@ describe('Admin.Reducers', () => {
     state = {
       roles: [
         r1,
-      ]
+      ],
     }
 
     const actual = reducer(state, deleteRole(r1))
@@ -338,7 +338,7 @@ describe('Admin.Reducers', () => {
     state = {
       users: [
         u1,
-      ]
+      ],
     }
 
     const actual = reducer(state, deleteUser(u1))
