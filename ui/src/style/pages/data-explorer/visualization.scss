@@ -42,18 +42,6 @@
   top: $de-vertical-margin;
   height: calc(100% - #{$de-graph-heading-height} - #{($de-vertical-margin * 2)});
 
-  & > div {
-    position: absolute;
-    width: calc(100% - #{($de-vertical-margin * 2)});
-    height: calc(100% - #{$de-vertical-margin});
-    top: ($de-vertical-margin/2);
-    left: $de-vertical-margin;;
-  }
-  & > div .multi-table__tabs {
-    position: absolute;
-    height: 30px;
-    width: 100%;
-  }
   & > div > div:last-child {
     position: absolute;
     top: 30px;
