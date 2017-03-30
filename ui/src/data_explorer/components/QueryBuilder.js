@@ -144,8 +144,9 @@ const QueryBuilder = React.createClass({
   },
 
   renderAddQuery() {
+    const items = [{text: 'Query Builder'}, {text: 'Query Editor'}]
     return (
-      <SimpleDropdown onChoose={this.onChoose} items={[{text: 'Query Builder'}, {text: 'InfluxQL'}]} className="panel--tab-new">
+      <SimpleDropdown onChoose={this.onChoose} items={items} className="panel--tab-new">
         <span className="icon plus"></span>
       </SimpleDropdown>
     )
