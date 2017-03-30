@@ -91,7 +91,13 @@ class CellEditorOverlay extends Component {
 
   render() {
     const {onCancel, autoRefresh, timeRange} = this.props
-    const {activeQueryIndex, cellWorkingType, queriesWorkingDraft} = this.state
+    const {
+      activeQueryIndex,
+      cellWorkingName,
+      cellWorkingType,
+      queriesWorkingDraft,
+    } = this.state
+
     const queryActions = {
       addQuery: this.handleAddQuery,
       ..._.mapValues(queryModifiers, (qm) => this.queryStateReducer(qm)),
@@ -106,6 +112,7 @@ class CellEditorOverlay extends Component {
             queryConfigs={queriesWorkingDraft}
             activeQueryIndex={0}
             cellType={cellWorkingType}
+            cellName={cellWorkingName}
           />
           <ResizeBottom>
             <OverlayControls

@@ -18,6 +18,7 @@ const {
 
 const Visualization = React.createClass({
   propTypes: {
+    cellName: string,
     cellType: string,
     autoRefresh: number.isRequired,
     timeRange: shape({
@@ -25,7 +26,6 @@ const Visualization = React.createClass({
       lower: string,
     }).isRequired,
     queryConfigs: arrayOf(shape({})).isRequired,
-    name: string,
     activeQueryIndex: number,
     height: string,
     heightPixels: number,
@@ -74,7 +74,14 @@ const Visualization = React.createClass({
   },
 
   render() {
-    const {queryConfigs, timeRange, height, heightPixels} = this.props
+    const {
+      queryConfigs,
+      timeRange,
+      height,
+      heightPixels,
+      cellName,
+    } = this.props
+
     const {source} = this.context
     const proxyLink = source.links.proxy
 
@@ -91,7 +98,7 @@ const Visualization = React.createClass({
       <div className={classNames("graph", {active: true})} style={{height}}>
         <div className="graph-heading">
           <div className="graph-title">
-            {name || "Graph"}
+            {cellName || "Graph"}
           </div>
           <div className="graph-actions">
             <ul className="toggle toggle-sm">
