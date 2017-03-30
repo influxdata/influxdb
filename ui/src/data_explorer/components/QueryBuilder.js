@@ -108,10 +108,13 @@ const QueryBuilder = React.createClass({
         {queries.map((q, i) => {
           let queryTabText
           if (q.rawText) {
-            queryTabText = 'InfluxQL'
+            queryTabText = 'Query Editor'
+          } else if (q.measurement && q.fields.length !== 0) {
+            queryTabText = `${q.measurement}.${q.fields[0].field}`
           } else {
-            queryTabText = (q.measurement && q.fields.length !== 0) ? `${q.measurement}.${q.fields[0].field}` : 'Query'
+            queryTabText = 'Query Builder'
           }
+
           return (
             <QueryTabItem
               isActive={i === activeQueryIndex}
@@ -134,7 +137,7 @@ const QueryBuilder = React.createClass({
       case 'Query Builder':
         this.handleAddQuery()
         break
-      case 'InfluxQL':
+      case 'Query Editor':
         this.handleAddRawQuery()
         break
     }
