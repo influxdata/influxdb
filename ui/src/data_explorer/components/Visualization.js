@@ -61,7 +61,7 @@ const Visualization = React.createClass({
 
   componentWillReceiveProps(nextProps) {
     const {queryConfigs, activeQueryIndex} = nextProps
-    if (!queryConfigs.length) {
+    if (!queryConfigs.length || activeQueryIndex === this.props.activeQueryIndex) {
       return
     }
 
