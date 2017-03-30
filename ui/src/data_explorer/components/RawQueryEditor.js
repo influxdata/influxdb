@@ -59,9 +59,17 @@ const RawQueryEditor = React.createClass({
           value={value}
           placeholder="Blank query"
         />
-        <div>{rawStatus && rawStatus.error || rawStatus.warn || rawStatus.success}</div>
+        {this.renderStatus(rawStatus)}
       </div>
     )
+  },
+
+  renderStatus(rawStatus) {
+    if (!rawStatus) {
+      return null
+    }
+
+    return <div>{rawStatus.error || rawStatus.warn || rawStatus.success}</div>
   },
 })
 
