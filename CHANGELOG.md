@@ -15,7 +15,7 @@
 
 ### Bugfixes
 
-- [#8231](https://github.com/influxdata/influxdb/pull/8231): Fix spelling mistake in HTTP section -- shared-sercret
+- [#8231](https://github.com/influxdata/influxdb/pull/8231): Fix spelling mistake in HTTP section of config -- shared-sercret
 - [#8119](https://github.com/influxdata/influxdb/pull/8119): Add chunked/chunk size as setting/options in cli.
 - [#8091](https://github.com/influxdata/influxdb/issues/8091): Do not increment the continuous query statistic if no query is run.
 - [#8064](https://github.com/influxdata/influxdb/issues/8064): Forbid wildcards in binary expressions.
