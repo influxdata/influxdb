@@ -70,13 +70,13 @@ func (r *Reader) Open() error {
 	r.db = db
 
 	// Load fields.
-	if err := r.db.View(func(tx *bolt.Tx) error {
+	if err = r.db.View(func(tx *bolt.Tx) error {
 		meta := tx.Bucket([]byte("fields"))
 		c := meta.Cursor()
 
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			mf := &tsdb.MeasurementFields{}
-			if err := mf.UnmarshalBinary(v); err != nil {
+			if err = mf.UnmarshalBinary(v); err != nil {
 				return err
 			}
 			r.fields[string(k)] = mf
@@ -90,7 +90,7 @@ func (r *Reader) Open() error {
 	seriesSet := make(map[string]bool)
 
 	// ignore series index and find all series in this shard
-	if err := r.db.View(func(tx *bolt.Tx) error {
+	if err = r.db.View(func(tx *bolt.Tx) error {
 		tx.ForEach(func(name []byte, _ *bolt.Bucket) error {
 			key := string(name)
 			if !excludedBuckets[key] {

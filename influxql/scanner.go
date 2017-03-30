@@ -78,9 +78,8 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 				return ILLEGAL, pos, ""
 			}
 			return COMMENT, pos, ""
-		} else {
-			s.r.unread()
 		}
+		s.r.unread()
 		return DIV, pos, ""
 	case '%':
 		return MOD, pos, ""
@@ -317,10 +316,9 @@ func (s *Scanner) scanNumber() (tok Token, pos Pos, lit string) {
 				}
 			}
 			return DURATIONVAL, pos, buf.String()
-		} else {
-			s.r.unread()
-			return INTEGER, pos, buf.String()
 		}
+		s.r.unread()
+		return INTEGER, pos, buf.String()
 	}
 	return NUMBER, pos, buf.String()
 }
@@ -453,7 +451,7 @@ func (r *reader) read() (ch rune, pos Pos) {
 	if err != nil {
 		ch = eof
 	} else if ch == '\r' {
-		if ch, _, err := r.r.ReadRune(); err != nil {
+		if ch, _, err = r.r.ReadRune(); err != nil {
 			// nop
 		} else if ch != '\n' {
 			_ = r.r.UnreadRune()

@@ -56,24 +56,24 @@ type Data struct {
 // becomes the new shard owner.
 func NewShardOwner(s ShardInfo, ownerFreqs map[int]int) (uint64, error) {
 	var (
-		minId   = -1
+		minID   = -1
 		minFreq int
 	)
 
 	for id, freq := range ownerFreqs {
-		if minId == -1 || freq < minFreq {
-			minId, minFreq = int(id), freq
+		if minID == -1 || freq < minFreq {
+			minID, minFreq = id, freq
 		}
 	}
 
-	if minId < 0 {
+	if minID < 0 {
 		return 0, fmt.Errorf("cannot reassign shard %d due to lack of data nodes", s.ID)
 	}
 
 	// Update the shard owner frequencies and set the new owner on the
 	// shard.
-	ownerFreqs[minId]++
-	return uint64(minId), nil
+	ownerFreqs[minID]++
+	return uint64(minID), nil
 }
 
 // Database returns a DatabaseInfo by the database name.
@@ -1395,9 +1395,7 @@ func (si *SubscriptionInfo) unmarshal(pb *internal.SubscriptionInfo) {
 
 	if len(pb.GetDestinations()) > 0 {
 		si.Destinations = make([]string, len(pb.GetDestinations()))
-		for i, h := range pb.GetDestinations() {
-			si.Destinations[i] = h
-		}
+		copy(si.Destinations, pb.GetDestinations())
 	}
 }
 

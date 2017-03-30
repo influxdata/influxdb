@@ -4524,9 +4524,8 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 		if lhs != Unknown && rhs != Unknown {
 			if lhs < rhs {
 				return lhs
-			} else {
-				return rhs
 			}
+			return rhs
 		} else if lhs != Unknown {
 			return lhs
 		} else {

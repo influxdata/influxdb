@@ -299,10 +299,10 @@ func backupDatabase(db string) error {
 
 		if dstInfo.Size() > srcInfo.Size() {
 			log.Printf("Invalid backup file found for %v, replacing with good copy.", path)
-			if err := out.Truncate(0); err != nil {
+			if err = out.Truncate(0); err != nil {
 				return err
 			}
-			if _, err := out.Seek(0, io.SeekStart); err != nil {
+			if _, err = out.Seek(0, io.SeekStart); err != nil {
 				return err
 			}
 		}
@@ -315,7 +315,7 @@ func backupDatabase(db string) error {
 		if err != nil {
 			return err
 		}
-		if _, err := in.Seek(off, io.SeekStart); err != nil {
+		if _, err = in.Seek(off, io.SeekStart); err != nil {
 			return err
 		}
 

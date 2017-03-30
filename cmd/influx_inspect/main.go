@@ -46,6 +46,7 @@ func NewMain() *Main {
 // Run determines and runs the command specified by the CLI args.
 func (m *Main) Run(args ...string) error {
 	name, args := cmd.ParseCommandName(args)
+	var err error
 
 	// Extract name from args.
 	switch name {
@@ -58,22 +59,22 @@ func (m *Main) Run(args ...string) error {
 		fallthrough
 	case "dumptsm":
 		name := dumptsm.NewCommand()
-		if err := name.Run(args...); err != nil {
+		if err = name.Run(args...); err != nil {
 			return fmt.Errorf("dumptsm: %s", err)
 		}
 	case "export":
 		name := export.NewCommand()
-		if err := name.Run(args...); err != nil {
+		if err = name.Run(args...); err != nil {
 			return fmt.Errorf("export: %s", err)
 		}
 	case "report":
 		name := report.NewCommand()
-		if err := name.Run(args...); err != nil {
+		if err = name.Run(args...); err != nil {
 			return fmt.Errorf("report: %s", err)
 		}
 	case "verify":
 		name := verify.NewCommand()
-		if err := name.Run(args...); err != nil {
+		if err = name.Run(args...); err != nil {
 			return fmt.Errorf("verify: %s", err)
 		}
 	default:

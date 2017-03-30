@@ -512,7 +512,7 @@ func (s *Store) DeleteMeasurement(database, name string) error {
 		if err := sh.DeleteMeasurement(m.Name, seriesKeys); err != nil {
 			return err
 		}
-		return nil
+		return sh.DeleteMeasurement(m.Name, seriesKeys)
 	}); err != nil {
 		return err
 	}

@@ -68,7 +68,7 @@ func (cmd *Command) Run(args ...string) error {
 	// based on the arguments passed in we only backup the minimum
 	if shardID != "" {
 		// always backup the metastore
-		if err := cmd.backupMetastore(); err != nil {
+		if err = cmd.backupMetastore(); err != nil {
 			return err
 		}
 		err = cmd.backupShard(retentionPolicy, shardID, since)

@@ -68,7 +68,7 @@ func (r *Reader) Open() error {
 
 	seriesSet := make(map[string]bool)
 
-	if err := r.db.View(func(tx *bolt.Tx) error {
+	if err = r.db.View(func(tx *bolt.Tx) error {
 		var data []byte
 
 		meta := tx.Bucket([]byte("meta"))
@@ -82,7 +82,7 @@ func (r *Reader) Open() error {
 			return nil
 		}
 
-		if err := pointsBucket.ForEach(func(key, _ []byte) error {
+		if err = pointsBucket.ForEach(func(key, _ []byte) error {
 			seriesSet[string(key)] = true
 			return nil
 		}); err != nil {
@@ -99,7 +99,7 @@ func (r *Reader) Open() error {
 		if err != nil {
 			return err
 		}
-		if err := json.Unmarshal(data, &r.fields); err != nil {
+		if err = json.Unmarshal(data, &r.fields); err != nil {
 			return err
 		}
 		return nil

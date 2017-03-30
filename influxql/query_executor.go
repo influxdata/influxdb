@@ -213,7 +213,7 @@ func (e *QueryExecutor) Close() error {
 	return e.TaskManager.Close()
 }
 
-// SetLogOutput sets the writer to which all logs are written. It must not be
+// WithLogger sets the writer to which all logs are written. It must not be
 // called after Open is called.
 func (e *QueryExecutor) WithLogger(log zap.Logger) {
 	e.Logger = log.With(zap.String("service", "query"))
@@ -314,8 +314,8 @@ LOOP:
 
 		// Normalize each statement if possible.
 		if normalizer, ok := e.StatementExecutor.(StatementNormalizer); ok {
-			if err := normalizer.NormalizeStatement(stmt, defaultDB); err != nil {
-				if err := ctx.send(&Result{Err: err}); err == ErrQueryAborted {
+			if err = normalizer.NormalizeStatement(stmt, defaultDB); err != nil {
+				if err = ctx.send(&Result{Err: err}); err == ErrQueryAborted {
 					return
 				}
 				break
@@ -339,7 +339,7 @@ LOOP:
 
 		// Send an error for this result if it failed for some reason.
 		if err != nil {
-			if err := ctx.send(&Result{
+			if err = ctx.send(&Result{
 				StatementID: i,
 				Err:         err,
 			}); err == ErrQueryAborted {
