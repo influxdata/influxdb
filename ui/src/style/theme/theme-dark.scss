@@ -267,7 +267,7 @@ input {
   padding: 0 !important;
   max-height: 290px;
   overflow: auto;
-  @include custom-scrollbar($c-pool, $c-laser);
+  @include custom-scrollbar-round($c-pool, $c-laser);
   @include gradient-h($c-ocean, $c-pool);
   box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.8);
 

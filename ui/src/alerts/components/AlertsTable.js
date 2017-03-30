@@ -27,18 +27,19 @@ const AlertsTable = React.createClass({
   },
 
   componentWillReceiveProps(newProps) {
-    this.filterAlerts(newProps.alerts, this.state.searchTerm)
+    this.filterAlerts(this.state.searchTerm, newProps.alerts)
   },
 
-  filterAlerts(searchTerm) {
-    const filteredAlerts = this.props.alerts.filter((h) => {
+  filterAlerts(searchTerm, newAlerts) {
+    const alerts = newAlerts || this.props.alerts
+    const filteredAlerts = alerts.filter((h) => {
       if (h.host === null || h.name === null || h.level === null) {
         return false
       }
 
       return h.name.toLowerCase().search((searchTerm).toLowerCase()) !== -1 ||
-              h.host.toLowerCase().search((searchTerm).toLowerCase()) !== -1 ||
-              h.level.toLowerCase().search((searchTerm).toLowerCase()) !== -1
+        h.host.toLowerCase().search((searchTerm).toLowerCase()) !== -1 ||
+        h.level.toLowerCase().search((searchTerm).toLowerCase()) !== -1
     })
     this.setState({searchTerm, filteredAlerts})
   },
