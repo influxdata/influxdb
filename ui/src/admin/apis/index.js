@@ -159,15 +159,12 @@ export const updateRole = async (url, users, permissions) => {
   }
 }
 
-export const updateUser = async (url, roles, permissions) => {
+export const updateUser = async (url, updates) => {
   try {
     return await AJAX({
       method: 'PATCH',
       url,
-      data: {
-        roles,
-        permissions,
-      },
+      data: updates,
     })
   } catch (error) {
     console.error(error)

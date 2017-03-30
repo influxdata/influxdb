@@ -67,7 +67,7 @@
     width: 100%;
     min-width: 150px;
   }
-  .admin-table--delete {
+  .admin-table--hidden {
     visibility: hidden;
   }
   .dropdown-toggle {
@@ -83,7 +83,7 @@
   }
   .open .dropdown-toggle .multi-select-dropdown__label {left: 9px;}
   tbody tr:hover {
-    .admin-table--delete {
+    .admin-table--hidden {
       visibility: visible;
     }
     .dropdown-toggle {

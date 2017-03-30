@@ -112,7 +112,7 @@ class DatabaseRow extends Component {
                 onConfirm={() => onDelete(database, retentionPolicy)}
                 onCancel={this.handleEndDelete} /> :
               <button
-                className="btn btn-xs btn-danger admin-table--delete"
+                className="btn btn-xs btn-danger admin-table--hidden"
                 style={isDeletable ? {} : {visibility: 'hidden'}}
                 onClick={this.handleStartDelete}>{`Delete ${name}`}
               </button>
