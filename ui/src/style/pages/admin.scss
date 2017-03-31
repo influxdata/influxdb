@@ -19,6 +19,9 @@
 		.panel {
 			border-top-left-radius: 0;
 		}
+    .panel-body {
+      min-height: 300px;
+    }
 	}
 }
 .admin-tabs .btn-group {
