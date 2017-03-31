@@ -4,6 +4,7 @@ import {withRouter} from 'react-router'
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from '../../shared/components/TimeRangeDropdown'
 import SourceIndicator from '../../shared/components/SourceIndicator'
+import GraphTips from '../../shared/components/GraphTips'
 
 const {
   func,
@@ -45,6 +46,7 @@ const Header = React.createClass({
             <h1>Explorer</h1>
           </div>
           <div className="page-header__right">
+            <GraphTips />
             <SourceIndicator sourceName={this.context.source.name} />
             <AutoRefreshDropdown onChoose={handleChooseAutoRefresh} selected={autoRefresh} iconName="refresh" />
             <TimeRangeDropdown onChooseTimeRange={this.handleChooseTimeRange} selected={timeRange} />

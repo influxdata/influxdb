@@ -1,9 +1,9 @@
 import React, {PropTypes} from 'react'
-import ReactTooltip from 'react-tooltip'
 
 import AutoRefreshDropdown from 'shared/components/AutoRefreshDropdown'
 import TimeRangeDropdown from 'shared/components/TimeRangeDropdown'
 import SourceIndicator from '../../shared/components/SourceIndicator'
+import GraphTips from '../../shared/components/GraphTips'
 
 const DashboardHeader = ({
   children,
@@ -39,6 +39,8 @@ const DashboardHeader = ({
         }
       </div>
       <div className="page-header__right">
+        <GraphTips />
+        <SourceIndicator sourceName={source.name} />
         {
           dashboard ?
             <button className="btn btn-info btn-sm" onClick={onAddCell}>
@@ -53,12 +55,6 @@ const DashboardHeader = ({
               &nbsp;Edit
             </button> : null
         }
-        <div className="btn btn-info btn-sm" data-for="graph-tips-tooltip" data-tip="<p><code>Click + Drag</code> Zoom in (X or Y)</p><p><code>Shift + Click</code> Pan Graph Window</p><p><code>Double Click</code> Reset Graph Window</p>">
-          <span className="icon heart"></span>
-          Graph Tips
-        </div>
-        <ReactTooltip id="graph-tips-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
-        <SourceIndicator sourceName={source.name} />
         <AutoRefreshDropdown onChoose={handleChooseAutoRefresh} selected={autoRefresh} iconName="refresh" />
         <TimeRangeDropdown onChooseTimeRange={handleChooseTimeRange} selected={timeRange} />
         <div className="btn btn-info btn-sm" onClick={handleClickPresentationButton}>
