@@ -53,9 +53,11 @@
     height: 100% !important;
   }
   .generic-empty-state {
-    background-color: $g6-smoke;
+    background-color: transparent;
     padding: 50px 0;
     height: 100%;
+    font-size: 22px;
+    @include no-user-select();
   }
 }
 .graph-container {
