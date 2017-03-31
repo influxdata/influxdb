@@ -7,6 +7,7 @@
   1. [#1142](https://github.com/influxdata/chronograf/issue/1142): Fix Kapacitor Telegram config to display correct disableNotification setting
   1. [#1097](https://github.com/influxdata/chronograf/issues/1097): Fix broken graph spinner in the Data Explorer & Dashboard Cell Edit
   1. [#1106](https://github.com/influxdata/chronograf/issues/1106): Fix obscured legends in dashboards
+  1. [#1051](https://github.com/influxdata/chronograf/issue/1051): Exit presentation mode when using the browser back button
 
 ### Features
   1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard

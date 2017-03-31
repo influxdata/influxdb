@@ -40,6 +40,9 @@ if (basepath) {
     basename: "",
   })
 }
+browserHistory.listen(() => {
+  store.dispatch(disablePresentationMode())
+})
 
 window.addEventListener('keyup', (event) => {
   if (event.key === 'Escape') {
