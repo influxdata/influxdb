@@ -25,7 +25,7 @@
   text-shadow: none !important;
 }
 
-$raw-text-color: $c-comet;
+$raw-text-color: $c-pool;
 
 .raw-text--field {
   @include custom-scrollbar($g2-kevlar, $raw-text-color);
