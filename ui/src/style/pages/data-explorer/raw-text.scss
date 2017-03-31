@@ -26,17 +26,19 @@
 }
 
 $raw-text-color: $c-pool;
+$raw-text-height: 38px;
 
 .raw-text--field {
   @include custom-scrollbar($g2-kevlar, $raw-text-color);
   display: block;
   width: 100%;
-  height: ($query-builder--preview-height - 4px);
+  height: $raw-text-height;
   background-color: $g2-kevlar;
   border: 2px solid $g2-kevlar;
+  border-bottom: 0;
   color: $raw-text-color;
   padding: 7px;
-  border-radius: $radius;
+  border-radius: $radius $radius 0 0;
   margin: 0;
   transition:
     color 0.25s ease,
@@ -55,13 +57,55 @@ $raw-text-color: $c-pool;
   &:-moz-placeholder { /* Firefox 18- */
     color: $g8-storm;
   }
-  &:hover {
-    background-color: $g3-castle;
-    border-color: $g3-castle;
+  &:hover,
+  &:hover + .raw-text--status {
+    border-color: $g5-pepper;
   }
   &:focus {
     outline: none;
     color: $raw-text-color !important;
     border-color: $c-pool;
   }
-} 
+  &:focus + .raw-text--status {
+    border-color: $c-pool;
+  }
+}
+.raw-text--status {
+  width: 100%;
+  height: ($query-builder--preview-height - 2px - $raw-text-height);
+  line-height: 12px;
+  font-size: 12px;
+  background-color: $g2-kevlar;
+  border: 2px solid $g2-kevlar;
+  padding: 0 7px;
+  border-radius: 0 0 $radius $radius;
+  border-top: 0;
+  color: $g11-sidewalk;
+  font-family: $code-font;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    color 0.25s ease,
+    background-color 0.25s ease,
+    border-color 0.25s ease;
+
+  span.icon {
+    margin-right: 5px;
+  }
+
+  /* Error State */
+  &.raw-text--error {
+    color: $c-dreamsicle;
+  }
+
+  /* Warning State */
+  &.raw-text--warning {
+    color: $c-comet;
+  }
+
+  /* Success State */
+  &.raw-text--success {
+    color: $c-rainforest;
+  }
+}
