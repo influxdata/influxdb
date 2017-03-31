@@ -102,21 +102,21 @@ $tooltip-code-color: $c-potassium;
     Question Mark Tooltip
     ----------------------------------------------
 */
-$qmark-tooltip-size: 14px;
+$qmark-tooltip-size: 15px;
 
 .question-mark-tooltip {
   display: inline-block;
 }
 .question-mark-tooltip--icon {
   position: relative;
-  top: -2px;
+  top: -1px;
   vertical-align: middle;
   display: inline-block;
   width: $qmark-tooltip-size;
   height: $qmark-tooltip-size;
   border-radius: 50%;
   text-align: center;
-  line-height: ($qmark-tooltip-size + 2px);
+  line-height: ($qmark-tooltip-size + 1px);
   font-weight: 900;
   background-color: $g10-wolf;
   color: $g0-obsidian;
