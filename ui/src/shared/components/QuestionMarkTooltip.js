@@ -5,8 +5,8 @@ const QuestionMarkTooltip = ({
   tipID,
   tipContent,
 }) => (
-  <div style={{display: "inline-block"}}>
-    <div data-for={`${tipID}-tooltip`} data-tip={tipContent} style={{margin: "0 5px"}}>?</div>
+  <div className="question-mark-tooltip">
+    <div className="question-mark-tooltip--icon" data-for={`${tipID}-tooltip`} data-tip={tipContent}>?</div>
     <ReactTooltip
       id={`${tipID}-tooltip`}
       effect="solid"

@@ -31,6 +31,7 @@ $tooltip-code-color: $c-potassium;
   border: 2px solid $tooltip-accent !important;
   border-radius: $tooltip-radius !important;
   text-transform: none !important;
+  cursor: $cc-default;
 
   p {
     margin: 0;
@@ -93,5 +94,39 @@ $tooltip-code-color: $c-potassium;
   &:hover {
     visibility: visible!important;
     opacity: 1!important;
+  }
+}
+
+
+/*
+    Question Mark Tooltip
+    ----------------------------------------------
+*/
+$qmark-tooltip-size: 14px;
+
+.question-mark-tooltip {
+  display: inline-block;
+}
+.question-mark-tooltip--icon {
+  position: relative;
+  top: -2px;
+  vertical-align: middle;
+  display: inline-block;
+  width: $qmark-tooltip-size;
+  height: $qmark-tooltip-size;
+  border-radius: 50%;
+  text-align: center;
+  line-height: ($qmark-tooltip-size + 2px);
+  font-weight: 900;
+  background-color: $g10-wolf;
+  color: $g0-obsidian;
+  margin: 0 5px;
+  transition:
+    background-color 0.25s ease;
+}
+.question-mark-tooltip:hover {
+  cursor: $cc-default;
+  .question-mark-tooltip--icon {
+    background-color: $c-pool;
   }
 }
