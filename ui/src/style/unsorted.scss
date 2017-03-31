@@ -69,6 +69,10 @@
     }
   }
 }
+.form-group label,
+.form-group label:hover {
+  cursor: $cc-default;
+}
 
 /*
     Generic Empty State
