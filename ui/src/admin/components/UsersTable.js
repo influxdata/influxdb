@@ -30,6 +30,7 @@ const UsersTable = ({
             {hasRoles && <th>Roles</th>}
             <th>Permissions</th>
             <th></th>
+            <th></th>
           </tr>
         </thead>
         <tbody>

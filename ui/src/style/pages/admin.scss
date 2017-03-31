@@ -19,6 +19,14 @@
 		.panel {
 			border-top-left-radius: 0;
 		}
+    .panel-body {
+      min-height: 300px;
+    }
+    .panel-title {
+      font-size: 17px;
+      font-weight: 400 !important;
+      color: $g12-forge;
+    }
 	}
 }
 .admin-tabs .btn-group {
@@ -134,61 +142,81 @@
   justify-content: space-between;
 
   > input {
-    height: 30px;
-    padding: 0 9px;
+    height: 22px;
+    padding: 0 6px;
     flex-grow: 1;
-    margin: 0 2px;
+    margin: 0 4px 0 0;
     min-width: 110px;
+    font-size: 12px;
+  }
 
-    &:first-child {margin-left: 0;}
-    &:last-child {margin-right: 0;}
+  & + .confirm-buttons .btn {
+    display: block !important;
   }
 }
 
+.db-manager {
+  margin-bottom: 8px;
+
+  .db-manager-header--actions {
+    display: none;
+  }
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+  &:hover .db-manager-header--actions {
+    display: block;
+  }
+}
 .db-manager-header {
-  height: 32px;
+  padding: 0 11px;
+  height: 42px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 11px;
+  background-color: $g4-onyx;
+  border-radius: $radius-small $radius-small 0 0;
 
   h4 {
     margin: 0px;
-    color: $g15-platinum;
-
+    color: $c-potassium;
+    font-size: 17px;
+    font-family: $code-font;
+    padding-left: 6px;
   }
-
-  & .btn {display: none;}
-  &:hover .btn {display: inline-block;}
 }
-.db-manager-header-edit {
-  height: 32px;
-  display: flex;
-  align-items: center;
+.db-manager-header--edit {
   justify-content: flex-start;
-  margin-bottom: 11px;
-
-  > .form-control {
-    width: 300px;
-    margin-right: 8px;
-  }
-  .btn {
-    height: 40px;
-    width: 40px;
-    padding: 0;
-    margin: 0 2px 0 0;
-    font-size: 18px;
+  
+  .form-control {
+    height: 22px;
+    padding: 0 6px;
+    margin: 0 4px 0 0;
+    min-width: 110px;
+    font-size: 12px;
+    width: 50%;
   }
 }
-.db-manager {
-  margin-top: 18px;
-}
-.db-manager:first-child {
-  margin-top: 0;
- }
 
 .db-manager-table {
   background-color: $g4-onyx;
   padding: 9px 11px;
-  border-radius: $radius-small;
- }
+  border-radius: 0 0 $radius-small $radius-small;
+}
+
+
+.admin-change-pw {
+  float: right;
+  display: flex !important;
+  flex-wrap: nowrap;
+
+  .form-control {
+    height: 22px;
+    padding: 0 6px;
+    margin: 0 4px 0 0;
+    min-width: 110px;
+    font-size: 12px;
+    width: 120px;
+  }
+}

@@ -23,7 +23,7 @@
   vertical-align: middle;
   font-size: 13px;
   font-weight: 500;
-  background-color: $g5-pepper;
+  background-color: $g2-kevlar;
   color: $c-pool;
   border-radius: 3px;
   padding: 2px 6px;
@@ -68,6 +68,10 @@
       padding-top: 15px;
     }
   }
+}
+.form-group label,
+.form-group label:hover {
+  cursor: $cc-default;
 }
 
 /*

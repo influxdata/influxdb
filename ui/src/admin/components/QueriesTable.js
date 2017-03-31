@@ -4,7 +4,7 @@ const QueriesTable = ({queries, onKillQuery, onConfirm}) => (
   <div>
     <div className="panel panel-minimal">
       <div className="panel-body">
-        <table className="table v-center">
+        <table className="table v-center admin-table">
           <thead>
             <tr>
               <th>Database</th>
@@ -21,7 +21,7 @@ const QueriesTable = ({queries, onKillQuery, onConfirm}) => (
                   <td><code>{q.query}</code></td>
                   <td>{q.duration}</td>
                   <td className="text-right">
-                    <button className="btn btn-xs btn-link-danger" onClick={onKillQuery} data-toggle="modal" data-query-id={q.id} data-target="#killModal">
+                    <button className="btn btn-xs btn-danger admin-table--hidden" onClick={onKillQuery} data-toggle="modal" data-query-id={q.id} data-target="#killModal">
                       Kill
                     </button>
                   </td>

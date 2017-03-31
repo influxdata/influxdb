@@ -91,7 +91,7 @@ a.btn.btn-sm > span.icon,
 div.btn.btn-sm > span.icon,
 button.btn.btn-sm > span.icon {
   font-size: 16px;
-  margin: 0 4px 0 0 ;
+  margin: 0 6px 0 0 ;
 }
 .btn.btn-xs > .icon {
   position: relative;
@@ -215,10 +215,10 @@ button.btn.btn-sm > span.icon {
 .form-control,
 textarea,
 input {
-  &::-webkit-input-placeholder { color: $g10-wolf; }
-  &::-moz-placeholder { color: $g10-wolf; }
-  &:-ms-input-placeholder { color: $g10-wolf; }
-  &:-moz-placeholder { color: $g10-wolf; }
+  &::-webkit-input-placeholder { color: $g10-wolf; font-weight: 500 !important; }
+  &::-moz-placeholder { color: $g10-wolf; font-weight: 500 !important; }
+  &:-ms-input-placeholder { color: $g10-wolf; font-weight: 500 !important; }
+  &:-moz-placeholder { color: $g10-wolf; font-weight: 500 !important; }
 }
 
 /* Text Selection Styling */

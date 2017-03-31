@@ -5,23 +5,17 @@
 .source-indicator {
   @include no-user-select();
   display: inline-block;
-  padding: 0 9px;
+  padding: 0 4px;
   border: 0;
-  background-color: $g5-pepper;
   height: 30px;
   line-height: 30px;
   color: $g13-mist;
   font-weight: 700;
   font-size: 12px;
-  border-radius: 3px;
-  margin-right: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 
   > .icon {
     display: inline-block;
     font-size: 16px;
-    margin: 0 4px 0 -2px;
+    margin: 0 4px;
   }
 }
