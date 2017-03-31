@@ -52,7 +52,7 @@ const DashboardHeader = ({
           dashboard ?
             <button className="btn btn-info btn-sm" onClick={onEditDashboard}>
               <span className="icon pencil" />
-              &nbsp;Edit
+              Rename
             </button> : null
         }
         <AutoRefreshDropdown onChoose={handleChooseAutoRefresh} selected={autoRefresh} iconName="refresh" />
