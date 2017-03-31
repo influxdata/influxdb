@@ -33,6 +33,7 @@
 - [#8175](https://github.com/influxdata/influxdb/issues/8175): Ensure the input for certain functions in the query engine are ordered.
 - [#8171](https://github.com/influxdata/influxdb/issues/8171): Significantly improve shutdown speed for high cardinality databases.
 - [#8177](https://github.com/influxdata/influxdb/issues/8177): Fix racy integration test.
+- [#8230](https://github.com/influxdata/influxdb/issues/8230): Prevent overflowing or underflowing during window computation.
 
 ## v1.2.2 [2017-03-14]
 

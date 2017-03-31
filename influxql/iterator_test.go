@@ -1067,6 +1067,44 @@ func TestIteratorOptions_Window_Location(t *testing.T) {
 	}
 }
 
+func TestIteratorOptions_Window_MinTime(t *testing.T) {
+	opt := influxql.IteratorOptions{
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+		Interval: influxql.Interval{
+			Duration: time.Hour,
+		},
+	}
+	expected := time.Unix(0, influxql.MinTime).Add(time.Hour).Truncate(time.Hour)
+
+	start, end := opt.Window(influxql.MinTime)
+	if start != influxql.MinTime {
+		t.Errorf("expected start to be %d, got %d", influxql.MinTime, start)
+	}
+	if have, want := end, expected.UnixNano(); have != want {
+		t.Errorf("expected end to be %d, got %d", want, have)
+	}
+}
+
+func TestIteratorOptions_Window_MaxTime(t *testing.T) {
+	opt := influxql.IteratorOptions{
+		StartTime: influxql.MinTime,
+		EndTime:   influxql.MaxTime,
+		Interval: influxql.Interval{
+			Duration: time.Hour,
+		},
+	}
+	expected := time.Unix(0, influxql.MaxTime).Truncate(time.Hour)
+
+	start, end := opt.Window(influxql.MaxTime)
+	if have, want := start, expected.UnixNano(); have != want {
+		t.Errorf("expected start to be %d, got %d", want, have)
+	}
+	if end != influxql.MaxTime {
+		t.Errorf("expected end to be %d, got %d", influxql.MaxTime, end)
+	}
+}
+
 func TestIteratorOptions_SeekTime_Ascending(t *testing.T) {
 	opt := influxql.IteratorOptions{
 		StartTime: 30,
