@@ -2814,6 +2814,130 @@ func TestSelect_Difference_Duplicate_Integer(t *testing.T) {
 	}
 }
 
+func TestSelect_Non_Negative_Difference_Float(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(m *influxql.Measurement, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		if m.Name != "cpu" {
+			t.Fatalf("unexpected source: %s", m.Name)
+		}
+		return &FloatIterator{Points: []influxql.FloatPoint{
+			{Name: "cpu", Time: 0 * Second, Value: 20},
+			{Name: "cpu", Time: 4 * Second, Value: 10},
+			{Name: "cpu", Time: 8 * Second, Value: 29},
+			{Name: "cpu", Time: 12 * Second, Value: 3},
+			{Name: "cpu", Time: 16 * Second, Value: 39},
+		}}, nil
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
+	if err != nil {
+		t.Fatal(err)
+	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]influxql.Point{
+		{&influxql.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 19}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 16 * Second, Value: 36}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+func TestSelect_Non_Negative_Difference_Integer(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(m *influxql.Measurement, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		if m.Name != "cpu" {
+			t.Fatalf("unexpected source: %s", m.Name)
+		}
+		return &IntegerIterator{Points: []influxql.IntegerPoint{
+			{Name: "cpu", Time: 0 * Second, Value: 20},
+			{Name: "cpu", Time: 4 * Second, Value: 10},
+			{Name: "cpu", Time: 8 * Second, Value: 21},
+			{Name: "cpu", Time: 12 * Second, Value: 3},
+		}}, nil
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
+	if err != nil {
+		t.Fatal(err)
+	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]influxql.Point{
+		{&influxql.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 11}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+func TestSelect_Non_Negative_Difference_Duplicate_Float(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(m *influxql.Measurement, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		if m.Name != "cpu" {
+			t.Fatalf("unexpected source: %s", m.Name)
+		}
+		return &FloatIterator{Points: []influxql.FloatPoint{
+			{Name: "cpu", Time: 0 * Second, Value: 20},
+			{Name: "cpu", Time: 0 * Second, Value: 19},
+			{Name: "cpu", Time: 4 * Second, Value: 10},
+			{Name: "cpu", Time: 4 * Second, Value: 3},
+			{Name: "cpu", Time: 8 * Second, Value: 30},
+			{Name: "cpu", Time: 8 * Second, Value: 19},
+			{Name: "cpu", Time: 12 * Second, Value: 10},
+			{Name: "cpu", Time: 12 * Second, Value: 3},
+			{Name: "cpu", Time: 16 * Second, Value: 40},
+			{Name: "cpu", Time: 16 * Second, Value: 3},
+		}}, nil
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
+	if err != nil {
+		t.Fatal(err)
+	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]influxql.Point{
+		{&influxql.FloatPoint{Name: "cpu", Time: 8 * Second, Value: 20}},
+		{&influxql.FloatPoint{Name: "cpu", Time: 16 * Second, Value: 30}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
+func TestSelect_Non_Negative_Difference_Duplicate_Integer(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(m *influxql.Measurement, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		if m.Name != "cpu" {
+			t.Fatalf("unexpected source: %s", m.Name)
+		}
+		return &IntegerIterator{Points: []influxql.IntegerPoint{
+			{Name: "cpu", Time: 0 * Second, Value: 20},
+			{Name: "cpu", Time: 0 * Second, Value: 19},
+			{Name: "cpu", Time: 4 * Second, Value: 10},
+			{Name: "cpu", Time: 4 * Second, Value: 3},
+			{Name: "cpu", Time: 8 * Second, Value: 30},
+			{Name: "cpu", Time: 8 * Second, Value: 19},
+			{Name: "cpu", Time: 12 * Second, Value: 10},
+			{Name: "cpu", Time: 12 * Second, Value: 3},
+			{Name: "cpu", Time: 16 * Second, Value: 40},
+			{Name: "cpu", Time: 16 * Second, Value: 3},
+		}}, nil
+	}
+
+	// Execute selection.
+	itrs, err := influxql.Select(MustParseSelectStatement(`SELECT non_negative_difference(value) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-01T00:00:16Z'`), &ic, nil)
+	if err != nil {
+		t.Fatal(err)
+	} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+		t.Fatalf("unexpected error: %s", err)
+	} else if !deep.Equal(a, [][]influxql.Point{
+		{&influxql.IntegerPoint{Name: "cpu", Time: 8 * Second, Value: 20}},
+		{&influxql.IntegerPoint{Name: "cpu", Time: 16 * Second, Value: 30}},
+	}) {
+		t.Fatalf("unexpected points: %s", spew.Sdump(a))
+	}
+}
+
 func TestSelect_Elapsed_Float(t *testing.T) {
 	var ic IteratorCreator
 	ic.CreateIteratorFn = func(m *influxql.Measurement, opt influxql.IteratorOptions) (influxql.Iterator, error) {
