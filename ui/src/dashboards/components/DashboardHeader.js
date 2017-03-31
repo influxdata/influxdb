@@ -43,9 +43,9 @@ const DashboardHeader = ({
         <SourceIndicator sourceName={source.name} />
         {
           dashboard ?
-            <button className="btn btn-info btn-sm" onClick={onAddCell}>
+            <button className="btn btn-primary btn-sm" onClick={onAddCell}>
               <span className="icon plus" />
-              &nbsp;Add Cell
+              Add Cell
             </button> : null
         }
         {
