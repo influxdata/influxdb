@@ -28,8 +28,6 @@ import 'src/style/chronograf.scss'
 const store = configureStore(loadLocalStorage())
 const rootNode = document.getElementById('react-root')
 
-// c
-
 let browserHistory
 const basepath = rootNode.dataset.basepath
 window.basepath = basepath
