@@ -14,6 +14,7 @@
 - [#6541](https://github.com/influxdata/influxdb/issues/6541): Support timezone offsets for queries.
 - [#8194](https://github.com/influxdata/influxdb/pull/8194): Add "integral" function to InfluxQL.
 - [#7393](https://github.com/influxdata/influxdb/issues/7393): Add "non_negative_difference" function to InfluxQL.
+- [#8042](https://github.com/influxdata/influxdb/issues/8042): Add bitwise AND, OR and XOR operators to the query language.
 
 ### Bugfixes
 

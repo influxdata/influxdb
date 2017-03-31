@@ -2284,6 +2284,33 @@ func TestSelect_BinaryExpr_Integer(t *testing.T) {
 				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: 1}},
 			},
 		},
+		{
+			Name:      "rhs binary bitwise-and integer",
+			Statement: `SELECT value & 254 FROM cpu`,
+			Points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 10}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 18}},
+			},
+		},
+		{
+			Name:      "lhs binary bitwise-or integer",
+			Statement: `SELECT 4 | value FROM cpu`,
+			Points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 20}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 14}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 23}},
+			},
+		},
+		{
+			Name:      "two variable binary bitwise-xor",
+			Statement: `SELECT value ^ value FROM cpu`,
+			Points: [][]influxql.Point{
+				{&influxql.IntegerPoint{Name: "cpu", Time: 0 * Second, Value: 0}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 5 * Second, Value: 0}},
+				{&influxql.IntegerPoint{Name: "cpu", Time: 9 * Second, Value: 0}},
+			},
+		},
 	} {
 		stmt, err := MustParseSelectStatement(test.Statement).RewriteFields(&ic)
 		if err != nil {
@@ -2363,6 +2390,85 @@ func TestSelect_BinaryExpr_Mixed(t *testing.T) {
 				{&influxql.FloatPoint{Name: "cpu", Time: 0 * Second, Value: 2}},
 				{&influxql.FloatPoint{Name: "cpu", Time: 5 * Second, Value: float64(10) / float64(15)}},
 				{&influxql.FloatPoint{Name: "cpu", Time: 9 * Second, Value: float64(19) / float64(5)}},
+			},
+		},
+	} {
+		stmt, err := MustParseSelectStatement(test.Statement).RewriteFields(&ic)
+		if err != nil {
+			t.Errorf("%s: rewrite error: %s", test.Name, err)
+		}
+
+		itrs, err := influxql.Select(stmt, &ic, nil)
+		if err != nil {
+			t.Errorf("%s: parse error: %s", test.Name, err)
+		} else if a, err := Iterators(itrs).ReadAll(); err != nil {
+			t.Fatalf("%s: unexpected error: %s", test.Name, err)
+		} else if !deep.Equal(a, test.Points) {
+			t.Errorf("%s: unexpected points: %s", test.Name, spew.Sdump(a))
+		}
+	}
+}
+
+// Ensure a SELECT binary expr queries can be executed as booleans.
+func TestSelect_BinaryExpr_Boolean(t *testing.T) {
+	var ic IteratorCreator
+	ic.CreateIteratorFn = func(m *influxql.Measurement, opt influxql.IteratorOptions) (influxql.Iterator, error) {
+		if m.Name != "cpu" {
+			t.Fatalf("unexpected source: %s", m.Name)
+		}
+		makeAuxFields := func(value bool) []interface{} {
+			aux := make([]interface{}, len(opt.Aux))
+			for i := range aux {
+				aux[i] = value
+			}
+			return aux
+		}
+		return &BooleanIterator{Points: []influxql.BooleanPoint{
+			{Name: "cpu", Time: 0 * Second, Value: true, Aux: makeAuxFields(true)},
+			{Name: "cpu", Time: 5 * Second, Value: false, Aux: makeAuxFields(false)},
+			{Name: "cpu", Time: 9 * Second, Value: true, Aux: makeAuxFields(true)},
+		}}, nil
+	}
+	ic.FieldDimensionsFn = func(m *influxql.Measurement) (map[string]influxql.DataType, map[string]struct{}, error) {
+		if m.Name != "cpu" {
+			t.Fatalf("unexpected source: %s", m.Name)
+		}
+		return map[string]influxql.DataType{
+			"one": influxql.Boolean,
+			"two": influxql.Boolean,
+		}, nil, nil
+	}
+
+	for _, test := range []struct {
+		Name      string
+		Statement string
+		Points    [][]influxql.Point
+	}{
+		{
+			Name:      "rhs binary bitwise-xor",
+			Statement: `SELECT one ^ true FROM cpu`,
+			Points: [][]influxql.Point{
+				{&influxql.BooleanPoint{Name: "cpu", Time: 0 * Second, Value: false}},
+				{&influxql.BooleanPoint{Name: "cpu", Time: 5 * Second, Value: true}},
+				{&influxql.BooleanPoint{Name: "cpu", Time: 9 * Second, Value: false}},
+			},
+		},
+		{
+			Name:      "lhs binary or",
+			Statement: `SELECT true | two FROM cpu`,
+			Points: [][]influxql.Point{
+				{&influxql.BooleanPoint{Name: "cpu", Time: 0 * Second, Value: true}},
+				{&influxql.BooleanPoint{Name: "cpu", Time: 5 * Second, Value: true}},
+				{&influxql.BooleanPoint{Name: "cpu", Time: 9 * Second, Value: true}},
+			},
+		},
+		{
+			Name:      "two series bitwise-and",
+			Statement: `SELECT one & two FROM cpu`,
+			Points: [][]influxql.Point{
+				{&influxql.BooleanPoint{Name: "cpu", Time: 0 * Second, Value: true}},
+				{&influxql.BooleanPoint{Name: "cpu", Time: 5 * Second, Value: false}},
+				{&influxql.BooleanPoint{Name: "cpu", Time: 9 * Second, Value: true}},
 			},
 		},
 	} {
