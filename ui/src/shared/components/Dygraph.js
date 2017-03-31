@@ -2,7 +2,6 @@
 import React, {PropTypes} from 'react'
 import Dygraph from '../../external/dygraph'
 import getRange from 'src/shared/parsing/getRangeForDygraph'
-import _ from 'lodash'
 
 const {
   array,
@@ -10,6 +9,7 @@ const {
   number,
   bool,
   shape,
+  string,
 } = PropTypes
 
 const LINE_COLORS = [
@@ -43,7 +43,11 @@ export default React.createClass({
     isGraphFilled: bool,
     overrideLineColors: array,
     dygraphSeries: shape({}).isRequired,
-    ruleValues: shape({}),
+    ruleValues: shape({
+      operator: string,
+      value: string,
+      rangeValue: string,
+    }),
   },
 
   getDefaultProps() {
@@ -90,7 +94,7 @@ export default React.createClass({
       series: dygraphSeries,
       axes: {
         y: {
-          valueRange: getRange(timeSeries, ranges.y, _.get(ruleValues, 'value', null), _.get(ruleValues, 'rangeValue', null)),
+          valueRange: getRange(timeSeries, ranges.y, ruleValues),
         },
         y2: {
           valueRange: getRange(timeSeries, ranges.y2),
@@ -159,7 +163,7 @@ export default React.createClass({
       file: timeSeries,
       axes: {
         y: {
-          valueRange: getRange(timeSeries, ranges.y, _.get(ruleValues, 'value', null), _.get(ruleValues, 'rangeValue', null)),
+          valueRange: getRange(timeSeries, ranges.y, ruleValues),
         },
         y2: {
           valueRange: getRange(timeSeries, ranges.y2),
