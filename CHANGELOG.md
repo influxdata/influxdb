@@ -5,6 +5,8 @@
   1. [#1125](https://github.com/influxdata/chronograf/pull/1125): Fix visualizations not showing graph name
   1. [#1133](https://github.com/influxdata/chronograf/issue/1133): Fix Enterprise Kapacitor authentication.
   1. [#1142](https://github.com/influxdata/chronograf/issue/1142): Fix Kapacitor Telegram config to display correct disableNotification setting
+  1. [#1097](https://github.com/influxdata/chronograf/issues/1097): Fix broken graph spinner in the Data Explorer & Dashboard Cell Edit
+  1. [#1106](https://github.com/influxdata/chronograf/issues/1106): Fix obscured legends in dashboards
 
 ### Features
   1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard
@@ -18,6 +20,7 @@
   1. [#1135](https://github.com/influxdata/chronograf/pull/1135): Clarify Kapacitor Alert configuration for Telegram
   1. [#1137](https://github.com/influxdata/chronograf/pull/1137): Clarify Kapacitor Alert configuration for HipChat
   1. [#1079](https://github.com/influxdata/chronograf/issues/1079): Remove series highlighting in line graphs
+  1. [#1124](https://github.com/influxdata/chronograf/pull/1124): Polished dashboard cell drag interaction, use Hover-To-Reveal UI pattern in all tables, Source Indicator & Graph Tips are no longer misleading, and aesthetic improvements to the DB Management page
 
 ## v1.2.0-beta7 [2017-03-28]
 ### Bug Fixes
