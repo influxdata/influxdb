@@ -41,44 +41,48 @@ describe('getRangeForDygraphSpec', () => {
     expect(actual).to.deep.equal(expected)
   })
 
-  describe('when user provides a rule value', () => {
+  describe('when user provides a Kapacitor rule value', () => {
     const defaultMax = 20
     const defaultMin = -10
     const timeSeries = [[new Date(1000), defaultMax], [new Date(2000), 1], [new Date(3000), defaultMin]]
 
     it('can pad positive values', () => {
-      const value = 20
-      const [min, max] = getRange(timeSeries, undefined, value)
+      const kapacitorRuleValues = {value: 20, rangeValue: "", operator: null}
+      const [min, max] = getRange(timeSeries, undefined, kapacitorRuleValues)
 
       expect(min).to.equal(defaultMin)
       expect(max).to.be.above(defaultMax)
     })
 
     it('can pad negative values', () => {
-      const value = -10
-      const [min, max] = getRange(timeSeries, undefined, value)
+      const kapacitorRuleValues = {value: -10, rangeValue: "", operator: null}
+      const [min, max] = getRange(timeSeries, undefined, kapacitorRuleValues)
 
       expect(min).to.be.below(defaultMin)
       expect(max).to.equal(defaultMax)
     })
+
+    it('subtracts from positive values if Kapactior operator is "lower than"', () => {
+      // TODO: go home
+    })
   })
 
-  describe('when user provides a rule range value', () => {
+  describe('when user provides a Kapacitor rule rangeValue', () => {
     const defaultMax = 20
     const defaultMin = -10
     const timeSeries = [[new Date(1000), defaultMax], [new Date(2000), 1], [new Date(3000), defaultMin]]
 
     it('can pad positive values', () => {
-      const rangeValue = 20
-      const [min, max] = getRange(timeSeries, undefined, 0, rangeValue)
+      const kapacitorRuleValues = {value: null, rangeValue: 20, operator: null}
+      const [min, max] = getRange(timeSeries, undefined, kapacitorRuleValues)
 
       expect(min).to.equal(defaultMin)
       expect(max).to.be.above(defaultMax)
     })
 
     it('can pad negative values', () => {
-      const rangeValue = -10
-      const [min, max] = getRange(timeSeries, undefined, 0, rangeValue)
+      const kapacitorRuleValues = {value: null, rangeValue: -10, operator: null}
+      const [min, max] = getRange(timeSeries, undefined, kapacitorRuleValues)
 
       expect(min).to.be.below(defaultMin)
       expect(max).to.equal(defaultMax)
