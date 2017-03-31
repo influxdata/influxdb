@@ -84,24 +84,24 @@
   height: calc(100% - #{$de-graph-heading-height} - #{($de-vertical-margin * 2)});
   padding: 0;
 
-  & > div {
+  & > div:not(.graph-panel__refreshing) {
     position: absolute;
     width: 100%;
     height: 100%;
   }
-  & > div > div {
+  & > div:not(.graph-panel__refreshing) > div:not(.graph-panel__refreshing) {
     position: absolute;
     width: 100%;
     height: 100%;
     padding: 8px 16px;
-    // width: calc(100% - #{($de-vertical-margin * 2)});
-    // height: calc(100% - #{$de-vertical-margin});
-    // top: ($de-vertical-margin / 2);
-    // left: $de-vertical-margin;
   }
-  & > div > div > div:first-child {
+  & > div:not(.graph-panel__refreshing) > div:not(.graph-panel__refreshing) > div:first-child {
     height: 100% !important;
   }
+}
+
+.data-explorer .graph-panel__refreshing {
+  top: -31px !important;
 }
 
 

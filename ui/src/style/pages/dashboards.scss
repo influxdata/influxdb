@@ -269,7 +269,8 @@ $dash-graph-options-arrow: 8px;
   position: absolute;
   top: -18px !important;
   transform: translate(0,0);
-  right: 50px !important;
+  right: 50%;
+  transform: translateX(50%);
   width: 16px;
   height: 18px;
 
