@@ -1142,17 +1142,17 @@ func newDerivativeIterator(input Iterator, opt IteratorOptions, interval Interva
 }
 
 // newDifferenceIterator returns an iterator for operating on a difference() call.
-func newDifferenceIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+func newDifferenceIterator(input Iterator, opt IteratorOptions, isNonNegative bool) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
-			fn := NewFloatDifferenceReducer()
+			fn := NewFloatDifferenceReducer(isNonNegative)
 			return fn, fn
 		}
 		return newFloatStreamFloatIterator(input, createFn, opt), nil
 	case IntegerIterator:
 		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
-			fn := NewIntegerDifferenceReducer()
+			fn := NewIntegerDifferenceReducer(isNonNegative)
 			return fn, fn
 		}
 		return newIntegerStreamIntegerIterator(input, createFn, opt), nil

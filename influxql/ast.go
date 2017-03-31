@@ -1926,7 +1926,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	for _, f := range s.Fields {
 		for _, expr := range walkFunctionCalls(f.Expr) {
 			switch expr.Name {
-			case "derivative", "non_negative_derivative", "difference", "moving_average", "cumulative_sum", "elapsed":
+			case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "cumulative_sum", "elapsed":
 				if err := s.validSelectWithAggregate(); err != nil {
 					return err
 				}
@@ -1942,7 +1942,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 							return fmt.Errorf("second argument to %s must be a duration, got %T", expr.Name, expr.Args[1])
 						}
 					}
-				case "difference", "cumulative_sum":
+				case "difference", "non_negative_difference", "cumulative_sum":
 					if got := len(expr.Args); got != 1 {
 						return fmt.Errorf("invalid number of arguments for %s, expected 1, got %d", expr.Name, got)
 					}
@@ -2162,7 +2162,7 @@ func (s *SelectStatement) validateGroupByInterval() error {
 		switch expr := f.Expr.(type) {
 		case *Call:
 			switch expr.Name {
-			case "derivative", "non_negative_derivative", "difference", "moving_average", "cumulative_sum", "elapsed", "holt_winters", "holt_winters_with_fit":
+			case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "cumulative_sum", "elapsed", "holt_winters", "holt_winters_with_fit":
 				// If the first argument is a call, we needed a group by interval and we don't have one.
 				if _, ok := expr.Args[0].(*Call); ok {
 					return fmt.Errorf("%s aggregate requires a GROUP BY interval", expr.Name)

@@ -185,15 +185,17 @@ func (r *IntegerDerivativeReducer) Emit() []FloatPoint {
 
 // FloatDifferenceReducer calculates the derivative of the aggregated points.
 type FloatDifferenceReducer struct {
-	prev FloatPoint
-	curr FloatPoint
+	isNonNegative bool
+	prev          FloatPoint
+	curr          FloatPoint
 }
 
 // NewFloatDifferenceReducer creates a new FloatDifferenceReducer.
-func NewFloatDifferenceReducer() *FloatDifferenceReducer {
+func NewFloatDifferenceReducer(isNonNegative bool) *FloatDifferenceReducer {
 	return &FloatDifferenceReducer{
-		prev: FloatPoint{Nil: true},
-		curr: FloatPoint{Nil: true},
+		isNonNegative: isNonNegative,
+		prev:          FloatPoint{Nil: true},
+		curr:          FloatPoint{Nil: true},
 	}
 }
 
@@ -216,6 +218,12 @@ func (r *FloatDifferenceReducer) Emit() []FloatPoint {
 		// Calculate the difference of successive points.
 		value := r.curr.Value - r.prev.Value
 
+		// If it is non_negative_difference discard any negative value. Since
+		// prev is still marked as unread. The correctness can be ensured.
+		if r.isNonNegative && value < 0 {
+			return nil
+		}
+
 		// Mark this point as read by changing the previous point to nil.
 		r.prev.Nil = true
 		return []FloatPoint{{Time: r.curr.Time, Value: value}}
@@ -225,15 +233,17 @@ func (r *FloatDifferenceReducer) Emit() []FloatPoint {
 
 // IntegerDifferenceReducer calculates the derivative of the aggregated points.
 type IntegerDifferenceReducer struct {
-	prev IntegerPoint
-	curr IntegerPoint
+	isNonNegative bool
+	prev          IntegerPoint
+	curr          IntegerPoint
 }
 
 // NewIntegerDifferenceReducer creates a new IntegerDifferenceReducer.
-func NewIntegerDifferenceReducer() *IntegerDifferenceReducer {
+func NewIntegerDifferenceReducer(isNonNegative bool) *IntegerDifferenceReducer {
 	return &IntegerDifferenceReducer{
-		prev: IntegerPoint{Nil: true},
-		curr: IntegerPoint{Nil: true},
+		isNonNegative: isNonNegative,
+		prev:          IntegerPoint{Nil: true},
+		curr:          IntegerPoint{Nil: true},
 	}
 }
 
@@ -256,8 +266,15 @@ func (r *IntegerDifferenceReducer) Emit() []IntegerPoint {
 		// Calculate the difference of successive points.
 		value := r.curr.Value - r.prev.Value
 
+		// If it is non_negative_difference discard any negative value. Since
+		// prev is still marked as unread. The correctness can be ensured.
+		if r.isNonNegative && value < 0 {
+			return nil
+		}
+
 		// Mark this point as read by changing the previous point to nil.
 		r.prev.Nil = true
+
 		return []IntegerPoint{{Time: r.curr.Time, Value: value}}
 	}
 	return nil
