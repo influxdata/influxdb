@@ -215,10 +215,10 @@ button.btn.btn-sm > span.icon {
 .form-control,
 textarea,
 input {
-  &::-webkit-input-placeholder { color: $g10-wolf; }
-  &::-moz-placeholder { color: $g10-wolf; }
-  &:-ms-input-placeholder { color: $g10-wolf; }
-  &:-moz-placeholder { color: $g10-wolf; }
+  &::-webkit-input-placeholder { color: $g10-wolf; font-weight: 500 !important; }
+  &::-moz-placeholder { color: $g10-wolf; font-weight: 500 !important; }
+  &:-ms-input-placeholder { color: $g10-wolf; font-weight: 500 !important; }
+  &:-moz-placeholder { color: $g10-wolf; font-weight: 500 !important; }
 }
 
 /* Text Selection Styling */
