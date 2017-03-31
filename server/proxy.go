@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/base64"
 	"fmt"
 	"net/http"
 	"net/http/httputil"
@@ -49,9 +48,7 @@ func (h *Service) KapacitorProxy(w http.ResponseWriter, r *http.Request) {
 		// Because we are acting as a proxy, kapacitor needs to have the basic auth information set as
 		// a header directly
 		if srv.Username != "" && srv.Password != "" {
-			auth := "Basic " + srv.Username + ":" + srv.Password
-			header := base64.StdEncoding.EncodeToString([]byte(auth))
-			req.Header.Set("Authorization", header)
+			req.SetBasicAuth(srv.Username, srv.Password)
 		}
 	}
 	proxy := &httputil.ReverseProxy{

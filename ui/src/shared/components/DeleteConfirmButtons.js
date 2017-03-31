@@ -4,7 +4,7 @@ import OnClickOutside from 'shared/components/OnClickOutside'
 import ConfirmButtons from 'shared/components/ConfirmButtons'
 
 const DeleteButton = ({onClickDelete}) => (
-  <button className="btn btn-xs btn-danger admin-table--delete" onClick={onClickDelete}>
+  <button className="btn btn-xs btn-danger admin-table--hidden" onClick={onClickDelete}>
     Delete
   </button>
 )

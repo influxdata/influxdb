@@ -4,8 +4,8 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
-import Header from 'src/dashboards/components/DashboardHeader'
-import EditHeader from 'src/dashboards/components/DashboardHeaderEdit'
+import DashboardHeader from 'src/dashboards/components/DashboardHeader'
+import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import Dashboard from 'src/dashboards/components/Dashboard'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
@@ -205,12 +205,12 @@ const DashboardPage = React.createClass({
         }
         {
           isEditMode ?
-            <EditHeader
+            <DashboardHeaderEdit
               dashboard={dashboard}
               onCancel={this.handleCancelEditDashboard}
               onSave={this.handleRenameDashboard}
             /> :
-            <Header
+            <DashboardHeader
               buttonText={dashboard ? dashboard.name : ''}
               handleChooseAutoRefresh={handleChooseAutoRefresh}
               autoRefresh={autoRefresh}
@@ -237,7 +237,7 @@ const DashboardPage = React.createClass({
                 }) :
                 null
               }
-            </Header>
+            </DashboardHeader>
         }
         {
           dashboard ?

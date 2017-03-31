@@ -1,31 +1,36 @@
-import React, {PropTypes} from 'react'
-import AlertsTable from '../components/AlertsTable'
+import React, {PropTypes, Component} from 'react'
 import SourceIndicator from '../../shared/components/SourceIndicator'
+import AlertsTable from '../components/AlertsTable'
+import NoKapacitorError from '../../shared/components/NoKapacitorError'
+import CustomTimeRange from '../../shared/components/CustomTimeRange'
+
 import {getAlerts} from '../apis'
 import AJAX from 'utils/ajax'
+
 import _ from 'lodash'
-import NoKapacitorError from '../../shared/components/NoKapacitorError'
+import moment from 'moment'
 
-const AlertsApp = React.createClass({
-  propTypes: {
-    source: PropTypes.shape({
-      id: PropTypes.string.isRequired,
-      name: PropTypes.string.isRequired,
-      type: PropTypes.string, // 'influx-enterprise'
-      links: PropTypes.shape({
-        proxy: PropTypes.string.isRequired,
-      }).isRequired,
-    }), // .isRequired,
-    addFlashMessage: PropTypes.func, // .isRequired,
-  },
-
-  getInitialState() {
-    return {
+class AlertsApp extends Component {
+  constructor(props) {
+    super(props)
+    this.state = {
       loading: true,
       hasKapacitor: false,
       alerts: [],
+      isTimeOpen: false,
+      timeRange: {
+        upper: moment().format(),
+        lower: moment().subtract(1, 'd').format(),
+      },
     }
-  },
+
+    this.fetchAlerts = ::this.fetchAlerts
+    this.renderSubComponents = ::this.renderSubComponents
+    this.handleToggleTime = ::this.handleToggleTime
+    this.handleCloseTime = ::this.handleCloseTime
+    this.handleApplyTime = ::this.handleApplyTime
+  }
+
   // TODO: show a loading screen until we figure out if there is a kapacitor and fetch the alerts
   componentDidMount() {
     const {source} = this.props
@@ -41,10 +46,16 @@ const AlertsApp = React.createClass({
         this.setState({loading: false})
       }
     })
-  },
+  }
+
+  componentDidUpdate(prevProps, prevState) {
+    if (!_.isEqual(prevState.timeRange, this.state.timeRange)) {
+      this.fetchAlerts()
+    }
+  }
 
   fetchAlerts() {
-    getAlerts(this.props.source.links.proxy).then((resp) => {
+    getAlerts(this.props.source.links.proxy, this.state.timeRange).then((resp) => {
       const results = []
 
       const alertSeries = _.get(resp, ['data', 'results', '0', 'series'], [])
@@ -70,7 +81,7 @@ const AlertsApp = React.createClass({
       })
       this.setState({loading: false, alerts: results})
     })
-  },
+  }
 
   renderSubComponents() {
     let component
@@ -87,13 +98,29 @@ const AlertsApp = React.createClass({
       }
     }
     return component
-  },
+  }
+
+  handleToggleTime() {
+    this.setState({isTimeOpen: !this.state.isTimeOpen})
+  }
+
+  handleCloseTime() {
+    this.setState({isTimeOpen: false})
+  }
+
+  handleApplyTime(timeRange) {
+    this.setState({timeRange})
+  }
 
   render() {
     const {source} = this.props
+    const {loading, timeRange} = this.state
+
+    if (loading || !source) {
+      return <div className="page-spinner" />
+    }
+
     return (
-      // I stole this from the Hosts page.
-      // Perhaps we should create an abstraction?
       <div className="page">
         <div className="page-header">
           <div className="page-header__container">
@@ -104,6 +131,13 @@ const AlertsApp = React.createClass({
             </div>
             <div className="page-header__right">
               <SourceIndicator sourceName={source.name} />
+              <CustomTimeRange
+                isVisible={this.state.isTimeOpen}
+                onToggle={this.handleToggleTime}
+                onClose={this.handleCloseTime}
+                onApplyTimeRange={this.handleApplyTime}
+                timeRange={timeRange}
+              />
             </div>
           </div>
         </div>
@@ -111,15 +145,32 @@ const AlertsApp = React.createClass({
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-12">
-                { this.renderSubComponents() }
+                {this.renderSubComponents()}
               </div>
             </div>
           </div>
         </div>
       </div>
     )
-  },
+  }
+}
 
-})
+const {
+  func,
+  shape,
+  string,
+} = PropTypes
+
+AlertsApp.propTypes = {
+  source: shape({
+    id: string.isRequired,
+    name: string.isRequired,
+    type: string, // 'influx-enterprise'
+    links: shape({
+      proxy: string.isRequired,
+    }).isRequired,
+  }),
+  addFlashMessage: func,
+}
 
 export default AlertsApp

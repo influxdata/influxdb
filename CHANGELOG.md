@@ -2,12 +2,22 @@
 
 ### Bug Fixes
   1. [#1104](https://github.com/influxdata/chronograf/pull/1104): Fix windows hosts on host list
+  1. [#1125](https://github.com/influxdata/chronograf/pull/1125): Fix visualizations not showing graph name
+  1. [#1133](https://github.com/influxdata/chronograf/issue/1133): Fix Enterprise Kapacitor authentication.
+  1. [#1142](https://github.com/influxdata/chronograf/issue/1142): Fix Kapacitor Telegram config to display correct disableNotification setting
 
 ### Features
   1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard
+  1. [#1120](https://github.com/influxdata/chronograf/pull/1120): Allow users to update user passwords.
+  1. [#1129](https://github.com/influxdata/chronograf/pull/1129): Allow InfluxDB and Kapacitor configuration via ENV vars or CLI options
+  1. [#1130](https://github.com/influxdata/chronograf/pull/1130): Add loading spinner to Alert History page.
 
 ### UI Improvements
   1. [#1101](https://github.com/influxdata/chronograf/pull/1101): Compress InfluxQL responses with gzip
+  1. [#1132](https://github.com/influxdata/chronograf/pull/1132): All sidebar items show activity with a blue strip
+  1. [#1135](https://github.com/influxdata/chronograf/pull/1135): Clarify Kapacitor Alert configuration for Telegram
+  1. [#1137](https://github.com/influxdata/chronograf/pull/1137): Clarify Kapacitor Alert configuration for HipChat
+  1. [#1079](https://github.com/influxdata/chronograf/issues/1079): Remove series highlighting in line graphs
 
 ## v1.2.0-beta7 [2017-03-28]
 ### Bug Fixes

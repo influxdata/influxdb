@@ -111,6 +111,7 @@
     "react-tooltip": "^3.2.1",
     "redux": "^3.3.1",
     "redux-thunk": "^1.0.3",
+    "rome": "^2.1.22",
     "updeep": "^0.13.0"
   }
 }

@@ -12,29 +12,29 @@ describe('Shared.Reducers.appReducer', () => {
       inPresentationMode: false,
     },
     persisted: {
-      autoRefresh: 0
+      autoRefresh: 0,
     },
   }
 
   it('should handle ENABLE_PRESENTATION_MODE', () => {
-    const reducedState = appReducer(initialState, enablePresentationMode());
+    const reducedState = appReducer(initialState, enablePresentationMode())
 
-    expect(reducedState.ephemeral.inPresentationMode).to.equal(true);
+    expect(reducedState.ephemeral.inPresentationMode).to.equal(true)
   })
 
   it('should handle DISABLE_PRESENTATION_MODE', () => {
     Object.assign(initialState, {ephemeral: {inPresentationMode: true}})
 
-    const reducedState = appReducer(initialState, disablePresentationMode());
+    const reducedState = appReducer(initialState, disablePresentationMode())
 
-    expect(reducedState.ephemeral.inPresentationMode).to.equal(false);
+    expect(reducedState.ephemeral.inPresentationMode).to.equal(false)
   })
 
   it('should handle SET_AUTOREFRESH', () => {
     const expectedMs = 15000
 
-    const reducedState = appReducer(initialState, setAutoRefresh(expectedMs));
-    
-    expect(reducedState.persisted.autoRefresh).to.equal(expectedMs);
+    const reducedState = appReducer(initialState, setAutoRefresh(expectedMs))
+
+    expect(reducedState.persisted.autoRefresh).to.equal(expectedMs)
   })
 })

@@ -3010,14 +3010,9 @@
 			}
 		},
 		"Roles": {
-			"type": "object",
-			"properties": {
-				"roles": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/Role"
-					}
-				}
+			"type": "array",
+			"items": {
+				"$ref": "#/definitions/Role"
 			},
 			"example": {
 				"roles": [
@@ -3177,6 +3172,9 @@
 				},
 				"permissions": {
 					"$ref": "#/definitions/Permissions"
+				},
+				"roles": {
+					"$ref": "#/definitions/Roles"
 				},
 				"links": {
 					"type": "object",

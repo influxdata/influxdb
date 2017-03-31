@@ -19,6 +19,7 @@ import {
   updateRolePermissionsAsync,
   updateUserPermissionsAsync,
   updateUserRolesAsync,
+  updateUserPasswordAsync,
   filterUsers as filterUsersAction,
   filterRoles as filterRolesAction,
 } from 'src/admin/actions'
@@ -54,6 +55,7 @@ class AdminPage extends Component {
     this.handleUpdateRolePermissions = ::this.handleUpdateRolePermissions
     this.handleUpdateUserPermissions = ::this.handleUpdateUserPermissions
     this.handleUpdateUserRoles = ::this.handleUpdateUserRoles
+    this.handleUpdateUserPassword = ::this.handleUpdateUserPassword
   }
 
   componentDidMount() {
@@ -105,7 +107,6 @@ class AdminPage extends Component {
       this.props.createRole(this.props.source.links.roles, role)
     } else {
       // TODO update role
-      // console.log('update')
     }
   }
 
@@ -139,6 +140,10 @@ class AdminPage extends Component {
 
   handleUpdateUserRoles(user, roles) {
     this.props.updateUserRoles(user, roles)
+  }
+
+  handleUpdateUserPassword(user, password) {
+    this.props.updateUserPassword(user, password)
   }
 
   render() {
@@ -186,6 +191,7 @@ class AdminPage extends Component {
                     onUpdateRolePermissions={this.handleUpdateRolePermissions}
                     onUpdateUserPermissions={this.handleUpdateUserPermissions}
                     onUpdateUserRoles={this.handleUpdateUserRoles}
+                    onUpdateUserPassword={this.handleUpdateUserPassword}
                   /> :
                   <span>Loading...</span>
                 }
@@ -233,6 +239,7 @@ AdminPage.propTypes = {
   updateRolePermissions: func,
   updateUserPermissions: func,
   updateUserRoles: func,
+  updateUserPassword: func,
   notify: func,
 }
 
@@ -262,6 +269,7 @@ const mapDispatchToProps = (dispatch) => ({
   updateRolePermissions: bindActionCreators(updateRolePermissionsAsync, dispatch),
   updateUserPermissions: bindActionCreators(updateUserPermissionsAsync, dispatch),
   updateUserRoles: bindActionCreators(updateUserRolesAsync, dispatch),
+  updateUserPassword: bindActionCreators(updateUserPasswordAsync, dispatch),
   notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
 })
 

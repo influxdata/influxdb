@@ -18,6 +18,7 @@ const UsersTable = ({
   onFilter,
   onUpdatePermissions,
   onUpdateRoles,
+  onUpdatePassword,
 }) => (
   <div className="panel panel-info">
     <FilterBar type="users" onFilter={onFilter} isEditing={isEditing} onClickCreate={onClickCreate} />
@@ -49,6 +50,7 @@ const UsersTable = ({
                   allPermissions={permissions}
                   onUpdatePermissions={onUpdatePermissions}
                   onUpdateRoles={onUpdateRoles}
+                  onUpdatePassword={onUpdatePassword}
                 />) :
               <EmptyRow tableName={'Users'} />
           }
@@ -89,6 +91,7 @@ UsersTable.propTypes = {
   hasRoles: bool.isRequired,
   onUpdatePermissions: func,
   onUpdateRoles: func,
+  onUpdatePassword: func,
 }
 
 export default UsersTable

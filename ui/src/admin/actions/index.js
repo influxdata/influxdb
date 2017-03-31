@@ -364,26 +364,36 @@ export const updateRolePermissionsAsync = (role, permissions) => async (dispatch
     dispatch(publishAutoDismissingNotification('success', 'Role permissions updated'))
     dispatch(syncRole(role, data))
   } catch (error) {
-    dispatch(publishNotification('error', `Failed to updated role:  ${error.data.message}`))
+    dispatch(publishNotification('error', `Failed to update role:  ${error.data.message}`))
   }
 }
 
 export const updateUserPermissionsAsync = (user, permissions) => async (dispatch) => {
   try {
-    const {data} = await updateUserAJAX(user.links.self, user.roles, permissions)
+    const {data} = await updateUserAJAX(user.links.self, {permissions})
     dispatch(publishAutoDismissingNotification('success', 'User permissions updated'))
     dispatch(syncUser(user, data))
   } catch (error) {
-    dispatch(publishNotification('error', `Failed to updated user:  ${error.data.message}`))
+    dispatch(publishNotification('error', `Failed to update user:  ${error.data.message}`))
   }
 }
 
 export const updateUserRolesAsync = (user, roles) => async (dispatch) => {
   try {
-    const {data} = await updateUserAJAX(user.links.self, roles, user.permissions)
+    const {data} = await updateUserAJAX(user.links.self, {roles})
     dispatch(publishAutoDismissingNotification('success', 'User roles updated'))
     dispatch(syncUser(user, data))
   } catch (error) {
-    dispatch(publishNotification('error', `Failed to updated user:  ${error.data.message}`))
+    dispatch(publishNotification('error', `Failed to update user:  ${error.data.message}`))
+  }
+}
+
+export const updateUserPasswordAsync = (user, password) => async (dispatch) => {
+  try {
+    const {data} = await updateUserAJAX(user.links.self, {password})
+    dispatch(publishAutoDismissingNotification('success', 'User password updated'))
+    dispatch(syncUser(user, data))
+  } catch (error) {
+    dispatch(publishNotification('error', `Failed to update user:  ${error.data.message}`))
   }
 }

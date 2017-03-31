@@ -14,15 +14,13 @@ import (
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt"
-	"github.com/influxdata/chronograf/canned"
-	"github.com/influxdata/chronograf/layouts"
+	"github.com/influxdata/chronograf/influx"
 	clog "github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/oauth2"
 	"github.com/influxdata/chronograf/uuid"
 	client "github.com/influxdata/usage-client/v1"
 	flags "github.com/jessevdk/go-flags"
 	"github.com/tylerb/graceful"
-	"github.com/influxdata/chronograf/influx"
 )
 
 var (
@@ -41,6 +39,14 @@ type Server struct {
 
 	Cert flags.Filename `long:"cert" description:"Path to PEM encoded public key certificate. " env:"TLS_CERTIFICATE"`
 	Key  flags.Filename `long:"key" description:"Path to private key associated with given certificate. " env:"TLS_PRIVATE_KEY"`
+
+	InfluxDBURL      string `long:"influxdb-url" description:"Location of your InfluxDB instance" env:"INFLUXDB_URL"`
+	InfluxDBUsername string `long:"influxdb-username" description:"Username for your InfluxDB instance" env:"INFLUXDB_USERNAME"`
+	InfluxDBPassword string `long:"influxdb-password" description:"Password for your InfluxDB instance" env:"INFLUXDB_PASSWORD"`
+
+	KapacitorURL      string `long:"kapacitor-url" description:"Location of your Kapacitor instance" env:"KAPACITOR_URL"`
+	KapacitorUsername string `long:"kapacitor-username" description:"Username of your Kapacitor instance" env:"KAPACITOR_USERNAME"`
+	KapacitorPassword string `long:"kapacitor-password" description:"Password of your Kapacitor instance" env:"KAPACITOR_PASSWORD"`
 
 	Develop     bool   `short:"d" long:"develop" description:"Run server in develop mode."`
 	BoltPath    string `short:"b" long:"bolt-path" description:"Full path to boltDB file (/var/lib/chronograf/chronograf-v1.db)" env:"BOLT_PATH" default:"chronograf-v1.db"`
@@ -180,7 +186,22 @@ func (s *Server) NewListener() (net.Listener, error) {
 // Serve starts and runs the chronograf server
 func (s *Server) Serve(ctx context.Context) error {
 	logger := clog.New(clog.ParseLevel(s.LogLevel))
-	service := openService(ctx, s.BoltPath, s.CannedPath, logger, s.useAuth())
+	layoutBuilder := &MultiLayoutBuilder{
+		Logger:     logger,
+		UUID:       &uuid.V4{},
+		CannedPath: s.CannedPath,
+	}
+	sourcesBuilder := &MultiSourceBuilder{
+		InfluxDBURL:      s.InfluxDBURL,
+		InfluxDBUsername: s.InfluxDBUsername,
+		InfluxDBPassword: s.InfluxDBPassword,
+	}
+	kapacitorBuilder := &MultiKapacitorBuilder{
+		KapacitorURL:      s.KapacitorURL,
+		KapacitorUsername: s.KapacitorUsername,
+		KapacitorPassword: s.KapacitorPassword,
+	}
+	service := openService(ctx, s.BoltPath, layoutBuilder, sourcesBuilder, kapacitorBuilder, logger, s.useAuth())
 	basepath = s.Basepath
 
 	providerFuncs := []func(func(oauth2.Provider, oauth2.Mux)){}
@@ -256,7 +277,7 @@ func (s *Server) Serve(ctx context.Context) error {
 	return nil
 }
 
-func openService(ctx context.Context, boltPath, cannedPath string, logger chronograf.Logger, useAuth bool) Service {
+func openService(ctx context.Context, boltPath string, lBuilder LayoutBuilder, sBuilder SourcesBuilder, kapBuilder KapacitorBuilder, logger chronograf.Logger, useAuth bool) Service {
 	db := bolt.NewClient()
 	db.Path = boltPath
 	if err := db.Open(ctx); err != nil {
@@ -266,28 +287,34 @@ func openService(ctx context.Context, boltPath, cannedPath string, logger chrono
 		os.Exit(1)
 	}
 
-	// These apps are those handled from a directory
-	apps := canned.NewApps(cannedPath, &uuid.V4{}, logger)
-	// These apps are statically compiled into chronograf
-	binApps := &canned.BinLayoutStore{
-		Logger: logger,
+	layouts, err := lBuilder.Build(db.LayoutStore)
+	if err != nil {
+		logger.
+			WithField("component", "LayoutStore").
+			Error("Unable to construct a MultiLayoutStore", err)
+		os.Exit(1)
 	}
 
-	// Acts as a front-end to both the bolt layouts, filesystem layouts and binary statically compiled layouts.
-	// The idea here is that these stores form a hierarchy in which each is tried sequentially until
-	// the operation has success.  So, the database is preferred over filesystem over binary data.
-	layouts := &layouts.MultiLayoutStore{
-		Stores: []chronograf.LayoutStore{
-			db.LayoutStore,
-			apps,
-			binApps,
-		},
+	sources, err := sBuilder.Build(db.SourcesStore)
+	if err != nil {
+		logger.
+			WithField("component", "SourcesStore").
+			Error("Unable to construct a MultiSourcesStore", err)
+		os.Exit(1)
+	}
+
+	kapacitors, err := kapBuilder.Build(db.ServersStore)
+	if err != nil {
+		logger.
+			WithField("component", "KapacitorStore").
+			Error("Unable to construct a MultiKapacitorStore", err)
+		os.Exit(1)
 	}
 
 	return Service{
 		TimeSeriesClient: &InfluxClient{},
-		SourcesStore:     db.SourcesStore,
-		ServersStore:     db.ServersStore,
+		SourcesStore:     sources,
+		ServersStore:     kapacitors,
 		UsersStore:       db.UsersStore,
 		LayoutStore:      layouts,
 		DashboardsStore:  db.DashboardsStore,
