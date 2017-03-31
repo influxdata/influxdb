@@ -44,7 +44,9 @@ describe('getRangeForDygraphSpec', () => {
   describe('when user provides a Kapacitor rule value', () => {
     const defaultMax = 20
     const defaultMin = -10
+    const positiveMin = 10
     const timeSeries = [[new Date(1000), defaultMax], [new Date(2000), 1], [new Date(3000), defaultMin]]
+    const timeSeries1 = [[new Date(1000), defaultMax], [new Date(2000), 1], [new Date(3000), positiveMin]]
 
     it('can pad positive values', () => {
       const kapacitorRuleValues = {value: 20, rangeValue: "", operator: null}
@@ -62,8 +64,17 @@ describe('getRangeForDygraphSpec', () => {
       expect(max).to.equal(defaultMax)
     })
 
-    it('subtracts from positive values if Kapactior operator is "lower than"', () => {
-      // TODO: go home
+    describe('when Kapacitor operator is "lower than" and value is outiside the range', () => {
+      it('subtracts from a positive value', () => {
+        const value = 5
+        const rangeValue = ""
+        const operator = "lower than"
+        const kapacitorRuleValues = {value, rangeValue, operator}
+
+        const [min, max] = getRange(timeSeries, undefined, kapacitorRuleValues)
+        expect(min).to.be.lessThan(value)
+        expect(max).to.equal(defaultMax)
+      })
     })
   })
 
