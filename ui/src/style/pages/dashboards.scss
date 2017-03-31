@@ -38,6 +38,10 @@ $dash-graph-heading: 30px;
     border-radius: $radius;
     border: 2px solid $g3-castle;
     transition-property: left, top, border-color, background-color;
+
+    &:hover {
+      z-index: 8000;
+    }
   }
   .graph-empty {
     background-color: transparent;
