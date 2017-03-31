@@ -14,7 +14,9 @@ import (
 
 	"github.com/influxdata/chronograf"
 	"github.com/influxdata/chronograf/bolt"
+	"github.com/influxdata/chronograf/canned"
 	"github.com/influxdata/chronograf/influx"
+	"github.com/influxdata/chronograf/layouts"
 	clog "github.com/influxdata/chronograf/log"
 	"github.com/influxdata/chronograf/oauth2"
 	"github.com/influxdata/chronograf/uuid"
@@ -217,6 +219,7 @@ func (s *Server) Serve(ctx context.Context) error {
 		Logger:        logger,
 		UseAuth:       s.useAuth(),
 		ProviderFuncs: providerFuncs,
+		Basepath:      basepath,
 	}, service)
 
 	// Add chronograf's version header to all requests
