@@ -165,7 +165,8 @@ $query-builder--column-heading-height: 50px;
   position: relative;
 
   pre {
-    display: block;
+    display: flex;
+    align-items: center;
     padding: 7px;
     border: 2px solid $query-editor-tab-inactive;
     background-color: $query-editor-tab-inactive;
