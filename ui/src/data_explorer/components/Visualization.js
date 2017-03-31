@@ -90,7 +90,7 @@ const Visualization = React.createClass({
     })
 
     return (
-      <div className={classNames("graph", {active: true})} style={{height}}>
+      <div className="graph" style={{height}}>
         <VisHeader views={VIEWS} view={view} onToggleView={this.handleToggleView} name={name || 'Graph'}/>
         <div className={classNames({"graph-container": view === GRAPH, "table-container": view === TABLE})}>
           {this.renderVisualization(view, queries, heightPixels, onEditRawStatus, activeQueryIndex)}

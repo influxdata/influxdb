@@ -91,22 +91,6 @@
   }
 }
 
-.data-explorer .graph-panel__refreshing {
-  top: -31px !important;
-}
-
-
-/* Active State */
-.graph.active {
-  .graph-heading,
-  .graph-container {
-    background-color: $graph-active-color;
-  }
-  .graph-title {
-    color: $g20-white;
-  }
-}
-
 .graph-empty {
   width: 100%;
   height: 300px;
