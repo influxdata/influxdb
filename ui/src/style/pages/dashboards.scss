@@ -120,6 +120,29 @@ $dash-graph-heading: 30px;
     cursor: $cc-default;
   }
 }
+.dash-graph--drag-handle {
+  height: $dash-graph-heading;
+  width: 100%;
+
+  &:before {
+    content: '';
+    position: absolute;
+    width: 100%;
+    left: 0;
+    height: $dash-graph-heading;
+    background-color: $g5-pepper;
+    border-radius: 3px;
+    z-index: -1;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+  &:hover {
+    cursor: $cc-move;
+  }
+  &:hover:before {
+    opacity: 1;
+  }
+}
 .dash-graph--name-edit,
 .dash-graph--name {
   display: inline-block;
@@ -140,7 +163,7 @@ $dash-graph-heading: 30px;
     color 0.25s ease,
     background-color 0.25s ease,
     border-color 0.25s ease;
-  border: 2px solid $g3-castle;
+  border: 2px solid transparent;
   top: 2px;
 
   &.editable {
@@ -297,15 +320,6 @@ $dash-graph-options-arrow: 8px;
   Dashboard Edit Mode
   ------------------------------------------------------
 */
-// .dash-graph--heading:hover {
-//   background-color: $g4-onyx;
-//   color: $g18-cloud;
-//   cursor: $cc-move;
-
-//   .dash-graph--name {
-//     border-color: $g4-onyx;
-//   }
-// }
 .react-grid-placeholder {
   @include gradient-diag-down($c-pool,$c-comet);
   border: 0 !important;
@@ -343,12 +357,11 @@ $dash-graph-options-arrow: 8px;
       cursor: $cc-move;
     }
 
-    // & > .dash-graph--heading,
-    // & > .dash-graph--heading:hover {
-    //   background-color: $g4-onyx;
-    //   color: $g18-cloud;
-    //   cursor: $cc-move;
-    // }
+    .dash-graph--drag-handle:before,
+    .dash-graph--drag-handle:hover:before {
+      opacity: 1 !important;
+      cursor: $cc-move;
+    }
   }
   & > .react-resizable-handle {
     background-image: none;
