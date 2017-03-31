@@ -40,7 +40,7 @@ if (basepath) {
     basename: "",
   })
 }
-browserHistory.listen(_ => {
+browserHistory.listen(() => {
   store.dispatch(disablePresentationMode())
 })
 
