@@ -59,16 +59,16 @@ const Header = ({
   }
 
   const buttons = (
-    <div className="text-right">
+    <div className="text-right db-manager-header--actions">
+      <button className="btn btn-xs btn-primary" disabled={isAddRPDisabled} onClick={() => onAddRetentionPolicy(database)}>
+        Add Retention Policy
+      </button>
       {
         database.name === '_internal' ? null :
           <button className="btn btn-xs btn-danger" onClick={() => onStartDelete(database)}>
             Delete
           </button>
       }
-      <button className="btn btn-xs btn-primary" disabled={isAddRPDisabled} onClick={() => onAddRetentionPolicy(database)}>
-        Add retention policy
-      </button>
     </div>
   )
 
@@ -107,13 +107,13 @@ const Header = ({
 }
 
 const EditHeader = ({database, onEdit, onKeyDown, onConfirm, onCancel}) => (
-  <div className="db-manager-header-edit">
+  <div className="db-manager-header db-manager-header--edit">
     <input
       className="form-control"
       name="name"
       type="text"
       value={database.name}
-      placeholder="Database name"
+      placeholder="Name this database"
       onChange={(e) => onEdit(database, {name: e.target.value})}
       onKeyDown={(e) => onKeyDown(e, database)}
       autoFocus={true}
