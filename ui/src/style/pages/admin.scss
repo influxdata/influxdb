@@ -190,10 +190,26 @@
 }
 .db-manager:first-child {
   margin-top: 0;
- }
+}
 
 .db-manager-table {
   background-color: $g4-onyx;
   padding: 9px 11px;
   border-radius: $radius-small;
- }
+}
+
+
+.admin-change-pw {
+  float: right;
+  display: flex !important;
+  flex-wrap: nowrap;
+
+  .form-control {
+    height: 22px;
+    padding: 0 6px;
+    margin: 0 4px 0 0;
+    min-width: 110px;
+    font-size: 12px;
+    width: 120px;
+  }
+}

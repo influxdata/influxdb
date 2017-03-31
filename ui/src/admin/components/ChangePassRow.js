@@ -52,22 +52,22 @@ class ChangePassRow extends Component {
 
     if (this.state.showForm) {
       return (
-        <div>
-        <input
-          className="form-control"
-          name="password"
-          type="password"
-          value={user.password || ''}
-          placeholder="Password"
-          onChange={this.handleEdit(user)}
-          onKeyPress={this.handleKeyPress(user)}
-          autoFocus={true}
-        />
-        <ConfirmButtons
-          onConfirm={this.handleSubmit}
-          item={user}
-          onCancel={this.handleCancel}
-        />
+        <div className="admin-change-pw">
+          <input
+            className="form-control"
+            name="password"
+            type="password"
+            value={user.password || ''}
+            placeholder="Password"
+            onChange={this.handleEdit(user)}
+            onKeyPress={this.handleKeyPress(user)}
+            autoFocus={true}
+          />
+          <ConfirmButtons
+            onConfirm={this.handleSubmit}
+            item={user}
+            onCancel={this.handleCancel}
+          />
         </div>
       )
     }
