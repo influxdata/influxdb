@@ -97,7 +97,8 @@ const ChronoTable = React.createClass({
     const stylePixelOffset = 136
 
     const rowHeight = 34
-    const width = columns.length > 1 ? 200 : containerWidth
+    const defaultColumnWidth = 200
+    const width = columns.length > 1 ? defaultColumnWidth : containerWidth
     const headerHeight = 30
     const minWidth = 70
     const styleAdjustedHeight = height - stylePixelOffset
