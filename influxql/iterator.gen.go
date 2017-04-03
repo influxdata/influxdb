@@ -1197,7 +1197,32 @@ func (itr *floatStreamFloatIterator) reduce() ([]FloatPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []FloatPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue
@@ -1565,7 +1590,32 @@ func (itr *floatStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []IntegerPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue
@@ -1937,7 +1987,32 @@ func (itr *floatStreamStringIterator) reduce() ([]StringPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []StringPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue
@@ -2309,7 +2384,32 @@ func (itr *floatStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []BooleanPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue
@@ -3870,7 +3970,32 @@ func (itr *integerStreamFloatIterator) reduce() ([]FloatPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []FloatPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue
@@ -4242,7 +4367,32 @@ func (itr *integerStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []IntegerPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue
@@ -4610,7 +4760,32 @@ func (itr *integerStreamStringIterator) reduce() ([]StringPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []StringPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue
@@ -4982,7 +5157,32 @@ func (itr *integerStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []BooleanPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue
@@ -6529,7 +6729,32 @@ func (itr *stringStreamFloatIterator) reduce() ([]FloatPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []FloatPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue
@@ -6901,7 +7126,32 @@ func (itr *stringStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []IntegerPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue
@@ -7273,7 +7523,32 @@ func (itr *stringStreamStringIterator) reduce() ([]StringPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []StringPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue
@@ -7641,7 +7916,32 @@ func (itr *stringStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []BooleanPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue
@@ -9188,7 +9488,32 @@ func (itr *booleanStreamFloatIterator) reduce() ([]FloatPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []FloatPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue
@@ -9560,7 +9885,32 @@ func (itr *booleanStreamIntegerIterator) reduce() ([]IntegerPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []IntegerPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue
@@ -9932,7 +10282,32 @@ func (itr *booleanStreamStringIterator) reduce() ([]StringPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []StringPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue
@@ -10304,7 +10679,32 @@ func (itr *booleanStreamBooleanIterator) reduce() ([]BooleanPoint, error) {
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []BooleanPoint
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue

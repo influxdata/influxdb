@@ -1198,7 +1198,32 @@ func (itr *{{$k.name}}Stream{{$v.Name}}Iterator) reduce() ([]{{$v.Name}}Point, e
 	for {
 		// Read next point.
 		curr, err := itr.input.Next()
-		if curr == nil || err != nil {
+		if curr == nil {
+			// Close all of the aggregators to flush any remaining points to emit.
+			var points []{{$v.Name}}Point
+			for _, rp := range itr.m {
+				if aggregator, ok := rp.Aggregator.(io.Closer); ok {
+					if err := aggregator.Close(); err != nil {
+						return nil, err
+					}
+
+					pts := rp.Emitter.Emit()
+					if len(pts) == 0 {
+						continue
+					}
+
+					for i := range pts {
+						pts[i].Name = rp.Name
+						pts[i].Tags = rp.Tags
+					}
+					points = append(points, pts...)
+				}
+			}
+
+			// Eliminate the aggregators and emitters.
+			itr.m = nil
+			return points, nil
+		} else if err != nil {
 			return nil, err
 		} else if curr.Nil {
 			continue

@@ -69,6 +69,12 @@ func (t *Tombstoner) AddRange(keys []string, min, max int64) error {
 		return nil
 	}
 
+	if cap(tombstones) < len(tombstones)+len(keys) {
+		ts := make([]Tombstone, len(tombstones), len(tombstones)+len(keys))
+		copy(ts, tombstones)
+		tombstones = ts
+	}
+
 	for _, k := range keys {
 		tombstones = append(tombstones, Tombstone{
 			Key: k,
@@ -173,28 +179,34 @@ func (t *Tombstoner) writeTombstone(tombstones []Tombstone) error {
 
 	var b [8]byte
 
+	bw := bufio.NewWriterSize(tmp, 1024*1024)
+
 	binary.BigEndian.PutUint32(b[:4], v2header)
-	if _, err := tmp.Write(b[:4]); err != nil {
+	if _, err := bw.Write(b[:4]); err != nil {
 		return err
 	}
 
 	for _, t := range tombstones {
 		binary.BigEndian.PutUint32(b[:4], uint32(len(t.Key)))
-		if _, err := tmp.Write(b[:4]); err != nil {
+		if _, err := bw.Write(b[:4]); err != nil {
 			return err
 		}
-		if _, err := tmp.Write([]byte(t.Key)); err != nil {
+		if _, err := bw.WriteString(t.Key); err != nil {
 			return err
 		}
 		binary.BigEndian.PutUint64(b[:], uint64(t.Min))
-		if _, err := tmp.Write(b[:]); err != nil {
+		if _, err := bw.Write(b[:]); err != nil {
 			return err
 		}
 
 		binary.BigEndian.PutUint64(b[:], uint64(t.Max))
-		if _, err := tmp.Write(b[:]); err != nil {
+		if _, err := bw.Write(b[:]); err != nil {
 			return err
 		}
+	}
+
+	if err := bw.Flush(); err != nil {
+		return err
 	}
 
 	// fsync the file to flush the write
