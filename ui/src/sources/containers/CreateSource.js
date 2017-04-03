@@ -1,8 +1,10 @@
 import React, {PropTypes} from 'react'
 import {withRouter} from 'react-router'
-import {addSource as addSourceAction} from 'src/shared/actions/sources'
 import {createSource} from 'shared/apis'
 import {connect} from 'react-redux'
+
+import {insecureSkipVerifyText} from 'src/shared/copy/tooltipText'
+import {addSource as addSourceAction} from 'src/shared/actions/sources'
 
 export const CreateSource = React.createClass({
   propTypes: {
@@ -17,6 +19,12 @@ export const CreateSource = React.createClass({
     addSourceAction: PropTypes.func,
   },
 
+  getInitialState() {
+    return {
+      showSSL: false,
+    }
+  },
+
   handleNewSource(e) {
     e.preventDefault()
     const source = {
@@ -26,6 +34,8 @@ export const CreateSource = React.createClass({
       password: this.sourcePassword.value,
       isDefault: true,
       telegraf: this.sourceTelegraf.value,
+      insecureSkipVerify: this.sourceInsecureSkipVerify ? this.sourceInsecureSkipVerify.checked : false,
+      metaUrl: this.metaUrl && this.metaUrl.value.trim(),
     }
     createSource(source).then(({data: sourceFromServer}) => {
       this.props.addSourceAction(sourceFromServer)
@@ -41,6 +51,10 @@ export const CreateSource = React.createClass({
 
     const fixedPath = redirectPath.replace(/\/sources\/[^/]*/, `/sources/${source.id}`)
     return this.props.router.push(fixedPath)
+  },
+
+  checkForSSL() {
+    this.setState({showSSL: !!this.sourceURL.value.startsWith("https")})
   },
 
   render() {
@@ -61,7 +75,7 @@ export const CreateSource = React.createClass({
                     <div>
                       <div className="form-group col-xs-6 col-sm-4 col-sm-offset-2">
                         <label htmlFor="connect-string">Connection String</label>
-                        <input ref={(r) => this.sourceURL = r} className="form-control" id="connect-string" defaultValue="http://localhost:8086"></input>
+                        <input ref={(r) => this.sourceURL = r} onChange={this.checkForSSL} className="form-control" id="connect-string" defaultValue="http://localhost:8086"></input>
                       </div>
                       <div className="form-group col-xs-6 col-sm-4">
                         <label htmlFor="name">Name</label>
@@ -80,6 +94,14 @@ export const CreateSource = React.createClass({
                       <label htmlFor="telegraf">Telegraf Database</label>
                       <input ref={(r) => this.sourceTelegraf = r} className="form-control" id="telegraf" type="text" defaultValue="telegraf"></input>
                     </div>
+                    {this.state.showSSL ?
+                      <div className="form-group col-xs-8 col-xs-offset-2">
+                        <div className="form-control-static">
+                          <input type="checkbox" id="insecureSkipVerifyCheckbox" ref={(r) => this.sourceInsecureSkipVerify = r} />
+                          <label htmlFor="insecureSkipVerifyCheckbox">Unsafe SSL</label>
+                        </div>
+                        <label className="form-helper">{insecureSkipVerifyText}</label>
+                      </div> : null}
                     <div className="form-group form-group-submit col-xs-12 text-center">
                       <button className="btn btn-success" type="submit">Connect New Source</button>
                     </div>
