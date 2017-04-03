@@ -66,21 +66,27 @@ const ChronoTable = React.createClass({
       const {data} = await fetchTimeSeries(query.host, undefined, query.text)
       this.setState({isLoading: false})
 
-      const warn = _.get(data, ['results', '0', 'error'], false)
-      if (warn) {
-        return onEditRawStatus(query.id, {warn})
-      }
-
-      const cellData = _.get(data, ['results', '0', 'series', '0'], false)
-      onEditRawStatus(query.id, {success: 'Success!'})
-
-      if (!cellData) {
+      const results = _.get(data, ['results', '0'], false)
+      if (!results) {
         return
       }
 
+      if (_.isEmpty(results)) {
+        this.setState({cellData: emptyCells})
+        return onEditRawStatus(query.id, {warn: 'Your query is syntactically correct but returned no results'})
+      }
+
+      const warn = _.get(results, 'error', false)
+      if (warn) {
+        this.setState({cellData: emptyCells})
+        return onEditRawStatus(query.id, {warn})
+      }
+
+      const cellData = _.get(results, ['series', '0'], {})
+      onEditRawStatus(query.id, {success: 'Success!'})
       this.setState({cellData})
     } catch (error) {
-      const {message} = error.data
+      const message = _.get(error, ['data', 'message'], error)
       this.setState({isLoading: false})
       console.error(message)
       onEditRawStatus(query.id, {error: message})
