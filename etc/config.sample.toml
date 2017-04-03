@@ -122,9 +122,6 @@
 
   # The maximum number of series a SELECT can run.  A value of 0 will make the maximum series
   # count unlimited.
-
-  # The maximum number of series a SELECT can run. A value of zero will make the maximum series
-  # count unlimited.
   # max-select-series = 0
 
   # The maxium number of group by time bucket a SELECt can create.  A value of zero will max the maximum
