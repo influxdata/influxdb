@@ -710,21 +710,23 @@ func (d *indirectIndex) Key(idx int) (string, byte, []IndexEntry) {
 // KeyAt returns the key in the index at the given position.
 func (d *indirectIndex) KeyAt(idx int) ([]byte, byte) {
 	d.mu.RLock()
-	defer d.mu.RUnlock()
 
 	if idx < 0 || idx >= len(d.offsets) {
+		d.mu.RUnlock()
 		return nil, 0
 	}
 	n, key, _ := readKey(d.b[d.offsets[idx]:])
-	return key, d.b[d.offsets[idx]+int32(n)]
+	typ := d.b[d.offsets[idx]+int32(n)]
+	d.mu.RUnlock()
+	return key, typ
 }
 
 // KeyCount returns the count of unique keys in the index.
 func (d *indirectIndex) KeyCount() int {
 	d.mu.RLock()
-	defer d.mu.RUnlock()
-
-	return len(d.offsets)
+	n := len(d.offsets)
+	d.mu.RUnlock()
+	return n
 }
 
 // Delete removes the given keys from the index.
@@ -733,21 +735,28 @@ func (d *indirectIndex) Delete(keys []string) {
 		return
 	}
 
+	if !sort.StringsAreSorted(keys) {
+		sort.Strings(keys)
+	}
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	lookup := map[string]struct{}{}
-	for _, k := range keys {
-		lookup[k] = struct{}{}
-	}
-
-	var offsets []int32
+	// Both keys and offsets are sorted.  Walk both in order and skip
+	// any keys that exist in both.
+	offsets := make([]int32, 0, len(d.offsets))
 	for _, offset := range d.offsets {
 		_, indexKey, _ := readKey(d.b[offset:])
 
-		if _, ok := lookup[string(indexKey)]; ok {
+		for len(keys) > 0 && keys[0] < string(indexKey) {
+			keys = keys[1:]
+		}
+
+		if len(keys) > 0 && keys[0] == string(indexKey) {
+			keys = keys[1:]
 			continue
 		}
+
 		offsets = append(offsets, int32(offset))
 	}
 	d.offsets = offsets

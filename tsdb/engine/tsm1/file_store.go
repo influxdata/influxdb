@@ -1,6 +1,7 @@
 package tsm1
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"math"
@@ -299,16 +300,34 @@ func (f *FileStore) Remove(paths ...string) {
 // exists in multiple files, it will be invoked for each file.
 func (f *FileStore) WalkKeys(fn func(key []byte, typ byte) error) error {
 	f.mu.RLock()
-	defer f.mu.RUnlock()
+	if len(f.files) == 0 {
+		f.mu.RUnlock()
+		return nil
+	}
 
+	readers := make([]chan seriesKey, 0, len(f.files))
 	for _, f := range f.files {
-		for i := 0; i < f.KeyCount(); i++ {
-			key, typ := f.KeyAt(i)
-			if err := fn(key, typ); err != nil {
-				return err
+		ch := make(chan seriesKey, 1)
+		readers = append(readers, ch)
+
+		go func(c chan seriesKey, r TSMFile) {
+			n := r.KeyCount()
+			for i := 0; i < n; i++ {
+				key, typ := r.KeyAt(i)
+				c <- seriesKey{key, typ}
 			}
+			close(ch)
+		}(ch, f)
+	}
+	f.mu.RUnlock()
+
+	merged := merge(readers...)
+	for v := range merged {
+		if err := fn(v.key, v.typ); err != nil {
+			return err
 		}
 	}
+
 	return nil
 }
 
@@ -318,11 +337,11 @@ func (f *FileStore) Keys() map[string]byte {
 	defer f.mu.RUnlock()
 
 	uniqueKeys := map[string]byte{}
-	for _, f := range f.files {
-		for i := 0; i < f.KeyCount(); i++ {
-			key, typ := f.KeyAt(i)
-			uniqueKeys[string(key)] = typ
-		}
+	if err := f.WalkKeys(func(key []byte, typ byte) error {
+		uniqueKeys[string(key)] = typ
+		return nil
+	}); err != nil {
+		return nil
 	}
 
 	return uniqueKeys
@@ -1240,3 +1259,103 @@ type tsmReaders []TSMFile
 func (a tsmReaders) Len() int           { return len(a) }
 func (a tsmReaders) Less(i, j int) bool { return a[i].Path() < a[j].Path() }
 func (a tsmReaders) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+
+type stream struct {
+	c chan seriesKey
+	v seriesKey
+}
+
+type seriesKey struct {
+	key []byte
+	typ byte
+}
+
+// merge merges multiple channels in parallel by recursively splitting the channels
+// until a simple two-way merge can be performed.
+func merge(c ...chan seriesKey) chan seriesKey {
+	if len(c) == 0 {
+		m := make(chan seriesKey)
+		close(m)
+		return m
+	}
+
+	// Just one, drain it
+	if len(c) == 1 {
+		m := make(chan seriesKey)
+		go func() {
+			if c[0] != nil {
+				for v := range c[0] {
+					m <- v
+				}
+			}
+			close(m)
+		}()
+		return m
+	}
+
+	// More than two, split them up recursively
+	if len(c) > 2 {
+		a := merge(c[:len(c)/2]...)
+		b := merge(c[len(c)/2:]...)
+		return merge(a, b)
+	}
+
+	// Merge the two streams and drop duplicates between then
+	m := make(chan seriesKey, 1)
+	a, b := c[0], c[1]
+	go func() {
+		// buffer a and b values
+		var av, bv seriesKey
+		if a != nil {
+			av = <-a
+		}
+		if b != nil {
+			bv = <-b
+		}
+		for {
+			if len(av.key) == 0 && len(bv.key) == 0 {
+				break
+			}
+
+			if len(av.key) == 0 {
+				m <- bv
+				break
+			}
+
+			if len(bv.key) == 0 {
+				m <- av
+				break
+			}
+
+			cmp := bytes.Compare(av.key, bv.key)
+			if cmp < 0 {
+				// Send a's value, and re-prime a buffer
+				m <- av
+				av = <-a
+			} else if cmp == 0 {
+				// Send a's value, and re-prime a and b buffers
+				m <- av
+				av = <-a
+				bv = <-b
+			} else {
+				// Send b's value, and re-prime b buffer
+				m <- bv
+				bv = <-b
+			}
+		}
+
+		if a != nil {
+			for av := range a {
+				m <- av
+			}
+		}
+
+		if b != nil {
+			for bv := range b {
+				m <- bv
+			}
+		}
+		close(m)
+	}()
+	return m
+}
