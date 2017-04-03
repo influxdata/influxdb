@@ -29,6 +29,15 @@ func NewHashMap(opt Options) *HashMap {
 	return m
 }
 
+// Reset clears the values in the map without deallocating the space.
+func (m *HashMap) Reset() {
+	for i := int64(0); i < m.capacity; i++ {
+		m.hashes[i] = 0
+		m.elems[i] = hashElem{}
+	}
+	m.n = 0
+}
+
 func (m *HashMap) Get(key []byte) interface{} {
 	i := m.index(key)
 	if i == -1 {

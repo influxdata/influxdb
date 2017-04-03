@@ -6,11 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
+	"sort"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/pkg/estimator/hll"
+	"github.com/influxdata/influxdb/pkg/mmap"
 	"github.com/influxdata/influxdb/pkg/rhh"
 )
 
@@ -22,7 +25,7 @@ const (
 	// Series list trailer field sizes.
 	SeriesBlockTrailerSize = 0 +
 		8 + 8 + // series data offset/size
-		8 + 8 + // series index offset/size
+		8 + 8 + 8 + // series index offset/size/capacity
 		8 + 8 + // series sketch offset/size
 		8 + 8 + // tombstone series sketch offset/size
 		8 + 8 + // series count and tombstone count
@@ -35,17 +38,24 @@ const (
 
 // Series flag constants.
 const (
+	// Marks the series as having been deleted.
 	SeriesTombstoneFlag = 0x01
+
+	// Marks the following bytes as a hash index.
+	// These bytes should be skipped by an iterator.
+	SeriesHashIndexFlag = 0x02
 )
+
+// MaxSeriesBlockHashSize is the maximum number of series in a single hash.
+const MaxSeriesBlockHashSize = (65536 * LoadFactor) / 100
 
 // SeriesBlock represents the section of the index that holds series data.
 type SeriesBlock struct {
 	data []byte
 
 	// Series data & index/capacity.
-	seriesData   []byte
-	seriesIndex  []byte
-	seriesIndexN int64
+	seriesData    []byte
+	seriesIndexes []seriesBlockIndex
 
 	// Exact series counts for this block.
 	seriesN    int64
@@ -60,10 +70,45 @@ type SeriesBlock struct {
 
 // HasSeries returns flags indicating if the series exists and if it is tombstoned.
 func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags, buf []byte) (exists, tombstoned bool) {
+	offset, tombstoned := blk.Offset(name, tags, buf)
+	return offset != 0, tombstoned
+}
+
+// Series returns a series element.
+func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
+	offset, _ := blk.Offset(name, tags, nil)
+	if offset == 0 {
+		return nil
+	}
+
+	var e SeriesBlockElem
+	e.UnmarshalBinary(blk.data[offset:])
+	return &e
+}
+
+// Offset returns the byte offset of the series within the block.
+func (blk *SeriesBlock) Offset(name []byte, tags models.Tags, buf []byte) (offset uint64, tombstoned bool) {
+	// Exit if no series indexes exist.
+	if len(blk.seriesIndexes) == 0 {
+		return 0, false
+	}
+
+	// Compute series key.
 	buf = AppendSeriesKey(buf[:0], name, tags)
 	bufN := uint64(len(buf))
 
-	n := blk.seriesIndexN
+	// Find the correct partition.
+	// Use previous index unless an exact match on the min value.
+	i := sort.Search(len(blk.seriesIndexes), func(i int) bool {
+		return CompareSeriesKeys(blk.seriesIndexes[i].min, buf) != -1
+	})
+	if i >= len(blk.seriesIndexes) || !bytes.Equal(blk.seriesIndexes[i].min, buf) {
+		i--
+	}
+	seriesIndex := blk.seriesIndexes[i]
+
+	// Search within partition.
+	n := seriesIndex.capacity
 	hash := rhh.HashKey(buf)
 	pos := hash % n
 
@@ -71,21 +116,21 @@ func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags, buf []byte) (ex
 	var d int64
 	for {
 		// Find offset of series.
-		offset := binary.BigEndian.Uint64(blk.seriesIndex[pos*SeriesIDSize:])
+		offset := binary.BigEndian.Uint64(seriesIndex.data[pos*SeriesIDSize:])
 		if offset == 0 {
-			return false, false
+			return 0, false
 		}
 
 		// Evaluate encoded value matches expected.
 		key := ReadSeriesKey(blk.data[offset+1 : offset+1+bufN])
 		if bytes.Equal(buf, key) {
-			return true, (blk.data[offset] & SeriesTombstoneFlag) != 0
+			return offset, (blk.data[offset] & SeriesTombstoneFlag) != 0
 		}
 
 		// Check if we've exceeded the probe distance.
 		max := rhh.Dist(rhh.HashKey(key), pos, n)
 		if d > max {
-			return false, false
+			return 0, false
 		}
 
 		// Move position forward.
@@ -93,48 +138,7 @@ func (blk *SeriesBlock) HasSeries(name []byte, tags models.Tags, buf []byte) (ex
 		d++
 
 		if d > n {
-			return false, false
-		}
-	}
-}
-
-// Series returns a series element.
-func (blk *SeriesBlock) Series(name []byte, tags models.Tags) SeriesElem {
-	buf := AppendSeriesKey(nil, name, tags)
-	bufN := uint64(len(buf))
-
-	n := blk.seriesIndexN
-	hash := rhh.HashKey(buf)
-	pos := hash % n
-
-	// Track current distance
-	var d int64
-	for {
-		// Find offset of series.
-		offset := binary.BigEndian.Uint64(blk.seriesIndex[pos*SeriesIDSize:])
-		if offset == 0 {
-			return nil
-		}
-
-		// Evaluate encoded value matches expected.
-		key := ReadSeriesKey(blk.data[offset+1 : offset+1+bufN])
-		if bytes.Equal(buf, key) {
-			var e SeriesBlockElem
-			e.UnmarshalBinary(blk.data[offset:])
-			return &e
-		}
-
-		// Check if we've exceeded the probe distance.
-		if d > rhh.Dist(rhh.HashKey(key), pos, n) {
-			return nil
-		}
-
-		// Move position forward.
-		pos = (pos + 1) % n
-		d++
-
-		if d > n {
-			return nil
+			return 0, false
 		}
 	}
 }
@@ -167,11 +171,28 @@ func (blk *SeriesBlock) UnmarshalBinary(data []byte) error {
 	blk.seriesData = data[t.Series.Data.Offset:]
 	blk.seriesData = blk.seriesData[:t.Series.Data.Size]
 
-	// Slice series hash index.
-	blk.seriesIndex = data[t.Series.Index.Offset:]
-	blk.seriesIndex = blk.seriesIndex[:t.Series.Index.Size]
-	blk.seriesIndexN = int64(binary.BigEndian.Uint64(blk.seriesIndex[:8]))
-	blk.seriesIndex = blk.seriesIndex[8:]
+	// Read in all index partitions.
+	buf := data[t.Series.Index.Offset:]
+	buf = buf[:t.Series.Index.Size]
+	blk.seriesIndexes = make([]seriesBlockIndex, t.Series.Index.N)
+	for i := range blk.seriesIndexes {
+		idx := &blk.seriesIndexes[i]
+
+		// Read data block.
+		var offset, size uint64
+		offset, buf = binary.BigEndian.Uint64(buf[:8]), buf[8:]
+		size, buf = binary.BigEndian.Uint64(buf[:8]), buf[8:]
+		idx.data = blk.data[offset : offset+size]
+
+		// Read block capacity.
+		idx.capacity, buf = int64(binary.BigEndian.Uint64(buf[:8])), buf[8:]
+
+		// Read min key.
+		var n uint64
+		n, buf = binary.BigEndian.Uint64(buf[:8]), buf[8:]
+		idx.min, buf = buf[:n], buf[n:]
+	}
+	assert(len(buf) == 0, "data remaining in index list buffer: %d", len(buf))
 
 	// Initialise sketches. We're currently using HLL+.
 	var s, ts = hll.NewDefaultPlus(), hll.NewDefaultPlus()
@@ -191,6 +212,13 @@ func (blk *SeriesBlock) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
+// seriesBlockIndex represents a partitioned series block index.
+type seriesBlockIndex struct {
+	data     []byte
+	min      []byte
+	capacity int64
+}
+
 // seriesBlockIterator is an iterator over a series ids in a series list.
 type seriesBlockIterator struct {
 	i, n   uint64
@@ -201,19 +229,35 @@ type seriesBlockIterator struct {
 
 // Next returns the next series element.
 func (itr *seriesBlockIterator) Next() SeriesElem {
-	// Exit if at the end.
-	if itr.i == itr.n {
-		return nil
+	for {
+		// Exit if at the end.
+		if itr.i == itr.n {
+			return nil
+		}
+
+		// If the current element is a hash index partition then skip it.
+		if flag := itr.sblk.data[itr.offset]; flag&SeriesHashIndexFlag != 0 {
+			// Skip flag
+			itr.offset++
+
+			// Read index capacity.
+			n := binary.BigEndian.Uint64(itr.sblk.data[itr.offset:])
+			itr.offset += 8
+
+			// Skip over index.
+			itr.offset += n * SeriesIDSize
+			continue
+		}
+
+		// Read next element.
+		itr.e.UnmarshalBinary(itr.sblk.data[itr.offset:])
+
+		// Move iterator and offset forward.
+		itr.i++
+		itr.offset += uint64(itr.e.size)
+
+		return &itr.e
 	}
-
-	// Read next element.
-	itr.e.UnmarshalBinary(itr.sblk.data[itr.offset:])
-
-	// Move iterator and offset forward.
-	itr.i++
-	itr.offset += uint64(itr.e.size)
-
-	return &itr.e
 }
 
 // seriesDecodeIterator decodes a series id iterator into unmarshaled elements.
@@ -370,6 +414,15 @@ func ReadSeriesKey(data []byte) []byte {
 }
 
 func CompareSeriesKeys(a, b []byte) int {
+	// Handle 'nil' keys.
+	if len(a) == 0 && len(b) == 0 {
+		return 0
+	} else if len(a) == 0 {
+		return -1
+	} else if len(b) == 0 {
+		return 1
+	}
+
 	// Read total size.
 	_, i := binary.Uvarint(a)
 	a = a[i:]
@@ -449,9 +502,11 @@ type SeriesBlockEncoder struct {
 	buf [2][]byte
 
 	// Track bytes written, sections, & offsets.
-	n       int64
-	trailer SeriesBlockTrailer
-	offsets *rhh.HashMap
+	n        int64
+	trailer  SeriesBlockTrailer
+	offsets  *rhh.HashMap
+	indexMin []byte
+	indexes  []seriesBlockIndexEncodeInfo
 
 	// Series sketch and tombstoned series sketch. These must be
 	// set before calling WriteTo.
@@ -463,7 +518,10 @@ func NewSeriesBlockEncoder(w io.Writer) *SeriesBlockEncoder {
 	return &SeriesBlockEncoder{
 		w: w,
 
-		offsets: rhh.NewHashMap(rhh.Options{LoadFactor: LoadFactor}),
+		offsets: rhh.NewHashMap(rhh.Options{
+			Capacity:   MaxSeriesBlockHashSize,
+			LoadFactor: LoadFactor,
+		}),
 
 		sketch:  hll.NewDefaultPlus(),
 		tSketch: hll.NewDefaultPlus(),
@@ -473,16 +531,13 @@ func NewSeriesBlockEncoder(w io.Writer) *SeriesBlockEncoder {
 // N returns the number of bytes written.
 func (enc *SeriesBlockEncoder) N() int64 { return enc.n }
 
-// Offset returns the series offset from the encoder.
-// Returns zero if series cannot be found.
-func (enc *SeriesBlockEncoder) Offset(key []byte) uint64 {
-	v, _ := enc.offsets.Get(key).(uint64)
-	return v
-}
-
 // Encode writes a series to the underlying writer.
 // The series must be lexicographical sorted after the previous encoded series.
 func (enc *SeriesBlockEncoder) Encode(name []byte, tags models.Tags, deleted bool) error {
+	if len(name) == 0 {
+		panic("empty name")
+	}
+
 	// An initial empty byte must be written.
 	if err := enc.ensureHeaderWritten(); err != nil {
 		return err
@@ -497,10 +552,15 @@ func (enc *SeriesBlockEncoder) Encode(name []byte, tags models.Tags, deleted boo
 		key0, key1 := buf[1:], enc.buf[1][1:]
 
 		if cmp := CompareSeriesKeys(key0, key1); cmp == -1 {
-			return fmt.Errorf("series out of order: prev=%s, new=%s", enc.buf[1], buf)
+			return fmt.Errorf("series out of order: prev=%q, new=%q", enc.buf[1], buf)
 		} else if cmp == 0 {
 			return fmt.Errorf("series already encoded: %s", buf)
 		}
+	}
+
+	// Flush a hash index, if necessary.
+	if err := enc.checkFlushIndex(buf[1:]); err != nil {
+		return err
 	}
 
 	// Swap double buffer.
@@ -513,6 +573,9 @@ func (enc *SeriesBlockEncoder) Encode(name []byte, tags models.Tags, deleted boo
 	}
 
 	// Save offset to generate index later.
+	if offset <= 0 {
+		panic(fmt.Sprintf("invalid offset: %d", offset))
+	}
 	enc.offsets.Put(copyBytes(buf[1:]), uint64(offset))
 
 	// Update sketches & trailer.
@@ -534,13 +597,18 @@ func (enc *SeriesBlockEncoder) Close() error {
 		return err
 	}
 
+	// Flush outstanding hash index.
+	if err := enc.flushIndex(); err != nil {
+		return err
+	}
+
 	// Write dictionary-encoded series list.
 	enc.trailer.Series.Data.Offset = 1
 	enc.trailer.Series.Data.Size = enc.n - enc.trailer.Series.Data.Offset
 
 	// Write dictionary-encoded series hash index.
 	enc.trailer.Series.Index.Offset = enc.n
-	if err := enc.writeSeriesIndex(); err != nil {
+	if err := enc.writeIndexEntries(); err != nil {
 		return err
 	}
 	enc.trailer.Series.Index.Size = enc.n - enc.trailer.Series.Index.Offset
@@ -568,22 +636,31 @@ func (enc *SeriesBlockEncoder) Close() error {
 	return nil
 }
 
-// writeSeriesIndex writes hash map lookup of series to w.
-func (enc *SeriesBlockEncoder) writeSeriesIndex() error {
-	// Encode hash map length.
-	if err := writeUint64To(enc.w, uint64(enc.offsets.Cap()), &enc.n); err != nil {
-		return err
-	}
+// writeIndexEntries writes a list of series hash index entries.
+func (enc *SeriesBlockEncoder) writeIndexEntries() error {
+	enc.trailer.Series.Index.N = int64(len(enc.indexes))
 
-	// Encode hash map offset entries.
-	for i := int64(0); i < enc.offsets.Cap(); i++ {
-		_, v := enc.offsets.Elem(i)
-		offset, _ := v.(uint64)
+	for _, idx := range enc.indexes {
+		// Write offset/size.
+		if err := writeUint64To(enc.w, uint64(idx.offset), &enc.n); err != nil {
+			return err
+		} else if err := writeUint64To(enc.w, uint64(idx.size), &enc.n); err != nil {
+			return err
+		}
 
-		if err := writeUint64To(enc.w, uint64(offset), &enc.n); err != nil {
+		// Write capacity.
+		if err := writeUint64To(enc.w, uint64(idx.capacity), &enc.n); err != nil {
+			return err
+		}
+
+		// Write min key.
+		if err := writeUint64To(enc.w, uint64(len(idx.min)), &enc.n); err != nil {
+			return err
+		} else if err := writeTo(enc.w, idx.min, &enc.n); err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -602,6 +679,87 @@ func (enc *SeriesBlockEncoder) ensureHeaderWritten() error {
 	return nil
 }
 
+// checkFlushIndex flushes a hash index segment if the index is too large.
+// The min argument specifies the lowest series key in the next index, if one is created.
+func (enc *SeriesBlockEncoder) checkFlushIndex(min []byte) error {
+	// Ignore if there is still room in the index.
+	if enc.offsets.Len() < MaxSeriesBlockHashSize {
+		return nil
+	}
+
+	// Flush index values.
+	if err := enc.flushIndex(); err != nil {
+		return nil
+	}
+
+	// Reset index and save minimum series key.
+	enc.offsets.Reset()
+	enc.indexMin = make([]byte, len(min))
+	copy(enc.indexMin, min)
+
+	return nil
+}
+
+// flushIndex flushes the hash index segment.
+func (enc *SeriesBlockEncoder) flushIndex() error {
+	if enc.offsets.Len() == 0 {
+		return nil
+	}
+
+	// Write index segment flag.
+	if err := writeUint8To(enc.w, SeriesHashIndexFlag, &enc.n); err != nil {
+		return err
+	}
+	// Write index capacity.
+	// This is used for skipping over when iterating sequentially.
+	if err := writeUint64To(enc.w, uint64(enc.offsets.Cap()), &enc.n); err != nil {
+		return err
+	}
+
+	// Determine size.
+	var sz int64 = enc.offsets.Cap() * 8
+
+	// Save current position to ensure size is correct by the end.
+	offset := enc.n
+
+	// Encode hash map offset entries.
+	for i := int64(0); i < enc.offsets.Cap(); i++ {
+		_, v := enc.offsets.Elem(i)
+		seriesOffset, _ := v.(uint64)
+
+		if err := writeUint64To(enc.w, uint64(seriesOffset), &enc.n); err != nil {
+			return err
+		}
+	}
+
+	// Determine total size.
+	size := enc.n - offset
+
+	// Verify actual size equals calculated size.
+	assert(size == sz, "series hash index size mismatch: %d <> %d", size, sz)
+
+	// Add to index entries.
+	enc.indexes = append(enc.indexes, seriesBlockIndexEncodeInfo{
+		offset:   offset,
+		size:     size,
+		capacity: uint64(enc.offsets.Cap()),
+		min:      enc.indexMin,
+	})
+
+	// Clear next min.
+	enc.indexMin = nil
+
+	return nil
+}
+
+// seriesBlockIndexEncodeInfo stores offset information for seriesBlockIndex structures.
+type seriesBlockIndexEncodeInfo struct {
+	offset   int64
+	size     int64
+	capacity uint64
+	min      []byte
+}
+
 // ReadSeriesBlockTrailer returns the series list trailer from data.
 func ReadSeriesBlockTrailer(data []byte) SeriesBlockTrailer {
 	var t SeriesBlockTrailer
@@ -616,6 +774,7 @@ func ReadSeriesBlockTrailer(data []byte) SeriesBlockTrailer {
 	// Read series hash index info.
 	t.Series.Index.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 	t.Series.Index.Size, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
+	t.Series.Index.N, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
 
 	// Read series sketch info.
 	t.Sketch.Offset, buf = int64(binary.BigEndian.Uint64(buf[0:8])), buf[8:]
@@ -642,6 +801,7 @@ type SeriesBlockTrailer struct {
 		Index struct {
 			Offset int64
 			Size   int64
+			N      int64
 		}
 	}
 
@@ -671,6 +831,8 @@ func (t SeriesBlockTrailer) WriteTo(w io.Writer) (n int64, err error) {
 	if err := writeUint64To(w, uint64(t.Series.Index.Offset), &n); err != nil {
 		return n, err
 	} else if err := writeUint64To(w, uint64(t.Series.Index.Size), &n); err != nil {
+		return n, err
+	} else if err := writeUint64To(w, uint64(t.Series.Index.N), &n); err != nil {
 		return n, err
 	}
 
@@ -724,4 +886,49 @@ func (a series) Less(i, j int) bool {
 		return cmp == -1
 	}
 	return models.CompareTags(a[i].tags, a[j].tags) == -1
+}
+
+// mapIndexFileSeriesBlock maps a writer to a series block.
+// Returns the series block and the mmap byte slice (if mmap is used).
+// The memory-mapped slice MUST be unmapped by the caller.
+func mapIndexFileSeriesBlock(w io.Writer) (*SeriesBlock, []byte, error) {
+	switch w := w.(type) {
+	case *bytes.Buffer:
+		return mapIndexFileSeriesBlockBuffer(w)
+	case *os.File:
+		return mapIndexFileSeriesBlockFile(w)
+	default:
+		return nil, nil, fmt.Errorf("invalid tsi1 writer type: %T", w)
+	}
+}
+
+// mapIndexFileSeriesBlockBuffer maps a buffer to a series block.
+func mapIndexFileSeriesBlockBuffer(buf *bytes.Buffer) (*SeriesBlock, []byte, error) {
+	data := buf.Bytes()
+	data = data[len(FileSignature):] // Skip file signature.
+
+	var sblk SeriesBlock
+	if err := sblk.UnmarshalBinary(data); err != nil {
+		return nil, nil, err
+	}
+	return &sblk, nil, nil
+}
+
+// mapIndexFileSeriesBlockFile memory-maps a file to a series block.
+func mapIndexFileSeriesBlockFile(f *os.File) (*SeriesBlock, []byte, error) {
+	// Open a read-only memory map of the existing data.
+	data, err := mmap.Map(f.Name())
+	if err != nil {
+		return nil, nil, err
+	}
+	data = data[len(FileSignature):] // Skip file signature.
+
+	// Unmarshal block on top of mmap.
+	var sblk SeriesBlock
+	if err := sblk.UnmarshalBinary(data); err != nil {
+		mmap.Unmap(data)
+		return nil, nil, err
+	}
+
+	return &sblk, data, nil
 }

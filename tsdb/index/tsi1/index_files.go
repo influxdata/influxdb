@@ -7,6 +7,8 @@ import (
 	"os"
 	"sort"
 	"time"
+
+	"github.com/influxdata/influxdb/pkg/mmap"
 )
 
 // IndexFiles represents a layered set of index files.
@@ -125,38 +127,52 @@ func (p IndexFiles) WriteTo(w io.Writer) (n int64, err error) {
 
 	// Wrap writer in buffered I/O.
 	bw := bufio.NewWriter(w)
-	w = bw
 
 	// Setup context object to track shared data for this compaction.
 	var info indexCompactInfo
 	info.tagSets = make(map[string]indexTagSetPos)
 
 	// Write magic number.
-	if err := writeTo(w, []byte(FileSignature), &n); err != nil {
+	if err := writeTo(bw, []byte(FileSignature), &n); err != nil {
 		return n, err
 	}
 
 	// Write combined series list.
 	t.SeriesBlock.Offset = n
-	if err := p.writeSeriesBlockTo(w, &info, &n); err != nil {
+	if err := p.writeSeriesBlockTo(bw, &info, &n); err != nil {
 		return n, err
 	}
 	t.SeriesBlock.Size = n - t.SeriesBlock.Offset
 
+	// Flush buffer before re-mapping.
+	if err := bw.Flush(); err != nil {
+		return n, err
+	}
+
+	// Open series block as memory-mapped data.
+	sblk, data, err := mapIndexFileSeriesBlock(w)
+	if data != nil {
+		defer mmap.Unmap(data)
+	}
+	if err != nil {
+		return n, err
+	}
+	info.sblk = sblk
+
 	// Write tagset blocks in measurement order.
-	if err := p.writeTagsetsTo(w, &info, &n); err != nil {
+	if err := p.writeTagsetsTo(bw, &info, &n); err != nil {
 		return n, err
 	}
 
 	// Write measurement block.
 	t.MeasurementBlock.Offset = n
-	if err := p.writeMeasurementBlockTo(w, &info, &n); err != nil {
+	if err := p.writeMeasurementBlockTo(bw, &info, &n); err != nil {
 		return n, err
 	}
 	t.MeasurementBlock.Size = n - t.MeasurementBlock.Offset
 
 	// Write trailer.
-	nn, err := t.WriteTo(w)
+	nn, err := t.WriteTo(bw)
 	n += nn
 	if err != nil {
 		return n, err
@@ -187,9 +203,6 @@ func (p IndexFiles) writeSeriesBlockTo(w io.Writer, info *indexCompactInfo, n *i
 	if err != nil {
 		return err
 	}
-
-	// Attach writer to info so we can obtain series offsets later.
-	info.enc = enc
 
 	return nil
 }
@@ -227,8 +240,7 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 			sitr := p.TagValueSeriesIterator(name, ke.Key(), ve.Value())
 			var seriesIDs []uint64
 			for se := sitr.Next(); se != nil; se = sitr.Next() {
-				seriesKey = AppendSeriesKey(seriesKey[:0], se.Name(), se.Tags())
-				seriesID := info.enc.Offset(seriesKey)
+				seriesID, _ := info.sblk.Offset(se.Name(), se.Tags(), seriesKey[:0])
 				if seriesID == 0 {
 					panic(fmt.Sprintf("expected series id: %s/%s", se.Name(), se.Tags().String()))
 				}
@@ -275,8 +287,7 @@ func (p IndexFiles) writeMeasurementBlockTo(w io.Writer, info *indexCompactInfo,
 		itr := p.MeasurementSeriesIterator(name)
 		var seriesIDs []uint64
 		for e := itr.Next(); e != nil; e = itr.Next() {
-			seriesKey = AppendSeriesKey(seriesKey[:0], e.Name(), e.Tags())
-			seriesID := info.enc.Offset(seriesKey)
+			seriesID, _ := info.sblk.Offset(e.Name(), e.Tags(), seriesKey[:0])
 			if seriesID == 0 {
 				panic(fmt.Sprintf("expected series id: %s %s", e.Name(), e.Tags().String()))
 			}
@@ -327,8 +338,9 @@ type IndexFilesInfo struct {
 // indexCompactInfo is a context object used for tracking position information
 // during the compaction of index files.
 type indexCompactInfo struct {
-	// Saved to look up series offsets.
-	enc *SeriesBlockEncoder
+	// Memory-mapped series block.
+	// Available after the series block has been written.
+	sblk *SeriesBlock
 
 	// Tracks offset/size for each measurement's tagset.
 	tagSets map[string]indexTagSetPos

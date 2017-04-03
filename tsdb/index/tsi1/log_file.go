@@ -701,15 +701,26 @@ func (f *LogFile) WriteTo(w io.Writer) (n int64, err error) {
 		return n, err
 	}
 
+	// Retreve measurement names in order.
+	names := f.measurementNames()
+
 	// Write series list.
 	t.SeriesBlock.Offset = n
-	if err := f.writeSeriesBlockTo(bw, info, &n); err != nil {
+	if err := f.writeSeriesBlockTo(bw, names, info, &n); err != nil {
 		return n, err
 	}
 	t.SeriesBlock.Size = n - t.SeriesBlock.Offset
 
-	// Sort measurement names.
-	names := f.mms.names()
+	// Flush buffer & mmap series block.
+	if err := bw.Flush(); err != nil {
+		return n, err
+	}
+
+	// Update series offsets.
+	// NOTE: Pass the raw writer so we can mmap.
+	if err := f.updateSeriesOffsets(w, names, info); err != nil {
+		return n, err
+	}
 
 	// Write tagset blocks in measurement order.
 	if err := f.writeTagsetsTo(bw, names, info, &n); err != nil {
@@ -738,12 +749,9 @@ func (f *LogFile) WriteTo(w io.Writer) (n int64, err error) {
 	return n, nil
 }
 
-func (f *LogFile) writeSeriesBlockTo(w io.Writer, info *logFileCompactInfo, n *int64) error {
+func (f *LogFile) writeSeriesBlockTo(w io.Writer, names []string, info *logFileCompactInfo, n *int64) error {
 	// Write all series.
 	enc := NewSeriesBlockEncoder(w)
-
-	// Retreve measurement names in order.
-	names := f.measurementNames()
 
 	// Add series from measurements.
 	for _, name := range names {
@@ -764,9 +772,22 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, info *logFileCompactInfo, n *i
 		}
 	}
 
-	// Close and flush series list.
+	// Close and flush series block.
 	err := enc.Close()
 	*n += enc.N()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (f *LogFile) updateSeriesOffsets(w io.Writer, names []string, info *logFileCompactInfo) error {
+	// Open series block.
+	sblk, data, err := mapIndexFileSeriesBlock(w)
+	if data != nil {
+		defer mmap.Unmap(data)
+	}
 	if err != nil {
 		return err
 	}
@@ -779,10 +800,8 @@ func (f *LogFile) writeSeriesBlockTo(w io.Writer, info *logFileCompactInfo, n *i
 		mmInfo.seriesIDs = make([]uint64, 0, len(mm.series))
 
 		for _, serie := range mm.series {
-			seriesKey = AppendSeriesKey(seriesKey[:0], serie.name, serie.tags)
-
 			// Lookup series offset.
-			offset := enc.Offset(seriesKey)
+			offset, _ := sblk.Offset(serie.name, serie.tags, seriesKey[:0])
 			if offset == 0 {
 				panic("series not found: " + string(serie.name) + " " + serie.tags.String())
 			}
