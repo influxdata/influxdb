@@ -38,7 +38,7 @@ const ChronoTable = React.createClass({
     }).isRequired,
     containerWidth: number.isRequired,
     height: number,
-    onEditRawStatus: func.isRequired,
+    onEditRawStatus: func,
   },
 
   getInitialState() {
