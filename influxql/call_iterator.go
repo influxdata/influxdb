@@ -1142,17 +1142,17 @@ func newDerivativeIterator(input Iterator, opt IteratorOptions, interval Interva
 }
 
 // newDifferenceIterator returns an iterator for operating on a difference() call.
-func newDifferenceIterator(input Iterator, opt IteratorOptions) (Iterator, error) {
+func newDifferenceIterator(input Iterator, opt IteratorOptions, isNonNegative bool) (Iterator, error) {
 	switch input := input.(type) {
 	case FloatIterator:
 		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
-			fn := NewFloatDifferenceReducer()
+			fn := NewFloatDifferenceReducer(isNonNegative)
 			return fn, fn
 		}
 		return newFloatStreamFloatIterator(input, createFn, opt), nil
 	case IntegerIterator:
 		createFn := func() (IntegerPointAggregator, IntegerPointEmitter) {
-			fn := NewIntegerDifferenceReducer()
+			fn := NewIntegerDifferenceReducer(isNonNegative)
 			return fn, fn
 		}
 		return newIntegerStreamIntegerIterator(input, createFn, opt), nil
@@ -1287,5 +1287,25 @@ func newSampleIterator(input Iterator, opt IteratorOptions, size int) (Iterator,
 		return newBooleanReduceBooleanIterator(input, opt, createFn), nil
 	default:
 		return nil, fmt.Errorf("unsupported elapsed iterator type: %T", input)
+	}
+}
+
+// newIntegralIterator returns an iterator for operating on a integral() call.
+func newIntegralIterator(input Iterator, opt IteratorOptions, interval Interval) (Iterator, error) {
+	switch input := input.(type) {
+	case FloatIterator:
+		createFn := func() (FloatPointAggregator, FloatPointEmitter) {
+			fn := NewFloatIntegralReducer(interval, opt)
+			return fn, fn
+		}
+		return newFloatStreamFloatIterator(input, createFn, opt), nil
+	case IntegerIterator:
+		createFn := func() (IntegerPointAggregator, FloatPointEmitter) {
+			fn := NewIntegerIntegralReducer(interval, opt)
+			return fn, fn
+		}
+		return newIntegerStreamFloatIterator(input, createFn, opt), nil
+	default:
+		return nil, fmt.Errorf("unsupported integral iterator type: %T", input)
 	}
 }

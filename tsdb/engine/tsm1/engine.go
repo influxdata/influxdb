@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
-	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,6 +21,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/pkg/bytesutil"
 	"github.com/influxdata/influxdb/pkg/estimator"
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/index"
@@ -795,6 +795,11 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		return nil
 	}
 
+	// Ensure keys are sorted since lower layers require them to be.
+	if !bytesutil.IsSorted(seriesKeys) {
+		bytesutil.Sort(seriesKeys)
+	}
+
 	// Disable and abort running compactions so that tombstones added existing tsm
 	// files don't get removed.  This would cause deleted measurements/series to
 	// re-appear once the compaction completed.  We only disable the level compactions
@@ -804,30 +809,23 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	e.disableLevelCompactions(true)
 	defer e.enableLevelCompactions(true)
 
-	// keyMap is used to see if a given key should be deleted.  seriesKey
-	// are the measurement + tagset (minus separate & field)
-	keyMap := make(map[string]struct{}, len(seriesKeys))
-	for _, k := range seriesKeys {
-		keyMap[string(k)] = struct{}{}
-	}
-
+	tempKeys := seriesKeys[:]
 	deleteKeys := make([]string, 0, len(seriesKeys))
 	// go through the keys in the file store
 	if err := e.FileStore.WalkKeys(func(k []byte, _ byte) error {
 		seriesKey, _ := SeriesAndFieldFromCompositeKey(k)
-		// Keep track if we've added this key since WalkKeys can return keys
-		// we've seen before
-		key := string(k)
-		if _, ok := keyMap[string(seriesKey)]; ok {
-			i := sort.SearchStrings(deleteKeys, key)
-			if i == len(deleteKeys) {
-				deleteKeys = append(deleteKeys, key)
-			} else if key != deleteKeys[i] {
-				deleteKeys = append(deleteKeys, key)
-				copy(deleteKeys[i+1:], deleteKeys[i:])
-				deleteKeys[i] = key
-			}
+
+		// Both tempKeys and keys walked are sorted, skip any passed in keys
+		// that don't exist in our key set.
+		for len(tempKeys) > 0 && bytes.Compare(tempKeys[0], seriesKey) < 0 {
+			tempKeys = tempKeys[1:]
 		}
+
+		// Keys match, add the full series key to delete.
+		if len(tempKeys) > 0 && bytes.Equal(tempKeys[0], seriesKey) {
+			deleteKeys = append(deleteKeys, string(k))
+		}
+
 		return nil
 	}); err != nil {
 		return err
@@ -843,7 +841,12 @@ func (e *Engine) DeleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 	// ApplySerialEntryFn cannot return an error in this invocation.
 	_ = e.Cache.ApplyEntryFn(func(k string, _ *entry) error {
 		seriesKey, _ := SeriesAndFieldFromCompositeKey([]byte(k))
-		if _, ok := keyMap[string(seriesKey)]; ok {
+
+		// Cache does not walk keys in sorted order, so search the sorted
+		// series we need to delete to see if any of the cache keys match.
+		i := bytesutil.SearchBytes(seriesKeys, seriesKey)
+		if i < len(seriesKeys) && bytes.Equal(seriesKey, seriesKeys[i]) {
+			// k is the measurement + tags + sep + field
 			walKeys = append(walKeys, k)
 		}
 		return nil

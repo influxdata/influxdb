@@ -532,7 +532,9 @@ type Measurement struct {
 	// in-memory index fields
 	seriesByID          map[uint64]*Series              // lookup table for series by their id
 	seriesByTagKeyValue map[string]map[string]SeriesIDs // map from tag key to value to sorted set of series ids
-	seriesIDs           SeriesIDs                       // sorted list of series IDs in this measurement
+
+	// lazyily created sorted series IDs
+	sortedSeriesIDs SeriesIDs // sorted list of series IDs in this measurement
 }
 
 // NewMeasurement allocates and initializes a new Measurement.
@@ -543,7 +545,6 @@ func NewMeasurement(name string) *Measurement {
 
 		seriesByID:          make(map[uint64]*Series),
 		seriesByTagKeyValue: make(map[string]map[string]SeriesIDs),
-		seriesIDs:           make(SeriesIDs, 0, 1),
 	}
 }
 
@@ -615,6 +616,34 @@ func (m *Measurement) SeriesKeys() [][]byte {
 	return keys
 }
 
+func (m *Measurement) SeriesIDs() SeriesIDs {
+	m.mu.RLock()
+	if len(m.sortedSeriesIDs) == len(m.seriesByID) {
+		s := m.sortedSeriesIDs
+		m.mu.RUnlock()
+		return s
+	}
+	m.mu.RUnlock()
+
+	m.mu.Lock()
+	if len(m.sortedSeriesIDs) == len(m.seriesByID) {
+		s := m.sortedSeriesIDs
+		m.mu.Unlock()
+		return s
+	}
+
+	if cap(m.sortedSeriesIDs) < len(m.seriesByID) {
+		m.sortedSeriesIDs = make(SeriesIDs, 0, len(m.seriesByID))
+	}
+	for k := range m.seriesByID {
+		m.sortedSeriesIDs = append(m.sortedSeriesIDs, k)
+	}
+	sort.Sort(m.sortedSeriesIDs)
+	s := m.sortedSeriesIDs
+	m.mu.Unlock()
+	return s
+}
+
 // HasTagKey returns true if at least one series in this measurement has written a value for the passed in tag key
 func (m *Measurement) HasTagKey(k string) bool {
 	m.mu.RLock()
@@ -681,12 +710,9 @@ func (m *Measurement) AddSeries(s *Series) bool {
 	}
 
 	m.seriesByID[s.ID] = s
-	m.seriesIDs = append(m.seriesIDs, s.ID)
 
-	// the series ID should always be higher than all others because it's a new
-	// series. So don't do the sort if we don't have to.
-	if len(m.seriesIDs) > 1 && m.seriesIDs[len(m.seriesIDs)-1] < m.seriesIDs[len(m.seriesIDs)-2] {
-		sort.Sort(m.seriesIDs)
+	if len(m.sortedSeriesIDs) == 0 || s.ID > m.sortedSeriesIDs[len(m.sortedSeriesIDs)-1] {
+		m.sortedSeriesIDs = append(m.sortedSeriesIDs, s.ID)
 	}
 
 	// add this series id to the tag index on the measurement
@@ -721,8 +747,8 @@ func (m *Measurement) DropSeries(series *Series) {
 	}
 	delete(m.seriesByID, seriesID)
 
-	ids := filter(m.seriesIDs, seriesID)
-	m.seriesIDs = ids
+	// clear our lazily sorted set of ids
+	m.sortedSeriesIDs = m.sortedSeriesIDs[:0]
 
 	// remove this series id from the tag index on the measurement
 	// s.seriesByTagKeyValue is defined as map[string]map[string]SeriesIDs
@@ -749,7 +775,7 @@ func (m *Measurement) DropSeries(series *Series) {
 // matching the where clause and any filter expression that should be applied to each
 func (m *Measurement) filters(condition influxql.Expr) ([]uint64, map[uint64]influxql.Expr, error) {
 	if condition == nil || influxql.OnlyTimeExpr(condition) {
-		return m.seriesIDs, nil, nil
+		return m.SeriesIDs(), nil, nil
 	}
 	return m.WalkWhereForSeriesIds(condition)
 }
@@ -1011,9 +1037,9 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 	// If this binary expression has another binary expression, then this
 	// is some expression math and we should just pass it to the underlying query.
 	if _, ok := n.LHS.(*influxql.BinaryExpr); ok {
-		return m.seriesIDs, n, nil
+		return m.SeriesIDs(), n, nil
 	} else if _, ok := n.RHS.(*influxql.BinaryExpr); ok {
-		return m.seriesIDs, n, nil
+		return m.SeriesIDs(), n, nil
 	}
 
 	// Retrieve the variable reference from the correct side of the expression.
@@ -1029,17 +1055,17 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 
 	// For time literals, return all series IDs and "true" as the filter.
 	if _, ok := value.(*influxql.TimeLiteral); ok || name.Val == "time" {
-		return m.seriesIDs, &influxql.BooleanLiteral{Val: true}, nil
+		return m.SeriesIDs(), &influxql.BooleanLiteral{Val: true}, nil
 	}
 
 	// For fields, return all series IDs from this measurement and return
 	// the expression passed in, as the filter.
 	if name.Val != "_name" && ((name.Type == influxql.Unknown && m.hasField(name.Val)) || name.Type == influxql.AnyField || (name.Type != influxql.Tag && name.Type != influxql.Unknown)) {
-		return m.seriesIDs, n, nil
+		return m.SeriesIDs(), n, nil
 	} else if value, ok := value.(*influxql.VarRef); ok {
 		// Check if the RHS is a variable and if it is a field.
 		if value.Val != "_name" && ((value.Type == influxql.Unknown && m.hasField(value.Val)) || name.Type == influxql.AnyField || (value.Type != influxql.Tag && value.Type != influxql.Unknown)) {
-			return m.seriesIDs, n, nil
+			return m.SeriesIDs(), n, nil
 		}
 	}
 
@@ -1053,7 +1079,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 		// Special handling for "_name" to match measurement name.
 		if name.Val == "_name" {
 			if (n.Op == influxql.EQ && str.Val == m.Name) || (n.Op == influxql.NEQ && str.Val != m.Name) {
-				return m.seriesIDs, nil, nil
+				return m.SeriesIDs(), nil, nil
 			}
 			return nil, nil, nil
 		}
@@ -1064,7 +1090,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 				ids = tagVals[str.Val]
 			} else {
 				// Make a copy of all series ids and mark the ones we need to evict.
-				seriesIDs := newEvictSeriesIDs(m.seriesIDs)
+				seriesIDs := newEvictSeriesIDs(m.SeriesIDs())
 
 				// Go through each slice and mark the values we find as zero so
 				// they can be removed later.
@@ -1077,7 +1103,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 			}
 		} else if n.Op == influxql.NEQ {
 			if str.Val != "" {
-				ids = m.seriesIDs.Reject(tagVals[str.Val])
+				ids = m.SeriesIDs().Reject(tagVals[str.Val])
 			} else {
 				for k := range tagVals {
 					ids = append(ids, tagVals[k]...)
@@ -1096,7 +1122,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 		if name.Val == "_name" {
 			match := re.Val.MatchString(m.Name)
 			if (n.Op == influxql.EQREGEX && match) || (n.Op == influxql.NEQREGEX && !match) {
-				return m.seriesIDs, &influxql.BooleanLiteral{Val: true}, nil
+				return m.SeriesIDs(), &influxql.BooleanLiteral{Val: true}, nil
 			}
 			return nil, nil, nil
 		}
@@ -1110,7 +1136,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 		// If we should not include the empty string, include series that match our condition.
 		if empty && n.Op == influxql.EQREGEX {
 			// See comments above for EQ with a StringLiteral.
-			seriesIDs := newEvictSeriesIDs(m.seriesIDs)
+			seriesIDs := newEvictSeriesIDs(m.SeriesIDs())
 			for k := range tagVals {
 				if !re.Val.MatchString(k) {
 					seriesIDs.mark(tagVals[k])
@@ -1118,7 +1144,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 			}
 			ids = seriesIDs.evict()
 		} else if empty && n.Op == influxql.NEQREGEX {
-			ids = make(SeriesIDs, 0, len(m.seriesIDs))
+			ids = make(SeriesIDs, 0, len(m.SeriesIDs()))
 			for k := range tagVals {
 				if !re.Val.MatchString(k) {
 					ids = append(ids, tagVals[k]...)
@@ -1126,7 +1152,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 			}
 			sort.Sort(ids)
 		} else if !empty && n.Op == influxql.EQREGEX {
-			ids = make(SeriesIDs, 0, len(m.seriesIDs))
+			ids = make(SeriesIDs, 0, len(m.SeriesIDs()))
 			for k := range tagVals {
 				if re.Val.MatchString(k) {
 					ids = append(ids, tagVals[k]...)
@@ -1135,7 +1161,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 			sort.Sort(ids)
 		} else if !empty && n.Op == influxql.NEQREGEX {
 			// See comments above for EQ with a StringLiteral.
-			seriesIDs := newEvictSeriesIDs(m.seriesIDs)
+			seriesIDs := newEvictSeriesIDs(m.SeriesIDs())
 			for k := range tagVals {
 				if re.Val.MatchString(k) {
 					seriesIDs.mark(tagVals[k])
@@ -1151,7 +1177,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 		var ids SeriesIDs
 
 		if n.Op == influxql.NEQ {
-			ids = m.seriesIDs
+			ids = m.SeriesIDs()
 		}
 
 		rhsTagVals := m.seriesByTagKeyValue[ref.Val]
@@ -1167,7 +1193,7 @@ func (m *Measurement) idsForExpr(n *influxql.BinaryExpr) (SeriesIDs, influxql.Ex
 	}
 
 	if n.Op == influxql.NEQ || n.Op == influxql.NEQREGEX {
-		return m.seriesIDs, nil, nil
+		return m.SeriesIDs(), nil, nil
 	}
 	return nil, nil, nil
 }
@@ -1327,8 +1353,8 @@ func (m *Measurement) seriesIDsAllOrByExpr(expr influxql.Expr) (SeriesIDs, error
 	// If no expression given or the measurement has no series,
 	// we can take just return the ids or nil accordingly.
 	if expr == nil {
-		return m.seriesIDs, nil
-	} else if len(m.seriesIDs) == 0 {
+		return m.SeriesIDs(), nil
+	} else if len(m.seriesByID) == 0 {
 		return nil, nil
 	}
 
@@ -1586,47 +1612,35 @@ type Series struct {
 	tags        models.Tags
 	ID          uint64
 	measurement *Measurement
-	shardIDs    []uint64 // shards that have this series defined
+	shardIDs    map[uint64]struct{} // shards that have this series defined
 }
 
 // NewSeries returns an initialized series struct
 func NewSeries(key []byte, tags models.Tags) *Series {
 	return &Series{
-		Key:  string(key),
-		tags: tags,
+		Key:      string(key),
+		tags:     tags,
+		shardIDs: make(map[uint64]struct{}),
 	}
 }
 
 func (s *Series) AssignShard(shardID uint64) {
 	s.mu.Lock()
-	if !s.assigned(shardID) {
-		s.shardIDs = append(s.shardIDs, shardID)
-		sort.Sort(uint64Slice(s.shardIDs))
-	}
+	s.shardIDs[shardID] = struct{}{}
 	s.mu.Unlock()
 }
 
 func (s *Series) UnassignShard(shardID uint64) {
 	s.mu.Lock()
-	for i, v := range s.shardIDs {
-		if v == shardID {
-			s.shardIDs = append(s.shardIDs[:i], s.shardIDs[i+1:]...)
-			break
-		}
-	}
+	delete(s.shardIDs, shardID)
 	s.mu.Unlock()
 }
 
 func (s *Series) Assigned(shardID uint64) bool {
 	s.mu.RLock()
-	b := s.assigned(shardID)
+	_, ok := s.shardIDs[shardID]
 	s.mu.RUnlock()
-	return b
-}
-
-func (s *Series) assigned(shardID uint64) bool {
-	i := sort.Search(len(s.shardIDs), func(i int) bool { return s.shardIDs[i] >= shardID })
-	return i < len(s.shardIDs) && s.shardIDs[i] == shardID
+	return ok
 }
 
 func (s *Series) ShardN() int {
