@@ -70,11 +70,10 @@ export const KapacitorPage = React.createClass({
   },
 
   handleInputChange(e) {
-    const val = e.target.value
-    const name = e.target.name
+    const {value, name} = e.target
 
     this.setState((prevState) => {
-      const update = {[name]: val.trim()}
+      const update = {[name]: value.trim()}
       return {kapacitor: {...prevState.kapacitor, ...update}}
     })
   },
