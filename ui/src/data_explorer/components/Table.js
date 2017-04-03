@@ -50,7 +50,7 @@ const ChronoTable = React.createClass({
 
   getDefaultProps() {
     return {
-      height: 600,
+      height: 1000,
     }
   },
 
