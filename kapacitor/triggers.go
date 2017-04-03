@@ -10,6 +10,8 @@ const (
 	Relative = "relative"
 	// Threshold triggers when value crosses a threshold
 	Threshold = "threshold"
+	// ThresholdRange triggers when a value is inside or outside a range
+	ThresholdRange = "range"
 	// ChangePercent triggers a relative alert when value changed by a percentage
 	ChangePercent = "% change"
 	// ChangeAmount triggers a relative alert when the value change by some amount
