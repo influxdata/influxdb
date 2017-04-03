@@ -52,7 +52,7 @@ const QueryBuilder = React.createClass({
 
   handleAddRawQuery() {
     const newIndex = this.props.queries.length
-    this.props.actions.addQuery({rawText: `SELECT "fields" from "db"."rp"."measurement"`})
+    this.props.actions.addQuery({rawText: ''})
     this.handleSetActiveQueryIndex(newIndex)
   },
 
@@ -115,7 +115,7 @@ const QueryBuilder = React.createClass({
               query={q}
               onSelect={this.handleSetActiveQueryIndex}
               onDelete={onDeleteQuery}
-              queryTabText={q.rawText || buildInfluxQLQuery(timeRange, q) || `SELECT "fields" FROM "db"."rp"."measurement"`}
+              queryTabText={q.rawText || buildInfluxQLQuery(timeRange, q) || `Query ${i + 1}`}
             />
           )
         })}

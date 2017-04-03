@@ -6,6 +6,10 @@ import _ from 'lodash'
 import moment from 'moment'
 
 const {oneOfType, number, string, shape, arrayOf, func} = PropTypes
+const emptyCells = {
+  columns: [],
+  values: [],
+}
 
 const CustomCell = React.createClass({
   propTypes: {
@@ -39,10 +43,7 @@ const ChronoTable = React.createClass({
 
   getInitialState() {
     return {
-      cellData: {
-        columns: [],
-        values: [],
-      },
+      cellData: emptyCells,
       columnWidths: {},
     }
   },
@@ -54,6 +55,10 @@ const ChronoTable = React.createClass({
   },
 
   async fetchCellData(query) {
+    if (!query.text) {
+      return
+    }
+
     this.setState({isLoading: true})
     const {onEditRawStatus} = this.props
     // second param is db, we want to leave this blank
@@ -87,9 +92,15 @@ const ChronoTable = React.createClass({
   },
 
   componentWillReceiveProps(nextProps) {
-    if (this.props.query.text !== nextProps.query.text) {
-      this.fetchCellData(nextProps.query)
+    if (!this.props.query || !nextProps.query) {
+      return
     }
+
+    if (this.props.query.text === nextProps.query.text) {
+      return
+    }
+
+    this.fetchCellData(nextProps.query)
   },
 
   handleColumnResize(newColumnWidth, columnKey) {

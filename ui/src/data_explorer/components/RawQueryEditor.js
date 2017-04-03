@@ -29,7 +29,7 @@ const RawQueryEditor = React.createClass({
       e.preventDefault()
       this.handleUpdate()
     } else if (e.keyCode === ESCAPE) {
-      this.setState({value: this.props.query.rawText}, () => {
+      this.setState({value: this.state.value}, () => {
         this.editor.blur()
       })
     }
