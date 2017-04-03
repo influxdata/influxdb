@@ -48,7 +48,7 @@ const Visualization = React.createClass({
 
   getInitialState() {
     const {queryConfigs, activeQueryIndex} = this.props
-    if (!queryConfigs.length) {
+    if (!queryConfigs.length || activeQueryIndex === null) {
       return {
         view: GRAPH,
       }
@@ -61,12 +61,12 @@ const Visualization = React.createClass({
 
   componentWillReceiveProps(nextProps) {
     const {queryConfigs, activeQueryIndex} = nextProps
-    if (!queryConfigs.length || activeQueryIndex === this.props.activeQueryIndex) {
+    if (!queryConfigs.length || activeQueryIndex === null || activeQueryIndex === this.props.activeQueryIndex) {
       return
     }
 
     const activeQuery = queryConfigs[activeQueryIndex]
-    if (activeQuery && activeQuery.rawText) {
+    if (activeQuery && typeof activeQuery.rawText === 'string') {
       return this.setState({view: TABLE})
     }
   },

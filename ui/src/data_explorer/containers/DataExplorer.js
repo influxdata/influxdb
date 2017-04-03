@@ -57,7 +57,7 @@ const DataExplorer = React.createClass({
 
   getInitialState() {
     return {
-      activeQueryIndex: 0,
+      activeQueryIndex: null,
     }
   },
 

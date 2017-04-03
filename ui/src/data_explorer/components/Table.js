@@ -55,7 +55,7 @@ const ChronoTable = React.createClass({
   },
 
   async fetchCellData(query) {
-    if (!query.text) {
+    if (!query || !query.text) {
       return
     }
 
