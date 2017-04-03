@@ -122,17 +122,17 @@ const QueryBuilder = React.createClass({
 
   onChoose(item) {
     switch (item.text) {
-      case 'Query Builder':
+      case 'Help me build a query':
         this.handleAddQuery()
         break
-      case 'Query Editor':
+      case 'Type my own query':
         this.handleAddRawQuery()
         break
     }
   },
 
   renderAddQuery() {
-    const items = [{text: 'Query Builder'}, {text: 'Query Editor'}]
+    const items = [{text: 'Help me build a query'}, {text: 'Type my own query'}]
     return (
       <SimpleDropdown onChoose={this.onChoose} items={items} className="panel--tab-new">
         <span className="icon plus"></span>
