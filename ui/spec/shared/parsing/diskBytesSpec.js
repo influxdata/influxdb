@@ -1,71 +1,71 @@
-import {diskBytesFromShard, diskBytesFromShardForDatabase} from 'shared/parsing/diskBytes';
+import {diskBytesFromShard, diskBytesFromShardForDatabase} from 'shared/parsing/diskBytes'
 
 describe('diskBytesFromShard', () => {
   it('sums all the disk bytes in multiple series', () => {
-    const response = {"results":[
-      {"series":[{"name":"shard","tags":{"clusterID":"6272208615254493595","database":"_internal","engine":"tsm1","hostname":"WattsInfluxDB","id":"1","nodeID":"localhost:8088","path":"/Users/watts/.influxdb/data/_internal/monitor/1","retentionPolicy":"monitor"},"columns":["time","last"],"values":[[1464811503000000000,100]]}]},
-      {"series":[{"name":"shard","tags":{"clusterID":"6272208615254493595","database":"telegraf","engine":"tsm1","hostname":"WattsInfluxDB","id":"2","nodeID":"localhost:8088","path":"/Users/watts/.influxdb/data/telegraf/default/2","retentionPolicy":"default"},"columns":["time","last"],"values":[[1464811503000000000,200]]}]},
-    ]};
+    const response = {results: [
+      {series: [{name: "shard", tags: {clusterID: "6272208615254493595", database: "_internal", engine: "tsm1", hostname: "WattsInfluxDB", id: "1", nodeID: "localhost:8088", path: "/Users/watts/.influxdb/data/_internal/monitor/1", retentionPolicy: "monitor"}, columns: ["time", "last"], values: [[1464811503000000000, 100]]}]},
+      {series: [{name: "shard", tags: {clusterID: "6272208615254493595", database: "telegraf", engine: "tsm1", hostname: "WattsInfluxDB", id: "2", nodeID: "localhost:8088", path: "/Users/watts/.influxdb/data/telegraf/default/2", retentionPolicy: "default"}, columns: ["time", "last"], values: [[1464811503000000000, 200]]}]},
+    ]}
 
-    const result = diskBytesFromShard(response);
-    const expectedTotal = 300;
+    const result = diskBytesFromShard(response)
+    const expectedTotal = 300
 
-    expect(result.errors).to.deep.equal([]);
-    expect(result.bytes).to.equal(expectedTotal);
-  });
+    expect(result.errors).to.deep.equal([])
+    expect(result.bytes).to.equal(expectedTotal)
+  })
 
   it('returns emtpy with empty response', () => {
-    const response = {"results":[{}]};
+    const response = {results: [{}]}
 
-    const result = diskBytesFromShard(response);
+    const result = diskBytesFromShard(response)
 
-    expect(result.errors).to.deep.equal([]);
-    expect(result.bytes).to.equal(0);
-  });
+    expect(result.errors).to.deep.equal([])
+    expect(result.bytes).to.equal(0)
+  })
 
   it('exposes the server error', () => {
-    const response = {"results":[{"error":"internal server error?"}]};
+    const response = {results: [{error: "internal server error?"}]}
 
-    const result = diskBytesFromShard(response);
+    const result = diskBytesFromShard(response)
 
-    expect(result.errors).to.deep.equal(['internal server error?']);
-    expect(result.bytes).to.equal(0);
-  });
-});
+    expect(result.errors).to.deep.equal(['internal server error?'])
+    expect(result.bytes).to.equal(0)
+  })
+})
 
 describe('diskBytesFromShardForDatabase', () => {
   it('return parses data as expected', () => {
-    const response = {"results":[{"series":[
-      {"name":"shard","tags":{"nodeID":"localhost:8088","path":"/Users/watts/.influxdb/data/_internal/monitor/1","retentionPolicy":"monitor"},"columns":["time","last"],"values":[["2016-06-02T01:06:13Z",100]]},
-      {"name":"shard","tags":{"nodeID":"localhost:8088","path":"/Users/watts/.influxdb/data/_internal/monitor/3","retentionPolicy":"monitor"},"columns":["time","last"],"values":[["2016-06-02T01:06:13Z",200]]},
-      {"name":"shard","tags":{"nodeID":"localhost:8188","path":"/Users/watts/.influxdb/data/_internal/monitor/1","retentionPolicy":"monitor"},"columns":["time","last"],"values":[["2016-06-02T01:06:13Z",100]]},
-      {"name":"shard","tags":{"nodeID":"localhost:8188","path":"/Users/watts/.influxdb/data/_internal/monitor/3","retentionPolicy":"monitor"},"columns":["time","last"],"values":[["2016-06-02T01:06:13Z",200]]},
-    ]}]};
+    const response = {results: [{series: [
+      {name: "shard", tags: {nodeID: "localhost:8088", path: "/Users/watts/.influxdb/data/_internal/monitor/1", retentionPolicy: "monitor"}, columns: ["time", "last"], values: [["2016-06-02T01:06:13Z", 100]]},
+      {name: "shard", tags: {nodeID: "localhost:8088", path: "/Users/watts/.influxdb/data/_internal/monitor/3", retentionPolicy: "monitor"}, columns: ["time", "last"], values: [["2016-06-02T01:06:13Z", 200]]},
+      {name: "shard", tags: {nodeID: "localhost:8188", path: "/Users/watts/.influxdb/data/_internal/monitor/1", retentionPolicy: "monitor"}, columns: ["time", "last"], values: [["2016-06-02T01:06:13Z", 100]]},
+      {name: "shard", tags: {nodeID: "localhost:8188", path: "/Users/watts/.influxdb/data/_internal/monitor/3", retentionPolicy: "monitor"}, columns: ["time", "last"], values: [["2016-06-02T01:06:13Z", 200]]},
+    ]}]}
 
-    const result = diskBytesFromShardForDatabase(response);
+    const result = diskBytesFromShardForDatabase(response)
     const expected = {
-      1: [{nodeID: 'localhost:8088', diskUsage: 100},{nodeID: 'localhost:8188', diskUsage: 100}],
-      3: [{nodeID: 'localhost:8088', diskUsage: 200},{nodeID: 'localhost:8188', diskUsage: 200}],
-    };
+      1: [{nodeID: 'localhost:8088', diskUsage: 100}, {nodeID: 'localhost:8188', diskUsage: 100}],
+      3: [{nodeID: 'localhost:8088', diskUsage: 200}, {nodeID: 'localhost:8188', diskUsage: 200}],
+    }
 
-    expect(result.shardData).to.deep.equal(expected);
-  });
+    expect(result.shardData).to.deep.equal(expected)
+  })
 
   it('returns emtpy with empty response', () => {
-    const response = {"results":[{}]};
+    const response = {results: [{}]}
 
-    const result = diskBytesFromShardForDatabase(response);
+    const result = diskBytesFromShardForDatabase(response)
 
-    expect(result.errors).to.deep.equal([]);
-    expect(result.shardData).to.deep.equal({});
-  });
+    expect(result.errors).to.deep.equal([])
+    expect(result.shardData).to.deep.equal({})
+  })
 
   it('exposes the server error', () => {
-    const response = {"results":[{"error":"internal server error?"}]};
+    const response = {results: [{error: "internal server error?"}]}
 
-    const result = diskBytesFromShardForDatabase(response);
+    const result = diskBytesFromShardForDatabase(response)
 
-    expect(result.errors).to.deep.equal(['internal server error?']);
-    expect(result.shardData).to.deep.equal({});
-  });
-});
+    expect(result.errors).to.deep.equal(['internal server error?'])
+    expect(result.shardData).to.deep.equal({})
+  })
+})

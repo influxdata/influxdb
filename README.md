@@ -65,25 +65,9 @@ Chronograf's graphing tool that allows you to dig in and create personalized vis
 
 ### Dashboards
 
-While there is an API and presentation layer for dashboards released in version 1.2.0-beta1+, it is not recommended that you try to use Chronograf as a general purpose dashboard solution. The visualization around editing is under way and will be in a future release. Meanwhile, if you would like to try it out you can use `curl` or other HTTP tools to push dashboard definitions directly to the API. If you do so, they should be shown when selected in the application.
+Version 1.2.0-beta6 introduces a UI for creating and editing dashboards. The dashboards support several visualization types including line graphs, stacked graphs, step plots, single statistic graphs, and line-single-statistic graphs.
 
-Example:
-```
-curl -X POST -H "Content-Type: application/json" -d '{
-    "cells": [
-        {
-            "queries": [
-                {
-                    "label": "%",
-                    "query": "SELECT mean(\"usage_user\") AS \"usage_user\" FROM \"telegraf\".\"autogen\".\"cpu\""
-                }
-            ],
-            "type": "line"
-        }
-    ],
-    "name": "dashboard name"
-}' "http://localhost:8888/chronograf/v1/dashboards"
-```
+This feature is new in version 1.2.0-beta6. We recommend using dashboards in a non-production environment only. Please see the [known issues](#known-issues) section for known bugs, and, should you come across any bugs or unexpected behavior please open [an issue](https://github.com/influxdata/chronograf/issues/new). We appreciate the feedback!
 
 ### Kapacitor UI
 
@@ -113,7 +97,7 @@ A UI for [Kapacitor](https://github.com/influxdata/kapacitor) alert creation and
 Manage users, roles, permissions for [OSS InfluxDB](https://github.com/influxdata/influxdb) and InfluxData's [Enterprise](https://docs.influxdata.com/enterprise/v1.2/) product.
 View actively running queries and stop expensive queries on the Query Management page.
 
-These features are new in Chronograf version 1.2.0-beta5. We recommend using them in a non-production environment only. Should you come across any bugs or unexpected behavior please open [an issue](https://github.com/influxdata/chronograf/issues/new). We appreciate the feedback as we work to finalize and improve the user and query management features!
+These features are new as of Chronograf version 1.2.0-beta5. We recommend using them in a non-production environment only. Should you come across any bugs or unexpected behavior please open [an issue](https://github.com/influxdata/chronograf/issues/new). We appreciate the feedback as we work to finalize and improve the user and query management features!
 
 ### TLS/HTTPS Support
 See [Chronograf with TLS](https://github.com/influxdata/chronograf/blob/master/docs/tls.md) for more information.
@@ -126,7 +110,7 @@ Change the default root path of the Chronograf server with the `--basepath` opti
 
 ## Versions
 
-Chronograf v1.2.0-beta5 is a beta release.
+Chronograf v1.2.0-beta7 is a beta release.
 We will be iterating quickly based on user feedback and recommend using the [nightly builds](https://www.influxdata.com/downloads/) for the time being.
 
 Spotted a bug or have a feature request?
@@ -136,7 +120,7 @@ Please open [an issue](https://github.com/influxdata/chronograf/issues/new)!
 
 The Chronograf team has identified and is working on the following issues:
 
-* Currently, Chronograf requires users to run Telegraf's [CPU](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/CPU_README.md) and [system](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/SYSTEM_README.md) plugins to ensure that all Apps appear on the [HOST LIST](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#host-list) page.
+* Chronograf requires users to run Telegraf's [CPU](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/CPU_README.md) and [system](https://github.com/influxdata/telegraf/blob/master/plugins/inputs/system/SYSTEM_README.md) plugins to ensure that all Apps appear on the [HOST LIST](https://github.com/influxdata/chronograf/blob/master/docs/GETTING_STARTED.md#host-list) page.
 
 ## Installation
 

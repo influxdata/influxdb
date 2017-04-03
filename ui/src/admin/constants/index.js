@@ -6,9 +6,7 @@ export const TIMES = [
   {test: /^\d*s/, magnitude: 3},
   {test: /^\d*m\d*s/, magnitude: 4},
   {test: /^\d*h\d*m\d*s/, magnitude: 5},
-];
-
-export const ADMIN_NOTIFICATION_DELAY = 1500 // milliseconds
+]
 
 export const NEW_DEFAULT_USER = {
   name: '',
@@ -49,4 +47,3 @@ export const NEW_DEFAULT_DATABASE = {
   retentionPolicies: [NEW_DEFAULT_RP],
   links: {self: ''},
 }
-

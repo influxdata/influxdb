@@ -24,8 +24,8 @@ class FilterBar extends Component {
   render() {
     const {type, isEditing, onClickCreate} = this.props
     const placeholderText = type.replace(/\w\S*/g, function(txt) {
-      return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
-    });
+      return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase()
+    })
     return (
       <div className="panel-heading u-flex u-ai-center u-jc-space-between">
         <div className="users__search-widget input-group admin__search-widget">
@@ -40,7 +40,7 @@ class FilterBar extends Component {
             <span className="icon search" aria-hidden="true"></span>
           </div>
         </div>
-        <button className="btn btn-primary" disabled={isEditing} onClick={() => onClickCreate(type)}>Create {placeholderText.substring(0, placeholderText.length - 1)}</button>
+        <button className="btn btn-sm btn-primary" disabled={isEditing} onClick={() => onClickCreate(type)}>Create {placeholderText.substring(0, placeholderText.length - 1)}</button>
       </div>
     )
   }

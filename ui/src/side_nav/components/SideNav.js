@@ -1,11 +1,11 @@
-import React, {PropTypes} from 'react';
-import {NavBar, NavBlock, NavHeader, NavListItem} from 'src/side_nav/components/NavItems';
+import React, {PropTypes} from 'react'
+import {NavBar, NavBlock, NavHeader, NavListItem} from 'src/side_nav/components/NavItems'
 
 const {
   string,
   shape,
   bool,
-} = PropTypes;
+} = PropTypes
 const SideNav = React.createClass({
   propTypes: {
     location: string.isRequired,
@@ -17,11 +17,11 @@ const SideNav = React.createClass({
   },
 
   render() {
-    const {me, location, sourceID, isHidden} = this.props;
-    const sourcePrefix = `/sources/${sourceID}`;
-    const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`;
+    const {me, location, sourceID, isHidden} = this.props
+    const sourcePrefix = `/sources/${sourceID}`
+    const dataExplorerLink = `${sourcePrefix}/chronograf/data-explorer`
 
-    const loggedIn = !!(me && me.email);
+    const loggedIn = !!(me && me.email)
 
     return isHidden ? null : (
       <NavBar location={location}>
@@ -42,7 +42,7 @@ const SideNav = React.createClass({
           <NavListItem link={`${sourcePrefix}/alerts`}>Alert History</NavListItem>
           <NavListItem link={`${sourcePrefix}/alert-rules`}>Kapacitor Rules</NavListItem>
         </NavBlock>
-        <NavBlock icon="crown" link={`${sourcePrefix}/admin`}>
+        <NavBlock icon="crown2" link={`${sourcePrefix}/admin`}>
           <NavHeader link={`${sourcePrefix}/admin`} title="Admin" />
         </NavBlock>
         <NavBlock icon="cog-thick" link={`${sourcePrefix}/manage-sources`}>
@@ -56,8 +56,8 @@ const SideNav = React.createClass({
         </NavBlock>
         ) : null}
       </NavBar>
-    );
+    )
   },
-});
+})
 
-export default SideNav;
+export default SideNav

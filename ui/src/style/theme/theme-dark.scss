@@ -91,7 +91,7 @@ a.btn.btn-sm > span.icon,
 div.btn.btn-sm > span.icon,
 button.btn.btn-sm > span.icon {
   font-size: 16px;
-  margin: 0 4px 0 0 ;
+  margin: 0 6px 0 0 ;
 }
 .btn.btn-xs > .icon {
   position: relative;
@@ -215,10 +215,10 @@ button.btn.btn-sm > span.icon {
 .form-control,
 textarea,
 input {
-  &::-webkit-input-placeholder { color: $g10-wolf; }
-  &::-moz-placeholder { color: $g10-wolf; }
-  &:-ms-input-placeholder { color: $g10-wolf; }
-  &:-moz-placeholder { color: $g10-wolf; }
+  &::-webkit-input-placeholder { color: $g10-wolf; font-weight: 500 !important; }
+  &::-moz-placeholder { color: $g10-wolf; font-weight: 500 !important; }
+  &:-ms-input-placeholder { color: $g10-wolf; font-weight: 500 !important; }
+  &:-moz-placeholder { color: $g10-wolf; font-weight: 500 !important; }
 }
 
 /* Text Selection Styling */
@@ -267,7 +267,7 @@ input {
   padding: 0 !important;
   max-height: 290px;
   overflow: auto;
-  @include custom-scrollbar($c-pool, $c-laser);
+  @include custom-scrollbar-round($c-pool, $c-laser);
   @include gradient-h($c-ocean, $c-pool);
   box-shadow: 0 2px 5px 0.6px fade-out($g0-obsidian, 0.8);
 
@@ -293,7 +293,7 @@ input {
       color 0.25s ease;
 
     &:hover {
-      cursor: pointer;
+      cursor: $cc-pointer;
       background-color: transparent;
       color: $g20-white !important;
     }
@@ -479,7 +479,7 @@ code {
   &:after { transform: translate(-50%,-50%) rotate(-45deg); }
 
   &:hover {
-    cursor: pointer;
+    cursor: $cc-pointer;
 
     &:before,
     &:after {
@@ -528,7 +528,7 @@ $toggle-border: 2px;
     color 0.25s;
 
   &:hover {
-    cursor: pointer;
+    cursor: $cc-pointer;
     color: $g14-chromium;
     background-color: $g4-onyx;
   }
@@ -616,7 +616,7 @@ $form-static-checkbox-size: 16px;
           transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       }
       &:hover {
-        cursor: pointer;
+        cursor: $cc-pointer;
         color: $g20-white;
 
         &:before {
@@ -693,7 +693,7 @@ $form-static-checkbox-size: 16px;
           transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       }
       &:hover {
-        cursor: pointer;
+        cursor: $cc-pointer;
         color: $g20-white;
 
         &:before {
@@ -731,7 +731,7 @@ $form-static-checkbox-size: 16px;
     transition: background-color 0.25s ease;
   }
   label:hover {
-    cursor: pointer;
+    cursor: $cc-pointer;
     background-color: $g2-kevlar;
   }
   label:after {

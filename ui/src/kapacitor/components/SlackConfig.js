@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 
 const SlackConfig = React.createClass({
   propTypes: {
@@ -15,36 +15,36 @@ const SlackConfig = React.createClass({
   getInitialState() {
     return {
       testEnabled: !!this.props.config.options.url,
-    };
+    }
   },
 
   componentWillReceiveProps(nextProps) {
     this.setState({
       testEnabled: !!nextProps.config.options.url,
-    });
+    })
   },
 
   handleSaveAlert(e) {
-    e.preventDefault();
+    e.preventDefault()
 
     const properties = {
       url: this.url.value,
       channel: this.channel.value,
-    };
+    }
 
-    this.props.onSave(properties);
+    this.props.onSave(properties)
   },
 
   handleTest(e) {
-    e.preventDefault();
+    e.preventDefault()
     this.props.onTest({
       url: this.url.value,
       channel: this.channel.value,
-    });
+    })
   },
 
   render() {
-    const {url, channel} = this.props.config.options;
+    const {url, channel} = this.props.config.options
 
     return (
       <div>
@@ -69,8 +69,8 @@ const SlackConfig = React.createClass({
           </div>
         </form>
       </div>
-    );
+    )
   },
-});
+})
 
-export default SlackConfig;
+export default SlackConfig

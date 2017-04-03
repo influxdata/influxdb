@@ -1,11 +1,14 @@
+import _ from 'lodash'
+
 import reducer from 'src/dashboards/reducers/ui'
-import timeRanges from 'hson!src/shared/data/timeRanges.hson';
+import timeRanges from 'hson!src/shared/data/timeRanges.hson'
 
 import {
   loadDashboards,
   setDashboard,
+  deleteDashboard,
+  deleteDashboardFailed,
   setTimeRange,
-  setEditMode,
   updateDashboardCells,
   editDashboardCell,
   renameDashboardCell,
@@ -16,8 +19,8 @@ const noopAction = () => {
   return {type: 'NOOP'}
 }
 
-let state = undefined
-const timeRange = timeRanges[1];
+let state
+const timeRange = timeRanges[1]
 const d1 = {id: 1, cells: [], name: "d1"}
 const d2 = {id: 2, cells: [], name: "d2"}
 const dashboards = [d1, d2]
@@ -51,17 +54,30 @@ describe('DataExplorer.Reducers.UI', () => {
     expect(actual.dashboard).to.deep.equal(d2)
   })
 
+  it('can handle a successful dashboard deletion', () => {
+    const loadedState = reducer(state, loadDashboards(dashboards))
+    const expected = [d1]
+    const actual = reducer(loadedState, deleteDashboard(d2))
+
+    expect(actual.dashboards).to.deep.equal(expected)
+  })
+
+  it('can handle a failed dashboard deletion', () => {
+    const loadedState = reducer(state, loadDashboards([d1]))
+    const actual = reducer(loadedState, deleteDashboardFailed(d2))
+    const actualFirst = _.first(actual.dashboards)
+
+    expect(actual.dashboards).to.have.length(2)
+    _.forOwn(d2, (v, k) => {
+      expect(actualFirst[k]).to.deep.equal(v)
+    })
+  })
+
   it('can set the time range', () => {
     const expected = {upper: null, lower: 'now() - 1h'}
     const actual = reducer(state, setTimeRange(expected))
 
     expect(actual.timeRange).to.deep.equal(expected)
-  })
-
-  it('can set edit mode', () => {
-    const isEditMode = true
-    const actual = reducer(state, setEditMode(isEditMode))
-    expect(actual.isEditMode).to.equal(isEditMode)
   })
 
   it('can update dashboard cells', () => {
@@ -101,7 +117,7 @@ describe('DataExplorer.Reducers.UI', () => {
     const newCell = {
       x: c1.x,
       y: c1.y,
-      name: newCellName
+      name: newCellName,
     }
     const dash = {...d1, cells: [c1]}
     state = {

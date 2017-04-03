@@ -2,9 +2,10 @@ import React, {PropTypes, Component} from 'react'
 import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
-import * as adminActionCreators from 'src/admin/actions'
 import DatabaseManager from 'src/admin/components/DatabaseManager'
-import {publishNotification} from 'src/shared/actions/notifications';
+
+import * as adminActionCreators from 'src/admin/actions'
+import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 class DatabaseManagerPage extends Component {
   constructor(props) {
@@ -35,7 +36,9 @@ class DatabaseManagerPage extends Component {
         onEditDatabase={actions.editDatabase}
         onCancelDatabase={actions.removeDatabase}
         onConfirmDatabase={this.handleCreateDatabase}
+        onDeleteDatabase={actions.deleteDatabaseAsync}
         onStartDeleteDatabase={actions.addDatabaseDeleteCode}
+        onRemoveDeleteCode={actions.removeDatabaseDeleteCode}
         onAddRetentionPolicy={actions.addRetentionPolicy}
         onCreateRetentionPolicy={actions.createRetentionPolicyAsync}
         onUpdateRetentionPolicy={actions.updateRetentionPolicyAsync}
@@ -139,7 +142,7 @@ const mapStateToProps = ({admin: {databases, retentionPolicies}}) => ({
 
 const mapDispatchToProps = (dispatch) => ({
   actions: bindActionCreators(adminActionCreators, dispatch),
-  notify: bindActionCreators(publishNotification, dispatch),
+  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(DatabaseManagerPage)

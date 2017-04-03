@@ -1,4 +1,4 @@
-import {combineReducers} from 'redux';
+import {combineReducers} from 'redux'
 
 import {AUTOREFRESH_DEFAULT} from 'src/shared/constants'
 

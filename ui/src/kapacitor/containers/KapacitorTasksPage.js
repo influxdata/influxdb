@@ -1,4 +1,4 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 
 export const KapacitorTasksPage = React.createClass({
   propTypes: {
@@ -16,7 +16,7 @@ export const KapacitorTasksPage = React.createClass({
 
   getInitialState() {
     return {
-    };
+    }
   },
 
   render() {
@@ -24,9 +24,9 @@ export const KapacitorTasksPage = React.createClass({
       <div className="kapacitorTasks">
         tasks
       </div>
-    );
+    )
   },
 
-});
+})
 
-export default KapacitorTasksPage;
+export default KapacitorTasksPage

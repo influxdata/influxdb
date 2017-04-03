@@ -1,12 +1,12 @@
-import React, {PropTypes} from 'react';
-import AlertOutputs from './AlertOutputs';
+import React, {PropTypes} from 'react'
+import AlertOutputs from './AlertOutputs'
 
 const {
   func,
   shape,
   string,
   bool,
-} = PropTypes;
+} = PropTypes
 
 const KapacitorForm = React.createClass({
   propTypes: {
@@ -25,8 +25,8 @@ const KapacitorForm = React.createClass({
   },
 
   render() {
-    const {onInputChange, onReset, kapacitor, source, onSubmit} = this.props;
-    const {url, name, username, password} = kapacitor;
+    const {onInputChange, onReset, kapacitor, source, onSubmit} = this.props
+    const {url, name, username, password} = kapacitor
 
     return (
       <div className="page">
@@ -120,15 +120,15 @@ const KapacitorForm = React.createClass({
           </div>
         </div>
       </div>
-    );
+    )
   },
 
   // TODO: move these to another page.  they dont belong on this page
   renderAlertOutputs() {
-    const {exists, kapacitor, addFlashMessage, source} = this.props;
+    const {exists, kapacitor, addFlashMessage, source} = this.props
 
     if (exists) {
-      return <AlertOutputs source={source} kapacitor={kapacitor} addFlashMessage={addFlashMessage} />;
+      return <AlertOutputs source={source} kapacitor={kapacitor} addFlashMessage={addFlashMessage} />
     }
 
     return (
@@ -139,8 +139,8 @@ const KapacitorForm = React.createClass({
           <p className="text-center">Set your Kapacitor connection info to configure alerting endpoints.</p>
         </div>
       </div>
-    );
+    )
   },
-});
+})
 
-export default KapacitorForm;
+export default KapacitorForm

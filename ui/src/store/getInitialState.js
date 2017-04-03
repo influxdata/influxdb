@@ -1,9 +1,9 @@
-import uuid from 'node-uuid';
-import defaultQueryConfig from 'src/utils/defaultQueryConfig';
+import uuid from 'node-uuid'
+import defaultQueryConfig from 'src/utils/defaultQueryConfig'
 
 export default function getInitialState() {
-  const panelID = uuid.v4(); // for the default Panel
-  const queryID = uuid.v4(); // for the default Query
+  const panelID = uuid.v4() // for the default Panel
+  const queryID = uuid.v4() // for the default Query
   return {
     panels: {
       [panelID]: {
@@ -14,5 +14,5 @@ export default function getInitialState() {
     queryConfigs: {
       [queryID]: defaultQueryConfig(queryID),
     },
-  };
+  }
 }

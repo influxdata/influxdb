@@ -1,4 +1,4 @@
-import AJAX from 'utils/ajax';
+import AJAX from 'utils/ajax'
 
 export const proxy = async ({source, query, db, rp}) => {
   try {

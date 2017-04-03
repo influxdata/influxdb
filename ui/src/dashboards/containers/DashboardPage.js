@@ -4,8 +4,8 @@ import {connect} from 'react-redux'
 import {bindActionCreators} from 'redux'
 
 import CellEditorOverlay from 'src/dashboards/components/CellEditorOverlay'
-import Header from 'src/dashboards/components/DashboardHeader'
-import EditHeader from 'src/dashboards/components/DashboardHeaderEdit'
+import DashboardHeader from 'src/dashboards/components/DashboardHeader'
+import DashboardHeaderEdit from 'src/dashboards/components/DashboardHeaderEdit'
 import Dashboard from 'src/dashboards/components/Dashboard'
 
 import * as dashboardActionCreators from 'src/dashboards/actions'
@@ -24,10 +24,10 @@ const {
 
 const DashboardPage = React.createClass({
   propTypes: {
-    source: PropTypes.shape({
-      links: PropTypes.shape({
-        proxy: PropTypes.string,
-        self: PropTypes.string,
+    source: shape({
+      links: shape({
+        proxy: string,
+        self: string,
       }),
     }),
     params: shape({
@@ -39,10 +39,9 @@ const DashboardPage = React.createClass({
     }).isRequired,
     dashboardActions: shape({
       putDashboard: func.isRequired,
-      getDashboards: func.isRequired,
+      getDashboardsAsync: func.isRequired,
       setDashboard: func.isRequired,
       setTimeRange: func.isRequired,
-      setEditMode: func.isRequired,
       addDashboardCellAsync: func.isRequired,
       editDashboardCell: func.isRequired,
       renameDashboardCell: func.isRequired,
@@ -50,16 +49,15 @@ const DashboardPage = React.createClass({
     dashboards: arrayOf(shape({
       id: number.isRequired,
       cells: arrayOf(shape({})).isRequired,
-    })).isRequired,
+    })),
     dashboard: shape({
       id: number.isRequired,
       cells: arrayOf(shape({})).isRequired,
-    }).isRequired,
+    }),
     handleChooseAutoRefresh: func.isRequired,
     autoRefresh: number.isRequired,
     timeRange: shape({}).isRequired,
     inPresentationMode: bool.isRequired,
-    isEditMode: bool.isRequired,
     handleClickPresentationButton: func,
   },
 
@@ -73,22 +71,23 @@ const DashboardPage = React.createClass({
   },
 
   getChildContext() {
-    return {source: this.props.source};
+    return {source: this.props.source}
   },
 
   getInitialState() {
     return {
       selectedCell: null,
+      isEditMode: false,
     }
   },
 
   componentDidMount() {
     const {
       params: {dashboardID},
-      dashboardActions: {getDashboards},
-    } = this.props;
+      dashboardActions: {getDashboardsAsync},
+    } = this.props
 
-    getDashboards(dashboardID)
+    getDashboardsAsync(dashboardID)
   },
 
   componentWillReceiveProps(nextProps) {
@@ -96,7 +95,7 @@ const DashboardPage = React.createClass({
     const {
       location: {pathname: nextPathname},
       params: {dashboardID: nextID},
-      dashboardActions: {setDashboard, setEditMode},
+      dashboardActions: {setDashboard},
     } = nextProps
 
     if (nextPathname.pathname === pathname) {
@@ -104,7 +103,6 @@ const DashboardPage = React.createClass({
     }
 
     setDashboard(nextID)
-    setEditMode(nextPathname.includes('/edit'))
   },
 
   handleDismissOverlay() {
@@ -132,6 +130,22 @@ const DashboardPage = React.createClass({
   handleAddCell() {
     const {dashboard} = this.props
     this.props.dashboardActions.addDashboardCellAsync(dashboard)
+  },
+
+  handleEditDashboard() {
+    this.setState({isEditMode: true})
+  },
+
+  handleCancelEditDashboard() {
+    this.setState({isEditMode: false})
+  },
+
+  handleRenameDashboard(name) {
+    this.setState({isEditMode: false})
+    const {dashboard} = this.props
+    const newDashboard = {...dashboard, name}
+    this.props.dashboardActions.updateDashboard(newDashboard)
+    this.props.dashboardActions.putDashboard()
   },
 
   // Places cell into editing mode.
@@ -164,7 +178,6 @@ const DashboardPage = React.createClass({
       dashboard,
       params: {sourceID},
       inPresentationMode,
-      isEditMode,
       handleClickPresentationButton,
       source,
       handleChooseAutoRefresh,
@@ -174,6 +187,7 @@ const DashboardPage = React.createClass({
 
     const {
       selectedCell,
+      isEditMode,
     } = this.state
 
     return (
@@ -191,8 +205,12 @@ const DashboardPage = React.createClass({
         }
         {
           isEditMode ?
-            <EditHeader dashboard={dashboard} onSave={() => {}} /> :
-            <Header
+            <DashboardHeaderEdit
+              dashboard={dashboard}
+              onCancel={this.handleCancelEditDashboard}
+              onSave={this.handleRenameDashboard}
+            /> :
+            <DashboardHeader
               buttonText={dashboard ? dashboard.name : ''}
               handleChooseAutoRefresh={handleChooseAutoRefresh}
               autoRefresh={autoRefresh}
@@ -204,36 +222,44 @@ const DashboardPage = React.createClass({
               sourceID={sourceID}
               source={source}
               onAddCell={this.handleAddCell}
+              onEditDashboard={this.handleEditDashboard}
             >
-              {(dashboards).map((d, i) => {
-                return (
-                  <li key={i}>
-                    <Link to={`/sources/${sourceID}/dashboards/${d.id}`} className="role-option">
-                      {d.name}
-                    </Link>
-                  </li>
-                );
-              })}
-            </Header>
+              {
+                dashboards ?
+                dashboards.map((d, i) => {
+                  return (
+                    <li key={i}>
+                      <Link to={`/sources/${sourceID}/dashboards/${d.id}`} className="role-option">
+                        {d.name}
+                      </Link>
+                    </li>
+                  )
+                }) :
+                null
+              }
+            </DashboardHeader>
         }
-        <Dashboard
-          dashboard={dashboard}
-          isEditMode={isEditMode}
-          inPresentationMode={inPresentationMode}
-          source={source}
-          autoRefresh={autoRefresh}
-          timeRange={timeRange}
-          onPositionChange={this.handleUpdatePosition}
-          onEditCell={this.handleEditDashboardCell}
-          onRenameCell={this.handleRenameDashboardCell}
-          onUpdateCell={this.handleUpdateDashboardCell}
-          onDeleteCell={this.handleDeleteDashboardCell}
-          onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
-        />
+        {
+          dashboard ?
+          <Dashboard
+            dashboard={dashboard}
+            inPresentationMode={inPresentationMode}
+            source={source}
+            autoRefresh={autoRefresh}
+            timeRange={timeRange}
+            onPositionChange={this.handleUpdatePosition}
+            onEditCell={this.handleEditDashboardCell}
+            onRenameCell={this.handleRenameDashboardCell}
+            onUpdateCell={this.handleUpdateDashboardCell}
+            onDeleteCell={this.handleDeleteDashboardCell}
+            onSummonOverlayTechnologies={this.handleSummonOverlayTechnologies}
+          /> :
+          null
+        }
       </div>
-    );
+    )
   },
-});
+})
 
 const mapStateToProps = (state) => {
   const {
@@ -245,7 +271,6 @@ const mapStateToProps = (state) => {
       dashboards,
       dashboard,
       timeRange,
-      isEditMode,
     },
   } = state
 
@@ -254,7 +279,6 @@ const mapStateToProps = (state) => {
     dashboard,
     autoRefresh,
     timeRange,
-    isEditMode,
     inPresentationMode,
   }
 }
@@ -265,4 +289,4 @@ const mapDispatchToProps = (dispatch) => ({
   dashboardActions: bindActionCreators(dashboardActionCreators, dispatch),
 })
 
-export default connect(mapStateToProps, mapDispatchToProps)(DashboardPage);
+export default connect(mapStateToProps, mapDispatchToProps)(DashboardPage)

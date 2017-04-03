@@ -22,10 +22,10 @@
 }
 @mixin gradient-diag-down($startColor, $endColor) {
   background: $startColor;
-  background: -moz-linear-gradient(135deg,  $startColor 0%, $endColor 100%);
-  background: -webkit-linear-gradient(135deg,  $startColor 0%,$endColor 100%);
-  background: linear-gradient(135deg,  $startColor 0%,$endColor 100%);
-  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=1 );
+  background: -moz-linear-gradient(135deg,  $startColor 0%, $endColor 100%) !important;
+  background: -webkit-linear-gradient(135deg,  $startColor 0%,$endColor 100%) !important;
+  background: linear-gradient(135deg,  $startColor 0%,$endColor 100%) !important;
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='$startColor', endColorstr='$endColor',GradientType=1 ) !important;
 }
 @mixin gradient-r($startColor, $endColor) {
   background: $startColor;
@@ -41,6 +41,35 @@ $scrollbar-offset: 3px;
 @mixin custom-scrollbar($trackColor, $handleColor) {
   &::-webkit-scrollbar {
     width: $scrollbar-width;
+
+    &-button {
+      background-color: $trackColor;
+    }
+    &-track {
+      background-color: $trackColor;
+    }
+    &-track-piece {
+      background-color: $trackColor;
+      border: $scrollbar-offset solid $trackColor;
+      border-radius: ($scrollbar-width / 2);
+    }
+    &-thumb {
+      background-color: $handleColor;
+      border: $scrollbar-offset solid $trackColor;
+      border-radius: ($scrollbar-width / 2);
+    }
+    &-corner {
+      background-color: $trackColor;
+    }
+  }
+  &::-webkit-resizer {
+    background-color: $trackColor;
+  }
+}
+@mixin custom-scrollbar-round($trackColor, $handleColor) {
+  &::-webkit-scrollbar {
+    width: $scrollbar-width;
+    border-top-right-radius: $radius;
     border-bottom-right-radius: $radius;
 
     &-button {
@@ -48,6 +77,7 @@ $scrollbar-offset: 3px;
     }
     &-track {
       background-color: $trackColor;
+      border-top-right-radius: $radius;
       border-bottom-right-radius: $radius;
     }
     &-track-piece {

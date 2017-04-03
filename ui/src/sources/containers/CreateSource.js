@@ -1,8 +1,8 @@
-import React, {PropTypes} from 'react';
-import {withRouter} from 'react-router';
-import {addSource as addSourceAction} from 'src/shared/actions/sources';
-import {createSource} from 'shared/apis';
-import {connect} from 'react-redux';
+import React, {PropTypes} from 'react'
+import {withRouter} from 'react-router'
+import {addSource as addSourceAction} from 'src/shared/actions/sources'
+import {createSource} from 'shared/apis'
+import {connect} from 'react-redux'
 
 export const CreateSource = React.createClass({
   propTypes: {
@@ -18,7 +18,7 @@ export const CreateSource = React.createClass({
   },
 
   handleNewSource(e) {
-    e.preventDefault();
+    e.preventDefault()
     const source = {
       url: this.sourceURL.value.trim(),
       name: this.sourceName.value,
@@ -26,21 +26,21 @@ export const CreateSource = React.createClass({
       password: this.sourcePassword.value,
       isDefault: true,
       telegraf: this.sourceTelegraf.value,
-    };
+    }
     createSource(source).then(({data: sourceFromServer}) => {
-      this.props.addSourceAction(sourceFromServer);
-      this.redirectToApp(sourceFromServer);
-    });
+      this.props.addSourceAction(sourceFromServer)
+      this.redirectToApp(sourceFromServer)
+    })
   },
 
   redirectToApp(source) {
-    const {redirectPath} = this.props.location.query;
+    const {redirectPath} = this.props.location.query
     if (!redirectPath) {
-      return this.props.router.push(`/sources/${source.id}/hosts`);
+      return this.props.router.push(`/sources/${source.id}/hosts`)
     }
 
-    const fixedPath = redirectPath.replace(/\/sources\/[^/]*/, `/sources/${source.id}`);
-    return this.props.router.push(fixedPath);
+    const fixedPath = redirectPath.replace(/\/sources\/[^/]*/, `/sources/${source.id}`)
+    return this.props.router.push(fixedPath)
   },
 
   render() {
@@ -90,12 +90,12 @@ export const CreateSource = React.createClass({
           </div>
         </div>
       </div>
-    );
+    )
   },
-});
+})
 
 function mapStateToProps(_) {
-  return {};
+  return {}
 }
 
-export default connect(mapStateToProps, {addSourceAction})(withRouter(CreateSource));
+export default connect(mapStateToProps, {addSourceAction})(withRouter(CreateSource))

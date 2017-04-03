@@ -9,9 +9,8 @@ import Visualization from 'src/data_explorer/components/Visualization'
 import OverlayControls from 'src/dashboards/components/OverlayControls'
 import * as queryModifiers from 'src/utils/queryTransitions'
 
-import {buildSelectStatement} from 'src/data_explorer/utils/influxql/select'
-
 import defaultQueryConfig from 'src/utils/defaultQueryConfig'
+import buildInfluxQLQuery from 'utils/influxql'
 
 class CellEditorOverlay extends Component {
   constructor(props) {
@@ -63,13 +62,13 @@ class CellEditorOverlay extends Component {
 
   handleSaveCell() {
     const {queriesWorkingDraft, cellWorkingType, cellWorkingName} = this.state
-    const {cell} = this.props
+    const {cell, timeRange} = this.props
 
     const newCell = _.cloneDeep(cell)
     newCell.name = cellWorkingName
     newCell.type = cellWorkingType
     newCell.queries = queriesWorkingDraft.map((q) => {
-      const query = q.rawText || buildSelectStatement(q)
+      const query = q.rawText || buildInfluxQLQuery(timeRange, q)
       const label = `${q.measurement}.${q.fields[0].field}`
 
       return {
@@ -92,7 +91,13 @@ class CellEditorOverlay extends Component {
 
   render() {
     const {onCancel, autoRefresh, timeRange} = this.props
-    const {activeQueryIndex, cellWorkingType, queriesWorkingDraft} = this.state
+    const {
+      activeQueryIndex,
+      cellWorkingName,
+      cellWorkingType,
+      queriesWorkingDraft,
+    } = this.state
+
     const queryActions = {
       addQuery: this.handleAddQuery,
       ..._.mapValues(queryModifiers, (qm) => this.queryStateReducer(qm)),
@@ -107,6 +112,7 @@ class CellEditorOverlay extends Component {
             queryConfigs={queriesWorkingDraft}
             activeQueryIndex={0}
             cellType={cellWorkingType}
+            cellName={cellWorkingName}
           />
           <ResizeBottom>
             <OverlayControls

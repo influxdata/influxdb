@@ -19,11 +19,14 @@ import {
   updateRolePermissionsAsync,
   updateUserPermissionsAsync,
   updateUserRolesAsync,
+  updateUserPasswordAsync,
   filterUsers as filterUsersAction,
   filterRoles as filterRolesAction,
 } from 'src/admin/actions'
 
 import AdminTabs from 'src/admin/components/AdminTabs'
+
+import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 const isValidUser = (user) => {
   const minLen = 3
@@ -52,6 +55,7 @@ class AdminPage extends Component {
     this.handleUpdateRolePermissions = ::this.handleUpdateRolePermissions
     this.handleUpdateUserPermissions = ::this.handleUpdateUserPermissions
     this.handleUpdateUserRoles = ::this.handleUpdateUserRoles
+    this.handleUpdateUserPassword = ::this.handleUpdateUserPassword
   }
 
   componentDidMount() {
@@ -81,8 +85,9 @@ class AdminPage extends Component {
   }
 
   async handleSaveUser(user) {
+    const {notify} = this.props
     if (!isValidUser(user)) {
-      this.props.addFlashMessage({type: 'error', text: 'Username and/or password too short'})
+      notify('error', 'Username and/or password too short')
       return
     }
     if (user.isNew) {
@@ -93,15 +98,15 @@ class AdminPage extends Component {
   }
 
   async handleSaveRole(role) {
+    const {notify} = this.props
     if (!isValidRole(role)) {
-      this.props.addFlashMessage({type: 'error', text: 'Role name too short'})
+      notify('error', 'Role name too short')
       return
     }
     if (role.isNew) {
       this.props.createRole(this.props.source.links.roles, role)
     } else {
       // TODO update role
-      // console.log('update')
     }
   }
 
@@ -114,11 +119,11 @@ class AdminPage extends Component {
   }
 
   handleDeleteRole(role) {
-    this.props.deleteRole(role, this.props.addFlashMessage)
+    this.props.deleteRole(role)
   }
 
   handleDeleteUser(user) {
-    this.props.deleteUser(user, this.props.addFlashMessage)
+    this.props.deleteUser(user)
   }
 
   handleUpdateRoleUsers(role, users) {
@@ -135,6 +140,10 @@ class AdminPage extends Component {
 
   handleUpdateUserRoles(user, roles) {
     this.props.updateUserRoles(user, roles)
+  }
+
+  handleUpdateUserPassword(user, password) {
+    this.props.updateUserPassword(user, password)
   }
 
   render() {
@@ -182,6 +191,7 @@ class AdminPage extends Component {
                     onUpdateRolePermissions={this.handleUpdateRolePermissions}
                     onUpdateUserPermissions={this.handleUpdateUserPermissions}
                     onUpdateUserRoles={this.handleUpdateUserRoles}
+                    onUpdateUserPassword={this.handleUpdateUserPassword}
                   /> :
                   <span>Loading...</span>
                 }
@@ -223,13 +233,14 @@ AdminPage.propTypes = {
   createRole: func,
   deleteRole: func,
   deleteUser: func,
-  addFlashMessage: func,
   filterRoles: func,
   filterUsers: func,
   updateRoleUsers: func,
   updateRolePermissions: func,
   updateUserPermissions: func,
   updateUserRoles: func,
+  updateUserPassword: func,
+  notify: func,
 }
 
 const mapStateToProps = ({admin: {users, roles, permissions}}) => ({
@@ -258,6 +269,8 @@ const mapDispatchToProps = (dispatch) => ({
   updateRolePermissions: bindActionCreators(updateRolePermissionsAsync, dispatch),
   updateUserPermissions: bindActionCreators(updateUserPermissionsAsync, dispatch),
   updateUserRoles: bindActionCreators(updateUserRolesAsync, dispatch),
+  updateUserPassword: bindActionCreators(updateUserPasswordAsync, dispatch),
+  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(AdminPage)

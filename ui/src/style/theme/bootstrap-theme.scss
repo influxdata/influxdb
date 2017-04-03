@@ -248,8 +248,14 @@
 .icon.access-key:before {
   content: "\e921";
 }
+.icon.crown2:before {
+  content: "\e94b";
+}
 .icon.crown:before {
   content: "\e90f";
+}
+.icon.server2:before {
+  content: "\e94c";
 }
 .icon.server:before {
   content: "\e914";
@@ -509,7 +515,7 @@ a:active.link-warning {
 }
 .btn:hover,
 .btn:focus {
-  cursor: pointer;
+  cursor: $cc-pointer;
 }
 .btn-group-xs > .btn,
 .btn.btn-xs {
@@ -1469,7 +1475,7 @@ fieldset[disabled] .btn-link-success:active:focus {
           transition: background-color .25s ease, color .25s ease, border-color .25s ease;
 }
 .panel-available:hover {
-  cursor: pointer;
+  cursor: $cc-pointer;
   background-color: #f0fcff;
   border-color: #bef0ff;
 }
@@ -2589,7 +2595,7 @@ a.badge:hover,
 a.badge:focus {
   color: #00c9ff;
   text-decoration: none;
-  cursor: pointer;
+  cursor: $cc-pointer;
 }
 .sparkline {
   display: inline-block;
@@ -3195,7 +3201,7 @@ a.badge:focus {
   border-radius: 4px;
 }
 .slider-plan-picker:hover {
-  cursor: pointer;
+  cursor: $cc-pointer;
 }
 .slider-plan-picker .slider-label,
 .slider-plan-picker .slider-cell {
@@ -3867,7 +3873,7 @@ table.table.icon-font-matrix tr > td strong {
       -ms-flex-direction: column;
 }
 .docs-color-swatch:hover {
-  cursor: pointer;
+  cursor: $cc-pointer;
 }
 .docs-color-swatch.light-bg {
   color: #676978;
@@ -4142,7 +4148,7 @@ section.docs-section .page-header {
 }
 .nav-tablist > li > a:hover {
   color: #676978;
-  cursor: pointer;
+  cursor: $cc-pointer;
   background-color: #f6f6f8;
 }
 .nav-tablist > li:first-of-type > a {
@@ -4248,7 +4254,7 @@ section.docs-section .page-header {
           transform: translate(-50%, -50%) rotate(-45deg);
 }
 .microtabs-dismiss:hover {
-  cursor: pointer;
+  cursor: $cc-pointer;
 }
 .microtabs-dismiss:hover:after,
 .microtabs-dismiss:hover:before {
@@ -4287,7 +4293,7 @@ section.docs-section .page-header {
 }
 .nav-microtabs > li > a:hover {
   color: #676978;
-  cursor: pointer;
+  cursor: $cc-pointer;
   background-color: #fafafc;
 }
 .nav-microtabs > li:last-of-type > a {
@@ -4497,7 +4503,7 @@ section.docs-section .page-header {
 .nav-microtabs-summer .microtabs-dismiss:hover,
 .nav-microtabs-fall .microtabs-dismiss:hover,
 .nav-microtabs-winter .microtabs-dismiss:hover {
-  cursor: pointer;
+  cursor: $cc-pointer;
 }
 .nav-microtabs-spring .microtabs-dismiss:hover:after,
 .nav-microtabs-summer .microtabs-dismiss:hover:after,

@@ -1,11 +1,18 @@
 import React, {PropTypes} from 'react'
 import {Link, withRouter} from 'react-router'
-import SourceIndicator from '../../shared/components/SourceIndicator'
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
 
-import {getDashboards, createDashboard} from '../apis'
+import SourceIndicator from 'shared/components/SourceIndicator'
+import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
+
+import {createDashboard} from 'src/dashboards/apis'
+import {getDashboardsAsync, deleteDashboardAsync} from 'src/dashboards/actions'
+
 import {NEW_DASHBOARD} from 'src/dashboards/constants'
 
 const {
+  arrayOf,
   func,
   string,
   shape,
@@ -25,23 +32,13 @@ const DashboardsPage = React.createClass({
     router: shape({
       push: func.isRequired,
     }).isRequired,
-    addFlashMessage: func,
-  },
-
-  getInitialState() {
-    return {
-      dashboards: [],
-      waiting: true,
-    };
+    handleGetDashboards: func.isRequired,
+    handleDeleteDashboard: func.isRequired,
+    dashboards: arrayOf(shape()),
   },
 
   componentDidMount() {
-    getDashboards().then((resp) => {
-      this.setState({
-        dashboards: resp.data.dashboards,
-        waiting: false,
-      });
-    });
+    this.props.handleGetDashboards()
   },
 
   async handleCreateDashbord() {
@@ -50,15 +47,20 @@ const DashboardsPage = React.createClass({
     push(`/sources/${id}/dashboards/${data.id}`)
   },
 
+  handleDeleteDashboard(dashboard) {
+    this.props.handleDeleteDashboard(dashboard)
+  },
+
   render() {
+    const {dashboards} = this.props
     const dashboardLink = `/sources/${this.props.source.id}`
     let tableHeader
-    if (this.state.waiting) {
+    if (dashboards === null) {
       tableHeader = "Loading Dashboards..."
-    } else if (this.state.dashboards.length === 0) {
+    } else if (dashboards.length === 0) {
       tableHeader = "1 Dashboard"
     } else {
-      tableHeader = `${this.state.dashboards.length + 1} Dashboards`
+      tableHeader = `${dashboards.length + 1} Dashboards`
     }
 
     return (
@@ -85,25 +87,29 @@ const DashboardsPage = React.createClass({
                     <button className="btn btn-sm btn-primary" onClick={this.handleCreateDashbord}>Create Dashboard</button>
                   </div>
                   <div className="panel-body">
-                    <table className="table v-center">
+                    <table className="table v-center admin-table">
                       <thead>
                         <tr>
                           <th>Name</th>
+                          <th></th>
                         </tr>
                       </thead>
                       <tbody>
                           {
-                            this.state.dashboards.map((dashboard) => {
+                            dashboards && dashboards.length ?
+                            dashboards.map((dashboard) => {
                               return (
-                                <tr key={dashboard.id}>
+                                <tr key={dashboard.id} className="">
                                   <td className="monotype">
                                     <Link to={`${dashboardLink}/dashboards/${dashboard.id}`}>
                                       {dashboard.name}
                                     </Link>
                                   </td>
+                                  <DeleteConfirmTableCell onDelete={this.handleDeleteDashboard} item={dashboard} />
                                 </tr>
-                              );
-                            })
+                              )
+                            }) :
+                            null
                           }
                           <tr>
                             <td className="monotype">
@@ -111,6 +117,7 @@ const DashboardsPage = React.createClass({
                                 {'Kubernetes'}
                               </Link>
                             </td>
+                            <td></td>
                           </tr>
                       </tbody>
                     </table>
@@ -125,4 +132,14 @@ const DashboardsPage = React.createClass({
   },
 })
 
-export default withRouter(DashboardsPage)
+const mapStateToProps = ({dashboardUI: {dashboards, dashboard}}) => ({
+  dashboards,
+  dashboard,
+})
+
+const mapDispatchToProps = (dispatch) => ({
+  handleGetDashboards: bindActionCreators(getDashboardsAsync, dispatch),
+  handleDeleteDashboard: bindActionCreators(deleteDashboardAsync, dispatch),
+})
+
+export default connect(mapStateToProps, mapDispatchToProps)(withRouter(DashboardsPage))

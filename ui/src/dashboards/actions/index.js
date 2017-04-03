@@ -1,10 +1,14 @@
 import {
   getDashboards as getDashboardsAJAX,
   updateDashboard as updateDashboardAJAX,
+  deleteDashboard as deleteDashboardAJAX,
   updateDashboardCell as updateDashboardCellAJAX,
   addDashboardCell as addDashboardCellAJAX,
   deleteDashboardCell as deleteDashboardCellAJAX,
 } from 'src/dashboards/apis'
+
+import {publishNotification} from 'shared/actions/notifications'
+import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 import {NEW_DEFAULT_DASHBOARD_CELL} from 'src/dashboards/constants'
 
@@ -30,15 +34,22 @@ export const setTimeRange = (timeRange) => ({
   },
 })
 
-export const setEditMode = (isEditMode) => ({
-  type: 'SET_EDIT_MODE',
+export const updateDashboard = (dashboard) => ({
+  type: 'UPDATE_DASHBOARD',
   payload: {
-    isEditMode,
+    dashboard,
   },
 })
 
-export const updateDashboard = (dashboard) => ({
-  type: 'UPDATE_DASHBOARD',
+export const deleteDashboard = (dashboard) => ({
+  type: 'DELETE_DASHBOARD',
+  payload: {
+    dashboard,
+  },
+})
+
+export const deleteDashboardFailed = (dashboard) => ({
+  type: 'DELETE_DASHBOARD_FAILED',
   payload: {
     dashboard,
   },
@@ -96,10 +107,14 @@ export const deleteDashboardCell = (cell) => ({
 
 // Async Action Creators
 
-export const getDashboards = (dashboardID) => (dispatch) => {
-  getDashboardsAJAX().then(({data: {dashboards}}) => {
+export const getDashboardsAsync = (dashboardID) => async (dispatch) => {
+  try {
+    const {data: {dashboards}} = await getDashboardsAJAX()
     dispatch(loadDashboards(dashboards, dashboardID))
-  })
+  } catch (error) {
+    console.error(error)
+    throw error
+  }
 }
 
 export const putDashboard = () => (dispatch, getState) => {
@@ -114,6 +129,17 @@ export const updateDashboardCell = (cell) => (dispatch) => {
   .then(({data}) => {
     dispatch(syncDashboardCell(data))
   })
+}
+
+export const deleteDashboardAsync = (dashboard) => async (dispatch) => {
+  dispatch(deleteDashboard(dashboard))
+  try {
+    await deleteDashboardAJAX(dashboard)
+    dispatch(publishAutoDismissingNotification('success', 'Dashboard deleted successfully.'))
+  } catch (error) {
+    dispatch(deleteDashboardFailed(dashboard))
+    dispatch(publishNotification('error', `Failed to delete dashboard: ${error.data.message}.`))
+  }
 }
 
 export const addDashboardCellAsync = (dashboard) => async (dispatch) => {

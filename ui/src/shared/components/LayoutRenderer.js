@@ -1,24 +1,26 @@
-import React, {PropTypes} from 'react';
-import AutoRefresh from 'shared/components/AutoRefresh';
-import LineGraph from 'shared/components/LineGraph';
-import SingleStat from 'shared/components/SingleStat';
-import NameableGraph from 'shared/components/NameableGraph';
-import ReactGridLayout, {WidthProvider} from 'react-grid-layout';
+import React, {PropTypes} from 'react'
+import AutoRefresh from 'shared/components/AutoRefresh'
+import LineGraph from 'shared/components/LineGraph'
+import SingleStat from 'shared/components/SingleStat'
+import NameableGraph from 'shared/components/NameableGraph'
+import ReactGridLayout, {WidthProvider} from 'react-grid-layout'
 
-import timeRanges from 'hson!../data/timeRanges.hson';
+import timeRanges from 'hson!../data/timeRanges.hson'
+import buildInfluxQLQuery from 'utils/influxql'
 
-const GridLayout = WidthProvider(ReactGridLayout);
+const GridLayout = WidthProvider(ReactGridLayout)
 
-const RefreshingLineGraph = AutoRefresh(LineGraph);
-const RefreshingSingleStat = AutoRefresh(SingleStat);
+const RefreshingLineGraph = AutoRefresh(LineGraph)
+const RefreshingSingleStat = AutoRefresh(SingleStat)
 
 const {
   arrayOf,
+  bool,
   func,
   number,
   shape,
   string,
-} = PropTypes;
+} = PropTypes
 
 export const LayoutRenderer = React.createClass({
   propTypes: {
@@ -52,50 +54,62 @@ export const LayoutRenderer = React.createClass({
     onUpdateCell: func,
     onDeleteCell: func,
     onSummonOverlayTechnologies: func,
+    shouldNotBeEditable: bool,
   },
 
-  buildQuery(q) {
+  buildQueryForOldQuerySchema(q) {
     const {timeRange: {lower}, host} = this.props
     const {defaultGroupBy} = timeRanges.find((range) => range.lower === lower)
     const {wheres, groupbys} = q
 
-    let text = q.text;
+    let text = q.text
 
-    text += ` where time > ${lower}`;
+    text += ` where time > ${lower}`
 
     if (host) {
-      text += ` and \"host\" = '${host}'`;
+      text += ` and \"host\" = '${host}'`
     }
 
     if (wheres && wheres.length > 0) {
-      text += ` and ${wheres.join(' and ')}`;
+      text += ` and ${wheres.join(' and ')}`
     }
 
     if (groupbys) {
       if (groupbys.find((g) => g.includes("time"))) {
-        text += ` group by ${groupbys.join(',')}`;
+        text += ` group by ${groupbys.join(',')}`
       } else if (groupbys.length > 0) {
-        text += ` group by time(${defaultGroupBy}),${groupbys.join(',')}`;
+        text += ` group by time(${defaultGroupBy}),${groupbys.join(',')}`
       } else {
-        text += ` group by time(${defaultGroupBy})`;
+        text += ` group by time(${defaultGroupBy})`
       }
     } else {
-      text += ` group by time(${defaultGroupBy})`;
+      text += ` group by time(${defaultGroupBy})`
     }
 
-    return text;
+    return text
   },
 
   generateVisualizations() {
-    const {autoRefresh, source, cells, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies} = this.props;
+    const {autoRefresh, timeRange, source, cells, onEditCell, onRenameCell, onUpdateCell, onDeleteCell, onSummonOverlayTechnologies, shouldNotBeEditable} = this.props
 
     return cells.map((cell) => {
       const qs = cell.queries.map((query) => {
+        // TODO: Canned dashboards (and possibly Kubernetes dashboard) use an old query schema,
+        // which does not have enough information for the new `buildInfluxQLQuery` function
+        // to operate on. We will use `buildQueryForOldQuerySchema` until we conform
+        // on a stable query representation.
+        let queryText
+        if (query.queryConfig) {
+          queryText = buildInfluxQLQuery(timeRange, query.queryConfig)
+        } else {
+          queryText = this.buildQueryForOldQuerySchema(query)
+        }
+
         return Object.assign({}, query, {
           host: source,
-          text: this.buildQuery(query),
-        });
-      });
+          text: queryText,
+        })
+      })
 
       if (cell.type === 'single-stat') {
         return (
@@ -106,12 +120,13 @@ export const LayoutRenderer = React.createClass({
               onUpdateCell={onUpdateCell}
               onDeleteCell={onDeleteCell}
               onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+              shouldNotBeEditable={shouldNotBeEditable}
               cell={cell}
             >
               <RefreshingSingleStat queries={[qs[0]]} autoRefresh={autoRefresh} />
             </NameableGraph>
           </div>
-        );
+        )
       }
 
       const displayOptions = {
@@ -127,6 +142,7 @@ export const LayoutRenderer = React.createClass({
             onUpdateCell={onUpdateCell}
             onDeleteCell={onDeleteCell}
             onSummonOverlayTechnologies={onSummonOverlayTechnologies}
+            shouldNotBeEditable={shouldNotBeEditable}
             cell={cell}
           >
             <RefreshingLineGraph
@@ -137,8 +153,8 @@ export const LayoutRenderer = React.createClass({
             />
           </NameableGraph>
         </div>
-      );
-    });
+      )
+    })
   },
 
   handleLayoutChange(layout) {
@@ -171,22 +187,22 @@ export const LayoutRenderer = React.createClass({
         useCSSTransforms={false}
         onResize={this.triggerWindowResize}
         onLayoutChange={this.handleLayoutChange}
-        draggableHandle={'.dash-graph--heading'}
+        draggableHandle={'.dash-graph--drag-handle'}
         isDraggable={isDashboard}
         isResizable={isDashboard}
       >
         {this.generateVisualizations()}
       </GridLayout>
-    );
+    )
   },
 
 
   triggerWindowResize() {
     // Hack to get dygraphs to fit properly during and after resize (dispatchEvent is a global method on window).
-    const evt = document.createEvent('CustomEvent');  // MUST be 'CustomEvent'
-    evt.initCustomEvent('resize', false, false, null);
-    dispatchEvent(evt);
+    const evt = document.createEvent('CustomEvent')  // MUST be 'CustomEvent'
+    evt.initCustomEvent('resize', false, false, null)
+    dispatchEvent(evt)
   },
-});
+})
 
-export default LayoutRenderer;
+export default LayoutRenderer

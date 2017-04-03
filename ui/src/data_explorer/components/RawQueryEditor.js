@@ -1,7 +1,7 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 
-const ENTER = 13;
-const ESCAPE = 27;
+const ENTER = 13
+const ESCAPE = 27
 const RawQueryEditor = React.createClass({
   propTypes: {
     query: PropTypes.shape({
@@ -14,38 +14,38 @@ const RawQueryEditor = React.createClass({
   getInitialState() {
     return {
       value: this.props.query.rawText,
-    };
+    }
   },
 
   componentWillReceiveProps(nextProps) {
     if (nextProps.query.rawText !== this.props.query.rawText) {
-      this.setState({value: nextProps.query.rawText});
+      this.setState({value: nextProps.query.rawText})
     }
   },
 
   handleKeyDown(e) {
     if (e.keyCode === ENTER) {
-      this.handleUpdate();
-      this.editor.blur();
+      this.handleUpdate()
+      this.editor.blur()
     } else if (e.keyCode === ESCAPE) {
       this.setState({value: this.props.query.rawText}, () => {
-        this.editor.blur();
-      });
+        this.editor.blur()
+      })
     }
   },
 
   handleChange() {
     this.setState({
       value: this.editor.value,
-    });
+    })
   },
 
   handleUpdate() {
-    this.props.onUpdate(this.state.value);
+    this.props.onUpdate(this.state.value)
   },
 
   render() {
-    const {value} = this.state;
+    const {value} = this.state
 
     return (
       <div className="raw-text">
@@ -59,8 +59,8 @@ const RawQueryEditor = React.createClass({
           placeholder="Blank query"
         />
       </div>
-    );
+    )
   },
-});
+})
 
-export default RawQueryEditor;
+export default RawQueryEditor

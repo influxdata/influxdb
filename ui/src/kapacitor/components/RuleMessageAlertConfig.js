@@ -1,10 +1,10 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
 
 import {
   DEFAULT_ALERT_PLACEHOLDERS,
   DEFAULT_ALERT_LABELS,
   ALERT_NODES_ACCESSORS,
-} from '../constants';
+} from '../constants'
 
 const RuleMessageAlertConfig = ({
   updateAlertNodes,
@@ -12,10 +12,10 @@ const RuleMessageAlertConfig = ({
   rule,
 }) => {
   if (!Object.keys(DEFAULT_ALERT_PLACEHOLDERS).find((a) => a === alert)) {
-    return null;
+    return null
   }
   if (!Object.keys(DEFAULT_ALERT_LABELS).find((a) => a === alert)) {
-    return null;
+    return null
   }
   return (
     <div className="rule-section--item alert-message--config">
@@ -30,19 +30,19 @@ const RuleMessageAlertConfig = ({
         value={ALERT_NODES_ACCESSORS[alert](rule)}
       />
     </div>
-  );
-};
+  )
+}
 
 const {
   func,
   shape,
   string,
-} = PropTypes;
+} = PropTypes
 
 RuleMessageAlertConfig.propTypes = {
   updateAlertNodes: func.isRequired,
   alert: string,
   rule: shape({}).isRequired,
-};
+}
 
-export default RuleMessageAlertConfig;
+export default RuleMessageAlertConfig

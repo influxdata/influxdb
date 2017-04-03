@@ -1,7 +1,7 @@
 import React, {PropTypes} from 'react'
 import classnames from 'classnames'
 
-import ConfirmButtons from 'src/admin/components/ConfirmButtons'
+import ConfirmButtons from 'shared/components/ConfirmButtons'
 
 import graphTypes from 'hson!shared/data/graphTypes.hson'
 

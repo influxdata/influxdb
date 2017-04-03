@@ -107,43 +107,27 @@ export const deleteRetentionPolicy = async (url) => {
   }
 }
 
-export const deleteRole = async (url, addFlashMessage, rolename) => {
+export const deleteRole = async (url) => {
   try {
-    const response = await AJAX({
+    return await AJAX({
       method: 'DELETE',
       url,
     })
-    addFlashMessage({
-      type: 'success',
-      text: `${rolename} successfully deleted.`,
-    })
-    return response
   } catch (error) {
     console.error(error)
-    addFlashMessage({
-      type: 'error',
-      text: `Error deleting: ${rolename}.`,
-    })
+    throw error
   }
 }
 
-export const deleteUser = async (url, addFlashMessage, username) => {
+export const deleteUser = async (url) => {
   try {
-    const response = await AJAX({
+    return await AJAX({
       method: 'DELETE',
       url,
     })
-    addFlashMessage({
-      type: 'success',
-      text: `${username} successfully deleted.`,
-    })
-    return response
   } catch (error) {
     console.error(error)
-    addFlashMessage({
-      type: 'error',
-      text: `Error deleting: ${username}.`,
-    })
+    throw error
   }
 }
 
@@ -175,15 +159,12 @@ export const updateRole = async (url, users, permissions) => {
   }
 }
 
-export const updateUser = async (url, roles, permissions) => {
+export const updateUser = async (url, updates) => {
   try {
     return await AJAX({
       method: 'PATCH',
       url,
-      data: {
-        roles,
-        permissions,
-      },
+      data: updates,
     })
   } catch (error) {
     console.error(error)

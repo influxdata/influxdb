@@ -1,9 +1,9 @@
-import React, {PropTypes} from 'react';
-import classNames from 'classnames';
+import React, {PropTypes} from 'react'
+import classNames from 'classnames'
 
-import groupByTimeOptions from 'hson!../data/groupByTimes.hson';
+import groupByTimeOptions from 'hson!../data/groupByTimes.hson'
 
-const {bool, string, func} = PropTypes;
+const {bool, string, func} = PropTypes
 
 const GroupByTimeDropdown = React.createClass({
   propTypes: {
@@ -13,7 +13,7 @@ const GroupByTimeDropdown = React.createClass({
   },
 
   render() {
-    const {isOpen, selected, onChooseGroupByTime} = this.props;
+    const {isOpen, selected, onChooseGroupByTime} = this.props
 
     return (
       <div className="dropdown group-by-time-dropdown">
@@ -29,12 +29,12 @@ const GroupByTimeDropdown = React.createClass({
                   {groupBy.menuOption}
                 </a>
               </li>
-            );
+            )
           })}
         </ul>
       </div>
-    );
+    )
   },
-});
+})
 
-export default GroupByTimeDropdown;
+export default GroupByTimeDropdown

@@ -1,2 +1,2 @@
-import AlertsApp from './containers/AlertsApp';
-export default AlertsApp;
+import AlertsApp from './containers/AlertsApp'
+export default AlertsApp

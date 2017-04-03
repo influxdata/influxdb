@@ -1,9 +1,9 @@
-import {proxy} from 'utils/queryUrlGenerator';
+import {proxy} from 'utils/queryUrlGenerator'
 
-export function getAlerts(proxyLink) {
+export function getAlerts(source, timeRange) {
   return proxy({
-    source: proxyLink,
-    query: "select host, value, level, alertName from alerts order by time desc",
+    source,
+    query: `SELECT host, value, level, alertName FROM alerts WHERE time >= '${timeRange.lower}' AND time <= '${timeRange.upper}' ORDER BY time desc`,
     db: "chronograf",
-  });
+  })
 }

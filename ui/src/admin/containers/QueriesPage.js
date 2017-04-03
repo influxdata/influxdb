@@ -1,6 +1,6 @@
 import React, {PropTypes, Component} from 'react'
-import {connect} from 'react-redux';
-import {bindActionCreators} from 'redux';
+import {connect} from 'react-redux'
+import {bindActionCreators} from 'redux'
 
 import flatten from 'lodash/flatten'
 import uniqBy from 'lodash/uniqBy'
@@ -19,6 +19,8 @@ import {
   setQueryToKill as setQueryToKillAction,
   killQueryAsync,
 } from 'src/admin/actions'
+
+import {publishAutoDismissingNotification} from 'shared/dispatchers'
 
 class QueriesPage extends Component {
   constructor(props) {
@@ -39,60 +41,60 @@ class QueriesPage extends Component {
   }
 
   render() {
-    const {queries} = this.props;
+    const {queries} = this.props
 
     return (
       <QueriesTable queries={queries} onConfirm={this.handleConfirmKillQuery} onKillQuery={this.handleKillQuery} />
-    );
+    )
   }
 
   updateQueries() {
-    const {source, addFlashMessage, loadQueries} = this.props
+    const {source, notify, loadQueries} = this.props
     showDatabases(source.links.proxy).then((resp) => {
       const {databases, errors} = showDatabasesParser(resp.data)
       if (errors.length) {
-        errors.forEach((message) => addFlashMessage({type: 'error', text: message}))
-        return;
+        errors.forEach((message) => notify('error', message))
+        return
       }
 
       const fetches = databases.map((db) => showQueries(source.links.proxy, db))
 
       Promise.all(fetches).then((queryResponses) => {
-        const allQueries = [];
+        const allQueries = []
         queryResponses.forEach((queryResponse) => {
-          const result = showQueriesParser(queryResponse.data);
+          const result = showQueriesParser(queryResponse.data)
           if (result.errors.length) {
-            result.erorrs.forEach((message) => this.props.addFlashMessage({type: 'error', text: message}));
+            result.errors.forEach((message) => notify('error', message))
           }
 
-          allQueries.push(...result.queries);
-        });
+          allQueries.push(...result.queries)
+        })
 
-        const queries = uniqBy(flatten(allQueries), (q) => q.id);
+        const queries = uniqBy(flatten(allQueries), (q) => q.id)
 
         // sorting queries by magnitude, so generally longer queries will appear atop the list
         const sortedQueries = queries.sort((a, b) => {
-          const aTime = TIMES.find((t) => a.duration.match(t.test));
-          const bTime = TIMES.find((t) => b.duration.match(t.test));
-          return +aTime.magnitude <= +bTime.magnitude;
-        });
+          const aTime = TIMES.find((t) => a.duration.match(t.test))
+          const bTime = TIMES.find((t) => b.duration.match(t.test))
+          return +aTime.magnitude <= +bTime.magnitude
+        })
 
         loadQueries(sortedQueries)
-      });
-    });
+      })
+    })
   }
 
   handleKillQuery(e) {
-    e.stopPropagation();
-    const id = e.target.dataset.queryId;
+    e.stopPropagation()
+    const id = e.target.dataset.queryId
 
     this.props.setQueryToKill(id)
   }
 
   handleConfirmKillQuery() {
-    const {queryIDToKill, source, killQuery} = this.props;
+    const {queryIDToKill, source, killQuery} = this.props
     if (queryIDToKill === null) {
-      return;
+      return
     }
 
     killQuery(source.links.proxy, queryIDToKill)
@@ -113,11 +115,11 @@ QueriesPage.propTypes = {
     }),
   }),
   queries: arrayOf(shape()),
-  addFlashMessage: func,
   loadQueries: func,
   queryIDToKill: string,
   setQueryToKill: func,
   killQuery: func,
+  notify: func,
 }
 
 const mapStateToProps = ({admin: {queries, queryIDToKill}}) => ({
@@ -129,6 +131,7 @@ const mapDispatchToProps = (dispatch) => ({
   loadQueries: bindActionCreators(loadQueriesAction, dispatch),
   setQueryToKill: bindActionCreators(setQueryToKillAction, dispatch),
   killQuery: bindActionCreators(killQueryAsync, dispatch),
+  notify: bindActionCreators(publishAutoDismissingNotification, dispatch),
 })
 
 export default connect(mapStateToProps, mapDispatchToProps)(QueriesPage)

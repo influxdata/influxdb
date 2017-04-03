@@ -7,7 +7,7 @@ export function addQuery(options = {}) {
       queryID: uuid.v4(),
       options,
     },
-  };
+  }
 }
 
 export function deleteQuery(queryID) {
@@ -16,7 +16,7 @@ export function deleteQuery(queryID) {
     payload: {
       queryID,
     },
-  };
+  }
 }
 
 export function toggleField(queryId, fieldFunc, isKapacitorRule) {
@@ -29,7 +29,7 @@ export function toggleField(queryId, fieldFunc, isKapacitorRule) {
       queryId,
       fieldFunc,
     },
-  };
+  }
 }
 
 export function groupByTime(queryId, time) {
@@ -39,7 +39,7 @@ export function groupByTime(queryId, time) {
       queryId,
       time,
     },
-  };
+  }
 }
 
 export function applyFuncsToField(queryId, fieldFunc) {
@@ -49,7 +49,7 @@ export function applyFuncsToField(queryId, fieldFunc) {
       queryId,
       fieldFunc,
     },
-  };
+  }
 }
 
 export function chooseTag(queryId, tag) {
@@ -59,7 +59,7 @@ export function chooseTag(queryId, tag) {
       queryId,
       tag,
     },
-  };
+  }
 }
 
 export function chooseNamespace(queryId, {database, retentionPolicy}) {
@@ -70,7 +70,7 @@ export function chooseNamespace(queryId, {database, retentionPolicy}) {
       database,
       retentionPolicy,
     },
-  };
+  }
 }
 
 export function chooseMeasurement(queryId, measurement) {
@@ -80,7 +80,7 @@ export function chooseMeasurement(queryId, measurement) {
       queryId,
       measurement,
     },
-  };
+  }
 }
 
 export function editRawText(queryId, rawText) {
@@ -90,14 +90,14 @@ export function editRawText(queryId, rawText) {
       queryId,
       rawText,
     },
-  };
+  }
 }
 
 export function setTimeRange(range) {
   return {
     type: 'SET_TIME_RANGE',
     payload: range,
-  };
+  }
 }
 
 export function groupByTag(queryId, tagKey) {
@@ -107,7 +107,7 @@ export function groupByTag(queryId, tagKey) {
       queryId,
       tagKey,
     },
-  };
+  }
 }
 
 export function toggleTagAcceptance(queryId) {
@@ -116,7 +116,7 @@ export function toggleTagAcceptance(queryId) {
     payload: {
       queryId,
     },
-  };
+  }
 }
 
 export function updateRawQuery(queryID, text) {
@@ -126,5 +126,5 @@ export function updateRawQuery(queryID, text) {
       queryID,
       text,
     },
-  };
+  }
 }

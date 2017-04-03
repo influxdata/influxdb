@@ -1,8 +1,8 @@
-import React, {PropTypes} from 'react';
-import Dygraph from './Dygraph';
-import shallowCompare from 'react-addons-shallow-compare';
+import React, {PropTypes} from 'react'
+import Dygraph from './Dygraph'
+import shallowCompare from 'react-addons-shallow-compare'
 
-import timeSeriesToDygraph from 'utils/timeSeriesToDygraph';
+import timeSeriesToDygraph from 'utils/timeSeriesToDygraph'
 
 export default React.createClass({
   displayName: 'MiniGraph',
@@ -19,19 +19,19 @@ export default React.createClass({
   getDefaultProps() {
     return {
       options: {},
-    };
+    }
   },
 
   shouldComponentUpdate(nextProps, nextState) {
-    return shallowCompare(this, nextProps, nextState);
+    return shallowCompare(this, nextProps, nextState)
   },
 
   render() {
-    const results = timeSeriesToDygraph(this.props.data);
-    const {fields, timeSeries} = this.props.options.combineSeries ? this.combineSeries(results) : results;
+    const results = timeSeriesToDygraph(this.props.data)
+    const {fields, timeSeries} = this.props.options.combineSeries ? this.combineSeries(results) : results
 
     if (!timeSeries.length) {
-      return null;
+      return null
     }
 
     const options = {
@@ -64,25 +64,25 @@ export default React.createClass({
       rightGap: 0,
       yRangePad: 10,
       interactionModel: {},
-    };
+    }
 
-    const truncPrecision = 100000;
-    const latestValue = timeSeries[timeSeries.length - 1][1];
-    const truncated = Math.round(latestValue * truncPrecision) / truncPrecision;
+    const truncPrecision = 100000
+    const latestValue = timeSeries[timeSeries.length - 1][1]
+    const truncated = Math.round(latestValue * truncPrecision) / truncPrecision
 
     const statText = (
       <div className="cluster-stat--label">
         <span>{this.props.queryDescription}</span>
         <span><strong>{truncated}</strong></span>
       </div>
-    );
+    )
 
     return (
       <div className="cluster-stat">
         <Dygraph containerStyle={{width: '100%', height: '30px'}} timeSeries={timeSeries} fields={fields} options={options} yRange={this.props.yRange} />
         {statText}
       </div>
-    );
+    )
   },
 
   /**
@@ -93,7 +93,7 @@ export default React.createClass({
    * [<timestamp>, 5, 10] => [<timestamp>, 15]
    */
   combineSeries(results) {
-    const fields = results.fields.slice(0, 2); // Hack, but good enough for now for the sparklines (which have no labels).
+    const fields = results.fields.slice(0, 2) // Hack, but good enough for now for the sparklines (which have no labels).
     const timeSeries = results.timeSeries.filter((point) => {
       // Filter out any points that don't report results for *all* of the series
       // we're trying to combine..
@@ -103,14 +103,14 @@ export default React.createClass({
       // We use `combineSeries` when we want to combine the values for multiple series
       // into a single series.  It makes sense to only report points where all
       // series are represented, so we can accurately take the sum.
-      return point.slice(1).every((v) => v !== null);
+      return point.slice(1).every((v) => v !== null)
     }).map((point) => {
-      const timestamp = point[0];
+      const timestamp = point[0]
       const total = point.slice(1).reduce((sum, n) => {
-        return n ? sum + n : sum;
-      }, 0);
-      return [timestamp, total];
-    });
-    return {fields, timeSeries};
+        return n ? sum + n : sum
+      }, 0)
+      return [timestamp, total]
+    })
+    return {fields, timeSeries}
   },
-});
+})

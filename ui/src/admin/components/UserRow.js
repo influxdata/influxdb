@@ -4,11 +4,12 @@ import _ from 'lodash'
 
 import UserEditingRow from 'src/admin/components/UserEditingRow'
 import MultiSelectDropdown from 'shared/components/MultiSelectDropdown'
-import ConfirmButtons from 'src/admin/components/ConfirmButtons'
-import DeleteRow from 'src/admin/components/DeleteRow'
+import ConfirmButtons from 'shared/components/ConfirmButtons'
+import DeleteConfirmTableCell from 'shared/components/DeleteConfirmTableCell'
+import ChangePassRow from 'src/admin/components/ChangePassRow'
 
 const UserRow = ({
-  user: {name, roles, permissions},
+  user: {name, roles, permissions, password},
   user,
   allRoles,
   allPermissions,
@@ -21,6 +22,7 @@ const UserRow = ({
   onDelete,
   onUpdatePermissions,
   onUpdateRoles,
+  onUpdatePassword,
 }) => {
   const handleUpdatePermissions = (allowed) => {
     onUpdatePermissions(user, [{scope: 'all', allowed}])
@@ -28,6 +30,10 @@ const UserRow = ({
 
   const handleUpdateRoles = (roleNames) => {
     onUpdateRoles(user, allRoles.filter(r => roleNames.find(rn => rn === r.name)))
+  }
+
+  const handleUpdatePassword = () => {
+    onUpdatePassword(user, password)
   }
 
   if (isEditing) {
@@ -69,9 +75,10 @@ const UserRow = ({
             /> : null
         }
       </td>
-      <td className="text-right" style={{width: "85px"}}>
-        <DeleteRow onDelete={onDelete} item={user} />
+      <td className="text-right" style={{width: "300px"}}>
+        <ChangePassRow onEdit={onEdit} onApply={handleUpdatePassword} user={user} />
       </td>
+      <DeleteConfirmTableCell onDelete={onDelete} item={user} />
     </tr>
   )
 }
@@ -93,6 +100,7 @@ UserRow.propTypes = {
     permissions: arrayOf(shape({
       name: string,
     })),
+    password: string,
   }).isRequired,
   allRoles: arrayOf(shape()),
   allPermissions: arrayOf(string),
@@ -105,6 +113,7 @@ UserRow.propTypes = {
   onDelete: func.isRequired,
   onUpdatePermissions: func,
   onUpdateRoles: func,
+  onUpdatePassword: func,
 }
 
 export default UserRow

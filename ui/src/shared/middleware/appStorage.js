@@ -6,32 +6,32 @@ export default function makeAppStorage(localStorage) {
     return (next) => {
       return (action) => {
         if (action.meta && action.meta.appStorage) {
-          const stuffToStore = action.meta.appStorage;
+          const stuffToStore = action.meta.appStorage
           if (Array.isArray(stuffToStore)) {
-            stuffToStore.forEach(updateInLocalStorage);
+            stuffToStore.forEach(updateInLocalStorage)
           } else {
-            updateInLocalStorage(stuffToStore);
+            updateInLocalStorage(stuffToStore)
           }
         }
 
-        next(action);
-      };
-    };
-  };
+        next(action)
+      }
+    }
+  }
 
   function updateInLocalStorage({setIn, removeIn, key, value}) {
-    const item = setIn || removeIn;
-    const existingString = localStorage.getItem(item);
-    const existingJSON = JSON.parse(existingString || '{}');
+    const item = setIn || removeIn
+    const existingString = localStorage.getItem(item)
+    const existingJSON = JSON.parse(existingString || '{}')
 
     if (setIn) {
-      existingJSON[key] = value;
+      existingJSON[key] = value
     }
 
     if (removeIn) {
-      delete existingJSON[key];
+      delete existingJSON[key]
     }
 
-    localStorage.setItem(item, JSON.stringify(existingJSON));
+    localStorage.setItem(item, JSON.stringify(existingJSON))
   }
 }

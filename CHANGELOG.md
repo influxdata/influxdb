@@ -1,12 +1,58 @@
 ## v1.2.0 [unreleased]
 
 ### Bug Fixes
+  1. [#1104](https://github.com/influxdata/chronograf/pull/1104): Fix windows hosts on host list
+  1. [#1125](https://github.com/influxdata/chronograf/pull/1125): Fix visualizations not showing graph name
+  1. [#1133](https://github.com/influxdata/chronograf/issue/1133): Fix Enterprise Kapacitor authentication.
+  1. [#1142](https://github.com/influxdata/chronograf/issue/1142): Fix Kapacitor Telegram config to display correct disableNotification setting
+  1. [#1097](https://github.com/influxdata/chronograf/issues/1097): Fix broken graph spinner in the Data Explorer & Dashboard Cell Edit
+  1. [#1106](https://github.com/influxdata/chronograf/issues/1106): Fix obscured legends in dashboards
+  1. [#1051](https://github.com/influxdata/chronograf/issue/1051): Exit presentation mode when using the browser back button
+  1. [#1123](https://github.com/influxdata/chronograf/issue/1123): Widen single column results in data explorer
 
 ### Features
-  1. [#1020](https://github.com/influxdata/chronograf/pull/1020): Users can now edit cell names on dashboards
-  2. [#1035](https://github.com/influxdata/chronograf/pull/1035): Convert many InfluxQL statements to query builder
-  3. [#1015](https://github.com/influxdata/chronograf/pull/1015): Introduce ability to edit a dashboard cell
-  4. [#1056](https://github.com/influxdata/chronograf/pull/1056): Introduce ability to add a dashboard cell
+  1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard
+  1. [#1120](https://github.com/influxdata/chronograf/pull/1120): Allow users to update user passwords.
+  1. [#1129](https://github.com/influxdata/chronograf/pull/1129): Allow InfluxDB and Kapacitor configuration via ENV vars or CLI options
+  1. [#1130](https://github.com/influxdata/chronograf/pull/1130): Add loading spinner to Alert History page.
+
+### UI Improvements
+  1. [#1101](https://github.com/influxdata/chronograf/pull/1101): Compress InfluxQL responses with gzip
+  1. [#1132](https://github.com/influxdata/chronograf/pull/1132): All sidebar items show activity with a blue strip
+  1. [#1135](https://github.com/influxdata/chronograf/pull/1135): Clarify Kapacitor Alert configuration for Telegram
+  1. [#1137](https://github.com/influxdata/chronograf/pull/1137): Clarify Kapacitor Alert configuration for HipChat
+  1. [#1079](https://github.com/influxdata/chronograf/issues/1079): Remove series highlighting in line graphs
+  1. [#1124](https://github.com/influxdata/chronograf/pull/1124): Polished dashboard cell drag interaction, use Hover-To-Reveal UI pattern in all tables, Source Indicator & Graph Tips are no longer misleading, and aesthetic improvements to the DB Management page
+
+## v1.2.0-beta7 [2017-03-28]
+### Bug Fixes
+  1. [#1008](https://github.com/influxdata/chronograf/issues/1008): Fix unexpected redirection to create sources page when deleting a source
+  1. [#1067](https://github.com/influxdata/chronograf/issues/1067): Fix issue creating retention policies
+  1. [#1068](https://github.com/influxdata/chronograf/issues/1068): Fix issue deleting databases
+  1. [#1078](https://github.com/influxdata/chronograf/issues/1078): Fix cell resizing in dashboards
+  1. [#1070](https://github.com/influxdata/chronograf/issues/1070): Save GROUP BY tag(s) clauses on dashboards
+  1. [#1086](https://github.com/influxdata/chronograf/issues/1086): Fix validation for deleting databases
+
+### Features
+### UI Improvements
+  1. [#1092](https://github.com/influxdata/chronograf/pull/1092): Persist and render Dashboard Cell groupby queries
+
+### UI Improvements
+
+## v1.2.0-beta6 [2017-03-24]
+
+### Bug Fixes
+  1. [#1065](https://github.com/influxdata/chronograf/pull/1065): Add functionality to the `save` and `cancel` buttons on editable dashboards
+  2. [#1069](https://github.com/influxdata/chronograf/pull/1069): Make graphs on pre-created dashboards un-editable
+  3. [#1085](https://github.com/influxdata/chronograf/pull/1085): Make graphs resizable again
+  4. [#1087](https://github.com/influxdata/chronograf/pull/1087): Hosts page now displays proper loading, host count, and error messages.
+
+### Features
+  1. [#1056](https://github.com/influxdata/chronograf/pull/1056): Add ability to add a dashboard cell
+  2. [#1020](https://github.com/influxdata/chronograf/pull/1020): Allow users to edit cell names on dashboards
+  3. [#1015](https://github.com/influxdata/chronograf/pull/1015): Add ability to edit a dashboard cell
+  4. [#832](https://github.com/influxdata/chronograf/issues/832): Add a database and retention policy management page
+  5. [#1035](https://github.com/influxdata/chronograf/pull/1035): Add ability to move and edit queries between raw InfluxQL mode and Query Builder mode
 
 ### UI Improvements
 

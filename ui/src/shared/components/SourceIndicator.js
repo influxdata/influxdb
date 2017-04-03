@@ -1,4 +1,5 @@
-import React, {PropTypes} from 'react';
+import React, {PropTypes} from 'react'
+import ReactTooltip from 'react-tooltip'
 
 const SourceIndicator = React.createClass({
   propTypes: {
@@ -6,17 +7,18 @@ const SourceIndicator = React.createClass({
   },
 
   render() {
-    const {sourceName} = this.props;
+    const {sourceName} = this.props
     if (!sourceName) {
-      return null;
+      return null
     }
+    const sourceNameTooltip = `Connected to <code>${sourceName}</code>`
     return (
-      <div className="source-indicator">
-        <span className="icon server"></span>
-        {sourceName}
+      <div className="source-indicator" data-for="source-indicator-tooltip" data-tip={sourceNameTooltip}>
+        <span className="icon server2"></span>
+        <ReactTooltip id="source-indicator-tooltip" effect="solid" html={true} offset={{top: 2}} place="bottom" class="influx-tooltip place-bottom" />
       </div>
-    );
+    )
   },
-});
+})
 
-export default SourceIndicator;
+export default SourceIndicator

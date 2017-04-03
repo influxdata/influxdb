@@ -1,11 +1,11 @@
-import React, {PropTypes} from 'react';
-import Dygraph from 'shared/components/Dygraph';
-import classNames from 'classnames';
-import shallowCompare from 'react-addons-shallow-compare';
-import _ from 'lodash';
+import React, {PropTypes} from 'react'
+import Dygraph from 'shared/components/Dygraph'
+import classNames from 'classnames'
+import shallowCompare from 'react-addons-shallow-compare'
+import _ from 'lodash'
 
-import timeSeriesToDygraph from 'utils/timeSeriesToDygraph';
-import lastValues from 'src/shared/parsing/lastValues';
+import timeSeriesToDygraph from 'utils/timeSeriesToDygraph'
+import lastValues from 'src/shared/parsing/lastValues'
 
 const {
   array,
@@ -15,7 +15,7 @@ const {
   number,
   shape,
   string,
-} = PropTypes;
+} = PropTypes
 
 export default React.createClass({
   displayName: 'LineGraph',
@@ -47,28 +47,28 @@ export default React.createClass({
       underlayCallback: () => {},
       isGraphFilled: true,
       overrideLineColors: null,
-    };
+    }
   },
 
   shouldComponentUpdate(nextProps, nextState) {
-    return shallowCompare(this, nextProps, nextState);
+    return shallowCompare(this, nextProps, nextState)
   },
 
   componentWillMount() {
-    const {data, activeQueryIndex, isInDataExplorer} = this.props;
-    this._timeSeries = timeSeriesToDygraph(data, activeQueryIndex, isInDataExplorer);
+    const {data, activeQueryIndex, isInDataExplorer} = this.props
+    this._timeSeries = timeSeriesToDygraph(data, activeQueryIndex, isInDataExplorer)
   },
 
   componentWillUpdate(nextProps) {
-    const {data, activeQueryIndex} = this.props;
+    const {data, activeQueryIndex} = this.props
     if (data !== nextProps.data || activeQueryIndex !== nextProps.activeQueryIndex) {
-      this._timeSeries = timeSeriesToDygraph(nextProps.data, nextProps.activeQueryIndex, nextProps.isInDataExplorer);
+      this._timeSeries = timeSeriesToDygraph(nextProps.data, nextProps.activeQueryIndex, nextProps.isInDataExplorer)
     }
   },
 
   render() {
-    const {data, ranges, isFetchingInitially, isRefreshing, isGraphFilled, overrideLineColors, title, underlayCallback, queries, showSingleStat, displayOptions, ruleValues} = this.props;
-    const {labels, timeSeries, dygraphSeries} = this._timeSeries;
+    const {data, ranges, isFetchingInitially, isRefreshing, isGraphFilled, overrideLineColors, title, underlayCallback, queries, showSingleStat, displayOptions, ruleValues} = this.props
+    const {labels, timeSeries, dygraphSeries} = this._timeSeries
 
     // If data for this graph is being fetched for the first time, show a graph-wide spinner.
     if (isFetchingInitially) {
@@ -76,7 +76,7 @@ export default React.createClass({
         <div className="graph-fetching">
           <h3 className="graph-spinner" />
         </div>
-      );
+      )
     }
 
     const options = Object.assign({}, {
@@ -93,19 +93,19 @@ export default React.createClass({
       underlayCallback,
       ylabel: _.get(queries, ['0', 'label'], ''),
       y2label: _.get(queries, ['1', 'label'], ''),
-    }, displayOptions);
+    }, displayOptions)
 
-    let roundedValue;
+    let roundedValue
     if (showSingleStat) {
-      const lastValue = lastValues(data)[1];
+      const lastValue = lastValues(data)[1]
 
-      const precision = 100.0;
-      roundedValue = Math.round(+lastValue * precision) / precision;
+      const precision = 100.0
+      roundedValue = Math.round(+lastValue * precision) / precision
     }
 
     return (
       <div
-        className={classNames({"graph--hasYLabel": !!(options.ylabel || options.y2label)})}
+        className={classNames("dygraph", {"graph--hasYLabel": !!(options.ylabel || options.y2label)})}
         style={{height: '100%'}}
       >
         {isRefreshing ? this.renderSpinner() : null}
@@ -122,7 +122,7 @@ export default React.createClass({
         />
         {showSingleStat ? <div className="graph-single-stat single-stat">{roundedValue}</div> : null}
       </div>
-    );
+    )
   },
 
   renderSpinner() {
@@ -132,27 +132,27 @@ export default React.createClass({
         <div></div>
         <div></div>
       </div>
-    );
+    )
   },
 
   getRanges() {
-    const {queries} = this.props;
+    const {queries} = this.props
     if (!queries) {
-      return {};
+      return {}
     }
 
-    const ranges = {};
-    const q0 = queries[0];
-    const q1 = queries[1];
+    const ranges = {}
+    const q0 = queries[0]
+    const q1 = queries[1]
 
     if (q0 && q0.range) {
-      ranges.y = [q0.range.lower, q0.range.upper];
+      ranges.y = [q0.range.lower, q0.range.upper]
     }
 
     if (q1 && q1.range) {
-      ranges.y2 = [q1.range.lower, q1.range.upper];
+      ranges.y2 = [q1.range.lower, q1.range.upper]
     }
 
-    return ranges;
+    return ranges
   },
-});
+})

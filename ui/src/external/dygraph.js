@@ -1,6 +1,6 @@
-import Dygraph from 'dygraphs/dygraph-combined';
+import Dygraph from 'dygraphs/dygraph-combined'
 
-export default Dygraph;
+export default Dygraph
 
 /* eslint-disable */
 Dygraph.prototype.findClosestPoint = function(domX, domY) {
