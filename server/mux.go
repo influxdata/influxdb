@@ -20,11 +20,12 @@ const (
 
 // MuxOpts are the options for the router.  Mostly related to auth.
 type MuxOpts struct {
-	Logger      chronograf.Logger
-	Develop     bool   // Develop loads assets from filesystem instead of bindata
-	Basepath    string // URL path prefix under which all chronograf routes will be mounted
-	UseAuth     bool   // UseAuth turns on Github OAuth and JWT
-	TokenSecret string
+	Logger       chronograf.Logger
+	Develop      bool   // Develop loads assets from filesystem instead of bindata
+	Basepath     string // URL path prefix under which all chronograf routes will be mounted
+	PrefixRoutes bool   // Mounts all backend routes under route specified by the Basepath
+	UseAuth      bool   // UseAuth turns on Github OAuth and JWT
+	TokenSecret  string
 
 	ProviderFuncs []func(func(oauth2.Provider, oauth2.Mux))
 }
@@ -44,7 +45,7 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 
 	// Set route prefix for all routes if basepath is present
 	var router chronograf.Router
-	if opts.Basepath != "" {
+	if opts.Basepath != "" && opts.PrefixRoutes {
 		router = &MountableRouter{
 			Prefix:   opts.Basepath,
 			Delegate: hr,
@@ -60,7 +61,9 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	// know about the route.  This means that we never have unknown
 	// routes on the server.
 	hr.NotFound = http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if opts.Basepath != "" {
+		// The assets handler is always unaware of basepaths, so it needs to always
+		// be removed before sending requests to it
+		if opts.Basepath != "" && opts.PrefixRoutes {
 			r.URL.Path = r.URL.Path[len(opts.Basepath):]
 		}
 		compressed.ServeHTTP(rw, r)
