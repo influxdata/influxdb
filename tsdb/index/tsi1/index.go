@@ -802,21 +802,11 @@ func (i *Index) compactionGroups(fileSet FileSet) [][]*IndexFile {
 
 		// Skip over log files. They compact themselves.
 		if !ok {
-			if isCompactableGroup(group, i.CompactionFactor) {
-				group, groups = nil, append(groups, group)
-			} else {
-				group = nil
-			}
 			continue
 		}
 
 		// If file is currently compacting then stop current group.
 		if indexFile.Compacting() {
-			if isCompactableGroup(group, i.CompactionFactor) {
-				group, groups = nil, append(groups, group)
-			} else {
-				group = nil
-			}
 			continue
 		}
 
@@ -829,11 +819,11 @@ func (i *Index) compactionGroups(fileSet FileSet) [][]*IndexFile {
 
 		// Otherwise append to the current group.
 		group = append(group, indexFile)
-	}
 
-	// Append final group, if compactable.
-	if isCompactableGroup(group, i.CompactionFactor) {
-		groups = append(groups, group)
+		// Append group, if compactable.
+		if isCompactableGroup(group, i.CompactionFactor) {
+			group, groups = nil, append(groups, group)
+		}
 	}
 
 	return groups
