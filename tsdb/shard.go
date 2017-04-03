@@ -120,14 +120,6 @@ type Shard struct {
 	engine Engine
 	index  Index
 
-	// TODO(edd): I can't think of a better way of doing this for the moment.
-	// We need to be able to get the series cardinality for an entire DB so that
-	// we can check if we can add a new series or if we're going to go over the
-	// series-per-db limit. However, it's not simple to move this check out of
-	// the shard because we need to check every time we add a single series,
-	// rather than a batch of points.
-	dbSeriesCardinality func() (int64, error)
-
 	closing chan struct{}
 	enabled bool
 
