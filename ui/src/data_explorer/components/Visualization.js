@@ -55,7 +55,7 @@ const Visualization = React.createClass({
     }
 
     return {
-      view: queryConfigs[activeQueryIndex].rawText ? TABLE : GRAPH,
+      view: typeof queryConfigs[activeQueryIndex].rawText === 'string' ? TABLE : GRAPH,
     }
   },
 
