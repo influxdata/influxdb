@@ -40,20 +40,16 @@ const QueryBuilder = React.createClass({
     children: node,
   },
 
-  handleSetActiveQueryIndex(index) {
-    this.props.setActiveQueryIndex(index)
-  },
-
   handleAddQuery() {
     const newIndex = this.props.queries.length
     this.props.actions.addQuery()
-    this.handleSetActiveQueryIndex(newIndex)
+    this.props.setActiveQueryIndex(newIndex)
   },
 
   handleAddRawQuery() {
     const newIndex = this.props.queries.length
     this.props.actions.addQuery({rawText: ''})
-    this.handleSetActiveQueryIndex(newIndex)
+    this.props.setActiveQueryIndex(newIndex)
   },
 
   getActiveQuery() {
@@ -99,7 +95,7 @@ const QueryBuilder = React.createClass({
   },
 
   renderQueryTabList() {
-    const {queries, activeQueryIndex, onDeleteQuery, timeRange} = this.props
+    const {queries, activeQueryIndex, onDeleteQuery, timeRange, setActiveQueryIndex} = this.props
     return (
       <div className="query-builder--tabs">
         <div className="query-builder--tabs-heading">
@@ -113,7 +109,7 @@ const QueryBuilder = React.createClass({
               key={i}
               queryIndex={i}
               query={q}
-              onSelect={this.handleSetActiveQueryIndex}
+              onSelect={setActiveQueryIndex}
               onDelete={onDeleteQuery}
               queryTabText={q.rawText || buildInfluxQLQuery(timeRange, q) || `Query ${i + 1}`}
             />

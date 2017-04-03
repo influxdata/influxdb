@@ -35,7 +35,7 @@ const ChronoTable = React.createClass({
     query: shape({
       host: arrayOf(string.isRequired).isRequired,
       text: string.isRequired,
-    }),
+    }).isRequired,
     containerWidth: number.isRequired,
     height: number,
     onEditRawStatus: func.isRequired,
@@ -53,6 +53,19 @@ const ChronoTable = React.createClass({
       height: 600,
     }
   },
+
+  componentDidMount() {
+    this.fetchCellData(this.props.query)
+  },
+
+  componentWillReceiveProps(nextProps) {
+    if (this.props.query.text === nextProps.query.text) {
+      return
+    }
+
+    this.fetchCellData(nextProps.query)
+  },
+
 
   async fetchCellData(query) {
     if (!query || !query.text) {
@@ -91,22 +104,6 @@ const ChronoTable = React.createClass({
       console.error(message)
       onEditRawStatus(query.id, {error: message})
     }
-  },
-
-  componentDidMount() {
-    this.fetchCellData(this.props.query)
-  },
-
-  componentWillReceiveProps(nextProps) {
-    if (!this.props.query || !nextProps.query) {
-      return
-    }
-
-    if (this.props.query.text === nextProps.query.text) {
-      return
-    }
-
-    this.fetchCellData(nextProps.query)
   },
 
   handleColumnResize(newColumnWidth, columnKey) {
