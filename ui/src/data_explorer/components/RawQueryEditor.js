@@ -69,7 +69,9 @@ const RawQueryEditor = React.createClass({
 
   renderStatus(rawStatus) {
     if (!rawStatus) {
-      return null
+      return (
+        <div className="raw-text--status"></div>
+      )
     }
 
     return (
