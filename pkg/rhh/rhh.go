@@ -33,7 +33,7 @@ func NewHashMap(opt Options) *HashMap {
 func (m *HashMap) Reset() {
 	for i := int64(0); i < m.capacity; i++ {
 		m.hashes[i] = 0
-		m.elems[i] = hashElem{}
+		m.elems[i].reset()
 	}
 	m.n = 0
 }
@@ -66,15 +66,15 @@ func (m *HashMap) insert(hash int64, key []byte, val interface{}) (overwritten b
 
 	// Continue searching until we find an empty slot or lower probe distance.
 	for {
+		e := &m.elems[pos]
+
 		// Empty slot found or matching key, insert and exit.
-		if m.hashes[pos] == 0 {
+		match := bytes.Equal(m.elems[pos].key, key)
+		if m.hashes[pos] == 0 || match {
 			m.hashes[pos] = hash
-			m.elems[pos] = hashElem{hash: hash, key: key, value: val}
-			return false
-		} else if bytes.Equal(m.elems[pos].key, key) {
-			m.hashes[pos] = hash
-			m.elems[pos] = hashElem{hash: hash, key: key, value: val}
-			return true
+			e.hash, e.value = hash, val
+			e.setKey(key)
+			return match
 		}
 
 		// If the existing elem has probed less than us, then swap places with
@@ -82,10 +82,14 @@ func (m *HashMap) insert(hash int64, key []byte, val interface{}) (overwritten b
 		elemDist := Dist(m.hashes[pos], pos, m.capacity)
 		if elemDist < dist {
 			// Swap with current position.
-			e := &m.elems[pos]
 			hash, m.hashes[pos] = m.hashes[pos], hash
-			key, e.key = e.key, key
 			val, e.value = e.value, val
+
+			tmp := make([]byte, len(e.key))
+			copy(tmp, e.key)
+
+			e.setKey(key)
+			key = tmp
 
 			// Update current distance.
 			dist = elemDist
@@ -192,6 +196,26 @@ type hashElem struct {
 	key   []byte
 	value interface{}
 	hash  int64
+}
+
+// reset clears the values in the element.
+func (e *hashElem) reset() {
+	e.key = e.key[:0]
+	e.value = nil
+	e.hash = 0
+}
+
+// setKey copies v to a key on e.
+func (e *hashElem) setKey(v []byte) {
+	// Shrink or grow key to fit value.
+	if len(e.key) > len(v) {
+		e.key = e.key[:len(v)]
+	} else if len(e.key) < len(v) {
+		e.key = append(e.key, make([]byte, len(v)-len(e.key))...)
+	}
+
+	// Copy value to key.
+	copy(e.key, v)
 }
 
 // Options represents initialization options that are passed to NewHashMap().

@@ -571,7 +571,8 @@ func (enc *SeriesBlockEncoder) Encode(name []byte, tags models.Tags, deleted boo
 	}
 
 	// Save offset to generate index later.
-	enc.offsets.Put(copyBytes(buf[1:]), uint64(offset))
+	// Key is copied by the RHH map.
+	enc.offsets.Put(buf[1:], uint64(offset))
 
 	// Update sketches & trailer.
 	if deleted {
