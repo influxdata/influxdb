@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/uber-go/zap"
 )
 
 var (
@@ -386,10 +386,7 @@ func NewTestService(t *testing.T) *Service {
 
 	// Set Logger to write to dev/null so stdout isn't polluted.
 	if testing.Verbose() {
-		s.WithLogger(zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
-		))
+		s.WithLogger(influxdb.NewLogger(os.Stderr))
 	}
 
 	// Add a couple test databases and CQs.

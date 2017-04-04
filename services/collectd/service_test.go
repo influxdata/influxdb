@@ -11,11 +11,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/internal"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
-	"github.com/uber-go/zap"
 )
 
 func TestService_OpenClose(t *testing.T) {
@@ -356,10 +356,7 @@ func NewTestService(batchSize int, batchDuration time.Duration) *TestService {
 	}
 
 	if testing.Verbose() {
-		s.Service.WithLogger(zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
-		))
+		s.Service.WithLogger(influxdb.NewLogger(os.Stderr))
 	}
 
 	return s

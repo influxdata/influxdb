@@ -17,7 +17,7 @@ import (
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/limiter"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 var (
@@ -38,8 +38,8 @@ type Store struct {
 	shards map[uint64]*Shard
 
 	EngineOptions EngineOptions
-	baseLogger    zap.Logger
-	Logger        zap.Logger
+	baseLogger    *zap.Logger
+	Logger        *zap.Logger
 
 	closing chan struct{}
 	wg      sync.WaitGroup
@@ -51,7 +51,7 @@ type Store struct {
 func NewStore(path string) *Store {
 	opts := NewEngineOptions()
 
-	logger := zap.New(zap.NullEncoder())
+	logger := zap.NewNop()
 	return &Store{
 		path:          path,
 		EngineOptions: opts,
@@ -61,7 +61,7 @@ func NewStore(path string) *Store {
 }
 
 // WithLogger sets the logger for the store.
-func (s *Store) WithLogger(log zap.Logger) {
+func (s *Store) WithLogger(log *zap.Logger) {
 	s.baseLogger = log
 	s.Logger = log.With(zap.String("service", "store"))
 	for _, sh := range s.shards {

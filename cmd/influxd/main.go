@@ -11,12 +11,14 @@ import (
 	"syscall"
 	"time"
 
+	"go.uber.org/zap"
+
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/cmd"
 	"github.com/influxdata/influxdb/cmd/influxd/backup"
 	"github.com/influxdata/influxdb/cmd/influxd/help"
 	"github.com/influxdata/influxdb/cmd/influxd/restore"
 	"github.com/influxdata/influxdb/cmd/influxd/run"
-	"github.com/uber-go/zap"
 )
 
 // These variables are populated via the Go linker.
@@ -51,7 +53,7 @@ func main() {
 
 // Main represents the program execution.
 type Main struct {
-	Logger zap.Logger
+	Logger *zap.Logger
 
 	Stdin  io.Reader
 	Stdout io.Writer
@@ -61,10 +63,7 @@ type Main struct {
 // NewMain return a new instance of Main.
 func NewMain() *Main {
 	return &Main{
-		Logger: zap.New(
-			zap.NewTextEncoder(),
-			zap.Output(os.Stderr),
-		),
+		Logger: influxdb.NewLogger(os.Stderr),
 		Stdin:  os.Stdin,
 		Stdout: os.Stdout,
 		Stderr: os.Stderr,

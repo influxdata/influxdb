@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/models"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 var (
@@ -114,7 +114,7 @@ type ExecutionContext struct {
 	Results chan *Result
 
 	// Hold the query executor's logger.
-	Log zap.Logger
+	Log *zap.Logger
 
 	// A channel that is closed when the query is interrupted.
 	InterruptCh <-chan struct{}
@@ -171,7 +171,7 @@ type QueryExecutor struct {
 
 	// Logger to use for all logging.
 	// Defaults to discarding all log output.
-	Logger zap.Logger
+	Logger *zap.Logger
 
 	// expvar-based stats.
 	stats *QueryStatistics
@@ -181,7 +181,7 @@ type QueryExecutor struct {
 func NewQueryExecutor() *QueryExecutor {
 	return &QueryExecutor{
 		TaskManager: NewTaskManager(),
-		Logger:      zap.New(zap.NullEncoder()),
+		Logger:      zap.NewNop(),
 		stats:       &QueryStatistics{},
 	}
 }
@@ -215,7 +215,7 @@ func (e *QueryExecutor) Close() error {
 
 // SetLogOutput sets the writer to which all logs are written. It must not be
 // called after Open is called.
-func (e *QueryExecutor) WithLogger(log zap.Logger) {
+func (e *QueryExecutor) WithLogger(log *zap.Logger) {
 	e.Logger = log.With(zap.String("service", "query"))
 	e.TaskManager.Logger = e.Logger
 }

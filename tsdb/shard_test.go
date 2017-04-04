@@ -14,12 +14,12 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/deep"
 	"github.com/influxdata/influxdb/tsdb"
 	_ "github.com/influxdata/influxdb/tsdb/engine"
-	"github.com/uber-go/zap"
 )
 
 func TestShardWriteAndIndex(t *testing.T) {
@@ -227,7 +227,7 @@ func TestWriteTimeTag(t *testing.T) {
 	)
 
 	buf := bytes.NewBuffer(nil)
-	sh.WithLogger(zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(buf))))
+	sh.WithLogger(influxdb.NewLogger(buf))
 	if err := sh.WritePoints([]models.Point{pt}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if got, exp := buf.String(), "dropping field 'time'"; !strings.Contains(got, exp) {
@@ -247,7 +247,7 @@ func TestWriteTimeTag(t *testing.T) {
 	)
 
 	buf = bytes.NewBuffer(nil)
-	sh.WithLogger(zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(buf))))
+	sh.WithLogger(influxdb.NewLogger(buf))
 	if err := sh.WritePoints([]models.Point{pt}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if got, exp := buf.String(), "dropping field 'time'"; !strings.Contains(got, exp) {
@@ -288,7 +288,7 @@ func TestWriteTimeField(t *testing.T) {
 	)
 
 	buf := bytes.NewBuffer(nil)
-	sh.WithLogger(zap.New(zap.NewTextEncoder(), zap.Output(zap.AddSync(buf))))
+	sh.WithLogger(influxdb.NewLogger(buf))
 	if err := sh.WritePoints([]models.Point{pt}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	} else if got, exp := buf.String(), "dropping tag 'time'"; !strings.Contains(got, exp) {

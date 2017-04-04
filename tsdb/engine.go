@@ -10,7 +10,7 @@ import (
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 var (
@@ -28,7 +28,7 @@ type Engine interface {
 	Open() error
 	Close() error
 
-	WithLogger(zap.Logger)
+	WithLogger(*zap.Logger)
 	LoadMetadataIndex(shardID uint64, index *DatabaseIndex) error
 
 	Backup(w io.Writer, basePath string, since time.Time) error
