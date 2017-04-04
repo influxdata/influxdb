@@ -19,6 +19,8 @@ const emptyCells = {
   values: [],
 }
 
+const defaultTableHeight = 1000
+
 const CustomCell = React.createClass({
   propTypes: {
     data: oneOfType([number, string]).isRequired,
@@ -58,7 +60,7 @@ const ChronoTable = React.createClass({
 
   getDefaultProps() {
     return {
-      height: 1000,
+      height: defaultTableHeight,
     }
   },
 
