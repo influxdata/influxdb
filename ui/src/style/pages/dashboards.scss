@@ -38,10 +38,6 @@ $dash-graph-heading: 30px;
     border-radius: $radius;
     border: 2px solid $g3-castle;
     transition-property: left, top, border-color, background-color;
-
-    &:hover {
-      z-index: 8000;
-    }
   }
   .graph-empty {
     background-color: transparent;
@@ -58,10 +54,8 @@ $dash-graph-heading: 30px;
   height: 100%;
   top: 0;
   left: 0;
-  z-index: 0;
 }
 .dash-graph--container {
-  z-index: 1;
   user-select: none !important;
   -o-user-select: none !important;
   -moz-user-select: none !important;
@@ -73,7 +67,7 @@ $dash-graph-heading: 30px;
   top: $dash-graph-heading;
   left: 0;
   padding: 0;
-  
+
   & > div:not(.graph-empty) {
     position: absolute;
     left: 0;
@@ -93,7 +87,7 @@ $dash-graph-heading: 30px;
   }
 }
 .dash-graph--heading {
-  z-index: 2;
+  z-index: 1;
   user-select: none !important;
   -o-user-select: none !important;
   -moz-user-select: none !important;
