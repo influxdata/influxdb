@@ -11,9 +11,6 @@ const {
 
 export const SourceForm = React.createClass({
   propTypes: {
-    addFlashMessage: func.isRequired,
-    addSourceAction: func,
-    updateSourceAction: func,
     source: shape({}).isRequired,
     editMode: bool.isRequired,
     onInputChange: func.isRequired,
