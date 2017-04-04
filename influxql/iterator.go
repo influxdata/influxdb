@@ -858,23 +858,34 @@ func (opt IteratorOptions) Window(t int64) (start, end int64) {
 		// with the duration.
 		dt += int64(opt.Interval.Duration)
 	}
-	t -= dt
+
+	// Find the start time.
+	if MinTime+dt >= t {
+		start = MinTime
+	} else {
+		start = t - dt
+	}
 
 	// Look for the start offset again because the first time may have been
 	// after the offset switch. Now that we are at midnight in UTC, we can
 	// lookup the zone offset again to get the real starting offset.
 	if opt.Location != nil {
-		_, adjustedOffset := opt.Zone(t)
+		_, adjustedOffset := opt.Zone(start)
 		// Do not adjust the offset if the offset change is greater than or
 		// equal to the duration.
 		if o := startOffset - adjustedOffset; o != 0 && abs(o) < int64(opt.Interval.Duration) {
 			startOffset = adjustedOffset
 		}
 	}
+	start += int64(opt.Interval.Offset) - startOffset
 
-	// Apply the offset.
-	start = t + int64(opt.Interval.Offset) - startOffset
-	end = start + int64(opt.Interval.Duration)
+	// Find the end time.
+	if dt := int64(opt.Interval.Duration) - dt; MaxTime-dt <= t {
+		end = MaxTime
+	} else {
+		end = t + dt
+	}
+	end += int64(opt.Interval.Offset) - startOffset
 
 	// Retrieve the zone offset for the end time.
 	if opt.Location != nil {
@@ -917,6 +928,16 @@ func (opt IteratorOptions) ElapsedInterval() Interval {
 	}
 
 	return Interval{Duration: time.Nanosecond}
+}
+
+// IntegralInterval returns the time interval for the integral function.
+func (opt IteratorOptions) IntegralInterval() Interval {
+	// Use the interval on the integral() call, if specified.
+	if expr, ok := opt.Expr.(*Call); ok && len(expr.Args) == 2 {
+		return Interval{Duration: expr.Args[1].(*DurationLiteral).Val}
+	}
+
+	return Interval{Duration: time.Second}
 }
 
 // GetDimensions retrieves the dimensions for this query.

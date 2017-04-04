@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -223,6 +224,7 @@ func (c *CommandLine) mainLoop() error {
 				return e
 			}
 			if err := c.ParseCommand(l); err != ErrBlankCommand && !strings.HasPrefix(strings.TrimSpace(l), "auth") {
+				l = influxql.Sanitize(l)
 				c.Line.AppendHistory(l)
 				c.saveHistory()
 			}
@@ -773,16 +775,41 @@ func (c *CommandLine) writeJSON(response *client.Response, w io.Writer) {
 	fmt.Fprintln(w, string(data))
 }
 
+func tagsEqual(prev, current map[string]string) bool {
+	return reflect.DeepEqual(prev, current)
+}
+
+func columnsEqual(prev, current []string) bool {
+	return reflect.DeepEqual(prev, current)
+}
+
+func headersEqual(prev, current models.Row) bool {
+	if prev.Name != current.Name {
+		return false
+	}
+	return tagsEqual(prev.Tags, current.Tags) && columnsEqual(prev.Columns, current.Columns)
+}
+
 func (c *CommandLine) writeCSV(response *client.Response, w io.Writer) {
 	csvw := csv.NewWriter(w)
+	var previousHeaders models.Row
 	for _, result := range response.Results {
+		suppressHeaders := len(result.Series) > 0 && headersEqual(previousHeaders, result.Series[0])
+		if !suppressHeaders && len(result.Series) > 0 {
+			previousHeaders = models.Row{
+				Name:    result.Series[0].Name,
+				Tags:    result.Series[0].Tags,
+				Columns: result.Series[0].Columns,
+			}
+		}
+
 		// Create a tabbed writer for each result as they won't always line up
-		rows := c.formatResults(result, "\t")
+		rows := c.formatResults(result, "\t", suppressHeaders)
 		for _, r := range rows {
 			csvw.Write(strings.Split(r, "\t"))
 		}
-		csvw.Flush()
 	}
+	csvw.Flush()
 }
 
 func (c *CommandLine) writeColumns(response *client.Response, w io.Writer) {
@@ -790,21 +817,40 @@ func (c *CommandLine) writeColumns(response *client.Response, w io.Writer) {
 	writer := new(tabwriter.Writer)
 	writer.Init(w, 0, 8, 1, ' ', 0)
 
-	for _, result := range response.Results {
+	var previousHeaders models.Row
+	for i, result := range response.Results {
 		// Print out all messages first
 		for _, m := range result.Messages {
 			fmt.Fprintf(w, "%s: %s.\n", m.Level, m.Text)
 		}
-		csv := c.formatResults(result, "\t")
-		for _, r := range csv {
+		// Check to see if the headers are the same as the previous row.  If so, suppress them in the output
+		suppressHeaders := len(result.Series) > 0 && headersEqual(previousHeaders, result.Series[0])
+		if !suppressHeaders && len(result.Series) > 0 {
+			previousHeaders = models.Row{
+				Name:    result.Series[0].Name,
+				Tags:    result.Series[0].Tags,
+				Columns: result.Series[0].Columns,
+			}
+		}
+
+		// If we are suppressing headers, don't output the extra line return. If we
+		// aren't suppressing headers, then we put out line returns between results
+		// (not before the first result, and not after the last result).
+		if !suppressHeaders && i > 0 {
+			fmt.Fprintln(writer, "")
+		}
+
+		rows := c.formatResults(result, "\t", suppressHeaders)
+		for _, r := range rows {
 			fmt.Fprintln(writer, r)
 		}
-		writer.Flush()
+
 	}
+	writer.Flush()
 }
 
 // formatResults will behave differently if you are formatting for columns or csv
-func (c *CommandLine) formatResults(result client.Result, separator string) []string {
+func (c *CommandLine) formatResults(result client.Result, separator string, suppressHeaders bool) []string {
 	rows := []string{}
 	// Create a tabbed writer for each result as they won't always line up
 	for i, row := range result.Series {
@@ -831,12 +877,12 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 		columnNames = append(columnNames, row.Columns...)
 
 		// Output a line separator if we have more than one set or results and format is column
-		if i > 0 && c.Format == "column" {
+		if i > 0 && c.Format == "column" && !suppressHeaders {
 			rows = append(rows, "")
 		}
 
 		// If we are column format, we break out the name/tag to separate lines
-		if c.Format == "column" {
+		if c.Format == "column" && !suppressHeaders {
 			if row.Name != "" {
 				n := fmt.Sprintf("name: %s", row.Name)
 				rows = append(rows, n)
@@ -847,10 +893,12 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 			}
 		}
 
-		rows = append(rows, strings.Join(columnNames, separator))
+		if !suppressHeaders {
+			rows = append(rows, strings.Join(columnNames, separator))
+		}
 
 		// if format is column, write dashes under each column
-		if c.Format == "column" {
+		if c.Format == "column" && !suppressHeaders {
 			lines := []string{}
 			for _, columnName := range columnNames {
 				lines = append(lines, strings.Repeat("-", len(columnName)))
@@ -873,10 +921,6 @@ func (c *CommandLine) formatResults(result client.Result, separator string) []st
 				values = append(values, interfaceToString(vv))
 			}
 			rows = append(rows, strings.Join(values, separator))
-		}
-		// Output a line separator if in column format
-		if c.Format == "column" {
-			rows = append(rows, "")
 		}
 	}
 	return rows
