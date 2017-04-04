@@ -11,6 +11,7 @@
   1. [#1123](https://github.com/influxdata/chronograf/issues/1123): Widen single column results in data explorer
   1. [#1164](https://github.com/influxdata/chronograf/pull/1164): Restore ability to save raw queries to a Dashboard Cell
   1. [#1115](https://github.com/influxdata/chronograf/pull/1115): Fix Basepath issue where content would fail to render under certain circumstances
+  1. [#1173](https://github.com/influxdata/chronograf/pull/1173): Fix saving email in Kapacitor alerts
 
 ### Features
   1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard
