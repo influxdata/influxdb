@@ -1,4 +1,5 @@
 import React, {PropTypes} from 'react'
+import classNames from 'classnames'
 
 const ENTER = 13
 const ESCAPE = 27
@@ -25,10 +26,10 @@ const RawQueryEditor = React.createClass({
 
   handleKeyDown(e) {
     if (e.keyCode === ENTER) {
+      e.preventDefault()
       this.handleUpdate()
-      this.editor.blur()
     } else if (e.keyCode === ESCAPE) {
-      this.setState({value: this.props.query.rawText}, () => {
+      this.setState({value: this.state.value}, () => {
         this.editor.blur()
       })
     }
@@ -45,6 +46,7 @@ const RawQueryEditor = React.createClass({
   },
 
   render() {
+    const {query: {rawStatus}} = this.props
     const {value} = this.state
 
     return (
@@ -56,8 +58,26 @@ const RawQueryEditor = React.createClass({
           onBlur={this.handleUpdate}
           ref={(editor) => this.editor = editor}
           value={value}
-          placeholder="Blank query"
+          placeholder="Enter a query..."
+          autoComplete="off"
+          spellCheck="false"
         />
+        {this.renderStatus(rawStatus)}
+      </div>
+    )
+  },
+
+  renderStatus(rawStatus) {
+    if (!rawStatus) {
+      return (
+        <div className="raw-text--status"></div>
+      )
+    }
+
+    return (
+      <div className={classNames("raw-text--status", {"raw-text--error": rawStatus.error, "raw-text--success": rawStatus.success, "raw-text--warning": rawStatus.warn})}>
+        <span className={classNames("icon", {stop: rawStatus.error, checkmark: rawStatus.success, "alert-triangle": rawStatus.warn})}></span>
+        {rawStatus.error || rawStatus.warn || rawStatus.success}
       </div>
     )
   },

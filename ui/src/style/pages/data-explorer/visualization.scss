@@ -19,6 +19,7 @@
 
   .toggle {
     margin: 0;
+    text-transform: capitalize;
   }
 }
 .graph-title {
@@ -34,7 +35,7 @@
   display: flex;
   align-items: center;
 }
-.table-container {
+.graph .table-container {
   background-color: $graph-bg-color;
   border-radius: 0 0 $graph-radius $graph-radius;
   padding: 8px 16px;
@@ -42,18 +43,6 @@
   top: $de-vertical-margin;
   height: calc(100% - #{$de-graph-heading-height} - #{($de-vertical-margin * 2)});
 
-  & > div {
-    position: absolute;
-    width: calc(100% - #{($de-vertical-margin * 2)});
-    height: calc(100% - #{$de-vertical-margin});
-    top: ($de-vertical-margin/2);
-    left: $de-vertical-margin;;
-  }
-  & > div .multi-table__tabs {
-    position: absolute;
-    height: 30px;
-    width: 100%;
-  }
   & > div > div:last-child {
     position: absolute;
     top: 30px;
@@ -64,9 +53,11 @@
     height: 100% !important;
   }
   .generic-empty-state {
-    background-color: $g6-smoke;
+    background-color: transparent;
     padding: 50px 0;
     height: 100%;
+    font-size: 22px;
+    @include no-user-select();
   }
 }
 .graph-container {
@@ -97,22 +88,6 @@
   }
   & > div:not(.graph-panel__refreshing) > div:not(.graph-panel__refreshing) > div:first-child {
     height: 100% !important;
-  }
-}
-
-.data-explorer .graph-panel__refreshing {
-  top: -31px !important;
-}
-
-
-/* Active State */
-.graph.active {
-  .graph-heading,
-  .graph-container {
-    background-color: $graph-active-color;
-  }
-  .graph-title {
-    color: $g20-white;
   }
 }
 

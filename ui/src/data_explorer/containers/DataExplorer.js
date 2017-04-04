@@ -57,7 +57,7 @@ const DataExplorer = React.createClass({
 
   getInitialState() {
     return {
-      activeQueryIndex: 0,
+      activeQueryIndex: null,
     }
   },
 
@@ -87,7 +87,8 @@ const DataExplorer = React.createClass({
             autoRefresh={autoRefresh}
             timeRange={timeRange}
             queryConfigs={queryConfigs}
-            activeQueryIndex={0}
+            activeQueryIndex={activeQueryIndex}
+            onEditRawStatus={queryConfigActions.editRawQueryStatus}
           />
           <ResizeBottom>
             <QueryBuilder

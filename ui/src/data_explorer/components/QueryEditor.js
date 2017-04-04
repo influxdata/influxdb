@@ -12,6 +12,7 @@ const {
   shape,
   func,
 } = PropTypes
+
 const QueryEditor = React.createClass({
   propTypes: {
     query: shape({
@@ -30,6 +31,7 @@ const QueryEditor = React.createClass({
       toggleField: func.isRequired,
       groupByTime: func.isRequired,
       toggleTagAcceptance: func.isRequired,
+      editRawText: func.isRequired,
     }).isRequired,
   },
 
@@ -89,9 +91,9 @@ const QueryEditor = React.createClass({
 
   renderQuery() {
     const {query, timeRange} = this.props
-    const statement = query.rawText || buildInfluxQLQuery(timeRange, query) || `SELECT "fields" FROM "db"."rp"."measurement"`
+    const statement = query.rawText || buildInfluxQLQuery(timeRange, query) || 'Select a database, measurement, and field below.'
 
-    if (!query.rawText) {
+    if (typeof query.rawText !== 'string') {
       return (
         <div className="query-builder--query-preview">
           <pre><code>{statement}</code></pre>
