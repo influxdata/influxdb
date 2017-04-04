@@ -116,7 +116,7 @@ func (c *CommandLine) Run() error {
 			c.Ssl = true
 			unsafeSsl := c.ClientConfig.UnsafeSsl
 			c.ClientConfig.UnsafeSsl = true
-			if err := c.Connect(""); err == nil {
+			if err = c.Connect(""); err == nil {
 				msg = "Please use the -ssl flag to connect using SSL."
 			}
 			c.Ssl = false
@@ -124,7 +124,7 @@ func (c *CommandLine) Run() error {
 		} else if c.Ssl && !c.ClientConfig.UnsafeSsl && strings.Contains(err.Error(), "certificate is valid for") {
 			// Attempt to connect with an insecure connection just to see if it works.
 			c.ClientConfig.UnsafeSsl = true
-			if err := c.Connect(""); err == nil {
+			if err = c.Connect(""); err == nil {
 				msg = "You may use -unsafeSsl to connect anyway, but the SSL connection will not be secure."
 			}
 			c.ClientConfig.UnsafeSsl = false

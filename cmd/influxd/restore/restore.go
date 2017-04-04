@@ -135,7 +135,7 @@ func (cmd *Command) unpackMeta() error {
 	}
 
 	var buf bytes.Buffer
-	if _, err := io.Copy(&buf, f); err != nil {
+	if _, err = io.Copy(&buf, f); err != nil {
 		return fmt.Errorf("copy: %s", err)
 	}
 
@@ -162,7 +162,7 @@ func (cmd *Command) unpackMeta() error {
 
 	// Unpack into metadata.
 	var data meta.Data
-	if err := data.UnmarshalBinary(metaBytes); err != nil {
+	if err = data.UnmarshalBinary(metaBytes); err != nil {
 		return fmt.Errorf("unmarshal: %s", err)
 	}
 
@@ -176,7 +176,7 @@ func (cmd *Command) unpackMeta() error {
 	}
 
 	// Write node.json back to meta dir
-	if err := ioutil.WriteFile(filepath.Join(c.Dir, "node.json"), nodeBytes, 0655); err != nil {
+	if err = ioutil.WriteFile(filepath.Join(c.Dir, "node.json"), nodeBytes, 0655); err != nil {
 		return err
 	}
 
@@ -187,7 +187,7 @@ func (cmd *Command) unpackMeta() error {
 	defer client.Close()
 
 	// Force set the full metadata.
-	if err := client.SetData(&data); err != nil {
+	if err = client.SetData(&data); err != nil {
 		return fmt.Errorf("set data: %s", err)
 	}
 
@@ -273,7 +273,7 @@ func (cmd *Command) unpackFiles(pat string) error {
 	}
 
 	for _, fn := range backupFiles {
-		if err := cmd.unpackTar(fn); err != nil {
+		if err = cmd.unpackTar(fn); err != nil {
 			return err
 		}
 	}
@@ -299,7 +299,7 @@ func (cmd *Command) unpackTar(tarFile string) error {
 			return err
 		}
 
-		if err := cmd.unpackFile(tr, hdr.Name); err != nil {
+		if err = cmd.unpackFile(tr, hdr.Name); err != nil {
 			return err
 		}
 	}
@@ -321,7 +321,7 @@ func (cmd *Command) unpackFile(tr *tar.Reader, fileName string) error {
 	}
 	defer ff.Close()
 
-	if _, err := io.Copy(ff, tr); err != nil {
+	if _, err = io.Copy(ff, tr); err != nil {
 		return err
 	}
 

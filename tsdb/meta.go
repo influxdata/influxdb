@@ -1232,10 +1232,9 @@ func (m *Measurement) walkWhereForSeriesIds(expr influxql.Expr) (SeriesIDs, Filt
 			if n.Op == influxql.AND {
 				ids, filters := intersectSeriesFilters(lids, rids, lfilters, rfilters)
 				return ids, filters, nil
-			} else {
-				ids, filters := unionSeriesFilters(lids, rids, lfilters, rfilters)
-				return ids, filters, nil
 			}
+			ids, filters := unionSeriesFilters(lids, rids, lfilters, rfilters)
+			return ids, filters, nil
 		}
 
 		ids, _, err := m.idsForExpr(n)
@@ -1274,7 +1273,7 @@ func (m *Measurement) seriesIDsAllOrByExpr(expr influxql.Expr) (SeriesIDs, error
 	return ids, nil
 }
 
-// tagKeysByExpr extracts the tag keys wanted by the expression.
+// TagKeysByExpr extracts the tag keys wanted by the expression.
 func (m *Measurement) TagKeysByExpr(expr influxql.Expr) (stringSet, bool, error) {
 	switch e := expr.(type) {
 	case *influxql.BinaryExpr:

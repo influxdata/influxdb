@@ -75,7 +75,7 @@ func (cmd *Command) Run(args ...string) error {
 	cmd.Logger.Info(fmt.Sprintf("Go version %s, GOMAXPROCS set to %d", runtime.Version(), runtime.GOMAXPROCS(0)))
 
 	// Write the PID file.
-	if err := cmd.writePIDFile(options.PIDFile); err != nil {
+	if err = cmd.writePIDFile(options.PIDFile); err != nil {
 		return fmt.Errorf("write pid file: %s", err)
 	}
 
@@ -86,12 +86,12 @@ func (cmd *Command) Run(args ...string) error {
 	}
 
 	// Apply any environment variables on top of the parsed config
-	if err := config.ApplyEnvOverrides(); err != nil {
+	if err = config.ApplyEnvOverrides(); err != nil {
 		return fmt.Errorf("apply env config: %v", err)
 	}
 
 	// Validate the configuration.
-	if err := config.Validate(); err != nil {
+	if err = config.Validate(); err != nil {
 		return fmt.Errorf("%s. To generate a valid configuration file run `influxd config > influxdb.generated.conf`", err)
 	}
 

@@ -73,7 +73,7 @@ func TestLocalShardMapper(t *testing.T) {
 		t.Fatalf("unexpected number of shard mappings: %d", len(m.ShardMap))
 	}
 
-	if _, err := ic.CreateIterator(measurement, influxql.IteratorOptions{}); err != nil {
+	if _, err = ic.CreateIterator(measurement, influxql.IteratorOptions{}); err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
 

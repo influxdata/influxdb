@@ -133,7 +133,7 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 	case DATABASES:
 		return p.parseShowDatabasesStatement()
 	case FIELD:
-		tok, pos, lit := p.scanIgnoreWhitespace()
+		tok, pos, lit = p.scanIgnoreWhitespace()
 		if tok == KEYS {
 			return p.parseShowFieldKeysStatement()
 		}
@@ -143,7 +143,7 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 	case QUERIES:
 		return p.parseShowQueriesStatement()
 	case RETENTION:
-		tok, pos, lit := p.scanIgnoreWhitespace()
+		tok, pos, lit = p.scanIgnoreWhitespace()
 		if tok == POLICIES {
 			return p.parseShowRetentionPoliciesStatement()
 		}
@@ -151,7 +151,7 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 	case SERIES:
 		return p.parseShowSeriesStatement()
 	case SHARD:
-		tok, pos, lit := p.scanIgnoreWhitespace()
+		tok, pos, lit = p.scanIgnoreWhitespace()
 		if tok == GROUPS {
 			return p.parseShowShardGroupsStatement()
 		}
@@ -163,7 +163,7 @@ func (p *Parser) parseShowStatement() (Statement, error) {
 	case DIAGNOSTICS:
 		return p.parseShowDiagnosticsStatement()
 	case TAG:
-		tok, pos, lit := p.scanIgnoreWhitespace()
+		tok, pos, lit = p.scanIgnoreWhitespace()
 		if tok == KEYS {
 			return p.parseShowTagKeysStatement()
 		} else if tok == VALUES {
@@ -233,7 +233,7 @@ func (p *Parser) parseDropStatement() (Statement, error) {
 	case MEASUREMENT:
 		return p.parseDropMeasurementStatement()
 	case RETENTION:
-		if tok, pos, lit := p.scanIgnoreWhitespace(); tok != POLICY {
+		if tok, pos, lit = p.scanIgnoreWhitespace(); tok != POLICY {
 			return nil, newParseError(tokstr(tok, lit), []string{"POLICY"}, pos)
 		}
 		return p.parseDropRetentionPolicyStatement()
@@ -511,10 +511,10 @@ Loop:
 			}
 			stmt.Replication = &n
 		case SHARD:
-			tok, pos, lit := p.scanIgnoreWhitespace()
+			tok, pos, lit = p.scanIgnoreWhitespace()
 			if tok == DURATION {
 				// Check to see if they used the INF keyword
-				tok, pos, _ := p.scanIgnoreWhitespace()
+				tok, pos, _ = p.scanIgnoreWhitespace()
 				if tok == INF {
 					return nil, &ParseError{
 						Message: "invalid duration INF for shard duration",
@@ -883,7 +883,7 @@ func (p *Parser) parsePrivilege() (Privilege, error) {
 		return WritePrivilege, nil
 	case ALL:
 		// Consume optional PRIVILEGES token
-		tok, pos, lit = p.scanIgnoreWhitespace()
+		tok, pos, _ = p.scanIgnoreWhitespace()
 		if tok != PRIVILEGES {
 			p.unscan()
 		}
@@ -1043,7 +1043,6 @@ func (p *Parser) parseDeleteStatement() (Statement, error) {
 			return nil, err
 		}
 
-		var err error
 		WalkFunc(stmt.Sources, func(n Node) {
 			if t, ok := n.(*Measurement); ok {
 				// Don't allow database or retention policy in from clause for delete
@@ -1147,7 +1146,7 @@ func (p *Parser) parseShowMeasurementsStatement() (*ShowMeasurementsStatement, e
 	// Parse optional WITH clause.
 	if tok, _, _ := p.scanIgnoreWhitespace(); tok == WITH {
 		// Parse required MEASUREMENT token.
-		if err := p.parseTokens([]Token{MEASUREMENT}); err != nil {
+		if err = p.parseTokens([]Token{MEASUREMENT}); err != nil {
 			return nil, err
 		}
 
@@ -1334,7 +1333,7 @@ func (p *Parser) parseTagKeyExpr() (Token, Literal, error) {
 	var err error
 
 	// Parse required WITH KEY tokens.
-	if err := p.parseTokens([]Token{WITH, KEY}); err != nil {
+	if err = p.parseTokens([]Token{WITH, KEY}); err != nil {
 		return 0, nil, err
 	}
 
@@ -1370,7 +1369,7 @@ func (p *Parser) parseTagKeyExpr() (Token, Literal, error) {
 			return 0, nil, err
 		} else if re == nil {
 			// parseRegex can return an empty type, but we need it to be present
-			tok, pos, lit := p.scanIgnoreWhitespace()
+			tok, pos, lit = p.scanIgnoreWhitespace()
 			return 0, nil, newParseError(tokstr(tok, lit), []string{"regex"}, pos)
 		}
 		return tok, re, nil
@@ -1464,7 +1463,6 @@ func (p *Parser) parseDropSeriesStatement() (*DropSeriesStatement, error) {
 			return nil, err
 		}
 
-		var err error
 		WalkFunc(stmt.Sources, func(n Node) {
 			if t, ok := n.(*Measurement); ok {
 				// Don't allow database or retention policy in from clause for delete
@@ -1588,7 +1586,7 @@ func (p *Parser) parseCreateContinuousQueryStatement() (*CreateContinuousQuerySt
 	}
 
 	// Expect a "BEGIN SELECT" tokens.
-	if err := p.parseTokens([]Token{BEGIN, SELECT}); err != nil {
+	if err = p.parseTokens([]Token{BEGIN, SELECT}); err != nil {
 		return nil, err
 	}
 
@@ -1793,7 +1791,7 @@ func (p *Parser) parseCreateUserStatement() (*CreateUserStatement, error) {
 	stmt.Name = ident
 
 	// Consume "WITH PASSWORD" tokens
-	if err := p.parseTokens([]Token{WITH, PASSWORD}); err != nil {
+	if err = p.parseTokens([]Token{WITH, PASSWORD}); err != nil {
 		return nil, err
 	}
 
@@ -1943,7 +1941,8 @@ func (p *Parser) parseField() (*Field, error) {
 		_, pos, _ := p.scanIgnoreWhitespace()
 		p.unscan()
 		// Parse the expression first.
-		expr, err := p.ParseExpr()
+		var expr Expr
+		expr, err = p.ParseExpr()
 		if err != nil {
 			return nil, err
 		}
@@ -2055,22 +2054,22 @@ func (p *Parser) parseSource(subqueries bool) (Source, error) {
 	// Parse the subquery if we are in a query that allows them as a source.
 	if m.Regex == nil && subqueries {
 		if tok, _, _ := p.scanIgnoreWhitespace(); tok == LPAREN {
-			if err := p.parseTokens([]Token{SELECT}); err != nil {
+			if err = p.parseTokens([]Token{SELECT}); err != nil {
 				return nil, err
 			}
 
-			stmt, err := p.parseSelectStatement(targetSubquery)
+			var stmt *SelectStatement
+			stmt, err = p.parseSelectStatement(targetSubquery)
 			if err != nil {
 				return nil, err
 			}
 
-			if err := p.parseTokens([]Token{RPAREN}); err != nil {
+			if err = p.parseTokens([]Token{RPAREN}); err != nil {
 				return nil, err
 			}
 			return &SubQuery{Statement: stmt}, nil
-		} else {
-			p.unscan()
 		}
+		p.unscan()
 	}
 
 	// Didn't find a regex so parse segmented identifiers.
@@ -2510,11 +2509,12 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 	case DISTINCT:
 		// If the next immediate token is a left parentheses, parse as function call.
 		// Otherwise parse as a Distinct expression.
-		tok0, pos, lit := p.scan()
+		var tok0, tok1 Token
+		tok0, pos, lit = p.scan()
 		if tok0 == LPAREN {
 			return p.parseCall("distinct")
 		} else if tok0 == WS {
-			tok1, pos, lit := p.scanIgnoreWhitespace()
+			tok1, pos, lit = p.scanIgnoreWhitespace()
 			if tok1 != IDENT {
 				return nil, newParseError(tokstr(tok1, lit), []string{"identifier"}, pos)
 			}
@@ -2546,8 +2546,8 @@ func (p *Parser) parseUnaryExpr() (Expr, error) {
 		return &DurationLiteral{Val: v}, nil
 	case MUL:
 		wc := &Wildcard{}
-		if tok, _, _ := p.scan(); tok == DOUBLECOLON {
-			tok, pos, lit := p.scan()
+		if tok, _, _ = p.scan(); tok == DOUBLECOLON {
+			tok, pos, lit = p.scan()
 			switch tok {
 			case FIELD, TAG:
 				wc.Type = tok
