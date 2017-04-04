@@ -420,8 +420,8 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 }
 
 func testStoreCardinalityTombstoning(t *testing.T, store *Store) {
-	if testing.Short() || os.Getenv("GORACE") != "" {
-		t.Skip("Skipping test in short mode.")
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
 	}
 
 	// Generate point data to write to the shards.
@@ -506,8 +506,8 @@ func TestStore_Cardinality_Tombstoning_TSI(t *testing.T) {
 }
 
 func testStoreCardinalityUnique(t *testing.T, store *Store) {
-	if testing.Short() || os.Getenv("GORACE") != "" {
-		t.Skip("Skipping test in short mode.")
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
 	}
 
 	// Generate point data to write to the shards.
@@ -582,8 +582,8 @@ func TestStore_Cardinality_Unique_TSI1(t *testing.T) {
 // This test tests cardinality estimation when series data is duplicated across
 // multiple shards.
 func testStoreCardinalityDuplicates(t *testing.T, store *Store) {
-	if testing.Short() || os.Getenv("GORACE") != "" {
-		t.Skip("Skipping test in short mode.")
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
 	}
 
 	// Generate point data to write to the shards.
