@@ -11,7 +11,7 @@ import {
   toggleTagAcceptance,
   updateRawQuery,
   editRawQueryStatus,
-} from 'src/data_explorer/actions/view';
+} from 'src/data_explorer/actions/view'
 
 const fakeAddQueryAction = (panelID, queryID) => {
   return {
