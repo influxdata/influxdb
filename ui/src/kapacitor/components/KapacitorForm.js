@@ -104,7 +104,7 @@ const KapacitorForm = React.createClass({
                       </div>
 
                       <div className="form-group form-group-submit col-xs-12 text-center">
-                        <button className="btn btn-info" onClick={onReset}>Reset to Default</button>
+                        <button className="btn btn-info" type="button" onClick={onReset}>Reset to Default</button>
                         <button className="btn btn-success" type="submit">Connect Kapacitor</button>
                       </div>
                     </form>

@@ -9,6 +9,10 @@ import (
 	"github.com/influxdata/chronograf"
 )
 
+const (
+	ErrNotFlusher = "Expected http.ResponseWriter to be an http.Flusher, but wasn't"
+)
+
 // URLPrefixer is a wrapper for an http.Handler that will prefix all occurrences of a relative URL with the configured Prefix
 type URLPrefixer struct {
 	Prefix string            // the prefix to be appended after any detected Attrs
@@ -70,21 +74,21 @@ const ChunkSize int = 512
 // stream through the ResponseWriter, and appending the Prefix after any of the
 // Attrs detected in the stream.
 func (up *URLPrefixer) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	// extract the flusher for flushing chunks
+	flusher, ok := rw.(http.Flusher)
+
+	if !ok {
+		up.Logger.Info(ErrNotFlusher)
+		up.Next.ServeHTTP(rw, r)
+		return
+	}
+
 	// chunked transfer because we're modifying the response on the fly, so we
 	// won't know the final content-length
 	rw.Header().Set("Connection", "Keep-Alive")
 	rw.Header().Set("Transfer-Encoding", "chunked")
 
 	writtenCount := 0 // number of bytes written to rw
-
-	// extract the flusher for flushing chunks
-	flusher, ok := rw.(http.Flusher)
-	if !ok {
-		msg := "Expected http.ResponseWriter to be an http.Flusher, but wasn't"
-		Error(rw, http.StatusInternalServerError, msg, up.Logger)
-		return
-	}
-
 	nextRead, nextWrite := io.Pipe()
 	go func() {
 		defer nextWrite.Close()

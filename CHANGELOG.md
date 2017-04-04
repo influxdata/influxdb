@@ -3,13 +3,14 @@
 ### Bug Fixes
   1. [#1104](https://github.com/influxdata/chronograf/pull/1104): Fix windows hosts on host list
   1. [#1125](https://github.com/influxdata/chronograf/pull/1125): Fix visualizations not showing graph name
-  1. [#1133](https://github.com/influxdata/chronograf/issue/1133): Fix Enterprise Kapacitor authentication.
-  1. [#1142](https://github.com/influxdata/chronograf/issue/1142): Fix Kapacitor Telegram config to display correct disableNotification setting
+  1. [#1133](https://github.com/influxdata/chronograf/issues/1133): Fix Enterprise Kapacitor authentication.
+  1. [#1142](https://github.com/influxdata/chronograf/issues/1142): Fix Kapacitor Telegram config to display correct disableNotification setting
   1. [#1097](https://github.com/influxdata/chronograf/issues/1097): Fix broken graph spinner in the Data Explorer & Dashboard Cell Edit
   1. [#1106](https://github.com/influxdata/chronograf/issues/1106): Fix obscured legends in dashboards
-  1. [#1051](https://github.com/influxdata/chronograf/issue/1051): Exit presentation mode when using the browser back button
-  1. [#1123](https://github.com/influxdata/chronograf/issue/1123): Widen single column results in data explorer
-  1. [#1164](https://github.com/influxdata/chronograf/issue/1164): Restore ability to save raw queries to a Dashboard Cell
+  1. [#1051](https://github.com/influxdata/chronograf/issues/1051): Exit presentation mode when using the browser back button
+  1. [#1123](https://github.com/influxdata/chronograf/issues/1123): Widen single column results in data explorer
+  1. [#1164](https://github.com/influxdata/chronograf/pull/1164): Restore ability to save raw queries to a Dashboard Cell
+  1. [#1115](https://github.com/influxdata/chronograf/pull/1115): Fix Basepath issue where content would fail to render under certain circumstances
 
 ### Features
   1. [#1112](https://github.com/influxdata/chronograf/pull/1112): Add ability to delete a dashboard
