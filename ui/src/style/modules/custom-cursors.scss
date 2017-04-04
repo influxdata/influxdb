@@ -3,15 +3,15 @@
     ----------------------------------------------
 */
 
-$cc-default: url(assets/images/cursor-default.png), auto !important;
-$cc-invert: url(assets/images/cursor-invert.png) 4 4, auto !important;
-$cc-pointer: url(assets/images/cursor-pointer.png) 6 0, auto !important;
-$cc-text: url(assets/images/cursor-text.png) 6 10, auto !important;
-$cc-move: url(assets/images/cursor-move.png) 13 13, auto !important;
-$cc-resize-ns: url(assets/images/cursor-ns-resize.png) 6 12, auto !important;
-$cc-resize-ew: url(assets/images/cursor-ew-resize.png) 12 5, auto !important;
-$cc-resize-nwse: url(assets/images/cursor-nwse-resize.png) 9 9, auto !important;
-$cc-resize-nesw: url(assets/images/cursor-nesw-resize.png) 9 9, auto !important;
+$cc-default: url(assets/images/cursor-default.cur), auto !important;
+$cc-invert: url(assets/images/cursor-invert.cur) 4 4, auto !important;
+$cc-pointer: url(assets/images/cursor-pointer.cur) 6 0, auto !important;
+$cc-text: url(assets/images/cursor-text.cur) 6 10, auto !important;
+$cc-move: url(assets/images/cursor-move.cur) 13 13, auto !important;
+$cc-resize-ns: url(assets/images/cursor-ns-resize.cur) 6 12, auto !important;
+$cc-resize-ew: url(assets/images/cursor-ew-resize.cur) 12 5, auto !important;
+$cc-resize-nwse: url(assets/images/cursor-nwse-resize.cur) 9 9, auto !important;
+$cc-resize-nesw: url(assets/images/cursor-nesw-resize.cur) 9 9, auto !important;
 
 
 // Resetting defaults
