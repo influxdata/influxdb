@@ -448,6 +448,10 @@ func (f *FileStore) Close() error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
+	for _, file := range f.files {
+		file.Close()
+	}
+
 	f.lastFileStats = nil
 	f.files = nil
 	atomic.StoreInt64(&f.stats.FileCount, 0)
