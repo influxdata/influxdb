@@ -534,16 +534,6 @@ func (i *Index) DropSeries(key []byte) error {
 	return nil
 }
 
-// Dereference removes all references to data within b and moves them to the heap.
-func (i *Index) Dereference(b []byte) {
-	i.mu.RLock()
-	defer i.mu.RUnlock()
-
-	for _, s := range i.series {
-		s.Dereference(b)
-	}
-}
-
 // ForEachMeasurementSeriesByExpr iterates over all series in a measurement filtered by an expression.
 func (i *Index) ForEachMeasurementSeriesByExpr(name []byte, expr influxql.Expr, fn func(tags models.Tags) error) error {
 	i.mu.RLock()

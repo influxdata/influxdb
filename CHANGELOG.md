@@ -18,6 +18,8 @@
 
 ### Bugfixes
 
+- [#8231](https://github.com/influxdata/influxdb/pull/8231): Fix spelling mistake in HTTP section of config -- shared-sercret
+- [#8190](https://github.com/influxdata/influxdb/issues/8190): History file should redact passwords before saving to history.
 - [#8122](https://github.com/influxdata/influxdb/pull/8122): Suppress headers in output for influx cli when they are the same.
 - [#8119](https://github.com/influxdata/influxdb/pull/8119): Add chunked/chunk size as setting/options in cli.
 - [#8091](https://github.com/influxdata/influxdb/issues/8091): Do not increment the continuous query statistic if no query is run.
@@ -36,6 +38,15 @@
 - [#8171](https://github.com/influxdata/influxdb/issues/8171): Significantly improve shutdown speed for high cardinality databases.
 - [#8177](https://github.com/influxdata/influxdb/issues/8177): Fix racy integration test.
 - [#8230](https://github.com/influxdata/influxdb/issues/8230): Prevent overflowing or underflowing during window computation.
+
+## v1.2.3 [unreleased]
+
+### Bugfixes
+
+- [#8022](https://github.com/influxdata/influxdb/issues/8022): Segment violation in models.Tags.Get
+- [#8155](https://github.com/influxdata/influxdb/pull/8155): Simplify admin user check.
+- [#8167](https://github.com/influxdata/influxdb/issues/8167): Fix a regression when math was used with selectors.
+- [#8175](https://github.com/influxdata/influxdb/issues/8175): Ensure the input for certain functions in the query engine are ordered.
 
 ## v1.2.2 [2017-03-14]
 

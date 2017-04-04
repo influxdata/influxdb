@@ -30,8 +30,6 @@ type Index interface {
 	MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error)
 	SeriesN() int64
 
-	Dereference(b []byte)
-
 	HasTagKey(name, key []byte) (bool, error)
 	TagSets(name []byte, options influxql.IteratorOptions) ([]*influxql.TagSet, error)
 	MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error)

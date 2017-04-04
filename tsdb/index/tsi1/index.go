@@ -571,9 +571,6 @@ func (i *Index) SeriesN() int64 {
 	return total
 }
 
-// Dereference is a nop.
-func (i *Index) Dereference([]byte) {}
-
 // HasTagKey returns true if tag key exists.
 func (i *Index) HasTagKey(name, key []byte) (bool, error) {
 	fs := i.RetainFileSet()

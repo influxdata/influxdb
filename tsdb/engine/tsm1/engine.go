@@ -488,7 +488,6 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 
 	// Save reference to index for iterator creation.
 	e.index = index
-	e.FileStore.dereferencer = index
 
 	if err := e.FileStore.WalkKeys(func(key []byte, typ byte) error {
 		fieldType, err := tsmFieldTypeToInfluxQLDataType(typ)

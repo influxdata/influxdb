@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"sort"
 	"sync"
-	"unsafe"
 
 	"github.com/influxdata/influxdb/influxql"
 	"github.com/influxdata/influxdb/models"
@@ -1171,7 +1170,7 @@ func (s *Series) ForEachTag(fn func(models.Tag)) {
 func (s *Series) Tags() models.Tags {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.tags.Clone()
+	return s.tags
 }
 
 // CopyTags clones the tags on the series in-place,
@@ -1186,36 +1185,6 @@ func (s *Series) GetTagString(key string) string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.tags.GetString(key)
-}
-
-// Dereference removes references to a byte slice.
-func (s *Series) Dereference(b []byte) {
-	s.mu.Lock()
-
-	min := uintptr(unsafe.Pointer(&b[0]))
-	max := min + uintptr(len(b))
-
-	for i := range s.tags {
-		deref(&s.tags[i].Key, min, max)
-		deref(&s.tags[i].Value, min, max)
-	}
-
-	s.mu.Unlock()
-}
-
-func deref(v *[]byte, min, max uintptr) {
-	vv := *v
-
-	// Ignore if value is not within range.
-	ptr := uintptr(unsafe.Pointer(&vv[0]))
-	if ptr < min || ptr > max {
-		return
-	}
-
-	// Otherwise copy to the heap.
-	buf := make([]byte, len(vv))
-	copy(buf, vv)
-	*v = buf
 }
 
 // MarshalBinary encodes the object to a binary format.
