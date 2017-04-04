@@ -16,12 +16,12 @@ type dbLinks struct {
 }
 
 type dbResponse struct {
-	Name          string       `json:"name"`                        // a unique string identifier for the database
-	Duration      string       `json:"duration,omitempty"`          // the duration (when creating a default retention policy)
-	Replication   int32        `json:"replication,omitempty"`       // the replication factor (when creating a default retention policy)
-	ShardDuration string       `json:"shardDuration,omitempty"`     // the shard duration (when creating a default retention policy)
-	RPs           []rpResponse `json:"retentionPolicies,omitempty"` // RPs are the retention policies for a database
-	Links         dbLinks      `json:"links"`                       // Links are URI locations related to the database
+	Name          string       `json:"name"`                    // a unique string identifier for the database
+	Duration      string       `json:"duration,omitempty"`      // the duration (when creating a default retention policy)
+	Replication   int32        `json:"replication,omitempty"`   // the replication factor (when creating a default retention policy)
+	ShardDuration string       `json:"shardDuration,omitempty"` // the shard duration (when creating a default retention policy)
+	RPs           []rpResponse `json:"retentionPolicies"`       // RPs are the retention policies for a database
+	Links         dbLinks      `json:"links"`                   // Links are URI locations related to the database
 }
 
 // newDBResponse creates the response for the /databases endpoint
