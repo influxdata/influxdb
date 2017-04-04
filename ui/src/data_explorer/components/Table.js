@@ -5,7 +5,15 @@ import fetchTimeSeries from 'shared/apis/timeSeries'
 import _ from 'lodash'
 import moment from 'moment'
 
-const {oneOfType, number, string, shape, arrayOf, func} = PropTypes
+const {
+  arrayOf,
+  func,
+  number,
+  oneOfType,
+  shape,
+  string,
+} = PropTypes
+
 const emptyCells = {
   columns: [],
   values: [],
