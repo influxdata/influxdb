@@ -544,7 +544,7 @@ func (s *Store) DeleteRetentionPolicy(database, name string) error {
 }
 
 // DeleteMeasurement removes a measurement and all associated series from a database.
-func (s *Store) DeleteMeasurement(database string, name string) error {
+func (s *Store) DeleteMeasurement(database, name string) error {
 	s.mu.RLock()
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
@@ -821,6 +821,10 @@ func (s *Store) DeleteSeries(database string, sources []influxql.Source, conditi
 				return err
 			}
 			keys = append(keys, a...)
+		}
+
+		if !bytesutil.IsSorted(keys) {
+			bytesutil.Sort(keys)
 		}
 
 		// Delete all matching keys.

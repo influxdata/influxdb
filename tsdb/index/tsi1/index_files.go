@@ -242,7 +242,7 @@ func (p IndexFiles) writeTagsetTo(w io.Writer, name []byte, info *indexCompactIn
 			for se := sitr.Next(); se != nil; se = sitr.Next() {
 				seriesID, _ := info.sblk.Offset(se.Name(), se.Tags(), seriesKey[:0])
 				if seriesID == 0 {
-					panic(fmt.Sprintf("expected series id: %s/%s", se.Name(), se.Tags().String()))
+					return fmt.Errorf("expected series id: %s/%s", se.Name(), se.Tags().String())
 				}
 				seriesIDs = append(seriesIDs, seriesID)
 			}

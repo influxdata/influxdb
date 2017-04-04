@@ -84,6 +84,12 @@ func (s *Scanner) Scan() (tok Token, pos Pos, lit string) {
 		return DIV, pos, ""
 	case '%':
 		return MOD, pos, ""
+	case '&':
+		return BITWISE_AND, pos, ""
+	case '|':
+		return BITWISE_OR, pos, ""
+	case '^':
+		return BITWISE_XOR, pos, ""
 	case '=':
 		if ch1, _ := s.r.read(); ch1 == '~' {
 			return EQREGEX, pos, ""

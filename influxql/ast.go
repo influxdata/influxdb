@@ -1926,7 +1926,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 	for _, f := range s.Fields {
 		for _, expr := range walkFunctionCalls(f.Expr) {
 			switch expr.Name {
-			case "derivative", "non_negative_derivative", "difference", "moving_average", "cumulative_sum", "elapsed":
+			case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "cumulative_sum", "elapsed":
 				if err := s.validSelectWithAggregate(); err != nil {
 					return err
 				}
@@ -1942,7 +1942,7 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 							return fmt.Errorf("second argument to %s must be a duration, got %T", expr.Name, expr.Args[1])
 						}
 					}
-				case "difference", "cumulative_sum":
+				case "difference", "non_negative_difference", "cumulative_sum":
 					if got := len(expr.Args); got != 1 {
 						return fmt.Errorf("invalid number of arguments for %s, expected 1, got %d", expr.Name, got)
 					}
@@ -2015,6 +2015,20 @@ func (s *SelectStatement) validateAggregates(tr targetRequirement) error {
 			case "sample":
 				if err := s.validSampleAggr(expr); err != nil {
 					return err
+				}
+			case "integral":
+				if err := s.validSelectWithAggregate(); err != nil {
+					return err
+				}
+				if min, max, got := 1, 2, len(expr.Args); got > max || got < min {
+					return fmt.Errorf("invalid number of arguments for %s, expected at least %d but no more than %d, got %d", expr.Name, min, max, got)
+				}
+				// If a duration arg is passed, make sure it's a duration
+				if len(expr.Args) == 2 {
+					// Second must be a duration .e.g (1h)
+					if _, ok := expr.Args[1].(*DurationLiteral); !ok {
+						return errors.New("second argument must be a duration")
+					}
 				}
 			case "holt_winters", "holt_winters_with_fit":
 				if exp, got := 3, len(expr.Args); got != exp {
@@ -2148,7 +2162,7 @@ func (s *SelectStatement) validateGroupByInterval() error {
 		switch expr := f.Expr.(type) {
 		case *Call:
 			switch expr.Name {
-			case "derivative", "non_negative_derivative", "difference", "moving_average", "cumulative_sum", "elapsed", "holt_winters", "holt_winters_with_fit":
+			case "derivative", "non_negative_derivative", "difference", "non_negative_difference", "moving_average", "cumulative_sum", "elapsed", "holt_winters", "holt_winters_with_fit":
 				// If the first argument is a call, we needed a group by interval and we don't have one.
 				if _, ok := expr.Args[0].(*Call); ok {
 					return fmt.Errorf("%s aggregate requires a GROUP BY interval", expr.Name)
@@ -4290,6 +4304,12 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 			return ok && (lhs && rhs)
 		case OR:
 			return ok && (lhs || rhs)
+		case BITWISE_AND:
+			return ok && (lhs && rhs)
+		case BITWISE_OR:
+			return ok && (lhs || rhs)
+		case BITWISE_XOR:
+			return ok && (lhs != rhs)
 		case EQ:
 			return ok && (lhs == rhs)
 		case NEQ:
@@ -4424,6 +4444,21 @@ func evalBinaryExpr(expr *BinaryExpr, m map[string]interface{}) interface{} {
 					return int64(0)
 				}
 				return lhs % rhs
+			case BITWISE_AND:
+				if !ok {
+					return nil
+				}
+				return lhs & rhs
+			case BITWISE_OR:
+				if !ok {
+					return nil
+				}
+				return lhs | rhs
+			case BITWISE_XOR:
+				if !ok {
+					return nil
+				}
+				return lhs ^ rhs
 			}
 		}
 	case string:
@@ -4501,7 +4536,7 @@ func EvalType(expr Expr, sources Sources, typmap TypeMapper) DataType {
 		return typ
 	case *Call:
 		switch expr.Name {
-		case "mean", "median":
+		case "mean", "median", "integral":
 			return Float
 		case "count":
 			return Integer
@@ -4673,6 +4708,12 @@ func reduceBinaryExprBooleanLHS(op Token, lhs *BooleanLiteral, rhs Expr) Expr {
 			return &BooleanLiteral{Val: lhs.Val && rhs.Val}
 		case OR:
 			return &BooleanLiteral{Val: lhs.Val || rhs.Val}
+		case BITWISE_AND:
+			return &BooleanLiteral{Val: lhs.Val && rhs.Val}
+		case BITWISE_OR:
+			return &BooleanLiteral{Val: lhs.Val || rhs.Val}
+		case BITWISE_XOR:
+			return &BooleanLiteral{Val: lhs.Val != rhs.Val}
 		}
 	case *nilLiteral:
 		return &BooleanLiteral{Val: false}
@@ -4766,6 +4807,12 @@ func reduceBinaryExprIntegerLHS(op Token, lhs *IntegerLiteral, rhs Expr) Expr {
 				return &IntegerLiteral{Val: 0}
 			}
 			return &IntegerLiteral{Val: lhs.Val % rhs.Val}
+		case BITWISE_AND:
+			return &IntegerLiteral{Val: lhs.Val & rhs.Val}
+		case BITWISE_OR:
+			return &IntegerLiteral{Val: lhs.Val | rhs.Val}
+		case BITWISE_XOR:
+			return &IntegerLiteral{Val: lhs.Val ^ rhs.Val}
 		case EQ:
 			return &BooleanLiteral{Val: lhs.Val == rhs.Val}
 		case NEQ:

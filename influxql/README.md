@@ -839,8 +839,8 @@ with_tag_clause = "WITH KEY" ( "=" tag_key | "!=" tag_key | "=~" regex_lit | "IN
 ## Expressions
 
 ```
-binary_op        = "+" | "-" | "*" | "/" | "AND" | "OR" | "=" | "!=" | "<>" | "<" |
-                   "<=" | ">" | ">=" .
+binary_op        = "+" | "-" | "*" | "/" | "%" | "&" | "|" | "^" | "AND" |
+                   "OR" | "=" | "!=" | "<>" | "<" | "<=" | ">" | ">=" .
 
 expr             = unary_expr { binary_op unary_expr } .
 

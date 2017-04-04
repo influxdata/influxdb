@@ -10,6 +10,14 @@ func Sort(a [][]byte) {
 	sort.Sort(byteSlices(a))
 }
 
+func IsSorted(a [][]byte) bool {
+	return sort.IsSorted(byteSlices(a))
+}
+
+func SearchBytes(a [][]byte, x []byte) int {
+	return sort.Search(len(a), func(i int) bool { return bytes.Compare(a[i], x) >= 0 })
+}
+
 // Union returns the union of a & b in sorted order.
 func Union(a, b [][]byte) [][]byte {
 	n := len(b)

@@ -192,7 +192,9 @@ func (blk *SeriesBlock) UnmarshalBinary(data []byte) error {
 		n, buf = binary.BigEndian.Uint64(buf[:8]), buf[8:]
 		idx.min, buf = buf[:n], buf[n:]
 	}
-	assert(len(buf) == 0, "data remaining in index list buffer: %d", len(buf))
+	if len(buf) == 0 {
+		return fmt.Errorf("data remaining in index list buffer: %d", len(buf))
+	}
 
 	// Initialise sketches. We're currently using HLL+.
 	var s, ts = hll.NewDefaultPlus(), hll.NewDefaultPlus()
@@ -534,10 +536,6 @@ func (enc *SeriesBlockEncoder) N() int64 { return enc.n }
 // Encode writes a series to the underlying writer.
 // The series must be lexicographical sorted after the previous encoded series.
 func (enc *SeriesBlockEncoder) Encode(name []byte, tags models.Tags, deleted bool) error {
-	if len(name) == 0 {
-		panic("empty name")
-	}
-
 	// An initial empty byte must be written.
 	if err := enc.ensureHeaderWritten(); err != nil {
 		return err
@@ -573,9 +571,6 @@ func (enc *SeriesBlockEncoder) Encode(name []byte, tags models.Tags, deleted boo
 	}
 
 	// Save offset to generate index later.
-	if offset <= 0 {
-		panic(fmt.Sprintf("invalid offset: %d", offset))
-	}
 	enc.offsets.Put(copyBytes(buf[1:]), uint64(offset))
 
 	// Update sketches & trailer.
@@ -736,7 +731,9 @@ func (enc *SeriesBlockEncoder) flushIndex() error {
 	size := enc.n - offset
 
 	// Verify actual size equals calculated size.
-	assert(size == sz, "series hash index size mismatch: %d <> %d", size, sz)
+	if size == sz {
+		return fmt.Errorf("series hash index size mismatch: %d <> %d", size, sz)
+	}
 
 	// Add to index entries.
 	enc.indexes = append(enc.indexes, seriesBlockIndexEncodeInfo{
