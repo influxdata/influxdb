@@ -266,7 +266,6 @@ func extractAlertVars(vars map[string]tick.Var) (interface{}, error) {
 		if r.Shift, ok = varDuration("shift", vars); !ok {
 			return nil, ErrNotChronoTickscript
 		}
-		// TODO: crit could be string, float, int
 		if r.Crit, ok = varValue("crit", vars); !ok {
 			return nil, ErrNotChronoTickscript
 		}

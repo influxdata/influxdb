@@ -239,6 +239,118 @@ trigger
 				Name: "name",
 			},
 		},
+		{
+			name: "Test valid template alert",
+			script: `var db = 'influxdb'
+
+var rp = 'autogen'
+
+var measurement = 'haproxy'
+
+var groupBy = ['pxname']
+
+var whereFilter = lambda: TRUE
+
+var period = 10s
+
+var every = 10s
+
+var name = 'haproxy'
+
+var idVar = name + ':{{.Group}}'
+
+var message = 'Haproxy monitor : {{.ID}} : {{ index .Tags "server" }} : {{ index .Tags "pxname" }} is {{ .Level }} '
+
+var idTag = 'alertID'
+
+var levelTag = 'level'
+
+var messageField = 'message'
+
+var durationField = 'duration'
+
+var outputDB = 'chronograf'
+
+var outputRP = 'autogen'
+
+var outputMeasurement = 'alerts'
+
+var triggerType = 'threshold'
+
+var details = 'Email template'
+
+var crit = 'DOWN'
+
+var data = stream
+    |from()
+        .database(db)
+        .retentionPolicy(rp)
+        .measurement(measurement)
+        .groupBy(groupBy)
+        .where(whereFilter)
+    |window()
+        .period(period)
+        .every(every)
+        .align()
+    |last('status')
+        .as('value')
+
+var trigger = data
+    |alert()
+        .crit(lambda: "value" == crit)
+        .stateChangesOnly()
+        .message(message)
+        .id(idVar)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
+        .details(details)
+        .email()
+
+trigger
+    |influxDBOut()
+        .create()
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
+        .tag('alertName', name)
+        .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
+`,
+			want: chronograf.AlertRule{
+				Name:       "haproxy",
+				Trigger:    "threshold",
+				Alerts:     []string{"smtp"},
+				AlertNodes: []chronograf.KapacitorNode{chronograf.KapacitorNode{Name: "smtp"}},
+				TriggerValues: chronograf.TriggerValues{
+					Operator: "equal to",
+					Value:    "DOWN",
+				},
+				Every:   "10s",
+				Message: `Haproxy monitor : {{.ID}} : {{ index .Tags "server" }} : {{ index .Tags "pxname" }} is {{ .Level }} `,
+				Details: "Email template",
+				Query: chronograf.QueryConfig{
+					Database:        "influxdb",
+					RetentionPolicy: "autogen",
+					Measurement:     "haproxy",
+					Fields: []chronograf.Field{
+						{
+							Field: "status",
+							Funcs: []string{"last"},
+						},
+					},
+					GroupBy: chronograf.GroupBy{
+						Time: "10s",
+						Tags: []string{"pxname"},
+					},
+					Tags:            map[string][]string{},
+					AreTagsAccepted: false,
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
