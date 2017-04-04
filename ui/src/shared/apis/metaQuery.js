@@ -1,4 +1,5 @@
 import AJAX from 'utils/ajax'
+import _ from 'lodash'
 import {buildInfluxUrl, proxy} from 'utils/queryUrlGenerator'
 
 export const showDatabases = async (source) => {
@@ -36,14 +37,15 @@ export function showMeasurements(source, db) {
 }
 
 export function showTagKeys({source, database, retentionPolicy, measurement}) {
-  const query = `SHOW TAG KEYS FROM "${measurement}"`
-
+  const rp = _.toString(retentionPolicy)
+  const query = `SHOW TAG KEYS FROM "${rp}"."${measurement}"`
   return proxy({source, db: database, rp: retentionPolicy, query})
 }
 
 export function showTagValues({source, database, retentionPolicy, measurement, tagKeys}) {
   const keys = tagKeys.sort().map((k) => `"${k}"`).join(', ')
-  const query = `SHOW TAG VALUES FROM "${measurement}" WITH KEY IN (${keys})`
+  const rp = _.toString(retentionPolicy)
+  const query = `SHOW TAG VALUES FROM "${rp}"."${measurement}" WITH KEY IN (${keys})`
 
   return proxy({source, db: database, rp: retentionPolicy, query})
 }
