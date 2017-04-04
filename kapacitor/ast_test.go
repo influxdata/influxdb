@@ -346,8 +346,614 @@ trigger
 						Time: "10s",
 						Tags: []string{"pxname"},
 					},
-					Tags:            map[string][]string{},
 					AreTagsAccepted: false,
+				},
+			},
+		},
+		{
+			name: "Test valid template alert",
+			script: `var db = 'influxdb'
+
+var rp = 'autogen'
+
+var measurement = 'haproxy'
+
+var groupBy = ['pxname']
+
+var whereFilter = lambda: TRUE
+
+var period = 10s
+
+var every = 10s
+
+var name = 'haproxy'
+
+var idVar = name + ':{{.Group}}'
+
+var message = 'Haproxy monitor : {{.ID}} : {{ index .Tags "server" }} : {{ index .Tags "pxname" }} is {{ .Level }} '
+
+var idTag = 'alertID'
+
+var levelTag = 'level'
+
+var messageField = 'message'
+
+var durationField = 'duration'
+
+var outputDB = 'chronograf'
+
+var outputRP = 'autogen'
+
+var outputMeasurement = 'alerts'
+
+var triggerType = 'threshold'
+
+var details = 'Email template'
+
+var crit = 'DOWN'
+
+var data = stream
+    |from()
+        .database(db)
+        .retentionPolicy(rp)
+        .measurement(measurement)
+        .groupBy(groupBy)
+        .where(whereFilter)
+    |window()
+        .period(period)
+        .every(every)
+        .align()
+    |last('status')
+        .as('value')
+
+var trigger = data
+    |alert()
+        .crit(lambda: "value" > crit)
+        .stateChangesOnly()
+        .message(message)
+        .id(idVar)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
+        .details(details)
+        .email()
+
+trigger
+    |influxDBOut()
+        .create()
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
+        .tag('alertName', name)
+        .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
+`,
+			want: chronograf.AlertRule{
+				Name:    "haproxy",
+				Trigger: "threshold",
+				Alerts:  []string{"smtp"},
+				AlertNodes: []chronograf.KapacitorNode{
+					chronograf.KapacitorNode{
+						Name: "smtp",
+					},
+				},
+				TriggerValues: chronograf.TriggerValues{
+					Operator: "greater than",
+					Value:    "DOWN",
+				},
+				Every:   "10s",
+				Message: `Haproxy monitor : {{.ID}} : {{ index .Tags "server" }} : {{ index .Tags "pxname" }} is {{ .Level }} `,
+				Details: "Email template",
+				Query: chronograf.QueryConfig{
+					Database:        "influxdb",
+					RetentionPolicy: "autogen",
+					Measurement:     "haproxy",
+					Fields: []chronograf.Field{
+						{
+							Field: "status",
+							Funcs: []string{"last"},
+						},
+					},
+					GroupBy: chronograf.GroupBy{
+						Time: "10s",
+						Tags: []string{"pxname"},
+					},
+					AreTagsAccepted: false,
+				},
+			},
+		},
+		{
+			name: "Test valid template alert with detail",
+			script: `var db = 'telegraf'
+
+var rp = 'autogen'
+
+var measurement = 'cpu'
+
+var groupBy = ['host', 'cluster_id']
+
+var whereFilter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
+
+var period = 10m
+
+var every = 30s
+
+var name = 'name'
+
+var idVar = name + ':{{.Group}}'
+
+var message = 'message'
+
+var idTag = 'alertID'
+
+var levelTag = 'level'
+
+var messageField = 'message'
+
+var durationField = 'duration'
+
+var outputDB = 'chronograf'
+
+var outputRP = 'autogen'
+
+var outputMeasurement = 'alerts'
+
+var triggerType = 'threshold'
+
+var details = 'details'
+
+var crit = 90
+
+var data = stream
+    |from()
+        .database(db)
+        .retentionPolicy(rp)
+        .measurement(measurement)
+        .groupBy(groupBy)
+        .where(whereFilter)
+    |window()
+        .period(period)
+        .every(every)
+        .align()
+    |mean('usage_user')
+        .as('value')
+
+var trigger = data
+    |alert()
+        .crit(lambda: "value" > crit)
+        .stateChangesOnly()
+        .message(message)
+        .id(idVar)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
+        .details(details)
+        .slack()
+        .victorOps()
+        .email()
+
+trigger
+    |influxDBOut()
+        .create()
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
+        .tag('alertName', name)
+        .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
+`,
+			want: chronograf.AlertRule{
+				Name:    "name",
+				Trigger: "threshold",
+				Alerts:  []string{"victorops", "smtp", "slack"},
+				AlertNodes: []chronograf.KapacitorNode{
+					{Name: "victorops"},
+					{Name: "smtp"},
+					{Name: "slack"},
+				},
+				TriggerValues: chronograf.TriggerValues{
+					Operator: "greater than",
+					Value:    "90",
+				},
+				Every:   "30s",
+				Message: "message",
+				Details: "details",
+				Query: chronograf.QueryConfig{
+					Database:        "telegraf",
+					Measurement:     "cpu",
+					RetentionPolicy: "autogen",
+					Fields: []chronograf.Field{
+						{
+							Field: "usage_user",
+							Funcs: []string{"mean"},
+						},
+					},
+					Tags: map[string][]string{
+						"host": []string{
+							"acc-0eabc309-eu-west-1-data-3",
+							"prod",
+						},
+						"cpu": []string{
+							"cpu_total",
+						},
+					},
+					GroupBy: chronograf.GroupBy{
+						Time: "10m0s",
+						Tags: []string{"host", "cluster_id"},
+					},
+					AreTagsAccepted: true,
+					RawText:         "",
+				},
+			},
+		},
+		{
+			name: "Test valid threshold inside range",
+			script: `var db = 'telegraf'
+
+var rp = 'autogen'
+
+var measurement = 'cpu'
+
+var groupBy = ['host', 'cluster_id']
+
+var whereFilter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
+
+var period = 10m
+
+var every = 30s
+
+var name = 'name'
+
+var idVar = name + ':{{.Group}}'
+
+var message = 'message'
+
+var idTag = 'alertID'
+
+var levelTag = 'level'
+
+var messageField = 'message'
+
+var durationField = 'duration'
+
+var outputDB = 'chronograf'
+
+var outputRP = 'autogen'
+
+var outputMeasurement = 'alerts'
+
+var triggerType = 'threshold'
+
+var lower = 90
+
+var upper = 100
+
+var data = stream
+    |from()
+        .database(db)
+        .retentionPolicy(rp)
+        .measurement(measurement)
+        .groupBy(groupBy)
+        .where(whereFilter)
+    |window()
+        .period(period)
+        .every(every)
+        .align()
+    |mean('usage_user')
+        .as('value')
+
+var trigger = data
+    |alert()
+        .crit(lambda: "value" >= lower AND "value" <= upper)
+        .stateChangesOnly()
+        .message(message)
+        .id(idVar)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
+        .slack()
+        .victorOps()
+        .email()
+
+trigger
+    |influxDBOut()
+        .create()
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
+        .tag('alertName', name)
+        .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
+`,
+			want: chronograf.AlertRule{
+				Name:    "name",
+				Trigger: "threshold",
+				Alerts:  []string{"victorops", "smtp", "slack"},
+				AlertNodes: []chronograf.KapacitorNode{
+					{Name: "victorops"},
+					{Name: "smtp"},
+					{Name: "slack"},
+				},
+				TriggerValues: chronograf.TriggerValues{
+					Operator:   "inside range",
+					Value:      "90",
+					RangeValue: "100",
+				},
+				Every:   "30s",
+				Message: "message",
+				Query: chronograf.QueryConfig{
+					Database:        "telegraf",
+					Measurement:     "cpu",
+					RetentionPolicy: "autogen",
+					Fields: []chronograf.Field{
+						{
+							Field: "usage_user",
+							Funcs: []string{"mean"},
+						},
+					},
+					Tags: map[string][]string{
+						"host": []string{
+							"acc-0eabc309-eu-west-1-data-3",
+							"prod",
+						},
+						"cpu": []string{
+							"cpu_total",
+						},
+					},
+					GroupBy: chronograf.GroupBy{
+						Time: "10m0s",
+						Tags: []string{"host", "cluster_id"},
+					},
+					AreTagsAccepted: true,
+					RawText:         "",
+				},
+			},
+		},
+		{
+			name: "Test valid threshold outside range",
+			script: `var db = 'telegraf'
+
+var rp = 'autogen'
+
+var measurement = 'cpu'
+
+var groupBy = ['host', 'cluster_id']
+
+var whereFilter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
+
+var period = 10m
+
+var every = 30s
+
+var name = 'name'
+
+var idVar = name + ':{{.Group}}'
+
+var message = 'message'
+
+var idTag = 'alertID'
+
+var levelTag = 'level'
+
+var messageField = 'message'
+
+var durationField = 'duration'
+
+var outputDB = 'chronograf'
+
+var outputRP = 'autogen'
+
+var outputMeasurement = 'alerts'
+
+var triggerType = 'threshold'
+
+var lower = 90
+
+var upper = 100
+
+var data = stream
+    |from()
+        .database(db)
+        .retentionPolicy(rp)
+        .measurement(measurement)
+        .groupBy(groupBy)
+        .where(whereFilter)
+    |window()
+        .period(period)
+        .every(every)
+        .align()
+    |mean('usage_user')
+        .as('value')
+
+var trigger = data
+    |alert()
+        .crit(lambda: "value" < lower OR "value" > upper)
+        .stateChangesOnly()
+        .message(message)
+        .id(idVar)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
+        .slack()
+        .victorOps()
+        .email()
+
+trigger
+    |influxDBOut()
+        .create()
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
+        .tag('alertName', name)
+        .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
+`,
+			want: chronograf.AlertRule{
+				Name:    "name",
+				Trigger: "threshold",
+				Alerts:  []string{"victorops", "smtp", "slack"},
+				AlertNodes: []chronograf.KapacitorNode{
+					{Name: "victorops"},
+					{Name: "smtp"},
+					{Name: "slack"},
+				},
+				TriggerValues: chronograf.TriggerValues{
+					Operator:   "outside range",
+					Value:      "90",
+					RangeValue: "100",
+				},
+				Every:   "30s",
+				Message: "message",
+				Query: chronograf.QueryConfig{
+					Database:        "telegraf",
+					Measurement:     "cpu",
+					RetentionPolicy: "autogen",
+					Fields: []chronograf.Field{
+						{
+							Field: "usage_user",
+							Funcs: []string{"mean"},
+						},
+					},
+					Tags: map[string][]string{
+						"host": []string{
+							"acc-0eabc309-eu-west-1-data-3",
+							"prod",
+						},
+						"cpu": []string{
+							"cpu_total",
+						},
+					},
+					GroupBy: chronograf.GroupBy{
+						Time: "10m0s",
+						Tags: []string{"host", "cluster_id"},
+					},
+					AreTagsAccepted: true,
+					RawText:         "",
+				},
+			},
+		},
+		{
+			name: "Test threshold no aggregate",
+			script: `var db = 'telegraf'
+
+var rp = 'autogen'
+
+var measurement = 'cpu'
+
+var groupBy = ['host', 'cluster_id']
+
+var whereFilter = lambda: ("cpu" == 'cpu_total') AND ("host" == 'acc-0eabc309-eu-west-1-data-3' OR "host" == 'prod')
+
+var name = 'name'
+
+var idVar = name + ':{{.Group}}'
+
+var message = 'message'
+
+var idTag = 'alertID'
+
+var levelTag = 'level'
+
+var messageField = 'message'
+
+var durationField = 'duration'
+
+var outputDB = 'chronograf'
+
+var outputRP = 'autogen'
+
+var outputMeasurement = 'alerts'
+
+var triggerType = 'threshold'
+
+var crit = 90
+
+var data = stream
+    |from()
+        .database(db)
+        .retentionPolicy(rp)
+        .measurement(measurement)
+        .groupBy(groupBy)
+        .where(whereFilter)
+    |eval(lambda: "usage_user")
+        .as('value')
+
+var trigger = data
+    |alert()
+        .crit(lambda: "value" > crit)
+        .stateChangesOnly()
+        .message(message)
+        .id(idVar)
+        .idTag(idTag)
+        .levelTag(levelTag)
+        .messageField(messageField)
+        .durationField(durationField)
+        .slack()
+        .victorOps()
+        .email()
+
+trigger
+    |influxDBOut()
+        .create()
+        .database(outputDB)
+        .retentionPolicy(outputRP)
+        .measurement(outputMeasurement)
+        .tag('alertName', name)
+        .tag('triggerType', triggerType)
+
+trigger
+    |httpOut('output')
+`,
+			want: chronograf.AlertRule{
+				Name:    "name",
+				Trigger: "threshold",
+				Alerts:  []string{"victorops", "smtp", "slack"},
+				AlertNodes: []chronograf.KapacitorNode{
+					{Name: "victorops"},
+					{Name: "smtp"},
+					{Name: "slack"},
+				},
+				TriggerValues: chronograf.TriggerValues{
+					Operator: "greater than",
+					Value:    "90",
+				},
+				Message: "message",
+				Query: chronograf.QueryConfig{
+					Database:        "telegraf",
+					Measurement:     "cpu",
+					RetentionPolicy: "autogen",
+					Fields: []chronograf.Field{
+						{
+							Field: "usage_user",
+							Funcs: []string{},
+						},
+					},
+					Tags: map[string][]string{
+						"host": []string{
+							"acc-0eabc309-eu-west-1-data-3",
+							"prod",
+						},
+						"cpu": []string{
+							"cpu_total",
+						},
+					},
+					GroupBy: chronograf.GroupBy{
+						Tags: []string{"host", "cluster_id"},
+					},
+					AreTagsAccepted: true,
+					RawText:         "",
 				},
 			},
 		},

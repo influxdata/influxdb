@@ -284,7 +284,7 @@ type FieldFunc struct {
 func extractFieldFunc(script chronograf.TICKScript) FieldFunc {
 	// If the TICKScript is relative or threshold alert with an aggregate
 	// then the aggregate function and field is in the form |func('field').as('value')
-	var re = regexp.MustCompile(`(?Um)\|(\w+)\('(.*)'\)\.as\('value'\)`)
+	var re = regexp.MustCompile(`(?Um)\|(\w+)\('(.*)'\)\s*\.as\('value'\)`)
 	for _, match := range re.FindAllStringSubmatch(string(script), -1) {
 		fn, field := match[1], match[2]
 		return FieldFunc{
@@ -295,7 +295,7 @@ func extractFieldFunc(script chronograf.TICKScript) FieldFunc {
 
 	// If the alert does not have an aggregate then the the value function will
 	// be this form: |eval(lambda: "%s").as('value')
-	re = regexp.MustCompile(`(?Um)\|eval\(lambda: "(.*)"\)\.as\('value'\)`)
+	re = regexp.MustCompile(`(?Um)\|eval\(lambda: "(.*)"\)\s*\.as\('value'\)`)
 	for _, match := range re.FindAllStringSubmatch(string(script), -1) {
 		field := match[1]
 		return FieldFunc{
@@ -314,7 +314,7 @@ type CritCondition struct {
 func extractCrit(script chronograf.TICKScript) CritCondition {
 	// Threshold and relative alerts have the form .crit(lambda: "value" op crit)
 	// Threshold range alerts have the form .crit(lambda: "value" op lower op "value" op upper)
-	var re = regexp.MustCompile(`(?Um)\.crit\(lambda: "value" (.*) crit\)`)
+	var re = regexp.MustCompile(`(?Um)\.crit\(lambda:\s+"value"\s+(.*)\s+crit\)`)
 	for _, match := range re.FindAllStringSubmatch(string(script), -1) {
 		op := match[1]
 		return CritCondition{
@@ -323,7 +323,7 @@ func extractCrit(script chronograf.TICKScript) CritCondition {
 			},
 		}
 	}
-	re = regexp.MustCompile(`(?Um)\.crit\(lambda: "value" (.*) lower (.*) "value" (.*) upper\)`)
+	re = regexp.MustCompile(`(?Um)\.crit\(lambda:\s+"value"\s+(.*)\s+lower\s+(.*)\s+"value"\s+(.*)\s+upper\)`)
 	for _, match := range re.FindAllStringSubmatch(string(script), -1) {
 		lower, compound, upper := match[1], match[2], match[3]
 		return CritCondition{
@@ -406,6 +406,7 @@ func Reverse(script chronograf.TICKScript) (chronograf.AlertRule, error) {
 
 	rule.Name = commonVars.Name
 	rule.Trigger = commonVars.TriggerType
+	rule.Message = commonVars.Message
 	rule.Details = commonVars.Detail
 	rule.Query.Database = commonVars.DB
 	rule.Query.RetentionPolicy = commonVars.RP
@@ -422,10 +423,14 @@ func Reverse(script chronograf.TICKScript) (chronograf.AlertRule, error) {
 	} else {
 		rule.Query.GroupBy.Time = commonVars.Period
 		rule.Every = commonVars.Every
+		funcs := []string{}
+		if fieldFunc.Func != "" {
+			funcs = append(funcs, fieldFunc.Func)
+		}
 		rule.Query.Fields = []chronograf.Field{
 			{
 				Field: fieldFunc.Field,
-				Funcs: []string{fieldFunc.Func},
+				Funcs: funcs,
 			},
 		}
 	}
@@ -469,66 +474,6 @@ func Reverse(script chronograf.TICKScript) (chronograf.AlertRule, error) {
 	}
 
 	extractAlertNodes(p, &rule)
-
-	if err := valueStr("db", &rule.Query.Database, vars); err != nil {
-		return chronograf.AlertRule{}, err
-	}
-	rule.Query.RetentionPolicy = vars["rp"].Value.(string)
-	rule.Query.Measurement = vars["measurement"].Value.(string)
-	rule.Name = vars["name"].Value.(string)
-	rule.Trigger = vars["triggerType"].Value.(string)
-	rule.Every = vars["every"].Value.(time.Duration).String()
-	// Convert to just minutes or hours
-	rule.Query.GroupBy.Time = vars["period"].Value.(time.Duration).String()
-	rule.Message = vars["message"].Value.(string)
-	if v, ok := vars["lower"]; ok {
-		rule.TriggerValues.Value = fmt.Sprintf("%v", v.Value)
-	}
-	if v, ok := vars["upper"]; ok {
-		rule.TriggerValues.RangeValue = fmt.Sprintf("%v", v.Value)
-	}
-	if v, ok := vars["crit"]; ok {
-		rule.TriggerValues.Value = fmt.Sprintf("%v", v.Value)
-	}
-	if v, ok := vars["groupBy"]; ok {
-		groups := v.Value.([]tick.Var)
-		rule.Query.GroupBy.Tags = make([]string, len(groups))
-		for i, g := range groups {
-			rule.Query.GroupBy.Tags[i] = g.Value.(string)
-		}
-	}
-	if v, ok := vars["whereFilter"]; ok {
-		rule.Query.Tags = make(map[string][]string)
-		value := v.Value.(*ast.LambdaNode)
-		var re = regexp.MustCompile(`(?U)"(.*)"\s+(==|!=)\s+'(.*)'`)
-		for _, match := range re.FindAllStringSubmatch(value.ExpressionString(), -1) {
-			if match[2] == "==" {
-				rule.Query.AreTagsAccepted = true
-			}
-			tag, value := match[1], match[3]
-			values, ok := rule.Query.Tags[tag]
-			if !ok {
-				values = make([]string, 0)
-			}
-			values = append(values, value)
-			rule.Query.Tags[tag] = values
-		}
-	}
-
-	// Only if non-deadman
-	var re = regexp.MustCompile(`(?Um)\|(\w+)\('(.*)'\)\s+\.as\(\'.*\'\)`)
-	for _, match := range re.FindAllStringSubmatch(string(script), -1) {
-		fn, field := match[1], match[2]
-		rule.Query.Fields = []chronograf.Field{
-			chronograf.Field{
-				Field: field,
-				Funcs: []string{
-					fn,
-				},
-			},
-		}
-	}
-
 	return rule, err
 }
 
