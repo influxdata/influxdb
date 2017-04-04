@@ -55,6 +55,12 @@
   # Values in the range of 0-100ms are recommended for non-SSD disks.
   # wal-fsync-delay = "0s"
 
+
+  # The type of shard index to use for new shards.  The default is an in-memory index that is
+  # recreated at startup.  A value of "tsi1" will use a disk based index that supports higher
+  # cardinality datasets.
+  # index-version = "inmem"
+
   # Trace logging provides more verbose output around the tsm engine. Turning
   # this on can provide more useful output for debugging tsm engine issues.
   # trace-logging-enabled = false
