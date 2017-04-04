@@ -4266,13 +4266,13 @@ func TestServer_Query_AggregateSelectors(t *testing.T) {
 			name:    "distinct - time",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT time, distinct(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: aggregate function distinct() can not be combined with other functions or fields"}`,
+			exp:     `{"error":"error parsing query: aggregate function distinct() cannot be combined with other functions or fields"}`,
 		},
 		&Query{
 			name:    "distinct - tx",
 			params:  url.Values{"db": []string{"db0"}},
 			command: `SELECT tx, distinct(rx) FROM network where time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T00:01:29Z' group by time(30s)`,
-			exp:     `{"error":"error parsing query: aggregate function distinct() can not be combined with other functions or fields"}`,
+			exp:     `{"error":"error parsing query: aggregate function distinct() cannot be combined with other functions or fields"}`,
 		},
 		&Query{
 			name:    "mean - baseline 30s",
