@@ -517,13 +517,6 @@ func (t *TSMReader) BlockIterator() *BlockIterator {
 	}
 }
 
-// deref removes mmap references held by another object.
-func (t *TSMReader) deref(d dereferencer) {
-	if acc, ok := t.accessor.(*mmapAccessor); ok && acc.b != nil {
-		d.Dereference(acc.b)
-	}
-}
-
 // indirectIndex is a TSMIndex that uses a raw byte slice representation of an index.  This
 // implementation can be used for indexes that may be MMAPed into memory.
 type indirectIndex struct {

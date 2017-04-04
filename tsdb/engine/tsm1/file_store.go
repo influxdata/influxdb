@@ -107,13 +107,6 @@ type TSMFile interface {
 	// BlockIterator returns an iterator pointing to the first block in the file and
 	// allows sequential iteration to each and every block.
 	BlockIterator() *BlockIterator
-
-	// Removes mmap references held by another object.
-	deref(dereferencer)
-}
-
-type dereferencer interface {
-	Dereference([]byte)
 }
 
 // Statistics gathered by the FileStore.
@@ -143,8 +136,6 @@ type FileStore struct {
 	purger *purger
 
 	currentTempDirID int
-
-	dereferencer dereferencer
 }
 
 // FileStat holds information about a TSM file on disk.
@@ -475,9 +466,6 @@ func (f *FileStore) Close() error {
 	defer f.mu.Unlock()
 
 	for _, file := range f.files {
-		if f.dereferencer != nil {
-			file.deref(f.dereferencer)
-		}
 		file.Close()
 	}
 
@@ -633,11 +621,6 @@ func (f *FileStore) Replace(oldFiles, newFiles []string) error {
 
 					inuse = append(inuse, file)
 					continue
-				}
-
-				// Remove any mmap references held by the index.
-				if f.dereferencer != nil {
-					file.deref(f.dereferencer)
 				}
 
 				if err := file.Close(); err != nil {
@@ -1224,11 +1207,6 @@ func (p *purger) purge() {
 			p.mu.Lock()
 			for k, v := range p.files {
 				if !v.InUse() {
-					// Remove any mmap references held by the index.
-					if p.fileStore.dereferencer != nil {
-						v.deref(p.fileStore.dereferencer)
-					}
-
 					if err := v.Close(); err != nil {
 						p.logger.Info(fmt.Sprintf("purge: close file: %v", err))
 						continue
