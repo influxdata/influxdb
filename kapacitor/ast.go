@@ -3,6 +3,7 @@ package kapacitor
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,6 +22,43 @@ func varString(kapaVar string, vars map[string]tick.Var) (string, bool) {
 	}
 	strVar, ok := v.Value.(string)
 	return strVar, ok
+}
+
+func varValue(kapaVar string, vars map[string]tick.Var) (string, bool) {
+	var ok bool
+	v, ok := vars[kapaVar]
+	if !ok {
+		return "", ok
+	}
+	switch val := v.Value.(type) {
+	case string:
+		return val, true
+	case float64:
+		return strconv.FormatFloat(val, 'f', -1, 32), true
+	case int64:
+		return strconv.FormatInt(val, 10), true
+	case bool:
+		return strconv.FormatBool(val), true
+	case time.Time:
+		return val.String(), true
+	case *regexp.Regexp:
+		return val.String(), true
+	default:
+		return "", false
+	}
+}
+
+func varDuration(kapaVar string, vars map[string]tick.Var) (string, bool) {
+	var ok bool
+	v, ok := vars[kapaVar]
+	if !ok {
+		return "", ok
+	}
+	durVar, ok := v.Value.(time.Duration)
+	if !ok {
+		return "", ok
+	}
+	return durVar.String(), true
 }
 
 func varStringList(kapaVar string, vars map[string]tick.Var) ([]string, bool) {
@@ -93,6 +131,9 @@ func varWhereFilter(vars map[string]tick.Var) (WhereFilter, bool) {
 		return WhereFilter{}, false
 	}
 	for op := range opSet {
+		if op != "==" && op != "!=" {
+			return WhereFilter{}, false
+		}
 		filter.Operator = op
 	}
 	return filter, true
@@ -100,56 +141,67 @@ func varWhereFilter(vars map[string]tick.Var) (WhereFilter, bool) {
 
 // CommonVars includes all the variables of a chronograf TICKScript
 type CommonVars struct {
-	Vars    map[string]string
-	GroupBy []string
-	Filter  WhereFilter
-	Period  string
-	Every   string
-	Detail  string
+	DB          string
+	RP          string
+	Measurement string
+	Name        string
+	Message     string
+	TriggerType string
+	GroupBy     []string
+	Filter      WhereFilter
+	Period      string
+	Every       string
+	Detail      string
 }
 
+// ThresholdVars represents the critical value where an alert occurs
 type ThresholdVars struct {
 	Crit string
 }
 
+// RangeVars represents the critical range where an alert occurs
 type RangeVars struct {
 	Lower string
 	Upper string
 }
 
+// RelativeVars represents the critical range and time in the past an alert occurs
 type RelativeVars struct {
 	Shift string
 	Crit  string
 }
 
+// DeadmanVars represents a deadman alert
 type DeadmanVars struct{}
 
-func extractCommonVars(script chronograf.TICKScript) (CommonVars, error) {
-	scope := stateful.NewScope()
-	template, err := pipeline.CreateTemplatePipeline(string(script), pipeline.StreamEdge, scope, &deadman{})
-	if err != nil {
-		return CommonVars{}, err
-	}
-
-	vars := template.Vars()
+func extractCommonVars(vars map[string]tick.Var) (CommonVars, error) {
 	res := CommonVars{}
 	// All these variables must exist to be a chronograf TICKScript
-	commonStrs := []string{
-		"db",
-		"rp",
-		"measurement",
-		"name",
-		"message",
-		"triggerType",
+	// If any of these don't exist, then this isn't a tickscript we can process
+	var ok bool
+	res.DB, ok = varString("db", vars)
+	if !ok {
+		return CommonVars{}, ErrNotChronoTickscript
 	}
-
-	for _, v := range commonStrs {
-		str, ok := varString(v, vars)
-		// Didn't exist so, this isn't a tickscript we can process
-		if !ok {
-			return CommonVars{}, ErrNotChronoTickscript
-		}
-		res.Vars[v] = str
+	res.RP, ok = varString("rp", vars)
+	if !ok {
+		return CommonVars{}, ErrNotChronoTickscript
+	}
+	res.Measurement, ok = varString("measurement", vars)
+	if !ok {
+		return CommonVars{}, ErrNotChronoTickscript
+	}
+	res.Name, ok = varString("name", vars)
+	if !ok {
+		return CommonVars{}, ErrNotChronoTickscript
+	}
+	res.Message, ok = varString("message", vars)
+	if !ok {
+		return CommonVars{}, ErrNotChronoTickscript
+	}
+	res.TriggerType, ok = varString("triggerType", vars)
+	if !ok {
+		return CommonVars{}, ErrNotChronoTickscript
 	}
 
 	// All chronograf TICKScripts have groupBy. Possible to be empty list though.
@@ -172,12 +224,12 @@ func extractCommonVars(script chronograf.TICKScript) (CommonVars, error) {
 	}
 
 	// Relative and Threshold alerts may have an every variables
-	if every, ok := varString("every", vars); ok {
+	if every, ok := varDuration("every", vars); ok {
 		res.Every = every
 	}
 
 	// All alert types may have a period variables
-	if period, ok := varString("period", vars); ok {
+	if period, ok := varDuration("period", vars); ok {
 		res.Period = period
 	}
 	return res, nil
@@ -194,27 +246,28 @@ func extractAlertVars(vars map[string]tick.Var) (interface{}, error) {
 	case Deadman:
 		return &DeadmanVars{}, nil
 	case Threshold:
-		if crit, ok := varString("crit", vars); ok {
+		if crit, ok := varValue("crit", vars); ok {
 			return &ThresholdVars{
 				Crit: crit,
 			}, nil
 		}
 		r := &RangeVars{}
 		// Threshold Range alerts must have both an upper and lower bound
-		if r.Lower, ok = varString("lower", vars); !ok {
+		if r.Lower, ok = varValue("lower", vars); !ok {
 			return nil, ErrNotChronoTickscript
 		}
-		if r.Upper, ok = varString("upper", vars); !ok {
+		if r.Upper, ok = varValue("upper", vars); !ok {
 			return nil, ErrNotChronoTickscript
 		}
 		return r, nil
 	case Relative:
 		// Relative alerts must have a time shift and critical value
 		r := &RelativeVars{}
-		if r.Shift, ok = varString("shift", vars); !ok {
+		if r.Shift, ok = varDuration("shift", vars); !ok {
 			return nil, ErrNotChronoTickscript
 		}
-		if r.Crit, ok = varString("crit", vars); !ok {
+		// TODO: crit could be string, float, int
+		if r.Crit, ok = varValue("crit", vars); !ok {
 			return nil, ErrNotChronoTickscript
 		}
 		return r, nil
@@ -254,6 +307,7 @@ func extractFieldFunc(script chronograf.TICKScript) FieldFunc {
 	return FieldFunc{}
 }
 
+// CritCondition represents the operators that determine when the alert should go critical
 type CritCondition struct {
 	Operators []string
 }
@@ -317,12 +371,106 @@ func Reverse(script chronograf.TICKScript) (chronograf.AlertRule, error) {
 	rule := chronograf.AlertRule{
 		Alerts: []string{},
 	}
+	t, err := alertType(script)
+	if err != nil {
+		return rule, err
+	}
+
 	scope := stateful.NewScope()
 	template, err := pipeline.CreateTemplatePipeline(string(script), pipeline.StreamEdge, scope, &deadman{})
 	if err != nil {
 		return chronograf.AlertRule{}, err
 	}
 	vars := template.Vars()
+
+	commonVars, err := extractCommonVars(vars)
+	if err != nil {
+		return rule, err
+	}
+	alertVars, err := extractAlertVars(vars)
+	if err != nil {
+		return rule, err
+	}
+	fieldFunc := extractFieldFunc(script)
+	critCond := extractCrit(script)
+
+	switch t {
+	case Threshold, ChangeAmount, ChangePercent:
+		if len(critCond.Operators) != 1 {
+			return rule, ErrNotChronoTickscript
+		}
+	case ThresholdRange:
+		if len(critCond.Operators) != 3 {
+			return rule, ErrNotChronoTickscript
+		}
+	}
+
+	rule.Name = commonVars.Name
+	rule.Trigger = commonVars.TriggerType
+	rule.Details = commonVars.Detail
+	rule.Query.Database = commonVars.DB
+	rule.Query.RetentionPolicy = commonVars.RP
+	rule.Query.Measurement = commonVars.Measurement
+	rule.Query.GroupBy.Tags = commonVars.GroupBy
+
+	if commonVars.Filter.Operator == "==" {
+		rule.Query.AreTagsAccepted = true
+	}
+	rule.Query.Tags = commonVars.Filter.TagValues
+
+	if t == Deadman {
+		rule.TriggerValues.Period = commonVars.Period
+	} else {
+		rule.Query.GroupBy.Time = commonVars.Period
+		rule.Every = commonVars.Every
+		rule.Query.Fields = []chronograf.Field{
+			{
+				Field: fieldFunc.Field,
+				Funcs: []string{fieldFunc.Func},
+			},
+		}
+	}
+
+	switch t {
+	case ChangeAmount, ChangePercent:
+		rule.TriggerValues.Change = t
+		rule.TriggerValues.Operator, err = chronoOperator(critCond.Operators[0])
+		if err != nil {
+			return rule, ErrNotChronoTickscript
+		}
+		v, ok := alertVars.(*RelativeVars)
+		if !ok {
+			return rule, ErrNotChronoTickscript
+		}
+		rule.TriggerValues.Value = v.Crit
+		rule.TriggerValues.Shift = v.Shift
+	case Threshold:
+		rule.TriggerValues.Operator, err = chronoOperator(critCond.Operators[0])
+		if err != nil {
+			return rule, ErrNotChronoTickscript
+		}
+		v, ok := alertVars.(*ThresholdVars)
+		if !ok {
+			return rule, ErrNotChronoTickscript
+		}
+		rule.TriggerValues.Value = v.Crit
+	case ThresholdRange:
+		rule.TriggerValues.Operator, err = chronoRangeOperators(critCond.Operators)
+		v, ok := alertVars.(*RangeVars)
+		if !ok {
+			return rule, ErrNotChronoTickscript
+		}
+		rule.TriggerValues.Value = v.Lower
+		rule.TriggerValues.RangeValue = v.Upper
+	}
+
+	p, err := pipeline.CreatePipeline(string(script), pipeline.StreamEdge, stateful.NewScope(), &deadman{}, vars)
+	if err != nil {
+		return chronograf.AlertRule{}, err
+	}
+
+	extractAlertNodes(p, &rule)
+
 	if err := valueStr("db", &rule.Query.Database, vars); err != nil {
 		return chronograf.AlertRule{}, err
 	}
@@ -382,56 +530,6 @@ func Reverse(script chronograf.TICKScript) (chronograf.AlertRule, error) {
 		}
 	}
 
-	p, err := pipeline.CreatePipeline(string(script), pipeline.StreamEdge, stateful.NewScope(), &deadman{}, vars)
-	if err != nil {
-		return chronograf.AlertRule{}, err
-	}
-
-	p.Walk(func(n pipeline.Node) error {
-		switch t := n.(type) {
-		case *pipeline.AlertNode:
-			if t.HipChatHandlers != nil {
-
-			}
-			if t.OpsGenieHandlers != nil {
-				rule.Alerts = append(rule.Alerts, "hipchat")
-			}
-			if t.PagerDutyHandlers != nil {
-				rule.Alerts = append(rule.Alerts, "pagerduty")
-			}
-			if t.VictorOpsHandlers != nil {
-				rule.Alerts = append(rule.Alerts, "victorops")
-			}
-			if t.EmailHandlers != nil {
-				rule.Alerts = append(rule.Alerts, "smtp")
-			}
-			if t.PostHandlers != nil {
-				rule.Alerts = append(rule.Alerts, "http")
-			}
-			if t.AlertaHandlers != nil {
-				rule.Alerts = append(rule.Alerts, "alerta")
-			}
-			if t.SensuHandlers != nil {
-				rule.Alerts = append(rule.Alerts, "sensu")
-			}
-			if t.SlackHandlers != nil {
-				rule.Alerts = append(rule.Alerts, "slack")
-			}
-			if t.TalkHandlers != nil {
-				rule.Alerts = append(rule.Alerts, "talk")
-			}
-			if t.TelegramHandlers != nil {
-				rule.Alerts = append(rule.Alerts, "telegram")
-			}
-			if t.TcpHandlers != nil {
-				rule.Alerts = append(rule.Alerts, "tcp")
-			}
-			if t.ExecHandlers != nil {
-				rule.Alerts = append(rule.Alerts, "exec")
-			}
-		}
-		return nil
-	})
 	return rule, err
 }
 
@@ -448,6 +546,28 @@ func valueStr(key string, value *string, vars map[string]tick.Var) error {
 	return nil
 }
 
+func extractAlertNodes(p *pipeline.Pipeline, rule *chronograf.AlertRule) {
+	p.Walk(func(n pipeline.Node) error {
+		switch t := n.(type) {
+		case *pipeline.AlertNode:
+			extractHipchat(t, rule)
+			extractOpsgenie(t, rule)
+			extractPagerduty(t, rule)
+			extractVictorops(t, rule)
+			extractEmail(t, rule)
+			extractPost(t, rule)
+			extractAlerta(t, rule)
+			extractSensu(t, rule)
+			extractSlack(t, rule)
+			extractTalk(t, rule)
+			extractTelegram(t, rule)
+			extractTCP(t, rule)
+			extractExec(t, rule)
+		}
+		return nil
+	})
+}
+
 func extractHipchat(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 	if node.HipChatHandlers == nil {
 		return
@@ -455,8 +575,7 @@ func extractHipchat(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 	rule.Alerts = append(rule.Alerts, "hipchat")
 	h := node.HipChatHandlers[0]
 	alert := chronograf.KapacitorNode{
-		Name:       "hipchat",
-		Properties: []chronograf.KapacitorProperty{},
+		Name: "hipchat",
 	}
 
 	if h.Room != "" {
@@ -482,18 +601,17 @@ func extractOpsgenie(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 	rule.Alerts = append(rule.Alerts, "opsgenie")
 	o := node.OpsGenieHandlers[0]
 	alert := chronograf.KapacitorNode{
-		Name:       "opsgenie",
-		Properties: []chronograf.KapacitorProperty{},
+		Name: "opsgenie",
 	}
 
-	if o.RecipientsList != nil {
+	if len(o.RecipientsList) != 0 {
 		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
 			Name: "recipients",
 			Args: o.RecipientsList,
 		})
 	}
 
-	if o.TeamsList != nil {
+	if len(o.TeamsList) != 0 {
 		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
 			Name: "teams",
 			Args: o.TeamsList,
@@ -509,8 +627,7 @@ func extractPagerduty(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 	rule.Alerts = append(rule.Alerts, "pagerduty")
 	p := node.PagerDutyHandlers[0]
 	alert := chronograf.KapacitorNode{
-		Name:       "paperduty",
-		Properties: []chronograf.KapacitorProperty{},
+		Name: "paperduty",
 	}
 
 	if p.ServiceKey != "" {
@@ -529,8 +646,7 @@ func extractVictorops(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 	rule.Alerts = append(rule.Alerts, "victorops")
 	v := node.VictorOpsHandlers[0]
 	alert := chronograf.KapacitorNode{
-		Name:       "victorops",
-		Properties: []chronograf.KapacitorProperty{},
+		Name: "victorops",
 	}
 
 	if v.RoutingKey != "" {
@@ -549,11 +665,10 @@ func extractEmail(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 	rule.Alerts = append(rule.Alerts, "smtp")
 	e := node.EmailHandlers[0]
 	alert := chronograf.KapacitorNode{
-		Name:       "smtp",
-		Properties: []chronograf.KapacitorProperty{},
+		Name: "smtp",
 	}
 
-	if e.ToList != nil {
+	if len(e.ToList) != 0 {
 		alert.Args = e.ToList
 	}
 	rule.AlertNodes = append(rule.AlertNodes, alert)
@@ -567,7 +682,10 @@ func extractPost(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 	p := node.PostHandlers[0]
 	alert := chronograf.KapacitorNode{
 		Name: "http",
-		Args: []string{p.URL},
+	}
+
+	if p.URL != "" {
+		alert.Args = []string{p.URL}
 	}
 
 	rule.AlertNodes = append(rule.AlertNodes, alert)
@@ -580,8 +698,7 @@ func extractAlerta(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 	rule.Alerts = append(rule.Alerts, "alerta")
 	a := node.AlertaHandlers[0]
 	alert := chronograf.KapacitorNode{
-		Name:       "alerta",
-		Properties: []chronograf.KapacitorProperty{},
+		Name: "alerta",
 	}
 
 	if a.Token != "" {
@@ -662,15 +779,110 @@ func extractSlack(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
 	rule.Alerts = append(rule.Alerts, "slack")
 	s := node.SlackHandlers[0]
 	alert := chronograf.KapacitorNode{
-		Name:       "slack",
-		Properties: []chronograf.KapacitorProperty{},
+		Name: "slack",
 	}
 
-	if a.Token != "" {
+	if s.Channel != "" {
 		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
-			Name: "token",
-			Args: []string{a.Token},
+			Name: "channel",
+			Args: []string{s.Channel},
 		})
 	}
+
+	if s.IconEmoji != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "iconEmoji",
+			Args: []string{s.IconEmoji},
+		})
+	}
+
+	if s.Username != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "username",
+			Args: []string{s.Username},
+		})
+	}
+	rule.AlertNodes = append(rule.AlertNodes, alert)
+}
+func extractTalk(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
+	if node.TalkHandlers == nil {
+		return
+	}
+	rule.Alerts = append(rule.Alerts, "talk")
+	alert := chronograf.KapacitorNode{
+		Name: "talk",
+	}
+
+	rule.AlertNodes = append(rule.AlertNodes, alert)
+}
+func extractTelegram(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
+	if node.TelegramHandlers == nil {
+		return
+	}
+	rule.Alerts = append(rule.Alerts, "telegram")
+	t := node.TelegramHandlers[0]
+	alert := chronograf.KapacitorNode{
+		Name: "telegram",
+	}
+
+	if t.ChatId != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "chatId",
+			Args: []string{t.ChatId},
+		})
+	}
+
+	if t.ParseMode != "" {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "parseMode",
+			Args: []string{t.ParseMode},
+		})
+	}
+
+	if t.IsDisableWebPagePreview {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "disableWebPagePreview",
+		})
+	}
+
+	if t.IsDisableNotification {
+		alert.Properties = append(alert.Properties, chronograf.KapacitorProperty{
+			Name: "disableNotification",
+		})
+	}
+	rule.AlertNodes = append(rule.AlertNodes, alert)
+}
+
+func extractTCP(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
+	if node.TcpHandlers == nil {
+		return
+	}
+	rule.Alerts = append(rule.Alerts, "tcp")
+	t := node.TcpHandlers[0]
+	alert := chronograf.KapacitorNode{
+		Name: "tcp",
+	}
+
+	if t.Address != "" {
+		alert.Args = []string{t.Address}
+	}
+
+	rule.AlertNodes = append(rule.AlertNodes, alert)
+}
+
+func extractExec(node *pipeline.AlertNode, rule *chronograf.AlertRule) {
+	if node.ExecHandlers == nil {
+		return
+	}
+	rule.Alerts = append(rule.Alerts, "exec")
+	exec := node.ExecHandlers[0]
+	alert := chronograf.KapacitorNode{
+		Name: "exec",
+	}
+
+	if len(exec.Command) != 0 {
+		alert.Args = exec.Command
+	}
+
 	rule.AlertNodes = append(rule.AlertNodes, alert)
 }

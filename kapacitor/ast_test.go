@@ -58,13 +58,25 @@ func TestReverse(t *testing.T) {
 													.durationField(durationField)
 													.slack()
 													.victorOps()
-													.email()
+													.email('howdy@howdy.com')
 													`),
 
 			want: chronograf.AlertRule{
 				Name:    "name",
 				Trigger: "threshold",
-				Alerts:  []string{"victorops", "slack", "email"},
+				Alerts:  []string{"victorops", "smtp", "slack"},
+				AlertNodes: []chronograf.KapacitorNode{
+					{
+						Name: "victorops",
+					},
+					{
+						Name: "smtp",
+						Args: []string{"howdy@howdy.com"},
+					},
+					{
+						Name: "slack",
+					},
+				},
 				TriggerValues: chronograf.TriggerValues{
 					Operator: "greater than",
 					Value:    "90",
@@ -180,6 +192,52 @@ trigger
 
 trigger
     |httpOut('output')`,
+			want: chronograf.AlertRule{
+				Query: chronograf.QueryConfig{
+					Database:        "telegraf",
+					Measurement:     "cpu",
+					RetentionPolicy: "autogen",
+					Fields: []chronograf.Field{
+						chronograf.Field{
+							Field: "usage_user",
+							Funcs: []string{"mean"},
+						},
+					},
+					Tags: map[string][]string{
+						"cpu":  []string{"cpu_total"},
+						"host": []string{"acc-0eabc309-eu-west-1-data-3", "prod"},
+					},
+					GroupBy: chronograf.GroupBy{
+						Time: "10m0s",
+						Tags: []string{"host", "cluster_id"},
+					},
+					AreTagsAccepted: true,
+				},
+				Every: "30s",
+				Alerts: []string{
+					"victorops",
+					"smtp",
+					"slack",
+				},
+				AlertNodes: []chronograf.KapacitorNode{
+					chronograf.KapacitorNode{
+						Name: "victorops",
+					},
+					chronograf.KapacitorNode{
+						Name: "smtp",
+					},
+					chronograf.KapacitorNode{
+						Name: "slack",
+					},
+				},
+				Message: "message",
+				Trigger: "threshold",
+				TriggerValues: chronograf.TriggerValues{
+					Operator: "greater than",
+					Value:    "90",
+				},
+				Name: "name",
+			},
 		},
 	}
 	for _, tt := range tests {
