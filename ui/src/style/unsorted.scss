@@ -2,16 +2,6 @@
     Unsorted
     ----------------------------------------------
 */
-.select-source-page {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  overflow: auto;
-  @include custom-scrollbar($g2-kevlar, $c-pool);
-  @include gradient-v($g2-kevlar, $g0-obsidian);
-}
 .text-right .btn {
   margin: 0 0 0 4px;
 }

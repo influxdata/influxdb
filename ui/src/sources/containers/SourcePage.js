@@ -125,13 +125,15 @@ export const SourcePage = React.createClass({
           <div className="container-fluid">
             <div className="row">
               <div className="col-md-8 col-md-offset-2">
-                <SourceForm
-                  source={source}
-                  editMode={editMode}
-                  onInputChange={this.handleInputChange}
-                  onSubmit={this.handleSubmit}
-                  onBlurSourceURL={this.handleBlurSourceURL}
-                />
+                <div className="panel panel-minimal">
+                  <SourceForm
+                    source={source}
+                    editMode={editMode}
+                    onInputChange={this.handleInputChange}
+                    onSubmit={this.handleSubmit}
+                    onBlurSourceURL={this.handleBlurSourceURL}
+                  />
+                </div>
               </div>
             </div>
           </div>
