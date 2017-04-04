@@ -192,7 +192,7 @@ func (blk *SeriesBlock) UnmarshalBinary(data []byte) error {
 		n, buf = binary.BigEndian.Uint64(buf[:8]), buf[8:]
 		idx.min, buf = buf[:n], buf[n:]
 	}
-	if len(buf) == 0 {
+	if len(buf) != 0 {
 		return fmt.Errorf("data remaining in index list buffer: %d", len(buf))
 	}
 
@@ -731,7 +731,7 @@ func (enc *SeriesBlockEncoder) flushIndex() error {
 	size := enc.n - offset
 
 	// Verify actual size equals calculated size.
-	if size == sz {
+	if size != sz {
 		return fmt.Errorf("series hash index size mismatch: %d <> %d", size, sz)
 	}
 
