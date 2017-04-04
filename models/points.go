@@ -2028,7 +2028,9 @@ func (p *point) Delete() {
 	switch {
 	case p.it.end == p.it.start:
 	case p.it.end >= len(p.fields):
-		p.fields = p.fields[:p.it.start]
+		// Remove the trailing comma if there are more than one fields
+		p.fields = bytes.TrimSuffix(p.fields[:p.it.start], []byte(","))
+
 	case p.it.start == 0:
 		p.fields = p.fields[p.it.end:]
 	default:

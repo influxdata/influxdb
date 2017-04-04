@@ -2182,6 +2182,10 @@ func TestPoint_FieldIterator_Delete_Begin(t *testing.T) {
 	if !reflect.DeepEqual(got, exp) {
 		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
 	}
+
+	if _, err = models.ParsePointsString(points[0].String()); err != nil {
+		t.Fatalf("Failed to parse point: %v", err)
+	}
 }
 
 func TestPoint_FieldIterator_Delete_Middle(t *testing.T) {
@@ -2202,6 +2206,10 @@ func TestPoint_FieldIterator_Delete_Middle(t *testing.T) {
 
 	if !reflect.DeepEqual(got, exp) {
 		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
+	}
+
+	if _, err = models.ParsePointsString(points[0].String()); err != nil {
+		t.Fatalf("Failed to parse point: %v", err)
 	}
 }
 
@@ -2225,6 +2233,10 @@ func TestPoint_FieldIterator_Delete_End(t *testing.T) {
 	if !reflect.DeepEqual(got, exp) {
 		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
 	}
+
+	if _, err = models.ParsePointsString(points[0].String()); err != nil {
+		t.Fatalf("Failed to parse point: %v", err)
+	}
 }
 
 func TestPoint_FieldIterator_Delete_Nothing(t *testing.T) {
@@ -2243,6 +2255,10 @@ func TestPoint_FieldIterator_Delete_Nothing(t *testing.T) {
 
 	if !reflect.DeepEqual(got, exp) {
 		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
+	}
+
+	if _, err = models.ParsePointsString(points[0].String()); err != nil {
+		t.Fatalf("Failed to parse point: %v", err)
 	}
 }
 
@@ -2265,6 +2281,10 @@ func TestPoint_FieldIterator_Delete_Twice(t *testing.T) {
 
 	if !reflect.DeepEqual(got, exp) {
 		t.Fatalf("Delete failed, got %#v, exp %#v", got, exp)
+	}
+
+	if _, err = models.ParsePointsString(points[0].String()); err != nil {
+		t.Fatalf("Failed to parse point: %v", err)
 	}
 }
 
