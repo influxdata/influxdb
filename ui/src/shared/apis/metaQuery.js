@@ -36,14 +36,14 @@ export function showMeasurements(source, db) {
 }
 
 export function showTagKeys({source, database, retentionPolicy, measurement}) {
-  const query = `SHOW TAG KEYS FROM "${measurement}"`
+  const query = `SHOW TAG KEYS FROM "${retentionPolicy}"."${measurement}"`
 
   return proxy({source, db: database, rp: retentionPolicy, query})
 }
 
 export function showTagValues({source, database, retentionPolicy, measurement, tagKeys}) {
   const keys = tagKeys.sort().map((k) => `"${k}"`).join(', ')
-  const query = `SHOW TAG VALUES FROM "${measurement}" WITH KEY IN (${keys})`
+  const query = `SHOW TAG VALUES FROM "${retentionPolicy}"."${measurement}" WITH KEY IN (${keys})`
 
   return proxy({source, db: database, rp: retentionPolicy, query})
 }
