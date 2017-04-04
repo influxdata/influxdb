@@ -672,8 +672,8 @@ func TestStore_Cardinality_Duplicates_TSI1(t *testing.T) {
 // Creates a large number of series in multiple shards, which will force
 // compactions to occur.
 func testStoreCardinalityCompactions(t *testing.T, store *Store) {
-	if testing.Short() || os.Getenv("GORACE") != "" {
-		t.Skip("Skipping test in short mode.")
+	if testing.Short() || os.Getenv("GORACE") != "" || os.Getenv("APPVEYOR") != "" {
+		t.Skip("Skipping test in short, race and appveyor mode.")
 	}
 
 	// Generate point data to write to the shards.
