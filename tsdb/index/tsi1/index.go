@@ -876,7 +876,6 @@ func (i *Index) compactGroup(files []*IndexFile) {
 		log.Printf("%s: error creating compaction files: %s", IndexName, err)
 		return
 	}
-	defer f.Close()
 
 	srcIDs := joinIntSlice(IndexFiles(files).IDs(), ",")
 	log.Printf("%s: performing full compaction: src=%s, path=%s", IndexName, srcIDs, path)
@@ -885,6 +884,7 @@ func (i *Index) compactGroup(files []*IndexFile) {
 	n, err := IndexFiles(files).WriteTo(f)
 	if err != nil {
 		log.Printf("%s: error compacting index files: src=%s, path=%s, err=%s", IndexName, srcIDs, path, err)
+		f.Close()
 		return
 	}
 
