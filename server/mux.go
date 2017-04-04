@@ -46,21 +46,23 @@ func NewMux(opts MuxOpts, service Service) http.Handler {
 	// Compress the assets with gzip if an accepted encoding
 	compressed := gziphandler.GzipHandler(prefixedAssets)
 
+	// The react application handles all the routing if the server does not
+	// know about the route.  This means that we never have unknown routes on
+	// the server.
+	hr.NotFound = compressed
+
+	var router chronograf.Router = hr
+
 	// Set route prefix for all routes if basepath is present
-	var router chronograf.Router
-	if opts.Basepath != "" && opts.PrefixRoutes {
+	if opts.PrefixRoutes {
 		router = &MountableRouter{
 			Prefix:   opts.Basepath,
 			Delegate: hr,
 		}
-		// The react application handles all the routing if the server does not
-		// know about the route.  This means that we never have unknown routes on
-		// the server. The assets handler is always unaware of basepaths, so the
+
+		//The assets handler is always unaware of basepaths, so the
 		// basepath needs to always be removed before sending requests to it
-		hr.NotFound = http.StripPrefix(opts.Basepath, compressed)
-	} else {
-		router = hr
-		hr.NotFound = compressed
+		hr.NotFound = http.StripPrefix(opts.Basepath, hr.NotFound)
 	}
 
 	/* Documentation */
