@@ -105,7 +105,7 @@ export const SourcePage = React.createClass({
 
   render() {
     const {source, editMode} = this.state
-    const {addFlashMessage, router, location, params} = this.props
+    const {addFlashMessage} = this.props
 
     if (editMode && !source.id) {
       return <div className="page-spinner"></div>
@@ -127,9 +127,6 @@ export const SourcePage = React.createClass({
             <div className="row">
               <div className="col-md-8 col-md-offset-2">
                 <SourceForm
-                  sourceID={params.sourceID}
-                  router={router}
-                  location={location}
                   source={source}
                   editMode={editMode}
                   addFlashMessage={addFlashMessage}
