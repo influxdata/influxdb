@@ -84,21 +84,25 @@ const ChronoTable = React.createClass({
         return
       }
 
+      // 200 from server and no results = warn
       if (_.isEmpty(results)) {
         this.setState({cellData: emptyCells})
         return onEditRawStatus(query.id, {warn: 'Your query is syntactically correct but returned no results'})
       }
 
+      // 200 from chrono server but influx returns an error = warn
       const warn = _.get(results, 'error', false)
       if (warn) {
         this.setState({cellData: emptyCells})
         return onEditRawStatus(query.id, {warn})
       }
 
+      // 200 from server and results contains data = success
       const cellData = _.get(results, ['series', '0'], {})
       onEditRawStatus(query.id, {success: 'Success!'})
       this.setState({cellData})
     } catch (error) {
+      // 400 from chrono server = fail
       const message = _.get(error, ['data', 'message'], error)
       this.setState({isLoading: false})
       console.error(message)
